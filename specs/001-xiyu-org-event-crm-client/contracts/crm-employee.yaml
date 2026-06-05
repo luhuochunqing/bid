@@ -1,0 +1,28 @@
+# CRM Employee API Contract
+
+## getEmployeeByToken
+POST /api/crm/employee/info
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+Request:
+  token: string   # employee token (opaque identifier from CRM)
+
+Response 200:
+  code: 0
+  msg: "success"
+  data:
+    employeeId: string
+    employeeName: string
+    department: string|null
+    position: string|null
+    mobile: string|null
+    email: string|null
+    status: string   # ACTIVE / INACTIVE
+  success: false
+
+Response 404:
+  code: 404
+  msg: "employee not found"
+  data: null
+  success: false

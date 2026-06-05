@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>投标管理平台 — 项目全生命周期业务流程图</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3B82F6',
+          }
+        }
+      }
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'default',
+      flowchart: { curve: 'basis', htmlLabels: true },
+      themeVariables: {
+        primaryColor: '#DBEAFE',
+        primaryTextColor: '#1E3A8A',
+        primaryBorderColor: '#3B82F6',
+        lineColor: '#6B7280',
+        secondaryColor: '#FEF3C7',
+        tertiaryColor: '#DCFCE7',
+      }
+    });
+    function updateMermaidTheme() {
+      const isDark = document.documentElement.classList.contains('dark');
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: isDark ? 'dark' : 'default'
+      });
+      document.querySelectorAll('.mermaid').forEach((el, i) => {
+        const src = el.getAttribute('data-src') || el.textContent;
+        el.setAttribute('data-src', src);
+        el.removeAttribute('data-processed');
+        el.innerHTML = src;
+      });
+      mermaid.run();
+    }
+  </script>
+  <style>
+    [x-cloak] { display: none !important; }
+    @media print {
+      .no-print { display: none !important; }
+      .print-break { page-break-before: always; }
+      body { background: white !important; color: black !important; }
+      .mermaid svg { max-width: 100% !important; height: auto !important; }
+    }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 min-h-screen">
+
+  <!-- Nav -->
+  <nav class="no-print sticky top-0 z-50 bg-white/80 dark:bg-gray-800/80 backdrop-blur border-b">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <h1 class="text-xl font-bold text-primary">投标管理平台 — 业务流程图</h1>
+        <span class="text-xs px-2 py-1 rounded bg-gray-200 dark:bg-gray-700">v1.0</span>
+        <span class="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">草稿</span>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="document.documentElement.classList.toggle('dark'); updateMermaidTheme()" class="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700" title="切换主题">🌓</button>
+        <button onclick="window.print()" class="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700" title="打印">🖨️</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Cover -->
+  <section class="text-center py-12 px-4 bg-gradient-to-b from-primary/10 to-transparent">
+    <div class="inline-block px-4 py-1 rounded-full bg-primary/10 text-primary text-sm mb-4">业务流程图 · v1.0</div>
+    <h1 class="text-3xl md:text-4xl font-bold mb-3">投标项目全生命周期 — 六阶段流程</h1>
+    <p class="text-lg text-gray-600 dark:text-gray-400 mb-6 max-w-2xl mx-auto">
+      从商机捕获（CRM / 标讯）到项目结项的完整业务流程
+    </p>
+    <div class="flex flex-wrap justify-center gap-4 text-sm text-gray-500">
+      <span>📅 2026-05-12</span>
+      <span>📁 docs/artifacts/</span>
+      <span>🎯 投标管理平台</span>
+    </div>
+  </section>
+
+  <main class="max-w-6xl mx-auto px-4 py-8 space-y-12">
+
+    <!-- 1. 主流程图 -->
+    <section>
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-1 h-8 bg-primary rounded"></div>
+        <h2 class="text-2xl font-bold">1. 主流程总览</h2>
+      </div>
+      <p class="text-gray-600 dark:text-gray-400 mb-6">
+        项目从两个入口（标讯 / CRM）进入立项阶段，依次流转六个核心阶段，最终归档结项。
+      </p>
+
+      <div class="bg-white dark:bg-gray-800 rounded-xl border p-6">
+        <div class="mermaid">
+graph TD
+    subgraph 入口["🚪 项目入口（两条路径）"]
+        A1[标讯监控系统<br/>抓取公开招标]
+        A2[CRM 商机管理系统<br/>客户跟进与孵化]
+    end
+
+    A1 --> B1{标讯评估}
+    B1 -->|评估通过| C[项目立项]
+    B1 -->|不通过| X1[归档/弃投]
+
+    A2 --> B2[商机推进至投标阶段]
+    B2 --> B3[CRM 一键触发<br/>『发起投标』按钮]
+    B3 -->|带客户字段<br/>跨系统传参| C
+
+    C --> D[标书制作]
+    D --> E1[评标中<br/>跟进开标进度]
+    E1 --> E2[结果确认<br/>中标/落标登记]
+    E2 --> G[项目复盘]
+    G --> H[项目结项]
+    H --> Y[归档库 / 知识沉淀]
+
+    style 入口 fill:#FEF3C7,stroke:#F59E0B,stroke-width:2px
+    style C fill:#DBEAFE,stroke:#3B82F6,stroke-width:2px
+    style D fill:#DBEAFE,stroke:#3B82F6,stroke-width:2px
+    style E1 fill:#DBEAFE,stroke:#3B82F6,stroke-width:2px
+    style E2 fill:#DBEAFE,stroke:#3B82F6,stroke-width:2px
+    style G fill:#DBEAFE,stroke:#3B82F6,stroke-width:2px
+    style H fill:#DBEAFE,stroke:#3B82F6,stroke-width:2px
+    style B1 fill:#FEE2E2,stroke:#EF4444
+    style B3 fill:#DCFCE7,stroke:#22C55E,stroke-width:2px
+    style Y fill:#F3F4F6,stroke:#9CA3AF
+    style X1 fill:#F3F4F6,stroke:#9CA3AF
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. 六阶段说明 -->
+    <section>
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-1 h-8 bg-primary rounded"></div>
+        <h2 class="text-2xl font-bold">2. 六阶段说明</h2>
+      </div>
+      <p class="text-gray-600 dark:text-gray-400 mb-6">
+        立项 → 标书制作 → 评标中 → 结果确认 → 项目复盘 → 项目结项，共 6 个阶段。
+      </p>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="bg-white dark:bg-gray-800 rounded-xl border p-5">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm">1</span>
+            <h3 class="font-semibold">项目立项</h3>
+          </div>
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            两个入口：标讯评估通过 / CRM 一键发起。建档、分配负责人、初步预算。
+          </p>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl border p-5">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm">2</span>
+            <h3 class="font-semibold">标书制作</h3>
+          </div>
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            技术 / 商务 / 资质三方协作，调用知识库 + AI 辅助起草，多轮评审。
+          </p>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl border p-5">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm">3</span>
+            <h3 class="font-semibold">评标中</h3>
+          </div>
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            跟进开标进度，记录答疑澄清、专家评审反馈，等待评标结果公示。
+          </p>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl border p-5">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm">4</span>
+            <h3 class="font-semibold">结果确认</h3>
+          </div>
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            收到中标/落标通知，登记结果、上传中标通知书、回写 CRM 商机状态。
+          </p>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl border p-5">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm">5</span>
+            <h3 class="font-semibold">项目复盘</h3>
+          </div>
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            中标 / 落标皆复盘：成败要素、报价合理性、流程改进点沉淀。
+          </p>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-xl border p-5">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm">6</span>
+            <h3 class="font-semibold">项目结项</h3>
+          </div>
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            归档全部材料、保证金 / 履约金回收、知识资产入库。
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. CRM 跨系统一键触发详细流程 -->
+    <section>
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-1 h-8 bg-primary rounded"></div>
+        <h2 class="text-2xl font-bold">3. CRM → 投标系统：一键触发流程</h2>
+      </div>
+      <p class="text-gray-600 dark:text-gray-400 mb-6">
+        重点画一下你提到的「CRM 点投标按钮 → 跨系统建项 + 带字段」这个核心衔接点。
+      </p>
+
+      <div class="bg-white dark:bg-gray-800 rounded-xl border p-6">
+        <div class="mermaid">
+sequenceDiagram
+    actor U as 销售/BD
+    participant CRM as CRM 商机系统
+    participant BUS as 跨系统总线<br/>(SSO + 字段映射)
+    participant BID as 投标管理平台
+    participant DB as 投标项目库
+
+    U->>CRM: 商机推进到「投标阶段」
+    U->>CRM: 点击『发起投标』按钮
+    CRM->>CRM: 校验商机数据完整性<br/>(客户/项目名/预算/截止日)
+    CRM->>BUS: POST /bid/intake<br/>{crm_opp_id, fields...}
+    BUS->>BUS: 字段映射 + 鉴权
+    BUS->>BID: 创建立项申请<br/>(预填字段)
+    BID->>DB: INSERT 投标项目<br/>状态=立项中
+    DB-->>BID: project_id
+    BID-->>BUS: 200 + project_url
+    BUS-->>CRM: 跳转 URL
+    CRM-->>U: 重定向到投标平台立项页<br/>(字段已带入)
+    U->>BID: 补充投标专属信息<br/>确认立项
+    BID->>CRM: 回写「已转投标」状态<br/>(异步)
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. 关键传递字段 -->
+    <section>
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-1 h-8 bg-primary rounded"></div>
+        <h2 class="text-2xl font-bold">4. CRM → 投标系统字段映射（建议）</h2>
+      </div>
+
+      <div class="overflow-x-auto rounded-lg border">
+        <table class="w-full text-sm bg-white dark:bg-gray-800">
+          <thead class="bg-gray-50 dark:bg-gray-900">
+            <tr>
+              <th class="px-4 py-3 text-left font-semibold">CRM 字段</th>
+              <th class="px-4 py-3 text-left font-semibold">投标系统字段</th>
+              <th class="px-4 py-3 text-left font-semibold">是否必填</th>
+              <th class="px-4 py-3 text-left font-semibold">说明</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+            <tr><td class="px-4 py-3">商机编号</td><td class="px-4 py-3">crm_opp_id</td><td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-red-100 text-red-800">必填</span></td><td class="px-4 py-3 text-gray-500">用于双向回写</td></tr>
+            <tr><td class="px-4 py-3">客户名称 / ID</td><td class="px-4 py-3">customer_name / customer_id</td><td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-red-100 text-red-800">必填</span></td><td class="px-4 py-3 text-gray-500">关联客户主数据</td></tr>
+            <tr><td class="px-4 py-3">项目名称</td><td class="px-4 py-3">project_name</td><td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-red-100 text-red-800">必填</span></td><td class="px-4 py-3 text-gray-500">可在立项页修改</td></tr>
+            <tr><td class="px-4 py-3">预算金额</td><td class="px-4 py-3">budget_amount</td><td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800">推荐</span></td><td class="px-4 py-3 text-gray-500">用于报价基线</td></tr>
+            <tr><td class="px-4 py-3">投标截止日</td><td class="px-4 py-3">bid_deadline</td><td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-red-100 text-red-800">必填</span></td><td class="px-4 py-3 text-gray-500">驱动节点排程</td></tr>
+            <tr><td class="px-4 py-3">销售负责人</td><td class="px-4 py-3">sales_owner</td><td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800">推荐</span></td><td class="px-4 py-3 text-gray-500">复用为项目联系人</td></tr>
+            <tr><td class="px-4 py-3">商机历史摘要</td><td class="px-4 py-3">opp_history_note</td><td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800">可选</span></td><td class="px-4 py-3 text-gray-500">复盘 / AI 起草参考</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 5. 阶段状态机 -->
+    <section>
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-1 h-8 bg-primary rounded"></div>
+        <h2 class="text-2xl font-bold">5. 项目状态机</h2>
+      </div>
+
+      <div class="bg-white dark:bg-gray-800 rounded-xl border p-6">
+        <div class="mermaid">
+stateDiagram-v2
+    [*] --> 立项中: 标讯通过 / CRM 触发
+    立项中 --> 标书制作: 立项审批通过
+    立项中 --> [*]: 弃投
+    标书制作 --> 评标中: 标书提交
+    标书制作 --> [*]: 弃投
+    评标中 --> 结果确认: 评标完成
+    结果确认 --> 已中标: 中标通知
+    结果确认 --> 未中标: 落标通知
+    已中标 --> 复盘中
+    未中标 --> 复盘中
+    复盘中 --> 已结项: 复盘完成
+    已结项 --> [*]
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="mt-16 py-8 border-t text-center text-sm text-gray-500">
+    <p>最后更新于 2026-05-12 | 投标管理平台业务流程图 v1.0</p>
+    <p class="mt-1">docs/artifacts/bid-project-lifecycle-flow-v1-20260512.html</p>
+  </footer>
+
+</body>
+</html>

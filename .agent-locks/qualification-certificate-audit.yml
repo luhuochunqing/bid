@@ -1,0 +1,9 @@
+version: 1
+task: qualification-certificate-audit
+locks:
+  - path: "src/router/index.js"
+    scope: file
+    owner: cursor
+    branch: cursor/qualification-certificate-audit
+    expiresAt: "2026-06-06T03:45:13.336Z"
+    reason: "fix(qualification): RBAC 按蓝图收紧资质路由权限 2026-06-05"

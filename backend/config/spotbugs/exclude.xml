@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+    <!--
+      Keep this file intentionally small.
+      SpotBugs is our real-risk blocker for the protected scope, so suppressions
+      should be rare, justified, and removed once the underlying code is fixed.
+    -->
+    <Match>
+        <Or>
+            <Class name="com.xiyu.bid.auth.OAuthStateService"/>
+            <Class name="com.xiyu.bid.auth.RedisTokenRevocationService"/>
+            <Class name="com.xiyu.bid.auth.JwtUtil"/>
+        </Or>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="com.xiyu.bid.auth.JwtUtil"/>
+        <Bug pattern="CT_CONSTRUCTOR_THROW"/>
+    </Match>
+</FindBugsFilter>

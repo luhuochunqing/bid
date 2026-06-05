@@ -1,0 +1,107 @@
+<view class="container">
+  <!-- 加载状态 -->
+  <view class="loading" wx:if="{{loading}}">
+    <text>加载中...</text>
+  </view>
+
+  <!-- 详情内容 -->
+  <view class="detail-content" wx:if="{{!loading && tender}}">
+    <!-- 基本信息 -->
+    <view class="section">
+      <view class="section-header">
+        <text class="section-title">基本信息</text>
+        <text class="tender-status status-{{tender.status}}">{{tender.statusText}}</text>
+      </view>
+
+      <view class="info-grid">
+        <view class="info-item">
+          <text class="info-label">标讯标题</text>
+          <text class="info-value">{{tender.title}}</text>
+        </view>
+        <view class="info-item">
+          <text class="info-label">业主单位</text>
+          <text class="info-value">{{tender.purchaserName || '-'}}</text>
+        </view>
+        <view class="info-item">
+          <text class="info-label">招标代理</text>
+          <text class="info-value">{{tender.tenderAgency || '-'}}</text>
+        </view>
+        <view class="info-item">
+          <text class="info-label">预算金额</text>
+          <text class="info-value">{{tender.budget ? tender.budget + '万元' : '-'}}</text>
+        </view>
+        <view class="info-item">
+          <text class="info-label">项目地区</text>
+          <text class="info-value">{{tender.region || '-'}}</text>
+        </view>
+        <view class="info-item">
+          <text class="info-label">行业类型</text>
+          <text class="info-value">{{tender.industry || '-'}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 时间信息 -->
+    <view class="section">
+      <text class="section-title">时间安排</text>
+      <view class="info-grid">
+        <view class="info-item">
+          <text class="info-label">发布时间</text>
+          <text class="info-value">{{tender.publishDate || '-'}}</text>
+        </view>
+        <view class="info-item">
+          <text class="info-label">报名截止</text>
+          <text class="info-value deadline">{{tender.deadline || '-'}}</text>
+        </view>
+        <view class="info-item">
+          <text class="info-label">开标时间</text>
+          <text class="info-value">{{tender.bidOpeningTime || '-'}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 商机预测 -->
+    <view class="section" wx:if="{{prediction}}">
+      <text class="section-title">商机预测</text>
+      <view class="prediction-card">
+        <view class="prediction-header">
+          <text class="prediction-label">预计下次招标</text>
+          <text class="prediction-confidence">置信度 {{prediction.confidence}}%</text>
+        </view>
+        <text class="prediction-date">{{prediction.nextTenderDate}}</text>
+        <text class="prediction-note">{{prediction.note}}</text>
+      </view>
+    </view>
+
+    <!-- AI分析 -->
+    <view class="section" wx:if="{{tender.aiScore}}">
+      <text class="section-title">AI分析</text>
+      <view class="ai-score-card">
+        <view class="ai-score-main">
+          <text class="score-value">{{tender.aiScore}}</text>
+          <text class="score-label">AI评分</text>
+        </view>
+        <view class="ai-risk">
+          <text class="risk-label">风险等级</text>
+          <text class="risk-value risk-{{tender.riskLevel}}">{{tender.riskLevelText}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 描述 -->
+    <view class="section" wx:if="{{tender.description}}">
+      <text class="section-title">标讯描述</text>
+      <text class="description">{{tender.description}}</text>
+    </view>
+
+    <!-- 操作按钮 -->
+    <view class="action-bar">
+      <button class="action-btn secondary" bindtap="onToggleFavorite">
+        {{tender.isFavorite ? '取消收藏' : '收藏'}}
+      </button>
+      <button class="action-btn primary" bindtap="onBid" wx:if="{{tender.status === 'TRACKING'}}">
+        投标
+      </button>
+    </view>
+  </view>
+</view>

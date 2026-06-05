@@ -1,0 +1,50 @@
+version: 1
+# DEPRECATED — new locks should go to .agent-locks/<task-slug>.yml (per-task files).
+# This single file is kept readable for backwards compatibility with existing locks
+# and remote-branch scans. `npm run agent:lock-acquire` writes to per-task files now;
+# `npm run agent:lock-check` reads union of legacy + per-task. See CLAUDE.md §5.
+#
+# Why: a single shared lock file caused near-constant rebase conflicts when
+# multiple agents ran in parallel. Per-task files mean new tasks = new files = no
+# conflicts. Existing entries here will age out via the daily janitor.
+locks:
+- path: src/router/index.js
+  scope: file
+  reason: 标讯详情页 bug 修复 - 修改路由
+  owner: claude
+  branch: 015-bidding-detail-bugfix
+- path: src/views/Bidding/detail/actionMatrix.js
+  scope: file
+  reason: 底部按钮矩阵修改
+  owner: claude
+  branch: 015-bidding-detail-bugfix
+- path: src/views/Bidding/detail/DetailPage.vue
+  scope: file
+  reason: 详情页模板修改
+  owner: claude
+  branch: 015-bidding-detail-bugfix
+- path: src/components/layout/Header.vue
+  scope: file
+  reason: 移除收藏菜单
+  owner: claude
+  branch: 015-bidding-detail-bugfix
+- path: src/views/Bidding/list/components/TenderTable.vue
+  scope: file
+  reason: 移除收藏列
+  owner: claude
+  branch: 015-bidding-detail-bugfix
+- path: src/views/Bidding/List.vue
+  scope: file
+  reason: 移除收藏逻辑
+  owner: claude
+  branch: 015-bidding-detail-bugfix
+- path: src/views/Bidding/detail/styles/detail-layout.css
+  scope: file
+  reason: 元信息网格布局调整
+  owner: claude
+  branch: 015-bidding-detail-bugfix
+- path: src/router/index.js
+  scope: file
+  reason: "fix(qualification): RBAC 按蓝图收紧资质路由权限 2026-06-05"
+  owner: cursor
+  branch: cursor-qualification-certificate-audit

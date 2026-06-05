@@ -1,0 +1,26 @@
+@import '../../../../styles/variables.css';
+
+@media (max-width: 768px) {
+  .bidding-list-page {
+    padding: 0;
+  }
+
+  .card-actions .el-radio-group {
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 2px;
+  }
+
+  .card-actions .el-radio-button {
+    flex: 0 0 auto;
+  }
+
+  .mobile-card-actions .el-button {
+    flex: 1 1 96px;
+  }
+
+  .pagination-wrapper {
+    justify-content: center;
+  }
+}

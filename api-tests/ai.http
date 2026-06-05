@@ -1,0 +1,49 @@
+### ==========================================
+### AI 能力模块 API 测试
+### ==========================================
+
+### 0. 获取 Token
+# @name login
+POST http://localhost:18081/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "XiyuAdmin2026!"
+}
+
+@token = {{login.response.body.data.token}}
+
+### 1. 正常流程：获取 AI 配置
+GET http://localhost:18081/api/settings
+Authorization: Bearer {{token}}
+
+### 2. 正常流程：测试 AI 连接
+POST http://localhost:18081/api/settings/ai-models/test
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "provider": "openai",
+  "model": "gpt-4"
+}
+
+### 3. 正常流程：获取 AI 分析
+GET http://localhost:18081/api/tenders/1/match-score/evaluate
+Authorization: Bearer {{token}}
+
+### 4. 正常流程：AI 评分历史
+GET http://localhost:18081/api/tenders/1/match-score/history
+Authorization: Bearer {{token}}
+
+### 5. 正常流程：AI 最新评分
+GET http://localhost:18081/api/tenders/1/match-score/latest
+Authorization: Bearer {{token}}
+
+### 6. 正常流程：知识库搜索（AI 方案检索用）
+GET http://localhost:18081/api/knowledge/cases?page=0&pageSize=20
+Authorization: Bearer {{token}}
+
+### 7. 边界：不存在的标讯 AI 分析
+GET http://localhost:18081/api/tenders/999999/match-score/evaluate
+Authorization: Bearer {{token}}

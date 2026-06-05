@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: xiyu-bid-poc-flyway-mysql-test
+
+  cache:
+    type: simple
+
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration-mysql
+    baseline-on-migrate: false
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 15
+
+  jackson:
+    default-property-inclusion: non_null
+
+jwt:
+  secret: test-secret-key-for-jwt-token-generation-and-validation
+  expiration: 3600000
+  refresh-expiration: 7200000
+
+app:
+  tender-processing:
+    worker-enabled: false
+
+logging:
+  level:
+    com.xiyu: WARN
+    org.springframework.security: WARN

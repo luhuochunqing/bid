@@ -1,0 +1,3 @@
+-- Input: V1032__warehouse_missing_columns_and_tables.sql
+-- Rollback for V1032__warehouse_missing_columns_and_tables.sql
+-- No-op rollback: placeholder (manual review required)

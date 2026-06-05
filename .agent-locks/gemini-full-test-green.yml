@@ -1,0 +1,15 @@
+version: 1
+task: "gemini-full-test-green"
+locks:
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1040__fix_missing_check_type_column.sql"
+    scope: "file"
+    owner: "fix"
+    branch: "fix/gemini-full-test-green"
+    expiresAt: "2026-06-06T16:20:16.089Z"
+    reason: "fix rollback script header"
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1045__add_source_project_name_to_case_reference_records.sql"
+    scope: "file"
+    owner: "fix"
+    branch: "fix/gemini-full-test-green"
+    expiresAt: "2026-06-06T16:20:16.442Z"
+    reason: "fix rollback script header"

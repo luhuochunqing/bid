@@ -1,0 +1,88 @@
+### ==========================================
+### 系统设置模块 API 测试
+### ==========================================
+
+### 0. 获取 Token（管理员）
+# @name login
+POST http://localhost:18081/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "XiyuAdmin2026!"
+}
+
+@token = {{login.response.body.data.token}}
+
+### 1. 正常流程：获取系统设置
+GET http://localhost:18081/api/settings
+Authorization: Bearer {{token}}
+
+### 2. 正常流程：更新系统设置
+PUT http://localhost:18081/api/settings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "systemConfig": {
+    "enableAI": true
+  }
+}
+
+### 3. 正常流程：获取所有用户
+GET http://localhost:18081/api/admin/users?page=0&size=20
+Authorization: Bearer {{token}}
+
+### 4. 正常流程：获取角色列表
+GET http://localhost:18081/api/admin/roles
+Authorization: Bearer {{token}}
+
+### 5. 正常流程：创建角色
+POST http://localhost:18081/api/admin/roles
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "code": "API_TEST_ROLE",
+  "name": "API测试角色",
+  "description": "通过API创建的测试角色",
+  "dataScope": "SELF",
+  "menuPermissions": ["dashboard", "project"]
+}
+
+### 6. 正常流程：获取接口权限矩阵
+GET http://localhost:18081/api/admin/permissions/endpoints
+Authorization: Bearer {{token}}
+
+### 7. 正常流程：获取数据范围配置
+GET http://localhost:18081/api/admin/settings/data-scope
+Authorization: Bearer {{token}}
+
+### 8. 正常流程：保存部门树
+PUT http://localhost:18081/api/admin/settings/departments
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+[
+  {"id":1,"name":"市场部","parentId":null,"sort":1},
+  {"id":2,"name":"技术部","parentId":null,"sort":2}
+]
+
+### 9. 边界：非管理员访问设置
+# @name staffLogin
+POST http://localhost:18081/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "xiaowang",
+  "password": "123456"
+}
+
+@staffToken = {{staffLogin.response.body.data.token}}
+
+GET http://localhost:18081/api/settings
+Authorization: Bearer {{staffToken}}
+
+### 10. 边界：不存在的角色 ID
+GET http://localhost:18081/api/admin/roles/999999
+Authorization: Bearer {{token}}

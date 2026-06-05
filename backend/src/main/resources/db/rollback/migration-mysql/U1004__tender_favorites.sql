@@ -1,0 +1,3 @@
+-- Input: V1004__tender_favorites.sql
+-- Rollback for V1004__tender_favorites.sql
+-- No-op rollback: placeholder (manual review required)

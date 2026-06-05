@@ -1,0 +1,341 @@
+package com.xiyu.bid.alerts;
+
+import com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest;
+import com.xiyu.bid.alerts.entity.AlertHistory;
+import com.xiyu.bid.alerts.entity.AlertRule;
+import com.xiyu.bid.alerts.repository.AlertHistoryRepository;
+import com.xiyu.bid.alerts.repository.AlertRuleRepository;
+import com.xiyu.bid.alerts.service.AlertHistoryService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+@DisplayName("AlertHistoryService 单元测试")
+class AlertHistoryServiceTest {
+
+    @Mock
+    private AlertHistoryRepository alertHistoryRepository;
+
+    @Mock
+    private AlertRuleRepository alertRuleRepository;
+
+    @InjectMocks
+    private AlertHistoryService alertHistoryService;
+
+    private AlertHistory testAlertHistory;
+    private AlertRule testRule;
+
+    @BeforeEach
+    void setUp() {
+        testRule = AlertRule.builder()
+                .id(1L)
+                .name("Budget Alert Rule")
+                .type(AlertRule.AlertType.BUDGET)
+                .condition(AlertRule.ConditionType.GREATER_THAN)
+                .threshold(new java.math.BigDecimal("10000.00"))
+                .enabled(true)
+                .createdBy("admin")
+                .build();
+
+        testAlertHistory = AlertHistory.builder()
+                .id(1L)
+                .ruleId(1L)
+                .level(AlertHistory.AlertLevel.HIGH)
+                .message("Budget exceeded threshold")
+                .relatedId("100")
+                .createdAt(LocalDateTime.now())
+                .resolved(false)
+                .build();
+    }
+
+    @Test
+    @DisplayName("应该成功创建预警历史记录")
+    void shouldCreateAlertHistorySuccessfully() {
+        // Given
+        AlertHistoryCreateRequest request = new AlertHistoryCreateRequest();
+        request.setRuleId(1L);
+        request.setLevel(AlertHistory.AlertLevel.HIGH);
+        request.setMessage("Budget exceeded threshold");
+        request.setRelatedId("100");
+
+        when(alertRuleRepository.findById(1L)).thenReturn(Optional.of(testRule));
+        when(alertHistoryRepository.save(any(AlertHistory.class))).thenReturn(testAlertHistory);
+
+        // When
+        AlertHistory result = alertHistoryService.createAlertHistory(request);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getRuleId()).isEqualTo(1L);
+        assertThat(result.getLevel()).isEqualTo(AlertHistory.AlertLevel.HIGH);
+        verify(alertHistoryRepository, times(1)).save(any(AlertHistory.class));
+    }
+
+    @Test
+    @DisplayName("应该成功获取预警历史记录通过ID")
+    void shouldGetAlertHistoryByIdSuccessfully() {
+        // Given
+        when(alertHistoryRepository.findById(1L)).thenReturn(Optional.of(testAlertHistory));
+
+        // When
+        AlertHistory result = alertHistoryService.getAlertHistoryById(1L);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(1L);
+        verify(alertHistoryRepository, times(1)).findById(1L);
+    }
+
+    @Test
+    @DisplayName("当预警历史记录不存在时应该抛出异常")
+    void shouldThrowExceptionWhenAlertHistoryNotFound() {
+        // Given
+        when(alertHistoryRepository.findById(999L)).thenReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> alertHistoryService.getAlertHistoryById(999L))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("AlertHistory not found");
+        verify(alertHistoryRepository, times(1)).findById(999L);
+    }
+
+    @Test
+    @DisplayName("应该成功获取所有预警历史记录")
+    void shouldGetAllAlertHistoriesSuccessfully() {
+        // Given
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<AlertHistory> historyPage = new PageImpl<>(List.of(testAlertHistory));
+        when(alertHistoryRepository.findAll(pageable)).thenReturn(historyPage);
+
+        // When
+        Page<AlertHistory> result = alertHistoryService.getAllAlertHistories(pageable);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getId()).isEqualTo(1L);
+        verify(alertHistoryRepository, times(1)).findAll(pageable);
+    }
+
+    @Test
+    @DisplayName("应该成功根据规则ID获取预警历史记录")
+    void shouldGetAlertHistoriesByRuleIdSuccessfully() {
+        // Given
+        Long ruleId = 1L;
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<AlertHistory> historyPage = new PageImpl<>(List.of(testAlertHistory));
+        when(alertHistoryRepository.findByRuleId(ruleId, pageable)).thenReturn(historyPage);
+
+        // When
+        Page<AlertHistory> result = alertHistoryService.getAlertHistoriesByRuleId(ruleId, pageable);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getRuleId()).isEqualTo(ruleId);
+        verify(alertHistoryRepository, times(1)).findByRuleId(ruleId, pageable);
+    }
+
+    @Test
+    @DisplayName("应该成功根据级别获取预警历史记录")
+    void shouldGetAlertHistoriesByLevelSuccessfully() {
+        // Given
+        AlertHistory.AlertLevel level = AlertHistory.AlertLevel.HIGH;
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<AlertHistory> historyPage = new PageImpl<>(List.of(testAlertHistory));
+        when(alertHistoryRepository.findByLevel(level, pageable)).thenReturn(historyPage);
+
+        // When
+        Page<AlertHistory> result = alertHistoryService.getAlertHistoriesByLevel(level, pageable);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getLevel()).isEqualTo(level);
+        verify(alertHistoryRepository, times(1)).findByLevel(level, pageable);
+    }
+
+    @Test
+    @DisplayName("应该成功获取未解决的预警历史记录")
+    void shouldGetUnresolvedAlertHistoriesSuccessfully() {
+        // Given
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<AlertHistory> historyPage = new PageImpl<>(List.of(testAlertHistory));
+        when(alertHistoryRepository.findByResolvedFalse(pageable)).thenReturn(historyPage);
+
+        // When
+        Page<AlertHistory> result = alertHistoryService.getUnresolvedAlertHistories(pageable);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).isResolved()).isFalse();
+        verify(alertHistoryRepository, times(1)).findByResolvedFalse(pageable);
+    }
+
+    @Test
+    @DisplayName("应该成功解决预警历史记录")
+    void shouldResolveAlertHistorySuccessfully() {
+        // Given
+        when(alertHistoryRepository.findById(1L)).thenReturn(Optional.of(testAlertHistory));
+        when(alertHistoryRepository.save(any(AlertHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // When
+        AlertHistory result = alertHistoryService.resolveAlertHistory(1L);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.isResolved()).isTrue();
+        assertThat(result.getResolvedAt()).isNotNull();
+        verify(alertHistoryRepository, times(1)).findById(1L);
+        verify(alertHistoryRepository, times(1)).save(any(AlertHistory.class));
+    }
+
+    @Test
+    @DisplayName("应该成功根据日期范围获取预警历史记录")
+    void shouldGetAlertHistoriesByDateRangeSuccessfully() {
+        // Given
+        LocalDateTime startDate = LocalDateTime.now().minusDays(7);
+        LocalDateTime endDate = LocalDateTime.now();
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<AlertHistory> historyPage = new PageImpl<>(List.of(testAlertHistory));
+        when(alertHistoryRepository.findByCreatedAtBetween(startDate, endDate, pageable))
+                .thenReturn(historyPage);
+
+        // When
+        Page<AlertHistory> result = alertHistoryService.getAlertHistoriesByDateRange(startDate, endDate, pageable);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        verify(alertHistoryRepository, times(1)).findByCreatedAtBetween(startDate, endDate, pageable);
+    }
+
+    @Test
+    @DisplayName("应该拒绝创建空消息的预警历史记录")
+    void shouldRejectAlertHistoryWithEmptyMessage() {
+        // Given
+        AlertHistoryCreateRequest request = new AlertHistoryCreateRequest();
+        request.setRuleId(1L);
+        request.setLevel(AlertHistory.AlertLevel.HIGH);
+        request.setMessage("");
+        request.setRelatedId("100");
+
+        when(alertRuleRepository.findById(1L)).thenReturn(Optional.of(testRule));
+
+        // When & Then
+        assertThatThrownBy(() -> alertHistoryService.createAlertHistory(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Message is required");
+        verify(alertHistoryRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("应该拒绝创建不存在规则ID的预警历史记录")
+    void shouldRejectAlertHistoryWithNonExistentRuleId() {
+        // Given
+        AlertHistoryCreateRequest request = new AlertHistoryCreateRequest();
+        request.setRuleId(999L);
+        request.setLevel(AlertHistory.AlertLevel.HIGH);
+        request.setMessage("Test message");
+
+        when(alertRuleRepository.findById(999L)).thenReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> alertHistoryService.createAlertHistory(request))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("AlertRule not found");
+        verify(alertHistoryRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("应该拒绝创建空级别的预警历史记录")
+    void shouldRejectAlertHistoryWithNullLevel() {
+        // Given
+        AlertHistoryCreateRequest request = new AlertHistoryCreateRequest();
+        request.setRuleId(1L);
+        request.setLevel(null);
+        request.setMessage("Test message");
+
+        when(alertRuleRepository.findById(1L)).thenReturn(Optional.of(testRule));
+
+        // When & Then
+        assertThatThrownBy(() -> alertHistoryService.createAlertHistory(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Level is required");
+        verify(alertHistoryRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("应该成功获取预警统计")
+    void shouldGetAlertStatisticsSuccessfully() {
+        // Given
+        when(alertHistoryRepository.count()).thenReturn(100L);
+        when(alertHistoryRepository.countByResolvedFalse()).thenReturn(30L);
+        when(alertHistoryRepository.countByLevel(AlertHistory.AlertLevel.HIGH)).thenReturn(10L);
+        when(alertHistoryRepository.countByLevel(AlertHistory.AlertLevel.MEDIUM)).thenReturn(20L);
+        when(alertHistoryRepository.countByLevel(AlertHistory.AlertLevel.LOW)).thenReturn(40L);
+
+        // When
+        var statistics = alertHistoryService.getAlertStatistics();
+
+        // Then
+        assertThat(statistics).isNotNull();
+        assertThat(statistics.getTotalAlerts()).isEqualTo(100L);
+        assertThat(statistics.getUnresolvedAlerts()).isEqualTo(30L);
+        verify(alertHistoryRepository, times(1)).count();
+        verify(alertHistoryRepository, times(1)).countByResolvedFalse();
+    }
+
+    @Test
+    @DisplayName("应该成功根据关联ID获取预警历史记录")
+    void shouldGetAlertHistoriesByRelatedIdSuccessfully() {
+        // Given
+        String relatedId = "100";
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<AlertHistory> historyPage = new PageImpl<>(List.of(testAlertHistory));
+        when(alertHistoryRepository.findByRelatedId(relatedId, pageable)).thenReturn(historyPage);
+
+        // When
+        Page<AlertHistory> result = alertHistoryService.getAlertHistoriesByRelatedId(relatedId, pageable);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getRelatedId()).isEqualTo(relatedId);
+        verify(alertHistoryRepository, times(1)).findByRelatedId(relatedId, pageable);
+    }
+
+    @Test
+    @DisplayName("应该成功批量删除旧的已解决预警历史记录")
+    void shouldDeleteOldResolvedAlertHistoriesSuccessfully() {
+        // Given
+        LocalDateTime cutoffDate = LocalDateTime.now().minusDays(30);
+        when(alertHistoryRepository.deleteByResolvedTrueAndResolvedAtBefore(cutoffDate)).thenReturn(50);
+
+        // When
+        int deletedCount = alertHistoryService.deleteOldResolvedAlertHistories(cutoffDate);
+
+        // Then
+        assertThat(deletedCount).isEqualTo(50);
+        verify(alertHistoryRepository, times(1)).deleteByResolvedTrueAndResolvedAtBefore(cutoffDate);
+    }
+}

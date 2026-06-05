@@ -1,0 +1,76 @@
+### ==========================================
+### 系统集成 API 测试
+### ==========================================
+
+### 0. 获取 Token（管理员）
+# @name login
+POST http://localhost:18081/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "XiyuAdmin2026!"
+}
+
+@token = {{login.response.body.data.token}}
+
+### 1. 正常流程：获取集成配置
+GET http://localhost:18081/api/settings
+Authorization: Bearer {{token}}
+
+### 2. 正常流程：保存集成配置
+PUT http://localhost:18081/api/settings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "integrationConfig": {
+    "wecomCorpId": "ww_test",
+    "wecomAgentId": "1000001",
+    "wecomSecret": "test_secret",
+    "orgEnabled": false
+  }
+}
+
+### 3. 正常流程：审计日志列表
+GET http://localhost:18081/api/audit?page=0&size=10&sort=createdAt,desc
+Authorization: Bearer {{token}}
+
+### 4. 正常流程：审计日志搜索
+GET http://localhost:18081/api/audit?keyword=登录&page=0&size=5
+Authorization: Bearer {{token}}
+
+### 5. 正常流程：审计日志按模块筛选
+GET http://localhost:18081/api/audit?module=PROJECT&page=0&size=5
+Authorization: Bearer {{token}}
+
+### 6. 正常流程：个人操作日志
+GET http://localhost:18081/api/audit/my?page=0&size=5
+Authorization: Bearer {{token}}
+
+### 7. 边界：非 auditor 访问审计日志
+# @name staffLogin
+POST http://localhost:18081/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "xiaowang",
+  "password": "123456"
+}
+
+@staffToken = {{staffLogin.response.body.data.token}}
+
+GET http://localhost:18081/api/audit?page=0&size=1
+Authorization: Bearer {{staffToken}}
+
+### 8. 正常流程：通知列表
+GET http://localhost:18081/api/notifications?page=0&size=10
+Authorization: Bearer {{token}}
+
+### 9. 正常流程：未读通知数
+GET http://localhost:18081/api/notifications/unread-count
+Authorization: Bearer {{token}}
+
+### 10. 边界：空审计日志日期范围
+GET http://localhost:18081/api/audit?startDate=2099-01-01&endDate=2099-12-31
+Authorization: Bearer {{token}}

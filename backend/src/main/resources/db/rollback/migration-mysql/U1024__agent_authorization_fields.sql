@@ -1,0 +1,3 @@
+-- Input: V1024__agent_authorization_fields.sql
+-- Rollback for V1024__agent_authorization_fields.sql
+-- No-op rollback: placeholder (manual review required)

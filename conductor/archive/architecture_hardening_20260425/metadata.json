@@ -1,0 +1,8 @@
+{
+  "track_id": "architecture_hardening_20260425",
+  "type": "refactor",
+  "status": "new",
+  "created_at": "2026-04-25T09:30:00Z",
+  "updated_at": "2026-04-25T09:30:00Z",
+  "description": "Architecture & Robustness Hardening: Resolve VisibilityModifier and Import violations."
+}

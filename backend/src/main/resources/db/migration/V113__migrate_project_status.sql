@@ -1,0 +1,12 @@
+-- V113: 扩展 projects.status 列宽度，支持 8 值项目状态枚举（PENDING_INITIATION = 19 字符）
+-- 旧值(6): INITIATED/PREPARING/REVIEWING/SEALING/BIDDING/ARCHIVED
+-- 新值(8): PENDING_INITIATION/INITIATED/BIDDING/EVALUATING/WON/LOST/FAILED/ABANDONED
+
+-- Step 1: 迁移旧值到新值
+UPDATE projects SET status = 'BIDDING'    WHERE status = 'PREPARING';
+UPDATE projects SET status = 'EVALUATING' WHERE status = 'REVIEWING';
+UPDATE projects SET status = 'BIDDING'    WHERE status = 'SEALING';
+UPDATE projects SET status = 'WON'        WHERE status = 'ARCHIVED';
+
+-- Step 2: 扩展列宽度（容纳 PENDING_INITIATION = 19 字符）
+ALTER TABLE projects MODIFY COLUMN status VARCHAR(32) NOT NULL;

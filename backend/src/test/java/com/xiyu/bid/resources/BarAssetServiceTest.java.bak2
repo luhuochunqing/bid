@@ -1,0 +1,430 @@
+package com.xiyu.bid.resources;
+
+import com.xiyu.bid.resources.entity.BarAsset;
+import com.xiyu.bid.resources.repository.BarAssetRepository;
+import com.xiyu.bid.resources.service.BarAssetService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+@DisplayName("BarAssetService 单元测试")
+class BarAssetServiceTest {
+
+    @Mock
+    private BarAssetRepository barAssetRepository;
+
+    @InjectMocks
+    private BarAssetService barAssetService;
+
+    private BarAsset testAsset;
+
+    @BeforeEach
+    void setUp() {
+        testAsset = BarAsset.builder()
+                .id(1L)
+                .name("Test Equipment")
+                .type(BarAsset.AssetType.EQUIPMENT)
+                .value(new BigDecimal("50000.00"))
+                .status(BarAsset.AssetStatus.AVAILABLE)
+                .acquireDate(LocalDate.now().minusMonths(6))
+                .remark("Test equipment for operations")
+                .build();
+    }
+
+    @Test
+    @DisplayName("应该成功创建酒吧资产记录")
+    void shouldCreateBarAssetSuccessfully() {
+        // Given
+        BarAssetCreateRequest request = new BarAssetCreateRequest();
+        request.setName("Test Equipment");
+        request.setType(BarAsset.AssetType.EQUIPMENT);
+        request.setValue(new BigDecimal("50000.00"));
+        request.setStatus(BarAsset.AssetStatus.AVAILABLE);
+        request.setAcquireDate(LocalDate.now().minusMonths(6));
+        request.setRemark("Test equipment");
+
+        when(barAssetRepository.save(any(BarAsset.class))).thenReturn(testAsset);
+
+        // When
+        BarAsset result = barAssetService.createBarAsset(request);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getName()).isEqualTo("Test Equipment");
+        assertThat(result.getType()).isEqualTo(BarAsset.AssetType.EQUIPMENT);
+        verify(barAssetRepository, times(1)).save(any(BarAsset.class));
+    }
+
+    @Test
+    @DisplayName("应该成功获取酒吧资产记录通过ID")
+    void shouldGetBarAssetByIdSuccessfully() {
+        // Given
+        when(barAssetRepository.findById(1L)).thenReturn(Optional.of(testAsset));
+
+        // When
+        BarAsset result = barAssetService.getBarAssetById(1L);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(1L);
+        verify(barAssetRepository, times(1)).findById(1L);
+    }
+
+    @Test
+    @DisplayName("当酒吧资产记录不存在时应该抛出异常")
+    void shouldThrowExceptionWhenBarAssetNotFound() {
+        // Given
+        when(barAssetRepository.findById(999L)).thenReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> barAssetService.getBarAssetById(999L))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("BarAsset not found");
+        verify(barAssetRepository, times(1)).findById(999L);
+    }
+
+    @Test
+    @DisplayName("应该成功获取所有酒吧资产记录")
+    void shouldGetAllBarAssetsSuccessfully() {
+        // Given
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<BarAsset> assetPage = new PageImpl<>(List.of(testAsset));
+        when(barAssetRepository.findAll(pageable)).thenReturn(assetPage);
+
+        // When
+        Page<BarAsset> result = barAssetService.getAllBarAssets(pageable);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getId()).isEqualTo(1L);
+        verify(barAssetRepository, times(1)).findAll(pageable);
+    }
+
+    @Test
+    @DisplayName("应该成功根据类型获取酒吧资产记录")
+    void shouldGetBarAssetsByTypeSuccessfully() {
+        // Given
+        BarAsset.AssetType type = BarAsset.AssetType.EQUIPMENT;
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<BarAsset> assetPage = new PageImpl<>(List.of(testAsset));
+        when(barAssetRepository.findByType(type, pageable)).thenReturn(assetPage);
+
+        // When
+        Page<BarAsset> result = barAssetService.getBarAssetsByType(type, pageable);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getType()).isEqualTo(type);
+        verify(barAssetRepository, times(1)).findByType(type, pageable);
+    }
+
+    @Test
+    @DisplayName("应该成功根据状态获取酒吧资产记录")
+    void shouldGetBarAssetsByStatusSuccessfully() {
+        // Given
+        BarAsset.AssetStatus status = BarAsset.AssetStatus.AVAILABLE;
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<BarAsset> assetPage = new PageImpl<>(List.of(testAsset));
+        when(barAssetRepository.findByStatus(status, pageable)).thenReturn(assetPage);
+
+        // When
+        Page<BarAsset> result = barAssetService.getBarAssetsByStatus(status, pageable);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getStatus()).isEqualTo(status);
+        verify(barAssetRepository, times(1)).findByStatus(status, pageable);
+    }
+
+    @Test
+    @DisplayName("应该成功根据价值范围获取酒吧资产记录")
+    void shouldGetBarAssetsByValueRangeSuccessfully() {
+        // Given
+        BigDecimal minValue = new BigDecimal("10000.00");
+        BigDecimal maxValue = new BigDecimal("100000.00");
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<BarAsset> assetPage = new PageImpl<>(List.of(testAsset));
+        when(barAssetRepository.findByValueBetween(minValue, maxValue, pageable))
+                .thenReturn(assetPage);
+
+        // When
+        Page<BarAsset> result = barAssetService.getBarAssetsByValueRange(minValue, maxValue, pageable);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        verify(barAssetRepository, times(1)).findByValueBetween(minValue, maxValue, pageable);
+    }
+
+    @Test
+    @DisplayName("应该成功更新酒吧资产记录")
+    void shouldUpdateBarAssetSuccessfully() {
+        // Given
+        BarAssetUpdateRequest request = new BarAssetUpdateRequest();
+        request.setName("Updated Equipment");
+        request.setValue(new BigDecimal("60000.00"));
+        request.setStatus(BarAsset.AssetStatus.IN_USE);
+
+        when(barAssetRepository.findById(1L)).thenReturn(Optional.of(testAsset));
+        when(barAssetRepository.save(any(BarAsset.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // When
+        BarAsset result = barAssetService.updateBarAsset(1L, request);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getName()).isEqualTo("Updated Equipment");
+        assertThat(result.getValue()).isEqualByComparingTo("60000.00");
+        assertThat(result.getStatus()).isEqualTo(BarAsset.AssetStatus.IN_USE);
+        verify(barAssetRepository, times(1)).findById(1L);
+        verify(barAssetRepository, times(1)).save(any(BarAsset.class));
+    }
+
+    @Test
+    @DisplayName("应该成功删除酒吧资产记录")
+    void shouldDeleteBarAssetSuccessfully() {
+        // Given
+        when(barAssetRepository.existsById(1L)).thenReturn(true);
+        doNothing().when(barAssetRepository).deleteById(1L);
+
+        // When
+        barAssetService.deleteBarAsset(1L);
+
+        // Then
+        verify(barAssetRepository, times(1)).existsById(1L);
+        verify(barAssetRepository, times(1)).deleteById(1L);
+    }
+
+    @Test
+    @DisplayName("当删除不存在的酒吧资产记录时应该抛出异常")
+    void shouldThrowExceptionWhenDeletingNonExistentBarAsset() {
+        // Given
+        when(barAssetRepository.existsById(999L)).thenReturn(false);
+
+        // When & Then
+        assertThatThrownBy(() -> barAssetService.deleteBarAsset(999L))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("BarAsset not found");
+        verify(barAssetRepository, times(1)).existsById(999L);
+        verify(barAssetRepository, never()).deleteById(any());
+    }
+
+    @Test
+    @DisplayName("应该成功计算资产总价值")
+    void shouldCalculateTotalAssetValueSuccessfully() {
+        // Given
+        BigDecimal expectedTotal = new BigDecimal("150000.00");
+        when(barAssetRepository.sumTotalValue()).thenReturn(expectedTotal);
+
+        // When
+        BigDecimal result = barAssetService.getTotalAssetValue();
+
+        // Then
+        assertThat(result).isEqualByComparingTo(expectedTotal);
+        verify(barAssetRepository, times(1)).sumTotalValue();
+    }
+
+    @Test
+    @DisplayName("当没有资产时总价值应该为零")
+    void shouldReturnZeroWhenNoAssets() {
+        // Given
+        when(barAssetRepository.sumTotalValue()).thenReturn(null);
+
+        // When
+        BigDecimal result = barAssetService.getTotalAssetValue();
+
+        // Then
+        assertThat(result).isEqualByComparingTo("0.00");
+        verify(barAssetRepository, times(1)).sumTotalValue();
+    }
+
+    @Test
+    @DisplayName("应该拒绝创建负数价值的资产")
+    void shouldRejectAssetWithNegativeValue() {
+        // Given
+        BarAssetCreateRequest request = new BarAssetCreateRequest();
+        request.setName("Test Equipment");
+        request.setType(BarAsset.AssetType.EQUIPMENT);
+        request.setValue(new BigDecimal("-1000.00"));
+        request.setStatus(BarAsset.AssetStatus.AVAILABLE);
+        request.setAcquireDate(LocalDate.now());
+
+        // When & Then
+        assertThatThrownBy(() -> barAssetService.createBarAsset(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Value must be positive");
+        verify(barAssetRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("应该拒绝创建零价值的资产")
+    void shouldRejectAssetWithZeroValue() {
+        // Given
+        BarAssetCreateRequest request = new BarAssetCreateRequest();
+        request.setName("Test Equipment");
+        request.setType(BarAsset.AssetType.EQUIPMENT);
+        request.setValue(BigDecimal.ZERO);
+        request.setStatus(BarAsset.AssetStatus.AVAILABLE);
+        request.setAcquireDate(LocalDate.now());
+
+        // When & Then
+        assertThatThrownBy(() -> barAssetService.createBarAsset(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Value must be positive");
+        verify(barAssetRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("应该拒绝创建未来获取日期的资产")
+    void shouldRejectAssetWithFutureAcquireDate() {
+        // Given
+        BarAssetCreateRequest request = new BarAssetCreateRequest();
+        request.setName("Test Equipment");
+        request.setType(BarAsset.AssetType.EQUIPMENT);
+        request.setValue(new BigDecimal("1000.00"));
+        request.setStatus(BarAsset.AssetStatus.AVAILABLE);
+        request.setAcquireDate(LocalDate.now().plusDays(1));
+
+        // When & Then
+        assertThatThrownBy(() -> barAssetService.createBarAsset(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Acquire date cannot be in the future");
+        verify(barAssetRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("应该拒绝创建空名称的资产")
+    void shouldRejectAssetWithEmptyName() {
+        // Given
+        BarAssetCreateRequest request = new BarAssetCreateRequest();
+        request.setName("");
+        request.setType(BarAsset.AssetType.EQUIPMENT);
+        request.setValue(new BigDecimal("1000.00"));
+        request.setStatus(BarAsset.AssetStatus.AVAILABLE);
+        request.setAcquireDate(LocalDate.now());
+
+        // When & Then
+        assertThatThrownBy(() -> barAssetService.createBarAsset(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Name is required");
+        verify(barAssetRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("应该拒绝创建空类型的资产")
+    void shouldRejectAssetWithNullType() {
+        // Given
+        BarAssetCreateRequest request = new BarAssetCreateRequest();
+        request.setName("Test Equipment");
+        request.setType(null);
+        request.setValue(new BigDecimal("1000.00"));
+        request.setStatus(BarAsset.AssetStatus.AVAILABLE);
+        request.setAcquireDate(LocalDate.now());
+
+        // When & Then
+        assertThatThrownBy(() -> barAssetService.createBarAsset(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Type is required");
+        verify(barAssetRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("应该拒绝创建空状态的资产")
+    void shouldRejectAssetWithNullStatus() {
+        // Given
+        BarAssetCreateRequest request = new BarAssetCreateRequest();
+        request.setName("Test Equipment");
+        request.setType(BarAsset.AssetType.EQUIPMENT);
+        request.setValue(new BigDecimal("1000.00"));
+        request.setStatus(null);
+        request.setAcquireDate(LocalDate.now());
+
+        // When & Then
+        assertThatThrownBy(() -> barAssetService.createBarAsset(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Status is required");
+        verify(barAssetRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("应该成功搜索资产")
+    void shouldSearchBarAssetsSuccessfully() {
+        // Given
+        String keyword = "Equipment";
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<BarAsset> assetPage = new PageImpl<>(List.of(testAsset));
+        when(barAssetRepository.searchByNameContainingIgnoreCase(keyword, pageable))
+                .thenReturn(assetPage);
+
+        // When
+        Page<BarAsset> result = barAssetService.searchBarAssets(keyword, pageable);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        verify(barAssetRepository, times(1)).searchByNameContainingIgnoreCase(keyword, pageable);
+    }
+
+    @Test
+    @DisplayName("应该成功获取资产统计")
+    void shouldGetAssetStatisticsSuccessfully() {
+        // Given
+        BigDecimal totalValue = new BigDecimal("150000.00");
+        when(barAssetRepository.countByType(BarAsset.AssetType.EQUIPMENT)).thenReturn(5L);
+        when(barAssetRepository.countByType(BarAsset.AssetType.FACILITY)).thenReturn(3L);
+        when(barAssetRepository.count()).thenReturn(8L);
+        when(barAssetRepository.sumTotalValue()).thenReturn(totalValue);
+
+        // When
+        var statistics = barAssetService.getAssetStatistics();
+
+        // Then
+        assertThat(statistics).isNotNull();
+        assertThat(statistics.getTotalAssets()).isEqualTo(8L);
+        assertThat(statistics.getTotalValue()).isEqualByComparingTo(totalValue);
+        verify(barAssetRepository, times(1)).count();
+        verify(barAssetRepository, times(1)).sumTotalValue();
+    }
+
+    @Test
+    @DisplayName("应该成功根据获取日期范围获取资产")
+    void shouldGetBarAssetsByAcquireDateRangeSuccessfully() {
+        // Given
+        LocalDate startDate = LocalDate.now().minusYears(1);
+        LocalDate endDate = LocalDate.now();
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<BarAsset> assetPage = new PageImpl<>(List.of(testAsset));
+        when(barAssetRepository.findByAcquireDateBetween(startDate, endDate, pageable))
+                .thenReturn(assetPage);
+
+        // When
+        Page<BarAsset> result = barAssetService.getBarAssetsByAcquireDateRange(startDate, endDate, pageable);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        verify(barAssetRepository, times(1)).findByAcquireDateBetween(startDate, endDate, pageable);
+    }
+}

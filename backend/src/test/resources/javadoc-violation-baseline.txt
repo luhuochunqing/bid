@@ -1,0 +1,16 @@
+# Visible Javadoc/MissingJavadoc violations after the broad legacy suppress in suppressions.xml (see the big comment block there).
+# With the initial blanket this is 0. The historical 37,338 was the pre-suppress full-repo number reported by the user.
+#
+# Update the number *downward only* when real (non-placeholder) Javadoc is added to public contracts in a carved-out protected subtree.
+# The number may temporarily increase in a carve-out PR that intentionally exposes debt for an area being promoted to stricter doc standards;
+# in that case the same (or a predecessor) PR must bring the visible count back down and the baseline is updated with date + reason pointing at implementation-notes.md（修直过程）.
+#
+# Format: N | YYYY-MM | short reason (or just the integer N on first non-comment line).
+# The ratchet test (CheckstyleJavadocDebtRatchetTest) parses the first non-# line and takes the leading integer.
+#
+# See:
+# - implementation-notes.md（Checkstyle Javadoc 37k 历史债 + 修直过程）
+# - backend/config/checkstyle/suppressions.xml (the 37k debt comment)
+# - backend/QUALITY_GATE_GUIDE.md (L3 historical + A-class mechanical handling + 扩圈步骤)
+# - implementation-notes.md (root and backend/)
+0 | 2026-06 | initial after adding MissingJavadoc* modules + broad src/main/java Javadoc blanket suppress; 37338 was the pre-suppress full-repo historical flood. Visible count ratcheted at 0.

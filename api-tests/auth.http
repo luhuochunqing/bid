@@ -1,0 +1,70 @@
+### ==========================================
+### 认证模块 API 测试
+### ==========================================
+
+### 1. 正常流程：管理员登录
+POST http://localhost:18081/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "XiyuAdmin2026!"
+}
+
+### 2. 正常流程：普通用户登录
+POST http://localhost:18081/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "xiaowang",
+  "password": "123456"
+}
+
+### 3. 边界：密码错误
+POST http://localhost:18081/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "wrongpassword"
+}
+
+### 4. 边界：用户不存在
+POST http://localhost:18081/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "nonexistent_user",
+  "password": "password123"
+}
+
+### 5. 边界：空用户名
+POST http://localhost:18081/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "",
+  "password": "XiyuAdmin2026!"
+}
+
+### 6. 边界：空密码
+POST http://localhost:18081/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": ""
+}
+
+### 7. 边界：缺少必填字段
+POST http://localhost:18081/api/auth/login
+Content-Type: application/json
+
+{}
+
+### 8. 未认证访问（无 Token）
+GET http://localhost:18081/api/tenders?page=0&size=10
+
+### 9. 无效 Token
+GET http://localhost:18081/api/tenders?page=0&size=10
+Authorization: Bearer invalid_token_here
