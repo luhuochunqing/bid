@@ -10,13 +10,30 @@
 # takes precedence over the system git.
 # This is the primary enforcement mechanism against bypassing pre-commit /
 # pre-push gates (locks, E2E selectors, token coverage, blueprint gaps, etc.).
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve this file's directory in both bash and zsh when sourced.
+if [[ -n "${BASH_SOURCE[0]:-}" ]]; then
+  _XIYU_DEV_ENV_SOURCE="${BASH_SOURCE[0]}"
+elif [[ -n "${ZSH_VERSION:-}" ]]; then
+  _XIYU_DEV_ENV_SOURCE="${(%):-%N}"
+else
+  _XIYU_DEV_ENV_SOURCE="$0"
+fi
+SCRIPT_DIR="$(cd "$(dirname "$_XIYU_DEV_ENV_SOURCE")" && pwd)"
+unset _XIYU_DEV_ENV_SOURCE
 
-# Prepend only if not already first (avoid endless duplication on re-source)
+# Prepend only if not already present (avoid endless duplication on re-source)
 case ":$PATH:" in
-  *":$SCRIPT_DIR:"*) : ;;  # already present
+  *":$SCRIPT_DIR:"*) : ;;
   *) export PATH="$SCRIPT_DIR:$PATH" ;;
 esac
+
+# Refresh command lookup cache so shells like zsh stop resolving the old /usr/bin/git
+# after PATH has been prepended during `source scripts/dev-env.sh`.
+if [[ -n "${ZSH_VERSION:-}" ]]; then
+  rehash 2>/dev/null || true
+else
+  hash -r 2>/dev/null || true
+fi
 
 # Guard repeated noisy output + set marker for other scripts
 if [[ -z "${XIYU_DEV_ENV_SOURCED:-}" ]]; then
