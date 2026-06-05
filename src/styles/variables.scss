@@ -1,0 +1,79 @@
+// ============================================
+// 西域投标管理平台 - 全局样式变量
+// ============================================
+
+// ========== AI功能颜色 ==========
+$ai-primary: #2E7659;
+$ai-success: #67c23a;
+$ai-warning: #e6a23c;
+$ai-danger: #f56c6c;
+$ai-info: #909399;
+
+// ========== 风险等级颜色 ==========
+$risk-high: #f56c6c;
+$risk-medium: #e6a23c;
+$risk-low: #67c23a;
+$risk-none: #909399;
+
+// ========== 智能助手面板 ==========
+$assistant-width: 360px;
+$assistant-bg: #f5f7fa;
+$assistant-border: #e4e7ed;
+
+// ========== 主题颜色 ==========
+$primary-color: #2E7659;
+$success-color: #67c23a;
+$warning-color: #e6a23c;
+$danger-color: #f56c6c;
+$info-color: #909399;
+
+// ========== 文本颜色 ==========
+$text-primary: #303133;
+$text-regular: #606266;
+$text-secondary: #909399;
+$text-placeholder: #c0c4cc;
+
+// ========== 边框颜色 ==========
+$border-base: #dcdfe6;
+$border-light: #e4e7ed;
+$border-lighter: #ebeef5;
+$border-extra-light: #f2f6fc;
+
+// ========== 背景颜色 ==========
+$bg-color: #ffffff;
+$bg-page: #f2f3f5;
+$bg-overlay: #000000;
+
+// ========== 字体 ==========
+$font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+$font-size-base: 14px;
+$font-size-small: 12px;
+$font-size-large: 16px;
+
+// ========== 间距 ==========
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 16px;
+$spacing-lg: 24px;
+$spacing-xl: 32px;
+
+// ========== 圆角 ==========
+$border-radius-base: 4px;
+$border-radius-small: 2px;
+$border-radius-large: 8px;
+$border-radius-circle: 50%;
+
+// ========== 阴影 ==========
+$box-shadow-base: 0 2px 4px rgba(0, 0, 0, 0.12), 0 0 6px rgba(0, 0, 0, 0.04);
+$box-shadow-dark: 0 2px 8px rgba(0, 0, 0, 0.15);
+$box-shadow-light: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+
+// ========== 过渡 ==========
+$transition-base: all 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
+$transition-fade: opacity 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
+$transition-md-fade: transform 0.3s cubic-bezier(0.645, 0.045, 0.355, 1), opacity 0.3s cubic-bezier(0.645, 0.045, 0.355, 1);
+
+// ========== Z-index ==========
+$z-index-normal: 1;
+$z-index-top: 1000;
+$z-index-popper: 2000;

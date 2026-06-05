@@ -1,0 +1,3 @@
+-- Input: V1009__tender_basic_info_saved_at.sql
+-- Rollback for V1009__tender_basic_info_saved_at.sql
+-- No-op rollback: placeholder (manual review required)

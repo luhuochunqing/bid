@@ -1,0 +1,86 @@
+<view class="container">
+  <!-- 搜索栏 -->
+  <view class="search-bar">
+    <input
+      class="search-input"
+      placeholder="搜索标讯标题、业主单位"
+      bindinput="onSearchInput"
+      bindconfirm="onSearch"
+      value="{{searchKeyword}}"
+    />
+    <button class="search-btn" bindtap="onSearch">搜索</button>
+  </view>
+
+  <!-- 状态筛选 -->
+  <scroll-view class="status-filter" scroll-x="true">
+    <view
+      wx:for="{{statusList}}"
+      wx:key="value"
+      class="status-item {{currentStatus === item.value ? 'active' : ''}}"
+      bindtap="onStatusChange"
+      data-status="{{item.value}}"
+    >
+      {{item.label}}
+    </view>
+  </scroll-view>
+
+  <!-- 标讯列表 -->
+  <scroll-view
+    class="tender-list"
+    scroll-y="true"
+    bindscrolltolower="onLoadMore"
+    enable-back-to-top="true"
+  >
+    <view
+      wx:for="{{tenderList}}"
+      wx:key="id"
+      class="tender-card"
+      bindtap="onTenderTap"
+      data-id="{{item.id}}"
+    >
+      <view class="tender-header">
+        <text class="tender-title">{{item.title}}</text>
+        <text class="tender-status status-{{item.status}}">{{item.statusText}}</text>
+      </view>
+
+      <view class="tender-info">
+        <view class="info-item">
+          <text class="info-label">业主单位</text>
+          <text class="info-value">{{item.purchaserName || '-'}}</text>
+        </view>
+        <view class="info-item">
+          <text class="info-label">预算</text>
+          <text class="info-value">{{item.budget ? item.budget + '万元' : '-'}}</text>
+        </view>
+        <view class="info-item">
+          <text class="info-label">报名截止</text>
+          <text class="info-value deadline">{{item.deadline || '-'}}</text>
+        </view>
+        <view class="info-item">
+          <text class="info-label">开标时间</text>
+          <text class="info-value">{{item.bidOpeningTime || '-'}}</text>
+        </view>
+      </view>
+
+      <view class="tender-footer">
+        <text class="publish-date">发布于 {{item.publishDate}}</text>
+        <view class="tender-actions">
+          <text class="action-icon" catchtap="onFavorite" data-id="{{item.id}}">
+            {{item.isFavorite ? '★' : '☆'}}
+          </text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 加载状态 -->
+    <view class="loading-more" wx:if="{{loading}}">
+      <text>加载中...</text>
+    </view>
+    <view class="no-more" wx:if="{{noMore && tenderList.length > 0}}">
+      <text>没有更多了</text>
+    </view>
+    <view class="empty" wx:if="{{!loading && tenderList.length === 0}}">
+      <text>暂无标讯</text>
+    </view>
+  </scroll-view>
+</view>

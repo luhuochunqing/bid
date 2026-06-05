@@ -1,0 +1,43 @@
+### ==========================================
+### 数据分析模块 API 测试
+### ==========================================
+
+### 0. 获取 Token
+# @name login
+POST http://localhost:18081/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "XiyuAdmin2026!"
+}
+
+@token = {{login.response.body.data.token}}
+
+### 1. 正常流程：获取 Dashboard 数据
+GET http://localhost:18081/api/analytics/dashboard
+Authorization: Bearer {{token}}
+
+### 2. 正常流程：中标率趋势
+GET http://localhost:18081/api/analytics/dashboard?type=winRate
+Authorization: Bearer {{token}}
+
+### 3. 正常流程：投标数据统计
+GET http://localhost:18081/api/analytics/dashboard?type=biddingStats
+Authorization: Bearer {{token}}
+
+### 4. 正常流程：竞争对手分析
+GET http://localhost:18081/api/analytics/dashboard?type=competitors
+Authorization: Bearer {{token}}
+
+### 5. 正常流程：区域分布
+GET http://localhost:18081/api/analytics/dashboard?type=region
+Authorization: Bearer {{token}}
+
+### 6. 正常流程：产品线分析
+GET http://localhost:18081/api/analytics/dashboard?type=productLines
+Authorization: Bearer {{token}}
+
+### 7. 边界：不支持的分析类型
+GET http://localhost:18081/api/analytics/dashboard?type=unsupported_type
+Authorization: Bearer {{token}}

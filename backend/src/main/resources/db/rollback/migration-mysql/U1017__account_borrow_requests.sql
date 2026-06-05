@@ -1,0 +1,3 @@
+-- Input: V1017__account_borrow_requests.sql
+-- Rollback for V1017__account_borrow_requests.sql
+-- No-op rollback: placeholder (manual review required)

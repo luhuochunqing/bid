@@ -1,0 +1,376 @@
+{"kind":"deck","slideCount":9,"size":[1280,720]}
+{"kind":"shape","slide":1,"role":"background","bbox":[0,0,1280,720]}
+{"kind":"shape","slide":1,"role":"wash","bbox":[0,0,1280,720]}
+{"kind":"shape","slide":1,"role":"left blue rule","bbox":[0,0,18,720]}
+{"kind":"shape","slide":1,"role":"right pale band","bbox":[1120,0,160,720]}
+{"kind":"shape","slide":1,"role":"soft blue block","bbox":[930,82,320,96]}
+{"kind":"shape","slide":1,"role":"soft sky block","bbox":[1030,548,280,86]}
+{"kind":"shape","slide":1,"role":"cover rule","bbox":[64,108,8,360]}
+{"kind":"shape","slide":1,"role":"cover kicker","bbox":[92,110,460,28]}
+{"kind":"textbox","slide":1,"role":"cover kicker","text":"西域集团投标管理平台项目｜项目经理个人分享","textLines":1,"bbox":[92,110,460,28]}
+{"kind":"shape","slide":1,"role":"cover title","bbox":[90,166,760,118]}
+{"kind":"textbox","slide":1,"role":"cover title","text":"AI时代的项目协作方法","textLines":1,"bbox":[90,166,760,118]}
+{"kind":"shape","slide":1,"role":"cover subtitle","bbox":[94,320,760,44]}
+{"kind":"textbox","slide":1,"role":"cover subtitle","text":"把会议变资产 · 把分歧变结构 · 把经验变技能","textLines":1,"bbox":[94,320,760,44]}
+{"kind":"shape","slide":1,"role":"cover callout","bbox":[92,430,520,86]}
+{"kind":"shape","slide":1,"role":"cover callout text","bbox":[120,456,470,28]}
+{"kind":"textbox","slide":1,"role":"cover callout text","text":"给项目组的一点个人工作方法分享","textLines":1,"bbox":[120,456,470,28]}
+{"kind":"shape","slide":1,"role":"pill","bbox":[94,548,132,38]}
+{"kind":"shape","slide":1,"role":"pill text","bbox":[94,557,132,18]}
+{"kind":"textbox","slide":1,"role":"pill text","text":"会议留痕","textLines":1,"bbox":[94,557,132,18]}
+{"kind":"shape","slide":1,"role":"pill","bbox":[242,548,132,38]}
+{"kind":"shape","slide":1,"role":"pill text","bbox":[242,557,132,18]}
+{"kind":"textbox","slide":1,"role":"pill text","text":"原型逼近","textLines":1,"bbox":[242,557,132,18]}
+{"kind":"shape","slide":1,"role":"pill","bbox":[390,548,132,38]}
+{"kind":"shape","slide":1,"role":"pill text","bbox":[390,557,132,18]}
+{"kind":"textbox","slide":1,"role":"pill text","text":"Agent工作","textLines":1,"bbox":[390,557,132,18]}
+{"kind":"shape","slide":1,"role":"footer","bbox":[64,674,560,20]}
+{"kind":"textbox","slide":1,"role":"footer","text":"西域集团投标管理平台项目 · 项目经理个人分享","textLines":1,"bbox":[64,674,560,20]}
+{"kind":"shape","slide":2,"role":"background","bbox":[0,0,1280,720]}
+{"kind":"shape","slide":2,"role":"wash","bbox":[0,0,1280,720]}
+{"kind":"shape","slide":2,"role":"left blue rule","bbox":[0,0,18,720]}
+{"kind":"shape","slide":2,"role":"right pale band","bbox":[1120,0,160,720]}
+{"kind":"shape","slide":2,"role":"soft blue block","bbox":[930,82,320,96]}
+{"kind":"shape","slide":2,"role":"soft sky block","bbox":[1030,548,280,86]}
+{"kind":"shape","slide":2,"role":"kicker","bbox":[64,34,620,24]}
+{"kind":"textbox","slide":2,"role":"kicker","text":"01 / 为什么要升级方法","textLines":1,"bbox":[64,34,620,24]}
+{"kind":"shape","slide":2,"role":"page number","bbox":[1120,34,96,24]}
+{"kind":"textbox","slide":2,"role":"page number","text":"02 / 09","textLines":1,"bbox":[1120,34,96,24]}
+{"kind":"shape","slide":2,"role":"header line","bbox":[64,66,1050,2]}
+{"kind":"shape","slide":2,"role":"title","bbox":[64,100,780,92]}
+{"kind":"textbox","slide":2,"role":"title","text":"项目最难的，往往不是技术","textLines":1,"bbox":[64,100,780,92]}
+{"kind":"shape","slide":2,"role":"subtitle","bbox":[66,204,900,54]}
+{"kind":"textbox","slide":2,"role":"subtitle","text":"真正消耗项目的，是需求共识、签字确认和变更拉扯。","textLines":1,"bbox":[66,204,900,54]}
+{"kind":"shape","slide":2,"role":"card 确认难","bbox":[82,396,340,190]}
+{"kind":"shape","slide":2,"role":"card accent 确认难","bbox":[82,396,340,7]}
+{"kind":"shape","slide":2,"role":"card icon","bbox":[104,424,40,40]}
+{"kind":"shape","slide":2,"role":"card icon bar","bbox":[120,435,8,18]}
+{"kind":"shape","slide":2,"role":"card label","bbox":[160,424,240,28]}
+{"kind":"textbox","slide":2,"role":"card label","text":"确认难","textLines":1,"bbox":[160,424,240,28]}
+{"kind":"shape","slide":2,"role":"card body","bbox":[106,488,292,78]}
+{"kind":"textbox","slide":2,"role":"card body","text":"不同用户对同一句需求的理解可能不一样，后期再确认就容易回忆不一致。","textLines":1,"bbox":[106,488,292,78]}
+{"kind":"shape","slide":2,"role":"card 变更难","bbox":[456,396,340,190]}
+{"kind":"shape","slide":2,"role":"card accent 变更难","bbox":[456,396,340,7]}
+{"kind":"shape","slide":2,"role":"card icon","bbox":[478,424,40,40]}
+{"kind":"shape","slide":2,"role":"card icon bar","bbox":[494,435,8,18]}
+{"kind":"shape","slide":2,"role":"card label","bbox":[534,424,240,28]}
+{"kind":"textbox","slide":2,"role":"card label","text":"变更难","textLines":1,"bbox":[534,424,240,28]}
+{"kind":"shape","slide":2,"role":"card body","bbox":[480,488,292,78]}
+{"kind":"textbox","slide":2,"role":"card body","text":"需求一旦变化，就会牵涉范围、工期、责任和审批，容易反复拉扯。","textLines":1,"bbox":[480,488,292,78]}
+{"kind":"shape","slide":2,"role":"card 共识难","bbox":[830,396,340,190]}
+{"kind":"shape","slide":2,"role":"card accent 共识难","bbox":[830,396,340,7]}
+{"kind":"shape","slide":2,"role":"card icon","bbox":[852,424,40,40]}
+{"kind":"shape","slide":2,"role":"card icon bar","bbox":[868,435,8,18]}
+{"kind":"shape","slide":2,"role":"card label","bbox":[908,424,240,28]}
+{"kind":"textbox","slide":2,"role":"card label","text":"共识难","textLines":1,"bbox":[908,424,240,28]}
+{"kind":"shape","slide":2,"role":"card body","bbox":[854,488,292,78]}
+{"kind":"textbox","slide":2,"role":"card body","text":"项目需要让分歧尽早暴露，并在事实、原型和记录上形成共同判断。","textLines":1,"bbox":[854,488,292,78]}
+{"kind":"shape","slide":2,"role":"footer","bbox":[64,674,560,20]}
+{"kind":"textbox","slide":2,"role":"footer","text":"西域集团投标管理平台项目 · 项目经理个人分享","textLines":1,"bbox":[64,674,560,20]}
+{"kind":"shape","slide":3,"role":"background","bbox":[0,0,1280,720]}
+{"kind":"shape","slide":3,"role":"wash","bbox":[0,0,1280,720]}
+{"kind":"shape","slide":3,"role":"left blue rule","bbox":[0,0,18,720]}
+{"kind":"shape","slide":3,"role":"right pale band","bbox":[1120,0,160,720]}
+{"kind":"shape","slide":3,"role":"soft blue block","bbox":[930,82,320,96]}
+{"kind":"shape","slide":3,"role":"soft sky block","bbox":[1030,548,280,86]}
+{"kind":"shape","slide":3,"role":"kicker","bbox":[64,34,620,24]}
+{"kind":"textbox","slide":3,"role":"kicker","text":"02 / 会议留痕","textLines":1,"bbox":[64,34,620,24]}
+{"kind":"shape","slide":3,"role":"page number","bbox":[1120,34,96,24]}
+{"kind":"textbox","slide":3,"role":"page number","text":"03 / 09","textLines":1,"bbox":[1120,34,96,24]}
+{"kind":"shape","slide":3,"role":"header line","bbox":[64,66,1050,2]}
+{"kind":"shape","slide":3,"role":"title","bbox":[64,100,780,92]}
+{"kind":"textbox","slide":3,"role":"title","text":"凡会议，必沉淀","textLines":1,"bbox":[64,100,780,92]}
+{"kind":"shape","slide":3,"role":"subtitle","bbox":[66,204,900,54]}
+{"kind":"textbox","slide":3,"role":"subtitle","text":"每次正式沟通都尽量形成可追溯的会议资产。","textLines":1,"bbox":[66,204,900,54]}
+{"kind":"shape","slide":3,"role":"flow card","bbox":[74,340,196,168]}
+{"kind":"shape","slide":3,"role":"flow number","bbox":[94,366,52,28]}
+{"kind":"textbox","slide":3,"role":"flow number","text":"01","textLines":1,"bbox":[94,366,52,28]}
+{"kind":"shape","slide":3,"role":"flow label","bbox":[94,410,152,26]}
+{"kind":"textbox","slide":3,"role":"flow label","text":"录音","textLines":1,"bbox":[94,410,152,26]}
+{"kind":"shape","slide":3,"role":"flow body","bbox":[94,452,152,50]}
+{"kind":"textbox","slide":3,"role":"flow body","text":"正式会议前\n征得参会方同意","textLines":2,"bbox":[94,452,152,50]}
+{"kind":"shape","slide":3,"role":"flow arrow","bbox":[276,400,42,36]}
+{"kind":"shape","slide":3,"role":"flow card","bbox":[322,340,196,168]}
+{"kind":"shape","slide":3,"role":"flow number","bbox":[342,366,52,28]}
+{"kind":"textbox","slide":3,"role":"flow number","text":"02","textLines":1,"bbox":[342,366,52,28]}
+{"kind":"shape","slide":3,"role":"flow label","bbox":[342,410,152,26]}
+{"kind":"textbox","slide":3,"role":"flow label","text":"转写","textLines":1,"bbox":[342,410,152,26]}
+{"kind":"shape","slide":3,"role":"flow body","bbox":[342,452,152,50]}
+{"kind":"textbox","slide":3,"role":"flow body","text":"自动整理\n完整沟通内容","textLines":2,"bbox":[342,452,152,50]}
+{"kind":"shape","slide":3,"role":"flow arrow","bbox":[524,400,42,36]}
+{"kind":"shape","slide":3,"role":"flow card","bbox":[570,340,196,168]}
+{"kind":"shape","slide":3,"role":"flow number","bbox":[590,366,52,28]}
+{"kind":"textbox","slide":3,"role":"flow number","text":"03","textLines":1,"bbox":[590,366,52,28]}
+{"kind":"shape","slide":3,"role":"flow label","bbox":[590,410,152,26]}
+{"kind":"textbox","slide":3,"role":"flow label","text":"纪要","textLines":1,"bbox":[590,410,152,26]}
+{"kind":"shape","slide":3,"role":"flow body","bbox":[590,452,152,50]}
+{"kind":"textbox","slide":3,"role":"flow body","text":"提炼结论\n分歧与待办","textLines":2,"bbox":[590,452,152,50]}
+{"kind":"shape","slide":3,"role":"flow arrow","bbox":[772,400,42,36]}
+{"kind":"shape","slide":3,"role":"flow card","bbox":[818,340,196,168]}
+{"kind":"shape","slide":3,"role":"flow number","bbox":[838,366,52,28]}
+{"kind":"textbox","slide":3,"role":"flow number","text":"04","textLines":1,"bbox":[838,366,52,28]}
+{"kind":"shape","slide":3,"role":"flow label","bbox":[838,410,152,26]}
+{"kind":"textbox","slide":3,"role":"flow label","text":"跟踪","textLines":1,"bbox":[838,410,152,26]}
+{"kind":"shape","slide":3,"role":"flow body","bbox":[838,452,152,50]}
+{"kind":"textbox","slide":3,"role":"flow body","text":"责任人\n截止时间\n关闭状态","textLines":3,"bbox":[838,452,152,50]}
+{"kind":"shape","slide":3,"role":"side title","bbox":[934,258,248,72]}
+{"kind":"shape","slide":3,"role":"side title text","bbox":[956,278,204,24]}
+{"kind":"textbox","slide":3,"role":"side title text","text":"目的不是追责","textLines":1,"bbox":[956,278,204,24]}
+{"kind":"shape","slide":3,"role":"side body","bbox":[936,532,260,52]}
+{"kind":"textbox","slide":3,"role":"side body","text":"而是减少误解，让项目不再依赖个人记忆。","textLines":1,"bbox":[936,532,260,52]}
+{"kind":"shape","slide":3,"role":"footer","bbox":[64,674,560,20]}
+{"kind":"textbox","slide":3,"role":"footer","text":"西域集团投标管理平台项目 · 项目经理个人分享","textLines":1,"bbox":[64,674,560,20]}
+{"kind":"shape","slide":4,"role":"background","bbox":[0,0,1280,720]}
+{"kind":"shape","slide":4,"role":"wash","bbox":[0,0,1280,720]}
+{"kind":"shape","slide":4,"role":"left blue rule","bbox":[0,0,18,720]}
+{"kind":"shape","slide":4,"role":"right pale band","bbox":[1120,0,160,720]}
+{"kind":"shape","slide":4,"role":"soft blue block","bbox":[930,82,320,96]}
+{"kind":"shape","slide":4,"role":"soft sky block","bbox":[1030,548,280,86]}
+{"kind":"shape","slide":4,"role":"kicker","bbox":[64,34,620,24]}
+{"kind":"textbox","slide":4,"role":"kicker","text":"03 / 分歧处理","textLines":1,"bbox":[64,34,620,24]}
+{"kind":"shape","slide":4,"role":"page number","bbox":[1120,34,96,24]}
+{"kind":"textbox","slide":4,"role":"page number","text":"04 / 09","textLines":1,"bbox":[1120,34,96,24]}
+{"kind":"shape","slide":4,"role":"header line","bbox":[64,66,1050,2]}
+{"kind":"shape","slide":4,"role":"title","bbox":[64,100,780,92]}
+{"kind":"textbox","slide":4,"role":"title","text":"凡分歧，先结构化","textLines":1,"bbox":[64,100,780,92]}
+{"kind":"shape","slide":4,"role":"subtitle","bbox":[66,204,900,54]}
+{"kind":"textbox","slide":4,"role":"subtitle","text":"AI不是裁判，但可以帮助我们把问题拆清楚。","textLines":1,"bbox":[66,204,900,54]}
+{"kind":"shape","slide":4,"role":"comparison panel","bbox":[86,318,496,226]}
+{"kind":"shape","slide":4,"role":"comparison title","bbox":[112,342,430,28]}
+{"kind":"textbox","slide":4,"role":"comparison title","text":"传统争论","textLines":1,"bbox":[112,342,430,28]}
+{"kind":"shape","slide":4,"role":"bullet dot","bbox":[116,396,14,14]}
+{"kind":"shape","slide":4,"role":"comparison item","bbox":[144,388,380,26]}
+{"kind":"textbox","slide":4,"role":"comparison item","text":"谁更熟业务","textLines":1,"bbox":[144,388,380,26]}
+{"kind":"shape","slide":4,"role":"bullet dot","bbox":[116,440,14,14]}
+{"kind":"shape","slide":4,"role":"comparison item","bbox":[144,432,380,26]}
+{"kind":"textbox","slide":4,"role":"comparison item","text":"谁表达更强势","textLines":1,"bbox":[144,432,380,26]}
+{"kind":"shape","slide":4,"role":"bullet dot","bbox":[116,484,14,14]}
+{"kind":"shape","slide":4,"role":"comparison item","bbox":[144,476,380,26]}
+{"kind":"textbox","slide":4,"role":"comparison item","text":"会议里临时拍板","textLines":1,"bbox":[144,476,380,26]}
+{"kind":"shape","slide":4,"role":"comparison panel","bbox":[662,318,496,226]}
+{"kind":"shape","slide":4,"role":"comparison title","bbox":[688,342,430,28]}
+{"kind":"textbox","slide":4,"role":"comparison title","text":"AI辅助后的争论","textLines":1,"bbox":[688,342,430,28]}
+{"kind":"shape","slide":4,"role":"bullet dot","bbox":[692,396,14,14]}
+{"kind":"shape","slide":4,"role":"comparison item","bbox":[720,388,380,26]}
+{"kind":"textbox","slide":4,"role":"comparison item","text":"背景与约束","textLines":1,"bbox":[720,388,380,26]}
+{"kind":"shape","slide":4,"role":"bullet dot","bbox":[692,440,14,14]}
+{"kind":"shape","slide":4,"role":"comparison item","bbox":[720,432,380,26]}
+{"kind":"textbox","slide":4,"role":"comparison item","text":"方案A/B/C利弊","textLines":1,"bbox":[720,432,380,26]}
+{"kind":"shape","slide":4,"role":"bullet dot","bbox":[692,484,14,14]}
+{"kind":"shape","slide":4,"role":"comparison item","bbox":[720,476,380,26]}
+{"kind":"textbox","slide":4,"role":"comparison item","text":"风险、成本、影响面","textLines":1,"bbox":[720,476,380,26]}
+{"kind":"shape","slide":4,"role":"callout","bbox":[164,584,952,54]}
+{"kind":"shape","slide":4,"role":"callout text","bbox":[190,602,900,22]}
+{"kind":"textbox","slide":4,"role":"callout text","text":"最后还是人决策；AI负责补充视角、降低情绪、压缩分歧。","textLines":1,"bbox":[190,602,900,22]}
+{"kind":"shape","slide":4,"role":"footer","bbox":[64,674,560,20]}
+{"kind":"textbox","slide":4,"role":"footer","text":"西域集团投标管理平台项目 · 项目经理个人分享","textLines":1,"bbox":[64,674,560,20]}
+{"kind":"shape","slide":5,"role":"background","bbox":[0,0,1280,720]}
+{"kind":"shape","slide":5,"role":"wash","bbox":[0,0,1280,720]}
+{"kind":"shape","slide":5,"role":"left blue rule","bbox":[0,0,18,720]}
+{"kind":"shape","slide":5,"role":"right pale band","bbox":[1120,0,160,720]}
+{"kind":"shape","slide":5,"role":"soft blue block","bbox":[930,82,320,96]}
+{"kind":"shape","slide":5,"role":"soft sky block","bbox":[1030,548,280,86]}
+{"kind":"shape","slide":5,"role":"kicker","bbox":[64,34,620,24]}
+{"kind":"textbox","slide":5,"role":"kicker","text":"04 / 需求调研","textLines":1,"bbox":[64,34,620,24]}
+{"kind":"shape","slide":5,"role":"page number","bbox":[1120,34,96,24]}
+{"kind":"textbox","slide":5,"role":"page number","text":"05 / 09","textLines":1,"bbox":[1120,34,96,24]}
+{"kind":"shape","slide":5,"role":"header line","bbox":[64,66,1050,2]}
+{"kind":"shape","slide":5,"role":"title","bbox":[64,100,880,92]}
+{"kind":"textbox","slide":5,"role":"title","text":"坚持原型逼近法","textLines":1,"bbox":[64,100,880,92]}
+{"kind":"shape","slide":5,"role":"subtitle","bbox":[66,204,900,54]}
+{"kind":"textbox","slide":5,"role":"subtitle","text":"不要在会议室里猜需求，要在页面、流程和样例数据上校准共识。","textLines":1,"bbox":[66,204,900,54]}
+{"kind":"shape","slide":5,"role":"quote band","bbox":[86,278,1050,76]}
+{"kind":"shape","slide":5,"role":"quote","bbox":[124,302,980,24]}
+{"kind":"textbox","slide":5,"role":"quote","text":"业务人员很难凭空说清想要什么，但很容易指出一个原型哪里不对。","textLines":1,"bbox":[124,302,980,24]}
+{"kind":"shape","slide":5,"role":"step card","bbox":[84,426,236,130]}
+{"kind":"shape","slide":5,"role":"step number bg","bbox":[102,448,34,34]}
+{"kind":"shape","slide":5,"role":"step number","bbox":[102,456,34,18]}
+{"kind":"textbox","slide":5,"role":"step number","text":"1","textLines":1,"bbox":[102,456,34,18]}
+{"kind":"shape","slide":5,"role":"step label","bbox":[150,450,142,24]}
+{"kind":"textbox","slide":5,"role":"step label","text":"现有系统","textLines":1,"bbox":[150,450,142,24]}
+{"kind":"shape","slide":5,"role":"step body","bbox":[108,500,188,38]}
+{"kind":"textbox","slide":5,"role":"step body","text":"让用户先看到真实页面和当前流程","textLines":1,"bbox":[108,500,188,38]}
+{"kind":"shape","slide":5,"role":"step arrow","bbox":[328,472,40,32]}
+{"kind":"shape","slide":5,"role":"step card","bbox":[368,426,236,130]}
+{"kind":"shape","slide":5,"role":"step number bg","bbox":[386,448,34,34]}
+{"kind":"shape","slide":5,"role":"step number","bbox":[386,456,34,18]}
+{"kind":"textbox","slide":5,"role":"step number","text":"2","textLines":1,"bbox":[386,456,34,18]}
+{"kind":"shape","slide":5,"role":"step label","bbox":[434,450,142,24]}
+{"kind":"textbox","slide":5,"role":"step label","text":"指出差异","textLines":1,"bbox":[434,450,142,24]}
+{"kind":"shape","slide":5,"role":"step body","bbox":[392,500,188,38]}
+{"kind":"textbox","slide":5,"role":"step body","text":"让用户说哪里不顺、哪里缺字段、哪里不符合习惯","textLines":1,"bbox":[392,500,188,38]}
+{"kind":"shape","slide":5,"role":"step arrow","bbox":[612,472,40,32]}
+{"kind":"shape","slide":5,"role":"step card","bbox":[652,426,236,130]}
+{"kind":"shape","slide":5,"role":"step number bg","bbox":[670,448,34,34]}
+{"kind":"shape","slide":5,"role":"step number","bbox":[670,456,34,18]}
+{"kind":"textbox","slide":5,"role":"step number","text":"3","textLines":1,"bbox":[670,456,34,18]}
+{"kind":"shape","slide":5,"role":"step label","bbox":[718,450,142,24]}
+{"kind":"textbox","slide":5,"role":"step label","text":"快速调整","textLines":1,"bbox":[718,450,142,24]}
+{"kind":"shape","slide":5,"role":"step body","bbox":[676,500,188,38]}
+{"kind":"textbox","slide":5,"role":"step body","text":"用原型或配置快速逼近真实业务","textLines":1,"bbox":[676,500,188,38]}
+{"kind":"shape","slide":5,"role":"step arrow","bbox":[896,472,40,32]}
+{"kind":"shape","slide":5,"role":"step card","bbox":[936,426,236,130]}
+{"kind":"shape","slide":5,"role":"step number bg","bbox":[954,448,34,34]}
+{"kind":"shape","slide":5,"role":"step number","bbox":[954,456,34,18]}
+{"kind":"textbox","slide":5,"role":"step number","text":"4","textLines":1,"bbox":[954,456,34,18]}
+{"kind":"shape","slide":5,"role":"step label","bbox":[1002,450,142,24]}
+{"kind":"textbox","slide":5,"role":"step label","text":"确认基线","textLines":1,"bbox":[1002,450,142,24]}
+{"kind":"shape","slide":5,"role":"step body","bbox":[960,500,188,38]}
+{"kind":"textbox","slide":5,"role":"step body","text":"把确认后的流程、字段、权限和报表沉淀下来","textLines":1,"bbox":[960,500,188,38]}
+{"kind":"shape","slide":5,"role":"footer","bbox":[64,674,560,20]}
+{"kind":"textbox","slide":5,"role":"footer","text":"西域集团投标管理平台项目 · 项目经理个人分享","textLines":1,"bbox":[64,674,560,20]}
+{"kind":"shape","slide":6,"role":"background","bbox":[0,0,1280,720]}
+{"kind":"shape","slide":6,"role":"wash","bbox":[0,0,1280,720]}
+{"kind":"shape","slide":6,"role":"left blue rule","bbox":[0,0,18,720]}
+{"kind":"shape","slide":6,"role":"right pale band","bbox":[1120,0,160,720]}
+{"kind":"shape","slide":6,"role":"soft blue block","bbox":[930,82,320,96]}
+{"kind":"shape","slide":6,"role":"soft sky block","bbox":[1030,548,280,86]}
+{"kind":"shape","slide":6,"role":"kicker","bbox":[64,34,620,24]}
+{"kind":"textbox","slide":6,"role":"kicker","text":"05 / Agent工作法","textLines":1,"bbox":[64,34,620,24]}
+{"kind":"shape","slide":6,"role":"page number","bbox":[1120,34,96,24]}
+{"kind":"textbox","slide":6,"role":"page number","text":"06 / 09","textLines":1,"bbox":[1120,34,96,24]}
+{"kind":"shape","slide":6,"role":"header line","bbox":[64,66,1050,2]}
+{"kind":"shape","slide":6,"role":"title","bbox":[64,100,780,92]}
+{"kind":"textbox","slide":6,"role":"title","text":"用Agent工作，用技能复制自己","textLines":1,"bbox":[64,100,780,92]}
+{"kind":"shape","slide":6,"role":"subtitle","bbox":[66,204,900,54]}
+{"kind":"textbox","slide":6,"role":"subtitle","text":"AI时代最重要的能力，是把经验沉淀成可重复执行的方法。","textLines":1,"bbox":[66,204,900,54]}
+{"kind":"shape","slide":6,"role":"card 会议纪要Agent","bbox":[82,396,340,190]}
+{"kind":"shape","slide":6,"role":"card accent 会议纪要Agent","bbox":[82,396,340,7]}
+{"kind":"shape","slide":6,"role":"card icon","bbox":[104,424,40,40]}
+{"kind":"shape","slide":6,"role":"card icon bar","bbox":[120,435,8,18]}
+{"kind":"shape","slide":6,"role":"card label","bbox":[160,424,240,28]}
+{"kind":"textbox","slide":6,"role":"card label","text":"会议纪要Agent","textLines":1,"bbox":[160,424,240,28]}
+{"kind":"shape","slide":6,"role":"card body","bbox":[106,488,292,78]}
+{"kind":"textbox","slide":6,"role":"card body","text":"从录音转写中提炼结论、待办、风险、分歧和责任人。","textLines":1,"bbox":[106,488,292,78]}
+{"kind":"shape","slide":6,"role":"card 需求分析Agent","bbox":[456,396,340,190]}
+{"kind":"shape","slide":6,"role":"card accent 需求分析Agent","bbox":[456,396,340,7]}
+{"kind":"shape","slide":6,"role":"card icon","bbox":[478,424,40,40]}
+{"kind":"shape","slide":6,"role":"card icon bar","bbox":[494,435,8,18]}
+{"kind":"shape","slide":6,"role":"card label","bbox":[534,424,240,28]}
+{"kind":"textbox","slide":6,"role":"card label","text":"需求分析Agent","textLines":1,"bbox":[534,424,240,28]}
+{"kind":"shape","slide":6,"role":"card body","bbox":[480,488,292,78]}
+{"kind":"textbox","slide":6,"role":"card body","text":"对照SOW、原型和会议记录，识别新增需求与范围风险。","textLines":1,"bbox":[480,488,292,78]}
+{"kind":"shape","slide":6,"role":"card 周报风险Agent","bbox":[830,396,340,190]}
+{"kind":"shape","slide":6,"role":"card accent 周报风险Agent","bbox":[830,396,340,7]}
+{"kind":"shape","slide":6,"role":"card icon","bbox":[852,424,40,40]}
+{"kind":"shape","slide":6,"role":"card icon bar","bbox":[868,435,8,18]}
+{"kind":"shape","slide":6,"role":"card label","bbox":[908,424,240,28]}
+{"kind":"textbox","slide":6,"role":"card label","text":"周报风险Agent","textLines":1,"bbox":[908,424,240,28]}
+{"kind":"shape","slide":6,"role":"card body","bbox":[854,488,292,78]}
+{"kind":"textbox","slide":6,"role":"card body","text":"自动整理进度、阻塞、风险、下周计划和需要客户决策事项。","textLines":1,"bbox":[854,488,292,78]}
+{"kind":"shape","slide":6,"role":"footer","bbox":[64,674,560,20]}
+{"kind":"textbox","slide":6,"role":"footer","text":"西域集团投标管理平台项目 · 项目经理个人分享","textLines":1,"bbox":[64,674,560,20]}
+{"kind":"shape","slide":7,"role":"background","bbox":[0,0,1280,720]}
+{"kind":"shape","slide":7,"role":"wash","bbox":[0,0,1280,720]}
+{"kind":"shape","slide":7,"role":"left blue rule","bbox":[0,0,18,720]}
+{"kind":"shape","slide":7,"role":"right pale band","bbox":[1120,0,160,720]}
+{"kind":"shape","slide":7,"role":"soft blue block","bbox":[930,82,320,96]}
+{"kind":"shape","slide":7,"role":"soft sky block","bbox":[1030,548,280,86]}
+{"kind":"shape","slide":7,"role":"kicker","bbox":[64,34,620,24]}
+{"kind":"textbox","slide":7,"role":"kicker","text":"06 / 赠送试点能力","textLines":1,"bbox":[64,34,620,24]}
+{"kind":"shape","slide":7,"role":"page number","bbox":[1120,34,96,24]}
+{"kind":"textbox","slide":7,"role":"page number","text":"07 / 09","textLines":1,"bbox":[1120,34,96,24]}
+{"kind":"shape","slide":7,"role":"header line","bbox":[64,66,1050,2]}
+{"kind":"shape","slide":7,"role":"title","bbox":[64,100,900,92]}
+{"kind":"textbox","slide":7,"role":"title","text":"商机中心：从看标讯到经营客户","textLines":1,"bbox":[64,100,900,92]}
+{"kind":"shape","slide":7,"role":"subtitle","bbox":[66,204,900,54]}
+{"kind":"textbox","slide":7,"role":"subtitle","text":"这是基于关键用户诉求额外做出的增值试点，不是合同强制交付项。","textLines":1,"bbox":[66,204,900,54]}
+{"kind":"shape","slide":7,"role":"value callout","bbox":[82,288,1092,70]}
+{"kind":"shape","slide":7,"role":"value callout text","bbox":[118,310,1020,24]}
+{"kind":"textbox","slide":7,"role":"value callout text","text":"它的价值是帮助团队提前经营客户，而不是等公告出来再反应。","textLines":1,"bbox":[118,310,1020,24]}
+{"kind":"shape","slide":7,"role":"card 客户池","bbox":[84,420,340,166]}
+{"kind":"shape","slide":7,"role":"card accent 客户池","bbox":[84,420,340,7]}
+{"kind":"shape","slide":7,"role":"card icon","bbox":[106,448,40,40]}
+{"kind":"shape","slide":7,"role":"card icon bar","bbox":[122,459,8,18]}
+{"kind":"shape","slide":7,"role":"card label","bbox":[162,448,240,28]}
+{"kind":"textbox","slide":7,"role":"card label","text":"客户池","textLines":1,"bbox":[162,448,240,28]}
+{"kind":"shape","slide":7,"role":"card body","bbox":[108,512,292,54]}
+{"kind":"textbox","slide":7,"role":"card body","text":"围绕客户沉淀历史采购、行业、区域、品类和预算规律。","textLines":1,"bbox":[108,512,292,54]}
+{"kind":"shape","slide":7,"role":"card 预测商机","bbox":[458,420,340,166]}
+{"kind":"shape","slide":7,"role":"card accent 预测商机","bbox":[458,420,340,7]}
+{"kind":"shape","slide":7,"role":"card icon","bbox":[480,448,40,40]}
+{"kind":"shape","slide":7,"role":"card icon bar","bbox":[496,459,8,18]}
+{"kind":"shape","slide":7,"role":"card label","bbox":[536,448,240,28]}
+{"kind":"textbox","slide":7,"role":"card label","text":"预测商机","textLines":1,"bbox":[536,448,240,28]}
+{"kind":"shape","slide":7,"role":"card body","bbox":[482,512,292,54]}
+{"kind":"textbox","slide":7,"role":"card body","text":"基于历史采购规律，生成可解释的潜在机会判断。","textLines":1,"bbox":[482,512,292,54]}
+{"kind":"shape","slide":7,"role":"card 转正式项目","bbox":[832,420,340,166]}
+{"kind":"shape","slide":7,"role":"card accent 转正式项目","bbox":[832,420,340,7]}
+{"kind":"shape","slide":7,"role":"card icon","bbox":[854,448,40,40]}
+{"kind":"shape","slide":7,"role":"card icon bar","bbox":[870,459,8,18]}
+{"kind":"shape","slide":7,"role":"card label","bbox":[910,448,240,28]}
+{"kind":"textbox","slide":7,"role":"card label","text":"转正式项目","textLines":1,"bbox":[910,448,240,28]}
+{"kind":"shape","slide":7,"role":"card body","bbox":[856,512,292,54]}
+{"kind":"textbox","slide":7,"role":"card body","text":"判断成熟后，一键进入现有项目流程继续推进。","textLines":1,"bbox":[856,512,292,54]}
+{"kind":"shape","slide":7,"role":"footer","bbox":[64,674,560,20]}
+{"kind":"textbox","slide":7,"role":"footer","text":"西域集团投标管理平台项目 · 项目经理个人分享","textLines":1,"bbox":[64,674,560,20]}
+{"kind":"shape","slide":8,"role":"background","bbox":[0,0,1280,720]}
+{"kind":"shape","slide":8,"role":"wash","bbox":[0,0,1280,720]}
+{"kind":"shape","slide":8,"role":"left blue rule","bbox":[0,0,18,720]}
+{"kind":"shape","slide":8,"role":"right pale band","bbox":[1120,0,160,720]}
+{"kind":"shape","slide":8,"role":"soft blue block","bbox":[930,82,320,96]}
+{"kind":"shape","slide":8,"role":"soft sky block","bbox":[1030,548,280,86]}
+{"kind":"shape","slide":8,"role":"kicker","bbox":[64,34,620,24]}
+{"kind":"textbox","slide":8,"role":"kicker","text":"07 / 边界管理","textLines":1,"bbox":[64,34,620,24]}
+{"kind":"shape","slide":8,"role":"page number","bbox":[1120,34,96,24]}
+{"kind":"textbox","slide":8,"role":"page number","text":"08 / 09","textLines":1,"bbox":[1120,34,96,24]}
+{"kind":"shape","slide":8,"role":"header line","bbox":[64,66,1050,2]}
+{"kind":"shape","slide":8,"role":"title","bbox":[64,100,900,92]}
+{"kind":"textbox","slide":8,"role":"title","text":"赠送可以，边界必须说清","textLines":1,"bbox":[64,100,900,92]}
+{"kind":"shape","slide":8,"role":"subtitle","bbox":[66,204,900,54]}
+{"kind":"textbox","slide":8,"role":"subtitle","text":"额外探索不能变成双方的验收压力。","textLines":1,"bbox":[66,204,900,54]}
+{"kind":"shape","slide":8,"role":"boundary row","bbox":[118,320,1000,78]}
+{"kind":"shape","slide":8,"role":"boundary label","bbox":[142,338,128,42]}
+{"kind":"shape","slide":8,"role":"boundary label text","bbox":[142,349,128,20]}
+{"kind":"textbox","slide":8,"role":"boundary label text","text":"可试用","textLines":1,"bbox":[142,349,128,20]}
+{"kind":"shape","slide":8,"role":"boundary body","bbox":[304,345,770,28]}
+{"kind":"textbox","slide":8,"role":"boundary body","text":"随项目提供基础能力，供关键用户体验客户级商机经营视角。","textLines":1,"bbox":[304,345,770,28]}
+{"kind":"shape","slide":8,"role":"boundary row","bbox":[118,424,1000,78]}
+{"kind":"shape","slide":8,"role":"boundary label","bbox":[142,442,128,42]}
+{"kind":"shape","slide":8,"role":"boundary label text","bbox":[142,453,128,20]}
+{"kind":"textbox","slide":8,"role":"boundary label text","text":"不验收","textLines":1,"bbox":[142,453,128,20]}
+{"kind":"shape","slide":8,"role":"boundary body","bbox":[304,449,770,28]}
+{"kind":"textbox","slide":8,"role":"boundary body","text":"不纳入本期SOW、UAT、上线验收、付款节点和缺陷关闭标准。","textLines":1,"bbox":[304,449,770,28]}
+{"kind":"shape","slide":8,"role":"boundary row","bbox":[118,528,1000,78]}
+{"kind":"shape","slide":8,"role":"boundary label","bbox":[142,546,128,42]}
+{"kind":"shape","slide":8,"role":"boundary label text","bbox":[142,557,128,20]}
+{"kind":"textbox","slide":8,"role":"boundary label text","text":"不承诺","textLines":1,"bbox":[142,557,128,20]}
+{"kind":"shape","slide":8,"role":"boundary body","bbox":[304,553,770,28]}
+{"kind":"textbox","slide":8,"role":"boundary body","text":"预测准确率、外部数据接入、CRM深度集成和自动采集器进入后续优化。","textLines":1,"bbox":[304,553,770,28]}
+{"kind":"shape","slide":8,"role":"footer","bbox":[64,674,560,20]}
+{"kind":"textbox","slide":8,"role":"footer","text":"西域集团投标管理平台项目 · 项目经理个人分享","textLines":1,"bbox":[64,674,560,20]}
+{"kind":"shape","slide":9,"role":"background","bbox":[0,0,1280,720]}
+{"kind":"shape","slide":9,"role":"wash","bbox":[0,0,1280,720]}
+{"kind":"shape","slide":9,"role":"left blue rule","bbox":[0,0,18,720]}
+{"kind":"shape","slide":9,"role":"right pale band","bbox":[1120,0,160,720]}
+{"kind":"shape","slide":9,"role":"soft blue block","bbox":[930,82,320,96]}
+{"kind":"shape","slide":9,"role":"soft sky block","bbox":[1030,548,280,86]}
+{"kind":"shape","slide":9,"role":"kicker","bbox":[64,34,620,24]}
+{"kind":"textbox","slide":9,"role":"kicker","text":"08 / 项目共识","textLines":1,"bbox":[64,34,620,24]}
+{"kind":"shape","slide":9,"role":"page number","bbox":[1120,34,96,24]}
+{"kind":"textbox","slide":9,"role":"page number","text":"09 / 09","textLines":1,"bbox":[1120,34,96,24]}
+{"kind":"shape","slide":9,"role":"header line","bbox":[64,66,1050,2]}
+{"kind":"shape","slide":9,"role":"title","bbox":[64,100,860,92]}
+{"kind":"textbox","slide":9,"role":"title","text":"我们交付的不只是系统","textLines":1,"bbox":[64,100,860,92]}
+{"kind":"shape","slide":9,"role":"subtitle","bbox":[66,204,900,54]}
+{"kind":"textbox","slide":9,"role":"subtitle","text":"也希望一起升级一套更适合AI时代的工作方式。","textLines":1,"bbox":[66,204,900,54]}
+{"kind":"shape","slide":9,"role":"closing tile","bbox":[126,326,424,86]}
+{"kind":"shape","slide":9,"role":"closing dot","bbox":[154,351,36,36]}
+{"kind":"shape","slide":9,"role":"closing item","bbox":[214,355,290,30]}
+{"kind":"textbox","slide":9,"role":"closing item","text":"把会议变资产","textLines":1,"bbox":[214,355,290,30]}
+{"kind":"shape","slide":9,"role":"closing tile","bbox":[612,326,424,86]}
+{"kind":"shape","slide":9,"role":"closing dot","bbox":[640,351,36,36]}
+{"kind":"shape","slide":9,"role":"closing item","bbox":[700,355,290,30]}
+{"kind":"textbox","slide":9,"role":"closing item","text":"把分歧变结构","textLines":1,"bbox":[700,355,290,30]}
+{"kind":"shape","slide":9,"role":"closing tile","bbox":[126,452,424,86]}
+{"kind":"shape","slide":9,"role":"closing dot","bbox":[154,477,36,36]}
+{"kind":"shape","slide":9,"role":"closing item","bbox":[214,481,290,30]}
+{"kind":"textbox","slide":9,"role":"closing item","text":"把经验变技能","textLines":1,"bbox":[214,481,290,30]}
+{"kind":"shape","slide":9,"role":"closing tile","bbox":[612,452,424,86]}
+{"kind":"shape","slide":9,"role":"closing dot","bbox":[640,477,36,36]}
+{"kind":"shape","slide":9,"role":"closing item","bbox":[700,481,290,30]}
+{"kind":"textbox","slide":9,"role":"closing item","text":"把个人能力变团队能力","textLines":1,"bbox":[700,481,290,30]}
+{"kind":"shape","slide":9,"role":"closing sentence","bbox":[220,604,840,30]}
+{"kind":"textbox","slide":9,"role":"closing sentence","text":"让项目不只完成交付，也沉淀一套可复用的工作方式。","textLines":1,"bbox":[220,604,840,30]}
+{"kind":"shape","slide":9,"role":"footer","bbox":[64,674,560,20]}
+{"kind":"textbox","slide":9,"role":"footer","text":"西域集团投标管理平台项目 · 项目经理个人分享","textLines":1,"bbox":[64,674,560,20]}

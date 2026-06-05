@@ -1,0 +1,293 @@
+@import '../../../styles/variables.css';
+
+.workbench {
+  padding: 24px;
+  background: #F8FAFC;
+  min-height: 100%;
+}
+
+.page-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.page-kicker {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--sidebar-text-secondary);
+  letter-spacing: 0.08em;
+}
+
+.runtime-mode-tag {
+  border-radius: 999px;
+}
+
+/* ==================== 欢迎横幅 ==================== */
+.welcome-banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 32px 40px;
+  background: linear-gradient(135deg, var(--brand-xiyu-logo) 0%, #18563E 100%);
+  border-radius: 16px;
+  margin-bottom: 24px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(var(--brand-xiyu-logo-rgb, 46, 118, 89), 0.22);
+}
+
+.banner-content {
+  position: relative;
+  z-index: 2;
+}
+
+.banner-greeting {
+  margin-bottom: 20px;
+}
+
+.banner-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--bg-card);
+  margin-bottom: 8px;
+}
+
+.banner-subtitle {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.banner-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.banner-actions .el-button {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: var(--bg-card);
+}
+
+.banner-actions .el-button:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.banner-actions .el-button--primary {
+  background: var(--bg-card);
+  color: var(--brand-xiyu-logo);
+  border-color: var(--bg-card);
+}
+
+.banner-actions .el-button--primary:hover {
+  background: #F8FAFC;
+}
+
+.banner-decoration {
+  position: absolute;
+  right: 40px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.decoration-circle {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.circle-1 {
+  width: 120px;
+  height: 120px;
+  right: 0;
+  top: -60px;
+}
+
+.circle-2 {
+  width: 80px;
+  height: 80px;
+  right: 100px;
+  top: 20px;
+}
+
+.circle-3 {
+  width: 60px;
+  height: 60px;
+  right: 40px;
+  top: -40px;
+}
+
+/* ==================== 统计指标网格 ==================== */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 16px;
+  align-items: stretch;
+  margin-bottom: 24px;
+}
+
+.metric-card {
+  display: block;
+  min-width: 0;
+  padding: 18px 20px;
+  background: var(--bg-card);
+  border-radius: 12px;
+  border: 1px solid #E5E7EB;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.metric-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+}
+
+.metric-card.metric-blue::before { background: linear-gradient(180deg, #1E40AF 0%, #3B82F6 100%); }
+.metric-card.metric-green::before { background: linear-gradient(180deg, var(--color-success-dark) 0%, var(--color-success) 100%); }
+.metric-card.metric-amber::before { background: linear-gradient(180deg, #D97706 0%, #F59E0B 100%); }
+.metric-card.metric-red::before { background: linear-gradient(180deg, var(--color-danger) 0%, var(--color-danger) 100%); }
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.metric-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  min-width: 0;
+}
+
+.metric-label {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-650);
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metric-icon {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1E40AF;
+}
+
+.metric-value {
+  display: block;
+  width: 100%;
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--gray-950);
+  line-height: 1.1;
+  margin-bottom: 12px;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metric-footer {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.metric-change {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.metric-change.up { color: var(--color-success-dark); }
+.metric-change.down { color: var(--color-danger); }
+.metric-change.neutral { color: var(--gray-650); }
+
+.metric-compare {
+  font-size: 12px;
+  color: #9CA3AF;
+  white-space: nowrap;
+}
+
+/* ==================== 内容网格 ==================== */
+.content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.28fr) minmax(340px, 0.92fr);
+  gap: 20px;
+}
+
+.main-column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.side-column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.side-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+/* ==================== 卡片通用样式 ==================== */
+.section-card {
+  background: var(--bg-card);
+  border-radius: 12px;
+  border: 1px solid #E5E7EB;
+  overflow: hidden;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #F3F4F6;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gray-950);
+  margin: 0;
+}
+
+.section-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--brand-xiyu-logo);
+}

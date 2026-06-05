@@ -1,0 +1,1359 @@
+/**
+ * Attention Guidance System
+ * Ensures important actions and information are never overlooked
+ * Uses visual hierarchy, motion, color, and spacing to guide attention
+ */
+
+/* ==================== Priority Actions Enhancement ==================== */
+
+/* Primary action buttons - make them pop */
+.el-button--primary.action-important {
+  position: relative;
+  overflow: hidden;
+}
+
+.el-button--primary.action-important::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.5s ease;
+}
+
+.el-button--primary.action-important:hover::after {
+  left: 100%;
+}
+
+/* Subtle pulse for critical actions */
+@keyframes subtle-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(3, 105, 161, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(3, 105, 161, 0);
+  }
+}
+
+.action-critical {
+  animation: subtle-pulse 2s infinite;
+}
+
+/* ==================== Table Action Visibility ==================== */
+
+/* Make action buttons in tables more visible */
+.el-table .action-buttons {
+  display: flex;
+  gap: 8px;
+  opacity: 0.85;
+  transition: opacity 0.2s ease;
+}
+
+.el-table__row:hover .action-buttons {
+  opacity: 1;
+}
+
+/* Primary action in table - bigger and more visible */
+.el-table .btn-participate {
+  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--brand-xiyu-logo-hover) 100%);
+  color: var(--bg-card);
+  border: none;
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(3, 105, 161, 0.2);
+}
+
+.el-table .btn-participate:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(3, 105, 161, 0.3);
+}
+
+/* Secondary action in table */
+.el-table .btn-view {
+  color: var(--accent-blue);
+  background: var(--accent-blue-light);
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.el-table .btn-view:hover {
+  background: var(--brand-xiyu-logo-light);
+}
+
+/* ==================== Important Info Highlights ==================== */
+
+/* AI Score - make it pop */
+.ai-score-highlight {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 700;
+  position: relative;
+}
+
+.ai-score-high {
+  background: linear-gradient(135deg, var(--color-success) 0%, var(--color-success-dark) 100%);
+  color: var(--bg-card);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.ai-score-medium {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  color: var(--bg-card);
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+}
+
+.ai-score-low {
+  background: linear-gradient(135deg, var(--text-slate) 0%, var(--sidebar-text-secondary) 100%);
+  color: var(--bg-card);
+}
+
+/* Status badges - better visibility */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.status-badge.status-new {
+  background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+  color: var(--bg-card);
+}
+
+.status-badge.status-urgent {
+  background: linear-gradient(135deg, var(--color-danger) 0%, var(--color-danger) 100%);
+  color: var(--bg-card);
+  animation: subtle-pulse 2s infinite;
+}
+
+/* ==================== Notice/Attention Indicators ==================== */
+
+/* New item indicator */
+@keyframes new-badge-bounce {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.new-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: var(--color-danger);
+  color: var(--bg-card);
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  animation: new-badge-bounce 2s ease-in-out infinite;
+}
+
+/* Count badge - make it visible */
+.count-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  background: var(--color-danger);
+  color: var(--bg-card);
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.4);
+  border: 2px solid var(--bg-card);
+}
+
+/* ==================== Table Cell Improvements ==================== */
+
+/* Important columns - better styling */
+.el-table .column-important {
+  background: linear-gradient(180deg, #F0F9FF 0%, transparent 100%);
+}
+
+.el-table .column-important .cell {
+  font-weight: 600;
+  color: var(--accent-blue);
+}
+
+/* Action column - fixed width for consistency */
+.el-table .column-action {
+  width: 180px;
+  min-width: 180px;
+}
+
+/* ==================== Empty/Zero States ==================== */
+
+/* Empty state with clear CTA */
+.empty-action-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--brand-xiyu-logo-hover) 100%);
+  color: var(--bg-card);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(3, 105, 161, 0.3);
+}
+
+.empty-action-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(3, 105, 161, 0.4);
+}
+
+/* ==================== Notification Banners ==================== */
+
+/* Top notification banner */
+.notification-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.notification-banner.info {
+  background: linear-gradient(135deg, var(--accent-blue-light) 0%, var(--brand-xiyu-logo-light) 100%);
+  border-left: 4px solid var(--brand-xiyu-logo);
+}
+
+.notification-banner.warning {
+  background: linear-gradient(135deg, var(--color-warning-bg) 0%, var(--color-warning-light) 100%);
+  border-left: 4px solid #F59E0B;
+}
+
+.notification-banner.critical {
+  background: linear-gradient(135deg, var(--color-danger-bg) 0%, #FECACA 100%);
+  border-left: 4px solid var(--color-danger);
+  animation: subtle-pulse 3s infinite;
+}
+
+.notification-banner .banner-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.notification-banner .banner-content {
+  flex: 1;
+}
+
+.notification-banner .banner-title {
+  font-weight: 600;
+  color: #0F172A;
+  margin-bottom: 2px;
+}
+
+.notification-banner .banner-message {
+  font-size: 13px;
+  color: var(--sidebar-text-secondary);
+}
+
+.notification-banner .banner-action {
+  flex-shrink: 0;
+}
+
+/* ==================== Quick Action Floating ==================== */
+
+/* Floating action button for important actions */
+.fab-primary {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--brand-xiyu-logo-hover) 100%);
+  color: var(--bg-card);
+  border: none;
+  box-shadow: 0 4px 12px rgba(3, 105, 161, 0.4);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.fab-primary:hover {
+  transform: scale(1.1);
+  box-shadow: 0 8px 20px rgba(3, 105, 161, 0.5);
+}
+
+.fab-primary:active {
+  transform: scale(1);
+}
+
+/* ==================== Tooltip Enhancements ==================== */
+
+/* Always show important hints */
+.hint-always-visible {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--color-warning-bg);
+  border-radius: 4px;
+  font-size: 11px;
+  color: #92400E;
+  font-weight: 500;
+}
+
+/* ==================== Progress Indicators ==================== */
+
+/* Progress with clear status */
+.progress-with-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.progress-with-status .progress-bar {
+  flex: 1;
+  height: 8px;
+  background: var(--gray-200);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-with-status .progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-blue) 0%, var(--brand-xiyu-logo-hover) 100%);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.progress-with-status .progress-text {
+  min-width: 40px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-blue);
+}
+
+/* ==================== Click Hints ==================== */
+
+/* Subtle arrow hint for clickable rows */
+.clickable-row-hint {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  color: var(--gray-400);
+}
+
+.clickable-row:hover .clickable-row-hint {
+  opacity: 1;
+}
+
+/* ==================== Required Fields ==================== */
+
+/* Required indicator - more visible */
+.required-field::after {
+  content: '*';
+  color: var(--color-danger);
+  font-weight: 700;
+  margin-left: 2px;
+}
+
+.required-indicator {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--color-danger);
+  border-radius: 50%;
+  margin-right: 6px;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* ==================== Status Updates ==================== */
+
+/* Recent update indicator */
+.recent-update {
+  position: relative;
+}
+
+.recent-update::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  background: var(--color-success);
+  border: 2px solid var(--bg-card);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+/* ==================== Help/Info Icons ==================== */
+
+/* Help icon that stands out */
+.help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent-blue-light);
+  color: var(--accent-blue);
+  cursor: help;
+  transition: all 0.2s ease;
+  font-size: 12px;
+}
+
+.help-icon:hover {
+  background: var(--brand-xiyu-logo-light);
+  transform: scale(1.1);
+}
+
+/* ==================== Keyboard Shortcuts Hint ==================== */
+
+/* Keyboard shortcut indicator */
+.kbd-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--text-slate);
+}
+
+/* ==================== Important Notices ==================== */
+
+/* Warning notice box */
+.notice-box {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  margin: 12px 0;
+}
+
+.notice-box.warning {
+  background: #FFFBEB;
+  border: 1px solid #FCD34D;
+}
+
+.notice-box.info {
+  background: #F0F9FF;
+  border: 1px solid #7DD3FC;
+}
+
+.notice-box .notice-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.notice-box .notice-content {
+  flex: 1;
+}
+
+.notice-box .notice-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.notice-box .notice-text {
+  font-size: 13px;
+  color: var(--text-slate);
+  line-height: 1.5;
+}
+
+/* ==================== Attention Gradient Overlay ==================== */
+
+/* Draw attention to specific areas */
+.attention-highlight {
+  position: relative;
+}
+
+.attention-highlight::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(45deg, var(--accent-blue), #8B5CF6, #EC4899, var(--accent-blue));
+  background-size: 400% 400%;
+  z-index: -1;
+  opacity: 0;
+  animation: gradient-shift 3s ease infinite;
+  border-radius: calc(inherit + 2px);
+  filter: blur(8px);
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.attention-highlight:hover::before {
+  opacity: 0.6;
+}
+
+/* ==================== Table Enhancements ==================== */
+
+/* Make table headers more noticeable */
+.el-table .el-table__header th {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--gray-50) !important;
+  color: var(--sidebar-text-secondary) !important;
+}
+
+/* Important table rows */
+.el-table .row-important {
+  background: #F0F9FF !important;
+}
+
+.el-table .row-important:hover > td {
+  background: var(--accent-blue-light) !important;
+}
+
+/* ==================== Action Button Group ==================== */
+
+/* Group of action buttons with clear hierarchy */
+.action-group {
+  display: flex;
+  gap: 8px;
+}
+
+.action-group .btn-primary {
+  order: 1;
+  z-index: 3;
+}
+
+.action-group .btn-secondary {
+  order: 2;
+  z-index: 2;
+}
+
+.action-group .btn-tertiary {
+  order: 3;
+  z-index: 1;
+  opacity: 0.7;
+}
+
+.action-group:hover .btn-tertiary {
+  opacity: 1;
+}
+
+/* ==================== Status Timeline ==================== */
+
+/* Status timeline with clear visual progression */
+.status-timeline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.status-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+
+.status-step .step-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--gray-200);
+  border: 2px solid var(--bg-card);
+  box-shadow: 0 0 0 2px var(--gray-200);
+  transition: all 0.3s ease;
+}
+
+.status-step.completed .step-dot {
+  background: var(--color-success);
+  box-shadow: 0 0 0 2px var(--color-success);
+}
+
+.status-step.current .step-dot {
+  background: var(--accent-blue);
+  box-shadow: 0 0 0 4px rgba(3, 105, 161, 0.3);
+  animation: pulse 2s infinite;
+}
+
+.status-step .step-label {
+  font-size: 11px;
+  color: var(--text-slate);
+}
+
+.status-step.current .step-label {
+  color: var(--accent-blue);
+  font-weight: 600;
+}
+
+/* ==================== Tip/Callout Boxes ==================== */
+
+/* Callout for important tips */
+.tip-callout {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #F0FDF4 0%, #D1FAE5 100%);
+  border-left: 4px solid var(--color-success-dark);
+  border-radius: 0 8px 8px 0;
+  margin: 12px 0;
+}
+
+.tip-callout .tip-icon {
+  font-size: 18px;
+  color: var(--color-success-dark);
+  flex-shrink: 0;
+}
+
+.tip-callout .tip-content {
+  flex: 1;
+}
+
+.tip-callout .tip-title {
+  font-weight: 600;
+  color: #065F46;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.tip-callout .tip-text {
+  font-size: 12px;
+  color: #064E3B;
+  line-height: 1.5;
+}
+
+/* ==================== Filter Chips ==================== */
+
+/* Active filter chips - make them visible */
+.filter-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--gray-50);
+  color: var(--text-slate);
+  border: 1px solid var(--gray-200);
+}
+
+.filter-chip:hover {
+  background: var(--gray-200);
+}
+
+.filter-chip.active {
+  background: var(--accent-blue);
+  color: var(--bg-card);
+  border-color: var(--accent-blue);
+}
+
+.filter-chip .chip-count {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ==================== Search Highlight ==================== */
+
+/* Highlight search results */
+.search-highlight {
+  background: linear-gradient(135deg, var(--color-warning-bg) 0%, var(--color-warning-light) 100%);
+  padding: 2px 4px;
+  border-radius: 2px;
+  font-weight: 600;
+}
+
+/* ==================== Priority Labels ==================== */
+
+/* Priority labels with clear visual distinction */
+.priority-high {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, var(--color-danger-bg) 0%, #FECACA 100%);
+  color: #991B1B;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.priority-medium {
+  background: linear-gradient(135deg, var(--color-warning-bg) 0%, var(--color-warning-light) 100%);
+  color: #92400E;
+}
+
+.priority-low {
+  background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%);
+  color: #065F46;
+}
+
+/* ==================== Loading Skeleton ==================== */
+
+/* Skeleton loading with shimmer */
+.skeleton-loading {
+  background: linear-gradient(90deg, var(--gray-50) 25%, var(--gray-200) 50%, var(--gray-50) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* ==================== Error States ==================== */
+
+/* Error state with clear action */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 32px;
+  text-align: center;
+}
+
+.error-state .error-icon {
+  font-size: 48px;
+  color: var(--color-danger);
+  margin-bottom: 8px;
+}
+
+.error-state .error-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-danger);
+}
+
+.error-state .error-message {
+  font-size: 14px;
+  color: var(--text-slate);
+  margin-bottom: 8px;
+}
+
+.error-state .error-action {
+  display: flex;
+  gap: 8px;
+}
+
+/* ==================== Success States ==================== */
+
+/* Success state with animation */
+.success-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+}
+
+.success-state .success-icon {
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, var(--color-success) 0%, var(--color-success-dark) 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bg-card);
+  font-size: 24px;
+  animation: success-bounce 0.5s ease;
+}
+
+@keyframes success-bounce {
+  0% {
+    transform: scale(0);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ==================== Warning States ==================== */
+
+/* Warning state */
+.warning-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+  background: #FFFBEB;
+  border: 1px solid #FCD34D;
+  border-radius: 8px;
+}
+
+.warning-state .warning-icon {
+  font-size: 32px;
+  color: #F59E0B;
+}
+
+/* ==================== Info Tips ==================== */
+
+/* Inline info tip */
+.info-tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #F0F9FF;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--accent-blue);
+}
+
+.info-tip .tip-icon {
+  font-size: 14px;
+}
+
+/* ==================== Empty States with Action ==================== */
+
+/* Empty state with clear call to action */
+.empty-state-with-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.empty-state-with-action .empty-icon {
+  font-size: 64px;
+  color: #CBD5E1;
+}
+
+.empty-state-with-action .empty-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-slate);
+}
+
+.empty-state-with-action .empty-description {
+  font-size: 14px;
+  color: var(--gray-400);
+  max-width: 400px;
+}
+
+.empty-state-with-action .empty-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* ==================== Notification Dots ==================== */
+
+/* Notification dot indicator */
+.notification-dot {
+  position: relative;
+}
+
+.notification-dot.has-notification::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  background: var(--color-danger);
+  border: 2px solid var(--bg-card);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+/* ==================== Hover Reveal ==================== */
+
+/* Reveal actions on hover */
+.reveal-on-hover .reveal-content {
+  opacity: 0;
+  transform: translateX(-8px);
+  transition: all 0.2s ease;
+  pointer-events: none;
+}
+
+.reveal-on-hover:hover .reveal-content {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+/* ==================== Drag Handles ==================== */
+
+/* Visible drag handle */
+.drag-handle {
+  cursor: grab;
+  color: #CBD5E1;
+  transition: all 0.2s ease;
+}
+
+.drag-handle:hover {
+  color: var(--gray-400);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/* ==================== Expand/Collapse ==================== */
+
+/* Clear expand/collapse indicators */
+.expand-indicator {
+  transition: transform 0.3s ease;
+  cursor: pointer;
+}
+
+.expand-indicator.expanded {
+  transform: rotate(90deg);
+}
+
+/* ==================== Badge Enhancement ==================== */
+
+/* Enhanced badges with clear meaning */
+.enhanced-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.enhanced-badge .badge-icon {
+  font-size: 12px;
+}
+
+/* ==================== Link Actions ==================== */
+
+/* Text link actions - more visible */
+.link-action {
+  color: var(--accent-blue);
+  text-decoration: none;
+  border-bottom: 1px dashed transparent;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.link-action:hover {
+  border-bottom-color: var(--accent-blue);
+}
+
+/* ==================== Bulk Action Bar ==================== */
+
+/* Bulk action bar - appears when items selected */
+.bulk-action-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(135deg, #1E293B 0%, var(--sidebar-text) 100%);
+  color: var(--bg-card);
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1000;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.bulk-action-bar.visible {
+  transform: translateY(0);
+}
+
+.bulk-action-bar .bulk-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bulk-action-bar .bulk-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ==================== Inline Actions ==================== */
+
+/* Inline action buttons */
+.inline-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-slate);
+}
+
+.inline-action:hover {
+  background: var(--gray-50);
+  border-color: var(--gray-200);
+  color: var(--accent-blue);
+}
+
+.inline-action.action-danger:hover {
+  background: var(--color-danger-bg);
+  border-color: #FECACA;
+  color: var(--color-danger);
+}
+
+/* ==================== Status Pills ==================== */
+
+/* Status pills with clear colors */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-pill.active {
+  background: #D1FAE5;
+  color: var(--color-success-dark);
+}
+
+.status-pill.inactive {
+  background: var(--gray-50);
+  color: var(--text-slate);
+}
+
+.status-pill.pending {
+  background: var(--color-warning-bg);
+  color: #92400E;
+}
+
+.status-pill.error {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+/* ==================== Action Icons ==================== */
+
+/* Action icon buttons */
+.action-icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-slate);
+}
+
+.action-icon-btn:hover {
+  background: var(--gray-50);
+  border-color: var(--gray-200);
+  color: var(--accent-blue);
+  transform: scale(1.05);
+}
+
+.action-icon-btn:active {
+  transform: scale(0.95);
+}
+
+/* ==================== Quick Filters ==================== */
+
+/* Quick filter tabs */
+.quick-filters {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--gray-50);
+  border-radius: 8px;
+}
+
+.quick-filter {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-slate);
+}
+
+.quick-filter:hover {
+  background: var(--bg-card);
+  color: var(--accent-blue);
+}
+
+.quick-filter.active {
+  background: var(--bg-card);
+  color: var(--accent-blue);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* ==================== Tooltips ==================== */
+
+/* Enhanced tooltip for important info */
+.tooltip-important {
+  position: relative;
+  cursor: help;
+}
+
+.tooltip-important::before {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-4px);
+  padding: 6px 10px;
+  background: #1E293B;
+  color: var(--bg-card);
+  font-size: 12px;
+  border-radius: 4px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.2s ease;
+  z-index: 100;
+}
+
+.tooltip-important:hover::before {
+  opacity: 1;
+  transform: translateX(-50%) translateY(-2px);
+}
+
+/* ==================== Separator Lines ==================== */
+
+/* Clear section separators */
+.section-separator {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gray-200), transparent);
+  margin: 24px 0;
+}
+
+/* ==================== Card Headers ==================== */
+
+/* Card header with clear action visibility */
+.card-header-with-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: #F8FAFC;
+  border-radius: 8px 8px 0 0;
+}
+
+.card-header-with-actions .header-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #0F172A;
+}
+
+.card-header-with-actions .header-actions {
+  display: flex;
+  gap: 8px;
+  opacity: 0.9;
+}
+
+/* ==================== Count Displays ==================== */
+
+/* Count displays - make them pop */
+.count-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.count-display.count-high {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.count-display.count-medium {
+  background: var(--color-warning-bg);
+  color: #D97706;
+}
+
+.count-display.count-low {
+  background: #D1FAE5;
+  color: var(--color-success-dark);
+}
+
+.count-display.count-zero {
+  background: var(--gray-50);
+  color: var(--text-slate);
+}
+
+/* ==================== Progress Rings ==================== */
+
+/* Progress ring for visual importance */
+.progress-ring-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.progress-ring-wrapper svg {
+  transform: rotate(-90deg);
+}
+
+.progress-ring-wrapper .progress-ring-bg {
+  fill: none;
+  stroke: var(--gray-200);
+}
+
+.progress-ring-wrapper .progress-ring-fill {
+  fill: none;
+  stroke: url(#progress-gradient);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.5s ease;
+}
+
+.progress-ring-wrapper .progress-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* ==================== Gradient Definitions ==================== */
+
+/* SVG Gradients for progress rings */
+.svg-gradients {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+/* ==================== Attention Grabbing ==================== */
+
+/* For elements that need immediate attention */
+.attention-grabber {
+  position: relative;
+}
+
+.attention-grabber::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  border: 2px solid transparent;
+  background: linear-gradient(45deg, var(--accent-blue), #8B5CF6, #EC4899, var(--accent-blue));
+  background-size: 400% 400%;
+  animation: border-dance 3s linear infinite;
+}
+
+@keyframes border-dance {
+  0% {
+    border-color: var(--accent-blue);
+  }
+  25% {
+    border-color: #8B5CF6;
+  }
+  50% {
+    border-color: #EC4899;
+  }
+  75% {
+    border-color: var(--accent-blue);
+  }
+  100% {
+    border-color: #8B5CF6;
+  }
+}
+
+/* ==================== Reduced Motion ==================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .action-critical,
+  .new-badge,
+  .status-step.current .step-dot,
+  .attention-grabber::after,
+  .notification-dot.has-notification::after {
+    animation: none;
+  }
+}

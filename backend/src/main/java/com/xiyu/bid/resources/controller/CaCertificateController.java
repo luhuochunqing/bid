@@ -1,0 +1,134 @@
+package com.xiyu.bid.resources.controller;
+
+import com.xiyu.bid.annotation.Auditable;
+import com.xiyu.bid.resources.dto.*;
+import com.xiyu.bid.resources.service.CaCertificateService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.*;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.*;
+
+@RestController
+@RequestMapping("/api/ca-certificates")
+@RequiredArgsConstructor
+public class CaCertificateController {
+
+    private final CaCertificateService caService;
+
+    // ========== CA 证书 CRUD ==========
+
+    @GetMapping
+    public ResponseEntity<Page<CaCertificateDTO>> list(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String borrowStatus,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String caType,
+            @RequestParam(required = false) String sealType,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(caService.list(status, borrowStatus, keyword, caType, sealType, pageable));
+    }
+
+    @GetMapping("/overview")
+    public ResponseEntity<Map<String, Long>> overview() {
+        return ResponseEntity.ok(caService.getOverview());
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<CaCertificateDTO> getById(@PathVariable Long id) {
+        return ResponseEntity.ok(caService.getById(id));
+    }
+
+    @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @Auditable(action = "CREATE", entityType = "CaCertificate", description = "新增CA证书")
+    public ResponseEntity<CaCertificateDTO> create(@Valid @RequestBody CaCertificateRequest request) {
+        return ResponseEntity.ok(caService.create(request));
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @Auditable(action = "UPDATE", entityType = "CaCertificate", description = "编辑CA证书")
+    public ResponseEntity<CaCertificateDTO> update(@PathVariable Long id, @Valid @RequestBody CaCertificateRequest request) {
+        return ResponseEntity.ok(caService.update(id, request));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @Auditable(action = "DEACTIVATE", entityType = "CaCertificate", description = "下架CA证书")
+    public ResponseEntity<Void> deactivate(@PathVariable Long id) {
+        caService.deactivate(id);
+        return ResponseEntity.ok().build();
+    }
+
+    // ========== CA 借用流程 ==========
+
+    @PostMapping("/{id}/borrow")
+    @Auditable(action = "BORROW_REQUEST", entityType = "CaBorrowApplication", description = "发起CA借用申请")
+    public ResponseEntity<CaBorrowApplicationDTO> borrow(
+            @PathVariable Long id,
+            @Valid @RequestBody CaBorrowRequest request,
+            @AuthenticationPrincipal UserDetails user) {
+        request.setCaCertificateId(id);
+        return ResponseEntity.ok(caService.borrow(user, request));
+    }
+
+    @PostMapping("/borrow-applications/{applicationId}/approve")
+    @Auditable(action = "APPROVE", entityType = "CaBorrowApplication", description = "审批通过CA借用申请")
+    public ResponseEntity<CaBorrowApplicationDTO> approve(
+            @PathVariable Long applicationId,
+            @Valid @RequestBody CaApprovalRequest request,
+            @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(caService.approve(applicationId, user, request.getComment()));
+    }
+
+    @PostMapping("/borrow-applications/{applicationId}/reject")
+    @Auditable(action = "REJECT", entityType = "CaBorrowApplication", description = "驳回CA借用申请")
+    public ResponseEntity<CaBorrowApplicationDTO> reject(
+            @PathVariable Long applicationId,
+            @Valid @RequestBody CaApprovalRequest request,
+            @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(caService.reject(applicationId, user, request.getComment()));
+    }
+
+    @PostMapping("/borrow-applications/{applicationId}/return")
+    @Auditable(action = "RETURN", entityType = "CaBorrowApplication", description = "登记CA归还")
+    public ResponseEntity<CaBorrowApplicationDTO> returnCertificate(
+            @PathVariable Long applicationId,
+            @Valid @RequestBody CaReturnRequest request,
+            @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(caService.returnCertificate(applicationId, user, request));
+    }
+
+    @PostMapping("/borrow-applications/{applicationId}/cancel")
+    @Auditable(action = "CANCEL", entityType = "CaBorrowApplication", description = "取消CA借用申请")
+    public ResponseEntity<CaBorrowApplicationDTO> cancelBorrow(
+            @PathVariable Long applicationId,
+            @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(caService.cancelBorrow(applicationId, user));
+    }
+
+    // ========== 查询借用记录 ==========
+
+    @GetMapping("/{id}/borrow-applications")
+    public ResponseEntity<List<CaBorrowApplicationDTO>> getBorrowApplications(@PathVariable Long id) {
+        return ResponseEntity.ok(caService.getBorrowApplicationsByCaId(id));
+    }
+
+    @GetMapping("/borrow-applications/{applicationId}/events")
+    public ResponseEntity<List<CaBorrowEventDTO>> getBorrowEvents(@PathVariable Long applicationId) {
+        return ResponseEntity.ok(caService.getBorrowEvents(applicationId));
+    }
+
+    @GetMapping("/pending-approvals")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<List<CaBorrowApplicationDTO>> getPendingApprovals(@AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(caService.getPendingApprovals(user));
+    }
+}

@@ -1,0 +1,8 @@
+{
+  "id": "infrastructure_sop_setup_20260426",
+  "title": "SOP 基础设施初始化",
+  "status": "completed",
+  "created_at": "2026-04-26",
+  "updated_at": "2026-04-26",
+  "description": "通过设置 Git worktrees 和自动化脚本来初始化多 Agent 工程化 SOP。"
+}

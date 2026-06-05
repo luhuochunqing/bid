@@ -1,0 +1,33 @@
+# CRM Authentication API Contracts
+
+## applyToken
+POST /api/crm/auth/applyToken
+Content-Type: application/json
+
+Request:
+  clientId: string      # from env CRM_CLIENT_ID
+  clientSecret: string  # from env CRM_CLIENT_SECRET
+
+Response 200:
+  code: 0
+  msg: "success"
+  data:
+    access_token: string
+    expires_in: long   # seconds
+  success: true
+
+Response 401:
+  code: 401
+  msg: "invalid credentials"
+  data: null
+  success: false
+
+## logout
+POST /api/crm/auth/logout
+Authorization: Bearer {access_token}
+
+Response 200:
+  code: 0
+  msg: "success"
+  data: null
+  success: true

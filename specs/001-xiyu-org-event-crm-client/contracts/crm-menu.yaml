@@ -1,0 +1,24 @@
+# CRM Menu API Contract
+
+## getMenuTree
+POST /api/crm/menu/tree
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+Request:
+  systemType: string   # system type filter (e.g., "CRM", "ERP")
+
+Response 200:
+  code: 0
+  msg: "success"
+  data:
+    nodes:
+      - nodeId: string
+        nodeName: string
+        parentId: string|null   # null = root
+        systemType: string
+        sortOrder: int
+        children: []            # nested structure
+  success: true
+
+Cache: Response cached per systemType, TTL configurable (default 30 min)

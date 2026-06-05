@@ -1,0 +1,86 @@
+### ==========================================
+### 知识库模块 API 测试
+### ==========================================
+
+### 0. 获取 Token
+# @name login
+POST http://localhost:18081/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "XiyuAdmin2026!"
+}
+
+@token = {{login.response.body.data.token}}
+
+### 1. 正常流程：资质库列表
+GET http://localhost:18081/api/knowledge/qualifications?page=0&size=10
+Authorization: Bearer {{token}}
+
+### 2. 正常流程：创建资质
+POST http://localhost:18081/api/knowledge/qualifications
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "API测试资质-{{$randomInt 1 9999}}",
+  "certificateNo": "API-{{$randomInt 1000 9999}}",
+  "issuer": "测试发证机关",
+  "holderName": "测试持有人",
+  "expiryDate": "2027-12-31",
+  "status": "valid"
+}
+
+@qualId = 1
+
+### 3. 正常流程：资质详情
+GET http://localhost:18081/api/knowledge/qualifications/{{qualId}}
+Authorization: Bearer {{token}}
+
+### 4. 边界：不存在资质
+GET http://localhost:18081/api/knowledge/qualifications/999999
+Authorization: Bearer {{token}}
+
+### 5. 正常流程：案例库列表
+GET http://localhost:18081/api/knowledge/cases?page=0&size=10
+Authorization: Bearer {{token}}
+
+### 6. 正常流程：创建案例
+POST http://localhost:18081/api/knowledge/cases
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "API测试案例-{{$randomInt 1 9999}}",
+  "industry": "INDUSTRY",
+  "outcome": "WON",
+  "amount": 100,
+  "projectDate": "2026-01-01",
+  "description": "通过API创建的测试案例",
+  "customerName": "API测试客户",
+  "tags": ["API测试"],
+  "highlights": ["自动化验证"]
+}
+
+@caseId = 1
+
+### 7. 正常流程：案例详情
+GET http://localhost:18081/api/knowledge/cases/{{caseId}}
+Authorization: Bearer {{token}}
+
+### 8. 正常流程：案例搜索
+GET http://localhost:18081/api/knowledge/cases?keyword=测试&page=0&size=10
+Authorization: Bearer {{token}}
+
+### 9. 正常流程：案例引用列表
+GET http://localhost:18081/api/knowledge/cases/{{caseId}}/references
+Authorization: Bearer {{token}}
+
+### 10. 正常流程：档案台账
+GET http://localhost:18081/api/knowledge/archive?page=0&size=10
+Authorization: Bearer {{token}}
+
+### 11. 边界：空搜索结果
+GET http://localhost:18081/api/knowledge/cases?keyword=__nonexistent_case_xyz__
+Authorization: Bearer {{token}}

@@ -1,0 +1,104 @@
+@import '../../../styles/variables.css';
+
+.metric-card:focus-visible,
+.project-card:focus-visible,
+.quick-action-item:focus-visible,
+.tender-card:focus-visible,
+.calendar-day-cell:focus-visible,
+.upcoming-event-item:focus-visible {
+  outline: 3px solid var(--brand-xiyu-logo-focus, rgba(46, 118, 89, 0.32));
+  outline-offset: 3px;
+}
+
+.workbench-empty-state {
+  margin: 16px;
+  padding: 20px;
+  min-height: 112px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 10px;
+  text-align: center;
+  background: var(--bg-subtle);
+  border: 1px dashed var(--gray-300);
+  border-radius: 12px;
+  color: var(--text-slate);
+}
+
+.workbench-empty-state.state-error {
+  background: var(--color-danger-bg);
+  border-color: var(--color-danger-bg);
+  color: var(--color-danger-dark);
+}
+
+.empty-state-icon {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--brand-xiyu-logo-soft, rgba(46, 118, 89, 0.12));
+  color: var(--brand-xiyu-logo);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.workbench-empty-state .el-button.el-button--primary.is-text {
+  min-width: 64px;
+  min-height: 30px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--brand-xiyu-logo-active);
+  background: var(--brand-xiyu-logo-active);
+  color: var(--bg-card);
+  box-shadow: none;
+  font-weight: 600;
+  transform: none;
+}
+
+.workbench-empty-state .el-button.el-button--primary.is-text:hover,
+.workbench-empty-state .el-button.el-button--primary.is-text:focus {
+  border-color: var(--brand-xiyu-logo-active);
+  background: var(--brand-xiyu-logo-active);
+  opacity: 0.9;
+  color: var(--bg-card);
+  box-shadow: none;
+  transform: none;
+}
+
+.state-error .empty-state-icon {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.state-error .el-button.el-button--primary.is-text {
+  border-color: var(--color-danger);
+  background: var(--color-danger);
+  color: var(--bg-card);
+}
+
+.state-error .el-button.el-button--primary.is-text:hover,
+.state-error .el-button.el-button--primary.is-text:focus {
+  border-color: var(--color-danger-dark, #B91C1C);
+  background: var(--color-danger-dark, #B91C1C);
+  color: var(--bg-card);
+}
+.empty-state-title {
+  margin: 0 0 4px;
+  color: var(--gray-950);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.empty-state-description {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.metrics-state {
+  grid-column: 1 / -1;
+  margin: 0;
+}

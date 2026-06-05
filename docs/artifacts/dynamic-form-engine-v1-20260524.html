@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>西域数智化投标管理平台 — 表单自定义适配器升级方案 v1.0</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3B82F6',
+          }
+        }
+      }
+    }
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'default',
+      themeVariables: {
+        primaryColor: '#3B82F6',
+        primaryTextColor: '#1F2937',
+        primaryBorderColor: '#3B82F6',
+        lineColor: '#6B7280',
+        secondaryColor: '#F3F4F6',
+      }
+    });
+    function updateMermaidTheme() {
+      const isDark = document.documentElement.classList.contains('dark');
+      mermaid.initialize({ theme: isDark ? 'dark' : 'default' });
+    }
+  </script>
+  <style>
+    @media print {
+      .no-print { display: none !important; }
+      .print-break { page-break-before: always; }
+      body { background: white !important; color: black !important; }
+      nav, aside, footer, button { display: none !important; }
+      main { margin-left: 0 !important; padding: 0 !important; max-width: 100% !important; }
+      @page { margin: 2cm; }
+    }
+    html { scroll-behavior: smooth; }
+    [x-cloak] { display: none !important; }
+    .mermaid svg { max-width: 100%; height: auto; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 min-h-screen">
+
+  <!-- NAVIGATION BAR -->
+  <nav class="sticky top-0 z-50 bg-white/80 dark:bg-gray-800/80 backdrop-blur border-b no-print">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <h1 class="text-lg font-bold text-primary truncate max-w-md">表单自定义适配器升级方案</h1>
+        <span class="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">v1.0</span>
+        <span class="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">评审中</span>
+      </div>
+      <div class="flex items-center gap-1">
+        <button onclick="document.documentElement.classList.toggle('dark'); updateMermaidTheme()" class="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-lg" title="切换主题">🌓</button>
+        <button onclick="window.print()" class="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-lg" title="打印/导出 PDF">🖨️</button>
+        <button onclick="window.scrollTo({top:0,behavior:'smooth'})" class="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-lg" title="回到顶部">⬆️</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="flex max-w-7xl mx-auto">
+
+    <!-- TABLE OF CONTENTS SIDEBAR -->
+    <aside class="hidden lg:block w-56 xl:w-64 flex-shrink-0 border-r min-h-[calc(100vh-4rem)] no-print">
+      <div class="sticky top-16 p-4 overflow-y-auto max-h-[calc(100vh-5rem)]">
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">目录</p>
+        <nav class="space-y-0.5 text-sm">
+          <a href="#cover" class="block px-3 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-primary transition-colors">封面</a>
+          <a href="#background" class="block px-3 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-primary transition-colors">背景与目标</a>
+          <a href="#current-state" class="block px-3 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-primary transition-colors">现状评估</a>
+          <a href="#architecture" class="block px-3 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-primary transition-colors">目标架构</a>
+          <a href="#phases" class="block px-3 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-primary transition-colors">实施计划</a>
+          <a href="#field-types" class="block px-3 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-primary transition-colors">字段类型扩展</a>
+          <a href="#api-design" class="block px-3 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-primary transition-colors">API 设计</a>
+          <a href="#database" class="block px-3 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-primary transition-colors">数据库设计</a>
+          <a href="#modules" class="block px-3 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-primary transition-colors">模块接入</a>
+          <a href="#risks" class="block px-3 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-primary transition-colors">风险与应对</a>
+          <a href="#timeline" class="block px-3 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-primary transition-colors">里程碑</a>
+        </nav>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 min-w-0 p-6 md:p-8 xl:p-10 max-w-4xl">
+
+      <!-- ===== COVER ===== -->
+      <section id="cover" class="text-center py-12 md:py-16 px-4 bg-gradient-to-b from-primary/5 to-transparent rounded-2xl mb-10">
+        <div class="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium mb-4">v1.0 · 评审中</div>
+        <h1 class="text-3xl md:text-4xl lg:text-5xl font-bold mb-4">表单自定义适配器升级方案</h1>
+        <p class="text-lg text-gray-500 dark:text-gray-400 max-w-2xl mx-auto mb-8">
+          基于现有 WorkflowForm 配置基础设施，将其升级为全系统通用的"动态表单自定义引擎"，使标讯、项目管理、知识库、资源管理等所有表单页面均可由管理员配置字段，无需改代码即可调整。
+        </p>
+        <div class="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-gray-400">
+          <span>📅 2026-05-24</span>
+          <span>✍️ Cursor Agent</span>
+          <span>📁 docs/artifacts/</span>
+          <span>🔄 v1.0</span>
+        </div>
+      </section>
+
+      <!-- ===== SECTION: BACKGROUND ===== -->
+      <section id="background" class="mb-12 scroll-mt-20">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-1 h-7 bg-primary rounded-full"></div>
+          <h2 class="text-2xl font-bold">一、背景与目标</h2>
+        </div>
+
+        <div class="p-4 rounded-lg bg-blue-50 border-l-4 border-blue-500 dark:bg-blue-900/30 mb-6">
+          <div class="flex items-start gap-3">
+            <span class="text-2xl">💡</span>
+            <div>
+              <h4 class="font-semibold text-blue-900 dark:text-blue-100">核心问题</h4>
+              <p class="text-blue-800 dark:text-blue-200 mt-1">西域数智化投标管理平台现有表单均为硬编码，每次调整字段都要改代码——效率低、风险高、无法产品化。随着业务扩展，标讯、项目、知识库、资源等模块的表单需求差异化越来越大，亟需一套通用自定义引擎。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div class="p-5 bg-white dark:bg-gray-800 rounded-xl border hover:shadow-md transition-shadow">
+            <div class="text-3xl mb-3">🚀</div>
+            <h3 class="font-semibold mb-2">效率提升</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400">管理员可在设计器中调整字段，无需开发介入，减少 80%+ 的表单变更工时</p>
+          </div>
+          <div class="p-5 bg-white dark:bg-gray-800 rounded-xl border hover:shadow-md transition-shadow">
+            <div class="text-3xl mb-3">🔒</div>
+            <h3 class="font-semibold mb-2">降低风险</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400">配置变更不影响代码基线，每次变更均有版本记录，支持一键回滚</p>
+          </div>
+          <div class="p-5 bg-white dark:bg-gray-800 rounded-xl border hover:shadow-md transition-shadow">
+            <div class="text-3xl mb-3">📦</div>
+            <h3 class="font-semibold mb-2">产品化基础</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400">不同客户、不同组织可拥有独立表单模板，实现真正的 SaaS 多租户定制</p>
+          </div>
+        </div>
+
+        <div class="p-4 rounded-lg bg-green-50 border-l-4 border-green-500 dark:bg-green-900/30 mb-6">
+          <div class="flex items-start gap-3">
+            <span class="text-2xl">✅</span>
+            <div>
+              <h4 class="font-semibold text-green-900 dark:text-green-100">已有基础</h4>
+              <p class="text-green-800 dark:text-green-200 mt-1">系统已具备完整的 WorkflowForm 配置基础设施（数据模型、版本管理、Admin Designer、运行时加载接口），本方案基于此扩展复用，避免重复建设。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== SECTION: CURRENT STATE ===== -->
+      <section id="current-state" class="mb-12 scroll-mt-20">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-1 h-7 bg-primary rounded-full"></div>
+          <h2 class="text-2xl font-bold">二、现状评估</h2>
+        </div>
+
+        <h3 class="text-lg font-semibold mb-3">2.1 现有基础设施盘点</h3>
+        <div class="overflow-x-auto rounded-lg border mb-6">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 dark:bg-gray-800">
+              <tr>
+                <th class="px-4 py-3 text-left font-semibold">组件</th>
+                <th class="px-4 py-3 text-left font-semibold">现状</th>
+                <th class="px-4 py-3 text-left font-semibold">可复用程度</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+              <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                <td class="px-4 py-3 font-medium">数据模型</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">WorkflowFormTemplateEntity + FormSchema，含 templateCode / businessType / version / schemaJson</td>
+                <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">高</span></td>
+              </tr>
+              <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                <td class="px-4 py-3 font-medium">版本化管理</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">WorkflowFormTemplateVersionEntity 支持发布-回滚</td>
+                <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">高</span></td>
+              </tr>
+              <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                <td class="px-4 py-3 font-medium">动态渲染器</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">DynamicFormRenderer.vue 支持 text/textarea/date/number/select/attachment/info，仅 6 种</td>
+                <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">需扩展</span></td>
+              </tr>
+              <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                <td class="px-4 py-3 font-medium">Admin Designer</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">WorkflowFormDesigner.vue 提供配置 UI</td>
+                <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">需升级</span></td>
+              </tr>
+              <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                <td class="px-4 py-3 font-medium">运行时加载</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">/api/workflow-forms/templates/{templateCode}/active</td>
+                <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">高</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="text-lg font-semibold mb-3">2.2 现有字段类型覆盖</h3>
+        <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border mb-6">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <div><span class="font-mono text-xs bg-blue-100 dark:bg-blue-900 px-1 rounded">TEXT</span> <span class="text-gray-500 ml-1">已实现</span></div>
+            <div><span class="font-mono text-xs bg-blue-100 dark:bg-blue-900 px-1 rounded">TEXTAREA</span> <span class="text-gray-500 ml-1">已实现</span></div>
+            <div><span class="font-mono text-xs bg-blue-100 dark:bg-blue-900 px-1 rounded">NUMBER</span> <span class="text-gray-500 ml-1">已实现</span></div>
+            <div><span class="font-mono text-xs bg-blue-100 dark:bg-blue-900 px-1 rounded">DATE</span> <span class="text-gray-500 ml-1">已实现</span></div>
+            <div><span class="font-mono text-xs bg-blue-100 dark:bg-blue-900 px-1 rounded">SELECT</span> <span class="text-gray-500 ml-1">已实现</span></div>
+            <div><span class="font-mono text-xs bg-blue-100 dark:bg-blue-900 px-1 rounded">ATTACHMENT</span> <span class="text-gray-500 ml-1">已实现</span></div>
+            <div><span class="font-mono text-xs bg-yellow-100 dark:bg-yellow-900 px-1 rounded">INFO</span> <span class="text-gray-500 ml-1">已实现</span></div>
+            <div><span class="font-mono text-xs bg-red-100 dark:bg-red-900 px-1 rounded">PERSON</span> <span class="text-gray-500 ml-1">降级 el-input</span></div>
+            <div><span class="font-mono text-xs bg-red-100 dark:bg-red-900 px-1 rounded">PROJECT</span> <span class="text-gray-500 ml-1">降级 el-input</span></div>
+            <div><span class="font-mono text-xs bg-red-100 dark:bg-red-900 px-1 rounded">QUALIFICATION</span> <span class="text-gray-500 ml-1">降级 el-input</span></div>
+            <div><span class="font-mono text-xs bg-red-100 dark:bg-red-900 px-1 rounded">SECTION</span> <span class="text-gray-500 ml-1">未实现</span></div>
+            <div><span class="font-mono text-xs bg-red-100 dark:bg-red-900 px-1 rounded">TABLE</span> <span class="text-gray-500 ml-1">未实现</span></div>
+          </div>
+        </div>
+
+        <h3 class="text-lg font-semibold mb-3">2.3 关键缺口</h3>
+        <div class="space-y-2">
+          <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border border-l-4 border-red-400">
+            <span class="font-semibold">缺口 1</span>：表单未与业务模块绑定 — 现有 WorkflowForm 仅服务于 OA 审批提交，未作为其他业务的动态字段来源
+          </div>
+          <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border border-l-4 border-orange-400">
+            <span class="font-semibold">缺口 2</span>：字段类型不完整 — 前端渲染器缺 SECTION / TABLE / PERSON / PROJECT / QUALIFICATION 等常用类型
+          </div>
+          <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border border-l-4 border-orange-400">
+            <span class="font-semibold">缺口 3</span>：字段级权限缺失 — 无法控制不同角色/组织看到不同字段
+          </div>
+          <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border border-l-4 border-yellow-400">
+            <span class="font-semibold">缺口 4</span>：条件逻辑缺失 — 无法配置字段间依赖（如选"A类"时显示特定字段）
+          </div>
+          <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border border-l-4 border-yellow-400">
+            <span class="font-semibold">缺口 5</span>：字段验证规则单一 — 仅支持 required 布尔值，不支持正则/范围/自定义消息
+          </div>
+          <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border border-l-4 border-red-400">
+            <span class="font-semibold">缺口 6</span>：API 层未改造 — 各业务 Controller 仍直接接收硬编码 DTO，未从动态表单 schema 派生验证规则
+          </div>
+        </div>
+
+        <h3 class="text-lg font-semibold mb-3 mt-6">2.4 全系统表单分布（100+ 表单）</h3>
+        <div class="overflow-x-auto rounded-lg border">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 dark:bg-gray-800">
+              <tr>
+                <th class="px-4 py-3 text-left font-semibold">模块</th>
+                <th class="px-4 py-3 text-left font-semibold">主要表单</th>
+                <th class="px-4 py-3 text-left font-semibold">字段数</th>
+                <th class="px-4 py-3 text-left font-semibold">优先级</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+              <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                <td class="px-4 py-3 font-medium">标讯 Tender</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">ManualTenderDialog, TenderEvaluationForm, SourceConfigDialog</td>
+                <td class="px-4 py-3">14-30</td>
+                <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">最高</span></td>
+              </tr>
+              <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                <td class="px-4 py-3 font-medium">项目管理 Project</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">InitiationStage, BasicInfoStep, EvaluationForm, RetrospectiveStage</td>
+                <td class="px-4 py-3">30-50</td>
+                <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">最高</span></td>
+              </tr>
+              <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                <td class="px-4 py-3 font-medium">知识库 Knowledge</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">CaseFormDialog, QualificationUploadDialog, TemplateUpsertDialog</td>
+                <td class="px-4 py-3">10-15</td>
+                <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">高</span></td>
+              </tr>
+              <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                <td class="px-4 py-3 font-medium">资源 Resource</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">ExpenseApplyDialog, CAFormDialog, ContractBorrow, BarAssetForm</td>
+                <td class="px-4 py-3">6-12</td>
+                <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">高</span></td>
+              </tr>
+              <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                <td class="px-4 py-3 font-medium">系统 Settings</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">WorkflowFormDesigner, AlertRules, RoleManagement</td>
+                <td class="px-4 py-3">5-20</td>
+                <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">中</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ===== SECTION: ARCHITECTURE ===== -->
+      <section id="architecture" class="mb-12 scroll-mt-20">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-1 h-7 bg-primary rounded-full"></div>
+          <h2 class="text-2xl font-bold">三、目标架构</h2>
+        </div>
+
+        <h3 class="text-lg font-semibold mb-3">3.1 系统架构图</h3>
+        <div class="mermaid mb-6">
+graph TB
+    subgraph Admin["Admin: 表单设计器 (升级 WorkflowFormDesigner.vue)"]
+        A1["业务域选择<br/>(scope)"]
+        A2["字段配置面板"]
+        A3["验证规则编辑器"]
+        A4["条件逻辑配置"]
+        A5["OA 绑定配置"]
+    end
+
+    subgraph Store["FormDefinitionStore (后端)"]
+        E1["form_definition_registry<br/>(新增: scope 业务域元注册)"]
+        E2["form_field_visibility<br/>(新增: 字段权限规则)"]
+        E3["form_field_condition<br/>(新增: 条件逻辑)"]
+        E4["workflow_form_template_versions<br/>(复用: 发布版本管理)"]
+    end
+
+    subgraph Engine["AdaptiveFormEngine (后端运行时)"]
+        R1["SchemaResolver<br/>(按 scope 取定义)"]
+        R2["ValidatorGenerator<br/>(从 schema 生成 Jakarta 规则)"]
+        R3["FieldTypeRegistry<br/>(20+ 字段类型注册)"]
+        R4["ConditionEvaluator<br/>(条件逻辑求值)"]
+    end
+
+    subgraph Frontend["Frontend: 通用渲染层"]
+        F1["AdaptiveFormPage<br/>(通用包装组件)"]
+        F2["DynamicFormRenderer.vue<br/>(升级: 全 20 种字段类型)"]
+        F3["useFormConditions composable<br/>(条件逻辑)"]
+        F4["useFieldVisibility composable<br/>(权限过滤)"]
+    end
+
+    subgraph BizModules["业务模块 (分批接入)"]
+        M1["标讯 TenderPage"]
+        M2["项目管理 ProjectPage"]
+        M3["知识库 KnowledgePage"]
+        M4["资源 ResourcePage"]
+    end
+
+    Admin -->|"保存 schema + metadata"| Store
+    Store -->|"运行时读取"| Engine
+    Engine -->|"schemaJson + validation"| Frontend
+    Frontend --> M1
+    Frontend --> M2
+    Frontend --> M3
+    Frontend --> M4
+        </div>
+
+        <h3 class="text-lg font-semibold mb-3">3.2 核心数据流</h3>
+        <div class="mermaid mb-6">
+sequenceDiagram
+    participant Admin as 管理员
+    participant FE as 前端 Designer
+    participant API as FormDefinition API
+    participant Engine as AdaptiveFormEngine
+    participant Cache as Redis Cache
+    participant Biz as 业务 Handler
+
+    Admin->>FE: 配置表单字段（scope / fields / validation / conditions）
+    FE->>API: POST /api/admin/form-definitions
+    API->>API: 保存 schema + visibility + conditions
+    API-->>FE: 返回 definitionId
+
+    Admin->>FE: 发布版本
+    FE->>API: POST .../publish
+    API->>API: 创建 version record，invalidate Redis cache
+    API-->>FE: 发布成功
+
+    Note over Admin,Biz: 运行时: 用户使用表单
+
+    User->>FE: 打开表单页面
+    FE->>API: GET /api/form-definitions/{scope}/active
+    API->>Cache: 检查缓存
+    Cache-->>API: cache hit
+    API-->>FE: 返回 resolved schema (含字段权限过滤)
+    FE->>FE: DynamicFormRenderer 渲染
+    User->>FE: 填写表单
+    User->>FE: 提交
+    FE->>API: POST /api/form-definitions/{scope}/submit
+    API->>Engine: validate(formData)
+    Engine-->>API: 校验结果
+    API->>Biz: tenderHandler.process(formData)
+    Biz-->>API: 业务处理完成
+    API-->>FE: 提交成功
+        </div>
+
+        <h3 class="text-lg font-semibold mb-3">3.3 包结构设计</h3>
+        <div class="mermaid mb-6">
+classDiagram
+    class FormDefinition {
+        +Long id
+        +String scope
+        +String scopeLabel
+        +Integer version
+        +FormSchema schema
+        +Boolean enabled
+        +Long orgId
+    }
+
+    class FormFieldVisibility {
+        +Long id
+        +Long definitionId
+        +String fieldKey
+        +String rolePattern
+        +Boolean visible
+        +Boolean readonly
+        +Boolean hidden
+    }
+
+    class FormFieldCondition {
+        +Long id
+        +Long definitionId
+        +String sourceField
+        +String operator
+        +String targetValue
+        +String action
+        +String targetField
+    }
+
+    class AdaptiveFormService {
+        +ResolvedForm resolve(scope, user)
+        +ValidationResult validate(scope, formData)
+        +void submit(scope, formData, operator)
+    }
+
+    class SchemaResolver {
+        +FormDefinition resolve(scope)
+        +List~FormFieldVisibility~ getVisibility(definitionId)
+        +List~FormFieldCondition~ getConditions(definitionId)
+    }
+
+    class ValidatorGenerator {
+        +List~ConstraintViolation~ validate(formData, schema)
+    }
+
+    class ConditionEvaluator {
+        +Boolean evaluate(condition, formData)
+    }
+
+    FormDefinition "1" --> "*" FormFieldVisibility
+    FormDefinition "1" --> "*" FormFieldCondition
+    AdaptiveFormService --> SchemaResolver
+    AdaptiveFormService --> ValidatorGenerator
+    AdaptiveFormService --> ConditionEvaluator
+        </div>
+      </section>
+
+      <!-- ===== SECTION: FIELD TYPES ===== -->
+      <section id="field-types" class="mb-12 scroll-mt-20">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-1 h-7 bg-primary rounded-full"></div>
+          <h2 class="text-2xl font-bold">四、字段类型扩展（12 → 20+）</h2>
+        </div>
+
+        <h3 class="text-lg font-semibold mb-3">4.1 后端 FormFieldType 枚举扩展</h3>
+        <div class="overflow-x-auto rounded-lg border mb-6">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 dark:bg-gray-800">
+              <tr>
+                <th class="px-4 py-3 text-left font-semibold">Type Key</th>
+                <th class="px-4 py-3 text-left font-semibold">名称</th>
+                <th class="px-4 py-3 text-left font-semibold">Element Plus 组件</th>
+                <th class="px-4 py-3 text-left font-semibold">状态</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+              <tr><td class="px-4 py-2 font-mono text-xs">TEXT</td><td class="px-4 py-2">单行文本</td><td class="px-4 py-2">el-input</td><td><span class="px-2 py-1 rounded text-xs bg-green-100 text-green-800">已有</span></td></tr>
+              <tr><td class="px-4 py-2 font-mono text-xs">TEXTAREA</td><td class="px-4 py-2">多行文本</td><td class="px-4 py-2">el-input(type=textarea)</td><td><span class="px-2 py-1 rounded text-xs bg-green-100 text-green-800">已有</span></td></tr>
+              <tr><td class="px-4 py-2 font-mono text-xs">NUMBER</td><td class="px-4 py-2">数字</td><td class="px-4 py-2">el-input-number</td><td><span class="px-2 py-1 rounded text-xs bg-green-100 text-green-800">已有</span></td></tr>
+              <tr><td class="px-4 py-2 font-mono text-xs">DATE</td><td class="px-4 py-2">日期</td><td class="px-4 py-2">el-date-picker</td><td><span class="px-2 py-1 rounded text-xs bg-green-100 text-green-800">已有</span></td></tr>
+              <tr><td class="px-4 py-2 font-mono text-xs">SELECT</td><td class="px-4 py-2">下拉选择</td><td class="px-4 py-2">el-select</td><td><span class="px-2 py-1 rounded text-xs bg-green-100 text-green-800">已有</span></td></tr>
+              <tr><td class="px-4 py-2 font-mono text-xs">ATTACHMENT</td><td class="px-4 py-2">附件上传</td><td class="px-4 py-2">el-upload</td><td><span class="px-2 py-1 rounded text-xs bg-green-100 text-green-800">已有</span></td></tr>
+              <tr><td class="px-4 py-2 font-mono text-xs">INFO</td><td class="px-4 py-2">说明文本</td><td class="px-4 py-2">el-alert(readonly)</td><td><span class="px-2 py-1 rounded text-xs bg-green-100 text-green-800">已有</span></td></tr>
+              <tr><td class="px-4 py-2 font-mono text-xs">SECTION</td><td class="px-4 py-2">字段分组标题</td><td class="px-4 py-2">el-divider + legend</td><td><span class="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">新增</span></td></tr>
+              <tr><td class="px-4 py-2 font-mono text-xs">TABLE</td><td class="px-4 py-2">表格编辑</td><td class="px-4 py-2">自定义表格组件</td><td><span class="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">新增</span></td></tr>
+              <tr><td class="px-4 py-2 font-mono text-xs">PHONE</td><td class="px-4 py-2">手机号码</td><td class="px-4 py-2">el-input + 内置正则</td><td><span class="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">新增</span></td></tr>
+              <tr><td class="px-4 py-2 font-mono text-xs">EMAIL</td><td class="px-4 py-2">电子邮箱</td><td class="px-4 py-2">el-input + 内置正则</td><td><span class="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">新增</span></td></tr>
+              <tr><td class="px-4 py-2 font-mono text-xs">URL</td><td class="px-4 py-2">网址链接</td><td class="px-4 py-2">el-input(type=url)</td><td><span class="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">新增</span></td></tr>
+              <tr><td class="px-4 py-2 font-mono text-xs">CURRENCY</td><td class="px-4 py-2">金额</td><td class="px-4 py-2">el-input-number + ¥ 前缀</td><td><span class="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">新增</span></td></tr>
+              <tr><td class="px-4 py-2 font-mono text-xs">PERCENT</td><td class="px-4 py-2">百分比</td><td class="px-4 py-2">el-slider + % 后缀</td><td><span class="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">新增</span></td></tr>
+              <tr><td class="px-4 py-2 font-mono text-xs">ADDRESS</td><td class="px-4 py-2">地址</td><td class="px-4 py-2">省市区级联选择器</td><td><span class="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">新增</span></td></tr>
+              <tr><td class="px-4 py-2 font-mono text-xs">RICH_TEXT</td><td class="px-4 py-2">富文本</td><td class="px-4 py-2">Tiptap 编辑器</td><td><span class="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">新增</span></td></tr>
+              <tr><td class="px-4 py-2 font-mono text-xs">PERSON</td><td class="px-4 py-2">人员选择</td><td class="px-4 py-2">el-select(人员枚举API)</td><td><span class="px-2 py-1 rounded text-xs bg-orange-100 text-orange-800">升级</span></td></tr>
+              <tr><td class="px-4 py-2 font-mono text-xs">PROJECT</td><td class="px-4 py-2">项目选择</td><td class="px-4 py-2">el-select(项目枚举API)</td><td><span class="px-2 py-1 rounded text-xs bg-orange-100 text-orange-800">升级</span></td></tr>
+              <tr><td class="px-4 py-2 font-mono text-xs">QUALIFICATION</td><td class="px-4 py-2">资质选择</td><td class="px-4 py-2">el-select(资质枚举API)</td><td><span class="px-2 py-1 rounded text-xs bg-orange-100 text-orange-800">升级</span></td></tr>
+              <tr><td class="px-4 py-2 font-mono text-xs">DIVIDER</td><td class="px-4 py-2">分隔线</td><td class="px-4 py-2">el-divider</td><td><span class="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">新增</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="text-lg font-semibold mb-3">4.2 Schema JSON 增强结构</h3>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-xs overflow-x-auto mb-4"><code>{
+  "scope": "tender.entry",
+  "version": 1,
+  "fields": [
+    {
+      "key": "title",
+      "label": "标讯标题",
+      "type": "TEXT",
+      "required": true,
+      "placeholder": "请输入标讯标题",
+      "validation": {
+        "minLength": 5,
+        "maxLength": 200,
+        "errorMessage": "标题长度应在5-200字之间"
+      }
+    },
+    {
+      "key": "budget",
+      "label": "预算金额",
+      "type": "CURRENCY",
+      "required": false,
+      "validation": {
+        "min": 1000,
+        "max": 100000000,
+        "precision": 2,
+        "errorMessage": "预算金额必须在1,000 - 100,000,000之间"
+      }
+    },
+    {
+      "key": "region",
+      "label": "项目地区",
+      "type": "ADDRESS",
+      "required": true
+    },
+    {
+      "key": "section_basic",
+      "label": "基本信息",
+      "type": "SECTION",
+      "collapsible": false
+    },
+    {
+      "key": "customer_rows",
+      "label": "客户信息明细",
+      "type": "TABLE",
+      "columns": [
+        { "key": "name", "label": "客户名称", "type": "TEXT", "required": true },
+        { "key": "type", "label": "客户类型", "type": "SELECT", "options": [...], "required": true },
+        { "key": "revenue", "label": "年收入(万)", "type": "CURRENCY", "required": false }
+      ],
+      "minRows": 1,
+      "maxRows": 20
+    }
+  ]
+}</code></pre>
+      </section>
+
+      <!-- ===== SECTION: DATABASE ===== -->
+      <section id="database" class="mb-12 scroll-mt-20">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-1 h-7 bg-primary rounded-full"></div>
+          <h2 class="text-2xl font-bold">五、数据库设计</h2>
+        </div>
+
+        <div class="mermaid mb-6">
+erDiagram
+    form_definition_registry ||--o{ form_field_visibility : "字段可见性"
+    form_definition_registry ||--o{ form_field_condition : "条件逻辑"
+    form_definition_registry ||--o{ workflow_form_template_version : "版本历史"
+
+    form_definition_registry {
+        bigint id PK
+        varchar scope UK
+        varchar scope_label
+        int version
+        json schema_json
+        boolean enabled
+        bigint org_id "NULL=全局"
+        varchar created_by
+        datetime created_at
+        datetime updated_at
+    }
+
+    form_field_visibility {
+        bigint id PK
+        bigint definition_id FK
+        varchar field_key
+        varchar role_pattern "NULL=所有角色"
+        bigint org_id "NULL=所有组织"
+        boolean visible
+        boolean readonly
+        boolean hidden
+    }
+
+    form_field_condition {
+        bigint id PK
+        bigint definition_id FK
+        varchar source_field
+        varchar operator "eq/neq/in/gt/lt/contains"
+        varchar target_value
+        varchar action "show/hide/require/skip"
+        varchar target_field
+    }
+
+    workflow_form_template_version {
+        bigint id PK
+        varchar template_code FK
+        int version
+        json schema_json
+        boolean enabled
+        datetime published_at
+    }
+        </div>
+
+        <h3 class="text-lg font-semibold mb-3">5.1 新增表：form_definition_registry</h3>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-xs overflow-x-auto mb-4"><code>CREATE TABLE form_definition_registry (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    scope           VARCHAR(64) NOT NULL COMMENT '业务域标识: tender.entry / project.basic / resource.expense / knowledge.case',
+    scope_label     VARCHAR(128) NOT NULL COMMENT '业务域中文名',
+    version         INT NOT NULL DEFAULT 1,
+    schema_json     JSON NOT NULL COMMENT '字段定义JSON',
+    enabled         BOOLEAN NOT NULL DEFAULT TRUE,
+    org_id          BIGINT DEFAULT NULL COMMENT 'NULL=全局模板, 非NULL=租户级',
+    created_by      VARCHAR(64) NOT NULL,
+    created_at      DATETIME NOT NULL,
+    updated_at      DATETIME NOT NULL,
+    UNIQUE KEY uk_scope_org (scope, org_id)
+);</code></pre>
+
+        <h3 class="text-lg font-semibold mb-3">5.2 新增表：form_field_visibility</h3>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-xs overflow-x-auto mb-4"><code>CREATE TABLE form_field_visibility (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    definition_id   BIGINT NOT NULL,
+    field_key       VARCHAR(64) NOT NULL,
+    role_pattern    VARCHAR(64) DEFAULT NULL COMMENT '角色匹配: bid_specialist / manager / * (所有)',
+    org_id          BIGINT DEFAULT NULL COMMENT 'NULL=所有组织',
+    visible         BOOLEAN NOT NULL DEFAULT TRUE,
+    readonly        BOOLEAN NOT NULL DEFAULT FALSE,
+    hidden          BOOLEAN NOT NULL DEFAULT FALSE,
+    CONSTRAINT fk_visibility_def FOREIGN KEY (definition_id) REFERENCES form_definition_registry(id),
+    UNIQUE KEY uk_def_field_role (definition_id, field_key, role_pattern)
+);</code></pre>
+
+        <h3 class="text-lg font-semibold mb-3">5.3 新增表：form_field_condition</h3>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-xs overflow-x-auto mb-4"><code>CREATE TABLE form_field_condition (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    definition_id   BIGINT NOT NULL,
+    source_field    VARCHAR(64) NOT NULL COMMENT '触发字段',
+    operator        VARCHAR(32) NOT NULL COMMENT 'eq / neq / in / contains / gt / lt',
+    target_value    VARCHAR(255) DEFAULT NULL COMMENT '目标值，多值用逗号分隔',
+    action          VARCHAR(32) NOT NULL COMMENT 'show / hide / require / skip',
+    target_field    VARCHAR(64) DEFAULT NULL COMMENT '受影响字段',
+    CONSTRAINT fk_condition_def FOREIGN KEY (definition_id) REFERENCES form_definition_registry(id)
+);</code></pre>
+
+        <div class="p-4 rounded-lg bg-yellow-50 border-l-4 border-yellow-500 dark:bg-yellow-900/30">
+          <div class="flex items-start gap-3">
+            <span class="text-2xl">⚠️</span>
+            <div>
+              <h4 class="font-semibold text-yellow-900 dark:text-yellow-100">向后兼容策略</h4>
+              <p class="text-yellow-800 dark:text-yellow-200 mt-1 text-sm">新增 3 张表均独立于现有 workflow_form_* 表，不影响现有 OA 审批表单功能。org_id=NULL 的记录为全局模板，优先级低于有 org_id 的租户模板。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== SECTION: API DESIGN ===== -->
+      <section id="api-design" class="mb-12 scroll-mt-20">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-1 h-7 bg-primary rounded-full"></div>
+          <h2 class="text-2xl font-bold">六、API 设计</h2>
+        </div>
+
+        <h3 class="text-lg font-semibold mb-3">6.1 Admin API（需 ADMIN 角色）</h3>
+        <div class="overflow-x-auto rounded-lg border mb-6">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 dark:bg-gray-800">
+              <tr>
+                <th class="px-4 py-3 text-left font-semibold">Method</th>
+                <th class="px-4 py-3 text-left font-semibold">Path</th>
+                <th class="px-4 py-3 text-left font-semibold">说明</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+              <tr><td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">GET</span></td><td class="px-4 py-3 font-mono text-xs">/api/admin/form-definitions</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">列表（支持 scope 过滤、org_id 过滤）</td></tr>
+              <tr><td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">POST</span></td><td class="px-4 py-3 font-mono text-xs">/api/admin/form-definitions</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">创建定义（含 schema_json）</td></tr>
+              <tr><td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200">PUT</span></td><td class="px-4 py-3 font-mono text-xs">/api/admin/form-definitions/{id}</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">更新定义</td></tr>
+              <tr><td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200">DELETE</span></td><td class="px-4 py-3 font-mono text-xs">/api/admin/form-definitions/{id}</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">删除（软删除，仅 ADMIN 可操作）</td></tr>
+              <tr><td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">POST</span></td><td class="px-4 py-3 font-mono text-xs">/api/admin/form-definitions/{id}/publish</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">发布版本（写入 workflow_form_template_version + invalidate cache）</td></tr>
+              <tr><td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">POST</span></td><td class="px-4 py-3 font-mono text-xs">/api/admin/form-definitions/{id}/visibility</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">批量保存字段可见性规则</td></tr>
+              <tr><td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">POST</span></td><td class="px-4 py-3 font-mono text-xs">/api/admin/form-definitions/{id}/conditions</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">批量保存条件逻辑规则</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="text-lg font-semibold mb-3">6.2 Runtime API（需认证用户）</h3>
+        <div class="overflow-x-auto rounded-lg border mb-6">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 dark:bg-gray-800">
+              <tr>
+                <th class="px-4 py-3 text-left font-semibold">Method</th>
+                <th class="px-4 py-3 text-left font-semibold">Path</th>
+                <th class="px-4 py-3 text-left font-semibold">说明</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+              <tr><td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">GET</span></td><td class="px-4 py-3 font-mono text-xs">/api/form-definitions/{scope}/active</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">获取运行时 schema（含权限过滤 + Redis 缓存）</td></tr>
+              <tr><td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">POST</span></td><td class="px-4 py-3 font-mono text-xs">/api/form-definitions/{scope}/validate</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">纯校验接口（不保存，返回错误列表）</td></tr>
+              <tr><td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">POST</span></td><td class="px-4 py-3 font-mono text-xs">/api/form-definitions/{scope}/submit</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">提交并触发业务逻辑（分发到各 scope handler）</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="text-lg font-semibold mb-3">6.3 业务逻辑分发（AdaptiveFormService.submit）</h3>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-xs overflow-x-auto"><code>public void submit(String scope, Map&lt;String, Object&gt; formData, String operator) {
+    FormDefinition def = repository.findActive(scope);
+    // 1. 权限校验 (org_id + role)
+    // 2. 从 schema 生成校验规则 + 校验
+    // 3. 分发到对应业务 handler
+    switch (scope) {
+        case "tender.entry"      -&gt; tenderHandler.process(formData);
+        case "tender.evaluation" -&gt; tenderEvalHandler.process(formData);
+        case "project.basic"     -&gt; projectHandler.process(formData);
+        case "project.evaluation"-&gt; projectEvalHandler.process(formData);
+        case "resource.expense"  -&gt; expenseHandler.process(formData);
+        case "resource.ca"      -&gt; caCertHandler.process(formData);
+        case "knowledge.case"    -&gt; caseHandler.process(formData);
+        case "knowledge.qual"    -&gt; qualificationHandler.process(formData);
+        default                  -&gt; throw new UnsupportedScopeException(scope);
+    }
+}</code></pre>
+      </section>
+
+      <!-- ===== SECTION: PHASES ===== -->
+      <section id="phases" class="mb-12 scroll-mt-20">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-1 h-7 bg-primary rounded-full"></div>
+          <h2 class="text-2xl font-bold">七、实施计划</h2>
+        </div>
+
+        <!-- Phase 0 -->
+        <div class="mb-8">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm">0</div>
+            <h3 class="text-xl font-bold">阶段 0：基础设施扩展（预计 1 周）</h3>
+            <span class="px-2 py-0.5 rounded text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">最优先</span>
+          </div>
+          <div class="space-y-2 ml-11">
+            <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border">
+              <span class="font-semibold text-sm">0.1</span> Flyway 迁移 V140 — 新增 form_definition_registry / form_field_visibility / form_field_condition 三张表
+            </div>
+            <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border">
+              <span class="font-semibold text-sm">0.2</span> 扩展 FormFieldType 枚举（12 → 20+），新增对应后端 record 类型
+            </div>
+            <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border">
+              <span class="font-semibold text-sm">0.3</span> 升级 DynamicFormRenderer.vue — 完整实现全部 20 种字段类型渲染
+            </div>
+            <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border">
+              <span class="font-semibold text-sm">0.4</span> 升级 WorkflowFormDesigner.vue — 字段类型选择器扩展 + 验证规则编辑器 + 条件逻辑 UI
+            </div>
+          </div>
+        </div>
+
+        <!-- Phase 1 -->
+        <div class="mb-8">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm">1</div>
+            <h3 class="text-xl font-bold">阶段 1：运行时引擎（预计 1 周）</h3>
+            <span class="px-2 py-0.5 rounded text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">最优先</span>
+          </div>
+          <div class="space-y-2 ml-11">
+            <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border">
+              <span class="font-semibold text-sm">1.1</span> 新建 formengine/ 包 — FormDefinitionService + AdaptiveFormService + ResolvedForm record
+            </div>
+            <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border">
+              <span class="font-semibold text-sm">1.2</span> ValidatorGenerator — 从 schema validation 字段生成校验结果
+            </div>
+            <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border">
+              <span class="font-semibold text-sm">1.3</span> ConditionEvaluator — 条件逻辑求值引擎
+            </div>
+            <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border">
+              <span class="font-semibold text-sm">1.4</span> Schema Redis 缓存 — 5min TTL + 版本号失效
+            </div>
+            <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border">
+              <span class="font-semibold text-sm">1.5</span> 前端 useFormConditions + useFieldVisibility composables
+            </div>
+          </div>
+        </div>
+
+        <!-- Phase 2 -->
+        <div class="mb-8">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-8 h-8 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold text-sm">2</div>
+            <h3 class="text-xl font-bold">阶段 2：业务模块接入（预计 2-3 周）</h3>
+            <span class="px-2 py-0.5 rounded text-xs bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">并行</span>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 ml-11">
+            <div class="p-4 bg-white dark:bg-gray-800 rounded-xl border">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-lg">📋</span>
+                <span class="font-semibold">标讯 Tender</span>
+                <span class="px-2 py-0.5 rounded text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 ml-auto">最高</span>
+              </div>
+              <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">ManualTenderDialog → AdaptiveFormPage(scope=tender.entry)</p>
+              <p class="text-xs text-gray-500">涉及：TenderRequest DTO → TenderFormSubmissionHandler</p>
+            </div>
+            <div class="p-4 bg-white dark:bg-gray-800 rounded-xl border">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-lg">📁</span>
+                <span class="font-semibold">项目管理 Project</span>
+                <span class="px-2 py-0.5 rounded text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 ml-auto">最高</span>
+              </div>
+              <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">InitiationStage + BasicInfoStep → AdaptiveFormPage</p>
+              <p class="text-xs text-gray-500">涉及：ProjectRequest DTO → ProjectFormSubmissionHandler</p>
+            </div>
+            <div class="p-4 bg-white dark:bg-gray-800 rounded-xl border">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-lg">📚</span>
+                <span class="font-semibold">知识库 Knowledge</span>
+                <span class="px-2 py-0.5 rounded text-xs bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 ml-auto">高</span>
+              </div>
+              <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">CaseFormDialog + QualificationUploadDialog → AdaptiveFormPage</p>
+              <p class="text-xs text-gray-500">涉及：CaseDTO / QualificationDTO</p>
+            </div>
+            <div class="p-4 bg-white dark:bg-gray-800 rounded-xl border">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-lg">🔧</span>
+                <span class="font-semibold">资源 Resource</span>
+                <span class="px-2 py-0.5 rounded text-xs bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 ml-auto">高</span>
+              </div>
+              <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">ExpenseApplyDialog + CAFormDialog → AdaptiveFormPage</p>
+              <p class="text-xs text-gray-500">涉及：ExpenseCreateRequest / BarCertificateCreateRequest</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Phase 3 -->
+        <div class="mb-8">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-8 h-8 rounded-full bg-gray-400 text-white flex items-center justify-center font-bold text-sm">3</div>
+            <h3 class="text-xl font-bold">阶段 3：高级功能 + 租户化（预计 1 周）</h3>
+          </div>
+          <div class="space-y-2 ml-11">
+            <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border">
+              <span class="font-semibold text-sm">3.1</span> 字段级权限系统 — 基于 role_pattern + org_id 的动态过滤
+            </div>
+            <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border">
+              <span class="font-semibold text-sm">3.2</span> 增强验证规则 — customRegex / range / errorMessage 完整支持
+            </div>
+            <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border">
+              <span class="font-semibold text-sm">3.3</span> 组织级自定义 — org_id 非空 schema 副本，继承全局 + 覆盖字段
+            </div>
+            <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border">
+              <span class="font-semibold text-sm">3.4</span> TABLE_GRID 字段类型完善 — 多行数据编辑支持
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== SECTION: MODULES ===== -->
+      <section id="modules" class="mb-12 scroll-mt-20">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-1 h-7 bg-primary rounded-full"></div>
+          <h2 class="text-2xl font-bold">八、模块接入规范</h2>
+        </div>
+
+        <h3 class="text-lg font-semibold mb-3">8.1 接入检查清单（每个模块）</h3>
+        <div class="space-y-2">
+          <label class="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-lg border cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50">
+            <input type="checkbox" class="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary" disabled>
+            <span>① 分析硬编码 DTO 字段，提取可配置字段到 schema</span>
+          </label>
+          <label class="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-lg border cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50">
+            <input type="checkbox" class="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary" disabled>
+            <span>② 创建对应的 scope 注册记录（form_definition_registry）</span>
+          </label>
+          <label class="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-lg border cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50">
+            <input type="checkbox" class="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary" disabled>
+            <span>③ 实现 *FormSubmissionHandler 处理 submit 事件</span>
+          </label>
+          <label class="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-lg border cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50">
+            <input type="checkbox" class="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary" disabled>
+            <span>④ 替换前端 &lt;el-form&gt; 为 &lt;AdaptiveFormPage :scope="xxx" /&gt;</span>
+          </label>
+          <label class="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-lg border cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50">
+            <input type="checkbox" class="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary" disabled>
+            <span>⑤ 在 Admin Designer 中配置该 scope 的字段定义</span>
+          </label>
+          <label class="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-lg border cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50">
+            <input type="checkbox" class="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary" disabled>
+            <span>⑥ 保留原 DTO 作为 fallback 降级路径</span>
+          </label>
+        </div>
+
+        <h3 class="text-lg font-semibold mb-3 mt-6">8.2 scope 编码规范</h3>
+        <pre class="bg-gray-900 text-gray-100 rounded-lg p-4 text-xs overflow-x-auto"><code>格式: {module}.{business_action}
+规则: 小写字母 + 下划线
+
+示例:
+  tender.entry        — 标讯手工录入
+  tender.evaluation   — 标讯评审表单
+  project.basic       — 项目基本信息
+  project.evaluation  — 项目评审
+  project.initiation  — 项目立项
+  resource.expense    — 费用申请
+  resource.ca         — CA证书管理
+  resource.contract   — 合同借用
+  knowledge.case      — 案例建档
+  knowledge.qual      — 资质上传</code></pre>
+      </section>
+
+      <!-- ===== SECTION: RISKS ===== -->
+      <section id="risks" class="mb-12 scroll-mt-20">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-1 h-7 bg-primary rounded-full"></div>
+          <h2 class="text-2xl font-bold">九、技术风险与应对</h2>
+        </div>
+
+        <div class="overflow-x-auto rounded-lg border">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 dark:bg-gray-800">
+              <tr>
+                <th class="px-4 py-3 text-left font-semibold">风险</th>
+                <th class="px-4 py-3 text-left font-semibold">级别</th>
+                <th class="px-4 py-3 text-left font-semibold">应对策略</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+              <tr>
+                <td class="px-4 py-3 font-medium">现有 OA 审批表单与新系统冲突</td>
+                <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">中</span></td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">保持 WorkflowForm 独立演进，新引擎专注业务表单；OA 表单走原路径</td>
+              </tr>
+              <tr>
+                <td class="px-4 py-3 font-medium">迁移期间数据一致性</td>
+                <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">高</span></td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">双轨并行：新 API 支持 + 旧 DTO fallback；按 scope 路由到不同处理路径</td>
+              </tr>
+              <tr>
+                <td class="px-4 py-3 font-medium">Schema 加载性能</td>
+                <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">中</span></td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">Redis 缓存 schema JSON，TTL=5min；发布时 invalidate；前端本地缓存版本号</td>
+              </tr>
+              <tr>
+                <td class="px-4 py-3 font-medium">条件逻辑前端复杂度</td>
+                <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">中</span></td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">封装 useFormConditions composable，与 DynamicFormRenderer 解耦；单元测试覆盖求值逻辑</td>
+              </tr>
+              <tr>
+                <td class="px-4 py-3 font-medium">scope handler 分发可维护性</td>
+                <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">低</span></td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">每个 scope 独立 *FormHandler 类；使用 Map&lt;String, FormHandler&gt; SPI 加载</td>
+              </tr>
+              <tr>
+                <td class="px-4 py-3 font-medium">schema 注入 XSS 风险</td>
+                <td class="px-4 py-3"><span class="px-2 py-1 rounded text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">高</span></td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">所有 schema JSON 在保存时经过 HTML 转义处理；RICH_TEXT 类型使用 DOMPurify 净化</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ===== SECTION: TIMELINE ===== -->
+      <section id="timeline" class="mb-12 scroll-mt-20">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-1 h-7 bg-primary rounded-full"></div>
+          <h2 class="text-2xl font-bold">十、里程碑</h2>
+        </div>
+
+        <div class="mermaid mb-6">
+gantt
+    title 表单自定义适配器升级计划
+    dateFormat YYYY-MM-DD
+    section 基础设施
+    V140迁移 + FormFieldType扩展 + 前端渲染器    :m1, 2026-05-25, 5d
+    AdaptiveFormEngine + 新API                 :m2, 2026-06-01, 5d
+    section 业务接入
+    标讯模块接入 Tender                         :m3, 2026-06-08, 5d
+    项目管理模块接入 Project                    :m4, 2026-06-15, 7d
+    知识库 + 资源模块接入                       :m5, 2026-06-22, 5d
+    section 高级功能
+    字段权限 + 条件逻辑 + 租户化               :m6, 2026-07-01, 5d
+    section 上线
+    全量测试 + 文档 + 验收                     :m7, 2026-07-08, 5d
+        </div>
+
+        <div class="overflow-x-auto rounded-lg border">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 dark:bg-gray-800">
+              <tr>
+                <th class="px-4 py-3 text-left font-semibold">里程碑</th>
+                <th class="px-4 py-3 text-left font-semibold">内容</th>
+                <th class="px-4 py-3 text-left font-semibold">开始</th>
+                <th class="px-4 py-3 text-left font-semibold">工期</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+              <tr class="bg-primary/5">
+                <td class="px-4 py-3 font-bold">M1</td>
+                <td class="px-4 py-3">V140 迁移 + FormFieldType 扩展 + 20种字段前端渲染</td>
+                <td class="px-4 py-3">2026-05-25</td>
+                <td class="px-4 py-3">1 周</td>
+              </tr>
+              <tr>
+                <td class="px-4 py-3 font-bold">M2</td>
+                <td class="px-4 py-3">AdaptiveFormService + 新 API + 条件逻辑 + 字段权限 + Redis 缓存</td>
+                <td class="px-4 py-3">2026-06-01</td>
+                <td class="px-4 py-3">1 周</td>
+              </tr>
+              <tr>
+                <td class="px-4 py-3 font-bold">M3</td>
+                <td class="px-4 py-3">标讯模块接入：ManualTenderDialog → AdaptiveFormPage</td>
+                <td class="px-4 py-3">2026-06-08</td>
+                <td class="px-4 py-3">1 周</td>
+              </tr>
+              <tr>
+                <td class="px-4 py-3 font-bold">M4</td>
+                <td class="px-4 py-3">项目管理模块接入（含 InitiationStage / BasicInfoStep / EvaluationForm）</td>
+                <td class="px-4 py-3">2026-06-15</td>
+                <td class="px-4 py-3">1 周</td>
+              </tr>
+              <tr>
+                <td class="px-4 py-3 font-bold">M5</td>
+                <td class="px-4 py-3">知识库 + 资源模块接入</td>
+                <td class="px-4 py-3">2026-06-22</td>
+                <td class="px-4 py-3">1 周</td>
+              </tr>
+              <tr>
+                <td class="px-4 py-3 font-bold">M6</td>
+                <td class="px-4 py-3">高级功能：字段权限 + 增强验证 + 租户化 + TABLE_GRID 完善</td>
+                <td class="px-4 py-3">2026-07-01</td>
+                <td class="px-4 py-3">1 周</td>
+              </tr>
+              <tr class="bg-green-50 dark:bg-green-900/20">
+                <td class="px-4 py-3 font-bold">M7</td>
+                <td class="px-4 py-3">全量测试 + 文档 + UAT 验收 + 上线</td>
+                <td class="px-4 py-3">2026-07-08</td>
+                <td class="px-4 py-3">1 周</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mt-6 p-4 rounded-lg bg-green-50 border-l-4 border-green-500 dark:bg-green-900/30">
+          <div class="flex items-start gap-3">
+            <span class="text-2xl">🎯</span>
+            <div>
+              <h4 class="font-semibold text-green-900 dark:text-green-100">总工期</h4>
+              <p class="text-green-800 dark:text-green-200 mt-1"><strong>7 周</strong>（可并行压缩至 5 周），覆盖 100+ 表单，实现真正的产品化能力。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="border-t py-6 text-center text-sm text-gray-400 no-print">
+    <p>最后由 AI Agent 于 2026-05-24 生成 · 表单自定义适配器升级方案 v1.0 · HTML-First Documentation Workflow</p>
+  </footer>
+
+</body>
+</html>

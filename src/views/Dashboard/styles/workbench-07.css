@@ -1,0 +1,166 @@
+@import '../../../styles/variables.css';
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 1200px) {
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .calendar-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .calendar-filter-row {
+    justify-content: flex-start;
+  }
+
+  .calendar-hero-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .side-column {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  .side-summary-grid {
+    grid-column: 1 / -1;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* 快速发起平板响应式 */
+  .quick-actions-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 768px) {
+  .workbench {
+    padding: 16px;
+  }
+
+  .welcome-banner {
+    flex-direction: column;
+    padding: 24px;
+    text-align: center;
+  }
+
+  .banner-actions {
+    justify-content: center;
+  }
+
+  .banner-decoration {
+    display: none;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+    gap: 12px;
+  }
+
+  .metric-card {
+    padding: 16px;
+  }
+
+  .metric-value {
+    font-size: 24px;
+  }
+
+  .side-column {
+    grid-template-columns: 1fr;
+  }
+
+  .side-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .calendar-summary-strip {
+    grid-template-columns: 1fr;
+  }
+
+  /* 快速发起响应式 */
+  .quick-actions-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .quick-action-item {
+    padding: 12px 8px;
+  }
+
+  .action-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .action-title {
+    font-size: 12px;
+  }
+
+  .action-desc {
+    font-size: 10px;
+  }
+
+  /* 日历响应式 */
+  .calendar-wrapper .el-calendar-table .el-calendar-day {
+    height: 38px;
+  }
+
+  .calendar-day-number {
+    font-size: 11px;
+  }
+
+  .calendar-day-marker {
+    gap: 4px;
+  }
+
+  .calendar-day-count {
+    min-width: 16px;
+    height: 16px;
+    font-size: 9px;
+  }
+
+  .calendar-day-cell {
+    min-height: 34px;
+    padding: 4px 2px;
+  }
+
+  .calendar-wrapper .el-calendar-table td.is-selected .calendar-day-number {
+    width: 20px;
+    height: 20px;
+  }
+
+  .selected-event-card,
+  .upcoming-event-item,
+  .calendar-panel-header,
+  .selected-event-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .upcoming-event-rail {
+    width: 100%;
+    flex-direction: row;
+    justify-content: space-between;
+  }
+
+  .upcoming-event-side {
+    width: 100%;
+    min-width: 0;
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .calendar-filter-row {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 14px;
+  }
+
+  .calendar-filter-copy {
+    min-width: 0;
+  }
+}

@@ -1,0 +1,171 @@
+@import '../../../../styles/variables.css';
+
+/* ================================================
+   投标列表表格 — 操作收进首列 + 紧急高亮
+   ================================================ */
+
+.table-container {
+  width: 100%;
+  overflow: hidden;
+}
+
+/* ---- el-table 基础 ---- */
+.tender-table {
+  --el-table-row-hover-bg-color: var(--accent-blue-light, #E0F2FE);
+}
+
+/* ---- 项目名称列：标题 + 标签 + 行内操作 ---- */
+.tender-main-column .cell {
+  padding: 5px 8px;
+  text-align: left;
+}
+
+.title-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+/* 上排：标题 + 操作按钮 */
+.title-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* 项目标题 */
+.tender-title-link,
+.tender-title-text {
+  flex: 1;
+  min-width: 0;
+  font-weight: 650;
+  color: #1f3a5f;
+}
+
+.tender-title-link .el-link__inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tender-title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.link-icon {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--brand-primary);
+}
+
+.tender-title-clickable {
+  cursor: pointer;
+}
+
+.tender-title-clickable:hover {
+  color: var(--brand-xiyu-logo);
+}
+
+/* 行内操作按钮组 — 始终可见，低调灰色 */
+.title-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.action-btn-inline {
+  border: none;
+  background: transparent;
+  color: var(--gray-400);
+  padding: 3px 5px;
+  border-radius: var(--radius-sm);
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+
+.action-btn-inline:hover {
+  color: var(--brand-xiyu-logo);
+  background-color: var(--brand-xiyu-logo-light);
+}
+
+/* 状态 + 来源标签 */
+.title-tags {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.status-tag {
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.source-tag {
+  font-size: 11px;
+}
+
+/* ---- 营收数字 ---- */
+.budget-cell {
+  display: block;
+  text-align: left;
+  padding: 0;
+  font-weight: 700;
+  color: var(--brand-xiyu-logo);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+/* ---- 日期单元格 ---- */
+.date-cell {
+  font-weight: 500;
+  color: var(--text-primary-ui);
+}
+
+.date-cell.date-urgent {
+  color: var(--color-danger);
+  font-weight: 700;
+  animation: urgentPulse 2s ease-in-out infinite;
+}
+
+.date-cell.date-expired {
+  color: var(--text-tertiary);
+  text-decoration: line-through;
+  animation: none;
+  font-weight: 400;
+}
+
+@keyframes urgentPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* ---- 危险操作项 ---- */
+.danger-item {
+  color: var(--color-danger) !important;
+}
+
+/* ---- 滚动条 ---- */
+.table-container .el-scrollbar__bar.is-horizontal {
+  height: 9px;
+  opacity: 1;
+}
+
+.table-container .el-scrollbar__bar.is-horizontal .el-scrollbar__thumb {
+  background-color: var(--gray-400);
+}
+
+/* ---- 移动端 ---- */
+@media (max-width: 900px) {
+  .tender-table .el-table__cell {
+    padding: 6px 3px !important;
+  }
+}

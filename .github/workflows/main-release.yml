@@ -1,0 +1,215 @@
+name: Main Release Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: main-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  post-merge-gate:
+    name: Post-Merge Gate
+    uses: ./.github/workflows/staging-gate.yml
+    with:
+      release_candidate: ${{ github.sha }}
+      uat_owner: GitHub Actions
+
+  package-release:
+    name: Build Release Artifact
+    needs: post-merge-gate
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_ID: ${{ github.sha }}
+      PRODUCTION_API_BASE_URL: ${{ vars.PRODUCTION_API_BASE_URL }}
+      PLATFORM_ENCRYPTION_KEY: ci-release-key-2026
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Package release archive
+        run: bash scripts/release/package-release.sh
+
+      - name: Upload release archive
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-package-${{ github.sha }}
+          path: .release/*.tar.gz
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 7
+
+  deploy-production:
+    name: Deploy Production
+    needs: package-release
+    if: ${{ vars.PROD_DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+      PROD_SSH_PORT: ${{ secrets.PROD_SSH_PORT }}
+      PROD_SSH_USER: ${{ secrets.PROD_SSH_USER }}
+      PROD_APP_ROOT: ${{ vars.PROD_APP_ROOT }}
+      PROD_RELEASES_DIR: ${{ vars.PROD_RELEASES_DIR }}
+      PROD_FRONTEND_PUBLIC_DIR: ${{ vars.PROD_FRONTEND_PUBLIC_DIR }}
+      PROD_BACKEND_SERVICE_NAME: ${{ vars.PROD_BACKEND_SERVICE_NAME }}
+      PROD_BACKEND_RUNTIME_DIR: ${{ vars.PROD_BACKEND_RUNTIME_DIR }}
+      PROD_BACKEND_JAR_PATH: ${{ vars.PROD_BACKEND_JAR_PATH }}
+      PROD_DEPLOYED_RELEASE_RECORD: ${{ vars.PROD_DEPLOYED_RELEASE_RECORD }}
+      PROD_BACKEND_PORT: ${{ vars.PROD_BACKEND_PORT }}
+      PROD_HEALTHCHECK_URL: ${{ vars.PROD_HEALTHCHECK_URL }}
+      PROD_SYSTEMCTL_SUDO: ${{ vars.PROD_SYSTEMCTL_SUDO }}
+      PROD_DB_BACKUP_COMMAND: ${{ secrets.PROD_DB_BACKUP_COMMAND }}
+      PROD_POST_DEPLOY_COMMAND: ${{ vars.PROD_POST_DEPLOY_COMMAND }}
+      RELEASE_ID: ${{ github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download release archive
+        uses: actions/download-artifact@v4
+        with:
+          name: release-package-${{ github.sha }}
+          path: .release
+
+      - name: Prepare SSH credentials
+        run: |
+          mkdir -p ~/.ssh
+          install -m 600 /dev/null ~/.ssh/id_ed25519
+          printf '%s' "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_ed25519
+          ssh-keyscan -p "${PROD_SSH_PORT:-22}" "$PROD_SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Validate remote deployment path contract
+        run: |
+          set -euo pipefail
+
+          require_absolute_path() {
+            local name="$1"
+            local value="$2"
+            if [[ -z "$value" || "$value" != /* ]]; then
+              echo "$name must be an absolute path, got: ${value:-<empty>}" >&2
+              exit 1
+            fi
+          }
+
+          assert_not_nested_under() {
+            local name="$1"
+            local candidate="$2"
+            local forbidden_root="$3"
+            if [[ "$candidate" == "$forbidden_root" || "$candidate" == "$forbidden_root"/* ]]; then
+              echo "$name must not live under $forbidden_root: $candidate" >&2
+              exit 1
+            fi
+          }
+
+          RELEASES_DIR_VALUE="${PROD_RELEASES_DIR:-${PROD_APP_ROOT}/releases}"
+          BACKEND_RUNTIME_DIR_VALUE="${PROD_BACKEND_RUNTIME_DIR:-${PROD_APP_ROOT}/shared/backend}"
+          BACKEND_JAR_PATH_VALUE="${PROD_BACKEND_JAR_PATH:-${BACKEND_RUNTIME_DIR_VALUE}/app.jar}"
+
+          require_absolute_path "PROD_APP_ROOT" "$PROD_APP_ROOT"
+          require_absolute_path "PROD_FRONTEND_PUBLIC_DIR" "$PROD_FRONTEND_PUBLIC_DIR"
+          require_absolute_path "PROD_RELEASES_DIR" "$RELEASES_DIR_VALUE"
+          require_absolute_path "PROD_BACKEND_RUNTIME_DIR" "$BACKEND_RUNTIME_DIR_VALUE"
+          require_absolute_path "PROD_BACKEND_JAR_PATH" "$BACKEND_JAR_PATH_VALUE"
+
+          assert_not_nested_under "PROD_FRONTEND_PUBLIC_DIR" "$PROD_FRONTEND_PUBLIC_DIR" "$RELEASES_DIR_VALUE"
+          assert_not_nested_under "PROD_BACKEND_RUNTIME_DIR" "$BACKEND_RUNTIME_DIR_VALUE" "$RELEASES_DIR_VALUE"
+          assert_not_nested_under "PROD_BACKEND_JAR_PATH" "$BACKEND_JAR_PATH_VALUE" "$RELEASES_DIR_VALUE"
+
+      - name: Upload archive and deployment env
+        run: |
+          set -euo pipefail
+          ARCHIVE_PATH="$(find .release -maxdepth 1 -type f -name '*.tar.gz' | head -n 1)"
+          if [[ -z "${ARCHIVE_PATH:-}" ]]; then
+            echo "Release archive not found" >&2
+            exit 1
+          fi
+
+          ARCHIVE_NAME="$(basename "$ARCHIVE_PATH")"
+          REMOTE_INCOMING_DIR="${PROD_RELEASES_DIR:-${PROD_APP_ROOT}/incoming}"
+          REMOTE_ENV_PATH="${REMOTE_INCOMING_DIR}/deploy-${RELEASE_ID}.env"
+          HEALTHCHECK_URL_VALUE="${PROD_HEALTHCHECK_URL:-http://127.0.0.1:${PROD_BACKEND_PORT:-8080}/actuator/health}"
+
+          ssh -p "${PROD_SSH_PORT:-22}" "${PROD_SSH_USER}@${PROD_SSH_HOST}" "mkdir -p '${REMOTE_INCOMING_DIR}'"
+          scp -P "${PROD_SSH_PORT:-22}" "$ARCHIVE_PATH" "${PROD_SSH_USER}@${PROD_SSH_HOST}:${REMOTE_INCOMING_DIR}/${ARCHIVE_NAME}"
+
+          {
+            printf 'RELEASE_ARCHIVE=%q\n' "${REMOTE_INCOMING_DIR}/${ARCHIVE_NAME}"
+            printf 'RELEASE_ID=%q\n' "$RELEASE_ID"
+            printf 'APP_ROOT=%q\n' "$PROD_APP_ROOT"
+            printf 'RELEASES_DIR=%q\n' "${PROD_RELEASES_DIR:-}"
+            printf 'FRONTEND_PUBLIC_DIR=%q\n' "$PROD_FRONTEND_PUBLIC_DIR"
+            printf 'BACKEND_SERVICE_NAME=%q\n' "$PROD_BACKEND_SERVICE_NAME"
+            printf 'BACKEND_RUNTIME_DIR=%q\n' "${PROD_BACKEND_RUNTIME_DIR:-}"
+            printf 'BACKEND_JAR_PATH=%q\n' "${PROD_BACKEND_JAR_PATH:-}"
+            printf 'DEPLOYED_RELEASE_RECORD=%q\n' "${PROD_DEPLOYED_RELEASE_RECORD:-}"
+            printf 'HEALTHCHECK_URL=%q\n' "$HEALTHCHECK_URL_VALUE"
+            printf 'SYSTEMCTL_SUDO=%q\n' "${PROD_SYSTEMCTL_SUDO:-false}"
+            printf 'DB_BACKUP_COMMAND=%q\n' "${PROD_DB_BACKUP_COMMAND:-}"
+            printf 'POST_DEPLOY_COMMAND=%q\n' "${PROD_POST_DEPLOY_COMMAND:-}"
+          } > .release/deploy.env
+
+          scp -P "${PROD_SSH_PORT:-22}" .release/deploy.env "${PROD_SSH_USER}@${PROD_SSH_HOST}:${REMOTE_ENV_PATH}"
+          echo "REMOTE_ENV_PATH=${REMOTE_ENV_PATH}" >> "$GITHUB_ENV"
+
+      - name: Run remote deployment
+        run: |
+          ssh -p "${PROD_SSH_PORT:-22}" "${PROD_SSH_USER}@${PROD_SSH_HOST}" \
+            "bash -lc 'set -a && source \"${REMOTE_ENV_PATH}\" && set +a && bash -s'" \
+            < scripts/release/remote-deploy.sh
+
+  production-smoke:
+    name: Production Smoke Verification
+    needs: deploy-production
+    if: ${{ vars.PROD_DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      PRODUCTION_API_BASE_URL: ${{ vars.PRODUCTION_API_BASE_URL }}
+      PRODUCTION_WEB_BASE_URL: ${{ vars.PRODUCTION_WEB_BASE_URL }}
+      PROD_SMOKE_USERNAME: ${{ secrets.PROD_SMOKE_USERNAME }}
+      PROD_SMOKE_PASSWORD: ${{ secrets.PROD_SMOKE_PASSWORD }}
+      PROMETHEUS_MODE: ${{ vars.PROD_PROMETHEUS_MODE }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run production smoke checks
+        run: node scripts/release/run-prod-smoke.mjs
+
+      - name: Upload production smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-smoke-report-${{ github.sha }}
+          path: docs/reports/prod-smoke-report-*
+          if-no-files-found: ignore
+          retention-days: 14

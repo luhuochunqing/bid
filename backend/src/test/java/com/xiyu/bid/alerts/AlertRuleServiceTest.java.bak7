@@ -1,0 +1,260 @@
+package com.xiyu.bid.alerts;
+
+import com.xiyu.bid.alerts.dto.AlertRuleCreateRequest;
+import com.xiyu.bid.alerts.dto.AlertRuleUpdateRequest;
+import com.xiyu.bid.alerts.entity.AlertRule;
+import com.xiyu.bid.alerts.entity.AlertHistory;
+import com.xiyu.bid.alerts.repository.AlertRuleRepository;
+import com.xiyu.bid.alerts.repository.AlertHistoryRepository;
+import com.xiyu.bid.alerts.service.AlertRuleService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+@DisplayName("AlertRuleService 单元测试")
+class AlertRuleServiceTest {
+
+    @Mock
+    private AlertRuleRepository alertRuleRepository;
+
+    @Mock
+    private AlertHistoryRepository alertHistoryRepository;
+
+    @InjectMocks
+    private AlertRuleService alertRuleService;
+
+    private AlertRule testRule;
+
+    @BeforeEach
+    void setUp() {
+        testRule = AlertRule.builder()
+                .id(1L)
+                .name("Budget Alert Rule")
+                .type(AlertRule.AlertType.BUDGET)
+                .condition(AlertRule.ConditionType.GREATER_THAN)
+                .threshold(new java.math.BigDecimal("10000.00"))
+                .enabled(true)
+                .createdBy("admin")
+                .build();
+    }
+
+    @Test
+    @DisplayName("应该成功创建预警规则")
+    void shouldCreateAlertRuleSuccessfully() {
+        // Given
+        AlertRuleCreateRequest request = new AlertRuleCreateRequest();
+        request.setName("Budget Alert Rule");
+        request.setType(AlertRule.AlertType.BUDGET);
+        request.setCondition(AlertRule.ConditionType.GREATER_THAN);
+        request.setThreshold(new java.math.BigDecimal("10000.00"));
+        request.setEnabled(true);
+        request.setCreatedBy("admin");
+
+        when(alertRuleRepository.save(any(AlertRule.class))).thenReturn(testRule);
+
+        // When
+        AlertRule result = alertRuleService.createAlertRule(request);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getName()).isEqualTo("Budget Alert Rule");
+        assertThat(result.getType()).isEqualTo(AlertRule.AlertType.BUDGET);
+        verify(alertRuleRepository, times(1)).save(any(AlertRule.class));
+    }
+
+    @Test
+    @DisplayName("应该成功获取预警规则通过ID")
+    void shouldGetAlertRuleByIdSuccessfully() {
+        // Given
+        when(alertRuleRepository.findById(1L)).thenReturn(Optional.of(testRule));
+
+        // When
+        AlertRule result = alertRuleService.getAlertRuleById(1L);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(1L);
+        verify(alertRuleRepository, times(1)).findById(1L);
+    }
+
+    @Test
+    @DisplayName("当预警规则不存在时应该抛出异常")
+    void shouldThrowExceptionWhenAlertRuleNotFound() {
+        // Given
+        when(alertRuleRepository.findById(999L)).thenReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> alertRuleService.getAlertRuleById(999L))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("AlertRule not found");
+        verify(alertRuleRepository, times(1)).findById(999L);
+    }
+
+    @Test
+    @DisplayName("应该成功获取所有启用的预警规则")
+    void shouldGetEnabledAlertRulesSuccessfully() {
+        // Given
+        java.util.List<AlertRule> rules = java.util.List.of(testRule);
+        when(alertRuleRepository.findByEnabledTrue()).thenReturn(rules);
+
+        // When
+        java.util.List<AlertRule> result = alertRuleService.getEnabledAlertRules();
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).isEnabled()).isTrue();
+        verify(alertRuleRepository, times(1)).findByEnabledTrue();
+    }
+
+    @Test
+    @DisplayName("应该成功根据类型获取预警规则")
+    void shouldGetAlertRulesByTypeSuccessfully() {
+        // Given
+        java.util.List<AlertRule> rules = java.util.List.of(testRule);
+        when(alertRuleRepository.findByType(AlertRule.AlertType.BUDGET)).thenReturn(rules);
+
+        // When
+        java.util.List<AlertRule> result = alertRuleService.getAlertRulesByType(AlertRule.AlertType.BUDGET);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getType()).isEqualTo(AlertRule.AlertType.BUDGET);
+        verify(alertRuleRepository, times(1)).findByType(AlertRule.AlertType.BUDGET);
+    }
+
+    @Test
+    @DisplayName("应该成功更新预警规则")
+    void shouldUpdateAlertRuleSuccessfully() {
+        // Given
+        AlertRuleUpdateRequest request = new AlertRuleUpdateRequest();
+        request.setName("Updated Alert Rule");
+        request.setThreshold(new java.math.BigDecimal("20000.00"));
+
+        when(alertRuleRepository.findById(1L)).thenReturn(Optional.of(testRule));
+        when(alertRuleRepository.save(any(AlertRule.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // When
+        AlertRule result = alertRuleService.updateAlertRule(1L, request);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getName()).isEqualTo("Updated Alert Rule");
+        assertThat(result.getThreshold()).isEqualByComparingTo("20000.00");
+        verify(alertRuleRepository, times(1)).findById(1L);
+        verify(alertRuleRepository, times(1)).save(any(AlertRule.class));
+    }
+
+    @Test
+    @DisplayName("应该成功删除预警规则")
+    void shouldDeleteAlertRuleSuccessfully() {
+        // Given
+        when(alertRuleRepository.existsById(1L)).thenReturn(true);
+        doNothing().when(alertRuleRepository).deleteById(1L);
+
+        // When
+        alertRuleService.deleteAlertRule(1L);
+
+        // Then
+        verify(alertRuleRepository, times(1)).existsById(1L);
+        verify(alertRuleRepository, times(1)).deleteById(1L);
+    }
+
+    @Test
+    @DisplayName("应该成功切换预警规则启用状态")
+    void shouldToggleAlertRuleEnabledStatusSuccessfully() {
+        // Given
+        when(alertRuleRepository.findById(1L)).thenReturn(Optional.of(testRule));
+        when(alertRuleRepository.save(any(AlertRule.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // When
+        AlertRule result = alertRuleService.toggleAlertRuleEnabled(1L);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.isEnabled()).isFalse();
+        verify(alertRuleRepository, times(1)).findById(1L);
+        verify(alertRuleRepository, times(1)).save(any(AlertRule.class));
+    }
+
+    @Test
+    @DisplayName("应该拒绝创建空名称的预警规则")
+    void shouldRejectAlertRuleWithEmptyName() {
+        // Given
+        AlertRuleCreateRequest request = new AlertRuleCreateRequest();
+        request.setName("");
+        request.setType(AlertRule.AlertType.BUDGET);
+        request.setCondition(AlertRule.ConditionType.GREATER_THAN);
+        request.setThreshold(new java.math.BigDecimal("10000.00"));
+
+        // When & Then
+        assertThatThrownBy(() -> alertRuleService.createAlertRule(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Name is required");
+        verify(alertRuleRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("应该拒绝创建空类型的预警规则")
+    void shouldRejectAlertRuleWithNullType() {
+        // Given
+        AlertRuleCreateRequest request = new AlertRuleCreateRequest();
+        request.setName("Test Rule");
+        request.setType(null);
+        request.setCondition(AlertRule.ConditionType.GREATER_THAN);
+        request.setThreshold(new java.math.BigDecimal("10000.00"));
+
+        // When & Then
+        assertThatThrownBy(() -> alertRuleService.createAlertRule(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Type is required");
+        verify(alertRuleRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("应该拒绝创建负数阈值的预警规则")
+    void shouldRejectAlertRuleWithNegativeThreshold() {
+        // Given
+        AlertRuleCreateRequest request = new AlertRuleCreateRequest();
+        request.setName("Test Rule");
+        request.setType(AlertRule.AlertType.BUDGET);
+        request.setCondition(AlertRule.ConditionType.GREATER_THAN);
+        request.setThreshold(new java.math.BigDecimal("-100.00"));
+
+        // When & Then
+        assertThatThrownBy(() -> alertRuleService.createAlertRule(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Threshold must be positive");
+        verify(alertRuleRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("应该拒绝创建空条件的预警规则")
+    void shouldRejectAlertRuleWithNullCondition() {
+        // Given
+        AlertRuleCreateRequest request = new AlertRuleCreateRequest();
+        request.setName("Test Rule");
+        request.setType(AlertRule.AlertType.BUDGET);
+        request.setCondition(null);
+        request.setThreshold(new java.math.BigDecimal("10000.00"));
+
+        // When & Then
+        assertThatThrownBy(() -> alertRuleService.createAlertRule(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Condition is required");
+        verify(alertRuleRepository, never()).save(any());
+    }
+}

@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# scripts/git — project-safe git wrapper (system-level gate)
+#
+# Prohibits 'git push --no-verify' and 'git commit --no-verify' **unconditionally**
+# unless the caller sets a documented escape hatch env var.
+#
+# This is the primary system-level enforcement for the XiYu bid platform.
+# It sits in front of .githooks/pre-push (history guard + pre-push-gate.sh which
+# runs agent:lock-check:changed, line-budget, E2E selector checks, etc.).
+#
+# Activation (mandatory for all development):
+#   source scripts/dev-env.sh
+#   (prepends this directory to PATH so bare `git` resolves here first)
+#
+# Why:
+# - All pre-commit / pre-push quality gates are non-negotiable (agent locks,
+#   architecture, flyway rollback coverage, token governance, blueprint gaps,
+#   line budgets, E2E selector safety...).
+# - --no-verify was historically abused (conflict resolution on notes,
+#   lock bypass during multi-agent work), causing repeated CI red and main
+#   integrity issues.
+#
+# Escape hatch (extremely rare, only after team approval):
+#   XIYU_ALLOW_GIT_NO_VERIFY=1 git push --no-verify ...
+#   (will emit loud warning + append audit entry to .runtime/git-bypass/*.log)
+#
+# Never use the escape for routine work. Fix the underlying gate failure.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd 2>/dev/null || pwd)"
+
+# --- Locate the real system git (never recurse into ourselves) ---
+find_real_git() {
+  local candidates=()
+  # 1. explicit git.real (user can install a shim if needed)
+  if command -v git.real >/dev/null 2>&1; then
+    candidates+=("$(command -v git.real)")
+  fi
+  # 2. common macOS/Linux locations (before PATH pollution)
+  for p in /usr/bin/git /usr/local/bin/git /opt/homebrew/bin/git; do
+    [[ -x "$p" ]] && candidates+=("$p")
+  done
+  # 3. whatever PATH would give, but filter out any "scripts/git"
+  local v
+  v=$(command -v git 2>/dev/null || true)
+  if [[ -n "$v" && ! "$v" =~ /scripts/git$ && ! "$v" =~ /scripts/git$ ]]; then
+    candidates+=("$v")
+  fi
+
+  for c in "${candidates[@]}"; do
+    if [[ -x "$c" && ! "$c" =~ /scripts/git$ ]]; then
+      # extra guard: resolve symlinks and make sure it's not this file
+      local real
+      real="$(readlink -f "$c" 2>/dev/null || echo "$c")"
+      if [[ "$real" != "$(readlink -f "$0" 2>/dev/null || echo "$0")" ]]; then
+        echo "$c"
+        return 0
+      fi
+    fi
+  done
+
+  # last resort
+  echo "/usr/bin/git"
+}
+
+REAL_GIT="$(find_real_git)"
+
+# --- Marker for downstream hooks / gates to know wrapper was in the picture ---
+export XIYU_GIT_WRAPPER_ACTIVE=1
+
+# --- Controlled bypass with mandatory audit trail ---
+if [[ "${XIYU_ALLOW_GIT_NO_VERIFY:-0}" == "1" || "${XIYU_GIT_BYPASS:-0}" == "1" ]]; then
+  echo "⚠️  [XiYu GIT POLICY] XIYU_ALLOW_GIT_NO_VERIFY=1 active — BYPASSING --no-verify block."
+  echo "    This MUST be pre-approved by the team. All gates are being skipped."
+  echo "    Command: git $*"
+  echo "    PWD    : $(pwd)"
+  # audit log (best effort, never fatal)
+  LOG_DIR="$PROJECT_ROOT/.runtime/git-bypass"
+  mkdir -p "$LOG_DIR" 2>/dev/null || true
+  printf '%s | user=%s | worktree=%s | cmd=git %s\n' \
+    "$(date -Iseconds)" \
+    "${USER:-unknown}" \
+    "$(basename "$PROJECT_ROOT")" \
+    "$*" \
+    >> "$LOG_DIR/$(date +%Y%m%d).log" 2>/dev/null || true
+  # continue to real git (bypass the block below)
+else
+  # --- Hard block for the dangerous flag ---
+  for arg in "$@"; do
+    if [[ "$arg" == "--no-verify" ]]; then
+      cat <<'ERR'
+❌ [XiYu Policy] 'git ... --no-verify' is FORBIDDEN at the system level.
+
+The following gates are MANDATORY on every push / commit:
+  • agent:lock-check:changed   (multi-agent file lease coordination)
+  • pre-push-gate (architecture, flyway rollback coverage, line-budget, staged file count, E2E selector safety, unit tests, lint, build)
+  • .githooks/pre-push (protected branch non-ff + root-commit ratchet)
+  • token governance, blueprint gap tables, doc governance, etc.
+
+Bypassing them has repeatedly caused CI red, lock skew between agents, and main branch integrity problems.
+
+Quick bypass options (no team approval needed — fast iteration for individual developers):
+  • --skip-tests        skips test:unit + build:api in pre-push-gate.sh (~30-60s saved)
+  • --skip-e2e-check  skips E2E-UI linkage check
+  • PRE_PUSH_GATE=0   skips ALL checks (use only in emergencies, still requires audit)
+
+Forcing --no-verify bypass requires explicit team approval + audit log entry.
+  3. Consider whether the gate itself needs improvement instead of future bypasses.
+
+Prefer: resolve the real problem (rebase conflict on non-hot files by hand,
+temporarily relax a non-critical check, or coordinate with other agents).
+
+Never run raw /usr/bin/git or full-path git to dodge this wrapper.
+Always work inside a shell where `source scripts/dev-env.sh` (or the agent
+startup scripts) has executed.
+
+ERR
+      exit 1
+    fi
+  done
+fi
+
+# Delegate to the real git (env var XIYU_GIT_WRAPPER_ACTIVE is inherited by hooks)
+exec "$REAL_GIT" "$@"

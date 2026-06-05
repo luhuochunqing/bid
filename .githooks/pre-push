@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# .githooks/pre-push — local guard for pushes that could damage main's history.
+#
+# Activation: this hook only runs if the repo is configured to use .githooks/ as
+# its hooks directory. Run `scripts/install-githooks.sh` once to enable it, or
+# manually: `git config core.hooksPath .githooks`.
+#
+# What this blocks:
+#   1. Any --force / --force-with-lease push to main, master, or release/* refs.
+#   2. Pushes to main where HEAD has more root commits than the documented
+#      ratchet (see .github/workflows/branch-history-guard.yml).
+#
+# Context: ericforai/bidding#224 documents the root-commit issue. This hook is
+# the developer-local mirror of the CI workflow — same check, earlier signal.
+#
+# Inputs: git invokes the hook with `<remote> <url>` on argv and a list of
+#   `<local_ref> <local_sha> <remote_ref> <remote_sha>` lines on stdin.
+
+set -euo pipefail
+
+remote="${1:-origin}"
+PROTECTED_BRANCHES_REGEX='^refs/heads/(main|master|release/.+)$'
+MAX_ROOTS=4
+
+# 1) refuse force pushes to protected branches.
+# Git itself does not expose "is this a force push" to the hook. We approximate:
+# a non-fast-forward push will have the remote ref already known to git and
+# differing from local; in that case we error unless the user explicitly opts
+# out with FORCE_PUSH_OK=1. This covers --force, --force-with-lease, and the
+# common "I rebased and want to push" case.
+while IFS=' ' read -r local_ref local_sha remote_ref remote_sha; do
+    if [[ "${remote_ref}" =~ ${PROTECTED_BRANCHES_REGEX} ]]; then
+        # New ref creation (remote_sha is all zeros) is allowed.
+        if [ "${remote_sha}" = "0000000000000000000000000000000000000000" ]; then
+            continue
+        fi
+        # Non-fast-forward detection: remote_sha must be an ancestor of local_sha.
+        if ! git merge-base --is-ancestor "${remote_sha}" "${local_sha}" 2>/dev/null; then
+            if [ "${FORCE_PUSH_OK:-0}" != "1" ]; then
+                echo "::pre-push:: refusing non-fast-forward push to ${remote_ref}." >&2
+                echo "  remote: ${remote_sha}" >&2
+                echo "  local : ${local_sha}" >&2
+                echo "  If this is intentional (e.g. authorized history surgery for #224)," >&2
+                echo "  rerun with FORCE_PUSH_OK=1 git push ..." >&2
+                exit 1
+            fi
+            echo "::pre-push:: FORCE_PUSH_OK=1 set, allowing non-fast-forward push to ${remote_ref}." >&2
+        fi
+
+        # 2) root-commit ratchet: refuse pushes that would grow the root count.
+        root_count=$(git rev-list --max-parents=0 "${local_sha}" | wc -l | tr -d ' ')
+        if [ "${root_count}" -gt "${MAX_ROOTS}" ]; then
+            echo "::pre-push:: refusing push to ${remote_ref}: HEAD has ${root_count} root commits, ratchet allows ${MAX_ROOTS}." >&2
+            echo "  This usually means a history rewrite (filter-repo, checkout --orphan, replace --graft) added a new disconnected segment." >&2
+            echo "  See ericforai/bidding#224 before proceeding." >&2
+            exit 1
+        fi
+    fi
+done
+
+# 3) Quality gate — runs before every push (skip with PRE_PUSH_GATE=0)
+if [ "${PRE_PUSH_GATE:-1}" = "1" ] && [ -x "$(dirname "$0")/../scripts/pre-push-gate.sh" ]; then
+  if ! bash "$(dirname "$0")/../scripts/pre-push-gate.sh"; then
+    echo ""
+    echo "::pre-push:: 质量门禁未通过。修复后重试，或 PRE_PUSH_GATE=0 git push 跳过。" >&2
+    exit 1
+  fi
+fi
+
+exit 0

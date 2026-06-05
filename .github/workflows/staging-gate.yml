@@ -1,0 +1,80 @@
+name: Staging Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_candidate:
+        description: Release candidate identifier
+        required: true
+        default: rc-local
+      uat_owner:
+        description: UAT owner or coordinator
+        required: true
+        default: QA
+  workflow_call:
+    inputs:
+      release_candidate:
+        required: true
+        type: string
+      uat_owner:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  staging-gate:
+    name: Release Rehearsal And Signoff Pack
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      RELEASE_CANDIDATE: ${{ inputs.release_candidate || github.sha }}
+      UAT_OWNER: ${{ inputs.uat_owner || 'QA' }}
+      SPRING_PROFILES_ACTIVE: prod
+      DB_PASSWORD: ci-rehearsal-db-password-2026
+      MYSQL_ROOT_PASSWORD: ci-rehearsal-root-password-2026
+      JWT_SECRET: ci-rehearsal-jwt-secret-key-with-32-chars-min
+      PLATFORM_ENCRYPTION_KEY: ci-rehearsal-platform-key-2026
+      UAT_TEST_PASSWORD: XiyuGoLive!2026
+      ADMIN_PASSWORD: XiyuGoLive!2026
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run staging gate rehearsal
+        run: bash scripts/release/rehearse-release.sh
+
+      - name: Build formal signoff packet
+        run: node scripts/release/build-signoff-packet.mjs
+
+      - name: Upload rehearsal and signoff artifacts
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-gate-artifacts
+          path: |
+            docs/reports/
+            .rehearsal/backend.log
+            .rehearsal/frontend.log
+            .rehearsal/backups/
+            .rehearsal/playwright/

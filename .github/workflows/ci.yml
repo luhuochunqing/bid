@@ -1,0 +1,456 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+      - 'codex/**'
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  agent-locks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Resolve agent lock base
+        id: agent-lock-base
+        env:
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            git fetch --no-tags --depth=1 origin "${GITHUB_BASE_REF}"
+            base="$(git merge-base HEAD "origin/${GITHUB_BASE_REF}")"
+          else
+            base="${PUSH_BEFORE_SHA:-}"
+            if [[ -z "$base" || "$base" == "0000000000000000000000000000000000000000" ]]; then
+              base="$(git rev-parse HEAD~1)"
+            elif ! git merge-base --is-ancestor "$base" HEAD 2>/dev/null; then
+              # Force-push: github.event.before is the old SHA, not an ancestor.
+              # Fall back to HEAD~1 as the most recent safe ancestor.
+              base="$(git rev-parse HEAD~1)"
+            fi
+          fi
+
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch remote branch locks
+        run: git fetch --prune --no-tags origin '+refs/heads/*:refs/remotes/origin/*'
+
+      - name: Run agent lock gate
+        run: node scripts/check-agent-locks.mjs --base "${{ steps.agent-lock-base.outputs.base }}" --head HEAD
+
+  line-budget:
+    runs-on: ubuntu-latest
+    needs: [agent-locks]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Resolve line budget base
+        id: line-budget-base
+        env:
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            git fetch --no-tags --depth=1 origin "${GITHUB_BASE_REF}"
+            base="$(git merge-base HEAD "origin/${GITHUB_BASE_REF}")"
+          else
+            base="${PUSH_BEFORE_SHA:-}"
+            if [[ -z "$base" || "$base" == "0000000000000000000000000000000000000000" ]]; then
+              base="$(git rev-parse HEAD~1)"
+            elif ! git merge-base --is-ancestor "$base" HEAD 2>/dev/null; then
+              base="$(git rev-parse HEAD~1)"
+            fi
+          fi
+
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+
+      - name: Run line budget gate
+        run: node scripts/check-line-budgets.mjs --base "${{ steps.line-budget-base.outputs.base }}" --head HEAD
+
+  frontend:
+    runs-on: ubuntu-latest
+    needs: [line-budget, quality-scope]
+    if: ${{ !(startsWith(github.head_ref, 'chore/janitor-') || startsWith(github.ref_name, 'chore/janitor-')) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Fast-path symmetric to backend: pure backend / migration / lock-only PRs
+      # should not pay full npm ci + vitest + two builds.
+      # "frontend" required check still succeeds quickly.
+      - name: Fast succeed (no UI impact) — keep required check green cheaply
+        if: needs.quality-scope.outputs.ui_changed != 'true'
+        run: |
+          echo "quality-scope reports no UI/src/views or router change."
+          echo "Fast-passing 'frontend' required status check (0m) to reduce CI contention for other agents."
+          exit 0
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Run unit tests (Vitest)
+        run: npm run test:unit
+
+      - name: Build frontend (mock)
+        run: npm run build
+
+      - name: Build frontend (api)
+        run: npm run build:api
+
+  backend:
+    runs-on: ubuntu-latest
+    needs: [line-budget, quality-scope]
+    if: ${{ !(startsWith(github.head_ref, 'chore/janitor-') || startsWith(github.ref_name, 'chore/janitor-')) }}
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      # Fast-path for frontend-only / docs / e2e-only PRs:
+      # The "backend" required check must still report success (branch protection),
+      # but we avoid paying full mvn time when nothing backend-related changed.
+      # This unblocks the shared Actions pool for other agents' PRs and speeds
+      # overall CI queue when many small atomic tasks land in parallel.
+      # All real backend changes (including protected modules) still run the full gates.
+      - name: Fast succeed (no backend impact) — keep required check green cheaply
+        if: needs.quality-scope.outputs.backend_changed != 'true'
+        run: |
+          echo "quality-scope reports no backend change."
+          echo "Fast-passing 'backend' required status check (0m) to reduce CI contention."
+          echo "Real backend-impacting PRs will execute the full compile + architecture + quality + tests below."
+          exit 0
+
+      - name: Check system-scope jar inclusion
+        run: bash ../scripts/check-system-scope-jar.sh
+
+      - name: Compile backend
+        run: mvn -DskipTests compile
+        env:
+          PLATFORM_ENCRYPTION_KEY: ci-test-key-2026
+
+      - name: Run backend architecture tests
+        if: needs.quality-scope.outputs.backend_changed == 'true'
+        run: mvn -DforkCount=0 -Dtest=FPJavaArchitectureTest,MaintainabilityArchitectureTest test
+        env:
+          PLATFORM_ENCRYPTION_KEY: ci-test-key-2026
+
+      - name: Run baseline and resource integration tests
+        if: needs.quality-scope.outputs.backend_changed == 'true'
+        run: mvn -Dtest=FlywayBaselineContextTest,ExpenseControllerIntegrationTest,BarCertificateControllerIntegrationTest test
+        env:
+          PLATFORM_ENCRYPTION_KEY: ci-test-key-2026
+
+      - name: Run migration and architecture gates
+        if: needs.quality-scope.outputs.backend_changed == 'true'
+        run: mvn -Dtest=FlywayMysqlContainerTest,ArchitectureTest test
+        env:
+          PLATFORM_ENCRYPTION_KEY: ci-test-key-2026
+
+      - name: Run backend quality gates
+        if: needs.quality-scope.outputs.backend_changed == 'true'
+        run: mvn -Pjava-quality,java-quality-spotbugs,quality-strict -DskipTests -Djacoco.skip=true checkstyle:check pmd:check spotbugs:check
+        env:
+          PLATFORM_ENCRYPTION_KEY: ci-test-key-2026
+
+  quality-scope:
+    runs-on: ubuntu-latest
+    needs: [line-budget]
+    if: ${{ !(startsWith(github.head_ref, 'chore/janitor-') || startsWith(github.ref_name, 'chore/janitor-')) }}
+    # dorny/paths-filter 在 PR 场景会调 GitHub API listFiles，需要 pull-requests: read。
+    # push 场景走 git 本地 diff，不需要此权限，所以历史直推 main 时从未暴露。
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      backend_changed: ${{ steps.filter.outputs.backend }}
+      protected_quality_changed: ${{ steps.filter.outputs.protected_quality }}
+      ui_changed: ${{ steps.filter.outputs.ui }}
+      e2e_changed: ${{ steps.filter.outputs.e2e }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            protected_quality:
+              - 'backend/pom.xml'
+              - 'backend/README.md'
+              - 'backend/QUALITY_GATE_PLAN.md'
+              - 'backend/QUALITY_GATE_GUIDE.md'
+              - 'backend/src/main/java/com/xiyu/bid/marketinsight/core/**'
+              - 'backend/src/main/java/com/xiyu/bid/admin/settings/core/**'
+              - 'backend/src/main/java/com/xiyu/bid/task/core/**'
+              - 'backend/src/main/java/com/xiyu/bid/bidresult/core/**'
+              - 'backend/src/main/java/com/xiyu/bid/projectworkflow/**'
+              - 'backend/src/test/java/com/xiyu/bid/admin/settings/core/**'
+              - 'backend/src/test/java/com/xiyu/bid/task/core/**'
+              - 'backend/src/test/java/com/xiyu/bid/bidresult/core/**'
+              - 'backend/src/test/java/com/xiyu/bid/projectworkflow/**'
+            ui:
+              - 'src/views/**'
+              - 'src/router/**'
+            e2e:
+              - 'e2e/**'
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 硬门禁：改 src/router 或 src/views 时，必须同步更新 E2E 测试
+  # 工程背景：2026-05-21 因路由替换导致 E2E 播种数据不可见，CI 反复失败多次
+  # 详见 .wiki/pages/lessons-learned.md §三
+  # ─────────────────────────────────────────────────────────────────────────
+  e2e-scope:
+    runs-on: ubuntu-latest
+    needs: [quality-scope]
+    if: |
+      needs.quality-scope.outputs.ui_changed == 'true' &&
+      !(startsWith(github.head_ref, 'chore/janitor-') || startsWith(github.ref_name, 'chore/janitor-'))
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # 门禁1：检查路由组件替换后 E2E 播种契约是否仍满足
+      - name: Check route-E2E compatibility
+        run: node scripts/check-route-e2e-compat.mjs
+
+      # 门禁2：如果 UI（视图/路由）有变更，要求 e2e/ 也有对应变更
+      # 防止开发者更新 UI 却忘记同步更新 E2E 选择器/步骤
+      - name: Resolve e2e-scope base ref
+        id: e2e-scope-base
+        run: |
+          set -euo pipefail
+
+          if [[ -n "${{ github.base_ref }}" ]]; then
+            # PR 场景
+            echo "base_ref=origin/${{ github.base_ref }}" >> "$GITHUB_OUTPUT"
+          else
+            # workflow_dispatch 场景：检测是否 force-push，用 merge-base 回退
+            base="$(git rev-parse HEAD~1)"
+            if [[ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]] && \
+               [[ -n "${{ github.event.before }}" ]]; then
+              if git merge-base --is-ancestor "${{ github.event.before }}" HEAD 2>/dev/null; then
+                base="${{ github.event.before }}"
+              fi
+            fi
+            echo "base_ref=$base" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Require E2E update when UI changes
+        if: needs.quality-scope.outputs.e2e_changed != 'true'
+        run: |
+          set -euo pipefail
+
+          BASE="${{ steps.e2e-scope-base.outputs.base_ref }}"
+
+          # 可靠地检查 [skip e2e-scope] 标记
+          # - 始终使用 git log（PR checkout 后本地已有完整提交历史，包括 feature commits）
+          # - 避免直接把 PR body 插值进 shell 单引号字符串（body 常含 ' " ` \n 等会导致 COMBINED 被截断或语法错）
+          # - 同时兼容 commit message 里带标记的情况（当前 PR #608 即通过 chore commit 携带）
+          COMBINED="$(git log --format='%s%n%b' ${BASE}..HEAD 2>/dev/null || echo '')"
+          if printf '%s' "$COMBINED" | grep -qi 'skip e2e-scope'; then
+            echo "检测到 [skip e2e-scope] 标记，跳过 E2E 联动检查。"
+            exit 0
+          fi
+
+          # 找出可能受影响的 E2E 测试文件
+          # 只将「实际渲染的页面组件 (.vue) 和路由」视为需要同步 E2E 的 UI 变更。
+          # 排除 src/views/ 下的 composable、*Form.js、逻辑工具等 .js/.ts 文件：
+          #   这些变更通常不影响 E2E 使用的选择器、DOM 结构或路由契约。
+          # 本次 PR #608 改动 src/views/Bidding/detail/useTenderEvaluationForm.js 即属此类。
+          UI_FILES=$(git diff --name-only "${BASE}"..HEAD | grep -E '(\.vue$|^src/router/)' || true)
+
+          if [ -z "$UI_FILES" ]; then
+            echo "UI 变更仅涉及 composable / 表单逻辑等非 .vue 文件，无需强制 e2e/ 同步更新。"
+            exit 0
+          fi
+
+          AFFECTED=""
+          for f in $UI_FILES; do
+            # 提取目录名：src/views/Project/List.vue -> Project
+            DIR=$(echo "$f" | sed 's|src/views/||' | cut -d'/' -f1 | tr '[:upper:]' '[:lower:]')
+            # 找匹配 spec
+            MATCHED=$(find e2e -name '*.spec.js' \( \
+              -name "*${DIR}*" -o \
+              -name "*$(echo $DIR | sed 's/bidding/bid/g')*" \
+            \) 2>/dev/null | sed 's|e2e/||' | sort -u || true)
+            if [ -n "$MATCHED" ]; then AFFECTED="${AFFECTED}${MATCHED}"$'\n'; fi
+          done
+
+          echo ""
+          echo "::error::⚠️  UI（.vue 页面或路由）有变更，但 e2e/ 目录没有对应更新。"
+          echo ""
+          echo "变更的 UI 文件："
+          echo "$UI_FILES" | sed 's/^/  - /'
+          echo ""
+          if [ -n "$AFFECTED" ]; then
+            echo "可能受影响的 E2E 测试文件（建议优先检查）："
+            echo "$AFFECTED" | grep -v '^$' | sed 's/^/  - e2e\//'
+            echo ""
+            echo "验证方式：npx playwright test <上述文件>"
+          else
+            echo "未找到直接匹配的 E2E 测试文件。"
+            echo "请人工判断是否需要新建 e2e/ 测试。"
+          fi
+          echo ""
+          echo "跳过方式：在 commit message 中添加 [skip e2e-scope] 及原因。"
+          echo ""
+          exit 1
+
+  backend-quality-audit:
+    runs-on: ubuntu-latest
+    needs: [quality-scope]
+    if: needs.quality-scope.outputs.backend_changed == 'true'
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Run backend quality audit
+        run: mvn -Pjava-quality,java-quality-spotbugs,quality-audit checkstyle:check pmd:check spotbugs:check
+
+  backend-quality-strict:
+    runs-on: ubuntu-latest
+    needs: [quality-scope]
+    if: needs.quality-scope.outputs.protected_quality_changed == 'true'
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Run backend quality strict gate
+        run: mvn -Pjava-quality,java-quality-spotbugs,quality-strict -DforkCount=0 test checkstyle:check pmd:check spotbugs:check
+        env:
+          PLATFORM_ENCRYPTION_KEY: ci-test-key-2026
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [frontend, backend]
+    if: ${{ !(startsWith(github.head_ref, 'chore/janitor-') || startsWith(github.ref_name, 'chore/janitor-')) }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps || npx playwright install chromium
+
+      - name: Pre-compile backend (speeds up spring-boot:run)
+        run: mvn -f backend/pom.xml -DskipTests compile -q
+
+      - name: Build frontend for API mode
+        run: npm run build:api
+
+      - name: Run E2E tests (P0 核心流程)
+        # 2026-05-24: 7 个稳定测试
+        run: npx playwright test commercial-main-flow case-advanced-flow project-create-full-flow knowledge-qualification-flow resource-ca-management-flow ai-solution-reuse-flow ai-market-timing-flow --config playwright.config.js
+        env:
+          BACKEND_PORT: 18080
+          FRONTEND_PORT: 1314
+          SPRING_PROFILES_ACTIVE: e2e
+          DB_PASSWORD: unused
+          JWT_SECRET: ci-e2e-jwt-secret-key-with-32-chars-min
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

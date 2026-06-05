@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CA 统一管理看板 — 设计文档</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>mermaid.initialize({ startOnLoad: true, theme: 'default' });</script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: { primary: '#3B82F6', success: '#10B981', warning: '#F59E0B', danger: '#EF4444' }
+        }
+      }
+    }
+  </script>
+  <style>
+    @media print { .no-print { display: none !important; } .print-break { page-break-before: always; } body { background: white !important; color: black !important; } nav, aside, footer, button { display: none !important; } main { margin-left: 0 !important; padding: 0 !important; max-width: 100% !important; } @page { margin: 2cm; } }
+    html { scroll-behavior: smooth; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 min-h-screen">
+
+  <!-- NAV -->
+  <nav class="sticky top-0 z-50 bg-white/80 dark:bg-gray-800/80 backdrop-blur border-b no-print">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <h1 class="text-lg font-bold text-primary truncate max-w-md">CA 统一管理看板</h1>
+        <span class="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">v1.0</span>
+        <span class="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">设计稿</span>
+      </div>
+      <div class="flex items-center gap-1">
+        <button onclick="document.documentElement.classList.toggle('dark')" class="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-lg" title="切换主题">🌓</button>
+        <button onclick="window.print()" class="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-lg" title="打印/导出 PDF">🖨️</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="flex max-w-7xl mx-auto">
+    <!-- TOC -->
+    <aside class="hidden lg:block w-56 xl:w-64 flex-shrink-0 border-r min-h-[calc(100vh-4rem)] no-print">
+      <div class="sticky top-16 p-4 overflow-y-auto max-h-[calc(100vh-5rem)]">
+        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">目录</p>
+        <nav class="space-y-0.5 text-sm" id="toc">
+          <a href="#overview" class="block px-3 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-primary transition-colors">概览</a>
+          <a href="#current-status" class="block px-3 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-primary transition-colors">现状分析</a>
+          <a href="#design" class="block px-3 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-primary transition-colors">页面设计</a>
+          <a href="#routes" class="block px-3 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-primary transition-colors">路由与入口</a>
+          <a href="#api" class="block px-3 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-primary transition-colors">API 对接</a>
+          <a href="#spec" class="block px-3 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-primary transition-colors">功能规格</a>
+          <a href="#scope" class="block px-3 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-primary transition-colors">范围与排期</a>
+        </nav>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="flex-1 min-w-0 p-6 md:p-8 xl:p-10 max-w-4xl">
+
+      <!-- COVER -->
+      <section class="text-center py-12 md:py-16 px-4 bg-gradient-to-b from-primary/5 to-transparent rounded-2xl mb-10">
+        <div class="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium mb-4">v1.0 · 设计稿</div>
+        <h1 class="text-3xl md:text-4xl lg:text-5xl font-bold mb-4">CA 统一管理看板</h1>
+        <p class="text-lg text-gray-500 dark:text-gray-400 max-w-2xl mx-auto mb-8">
+          资源管理 §4.5 蓝图功能实现方案 —— 将分散的 CA/证书管理功能整合为统一管理看板
+        </p>
+        <div class="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-gray-400">
+          <span>📅 2026-05-23</span>
+          <span>✍️ AI Agent</span>
+          <span>📁 docs/artifacts/</span>
+          <span>🔄 v1.0</span>
+        </div>
+      </section>
+
+      <!-- ════════════════════════════════════════════════════════════
+           SECTION: OVERVIEW
+           ════════════════════════════════════════════════════════════ -->
+      <section id="overview" class="mb-12 scroll-mt-20">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-1 h-7 bg-primary rounded-full"></div>
+          <h2 class="text-2xl font-bold">概览</h2>
+        </div>
+        <p class="text-gray-600 dark:text-gray-400 mb-4">
+          CA（Certificate Authority）证书是投标过程中重要的数字身份凭证，用于标书电子签章。
+          目前 CA/证书管理功能分散在 <code>businessqualification</code> 和 <code>platform</code> 两个后端模块，
+          前端没有统一的看板页面。蓝图 §4.5 要求一个集中式管理页面。
+        </p>
+
+        <div class="grid md:grid-cols-3 gap-4 mb-6">
+          <div class="bg-white dark:bg-gray-800 rounded-xl p-5 border shadow-sm">
+            <div class="text-2xl mb-1">🔑</div>
+            <div class="text-lg font-semibold">CA 证书</div>
+            <div class="text-sm text-gray-500">实体 CA + 电子 CA 统一管理</div>
+          </div>
+          <div class="bg-white dark:bg-gray-800 rounded-xl p-5 border shadow-sm">
+            <div class="text-2xl mb-1">🔄</div>
+            <div class="text-lg font-semibold">借用归还</div>
+            <div class="text-sm text-gray-500">全生命周期跟踪</div>
+          </div>
+          <div class="bg-white dark:bg-gray-800 rounded-xl p-5 border shadow-sm">
+            <div class="text-2xl mb-1">⏰</div>
+            <div class="text-lg font-semibold">到期预警</div>
+            <div class="text-sm text-gray-500">有效期监控 + 智能提醒</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════════════════════════════════════════════════════════════
+           SECTION: CURRENT STATUS
+           ════════════════════════════════════════════════════════════ -->
+      <section id="current-status" class="mb-12 scroll-mt-20 print-break">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-1 h-7 bg-primary rounded-full"></div>
+          <h2 class="text-2xl font-bold">现状分析</h2>
+        </div>
+
+        <div class="overflow-x-auto mb-6">
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr class="bg-gray-100 dark:bg-gray-800">
+                <th class="text-left p-3 font-medium">模块</th>
+                <th class="text-left p-3 font-medium">已有功能</th>
+                <th class="text-left p-3 font-medium">缺失部分</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y">
+              <tr>
+                <td class="p-3 font-medium">businessqualification</td>
+                <td class="p-3">证书 CRUD、借阅归还、过期提醒、AI 上传解析</td>
+                <td class="p-3 text-danger">无统一看板，无 CA 类型区分（实体/电子）</td>
+              </tr>
+              <tr>
+                <td class="p-3 font-medium">platform</td>
+                <td class="p-3">平台账号管理、密码加密、账号借用</td>
+                <td class="p-3 text-danger">CA/印章管理仅做基础登记，无可视化看板</td>
+              </tr>
+              <tr>
+                <td class="p-3 font-medium">resources/BarCertificate</td>
+                <td class="p-3">BAR 证书 CRUD、借用归还</td>
+                <td class="p-3 text-danger">仅限于 BAR 资产，不覆盖全部 CA 类型</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 p-4 rounded-r text-sm">
+          <p class="font-medium">核心问题</p>
+          <p class="text-gray-600 dark:text-gray-400 mt-1">CA 数据分散在三个模块中，用户需要分别进入不同页面管理。缺失：统一看板、到期可视化、CA 类型分类展示、一键借用。</p>
+        </div>
+      </section>
+
+      <!-- ════════════════════════════════════════════════════════════
+           SECTION: DESIGN
+           ════════════════════════════════════════════════════════════ -->
+      <section id="design" class="mb-12 scroll-mt-20 print-break">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-1 h-7 bg-primary rounded-full"></div>
+          <h2 class="text-2xl font-bold">页面设计</h2>
+        </div>
+
+        <h3 class="text-xl font-semibold mb-3">页面布局</h3>
+        <pre class="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg text-sm mb-6 overflow-x-auto">
+┌─────────────────────────────────────────────────────┐
+│  ← 返回资源管理         CA 统一管理看板  [刷新][新增] │
+├─────────────────────────────────────────────────────┤
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌────────┐ │
+│  │ 总证书数 │  │ 即将到期 │  │ 已过期   │  │ 借出中  │ │
+│  │    12    │  │    3    │  │    1    │  │    2   │ │
+│  └─────────┘  └─────────┘  └─────────┘  └────────┘ │
+├─────────────────────────────────────────────────────┤
+│  过滤: [CA类型▾] [状态▾] [关键词搜索________]      │
+├─────────────────────────────────────────────────────┤
+│  ┌──────────────────────────────────────────────────┐│
+│  │ 证书名称      │ 类型 │ 保管人 │ 有效期      │ 状态││
+│  ├──────────────────────────────────────────────────┤│
+│  │ 国信CA-公章   │ 实体 │ 张三   │ 2027-01-15 │ ✅ ││
+│  │  CFCA-法人章  │ 电子 │ 李四   │ 2026-08-20 │ ⚠️ ││
+│  │ 省平台CA      │ 实体 │ 王五   │ 2026-05-10 │ ❌ ││
+│  └──────────────────────────────────────────────────┘│
+│  点击行 → 展开详情抽屉（证书信息、借用记录、操作）   │
+└─────────────────────────────────────────────────────┘</pre>
+
+        <h3 class="text-xl font-semibold mb-3">组件结构</h3>
+        <div class="mermaid mb-6">
+graph TD
+    A[CAManagement.vue] --> B[CAStatCards.vue]
+    A --> C[CAFilterBar.vue]
+    A --> D[CATable.vue]
+    A --> E[CADetailDrawer.vue]
+    D --> F[CA证书列表]
+    E --> G[证书基本信息]
+    E --> H[借用历史记录]
+    E --> I[操作按钮: 编辑/删除/借用]
+    A -.-> J[AlertConfigDialog.vue]
+    J --> K[到期提醒配置]
+        </div>
+
+        <h3 class="text-xl font-semibold mb-3">状态颜色规则</h3>
+        <div class="grid md:grid-cols-3 gap-4 mb-4">
+          <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+            <span class="inline-block w-3 h-3 rounded-full bg-green-500 mr-2"></span>
+            <span class="font-medium">正常</span>
+            <p class="text-sm text-gray-500 mt-1">有效期 &gt; 90 天</p>
+          </div>
+          <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+            <span class="inline-block w-3 h-3 rounded-full bg-yellow-500 mr-2"></span>
+            <span class="font-medium">即将到期</span>
+            <p class="text-sm text-gray-500 mt-1">有效期 ≤ 90 天</p>
+          </div>
+          <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+            <span class="inline-block w-3 h-3 rounded-full bg-red-500 mr-2"></span>
+            <span class="font-medium">已过期</span>
+            <p class="text-sm text-gray-500 mt-1">有效期 &lt; 今天</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════════════════════════════════════════════════════════════
+           SECTION: ROUTES
+           ════════════════════════════════════════════════════════════ -->
+      <section id="routes" class="mb-12 scroll-mt-20">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-1 h-7 bg-primary rounded-full"></div>
+          <h2 class="text-2xl font-bold">路由与入口</h2>
+        </div>
+
+        <div class="overflow-x-auto mb-4">
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr class="bg-gray-100 dark:bg-gray-800">
+                <th class="text-left p-3 font-medium">路径</th>
+                <th class="text-left p-3 font-medium">组件</th>
+                <th class="text-left p-3 font-medium">说明</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y">
+              <tr>
+                <td class="p-3"><code>/resource/ca-management</code></td>
+                <td class="p-3">CAManagement.vue</td>
+                <td class="p-3">CA 统一管理看板主页面</td>
+              </tr>
+              <tr>
+                <td class="p-3"><code>/resource/ca-management/:id</code></td>
+                <td class="p-3">CAManagement.vue (带详情)</td>
+                <td class="p-3">打开指定 CA 的详情抽屉</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-400 p-4 rounded-r text-sm">
+          <p class="font-medium">入口位置</p>
+          <p class="text-gray-600 dark:text-gray-400 mt-1">侧边栏「资源管理」下新增「CA 管理」菜单项，排在「账户管理」之后。</p>
+        </div>
+      </section>
+
+      <!-- ════════════════════════════════════════════════════════════
+           SECTION: API
+           ════════════════════════════════════════════════════════════ -->
+      <section id="api" class="mb-12 scroll-mt-20">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-1 h-7 bg-primary rounded-full"></div>
+          <h2 class="text-2xl font-bold">API 对接</h2>
+        </div>
+
+        <p class="text-gray-600 dark:text-gray-400 mb-4">复用已有后端 API，无需新增端点：</p>
+
+        <div class="overflow-x-auto mb-4">
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr class="bg-gray-100 dark:bg-gray-800">
+                <th class="text-left p-3 font-medium">端点</th>
+                <th class="text-left p-3 font-medium">用途</th>
+                <th class="text-left p-3 font-medium">数据源</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y">
+              <tr>
+                <td class="p-3"><code>GET /api/knowledge/qualifications</code></td>
+                <td class="p-3">获取所有证书列表</td>
+                <td class="p-3">businessqualification</td>
+              </tr>
+              <tr>
+                <td class="p-3"><code>GET /api/knowledge/qualifications/overview</code></td>
+                <td class="p-3">统计概览（总数、过期数等）</td>
+                <td class="p-3">businessqualification</td>
+              </tr>
+              <tr>
+                <td class="p-3"><code>POST /api/knowledge/qualifications/{id}/borrow</code></td>
+                <td class="p-3">借用证书</td>
+                <td class="p-3">businessqualification</td>
+              </tr>
+              <tr>
+                <td class="p-3"><code>POST /api/knowledge/qualifications/{id}/return</code></td>
+                <td class="p-3">归还证书</td>
+                <td class="p-3">businessqualification</td>
+              </tr>
+              <tr>
+                <td class="p-3"><code>POST /api/knowledge/qualifications/scan-expiring</code></td>
+                <td class="p-3">扫描即将过期证书</td>
+                <td class="p-3">businessqualification</td>
+              </tr>
+              <tr>
+                <td class="p-3"><code>GET /api/qualifications/alert-config</code></td>
+                <td class="p-3">获取告警配置</td>
+                <td class="p-3">alert</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="bg-green-50 dark:bg-green-900/20 border-l-4 border-green-400 p-4 rounded-r text-sm">
+          <p class="font-medium">无需后端改动</p>
+          <p class="text-gray-600 dark:text-gray-400 mt-1">所有 API 已存在，仅需前端组合展示。过滤、排序全在前端完成。</p>
+        </div>
+      </section>
+
+      <!-- ════════════════════════════════════════════════════════════
+           SECTION: SPEC
+           ════════════════════════════════════════════════════════════ -->
+      <section id="spec" class="mb-12 scroll-mt-20 print-break">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-1 h-7 bg-primary rounded-full"></div>
+          <h2 class="text-2xl font-bold">功能规格</h2>
+        </div>
+
+        <div class="space-y-6">
+          <div class="bg-white dark:bg-gray-800 rounded-xl border p-5">
+            <h4 class="font-semibold text-lg mb-2">📊 统计卡片区</h4>
+            <ul class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+              <li>• 总证书数：CA 证书的总数量</li>
+              <li>• 即将到期：90 天内到期的证书数（黄色）</li>
+              <li>• 已过期：超过有效期的证书数（红色）</li>
+              <li>• 借出中：当前被借用的证书数</li>
+              <li>• 数据来源：<code>GET /api/knowledge/qualifications/overview</code></li>
+            </ul>
+          </div>
+
+          <div class="bg-white dark:bg-gray-800 rounded-xl border p-5">
+            <h4 class="font-semibold text-lg mb-2">🔍 筛选与搜索</h4>
+            <ul class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+              <li>• CA 类型：实体 CA / 电子 CA / 全部</li>
+              <li>• 状态：正常 / 即将到期 / 已过期 / 借出中</li>
+              <li>• 关键词搜索：名称、编号、保管人</li>
+              <li>• 全部前端过滤，无需后端接口</li>
+            </ul>
+          </div>
+
+          <div class="bg-white dark:bg-gray-800 rounded-xl border p-5">
+            <h4 class="font-semibold text-lg mb-2">📋 证书列表</h4>
+            <ul class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+              <li>• 列：证书名称、类型（实体/电子）、印章类型、保管人、有效期、状态标签</li>
+              <li>• 状态标签颜色：绿色(正常) / 黄色(即将到期) / 红色(已过期) / 灰色(借出中)</li>
+              <li>• 点击行 → 打开详情抽屉</li>
+              <li>• 排序：支持按有效期、名称排序</li>
+            </ul>
+          </div>
+
+          <div class="bg-white dark:bg-gray-800 rounded-xl border p-5">
+            <h4 class="font-semibold text-lg mb-2">📂 详情抽屉</h4>
+            <ul class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+              <li>• 证书基本信息：名称、编号、发证机关、持有人、有效期</li>
+              <li>• CA 类型字段：实体/电子、印章类型、绑定平台</li>
+              <li>• 借用历史记录列表</li>
+              <li>• 操作按钮：编辑、删除、借用、归还</li>
+              <li>• 附件下载（如有）</li>
+            </ul>
+          </div>
+
+          <div class="bg-white dark:bg-gray-800 rounded-xl border p-5">
+            <h4 class="font-semibold text-lg mb-2">➕ 新增/编辑弹窗</h4>
+            <ul class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+              <li>• 表单字段：名称、证书编号、发证机关、持有人、CA 类型、印章类型、有效期、关联平台</li>
+              <li>• 校验：名称必填、有效期不能早于今天、证书编号唯一</li>
+              <li>• 保存后自动刷新列表</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════════════════════════════════════════════════════════════
+           SECTION: SCOPE
+           ════════════════════════════════════════════════════════════ -->
+      <section id="scope" class="mb-12 scroll-mt-20">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-1 h-7 bg-primary rounded-full"></div>
+          <h2 class="text-2xl font-bold">范围与排期</h2>
+        </div>
+
+        <h3 class="text-lg font-semibold mb-2">本次实现范围</h3>
+        <ul class="space-y-2 text-sm text-gray-600 dark:text-gray-400 mb-6">
+          <li>✅ 统计卡片区（4 个指标卡）</li>
+          <li>✅ 证书列表（表格 + 筛选 + 排序）</li>
+          <li>✅ 详情抽屉（基本信息 + 借用记录）</li>
+          <li>✅ 新增/编辑弹窗</li>
+          <li>✅ 状态颜色标识（正常/即将到期/已过期/借出中）</li>
+          <li>✅ 路由 /resource/ca-management</li>
+          <li>✅ 侧边栏入口</li>
+        </ul>
+
+        <h3 class="text-lg font-semibold mb-2">不纳入范围</h3>
+        <ul class="space-y-2 text-sm text-gray-500">
+          <li>❌ 借用审批流程（已有独立的 ContractBorrow 流程）</li>
+          <li>❌ 批量导入 CA 证书</li>
+        </ul>
+
+        <h3 class="text-lg font-semibold mb-2 mt-4">排期建议</h3>
+        <div class="bg-white dark:bg-gray-800 rounded-xl border p-5">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="text-sm px-2 py-0.5 bg-blue-100 text-blue-800 rounded">预估</span>
+            <span class="font-medium">1 个 session</span>
+          </div>
+          <ol class="space-y-1 text-sm text-gray-600 dark:text-gray-400 list-decimal list-inside">
+            <li>创建 CAManagement.vue 页面（统计卡片 + 表格 + 筛选）</li>
+            <li>创建 CADetailDrawer.vue 详情抽屉</li>
+            <li>创建 CAFormDialog.vue 新增/编辑弹窗</li>
+            <li>添加路由 /resource/ca-management + 侧边栏菜单</li>
+            <li>更新测试文档</li>
+          </ol>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <footer class="border-t py-6 text-center text-sm text-gray-400 no-print">
+    <p>由 AI Agent 于 2026-05-23 生成 · HTML-First Documentation Workflow</p>
+  </footer>
+
+</body>
+</html>

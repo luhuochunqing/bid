@@ -1,0 +1,9 @@
+version: 1
+task: upload-api-governance
+locks:
+  - path: ".githooks/pre-commit"
+    scope: file
+    owner: codex
+    branch: codex/upload-api-governance
+    expiresAt: "2026-06-06T23:00:00.000Z"
+    reason: "上传 API 治理 — 新增 check-api-urls 门禁到 pre-commit hook"

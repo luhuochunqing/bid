@@ -1,0 +1,12 @@
+{
+  "id": "refactor_safety_governance_20260426",
+  "title": "Refactor Safety Governance: 行为基线 + 多 Agent 边界 + 抽象 Ablation",
+  "status": "planned",
+  "owner": "Claude",
+  "created_at": "2026-04-26",
+  "depends_on": [
+    "document_intelligence_engine_20260425",
+    "infrastructure_sop_setup_20260426",
+    "testing-governance"
+  ]
+}

@@ -1,0 +1,167 @@
+.keyword-subscription-page {
+  padding: 20px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.page-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.info-alert {
+  margin-bottom: 20px;
+}
+
+.list-card {
+  border-radius: 8px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.subscription-count {
+  font-weight: 400;
+  font-size: 13px;
+  color: #909399;
+}
+
+.subscription-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.subscription-item {
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  padding: 16px;
+  transition: box-shadow 0.2s;
+}
+
+.subscription-item:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.subscription-item.is-paused {
+  opacity: 0.65;
+}
+
+.sub-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.sub-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sub-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.sub-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.sub-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.keyword-tag {
+  font-size: 12px;
+}
+
+.no-keywords {
+  color: #909399;
+  font-size: 13px;
+}
+
+.sub-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: #909399;
+}
+
+.pagination-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.keywords-input-area {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.keyword-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.add-keyword-btn {
+  align-self: flex-start;
+}
+
+.results-list {
+  padding: 0 4px;
+}
+
+.result-item {
+  border-bottom: 1px solid #ebeef5;
+  padding: 12px 0;
+}
+
+.result-item:last-child {
+  border-bottom: none;
+}
+
+.result-title {
+  font-size: 14px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.result-sub-name {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.result-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #909399;
+}

@@ -1,0 +1,217 @@
+/* ========== 全局表单控件基线 ========== */
+/* 输入框、选择框保持静态灰边，避免点击或输入时出现额外光圈。 */
+:root {
+  --xiyu-control-height: 40px;
+  --xiyu-control-width: 168px;
+  --xiyu-control-radius: var(--radius-sm, 4px);
+  --xiyu-control-border: var(--gray-200, #D0D0D0);
+  --xiyu-control-error-border: var(--color-danger, #DD2200);
+  --xiyu-control-bg: var(--bg-card);
+}
+
+.el-input,
+.el-select,
+.el-input-number,
+.el-date-editor,
+.el-cascader,
+.el-autocomplete,
+.el-textarea {
+  --focus-ring-color: transparent;
+  --focus-ring-width: 0;
+  --el-color-primary: var(--xiyu-control-border);
+  --el-input-focus-border-color: var(--xiyu-control-border);
+  --el-input-hover-border-color: var(--xiyu-control-border);
+  --el-select-input-focus-border-color: var(--xiyu-control-border);
+}
+
+.el-input:not(.el-input--small) .el-input__wrapper,
+.el-select:not(.el-select--small) .el-select__wrapper,
+.el-input-number:not(.el-input-number--small) .el-input__wrapper,
+.el-date-editor.el-input:not(.el-input--small) .el-input__wrapper,
+.el-cascader:not(.el-cascader--small) .el-input__wrapper,
+.el-autocomplete .el-input:not(.el-input--small) .el-input__wrapper {
+  box-sizing: border-box;
+  height: var(--xiyu-control-height) !important;
+  min-height: var(--xiyu-control-height) !important;
+  padding: 0 12px !important;
+  border: 1px solid var(--xiyu-control-border) !important;
+  border-radius: var(--xiyu-control-radius) !important;
+  background: var(--xiyu-control-bg) !important;
+  box-shadow: none !important;
+  outline: none !important;
+  transition: none !important;
+}
+
+.el-input:not(.el-input--small) .el-input__inner,
+.el-select:not(.el-select--small) .el-select__input,
+.el-date-editor.el-input:not(.el-input--small) .el-input__inner {
+  height: calc(var(--xiyu-control-height) - 2px) !important;
+  min-height: 0 !important;
+  line-height: calc(var(--xiyu-control-height) - 2px) !important;
+}
+
+.el-input,
+.el-select,
+.el-input-number,
+.el-date-editor,
+.el-cascader,
+.el-autocomplete,
+.el-textarea,
+.el-input:focus,
+.el-select:focus,
+.el-input-number:focus,
+.el-date-editor:focus,
+.el-cascader:focus,
+.el-autocomplete:focus,
+.el-textarea:focus,
+.el-input:focus-within,
+.el-select:focus-within,
+.el-input-number:focus-within,
+.el-date-editor:focus-within,
+.el-cascader:focus-within,
+.el-autocomplete:focus-within,
+.el-textarea:focus-within {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.el-input__wrapper,
+.el-select__wrapper,
+.el-input__inner,
+.el-select__input,
+.el-textarea__inner,
+.el-input__wrapper:hover,
+.el-select__wrapper:hover,
+.el-select__wrapper.is-hovering,
+.el-input__wrapper:focus,
+.el-select__wrapper:focus,
+.el-input__wrapper:focus-visible,
+.el-select__wrapper:focus-visible,
+.el-input__wrapper:active,
+.el-select__wrapper:active,
+.el-input__wrapper.is-focus,
+.el-select__wrapper.is-focus,
+.el-select__wrapper.is-focused,
+.el-input.is-focus .el-input__wrapper,
+.el-select .el-input.is-focus .el-input__wrapper,
+.el-input__inner:focus,
+.el-select__input:focus,
+.el-input__inner:focus-visible,
+.el-select__input:focus-visible,
+.el-textarea__inner:focus,
+.el-textarea__inner:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  transition: none !important;
+}
+
+.el-input__wrapper:hover,
+.el-select__wrapper:hover,
+.el-select__wrapper.is-hovering,
+.el-input__wrapper.is-focus,
+.el-select__wrapper.is-focus,
+.el-select__wrapper.is-focused,
+.el-input.is-focus .el-input__wrapper,
+.el-select .el-input.is-focus .el-input__wrapper {
+  border-color: var(--xiyu-control-border) !important;
+}
+
+html[data-keyboard-nav="true"] .el-input.is-focus .el-input__wrapper,
+html[data-keyboard-nav="true"] .el-input__wrapper:has(.el-input__inner:focus),
+html[data-keyboard-nav="true"] .el-select__wrapper.is-focused,
+html[data-keyboard-nav="true"] .el-select__wrapper:has(.el-select__input:focus),
+html[data-keyboard-nav="true"] .el-textarea__inner:focus {
+  border-color: var(--gray-300, #B0B0B0) !important;
+}
+/* 鼠标用户的低侵入 focus 反馈：边框略微加深，不加 ring */
+html:not([data-keyboard-nav="true"]) .el-input.is-focus .el-input__wrapper,
+html:not([data-keyboard-nav="true"]) .el-input__wrapper:has(.el-input__inner:focus),
+html:not([data-keyboard-nav="true"]) .el-select__wrapper.is-focused,
+html:not([data-keyboard-nav="true"]) .el-select__wrapper:has(.el-select__input:focus),
+html:not([data-keyboard-nav="true"]) .el-textarea__inner:focus {
+  border-color: var(--gray-300, #B0B0B0) !important;
+}
+
+
+.el-textarea__inner {
+  border: 1px solid var(--xiyu-control-border) !important;
+  border-radius: var(--xiyu-control-radius) !important;
+  box-shadow: none !important;
+  outline: none !important;
+  transition: none !important;
+}
+
+.el-textarea__inner:hover,
+.el-textarea__inner:focus,
+.el-textarea__inner:focus-visible {
+  border-color: var(--xiyu-control-border) !important;
+}
+
+.el-form-item.is-error .el-input__wrapper,
+.el-form-item.is-error .el-select__wrapper,
+.el-form-item.is-error .el-textarea__inner {
+  border-color: var(--xiyu-control-error-border) !important;
+}
+
+.search-card .el-form--inline .el-input:not(.el-input--small),
+.search-card .el-form--inline .el-select:not(.el-select--small),
+.search-card .el-form--inline .el-input-number:not(.el-input-number--small),
+.search-card .el-form--inline .el-date-editor:not(.el-input--small),
+.filter-card .el-form--inline .el-input:not(.el-input--small),
+.filter-card .el-form--inline .el-select:not(.el-select--small),
+.filter-card .el-form--inline .el-input-number:not(.el-input-number--small),
+.filter-card .el-form--inline .el-date-editor:not(.el-input--small) {
+  width: var(--xiyu-control-width) !important;
+}
+
+/* ========== 搜索表单字段宽度预设（避免 el-form-item 撑满整行） ========== */
+/* 搜索卡片内联表单中 el-form-item 的宽度预设，flex 固定宽度 + min/max 约束，防止换行错位。 */
+.search-field { flex: 0 0 168px; width: 168px; min-width: 168px; max-width: 168px; }
+.search-field--keyword { flex: 0 0 220px; width: 220px; min-width: 220px; max-width: 220px; }
+.search-field--date { flex: 0 0 260px; width: 260px; min-width: 260px; max-width: 260px; }
+/* datetime（含时分秒）标签较长，需 380px 才能完整显示，防止标签截断（T017, #491） */
+.search-field--datetime { flex: 0 0 380px; width: 380px; min-width: 380px; max-width: 380px; }
+.search-actions { flex: 0 0 auto; }
+
+@media (max-width: 768px) {
+  .search-card .el-form--inline .el-input,
+  .search-card .el-form--inline .el-select,
+  .search-card .el-form--inline .el-input-number,
+  .search-card .el-form--inline .el-date-editor,
+  .filter-card .el-form--inline .el-input,
+  .filter-card .el-form--inline .el-select,
+  .filter-card .el-form--inline .el-input-number,
+  .filter-card .el-form--inline .el-date-editor {
+    width: 100% !important;
+  }
+  .search-field,
+  .search-field--keyword,
+  .search-field--date,
+  .search-field--datetime,
+  .search-actions {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
+/* ========== 联系人分组标题 ========== */
+.contact-group-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #606266;
+  padding: 4px 0 2px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 4px;
+  letter-spacing: 0.5px;
+}
+
+.optional-tag {
+  font-size: 11px;
+  font-weight: 400;
+  color: #909399;
+  background: #f4f4f5;
+  border-radius: 4px;
+  padding: 0 6px;
+  margin-left: 8px;
+}

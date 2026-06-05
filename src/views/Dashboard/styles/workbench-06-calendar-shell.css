@@ -1,0 +1,300 @@
+@import '../../../styles/variables.css';
+/* ==================== 投标日历重构覆盖 ==================== */
+.calendar-card--hero {
+  border-color: #D7E3F8;
+  box-shadow: 0 16px 40px rgba(30, 64, 175, 0.08);
+}
+
+.calendar-topbar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 16px 16px;
+}
+
+.calendar-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0;
+}
+
+.summary-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #FBFDFF 0%, #F3F7FF 100%);
+  border: 1px solid var(--gray-200);
+  box-shadow: none;
+}
+
+.calendar-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.95fr);
+  gap: 16px;
+  padding: 0 16px 16px;
+  align-items: start;
+}
+
+.calendar-hero-main,
+.calendar-hero-side {
+  min-width: 0;
+}
+
+.calendar-hero-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.summary-pill.risk {
+  background: linear-gradient(180deg, #FDF4FF 0%, #FAE8FF 100%);
+  border-color: #E9D5FF;
+}
+
+.summary-pill.accent {
+  background: linear-gradient(180deg, #EEF2FF 0%, #E0E7FF 100%);
+  border-color: #C7D2FE;
+}
+
+.summary-label {
+  font-size: 10px;
+  color: var(--text-slate);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.summary-pill strong {
+  font-size: 16px;
+  line-height: 1;
+  color: #0F172A;
+  white-space: nowrap;
+}
+
+.calendar-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, var(--bg-card) 0%, #F8FAFC 100%);
+  border: 1px solid #E5E7EB;
+}
+
+.calendar-filter-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 120px;
+}
+
+.filter-eyebrow {
+  font-size: 11px;
+  color: var(--text-slate);
+  letter-spacing: 0.05em;
+}
+
+.filter-hint {
+  font-size: 12px;
+  color: var(--gray-400);
+}
+
+.calendar-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 0;
+}
+
+.calendar-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 11px;
+  border: 1px solid #E5E7EB;
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--sidebar-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.calendar-filter-chip:hover,
+.calendar-filter-chip.active {
+  color: var(--brand-xiyu-logo);
+  border-color: rgba(var(--brand-xiyu-logo-rgb, 46, 118, 89), 0.28);
+  background: rgba(var(--brand-xiyu-logo-rgb, 46, 118, 89), 0.1);
+}
+
+.dot-all {
+  background: var(--brand-xiyu-logo);
+}
+
+.dot-urgent {
+  background: #C026D3;
+  box-shadow: 0 0 0 2px rgba(192, 38, 211, 0.16);
+}
+
+.calendar-wrapper {
+  padding: 0;
+}
+
+.calendar-wrapper .el-calendar__header {
+  margin-bottom: 12px;
+}
+
+.calendar-wrapper .el-calendar-table .el-calendar-day {
+  height: 46px;
+  border-radius: 10px;
+}
+
+.calendar-wrapper .el-calendar-table .el-calendar-day:hover {
+  background: #F8FAFC;
+}
+
+.calendar-wrapper .el-calendar-table td.is-selected {
+  background: transparent !important;
+}
+
+.calendar-wrapper .el-calendar-table td.is-selected .el-calendar-day,
+.calendar-wrapper .el-calendar-table td.is-selected:hover .el-calendar-day,
+.calendar-wrapper .el-calendar-table .el-calendar-day.is-selected {
+  background: transparent !important;
+  color: #0F172A;
+  border-radius: 10px;
+}
+
+.calendar-wrapper .el-calendar-table .el-calendar-day.is-today {
+  background: #F8FAFC;
+  color: #0F172A;
+}
+
+.calendar-day-cell {
+  min-height: 38px;
+  align-items: center;
+  padding: 5px 4px;
+  border-radius: 10px;
+}
+
+.calendar-wrapper .el-calendar-table td.is-selected .calendar-day-cell {
+  background: transparent !important;
+  border: 0;
+  box-shadow: none;
+}
+
+.calendar-day-cell.calendar-day-urgent {
+  background: #FDF4FF;
+  border-color: #E9D5FF;
+}
+
+.calendar-day-cell.calendar-day-crowded {
+  background: #FFFDF5;
+  border: 1px solid var(--color-warning-light);
+}
+
+.calendar-day-number {
+  color: #0F172A;
+}
+
+.calendar-wrapper .el-calendar-table td.is-selected .calendar-day-number {
+  width: 22px; height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--brand-xiyu-logo);
+  color: var(--bg-card);
+  font-weight: 700;
+}
+
+.calendar-day-marker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.calendar-day-dots {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.calendar-event-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.calendar-event-dot.event-deadline,
+.legend-dot.event-deadline,
+.chip-dot.dot-deadline {
+  background: var(--color-danger);
+}
+
+.calendar-event-dot.event-bid,
+.legend-dot.event-bid,
+.chip-dot.dot-bid {
+  background: var(--brand-xiyu-logo);
+}
+
+.calendar-event-dot.event-opening,
+.legend-dot.event-opening,
+.chip-dot.dot-opening {
+  background: var(--color-success);
+}
+
+.calendar-event-dot.event-review,
+.legend-dot.event-review,
+.chip-dot.dot-review {
+  background: #F59E0B;
+}
+
+.chip-dot,
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.calendar-day-count {
+  min-width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--gray-200);
+  color: var(--sidebar-text);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.calendar-day-alert {
+  font-size: 10px;
+  font-weight: 700;
+  color: #A21CAF;
+}
+
+.calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 0 0;
+  color: var(--text-slate);
+  font-size: 12px;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

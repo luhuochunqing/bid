@@ -1,0 +1,3 @@
+-- Input: V1005__tender_keyword_subscription.sql
+-- Rollback for V1005__tender_keyword_subscription.sql
+-- No-op rollback: placeholder (manual review required)
