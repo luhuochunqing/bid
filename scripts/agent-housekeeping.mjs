@@ -2,6 +2,7 @@
 // Input: optional subcommand (status|clean|reap)
 // Output: multi-agent housekeeping report + cleanup actions
 // Pos: scripts/ — Multi-Agent housekeeping tool
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 import fs from 'node:fs'
 import path from 'node:path'
