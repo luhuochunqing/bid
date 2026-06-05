@@ -1,9 +1,0 @@
-version: 1
-task: "retrospective-permission-wangeditor"
-locks:
-  - path: "backend/src/main/java/com/xiyu/bid/entity/"
-    scope: "directory"
-    owner: "codex"
-    branch: "codex/retrospective-permission-wangeditor"
-    expiresAt: "2026-06-06T12:00:00.000Z"
-    reason: "Entity model: add retrospective.submit permission for BID_ADMIN and BID_SPECIALIST"
