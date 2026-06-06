@@ -11,6 +11,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ProjectArchiveQuery {
+    private Long archiveId;
     private Long projectId;
     private String projectName;
     private List<String> documentCategories;

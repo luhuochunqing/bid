@@ -192,6 +192,10 @@ public class ProjectArchiveController {
         if (exportableProjectIds != null && !exportableProjectIds.contains(projectId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
+        // 4.1.1.3 档案详情抽屉：记录文件包导出日志
+        String opName = getCurrentOperatorName();
+        String ts = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        workflowService.recordLog(archives.get(0).getId(), 0L, opName, "导出", "文件包导出 " + opName + " " + ts);
         // Generate single-project Excel ledger
         ProjectArchiveExportService.ArchiveExportResult excelResult =
                 archiveExportService.exportProjectArchives(new HashSet<>(Set.of(projectId)));
@@ -227,8 +231,9 @@ public class ProjectArchiveController {
                 .toList();
         String opName = getCurrentOperatorName();
         String ts = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        if (!allowedProjectIds.isEmpty() && !archives.isEmpty()) {
-            workflowService.recordLog(archives.get(0).getId(), 0L, opName, "导出", "台账导出 " + opName + " " + ts);
+        if (!filteredArchives.isEmpty()) {
+            // 4.1.1.3 档案详情抽屉：按 archiveId 单选时只对当前归档记日志（与 GET /export-zip/{projectId} 一致）
+            workflowService.recordLog(filteredArchives.get(0).getId(), 0L, opName, "导出", "文件包导出 " + opName + " " + ts);
         }
 
         ProjectArchiveExportService.ArchiveExportResult excelResult =

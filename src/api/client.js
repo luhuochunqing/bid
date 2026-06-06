@@ -126,6 +126,10 @@ httpClient.interceptors.request.use(
 // 响应拦截器
 httpClient.interceptors.response.use(
   (response) => {
+    // 4.1.1.3：blob 响应不解包 response.data（让调用方 .data 拿到原始 Blob 对象）
+    if (response.config?.responseType === 'blob') {
+      return response
+    }
     // 后端返回的统一格式: { success: true, data: ..., message: ... }
     return response.data
   },

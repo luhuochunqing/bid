@@ -37,14 +37,15 @@ const formatLogTime = (time) => {
 }
 
 const getActionLabel = (action) => {
-  const map = { PREVIEW: '预览', DOWNLOAD: '下载', EXPORT: '导出', VIEW: '查看' }
+  // 4.1.1.3：后端写入 actionType 实际为"预览/下载/导出"中文（与 entity 注释英文枚举不一致），这里双向兼容
+  const map = { PREVIEW: '预览', DOWNLOAD: '下载', EXPORT: '导出', VIEW: '查看', 预览: '预览', 下载: '下载', 导出: '导出' }
   return map[action] || action || '-'
 }
 
 const getLogActionTagType = (action) => {
-  const act = String(action || '').toUpperCase()
-  if (act.includes('DOWNLOAD') || act.includes('EXPORT')) return 'success'
-  if (act.includes('PREVIEW')) return 'primary'
+  const act = String(action || '')
+  if (act.includes('DOWNLOAD') || act.includes('EXPORT') || act.includes('下载') || act.includes('导出')) return 'success'
+  if (act.includes('PREVIEW') || act.includes('预览')) return 'primary'
   return 'info'
 }
 </script>

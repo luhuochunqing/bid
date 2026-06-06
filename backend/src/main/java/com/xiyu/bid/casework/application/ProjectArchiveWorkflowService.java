@@ -12,7 +12,6 @@ import com.xiyu.bid.casework.infrastructure.ProjectArchiveRepository;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.repository.ProjectRepository;
-import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
@@ -28,11 +27,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -41,9 +36,9 @@ public class ProjectArchiveWorkflowService {
     private final ArchiveFileRepository fileRepository;
     private final ArchiveLogRepository logRepository;
     private final ProjectRepository projectRepository;
-    private final TenderRepository tenderRepository;
     private final KnowledgeCaseRepository knowledgeCaseRepository;
     private final ProjectAccessScopeService projectAccessScopeService;
+    private final ProjectArchiveResponseMapper responseMapper;
     public Page<ProjectArchiveResponse> queryProjectArchives(ProjectArchiveQuery query, Pageable pageable) {
         List<Long> allowedProjectIds = projectAccessScopeService.getAllowedProjectIdsForCurrentUser();
         boolean isAdmin = projectAccessScopeService.currentUserHasAdminAccess();
@@ -54,7 +49,7 @@ public class ProjectArchiveWorkflowService {
         Specification<ProjectArchive> spec = buildSpecification(query, allowedProjectIds, isAdmin);
         Page<ProjectArchive> archives = archiveRepository.findAll(spec, pageable);
         List<ProjectArchiveResponse> content = archives.getContent().stream()
-                .map(this::convertToResponse)
+                .map(responseMapper::toResponse)
                 .toList();
 
         return new PageImpl<>(content, pageable, archives.getTotalElements());
@@ -156,6 +151,10 @@ public class ProjectArchiveWorkflowService {
                 predicates.add(root.get("projectId").in(allowedProjectIds));
             }
 
+            if (query.getArchiveId() != null) {
+                predicates.add(cb.equal(root.get("id"), query.getArchiveId()));
+            }
+
             if (query.getProjectName() != null && !query.getProjectName().trim().isEmpty()) {
                 predicates.add(cb.like(root.get("projectName"), "%" + query.getProjectName().trim() + "%"));
             }
@@ -240,60 +239,5 @@ public class ProjectArchiveWorkflowService {
 
             return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
         };
-    }
-
-    private ProjectArchiveResponse convertToResponse(ProjectArchive archive) {
-        String projectType = "综合";
-        String bidResult = "OTHER";
-        String projectManager = "未知";
-        String bidManager = "未知";
-
-        Optional<Project> projectOpt = projectRepository.findById(archive.getProjectId());
-        if (projectOpt.isPresent()) {
-            Optional<Tender> tenderOpt = tenderRepository.findById(projectOpt.get().getTenderId());
-            if (tenderOpt.isPresent()) {
-                Tender tender = tenderOpt.get();
-                projectType = tender.getProjectType();
-                if (Tender.Status.WON == tender.getStatus()) {
-                    bidResult = "AWARDED";
-                } else if (Tender.Status.LOST == tender.getStatus()) {
-                    bidResult = "LOST";
-                } else {
-                    bidResult = tender.getStatus().name();
-                }
-                projectManager = tender.getProjectManagerName();
-                bidManager = tender.getBiddingPersonName();
-            }
-        }
-
-        List<ArchiveFile> files = fileRepository.findByArchiveId(archive.getId());
-        int fileCount = files.size();
-
-        Map<String, Long> categoryDetails = new HashMap<>();
-        for (String cat : List.of("TENDER", "BID", "OPEN_LIST", "WIN_NOTICE", "DEPOSIT_RECEIPT", "OTHER")) {
-            categoryDetails.put(cat, 0L);
-        }
-        files.forEach(f -> {
-            String cat = f.getDocumentCategory();
-            categoryDetails.put(cat, categoryDetails.getOrDefault(cat, 0L) + 1);
-        });
-
-        LocalDateTime lastUploadedAt = files.stream()
-                .map(ArchiveFile::getCreatedAt)
-                .max(Comparator.naturalOrder())
-                .orElse(archive.getCreatedAt());
-
-        return new ProjectArchiveResponse(
-                archive.getId(),
-                archive.getProjectName(),
-                projectType,
-                archive.getArchiveStatus(),
-                bidResult,
-                fileCount,
-                categoryDetails,
-                lastUploadedAt,
-                projectManager,
-                bidManager
-        );
     }
 }

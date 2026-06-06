@@ -252,7 +252,7 @@ const downloadBlob = (blob, filename, mimeType) => {
 
 const handleDownloadArchive = async (row) => {
   try {
-    const params = row ? { ...buildExportParams(), projectId: row.archiveId } : buildExportParams()
+    const params = row ? { ...buildExportParams(), archiveId: row.archiveId } : buildExportParams()
     const blob = (await httpClient.post('/api/archive/export-zip', params, { responseType: 'blob' })).data
     downloadBlob(blob, `方案管理-项目档案文件包-${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12)}.zip`, 'application/zip')
     ElMessage.success('导出文件包成功')
