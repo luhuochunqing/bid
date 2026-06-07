@@ -7,6 +7,8 @@ package com.xiyu.bid.tender.service;
 import com.xiyu.bid.batch.entity.TenderAssignmentRecord;
 import com.xiyu.bid.batch.repository.TenderAssignmentRecordRepository;
 import com.xiyu.bid.repository.TenderRepository;
+import com.xiyu.bid.service.RoleProfileService;
+import static org.mockito.Mockito.mock;
 import com.xiyu.bid.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -45,7 +47,7 @@ class TenderAssignmentPermissionsTest {
 
     @BeforeEach
     void setUp() {
-        permissions = new TenderAssignmentPermissions(repository, tenderRepository, userRepository);
+        permissions = new TenderAssignmentPermissions(repository, tenderRepository, userRepository, mock(RoleProfileService.class));
     }
 
     // ---------- canFill ----------
