@@ -86,12 +86,24 @@ test.describe('§4.1.3.6 资质详情抽屉', () => {
     await expect(emptyAtt, '无附件应显示空状态').toBeVisible()
     await expect(drawer.locator('[data-testid="qd-att-upload"]')).toBeVisible()
 
-    // Tab 2 操作日志（占位）
+    // Tab 2 操作日志（4.1.3.7 已接入真实数据）
+    // 注意：OperationLogTab 的 watch immediate 会在 drawer 打开（panel mount）时调 API，
+    // 此时 API 已发出或已完成。直接 waitForSelector 等数据稳定更可靠。
     const auditTab = drawer.getByRole('tab', { name: '操作日志' })
     await expect(auditTab, '操作日志 Tab 应可见').toBeVisible()
     await auditTab.click()
-    const placeholder = drawer.locator('[data-testid="qd-audit-placeholder"]')
-    await expect(placeholder, '操作日志 Tab 应显示 4.1.3.7 占位').toBeVisible()
+    // 等 audit-logs 数据落地：至少 1 条 item 或 1 个 empty
+    await page.waitForResponse(
+      r => /\/api\/qualifications\/\d+\/audit-logs$/.test(r.url()),
+      { timeout: 10000 }
+    ).catch(() => { /* may have already fired before listener */ })
+    // 断言 tab 内容区存在
+    const opLogRoot = drawer.locator('[data-testid="qd-op-log-tab"]')
+    await expect(opLogRoot, '操作日志容器应可见').toBeVisible({ timeout: 10000 })
+    // 至少 1 条日志（创建资质时 @Auditable 自动产生）或空状态
+    const itemCount = await drawer.locator('[data-testid="qd-op-log-item"]').count()
+    const hasEmpty = await drawer.locator('[data-testid="qd-op-log-empty"]').count()
+    expect(itemCount + hasEmpty, '操作日志区应展示时间线或空状态').toBeGreaterThanOrEqual(1)
 
     // 关闭抽屉
     await drawer.locator('[data-testid="qd-close-btn"]').click()
@@ -141,7 +153,9 @@ test.describe('§4.1.3.6 资质详情抽屉', () => {
       await editBtn.click()
       // 抽屉不应打开
       const drawer = page.locator('.el-drawer').filter({ hasText: '资质详情' })
-      await page.waitForTimeout(500)
+      // 等编辑对话框渲染（dialog mask 出现），以此代替时间等待
+      await page.waitForSelector('.el-dialog__wrapper, .el-overlay', { state: 'visible', timeout: 3000 })
+        .catch(() => { /* may stay on detail drawer; just continue */ })
       // 编辑按钮通常会打开 QualFormDialog 而不是 QualDetailDrawer
       // 这里我们验证详情抽屉没被错误打开
       const detailDrawerCount = await drawer.count()

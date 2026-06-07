@@ -114,11 +114,7 @@
 
         <!-- Tab 2: 操作日志 (4.1.3.7 实现) -->
         <el-tab-pane label="操作日志" name="audit" data-testid="qd-tab-audit">
-          <div class="qd-audit-placeholder" data-testid="qd-audit-placeholder">
-            <el-empty description="操作日志数据接入将在 4.1.3.7 实现">
-              <el-button type="primary" plain @click="$emit('goto-audit-section')">查看 4.1.3.7 子任务</el-button>
-            </el-empty>
-          </div>
+          <OperationLogTab :qualification-id="qualification?.id" />
         </el-tab-pane>
       </el-tabs>
     </div>
@@ -129,6 +125,7 @@
 import { ref } from 'vue'
 import { Edit, Bottom, Top, Close, Document, Upload } from '@element-plus/icons-vue'
 import { formatDate, qualificationStatusTagTypes, qualificationStatusLabels } from './qualificationMeta.js'
+import OperationLogTab from '@/components/qualification/OperationLogTab.vue'
 
 const STATUS_LABELS = { ...qualificationStatusLabels, valid: '在库', expiring: '即将到期', expired: '已过期', retired: '已下架' }
 
@@ -141,8 +138,7 @@ const props = defineProps({
 
 const emit = defineEmits([
   'update:modelValue', 'edit', 'retire', 'restore',
-  'preview', 'download', 'replace', 'delete', 'upload',
-  'goto-audit-section'
+  'preview', 'download', 'replace', 'delete', 'upload'
 ])
 
 const activeTab = ref('basic')
@@ -267,8 +263,4 @@ const formatSize = (bytes) => {
   flex-shrink: 0;
 }
 
-.qd-audit-placeholder {
-  padding: 40px 0;
-  text-align: center;
-}
 </style>
