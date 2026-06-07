@@ -32,7 +32,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Set;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 
 /**
  * PRD §3.2 标书编制阶段编排服务：主/副负责人分配 + 标书审核 + 提交闸门。
@@ -135,13 +135,19 @@ public class ProjectDraftingService {
             description = "提交投标并推进到评标阶段")
     public ProjectDraftingViewDto submitBid(Long projectId, Long currentUserId) {
 
-        // 业务角色校验：仅投标管理员/组长/负责人可以提交投标
+        // 业务角色校验：仅投标管理员/组长/负责人可以提交投标（通过 roleProfile.code 判断，不回退到 User.role 枚举）
+
         User currentUser = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "用户不存在"));
-        String roleCode = currentUser.getRoleCode();
-        if (roleCode != null && !Set.of("bid_admin", "bid_lead", "sales").contains(roleCode)) {
+
+        RoleProfileCatalog.SeedDefinition profile = currentUser.getRoleProfile() != null
+                ? RoleProfileCatalog.definitionForCode(currentUser.getRoleProfile().getCode())
+                : null;
+        String effectiveRoleCode = profile != null ? profile.code() : null;
+        if (effectiveRoleCode == null || !RoleProfileCatalog.SUBMIT_BID_ALLOWED_ROLES.contains(effectiveRoleCode)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "当前角色无权限提交投标");
         }
+
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         mustGetProject(projectId);
 
