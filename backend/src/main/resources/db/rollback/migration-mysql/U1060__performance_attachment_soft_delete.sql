@@ -1,5 +1,5 @@
--- Input: V1055__performance_attachment_soft_delete.sql
--- Rollback for V1055__performance_attachment_soft_delete.sql
+-- Input: V1060__performance_attachment_soft_delete.sql
+-- Rollback for V1060__performance_attachment_soft_delete.sql
 
 DROP INDEX idx_attachment_deleted ON performance_attachment;
 ALTER TABLE performance_attachment

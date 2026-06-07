@@ -161,7 +161,7 @@ class ROIAnalysisServiceLifecycleTest extends AbstractROIAnalysisServiceTest {
 
         assertThatThrownBy(() -> roiAnalysisService.getAnalysisByProject(999L))
                 .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("ROI analysis not found");
+                .hasMessageContaining("ROIAnalysis not found: 999");
     }
 
     @Test

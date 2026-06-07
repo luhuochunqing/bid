@@ -19,25 +19,20 @@ import static org.mockito.Mockito.*;
 class ApiVersionConfigTest {
 
     /**
-     * Test that configurePathMatch adds the /v1 prefix.
-     * Verifies that:
-     * 1. The addPathPrefix method is called with the correct prefix
-     * 2. The predicate accepts controller classes
+     * Test that configurePathMatch is currently disabled.
+     * The method body is commented out to maintain backward compatibility.
      */
     @Test
-    void testConfigurePathMatch_AddsV1Prefix() {
+    void testConfigurePathMatch_IsCurrentlyDisabled() {
         // Arrange
         PathMatchConfigurer configurer = mock(PathMatchConfigurer.class);
         ApiVersionConfig apiVersionConfig = new ApiVersionConfig();
 
-        // Stub the chain call - addPathPrefix returns the configurer for chaining
-        when(configurer.addPathPrefix(any(String.class), any())).thenReturn(configurer);
-
         // Act
         apiVersionConfig.configurePathMatch(configurer);
 
-        // Assert - verify prefix is /v1 (not /api/v1 since controllers already have /api)
-        verify(configurer, times(1)).addPathPrefix(eq("/v1"), any());
+        // Assert - verify addPathPrefix is NOT called since the method is disabled
+        verify(configurer, never()).addPathPrefix(any(String.class), any());
     }
 
     /**

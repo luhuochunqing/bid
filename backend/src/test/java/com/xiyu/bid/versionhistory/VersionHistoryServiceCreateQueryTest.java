@@ -249,7 +249,7 @@ class VersionHistoryServiceCreateQueryTest extends AbstractVersionHistoryService
 
         assertThatThrownBy(() -> versionHistoryService.getVersion(999L))
                 .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("Version not found with id: 999");
+                .hasMessageContaining("Version not found: 999");
     }
 
     @Test
@@ -276,7 +276,7 @@ class VersionHistoryServiceCreateQueryTest extends AbstractVersionHistoryService
 
         assertThatThrownBy(() -> versionHistoryService.getLatestVersion(100L))
                 .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("No versions found for project: 100");
+                .hasMessageContaining("DocumentVersion not found: 100");
     }
 
     @Test

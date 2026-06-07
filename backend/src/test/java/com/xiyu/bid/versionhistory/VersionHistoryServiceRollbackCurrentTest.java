@@ -84,7 +84,7 @@ class VersionHistoryServiceRollbackCurrentTest extends AbstractVersionHistorySer
 
         assertThatThrownBy(() -> versionHistoryService.rollbackToVersion(100L, 999L, 1L))
                 .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("Version not found with id: 999");
+                .hasMessageContaining("Version not found: 999");
     }
 
     @Test
@@ -110,7 +110,7 @@ class VersionHistoryServiceRollbackCurrentTest extends AbstractVersionHistorySer
 
         assertThatThrownBy(() -> versionHistoryService.rollbackToVersion(100L, 1L, 1L))
                 .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("No current version found for project: 100");
+                .hasMessageContaining("DocumentVersion not found: 100");
     }
 
     @Test
@@ -183,7 +183,7 @@ class VersionHistoryServiceRollbackCurrentTest extends AbstractVersionHistorySer
 
         assertThatThrownBy(() -> versionHistoryService.markAsCurrent(999L))
                 .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("Version not found with id: 999");
+                .hasMessageContaining("Version not found: 999");
     }
 
     @Test

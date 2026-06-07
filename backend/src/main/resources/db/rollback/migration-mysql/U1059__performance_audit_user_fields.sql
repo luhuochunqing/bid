@@ -1,5 +1,5 @@
--- Input: V1054__performance_audit_user_fields.sql
--- Rollback for V1054__performance_audit_user_fields.sql
+-- Input: V1059__performance_audit_user_fields.sql
+-- Rollback for V1059__performance_audit_user_fields.sql
 
 ALTER TABLE performance_record
     DROP COLUMN updated_by,

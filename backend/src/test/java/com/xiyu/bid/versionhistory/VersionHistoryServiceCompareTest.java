@@ -73,7 +73,7 @@ class VersionHistoryServiceCompareTest extends AbstractVersionHistoryServiceTest
 
         assertThatThrownBy(() -> versionHistoryService.compareVersions(100L, 999L, 2L))
                 .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("Version not found with id: 999");
+                .hasMessageContaining("Version not found: 999");
     }
 
     @Test
@@ -83,7 +83,7 @@ class VersionHistoryServiceCompareTest extends AbstractVersionHistoryServiceTest
 
         assertThatThrownBy(() -> versionHistoryService.compareVersions(100L, 1L, 999L))
                 .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("Version not found with id: 999");
+                .hasMessageContaining("Version not found: 999");
     }
 
     @Test

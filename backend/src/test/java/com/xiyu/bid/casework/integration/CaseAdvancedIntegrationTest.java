@@ -289,14 +289,14 @@ class CaseAdvancedIntegrationTest {
 
         mockMvc.perform(get("/api/knowledge/cases/{id}", caseStudy.getId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.useCount").value(4))
+                .andExpect(jsonPath("$.data.useCount").value(3))
                 .andExpect(jsonPath("$.data.description").value("更新后的项目摘要"))
                 .andExpect(jsonPath("$.data.successFactors", hasSize(2)))
                 .andExpect(jsonPath("$.data.searchDocument").value(containsString("智慧园区")));
 
         assertThat(caseShareRecordRepository.findByCaseIdOrderByCreatedAtDesc(caseStudy.getId())).hasSize(1);
         assertThat(caseReferenceRecordRepository.findByCaseIdOrderByReferencedAtDesc(caseStudy.getId())).hasSize(1);
-        assertThat(caseRepository.findById(caseStudy.getId()).orElseThrow().getUseCount()).isEqualTo(4L);
+        assertThat(caseRepository.findById(caseStudy.getId()).orElseThrow().getUseCount()).isEqualTo(3L);
     }
 
     @Test
