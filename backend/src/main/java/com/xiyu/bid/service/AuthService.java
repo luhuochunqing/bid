@@ -35,6 +35,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -208,12 +209,13 @@ public class AuthService {
         if (accessToken == null || accessToken.isBlank()) {
             return;
         }
-        String jti = jwtUtil.extractJti(accessToken);
-        if (jti == null) {
+        Optional<String> jtiOpt = jwtUtil.extractJti(accessToken);
+        if (jtiOpt.isEmpty()) {
             return;
         }
-        Instant expiresAt = jwtUtil.extractExpirationInstant(accessToken);
-        tokenRevocationService.revoke(jti, expiresAt);
+        String jti = jtiOpt.get();
+        Optional<Instant> expiresAtOpt = jwtUtil.extractExpirationInstant(accessToken);
+        expiresAtOpt.ifPresent(expiresAt -> tokenRevocationService.revoke(jti, expiresAt));
         log.info("Access token revoked (jti={})", jti);
     }
 

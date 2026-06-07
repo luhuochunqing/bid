@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -43,7 +44,8 @@ public class ProjectInitiationMapper {
     public InitiationFieldPolicy.InitiationInput toInput(ProjectInitiationDetails e) {
         return new InitiationFieldPolicy.InitiationInput(
                 e.getOwnerUnit(), e.getExpectedBidders(), e.getContractPeriodMonths(),
-                parseProjectType(e.getProjectType()), parseCustomerType(e.getCustomerType()),
+                parseProjectType(e.getProjectType()).orElse(null),
+                parseCustomerType(e.getCustomerType()).orElse(null),
                 e.getAnnualRevenue(), e.getAnnualEcommerceAmount(),
                 e.getBidOpenTime(), e.getOwnerUserId(), e.getDepartmentSnapshot(),
                 e.getDepositAmount(), e.getDepositPaymentMethod(), e.getNeedDeposit(),
@@ -181,13 +183,21 @@ public class ProjectInitiationMapper {
                 .build();
     }
 
-    private InitiationFieldPolicy.ProjectType parseProjectType(String v) {
-        if (v == null) return null;
-        try { return InitiationFieldPolicy.ProjectType.valueOf(v); } catch (IllegalArgumentException ex) { return null; }
+    private Optional<InitiationFieldPolicy.ProjectType> parseProjectType(String v) {
+        if (v == null) return Optional.empty();
+        try {
+            return Optional.of(InitiationFieldPolicy.ProjectType.valueOf(v));
+        } catch (IllegalArgumentException ex) {
+            return Optional.empty();
+        }
     }
 
-    private InitiationFieldPolicy.CustomerType parseCustomerType(String v) {
-        if (v == null) return null;
-        try { return InitiationFieldPolicy.CustomerType.valueOf(v); } catch (IllegalArgumentException ex) { return null; }
+    private Optional<InitiationFieldPolicy.CustomerType> parseCustomerType(String v) {
+        if (v == null) return Optional.empty();
+        try {
+            return Optional.of(InitiationFieldPolicy.CustomerType.valueOf(v));
+        } catch (IllegalArgumentException ex) {
+            return Optional.empty();
+        }
     }
 }

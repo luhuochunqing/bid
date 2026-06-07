@@ -4,6 +4,7 @@ import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -17,7 +18,9 @@ class JwtUtilJtiTest {
     void generateAccessToken_shouldEmbedJtiClaim() {
         String token = jwtUtil.generateAccessToken("alice");
 
-        String jti = jwtUtil.extractJti(token);
+        Optional<String> jtiOpt = jwtUtil.extractJti(token);
+        assertThat(jtiOpt).isPresent();
+        String jti = jtiOpt.get();
         assertThat(jti).isNotBlank();
         Claims claims = jwtUtil.extractAllClaims(token);
         assertThat(claims.getId()).isEqualTo(jti);
@@ -29,19 +32,26 @@ class JwtUtilJtiTest {
         String second = jwtUtil.generateAccessToken("alice");
 
         assertThat(jwtUtil.extractJti(first)).isNotEqualTo(jwtUtil.extractJti(second));
+        assertThat(jwtUtil.extractJti(first).orElse("")).isNotEqualTo(jwtUtil.extractJti(second).orElse(""));
     }
 
     @Test
     void extractExpirationInstant_shouldReturnTokenExpiry() {
         String token = jwtUtil.generateAccessToken("alice");
 
-        Instant exp = jwtUtil.extractExpirationInstant(token);
-        assertThat(exp).isNotNull();
+        Optional<Instant> expOpt = jwtUtil.extractExpirationInstant(token);
+        assertThat(expOpt).isPresent();
+        Instant exp = expOpt.get();
         assertThat(exp).isAfter(Instant.now());
     }
 
     @Test
-    void extractJti_shouldReturnNullForGarbageInput() {
-        assertThat(jwtUtil.extractJti("not-a-jwt")).isNull();
+    void extractJti_shouldReturnEmptyForGarbageInput() {
+        assertThat(jwtUtil.extractJti("not-a-jwt")).isEmpty();
+    }
+
+    @Test
+    void extractExpirationInstant_shouldReturnEmptyForGarbageInput() {
+        assertThat(jwtUtil.extractExpirationInstant("not-a-jwt")).isEmpty();
     }
 }

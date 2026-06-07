@@ -163,8 +163,8 @@ class AuthServiceTest {
 
         when(refreshSessionRepository.findByTokenHash(any())).thenReturn(Optional.of(session));
         Instant exp = Instant.now().plusSeconds(3600);
-        when(jwtUtil.extractJti("access-jwt")).thenReturn("jti-123");
-        when(jwtUtil.extractExpirationInstant("access-jwt")).thenReturn(exp);
+        when(jwtUtil.extractJti("access-jwt")).thenReturn(Optional.of("jti-123"));
+        when(jwtUtil.extractExpirationInstant("access-jwt")).thenReturn(Optional.of(exp));
 
         authService.logout("access-jwt", "raw-refresh-token");
 
@@ -174,7 +174,7 @@ class AuthServiceTest {
 
     @Test
     void logout_ShouldSkipAccessRevocationWhenJtiAbsent() {
-        when(jwtUtil.extractJti("legacy-token")).thenReturn(null);
+        when(jwtUtil.extractJti("legacy-token")).thenReturn(Optional.empty());
 
         authService.logout("legacy-token", null);
 

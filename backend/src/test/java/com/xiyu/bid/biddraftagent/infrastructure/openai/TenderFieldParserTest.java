@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -19,57 +20,57 @@ class TenderFieldParserTest {
     @Test
     void parseBudget_plainNumber_returnsExactValue() {
         assertThat(TenderFieldParser.parseBudget("6800000"))
-                .isEqualByComparingTo(new BigDecimal("6800000"));
+                .isEqualTo(Optional.of(new BigDecimal("6800000")));
     }
 
     @Test
     void parseBudget_wanYuan_multipliesByTenThousand() {
         assertThat(TenderFieldParser.parseBudget("680万元"))
-                .isEqualByComparingTo(new BigDecimal("6800000"));
+                .isEqualTo(Optional.of(new BigDecimal("6800000")));
     }
 
     @Test
     void parseBudget_wanOnly_multipliesByTenThousand() {
         assertThat(TenderFieldParser.parseBudget("680万"))
-                .isEqualByComparingTo(new BigDecimal("6800000"));
+                .isEqualTo(Optional.of(new BigDecimal("6800000")));
     }
 
     @Test
     void parseBudget_yuanSuffix_returnsPlainValue() {
         assertThat(TenderFieldParser.parseBudget("6800000元"))
-                .isEqualByComparingTo(new BigDecimal("6800000"));
+                .isEqualTo(Optional.of(new BigDecimal("6800000")));
     }
 
     @Test
     void parseBudget_renminbiPrefix_stripsPrefix() {
         assertThat(TenderFieldParser.parseBudget("人民币6800000元"))
-                .isEqualByComparingTo(new BigDecimal("6800000"));
+                .isEqualTo(Optional.of(new BigDecimal("6800000")));
     }
 
     @Test
     void parseBudget_commaFormatted_stripsCommas() {
         assertThat(TenderFieldParser.parseBudget("6,800,000"))
-                .isEqualByComparingTo(new BigDecimal("6800000"));
+                .isEqualTo(Optional.of(new BigDecimal("6800000")));
     }
 
     @Test
-    void parseBudget_yueKeyword_returnsNull() {
-        assertThat(TenderFieldParser.parseBudget("约680万")).isNull();
+    void parseBudget_yueKeyword_returnsEmpty() {
+        assertThat(TenderFieldParser.parseBudget("约680万")).isEmpty();
     }
 
     @Test
-    void parseBudget_yujiKeyword_returnsNull() {
-        assertThat(TenderFieldParser.parseBudget("预计680万元")).isNull();
+    void parseBudget_yujiKeyword_returnsEmpty() {
+        assertThat(TenderFieldParser.parseBudget("预计680万元")).isEmpty();
     }
 
     @Test
-    void parseBudget_null_returnsNull() {
-        assertThat(TenderFieldParser.parseBudget(null)).isNull();
+    void parseBudget_null_returnsEmpty() {
+        assertThat(TenderFieldParser.parseBudget(null)).isEmpty();
     }
 
     @Test
-    void parseBudget_blank_returnsNull() {
-        assertThat(TenderFieldParser.parseBudget("   ")).isNull();
+    void parseBudget_blank_returnsEmpty() {
+        assertThat(TenderFieldParser.parseBudget("   ")).isEmpty();
     }
 
     // ── parsePublishDate ───────────────────────────────────────────────────────
@@ -77,17 +78,17 @@ class TenderFieldParserTest {
     @Test
     void parsePublishDate_validIso_returnsLocalDate() {
         assertThat(TenderFieldParser.parsePublishDate("2024-01-15"))
-                .isEqualTo(LocalDate.of(2024, 1, 15));
+                .isEqualTo(Optional.of(LocalDate.of(2024, 1, 15)));
     }
 
     @Test
-    void parsePublishDate_invalid_returnsNull() {
-        assertThat(TenderFieldParser.parsePublishDate("not-a-date")).isNull();
+    void parsePublishDate_invalid_returnsEmpty() {
+        assertThat(TenderFieldParser.parsePublishDate("not-a-date")).isEmpty();
     }
 
     @Test
-    void parsePublishDate_null_returnsNull() {
-        assertThat(TenderFieldParser.parsePublishDate(null)).isNull();
+    void parsePublishDate_null_returnsEmpty() {
+        assertThat(TenderFieldParser.parsePublishDate(null)).isEmpty();
     }
 
     // ── parseDeadline ──────────────────────────────────────────────────────────
@@ -95,22 +96,22 @@ class TenderFieldParserTest {
     @Test
     void parseDeadline_fullDatetime_returnsLocalDateTime() {
         assertThat(TenderFieldParser.parseDeadline("2024-03-20T17:00:00"))
-                .isEqualTo(LocalDateTime.of(2024, 3, 20, 17, 0, 0));
+                .isEqualTo(Optional.of(LocalDateTime.of(2024, 3, 20, 17, 0, 0)));
     }
 
     @Test
     void parseDeadline_dateOnly_defaultsTo235959() {
         assertThat(TenderFieldParser.parseDeadline("2024-03-20"))
-                .isEqualTo(LocalDateTime.of(2024, 3, 20, 23, 59, 59));
+                .isEqualTo(Optional.of(LocalDateTime.of(2024, 3, 20, 23, 59, 59)));
     }
 
     @Test
-    void parseDeadline_null_returnsNull() {
-        assertThat(TenderFieldParser.parseDeadline(null)).isNull();
+    void parseDeadline_null_returnsEmpty() {
+        assertThat(TenderFieldParser.parseDeadline(null)).isEmpty();
     }
 
     @Test
-    void parseDeadline_invalid_returnsNull() {
-        assertThat(TenderFieldParser.parseDeadline("garbage")).isNull();
+    void parseDeadline_invalid_returnsEmpty() {
+        assertThat(TenderFieldParser.parseDeadline("garbage")).isEmpty();
     }
 }

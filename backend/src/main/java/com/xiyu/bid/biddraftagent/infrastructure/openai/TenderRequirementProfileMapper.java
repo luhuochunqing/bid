@@ -19,10 +19,10 @@ final class TenderRequirementProfileMapper {
         String defaultPathStr = String.join(" > ", defaultPath);
         return new TenderRequirementProfile(
                 output.projectName, output.tenderTitle, output.tenderScope, output.purchaserName,
-                TenderFieldParser.parseBudget(output.budget),
+                TenderFieldParser.parseBudget(output.budget).orElse(null),
                 output.region, output.industry,
-                TenderFieldParser.parsePublishDate(output.publishDate),
-                TenderFieldParser.parseDeadline(output.deadline),
+                TenderFieldParser.parsePublishDate(output.publishDate).orElse(null),
+                TenderFieldParser.parseDeadline(output.deadline).orElse(null),
                 nullToList(output.qualificationRequirements),
                 nullToList(output.technicalRequirements),
                 nullToList(output.commercialRequirements),

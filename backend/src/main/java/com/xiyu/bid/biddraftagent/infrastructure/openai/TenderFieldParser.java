@@ -1,5 +1,6 @@
 // Input: Raw string values from LLM output (budget strings, date strings)
-// Output: Parsed Java types – BigDecimal, LocalDate, LocalDateTime (pure, no Spring dependencies)
+// Output: Parsed Java types – Optional<BigDecimal>, Optional<LocalDate>, Optional<LocalDateTime>
+//         Empty Optional signals parse failure (malformed input, null, "约"/"预计" keywords)
 // Pos: biddraftagent/infrastructure/openai
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.biddraftagent.infrastructure.openai;
@@ -7,6 +8,7 @@ package com.xiyu.bid.biddraftagent.infrastructure.openai;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -23,44 +25,43 @@ final class TenderFieldParser {
     private TenderFieldParser() {
     }
 
-    static BigDecimal parseBudget(String value) {
+    static Optional<BigDecimal> parseBudget(String value) {
         String normalized = normalizeNumber(value);
-        if (normalized == null) return null;
+        if (normalized == null) return Optional.empty();
         Matcher matcher = BUDGET_NUMBER.matcher(normalized);
-        if (!matcher.matches()) return null;
+        if (!matcher.matches()) return Optional.empty();
         BigDecimal amount = new BigDecimal(matcher.group(1));
         String unit = matcher.group(2);
-        return unit != null && unit.contains("万") ? amount.multiply(WAN_UNIT) : amount;
+        return Optional.of(unit != null && unit.contains("万") ? amount.multiply(WAN_UNIT) : amount);
     }
 
-    static LocalDate parsePublishDate(String value) {
+    static Optional<LocalDate> parsePublishDate(String value) {
         Matcher matcher = DATE_VALUE.matcher(trimToEmpty(value));
-        return matcher.matches()
-                ? dateFromParts(matcher.group(1), matcher.group(2), matcher.group(3))
-                : null;
+        if (!matcher.matches()) return Optional.empty();
+        return dateFromParts(matcher.group(1), matcher.group(2), matcher.group(3));
     }
 
-    static LocalDateTime parseDeadline(String value) {
+    static Optional<LocalDateTime> parseDeadline(String value) {
         String trimmed = trimToEmpty(value);
         Matcher matcher = DATE_TIME_VALUE.matcher(trimmed);
-        if (!matcher.matches()) {
-            LocalDate date = parsePublishDate(trimmed);
-            return date == null ? null : date.atTime(23, 59, 59);
+        if (matcher.matches()) {
+            return dateFromParts(matcher.group(1), matcher.group(2), matcher.group(3))
+                    .map(d -> d.atTime(
+                            twoDigitInt(matcher.group(4)), twoDigitInt(matcher.group(5)), twoDigitInt(matcher.group(6))));
         }
-        return dateFromParts(matcher.group(1), matcher.group(2), matcher.group(3)).atTime(
-                twoDigitInt(matcher.group(4)), twoDigitInt(matcher.group(5)), twoDigitInt(matcher.group(6))
-        );
+        return parsePublishDate(trimmed)
+                .map(d -> d.atTime(23, 59, 59));
     }
 
-    private static LocalDate dateFromParts(String yearText, String monthText, String dayText) {
+    private static Optional<LocalDate> dateFromParts(String yearText, String monthText, String dayText) {
         try {
-            return LocalDate.of(
+            return Optional.of(LocalDate.of(
                     Integer.parseInt(yearText),
                     Integer.parseInt(monthText),
                     Integer.parseInt(dayText)
-            );
+            ));
         } catch (NumberFormatException | java.time.DateTimeException e) {
-            return null;
+            return Optional.empty();
         }
     }
 

@@ -20,6 +20,7 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.Optional;
 import java.util.UUID;
 
 @Component
@@ -73,20 +74,20 @@ public class JwtUtil {
         return extractAllClaims(token).getExpiration().getTime();
     }
 
-    public String extractJti(String token) {
+    public Optional<String> extractJti(String token) {
         try {
-            return extractAllClaims(token).getId();
+            return Optional.ofNullable(extractAllClaims(token).getId());
         } catch (JwtException | IllegalArgumentException e) {
-            return null;
+            return Optional.empty();
         }
     }
 
-    public Instant extractExpirationInstant(String token) {
+    public Optional<Instant> extractExpirationInstant(String token) {
         try {
             Date exp = extractAllClaims(token).getExpiration();
-            return exp == null ? null : exp.toInstant();
+            return Optional.ofNullable(exp).map(Date::toInstant);
         } catch (JwtException | IllegalArgumentException e) {
-            return null;
+            return Optional.empty();
         }
     }
 

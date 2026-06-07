@@ -59,20 +59,20 @@ class TenderRequirementProfileMergerTest {
     }
 
     @Test
-    void parser_shouldReturnNullForUnconfirmedStructuredValues() {
+    void parser_shouldReturnEmptyForUnconfirmedStructuredValues() {
         assertThat(TenderFieldParser.parseBudget("6800000.50"))
-                .isEqualByComparingTo("6800000.50");
+                .isEqualTo(java.util.Optional.of(new BigDecimal("6800000.50")));
         assertThat(TenderFieldParser.parseBudget("680万元"))
-                .isEqualByComparingTo("6800000");
-        assertThat(TenderFieldParser.parseBudget("约680万元")).isNull();
+                .isEqualTo(java.util.Optional.of(new BigDecimal("6800000")));
+        assertThat(TenderFieldParser.parseBudget("约680万元")).isEmpty();
         assertThat(TenderFieldParser.parsePublishDate("2026-04-01"))
-                .isEqualTo(LocalDate.of(2026, 4, 1));
-        assertThat(TenderFieldParser.parsePublishDate("2026-02-30")).isNull();
+                .isEqualTo(java.util.Optional.of(LocalDate.of(2026, 4, 1)));
+        assertThat(TenderFieldParser.parsePublishDate("2026-02-30")).isEmpty();
         assertThat(TenderFieldParser.parseDeadline("2026-05-30T17:30:00"))
-                .isEqualTo(LocalDateTime.of(2026, 5, 30, 17, 30));
+                .isEqualTo(java.util.Optional.of(LocalDateTime.of(2026, 5, 30, 17, 30)));
         assertThat(TenderFieldParser.parseDeadline("2026-05-30"))
-                .isEqualTo(LocalDateTime.of(2026, 5, 30, 23, 59, 59));
-        assertThat(TenderFieldParser.parseDeadline("2026-05-30 17:30")).isNull();
+                .isEqualTo(java.util.Optional.of(LocalDateTime.of(2026, 5, 30, 23, 59, 59)));
+        assertThat(TenderFieldParser.parseDeadline("2026-05-30 17:30")).isEmpty();
     }
 
     private TenderRequirementProfile profile(
