@@ -43,6 +43,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT u FROM User u JOIN u.roleProfile rp WHERE rp.code IN :codes AND u.enabled = TRUE")
     List<User> findEnabledByRoleProfileCodes(@Param("codes") Collection<String> codes);
 
+    /** 查找指定用户名的启用账号（系统操作者兜底）。 */
+    Optional<User> findFirstByUsernameAndEnabledTrue(String username);
+
+    /** 查找指定 Role 的最早启用账号（无指定 admin 用户时回退）。 */
+    Optional<User> findFirstByRoleAndEnabledTrueOrderByIdAsc(User.Role role);
+
     @Query(value = "SELECT * FROM users u WHERE u.enabled = TRUE "
         + "AND (LOWER(u.full_name) LIKE LOWER(CONCAT('%', :q, '%')) "
         + "OR LOWER(u.username) LIKE LOWER(CONCAT('%', :q, '%'))) "

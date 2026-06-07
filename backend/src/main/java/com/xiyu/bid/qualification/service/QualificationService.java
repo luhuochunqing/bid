@@ -5,13 +5,14 @@
 package com.xiyu.bid.qualification.service;
 
 import com.xiyu.bid.access.core.ProjectLinkedRecordVisibilityPolicy;
+import com.xiyu.bid.alerts.service.QualificationExpiryNotificationService;
+import com.xiyu.bid.businessqualification.application.service.AlertConfigAppService;
 import com.xiyu.bid.businessqualification.application.service.BorrowQualificationAppService;
 import com.xiyu.bid.businessqualification.application.service.CreateQualificationAppService;
 import com.xiyu.bid.businessqualification.application.service.DeleteQualificationAppService;
 import com.xiyu.bid.businessqualification.application.service.GetQualificationBorrowRecordsAppService;
 import com.xiyu.bid.businessqualification.application.service.ListQualificationsAppService;
 import com.xiyu.bid.businessqualification.application.service.ReturnQualificationAppService;
-import com.xiyu.bid.businessqualification.application.service.ScanExpiringQualificationsAppService;
 import com.xiyu.bid.businessqualification.application.service.UpdateQualificationAppService;
 import com.xiyu.bid.businessqualification.domain.model.BusinessQualification;
 import com.xiyu.bid.businessqualification.domain.model.QualificationLoan;
@@ -41,7 +42,9 @@ public class QualificationService {
     private final ReturnQualificationAppService returnQualificationAppService;
     private final ListQualificationsAppService listQualificationsAppService;
     private final GetQualificationBorrowRecordsAppService getQualificationBorrowRecordsAppService;
-    private final ScanExpiringQualificationsAppService scanExpiringQualificationsAppService;
+    /** §4.1.3.8 资质到期通知编排（替代旧 ScanExpiringQualificationsAppService）。 */
+    private final QualificationExpiryNotificationService qualificationExpiryNotificationService;
+    private final AlertConfigAppService alertConfigAppService;
     private final DeleteQualificationAppService deleteQualificationAppService;
     private final QualificationDtoMapper mapper;
     private final ProjectAccessScopeService projectAccessScopeService;
@@ -152,8 +155,23 @@ public class QualificationService {
         return mapper.toOverview(getAllQualifications(null, null, null, null, null, null, null));
     }
 
+    /**
+     * §4.1.3.8 蓝图：手动触发资质到期扫描。
+     * <p>
+     * 兼容原响应 shape：data 字段保持为整数（命中数）。
+     * 通知/跳过明细仍可从服务端日志获取。
+     *
+     * @param thresholdDays 调用方传入的阈值；<=0 时使用 AlertConfig.alertDays
+     * @return 扫描命中数（已下发通知 + 被跳过的证书总数）
+     */
+    @Transactional
     public int scanExpiringQualifications(int thresholdDays) {
-        return scanExpiringQualificationsAppService.scan(thresholdDays).size();
+        int effective = thresholdDays > 0
+                ? thresholdDays
+                : alertConfigAppService.getConfig().alertDays();
+        QualificationExpiryNotificationService.ScanOutcome outcome =
+                qualificationExpiryNotificationService.runScan(effective, null);
+        return outcome.scanned();
     }
 
     private BusinessQualification findQualification(Long id) {

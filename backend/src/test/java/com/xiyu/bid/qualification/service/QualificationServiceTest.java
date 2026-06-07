@@ -1,12 +1,13 @@
 package com.xiyu.bid.qualification.service;
 
+import com.xiyu.bid.alerts.service.QualificationExpiryNotificationService;
+import com.xiyu.bid.businessqualification.application.service.AlertConfigAppService;
 import com.xiyu.bid.businessqualification.application.service.BorrowQualificationAppService;
 import com.xiyu.bid.businessqualification.application.service.CreateQualificationAppService;
 import com.xiyu.bid.businessqualification.application.service.DeleteQualificationAppService;
 import com.xiyu.bid.businessqualification.application.service.GetQualificationBorrowRecordsAppService;
 import com.xiyu.bid.businessqualification.application.service.ListQualificationsAppService;
 import com.xiyu.bid.businessqualification.application.service.ReturnQualificationAppService;
-import com.xiyu.bid.businessqualification.application.service.ScanExpiringQualificationsAppService;
 import com.xiyu.bid.businessqualification.application.service.UpdateQualificationAppService;
 import com.xiyu.bid.businessqualification.domain.model.BusinessQualification;
 import com.xiyu.bid.businessqualification.domain.model.QualificationLoan;
@@ -47,10 +48,14 @@ class QualificationServiceTest {
     @Mock private ReturnQualificationAppService returnQualificationAppService;
     @Mock private ListQualificationsAppService listQualificationsAppService;
     @Mock private GetQualificationBorrowRecordsAppService getQualificationBorrowRecordsAppService;
-    @Mock private ScanExpiringQualificationsAppService scanExpiringQualificationsAppService;
+    /** §4.1.3.8 替代旧 ScanExpiringQualificationsAppService 的提醒编排 mock。 */
+    @Mock private QualificationExpiryNotificationService qualificationExpiryNotificationService;
+    @Mock private AlertConfigAppService alertConfigAppService;
     @Mock private DeleteQualificationAppService deleteQualificationAppService;
     @Mock private ProjectAccessScopeService projectAccessScopeService;
     @Spy private QualificationDtoMapper mapper = new QualificationDtoMapper();
+    /** §4.1.3.4 蓝图：台账导出 + 模板（拆出以保 line-budget）。 */
+    @Spy private QualificationExcelSupport excelSupport = new QualificationExcelSupport();
 
     @InjectMocks
     private QualificationService qualificationService;
@@ -176,19 +181,19 @@ class QualificationServiceTest {
                 QualificationCategory.PRODUCT,
                 "GX-001",
                 "科技局",
-                "张三",
-                "代理机构联系方式",
-                "资质适用范围",
-                "资质审查备注",
-                "持证人姓名",
+                null,                       // agency
+                "张三",                     // agencyContact
+                null,                       // certScope
+                null,                       // certReviewNote
+                null,                       // holderName
                 new ValidityPeriod(LocalDate.now().minusYears(1), expiryDate),
                 new ReminderPolicy(true, 30, null),
                 loanStatus,
                 loanStatus == LoanStatus.BORROWED ? "小王" : null,
                 null,
-                "100",
                 null,
-                LocalDate.now().plusDays(30),
+                null,
+                null,
                 null,
                 List.of()
         );

@@ -2,7 +2,7 @@ package com.xiyu.bid.alertdispatch.service;
 
 import com.xiyu.bid.alerts.entity.AlertRule;
 import com.xiyu.bid.alerts.service.AlertRuleExecutionService;
-import com.xiyu.bid.businessqualification.application.service.ScanExpiringQualificationsAppService;
+import com.xiyu.bid.alerts.service.QualificationExpiryNotificationService;
 import com.xiyu.bid.performance.application.service.PerformanceExpiryAlertService;
 import com.xiyu.bid.performance.application.service.PerformanceAlertConfigAppService;
 import com.xiyu.bid.resources.application.service.ScanDepositReturnTrackingAppService;
@@ -17,7 +17,8 @@ public class AlertRuleDispatchService {
 
     private final BudgetAlertDispatchService budgetAlertDispatchService;
     private final AlertRuleExecutionService alertRuleExecutionService;
-    private final ScanExpiringQualificationsAppService scanExpiringQualificationsAppService;
+    /** §4.1.3.8 资质到期通知编排（替代旧的 ScanExpiringQualificationsAppService 编排）。 */
+    private final QualificationExpiryNotificationService qualificationExpiryNotificationService;
     private final ScanDepositReturnTrackingAppService scanDepositReturnTrackingAppService;
     private final PerformanceExpiryAlertService performanceExpiryAlertService;
     private final PerformanceAlertConfigAppService performanceAlertConfigAppService;
@@ -35,7 +36,8 @@ public class AlertRuleDispatchService {
     private void dispatchQualificationExpiry(AlertRule rule) {
         int thresholdDays = rule.getThreshold() == null ? 0 : rule.getThreshold().intValue();
         log.debug("Dispatching qualification expiry scan with thresholdDays={}", thresholdDays);
-        scanExpiringQualificationsAppService.scan(thresholdDays);
+        // §4.1.3.8：直接调通知编排，24h 去重保证不重复推送
+        qualificationExpiryNotificationService.runScan(thresholdDays, null);
     }
 
     private void dispatchDepositReturn() {
