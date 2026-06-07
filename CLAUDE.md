@@ -210,6 +210,18 @@ npm run test:e2e
     可调整：`WATCHDOG_BACKEND_MAX_FAILURES` 环境变量（默认 10）。
     **全局聚合**：`npm run agent:health-check` 会扫描所有 worktree 的 `.runtime/dev-services/` 并打印总体状况（每个 worktree 的 backend/frontend/sidecar 是否 ALIVE、最近一条 ERROR 行、fail-state 详情）。怀疑某个 worktree 在闷头重启时先跑一下这个。
 
+11. **直接 `mvn checkstyle:check` 不会走项目的 checkstyle 配置**
+    `backend/pom.xml` 中 `<configLocation>`、`<suppressionsLocation>` 等都放在 `<profile><id>java-quality</id>` 内部。不带 `-P` 直接跑 `mvn checkstyle:check` 会落到 plugin 默认值（`sun_checks.xml`、无 suppressions），扫全仓报 39k+ 错误，让人误以为项目配置 bug。
+    正确做法：永远带 `-Pjava-quality`，并按需附 `,quality-audit`（不阻断）或 `,quality-strict`（违规失败）：
+    ```bash
+    mvn -Pjava-quality -Dquality.skip=false \
+        -Dquality.includes="<pattern>" \
+        -Dquality.failOnViolation=false \
+        checkstyle:check
+    ```
+    调试实际加载的 config 用 `mvn -e -X -Pjava-quality checkstyle:check 2>&1 | grep configLocation`，应输出项目路径而不是 `sun_checks.xml`。
+    完整说明见 `backend/QUALITY_GATE_GUIDE.md` "踩坑提示" 小节。
+
 ## 路径提示
 
 - 前端业务代码：`src/`

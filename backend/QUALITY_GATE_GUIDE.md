@@ -127,6 +127,36 @@ mvn -Pjava-quality,java-quality-spotbugs,quality-audit checkstyle:check pmd:chec
 mvn -Pjava-quality,java-quality-spotbugs,quality-strict -DforkCount=0 test checkstyle:check pmd:check spotbugs:check
 ```
 
+## 踩坑提示（2026-06 新增）
+
+### ⚠️ 直接 `mvn checkstyle:check` 不走项目配置
+
+**问题**：直接调用 `mvn checkstyle:check`（不带 `-P` profile）会使用 maven-checkstyle-plugin 的**默认值**：
+- `configLocation = sun_checks.xml`（默认规则集，不是项目的 `config/checkstyle/checkstyle.xml`）
+- `suppressionsLocation = ${checkstyle.suppressions.location}`（默认空）
+- 全仓扫描，约 39k 违规
+
+**症状**：在终端看到 39329 个 Checkstyle 错误，让人误以为项目的 `config/checkstyle/suppressions.xml` 没生效、配置 bug 之类的。
+
+**真实情况**：项目的自定义 checkstyle 配置**只在 `<profile><id>java-quality</id>` 内部**，未激活 profile 时所有配置都不生效。
+
+**正确做法**：永远用 `-Pjava-quality` 激活：
+```bash
+mvn -Pjava-quality -Dquality.skip=false \
+    -Dquality.includes="<pattern>" \
+    -Dquality.failOnViolation=<true|false> \
+    checkstyle:check
+```
+
+也可以按需附加 `,quality-audit`（审计，不阻断）或 `,quality-strict`（严格，违规失败）。
+
+**调试时如果想看实际加载的 configLocation**：
+```bash
+mvn -e -X -Pjava-quality checkstyle:check 2>&1 | grep configLocation
+# 应输出 (f) configLocation = config/checkstyle/checkstyle.xml
+# 如果输出 (f) configLocation = sun_checks.xml 则说明 profile 未激活
+```
+
 ## CI 约定
 - 普通 PR：默认运行 `quality-audit`
 - 修改受保护范围或质量门禁配置的 PR：额外运行 `quality-strict`
