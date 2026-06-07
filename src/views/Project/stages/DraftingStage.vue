@@ -63,7 +63,7 @@
       </template>
 
       <!-- 标书审核人：驳回 + 审核通过 -->
-      <template v-if="(perm.canReviewBid || isAssignedReviewer) && reviewState === 'reviewing'">
+      <template v-if="(perm.canReviewBid || (isAssignedReviewer && !perm.canSubmitBidForReview)) && reviewState === 'reviewing'">
         <el-button type="danger" @click="handleReviewBid">驳回</el-button>
         <el-button type="success" :loading="reviewApproving" @click="confirmReviewBid('approve')">审核通过</el-button>
       </template>
