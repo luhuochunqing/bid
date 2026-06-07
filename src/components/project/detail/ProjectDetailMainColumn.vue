@@ -54,7 +54,7 @@
             :key="ctx.project.id"
             :project-id="ctx.project.id"
             @advanced="handleStageUpdated"
-            @switch-tab="(v) => { snapshotLock = true; activeStageTab = v; setTimeout(() => snapshotLock = false, 2000) }"
+            @switch-tab="handleSwitchTab"
           />
         </el-tab-pane>
         <el-tab-pane label="结果确认" name="RESULT_PENDING">
@@ -63,7 +63,7 @@
             :key="ctx.project.id"
             :project-id="ctx.project.id"
             @registered="handleStageUpdated"
-            @switch-tab="(v) => { snapshotLock = true; activeStageTab = v; setTimeout(() => snapshotLock = false, 2000) }"
+            @switch-tab="handleSwitchTab"
           />
         </el-tab-pane>
         <el-tab-pane label="项目复盘" name="RETROSPECTIVE">
@@ -168,6 +168,12 @@ function handleSnapshot(snapshot) {
   if (snapshot?.currentStage) {
     activeStageTab.value = snapshot.currentStage
   }
+}
+
+function handleSwitchTab(v) {
+  snapshotLock.value = true
+  activeStageTab.value = v
+  setTimeout(() => { snapshotLock.value = false }, 2000)
 }
 
 async function handleStageUpdated() {
