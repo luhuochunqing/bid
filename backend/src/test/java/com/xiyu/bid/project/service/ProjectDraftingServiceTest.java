@@ -135,4 +135,75 @@ class ProjectDraftingServiceTest {
         assertThat(view.getGateReady()).isFalse();
         assertThat(view.getIncompleteTaskCount()).isEqualTo(1);
     }
+
+    // ── submitBid 角色校验 ────────────────────────────────────────────────
+
+    private static com.xiyu.bid.entity.RoleProfile roleProfile(String code) {
+        return com.xiyu.bid.entity.RoleProfile.builder().code(code).build();
+    }
+
+    private com.xiyu.bid.entity.User mockUser(Long id, String roleProfileCode) {
+        return com.xiyu.bid.entity.User.builder()
+                .id(id)
+                .username("test-" + id)
+                .role(com.xiyu.bid.entity.User.Role.MANAGER)
+                .roleProfile(roleProfileCode != null ? roleProfile(roleProfileCode) : null)
+                .build();
+    }
+
+    private void prepareSubmitBidHappyPath() {
+        lenient().when(taskRepository.findByProjectId(1L)).thenReturn(List.of());
+        lenient().when(leadRepo.findByProjectId(1L)).thenReturn(Optional.empty());
+        lenient().when(projectStageService.currentStage(1L)).thenReturn(ProjectStage.DRAFTING);
+        lenient().when(bidReviewAppService.getReviewState(1L))
+                .thenReturn(new BidReviewAppService.ReviewState("APPROVED", null, null, null));
+    }
+
+    @Test
+    void submitBid_sales_allowed() {
+        prepareSubmitBidHappyPath();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "sales")));
+        var view = service.submitBid(1L, 1L);
+        assertThat(view).isNotNull();
+    }
+
+    @Test
+    void submitBid_bidAdmin_allowed() {
+        prepareSubmitBidHappyPath();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid_admin")));
+        var view = service.submitBid(1L, 1L);
+        assertThat(view).isNotNull();
+    }
+
+    @Test
+    void submitBid_bidLead_allowed() {
+        prepareSubmitBidHappyPath();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid_lead")));
+        var view = service.submitBid(1L, 1L);
+        assertThat(view).isNotNull();
+    }
+
+    @Test
+    void submitBid_auditor_denied_403() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "auditor")));
+        assertThatThrownBy(() -> service.submitBid(1L, 1L))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting("statusCode").isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void submitBid_taskExecutor_denied_403() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "task_executor")));
+        assertThatThrownBy(() -> service.submitBid(1L, 1L))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting("statusCode").isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void submitBid_noRoleProfile_denied_403() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, null)));
+        assertThatThrownBy(() -> service.submitBid(1L, 1L))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting("statusCode").isEqualTo(HttpStatus.FORBIDDEN);
+    }
 }
