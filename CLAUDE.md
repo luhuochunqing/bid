@@ -253,10 +253,12 @@ npm run test:e2e
 ```
 `sync-env.sh` 会自动完成：
 1. 同步 `.env.api` 等环境模板文件
-2. **main-forward rebase**：将 `agent/*/*` 任务分支 rebase 到最新的 `origin/main`
-   - 保护分支（`main`、`agent/*-init` 等）不做 rebase
-   - 有未提交变更时自动 stash → rebase → pop
-   - rebase 冲突时给出明确的手动解决指引
+2. **main-forward 同步**：将当前分支同步到最新的 `origin/main`
+   - 任务分支（`agent/*/*`）：自动 rebase
+   - init 分支（`agent/*-init`）：自动 ff-only 同步（锚点分支应与 main 保持一致）
+   - 保护分支（`main` 等）不做同步
+   - 有未提交变更时自动 stash → 同步 → pop
+   - 同步失败时给出明确的手动解决指引
    - 如遇 Flyway checksum 校验失败，可在 rebase 前手动 `rm -rf backend/target` 清理缓存
   - **创建新迁移文件前必须先运行 `scripts/next-migration-version.sh --reserve` 预约版本号**，防止并行开发时多人取了同一版本
 
@@ -369,7 +371,10 @@ Agent 必须使用包装脚本启动，以自动适配上述隔离端口：
 - 有改动 → 早暴露 conflict，不留给 merge 时再处理
 - `sync-env.sh` 内部已处理 `git fetch origin main` + `git rebase origin/main`，无需单独再跑
 
-> **注意**：早操 `sync-env.sh` 只在 `agent/*/*` 任务分支上执行 rebase。如果你意外地在 `*-init` 分支上操作，它会跳过 rebase 并打印提示 — 这是预期行为，说明你可能需要用 `agent-start-task.sh` 创建新的任务分支。
+> **注意**：`sync-env.sh` 对不同分支有不同的同步策略：
+> - 任务分支（`agent/*/*`）：自动 rebase
+> - init 分支（`agent/*-init`）：自动 ff-only 同步
+> - 保护分支（`main` 等）：跳过
 
 #### 5.1 主信号：git 事实（**所有 agent 通用，必跑**）
 开新任务前对你打算改的路径跑：
