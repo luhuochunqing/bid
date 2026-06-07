@@ -5,7 +5,9 @@ import com.xiyu.bid.dto.AdminUserDTO;
 import com.xiyu.bid.dto.AdminUserStatusUpdateRequest;
 import com.xiyu.bid.dto.AdminUserUpdateRequest;
 import com.xiyu.bid.dto.ApiResponse;
+import com.xiyu.bid.service.PaginatedResult;
 import com.xiyu.bid.dto.UserOrganizationUpdateRequest;
+import com.xiyu.bid.service.AdminUserQueryService;
 import com.xiyu.bid.service.AdminUserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +38,7 @@ public class AdminUserController {
     private static final String ADMIN_ONLY = "hasRole('ADMIN')";
 
     private final AdminUserService adminUserService;
+    private final AdminUserQueryService adminUserQueryService;
 
     @GetMapping
     @PreAuthorize(ADMIN_ONLY)
@@ -45,13 +48,13 @@ public class AdminUserController {
 
     @GetMapping("/page")
     @PreAuthorize(ADMIN_ONLY)
-    public ResponseEntity<ApiResponse<AdminUserService.PaginatedResult<AdminUserDTO>>> listUsersPage(
+    public ResponseEntity<ApiResponse<PaginatedResult<AdminUserDTO>>> listUsersPage(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Boolean enabled,
             @RequestParam(required = false) String departmentCode) {
-        AdminUserService.PaginatedResult<AdminUserDTO> result = adminUserService.listUsersPage(
+        PaginatedResult<AdminUserDTO> result = adminUserQueryService.listUsersPage(
                 page, size, keyword, enabled, departmentCode);
         return ResponseEntity.ok(ApiResponse.success("查询成功", result));
     }

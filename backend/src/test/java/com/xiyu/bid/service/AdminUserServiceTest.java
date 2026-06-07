@@ -1,14 +1,17 @@
 package com.xiyu.bid.service;
 
 import com.xiyu.bid.admin.service.DataScopeConfigService;
+import com.xiyu.bid.service.AdminUserQueryService;
 import com.xiyu.bid.admin.settings.core.DepartmentGraphPolicy;
 import com.xiyu.bid.dto.UserOrganizationUpdateRequest;
+import com.xiyu.bid.dto.AdminUserDTO;
 import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import static org.mockito.ArgumentMatchers.any;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -34,12 +37,31 @@ class AdminUserServiceTest {
 
     @Mock
     private DataScopeConfigService dataScopeConfigService;
+    @Mock
+    private AdminUserQueryService adminUserQueryService;
 
     private AdminUserService service;
 
     @BeforeEach
     void setUp() {
-        service = new AdminUserService(userRepository, passwordEncoder, roleProfileService, dataScopeConfigService);
+        service = new AdminUserService(userRepository, passwordEncoder, roleProfileService, dataScopeConfigService, adminUserQueryService);
+        org.mockito.Mockito.lenient().when(adminUserQueryService.toDto(any())).thenAnswer(invocation -> {
+            User u = invocation.getArgument(0);
+            return AdminUserDTO.builder()
+                    .id(u.getId())
+                    .username(u.getUsername())
+                    .fullName(u.getFullName())
+                    .email(u.getEmail())
+                    .phone(u.getPhone())
+                    .departmentCode(u.getDepartmentCode())
+                    .departmentName(u.getDepartmentName())
+                    .roleId(u.getRoleProfile() == null ? null : u.getRoleProfile().getId())
+                    .roleCode(u.getRoleCode())
+                    .roleName(u.getRoleName())
+                    .enabled(Boolean.TRUE.equals(u.getEnabled()))
+                    .externalOrgUserId(u.getExternalOrgUserId())
+                    .build();
+        });
     }
 
     @Test

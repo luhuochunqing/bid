@@ -20,8 +20,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.util.List;
+
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -39,70 +39,15 @@ public class AdminUserService {
     private final PasswordEncoder passwordEncoder;
     private final RoleProfileService roleProfileService;
     private final DataScopeConfigService dataScopeConfigService;
+    private final AdminUserQueryService adminUserQueryService;
 
     public List<AdminUserDTO> listUsers() {
         return userRepository.findAll().stream()
                 .sorted((left, right) -> String.CASE_INSENSITIVE_ORDER.compare(left.getUsername(), right.getUsername()))
-                .map(this::toDto)
+                .map(adminUserQueryService::toDto)
                 .toList();
     }
 
-    /**
-     * 分页查询用户列表。
-     *
-     * @param page           页码（从 1 开始）
-     * @param size           每页大小
-     * @param keyword        搜索关键词（匹配姓名/用户名/邮箱）
-     * @param enabled        启用状态筛选（null 表示全部）
-     * @param departmentCode 部门编码筛选（null 或空表示全部）
-     * @return 分页结果
-     */
-    public PaginatedResult<AdminUserDTO> listUsersPage(int page, int size, String keyword,
-                                                        Boolean enabled, String departmentCode) {
-        java.util.stream.Stream<User> stream = userRepository.findAll().stream();
-
-        // 关键词搜索
-        if (keyword != null && !keyword.isBlank()) {
-            String kw = keyword.trim().toLowerCase(java.util.Locale.ROOT);
-            stream = stream.filter(u ->
-                u.getFullName() != null && u.getFullName().toLowerCase(java.util.Locale.ROOT).contains(kw)
-                || u.getUsername() != null && u.getUsername().toLowerCase(java.util.Locale.ROOT).contains(kw)
-                || u.getEmail() != null && u.getEmail().toLowerCase(java.util.Locale.ROOT).contains(kw)
-                || u.getPhone() != null && u.getPhone().contains(kw)
-            );
-        }
-
-        // 状态筛选
-        if (enabled != null) {
-            stream = stream.filter(u -> java.util.Objects.equals(u.getEnabled(), enabled));
-        }
-
-        // 部门筛选
-        if (departmentCode != null && !departmentCode.isBlank()) {
-            stream = stream.filter(u -> departmentCode.equals(u.getDepartmentCode()));
-        }
-
-        List<AdminUserDTO> all = stream
-                .sorted((left, right) -> String.CASE_INSENSITIVE_ORDER.compare(left.getUsername(), right.getUsername()))
-                .map(this::toDto)
-                .toList();
-
-        int total = all.size();
-        if (page < 1) page = 1;
-        if (size < 1) size = 10;
-        int startIndex = (page - 1) * size;
-        int endIndex = Math.min(startIndex + size, total);
-        List<AdminUserDTO> list = startIndex >= total
-                ? java.util.Collections.emptyList()
-                : all.subList(startIndex, endIndex);
-
-        return new PaginatedResult<>(list, total, page, size);
-    }
-
-    /**
-     * 分页查询结果。
-     */
-    public record PaginatedResult<T>(List<T> list, int totalCount, int pageIndex, int pageSize) {}
 
 
     @Transactional
@@ -130,7 +75,7 @@ public class AdminUserService {
 
         User savedUser = userRepository.save(user);
         log.info("Admin created user: {}", savedUser.getUsername());
-        return toDto(savedUser);
+        return adminUserQueryService.toDto(savedUser);
     }
 
     @Transactional
@@ -160,7 +105,7 @@ public class AdminUserService {
 
         User savedUser = userRepository.save(user);
         log.info("Admin updated user: {}", savedUser.getUsername());
-        return toDto(savedUser);
+        return adminUserQueryService.toDto(savedUser);
     }
 
     @Transactional
@@ -173,7 +118,7 @@ public class AdminUserService {
         user.setEnabled(enabled);
         User savedUser = userRepository.save(user);
         log.info("Admin updated user status: {} -> {}", savedUser.getUsername(), enabled);
-        return toDto(savedUser);
+        return adminUserQueryService.toDto(savedUser);
     }
 
     @Transactional
@@ -201,7 +146,7 @@ public class AdminUserService {
         user.setDepartmentName(deptNameByCode.get(departmentCode));
         user.setEnabled(enabled);
         applyRole(user, nextRoleProfile);
-        return toDto(userRepository.save(user));
+        return adminUserQueryService.toDto(userRepository.save(user));
     }
 
     @Transactional
@@ -290,22 +235,4 @@ public class AdminUserService {
         return sanitize(value, 32);
     }
 
-    public AdminUserDTO toDto(User user) {
-        return AdminUserDTO.builder()
-                .id(user.getId())
-                .username(user.getUsername())
-                .fullName(user.getFullName())
-                .email(user.getEmail())
-                .phone(user.getPhone())
-                .departmentCode(user.getDepartmentCode())
-                .departmentName(user.getDepartmentName())
-                .roleId(user.getRoleProfile() == null ? null : user.getRoleProfile().getId())
-                .roleCode(user.getRoleCode())
-                .roleName(user.getRoleName())
-                .enabled(Boolean.TRUE.equals(user.getEnabled()))
-                .externalOrgUserId(user.getExternalOrgUserId())
-                .createdAt(user.getCreatedAt())
-                .updatedAt(user.getUpdatedAt())
-                .build();
-    }
 }
