@@ -58,15 +58,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String jwt = extractJwtFromRequest(request);
 
             if (StringUtils.hasText(jwt) && jwtUtil.validateToken(jwt, jwtUtil.extractUsername(jwt))) {
-                String jti = jwtUtil.extractJti(jwt);
                 TokenRevocationService revocation = tokenRevocationServiceProvider.getIfAvailable();
-                if (jti != null && revocation != null && revocation.isRevoked(jti)) {
-                    log.debug("Rejecting revoked JWT (jti={})", jti);
+                if (revocation != null) {
+                    String jti = jwtUtil.extractJti(jwt).orElse(null);
+                    if (jti != null && revocation.isRevoked(jti)) {
+                        log.debug("Rejecting revoked JWT (jti={})", jti);
+                    } else {
+                        String username = jwtUtil.extractUsername(jwt);
+                        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                        UsernamePasswordAuthenticationToken authentication =
+                                new UsernamePasswordAuthenticationToken(
+                                        userDetails,
+                                        null,
+                                        userDetails.getAuthorities()
+                                );
+                        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                        log.debug("Set authentication for user: {}", username);
+                    }
                 } else {
                     String username = jwtUtil.extractUsername(jwt);
-
                     UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(
                                     userDetails,
@@ -74,7 +86,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     userDetails.getAuthorities()
                             );
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                     log.debug("Set authentication for user: {}", username);
                 }

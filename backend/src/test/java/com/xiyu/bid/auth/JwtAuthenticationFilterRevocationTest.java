@@ -14,6 +14,7 @@ import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collections;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -60,7 +61,7 @@ class JwtAuthenticationFilterRevocationTest {
         when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
         when(jwtUtil.extractUsername(token)).thenReturn("alice");
         when(jwtUtil.validateToken(token, "alice")).thenReturn(true);
-        when(jwtUtil.extractJti(token)).thenReturn("jti-revoked");
+        when(jwtUtil.extractJti(token)).thenReturn(Optional.of("jti-revoked"));
         when(tokenRevocationService.isRevoked("jti-revoked")).thenReturn(true);
 
         filter.doFilterInternal(request, response, chain);
@@ -76,7 +77,7 @@ class JwtAuthenticationFilterRevocationTest {
         when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
         when(jwtUtil.extractUsername(token)).thenReturn("alice");
         when(jwtUtil.validateToken(token, "alice")).thenReturn(true);
-        when(jwtUtil.extractJti(token)).thenReturn("jti-live");
+        when(jwtUtil.extractJti(token)).thenReturn(Optional.of("jti-live"));
         when(tokenRevocationService.isRevoked("jti-live")).thenReturn(false);
         UserDetails userDetails = new User("alice", "x", Collections.emptyList());
         when(userDetailsService.loadUserByUsername("alice")).thenReturn(userDetails);
@@ -94,7 +95,7 @@ class JwtAuthenticationFilterRevocationTest {
         when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
         when(jwtUtil.extractUsername(token)).thenReturn("alice");
         when(jwtUtil.validateToken(token, "alice")).thenReturn(true);
-        when(jwtUtil.extractJti(token)).thenReturn(null);
+        when(jwtUtil.extractJti(token)).thenReturn(Optional.empty());
         UserDetails userDetails = new User("alice", "x", Collections.emptyList());
         when(userDetailsService.loadUserByUsername("alice")).thenReturn(userDetails);
 
