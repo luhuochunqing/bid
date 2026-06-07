@@ -1,0 +1,8 @@
+version: 1
+locks:
+  - path: "AGENTS.md"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/codex/persist-worktree-flow"
+    reason: "SOP: 两级 Worktree 策略文档更新"
+    task: "persist-worktree-flow"

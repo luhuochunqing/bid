@@ -15,7 +15,7 @@
 | `manage-agent-locks.mjs` | 管理脚本 | 通过 `agent:lock-acquire` / `agent:lock-release` 命令化登记和释放当前任务分支的文件锁，避免手写锁字段 |
 | `check-line-budgets.mjs` | 门禁脚本 | 对核心源码目录执行 300 行棘轮门禁：默认检查当前工作区；pre-commit 走 staged，CI 走显式 diff 范围 |
 | `check-version-sync.mjs` | 门禁脚本 | 校验根目录 `VERSION`、`package.json` 与 `backend/pom.xml` 是否保持一致 |
-| `agent-start-task.sh` | 工作区初始化脚本 | 为指定 Agent 创建独立 worktree、`agent/<name>/<task>` 任务分支和本地 `.agent-task-context`（含 `--touch` 预检路径记录），创建前可通过 `--touch` 触发 `who-touches.sh` 预检，自动执行 `sync-env.sh .`、安装 hooks、以离线优先方式安装 node 依赖，并支持通过 `--lock` / `--lock-dir` 批量登记初始文件锁，以及通过 `--push` 自动首推远端分支；无论真实执行还是 `--dry-run`，都会输出基于 touch/lock/push 状态的摘要和下一步提示，避免在默认工作区开发 |
+| `agent-start-task.sh` | 工作区初始化脚本 | 为指定 Agent 创建任务分支和本地 `.agent-task-context`（含 `--touch` 预检路径记录）；支持**两种模式**：（1）传统模式：创建独立 worktree 并完整初始化；（2）`--in-place` 模式：在 Agent 持久 worktree 内直接切分支，跳过 worktree 创建（适合串行小任务）。创建前可通过 `--touch` 触发 `who-touches.sh` 预检，自动执行 sync-env、安装 hooks、以离线优先方式安装 node 依赖，并支持通过 `--lock` / `--lock-dir` 批量登记初始文件锁，以及通过 `--push` 自动首推远端分支；无论真实执行还是 `--dry-run`，都会输出基于 touch/lock/push 状态的摘要和下一步提示，避免在默认工作区开发 |
 | `agent-dev.sh` | 启动脚本 | 多 Agent 本地服务统一入口：自动识别当前 worktree 的前端、后端、sidecar 端口、数据库、Redis DB 和 launchd label，并提供 `morning/up/restart/status/logs/stop` 一键命令 |
 | `agent-worktree-guard.sh` | 提交门禁脚本 | 阻止在 `main`、`agent/*-init`、共享 Agent bootstrap worktree 或缺少任务上下文的 worktree 中提交 |
 | `line-budget.config.json` | 配置文件 | 声明 300 行门禁的纳入目录、文件类型与排除规则，供 pre-commit 与 CI 共用 |
