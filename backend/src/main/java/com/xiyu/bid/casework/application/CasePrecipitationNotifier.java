@@ -17,11 +17,12 @@ class CasePrecipitationNotifier {
 
     private final NotificationApplicationService notificationApplicationService;
 
-    void notifySuccess(Long projectId, String projectName, int count, long durationMs, Project project) {
+    void notifySuccess(Long projectId, String projectName, int count, long durationMs, Project project, Long triggerUserId) {
         try {
-            Long recipientId = project != null ? project.getManagerId() : null;
+            Long recipientId = resolveRecipient(project, triggerUserId);
             if (recipientId == null) {
-                log.info("No managerId for project {}, skip case precipitation notification", projectId);
+                log.info("No recipient for project {} (triggerUserId={}, managerId={}), skip case precipitation notification",
+                        projectId, triggerUserId, project != null ? project.getManagerId() : null);
                 return;
             }
             String duration = formatDuration(durationMs);
@@ -35,17 +36,19 @@ class CasePrecipitationNotifier {
             notificationApplicationService.createNotification(
                     new CreateNotificationRequest("SYSTEM", "PROJECT", projectId, title, body, payload,
                             List.of(recipientId)), recipientId);
-            log.info("Case precipitation success notification sent to user {} for project {}", recipientId, projectId);
+            log.info("Case precipitation success notification sent to user {} for project {} (triggerUserId={})",
+                    recipientId, projectId, triggerUserId);
         } catch (RuntimeException e) {
             log.error("Failed to send case precipitation success notification for project {}", projectId, e);
         }
     }
 
-    void notifyFailure(Long projectId, String projectName, String reason, Project project) {
+    void notifyFailure(Long projectId, String projectName, String reason, Project project, Long triggerUserId) {
         try {
-            Long recipientId = project != null ? project.getManagerId() : null;
+            Long recipientId = resolveRecipient(project, triggerUserId);
             if (recipientId == null) {
-                log.info("No managerId for project {}, skip case precipitation notification", projectId);
+                log.info("No recipient for project {} (triggerUserId={}, managerId={}), skip case precipitation notification",
+                        projectId, triggerUserId, project != null ? project.getManagerId() : null);
                 return;
             }
             String title = "AI 生成案例失败";
@@ -57,10 +60,21 @@ class CasePrecipitationNotifier {
             notificationApplicationService.createNotification(
                     new CreateNotificationRequest("SYSTEM", "PROJECT", projectId, title, body, payload,
                             List.of(recipientId)), recipientId);
-            log.info("Case precipitation failure notification sent to user {} for project {}", recipientId, projectId);
+            log.info("Case precipitation failure notification sent to user {} for project {} (triggerUserId={})",
+                    recipientId, projectId, triggerUserId);
         } catch (RuntimeException e) {
             log.error("Failed to send case precipitation failure notification for project {}", projectId, e);
         }
+    }
+
+    /**
+     * 解析收件人：优先用 triggerUserId（手动触发路径会带），fallback 用 project.managerId。
+     */
+    private Long resolveRecipient(Project project, Long triggerUserId) {
+        if (triggerUserId != null) {
+            return triggerUserId;
+        }
+        return project != null ? project.getManagerId() : null;
     }
 
     private static String formatDuration(long ms) {

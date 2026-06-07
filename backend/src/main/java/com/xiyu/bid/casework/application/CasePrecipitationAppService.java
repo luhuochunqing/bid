@@ -4,11 +4,13 @@ import com.xiyu.bid.casework.infrastructure.ArchiveFile;
 import com.xiyu.bid.casework.infrastructure.ArchiveFileRepository;
 import com.xiyu.bid.casework.infrastructure.ProjectArchive;
 import com.xiyu.bid.casework.infrastructure.ProjectArchiveRepository;
+import com.xiyu.bid.entity.User;
 import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.service.ProjectStageService;
 import com.xiyu.bid.projectworkflow.entity.ProjectScoreDraft;
 import com.xiyu.bid.projectworkflow.repository.ProjectScoreDraftRepository;
 import com.xiyu.bid.repository.ProjectRepository;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.entity.Project;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +44,7 @@ public class CasePrecipitationAppService {
     private final ProjectRepository projectRepository;
     private final ProjectStageService projectStageService;
     private final ApplicationEventPublisher eventPublisher;
+    private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
     /**
@@ -105,8 +108,22 @@ public class CasePrecipitationAppService {
             throw new IllegalArgumentException(reason);
         }
         Project project = projectRepository.findById(projectId).orElseThrow();
-        log.info("Manual case precipitation triggered for project: {} ({})", projectId, project.getName());
-        eventPublisher.publishEvent(new ProjectClosedEvent(this, projectId, project.getName()));
+        // 蓝图 4.1.2：手动触发时把当前用户塞进事件，让异步完成通知送达"任务发起人"。
+        Long triggerUserId = resolveCurrentUserId();
+        log.info("Manual case precipitation triggered for project: {} ({}) by user {}",
+                projectId, project.getName(), triggerUserId);
+        eventPublisher.publishEvent(new ProjectClosedEvent(this, projectId, project.getName(), triggerUserId));
+    }
+
+    private Long resolveCurrentUserId() {
+        org.springframework.security.core.Authentication auth =
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth.getName() == null) {
+            return null;
+        }
+        return userRepository.findByUsername(auth.getName())
+                .map(User::getId)
+                .orElse(null);
     }
 
     /**

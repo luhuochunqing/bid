@@ -121,6 +121,10 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
                 .category(qualification.category())
                 .certificateNo(qualification.certificateNo())
                 .issuer(qualification.issuer())
+                .agency(qualification.agency())
+                .agencyContact(qualification.agencyContact())
+                .certScope(qualification.certScope())
+                .certReviewNote(qualification.certReviewNote())
                 .holderName(qualification.holderName())
                 .issueDate(qualification.validityPeriod().getIssueDate())
                 .expiryDate(qualification.validityPeriod().getExpiryDate())
@@ -146,6 +150,10 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
                 entity.getCategory(),
                 entity.getCertificateNo(),
                 entity.getIssuer(),
+                entity.getAgency(),
+                entity.getAgencyContact(),
+                entity.getCertScope(),
+                entity.getCertReviewNote(),
                 entity.getHolderName(),
                 new ValidityPeriod(entity.getIssueDate(), entity.getExpiryDate()),
                 new ReminderPolicy(

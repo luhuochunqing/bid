@@ -87,7 +87,7 @@ class ProjectClosedEventListenerTest {
 
         listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
 
-        verify(notifier, times(1)).notifyFailure(anyLong(), any(), any(), any());
+        verify(notifier, times(1)).notifyFailure(anyLong(), any(), any(), any(), any());
         verify(knowledgeCaseRepository, never()).saveAll(any());
     }
 
@@ -104,7 +104,7 @@ class ProjectClosedEventListenerTest {
 
         listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
 
-        verify(notifier, times(1)).notifyFailure(anyLong(), any(), any(), any());
+        verify(notifier, times(1)).notifyFailure(anyLong(), any(), any(), any(), any());
         verify(knowledgeCaseRepository, never()).saveAll(any());
     }
 
@@ -145,7 +145,7 @@ class ProjectClosedEventListenerTest {
         assertThat(saved.get(0).getResponseText()).isEqualTo("技术方案证明片段");
         assertThat(saved.get(0).getStatus()).isEqualTo("ACTIVE");
         assertThat(saved.get(0).getScoringCategory()).isIn("技术", "商务");
-        verify(notifier, times(1)).notifySuccess(anyLong(), any(), anyInt(), anyLong(), any());
+        verify(notifier, times(1)).notifySuccess(anyLong(), any(), anyInt(), anyLong(), any(), any());
     }
 
     @Test
@@ -238,7 +238,7 @@ class ProjectClosedEventListenerTest {
         // 不应抛异常
         listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
 
-        verify(notifier, times(1)).notifyFailure(anyLong(), any(), any(), any());
+        verify(notifier, times(1)).notifyFailure(anyLong(), any(), any(), any(), any());
     }
 
     private Project project(Long id, Long managerId, String name) {

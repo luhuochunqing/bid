@@ -33,6 +33,10 @@ public class QualificationDTO {
     private String fileUrl;
     private String certificateNo;
     private String issuer;
+    private String agency;
+    private String agencyContact;
+    private String certScope;
+    private String certReviewNote;
     private String holder;
     private String holderName;
     private String remark;

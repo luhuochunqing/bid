@@ -90,6 +90,16 @@
 
     <QualFormDialog v-model="formVisible" :initial-data="editData" @saved="fetchQualifications" />
     <AlertConfigDialog v-model="alertConfigVisible" />
+    <QualDetailDrawer
+      v-model="detailDrawerVisible"
+      :qualification="detailQualification"
+      :attachments="detailAttachments"
+      :can-manage="canManageQualification"
+      @edit="handleDetailEdit"
+      @retire="handleDetailRetire"
+      @restore="handleDetailRestore"
+      @download="handleDetailDownload"
+    />
     <QualificationBorrowDialog
       v-model="borrowApplyDialogVisible"
       :form="borrowForm"
@@ -126,6 +136,7 @@ import {
   useQualificationBorrowSection,
   useQualificationPermissionMatrix
 } from './components/qualification/useQualificationBorrowSection.js'
+import QualDetailDrawer from './components/qualification/QualDetailDrawer.vue'
 
 const userStore = useUserStore()
 const qualificationStore = useQualificationStore()
@@ -181,8 +192,8 @@ const fetchQualifications = async () => {
     if (filters.expiryRange) { q.set('expiringFrom', filters.expiryRange[0]); q.set('expiringTo', filters.expiryRange[1]) }
     if (filters.statuses.length) filters.statuses.forEach(s => q.append('status', s))
     q.set('page', page.value-1); q.set('size', pageSize.value)
-    const { data } = await http.get(`/api/knowledge/qualifications?${q.toString()}`)
-    if (data.code === 200) { qualifications.value = data.data?.content || data.data || []; total.value = data.data?.totalElements || qualifications.value.length }
+    const body = await http.get(`/api/knowledge/qualifications?${q.toString()}`)
+    if (body?.code === 200) { qualifications.value = body.data?.content || body.data || []; total.value = body.data?.totalElements || qualifications.value.length }
   } catch { ElMessage.error('加载失败') }
   finally { loading.value = false }
 }
@@ -191,7 +202,7 @@ const resetFilters = () => { Object.assign(filters, { keyword:'', issuer:'', exp
 const getStatusTagType = (row) => { const s = row.status || ''; if (s === 'IN_STOCK' || s === 'VALID') return 'success'; if (s === 'EXPIRING') return 'warning'; if (s === 'EXPIRED') return 'danger'; return 'info' }
 const getBorrowStatusTagType = (status) => borrowStatusTagTypes[status] || 'info'
 const statusLabel = (s) => STATUS_LABELS[s] || s || '—'
-const handleRowClick = () => {}
+const handleRowClick = (row) => { if (row) openDetailDrawer(row) }
 const openEdit = (row) => { editData.value = row; formVisible.value = true }
 const handleRetire = async (row) => {
   try {
@@ -206,6 +217,20 @@ const handleRestore = async (row) => {
     ElMessage.success('已恢复'); fetchQualifications()
   } catch { /* cancelled */ }
 }
+
+// 4.1.3.6 资质详情抽屉
+const detailDrawerVisible = ref(false)
+const detailQualification = ref(null)
+const detailAttachments = ref([])
+const openDetailDrawer = (row) => {
+  detailQualification.value = row
+  detailAttachments.value = Array.isArray(row?.attachments) ? row.attachments : []
+  detailDrawerVisible.value = true
+}
+const handleDetailEdit = (row) => { detailDrawerVisible.value = false; openEdit(row) }
+const handleDetailRetire = (row) => { detailDrawerVisible.value = false; handleRetire(row) }
+const handleDetailRestore = (row) => { detailDrawerVisible.value = false; handleRestore(row) }
+const handleDetailDownload = (att) => { ElMessage.success(`已下载：${att.fileName || '附件'}`) }
 onMounted(async () => {
   await fetchQualifications()
   await loadBorrowRecords()

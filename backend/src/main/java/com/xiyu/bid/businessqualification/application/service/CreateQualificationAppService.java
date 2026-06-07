@@ -35,6 +35,10 @@ public class CreateQualificationAppService {
                 command.getCategory(),
                 command.getCertificateNo(),
                 command.getIssuer(),
+                command.getAgency(),
+                command.getAgencyContact(),
+                command.getCertScope(),
+                command.getCertReviewNote(),
                 command.getHolderName(),
                 new ValidityPeriod(command.getIssueDate(), command.getExpiryDate()),
                 new ReminderPolicy(

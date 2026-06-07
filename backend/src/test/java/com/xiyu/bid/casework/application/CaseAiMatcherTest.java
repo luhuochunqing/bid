@@ -11,6 +11,7 @@ import org.springframework.web.client.RestTemplate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -24,7 +25,7 @@ import static org.mockito.Mockito.when;
  *
  * <p>核心 AI 切片逻辑：评分项 → 标书应答片段的配对集。验证两个分支：
  * <ol>
- *   <li>无 AI 配置（resolveActiveConfig 抛异常）→ Mock 降级分支返回模板片段</li>
+ *   <li>无 AI 配置（resolveActiveConfig 抛异常 / 返回 null）→ 必须抛 IllegalStateException，禁用 Mock 降级</li>
  *   <li>extractCategory 智能打标：技术/商务/实施服务/资质业绩 分类</li>
  * </ol>
  */
@@ -44,29 +45,38 @@ class CaseAiMatcherTest {
     }
 
     @Test
-    @DisplayName("无 AI 配置时走 Mock 降级，每个评分项生成模板证明片段")
-    void extractSlices_mockFallback() {
+    @DisplayName("无 AI 配置时 throw IllegalStateException — 禁止 Mock 降级硬编码")
+    void extractSlices_throwsWhenNoProvider() {
         when(routingAiProvider.resolveActiveConfig())
                 .thenThrow(new IllegalStateException("AI disabled"));
 
         ProjectScoreDraft tech = draft(101L, "技术方案", "要求提供技术架构图");
         ProjectScoreDraft biz = draft(102L, "商务条款", "要求提供报价明细");
 
-        List<CaseAiMatcher.AiMatchedSlice> slices =
-                caseAiMatcher.extractSlicesWithAi("## 标书内容", List.of(tech, biz));
-
-        assertThat(slices).hasSize(2);
-        assertThat(slices).extracting(CaseAiMatcher.AiMatchedSlice::getDraftId)
-                .containsExactly(101L, 102L);
-        assertThat(slices.get(0).getMatchedSnippet()).contains("Mock证明材料");
-        assertThat(slices.get(0).getConfidence()).isEqualTo(0.92);
+        assertThatThrownBy(() -> caseAiMatcher.extractSlicesWithAi("## 标书内容", List.of(tech, biz)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("AI Provider")
+                .hasMessageContaining("启用");
         verify(routingAiProvider, times(1)).resolveActiveConfig();
-        // 实际只调用一次但 should never use restTemplate
         verify(restTemplate, never()).exchange(anyString(), any(), any(), any(Class.class));
     }
 
     @Test
-    @DisplayName("空评分项列表直接返回空配对集（Mock 降级）")
+    @DisplayName("resolveActiveConfig 返回 null 时也必须 throw — 禁用 Mock 降级")
+    void extractSlices_throwsWhenConfigNull() {
+        when(routingAiProvider.resolveActiveConfig()).thenReturn(null);
+
+        ProjectScoreDraft tech = draft(101L, "技术方案", "要求提供技术架构图");
+
+        assertThatThrownBy(() -> caseAiMatcher.extractSlicesWithAi("## 标书内容", List.of(tech)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("AI Provider")
+                .hasMessageContaining("启用");
+        verify(restTemplate, never()).exchange(anyString(), any(), any(), any(Class.class));
+    }
+
+    @Test
+    @DisplayName("空评分项列表直接返回空配对集（无需 throw）")
     void extractSlices_emptyDrafts() {
         when(routingAiProvider.resolveActiveConfig())
                 .thenThrow(new IllegalStateException("AI disabled"));

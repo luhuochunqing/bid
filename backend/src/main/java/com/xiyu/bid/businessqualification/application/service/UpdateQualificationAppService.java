@@ -47,6 +47,10 @@ public class UpdateQualificationAppService {
                 command.getCategory() == null ? existing.category() : command.getCategory(),
                 command.getCertificateNo() == null ? existing.certificateNo() : command.getCertificateNo(),
                 command.getIssuer() == null ? existing.issuer() : command.getIssuer(),
+                command.getAgency() == null ? existing.agency() : command.getAgency(),
+                command.getAgencyContact() == null ? existing.agencyContact() : command.getAgencyContact(),
+                command.getCertScope() == null ? existing.certScope() : command.getCertScope(),
+                command.getCertReviewNote() == null ? existing.certReviewNote() : command.getCertReviewNote(),
                 command.getHolderName() == null ? existing.holderName() : command.getHolderName(),
                 new ValidityPeriod(
                         command.getIssueDate() == null ? existing.validityPeriod().getIssueDate() : command.getIssueDate(),

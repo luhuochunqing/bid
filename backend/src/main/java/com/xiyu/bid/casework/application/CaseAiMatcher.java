@@ -30,23 +30,20 @@ class CaseAiMatcher {
     private final ObjectMapper objectMapper;
 
     public List<AiMatchedSlice> extractSlicesWithAi(String markdown, List<ProjectScoreDraft> drafts) {
+        if (drafts == null || drafts.isEmpty()) {
+            // 没有评分项时无需 AI 提取；前置条件层（Listener）已对外承诺 0 cases 也算成功。
+            return List.of();
+        }
         List<AiMatchedSlice> result = new ArrayList<>();
-        AiProviderRuntimeConfig config = null;
+        AiProviderRuntimeConfig config;
         try {
             config = routingAiProvider.resolveActiveConfig();
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException ex) {
+            throw new IllegalStateException("AI 案例沉淀失败：未配置可用的 AI Provider，请联系管理员在 AI 管理页面启用。", ex);
         }
 
         if (config == null) {
-            // Mock 降级
-            for (ProjectScoreDraft draft : drafts) {
-                AiMatchedSlice slice = new AiMatchedSlice();
-                slice.setDraftId(draft.getId());
-                slice.setMatchedSnippet(String.format("【Mock证明材料】针对评分项 [%s]，证明王工有5年以上研发管理经验，拥有高级职称，参与过相似项目。", draft.getScoreItemTitle()));
-                slice.setConfidence(0.92);
-                result.add(slice);
-            }
-            return result;
+            throw new IllegalStateException("AI 案例沉淀失败：当前未启用任何 AI Provider，请联系管理员在 AI 管理页面启用。");
         }
 
         // 调用大模型
@@ -98,15 +95,8 @@ class CaseAiMatcher {
                 }
             }
         } catch (RuntimeException | com.fasterxml.jackson.core.JsonProcessingException e) {
-            log.error("AI extraction failed, falling back to mock", e);
-            // 降级兜底
-            for (ProjectScoreDraft draft : drafts) {
-                AiMatchedSlice slice = new AiMatchedSlice();
-                slice.setDraftId(draft.getId());
-                slice.setMatchedSnippet("AI提取失败兜底：匹配评分项 " + draft.getScoreItemTitle());
-                slice.setConfidence(0.8);
-                result.add(slice);
-            }
+            // AI 真实调用失败时直接抛错；Listener 统一发"AI 沉淀失败"通知给触发者，禁止伪造证明片段入库。
+            throw new IllegalStateException("AI 案例沉淀失败：大模型调用失败，原因：" + e.getMessage(), e);
         }
         return result;
     }

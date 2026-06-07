@@ -15,6 +15,9 @@ export const auditApi = {
   async getLogs(params = {}) {
     return httpClient.get('/api/audit', { params })
   },
+  async getQualificationLogs(qualificationId) {
+    return httpClient.get(`/api/qualifications/${qualificationId}/audit-logs`)
+  }
 }
 
 export default auditApi

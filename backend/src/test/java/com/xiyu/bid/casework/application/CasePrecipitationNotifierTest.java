@@ -43,7 +43,7 @@ class CasePrecipitationNotifierTest {
     void notifySuccess_withProject() {
         Project project = projectWithManager(7L);
 
-        notifier.notifySuccess(1L, "E2E 项目", 5, 2300L, project);
+        notifier.notifySuccess(1L, "E2E 项目", 5, 2300L, project, null);
 
         ArgumentCaptor<CreateNotificationRequest> captor = ArgumentCaptor.forClass(CreateNotificationRequest.class);
         verify(notificationAppService, times(1)).createNotification(captor.capture(), anyLong());
@@ -61,7 +61,7 @@ class CasePrecipitationNotifierTest {
     @Test
     @DisplayName("成功通知 — project 为 null 时跳过，不调用 notificationAppService")
     void notifySuccess_nullProject() {
-        notifier.notifySuccess(1L, "无主项目", 3, 100L, null);
+        notifier.notifySuccess(1L, "无主项目", 3, 100L, null, null);
         verify(notificationAppService, never()).createNotification(any(), anyLong());
     }
 
@@ -69,8 +69,20 @@ class CasePrecipitationNotifierTest {
     @DisplayName("成功通知 — managerId 为 null 时跳过")
     void notifySuccess_nullManagerId() {
         Project project = new Project();
-        notifier.notifySuccess(1L, "无主项目", 3, 100L, project);
+        notifier.notifySuccess(1L, "无主项目", 3, 100L, project, null);
         verify(notificationAppService, never()).createNotification(any(), anyLong());
+    }
+
+    @Test
+    @DisplayName("成功通知 — 显式 triggerUserId 优先于 managerId（手动触发路径）")
+    void notifySuccess_triggerUserIdOverridesManager() {
+        Project project = projectWithManager(11L);
+
+        notifier.notifySuccess(1L, "E2E 项目", 5, 100L, project, 42L);
+
+        ArgumentCaptor<Long> recipientCaptor = ArgumentCaptor.forClass(Long.class);
+        verify(notificationAppService, times(1)).createNotification(any(), recipientCaptor.capture());
+        assertThat(recipientCaptor.getValue()).isEqualTo(42L);
     }
 
     @Test
@@ -78,7 +90,7 @@ class CasePrecipitationNotifierTest {
     void notifyFailure_withProject() {
         Project project = projectWithManager(11L);
 
-        notifier.notifyFailure(1L, "E2E 项目", "缺少标书文件", project);
+        notifier.notifyFailure(1L, "E2E 项目", "缺少标书文件", project, null);
 
         ArgumentCaptor<CreateNotificationRequest> captor = ArgumentCaptor.forClass(CreateNotificationRequest.class);
         verify(notificationAppService, times(1)).createNotification(captor.capture(), anyLong());
@@ -100,8 +112,8 @@ class CasePrecipitationNotifierTest {
                 .thenThrow(new RuntimeException("消息中心故障"));
 
         // 不应抛异常
-        notifier.notifySuccess(1L, "E2E 项目", 5, 100L, project);
-        notifier.notifyFailure(1L, "E2E 项目", "some reason", project);
+        notifier.notifySuccess(1L, "E2E 项目", 5, 100L, project, null);
+        notifier.notifyFailure(1L, "E2E 项目", "some reason", project, null);
     }
 
     private Project projectWithManager(Long managerId) {

@@ -74,7 +74,7 @@ public class ProjectClosedEventListener {
                 if (!hasScoreItems) missing.add("缺少评分项");
                 String reason = "前置条件不满足：" + String.join("；", missing);
                 log.warn("Skip case precipitation for project {}: {}", projectId, reason);
-                notifier.notifyFailure(projectId, event.getProjectName(), reason, project);
+                notifier.notifyFailure(projectId, event.getProjectName(), reason, project, event.getTriggerUserId());
                 return;
             }
 
@@ -82,7 +82,7 @@ public class ProjectClosedEventListener {
             if (draftsForGate.isEmpty()) {
                 log.info("No score drafts found for project: {}, skip AI case slice", projectId);
                 notifier.notifySuccess(projectId, event.getProjectName(), 0,
-                        System.currentTimeMillis() - startTime, project);
+                        System.currentTimeMillis() - startTime, project, event.getTriggerUserId());
                 return;
             }
 
@@ -96,18 +96,18 @@ public class ProjectClosedEventListener {
                 knowledgeCaseRepository.saveAll(casesToSave);
                 log.info("Successfully persisted {} knowledge cases for project: {}", casesToSave.size(), projectId);
                 notifier.notifySuccess(projectId, event.getProjectName(), casesToSave.size(),
-                        System.currentTimeMillis() - startTime, ctx.projectOpt.orElse(null));
+                        System.currentTimeMillis() - startTime, ctx.projectOpt.orElse(null), event.getTriggerUserId());
             } else {
                 log.info("No cases to save for project: {}", projectId);
                 notifier.notifySuccess(projectId, event.getProjectName(), 0,
-                        System.currentTimeMillis() - startTime, ctx.projectOpt.orElse(null));
+                        System.currentTimeMillis() - startTime, ctx.projectOpt.orElse(null), event.getTriggerUserId());
             }
 
         } catch (RuntimeException e) {
             log.error("Failed to process project closed AI slicing", e);
             String reason = e.getMessage() != null ? e.getMessage() : "处理异常，请检查系统日志";
             try {
-                notifier.notifyFailure(projectId, event.getProjectName(), reason, project);
+                notifier.notifyFailure(projectId, event.getProjectName(), reason, project, event.getTriggerUserId());
             } catch (RuntimeException notifyEx) {
                 log.error("Failed to send failure notification for project {}", projectId, notifyEx);
             }
