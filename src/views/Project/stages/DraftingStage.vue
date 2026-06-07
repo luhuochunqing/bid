@@ -205,6 +205,8 @@ async function submitBidForReview() {
   try {
     await projectLifecycleApi.submitBidForReview(props.projectId, { reviewerId: bidReviewerId.value })
     reviewState.value = 'reviewing'
+    const selected = reviewerOptions.value.find(u => u.id === Number(bidReviewerId.value))
+    reviewerName.value = selected?.name || ''
     rejectReasonText.value = ''
     ElMessage.success('已提交标书审核')
   } catch (e) { ElMessage.error(e?.response?.data?.msg || '提交审核失败') }
