@@ -20,7 +20,8 @@ class ApiVersionConfigTest {
 
     /**
      * Test that configurePathMatch is currently disabled.
-     * The method body is commented out to maintain backward compatibility.
+     * ApiVersionConfig.configurePathMatch 体内的逻辑已注释，
+     * 因此 addPathPrefix 不会被调用。如需启用，见 ApiVersionConfig 的注释。
      */
     @Test
     void testConfigurePathMatch_IsCurrentlyDisabled() {
@@ -31,7 +32,7 @@ class ApiVersionConfigTest {
         // Act
         apiVersionConfig.configurePathMatch(configurer);
 
-        // Assert - verify addPathPrefix is NOT called since the method is disabled
+        // Assert — 当前为禁用状态，addPathPrefix 不应被调用
         verify(configurer, never()).addPathPrefix(any(String.class), any());
     }
 

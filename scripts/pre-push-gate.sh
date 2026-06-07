@@ -86,12 +86,22 @@ fi
 
 # ── 3. Flyway 版本号冲突检查 ─────────────────────────────
 echo "── Flyway 版本号 ──"
-if bash "$ROOT_DIR/scripts/next-migration-version.sh" --check 2>/dev/null; then
+if bash "$ROOT_DIR/scripts/check-flyway-versions.sh" --source=push 2>/dev/null; then
   pass "Flyway 迁移版本号无冲突"
+elif bash "$ROOT_DIR/scripts/check-flyway-versions.sh" --source=push --fix 2>/dev/null; then
+  fail "Flyway 版本冲突已自动修复，请重新 git add && git commit"
 else
-  fail "Flyway 迁移版本号冲突 — 有多个文件使用了相同版本号"
+  fail "Flyway 迁移版本号冲突 — 建议 git rebase origin/main 解决"
 fi
 
+
+# ── 3.5 Schema 语义冲突检测 ───────────────────────────
+echo "── Schema 冲突 ──"
+if bash "$ROOT_DIR/scripts/check-schema-conflicts.sh" 2>/dev/null; then
+  pass "Schema 语义无冲突"
+else
+  skip "Schema 冲突检测异常（不影响推送）"
+fi
 # ── 4. 锁孤儿检查 ───────────────────────────────────────
 echo "── 锁孤儿检查 ──"
 if [ -f "$ROOT_DIR/package.json" ]; then

@@ -82,7 +82,6 @@ class ProjectArchiveResponseMapper {
 
         return new ProjectArchiveResponse(
                 archive.getId(),
-                archive.getProjectId(),
                 archive.getProjectName(),
                 projectType,
                 archive.getArchiveStatus(),

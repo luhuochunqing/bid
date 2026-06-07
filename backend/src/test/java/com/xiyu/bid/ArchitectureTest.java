@@ -441,18 +441,12 @@ public class ArchitectureTest {
 
     /**
      * RULE 9: ConfigService
-     * 
-     * 豁免：模块内部 config 注册纯核心 Bean（Policy/Mapper）是允许的，
-     * 这些类不依赖 Spring 运行时，仅由 config 做 @Bean 注册。
+     * 限制到顶层 config 包（com.xiyu.bid.config..），不会误伤模块内 config 注册纯核心 Bean。
      */
     @ArchTest
     public static final ArchRule config_should_not_depend_on_service =
         noClasses()
-            .that().resideInAPackage("..config..")
-            .and().doNotBelongToAnyOf(
-                com.xiyu.bid.resources.config.ResourcesPolicyConfig.class,
-                com.xiyu.bid.tender.config.TenderCoreConfig.class
-            )
+            .that().resideInAPackage("com.xiyu.bid.config..")
             .should().dependOnClassesThat()
             .resideInAPackage("..service..")
             .because("");

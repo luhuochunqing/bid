@@ -13,13 +13,13 @@ async function loginAsRole(page, role) {
 }
 
 test.describe('§4.1.1.1 项目档案 (蓝图一图一验证)', () => {
-  test('bid_admin 加载项目档案，筛选与导出按钮符合蓝图', async ({ page }) => {
+  test('bid_admin 加载项目档案台账，筛选与导出按钮符合蓝图', async ({ page }) => {
     await loginAsRole(page, 'bid_admin')
     await page.goto('http://127.0.0.1:1314/knowledge/archive')
     await page.waitForSelector('.el-table, .filter-card, .project-archive-container', { timeout: 15000 })
 
     // 入口与台账标题（蓝图：方案管理 -> 项目档案 Tab）
-    await expect(page.getByText('项目档案').first()).toBeVisible()
+    await expect(page.getByText('项目档案台账').first()).toBeVisible()
 
     // 导出按钮（蓝图要求两个独立按钮 + 命名）
     await expect(page.getByRole('button', { name: /导出台账/ })).toBeVisible()

@@ -10,24 +10,18 @@ import { spawnSync } from 'node:child_process'
 import process from 'node:process'
 
 const ROOT_DIR = '/Users/user/xiyu/xiyu-bid-poc'
+const WORKTREE_DIRS = [
+  '/Users/user/xiyu/xiyu-bid-poc',
+  '/Users/user/.codex/worktrees/85e2/xiyu-bid-poc',
+  '/Users/user/xiyu/worktrees/claude',
+  '/Users/user/xiyu/worktrees/codex',
+  '/Users/user/xiyu/worktrees/cursor',
+  '/Users/user/xiyu/worktrees/gemini',
+  '/Users/user/xiyu/worktrees/integrator',
+  '/Users/user/xiyu/worktrees/qoder',
+  '/Users/user/xiyu/worktrees/trae',
+]
 
-function discoverWorktrees() {
-  const result = spawnSync('git', ['worktree', 'list'], {
-    cwd: ROOT_DIR, encoding: 'utf8',
-  })
-  if (result.status !== 0) {
-    console.error('❌ 无法获取 worktree 列表')
-    process.exit(1)
-  }
-  const dirs = []
-  for (const line of result.stdout.trim().split('\n')) {
-    const parts = line.split(/\s+/)
-    if (parts[0]) dirs.push(parts[0])
-  }
-  return dirs
-}
-
-const WORKTREE_DIRS = discoverWorktrees()
 const SUBCOMMAND = process.argv[2] || 'status'
 
 function runGit(cwd, args, opts = {}) {
@@ -79,16 +73,18 @@ function collectLockStatus(repoRoot) {
     const branch = bMatch ? bMatch[1].trim() : '?'
     const expiresAt = eMatch ? new Date(eMatch[1].trim()) : null
     const expired = expiresAt ? expiresAt < new Date() : false
-    // [修复] 用 --all 同时检查本地和远端（含 worktree 中的分支）
-    const branchRes = runGit(repoRoot, ['branch', '--list', '--all', branch])
+    const branchRes = runGit(repoRoot, ['branch', '--list', branch])
     const branchExists = branchRes.status === 0 && branchRes.stdout.trim().length > 0
+    // Also check remote branch
+    const remoteRes = runGit(repoRoot, ['branch', '-r', '--list', 'origin/' + branch])
+    const remoteExists = remoteRes.status === 0 && remoteRes.stdout.trim().length > 0
     const mergedRes = runGit(repoRoot, ['branch', '--merged', 'origin/main', '--list', branch])
     const isMerged = mergedRes.status === 0 && mergedRes.stdout.trim().length > 0
     const mergedRemote = runGit(repoRoot, ['branch', '-r', '--merged', 'origin/main', '--list', 'origin/' + branch])
     const isMergedRemote = mergedRemote.status === 0 && mergedRemote.stdout.trim().length > 0
-    lockStatuses.push({ file, branch, expired, branchExists, remoteExists: branchExists, isMerged })
+    lockStatuses.push({ file, branch, expired, branchExists, isMerged })
   }
-  const stale = lockStatuses.filter(l => !l.branchExists || l.expired || l.isMerged || l.isMergedRemote).length
+  const stale = lockStatuses.filter(l => (!l.branchExists && !l.remoteExists) || l.expired || l.isMerged || l.isMergedRemote).length
   return { files: lockStatuses, total: files.length, stale }
 }
 
@@ -96,8 +92,7 @@ function collectBranchStatus(repoRoot) {
   const localRes = runGit(repoRoot, ['branch', '--list'])
   const localBranches = localRes.status === 0
     ? localRes.stdout.trim().split('\n').filter(Boolean).map(b => b.replace(/^[*+] /, '').trim()) : []
-  // [修复] agent/* 前缀的是开发分支，排除 *-init 锚点分支和 main
-  const taskBranches = localBranches.filter(b => b.startsWith('agent/') && !b.endsWith('-init') && b !== 'main')
+  const taskBranches = localBranches.filter(b => !b.startsWith('agent/') && b !== 'main')
   const mergedRes = runGit(repoRoot, ['branch', '--merged', 'origin/main'])
   const mergedBranches = mergedRes.status === 0
     ? mergedRes.stdout.trim().split('\n').filter(Boolean).map(b => b.replace(/^[*+] /, '').trim()) : []
@@ -108,15 +103,9 @@ function collectBranchStatus(repoRoot) {
 function collectRemoteStatus(repoRoot) {
   const res = runGit(repoRoot, ['branch', '-r', '--merged', 'origin/main'])
   if (res.status !== 0) return { stale: [] }
-  const branches = new Set()
-  for (const line of res.stdout.trim().split('\n')) {
-    const b = line.trim().replace('origin/', '')
-    // [修复] 排除 HEAD、main、锚点分支和 PR refs
-    if (b === 'main' || b === 'HEAD' || b.endsWith('-init')) continue
-    if (/^\d+$/.test(b)) continue
-    branches.add(b)
-  }
-  return { stale: [...branches] }
+  const branches = [...new Set(res.stdout.trim().split('\n').filter(Boolean)
+    .map(b => b.trim().replace('origin/', '')).filter(b => b !== 'main' && b !== 'HEAD'))]
+  return { stale: branches }
 }
 
 function printReport(ws, locks, branches, remoteBranches) {
@@ -125,7 +114,7 @@ function printReport(ws, locks, branches, remoteBranches) {
   console.log('  Agent Housekeeping Report')
   console.log(`  Generated: ${new Date().toISOString()}`)
   console.log(`${'='.repeat(56)}`)
-
+  
   console.log(`\n[Worktrees] (${ws.length} total):`)
   console.log(`  ${SEP}`)
   for (const w of ws) {
@@ -138,27 +127,27 @@ function printReport(ws, locks, branches, remoteBranches) {
     else { icon = '\u2713'; txt = 'clean' }
     console.log(`  ${icon} ${label} ${b} ${txt}`)
   }
-
+  
   console.log(`\n[Locks] (${locks.total} total, ${locks.stale} stale):`)
   console.log(`  ${SEP}`)
   if (locks.total === 0) { console.log('  (none)') }
   else for (const l of locks.files) {
-    const status = (l.isMerged || l.isMergedRemote) ? '\u2717 merged' : !l.branchExists ? '\u2717 no branch' : l.expired ? '\u2717 expired' : '\u2713 active'
+    const status = (l.isMerged || l.isMergedRemote) ? '\u2717 merged' : (!l.branchExists && !l.remoteExists) ? '\u2717 no branch' : l.expired ? '\u2717 expired' : '\u2713 active'
     console.log(`  ${status.padEnd(14)} ${l.file.padEnd(40)} ${l.branch}`)
   }
-
+  
   console.log(`\n[Branches] (${branches.total} task, ${branches.stale} stale):`)
   console.log(`  ${SEP}`)
   for (const b of branches.branches) {
     const status = b.stale ? '\u2717 merged, can delete' : '\u2713 active'
     console.log(`  ${status.padEnd(24)} ${b.name}`)
   }
-
+  
   if (remoteBranches.stale.length > 0) {
     console.log(`\n[Remote Stale] (${remoteBranches.stale.length}):`)
     for (const b of remoteBranches.stale) console.log(`  \u2717 ${b}`)
   }
-
+  
   const actions = []
   for (const w of ws) {
     if (w.uncommitted > 0) actions.push(`Check "${w.name}" — ${w.uncommitted} uncommitted file(s)`)
@@ -167,7 +156,7 @@ function printReport(ws, locks, branches, remoteBranches) {
   for (const b of branches.branches) if (b.stale) actions.push(`git branch -D ${b.name}`)
   for (const b of remoteBranches.stale) actions.push(`git push origin --delete ${b}`)
   for (const l of locks.files) if (l.isMerged) actions.push(`rm .agent-locks/${l.file} (${l.branch} merged)`)
-
+  
   console.log(`\n[Actions] (${actions.length}):`)
   console.log(`  ${SEP}`)
   if (actions.length === 0) console.log('  Nothing to clean.')
@@ -177,13 +166,15 @@ function printReport(ws, locks, branches, remoteBranches) {
 
 function autoClean(ws, locks, repoRoot) {
   console.log('[housekeeping] Auto-cleaning...\n')
+  // Remove stale locks
   for (const l of locks.files) {
-    if ((l.isMerged || l.isMergedRemote) || !l.branchExists) {
+    if ((l.isMerged || l.isMergedRemote) || (!l.branchExists && !l.remoteExists)) {
       const lockPath = path.join(repoRoot, '.agent-locks', l.file)
       try { fs.unlinkSync(lockPath); console.log(`  Deleted lock: ${l.file}`) }
       catch (e) { console.log(`  Failed: ${l.file}: ${e.message}`) }
     }
   }
+  // Delete merged local branches
   const currentRes = runGit(repoRoot, ['rev-parse', '--abbrev-ref', 'HEAD'])
   const currentBranch = currentRes.status === 0 ? currentRes.stdout.trim() : ''
   const localRes = runGit(repoRoot, ['branch', '--merged', 'origin/main'])
@@ -209,6 +200,7 @@ function reap(repoRoot) {
       else console.log(`  Failed remote ${b}: ${(delRes.stderr||'').trim().slice(0,60)}`)
     }
   }
+  // Delete merged local
   const currentRes = runGit(repoRoot, ['rev-parse', '--abbrev-ref', 'HEAD'])
   const current = currentRes.status === 0 ? currentRes.stdout.trim() : ''
   const localRes = runGit(repoRoot, ['branch', '--merged', 'origin/main'])
@@ -219,13 +211,14 @@ function reap(repoRoot) {
       console.log(`  Deleted local: ${b}`)
     }
   }
+  // Clean expired locks
   const locksDir = path.join(repoRoot, '.agent-locks')
   if (fs.existsSync(locksDir)) {
     for (const file of fs.readdirSync(locksDir).filter(f => f.endsWith('.yml'))) {
       const content = fs.readFileSync(path.join(locksDir, file), 'utf8')
       const bMatch = content.match(REGEX_BRANCH)
       const branch = bMatch ? bMatch[1].trim() : '?'
-      const mergedRes = runGit(repoRoot, ['branch', '--list', '--all', branch])
+      const mergedRes = runGit(repoRoot, ['branch', '--list', branch])
       const exists = mergedRes.status === 0 && mergedRes.stdout.trim().length > 0
       const mergedCheck = runGit(repoRoot, ['branch', '--merged', 'origin/main', '--list', branch])
       const merged = mergedCheck.status === 0 && mergedCheck.stdout.trim().length > 0

@@ -17,7 +17,12 @@ set -euo pipefail
 # enforces the system-level ban on `git push --no-verify` / `git commit --no-verify`).
 # This ensures all git operations performed by "早操" (main-forward rebase etc.)
 # go through the safety wrapper even if the caller did not source dev-env first.
+#
+# SPECIAL: For anchor-branch maintenance (sync-env on agent/*-init), we set
+# XYYU_SYNC_ENV_ACTIVE=1 so session-gate.sh skips the anchor-branch block
+# (only maintenance git operations like fetch/ff-only are performed, not development).
 if [[ -f "$(dirname "${BASH_SOURCE[0]}")/dev-env.sh" ]]; then
+  export XYYU_SYNC_ENV_ACTIVE=1
   # shellcheck disable=SC1091
   source "$(dirname "${BASH_SOURCE[0]}")/dev-env.sh" || true
 fi
@@ -281,9 +286,8 @@ fi
 info "=== sync-env ==="
 info "Root:    $ROOT_DIR"
 info "Target:  $TARGET_DIR"
-echo
 
-# Step 1: sync env files
+echo# Step 1: sync env files
 info "--- env file sync ---"
 sync_env_files "$ROOT_DIR" "$TARGET_DIR"
 echo
@@ -292,6 +296,103 @@ echo
 info "--- main-forward ---"
 main_forward "$TARGET_DIR"
 echo
+
+
+
+
+
+# ─── 遗忘提醒 — 检查上次 session 是否有未推送 commit ──────────────────
+forgetfulness_check() {
+  local branch
+  branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null)" || return 0
+
+  # 只在 agent 的任务分支上提醒（跳过锚点分支）
+  case "$branch" in
+    agent/*-init|main|master) return 0 ;;
+  esac
+
+  # 计算未推送 commit 数
+  local unpushed
+  unpushed=$(git log --oneline "@{u}..HEAD" -- 2>/dev/null | wc -l | tr -d ' ') || unpushed=0
+
+  if [[ "$unpushed" -eq 0 ]]; then
+    return 0
+  fi
+
+  # 计算最近一次 commit 距今时间
+  local last_commit_ts last_commit_age now
+  last_commit_ts=$(git log -1 --format=%ct HEAD 2>/dev/null) || last_commit_ts=0
+  now=$(date +%s 2>/dev/null || echo 0)
+  last_commit_age=$(( now - last_commit_ts ))
+
+  local ONE_HOUR=$((60 * 60))
+  local ONE_DAY=$((24 * ONE_HOUR))
+
+  # 1 小时内的新 commit 不催（可能还在开发中）
+  if [[ "$last_commit_age" -le "$ONE_HOUR" ]]; then
+    return 0
+  fi
+
+  local age_str
+  if [[ "$last_commit_age" -gt "$ONE_DAY" ]]; then
+    age_str="$(( last_commit_age / ONE_DAY )) 天"
+  else
+    age_str="$(( last_commit_age / ONE_HOUR )) 小时"
+  fi
+
+  echo
+  echo "╔══════════════════════════════════════════════════════════════╗"
+  echo "║  ⚠  你上次在 '$branch' 上有 $unpushed 个未推送的 commit  ║"
+  echo "║     距今已有 $age_str，建议立即推送以避免冲突累积           ║"
+  echo "║                                                          ║"
+  echo "║     git push origin $branch                               ║"
+  echo "╚══════════════════════════════════════════════════════════════╝"
+  echo
+}
+
+
+
+# ─── 分叉警告 — 检查当前分支落后 origin/main 多少 ─────────────────
+divergence_warning() {
+  local branch
+  branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null)" || return 0
+
+  case "$branch" in
+    agent/*-init|main|master) return 0 ;;
+  esac
+
+  # 计算落后 main 的 commit 数
+  local behind
+  behind=$(git rev-list --count "HEAD..origin/main" 2>/dev/null || echo "0")
+
+  # 超过 5 个落后 commit 时给醒目警告
+  if [[ "$behind" -ge 5 ]]; then
+    local ahead
+    ahead=$(git rev-list --count "origin/main..HEAD" 2>/dev/null || echo "0")
+    echo
+    echo "╔══════════════════════════════════════════════════════════════╗"
+    echo "║  ⚠  当前分支落后 main $behind 个 commit                    ║"
+    echo "║     你在前面有 $ahead 个自己的 commit                       ║"
+    echo "║                                                          ║"
+    echo "║     分叉越大，合并时冲突风险越高！                          ║"
+    echo "║     建议尽快创建 PR 合并到 main，不要等开发完再合           ║"
+    echo "║                                                          ║"
+    echo "║     git fetch origin                                       ║"
+    echo "║     git rebase origin/main                                 ║"
+    echo "║     scripts/pr-create.sh "<type>(<scope>): <desc>" ...     ║"
+    echo "╚══════════════════════════════════════════════════════════════╝"
+    echo
+  elif [[ "$behind" -ge 3 ]]; then
+    echo
+    echo "╔══════════════════════════════════════════════════════════════╗"
+    echo "║  ⚠  当前分支落后 main $behind 个 commit                     ║"
+    echo "║     分叉已开始扩大，建议考虑创建 PR                          ║"
+    echo "╚══════════════════════════════════════════════════════════════╝"
+    echo
+  fi
+}
+forgetfulness_check
+divergence_warning
 
 
 info "=== sync-env done ==="

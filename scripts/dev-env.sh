@@ -78,12 +78,6 @@ elif [[ "$CURRENT_DIR" == *"worktrees/qoder"* ]]; then
   export SIDECAR_PORT=8006
   export DB_NAME="xiyu_bid_qoder"
   export REDIS_DB=6
-elif [[ "$CURRENT_DIR" == *"worktrees/trae"* ]]; then
-  export FRONTEND_PORT=1321
-  export BACKEND_PORT=18087
-  export SIDECAR_PORT=8007
-  export DB_NAME="xiyu_bid_trae"
-  export REDIS_DB=7
 else
   # Default for main project root (/Users/user/xiyu/xiyu-bid-poc/)
   export FRONTEND_PORT=1314
@@ -107,4 +101,9 @@ if [[ "$GIT_PATH" == *"/scripts/git" ]]; then
 else
   echo "⚠️  WARNING: 'git' resolves to '$GIT_PATH' instead of project scripts/git wrapper."
   echo "    --no-verify prohibition may not be active. Re-source or check PATH."
+fi
+
+# ── Session GATE：锚点分支阻断 + worktree 互斥 ──
+if [[ -z "${CHAT_ONLY:-}" || "${CHAT_ONLY:-}" != "1" ]]; then
+  source "$SCRIPT_DIR/session-gate.sh"
 fi

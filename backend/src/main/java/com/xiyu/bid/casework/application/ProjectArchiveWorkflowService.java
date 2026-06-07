@@ -191,22 +191,14 @@ public class ProjectArchiveWorkflowService {
                 predicates.add(root.get("id").in(subquery));
             }
 
-            if (query.getCloseTimeStart() != null || query.getCloseTimeEnd() != null) {
-                Subquery<Long> closeSub = criteriaQuery.subquery(Long.class);
-                Root<Project> pRoot = closeSub.from(Project.class);
-                closeSub.select(pRoot.get("id"));
-                List<jakarta.persistence.criteria.Predicate> closePredicates = new ArrayList<>();
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-                if (query.getCloseTimeStart() != null) {
-                    LocalDateTime start = LocalDate.parse(query.getCloseTimeStart(), formatter).atStartOfDay();
-                    closePredicates.add(cb.greaterThanOrEqualTo(pRoot.get("closedAt"), start));
-                }
-                if (query.getCloseTimeEnd() != null) {
-                    LocalDateTime end = LocalDate.parse(query.getCloseTimeEnd(), formatter).atTime(23, 59, 59);
-                    closePredicates.add(cb.lessThanOrEqualTo(pRoot.get("closedAt"), end));
-                }
-                closeSub.where(cb.and(closePredicates.toArray(new jakarta.persistence.criteria.Predicate[0])));
-                predicates.add(root.get("projectId").in(closeSub));
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+            if (query.getCloseTimeStart() != null) {
+                LocalDateTime start = LocalDate.parse(query.getCloseTimeStart(), formatter).atStartOfDay();
+                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), start));
+            }
+            if (query.getCloseTimeEnd() != null) {
+                LocalDateTime end = LocalDate.parse(query.getCloseTimeEnd(), formatter).atTime(23, 59, 59);
+                predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), end));
             }
 
             if (query.getProjectType() != null && !query.getProjectType().isEmpty()) {

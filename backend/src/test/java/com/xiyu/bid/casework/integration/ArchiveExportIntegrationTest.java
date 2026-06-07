@@ -1,6 +1,7 @@
 package com.xiyu.bid.casework.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.casework.application.CaseAiMatcher;
 import com.xiyu.bid.casework.application.ProjectClosedEvent;
 import com.xiyu.bid.casework.dto.ProjectArchiveQuery;
 import com.xiyu.bid.casework.infrastructure.*;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -35,6 +37,9 @@ import java.nio.file.Paths;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -75,6 +80,9 @@ class ArchiveExportIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @MockBean
+    private CaseAiMatcher caseAiMatcher;
 
     private User adminUser;
     private Project project;
@@ -153,6 +161,18 @@ class ArchiveExportIntegrationTest {
         draft.setSourceTableIndex(0);
         draft.setSourceRowIndex(0);
         scoreDraftRepository.save(draft);
+
+        // Mock AI matcher — 返回与实际评分项对应的切片，避免测试环境真实调用 AI
+        when(caseAiMatcher.extractSlicesWithAi(any(), anyList())).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            List<ProjectScoreDraft> drafts = invocation.getArgument(1);
+            if (drafts.isEmpty()) return List.of();
+            CaseAiMatcher.AiMatchedSlice slice = new CaseAiMatcher.AiMatchedSlice();
+            slice.setDraftId(drafts.get(0).getId());
+            slice.setMatchedSnippet("项目经理具有高级职称和8年经验");
+            slice.setConfidence(0.95);
+            return List.of(slice);
+        });
     }
 
     @org.junit.jupiter.api.Disabled("Controller endpoint not yet implemented")
@@ -199,9 +219,9 @@ class ArchiveExportIntegrationTest {
         // 2. 发布结项事件
         eventPublisher.publishEvent(new ProjectClosedEvent(this, project.getId(), project.getName()));
 
-        // 3. 轮询等待异步任务完成
+        // 3. 轮询等待异步任务完成（最多等待 10 秒）
         int attempts = 0;
-        while (knowledgeCaseRepository.count() == 0 && attempts < 10) {
+        while (knowledgeCaseRepository.count() == 0 && attempts < 50) {
             Thread.sleep(200);
             attempts++;
         }

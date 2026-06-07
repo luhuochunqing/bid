@@ -5,14 +5,17 @@
 # 维护声明: 非阻塞检查，仅输出提醒。依赖 gh CLI 查询 PR。
 set -euo pipefail
 
+
 BRANCH=$(git branch --show-current)
 
-# Skip main and agent/* anchor branches — these are not task branches
-if [[ "$BRANCH" == "main" || "$BRANCH" == agent/* ]]; then
+# Skip main and agent/*-init anchor branches — task branches (agent/codex/xxx) get reminders
+if [[ "$BRANCH" == "main" || "$BRANCH" == "master" ]]; then
   exit 0
 fi
-
 REMOTE=$(git config "branch.${BRANCH}.remote" 2>/dev/null || echo "")
+case "$BRANCH" in
+  agent/*-init|integrate/baseline) exit 0 ;;
+esac
 REMOTE_EXISTS=""
 if [[ -n "$REMOTE" ]]; then
   git ls-remote --heads "$REMOTE" "$BRANCH" 2>/dev/null | grep -q . && REMOTE_EXISTS="yes" || REMOTE_EXISTS=""

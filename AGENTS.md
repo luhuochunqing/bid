@@ -28,6 +28,10 @@
 
 - **协作语言**：默认使用中文进行沟通、代码注释、测试说明和变更描述。
 - **项目品牌**：对外统一使用"西域数智化投标管理平台"全称；仅在引用仓库路径、包名、脚本名时保留 `xiyu-bid-poc` 等历史标识。
+- **暗号协定**：
+  - **"早操SOP"** → 自动执行 `git fetch origin && git rebase origin/main && bash scripts/sync-env.sh .`（早操三连）。
+  - **"开个任务/开个分支 XX"** → 自动调用 `scripts/agent-start-task.sh <当前agent名> <XX> origin/main --in-place`（早操三连 + 切开发分支一步到位）。
+  - **"早操SOP + 开个分支 XX"** → 同上，相当于 `--in-place` 一次完成全部流程。
 - **开场约定**：AI 代理开启新任务或接收复杂任务时，先声明当前环境（worktree 名称、当前分支、协作模式），随后按 `RULES.md` 中的四阶段流程（plan → tdd → code-review → refactor-clean）和核心业务逻辑架构约束展开工作。Mock 政策见 §Mock 政策（统一决策）。
 - **架构约束**：详细解释见 `RULES.md`；后端纯核心门禁由 `FPJavaArchitectureTest` 执行。
 - **架构门禁口径**：纯核心仍禁止显式依赖 `System` 等隐式输入；Java 枚举 `values()` 编译器生成的 `System.arraycopy` 属于合成字节码误报，由门禁排除。
@@ -128,34 +132,55 @@ Agent 在每次对话开始或切换任务时，必须声明当前环境（workt
 
 ### 3. 多 Agent 协作 (Worktree)
 
-#### 3.1 Worktree 策略（统一 `--in-place`）
+#### 3.1 两级 Worktree 策略
 
-**所有 Agent 默认使用 `--in-place` 模式**（持久 worktree 内切分支）。
+为了平衡物理隔离与开发效率，采用**两级** worktree 管理策略。
 
-每个 Agent 只有一个持久 worktree（如 `agent/codex-init`、`agent/claude-init`），
-端口、数据库、依赖**一次性初始化**，后续所有任务在持久 worktree 内切分支完成。
+**一级：持久 Worktree（串行小任务）**
 
-**每个新任务（唯一合法路径）：**
+每个 Agent 只有一个持久 worktree（如 `agent/codex-init`），端口、数据库、依赖**一次性初始化**，后续小改动在持久 worktree 内切分支完成：
+
 ```bash
-# 对 Agent 说：'开个分支 <任务名>'
-# 等价于：
+# ── 仅首次初始化（已完成）──
+
+# ── 每个新任务（串行） ──
+git checkout agent/<name>-init         # 回到锚点
+git pull origin main                   # 同步最新 main
+git checkout -b agent/<name>/<task>    # 切新分支
+# 开发、提交、推送、PR
+# PR merged 后：
+git checkout agent/<name>-init
+git pull origin main
+git branch -D agent/<name>/<task>
+```
+
+脚本支持 `--in-place` 模式一键完成上述流程：
+
+```bash
 scripts/agent-start-task.sh <name> <task> origin/main --in-place
 ```
-脚本自动执行：fetch → rebase origin/main → sync-env → 切新分支 → 启动开发。
 
-**PR 合入后：** 回到锚点分支，等待 Agent 下一个指令。
+**二级：临时 Worktree（并行/破坏性变更）**
 
-**什么时候才用独立 worktree（二级模式）：**
-仅在以下场景需要独立环境时，才使用 `--worktree-path` 创建新 worktree：
-- 改表结构/数据库连接（破坏性变更）
-- 同时运行前后端联调 + E2E 测试
-- 需要独立数据库实例验证
+适合以下场景时创建隔离 worktree：
+- 需要同时运行前后端联调
+- E2E 测试需要专属环境
+- 破坏性变更（改表结构、数据库连接等）
+- 两个 task 并行开发需要各自独立验证
+
+使用传统模式（不带 `--in-place`）：
 
 ```bash
-scripts/agent-start-task.sh <name> <task> origin/main --worktree-path /path/to/worktree
+scripts/agent-start-task.sh <name> <task> origin/main [--lock ...]
 ```
 
-**基本原则：** 先想能不能用 `--in-place`，不能才建独立 worktree。默认路径是 `--in-place`。
+任务结束后删除 worktree：
+
+```bash
+git worktree remove /path/to/worktree --force
+git branch -D agent/<name>/<task>
+git push origin --delete agent/<name>/<task>
+```
 
 #### 3.2 通用原则
 

@@ -139,7 +139,7 @@ const routes = [
             path: 'archive',
             name: 'ProjectArchive',
             component: () => import('@/views/Knowledge/views/ProjectArchive.vue'),
-            meta: { title: '项目档案' }
+            meta: { title: '档案台账' }
           },
           {
             path: 'qualification',

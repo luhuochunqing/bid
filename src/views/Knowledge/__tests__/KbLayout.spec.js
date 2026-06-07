@@ -35,7 +35,7 @@ describe('KbLayout', () => {
       },
     })
 
-    expect(wrapper.text()).toContain('项目档案')
+    expect(wrapper.text()).toContain('档案台账')
     expect(wrapper.text()).toContain('资质库')
     expect(wrapper.text()).toContain('人员库')
     expect(wrapper.text()).toContain('业绩库')
