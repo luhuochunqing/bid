@@ -9,7 +9,7 @@
 #   1. Any --force / --force-with-lease push to main, master, or release/* refs.
 #   2. Pushes to main where HEAD has more root commits than the documented
 #      ratchet (see .github/workflows/branch-history-guard.yml).
-#   3. Gitee 远端 push 时检查 credential store（阻止 push）
+#   3. Gitee 远端 push 时未设置 GITEE_TOKEN（阻止 push）
 #   4. 所有 agent/* 分支 push 时检查是否通过 pr-create.sh 创建 PR（温和提醒）
 #
 # Context: ericforai/bidding#224 documents the root-commit issue. This hook is
@@ -24,11 +24,6 @@ remote="${1:-origin}"
 PROTECTED_BRANCHES_REGEX='^refs/heads/(main|master|release/.+)$'
 MAX_ROOTS=4
 
-# 获取 gitee-token.sh 路径（兼容主仓库和 worktree）
-HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
-SCRIPT_DIR="$(cd "$HOOK_DIR/../scripts" && pwd)"
-GITEE_TOKEN_SCRIPT="$SCRIPT_DIR/gitee-token.sh"
-
 # ==============================================================================
 # 前置门禁 A: 远端凭证检查
 # ==============================================================================
@@ -36,26 +31,16 @@ remote_url="$(git remote get-url "$remote" 2>/dev/null || true)"
 
 case "$remote_url" in
   *gitee.com*)
-    if [[ -f "$GITEE_TOKEN_SCRIPT" ]]; then
-      token="$("$GITEE_TOKEN_SCRIPT" 2>/dev/null)" || token=""
-    else
-      token="${GITEE_TOKEN:-}"
-    fi
-    if [[ -z "$token" ]]; then
+    if [[ -z "${GITEE_TOKEN:-}" ]]; then
       echo ""
       echo "╔══════════════════════════════════════════════════════════════╗"
-      echo "║  ❌ 无法获取 Gitee Token，拒绝 push                       ║"
+      echo "║  ❌ GITEE_TOKEN 未设置，拒绝 push                         ║"
       echo "║                                                          ║"
       echo "║  当前远端是 Gitee（$remote_url）"
+      echo "║  必须设置 GITEE_TOKEN 才能推送代码到远端。               ║"
       echo "║                                                          ║"
-      echo "║  请设置 Token（按优先级）:                                 ║"
-      echo "║                                                          ║"
-      echo "║  1. git credential store（推荐，全局共享）                 ║"
-      echo "║     echo 'https://user:token@gitee.com' >> ~/.git-credentials  ║"
-      echo "║     git config --global credential.helper store           ║"
-      echo "║                                                          ║"
-      echo "║  2. 环境变量:                                             ║"
-      echo "║     export GITEE_TOKEN='your_personal_access_token'       ║"
+      echo "║  设置方式:                                                ║"
+      echo "║    export GITEE_TOKEN='your_personal_access_token'        ║"
       echo "║                                                          ║"
       echo "║  申请 Token: https://gitee.com/profile/personal_tokens    ║"
       echo "║                                                          ║"
@@ -97,6 +82,7 @@ esac
 while IFS=' ' read -r local_ref local_sha remote_ref remote_sha; do
   branch="${local_ref#refs/heads/}"
   if [[ "$branch" == agent/* ]]; then
+    # 只在首次 push 时提醒（远端还没有这个 ref）
     if [[ "${remote_sha}" == "0000000000000000000000000000000000000000" ]]; then
       echo ""
       echo "╔══════════════════════════════════════════════════════════════╗"
@@ -122,9 +108,11 @@ done
 # 1) refuse force pushes to protected branches.
 while IFS=' ' read -r local_ref local_sha remote_ref remote_sha; do
     if [[ "${remote_ref}" =~ ${PROTECTED_BRANCHES_REGEX} ]]; then
+        # New ref creation (remote_sha is all zeros) is allowed.
         if [ "${remote_sha}" = "0000000000000000000000000000000000000000" ]; then
             continue
         fi
+        # Non-fast-forward detection: remote_sha must be an ancestor of local_sha.
         if ! git merge-base --is-ancestor "${remote_sha}" "${local_sha}" 2>/dev/null; then
             if [ "${FORCE_PUSH_OK:-0}" != "1" ]; then
                 echo "::pre-push:: refusing non-fast-forward push to ${remote_ref}." >&2
@@ -137,6 +125,7 @@ while IFS=' ' read -r local_ref local_sha remote_ref remote_sha; do
             echo "::pre-push:: FORCE_PUSH_OK=1 set, allowing non-fast-forward push to ${remote_ref}." >&2
         fi
 
+        # 2) root-commit ratchet: refuse pushes that would grow the root count.
         root_count=$(git rev-list --max-parents=0 "${local_sha}" | wc -l | tr -d ' ')
         if [ "${root_count}" -gt "${MAX_ROOTS}" ]; then
             echo "::pre-push:: refusing push to ${remote_ref}: HEAD has ${root_count} root commits, ratchet allows ${MAX_ROOTS}." >&2
@@ -148,8 +137,8 @@ while IFS=' ' read -r local_ref local_sha remote_ref remote_sha; do
 done
 
 # 3) Quality gate — runs before every push (skip with PRE_PUSH_GATE=0)
-if [ "${PRE_PUSH_GATE:-1}" = "1" ] && [ -x "$SCRIPT_DIR/pre-push-gate.sh" ]; then
-  if ! bash "$SCRIPT_DIR/pre-push-gate.sh"; then
+if [ "${PRE_PUSH_GATE:-1}" = "1" ] && [ -x "$(dirname "$0")/../scripts/pre-push-gate.sh" ]; then
+  if ! bash "$(dirname "$0")/../scripts/pre-push-gate.sh"; then
     echo ""
     echo "::pre-push:: 质量门禁未通过。修复后重试，或 PRE_PUSH_GATE=0 git push 跳过。" >&2
     exit 1

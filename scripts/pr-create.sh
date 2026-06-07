@@ -10,8 +10,6 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 # ── 前置检测：远端类型 + 凭证 ──────────────────────────────────────────────
 remote_url="$(git remote get-url origin)"
 branch="$(git branch --show-current)"
@@ -31,21 +29,15 @@ case "$remote_url" in
     fi
     ;;
   *gitee.com*)
-    # 从 credential store 获取 Token
-    GITEE_TOKEN="$("$SCRIPT_DIR/gitee-token.sh" 2>/dev/null)" || true
     if [[ -z "${GITEE_TOKEN:-}" ]]; then
       echo ""
       echo "╔══════════════════════════════════════════════════════════════╗"
-      echo "║  ❌ 无法获取 Gitee Token                                  ║"
+      echo "║  ❌ GITEE_TOKEN 未设置                                    ║"
       echo "║                                                          ║"
-      echo "║  Token 来源（按优先级）:                                  ║"
-      echo "║  1. git credential store（推荐，全局共享）                 ║"
-      echo "║     → ~/.git-credentials 或 macOS Keychain               ║"
-      echo "║     → 设置方式:                                           ║"
-      echo "║       echo 'https://user:token@gitee.com' >> ~/.git-credentials  ║"
+      echo "║  当前远端是 Gitee，必须设置 GITEE_TOKEN 才能创建 PR。     ║"
       echo "║                                                          ║"
-      echo "║  2. 环境变量:                                             ║"
-      echo "║     export GITEE_TOKEN='your_personal_access_token'       ║"
+      echo "║  设置方式:                                                ║"
+      echo "║    export GITEE_TOKEN='your_personal_access_token'        ║"
       echo "║                                                          ║"
       echo "║  申请 Token: https://gitee.com/profile/personal_tokens    ║"
       echo "╚══════════════════════════════════════════════════════════════╝"
