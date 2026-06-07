@@ -1,0 +1,23 @@
+{
+  "name": "xiyu-bid-miniprogram",
+  "version": "1.0.0",
+  "description": "西域数智化投标管理平台 - 企业微信小程序",
+  "main": "main.js",
+  "scripts": {
+    "dev": "npm run dev:weapp",
+    "build": "npm run build:weapp",
+    "dev:weapp": "vue-cli-service build --watch --mode development --target weapp",
+    "build:weapp": "vue-cli-service build --mode production --target weapp"
+  },
+  "dependencies": {
+    "dayjs": "^1.11.10",
+    "pinia": "^2.1.7"
+  },
+  "devDependencies": {
+    "@vue/cli-service": "^5.0.8",
+    "vue-cli-plugin-mp": "^3.2.2"
+  },
+  "browserslist": [
+    "last 2 versions"
+  ]
+}

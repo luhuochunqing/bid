@@ -1,0 +1,954 @@
+Message-ID: <766307423.16013407.1777359048803.JavaMail.root@localhost>
+Subject: Exported From Confluence
+MIME-Version: 1.0
+Content-Type: multipart/related; 
+	boundary="----=_Part_16013406_1703831032.1777359048803"
+
+------=_Part_16013406_1703831032.1777359048803
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: quoted-printable
+Content-Location: file:///C:/exported.html
+
+<html xmlns:o=3D'urn:schemas-microsoft-com:office:office'
+      xmlns:w=3D'urn:schemas-microsoft-com:office:word'
+      xmlns:v=3D'urn:schemas-microsoft-com:vml'
+      xmlns=3D'urn:w3-org-ns:HTML'>
+<head>
+    <meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Dutf-8=
+">
+    <title>=E4=BA=8B=E4=BB=B6=E5=BA=93SDK=E6=8E=A5=E5=85=A5=E8=AF=B4=E6=98=
+=8E=E6=96=B9=E6=A1=88</title>
+    <!--[if gte mso 9]>
+    <xml>
+        <o:OfficeDocumentSettings>
+            <o:TargetScreenSize>1024x640</o:TargetScreenSize>
+            <o:PixelsPerInch>72</o:PixelsPerInch>
+            <o:AllowPNG/>
+        </o:OfficeDocumentSettings>
+        <w:WordDocument>
+            <w:View>Print</w:View>
+            <w:Zoom>90</w:Zoom>
+            <w:DoNotOptimizeForBrowser/>
+        </w:WordDocument>
+    </xml>
+    <![endif]-->
+    <style>
+                <!--
+        @page Section1 {
+            size: 8.5in 11.0in;
+            margin: 1.0in;
+            mso-header-margin: .5in;
+            mso-footer-margin: .5in;
+            mso-paper-source: 0;
+        }
+
+        table {
+            border: solid 1px;
+            border-collapse: collapse;
+        }
+
+        table td, table th {
+            border: solid 1px;
+            padding: 5px;
+        }
+
+        td {
+            page-break-inside: avoid;
+        }
+
+        tr {
+            page-break-after: avoid;
+        }
+
+        div.Section1 {
+            page: Section1;
+        }
+
+        /* Confluence print stylesheet. Common to all themes for print medi=
+a */
+/* Full of !important until we improve batching for print CSS */
+
+@media print {
+    #main {
+        padding-bottom: 1em !important; /* The default padding of 6em is to=
+o much for printouts */
+    }
+
+    body {
+        font-family: Arial, Helvetica, FreeSans, sans-serif;
+        font-size: 10pt;
+        line-height: 1.2;
+    }
+
+    body, #full-height-container, #main, #page, #content, .has-personal-sid=
+ebar #content {
+        background: #fff !important;
+        color: #000 !important;
+        border: 0 !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: block !important;
+    }
+
+    a, a:link, a:visited, a:focus, a:hover, a:active {
+        color: #000;
+    }
+
+    #content h1,
+    #content h2,
+    #content h3,
+    #content h4,
+    #content h5,
+    #content h6 {
+        font-family: Arial, Helvetica, FreeSans, sans-serif;
+        page-break-after: avoid;
+    }
+
+    pre {
+        font-family: Monaco, "Courier New", monospace;
+    }
+
+    #header,
+    .aui-header-inner,
+    #navigation,
+    #sidebar,
+    .sidebar,
+    #personal-info-sidebar,
+    .ia-fixed-sidebar,
+    .page-actions,
+    .navmenu,
+    .ajs-menu-bar,
+    .noprint,
+    .inline-control-link,
+    .inline-control-link a,
+    a.show-labels-editor,
+    .global-comment-actions,
+    .comment-actions,
+    .quick-comment-container,
+    #addcomment {
+        display: none !important;
+    }
+
+    /* CONF-28544 cannot print multiple pages in IE */
+    #splitter-content {
+        position: relative !important;
+    }
+
+    .comment .date::before {
+        content: none !important; /* remove middot for print view */
+    }
+
+    h1.pagetitle img {
+        height: auto;
+        width: auto;
+    }
+
+    .print-only {
+        display: block;
+    }
+
+    #footer {
+        position: relative !important; /* CONF-17506 Place the footer at en=
+d of the content */
+        margin: 0;
+        padding: 0;
+        background: none;
+        clear: both;
+    }
+
+    #poweredby {
+        border-top: none;
+        background: none;
+    }
+
+    #poweredby li.print-only {
+        display: list-item;
+        font-style: italic;
+    }
+
+    #poweredby li.noprint {
+        display: none;
+    }
+
+    /* no width controls in print */
+    .wiki-content .table-wrap,
+    .wiki-content p,
+    .panel .codeContent,
+    .panel .codeContent pre,
+    .image-wrap {
+        overflow: visible !important;
+    }
+
+    /* TODO - should this work? */
+    #children-section,
+    #comments-section .comment,
+    #comments-section .comment .comment-body,
+    #comments-section .comment .comment-content,
+    #comments-section .comment p {
+        page-break-inside: avoid;
+    }
+
+    #page-children a {
+        text-decoration: none;
+    }
+
+    /**
+     hide twixies
+
+     the specificity here is a hack because print styles
+     are getting loaded before the base styles. */
+    #comments-section.pageSection .section-header,
+    #comments-section.pageSection .section-title,
+    #children-section.pageSection .section-header,
+    #children-section.pageSection .section-title,
+    .children-show-hide {
+        padding-left: 0;
+        margin-left: 0;
+    }
+
+    .children-show-hide.icon {
+        display: none;
+    }
+
+    /* personal sidebar */
+    .has-personal-sidebar #content {
+        margin-right: 0px;
+    }
+
+    .has-personal-sidebar #content .pageSection {
+        margin-right: 0px;
+    }
+
+    .no-print, .no-print * {
+        display: none !important;
+    }
+}
+-->
+    </style>
+</head>
+<body>
+    <h1>=E4=BA=8B=E4=BB=B6=E5=BA=93SDK=E6=8E=A5=E5=85=A5=E8=AF=B4=E6=98=8E=
+=E6=96=B9=E6=A1=88</h1>
+    <div class=3D"Section1">
+        <h2 class=3D"paragraph text-align-type-left tco-title-heading 2" st=
+yle=3D"margin-left: 0.0pt;" id=3D"id-=E4=BA=8B=E4=BB=B6=E5=BA=93SDK=E6=8E=
+=A5=E5=85=A5=E8=AF=B4=E6=98=8E=E6=96=B9=E6=A1=88-=E6=A6=82=E8=BF=B0=EF=BC=
+=9A"><span style=3D"color: rgb(0,0,0);">=E6=A6=82=E8=BF=B0=EF=BC=9A</span><=
+/h2>
+<p class=3D"paragraph text-align-type-left tco-title-heading 2" style=3D"ma=
+rgin-left: 0.0pt;"><span style=3D"color: rgb(0,0,0);">=E4=B8=BA=E5=AE=9E=E7=
+=8E=B0=E4=B8=8A=E4=B8=8B=E6=B8=B8=E4=B8=9A=E5=8A=A1=E7=B3=BB=E7=BB=9F=E5=AF=
+=B9=E4=BA=8E=E7=B3=BB=E7=BB=9F=E7=9A=84=E4=BA=8B=E4=BB=B6=E6=B6=88=E6=81=AF=
+=E5=A4=84=E7=90=86=E6=97=A0=E4=BE=B5=E5=85=A5=EF=BC=8C=E6=95=85=E5=B0=81=E8=
+=A3=85=E4=BA=86=E4=BA=8B=E4=BB=B6=E5=BA=93=E7=9A=84SDK,=E4=B8=8A=E4=B8=8B=
+=E6=B8=B8=E4=B8=9A=E5=8A=A1=E7=B3=BB=E7=BB=9F=E5=8F=AA=E9=9C=80=E5=B5=8C=E5=
+=85=A5SDK=E5=8D=B3=E5=8F=AF=E5=AE=9E=E7=8E=B0=E5=AF=B9=E4=BA=8B=E4=BB=B6=E6=
+=B6=88=E6=81=AF=E7=9A=84=E6=94=B6=E5=8F=91=E5=8F=8A=E4=BA=8B=E4=BB=B6=E5=86=
+=85=E5=AE=B9=E5=AD=97=E6=AE=B5=E6=98=A0=E5=B0=84=E5=A4=84=E7=90=86=E3=80=82=
+</span></p>
+<h2 class=3D"paragraph text-align-type-left tco-title-heading 2" style=3D"m=
+argin-left: 0.0pt;" id=3D"id-=E4=BA=8B=E4=BB=B6=E5=BA=93SDK=E6=8E=A5=E5=85=
+=A5=E8=AF=B4=E6=98=8E=E6=96=B9=E6=A1=88-=E4=BD=BF=E7=94=A8=E8=AF=B4=E6=98=
+=8E:"><span style=3D"color: rgb(0,0,0);">=E4=BD=BF=E7=94=A8=E8=AF=B4=E6=98=
+=8E</span><span style=3D"color: rgb(0,0,0);">:</span></h2>
+<p><span style=3D"color: rgb(0,0,0);">'</span></p>
+<p class=3D"paragraph text-align-type-left"><span style=3D"color: rgb(51,51=
+,51);">=E7=AC=AC=E4=B8=80=E6=AD=A5=EF=BC=9A=E6=89=93=E5=8C=85</span><span s=
+tyle=3D"color: rgb(51,51,51);">EventLibrary=E5=B7=A5=E7=A8=8B=E7=94=9F=E6=
+=88=90SDK=E6=89=80=E5=B1=9E=E7=9A=84ClientSDK-release_0.0.1.jar=E5=8C=85=E6=
+=8E=A8=E9=80=81=E8=87=B3maven=E6=9C=AC=E5=9C=B0=E4=BB=93=E5=BA=93=E6=88=96=
+=E5=88=99=E6=89=80=E5=B1=9E=E7=8E=AF=E5=A2=83=E7=9A=84=E7=A7=81=E6=9C=8D=E4=
+=B8=8A=E3=80=82</span></p>
+<p class=3D"paragraph text-align-type-left"><span style=3D"color: rgb(51,51=
+,51);">maven=E5=91=BD=E4=BB=A4=EF=BC=9A</span><span style=3D"color: rgb(51,=
+51,51);">mvn&nbsp;clean&nbsp;install&nbsp;-Dmaven.test.skip=3Dtrue&nbsp;&nb=
+sp;&nbsp;=E8=B7=B3=E8=BF=87=E5=8D=95=E6=B5=8B=E6=89=93=E5=8C=85=EF=BC=8C=E5=
+=B9=B6=E6=8A=8A=E6=89=93=E5=A5=BD=E7=9A=84=E5=8C=85=E4=B8=8A=E4=BC=A0=E5=88=
+=B0=E6=9C=AC=E5=9C=B0=E4=BB=93=E5=BA=93</span></p>
+<p class=3D"paragraph text-align-type-left"><span style=3D"color: rgb(51,51=
+,51);">=E7=AC=AC=E4=BA=8C=E6=AD=A5=EF=BC=9A=E6=89=80=E5=B1=9E=E7=9A=84=E4=
+=B8=9A=E5=8A=A1=E7=B3=BB=E7=BB=9F=E5=B7=A5=E7=A8=8Bp</span><span style=3D"c=
+olor: rgb(51,51,51);">om</span><span style=3D"color: rgb(51,51,51);">.xml=
+=E4=B8=AD=E5=BC=95=E5=85=A5=E4=BA=8B=E4=BB=B6=E5=BA=93=E6=89=80=E5=B1=9E=E7=
+=9A=84=E4=BE=9D=E8=B5=96</span></p>
+<div class=3D"code panel pdl" style=3D"border-width: 1px;">
+<div class=3D"codeHeader panelHeader pdl" style=3D"border-bottom-width: 1px=
+;">
+<b>=E4=BA=8B=E4=BB=B6=E5=BA=93SDK=E6=8E=A5=E5=85=A5=E8=AF=B4=E6=98=8E=E6=96=
+=B9=E6=A1=88</b>
+</div>
+<div class=3D"codeContent panelContent pdl">=20
+<pre class=3D"syntaxhighlighter-pre" data-syntaxhighlighter-params=3D"brush=
+: java; gutter: false; theme: Confluence" data-theme=3D"Confluence">&lt;dep=
+endency&gt;
+ &lt;groupId&gt;com.ehsy.eventlibrary&lt;/groupId&gt;
+ &lt;artifactId&gt;ClientSDK&lt;/artifactId&gt;
+ &lt;version&gt;${eventlibrary.version}&lt;/version&gt;
+&lt;/dependency&gt;
+
+&lt;properties&gt;
+ &lt;!-- =E4=BA=8B=E4=BB=B6=E5=BA=93SDK=E7=89=88=E6=9C=AC=E5=8F=B7--&gt;
+ &lt;eventlibrary.version&gt;release_0.0.1&lt;/eventlibrary.version&gt;
+&lt;/properties&gt;</pre>=20
+</div>
+</div>
+<p class=3D"paragraph text-align-type-left"><span>eventlibrary</span><span>=
+.</span><span>version=E5=80=BC=E7=9B=AE=E5=89=8D=E4=B8=BA</span><span>relea=
+se_0.0.1</span></p>
+<p class=3D"paragraph text-align-type-left"><span style=3D"color: rgb(51,51=
+,51);">=E7=AC=AC=E4=B8=89=E6=AD=A5=EF=BC=9A=E6=89=80=E5=B1=9E=E4=B8=9A=E5=
+=8A=A1=E7=B3=BB=E7=BB=9F=E5=B7=A5=E7=A8=8B=E4=B8=AD=E7=9A=84</span><span st=
+yle=3D"color: rgb(51,51,51);">application.yml=E4=B8=AD=E6=B7=BB=E5=8A=A0=E5=
+=90=91=E4=BA=8B=E4=BB=B6=E6=80=BB=E7=BA=BF=E6=B3=A8=E5=86=8C=E7=9A=84=E7=9B=
+=B8=E5=85=B3=E9=85=8D=E7=BD=AE=E4=BF=A1=E6=81=AF</span></p>
+<div class=3D"code panel pdl" style=3D"border-width: 1px;">
+<div class=3D"codeHeader panelHeader pdl" style=3D"border-bottom-width: 1px=
+;">
+<b>=E4=BA=8B=E4=BB=B6=E5=BA=93SDK=E6=8E=A5=E5=85=A5=E8=AF=B4=E6=98=8E=E6=96=
+=B9=E6=A1=88</b>
+</div>
+<div class=3D"codeContent panelContent pdl">=20
+<pre class=3D"syntaxhighlighter-pre" data-syntaxhighlighter-params=3D"brush=
+: yml; gutter: false; theme: Confluence" data-theme=3D"Confluence">#-------=
+---------=E5=AE=A2=E6=88=B7=E7=AB=AFSDK=E9=85=8D=E7=BD=AE------------------=
+-----
+client:
+  register:
+    serviceName: TransferService #=E4=B8=9A=E5=8A=A1=E7=B3=BB=E7=BB=9F=E6=
+=9C=8D=E5=8A=A1=E5=90=8D
+    serverRegisterUrl: http://event-busserver.ehsy.com #=E4=BA=8B=E4=BB=B6=
+=E6=80=BB=E7=BA=BF=E5=9C=B0=E5=9D=80
+    enableRegister: true
+  renewal:
+    initialDelay: 3 # =E6=9C=8D=E5=8A=A1=E7=BB=AD=E7=BA=A6=E5=AE=9A=E6=97=
+=B6=E6=97=B6=E9=95=BF
+    period: 3 # =E6=97=B6=E9=95=BF
+    renewalDuration: 3000 # =E6=9C=8D=E5=8A=A1=E7=BB=AD=E7=BA=A6=E6=97=B6=
+=E9=95=BF</pre>=20
+</div>
+</div>
+<p class=3D"paragraph text-align-type-left"><span style=3D"color: rgb(51,51=
+,51);">=E7=AC=AC=E5=9B=9B</span><span style=3D"color: rgb(51,51,51);">=E6=
+=AD=A5=EF=BC=9A=E4=B8=8A=E6=B8=B8=E4=B8=9A=E5=8A=A1=E7=B3=BB=E7=BB=9F=E5=8F=
+=91=E9=80=81=E4=BA=8B=E4=BB=B6=E6=B6=88=E6=81=AF=E8=87=B3=E4=BA=8B=E4=BB=B6=
+=E6=80=BB=E7=BA=BF=E6=8F=90=E4=BE=9B=E4=BA=86=E5=90=8C=E6=AD=A5=E5=8F=91=E9=
+=80=81=E5=92=8C=E5=BC=82=E6=AD=A5=E5=8F=91=E9=80=81=E4=BA=8B=E4=BB=B6=E6=B6=
+=88=E6=81=AF=E7=9A=84=E6=8E=A5=E5=8F=A3</span></p>
+<p class=3D"paragraph text-align-type-left"><span style=3D"color: rgb(51,51=
+,51);">=E5=BC=95=E5=85=A5SDK=E4=B8=AD=E7=9A=84</span><span style=3D"color: =
+rgb(51,51,51);">SystemInteractiveService=EF=BC=8CsendEvent=E6=96=B9=E6=B3=
+=95=E4=B8=BA=E5=90=8C=E6=AD=A5=E5=8F=91=E9=80=81=E4=BA=8B=E4=BB=B6=E6=B6=88=
+=E6=81=AF=E6=8E=A5=E5=8F=A3=EF=BC=8CasyncSendEvent=E4=B8=BA=E5=BC=82=E6=AD=
+=A5=E5=8F=91=E9=80=81=E4=BA=8B=E4=BB=B6=E6=B6=88=E6=81=AF=E7=9A=84=E6=8E=A5=
+=E5=8F=A3</span></p>
+<p class=3D"paragraph text-align-type-left"><span style=3D"color: rgb(51,51=
+,51);">sendEvent=E6=8E=A5=E5=8F=A3=E5=85=A5=E5=8F=82(eventCode:&nbsp;=E4=BA=
+=8B=E4=BB=B6=E7=BC=96=E7=A0=81,&nbsp;</span>eventSource: =E4=BA=8B=E4=BB=B6=
+=E6=9D=A5=E6=BA=90,&nbsp;<span style=3D"color: rgb(51,51,51);">eventContent=
+:&nbsp;=E4=BA=8B=E4=BB=B6=E5=86=85=E5=AE=B9,&nbsp;</span><span style=3D"col=
+or: rgb(152,118,170);"><span style=3D"color: rgb(0,0,0);">eventTrackReq</sp=
+an>:</span>=E4=BA=8B=E4=BB=B6=E8=BF=BD=E8=B8=AA=E4=BF=A1=E6=81=AF&nbsp;<spa=
+n style=3D"color: rgb(0,0,0);"><span style=3D"letter-spacing: 0.0px;">event=
+TrackReq=E4=B8=BASDK=E7=9A=84=E7=B1=BB =E5=B1=9E=E6=80=A7=E5=8C=85=E5=90=AB=
+</span></span><span style=3D"color: rgb(0,0,0);">traceId=E3=80=81spanId=E3=
+=80=81parentId</span></p>
+<pre><br></pre>
+<p class=3D"paragraph text-align-type-left"><span style=3D"color: rgb(51,51=
+,51);">)&nbsp;=E5=87=BA=E5=8F=82(result:=E5=8F=91=E9=80=81=E7=BB=93=E6=9E=
+=9C&nbsp;true=E4=B8=BA=E6=88=90=E5=8A=9F,false=E4=B8=BA=E5=A4=B1=E8=B4=A5)<=
+/span></p>
+<p class=3D"paragraph text-align-type-left"><span style=3D"color: rgb(51,51=
+,51);">asyncSendEvent</span><span style=3D"color: rgb(51,51,51);">=E6=8E=A5=
+=E5=8F=A3&nbsp;=E5=85=A5=E5=8F=82(eventCode:&nbsp;=E4=BA=8B=E4=BB=B6=E7=BC=
+=96=E7=A0=81, eventSource: =E4=BA=8B=E4=BB=B6=E6=9D=A5=E6=BA=90,&nbsp;event=
+Content:&nbsp;=E4=BA=8B=E4=BB=B6=E5=86=85=E5=AE=B9</span><span style=3D"col=
+or: rgb(51,51,51);">,&nbsp;</span><span style=3D"color: rgb(152,118,170);">=
+<span style=3D"color: rgb(0,0,0);">eventTrackReq</span>:</span><span style=
+=3D"letter-spacing: 0.0px;">=E4=BA=8B=E4=BB=B6=E8=BF=BD=E8=B8=AA=E4=BF=A1=
+=E6=81=AF&nbsp;</span><span style=3D"letter-spacing: 0.0px;color: rgb(0,0,0=
+);">eventTrackReq=E4=B8=BASDK=E7=9A=84=E7=B1=BB =E5=B1=9E=E6=80=A7=E5=8C=85=
+=E5=90=AB</span><span style=3D"letter-spacing: 0.0px;color: rgb(0,0,0);">tr=
+aceId=E3=80=81spanId=E3=80=81parentId</span><span style=3D"color: rgb(51,51=
+,51);letter-spacing: 0.0px;">)&nbsp;=E6=97=A0=E5=87=BA=E5=8F=82</span></p>
+<p class=3D"paragraph text-align-type-left"><strong><span style=3D"color: r=
+gb(51,51,51);">=E7=A4=BA=E4=BE=8B</span></strong></p>
+<div class=3D"code panel pdl" style=3D"border-width: 1px;">
+<div class=3D"codeHeader panelHeader pdl" style=3D"border-bottom-width: 1px=
+;">
+<b>=E4=BA=8B=E4=BB=B6=E5=BA=93SDK=E6=8E=A5=E5=85=A5=E8=AF=B4=E6=98=8E=E6=96=
+=B9=E6=A1=88</b>
+</div>
+<div class=3D"codeContent panelContent pdl">=20
+<pre class=3D"syntaxhighlighter-pre" data-syntaxhighlighter-params=3D"brush=
+: java; gutter: false; theme: Confluence" data-theme=3D"Confluence">@Slf4j
+@Service
+@RequiredArgsConstructor
+public class EventTransferServiceImpl implements EventTransferService {
+
+    private final SystemInteractiveService systemInteractiveService;
+
+    /**
+     * =E5=8F=91=E9=80=81=E4=BA=8B=E4=BB=B6(=E5=90=8C=E6=AD=A5)
+     * @param reqDto
+     */
+    @Override
+    public SendEventRespDto sendEvent(EventInfoReqDto reqDto) {
+        EventTrackReq eventTrackReq =3D reqDto.getEventTrackReq();
+=09=09SendEventRespDto respDto =3D systemInteractiveService.sendEvent(reqDt=
+o.getEventCode(),reqDto.getEventSource(), reqDto.getEventContent(), eventTr=
+ackReq);
+        log.info("=E5=8F=91=E9=80=81=E4=BA=8B=E4=BB=B6=E6=B6=88=E6=81=AF,=
+=E8=AF=B7=E6=B1=82=E5=85=A5=E5=8F=82:{},=E5=93=8D=E5=BA=94=E5=87=BA=E5=8F=
+=82:{}", JSON.toJSONString(reqDto), JSON.toJSONString(respDto));
+        return respDto;
+    }
+
+    /**
+     * =E5=8F=91=E9=80=81=E4=BA=8B=E4=BB=B6(=E5=BC=82=E6=AD=A5)
+     * @param reqDto
+     */
+    @Override
+    public void asyncSendEvent(EventInfoReqDto reqDto) {
+        log.info("=E5=BC=82=E6=AD=A5=E5=8F=91=E9=80=81=E4=BA=8B=E4=BB=B6=E6=
+=B6=88=E6=81=AF,=E8=AF=B7=E6=B1=82=E5=85=A5=E5=8F=82:{}", JSON.toJSONString=
+(reqDto));
+        EventTrackReq eventTrackReq =3D reqDto.getEventTrackReq();
+=09=09systemInteractiveService.asyncSendEvent(reqDto.getEventCode(), reqDto=
+.getEventSource(), reqDto.getEventContent(),eventTrackReq);
+    }
+}</pre>=20
+</div>
+</div>
+<p><span style=3D"color: rgb(51,51,51);">=E7=AC=AC=E4=BA=94=E6=AD=A5=EF=BC=
+=9A=E4=B8=8B=E6=B8=B8=E4=B8=9A=E5=8A=A1=E7=B3=BB=E7=BB=9F=E6=8B=89=E5=8F=96=
+=E4=BA=8B=E4=BB=B6=E6=B6=88=E6=81=AF=EF=BC=8CSDK=E4=B8=AD=E6=8F=90=E4=BE=9B=
+=E6=B3=A8=E8=A7=A3@AcceptEvent=EF=BC=8C=E5=9C=A8=E9=9C=80=E8=A6=81=E4=B8=9A=
+=E5=8A=A1=E5=A4=84=E7=90=86=E7=9A=84=E6=96=B9=E6=B3=95=E4=B8=8A=E6=B7=BB=E5=
+=8A=A0=E5=AF=B9=E5=BA=94=E7=9A=84=E6=B3=A8=E8=A7=A3=EF=BC=8C=E6=B3=A8=E8=A7=
+=A3=E5=B1=9E=E6=80=A7eventTopic=E4=B8=BA=E6=8B=89=E5=8F=96=E4=BA=8B=E4=BB=
+=B6=E6=B6=88=E6=81=AF=E7=9A=84=E4=BA=8B=E4=BB=B6=E7=BC=96=E7=A0=81=EF=BC=8C=
+</span>consumerGroup<span style=3D"color: rgb(51,51,51);">=E4=B8=BA=E4=B8=
+=8B=E6=B8=B8=E4=B8=9A=E5=8A=A1=E7=B3=BB=E7=BB=9F=E7=9A=84=E7=B3=BB=E7=BB=9F=
+=E5=90=8D=E3=80=82=E6=96=B9=E6=B3=95=E5=85=A5=E5=8F=82=E5=BF=85=E9=A1=BB=E4=
+=B8=BAString=E7=B1=BB=E5=9E=8B=E7=9A=84</span><span style=3D"color: rgb(51,=
+51,51);">eventMessage,&nbsp;=E5=87=BA=E5=8F=82</span><span style=3D"color: =
+rgb(51,51,51);">=E5=BF=85=E9=A1=BB=E7=BB=A7=E6=89=BF</span><span style=3D"c=
+olor: rgb(51,51,51);">EventResult=E5=8D=B3=E5=8F=AF=E5=AE=9E=E7=8E=B0=E6=8A=
+=8A=E5=AF=B9=E5=BA=94=E7=9A=84=E4=BA=8B=E4=BB=B6=E6=B6=88=E6=81=AF=E6=8B=89=
+=E5=8F=96=E5=88=B0=E3=80=82</span></p>
+<p class=3D"paragraph text-align-type-left"><span style=3D"color: rgb(51,51=
+,51);"><strong>=E8=AF=B4=E6=98=8E:&nbsp;</strong></span><span>EventResult</=
+span><span>=E4=B8=AD=E7=9A=84code,=E5=A6=82=E6=9E=9C=E4=BA=8B=E4=BB=B6=E5=
+=A4=84=E7=90=86=E6=88=90=E5=8A=9F=E4=B8=BA"200",=E5=A4=84=E7=90=86=E5=A4=B1=
+=E8=B4=A5=E4=B8=BA"500"=E5=B9=B6=E4=B8=94=E6=8A=8A=E5=A4=B1=E8=B4=A5=E5=8E=
+=9F=E5=9B=A0=E8=B5=8B=E5=80=BC=E7=BB=99msg=E5=AD=97=E6=AE=B5,code=E5=9B=BA=
+=E5=AE=9A=E5=8F=AA=E6=9C=89=E8=BF=992=E4=B8=AA=E5=80=BC</span></p>
+<p class=3D"paragraph text-align-type-left"><strong><span style=3D"color: r=
+gb(51,51,51);">=E7=A4=BA=E4=BE=8B</span></strong></p>
+<div class=3D"code panel pdl" style=3D"border-width: 1px;">
+<div class=3D"codeHeader panelHeader pdl" style=3D"border-bottom-width: 1px=
+;">
+<b>=E4=BA=8B=E4=BB=B6=E5=BA=93SDK=E6=8E=A5=E5=85=A5=E8=AF=B4=E6=98=8E=E6=96=
+=B9=E6=A1=88</b>
+</div>
+<div class=3D"codeContent panelContent pdl">=20
+<pre class=3D"syntaxhighlighter-pre" data-syntaxhighlighter-params=3D"brush=
+: java; gutter: false; theme: Confluence" data-theme=3D"Confluence">/**
+ * =E4=BA=8B=E4=BB=B6=E4=BF=A1=E6=81=AF=E4=BC=A0=E8=BE=93=E5=AF=B9=E8=B1=A1
+ * @author jinye_hou
+ */
+@Data
+public class EventInfoRespDto extends EventResult {
+    /**
+     * =E4=BA=8B=E4=BB=B6=E6=B6=88=E6=81=AF=E5=86=85=E5=AE=B9
+     */
+    String dataContent;
+}
+
+
+@AcceptEvent(eventTopic =3D "test", consumerGroup=3D"sms")
+public EventInfoRespDto pullEventMsgForTestEventTopic(String eventMessage) =
+{
+    log.info("=E9=94=80=E5=94=AE=E7=AE=A1=E7=90=86=E7=B3=BB=E7=BB=9F{}=E4=
+=BA=8B=E4=BB=B6=E4=B8=BB=E9=A2=98,=E6=8B=89=E5=8F=96=E5=88=B0=E7=9A=84=E4=
+=BA=8B=E4=BB=B6=E6=B6=88=E6=81=AF=E5=86=85=E5=AE=B9:{}","test",eventMessage=
+);
+    ....=E5=85=B7=E4=BD=93=E7=9A=84=E4=B8=9A=E5=8A=A1=E6=89=A7=E8=A1=8C
+    return respDto;
+}</pre>=20
+</div>
+</div>
+<h2 class=3D"paragraph text-align-type-left" id=3D"id-=E4=BA=8B=E4=BB=B6=E5=
+=BA=93SDK=E6=8E=A5=E5=85=A5=E8=AF=B4=E6=98=8E=E6=96=B9=E6=A1=88-=E9=9D=9EJa=
+va=E5=B7=A5=E7=A8=8B=E6=8E=A5=E5=85=A5SDK=E6=96=B9=E6=A1=88"><strong>=E9=9D=
+=9EJava=E5=B7=A5=E7=A8=8B=E6=8E=A5=E5=85=A5SDK=E6=96=B9=E6=A1=88</strong></=
+h2>
+<h3 id=3D"id-=E4=BA=8B=E4=BB=B6=E5=BA=93SDK=E6=8E=A5=E5=85=A5=E8=AF=B4=E6=
+=98=8E=E6=96=B9=E6=A1=88-=E6=8E=A5=E5=8F=97=E4=BA=8B=E4=BB=B6=E6=B6=88=E6=
+=81=AF">&nbsp; =E6=8E=A5=E5=8F=97=E4=BA=8B=E4=BB=B6=E6=B6=88=E6=81=AF</h3>
+<pre><code> =E4=BA=8B=E4=BB=B6=E5=BA=93=E4=B8=AD=E8=BD=AC=E6=9C=8D=E5=8A=A1=
+=E6=8E=A5=E5=85=A5Java=E7=9A=84SDK,=E5=B9=B6=E5=AE=9A=E4=B9=89HTTP=E6=8E=A5=
+=E5=8F=A3=E8=A7=84=E8=8C=83=E4=BC=A0=E8=BE=93=E6=8E=A8=E9=80=81=E7=BB=99=E5=
+=AF=B9=E5=BA=94=E7=9A=84=E4=B8=9A=E5=8A=A1=E7=B3=BB=E7=BB=9F=E4=B8=AD,HTTP=
+=E6=8E=A5=E5=8F=A3=E7=94=B1=E4=B8=9A=E5=8A=A1=E7=B3=BB=E7=BB=9F=E6=8F=90=E4=
+=BE=9B  <br></code></pre>
+<p><strong>&nbsp; HTTP=E6=8E=A5=E5=8F=A3=E8=A7=84=E8=8C=83</strong></p>
+<p><strong>&nbsp; 1.=E7=89=88=E6=9C=AC=E8=AF=B4=E6=98=8E</strong></p>
+<div class=3D"table-wrap">
+<table class=3D"wrapped confluenceTable">
+<colgroup>
+<col>
+<col>
+<col>
+<col>
+</colgroup>
+<tbody>
+<tr>
+<th class=3D"confluenceTh">=E7=89=88=E6=9C=AC=E5=8F=B7</th>
+<th class=3D"confluenceTh">=E5=8F=98=E6=9B=B4=E6=8F=8F=E8=BF=B0</th>
+<th class=3D"confluenceTh">=E6=93=8D=E4=BD=9C=E4=BA=BA</th>
+<th class=3D"confluenceTh">=E6=97=A5=E6=9C=9F</th>
+</tr>
+<tr>
+<td class=3D"confluenceTd">v1</td>
+<td class=3D"confluenceTd">=E4=BA=8B=E4=BB=B6=E5=BA=93=E5=88=9D=E5=A7=8B=E5=
+=8C=96=E6=8E=A5=E5=8F=A3=E6=96=87=E6=A1=A3</td>
+<td class=3D"confluenceTd">=E5=80=99=E9=87=91=E7=83=A8</td>
+<td class=3D"confluenceTd">2024.5.13</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>&nbsp;2.=E9=80=9A=E8=AE=AF=E5=8D=8F=E8=AE=AE</strong></p>
+<p>&nbsp;HTTPS</p>
+<p><strong>3.=E6=8E=A5=E5=8F=A3=E5=AE=89=E5=85=A8</strong></p>
+<p>=E4=B8=AD=E8=BD=AC=E6=9C=8D=E5=8A=A1=E6=8F=90=E4=BE=9BIP,=E7=94=B1=E6=8E=
+=A5=E5=85=A5SDK=E7=9A=84=E4=B8=9A=E5=8A=A1=E7=B3=BB=E7=BB=9F=E6=8F=90=E4=BE=
+=9BIP=E9=99=90=E5=88=B6</p>
+<p><strong>4.=E8=AF=B7=E6=B1=82=E6=96=B9=E5=BC=8F</strong></p>
+<p>POST</p>
+<p><strong>5.=E7=BC=96=E7=A0=81=E6=A0=BC=E5=BC=8F</strong></p>
+<p>UTF-8</p>
+<p><strong>6.=E8=AF=B7=E6=B1=82URL</strong></p>
+<p>&nbsp;xxxxxxxx(=E7=94=B1=E5=85=B7=E4=BD=93=E6=8E=A5=E5=85=A5SDK=E4=B8=9A=
+=E5=8A=A1=E7=B3=BB=E7=BB=9F=E6=8F=90=E4=BE=9B)</p>
+<p><strong>7.=E8=AF=B7=E6=B1=82=E5=A4=B4</strong></p>
+<p>=E9=93=BE=E8=B7=AF=E8=BF=BD=E8=B8=AA=E5=8F=82=E6=95=B0=EF=BC=9AEHSY-Trac=
+eID=EF=BC=8CEHSY-SRCAPP =E8=BF=99=E4=B8=A4=E4=B8=AA=E5=8F=82=E6=95=B0=E7=94=
+=B1=E6=8E=A5=E5=85=A5SDK=E4=B8=9A=E5=8A=A1=E7=B3=BB=E7=BB=9F=E6=8F=90=E4=BE=
+=9B</p>
+<p>Content-Type=EF=BC=9Aapplication/json</p>
+<p><strong>8.=E8=AF=B7=E6=B1=82=E5=8F=82=E6=95=B0</strong></p>
+<div class=3D"table-wrap">
+<table class=3D"wrapped confluenceTable">
+<colgroup>
+<col>
+<col>
+<col>
+<col>
+<col>
+<col>
+<col>
+<col>
+</colgroup>
+<tbody>
+<tr>
+<th class=3D"confluenceTh">=E5=8F=82=E6=95=B0=E5=90=8D</th>
+<th class=3D"confluenceTh">=E7=B1=BB=E5=9E=8B</th>
+<th class=3D"confluenceTh">=E6=98=AF=E5=90=A6=E5=BF=85=E5=A1=AB</th>
+<th class=3D"confluenceTh">=E9=BB=98=E8=AE=A4=E5=80=BC</th>
+<th class=3D"confluenceTh">=E5=8F=96=E5=80=BC=E8=8C=83=E5=9B=B4</th>
+<th class=3D"confluenceTh">=E5=8F=82=E6=95=B0=E6=A0=BC=E5=BC=8F</th>
+<th class=3D"confluenceTh">=E7=A4=BA=E4=BE=8B=E5=80=BC</th>
+<th class=3D"confluenceTh">=E5=A4=87=E6=B3=A8</th>
+</tr>
+<tr>
+<td class=3D"confluenceTd"><span style=3D"color: rgb(0,0,0);">eventTopic</s=
+pan></td>
+<td class=3D"confluenceTd">String</td>
+<td class=3D"confluenceTd">=E6=98=AF</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">test</td>
+<td class=3D"confluenceTd">=E4=BA=8B=E4=BB=B6=E4=B8=BB=E9=A2=98=E7=BC=96=E7=
+=A0=81</td>
+</tr>
+<tr>
+<td class=3D"confluenceTd"><pre><span style=3D"color: rgb(0,0,0);">eventMes=
+sage</span></pre></td>
+<td class=3D"confluenceTd">String</td>
+<td class=3D"confluenceTd">=E6=98=AF</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E4=BA=8B=E4=BB=B6=E6=B6=88=E6=81=AF=E5=86=85=E5=
+=AE=B9</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>9.=E5=93=8D=E5=BA=94=E5=8F=82=E6=95=B0</strong></p>
+<div class=3D"table-wrap">
+<table class=3D"wrapped relative-table confluenceTable" style=3D"width: 39.=
+0547%;">
+<colgroup>
+<col style=3D"width: 13.8756%;">
+<col style=3D"width: 9.09977%;">
+<col style=3D"width: 13.0781%;">
+<col style=3D"width: 10.6858%;">
+<col style=3D"width: 12.2807%;">
+<col style=3D"width: 12.2807%;">
+<col style=3D"width: 10.8453%;">
+<col style=3D"width: 17.8717%;">
+</colgroup>
+<tbody>
+<tr>
+<th class=3D"confluenceTh">=E5=8F=82=E6=95=B0=E5=90=8D</th>
+<th class=3D"confluenceTh">=E7=B1=BB=E5=9E=8B</th>
+<th class=3D"confluenceTh">=E6=98=AF=E5=90=A6=E5=BF=85=E5=A1=AB</th>
+<th class=3D"confluenceTh">=E9=BB=98=E8=AE=A4=E5=80=BC</th>
+<th class=3D"confluenceTh">=E5=8F=96=E5=80=BC=E8=8C=83=E5=9B=B4</th>
+<th class=3D"confluenceTh">=E5=8F=82=E6=95=B0=E6=A0=BC=E5=BC=8F</th>
+<th class=3D"confluenceTh">=E7=A4=BA=E4=BE=8B=E5=80=BC</th>
+<th class=3D"confluenceTh">=E5=A4=87=E6=B3=A8</th>
+</tr>
+<tr>
+<td class=3D"confluenceTd">code</td>
+<td class=3D"confluenceTd">String</td>
+<td class=3D"confluenceTd">=E6=98=AF</td>
+<td class=3D"confluenceTd">00000</td>
+<td class=3D"confluenceTd"><span>=E6=97=A0</span></td>
+<td class=3D"confluenceTd"><span>=E6=97=A0</span></td>
+<td class=3D"confluenceTd"><br></td>
+<td class=3D"confluenceTd">=E5=93=8D=E5=BA=94=E7=BC=96=E7=A0=81</td>
+</tr>
+<tr>
+<td class=3D"confluenceTd">msg</td>
+<td class=3D"confluenceTd">String</td>
+<td class=3D"confluenceTd">=E6=98=AF</td>
+<td class=3D"confluenceTd">success</td>
+<td class=3D"confluenceTd"><span>=E6=97=A0</span></td>
+<td class=3D"confluenceTd"><span>=E6=97=A0</span></td>
+<td class=3D"confluenceTd"><br></td>
+<td class=3D"confluenceTd">=E5=93=8D=E5=BA=94=E6=8F=8F=E8=BF=B0</td>
+</tr>
+<tr>
+<td class=3D"confluenceTd">data</td>
+<td class=3D"confluenceTd">JSON</td>
+<td class=3D"confluenceTd">=E5=90=A6</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd"><br></td>
+<td class=3D"confluenceTd">=E5=93=8D=E5=BA=94=E6=95=B0=E6=8D=AE</td>
+</tr>
+<tr>
+<td class=3D"confluenceTd">timestamp</td>
+<td class=3D"confluenceTd">Long</td>
+<td class=3D"confluenceTd">=E6=98=AF</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd"><br></td>
+<td class=3D"confluenceTd">=E5=BD=93=E5=89=8D=E6=97=B6=E9=97=B4=E6=88=B3</t=
+d>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>=E5=A4=87=E6=B3=A8=EF=BC=9A=E5=93=8D=E5=BA=94=E6=88=90=E5=8A=9Fc=
+ode=E5=80=BC=E4=B8=BA200, msg=E5=80=BC=E4=B8=BAsuccess=EF=BC=9B&nbsp;=E5=93=
+=8D=E5=BA=94=E5=A4=B1=E8=B4=A5code=E5=80=BC=E4=B8=BA500,&nbsp;msg=E4=B8=BA=
+=E6=8A=A5=E9=94=99=E6=97=A5=E5=BF=97</strong></p>
+<p>{<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; "code":<span>200</span>,=
+<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; "msg":"success",<br>&nbsp;&n=
+bsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; "timestamp":1111111=EF=BC=88=E6=97=B6=E9=
+=97=B4=E6=88=B3=EF=BC=89,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; "da=
+ta":{<br>&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nb=
+sp; &nbsp; &nbsp; &nbsp; &nbsp;<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbs=
+p;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }<br>}=
+</p>
+<p><strong>=E5=8F=91=E9=80=81=E4=BA=8B=E4=BB=B6=E6=B6=88=E6=81=AF</strong><=
+/p>
+<p>&nbsp;<span style=3D"color: rgb(0,0,0);">=E4=B8=9A=E5=8A=A1=E7=B3=BB=E7=
+=BB=9F=E9=9C=80=E8=A6=81=E8=B0=83=E7=94=A8=E4=B8=AD=E8=BD=AC=E6=9C=8D=E5=8A=
+=A1=E6=8F=90=E4=BE=9B=E7=9A=84=E5=8F=91=E9=80=81=E4=BA=8B=E4=BB=B6=E6=B6=88=
+=E6=81=AF=E6=8E=A5=E5=8F=A3=E6=88=96=E8=80=85=E8=B0=83=E7=94=A8=E5=BC=82=E6=
+=AD=A5=E5=8F=91=E9=80=81=E4=BA=8B=E4=BB=B6=E6=B6=88=E6=81=AF=E6=8E=A5=E5=8F=
+=A3=EF=BC=8C=E6=8A=8A=E4=BA=8B=E4=BB=B6=E6=B6=88=E6=81=AF=E6=8E=A8=E7=BB=99=
+=E4=B8=AD=E8=BD=AC=E6=9C=8D=E5=8A=A1</span></p>
+<p><strong><span style=3D"color: rgb(0,0,0);">HTTP=E6=8E=A5=E5=8F=A3=E8=A7=
+=84=E8=8C=83</span></strong></p>
+<p><strong>1.=E7=89=88=E6=9C=AC=E8=AF=B4=E6=98=8E</strong></p>
+<div class=3D"table-wrap">
+<table class=3D"wrapped confluenceTable">
+<colgroup>
+<col>
+<col>
+<col>
+<col>
+</colgroup>
+<tbody>
+<tr>
+<th class=3D"confluenceTh">=E7=89=88=E6=9C=AC=E5=8F=B7</th>
+<th class=3D"confluenceTh">=E5=8F=98=E6=9B=B4=E6=8F=8F=E8=BF=B0</th>
+<th class=3D"confluenceTh">=E6=93=8D=E4=BD=9C=E4=BA=BA</th>
+<th class=3D"confluenceTh">=E6=97=A5=E6=9C=9F</th>
+</tr>
+<tr>
+<td class=3D"confluenceTd">v1</td>
+<td class=3D"confluenceTd">=E4=BA=8B=E4=BB=B6=E5=BA=93=E5=88=9D=E5=A7=8B=E5=
+=8C=96=E6=8E=A5=E5=8F=A3=E6=96=87=E6=A1=A3</td>
+<td class=3D"confluenceTd">=E5=80=99=E9=87=91=E7=83=A8</td>
+<td class=3D"confluenceTd">2024.5.13</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>2.=E9=80=9A=E8=AE=AF=E5=8D=8F=E8=AE=AE</strong></p>
+<p>&nbsp;HTTPS</p>
+<p><strong>3.=E6=8E=A5=E5=8F=A3=E5=AE=89=E5=85=A8</strong></p>
+<p>=E9=9C=80=E8=A6=81=E6=8E=A5=E5=85=A5SDK=E7=9A=84=E4=B8=9A=E5=8A=A1=E7=B3=
+=BB=E7=BB=9F=E9=9C=80=E8=A6=81=E6=8F=90=E4=BE=9BIP=E5=9C=B0=E5=9D=80=EF=BC=
+=8C=E7=94=B1=E4=B8=AD=E8=BD=AC=E6=9C=8D=E5=8A=A1=E5=81=9AIP=E9=99=90=E5=88=
+=B6</p>
+<p><strong>4.=E8=AF=B7=E6=B1=82=E6=96=B9=E5=BC=8F</strong></p>
+<p>POST</p>
+<p><strong>5.=E7=BC=96=E7=A0=81=E6=A0=BC=E5=BC=8F</strong></p>
+<p>UTF-8</p>
+<p><strong>6.=E8=AF=B7=E6=B1=82URL</strong></p>
+<pre><span style=3D"color: rgb(95,130,107);"><span style=3D"color: rgb(0,0,=
+0);">=E5=8F=91=E9=80=81=E4=BA=8B=E4=BB=B6=E6=B6=88=E6=81=AFURL</span>: </sp=
+an>=E4=BA=8B=E4=BB=B6=E4=B8=AD=E8=BD=AC=E6=9C=8D=E5=8A=A1=E5=9F=9F=E5=90=8D=
++<span style=3D"letter-spacing: 0.0px;">/api/event/</span><span style=3D"co=
+lor: rgb(0,0,0);">sendEvent</span></pre>
+<p>=E5=BC=82=E6=AD=A5=E5=8F=91=E9=80=81=E4=BA=8B=E4=BB=B6=E6=B6=88=E6=81=AF=
+URL:&nbsp; =E4=BA=8B=E4=BB=B6=E4=B8=AD=E8=BD=AC=E6=9C=8D=E5=8A=A1=E5=9F=9F=
+=E5=90=8D+<span style=3D"color: rgb(0,0,0);">/</span><span style=3D"color: =
+rgb(0,0,0);"><span style=3D"letter-spacing: 0.0px;">api/event/</span>asyncS=
+endEvent</span></p>
+<p><strong>7.=E8=AF=B7=E6=B1=82=E5=A4=B4</strong></p>
+<p>=E9=93=BE=E8=B7=AF=E8=BF=BD=E8=B8=AA=E5=8F=82=E6=95=B0=EF=BC=9AEHSY-Trac=
+eID=EF=BC=8CEHSY-SRCAPP =E8=BF=99=E4=B8=A4=E4=B8=AA=E5=8F=82=E6=95=B0=E7=94=
+=B1=E6=8E=A5=E5=85=A5SDK=E4=B8=9A=E5=8A=A1=E7=B3=BB=E7=BB=9F=E6=8F=90=E4=BE=
+=9B</p>
+<p>Content-Type=EF=BC=9Aapplication/json</p>
+<p><span style=3D"color: rgb(0,0,0);"><strong>8.=E8=AF=B7=E6=B1=82=E5=8F=82=
+=E6=95=B0</strong></span></p>
+<div class=3D"table-wrap">
+<table class=3D"confluenceTable">
+<colgroup>
+<col>
+<col>
+<col>
+<col>
+<col>
+<col>
+<col>
+</colgroup>
+<tbody>
+<tr>
+<th class=3D"confluenceTh">=E5=8F=82=E6=95=B0=E5=90=8D</th>
+<th class=3D"confluenceTh">=E7=B1=BB=E5=9E=8B</th>
+<th class=3D"confluenceTh">=E6=98=AF=E5=90=A6=E5=BF=85=E5=A1=AB</th>
+<th class=3D"confluenceTh">=E9=BB=98=E8=AE=A4=E5=80=BC</th>
+<th class=3D"confluenceTh">=E5=8F=96=E5=80=BC=E8=8C=83=E5=9B=B4</th>
+<th class=3D"confluenceTh">=E5=8F=82=E6=95=B0=E6=A0=BC=E5=BC=8F</th>
+<th class=3D"confluenceTh">=E5=A4=87=E6=B3=A8</th>
+</tr>
+<tr>
+<td class=3D"confluenceTd">eventCode</td>
+<td class=3D"confluenceTd">String</td>
+<td class=3D"confluenceTd">=E6=98=AF</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E4=BA=8B=E4=BB=B6=E4=B8=BB=E9=A2=98=E7=BC=96=E7=
+=A0=81</td>
+</tr>
+<tr>
+<td class=3D"confluenceTd"><pre>eventSource</pre></td>
+<td class=3D"confluenceTd">String</td>
+<td class=3D"confluenceTd">=E6=98=AF</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E4=BA=8B=E4=BB=B6=E6=9D=A5=E6=BA=90</td>
+</tr>
+<tr>
+<td class=3D"confluenceTd">eventContent</td>
+<td class=3D"confluenceTd">String</td>
+<td class=3D"confluenceTd">=E6=98=AF</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E4=BA=8B=E4=BB=B6=E5=86=85=E5=AE=B9</td>
+</tr>
+<tr>
+<td class=3D"confluenceTd">eventTrackReq</td>
+<td class=3D"confluenceTd">Object</td>
+<td class=3D"confluenceTd">=E6=98=AF</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E4=BA=8B=E4=BB=B6=E9=93=BE=E8=B7=AF=E8=BF=BD=E8=
+=B8=AA=E8=AF=B7=E6=B1=82=E5=8F=82=E6=95=B0</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><span style=3D"">eventTrackReq=E5=AF=B9=E8=B1=A1</span></p>
+<div class=3D"table-wrap">
+<table class=3D"relative-table confluenceTable" style=3D"width: 39.5522%;">
+<colgroup>
+<col style=3D"width: 11.507%;">
+<col style=3D"width: 8.98513%;">
+<col style=3D"width: 14.0136%;">
+<col style=3D"width: 9.60411%;">
+<col style=3D"width: 11.8088%;">
+<col style=3D"width: 11.8088%;">
+<col style=3D"width: 32.29%;">
+</colgroup>
+<tbody>
+<tr>
+<th class=3D"confluenceTh">=E5=8F=82=E6=95=B0=E5=90=8D</th>
+<th class=3D"confluenceTh">=E7=B1=BB=E5=9E=8B</th>
+<th class=3D"confluenceTh">=E6=98=AF=E5=90=A6=E5=BF=85=E5=A1=AB</th>
+<th class=3D"confluenceTh">=E9=BB=98=E8=AE=A4=E5=80=BC</th>
+<th class=3D"confluenceTh">=E5=8F=96=E5=80=BC=E8=8C=83=E5=9B=B4</th>
+<th class=3D"confluenceTh">=E5=8F=82=E6=95=B0=E6=A0=BC=E5=BC=8F</th>
+<th class=3D"confluenceTh">=E5=A4=87=E6=B3=A8</th>
+</tr>
+<tr>
+<td class=3D"confluenceTd">traceId</td>
+<td class=3D"confluenceTd">String</td>
+<td class=3D"confluenceTd">=E6=98=AF</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E4=BA=8B=E4=BB=B6=E9=93=BE=E8=B7=AF=E8=BF=BD=E8=
+=B8=AAtraceId</td>
+</tr>
+<tr>
+<td class=3D"confluenceTd">spanId</td>
+<td class=3D"confluenceTd">String</td>
+<td class=3D"confluenceTd">=E6=98=AF</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E4=BA=8B=E4=BB=B6=E9=93=BE=E8=B7=AF=E8=BF=BD=E8=
+=B8=AAspanId</td>
+</tr>
+<tr>
+<td class=3D"confluenceTd">parentId</td>
+<td class=3D"confluenceTd">String</td>
+<td class=3D"confluenceTd">=E6=98=AF</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E4=BA=8B=E4=BB=B6=E9=93=BE=E8=B7=AF=E8=BF=BD=E8=
+=B8=AAparentId</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>9.=E5=93=8D=E5=BA=94=E5=8F=82=E6=95=B0</strong></p>
+<div class=3D"table-wrap">
+<table class=3D"wrapped relative-table confluenceTable" style=3D"width: 39.=
+4279%;">
+<colgroup>
+<col style=3D"width: 13.7441%;">
+<col style=3D"width: 9.01352%;">
+<col style=3D"width: 12.1643%;">
+<col style=3D"width: 10.5845%;">
+<col style=3D"width: 12.1643%;">
+<col style=3D"width: 12.1643%;">
+<col style=3D"width: 9.95261%;">
+<col style=3D"width: 20.2299%;">
+</colgroup>
+<tbody>
+<tr>
+<th class=3D"confluenceTh">=E5=8F=82=E6=95=B0=E5=90=8D</th>
+<th class=3D"confluenceTh">=E7=B1=BB=E5=9E=8B</th>
+<th class=3D"confluenceTh">=E6=98=AF=E5=90=A6=E5=BF=85=E5=A1=AB</th>
+<th class=3D"confluenceTh">=E9=BB=98=E8=AE=A4=E5=80=BC</th>
+<th class=3D"confluenceTh">=E5=8F=96=E5=80=BC=E8=8C=83=E5=9B=B4</th>
+<th class=3D"confluenceTh">=E5=8F=82=E6=95=B0=E6=A0=BC=E5=BC=8F</th>
+<th class=3D"confluenceTh">=E7=A4=BA=E4=BE=8B=E5=80=BC</th>
+<th class=3D"confluenceTh">=E5=A4=87=E6=B3=A8</th>
+</tr>
+<tr>
+<td class=3D"confluenceTd">code</td>
+<td class=3D"confluenceTd">String</td>
+<td class=3D"confluenceTd">=E6=98=AF</td>
+<td class=3D"confluenceTd">00000</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd"><br></td>
+<td class=3D"confluenceTd">=E5=93=8D=E5=BA=94=E7=BC=96=E7=A0=81</td>
+</tr>
+<tr>
+<td class=3D"confluenceTd">msg</td>
+<td class=3D"confluenceTd">String</td>
+<td class=3D"confluenceTd">=E6=98=AF</td>
+<td class=3D"confluenceTd">success</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd"><br></td>
+<td class=3D"confluenceTd">=E5=93=8D=E5=BA=94=E6=8F=8F=E8=BF=B0</td>
+</tr>
+<tr>
+<td class=3D"confluenceTd">data</td>
+<td class=3D"confluenceTd">JSON</td>
+<td class=3D"confluenceTd">=E5=90=A6</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd"><br></td>
+<td class=3D"confluenceTd">=E5=93=8D=E5=BA=94=E6=95=B0=E6=8D=AE</td>
+</tr>
+<tr>
+<td class=3D"confluenceTd">timestamp</td>
+<td class=3D"confluenceTd">Long</td>
+<td class=3D"confluenceTd">=E6=98=AF</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd">=E6=97=A0</td>
+<td class=3D"confluenceTd"><br></td>
+<td class=3D"confluenceTd">=E5=BD=93=E5=89=8D=E6=97=B6=E9=97=B4=E6=88=B3</t=
+d>
+</tr>
+</tbody>
+</table>
+</div>
+<p>{<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; "code":00000,<br>&nbsp;&=
+nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; "msg":"success",<br>&nbsp;&nbsp;&nbsp;&=
+nbsp;&nbsp;&nbsp;&nbsp; "timestamp":1111111=EF=BC=88=E6=97=B6=E9=97=B4=E6=
+=88=B3=EF=BC=89,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; "data":{<br>=
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp=
+; &nbsp; &nbsp; &nbsp;"result": true<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp=
+;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }=
+<br>}</p>
+<p><strong>=E5=A4=87=E6=B3=A8:=E5=90=8C=E6=AD=A5=E5=8F=91=E9=80=81=E4=BA=8B=
+=E4=BB=B6=E6=B6=88=E6=81=AF=E6=8E=A5=E5=8F=A3=E5=92=8C=E5=BC=82=E6=AD=A5=E5=
+=8F=91=E9=80=81=E4=BA=8B=E4=BB=B6=E6=B6=88=E6=81=AF=E6=8E=A5=E5=8F=A3=E8=AF=
+=B7=E6=B1=82=E5=8F=82=E6=95=B0=E4=B8=80=E6=A0=B7=EF=BC=8C=E5=BC=82=E6=AD=A5=
+=E6=97=A0=E5=93=8D=E5=BA=94=E5=8F=82=E6=95=B0</strong></p>
+<p><br></p>
+<p><br></p>
+<p><br></p>
+<p><br></p>
+<p><br></p>
+<p class=3D"paragraph text-align-type-left"><br></p>
+<p class=3D"paragraph text-align-type-left"><br></p>
+<pre style=3D"margin-top: 10.0px;"><span style=3D"color: rgb(152,118,170);"=
+>eventTrackReq</span></pre>
+    </div>
+</body>
+</html>
+------=_Part_16013406_1703831032.1777359048803--

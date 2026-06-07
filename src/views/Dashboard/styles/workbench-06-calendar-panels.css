@@ -1,0 +1,184 @@
+@import '../../../styles/variables.css';
+
+.calendar-panel,
+.upcoming-panel {
+  margin: 0;
+  padding: 14px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, var(--bg-card) 0%, #F8FAFC 100%);
+  border: 1px solid #E5E7EB;
+}
+
+.calendar-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.calendar-panel-eyebrow {
+  font-size: 11px;
+  color: var(--gray-400);
+  margin-bottom: 2px;
+}
+
+.calendar-panel-title {
+  margin: 0;
+  font-size: 15px;
+  color: #0F172A;
+}
+
+.selected-events-list,
+.upcoming-events-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.selected-event-card,
+.upcoming-event-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #E5E7EB;
+  background: var(--bg-card);
+  transition: all 0.2s ease;
+}
+
+.upcoming-event-item {
+  cursor: pointer;
+}
+
+.selected-event-card.priority-critical,
+.upcoming-event-item.priority-critical {
+  border-color: #E9D5FF;
+  background: linear-gradient(180deg, #FDF7FF 0%, #FAE8FF 100%);
+}
+
+.selected-event-card.priority-warning,
+.upcoming-event-item.priority-warning {
+  border-color: var(--color-warning-light);
+  background: linear-gradient(180deg, #FFFDF5 0%, #FFFBEB 100%);
+}
+
+.selected-event-card.priority-normal,
+.upcoming-event-item.priority-normal {
+  border-color: #DBEAFE;
+  background: linear-gradient(180deg, var(--bg-card) 0%, #F8FBFF 100%);
+}
+
+.selected-event-main,
+.upcoming-event-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.selected-event-topline,
+.upcoming-event-title-row,
+.selected-event-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.selected-event-type,
+.upcoming-event-date-label,
+.upcoming-event-owner {
+  font-size: 11px;
+  color: var(--text-slate);
+}
+
+.selected-event-countdown,
+.upcoming-rail-countdown {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.selected-event-title,
+.upcoming-event-title {
+  margin: 6px 0 4px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #0F172A;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selected-event-project,
+.upcoming-event-subline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-slate);
+}
+
+.selected-event-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.selected-event-meta span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--sidebar-text-secondary);
+  font-size: 11px;
+}
+
+.selected-event-actions {
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.selected-event-actions .el-button,
+.upcoming-event-side .el-button {
+  margin: 0;
+  border: none;
+  background: linear-gradient(135deg, #1d4ed8 0%, #0f766e 100%);
+  color: var(--bg-card);
+  font-weight: 600;
+  box-shadow: 0 8px 18px rgba(29, 78, 216, 0.18);
+}
+
+.selected-event-actions .el-button:hover,
+.upcoming-event-side .el-button:hover {
+  background: linear-gradient(135deg, #1e40af 0%, #115e59 100%);
+  color: var(--bg-card);
+}
+
+.selected-event-card.priority-critical .selected-event-actions .el-button,
+.upcoming-event-item.priority-critical .upcoming-event-side .el-button {
+  background: linear-gradient(135deg, #a21caf 0%, #7e22ce 100%);
+  box-shadow: 0 8px 18px rgba(162, 28, 175, 0.2);
+}
+
+.selected-event-card.priority-critical .selected-event-actions .el-button:hover,
+.upcoming-event-item.priority-critical .upcoming-event-side .el-button:hover {
+  background: linear-gradient(135deg, #86198f 0%, #6b21a8 100%);
+}
+
+.selected-event-card.priority-warning .selected-event-actions .el-button,
+.upcoming-event-item.priority-warning .upcoming-event-side .el-button {
+  background: linear-gradient(135deg, #c2410c 0%, #ea580c 100%);
+  box-shadow: 0 8px 18px rgba(234, 88, 12, 0.18);
+}
+
+.selected-event-card.priority-warning .selected-event-actions .el-button:hover,
+.upcoming-event-item.priority-warning .upcoming-event-side .el-button:hover {
+  background: linear-gradient(135deg, #9a3412 0%, #c2410c 100%);
+}
+
+.risk-tag.priority-critical {
+  --el-tag-bg-color: #FAE8FF;
+  --el-tag-border-color: #E9D5FF;
+  --el-tag-text-color: #A21CAF;
+}

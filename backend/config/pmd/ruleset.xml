@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<ruleset name="xiyu-bid-pmd"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0
+                             https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+
+    <description>Project PMD rules — errorprone minus noisy style checks</description>
+
+    <rule ref="category/java/errorprone.xml">
+        <!-- AvoidDuplicateLiterals: flags repeated strings like "admin", "self"
+             in service/config classes. Too noisy for domain code. -->
+        <exclude name="AvoidDuplicateLiterals"/>
+        <!-- AvoidLiteralsInIfCondition: flags numeric/string literals in if().
+             We use named constants where it matters; small thresholds are fine inline. -->
+        <exclude name="AvoidLiteralsInIfCondition"/>
+        <!-- NullAssignment: flags explicit null assignments used for GC hints
+             or optional-reset patterns. Not a real error in modern JVMs. -->
+        <exclude name="NullAssignment"/>
+    </rule>
+
+    <!-- UseLocaleWithCaseConversions is from bestpractices, not errorprone,
+         but PMD may flag it via transitive rules. Handled via code fixes. -->
+</ruleset>

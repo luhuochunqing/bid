@@ -1,0 +1,85 @@
+### ==========================================
+### 资源模块 API 测试
+### ==========================================
+
+### 0. 获取 Token
+# @name login
+POST http://localhost:18081/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "XiyuAdmin2026!"
+}
+
+@token = {{login.response.body.data.token}}
+
+### 1. 正常流程：BAR 资产列表
+GET http://localhost:18081/api/resources/bar-assets?page=0&size=10
+Authorization: Bearer {{token}}
+
+### 2. 正常流程：创建 BAR 资产
+POST http://localhost:18081/api/resources/bar-assets
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "API测试资产-{{$randomInt 1 9999}}",
+  "type": "FACILITY",
+  "value": 50000,
+  "status": "AVAILABLE",
+  "acquireDate": "2026-01-01",
+  "remark": "API测试创建"
+}
+
+### 3. 正常流程：费用台账列表
+GET http://localhost:18081/api/resources/expenses?page=0&size=10
+Authorization: Bearer {{token}}
+
+### 4. 正常流程：创建费用记录
+POST http://localhost:18081/api/resources/expenses
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "projectId": 1,
+  "category": "TRANSPORTATION",
+  "amount": 1888.88,
+  "date": "2026-05-01",
+  "expenseType": "差旅费",
+  "description": "API测试费用"
+}
+
+### 5. 正常流程：BAR 借用记录列表
+GET http://localhost:18081/api/resources/bar-assets/1/borrow-records
+Authorization: Bearer {{token}}
+
+### 6. 正常流程：借用 BAR 资产
+POST http://localhost:18081/api/resources/bar-assets/1/borrow
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "purpose": "API测试借用"
+}
+
+### 7. 边界：借用不存在资产
+POST http://localhost:18081/api/resources/bar-assets/999999/borrow
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "purpose": "测试"
+}
+
+### 8. 正常流程：归还 BAR 资产
+POST http://localhost:18081/api/resources/bar-assets/1/return
+Authorization: Bearer {{token}}
+
+### 9. 边界：未借用就归还
+POST http://localhost:18081/api/resources/bar-assets/2/return
+Authorization: Bearer {{token}}
+
+### 10. 正常流程：合同借用列表
+GET http://localhost:18081/api/resources/contracts/borrows?page=0&size=10
+Authorization: Bearer {{token}}

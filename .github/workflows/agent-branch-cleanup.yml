@@ -1,0 +1,71 @@
+name: Agent Branch Cleanup
+
+on:
+  pull_request:
+    types: [closed]
+
+# When a PR is merged, delete the source branch UNLESS it is an agent/ branch.
+# Agent branches (agent/<name>-<purpose>) are worktree anchor branches explicitly
+# protected by AGENTS.md — they must never be deleted, locally or remotely.
+#
+# Non-agent task branches (codex/, cursor/, feat/, fix/, etc.) are cleaned up
+# automatically after merge since GitHub's delete_branch_on_merge is disabled
+# globally to protect agent/ branches.
+
+jobs:
+  cleanup-merged-branch:
+    name: Delete non-agent merged branch
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    steps:
+      - name: Delete source branch (if not agent/)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+
+          if [[ "$BRANCH" == agent/* ]]; then
+            echo "Skipping — '$BRANCH' is an agent/ branch (protected)."
+            exit 0
+          fi
+
+          echo "Deleting merged task branch: $BRANCH"
+          gh api "repos/${{ github.repository }}/git/refs/heads/$BRANCH" -X DELETE || \
+            echo "Warning: branch '$BRANCH' may have already been deleted."
+
+      - name: Release agent locks for merged branch
+        id: release-locks
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          node scripts/agent-locks-release-branch.mjs --branch "$BRANCH" > release-locks.log 2>&1 || RC=$?
+          cat release-locks.log
+          if [ -n "${RC:-}" ]; then
+            echo "release-branch: script exited with code $RC — log above may show why"
+          fi
+          RESULT=$(cat release-locks.log)
+          if echo "$RESULT" | grep -q '"changed":true'; then
+            echo "released=true" >> $GITHUB_OUTPUT
+          else
+            echo "released=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Push released locks to main
+        if: steps.release-locks.outputs.released == 'true'
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add -A .agent-locks/
+
+          if git diff --cached --quiet; then
+            echo "release-branch: script reported changes but git sees no diff; aborting."
+            exit 1
+          fi
+
+          git commit -m "chore(locks): release locks for merged PR"
+
+          git pull --rebase origin main
+          git push origin HEAD:main

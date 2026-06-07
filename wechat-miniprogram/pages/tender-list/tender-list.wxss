@@ -1,0 +1,179 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: #f5f5f5;
+}
+
+.search-bar {
+  display: flex;
+  padding: 20rpx;
+  background-color: #fff;
+}
+
+.search-input {
+  flex: 1;
+  height: 70rpx;
+  padding: 0 20rpx;
+  background-color: #f5f5f5;
+  border-radius: 35rpx;
+  font-size: 28rpx;
+}
+
+.search-btn {
+  width: 140rpx;
+  height: 70rpx;
+  line-height: 70rpx;
+  margin-left: 20rpx;
+  background-color: #409EFF;
+  color: #fff;
+  border-radius: 35rpx;
+  font-size: 28rpx;
+}
+
+.status-filter {
+  display: flex;
+  white-space: nowrap;
+  padding: 20rpx;
+  background-color: #fff;
+  border-bottom: 1rpx solid #eee;
+}
+
+.status-item {
+  display: inline-block;
+  padding: 10rpx 30rpx;
+  margin-right: 20rpx;
+  background-color: #f5f5f5;
+  border-radius: 30rpx;
+  font-size: 26rpx;
+  color: #666;
+}
+
+.status-item.active {
+  background-color: #409EFF;
+  color: #fff;
+}
+
+.tender-list {
+  flex: 1;
+  padding: 20rpx;
+}
+
+.tender-card {
+  background-color: #fff;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
+}
+
+.tender-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20rpx;
+}
+
+.tender-title {
+  flex: 1;
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+  line-height: 1.4;
+  margin-right: 20rpx;
+}
+
+.tender-status {
+  font-size: 24rpx;
+  padding: 6rpx 16rpx;
+  border-radius: 20rpx;
+}
+
+.status-PENDING_ASSIGNMENT {
+  background-color: #E6A23C;
+  color: #fff;
+}
+
+.status-TRACKING {
+  background-color: #67C23A;
+  color: #fff;
+}
+
+.status-BIDDING {
+  background-color: #409EFF;
+  color: #fff;
+}
+
+.status-WON {
+  background-color: #67C23A;
+  color: #fff;
+}
+
+.status-LOST {
+  background-color: #909399;
+  color: #fff;
+}
+
+.status-ABANDONED {
+  background-color: #F56C6C;
+  color: #fff;
+}
+
+.tender-info {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16rpx;
+  margin-bottom: 20rpx;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.info-label {
+  font-size: 24rpx;
+  color: #999;
+  margin-bottom: 4rpx;
+}
+
+.info-value {
+  font-size: 28rpx;
+  color: #333;
+}
+
+.info-value.deadline {
+  color: #E6A23C;
+}
+
+.tender-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 20rpx;
+  border-top: 1rpx solid #eee;
+}
+
+.publish-date {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.tender-actions {
+  display: flex;
+}
+
+.action-icon {
+  font-size: 36rpx;
+  color: #E6A23C;
+  padding: 0 10rpx;
+}
+
+.loading-more,
+.no-more,
+.empty {
+  text-align: center;
+  padding: 40rpx;
+  color: #999;
+  font-size: 28rpx;
+}

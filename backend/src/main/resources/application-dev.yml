@@ -1,0 +1,123 @@
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        hbm2ddl:
+          auto: update
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration-mysql
+    baseline-on-migrate: true
+    baseline-version: 72
+    validateOnMigrate: false
+    validateOnNervousSystems: false
+    outOfOrder: true
+
+
+  # ── 启动容错 ──────────────────────────────────────
+  # Flyway/DB 连接失败时不阻塞应用启动
+  # 应用会以 degraded 状态运行，health endpoint 返回 503
+  datasource:
+    hikari:
+      initialization-fail-timeout: -1
+  data:
+    redis:
+      timeout: 3000ms
+      connect-timeout: 2000ms
+logging:
+  level:
+    com.xiyu: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+rate:
+  limit:
+    default:
+      max: 10000
+      window-seconds: 60
+    login:
+      max-attempts: 100
+
+app:
+  tender-processing:
+    worker-enabled: ${APP_TENDER_WORKER_ENABLED:false}
+  bootstrap:
+    admin:
+      username: admin
+      password: XiyuAdmin2026!
+      email: admin@xiyu-local
+      full-name: 系统管理员
+  crm:
+    # CRM integration under app.crm (merged from second app: block)
+    # 向后兼容：如未配置以下拆分项，自动使用 baseUrl
+    base-url: ${XIYU_CRM_BASE_URL:}
+    auth-base-url: ${XIYU_CRM_AUTH_BASE_URL:}
+    customer-base-url: ${XIYU_CRM_CUSTOMER_BASE_URL:}
+    message-base-url: ${XIYU_CRM_MESSAGE_BASE_URL:}
+    chance-base-url: ${XIYU_CRM_CHANCE_BASE_URL:}
+    contact-person-base-url: ${XIYU_CRM_CONTACT_PERSON_BASE_URL:}
+    client-id: ${XIYU_CRM_CLIENT_ID:}
+    client-secret: ${XIYU_CRM_CLIENT_SECRET:}
+    oauth-username: ${XIYU_CRM_OAUTH_USERNAME:}
+    oauth-password: ${XIYU_CRM_OAUTH_PASSWORD:}
+    oauth-system: ${XIYU_CRM_OAUTH_SYSTEM:HOME}
+    auth:
+      apply-token-path: ${XIYU_CRM_AUTH_APPLY_TOKEN_PATH:/auth/applyToken}
+      logout-path: ${XIYU_CRM_AUTH_LOGOUT_PATH:/auth/logout}
+      menu-tree-path: ${XIYU_CRM_AUTH_MENU_TREE_PATH:/menu/tree}
+      employee-path: ${XIYU_CRM_AUTH_EMPLOYEE_PATH:/employee/info}
+    customer:
+      search-path: ${XIYU_CRM_CUSTOMER_SEARCH_PATH:/customer/search}
+      contacts-path: ${XIYU_CRM_CUSTOMER_CONTACTS_PATH:/customer/contacts/batch}
+    message:
+      send-path: ${XIYU_CRM_MESSAGE_SEND_PATH:/message/send}
+
+limit:
+    # Dev override: higher limits for testing
+    default:
+      max: 1000
+      window-seconds: 60
+    api-key:
+      max: 10000
+      window-seconds: 60
+    login:
+      max-attempts: 1000
+      window-minutes: 1
+      lockout-minutes: 1
+
+client:
+  register:
+    serviceName: ${XIYU_ORG_EVENT_SERVICE_NAME:BidSystemOrgConsumer}
+    serverRegisterUrl: ${XIYU_ORG_EVENT_SERVER_REGISTER_URL:http://event-busserver-test.ehsy.com}
+    enableRegister: ${XIYU_ORG_EVENT_ENABLE_REGISTER:true}
+  renewal:
+    initialDelay: ${XIYU_ORG_EVENT_RENEWAL_INITIAL_DELAY:3}
+    period: ${XIYU_ORG_EVENT_RENEWAL_PERIOD:3}
+    renewalDuration: ${XIYU_ORG_EVENT_RENEWAL_DURATION_MS:3000}
+
+# Organization SDK integration (YAPI)
+xiyu:
+  integrations:
+    organization:
+      enabled: false
+      event-sdk:
+        enabled: false
+        consumer-group: bms
+      directory:
+        # TODO: Replace with real values from Xiyu before enabling
+        base-url: https://yapi.ehsy.com
+        auth-client-id: ${XIYU_ORG_DIRECTORY_AUTH_CLIENT_ID:}
+        auth-client-secret: ${XIYU_ORG_DIRECTORY_AUTH_CLIENT_SECRET:}
+        auth-header-name: Authorization
+        auth-token: ${XIYU_ORG_DIRECTORY_AUTH_TOKEN:}
+        source-app: bid-system
+
+# Note: app.crm merged into the app: block above (line 34)

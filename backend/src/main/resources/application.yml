@@ -1,0 +1,221 @@
+spring:
+  mvc:
+    problemdetails:
+      enabled: true  # RFC 7807 错误响应格式
+  application:
+    name: xiyu-bid-poc
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:}
+  datasource:
+    url: "${DB_URL:jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:xiyu_bid_main}?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}"
+    username: ${DB_USERNAME:xiyu_user}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    open-in-view: false  # 性能优化：禁止 Open-in-View
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration-mysql
+    baseline-on-migrate: true
+    baseline-version: 0
+
+  data:
+    redis:
+      repositories:
+        enabled: false
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+  cache:
+    type: redis
+    redis:
+      time-to-live: 300000  # 5 minutes TTL for dashboard cache
+      cache-null-values: false
+      key-prefix: "xiyu-bid:"
+      use-key-prefix: true
+
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      accept-empty-string-as-null-object: true
+  task:
+    scheduling:
+      pool:
+        size: ${SPRING_TASK_SCHEDULING_POOL_SIZE:4}
+
+ai:
+  provider: ${AI_PROVIDER:mock}  # Options: mock, openai
+  openai:
+    api-key: ${OPENAI_API_KEY:}
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+    model: ${OPENAI_MODEL:gpt-5.2}
+    timeout: ${OPENAI_TIMEOUT:PT30S}
+
+app:
+  version: ${project.version:1.0.3}
+  bid-agent:
+    upload-dir: ${BID_AGENT_UPLOAD_DIR:}
+  export:
+    max-records: ${APP_EXPORT_MAX_RECORDS:10000}  # Maximum records per export
+    max-file-size-bytes: ${APP_EXPORT_MAX_SIZE:52428800}  # 50MB default
+    audit-enabled: ${APP_EXPORT_AUDIT:true}
+    max-exports-per-hour: ${APP_EXPORT_RATE_LIMIT:10}
+    query-timeout-seconds: ${APP_EXPORT_QUERY_TIMEOUT:60}  # Maximum query execution time for exports
+  tender-processing:
+    storage-root: ${APP_TENDER_STORAGE_ROOT:/data/shared/tenders}
+    max-global-concurrency: ${APP_TENDER_MAX_GLOBAL_CONCURRENCY:2}
+    max-per-user-concurrency: ${APP_TENDER_MAX_PER_USER_CONCURRENCY:1}
+    max-retries: ${APP_TENDER_MAX_RETRIES:3}
+    retry-delays-minutes: ${APP_TENDER_RETRY_DELAYS:1,5,15}
+    estimated-task-seconds: ${APP_TENDER_ESTIMATED_TASK_SECONDS:120}
+    cpu-threshold: ${APP_TENDER_CPU_THRESHOLD:0.92}
+    memory-threshold: ${APP_TENDER_MEMORY_THRESHOLD:0.92}
+    worker-fixed-delay-ms: ${APP_TENDER_WORKER_DELAY_MS:5000}
+
+server:
+  port: 8080
+  error:
+    include-message: on_param
+    include-binding-errors: on_param
+    include-stacktrace: on_param  # 开发环境显示堆栈
+  forward-headers-strategy: NATIVE  # 云平台自动处理转发头
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION:86400000}
+  refresh-expiration: 604800000
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:1314,http://127.0.0.1:1314,http://localhost:1316,http://127.0.0.1:1316,http://localhost:5173,http://localhost:5174,http://localhost:3000}
+
+client:
+  register:
+    serviceName: ${XIYU_ORG_EVENT_SERVICE_NAME:}
+    serverRegisterUrl: ${XIYU_ORG_EVENT_SERVER_REGISTER_URL:}
+    enableRegister: ${XIYU_ORG_EVENT_ENABLE_REGISTER:true}
+  renewal:
+    initialDelay: ${XIYU_ORG_EVENT_RENEWAL_INITIAL_DELAY:3}
+    period: ${XIYU_ORG_EVENT_RENEWAL_PERIOD:3}
+    renewalDuration: ${XIYU_ORG_EVENT_RENEWAL_DURATION_MS:3000}
+broker:
+  configure:
+    serverList: ${XIYU_ORG_EVENT_BROKER_SERVER_LIST:}
+    zkServers: ${XIYU_ORG_EVENT_BROKER_ZK_SERVERS:}
+    env: ${XIYU_ORG_EVENT_BROKER_ENV:test}
+
+rate:
+  limit:
+    # Default rate limits for unauthenticated/anonymous requests (external API)
+    default:
+      max: ${RATE_LIMIT_DEFAULT_MAX:100}
+      window-seconds: ${RATE_LIMIT_DEFAULT_WINDOW:60}
+    # Rate limits for API-key authenticated requests (external API)
+    api-key:
+      max: ${RATE_LIMIT_APIKEY_MAX:1000}
+      window-seconds: ${RATE_LIMIT_APIKEY_WINDOW:60}
+    login:
+      max-attempts: ${RATE_LIMIT_LOGIN_MAX:5}
+      window-minutes: ${RATE_LIMIT_LOGIN_WINDOW:15}
+      lockout-minutes: ${RATE_LIMIT_LOGIN_LOCKOUT:30}
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+      group:
+        readiness:
+          include: readinessState,db
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+webhook:
+  crm:
+    # 共享密钥；fail-closed —— 未设置或 header 不匹配时 /api/webhooks/crm/** 一律 401
+    token: ${WEBHOOK_CRM_TOKEN:}
+
+xiyu:
+  tender:
+    abandon-roles: ${XIYU_TENDER_ABANDON_ROLES:ADMIN,MANAGER}
+  integrations:
+    organization:
+      enabled: ${XIYU_ORG_SYNC_ENABLED:false}
+      # webhook-secret removed — HTTP webhook path deleted per FR-012
+      ip-whitelist: ${XIYU_ORG_IP_WHITELIST:}
+      event-log-retention-days: ${XIYU_ORG_EVENT_LOG_RETENTION_DAYS:90}
+      allowed-source-apps: ${XIYU_ORG_ALLOWED_SOURCE_APPS:oss,customer-org}
+      event-sdk:
+        enabled: ${XIYU_ORG_EVENT_SDK_ENABLED:false}
+        consumer-group: ${XIYU_ORG_EVENT_CONSUMER_GROUP:bms}
+      directory:
+        base-url: ${XIYU_ORG_DIRECTORY_BASE_URL:}
+        # YAPI 真实路径（POST + request body）
+        # 详情接口：Content-Type=application/x-www-form-urlencoded，参数在 form body
+        # 窗口接口：Content-Type=application/json，参数在 JSON body（startTime/endTime/index）
+        user-detail-path: ${XIYU_ORG_DIRECTORY_USER_DETAIL_PATH:/subscription/msg/user}
+        department-detail-path: ${XIYU_ORG_DIRECTORY_DEPARTMENT_DETAIL_PATH:/subscription/msg/dept}
+        user-window-path: ${XIYU_ORG_DIRECTORY_USER_WINDOW_PATH:/subscription/msg/getUserByTimeWindow}
+        department-window-path: ${XIYU_ORG_DIRECTORY_DEPARTMENT_WINDOW_PATH:/subscription/msg/getDeptByTimeWindow}
+        source-app: ${XIYU_ORG_DIRECTORY_SOURCE_APP:}
+        trace-header-name: ${XIYU_ORG_DIRECTORY_TRACE_HEADER:EHSY-TraceID}
+        source-header-name: ${XIYU_ORG_DIRECTORY_SOURCE_HEADER:EHSY-SRCAPP}
+        connect-timeout-ms: ${XIYU_ORG_DIRECTORY_CONNECT_TIMEOUT_MS:3000}
+        read-timeout-ms: ${XIYU_ORG_DIRECTORY_READ_TIMEOUT_MS:5000}
+      retry:
+        enabled: ${XIYU_ORG_RETRY_ENABLED:true}
+        max-attempts: ${XIYU_ORG_RETRY_MAX_ATTEMPTS:5}
+        batch-size: ${XIYU_ORG_RETRY_BATCH_SIZE:50}
+        fixed-delay-ms: ${XIYU_ORG_RETRY_FIXED_DELAY_MS:60000}
+      reconciliation:
+        enabled: ${XIYU_ORG_RECONCILIATION_ENABLED:false}
+        cron: ${XIYU_ORG_RECONCILIATION_CRON:0 30 2 * * *}
+        lookback-days: ${XIYU_ORG_RECONCILIATION_LOOKBACK_DAYS:3}
+
+wecom:
+  api:
+    base-url: https://qyapi.weixin.qq.com
+  http:
+    connect-timeout-ms: 3000
+    read-timeout-ms: 5000
+  probe:
+    mode: real
+
+logging:
+  level:
+    com.xiyu: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+    org.springframework.data.redis: WARN
+    io.lettuce.core: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+# test

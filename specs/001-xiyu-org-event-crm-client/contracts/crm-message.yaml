@@ -1,0 +1,33 @@
+# CRM Message API Contract
+
+## sendMessage (single or batch)
+POST /api/crm/message/send
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+Request:
+  messages:
+    - targetToken: string       # recipient employee token
+      msgType: string           # "WECHAT_WORK" | "STATION"
+      title: string             # message title
+      content: string           # message body
+      attachments:              # optional
+        - fileName: string
+          fileUrl: string
+          fileSize: long
+
+Response 200:
+  code: 0
+  msg: "success"
+  data:
+    results:
+      - index: int              # matches input array index
+        messageId: string|null  # message ID on success
+        success: boolean
+        errorMsg: string|null   # error detail on failure
+  success: true
+
+Batch behavior:
+- Max 100 messages per batch request. Exceeding this → split into multiple requests.
+- Each message result returned independently.
+- Partial success: some may succeed, some may fail.

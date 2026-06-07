@@ -1,0 +1,45 @@
+# CRM Customer API Contracts
+
+## searchCustomer (fuzzy search)
+POST /api/crm/customer/search
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+Request:
+  keyword: string   # search keyword (min 1 char), matches name/short_name
+  pageSize: int     # max 20, default 20
+
+Response 200:
+  code: 0
+  msg: "success"
+  data:
+    list:
+      - customerId: string
+        customerName: string       # full name
+        shortName: string|null     # short name, prioritized in sorting
+        status: string             # ACTIVE / INACTIVE
+    total: int
+  success: true
+
+## getCustomerContacts (batch)
+POST /api/crm/customer/contacts/batch
+Authorization: Bearer {access_token}
+Content-Type: application/json
+
+Request:
+  customerIds: string[]   # list of customer IDs
+
+Response 200:
+  code: 0
+  msg: "success"
+  data:
+    contacts:
+      customerId: string
+      contacts:
+        - contactId: string
+          contactName: string
+          mobile: string|null
+          email: string|null
+          position: string|null
+          isPrimary: boolean
+  success: true

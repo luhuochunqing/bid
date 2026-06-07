@@ -1,0 +1,9 @@
+version: 1
+task: "ddl-auto-fix"
+locks:
+  - path: "backend/src/main/resources/application-dev.yml"
+    scope: "file"
+    owner: "codex"
+    branch: "chore/ddl-auto-fix"
+    expiresAt: "2026-06-07T23:59:59Z"
+    reason: "ddl-auto: none -> update for dev profile"

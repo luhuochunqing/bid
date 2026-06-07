@@ -1,0 +1,8 @@
+{
+  "track_id": "style_governance_datalayer_20260425",
+  "type": "chore",
+  "status": "new",
+  "created_at": "2026-04-25T10:20:00Z",
+  "updated_at": "2026-04-25T10:20:00Z",
+  "description": "Comprehensive Style Governance: Zero-violation goal for Data Layer (DTOs/Entities)."
+}

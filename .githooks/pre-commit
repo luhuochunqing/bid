@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+"$ROOT_DIR/scripts/agent-worktree-guard.sh"
+"$ROOT_DIR/scripts/check-java-coding-standards.sh"
+node "$ROOT_DIR/scripts/check-line-budgets.mjs" --staged
+# 行预算预警：200 行以上警告但不阻断（2026-05-29 skill-progression-map）
+node "$ROOT_DIR/scripts/check-line-budget-warn.mjs" || true
+npm --prefix "$ROOT_DIR" run check:token-governance
+"$ROOT_DIR/scripts/check-testing-standards.sh"
+# Vue 测试脚手架检查：确保 Pinia 初始化、Element Plus 选择器规范等（2026-05-29 skill-progression-map）
+node "$ROOT_DIR/scripts/check-vue-test-boilerplate.mjs"
+# 前端硬编码枚举映射表检测：检查 staged Vue 文件中是否存在后端枚举硬编码映射（2026-06-05 skill-progression-map）
+node "$ROOT_DIR/scripts/check-vue-enum-mapping.mjs" || true
+
+npm --prefix "$ROOT_DIR" run wiki:check
+# 当 staged 文件命中 hot-paths 时，强制要求在 .agent-locks/ 中已注册对应锁
+# 工程背景(2026-05-21): 改 .github/workflows 和 .githooks 忘记注册锁，CI 反复失败
+# 详见 .wiki/pages/lessons-learned.md §三
+node "$ROOT_DIR/scripts/check-hot-path-locks.mjs"
+# 当 pom.xml 包含 <scope>system</scope> 依赖但缺少 <includeSystemScope>true</includeSystemScope> 时拦截
+# 2026-05-28 事故: ClientSDK jar 未打包进 app.jar，导致生产环境下组织架构同步不可用
+"$ROOT_DIR/scripts/check-system-scope-jar.sh" --staged
+# Flyway 迁移版本冲突预检：确保 staged 迁移不与 origin/main 版本号冲突（2026-05-29 skill-progression-map）
+"$ROOT_DIR/scripts/check-flyway-versions.sh" --staged
+# Flyway 迁移头部质量检查：版本行、描述、蓝图追溯（2026-06-04 oversized+header gate）
+"$ROOT_DIR/scripts/check-migration-headers.sh"
+# E2E 选择器质量检查：检测 fragile locator 模式避免 CI strict-mode 失败（2026-05-29 skill-progression-map）
+node "$ROOT_DIR/scripts/check-e2e-selectors.mjs"
+# Flyway 迁移回滚脚本完整性检查：确保 V*.sql 有对应的 U*.sql 回滚脚本（2026-06-05 skill-progression-map）
+"$ROOT_DIR/scripts/check-flyway-rollback.sh"
+
+# 分支卫生提醒：检查是否已 push + 是否有 PR（不阻断提交）
+"$ROOT_DIR/scripts/check-branch-hygiene.sh" || true
+
+# E2E-UI 联动检查：UI（视图/路由）变更时提醒同步 E2E 测试
+# 工程背景(2026-05-29): PR #486 项目列表 UI 改了标签但 E2E 测试未更新，e2e-scope CI 失败
+# 此检查仅警告（不阻断），因为 e2e-scope CI 会强制检查
+# 详见 .wiki/pages/lessons-learned.md
+node "$ROOT_DIR/scripts/check-e2e-ui-sync.mjs" || true
+
+if git diff --cached --name-only | grep -qE '^src/(router|views)/'; then
+  node "$ROOT_DIR/scripts/check-route-e2e-compat.mjs"
+fi
+
+# API URL 一致性检查：检测 Vue 组件中硬编码的上传 URL，阻止 upload URL 与后端路由不匹配
+# 工程背景(2026-06-05): /project 所有阶段页面上传 URL 硬编码为不存在的 /api/upload，后端 404
+node "$ROOT_DIR/scripts/check-api-urls.mjs" || true
+
+# ESLint 检查：仅在 staged .js/.vue 文件上运行
+# 拦截 const TDZ (no-use-before-define) 等运行时崩溃
+# 2026-06-06: Performance.vue loadData TDZ 导致 setup 异常中断，3 轮排查才定位
+STAGED_JS_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(js|vue)$' | head -30 || true)
+if [ -n "$STAGED_JS_FILES" ]; then
+  echo "$STAGED_JS_FILES" | xargs "$ROOT_DIR/node_modules/.bin/eslint" --no-error-on-unmatched-pattern 2>/dev/null || true
+fi

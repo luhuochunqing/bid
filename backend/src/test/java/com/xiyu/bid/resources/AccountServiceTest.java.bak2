@@ -1,0 +1,331 @@
+package com.xiyu.bid.resources;
+
+import com.xiyu.bid.resources.entity.Account;
+import com.xiyu.bid.resources.repository.AccountRepository;
+import com.xiyu.bid.resources.service.AccountService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+@DisplayName("AccountService 单元测试")
+class AccountServiceTest {
+
+    @Mock
+    private AccountRepository accountRepository;
+
+    @InjectMocks
+    private AccountService accountService;
+
+    private Account testAccount;
+
+    @BeforeEach
+    void setUp() {
+        testAccount = Account.builder()
+                .id(1L)
+                .name("Test Client Inc.")
+                .type(Account.AccountType.CLIENT)
+                .contactInfo("contact@testclient.com")
+                .industry("Technology")
+                .region("North")
+                .creditLevel(Account.CreditLevel.A)
+                .build();
+    }
+
+    @Test
+    @DisplayName("应该成功创建账户记录")
+    void shouldCreateAccountSuccessfully() {
+        // Given
+        AccountCreateRequest request = new AccountCreateRequest();
+        request.setName("Test Client Inc.");
+        request.setType(Account.AccountType.CLIENT);
+        request.setContactInfo("contact@testclient.com");
+        request.setIndustry("Technology");
+        request.setRegion("North");
+        request.setCreditLevel(Account.CreditLevel.A);
+
+        when(accountRepository.save(any(Account.class))).thenReturn(testAccount);
+
+        // When
+        Account result = accountService.createAccount(request);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getName()).isEqualTo("Test Client Inc.");
+        assertThat(result.getType()).isEqualTo(Account.AccountType.CLIENT);
+        verify(accountRepository, times(1)).save(any(Account.class));
+    }
+
+    @Test
+    @DisplayName("应该成功获取账户记录通过ID")
+    void shouldGetAccountByIdSuccessfully() {
+        // Given
+        when(accountRepository.findById(1L)).thenReturn(Optional.of(testAccount));
+
+        // When
+        Account result = accountService.getAccountById(1L);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(1L);
+        verify(accountRepository, times(1)).findById(1L);
+    }
+
+    @Test
+    @DisplayName("当账户记录不存在时应该抛出异常")
+    void shouldThrowExceptionWhenAccountNotFound() {
+        // Given
+        when(accountRepository.findById(999L)).thenReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> accountService.getAccountById(999L))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Account not found");
+        verify(accountRepository, times(1)).findById(999L);
+    }
+
+    @Test
+    @DisplayName("应该成功获取所有账户记录")
+    void shouldGetAllAccountsSuccessfully() {
+        // Given
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Account> accountPage = new PageImpl<>(List.of(testAccount));
+        when(accountRepository.findAll(pageable)).thenReturn(accountPage);
+
+        // When
+        Page<Account> result = accountService.getAllAccounts(pageable);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getId()).isEqualTo(1L);
+        verify(accountRepository, times(1)).findAll(pageable);
+    }
+
+    @Test
+    @DisplayName("应该成功根据类型获取账户记录")
+    void shouldGetAccountsByTypeSuccessfully() {
+        // Given
+        Account.AccountType type = Account.AccountType.CLIENT;
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Account> accountPage = new PageImpl<>(List.of(testAccount));
+        when(accountRepository.findByType(type, pageable)).thenReturn(accountPage);
+
+        // When
+        Page<Account> result = accountService.getAccountsByType(type, pageable);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getType()).isEqualTo(type);
+        verify(accountRepository, times(1)).findByType(type, pageable);
+    }
+
+    @Test
+    @DisplayName("应该成功根据行业获取账户记录")
+    void shouldGetAccountsByIndustrySuccessfully() {
+        // Given
+        String industry = "Technology";
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Account> accountPage = new PageImpl<>(List.of(testAccount));
+        when(accountRepository.findByIndustry(industry, pageable)).thenReturn(accountPage);
+
+        // When
+        Page<Account> result = accountService.getAccountsByIndustry(industry, pageable);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getIndustry()).isEqualTo(industry);
+        verify(accountRepository, times(1)).findByIndustry(industry, pageable);
+    }
+
+    @Test
+    @DisplayName("应该成功根据地区获取账户记录")
+    void shouldGetAccountsByRegionSuccessfully() {
+        // Given
+        String region = "North";
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Account> accountPage = new PageImpl<>(List.of(testAccount));
+        when(accountRepository.findByRegion(region, pageable)).thenReturn(accountPage);
+
+        // When
+        Page<Account> result = accountService.getAccountsByRegion(region, pageable);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getRegion()).isEqualTo(region);
+        verify(accountRepository, times(1)).findByRegion(region, pageable);
+    }
+
+    @Test
+    @DisplayName("应该成功根据信用等级获取账户记录")
+    void shouldGetAccountsByCreditLevelSuccessfully() {
+        // Given
+        Account.CreditLevel creditLevel = Account.CreditLevel.A;
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Account> accountPage = new PageImpl<>(List.of(testAccount));
+        when(accountRepository.findByCreditLevel(creditLevel, pageable)).thenReturn(accountPage);
+
+        // When
+        Page<Account> result = accountService.getAccountsByCreditLevel(creditLevel, pageable);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getCreditLevel()).isEqualTo(creditLevel);
+        verify(accountRepository, times(1)).findByCreditLevel(creditLevel, pageable);
+    }
+
+    @Test
+    @DisplayName("应该成功更新账户记录")
+    void shouldUpdateAccountSuccessfully() {
+        // Given
+        AccountUpdateRequest request = new AccountUpdateRequest();
+        request.setName("Updated Client Inc.");
+        request.setContactInfo("updated@testclient.com");
+
+        when(accountRepository.findById(1L)).thenReturn(Optional.of(testAccount));
+        when(accountRepository.save(any(Account.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // When
+        Account result = accountService.updateAccount(1L, request);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getName()).isEqualTo("Updated Client Inc.");
+        assertThat(result.getContactInfo()).isEqualTo("updated@testclient.com");
+        verify(accountRepository, times(1)).findById(1L);
+        verify(accountRepository, times(1)).save(any(Account.class));
+    }
+
+    @Test
+    @DisplayName("应该成功删除账户记录")
+    void shouldDeleteAccountSuccessfully() {
+        // Given
+        when(accountRepository.existsById(1L)).thenReturn(true);
+        doNothing().when(accountRepository).deleteById(1L);
+
+        // When
+        accountService.deleteAccount(1L);
+
+        // Then
+        verify(accountRepository, times(1)).existsById(1L);
+        verify(accountRepository, times(1)).deleteById(1L);
+    }
+
+    @Test
+    @DisplayName("当删除不存在的账户记录时应该抛出异常")
+    void shouldThrowExceptionWhenDeletingNonExistentAccount() {
+        // Given
+        when(accountRepository.existsById(999L)).thenReturn(false);
+
+        // When & Then
+        assertThatThrownBy(() -> accountService.deleteAccount(999L))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Account not found");
+        verify(accountRepository, times(1)).existsById(999L);
+        verify(accountRepository, never()).deleteById(any());
+    }
+
+    @Test
+    @DisplayName("应该拒绝创建空名称的账户")
+    void shouldRejectAccountWithEmptyName() {
+        // Given
+        AccountCreateRequest request = new AccountCreateRequest();
+        request.setName("");
+        request.setType(Account.AccountType.CLIENT);
+
+        // When & Then
+        assertThatThrownBy(() -> accountService.createAccount(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Name is required");
+        verify(accountRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("应该拒绝创建空类型的账户")
+    void shouldRejectAccountWithNullType() {
+        // Given
+        AccountCreateRequest request = new AccountCreateRequest();
+        request.setName("Test Account");
+        request.setType(null);
+
+        // When & Then
+        assertThatThrownBy(() -> accountService.createAccount(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Type is required");
+        verify(accountRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("应该成功搜索账户")
+    void shouldSearchAccountsSuccessfully() {
+        // Given
+        String keyword = "Test";
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Account> accountPage = new PageImpl<>(List.of(testAccount));
+        when(accountRepository.searchByNameContainingIgnoreCase(keyword, pageable))
+                .thenReturn(accountPage);
+
+        // When
+        Page<Account> result = accountService.searchAccounts(keyword, pageable);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        verify(accountRepository, times(1)).searchByNameContainingIgnoreCase(keyword, pageable);
+    }
+
+    @Test
+    @DisplayName("应该成功获取账户统计")
+    void shouldGetAccountStatisticsSuccessfully() {
+        // Given
+        when(accountRepository.countByType(Account.AccountType.CLIENT)).thenReturn(10L);
+        when(accountRepository.countByType(Account.AccountType.SUPPLIER)).thenReturn(5L);
+        when(accountRepository.count()).thenReturn(15L);
+
+        // When
+        var statistics = accountService.getAccountStatistics();
+
+        // Then
+        assertThat(statistics).isNotNull();
+        assertThat(statistics.getTotalAccounts()).isEqualTo(15L);
+        verify(accountRepository, times(1)).count();
+    }
+
+    @Test
+    @DisplayName("应该处理重复名称")
+    void shouldHandleDuplicateName() {
+        // Given
+        AccountCreateRequest request = new AccountCreateRequest();
+        request.setName("Test Client Inc.");
+        request.setType(Account.AccountType.CLIENT);
+
+        when(accountRepository.findByName("Test Client Inc."))
+                .thenReturn(Optional.of(testAccount));
+
+        // When & Then
+        assertThatThrownBy(() -> accountService.createAccount(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Account with this name already exists");
+        verify(accountRepository, never()).save(any());
+    }
+}

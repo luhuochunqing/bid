@@ -1,0 +1,242 @@
+package com.xiyu.bid.documenteditor;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.documenteditor.dto.*;
+import com.xiyu.bid.documenteditor.entity.DocumentSection;
+import com.xiyu.bid.documenteditor.entity.DocumentStructure;
+import com.xiyu.bid.documenteditor.entity.SectionType;
+import com.xiyu.bid.documenteditor.repository.DocumentSectionRepository;
+import com.xiyu.bid.documenteditor.repository.DocumentStructureRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Map;
+
+import static org.hamcrest.Matchers.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+/**
+ * DocumentEditorController 集成测试
+ * 测试文档编辑器的REST API端点
+ */
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+@Transactional
+class DocumentEditorControllerIntegrationTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private DocumentStructureRepository structureRepository;
+
+    @Autowired
+    private DocumentSectionRepository sectionRepository;
+
+    private DocumentStructure testStructure;
+    private DocumentSection testSection;
+
+    @BeforeEach
+    void setUp() {
+        sectionRepository.deleteAll();
+        structureRepository.deleteAll();
+
+        testStructure = DocumentStructure.builder()
+                .projectId(100L)
+                .name("测试文档结构")
+                .build();
+        testStructure = structureRepository.save(testStructure);
+
+        testSection = DocumentSection.builder()
+                .structureId(testStructure.getId())
+                .parentId(null)
+                .sectionType(SectionType.CHAPTER)
+                .title("第一章")
+                .content("这是第一章的内容")
+                .orderIndex(0)
+                .build();
+        testSection = sectionRepository.save(testSection);
+    }
+
+    @Test
+    @WithMockUser(username = "admin", roles = {"ADMIN"})
+    void testGetStructure() throws Exception {
+        mockMvc.perform(get("/api/documents/{projectId}/editor/structure", 100L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(testStructure.getId()))
+                .andExpect(jsonPath("$.data.projectId").value(100L))
+                .andExpect(jsonPath("$.data.name").value("测试文档结构"));
+    }
+
+    @Test
+    @WithMockUser(username = "admin", roles = {"ADMIN"})
+    void testCreateStructure() throws Exception {
+        StructureCreateRequest request = StructureCreateRequest.builder()
+                .projectId(200L)
+                .name("新文档结构")
+                .build();
+
+        mockMvc.perform(post("/api/documents/{projectId}/editor/structure", 200L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.projectId").value(200L))
+                .andExpect(jsonPath("$.data.name").value("新文档结构"));
+    }
+
+    @Test
+    @WithMockUser(username = "admin", roles = {"ADMIN"})
+    void testAddSection() throws Exception {
+        SectionCreateRequest request = SectionCreateRequest.builder()
+                .structureId(testStructure.getId())
+                .parentId(null)
+                .sectionType(SectionType.SECTION)
+                .title("新章节")
+                .content("新章节内容")
+                .orderIndex(1)
+                .build();
+
+        mockMvc.perform(post("/api/documents/{projectId}/editor/sections", 100L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.sectionType").value("SECTION"))
+                .andExpect(jsonPath("$.data.title").value("新章节"));
+    }
+
+    @Test
+    @WithMockUser(username = "admin", roles = {"ADMIN"})
+    void testUpdateSection() throws Exception {
+        SectionUpdateRequest request = SectionUpdateRequest.builder()
+                .title("更新后的标题")
+                .content("更新后的内容")
+                .build();
+
+        mockMvc.perform(put("/api/documents/{projectId}/editor/sections/{id}", 100L, testSection.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.title").value("更新后的标题"));
+    }
+
+    @Test
+    @WithMockUser(username = "admin", roles = {"ADMIN"})
+    void testDeleteSection() throws Exception {
+        mockMvc.perform(delete("/api/documents/{projectId}/editor/sections/{id}", 100L, testSection.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        mockMvc.perform(get("/api/documents/{projectId}/editor/sections/{id}", 100L, testSection.getId()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @WithMockUser(username = "admin", roles = {"ADMIN"})
+    void testReorderSections() throws Exception {
+        // Create another section
+        DocumentSection section2 = DocumentSection.builder()
+                .structureId(testStructure.getId())
+                .parentId(null)
+                .sectionType(SectionType.SECTION)
+                .title("第二章")
+                .orderIndex(1)
+                .build();
+        section2 = sectionRepository.save(section2);
+
+        SectionReorderRequest request = SectionReorderRequest.builder()
+                .structureId(testStructure.getId())
+                .sectionOrders(Map.of(
+                        testSection.getId(), 1,
+                        section2.getId(), 0
+                ))
+                .build();
+
+        mockMvc.perform(put("/api/documents/{projectId}/editor/sections/reorder", 100L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    @WithMockUser(username = "staff", roles = {"STAFF"})
+    void testGetSectionTree() throws Exception {
+        mockMvc.perform(get("/api/documents/{projectId}/editor/sections/tree", 100L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(0))));
+    }
+
+    @Test
+    @WithMockUser(username = "staff", roles = {"STAFF"})
+    void testGetStructure_NotFound() throws Exception {
+        mockMvc.perform(get("/api/documents/{projectId}/editor/structure", 999L))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    @WithMockUser(username = "staff", roles = {"STAFF"})
+    void testCreateStructure_InvalidRequest() throws Exception {
+        StructureCreateRequest request = StructureCreateRequest.builder()
+                .projectId(null)
+                .name("")
+                .build();
+
+        mockMvc.perform(post("/api/documents/{projectId}/editor/structure", 100L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(username = "staff", roles = {"STAFF"})
+    void testAddSection_InvalidStructure() throws Exception {
+        SectionCreateRequest request = SectionCreateRequest.builder()
+                .structureId(999L)
+                .sectionType(SectionType.SECTION)
+                .title("测试")
+                .build();
+
+        mockMvc.perform(post("/api/documents/{projectId}/editor/sections", 100L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @WithMockUser(username = "admin", roles = {"ADMIN"})
+    void testDeleteSection_WithChildren_ShouldFail() throws Exception {
+        // Create a child section
+        DocumentSection childSection = DocumentSection.builder()
+                .structureId(testStructure.getId())
+                .parentId(testSection.getId())
+                .sectionType(SectionType.SECTION)
+                .title("子章节")
+                .orderIndex(0)
+                .build();
+        sectionRepository.save(childSection);
+
+        mockMvc.perform(delete("/api/documents/{projectId}/editor/sections/{id}", 100L, testSection.getId()))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+}

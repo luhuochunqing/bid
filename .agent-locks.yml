@@ -1,0 +1,27 @@
+version: 1
+# DEPRECATED — new locks should go to .agent-locks/<task-slug>.yml (per-task files).
+# This single file is kept readable for backwards compatibility with existing locks
+# and remote-branch scans. `npm run agent:lock-acquire` writes to per-task files now;
+# `npm run agent:lock-check` reads union of legacy + per-task. See CLAUDE.md §5.
+#
+# Why: a single shared lock file caused near-constant rebase conflicts when
+# multiple agents ran in parallel. Per-task files mean new tasks = new files = no
+# conflicts. Existing entries here will age out via the daily janitor.
+locks:
+- path: backend/src/main/resources/db/migration-mysql/V1048__brand_auth_operation_log.sql
+  scope: file
+  reason: 品牌授权数据库迁移
+  owner: gemini
+  branch: gemini/feat-brand-auth-4.6
+- path: backend/src/main/resources/db/rollback/migration-mysql/U1048__brand_auth_operation_log.sql
+  scope: file
+  reason: 品牌授权数据库迁移回滚
+  owner: gemini
+  branch: gemini/feat-brand-auth-4.6
+  - path: backend/src/main/resources/application-dev.yml
+    scope: directory
+    reason: 添加 CRM OAuth 凭据环境变量绑定
+    owner: codex
+    branch: agent/codex/crm-real-env
+    expiresAt: 2026-06-10T00:00:00Z
+

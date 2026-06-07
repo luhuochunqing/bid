@@ -1,0 +1,110 @@
+# [STALE for Gitee] — 以下使用 GitHub CLI (gh) 和 GitHub Token，
+# 但项目当前远程仓库为 Gitee (gitee.com/allinai888/bid)。
+# 在 Gitee 上无法使用 GitHub Actions 的 auto-merge 功能。
+#
+# Gitee 替代方案：
+#   1. GITEE_TOKEN=xxx ./scripts/gitee-pr-helper.sh create   — 创建 PR
+#   2. GITEE_TOKEN=xxx ./scripts/gitee-pr-helper.sh merge    — 手动合并 PR
+#   3. ./scripts/gitee-auto-merge-gate.sh                     — CI 自动合并门禁
+#   4. 在 Gitee UI 中手动创建/合并 Pull Request
+#
+# 保留此文件作为历史参考，不在 Gitee CI 中执行。
+#
+
+name: Auto-enable merge after required review approval
+
+# Purpose:
+# - After a human reviewer (the "新人审核") approves a PR, automatically
+#   enable GitHub's native auto-merge (if not already enabled).
+# - GitHub will only perform the actual merge when **all** branch protection
+#   gates are satisfied:
+#     * 1 required approving review (already met by this trigger)
+#     * All required status checks (agent-locks, line-budget, frontend,
+#       backend, e2e) have passed **and** the branch is up-to-date (strict: true)
+# - This removes the "最后要点一下" manual merge click for the common case.
+# - "自动跑下一个线": once merged, main push triggers main-release pipeline
+#   (staging rehearsal + packaging). Other agents see the update on their
+#   next `sync-env.sh` / rebase and their pending PRs can proceed (or re-enter
+#   auto-merge). Combined with agent-branch-cleanup, this creates a continuous
+#   agent development → review → auto-merge → next cycle.
+#
+# Safety:
+# - Never bypasses gates (auto-merge is a GitHub protection feature).
+# - Only acts on real human approval (review.state == 'approved').
+# - Skips drafts.
+# - Idempotent (checks if auto-merge already requested).
+# - Uses GITHUB_TOKEN (workflow triggered by review has write on PRs for this repo).
+#
+# Related history:
+# - Past janitor PRs with [skip ci] blocked auto-merge (see agent-locks-janitor.yml).
+# - We now have git wrapper + pre-push-gate + no --no-verify, plus this workflow
+#   only fires on successful review.
+#
+# Usage for agents / reviewers:
+# - Create PR from task branch.
+# - Push until local + `npm run agent:git-safe-check` + all `check:*` green.
+# - Request review (or CODEOWNERS will be notified).
+# - Once the 1 required reviewer approves → this workflow enables auto-merge.
+# - Monitor the PR; it will merge automatically when the last check stabilizes.
+# - After merge, in your worktree: `source scripts/dev-env.sh && ./scripts/sync-env.sh .`
+#   to rebase onto latest main and continue the "next line".
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  enable-auto-merge:
+    name: Enable auto-merge after approval
+    runs-on: ubuntu-latest
+    # Only human approval (not COMMENT or CHANGES_REQUESTED), not draft PRs
+    if: >
+      github.event.review.state == 'approved' &&
+      github.event.pull_request.draft == false
+    steps:
+      - name: Enable GitHub auto-merge (squash, delete branch)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          REPO="ericforai/bidding"
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+
+          echo "PR #$PR_NUMBER was approved by ${{ github.event.review.user.login }}."
+
+          # Check if auto-merge is already requested for this PR
+          ALREADY_AUTO=$(gh pr view "$PR_NUMBER" --repo "$REPO" \
+            --json autoMergeRequest --jq '.autoMergeRequest != null' 2>/dev/null || echo "false")
+
+          if [[ "$ALREADY_AUTO" == "true" ]]; then
+            echo "Auto-merge already enabled on PR #$PR_NUMBER. Nothing to do."
+            exit 0
+          fi
+
+          # Enable auto-merge.
+          # GitHub will enqueue the merge and only execute it when protection
+          # rules (required checks + up-to-date + any other) are met.
+          # We prefer squash for small atomic PRs (clean linear-ish history).
+          if gh pr merge "$PR_NUMBER" --repo "$REPO" \
+               --auto \
+               --squash \
+               --delete-branch \
+               --subject "auto-merge after review approval (PR #$PR_NUMBER)" \
+               --body "Enabled automatically by .github/workflows/auto-enable-merge-on-approved.yml after required review. All gates (agent-locks, line-budget, frontend, backend, e2e + strict) will be re-validated by GitHub before the actual merge." 2>&1; then
+            echo "Auto-merge successfully enabled for PR #$PR_NUMBER."
+          else
+            # Non-fatal: the PR may still be building, or checks not yet complete,
+            # or the reviewer is the author (GitHub sometimes disallows), etc.
+            # The reviewer or author can still click "Enable auto-merge" manually in the UI.
+            # Or re-request review later.
+            echo "::warning::Could not auto-enable merge for PR #$PR_NUMBER at this moment (common if checks are still in progress or other transient state). The PR will still merge normally once a maintainer clicks the button or when conditions are met."
+            exit 0
+          fi
+
+      - name: Log for audit
+        run: |
+          echo "Auto-merge enable attempt recorded for PR ${{ github.event.pull_request.number }} at $(date -Iseconds)."

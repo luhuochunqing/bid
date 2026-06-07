@@ -1,0 +1,138 @@
+### ==========================================
+### 标讯模块 API 测试
+### ==========================================
+
+### 0. 获取 Token（管理员）
+# @name login
+POST http://localhost:18081/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "XiyuAdmin2026!"
+}
+
+### 保存 Token
+@token = {{login.response.body.data.token}}
+
+### 1. 正常流程：获取标讯列表
+GET http://localhost:18081/api/tenders?page=0&size=10&sort=createdAt,desc
+Authorization: Bearer {{token}}
+
+### 2. 正常流程：多条件筛选
+GET http://localhost:18081/api/tenders?status=TRACKING&sourceType=MANUAL&page=0&size=20&sort=createdAt,desc
+Authorization: Bearer {{token}}
+
+### 3. 正常流程：创建标讯
+POST http://localhost:18081/api/tenders
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "API测试标讯-{{$randomInt 1 9999}}",
+  "source": "API测试",
+  "budget": 1000000,
+  "deadline": "2026-12-31T23:59:59",
+  "status": "TRACKING"
+}
+
+### 4. 边界：创建标讯缺少必填字段
+POST http://localhost:18081/api/tenders
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{}
+
+### 5. 边界：预算为负数
+POST http://localhost:18081/api/tenders
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "预算异常标讯",
+  "source": "API测试",
+  "budget": -100
+}
+
+### 6. 边界：标讯标题过长
+POST http://localhost:18081/api/tenders
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "A",
+  "source": "API测试"
+}
+
+### 7. 边界：分页参数异常（超大 pageSize）
+GET http://localhost:18081/api/tenders?page=0&size=99999
+Authorization: Bearer {{token}}
+
+### 8. 边界：分页越界
+GET http://localhost:18081/api/tenders?page=99999&size=10
+Authorization: Bearer {{token}}
+
+### 9. 正常流程：标讯详情
+@tenderId = 1
+GET http://localhost:18081/api/tenders/{{tenderId}}
+Authorization: Bearer {{token}}
+
+### 10. 边界：不存在的标讯
+GET http://localhost:18081/api/tenders/999999
+Authorization: Bearer {{token}}
+
+### 11. 正常流程：标讯评估
+POST http://localhost:18081/api/tenders/{{tenderId}}/evaluation/submit
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "evaluationResult": "PASS",
+  "remark": "API测试评估通过"
+}
+
+### 12. 边界：非 owner 操作（需要 sales 角色 token）
+# 先用 staff 角色登录
+# @name staffLogin
+POST http://localhost:18081/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "xiaowang",
+  "password": "123456"
+}
+
+@staffToken = {{staffLogin.response.body.data.token}}
+
+### 13. 越权访问：staff 创建标讯（应允许，但检查权限边界）
+POST http://localhost:18081/api/tenders
+Authorization: Bearer {{staffToken}}
+Content-Type: application/json
+
+{
+  "title": "Staff创建的标讯-{{$randomInt 1 9999}}",
+  "source": "手动录入",
+  "budget": 50000
+}
+
+### 14. 正常流程：转派标讯
+POST http://localhost:18081/api/tenders/{{tenderId}}/transfer
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "assigneeId": 2,
+  "remark": "转派测试"
+}
+
+### 15. 正常流程：市场洞察
+GET http://localhost:18081/api/market-insight/insight
+Authorization: Bearer {{token}}
+
+### 16. 正常流程：AI 评分
+POST http://localhost:18081/api/tenders/{{tenderId}}/match-score/evaluate
+Authorization: Bearer {{token}}
+
+### 17. 正常流程：导出标讯
+GET http://localhost:18081/api/tenders/export?page=0&size=100
+Authorization: Bearer {{token}}

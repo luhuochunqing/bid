@@ -1,0 +1,1 @@
+ALTER TABLE knowledge_case ADD COLUMN is_pinned TINYINT(1) NOT NULL DEFAULT 0 COMMENT '置顶标记，1=置顶';

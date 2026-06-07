@@ -1,0 +1,3 @@
+-- Input: V1030__warehouse_enum_columns_fix.sql
+-- Rollback for V1030__warehouse_enum_columns_fix.sql
+-- No-op rollback: placeholder (manual review required)

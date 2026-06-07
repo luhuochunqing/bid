@@ -1,0 +1,15 @@
+fastapi==0.109.2
+uvicorn==0.27.1
+# markitdown: NOT on PyPI (0.0.1a1 is a fake stub). Installed from working venv copy.
+# Dependencies below must be installed manually for markitdown to work.
+requests
+charset-normalizer
+magika>=0.6.1,<0.7
+beautifulsoup4
+openpyxl
+pandas
+pillow
+pydub
+speechrecognition
+python-multipart==0.0.9
+pypandoc==1.17

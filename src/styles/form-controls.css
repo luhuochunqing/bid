@@ -1,0 +1,104 @@
+/* ========== 全局表单控件基线 ========== */
+/* 使用 Element Plus CSS 变量统一控制表单控件样式，无需 !important 覆盖。 */
+:root {
+  --xiyu-control-height: 40px;
+  --xiyu-control-width: 168px;
+  --xiyu-control-radius: 6px;
+  --xiyu-control-border: #E8E8E8;
+  --xiyu-control-error-border: var(--color-danger, #DD2200);
+  --xiyu-control-bg: var(--bg-card);
+
+  /* Element Plus CSS 变量 — 输入框 */
+  --el-input-border-color: #E8E8E8;
+  --el-input-hover-border-color: #D0D0D0;
+  --el-input-focus-border-color: #2E7659;
+  --el-input-border-radius: 6px;
+  --el-input-height: 40px;
+}
+
+html[data-keyboard-nav="true"] .el-input.is-focus .el-input__wrapper,
+html[data-keyboard-nav="true"] .el-input__wrapper:has(.el-input__inner:focus),
+html[data-keyboard-nav="true"] .el-select__wrapper.is-focused,
+html[data-keyboard-nav="true"] .el-select__wrapper:has(.el-select__input:focus),
+html[data-keyboard-nav="true"] .el-textarea__inner:focus {
+  border-color: var(--gray-300, #B0B0B0) !important;
+}
+/* 鼠标用户的低侵入 focus 反馈：边框略微加深，不加 ring */
+html:not([data-keyboard-nav="true"]) .el-input.is-focus .el-input__wrapper,
+html:not([data-keyboard-nav="true"]) .el-input__wrapper:has(.el-input__inner:focus),
+html:not([data-keyboard-nav="true"]) .el-select__wrapper.is-focused,
+html:not([data-keyboard-nav="true"]) .el-select__wrapper:has(.el-select__input:focus),
+html:not([data-keyboard-nav="true"]) .el-textarea__inner:focus {
+  border-color: var(--gray-300, #B0B0B0) !important;
+}
+
+
+.el-form-item.is-error .el-input__wrapper,
+.el-form-item.is-error .el-select__wrapper,
+.el-form-item.is-error .el-textarea__inner {
+  border-color: var(--xiyu-control-error-border) !important;
+}
+
+.search-card .el-form--inline .el-input:not(.el-input--small),
+.search-card .el-form--inline .el-select:not(.el-select--small),
+.search-card .el-form--inline .el-input-number:not(.el-input-number--small),
+.search-card .el-form--inline .el-date-editor:not(.el-input--small),
+.filter-card .el-form--inline .el-input:not(.el-input--small),
+.filter-card .el-form--inline .el-select:not(.el-select--small),
+.filter-card .el-form--inline .el-input-number:not(.el-input-number--small),
+.filter-card .el-form--inline .el-date-editor:not(.el-input--small) {
+  width: var(--xiyu-control-width) !important;
+}
+
+/* ========== 搜索表单字段宽度预设（避免 el-form-item 撑满整行） ========== */
+/* 搜索卡片内联表单中 el-form-item 的宽度预设，flex 固定宽度 + min/max 约束，防止换行错位。 */
+/* 标准字段 168px，关键词与标准一致，datetime 占 2 列（168*2 + 24gap = 360px） */
+.search-field { flex: 0 0 168px; width: 168px; min-width: 168px; max-width: 168px; }
+.search-field--keyword { flex: 0 0 168px; width: 168px; min-width: 168px; max-width: 168px; }
+.search-field--date { flex: 0 0 260px; width: 260px; min-width: 260px; max-width: 260px; }
+/* datetime（含时分秒）标签较长，需 360px 才能完整显示，2 列对齐 */
+.search-field--datetime { flex: 0 0 360px; width: 360px; min-width: 360px; max-width: 360px; }
+.search-actions { flex: 0 0 auto; }
+
+@media (max-width: 768px) {
+  .search-card .el-form--inline .el-input,
+  .search-card .el-form--inline .el-select,
+  .search-card .el-form--inline .el-input-number,
+  .search-card .el-form--inline .el-date-editor,
+  .filter-card .el-form--inline .el-input,
+  .filter-card .el-form--inline .el-select,
+  .filter-card .el-form--inline .el-input-number,
+  .filter-card .el-form--inline .el-date-editor {
+    width: 100% !important;
+  }
+  .search-field,
+  .search-field--keyword,
+  .search-field--date,
+  .search-field--datetime,
+  .search-actions {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
+/* ========== 联系人分组标题 ========== */
+.contact-group-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #606266;
+  padding: 4px 0 2px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 4px;
+  letter-spacing: 0.5px;
+}
+
+.optional-tag {
+  font-size: 11px;
+  font-weight: 400;
+  color: #909399;
+  background: #f4f4f5;
+  border-radius: 4px;
+  padding: 0 6px;
+  margin-left: 8px;
+}

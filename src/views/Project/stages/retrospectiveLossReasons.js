@@ -1,0 +1,20 @@
+// PRD §3.3.1.5 丢标原因 17 项 + 其他
+export const lossReasonOptions = [
+  { label: '没有在目标客户清单', value: 'NOT_IN_TARGET_LIST' },
+  { label: '在客户清单没有责任人', value: 'NO_OWNER_IN_LIST' },
+  { label: '有责任人无跟进', value: 'OWNER_NO_FOLLOWUP' },
+  { label: '未对接上关键人', value: 'NO_KEY_PERSON_CONTACT' },
+  { label: '关键人不支持西域', value: 'KEY_PERSON_OPPOSES' },
+  { label: '未按流程对关键人进行引导', value: 'NO_KEY_PERSON_GUIDANCE' },
+  { label: '有其他关键人明确反对西域', value: 'OTHER_KEY_PERSON_OPPOSES' },
+  { label: '没有对标书进行任何引导', value: 'NO_BID_GUIDANCE' },
+  { label: '有引导但未排除严重丢分项', value: 'GUIDANCE_BUT_NOT_ENOUGH' },
+  { label: '没有评审专家支持', value: 'NO_EXPERT_SUPPORT' },
+  { label: '标书制作问题（有严重制作失误）', value: 'BID_DOC_ERROR' },
+  { label: '标书制作问题（标书审核问题）', value: 'BID_REVIEW_ISSUE' },
+  { label: '标书报价得分低', value: 'PRICE_SCORE_LOW' },
+  { label: '标书主观得分低', value: 'SUBJECTIVE_SCORE_LOW' },
+  { label: '标书资格门槛不达标', value: 'QUALIFICATION_FAIL' },
+  { label: '标书客观得分低（业绩、资质等）', value: 'OBJECTIVE_SCORE_LOW' },
+  { label: '其他原因', value: 'OTHER' },
+]

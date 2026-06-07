@@ -1,0 +1,93 @@
+# 西域数智化投标管理平台 — 本地开发 Docker 环境
+# 使用方式：
+#   docker compose up -d                      # 启动所有服务
+#   docker compose logs -f backend            # 查看后端日志
+#   docker compose down                       # 停止所有服务
+#   docker compose restart backend            # 重启后端（重新编译后）
+#
+# 代码变更后需先编译再重启：
+#   cd backend && mvn package -DskipTests -Dmaven.test.skip=true && docker compose restart backend
+#
+# 前端仍在宿主机运行（保持 Vite HMR）：
+#   cd /Users/user/xiyu/xiyu-bid-poc && VITE_API_MODE=api VITE_API_BASE_URL=http://localhost:18080 npx vite --host 127.0.0.1 --port 1314
+#
+# 文档转换 sidecar 仍在宿主机运行：
+#   screen -dmS main-sidecar bash -c 'cd /Users/user/xiyu/xiyu-bid-poc/document-converter-sidecar && .venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8000'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: xiyu-bid-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: XiyuRoot!2026
+      MYSQL_DATABASE: xiyu_bid_main
+      MYSQL_USER: xiyu_user
+      MYSQL_PASSWORD: XiyuDB!2026
+    ports:
+      - "13306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "xiyu_user", "-pXiyuDB!2026"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - xiyu-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: xiyu-bid-redis
+    restart: unless-stopped
+    ports:
+      - "16379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - xiyu-net
+
+  backend:
+    image: eclipse-temurin:23-jdk
+    container_name: xiyu-bid-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "18080:18080"
+    volumes:
+      - ./backend/target/bid-poc-1.0.3.jar:/app/bid-poc.jar:ro
+    environment:
+      JWT_SECRET: xiyu-bid-poc-local-dev-secret-key-please-change-in-prod-32bytes-min
+      SPRING_PROFILES_ACTIVE: dev
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: xiyu_bid_main
+      DB_USERNAME: xiyu_user
+      DB_PASSWORD: XiyuDB!2026
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: "0"
+      SPRING_DATA_REDIS_DATABASE: "0"
+      SERVER_PORT: "18080"
+      CORS_ALLOWED_ORIGINS: "http://localhost:1314,http://127.0.0.1:1314,http://localhost:1316,http://127.0.0.1:1316"
+    working_dir: /app
+    command: ["java", "-XX:+UseZGC", "-Xms256m", "-Xmx512m", "-jar", "/app/bid-poc.jar"]
+    networks:
+      - xiyu-net
+
+networks:
+  xiyu-net:
+    name: xiyu-bid-dev
+    driver: bridge
+
+volumes:
+  mysql-data:
+    name: xiyu-bid-mysql-data

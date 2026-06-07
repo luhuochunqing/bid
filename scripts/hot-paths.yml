@@ -1,0 +1,54 @@
+# hot-paths.yml — high-risk paths that require an active .agent-locks.yml entry
+#
+# Any PR that changes a file matching one of these patterns MUST have an active
+# lock (owner = HEAD's branch, expiresAt > now) covering the path. If not, the
+# CI agent-locks job fails with a clear error.
+#
+# Rationale: these paths have historically caused multi-agent collisions that
+# resulted in production-blocking regressions (#218 V117, #220 shared DB, #224
+# root commits). The lock system exists to coordinate parallel work — this file
+# defines where coordination is mandatory, not optional.
+#
+# Maintenance: keep this list tight. Broad scope dilutes the signal. Only add
+# paths where uncoordinated parallel edits have caused real incidents.
+
+version: 1
+hot_paths:
+  # Database migrations — any collision here can corrupt flyway_schema_history
+  # or produce conflicting schema changes that break fresh database boots.
+  - pattern: "backend/src/main/resources/db/migration-mysql/**"
+    reason: "Flyway migration collisions corrupt schema history (see #218)"
+
+  # Core entity models — changes here ripple through service/controller/test
+  # layers and often conflict at the semantic level even when git merges cleanly.
+  - pattern: "backend/src/main/java/com/xiyu/bid/entity/**"
+    reason: "Entity model changes have broad ripple effects"
+
+  # Application config — changes here affect all profiles and can silently break
+  # startup if two agents add conflicting keys or change the same property.
+  - pattern: "backend/src/main/resources/application*.yml"
+    reason: "Config changes affect all environments"
+
+  # Router — the single entry point for all frontend routes. Parallel additions
+  # often produce route conflicts or ordering issues that break navigation.
+  - pattern: "src/router/index.js"
+    reason: "Single router file, high collision risk"
+
+  # Login page — historically overwritten by disconnected root commits (#224).
+  # Any change here should be coordinated because it's the first user touchpoint.
+  - pattern: "src/views/Login.vue"
+    reason: "Critical user entry point, historically overwritten (#224)"
+
+  # CI workflows — changes here affect the entire team's merge flow. Parallel
+  # edits can produce conflicting job dependencies or break required checks.
+  - pattern: ".github/workflows/**"
+    reason: "CI changes affect entire team merge flow"
+
+  # Git hooks — similar to CI, changes here affect local developer workflow.
+  - pattern: ".githooks/**"
+    reason: "Hook changes affect local developer workflow"
+
+  # Rollback migrations — same Flyway schema history corruption risk as forward
+  # migrations. Must be covered by active lock just like migration-mysql/**.
+  - pattern: "backend/src/main/resources/db/rollback/migration-mysql/**"
+    reason: "Flyway rollback scripts collide on schema history exactly like forward migrations (see #218)"

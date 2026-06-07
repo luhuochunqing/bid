@@ -1,0 +1,8 @@
+{
+  "track_id": "matrix_collaboration_20260428",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-04-28T16:00:00Z",
+  "updated_at": "2026-04-28T16:00:00Z",
+  "description": "实现立体矩阵式协作权限体系（含 CRM 权限镜像同步与项目人为分享机制）"
+}

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Input: Spring profile-aware logging configuration -->
+<!-- Output: Console (dev) or JSON (prod) log output with traceId -->
+<!-- Pos: resources/ 日志基础设施 -->
+<configuration>
+    <!-- traceId 从 MDC 中读取，由 Filter/TraceFilter 在请求入口注入 -->
+    <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="xiyu-bid-poc"/>
+
+    <!-- ==================== 开发/测试环境：人类可读 ==================== -->
+    <springProfile name="dev | test | mysql">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-no-trace}] %logger{36} - %msg%n</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+        <logger name="com.xiyu" level="DEBUG"/>
+        <logger name="org.hibernate.SQL" level="WARN"/>
+        <logger name="org.hibernate.orm.jdbc.bind" level="WARN"/>
+    </springProfile>
+
+    <!-- ==================== 生产/预发布：结构化 JSON ==================== -->
+    <springProfile name="prod | staging">
+        <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <customFields>{"application":"${APP_NAME}"}</customFields>
+                <includeMdcKeyName>traceId</includeMdcKeyName>
+            </encoder>
+        </appender>
+        <root level="WARN">
+            <appender-ref ref="JSON"/>
+        </root>
+        <logger name="com.xiyu" level="INFO"/>
+    </springProfile>
+
+    <!-- ==================== 默认兜底 ==================== -->
+    <springProfile name="!dev &amp; !test &amp; !mysql &amp; !prod &amp; !staging">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-no-trace}] %logger{36} - %msg%n</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+</configuration>

@@ -1,0 +1,114 @@
+name: Flyway Migration Dry-Run
+
+on:
+  pull_request:
+    paths:
+      - 'backend/src/main/resources/db/migration-mysql/**'
+      - 'backend/pom.xml'
+      - 'backend/src/main/java/**/entity/**'
+      - '.github/workflows/flyway-migrate-dryrun.yml'
+
+# Two-tier gate:
+#   1. Flyway: runs all migrations from baseline on a fresh MySQL 8.0
+#   2. JPA: validates that Hibernate entity mappings match the resulting schema
+#
+# Catches both broken migration SQL and entity/DB schema drift before merge.
+
+jobs:
+  flyway-migrate-dryrun:
+    name: Migrate + JPA validate (MySQL 8.0)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci_test_password
+          MYSQL_DATABASE: xiyu_bid_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
+
+      - name: Wait for MySQL
+        run: |
+          for i in {1..30}; do
+            if mysqladmin ping -h 127.0.0.1 -u root -pci_test_password --silent 2>/dev/null; then
+              echo "MySQL is up"
+              exit 0
+            fi
+            echo "Waiting for MySQL... ($i/30)"
+            sleep 2
+          done
+          echo "MySQL did not become ready in time"
+          exit 1
+
+      - name: Run Flyway migrate from baseline
+        run: |
+          mvn org.flywaydb:flyway-maven-plugin:9.22.3:migrate \
+            -Dflyway.url="jdbc:mysql://127.0.0.1:3306/xiyu_bid_ci?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" \
+            -Dflyway.user=root \
+            -Dflyway.password=ci_test_password \
+            -Dflyway.locations=filesystem:src/main/resources/db/migration-mysql \
+            -Dflyway.baselineOnMigrate=false \
+            -Dflyway.validateOnMigrate=true
+
+      - name: Validate Flyway history
+        run: |
+          mvn org.flywaydb:flyway-maven-plugin:9.22.3:validate \
+            -Dflyway.url="jdbc:mysql://127.0.0.1:3306/xiyu_bid_ci?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" \
+            -Dflyway.user=root \
+            -Dflyway.password=ci_test_password \
+            -Dflyway.locations=filesystem:src/main/resources/db/migration-mysql
+
+      - name: Validate JPA entities against migrated schema
+        run: |
+          mvn spring-boot:run \
+            -Dspring-boot.run.profiles=mysql \
+            -Dspring-boot.run.arguments="--spring.jpa.hibernate.ddl-auto=validate --server.port=0" \
+            -Dspring-boot.run.jvmArguments="-Dspring.datasource.url='jdbc:mysql://127.0.0.1:3306/xiyu_bid_ci?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC' -Dspring.datasource.username=root -Dspring.datasource.password=ci_test_password -DJWT_SECRET=ci-jwt-secret-not-for-production-use-32b -DWEBHOOK_CRM_TOKEN=ci-token-not-for-prod -DCORS_ALLOWED_ORIGINS=http://localhost -DDB_PASSWORD=ci_test_password -DDB_USERNAME=root" \
+            -DskipTests \
+            > /tmp/jpa-validate.log 2>&1 &
+          APP_PID=$!
+          for i in $(seq 1 30); do
+            if grep -q "Started XiyuBidApplication" /tmp/jpa-validate.log 2>/dev/null; then
+              echo "JPA schema validation PASSED"
+              cat /tmp/jpa-validate.log | grep -E "Started|Profiles|Error" | tail -5
+              kill $APP_PID 2>/dev/null; wait $APP_PID 2>/dev/null
+              exit 0
+            fi
+            if grep -qi "SchemaManagementException\|Schema-validation\|Error creating bean" /tmp/jpa-validate.log 2>/dev/null; then
+              echo "JPA schema validation FAILED"
+              cat /tmp/jpa-validate.log | grep -E "SchemaManagementException|Schema-validation|Error creating bean" | head -10
+              kill $APP_PID 2>/dev/null; wait $APP_PID 2>/dev/null
+              exit 1
+            fi
+            sleep 4
+          done
+          echo "JPA schema validation TIMEOUT (app did not start within 120s)"
+          tail -50 /tmp/jpa-validate.log
+          kill $APP_PID 2>/dev/null; wait $APP_PID 2>/dev/null
+          exit 1
+
+      - name: Show migration history on failure
+        if: failure()
+        run: |
+          mvn org.flywaydb:flyway-maven-plugin:9.22.3:info \
+            -Dflyway.url="jdbc:mysql://127.0.0.1:3306/xiyu_bid_ci?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" \
+            -Dflyway.user=root \
+            -Dflyway.password=ci_test_password \
+            -Dflyway.locations=filesystem:src/main/resources/db/migration-mysql
