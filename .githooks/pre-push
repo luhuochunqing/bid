@@ -9,6 +9,8 @@
 #   1. Any --force / --force-with-lease push to main, master, or release/* refs.
 #   2. Pushes to main where HEAD has more root commits than the documented
 #      ratchet (see .github/workflows/branch-history-guard.yml).
+#   3. Gitee 远端 push 时未设置 GITEE_TOKEN（阻止 push）
+#   4. 所有 agent/* 分支 push 时检查是否通过 pr-create.sh 创建 PR（温和提醒）
 #
 # Context: ericforai/bidding#224 documents the root-commit issue. This hook is
 # the developer-local mirror of the CI workflow — same check, earlier signal.
@@ -22,12 +24,88 @@ remote="${1:-origin}"
 PROTECTED_BRANCHES_REGEX='^refs/heads/(main|master|release/.+)$'
 MAX_ROOTS=4
 
+# ==============================================================================
+# 前置门禁 A: 远端凭证检查
+# ==============================================================================
+remote_url="$(git remote get-url "$remote" 2>/dev/null || true)"
+
+case "$remote_url" in
+  *gitee.com*)
+    if [[ -z "${GITEE_TOKEN:-}" ]]; then
+      echo ""
+      echo "╔══════════════════════════════════════════════════════════════╗"
+      echo "║  ❌ GITEE_TOKEN 未设置，拒绝 push                         ║"
+      echo "║                                                          ║"
+      echo "║  当前远端是 Gitee（$remote_url）"
+      echo "║  必须设置 GITEE_TOKEN 才能推送代码到远端。               ║"
+      echo "║                                                          ║"
+      echo "║  设置方式:                                                ║"
+      echo "║    export GITEE_TOKEN='your_personal_access_token'        ║"
+      echo "║                                                          ║"
+      echo "║  申请 Token: https://gitee.com/profile/personal_tokens    ║"
+      echo "║                                                          ║"
+      echo "║  跳过检查: GITEE_PUSH_OK=1 git push ...                   ║"
+      echo "╚══════════════════════════════════════════════════════════════╝"
+      echo ""
+      exit 1
+    fi
+    ;;
+esac
+
+# ==============================================================================
+# 前置门禁 B: GitHub 远端 gh 登录检查
+# ==============================================================================
+case "$remote_url" in
+  *github.com*)
+    if [[ "${PRE_PUSH_SKIP_GH_CHECK:-0}" != "1" ]] && ! gh auth status &>/dev/null; then
+      echo ""
+      echo "╔══════════════════════════════════════════════════════════════╗"
+      echo "║  ⚠️  GitHub CLI (gh) 未登录                               ║"
+      echo "║                                                          ║"
+      echo "║  当前远端是 GitHub，但 gh 未通过认证。                    ║"
+      echo "║  提交代码后无法通过 gh 创建 PR。                          ║"
+      echo "║                                                          ║"
+      echo "║  请执行: gh auth login                                    ║"
+      echo "║  或设置: export GH_TOKEN=ghp_xxx                          ║"
+      echo "║                                                          ║"
+      echo "║  跳过检查: PRE_PUSH_SKIP_GH_CHECK=1 git push ...          ║"
+      echo "╚══════════════════════════════════════════════════════════════╝"
+      echo ""
+      exit 1
+    fi
+    ;;
+esac
+
+# ==============================================================================
+# 前置门禁 C: agent/* 分支 PR 脚本使用提醒
+# ==============================================================================
+while IFS=' ' read -r local_ref local_sha remote_ref remote_sha; do
+  branch="${local_ref#refs/heads/}"
+  if [[ "$branch" == agent/* ]]; then
+    # 只在首次 push 时提醒（远端还没有这个 ref）
+    if [[ "${remote_sha}" == "0000000000000000000000000000000000000000" ]]; then
+      echo ""
+      echo "╔══════════════════════════════════════════════════════════════╗"
+      echo "║  💡 提示: 创建 PR 请使用统一脚本                          ║"
+      echo "║                                                          ║"
+      echo "║  分支: $branch"
+      echo "║                                                          ║"
+      echo "║  请通过 scripts/pr-create.sh 创建 PR，不要手动执行:      ║"
+      echo "║    gh pr create                           ← 禁止         ║"
+      echo "║    git push origin ... + 网页操作         ← 禁止          ║"
+      echo "║                                                          ║"
+      echo "║  正确用法:                                                ║"
+      echo "║    ./scripts/pr-create.sh \"feat: 你的标题\" /path/body.md  ║"
+      echo "║                                                          ║"
+      echo "║  该脚本会自动处理 GitHub / Gitee 的差异。                 ║"
+      echo "╚══════════════════════════════════════════════════════════════╝"
+      echo ""
+    fi
+    break
+  fi
+done
+
 # 1) refuse force pushes to protected branches.
-# Git itself does not expose "is this a force push" to the hook. We approximate:
-# a non-fast-forward push will have the remote ref already known to git and
-# differing from local; in that case we error unless the user explicitly opts
-# out with FORCE_PUSH_OK=1. This covers --force, --force-with-lease, and the
-# common "I rebased and want to push" case.
 while IFS=' ' read -r local_ref local_sha remote_ref remote_sha; do
     if [[ "${remote_ref}" =~ ${PROTECTED_BRANCHES_REGEX} ]]; then
         # New ref creation (remote_sha is all zeros) is allowed.

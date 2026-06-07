@@ -1,0 +1,9 @@
+version: 1
+task: "main-home"
+locks:
+  - path: ".githooks"
+    scope: "directory"
+    owner: "cursor"
+    branch: "main-home"
+    expiresAt: "2026-06-08T13:25:03.520Z"
+    reason: "强化 PR/API 凭证门禁：pr-create.sh + pre-push hook"
