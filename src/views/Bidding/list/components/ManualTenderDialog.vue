@@ -71,6 +71,13 @@
               </el-form-item>
             </el-col>
             <el-col :span="12">
+              <el-form-item label="项目类型" prop="projectType">
+                <el-select v-model="form.projectType" placeholder="选择项目类型（选填）" clearable class="full-width">
+                  <el-option v-for="t in projectTypes" :key="t" :label="t" :value="t" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
               <el-form-item label="联系人" prop="contact">
                 <el-input v-model="form.contact" placeholder="联系人姓名" />
               </el-form-item>
@@ -163,6 +170,7 @@ import {
   CUSTOMER_TYPE_OPTIONS,
   MANUAL_FORM_RULES,
   PRIORITY_OPTIONS,
+  PROJECT_TYPE_OPTIONS,
   REGION_OPTIONS,
 } from '../constants.js'
 
@@ -177,6 +185,7 @@ defineProps({
   regions: { type: Array, default: () => REGION_OPTIONS },
   customerTypes: { type: Array, default: () => CUSTOMER_TYPE_OPTIONS },
   priorities: { type: Array, default: () => PRIORITY_OPTIONS },
+  projectTypes: { type: Array, default: () => PROJECT_TYPE_OPTIONS },
 })
 
 const emit = defineEmits(['reset', 'submit', 'file-change', 'parse-pasted-text'])
@@ -221,14 +230,10 @@ async function handleFooterSubmit() {
   if (adaptiveFormRef.value?.isDynamic?.value) {
     const result = await adaptiveFormRef.value.submit()
     if (result?.valid === false) {
-      // Validation failed in dynamic form — user already sees error
       return
     }
-    if (result?.valid === true) {
-      // Dynamic form emitted 'submit' via handleDynamicFormSubmit -> emit to parent
-      emit('submit')
-      return
-    }
+    // Dynamic form's internal submit emit → handleDynamicFormSubmit → Object.assign → emit('submit')
+    return
   }
   // Fallback: emit submit for parent to validate via innerFormRef
   emit('submit')
