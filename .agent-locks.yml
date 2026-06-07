@@ -18,10 +18,10 @@ locks:
   reason: 品牌授权数据库迁移回滚
   owner: gemini
   branch: gemini/feat-brand-auth-4.6
-  - path: backend/src/main/resources/application-dev.yml
-    scope: directory
-    reason: 添加 CRM OAuth 凭据环境变量绑定
-    owner: codex
-    branch: agent/codex/crm-real-env
-    expiresAt: 2026-06-10T00:00:00Z
+- path: backend/src/main/resources/application-dev.yml
+  scope: directory
+  reason: 添加 CRM OAuth 凭据环境变量绑定
+  owner: codex
+  branch: agent/codex/crm-real-env
+  expiresAt: 2026-06-10T00:00:00Z
 

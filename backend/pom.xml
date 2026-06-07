@@ -433,6 +433,7 @@
                             <includes>${quality.includes}</includes>
                             <failsOnError>${quality.failOnViolation}</failsOnError>
                             <consoleOutput>true</consoleOutput>
+                            <propertyExpansion>basedir=${project.basedir},org.checkstyle.sun.suppressionfilter.config=${project.basedir}/config/checkstyle/suppressions.xml</propertyExpansion>
                             <linkXRef>false</linkXRef>
                         </configuration>
                         <executions>

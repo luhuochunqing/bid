@@ -26,7 +26,7 @@ public class PerformanceExpiryScanTask {
             }
             int alertsCreated = performanceExpiryAlertService.createAlerts(config);
             log.info("[PerformanceExpiryScanTask] Scan completed. Created {} alerts.", alertsCreated);
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             log.error("[PerformanceExpiryScanTask] Failed to execute scheduled performance expiry scan: {}",
                     e.getMessage(), e);
         }

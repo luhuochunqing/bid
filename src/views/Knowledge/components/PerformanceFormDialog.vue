@@ -108,9 +108,9 @@ watch(() => props.visible, (val) => {
 })
 
 const validateForm = async () => {
-  let baseValid = false
-  let datesValid = false
-  let contactValid = false
+  let baseValid
+  let datesValid
+  let contactValid
 
   try {
     await formRefBase.value?.validate()

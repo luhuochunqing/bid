@@ -1,0 +1,62 @@
+version: 1
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql/V1053__performance_attachment_file_size.sql"
+    scope: file
+    owner: qoder
+    branch: qoder/performance-fixes-v2
+    expiresAt: "2026-06-10T00:00:00Z"
+    reason: 业绩附件表增加 file_size 字段
+  - path: "backend/src/main/resources/db/migration-mysql/V1054__performance_audit_user_fields.sql"
+    scope: file
+    owner: qoder
+    branch: qoder/performance-fixes-v2
+    expiresAt: "2026-06-10T00:00:00Z"
+    reason: 业绩记录表审计字段调整（created_by 改用户名，新增 updated_by）
+  - path: "backend/src/main/resources/db/migration-mysql/V1055__performance_attachment_soft_delete.sql"
+    scope: file
+    owner: qoder
+    branch: qoder/performance-fixes-v2
+    expiresAt: "2026-06-10T00:00:00Z"
+    reason: 业绩附件表增加软删除字段
+  - path: "backend/src/main/resources/db/migration-mysql/V1056__performance_record_cancelled.sql"
+    scope: file
+    owner: qoder
+    branch: qoder/performance-fixes-v2
+    expiresAt: "2026-06-10T00:00:00Z"
+    reason: 业绩记录表增加作废字段
+  - path: "backend/src/main/resources/db/migration-mysql/V1057__performance_record_soft_delete.sql"
+    scope: file
+    owner: qoder
+    branch: qoder/performance-fixes-v2
+    expiresAt: "2026-06-10T00:00:00Z"
+    reason: 业绩记录表增加软删除字段
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1053__performance_attachment_file_size.sql"
+    scope: file
+    owner: qoder
+    branch: qoder/performance-fixes-v2
+    expiresAt: "2026-06-10T00:00:00Z"
+    reason: V1053 回滚脚本
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1054__performance_audit_user_fields.sql"
+    scope: file
+    owner: qoder
+    branch: qoder/performance-fixes-v2
+    expiresAt: "2026-06-10T00:00:00Z"
+    reason: V1054 回滚脚本
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1055__performance_attachment_soft_delete.sql"
+    scope: file
+    owner: qoder
+    branch: qoder/performance-fixes-v2
+    expiresAt: "2026-06-10T00:00:00Z"
+    reason: V1055 回滚脚本
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1056__performance_record_cancelled.sql"
+    scope: file
+    owner: qoder
+    branch: qoder/performance-fixes-v2
+    expiresAt: "2026-06-10T00:00:00Z"
+    reason: V1056 回滚脚本
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1057__performance_record_soft_delete.sql"
+    scope: file
+    owner: qoder
+    branch: qoder/performance-fixes-v2
+    expiresAt: "2026-06-10T00:00:00Z"
+    reason: V1057 回滚脚本

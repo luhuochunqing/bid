@@ -271,6 +271,7 @@ run_checkstyle_gate() {
     -Dquality.skip=false \
     -Dquality.includes="$QUALITY_INCLUDES" \
     -Dquality.onlyAnalyze="$QUALITY_ONLY_ANALYZE" \
+    -Dcheckstyle.config.location="config/checkstyle/checkstyle.xml" \
     checkstyle:check)
 }
 

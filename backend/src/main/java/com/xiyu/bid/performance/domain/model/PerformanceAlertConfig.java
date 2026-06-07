@@ -1,6 +1,5 @@
 package com.xiyu.bid.performance.domain.model;
 
-import java.util.Objects;
 
 /**
  * 业绩合同到期提醒全局配置。
