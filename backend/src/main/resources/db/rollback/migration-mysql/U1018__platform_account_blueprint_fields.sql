@@ -1,0 +1,3 @@
+-- Input: V1018__platform_account_blueprint_fields.sql
+-- Rollback for V1018__platform_account_blueprint_fields.sql
+-- No-op rollback: placeholder (manual review required)

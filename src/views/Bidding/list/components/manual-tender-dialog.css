@@ -1,0 +1,82 @@
+.manual-tender-upload {
+  width: 100%;
+  min-width: 0;
+}
+
+
+.manual-tender-upload :deep(.el-upload) {
+  display: block;
+  width: 100%;
+}
+
+.manual-tender-upload :deep(.el-upload-dragger) {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.manual-tender-upload :deep(.el-upload-list) {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.manual-tender-upload :deep(.el-upload-list__item) {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.manual-tender-upload :deep(.el-upload-list__item-info),
+.manual-tender-upload :deep(.el-upload-list__item-name) {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.manual-tender-upload :deep(.el-upload-list__item-name) {
+  display: flex;
+  padding-right: 28px;
+}
+
+.manual-tender-upload :deep(.el-upload-list__item-file-name) {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.priority-option {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.25;
+}
+
+.priority-option small {
+  max-width: 420px;
+  overflow: hidden;
+  color: var(--gray-650);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paste-recognition-hint {
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.paste-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.upload-hint {
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}

@@ -1,0 +1,262 @@
+@import '../../../styles/variables.css';
+
+/* ==================== 动态列表 ==================== */
+.activity-list {
+  padding: 16px;
+}
+
+.activity-item {
+  display: flex;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+
+.activity-item:last-child {
+  padding-bottom: 0;
+}
+
+.activity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+.activity-dot.type-success {
+  background: var(--color-success);
+}
+
+.activity-dot.type-warning {
+  background: var(--color-warning);
+}
+
+.activity-dot.type-info {
+  background: var(--brand-xiyu-logo);
+}
+
+.activity-content {
+  flex: 1;
+}
+
+.activity-text {
+  font-size: 13px;
+  color: var(--text-primary-ui);
+  margin-bottom: 2px;
+  line-height: 1.5;
+}
+
+.activity-time {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ==================== 角色化横幅样式 ==================== */
+.banner-admin {
+  background: linear-gradient(135deg, var(--brand-xiyu-logo) 0%, var(--brand-xiyu-logo-active) 100%);
+}
+
+.banner-actions .el-button {
+  min-width: 112px;
+  height: 40px;
+  justify-content: center;
+}
+
+.banner-actions .el-button .banner-action-label {
+  color: inherit;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.banner-admin .banner-actions .el-button--primary {
+  background: var(--bg-card);
+  color: var(--brand-xiyu-logo);
+  border-color: var(--bg-card);
+}
+
+.welcome-banner .banner-actions .el-button--primary .banner-action-label,
+.welcome-banner .banner-actions .el-button--primary .el-icon {
+  color: var(--bg-card) !important;
+}
+
+/* ==================== 团队绩效卡片 ==================== */
+.team-performance-grid {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.team-performance-item {
+  padding: 12px;
+  background: var(--bg-subtle);
+  border-radius: 8px;
+}
+
+.team-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.team-name {
+  font-weight: 500;
+  color: var(--gray-950);
+}
+
+.team-size {
+  font-size: 12px;
+  color: var(--gray-650);
+}
+
+.team-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.team-progress .progress-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--gray-100);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.team-progress .progress-fill {
+  height: 100%;
+  background: var(--brand-xiyu-logo);
+  transition: width 0.3s ease;
+}
+
+.team-progress .progress-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary-ui);
+  min-width: 36px;
+}
+
+.team-metrics {
+  display: flex;
+  gap: 16px;
+}
+
+.team-metric {
+  font-size: 12px;
+  color: var(--gray-650);
+}
+
+/* ==================== 审批列表 ==================== */
+.approvals-list {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.approval-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-subtle);
+  border-radius: 8px;
+}
+
+.approval-icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--bg-card);
+}
+
+.approval-icon.type-budget { background: var(--brand-primary); }
+.approval-icon.type-project { background: var(--color-success); }
+.approval-icon.type-hr { background: var(--color-warning); }
+
+.approval-content {
+  flex: 1;
+}
+
+.approval-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--gray-950);
+  margin-bottom: 2px;
+}
+
+.approval-meta {
+  font-size: 12px;
+  color: var(--gray-650);
+}
+
+.approval-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* ==================== 标讯卡片 ==================== */
+.tenders-list {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tender-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-subtle);
+  border-radius: 8px;
+  border-left: 3px solid var(--gray-100);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tender-card:hover {
+  background: var(--gray-50);
+  border-left-color: var(--brand-primary);
+}
+
+.tender-score {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--bg-card);
+  flex-shrink: 0;
+}
+
+.tender-score.score-high { background: linear-gradient(135deg, var(--color-success) 0%, var(--color-success-dark) 100%); }
+.tender-score.score-medium { background: linear-gradient(135deg, var(--color-warning) 0%, var(--color-warning-light) 100%); }
+
+.tender-info {
+  flex: 1;
+}
+
+.tender-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--gray-950);
+  margin-bottom: 6px;
+}
+
+.tender-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--gray-650);
+}

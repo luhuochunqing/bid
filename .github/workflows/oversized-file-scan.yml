@@ -1,0 +1,149 @@
+name: Oversized File Scan
+
+on:
+  schedule:
+    # Weekly: Monday 03:17 UTC (off-peak, avoid :00/:30)
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+# Weekly full-repo scan for source files exceeding the 300-line budget.
+# Unlike the CI line-budget job (which only checks diffs), this scanner
+# examines ALL tracked files. It catches:
+#   1. Oversized files that predate the line-budget gate.
+#   2. Exempt files that have grown further (audit trail).
+#   3. Stale exemptions (files now ≤300 lines that can leave the list).
+#
+# When new violations are found, an issue is created/updated with the
+# label `oversized-scan`. When all violations are resolved, the issue
+# is auto-closed.
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  scan:
+    name: Scan oversized files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run oversized file scan
+        id: scan
+        run: |
+          node scripts/scan-oversized-files.mjs --json > /tmp/scan-result.json 2>/tmp/scan-stderr.log; RC=$?
+          echo "exit_code=$RC" >> "$GITHUB_OUTPUT"
+
+          cat /tmp/scan-result.json
+
+          # Extract summary counts for issue body
+          VIOLATION_COUNT=$(node -e "const r=require('/tmp/scan-result.json'); console.log(r.violationCount)")
+          EXEMPT_COUNT=$(node -e "const r=require('/tmp/scan-result.json'); console.log(r.exemptCount)")
+          STALE_COUNT=$(node -e "const r=require('/tmp/scan-result.json'); console.log(r.staleExemptionCount)")
+
+          echo "violation_count=$VIOLATION_COUNT" >> "$GITHUB_OUTPUT"
+          echo "exempt_count=$EXEMPT_COUNT" >> "$GITHUB_OUTPUT"
+          echo "stale_count=$STALE_COUNT" >> "$GITHUB_OUTPUT"
+
+      - name: Build issue body
+        id: body
+        run: |
+          VIOLATIONS=$(node -e "
+            const r=require('/tmp/scan-result.json');
+            r.violations.forEach(v => console.log('- \`' + v.path + '\` (' + v.lines + ' lines)'));
+          ")
+          EXEMPT=$(node -e "
+            const r=require('/tmp/scan-result.json');
+            r.exemptEntries.forEach(e => console.log('- \`' + e.path + '\` (' + e.lines + ' lines)'));
+          ")
+          STALE=$(node -e "
+            const r=require('/tmp/scan-result.json');
+            r.staleExemptions.forEach(s => console.log('- \`' + s + '\`'));
+          ")
+
+          BODY="## Oversized File Scan — $(date -u +'%Y-%m-%d')
+
+          **Scanned**: $(node -e "const r=require('/tmp/scan-result.json'); console.log(r.totalGuarded)") guarded files
+          **Budget**: $(node -e "const r=require('/tmp/scan-result.json'); console.log(r.maxLines)") lines
+
+          ### Violations (${{ steps.scan.outputs.violation_count }})
+          $VIOLATIONS
+
+          ### Exempt (for audit only — ${{ steps.scan.outputs.exempt_count }})
+          $EXEMPT
+
+          ### Stale Exemptions (can be removed — ${{ steps.scan.outputs.stale_count }})
+          $STALE
+          "
+
+          # Escape for GitHub Actions output
+          BODY="${BODY//'%'/'%25'}"
+          BODY="${BODY//$'\n'/'%0A'}"
+          BODY="${BODY//$'\r'/'%0D'}"
+          echo "body=$BODY" >> "$GITHUB_OUTPUT"
+
+      # Only manage issues when violations > 0 or stale exemptions > 0
+      - name: Find existing oversized-scan issue
+        id: find-issue
+        if: steps.scan.outputs.violation_count != '0' || steps.scan.outputs.stale_count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_NUMBER=$(gh issue list \
+            --repo "$GITHUB_REPOSITORY" \
+            --label "oversized-scan" \
+            --state open \
+            --json number \
+            --jq '.[0].number // ""')
+
+          echo "number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update issue
+        if: steps.scan.outputs.violation_count != '0' || steps.scan.outputs.stale_count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -n "${{ steps.find-issue.outputs.number }}" ]; then
+            echo "Updating existing issue #${{ steps.find-issue.outputs.number }}"
+            gh issue edit "${{ steps.find-issue.outputs.number }}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --body-file /tmp/scan-issue-body.md
+          else
+            echo "Creating new oversized-scan issue"
+            gh issue create \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Oversized file scan — $(date -u +'%Y-%m-%d')" \
+              --body-file /tmp/scan-issue-body.md \
+              --label "oversized-scan"
+          fi
+
+      - name: Close issue when clean
+        if: steps.scan.outputs.violation_count == '0' && steps.scan.outputs.stale_count == '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_NUMBER=$(gh issue list \
+            --repo "$GITHUB_REPOSITORY" \
+            --label "oversized-scan" \
+            --state open \
+            --json number \
+            --jq '.[0].number // ""')
+
+          if [ -n "$ISSUE_NUMBER" ]; then
+            echo "All violations resolved. Closing issue #$ISSUE_NUMBER."
+            gh issue close "$ISSUE_NUMBER" \
+              --repo "$GITHUB_REPOSITORY" \
+              --comment "All oversized file violations have been resolved. Closing."
+          fi
+
+      # Fail the workflow if violations exist (visible red X on schedule)
+      - name: Report status
+        if: steps.scan.outputs.violation_count != '0'
+        run: |
+          echo "::error::${{ steps.scan.outputs.violation_count }} oversized file violation(s) found."
+          exit 1

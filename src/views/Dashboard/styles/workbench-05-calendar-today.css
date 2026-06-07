@@ -1,0 +1,78 @@
+@import '../../../styles/variables.css';
+
+/* 今日日程卡片 */
+.today-events-list {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.today-event-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--bg-subtle);
+  border-radius: 8px;
+  border-left: 3px solid #E5E7EB;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.today-event-item:hover {
+  background: #F3F4F6;
+}
+
+.today-event-item.event-deadline {
+  border-left-color: var(--color-danger);
+  background: #FEF2F2;
+}
+
+.today-event-item.event-bid {
+  border-left-color: #3B82F6;
+  background: #DBEAFE;
+}
+
+.today-event-item.event-opening {
+  border-left-color: var(--color-success);
+  background: #D1FAE5;
+}
+
+.today-event-item.event-review {
+  border-left-color: #F59E0B;
+  background: var(--color-warning-bg);
+}
+
+.event-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.today-event-item.event-deadline .event-dot { background: var(--color-danger); }
+.today-event-item.event-bid .event-dot { background: #3B82F6; }
+.today-event-item.event-opening .event-dot { background: var(--color-success); }
+.today-event-item.event-review .event-dot { background: #F59E0B; }
+
+.event-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.event-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-950);
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-project {
+  font-size: 12px;
+  color: var(--gray-650);
+}

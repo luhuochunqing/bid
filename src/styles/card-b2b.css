@@ -1,0 +1,446 @@
+/**
+ * B2B Professional Card Styles
+ * Unified card component styling for bid management platform
+ * Uses variables from variables.css for consistent theming
+ */
+
+/* ==================== Base Card Styles ==================== */
+.b2b-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--gray-100);
+  padding: var(--space-lg);
+  transition: all 0.25s ease;
+}
+
+.b2b-card:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+/* ==================== Stat Card Styles ==================== */
+.b2b-stat-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-lg);
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--gray-100);
+  transition: all 0.25s ease;
+  cursor: pointer;
+}
+
+.b2b-stat-card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+}
+
+/* Icon Wrapper - 48px Circle */
+.b2b-stat-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.b2b-stat-icon.primary {
+  background: var(--color-primary-bg);
+  color: var(--brand-primary);
+}
+
+.b2b-stat-icon.success {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.b2b-stat-icon.warning {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.b2b-stat-icon.danger {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.b2b-stat-icon .el-icon {
+  font-size: 24px;
+}
+
+/* Stat Content */
+.b2b-stat-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.b2b-stat-value {
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+  margin-bottom: var(--space-xs);
+}
+
+.b2b-stat-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.b2b-stat-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--font-size-xs);
+  margin-top: var(--space-xs);
+}
+
+.b2b-stat-trend.up {
+  color: var(--color-success);
+}
+
+.b2b-stat-trend.down {
+  color: var(--color-danger);
+}
+
+/* ==================== Metric Card (for Dashboard) ==================== */
+.b2b-metric-card {
+  position: relative;
+  padding: 24px;
+  background: linear-gradient(135deg, var(--bg-card) 0%, #fafbfc 100%);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.b2b-metric-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg, rgba(0, 102, 204, 0.8) 0%, rgba(0, 102, 204, 0.4) 100%);
+}
+
+.b2b-metric-card.metric-blue::before {
+  background: linear-gradient(180deg, var(--brand-primary) 0%, var(--brand-primary-light) 100%);
+}
+
+.b2b-metric-card.metric-green::before {
+  background: linear-gradient(180deg, var(--color-success) 0%, #22CC66 100%);
+}
+
+.b2b-metric-card.metric-orange::before {
+  background: linear-gradient(180deg, var(--color-warning) 0%, #FFAA33 100%);
+}
+
+.b2b-metric-card.metric-red::before {
+  background: linear-gradient(180deg, var(--color-danger) 0%, #FF4422 100%);
+}
+
+.b2b-metric-card::after {
+  content: '';
+  position: absolute;
+  right: -20px;
+  top: -20px;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  opacity: 0.03;
+  transition: opacity 0.3s ease;
+}
+
+.b2b-metric-card.metric-blue::after { background: var(--brand-primary); }
+.b2b-metric-card.metric-green::after { background: var(--color-success); }
+.b2b-metric-card.metric-orange::after { background: var(--color-warning); }
+.b2b-metric-card.metric-red::after { background: var(--color-danger); }
+
+.b2b-metric-card:hover {
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  transform: translateY(-2px);
+}
+
+.b2b-metric-card:hover::after {
+  opacity: 0.06;
+}
+
+.b2b-metric-content {
+  flex: 1;
+  position: relative;
+  z-index: 1;
+}
+
+.b2b-metric-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-650);
+  margin-bottom: 12px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.b2b-metric-value {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--gray-950);
+  line-height: 1;
+  margin-bottom: 12px;
+  letter-spacing: -0.02em;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+}
+
+.b2b-metric-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+.b2b-metric-trend .trend-label {
+  color: #9ca3af;
+  font-weight: 400;
+  font-size: 12px;
+}
+
+.b2b-metric-trend.positive {
+  background: linear-gradient(135deg, rgba(0, 170, 68, 0.1) 0%, rgba(0, 170, 68, 0.05) 100%);
+}
+
+.b2b-metric-trend.positive .trend-value {
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.b2b-metric-trend.negative {
+  background: linear-gradient(135deg, rgba(221, 34, 0, 0.1) 0%, rgba(221, 34, 0, 0.05) 100%);
+}
+
+.b2b-metric-trend.negative .trend-value {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+/* ==================== Section Card ==================== */
+.b2b-section-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--gray-100);
+  overflow: hidden;
+}
+
+.b2b-section-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-lg);
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.b2b-section-card-title {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.b2b-section-card-title .el-icon {
+  color: var(--brand-primary);
+}
+
+.b2b-section-card-body {
+  padding: var(--space-lg);
+}
+
+/* ==================== Feature Card (for AI Center) ==================== */
+.b2b-feature-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--gray-100);
+  padding: var(--space-lg);
+  transition: all 0.25s ease;
+}
+
+.b2b-feature-card:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+.b2b-feature-card.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.b2b-feature-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.b2b-feature-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.b2b-feature-icon {
+  font-size: 24px;
+}
+
+.b2b-feature-name {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.b2b-feature-description {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* ==================== Project Item Card ==================== */
+.b2b-project-item {
+  padding: var(--space-4);
+  background: var(--bg-card);
+  border: 1px solid var(--gray-100);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.b2b-project-item:hover {
+  border-color: var(--brand-primary);
+  box-shadow: var(--shadow-lg);
+}
+
+.b2b-project-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.b2b-project-name {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.b2b-project-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.b2b-project-budget {
+  color: var(--color-success);
+  font-weight: 500;
+}
+
+/* ==================== Quick Action Card ==================== */
+.b2b-quick-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-lg) var(--space-4);
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--gray-100);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+}
+
+.b2b-quick-action:hover {
+  border-color: var(--brand-primary);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+}
+
+.b2b-quick-action-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bg-card);
+  margin-bottom: 12px;
+}
+
+.b2b-quick-action-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.b2b-quick-action-badge {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  background: var(--color-danger);
+  color: var(--bg-card);
+  font-size: var(--font-size-xs);
+  padding: 2px var(--space-sm);
+  border-radius: 10px;
+  min-width: 20px;
+  text-align: center;
+}
+
+/* ==================== Responsive Styles ==================== */
+@media (max-width: 768px) {
+  .b2b-card,
+  .b2b-stat-card,
+  .b2b-metric-card,
+  .b2b-feature-card {
+    padding: var(--space-4);
+  }
+
+  .b2b-stat-value {
+    font-size: 24px;
+  }
+
+  .b2b-stat-label {
+    font-size: var(--font-size-xs);
+  }
+
+  .b2b-stat-icon,
+  .b2b-metric-icon,
+  .b2b-quick-action-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .b2b-metric-value {
+    font-size: 20px;
+  }
+}
+
+/* ==================== Touch Device Optimization ==================== */
+@media (hover: none) and (pointer: coarse) {
+  .b2b-card:active,
+  .b2b-stat-card:active,
+  .b2b-metric-card:active,
+  .b2b-feature-card:active,
+  .b2b-project-item:active,
+  .b2b-quick-action:active {
+    background: var(--gray-50);
+  }
+}

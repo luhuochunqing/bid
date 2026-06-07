@@ -1,0 +1,51 @@
+# Compiled class files
+target/
+*.class
+
+# Log files
+*.log
+
+# Package Files
+*.jar
+*.war
+*.nar
+*.ear
+
+# Maven
+.mvn/
+mvnw
+mvnw.cmd
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.DS_Store
+.settings/
+.classpath
+.project
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# H2 Database
+*.db
+*.trace.db
+
+# Redis dumps
+dump.rdb
+
+# Spring Boot
+spring-boot-starter/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini

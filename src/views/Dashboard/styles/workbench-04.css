@@ -1,0 +1,284 @@
+@import '../../../styles/variables.css';
+
+/* ==================== 客户跟进 ==================== */
+.customers-list {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.customer-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: var(--bg-subtle);
+  border-radius: 8px;
+}
+
+.customer-avatar {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3B82F6 0%, #1E40AF 100%);
+  color: var(--bg-card);
+  font-weight: 600;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.customer-info {
+  flex: 1;
+}
+
+.customer-name {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--gray-950);
+}
+
+.customer-company {
+  font-size: 12px;
+  color: var(--gray-650);
+}
+
+/* ==================== 快速发起卡片 ==================== */
+.quick-actions-grid {
+  padding: 16px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.quick-action-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 12px;
+  background: var(--bg-subtle);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.quick-action-item:hover {
+  background: #F3F4F6;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.action-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  margin-bottom: 10px;
+}
+
+.action-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--gray-950);
+  margin-bottom: 4px;
+}
+
+.action-desc {
+  font-size: 12px;
+  color: var(--gray-650);
+}
+
+/* ==================== 团队任务 ==================== */
+.team-tasks-list {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.member-task-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-subtle);
+  border-radius: 8px;
+}
+
+.member-avatar {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
+  color: var(--bg-card);
+  font-weight: 600;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.member-info {
+  flex: 1;
+}
+
+.member-name {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--gray-950);
+  margin-bottom: 4px;
+}
+
+.member-tasks {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.member-tasks .el-tag {
+  font-size: 10px;
+  padding: 1px 6px;
+  height: 18px;
+}
+
+.more-tasks {
+  font-size: 11px;
+  color: var(--gray-650);
+}
+
+.member-workload {
+  text-align: right;
+}
+
+.workload-label {
+  display: block;
+  font-size: 11px;
+  color: var(--gray-650);
+  margin-bottom: 2px;
+}
+
+.workload-value {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.workload-value.workload-high { color: var(--color-danger); }
+.workload-value.workload-medium { color: #F59E0B; }
+.workload-value.workload-low { color: var(--color-success); }
+
+/* ==================== 我的任务 (技术员工) ==================== */
+.my-tasks-list {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.my-task-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-subtle);
+  border-radius: 8px;
+  border-left: 3px solid #E5E7EB;
+}
+
+.my-task-item.priority-high {
+  border-left-color: var(--color-danger);
+  background: #FEF2F2;
+}
+
+.my-task-item.priority-medium {
+  border-left-color: #F59E0B;
+}
+
+.task-checkbox {
+  flex-shrink: 0;
+}
+
+.task-content {
+  flex: 1;
+}
+
+.task-title {
+  display: block;
+  font-size: 14px;
+  color: var(--gray-950);
+  margin-bottom: 4px;
+}
+
+.task-title.done {
+  text-decoration: line-through;
+  color: #9CA3AF;
+}
+
+.task-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.task-project {
+  color: #3B82F6;
+}
+
+.task-deadline {
+  color: var(--gray-650);
+}
+
+/* ==================== 评审列表 ==================== */
+.review-list {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.review-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-subtle);
+  border-radius: 8px;
+}
+
+.review-icon {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #3B82F6 0%, #1E40AF 100%);
+  color: var(--bg-card);
+  flex-shrink: 0;
+}
+
+.review-content {
+  flex: 1;
+}
+
+.review-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--gray-950);
+  margin-bottom: 2px;
+}
+
+.review-meta {
+  font-size: 12px;
+  color: var(--gray-650);
+}
+

@@ -1,0 +1,75 @@
+<view class="container">
+  <!-- 统计卡片 -->
+  <view class="stats-card">
+    <view class="stat-item">
+      <text class="stat-value">{{stats.total}}</text>
+      <text class="stat-label">全部</text>
+    </view>
+    <view class="stat-item">
+      <text class="stat-value">{{stats.today}}</text>
+      <text class="stat-label">今日</text>
+    </view>
+    <view class="stat-item">
+      <text class="stat-value overdue">{{stats.overdue}}</text>
+      <text class="stat-label">已逾期</text>
+    </view>
+  </view>
+
+  <!-- 待办列表 -->
+  <scroll-view
+    class="todo-list"
+    scroll-y="true"
+    bindscrolltolower="onLoadMore"
+    enable-back-to-top="true"
+  >
+    <view
+      wx:for="{{todoList}}"
+      wx:key="id"
+      class="todo-card {{item.overdue ? 'overdue' : ''}}"
+    >
+      <view class="todo-header">
+        <view class="todo-checkbox" bindtap="onToggleComplete" data-id="{{item.id}}">
+          <icon type="{{item.status === 'DONE' ? 'success' : 'circle'}}" size="20" />
+        </view>
+        <text class="todo-title {{item.status === 'DONE' ? 'completed' : ''}}">{{item.title}}</text>
+      </view>
+
+      <view class="todo-info">
+        <view class="info-row" wx:if="{{item.projectId}}">
+          <text class="info-label">关联标讯</text>
+          <text class="info-value link" bindtap="goToTender" data-id="{{item.projectId}}">
+            查看详情 →
+          </text>
+        </view>
+        <view class="info-row">
+          <text class="info-label">截止日期</text>
+          <text class="info-value {{item.overdue ? 'overdue-text' : ''}}">
+            {{item.dueDate}}
+          </text>
+        </view>
+        <view class="info-row" wx:if="{{item.assigneeName}}">
+          <text class="info-label">负责人</text>
+          <text class="info-value">{{item.assigneeName}}</text>
+        </view>
+      </view>
+
+      <view class="todo-footer">
+        <text class="todo-priority priority-{{item.priority}}">
+          {{item.priorityText}}
+        </text>
+        <text class="todo-create-time">创建于 {{item.createdAt}}</text>
+      </view>
+    </view>
+
+    <!-- 加载状态 -->
+    <view class="loading-more" wx:if="{{loading}}">
+      <text>加载中...</text>
+    </view>
+    <view class="no-more" wx:if="{{noMore && todoList.length > 0}}">
+      <text>没有更多了</text>
+    </view>
+    <view class="empty" wx:if="{{!loading && todoList.length === 0}}">
+      <text>暂无待办任务</text>
+    </view>
+  </scroll-view>
+</view>

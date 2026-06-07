@@ -1,0 +1,45 @@
+name: Branch History Guard
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Bottom-line guard against history rewrites that produce additional disconnected
+# root commits on main. If branch protection is misconfigured (or someone force-
+# pushes via the API), this job still fails the check and surfaces the regression.
+#
+# Background: ericforai/bidding#224 — main was discovered today with 4
+# disconnected root commits, which silently overwrote files like
+# src/views/Login.vue and erased the WeCom SSO entry. Until #224 is resolved
+# (history surgery), the current root count is 4. This ratchet locks that in:
+# any push that increases the count fails. Once #224 reduces the count, lower
+# `MAX_ROOTS` below to lock the new floor in.
+
+env:
+  MAX_ROOTS: 4
+
+jobs:
+  enforce-no-new-root:
+    name: main must not gain new root commits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Count root commits
+        run: |
+          root_count=$(git rev-list --max-parents=0 HEAD | wc -l | tr -d ' ')
+          echo "Root commits reachable from HEAD: ${root_count}"
+          echo "Ratchet allows up to: ${MAX_ROOTS}"
+          if [ "${root_count}" -gt "${MAX_ROOTS}" ]; then
+            echo "::error::Detected ${root_count} root commits, ratchet allows ${MAX_ROOTS}. main history was rewritten — see ericforai/bidding#224."
+            git rev-list --max-parents=0 HEAD | while read sha; do
+              echo "  - ${sha} $(git log -1 --format='%s' ${sha})"
+            done
+            exit 1
+          fi
+          if [ "${root_count}" -lt "${MAX_ROOTS}" ]; then
+            echo "::warning::Root count dropped from ${MAX_ROOTS} to ${root_count}. Tighten the ratchet by lowering MAX_ROOTS in this workflow."
+          fi

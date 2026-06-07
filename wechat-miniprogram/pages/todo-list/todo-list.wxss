@@ -1,0 +1,150 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: #f5f5f5;
+}
+
+.stats-card {
+  display: flex;
+  justify-content: space-around;
+  padding: 30rpx;
+  background-color: #fff;
+  margin: 20rpx;
+  border-radius: 16rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.stat-value {
+  font-size: 48rpx;
+  font-weight: bold;
+  color: #409EFF;
+}
+
+.stat-value.overdue {
+  color: #F56C6C;
+}
+
+.stat-label {
+  font-size: 24rpx;
+  color: #999;
+  margin-top: 8rpx;
+}
+
+.todo-list {
+  flex: 1;
+  padding: 0 20rpx;
+}
+
+.todo-card {
+  background-color: #fff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 16rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
+}
+
+.todo-card.overdue {
+  border-left: 6rpx solid #F56C6C;
+}
+
+.todo-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16rpx;
+}
+
+.todo-checkbox {
+  margin-right: 16rpx;
+}
+
+.todo-title {
+  flex: 1;
+  font-size: 30rpx;
+  color: #333;
+  line-height: 1.4;
+}
+
+.todo-title.completed {
+  color: #999;
+  text-decoration: line-through;
+}
+
+.todo-info {
+  padding-left: 36rpx;
+  margin-bottom: 16rpx;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10rpx;
+}
+
+.info-label {
+  font-size: 26rpx;
+  color: #999;
+}
+
+.info-value {
+  font-size: 26rpx;
+  color: #666;
+}
+
+.info-value.link {
+  color: #409EFF;
+}
+
+.info-value.overdue-text {
+  color: #F56C6C;
+}
+
+.todo-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 16rpx;
+  border-top: 1rpx solid #f0f0f0;
+}
+
+.todo-priority {
+  font-size: 24rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 12rpx;
+}
+
+.priority-HIGH {
+  background-color: #FEF0F0;
+  color: #F56C6C;
+}
+
+.priority-MEDIUM {
+  background-color: #FDF6EC;
+  color: #E6A23C;
+}
+
+.priority-LOW {
+  background-color: #F0F9EB;
+  color: #67C23A;
+}
+
+.todo-create-time {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.loading-more,
+.no-more,
+.empty {
+  text-align: center;
+  padding: 40rpx;
+  color: #999;
+  font-size: 28rpx;
+}

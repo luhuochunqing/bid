@@ -1,0 +1,82 @@
+### ==========================================
+### 项目模块 API 测试
+### ==========================================
+
+### 0. 获取 Token
+# @name login
+POST http://localhost:18081/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "XiyuAdmin2026!"
+}
+
+@token = {{login.response.body.data.token}}
+
+### 1. 正常流程：项目列表
+GET http://localhost:18081/api/projects?page=0&size=10&sort=createdAt,desc
+Authorization: Bearer {{token}}
+
+### 2. 正常流程：创建项目
+POST http://localhost:18081/api/projects
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "API测试项目-{{$randomInt 1 9999}}",
+  "description": "通过 API 测试创建的项目",
+  "status": "BIDDING"
+}
+
+@projectId = 1
+
+### 3. 正常流程：项目详情
+GET http://localhost:18081/api/projects/{{projectId}}
+Authorization: Bearer {{token}}
+
+### 4. 边界：不存在项目
+GET http://localhost:18081/api/projects/999999
+Authorization: Bearer {{token}}
+
+### 5. 边界：创建项目缺少名称
+POST http://localhost:18081/api/projects
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "description": "缺少项目名称"
+}
+
+### 6. 正常流程：评分预览
+POST http://localhost:18081/api/projects/score-preview
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "estimatedBudget": 5000000,
+  "industryCategory": "IT",
+  "projectComplexity": "HIGH",
+  "tags": ["技术方案", "集成服务"],
+  "evaluationRules": {
+    "minTechScore": 70,
+    "minFinanceScore": 60,
+    "requiredExperience": "3年以上同类项目经验"
+  }
+}
+
+### 7. 正常流程：招标文件分解就绪检查
+GET http://localhost:18081/api/projects/{{projectId}}/tender-breakdown/readiness
+Authorization: Bearer {{token}}
+
+### 8. 正常流程：AI 卡片
+GET http://localhost:18081/api/projects/{{projectId}}/ai-cards
+Authorization: Bearer {{token}}
+
+### 9. 正常流程：任务分解
+GET http://localhost:18081/api/projects/{{projectId}}/tasks
+Authorization: Bearer {{token}}
+
+### 10. 边界：空项目列表
+GET http://localhost:18081/api/projects?page=0&size=10&name=__nonexistent_project_name__
+Authorization: Bearer {{token}}

@@ -1,0 +1,112 @@
+[
+  {
+    "id": "c127c5d192a8b9ff",
+    "path": ".wiki/sources/bidding/附件5：西域数智化投标管理平台建设项目需求任务书.docx",
+    "type": "docx",
+    "topic": "bidding",
+    "hash": "c127c5d192a8b9ff15181530ec77bd797d32479b5f78f036769f4872c6b533fe",
+    "status": "extracted",
+    "extract_path": ".wiki/extracts/bidding__附件5：西域数智化投标管理平台建设项目需求任务书.docx.md",
+    "confidence": 0.85,
+    "ingested_at": "2026-05-07T10:51:11.404Z"
+  },
+  {
+    "id": "bf1294d092f63579",
+    "path": ".wiki/sources/bidding/附件6：需求功能清单.md",
+    "type": "markdown",
+    "topic": "bidding",
+    "hash": "bf1294d092f6357912ff5ed9cbb83f987d6874dfb7cafafec6e4355f150b5cdf",
+    "status": "extracted",
+    "extract_path": ".wiki/extracts/bidding__附件6：需求功能清单.md.md",
+    "confidence": 1,
+    "ingested_at": "2026-05-07T10:51:11.417Z"
+  },
+  {
+    "id": "ae594bd338028a36",
+    "path": ".wiki/sources/bidding/附件6：需求功能清单.xlsx",
+    "type": "xlsx",
+    "topic": "bidding",
+    "hash": "ae594bd338028a365f8035ba8ee46a24fdd997ebecbc076a0127b6089eb8817e",
+    "status": "extracted",
+    "extract_path": ".wiki/extracts/bidding__附件6：需求功能清单.xlsx.md",
+    "confidence": 0.75,
+    "ingested_at": "2026-05-07T10:51:11.418Z"
+  },
+  {
+    "id": "adbce912402924c6",
+    "path": ".wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx",
+    "type": "docx",
+    "topic": "contract",
+    "hash": "adbce912402924c644f5604b4102b14b66efd0e4550c1340035a34a6f2fcf7fe",
+    "status": "extracted",
+    "extract_path": ".wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md",
+    "confidence": 0.85,
+    "ingested_at": "2026-05-07T10:51:11.437Z"
+  },
+  {
+    "id": "3dd8dee6dce7f5a0",
+    "path": ".wiki/sources/contract/附件3-合同报价清单人工摘录.md",
+    "type": "markdown",
+    "topic": "contract",
+    "hash": "3dd8dee6dce7f5a0ada77be5c5a5e94db7611cdcf7fb8abf98f74250dba062fc",
+    "status": "extracted",
+    "extract_path": ".wiki/extracts/contract__附件3-合同报价清单人工摘录.md.md",
+    "confidence": 1,
+    "ingested_at": "2026-05-07T10:51:11.450Z"
+  },
+  {
+    "id": "f05a34b855849f3c",
+    "path": ".wiki/sources/contract/附件3：西域数智化投标管理平台建设项目合同报价清单.pdf",
+    "type": "pdf",
+    "topic": "contract",
+    "hash": "f05a34b855849f3c4e3e3797b416f2b2e9ff1d5279f02cbd582857fb5eb8798d",
+    "status": "manual_review",
+    "extract_path": ".wiki/extracts/contract__附件3：西域数智化投标管理平台建设项目合同报价清单.pdf.md",
+    "confidence": 0.2,
+    "ingested_at": "2026-05-07T10:51:11.451Z"
+  },
+  {
+    "id": "bd76b85a21b0568f",
+    "path": ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx",
+    "type": "docx",
+    "topic": "contract",
+    "hash": "bd76b85a21b0568f17df74f9d84ba7f1acff60d3421217f951936ce4bddcfa8c",
+    "status": "extracted",
+    "extract_path": ".wiki/extracts/contract__附件4：西域数智化投标管理平台建设项目需求任务书.docx.md",
+    "confidence": 0.85,
+    "ingested_at": "2026-05-07T10:51:13.669Z"
+  },
+  {
+    "id": "1e5b16eee2fe328f",
+    "path": ".wiki/sources/customer/事件库SDK接入说明方案.doc",
+    "type": "docx",
+    "topic": "customer",
+    "hash": "1e5b16eee2fe328f77a596766b98d0308ba8c8868612afc3b5f188624de81e16",
+    "status": "error",
+    "extract_path": ".wiki/extracts/customer__事件库SDK接入说明方案.doc.md",
+    "confidence": 0,
+    "ingested_at": "2026-05-07T10:51:13.681Z"
+  },
+  {
+    "id": "bba526b11c648de2",
+    "path": ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
+    "type": "docx",
+    "topic": "implementation",
+    "hash": "bba526b11c648de2d31f775f7f40276bcc3e314e0dfb32ef6dd3635534f5dd92",
+    "status": "extracted",
+    "extract_path": ".wiki/extracts/implementation__西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx.md",
+    "confidence": 0.85,
+    "ingested_at": "2026-05-07T10:51:13.687Z"
+  },
+  {
+    "id": "6736674416a351c1",
+    "path": ".wiki/sources/technical/泊冉投标系统与西域对接技术相关内容.md",
+    "type": "markdown",
+    "topic": "technical",
+    "hash": "6736674416a351c192dd79a58d2fab250bd16b04a70ae7b5338b4511c168e668",
+    "status": "extracted",
+    "extract_path": ".wiki/extracts/technical__泊冉投标系统与西域对接技术相关内容.md.md",
+    "confidence": 1,
+    "ingested_at": "2026-05-07T10:51:13.700Z"
+  }
+]

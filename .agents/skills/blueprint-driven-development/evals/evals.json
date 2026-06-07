@@ -1,0 +1,35 @@
+{
+  "skill_name": "blueprint-driven-development",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我做标讯中心的 4.2.3 小节，人工录入那个功能",
+      "expected_output": "触发 blueprint 技能，按 Phase 1-5 流程执行",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "按产品蓝图继续推进，上一节做完了，做下一节",
+      "expected_output": "触发 blueprint 技能，读取检查点继续下一个小节",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "帮我验证一下刚做的标讯列表页，看看 bid_admin 和 bid_specialist 看到的按钮对不对",
+      "expected_output": "触发 blueprint 技能，Phase 4 Playwright 验证角色权限",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "写个 Python 脚本帮我分析标讯数据",
+      "expected_output": "不触发 blueprint 技能——数据分析任务",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "对标一下蓝图，看看当前代码和 4.2.5 的差距",
+      "expected_output": "触发 blueprint 技能，Phase 2 差距分析",
+      "files": []
+    }
+  ]
+}

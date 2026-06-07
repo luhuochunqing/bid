@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Router Redirect Test - Manual Verification</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    .test-section {
+      background: #f5f5f5;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+    }
+    .success {
+      color: #67c23a;
+      font-weight: bold;
+    }
+    .info {
+      color: #409eff;
+    }
+    code {
+      background: #fff;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+    }
+    .step {
+      margin: 10px 0;
+      padding-left: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Router Redirect Test - Manual Verification</h1>
+
+  <div class="test-section">
+    <h2>Test Purpose</h2>
+    <p>Verify that 401 errors trigger proper Vue Router navigation instead of <code>window.location.href</code></p>
+  </div>
+
+  <div class="test-section">
+    <h2>Pre-conditions</h2>
+    <ul>
+      <li>Development server running on <code>http://localhost:1314</code></li>
+      <li>Mock data loaded</li>
+      <li>Router guards configured</li>
+    </ul>
+  </div>
+
+  <div class="test-section">
+    <h2>Test Steps</h2>
+
+    <div class="step">
+      <strong>Step 1:</strong> Open DevTools Console and Network tabs
+    </div>
+
+    <div class="step">
+      <strong>Step 2:</strong> Navigate to <a href="http://localhost:1314/dashboard" target="_blank">http://localhost:1314/dashboard</a>
+    </div>
+
+    <div class="step">
+      <strong>Step 3:</strong> Log in if not already logged in
+    </div>
+
+    <div class="step">
+      <strong>Step 4:</strong> In DevTools Console, execute:
+      <pre><code>// Simulate token expiration
+sessionStorage.setItem('token', 'expired-token')
+sessionStorage.setItem('refreshToken', 'expired-refresh')</code></pre>
+    </div>
+
+    <div class="step">
+      <strong>Step 5:</strong> Trigger an API call by clicking any menu item or refreshing the page
+    </div>
+
+    <div class="step">
+      <strong>Step 6:</strong> Observe the behavior:
+      <ul>
+        <li>Should see error message: "登录已过期，请重新登录"</li>
+        <li>Should be redirected to <code>/login</code></li>
+        <li>In Console, should see NO errors about navigation</li>
+        <li>URL should change to <code>http://localhost:1314/login</code></li>
+      </ul>
+    </div>
+
+    <div class="step">
+      <strong>Step 7:</strong> Check in Console that router.push was used (not window.location.href):
+      <pre><code>// Should not see this pattern:
+// "NavigationDuplicated" errors are OK and expected</code></pre>
+    </div>
+
+    <div class="step">
+      <strong>Step 8:</strong> Verify session was cleared:
+      <pre><code>console.log('Token:', sessionStorage.getItem('token'))
+console.log('Refresh:', sessionStorage.getItem('refreshToken'))
+// Both should be null</code></pre>
+    </div>
+  </div>
+
+  <div class="test-section">
+    <h2>Expected Results</h2>
+    <ul>
+      <li class="success">✓ Redirect uses Vue Router (router.push)</li>
+      <li class="success">✓ Router guards are triggered during redirect</li>
+      <li class="success">✓ No console errors (except NavigationDuplicated which is handled)</li>
+      <li class="success">✓ Session state is properly cleared</li>
+      <li class="success">✓ No redirect loops occur</li>
+    </ul>
+  </div>
+
+  <div class="test-section">
+    <h2>What Changed</h2>
+    <p><strong>Before:</strong></p>
+    <pre><code>// src/api/client.js (lines 106-108)
+if (window.location.pathname !== '/login') {
+  window.location.href = '/login'  // ❌ Bypasses router guards
+}</code></pre>
+
+    <p><strong>After:</strong></p>
+    <pre><code>// src/api/client.js (lines 107-115)
+// Use Vue Router for navigation to ensure guards are triggered
+if (router.currentRoute.value.path !== '/login') {
+  router.push('/login').catch((navError) => {
+    // Ignore navigation aborted errors (e.g., user navigated away)
+    if (navError.name !== 'NavigationDuplicated') {
+      console.error('Navigation to login failed:', navError)
+    }
+  })  // ✓ Uses router, guards work correctly
+}</code></pre>
+  </div>
+
+  <div class="test-section">
+    <h2>Automated Test</h2>
+    <p class="info">An E2E test has been created: <code>e2e/router-navigation-redirect.spec.js</code></p>
+    <p>Run it with:</p>
+    <pre><code>npm run test:e2e -- e2e/router-navigation-redirect.spec.js</code></pre>
+  </div>
+
+  <div class="test-section">
+    <h2>Verification Checklist</h2>
+    <ul>
+      <li><input type="checkbox"> Login redirect uses Vue Router</li>
+      <li><input type="checkbox"> Router guards work correctly</li>
+      <li><input type="checkbox"> No console errors</li>
+      <li><input type="checkbox"> Session is cleared on 401</li>
+      <li><input type="checkbox"> No redirect loops</li>
+      <li><input type="checkbox"> Works when already on /login page</li>
+    </ul>
+  </div>
+</body>
+</html>

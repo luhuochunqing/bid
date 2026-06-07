@@ -1,0 +1,1080 @@
+[
+  {
+    "slug": "_index",
+    "title": "西域投标管理平台知识库",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "docs/specs/WIKI.md",
+      ".wiki/INDEX.md",
+      ".wiki/PAGE_INDEX.md"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-05-07",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/_index.md"
+  },
+  {
+    "slug": "agent-sop-quickref",
+    "title": "Agent 开发 SOP 快速参考",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "CLAUDE.md",
+      "scripts/who-touches.sh",
+      "conductor/tracks/refactor_safety_governance_20260426/spec.md"
+    ],
+    "backlinks": [
+      "_index",
+      "lessons-learned"
+    ],
+    "updated": "2026-05-27",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/agent-sop-quickref.md"
+  },
+  {
+    "slug": "ai-capabilities",
+    "title": "AI 能力",
+    "space": "engineering",
+    "category": "module",
+    "sources": [
+      "src/config/ai-prompts.js",
+      "backend/AI_MODULE_SUMMARY.md",
+      "backend/src/main/java/com/xiyu/bid/ai/README.md",
+      "backend/src/main/java/com/xiyu/bid/ai/client/RoutingAiProvider.java",
+      "backend/src/main/java/com/xiyu/bid/settings/controller/SettingsController.java",
+      "backend/COMPLIANCE_MODULE_SUMMARY.md",
+      "backend/SCORE_ANALYSIS_MODULE.md",
+      "backend/COMPETITION_INTEL_MODULE.md",
+      "docs/architecture/技术架构方案.md"
+    ],
+    "backlinks": [
+      "_index",
+      "business-process",
+      "contract-constraints",
+      "implementation/attachment4-gap-matrix",
+      "implementation/attachment4-requirement-task-book",
+      "implementation/attachment6-function-list-trace",
+      "modules",
+      "requirements"
+    ],
+    "updated": "2026-04-29",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/ai-capabilities.md"
+  },
+  {
+    "slug": "api-openapi",
+    "title": "OpenAPI/Swagger 接口规范",
+    "space": "engineering",
+    "category": "integration",
+    "sources": [
+      "backend/src/main/java/com/xiyu/bid/config/OpenApiConfig.java",
+      "backend/src/main/java/com/xiyu/bid/config/SecurityConfig.java",
+      "backend/pom.xml"
+    ],
+    "backlinks": [
+      "_index",
+      "architecture",
+      "implementation/attachment4-gap-matrix",
+      "implementation/attachment6-function-list-trace",
+      "integration-wecom",
+      "workflow-form-center"
+    ],
+    "updated": "2026-05-27",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/api-openapi.md"
+  },
+  {
+    "slug": "architecture",
+    "title": "架构合成",
+    "space": "engineering",
+    "category": "architecture",
+    "sources": [
+      ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
+      "docs/architecture/技术架构方案.md",
+      "docs/architecture/后端架构设计-SpringBoot.md",
+      "docs/research/API_INTEGRATION.md",
+      "docs/specs/MYSQL_8_DEPLOYMENT.md",
+      "backend/src/main/resources/application.yml",
+      "backend/src/main/java/com/xiyu/bid/tenderupload/README.md",
+      "backend/src/main/java/com/xiyu/bid/settings/README.md",
+      "CLAUDE.md",
+      "backend/README.md"
+    ],
+    "backlinks": [
+      "_index",
+      "api-openapi",
+      "contract-constraints",
+      "implementation/attachment4-gap-matrix",
+      "implementation/attachment4-requirement-task-book",
+      "implementation/delivery-playbook",
+      "implementation/milestones",
+      "integration-oa-crm",
+      "lessons-learned",
+      "overview",
+      "requirements",
+      "roles-and-permissions",
+      "team-and-timeline"
+    ],
+    "updated": "2026-05-28",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/architecture.md"
+  },
+  {
+    "slug": "business-process",
+    "title": "业务流程",
+    "space": "engineering",
+    "category": "business",
+    "sources": [
+      "docs/specs/业务流程图.md",
+      "docs/specs/讲标文件-功能响应与亮点.md",
+      "README.md"
+    ],
+    "backlinks": [
+      "_index",
+      "ai-capabilities",
+      "contract-constraints",
+      "dashboard-gap-analysis",
+      "implementation/attachment4-gap-matrix",
+      "implementation/attachment4-requirement-task-book",
+      "implementation/attachment6-function-list-trace",
+      "implementation/milestones",
+      "modules",
+      "requirements",
+      "roles-and-permissions",
+      "team-and-timeline",
+      "workflow-form-center"
+    ],
+    "updated": "2026-05-16",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/business-process.md"
+  },
+  {
+    "slug": "contract-constraints",
+    "title": "合同约束",
+    "space": "implementation",
+    "category": "reference",
+    "sources": [
+      ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
+      ".wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx",
+      ".wiki/sources/contract/附件3：西域数智化投标管理平台建设项目合同报价清单.pdf",
+      ".wiki/sources/contract/附件3-合同报价清单人工摘录.md",
+      ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx"
+    ],
+    "backlinks": [
+      "_index",
+      "deployment",
+      "implementation/acceptance-and-closure",
+      "implementation/attachment4-gap-matrix",
+      "implementation/attachment4-requirement-task-book",
+      "implementation/milestones",
+      "implementation/risk-register",
+      "implementation/sow-2026-v1-4",
+      "implementation/xiyu-pending-confirmations",
+      "overview",
+      "requirements",
+      "team-and-timeline"
+    ],
+    "updated": "2026-05-28",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/contract-constraints.md"
+  },
+  {
+    "slug": "dashboard-gap-analysis",
+    "title": "工作台卡片 vs 标书要求对照",
+    "space": "engineering",
+    "category": "business",
+    "sources": [
+      "docs/specs/讲标文件-功能响应与亮点.md",
+      "docs/research/COMMERCIAL_SCOPE.md",
+      "src/views/Dashboard/Workbench.vue"
+    ],
+    "backlinks": [
+      "_index",
+      "design-system"
+    ],
+    "updated": "2026-05-17",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/dashboard-gap-analysis.md"
+  },
+  {
+    "slug": "data-model",
+    "title": "数据模型",
+    "space": "engineering",
+    "category": "reference",
+    "sources": [
+      ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
+      "backend/src/main/java/com/xiyu/bid/entity/README.md",
+      "backend/src/main/java/com/xiyu/bid/dto/README.md",
+      "docs/architecture/后端架构设计.md"
+    ],
+    "backlinks": [
+      "_index",
+      "architecture",
+      "implementation/attachment4-gap-matrix",
+      "implementation/attachment4-requirement-task-book"
+    ],
+    "updated": "2026-05-28",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/data-model.md"
+  },
+  {
+    "slug": "data-permission-hardening",
+    "title": "项目数据权限修复收口",
+    "space": "engineering",
+    "category": "reference",
+    "sources": [
+      "docs/reports/data-permission-coverage-audit.md",
+      "backend/src/main/java/com/xiyu/bid/service/ProjectAccessScopeService.java",
+      "backend/src/test/java/com/xiyu/bid/ProjectAccessGuardCoverageTest.java"
+    ],
+    "backlinks": [
+      "_index",
+      "implementation/attachment4-gap-matrix",
+      "implementation/attachment6-function-list-trace",
+      "roles-and-permissions",
+      "workflow-form-center"
+    ],
+    "updated": "2026-05-27",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/data-permission-hardening.md"
+  },
+  {
+    "slug": "deployment",
+    "title": "部署与上线",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
+      "docs/release/GO_LIVE_CHECKLIST.md",
+      "docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md",
+      "docs/release/ROLLBACK_RUNBOOK.md",
+      "docs/specs/UAT_PLAN.md",
+      "docs/specs/MYSQL_8_DEPLOYMENT.md",
+      "README.md",
+      "backend/src/main/resources/application.yml",
+      "docs/plans/2026-03-10-go-live-execution-plan.md",
+      ".wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx",
+      ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx"
+    ],
+    "backlinks": [
+      "_index",
+      "api-openapi",
+      "architecture",
+      "contract-constraints",
+      "implementation/acceptance-and-closure",
+      "implementation/attachment4-gap-matrix",
+      "implementation/attachment4-requirement-task-book",
+      "implementation/attachment6-function-list-trace",
+      "implementation/delivery-playbook",
+      "implementation/milestones",
+      "implementation/risk-register",
+      "implementation/sow-2026-v1-4",
+      "implementation/weekly-status",
+      "requirements",
+      "team-and-timeline"
+    ],
+    "updated": "2026-05-28",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/deployment.md"
+  },
+  {
+    "slug": "design-system",
+    "title": "设计系统基线",
+    "space": "engineering",
+    "category": "decision",
+    "sources": [
+      "docs/design-system/MASTER.md",
+      "CLAUDE.md",
+      "src/styles/variables.css",
+      "src/main.js",
+      "scripts/check-token-coverage.mjs",
+      "scripts/migrate-colors.mjs"
+    ],
+    "backlinks": [
+      "_index",
+      "overview"
+    ],
+    "updated": "2026-05-18",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/design-system.md"
+  },
+  {
+    "slug": "docinsight-engine",
+    "title": "DocInsight 文档智能引擎",
+    "space": "engineering",
+    "category": "module",
+    "sources": [
+      "backend/src/main/java/com/xiyu/bid/docinsight/README.md",
+      "backend/src/main/java/com/xiyu/bid/docinsight/application/DocumentIntelligenceService.java",
+      "backend/src/main/java/com/xiyu/bid/docinsight/infrastructure/openai/BaseOpenAiDocumentAnalyzer.java",
+      "src/components/common/doc-insight/DocVerificationWorkbench.vue"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-04-29",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/docinsight-engine.md"
+  },
+  {
+    "slug": "dynamic-form-engine",
+    "title": "动态表单自定义引擎",
+    "space": "engineering",
+    "category": "feature",
+    "sources": [
+      "backend/src/main/java/com/xiyu/bid/formengine/",
+      "backend/src/main/resources/db/migration-mysql/V140__dynamic_form_engine.sql",
+      "backend/src/main/resources/db/migration-mysql/V141__cross_field_validation.sql",
+      "backend/src/main/resources/db/migration-mysql/V142__tenant_form_override.sql",
+      "backend/src/main/resources/db/migration-mysql/V143__form_submission_audit.sql",
+      "docs/artifacts/dynamic-form-engine-v1-20260524.html",
+      "docs/testing/form-engine-uat.md"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-05-24",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/dynamic-form-engine.md"
+  },
+  {
+    "slug": "glossary",
+    "title": "术语表",
+    "space": "engineering",
+    "category": "reference",
+    "sources": [
+      "docs/specs/业务流程图.md",
+      "docs/specs/讲标文件-功能响应与亮点.md",
+      "docs/research/COMMERCIAL_SCOPE.md",
+      "README.md"
+    ],
+    "backlinks": [
+      "_index",
+      "data-model"
+    ],
+    "updated": "2026-05-16",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/glossary.md"
+  },
+  {
+    "slug": "implementation/acceptance-and-closure",
+    "title": "实施验收与问题闭环",
+    "space": "implementation",
+    "category": "guide",
+    "sources": [
+      ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
+      "docs/specs/UAT_PLAN.md",
+      "docs/specs/UAT_SIGNOFF_TEMPLATE.md",
+      "docs/release/GO_LIVE_CHECKLIST.md",
+      ".wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx",
+      ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx"
+    ],
+    "backlinks": [
+      "_index",
+      "contract-constraints",
+      "design-system",
+      "implementation/attachment4-gap-matrix",
+      "implementation/attachment4-requirement-task-book",
+      "implementation/delivery-playbook",
+      "implementation/development-sprint-2026-05-23",
+      "implementation/risk-register",
+      "implementation/sow-2026-v1-4"
+    ],
+    "updated": "2026-05-28",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/implementation/acceptance-and-closure.md"
+  },
+  {
+    "slug": "implementation/attachment4-gap-matrix",
+    "title": "附件4客户要求差距矩阵",
+    "space": "implementation",
+    "category": "reference",
+    "sources": [
+      ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx",
+      ".wiki/sources/bidding/附件6：需求功能清单.md",
+      ".wiki/sources/bidding/附件6：需求功能清单.xlsx",
+      ".wiki/pages/implementation/attachment4-requirement-task-book.md",
+      ".wiki/pages/implementation/attachment6-function-list-trace.md",
+      ".wiki/pages/requirements.md",
+      ".wiki/pages/contract-constraints.md",
+      "docs/specs/需求闭环完成说明-2026-04-21.md",
+      "docs/specs/UAT_PLAN.md",
+      "docs/release/GO_LIVE_CHECKLIST.md"
+    ],
+    "backlinks": [
+      "_index",
+      "implementation/attachment4-requirement-task-book",
+      "implementation/attachment6-function-list-trace",
+      "implementation/document-delivery-ledger"
+    ],
+    "updated": "2026-05-27",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/implementation/attachment4-gap-matrix.md"
+  },
+  {
+    "slug": "implementation/attachment4-requirement-task-book",
+    "title": "附件4需求任务书交付基线",
+    "space": "implementation",
+    "category": "reference",
+    "sources": [
+      ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx"
+    ],
+    "backlinks": [
+      "_index",
+      "contract-constraints",
+      "implementation/attachment4-gap-matrix",
+      "implementation/xiyu-pending-confirmations",
+      "requirements"
+    ],
+    "updated": "2026-05-27",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/implementation/attachment4-requirement-task-book.md"
+  },
+  {
+    "slug": "implementation/attachment6-function-list-trace",
+    "title": "附件6需求功能清单追溯",
+    "space": "implementation",
+    "category": "reference",
+    "sources": [
+      ".wiki/sources/bidding/附件6：需求功能清单.md",
+      ".wiki/sources/bidding/附件6：需求功能清单.xlsx",
+      ".wiki/pages/requirements.md",
+      ".wiki/pages/modules.md",
+      ".wiki/pages/implementation/attachment4-gap-matrix.md"
+    ],
+    "backlinks": [
+      "_index",
+      "implementation/acceptance-and-closure",
+      "implementation/attachment4-gap-matrix",
+      "implementation/delivery-playbook",
+      "implementation/document-delivery-ledger"
+    ],
+    "updated": "2026-05-27",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/implementation/attachment6-function-list-trace.md"
+  },
+  {
+    "slug": "implementation/delivery-playbook",
+    "title": "实施交付作战包总览",
+    "space": "implementation",
+    "category": "guide",
+    "sources": [
+      ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
+      "docs/specs/UAT_PLAN.md",
+      "docs/release/GO_LIVE_CHECKLIST.md"
+    ],
+    "backlinks": [
+      "_index",
+      "implementation/acceptance-and-closure",
+      "implementation/development-sprint-2026-05-23",
+      "implementation/sow-2026-v1-4",
+      "implementation/xiyu-pending-confirmations"
+    ],
+    "updated": "2026-05-28",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/implementation/delivery-playbook.md"
+  },
+  {
+    "slug": "implementation/development-sprint-2026-05-23",
+    "title": "系统开发冲刺计划 2026-05-23 ~ 06-17",
+    "space": "implementation",
+    "category": "plan",
+    "sources": [
+      ".wiki/pages/implementation/sow-2026-v1-4.md",
+      ".wiki/pages/implementation/milestones.md",
+      ".wiki/pages/team-and-timeline.md"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-05-27",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/implementation/development-sprint-2026-05-23.md"
+  },
+  {
+    "slug": "implementation/document-delivery-ledger",
+    "title": "文档交付台账",
+    "space": "implementation",
+    "category": "reference",
+    "sources": [
+      ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx",
+      ".wiki/sources/bidding/附件6：需求功能清单.md",
+      ".wiki/sources/bidding/附件6：需求功能清单.xlsx",
+      ".wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx",
+      ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
+      ".wiki/pages/implementation/attachment4-gap-matrix.md",
+      ".wiki/pages/implementation/attachment6-function-list-trace.md",
+      ".wiki/pages/contract-constraints.md",
+      ".wiki/pages/implementation/acceptance-and-closure.md"
+    ],
+    "backlinks": [
+      "_index",
+      "implementation/acceptance-and-closure",
+      "implementation/attachment4-gap-matrix",
+      "implementation/attachment6-function-list-trace",
+      "implementation/delivery-playbook"
+    ],
+    "updated": "2026-05-28",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/implementation/document-delivery-ledger.md"
+  },
+  {
+    "slug": "implementation/milestones",
+    "title": "实施里程碑与依赖",
+    "space": "implementation",
+    "category": "guide",
+    "sources": [
+      ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
+      ".wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx",
+      ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx"
+    ],
+    "backlinks": [
+      "_index",
+      "contract-constraints",
+      "implementation/attachment4-gap-matrix",
+      "implementation/delivery-playbook",
+      "implementation/development-sprint-2026-05-23",
+      "implementation/sow-2026-v1-4"
+    ],
+    "updated": "2026-05-28",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/implementation/milestones.md"
+  },
+  {
+    "slug": "implementation/risk-register",
+    "title": "实施风险台账",
+    "space": "implementation",
+    "category": "guide",
+    "sources": [
+      ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
+      "docs/specs/UAT_PLAN.md",
+      ".wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx",
+      ".wiki/sources/contract/附件3-合同报价清单人工摘录.md"
+    ],
+    "backlinks": [
+      "_index",
+      "contract-constraints",
+      "implementation/delivery-playbook",
+      "implementation/document-delivery-ledger",
+      "implementation/sow-2026-v1-4",
+      "implementation/weekly-status",
+      "implementation/xiyu-pending-confirmations"
+    ],
+    "updated": "2026-05-28",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/implementation/risk-register.md"
+  },
+  {
+    "slug": "implementation/sow-2026-v1-4",
+    "title": "SOW 2026 V1.4 执行基准",
+    "space": "implementation",
+    "category": "reference",
+    "sources": [
+      ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx"
+    ],
+    "backlinks": [
+      "_index",
+      "contract-constraints",
+      "deployment",
+      "implementation/acceptance-and-closure",
+      "implementation/attachment4-requirement-task-book",
+      "implementation/delivery-playbook",
+      "implementation/development-sprint-2026-05-23",
+      "implementation/milestones",
+      "implementation/risk-register",
+      "implementation/weekly-status",
+      "overview",
+      "requirements",
+      "team-and-timeline"
+    ],
+    "updated": "2026-05-28",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/implementation/sow-2026-v1-4.md"
+  },
+  {
+    "slug": "implementation/weekly-status",
+    "title": "实施周报与例会纪要模板",
+    "space": "implementation",
+    "category": "guide",
+    "sources": [
+      ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
+      "docs/specs/启动会项目组织架构与沟通矩阵.md",
+      "docs/tasks/production-task-breakdown.md"
+    ],
+    "backlinks": [
+      "_index",
+      "implementation/attachment4-gap-matrix",
+      "implementation/delivery-playbook",
+      "implementation/development-sprint-2026-05-23",
+      "implementation/risk-register",
+      "implementation/xiyu-pending-confirmations"
+    ],
+    "updated": "2026-05-28",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/implementation/weekly-status.md"
+  },
+  {
+    "slug": "implementation/xiyu-pending-confirmations",
+    "title": "西域待确认项清单",
+    "space": "implementation",
+    "category": "guide",
+    "sources": [
+      "TODO.md",
+      ".wiki/pages/integration-oa-crm.md",
+      ".wiki/pages/integration-organization-event-sdk.md",
+      "implementation-notes.md"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-05-28",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/implementation/xiyu-pending-confirmations.md"
+  },
+  {
+    "slug": "integration-oa-crm",
+    "title": "OA 与 CRM 对接规范",
+    "space": "engineering",
+    "category": "integration",
+    "sources": [
+      ".wiki/sources/technical/泊冉投标系统与西域对接技术相关内容.md",
+      ".wiki/extracts/technical__泊冉投标系统与西域对接技术相关内容.md.md"
+    ],
+    "backlinks": [
+      "_index",
+      "implementation/xiyu-pending-confirmations",
+      "integration-organization-event-sdk"
+    ],
+    "updated": "2026-05-28",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/integration-oa-crm.md"
+  },
+  {
+    "slug": "integration-organization-event-sdk",
+    "title": "组织架构对接 - 客户事件库 SDK 方案",
+    "space": "engineering",
+    "category": "integration",
+    "sources": [
+      ".wiki/sources/customer/事件库SDK接入说明方案.doc",
+      ".wiki/sources/technical/泊冉投标系统与西域对接技术相关内容.md",
+      ".wiki/extracts/technical__泊冉投标系统与西域对接技术相关内容.md.md",
+      "backend/src/main/java/com/xiyu/bid/entity/User.java",
+      "backend/src/main/java/com/xiyu/bid/dto/DataScopeConfigPayload.java"
+    ],
+    "backlinks": [
+      "_index",
+      "implementation/xiyu-pending-confirmations",
+      "integration-oa-crm"
+    ],
+    "updated": "2026-05-28",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/integration-organization-event-sdk.md"
+  },
+  {
+    "slug": "integration-wecom",
+    "title": "系统集成中心 - 企业微信",
+    "space": "engineering",
+    "category": "integration",
+    "sources": [
+      "backend/src/main/java/com/xiyu/bid/integration/",
+      "src/views/System/settings/SystemIntegrationPanel.vue",
+      "src/views/System/settings/integration/",
+      "docs/research/WORKFLOW_FORM_CENTER.md"
+    ],
+    "backlinks": [
+      "_index",
+      "implementation/attachment4-gap-matrix",
+      "implementation/attachment6-function-list-trace",
+      "workflow-form-center"
+    ],
+    "updated": "2026-05-10",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/integration-wecom.md"
+  },
+  {
+    "slug": "knowledge-base",
+    "title": "4.4 知识库 PRD (产品需求文档)",
+    "space": "engineering",
+    "category": "module",
+    "sources": [
+      ".wiki/sources/bidding/西域数智化投标管理平台-产品蓝图-初稿-V1.1.md"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-05-20",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/knowledge-base.md"
+  },
+  {
+    "slug": "lessons-learned",
+    "title": "工程经验总结",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "CLAUDE.md",
+      "RULES.md",
+      "conductor/tracks/tender_source_tag_20260509/index.md"
+    ],
+    "backlinks": [
+      "multi-agent-defense-playbook"
+    ],
+    "updated": "2026-05-21",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/lessons-learned.md"
+  },
+  {
+    "slug": "modules",
+    "title": "模块目录",
+    "space": "engineering",
+    "category": "module",
+    "sources": [
+      "README.md",
+      "CLAUDE.md",
+      "backend/MODULES_QUICK_REFERENCE.md",
+      "backend/README.md",
+      "backend/src/main/java/com/xiyu/bid/tenderupload/README.md",
+      "backend/src/main/java/com/xiyu/bid/settings/README.md",
+      "src/api/modules/marketInsight.js",
+      "src/views/Bidding/list/useMarketInsight.js",
+      "backend/src/main/java/com/xiyu/bid/marketinsight/controller/MarketInsightController.java",
+      "backend/src/main/java/com/xiyu/bid/marketinsight/service/MarketInsightService.java",
+      "src/api/modules/dashboard.js"
+    ],
+    "backlinks": [
+      "_index",
+      "architecture",
+      "business-process",
+      "contract-constraints",
+      "dashboard-gap-analysis",
+      "design-system",
+      "implementation/attachment4-gap-matrix",
+      "implementation/attachment4-requirement-task-book",
+      "implementation/attachment6-function-list-trace",
+      "implementation/delivery-playbook",
+      "implementation/weekly-status",
+      "overview",
+      "requirements",
+      "team-and-timeline",
+      "workflow-form-center"
+    ],
+    "updated": "2026-04-29",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/modules.md"
+  },
+  {
+    "slug": "multi-agent-defense-playbook",
+    "title": "多 Agent 并行开发防御工程化手册",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      ".wiki/pages/lessons-learned.md",
+      "RULES.md",
+      "CLAUDE.md",
+      ".github/workflows/branch-history-guard.yml",
+      ".github/workflows/flyway-migrate-dryrun.yml",
+      ".github/workflows/agent-locks-janitor.yml",
+      "scripts/check-agent-locks.mjs",
+      "scripts/agent-locks-prune.mjs",
+      "scripts/agent-health-check.mjs",
+      "scripts/dev-services.sh"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-05-20",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/multi-agent-defense-playbook.md"
+  },
+  {
+    "slug": "overview",
+    "title": "项目综述",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "README.md",
+      "AGENTS.md",
+      "docs/design-system/MASTER.md",
+      "docs/research/COMMERCIAL_SCOPE.md",
+      ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
+      ".wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx",
+      ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx"
+    ],
+    "backlinks": [
+      "_index",
+      "design-system",
+      "implementation/sow-2026-v1-4",
+      "team-and-timeline"
+    ],
+    "updated": "2026-05-28",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/overview.md"
+  },
+  {
+    "slug": "requirements",
+    "title": "需求追溯",
+    "space": "engineering",
+    "category": "business",
+    "sources": [
+      ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
+      ".wiki/sources/bidding/附件5：西域数智化投标管理平台建设项目需求任务书.docx",
+      ".wiki/sources/bidding/附件6：需求功能清单.md",
+      ".wiki/sources/bidding/附件6：需求功能清单.xlsx",
+      ".wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx",
+      ".wiki/sources/contract/附件3-合同报价清单人工摘录.md",
+      ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx",
+      "backend/src/main/java/com/xiyu/bid/tenderupload/README.md",
+      "backend/src/main/resources/application.yml"
+    ],
+    "backlinks": [
+      "_index",
+      "contract-constraints",
+      "dashboard-gap-analysis",
+      "implementation/acceptance-and-closure",
+      "implementation/attachment4-gap-matrix",
+      "implementation/attachment4-requirement-task-book",
+      "implementation/attachment6-function-list-trace",
+      "implementation/milestones",
+      "implementation/risk-register",
+      "implementation/sow-2026-v1-4"
+    ],
+    "updated": "2026-05-28",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/requirements.md"
+  },
+  {
+    "slug": "roles-and-permissions",
+    "title": "角色与权限",
+    "space": "engineering",
+    "category": "reference",
+    "sources": [
+      ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
+      "src/router/index.js",
+      "AGENTS.md",
+      "backend/src/main/java/com/xiyu/bid/auth/README.md"
+    ],
+    "backlinks": [
+      "_index",
+      "business-process",
+      "contract-constraints",
+      "implementation/attachment4-gap-matrix",
+      "implementation/attachment4-requirement-task-book",
+      "implementation/attachment6-function-list-trace",
+      "overview"
+    ],
+    "updated": "2026-05-28",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/roles-and-permissions.md"
+  },
+  {
+    "slug": "team-and-timeline",
+    "title": "团队与排期",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
+      "docs/specs/启动会项目组织架构与沟通矩阵.md",
+      "docs/specs/项目启动会PPT大纲与核心内容.md",
+      ".wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx",
+      ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx"
+    ],
+    "backlinks": [
+      "_index",
+      "contract-constraints",
+      "deployment",
+      "implementation/attachment4-gap-matrix",
+      "implementation/development-sprint-2026-05-23",
+      "implementation/document-delivery-ledger",
+      "implementation/risk-register",
+      "implementation/sow-2026-v1-4",
+      "overview",
+      "requirements"
+    ],
+    "updated": "2026-05-28",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/team-and-timeline.md"
+  },
+  {
+    "slug": "testing/_index",
+    "title": "功能实现对照 — 测试说明文档索引",
+    "space": "engineering",
+    "category": "testing",
+    "sources": [
+      ".wiki/sources/testing/testing-overview.md"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-05-27",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/testing/_index.md"
+  },
+  {
+    "slug": "testing/module-01-workbench",
+    "title": "工作台 — 蓝图功能实现对照",
+    "space": "engineering",
+    "category": "testing",
+    "sources": [
+      ".wiki/sources/testing/module-01-workbench-test.md",
+      ".wiki/sources/testing/module-01-workbench-test.md"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-05-27",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/testing/module-01-workbench.md"
+  },
+  {
+    "slug": "testing/module-02-bidding",
+    "title": "标讯中心 — 蓝图功能实现对照",
+    "space": "engineering",
+    "category": "testing",
+    "sources": [
+      ".wiki/sources/testing/module-02-bidding-test.md",
+      ".wiki/sources/testing/module-02-bidding-test.md"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-05-27",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/testing/module-02-bidding.md"
+  },
+  {
+    "slug": "testing/module-03-project",
+    "title": "投标项目 — 蓝图功能实现对照",
+    "space": "engineering",
+    "category": "testing",
+    "sources": [
+      ".wiki/sources/testing/module-03-project-test.md",
+      ".wiki/sources/testing/module-03-project-test.md"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-05-27",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/testing/module-03-project.md"
+  },
+  {
+    "slug": "testing/module-04-knowledge",
+    "title": "知识库 — 蓝图功能实现对照",
+    "space": "engineering",
+    "category": "testing",
+    "sources": [
+      ".wiki/sources/testing/module-04-knowledge-test.md",
+      ".wiki/sources/testing/module-04-knowledge-test.md"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-05-27",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/testing/module-04-knowledge.md"
+  },
+  {
+    "slug": "testing/module-05-resource",
+    "title": "资源管理 — 蓝图功能实现对照",
+    "space": "engineering",
+    "category": "testing",
+    "sources": [
+      ".wiki/sources/testing/module-05-resource-test.md",
+      ".wiki/sources/testing/module-05-resource-test.md"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-05-27",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/testing/module-05-resource.md"
+  },
+  {
+    "slug": "testing/module-06-analytics",
+    "title": "数据分析 — 蓝图功能实现对照",
+    "space": "engineering",
+    "category": "testing",
+    "sources": [
+      ".wiki/sources/testing/module-06-analytics-test.md",
+      ".wiki/sources/testing/module-06-analytics-test.md"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-05-27",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/testing/module-06-analytics.md"
+  },
+  {
+    "slug": "testing/module-07-settings",
+    "title": "系统设置 — 蓝图功能实现对照",
+    "space": "engineering",
+    "category": "testing",
+    "sources": [
+      ".wiki/sources/testing/module-07-settings-test.md",
+      ".wiki/sources/testing/module-07-settings-test.md"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-05-27",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/testing/module-07-settings.md"
+  },
+  {
+    "slug": "testing/module-08-ai",
+    "title": "Module 8 AI 能力体系 — 蓝图功能实现对照",
+    "space": "engineering",
+    "category": "testing",
+    "sources": [
+      ".wiki/sources/testing/module-08-ai-test.md",
+      ".wiki/sources/testing/module-08-ai-test.md"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-05-27",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/testing/module-08-ai.md"
+  },
+  {
+    "slug": "testing/module-09-integration",
+    "title": "Module 9 系统集成 — 蓝图功能实现对照",
+    "space": "engineering",
+    "category": "testing",
+    "sources": [
+      ".wiki/sources/testing/module-09-integration-test.md",
+      ".wiki/sources/testing/module-09-integration-test.md"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-05-27",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/testing/module-09-integration.md"
+  },
+  {
+    "slug": "workflow-form-center",
+    "title": "流程表单中心与泛微 OA",
+    "space": "engineering",
+    "category": "integration",
+    "sources": [
+      "docs/research/WORKFLOW_FORM_CENTER.md",
+      "backend/src/main/java/com/xiyu/bid/workflowform/README.md",
+      "src/views/System/workflow-form-designer/README.md",
+      "src/api/modules/workflowForm.js",
+      "backend/src/main/java/com/xiyu/bid/workflowform/"
+    ],
+    "backlinks": [
+      "_index",
+      "integration-wecom",
+      "modules"
+    ],
+    "updated": "2026-04-29",
+    "health_checked": "2026-05-28",
+    "path": ".wiki/pages/workflow-form-center.md"
+  }
+]

@@ -1,0 +1,98 @@
+# Dependencies
+node_modules/
+node_modules/.bin/
+
+# Build outputs
+dist/
+build/
+.rehearsal/
+test-results/
+playwright-report/
+
+# Vite cache
+node_modules/.vite/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+~$*
+
+# Logs
+*.log
+npm-debug.log*
+
+# Generated reports
+docs/reports/*
+!docs/reports/.gitkeep
+!docs/reports/data-permission-coverage-audit.md
+backend/docs/reports/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Local debug scratch files
+test-login.html
+
+# Git worktrees
+.worktrees/
+.agent-task-context
+.gstack/
+.context/
+.runtime/
+
+# OMC 运行态文件（本地 agent/session 状态，不提交）
+.omc/
+**/.omc/
+
+# Agent skill 运行时生成的 speckit 规范工具链文件（本地安装，非仓库管理）
+.agents/skills/speckit-analyze/
+.agents/skills/speckit-checklist/
+.agents/skills/speckit-clarify/
+.agents/skills/speckit-constitution/
+.agents/skills/speckit-implement/
+.agents/skills/speckit-plan/
+.agents/skills/speckit-specify/
+.agents/skills/speckit-tasks/
+.agents/skills/speckit-taskstoissues/
+
+# 构建产物（release 包、tar.gz）
+.release/
+
+# 外部路径符号链接
+skills/universal-skills
+
+# Python 虚拟环境
+.venv/
+document-converter-sidecar/.venv
+
+# 外部文档 PDF
+docs/architecture/*.pdf
+!docs/architecture/README.md
+
+# PR body 临时文件
+.pr-body-temp.md
+.vrt-diffs/
+ai-center-diff.png
+
+# Binaries in node_modules (platform-specific)
+node_modules/.bin/
+node_modules
+.playwright-cli/
+
+# Cursor IDE 本地规则
+.cursor/
+
+# 本地 universal-skills symlink
+skills/universal-skills
+test-output/
+
+.claude/skills/
+.playwright-mcp/

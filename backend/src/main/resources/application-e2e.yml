@@ -1,0 +1,74 @@
+spring:
+  application:
+    name: xiyu-bid-poc-e2e
+
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+  datasource:
+    url: jdbc:h2:mem:e2e;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        format_sql: false
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: false
+    validateOnMigrate: false
+    validateOnNervousSystems: false
+    outOfOrder: true
+
+  data:
+    redis:
+      repositories:
+        enabled: false
+      host: localhost
+      port: 6379
+      database: 15
+
+  cache:
+    type: simple
+
+  jackson:
+    default-property-inclusion: non_null
+    deserialization:
+      accept-empty-string-as-null-object: true
+
+server:
+  port: 18080
+
+jwt:
+  secret: test-secret-key-for-jwt-token-generation-and-validation
+  expiration: 3600000
+  refresh-expiration: 7200000
+
+cors:
+  allowed-origins: http://127.0.0.1:14173,http://127.0.0.1:14175,http://127.0.0.1:14176,http://127.0.0.1:14177,http://127.0.0.1:14178,http://127.0.0.1:14179,http://localhost:14173,http://localhost:14175,http://localhost:14176,http://localhost:14177,http://localhost:14178,http://localhost:14179,http://localhost:1314,http://127.0.0.1:1314,http://localhost:1316,http://127.0.0.1:1316,http://localhost:1818,http://127.0.0.1:1818
+
+ai:
+  provider: mock
+
+rate:
+  limit:
+    login:
+      max-attempts: 1000
+      window-minutes: 1
+
+logging:
+  level:
+    com.xiyu: WARN
+    org.springframework.security: WARN
+    org.springframework.data.redis: WARN
+    io.lettuce.core: WARN

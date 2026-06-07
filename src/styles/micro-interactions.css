@@ -1,0 +1,1041 @@
+/**
+ * Micro-Interactions & Detail Refinements
+ * Pixel-perfect UI/UX details for B2B applications
+ * Focus states, hover effects, transitions, spacing
+ */
+
+/* ==================== Typography Hierarchy ==================== */
+/* 页面标题 - 最重要 */
+h1, .page-title, .dashboard-title {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #0F0F0F;
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-lg, 24px);
+}
+
+/* 区块标题 - 次要 */
+h2, .section-title, .card-title {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  margin-bottom: var(--space-md, 16px);
+}
+
+/* 子区块标题 */
+h3, .subsection-title {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #2A2A2A;
+  margin-bottom: var(--space-sm, 8px);
+}
+
+/* 小标题 */
+h4, .subheading {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--gray-700);
+  margin-bottom: var(--space-sm, 8px);
+}
+
+/* 正文文本 - WCAG AA 对比度 */
+body, .text-body, .el-main, .el-card__body {
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+/* 次要文本 */
+.text-secondary, .el-text--secondary {
+  color: #4A4A4A;
+}
+
+/* 辅助文本 */
+.text-tertiary, .text-muted, .el-text--placeholder {
+  color: #6A6A6A;
+}
+
+/* 深色背景上的文本 - WCAG AAA */
+.text-on-dark, .el-text--primary-on-dark {
+  color: #F5F5F5;
+}
+
+/* ==================== Design Tokens ==================== */
+:root {
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-smooth: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Focus Ring */
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --focus-ring-color: rgba(3, 105, 161, 0.5);
+  --focus-ring-color-hover: rgba(3, 105, 161, 0.7);
+
+  /* Elevation */
+  --elevation-0: none;
+  --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --elevation-2: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --elevation-3: 0 4px 6px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --elevation-4: 0 10px 15px rgba(0, 0, 0, 0.08), 0 4px 6px rgba(0, 0, 0, 0.04);
+
+  /* Spacing Scale (8px base unit) */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+}
+
+/* ==================== Focus States ==================== */
+
+/* Reset default outline */
+*:focus-visible {
+  outline: none;
+}
+
+/* Custom focus ring for all interactive elements */
+*:focus-visible {
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+  border-radius: 4px;
+}
+
+/* Element Plus specific focus overrides */
+.el-button:focus-visible {
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+}
+
+.el-checkbox:focus-visible .el-checkbox__inner {
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+}
+
+.el-radio:focus-visible .el-radio__inner {
+  box-shadow: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+}
+
+/* ==================== Button Micro-Interactions ==================== */
+
+/* Base button styles */
+.el-button {
+  transition: all var(--transition-base);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+/* Primary button */
+.el-button--primary {
+  background-color: var(--brand-xiyu-logo) !important;
+  border: none;
+  box-shadow: 0 4px 12px var(--brand-xiyu-logo-shadow, rgba(46, 118, 89, 0.24));
+  --el-button-bg-color: var(--brand-xiyu-logo) !important;
+  --el-button-border-color: var(--brand-xiyu-logo) !important;
+  --el-button-text-color: var(--bg-card) !important;
+  --el-button-hover-bg-color: var(--brand-xiyu-logo-hover) !important;
+  --el-button-hover-border-color: var(--brand-xiyu-logo-hover) !important;
+  --el-button-hover-text-color: var(--bg-card) !important;
+}
+
+.el-button--primary::before {
+  display: none !important;
+}
+
+.el-button--primary:not(.is-link):not(.is-text),
+.el-button--primary:not(.is-link):not(.is-text) span {
+  color: var(--bg-card) !important;
+}
+
+.el-button--primary:hover {
+  background-color: var(--brand-xiyu-logo-hover);
+  color: var(--bg-card);
+  box-shadow: var(--elevation-2);
+  transform: translateY(-1px);
+}
+
+.el-button--primary:active {
+  transform: translateY(0);
+  box-shadow: var(--elevation-1);
+}
+
+/* Default button */
+.el-button--default:hover {
+  background: var(--gray-50);
+  border-color: #CBD5E1;
+  transform: translateY(-1px);
+}
+
+.el-button--default:active {
+  transform: translateY(0);
+}
+
+/* Danger button */
+.el-button--danger:hover {
+  background: linear-gradient(135deg, var(--color-danger) 0%, var(--color-danger) 100%);
+  border-color: transparent;
+  box-shadow: var(--elevation-2);
+}
+
+/* Success button */
+.el-button--success:hover {
+  background: linear-gradient(135deg, var(--color-success-dark) 0%, var(--color-success) 100%);
+  border-color: transparent;
+  box-shadow: var(--elevation-2);
+}
+
+/* Warning button */
+.el-button--warning:hover {
+  background: linear-gradient(135deg, #D97706 0%, #F59E0B 100%);
+  border-color: transparent;
+  box-shadow: var(--elevation-2);
+}
+
+/* Link button - better underline */
+.el-button.is-link {
+  transition: all var(--transition-base);
+}
+
+.el-button.is-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Icon buttons - minimum touch target 44px */
+.el-button.is-circle {
+  transition: all var(--transition-base);
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+}
+
+/* Icon-only buttons ensure touch target */
+.el-button:has(.el-icon):not(:has(.el-button__text)),
+button[class*="icon"]:not(.el-button),
+.el-icon-btn {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.el-button.is-circle:hover {
+  transform: scale(1.08);
+  box-shadow: var(--elevation-2);
+}
+
+.el-button.is-circle:active {
+  transform: scale(1);
+}
+
+/* Ensure icons inside buttons have proper spacing */
+.el-button .el-icon {
+  font-size: 18px;
+}
+
+/* Button loading state */
+.el-button.is-loading {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* ==================== Select Dropdown ==================== */
+
+.el-select .el-input__wrapper {
+  border-radius: 8px;
+  transition: all var(--transition-base);
+}
+
+.el-select:hover .el-input__wrapper {
+  border-color: var(--gray-400);
+}
+
+/* Select dropdown options */
+.el-select-dropdown__item {
+  transition: all var(--transition-fast);
+  border-radius: 6px;
+  margin: 2px 8px;
+}
+
+.el-select-dropdown__item.hover,
+.el-select-dropdown__item:hover {
+  background: var(--gray-50);
+}
+
+.el-select-dropdown__item.selected {
+  background: var(--accent-blue-light);
+  color: var(--accent-blue);
+  font-weight: 500;
+}
+
+/* ==================== Checkbox & Radio ==================== */
+
+/* Checkbox */
+.el-checkbox {
+  transition: all var(--transition-base);
+}
+
+.el-checkbox__inner {
+  transition: all var(--transition-base);
+  border-radius: 4px;
+  border-width: 1.5px;
+}
+
+.el-checkbox:hover .el-checkbox__inner {
+  border-color: var(--accent-blue);
+}
+
+.el-checkbox.is-checked .el-checkbox__inner {
+  background: var(--accent-blue);
+  border-color: var(--accent-blue);
+}
+
+.el-checkbox__input.is-checked + .el-checkbox__label {
+  color: #1E293B;
+}
+
+/* Radio */
+.el-radio__inner {
+  transition: all var(--transition-base);
+  border-width: 1.5px;
+}
+
+.el-radio:hover .el-radio__inner {
+  border-color: var(--accent-blue);
+}
+
+.el-radio.is-checked .el-radio__inner {
+  background: var(--accent-blue);
+  border-color: var(--accent-blue);
+}
+
+.el-radio__input.is-checked + .el-radio__label {
+  color: #1E293B;
+}
+
+/* ==================== Card Hover Effects ==================== */
+
+.el-card {
+  transition: all var(--transition-base);
+  border-radius: 12px;
+  margin-bottom: var(--space-lg, 24px);
+}
+
+.el-card:last-child {
+  margin-bottom: 0;
+}
+
+.el-card:hover {
+  box-shadow: var(--elevation-2);
+}
+
+.el-card.is-always-shadow {
+  box-shadow: var(--elevation-2);
+}
+
+.el-card.is-always-shadow:hover {
+  box-shadow: var(--elevation-3);
+}
+
+/* Card content padding consistency */
+.el-card__body {
+  padding: var(--space-lg, 24px);
+}
+
+.el-card__header {
+  padding: var(--space-md, 16px) var(--space-lg, 24px);
+  border-bottom: 1px solid var(--gray-100, #E8E8E8);
+}
+
+/* ==================== Table Micro-Interactions ==================== */
+
+.el-table {
+  font-size: 14px;
+}
+
+/* Table rows */
+.el-table__body tr {
+  transition: background-color var(--transition-fast);
+}
+
+.el-table__body tr:hover > td {
+  background: #F8FAFC !important;
+}
+
+/* Table header */
+.el-table__header-wrapper {
+  border-radius: 8px 8px 0 0;
+}
+
+.el-table th.el-table__cell {
+  background: var(--gray-50);
+  color: var(--sidebar-text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  padding: 14px 16px;
+}
+
+/* Table cells */
+.el-table td.el-table__cell {
+  padding: 14px 16px;
+  color: #1E293B;
+}
+
+/* ==================== Tag/Label Styles ==================== */
+
+.el-tag {
+  border-radius: 6px;
+  font-weight: 500;
+  padding: 4px 10px;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  transition: all var(--transition-fast);
+}
+
+.el-tag--primary {
+  background: var(--accent-blue-light);
+  color: var(--accent-blue);
+  border-color: transparent;
+}
+
+.el-tag--success {
+  background: #D1FAE5;
+  color: var(--color-success-dark);
+  border-color: transparent;
+}
+
+.el-tag--warning {
+  background: var(--color-warning-bg);
+  color: #D97706;
+  border-color: transparent;
+}
+
+.el-tag--danger {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border-color: transparent;
+}
+
+.el-tag--info {
+  background: var(--gray-50);
+  color: var(--text-slate);
+  border-color: transparent;
+}
+
+/* Tag close button */
+.el-tag__close {
+  transition: all var(--transition-fast);
+  border-radius: 4px;
+}
+
+.el-tag__close:hover {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+/* ==================== Dialog/Modal ==================== */
+
+.el-dialog {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.el-dialog__header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.el-dialog__title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #0F172A;
+}
+
+.el-dialog__body {
+  padding: 24px;
+}
+
+.el-dialog__footer {
+  padding: 16px 24px;
+  background: #F8FAFC;
+  border-top: 1px solid #E5E7EB;
+}
+
+/* Close button */
+.el-dialog__close {
+  transition: all var(--transition-fast);
+  color: var(--gray-400);
+}
+
+.el-dialog__close:hover {
+  color: var(--text-slate);
+  background: var(--gray-50);
+  border-radius: 6px;
+}
+
+/* ==================== Message/Notification ==================== */
+
+.el-message {
+  border-radius: 8px;
+  padding: 12px 16px;
+  box-shadow: var(--elevation-3);
+  border: none;
+}
+
+.el-message--success {
+  background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%);
+  color: #065F46;
+}
+
+.el-message--warning {
+  background: linear-gradient(135deg, var(--color-warning-bg) 0%, var(--color-warning-light) 100%);
+  color: #92400E;
+}
+
+.el-message--error {
+  background: linear-gradient(135deg, var(--color-danger-bg) 0%, #FECACA 100%);
+  color: #991B1B;
+}
+
+.el-message--info {
+  background: linear-gradient(135deg, var(--accent-blue-light) 0%, var(--brand-xiyu-logo-light) 100%);
+  color: #075985;
+}
+
+/* ==================== Loading States ==================== */
+
+.el-loading-spinner {
+  color: var(--accent-blue);
+}
+
+.el-loading-spinner .circular {
+  stroke: currentColor;
+}
+
+/* ==================== Pagination ==================== */
+
+.el-pagination {
+  display: flex;
+  gap: 4px;
+}
+
+.el-pagination button {
+  border-radius: 6px;
+  transition: all var(--transition-base);
+  font-weight: 500;
+}
+
+.el-pagination button:hover {
+  background: var(--gray-50);
+  transform: translateY(-1px);
+}
+
+.el-pagination button:active {
+  transform: translateY(0);
+}
+
+.el-pagination .el-pager li {
+  border-radius: 6px;
+  transition: all var(--transition-base);
+  font-weight: 500;
+}
+
+.el-pagination .el-pager li:hover {
+  background: var(--gray-50);
+  color: var(--brand-xiyu-logo);
+  transform: translateY(-1px);
+}
+
+.el-pagination .el-pager li.active,
+.el-pagination .el-pager li.is-active {
+  background: linear-gradient(135deg, var(--brand-xiyu-logo) 0%, var(--brand-xiyu-logo-hover) 100%);
+  color: var(--bg-card);
+  box-shadow: 0 4px 10px var(--brand-xiyu-logo-shadow, rgba(46, 118, 89, 0.24));
+}
+
+/* ==================== Tooltip ==================== */
+
+.el-tooltip__popper {
+  font-size: 13px;
+}
+
+.el-tooltip__popper.is-dark {
+  background: #1E293B;
+  color: var(--gray-50);
+}
+
+/* ==================== Form Item Spacing ==================== */
+
+.el-form-item {
+  margin-bottom: 18px;
+}
+
+.el-form-item__label {
+  font-weight: 500;
+  color: #374151;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+/* ==================== Link Styles ==================== */
+
+.el-link {
+  transition: all var(--transition-base);
+  font-weight: 500;
+}
+
+.el-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ==================== Switch Toggle ==================== */
+
+.el-switch {
+  transition: all var(--transition-base);
+}
+
+.el-switch__core {
+  border-radius: 12px;
+  transition: all var(--transition-base);
+}
+
+.el-switch.is-checked .el-switch__core {
+  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--brand-xiyu-logo-hover) 100%);
+}
+
+.el-switch__action {
+  transition: all var(--transition-base);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+/* ==================== Slider ==================== */
+
+.el-slider__runway {
+  background: var(--gray-200);
+  border-radius: 4px;
+}
+
+.el-slider__bar {
+  background: linear-gradient(90deg, var(--accent-blue) 0%, var(--brand-xiyu-logo-hover) 100%);
+  border-radius: 4px;
+}
+
+.el-slider__button {
+  border: 2px solid var(--accent-blue);
+  background: var(--bg-card);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  transition: all var(--transition-base);
+}
+
+.el-slider__button:hover {
+  transform: scale(1.15);
+}
+
+/* ==================== Dropdown Menu ==================== */
+
+.el-dropdown-menu__item {
+  transition: all var(--transition-fast);
+  border-radius: 6px;
+  margin: 2px 8px;
+}
+
+.el-dropdown-menu__item:hover {
+  background: var(--gray-50);
+}
+
+/* ==================== Tabs ==================== */
+
+.el-tabs__item {
+  transition: all var(--transition-base);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.el-tabs__item:hover {
+  color: var(--accent-blue);
+}
+
+.el-tabs__item.is-active {
+  color: var(--accent-blue);
+  font-weight: 600;
+}
+
+.el-tabs__active-bar {
+  background: linear-gradient(90deg, var(--accent-blue) 0%, var(--brand-xiyu-logo-hover) 100%);
+  height: 3px;
+  border-radius: 2px 2px 0 0;
+}
+
+/* ==================== Breadcrumb ==================== */
+
+.el-breadcrumb__item {
+  font-size: 13px;
+}
+
+.el-breadcrumb__inner {
+  transition: all var(--transition-base);
+}
+
+.el-breadcrumb__inner:hover {
+  color: var(--accent-blue);
+}
+
+/* ==================== Steps ==================== */
+
+.el-step__head {
+  transition: all var(--transition-base);
+}
+
+.el-step__head.is-process {
+  color: var(--accent-blue);
+}
+
+.el-step__title {
+  font-weight: 500;
+}
+
+/* ==================== Progress Bar ==================== */
+
+.el-progress-bar__outer {
+  background: var(--gray-200);
+  border-radius: 12px;
+}
+
+.el-progress-bar__inner {
+  background: linear-gradient(90deg, var(--accent-blue) 0%, var(--brand-xiyu-logo-hover) 100%);
+  border-radius: 12px;
+  transition: width var(--transition-smooth);
+}
+
+/* ==================== Calendar ==================== */
+
+.el-calendar-table td.is-selected .el-calendar-day {
+  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--brand-xiyu-logo-hover) 100%);
+  color: var(--bg-card);
+  border-radius: 8px;
+}
+
+.el-calendar-table td:hover .el-calendar-day {
+  background: var(--gray-50);
+  border-radius: 8px;
+}
+
+/* ==================== Alert ==================== */
+
+.el-alert {
+  border-radius: 8px;
+  border-left-width: 4px;
+  padding: 14px 16px;
+}
+
+.el-alert--success {
+  background: #F0FDF4;
+  border-left-color: var(--color-success-dark);
+}
+
+.el-alert--warning {
+  background: #FFFBEB;
+  border-left-color: #F59E0B;
+}
+
+.el-alert--error {
+  background: #FEF2F2;
+  border-left-color: var(--color-danger);
+}
+
+.el-alert--info {
+  background: #F0F9FF;
+  border-left-color: var(--accent-blue);
+}
+
+/* ==================== Empty State ==================== */
+
+.el-empty {
+  padding: 40px 20px;
+}
+
+.el-empty__description {
+  color: var(--text-slate);
+  font-size: 14px;
+}
+
+/* ==================== Divider ==================== */
+
+.el-divider {
+  border-color: #E5E7EB;
+}
+
+.el-divider--horizontal {
+  margin: 20px 0;
+}
+
+/* ==================== Collapse ==================== */
+
+.el-collapse-item__header {
+  transition: all var(--transition-base);
+  font-weight: 500;
+}
+
+.el-collapse-item__header:hover {
+  background: #F8FAFC;
+}
+
+/* ==================== Tree ==================== */
+
+.el-tree-node__content {
+  border-radius: 6px;
+  transition: all var(--transition-fast);
+  margin: 2px 0;
+}
+
+.el-tree-node__content:hover {
+  background: var(--gray-50);
+}
+
+/* ==================== Transfer ==================== */
+
+.el-transfer-panel {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* ==================== Upload ==================== */
+
+.el-upload-dragger {
+  border: 2px dashed #CBD5E1;
+  border-radius: 12px;
+  transition: all var(--transition-base);
+}
+
+.el-upload-dragger:hover {
+  border-color: var(--accent-blue);
+  background: #F0F9FF;
+}
+
+.el-upload-dragger.is-dragover {
+  border-color: var(--accent-blue);
+  background: var(--accent-blue-light);
+}
+
+/* ==================== Avatar ==================== */
+
+.el-avatar {
+  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--brand-xiyu-logo-hover) 100%);
+  color: var(--bg-card);
+  font-weight: 600;
+}
+
+/* ==================== Badge ==================== */
+
+.el-badge__content {
+  font-weight: 600;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+/* ==================== Rate ==================== */
+
+.el-rate__icon {
+  transition: all var(--transition-fast);
+}
+
+.el-rate__icon:hover {
+  transform: scale(1.15);
+}
+
+/* ==================== Popover ==================== */
+
+.el-popover {
+  border-radius: 8px;
+  box-shadow: var(--elevation-3);
+}
+
+/* ==================== Skeleton Loading ==================== */
+
+.el-skeleton {
+  background: var(--gray-50);
+  border-radius: 6px;
+}
+
+/* ==================== Drawer ==================== */
+
+.el-drawer {
+  border-radius: 12px 0 0 12px;
+}
+
+.el-drawer__header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.el-drawer__title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #0F172A;
+}
+
+/* ==================== Timeline ==================== */
+
+.el-timeline-item__tail {
+  border-left-width: 2px;
+}
+
+.el-timeline-item__node {
+  transition: all var(--transition-base);
+}
+
+/* ==================== Backtop ==================== */
+
+.el-backtop {
+  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--brand-xiyu-logo-hover) 100%);
+  box-shadow: var(--elevation-2);
+  transition: all var(--transition-base);
+}
+
+.el-backtop:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--elevation-3);
+}
+
+/* ==================== Image ==================== */
+
+.el-image {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* ==================== Descriptions ==================== */
+
+.el-descriptions {
+  font-size: 14px;
+}
+
+.el-descriptions__label {
+  font-weight: 500;
+  color: var(--text-slate);
+}
+
+.el-descriptions__content {
+  color: #1E293B;
+}
+
+/* ==================== Result ==================== */
+
+.el-result__title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #0F172A;
+}
+
+/* ==================== Splitter ==================== */
+
+.el-splitter {
+  transition: all var(--transition-base);
+}
+
+/* ==================== Affix ==================== */
+
+.el-affix {
+  z-index: 100;
+}
+
+/* ==================== Anchor ==================== */
+
+.el-anchor {
+  font-size: 13px;
+}
+
+.el-anchor__item {
+  transition: all var(--transition-fast);
+  border-radius: 4px;
+}
+
+.el-anchor__item:hover {
+  background: var(--gray-50);
+}
+
+/* ==================== Scrollbar ==================== */
+
+/* Custom scrollbar for webkit browsers */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--gray-50);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 4px;
+  transition: background var(--transition-base);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-400);
+}
+
+/* ==================== Selection ==================== */
+
+::selection {
+  background: rgba(3, 105, 161, 0.2);
+  color: var(--accent-blue);
+}
+
+::-moz-selection {
+  background: rgba(3, 105, 161, 0.2);
+  color: var(--accent-blue);
+}
+
+/* ==================== Reduced Motion ==================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ==================== Print Styles ==================== */
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .el-button {
+    border: 1px solid #000;
+  }
+}
+
+/* ==================== High Contrast Mode ==================== */
+
+@media (prefers-contrast: high) {
+  :root {
+    --focus-ring-color: var(--accent-blue);
+  }
+
+  .el-button {
+    border-width: 2px;
+  }
+
+  .el-input .el-input__wrapper {
+    border-width: 2px;
+  }
+}

@@ -1,0 +1,194 @@
+/* ========== Google Fonts ========== */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+  /* ========== B2B 配色系统 ========== */
+  /* 品牌色 - B2B 科技蓝 */
+  --brand-primary: #0066CC;
+  --brand-primary-light: #3388DD;
+  --brand-primary-dark: #0052A3;
+  --brand-xiyu-logo: #2E7659;
+  --brand-xiyu-logo-rgb: 46, 118, 89;
+  --brand-xiyu-logo-hover: #27674E;
+  --brand-xiyu-logo-active: #1F553F;
+  --brand-xiyu-logo-light: #E7F2ED;
+  --brand-xiyu-logo-soft: rgba(46, 118, 89, 0.12);
+  --brand-xiyu-logo-focus: rgba(46, 118, 89, 0.32);
+  --brand-xiyu-logo-shadow: rgba(46, 118, 89, 0.24);
+  --el-color-primary: var(--brand-xiyu-logo);
+  --el-color-primary-light-3: #5B9479;
+  --el-color-primary-light-5: #8AB6A2;
+  --el-color-primary-light-7: #B9D7C9;
+  --el-color-primary-light-9: var(--brand-xiyu-logo-light);
+  --el-color-primary-dark-2: var(--brand-xiyu-logo-active);
+
+  /* 功能色 */
+  --color-success: #00AA44;
+  --color-success-bg: rgba(0, 170, 68, 0.1);
+  --color-success-dark: #059669;
+  --color-warning: #FF8800;
+  --color-warning-bg: rgba(255, 136, 0, 0.1);
+  --color-warning-light: #FDE68A;
+  --color-danger: #DD2200;
+  --color-danger-bg: rgba(221, 34, 0, 0.1);
+  --color-danger-dark: #B91C1C;
+  --color-info: #0066CC;
+  --color-info-bg: rgba(0, 102, 204, 0.1);
+  --color-primary: #0066CC;
+  --color-primary-bg: rgba(0, 102, 204, 0.1);
+
+  /* 中性色 */
+  --gray-50: #F5F7FA;
+  --gray-100: #E8E8E8;
+  --gray-150: #E8ECF0;
+  --gray-200: #D0D0D0;
+  --gray-250: #E4E7ED;
+  --gray-300: #B0B0B0;
+  --gray-350: #909399;
+  --gray-400: #999999;
+  --gray-500: #666666;
+  --gray-550: #606266;
+  --gray-600: #444444;
+  --gray-650: #6B7280;
+  --gray-700: #333333;
+  --gray-750: #303133;
+  --gray-800: #222222;
+  --gray-900: #1A1A1A;
+  --gray-950: #111827;
+
+  /* 文字颜色 */
+  --text-primary: #1A1A1A;
+  --text-primary-ui: #303133;
+  --text-secondary: #666666;
+  --text-secondary-ui: #606266;
+  --text-tertiary: #999999;
+  --text-muted: #909399;
+  --text-disabled: var(--gray-300);
+  --text-placeholder: #BBBBBB;
+  --text-link: var(--brand-primary);
+  --text-slate: #64748B;
+  --text-light: #888888;
+  --text-lighter: #9CA3AF;
+
+  /* 侧边栏专用颜色 */
+  --sidebar-bg: #FFFFFF;
+  --sidebar-bg-elevated: #F8FBF9;
+  --sidebar-text: #334155;
+  --sidebar-text-secondary: #475569;
+  --sidebar-text-hover: var(--brand-xiyu-logo);
+  --sidebar-text-active: var(--brand-xiyu-logo);
+  --sidebar-active-bg: rgba(46, 118, 89, 0.12);
+
+  /* 全局背景与强调色 */
+  --bg-page: #F0F2F5;
+  --bg-card: #FFFFFF;
+  --bg-subtle: #F5F7FA;
+  --bg-white: #FFFFFF;
+  --bg-muted: #FAFAFA;
+  --bg-muted-2: #F9FAFB;
+  --accent-blue: var(--brand-xiyu-logo);
+  --accent-blue-light: var(--brand-xiyu-logo-light);
+
+  /* 焦点状态颜色 */
+  --focus-primary: rgba(0, 102, 204, 0.4);
+  --focus-success: rgba(0, 170, 68, 0.4);
+  --focus-warning: rgba(255, 136, 0, 0.4);
+  --focus-danger: rgba(221, 34, 0, 0.4);
+
+  /* ========== 间距系统 - 8px 基础单位 ========== */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  /* 向后兼容的间距变量 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* ========== 组件尺寸 ========== */
+  --header-height: 48px;
+  --sidebar-width: 150px;
+  --sidebar-collapsed-width: 64px;
+  --menu-item-height: 38px;
+
+  /* ========== 通用边框 ========== */
+  --border-subtle: #F0F0F0;
+  --border-light: #E8E8E8;
+  --border-focus: #374151;
+
+  /* ========== 标签/徽章文字色 ========== */
+  --text-badge: #475569;
+  --text-badge-2: #4B5563;
+
+  /* ========== 状态色（评分/资质/风险通用） ========== */
+  --status-success-bg: #D1FAE5;
+  --status-success-color: #065F46;
+  --status-success-border: #BBF7D0;
+  --status-success-bg-soft: #F0FDF4;
+  --status-success-bg-soft-active: #F0F9F4;
+  --status-warning-bg: #FEF3C7;
+  --status-warning-color: #92400E;
+  --status-warning-border: #FDE68A;
+  --status-warning-bg-soft: #FFFBEB;
+  --status-danger-bg: #FEE2E2;
+  --status-danger-color: #991B1B;
+  --status-danger-border: #FECACA;
+  --status-danger-bg-soft: #FEF2F2;
+  --status-neutral-bg: #E2E8F0;
+  --status-neutral-color: #475569;
+
+  /* ========== Info / Tips / AI 提示色 ========== */
+  --status-info-bg: #DBEAFE;
+  --status-info-color: #1E40AF;
+  --status-info-border: #BFDBFE;
+  --status-info-bg-soft: #EFF6FF;
+  --status-info-light: #DBEAFE;
+  --status-info-lighter: #F0F9FF;
+
+  /* ========== Special / AI 辅助色 ========== */
+  --status-special-bg: #EDE9FE;
+  --status-special-color: #5B21B6;
+  --status-special-border: #DDD6FE;
+  --status-special-bg-soft: #F5F3FF;
+
+  /* ========== Pink accent ========== */
+  --color-pink: #EC4899;
+  --color-pink-bg: #FCE7F3;
+  --color-pink-light: #FBCFE8;
+
+  /* ========== 圆角 ========== */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 50%;
+
+  /* ========== 阴影 ========== */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.10), 0 2px 6px rgba(0, 0, 0, 0.05);
+
+  /* ========== 字体 ========== */
+  --font-family: 'Plus Jakarta Sans', 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-base: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
+
+  /* ========== z-index ========== */
+  --z-dropdown: 1000;
+  --z-sticky: 1020;
+  --z-fixed: 1030;
+  --z-modal: 1050;
+  --z-popover: 1060;
+  --z-tooltip: 1070;
+  --z-sidebar: 100;
+}

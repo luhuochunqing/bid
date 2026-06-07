@@ -1,0 +1,6 @@
+agent=cursor
+task=qualification-certificate-audit
+branch=cursor/qualification-certificate-audit
+base=origin/main
+worktree=/Users/user/xiyu/worktrees/cursor-qualification-certificate-audit
+created_at=2026-06-05T03:15:39Z

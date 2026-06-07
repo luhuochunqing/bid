@@ -1,0 +1,694 @@
+package com.xiyu.bid.documenteditor;
+
+import com.xiyu.bid.documenteditor.dto.*;
+import com.xiyu.bid.documenteditor.entity.DocumentSection;
+import com.xiyu.bid.documenteditor.entity.DocumentStructure;
+import com.xiyu.bid.documenteditor.entity.SectionType;
+import com.xiyu.bid.documenteditor.repository.DocumentSectionRepository;
+import com.xiyu.bid.documenteditor.repository.DocumentStructureRepository;
+import com.xiyu.bid.documenteditor.service.DocumentEditorService;
+import com.xiyu.bid.exception.ResourceNotFoundException;
+import com.xiyu.bid.service.IAuditLogService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.LocalDateTime;
+import java.util.*;
+
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+/**
+ * DocumentEditorService 单元测试
+ * 测试文档编辑器的核心业务逻辑
+ */
+@ExtendWith(MockitoExtension.class)
+class DocumentEditorServiceTest {
+
+    @Mock
+    private DocumentStructureRepository structureRepository;
+
+    @Mock
+    private DocumentSectionRepository sectionRepository;
+
+    @Mock
+    private IAuditLogService auditLogService;
+
+    @InjectMocks
+    private DocumentEditorService documentEditorService;
+
+    private DocumentStructure testStructure;
+    private DocumentSection testSection;
+    private StructureCreateRequest structureCreateRequest;
+    private SectionCreateRequest sectionCreateRequest;
+    private SectionUpdateRequest sectionUpdateRequest;
+    private SectionReorderRequest sectionReorderRequest;
+
+    @BeforeEach
+    void setUp() {
+        // 初始化测试数据 - 文档结构
+        testStructure = DocumentStructure.builder()
+                .id(1L)
+                .projectId(100L)
+                .name("测试文档结构")
+                .rootSectionId(null)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        // 初始化测试数据 - 文档章节
+        testSection = DocumentSection.builder()
+                .id(1L)
+                .structureId(1L)
+                .parentId(null)
+                .sectionType(SectionType.CHAPTER)
+                .title("第一章")
+                .content("这是第一章的内容")
+                .orderIndex(0)
+                .metadata(null)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        // 初始化请求对象
+        structureCreateRequest = StructureCreateRequest.builder()
+                .projectId(100L)
+                .name("新文档结构")
+                .build();
+
+        sectionCreateRequest = SectionCreateRequest.builder()
+                .structureId(1L)
+                .parentId(null)
+                .sectionType(SectionType.CHAPTER)
+                .title("新章节")
+                .content("新章节内容")
+                .orderIndex(0)
+                .build();
+
+        sectionUpdateRequest = SectionUpdateRequest.builder()
+                .title("更新后的标题")
+                .content("更新后的内容")
+                .build();
+
+        sectionReorderRequest = SectionReorderRequest.builder()
+                .structureId(1L)
+                .sectionOrders(Map.of(
+                        1L, 1,
+                        2L, 0
+                ))
+                .build();
+    }
+
+    // ==================== createStructure 测试 ====================
+
+    @Test
+    void createStructure_WithValidRequest_ShouldReturnCreatedStructure() {
+        // Given
+        when(structureRepository.save(any(DocumentStructure.class))).thenReturn(testStructure);
+
+        // When
+        DocumentStructureDTO result = documentEditorService.createStructure(structureCreateRequest);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getProjectId()).isEqualTo(100L);
+        assertThat(result.getName()).isEqualTo("测试文档结构");
+        verify(structureRepository).save(any(DocumentStructure.class));
+        verify(auditLogService).log(any());
+    }
+
+    @Test
+    void createStructure_WithNullProjectId_ShouldThrowException() {
+        // Given
+        StructureCreateRequest invalidRequest = StructureCreateRequest.builder()
+                .projectId(null)
+                .name("测试")
+                .build();
+
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.createStructure(invalidRequest))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Project ID");
+    }
+
+    @Test
+    void createStructure_WithEmptyName_ShouldThrowException() {
+        // Given
+        StructureCreateRequest invalidRequest = StructureCreateRequest.builder()
+                .projectId(100L)
+                .name("")
+                .build();
+
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.createStructure(invalidRequest))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("name");
+    }
+
+    @Test
+    void createStructure_WithNullName_ShouldThrowException() {
+        // Given
+        StructureCreateRequest invalidRequest = StructureCreateRequest.builder()
+                .projectId(100L)
+                .name(null)
+                .build();
+
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.createStructure(invalidRequest))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("name");
+    }
+
+    // ==================== getStructure 测试 ====================
+
+    @Test
+    void getStructure_WithValidProjectId_ShouldReturnStructure() {
+        // Given
+        when(structureRepository.findByProjectId(100L)).thenReturn(Optional.of(testStructure));
+
+        // When
+        DocumentStructureDTO result = documentEditorService.getStructure(100L);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getProjectId()).isEqualTo(100L);
+        assertThat(result.getName()).isEqualTo("测试文档结构");
+    }
+
+    @Test
+    void getStructure_WithInvalidProjectId_ShouldThrowException() {
+        // Given
+        when(structureRepository.findByProjectId(999L)).thenReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.getStructure(999L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Document structure not found");
+    }
+
+    @Test
+    void getStructure_WithNullProjectId_ShouldThrowException() {
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.getStructure(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Project ID");
+    }
+
+    // ==================== addSection 测试 ====================
+
+    @Test
+    void addSection_WithValidRequest_ShouldReturnCreatedSection() {
+        // Given
+        when(structureRepository.existsById(1L)).thenReturn(true);
+        when(sectionRepository.save(any(DocumentSection.class))).thenReturn(testSection);
+
+        // When
+        DocumentSectionDTO result = documentEditorService.addSection(sectionCreateRequest);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getStructureId()).isEqualTo(1L);
+        assertThat(result.getSectionType()).isEqualTo(SectionType.CHAPTER);
+        assertThat(result.getTitle()).isEqualTo("第一章");
+        verify(sectionRepository).save(any(DocumentSection.class));
+        verify(auditLogService).log(any());
+    }
+
+    @Test
+    void addSection_WithNullStructureId_ShouldThrowException() {
+        // Given
+        SectionCreateRequest invalidRequest = SectionCreateRequest.builder()
+                .structureId(null)
+                .sectionType(SectionType.CHAPTER)
+                .title("测试")
+                .build();
+
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.addSection(invalidRequest))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Structure ID");
+    }
+
+    @Test
+    void addSection_WithInvalidStructureId_ShouldThrowException() {
+        // Given
+        when(structureRepository.existsById(999L)).thenReturn(false);
+        SectionCreateRequest invalidRequest = SectionCreateRequest.builder()
+                .structureId(999L)
+                .sectionType(SectionType.CHAPTER)
+                .title("测试")
+                .build();
+
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.addSection(invalidRequest))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Document structure not found");
+    }
+
+    @Test
+    void addSection_WithEmptyTitle_ShouldThrowException() {
+        // Given
+        SectionCreateRequest invalidRequest = SectionCreateRequest.builder()
+                .structureId(1L)
+                .sectionType(SectionType.CHAPTER)
+                .title("")
+                .build();
+        when(structureRepository.existsById(1L)).thenReturn(true);
+
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.addSection(invalidRequest))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("title");
+    }
+
+    @Test
+    void addSection_WithNullSectionType_ShouldThrowException() {
+        // Given
+        SectionCreateRequest invalidRequest = SectionCreateRequest.builder()
+                .structureId(1L)
+                .sectionType(null)
+                .title("测试")
+                .build();
+        when(structureRepository.existsById(1L)).thenReturn(true);
+
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.addSection(invalidRequest))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("section type");
+    }
+
+    @Test
+    void addSection_WithValidParentId_ShouldCreateChildSection() {
+        // Given
+        SectionCreateRequest childRequest = SectionCreateRequest.builder()
+                .structureId(1L)
+                .parentId(1L)
+                .sectionType(SectionType.SECTION)
+                .title("子章节")
+                .content("子章节内容")
+                .orderIndex(0)
+                .build();
+
+        DocumentSection childSection = DocumentSection.builder()
+                .id(2L)
+                .structureId(1L)
+                .parentId(1L)
+                .sectionType(SectionType.SECTION)
+                .title("子章节")
+                .content("子章节内容")
+                .orderIndex(0)
+                .build();
+
+        when(structureRepository.existsById(1L)).thenReturn(true);
+        when(sectionRepository.findById(1L)).thenReturn(Optional.of(testSection));
+        when(sectionRepository.save(any(DocumentSection.class))).thenReturn(childSection);
+
+        // When
+        DocumentSectionDTO result = documentEditorService.addSection(childRequest);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result.getParentId()).isEqualTo(1L);
+        assertThat(result.getSectionType()).isEqualTo(SectionType.SECTION);
+    }
+
+    @Test
+    void addSection_WithInvalidParentId_ShouldThrowException() {
+        // Given
+        SectionCreateRequest invalidRequest = SectionCreateRequest.builder()
+                .structureId(1L)
+                .parentId(999L)
+                .sectionType(SectionType.SECTION)
+                .title("子章节")
+                .build();
+
+        when(structureRepository.existsById(1L)).thenReturn(true);
+        when(sectionRepository.findById(999L)).thenReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.addSection(invalidRequest))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Parent section not found");
+    }
+
+    // ==================== updateSection 测试 ====================
+
+    @Test
+    void updateSection_WithValidRequest_ShouldReturnUpdatedSection() {
+        // Given
+        when(sectionRepository.findById(1L)).thenReturn(Optional.of(testSection));
+        when(sectionRepository.save(any(DocumentSection.class))).thenReturn(testSection);
+
+        // When
+        DocumentSectionDTO result = documentEditorService.updateSection(1L, sectionUpdateRequest);
+
+        // Then
+        assertThat(result).isNotNull();
+        verify(sectionRepository).save(any(DocumentSection.class));
+        verify(auditLogService).log(any());
+    }
+
+    @Test
+    void updateSection_WithInvalidSectionId_ShouldThrowException() {
+        // Given
+        when(sectionRepository.findById(999L)).thenReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.updateSection(999L, sectionUpdateRequest))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Section not found");
+    }
+
+    @Test
+    void updateSection_WithNullRequest_ShouldThrowException() {
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.updateSection(1L, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Update request");
+    }
+
+    @Test
+    void updateSection_WithEmptyTitle_ShouldThrowException() {
+        // Given
+        SectionUpdateRequest invalidRequest = SectionUpdateRequest.builder()
+                .title("")
+                .content("内容")
+                .build();
+        when(sectionRepository.findById(1L)).thenReturn(Optional.of(testSection));
+
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.updateSection(1L, invalidRequest))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("title");
+    }
+
+    @Test
+    void updateSection_WithOnlyTitle_ShouldUpdateOnlyTitle() {
+        // Given
+        SectionUpdateRequest titleOnlyRequest = SectionUpdateRequest.builder()
+                .title("仅更新标题")
+                .build();
+        when(sectionRepository.findById(1L)).thenReturn(Optional.of(testSection));
+        when(sectionRepository.save(any(DocumentSection.class))).thenReturn(testSection);
+
+        // When
+        DocumentSectionDTO result = documentEditorService.updateSection(1L, titleOnlyRequest);
+
+        // Then
+        assertThat(result).isNotNull();
+        verify(sectionRepository).save(any(DocumentSection.class));
+    }
+
+    @Test
+    void updateSection_WithOnlyContent_ShouldUpdateOnlyContent() {
+        // Given
+        SectionUpdateRequest contentOnlyRequest = SectionUpdateRequest.builder()
+                .content("仅更新内容")
+                .build();
+        when(sectionRepository.findById(1L)).thenReturn(Optional.of(testSection));
+        when(sectionRepository.save(any(DocumentSection.class))).thenReturn(testSection);
+
+        // When
+        DocumentSectionDTO result = documentEditorService.updateSection(1L, contentOnlyRequest);
+
+        // Then
+        assertThat(result).isNotNull();
+        verify(sectionRepository).save(any(DocumentSection.class));
+    }
+
+    // ==================== deleteSection 测试 ====================
+
+    @Test
+    void deleteSection_WithValidSectionId_ShouldDeleteSection() {
+        // Given
+        when(sectionRepository.existsById(1L)).thenReturn(true);
+        when(sectionRepository.findById(1L)).thenReturn(Optional.of(testSection));
+        when(sectionRepository.findByParentId(1L)).thenReturn(Collections.emptyList());
+
+        // When
+        documentEditorService.deleteSection(1L);
+
+        // Then
+        verify(sectionRepository).deleteById(1L);
+        verify(auditLogService).log(any());
+    }
+
+    @Test
+    void deleteSection_WithInvalidSectionId_ShouldThrowException() {
+        // Given
+        when(sectionRepository.existsById(999L)).thenReturn(false);
+
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.deleteSection(999L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Section not found");
+    }
+
+    @Test
+    void deleteSection_WithNullSectionId_ShouldThrowException() {
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.deleteSection(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Section ID");
+    }
+
+    @Test
+    void deleteSection_WithChildSections_ShouldThrowException() {
+        // Given
+        DocumentSection childSection = DocumentSection.builder()
+                .id(2L)
+                .parentId(1L)
+                .build();
+
+        when(sectionRepository.existsById(1L)).thenReturn(true);
+        when(sectionRepository.findById(1L)).thenReturn(Optional.of(testSection));
+        when(sectionRepository.findByParentId(1L)).thenReturn(List.of(childSection));
+
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.deleteSection(1L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Cannot delete section with child sections");
+    }
+
+    // ==================== reorderSections 测试 ====================
+
+    @Test
+    void reorderSections_WithValidRequest_ShouldReorderSections() {
+        // Given
+        DocumentSection section1 = DocumentSection.builder()
+                .id(1L)
+                .structureId(1L)
+                .orderIndex(0)
+                .build();
+        DocumentSection section2 = DocumentSection.builder()
+                .id(2L)
+                .structureId(1L)
+                .orderIndex(1)
+                .build();
+
+        when(structureRepository.existsById(1L)).thenReturn(true);
+        when(sectionRepository.findById(1L)).thenReturn(Optional.of(section1));
+        when(sectionRepository.findById(2L)).thenReturn(Optional.of(section2));
+        when(sectionRepository.saveAll(anyList())).thenReturn(Arrays.asList(section1, section2));
+
+        // When
+        documentEditorService.reorderSections(sectionReorderRequest);
+
+        // Then
+        verify(sectionRepository).saveAll(anyList());
+    }
+
+    @Test
+    void reorderSections_WithNullStructureId_ShouldThrowException() {
+        // Given
+        SectionReorderRequest invalidRequest = SectionReorderRequest.builder()
+                .structureId(null)
+                .sectionOrders(Map.of(1L, 0))
+                .build();
+
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.reorderSections(invalidRequest))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Structure ID");
+    }
+
+    @Test
+    void reorderSections_WithNullSectionOrders_ShouldThrowException() {
+        // Given
+        SectionReorderRequest invalidRequest = SectionReorderRequest.builder()
+                .structureId(1L)
+                .sectionOrders(null)
+                .build();
+
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.reorderSections(invalidRequest))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Section orders");
+    }
+
+    @Test
+    void reorderSections_WithEmptySectionOrders_ShouldThrowException() {
+        // Given
+        SectionReorderRequest invalidRequest = SectionReorderRequest.builder()
+                .structureId(1L)
+                .sectionOrders(Collections.emptyMap())
+                .build();
+
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.reorderSections(invalidRequest))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Section orders");
+    }
+
+    @Test
+    void reorderSections_WithInvalidStructureId_ShouldThrowException() {
+        // Given
+        when(structureRepository.existsById(999L)).thenReturn(false);
+
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.reorderSections(sectionReorderRequest))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Document structure not found");
+    }
+
+    @Test
+    void reorderSections_WithInvalidSectionId_ShouldThrowException() {
+        // Given
+        when(structureRepository.existsById(1L)).thenReturn(true);
+        when(sectionRepository.findById(1L)).thenReturn(Optional.of(testSection));
+        when(sectionRepository.findById(2L)).thenReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.reorderSections(sectionReorderRequest))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Section not found");
+    }
+
+    @Test
+    void reorderSections_WithSectionsFromDifferentStructure_ShouldThrowException() {
+        // Given
+        DocumentSection otherStructureSection = DocumentSection.builder()
+                .id(2L)
+                .structureId(999L) // Different structure
+                .orderIndex(1)
+                .build();
+
+        when(structureRepository.existsById(1L)).thenReturn(true);
+        when(sectionRepository.findById(1L)).thenReturn(Optional.of(testSection));
+        when(sectionRepository.findById(2L)).thenReturn(Optional.of(otherStructureSection));
+
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.reorderSections(sectionReorderRequest))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("does not belong to the specified structure");
+    }
+
+    // ==================== getSectionTree 测试 ====================
+
+    @Test
+    void getSectionTree_WithValidProjectId_ShouldReturnTreeStructure() {
+        // Given
+        when(structureRepository.findByProjectId(100L)).thenReturn(Optional.of(testStructure));
+
+        DocumentSection childSection = DocumentSection.builder()
+                .id(2L)
+                .structureId(1L)
+                .parentId(1L)
+                .sectionType(SectionType.SECTION)
+                .title("子章节")
+                .orderIndex(0)
+                .build();
+
+        when(sectionRepository.findByStructureId(1L)).thenReturn(Arrays.asList(testSection, childSection));
+
+        // When
+        List<DocumentSectionDTO> result = documentEditorService.getSectionTree(100L);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result).hasSize(1); // Only root sections
+        assertThat(result.get(0).getId()).isEqualTo(1L);
+    }
+
+    @Test
+    void getSectionTree_WithInvalidProjectId_ShouldThrowException() {
+        // Given
+        when(structureRepository.findByProjectId(999L)).thenReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.getSectionTree(999L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Document structure not found");
+    }
+
+    @Test
+    void getSectionTree_WithNullProjectId_ShouldThrowException() {
+        // When & Then
+        assertThatThrownBy(() -> documentEditorService.getSectionTree(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Project ID");
+    }
+
+    @Test
+    void getSectionTree_WithNoSections_ShouldReturnEmptyList() {
+        // Given
+        when(structureRepository.findByProjectId(100L)).thenReturn(Optional.of(testStructure));
+        when(sectionRepository.findByStructureId(1L)).thenReturn(Collections.emptyList());
+
+        // When
+        List<DocumentSectionDTO> result = documentEditorService.getSectionTree(100L);
+
+        // Then
+        assertThat(result).isNotNull();
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void getSectionTree_WithNestedSections_ShouldBuildCorrectHierarchy() {
+        // Given
+        DocumentSection level1 = DocumentSection.builder()
+                .id(1L)
+                .structureId(1L)
+                .parentId(null)
+                .sectionType(SectionType.CHAPTER)
+                .title("第一章")
+                .orderIndex(0)
+                .build();
+
+        DocumentSection level2 = DocumentSection.builder()
+                .id(2L)
+                .structureId(1L)
+                .parentId(1L)
+                .sectionType(SectionType.SECTION)
+                .title("第一节")
+                .orderIndex(0)
+                .build();
+
+        DocumentSection level3 = DocumentSection.builder()
+                .id(3L)
+                .structureId(1L)
+                .parentId(2L)
+                .sectionType(SectionType.SUBSECTION)
+                .title("小节")
+                .orderIndex(0)
+                .build();
+
+        when(structureRepository.findByProjectId(100L)).thenReturn(Optional.of(testStructure));
+        when(sectionRepository.findByStructureId(1L))
+                .thenReturn(Arrays.asList(level1, level2, level3));
+
+        // When
+        List<DocumentSectionDTO> result = documentEditorService.getSectionTree(100L);
+
+        // Then
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getChildren()).hasSize(1);
+        assertThat(result.get(0).getChildren().get(0).getChildren()).hasSize(1);
+    }
+}

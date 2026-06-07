@@ -1,0 +1,5 @@
+# Per-task agent locks live here as .agent-locks/<task-slug>.yml files.
+# This .gitkeep is intentionally tracked so the empty case (no active locks)
+# remains a real directory rather than an "untracked / does not exist" state.
+# See CLAUDE.md §5 for the lock protocol and ../.agent-locks.yml for the
+# deprecated legacy single-file store (read-only compatibility layer).
