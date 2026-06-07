@@ -6,6 +6,7 @@ package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.annotation.Auditable;
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.entity.User;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.project.core.AllTasksCompletedPolicy;
@@ -19,6 +20,7 @@ import com.xiyu.bid.project.dto.ProjectLeadAssignmentRequest;
 import com.xiyu.bid.project.entity.ProjectLeadAssignment;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +32,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
+import java.util.Set;
 
 /**
  * PRD §3.2 标书编制阶段编排服务：主/副负责人分配 + 标书审核 + 提交闸门。
@@ -48,6 +50,7 @@ public class ProjectDraftingService {
     private final TaskRepository taskRepository;
     private final ProjectStageService projectStageService;
     private final ProjectAccessScopeService projectAccessScopeService;
+    private final UserRepository userRepository;
     private final BidReviewAppService bidReviewAppService;
 
     @Auditable(action = "ASSIGN_PROJECT_LEADS", entityType = "ProjectLeadAssignment",
@@ -131,6 +134,14 @@ public class ProjectDraftingService {
     @Auditable(action = "SUBMIT_BID", entityType = "Project",
             description = "提交投标并推进到评标阶段")
     public ProjectDraftingViewDto submitBid(Long projectId, Long currentUserId) {
+
+        // 业务角色校验：仅投标管理员/组长/负责人可以提交投标
+        User currentUser = userRepository.findById(currentUserId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "用户不存在"));
+        String roleCode = currentUser.getRoleCode();
+        if (roleCode != null && !Set.of("bid_admin", "bid_lead", "sales").contains(roleCode)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "当前角色无权限提交投标");
+        }
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         mustGetProject(projectId);
 

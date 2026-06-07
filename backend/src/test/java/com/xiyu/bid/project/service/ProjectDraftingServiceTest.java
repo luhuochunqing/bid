@@ -10,6 +10,7 @@ import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.dto.ProjectLeadAssignmentRequest;
 import com.xiyu.bid.project.entity.ProjectLeadAssignment;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TaskRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,12 +39,13 @@ class ProjectDraftingServiceTest {
     @Mock ProjectStageService projectStageService;
     @Mock com.xiyu.bid.service.ProjectAccessScopeService projectAccessScopeService;
     @Mock BidReviewAppService bidReviewAppService;
+    @Mock UserRepository userRepository;
 
     ProjectDraftingService service;
 
     @BeforeEach
     void setUp() {
-        service = new ProjectDraftingService(leadRepo, projectRepository, taskRepository, projectStageService, projectAccessScopeService, bidReviewAppService);
+        service = new ProjectDraftingService(leadRepo, projectRepository, taskRepository, projectStageService, projectAccessScopeService, userRepository, bidReviewAppService);
         lenient().when(projectRepository.findById(1L))
                 .thenReturn(Optional.of(Project.builder().id(1L).build()));
         lenient().when(leadRepo.save(any(ProjectLeadAssignment.class)))

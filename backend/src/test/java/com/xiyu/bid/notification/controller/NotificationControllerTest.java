@@ -90,7 +90,7 @@ class NotificationControllerTest {
     @DisplayName("GET /api/notifications returns paged summaries")
     void getNotifications_ReturnsPage() throws Exception {
         NotificationSummary summary = new NotificationSummary(
-            11L, 100L, "INFO", "title", "body", "project", 42L, false, LocalDateTime.now());
+            11L, 100L, "INFO", "title", "body", "project", 42L, "{}", false, LocalDateTime.now());
         Page<NotificationSummary> page = new PageImpl<>(List.of(summary));
         when(service.getNotifications(anyLong(), any(Pageable.class))).thenReturn(page);
 
