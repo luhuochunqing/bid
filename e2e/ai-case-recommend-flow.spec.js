@@ -12,86 +12,80 @@ async function loginAsRole(page, role) {
   return session
 }
 
+async function gotoFirstProjectDraftingStage(page) {
+  await page.goto('/project')
+  await page.waitForSelector('.el-table__row, .el-empty', { timeout: 15000 })
+  const firstRow = page.locator('.el-table__row').first()
+  if (!(await firstRow.isVisible().catch(() => false))) return false
+  // 点项目名称链接（行内"查看详情"链接）
+  await firstRow.locator('.project-name-link').first().click()
+  // 等路由跳到 /project/<id>
+  await page.waitForURL(/\/project\/\d+/, { timeout: 15000 }).catch(() => null)
+  // 等 el-tabs nav 出现
+  await page.waitForSelector('.el-tabs__nav', { timeout: 15000 }).catch(() => null)
+  // 切换到"标书制作" Tab（DRAFTING stage，label 是"标书制作"而非"标书编制"）
+  const draftingTab = page.locator('.el-tabs__item').filter({ hasText: '标书制作' }).first()
+  if (!(await draftingTab.isVisible().catch(() => false))) return false
+  await draftingTab.click()
+  // 等待 DraftingStage 渲染：bid-header-actions 区域出现
+  await page.waitForSelector('.bid-header-actions, .el-button', { timeout: 10000 }).catch(() => null)
+  return true
+}
+
 test.describe('AI智能案例推荐', () => {
   test('标书编制阶段可见 AI 智能推荐按钮', async ({ page }) => {
     await loginAsRole(page, 'bid_admin')
-    await page.goto('/projects')
-    await page.waitForSelector('.el-table, .el-empty', { timeout: 10000 })
-
-    // 如果有项目则进入第一个项目
-    const firstRow = page.locator('.el-table__row').first()
-    if (await firstRow.isVisible().catch(() => false)) {
-      await firstRow.locator('td').first().click()
-      await page.waitForTimeout(2000)
-
-      // 切换到标书编制阶段
-      const draftingTab = page.getByText('标书编制')
-      if (await draftingTab.isVisible().catch(() => false)) {
-        await draftingTab.click()
-        await page.waitForTimeout(1000)
-
-        // 验证 AI 智能推荐按钮可见
-        const recommendBtn = page.getByRole('button', { name: /AI 智能推荐/ })
-        await expect(recommendBtn).toBeVisible()
-      }
+    const reached = await gotoFirstProjectDraftingStage(page)
+    if (!reached) {
+      test.skip(true, '演示数据无项目可进入 DRAFTING stage')
+      return
     }
+    // 验证 AI 智能推荐按钮可见
+    const recommendBtn = page.locator('.bid-header-actions').getByRole('button', { name: /AI智能推荐案例/ })
+    await expect(recommendBtn).toBeVisible()
   })
 
   test('bid_specialist 可见 AI 智能推荐按钮', async ({ page }) => {
     await loginAsRole(page, 'bid_specialist')
-    await page.goto('/projects')
-    await page.waitForSelector('.el-table, .el-empty', { timeout: 10000 })
-
-    const firstRow = page.locator('.el-table__row').first()
-    if (await firstRow.isVisible().catch(() => false)) {
-      await firstRow.locator('td').first().click()
-      await page.waitForTimeout(2000)
-
-      const draftingTab = page.getByText('标书编制')
-      if (await draftingTab.isVisible().catch(() => false)) {
-        await draftingTab.click()
-        await page.waitForTimeout(1000)
-
-        const recommendBtn = page.getByRole('button', { name: /AI 智能推荐/ })
-        await expect(recommendBtn).toBeVisible()
-      }
+    const reached = await gotoFirstProjectDraftingStage(page)
+    if (!reached) {
+      test.skip(true, '演示数据无项目可进入 DRAFTING stage')
+      return
     }
+    const recommendBtn = page.locator('.bid-header-actions').getByRole('button', { name: /AI智能推荐案例/ })
+    await expect(recommendBtn).toBeVisible()
   })
 
   test('打开 AI 推荐抽屉并验证基础结构', async ({ page }) => {
     await loginAsRole(page, 'bid_admin')
-    await page.goto('/projects')
-    await page.waitForSelector('.el-table, .el-empty', { timeout: 10000 })
-
-    const firstRow = page.locator('.el-table__row').first()
-    if (await firstRow.isVisible().catch(() => false)) {
-      await firstRow.locator('td').first().click()
-      await page.waitForTimeout(2000)
-
-      const draftingTab = page.getByText('标书编制')
-      if (await draftingTab.isVisible().catch(() => false)) {
-        await draftingTab.click()
-        await page.waitForTimeout(1000)
-
-        const recommendBtn = page.getByRole('button', { name: /AI 智能推荐/ })
-        if (await recommendBtn.isVisible().catch(() => false)) {
-          await recommendBtn.click()
-          await page.waitForTimeout(1000)
-
-          // 验证抽屉标题
-          const drawerTitle = page.locator('.el-drawer__header span').filter({ hasText: 'AI 智能推荐' })
-          await expect(drawerTitle).toBeVisible()
-
-          // 验证评分项下拉存在
-          const scoringSelect = page.locator('.el-select').filter({ hasText: '评分项' })
-          await expect(scoringSelect).toBeVisible()
-
-          // 验证关键词输入存在
-          const keywordInput = page.locator('input[placeholder*="关键词"]').first()
-          await expect(keywordInput).toBeVisible()
-        }
-      }
+    const reached = await gotoFirstProjectDraftingStage(page)
+    if (!reached) {
+      test.skip(true, '演示数据无项目可进入 DRAFTING stage')
+      return
     }
+
+    const recommendBtn = page.locator('.bid-header-actions').getByRole('button', { name: /AI智能推荐案例/ })
+    if (!(await recommendBtn.isVisible().catch(() => false))) {
+      test.skip(true, 'AI 智能推荐按钮在 DRAFTING stage 不可见')
+      return
+    }
+    await recommendBtn.click()
+
+    // 等待抽屉打开（el-drawer open state）
+    const drawer = page.locator('.el-drawer.open, .el-drawer__open').first()
+    await expect(drawer).toBeVisible({ timeout: 5000 })
+
+    // 验证抽屉标题
+    const drawerTitle = drawer.locator('.el-drawer__header').filter({ hasText: 'AI 智能推荐' })
+    await expect(drawerTitle).toBeVisible()
+
+    // 验证评分项下拉存在（Element Plus el-select 在抽屉内）
+    const scoringSelect = drawer.locator('.el-select').first()
+    await expect(scoringSelect).toBeVisible()
+
+    // 验证关键词输入存在
+    const keywordInput = drawer.locator('input[placeholder*="关键词"]').first()
+    await expect(keywordInput).toBeVisible()
   })
 
   test('案例库页面案例卡片展示正常', async ({ page }) => {
@@ -100,7 +94,7 @@ test.describe('AI智能案例推荐', () => {
     await page.waitForSelector('.case-card, .el-empty', { timeout: 10000 })
 
     // 验证页面标题
-    await expect(page.getByText('AI 案例库网格').or(page.getByText('案例库'))).toBeVisible()
+    await expect(page.getByText('AI 案例库网格').first()).toBeVisible()
 
     // 如果有案例卡片，验证基本结构
     const firstCard = page.locator('.case-card').first()

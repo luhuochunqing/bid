@@ -71,6 +71,15 @@ export async function ensureApiSession({ username, role = 'ADMIN', fullName, pas
 }
 
 export async function injectSession(page, session) {
+  // 给浏览器 context 授权剪贴板读写，避免 E2E 中 navigator.clipboard 抛 NotAllowedError
+  // 这与真实用户手动授权浏览器剪贴板行为一致
+  try {
+    // 不传 origin：默认对所有 origin 授权，避免前端域名 (1315) 调 clipboard 时被拒
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+  } catch (permErr) {
+    // 某些浏览器实现不支持该 API；忽略即可
+  }
+
   await page.addInitScript(({ apiBaseUrl: browserApiBaseUrl }) => {
     const existingProcess = globalThis.process || { env: {} }
     existingProcess.env = existingProcess.env || {}
