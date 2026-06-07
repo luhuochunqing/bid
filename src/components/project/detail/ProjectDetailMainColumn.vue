@@ -174,12 +174,11 @@ async function handleStageUpdated() {
   if (timelineRef.value?.reload) {
     await timelineRef.value.reload()
   }
-  if (timelineRef.value?.snapshot?.currentStage) {
-    snapshotLock.value = true
+  // 仅当快照锁未激活时（即未通过 @switch-tab 等事件切换），才用快照覆盖 activeStageTab。
+  // 避免 @switch-tab + @advanced/@registered 先后触发时的时序竞争：
+  // switch-tab 已将 tab 设为目标阶段，handleStageUpdated 不应再通过滞后快照回退。
+  if (timelineRef.value?.snapshot?.currentStage && !snapshotLock.value) {
     activeStageTab.value = timelineRef.value.snapshot.currentStage
-    setTimeout(() => {
-      snapshotLock.value = false
-    }, 300)
   }
   await loadResultType()
   if (ctx.project?.id) {
@@ -188,8 +187,9 @@ async function handleStageUpdated() {
 }
 
 async function onRetrospectiveSubmitted() {
-  await handleStageUpdated()
+  // 在 handleStageUpdated 之前设锁，防止时间线快照回退 activeStageTab
   snapshotLock.value = true
+  await handleStageUpdated()
   activeStageTab.value = 'CLOSED'
   setTimeout(() => { snapshotLock.value = false }, 300)
 }
