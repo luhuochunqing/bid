@@ -156,6 +156,9 @@ public class RoleProfileService {
         return hasGlobalAccess(user);
     }
 
+    /**
+     * 全局数据权限与操作权限 — admin / bid_admin / bid_lead 拥有跨部门的完整访问能力。
+     */
     public boolean hasGlobalAccess(User user) {
         if (user == null) return false;
         String code = user.getRoleCode();
