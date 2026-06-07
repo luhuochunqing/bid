@@ -1,12 +1,14 @@
 package com.xiyu.bid.qualification.service;
 
+import com.xiyu.bid.alerts.service.QualificationExpiryNotificationService;
+import com.xiyu.bid.businessqualification.application.service.AlertConfigAppService;
+
 import com.xiyu.bid.businessqualification.application.service.BorrowQualificationAppService;
 import com.xiyu.bid.businessqualification.application.service.CreateQualificationAppService;
 import com.xiyu.bid.businessqualification.application.service.DeleteQualificationAppService;
 import com.xiyu.bid.businessqualification.application.service.GetQualificationBorrowRecordsAppService;
 import com.xiyu.bid.businessqualification.application.service.ListQualificationsAppService;
 import com.xiyu.bid.businessqualification.application.service.ReturnQualificationAppService;
-import com.xiyu.bid.businessqualification.application.service.ScanExpiringQualificationsAppService;
 import com.xiyu.bid.businessqualification.application.service.UpdateQualificationAppService;
 import com.xiyu.bid.businessqualification.domain.model.BusinessQualification;
 import com.xiyu.bid.businessqualification.domain.model.QualificationLoan;
@@ -47,7 +49,8 @@ class QualificationServiceAccessTest {
     @Mock private ReturnQualificationAppService returnQualificationAppService;
     @Mock private ListQualificationsAppService listQualificationsAppService;
     @Mock private GetQualificationBorrowRecordsAppService getQualificationBorrowRecordsAppService;
-    @Mock private ScanExpiringQualificationsAppService scanExpiringQualificationsAppService;
+    @Mock private QualificationExpiryNotificationService qualificationExpiryNotificationService;
+    @Mock private AlertConfigAppService alertConfigAppService;
     @Mock private DeleteQualificationAppService deleteQualificationAppService;
     @Mock private ProjectAccessScopeService projectAccessScopeService;
 
@@ -148,7 +151,8 @@ class QualificationServiceAccessTest {
                 returnQualificationAppService,
                 listQualificationsAppService,
                 getQualificationBorrowRecordsAppService,
-                scanExpiringQualificationsAppService,
+                qualificationExpiryNotificationService,
+                alertConfigAppService,
                 deleteQualificationAppService,
                 new QualificationDtoMapper(),
                 projectAccessScopeService

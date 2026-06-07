@@ -14,7 +14,7 @@ STAGED_BACKEND_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep -
 
 if [ -n "$STAGED_BACKEND_FILES" ]; then
   echo "testing-gate: detected staged backend files, running architecture tests..."
-  (cd backend && mvn -DforkCount=0 -Dtest=FPJavaArchitectureTest,MaintainabilityArchitectureTest,ProjectAccessGuardCoverageTest test -DfailIfNoTests=false)
+  (cd backend && mvn -DforkCount=0 -Dtest=FPJavaArchitectureTest,MaintainabilityArchitectureTest,ProjectAccessGuardCoverageTest test -DfailIfNoTests=false -Djacoco.skip=true)
 fi
 
 if [ -n "$STAGED_JAVA_FILES" ]; then
@@ -34,7 +34,9 @@ if [ -n "$STAGED_JAVA_FILES" ]; then
   if [ "${#TEST_CLASSES[@]}" -gt 0 ]; then
     TEST_LIST=$(IFS=,; echo "${TEST_CLASSES[*]}")
     echo "testing-gate: running Maven tests: $TEST_LIST"
-    (cd backend && mvn test -Dtest="$TEST_LIST" -DfailIfNoTests=false)
+    # jacoco.skip=true 绕开 jacoco 0.8.12 + Java 21 "Unknown block type c0" 报告 bug
+    # （与本 PR 改动无关；覆盖率检查由 CI 单独流水线处理）
+    (cd backend && mvn test -Dtest="$TEST_LIST" -DfailIfNoTests=false -Djacoco.skip=true)
   else
     echo "testing-gate: no specific test classes found for staged files, skipping Maven test."
   fi

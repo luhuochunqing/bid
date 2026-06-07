@@ -4,7 +4,7 @@ import com.xiyu.bid.alertdispatch.service.AlertRuleDispatchService;
 import com.xiyu.bid.alertdispatch.service.BudgetAlertDispatchService;
 import com.xiyu.bid.alerts.entity.AlertRule;
 import com.xiyu.bid.alerts.service.AlertRuleExecutionService;
-import com.xiyu.bid.businessqualification.application.service.ScanExpiringQualificationsAppService;
+import com.xiyu.bid.alerts.service.QualificationExpiryNotificationService;
 import com.xiyu.bid.performance.application.service.PerformanceAlertConfigAppService;
 import com.xiyu.bid.performance.application.service.PerformanceExpiryAlertService;
 import com.xiyu.bid.performance.domain.model.PerformanceAlertConfig;
@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -29,7 +30,7 @@ class AlertRuleDispatchServiceTest {
     @Mock
     private AlertRuleExecutionService alertRuleExecutionService;
     @Mock
-    private ScanExpiringQualificationsAppService scanExpiringQualificationsAppService;
+    private QualificationExpiryNotificationService qualificationExpiryNotificationService;
     @Mock
     private ScanDepositReturnTrackingAppService scanDepositReturnTrackingAppService;
     @Mock
@@ -77,8 +78,8 @@ class AlertRuleDispatchServiceTest {
     }
 
     @Test
-    @DisplayName("资质到期规则应委托资质扫描应用服务")
-    void shouldDelegateQualificationExpiryRuleToScanner() {
+    @DisplayName("资质到期规则应委托 §4.1.3.8 通知编排器")
+    void shouldDelegateQualificationExpiryRuleToNotificationService() {
         AlertRule rule = AlertRule.builder()
                 .id(21L)
                 .name("资质到期提醒")
@@ -89,9 +90,12 @@ class AlertRuleDispatchServiceTest {
                 .createdBy("tester")
                 .build();
 
+        when(qualificationExpiryNotificationService.runScan(eq(15), eq(null)))
+                .thenReturn(QualificationExpiryNotificationService.ScanOutcome.empty());
+
         alertRuleDispatchService.dispatch(rule);
 
-        verify(scanExpiringQualificationsAppService).scan(15);
+        verify(qualificationExpiryNotificationService).runScan(15, null);
     }
 
     @Test
