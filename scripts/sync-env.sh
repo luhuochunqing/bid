@@ -77,8 +77,11 @@ main_forward() {
     }
 
     # 保护分支不做 rebase
+    #   - main/master: 基准分支，不应在 worktree 内修改
+    #   - integrate/baseline: 集成基线分支
+    #   - agent/*-init: bootstrap 锚点分支，在下面单独处理 ff-only 同步
     case "$branch" in
-      main|master|agent/*-init|integrate/baseline|HEAD)
+      main|master|integrate/baseline|HEAD)
         info "main-forward: skipped (protected branch '$branch')"
         return 0
         ;;
@@ -120,7 +123,36 @@ main_forward() {
       warn "main-forward: git fetch origin main failed"
       if (( has_stash )); then
         info "main-forward: restoring stashed changes..."
-        git stash pop 2>/dev/null || warn "main-forward: stash pop failed — check stash manually"
+        git stash pop 2>/dev/null || warn "main-forward: stash pop failed"
+      fi
+      return 0
+    fi
+
+    # init 分支：直接 ff-only 同步到 main
+    if [[ "$branch" == agent/*-init ]]; then
+      info "main-forward: init branch detected, syncing to origin/main..."
+      # init 分支是锚点，不应有本地修改；有修改时给出警告
+      if [[ -n "$(git status --porcelain 2>/dev/null)" ]] || \
+         ! git diff-index --quiet HEAD 2>/dev/null; then
+        warn "main-forward: init branch has uncommitted changes — skipping auto-sync"
+        warn "main-forward:   init 分支是锚点，不应有本地修改"
+        warn "main-forward:   如需保留修改，请先提交或 stash"
+        if (( has_stash )); then
+          git stash pop 2>/dev/null || true
+        fi
+        return 0
+      fi
+      if git merge origin/main --ff-only 2>&1; then
+        info "main-forward: init branch synced via ff-only merge"
+      else
+        info "main-forward: ff-only merge failed, checking for unrelated histories..."
+        if git merge origin/main --ff-only --allow-unrelated-histories 2>&1; then
+          info "main-forward: init branch synced (unrelated histories allowed)"
+        else
+          warn "main-forward: resetting init branch to origin/main..."
+          git reset --hard origin/main
+          info "main-forward: init branch reset to origin/main"
+        fi
       fi
       return 0
     fi
