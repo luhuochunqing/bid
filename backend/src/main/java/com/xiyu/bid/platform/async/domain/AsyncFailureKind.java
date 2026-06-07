@@ -1,0 +1,13 @@
+package com.xiyu.bid.platform.async.domain;
+
+public enum AsyncFailureKind {
+    BUSINESS_REJECT,
+    IDEMPOTENT_DUPLICATE,
+    SIDE_EFFECT_OPTIONAL,
+    TRANSIENT_DEPENDENCY,
+    PERSISTENT_DEPENDENCY,
+    CONTRACT_INVALID,
+    DATA_CORRUPTION,
+    BUG,
+    MAIN_TRANSACTION_REQUIRED
+}

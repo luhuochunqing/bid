@@ -4,6 +4,9 @@
 // 维护声明: 保持幂等与限流语义稳定，处理流程细节可独立演进.
 package com.xiyu.bid.tenderupload.service;
 
+import com.xiyu.bid.platform.async.application.AsyncDecisionResolver;
+import com.xiyu.bid.platform.async.domain.AsyncHandlingDecision;
+import com.xiyu.bid.platform.async.domain.ExponentialBackoffRetrySchedule;
 import com.xiyu.bid.tenderupload.config.TenderProcessingProperties;
 import com.xiyu.bid.tenderupload.entity.TenderFile;
 import com.xiyu.bid.tenderupload.entity.TenderFileUploadStatus;
@@ -47,11 +50,15 @@ public class TenderTaskWorkerService {
     private final TenderTaskDlqRepository tenderTaskDlqRepository;
     private final TenderFileRepository tenderFileRepository;
     private final TenderTaskStateMachine taskStateMachine;
+    private final TenderTaskFailureClassifier failureClassifier;
+    private final AsyncDecisionResolver decisionResolver;
     private final StorageGuardService storageGuardService;
     private final TenderTaskClaimLock claimLock;
     private final TransactionTemplate transactionTemplate;
     @Qualifier("applicationTaskExecutor")
     private final Executor applicationTaskExecutor;
+
+    private final ExponentialBackoffRetrySchedule retrySchedule = new ExponentialBackoffRetrySchedule(60, 900, 4);
 
     @Scheduled(fixedDelayString = "${app.tender-processing.worker-fixed-delay-ms:5000}")
     public void pollAndProcess() {
@@ -135,14 +142,21 @@ public class TenderTaskWorkerService {
             taskStateMachine.markSucceeded(task);
             tenderTaskRepository.save(task);
         } catch (RuntimeException ex) {
-            TenderTaskStateMachine.RetryDecision decision = taskStateMachine.markRetryOrDlq(task, "PROCESSING_ERROR", ex.getMessage());
+            AsyncHandlingDecision decision = decisionResolver.resolve(
+                    failureClassifier.classify(ex),
+                    (task.getAttempts() == null ? 0 : task.getAttempts()) + 1,
+                    properties.getMaxRetries(),
+                    retrySchedule,
+                    true
+            );
+            TenderTaskStateMachine.RetryDecision retryDecision = taskStateMachine.applyDecision(task, decision, ex.getMessage());
             tenderTaskRepository.save(task);
-            if (decision.movedToDlq()) {
+            if (retryDecision.movedToDlq()) {
                 TenderTaskDlq dlq = TenderTaskDlq.builder()
                         .taskId(task.getId())
                         .fileId(task.getFile().getId())
                         .failedAt(LocalDateTime.now())
-                        .errorCode("PROCESSING_ERROR")
+                        .errorCode(decision.reasonCode())
                         .errorMessage(ex.getMessage())
                         .payload(toPayload(task))
                         .build();

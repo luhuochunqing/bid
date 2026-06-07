@@ -7,6 +7,7 @@ import com.xiyu.bid.integration.organization.domain.OrganizationRetryDecision;
 import com.xiyu.bid.integration.organization.domain.OrganizationSyncPolicy;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationEventLogEntity;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationEventLogRepository;
+import com.xiyu.bid.metrics.OrgSyncMetrics;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -30,13 +31,19 @@ public class OrganizationEventInboxService {
 
     private final OrganizationEventLogRepository eventLogRepository;
     private final OrganizationIntegrationProperties properties;
+    private final OrganizationDirectoryRetryPolicy retryPolicy;
+    private final OrgSyncMetrics orgSyncMetrics;
 
     public OrganizationEventInboxService(
             OrganizationEventLogRepository eventLogRepository,
-            OrganizationIntegrationProperties properties
+            OrganizationIntegrationProperties properties,
+            OrganizationDirectoryRetryPolicy retryPolicy,
+            OrgSyncMetrics orgSyncMetrics
     ) {
         this.eventLogRepository = eventLogRepository;
         this.properties = properties;
+        this.retryPolicy = retryPolicy;
+        this.orgSyncMetrics = orgSyncMetrics;
     }
 
     public String eventKey(OrganizationEventNotice notice) {
@@ -75,13 +82,8 @@ public class OrganizationEventInboxService {
         eventLogRepository.findByEventKey(eventKey).ifPresent(log -> {
             LocalDateTime now = LocalDateTime.now();
             int retryCount = log.getRetryCount() == null ? 1 : log.getRetryCount() + 1;
-            OrganizationRetryDecision decision = OrganizationDirectoryRetryPolicy.decide(retryCount, maxAttempts, now);
-            log.setStatus(decision.status());
-            log.setMessage(message == null ? "" : message);
-            log.setLastErrorCode(errorCode == null ? "" : errorCode);
-            log.setRetryCount(retryCount);
-            log.setNextRetryAt(decision.nextRetryAt());
-            log.setProcessedAt(now);
+            OrganizationRetryDecision decision = retryPolicy.decide(retryCount, maxAttempts, now);
+            applyFailureDecision(log, decision, message, errorCode);
             eventLogRepository.save(log);
         });
     }
@@ -89,8 +91,7 @@ public class OrganizationEventInboxService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void markNonRetryableFailure(String eventKey, String message, String errorCode) {
         eventLogRepository.findByEventKey(eventKey).ifPresent(log -> {
-            applyStatus(log, OrganizationEventStatus.DEAD_LETTER, message, errorCode);
-            log.setNextRetryAt(null);
+            applyFailureDecision(log, OrganizationRetryDecision.deadLetter(errorCode == null ? "NON_RETRYABLE" : errorCode, true), message, errorCode);
             eventLogRepository.save(log);
         });
     }
@@ -157,6 +158,25 @@ public class OrganizationEventInboxService {
             applyStatus(log, status, message, errorCode);
             eventLogRepository.save(log);
         });
+    }
+
+    private void applyFailureDecision(
+            OrganizationEventLogEntity log,
+            OrganizationRetryDecision decision,
+            String message,
+            String errorCode
+    ) {
+        log.setStatus(decision.status());
+        log.setMessage(message == null ? "" : message);
+        log.setLastErrorCode(decision.reasonCode() == null || decision.reasonCode().isBlank()
+                ? (errorCode == null ? "" : errorCode)
+                : decision.reasonCode());
+        log.setRetryCount(log.getRetryCount() == null ? 1 : log.getRetryCount() + 1);
+        log.setNextRetryAt(decision.nextRetryAt());
+        log.setProcessedAt(LocalDateTime.now());
+        if (decision.status() == OrganizationEventStatus.DEAD_LETTER) {
+            orgSyncMetrics.recordOrgSyncFailure();
+        }
     }
 
     private int configuredMaxAttempts() {

@@ -6,17 +6,12 @@ import com.xiyu.bid.integration.application.WeComMessagePublisher;
 import com.xiyu.bid.integration.domain.WeComSendResult;
 import com.xiyu.bid.integration.infrastructure.persistence.entity.WeComIntegrationEntity;
 import com.xiyu.bid.integration.infrastructure.persistence.repository.WeComIntegrationJpaRepository;
-import com.xiyu.bid.notification.outbound.core.OutboundStatus;
-import com.xiyu.bid.notification.outbound.core.SkipReason;
-import com.xiyu.bid.notification.outbound.entity.OutboundLog;
 import com.xiyu.bid.notification.outbound.event.NotificationCreatedEvent;
-import com.xiyu.bid.notification.outbound.repository.OutboundLogRepository;
 import com.xiyu.bid.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -24,7 +19,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -33,14 +28,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("WeComPushService — per-recipient push orchestration")
+@DisplayName("WeComPushService — returns delivery result")
 class WeComPushServiceTest {
 
     @Mock private UserRepository userRepository;
     @Mock private WeComIntegrationJpaRepository integrationRepository;
     @Mock private WeComCredentialCipher cipher;
     @Mock private WeComMessagePublisher publisher;
-    @Mock private OutboundLogRepository logRepository;
 
     private WeComPushService service;
 
@@ -51,41 +45,39 @@ class WeComPushServiceTest {
     @BeforeEach
     void setUp() {
         service = new WeComPushService(
-            userRepository, integrationRepository, cipher, publisher, logRepository,
+            userRepository, integrationRepository, cipher, publisher,
             "https://xiyu.example.com");
     }
 
     @Test
-    @DisplayName("no integration config → SKIPPED/DISABLED")
-    void noIntegration_SkipsDisabled() {
+    @DisplayName("no integration config -> skipped result")
+    void noIntegration_Skipped() {
         when(integrationRepository.findById(1L)).thenReturn(Optional.empty());
 
-        service.pushForRecipient(event(), 7L);
+        NotificationDeliveryResult result = service.pushForRecipient(event(), 7L);
 
-        ArgumentCaptor<OutboundLog> captor = ArgumentCaptor.forClass(OutboundLog.class);
-        verify(logRepository).save(captor.capture());
-        assertThat(captor.getValue().getStatus()).isEqualTo(OutboundStatus.SKIPPED);
-        assertThat(captor.getValue().getSkipReason()).isEqualTo(SkipReason.DISABLED);
+        assertThat(result.successful()).isTrue();
+        assertThat(result.skipped()).isTrue();
+        assertThat(result.message()).contains("disabled");
     }
 
     @Test
-    @DisplayName("message_enabled=false → SKIPPED/DISABLED")
-    void disabled_SkipsDisabled() {
+    @DisplayName("message_enabled=false -> skipped result")
+    void disabled_Skipped() {
         WeComIntegrationEntity integration = new WeComIntegrationEntity();
         integration.setMessageEnabled(false);
         when(integrationRepository.findById(1L)).thenReturn(Optional.of(integration));
 
-        service.pushForRecipient(event(), 7L);
+        NotificationDeliveryResult result = service.pushForRecipient(event(), 7L);
 
-        ArgumentCaptor<OutboundLog> captor = ArgumentCaptor.forClass(OutboundLog.class);
-        verify(logRepository).save(captor.capture());
-        assertThat(captor.getValue().getStatus()).isEqualTo(OutboundStatus.SKIPPED);
-        assertThat(captor.getValue().getSkipReason()).isEqualTo(SkipReason.DISABLED);
+        assertThat(result.successful()).isTrue();
+        assertThat(result.skipped()).isTrue();
+        assertThat(result.message()).contains("disabled");
     }
 
     @Test
-    @DisplayName("user not bound → SKIPPED/NOT_BOUND")
-    void notBound_SkipsNotBound() {
+    @DisplayName("user not bound -> skipped result")
+    void notBound_Skipped() {
         WeComIntegrationEntity integration = new WeComIntegrationEntity();
         integration.setMessageEnabled(true);
         when(integrationRepository.findById(1L)).thenReturn(Optional.of(integration));
@@ -94,18 +86,17 @@ class WeComPushServiceTest {
             .fullName("User").role(User.Role.STAFF).build();
         when(userRepository.findById(7L)).thenReturn(Optional.of(user));
 
-        service.pushForRecipient(event(), 7L);
+        NotificationDeliveryResult result = service.pushForRecipient(event(), 7L);
 
-        ArgumentCaptor<OutboundLog> captor = ArgumentCaptor.forClass(OutboundLog.class);
-        verify(logRepository).save(captor.capture());
-        assertThat(captor.getValue().getStatus()).isEqualTo(OutboundStatus.SKIPPED);
-        assertThat(captor.getValue().getSkipReason()).isEqualTo(SkipReason.NOT_BOUND);
+        assertThat(result.successful()).isTrue();
+        assertThat(result.skipped()).isTrue();
+        assertThat(result.message()).contains("not bound");
         verify(publisher, never()).sendTextMessage(anyString(), anyString(), anyString(), anyList(), anyString());
     }
 
     @Test
-    @DisplayName("successful send → SENT")
-    void successfulSend_WritesSent() {
+    @DisplayName("successful send -> sent result")
+    void successfulSend_ReturnsSuccess() {
         WeComIntegrationEntity integration = new WeComIntegrationEntity();
         integration.setCorpId("corp");
         integration.setAgentId("1000001");
@@ -122,17 +113,16 @@ class WeComPushServiceTest {
             eq(List.of("wc_007")), anyString()))
             .thenReturn(new WeComSendResult(true, 0, "ok", List.of("wc_007")));
 
-        service.pushForRecipient(event(), 7L);
+        NotificationDeliveryResult result = service.pushForRecipient(event(), 7L);
 
-        ArgumentCaptor<OutboundLog> captor = ArgumentCaptor.forClass(OutboundLog.class);
-        verify(logRepository).save(captor.capture());
-        assertThat(captor.getValue().getStatus()).isEqualTo(OutboundStatus.SENT);
-        assertThat(captor.getValue().getSkipReason()).isNull();
+        assertThat(result.successful()).isTrue();
+        assertThat(result.skipped()).isFalse();
+        assertThat(result.errcode()).isEqualTo(0);
     }
 
     @Test
-    @DisplayName("WeCom returns failure → FAILED with errcode")
-    void failedSend_WritesFailed() {
+    @DisplayName("WeCom returns failure -> failed result")
+    void failedSend_ReturnsFailure() {
         WeComIntegrationEntity integration = new WeComIntegrationEntity();
         integration.setCorpId("corp");
         integration.setAgentId("1");
@@ -148,19 +138,16 @@ class WeComPushServiceTest {
         when(publisher.sendTextMessage(anyString(), anyString(), anyString(), anyList(), anyString()))
             .thenReturn(new WeComSendResult(false, 40013, "invalid agentid", List.of("wc_007")));
 
-        service.pushForRecipient(event(), 7L);
+        NotificationDeliveryResult result = service.pushForRecipient(event(), 7L);
 
-        ArgumentCaptor<OutboundLog> captor = ArgumentCaptor.forClass(OutboundLog.class);
-        verify(logRepository).save(captor.capture());
-        assertThat(captor.getValue().getStatus()).isEqualTo(OutboundStatus.FAILED);
-        assertThat(captor.getValue().getWecomErrcode()).isEqualTo(40013);
-        assertThat(captor.getValue().getWecomErrmsg()).isEqualTo("invalid agentid");
-        assertThat(captor.getValue().getSkipReason()).isEqualTo(SkipReason.ERROR);
+        assertThat(result.successful()).isFalse();
+        assertThat(result.errcode()).isEqualTo(40013);
+        assertThat(result.message()).isEqualTo("invalid agentid");
     }
 
     @Test
-    @DisplayName("publisher throws → FAILED with truncated error message")
-    void publisherThrows_WritesFailedWithTruncatedMessage() {
+    @DisplayName("publisher throws -> bubble runtime exception")
+    void publisherThrows_BubblesException() {
         WeComIntegrationEntity integration = new WeComIntegrationEntity();
         integration.setCorpId("corp");
         integration.setAgentId("1");
@@ -173,15 +160,11 @@ class WeComPushServiceTest {
         when(userRepository.findById(7L)).thenReturn(Optional.of(user));
 
         when(cipher.decrypt("enc")).thenReturn("plain");
-        String longMessage = "X".repeat(1000);
         when(publisher.sendTextMessage(anyString(), anyString(), anyString(), anyList(), anyString()))
-            .thenThrow(new RuntimeException(longMessage));
+            .thenThrow(new RuntimeException("timeout"));
 
-        service.pushForRecipient(event(), 7L);
-
-        ArgumentCaptor<OutboundLog> captor = ArgumentCaptor.forClass(OutboundLog.class);
-        verify(logRepository).save(captor.capture());
-        assertThat(captor.getValue().getStatus()).isEqualTo(OutboundStatus.FAILED);
-        assertThat(captor.getValue().getWecomErrmsg()).hasSize(500);
+        assertThatThrownBy(() -> service.pushForRecipient(event(), 7L))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("timeout");
     }
 }

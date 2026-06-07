@@ -4,6 +4,8 @@
 // 维护声明: 所有任务状态变化集中在此，避免分散写状态导致语义漂移.
 package com.xiyu.bid.tenderupload.service;
 
+import com.xiyu.bid.platform.async.domain.AsyncAction;
+import com.xiyu.bid.platform.async.domain.AsyncHandlingDecision;
 import com.xiyu.bid.tenderupload.config.TenderProcessingProperties;
 import com.xiyu.bid.tenderupload.entity.TenderTask;
 import com.xiyu.bid.tenderupload.entity.TenderTaskStatus;
@@ -39,19 +41,34 @@ public class TenderTaskStateMachine {
 
     public RetryDecision markRetryOrDlq(TenderTask task, String errorCode, String errorMessage) {
         int nextAttempt = (task.getAttempts() == null ? 0 : task.getAttempts()) + 1;
+        if (nextAttempt >= properties.getMaxRetries()) {
+            return applyDecision(task, AsyncHandlingDecision.deadLetter(errorCode, true), errorMessage);
+        }
+        return applyDecision(task, AsyncHandlingDecision.retry(errorCode, properties.retryDelayMinutesForAttempt(nextAttempt) * 60, false), errorMessage);
+    }
+
+    public RetryDecision applyDecision(TenderTask task, AsyncHandlingDecision decision, String errorMessage) {
+        int nextAttempt = (task.getAttempts() == null ? 0 : task.getAttempts()) + 1;
         task.setAttempts(nextAttempt);
-        task.setErrorCode(errorCode);
+        task.setErrorCode(decision.reasonCode());
         task.setErrorMessage(trimError(errorMessage));
         task.setLockedAt(null);
         task.setLockedBy(null);
 
-        if (nextAttempt >= properties.getMaxRetries()) {
+        if (decision.action() == AsyncAction.DEAD_LETTER) {
             task.setStatus(TenderTaskStatus.DLQ);
             task.setFinishedAt(LocalDateTime.now());
             return RetryDecision.dlq();
         }
 
-        int delayMinutes = properties.retryDelayMinutesForAttempt(nextAttempt);
+        if (decision.action() == AsyncAction.SUCCEED_WITH_LOG || decision.action() == AsyncAction.DROP) {
+            task.setStatus(TenderTaskStatus.SUCCEEDED);
+            task.setFinishedAt(LocalDateTime.now());
+            task.setAvailableAt(LocalDateTime.now());
+            return RetryDecision.succeeded();
+        }
+
+        int delayMinutes = Math.max(1, decision.nextRetryDelaySeconds() / 60);
         task.setStatus(TenderTaskStatus.RETRYING);
         task.setAvailableAt(LocalDateTime.now().plusMinutes(delayMinutes));
         task.setFinishedAt(null);
@@ -65,13 +82,17 @@ public class TenderTaskStateMachine {
         return error.length() > 900 ? error.substring(0, 900) : error;
     }
 
-    public record RetryDecision(boolean movedToDlq, int delayMinutes) {
+    public record RetryDecision(boolean movedToDlq, int delayMinutes, boolean completedAsSuccess) {
         static RetryDecision dlq() {
-            return new RetryDecision(true, 0);
+            return new RetryDecision(true, 0, false);
         }
 
         static RetryDecision retry(int delayMinutes) {
-            return new RetryDecision(false, delayMinutes);
+            return new RetryDecision(false, delayMinutes, false);
+        }
+
+        static RetryDecision succeeded() {
+            return new RetryDecision(false, 0, true);
         }
     }
 }

@@ -4,6 +4,8 @@ import com.xiyu.bid.integration.organization.domain.OrganizationEventStatus;
 import com.xiyu.bid.integration.organization.dto.OrganizationEventWebhookData;
 import com.xiyu.bid.integration.organization.dto.OrganizationEventWebhookResponse;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationEventLogEntity;
+import com.xiyu.bid.platform.async.infrastructure.AsyncObservabilityRecorder;
+import com.xiyu.bid.support.NoOpAsyncObservabilityTestConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,6 +29,8 @@ class OrganizationEventRetryAppServiceTest {
     private OrganizationEventInboxService inboxService;
     @Mock
     private OrganizationDirectorySyncAppService syncAppService;
+    @Mock
+    private AsyncObservabilityRecorder observabilityRecorder;
 
     @Test
     @DisplayName("retries due pending events without reserving them as new events")
@@ -43,7 +47,8 @@ class OrganizationEventRetryAppServiceTest {
                 inboxService,
                 syncAppService,
                 properties,
-                OrganizationDirectorySyncAppServiceTest.fixedSettings(true)
+                OrganizationDirectorySyncAppServiceTest.fixedSettings(true),
+                observabilityRecorder
         ).retryDueEvents(now);
 
         assertThat(summary.totalCount()).isEqualTo(1);
@@ -52,6 +57,81 @@ class OrganizationEventRetryAppServiceTest {
         verify(inboxService).recoverStaleProcessing(now.minusMinutes(15), now);
         verify(inboxService).claimDueRetry("event-key", now);
         verify(syncAppService).reprocessReservedEvent("event-key", "{}");
+        verify(observabilityRecorder).recordSuccess("organization", event.getEventTopic(), event.getEventKey());
+    }
+
+    @Test
+    @DisplayName("records retry metric when failed replay remains pending retry")
+    void retryDueEvents_retryableFailure_recordsRetryMetric() {
+        LocalDateTime now = LocalDateTime.parse("2026-05-15T10:00:00");
+        OrganizationEventLogEntity event = eventLog("event-key", "{}");
+        OrganizationEventLogEntity refreshed = eventLog("event-key", "{}");
+        refreshed.setStatus(OrganizationEventStatus.PENDING_RETRY);
+        refreshed.setRetryCount(2);
+        refreshed.setLastErrorCode("DIRECTORY_GATEWAY_RETRYABLE");
+        OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();
+        properties.getRetry().setBatchSize(50);
+        when(inboxService.findDueRetries(now, 50)).thenReturn(List.of(event));
+        when(inboxService.claimDueRetry("event-key", now)).thenReturn(true);
+        when(syncAppService.reprocessReservedEvent("event-key", "{}")).thenReturn(response("500"));
+        when(inboxService.findByEventKey("event-key")).thenReturn(Optional.of(refreshed));
+
+        OrganizationEventRetrySummary summary = new OrganizationEventRetryAppService(
+                inboxService,
+                syncAppService,
+                properties,
+                OrganizationDirectorySyncAppServiceTest.fixedSettings(true),
+                observabilityRecorder
+        ).retryDueEvents(now);
+
+        assertThat(summary.totalCount()).isEqualTo(1);
+        assertThat(summary.successCount()).isZero();
+        assertThat(summary.failedCount()).isEqualTo(1);
+        verify(observabilityRecorder).recordRetry(
+                org.mockito.ArgumentMatchers.eq("organization"),
+                org.mockito.ArgumentMatchers.eq(event.getEventTopic()),
+                org.mockito.ArgumentMatchers.eq(event.getEventKey()),
+                org.mockito.ArgumentMatchers.eq(2),
+                org.mockito.ArgumentMatchers.any()
+        );
+        verify(observabilityRecorder, never()).recordDeadLetter("organization", event.getEventTopic(), event.getEventKey(), "DIRECTORY_GATEWAY_RETRYABLE");
+    }
+
+    @Test
+    @DisplayName("records dead letter metric when failed replay remains dead letter")
+    void retryDueEvents_deadLetterFailure_recordsDeadLetterMetric() {
+        LocalDateTime now = LocalDateTime.parse("2026-05-15T10:00:00");
+        OrganizationEventLogEntity event = eventLog("event-key", "{}");
+        OrganizationEventLogEntity refreshed = eventLog("event-key", "{}");
+        refreshed.setStatus(OrganizationEventStatus.DEAD_LETTER);
+        refreshed.setRetryCount(3);
+        refreshed.setLastErrorCode("DIRECTORY_GATEWAY_NON_RETRYABLE");
+        OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();
+        properties.getRetry().setBatchSize(50);
+        when(inboxService.findDueRetries(now, 50)).thenReturn(List.of(event));
+        when(inboxService.claimDueRetry("event-key", now)).thenReturn(true);
+        when(syncAppService.reprocessReservedEvent("event-key", "{}")).thenReturn(response("500"));
+        when(inboxService.findByEventKey("event-key")).thenReturn(Optional.of(refreshed));
+
+        OrganizationEventRetrySummary summary = new OrganizationEventRetryAppService(
+                inboxService,
+                syncAppService,
+                properties,
+                OrganizationDirectorySyncAppServiceTest.fixedSettings(true),
+                observabilityRecorder
+        ).retryDueEvents(now);
+
+        assertThat(summary.totalCount()).isEqualTo(1);
+        assertThat(summary.successCount()).isZero();
+        assertThat(summary.failedCount()).isEqualTo(1);
+        verify(observabilityRecorder).recordDeadLetter("organization", event.getEventTopic(), event.getEventKey(), "DIRECTORY_GATEWAY_NON_RETRYABLE");
+        verify(observabilityRecorder, never()).recordRetry(
+                org.mockito.ArgumentMatchers.eq("organization"),
+                org.mockito.ArgumentMatchers.eq(event.getEventTopic()),
+                org.mockito.ArgumentMatchers.eq(event.getEventKey()),
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.any()
+        );
     }
 
     @Test
@@ -64,7 +144,8 @@ class OrganizationEventRetryAppServiceTest {
                 inboxService,
                 syncAppService,
                 properties,
-                OrganizationDirectorySyncAppServiceTest.fixedSettings(false)
+                OrganizationDirectorySyncAppServiceTest.fixedSettings(false),
+                observabilityRecorder
         ).retryDueEvents(now);
 
         assertThat(summary.totalCount()).isZero();
@@ -85,7 +166,8 @@ class OrganizationEventRetryAppServiceTest {
                 inboxService,
                 syncAppService,
                 new OrganizationIntegrationProperties(),
-                OrganizationDirectorySyncAppServiceTest.fixedSettings(true)
+                OrganizationDirectorySyncAppServiceTest.fixedSettings(true),
+                observabilityRecorder
         ).replayDeadLetter(" event-key ", now);
 
         assertThat(response.code()).isEqualTo("200");
@@ -104,7 +186,8 @@ class OrganizationEventRetryAppServiceTest {
                 inboxService,
                 syncAppService,
                 new OrganizationIntegrationProperties(),
-                OrganizationDirectorySyncAppServiceTest.fixedSettings(true)
+                OrganizationDirectorySyncAppServiceTest.fixedSettings(true),
+                observabilityRecorder
         );
 
         assertThatThrownBy(() -> service.replayDeadLetter("event-key", now))
@@ -127,7 +210,8 @@ class OrganizationEventRetryAppServiceTest {
                 inboxService,
                 syncAppService,
                 new OrganizationIntegrationProperties(),
-                OrganizationDirectorySyncAppServiceTest.fixedSettings(true)
+                OrganizationDirectorySyncAppServiceTest.fixedSettings(true),
+                observabilityRecorder
         );
 
         assertThatThrownBy(() -> service.replayDeadLetter("event-key", now))
@@ -139,6 +223,7 @@ class OrganizationEventRetryAppServiceTest {
     private OrganizationEventLogEntity eventLog(String eventKey, String rawPayload) {
         OrganizationEventLogEntity event = new OrganizationEventLogEntity();
         event.setEventKey(eventKey);
+        event.setEventTopic("BaseOssUser");
         event.setRawPayload(rawPayload);
         event.setStatus(OrganizationEventStatus.PENDING_RETRY);
         return event;

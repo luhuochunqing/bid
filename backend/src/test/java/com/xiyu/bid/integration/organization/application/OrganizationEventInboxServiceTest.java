@@ -83,7 +83,7 @@ class OrganizationEventInboxServiceTest {
 
         assertThat(existing.getStatus()).isEqualTo(OrganizationEventStatus.PENDING_RETRY);
         assertThat(existing.getRetryCount()).isEqualTo(1);
-        assertThat(existing.getLastErrorCode()).isEqualTo("TIMEOUT");
+        assertThat(existing.getLastErrorCode()).isEqualTo("TRANSIENT_DEPENDENCY");
         assertThat(existing.getNextRetryAt()).isNotNull();
     }
 
@@ -116,6 +116,11 @@ class OrganizationEventInboxServiceTest {
         new ApplicationContextRunner()
                 .withBean(OrganizationEventLogRepository.class, () -> repository)
                 .withBean(OrganizationIntegrationProperties.class, () -> properties)
+                .withBean(com.xiyu.bid.integration.organization.domain.OrganizationDirectoryRetryPolicy.class,
+                        () -> new com.xiyu.bid.integration.organization.domain.OrganizationDirectoryRetryPolicy(
+                                new com.xiyu.bid.platform.async.application.AsyncDecisionResolver()))
+                .withBean(com.xiyu.bid.metrics.OrgSyncMetrics.class,
+                        () -> new com.xiyu.bid.metrics.OrgSyncMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()))
                 .withUserConfiguration(OrganizationEventInboxService.class)
                 .run(context -> context.getBean(OrganizationEventInboxService.class)
                         .markFailed("event-key", "接口超时", "TIMEOUT"));
@@ -204,7 +209,12 @@ class OrganizationEventInboxServiceTest {
     }
 
     private OrganizationEventInboxService service() {
-        return new OrganizationEventInboxService(repository, new OrganizationIntegrationProperties());
+        return new OrganizationEventInboxService(
+                repository,
+                new OrganizationIntegrationProperties(),
+                new com.xiyu.bid.integration.organization.domain.OrganizationDirectoryRetryPolicy(new com.xiyu.bid.platform.async.application.AsyncDecisionResolver()),
+                new com.xiyu.bid.metrics.OrgSyncMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry())
+        );
     }
 
     private OrganizationEventNotice notice() {

@@ -4,6 +4,7 @@ import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.integration.organization.domain.OrganizationEventStatus;
 import com.xiyu.bid.integration.organization.dto.OrganizationEventWebhookResponse;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationEventLogEntity;
+import com.xiyu.bid.platform.async.infrastructure.AsyncObservabilityRecorder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -18,6 +19,7 @@ public class OrganizationEventRetryAppService {
     private final OrganizationDirectorySyncAppService syncAppService;
     private final OrganizationIntegrationProperties properties;
     private final OrganizationIntegrationSettingsResolver settingsResolver;
+    private final AsyncObservabilityRecorder observabilityRecorder;
 
     public OrganizationEventRetrySummary retryDueEvents(LocalDateTime now) {
         if (!settingsResolver.resolve().enabled() || !properties.getRetry().isEnabled()) {
@@ -54,7 +56,32 @@ public class OrganizationEventRetryAppService {
         OrganizationEventWebhookResponse response =
                 syncAppService.reprocessReservedEvent(event.getEventKey(), event.getRawPayload());
         boolean success = "200".equals(response.code());
-        return new OrganizationEventRetrySummary(1, success ? 1 : 0, success ? 0 : 1);
+        if (success) {
+            observabilityRecorder.recordSuccess("organization", event.getEventTopic(), event.getEventKey());
+            return new OrganizationEventRetrySummary(1, 1, 0);
+        }
+        OrganizationEventLogEntity refreshed = inboxService.findByEventKey(event.getEventKey()).orElse(event);
+        if (refreshed.getStatus() == OrganizationEventStatus.PENDING_RETRY) {
+            observabilityRecorder.recordRetry(
+                    "organization",
+                    event.getEventTopic(),
+                    event.getEventKey(),
+                    refreshed.getRetryCount() == null ? 0 : refreshed.getRetryCount(),
+                    com.xiyu.bid.platform.async.domain.AsyncHandlingDecision.retry(
+                            refreshed.getLastErrorCode() == null || refreshed.getLastErrorCode().isBlank() ? response.code() : refreshed.getLastErrorCode(),
+                            0,
+                            false
+                    )
+            );
+        } else {
+            observabilityRecorder.recordDeadLetter(
+                    "organization",
+                    event.getEventTopic(),
+                    event.getEventKey(),
+                    refreshed.getLastErrorCode() == null || refreshed.getLastErrorCode().isBlank() ? response.code() : refreshed.getLastErrorCode()
+            );
+        }
+        return new OrganizationEventRetrySummary(1, 0, 1);
     }
 
     private String normalizeEventKey(String eventKey) {

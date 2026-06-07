@@ -1,0 +1,6 @@
+-- Rollback for V1055__add_notification_delivery_task_tables.sql
+DROP INDEX idx_notification_delivery_dlq_notification ON notification_delivery_dlq;
+DROP TABLE IF EXISTS notification_delivery_dlq;
+DROP INDEX idx_notification_delivery_task_notification_recipient ON notification_delivery_task;
+DROP INDEX idx_notification_delivery_task_status_retry ON notification_delivery_task;
+DROP TABLE IF EXISTS notification_delivery_task;
