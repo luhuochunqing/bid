@@ -3,7 +3,6 @@ package com.xiyu.bid.personnel.domain.service;
 import com.xiyu.bid.personnel.domain.model.Personnel;
 import com.xiyu.bid.personnel.domain.valueobject.Certificate;
 
-import java.time.LocalDate;
 import java.util.List;
 
 public record CertificateExpiryResult(

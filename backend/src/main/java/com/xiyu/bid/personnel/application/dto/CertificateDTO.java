@@ -12,6 +12,8 @@ public record CertificateDTO(
         LocalDate issueDate,
         LocalDate expiryDate,
         String attachmentUrl,
+        String title,
+        boolean isPermanent,
         boolean expired,
         long remainingDays
 ) {}

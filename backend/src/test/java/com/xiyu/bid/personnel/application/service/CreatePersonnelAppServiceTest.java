@@ -42,21 +42,21 @@ class CreatePersonnelAppServiceTest {
             Personnel p = inv.getArgument(0);
             return new Personnel(1L, p.name(), p.employeeNumber(),
                     p.departmentCode(), p.departmentName(),
-                    p.gender(), p.entryDate(), p.phone(),
+                    p.gender(), p.entryDate(), p.birthDate(), p.phone(),
                     p.education(), p.technicalTitle(),
-                    p.status(), p.attachmentUrl(),
+                    p.status(), p.attachmentUrl(), p.remark(),
                     p.certificates(), p.educations(),
                     p.createdAt(), p.updatedAt());
         });
 
         var command = new PersonnelUpsertCommand(
                 "张三", "EMP001", "DEPT01", "技术部",
-                "男", LocalDate.of(2020, 3, 1), "13800138000",
-                "本科", "高级工程师", null,
+                "男", LocalDate.of(2020, 3, 1), LocalDate.of(1995, 1, 1), "13800138000",
+                "本科", "高级工程师", null, null,
                 List.of(), List.of(
                         new PersonnelUpsertCommand.EducationEntry(
                                 "清华大学", LocalDate.of(2015, 9, 1), LocalDate.of(2019, 6, 30),
-                                "本科", "全日制", "计算机科学与技术"
+                                "本科", "全日制", "计算机科学与技术", false
                         )
                 )
         );
@@ -76,8 +76,8 @@ class CreatePersonnelAppServiceTest {
 
         var command = new PersonnelUpsertCommand(
                 "张三", "EMP001", "DEPT01", "技术部",
-                "男", LocalDate.of(2020, 3, 1), "13800138000",
-                "本科", "高级工程师", null,
+                "男", LocalDate.of(2020, 3, 1), LocalDate.of(1995, 1, 1), "13800138000",
+                "本科", "高级工程师", null, null,
                 List.of(), List.of()
         );
 
@@ -95,30 +95,30 @@ class CreatePersonnelAppServiceTest {
             Personnel p = inv.getArgument(0);
             return new Personnel(2L, p.name(), p.employeeNumber(),
                     p.departmentCode(), p.departmentName(),
-                    p.gender(), p.entryDate(), p.phone(),
+                    p.gender(), p.entryDate(), p.birthDate(), p.phone(),
                     p.education(), p.technicalTitle(),
-                    p.status(), p.attachmentUrl(),
+                    p.status(), p.attachmentUrl(), p.remark(),
                     p.certificates(), p.educations(),
                     p.createdAt(), p.updatedAt());
         });
 
         var command = new PersonnelUpsertCommand(
                 "李四", "EMP002", "DEPT02", "商务部",
-                "女", LocalDate.of(2021, 6, 15), "13900139000",
-                "硕士", "经济师", null,
+                "女", LocalDate.of(2021, 6, 15), LocalDate.of(1998, 1, 1), "13900139000",
+                "硕士", "经济师", null, null,
                 List.of(new PersonnelUpsertCommand.CertificateEntry(
                         "一级建造师", "CERT001", CertificateType.CONSTRUCTOR,
                         LocalDate.of(2022, 1, 1), LocalDate.of(2027, 1, 1),
-                        "/attachments/2/cert.pdf"
+                        "/attachments/2/cert.pdf", null, false, null
                 )),
                 List.of(
                         new PersonnelUpsertCommand.EducationEntry(
                                 "北京大学", LocalDate.of(2013, 9, 1), LocalDate.of(2017, 6, 30),
-                                "本科", "全日制", "土木工程"
+                                "本科", "全日制", "土木工程", false
                         ),
                         new PersonnelUpsertCommand.EducationEntry(
                                 "北京大学", LocalDate.of(2017, 9, 1), LocalDate.of(2020, 6, 30),
-                                "硕士", "全日制", "结构工程"
+                                "硕士", "全日制", "结构工程", false
                         )
                 )
         );

@@ -107,7 +107,7 @@
           <span>{{ emptyDescription }}</span>
         </template>
       </el-empty>
-      <el-empty v-else-if="!loading && hasFilterActive" description="未找到匹配的证书，请调整筛选条件" />
+      <el-empty v-else-if="!loading && hasFilterActive && !qualifications.length" description="未找到匹配的证书，请调整筛选条件" />
     </el-card>
 
     <el-card v-if="canViewQualification" class="borrow-history-wrap" shadow="never">
@@ -274,18 +274,6 @@ const resetFilters = () => { Object.assign(filters, { keyword:'', issuer:'', exp
 const getStatusTagType = (row) => { const s = row.status || ''; if (s === 'IN_STOCK' || s === 'VALID') return 'success'; if (s === 'EXPIRING') return 'warning'; if (s === 'EXPIRED') return 'danger'; return 'info' }
 const getBorrowStatusTagType = (status) => borrowStatusTagTypes[status] || 'info'
 const statusLabel = (s) => STATUS_LABELS[s] || s || '—'
-
-// 4.1.3.6 资质详情抽屉
-const detailDrawerVisible = ref(false)
-const detailQualification = ref(null)
-const detailAttachments = ref([])
-const openDetailDrawer = (row) => {
-  detailQualification.value = row
-  detailAttachments.value = Array.isArray(row?.attachments) ? row.attachments : []
-  detailDrawerVisible.value = true
-}
-
-const handleRowClick = (row) => { if (row) openDetailDrawer(row) }
 const openEdit = (row) => { editData.value = row; formVisible.value = true }
 const handleRetire = async (row) => {
   try {
@@ -300,6 +288,23 @@ const handleRestore = async (row) => {
     ElMessage.success('已恢复'); fetchQualifications()
   } catch { /* cancelled */ }
 }
+
+// 4.1.3.6 资质详情抽屉
+const detailDrawerVisible = ref(false)
+const detailQualification = ref(null)
+const detailAttachments = ref([])
+const openDetailDrawer = (row) => {
+  detailQualification.value = row
+  detailAttachments.value = Array.isArray(row?.attachments) ? row.attachments : []
+  detailDrawerVisible.value = true
+}
+const handleDetailEdit = (row) => { detailDrawerVisible.value = false; openEdit(row) }
+const handleDetailRetire = (row) => { detailDrawerVisible.value = false; handleRetire(row) }
+const handleDetailRestore = (row) => { detailDrawerVisible.value = false; handleRestore(row) }
+const handleDetailDownload = (att) => { ElMessage.success(`已下载：${att.fileName || '附件'}`) }
+const handleRowClick = (row) => { if (row) openDetailDrawer(row) }
+
+// 4.2.1.3 编辑资质 - 附件管理
 const replaceDialogVisible = ref(false)
 const replaceQualificationId = ref(null)
 const replaceCurrentFileName = ref('')
@@ -355,10 +360,6 @@ const handleAttachmentUpload = () => {
   replaceDialogVisible.value = true
 }
 
-const handleDetailEdit = (row) => { detailDrawerVisible.value = false; openEdit(row) }
-const handleDetailRetire = (row) => { detailDrawerVisible.value = false; handleRetire(row) }
-const handleDetailRestore = (row) => { detailDrawerVisible.value = false; handleRestore(row) }
-const handleDetailDownload = (att) => { ElMessage.success(`已下载：${att.fileName || '附件'}`) }
 onMounted(async () => {
   await fetchQualifications()
   await loadBorrowRecords()

@@ -117,7 +117,26 @@ public class PersonnelRepositoryAdapter implements PersonnelRepository {
         certEntity.setIssueDate(certificate.issueDate());
         certEntity.setExpiryDate(certificate.expiryDate());
         certEntity.setAttachmentUrl(certificate.attachmentUrl());
+        certEntity.setTitle(certificate.title());
+        certEntity.setPermanent(certificate.isPermanent());
+        certEntity.setRemark(certificate.remark());
         certRepository.save(certEntity);
+        return findById(personnelId).orElseThrow();
+    }
+
+    @Override
+    @Transactional
+    public Personnel addEducation(Long personnelId, Education education) {
+        PersonnelEducationEntity eduEntity = new PersonnelEducationEntity();
+        eduEntity.setPersonnelId(personnelId);
+        eduEntity.setSchoolName(education.schoolName());
+        eduEntity.setStartDate(education.startDate());
+        eduEntity.setEndDate(education.endDate());
+        eduEntity.setHighestEducation(education.highestEducation());
+        eduEntity.setStudyForm(education.studyForm());
+        eduEntity.setMajor(education.major());
+        eduEntity.setHighestEducationSchool(education.isHighestEducationSchool());
+        educationRepository.save(eduEntity);
         return findById(personnelId).orElseThrow();
     }
 
@@ -157,6 +176,8 @@ public class PersonnelRepositoryAdapter implements PersonnelRepository {
         e.setTechnicalTitle(p.technicalTitle());
         e.setStatus(p.status());
         e.setAttachmentUrl(p.attachmentUrl());
+        e.setRemark(p.remark());
+        e.setBirthDate(p.birthDate());
         e.setCreatedAt(p.createdAt());
         e.setUpdatedAt(p.updatedAt());
         return e;
@@ -174,9 +195,9 @@ public class PersonnelRepositoryAdapter implements PersonnelRepository {
         return new Personnel(
                 e.getId(), e.getName(), e.getEmployeeNumber(),
                 e.getDepartmentCode(), e.getDepartmentName(),
-                e.getGender(), e.getEntryDate(), e.getPhone(),
+                e.getGender(), e.getEntryDate(), e.getBirthDate(), e.getPhone(),
                 e.getEducation(), e.getTechnicalTitle(),
-                e.getStatus(), e.getAttachmentUrl(),
+                e.getStatus(), e.getAttachmentUrl(), e.getRemark(),
                 certs, educations,
                 e.getCreatedAt(), e.getUpdatedAt()
         );
@@ -192,6 +213,9 @@ public class PersonnelRepositoryAdapter implements PersonnelRepository {
         e.setIssueDate(c.issueDate());
         e.setExpiryDate(c.expiryDate());
         e.setAttachmentUrl(c.attachmentUrl());
+        e.setTitle(c.title());
+        e.setPermanent(c.isPermanent());
+        e.setRemark(c.remark());
         return e;
     }
 
@@ -199,7 +223,7 @@ public class PersonnelRepositoryAdapter implements PersonnelRepository {
         return new Certificate(
                 e.getId(), e.getCertificateName(), e.getCertificateNumber(),
                 e.getCertificateType(), e.getIssueDate(), e.getExpiryDate(),
-                e.getAttachmentUrl()
+                e.getAttachmentUrl(), e.getTitle(), e.isPermanent(), e.getRemark()
         );
     }
 
@@ -216,6 +240,7 @@ public class PersonnelRepositoryAdapter implements PersonnelRepository {
         entity.setHighestEducation(e.highestEducation());
         entity.setStudyForm(e.studyForm());
         entity.setMajor(e.major());
+        entity.setHighestEducationSchool(e.isHighestEducationSchool());
         return entity;
     }
 
@@ -228,7 +253,8 @@ public class PersonnelRepositoryAdapter implements PersonnelRepository {
                 e.getEndDate(),
                 e.getHighestEducation(),
                 e.getStudyForm(),
-                e.getMajor()
+                e.getMajor(),
+                e.isHighestEducationSchool()
         );
     }
 }

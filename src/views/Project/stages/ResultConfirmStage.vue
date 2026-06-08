@@ -125,6 +125,7 @@ const userStore = useUserStore()
 
 const OPERABLE_ROLES = ['admin', 'admin_staff', 'auditor', 'bid_admin', 'bid_lead', 'bid_specialist', 'manager', 'sales', 'staff', 'task_executor']
 const currentRoleCode = computed(() => userStore?.currentUser?.roleCode || userStore?.currentUser?.role || '')
+const resultDone = ref(false)
 const canOperate = computed(() => !resultDone.value && OPERABLE_ROLES.includes(currentRoleCode.value))
 
 const resultOptions = [
@@ -149,7 +150,6 @@ function selectResult(value) {
 const evidenceFiles = ref([])
 const existing = ref(null)
 const submitting = ref(false)
-const resultDone = ref(false)
 const resultNextTab = computed(() => (form.resultType === 'WON' || form.resultType === 'LOST') ? 'RETROSPECTIVE' : 'CLOSED')
 
 const uploadUrl = computed(() => getApiUrl(`/api/projects/${props.projectId}/documents`))

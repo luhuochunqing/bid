@@ -151,23 +151,6 @@ const platformIdsText = ref('')
 const custodianSearching = ref(false)
 const custodianOptions = ref([])
 
-async function searchCustodian(query) {
-  if (!query) return
-  custodianSearching.value = true
-  try {
-    const list = await usersApi.search(query)
-    custodianOptions.value = Array.isArray(list) ? list.map(u => ({ id: Number(u.id), name: u.name || u.fullName || u.username })) : []
-  } catch { custodianOptions.value = [] }
-  finally { custodianSearching.value = false }
-}
-
-function onCustodianSelect(id) {
-  const selected = custodianOptions.value.find(u => u.id === Number(id))
-  if (selected) {
-    form.custodianName = selected.name
-  }
-}
-
 function createDefaultForm() {
   return {
     platformIds: [],
@@ -188,6 +171,23 @@ function createDefaultForm() {
 
 const form = reactive(createDefaultForm())
 
+async function searchCustodian(query) {
+  if (!query) return
+  custodianSearching.value = true
+  try {
+    const list = await usersApi.search(query)
+    custodianOptions.value = Array.isArray(list) ? list.map(u => ({ id: Number(u.id), name: u.name || u.fullName || u.username })) : []
+  } catch { custodianOptions.value = [] }
+  finally { custodianSearching.value = false }
+}
+
+function onCustodianSelect(id) {
+  const selected = custodianOptions.value.find(u => u.id === Number(id))
+  if (selected) {
+    form.custodianName = selected.name
+  }
+}
+
 // Watch external data changes
 watch(() => props.ca, (ca) => {
   if (ca) {
@@ -202,9 +202,9 @@ watch(() => props.ca, (ca) => {
     form.holderName = ca.holderName || ''
     form.caPlatformUrl = ca.caPlatformUrl || ''
     form.custodianId = ca.custodianId || ''
-		if (ca.custodianId && ca.custodianName) {
-			custodianOptions.value = [{ id: Number(ca.custodianId), name: ca.custodianName }]
-		}
+    if (ca.custodianId && ca.custodianName) {
+      custodianOptions.value = [{ id: Number(ca.custodianId), name: ca.custodianName }]
+    }
     form.status = ca.status || 'ACTIVE'
     form.remarks = ca.remarks || ca.remark || ''
     platformIdsText.value = Array.isArray(ca.platformIds) ? ca.platformIds.join(', ') : ''

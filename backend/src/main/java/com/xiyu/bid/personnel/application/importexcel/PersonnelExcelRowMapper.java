@@ -31,9 +31,10 @@ public final class PersonnelExcelRowMapper {
                     getStringCell(row, 1),   // 姓名
                     getStringCell(row, 2),   // 性别
                     getDateCell(row, 3),     // 入职时间
-                    getStringCell(row, 4),   // 手机
-                    getStringCell(row, 5),   // 学历
-                    getStringCell(row, 6)    // 技术职称
+                    getDateCell(row, 4),     // 出生日期
+                    getStringCell(row, 5),   // 手机
+                    getStringCell(row, 6),   // 学历
+                    getStringCell(row, 7)    // 技术职称
             );
             result.add(parsed);
         }

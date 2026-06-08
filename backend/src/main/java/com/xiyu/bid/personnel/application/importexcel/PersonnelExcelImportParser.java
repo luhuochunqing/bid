@@ -10,6 +10,7 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -67,8 +68,9 @@ public class PersonnelExcelImportParser {
                     validationResult
             );
 
-        } catch (Exception e) {
-            // 简化处理，后续可细化不同异常类型
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Excel 文件解析失败：" + e.getMessage(), e);
+        } catch (IllegalStateException e) {
             throw new IllegalArgumentException("Excel 文件解析失败：" + e.getMessage(), e);
         }
     }

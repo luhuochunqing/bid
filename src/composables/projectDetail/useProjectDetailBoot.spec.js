@@ -31,14 +31,14 @@ vi.mock('@/api', () => ({
 import { useProjectDetailBoot } from './useProjectDetailBoot.js'
 
 function createContext(overrides = {}) {
-  return {
+  const result = {
     route: { params: { id: '12' } },
     userStore: { userName: '测试用户' },
     projectStore: {
       currentProject: null,
       getProjectById: vi.fn().mockImplementation(async () => {
-        context.projectStore.currentProject = { id: 12, name: '测试项目' }
-        return context.projectStore.currentProject
+        result.projectStore.currentProject = { id: 12, name: '测试项目' }
+        return result.projectStore.currentProject
       }),
       loadTaskStatuses: vi.fn().mockResolvedValue([]),
     },
@@ -62,6 +62,7 @@ function createContext(overrides = {}) {
     loadProjectWorkflowData: vi.fn().mockResolvedValue([]),
     ...overrides,
   }
+  return result
 }
 
 let context

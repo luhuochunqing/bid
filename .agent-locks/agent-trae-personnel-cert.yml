@@ -1,0 +1,26 @@
+version: 1
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql/V1066__add_personnel_remark_fields.sql"
+    scope: file
+    reason: add remark column migration for personnel and personnel_certificate
+    owner: trae
+    branch: agent/trae/personnel-cert
+    expiresAt: "2026-06-15T00:00:00Z"
+  - path: "backend/src/main/resources/db/rollback/U1066__add_personnel_remark_fields.sql"
+    scope: file
+    reason: rollback remark column migration
+    owner: trae
+    branch: agent/trae/personnel-cert
+    expiresAt: "2026-06-15T00:00:00Z"
+  - path: "backend/src/main/java/com/xiyu/bid/personnel"
+    scope: directory
+    reason: personnel certificate module field completion
+    owner: trae
+    branch: agent/trae/personnel-cert
+    expiresAt: "2026-06-15T00:00:00Z"
+  - path: "src/views/Knowledge/Personnel.vue"
+    scope: file
+    reason: frontend form fields for personnel certificate
+    owner: trae
+    branch: agent/trae/personnel-cert
+    expiresAt: "2026-06-15T00:00:00Z"

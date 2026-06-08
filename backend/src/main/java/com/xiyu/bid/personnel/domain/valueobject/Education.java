@@ -12,7 +12,8 @@ public record Education(
         LocalDate endDate,
         String highestEducation,
         String studyForm,
-        String major
+        String major,
+        boolean isHighestEducationSchool
 ) {
     public Education {
         if (schoolName == null || schoolName.isBlank()) {

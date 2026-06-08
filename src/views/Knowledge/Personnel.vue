@@ -170,6 +170,7 @@
             <el-descriptions-item label="工号">{{ current.employeeNumber }}</el-descriptions-item>
             <el-descriptions-item label="性别">{{ current.gender || '-' }}</el-descriptions-item>
             <el-descriptions-item label="入职日期">{{ current.entryDate || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="出生日期">{{ current.birthDate || '-' }}</el-descriptions-item>
             <el-descriptions-item label="入职年限">{{ current.yearsOfService != null ? current.yearsOfService + ' 年' : '-' }}</el-descriptions-item>
             <el-descriptions-item label="手机号码">{{ current.phone || '-' }}</el-descriptions-item>
             <el-descriptions-item label="部门">{{ current.departmentName }}</el-descriptions-item>
@@ -177,6 +178,9 @@
             <el-descriptions-item label="技术职称">{{ current.technicalTitle || '-' }}</el-descriptions-item>
             <el-descriptions-item label="状态">{{ current.statusLabel }}</el-descriptions-item>
           </el-descriptions>
+          <div v-if="current.remark" class="remark-display">
+            <label>备注：</label>{{ current.remark }}
+          </div>
         </el-tab-pane>
 
         <!-- Tab 2: 教育经历（倒序表格） -->
@@ -189,6 +193,9 @@
             <el-table-column prop="highestEducation" label="最高学历" width="80" />
             <el-table-column prop="studyForm" label="学习形式" width="100" />
             <el-table-column prop="major" label="专业" min-width="120" />
+            <el-table-column label="最高学历学校" width="100" align="center">
+              <template #default="{row}">{{ row.isHighestEducationSchool ? '是' : '否' }}</template>
+            </el-table-column>
           </el-table>
           <div v-else class="empty-hint">暂无教育经历记录</div>
         </el-tab-pane>
@@ -199,6 +206,10 @@
             <el-table-column prop="name" label="证书名称" min-width="140" />
             <el-table-column prop="certificateNumber" label="编号" width="120" />
             <el-table-column prop="typeLabel" label="类型" width="90" />
+            <el-table-column prop="title" label="职称" width="70" />
+            <el-table-column label="永久有效" width="80" align="center">
+              <template #default="{row}">{{ row.isPermanent ? '是' : '否' }}</template>
+            </el-table-column>
             <el-table-column prop="expiryDate" label="到期日" width="100" />
             <el-table-column label="状态" width="70">
               <template #default="{row}">
@@ -259,9 +270,15 @@
             <el-form-item label="入职日期">
               <el-date-picker v-model="form.entryDate" type="date" value-format="YYYY-MM-DD" style="width:100%" />
             </el-form-item>
+            <el-form-item label="出生日期">
+              <el-date-picker v-model="form.birthDate" type="date" value-format="YYYY-MM-DD" style="width:100%" />
+            </el-form-item>
             <el-form-item label="手机号码"><el-input v-model="form.phone" /></el-form-item>
             <el-form-item label="学历"><el-input v-model="form.education" /></el-form-item>
             <el-form-item label="技术职称"><el-input v-model="form.technicalTitle" /></el-form-item>
+            <el-form-item label="备注">
+              <el-input v-model="form.remark" type="textarea" :rows="2" maxlength="500" show-word-limit />
+            </el-form-item>
           </el-form>
         </el-tab-pane>
 
@@ -312,6 +329,9 @@
             <el-form-item label="专业">
               <el-input v-model="edu.major" placeholder="如：计算机科学与技术" />
             </el-form-item>
+            <el-form-item label="最高学历学校">
+              <el-checkbox v-model="edu.isHighestEducationSchool">是否为最高学历学校</el-checkbox>
+            </el-form-item>
             <el-button type="danger" size="small" link @click="removeEducation(idx)">删除此教育经历</el-button>
           </div>
 
@@ -343,6 +363,19 @@
             </el-form-item>
 
             <!-- 蓝图 4.3 "新增证书" Tab3 "证书附件" 必填 + 校验（PDF/JPG/PNG ≤10MB） -->
+            <el-form-item label="职称">
+              <el-select v-model="cert.title" placeholder="请选择" style="width:100%">
+                <el-option label="初级" value="初级" />
+                <el-option label="中级" value="中级" />
+                <el-option label="高级" value="高级" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="永久有效">
+              <el-checkbox v-model="cert.isPermanent">永久有效</el-checkbox>
+            </el-form-item>
+            <el-form-item label="备注">
+              <el-input v-model="cert.remark" maxlength="500" show-word-limit />
+            </el-form-item>
             <el-form-item label="证书附件" required>
               <el-upload
                 :auto-upload="false"
@@ -512,9 +545,11 @@ const form = ref({
   departmentName:'', 
   gender: '',
   entryDate: null,
+  birthDate: null,
   phone: '',
   education:'', 
-  technicalTitle:'', 
+  technicalTitle:'',
+  remark: '',
   certificates: [], 
   educations: []   // 新增：教育经历（对应蓝图 4.3 Tab 2）
 })
@@ -606,9 +641,11 @@ const openForm = (row) => {
       departmentName: row.departmentName,
       gender: row.gender || '',
       entryDate: row.entryDate || null,
+      birthDate: row.birthDate || null,
       phone: row.phone || '',
       education: row.education,
       technicalTitle: row.technicalTitle,
+      remark: row.remark || '',
       certificates: (row.certificates || []).map(c => ({
         ...c,
         attachmentName: c.attachmentUrl ? (c.attachmentUrl.split('/').pop() || c.attachmentUrl) : ''
@@ -623,9 +660,11 @@ const openForm = (row) => {
       departmentName:'',
       gender: '',
       entryDate: null,
+      birthDate: null,
       phone: '',
       education:'',
       technicalTitle:'',
+      remark: '',
       certificates: [],
       educations: []
     }
@@ -800,7 +839,8 @@ const addEducation = () => {
     endDate: null,
     highestEducation: '',
     studyForm: '',
-    major: ''
+    major: '',
+    isHighestEducationSchool: false
   })
 }
 
@@ -838,7 +878,8 @@ function onCertAttachmentRemove(idx) {
 function addCertificate() {
   form.value.certificates.push({
     name: '', certificateNumber: '', type: 'OTHER', expiryDate: null,
-    attachmentName: '', attachmentUrl: ''
+    attachmentName: '', attachmentUrl: '',
+    title: '', isPermanent: false, remark: ''
   })
 }
 
@@ -910,6 +951,8 @@ onMounted(loadData)
 .expiry-hint { margin-top: 8px; color: var(--el-color-warning); font-size: 12px; display: flex; align-items: center; gap: 4px; }
 .text-muted { color: var(--el-text-color-placeholder); font-size: 12px; }
 .ml-8 { margin-left: 8px; }
+.remark-display { margin-top: 12px; padding: 8px 12px; background: #f8f9fa; border-radius: 4px; font-size: 13px; line-height: 1.5; }
+.remark-display label { font-weight: 600; color: var(--el-text-color-primary); }
 
 /* 4.3 "新增证书" 附件显示 + 新人员高亮（保存成功后 3s） */
 .attach-info { font-size: 12px; color: var(--el-text-color-regular); margin-top: 4px; }
