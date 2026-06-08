@@ -15,19 +15,21 @@ import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 @Component
 @Slf4j
-public class CaseZipPackager {
+public final class CaseZipPackager {
 
     private static final String INDEX_SHEET_NAME = "案例索引";
+
     private static final int BUFFER_SIZE = 64 * 1024;
 
-    public byte[] buildCaseZipBytes(List<CaseExportZipEntry> entries, byte[] indexExcelBytes) {
+    public byte[] buildCaseZipBytes(
+            final List<CaseExportZipEntry> entries,
+            final byte[] indexExcelBytes) {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream(BUFFER_SIZE);
         try (ZipOutputStream zipOut = new ZipOutputStream(buffer)) {
             if (indexExcelBytes != null && indexExcelBytes.length > 0) {
@@ -48,12 +50,12 @@ public class CaseZipPackager {
             return buffer.toByteArray();
         } catch (IOException e) {
             log.error("Failed to build case ZIP bytes", e);
-            throw new IllegalStateException("Failed to package case files into ZIP", e);
+            throw new IllegalStateException(
+                    "Failed to package case files into ZIP", e);
         }
     }
 
-    public byte[] buildCaseIndexExcel(
-            List<CaseIndexRow> indexRows) {
+    public byte[] buildCaseIndexExcel(final List<CaseIndexRow> indexRows) {
         try (Workbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
 
@@ -77,11 +79,12 @@ public class CaseZipPackager {
             return out.toByteArray();
         } catch (IOException e) {
             log.error("Failed to build case index Excel", e);
-            throw new IllegalStateException("Failed to generate case index Excel", e);
+            throw new IllegalStateException(
+                    "Failed to generate case index Excel", e);
         }
     }
 
-    private CellStyle createHeaderStyle(Workbook workbook) {
+    private CellStyle createHeaderStyle(final Workbook workbook) {
         CellStyle style = workbook.createCellStyle();
         Font headerFont = workbook.createFont();
         headerFont.setBold(true);
@@ -91,14 +94,14 @@ public class CaseZipPackager {
         return style;
     }
 
-    private CellStyle createDataStyle(Workbook workbook) {
+    private CellStyle createDataStyle(final Workbook workbook) {
         CellStyle style = workbook.createCellStyle();
         style.setAlignment(HorizontalAlignment.LEFT);
         style.setVerticalAlignment(VerticalAlignment.CENTER);
         return style;
     }
 
-    private void createHeaderRow(Sheet sheet, CellStyle headerStyle) {
+    private void createHeaderRow(final Sheet sheet, final CellStyle headerStyle) {
         Row headerRow = sheet.createRow(0);
         String[] headers = {
                 "案例ID", "来源项目名称", "评分项标题", "评分类别",
@@ -113,7 +116,10 @@ public class CaseZipPackager {
         }
     }
 
-    private void fillDataRow(Row row, CaseIndexRow data, CellStyle dataStyle) {
+    private void fillDataRow(
+            final Row row,
+            final CaseIndexRow data,
+            final CellStyle dataStyle) {
         row.createCell(0).setCellValue(data.caseId());
         row.createCell(1).setCellValue(data.sourceProjectName());
         row.createCell(2).setCellValue(data.scoringPointTitle());

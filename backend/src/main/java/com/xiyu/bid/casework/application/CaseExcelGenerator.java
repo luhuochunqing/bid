@@ -18,21 +18,24 @@ import java.io.IOException;
 import java.util.List;
 
 @Component
-public class CaseExcelGenerator {
+public final class CaseExcelGenerator {
 
     private static final int MAX_COLUMN_WIDTH = 8000;
+
     private static final int MIN_COLUMN_WIDTH = 2000;
+
     private static final int MAX_EXPORT_RECORDS = 10000;
 
     public record ExportResult(byte[] data, int recordCount) {}
 
-    public ExportResult generate(List<CaseExportRecord> records) throws IOException {
-        if (records == null) {
-            records = List.of();
+    public ExportResult generate(final List<CaseExportRecord> records) throws IOException {
+        List<CaseExportRecord> limitedRecords = records;
+        if (records != null && records.size() > MAX_EXPORT_RECORDS) {
+            limitedRecords = records.subList(0, MAX_EXPORT_RECORDS);
         }
-        List<CaseExportRecord> limitedRecords = records.size() > MAX_EXPORT_RECORDS
-                ? records.subList(0, MAX_EXPORT_RECORDS)
-                : records;
+        if (limitedRecords == null) {
+            limitedRecords = List.of();
+        }
 
         try (Workbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
@@ -52,7 +55,8 @@ public class CaseExcelGenerator {
                 Row row = sheet.createRow(rowNum++);
                 String[] values = record.toRowValues();
                 for (int i = 0; i < values.length; i++) {
-                    row.createCell(i).setCellValue(values[i] != null ? values[i] : "");
+                    String val = values[i];
+                    row.createCell(i).setCellValue(val != null ? val : "");
                 }
             }
 
@@ -62,7 +66,7 @@ public class CaseExcelGenerator {
         }
     }
 
-    private CellStyle createHeaderStyle(Workbook workbook) {
+    private CellStyle createHeaderStyle(final Workbook workbook) {
         CellStyle style = workbook.createCellStyle();
         style.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
         style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
@@ -76,7 +80,7 @@ public class CaseExcelGenerator {
         return style;
     }
 
-    private void autoSizeColumns(Sheet sheet, int columnCount) {
+    private void autoSizeColumns(final Sheet sheet, final int columnCount) {
         for (int i = 0; i < columnCount; i++) {
             sheet.autoSizeColumn(i);
             int width = sheet.getColumnWidth(i);
