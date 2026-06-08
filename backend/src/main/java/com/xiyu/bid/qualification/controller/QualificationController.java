@@ -15,6 +15,8 @@ import com.xiyu.bid.qualification.dto.QualificationReturnRequest;
 import com.xiyu.bid.qualification.service.BatchAttachmentService;
 import com.xiyu.bid.qualification.service.QualificationService;
 import com.xiyu.bid.qualification.service.QualificationAiParserService;
+import com.xiyu.bid.qualification.service.BatchAttachmentService;
+import com.xiyu.bid.qualification.dto.BatchAttachResultDTO;
 import com.xiyu.bid.util.InputSanitizer;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;

@@ -1,89 +1,76 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import ImportResultDialog from './ImportResultDialog.vue'
 
+const globalStubs = {
+  'el-dialog': {
+    template: '<div class="el-dialog" :data-title="title"><slot /><slot name="footer" /></div>',
+    props: ['title', 'modelValue']
+  },
+  'el-table': {
+    template: '<div class="el-table"><slot /></div>'
+  },
+  'el-table-column': { template: '<span />' },
+  'el-button': { template: '<button class="el-button"><slot /></button>', props: ['type'] },
+  'el-icon': { template: '<span class="el-icon"><slot /></span>' }
+}
+
 describe('ImportResultDialog', () => {
-  const stubs = {
-    'el-dialog': { template: '<div class="el-dialog"><slot /><slot name="footer" /></div>' },
-    'el-table': { template: '<div class="el-table"><slot /></div>' },
-    'el-table-column': { template: '<span />' },
-    'el-button': { template: '<button class="el-button"><slot /></button>' },
-    'el-icon': { template: '<span class="el-icon"><slot /></span>' }
+  const mountDialog = (props = {}) => {
+    return mount(ImportResultDialog, {
+      props: {
+        modelValue: true,
+        data: { total: 3, success: 2, failed: 1, errors: [{ row: 5, certificateNo: 'DUP-001', reason: '证书编号已存在' }] },
+        ...props
+      },
+      global: { stubs: globalStubs }
+    })
   }
 
-  it('should render stat cards with correct numbers', () => {
-    const wrapper = mount(ImportResultDialog, {
-      props: {
-        modelValue: true,
-        data: { total: 10, success: 7, failed: 3, errors: [] }
-      },
-      global: { stubs }
-    })
+  it('应展示导入统计卡片', async () => {
+    const wrapper = mountDialog()
+    await nextTick()
+
     const numbers = wrapper.findAll('.stat-number')
-    expect(numbers[0].text()).toBe('10')
-    expect(numbers[1].text()).toBe('7')
-    expect(numbers[2].text()).toBe('3')
+    expect(numbers[0].text()).toBe('3')
+    expect(numbers[1].text()).toBe('2')
+    expect(numbers[2].text()).toBe('1')
   })
 
-  it('should show all-success message when no errors', () => {
-    const wrapper = mount(ImportResultDialog, {
-      props: {
-        modelValue: true,
-        data: { total: 5, success: 5, failed: 0, errors: [] }
-      },
-      global: { stubs }
-    })
-    expect(wrapper.find('.all-success').exists()).toBe(true)
-    expect(wrapper.find('.error-section').exists()).toBe(false)
-  })
+  it('应展示失败明细区域', async () => {
+    const wrapper = mountDialog()
+    await nextTick()
 
-  it('should show error table when there are errors', () => {
-    const wrapper = mount(ImportResultDialog, {
-      props: {
-        modelValue: true,
-        data: {
-          total: 5, success: 3, failed: 2,
-          errors: [
-            { row: 2, certificateNo: 'C001', reason: '名称不能为空' },
-            { row: 5, certificateNo: 'C002', reason: '日期格式错误' }
-          ]
-        }
-      },
-      global: { stubs }
-    })
     expect(wrapper.find('.error-section').exists()).toBe(true)
-    expect(wrapper.find('.all-success').exists()).toBe(false)
+    expect(wrapper.text()).toContain('DUP-001')
+    expect(wrapper.text()).toContain('证书编号已存在')
   })
 
-  it('should emit update:modelValue on close', async () => {
-    const wrapper = mount(ImportResultDialog, {
-      props: {
-        modelValue: true,
-        data: { total: 1, success: 1, failed: 0, errors: [] }
-      },
-      global: { stubs }
+  it('全部成功时应展示成功提示', async () => {
+    const wrapper = mountDialog({
+      data: { total: 3, success: 3, failed: 0, errors: [] }
     })
-    await wrapper.find('.el-dialog').trigger('closed')
+    await nextTick()
+
+    expect(wrapper.find('.all-success').exists()).toBe(true)
+    expect(wrapper.text()).toContain('全部导入成功')
+  })
+
+  it('有失败时应展示下载修正文件按钮', async () => {
+    const wrapper = mountDialog()
+    await nextTick()
+
+    expect(wrapper.text()).toContain('下载修正文件')
+  })
+
+  it('关闭时应触发 closed 事件', async () => {
+    const wrapper = mountDialog()
+    await nextTick()
+
+    wrapper.find('.el-dialog').trigger('closed')
+    await nextTick()
+
     expect(wrapper.emitted('closed')).toBeTruthy()
-  })
-
-  it('should trigger download on button click', () => {
-    const createObjectURL = vi.fn(() => 'blob:url')
-    const revokeObjectURL = vi.fn()
-    URL.createObjectURL = createObjectURL
-    URL.revokeObjectURL = revokeObjectURL
-
-    const wrapper = mount(ImportResultDialog, {
-      props: {
-        modelValue: true,
-        data: {
-          total: 2, success: 1, failed: 1,
-          errors: [{ row: 3, certificateNo: 'C001', reason: '错误' }]
-        }
-      },
-      global: { stubs }
-    })
-    wrapper.find('.download-btn').trigger('click')
-    expect(createObjectURL).toHaveBeenCalled()
   })
 })

@@ -1,35 +1,36 @@
 package com.xiyu.bid.qualification.dto;
 
-import java.util.List;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Value;
+
+import java.util.List;
 
 /**
- * 批量关联附件结果 DTO
+ * §4.2.1.4 批量关联附件结果 DTO
  */
-@Data
+@Value
 @Builder
 public class BatchAttachResultDTO {
 
-    private int total;
-    private int success;
-    private int failed;
-    private List<MatchedItem> matched;
-    private List<UnmatchedItem> unmatched;
+    int total;
+    int success;
+    int failed;
+    List<MatchedItem> matched;
+    List<UnmatchedItem> unmatched;
 
-    @Data
+    @Value
     @Builder
     public static class MatchedItem {
-        private String fileName;
-        private String certificateNo;
-        private Long qualificationId;
-        private String qualificationName;
+        String fileName;
+        String certificateNo;
+        Long qualificationId;
+        String qualificationName;
     }
 
-    @Data
+    @Value
     @Builder
     public static class UnmatchedItem {
-        private String fileName;
-        private String reason;
+        String fileName;
+        String reason;
     }
 }

@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public interface BusinessQualificationJpaRepository extends JpaRepository<BusinessQualificationEntity, Long> {
 
@@ -28,4 +29,9 @@ public interface BusinessQualificationJpaRepository extends JpaRepository<Busine
      * §4.2.1.2 蓝图：获取所有已录入的等级列表（去重，非空）。
      */
     List<String> findDistinctLevelByLevelIsNotNull();
+
+    /**
+     * §4.2.1.4 蓝图：按证书编号查找资质（批量关联附件时匹配）。
+     */
+    Optional<BusinessQualificationEntity> findByCertificateNo(String certificateNo);
 }

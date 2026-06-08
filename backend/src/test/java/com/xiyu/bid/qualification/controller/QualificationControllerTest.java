@@ -40,7 +40,7 @@ class QualificationControllerTest {
     private QualificationAiParserService qualificationAiParserService;
 
     @Mock
-    private BatchAttachmentService batchAttachmentService;
+    private com.xiyu.bid.qualification.service.BatchAttachmentService batchAttachmentService;
 
     private MockMvc mockMvc;
     private ObjectMapper objectMapper;

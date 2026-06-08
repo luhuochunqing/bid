@@ -175,6 +175,20 @@
         <el-button type="primary" :loading="checkingBorrow" @click="confirmBorrowCheck">验证并查看</el-button>
       </template>
     </el-dialog>
+
+    <!-- 导入结果报告 -->
+    <ImportResultDialog
+      v-model="importResultVisible"
+      :data="importResultData"
+      @closed="handleImportResultClosed"
+    />
+
+    <!-- 批量关联附件结果 -->
+    <BatchAttachResultDialog
+      v-model="attachResultVisible"
+      :data="attachResultData"
+      @closed="handleAttachResultClosed"
+    />
   </div>
 </template>
 
@@ -194,7 +208,6 @@ import QualificationBorrowDialog from './components/qualification/QualificationB
 import QualificationBorrowHistoryCard from './components/qualification/QualificationBorrowHistoryCard.vue'
 import ImportResultDialog from './components/qualification/ImportResultDialog.vue'
 import BatchAttachResultDialog from './components/qualification/BatchAttachResultDialog.vue'
-import RetireConfirmDialog from './components/qualification/RetireConfirmDialog.vue'
 import {
   useQualificationBorrowSection,
   useQualificationPermissionMatrix
@@ -286,12 +299,16 @@ const {
   importTriggerRef,
   handleImportLedgerClick,
   handleImportChange,
-  attachResultVisible,
-  attachResultData,
+  importResultVisible,
+  importResultData,
+  handleImportResultClosed,
   batchAttachUploadRef,
   batchAttachTriggerRef,
   handleBatchUploadClick,
   handleBatchAttachChange,
+  attachResultVisible,
+  attachResultData,
+  handleAttachResultClosed,
   handleBatchExport,
   handleBatchDownload
 } = useQualificationBatch({ fetchQualifications })
