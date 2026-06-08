@@ -41,9 +41,9 @@
         <el-col :span="12">
           <el-form-item label="平台类型">
             <el-select v-model="form.platformType" placeholder="请选择" style="width:100%">
-              <el-option label="投标平台" value="BID_PLATFORM" />
-              <el-option label="采购平台" value="PROCUREMENT_PLATFORM" />
-              <el-option label="政府平台" value="GOVERNMENT_PLATFORM" />
+              <el-option label="投标平台" value="BIDDING_PLATFORM" />
+              <el-option label="采购平台" value="CONSTRUCTION_PLATFORM" />
+              <el-option label="政府平台" value="GOV_PROCUREMENT" />
               <el-option label="其他平台" value="OTHER" />
             </el-select>
           </el-form-item>
@@ -94,7 +94,7 @@ const visible = computed({
 const isEdit = computed(() => !!props.editRow?.id)
 
 const emptyForm = () => ({
-  accountName: '', platformType: 'BID_PLATFORM', username: '', password: '',
+  accountName: '', platformType: 'BIDDING_PLATFORM', username: '', password: '',
   url: '', contactPerson: '', contactPhone: '', contactEmail: '',
   hasCa: false, caCustodian: null, remarks: ''
 })
@@ -117,7 +117,7 @@ const onOpen = () => {
   if (r.id) {
     form.value = {
       accountName: r.accountName || r.platform || '',
-      platformType: r.platformType || 'BID_PLATFORM',
+      platformType: r.platformType || 'BIDDING_PLATFORM',
       username: r.username || '', password: '',
       url: r.url || '', contactPerson: r.contactPerson || '',
       contactPhone: r.contactPhone || '', contactEmail: r.contactEmail || '',
