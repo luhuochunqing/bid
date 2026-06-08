@@ -34,7 +34,7 @@ public class PersonnelNotificationAdapter implements PersonnelNotificationPort {
             );
             try {
                 notificationService.createNotification(request, null);
-            } catch (Exception e) {
+            } catch (RuntimeException e) {
                 log.warn("发送人员证书到期通知失败: {}", e.getMessage());
             }
         }
@@ -51,7 +51,7 @@ public class PersonnelNotificationAdapter implements PersonnelNotificationPort {
         );
         try {
             notificationService.createNotification(request, null);
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             log.warn("发送证书过期通知失败: {}", e.getMessage());
         }
     }

@@ -11,6 +11,7 @@ public record ParsedPersonnelRow(
         String name,
         String gender,
         LocalDate entryDate,
+        LocalDate birthDate,
         String phone,
         String education,
         String technicalTitle

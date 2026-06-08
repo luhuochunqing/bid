@@ -4,6 +4,7 @@ import com.xiyu.bid.common.domain.PagedResult;
 import com.xiyu.bid.personnel.application.command.PersonnelListCriteria;
 import com.xiyu.bid.personnel.domain.model.Personnel;
 import com.xiyu.bid.personnel.domain.valueobject.Certificate;
+import com.xiyu.bid.personnel.domain.valueobject.Education;
 
 import java.util.List;
 import java.util.Optional;
@@ -24,8 +25,9 @@ public interface PersonnelRepository {
 
     void deleteById(Long id);
 
-    // Certificate-level operations
     Personnel addCertificate(Long personnelId, Certificate certificate);
+
+    Personnel addEducation(Long personnelId, Education education);
 
     Personnel removeCertificate(Long personnelId, Long certificateId);
 

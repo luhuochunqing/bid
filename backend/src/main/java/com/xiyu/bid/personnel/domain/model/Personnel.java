@@ -16,11 +16,13 @@ public record Personnel(
         String departmentName,
         String gender,
         LocalDate entryDate,
+        LocalDate birthDate,
         String phone,
         String education,
         String technicalTitle,
         PersonnelStatus status,
         String attachmentUrl,
+        String remark,
         List<Certificate> certificates,
         List<Education> educations,
         LocalDateTime createdAt,
@@ -35,36 +37,36 @@ public record Personnel(
     public static Personnel create(
             Long id, String name, String employeeNumber,
             String departmentCode, String departmentName,
-            String gender, LocalDate entryDate, String phone,
+            String gender, LocalDate entryDate, LocalDate birthDate, String phone,
             String education, String technicalTitle,
-            PersonnelStatus status, String attachmentUrl,
+            PersonnelStatus status, String attachmentUrl, String remark,
             List<Certificate> certificates,
             List<Education> educations
     ) {
         return new Personnel(id, name, employeeNumber, departmentCode,
-                departmentName, gender, entryDate, phone, education, technicalTitle,
-                status, attachmentUrl, certificates, educations,
+                departmentName, gender, entryDate, birthDate, phone, education, technicalTitle,
+                status, attachmentUrl, remark, certificates, educations,
                 LocalDateTime.now(), LocalDateTime.now());
     }
 
     public Personnel withCertificates(List<Certificate> updatedCerts) {
         return new Personnel(id, name, employeeNumber, departmentCode,
-                departmentName, gender, entryDate, phone, education, technicalTitle,
-                status, attachmentUrl, updatedCerts, educations,
+                departmentName, gender, entryDate, birthDate, phone, education, technicalTitle,
+                status, attachmentUrl, remark, updatedCerts, educations,
                 createdAt, LocalDateTime.now());
     }
 
     public Personnel withEducations(List<Education> updatedEducations) {
         return new Personnel(id, name, employeeNumber, departmentCode,
-                departmentName, gender, entryDate, phone, education, technicalTitle,
-                status, attachmentUrl, certificates, updatedEducations,
+                departmentName, gender, entryDate, birthDate, phone, education, technicalTitle,
+                status, attachmentUrl, remark, certificates, updatedEducations,
                 createdAt, LocalDateTime.now());
     }
 
     public Personnel withStatus(PersonnelStatus newStatus) {
         return new Personnel(id, name, employeeNumber, departmentCode,
-                departmentName, gender, entryDate, phone, education, technicalTitle,
-                newStatus, attachmentUrl, certificates, educations,
+                departmentName, gender, entryDate, birthDate, phone, education, technicalTitle,
+                newStatus, attachmentUrl, remark, certificates, educations,
                 createdAt, LocalDateTime.now());
     }
 
@@ -75,8 +77,8 @@ public record Personnel(
     public Personnel withEmployeeNumber(String newEmployeeNumber) {
         return new Personnel(
                 id, name, newEmployeeNumber, departmentCode, departmentName,
-                gender, entryDate, phone, education, technicalTitle,
-                status, attachmentUrl, certificates, educations,
+                gender, entryDate, birthDate, phone, education, technicalTitle,
+                status, attachmentUrl, remark, certificates, educations,
                 createdAt, LocalDateTime.now()
         );
     }
@@ -109,9 +111,11 @@ public record Personnel(
             String newDepartmentName,
             String newGender,
             LocalDate newEntryDate,
+            LocalDate newBirthDate,
             String newPhone,
             String newEducation,
             String newTechnicalTitle,
+            String newRemark,
             List<Certificate> newCertificates,
             List<Education> newEducations
     ) {
@@ -123,11 +127,13 @@ public record Personnel(
                 newDepartmentName,
                 newGender,
                 newEntryDate,
+                newBirthDate,
                 newPhone,
                 newEducation,
                 newTechnicalTitle,
                 status,
                 attachmentUrl,
+                newRemark,
                 newCertificates,
                 newEducations,
                 createdAt,

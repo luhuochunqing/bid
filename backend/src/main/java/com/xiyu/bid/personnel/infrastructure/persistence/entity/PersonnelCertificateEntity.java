@@ -1,8 +1,20 @@
 package com.xiyu.bid.personnel.infrastructure.persistence.entity;
 
 import com.xiyu.bid.personnel.domain.valueobject.CertificateType;
-import jakarta.persistence.*;
-import lombok.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -43,6 +55,15 @@ public class PersonnelCertificateEntity {
 
     @Column(name = "attachment_url", length = 500)
     private String attachmentUrl;
+
+    @Column(length = 50)
+    private String title;
+
+    @Column(name = "is_permanent")
+    private boolean isPermanent;
+
+    @Column(length = 500)
+    private String remark;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

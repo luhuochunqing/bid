@@ -6,7 +6,6 @@ import com.xiyu.bid.personnel.domain.model.Personnel;
 import com.xiyu.bid.personnel.domain.port.PersonnelNotificationPort;
 import com.xiyu.bid.personnel.domain.port.PersonnelRepository;
 import com.xiyu.bid.personnel.domain.service.CertificateExpiryPolicy;
-import com.xiyu.bid.personnel.domain.service.CertificateExpiryResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;

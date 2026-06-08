@@ -36,9 +36,9 @@ public class PersonnelMapper {
         return new PersonnelDTO(
                 p.id(), p.name(), p.employeeNumber(),
                 p.departmentCode(), p.departmentName(),
-                p.gender(), p.entryDate(), p.phone(),
+                p.gender(), p.entryDate(), p.birthDate(), p.phone(),
                 p.education(), p.technicalTitle(),
-                p.status(), p.attachmentUrl(),
+                p.status(), p.attachmentUrl(), p.remark(),
                 certDTOs, eduDTOs, 0,
                 years, highestEdu, certCount, expiringCount,
                 p.createdAt(), p.updatedAt()
@@ -75,6 +75,7 @@ public class PersonnelMapper {
         return new CertificateDTO(
                 c.id(), c.name(), c.certificateNumber(), c.type(),
                 c.issueDate(), c.expiryDate(), c.attachmentUrl(),
+                c.title(), c.isPermanent(),
                 c.isExpired(), c.remainingDays()
         );
     }
@@ -90,7 +91,8 @@ public class PersonnelMapper {
     private Certificate toCertificate(PersonnelUpsertCommand.CertificateEntry e) {
         return new Certificate(
                 null, e.name(), e.certificateNumber(), e.type(),
-                e.issueDate(), e.expiryDate(), e.attachmentUrl()
+                e.issueDate(), e.expiryDate(), e.attachmentUrl(),
+                e.title(), e.isPermanent(), e.remark()
         );
     }
 
@@ -111,7 +113,8 @@ public class PersonnelMapper {
                 e.endDate(),
                 e.highestEducation(),
                 e.studyForm(),
-                e.major()
+                e.major(),
+                e.isHighestEducationSchool()
         );
     }
 
@@ -124,7 +127,8 @@ public class PersonnelMapper {
                 e.endDate(),
                 e.highestEducation(),
                 e.studyForm(),
-                e.major()
+                e.major(),
+                e.isHighestEducationSchool()
         );
     }
 }

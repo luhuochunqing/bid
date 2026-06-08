@@ -15,10 +15,12 @@ public record PersonnelUpsertCommand(
         String departmentName,
         String gender,
         java.time.LocalDate entryDate,
+        java.time.LocalDate birthDate,
         String phone,
         String education,                    // 保留旧字段，向后兼容本迭代
         String technicalTitle,
         String attachmentUrl,
+        String remark,
         List<CertificateEntry> certificates,
         List<EducationEntry> educations      // 新增：教育经历多条（Tab 2）
 ) {
@@ -28,7 +30,10 @@ public record PersonnelUpsertCommand(
             CertificateType type,
             LocalDate issueDate,
             LocalDate expiryDate,
-            String attachmentUrl
+            String attachmentUrl,
+            String title,
+            boolean isPermanent,
+            String remark
     ) {}
 
     public record EducationEntry(
@@ -37,6 +42,7 @@ public record PersonnelUpsertCommand(
             LocalDate endDate,
             String highestEducation,
             String studyForm,
-            String major
+            String major,
+            boolean isHighestEducationSchool
     ) {}
 }

@@ -48,4 +48,19 @@ public class AsyncConfig {
         return executor;
     }
 
+    /**
+     * 人员证书导入导出专用线程池
+     */
+    @Bean(name = "importExportExecutor")
+    public Executor importExportExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("personnel-imp-exp-");
+        executor.setRejectedExecutionHandler(new java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
+
 }

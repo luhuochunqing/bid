@@ -17,7 +17,7 @@ class EducationTest {
     void shouldCreateValidEducation() {
         var edu = new Education(
                 "清华大学", LocalDate.of(2015, 9, 1), LocalDate.of(2019, 6, 30),
-                "本科", "全日制", "计算机科学与技术"
+                "本科", "全日制", "计算机科学与技术", false
         );
         assertThat(edu.schoolName()).isEqualTo("清华大学");
         assertThat(edu.startDate()).isEqualTo(LocalDate.of(2015, 9, 1));
@@ -31,7 +31,7 @@ class EducationTest {
     void shouldRejectBlankSchoolName() {
         assertThatThrownBy(() -> new Education(
                 "  ", LocalDate.of(2015, 9, 1), LocalDate.of(2019, 6, 30),
-                "本科", "全日制", "计算机"
+                "本科", "全日制", "计算机", false
         )).isInstanceOf(IllegalArgumentException.class)
           .hasMessage("学校名称不能为空");
     }
@@ -40,7 +40,7 @@ class EducationTest {
     void shouldRejectNullSchoolName() {
         assertThatThrownBy(() -> new Education(
                 null, LocalDate.of(2015, 9, 1), LocalDate.of(2019, 6, 30),
-                "本科", "全日制", "计算机"
+                "本科", "全日制", "计算机", false
         )).isInstanceOf(IllegalArgumentException.class)
           .hasMessage("学校名称不能为空");
     }
@@ -49,13 +49,13 @@ class EducationTest {
     void shouldRejectNullDates() {
         assertThatThrownBy(() -> new Education(
                 "清华大学", null, LocalDate.of(2019, 6, 30),
-                "本科", "全日制", "计算机"
+                "本科", "全日制", "计算机", false
         )).isInstanceOf(IllegalArgumentException.class)
           .hasMessage("入学时间和毕业时间不能为空");
 
         assertThatThrownBy(() -> new Education(
                 "清华大学", LocalDate.of(2015, 9, 1), null,
-                "本科", "全日制", "计算机"
+                "本科", "全日制", "计算机", false
         )).isInstanceOf(IllegalArgumentException.class)
           .hasMessage("入学时间和毕业时间不能为空");
     }
@@ -64,7 +64,7 @@ class EducationTest {
     void shouldRejectEndDateBeforeStartDate() {
         assertThatThrownBy(() -> new Education(
                 "清华大学", LocalDate.of(2019, 6, 30), LocalDate.of(2015, 9, 1),
-                "本科", "全日制", "计算机"
+                "本科", "全日制", "计算机", false
         )).isInstanceOf(IllegalArgumentException.class)
           .hasMessage("毕业时间不能早于入学时间");
     }
@@ -74,7 +74,7 @@ class EducationTest {
         // 同月入学毕业（边界场景）
         var edu = new Education(
                 "短训班", LocalDate.of(2020, 1, 1), LocalDate.of(2020, 1, 31),
-                "高中", "其他", null
+                "高中", "其他", null, false
         );
         assertThat(edu.schoolName()).isEqualTo("短训班");
     }
@@ -83,7 +83,7 @@ class EducationTest {
     void shouldAllowNullMajor() {
         var edu = new Education(
                 "北京大学", LocalDate.of(2016, 9, 1), LocalDate.of(2020, 6, 30),
-                "硕士", "非全日制", null
+                "硕士", "非全日制", null, false
         );
         assertThat(edu.major()).isNull();
     }
