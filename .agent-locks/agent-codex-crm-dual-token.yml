@@ -1,0 +1,9 @@
+version: 1
+task: "crm-dual-token"
+locks:
+  - path: "backend/src/main/resources/application-dev.yml"
+    scope: "file"
+    owner: "codex"
+    branch: "agent/codex/crm-real-env"
+    expiresAt: "2026-06-10T23:59:59Z"
+    reason: "CRM双token体系配置（generateToken路径/昵称/工号）"

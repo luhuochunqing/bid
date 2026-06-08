@@ -69,6 +69,10 @@ app:
     oauth-username: ${XIYU_CRM_OAUTH_USERNAME:}
     oauth-password: ${XIYU_CRM_OAUTH_PASSWORD:}
     oauth-system: ${XIYU_CRM_OAUTH_SYSTEM:HOME}
+    generate-token-path: ${XIYU_CRM_GENERATE_TOKEN_PATH:/common/inner/generateToken}
+    generate-token-nick-name: ${XIYU_CRM_GENERATE_TOKEN_NICK_NAME:}
+    generate-token-sales-no: ${XIYU_CRM_GENERATE_TOKEN_SALES_NO:}
+
     auth:
       apply-token-path: ${XIYU_CRM_AUTH_APPLY_TOKEN_PATH:/auth/applyToken}
       logout-path: ${XIYU_CRM_AUTH_LOGOUT_PATH:/auth/logout}

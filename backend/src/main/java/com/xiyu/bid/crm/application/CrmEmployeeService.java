@@ -22,7 +22,7 @@ public class CrmEmployeeService {
     }
 
     public CrmResponseHandler.CrmApiResponse getEmployeeByToken(String employeeToken) {
-        String token = authService.getValidToken();
+        String token = authService.getValidOssToken();
         String baseUrl = properties.getEffectiveAuthBaseUrl();
         String path = properties.getAuth().getEmployeePath();
         return httpClient.post(baseUrl, path, token,
