@@ -1,5 +1,5 @@
-61077
-branch=agent/qoder/qualification-cert-fix
-worktree=qoder
+65140
+branch=agent/cursor/dev-tooling-fixes
+worktree=cursor
 mode=develop
-ts=1780907353
+ts=1780915911

@@ -27,13 +27,11 @@ const CUSTOMER_TYPE_SUBMIT_MAP = {
   FOREIGN: 'FOREIGN',
   政府机关: 'GOVERNMENT',
   '政府机关/事业单位/高校': 'GOVERNMENT',
-  政府: 'GOVERNMENT',
   央企: 'CENTRAL_SOE',
   地方国企: 'LOCAL_SOE',
   民企: 'PRIVATE',
   企业客户: 'PRIVATE',
   个人: 'PRIVATE',
-  政府: 'GOVERNMENT',
   港澳台及外企: 'FOREIGN',
 }
 

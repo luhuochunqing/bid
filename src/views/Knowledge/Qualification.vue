@@ -264,7 +264,6 @@ const resetFilters = () => { Object.assign(filters, { keyword:'', issuer:'', exp
 const getStatusTagType = (row) => { const s = row.status || ''; if (s === 'IN_STOCK' || s === 'VALID') return 'success'; if (s === 'EXPIRING') return 'warning'; if (s === 'EXPIRED') return 'danger'; return 'info' }
 const getBorrowStatusTagType = (status) => borrowStatusTagTypes[status] || 'info'
 const statusLabel = (s) => STATUS_LABELS[s] || s || '—'
-const handleRowClick = (row) => { if (row) openDetailDrawer(row) }
 const openEdit = (row) => { editData.value = row; formVisible.value = true }
 const handleRetire = async (row) => {
   try {
@@ -293,6 +292,7 @@ const handleDetailEdit = (row) => { detailDrawerVisible.value = false; openEdit(
 const handleDetailRetire = (row) => { detailDrawerVisible.value = false; handleRetire(row) }
 const handleDetailRestore = (row) => { detailDrawerVisible.value = false; handleRestore(row) }
 const handleDetailDownload = (att) => { ElMessage.success(`已下载：${att.fileName || '附件'}`) }
+const handleRowClick = (row) => { if (row) openDetailDrawer(row) }
 onMounted(async () => {
   await fetchQualifications()
   await loadBorrowRecords()

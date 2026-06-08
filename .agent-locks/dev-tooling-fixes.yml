@@ -1,0 +1,15 @@
+version: 1
+task: "dev-tooling-fixes"
+locks:
+  - path: "backend/src/main/resources/db/rollback/migration-mysql"
+    scope: "directory"
+    owner: "agent"
+    branch: "agent/cursor/dev-tooling-fixes"
+    expiresAt: "2026-06-09T07:43:51.037Z"
+    reason: "维护 U1047 回滚脚本格式 + 合规头部"
+  - path: "backend/src/main/resources/db/migration-mysql"
+    scope: "directory"
+    owner: "agent"
+    branch: "agent/cursor/dev-tooling-fixes"
+    expiresAt: "2026-06-09T07:48:08.762Z"
+    reason: "清理遗留 U1047 正向迁移文件，已合入 rollback 中"
