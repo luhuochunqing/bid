@@ -248,7 +248,7 @@ public class QualificationExpiryNotificationService {
                 // 当前提醒流程不关心借阅项目归属，强制 null 避免污染模板。
                 null,
                 e.getBorrowPurpose(), e.getExpectedReturnDate(),
-                e.getFileUrl(), java.util.List.of()
+                e.getFileUrl(), e.getRetireReason(), java.util.List.of()
         );
     }
 

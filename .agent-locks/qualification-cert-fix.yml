@@ -1,0 +1,13 @@
+version: 1
+task: "qualification-cert-fix"
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql/V1063__add_qualification_retire_reason.sql"
+    scope: "file"
+    owner: "qoder"
+    branch: "agent/qoder/qualification-cert-fix"
+    reason: "资质证书下架原因字段迁移"
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1063__add_qualification_retire_reason.sql"
+    scope: "file"
+    owner: "qoder"
+    branch: "agent/qoder/qualification-cert-fix"
+    reason: "资质证书下架原因字段回滚"

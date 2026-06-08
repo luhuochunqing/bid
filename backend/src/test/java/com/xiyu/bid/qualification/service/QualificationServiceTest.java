@@ -195,6 +195,7 @@ class QualificationServiceTest {
                 null,
                 null,
                 null,
+                null,
                 List.of()
         );
     }

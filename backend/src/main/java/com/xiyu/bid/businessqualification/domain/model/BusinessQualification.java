@@ -33,6 +33,7 @@ public record BusinessQualification(
         String borrowPurpose,
         LocalDate expectedReturnDate,
         String fileUrl,
+        String retireReason,
         List<QualificationAttachment> attachments
 ) {
 
@@ -61,6 +62,7 @@ public record BusinessQualification(
             String borrowPurpose,
             LocalDate expectedReturnDate,
             String fileUrl,
+            String retireReason,
             List<QualificationAttachment> attachments
     ) {
         return new BusinessQualification(
@@ -84,6 +86,7 @@ public record BusinessQualification(
                 borrowPurpose,
                 expectedReturnDate,
                 fileUrl,
+                retireReason,
                 attachments
         );
     }
@@ -168,6 +171,7 @@ public record BusinessQualification(
                 nextBorrowPurpose,
                 nextExpectedReturnDate,
                 fileUrl,
+                retireReason,
                 attachments
         );
     }

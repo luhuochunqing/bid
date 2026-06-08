@@ -21,6 +21,8 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -121,5 +123,31 @@ class QualificationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data[0].qualificationName").value("总包资质"));
+    }
+
+    @Test
+    void retireQualification_ShouldRejectReasonShorterThanFourChars() throws Exception {
+        mockMvc.perform(post("/api/knowledge/qualifications/{id}/retire", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"短\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.msg").value("下架原因不少于4个字"));
+
+        verify(qualificationService, never()).retireQualification(eq(1L), any());
+    }
+
+    @Test
+    void retireQualification_ShouldAcceptValidReason() throws Exception {
+        when(qualificationService.retireQualification(1L, "证书已过期且不再使用"))
+                .thenReturn(QualificationDTO.builder().id(1L).status("retired").retireReason("证书已过期且不再使用").build());
+
+        mockMvc.perform(post("/api/knowledge/qualifications/{id}/retire", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"证书已过期且不再使用\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("retired"))
+                .andExpect(jsonPath("$.data.retireReason").value("证书已过期且不再使用"));
     }
 }

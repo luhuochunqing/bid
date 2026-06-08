@@ -1,5 +1,10 @@
-agent=trae
-branch=agent/trae-init
-worktree=/Users/user/xiyu/worktrees/trae
-repo_root=/Users/user/xiyu/worktrees/trae
-mode=anchor
+agent=qoder
+task=qualification-cert-fix
+branch=agent/qoder/qualification-cert-fix
+base=origin/main
+worktree=/Users/user/xiyu/worktrees/qoder
+repo_root=/Users/user/xiyu/worktrees/qoder
+mode=in-place
+created_from_branch=agent/qoder-init
+created_from_rev=a07fa73f066f2d19286bc597b400a88f60df71ac
+created_at=2026-06-08T02:57:00Z

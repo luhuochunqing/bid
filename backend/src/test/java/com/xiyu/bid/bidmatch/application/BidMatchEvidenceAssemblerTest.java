@@ -143,7 +143,7 @@ class BidMatchEvidenceAssemblerTest {
                 ArgumentCaptor.forClass(QualificationListCriteria.class);
         verify(qualificationRepository).findAll(criteriaCaptor.capture());
         QualificationListCriteria criteria = criteriaCaptor.getValue();
-        assertThat(criteria.getStatus()).isEqualTo("VALID");
+        assertThat(criteria.getStatus()).containsExactly("VALID");
         assertThat(criteria.getKeyword()).isEqualTo("能源");
     }
 
@@ -177,6 +177,7 @@ class BidMatchEvidenceAssemblerTest {
                 "100",
                 null,
                 LocalDate.now().plusDays(30),
+                null,
                 null,
                 List.of()
         );

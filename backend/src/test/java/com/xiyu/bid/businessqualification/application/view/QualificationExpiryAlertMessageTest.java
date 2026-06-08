@@ -62,7 +62,7 @@ class QualificationExpiryAlertMessageTest {
                 new ValidityPeriod(null, LocalDate.of(2026, 7, 7)),
                 new ReminderPolicy(true, 30, null),
                 LoanStatus.AVAILABLE,
-                null, null, null, null, null, null, List.of()
+                null, null, null, null, null, null, null, List.of()
         );
         QualificationExpiryAlertMessage msg =
                 QualificationExpiryAlertMessage.from(q, 30, null, null);
@@ -107,7 +107,7 @@ class QualificationExpiryAlertMessageTest {
                 new ValidityPeriod(LocalDate.of(2024, 1, 1), today.plusDays(remainingDays)),
                 new ReminderPolicy(true, 30, null),
                 LoanStatus.AVAILABLE,
-                null, null, null, null, null, null, List.of()
+                null, null, null, null, null, null, null, List.of()
         );
     }
 }

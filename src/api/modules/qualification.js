@@ -82,6 +82,7 @@ function normalizeQualification(item) {
     currentBorrower: item?.currentBorrower || '',
     expectedReturnDate: formatDate(item?.expectedReturnDate || item?.currentExpectedReturnDate),
     fileUrl: item?.fileUrl || '',
+    retireReason: item?.retireReason || '',
     level: item?.level || qualificationLevelMap[mappedType] || 'OTHER'
   }
 }
@@ -120,6 +121,7 @@ function buildQualificationPayload(data = {}) {
     certificateNo: data.certificateNo || '',
     issuer: data.issuer || '',
     holderName: data.holderName || '',
+    retireReason: data.retireReason || '',
     fileUrl: data.fileUrl || ''
   }
 }
@@ -135,19 +137,24 @@ function buildBorrowPayload(data = {}) {
   }
 }
 
-function filterQualifications(items, params = {}) {
-  return items.filter((item) => {
-    if (params.name && !String(item.name || '').toLowerCase().includes(String(params.name).toLowerCase())) {
-      return false
-    }
-    if (params.type && item.type !== params.type) {
-      return false
-    }
-    if (params.status && item.status !== params.status) {
-      return false
-    }
-    return true
-  })
+function buildListQuery(params = {}) {
+  const q = new URLSearchParams()
+  if (params.name || params.keyword) q.set('keyword', params.name || params.keyword)
+  if (params.issuer) q.set('issuer', params.issuer)
+  if (params.expiringFrom) q.set('expiringFrom', params.expiringFrom)
+  if (params.expiringTo) q.set('expiringTo', params.expiringTo)
+  if (params.expiringWithinDays != null) q.set('expiringWithinDays', String(params.expiringWithinDays))
+  if (params.status) q.set('status', params.status)
+  if (Array.isArray(params.statuses) && params.statuses.length) {
+    params.statuses.forEach((s) => q.append('status', s))
+  }
+  if (params.subjectType) q.set('subjectType', params.subjectType)
+  if (params.subjectName) q.set('subjectName', params.subjectName)
+  if (params.category) q.set('category', params.category)
+  if (params.borrowStatus) q.set('borrowStatus', params.borrowStatus)
+  if (params.page != null) q.set('page', String(params.page))
+  if (params.size != null) q.set('size', String(params.size))
+  return q.toString()
 }
 
 function invalidIdMessage(entityName) {
@@ -165,22 +172,21 @@ function buildBorrowUnavailableResponse() {
   })
 }
 
-async function fetchQualificationList() {
-  const response = await httpClient.get('/api/knowledge/qualifications')
-  const data = Array.isArray(response?.data) ? response.data.map(normalizeQualification) : []
+async function fetchQualificationList(params = {}) {
+  const query = buildListQuery(params)
+  const response = await httpClient.get(`/api/knowledge/qualifications${query ? '?' + query : ''}`)
+  const rawData = response?.data?.content ?? response?.data
+  const data = Array.isArray(rawData) ? rawData.map(normalizeQualification) : []
   return {
     ...response,
-    data
+    data,
+    totalElements: response?.data?.totalElements ?? data.length
   }
 }
 
 export const qualificationsApi = {
   async getList(params = {}) {
-    const response = await fetchQualificationList()
-    return {
-      ...response,
-      data: filterQualifications(response.data || [], params)
-    }
+    return fetchQualificationList(params)
   },
 
   async getDetail(id) {

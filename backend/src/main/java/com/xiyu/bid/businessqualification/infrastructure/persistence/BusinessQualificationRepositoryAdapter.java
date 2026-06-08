@@ -90,13 +90,23 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
         if (criteria.getCategory() != null && !item.category().name().equalsIgnoreCase(criteria.getCategory())) {
             return false;
         }
-        if (criteria.getStatus() != null && !item.status().name().equalsIgnoreCase(criteria.getStatus())) {
+        if (criteria.getStatus() != null && !criteria.getStatus().isEmpty()
+                && criteria.getStatus().stream().noneMatch(s -> item.status().name().equalsIgnoreCase(s))) {
             return false;
         }
         if (criteria.getBorrowStatus() != null && !item.currentBorrowStatus().name().equalsIgnoreCase(criteria.getBorrowStatus())) {
             return false;
         }
         if (criteria.getExpiringWithinDays() != null && item.remainingDays() > criteria.getExpiringWithinDays()) {
+            return false;
+        }
+        if (criteria.getExpiringFrom() != null && item.validityPeriod().getExpiryDate().isBefore(criteria.getExpiringFrom())) {
+            return false;
+        }
+        if (criteria.getExpiringTo() != null && item.validityPeriod().getExpiryDate().isAfter(criteria.getExpiringTo())) {
+            return false;
+        }
+        if (criteria.getIssuer() != null && !contains(item.issuer(), criteria.getIssuer())) {
             return false;
         }
         if (criteria.getKeyword() != null) {
@@ -139,6 +149,7 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
                 .borrowPurpose(qualification.borrowPurpose())
                 .expectedReturnDate(qualification.expectedReturnDate())
                 .fileUrl(qualification.fileUrl())
+                .retireReason(qualification.retireReason())
                 .build();
     }
 
@@ -168,6 +179,7 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
                 entity.getBorrowPurpose(),
                 entity.getExpectedReturnDate(),
                 entity.getFileUrl(),
+                entity.getRetireReason(),
                 attachmentJpaRepository.findByQualificationIdOrderByUploadedAtDesc(entity.getId()).stream()
                         .map(this::toDomainAttachment)
                         .toList()

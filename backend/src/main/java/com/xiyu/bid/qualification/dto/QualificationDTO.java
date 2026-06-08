@@ -43,6 +43,7 @@ public class QualificationDTO {
     private Integer remainingDays;
     private String alertLevel;
     private String status;
+    private String retireReason;
     private Boolean borrowed;
     private String currentBorrower;
     private String currentBorrowDepartment;

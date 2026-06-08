@@ -74,6 +74,9 @@
             <el-descriptions-item label="证书审核提醒" :span="2">
               {{ qualification.certReviewNote || '—' }}
             </el-descriptions-item>
+            <el-descriptions-item v-if="qualification?.status === 'retired'" label="下架原因" :span="2">
+              {{ qualification.retireReason || '—' }}
+            </el-descriptions-item>
           </el-descriptions>
 
           <!-- 附件区 -->

@@ -17,8 +17,10 @@ import com.xiyu.bid.util.InputSanitizer;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -67,13 +69,17 @@ public class QualificationController {
             @RequestParam(required = false) String subjectType,
             @RequestParam(required = false) String subjectName,
             @RequestParam(required = false) String category,
-            @RequestParam(required = false) String status,
+            @RequestParam(required = false) List<String> status,
             @RequestParam(required = false) String borrowStatus,
             @RequestParam(required = false) Integer expiringWithinDays,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate expiringFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate expiringTo,
+            @RequestParam(required = false) String issuer,
             @RequestParam(required = false) String keyword
     ) {
+        String sanitizedIssuer = issuer == null ? null : InputSanitizer.sanitizeString(issuer, 200);
         return ResponseEntity.ok(ApiResponse.success("Qualifications retrieved successfully",
-                qualificationService.getAllQualifications(subjectType, subjectName, category, status, borrowStatus, expiringWithinDays, keyword)));
+                qualificationService.getAllQualifications(subjectType, subjectName, category, status, borrowStatus, expiringWithinDays, expiringFrom, expiringTo, sanitizedIssuer, keyword)));
     }
 
     @GetMapping("/{id}")
@@ -188,6 +194,7 @@ public class QualificationController {
         if (dto.getCertificateNo() != null) dto.setCertificateNo(InputSanitizer.sanitizeString(dto.getCertificateNo(), 120));
         if (dto.getIssuer() != null) dto.setIssuer(InputSanitizer.sanitizeString(dto.getIssuer(), 200));
         if (dto.getHolderName() != null) dto.setHolderName(InputSanitizer.sanitizeString(dto.getHolderName(), 120));
+        if (dto.getRetireReason() != null) dto.setRetireReason(InputSanitizer.sanitizeString(dto.getRetireReason(), 500));
         if (dto.getFileUrl() != null) dto.setFileUrl(InputSanitizer.sanitizeString(dto.getFileUrl(), 500));
     }
 
@@ -225,7 +232,13 @@ public class QualificationController {
     @Auditable(action = "UPDATE", entityType = "Qualification", description = "下架资质证书")
     public ResponseEntity<ApiResponse<QualificationDTO>> retire(
             @PathVariable Long id, @RequestBody Map<String, String> body) {
-        String reason = body.getOrDefault("reason", "");
+        String reason = body.getOrDefault("reason", "").trim();
+        if (reason.length() < 4) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("下架原因不少于4个字"));
+        }
+        if (reason.length() > 500) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("下架原因不超过500字"));
+        }
         return ResponseEntity.ok(ApiResponse.success("下架成功", qualificationService.retireQualification(id, reason)));
     }
 

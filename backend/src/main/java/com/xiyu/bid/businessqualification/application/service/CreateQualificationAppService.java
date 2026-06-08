@@ -49,6 +49,7 @@ public class CreateQualificationAppService {
                 LoanStatus.AVAILABLE,
                 null, null, null, null, null,
                 command.getFileUrl(),
+                command.getRetireReason(),
                 command.getAttachments() == null ? List.of() : command.getAttachments()
         );
 

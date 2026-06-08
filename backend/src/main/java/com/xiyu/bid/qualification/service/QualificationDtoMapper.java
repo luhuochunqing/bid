@@ -52,6 +52,7 @@ public class QualificationDtoMapper {
                 .certScope(dto.getCertScope())
                 .certReviewNote(dto.getCertReviewNote())
                 .holderName(dto.getHolderName() == null ? dto.getHolder() : dto.getHolderName())
+                .retireReason(dto.getRetireReason())
                 .issueDate(dto.getIssueDate())
                 .expiryDate(dto.getExpiryDate())
                 .reminderEnabled(dto.getReminderEnabled())
@@ -82,9 +83,12 @@ public class QualificationDtoMapper {
             String subjectType,
             String subjectName,
             String category,
-            String status,
+            java.util.List<String> status,
             String borrowStatus,
             Integer expiringWithinDays,
+            java.time.LocalDate expiringFrom,
+            java.time.LocalDate expiringTo,
+            String issuer,
             String keyword
     ) {
         return QualificationListCriteria.builder()
@@ -94,6 +98,9 @@ public class QualificationDtoMapper {
                 .status(status)
                 .borrowStatus(borrowStatus)
                 .expiringWithinDays(expiringWithinDays)
+                .expiringFrom(expiringFrom)
+                .expiringTo(expiringTo)
+                .issuer(issuer)
                 .keyword(keyword)
                 .build();
     }
@@ -132,6 +139,7 @@ public class QualificationDtoMapper {
                 .expectedReturnDate(qualification.expectedReturnDate())
                 .reminderEnabled(qualification.reminderPolicy().isEnabled())
                 .reminderDays(qualification.reminderPolicy().getReminderDays())
+                .retireReason(qualification.retireReason())
                 .fileUrl(qualification.fileUrl())
                 .attachments(qualification.attachments().stream().map(this::toAttachmentDto).toList())
                 .build();

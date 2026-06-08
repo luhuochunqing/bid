@@ -40,7 +40,7 @@ describe('qualificationsApi', () => {
 
     const result = await qualificationsApi.getList({ name: '高新' })
 
-    expect(httpClient.get).toHaveBeenCalledWith('/api/knowledge/qualifications')
+    expect(httpClient.get).toHaveBeenCalledWith('/api/knowledge/qualifications?keyword=%E9%AB%98%E6%96%B0')
     expect(result.success).toBe(true)
     expect(result.data).toHaveLength(1)
     expect(result.data[0]).toMatchObject({

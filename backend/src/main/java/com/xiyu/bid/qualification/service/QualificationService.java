@@ -27,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -58,13 +59,16 @@ public class QualificationService {
             String subjectType,
             String subjectName,
             String category,
-            String status,
+            List<String> status,
             String borrowStatus,
             Integer expiringWithinDays,
+            LocalDate expiringFrom,
+            LocalDate expiringTo,
+            String issuer,
             String keyword
     ) {
         return listQualificationsAppService.list(
-                        mapper.toCriteria(subjectType, subjectName, category, status, borrowStatus, expiringWithinDays, keyword))
+                        mapper.toCriteria(subjectType, subjectName, category, status, borrowStatus, expiringWithinDays, expiringFrom, expiringTo, issuer, keyword))
                 .stream()
                 .map(mapper::toDto)
                 .toList();
@@ -85,12 +89,12 @@ public class QualificationService {
 
     @Transactional(readOnly = true)
     public List<QualificationDTO> getQualificationsByType(com.xiyu.bid.entity.Qualification.Type type) {
-        return getAllQualifications(null, null, type == null ? null : mapper.toUpsertCommand(QualificationDTO.builder().type(type).build()).getCategory().name(), null, null, null, null);
+        return getAllQualifications(null, null, type == null ? null : mapper.toUpsertCommand(QualificationDTO.builder().type(type).build()).getCategory().name(), null, null, null, null, null, null, null);
     }
 
     @Transactional(readOnly = true)
     public List<QualificationDTO> getValidQualifications() {
-        return getAllQualifications(null, null, null, null, null, null, null).stream()
+        return getAllQualifications(null, null, null, null, null, null, null, null, null, null).stream()
                 .filter(item -> !"expired".equals(item.getStatus()))
                 .toList();
     }
@@ -132,7 +136,7 @@ public class QualificationService {
     @Transactional(readOnly = true)
     public List<QualificationBorrowRecordDTO> getBorrowRecords(Long id) {
         if (id == null) {
-            Map<Long, String> qualificationNameById = listQualificationsAppService.list(mapper.toCriteria(null, null, null, null, null, null, null))
+            Map<Long, String> qualificationNameById = listQualificationsAppService.list(mapper.toCriteria(null, null, null, null, null, null, null, null, null, null))
                     .stream()
                     .collect(Collectors.toMap(BusinessQualification::id, BusinessQualification::name, (left, right) -> left));
 
@@ -152,7 +156,7 @@ public class QualificationService {
 
     @Transactional(readOnly = true)
     public QualificationOverviewDTO getOverview() {
-        return mapper.toOverview(getAllQualifications(null, null, null, null, null, null, null));
+        return mapper.toOverview(getAllQualifications(null, null, null, null, null, null, null, null, null, null));
     }
 
     /**
@@ -219,16 +223,35 @@ public class QualificationService {
         String[] cols = {"证书名称","等级","认证机构","证书编号","发证日期","有效期","代理机构","代理联系方式","认证范围","状态"};
         for (int i = 0; i < cols.length; i++) hr.createCell(i).setCellValue(cols[i]);
         int r = 1;
-        for (var q : getAllQualifications(null, null, null, status, null, null, keyword)) {
+        for (var q : getAllQualifications(null, null, null, status == null ? null : List.of(status), null, null, null, null, null, keyword)) {
             var row = sh.createRow(r++);
-            row.createCell(0).setCellValue(q.getName() != null ? q.getName() : "");
-            row.createCell(2).setCellValue(q.getIssuer() != null ? q.getIssuer() : "");
-            row.createCell(3).setCellValue(q.getCertificateNo() != null ? q.getCertificateNo() : "");
+            row.createCell(0).setCellValue(nullToEmpty(q.getName()));
+            row.createCell(1).setCellValue(q.getLevel() != null ? q.getLevel().name() : "");
+            row.createCell(2).setCellValue(nullToEmpty(q.getIssuer()));
+            row.createCell(3).setCellValue(nullToEmpty(q.getCertificateNo()));
             row.createCell(4).setCellValue(q.getIssueDate() != null ? q.getIssueDate().toString() : "");
             row.createCell(5).setCellValue(q.getExpiryDate() != null ? q.getExpiryDate().toString() : "");
-            row.createCell(9).setCellValue(q.getStatus() != null ? q.getStatus() : "");
+            row.createCell(6).setCellValue(nullToEmpty(q.getAgency()));
+            row.createCell(7).setCellValue(nullToEmpty(q.getAgencyContact()));
+            row.createCell(8).setCellValue(nullToEmpty(q.getCertScope()));
+            row.createCell(9).setCellValue(statusLabel(q.getStatus()));
         }
         wb.write(out); wb.close();
+    }
+
+    private static String nullToEmpty(String s) {
+        return s == null ? "" : s;
+    }
+
+    private static String statusLabel(String status) {
+        if (status == null) return "";
+        return switch (status.toLowerCase()) {
+            case "valid", "in_stock" -> "在库";
+            case "expiring" -> "即将到期";
+            case "expired" -> "已过期";
+            case "retired" -> "已下架";
+            default -> status;
+        };
     }
 
     public void generateTemplate(java.io.OutputStream out) throws java.io.IOException {
@@ -244,7 +267,7 @@ public class QualificationService {
     public QualificationDTO retireQualification(Long id, String reason) {
         var dto = getQualificationById(id);
         dto.setStatus("RETIRED");
-        // TODO(leaf #5): persist retire_reason to entity for audit trail
+        dto.setRetireReason(reason);
         updateQualificationAppService.update(id, mapper.toUpsertCommand(dto));
         return getQualificationById(id);
     }
@@ -256,6 +279,7 @@ public class QualificationService {
         var period = new com.xiyu.bid.businessqualification.domain.valueobject.ValidityPeriod(
                 dto.getIssueDate(), dto.getExpiryDate());
         dto.setStatus(policy.evaluate(period, java.time.LocalDate.now()).name());
+        dto.setRetireReason("");
         updateQualificationAppService.update(id, mapper.toUpsertCommand(dto));
         return getQualificationById(id);
     }

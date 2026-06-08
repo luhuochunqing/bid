@@ -67,6 +67,9 @@
         </el-col>
         <el-col :span="12">
           <el-divider content-position="left">补充信息（非必填）</el-divider>
+          <el-form-item label="持证人" prop="holderName">
+            <el-input v-model="form.holderName" maxlength="120" placeholder="证书持有人姓名" data-testid="qf-holderName" />
+          </el-form-item>
           <el-form-item label="代理机构" prop="agency">
             <el-input v-model="form.agency" maxlength="200" data-testid="qf-agency" />
           </el-form-item>

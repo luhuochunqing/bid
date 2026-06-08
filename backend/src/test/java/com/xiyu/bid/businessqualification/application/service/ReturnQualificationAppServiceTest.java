@@ -106,6 +106,7 @@ class ReturnQualificationAppServiceTest {
                 null,
                 LocalDate.now().plusDays(30),
                 null,
+                null,
                 List.of()
         );
     }

@@ -28,6 +28,7 @@ public class QualificationUpsertCommand {
     String certScope;
     String certReviewNote;
     String holderName;
+    String retireReason;
     LocalDate issueDate;
     LocalDate expiryDate;
     Boolean reminderEnabled;

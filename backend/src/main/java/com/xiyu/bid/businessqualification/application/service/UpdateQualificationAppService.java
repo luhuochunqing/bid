@@ -1,7 +1,6 @@
 package com.xiyu.bid.businessqualification.application.service;
 
 import com.xiyu.bid.audit.service.IAuditLogService;
-import com.xiyu.bid.audit.service.AuditLogService;
 import com.xiyu.bid.businessqualification.application.command.QualificationUpsertCommand;
 import com.xiyu.bid.businessqualification.domain.model.BusinessQualification;
 import com.xiyu.bid.businessqualification.domain.model.QualificationAttachment;
@@ -67,6 +66,7 @@ public class UpdateQualificationAppService {
                 existing.borrowPurpose(),
                 existing.expectedReturnDate(),
                 command.getFileUrl() == null ? existing.fileUrl() : command.getFileUrl(),
+                command.getRetireReason() == null ? existing.retireReason() : command.getRetireReason(),
                 newAttachments
         );
 

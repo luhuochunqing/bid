@@ -89,7 +89,7 @@ public class BidMatchEvidenceAssembler {
         }
         return qualificationRepository.findAll(
                 QualificationListCriteria.builder()
-                        .status("VALID")
+                        .status(List.of("VALID"))
                         .keyword(scope.keyword())
                         .build()
         );
