@@ -84,7 +84,12 @@
     "gitee:pr-create": "GITEE_TOKEN=${GITEE_TOKEN} ./scripts/gitee-pr-helper.sh create",
     "gitee:pr-merge": "GITEE_TOKEN=${GITEE_TOKEN} ./scripts/gitee-pr-helper.sh merge",
     "gitee:auto-merge": "GITEE_TOKEN=${GITEE_TOKEN} ./scripts/gitee-auto-merge-gate.sh",
-    "test:dev-services": "bats scripts/test/dev-services-contract.bats"
+    "test:dev-services": "bats scripts/test/dev-services-contract.bats",
+    "docker:up": "bash scripts/docker-up.sh",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "docker:restart": "docker compose restart",
+    "dev:up": "npm run docker:up"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.0",

@@ -96,3 +96,5 @@ test-output/
 
 .claude/skills/
 .playwright-mcp/
+dist/
+docker-compose.yml.bak

@@ -1,24 +1,20 @@
-# 西域数智化投标管理平台 — 本地开发 Docker 环境
+# 西域数智化投标管理平台 — 全容器开发/演示环境
 # 使用方式：
-#   docker compose up -d                      # 启动所有服务
-#   docker compose logs -f backend            # 查看后端日志
-#   docker compose down                       # 停止所有服务
-#   docker compose restart backend            # 重启后端（重新编译后）
+#   cd backend && mvn package -DskipTests                     # 先编译后端
+#   npm run build                                              # 先构建前端
+#   docker compose up -d                                      # 一键启动所有服务
+#   docker compose logs -f                                    # 查看所有日志
+#   docker compose down                                       # 停止所有服务
 #
-# 代码变更后需先编译再重启：
-#   cd backend && mvn package -DskipTests -Dmaven.test.skip=true && docker compose restart backend
-#
-# 前端仍在宿主机运行（保持 Vite HMR）：
-#   cd /Users/user/xiyu/xiyu-bid-poc && VITE_API_MODE=api VITE_API_BASE_URL=http://localhost:18080 npx vite --host 127.0.0.1 --port 1314
-#
-# 文档转换 sidecar 仍在宿主机运行：
-#   screen -dmS main-sidecar bash -c 'cd /Users/user/xiyu/xiyu-bid-poc/document-converter-sidecar && .venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8000'
+# 代码变更后：重新编译对应模块 + docker compose restart <service>
 
 services:
   mysql:
     image: mysql:8.0
     container_name: xiyu-bid-mysql
     restart: unless-stopped
+    profiles:
+      - infra
     environment:
       MYSQL_ROOT_PASSWORD: XiyuRoot!2026
       MYSQL_DATABASE: xiyu_bid_main
@@ -41,13 +37,31 @@ services:
     image: redis:7-alpine
     container_name: xiyu-bid-redis
     restart: unless-stopped
-    ports:
-      - "16379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
+    networks:
+      - xiyu-net
+
+  sidecar:
+    build:
+      context: ./document-converter-sidecar
+      dockerfile: Dockerfile
+    container_name: xiyu-bid-sidecar
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      SIDECAR_HOST: "0.0.0.0"
+      SIDECAR_PORT: "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
     networks:
       - xiyu-net
 
@@ -60,6 +74,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      sidecar:
+        condition: service_started
     ports:
       - "18080:18080"
     volumes:
@@ -77,9 +93,36 @@ services:
       REDIS_DB: "0"
       SPRING_DATA_REDIS_DATABASE: "0"
       SERVER_PORT: "18080"
-      CORS_ALLOWED_ORIGINS: "http://localhost:1314,http://127.0.0.1:1314,http://localhost:1316,http://127.0.0.1:1316"
+      CORS_ALLOWED_ORIGINS: "http://localhost:1314,http://127.0.0.1:1314"
     working_dir: /app
     command: ["java", "-XX:+UseZGC", "-Xms256m", "-Xmx512m", "-jar", "/app/bid-poc.jar"]
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:18080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    networks:
+      - xiyu-net
+
+  frontend:
+    image: nginx:alpine
+    container_name: xiyu-bid-frontend
+    restart: unless-stopped
+    ports:
+      - "1314:80"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./dist:/usr/share/nginx/html:ro
+    depends_on:
+      backend:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:80/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - xiyu-net
 
