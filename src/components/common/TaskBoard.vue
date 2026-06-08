@@ -48,7 +48,7 @@
                 <el-icon class="more-icon"><MoreFilled /></el-icon>
                 <template #dropdown>
                   <el-dropdown-item
-                    v-for="s in statuses"
+                    v-for="s in availableStatuses"
                     :key="s.code"
                     :disabled="normalizeStatus(task.status) === s.code"
                     @click="handleStatusChange(task, s.code)"
@@ -144,7 +144,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { MoreFilled, User, Calendar, Document, MagicStick, Upload, DocumentAdd, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import draggable from 'vuedraggable'
@@ -181,6 +181,8 @@ const deliverableForm = ref({
 
 const statuses = computed(() => projectStore.taskStatuses)
 
+const availableStatuses = computed(() => statuses.value.filter((s) => s.code !== 'IN_PROGRESS'))
+
 onMounted(() => {
   if (!projectStore.taskStatusesLoaded) {
     projectStore.loadTaskStatuses()
@@ -189,8 +191,7 @@ onMounted(() => {
 
 const normalizeStatus = (status) => String(status || '').toUpperCase()
 
-const columns = computed(() => statuses.value
-  .filter((s) => s.code !== 'IN_PROGRESS')
+const columns = computed(() => availableStatuses.value
   .map((s) => ({
     key: s.code,
     title: s.name,
@@ -200,7 +201,7 @@ const columns = computed(() => statuses.value
   })))
 
 const terminalCodes = computed(() => new Set(
-  statuses.value.filter((s) => s.terminal && s.code !== 'IN_PROGRESS').map((s) => s.code)
+  statuses.value.filter((s) => s.terminal).map((s) => s.code)
 ))
 
 const progress = computed(() => {
@@ -215,6 +216,14 @@ const allTasksCompleted = computed(() => {
 })
 
 const canSubmitToDocument = computed(() => allTasksCompleted.value)
+
+// [DIAGNOSTIC]
+watch(() => props.tasks?.length, (len) => {
+  console.log('[TaskBoard] props.tasks.length:', len, 'statuses:', props.tasks?.map(t => `${t.id}:${t.status}`))
+}, { immediate: true })
+watch(columns, (cols) => {
+  console.log('[TaskBoard] columns:', cols?.map(c => c.key))
+}, { immediate: true })
 
 const getTasksByStatus = (code) => {
   return props.tasks.filter((t) => normalizeStatus(t.status) === code)

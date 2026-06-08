@@ -15,6 +15,7 @@ public class ProjectTaskStatusUpdateRequest {
     public enum Status {
         TODO,
         IN_PROGRESS,
+        REVIEW,
         COMPLETED,
         CANCELLED
     }

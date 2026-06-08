@@ -76,12 +76,12 @@
               data-test="task-deliverable-upload"
               :auto-upload="false"
               :file-list="deliverableFileList"
-              :disabled="readonly"
+              :disabled="readonly && !canDeliver"
               multiple
               @change="handleDeliverableChange"
               @remove="handleDeliverableRemove"
             >
-              <el-button :icon="Upload" :disabled="readonly">上传交付物</el-button>
+              <el-button :icon="Upload" :disabled="readonly && !canDeliver">上传交付物</el-button>
               <template #tip>
                 <div class="attachment-tip">任务执行人上传交付物</div>
               </template>
@@ -94,7 +94,7 @@
               type="textarea"
               :rows="4"
               placeholder="请填写完成情况说明（可选）"
-              :disabled="readonly"
+              :disabled="readonly && !canDeliver"
             />
           </el-form-item>
 
@@ -107,8 +107,8 @@
           </el-form-item>
 
           <el-form-item label="状态">
-            <el-select v-model="localValue.status" style="width: 100%" :loading="loadingStatuses">
-              <el-option v-for="s in statuses" :key="s.code" :label="s.name" :value="s.code" />
+            <el-select v-model="localValue.status" style="width: 100%" :loading="loadingStatuses" :disabled="!canManageStatus">
+              <el-option v-for="s in availableStatuses" :key="s.code" :label="s.name" :value="s.code" />
             </el-select>
           </el-form-item>
 
@@ -148,7 +148,7 @@ const props = defineProps({
   modelValue: { type: Object, default: () => ({}) },
   mode: { type: String, default: 'create' }, // create | edit | view
 })
-const emit = defineEmits(['submit', 'update:modelValue'])
+const emit = defineEmits(['submit', 'submit-review', 'update:modelValue'])
 
 const projectStore = useProjectStore()
 const userStore = useUserStore()
@@ -166,6 +166,36 @@ const validationMessage = ref('')
 const extFormRef = ref(null)
 const activeTab = ref('detail')
 const readonly = computed(() => props.mode === 'view')
+
+// 状态仅分配人可改（创建=分配人，编辑≠执行人，查看=只读）
+const canManageStatus = computed(() => {
+  if (props.mode === 'create') return true
+  if (props.mode === 'view') return false
+  const currentUserId = userStore.currentUser?.id
+  if (currentUserId == null) return false
+  const taskAssigneeId = localValue.assigneeId
+  if (taskAssigneeId == null) return true
+  return String(currentUserId) !== String(taskAssigneeId)
+})
+
+const availableStatuses = computed(() =>
+  statuses.value.filter(s => s.code !== 'IN_PROGRESS')
+)
+
+/**
+ * 执行人可在任务 TODO 状态下填写交付物和完成情况说明。
+ * 该 computed 用于交付物上传、完成情况说明字段的 disabled 覆盖，
+ * 以及抽屉底部「提交审核」按钮的显隐控制。
+ */
+const canDeliver = computed(() => {
+  if (props.mode !== 'view') return false
+  const currentUserId = userStore.currentUser?.id
+  if (currentUserId == null) return false
+  const taskAssigneeId = localValue.assigneeId
+  if (taskAssigneeId == null) return false
+  const taskStatus = String(localValue.status || '').toLowerCase()
+  return String(taskAssigneeId) === String(currentUserId) && taskStatus === 'todo'
+})
 const attachmentFileList = computed(() => localValue.attachments.map((file, index) => ({
   name: file?.name || `附件${index + 1}`,
   raw: file,
@@ -277,7 +307,16 @@ function submit() {
   return { valid: true, data: { ...localValue } }
 }
 
-defineExpose({ submit, validate })
+function submitForReview() {
+  const msg = validate()
+  if (msg) return { valid: false, message: msg }
+  // 提交审核时强制目标状态为 REVIEW
+  const data = { ...localValue, status: 'REVIEW' }
+  emit('submit-review', data)
+  return { valid: true, data }
+}
+
+defineExpose({ submit, submitForReview, validate, canDeliver })
 </script>
 
 <style scoped>
