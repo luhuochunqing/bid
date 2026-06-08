@@ -5,8 +5,10 @@ import com.xiyu.bid.personnel.application.dto.PersonnelDTO;
 import com.xiyu.bid.personnel.application.mapper.PersonnelMapper;
 import com.xiyu.bid.personnel.domain.model.Personnel;
 import com.xiyu.bid.personnel.domain.port.PersonnelRepository;
+import com.xiyu.bid.personnel.domain.service.PersonnelValidator;
 import com.xiyu.bid.personnel.domain.valueobject.CertificateType;
 import com.xiyu.bid.personnel.domain.valueobject.PersonnelStatus;
+import com.xiyu.bid.personnel.application.service.PersonnelOperationLogService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -26,13 +28,17 @@ class CreatePersonnelAppServiceTest {
 
     private PersonnelRepository repository;
     private PersonnelMapper mapper;
+    private PersonnelValidator validator;
+    private PersonnelOperationLogService logService;
     private CreatePersonnelAppService service;
 
     @BeforeEach
     void setUp() {
         repository = mock(PersonnelRepository.class);
         mapper = new PersonnelMapper();
-        service = new CreatePersonnelAppService(repository, mapper);
+        validator = new PersonnelValidator();
+        logService = mock(PersonnelOperationLogService.class);
+        service = new CreatePersonnelAppService(repository, mapper, validator, logService);
     }
 
     @Test

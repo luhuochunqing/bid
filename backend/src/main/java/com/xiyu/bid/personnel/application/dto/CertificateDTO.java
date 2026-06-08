@@ -15,5 +15,6 @@ public record CertificateDTO(
         String title,
         boolean isPermanent,
         boolean expired,
-        long remainingDays
+        long remainingDays,
+        String status
 ) {}

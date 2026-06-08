@@ -14,6 +14,9 @@ public class PersonnelValidator {
         var errors = new java.util.ArrayList<ValidationError>();
         var warnings = new java.util.ArrayList<ValidationWarning>();
 
+        validateEntryDate(personnel.entryDate())
+                .ifPresent(errors::add);
+
         validateBirthDate(personnel.birthDate(), personnel.entryDate())
                 .ifPresent(errors::add);
 
@@ -28,6 +31,21 @@ public class PersonnelValidator {
         return new ValidationResult(List.copyOf(errors), List.copyOf(warnings));
     }
 
+    private java.util.Optional<ValidationError> validateEntryDate(LocalDate entryDate) {
+        if (entryDate == null) {
+            return java.util.Optional.empty();
+        }
+        if (entryDate.isAfter(LocalDate.now())) {
+            return java.util.Optional.of(
+                    new ValidationError(
+                            "ENTRY_DATE_FUTURE",
+                            "入职时间不能晚于今天"
+                    )
+            );
+        }
+        return java.util.Optional.empty();
+    }
+
     private java.util.Optional<ValidationError> validateBirthDate(
             LocalDate birthDate, LocalDate entryDate) {
         if (birthDate == null || entryDate == null) {
@@ -39,8 +57,7 @@ public class PersonnelValidator {
             return java.util.Optional.of(
                     new ValidationError(
                             "BIRTH_DATE_INVALID",
-                            String.format("入职日期必须晚于出生日期16年以上。出生日期: %s, 入职日期: %s",
-                                    birthDate, entryDate)
+                            "出生日期不合理"
                     )
             );
         }

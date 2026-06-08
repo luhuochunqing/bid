@@ -70,6 +70,8 @@ function normalizeCert(c) {
   const remainingDays = c.expiryDate
     ? Math.ceil((new Date(c.expiryDate) - Date.now()) / 86400000)
     : null
+  // 4.3.1.3 优先使用后端计算的 status，否则前端兜底
+  const status = c.status || (c.isPermanent ? 'PERMANENT' : c.expired ? 'EXPIRED' : remainingDays !== null && remainingDays <= 30 ? 'EXPIRING' : 'VALID')
   return {
     id: c.id,
     name: c.name || '-',
@@ -79,9 +81,10 @@ function normalizeCert(c) {
     issueDate: formatDate(c.issueDate),
     expiryDate: formatDate(c.expiryDate),
     attachmentUrl: c.attachmentUrl || '',
+    isPermanent: c.isPermanent || false,
     expired: c.expired || remainingDays === null ? false : remainingDays < 0,
     remainingDays: remainingDays ?? null,
-    expiryTagType: remainingDays === null ? '' : remainingDays < 0 ? 'danger' : remainingDays <= 60 ? 'warning' : 'success'
+    status
   }
 }
 
@@ -211,6 +214,14 @@ export const personnelApi = {
       fd,
       { headers: { 'Content-Type': 'multipart/form-data' } }
     )
+  },
+
+  /**
+   * 查询人员操作日志（4.3.1.3 详情抽屉 Tab 4）。
+   */
+  async getOperationLogs(personnelId) {
+    const res = await httpClient.get(`/api/knowledge/personnel/${personnelId}/operation-logs`)
+    return { ...res, data: Array.isArray(res?.data) ? res.data : [] }
   }
 }
 

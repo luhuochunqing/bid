@@ -30,4 +30,8 @@ locks:
   owner: trae
   branch: fix/bug-c1c2-c4-case-detail-route-and-industry-mapping
   expiresAt: 2026-06-15T00:00:00Z
-
+- path: .github/workflows/ci.yml
+  scope: file
+  reason: CI quality gate reinforce — compile check + full E2E regression
+  owner: codex
+  branch: agent/codex/ci-quality-gate-reinforce

@@ -213,7 +213,14 @@ const confirmOffShelf = async () => {
 }
 
 const goToSourceProject = (d) => { d.sourceProjectId ? window.open(`/bidding/detail/${d.sourceProjectId}`, '_blank') : ElMessage.warning('来源项目不可用') }
-const openBidDocument = (d) => { d.sourceProjectId ? window.open(`/api/projects/${d.sourceProjectId}/bid-document`, '_blank') : ElMessage.warning('标书原文暂不可用') }
+const openBidDocument = async (d) => {
+  if (!d?.sourceProjectId) { ElMessage.warning('标书原文暂不可用'); return }
+  try {
+    const res = await httpClient.get(`/api/archive/export-zip/${d.sourceProjectId}`, { responseType: 'blob' })
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([res], { type: 'application/zip' })); a.download = `标书原文-${d.sourceProjectId}.zip`; a.click(); URL.revokeObjectURL(a.href)
+    ElMessage.success('标书原文下载成功')
+  } catch (e) { ElMessage.error('标书原文下载失败：' + (e?.response?.data?.msg || e?.message || '未知错误')) }
+}
 
 const loadRelated = async (current) => {
   if (!current?.id) return
@@ -245,21 +252,14 @@ const switchCase = async (id) => {
 }
 
 const SESSION_KEY = 'case-drawer-state'
-
-// Restore drawer state from sessionStorage (in case of keep-alive rebuild)
 const restoreDrawerState = () => {
   try {
     const saved = sessionStorage.getItem(SESSION_KEY)
     if (saved) {
       const state = JSON.parse(saved)
       if (state.caseId) {
-        selectedCase.value = state
-        drawerVisible.value = true
-        // Reload full data in background
-        Promise.all([
-          loadRelated(state),
-          loadReuseHistory(state.caseId || state.id)
-        ]).finally(() => { drawerLoading.value = false })
+        selectedCase.value = state; drawerVisible.value = true
+        Promise.all([loadRelated(state), loadReuseHistory(state.caseId || state.id)]).finally(() => { drawerLoading.value = false })
       }
     }
   } catch { /* ignore parse errors */ }

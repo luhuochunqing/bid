@@ -5,7 +5,9 @@ import com.xiyu.bid.personnel.application.dto.PersonnelDTO;
 import com.xiyu.bid.personnel.application.mapper.PersonnelMapper;
 import com.xiyu.bid.personnel.application.result.PersonnelUpdateResult;
 import com.xiyu.bid.personnel.domain.model.Personnel;
+import com.xiyu.bid.personnel.domain.model.PersonnelOperationLog;
 import com.xiyu.bid.personnel.domain.port.PersonnelRepository;
+import com.xiyu.bid.personnel.domain.service.PersonnelValidator;
 import com.xiyu.bid.personnel.domain.valueobject.Certificate;
 import com.xiyu.bid.personnel.domain.valueobject.Education;
 import com.xiyu.bid.exception.ResourceNotFoundException;
@@ -25,6 +27,8 @@ public class UpdatePersonnelAppService {
 
     private final PersonnelRepository repository;
     private final PersonnelMapper mapper;
+    private final PersonnelValidator validator;
+    private final PersonnelOperationLogService logService;
 
     @Transactional
     public PersonnelUpdateResult update(Long id, PersonnelUpsertCommand command) {
@@ -51,7 +55,7 @@ public class UpdatePersonnelAppService {
         var newEducations = mapper.toEducationList(command.educations());
         var newCertificates = mapper.toCertificateList(command.certificates());
 
-        // 3. 应用更新到领域模型
+        // 3. 构建更新后的领域模型并校验
         Personnel updated = employeeNumberResult.updatedPersonnel()
                 .withUpdatedDetails(
                         command.name(),
@@ -68,6 +72,11 @@ public class UpdatePersonnelAppService {
                         newEducations
                 );
 
+        var validationResult = validator.validate(updated);
+        if (!validationResult.isValid()) {
+            throw new IllegalArgumentException(validationResult.errors().get(0).message());
+        }
+
         // 4. 检测证书变更（删除 / 替换）并软删除旧记录，同时收集变更明细（为操作日志准备）
         List<String> certificateChanges = handleCertificateChanges(existing, newCertificates);
         changes.addAll(certificateChanges);
@@ -78,9 +87,18 @@ public class UpdatePersonnelAppService {
 
         Personnel saved = repository.save(updated);
 
-        // TODO: 正式写入操作日志（使用 changes 列表）
+        // 6. 持久化操作日志
         if (!changes.isEmpty()) {
-            log.info("人员[{}]编辑变更明细: {}", id, changes);
+            PersonnelOperationLog log = PersonnelOperationLog.create(
+                    saved.id(),
+                    0L,
+                    "system",
+                    PersonnelOperationLog.OperationType.UPDATE,
+                    changes.stream()
+                            .map(c -> new PersonnelOperationLog.ChangeDetail("field", "", c))
+                            .toList()
+            );
+            logService.save(log);
         }
 
         PersonnelDTO dto = mapper.toDTO(saved);

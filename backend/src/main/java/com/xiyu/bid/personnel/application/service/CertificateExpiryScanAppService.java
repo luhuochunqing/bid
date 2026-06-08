@@ -18,7 +18,7 @@ import java.util.List;
 @Slf4j
 public class CertificateExpiryScanAppService {
 
-    private static final int DEFAULT_WARNING_DAYS = 60;
+    private static final int DEFAULT_WARNING_DAYS = 30;
     private static final int BATCH_SIZE = 100;
 
     private final PersonnelRepository repository;

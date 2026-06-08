@@ -2,9 +2,27 @@
   <div class="personnel-container">
     <div class="page-header">
       <h2>人员库 — 投标团队成员管理</h2>
-      <el-button v-if="canAdd" type="primary" @click="openForm(null)">
-        <el-icon><Plus /></el-icon> 新增人员
-      </el-button>
+      <div class="header-actions">
+        <div class="primary-actions">
+          <el-button v-if="canAdd" type="primary" @click="openForm(null)">
+            <el-icon><Plus /></el-icon> 新增人员
+          </el-button>
+        </div>
+        <div class="batch-actions" v-if="canBatch">
+          <el-button @click="handleDownloadTemplate">
+            <el-icon><Download /></el-icon> 下载导入模板
+          </el-button>
+          <el-button v-if="canImportExport" @click="importDialogVisible = true">
+            <el-icon><Upload /></el-icon> 批量导入
+          </el-button>
+          <el-button v-if="canImportExport" @click="exportDialogVisible = true">
+            <el-icon><Download /></el-icon> 批量导出
+          </el-button>
+          <el-button @click="attachDialogVisible = true">
+            <el-icon><Link /></el-icon> 批量关联附件
+          </el-button>
+        </div>
+      </div>
     </div>
 
     <el-card class="filter-card">
@@ -211,9 +229,9 @@
               <template #default="{row}">{{ row.isPermanent ? '是' : '否' }}</template>
             </el-table-column>
             <el-table-column prop="expiryDate" label="到期日" width="100" />
-            <el-table-column label="状态" width="70">
+            <el-table-column label="状态" width="90">
               <template #default="{row}">
-                <el-tag :type="row.expiryTagType" size="small">{{ row.expired ? '过期' : '有效' }}</el-tag>
+                <el-tag :type="certStatusTagType(row.status)" size="small">{{ certStatusLabel(row.status) }}</el-tag>
               </template>
             </el-table-column>
             <el-table-column label="附件" width="120">
@@ -225,23 +243,28 @@
           </el-table>
           <div v-else class="empty-hint">暂无证书记录</div>
           <div v-if="current.expiringCertificatesCount > 0" class="expiry-hint">
-            <el-icon><Warning /></el-icon> 该人员有 {{ current.expiringCertificatesCount }} 个证书即将到期（60 天内）
+            <el-icon><Warning /></el-icon> 该人员有 {{ current.expiringCertificatesCount }} 个证书即将到期（30 天内）
           </div>
         </el-tab-pane>
 
-        <!-- Tab 4: 操作日志（基础展示，完整持久化待后续 h5） -->
+        <!-- Tab 4: 操作日志（4.3.1.3 真实 API 数据） -->
         <el-tab-pane label="操作日志" name="log">
-          <div class="log-hint">
-            变更记录已开始在编辑路径收集（工号变更、教育经历增删、证书替换等）。<br>
-            完整操作日志持久化与高级查询将在“操作日志记录范围” h5 完善。本 Tab 当前展示基础变更提示。
-          </div>
-          <el-table :data="mockOperationLogs" stripe size="small" v-if="mockOperationLogs.length">
-            <el-table-column prop="time" label="时间" width="160" />
-            <el-table-column prop="operator" label="操作人" width="100" />
-            <el-table-column prop="type" label="类型" width="100" />
-            <el-table-column prop="summary" label="变更摘要" min-width="200" />
+          <el-table :data="operationLogs" stripe size="small" v-loading="operationLogsLoading">
+            <el-table-column prop="createdAt" label="时间" width="160">
+              <template #default="{row}">{{ row.createdAt ? row.createdAt.replace('T', ' ').slice(0, 16) : '-' }}</template>
+            </el-table-column>
+            <el-table-column prop="operatorName" label="操作人" width="100" />
+            <el-table-column prop="operationType" label="类型" width="100" />
+            <el-table-column label="变更摘要" min-width="200">
+              <template #default="{row}">
+                <span v-if="row.changeDetails && row.changeDetails.length">
+                  {{ row.changeDetails.map(d => `${d.field || ''}: ${d.oldValue || '-'} → ${d.newValue || '-'}`).join('; ') }}
+                </span>
+                <span v-else class="text-muted">—</span>
+              </template>
+            </el-table-column>
           </el-table>
-          <div v-else class="empty-hint">暂无操作日志（新建人员或无变更时为空）</div>
+          <div v-if="!operationLogsLoading && !operationLogs.length" class="empty-hint">暂无操作日志（新建人员或无变更时为空）</div>
         </el-tab-pane>
       </el-tabs>
     </el-drawer>
@@ -459,6 +482,190 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 批量导入对话框 -->
+    <el-dialog
+      v-model="importDialogVisible"
+      title="批量导入人员"
+      width="560px"
+      :close-on-click-modal="false"
+      @close="resetImportDialog"
+    >
+      <div v-if="!importTaskId">
+        <el-upload
+          drag
+          :auto-upload="false"
+          :limit="1"
+          accept=".xlsx"
+          :on-change="onImportFileChange"
+          :before-upload="beforeImportUpload"
+        >
+          <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+          <div class="el-upload__text">将Excel文件拖到此处，或<em>点击上传</em></div>
+          <template #tip>
+            <div class="el-upload__tip">仅支持 .xlsx 格式，文件大小不能超过 10MB</div>
+          </template>
+        </el-upload>
+        <div v-if="importFile" class="import-file-info">
+          <el-icon><Document /></el-icon>
+          <span>{{ importFile.name }}</span>
+          <el-button type="danger" link size="small" @click="importFile = null">移除</el-button>
+        </div>
+      </div>
+
+      <div v-else-if="importStatus === 'PROCESSING'" class="import-progress">
+        <el-progress :percentage="importProgressPercent" :status="importProgressPercent === 100 ? 'success' : ''" />
+        <p class="progress-text">{{ importProgressText }}</p>
+      </div>
+
+      <div v-else-if="importStatus === 'COMPLETED'" class="import-result">
+        <el-result icon="success" title="导入完成">
+          <template #sub-title>
+            <div class="result-summary">
+              <p>成功：{{ importSuccessCount }} 条</p>
+              <p v-if="importFailCount > 0">失败：{{ importFailCount }} 条</p>
+            </div>
+          </template>
+          <template #extra>
+            <el-button v-if="importFailCount > 0" type="warning" @click="handleDownloadErrorReport">
+              下载错误报告
+            </el-button>
+            <el-button type="primary" @click="importDialogVisible = false; loadData()">完成</el-button>
+          </template>
+        </el-result>
+      </div>
+
+      <div v-else-if="importStatus === 'FAILED'" class="import-result">
+        <el-result icon="error" title="导入失败" :sub-title="importErrorMessage">
+          <template #extra>
+            <el-button type="primary" @click="resetImportDialog">重试</el-button>
+          </template>
+        </el-result>
+      </div>
+
+      <template #footer v-if="!importTaskId">
+        <el-button @click="importDialogVisible = false">取消</el-button>
+        <el-button type="primary" :disabled="!importFile" :loading="importing" @click="handleStartImport">
+          开始导入
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 批量导出对话框 -->
+    <el-dialog
+      v-model="exportDialogVisible"
+      title="批量导出人员"
+      width="560px"
+      :close-on-click-modal="false"
+      @close="resetExportDialog"
+    >
+      <div v-if="!exportTaskId">
+        <el-form :model="exportFilters" label-width="100px">
+          <el-form-item label="姓名/工号">
+            <el-input v-model="exportFilters.keyword" placeholder="留空导出全部" clearable />
+          </el-form-item>
+          <el-form-item label="状态">
+            <el-select v-model="exportFilters.status" placeholder="全部" clearable style="width:100%">
+              <el-option label="在职" value="ACTIVE" />
+              <el-option label="停用" value="INACTIVE" />
+              <el-option label="离职" value="TERMINATED" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="部门">
+            <el-input v-model="exportFilters.departmentCode" placeholder="留空不限制" clearable />
+          </el-form-item>
+          <el-form-item label="持有证书">
+            <el-input v-model="exportFilters.certificateKeyword" placeholder="证书名称关键词" clearable />
+          </el-form-item>
+        </el-form>
+        <div class="export-hint">
+          <el-icon><InfoFilled /></el-icon>
+          导出文件包含 Excel（人员+教育+证书三Sheet）及证书附件ZIP
+        </div>
+      </div>
+
+      <div v-else-if="exportStatus === 'PROCESSING'" class="export-progress">
+        <el-progress :percentage="exportProgressPercent" :status="exportProgressPercent === 100 ? 'success' : ''" />
+        <p class="progress-text">{{ exportProgressText }}</p>
+      </div>
+
+      <div v-else-if="exportStatus === 'COMPLETED'" class="export-result">
+        <el-result icon="success" title="导出完成" :sub-title="`共导出 ${exportTotalCount} 条记录`">
+          <template #extra>
+            <el-button type="primary" @click="handleDownloadExportFile">下载导出文件</el-button>
+            <el-button @click="exportDialogVisible = false">关闭</el-button>
+          </template>
+        </el-result>
+      </div>
+
+      <div v-else-if="exportStatus === 'FAILED'" class="export-result">
+        <el-result icon="error" title="导出失败" :sub-title="exportErrorMessage">
+          <template #extra>
+            <el-button type="primary" @click="resetExportDialog">重试</el-button>
+          </template>
+        </el-result>
+      </div>
+
+      <template #footer v-if="!exportTaskId">
+        <el-button @click="exportDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="exporting" @click="handleStartExport">开始导出</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 批量关联附件对话框 -->
+    <el-dialog
+      v-model="attachDialogVisible"
+      title="批量关联证书附件"
+      width="640px"
+      :close-on-click-modal="false"
+      @close="resetAttachDialog"
+    >
+      <div v-if="!attachResults">
+        <el-upload
+          multiple
+          :auto-upload="false"
+          accept=".pdf,.jpg,.jpeg,.png"
+          :on-change="onAttachFilesChange"
+          :before-upload="beforeAttachUpload"
+          :show-file-list="true"
+          :file-list="attachFileList"
+        >
+          <el-button type="primary" plain>选择附件文件</el-button>
+          <template #tip>
+            <div class="el-upload__tip">
+              文件命名规范：PER_姓名_工号_序号_证书名.扩展名<br/>
+              示例：PER_张三_EMP001_01_一级建造师.pdf
+            </div>
+          </template>
+        </el-upload>
+      </div>
+
+      <div v-else class="attach-results">
+        <el-result
+          :icon="attachResults.failedCount === 0 ? 'success' : 'warning'"
+          :title="attachResults.failedCount === 0 ? '关联完成' : '关联完成（含未匹配文件）'"
+          :sub-title="`成功关联 ${attachResults.successCount} 个文件，${attachResults.failedCount} 个未匹配`"
+        >
+          <template #extra>
+            <div v-if="attachResults.unmatchedFiles && attachResults.unmatchedFiles.length > 0" class="unmatched-list">
+              <div v-for="(f, i) in attachResults.unmatchedFiles" :key="i" class="unmatched-item">
+                <el-icon><Warning /></el-icon>
+                <span class="unmatched-name">{{ f.fileName }}</span>
+                <span class="unmatched-reason">{{ f.reason }}</span>
+              </div>
+            </div>
+            <el-button type="primary" @click="resetAttachDialog">继续上传</el-button>
+          </template>
+        </el-result>
+      </div>
+
+      <template #footer v-if="!attachResults">
+        <el-button @click="attachDialogVisible = false">取消</el-button>
+        <el-button type="primary" :disabled="attachFileList.length === 0" :loading="attaching" @click="handleBatchAttach">
+          开始关联 ({{ attachFileList.length }} 个文件)
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -466,8 +673,9 @@
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useUserStore } from '@/stores/user.js'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Warning, CircleClose } from '@element-plus/icons-vue'
+import { Plus, Warning, CircleClose, Download, Upload, Link, UploadFilled, Document, InfoFilled } from '@element-plus/icons-vue'
 import personnelApi from '@/api/modules/personnel.js'
+import personnelBatchApi from '@/api/modules/personnelBatchApi.js'
 
 const records = ref([])
 const loading = ref(false)
@@ -539,6 +747,226 @@ const canAdd = computed(() => {
   return ['bid_admin', 'bid_lead', 'bid_specialist'].includes(r)
 })
 
+// 批量操作状态
+const importDialogVisible = ref(false)
+const exportDialogVisible = ref(false)
+const attachDialogVisible = ref(false)
+
+// 权限控制（bid_admin / bid_lead 可导入导出，bid_specialist 只能导出）
+const canImportExport = computed(() => {
+  const r = userStore.userRole || (userStore.currentUser && userStore.currentUser.role) || ''
+  return ['bid_admin', 'bid_lead'].includes(r)
+})
+const canBatch = computed(() => {
+  const r = userStore.userRole || (userStore.currentUser && userStore.currentUser.role) || ''
+  return ['bid_admin', 'bid_lead', 'bid_specialist'].includes(r)
+})
+
+// 下载导入模板
+const handleDownloadTemplate = async () => {
+  try {
+    await personnelBatchApi.downloadImportTemplate()
+    ElMessage.success('模板下载成功')
+  } catch {
+    ElMessage.error('模板下载失败')
+  }
+}
+
+// 导入对话框状态
+const importFile = ref(null)
+const importTaskId = ref(null)
+const importStatus = ref('') // PROCESSING, COMPLETED, FAILED
+const importProgressPercent = ref(0)
+const importProgressText = ref('')
+const importSuccessCount = ref(0)
+const importFailCount = ref(0)
+const importErrorMessage = ref('')
+const importing = ref(false)
+let importPollTimer = null
+
+const resetImportDialog = () => {
+  if (importPollTimer) { clearInterval(importPollTimer); importPollTimer = null }
+  importFile.value = null
+  importTaskId.value = null
+  importStatus.value = ''
+  importProgressPercent.value = 0
+  importProgressText.value = ''
+  importSuccessCount.value = 0
+  importFailCount.value = 0
+  importErrorMessage.value = ''
+  importing.value = false
+}
+
+const onImportFileChange = (file) => { importFile.value = file.raw }
+
+const beforeImportUpload = (file) => {
+  const isXlsx = file.name.toLowerCase().endsWith('.xlsx')
+  const isLt10M = file.size / 1024 / 1024 < 10
+  if (!isXlsx) { ElMessage.error('仅支持 .xlsx 格式'); return false }
+  if (!isLt10M) { ElMessage.error('文件大小不能超过 10MB'); return false }
+  importFile.value = file
+  return false // 阻止自动上传
+}
+
+const handleStartImport = async () => {
+  if (!importFile.value) return
+  importing.value = true
+  try {
+    const res = await personnelBatchApi.startImport(importFile.value)
+    const task = res?.data || {}
+    importTaskId.value = task.taskId
+    importStatus.value = 'PROCESSING'
+    importProgressPercent.value = 0
+    importProgressText.value = '正在处理导入任务...'
+
+    // 开始轮询进度
+    importPollTimer = setInterval(async () => {
+      try {
+        const progress = await personnelBatchApi.getImportProgress(importTaskId.value)
+        const info = progress?.data || {}
+        importProgressPercent.value = info.progressPercent ?? 0
+        importProgressText.value = info.progressText || '处理中...'
+        
+        if (info.status === 'COMPLETED') {
+          clearInterval(importPollTimer)
+          importPollTimer = null
+          importStatus.value = 'COMPLETED'
+          importSuccessCount.value = info.successCount ?? 0
+          importFailCount.value = info.failCount ?? 0
+        } else if (info.status === 'FAILED') {
+          clearInterval(importPollTimer)
+          importPollTimer = null
+          importStatus.value = 'FAILED'
+          importErrorMessage.value = info.errorMessage || '导入失败'
+        }
+      } catch (e) {
+        // 轮询失败不中断
+      }
+    }, 2000)
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.message || '导入任务创建失败')
+  } finally {
+    importing.value = false
+  }
+}
+
+const handleDownloadErrorReport = async () => {
+  try {
+    await personnelBatchApi.downloadErrorReport(importTaskId.value)
+    ElMessage.success('错误报告下载成功')
+  } catch {
+    ElMessage.error('错误报告下载失败')
+  }
+}
+
+// 导出对话框状态
+const exportFilters = reactive({ keyword: '', status: '', departmentCode: '', certificateKeyword: '' })
+const exportTaskId = ref(null)
+const exportStatus = ref('')
+const exportProgressPercent = ref(0)
+const exportProgressText = ref('')
+const exportTotalCount = ref(0)
+const exportErrorMessage = ref('')
+const exporting = ref(false)
+let exportPollTimer = null
+
+const resetExportDialog = () => {
+  if (exportPollTimer) { clearInterval(exportPollTimer); exportPollTimer = null }
+  Object.assign(exportFilters, { keyword: '', status: '', departmentCode: '', certificateKeyword: '' })
+  exportTaskId.value = null
+  exportStatus.value = ''
+  exportProgressPercent.value = 0
+  exportProgressText.value = ''
+  exportTotalCount.value = 0
+  exportErrorMessage.value = ''
+  exporting.value = false
+}
+
+const handleStartExport = async () => {
+  exporting.value = true
+  try {
+    const res = await personnelBatchApi.startExport(exportFilters)
+    const task = res?.data || {}
+    exportTaskId.value = task.taskId
+    exportStatus.value = 'PROCESSING'
+    exportProgressPercent.value = 0
+    exportProgressText.value = '正在处理导出任务...'
+
+    exportPollTimer = setInterval(async () => {
+      try {
+        const progress = await personnelBatchApi.getExportProgress(exportTaskId.value)
+        const info = progress?.data || {}
+        exportProgressPercent.value = info.progressPercent ?? 0
+        exportProgressText.value = info.progressText || '处理中...'
+        
+        if (info.status === 'COMPLETED') {
+          clearInterval(exportPollTimer)
+          exportPollTimer = null
+          exportStatus.value = 'COMPLETED'
+          exportTotalCount.value = info.totalCount ?? 0
+        } else if (info.status === 'FAILED') {
+          clearInterval(exportPollTimer)
+          exportPollTimer = null
+          exportStatus.value = 'FAILED'
+          exportErrorMessage.value = info.errorMessage || '导出失败'
+        }
+      } catch (e) {}
+    }, 2000)
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.message || '导出任务创建失败')
+  } finally {
+    exporting.value = false
+  }
+}
+
+const handleDownloadExportFile = async () => {
+  try {
+    await personnelBatchApi.downloadExportFile(exportTaskId.value)
+    ElMessage.success('导出文件下载成功')
+  } catch {
+    ElMessage.error('导出文件下载失败')
+  }
+}
+
+// 批量关联附件对话框状态
+const attachFileList = ref([])
+const attachResults = ref(null)
+const attaching = ref(false)
+
+const resetAttachDialog = () => {
+  attachFileList.value = []
+  attachResults.value = null
+  attaching.value = false
+}
+
+const onAttachFilesChange = (file, fileList) => {
+  attachFileList.value = fileList
+}
+
+const beforeAttachUpload = (file) => {
+  const okType = ['application/pdf', 'image/jpeg', 'image/png'].includes(file.type)
+  const okSize = file.size / 1024 / 1024 < 10
+  if (!okType) { ElMessage.error('仅支持 PDF/JPG/PNG'); return false }
+  if (!okSize) { ElMessage.error('附件不能超过10MB'); return false }
+  return true
+}
+
+const handleBatchAttach = async () => {
+  if (attachFileList.value.length === 0) return
+  attaching.value = true
+  try {
+    const files = attachFileList.value.map(f => f.raw).filter(Boolean)
+    const res = await personnelBatchApi.batchAttachAttachments(files)
+    attachResults.value = res?.data || { successCount: 0, failedCount: 0, unmatchedFiles: [] }
+    ElMessage.success(`关联完成：成功 ${attachResults.value.successCount} 个，未匹配 ${attachResults.value.failedCount} 个`)
+    await loadData()
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.message || '批量关联失败')
+  } finally {
+    attaching.value = false
+  }
+}
+
 const form = ref({ 
   name:'', 
   employeeNumber:'', 
@@ -567,12 +995,38 @@ const sortedEducations = computed(() => {
   const list = current.value?.educations || []
   return [...list].sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''))
 })
-// 占位：操作日志（完整持久化待后续 h5，当前展示空或模拟）
-const mockOperationLogs = computed(() => {
-  if (!current.value?.id) return []
-  // 未来可替换为真实查询 /api/personnel/{id}/operation-logs
-  return []
-})
+// 4.3.1.3 操作日志（真实 API 数据）
+const operationLogs = ref([])
+const operationLogsLoading = ref(false)
+
+const loadOperationLogs = async () => {
+  if (!current.value?.id) return
+  operationLogsLoading.value = true
+  try {
+    const res = await personnelApi.getOperationLogs(current.value.id)
+    operationLogs.value = Array.isArray(res?.data) ? res.data : []
+  } catch {
+    operationLogs.value = []
+  } finally {
+    operationLogsLoading.value = false
+  }
+}
+
+// 证书状态标签映射（4.3.1.3 需求：有效/即将到期/已过期/永久有效）
+const CERT_STATUS_LABELS = {
+  VALID: '有效',
+  EXPIRING: '即将到期',
+  EXPIRED: '已过期',
+  PERMANENT: '永久有效'
+}
+const CERT_STATUS_TAG_TYPES = {
+  VALID: 'success',
+  EXPIRING: 'warning',
+  EXPIRED: 'danger',
+  PERMANENT: 'primary'
+}
+const certStatusLabel = (status) => CERT_STATUS_LABELS[status] || status || '—'
+const certStatusTagType = (status) => CERT_STATUS_TAG_TYPES[status] || 'info'
 
 const canEdit = computed(() => {
   const r = userStore.userRole || (userStore.currentUser && userStore.currentUser.role) || ''
@@ -630,7 +1084,18 @@ const openDetail = (row, targetTabOrColumn = 'basic') => {
   const tab = typeof targetTabOrColumn === 'string' ? targetTabOrColumn : 'basic'
   detailActiveTab.value = tab
   detailVisible.value = true
+  // 切换到操作日志 Tab 时自动加载
+  if (tab === 'log') {
+    loadOperationLogs()
+  }
 }
+
+// 监听 Tab 切换，切换到操作日志时加载数据
+watch(detailActiveTab, (tab) => {
+  if (tab === 'log') {
+    loadOperationLogs()
+  }
+})
 const openForm = (row) => {
   isEdit.value = !!row
   if (row) {
@@ -704,6 +1169,7 @@ const handleSubmit = async () => {
   certAttachmentFiles.value = newFiles
 
   if (!form.value.name || !form.value.employeeNumber) { ElMessage.warning('姓名和工号必填'); return }
+  if (form.value.phone && !/^\d{11}$/.test(form.value.phone)) { ElMessage.warning('请输入有效的手机号'); return }
   if (!form.value.educations || form.value.educations.length === 0) {
     ElMessage.error('请至少添加1条完整的教育经历（学校、学历、学习形式、日期必填）'); return
   }
@@ -908,6 +1374,8 @@ onMounted(loadData)
 <style scoped lang="scss">
 .personnel-container { padding: 24px; }
 .page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; h2{font-weight:600;color:var(--el-text-color-primary);margin:0} }
+.header-actions { display: flex; gap: 12px; align-items: center; }
+.primary-actions, .batch-actions { display: flex; gap: 8px; }
 .filter-card,.table-card{ border-radius:8px; border:1px solid var(--el-border-color-lighter); box-shadow:0 2px 8px rgba(0,0,0,.05); }
 .expiry-warn{color:var(--el-color-warning);display:flex;align-items:center;gap:4px;font-size:13px}
 .expiry-danger{color:var(--el-color-danger);display:flex;align-items:center;gap:4px;font-size:13px}
@@ -960,4 +1428,18 @@ onMounted(loadData)
   background-color: var(--el-color-primary-light-9) !important;
   transition: background-color 0.3s;
 }
+
+.import-file-info { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px 12px; background: var(--el-fill-color-light); border-radius: 4px; }
+.import-progress { text-align: center; padding: 20px 0; }
+.progress-text { margin-top: 12px; color: var(--el-text-color-secondary); font-size: 13px; }
+.import-result { padding: 20px 0; }
+.result-summary p { margin: 4px 0; font-size: 14px; }
+.export-hint { margin-top: 16px; padding: 10px 12px; background: var(--el-color-primary-light-9); border-radius: 4px; font-size: 13px; color: var(--el-color-primary); display: flex; align-items: center; gap: 6px; }
+.export-progress { text-align: center; padding: 20px 0; }
+.export-result { padding: 20px 0; }
+.attach-results { padding: 20px 0; }
+.unmatched-list { text-align: left; margin-top: 16px; max-height: 300px; overflow-y: auto; }
+.unmatched-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 4px; background: var(--el-color-danger-light-9); margin-bottom: 4px; font-size: 13px; }
+.unmatched-name { font-weight: 500; color: var(--el-color-danger); }
+.unmatched-reason { color: var(--el-text-color-secondary); margin-left: auto; }
 </style>

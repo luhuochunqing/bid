@@ -6,9 +6,11 @@ import com.xiyu.bid.personnel.application.command.PersonnelUpsertCommand;
 import com.xiyu.bid.personnel.application.dto.PersonnelDTO;
 import com.xiyu.bid.personnel.application.response.PersonnelEditResponse;
 import com.xiyu.bid.personnel.application.result.PersonnelUpdateResult;
+import com.xiyu.bid.personnel.application.dto.PersonnelOperationLogDTO;
 import com.xiyu.bid.personnel.application.service.CreatePersonnelAppService;
 import com.xiyu.bid.personnel.application.service.DeletePersonnelAppService;
 import com.xiyu.bid.personnel.application.service.ListPersonnelAppService;
+import com.xiyu.bid.personnel.application.service.PersonnelOperationLogService;
 import com.xiyu.bid.personnel.application.service.RestorePersonnelAppService;
 import com.xiyu.bid.personnel.application.service.UpdatePersonnelAppService;
 import com.xiyu.bid.personnel.domain.port.PersonnelFileStorage;
@@ -55,6 +57,7 @@ public class PersonnelController {
     private final DeletePersonnelAppService deleteService;
     private final RestorePersonnelAppService restoreService;
     private final ListPersonnelAppService listService;
+    private final PersonnelOperationLogService operationLogService;
 
     private final PersonnelFileStorage fileStorage;
     private final PersonnelCertificateJpaRepository certJpaRepository;
@@ -200,6 +203,20 @@ public class PersonnelController {
         certJpaRepository.save(cert);
 
         return ResponseEntity.ok(ApiResponse.success("证书附件上传成功", url));
+    }
+
+    /**
+     * 查询人员操作日志（4.3.1.3 详情抽屉 Tab 4）。
+     */
+    @GetMapping("/{id}/operation-logs")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @Auditable(action = "READ", entityType = "PersonnelOperationLog", description = "查询人员操作日志")
+    public ResponseEntity<ApiResponse<List<PersonnelOperationLogDTO>>> getOperationLogs(@PathVariable Long id) {
+        var logs = operationLogService.findByPersonnelId(id);
+        var dtos = logs.stream()
+                .map(PersonnelOperationLogDTO::fromDomain)
+                .toList();
+        return ResponseEntity.ok(ApiResponse.success("操作日志获取成功", dtos));
     }
 
     /**
