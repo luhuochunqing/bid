@@ -7,9 +7,11 @@ import com.xiyu.bid.businessqualification.application.service.BorrowQualificatio
 import com.xiyu.bid.businessqualification.application.service.CreateQualificationAppService;
 import com.xiyu.bid.businessqualification.application.service.DeleteQualificationAppService;
 import com.xiyu.bid.businessqualification.application.service.GetQualificationBorrowRecordsAppService;
+import com.xiyu.bid.businessqualification.application.service.ImportQualificationAppService;
 import com.xiyu.bid.businessqualification.application.service.ListQualificationsAppService;
 import com.xiyu.bid.businessqualification.application.service.ReturnQualificationAppService;
 import com.xiyu.bid.businessqualification.application.service.UpdateQualificationAppService;
+import com.xiyu.bid.businessqualification.domain.port.BusinessQualificationRepository;
 import com.xiyu.bid.businessqualification.domain.model.BusinessQualification;
 import com.xiyu.bid.businessqualification.domain.model.QualificationLoan;
 import com.xiyu.bid.businessqualification.domain.valueobject.LoanStatus;
@@ -52,6 +54,8 @@ class QualificationServiceAccessTest {
     @Mock private QualificationExpiryNotificationService qualificationExpiryNotificationService;
     @Mock private AlertConfigAppService alertConfigAppService;
     @Mock private DeleteQualificationAppService deleteQualificationAppService;
+    @Mock private ImportQualificationAppService importQualificationAppService;
+    @Mock private BusinessQualificationRepository businessQualificationRepository;
     @Mock private ProjectAccessScopeService projectAccessScopeService;
 
     @Test
@@ -154,8 +158,11 @@ class QualificationServiceAccessTest {
                 qualificationExpiryNotificationService,
                 alertConfigAppService,
                 deleteQualificationAppService,
+                importQualificationAppService,
                 new QualificationDtoMapper(),
-                projectAccessScopeService
+                projectAccessScopeService,
+                businessQualificationRepository,
+                new QualificationExcelSupport()
         );
     }
 

@@ -1,7 +1,7 @@
 <template>
   <div class="qualification-container">
     <div class="page-header">
-      <h2>企业资质与证书集中管理</h2>
+      <h2>资质证书</h2>
       <div class="page-actions">
         <el-button v-if="canManageQualification" type="primary" class="premium-btn" @click="formVisible=true; editData=null">
           <el-icon><Plus /></el-icon> 新增资质
@@ -29,13 +29,39 @@
             <el-option v-for="s in statusOptions" :key="s.value" :label="s.label" :value="s.value" />
           </el-select>
         </el-form-item>
+        <el-form-item label="等级">
+          <el-select v-model="filters.level" placeholder="全部" clearable style="width:160px">
+            <el-option v-for="lv in levelOptions" :key="lv" :label="lv" :value="lv" />
+          </el-select>
+        </el-form-item>
         <el-form-item><el-button type="primary" @click="fetchQualifications">查询</el-button><el-button @click="resetFilters">重置</el-button></el-form-item>
       </el-form>
     </el-card>
 
     <el-card class="data-card" shadow="never">
-      <el-table :data="qualifications" v-loading="loading" style="width:100%" @row-click="handleRowClick">
-        <el-table-column type="index" label="序号" width="60" />
+      <div v-if="hasSelection" class="batch-toolbar">
+        <el-button type="primary" size="small" @click="handleImportLedgerClick">
+          <el-icon><Upload /></el-icon> 导入台账
+        </el-button>
+        <el-button type="primary" size="small" @click="handleBatchUploadClick">
+          <el-icon><Document /></el-icon> 批量上传附件
+        </el-button>
+        <el-button type="success" size="small" @click="handleBatchExport">
+          <el-icon><Download /></el-icon> 导出台账
+        </el-button>
+        <el-button type="success" size="small" @click="handleBatchDownload">
+          <el-icon><Download /></el-icon> 批量下载附件
+        </el-button>
+        <span class="batch-info">已选 {{ selectedCount }} 项</span>
+      </div>
+      <el-upload v-show="false" ref="importUploadRef" action="" :auto-upload="false" :on-change="handleImportChange" accept=".xlsx,.xls">
+        <template #trigger><span ref="importTriggerRef" /></template>
+      </el-upload>
+      <el-upload v-show="false" ref="batchAttachUploadRef" action="" :auto-upload="false" multiple :on-change="handleBatchAttachChange">
+        <template #trigger><span ref="batchAttachTriggerRef" /></template>
+      </el-upload>
+      <el-table ref="tableRef" :data="qualifications" v-loading="loading" style="width:100%" @row-click="handleRowClick" @selection-change="handleSelectionChange">
+        <el-table-column type="selection" width="55" />
         <el-table-column prop="name" label="证书名称" min-width="180" fixed="left" show-overflow-tooltip>
           <template #default="scope"><span class="cert-name">{{ scope.row.name }}</span></template>
         </el-table-column>
@@ -62,8 +88,9 @@
             <el-tag :type="getStatusTagType(scope.row)" :class="{ 'retired-tag': scope.row.status === 'RETIRED' }">{{ statusLabel(scope.row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right" align="center">
+        <el-table-column label="操作" width="260" fixed="right" align="center">
           <template #default="scope">
+            <el-button v-if="scope.row.fileUrl" link type="primary" size="small" @click.stop="handleDownload(scope.row)">下载</el-button>
             <el-button v-if="canViewQualification" link type="warning" size="small" @click.stop="openBorrow(scope.row)">借阅</el-button>
             <el-button v-if="canViewQualification" link type="info" size="small" @click.stop="openBorrowHistory(scope.row)">记录</el-button>
             <el-button v-if="canManageQualification && scope.row.status !== 'RETIRED'" link type="primary" size="small" @click.stop="openEdit(scope.row)">编辑</el-button>
@@ -75,7 +102,12 @@
       <div class="pagination-wrap">
         <el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[15,30,50,100]" :total="total" layout="total,sizes,prev,pager,next,jumper" @size-change="fetchQualifications" @current-change="fetchQualifications" />
       </div>
-      <el-empty v-if="!loading && !qualifications.length" :description="emptyDescription" />
+      <el-empty v-if="!loading && !qualifications.length" :description="emptyDescription">
+        <template #description>
+          <span>{{ emptyDescription }}</span>
+        </template>
+      </el-empty>
+      <el-empty v-else-if="!loading && hasFilterActive && !qualifications.length" description="未找到匹配的证书，请调整筛选条件" />
     </el-card>
 
     <el-card v-if="canViewQualification" class="borrow-history-wrap" shadow="never">
@@ -121,10 +153,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Upload, Document, Download } from '@element-plus/icons-vue'
 import http from '@/api/client'
+import { useQualificationBatch } from './components/qualification/useQualificationBatch.js'
 import { getBorrowStatusLabel, borrowStatusTagTypes } from './components/qualification/qualificationMeta.js'
 import { useQualificationStore } from '@/stores/qualification'
 import { useUserStore } from '@/stores/user.js'
@@ -148,10 +181,15 @@ const {
 
 const qualifications = ref([]); const loading = ref(false)
 const page = ref(1); const pageSize = ref(15); const total = ref(0)
-const filters = reactive({ keyword:'', issuer:'', expiryRange:null, statuses:[] })
+const filters = reactive({ keyword:'', issuer:'', expiryRange:null, statuses:[], level:'' })
 const statusOptions = [{ label:'在库', value:'IN_STOCK' },{ label:'即将到期', value:'EXPIRING' },{ label:'已过期', value:'EXPIRED' },{ label:'已下架', value:'RETIRED' }]
 const STATUS_LABELS = { IN_STOCK:'在库', EXPIRING:'即将到期', EXPIRED:'已过期', RETIRED:'已下架', VALID:'在库' }
-const emptyDescription = ref('暂无资质证书，点击右上角新增')
+
+const hasFilterActive = computed(() => filters.keyword || filters.issuer || filters.expiryRange || filters.statuses.length || filters.level)
+const emptyDescription = computed(() => {
+  if (!canViewQualification.value) return '暂无权限查看资质证书'
+  return '暂无资质证书，点击右上角新增'
+})
 
 const formVisible = ref(false); const editData = ref(null)
 const {
@@ -191,6 +229,7 @@ const fetchQualifications = async () => {
     if (filters.issuer) q.set('issuer', filters.issuer)
     if (filters.expiryRange) { q.set('expiringFrom', filters.expiryRange[0]); q.set('expiringTo', filters.expiryRange[1]) }
     if (filters.statuses.length) filters.statuses.forEach(s => q.append('status', s))
+    if (filters.level) q.set('level', filters.level)
     q.set('page', page.value-1); q.set('size', pageSize.value)
     const body = await http.get(`/api/knowledge/qualifications?${q.toString()}`)
     if (body?.code === 200) { qualifications.value = body.data?.content || body.data || []; total.value = body.data?.totalElements || qualifications.value.length }
@@ -198,7 +237,30 @@ const fetchQualifications = async () => {
   finally { loading.value = false }
 }
 
-const resetFilters = () => { Object.assign(filters, { keyword:'', issuer:'', expiryRange:null, statuses:[] }); page.value = 1; fetchQualifications() }
+const levelOptions = computed(() => {
+  const levels = new Set()
+  qualifications.value.forEach((item) => { if (item.level) levels.add(item.level) })
+  return Array.from(levels).sort()
+})
+
+const {
+  tableRef,
+  hasSelection,
+  selectedCount,
+  handleSelectionChange,
+  importUploadRef,
+  importTriggerRef,
+  handleImportLedgerClick,
+  handleImportChange,
+  batchAttachUploadRef,
+  batchAttachTriggerRef,
+  handleBatchUploadClick,
+  handleBatchAttachChange,
+  handleBatchExport,
+  handleBatchDownload
+} = useQualificationBatch({ fetchQualifications })
+
+const resetFilters = () => { Object.assign(filters, { keyword:'', issuer:'', expiryRange:null, statuses:[], level:'' }); page.value = 1; fetchQualifications() }
 const getStatusTagType = (row) => { const s = row.status || ''; if (s === 'IN_STOCK' || s === 'VALID') return 'success'; if (s === 'EXPIRING') return 'warning'; if (s === 'EXPIRED') return 'danger'; return 'info' }
 const getBorrowStatusTagType = (status) => borrowStatusTagTypes[status] || 'info'
 const statusLabel = (s) => STATUS_LABELS[s] || s || '—'
@@ -247,4 +309,6 @@ onMounted(async () => {
 .cert-name { font-weight:500; color:#1f2937 }
 .text-muted { color:#9ca3af }
 .retired-tag { text-decoration:line-through; opacity:0.6 }
+.batch-toolbar { display:flex; align-items:center; gap:12px; margin-bottom:12px; padding:8px 12px; background:var(--el-fill-color-light); border-radius:6px; border:1px solid var(--el-border-color-lighter) }
+.batch-info { margin-left:auto; color:var(--el-text-color-secondary); font-size:13px }
 </style>

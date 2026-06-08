@@ -21,4 +21,9 @@ public interface BusinessQualificationJpaRepository extends JpaRepository<Busine
      * §4.1.3.4 蓝图：按证书编号查重（导入时行级校验）。
      */
     boolean existsByCertificateNo(String certificateNo);
+
+    /**
+     * §4.2.1.2 蓝图：获取所有已录入的等级列表（去重，非空）。
+     */
+    List<String> findDistinctLevelByLevelIsNotNull();
 }

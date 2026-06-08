@@ -51,7 +51,11 @@
     "src/views/System/Settings.vue",
     "src/views/System/WorkflowFormDesigner.vue",
     "src/views/System/workflow-form-designer/useWorkflowFormDesigner.js",
-    "backend/src/main/java/com/xiyu/bid/approval/controller/ApprovalController.java"
+    "backend/src/main/java/com/xiyu/bid/approval/controller/ApprovalController.java",
+    "backend/src/main/java/com/xiyu/bid/qualification/controller/QualificationController.java",
+    "backend/src/main/java/com/xiyu/bid/qualification/service/QualificationService.java",
+    "src/views/Knowledge/Qualification.vue",
+    "src/views/Knowledge/components/qualification/useQualificationPage.js"
   ],
   "excludeSuffixes": [
     ".spec.js",
