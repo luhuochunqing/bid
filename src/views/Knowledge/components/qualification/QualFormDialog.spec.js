@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { nextTick } from 'vue'
 import QualFormDialog from './QualFormDialog.vue'
 
 // Mock Element Plus components

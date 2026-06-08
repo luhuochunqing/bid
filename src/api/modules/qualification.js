@@ -258,6 +258,23 @@ export const qualificationsApi = {
       }
       throw error
     }
+  },
+
+  async exportList(params = {}) {
+    const query = buildListQuery(params)
+    return httpClient.get(`/api/knowledge/qualifications/export${query ? '?' + query : ''}`, { responseType: 'blob' })
+  },
+
+  async batchDownload(ids = []) {
+    return httpClient.post('/api/knowledge/qualifications/batch-download', { ids }, { responseType: 'blob' })
+  },
+
+  async importLedger(file) {
+    const formData = new FormData()
+    formData.append('file', file)
+    return httpClient.post('/api/knowledge/qualifications/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
   }
 }
 

@@ -18,12 +18,17 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.io.IOException;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,8 +39,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/knowledge/qualifications")
@@ -250,5 +253,59 @@ public class QualificationController {
     @Auditable(action = "UPDATE", entityType = "Qualification", description = "恢复资质证书")
     public ResponseEntity<ApiResponse<QualificationDTO>> restore(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("恢复成功", qualificationService.restoreQualification(id)));
+    }
+
+    @GetMapping("/levels")
+    @PreAuthorize("hasAnyRole('ADMIN_STAFF', 'BID_ADMIN', 'BID_LEAD', 'BID_SPECIALIST')")
+    @Auditable(action = "READ", entityType = "Qualification", description = "获取资质等级列表")
+    public ResponseEntity<ApiResponse<List<String>>> getAllLevels() {
+        return ResponseEntity.ok(ApiResponse.success("Levels retrieved successfully", qualificationService.getAllLevels()));
+    }
+
+    @PostMapping("/batch-export")
+    @PreAuthorize("hasAnyRole('ADMIN_STAFF', 'BID_ADMIN', 'BID_LEAD', 'BID_SPECIALIST')")
+    @Auditable(action = "EXPORT", entityType = "Qualification", description = "批量导出资质台账")
+    public ResponseEntity<byte[]> batchExport(@RequestBody Map<String, List<Long>> body) throws IOException {
+        List<Long> ids = body.get("ids");
+        byte[] data = qualificationService.batchExportExcel(ids);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=资质证书台账批量导出_" + java.time.LocalDate.now() + ".xlsx")
+                .body(data);
+    }
+
+    @PostMapping("/batch-download")
+    @PreAuthorize("hasAnyRole('ADMIN_STAFF', 'BID_ADMIN', 'BID_LEAD', 'BID_SPECIALIST')")
+    @Auditable(action = "EXPORT", entityType = "Qualification", description = "批量下载资质附件")
+    public ResponseEntity<byte[]> batchDownload(@RequestBody Map<String, List<Long>> body) throws IOException {
+        List<Long> ids = body.get("ids");
+        byte[] data = qualificationService.batchExportZip(ids);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=资质附件批量下载_" + java.time.LocalDate.now() + ".zip")
+                .body(data);
+    }
+
+    @PostMapping("/import")
+    @PreAuthorize("hasAnyRole('ADMIN_STAFF', 'BID_ADMIN', 'BID_LEAD')")
+    @Auditable(action = "CREATE", entityType = "Qualification", description = "导入资质台账")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> importQualifications(@RequestParam("file") MultipartFile file) throws IOException {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String operatorName = auth != null ? auth.getName() : "系统导入";
+        var summary = qualificationService.importFromExcel(file, operatorName);
+        Map<String, Object> result = Map.of(
+                "total", summary.total(),
+                "success", summary.success(),
+                "failed", summary.failed(),
+                "errors", summary.results().stream()
+                        .filter(r -> !r.isSuccess())
+                        .map(r -> Map.of(
+                                "row", r.getRowNumber(),
+                                "certificateNo", r.getCertificateNo(),
+                                "reason", r.getFailureReason()
+                        ))
+                        .toList()
+        );
+        return ResponseEntity.ok(ApiResponse.success("Import completed", result));
     }
 }

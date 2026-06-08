@@ -82,6 +82,13 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
         return qualificationJpaRepository.existsByCertificateNo(certificateNo);
     }
 
+    @Override
+    public List<String> findAllLevels() {
+        return qualificationJpaRepository.findDistinctLevelByLevelIsNotNull().stream()
+                .sorted()
+                .toList();
+    }
+
     private boolean matches(BusinessQualification item, QualificationListCriteria criteria) {
         if (criteria == null) {
             return true;

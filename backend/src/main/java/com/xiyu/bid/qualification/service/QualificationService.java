@@ -11,12 +11,15 @@ import com.xiyu.bid.businessqualification.application.service.BorrowQualificatio
 import com.xiyu.bid.businessqualification.application.service.CreateQualificationAppService;
 import com.xiyu.bid.businessqualification.application.service.DeleteQualificationAppService;
 import com.xiyu.bid.businessqualification.application.service.GetQualificationBorrowRecordsAppService;
+import com.xiyu.bid.businessqualification.application.service.ImportQualificationAppService;
 import com.xiyu.bid.businessqualification.application.service.ListQualificationsAppService;
 import com.xiyu.bid.businessqualification.application.service.ReturnQualificationAppService;
 import com.xiyu.bid.businessqualification.application.service.UpdateQualificationAppService;
 import com.xiyu.bid.businessqualification.domain.model.BusinessQualification;
 import com.xiyu.bid.businessqualification.domain.model.QualificationLoan;
+import com.xiyu.bid.businessqualification.domain.port.BusinessQualificationRepository;
 import com.xiyu.bid.businessqualification.domain.valueobject.LoanStatus;
+import com.xiyu.bid.exception.InvalidArgumentException;
 import com.xiyu.bid.qualification.dto.QualificationBorrowRecordDTO;
 import com.xiyu.bid.qualification.dto.QualificationBorrowRequest;
 import com.xiyu.bid.qualification.dto.QualificationDTO;
@@ -26,7 +29,10 @@ import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -47,8 +53,11 @@ public class QualificationService {
     private final QualificationExpiryNotificationService qualificationExpiryNotificationService;
     private final AlertConfigAppService alertConfigAppService;
     private final DeleteQualificationAppService deleteQualificationAppService;
+    private final ImportQualificationAppService importQualificationAppService;
     private final QualificationDtoMapper mapper;
     private final ProjectAccessScopeService projectAccessScopeService;
+    private final BusinessQualificationRepository businessQualificationRepository;
+    private final QualificationExcelSupport qualificationExcelSupport;
 
     public QualificationDTO createQualification(QualificationDTO dto) {
         return mapper.toDto(createQualificationAppService.create(mapper.toUpsertCommand(dto)));
@@ -196,7 +205,7 @@ public class QualificationService {
         }
         String normalized = projectId.trim();
         if (!normalized.matches("\\d+")) {
-            throw new IllegalArgumentException("项目 ID 必须为数字");
+            throw new InvalidArgumentException("项目 ID 必须为数字");
         }
         return Long.valueOf(normalized);
     }
@@ -282,5 +291,72 @@ public class QualificationService {
         dto.setRetireReason("");
         updateQualificationAppService.update(id, mapper.toUpsertCommand(dto));
         return getQualificationById(id);
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> getAllLevels() {
+        return businessQualificationRepository.findAllLevels();
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] batchExportExcel(List<Long> ids) throws IOException {
+        if (ids == null || ids.isEmpty()) {
+            throw new InvalidArgumentException("导出 ID 列表不能为空");
+        }
+        List<QualificationDTO> items = getAllQualifications(null, null, null, null, null, null, null, null, null, null)
+                .stream()
+                .filter(q -> ids.contains(q.getId()))
+                .toList();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        qualificationExcelSupport.writeLedger(items, null, out);
+        return out.toByteArray();
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] batchExportZip(List<Long> ids) throws IOException {
+        if (ids == null || ids.isEmpty()) {
+            throw new InvalidArgumentException("下载 ID 列表不能为空");
+        }
+        List<QualificationDTO> items = getAllQualifications(null, null, null, null, null, null, null, null, null, null)
+                .stream()
+                .filter(q -> ids.contains(q.getId()))
+                .toList();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(out)) {
+            for (QualificationDTO item : items) {
+                if (item.getAttachments() != null) {
+                    for (var att : item.getAttachments()) {
+                        if (att.getFileUrl() == null || att.getFileUrl().isBlank()) continue;
+                        String entryName = (item.getName() == null ? "资质" : item.getName()) + "_" + (att.getFileName() == null ? att.getFileUrl() : att.getFileName());
+                        zos.putNextEntry(new java.util.zip.ZipEntry(entryName));
+                        try (java.io.InputStream in = new java.net.URL(att.getFileUrl()).openStream()) {
+                            in.transferTo(zos);
+                        } catch (java.net.MalformedURLException e) {
+                            zos.write(("无法下载: " + att.getFileUrl()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                        }
+                        zos.closeEntry();
+                    }
+                }
+                if (item.getFileUrl() != null && !item.getFileUrl().isBlank()) {
+                    String entryName = (item.getName() == null ? "资质" : item.getName()) + "_" + item.getFileUrl();
+                    zos.putNextEntry(new java.util.zip.ZipEntry(entryName));
+                    try (java.io.InputStream in = new java.net.URL(item.getFileUrl()).openStream()) {
+                        in.transferTo(zos);
+                    } catch (java.net.MalformedURLException e) {
+                        zos.write(("无法下载: " + item.getFileUrl()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    }
+                    zos.closeEntry();
+                }
+            }
+        }
+        return out.toByteArray();
+    }
+
+    @Transactional
+    public ImportQualificationAppService.ImportSummary importFromExcel(MultipartFile file, String operatorName) throws IOException {
+        if (file == null || file.isEmpty()) {
+            throw new InvalidArgumentException("上传文件不能为空");
+        }
+        return importQualificationAppService.importFromExcel(file, operatorName);
     }
 }

@@ -11,6 +11,7 @@ import { getAccessToken } from '@/api/session.js'
 import { useQualificationStore } from '@/stores/qualification'
 import { useUserStore } from '@/stores/user'
 import { useQualificationBorrowWorkflow } from './useQualificationBorrowWorkflow'
+import { qualificationsApi } from '@/api/modules/qualification.js'
 
 export function useQualificationPage() {
   const qualificationStore = useQualificationStore()
@@ -29,7 +30,8 @@ export function useQualificationPage() {
   const searchForm = reactive({
     name: '',
     type: '',
-    status: ''
+    status: '',
+    level: ''
   })
 
   const pagination = reactive({
@@ -62,11 +64,23 @@ export function useQualificationPage() {
     openBorrowDialog
   } = useQualificationBorrowWorkflow({ currentQualification, borrowDialogVisible })
 
+  const levelOptions = computed(() => {
+    const levels = new Set()
+    qualifications.value.forEach((item) => {
+      if (item.level) levels.add(item.level)
+    })
+    return Array.from(levels).sort()
+  })
+
+  const selectedRows = ref([])
+  const hasSelection = computed(() => selectedRows.value.length > 0)
+
   const filteredQualifications = computed(() => {
     const result = qualifications.value
       .filter((item) => !searchForm.name || item.name.toLowerCase().includes(searchForm.name.toLowerCase()))
       .filter((item) => !searchForm.type || item.type === searchForm.type)
       .filter((item) => !searchForm.status || item.status === searchForm.status)
+      .filter((item) => !searchForm.level || item.level === searchForm.level)
 
     return [...result].sort((a, b) => a.remainingDays - b.remainingDays)
   })
@@ -109,7 +123,65 @@ export function useQualificationPage() {
     searchForm.name = ''
     searchForm.type = ''
     searchForm.status = ''
+    searchForm.level = ''
     pagination.page = 1
+  }
+
+  function handleSelectionChange(rows) {
+    selectedRows.value = rows || []
+  }
+
+  async function handleBatchExport() {
+    if (!selectedRows.value.length) {
+      ElMessage.warning('请先选择要导出的资质证书')
+      return
+    }
+    try {
+      const ids = selectedRows.value.map((r) => r.id)
+      const response = await qualificationsApi.exportList({ ids })
+      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      triggerDownload(blob, '资质台账导出.xlsx')
+      ElMessage.success('导出台账成功')
+    } catch (error) {
+      console.error('Batch export error:', error)
+      ElMessage.error('导出台账失败')
+    }
+  }
+
+  async function handleBatchDownload() {
+    if (!selectedRows.value.length) {
+      ElMessage.warning('请先选择要下载的资质证书')
+      return
+    }
+    const ids = selectedRows.value.filter((r) => r.fileUrl).map((r) => r.id)
+    if (!ids.length) {
+      ElMessage.warning('所选资质证书均无可下载附件')
+      return
+    }
+    try {
+      const response = await qualificationsApi.batchDownload(ids)
+      const blob = new Blob([response.data], { type: 'application/zip' })
+      triggerDownload(blob, '资质附件批量下载.zip')
+      ElMessage.success('批量下载成功')
+    } catch (error) {
+      console.error('Batch download error:', error)
+      ElMessage.error('批量下载失败')
+    }
+  }
+
+  async function handleImportLedger(file) {
+    try {
+      const response = await qualificationsApi.importLedger(file.raw || file)
+      if (response?.code === 200 || response?.success) {
+        ElMessage.success('导入台账成功')
+        await loadPageData()
+        return
+      }
+      ElMessage.error(response?.msg || '导入台账失败')
+    } catch (error) {
+      console.error('Import ledger error:', error)
+      ElMessage.error('导入台账失败')
+    }
   }
 
   async function handleExportList() {
@@ -277,7 +349,14 @@ export function useQualificationPage() {
     pagination,
     searchForm,
     uploadDialogVisible,
-    uploadForm
+    uploadForm,
+    selectedRows,
+    hasSelection,
+    levelOptions,
+    handleSelectionChange,
+    handleBatchExport,
+    handleBatchDownload,
+    handleImportLedger
   }
 }
 

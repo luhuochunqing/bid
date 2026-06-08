@@ -20,4 +20,6 @@ public interface BusinessQualificationRepository {
     boolean existsById(Long id);
 
     boolean existsByCertificateNo(String certificateNo);
+
+    List<String> findAllLevels();
 }
