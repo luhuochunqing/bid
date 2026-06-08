@@ -37,7 +37,6 @@
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
-            <el-button size="small" type="primary" :icon="Plus" @click="goToCreate">创建项目</el-button>
           </div>
         </div>
       </template>
@@ -75,7 +74,8 @@
           <el-table-column prop="ownerUnit" label="招标主体" min-width="150">
             <template #default="{ row }">{{ row.ownerUnit || '-' }}</template>
           </el-table-column>
-          <el-table-column prop="shortlistedCount" label="计划入围供应商数量" width="120" align="right" v-if="columnVisible.shortlistedCount" class-name="multi-line-header">
+          <el-table-column prop="shortlistedCount" width="100" align="center" v-if="columnVisible.shortlistedCount" class-name="multi-line-header">
+            <template #header><span class="header-two-line">计划入围<br>供应商数量</span></template>
             <template #default="{ row }">{{ row.shortlistedCount ?? '-' }}</template>
           </el-table-column>
           <el-table-column label="创建时间" prop="createdAt" width="130" sortable="custom" v-if="columnVisible.createTime">
@@ -107,7 +107,8 @@
           <el-table-column prop="projectLeaderName" label="项目负责人" width="110">
             <template #default="{ row }">{{ row.projectLeaderName || '-' }}</template>
           </el-table-column>
-          <el-table-column prop="leaderDepartment" label="项目负责人部门" width="110" v-if="columnVisible.leaderDepartment">
+          <el-table-column prop="leaderDepartment" width="120" align="center" v-if="columnVisible.leaderDepartment" class-name="multi-line-header">
+            <template #header><span class="header-two-line">项目负责人<br>部门</span></template>
             <template #default="{ row }">{{ row.leaderDepartment || '-' }}</template>
           </el-table-column>
           <el-table-column prop="biddingLeaderName" label="投标负责人" width="110" v-if="columnVisible.biddingLeaderName">
@@ -150,7 +151,7 @@
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
-import { Plus, Download, ArrowDown, Check } from '@element-plus/icons-vue'
+import { Download, ArrowDown, Check } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import ProjectSearchCard from './components/ProjectSearchCard.vue'
 import { getProjectStatusText, getProjectStatusType } from './project-utils.js'
@@ -253,5 +254,6 @@ onMounted(() => { loadProjects() })
 .project-name-link,.project-name-link:hover { color: var(--el-color-primary); cursor: pointer; text-decoration: underline; }
 .customer-type-cell { white-space: normal; word-break: break-word; line-height: 1.5; }
 .multi-line-header :deep(.cell) { white-space: normal; line-height: 1.3; }
+.header-two-line { display: inline-block; text-align: center; line-height: 1.35; }
 .wrap-cell .cell { white-space: normal; word-break: break-word; }
 </style>
