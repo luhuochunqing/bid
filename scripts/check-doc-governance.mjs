@@ -96,6 +96,11 @@ function normalizeComment(line) {
   return line.replace(/^\s*(\/\/|#)\s?/, '').trim()
 }
 
+// 修复（与 scripts/lib/doc-governance-checker.mjs 同步）：
+// ① 收集 commentLines 时去掉 >= 4 早 break；
+// ② 同时认 `*` 起头行（多行 list 注释延续）。
+// 理由：原 bug 会在前 4 注释行凑满时 break，丢后续的 Pos/维护声明；
+// 同时 list 注释的 `* - foo: bar` 形式被原 L113 `^\s*(\/\/|#)` 不匹配会跳出循环。
 function checkGovernedFile(relativePath) {
   const filePath = path.join(repoRoot, relativePath)
   const content = readFileContent(filePath)
@@ -110,11 +115,11 @@ function checkGovernedFile(relativePath) {
     if (isJavaFile && /^package\s+.+;$/.test(line.trim())) {
       continue
     }
-    if (/^\s*(\/\/|#)/.test(line)) {
+    // 修复：去掉 `>= 4 早 break`（前 4 注释行凑满即跳出会丢 L11/12 的 Pos/维护声明）；
+    // 同时把匹配模式从 `^\s*(\/\/|#)` 扩到 `^\s*(\/\/|#|\*)`，
+    // 兼容多行 list 注释延续行（`# - foo: bar` / `* - foo: bar`），避免被原模式 break。
+    if (/^\s*(\/\/|#|\*)/.test(line)) {
       commentLines.push(normalizeComment(line))
-      if (commentLines.length >= 4) {
-        break
-      }
       continue
     }
     if (line.trim() === '') {
