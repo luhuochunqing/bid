@@ -158,24 +158,24 @@ export const caApi = {
   // 列表（带筛选）
   async getList(params = {}) {
     const response = await httpClient.get(BASE, { params })
-    const data = Array.isArray(response?.data?.content)
-      ? response.data.content.map(normalizeCaCertificate)
-      : Array.isArray(response?.data)
-        ? response.data.map(normalizeCaCertificate)
+    const data = Array.isArray(response?.content)
+      ? response.content.map(normalizeCaCertificate)
+      : Array.isArray(response)
+        ? response.map(normalizeCaCertificate)
         : []
-    return { ...response, data }
+    return { success: true, data }
   },
 
   // 统计概览
   async getOverview() {
     const response = await httpClient.get(`${BASE}/overview`)
     return {
-      ...response,
+      success: true,
       data: {
-        total: response?.data?.total ?? 0,
-        expiring: response?.data?.expiring ?? 0,
-        expired: response?.data?.expired ?? 0,
-        borrowed: response?.data?.borrowed ?? 0
+        total: response?.total ?? 0,
+        expiring: response?.expiring ?? 0,
+        expired: response?.expired ?? 0,
+        borrowed: response?.borrowed ?? 0
       }
     }
   },
@@ -183,19 +183,19 @@ export const caApi = {
   // 详情
   async getDetail(id) {
     const response = await httpClient.get(`${BASE}/${id}`)
-    return { ...response, data: normalizeCaCertificate(response?.data) }
+    return { success: true, data: normalizeCaCertificate(response) }
   },
 
   // 新增
   async create(data) {
     const response = await httpClient.post(BASE, data)
-    return { ...response, data: normalizeCaCertificate(response?.data) }
+    return { success: true, data: normalizeCaCertificate(response) }
   },
 
   // 更新
   async update(id, data) {
     const response = await httpClient.put(`${BASE}/${id}`, data)
-    return { ...response, data: normalizeCaCertificate(response?.data) }
+    return { success: true, data: normalizeCaCertificate(response) }
   },
 
   // 下架（deactivate）

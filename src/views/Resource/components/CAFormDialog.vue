@@ -81,20 +81,20 @@
         />
       </el-form-item>
 
-      <el-form-item label="保管员姓名" prop="custodianName">
-        <el-input
-          v-model="form.custodianName"
-          placeholder="请输入保管员姓名"
-          maxlength="100"
-        />
-      </el-form-item>
-
-      <el-form-item label="保管员ID" prop="custodianId">
-        <el-input
+      <el-form-item label="保管员" prop="custodianId">
+        <el-select
           v-model="form.custodianId"
-          placeholder="请输入保管员用户ID"
-          maxlength="50"
-        />
+          filterable
+          remote
+          reserve-keyword
+          placeholder="搜索选择保管员"
+          :remote-method="searchCustodian"
+          :loading="custodianSearching"
+          style="width: 100%"
+          @change="onCustodianSelect"
+        >
+          <el-option v-for="u in custodianOptions" :key="u.id" :label="u.name" :value="u.id" />
+        </el-select>
       </el-form-item>
 
       <el-form-item label="备注" prop="remarks">
@@ -130,6 +130,7 @@
 
 <script setup>
 import { ref, reactive, computed, watch } from 'vue'
+import { usersApi } from '@/api/modules/users.js'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -147,6 +148,25 @@ const visible = computed({
 const isEdit = computed(() => !!props.ca?.id)
 const formRef = ref(null)
 const platformIdsText = ref('')
+const custodianSearching = ref(false)
+const custodianOptions = ref([])
+
+async function searchCustodian(query) {
+  if (!query) return
+  custodianSearching.value = true
+  try {
+    const list = await usersApi.search(query)
+    custodianOptions.value = Array.isArray(list) ? list.map(u => ({ id: Number(u.id), name: u.name || u.fullName || u.username })) : []
+  } catch { custodianOptions.value = [] }
+  finally { custodianSearching.value = false }
+}
+
+function onCustodianSelect(id) {
+  const selected = custodianOptions.value.find(u => u.id === Number(id))
+  if (selected) {
+    form.custodianName = selected.name
+  }
+}
 
 function createDefaultForm() {
   return {
@@ -181,8 +201,10 @@ watch(() => props.ca, (ca) => {
     form.issuer = ca.issuer || ''
     form.holderName = ca.holderName || ''
     form.caPlatformUrl = ca.caPlatformUrl || ''
-    form.custodianName = ca.custodianName || ''
     form.custodianId = ca.custodianId || ''
+		if (ca.custodianId && ca.custodianName) {
+			custodianOptions.value = [{ id: Number(ca.custodianId), name: ca.custodianName }]
+		}
     form.status = ca.status || 'ACTIVE'
     form.remarks = ca.remarks || ca.remark || ''
     platformIdsText.value = Array.isArray(ca.platformIds) ? ca.platformIds.join(', ') : ''
@@ -234,8 +256,8 @@ const rules = {
   expiryDate: [
     { required: true, message: '请选择有效期', trigger: 'change' }
   ],
-  custodianName: [
-    { required: true, message: '请输入保管员姓名', trigger: 'blur' }
+  custodianId: [
+    { required: true, message: '请选择保管员', trigger: 'change' }
   ]
 }
 
