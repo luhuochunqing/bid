@@ -35,6 +35,7 @@ public class ProjectArchiveDetailService {
                 .orElseThrow(() -> new IllegalArgumentException("Archive not found: " + archiveId));
 
         String projectType = "综合";
+        String projectStatus = "PENDING_INITIATION";
         String bidResult = "OTHER";
         String projectManager = "未知";
         String bidManager = "未知";
@@ -47,6 +48,7 @@ public class ProjectArchiveDetailService {
         Optional<Project> projectOpt = projectRepository.findById(archive.getProjectId());
         if (projectOpt.isPresent()) {
             Project p = projectOpt.get();
+            projectStatus = p.getStatus().name();
             Optional<Tender> tenderOpt = tenderRepository.findById(p.getTenderId());
             if (tenderOpt.isPresent()) {
                 Tender tender = tenderOpt.get();
@@ -70,7 +72,7 @@ public class ProjectArchiveDetailService {
             closedAt = p.getClosedAt();
         }
 
-        List<ArchiveFile> files = fileRepository.findByArchiveId(archiveId);
+        List<ArchiveFile> files = fileRepository.findByArchiveIdOrderByCreatedAtDesc(archiveId);
         List<ProjectArchiveDetailResponse.ArchiveFileDTO> fileDTOs = files.stream()
                 .map(f -> new ProjectArchiveDetailResponse.ArchiveFileDTO(
                         f.getId(),
@@ -95,9 +97,10 @@ public class ProjectArchiveDetailService {
 
         return new ProjectArchiveDetailResponse(
                 archive.getId(),
+                archive.getProjectId(),
                 archive.getProjectName(),
                 projectType,
-                archive.getArchiveStatus(),
+                projectStatus,
                 bidResult,
                 tenderAgency,
                 initiatedAt,
