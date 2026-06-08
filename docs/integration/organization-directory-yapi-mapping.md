@@ -1,125 +1,101 @@
 # 组织架构 YAPI 契约映射
 
-本文冻结西域数智化投标管理平台与客户组织架构系统的对接口径。
+本文冻结西域数智化投标管理平台与客户组织架构系统（EHSY）的对接口径。
 
-**最后更新**: 2026-05-21（SDK 接入 + HTTP Fallback 清理完成后）
+**最后更新**: 2026-06-08（对齐 YAPI 实测结果：POST + form-urlencoded + EHSY 头，无需 Bearer token）
 
 ---
 
 ## 架构决策（已冻结）
 
-| 决策 | 结论 | 状态 |
-|---|---|---|
-| SDK 接入方式 | `@AcceptEvent` 直连，HTTP fallback 已删除（FR-012） | ✅ 冻结 |
-| Bearer token 来源 | `POST /auth/applyToken` 动态换取，内存缓存 + 自动续期 | ✅ 冻结 |
-| Token 续期策略 | 剩余 10% 生命周期时自动续期；连续失败 3 次进入 60s cooldown | ✅ 冻结 |
-| SDK consumer group | 可配置：`XIYU_ORG_EVENT_CONSUMER_GROUP`，默认 `bid-org-consumer-test` | ✅ 冻结 |
-| Maven 坐标 | `com.ehsy.eventlibrary:ClientSDK:release_0.0.2` | ✅ 冻结，按客户确认使用 `release_0.0.2` |
-| Maven 私服 | `sdk` Maven profile 内默认 `https://maven.ehsy.com/nexus/repository/maven-releases/`，可通过 `-Dehsy.maven.repository.url=...` 覆盖 | ✅ 配置，待 `mvn compile -Psdk` 拉包验证 |
-| SDK 接入包 | `infrastructure/sdk/OrganizationEventSdkConsumerAdapter` | ✅ 冻结 |
-
----
+| 决策 | 结论 | 状态 | 依据 |
+|---|---|---|---|
+| SDK 接入方式 | `@AcceptEvent` 直连，HTTP fallback 已删除（FR-012） | ✅ 冻结 | 客户 SDK 文档 |
+| YAPI 鉴权方式 | **无需 Bearer token**，仅携带链路追踪 Header（`EHSY-TraceID`、`EHSY-SRCAPP`） | ✅ 冻结 | YAPI 项目 `api/23312` 实测确认 |
+| Bearer token 换取 | **不需要** — YAPI 部署在 EHSY 内网，基于网络白名单安全 | ❌ 已废弃 | 旧假设 `POST /auth/applyToken` 不适用 |
+| 额外 HTTP 认证 | 通过环境变量 `XIYU_ORG_DIRECTORY_AUTH_HEADER` / `XIYU_ORG_DIRECTORY_AUTH_TOKEN` 配置，默认不启用 | ✅ 冻结 | 外部环境备用路径 |
+| SDK consumer group | 可配置默认 `bms` | ✅ 冻结 | `OrganizationIntegrationProperties` |
+| Maven 坐标 | `com.ehsy.eventlibrary:ClientSDK:release_0.0.2` | ✅ 冻结 | 客户确认版本 |
+| SDK 接入包 | `infrastructure/sdk/OrganizationEventSdkConsumerAdapter` | ✅ 冻结 | 代码已实现 |
+| YAPI HTTP 方法 | **POST**（非 GET） | ✅ 已适配 | `restTemplate.postForEntity` |
+| YAPI Content-Type | 详情：`form-urlencoded`；时间窗：`application/json` | ✅ 已适配 | 双模式 |
+| YAPI 分页 | `data.index` 作为下一页索引 | ✅ 已适配 | 循环分页 |
 
 ## 事件订阅（已冻结）
 
-| Event Topic | Identifier | Local Entry | SDK Handler |
-|---|---|---|---|
-| `BaseOssDept` | `data.deptId` | `OrganizationDirectorySyncAppService` | `OrganizationEventSdkConsumerAdapter.onDeptChanged()` |
-| `BaseOssUser` | `data.userId` | `OrganizationDirectorySyncAppService` | `OrganizationEventSdkConsumerAdapter.onUserChanged()` |
+| Event Topic | Identifier | 处理入口 |
+|---|---|---|
+| `BaseOssDept` | `data.deptId` | `OrganizationDirectorySyncAppService` |
+| `BaseOssUser` | `data.userId` | `OrganizationDirectorySyncAppService` |
 
 > 事件 `data` 只作为变更通知标识，不作为主数据 payload。主数据必须通过 YAPI 详情接口回查。
 
-## SDK 注册配置（已冻结）
-
-| SDK 配置项 | 本系统环境变量 | 测试参考值 | 状态 |
-|---|---|---|---|
-| `client.register.serviceName` | `XIYU_ORG_EVENT_SERVICE_NAME` | `BidSystemOrgConsumer` | ✅ 冻结，生产命名需客户确认 |
-| `client.register.serverRegisterUrl` | `XIYU_ORG_EVENT_SERVER_REGISTER_URL` | `http://event-busserver-test.ehsy.com` | ✅ 测试值冻结，生产值由西域提供 |
-| `client.register.enableRegister` | `XIYU_ORG_EVENT_ENABLE_REGISTER` | `true` | ✅ 冻结，默认关闭 |
-| `client.renewal.initialDelay` | `XIYU_ORG_EVENT_RENEWAL_INITIAL_DELAY` | `3` | ✅ 冻结 |
-| `client.renewal.period` | `XIYU_ORG_EVENT_RENEWAL_PERIOD` | `3` | ✅ 冻结 |
-| `client.renewal.renewalDuration` | `XIYU_ORG_EVENT_RENEWAL_DURATION_MS` | `3000` | ✅ 冻结，单位毫秒 |
-
-> 生产环境不得直接使用测试 `serverRegisterUrl`、测试 `consumerGroup` 或测试账号。生产值由西域另行提供。
-
 ---
 
-## YAPI 鉴权（部分冻结）
+## YAPI 映射表（已确认）
 
-| 配置项 | 值 | 状态 |
-|---|---|---|
-| applyToken 路径 | `/auth/applyToken` | ✅ 冻结 |
-| applyToken Body | `{ clientId, clientSecret }` | ✅ 冻结 |
-| applyToken Response | `{ code, data: { access_token, expires_in } }` | ✅ 冻结 |
-| Bearer token header 名称 | `Authorization`（`Authorization: Bearer {token}`） | ✅ 冻结 |
-| authClientId / authClientSecret | 环境变量注入：`XIYU_ORG_DIRECTORY_AUTH_CLIENT_ID/SECRET` | ✅ 冻结 |
-| 续期比例 | 剩余生命周期 10% 时续期 | ✅ 冻结 |
+> 字段基于 YAPI 项目 `api/23312`、`api/23300` 实测。
 
----
+| 能力 | 方法 | 路径 | 鉴权 | 请求 | 响应字段 | 本地映射 |
+|---|---|---|---|---|---|---|
+| 部门详情 | **POST** | `/subscription/msg/dept` | EHSY-TraceID + EHSY-SRCAPP | form: `deptId` | `deptId, code, name, parentId, status, del` | `deptId`→`externalDeptId`, `name`→`departmentName` |
+| 员工详情 | **POST** | `/subscription/msg/user` | EHSY-TraceID + EHSY-SRCAPP | form: `userId` | `userId, name, jobNumber, email, mobilePhone, del, activationState` | `userId`→`externalUserId`, `name`→`fullName` |
+| 部门时间窗 | **POST** | `/subscription/msg/getDeptByTimeWindow` | 同上 | JSON: `{ startTime, endTime, index }` | `{ index, list: [...] }` | 循环分页 |
+| 员工时间窗 | **POST** | `/subscription/msg/getUserByTimeWindow` | 同上 | JSON: `{ startTime, endTime, index }` | `{ index, list: [...] }` | 循环分页 |
 
-## YAPI 映射表（待西域确认）
-
-> 已知字段已冻结；待确认字段标注 `[?]`。
-
-| Capability | Method | Path | Auth | Request Fields | Response Data Path | Local Mapping | Not Found Semantics |
-|---|---|---|---|---|---|---|---|
-| Department detail | GET | `/departments/{deptId}` | Bearer token | `deptId` | `data` | `deptId` -> `externalDeptId`, `deptName` -> `departmentName` | [?] disable vs pending-confirm |
-| User detail | GET | `/users/{userId}` | Bearer token | `userId` | `data` | `userId` -> `externalUserId`, [?]`loginId` -> `username` | [?] disable vs pending-confirm |
-| Department window | GET | `/departments/window` | Bearer token | `startAt`, `endAt`, `pageNo`, `pageSize` | `data.list` | list of snapshots | empty page ends sync |
-| User window | GET | `/users/window` | Bearer token | `startAt`, `endAt`, `pageNo`, `pageSize` | `data.list` | list of snapshots | empty page ends sync |
+> **BaseUrl**: `https://base-oss-test.ehsy.com`，由 `XIYU_ORG_DIRECTORY_BASE_URL` 覆盖
 
 ---
 
 ## 字段映射
 
-### 部门（Department）
+### 部门
 
-| Domain Field | Remote Field | Local Field | Status | Notes |
+| 领域字段 | YAPI 字段 | 本地字段 | 状态 | 说明 |
 |---|---|---|---|---|
-| 幂等主键 | `deptId` | `externalDeptId` | ✅ 冻结 | |
-| 部门名称 | `deptName` | `departmentName` | ✅ 冻结 | |
-| 父部门引用 | `parentId` [?] | `parentExternalDeptId` | [?] pending confirm | 字段名待确认 |
-| 禁用语义 | [?] | `disabled` | [?] pending confirm | 直接禁用 vs pending-confirm |
+| 幂等主键 | `data.deptId` | `externalDeptId` | ✅ 冻结 | 整型数字，按字符串处理 |
+| 部门编码 | `data.code` | `departmentCode` | ✅ 冻结 | |
+| 部门名称 | `data.name` | `departmentName` | ✅ 冻结 | |
+| 父部门 ID | `data.parentId` / `administrativeSuperiors` | `parentExternalDeptId` | ⚠️ 待确认 | 哪个字段是父部门 ID？ |
+| 启用状态 | `status`(1=正常) + `del`(0=未删) | `enabled` | ⚠️ 待确认 | 组合语义待确认 |
+| 父部门编码 | — | `parentDepartmentCode` | ❌ 无来源 | YAPI 无此字段 |
 
-### 员工（User）
+### 员工
 
-| Domain Field | Remote Field | Local Field | Status | Notes |
+| 领域字段 | YAPI 字段 | 本地字段 | 状态 | 说明 |
 |---|---|---|---|---|
-| 幂等主键 | `userId` | `externalUserId` | ✅ 冻结 | |
-| 用户名 | `loginId` [?] | `username` | [?] pending confirm | 字段名待确认 |
-| 全名 | `fullName` [?] | `fullName` | [?] pending confirm | 字段名待确认 |
-| 主部门 | [?] | `departmentCode` | [?] pending confirm | 字段名 + 主/兼职语义 |
-| 禁用语义 | [?] | `disabled` | [?] pending confirm | 直接禁用 vs pending-confirm |
+| 幂等主键 | `data.userId` | `externalUserId` | ✅ 冻结 | |
+| 姓名 | `data.name` | `fullName` | ✅ 冻结 | |
+| 工号 | `data.jobNumber` | `jobNumber` | ✅ 冻结 | |
+| 邮箱 | `data.email` | — | ✅ 冻结 | 日志禁止完整值 |
+| 手机号 | `data.mobilePhone` | — | ✅ 冻结 | 日志禁止完整值 |
+| 删除状态 | `data.del` | `disabled` | ✅ 冻结 | `del=1` 表示离职 |
+| 激活状态 | `data.activationState` | — | ✅ 冻结 | 1=激活 |
+
+### 响应公共结构
+
+所有接口返回 `{ code, msg, data }`：
+- `code=0/200` → 成功，读 `data`
+- `code≠0` 且 HTTP 2xx → 按 `OrganizationDirectoryResponsePolicy` 分类
+- HTTP 404 → 查无（禁用/已删除）
+- HTTP 5xx → 可重试
 
 ---
 
-## SDK 待验证项（SDK jar 到货后验证）
+## SDK 待验证项（jar 到货后）
 
-| 项目 | 当前状态 | 待验证 |
+| 项目 | 当前假设 | 待验证 |
 |---|---|---|
-| `@AcceptEvent` 注解包名 | 推测 `com.ehsy.eventlibrary.annotations` | SDK jar 验证 |
-| `EventInfoRespDto` 类型 | 推测 `EventResult` 子类 | SDK jar 验证 |
-| SDK 注册机制 | `@AcceptEvent` 自动发现 | SDK jar 验证 |
-| SDK 启动超时 | SDK 启动后 30s 内完成注册（SC-001） | 联调验证 |
+| `@AcceptEvent` 包名 | `com.ehsy.eventlibrary.clientsdk.common.anno.AcceptEvent` | SDK jar |
+| `EventResult` 类型 | `com.ehsy.eventlibrary.clientsdk.systeminteraction.result.EventResult` | SDK jar |
+| 事件 JSON 格式与 `eventTrackInfo` 归一化 | 已实现 adapter 归一化逻辑 | SDK jar |
+| 生产 baseURL / broker / consumerGroup | 待客户交付 | 生产环境 |
+| `parentId` vs `administrativeSuperiors` | 待客户确认 | YAPI 冻结 |
+| `status + del` 组合语义 | 待客户确认 | YAPI 冻结 |
 
----
+## 对应代码位置
 
-## 待西域提供（Blocking）
-
-| 项目 | 影响的 Task | 状态 |
-|---|---|---|
-| Maven 私服拉包验证 | pom.xml `sdk` profile repository URL | ⏳ 仓库入口已提供；当前 HTTPS 握手被远端关闭，待网络白名单/协议/仓库路径确认 |
-| YAPI base URL | `application.yml` | ⏳ 待提供 |
-| applyToken clientId + clientSecret | `OrganizationTokenService` | ⏳ 待提供 |
-| SDK 生产注册地址、Kafka broker list + ZK servers | SDK 连接配置 | ⏳ 测试值已有，生产值待提供 |
-| YAPI 详情接口完整路径 | `organization-directory-yapi-mapping.md` | ⏳ 待提供 |
-
----
-
-## 历史：HTTP Fallback 清理记录
-
-- HTTP webhook 入口（`/api/integrations/organization/events`）已删除
-- `OrganizationWebhookSignatureVerifier`（HMAC 校验）已删除
-- `DisabledOrganizationDirectoryGateway` 已删除
-- `SecurityConfig` 中 webhook 路由白名单已移除
-- 旧 `organization/` 包（`EventSyncService`、`ClientSdkAdapter`、`FullInitService` 等）已删除
+- `OrganizationDirectoryHttpGateway`: POST + form-urlencoded/JSON ✅ 已完成
+- `OrganizationDirectoryAuthHeaders`: EHSY-TraceID / EHSY-SRCAPP ✅ 已完成
+- `OrganizationDirectoryJsonMapper`: YAPI JSON → 领域 snapshot ✅ 已完成
+- `OrganizationDirectoryResponsePolicy`: 响应 code 分类决策 ✅ 已完成

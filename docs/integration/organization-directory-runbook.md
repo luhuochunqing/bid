@@ -22,7 +22,7 @@
 | `XIYU_ORG_EVENT_RENEWAL_PERIOD` | No | SDK `client.renewal.period` | 客户文档测试参考 `3`。 |
 | `XIYU_ORG_EVENT_RENEWAL_DURATION_MS` | No | SDK `client.renewal.renewalDuration` | 客户文档测试参考 `3000`，单位毫秒。 |
 | `XIYU_ORG_DIRECTORY_BASE_URL` | Yes for YAPI lookup | 组织架构 YAPI base URL | 真实 host 由客户交付，本文不编造。 |
-| `XIYU_ORG_DIRECTORY_AUTH_TOKEN` | Yes if token auth | YAPI 鉴权 token | Header 名称和生命周期待确认。 |
+| `XIYU_ORG_DIRECTORY_AUTH_TOKEN` | Yes if token auth | YAPI 不需要 Bearer token（基于网络白名单安全），此变量为外部环境备用。 |
 | `XIYU_ORG_DIRECTORY_SOURCE_APP` | Yes if required | 调用方来源标识 | Header 名称和值待确认。 |
 | `XIYU_ORG_DIRECTORY_TRACE_HEADER_NAME` | Pending | trace header 名称 | 待 YAPI 鉴权合同冻结后配置。 |
 | `XIYU_ORG_DIRECTORY_SOURCE_HEADER_NAME` | Pending | source app header 名称 | 待 YAPI 鉴权合同冻结后配置。 |
@@ -49,10 +49,10 @@
 
 | Capability | Endpoint Name | Method | Path | Status |
 | --- | --- | --- | --- | --- |
-| Department detail | 部门详情 | TBD | TBD | Blocking input |
-| User detail | 员工详情 | TBD | TBD | Blocking input |
-| Department window | 部门时间窗 | TBD | TBD | Blocking input |
-| User window | 员工时间窗 | TBD | TBD | Blocking input |
+| Department detail | 部门详情 | POST | /subscription/msg/dept | ✅ 已冻结 |
+| User detail | 员工详情 | POST | /subscription/msg/user | ✅ 已冻结 |
+| Department window | 部门时间窗 | POST | /subscription/msg/getDeptByTimeWindow | ✅ 已冻结 |
+| User window | 员工时间窗 | POST | /subscription/msg/getUserByTimeWindow | ✅ 已冻结 |
 
 字段、鉴权 Header、响应 envelope、禁用/查无语义以 `docs/integration/organization-directory-yapi-mapping.md` 为准。
 

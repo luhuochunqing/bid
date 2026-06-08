@@ -199,16 +199,16 @@ async function submitBidForReview() {
   if (!bidReviewerId.value) return ElMessage.warning('请先选择标书审核人')
   submittingReview.value = true
   try {
-    await projectLifecycleApi.submitBidForReview(props.projectId, { reviewerId: bidReviewerId.value })
-    reviewState.value = 'reviewing'
-    const selected = reviewerOptions.value.find(u => u.id === Number(bidReviewerId.value));
-    reviewerName.value = selected?.name || '';
-
+    const res = await projectLifecycleApi.submitBidForReview(props.projectId, { reviewerId: bidReviewerId.value })
+    const d = res?.data || res
+    reviewState.value = (d?.reviewStatus || 'reviewing').toLowerCase()
+    reviewerName.value = d?.reviewerName || ''
     rejectReasonText.value = ''
     ElMessage.success('已提交标书审核')
   } catch (e) { ElMessage.error(e?.response?.data?.msg || '提交审核失败') }
   finally { submittingReview.value = false }
 }
+
 
 function handleReviewBid() {
   showReviewDialog.value = true

@@ -23,8 +23,8 @@
           <el-descriptions-item label="开标时间">{{ bidOpeningTime }}</el-descriptions-item>
         </el-descriptions>
         <div class="filter-row">
-          <el-input v-model="searchForm.name" placeholder="商机名称" clearable size="small" class="filter-input" />
-          <el-input v-model="searchForm.code" placeholder="商机编号" clearable size="small" class="filter-input" />
+          <el-input v-model="searchForm.name" placeholder="商机名称（精确匹配）" clearable size="small" class="filter-input" />
+          <el-input v-model="searchForm.code" placeholder="商机编号（CRM暂不支持按编号搜索）" clearable size="small" class="filter-input" />
           <el-select v-model="searchForm.projectStatus" multiple placeholder="项目状态" clearable size="small" class="filter-input">
             <el-option label="跟踪中" :value="1" /><el-option label="已投标" :value="2" />
             <el-option label="已中标" :value="3" /><el-option label="已丢标" :value="4" /><el-option label="已流标" :value="5" />

@@ -227,7 +227,7 @@ xiyu:
 
 ---
 
-## Task 1: OrganizationTokenService
+## ❌ Task 1: OrganizationTokenService — 不需要（已废弃）
 
 **Files**:
 - Create: `backend/src/main/java/com/xiyu/bid/integration/organization/application/OrganizationTokenService.java`
@@ -315,8 +315,8 @@ xiyu:
 | 依赖项 | 来源 | 状态 | 备注 |
 |---|---|---|---|
 | `com.ehsy.eventlibrary:ClientSDK` Maven 坐标 | 泊冉 SDK 文档 PDF §4.1 | ⏳ 待西域提供私服地址 | 版本 `release_0.0.2` 已明确 |
-| YAPI applyToken 接口路径 | 泊冉 SDK 文档 PDF | ⏳ 待确认 | 假设 `/auth/applyToken` |
+| YAPI applyToken 接口路径 | — | ❌ 不需要 | YAPI 基于网络白名单 + EHSY 头鉴权 |
 | YAPI base URL | 泊冉 SDK 文档 PDF §7 | ⏳ 待西域提供 | 测试环境 `https://yapi.ehsy.com` |
 | Kafka broker list + ZK servers | 泊冉 SDK 文档 PDF §4.2 | ⏳ 待西域提供 | 测试 `kafka-01.test.ehsy.com:9094` |
-| Bearer token header 名称 | 泊冉 SDK 文档 PDF §7.3 | ⏳ 待确认 | 假设 `Authorization: Bearer` |
+| Bearer token header 名称 | — | ❌ 不需要 | YAPI 无需 Bearer token |
 | CRM clientId + clientSecret | CRM 集成 | ⏳ 待西域提供 | 独立于组织架构集成 |

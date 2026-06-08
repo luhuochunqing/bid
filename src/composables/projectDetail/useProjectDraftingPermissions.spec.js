@@ -2,10 +2,6 @@
  * useProjectDraftingPermissions 单元测试
  * 验证权限矩阵与 roleGroup 映射
  */
-import { describe, expect, it, vi } from 'vitest'
-import { defineStore } from 'pinia'
-import { createPinia } from 'pinia'
-import { createApp, computed } from 'vue'
 
 /**
  * ⚠️ 重要：useProjectDraftingPermissions 引用了 useUserStore。
@@ -98,5 +94,22 @@ describe('canSubmitBidForReview — 提交投标审核权限', () => {
     ['manager', false],
   ])('角色 %s → canSubmitBidForReview=%s', (role, expected) => {
     expect(computeCanSubmitBidForReview(role)).toBe(expected)
+  })
+})
+
+describe('审校人名称工程化防守测试', () => {
+  it('submitBidForReview 必须从 API response 中取 reviewerName，不得依赖 reviewerOptions 猜测', () => {
+    // 读取源代码验证 submitBidForReview 函数的实现
+    // 防止有人再次误删 reviewerName 赋值逻辑
+    const fs = require('fs')
+    const source = fs.readFileSync(
+      'src/views/Project/stages/DraftingStage.vue', 'utf-8'
+    )
+    const match = source.match(/async function submitBidForReview[\s\S]*?\n\}/)
+    expect(match).not.toBeNull()
+    const funcBody = match[0]
+    // 必须包含从 API response 取 reviewerName 的逻辑
+    expect(funcBody).toContain('reviewerName.value = d?.reviewerName')
+    expect(funcBody).not.toContain('reviewerOptions.value.find')
   })
 })
