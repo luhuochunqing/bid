@@ -31,6 +31,10 @@
     >
       <el-row :gutter="24">
         <el-col :span="12">
+          <div v-if="editingId && props.status" class="edit-status-bar">
+            <span class="edit-status-label">当前状态：</span>
+            <el-tag :type="statusTagType(props.status)" size="small">{{ statusLabel(props.status) }}</el-tag>
+          </div>
           <el-divider content-position="left">基础信息（必填）</el-divider>
           <el-form-item label="证书名称" prop="name">
             <el-input v-model="form.name" maxlength="200" placeholder="如：ISO 9001 质量管理体系认证" data-testid="qf-name" />
@@ -91,20 +95,31 @@
           </el-form-item>
         </el-col>
       </el-row>
-      <el-divider content-position="left">附件（必填）</el-divider>
+      <el-divider content-position="left">附件{{ editingId ? '' : '（必填）' }}</el-divider>
       <el-form-item label="证书附件" prop="attachment">
+        <div v-if="editingId && currentAttachmentName && !certFile" class="current-attachment">
+          <el-icon><Document /></el-icon>
+          <span class="att-name">{{ currentAttachmentName }}</span>
+          <el-button link type="primary" size="small" @click="triggerFileSelect">替换</el-button>
+        </div>
         <el-upload
+          v-else
+          ref="certUploadRef"
           :auto-upload="false"
           :limit="1"
           accept=".pdf,.jpg,.jpeg,.png"
           :on-change="onCertFileChange"
           :on-remove="() => certFile = null"
           :before-upload="() => false"
+          :file-list="certFileList"
           data-testid="qf-attachment-upload"
         >
-          <el-button type="primary" plain>选择文件</el-button>
+          <el-button type="primary" plain>{{ editingId ? '选择新文件' : '选择文件' }}</el-button>
           <template #tip><div class="el-upload__tip">仅支持 PDF/JPG/PNG，≤10MB</div></template>
         </el-upload>
+        <div v-if="certFile" class="new-file-tag">
+          <el-tag closable size="small" type="info" @close="clearCertFile">{{ certFile.name }}</el-tag>
+        </div>
       </el-form-item>
     </el-form>
     <template #footer>
@@ -117,23 +132,44 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, computed } from 'vue'
 import { ElMessage, ElNotification } from 'element-plus'
-import { UploadFilled } from '@element-plus/icons-vue'
+import { UploadFilled, Document } from '@element-plus/icons-vue'
 import http from '@/api/client'
 import { useQualFormRules } from './useQualFormRules'
+import { qualificationStatusTagTypes, qualificationStatusLabels } from './qualificationMeta.js'
 
 const CONTACT_REGEX = /^(1[3-9]\d{9}|(0\d{2,3})[-]?\d{7,8}|[^\s@]+@[^\s@]+\.[^\s@]+)$/
 
-const props = defineProps({ modelValue: Boolean, initialData: Object })
+const props = defineProps({ modelValue: Boolean, initialData: Object, status: { type: String, default: '' } })
 const emit = defineEmits(['update:modelValue', 'saved', 'close'])
 
 const visible = ref(false)
 const parsingAi = ref(false)
 const submitting = ref(false)
 const certFile = ref(null)
+const certUploadRef = ref(null)
+const certFileList = ref([])
 const editingId = ref(null)
 const formRef = ref(null)
+
+const currentAttachmentName = computed(() => {
+  const d = props.initialData
+  if (!d) return ''
+  return d.fileUrl ? d.fileUrl.split('/').pop() : (d.attachments?.[0]?.fileName || '')
+})
+
+const statusLabel = (s) => qualificationStatusLabels[s] || s || '—'
+const statusTagType = (s) => qualificationStatusTagTypes[s] || 'info'
+
+const triggerFileSelect = () => {
+  certUploadRef.value?.$el?.querySelector('input')?.click()
+}
+
+const clearCertFile = () => {
+  certFile.value = null
+  certFileList.value = []
+}
 
 const form = reactive({
   name: '', level: '', certificateNo: '', issuer: '', holderName: '',
@@ -172,13 +208,15 @@ function initForm() {
     })
   }
   certFile.value = null
+  certFileList.value = []
   // 清空 formRef 校验状态
-  if (formRef.value) formRef.value.clearValidate()
+  if (formRef.value && typeof formRef.value.clearValidate === 'function') formRef.value.clearValidate()
 }
 
 const onCertFileChange = (f) => {
-  if (f.raw?.size > 10485760) { ElMessage.error('附件不能超过10MB'); return }
+  if (f.raw?.size > 10485760) { ElMessage.error('附件不能超过10MB'); certFileList.value = []; return }
   certFile.value = f.raw
+  certFileList.value = [{ name: f.raw.name, uid: f.raw.name + Date.now() }]
 }
 
 const handleSubmit = async () => {
@@ -212,6 +250,10 @@ const handleSubmit = async () => {
   try {
     if (editingId.value) {
       await http.put(`/api/knowledge/qualifications/${editingId.value}`, payload)
+      if (certFile.value) {
+        const fd = new FormData(); fd.append('file', certFile.value)
+        await http.post(`/api/knowledge/qualifications/${editingId.value}/upload`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }).catch(() => {})
+      }
       ElMessage.success('保存成功')
     } else {
       const resp = await http.post('/api/knowledge/qualifications', payload)
@@ -258,3 +300,9 @@ const handleFileChange = async (uploadFile) => {
   }
 }
 </script>
+
+<style scoped lang="scss">
+.edit-status-bar { display:flex; align-items:center; gap:8px; margin-bottom:12px; padding:8px 12px; background:var(--el-fill-color-light); border-radius:6px; border:1px solid var(--el-border-color-lighter); .edit-status-label { color:var(--el-text-color-secondary); font-size:13px } }
+.current-attachment { display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--el-fill-color-light); border-radius:6px; border:1px solid var(--el-border-color-lighter); .att-name { flex:1; color:var(--el-text-color-primary); font-size:13px; word-break:break-all } }
+.new-file-tag { margin-top:8px }
+</style>

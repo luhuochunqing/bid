@@ -120,7 +120,7 @@
       />
     </el-card>
 
-    <QualFormDialog v-model="formVisible" :initial-data="editData" @saved="fetchQualifications" />
+    <QualFormDialog v-model="formVisible" :initial-data="editData" :status="editData?.status" @saved="handleFormSaved" />
     <AlertConfigDialog v-model="alertConfigVisible" />
     <QualDetailDrawer
       v-model="detailDrawerVisible"
@@ -131,6 +131,15 @@
       @retire="handleDetailRetire"
       @restore="handleDetailRestore"
       @download="handleDetailDownload"
+      @replace="handleAttachmentReplace"
+      @delete="handleAttachmentDelete"
+      @upload="handleAttachmentUpload"
+    />
+    <AttachmentReplaceDialog
+      v-model="replaceDialogVisible"
+      :qualification-id="replaceQualificationId"
+      :current-file-name="replaceCurrentFileName"
+      @success="handleAttachmentActionSuccess"
     />
     <QualificationBorrowDialog
       v-model="borrowApplyDialogVisible"
@@ -163,6 +172,7 @@ import { useQualificationStore } from '@/stores/qualification'
 import { useUserStore } from '@/stores/user.js'
 import QualFormDialog from './components/qualification/QualFormDialog.vue'
 import AlertConfigDialog from './components/qualification/AlertConfigDialog.vue'
+import AttachmentReplaceDialog from './components/qualification/AttachmentReplaceDialog.vue'
 import QualificationBorrowDialog from './components/qualification/QualificationBorrowDialog.vue'
 import QualificationBorrowHistoryCard from './components/qualification/QualificationBorrowHistoryCard.vue'
 import {
@@ -293,6 +303,63 @@ const handleDetailRetire = (row) => { detailDrawerVisible.value = false; handleR
 const handleDetailRestore = (row) => { detailDrawerVisible.value = false; handleRestore(row) }
 const handleDetailDownload = (att) => { ElMessage.success(`已下载：${att.fileName || '附件'}`) }
 const handleRowClick = (row) => { if (row) openDetailDrawer(row) }
+
+// 4.2.1.3 编辑资质 - 附件管理
+const replaceDialogVisible = ref(false)
+const replaceQualificationId = ref(null)
+const replaceCurrentFileName = ref('')
+
+const handleFormSaved = () => {
+  fetchQualifications()
+  if (detailDrawerVisible.value && detailQualification.value) {
+    const updated = qualifications.value.find(q => q.id === detailQualification.value.id)
+    if (updated) {
+      detailQualification.value = updated
+      detailAttachments.value = Array.isArray(updated.attachments) ? updated.attachments : []
+    }
+  }
+}
+
+const handleAttachmentActionSuccess = () => {
+  fetchQualifications()
+  const id = detailQualification.value?.id
+  if (id) {
+    const updated = qualifications.value.find(q => q.id === id)
+    if (updated) {
+      detailQualification.value = updated
+      detailAttachments.value = Array.isArray(updated.attachments) ? updated.attachments : []
+    }
+  }
+}
+
+const handleAttachmentReplace = (att) => {
+  replaceQualificationId.value = detailQualification.value?.id
+  replaceCurrentFileName.value = att?.fileName || att?.name || ''
+  replaceDialogVisible.value = true
+}
+
+const handleAttachmentDelete = async (att) => {
+  const fileName = att?.fileName || att?.name || '该附件'
+  try {
+    await ElMessageBox.confirm(
+      `确认删除附件 ${fileName}？\n\n删除后证书将处于"无附件"状态，可能影响后续投标资质佐证。建议尽快上传新附件。\n\n该操作将被记录在操作日志中。`,
+      '删除附件',
+      { confirmButtonText: '确认删除', confirmButtonClass: 'el-button--danger', type: 'warning' }
+    )
+    const id = detailQualification.value?.id
+    if (!id) return
+    await http.put(`/api/knowledge/qualifications/${id}`, { fileUrl: null })
+    ElMessage.success('附件已删除')
+    handleAttachmentActionSuccess()
+  } catch { /* cancelled */ }
+}
+
+const handleAttachmentUpload = () => {
+  replaceQualificationId.value = detailQualification.value?.id
+  replaceCurrentFileName.value = ''
+  replaceDialogVisible.value = true
+}
+
 onMounted(async () => {
   await fetchQualifications()
   await loadBorrowRecords()

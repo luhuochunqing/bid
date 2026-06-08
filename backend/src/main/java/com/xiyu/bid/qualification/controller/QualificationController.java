@@ -286,6 +286,15 @@ public class QualificationController {
                 .body(data);
     }
 
+    @PostMapping("/{id}/upload")
+    @PreAuthorize("hasAnyRole('ADMIN_STAFF', 'BID_ADMIN', 'BID_LEAD')")
+    @Auditable(action = "UPDATE", entityType = "Qualification", description = "上传资质附件")
+    public ResponseEntity<ApiResponse<QualificationDTO>> uploadAttachment(
+            @PathVariable Long id, @RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(ApiResponse.success("Attachment uploaded successfully",
+                qualificationService.uploadAttachment(id, file)));
+    }
+
     @PostMapping("/import")
     @PreAuthorize("hasAnyRole('ADMIN_STAFF', 'BID_ADMIN', 'BID_LEAD')")
     @Auditable(action = "CREATE", entityType = "Qualification", description = "导入资质台账")

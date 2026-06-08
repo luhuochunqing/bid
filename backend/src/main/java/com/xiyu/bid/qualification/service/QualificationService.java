@@ -359,4 +359,14 @@ public class QualificationService {
         }
         return importQualificationAppService.importFromExcel(file, operatorName);
     }
+
+    @Transactional
+    public QualificationDTO uploadAttachment(Long id, MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new InvalidArgumentException("上传文件不能为空");
+        }
+        QualificationDTO dto = getQualificationById(id);
+        dto.setFileUrl(file.getOriginalFilename());
+        return updateQualification(id, dto);
+    }
 }

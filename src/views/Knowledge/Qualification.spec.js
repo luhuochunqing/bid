@@ -51,6 +51,9 @@ vi.mock('./components/qualification/QualificationBorrowHistoryCard.vue', () => (
 vi.mock('./components/qualification/QualDetailDrawer.vue', () => ({
   default: { template: '<div>DetailDrawer</div>' }
 }))
+vi.mock('./components/qualification/AttachmentReplaceDialog.vue', () => ({
+  default: { template: '<div>AttachmentReplaceDialog</div>' }
+}))
 
 describe('Qualification.vue - 4.2.1.2 资质列表', () => {
   let wrapper
@@ -154,10 +157,73 @@ describe('Qualification.vue - 4.2.1.2 资质列表', () => {
     })
 
     it('权限变量应正确初始化', () => {
-      // canManageQualification / canViewQualification 是 computed，
-      // 由于 mock 的 hasPermission 返回 true，它们应该为 true
-      // 但在测试环境中可能是 ref，直接检查存在性即可
       expect(wrapper.find('.page-actions').exists()).toBe(true)
+    })
+  })
+})
+
+describe('Qualification.vue - §4.2.1.3 编辑与附件管理', () => {
+  let wrapper
+
+  beforeEach(() => {
+    wrapper = mount(Qualification, {
+      global: {
+        stubs: {
+          'el-table': { template: '<div class="el-table"><slot /></div>', methods: { clearSelection: vi.fn() } },
+          'el-table-column': { template: '<div class="el-table-column" />' },
+          'el-pagination': { template: '<div class="el-pagination" />' },
+          'el-empty': { template: '<div class="el-empty"><slot name="description" /></div>' },
+          'el-card': { template: '<div class="el-card"><slot /></div>' },
+          'el-form': { template: '<div class="el-form"><slot /></div>' },
+          'el-form-item': { template: '<div class="el-form-item"><slot /></div>' },
+          'el-input': { template: '<input />' },
+          'el-select': { template: '<select><slot /></select>' },
+          'el-option': { template: '<option />' },
+          'el-date-picker': { template: '<input />' },
+          'el-button': { template: '<button class="el-button"><slot /></button>' },
+          'el-icon': { template: '<span class="el-icon"><slot /></span>' },
+          'el-tag': { template: '<span class="el-tag"><slot /></span>' },
+          'el-upload': { template: '<div class="el-upload"><slot /></div>' },
+          'el-dialog': { template: '<div class="el-dialog"><slot /></div>' },
+          'el-alert': { template: '<div class="el-alert"><slot /></div>' }
+        }
+      }
+    })
+  })
+
+  describe('附件替换', () => {
+    it('handleAttachmentReplace 应打开替换弹窗', async () => {
+      wrapper.vm.detailQualification = { id: 42, name: 'Test Cert' }
+      wrapper.vm.handleAttachmentReplace({ fileName: 'old.pdf' })
+      expect(wrapper.vm.replaceDialogVisible).toBe(true)
+      expect(wrapper.vm.replaceQualificationId).toBe(42)
+      expect(wrapper.vm.replaceCurrentFileName).toBe('old.pdf')
+    })
+
+    it('handleAttachmentUpload 应打开上传弹窗（无附件时）', async () => {
+      wrapper.vm.detailQualification = { id: 42, name: 'Test Cert' }
+      wrapper.vm.handleAttachmentUpload()
+      expect(wrapper.vm.replaceDialogVisible).toBe(true)
+      expect(wrapper.vm.replaceQualificationId).toBe(42)
+      expect(wrapper.vm.replaceCurrentFileName).toBe('')
+    })
+  })
+
+  describe('附件删除', () => {
+    it('handleAttachmentDelete 应调用 ElMessageBox.confirm', async () => {
+      const { ElMessageBox } = await import('element-plus')
+      ElMessageBox.confirm = vi.fn().mockRejectedValue(new Error('cancel'))
+      wrapper.vm.detailQualification = { id: 42 }
+      wrapper.vm.handleAttachmentDelete({ fileName: 'test.pdf' })
+      expect(ElMessageBox.confirm).toHaveBeenCalled()
+    })
+  })
+
+  describe('保存后刷新', () => {
+    it('handleFormSaved 应刷新列表', async () => {
+      const http = (await import('@/api/client')).default
+      wrapper.vm.handleFormSaved()
+      expect(http.get).toHaveBeenCalled()
     })
   })
 })
