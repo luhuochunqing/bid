@@ -15,4 +15,6 @@ public interface ProjectArchiveRepository extends JpaRepository<ProjectArchive, 
     long countByProjectIdIn(List<Long> projectIds);
 
     long countByProjectIdInAndArchiveStatus(List<Long> projectIds, String archiveStatus);
+
+    List<ProjectArchive> findAllByProjectIdIn(List<Long> projectIds);
 }

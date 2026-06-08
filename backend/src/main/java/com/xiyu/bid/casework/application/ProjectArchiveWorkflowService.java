@@ -66,15 +66,23 @@ public class ProjectArchiveWorkflowService {
                 .mapToLong(c -> c.getReuseCount() != null ? c.getReuseCount() : 0)
                 .sum();
 
+        List<ProjectArchive> accessibleArchives;
         if (isAdmin) {
             totalArchives = archiveRepository.count();
             closedProjects = archiveRepository.countByArchiveStatus("ARCHIVED");
+            accessibleArchives = archiveRepository.findAll();
         } else if (!allowedProjectIds.isEmpty()) {
             totalArchives = archiveRepository.countByProjectIdIn(allowedProjectIds);
             closedProjects = archiveRepository.countByProjectIdInAndArchiveStatus(allowedProjectIds, "ARCHIVED");
+            accessibleArchives = archiveRepository.findAllByProjectIdIn(allowedProjectIds);
+        } else {
+            accessibleArchives = List.of();
         }
 
-        return new ProjectArchiveStatsResponse(totalArchives, closedProjects, caseCount, reuseCount);
+        List<String> projectManagers = responseMapper.collectProjectManagers(accessibleArchives);
+        List<String> bidManagers = responseMapper.collectBidManagers(accessibleArchives);
+
+        return new ProjectArchiveStatsResponse(totalArchives, closedProjects, caseCount, reuseCount, projectManagers, bidManagers);
     }
 
     public List<ProjectArchive> getRawArchives(ProjectArchiveQuery query) {

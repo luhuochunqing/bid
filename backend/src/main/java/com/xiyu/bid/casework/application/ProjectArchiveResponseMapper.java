@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 /**
  * 4.1.1 档案台账列表响应装配：从 ProjectArchive + Project + Tender + 关联文件 计算
@@ -44,8 +45,8 @@ class ProjectArchiveResponseMapper {
     ProjectArchiveResponse toResponse(ProjectArchive archive) {
         String projectType = "综合";
         String bidResult = "OTHER";
-        String projectManager = "未知";
-        String bidManager = "未知";
+        String projectManager = null;
+        String bidManager = null;
 
         Optional<Project> projectOpt = projectRepository.findById(archive.getProjectId());
         Optional<Tender> tenderOpt = projectOpt
@@ -93,5 +94,36 @@ class ProjectArchiveResponseMapper {
                 projectManager,
                 bidManager
         );
+    }
+
+    List<String> collectProjectManagers(List<ProjectArchive> archives) {
+        return archives.stream()
+                .flatMap(a -> {
+                    Tender t = resolveTender(a);
+                    return t != null && t.getProjectManagerName() != null
+                            ? Stream.of(t.getProjectManagerName()) : Stream.empty();
+                })
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    List<String> collectBidManagers(List<ProjectArchive> archives) {
+        return archives.stream()
+                .flatMap(a -> {
+                    Tender t = resolveTender(a);
+                    return t != null && t.getBiddingPersonName() != null
+                            ? Stream.of(t.getBiddingPersonName()) : Stream.empty();
+                })
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    private Tender resolveTender(ProjectArchive archive) {
+        return projectRepository.findById(archive.getProjectId())
+                .map(Project::getTenderId)
+                .flatMap(tenderRepository::findById)
+                .orElse(null);
     }
 }

@@ -195,6 +195,8 @@ const loadStats = async () => {
   try {
     const res = await httpClient.get('/api/archive/stats')
     Object.assign(stats, { totalArchives: res.totalArchives || 0, closedProjects: res.closedProjects || 0, caseCount: res.caseCount || 0, reuseCount: res.reuseCount || 0 })
+    if (Array.isArray(res.projectManagers)) projectManagerOptions.value = res.projectManagers
+    if (Array.isArray(res.bidManagers)) bidManagerOptions.value = res.bidManagers
   } catch (e) { console.error('Failed to load stats:', e) }
 }
 
@@ -204,10 +206,6 @@ const loadData = async () => {
     const res = await httpClient.get('/api/archive', { params: buildQueryParams() })
     tableData.value = res.content || []
     totalElements.value = res.totalElements || 0
-    const mgrSet = new Set(), bidSet = new Set()
-    ;(res.content || []).forEach(a => { if (a.projectManager) mgrSet.add(a.projectManager); if (a.bidManager) bidSet.add(a.bidManager) })
-    projectManagerOptions.value = [...mgrSet].sort()
-    bidManagerOptions.value = [...bidSet].sort()
   } catch (e) { ElMessage.error('加载项目档案失败'); console.error(e) }
   finally { loading.value = false }
 }
