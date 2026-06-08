@@ -133,7 +133,7 @@ const handleReset = () => {
 const handleSizeChange = (val) => { pageSize.value = val; page.value = 1; loadCases() }
 
 const handleReuse = async (item) => {
-  try { await navigator.clipboard.writeText(item.responseText || item.summary || ''); try { await casesApi.reuseCase(item.caseId || item.id); if (item.reuseCount != null) item.reuseCount += 1 } catch {}; ElMessage.success('已复制到剪贴板')
+  try { await navigator.clipboard.writeText(item.responseText || item.summary || ''); await casesApi.reuseCase(item.caseId || item.id); if (item.reuseCount != null) item.reuseCount += 1; ElMessage.success('已复制到剪贴板')
   } catch { ElMessage.error('复制失败') }
 }
 
@@ -143,7 +143,7 @@ const handleTogglePin = async (item) => {
 }
 
 const handleReuseInDrawer = async (d) => {
-  try { await navigator.clipboard.writeText(d.responseText || ''); try { await casesApi.reuseCase(d.caseId || d.id); if (d.reuseCount != null) d.reuseCount += 1; const __mc = cases.value.find(c => (c.caseId || c.id) === (d.caseId || d.id)); if (__mc && __mc !== d && __mc.reuseCount != null) __mc.reuseCount += 1 } catch {}; ElMessage.success('已复制到剪贴板')
+  try { await navigator.clipboard.writeText(d.responseText || ''); await casesApi.reuseCase(d.caseId || d.id); if (d.reuseCount != null) d.reuseCount += 1; const __mc = cases.value.find(c => (c.caseId || c.id) === (d.caseId || d.id)); if (__mc && __mc !== d && __mc.reuseCount != null) __mc.reuseCount += 1; ElMessage.success('已复制到剪贴板')
   } catch { ElMessage.error('复制失败') }
 }
 
