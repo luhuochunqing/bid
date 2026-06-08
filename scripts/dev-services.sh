@@ -353,18 +353,12 @@ curl_health() {
 }
 
 backend_matches_workspace() {
-  local pid cmd cwd
+  local pid cwd
   while IFS= read -r pid; do
     [[ -n "$pid" ]] || continue
     cwd="$(process_cwd "$pid")"
     case "$cwd" in
       "$ROOT_DIR/backend"|"$ROOT_DIR/backend/"*)
-        return 0
-        ;;
-    esac
-    cmd="$(process_command "$pid")"
-    case "$cmd" in
-      *"$ROOT_DIR/backend/target/classes"*|*"$ROOT_DIR/backend"*)
         return 0
         ;;
     esac
@@ -380,18 +374,12 @@ backend_current_for_pid() {
 }
 
 sidecar_matches_workspace() {
-  local pid cmd cwd
+  local pid cwd
   while IFS= read -r pid; do
     [[ -n "$pid" ]] || continue
     cwd="$(process_cwd "$pid")"
     case "$cwd" in
       "$SIDECAR_DIR"|"$SIDECAR_DIR/"*)
-        return 0
-        ;;
-    esac
-    cmd="$(process_command "$pid")"
-    case "$cmd" in
-      *"$SIDECAR_DIR"*|*"document-converter-sidecar"*"app:app"*)
         return 0
         ;;
     esac
@@ -491,18 +479,12 @@ wait_http() {
 }
 
 frontend_matches_workspace() {
-  local pid cmd cwd
+  local pid cwd
   while IFS= read -r pid; do
     [[ -n "$pid" ]] || continue
     cwd="$(process_cwd "$pid")"
     case "$cwd" in
       "$ROOT_DIR"|"$ROOT_DIR/"*)
-        return 0
-        ;;
-    esac
-    cmd="$(process_command "$pid")"
-    case "$cmd" in
-      *"vite"*|"$ROOT_DIR/"*)
         return 0
         ;;
     esac
@@ -528,9 +510,16 @@ wait_frontend() {
   local timeout="${1:-90}"
   local start elapsed
   start="$(date +%s)"
+  local pid identity
+  pid="$(read_pid "$FRONTEND_PID_FILE" 2>/dev/null || true)"
+  identity="$(frontend_expected_identity)"
   # Phase 1: wait for port + cwd match ("our" process owns the port)
+  # Accept: cwd match (frontend_matches_workspace) OR pid file + identity match
   while true; do
     if frontend_matches_workspace; then
+      break
+    fi
+    if is_pid_running "$pid" && identity_file_matches "$FRONTEND_ID_FILE" "$pid" "$identity"; then
       break
     fi
     elapsed=$(( $(date +%s) - start ))
@@ -596,9 +585,16 @@ start_sidecar() {
       local_conflicting_pids="$(lsof -ti tcp:$SIDECAR_PORT 2>/dev/null || true)"
       if [[ -n "$local_conflicting_pids" ]]; then
         kill -TERM $local_conflicting_pids 2>/dev/null || true
-        sleep 1
-        kill -KILL $local_conflicting_pids 2>/dev/null || true
       fi
+      local _wait=0
+      while is_port_listening "$SIDECAR_PORT" && (( _wait < 8 )); do
+        sleep 1
+        _wait=$(( _wait + 1 ))
+        if (( _wait == 2 )); then
+          local_conflicting_pids="$(lsof -ti tcp:$SIDECAR_PORT 2>/dev/null || true)"
+          [[ -n "$local_conflicting_pids" ]] && kill -KILL $local_conflicting_pids 2>/dev/null || true
+        fi
+      done
     fi
     if is_port_listening "$SIDECAR_PORT"; then
       print_sidecar_mismatch
@@ -658,9 +654,16 @@ start_backend() {
       local_conflicting_pids="$(lsof -ti tcp:$BACKEND_PORT 2>/dev/null || true)"
       if [[ -n "$local_conflicting_pids" ]]; then
         kill -TERM $local_conflicting_pids 2>/dev/null || true
-        sleep 1
-        kill -KILL $local_conflicting_pids 2>/dev/null || true
       fi
+      local _wait=0
+      while is_port_listening "$BACKEND_PORT" && (( _wait < 8 )); do
+        sleep 1
+        _wait=$(( _wait + 1 ))
+        if (( _wait == 2 )); then
+          local_conflicting_pids="$(lsof -ti tcp:$BACKEND_PORT 2>/dev/null || true)"
+          [[ -n "$local_conflicting_pids" ]] && kill -KILL $local_conflicting_pids 2>/dev/null || true
+        fi
+      done
     fi
     if is_port_listening "$BACKEND_PORT"; then
       print_backend_mismatch
@@ -682,6 +685,15 @@ start_backend() {
     return 1
   fi
   echo "[backend] compile + package ok."
+
+  # Re-check port after long mvn build (external processes may have reclaimed it)
+  while IFS= read -r _p; do
+    kill -TERM "$_p" 2>/dev/null || true
+  done < <(port_listener_pids "$BACKEND_PORT")
+  sleep 1
+  while IFS= read -r _p; do
+    kill -KILL "$_p" 2>/dev/null || true
+  done < <(port_listener_pids "$BACKEND_PORT")
 
   # 启动后端（编译后直接 java -jar，比 mvn spring-boot:run 更快更稳定）
   local jar_file="$ROOT_DIR/backend/target/bid-poc-1.0.3.jar"
@@ -754,9 +766,16 @@ start_frontend() {
       local_conflicting_pids="$(lsof -ti tcp:$FRONTEND_PORT 2>/dev/null || true)"
       if [[ -n "$local_conflicting_pids" ]]; then
         kill -TERM $local_conflicting_pids 2>/dev/null || true
-        sleep 1
-        kill -KILL $local_conflicting_pids 2>/dev/null || true
       fi
+      local _wait=0
+      while is_port_listening "$FRONTEND_PORT" && (( _wait < 8 )); do
+        sleep 1
+        _wait=$(( _wait + 1 ))
+        if (( _wait == 2 )); then
+          local_conflicting_pids="$(lsof -ti tcp:$FRONTEND_PORT 2>/dev/null || true)"
+          [[ -n "$local_conflicting_pids" ]] && kill -KILL $local_conflicting_pids 2>/dev/null || true
+        fi
+      done
     fi
     if is_port_listening "$FRONTEND_PORT"; then
       echo "[frontend] port $FRONTEND_PORT is still occupied after forced cleanup" >&2
@@ -1272,18 +1291,62 @@ case "$CMD" in
       echo "  rm \"$BACKEND_FAIL_STATE\" && \"$0\" start"
       exit 1
     fi
+    # Pre-clean all ports before starting any service to avoid conflicts
+    # from other worktree processes (e.g. trae watchdog restarting vite on 1314)
+    for _svc in frontend backend sidecar; do
+      case "$_svc" in
+        frontend) _port="$FRONTEND_PORT" ;;
+        backend)  _port="$BACKEND_PORT" ;;
+        sidecar)  _port="$SIDECAR_PORT" ;;
+      esac
+      if is_port_listening "$_port"; then
+        echo "[start] pre-cleaning port $_port for $_svc"
+        while IFS= read -r _p; do
+          kill -TERM "$_p" 2>/dev/null || true
+        done < <(port_listener_pids "$_port")
+        sleep 1
+        while IFS= read -r _p; do
+          kill -KILL "$_p" 2>/dev/null || true
+        done < <(port_listener_pids "$_port")
+      fi
+    done
+
+    # Sidecar: pre-clean port before start (handles external watchdog restarts during mvn)
+    while IFS= read -r _p; do
+      kill -TERM "$_p" 2>/dev/null || true
+    done < <(port_listener_pids "$SIDECAR_PORT")
+    sleep 1
+    while IFS= read -r _p; do
+      kill -KILL "$_p" 2>/dev/null || true
+    done < <(port_listener_pids "$SIDECAR_PORT")
     start_sidecar
     if ! wait_http "$SIDECAR_HEALTH_URL" "$SIDECAR_START_TIMEOUT_SECONDS"; then
       echo "[sidecar] failed to become healthy. See logs:"
       logs
       exit 1
     fi
+    # Backend: pre-clean port before mvn package (mvn takes minutes, external processes may reclaim)
+    while IFS= read -r _p; do
+      kill -TERM "$_p" 2>/dev/null || true
+    done < <(port_listener_pids "$BACKEND_PORT")
+    sleep 1
+    while IFS= read -r _p; do
+      kill -KILL "$_p" 2>/dev/null || true
+    done < <(port_listener_pids "$BACKEND_PORT")
     start_backend
     if ! wait_http "$BACKEND_HEALTH_URL" "$BACKEND_START_TIMEOUT_SECONDS"; then
       echo "[backend] failed to become healthy. See logs:"
       logs
       exit 1
     fi
+    # Frontend: pre-clean port before starting vite (narrow window after mvn)
+    while IFS= read -r _p; do
+      kill -TERM "$_p" 2>/dev/null || true
+    done < <(port_listener_pids "$FRONTEND_PORT")
+    sleep 1
+    while IFS= read -r _p; do
+      kill -KILL "$_p" 2>/dev/null || true
+    done < <(port_listener_pids "$FRONTEND_PORT")
     start_frontend
     if ! wait_frontend "$FRONTEND_START_TIMEOUT_SECONDS"; then
       echo "[frontend] failed to become healthy. See logs:"
