@@ -6,7 +6,7 @@ test.describe('case grid', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_casegrid_${suffix}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'E2E CaseGrid Admin'
     })
 
@@ -27,7 +27,7 @@ test.describe('case grid', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_casegrid_filter_${suffix}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'E2E CaseGrid Filter'
     })
 
@@ -51,7 +51,7 @@ test.describe('case grid', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_casegrid_ctype_${suffix}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'E2E CaseGrid CType'
     })
 

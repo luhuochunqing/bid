@@ -26,7 +26,7 @@ async function apiLogin() {
         password,
         email: `${username}@example.com`,
         fullName: 'ERI-100 E2E',
-        role: 'ADMIN',
+        role: 'bid_admin',
       }),
     })
 

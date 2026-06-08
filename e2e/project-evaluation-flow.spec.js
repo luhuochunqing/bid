@@ -8,7 +8,7 @@ test.describe('project evaluation flow §3.3.1.3', () => {
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
     const session = await ensureApiSession({
       username: `e2e_ev_admin_${suffix}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'E2E 评标管理员'
     })
 
@@ -90,7 +90,7 @@ test.describe('project evaluation flow §3.3.1.3', () => {
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
     const adminSession = await ensureApiSession({
       username: `e2e_ev_as_${suffix}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'E2E 评标管理员'
     })
 

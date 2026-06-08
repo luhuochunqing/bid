@@ -27,7 +27,7 @@ async function ensureSession() {
         password,
         email,
         fullName: 'ERI-98 E2E',
-        role: 'ADMIN',
+        role: 'bid_admin',
       }),
     })
   } catch (error) {

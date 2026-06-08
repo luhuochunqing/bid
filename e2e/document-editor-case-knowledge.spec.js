@@ -103,7 +103,7 @@ async function ensureEditorProject(session, project, sectionTitle) {
 test('document editor shows case recommendation, records citation, and traces assembly', async ({ page }) => {
   const session = await ensureApiSession({
     username: `case_editor_${Date.now()}`,
-    role: 'ADMIN',
+    role: 'bid_admin',
     fullName: 'Case Editor Admin',
   })
 

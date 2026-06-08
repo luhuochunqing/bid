@@ -17,7 +17,7 @@ async function ensureUser() {
       password,
       email,
       fullName: 'ERI-97 自动化用户',
-      role: 'ADMIN',
+      role: 'bid_admin',
     }),
   })
 

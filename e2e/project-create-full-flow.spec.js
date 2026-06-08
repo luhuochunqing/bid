@@ -6,7 +6,7 @@ test.describe('project create full flow', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_proj_${suffix}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'E2E Project Admin'
     })
 

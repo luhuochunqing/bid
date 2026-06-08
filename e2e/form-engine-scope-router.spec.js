@@ -32,7 +32,7 @@ test.describe('Scope 路由验证（API 层）', () => {
   test('tender.entry scope 提交成功', async ({ request }) => {
     const session = await ensureApiSession({
       username: `scope_tender_${Date.now()}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'Scope 路由测试',
     })
 
@@ -53,7 +53,7 @@ test.describe('Scope 路由验证（API 层）', () => {
   test('resource.expense scope 提交成功', async ({ request }) => {
     const session = await ensureApiSession({
       username: `scope_expense_${Date.now()}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'Expense 路由测试',
     })
 
@@ -85,7 +85,7 @@ test.describe('Scope 路由验证（API 层）', () => {
   test('knowledge.qual scope 提交成功', async ({ request }) => {
     const session = await ensureApiSession({
       username: `scope_qual_${Date.now()}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'Qualification 路由测试',
     })
 
@@ -106,7 +106,7 @@ test.describe('Scope 路由验证（API 层）', () => {
   test('未知 scope 返回友好的失败消息', async ({ request }) => {
     const session = await ensureApiSession({
       username: `scope_unknown_${Date.now()}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: '未知 Scope 测试',
     })
 
@@ -123,7 +123,7 @@ test.describe('Scope 路由验证（API 层）', () => {
   test('tender.evaluation scope 返回开发中提示', async ({ request }) => {
     const session = await ensureApiSession({
       username: `scope_eval_${Date.now()}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: '未实现 Scope 测试',
     })
 
@@ -143,7 +143,7 @@ test.describe('验证规则 errorMessage 返回', () => {
   test('必填字段缺失时返回自定义错误消息', async ({ request }) => {
     const session = await ensureApiSession({
       username: `valid_err_${Date.now()}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: '验证错误测试',
     })
 
@@ -162,7 +162,7 @@ test.describe('验证规则 errorMessage 返回', () => {
   test('字段长度超出 maxLength 时返回错误', async ({ request }) => {
     const session = await ensureApiSession({
       username: `valid_len_${Date.now()}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: '长度验证测试',
     })
 
@@ -189,7 +189,7 @@ test.describe('Admin 发布后缓存失效', () => {
   test('获取 active schema 时返回最新数据', async ({ request }) => {
     const session = await ensureApiSession({
       username: `cache_test_${Date.now()}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: '缓存测试',
     })
 
@@ -247,7 +247,7 @@ test.describe('Schema API 结构验证', () => {
   test('tender.entry schema 包含必要字段', async ({ request }) => {
     const session = await ensureApiSession({
       username: `schema_check_${Date.now()}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'Schema 结构测试',
     })
 
@@ -273,7 +273,7 @@ test.describe('Schema API 结构验证', () => {
   test('scope 对应 conditions 数据结构', async ({ request }) => {
     const session = await ensureApiSession({
       username: `condition_check_${Date.now()}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'Conditions 结构测试',
     })
 
@@ -295,7 +295,7 @@ test.describe('Schema API 结构验证', () => {
   test('scope 对应 visibilityRules 数据结构', async ({ request }) => {
     const session = await ensureApiSession({
       username: `visibility_check_${Date.now()}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'VisibilityRules 结构测试',
     })
 

@@ -82,7 +82,7 @@ test.describe('§3.3.1.1 项目立项', () => {
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
     const session = await ensureApiSession({
       username: `e2e_init_admin_${suffix}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'E2E Admin',
       password: defaultPassword
     })

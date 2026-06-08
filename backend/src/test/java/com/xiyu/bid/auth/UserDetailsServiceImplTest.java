@@ -51,11 +51,11 @@ class UserDetailsServiceImplTest {
 
 
     @Test
-    void bidAdminShouldHaveRoleManagerCompatibility() {
+    void bidAdminShouldHaveRoleAdminCompatibility() {
         User user = userWithRoleProfile("bid_admin", User.Role.STAFF, "bid_admin");
         when(userRepository.findByUsername("bid_admin")).thenReturn(Optional.of(user));
         UserDetails details = userDetailsService.loadUserByUsername("bid_admin");
-        assertThat(details.getAuthorities()).extracting("authority").contains("ROLE_MANAGER", "ROLE_BID_ADMIN");
+        assertThat(details.getAuthorities()).extracting("authority").contains("ROLE_ADMIN", "ROLE_BID_ADMIN");
     }
 
     @Test

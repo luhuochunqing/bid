@@ -133,7 +133,7 @@ test.describe('bid agent knowledge base match and full analysis', () => {
     // 使用 bid_admin 角色以确保四库 seeding 权限
     session = await ensureApiSession({
       username: `e2e_ba_${suffix}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'E2E Bid Agent Admin',
     })
 

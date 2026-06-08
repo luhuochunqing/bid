@@ -213,7 +213,7 @@ test.describe('Task board customization core flow', () => {
   // by M-B2's projectStore.invalidateTaskStatuses unit tests; this case only
   // proves the admin create flow works end-to-end against the real backend.
   test('admin adds ARCHIVED status via system settings panel', async ({ page }) => {
-    // The fixture creates an ADMIN-role user (role: 'ADMIN' in register
+    // The fixture creates an ADMIN-role user (role: 'bid_admin' in register
     // fallback), so the task-status-dict tab will be visible.
     const session = await createAuthenticatedSession()
     await page.addInitScript(({ token, user }) => {

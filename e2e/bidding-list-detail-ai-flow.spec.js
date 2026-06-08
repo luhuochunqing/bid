@@ -50,7 +50,7 @@ test.describe('bidding list detail ai flow', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `bidding_flow_${suffix}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'Bidding Flow Admin',
     })
     const tender = await seedBiddingTender(session, suffix)
@@ -95,7 +95,7 @@ test.describe('bidding list detail ai flow', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `bidding_flow_fail_${suffix}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'Bidding Flow Fail Admin',
     })
 

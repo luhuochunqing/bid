@@ -28,7 +28,7 @@ async function ensureSession() {
         password,
         email,
         fullName: 'ERI-101 E2E',
-        role: 'ADMIN',
+        role: 'bid_admin',
       }),
     })
     if (payload?.success && payload?.data?.token && payload?.data?.id) {

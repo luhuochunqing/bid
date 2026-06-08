@@ -22,7 +22,7 @@ async function apiRequest(path, session, options = {}) {
 test('document editor loads backend sections and persists saved content', async ({ page }) => {
   const session = await ensureApiSession({
     username: `document_editor_${Date.now()}`,
-    role: 'ADMIN',
+    role: 'bid_admin',
     fullName: 'Document Editor Admin'
   })
   const projectId = 960100 + Date.now() % 10000
@@ -75,7 +75,7 @@ test('document editor loads backend sections and persists saved content', async 
 test('document editor inserts case knowledge and records backend reference', async ({ page }) => {
   const session = await ensureApiSession({
     username: `document_editor_case_${Date.now()}`,
-    role: 'ADMIN',
+    role: 'bid_admin',
     fullName: 'Document Editor Case Admin'
   })
   const projectId = 970100 + Date.now() % 10000

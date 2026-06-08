@@ -5,7 +5,7 @@ test.describe('资质证书 §4.2 — smoke', () => {
   test('page loads with table', async ({ page }) => {
     const session = await ensureApiSession({
       username: `e2e_qual_smoke_${Date.now()}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'E2E Qual Smoke'
     })
     await injectSession(page, session)

@@ -7,7 +7,7 @@ test.describe('resource CA management flow', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_ca_${suffix}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'E2E CA Admin'
     })
 

@@ -42,7 +42,7 @@ async function loginAsRole(page, roleProfile) {
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
     const session = await ensureApiSession({
       username: `e2e_${roleProfile}_${suffix}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: `E2E ${roleProfile}`,
     })
     await injectSession(page, session)

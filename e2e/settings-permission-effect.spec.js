@@ -86,7 +86,7 @@ test('api settings page supports custom roles and still blocks managers from adm
   const suffix = Date.now()
   const adminSession = await ensureSession({
     username: `settings_admin_${suffix}`,
-    role: 'ADMIN',
+    role: 'bid_admin',
     fullName: 'Settings Admin'
   })
   const managerSession = await ensureSession({

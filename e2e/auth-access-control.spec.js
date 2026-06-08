@@ -62,7 +62,7 @@ test.describe('auth access control', () => {
       username: 'lizong',
       email: 'lizong@example.com',
       fullName: '李总',
-      role: 'ADMIN',
+      role: 'bid_admin',
       token: 'restored-access-token',
       type: 'Bearer',
       allowedProjectIds: [101, 202, 303]

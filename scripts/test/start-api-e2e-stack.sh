@@ -130,7 +130,7 @@ wait_for_backend_ready() {
   local pid_file="$2"
   local log_file="$3"
 
-  for _ in {1..90}; do
+  for _ in {1..150}; do
     if [[ -f "$pid_file" ]] && ! is_pid_alive "$pid_file"; then
       printf 'Backend failed before becoming healthy.\n' >&2
       if [[ -f "$log_file" ]]; then

@@ -7,7 +7,7 @@ test.describe('settings integration flow', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_int_${suffix}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'E2E Integration Admin'
     })
 

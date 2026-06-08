@@ -7,7 +7,7 @@ test.describe('dashboard analytics drilldown', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_dash_${suffix}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'E2E Dashboard Admin'
     })
 

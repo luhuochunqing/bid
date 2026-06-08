@@ -42,7 +42,7 @@ test.describe('auth session lifecycle', () => {
             username: 'alice',
             fullName: 'Alice',
             email: 'alice@example.com',
-            role: 'ADMIN'
+            role: 'bid_admin'
           }
         }),
         headers: {
@@ -65,7 +65,7 @@ test.describe('auth session lifecycle', () => {
             username: 'alice',
             fullName: 'Alice',
             email: 'alice@example.com',
-            role: 'ADMIN'
+            role: 'bid_admin'
           }
         })
       })
@@ -113,7 +113,7 @@ test.describe('auth session lifecycle', () => {
             username: 'alice',
             fullName: 'Alice',
             email: 'alice@example.com',
-            role: 'ADMIN'
+            role: 'bid_admin'
           }
         })
       })

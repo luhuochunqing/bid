@@ -29,7 +29,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     private static final Map<String, User.Role> ROLE_CODE_TO_LEGACY = Map.ofEntries(
             Map.entry("admin", User.Role.ADMIN),
-            Map.entry("bid_admin", User.Role.MANAGER),
+            Map.entry("bid_admin", User.Role.ADMIN),
             Map.entry("bid_lead", User.Role.MANAGER),
             Map.entry("sales", User.Role.MANAGER),
             Map.entry("bid_specialist", User.Role.STAFF),

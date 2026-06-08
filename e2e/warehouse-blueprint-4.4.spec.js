@@ -6,7 +6,7 @@ const PWD = process.env.COMMERCIAL_E2E_PASSWORD || 'XiyuDemo!2026'
 async function loginAs(page, role) {
   const s = await ensureApiSession({
     username: `e2e_wh_${role}_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
-    role: 'ADMIN', fullName: `E2E WH ${role}`, password: PWD
+    role: 'bid_admin', fullName: `E2E WH ${role}`, password: PWD
   })
   await injectSession(page, s); return s
 }

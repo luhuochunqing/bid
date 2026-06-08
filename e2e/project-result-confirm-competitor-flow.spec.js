@@ -7,7 +7,7 @@ test.describe('§3.3.1.4 结果确认 - 竞争对手情况表', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_result_${suffix}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'E2E 结果确认测试'
     })
 

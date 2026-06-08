@@ -12,7 +12,7 @@ async function seedUser(session, username) {
       password,
       email: `${username}@example.com`,
       fullName: username,
-      role: 'ADMIN',
+      role: 'bid_admin',
     }),
   }).catch(() => {})
 }
@@ -29,7 +29,7 @@ test.describe('project list filter fields', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_proj_filter_${suffix}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'E2E Project Filter',
     })
 
@@ -76,7 +76,7 @@ test.describe('project list filter fields', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_leader_search_${suffix}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'E2E Leader Search',
     })
 
@@ -115,7 +115,7 @@ test.describe('project list filter fields', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_leader_qry_${suffix}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'E2E Leader Query',
     })
 
@@ -150,7 +150,7 @@ test.describe('project list filter fields', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_reset_filters_${suffix}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'E2E Reset Filters',
     })
 
@@ -184,7 +184,7 @@ test.describe('project list filter fields', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_proj_type_${suffix}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'E2E Project Type',
     })
 

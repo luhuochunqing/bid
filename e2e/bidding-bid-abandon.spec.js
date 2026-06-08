@@ -27,7 +27,7 @@ test.describe('§4.2.6 bid/abandon buttons', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `bid_abandon_${suffix}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'Bid Abandon E2E',
     })
 
@@ -90,7 +90,7 @@ test.describe('§4.2.6 bid/abandon buttons', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `bid_tracking_${suffix}`,
-      role: 'ADMIN',
+      role: 'bid_admin',
       fullName: 'Bid Tracking E2E',
     })
 
