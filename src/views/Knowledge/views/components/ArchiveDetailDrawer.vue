@@ -103,19 +103,18 @@ const getBidResultTagType = (result) => {
 }
 
 const handleDownloadPackage = async () => {
-  if (!props.archive || !props.archive.archiveId) {
+  if (!props.archive || !props.archive.projectId) {
     ElMessage.warning('当前档案信息不完整，无法下载文件包')
     return
   }
   try {
-    const blob = (await httpClient.post('/api/archive/export-zip', { archiveId: props.archive.archiveId }, { responseType: 'blob' })).data
+    const res = await httpClient.get(`/api/archive/export-zip/${props.archive.projectId}`, { responseType: 'blob' })
     const link = document.createElement('a')
-    link.href = window.URL.createObjectURL(new Blob([blob], { type: 'application/zip' }))
+    link.href = window.URL.createObjectURL(new Blob([res], { type: 'application/zip' }))
     link.download = `项目档案文件包-${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12)}.zip`
     link.click()
     window.URL.revokeObjectURL(link.href)
     ElMessage.success('导出文件包成功')
-    fetchDetail()
   } catch (e) {
     ElMessage.error('导出文件包失败：' + (e?.response?.data?.msg || e?.message || '未知错误'))
   }
