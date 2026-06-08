@@ -107,6 +107,16 @@ public class CrmProperties {
     /** OAuth login system code. */
     private String oauthSystem = "HOME";
 
+    /** GenerateToken path for CRM JWT token exchange. */
+    private String generateTokenPath = "/common/inner/generateToken";
+
+    /** CRM JWT token exchange: nickName (用户昵称). */
+    private String generateTokenNickName = "";
+
+    /** CRM JWT token exchange: salesNo (用户工号). */
+    private String generateTokenSalesNo = "";
+
+
     /** Menu tree cache TTL in seconds. */
     private int menuCacheTtlSeconds = MENU_CACHE_TTL_SEC;
 
@@ -168,6 +178,9 @@ public class CrmProperties {
         private String applyTokenPath = "/auth/applyToken";
         /** OAuth login path. */
         private String oauthLoginPath = "/oauth/login";
+        /** generateTokenPath. */
+        private String generateTokenPath = "/common/inner/generateToken";
+
         /** logoutPath. */
         private String logoutPath = "/auth/logout";
         /** menuTreePath. */

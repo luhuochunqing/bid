@@ -62,6 +62,27 @@ public class CrmHttpClient {
         }
     }
 
+
+    /**
+     * Posts JSON with a custom Bearer token (for generateToken etc.).
+     */
+    public CrmResponseHandler.CrmApiResponse postWithAuth(String baseUrl, String path, String accessToken, String jsonBody) {
+        String url = baseUrl + path;
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(accessToken);
+        TraceHeaderInjector.inject(headers);
+        HttpEntity<String> request = new HttpEntity<>(jsonBody, headers);
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
+            log.info("CRM POST with auth {} -> {}", url, response.getStatusCode());
+            return CrmResponseHandler.parse(response.getBody());
+        } catch (RuntimeException e) {
+            log.error("CRM POST with auth failed: {}", e.getMessage());
+            return CrmResponseHandler.CrmApiResponse.parseError(e.getMessage());
+        }
+    }
+
     private CrmResponseHandler.CrmApiResponse executePost(String url, String path, String accessToken, Object body) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);

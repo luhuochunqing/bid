@@ -26,7 +26,7 @@ public class CrmMenuService {
     }
 
     public CrmResponseHandler.CrmApiResponse getMenuTree(String systemType) {
-        String token = authService.getValidToken();
+        String token = authService.getValidOssToken();
         String baseUrl = properties.getEffectiveAuthBaseUrl();
         String path = properties.getAuth().getMenuTreePath();
         return httpClient.post(baseUrl, path, token,

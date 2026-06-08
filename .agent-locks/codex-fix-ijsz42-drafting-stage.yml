@@ -1,0 +1,9 @@
+version: 1
+task: "codex-fix-ijsz42-drafting-stage"
+locks:
+  - path: "src/views/Project/stages"
+    scope: "directory"
+    owner: "agent"
+    branch: "agent/codex/fix-ijsz42-drafting-stage"
+    expiresAt: "2026-06-09T03:08:52.825Z"
+    reason: "修复 submitBidForReview 后 reviewerName 缺失"

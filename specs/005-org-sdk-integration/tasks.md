@@ -37,27 +37,16 @@
 
 ---
 
-### T002 [US3] 实现 OrganizationTokenService — Bearer token 动态换取
+### ❌ T002 — 不需要（YAPI 无需 Bearer token）
 
-**Files**:
-- Create: `backend/src/main/java/com/xiyu/bid/integration/organization/domain/OrganizationToken.java`
-- Create: `backend/src/main/java/com/xiyu/bid/integration/organization/domain/OrganizationTokenCache.java`
-- Create: `backend/src/main/java/com/xiyu/bid/integration/organization/application/OrganizationTokenService.java`
-- Create: `backend/src/test/java/com/xiyu/bid/integration/organization/application/OrganizationTokenServiceTest.java`
-- Modify: `backend/src/main/java/com/xiyu/bid/integration/organization/infrastructure/client/OrganizationDirectoryAuthHeaders.java`
+**结论**: YAPI 部署在 EHSY 内网，基于网络白名单安全，无需 Bearer token 换取。
 
-**Steps**:
-1. `OrganizationToken` record：`accessToken`（String）、`expiresInSeconds`（int）、`acquiredAt`（Instant）
-2. `OrganizationTokenCache`：内存缓存 + 过期判断（参考 `CrmTokenCache` 模式）
-3. `OrganizationTokenService`：持有 `RestTemplate` + `OrganizationIntegrationProperties`，实现 `getValidToken(): String`
-   - token 有效时直接返回；过期前按 `refreshRatio`（默认 0.8）自动续期
-   - 调用 `POST /auth/applyToken`，Body：`{ clientId, clientSecret }`，Response：`{ access_token, expires_in }`
-   - 连续失败 `≥ tokenCoolDownRetries`（可配置）后进入 `cooldown` 状态
-4. `OrganizationDirectoryAuthHeaders`：注入 `OrganizationTokenService`，用 `getValidToken()` 填 `Authorization: Bearer {token}`，不再读 `authToken` 配置
+**现状**:
+- `OrganizationDirectoryAuthHeaders` 已实现为 `EHSY-TraceID` / `EHSY-SRCAPP` 模式 ✅
+- `OrganizationDirectoryHttpGateway` 已使用 POST + form-urlencoded/JSON ✅
+- `OrganizationTokenService`、`OrganizationToken`、`OrganizationTokenCache` **不需要创建**
 
-**验收**: `OrganizationTokenServiceTest` 覆盖 token 有效 / 过期续期 / cooldown 三种路径。
-
-**Dependencies**: T001（Maven 私服地址）
+**验证**: `OrganizationDirectoryHttpGatewayTest` 已覆盖 YAPI 接口调用路径。
 
 ---
 

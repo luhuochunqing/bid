@@ -46,14 +46,14 @@
 
 调用 YAPI 组织架构接口前，系统自动以动态换取的 Bearer token 鉴权，令牌过期前自动刷新，鉴权失败时进入可识别的错误路径而非静默失败。
 
-**Why this priority**: Bearer token 动态换取是唯一支持的鉴权路径，token 管理失效将导致全量同步失败。
+**Why this priority**: YAPI 基于网络白名单安全，无需动态 token 换取；只需正确的链路追踪 Header 即可鉴权。
 
 **Independent Test**: 模拟 token 过期场景，验证系统在过期后自动重新换取并继续处理。
 
 **Acceptance Scenarios**:
 
 1. **Given** 系统启动时，**When** 首次调用 YAPI 接口，**Then** 先调用 applyToken 接口换取 access_token 并缓存在内存，过期前按比例自动续期。
-2. **Given** applyToken 接口连续失败达到冷却阈值，**When** 后续请求再次触发 token 获取，**Then** 系统进入冷却等待，不反复重试，冷却结束后重新尝试。
+2. **Given** 链路追踪 Header 缺失或不正确，**When** 系统调用 YAPI 接口，**Then** YAPI 按 HTTP 4xx 拒绝，系统记录失败原因到事件日志。
 
 ---
 
@@ -155,7 +155,7 @@ YAPI 接口调用失败或数据库写入失败时，事件进入重试队列，
 ## Assumptions
 
 - 客户西域提供 `com.ehsy.eventlibrary:ClientSDK` Maven 私服地址和 `release_0.0.2` 版本坐标。
-- YAPI applyToken 接口路径为 `/auth/applyToken`，返回 `access_token` 和 `expires_in`（默认 7200 秒）。
-- YAPI 部门/员工详情接口返回 `code=0` 或 `code=200` 为成功，`code≠0` 或 HTTP 5xx 为失败可重试，404 为禁用/查无。
+- YAPI 接口无需 Bearer token，基于网络白名单 + 链路追踪 Header（`EHSY-TraceID`、`EHSY-SRCAPP`）鉴权。
+- YAPI 部门/员工详情接口使用 POST 方法，部门详情为 `application/x-www-form-urlencoded`，时间窗口为 `application/json`。返回 `code=0` 或 `code=200` 为成功。
 - 生产 consumerGroup 命名由西域在联调阶段最终确认，当前使用 `bid-org-consumer-test` 作为占位符。
 - 客户西域在联调前提供测试环境和生产环境的 YAPI base URL、IP 白名单和 Kafka/Zookeeper broker 列表。

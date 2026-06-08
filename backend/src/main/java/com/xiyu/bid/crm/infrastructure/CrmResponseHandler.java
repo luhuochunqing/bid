@@ -18,7 +18,13 @@ public final class CrmResponseHandler {
             JsonNode root = mapper.readTree(body);
             int code = root.path("code").asInt(-1);
             String msg = root.path("msg").asText("");
-            JsonNode data = root.path("data");
+            
+            // CRM 某些接口（如 customer-chance/page-list）返回扁平结构：
+            // {"code":"0","totalCount":3,"dataList":[...]} 没有外层 data 字段。
+            // 此时 data() 返回 MissingNode，导致 pageList 无法正确解析。
+            // 修复：优先使用 data 字段，不存在则回退到根节点。
+            JsonNode data = root.has("data") ? root.path("data") : root;
+            
             boolean success = root.path("success").asBoolean(code == 0);
             return new CrmApiResponse(code, msg, data, success);
         } catch (RuntimeException | java.io.IOException e) {

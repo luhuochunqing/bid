@@ -301,7 +301,7 @@ xiyu:
 
 ### 当前状态（2026-05-27）
 
-组织架构同步的**核心业务逻辑已实现**，当前处于"代码就绪、待启用 SDK"状态：
+组织架构同步的**核心业务逻辑已实现**，当前处于"代码就绪，SDK jar 已通过 system scope 引入"状态：
 
 | 模块 | 文件 | 状态 |
 |------|------|------|
@@ -311,9 +311,9 @@ xiyu:
 | application.yml 注册配置 | `application.yml` | ⚠️ 默认空/false，需环境变量注入 |
 | application.yml broker 配置 | `application.yml` | ❌ 未配置（可能 SDK 版本不需要） |
 | Topic 订阅 | `BaseOssDept`、`BaseOssUser` | ✅ 已配置（`@AcceptEvent` 注释中） |
-| consumerGroup 测试 | `bid-org-consumer-test` | ✅ 已配置（默认值） |
+| consumerGroup（代码硬编码 `bms`） | `bms` | ✅ `@AcceptEvent` 中硬编码，环境变量 `XIYU_ORG_EVENT_CONSUMER_GROUP` 可覆盖 |
 | consumerGroup 生产 | `bid-org-consumer-prod` | ⚠️ 需生产环境注入 |
-| 事件消费适配 | `OrganizationEventSdkConsumerAdapter` | ⚠️ `@AcceptEvent` 被注释，待启用 |
+| 事件消费适配 | `OrganizationEventSdkConsumerAdapter` | ✅ `@AcceptEvent` 已激活 |
 | 公共消息结构 | `OrganizationEventNotice` / `OrganizationEventNoticeFields` | ✅ 已实现（8 字段完全匹配） |
 | 事件解析 | `OrganizationEventNoticeJsonReader` | ✅ 已实现 |
 | 主数据回查 | `OrganizationDirectoryHttpGateway` | ✅ 已实现 |
@@ -329,7 +329,7 @@ xiyu:
 | 链路追踪 Header | `EHSY-TraceID`、`EHSY-SRCAPP` | ✅ 已实现 |
 | 超时设置 | connect 3s / read 5s | ✅ 已实现 |
 | 禁用非删除 | `disableByExternalId()` | ✅ 已实现 |
-| Java 订阅方法 | `@AcceptEvent` + `EventInfoRespDto` | ⚠️ 已编码，待启用 |
+| Java 订阅方法 | `@AcceptEvent` + `EventResult` | ✅ 已实现 |
 
 ### 标准处理流程映射
 
@@ -337,8 +337,8 @@ xiyu:
 
 | 步骤 | 文档要求 | 代码实现 | 状态 |
 |------|---------|---------|------|
-| 1 | SDK 启动注册、续约、初始化 | `OrganizationEventSdkConsumerAdapter` + ClientSDK | ⚠️ 待启用 |
-| 2 | 接收 `BaseOssDept`/`BaseOssUser` 事件 | `@AcceptEvent` 方法（注释中） | ⚠️ 待启用 |
+| 1 | SDK 启动注册、续约、初始化 | `OrganizationEventSdkConsumerAdapter` + `OrganizationEventSdkKafkaStarter` | ✅ 已实现 |
+| 2 | 接收 `BaseOssDept`/`BaseOssUser` 事件 | `@AcceptEvent` 方法 | ✅ 已实现 |
 | 3 | 解析 `eventMessage` JSON | `OrganizationEventNoticeJsonReader.parse()` → `ObjectMapper.readTree()` | ✅ 已就绪 |
 | 4 | 按 `eventTopic` 路由，`data.deptId`/`data.userId` | `OrganizationEventNoticeParser.parse()` → `topicFromEventTopic()` + `subjectId` | ✅ 已就绪 |
 | 5 | 记录 `traceId`/`spanId`/`key`/`time` | `OrganizationEventNotice` record + `OrganizationEventInboxService` 持久化 | ✅ 已就绪 |
@@ -346,7 +346,7 @@ xiyu:
 | 7 | 成功 upsert，失败禁用 | `OrganizationDepartmentSyncWriter.upsert()` / `disableByExternalId()` | ✅ 已就绪 |
 | 8 | 返回 `EventResult` code=200/500 | `OrganizationEventSdkResponseMapper.toResponse()` / `fromException()` | ✅ 已就绪 |
 
-**结论**：8 步流程中 6 步已完全实现，仅步骤 1-2 因 SDK 未就绪被阻塞。
+**结论**：8 步流程中 8 步已完全实现，`@AcceptEvent` 已激活，SDK jar 已通过 `system scope` 引入。
 
 ### 启用步骤（西域私服就绪后）
 
@@ -440,7 +440,7 @@ backend/src/main/java/com/xiyu/bid/integration/organization/
 | **TC-07** | 初始化：时间窗口查询全量数据 | 调用 `listDepartmentsByWindow()`/`listUsersByWindow()` 按时间范围拉取数据 → 逐条 upsert | `OrganizationDirectoryHttpGateway.listDepartmentsByWindow(startAt, endAt)` 和 `listUsersByWindow(startAt, endAt)` 已就绪。`OrganizationSyncRunAppService.syncWindow()` 编排批量同步。`OrganizationReconciliationScheduler` 每天 2:30 自动执行对账 | ✅ 已实现 |
 | **TC-08** | 对账：定时补偿最近 1-3 天数据 | `OrganizationReconciliationScheduler` 触发 → `syncRunAppService.syncWindow()` → 时间窗口查询 → 逐条比对/更新 | `OrganizationReconciliationScheduler.reconcileRecentWindow()` 默认 cron `0 30 2 * * *`（每天 2:30），`lookbackDays` 默认 3 天。调用 `syncRunAppService.syncWindow(SOURCE_APP, startAt, endAt, "RECONCILIATION")` 执行对账 | ✅ 已实现 |
 
-**结论**：8 个联调用例全部有代码实现支撑。TC-01~TC-06 为事件消费链路验证，TC-07~TC-08 为初始化/对账验证。当前因 SDK 未就绪（`@AcceptEvent` 被注释），TC-01~TC-03 无法端到端执行，但代码路径完整。
+**结论**：8 个联调用例全部有代码实现支撑。TC-01~TC-06 为事件消费链路验证，TC-07~TC-08 为初始化/对账验证。代码路径完整。TC-01~TC-03 需与西域联调环境配合验证。
 
 ### 对账机制
 
@@ -522,11 +522,11 @@ backend/src/main/java/com/xiyu/bid/integration/organization/
 
 | 文档示例 | 代码实现 | 状态 |
 |---------|---------|------|
-| `@AcceptEvent(eventTopic = "BaseOssDept")` | `OrganizationEventSdkConsumerAdapter.onDeptChanged()`（注释中） | ⚠️ 待启用 |
-| `@AcceptEvent(eventTopic = "BaseOssUser")` | `OrganizationEventSdkConsumerAdapter.onUserChanged()`（注释中） | ⚠️ 待启用 |
+| `@AcceptEvent(eventTopic = "BaseOssDept")` | `OrganizationEventSdkConsumerAdapter.onDeptChanged()` | ✅ 已实现 |
+| `@AcceptEvent(eventTopic = "BaseOssUser")` | `OrganizationEventSdkConsumerAdapter.onUserChanged()` | ✅ 已实现 |
 | `consumerGroup = "bid-org-consumer-test"` | `application.yml` 默认配置 | ✅ 匹配 |
 | 方法入参 `String eventMessage` | `onDeptChanged(String eventMessage)` / `onUserChanged(String eventMessage)` | ✅ 匹配 |
-| 返回值 `EventInfoRespDto extends EventResult` | 当前返回 `Object`，启用后改为 `EventInfoRespDto` | ⚠️ 待启用 |
+| 返回值 `EventResult` | 当前返回 `EventResult` | ✅ 已实现 |
 | 解析 JSON | `OrganizationEventNoticeJsonReader.parse()` | ✅ 已实现 |
 | 校验必需字段 | `OrganizationEventNoticeParser.parse()` | ✅ 已实现 |
 | 幂等（traceId + spanId + eventTopic） | `OrganizationEventInboxService.reserve()` | ✅ 已实现 |
@@ -574,7 +574,7 @@ backend/src/main/java/com/xiyu/bid/integration/organization/
 |---|------|---------|---------|
 | 1 | Maven 私服 `maven.ehsy.com/nexus` 可访问 | ✅ **已确认** | 西域内网私有仓库，本地无法访问属正常。服务器已确认可访问。`pom.xml` 配置地址：`https://maven.ehsy.com/nexus/repository/maven-releases/` |
 | 2 | ClientSDK jar 版本 | `release_0.0.2` | ✅ **已确认** — `pom.xml` 已配置 `<eventlibrary.version>release_0.0.2</eventlibrary.version>` |
-| 3 | 组织架构接口真实路径 | ✅ **已确认** — 4 个接口路径已提取： | 需修改代码：`HttpGateway` 当前假设 GET + URL path，实际为 POST + request body（form/json）。详见上方"YAPI 组织架构接口"章节 |
+| 3 | 组织架构接口真实路径 | ✅ **已确认** — 4 个接口路径已提取 | ✅ **已完成** — `OrganizationDirectoryHttpGateway` 已使用 POST + form-urlencoded/JSON |
 | | | - 部门详情: `POST /subscription/msg/dept` | | |
 | | | - 员工详情: `POST /subscription/msg/user` | | |
 | | | - 部门窗口: `POST /subscription/msg/getDeptByTimeWindow` | | |
@@ -840,7 +840,7 @@ receiveWebhook(eventMessage)
 
 | 验收项 | 文档要求 | 代码实现 | 状态 |
 |--------|---------|---------|------|
-| **稳定订阅两类事件** | 能够稳定订阅 `BaseOssDept`、`BaseOssUser` | `OrganizationEventSdkConsumerAdapter` 已编码 `onDeptChanged()` / `onUserChanged()` 两个处理器，分别对应 `BaseOssDept` 和 `BaseOssUser`。`@ConditionalOnClass` + `@ConditionalOnProperty` 确保 SDK jar 存在且启用时激活。当前因 SDK 未就绪被注释，代码路径完整 | ⚠️ 代码就绪，待启用 SDK |
+| **稳定订阅两类事件** | 能够稳定订阅 `BaseOssDept`、`BaseOssUser` | `OrganizationEventSdkConsumerAdapter` 已编码 `onDeptChanged()` / `onUserChanged()` 两个处理器，分别对应 `BaseOssDept` 和 `BaseOssUser`。`@ConditionalOnClass` + `@ConditionalOnProperty` 确保 SDK jar 存在且启用时激活。`@AcceptEvent` 已激活，`@ConditionalOnClass` + `@ConditionalOnProperty` 守卫确保 SDK jar 存在时启用 | ✅ 已实现 |
 | **约定时间内完成查询与更新** | 事件触发后，在约定时间内完成组织架构接口查询与本地数据更新 | 接口超时设置：connect 3s / read 5s。`OrganizationDirectorySyncAppService.lookupAndWrite()` 流程：`reserve()` → `fetchDepartmentByDeptId()`/`fetchUserByUserId()` → `upsert()` → `markProcessed()`，全链路同步执行，无额外延迟。处理耗时未记录（见 TODO-11） | ✅ 已实现，耗时记录待补 |
 | **重复事件处理策略** | 重复事件有明确处理策略和可观测日志 | `OrganizationEventInboxService.reserve()` 通过 `eventKey` 唯一索引实现幂等，重复事件返回 200 DUPLICATE，状态记为 `DUPLICATE`，不重复处理。`OrganizationEventLogEntity` 持久化重复事件记录 | ✅ 已实现 |
 | **乱序事件处理策略** | 乱序事件有明确处理策略和可观测日志 | 每次事件均实时调用组织架构接口获取最新数据，以接口返回结果覆盖本地，不依赖事件到达顺序。`eventKey` 包含 `time` 字段，但代码不比较时间戳，直接以最新接口结果为准（最终一致性） | ✅ 已实现 |
@@ -865,10 +865,10 @@ receiveWebhook(eventMessage)
 
 | 优先级 | 事项 | 阻塞影响 | 下一步行动 |
 |--------|------|---------|-----------|
-| **P0** | TODO-3: 组织架构接口真实路径 | 无法调用 YAPI 接口 | ✅ **已确认** — 4 个接口路径已提取。需修改代码：`HttpGateway` 当前假设 GET + URL path，实际为 POST + request body（form/json） |
+| **P0** | TODO-3: 组织架构接口真实路径 | 无法调用 YAPI 接口 | ✅ **已完成** — 4 个接口路径已确认，`OrganizationDirectoryHttpGateway` 已适配 POST + form-urlencoded/JSON |
 | **P0** | TODO-3a: `HttpGateway` 支持 POST + request body | 无法调用 YAPI 接口 | ✅ **已完成** — `postForm()` 支持详情接口（form-urlencoded），`postJson()` 支持窗口接口（application/json），`fetchWindow()` 支持分页循环 |
 | **P1** | TODO-3b: 字段映射确认（6 项） | 映射错误导致数据异常 | 父部门 ID 来源、启用逻辑、用户名来源、部门/角色信息来源 — 需西域确认 |
-| **P0** | TODO-4: `XIYU_ORG_DIRECTORY_BASE_URL` | YAPI 接口基础地址 | 内网白名单安全，无需额外认证凭据 |
+| **P0** | TODO-4: `XIYU_ORG_DIRECTORY_BASE_URL` | YAPI 接口基础地址 | 测试环境默认 `https://base-oss-test.ehsy.com`，生产环境需客户提供；内网白名单安全 |
 | **P0** | TODO-5: 事件库管理端订阅关系 | SDK 无法接收事件 | 联系西域创建/确认订阅关系 |
 | **P1** | TODO-1: Maven 私服可访问性 | 无法编译拉取 ClientSDK | ✅ 已确认 — 服务器可访问 `maven.ehsy.com/nexus` |
 | **P1** | TODO-2: ClientSDK 版本确认 | 可能版本不匹配 | ✅ 已确认 — `release_0.0.2` |
@@ -924,9 +924,11 @@ receiveWebhook(eventMessage)
 
 1. **立即**：联系西域获取 TODO-4/5（`username`/`password` 凭据、订阅关系）
 2. **本周**：TODO-1 ✅ 已确认（服务器可访问），TODO-2 ✅ 已确认（`release_0.0.2`），TODO-3 ✅ 已确认（4 个接口路径）
-3. **开发任务**：
+3. **开发任务**（✅ 已完成）：
    - ✅ 修改 `OrganizationDirectoryHttpGateway` 支持 POST + request body（form/json）
-   - ✅ 更新 `OrganizationDirectoryJsonMapper` 字段映射（先用当前假设，西域确认后调整）
+   - ✅ 更新 `OrganizationDirectoryJsonMapper` 字段映射
+   - ✅ 恢复 `@AcceptEvent` 注解为激活状态
+   - ✅ SDK jar 通过 `system scope` 引用
 4. **问西域**：6 个字段映射确认项（父部门 ID、启用逻辑、用户名来源、部门/角色信息来源）
 5. **上线前**：完成 TODO-7/8/9（并发、削峰、告警）
 6. **上线后**：逐步补全 TODO-10~17（日志、指标、扩展接口）
