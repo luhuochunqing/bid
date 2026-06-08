@@ -44,7 +44,6 @@ class ProjectServiceDemoModeTest {
                 new DemoDataProvider(),
                 new DemoFusionService(),
                 null,
-                null,
                 null
         );
     }
@@ -101,5 +100,21 @@ class ProjectServiceDemoModeTest {
         assertThat(result.getId()).isEqualTo(21L);
         assertThat(result.getName()).isEqualTo("既有立项");
         verify(projectRepository, never()).save(any(Project.class));
+    }
+
+    @Test
+    void createProject_shouldSucceedWithoutArchiveService() {
+        when(projectRepository.findByTenderId(any())).thenReturn(List.of());
+        when(projectRepository.save(any(Project.class))).thenAnswer(inv -> {
+            Project p = inv.getArgument(0);
+            p.setId(999L);
+            return p;
+        });
+
+        ProjectDTO result = projectService.createProject(ProjectDTO.builder()
+                .name("新建项目").tenderId(88002L).managerId(2L)
+                .teamMembers(List.of(2L)).build());
+
+        assertThat(result.getId()).isEqualTo(999L);
     }
 }
