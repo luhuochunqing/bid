@@ -7,6 +7,7 @@ import com.xiyu.bid.personnel.application.dto.PersonnelDTO;
 import com.xiyu.bid.personnel.application.response.PersonnelEditResponse;
 import com.xiyu.bid.personnel.application.result.PersonnelUpdateResult;
 import com.xiyu.bid.personnel.application.dto.PersonnelOperationLogDTO;
+import com.xiyu.bid.personnel.domain.model.PersonnelOperationLog;
 import com.xiyu.bid.personnel.application.service.CreatePersonnelAppService;
 import com.xiyu.bid.personnel.application.service.DeletePersonnelAppService;
 import com.xiyu.bid.personnel.application.service.ListPersonnelAppService;
@@ -142,7 +143,8 @@ public class PersonnelController {
                 ? request.reason()
                 : "管理员执行删除操作";
         Long currentUserId = extractUserId(userDetails);
-        deleteService.delete(id, reason, currentUserId);
+        String operatorName = userDetails != null ? userDetails.getUsername() : "system";
+        deleteService.delete(id, reason, currentUserId, operatorName);
         return ResponseEntity.noContent().build();
     }
 
@@ -157,7 +159,8 @@ public class PersonnelController {
     @Auditable(action = "RESTORE", entityType = "Personnel", description = "恢复已停用人员")
     public ResponseEntity<Void> restore(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
         Long currentUserId = extractUserId(userDetails);
-        restoreService.restore(id, currentUserId);
+        String operatorName = userDetails != null ? userDetails.getUsername() : "system";
+        restoreService.restore(id, currentUserId, operatorName);
         return ResponseEntity.ok().build();
     }
 
@@ -172,7 +175,8 @@ public class PersonnelController {
     public ResponseEntity<ApiResponse<String>> uploadCertAttachment(
             @PathVariable Long personnelId,
             @PathVariable Long certId,
-            @RequestParam("file") MultipartFile file) {
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal UserDetails userDetails) {
         if (file.isEmpty()) {
             throw new IllegalArgumentException("文件为空");
         }
@@ -190,6 +194,11 @@ public class PersonnelController {
             throw new IllegalArgumentException("证书不存在或不属于该人员");
         }
 
+        String oldFileName = extractFileNameFromUrl(certOpt.get().getAttachmentUrl());
+        String newFileName = file.getOriginalFilename();
+        String operatorName = userDetails != null ? userDetails.getUsername() : "system";
+        Long currentUserId = extractUserId(userDetails);
+
         String url;
         try {
             byte[] bytes = file.getBytes();
@@ -202,7 +211,29 @@ public class PersonnelController {
         cert.setAttachmentUrl(url);
         certJpaRepository.save(cert);
 
+        // 记录附件替换操作日志（PRD 4.3.1.8: 替换证书附件）
+        if (oldFileName != null) {
+            operationLogService.save(PersonnelOperationLog.create(
+                    personnelId,
+                    currentUserId,
+                    operatorName,
+                    PersonnelOperationLog.OperationType.ATTACHMENT_REPLACE,
+                    java.util.List.of(
+                            new PersonnelOperationLog.ChangeDetail("attachment", oldFileName, newFileName)
+                    )
+            ));
+        }
+
         return ResponseEntity.ok(ApiResponse.success("证书附件上传成功", url));
+    }
+
+    private String extractFileNameFromUrl(String url) {
+        if (url == null || url.isBlank()) return null;
+        int lastSlash = url.lastIndexOf('/');
+        if (lastSlash >= 0 && lastSlash < url.length() - 1) {
+            return url.substring(lastSlash + 1);
+        }
+        return url;
     }
 
     /**

@@ -45,7 +45,8 @@ public class PersonnelImportController {
         validateFile(file);
 
         Long currentUserId = extractUserId(userDetails);
-        PersonnelImportTask task = importAppService.initiateImportTask(currentUserId);
+        String operatorName = resolveOperatorName(userDetails);
+        PersonnelImportTask task = importAppService.initiateImportTask(currentUserId, operatorName);
 
         importAppService.executeImportAsync(task.id(), file, currentUserId);
 
@@ -133,6 +134,10 @@ public class PersonnelImportController {
         } catch (NumberFormatException e) {
             return 0L;
         }
+    }
+
+    private String resolveOperatorName(UserDetails userDetails) {
+        return userDetails != null ? userDetails.getUsername() : "system";
     }
 
     public record ImportTaskResponse(

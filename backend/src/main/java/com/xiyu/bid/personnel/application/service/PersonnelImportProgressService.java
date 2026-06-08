@@ -114,6 +114,31 @@ class PersonnelImportProgressService {
         );
     }
 
+    /** 存储操作人信息，供异步任务完成时记录日志使用 */
+    public void storeOperatorInfo(Long taskId, String operatorName, Long operatorId) {
+        String key = "personnel:import:operator:" + taskId;
+        try {
+            OperatorInfo info = new OperatorInfo(operatorName, operatorId);
+            redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(info), REDIS_TTL);
+        } catch (JsonProcessingException e) {
+            log.warn("存储操作人信息失败", e);
+        }
+    }
+
+    /** 获取操作人信息 */
+    public OperatorInfo getOperatorInfo(Long taskId) {
+        String key = "personnel:import:operator:" + taskId;
+        String json = redisTemplate.opsForValue().get(key);
+        if (json != null) {
+            try {
+                return objectMapper.readValue(json, OperatorInfo.class);
+            } catch (JsonProcessingException e) {
+                log.warn("解析操作人信息JSON失败", e);
+            }
+        }
+        return null;
+    }
+
     record ImportProgress(
             String status,
             int percent,
@@ -122,4 +147,6 @@ class PersonnelImportProgressService {
             int successCount,
             int failureCount
     ) {}
+
+    public record OperatorInfo(String operatorName, Long operatorId) {}
 }

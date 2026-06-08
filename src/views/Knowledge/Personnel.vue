@@ -247,14 +247,16 @@
           </div>
         </el-tab-pane>
 
-        <!-- Tab 4: 操作日志（4.3.1.3 真实 API 数据） -->
+        <!-- Tab 4: 操作日志（4.3.1.3 真实 API 数据，4.3.1.8 对齐展示规则） -->
         <el-tab-pane label="操作日志" name="log">
           <el-table :data="operationLogs" stripe size="small" v-loading="operationLogsLoading">
-            <el-table-column prop="createdAt" label="时间" width="160">
-              <template #default="{row}">{{ row.createdAt ? row.createdAt.replace('T', ' ').slice(0, 16) : '-' }}</template>
+            <el-table-column prop="createdAt" label="时间" width="180">
+              <template #default="{row}">{{ row.createdAt ? row.createdAt.replace('T', ' ').slice(0, 19) : '-' }}</template>
             </el-table-column>
-            <el-table-column prop="operatorName" label="操作人" width="100" />
-            <el-table-column prop="operationType" label="类型" width="100" />
+            <el-table-column label="操作人" width="180">
+              <template #default="{row}">{{ row.operatorName }}（{{ row.operatorId || '-' }}）</template>
+            </el-table-column>
+            <el-table-column prop="operationType" label="类型" width="120" />
             <el-table-column label="变更摘要" min-width="200">
               <template #default="{row}">
                 <span v-if="row.changeDetails && row.changeDetails.length">

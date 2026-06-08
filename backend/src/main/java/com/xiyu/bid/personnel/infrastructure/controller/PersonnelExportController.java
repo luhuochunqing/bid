@@ -53,6 +53,7 @@ public class PersonnelExportController {
             @AuthenticationPrincipal UserDetails userDetails) {
 
         Long currentUserId = extractUserId(userDetails);
+        String operatorName = resolveOperatorName(userDetails);
 
         PersonnelListCriteria criteria = PersonnelListCriteria.ofFull(
                 keyword, departmentCode,
@@ -62,7 +63,7 @@ public class PersonnelExportController {
                 entryDateFrom, entryDateTo, certificateKeyword, null, null
         );
 
-        ExportTaskInfo taskInfo = exportAppService.initiateExportTask(currentUserId);
+        ExportTaskInfo taskInfo = exportAppService.initiateExportTask(currentUserId, operatorName);
         exportAppService.executeExportAsync(taskInfo.taskId(), criteria, currentUserId);
 
         ExportTaskResponse response = new ExportTaskResponse(
@@ -115,6 +116,10 @@ public class PersonnelExportController {
         } catch (NumberFormatException e) {
             return 0L;
         }
+    }
+
+    private String resolveOperatorName(UserDetails userDetails) {
+        return userDetails != null ? userDetails.getUsername() : "system";
     }
 
     public record ExportTaskResponse(

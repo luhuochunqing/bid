@@ -1,6 +1,8 @@
 package com.xiyu.bid.personnel.application.service;
 
 import com.xiyu.bid.personnel.domain.importvalidation.ValidationResult;
+import com.xiyu.bid.personnel.domain.model.PersonnelOperationLog;
+import com.xiyu.bid.personnel.domain.model.PersonnelOperationLog.ChangeDetail;
 import com.xiyu.bid.personnel.domain.model.importtask.ImportErrorDetail;
 import com.xiyu.bid.personnel.domain.model.importtask.ImportTaskStatus;
 import com.xiyu.bid.personnel.domain.model.importtask.PersonnelImportTask;
@@ -28,12 +30,18 @@ public class ImportPersonnelAppService {
     private final PersonnelImportProgressService progressService;
     private final PersonnelImportTaskRepository importTaskRepository;
     private final PersonnelImportErrorReportGenerator errorReportGenerator;
+    private final PersonnelOperationLogService operationLogService;
 
     @Transactional
-    public PersonnelImportTask initiateImportTask(Long currentUserId) {
+    public PersonnelImportTask initiateImportTask(Long currentUserId, String operatorName) {
         String taskNo = progressService.generateTaskNo();
         PersonnelImportTask task = PersonnelImportTask.createNew(taskNo, currentUserId);
-        return importTaskRepository.save(task);
+        task = importTaskRepository.save(task);
+
+        // 存储 operatorName 以便异步完成时使用
+        progressService.storeOperatorInfo(task.id(), operatorName, currentUserId);
+
+        return task;
     }
 
     @Async("importExportExecutor")
@@ -105,6 +113,30 @@ public class ImportPersonnelAppService {
         );
         importTaskRepository.save(updated);
         progressService.clearProgress(taskId);
+
+        // 记录批量导入操作日志（PRD 4.3.1.8: 批量导入人员）
+        recordImportLog(task, result);
+    }
+
+    private void recordImportLog(PersonnelImportTask task, PersonnelImportExecutor.ImportResult result) {
+        // 从 progressService 获取 operator 信息
+        PersonnelImportProgressService.OperatorInfo opInfo = progressService.getOperatorInfo(task.id());
+        String operatorName = opInfo != null ? opInfo.operatorName() : "system";
+        Long operatorId = opInfo != null ? opInfo.operatorId() : 0L;
+
+        List<ChangeDetail> changes = List.of(
+                new ChangeDetail("total", String.valueOf(result.totalCount()), ""),
+                new ChangeDetail("success", String.valueOf(result.successCount()), ""),
+                new ChangeDetail("failure", String.valueOf(result.failureCount()), "")
+        );
+
+        operationLogService.save(PersonnelOperationLog.create(
+                null, // 批量操作不绑定单一人员
+                operatorId,
+                operatorName,
+                PersonnelOperationLog.OperationType.BATCH_IMPORT_PERSONNEL,
+                changes
+        ));
     }
 
     private void failImportTask(Long taskId, String errorMessage) {

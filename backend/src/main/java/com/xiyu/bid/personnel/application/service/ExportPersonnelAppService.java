@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.personnel.application.command.PersonnelListCriteria;
 import com.xiyu.bid.personnel.application.dto.PersonnelDTO;
 import com.xiyu.bid.personnel.application.mapper.PersonnelMapper;
+import com.xiyu.bid.personnel.domain.model.PersonnelOperationLog;
+import com.xiyu.bid.personnel.domain.model.PersonnelOperationLog.ChangeDetail;
 import com.xiyu.bid.personnel.domain.port.PersonnelRepository;
 import com.xiyu.bid.personnel.infrastructure.excel.PersonnelZipExporter;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,7 @@ import java.util.UUID;
 public class ExportPersonnelAppService {
 
     private static final String REDIS_KEY_PREFIX = "personnel:export:progress:";
+    private static final String REDIS_OPERATOR_KEY = "personnel:export:operator:";
     private static final Duration REDIS_TTL = Duration.ofDays(7);
     private static final Duration FILE_TTL = Duration.ofDays(7);
 
@@ -35,10 +38,15 @@ public class ExportPersonnelAppService {
     private final PersonnelZipExporter zipExporter;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final PersonnelOperationLogService operationLogService;
 
-    public ExportTaskInfo initiateExportTask(Long currentUserId) {
+    public ExportTaskInfo initiateExportTask(Long currentUserId, String operatorName) {
         String taskNo = generateTaskNo();
         String taskId = UUID.randomUUID().toString();
+
+        // 存储 operatorName 以便异步完成时使用
+        storeOperatorInfo(taskId, operatorName, currentUserId);
+
         return new ExportTaskInfo(taskId, taskNo);
     }
 
@@ -149,6 +157,53 @@ public class ExportPersonnelAppService {
         } catch (JsonProcessingException e) {
             log.warn("更新完成状态失败", e);
         }
+
+        // 记录批量导出操作日志（PRD 4.3.1.8: 批量导出人员）
+        recordExportLog(taskId, recordCount);
+    }
+
+    /** 存储操作人信息，供异步任务完成时记录日志使用 */
+    private void storeOperatorInfo(String taskId, String operatorName, Long operatorId) {
+        String key = REDIS_OPERATOR_KEY + taskId;
+        try {
+            ExportOperatorInfo info = new ExportOperatorInfo(operatorName, operatorId);
+            redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(info), REDIS_TTL);
+        } catch (JsonProcessingException e) {
+            log.warn("存储导出操作人信息失败", e);
+        }
+    }
+
+    /** 获取操作人信息 */
+    private ExportOperatorInfo getOperatorInfo(String taskId) {
+        String key = REDIS_OPERATOR_KEY + taskId;
+        String json = redisTemplate.opsForValue().get(key);
+        if (json != null) {
+            try {
+                return objectMapper.readValue(json, ExportOperatorInfo.class);
+            } catch (JsonProcessingException e) {
+                log.warn("解析导出操作人信息JSON失败", e);
+            }
+        }
+        return null;
+    }
+
+    /** 记录批量导出操作日志 */
+    private void recordExportLog(String taskId, int recordCount) {
+        ExportOperatorInfo opInfo = getOperatorInfo(taskId);
+        String operatorName = opInfo != null ? opInfo.operatorName() : "system";
+        Long operatorId = opInfo != null ? opInfo.operatorId() : 0L;
+
+        List<ChangeDetail> changes = List.of(
+                new ChangeDetail("recordCount", String.valueOf(recordCount), "")
+        );
+
+        operationLogService.save(PersonnelOperationLog.create(
+                null, // 批量操作不绑定单一人员
+                operatorId,
+                operatorName,
+                PersonnelOperationLog.OperationType.BATCH_EXPORT_PERSONNEL,
+                changes
+        ));
     }
 
     private void failExportTask(String taskId, String errorMessage) {
@@ -201,4 +256,6 @@ public class ExportPersonnelAppService {
             Integer recordCount,
             String downloadPath
     ) {}
+
+    private record ExportOperatorInfo(String operatorName, Long operatorId) {}
 }

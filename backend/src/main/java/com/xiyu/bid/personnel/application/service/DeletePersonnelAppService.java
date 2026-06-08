@@ -1,8 +1,8 @@
 package com.xiyu.bid.personnel.application.service;
 
-import com.xiyu.bid.audit.service.AuditLogService;
-import com.xiyu.bid.audit.service.IAuditLogService;
 import com.xiyu.bid.personnel.domain.model.Personnel;
+import com.xiyu.bid.personnel.domain.model.PersonnelOperationLog;
+import com.xiyu.bid.personnel.domain.model.PersonnelOperationLog.ChangeDetail;
 import com.xiyu.bid.personnel.domain.port.PersonnelRepository;
 import com.xiyu.bid.personnel.domain.valueobject.PersonnelStatus;
 import com.xiyu.bid.exception.ResourceNotFoundException;
@@ -12,8 +12,10 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 /**
- * 「删除人员」h5 应用服务
+ * 「删除人员」应用服务
  * 负责权限校验、软删除、停止证书提醒、记录删除原因
  */
 @Service
@@ -22,7 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DeletePersonnelAppService {
 
     private final PersonnelRepository personnelRepository;
-    private final IAuditLogService auditLogService;
+    private final PersonnelOperationLogService logService;
 
     /**
      * 删除人员（软删除）
@@ -30,10 +32,11 @@ public class DeletePersonnelAppService {
      * @param id           人员ID
      * @param reason       删除原因（必填，由前端保证）
      * @param currentUserId 当前操作人
+     * @param operatorName  操作人姓名
      */
     @Transactional
     @PreAuthorize("hasAnyAuthority('bid_admin', 'bid_lead')")
-    public void delete(Long id, String reason, Long currentUserId) {
+    public void delete(Long id, String reason, Long currentUserId, String operatorName) {
         if (reason == null || reason.isBlank()) {
             throw new IllegalArgumentException("删除原因不能为空");
         }
@@ -53,17 +56,15 @@ public class DeletePersonnelAppService {
         // 2. 停止该人员所有证书的到期提醒（由应用层协调）
         disableCertificateRemindersForPerson(id);
 
-        // 3. 正式记录带原因的操作日志（审计要求）
-        auditLogService.log(
-            AuditLogService.AuditLogEntry.builder()
-                .userId(currentUserId != null ? String.valueOf(currentUserId) : null)
-                .action("DELETE")
-                .entityType("Personnel")
-                .entityId(String.valueOf(id))
-                .description("删除人员，原因：" + reason)
-                .success(true)
-                .build()
-        );
+        // 3. 记录人员操作日志（PRD 4.3.1.8: 删除人员-停用）
+        logService.save(PersonnelOperationLog.create(
+                id,
+                currentUserId,
+                operatorName,
+                PersonnelOperationLog.OperationType.DELETE,
+                List.of(new ChangeDetail("status", "ACTIVE", "INACTIVE"),
+                        new ChangeDetail("reason", "", reason))
+        ));
     }
 
     private void disableCertificateRemindersForPerson(Long personnelId) {

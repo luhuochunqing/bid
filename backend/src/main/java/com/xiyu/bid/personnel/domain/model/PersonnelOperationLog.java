@@ -27,9 +27,14 @@ public record PersonnelOperationLog(
         CERTIFICATE_ADD,
         CERTIFICATE_REMOVE,
         CERTIFICATE_UPDATE,
+        ATTACHMENT_REPLACE,
         EDUCATION_ADD,
         EDUCATION_REMOVE,
-        EDUCATION_UPDATE
+        EDUCATION_UPDATE,
+        BATCH_IMPORT_PERSONNEL,
+        BATCH_IMPORT_CERTIFICATE,
+        BATCH_EXPORT_PERSONNEL,
+        BATCH_EXPORT_CERTIFICATE
     }
 
     public static PersonnelOperationLog create(
