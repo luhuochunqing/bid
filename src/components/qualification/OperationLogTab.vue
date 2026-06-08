@@ -1,36 +1,50 @@
 <template>
   <div class="op-log-tab" v-loading="loading" data-testid="qd-op-log-tab">
-    <el-timeline v-if="logs.length" class="op-log-tab__timeline">
-      <el-timeline-item
-        v-for="log in logs"
-        :key="log.id"
-        :timestamp="log.time"
-        :type="timelineType(log.actionType)"
-        placement="top"
-        data-testid="qd-op-log-item"
-      >
-        <div class="op-log-tab__row">
-          <span class="op-log-tab__operator" data-testid="qd-op-log-operator">
-            {{ formatOperator(log) }}
-          </span>
-          <span class="op-log-tab__action" :class="`op-log-tab__action--${log.actionType}`">
-            {{ actionLabel(log.actionType) }}
-          </span>
-        </div>
-        <div v-if="log.detail" class="op-log-tab__detail" data-testid="qd-op-log-detail">
-          {{ log.detail }}
-        </div>
-        <div v-if="log.target && log.target !== '-'" class="op-log-tab__target">
-          目标：{{ log.target }}
-        </div>
-      </el-timeline-item>
-    </el-timeline>
+    <!-- 时间范围筛选 -->
+    <div class="op-log-filter">
+      <el-date-picker
+        v-model="dateRange"
+        type="daterange"
+        range-separator="—"
+        start-placeholder="开始日期"
+        end-placeholder="结束日期"
+        value-format="YYYY-MM-DD"
+        size="small"
+        style="width: 240px"
+        @change="handleDateChange"
+      />
+      <el-button size="small" @click="resetFilter">重置</el-button>
+    </div>
+
+    <!-- 日志表格 -->
+    <el-table v-if="filteredLogs.length" :data="filteredLogs" size="small" border class="op-log-table">
+      <el-table-column prop="time" label="时间" width="160" />
+      <el-table-column prop="operator" label="操作人" width="120">
+        <template #default="scope">
+          {{ formatOperator(scope.row) }}
+        </template>
+      </el-table-column>
+      <el-table-column label="操作类型" width="100">
+        <template #default="scope">
+          <el-tag :type="tagType(scope.row.actionType)" size="small">
+            {{ actionLabel(scope.row.actionType) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="detail" label="变更详情" show-overflow-tooltip />
+      <el-table-column prop="target" label="目标对象" width="140" show-overflow-tooltip>
+        <template #default="scope">
+          {{ scope.row.target && scope.row.target !== '-' ? scope.row.target : '—' }}
+        </template>
+      </el-table-column>
+    </el-table>
+
     <el-empty v-else-if="!loading" description="暂无操作记录" :image-size="80" data-testid="qd-op-log-empty" />
   </div>
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import auditApi from '@/api/modules/audit.js'
 
@@ -40,6 +54,7 @@ const props = defineProps({
 
 const loading = ref(false)
 const logs = ref([])
+const dateRange = ref(null)
 
 const ACTION_LABELS = {
   create: '新增',
@@ -76,13 +91,12 @@ const ACTION_LABELS = {
 
 const actionLabel = (a) => ACTION_LABELS[String(a || '').toLowerCase()] || a || '操作'
 
-const timelineType = (actionType) => {
+const tagType = (actionType) => {
   const a = String(actionType || '').toLowerCase()
-  if (a === 'create') return 'success'
-  if (a === 'delete') return 'danger'
+  if (a === 'create' || a === 'approve' || a === 'submit') return 'success'
+  if (a === 'delete' || a === 'reject' || a === 'withdraw' || a === 'cancel') return 'danger'
   if (a === 'update' || a === 'import' || a === 'export' || a === 'attachment_change') return 'primary'
-  if (a === 'approve' || a === 'submit' || a === 'verify') return 'success'
-  if (a === 'reject' || a === 'withdraw' || a === 'cancel') return 'danger'
+  if (a === 'borrow') return 'warning'
   return 'info'
 }
 
@@ -90,6 +104,23 @@ const formatOperator = (log) => {
   const name = log?.operator || '未知用户'
   const role = log?.role && log.role !== 'unknown' ? `（${log.role}）` : ''
   return `${name}${role}`
+}
+
+const filteredLogs = computed(() => {
+  if (!dateRange.value || !dateRange.value.length) return logs.value
+  const [start, end] = dateRange.value
+  return logs.value.filter((log) => {
+    const t = log.time?.slice(0, 10)
+    return t && t >= start && t <= end
+  })
+})
+
+const handleDateChange = () => {
+  // 筛选由 computed 自动处理
+}
+
+const resetFilter = () => {
+  dateRange.value = null
 }
 
 const loadLogs = async () => {
@@ -121,24 +152,14 @@ watch(() => props.qualificationId, (id) => {
 <style scoped lang="scss">
 .op-log-tab {
   padding: 4px 0 16px;
-  :deep(.el-timeline) { padding-left: 0; }
 }
-.op-log-tab__timeline { margin-top: 4px; }
-.op-log-tab__row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.op-log-tab__operator { font-weight: 600; color: #1f2937; }
-.op-log-tab__action {
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-weight: 500;
-  &--create, &--approve, &--submit { background: #ecfdf5; color: #047857; }
-  &--update, &--import, &--export, &--attachment_change { background: #eff6ff; color: #1d4ed8; }
-  &--delete, &--reject, &--withdraw, &--cancel { background: #fef2f2; color: #b91c1c; }
-  &--borrow { background: #f5f3ff; color: #6d28d9; }
-  &--return { background: #f0f9ff; color: #0369a1; }
-  background: #f3f4f6;
-  color: #4b5563;
+.op-log-filter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
 }
-.op-log-tab__detail { font-size: 13px; color: #374151; margin-top: 4px; line-height: 1.6; word-break: break-word; }
-.op-log-tab__target { font-size: 12px; color: #6b7280; margin-top: 4px; }
+.op-log-table {
+  margin-top: 4px;
+}
 </style>

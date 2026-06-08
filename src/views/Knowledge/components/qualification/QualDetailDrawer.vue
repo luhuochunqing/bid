@@ -68,6 +68,8 @@
             <el-descriptions-item label="代理联系方式">{{ qualification.agencyContact || '—' }}</el-descriptions-item>
             <el-descriptions-item label="发证日期">{{ formatDate(qualification.issueDate) }}</el-descriptions-item>
             <el-descriptions-item label="证书有效期">{{ formatDate(qualification.expiryDate) }}</el-descriptions-item>
+            <el-descriptions-item label="持证人">{{ qualification.holderName || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="证书状态">{{ statusLabel(qualification.status) }}</el-descriptions-item>
             <el-descriptions-item label="认证范围" :span="2">
               <pre class="qd-scope">{{ qualification.certScope || '—' }}</pre>
             </el-descriptions-item>
