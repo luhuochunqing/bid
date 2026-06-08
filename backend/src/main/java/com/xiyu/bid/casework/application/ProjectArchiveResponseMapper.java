@@ -70,7 +70,7 @@ class ProjectArchiveResponseMapper {
             bidManager = tender.getBiddingPersonName();
         }
 
-        List<ArchiveFile> files = fileRepository.findByArchiveId(archive.getId());
+        List<ArchiveFile> files = fileRepository.findByArchiveIdOrderByCreatedAtDesc(archive.getId());
         Map<String, Long> categoryDetails = new HashMap<>();
         for (String cat : CATEGORY_KEYS) {
             categoryDetails.put(cat, 0L);
