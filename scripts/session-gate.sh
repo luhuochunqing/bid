@@ -17,6 +17,10 @@ SESSION_LOCK=".session-active"
 ROOT_DIR="${ROOT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 session_gate() {
+  # 守护进程/定时任务模式跳过全部 session 门禁
+  if [[ "${WATCHDOG_MODE:-}" == "1" || "${SKIP_SESSION_GATE:-}" == "1" ]]; then
+    return 0
+  fi
   local lockfile="$ROOT_DIR/$SESSION_LOCK"
   local branch
   branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null)" || branch="detached"
