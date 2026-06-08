@@ -1,3 +1,8 @@
+# Input: docker compose build / up with local dev overrides
+# Output: starts frontend + backend containers per scripts/docker-compose.yml
+# Pos: scripts/ - Docker 全容器化一键启动入口 (companion to start.sh / dev-services.sh)
+# 维护声明: scripts/docker-compose.yml 端口或 service 拓扑变更时同步更新本文件 + CLAUDE.md §推荐命令。
+
 server {
     listen 80;
     server_name localhost;
