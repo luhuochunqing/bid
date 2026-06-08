@@ -211,9 +211,9 @@
               <template #default="{row}">{{ row.isPermanent ? '是' : '否' }}</template>
             </el-table-column>
             <el-table-column prop="expiryDate" label="到期日" width="100" />
-            <el-table-column label="状态" width="70">
+            <el-table-column label="状态" width="90">
               <template #default="{row}">
-                <el-tag :type="row.expiryTagType" size="small">{{ row.expired ? '过期' : '有效' }}</el-tag>
+                <el-tag :type="certStatusTagType(row.status)" size="small">{{ certStatusLabel(row.status) }}</el-tag>
               </template>
             </el-table-column>
             <el-table-column label="附件" width="120">
@@ -225,23 +225,28 @@
           </el-table>
           <div v-else class="empty-hint">暂无证书记录</div>
           <div v-if="current.expiringCertificatesCount > 0" class="expiry-hint">
-            <el-icon><Warning /></el-icon> 该人员有 {{ current.expiringCertificatesCount }} 个证书即将到期（60 天内）
+            <el-icon><Warning /></el-icon> 该人员有 {{ current.expiringCertificatesCount }} 个证书即将到期（30 天内）
           </div>
         </el-tab-pane>
 
-        <!-- Tab 4: 操作日志（基础展示，完整持久化待后续 h5） -->
+        <!-- Tab 4: 操作日志（4.3.1.3 真实 API 数据） -->
         <el-tab-pane label="操作日志" name="log">
-          <div class="log-hint">
-            变更记录已开始在编辑路径收集（工号变更、教育经历增删、证书替换等）。<br>
-            完整操作日志持久化与高级查询将在“操作日志记录范围” h5 完善。本 Tab 当前展示基础变更提示。
-          </div>
-          <el-table :data="mockOperationLogs" stripe size="small" v-if="mockOperationLogs.length">
-            <el-table-column prop="time" label="时间" width="160" />
-            <el-table-column prop="operator" label="操作人" width="100" />
-            <el-table-column prop="type" label="类型" width="100" />
-            <el-table-column prop="summary" label="变更摘要" min-width="200" />
+          <el-table :data="operationLogs" stripe size="small" v-loading="operationLogsLoading">
+            <el-table-column prop="createdAt" label="时间" width="160">
+              <template #default="{row}">{{ row.createdAt ? row.createdAt.replace('T', ' ').slice(0, 16) : '-' }}</template>
+            </el-table-column>
+            <el-table-column prop="operatorName" label="操作人" width="100" />
+            <el-table-column prop="operationType" label="类型" width="100" />
+            <el-table-column label="变更摘要" min-width="200">
+              <template #default="{row}">
+                <span v-if="row.changeDetails && row.changeDetails.length">
+                  {{ row.changeDetails.map(d => `${d.field || ''}: ${d.oldValue || '-'} → ${d.newValue || '-'}`).join('; ') }}
+                </span>
+                <span v-else class="text-muted">—</span>
+              </template>
+            </el-table-column>
           </el-table>
-          <div v-else class="empty-hint">暂无操作日志（新建人员或无变更时为空）</div>
+          <div v-if="!operationLogsLoading && !operationLogs.length" class="empty-hint">暂无操作日志（新建人员或无变更时为空）</div>
         </el-tab-pane>
       </el-tabs>
     </el-drawer>
@@ -567,12 +572,38 @@ const sortedEducations = computed(() => {
   const list = current.value?.educations || []
   return [...list].sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''))
 })
-// 占位：操作日志（完整持久化待后续 h5，当前展示空或模拟）
-const mockOperationLogs = computed(() => {
-  if (!current.value?.id) return []
-  // 未来可替换为真实查询 /api/personnel/{id}/operation-logs
-  return []
-})
+// 4.3.1.3 操作日志（真实 API 数据）
+const operationLogs = ref([])
+const operationLogsLoading = ref(false)
+
+const loadOperationLogs = async () => {
+  if (!current.value?.id) return
+  operationLogsLoading.value = true
+  try {
+    const res = await personnelApi.getOperationLogs(current.value.id)
+    operationLogs.value = Array.isArray(res?.data) ? res.data : []
+  } catch {
+    operationLogs.value = []
+  } finally {
+    operationLogsLoading.value = false
+  }
+}
+
+// 证书状态标签映射（4.3.1.3 需求：有效/即将到期/已过期/永久有效）
+const CERT_STATUS_LABELS = {
+  VALID: '有效',
+  EXPIRING: '即将到期',
+  EXPIRED: '已过期',
+  PERMANENT: '永久有效'
+}
+const CERT_STATUS_TAG_TYPES = {
+  VALID: 'success',
+  EXPIRING: 'warning',
+  EXPIRED: 'danger',
+  PERMANENT: 'primary'
+}
+const certStatusLabel = (status) => CERT_STATUS_LABELS[status] || status || '—'
+const certStatusTagType = (status) => CERT_STATUS_TAG_TYPES[status] || 'info'
 
 const canEdit = computed(() => {
   const r = userStore.userRole || (userStore.currentUser && userStore.currentUser.role) || ''
@@ -630,7 +661,18 @@ const openDetail = (row, targetTabOrColumn = 'basic') => {
   const tab = typeof targetTabOrColumn === 'string' ? targetTabOrColumn : 'basic'
   detailActiveTab.value = tab
   detailVisible.value = true
+  // 切换到操作日志 Tab 时自动加载
+  if (tab === 'log') {
+    loadOperationLogs()
+  }
 }
+
+// 监听 Tab 切换，切换到操作日志时加载数据
+watch(detailActiveTab, (tab) => {
+  if (tab === 'log') {
+    loadOperationLogs()
+  }
+})
 const openForm = (row) => {
   isEdit.value = !!row
   if (row) {

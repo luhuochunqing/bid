@@ -72,12 +72,21 @@ public class PersonnelMapper {
 
     public CertificateDTO toCertDTO(Certificate c) {
         if (c == null) return null;
+        String status = computeCertStatus(c);
         return new CertificateDTO(
                 c.id(), c.name(), c.certificateNumber(), c.type(),
                 c.issueDate(), c.expiryDate(), c.attachmentUrl(),
                 c.title(), c.isPermanent(),
-                c.isExpired(), c.remainingDays()
+                c.isExpired(), c.remainingDays(),
+                status
         );
+    }
+
+    private String computeCertStatus(Certificate c) {
+        if (c.isPermanent()) return "PERMANENT";
+        if (c.isExpired()) return "EXPIRED";
+        if (c.isExpiringSoon(30)) return "EXPIRING";
+        return "VALID";
     }
 
     public List<Certificate> toCertificateList(List<PersonnelUpsertCommand.CertificateEntry> entries) {
