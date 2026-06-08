@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# Input: git credential fill + GITEE_TOKEN env + macOS Keychain
+# Output: Gitee Personal Access Token to stdout (and exports GITEE_TOKEN)
+# Pos: scripts/ - Gitee PAT retrieval helper for agent PR/merge workflows
+# 维护声明: 仅维护 Gitee Personal Access Token 解析逻辑；调整优先级或新增来源时同步 SOP。
 # scripts/gitee-token.sh — 获取 Gitee Personal Access Token。
 #
 # 优先级:

@@ -2,6 +2,7 @@
 # Input: reads env vars from runtime directory + health probes
 # Output: JSON health summary to stdout, exit code 0 if all up
 # Pos: scripts/ - aggregated health check for all dev services
+# 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 set -euo pipefail
 
 ROOT_DIR="${ROOT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
