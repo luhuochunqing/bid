@@ -4,7 +4,9 @@ import com.xiyu.bid.personnel.application.command.PersonnelUpsertCommand;
 import com.xiyu.bid.personnel.application.dto.PersonnelDTO;
 import com.xiyu.bid.personnel.application.mapper.PersonnelMapper;
 import com.xiyu.bid.personnel.domain.model.Personnel;
+import com.xiyu.bid.personnel.domain.model.PersonnelOperationLog;
 import com.xiyu.bid.personnel.domain.port.PersonnelRepository;
+import com.xiyu.bid.personnel.domain.service.PersonnelValidator;
 import com.xiyu.bid.personnel.domain.valueobject.PersonnelStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,6 +18,8 @@ public class CreatePersonnelAppService {
 
     private final PersonnelRepository repository;
     private final PersonnelMapper mapper;
+    private final PersonnelValidator validator;
+    private final PersonnelOperationLogService logService;
 
     @Transactional
     public PersonnelDTO create(PersonnelUpsertCommand command) {
@@ -46,6 +50,23 @@ public class CreatePersonnelAppService {
                 educations
         );
 
-        return mapper.toDTO(repository.save(personnel));
+        var validationResult = validator.validate(personnel);
+        if (!validationResult.isValid()) {
+            throw new IllegalArgumentException(validationResult.errors().get(0).message());
+        }
+
+        PersonnelDTO saved = mapper.toDTO(repository.save(personnel));
+
+        // 记录操作日志（蓝图要求："新增人员档案 - {工号} {姓名}"）
+        PersonnelOperationLog log = PersonnelOperationLog.create(
+                saved.id(),
+                0L,
+                "system",
+                PersonnelOperationLog.OperationType.CREATE,
+                java.util.List.of()
+        );
+        logService.save(log);
+
+        return saved;
     }
 }

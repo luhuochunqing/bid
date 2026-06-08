@@ -746,6 +746,7 @@ const handleSubmit = async () => {
   certAttachmentFiles.value = newFiles
 
   if (!form.value.name || !form.value.employeeNumber) { ElMessage.warning('姓名和工号必填'); return }
+  if (form.value.phone && !/^\d{11}$/.test(form.value.phone)) { ElMessage.warning('请输入有效的手机号'); return }
   if (!form.value.educations || form.value.educations.length === 0) {
     ElMessage.error('请至少添加1条完整的教育经历（学校、学历、学习形式、日期必填）'); return
   }
