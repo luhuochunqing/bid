@@ -3,6 +3,7 @@ package com.xiyu.bid.casework.application.service;
 import com.xiyu.bid.casework.dto.CaseReferenceRecordDTO;
 import com.xiyu.bid.casework.entity.CaseReferenceRecord;
 import com.xiyu.bid.casework.repository.CaseReferenceRecordRepository;
+import com.xiyu.bid.repository.CaseRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class CaseReferenceAppService {
 
     private final CaseReferenceRecordRepository caseReferenceRecordRepository;
+    private final CaseRepository caseRepository;
 
     @Transactional(readOnly = true)
     public java.util.List<CaseReferenceRecordDTO> getReferenceRecords(Long caseId) {
@@ -30,6 +32,13 @@ public class CaseReferenceAppService {
                 .sourceProjectName(sourceProjectName)
                 .build();
         CaseReferenceRecord saved = caseReferenceRecordRepository.save(record);
+
+        // 引用一次，useCount +1
+        caseRepository.findById(caseId).ifPresent(c -> {
+            c.setUseCount(c.getUseCount() == null ? 1L : c.getUseCount() + 1);
+            caseRepository.save(c);
+        });
+
         return toDTO(saved);
     }
 

@@ -2,6 +2,165 @@
 # Input: local dev environment, backend profile options, and repository startup commands
 # Output: stable daemon-like start/stop/status/log control for sidecar/backend/frontend with current-code identity checks, secret-file handoff, Vite cache reset, and bounded health probes
 # Pos: scripts/ - local service lifecycle management
+# 维护声明:
+#   - 维护人: [your-name]
+#   - 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+# ──────────────────────────────────────────────
+# healthcheck — Docker 模式自愈检查
+# ──────────────────────────────────────────────
+healthcheck() {
+  local exit_code=0
+  local action_taken=false
+
+  echo "======================================"
+  echo " 服务健康检查 & 自愈 - $(date '+%Y-%m-%d %H:%M:%S')"
+  echo "======================================"
+
+  # ── Step 1: Docker daemon ──
+  echo ""
+  echo "【1/4】检查 Docker daemon..."
+  if ! docker ps >/dev/null 2>&1; then
+    echo "  ⚠️  Docker daemon 未运行，正在启动 Docker Desktop..."
+    open -a Docker
+    echo "  ⏳ 等待 Docker socket..."
+    local i=0
+    while [ $i -lt 30 ]; do
+      sleep 2
+      if docker ps >/dev/null 2>&1; then
+        echo "  ✅ Docker daemon 已就绪（$((i*2))秒）"
+        action_taken=true
+        break
+      fi
+      i=$((i+1))
+    done
+    if ! docker ps >/dev/null 2>&1; then
+      echo "  ❌ Docker daemon 启动超时"
+      exit_code=1
+    fi
+  else
+    echo "  ✅ Docker daemon 运行中"
+  fi
+
+  # ── Step 2: Docker 容器 ──
+  echo ""
+  echo "【2/4】检查 Docker 容器..."
+  local container_names="xiyu-bid-mysql xiyu-bid-redis xiyu-bid-backend"
+  local all_containers_up=true
+
+  for name in $container_names; do
+    local state="$(docker inspect --format '{{.State.Status}}' "$name" 2>/dev/null || echo 'missing')"
+    case "$state" in
+      running)
+        echo "  ✅ $name - running"
+        ;;
+      missing)
+        echo "  ⚠️  $name - 容器不存在，执行 docker compose up -d..."
+        all_containers_up=false
+        ;;
+      *)
+        echo "  ⚠️  ${name} - 状态=${state}，重新启动..."
+        docker start "$name" >/dev/null 2>&1 && echo "  ✅ ${name} 已重启" || echo "  ❌ ${name} 重启失败"
+        all_containers_up=false
+        action_taken=true
+        ;;
+    esac
+  done
+
+  if [ "$all_containers_up" = false ]; then
+    echo "  ⏳ 正在启动 Docker Compose 服务..."
+    (cd "$ROOT_DIR" && XIYU_DEV_CONFIRMED=1 docker compose up -d 2>/dev/null)
+    action_taken=true
+  fi
+
+  # ── Step 3: 后端健康 ──
+  echo ""
+  echo "【3/4】检查后端服务..."
+  if curl_health "$BACKEND_HEALTH_URL"; then
+    echo "  ✅ 后端 - http://127.0.0.1:${BACKEND_PORT}/actuator/health → ok"
+  else
+    echo "  ⚠️  后端不健康，等待 30 秒..."
+    if wait_http "$BACKEND_HEALTH_URL" 30; then
+      echo "  ✅ 后端已恢复"
+      action_taken=true
+    else
+      echo "  ⚠️  后端仍未就绪，尝试 docker compose restart backend..."
+      (cd "$ROOT_DIR" && docker compose restart backend 2>/dev/null)
+      if wait_http "$BACKEND_HEALTH_URL" 60; then
+        echo "  ✅ 后端已恢复"
+        action_taken=true
+      else
+        echo "  ❌ 后端无法启动，请检查日志：docker compose logs backend"
+        exit_code=1
+      fi
+    fi
+  fi
+
+  # ── Step 4: 前端 + sidecar ──
+  echo ""
+  echo "【4/4】检查前端 & sidecar..."
+  # Sidecar
+  if curl_health "$SIDECAR_HEALTH_URL"; then
+    echo "  ✅ sidecar - ${SIDECAR_HEALTH_URL} → ok"
+  else
+    echo "  ⚠️  sidecar 不可用，尝试启动..."
+    local spid="$(read_pid "$SIDECAR_PID_FILE" 2>/dev/null || true)"
+    if is_pid_running "$spid"; then
+      echo "  ⚠️  PID ${spid} 存在但端口不通，杀掉重启..."
+      kill "$spid" 2>/dev/null || true
+    fi
+    start_sidecar
+    if wait_http "$SIDECAR_HEALTH_URL" "$SIDECAR_START_TIMEOUT_SECONDS"; then
+      echo "  ✅ sidecar 已启动"
+      action_taken=true
+    else
+      echo "  ❌ sidecar 启动失败"
+      exit_code=1
+    fi
+  fi
+
+  # 前端
+  if curl --connect-timeout 2 --max-time 3 -fsS -o /dev/null "$FRONTEND_URL"; then
+    echo "  ✅ 前端 - ${FRONTEND_URL} → ok"
+  else
+    echo "  ⚠️  前端不可用，尝试重启..."
+    local fpid="$(read_pid "$FRONTEND_PID_FILE" 2>/dev/null || true)"
+    if is_pid_running "$fpid"; then
+      kill "$fpid" 2>/dev/null || true
+      sleep 1
+    fi
+    # 杀掉遗留 screen
+    screen -S main-frontend -X quit 2>/dev/null || true
+    start_frontend
+    if wait_frontend "$FRONTEND_START_TIMEOUT_SECONDS"; then
+      echo "  ✅ 前端已启动"
+      action_taken=true
+    else
+      echo "  ❌ 前端启动失败"
+      exit_code=1
+    fi
+  fi
+
+  # ── 总结 ──
+  echo ""
+  echo "======================================"
+  if [ "$exit_code" -eq 0 ]; then
+    if [ "$action_taken" = true ]; then
+      echo " ✅ 所有服务已恢复"
+    else
+      echo " ✅ 所有服务运行正常，无需修复"
+    fi
+  else
+    echo " ❌ 部分服务异常，请手动检查"
+  fi
+  echo "======================================"
+  echo ""
+  status
+  return $exit_code
+}
+#!/usr/bin/env bash
+# Input: local dev environment, backend profile options, and repository startup commands
+# Output: stable daemon-like start/stop/status/log control for sidecar/backend/frontend with current-code identity checks, secret-file handoff, Vite cache reset, and bounded health probes
+# Pos: scripts/ - local service lifecycle management
 # 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 set -euo pipefail
 
@@ -353,12 +512,18 @@ curl_health() {
 }
 
 backend_matches_workspace() {
-  local pid cwd
+  local pid cmd cwd
   while IFS= read -r pid; do
     [[ -n "$pid" ]] || continue
     cwd="$(process_cwd "$pid")"
     case "$cwd" in
       "$ROOT_DIR/backend"|"$ROOT_DIR/backend/"*)
+        return 0
+        ;;
+    esac
+    cmd="$(process_command "$pid")"
+    case "$cmd" in
+      *"$ROOT_DIR/backend/target/classes"*|*"$ROOT_DIR/backend"*)
         return 0
         ;;
     esac
@@ -374,12 +539,18 @@ backend_current_for_pid() {
 }
 
 sidecar_matches_workspace() {
-  local pid cwd
+  local pid cmd cwd
   while IFS= read -r pid; do
     [[ -n "$pid" ]] || continue
     cwd="$(process_cwd "$pid")"
     case "$cwd" in
       "$SIDECAR_DIR"|"$SIDECAR_DIR/"*)
+        return 0
+        ;;
+    esac
+    cmd="$(process_command "$pid")"
+    case "$cmd" in
+      *"$SIDECAR_DIR"*|*"document-converter-sidecar"*"app:app"*)
         return 0
         ;;
     esac
@@ -479,12 +650,18 @@ wait_http() {
 }
 
 frontend_matches_workspace() {
-  local pid cwd
+  local pid cmd cwd
   while IFS= read -r pid; do
     [[ -n "$pid" ]] || continue
     cwd="$(process_cwd "$pid")"
     case "$cwd" in
       "$ROOT_DIR"|"$ROOT_DIR/"*)
+        return 0
+        ;;
+    esac
+    cmd="$(process_command "$pid")"
+    case "$cmd" in
+      *"vite"*|"$ROOT_DIR/"*)
         return 0
         ;;
     esac
@@ -510,16 +687,9 @@ wait_frontend() {
   local timeout="${1:-90}"
   local start elapsed
   start="$(date +%s)"
-  local pid identity
-  pid="$(read_pid "$FRONTEND_PID_FILE" 2>/dev/null || true)"
-  identity="$(frontend_expected_identity)"
   # Phase 1: wait for port + cwd match ("our" process owns the port)
-  # Accept: cwd match (frontend_matches_workspace) OR pid file + identity match
   while true; do
     if frontend_matches_workspace; then
-      break
-    fi
-    if is_pid_running "$pid" && identity_file_matches "$FRONTEND_ID_FILE" "$pid" "$identity"; then
       break
     fi
     elapsed=$(( $(date +%s) - start ))
@@ -585,16 +755,9 @@ start_sidecar() {
       local_conflicting_pids="$(lsof -ti tcp:$SIDECAR_PORT 2>/dev/null || true)"
       if [[ -n "$local_conflicting_pids" ]]; then
         kill -TERM $local_conflicting_pids 2>/dev/null || true
-      fi
-      local _wait=0
-      while is_port_listening "$SIDECAR_PORT" && (( _wait < 8 )); do
         sleep 1
-        _wait=$(( _wait + 1 ))
-        if (( _wait == 2 )); then
-          local_conflicting_pids="$(lsof -ti tcp:$SIDECAR_PORT 2>/dev/null || true)"
-          [[ -n "$local_conflicting_pids" ]] && kill -KILL $local_conflicting_pids 2>/dev/null || true
-        fi
-      done
+        kill -KILL $local_conflicting_pids 2>/dev/null || true
+      fi
     fi
     if is_port_listening "$SIDECAR_PORT"; then
       print_sidecar_mismatch
@@ -654,16 +817,9 @@ start_backend() {
       local_conflicting_pids="$(lsof -ti tcp:$BACKEND_PORT 2>/dev/null || true)"
       if [[ -n "$local_conflicting_pids" ]]; then
         kill -TERM $local_conflicting_pids 2>/dev/null || true
-      fi
-      local _wait=0
-      while is_port_listening "$BACKEND_PORT" && (( _wait < 8 )); do
         sleep 1
-        _wait=$(( _wait + 1 ))
-        if (( _wait == 2 )); then
-          local_conflicting_pids="$(lsof -ti tcp:$BACKEND_PORT 2>/dev/null || true)"
-          [[ -n "$local_conflicting_pids" ]] && kill -KILL $local_conflicting_pids 2>/dev/null || true
-        fi
-      done
+        kill -KILL $local_conflicting_pids 2>/dev/null || true
+      fi
     fi
     if is_port_listening "$BACKEND_PORT"; then
       print_backend_mismatch
@@ -685,15 +841,6 @@ start_backend() {
     return 1
   fi
   echo "[backend] compile + package ok."
-
-  # Re-check port after long mvn build (external processes may have reclaimed it)
-  while IFS= read -r _p; do
-    kill -TERM "$_p" 2>/dev/null || true
-  done < <(port_listener_pids "$BACKEND_PORT")
-  sleep 1
-  while IFS= read -r _p; do
-    kill -KILL "$_p" 2>/dev/null || true
-  done < <(port_listener_pids "$BACKEND_PORT")
 
   # 启动后端（编译后直接 java -jar，比 mvn spring-boot:run 更快更稳定）
   local jar_file="$ROOT_DIR/backend/target/bid-poc-1.0.3.jar"
@@ -766,16 +913,9 @@ start_frontend() {
       local_conflicting_pids="$(lsof -ti tcp:$FRONTEND_PORT 2>/dev/null || true)"
       if [[ -n "$local_conflicting_pids" ]]; then
         kill -TERM $local_conflicting_pids 2>/dev/null || true
-      fi
-      local _wait=0
-      while is_port_listening "$FRONTEND_PORT" && (( _wait < 8 )); do
         sleep 1
-        _wait=$(( _wait + 1 ))
-        if (( _wait == 2 )); then
-          local_conflicting_pids="$(lsof -ti tcp:$FRONTEND_PORT 2>/dev/null || true)"
-          [[ -n "$local_conflicting_pids" ]] && kill -KILL $local_conflicting_pids 2>/dev/null || true
-        fi
-      done
+        kill -KILL $local_conflicting_pids 2>/dev/null || true
+      fi
     fi
     if is_port_listening "$FRONTEND_PORT"; then
       echo "[frontend] port $FRONTEND_PORT is still occupied after forced cleanup" >&2
@@ -1127,160 +1267,6 @@ EOF
 CMD=""
 parse_args "$@"
 
-# ──────────────────────────────────────────────
-# healthcheck — Docker 模式自愈检查
-# ──────────────────────────────────────────────
-healthcheck() {
-  local exit_code=0
-  local action_taken=false
-
-  echo "======================================"
-  echo " 服务健康检查 & 自愈 - $(date '+%Y-%m-%d %H:%M:%S')"
-  echo "======================================"
-
-  # ── Step 1: Docker daemon ──
-  echo ""
-  echo "【1/4】检查 Docker daemon..."
-  if ! docker ps >/dev/null 2>&1; then
-    echo "  ⚠️  Docker daemon 未运行，正在启动 Docker Desktop..."
-    open -a Docker
-    echo "  ⏳ 等待 Docker socket..."
-    local i=0
-    while [ $i -lt 30 ]; do
-      sleep 2
-      if docker ps >/dev/null 2>&1; then
-        echo "  ✅ Docker daemon 已就绪（$((i*2))秒）"
-        action_taken=true
-        break
-      fi
-      i=$((i+1))
-    done
-    if ! docker ps >/dev/null 2>&1; then
-      echo "  ❌ Docker daemon 启动超时"
-      exit_code=1
-    fi
-  else
-    echo "  ✅ Docker daemon 运行中"
-  fi
-
-  # ── Step 2: Docker 容器 ──
-  echo ""
-  echo "【2/4】检查 Docker 容器..."
-  local container_names="xiyu-bid-mysql xiyu-bid-redis xiyu-bid-backend"
-  local all_containers_up=true
-
-  for name in $container_names; do
-    local state="$(docker inspect --format '{{.State.Status}}' "$name" 2>/dev/null || echo 'missing')"
-    case "$state" in
-      running)
-        echo "  ✅ $name - running"
-        ;;
-      missing)
-        echo "  ⚠️  $name - 容器不存在，执行 docker compose up -d..."
-        all_containers_up=false
-        ;;
-      *)
-        echo "  ⚠️  ${name} - 状态=${state}，重新启动..."
-        docker start "$name" >/dev/null 2>&1 && echo "  ✅ ${name} 已重启" || echo "  ❌ ${name} 重启失败"
-        all_containers_up=false
-        action_taken=true
-        ;;
-    esac
-  done
-
-  if [ "$all_containers_up" = false ]; then
-    echo "  ⏳ 正在启动 Docker Compose 服务..."
-    (cd "$ROOT_DIR" && XIYU_DEV_CONFIRMED=1 docker compose up -d 2>/dev/null)
-    action_taken=true
-  fi
-
-  # ── Step 3: 后端健康 ──
-  echo ""
-  echo "【3/4】检查后端服务..."
-  if curl_health "$BACKEND_HEALTH_URL"; then
-    echo "  ✅ 后端 - http://127.0.0.1:${BACKEND_PORT}/actuator/health → ok"
-  else
-    echo "  ⚠️  后端不健康，等待 30 秒..."
-    if wait_http "$BACKEND_HEALTH_URL" 30; then
-      echo "  ✅ 后端已恢复"
-      action_taken=true
-    else
-      echo "  ⚠️  后端仍未就绪，尝试 docker compose restart backend..."
-      (cd "$ROOT_DIR" && docker compose restart backend 2>/dev/null)
-      if wait_http "$BACKEND_HEALTH_URL" 60; then
-        echo "  ✅ 后端已恢复"
-        action_taken=true
-      else
-        echo "  ❌ 后端无法启动，请检查日志：docker compose logs backend"
-        exit_code=1
-      fi
-    fi
-  fi
-
-  # ── Step 4: 前端 + sidecar ──
-  echo ""
-  echo "【4/4】检查前端 & sidecar..."
-  # Sidecar
-  if curl_health "$SIDECAR_HEALTH_URL"; then
-    echo "  ✅ sidecar - ${SIDECAR_HEALTH_URL} → ok"
-  else
-    echo "  ⚠️  sidecar 不可用，尝试启动..."
-    local spid="$(read_pid "$SIDECAR_PID_FILE" 2>/dev/null || true)"
-    if is_pid_running "$spid"; then
-      echo "  ⚠️  PID ${spid} 存在但端口不通，杀掉重启..."
-      kill "$spid" 2>/dev/null || true
-    fi
-    start_sidecar
-    if wait_http "$SIDECAR_HEALTH_URL" "$SIDECAR_START_TIMEOUT_SECONDS"; then
-      echo "  ✅ sidecar 已启动"
-      action_taken=true
-    else
-      echo "  ❌ sidecar 启动失败"
-      exit_code=1
-    fi
-  fi
-
-  # 前端
-  if curl --connect-timeout 2 --max-time 3 -fsS -o /dev/null "$FRONTEND_URL"; then
-    echo "  ✅ 前端 - ${FRONTEND_URL} → ok"
-  else
-    echo "  ⚠️  前端不可用，尝试重启..."
-    local fpid="$(read_pid "$FRONTEND_PID_FILE" 2>/dev/null || true)"
-    if is_pid_running "$fpid"; then
-      kill "$fpid" 2>/dev/null || true
-      sleep 1
-    fi
-    # 杀掉遗留 screen
-    screen -S main-frontend -X quit 2>/dev/null || true
-    start_frontend
-    if wait_frontend "$FRONTEND_START_TIMEOUT_SECONDS"; then
-      echo "  ✅ 前端已启动"
-      action_taken=true
-    else
-      echo "  ❌ 前端启动失败"
-      exit_code=1
-    fi
-  fi
-
-  # ── 总结 ──
-  echo ""
-  echo "======================================"
-  if [ "$exit_code" -eq 0 ]; then
-    if [ "$action_taken" = true ]; then
-      echo " ✅ 所有服务已恢复"
-    else
-      echo " ✅ 所有服务运行正常，无需修复"
-    fi
-  else
-    echo " ❌ 部分服务异常，请手动检查"
-  fi
-  echo "======================================"
-  echo ""
-  status
-  return $exit_code
-}
-
-
 case "$CMD" in
   start)
     if [[ -f "$BACKEND_FAIL_STATE" ]]; then
@@ -1291,62 +1277,18 @@ case "$CMD" in
       echo "  rm \"$BACKEND_FAIL_STATE\" && \"$0\" start"
       exit 1
     fi
-    # Pre-clean all ports before starting any service to avoid conflicts
-    # from other worktree processes (e.g. trae watchdog restarting vite on 1314)
-    for _svc in frontend backend sidecar; do
-      case "$_svc" in
-        frontend) _port="$FRONTEND_PORT" ;;
-        backend)  _port="$BACKEND_PORT" ;;
-        sidecar)  _port="$SIDECAR_PORT" ;;
-      esac
-      if is_port_listening "$_port"; then
-        echo "[start] pre-cleaning port $_port for $_svc"
-        while IFS= read -r _p; do
-          kill -TERM "$_p" 2>/dev/null || true
-        done < <(port_listener_pids "$_port")
-        sleep 1
-        while IFS= read -r _p; do
-          kill -KILL "$_p" 2>/dev/null || true
-        done < <(port_listener_pids "$_port")
-      fi
-    done
-
-    # Sidecar: pre-clean port before start (handles external watchdog restarts during mvn)
-    while IFS= read -r _p; do
-      kill -TERM "$_p" 2>/dev/null || true
-    done < <(port_listener_pids "$SIDECAR_PORT")
-    sleep 1
-    while IFS= read -r _p; do
-      kill -KILL "$_p" 2>/dev/null || true
-    done < <(port_listener_pids "$SIDECAR_PORT")
     start_sidecar
     if ! wait_http "$SIDECAR_HEALTH_URL" "$SIDECAR_START_TIMEOUT_SECONDS"; then
       echo "[sidecar] failed to become healthy. See logs:"
       logs
       exit 1
     fi
-    # Backend: pre-clean port before mvn package (mvn takes minutes, external processes may reclaim)
-    while IFS= read -r _p; do
-      kill -TERM "$_p" 2>/dev/null || true
-    done < <(port_listener_pids "$BACKEND_PORT")
-    sleep 1
-    while IFS= read -r _p; do
-      kill -KILL "$_p" 2>/dev/null || true
-    done < <(port_listener_pids "$BACKEND_PORT")
     start_backend
     if ! wait_http "$BACKEND_HEALTH_URL" "$BACKEND_START_TIMEOUT_SECONDS"; then
       echo "[backend] failed to become healthy. See logs:"
       logs
       exit 1
     fi
-    # Frontend: pre-clean port before starting vite (narrow window after mvn)
-    while IFS= read -r _p; do
-      kill -TERM "$_p" 2>/dev/null || true
-    done < <(port_listener_pids "$FRONTEND_PORT")
-    sleep 1
-    while IFS= read -r _p; do
-      kill -KILL "$_p" 2>/dev/null || true
-    done < <(port_listener_pids "$FRONTEND_PORT")
     start_frontend
     if ! wait_frontend "$FRONTEND_START_TIMEOUT_SECONDS"; then
       echo "[frontend] failed to become healthy. See logs:"

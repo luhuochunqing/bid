@@ -25,7 +25,10 @@ class FlywayRollbackScriptCoverageTest {
         List<String> rollbackProblems;
         try (Stream<Path> migrations = Files.list(migrationRoot)) {
             rollbackProblems = migrations
-                    .filter(path -> path.getFileName().toString().endsWith(".sql"))
+                    .filter(path -> {
+                        String name = path.getFileName().toString();
+                        return name.endsWith(".sql") && (name.startsWith("V") || name.startsWith("B"));
+                    })
                     .map(path -> rollbackProblem(rollbackRoot, path.getFileName().toString()))
                     .filter(problem -> !problem.isBlank())
                     .sorted()

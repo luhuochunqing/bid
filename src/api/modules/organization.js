@@ -1,7 +1,9 @@
 // Input: httpClient
 // Output: organizationApi
 // Pos: src/api/modules/ - Organization management API layer
-// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+// 维护声明:
+//   - 维护人: [your-name]
+//   - 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 import httpClient from '../client.js'
 
 export const organizationApi = {

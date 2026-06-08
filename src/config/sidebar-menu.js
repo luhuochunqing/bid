@@ -26,12 +26,12 @@ export const sidebarMenuConfig = [
   {
     path: '/knowledge',
     name: 'Knowledge',
-    meta: { title: '方案管理', icon: 'knowledge', permissionKeys: ['knowledge'] },
+    meta: { title: '知识库', icon: 'knowledge', permissionKeys: ['knowledge'] },
     children: [
       {
         path: '/knowledge/archive',
         name: 'ProjectArchive',
-        meta: { title: '项目档案', permissionKeys: ['knowledge', 'knowledge-archive'] }
+        meta: { title: '档案台账', permissionKeys: ['knowledge', 'knowledge-archive'] }
       },
       {
         path: '/knowledge/qualification',

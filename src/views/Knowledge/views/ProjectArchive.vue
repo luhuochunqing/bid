@@ -11,7 +11,7 @@
 
     <el-card class="filter-card">
       <template #header>
-        <div class="card-header-title"><el-icon><Files /></el-icon><span>项目档案</span></div>
+        <div class="card-header-title"><el-icon><Files /></el-icon><span>项目档案台账</span></div>
       </template>
       <el-form :inline="true" :model="filters" class="search-form">
         <el-form-item label="项目名称">
@@ -247,12 +247,12 @@ const downloadBlob = (blob, filename, mimeType) => {
   link.href = window.URL.createObjectURL(new Blob([blob], { type: mimeType }))
   link.download = filename; link.click(); window.URL.revokeObjectURL(link.href)
 }
+
 const handleDownloadArchive = async (row) => {
   try {
-    const projectId = row.projectId
-    if (!projectId) { ElMessage.warning('缺少项目 ID'); return }
-    const res = await httpClient.get(`/api/archive/export-zip/${projectId}`, { responseType: 'blob' })
-    downloadBlob(res, `方案管理-项目档案文件包-${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12)}.zip`, 'application/zip')
+    const params = row ? { ...buildExportParams(), archiveId: row.archiveId } : buildExportParams()
+    const blob = (await httpClient.post('/api/archive/export-zip', params, { responseType: 'blob' })).data
+    downloadBlob(blob, `方案管理-项目档案文件包-${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12)}.zip`, 'application/zip')
     ElMessage.success('导出文件包成功')
   } catch { ElMessage.error('导出文件包失败') }
 }
@@ -260,7 +260,7 @@ const handleDownloadArchive = async (row) => {
 const handleExportExcel = async () => {
   try {
     const blob = (await httpClient.post('/api/archive/export-excel', buildExportParams(), { responseType: 'blob' })).data
-    downloadBlob(blob, `方案管理-项目档案-${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12)}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    downloadBlob(blob, `方案管理-项目档案台账-${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12)}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     ElMessage.success('导出台账成功')
   } catch { ElMessage.error('导出台账失败') }
 }

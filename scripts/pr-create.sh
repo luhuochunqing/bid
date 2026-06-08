@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Input: PR title + optional body file or stdin, current branch, git remote
-# Output: PR created on the appropriate remote (Gitee/GitHub), PR URL to stdout
-# Pos: scripts/ - Unified PR creation entry point for all agents
-# 维护声明: 仅维护跨平台 PR 创建逻辑；新增平台或调整 Agent 协议时同步 SOP。
+# Input: GitHub/Gitee remote, current branch
+# Output: authenticated PR creation via gh or gitee API, prints PR URL
+# Pos: scripts/ - GitHub/Gitee PR creation entry point
+# 维护声明:
+#   - 维护人: [your-name]
+#   - 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 # ==============================================================================
 # 统一创建 PR 脚本 — 唯一合法路径
 # 所有 Agent 必须通过此脚本创建 PR，禁止手动 gh pr create 或直接 git push。

@@ -49,56 +49,102 @@ class BidReviewPolicyTest {
 
     @Test
     void canApprove_whenNull_shouldDeny() {
-        var result = BidReviewPolicy.canApprove(null);
+        var result = BidReviewPolicy.canApprove(null, 100L, 200L, 200L);
         assertThat(result.allowed()).isFalse();
         assertThat(result.reason()).contains("尚未提交审核");
+        assertThat(result.cause()).isEqualTo(BidReviewPolicy.Decision.Cause.STATE);
     }
 
     @Test
     void canApprove_whenReviewing_shouldAllow() {
-        var result = BidReviewPolicy.canApprove(BidReviewStatus.REVIEWING);
+        var result = BidReviewPolicy.canApprove(BidReviewStatus.REVIEWING, 100L, 200L, 200L);
         assertThat(result.allowed()).isTrue();
     }
 
     @Test
     void canApprove_whenApproved_shouldDeny() {
-        var result = BidReviewPolicy.canApprove(BidReviewStatus.APPROVED);
+        var result = BidReviewPolicy.canApprove(BidReviewStatus.APPROVED, 100L, 200L, 200L);
         assertThat(result.allowed()).isFalse();
         assertThat(result.reason()).contains("已审核通过");
+        assertThat(result.cause()).isEqualTo(BidReviewPolicy.Decision.Cause.STATE);
     }
 
     @Test
     void canApprove_whenRejected_shouldDeny() {
-        var result = BidReviewPolicy.canApprove(BidReviewStatus.REJECTED);
+        var result = BidReviewPolicy.canApprove(BidReviewStatus.REJECTED, 100L, 200L, 200L);
         assertThat(result.allowed()).isFalse();
         assertThat(result.reason()).contains("被驳回");
+        assertThat(result.cause()).isEqualTo(BidReviewPolicy.Decision.Cause.STATE);
+    }
+
+    // ── canApprove 身份校验（IJSTZG 根因修复 2026-06-07）──────────────
+
+    @Test
+    void canApprove_whenSelfSubmitted_shouldDeny() {
+        // submittedBy == currentUserId → 自我审批 → 403
+        var result = BidReviewPolicy.canApprove(BidReviewStatus.REVIEWING, 100L, 200L, 100L);
+        assertThat(result.allowed()).isFalse();
+        assertThat(result.reason()).contains("提交人不能审批自己");
+        assertThat(result.cause()).isEqualTo(BidReviewPolicy.Decision.Cause.IDENTITY);
+    }
+
+    @Test
+    void canApprove_whenNotAssignedReviewer_shouldDeny() {
+        // currentUserId 是旁观者（既非 submitter 也非 reviewer）→ 403
+        var result = BidReviewPolicy.canApprove(BidReviewStatus.REVIEWING, 100L, 200L, 999L);
+        assertThat(result.allowed()).isFalse();
+        assertThat(result.reason()).contains("仅指派的审核人");
+        assertThat(result.cause()).isEqualTo(BidReviewPolicy.Decision.Cause.IDENTITY);
+    }
+
+    @Test
+    void canApprove_whenAssignedReviewerNotSubmitter_shouldPermit() {
+        // reviewerId == currentUserId 且 submittedBy != currentUserId → 通过
+        var result = BidReviewPolicy.canApprove(BidReviewStatus.REVIEWING, 100L, 200L, 200L);
+        assertThat(result.allowed()).isTrue();
+    }
+
+    @Test
+    void canApprove_whenNullCurrentUserId_shouldDeny() {
+        var result = BidReviewPolicy.canApprove(BidReviewStatus.REVIEWING, 100L, 200L, null);
+        assertThat(result.allowed()).isFalse();
+        assertThat(result.reason()).contains("未识别操作者");
+        assertThat(result.cause()).isEqualTo(BidReviewPolicy.Decision.Cause.IDENTITY);
+    }
+
+    @Test
+    void canApprove_identityCheckedBeforeStateIgnored() {
+        // 状态合法 (REVIEWING) + 自审 → 身份拒绝优先；不应 permit
+        var result = BidReviewPolicy.canApprove(BidReviewStatus.REVIEWING, 100L, 100L, 100L);
+        assertThat(result.allowed()).isFalse();
+        assertThat(result.cause()).isEqualTo(BidReviewPolicy.Decision.Cause.IDENTITY);
     }
 
     // ── canReject ───────────────────────────────────────────────────────
 
     @Test
     void canReject_whenNull_shouldDeny() {
-        var result = BidReviewPolicy.canReject(null, "原因");
+        var result = BidReviewPolicy.canReject(null, "原因", 100L, 200L, 200L);
         assertThat(result.allowed()).isFalse();
         assertThat(result.reason()).contains("尚未提交审核");
     }
 
     @Test
     void canReject_whenReviewing_shouldAllow() {
-        var result = BidReviewPolicy.canReject(BidReviewStatus.REVIEWING, "内容不符");
+        var result = BidReviewPolicy.canReject(BidReviewStatus.REVIEWING, "内容不符", 100L, 200L, 200L);
         assertThat(result.allowed()).isTrue();
     }
 
     @Test
     void canReject_whenApproved_shouldDeny() {
-        var result = BidReviewPolicy.canReject(BidReviewStatus.APPROVED, "原因");
+        var result = BidReviewPolicy.canReject(BidReviewStatus.APPROVED, "原因", 100L, 200L, 200L);
         assertThat(result.allowed()).isFalse();
         assertThat(result.reason()).contains("已审核通过");
     }
 
     @Test
     void canReject_whenRejected_shouldDeny() {
-        var result = BidReviewPolicy.canReject(BidReviewStatus.REJECTED, "原因");
+        var result = BidReviewPolicy.canReject(BidReviewStatus.REJECTED, "原因", 100L, 200L, 200L);
         assertThat(result.allowed()).isFalse();
         assertThat(result.reason()).contains("已被驳回");
     }
@@ -107,9 +153,27 @@ class BidReviewPolicyTest {
     @NullSource
     @ValueSource(strings = {"", "  ", "\t"})
     void canReject_whenReasonBlank_shouldDeny(String blankReason) {
-        var result = BidReviewPolicy.canReject(BidReviewStatus.REVIEWING, blankReason);
+        var result = BidReviewPolicy.canReject(BidReviewStatus.REVIEWING, blankReason, 100L, 200L, 200L);
         assertThat(result.allowed()).isFalse();
         assertThat(result.reason()).contains("驳回原因不能为空");
+    }
+
+    // ── canReject 身份校验（IJSTZG 根因修复 2026-06-07）──────────────
+
+    @Test
+    void canReject_whenSelfSubmitted_shouldDeny() {
+        var result = BidReviewPolicy.canReject(BidReviewStatus.REVIEWING, "原因", 100L, 200L, 100L);
+        assertThat(result.allowed()).isFalse();
+        assertThat(result.reason()).contains("提交人不能驳回自己");
+        assertThat(result.cause()).isEqualTo(BidReviewPolicy.Decision.Cause.IDENTITY);
+    }
+
+    @Test
+    void canReject_whenNotAssignedReviewer_shouldDeny() {
+        var result = BidReviewPolicy.canReject(BidReviewStatus.REVIEWING, "原因", 100L, 200L, 999L);
+        assertThat(result.allowed()).isFalse();
+        assertThat(result.reason()).contains("仅指派的审核人可以驳回");
+        assertThat(result.cause()).isEqualTo(BidReviewPolicy.Decision.Cause.IDENTITY);
     }
 
     // ── canSubmitBid ───────────────────────────────────────────────────

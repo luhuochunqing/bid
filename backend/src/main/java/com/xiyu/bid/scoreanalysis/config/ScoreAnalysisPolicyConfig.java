@@ -1,7 +1,5 @@
 package com.xiyu.bid.scoreanalysis.config;
 
-import com.xiyu.bid.scoreanalysis.core.ScoreAnalysisCalculationPolicy;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
@@ -11,13 +9,6 @@ import org.springframework.context.annotation.Configuration;
 @Configuration(proxyBeanMethods = false)
 public final class ScoreAnalysisPolicyConfig {
 
-    /**
-     * 注册评分计算策略.
-     *
-     * @return 评分计算策略实例
-     */
-    @Bean
-    public ScoreAnalysisCalculationPolicy scoreAnalysisCalculationPolicy() {
-        return new ScoreAnalysisCalculationPolicy();
-    }
+    // scoreAnalysisCalculationPolicy 由 CorePolicyBeanConfig 统一提供，
+    // 避免 e2e profile 下的 bean 冲突。
 }

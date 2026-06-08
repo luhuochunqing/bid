@@ -1,7 +1,6 @@
 package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.annotation.Auditable;
-import com.xiyu.bid.casework.application.ProjectArchiveWorkflowService;
 import com.xiyu.bid.demo.service.DemoDataProvider;
 import com.xiyu.bid.demo.service.DemoFusionService;
 import com.xiyu.bid.demo.service.DemoModeService;
@@ -32,7 +31,6 @@ public class ProjectService {
     private final DemoModeService demoModeService;
     private final DemoDataProvider demoDataProvider;
     private final DemoFusionService demoFusionService;
-    private final ProjectArchiveWorkflowService projectArchiveWorkflowService;
     private final ProjectImportService projectImportService;
     private final ProjectQueryService projectQueryService;
 
@@ -60,9 +58,6 @@ public class ProjectService {
         if (existingProject != null) return ProjectMapper.toDTO(existingProject);
         Project project = ProjectMapper.toEntity(normalized);
         Project savedProject = projectRepository.save(project);
-        if (projectArchiveWorkflowService != null) {
-            projectArchiveWorkflowService.createArchive(savedProject.getId(), savedProject.getName(), "ACTIVE");
-        }
         return ProjectMapper.toDTO(savedProject);
     }
 

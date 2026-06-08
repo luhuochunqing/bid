@@ -23,7 +23,7 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-class CaseAiMatcher {
+public class CaseAiMatcher {
 
     private final RoutingAiProvider routingAiProvider;
     private final RestTemplate restTemplate;

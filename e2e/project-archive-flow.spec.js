@@ -19,7 +19,7 @@ async function apiRequest(path, session, options = {}) {
   return response.json()
 }
 
-test.describe('项目档案 (Project Archive)', () => {
+test.describe('项目档案台账 (Project Archive)', () => {
   test.beforeEach(async ({ page }) => {
     const suffix = Date.now()
     const session = await ensureApiSession({
@@ -44,7 +44,7 @@ test.describe('项目档案 (Project Archive)', () => {
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(1000)
 
-    await expect(page.getByText('项目档案').first()).toBeVisible()
+    await expect(page.getByText('项目档案台账')).toBeVisible()
 
     const table = page.locator('.el-table')
     await expect(table).toBeVisible({ timeout: 10000 })
@@ -92,7 +92,7 @@ test.describe('项目档案 (Project Archive)', () => {
       await page.waitForTimeout(500)
     }
 
-    await expect(page.getByText('项目档案').first()).toBeVisible()
+    await expect(page.getByText('项目档案台账')).toBeVisible()
   })
 
   test('4.4.2 重置按钮 - 点击后恢复默认筛选状态', async ({ page }) => {
@@ -110,7 +110,7 @@ test.describe('项目档案 (Project Archive)', () => {
       await page.waitForTimeout(500)
     }
 
-    await expect(page.getByText('项目档案').first()).toBeVisible()
+    await expect(page.getByText('项目档案台账')).toBeVisible()
   })
 
   test('4.4.2 详情抽屉 - 点击列表行打开抽屉', async ({ page }) => {

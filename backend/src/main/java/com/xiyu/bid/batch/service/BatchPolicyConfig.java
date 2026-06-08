@@ -1,8 +1,6 @@
 package com.xiyu.bid.batch.service;
 
 import com.xiyu.bid.batch.core.BatchAssignmentPolicy;
-import com.xiyu.bid.batch.core.BatchValidationPolicy;
-import com.xiyu.bid.batch.core.TenderStatusTransitionPolicy;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,23 +24,6 @@ public final class BatchPolicyConfig {
         return new BatchAssignmentPolicy(projectAccessScopeService);
     }
 
-    /**
-     * 注册标讯状态流转策略（纯核心，不加 @Component，由此统一管理）.
-     *
-     * @return 标讯状态流转策略实例
-     */
-    @Bean
-    public TenderStatusTransitionPolicy tenderStatusTransitionPolicy() {
-        return new TenderStatusTransitionPolicy();
-    }
-
-    /**
-     * 注册批量校验策略.
-     *
-     * @return 批量校验策略实例
-     */
-    @Bean
-    public BatchValidationPolicy batchValidationPolicy() {
-        return new BatchValidationPolicy();
-    }
+    // tenderStatusTransitionPolicy 和 batchValidationPolicy
+    // 由 CorePolicyBeanConfig 统一提供，避免 e2e profile 下的 bean 冲突。
 }

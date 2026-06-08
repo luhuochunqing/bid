@@ -11,7 +11,7 @@ Usage:
   scripts/agent-start-task.sh <agent> <task-slug> [base-ref] [options]
 
 Options:
-  --in-place             Create branch in current worktree instead of a new one.
+  --in-place             早操三连 + 在当前 worktree 内创建分支（自动 fetch + rebase + sync-env）
   --lock <path>          Acquire an initial file lock after worktree creation.
   --lock-dir <path>      Acquire an initial directory lock after worktree creation.
   --touch <path>         Run who-touches preflight check for a planned change path.
@@ -265,6 +265,7 @@ if [[ "$DRY_RUN" == "1" ]]; then
   echo "  base:     $BASE_REF"
   echo "  mode:     $([ "$IN_PLACE" == "1" ] && echo 'in-place (current worktree)' || echo 'new worktree')"
   echo "  touch:    ${#TOUCH_PATHS[@]} paths"
+  echo "  morning:  fetch + rebase origin/main + sync-env.sh"
   echo "  locks:    ${#LOCK_PATHS[@]} locks"
   exit 0
 fi
@@ -282,7 +283,15 @@ if [[ "$IN_PLACE" == "1" ]]; then
     echo "agent-start-task: --in-place requires being on the anchor branch 'agent/${AGENT_NAME}-init' (currently on '$current_branch')" >&2
     exit 1
   fi
-  git pull origin main --ff-only 2>/dev/null || git merge origin/main --allow-unrelated-histories -X theirs --no-edit
+  # --- 早操三连：基线对齐 + 环境同步（agent-sop-quickref.md §一）---
+ 
+  echo "agent-start-task: [morning-routine] git fetch origin..."
+  git fetch origin
+  echo "agent-start-task: [morning-routine] git rebase origin/main..."
+  git rebase origin/main
+  echo "agent-start-task: [morning-routine] sync-env.sh ."
+  bash scripts/sync-env.sh .
+  # -------------------------------------
   echo "agent-start-task: creating branch $BRANCH_NAME in current worktree..."
   git checkout -b "$BRANCH_NAME"
   cat > "$WORKTREE_PATH/.agent-task-context" <<EOF

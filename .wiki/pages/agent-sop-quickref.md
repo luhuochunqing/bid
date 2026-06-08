@@ -11,7 +11,7 @@ backlinks:
   - _index
   - lessons-learned
 created: 2026-04-26
-updated: 2026-05-27
+updated: 2026-06-07
 health_checked: 2026-06-05
 ---
 # Agent 开发 SOP 快速参考
@@ -29,6 +29,27 @@ git fetch origin && git rebase origin/main && ./scripts/sync-env.sh .
 ```
 
 **为什么**：worktree 基线对齐最新 main + 环境变量同步。**不跑早操就动代码 = 在过期 base 上累工作 = merge 假冲突。**
+
+---
+
+> **💡 快捷方式**：如果使用 `--in-place` 模式，`agent-start-task.sh` 会自动执行早操三连：
+> ```bash
+> scripts/agent-start-task.sh <agent> <task-slug> origin/main --in-place
+> ```
+> 脚本会在切分支前自动执行 `git fetch origin` → `git rebase origin/main` → `scripts/sync-env.sh .`，
+> 相当于早操 + 开新任务一步到位。详见下节 §二。
+
+
+
+## 暗号速查（对 Agent 说）
+
+| 你说 | Agent 执行 | 等价于 |
+|------|-----------|--------|
+| "早操SOP" | `git fetch origin && git rebase origin/main && ./scripts/sync-env.sh .` | 早操三连 |
+| "开个分支 XX" | `scripts/agent-start-task.sh <agent> <XX> origin/main --in-place` | 早操 + 切开发分支 |
+| "早操SOP + 开个分支 XX" | `scripts/agent-start-task.sh <agent> <XX> origin/main --in-place` | 同上，一次完成 |
+
+注意：Agent 通过 `AGENTS.md` §协作口径 → 暗号协定 推导自己的 `<agent>` 名称。
 
 ---
 
@@ -67,6 +88,28 @@ git fetch origin && git rebase origin/main
   // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
   ```
 - **commit 格式**：`<type>(<scope>): <desc>`，type ∈ feat/fix/refactor/docs/test/chore
+- **Flyway 迁移**：新迁移文件统一使用 `V_next__{表名}_{动作}.sql` 命名，pre-commit 自动分配版本号。
+  必须同时创建对应的回滚文件 `U_next__{表名}_{动作}.sql`。
+  **表名必须写在文件名中**（如 `project_add_status`），pre-push 会自动检测多个分支是否改了同一张表。
+  示例：
+  ```bash
+  # 创建迁移文件（自动编号，不需要自己写版本号）
+  cat > backend/src/main/resources/db/migration-mysql/V_next__add_xxx_table.sql << 'SQL'
+  -- 版本号在 commit 时自动分配
+  ALTER TABLE xxx ADD COLUMN yyy VARCHAR(255);
+  SQL
+  
+  cat > backend/src/main/resources/db/rollback/migration-mysql/U_next__add_xxx_table.sql << 'SQL'
+  ALTER TABLE xxx DROP COLUMN IF EXISTS yyy;
+  SQL
+  ```
+  **绝对不要手动编号**，否则 push 时 pre-push 门禁会拒绝。
+
+- **Schema 语义冲突检测**（pre-push 自动运行）：
+  检测多个分支是否同时改动同一张表的迁移文件。
+  如果检测到冲突，会输出警告并列出相关分支和文件名。
+  此时需在 PR 描述中注明冲突的表，并与其他分支作者协调合并顺序。
+
 - **半成品**：用 `wip:` 前缀允许提交
 
 ---

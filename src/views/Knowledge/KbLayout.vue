@@ -1,7 +1,7 @@
 <template>
   <div class="kb-layout">
     <el-tabs v-model="activeTab" class="kb-tabs" @tab-click="handleTabClick">
-      <el-tab-pane label="项目档案" name="archive" />
+      <el-tab-pane label="档案台账" name="archive" />
       <el-tab-pane label="资质库" name="qualification" />
       <el-tab-pane label="人员库" name="personnel" />
       <el-tab-pane label="业绩库" name="performance" />

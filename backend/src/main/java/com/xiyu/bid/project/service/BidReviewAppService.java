@@ -63,7 +63,7 @@ public class BidReviewAppService {
         BidReviewStatus currentStatus = existing.map(e -> parseStatus(e.getStatus())).orElse(null);
         var decision = BidReviewPolicy.canSubmitReview(currentStatus);
         if (!decision.allowed()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, decision.reason());
+            throw toResponseStatus(decision);
         }
 
         BidDocumentReviewEntity review = existing.orElseGet(() -> BidDocumentReviewEntity.builder()
@@ -91,15 +91,27 @@ public class BidReviewAppService {
 
     /**
      * 审核通过。
+     *
+     * <p>身份校验（IJSTZG 根因修复 2026-06-07）：仅指派的审核人可执行审批，
+     * 且提交人不能审批自己提交的标书。校验在 {@link BidReviewPolicy#canApprove}
+     * 集中实现；HTTP 状态码由 {@link #toResponseStatus} 根据拒绝原因映射：</p>
+     * <ul>
+     *   <li>{@code STATE} → 409 Conflict（资源已处于目标状态）</li>
+     *   <li>{@code IDENTITY} → 403 Forbidden（无权限/自我审批/非指派人）</li>
+     * </ul>
      */
     @Auditable(action = "APPROVE_BID", entityType = "BidDocumentReview",
             description = "标书审核通过")
     public void approveBid(Long projectId, Long currentUserId, String comment) {
         BidDocumentReviewEntity review = reviewRepository.findByProjectId(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "未找到标书审核记录"));
-        var decision = BidReviewPolicy.canApprove(parseStatus(review.getStatus()));
+        var decision = BidReviewPolicy.canApprove(
+                parseStatus(review.getStatus()),
+                review.getSubmittedBy(),
+                review.getReviewerId(),
+                currentUserId);
         if (!decision.allowed()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, decision.reason());
+            throw toResponseStatus(decision);
         }
 
         review.setStatus(BidReviewStatus.APPROVED.name());
@@ -111,15 +123,22 @@ public class BidReviewAppService {
 
     /**
      * 驳回。
+     *
+     * <p>身份校验同 {@link #approveBid}：仅指派的审核人可驳回，且不能驳回自己提交的标书。</p>
      */
     @Auditable(action = "REJECT_BID", entityType = "BidDocumentReview",
             description = "标书审核驳回")
     public void rejectBid(Long projectId, Long currentUserId, String reason) {
         BidDocumentReviewEntity review = reviewRepository.findByProjectId(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "未找到标书审核记录"));
-        var decision = BidReviewPolicy.canReject(parseStatus(review.getStatus()), reason);
+        var decision = BidReviewPolicy.canReject(
+                parseStatus(review.getStatus()),
+                reason,
+                review.getSubmittedBy(),
+                review.getReviewerId(),
+                currentUserId);
         if (!decision.allowed()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, decision.reason());
+            throw toResponseStatus(decision);
         }
 
         review.setStatus(BidReviewStatus.REJECTED.name());
@@ -144,6 +163,25 @@ public class BidReviewAppService {
     }
 
     // -- 辅助方法 ----------------------------------------------------------
+
+    /**
+     * 将 {@link BidReviewPolicy.Decision} 拒绝原因映射为 HTTP 状态异常。
+     *
+     * <p>映射规则（IJSTZG 根因修复）：</p>
+     * <ul>
+     *   <li>{@code STATE} → 409 Conflict（资源已处于不允许操作的终态）</li>
+     *   <li>{@code IDENTITY} → 403 Forbidden（自审/非指派人/无身份）</li>
+     * </ul>
+     *
+     * <p>此前所有拒绝原因一律返回 409，会让"前端误显→用户点击→后端 409"暴露为
+     * "操作冲突" 误导排查；拆分为 403 让身份问题直接可识别。</p>
+     */
+    private ResponseStatusException toResponseStatus(BidReviewPolicy.Decision decision) {
+        HttpStatus status = decision.cause() == BidReviewPolicy.Decision.Cause.IDENTITY
+                ? HttpStatus.FORBIDDEN
+                : HttpStatus.CONFLICT;
+        return new ResponseStatusException(status, decision.reason());
+    }
 
     private void sendBidReviewNotification(Long projectId, Long reviewerId, Long submittedBy) {
         // 通知失败不影响审核记录提交；日志记录异常但不抛出

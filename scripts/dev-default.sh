@@ -16,15 +16,6 @@ printf '[dev-default] Force default ports: frontend=%s backend=%s\n' "$DEFAULT_F
 
 unset BACKEND_PORT FRONTEND_PORT VITE_API_BASE_URL
 
-CURRENT_DIR="$(pwd)"
-if [[ "$CURRENT_DIR" == *"worktrees/"* ]]; then
-  printf '[dev-default] WARNING: Running in worktree "%s". This script forces main-zone ports (1314/18080).
-' "$(basename "$CURRENT_DIR")" >&2
-  printf '[dev-default] Use "npm run dev:stable:start" or "npm run agent:up" for worktree-aware startup.
-' >&2
-fi
-
-
 (
   cd "$ROOT_DIR"
   env \

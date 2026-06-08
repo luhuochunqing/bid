@@ -151,7 +151,7 @@ public class ProjectArchiveController {
         // Content-Disposition 必须是 ISO-8859-1，中文用 RFC 5987 编码作 filename* 备份
         headers.add("Content-Disposition",
                 "attachment; filename=\"archive-ledger-" + timestamp + ".xlsx\"; "
-                + "filename*=UTF-8''" + java.net.URLEncoder.encode("方案管理-项目档案-" + timestamp + ".xlsx", java.nio.charset.StandardCharsets.UTF_8));
+                + "filename*=UTF-8''" + java.net.URLEncoder.encode("方案管理-项目档案台账-" + timestamp + ".xlsx", java.nio.charset.StandardCharsets.UTF_8));
         headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
 
         List<ProjectArchive> archives = workflowService.getRawArchives(query);

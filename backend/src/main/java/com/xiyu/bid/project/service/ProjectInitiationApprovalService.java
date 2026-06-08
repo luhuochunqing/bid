@@ -5,6 +5,7 @@
 package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.annotation.Auditable;
+import com.xiyu.bid.casework.application.ProjectArchiveWorkflowService;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.project.core.InitiationReviewPolicy;
 import com.xiyu.bid.project.core.InitiationReviewStatus;
@@ -16,6 +17,7 @@ import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.project.entity.ProjectLeadAssignment;
 import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
+import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +50,8 @@ public class ProjectInitiationApprovalService {
     private final ProjectStageService projectStageService;
     private final ProjectAccessScopeService projectAccessScopeService;
     private final UserRepository userRepository;
+    private final ProjectRepository projectRepository;
+    private final ProjectArchiveWorkflowService projectArchiveWorkflowService;
 
     /**
      * 审核通过立项申请，原子完成：状态变更 + 团队分配 + 阶段推进 + 字段锁定。
@@ -102,6 +106,11 @@ public class ProjectInitiationApprovalService {
             projectStageService.requestTransition(projectId, ProjectStage.DRAFTING,
                     ProjectStageTransitionPolicy.GateInputs.EMPTY);
         }
+
+        // 4. 创建项目档案（幂等：UNIQUE constraint 防止重复创建）
+        projectRepository.findById(projectId)
+                .ifPresent(project -> projectArchiveWorkflowService
+                        .createArchive(projectId, project.getName(), "ACTIVE"));
 
         log.info("Initiation approved project={} primaryLead={} reviewer={}",
                 projectId, req.getPrimaryLeadUserId(), currentUserId);
