@@ -103,6 +103,7 @@ public class ProjectArchiveExportService {
 
                     // Enrich from Project/Tender for blueprint "基本信息" fields (similar to detail)
                     String projectType = "综合";
+                    String projectStatus = "PENDING_INITIATION";
                     String bidResult = "其他";
                     String projectManager = "-";
                     String bidManager = "-";
@@ -114,6 +115,7 @@ public class ProjectArchiveExportService {
                     try {
                         Optional<Project> pOpt = projectRepository.findById(archive.getProjectId());
                         if (pOpt.isPresent()) {
+                            projectStatus = pOpt.get().getStatus().name();
                             Optional<Tender> tOpt = tenderRepository.findById(pOpt.get().getTenderId());
                             if (tOpt.isPresent()) {
                                 Tender t = tOpt.get();
@@ -137,7 +139,7 @@ public class ProjectArchiveExportService {
                     row.createCell(0).setCellValue(safeString(archive.getProjectName()));
                     row.createCell(1).setCellValue(tenderAgency);
                     row.createCell(2).setCellValue(projectType);
-                    row.createCell(3).setCellValue(safeString(archive.getArchiveStatus()));
+                    row.createCell(3).setCellValue(safeString(projectStatus));
                     row.createCell(4).setCellValue(bidResult);
                     row.createCell(5).setCellValue(projectManager);
                     row.createCell(6).setCellValue(bidManager);

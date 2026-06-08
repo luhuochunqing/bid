@@ -266,7 +266,13 @@ const handleExportExcel = async () => {
   } catch { ElMessage.error('导出台账失败') }
 }
 
-const handleExportZip = async () => { await handleDownloadArchive(null) }
+const handleExportZip = async () => {
+  try {
+    const blob = (await httpClient.post('/api/archive/export-zip', buildExportParams(), { responseType: 'blob' })).data
+    downloadBlob(blob, `方案管理-项目档案文件包-${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12)}.zip`, 'application/zip')
+    ElMessage.success('导出文件包成功')
+  } catch { ElMessage.error('导出文件包失败') }
+}
 const handlePreviewFile = async (file) => {
   const name = (file.fileName || '').toLowerCase()
   if (!name.endsWith('.pdf')) { ElMessage.info('该格式不支持在线预览，请下载查看'); return }
