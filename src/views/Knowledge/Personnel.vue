@@ -1429,17 +1429,17 @@ onMounted(loadData)
   transition: background-color 0.3s;
 }
 
-.import-file-info { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px 12px; background: #f5f7fa; border-radius: 4px; }
+.import-file-info { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px 12px; background: var(--el-fill-color-light); border-radius: 4px; }
 .import-progress { text-align: center; padding: 20px 0; }
 .progress-text { margin-top: 12px; color: var(--el-text-color-secondary); font-size: 13px; }
 .import-result { padding: 20px 0; }
 .result-summary p { margin: 4px 0; font-size: 14px; }
-.export-hint { margin-top: 16px; padding: 10px 12px; background: #ecf5ff; border-radius: 4px; font-size: 13px; color: var(--el-color-primary); display: flex; align-items: center; gap: 6px; }
+.export-hint { margin-top: 16px; padding: 10px 12px; background: var(--el-color-primary-light-9); border-radius: 4px; font-size: 13px; color: var(--el-color-primary); display: flex; align-items: center; gap: 6px; }
 .export-progress { text-align: center; padding: 20px 0; }
 .export-result { padding: 20px 0; }
 .attach-results { padding: 20px 0; }
 .unmatched-list { text-align: left; margin-top: 16px; max-height: 300px; overflow-y: auto; }
-.unmatched-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 4px; background: #fef0f0; margin-bottom: 4px; font-size: 13px; }
+.unmatched-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 4px; background: var(--el-color-danger-light-9); margin-bottom: 4px; font-size: 13px; }
 .unmatched-name { font-weight: 500; color: var(--el-color-danger); }
 .unmatched-reason { color: var(--el-text-color-secondary); margin-left: auto; }
 </style>
