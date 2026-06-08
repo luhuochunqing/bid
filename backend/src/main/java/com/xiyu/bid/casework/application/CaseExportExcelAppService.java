@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,7 +25,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 @Slf4j
-public class CaseExportAppService {
+public class CaseExportExcelAppService {
 
     private static final int DEFAULT_PAGE_SIZE = 1000;
     private static final DateTimeFormatter FILENAME_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmm");
@@ -61,7 +62,7 @@ public class CaseExportAppService {
             CaseExcelGenerator.ExportResult result = excelGenerator.generate(exportRecords);
             excelData = result.data();
             log.info("导出案例库台账成功，记录数: {}", result.recordCount());
-        } catch (Exception e) {
+        } catch (IOException e) {
             log.error("生成 Excel 文件失败", e);
             throw new RuntimeException("导出失败: " + e.getMessage(), e);
         }

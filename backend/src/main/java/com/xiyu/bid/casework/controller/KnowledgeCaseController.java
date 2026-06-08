@@ -1,6 +1,7 @@
 package com.xiyu.bid.casework.controller;
 
 import com.xiyu.bid.casework.application.service.CaseExportAppService;
+import com.xiyu.bid.casework.application.CaseExportExcelAppService;
 import com.xiyu.bid.casework.application.CasePrecipitationAppService;
 import com.xiyu.bid.casework.application.service.CaseReferenceAppService;
 import com.xiyu.bid.casework.application.service.KnowledgeCaseCommandAppService;
@@ -46,7 +47,7 @@ public class KnowledgeCaseController {
     private final CaseReferenceAppService caseReferenceAppService;
     private final CasePrecipitationAppService precipitationAppService;
     private final CaseExportAppService caseExportZipAppService;
-    private final com.xiyu.bid.casework.application.CaseExportAppService caseExportExcelAppService;
+    private final CaseExportExcelAppService caseExportExcelAppService;
     private final ProjectAccessScopeService projectAccessScopeService;
 
     @GetMapping
