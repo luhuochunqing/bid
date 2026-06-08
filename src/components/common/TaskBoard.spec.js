@@ -162,6 +162,30 @@ describe('TaskBoard (dynamic columns)', () => {
     }))
     expect(wrapper.emitted('add-deliverable')?.[0]).toEqual([31, saved])
   })
+
+  // Regression for IJSVX7 问题二：分配人创建任务后，看板「待办」列必须出现该任务
+  // taskBackendToCard 把后端 status (e.g. 'TODO') 通过 normalizeTaskStatusFromApi 转为前端大写 status
+  // 这里我们直接传入后端形态的 task 来确保看板能把"刚创建的任务"正确归到 TODO 列
+  it('newly created task returned by backend lands in the TODO column', async () => {
+    const { taskBackendToCard } = await import('@/views/Project/project-utils.js')
+    const backendTask = taskBackendToCard({
+      id: 100,
+      title: '新建任务',
+      content: '任务描述',
+      status: 'TODO',
+      priority: 'MEDIUM',
+      dueDate: '2026-12-31',
+      assigneeId: 9,
+      assigneeName: '新建人',
+    })
+    const wrapper = mountBoard({ tasks: [backendTask] })
+    await flushPromises()
+
+    // TODO 列在第 0 列（mockStatuses 排序 10,30,40,50；IN_PROGRESS 20 被过滤）
+    const todoColumn = wrapper.findAll('.board-column')[0]
+    const todoBadge = todoColumn.find('.el-badge-stub')
+    expect(todoBadge.text()).toContain('1')
+  })
 })
 
 describe('TaskBoard (drag to change status)', () => {

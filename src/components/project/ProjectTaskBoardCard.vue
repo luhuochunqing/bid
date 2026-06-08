@@ -80,6 +80,7 @@
         <div class="drawer-footer">
           <el-button data-test="task-drawer-cancel" @click="handleCancelTask">取消</el-button>
           <el-button
+            v-if="drawerMode !== 'view'"
             type="primary"
             data-test="task-drawer-save"
             @click="handleSaveTask"
@@ -153,8 +154,8 @@ function openCreate() {
   drawerVisible.value = true
 }
 
-function openEdit(task) {
-  drawerMode.value = 'edit'
+function openView(task) {
+  drawerMode.value = 'view'
   editingTask.value = { ...(task || {}) }
   drawerVisible.value = true
 }
@@ -165,7 +166,7 @@ function handleAddTaskClick() {
 
 function handleTaskClick(task) {
   emit('task-click', task)
-  openEdit(task)
+  openView(task)
 }
 
 function handleCancelTask() {
@@ -173,6 +174,12 @@ function handleCancelTask() {
 }
 
 async function handleSaveTask() {
+  // Regression for IJSVX7：view mode 下不应触发保存。分配人/执行人点开已有任务时
+  // drawer 为只读，不暴露"保存"按钮；即便外部残留调用直达 handleSaveTask，也要兜底退出。
+  if (drawerMode.value === 'view') {
+    drawerVisible.value = false
+    return
+  }
   const form = taskFormRef.value
   const result = form && typeof form.submit === 'function'
     ? form.submit()
@@ -189,7 +196,7 @@ defineExpose({
   editingTask,
   taskFormRef,
   openCreate,
-  openEdit,
+  openView,
   handleSaveTask,
   handleCancelTask,
 })

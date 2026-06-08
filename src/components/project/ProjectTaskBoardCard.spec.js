@@ -110,7 +110,10 @@ describe('ProjectTaskBoardCard', () => {
     expect(wrapper.emitted('add-task')).toBeFalsy()
   })
 
-  it('opens drawer in edit mode when TaskBoard emits task-click', async () => {
+  it('opens drawer in view mode when TaskBoard emits task-click for an existing task', async () => {
+    // Regression for IJSVX7 问题一：已创建任务表单仍可编辑
+    // 修复前：drawerMode='edit' → 表单字段可改
+    // 修复后：drawerMode='view' → TaskForm readonly，所有字段只读
     const wrapper = mount(ProjectTaskBoardCard, {
       props: {
         canManageProjectTasks: true,
@@ -125,9 +128,29 @@ describe('ProjectTaskBoardCard', () => {
     await flushPromises()
 
     expect(wrapper.vm.drawerVisible).toBe(true)
-    expect(wrapper.vm.drawerMode).toBe('edit')
+    expect(wrapper.vm.drawerMode).toBe('view')
     expect(wrapper.vm.editingTask.id).toBe(1)
     expect(wrapper.vm.editingTask.name).toBe('T')
+  })
+
+  it('hides the save action button when drawer opens in view mode', async () => {
+    // Regression for IJSVX7：view mode 下"保存"按钮必须隐藏，
+    // 否则分配人/执行人仍可通过底部按钮触发 mode='view' 下的提交。
+    const wrapper = mount(ProjectTaskBoardCard, {
+      props: {
+        canManageProjectTasks: true,
+        tasks: [{ id: 2, name: 'Locked', status: 'TODO' }],
+        projectId: 12,
+      },
+      global: { stubs: baseStubs },
+    })
+
+    const board = wrapper.findComponent({ name: 'TaskBoard' })
+    board.vm.$emit('task-click', { id: 2, name: 'Locked', status: 'TODO' })
+    await flushPromises()
+
+    expect(wrapper.vm.drawerMode).toBe('view')
+    expect(wrapper.find('[data-test="task-drawer-save"]').exists()).toBe(false)
   })
 
   it('emits save-task with valid data when the save action fires', async () => {
