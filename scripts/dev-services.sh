@@ -1,155 +1,3 @@
-# ──────────────────────────────────────────────
-# healthcheck — Docker 模式自愈检查
-# ──────────────────────────────────────────────
-healthcheck() {
-  local exit_code=0
-  local action_taken=false
-
-  echo "======================================"
-  echo " 服务健康检查 & 自愈 - $(date '+%Y-%m-%d %H:%M:%S')"
-  echo "======================================"
-
-  # ── Step 1: Docker daemon ──
-  echo ""
-  echo "【1/4】检查 Docker daemon..."
-  if ! docker ps >/dev/null 2>&1; then
-    echo "  ⚠️  Docker daemon 未运行，正在启动 Docker Desktop..."
-    open -a Docker
-    echo "  ⏳ 等待 Docker socket..."
-    local i=0
-    while [ $i -lt 30 ]; do
-      sleep 2
-      if docker ps >/dev/null 2>&1; then
-        echo "  ✅ Docker daemon 已就绪（$((i*2))秒）"
-        action_taken=true
-        break
-      fi
-      i=$((i+1))
-    done
-    if ! docker ps >/dev/null 2>&1; then
-      echo "  ❌ Docker daemon 启动超时"
-      exit_code=1
-    fi
-  else
-    echo "  ✅ Docker daemon 运行中"
-  fi
-
-  # ── Step 2: Docker 容器 ──
-  echo ""
-  echo "【2/4】检查 Docker 容器..."
-  local container_names="xiyu-bid-mysql xiyu-bid-redis xiyu-bid-backend"
-  local all_containers_up=true
-
-  for name in $container_names; do
-    local state="$(docker inspect --format '{{.State.Status}}' "$name" 2>/dev/null || echo 'missing')"
-    case "$state" in
-      running)
-        echo "  ✅ $name - running"
-        ;;
-      missing)
-        echo "  ⚠️  $name - 容器不存在，执行 docker compose up -d..."
-        all_containers_up=false
-        ;;
-      *)
-        echo "  ⚠️  ${name} - 状态=${state}，重新启动..."
-        docker start "$name" >/dev/null 2>&1 && echo "  ✅ ${name} 已重启" || echo "  ❌ ${name} 重启失败"
-        all_containers_up=false
-        action_taken=true
-        ;;
-    esac
-  done
-
-  if [ "$all_containers_up" = false ]; then
-    echo "  ⏳ 正在启动 Docker Compose 服务..."
-    (cd "$ROOT_DIR" && XIYU_DEV_CONFIRMED=1 docker compose up -d 2>/dev/null)
-    action_taken=true
-  fi
-
-  # ── Step 3: 后端健康 ──
-  echo ""
-  echo "【3/4】检查后端服务..."
-  if curl_health "$BACKEND_HEALTH_URL"; then
-    echo "  ✅ 后端 - http://127.0.0.1:${BACKEND_PORT}/actuator/health → ok"
-  else
-    echo "  ⚠️  后端不健康，等待 30 秒..."
-    if wait_http "$BACKEND_HEALTH_URL" 30; then
-      echo "  ✅ 后端已恢复"
-      action_taken=true
-    else
-      echo "  ⚠️  后端仍未就绪，尝试 docker compose restart backend..."
-      (cd "$ROOT_DIR" && docker compose restart backend 2>/dev/null)
-      if wait_http "$BACKEND_HEALTH_URL" 60; then
-        echo "  ✅ 后端已恢复"
-        action_taken=true
-      else
-        echo "  ❌ 后端无法启动，请检查日志：docker compose logs backend"
-        exit_code=1
-      fi
-    fi
-  fi
-
-  # ── Step 4: 前端 + sidecar ──
-  echo ""
-  echo "【4/4】检查前端 & sidecar..."
-  # Sidecar
-  if curl_health "$SIDECAR_HEALTH_URL"; then
-    echo "  ✅ sidecar - ${SIDECAR_HEALTH_URL} → ok"
-  else
-    echo "  ⚠️  sidecar 不可用，尝试启动..."
-    local spid="$(read_pid "$SIDECAR_PID_FILE" 2>/dev/null || true)"
-    if is_pid_running "$spid"; then
-      echo "  ⚠️  PID ${spid} 存在但端口不通，杀掉重启..."
-      kill "$spid" 2>/dev/null || true
-    fi
-    start_sidecar
-    if wait_http "$SIDECAR_HEALTH_URL" "$SIDECAR_START_TIMEOUT_SECONDS"; then
-      echo "  ✅ sidecar 已启动"
-      action_taken=true
-    else
-      echo "  ❌ sidecar 启动失败"
-      exit_code=1
-    fi
-  fi
-
-  # 前端
-  if curl --connect-timeout 2 --max-time 3 -fsS -o /dev/null "$FRONTEND_URL"; then
-    echo "  ✅ 前端 - ${FRONTEND_URL} → ok"
-  else
-    echo "  ⚠️  前端不可用，尝试重启..."
-    local fpid="$(read_pid "$FRONTEND_PID_FILE" 2>/dev/null || true)"
-    if is_pid_running "$fpid"; then
-      kill "$fpid" 2>/dev/null || true
-      sleep 1
-    fi
-    # 杀掉遗留 screen
-    screen -S main-frontend -X quit 2>/dev/null || true
-    start_frontend
-    if wait_frontend "$FRONTEND_START_TIMEOUT_SECONDS"; then
-      echo "  ✅ 前端已启动"
-      action_taken=true
-    else
-      echo "  ❌ 前端启动失败"
-      exit_code=1
-    fi
-  fi
-
-  # ── 总结 ──
-  echo ""
-  echo "======================================"
-  if [ "$exit_code" -eq 0 ]; then
-    if [ "$action_taken" = true ]; then
-      echo " ✅ 所有服务已恢复"
-    else
-      echo " ✅ 所有服务运行正常，无需修复"
-    fi
-  else
-    echo " ❌ 部分服务异常，请手动检查"
-  fi
-  echo "======================================"
-  echo ""
-  status
-  return $exit_code
-}
 #!/usr/bin/env bash
 # Input: local dev environment, backend profile options, and repository startup commands
 # Output: stable daemon-like start/stop/status/log control for sidecar/backend/frontend with current-code identity checks, secret-file handoff, Vite cache reset, and bounded health probes
@@ -1259,6 +1107,160 @@ EOF
 
 CMD=""
 parse_args "$@"
+
+# ──────────────────────────────────────────────
+# healthcheck — Docker 模式自愈检查
+# ──────────────────────────────────────────────
+healthcheck() {
+  local exit_code=0
+  local action_taken=false
+
+  echo "======================================"
+  echo " 服务健康检查 & 自愈 - $(date '+%Y-%m-%d %H:%M:%S')"
+  echo "======================================"
+
+  # ── Step 1: Docker daemon ──
+  echo ""
+  echo "【1/4】检查 Docker daemon..."
+  if ! docker ps >/dev/null 2>&1; then
+    echo "  ⚠️  Docker daemon 未运行，正在启动 Docker Desktop..."
+    open -a Docker
+    echo "  ⏳ 等待 Docker socket..."
+    local i=0
+    while [ $i -lt 30 ]; do
+      sleep 2
+      if docker ps >/dev/null 2>&1; then
+        echo "  ✅ Docker daemon 已就绪（$((i*2))秒）"
+        action_taken=true
+        break
+      fi
+      i=$((i+1))
+    done
+    if ! docker ps >/dev/null 2>&1; then
+      echo "  ❌ Docker daemon 启动超时"
+      exit_code=1
+    fi
+  else
+    echo "  ✅ Docker daemon 运行中"
+  fi
+
+  # ── Step 2: Docker 容器 ──
+  echo ""
+  echo "【2/4】检查 Docker 容器..."
+  local container_names="xiyu-bid-mysql xiyu-bid-redis xiyu-bid-backend"
+  local all_containers_up=true
+
+  for name in $container_names; do
+    local state="$(docker inspect --format '{{.State.Status}}' "$name" 2>/dev/null || echo 'missing')"
+    case "$state" in
+      running)
+        echo "  ✅ $name - running"
+        ;;
+      missing)
+        echo "  ⚠️  $name - 容器不存在，执行 docker compose up -d..."
+        all_containers_up=false
+        ;;
+      *)
+        echo "  ⚠️  ${name} - 状态=${state}，重新启动..."
+        docker start "$name" >/dev/null 2>&1 && echo "  ✅ ${name} 已重启" || echo "  ❌ ${name} 重启失败"
+        all_containers_up=false
+        action_taken=true
+        ;;
+    esac
+  done
+
+  if [ "$all_containers_up" = false ]; then
+    echo "  ⏳ 正在启动 Docker Compose 服务..."
+    (cd "$ROOT_DIR" && XIYU_DEV_CONFIRMED=1 docker compose up -d 2>/dev/null)
+    action_taken=true
+  fi
+
+  # ── Step 3: 后端健康 ──
+  echo ""
+  echo "【3/4】检查后端服务..."
+  if curl_health "$BACKEND_HEALTH_URL"; then
+    echo "  ✅ 后端 - http://127.0.0.1:${BACKEND_PORT}/actuator/health → ok"
+  else
+    echo "  ⚠️  后端不健康，等待 30 秒..."
+    if wait_http "$BACKEND_HEALTH_URL" 30; then
+      echo "  ✅ 后端已恢复"
+      action_taken=true
+    else
+      echo "  ⚠️  后端仍未就绪，尝试 docker compose restart backend..."
+      (cd "$ROOT_DIR" && docker compose restart backend 2>/dev/null)
+      if wait_http "$BACKEND_HEALTH_URL" 60; then
+        echo "  ✅ 后端已恢复"
+        action_taken=true
+      else
+        echo "  ❌ 后端无法启动，请检查日志：docker compose logs backend"
+        exit_code=1
+      fi
+    fi
+  fi
+
+  # ── Step 4: 前端 + sidecar ──
+  echo ""
+  echo "【4/4】检查前端 & sidecar..."
+  # Sidecar
+  if curl_health "$SIDECAR_HEALTH_URL"; then
+    echo "  ✅ sidecar - ${SIDECAR_HEALTH_URL} → ok"
+  else
+    echo "  ⚠️  sidecar 不可用，尝试启动..."
+    local spid="$(read_pid "$SIDECAR_PID_FILE" 2>/dev/null || true)"
+    if is_pid_running "$spid"; then
+      echo "  ⚠️  PID ${spid} 存在但端口不通，杀掉重启..."
+      kill "$spid" 2>/dev/null || true
+    fi
+    start_sidecar
+    if wait_http "$SIDECAR_HEALTH_URL" "$SIDECAR_START_TIMEOUT_SECONDS"; then
+      echo "  ✅ sidecar 已启动"
+      action_taken=true
+    else
+      echo "  ❌ sidecar 启动失败"
+      exit_code=1
+    fi
+  fi
+
+  # 前端
+  if curl --connect-timeout 2 --max-time 3 -fsS -o /dev/null "$FRONTEND_URL"; then
+    echo "  ✅ 前端 - ${FRONTEND_URL} → ok"
+  else
+    echo "  ⚠️  前端不可用，尝试重启..."
+    local fpid="$(read_pid "$FRONTEND_PID_FILE" 2>/dev/null || true)"
+    if is_pid_running "$fpid"; then
+      kill "$fpid" 2>/dev/null || true
+      sleep 1
+    fi
+    # 杀掉遗留 screen
+    screen -S main-frontend -X quit 2>/dev/null || true
+    start_frontend
+    if wait_frontend "$FRONTEND_START_TIMEOUT_SECONDS"; then
+      echo "  ✅ 前端已启动"
+      action_taken=true
+    else
+      echo "  ❌ 前端启动失败"
+      exit_code=1
+    fi
+  fi
+
+  # ── 总结 ──
+  echo ""
+  echo "======================================"
+  if [ "$exit_code" -eq 0 ]; then
+    if [ "$action_taken" = true ]; then
+      echo " ✅ 所有服务已恢复"
+    else
+      echo " ✅ 所有服务运行正常，无需修复"
+    fi
+  else
+    echo " ❌ 部分服务异常，请手动检查"
+  fi
+  echo "======================================"
+  echo ""
+  status
+  return $exit_code
+}
+
 
 case "$CMD" in
   start)
