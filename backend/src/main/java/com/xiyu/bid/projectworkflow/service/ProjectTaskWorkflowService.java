@@ -85,7 +85,7 @@ class ProjectTaskWorkflowService {
                                 Map.of("projectId", String.valueOf(saved.getProjectId())),
                                 Collections.singletonList(saved.getAssigneeId())),
                         saved.getAssigneeId());
-            } catch (Exception e) {
+            } catch (RuntimeException e) {
                 log.warn("Failed to notify assignee for task {}: {}", saved.getId(), e.getMessage());
             }
         }
