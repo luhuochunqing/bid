@@ -5,6 +5,7 @@ import com.xiyu.bid.exception.GlobalExceptionHandler;
 import com.xiyu.bid.qualification.dto.QualificationBorrowRecordDTO;
 import com.xiyu.bid.qualification.dto.QualificationBorrowRequest;
 import com.xiyu.bid.qualification.dto.QualificationDTO;
+import com.xiyu.bid.qualification.service.BatchAttachmentService;
 import com.xiyu.bid.qualification.service.QualificationService;
 import com.xiyu.bid.qualification.service.QualificationAiParserService;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,12 +39,15 @@ class QualificationControllerTest {
     @Mock
     private QualificationAiParserService qualificationAiParserService;
 
+    @Mock
+    private BatchAttachmentService batchAttachmentService;
+
     private MockMvc mockMvc;
     private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new QualificationController(qualificationService, qualificationAiParserService))
+        mockMvc = MockMvcBuilders.standaloneSetup(new QualificationController(qualificationService, qualificationAiParserService, batchAttachmentService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
         objectMapper = new ObjectMapper().findAndRegisterModules();
@@ -133,6 +137,19 @@ class QualificationControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.msg").value("下架原因不少于4个字"));
+
+        verify(qualificationService, never()).retireQualification(eq(1L), any());
+    }
+
+    @Test
+    void retireQualification_ShouldRejectReasonLongerThanTwoHundredChars() throws Exception {
+        String longReason = "a".repeat(201);
+        mockMvc.perform(post("/api/knowledge/qualifications/{id}/retire", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"" + longReason + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.msg").value("下架原因不超过200字"));
 
         verify(qualificationService, never()).retireQualification(eq(1L), any());
     }

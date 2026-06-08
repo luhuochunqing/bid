@@ -107,7 +107,7 @@
           <span>{{ emptyDescription }}</span>
         </template>
       </el-empty>
-      <el-empty v-else-if="!loading && hasFilterActive && !qualifications.length" description="未找到匹配的证书，请调整筛选条件" />
+      <el-empty v-else-if="!loading && hasFilterActive" description="未找到匹配的证书，请调整筛选条件" />
     </el-card>
 
     <el-card v-if="canViewQualification" class="borrow-history-wrap" shadow="never">
@@ -150,6 +150,23 @@
       @confirm="submitBorrowApplication"
     />
 
+    <ImportResultDialog
+      v-model="importResultVisible"
+      :data="importResultData"
+      @closed="fetchQualifications"
+    />
+    <BatchAttachResultDialog
+      v-model="attachResultVisible"
+      :data="attachResultData"
+      @closed="fetchQualifications"
+    />
+    <RetireConfirmDialog
+      v-model="retireDialogVisible"
+      :data="retireTarget"
+      @confirm="handleRetireConfirm"
+      @closed="retireTarget = null"
+    />
+
     <el-dialog v-model="borrowDialogVisible" title="安全审计" width="450px">
       <el-alert title="该资质证书为敏感机密件" type="warning" description="系统将校验借阅权限。操作将被审计。" show-icon :closable="false" class="mb-4" />
       <el-form><el-form-item label="关联项目ID"><el-input v-model="currentProjectId" placeholder="请输入投标项目ID" /></el-form-item></el-form>
@@ -175,6 +192,9 @@ import AlertConfigDialog from './components/qualification/AlertConfigDialog.vue'
 import AttachmentReplaceDialog from './components/qualification/AttachmentReplaceDialog.vue'
 import QualificationBorrowDialog from './components/qualification/QualificationBorrowDialog.vue'
 import QualificationBorrowHistoryCard from './components/qualification/QualificationBorrowHistoryCard.vue'
+import ImportResultDialog from './components/qualification/ImportResultDialog.vue'
+import BatchAttachResultDialog from './components/qualification/BatchAttachResultDialog.vue'
+import RetireConfirmDialog from './components/qualification/RetireConfirmDialog.vue'
 import {
   useQualificationBorrowSection,
   useQualificationPermissionMatrix
@@ -191,7 +211,7 @@ const {
 
 const qualifications = ref([]); const loading = ref(false)
 const page = ref(1); const pageSize = ref(15); const total = ref(0)
-const filters = reactive({ keyword:'', issuer:'', expiryRange:null, statuses:[], level:'' })
+const filters = reactive({ keyword:'', issuer:'', expiryRange:null, statuses:['IN_STOCK','EXPIRING','EXPIRED'], level:'' })
 const statusOptions = [{ label:'在库', value:'IN_STOCK' },{ label:'即将到期', value:'EXPIRING' },{ label:'已过期', value:'EXPIRED' },{ label:'已下架', value:'RETIRED' }]
 const STATUS_LABELS = { IN_STOCK:'在库', EXPIRING:'即将到期', EXPIRED:'已过期', RETIRED:'已下架', VALID:'在库' }
 
@@ -202,6 +222,8 @@ const emptyDescription = computed(() => {
 })
 
 const formVisible = ref(false); const editData = ref(null)
+const retireDialogVisible = ref(false)
+const retireTarget = ref(null)
 const {
   alertConfigVisible,
   scanningExpiring,
@@ -258,10 +280,14 @@ const {
   hasSelection,
   selectedCount,
   handleSelectionChange,
+  importResultVisible,
+  importResultData,
   importUploadRef,
   importTriggerRef,
   handleImportLedgerClick,
   handleImportChange,
+  attachResultVisible,
+  attachResultData,
   batchAttachUploadRef,
   batchAttachTriggerRef,
   handleBatchUploadClick,
@@ -275,12 +301,18 @@ const getStatusTagType = (row) => { const s = row.status || ''; if (s === 'IN_ST
 const getBorrowStatusTagType = (status) => borrowStatusTagTypes[status] || 'info'
 const statusLabel = (s) => STATUS_LABELS[s] || s || '—'
 const openEdit = (row) => { editData.value = row; formVisible.value = true }
-const handleRetire = async (row) => {
+const handleRetire = (row) => {
+  retireTarget.value = row
+  retireDialogVisible.value = true
+}
+const handleRetireConfirm = async ({ id, reason }) => {
   try {
-    const { value: retireReason } = await ElMessageBox.prompt('请输入下架原因', '下架资质证书', { confirmButtonText: '确认下架', inputType: 'textarea', inputValidator: (v) => v?.trim().length >= 4 ? true : '原因不少于4个字' })
-    await http.post(`/api/knowledge/qualifications/${row.id}/retire`, { reason: retireReason || '' })
-    ElMessage.success('已下架'); fetchQualifications()
-  } catch { /* cancelled */ }
+    await http.post(`/api/knowledge/qualifications/${id}/retire`, { reason })
+    ElMessage.success('已下架')
+    fetchQualifications()
+  } catch {
+    ElMessage.error('下架失败')
+  }
 }
 const handleRestore = async (row) => {
   try { await ElMessageBox.confirm('确认恢复该资质证书？', '恢复在库')

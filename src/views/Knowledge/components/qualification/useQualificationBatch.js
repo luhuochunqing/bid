@@ -10,6 +10,10 @@ export function useQualificationBatch({ fetchQualifications }) {
 
   const handleSelectionChange = (rows) => { selectedRows.value = rows || [] }
 
+  // 导入结果报告
+  const importResultVisible = ref(false)
+  const importResultData = ref({ total: 0, success: 0, failed: 0, errors: [] })
+
   const importUploadRef = ref(null)
   const importTriggerRef = ref(null)
   const handleImportLedgerClick = () => { importTriggerRef.value?.$el?.click() }
@@ -17,15 +21,54 @@ export function useQualificationBatch({ fetchQualifications }) {
     const formData = new FormData()
     formData.append('file', file.raw)
     http.post('/api/knowledge/qualifications/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
-      .then(() => { ElMessage.success('导入台账成功'); fetchQualifications() })
+      .then((res) => {
+        const data = res?.data?.data || {}
+        importResultData.value = {
+          total: data.total || 0,
+          success: data.success || 0,
+          failed: data.failed || 0,
+          errors: data.errors || []
+        }
+        importResultVisible.value = true
+        if (data.success > 0) fetchQualifications()
+      })
       .catch(() => ElMessage.error('导入台账失败'))
   }
+
+  // 批量关联附件结果
+  const attachResultVisible = ref(false)
+  const attachResultData = ref({ total: 0, success: 0, failed: 0, matched: [], unmatched: [] })
 
   const batchAttachUploadRef = ref(null)
   const batchAttachTriggerRef = ref(null)
   const handleBatchUploadClick = () => { batchAttachTriggerRef.value?.$el?.click() }
-  const handleBatchAttachChange = (file) => {
-    ElMessage.info(`附件 ${file.name} 已选择，待批量上传接口接入后处理`)
+  const handleBatchAttachChange = (_file) => {
+    const files = batchAttachUploadRef.value?.uploadFiles || []
+    if (!files.length) return
+
+    const formData = new FormData()
+    files.forEach((f) => {
+      if (f.raw) formData.append('files', f.raw)
+    })
+    http.post('/api/knowledge/qualifications/batch-attach', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+      .then((res) => {
+        const data = res?.data?.data || {}
+        attachResultData.value = {
+          total: data.total || 0,
+          success: data.success || 0,
+          failed: data.failed || 0,
+          matched: data.matched || [],
+          unmatched: data.unmatched || []
+        }
+        attachResultVisible.value = true
+        if (data.success > 0) fetchQualifications()
+      })
+      .catch(() => ElMessage.error('批量关联附件失败'))
+      .finally(() => {
+        if (batchAttachUploadRef.value) {
+          batchAttachUploadRef.value.clearFiles()
+        }
+      })
   }
 
   const handleBatchExport = () => {
@@ -66,10 +109,14 @@ export function useQualificationBatch({ fetchQualifications }) {
     selectedCount,
     hasSelection,
     handleSelectionChange,
+    importResultVisible,
+    importResultData,
     importUploadRef,
     importTriggerRef,
     handleImportLedgerClick,
     handleImportChange,
+    attachResultVisible,
+    attachResultData,
     batchAttachUploadRef,
     batchAttachTriggerRef,
     handleBatchUploadClick,

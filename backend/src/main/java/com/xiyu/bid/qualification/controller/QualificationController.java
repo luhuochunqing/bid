@@ -6,11 +6,13 @@ package com.xiyu.bid.qualification.controller;
 
 import com.xiyu.bid.annotation.Auditable;
 import com.xiyu.bid.dto.ApiResponse;
+import com.xiyu.bid.qualification.dto.BatchAttachResultDTO;
 import com.xiyu.bid.qualification.dto.QualificationBorrowRecordDTO;
 import com.xiyu.bid.qualification.dto.QualificationBorrowRequest;
 import com.xiyu.bid.qualification.dto.QualificationDTO;
 import com.xiyu.bid.qualification.dto.QualificationOverviewDTO;
 import com.xiyu.bid.qualification.dto.QualificationReturnRequest;
+import com.xiyu.bid.qualification.service.BatchAttachmentService;
 import com.xiyu.bid.qualification.service.QualificationService;
 import com.xiyu.bid.qualification.service.QualificationAiParserService;
 import com.xiyu.bid.util.InputSanitizer;
@@ -47,6 +49,7 @@ public class QualificationController {
 
     private final QualificationService qualificationService;
     private final QualificationAiParserService qualificationAiParserService;
+    private final BatchAttachmentService batchAttachmentService;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN_STAFF', 'BID_ADMIN', 'BID_LEAD')")
@@ -242,8 +245,8 @@ public class QualificationController {
         if (reason.length() < 4) {
             return ResponseEntity.badRequest().body(ApiResponse.error("下架原因不少于4个字"));
         }
-        if (reason.length() > 500) {
-            return ResponseEntity.badRequest().body(ApiResponse.error("下架原因不超过500字"));
+        if (reason.length() > 200) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("下架原因不超过200字"));
         }
         return ResponseEntity.ok(ApiResponse.success("下架成功", qualificationService.retireQualification(id, reason)));
     }
@@ -316,5 +319,13 @@ public class QualificationController {
                         .toList()
         );
         return ResponseEntity.ok(ApiResponse.success("Import completed", result));
+    }
+
+    @PostMapping("/batch-attach")
+    @PreAuthorize("hasAnyRole('ADMIN_STAFF', 'BID_ADMIN', 'BID_LEAD')")
+    @Auditable(action = "UPDATE", entityType = "Qualification", description = "批量关联资质附件")
+    public ResponseEntity<ApiResponse<BatchAttachResultDTO>> batchAttach(@RequestParam("files") List<MultipartFile> files) {
+        BatchAttachResultDTO result = batchAttachmentService.process(files);
+        return ResponseEntity.ok(ApiResponse.success("附件关联完成", result));
     }
 }

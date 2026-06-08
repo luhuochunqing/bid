@@ -8,6 +8,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 public interface BusinessQualificationJpaRepository extends JpaRepository<BusinessQualificationEntity, Long> {
+
+    List<BusinessQualificationEntity> findByCertificateNo(String certificateNo);
     List<BusinessQualificationEntity> findByExpiryDateLessThanEqual(LocalDate expiryDate);
 
     /**
