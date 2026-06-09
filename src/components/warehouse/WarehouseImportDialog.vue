@@ -164,6 +164,20 @@ const truncatedErrors = computed(() => {
     .join('\n')
 })
 
+function applyTaskStatus(data) {
+  status.value = data.status
+  if (data.totalRows != null) totalRows.value = data.totalRows
+  if (data.validRows != null) validRows.value = data.validRows
+  if (data.invalidRows != null) invalidRows.value = data.invalidRows
+  if (data.importedRows != null) importedRows.value = data.importedRows
+  if (data.attachedCount != null) attachedCount.value = data.attachedCount
+  if (data.unmatchedFiles) unmatchedFiles.value = data.unmatchedFiles
+  if (data.hasCorrectionFile != null) hasCorrectionFile.value = data.hasCorrectionFile
+  if (data.correctionFileUrl) correctionFileUrl.value = data.correctionFileUrl
+  if (data.errorDetails) errorDetails.value = data.errorDetails
+  if (data.failureReason) failureReason.value = data.failureReason
+}
+
 const stopPolling = () => {
   if (pollTimer) {
     clearInterval(pollTimer)
@@ -186,20 +200,6 @@ const startPolling = () => {
       stopPolling()
     }
   }, 2000)
-}
-
-const applyTaskStatus = (data) => {
-  status.value = data.status
-  if (data.totalRows != null) totalRows.value = data.totalRows
-  if (data.validRows != null) validRows.value = data.validRows
-  if (data.invalidRows != null) invalidRows.value = data.invalidRows
-  if (data.importedRows != null) importedRows.value = data.importedRows
-  if (data.attachedCount != null) attachedCount.value = data.attachedCount
-  if (data.unmatchedFiles) unmatchedFiles.value = data.unmatchedFiles
-  if (data.hasCorrectionFile != null) hasCorrectionFile.value = data.hasCorrectionFile
-  if (data.correctionFileUrl) correctionFileUrl.value = data.correctionFileUrl
-  if (data.errorDetails) errorDetails.value = data.errorDetails
-  if (data.failureReason) failureReason.value = data.failureReason
 }
 
 const handleDownloadCorrection = async () => {

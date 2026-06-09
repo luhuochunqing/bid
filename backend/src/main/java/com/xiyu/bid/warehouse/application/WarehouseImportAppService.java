@@ -14,7 +14,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -44,27 +43,27 @@ public class WarehouseImportAppService {
     private final WarehouseImportTaskStateService taskState;
 
     @Transactional
-    public ImportTaskResult triggerImport(MultipartFile file, MultipartFile[] attachments, User operator) {
+    public ImportTaskResult triggerImport(byte[] fileBytes, List<WarehouseImportAttachmentProcessor.AttachmentInput> attachments, User operator) {
         WarehouseImportTaskEntity task = WarehouseImportTaskEntity.builder()
                 .status(ImportTaskStatus.PENDING)
-                .sourceFilename(file.getOriginalFilename())
+                .sourceFilename(null)
                 .createdBy(operator.getId())
                 .createdByUsername(operator.getFullName() + "(" + operator.getUsername() + ")")
                 .createdAt(LocalDateTime.now())
                 .build();
         importTaskRepo.save(task);
 
-        executeImportAsync(task.getId(), file, attachments, operator);
+        executeImportAsync(task.getId(), fileBytes, attachments, operator);
 
         return new ImportTaskResult(task.getId());
     }
 
     @Async("warehouseExportExecutor")
-    public void executeImportAsync(Long taskId, MultipartFile file, MultipartFile[] attachments, User operator) {
+    public void executeImportAsync(Long taskId, byte[] fileBytes, List<WarehouseImportAttachmentProcessor.AttachmentInput> attachments, User operator) {
         try {
             taskState.setStatus(taskId, ImportTaskStatus.VALIDATING);
 
-            WarehouseImportExcelReader.SheetData sheet = excelReader.read(file);
+            WarehouseImportExcelReader.SheetData sheet = excelReader.read(fileBytes);
             String[] header = sheet.header();
             List<String> headerErrors = WarehouseImportPolicy.validateHeader(header);
             if (!headerErrors.isEmpty()) {

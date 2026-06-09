@@ -10,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -50,25 +49,22 @@ public class WarehouseImportAttachmentProcessor {
     @Transactional
     public AttachmentResult attachFiles(Map<String, WarehouseEntity> createdByName,
                                         List<WarehouseImportPolicy.ParsedRow> rows,
-                                        MultipartFile[] attachments,
+                                        List<AttachmentInput> attachments,
                                         Long uploaderId) {
-        if (attachments == null || attachments.length == 0) return new AttachmentResult(0, List.of());
+        if (attachments == null || attachments.isEmpty()) return new AttachmentResult(0, List.of());
 
         Map<String, AttachmentBinding> byExpectedName = buildBindingMap(rows);
         int saved = 0;
         List<UnmatchedFile> unmatched = new ArrayList<>();
-        for (MultipartFile mf : attachments) {
-            if (mf == null || mf.isEmpty()) continue;
-            String origName = mf.getOriginalFilename();
+        for (AttachmentInput input : attachments) {
+            if (input == null || input.isEmpty()) continue;
+            String origName = input.filename();
             if (origName == null) continue;
 
-            // 1) 先按完整期望名直接匹配（按行/列填写提示生成的最常见命名）。
             AttachmentBinding binding = byExpectedName.get(origName);
-            // 2) 直接匹配失败则按正则解析（支持 _N 序号）。
             if (binding == null) {
                 binding = parseAndMatch(origName, byExpectedName);
             }
-            // 3) 解析失败则归类未匹配并给出原因。
             if (binding == null) {
                 unmatched.add(classifyUnmatched(origName, createdByName, rows));
                 continue;
@@ -80,7 +76,7 @@ public class WarehouseImportAttachmentProcessor {
             }
 
             try {
-                saveOneAttachment(wh, mf, origName, binding.type, uploaderId);
+                saveOneAttachment(wh, input.bytes(), origName, binding.type, uploaderId);
                 saved++;
             } catch (IOException e) {
                 log.warn("附件归档失败: filename={}, error={}", origName, e.getMessage());
@@ -106,15 +102,11 @@ public class WarehouseImportAttachmentProcessor {
         byName.put(expectedName, new AttachmentBinding(row, type));
     }
 
-    /**
-     * 使用正则解析文件名（带可选 _N 序号），找到对应的 warehouse row + attachment type。
-     */
     private AttachmentBinding parseAndMatch(String filename, Map<String, AttachmentBinding> byExpectedName) {
         Matcher m = NAMING_PATTERN.matcher(filename);
         if (!m.matches()) return null;
         String name = m.group(1);
         String typeLabel = m.group(2);
-        // 找第一个仓库名 == name 且未使用的 binding。
         for (Map.Entry<String, AttachmentBinding> e : byExpectedName.entrySet()) {
             if (e.getValue().used) continue;
             String key = e.getKey();
@@ -148,7 +140,7 @@ public class WarehouseImportAttachmentProcessor {
         return new UnmatchedFile(filename, "未匹配到对应行的附件槽位");
     }
 
-    private void saveOneAttachment(WarehouseEntity wh, MultipartFile mf, String origName,
+    private void saveOneAttachment(WarehouseEntity wh, byte[] bytes, String origName,
                                    WarehouseAttachmentType type, Long uploaderId) throws IOException {
         String ext = extractExt(origName);
         String storedFilename = String.format("WH_%d_%s_%s.%s",
@@ -156,19 +148,33 @@ public class WarehouseImportAttachmentProcessor {
         Path dir = Paths.get(attachmentRoot, String.valueOf(wh.getId()));
         Files.createDirectories(dir);
         Path target = dir.resolve(storedFilename);
-        Files.copy(mf.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
+        Files.write(target, bytes);
 
         WarehouseAttachmentEntity entity = WarehouseAttachmentEntity.builder()
                 .warehouse(wh)
                 .type(type)
                 .originalFilename(origName)
                 .storedFilename(storedFilename)
-                .fileSize(mf.getSize())
-                .contentType(mf.getContentType() != null ? mf.getContentType() : "application/octet-stream")
+                .fileSize((long) bytes.length)
+                .contentType(detectContentType(ext))
                 .uploadedBy(uploaderId)
                 .uploadedAt(LocalDateTime.now())
                 .build();
         attachmentRepo.save(entity);
+    }
+
+    private static String detectContentType(String ext) {
+        return switch (ext) {
+            case "pdf" -> "application/pdf";
+            case "png" -> "image/png";
+            case "jpg", "jpeg" -> "image/jpeg";
+            case "gif" -> "image/gif";
+            case "webp" -> "image/webp";
+            case "doc", "docx" -> "application/msword";
+            case "xls", "xlsx" -> "application/vnd.ms-excel";
+            case "txt" -> "text/plain";
+            default -> "application/octet-stream";
+        };
     }
 
     private static String extractExt(String filename) {
@@ -184,6 +190,12 @@ public class WarehouseImportAttachmentProcessor {
         AttachmentBinding(WarehouseImportPolicy.ParsedRow row, WarehouseAttachmentType type) {
             this.row = row;
             this.type = type;
+        }
+    }
+
+    public record AttachmentInput(String filename, byte[] bytes) {
+        public boolean isEmpty() {
+            return bytes == null || bytes.length == 0;
         }
     }
 
