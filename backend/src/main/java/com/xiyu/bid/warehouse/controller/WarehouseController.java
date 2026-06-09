@@ -60,9 +60,9 @@ public class WarehouseController {
     private final WarehouseAttachmentRepository attachmentRepo;
     private final WarehouseOperationLogRepository oplogRepo;
     private final WarehouseFileService fileService;
-    private final com.xiyu.bid.repository.UserRepository userRepository;
     private final WarehouseMapper warehouseMapper;
     private final WarehouseLogService warehouseLogService;
+    private final UserResolver userResolver;
 
     // ── List (multi-dimensional filter) ─────────────────────────────────────────
 
@@ -283,8 +283,7 @@ public class WarehouseController {
     }
 
     private com.xiyu.bid.entity.User getCurrentUser() {
-        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-        return (auth != null && auth.isAuthenticated()) ? userRepository.findByUsername(auth.getName()).orElse(null) : null;
+        return userResolver.resolveCurrentUser();
     }
 
     private <E extends Enum<E>> List<E> parseEnums(String csv, Class<E> enumClass) {

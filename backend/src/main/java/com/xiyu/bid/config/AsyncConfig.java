@@ -63,4 +63,19 @@ public class AsyncConfig {
         return executor;
     }
 
+    /**
+     * 仓库台账导出专用线程池
+     */
+    @Bean(name = "warehouseExportExecutor")
+    public Executor warehouseExportExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(20);
+        executor.setThreadNamePrefix("warehouse-export-");
+        executor.setRejectedExecutionHandler(new java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
+
 }

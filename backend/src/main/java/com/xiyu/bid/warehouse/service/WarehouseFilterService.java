@@ -25,6 +25,14 @@ public class WarehouseFilterService {
         return warehouseRepository.findAll(warehouseFilterSpec.toSpec(criteria), pageable);
     }
 
+    /**
+     * 不分页返回所有符合条件的数据，用于导出场景。
+     */
+    public List<WarehouseEntity> filterAll(WarehouseFilterDTO dto) {
+        WarehouseFilterCriteria criteria = toCriteria(dto);
+        return warehouseRepository.findAll(warehouseFilterSpec.toSpec(criteria));
+    }
+
     private WarehouseFilterCriteria toCriteria(WarehouseFilterDTO dto) {
         if (dto == null) {
             return WarehouseFilterCriteria.empty();

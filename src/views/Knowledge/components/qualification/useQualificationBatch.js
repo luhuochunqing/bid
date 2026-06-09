@@ -43,10 +43,6 @@ export function useQualificationBatch({ fetchQualifications }) {
   const attachResultVisible = ref(false)
   const attachResultData = ref({ total: 0, success: 0, failed: 0, matched: [], unmatched: [] })
 
-  // 批量关联附件结果
-  const attachResultVisible = ref(false)
-  const attachResultData = ref({ total: 0, success: 0, failed: 0, matched: [], unmatched: [] })
-
   const batchAttachUploadRef = ref(null)
   const batchAttachTriggerRef = ref(null)
   const handleBatchUploadClick = () => { batchAttachTriggerRef.value?.$el?.click() }

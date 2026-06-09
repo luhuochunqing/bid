@@ -6,6 +6,7 @@
       @search="resetPageAndLoad"
       @reset="resetFilters"
       @create="openCreate"
+      @export="exportVisible = true"
     />
     <el-card class="data-card" shadow="never">
       <el-table :data="records" v-loading="loading" style="width:100%" @row-click="openDrawer">
@@ -47,6 +48,7 @@
       @submitted="load"
     />
     <WarehouseDrawer v-model="drawerVisible" :warehouse-id="detailId" />
+    <WarehouseExportDialog v-model="exportVisible" :filters="filters" />
   </div>
 </template>
 
@@ -57,11 +59,13 @@ import http from '@/api/client'
 import WarehouseFilterBar from '@/components/warehouse/WarehouseFilterBar.vue'
 import WarehouseDialog from '@/components/warehouse/WarehouseDialog.vue'
 import WarehouseDrawer from '@/components/warehouse/WarehouseDrawer.vue'
+import WarehouseExportDialog from '@/components/warehouse/WarehouseExportDialog.vue'
 
 const records = ref([]); const loading = ref(false)
 const page = ref(1); const size = ref(15); const total = ref(0)
 const dialogVisible = ref(false); const drawerVisible = ref(false)
 const activeTab = ref('basic'); const editingId = ref(null); const detailId = ref(null)
+const exportVisible = ref(false)
 
 const filters = ref({})
 const form = reactive({

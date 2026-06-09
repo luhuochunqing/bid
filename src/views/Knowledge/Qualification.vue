@@ -299,8 +299,6 @@ const {
   importTriggerRef,
   handleImportLedgerClick,
   handleImportChange,
-  importResultVisible,
-  importResultData,
   handleImportResultClosed,
   batchAttachUploadRef,
   batchAttachTriggerRef,

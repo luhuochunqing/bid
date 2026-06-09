@@ -40,6 +40,7 @@
     </el-form>
     <div class="filter-bar-right">
       <span class="total-tip">共 <strong>{{ total }}</strong> 条</span>
+      <el-button type="success" @click="$emit('export')"><el-icon><Download /></el-icon> 导出台账</el-button>
       <el-button type="primary" @click="$emit('create')"><el-icon><Plus /></el-icon> 新增仓库</el-button>
     </div>
   </div>
@@ -47,13 +48,13 @@
 
 <script setup>
 import { reactive, watch } from 'vue'
-import { Search, RefreshRight, Plus } from '@element-plus/icons-vue'
+import { Search, RefreshRight, Plus, Download } from '@element-plus/icons-vue'
 
 const props = defineProps({
   filters: { type: Object, default: () => ({}) },
   total: { type: Number, default: 0 }
 })
-const emit = defineEmits(['update:filters', 'search', 'reset', 'create'])
+const emit = defineEmits(['update:filters', 'search', 'reset', 'create', 'export'])
 
 const localFilters = reactive({
   keyword: props.filters.keyword || '',
