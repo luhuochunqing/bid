@@ -1,6 +1,5 @@
 package com.xiyu.bid.scoreanalysis;
 
-import com.xiyu.bid.scoreanalysis.core.ScoreAnalysisCalculationPolicy;
 import com.xiyu.bid.scoreanalysis.dto.DimensionScoreDTO;
 import com.xiyu.bid.scoreanalysis.dto.ScoreAnalysisDTO;
 import com.xiyu.bid.scoreanalysis.dto.ScoreAnalysisCreateRequest;
@@ -37,8 +36,6 @@ abstract class AbstractScoreAnalysisServiceTest {
     @Mock
     protected TenderCommandService tenderCommandService;
 
-    @Mock
-    protected ScoreAnalysisCalculationPolicy calculationPolicy;
 
     @Mock
     protected ScoreAnalysisQueryService queryService;
