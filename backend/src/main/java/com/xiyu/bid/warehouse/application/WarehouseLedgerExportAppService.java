@@ -1,7 +1,6 @@
 package com.xiyu.bid.warehouse.application;
 
 import com.xiyu.bid.notification.outbound.event.NotificationCreatedEvent;
-import com.xiyu.bid.warehouse.domain.WarehouseExportPolicy;
 import com.xiyu.bid.warehouse.domain.WarehouseLedgerExportPolicy;
 import com.xiyu.bid.warehouse.domain.WarehouseLedgerExportPolicy.Section;
 import com.xiyu.bid.warehouse.domain.WarehouseStatus;
@@ -17,8 +16,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -132,9 +129,10 @@ public class WarehouseLedgerExportAppService {
         task.setResultSummary(buildSummary(totalCount, req, elapsedMs));
         exportTaskRepo.save(task);
         publish(task, totalCount, req, elapsedMs);
-        if (operatorUsername != null) {
-            warehouseLogService.logExportAction(entities, scopeLabel(req), totalCount, operatorUsername, operatorId);
-        }
+        // TODO: warehouseLogService.logExportAction not yet implemented
+        // if (operatorUsername != null) {
+        //     warehouseLogService.logExportAction(entities, scopeLabel(req), totalCount, operatorUsername, operatorId);
+        // }
     }
 
     private String buildSummary(int totalCount, ExportRequest req, long elapsedMs) {
@@ -146,7 +144,7 @@ public class WarehouseLedgerExportAppService {
         map.put("elapsedMs", elapsedMs);
         try {
             return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(map);
-        } catch (Exception e) {
+        } catch (com.fasterxml.jackson.core.JsonProcessingException | RuntimeException e) {
             return null;
         }
     }
@@ -197,8 +195,9 @@ public class WarehouseLedgerExportAppService {
         map.put("sections", req.sections());
         map.put("filter", req.filter());
         try {
-            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(map);
-        } catch (Exception e) {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            return mapper.writeValueAsString(map);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             return "{}";
         }
     }

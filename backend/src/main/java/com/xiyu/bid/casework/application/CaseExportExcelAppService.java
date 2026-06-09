@@ -1,6 +1,7 @@
 package com.xiyu.bid.casework.application;
 
 import com.xiyu.bid.casework.domain.model.CaseExportCriteria;
+import java.time.LocalDate;
 import com.xiyu.bid.casework.domain.model.CaseExportRecord;
 import com.xiyu.bid.casework.domain.policy.CaseExportFilterPolicy;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
@@ -15,7 +16,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -145,7 +146,7 @@ public class CaseExportExcelAppService {
     }
 
     private String buildFilename() {
-        String timestamp = LocalDate.now().format(FILENAME_DATE_FORMATTER);
+        String timestamp = LocalDateTime.now().format(FILENAME_DATE_FORMATTER);
         return "方案管理-案例库台账-" + timestamp + ".xlsx";
     }
 }
