@@ -9,14 +9,21 @@
       @export="exportVisible = true"
     />
     <el-card class="data-card" shadow="never">
-      <el-table :data="records" v-loading="loading" style="width:100%" @row-click="openDrawer">
+      <el-table :data="records" v-loading="loading" style="width:100%" @row-click="openDrawer"
+        :row-class-name="({row}) => newlyCreatedIds.has(row.id) ? 'row-newly-created' : ''">
         <el-table-column type="index" label="序号" width="60" />
-        <el-table-column prop="name" label="仓库名称" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="name" label="仓库名称" min-width="160" show-overflow-tooltip>
+          <template #default="s"><span class="warehouse-name">{{ s.row.name }}</span></template>
+        </el-table-column>
         <el-table-column label="仓库类型" width="80" align="center">
           <template #default="s"><el-tag size="small">{{ s.row.type === 'SELF_OPERATED' ? '自营' : '云仓' }}</el-tag></template>
         </el-table-column>
-        <el-table-column prop="startDate" label="开始时间" width="110" />
-        <el-table-column prop="region" label="所属区域" width="80" />
+        <el-table-column prop="startDate" label="开始时间" width="90">
+          <template #default="s">{{ formatDateMonth(s.row.startDate) }}</template>
+        </el-table-column>
+        <el-table-column label="所属区域" width="80" align="center">
+          <template #default="s"><el-tag size="small">{{ s.row.region }}</el-tag></template>
+        </el-table-column>
         <el-table-column prop="province" label="所在省份" width="80" />
         <el-table-column prop="address" label="具体地址" min-width="160" show-overflow-tooltip />
         <el-table-column prop="area" label="面积(㎡)" width="90" align="right" />
@@ -25,6 +32,15 @@
         </el-table-column>
         <el-table-column label="状态" width="100" align="center">
           <template #default="s"><el-tag :type="getStatusTag(s.row.status)">{{ statusLabel(s.row.status) }}</el-tag></template>
+        </el-table-column>
+        <el-table-column label="产权证" width="80" align="center">
+          <template #default="s">{{ s.row.hasPropertyCert ? '是' : '否' }}</template>
+        </el-table-column>
+        <el-table-column label="发票" width="80" align="center">
+          <template #default="s">{{ s.row.hasInvoice ? '是' : '否' }}</template>
+        </el-table-column>
+        <el-table-column label="照片" width="80" align="center">
+          <template #default="s">{{ s.row.hasPhotos ? '是' : '否' }}</template>
         </el-table-column>
         <el-table-column label="操作" width="150" fixed="right" align="center">
           <template #default="s">
@@ -46,9 +62,9 @@
       :editing-id="editingId"
       :form="form"
       :init-tab="activeTab"
-      @submitted="load"
+      @submitted="handleSubmitted"
     />
-    <WarehouseDrawer v-model="drawerVisible" :warehouse-id="detailId" />
+    <WarehouseDrawer v-model="drawerVisible" :warehouse-id="detailId" @edit="handleDrawerEdit" />
     <WarehouseExportDialog v-model="exportVisible" :filters="filters" />
   </div>
 </template>
@@ -67,6 +83,7 @@ const page = ref(1); const size = ref(15); const total = ref(0)
 const dialogVisible = ref(false); const drawerVisible = ref(false)
 const activeTab = ref('basic'); const editingId = ref(null); const detailId = ref(null)
 const exportVisible = ref(false)
+const newlyCreatedIds = ref(new Set())
 
 const filters = ref({})
 const form = reactive({
@@ -129,6 +146,19 @@ const openEdit = (row) => {
 
 const openDrawer = (row) => { detailId.value = row.id; drawerVisible.value = true }
 
+const handleDrawerEdit = (row) => {
+  drawerVisible.value = false
+  Object.assign(form, {
+    name: row.name || '', type: row.type || 'SELF_OPERATED', region: row.region || '', province: row.province || '',
+    address: row.address || '', area: row.area || 0, contactPerson: row.contactPerson || '', remarks: row.remarks || '',
+    startDate: row.startDate, endDate: row.endDate, lessor: row.lessor || '', lessee: row.lessee || '',
+    invoicePeriod: row.invoicePeriod || '', closePlan: row.closePlan || '',
+    hasPropertyCert: row.hasPropertyCert || false, hasInvoice: row.hasInvoice || false, hasPhotos: row.hasPhotos || false,
+    certRemarks: row.certRemarks || ''
+  })
+  activeTab.value = 'basic'; editingId.value = row.id; dialogVisible.value = true
+}
+
 const handleClose = async (row) => {
   try {
     const { value: reason } = await ElMessageBox.prompt('请输入关仓原因', '关仓确认', {
@@ -148,6 +178,19 @@ const handleRestore = async (row) => {
   } catch {}
 }
 
+const handleSubmitted = async (newId) => {
+  await load()
+  if (newId) {
+    newlyCreatedIds.value.add(newId)
+    setTimeout(() => newlyCreatedIds.value.delete(newId), 3000)
+  }
+}
+
+const formatDateMonth = (d) => {
+  if (!d) return ''
+  const parts = d.split('-')
+  return parts.length >= 2 ? `${parts[0]}-${parts[1]}` : d
+}
 const computeDays = (r) => {
   if (!r.endDate) return '—'
   const d = Math.ceil((new Date(r.endDate) - Date.now()) / 86400000)
@@ -169,4 +212,9 @@ onMounted(load)
 .page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; h2 { font-weight:600; color:#1f2937; margin:0 } }
 .data-card { border-radius:8px; border:1px solid var(--el-border-color-lighter); box-shadow:0 2px 8px rgba(0,0,0,.05) }
 .pagination-wrap { display:flex; justify-content:flex-end; margin-top:16px }
+:deep(.row-newly-created) { animation: highlightFade 3s ease-out }
+@keyframes highlightFade {
+  0% { background-color: #e1f3d8 }
+  100% { background-color: transparent }
+}
 </style>

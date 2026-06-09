@@ -1,20 +1,29 @@
 <template>
-  <el-drawer v-model="visible" :title="detail ? `仓库详情 - ${detail.name}` : '仓库详情'" size="800px" :with-header="true">
+  <el-drawer v-model="visible" size="800px" :with-header="true">
+    <template #header="{ titleId, titleClass }">
+      <div class="drawer-header">
+        <div class="drawer-header-left">
+          <h4 :id="titleId" :class="titleClass">{{ detail?.name || '仓库详情' }}</h4>
+          <el-tag v-if="detail" size="small" :type="detail.type === 'SELF_OPERATED' ? '' : 'warning'" class="header-tag">
+            {{ detail.type === 'SELF_OPERATED' ? '自营' : '云仓' }}
+          </el-tag>
+          <el-tag v-if="detail?.region" size="small" class="header-tag">{{ detail.region }}</el-tag>
+          <el-tag v-if="detail" size="small" :type="statusType(detail.status)" class="header-tag">{{ statusLabel(detail.status) }}</el-tag>
+        </div>
+        <el-button type="primary" size="small" @click="$emit('edit', detail)">
+          <el-icon><Edit /></el-icon> 编辑
+        </el-button>
+      </div>
+    </template>
     <div v-if="loading" v-loading="true" style="padding:40px;text-align:center" />
     <template v-else-if="detail">
       <el-tabs v-model="activeTab">
         <el-tab-pane label="基础信息" name="basic">
           <el-descriptions :column="2" border size="small">
-            <el-descriptions-item label="仓库名称">{{ detail.name }}</el-descriptions-item>
-            <el-descriptions-item label="仓库类型"><el-tag size="small">{{ detail.type === 'SELF_OPERATED' ? '自营' : '云仓' }}</el-tag></el-descriptions-item>
-            <el-descriptions-item label="所属区域">{{ detail.region }}</el-descriptions-item>
             <el-descriptions-item label="所在省份">{{ detail.province }}</el-descriptions-item>
             <el-descriptions-item label="具体地址" :span="2">{{ detail.address }}</el-descriptions-item>
             <el-descriptions-item label="仓库面积">{{ detail.area }} ㎡</el-descriptions-item>
             <el-descriptions-item label="区域联系人">{{ detail.contactPerson }}</el-descriptions-item>
-            <el-descriptions-item label="状态">
-              <el-tag size="small" :type="statusType(detail.status)">{{ statusLabel(detail.status) }}</el-tag>
-            </el-descriptions-item>
             <el-descriptions-item label="备注" :span="2">{{ detail.remarks || '—' }}</el-descriptions-item>
           </el-descriptions>
           <el-divider content-position="left">租约/服务信息</el-divider>
@@ -94,14 +103,14 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Upload } from '@element-plus/icons-vue'
+import { Upload, Edit } from '@element-plus/icons-vue'
 import http from '@/api/client'
 
 const props = defineProps({
   modelValue: Boolean,
   warehouseId: { type: Number, default: null }
 })
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'edit'])
 
 const visible = computed({ get: () => props.modelValue, set: (v) => emit('update:modelValue', v) })
 const detail = ref(null); const attachments = ref([]); const logs = ref([])
@@ -165,5 +174,29 @@ const formatSize = (bytes) => { if (!bytes) return '—'; if (bytes < 1024) retu
 </script>
 
 <style scoped lang="scss">
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding-right: 16px;
+
+  .drawer-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0;
+
+    :deep(.el-drawer__title) {
+      margin-right: 12px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+  }
+
+  .header-tag {
+    margin-left: 6px;
+  }
+}
+
 .attach-toolbar { display:flex; align-items:center; margin-bottom:8px }
 </style>
