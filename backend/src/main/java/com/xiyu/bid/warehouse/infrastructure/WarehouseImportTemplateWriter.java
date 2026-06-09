@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.List;
 
 /**
  * 基础设施：仓库批量导入模板生成器。
