@@ -1,5 +1,5 @@
-25879
-branch=agent/codex/fix-pr-357-case-detail-route
-worktree=codex-fix-pr-357-case-detail-route
+67048
+branch=agent/codex/bid-ui-optimize
+worktree=codex
 mode=develop
-ts=1780968014
+ts=1780982022
