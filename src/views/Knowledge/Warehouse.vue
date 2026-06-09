@@ -98,6 +98,17 @@ import WarehouseCloseDialog from '@/components/warehouse/WarehouseCloseDialog.vu
 const records = ref([]); const loading = ref(false)
 const page = ref(1); const size = ref(15); const total = ref(0)
 
+const dialogVisible = ref(false); const drawerVisible = ref(false)
+const activeTab = ref('basic'); const editingId = ref(null); const detailId = ref(null)
+const exportVisible = ref(false)
+const ledgerExportVisible = ref(false)
+const allInUseCount = ref(0)
+const selectedRows = ref([])
+const selectedRowIds = ref([])
+const exportMode = ref('filter')
+const exportFilters = ref({})
+const newlyCreatedIds = ref(new Set())
+
 const loadAllInUseCount = async () => {
   try {
     const { data } = await http.get('/api/knowledge/warehouses', {
@@ -108,13 +119,6 @@ const loadAllInUseCount = async () => {
     allInUseCount.value = 0
   }
 }
-const dialogVisible = ref(false); const drawerVisible = ref(false)
-const activeTab = ref('basic'); const editingId = ref(null); const detailId = ref(null)
-const exportVisible = ref(false)
-const ledgerExportVisible = ref(false)
-const allInUseCount = ref(0)
-const selectedRows = ref([])
-const newlyCreatedIds = ref(new Set())
 
 const filters = ref({})
 const form = reactive({

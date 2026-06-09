@@ -154,7 +154,7 @@ const stopPolling = () => {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
 }
 
-const startPolling = () => {
+function startPolling() {
   stopPolling()
   pollTimer = setInterval(async () => {
     if (!taskId.value) return

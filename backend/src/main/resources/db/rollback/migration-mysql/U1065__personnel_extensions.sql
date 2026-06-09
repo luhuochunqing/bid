@@ -1,3 +1,5 @@
+-- U1065__personnel_extensions.sql
+-- Input: V1065__personnel_extensions.sql
 -- Rollback for V1065__personnel_extensions.sql
 -- PR: agent/trae/personnel-cert
 
