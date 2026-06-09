@@ -1,0 +1,7 @@
+version: 1
+locks:
+  - path: "src/router/index.js"
+    scope: "file"
+    reason: "移除 PR !357 遗漏的 CaseDetail 路由"
+    owner: "codex"
+    branch: "agent/codex/fix-pr-357-case-detail-route"

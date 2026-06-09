@@ -2,6 +2,7 @@
 # Input: current worktree with new .githooks/*-wrapper.sh, scripts/check-local-gates.sh
 # Output: all worktrees in this repo get the same files + git alias config
 # Pos: scripts/ - 同步门禁体系到所有 Worktree (2026-06-09)
+# 维护声明: 同步门禁体系到所有 Worktree；新增门禁脚本时请同步脚本目录说明。
 # 用法: bash scripts/sync-local-gates-to-all.sh
 # 安全: 不会 git commit/push，不修改工作区内容，幂等
 

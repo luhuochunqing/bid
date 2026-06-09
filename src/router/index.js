@@ -180,12 +180,6 @@ const routes = [
             meta: { title: '案例库' }
           },
           {
-            path: 'case/detail',
-            name: 'CaseDetail',
-            component: () => import('@/views/Knowledge/CaseDetail.vue'),
-            meta: { title: '案例详情', showBack: true }
-          },
-          {
             path: 'template',
             name: 'Template',
             alias: '/knowledge/templates',

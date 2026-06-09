@@ -2,6 +2,7 @@
 # Input: current git worktree
 # Output: colored pass/fail report on local gate readiness
 # Pos: scripts/ - 本地门禁自检 (2026-06-09)
+# 维护声明: 仅维护本地门禁自检逻辑；新增门禁项目时请同步检查逻辑。
 # 一旦我被更新，务必更新我的开头注释。
 #
 # check-local-gates.sh — Agent 对话开始时快速验证本地门禁是否就绪。
