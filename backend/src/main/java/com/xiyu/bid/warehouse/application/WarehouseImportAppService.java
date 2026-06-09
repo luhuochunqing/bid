@@ -9,6 +9,8 @@ import com.xiyu.bid.warehouse.infrastructure.WarehouseImportTaskEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseImportTaskRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -118,6 +120,18 @@ public class WarehouseImportAppService {
             log.error("仓库导入执行失败: taskId={}", taskId, e);
             taskState.fail(taskId, truncate(e.getMessage(), 500));
         }
+    }
+
+    public Page<WarehouseImportTaskEntity> listTasks(Long userId, Pageable pageable) {
+        return taskState.listTasks(userId, pageable);
+    }
+
+    public WarehouseImportTaskEntity getTask(Long taskId, Long userId) {
+        return taskState.getTask(taskId, userId);
+    }
+
+    public byte[] getCorrectionFile(Long taskId, Long userId) throws IOException {
+        return taskState.getCorrectionFile(taskId, userId);
     }
 
     private static String truncate(String s, int maxLen) {
