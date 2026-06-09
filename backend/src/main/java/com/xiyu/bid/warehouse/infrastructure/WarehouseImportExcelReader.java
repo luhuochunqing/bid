@@ -7,8 +7,8 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Component;
-import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -21,8 +21,8 @@ import java.util.List;
 @Component
 public class WarehouseImportExcelReader {
 
-    public SheetData read(MultipartFile file) throws IOException {
-        try (InputStream in = file.getInputStream();
+    public SheetData read(byte[] fileBytes) throws IOException {
+        try (InputStream in = new ByteArrayInputStream(fileBytes);
              Workbook wb = new XSSFWorkbook(in)) {
             Sheet sheet = wb.getSheetAt(0);
             DataFormatter fmt = new DataFormatter();

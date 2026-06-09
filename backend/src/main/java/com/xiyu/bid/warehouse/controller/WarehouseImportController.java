@@ -4,6 +4,7 @@ import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.warehouse.application.WarehouseImportAppService;
+import com.xiyu.bid.warehouse.application.WarehouseImportAttachmentProcessor;
 import com.xiyu.bid.warehouse.application.WarehouseImportQueryService;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseImportTaskEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseImportTemplateWriter;
@@ -25,8 +26,11 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -68,7 +72,8 @@ public class WarehouseImportController {
         if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("未登录"));
         }
-        WarehouseImportAppService.ImportTaskResult result = importAppService.triggerImport(file, attachments, user);
+        WarehouseImportAppService.ImportTaskResult result = importAppService.triggerImport(
+                toBytes(file), toAttachmentInputs(attachments), user);
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(ApiResponse.success("导入任务已创建", Map.of("taskId", result.taskId())));
     }
@@ -127,5 +132,24 @@ public class WarehouseImportController {
 
     private String formatDt(LocalDateTime dt) {
         return dt != null ? dt.format(DT_FMT) : null;
+    }
+
+    private static byte[] toBytes(MultipartFile file) {
+        try {
+            return file.getBytes();
+        } catch (IOException e) {
+            throw new UncheckedIOException("读取导入文件失败: " + file.getOriginalFilename(), e);
+        }
+    }
+
+    private static List<WarehouseImportAttachmentProcessor.AttachmentInput> toAttachmentInputs(MultipartFile[] files) {
+        if (files == null) return List.of();
+        List<WarehouseImportAttachmentProcessor.AttachmentInput> result = new ArrayList<>(files.length);
+        for (MultipartFile mf : files) {
+            if (mf == null || mf.isEmpty()) continue;
+            result.add(new WarehouseImportAttachmentProcessor.AttachmentInput(
+                    mf.getOriginalFilename(), toBytes(mf)));
+        }
+        return result;
     }
 }
