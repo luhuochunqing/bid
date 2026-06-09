@@ -5,7 +5,6 @@ import com.xiyu.bid.exception.GlobalExceptionHandler;
 import com.xiyu.bid.qualification.dto.QualificationBorrowRecordDTO;
 import com.xiyu.bid.qualification.dto.QualificationBorrowRequest;
 import com.xiyu.bid.qualification.dto.QualificationDTO;
-import com.xiyu.bid.qualification.service.BatchAttachmentService;
 import com.xiyu.bid.qualification.service.QualificationService;
 import com.xiyu.bid.qualification.service.QualificationAiParserService;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,15 +38,12 @@ class QualificationControllerTest {
     @Mock
     private QualificationAiParserService qualificationAiParserService;
 
-    @Mock
-    private com.xiyu.bid.qualification.service.BatchAttachmentService batchAttachmentService;
-
     private MockMvc mockMvc;
     private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new QualificationController(qualificationService, qualificationAiParserService, batchAttachmentService))
+        mockMvc = MockMvcBuilders.standaloneSetup(new QualificationController(qualificationService, qualificationAiParserService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
         objectMapper = new ObjectMapper().findAndRegisterModules();

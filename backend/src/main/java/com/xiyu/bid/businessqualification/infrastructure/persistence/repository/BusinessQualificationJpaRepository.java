@@ -10,7 +10,6 @@ import java.util.Optional;
 
 public interface BusinessQualificationJpaRepository extends JpaRepository<BusinessQualificationEntity, Long> {
 
-    List<BusinessQualificationEntity> findByCertificateNo(String certificateNo);
     List<BusinessQualificationEntity> findByExpiryDateLessThanEqual(LocalDate expiryDate);
 
     /**
