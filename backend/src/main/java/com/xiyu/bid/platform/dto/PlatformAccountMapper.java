@@ -21,6 +21,7 @@ public final class PlatformAccountMapper {
             .url(account.getUrl())
             .hasCa(account.getHasCa())
             .caCustodian(account.getCaCustodian())
+            .custodian(account.getCustodian())
             .remarks(account.getRemarks())
             .status(account.getStatus())
             .borrowedBy(account.getBorrowedBy())

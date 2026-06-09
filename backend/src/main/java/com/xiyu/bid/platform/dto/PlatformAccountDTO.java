@@ -35,6 +35,12 @@ public class PlatformAccountDTO {
     /** Whether CA certificate is associated. */
     private Boolean hasCa;
     /** CA custodian user ID. */
+
+    /** Account custodian user ID. */
+    private Long custodian;
+
+    /** Account custodian name (read-only). */
+    private String custodianName;
     private Long caCustodian;
     /** Remarks. */
     private String remarks;

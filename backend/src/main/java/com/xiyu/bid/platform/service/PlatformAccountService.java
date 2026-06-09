@@ -11,6 +11,7 @@ import com.xiyu.bid.platform.dto.PlatformAccountCreateRequest;
 import com.xiyu.bid.platform.dto.PlatformAccountDTO;
 import com.xiyu.bid.platform.dto.PlatformAccountMapper;
 import com.xiyu.bid.platform.dto.PlatformAccountStatisticsDTO;
+import com.xiyu.bid.platform.dto.ReturnAccountRequest;
 import com.xiyu.bid.platform.entity.PlatformAccount;
 import com.xiyu.bid.platform.entity.PlatformAccount.AccountStatus;
 import com.xiyu.bid.platform.repository.PlatformAccountRepository;
@@ -59,6 +60,7 @@ public class PlatformAccountService {
             .contactEmail(request.getContactEmail())
             .hasCa(request.getHasCa() != null ? request.getHasCa() : false)
             .caCustodian(request.getCaCustodian())
+            .custodian(request.getCustodian())
             .remarks(request.getRemarks())
             .status(AccountStatus.AVAILABLE)
             .returnCount(0)
@@ -67,6 +69,23 @@ public class PlatformAccountService {
         PlatformAccount savedAccount = repository.save(account);
         return PlatformAccountMapper.toDTO(savedAccount);
     }
+
+    /** Return a borrowed account with mandatory password change. */
+    @Transactional
+    @Auditable(action = "RETURN", entityType = "PlatformAccount",
+              description = "Returned platform account with password change")
+    public PlatformAccountDTO returnAccount(Long id, ReturnAccountRequest request, User currentUser) {
+        PlatformAccount account = repository.findById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Account not found with id: " + id));
+
+        String encryptedPassword = passwordEncryptionUtil.encrypt(request.getNewPassword());
+        account.returnWithPassword(encryptedPassword);
+
+        PlatformAccount savedAccount = repository.save(account);
+        return PlatformAccountMapper.toDTO(savedAccount);
+    }
+
+
 
     /** Get account by ID. */
     public PlatformAccountDTO getAccountById(Long id) {
@@ -111,6 +130,7 @@ public class PlatformAccountService {
         account.setContactEmail(request.getContactEmail() != null ? request.getContactEmail() : account.getContactEmail());
         account.setHasCa(request.getHasCa() != null ? request.getHasCa() : account.getHasCa());
         account.setCaCustodian(request.getCaCustodian() != null ? request.getCaCustodian() : account.getCaCustodian());
+        account.setCustodian(request.getCustodian() != null ? request.getCustodian() : account.getCustodian());
         account.setRemarks(request.getRemarks() != null ? request.getRemarks() : account.getRemarks());
 
         PlatformAccount savedAccount = repository.save(account);

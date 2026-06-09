@@ -16,7 +16,8 @@
           <el-descriptions-item label="绑定手机">{{ data.contactPhone || '-' }}</el-descriptions-item>
           <el-descriptions-item label="绑定邮箱">{{ data.contactEmail || '-' }}</el-descriptions-item>
           <el-descriptions-item label="是否有 CA">{{ data.hasCa ? '是' : '否' }}</el-descriptions-item>
-          <el-descriptions-item label="CA 保管人">{{ data.caCustodian || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="CA 保管人">{{ data.caCustodianName || data.caCustodian || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="账号保管员">{{ data.custodianName || data.custodian || '-' }}</el-descriptions-item>
           <el-descriptions-item label="使用人">{{ data.borrower || '-' }}</el-descriptions-item>
           <el-descriptions-item label="备注">{{ data.remarks || '-' }}</el-descriptions-item>
           <el-descriptions-item label="最近使用">{{ data.lastUsed || '-' }}</el-descriptions-item>
@@ -52,7 +53,8 @@
     </el-tabs>
     <template #footer>
       <el-button @click="visible = false">关闭</el-button>
-      <el-button type="primary" @click="$emit('edit')">编辑</el-button>
+      <el-button v-if="data?.status === 'in_use'" type="success" @click="$emit('return')">登记归还</el-button>
+     <el-button type="primary" @click="$emit('edit')">编辑</el-button>
     </template>
   </el-dialog>
 </template>
@@ -65,7 +67,7 @@ const props = defineProps({
   modelValue: { type: Boolean, default: false },
   data: { type: Object, default: null }
 })
-const emit = defineEmits(['update:modelValue', 'edit'])
+const emit = defineEmits(['update:modelValue', 'edit', 'return'])
 
 const visible = computed({
   get: () => props.modelValue,

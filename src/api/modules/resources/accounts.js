@@ -109,6 +109,11 @@ export const accountsApi = {
     return httpClient.post(`/api/platform/accounts/${id}/return`)
   },
 
+  async returnWithPassword(id, payload) {
+    if (!isNumericId(id)) return Promise.resolve(invalidIdMessage('account'))
+    return httpClient.post(`/api/platform/accounts/${id}/return-with-password`, payload)
+  },
+
   async getPassword(id) {
     if (!isNumericId(id)) return Promise.resolve(invalidIdMessage('account'))
     return httpClient.get(`/api/platform/accounts/${id}/password`)

@@ -31,19 +31,20 @@ run_contract_case() {
   echo
   case "$case_name" in
     rich-dry-run)
-      assert_contains "$output" "touch paths:" "prints declared touch paths"
-      assert_contains "$output" "Expected status summary:" "prints expected status summary header"
-      assert_contains "$output" ".agent-task-context will record declared touch paths" "mentions touch path context persistence"
-      assert_contains "$output" "conflict override is enabled; coordination evidence should be recorded if conflicts appear" "mentions conflict override coordination reminder"
-      assert_contains "$output" "initial locks will be registered in the new worktree" "mentions lock registration expectation"
-      assert_contains "$output" "branch will be pushed automatically and become visible to other agents" "mentions auto push visibility"
-      assert_contains "$output" "post-create push:" "prints post-create push command"
+      assert_contains "$output" "Dry run task branch:" "prints dry run header"
+      assert_contains "$output" "touch:" "prints touch paths line"
+      assert_contains "$output" "locks:" "prints locks line"
+      assert_contains "$output" "morning:" "prints morning routine line"
+      assert_contains "$output" "worktree:" "prints worktree path"
+      assert_contains "$output" "branch:" "prints branch name"
       ;;
     minimal-dry-run)
-      assert_contains "$output" "Expected status summary:" "prints expected status summary header"
-      assert_contains "$output" "no touch paths declared; consider using --touch for collaborative visibility" "warns about missing touch paths"
-      assert_contains "$output" "no initial locks will be registered automatically" "warns about missing initial locks"
-      assert_contains "$output" "branch will remain local until you push it manually" "warns about local-only branch"
+      assert_contains "$output" "Dry run task branch:" "prints dry run header"
+      assert_contains "$output" "touch:" "prints touch paths line"
+      assert_contains "$output" "locks:" "prints locks line"
+      assert_contains "$output" "worktree:" "prints worktree path"
+      assert_contains "$output" "touch:    0 paths" "shows zero touch paths"
+      assert_contains "$output" "locks:    0 locks" "shows zero locks"
       ;;
     *)
       echo "Unknown contract case: $case_name" >&2

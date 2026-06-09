@@ -67,7 +67,7 @@
               <el-tag :type="row.hasCa ? 'success' : 'info'" size="small">{{ row.hasCa ? '是' : '否' }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="custodian" label="账号保管员" width="120" />
+                    <el-table-column prop="custodianName" label="账号保管员" width="120" />
           <el-table-column prop="caCustodianName" label="CA 保管员" width="120" />
           <el-table-column label="操作" width="140" fixed="right" align="center">
             <template #default="{ row }">
@@ -77,6 +77,12 @@
                     :type="row.status === 'available' ? 'primary' : 'info'"
                     :disabled="row.status !== 'available'"
                     @click.stop="handleBorrow(row)" />
+                </el-tooltip>
+              <el-tooltip content="登记归还" placement="top">
+                  <el-button :icon="CircleCheck" circle size="small"
+                    :type="row.status === 'in_use' ? 'success' : 'info'"
+                    :disabled="row.status !== 'in_use'"
+                    @click.stop="handleReturn(row)" />
                 </el-tooltip>
                 <el-tooltip content="编辑" placement="top">
                   <el-button :icon="Edit" circle size="small" type="warning"
@@ -122,8 +128,9 @@
       </el-table>
     </el-card>
 
-    <AccountBorrowDialog v-model="showBorrowDialog" :account="currentAccount" @submitted="loadAccounts" />
-    <AccountDetailDialog v-model="showDetailDialog" :data="currentAccountDetail" @edit="editFromDetail" />
+   <AccountBorrowDialog v-model="showBorrowDialog" :account="currentAccount" @submitted="loadAccounts" />
+    <AccountReturnDialog v-model="showReturnDialog" :account="currentReturnAccount" @submitted="onAccountReturned" />
+    <AccountDetailDialog v-model="showDetailDialog" :data="currentAccountDetail" @edit="editFromDetail" @return="handleReturnFromDetail" />
     <AccountFormDialog v-model="showCreateDialog" :edit-row="editRow" @saved="loadAccounts" />
   </div>
 </template>
@@ -131,12 +138,13 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus, Platform, View, Edit, Delete, CopyDocument, MoreFilled, Key, RefreshLeft, Hide } from '@element-plus/icons-vue'
+import { Search, Plus, Platform, View, Edit, Delete, CopyDocument, MoreFilled, Key, RefreshLeft, Hide, CircleCheck } from '@element-plus/icons-vue'
 import { resourcesApi } from '@/api'
 import { useUserStore } from '@/stores/user'
 import AccountFormDialog from './AccountFormDialog.vue'
 import AccountDetailDialog from './AccountDetailDialog.vue'
 import AccountBorrowDialog from './AccountBorrowDialog.vue'
+import AccountReturnDialog from './AccountReturnDialog.vue'
 
 const searchForm = ref({
   platform: '',
@@ -154,9 +162,11 @@ const passwordVisible = ref({})
 
 const accounts = ref([])
 const showBorrowDialog = ref(false)
+const showReturnDialog = ref(false)
 const showDetailDialog = ref(false)
 const showCreateDialog = ref(false)
 const currentAccount = ref(null)
+const currentReturnAccount = ref(null)
 const currentAccountDetail = ref(null)
 const editRow = ref(null)
 
@@ -201,7 +211,22 @@ const editFromDetail = () => {
   showCreateDialog.value = true
 }
 
+const handleReturnFromDetail = () => {
+  currentReturnAccount.value = currentAccountDetail.value?.raw || currentAccountDetail.value
+  showReturnDialog.value = true
+}
+
 const handleBorrow = (row) => {
+const handleReturn = (row) => {
+  currentReturnAccount.value = row?.raw || row
+  showReturnDialog.value = true
+}
+
+const onAccountReturned = () => {
+  showReturnDialog.value = false
+  showDetailDialog.value = false
+  loadAccounts()
+}
   currentAccount.value = row
   showBorrowDialog.value = true
 }

@@ -90,6 +90,10 @@ public class PlatformAccount {
     @Column(name = "ca_custodian")
     private Long caCustodian;
 
+    /** Account custodian user ID. */
+    @Column(name = "custodian")
+    private Long custodian;
+
     /** Optional remarks. */
     @Column(length = LEN_REMARKS)
     private String remarks;
@@ -146,7 +150,7 @@ public class PlatformAccount {
     public void updateProfile(String pUsername, String pPassword, String pAccountName,
             PlatformType pPlatformType, String pUrl, String pContactPerson,
             String pContactPhone, String pContactEmail,
-            Boolean pHasCa, Long pCaCustodian, String pRemarks) {
+            Boolean pHasCa, Long pCaCustodian, Long pCustodian, String pRemarks) {
         if (pUsername != null && !pUsername.trim().isEmpty()) {
             this.username = pUsername;
         }
@@ -177,9 +181,21 @@ public class PlatformAccount {
         if (pCaCustodian != null) {
             this.caCustodian = pCaCustodian;
         }
+        if (pCustodian != null) {
+            this.custodian = pCustodian;
+        }
         if (pRemarks != null) {
             this.remarks = pRemarks;
         }
+    }
+
+    /** Mark the account as pending approval (before borrow approval workflow). */
+    public void markPendingApproval() {
+        if (status != AccountStatus.AVAILABLE) {
+            throw new IllegalStateException(
+                    "Account not available. Status: " + status.getDescription());
+        }
+        this.status = AccountStatus.PENDING_APPROVAL;
     }
 
     /** Borrow the account to a user. */
@@ -196,7 +212,7 @@ public class PlatformAccount {
 
     /** Return the account to pool. */
     public void returnToPool() {
-        if (status != AccountStatus.IN_USE) {
+        if (status != AccountStatus.IN_USE && status != AccountStatus.PENDING_APPROVAL) {
             throw new IllegalStateException(
                     "Account not in use. Status: " + status.getDescription());
         }
@@ -205,6 +221,12 @@ public class PlatformAccount {
         this.borrowedAt = null;
         this.dueAt = null;
         this.returnCount = (returnCount == null ? 0 : returnCount) + 1;
+    }
+
+    /** Return the account to pool and update the encrypted password. */
+    public void returnWithPassword(String newEncryptedPassword) {
+        returnToPool();
+        this.password = newEncryptedPassword;
     }
 
     /** Platform type enumeration. */
@@ -228,6 +250,7 @@ public class PlatformAccount {
     /** Account status enumeration. */
     public enum AccountStatus {
         AVAILABLE("可用"),
+        PENDING_APPROVAL("审批中"),
         IN_USE("使用中"),
         MAINTENANCE("维护中"),
         DISABLED("已禁用");

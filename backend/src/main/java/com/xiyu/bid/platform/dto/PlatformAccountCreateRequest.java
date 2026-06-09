@@ -60,6 +60,9 @@ public class PlatformAccountCreateRequest {
     private Boolean hasCa;
 
     /** CA custodian user ID. */
+
+    /** Account custodian user ID (borrow approval approver). */
+    private Long custodian;
     private Long caCustodian;
 
     /** Optional remarks. */

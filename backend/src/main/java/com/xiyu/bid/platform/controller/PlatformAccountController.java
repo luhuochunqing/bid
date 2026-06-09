@@ -12,6 +12,7 @@ import com.xiyu.bid.platform.dto.BorrowAccountRequest;
 import com.xiyu.bid.platform.dto.PlatformAccountCreateRequest;
 import com.xiyu.bid.platform.dto.PlatformAccountDTO;
 import com.xiyu.bid.platform.dto.PlatformAccountStatisticsDTO;
+import com.xiyu.bid.platform.dto.ReturnAccountRequest;
 import com.xiyu.bid.platform.service.PlatformAccountService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -130,5 +131,16 @@ public class PlatformAccountController {
         log.debug("Fetching overdue platform accounts");
         List<PlatformAccountDTO> overdue = platformAccountService.findOverdueAccounts();
         return ResponseEntity.ok(ApiResponse.success(overdue));
+    }
+
+    @PostMapping("/{id}/return-with-password")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    public ResponseEntity<ApiResponse<PlatformAccountDTO>> returnAccountWithPassword(
+            @PathVariable Long id,
+            @Valid @RequestBody ReturnAccountRequest request,
+            @AuthenticationPrincipal User currentUser) {
+        log.info("Returning platform account with id: {} and password change by user: {}", id, currentUser.getUsername());
+        PlatformAccountDTO updated = platformAccountService.returnAccount(id, request, currentUser);
+        return ResponseEntity.ok(ApiResponse.success("账号归还成功（密码已更新）", updated));
     }
 }
