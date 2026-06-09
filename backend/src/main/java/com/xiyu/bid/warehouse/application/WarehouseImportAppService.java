@@ -139,18 +139,6 @@ public class WarehouseImportAppService {
         return s.length() > maxLen ? s.substring(0, maxLen) : s;
     }
 
-    public Page<WarehouseImportTaskEntity> listTasks(Long createdBy, Pageable pageable) {
-        return taskState.listTasks(createdBy, pageable);
-    }
-
-    public WarehouseImportTaskEntity getTask(Long taskId, Long createdBy) {
-        return taskState.getTask(taskId, createdBy);
-    }
-
-    public byte[] getCorrectionFile(Long taskId, Long createdBy) throws IOException {
-        return taskState.getCorrectionFile(taskId, createdBy);
-    }
-
     public record RowError(int rowIndex, String message) {}
 
     public record ImportTaskResult(Long taskId) {}

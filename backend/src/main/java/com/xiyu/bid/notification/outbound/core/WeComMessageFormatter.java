@@ -53,6 +53,7 @@ public final class WeComMessageFormatter {
             case "PROJECT" -> "/project/" + entityId;
             case "BIDDING", "TENDER" -> "/bidding/" + entityId;
             case "DOCUMENT" -> "/document/editor/" + entityId;
+            case "WAREHOUSE_EXPIRY_WARNING", "WAREHOUSE_EXPIRED_WARNING", "WAREHOUSE" -> "/knowledge/warehouse?id=" + entityId;
             default -> null;
         };
     }

@@ -70,7 +70,8 @@ public class WarehouseController {
     @PreAuthorize("hasAuthority('" + PERM + "')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> list(
             @RequestParam(required = false) String keyword, @RequestParam(required = false) String types,
-            @RequestParam(required = false) String statuses, @RequestParam(required = false) String province,
+            @RequestParam(required = false) String statuses, @RequestParam(required = false) String regions,
+            @RequestParam(required = false) String provinces,
             @RequestParam(required = false) LocalDate endDateFrom, @RequestParam(required = false) LocalDate endDateTo,
             @RequestParam(required = false) Boolean hasPropertyCert, @RequestParam(required = false) Boolean hasInvoice,
             @RequestParam(required = false) Boolean hasPhotos, @RequestParam(required = false) String contactPersonKeyword,
@@ -78,8 +79,14 @@ public class WarehouseController {
 
         Pageable p = PageRequest.of(page, size, Sort.by("endDate"));
         WarehouseFilterDTO filter = new WarehouseFilterDTO(
-                keyword, parseEnums(types, WarehouseType.class), parseEnums(statuses, WarehouseStatus.class),
-                province, endDateFrom, endDateTo, hasPropertyCert, hasInvoice, hasPhotos, contactPersonKeyword
+                keyword,
+                parseEnums(types, WarehouseType.class),
+                parseEnums(statuses, WarehouseStatus.class),
+                parseCsv(regions),
+                parseCsv(provinces),
+                endDateFrom, endDateTo,
+                hasPropertyCert, hasInvoice, hasPhotos,
+                contactPersonKeyword
         );
         Page<WarehouseEntity> result = filterService.filter(filter, p);
         return ResponseEntity.ok(ApiResponse.success(Map.of(

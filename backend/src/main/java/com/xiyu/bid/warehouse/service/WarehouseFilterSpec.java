@@ -43,9 +43,14 @@ public class WarehouseFilterSpec {
                 predicates.add(root.get("status").in(c.statuses()));
             }
 
-            // 仓库所在省份（单值）
-            if (c.province() != null && !c.province().isBlank()) {
-                predicates.add(cb.equal(root.get("province"), c.province()));
+            // 所属区域（多选 IN）
+            if (!c.regions().isEmpty()) {
+                predicates.add(root.get("region").in(c.regions()));
+            }
+
+            // 仓库所在省份（多选 IN）
+            if (!c.provinces().isEmpty()) {
+                predicates.add(root.get("province").in(c.provinces()));
             }
 
             // 结束时间范围

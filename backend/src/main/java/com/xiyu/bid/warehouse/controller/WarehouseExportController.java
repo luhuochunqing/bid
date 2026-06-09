@@ -3,6 +3,8 @@ package com.xiyu.bid.warehouse.controller;
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.warehouse.application.WarehouseExportAppService;
+import com.xiyu.bid.warehouse.application.WarehouseLedgerExportAppService;
+import com.xiyu.bid.warehouse.domain.WarehouseLedgerExportPolicy.Section;
 import com.xiyu.bid.warehouse.dto.WarehouseFilterDTO;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskEntity;
 import lombok.RequiredArgsConstructor;
@@ -25,9 +27,11 @@ import org.springframework.web.bind.annotation.RestController;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 仓库台账导出控制器 — 独立的导出相关端点，避免 WarehouseController 超行。

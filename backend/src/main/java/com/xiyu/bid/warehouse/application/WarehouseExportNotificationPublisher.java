@@ -53,7 +53,8 @@ public class WarehouseExportNotificationPublisher {
         if (filterDTO.keyword() != null && !filterDTO.keyword().isBlank()) tags.add("关键词:" + filterDTO.keyword());
         if (filterDTO.types() != null && !filterDTO.types().isEmpty()) tags.add("类型:" + filterDTO.types());
         if (filterDTO.statuses() != null && !filterDTO.statuses().isEmpty()) tags.add("状态:" + filterDTO.statuses());
-        if (filterDTO.province() != null) tags.add("省份:" + filterDTO.province());
+        if (filterDTO.regions() != null && !filterDTO.regions().isEmpty()) tags.add("区域:" + filterDTO.regions());
+        if (filterDTO.provinces() != null && !filterDTO.provinces().isEmpty()) tags.add("省份:" + filterDTO.provinces());
         if (filterDTO.endDateFrom() != null || filterDTO.endDateTo() != null) {
             tags.add("到期:" + (filterDTO.endDateFrom() == null ? "..." : filterDTO.endDateFrom())
                     + " ~ " + (filterDTO.endDateTo() == null ? "..." : filterDTO.endDateTo()));

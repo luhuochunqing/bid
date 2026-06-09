@@ -34,6 +34,19 @@ public class WarehouseLogService {
         oplogRepo.save(logEntity);
     }
 
+    /**
+     * 台账导出日志：每条仓库一行，描述包含导出范围与总条数。
+     */
+    @Transactional
+    public void logExportAction(List<WarehouseEntity> warehouses, String scope, int totalCount,
+                                String operatorUsername, Long operatorId) {
+        String description = String.format("台账导出 — 范围: %s, 共 %d 条", scope, totalCount);
+        for (WarehouseEntity wh : warehouses) {
+            saveLog(wh, WarehouseActionType.EXPORT, "台账导出", null, null,
+                    description, operatorUsername, operatorId);
+        }
+    }
+
     @Transactional
     public void logEntityChanges(WarehouseEntity oldVal, WarehouseEntity newVal, String operatorUsername, Long operatorId) {
         if (!Objects.equals(oldVal.getName(), newVal.getName())) {

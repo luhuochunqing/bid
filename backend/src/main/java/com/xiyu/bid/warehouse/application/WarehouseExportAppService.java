@@ -4,12 +4,14 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.warehouse.domain.WarehouseExportPolicy;
 import com.xiyu.bid.warehouse.dto.WarehouseFilterDTO;
+import com.xiyu.bid.warehouse.infrastructure.WarehouseAttachmentEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseAttachmentRepository;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseExcelWriter;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskEntity.ExportStatus;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskRepository;
+import com.xiyu.bid.warehouse.infrastructure.WarehouseExportZipBuilder;
 import com.xiyu.bid.warehouse.service.WarehouseFilterService;
 import com.xiyu.bid.warehouse.service.WarehouseLogService;
 import lombok.RequiredArgsConstructor;
@@ -41,7 +43,7 @@ import java.util.stream.Collectors;
 public class WarehouseExportAppService {
 
     private static final DateTimeFormatter TS_FMT = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
-    private static final Duration FILE_TTL = Duration.ofHours(24);
+    private static final Duration FILE_TTL = Duration.ofDays(7);
 
     private final WarehouseExportTaskRepository exportTaskRepo;
     private final WarehouseFilterService filterService;
@@ -131,6 +133,45 @@ public class WarehouseExportAppService {
         });
     }
 
+    private Map<Long, List<WarehouseAttachmentEntity>> loadAttachments(List<WarehouseEntity> entities) {
+        if (entities.isEmpty()) return Map.of();
+        List<Long> ids = entities.stream().map(WarehouseEntity::getId).toList();
+        return attachmentRepo.findByWarehouseIdIn(ids).stream()
+                .collect(Collectors.groupingBy(a -> a.getWarehouse().getId()));
+    }
+
+    private String saveZip(Long taskId, WarehouseExportZipBuilder.ZipBuildResult zip) throws IOException {
+        Path dir = Paths.get(exportRoot);
+        Files.createDirectories(dir);
+        String ts = LocalDateTime.now().format(TS_FMT);
+        String filename = "warehouse_export_" + taskId + "_" + ts + ".zip";
+        Path target = dir.resolve(filename);
+        Files.move(zip.zipFile(), target);
+        return target.toString();
+    }
+
+    private void completeTask(Long taskId, Long operatorId, String operatorUsername,
+                              List<WarehouseEntity> entities, String filePath,
+                              WarehouseExportZipBuilder.ZipBuildResult zip,
+                              WarehouseFilterDTO filterDTO, String scope, long startMs) {
+        long elapsedMs = System.currentTimeMillis() - startMs;
+        int totalCount = entities.size();
+        LocalDateTime now = LocalDateTime.now();
+        WarehouseExportTaskEntity task = exportTaskRepo.findById(taskId).orElseThrow();
+        task.setStatus(ExportStatus.COMPLETED);
+        task.setTotalCount(totalCount);
+        task.setStoredFilePath(filePath);
+        task.setDownloadUrl("/api/knowledge/warehouses/export/tasks/" + taskId + "/download");
+        task.setExpiresAt(now.plus(FILE_TTL));
+        task.setCompletedAt(now);
+        task.setResultSummary(exportPublisher.buildResultSummaryJson(totalCount, zip, filterDTO, elapsedMs));
+        exportTaskRepo.save(task);
+        exportPublisher.publish(task, totalCount, zip, filterDTO, elapsedMs, TS_FMT);
+        if (operatorUsername != null) {
+            warehouseLogService.logExportAction(entities, scope, totalCount, operatorUsername, operatorId);
+        }
+    }
+
     private WarehouseExportTaskEntity createTask(String filterSnapshot, Long operatorId) {
         WarehouseExportTaskEntity task = WarehouseExportTaskEntity.builder()
                 .status(ExportStatus.PENDING)
@@ -186,16 +227,6 @@ public class WarehouseExportAppService {
             throw new IllegalStateException("导出文件已被清理");
         }
         return Files.readAllBytes(path);
-    }
-
-    private String saveFile(Long taskId, byte[] bytes) throws IOException {
-        Path dir = Paths.get(exportRoot);
-        Files.createDirectories(dir);
-        String ts = LocalDateTime.now().format(TS_FMT);
-        String filename = "warehouse_" + taskId + "_" + ts + ".xlsx";
-        Path filePath = dir.resolve(filename);
-        Files.write(filePath, bytes);
-        return filePath.toString();
     }
 
     private void failTask(Long taskId, String reason) {
