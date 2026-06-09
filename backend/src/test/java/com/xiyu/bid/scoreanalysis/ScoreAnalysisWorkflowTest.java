@@ -32,8 +32,6 @@ class ScoreAnalysisWorkflowTest extends AbstractScoreAnalysisServiceTest {
     @Test
     @DisplayName("应该成功创建评分分析")
     void shouldCreateAnalysisSuccessfully() {
-        when(calculationPolicy.calculateWeightedScoreFromDTOs(any())).thenReturn(new BigDecimal("85"));
-        when(calculationPolicy.determineRiskLevel(85)).thenReturn(RiskLevel.LOW);
         when(scoreAnalysisRepository.save(any(ScoreAnalysis.class))).thenReturn(testAnalysis);
         when(queryService.convertToDTO(any())).thenReturn(convertToDTO(testAnalysis));
 
@@ -49,8 +47,6 @@ class ScoreAnalysisWorkflowTest extends AbstractScoreAnalysisServiceTest {
     @Test
     @DisplayName("创建分析时应该记录审计日志")
     void shouldLogAuditWhenCreatingAnalysis() {
-        when(calculationPolicy.calculateWeightedScoreFromDTOs(any())).thenReturn(new BigDecimal("85"));
-        when(calculationPolicy.determineRiskLevel(85)).thenReturn(RiskLevel.LOW);
         when(scoreAnalysisRepository.save(any(ScoreAnalysis.class))).thenReturn(testAnalysis);
 
         scoreAnalysisService.createAnalysis(createRequest);
@@ -66,15 +62,13 @@ class ScoreAnalysisWorkflowTest extends AbstractScoreAnalysisServiceTest {
         );
         when(scoreAnalysisRepository.findFirstByProjectIdOrderByAnalysisDateDesc(100L)).thenReturn(Optional.of(testAnalysis));
         when(dimensionScoreRepository.findByAnalysisId(1L)).thenReturn(dimensions);
-        when(calculationPolicy.calculateWeightedScoreFromEntities(any())).thenReturn(new BigDecimal("84"));
-        when(calculationPolicy.determineRiskLevel(84)).thenReturn(RiskLevel.LOW);
         when(scoreAnalysisRepository.save(any(ScoreAnalysis.class))).thenReturn(testAnalysis);
 
         ApiResponse<Integer> response = scoreAnalysisService.calculateOverallScore(100L);
 
         assertNotNull(response);
         assertTrue(response.isSuccess());
-        assertEquals(84, response.getData());
+        assertEquals(90, response.getData());
     }
 
     @Test
@@ -150,8 +144,6 @@ class ScoreAnalysisWorkflowTest extends AbstractScoreAnalysisServiceTest {
                 .riskLevel(RiskLevel.HIGH)
                 .build();
         
-        when(calculationPolicy.calculateWeightedScoreFromDTOs(any())).thenReturn(BigDecimal.ZERO);
-        when(calculationPolicy.determineRiskLevel(0)).thenReturn(RiskLevel.HIGH);
         when(scoreAnalysisRepository.save(any(ScoreAnalysis.class))).thenReturn(zeroScoreAnalysis);
         when(queryService.convertToDTO(any())).thenReturn(convertToDTO(zeroScoreAnalysis));
 
