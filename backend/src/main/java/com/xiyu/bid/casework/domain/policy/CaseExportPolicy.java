@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 public class CaseExportPolicy {
 
     private static final int MAX_EXPORT_BATCH_SIZE = 500;
-    private static final DateTimeFormatter ZIP_NAME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmm");
+    private static final DateTimeFormatter ZIP_NAME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     public record ExportValidationResult(boolean valid, String errorMessage) {
         public static ExportValidationResult success() {
