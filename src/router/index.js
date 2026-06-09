@@ -97,7 +97,7 @@ const routes = [
         path: 'ai-center',
         name: 'AICenter',
         component: () => import('@/views/AI/Center.vue'),
-        meta: { title: 'AI 智能中心', icon: 'MagicStick' }
+        meta: { title: 'AI能力中心', icon: 'MagicStick' }
       },
       {
         path: 'ai-center/solution-reuse',
@@ -139,26 +139,26 @@ const routes = [
             path: 'archive',
             name: 'ProjectArchive',
             component: () => import('@/views/Knowledge/views/ProjectArchive.vue'),
-            meta: { title: '档案台账' }
+            meta: { title: '项目档案' }
           },
           {
             path: 'qualification',
             name: 'Qualification',
             alias: '/knowledge/qualifications',
             component: () => import('@/views/Knowledge/Qualification.vue'),
-            meta: { title: '资质库', permissionKeys: ['knowledge', 'knowledge-qualification'] }
+            meta: { title: '资质证书', permissionKeys: ['knowledge', 'knowledge-qualification'] }
           },
           {
             path: 'personnel',
             name: 'Personnel',
             component: () => import('@/views/Knowledge/Personnel.vue'),
-            meta: { title: '人员库' }
+            meta: { title: '人员证书' }
           },
           {
             path: 'performance',
             name: 'Performance',
             component: () => import('@/views/Knowledge/Performance.vue'),
-            meta: { title: '业绩库' }
+            meta: { title: '业绩管理' }
           },
           {
             path: 'brand-auth',
@@ -210,7 +210,7 @@ const routes = [
         path: 'resource/ca-management',
         name: 'CAManagement',
         component: () => import('@/views/Resource/CAManagement.vue'),
-        meta: { title: 'CA 管理', requiresAuth: true }
+        meta: { title: 'CA信息管理', requiresAuth: true }
       },
       {
         path: 'resource/contract-borrow',
@@ -263,7 +263,7 @@ const routes = [
         path: 'operation-logs',
         name: 'OperationLogs',
         component: () => import('@/views/System/OperationLogPage.vue'),
-        meta: { title: '操作日志', showBack: true }
+        meta: { title: '日志说明', showBack: true }
       },
       {
         path: 'audit-logs',
@@ -300,6 +300,24 @@ const routes = [
         name: 'AlertHistory',
         component: () => import('@/views/System/AlertHistory.vue'),
         meta: { title: '告警历史', permissionKeys: ['settings'], showBack: true }
+      },
+      {
+        path: 'settings/ai-models',
+        name: 'AiModels',
+        component: () => import('@/views/System/AiModelSettings.vue'),
+        meta: { title: 'AI能力模型', permissionKeys: ['settings'], showBack: true }
+      },
+      {
+        path: 'settings/messages-tasks',
+        name: 'MessagesTasks',
+        component: () => import('@/views/System/MessagesTasks.vue'),
+        meta: { title: '消息与任务', permissionKeys: ['settings'], showBack: true }
+      },
+      {
+        path: 'settings/integration',
+        name: 'SystemIntegration',
+        component: () => import('@/views/System/SystemIntegration.vue'),
+        meta: { title: '系统集成', permissionKeys: ['settings'], showBack: true }
       },
       {
         path: 'inbox',

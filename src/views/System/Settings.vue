@@ -65,17 +65,6 @@
           :save-handler="saveUserOrganization"
         />
       </el-tab-pane>
-      <el-tab-pane label="AI模型" name="ai-models">
-        <AiModelSettingsPanel
-          :loading="aiLoading"
-          :saving="aiSaving"
-          :testing-provider="testingProvider"
-          v-model:system-config="systemConfig"
-          v-model:ai-model-config="aiModelConfig"
-          :save="saveAiSettings"
-          :test-provider="testProvider"
-        />
-      </el-tab-pane>
       <el-tab-pane label="投标匹配评分" name="bid-match-scoring">
         <BidMatchScoringSettingsPanel
           :loading="bidScoringLoading"
@@ -94,9 +83,6 @@
           :rule-type-options="ruleTypeOptions"
         />
       </el-tab-pane>
-      <el-tab-pane label="系统集成" name="integration">
-        <SystemIntegrationPanel />
-      </el-tab-pane>
       <el-tab-pane v-if="canViewAuditLogs" label="审计日志" name="audit">
         <AuditLogPanel mode="audit" />
       </el-tab-pane>
@@ -109,21 +95,18 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import AiModelSettingsPanel from './settings/AiModelSettingsPanel.vue'
 import BidMatchScoringSettingsPanel from './settings/BidMatchScoringSettingsPanel.vue'
 import DepartmentTreePanel from './settings/DepartmentTreePanel.vue'
 import InterfacePermissionMatrixPanel from './settings/InterfacePermissionMatrixPanel.vue'
 import RoleManagementPanel from './settings/RoleManagementPanel.vue'
 import UserOrganizationPanel from './settings/UserOrganizationPanel.vue'
 import AuditLogPanel from './settings/AuditLogPanel.vue'
-import SystemIntegrationPanel from './settings/SystemIntegrationPanel.vue'
 import TaskStatusDictPanel from './settings/TaskStatusDictPanel.vue'
 import TaskExtendedFieldPanel from './settings/TaskExtendedFieldPanel.vue'
 import SystemInfoPanel from './settings/SystemInfoPanel.vue'
 import { useOrganizationSettings } from './settings/useOrganizationSettings'
-import { useAiModelSettings } from './settings/useAiModelSettings'
 import {
   EVIDENCE_KEY_OPTIONS,
   RULE_TYPE_OPTIONS,
@@ -131,6 +114,7 @@ import {
 } from './settings/useBidMatchScoringSettings'
 
 const route = useRoute()
+const router = useRouter()
 const userStore = useUserStore()
 const canViewAuditLogs = computed(() => userStore.hasPermission('audit-logs') || userStore.hasPermission('all'))
 const isAdmin = computed(() => userStore.hasPermission('all'))
@@ -141,9 +125,7 @@ const settingsTabNames = new Set([
   'task-status-dict',
   'task-extended-fields',
   'users',
-  'ai-models',
   'bid-match-scoring',
-  'integration',
   'audit',
   'system-info'
 ])
@@ -172,17 +154,6 @@ const {
 } = useOrganizationSettings()
 
 const {
-  loading: aiLoading,
-  saving: aiSaving,
-  testingProvider,
-  systemConfig,
-  aiModelConfig,
-  load: loadAiSettings,
-  save: saveAiSettings,
-  testProvider
-} = useAiModelSettings()
-
-const {
   loading: bidScoringLoading,
   saving: bidScoringSaving,
   activating: bidScoringActivating,
@@ -198,14 +169,13 @@ const {
   removeRule: removeBidScoringRule,
 } = useBidMatchScoringSettings()
 
-const pageLoading = computed(() => loading.value || aiLoading.value || bidScoringLoading.value)
+const pageLoading = computed(() => loading.value || bidScoringLoading.value)
 const evidenceKeyOptions = EVIDENCE_KEY_OPTIONS
 const ruleTypeOptions = RULE_TYPE_OPTIONS
 
 const loadAll = async () => {
   const results = await Promise.allSettled([
     loadOrganizationSettings(),
-    loadAiSettings(),
     loadBidScoringSettings()
   ])
   for (const result of results) {
@@ -235,9 +205,15 @@ watch(isAdmin, (allowed) => {
 
 onMounted(loadAll)
 
-watch(() => route.query.tab, () => {
+const TAB_REDIRECT_MAP = { 'ai-models': '/settings/ai-models', 'integration': '/settings/integration' }
+
+watch(() => route.query.tab, (tab) => {
+  if (typeof tab === 'string' && TAB_REDIRECT_MAP[tab]) {
+    router.replace(TAB_REDIRECT_MAP[tab])
+    return
+  }
   activeTab.value = getRouteTab()
-})
+}, { immediate: true })
 </script>
 
 <style scoped>

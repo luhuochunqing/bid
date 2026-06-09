@@ -1,4 +1,4 @@
-export const hiddenApiMenuNames = new Set(['CustomerOpportunityCenter', 'OperationLogs', 'AuditLogs'])
+export const hiddenApiMenuNames = new Set(['CustomerOpportunityCenter', 'AuditLogs', 'BAR', 'BAR_SiteList', 'Expense', 'ContractBorrow', 'BidResult', 'OrganizationManagement', 'AlertRules', 'AlertHistory', 'Template'])
 
 export const sidebarMenuConfig = [
   {
@@ -31,27 +31,7 @@ export const sidebarMenuConfig = [
       {
         path: '/knowledge/archive',
         name: 'ProjectArchive',
-        meta: { title: '档案台账', permissionKeys: ['knowledge', 'knowledge-archive'] }
-      },
-      {
-        path: '/knowledge/qualification',
-        name: 'Qualification',
-        meta: { title: '资质列表', permissionKeys: ['knowledge', 'knowledge-qualification'] }
-      },
-      {
-        path: '/knowledge/personnel',
-        name: 'Personnel',
-        meta: { title: '人员库', permissionKeys: ['knowledge', 'knowledge-personnel'] }
-      },
-      {
-        path: '/knowledge/performance',
-        name: 'Performance',
-        meta: { title: '业绩库', permissionKeys: ['knowledge', 'knowledge-performance'] }
-      },
-      {
-        path: '/knowledge/brand-auth',
-        name: 'BrandAuth',
-        meta: { title: '品牌授权', permissionKeys: ['knowledge', 'knowledge-brand-auth'] }
+        meta: { title: '项目档案', permissionKeys: ['knowledge', 'knowledge-archive'] }
       },
       {
         path: '/knowledge/case',
@@ -59,9 +39,29 @@ export const sidebarMenuConfig = [
         meta: { title: '案例库', permissionKeys: ['knowledge', 'knowledge-case'] }
       },
       {
-        path: '/knowledge/template',
-        name: 'Template',
-        meta: { title: '模板库', permissionKeys: ['knowledge', 'knowledge-template'] }
+        path: '/knowledge/qualification',
+        name: 'Qualification',
+        meta: { title: '资质证书', permissionKeys: ['knowledge', 'knowledge-qualification'] }
+      },
+      {
+        path: '/knowledge/personnel',
+        name: 'Personnel',
+        meta: { title: '人员证书', permissionKeys: ['knowledge', 'knowledge-personnel'] }
+      },
+      {
+        path: '/knowledge/warehouse',
+        name: 'Warehouse',
+        meta: { title: '仓库信息', permissionKeys: ['knowledge', 'knowledge-warehouse'] }
+      },
+      {
+        path: '/knowledge/performance',
+        name: 'Performance',
+        meta: { title: '业绩管理', permissionKeys: ['knowledge', 'knowledge-performance'] }
+      },
+      {
+        path: '/knowledge/brand-auth',
+        name: 'BrandAuth',
+        meta: { title: '品牌授权', permissionKeys: ['knowledge', 'knowledge-brand-auth'] }
       }
     ]
   },
@@ -71,24 +71,9 @@ export const sidebarMenuConfig = [
     meta: { title: '资源管理', icon: 'resource', permissionKeys: ['resource'] },
     children: [
       {
-        path: '/resource/bar',
-        name: 'BAR',
-        meta: { title: '资产台账', permissionKeys: ['resource', 'resource-bar'] }
-      },
-      {
-        path: '/resource/bar/sites',
-        name: 'BAR_SiteList',
-        meta: { title: '站点台账', permissionKeys: ['resource', 'resource-bar'] }
-      },
-      {
         path: '/resource/margin',
         name: 'MarginManagement',
         meta: { title: '保证金管理', permissionKeys: ['resource', 'resource-expense'] }
-      },
-      {
-        path: '/resource/expense',
-        name: 'Expense',
-        meta: { title: '费用管理', permissionKeys: ['resource', 'resource-expense'] }
       },
       {
         path: '/resource/account',
@@ -98,39 +83,14 @@ export const sidebarMenuConfig = [
       {
         path: '/resource/ca-management',
         name: 'CAManagement',
-        meta: { title: 'CA 管理', permissionKeys: ['resource', 'resource-ca'] }
-      },
-      {
-        path: '/resource/contract-borrow',
-        name: 'ContractBorrow',
-        meta: { title: '合同借阅', permissionKeys: ['resource'] }
-      },
-      {
-        path: '/resource/bid-result',
-        name: 'BidResult',
-        meta: { title: '结果闭环', permissionKeys: ['resource'] }
+        meta: { title: 'CA信息管理', permissionKeys: ['resource', 'resource-ca'] }
       }
     ]
-  },
-  {
-    path: '/ai-center',
-    name: 'AICenter',
-    meta: { title: 'AI 智能中心', icon: 'ai-center', permissionKeys: ['ai-center'] }
   },
   {
     path: '/analytics/dashboard',
     name: 'AnalyticsDashboard',
     meta: { title: '数据分析', icon: 'analytics', permissionKeys: ['analytics', 'analytics-dashboard'] }
-  },
-  {
-    path: '/operation-logs',
-    name: 'OperationLogs',
-    meta: { title: '操作日志', icon: 'history', permissionKeys: ['operation-logs'] }
-  },
-  {
-    path: '/audit-logs',
-    name: 'AuditLogs',
-    meta: { title: '审计日志', icon: 'lock', permissionKeys: ['audit-logs'] }
   },
   {
     path: '/settings',
@@ -143,24 +103,34 @@ export const sidebarMenuConfig = [
         meta: { title: '组织设置', permissionKeys: ['settings'] }
       },
       {
-        path: '/settings/organization',
-        name: 'OrganizationManagement',
-        meta: { title: '组织架构', permissionKeys: ['settings'] }
-      },
-      {
         path: '/settings/workflow-forms',
         name: 'WorkflowFormDesigner',
         meta: { title: '流程表单配置', permissionKeys: ['settings', 'settings-workflow-forms'] }
       },
       {
-        path: '/settings/alert-rules',
-        name: 'AlertRules',
-        meta: { title: '告警规则', permissionKeys: ['settings'] }
+        path: '/settings/messages-tasks',
+        name: 'MessagesTasks',
+        meta: { title: '消息与任务', permissionKeys: ['settings', 'settings-messages-tasks'] }
       },
       {
-        path: '/settings/alert-history',
-        name: 'AlertHistory',
-        meta: { title: '告警历史', permissionKeys: ['settings'] }
+        path: '/settings/ai-models',
+        name: 'AiModels',
+        meta: { title: 'AI能力模型', permissionKeys: ['settings', 'settings-ai-models'] }
+      },
+      {
+        path: '/ai-center',
+        name: 'AICenter',
+        meta: { title: 'AI能力中心', permissionKeys: ['ai-center'] }
+      },
+      {
+        path: '/settings/integration',
+        name: 'SystemIntegration',
+        meta: { title: '系统集成', permissionKeys: ['settings', 'settings-integration'] }
+      },
+      {
+        path: '/operation-logs',
+        name: 'OperationLogs',
+        meta: { title: '日志说明', permissionKeys: ['operation-logs'] }
       }
     ]
   }
