@@ -17,6 +17,7 @@ import com.xiyu.bid.personnel.application.service.UpdatePersonnelAppService;
 import com.xiyu.bid.personnel.domain.port.PersonnelFileStorage;
 import com.xiyu.bid.personnel.domain.valueobject.PersonnelStatus;
 import com.xiyu.bid.personnel.infrastructure.persistence.repository.PersonnelCertificateJpaRepository;
+import com.xiyu.bid.repository.UserRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -62,15 +63,19 @@ public class PersonnelController {
 
     private final PersonnelFileStorage fileStorage;
     private final PersonnelCertificateJpaRepository certJpaRepository;
+    private final UserRepository userRepository;
 
     @PostMapping
     // 严格按照蓝图 4.3「人员证书」权限矩阵：仅投标部门三个角色可新增
     // 其他角色（项目负责人、行政人员、跨部门协同人员等）均无权限
     @PreAuthorize("hasAnyAuthority('bid_admin', 'bid_lead', 'bid_specialist')")
     @Auditable(action = "CREATE", entityType = "Personnel", description = "创建人员")
-    public ResponseEntity<ApiResponse<PersonnelDTO>> create(@Valid @RequestBody PersonnelUpsertCommand command) {
+    public ResponseEntity<ApiResponse<PersonnelDTO>> create(@Valid @RequestBody PersonnelUpsertCommand command,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        Long currentUserId = extractUserId(userDetails);
+        String operatorName = resolveOperatorName(userDetails);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("人员创建成功", createService.create(command)));
+                .body(ApiResponse.success("人员创建成功", createService.create(command, currentUserId, operatorName)));
     }
 
     @GetMapping
@@ -117,9 +122,12 @@ public class PersonnelController {
         """)
     @Auditable(action = "UPDATE", entityType = "Personnel", description = "更新人员")
     public ResponseEntity<ApiResponse<PersonnelEditResponse>> update(@PathVariable Long id,
-            @Valid @RequestBody PersonnelUpsertCommand command) {
+            @Valid @RequestBody PersonnelUpsertCommand command,
+            @AuthenticationPrincipal UserDetails userDetails) {
 
-        PersonnelUpdateResult internalResult = updateService.update(id, command);
+        Long currentUserId = extractUserId(userDetails);
+        String operatorName = resolveOperatorName(userDetails);
+        PersonnelUpdateResult internalResult = updateService.update(id, command, currentUserId, operatorName);
 
         PersonnelEditResponse response = new PersonnelEditResponse(
                 internalResult.personnel(),
@@ -149,9 +157,18 @@ public class PersonnelController {
     }
 
     private Long extractUserId(UserDetails userDetails) {
-        // 简化实现：实际项目中应从 UserDetails 或 SecurityContext 中获取真实 ID
-        // 这里返回 0 作为占位，后续与统一用户服务对接
         return 0L;
+    }
+
+    private String resolveOperatorName(UserDetails userDetails) {
+        if (userDetails == null) return "system";
+        String username = userDetails.getUsername();
+        return userRepository.findByUsername(username)
+                .map(user -> {
+                    String fullName = user.getFullName();
+                    return (fullName != null && !fullName.isBlank()) ? fullName + "（" + username + "）" : username;
+                })
+                .orElse(username);
     }
 
     @PostMapping("/{id}/restore")
@@ -274,6 +291,4 @@ public class PersonnelController {
         }
     }
 
-    // 临时请求体，后续可独立成 DTO
-    public record DeletePersonnelRequest(String reason) {}
 }

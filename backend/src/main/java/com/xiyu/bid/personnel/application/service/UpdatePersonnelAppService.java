@@ -31,7 +31,7 @@ public class UpdatePersonnelAppService {
     private final PersonnelOperationLogService logService;
 
     @Transactional
-    public PersonnelUpdateResult update(Long id, PersonnelUpsertCommand command) {
+    public PersonnelUpdateResult update(Long id, PersonnelUpsertCommand command, Long operatorId, String operatorName) {
         Personnel existing = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Personnel", String.valueOf(id)));
 
@@ -91,8 +91,8 @@ public class UpdatePersonnelAppService {
         if (!changes.isEmpty()) {
             PersonnelOperationLog log = PersonnelOperationLog.create(
                     saved.id(),
-                    0L,
-                    "system",
+                    operatorId != null ? operatorId : 0L,
+                    operatorName != null && !operatorName.isBlank() ? operatorName : "system",
                     PersonnelOperationLog.OperationType.UPDATE,
                     changes.stream()
                             .map(c -> new PersonnelOperationLog.ChangeDetail("field", "", c))

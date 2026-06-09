@@ -254,7 +254,7 @@
               <template #default="{row}">{{ row.createdAt ? row.createdAt.replace('T', ' ').slice(0, 19) : '-' }}</template>
             </el-table-column>
             <el-table-column label="操作人" width="180">
-              <template #default="{row}">{{ row.operatorName }}（{{ row.operatorId || '-' }}）</template>
+              <template #default="{row}">{{ row.operatorName || '-' }}</template>
             </el-table-column>
             <el-table-column prop="operationType" label="类型" width="120" />
             <el-table-column label="变更摘要" min-width="200">

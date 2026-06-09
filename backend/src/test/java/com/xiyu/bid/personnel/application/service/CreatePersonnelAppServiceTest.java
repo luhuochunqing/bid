@@ -67,7 +67,7 @@ class CreatePersonnelAppServiceTest {
                 )
         );
 
-        PersonnelDTO result = service.create(command);
+        PersonnelDTO result = service.create(command, 1L, "张三（EMP001）");
 
         assertThat(result.name()).isEqualTo("张三");
         assertThat(result.employeeNumber()).isEqualTo("EMP001");
@@ -87,7 +87,7 @@ class CreatePersonnelAppServiceTest {
                 List.of(), List.of()
         );
 
-        assertThatThrownBy(() -> service.create(command))
+        assertThatThrownBy(() -> service.create(command, 1L, "张三（EMP001）"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("该工号已存在");
 
@@ -129,7 +129,7 @@ class CreatePersonnelAppServiceTest {
                 )
         );
 
-        PersonnelDTO result = service.create(command);
+        PersonnelDTO result = service.create(command, 1L, "李四（EMP002）");
 
         assertThat(result.certificates()).hasSize(1);
         assertThat(result.educations()).hasSize(2);

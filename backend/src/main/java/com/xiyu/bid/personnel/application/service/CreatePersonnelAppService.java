@@ -22,7 +22,7 @@ public class CreatePersonnelAppService {
     private final PersonnelOperationLogService logService;
 
     @Transactional
-    public PersonnelDTO create(PersonnelUpsertCommand command) {
+    public PersonnelDTO create(PersonnelUpsertCommand command, Long operatorId, String operatorName) {
         if (repository.existsByEmployeeNumber(command.employeeNumber(), null)) {
             // 精确匹配蓝图 4.3 "新增证书" 校验规则
             throw new IllegalArgumentException("该工号已存在");
@@ -60,8 +60,8 @@ public class CreatePersonnelAppService {
         // 记录操作日志（蓝图要求："新增人员档案 - {工号} {姓名}"）
         PersonnelOperationLog log = PersonnelOperationLog.create(
                 saved.id(),
-                0L,
-                "system",
+                operatorId != null ? operatorId : 0L,
+                operatorName != null && !operatorName.isBlank() ? operatorName : "system",
                 PersonnelOperationLog.OperationType.CREATE,
                 java.util.List.of()
         );
