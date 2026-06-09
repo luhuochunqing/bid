@@ -138,7 +138,7 @@ main_forward() {
       return 0
     fi
 
-    # init 分支：fetch 最新但不自动 rebase
+    # init 分支：fetch 最新并自动 ff-only 同步（无分歧时）
     if (( is_init_branch )); then
       local origin_main_sha local_head_sha
       origin_main_sha="$(git rev-parse "origin/main" 2>/dev/null)" || origin_main_sha=""
@@ -151,11 +151,27 @@ main_forward() {
         behind=$(git rev-list --count "HEAD..origin/main" 2>/dev/null || echo "0")
         ahead=$(git rev-list --count "origin/main..HEAD" 2>/dev/null || echo "0")
         if [[ "$ahead" == "0" && "$behind" != "0" ]]; then
-          info "main-forward: init branch is $behind commits behind origin/main"
-          info "main-forward:   init 分支建议定期同步以获取最新脚本和配置"
-          info "main-forward:   手动同步命令:"
-          info "main-forward:     git fetch origin main"
-          info "main-forward:     git merge origin/main --ff-only"
+          info "main-forward: init branch is $behind commits behind origin/main, auto ff-only syncing"
+          if git merge origin/main --ff-only 2>&1; then
+            info "main-forward: init branch ff-only sync completed successfully"
+            # 自动 push init 分支到远端，避免 unpushed 积累
+            local tracking_branch
+            tracking_branch="$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null)" || tracking_branch=""
+            if [[ -n "$tracking_branch" ]]; then
+              info "main-forward: pushing init branch to remote..."
+              if PRE_PUSH_GATE=0 git push origin HEAD:"$(git rev-parse --abbrev-ref HEAD)" 2>&1; then
+                info "main-forward: init branch pushed successfully"
+              else
+                warn "main-forward: failed to push init branch — you may need to push manually"
+              fi
+            else
+              info "main-forward: no upstream tracking branch, skipping auto-push"
+              info "main-forward:   手动推送: git push origin $(git rev-parse --abbrev-ref HEAD)"
+            fi
+          else
+            warn "main-forward: ff-only sync failed — init branch may have diverged"
+            warn "main-forward:   手动处理: git fetch && git merge origin/main"
+          fi
         else
           info "main-forward: init branch has diverged from origin/main (behind=$behind, ahead=$ahead)"
           info "main-forward:   如需同步，建议手动处理: git fetch && git merge origin/main"
