@@ -75,15 +75,35 @@ public class CrmController {
         return ResponseEntity.ok(ApiResponse.error(response.msg()));
     }
 
+    /**
+     * 发送消息（企微+站内信）。
+     * 代理客户 POST /common/sendMessage。
+     *
+     * 请求体：
+     * {
+     *   "recipientNos": ["工号"],
+     *   "title": "标题",
+     *   "content": "内容",
+     *   "flag": 1
+     * }
+     */
     @PostMapping("/messages")
-    public ResponseEntity<ApiResponse<Void>> sendMessages(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<ApiResponse<Void>> sendMessage(@RequestBody Map<String, Object> body) {
         @SuppressWarnings("unchecked")
-        var messages = (List<Map<String, Object>>) body.get("messages");
-        var response = messageService.sendMessages(messages);
-        if (response.success()) {
-            return ResponseEntity.ok(ApiResponse.success("Messages sent", null));
+        var recipientNos = (List<String>) body.get("recipientNos");
+        var title = (String) body.getOrDefault("title", "");
+        var content = (String) body.getOrDefault("content", "");
+        var flag = body.get("flag") instanceof Number n ? n.intValue() : 1;
+
+        if (recipientNos == null || recipientNos.isEmpty()) {
+            return ResponseEntity.ok(ApiResponse.error("recipientNos is required"));
         }
-        return ResponseEntity.ok(ApiResponse.error(response.msg()));
+
+        var response = messageService.sendMessage(recipientNos, title, content, flag);
+        if (response.success()) {
+            return ResponseEntity.ok(ApiResponse.success("消息发送成功", null));
+        }
+        return ResponseEntity.ok(ApiResponse.error("消息发送失败: " + response.msg()));
     }
 
     @PostMapping("/auth/logout")

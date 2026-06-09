@@ -82,7 +82,7 @@ app:
       search-path: ${XIYU_CRM_CUSTOMER_SEARCH_PATH:/customer/search}
       contacts-path: ${XIYU_CRM_CUSTOMER_CONTACTS_PATH:/customer/contacts/batch}
     message:
-      send-path: ${XIYU_CRM_MESSAGE_SEND_PATH:/message/send}
+      send-path: ${XIYU_CRM_MESSAGE_SEND_PATH:/common/sendMessage}
 
 limit:
     # Dev override: higher limits for testing

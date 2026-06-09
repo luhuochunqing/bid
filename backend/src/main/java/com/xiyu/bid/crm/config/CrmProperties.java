@@ -214,6 +214,6 @@ public class CrmProperties {
     @Data
     public static class CrmMessagePaths {
         /** sendPath. */
-        private String sendPath = "/message/send";
+        private String sendPath = "/common/sendMessage";
     }
 }
