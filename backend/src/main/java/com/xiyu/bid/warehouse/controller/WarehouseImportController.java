@@ -107,19 +107,19 @@ public class WarehouseImportController {
     }
 
     private Map<String, Object> toTaskMap(WarehouseImportTaskEntity t) {
-        return Map.of(
-                "id", t.getId(),
-                "status", t.getStatus().name(),
-                "totalRows", t.getTotalRows() != null ? t.getTotalRows() : 0,
-                "validRows", t.getValidRows() != null ? t.getValidRows() : 0,
-                "invalidRows", t.getInvalidRows() != null ? t.getInvalidRows() : 0,
-                "importedRows", t.getImportedRows() != null ? t.getImportedRows() : 0,
-                "errorDetails", t.getErrorDetails() != null ? t.getErrorDetails() : "",
-                "failureReason", t.getFailureReason() != null ? t.getFailureReason() : "",
-                "sourceFilename", t.getSourceFilename() != null ? t.getSourceFilename() : "",
-                "createdByUsername", t.getCreatedByUsername() != null ? t.getCreatedByUsername() : "",
-                "createdAt", formatDt(t.getCreatedAt()),
-                "completedAt", formatDt(t.getCompletedAt())
+        return Map.ofEntries(
+                Map.entry("id", t.getId()),
+                Map.entry("status", t.getStatus().name()),
+                Map.entry("totalRows", t.getTotalRows() != null ? t.getTotalRows() : 0),
+                Map.entry("validRows", t.getValidRows() != null ? t.getValidRows() : 0),
+                Map.entry("invalidRows", t.getInvalidRows() != null ? t.getInvalidRows() : 0),
+                Map.entry("importedRows", t.getImportedRows() != null ? t.getImportedRows() : 0),
+                Map.entry("errorDetails", t.getErrorDetails() != null ? t.getErrorDetails() : ""),
+                Map.entry("failureReason", t.getFailureReason() != null ? t.getFailureReason() : ""),
+                Map.entry("sourceFilename", t.getSourceFilename() != null ? t.getSourceFilename() : ""),
+                Map.entry("createdByUsername", t.getCreatedByUsername() != null ? t.getCreatedByUsername() : ""),
+                Map.entry("createdAt", formatDt(t.getCreatedAt())),
+                Map.entry("completedAt", formatDt(t.getCompletedAt()))
         );
     }
 
