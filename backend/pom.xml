@@ -302,6 +302,16 @@
                         </exclude>
                     </excludes>
                     <includeSystemScope>true</includeSystemScope>
+                    <requiresUnpack>
+                        <dependency>
+                            <groupId>io.jsonwebtoken</groupId>
+                            <artifactId>jjwt-jackson</artifactId>
+                        </dependency>
+                        <dependency>
+                            <groupId>io.jsonwebtoken</groupId>
+                            <artifactId>jjwt-impl</artifactId>
+                        </dependency>
+                    </requiresUnpack>
                 </configuration>
             </plugin>
             <plugin>
