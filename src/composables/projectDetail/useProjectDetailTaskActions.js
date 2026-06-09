@@ -320,6 +320,31 @@ export function useProjectDetailTaskActions(context) {
     message.success('交付物已删除')
   }
 
+  const handleSubmitReview = async (data) => {
+    const task = state.project.value?.tasks?.find((item) => item.id === data.id)
+    if (!task) {
+      message.warning('未找到对应任务')
+      return
+    }
+    const newStatus = data.status || 'REVIEW'
+    task.status = newStatus
+    Object.assign(task, data)
+    pushActivity(`任务"${task.name}"已提交审核`)
+    message.success('任务已提交审核，等待审批')
+    if (!isApiProject.value) {
+      await projectStore.updateTaskStatus(route.params.id, task.id, newStatus)
+      return
+    }
+    try {
+      const result = await projectsApi.updateTaskStatus(route.params.id, task.id, normalizeTaskStatusForApi(newStatus))
+      if (!result?.success) throw new Error(result?.msg || '提交审核失败')
+      Object.assign(task, taskBackendToCard(result.data))
+      message.success('任务已提交审核')
+    } catch (error) {
+      message.error(resolveErrorMessage(error, '提交审核失败'))
+    }
+  }
+
   const handleSubmitToDocument = async () => {
     const tasks = state.project.value?.tasks || []
     if (!tasks.length) return
@@ -354,5 +379,5 @@ export function useProjectDetailTaskActions(context) {
     }
   }
 
-  return { handleGenerateTasks, handleScoreDraftGenerated, handleOpenScoreDraftDecompose, handleOpenTenderBreakdown, handleTenderBreakdownUpload, handleAddTask, handleResetTasks, handleTaskClick, handleSaveTask, handleTaskStatusChange, handleAddDeliverable, handleRemoveDeliverable, handleSubmitToDocument }
+  return { handleGenerateTasks, handleScoreDraftGenerated, handleOpenScoreDraftDecompose, handleOpenTenderBreakdown, handleTenderBreakdownUpload, handleAddTask, handleResetTasks, handleTaskClick, handleSaveTask, handleTaskStatusChange, handleAddDeliverable, handleRemoveDeliverable, handleSubmitReview, handleSubmitToDocument }
 }

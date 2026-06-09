@@ -62,6 +62,7 @@
       @add-deliverable="(...args) => $emit('add-deliverable', ...args)"
       @remove-deliverable="(...args) => $emit('remove-deliverable', ...args)"
       @submit-to-document="$emit('submit-to-document', $event)"
+      @submit-review="$emit('submit-review', $event)"
     />
 
     <el-drawer
