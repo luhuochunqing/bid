@@ -12,12 +12,18 @@
       <el-table :data="records" v-loading="loading" style="width:100%" @row-click="openDrawer"
         :row-class-name="({row}) => newlyCreatedIds.has(row.id) ? 'row-newly-created' : ''">
         <el-table-column type="index" label="序号" width="60" />
-        <el-table-column prop="name" label="仓库名称" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="name" label="仓库名称" min-width="160" show-overflow-tooltip>
+          <template #default="s"><span class="warehouse-name">{{ s.row.name }}</span></template>
+        </el-table-column>
         <el-table-column label="仓库类型" width="80" align="center">
           <template #default="s"><el-tag size="small">{{ s.row.type === 'SELF_OPERATED' ? '自营' : '云仓' }}</el-tag></template>
         </el-table-column>
-        <el-table-column prop="startDate" label="开始时间" width="110" />
-        <el-table-column prop="region" label="所属区域" width="80" />
+        <el-table-column prop="startDate" label="开始时间" width="90">
+          <template #default="s">{{ formatDateMonth(s.row.startDate) }}</template>
+        </el-table-column>
+        <el-table-column label="所属区域" width="80" align="center">
+          <template #default="s"><el-tag size="small">{{ s.row.region }}</el-tag></template>
+        </el-table-column>
         <el-table-column prop="province" label="所在省份" width="80" />
         <el-table-column prop="address" label="具体地址" min-width="160" show-overflow-tooltip />
         <el-table-column prop="area" label="面积(㎡)" width="90" align="right" />
@@ -26,6 +32,15 @@
         </el-table-column>
         <el-table-column label="状态" width="100" align="center">
           <template #default="s"><el-tag :type="getStatusTag(s.row.status)">{{ statusLabel(s.row.status) }}</el-tag></template>
+        </el-table-column>
+        <el-table-column label="产权证" width="80" align="center">
+          <template #default="s">{{ s.row.hasPropertyCert ? '是' : '否' }}</template>
+        </el-table-column>
+        <el-table-column label="发票" width="80" align="center">
+          <template #default="s">{{ s.row.hasInvoice ? '是' : '否' }}</template>
+        </el-table-column>
+        <el-table-column label="照片" width="80" align="center">
+          <template #default="s">{{ s.row.hasPhotos ? '是' : '否' }}</template>
         </el-table-column>
         <el-table-column label="操作" width="150" fixed="right" align="center">
           <template #default="s">
@@ -171,6 +186,11 @@ const handleSubmitted = async (newId) => {
   }
 }
 
+const formatDateMonth = (d) => {
+  if (!d) return ''
+  const parts = d.split('-')
+  return parts.length >= 2 ? `${parts[0]}-${parts[1]}` : d
+}
 const computeDays = (r) => {
   if (!r.endDate) return '—'
   const d = Math.ceil((new Date(r.endDate) - Date.now()) / 86400000)
