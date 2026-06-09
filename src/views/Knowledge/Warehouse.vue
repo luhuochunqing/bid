@@ -15,6 +15,7 @@
         <el-table-column label="仓库类型" width="80" align="center">
           <template #default="s"><el-tag size="small">{{ s.row.type === 'SELF_OPERATED' ? '自营' : '云仓' }}</el-tag></template>
         </el-table-column>
+        <el-table-column prop="startDate" label="开始时间" width="110" />
         <el-table-column prop="region" label="所属区域" width="80" />
         <el-table-column prop="province" label="所在省份" width="80" />
         <el-table-column prop="address" label="具体地址" min-width="160" show-overflow-tooltip />

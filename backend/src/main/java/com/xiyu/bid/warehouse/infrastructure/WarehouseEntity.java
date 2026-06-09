@@ -93,6 +93,9 @@ public class WarehouseEntity {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "updated_by")
+    private Long updatedBy;
+
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 

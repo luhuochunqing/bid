@@ -164,6 +164,7 @@ public class WarehouseController {
             Long operatorId = user != null ? user.getId() : null;
 
             warehouseMapper.mergeEntity(e, dto);
+            e.setUpdatedBy(operatorId);
             WarehouseEntity saved = repo.save(e);
             warehouseLogService.logEntityChanges(oldVal, saved, operatorUsername, operatorId);
             return ResponseEntity.ok(ApiResponse.success("更新成功", saved));
