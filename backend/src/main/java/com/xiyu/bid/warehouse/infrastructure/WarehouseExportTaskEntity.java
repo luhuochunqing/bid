@@ -47,6 +47,10 @@ public class WarehouseExportTaskEntity {
     @Column(name = "failure_reason", length = 500)
     private String failureReason;
 
+    /** 导出包统计 JSON：行数/包字节/分类附件数/耗时/筛选摘要 */
+    @Column(name = "result_summary", columnDefinition = "TEXT")
+    private String resultSummary;
+
     public enum ExportStatus { PENDING, PROCESSING, COMPLETED, FAILED }
 
     @PrePersist

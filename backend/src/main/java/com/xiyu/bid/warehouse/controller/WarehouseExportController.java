@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -38,6 +39,7 @@ public class WarehouseExportController {
 
     private static final String PERM = RoleProfileCatalog.WAREHOUSE_MANAGE_PERMISSION;
     private static final DateTimeFormatter DT_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter FILENAME_DT_FMT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final WarehouseExportAppService exportAppService;
     private final UserResolver userResolver;
@@ -112,9 +114,11 @@ public class WarehouseExportController {
         if (userId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         try {
             byte[] bytes = exportAppService.getExportFile(taskId, userId);
+            WarehouseExportTaskEntity task = exportAppService.getTaskStatus(taskId, userId);
+            String filename = buildDownloadFilename(task);
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"warehouse_export.xlsx\"")
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                    .contentType(MediaType.parseMediaType("application/zip"))
                     .contentLength(bytes.length)
                     .body(bytes);
         } catch (IllegalArgumentException e) {
@@ -126,17 +130,35 @@ public class WarehouseExportController {
         }
     }
 
+    private String buildDownloadFilename(WarehouseExportTaskEntity task) {
+        String ts = task.getCompletedAt() != null
+                ? task.getCompletedAt().format(FILENAME_DT_FMT)
+                : LocalDateTime.now().format(FILENAME_DT_FMT);
+        return "仓库信息导出包_" + ts + ".zip";
+    }
+
     private Map<String, Object> toTaskMap(WarehouseExportTaskEntity t) {
-        return Map.of(
-                "id", t.getId(),
-                "status", t.getStatus().name(),
-                "totalCount", t.getTotalCount() != null ? t.getTotalCount() : 0,
-                "downloadUrl", t.getDownloadUrl() != null ? t.getDownloadUrl() : "",
-                "expiresAt", formatDt(t.getExpiresAt()),
-                "createdAt", formatDt(t.getCreatedAt()),
-                "completedAt", formatDt(t.getCompletedAt()),
-                "failureReason", t.getFailureReason() != null ? t.getFailureReason() : ""
-        );
+        Map<String, Object> map = new HashMap<>();
+        map.put("id", t.getId());
+        map.put("status", t.getStatus().name());
+        map.put("totalCount", t.getTotalCount() != null ? t.getTotalCount() : 0);
+        map.put("downloadUrl", t.getDownloadUrl() != null ? t.getDownloadUrl() : "");
+        map.put("expiresAt", formatDt(t.getExpiresAt()));
+        map.put("createdAt", formatDt(t.getCreatedAt()));
+        map.put("completedAt", formatDt(t.getCompletedAt()));
+        map.put("failureReason", t.getFailureReason() != null ? t.getFailureReason() : "");
+        map.put("resultSummary", parseResultSummary(t.getResultSummary()));
+        return map;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> parseResultSummary(String json) {
+        if (json == null || json.isBlank()) return Map.of();
+        try {
+            return objectMapper.readValue(json, Map.class);
+        } catch (IOException e) {
+            return Map.of();
+        }
     }
 
     private String formatDt(LocalDateTime dt) {
