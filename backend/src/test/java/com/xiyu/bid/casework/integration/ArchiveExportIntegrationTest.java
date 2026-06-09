@@ -175,40 +175,6 @@ class ArchiveExportIntegrationTest {
         });
     }
 
-    @org.junit.jupiter.api.Disabled("Controller endpoint not yet implemented")
-    @Test
-    @WithMockUser(username = "admin_user", roles = {"ADMIN"})
-    void exportExcel_ShouldReturnStreamedFile() throws Exception {
-        ProjectArchiveQuery query = new ProjectArchiveQuery();
-        mockMvc.perform(post("/api/archive/export-excel")
-                        .with(user("admin_user").roles("ADMIN"))
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(query)))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    @org.junit.jupiter.api.Disabled("Controller endpoint not yet implemented")
-    @WithMockUser(username = "admin_user", roles = {"ADMIN"})
-    void exportZip_ShouldReturnStreamedZip() throws Exception {
-        ProjectArchiveQuery query = new ProjectArchiveQuery();
-        MvcResult mvcResult = mockMvc.perform(post("/api/archive/export-zip")
-                        .with(user("admin_user").roles("ADMIN"))
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(query)))
-                .andExpect(request().asyncStarted())
-                .andReturn();
-
-        MvcResult finalResult = mockMvc.perform(asyncDispatch(mvcResult))
-                .andExpect(status().isOk())
-                .andReturn();
-
-        byte[] content = finalResult.getResponse().getContentAsByteArray();
-        assertThat(content).isNotEmpty();
-    }
-
     @Test
     @Disabled("AI case slicing requires external AI service which is not available in test environment")
     @WithMockUser(username = "admin_user", roles = {"ADMIN"})

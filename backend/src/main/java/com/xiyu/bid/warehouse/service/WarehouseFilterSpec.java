@@ -2,7 +2,10 @@ package com.xiyu.bid.warehouse.service;
 
 import com.xiyu.bid.warehouse.domain.WarehouseFilterCriteria;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseEntity;
-import jakarta.persistence.criteria.*;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
 
@@ -43,12 +46,7 @@ public class WarehouseFilterSpec {
                 predicates.add(root.get("status").in(c.statuses()));
             }
 
-            // 所属区域（多选 IN）
-            if (!c.regions().isEmpty()) {
-                predicates.add(root.get("region").in(c.regions()));
-            }
-
-            // 仓库所在省份（多选 IN）
+            // 仓库所在省份（列表）
             if (!c.provinces().isEmpty()) {
                 predicates.add(root.get("province").in(c.provinces()));
             }

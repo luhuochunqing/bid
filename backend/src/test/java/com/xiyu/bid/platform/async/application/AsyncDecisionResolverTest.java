@@ -165,4 +165,5 @@ class AsyncDecisionResolverTest {
         assertFalse(decision.alertRequired());
         assertFalse(decision.rollbackRequired());
     }
+
 }

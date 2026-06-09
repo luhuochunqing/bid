@@ -97,7 +97,7 @@ public class WarehouseExpiryScanTask {
                         "WAREHOUSE_EXPIRY_WARNING", wh.getId(), twentyFourHoursAgo
                 );
                 if (!alreadySent) {
-                    sendExpiryWarningNotification(wh, remainingDays, recipientIds, contactDisplay);
+                    sendExpiryWarningNotification(wh, remainingDays, recipientIds, java.util.Map.of());
                     alertCount++;
                 }
             } else if (recomputed == WarehouseStatus.EXPIRED) {
@@ -127,8 +127,7 @@ public class WarehouseExpiryScanTask {
                 "- 结束时间：%s\n" +
                 "- 到期天数：%d 天\n" +
                 "- 区域联系人：%s\n" +
-                "- 关仓计划：%s\n" +
-                "[点击查看仓库详情 →] /knowledge/warehouse?id=%d",
+                "- 关仓计划：%s",
                 wh.getName(),
                 wh.getRegion(),
                 wh.getType() == com.xiyu.bid.warehouse.domain.WarehouseType.SELF_OPERATED ? "自营" : "云仓",
@@ -137,22 +136,16 @@ public class WarehouseExpiryScanTask {
                 wh.getEndDate(),
                 remainingDays,
                 contactDisplayName,
-                wh.getClosePlan() != null ? wh.getClosePlan() : "（暂无）",
-                wh.getId()
+                wh.getClosePlan() != null ? wh.getClosePlan() : "（暂无）"
         );
 
-        java.util.Map<String, Object> payload = java.util.Map.of(
-                "link", "/knowledge/warehouse?id=" + wh.getId(),
-                "action", "VIEW_WAREHOUSE",
-                "warehouseId", wh.getId()
-        );
         CreateNotificationRequest request = new CreateNotificationRequest(
                 NotificationType.SYSTEM.name(),
                 "WAREHOUSE_EXPIRY_WARNING",
                 wh.getId(),
                 title,
                 body,
-                payload,
+                null,
                 recipientIds
         );
         notificationService.createNotification(request, null);
@@ -165,27 +158,20 @@ public class WarehouseExpiryScanTask {
                 "- 仓库名称：%s\n" +
                 "- 所属区域：%s\n" +
                 "- 结束时间：%s\n" +
-                "- 过期天数：%d 天\n" +
-                "[点击查看仓库详情 →] /knowledge/warehouse?id=%d",
+                "- 过期天数：%d 天",
                 wh.getName(),
                 wh.getRegion(),
                 wh.getEndDate(),
-                Math.abs(expiredDays),
-                wh.getId()
+                Math.abs(expiredDays)
         );
 
-        java.util.Map<String, Object> payload = java.util.Map.of(
-                "link", "/knowledge/warehouse?id=" + wh.getId(),
-                "action", "VIEW_WAREHOUSE",
-                "warehouseId", wh.getId()
-        );
         CreateNotificationRequest request = new CreateNotificationRequest(
                 NotificationType.SYSTEM.name(),
                 "WAREHOUSE_EXPIRED_WARNING",
                 wh.getId(),
                 title,
                 body,
-                payload,
+                null,
                 recipientIds
         );
         notificationService.createNotification(request, null);
