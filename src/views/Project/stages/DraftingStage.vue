@@ -114,7 +114,10 @@ import { useProjectDetailContext } from '@/composables/projectDetail/context.js'
 import { useProjectDraftingPermissions } from '@/composables/projectDetail/useProjectDraftingPermissions.js'
 
 const userStore = useUserStore()
-const perm = useProjectDraftingPermissions()
+const perm = useProjectDraftingPermissions({
+  projectManagerId: ctx.project?.value?.managerId || ctx.project?.value?.projectManagerId,
+  currentUserId: ctx.userStore?.currentUser?.id,
+})
 const { bidAgent } = useProjectDetailContext()
 const ctx = useProjectDetailContext()
 
