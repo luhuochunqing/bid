@@ -79,7 +79,7 @@ public class KnowledgeBaseDataLoader {
     private List<BrandAuthSummary> loadBrandAuthorizations() {
         Page<ManufacturerAuthorizationDTO> page = listManufacturerAuthAppService.list(
                 new ListManufacturerAuthAppService.ListFilter(
-                        null, null, null, null, null, null, null, null, null, null, null),
+                        null, null, null, null, null, null, null, null, null, null, null, null),
                 0, 500);
         return page.getContent().stream()
                 .map(a -> new BrandAuthSummary(

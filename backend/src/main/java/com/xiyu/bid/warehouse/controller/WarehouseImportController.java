@@ -106,30 +106,6 @@ public class WarehouseImportController {
         }
     }
 
-    @GetMapping("/tasks/{taskId}/correction")
-    @PreAuthorize("hasAuthority('" + PERM + "')")
-    public ResponseEntity<byte[]> downloadCorrectionFile(@PathVariable Long taskId) {
-        User user = userResolver.resolveCurrentUser();
-        if (user == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        try {
-            byte[] bytes = importAppService.getCorrectionFile(taskId, user.getId());
-            String ts = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-            String filename = "仓库信息导入_" + ts + ".xlsx";
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION,
-                            "attachment; filename=\"" + filename + "\"")
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .contentLength(bytes.length)
-                    .body(bytes);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().build();
-        } catch (IllegalStateException e) {
-            return ResponseEntity.badRequest().build();
-        } catch (IOException e) {
-            return ResponseEntity.internalServerError().build();
-        }
-    }
-
     private Map<String, Object> toTaskMap(WarehouseImportTaskEntity t) {
         Map<String, Object> map = new java.util.HashMap<>();
         map.put("id", t.getId());
@@ -144,40 +120,6 @@ public class WarehouseImportController {
         map.put("createdByUsername", t.getCreatedByUsername() != null ? t.getCreatedByUsername() : "");
         map.put("createdAt", formatDt(t.getCreatedAt()));
         map.put("completedAt", formatDt(t.getCompletedAt()));
-
-        // 解析附件结果
-        String details = t.getErrorDetails() == null ? "" : t.getErrorDetails();
-        if (details.contains("[ATTACH_RESULT]")) {
-            for (String line : details.split("\n")) {
-                if (line.startsWith("[ATTACH_RESULT]")) {
-                    String body = line.substring("[ATTACH_RESULT]".length()).trim();
-                    for (String part : body.split("\\s+")) {
-                        if (part.startsWith("matched=")) {
-                            map.put("attachedCount", Integer.parseInt(part.substring("matched=".length())));
-                        } else if (part.startsWith("unmatched=")) {
-                            map.put("unmatchedCount", Integer.parseInt(part.substring("unmatched=".length())));
-                        }
-                    }
-                }
-            }
-        }
-        if (details.contains("[CORRECTION_FILE]")) {
-            map.put("hasCorrectionFile", true);
-            map.put("correctionFileUrl", "/api/knowledge/warehouses/import/tasks/" + t.getId() + "/correction");
-        } else {
-            map.put("hasCorrectionFile", false);
-        }
-        java.util.List<Map<String, String>> unmatched = new java.util.ArrayList<>();
-        for (String line : details.split("\n")) {
-            if (line.startsWith("[UNMATCHED] ")) {
-                String body = line.substring("[UNMATCHED] ".length());
-                int sep = body.indexOf(" | ");
-                if (sep > 0) {
-                    unmatched.add(Map.of("filename", body.substring(0, sep), "reason", body.substring(sep + 3)));
-                }
-            }
-        }
-        map.put("unmatchedFiles", unmatched);
         return map;
     }
 

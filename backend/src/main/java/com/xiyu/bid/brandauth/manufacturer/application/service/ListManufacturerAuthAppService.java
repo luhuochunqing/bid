@@ -99,6 +99,10 @@ public class ListManufacturerAuthAppService {
                         cb.like(root.get("manufacturerName"), kw),
                         cb.like(root.get("remarks"), kw)));
             }
+            if (notBlank(filter.authorizationType)) {
+                p.add(cb.equal(root.get("authorizationType"),
+                        filter.authorizationType));
+            }
             return cb.and(p.toArray(new Predicate[0]));
         };
 
@@ -162,6 +166,7 @@ public class ListManufacturerAuthAppService {
      * @param authEndTo         auth end date upper bound
      * @param statuses          status values to filter by
      * @param keyword           keyword search
+     * @param authorizationType authorization type filter (MANUFACTURER or AGENT)
      */
     public record ListFilter(
             List<com.xiyu.bid.brandauth.manufacturer.domain.valueobject
@@ -170,6 +175,7 @@ public class ListManufacturerAuthAppService {
             String importDomestic, String manufacturerName,
             LocalDate authStartFrom, LocalDate authStartTo,
             LocalDate authEndFrom, LocalDate authEndTo,
-            List<AuthStatus> statuses, String keyword) {
+            List<AuthStatus> statuses, String keyword,
+            String authorizationType) {
     }
 }

@@ -77,6 +77,7 @@ public class ManufacturerAuthorizationController {
             @RequestParam(required = false) final LocalDate authEndTo,
             @RequestParam(required = false) final List<String> statuses,
             @RequestParam(required = false) final String keyword,
+            @RequestParam(required = false) final String authorizationType,
             @RequestParam(defaultValue = "0") final int page,
             @RequestParam(defaultValue = "20") final int size) {
 
@@ -87,7 +88,7 @@ public class ManufacturerAuthorizationController {
                 productLineEnums, brandId, brandName,
                 importDomestic, manufacturerName,
                 authStartFrom, authStartTo, authEndFrom, authEndTo,
-                statusEnums, keyword);
+                statusEnums, keyword, authorizationType);
 
         Page<ManufacturerAuthorizationDTO> result =
                 listService.list(filter, page, size);
