@@ -25,7 +25,7 @@
 | `CONTRACT_INVALID` | 请求/响应契约错误、模板错误、参数错误 | `DEAD_LETTER` | 是 | 需要人工修复 |
 | `DATA_CORRUPTION` | 数据损坏、关键字段不一致 | `DEAD_LETTER` | 是 | 高优先级告警 |
 | `BUG` | 代码缺陷、未预期异常 | `DEAD_LETTER` | 是 | 必须尽快修复 |
-| `MAIN_TRANSACTION_REQUIRED` | 主事务必须感知该失败 | `FAIL_MAIN_TRANSACTION` | 是 | 不允许 after-commit 吞掉 |
+| `MAIN_TRANSACTION_REQUIRED` | 主事务必须感知该失败 | `FAIL_MAIN_TRANSACTION` | 是 | 不允许 after-commit 吞掉；适用：支付回调签名验证失败、关键业务校验不通过必须中止主流程等 |
 
 ## reasonCode 约定
 - reasonCode 必须稳定、可聚合、偏语义，不要直接写原始异常文本。
@@ -68,6 +68,7 @@
 - `reason_code=DATA_CORRUPTION`
 - `reason_code=TRANSIENT_DEPENDENCY_EXHAUSTED`
 - `reason_code=CONTRACT_INVALID`
+- `reason_code=PERSISTENT_DEPENDENCY`
 
 建议阈值：
 - 任意 5 分钟窗口内出现 `dead_letter > 0` 即告警

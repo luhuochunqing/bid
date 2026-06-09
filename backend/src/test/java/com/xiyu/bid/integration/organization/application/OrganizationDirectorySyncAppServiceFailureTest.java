@@ -7,6 +7,7 @@ import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
 import com.xiyu.bid.integration.organization.dto.OrganizationEventWebhookRequest;
 import com.xiyu.bid.integration.organization.dto.OrganizationEventWebhookResponse;
 import com.xiyu.bid.integration.organization.infrastructure.client.OrganizationDirectoryHttpGatewayException;
+import com.xiyu.bid.platform.async.domain.AsyncFailureKind;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -94,7 +95,7 @@ class OrganizationDirectorySyncAppServiceFailureTest {
 
         assertThat(response.code()).isEqualTo("500");
         assertThat(inbox.status).isEqualTo(OrganizationEventStatus.DEAD_LETTER);
-        assertThat(inbox.errorCode).isEqualTo("DIRECTORY_GATEWAY_NON_RETRYABLE");
+        assertThat(inbox.errorCode).isEqualTo("CONTRACT_INVALID");
     }
 
     private OrganizationEventWebhookRequest request(String topic, String idField, String id) {
@@ -132,7 +133,7 @@ class OrganizationDirectorySyncAppServiceFailureTest {
         String errorCode;
 
         FakeInbox() {
-            super(null, new OrganizationIntegrationProperties(), new com.xiyu.bid.integration.organization.domain.OrganizationDirectoryRetryPolicy(new com.xiyu.bid.platform.async.application.AsyncDecisionResolver()), new com.xiyu.bid.metrics.OrgSyncMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()));
+            super(null, new OrganizationIntegrationProperties(), new com.xiyu.bid.integration.organization.domain.OrganizationDirectoryRetryPolicy(new com.xiyu.bid.platform.async.application.AsyncDecisionResolver()), new com.xiyu.bid.metrics.OrgSyncMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()), new com.xiyu.bid.platform.async.application.AsyncDecisionResolver());
         }
 
         public String eventKey(OrganizationEventNotice notice) {
@@ -154,6 +155,11 @@ class OrganizationDirectorySyncAppServiceFailureTest {
 
         public void markNonRetryableFailure(String eventKey, String message, String errorCode) {
             status = OrganizationEventStatus.DEAD_LETTER;
+            this.errorCode = errorCode;
+        }
+
+        public void markRetryableFailure(String eventKey, String message, String errorCode, AsyncFailureKind failureKind) {
+            status = OrganizationEventStatus.PENDING_RETRY;
             this.errorCode = errorCode;
         }
     }

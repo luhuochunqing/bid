@@ -121,6 +121,8 @@ class OrganizationEventInboxServiceTest {
                                 new com.xiyu.bid.platform.async.application.AsyncDecisionResolver()))
                 .withBean(com.xiyu.bid.metrics.OrgSyncMetrics.class,
                         () -> new com.xiyu.bid.metrics.OrgSyncMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()))
+                .withBean(com.xiyu.bid.platform.async.application.AsyncDecisionResolver.class,
+                        () -> new com.xiyu.bid.platform.async.application.AsyncDecisionResolver())
                 .withUserConfiguration(OrganizationEventInboxService.class)
                 .run(context -> context.getBean(OrganizationEventInboxService.class)
                         .markFailed("event-key", "接口超时", "TIMEOUT"));
@@ -213,7 +215,8 @@ class OrganizationEventInboxServiceTest {
                 repository,
                 new OrganizationIntegrationProperties(),
                 new com.xiyu.bid.integration.organization.domain.OrganizationDirectoryRetryPolicy(new com.xiyu.bid.platform.async.application.AsyncDecisionResolver()),
-                new com.xiyu.bid.metrics.OrgSyncMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry())
+                new com.xiyu.bid.metrics.OrgSyncMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()),
+                new com.xiyu.bid.platform.async.application.AsyncDecisionResolver()
         );
     }
 

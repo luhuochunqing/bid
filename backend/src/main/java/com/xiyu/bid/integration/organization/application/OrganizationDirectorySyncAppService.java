@@ -96,9 +96,14 @@ public class OrganizationDirectorySyncAppService {
 
     private void markGatewayFailure(String eventKey, OrganizationDirectoryHttpGatewayException ex) {
         if (ex.retryable()) {
-            inboxService.markFailed(eventKey, "组织架构主数据接口调用失败", "DIRECTORY_GATEWAY_RETRYABLE");
+            inboxService.markRetryableFailure(
+                    eventKey,
+                    "组织架构主数据接口调用失败",
+                    ex.failureKind().name(),
+                    ex.failureKind()
+            );
         } else {
-            inboxService.markNonRetryableFailure(eventKey, "组织架构主数据接口拒绝请求", "DIRECTORY_GATEWAY_NON_RETRYABLE");
+            inboxService.markNonRetryableFailure(eventKey, "组织架构主数据接口拒绝请求", ex.failureKind().name());
         }
     }
 

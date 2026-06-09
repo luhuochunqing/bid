@@ -134,4 +134,36 @@ class AsyncDecisionResolverTest {
         assertTrue(decision.rollbackRequired());
         assertTrue(decision.alertRequired());
     }
+
+    @Test
+    void shouldDropBusinessReject() {
+        AsyncHandlingDecision decision = resolver.resolve(
+                AsyncFailureKind.BUSINESS_REJECT,
+                0,
+                1,
+                schedule,
+                false
+        );
+
+        assertEquals(AsyncAction.DROP, decision.action());
+        assertEquals("BUSINESS_REJECT", decision.reasonCode());
+        assertFalse(decision.alertRequired());
+        assertFalse(decision.rollbackRequired());
+    }
+
+    @Test
+    void shouldDeadLetterDataCorruption() {
+        AsyncHandlingDecision decision = resolver.resolve(
+                AsyncFailureKind.DATA_CORRUPTION,
+                0,
+                1,
+                schedule,
+                true
+        );
+
+        assertEquals(AsyncAction.DEAD_LETTER, decision.action());
+        assertEquals("DATA_CORRUPTION", decision.reasonCode());
+        assertTrue(decision.alertRequired());
+        assertFalse(decision.rollbackRequired());
+    }
 }

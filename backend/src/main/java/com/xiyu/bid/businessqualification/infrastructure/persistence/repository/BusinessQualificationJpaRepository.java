@@ -10,6 +10,10 @@ import java.util.Optional;
 
 public interface BusinessQualificationJpaRepository extends JpaRepository<BusinessQualificationEntity, Long> {
 
+    /**
+     * 扫描所有证书号匹配的记录（可能多条，如同一编号有历史记录）。
+     */
+    List<BusinessQualificationEntity> findAllByCertificateNo(String certificateNo);
     List<BusinessQualificationEntity> findByExpiryDateLessThanEqual(LocalDate expiryDate);
 
     /**

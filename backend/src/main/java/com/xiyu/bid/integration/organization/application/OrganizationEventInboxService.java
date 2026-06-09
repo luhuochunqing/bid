@@ -5,6 +5,10 @@ import com.xiyu.bid.integration.organization.domain.OrganizationEventStatus;
 import com.xiyu.bid.integration.organization.domain.OrganizationDirectoryRetryPolicy;
 import com.xiyu.bid.integration.organization.domain.OrganizationRetryDecision;
 import com.xiyu.bid.integration.organization.domain.OrganizationSyncPolicy;
+import com.xiyu.bid.platform.async.application.AsyncDecisionResolver;
+import com.xiyu.bid.platform.async.domain.AsyncFailureKind;
+import com.xiyu.bid.platform.async.domain.AsyncHandlingDecision;
+import com.xiyu.bid.platform.async.domain.ExponentialBackoffRetrySchedule;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationEventLogEntity;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationEventLogRepository;
 import com.xiyu.bid.metrics.OrgSyncMetrics;
@@ -33,17 +37,26 @@ public class OrganizationEventInboxService {
     private final OrganizationIntegrationProperties properties;
     private final OrganizationDirectoryRetryPolicy retryPolicy;
     private final OrgSyncMetrics orgSyncMetrics;
+    private final ExponentialBackoffRetrySchedule retrySchedule;
+    private final AsyncDecisionResolver asyncDecisionResolver;
 
     public OrganizationEventInboxService(
             OrganizationEventLogRepository eventLogRepository,
             OrganizationIntegrationProperties properties,
             OrganizationDirectoryRetryPolicy retryPolicy,
-            OrgSyncMetrics orgSyncMetrics
+            OrgSyncMetrics orgSyncMetrics,
+            AsyncDecisionResolver asyncDecisionResolver
     ) {
         this.eventLogRepository = eventLogRepository;
         this.properties = properties;
         this.retryPolicy = retryPolicy;
         this.orgSyncMetrics = orgSyncMetrics;
+        this.retrySchedule = new ExponentialBackoffRetrySchedule(
+                5 * 60,
+                60 * 60,
+                4
+        );
+        this.asyncDecisionResolver = asyncDecisionResolver;
     }
 
     public String eventKey(OrganizationEventNotice notice) {
@@ -79,11 +92,39 @@ public class OrganizationEventInboxService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void markRetryableFailure(String eventKey, String message, String errorCode, int maxAttempts) {
+        markRetryableFailure(eventKey, message, errorCode, maxAttempts, AsyncFailureKind.TRANSIENT_DEPENDENCY);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markRetryableFailure(
+            String eventKey,
+            String message,
+            String errorCode,
+            AsyncFailureKind failureKind
+    ) {
+        markRetryableFailure(eventKey, message, errorCode, configuredMaxAttempts(), failureKind);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markRetryableFailure(
+            String eventKey,
+            String message,
+            String errorCode,
+            int maxAttempts,
+            AsyncFailureKind failureKind
+    ) {
         eventLogRepository.findByEventKey(eventKey).ifPresent(log -> {
             LocalDateTime now = LocalDateTime.now();
             int retryCount = log.getRetryCount() == null ? 1 : log.getRetryCount() + 1;
-            OrganizationRetryDecision decision = retryPolicy.decide(retryCount, maxAttempts, now);
-            applyFailureDecision(log, decision, message, errorCode);
+            AsyncHandlingDecision decision = asyncDecisionResolver.resolve(
+                    failureKind,
+                    retryCount,
+                    maxAttempts,
+                    retrySchedule,
+                    true
+            );
+            OrganizationRetryDecision orgDecision = OrganizationRetryDecision.fromAsyncDecision(decision, now);
+            applyFailureDecision(log, orgDecision, message, errorCode);
             eventLogRepository.save(log);
         });
     }
