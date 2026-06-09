@@ -29,7 +29,7 @@ import { getHeaderActions, getBottomActions } from './actionMatrix'
  * @param {Function} [handlers.viewProject]    - 查看投标项目
  * @param {Function} [handlers.afterDelete]    - 删除成功后的回调（用于导航）
  */
-export function useDetailActions(tenderRef, roleRef, loadDetailFn, handlers = {}, evaluationTabActive = false, evaluationSubmitted = false) {
+export function useDetailActions(tenderRef, roleRef, loadDetailFn, handlers = {}, evaluationTabActive = false, evaluationSubmitted = false, currentUserId, creatorId) {
   // 支持传入 Ref（响应式）或原始值，并做字符串→布尔转换
   const evaluationTabActiveRef = computed(() => {
     const raw = evaluationTabActive && typeof evaluationTabActive === 'object' && 'value' in evaluationTabActive
@@ -54,6 +54,8 @@ export function useDetailActions(tenderRef, roleRef, loadDetailFn, handlers = {}
       tenderRef.value.status,
       roleRef.value,
       Boolean(tenderRef.value.originalUrl),
+      currentUserId,
+      creatorId,
     )
     // 当评估表 tab 激活且正在编辑（非管理员）时，隐藏删除按钮
     if (evaluationTabActiveRef.value) {
@@ -69,7 +71,9 @@ export function useDetailActions(tenderRef, roleRef, loadDetailFn, handlers = {}
       roleRef.value,
       !!tenderRef.value.requiresReview,
       evaluationTabActiveRef.value,
-      evaluationSubmittedRef.value
+      evaluationSubmittedRef.value,
+      currentUserId,
+      creatorId,
     )
   })
 

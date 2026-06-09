@@ -210,6 +210,58 @@ describe('getHeaderActions', () => {
     })
   })
 
+
+  describe('PENDING_ASSIGNMENT with creator context', () => {
+    it('sales as creator sees edit + delete', () => {
+      expectActions(getHeaderActions(PENDING, 'sales', false, 1, 1), [
+        ACTIONS.EDIT,
+        ACTIONS.DELETE,
+      ])
+    })
+
+    it('bid_specialist as creator sees edit + delete', () => {
+      expectActions(getHeaderActions(PENDING, 'bid_specialist', false, 1, 1), [
+        ACTIONS.EDIT,
+        ACTIONS.DELETE,
+      ])
+    })
+
+    it('sales as non-creator sees nothing', () => {
+      expect(getHeaderActions(PENDING, 'sales', false, 1, 2)).toEqual([])
+    })
+
+    it('bid_specialist as non-creator sees nothing', () => {
+      expect(getHeaderActions(PENDING, 'bid_specialist', false, 1, 2)).toEqual([])
+    })
+
+    it('admin sees assign + delete regardless of creator', () => {
+      expectActions(getHeaderActions(PENDING, 'admin', false, 1, 2), [
+        ACTIONS.ASSIGN,
+        ACTIONS.DELETE,
+      ])
+    })
+
+    it('bid_admin sees assign + delete regardless of creator', () => {
+      expectActions(getHeaderActions(PENDING, 'bid_admin', false, 1, 2), [
+        ACTIONS.ASSIGN,
+        ACTIONS.DELETE,
+      ])
+    })
+
+    it('sales as creator sees nothing in TRACKING status', () => {
+      expect(getHeaderActions(TRACKING, 'sales', false, 1, 1)).toEqual([])
+    })
+
+    it('bid_specialist as creator sees nothing in TRACKING status', () => {
+      expect(getHeaderActions(TRACKING, 'bid_specialist', false, 1, 1)).toEqual([])
+    })
+
+    it('backward compatible: no creatorId passed defaults to no buttons', () => {
+      expect(getHeaderActions(PENDING, 'sales')).toEqual([])
+      expect(getHeaderActions(PENDING, 'bid_specialist')).toEqual([])
+    })
+  })
+
   describe('viewAnnouncement button', () => {
     it('includes viewAnnouncement when hasOriginalUrl is true', () => {
       expectActions(getHeaderActions(ABANDONED, 'sales', true), [

@@ -326,6 +326,8 @@ async function onCrmOpportunityLinked({ opportunityId, opportunityName, evaluati
 void submitting, savingDraft, ElMessage
 // ---- Tab 管理 ----
 const { activeTab, visibleTabs } = useDetailTabs(tender)
+const currentUserIdVal = computed(() => userStore.currentUser?.id)
+const tenderCreatorId = computed(() => tender.value?.creatorId)
 const { headerActions, bottomActions, handleAction } = useDetailActions(tender, userRole, loadTenderDetail, {
   bid: handleParticipate, abandon: handleAbandon, viewAnnouncement: handleViewOriginal,
   assign: openAssign, transfer: openTransfer, edit: handleEdit,
@@ -342,7 +344,8 @@ const { headerActions, bottomActions, handleAction } = useDetailActions(tender, 
     }
   },
   afterDelete: () => router.push('/bidding'),
-}, activeTab, isEvaluationSubmitted)
+}, activeTab, isEvaluationSubmitted, currentUserIdVal, tenderCreatorId)
+
 // ---- unsaved-changes guard ----
 function onFormDirtyChanged(dirty) {
   hasUnsavedChanges.value = dirty

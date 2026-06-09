@@ -397,7 +397,6 @@ const tenderStatus = computed(() => tenderDetail.value?.status || null)
 const projectLeaderId = computed(() => tenderDetail.value?.projectManagerId || null)
 const canProceedToNext = computed(() => {
   if (tenderStatus.value !== 'TRACKING') return false
-  if (isAdminOrLead.value) return true
   if (projectLeaderId.value && currentUserId.value === projectLeaderId.value) return true
   return false
 })
@@ -694,9 +693,8 @@ async function handleSave() {
     hasUnsavedChanges.value = false
     if (!isEditMode.value) {
       await fetchTenderDetail()
-    } else {
-      router.push(`/bidding/${editTenderId.value}`)
     }
+    router.push(`/bidding/${isEditMode.value ? editTenderId.value : createdTenderId.value}`)
   } catch (error) {
     if (!error?.isAxiosError && !error?.response) {
       ElMessage.error(error.message || (isEditMode.value ? '标讯更新失败' : '标讯入库失败'))

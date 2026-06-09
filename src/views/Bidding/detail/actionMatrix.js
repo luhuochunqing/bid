@@ -57,8 +57,14 @@ function resolveRoleGroup(role) {
 const HEADER_MATRIX = {
   PENDING_ASSIGNMENT: {
     admin_lead: ['assign', 'delete'],
-    sales: [],
-    bid_specialist: [],
+    sales: ({ currentUserId, creatorId }) =>
+      currentUserId != null && currentUserId === creatorId
+        ? ['edit', 'delete']
+        : [],
+    bid_specialist: ({ currentUserId, creatorId }) =>
+      currentUserId != null && currentUserId === creatorId
+        ? ['edit', 'delete']
+        : [],
   },
   TRACKING: {
     admin_lead: ['transfer', 'delete'],
@@ -138,15 +144,20 @@ const BOTTOM_MATRIX = {
 // ---------------------------------------------------------------------------
 // getHeaderActions - 获取顶部操作按钮列表
 // ---------------------------------------------------------------------------
-export function getHeaderActions(status, role, hasOriginalUrl) {
+export function getHeaderActions(status, role, hasOriginalUrl, currentUserId, creatorId) {
   const group = resolveRoleGroup(role)
   if (!group) return []
 
   const statusActions = HEADER_MATRIX[status]
   if (!statusActions) return []
 
-  const keys = statusActions[group]
+  let keys = statusActions[group]
   if (!keys) return []
+
+  // 动态权限判定：函数类型的 keys 根据当前用户身份计算
+  if (typeof keys === 'function') {
+    keys = keys({ currentUserId, creatorId })
+  }
 
   let result = keys.map((k) => ({ ...ACTION_DEFS[k] }))
 
@@ -167,7 +178,7 @@ export function getHeaderActions(status, role, hasOriginalUrl) {
 // getBottomActions - 获取底部操作按钮列表
 // evaluationTabActive: true 表示当前在评估表 tab，false 表示在基本信息 tab
 // ---------------------------------------------------------------------------
-export function getBottomActions(status, role, _requiresReview, evaluationTabActive = false, evaluationSubmitted = false) {
+export function getBottomActions(status, role, _requiresReview, evaluationTabActive = false, evaluationSubmitted = false, currentUserId, creatorId) {
   const group = resolveRoleGroup(role)
   if (!group) return []
 
@@ -180,6 +191,11 @@ export function getBottomActions(status, role, _requiresReview, evaluationTabAct
     keys = statusActions[group]
   }
   if (!keys) return []
+
+  // 动态权限判定
+  if (typeof keys === 'function') {
+    keys = keys({ currentUserId, creatorId })
+  }
 
   let result = keys.map((k) => ({ ...ACTION_DEFS[k] }))
 
