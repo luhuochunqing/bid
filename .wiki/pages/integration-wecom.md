@@ -5,7 +5,7 @@ category: integration
 tags: [integration, wecom, settings, sso, message-push]
 sources:
   - backend/src/main/java/com/xiyu/bid/integration/
-  - src/views/System/settings/SystemIntegrationPanel.vue
+  - src/views/System/SystemIntegration.vue
   - src/views/System/settings/integration/
   - docs/research/WORKFLOW_FORM_CENTER.md
 backlinks:
@@ -42,7 +42,7 @@ health_checked: 2026-06-05
 
 ## 入口路径
 
-`系统设置 → 系统集成` Tab（`/settings`，仅 ADMIN 角色可见）
+`系统设置 → 系统集成` Tab（`/settings`，仅 ADMIN 角色可见，容器组件为 `src/views/System/SystemIntegration.vue`）
 
 ## 数据模型
 
@@ -102,7 +102,7 @@ backend/src/main/java/com/xiyu/bid/integration/
 ```
 src/api/modules/systemIntegration.js         # axios 封装
 src/views/System/Settings.vue                 # 新增 Tab 接入
-src/views/System/settings/SystemIntegrationPanel.vue  # 容器（企微 + 占位卡）
+src/views/System/SystemIntegration.vue             # 容器（企微 + 占位卡）
 src/views/System/settings/integration/
 ├── WeComIntegrationCard.vue                  # 配置表单 + 测试按钮
 └── IntegrationComingSoonCard.vue             # 占位卡（CRM/OA/组织架构）

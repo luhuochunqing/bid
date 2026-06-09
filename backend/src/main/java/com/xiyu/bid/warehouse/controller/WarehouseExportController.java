@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.Map;
@@ -193,7 +192,7 @@ public class WarehouseExportController {
     }
 
     private Map<String, Object> toTaskMap(WarehouseExportTaskEntity t) {
-        Map<String, Object> map = new HashMap<>();
+        Map<String, Object> map = new java.util.HashMap<>();
         map.put("id", t.getId());
         map.put("status", t.getStatus().name());
         map.put("totalCount", t.getTotalCount() != null ? t.getTotalCount() : 0);

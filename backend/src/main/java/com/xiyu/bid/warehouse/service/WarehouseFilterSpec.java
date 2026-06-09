@@ -46,8 +46,8 @@ public class WarehouseFilterSpec {
                 predicates.add(root.get("status").in(c.statuses()));
             }
 
-            // 仓库所在省份（列表）
-            if (!c.provinces().isEmpty()) {
+            // 仓库所在省份（多选）
+            if (c.provinces() != null && !c.provinces().isEmpty()) {
                 predicates.add(root.get("province").in(c.provinces()));
             }
 
