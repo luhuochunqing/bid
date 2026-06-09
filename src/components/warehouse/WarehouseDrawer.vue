@@ -124,7 +124,7 @@ const ATTACH_TYPE_MAP = { PROPERTY_CERTIFICATE:'产权证', INVOICE:'发票', PH
 const statusLabel = (s) => STATUS_MAP[s] || s
 const statusType = (s) => s==='IN_USE'?'success':s==='EXPIRING'?'warning':s==='EXPIRED'?'danger':'info'
 const typeLabel = (t) => ATTACH_TYPE_MAP[t] || t
-const ACTION_TYPE_MAP = { CREATE:'创建', EDIT:'编辑', CLOSE:'关仓', RESTORE:'恢复', ATTACH_UPLOAD:'上传附件', ATTACH_DELETE:'删除附件' }
+const ACTION_TYPE_MAP = { CREATE:'创建', EDIT:'编辑', CLOSE:'关仓', RESTORE:'恢复', ATTACH_UPLOAD:'上传附件', ATTACH_DELETE:'删除附件', EXPORT:'台账导出' }
 const actionTypeLabel = (a) => ACTION_TYPE_MAP[a] || a
 
 const loadDetail = async () => {

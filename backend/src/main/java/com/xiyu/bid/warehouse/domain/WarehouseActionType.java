@@ -6,7 +6,8 @@ public enum WarehouseActionType {
     CLOSE("关仓"),
     RESTORE("恢复"),
     ATTACH_UPLOAD("上传附件"),
-    ATTACH_DELETE("删除附件");
+    ATTACH_DELETE("删除附件"),
+    EXPORT("台账导出");
 
     private final String displayName;
     WarehouseActionType(String displayName) { this.displayName = displayName; }

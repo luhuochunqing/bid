@@ -28,4 +28,13 @@ public class UserResolver {
         User user = resolveCurrentUser();
         return user != null ? user.getId() : null;
     }
+
+    /**
+     * 解析当前操作用户标签，格式 "姓名（工号）"。
+     */
+    public String resolveCurrentOperatorLabel() {
+        User user = resolveCurrentUser();
+        if (user == null) return null;
+        return user.getFullName() + "（" + user.getUsername() + "）";
+    }
 }

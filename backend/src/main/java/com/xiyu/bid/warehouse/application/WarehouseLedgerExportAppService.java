@@ -12,6 +12,7 @@ import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskEntity.ExportStatus;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskRepository;
 import com.xiyu.bid.warehouse.service.WarehouseFilterService;
+import com.xiyu.bid.warehouse.service.WarehouseLogService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -50,6 +51,7 @@ public class WarehouseLedgerExportAppService {
     private final WarehouseExportTaskRepository exportTaskRepo;
     private final WarehouseFilterService filterService;
     private final WarehouseExcelWriter excelWriter;
+    private final WarehouseLogService warehouseLogService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Value("${warehouse.export.root:/tmp/warehouse-exports}")
@@ -58,7 +60,7 @@ public class WarehouseLedgerExportAppService {
     public record ExportRequest(String scope, List<Long> ids, WarehouseFilterDTO filter, Set<Section> sections) {}
 
     @Transactional
-    public WarehouseExportAppService.ExportTaskResult trigger(ExportRequest req, Long operatorId) {
+    public WarehouseExportAppService.ExportTaskResult trigger(ExportRequest req, Long operatorId, String operatorUsername) {
         WarehouseExportTaskEntity task = WarehouseExportTaskEntity.builder()
                 .status(ExportStatus.PENDING)
                 .filterSnapshot(serialize(req))
@@ -66,12 +68,12 @@ public class WarehouseLedgerExportAppService {
                 .createdAt(LocalDateTime.now())
                 .build();
         exportTaskRepo.save(task);
-        executeLedgerAsync(task.getId(), req, operatorId, System.currentTimeMillis());
+        executeLedgerAsync(task.getId(), req, operatorId, operatorUsername, System.currentTimeMillis());
         return new WarehouseExportAppService.ExportTaskResult(task.getId());
     }
 
     @Async("warehouseExportExecutor")
-    public void executeLedgerAsync(Long taskId, ExportRequest req, Long operatorId, long startMs) {
+    public void executeLedgerAsync(Long taskId, ExportRequest req, Long operatorId, String operatorUsername, long startMs) {
         try {
             markProcessing(taskId);
             List<WarehouseEntity> entities = loadEntities(req);
@@ -79,7 +81,7 @@ public class WarehouseLedgerExportAppService {
             List<String[]> rows = WarehouseLedgerExportPolicy.buildRows(entities, req.sections());
             byte[] xlsx = excelWriter.write(headers, rows);
             String filePath = saveXlsx(taskId, xlsx);
-            complete(taskId, operatorId, entities.size(), req, filePath, startMs);
+            complete(taskId, operatorId, operatorUsername, entities, req, filePath, startMs);
         } catch (RuntimeException e) {
             log.error("台账导出失败: taskId={}", taskId, e);
             fail(taskId, truncate(e.getMessage(), 500));
@@ -114,9 +116,11 @@ public class WarehouseLedgerExportAppService {
         return target.toString();
     }
 
-    private void complete(Long taskId, Long operatorId, int totalCount, ExportRequest req,
+    private void complete(Long taskId, Long operatorId, String operatorUsername,
+                          List<WarehouseEntity> entities, ExportRequest req,
                           String filePath, long startMs) {
         long elapsedMs = System.currentTimeMillis() - startMs;
+        int totalCount = entities.size();
         LocalDateTime now = LocalDateTime.now();
         WarehouseExportTaskEntity task = exportTaskRepo.findById(taskId).orElseThrow();
         task.setStatus(ExportStatus.COMPLETED);
@@ -128,6 +132,9 @@ public class WarehouseLedgerExportAppService {
         task.setResultSummary(buildSummary(totalCount, req, elapsedMs));
         exportTaskRepo.save(task);
         publish(task, totalCount, req, elapsedMs);
+        if (operatorUsername != null) {
+            warehouseLogService.logExportAction(entities, scopeLabel(req), totalCount, operatorUsername, operatorId);
+        }
     }
 
     private String buildSummary(int totalCount, ExportRequest req, long elapsedMs) {

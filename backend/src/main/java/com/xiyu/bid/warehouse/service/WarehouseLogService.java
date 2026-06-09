@@ -7,8 +7,10 @@ import com.xiyu.bid.warehouse.infrastructure.WarehouseOperationLogEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseOperationLogRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Objects;
 
 @Service
@@ -32,6 +34,7 @@ public class WarehouseLogService {
         oplogRepo.save(logEntity);
     }
 
+    @Transactional
     public void logEntityChanges(WarehouseEntity oldVal, WarehouseEntity newVal, String operatorUsername, Long operatorId) {
         if (!Objects.equals(oldVal.getName(), newVal.getName())) {
             saveLog(newVal, WarehouseActionType.EDIT, "仓库名称", oldVal.getName(), newVal.getName(), "修改仓库名称：" + oldVal.getName() + " -> " + newVal.getName(), operatorUsername, operatorId);

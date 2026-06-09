@@ -54,6 +54,22 @@ public class WarehouseExpiryScanTask {
         }
         List<Long> recipientIds = recipients.stream().map(User::getId).toList();
 
+        // 区域联系人姓名 -> 格式化"姓名（工号）"映射；找不到则降级为姓名
+        java.util.Set<String> contactNames = warehouses.stream()
+                .map(WarehouseEntity::getContactPerson)
+                .filter(s -> s != null && !s.isBlank())
+                .collect(java.util.stream.Collectors.toSet());
+        java.util.Map<String, String> contactDisplay = new java.util.HashMap<>();
+        for (String name : contactNames) {
+            List<User> matched = userRepo.findByFullName(name);
+            if (!matched.isEmpty()) {
+                User u = matched.get(0);
+                contactDisplay.put(name, u.getFullName() + "（" + u.getUsername() + "）");
+            } else {
+                contactDisplay.put(name, name);
+            }
+        }
+
         LocalDate today = LocalDate.now();
         LocalDateTime twentyFourHoursAgo = LocalDateTime.now().minusDays(1);
 
@@ -97,8 +113,10 @@ public class WarehouseExpiryScanTask {
         return alertCount;
     }
 
-    private void sendExpiryWarningNotification(WarehouseEntity wh, long remainingDays, List<Long> recipientIds) {
+    private void sendExpiryWarningNotification(WarehouseEntity wh, long remainingDays, List<Long> recipientIds,
+                                                java.util.Map<String, String> contactDisplay) {
         String title = String.format("【仓库租约到期提醒】%s 还有 %d 天到期", wh.getName(), remainingDays);
+        String contactDisplayName = contactDisplay.getOrDefault(wh.getContactPerson(), wh.getContactPerson());
         String body = String.format(
                 "您好，公司仓库租约即将到期，请及时安排续约或退租：\n" +
                 "- 仓库名称：%s\n" +
@@ -117,7 +135,7 @@ public class WarehouseExpiryScanTask {
                 wh.getLessor(),
                 wh.getEndDate(),
                 remainingDays,
-                wh.getContactPerson(),
+                contactDisplayName,
                 wh.getClosePlan() != null ? wh.getClosePlan() : "（暂无）"
         );
 
@@ -144,7 +162,7 @@ public class WarehouseExpiryScanTask {
                 wh.getName(),
                 wh.getRegion(),
                 wh.getEndDate(),
-                expiredDays
+                Math.abs(expiredDays)
         );
 
         CreateNotificationRequest request = new CreateNotificationRequest(

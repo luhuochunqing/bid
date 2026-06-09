@@ -54,6 +54,7 @@ public class WarehouseExportController {
         if (operatorId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("未登录"));
         }
+        String operatorLabel = userResolver.resolveCurrentOperatorLabel();
         WarehouseExportAppService.ExportTaskResult result;
         if (body != null && body.get("ids") instanceof List<?> rawIds) {
             List<Long> ids = rawIds.stream()
@@ -63,11 +64,11 @@ public class WarehouseExportController {
             if (ids.isEmpty()) {
                 return ResponseEntity.badRequest().body(ApiResponse.error("未选择任何仓库"));
             }
-            result = exportAppService.exportByIds(ids, operatorId);
+            result = exportAppService.exportByIds(ids, operatorId, operatorLabel);
         } else {
             WarehouseFilterDTO filterDTO = body == null ? null
                     : objectMapper.convertValue(body, WarehouseFilterDTO.class);
-            result = exportAppService.export(filterDTO, operatorId);
+            result = exportAppService.export(filterDTO, operatorId, operatorLabel);
         }
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(ApiResponse.success("导出任务已创建", Map.of("taskId", result.taskId())));
@@ -81,6 +82,7 @@ public class WarehouseExportController {
         if (operatorId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("未登录"));
         }
+        String operatorLabel = userResolver.resolveCurrentOperatorLabel();
 
         String scope = body != null && body.get("scope") instanceof String s ? s : "filter";
         Set<Section> sections = parseSections(body);
@@ -102,7 +104,7 @@ public class WarehouseExportController {
 
         WarehouseLedgerExportAppService.ExportRequest req = new WarehouseLedgerExportAppService.ExportRequest(
                 scope, ids, filterDTO, sections);
-        WarehouseExportAppService.ExportTaskResult result = ledgerExportAppService.trigger(req, operatorId);
+        WarehouseExportAppService.ExportTaskResult result = ledgerExportAppService.trigger(req, operatorId, operatorLabel);
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(ApiResponse.success("台账导出任务已创建", Map.of("taskId", result.taskId())));
     }
