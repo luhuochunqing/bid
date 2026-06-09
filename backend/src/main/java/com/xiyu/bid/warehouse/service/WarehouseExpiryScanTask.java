@@ -68,43 +68,29 @@ public class WarehouseExpiryScanTask {
                 continue;
             }
 
+            WarehouseStatus recomputed = com.xiyu.bid.warehouse.domain.WarehouseStatusCalculator.recompute(endDate, today);
+            if (recomputed != wh.getStatus()) {
+                wh.setStatus(recomputed);
+                warehouseRepo.save(wh);
+            }
+
             long remainingDays = ChronoUnit.DAYS.between(today, endDate);
 
-            if (remainingDays <= 30 && remainingDays > 0) {
-                // 即将到期
-                if (wh.getStatus() == WarehouseStatus.IN_USE) {
-                    wh.setStatus(WarehouseStatus.EXPIRING);
-                    warehouseRepo.save(wh);
-                }
-
+            if (recomputed == WarehouseStatus.EXPIRING) {
                 boolean alreadySent = notificationRepo.existsBySourceEntityTypeAndSourceEntityIdAndCreatedAtAfter(
                         "WAREHOUSE_EXPIRY_WARNING", wh.getId(), twentyFourHoursAgo
                 );
-
                 if (!alreadySent) {
                     sendExpiryWarningNotification(wh, remainingDays, recipientIds);
                     alertCount++;
                 }
-            } else if (remainingDays <= 0) {
-                // 已到期
-                if (wh.getStatus() != WarehouseStatus.EXPIRED) {
-                    wh.setStatus(WarehouseStatus.EXPIRED);
-                    warehouseRepo.save(wh);
-                }
-
+            } else if (recomputed == WarehouseStatus.EXPIRED) {
                 boolean alreadySent = notificationRepo.existsBySourceEntityTypeAndSourceEntityIdAndCreatedAtAfter(
                         "WAREHOUSE_EXPIRED_WARNING", wh.getId(), twentyFourHoursAgo
                 );
-
                 if (!alreadySent) {
                     sendExpiredNotification(wh, Math.abs(remainingDays), recipientIds);
                     alertCount++;
-                }
-            } else {
-                // 恢复为正常状态
-                if (wh.getStatus() == WarehouseStatus.EXPIRING || wh.getStatus() == WarehouseStatus.EXPIRED) {
-                    wh.setStatus(WarehouseStatus.IN_USE);
-                    warehouseRepo.save(wh);
                 }
             }
         }

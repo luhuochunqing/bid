@@ -204,15 +204,19 @@ public class WarehouseController {
         return repo.findById(id).map(e -> {
             if (e.getStatus() != WarehouseStatus.CLOSED)
                 return ResponseEntity.badRequest().body(ApiResponse.<WarehouseEntity>error("仓库未关仓"));
-            
+
             com.xiyu.bid.entity.User user = getCurrentUser();
             String operatorUsername = user != null ? user.getFullName() + "(" + user.getUsername() + ")" : "system";
             Long operatorId = user != null ? user.getId() : null;
 
-            e.setStatus(WarehouseStatus.IN_USE);
+            // 恢复后系统按 endDate 重新计算状态（IN_USE / EXPIRING / EXPIRED）
+            WarehouseStatus recomputed = com.xiyu.bid.warehouse.domain.WarehouseStatusCalculator.recompute(e);
+            e.setStatus(recomputed);
             e.setCloseReason(null);
             WarehouseEntity saved = repo.save(e);
-            warehouseLogService.saveLog(saved, WarehouseActionType.RESTORE, null, null, null, "恢复仓库使用", operatorUsername, operatorId);
+            warehouseLogService.saveLog(saved, WarehouseActionType.RESTORE, null, null, null,
+                    "恢复仓库使用，状态重新计算为 " + recomputed.getDisplayName(),
+                    operatorUsername, operatorId);
             return ResponseEntity.ok(ApiResponse.success("已恢复", saved));
         }).orElse(ResponseEntity.notFound().build());
     }

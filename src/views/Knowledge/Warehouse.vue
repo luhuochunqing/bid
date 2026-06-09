@@ -84,6 +84,8 @@ import WarehouseFilterBar from '@/components/warehouse/WarehouseFilterBar.vue'
 import WarehouseDialog from '@/components/warehouse/WarehouseDialog.vue'
 import WarehouseDrawer from '@/components/warehouse/WarehouseDrawer.vue'
 import WarehouseExportDialog from '@/components/warehouse/WarehouseExportDialog.vue'
+import WarehouseImportDialog from '@/components/warehouse/WarehouseImportDialog.vue'
+import WarehouseCloseDialog from '@/components/warehouse/WarehouseCloseDialog.vue'
 
 const records = ref([]); const loading = ref(false)
 const page = ref(1); const size = ref(15); const total = ref(0)
@@ -106,7 +108,14 @@ const buildParams = () => {
   const f = filters.value
   if (f.keyword) p.keyword = f.keyword
   if (f.types?.length) p.types = f.types
-  if (f.statuses?.length) p.statuses = f.statuses
+  // 默认排除已关仓（CLOSED）。仅当用户显式选中"已关仓"或勾选"包含已关仓"时才传 statuses。
+  const includeClosed = f.includeClosed === true
+  const hasClosed = f.statuses?.includes('CLOSED')
+  if (f.statuses?.length && (includeClosed || hasClosed)) {
+    p.statuses = f.statuses
+  } else {
+    p.statuses = ['IN_USE', 'EXPIRING', 'EXPIRED']
+  }
   if (f.province) p.province = f.province
   if (f.endDateFrom) p.endDateFrom = f.endDateFrom
   if (f.endDateTo) p.endDateTo = f.endDateTo

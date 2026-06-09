@@ -103,7 +103,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Upload, Edit } from '@element-plus/icons-vue'
+import { Upload, Edit, Lock, RefreshRight } from '@element-plus/icons-vue'
 import http from '@/api/client'
 
 const props = defineProps({
