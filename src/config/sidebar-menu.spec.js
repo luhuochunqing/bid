@@ -12,8 +12,7 @@ describe('sidebar-menu config', () => {
       '投标项目',
       '知识库',
       '资源管理',
-      'AI 智能中心',
-      '数据分析',
+            '数据分析',
       '系统设置'
     ])
     expect(topLevelOptions.map((item) => item.label)).not.toEqual(
@@ -62,8 +61,7 @@ describe('sidebar-menu config', () => {
       '投标项目',
       '知识库',
       '资源管理',
-      'AI 智能中心',
-      '数据分析',
+            '数据分析',
       '系统设置'
     ])
     expect(dashboardGroup.children.map((item) => item.label)).toEqual([

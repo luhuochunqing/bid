@@ -87,8 +87,13 @@ else
   export REDIS_DB=0
 fi
 
+# Apply branch-based database suffix only for agent worktrees.
+# Main checkout always uses the base DB_NAME without suffix.
+IS_WORKTREE=""
+[[ "$CURRENT_DIR" == *"/worktrees/"* ]] && IS_WORKTREE=1
+
 # Apply branch-based database suffix if in a git repo and not on protected/anchor branches
-if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+if [[ -n "$IS_WORKTREE" ]] && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   CURRENT_BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null || echo "")"
   if [[ -n "$CURRENT_BRANCH" ]]; then
     case "$CURRENT_BRANCH" in

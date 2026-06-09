@@ -113,6 +113,7 @@ const activeTab = ref('basic'); const editingId = ref(null); const detailId = re
 const exportVisible = ref(false)
 const ledgerExportVisible = ref(false)
 const allInUseCount = ref(0)
+const selectedRows = ref([])
 const newlyCreatedIds = ref(new Set())
 
 const filters = ref({})
