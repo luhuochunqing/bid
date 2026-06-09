@@ -9,7 +9,8 @@
       @export="exportVisible = true"
     />
     <el-card class="data-card" shadow="never">
-      <el-table :data="records" v-loading="loading" style="width:100%" @row-click="openDrawer">
+      <el-table :data="records" v-loading="loading" style="width:100%" @row-click="openDrawer"
+        :row-class-name="({row}) => newlyCreatedIds.has(row.id) ? 'row-newly-created' : ''">
         <el-table-column type="index" label="序号" width="60" />
         <el-table-column prop="name" label="仓库名称" min-width="160" show-overflow-tooltip />
         <el-table-column label="仓库类型" width="80" align="center">
@@ -46,7 +47,7 @@
       :editing-id="editingId"
       :form="form"
       :init-tab="activeTab"
-      @submitted="load"
+      @submitted="handleSubmitted"
     />
     <WarehouseDrawer v-model="drawerVisible" :warehouse-id="detailId" />
     <WarehouseExportDialog v-model="exportVisible" :filters="filters" />
@@ -67,6 +68,7 @@ const page = ref(1); const size = ref(15); const total = ref(0)
 const dialogVisible = ref(false); const drawerVisible = ref(false)
 const activeTab = ref('basic'); const editingId = ref(null); const detailId = ref(null)
 const exportVisible = ref(false)
+const newlyCreatedIds = ref(new Set())
 
 const filters = ref({})
 const form = reactive({
@@ -148,6 +150,14 @@ const handleRestore = async (row) => {
   } catch {}
 }
 
+const handleSubmitted = async (newId) => {
+  await load()
+  if (newId) {
+    newlyCreatedIds.value.add(newId)
+    setTimeout(() => newlyCreatedIds.value.delete(newId), 3000)
+  }
+}
+
 const computeDays = (r) => {
   if (!r.endDate) return '—'
   const d = Math.ceil((new Date(r.endDate) - Date.now()) / 86400000)
@@ -169,4 +179,9 @@ onMounted(load)
 .page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; h2 { font-weight:600; color:#1f2937; margin:0 } }
 .data-card { border-radius:8px; border:1px solid var(--el-border-color-lighter); box-shadow:0 2px 8px rgba(0,0,0,.05) }
 .pagination-wrap { display:flex; justify-content:flex-end; margin-top:16px }
+:deep(.row-newly-created) { animation: highlightFade 3s ease-out }
+@keyframes highlightFade {
+  0% { background-color: #e1f3d8 }
+  100% { background-color: transparent }
+}
 </style>

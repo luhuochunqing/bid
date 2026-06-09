@@ -273,13 +273,14 @@ const handleSubmit = async () => {
       await http.put(`/api/knowledge/warehouses/${props.editingId}`, payload)
       await uploadNewFiles(props.editingId)
       ElMessage.success('更新成功')
+      visible.value = false; emit('submitted')
     } else {
       const { data } = await http.post('/api/knowledge/warehouses', payload)
       const newId = data.id
       await uploadNewFiles(newId)
       ElMessage.success('新增成功')
+      visible.value = false; emit('submitted', newId)
     }
-    visible.value = false; emit('submitted')
   } catch (e) { ElMessage.error(e.response?.data?.message || '保存失败') }
   finally { submitting.value = false }
 }
