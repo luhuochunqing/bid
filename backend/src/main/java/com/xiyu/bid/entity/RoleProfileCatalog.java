@@ -35,7 +35,7 @@ public final class RoleProfileCatalog {
     public static final Set<String> GLOBAL_ACCESS_ROLES = Set.of(ADMIN_CODE, BID_ADMIN_CODE, BID_LEAD_CODE);
 
     /** 允许提交投标（推进至评标阶段）的业务角色码集合，对齐前端 useProjectDraftingPermissions.canSubmitBid。 */
-    public static final Set<String> SUBMIT_BID_ALLOWED_ROLES = Set.of(BID_ADMIN_CODE, BID_LEAD_CODE, SALES_CODE);
+    public static final Set<String> SUBMIT_BID_ALLOWED_ROLES = Set.of(BID_ADMIN_CODE, BID_LEAD_CODE, SALES_CODE, BID_SPECIALIST_CODE);
 
     private static final Map<String, SeedDefinition> DEFINITIONS = Map.ofEntries(
             Map.entry(ADMIN_CODE, new SeedDefinition(ADMIN_CODE, "管理员", "系统管理员，拥有所有权限", true, "all", List.of("all"))),

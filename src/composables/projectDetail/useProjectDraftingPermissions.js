@@ -45,7 +45,9 @@ function resolveDraftingRoleGroup(role) {
   return null
 }
 
-export function useProjectDraftingPermissions() {
+export function useProjectDraftingPermissions(opts = {}) {
+  // opts 支持传入 { projectManagerId, currentUserId }
+  // 用于在组件中二次约束 lead_assist 角色的提交投标权限
   const userStore = useUserStore()
 
   const roleGroup = computed(() => resolveDraftingRoleGroup(userStore.userRole))
@@ -123,9 +125,14 @@ export function useProjectDraftingPermissions() {
   const canReviewBid = computed(() => roleGroup.value === 'auditor')
 
   /** 提交投标（推进至评标阶段）*/
-  const canSubmitBid = computed(() =>
-    roleGroup.value === 'admin_lead' || roleGroup.value === 'lead_assist'
-  )
+  const canSubmitBid = computed(() => {
+    if (roleGroup.value === 'admin_lead') return true
+    // lead_assist 仅当被分配为该项目的负责人时可见"完成投标"
+    if (roleGroup.value === 'lead_assist' && opts.projectManagerId && opts.currentUserId) {
+      return String(opts.projectManagerId) === String(opts.currentUserId)
+    }
+    return false
+  })
 
   // ── 快捷操作（右侧边栏）─────────────────────────────────────────────────
 
