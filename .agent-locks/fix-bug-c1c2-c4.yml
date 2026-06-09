@@ -1,9 +1,0 @@
-version: 1
-task: fix-bug-c1c2-c4
-locks:
-  - path: src/router/index.js
-    scope: file
-    reason: 移除旧版案例详情页路由
-    owner: trae
-    branch: fix/bug-c1c2-c4-case-detail-route-and-industry-mapping
-    expiresAt: 2026-06-15T00:00:00Z

@@ -1,9 +1,0 @@
-version: 1
-task: "db-isolation"
-locks:
-  - path: "backend/src/main/resources/application-mysql.yml"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/gemini/feat-test-db-isolation"
-    expiresAt: "2026-06-15T00:00:00Z"
-    reason: "Configuring createDatabaseIfNotExist option for local branch db isolation"

@@ -1,9 +1,0 @@
-version: 1
-task: "codex-fixbug0607"
-locks:
-  - path: "backend/src/main/java/com/xiyu/bid/entity"
-    scope: "directory"
-    owner: "agent"
-    branch: "agent/codex/fixbug0607"
-    expiresAt: "2026-06-08T13:43:53.934Z"
-    reason: "新增 SUBMIT_BID_ALLOWED_ROLES 常量"

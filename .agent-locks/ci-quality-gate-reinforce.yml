@@ -1,7 +1,0 @@
-version: 1
-locks:
-- path: .github/workflows/ci.yml
-  scope: file
-  reason: CI quality gate reinforce — compile check + full E2E regression
-  owner: codex
-  branch: agent/codex/ci-quality-gate-reinforce

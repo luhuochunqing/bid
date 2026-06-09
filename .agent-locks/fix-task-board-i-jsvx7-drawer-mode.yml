@@ -1,9 +1,0 @@
-version: 1
-task: "fix-task-board-i-jsvx7-drawer-mode"
-locks:
-  - path: "src/components/project/ProjectTaskBoardCard.vue"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/claude/fix-task-board-i-jsvx7-drawer-mode"
-    expiresAt: "2026-06-09T04:05:00.469Z"
-    reason: "fix IJSVX7 问题一：drawer 改 view mode"

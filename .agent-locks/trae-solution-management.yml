@@ -1,9 +1,0 @@
-version: 1
-task: "trae-solution-management"
-locks:
-  - path: "src/router/index.js"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/trae/solution-management"
-    expiresAt: "2026-06-09T01:32:36.958Z"
-    reason: "§4.1.1.1 项目档案 — 路由标题改名"
