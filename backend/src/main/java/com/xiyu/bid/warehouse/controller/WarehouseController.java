@@ -295,4 +295,9 @@ public class WarehouseController {
         if (csv == null || csv.isBlank()) return List.of();
         return Arrays.stream(csv.split(",")).map(String::trim).filter(s -> !s.isBlank()).map(s -> Enum.valueOf(enumClass, s.trim().toUpperCase())).toList();
     }
+
+    private List<String> parseCsv(String csv) {
+        if (csv == null || csv.isBlank()) return List.of();
+        return Arrays.stream(csv.split(",")).map(String::trim).filter(s -> !s.isBlank()).toList();
+    }
 }

@@ -6,6 +6,7 @@
       :selected-count="selectedRows.length"
       @search="resetPageAndLoad"
       @reset="resetFilters"
+      @realtime-search="resetPageAndLoad"
       @create="openCreate"
       @export="exportVisible = true"
       @import="importVisible = true"
@@ -73,6 +74,13 @@
     <WarehouseDrawer v-model="drawerVisible" :warehouse-id="detailId" @edit="handleDrawerEdit" />
     <WarehouseExportDialog v-model="exportVisible" :filters="exportFilters" :mode="exportMode" :selected-ids="selectedRowIds" />
     <WarehouseImportDialog v-model="importVisible" @imported="handleImported" />
+    <WarehouseLedgerExportDialog
+      v-model="ledgerExportVisible"
+      :filter="filters"
+      :filter-count="total"
+      :all-in-use-count="allInUseCount"
+      :selected-ids="selectedRowIds"
+    />
   </div>
 </template>
 
@@ -89,9 +97,22 @@ import WarehouseCloseDialog from '@/components/warehouse/WarehouseCloseDialog.vu
 
 const records = ref([]); const loading = ref(false)
 const page = ref(1); const size = ref(15); const total = ref(0)
+
+const loadAllInUseCount = async () => {
+  try {
+    const { data } = await http.get('/api/knowledge/warehouses', {
+      params: { statuses: 'IN_USE', size: 1 }
+    })
+    allInUseCount.value = data.totalElements || 0
+  } catch {
+    allInUseCount.value = 0
+  }
+}
 const dialogVisible = ref(false); const drawerVisible = ref(false)
 const activeTab = ref('basic'); const editingId = ref(null); const detailId = ref(null)
 const exportVisible = ref(false)
+const ledgerExportVisible = ref(false)
+const allInUseCount = ref(0)
 const newlyCreatedIds = ref(new Set())
 
 const filters = ref({})
@@ -116,7 +137,8 @@ const buildParams = () => {
   } else {
     p.statuses = ['IN_USE', 'EXPIRING', 'EXPIRED']
   }
-  if (f.province) p.province = f.province
+  if (f.regions?.length) p.regions = f.regions
+  if (f.provinces?.length) p.provinces = f.provinces
   if (f.endDateFrom) p.endDateFrom = f.endDateFrom
   if (f.endDateTo) p.endDateTo = f.endDateTo
   if (f.hasPropertyCert) p.hasPropertyCert = true

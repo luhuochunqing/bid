@@ -7,7 +7,8 @@ public record WarehouseFilterCriteria(
         String keyword,
         List<WarehouseType> types,
         List<WarehouseStatus> statuses,
-        String province,
+        List<String> regions,
+        List<String> provinces,
         LocalDate endDateFrom,
         LocalDate endDateTo,
         Boolean hasPropertyCert,
@@ -16,6 +17,6 @@ public record WarehouseFilterCriteria(
         String contactPersonKeyword
 ) {
     public static WarehouseFilterCriteria empty() {
-        return new WarehouseFilterCriteria(null, List.of(), List.of(), null, null, null, null, null, null, null);
+        return new WarehouseFilterCriteria(null, List.of(), List.of(), List.of(), List.of(), null, null, null, null, null, null);
     }
 }

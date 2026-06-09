@@ -42,6 +42,7 @@ public class WarehouseExportController {
     private static final DateTimeFormatter FILENAME_DT_FMT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final WarehouseExportAppService exportAppService;
+    private final WarehouseLedgerExportAppService ledgerExportAppService;
     private final UserResolver userResolver;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
@@ -70,6 +71,54 @@ public class WarehouseExportController {
         }
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(ApiResponse.success("导出任务已创建", Map.of("taskId", result.taskId())));
+    }
+
+    @PostMapping("/ledger")
+    @PreAuthorize("hasAuthority('" + PERM + "')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> triggerLedgerExport(
+            @RequestBody(required = false) Map<String, Object> body) {
+        Long operatorId = userResolver.resolveCurrentUserId();
+        if (operatorId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("未登录"));
+        }
+
+        String scope = body != null && body.get("scope") instanceof String s ? s : "filter";
+        Set<Section> sections = parseSections(body);
+        if (sections.isEmpty()) sections = Set.of(Section.BASIC, Section.LEASE, Section.DOC);
+
+        WarehouseFilterDTO filterDTO = null;
+        List<Long> ids = null;
+
+        if ("ids".equals(scope)) {
+            if (!(body != null && body.get("ids") instanceof List<?> rawIds)) {
+                return ResponseEntity.badRequest().body(ApiResponse.error("勾选模式需要 ids 字段"));
+            }
+            ids = rawIds.stream().filter(o -> o instanceof Number).map(o -> ((Number) o).longValue()).toList();
+            if (ids.isEmpty()) return ResponseEntity.badRequest().body(ApiResponse.error("未选择任何仓库"));
+        } else if (!"all_in_use".equals(scope)) {
+            // filter
+            filterDTO = body == null ? null : objectMapper.convertValue(body, WarehouseFilterDTO.class);
+        }
+
+        WarehouseLedgerExportAppService.ExportRequest req = new WarehouseLedgerExportAppService.ExportRequest(
+                scope, ids, filterDTO, sections);
+        WarehouseExportAppService.ExportTaskResult result = ledgerExportAppService.trigger(req, operatorId);
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(ApiResponse.success("台账导出任务已创建", Map.of("taskId", result.taskId())));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Set<Section> parseSections(Map<String, Object> body) {
+        if (body == null) return Set.of();
+        Object v = body.get("sections");
+        if (!(v instanceof List<?> rawList)) return Set.of();
+        Set<Section> out = EnumSet.noneOf(Section.class);
+        for (Object o : rawList) {
+            if (o instanceof String s) {
+                try { out.add(Section.valueOf(s.toUpperCase())); } catch (IllegalArgumentException ignored) {}
+            }
+        }
+        return out;
     }
 
     @GetMapping("/tasks")

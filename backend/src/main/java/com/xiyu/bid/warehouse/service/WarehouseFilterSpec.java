@@ -94,7 +94,8 @@ public class WarehouseFilterSpec {
         return (c.keyword() == null || c.keyword().isBlank())
                 && c.types().isEmpty()
                 && c.statuses().isEmpty()
-                && (c.province() == null || c.province().isBlank())
+                && c.regions().isEmpty()
+                && c.provinces().isEmpty()
                 && c.endDateFrom() == null
                 && c.endDateTo() == null
                 && c.hasPropertyCert() == null
