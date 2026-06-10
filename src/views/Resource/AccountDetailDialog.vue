@@ -5,7 +5,7 @@
         <el-descriptions :column="2" border>
           <el-descriptions-item label="平台名称" :span="2">{{ data.platform }}</el-descriptions-item>
           <el-descriptions-item label="网址">{{ data.url || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="平台类型">{{ data.platformType || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="平台类型">{{ platformTypeLabel || '-' }}</el-descriptions-item>
           <el-descriptions-item label="用户名">{{ data.username || '-' }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag v-if="data.status === 'available'" type="success">可用</el-tag>
@@ -77,6 +77,19 @@ const visible = computed({
 const activeTab = ref('info')
 const logs = ref([])
 const borrowRecords = ref([])
+
+const PLATFORM_TYPE_MAP = {
+  GOV_PROCUREMENT: '政府采购',
+  BIDDING_PLATFORM: '招投标平台',
+  CONSTRUCTION_PLATFORM: '建设平台',
+  ENTERPRISE_SELF: '企业自建',
+  OTHER: '其他'
+}
+const platformTypeLabel = computed(() => {
+  const raw = props.data?.platformType
+  if (!raw) return ''
+  return PLATFORM_TYPE_MAP[raw] || raw
+})
 
 watch(() => props.data, async (d) => {
   activeTab.value = 'info'

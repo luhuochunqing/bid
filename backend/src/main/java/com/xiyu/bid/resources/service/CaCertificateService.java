@@ -1,12 +1,26 @@
 package com.xiyu.bid.resources.service;
 
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
 import com.xiyu.bid.repository.UserRepository;
-import com.xiyu.bid.resources.dto.*;
-import com.xiyu.bid.resources.entity.*;
-import com.xiyu.bid.resources.repository.*;
+import com.xiyu.bid.resources.dto.CaBorrowApplicationDTO;
+import com.xiyu.bid.resources.dto.CaBorrowEventDTO;
+import com.xiyu.bid.resources.dto.CaBorrowRequest;
+import com.xiyu.bid.resources.dto.CaCertificateDTO;
+import com.xiyu.bid.resources.dto.CaCertificateRequest;
+import com.xiyu.bid.resources.dto.CaReturnRequest;
+import com.xiyu.bid.resources.entity.CaBorrowApplicationEntity;
+import com.xiyu.bid.resources.entity.CaBorrowEventEntity;
+import com.xiyu.bid.resources.entity.CaCertificateEntity;
+import com.xiyu.bid.resources.entity.CaCertificatePlatformEntity;
+import com.xiyu.bid.resources.notification.CaNotificationDispatcher;
+import com.xiyu.bid.resources.repository.CaBorrowApplicationRepository;
+import com.xiyu.bid.resources.repository.CaBorrowEventRepository;
+import com.xiyu.bid.resources.repository.CaCertificatePlatformRepository;
+import com.xiyu.bid.resources.repository.CaCertificateRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
@@ -15,28 +29,33 @@ import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
-
 @Service
 @RequiredArgsConstructor
 public class CaCertificateService {
 
     private final CaCertificateRepository certificateRepository;
+    private final CaCertificatePlatformRepository platformLinkRepository;
     private final CaBorrowApplicationRepository borrowRepository;
     private final CaBorrowEventRepository eventRepository;
     private final UserRepository userRepository;
+    private final PasswordEncryptionUtil passwordEncryptionUtil;
+    private final CaNotificationDispatcher caNotificationDispatcher;
 
     // ========== CA 证书 CRUD ==========
 
     @Transactional
     public CaCertificateDTO create(CaCertificateRequest request) {
+        String storedPassword = passwordEncryptionUtil.encrypt(request.getCaPassword());
         CaCertificateEntity entity = CaCertificateEntity.builder()
-                .platformIds(request.getPlatformIds())
                 .caType(request.getCaType())
                 .sealType(request.getSealType())
                 .electronicAccount(request.getElectronicAccount())
-                .caPassword(request.getCaPassword())
+                .caPassword(storedPassword)
                 .issuer(request.getIssuer())
                 .holderName(request.getHolderName())
                 .expiryDate(request.getExpiryDate())
@@ -47,19 +66,21 @@ public class CaCertificateService {
                 .status(computeStatus(request.getExpiryDate()))
                 .remarks(request.getRemarks())
                 .build();
-        return CaCertificateDTO.from(certificateRepository.save(entity));
+        CaCertificateEntity saved = certificateRepository.save(entity);
+        List<Long> platformIds = persistPlatformLinks(saved.getId(), request.getPlatformIds());
+        return CaCertificateDTO.from(saved, platformIds);
     }
 
     @Transactional
     public CaCertificateDTO update(Long id, CaCertificateRequest request) {
         CaCertificateEntity entity = certificateRepository.findById(id)
                 .orElseThrow(() -> new CaBusinessException("CA证书不存在: " + id));
-        entity.setPlatformIds(request.getPlatformIds());
         entity.setCaType(request.getCaType());
         entity.setSealType(request.getSealType());
         entity.setElectronicAccount(request.getElectronicAccount());
         if (request.getCaPassword() != null && !request.getCaPassword().isEmpty()) {
-            entity.setCaPassword(request.getCaPassword());
+            String storedPassword = passwordEncryptionUtil.encrypt(request.getCaPassword());
+            entity.setCaPassword(storedPassword);
         }
         entity.setIssuer(request.getIssuer());
         entity.setHolderName(request.getHolderName());
@@ -69,7 +90,9 @@ public class CaCertificateService {
         entity.setCustodianName(request.getCustodianName());
         entity.setStatus(computeStatus(request.getExpiryDate()));
         entity.setRemarks(request.getRemarks());
-        return CaCertificateDTO.from(certificateRepository.save(entity));
+        CaCertificateEntity saved = certificateRepository.save(entity);
+        List<Long> platformIds = persistPlatformLinks(saved.getId(), request.getPlatformIds());
+        return CaCertificateDTO.from(saved, platformIds);
     }
 
     @Transactional
@@ -81,8 +104,42 @@ public class CaCertificateService {
     }
 
     public CaCertificateDTO getById(Long id) {
-        return CaCertificateDTO.from(certificateRepository.findById(id)
-                .orElseThrow(() -> new CaBusinessException("CA证书不存在: " + id)));
+        CaCertificateEntity entity = certificateRepository.findById(id)
+                .orElseThrow(() -> new CaBusinessException("CA证书不存在: " + id));
+        return CaCertificateDTO.from(entity, loadPlatformIds(id));
+    }
+
+    /**
+     * Reveal the decrypted CA password. Intended for ADMIN / custodian flows
+     * where the secret value must be displayed.
+     */
+    public CaCertificateDTO revealPassword(Long id) {
+        CaCertificateEntity entity = certificateRepository.findById(id)
+                .orElseThrow(() -> new CaBusinessException("CA证书不存在: " + id));
+        String decrypted = passwordEncryptionUtil.decrypt(entity.getCaPassword());
+        return CaCertificateDTO.from(entity, loadPlatformIds(id), true, decrypted);
+    }
+
+    private List<Long> persistPlatformLinks(Long caId, List<Long> platformIds) {
+        if (platformIds == null) return loadPlatformIds(caId);
+        platformLinkRepository.deleteByCaCertificateId(caId);
+        List<Long> normalized = platformIds.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        for (Long pid : normalized) {
+            platformLinkRepository.save(CaCertificatePlatformEntity.builder()
+                    .caCertificateId(caId)
+                    .platformAccountId(pid)
+                    .build());
+        }
+        return normalized;
+    }
+
+    private List<Long> loadPlatformIds(Long caId) {
+        return platformLinkRepository.findByCaCertificateId(caId).stream()
+                .map(CaCertificatePlatformEntity::getPlatformAccountId)
+                .collect(Collectors.toList());
     }
 
     public Page<CaCertificateDTO> list(String status, String borrowStatus, String keyword,
@@ -112,7 +169,8 @@ public class CaCertificateService {
             }
             return cb.and(predicates.toArray(new Predicate[0]));
         };
-        return certificateRepository.findAll(spec, pageable).map(CaCertificateDTO::from);
+        return certificateRepository.findAll(spec, pageable)
+                .map(entity -> CaCertificateDTO.from(entity, loadPlatformIds(entity.getId())));
     }
 
     public Map<String, Long> getOverview() {
@@ -172,6 +230,9 @@ public class CaCertificateService {
                 .actorName(user.getUsername())
                 .statusAfter("PENDING_APPROVAL")
                 .build());
+
+        // IJTHTX 修复：提交借用申请后通知 CA 保管员
+        caNotificationDispatcher.onBorrowSubmitted(cert, app);
 
         return CaBorrowApplicationDTO.from(app);
     }
@@ -282,6 +343,16 @@ public class CaCertificateService {
                 .statusBefore(statusBefore)
                 .statusAfter("RETURNED")
                 .build());
+
+        // IJTHTX 修复：归还后检查 CA 是否即将到期 / 已过期
+        if (cert != null) {
+            long daysLeft = ChronoUnit.DAYS.between(LocalDate.now(), cert.getExpiryDate());
+            if (daysLeft < 0) {
+                caNotificationDispatcher.onExpired(cert);
+            } else if (daysLeft <= 30) {
+                caNotificationDispatcher.onExpiring(cert, daysLeft);
+            }
+        }
 
         return CaBorrowApplicationDTO.from(app);
     }

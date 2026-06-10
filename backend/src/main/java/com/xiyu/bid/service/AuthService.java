@@ -159,6 +159,7 @@ public class AuthService {
                 .id(user.getId())
                 .username(user.getUsername())
                 .email(user.getEmail())
+                .phone(user.getPhone())
                 .fullName(user.getFullName())
                 .role(user.getRoleCode())
                 .roleCode(user.getRoleCode())

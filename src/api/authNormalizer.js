@@ -24,6 +24,7 @@ export const normalizeUser = (authPayload) => ({
   name: authPayload?.fullName || authPayload?.name || authPayload?.username,
   username: authPayload?.username,
   email: authPayload?.email,
+  phone: authPayload?.phone || authPayload?.mobile,
   role: String(authPayload?.roleCode || authPayload?.role || '').toLowerCase(),
   roleCode: String(authPayload?.roleCode || authPayload?.role || '').toLowerCase(),
   roleName: authPayload?.roleName || '',

@@ -1,0 +1,15 @@
+version: 1
+task: "fix-gitee-issues-batch-2026-06-10"
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql"
+    scope: "directory"
+    owner: "agent"
+    branch: "agent/claude/fix-gitee-issues-batch-2026-06-10"
+    expiresAt: "2026-06-11T06:17:54.635Z"
+    reason: "fix-gitee-issues-batch-2026-06-10: V1072/V1073 platform_accounts 唯一约束 + ca_certificate_platforms 关联表"
+  - path: "backend/src/main/resources/db/rollback/migration-mysql"
+    scope: "directory"
+    owner: "agent"
+    branch: "agent/claude/fix-gitee-issues-batch-2026-06-10"
+    expiresAt: "2026-06-11T06:17:56.105Z"
+    reason: "fix-gitee-issues-batch-2026-06-10: U1072/U1073 对应回滚"

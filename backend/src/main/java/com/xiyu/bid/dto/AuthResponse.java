@@ -19,6 +19,7 @@ public class AuthResponse {
     private Long id;
     private String username;
     private String email;
+    private String phone;
     private String fullName;
     private String role;
     private String roleCode;
@@ -56,6 +57,7 @@ public class AuthResponse {
                 .id(user.getId())
                 .username(user.getUsername())
                 .email(user.getEmail())
+                .phone(user.getPhone())
                 .fullName(user.getFullName())
                 .role(user.getRoleCode())
                 .roleCode(user.getRoleCode())

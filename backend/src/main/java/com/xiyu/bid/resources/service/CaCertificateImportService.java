@@ -111,8 +111,10 @@ public class CaCertificateImportService {
         String electronicAccount = getCellString(row, 6);
         String caPassword = getCellString(row, 7);
         String caPlatformUrl = getCellString(row, 8);
-        String platformIds = getCellString(row, 9);
+        String platformIdsRaw = getCellString(row, 9);
         String remarks = getCellString(row, 10);
+
+        java.util.List<Long> platformIds = parsePlatformIds(platformIdsRaw);
 
         if (holderName == null || holderName.isBlank()) {
             throw new IllegalArgumentException("持有人不能为空");
@@ -155,6 +157,25 @@ public class CaCertificateImportService {
         req.setPlatformIds(platformIds);
         req.setRemarks(remarks);
         return req;
+    }
+
+    /**
+     * Parse a comma / semicolon separated cell into a list of Long IDs.
+     * Skips empty tokens and tokens that are not pure decimal numbers
+     * (mirrors the back-fill logic in V1073).
+     */
+    private static java.util.List<Long> parsePlatformIds(String raw) {
+        if (raw == null || raw.isBlank()) return java.util.Collections.emptyList();
+        java.util.List<Long> out = new java.util.ArrayList<>();
+        for (String token : raw.split("[,;，；\\s]+")) {
+            String t = token.trim();
+            if (t.isEmpty()) continue;
+            if (!t.matches("^[0-9]+$")) continue;
+            try {
+                out.add(Long.parseLong(t));
+            } catch (NumberFormatException ignored) { /* skip */ }
+        }
+        return out;
     }
 
     private String getCellString(Row row, int col) {

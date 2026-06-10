@@ -4,10 +4,17 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import java.time.LocalDate;
+import java.util.List;
 
 @Data
 public class CaCertificateRequest {
-    private String platformIds;
+    /**
+     * Associated platform account IDs.
+     * Replaces the legacy comma-separated string. Persisted to
+     * ca_certificate_platforms; the platform_ids column is kept
+     * for back-fill only and is no longer the source of truth.
+     */
+    private List<Long> platformIds;
 
     @NotBlank(message = "CA类型不能为空")
     private String caType;
@@ -17,6 +24,7 @@ public class CaCertificateRequest {
 
     private String electronicAccount;
 
+    @NotBlank(message = "CA密码不能为空")
     private String caPassword;
 
     private String issuer;

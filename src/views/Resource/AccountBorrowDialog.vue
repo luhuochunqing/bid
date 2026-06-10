@@ -32,7 +32,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { resourcesApi } from '@/api'
+import { projectsApi, resourcesApi } from '@/api'
 import { useUserStore } from '@/stores/user'
 
 const props = defineProps({
@@ -57,12 +57,11 @@ watch(() => props.account, async (acc) => {
   form.value = empty()
   if (acc) {
     try {
-      const res = await resourcesApi.accounts.getList({})
-      if (res?.data) {
-        projects.value = res.data.filter(p => p.projectId).map(p => ({
-          id: p.projectId, name: p.project || `项目#${p.projectId}`
-        }))
-      }
+      const res = await projectsApi.getList({})
+      const list = Array.isArray(res?.data) ? res.data : []
+      projects.value = list
+        .map(p => ({ id: p.id, name: p.name || p.projectName || `项目#${p.id}` }))
+        .filter(p => p.id != null)
     } catch { projects.value = [] }
   }
 })

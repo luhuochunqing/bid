@@ -8,13 +8,28 @@
   >
     <el-form ref="formRef" :model="form" :rules="rules" label-width="120px" size="default">
       <el-form-item label="关联平台" prop="platformIds">
-        <el-input
-          v-model="platformIdsText"
-          placeholder="请输入平台ID，多个用逗号分隔"
-          maxlength="500"
-          @blur="syncPlatformIds"
-        />
-        <div class="form-help">多个平台ID请用逗号分隔，如：plat001, plat002</div>
+        <el-select
+          v-model="form.platformIds"
+          multiple
+          filterable
+          collapse-tags
+          collapse-tags-tooltip
+          :max-collapse-tags="3"
+          :loading="platformOptionsLoading"
+          :remote-method="searchPlatforms"
+          remote
+          reserve-keyword
+          placeholder="请选择已存在的投标平台（可多选）"
+          style="width: 100%"
+        >
+          <el-option
+            v-for="p in platformOptions"
+            :key="p.id"
+            :label="`${p.accountName || p.platform}（#${p.id}）`"
+            :value="p.id"
+          />
+        </el-select>
+        <div class="form-help">支持多选（公章CA可在多个平台共用）；只能选择已有的投标平台账号。</div>
       </el-form-item>
 
       <el-form-item label="CA 类型" prop="caType">
@@ -131,6 +146,7 @@
 <script setup>
 import { ref, reactive, computed, watch } from 'vue'
 import { usersApi } from '@/api/modules/users.js'
+import { usePlatformAccountSearch } from '@/composables/usePlatformAccountSearch.js'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -147,7 +163,7 @@ const visible = computed({
 
 const isEdit = computed(() => !!props.ca?.id)
 const formRef = ref(null)
-const platformIdsText = ref('')
+const { platformOptions, platformOptionsLoading, searchPlatforms } = usePlatformAccountSearch()
 const custodianSearching = ref(false)
 const custodianOptions = ref([])
 
@@ -192,7 +208,13 @@ function onCustodianSelect(id) {
 watch(() => props.ca, (ca) => {
   if (ca) {
     form.id = ca.id
-    form.platformIds = Array.isArray(ca.platformIds) ? [...ca.platformIds] : []
+    form.platformIds = Array.isArray(ca.platformIds)
+      ? ca.platformIds.map(v => Number(v)).filter(v => Number.isFinite(v))
+      : []
+    // Pre-populate the dropdown with the linked platforms so the labels render
+    if (form.platformIds.length) {
+      platformOptions.value = form.platformIds.map(id => ({ id, accountName: ca.platformNamesById?.[id] || `平台 #${id}` }))
+    }
     form.caType = ca.caType || 'ENTITY_CA'
     form.sealType = ca.sealType || 'OFFICIAL_SEAL'
     form.electronicAccount = ca.electronicAccount || ''
@@ -207,13 +229,17 @@ watch(() => props.ca, (ca) => {
     }
     form.status = ca.status || 'ACTIVE'
     form.remarks = ca.remarks || ca.remark || ''
-    platformIdsText.value = Array.isArray(ca.platformIds) ? ca.platformIds.join(', ') : ''
   } else {
     Object.assign(form, createDefaultForm())
     delete form.id
-    platformIdsText.value = ''
+    platformOptions.value = []
   }
+  if (visible.value) searchPlatforms('')
 }, { immediate: true })
+
+watch(visible, (open) => {
+  if (open) searchPlatforms('')
+})
 
 // When CA type changes to ENTITY_CA, clear electronic account
 watch(() => form.caType, (val) => {
@@ -222,19 +248,9 @@ watch(() => form.caType, (val) => {
   }
 })
 
-function syncPlatformIds() {
-  const text = platformIdsText.value.trim()
-  if (!text) {
-    form.platformIds = []
-    return
-  }
-  form.platformIds = text.split(/[,;，；\s]+/).filter(Boolean)
-}
-
 const validatePlatformIds = (_rule, _value, callback) => {
-  syncPlatformIds()
-  if (form.platformIds.length === 0) {
-    callback(new Error('请至少输入一个关联平台ID'))
+  if (!Array.isArray(form.platformIds) || form.platformIds.length === 0) {
+    callback(new Error('请至少选择一个关联平台'))
   } else {
     callback()
   }
@@ -242,7 +258,7 @@ const validatePlatformIds = (_rule, _value, callback) => {
 
 const rules = {
   platformIds: [
-    { required: true, validator: validatePlatformIds, trigger: 'blur' }
+    { required: true, validator: validatePlatformIds, trigger: 'change' }
   ],
   caType: [
     { required: true, message: '请选择 CA 类型', trigger: 'change' }
@@ -265,9 +281,10 @@ async function handleSubmit() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
 
+  // Send platformIds as a JSON array (backend List<Long>)
   const submitData = {
     ...form,
-    platformIds: JSON.stringify(form.platformIds)
+    platformIds: form.platformIds.map(v => Number(v))
   }
 
   emit('submit', submitData)

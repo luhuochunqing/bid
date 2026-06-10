@@ -22,9 +22,12 @@ function run(command, args) {
 }
 
 function detectedSidecarPort() {
+  // CHAT_ONLY=1 bypasses dev-env.sh's session-gate, which would otherwise
+  // interleave its lock status line into stdout and break this test's
+  // pure-numeric-line parser.
   const result = run('bash', [
     '-lc',
-    'source scripts/dev-env.sh >/dev/null 2>&1; printf "%s" "$SIDECAR_PORT"'
+    'CHAT_ONLY=1 source scripts/dev-env.sh >/dev/null 2>&1; printf "%s" "$SIDECAR_PORT"'
   ])
 
   expect(result.status).toBe(0)

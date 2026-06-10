@@ -57,7 +57,7 @@ public class PlatformAccount {
     private String password;
 
     /** Display name of the platform. */
-    @Column(name = "account_name", nullable = false, length = LEN_ACCT_NAME)
+    @Column(name = "account_name", nullable = false, length = LEN_ACCT_NAME, unique = true)
     private String accountName;
 
     /** Contact person name. */

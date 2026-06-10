@@ -32,4 +32,20 @@ public final class PlatformAccountMapper {
             .updatedAt(account.getUpdatedAt())
             .build();
     }
+
+    /**
+     * Convert entity to a sanitized summary DTO.
+     * Omits sensitive fields (username, password, contact details, custodian,
+     * remarks, borrow bookkeeping) per the blueprint's project-leader view.
+     */
+    public static PlatformAccountSummaryDTO toSummaryDTO(PlatformAccount account) {
+        return PlatformAccountSummaryDTO.builder()
+            .id(account.getId())
+            .accountName(account.getAccountName())
+            .url(account.getUrl())
+            .platformType(account.getPlatformType())
+            .hasCa(account.getHasCa())
+            .updatedAt(account.getUpdatedAt())
+            .build();
+    }
 }

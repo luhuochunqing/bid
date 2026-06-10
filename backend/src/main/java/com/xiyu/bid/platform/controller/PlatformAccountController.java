@@ -16,7 +16,6 @@ import com.xiyu.bid.platform.dto.ReturnAccountRequest;
 import com.xiyu.bid.platform.service.PlatformAccountService;
 import com.xiyu.bid.repository.UserRepository;
 import jakarta.validation.Valid;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -55,9 +54,11 @@ public class PlatformAccountController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<PlatformAccountDTO>>> getAllAccounts() {
-        log.debug("Fetching all platform accounts");
-        List<PlatformAccountDTO> accounts = platformAccountService.getAllAccounts();
+    public ResponseEntity<ApiResponse<List<?>>> getAllAccounts(
+            @AuthenticationPrincipal User currentUser) {
+        log.debug("Fetching all platform accounts for user: {}",
+            currentUser != null ? currentUser.getUsername() : "anonymous");
+        List<?> accounts = platformAccountService.getAccountsForViewer(currentUser);
         return ResponseEntity.ok(ApiResponse.success(accounts));
     }
 

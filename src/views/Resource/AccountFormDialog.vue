@@ -1,8 +1,8 @@
 <template>
   <el-dialog v-model="visible" :title="isEdit ? '编辑账户' : '新增平台'" width="620px" @open="onOpen">
     <el-form :model="form" label-width="110px">
-      <el-form-item label="平台名称" required>
-        <el-input v-model="form.accountName" placeholder="请输入投标平台名称" maxlength="100" />
+      <el-form-item label="平台名称" required :error="accountNameDup ? '平台名称已存在' : ''">
+        <el-input v-model="form.accountName" placeholder="请输入投标平台名称" maxlength="100" @blur="checkAccountNameUnique" />
       </el-form-item>
       <el-form-item label="网址" required>
         <el-input v-model="form.url" placeholder="平台官网或登录入口 URL" maxlength="500" />
@@ -56,8 +56,9 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="CA 保管人" required>
+          <el-form-item label="CA 保管人" :required="form.hasCa">
             <el-select v-model="form.caCustodian" placeholder="请选择投标部门人员"
+              :disabled="!form.hasCa"
               style="width:100%" filterable clearable>
               <el-option v-for="u in biddingUsers" :key="u.id" :label="u.name" :value="u.id" />
             </el-select>
@@ -78,8 +79,9 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { resourcesApi } from '@/api'
+import { authApi, resourcesApi } from '@/api'
 import httpClient from '@/api/client'
+import { useUserStore } from '@/stores/user'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -93,6 +95,8 @@ const visible = computed({
 })
 const isEdit = computed(() => !!props.editRow?.id)
 
+const userStore = useUserStore()
+
 const emptyForm = () => ({
   accountName: '', platformType: 'BIDDING_PLATFORM', username: '', password: '',
   url: '', contactPerson: '', contactPhone: '', contactEmail: '',
@@ -101,6 +105,7 @@ const emptyForm = () => ({
 
 const form = ref(emptyForm())
 const biddingUsers = ref([])
+const accountNameDup = ref(false)
 
 const loadBiddingUsers = async () => {
   try {
@@ -110,6 +115,44 @@ const loadBiddingUsers = async () => {
         .map(u => ({ id: u.id, name: u.fullName || u.username }))
     }
   } catch { /* silent */ }
+}
+
+// IJTHPA 修复：自动带入当前登录员工的联系人/手机/邮箱
+const autofillFromCurrentUser = async () => {
+  let profile = userStore.currentUser || {}
+  if (!profile.phone) {
+    try {
+      const res = await authApi.getCurrentUser()
+      if (res?.data) userStore.applyAuthSession(res.data, true)
+      profile = userStore.currentUser || profile
+    } catch { /* silent */ }
+  }
+  if (!form.value.contactPerson) {
+    const person = profile.name || profile.fullName || profile.username || ''
+    if (person) form.value.contactPerson = person
+  }
+  if (!form.value.contactPhone) {
+    const phone = profile.phone || profile.mobile || ''
+    if (phone) form.value.contactPhone = phone
+  }
+  if (!form.value.contactEmail) {
+    const email = profile.email || ''
+    if (email) form.value.contactEmail = email
+  }
+}
+
+// IJTHNN 修复：accountName 失焦去重校验
+const checkAccountNameUnique = async () => {
+  const name = (form.value.accountName || '').trim()
+  if (!name) { accountNameDup.value = false; return }
+  if (isEdit.value && props.editRow?.accountName === name) {
+    accountNameDup.value = false; return
+  }
+  try {
+    const res = await resourcesApi.accounts.getList({ accountName: name })
+    const list = Array.isArray(res?.data) ? res.data : []
+    accountNameDup.value = list.some(a => a.accountName === name)
+  } catch { accountNameDup.value = false }
 }
 
 const onOpen = () => {
@@ -125,18 +168,31 @@ const onOpen = () => {
       remarks: r.remarks || '' }
   } else {
     form.value = emptyForm()
+    autofillFromCurrentUser()
   }
+  accountNameDup.value = false
   loadBiddingUsers()
 }
 
 const submit = async () => {
   const f = form.value
+  if (f.hasCa && !f.caCustodian) {
+    ElMessage.warning('已开启 CA，请选择 CA 保管人')
+    return
+  }
+  if (!isEdit.value) {
+    await checkAccountNameUnique()
+    if (accountNameDup.value) {
+      ElMessage.error('平台名称已存在，请使用其他名称')
+      return
+    }
+  }
   const payload = {
     accountName: f.accountName.trim(), platformType: f.platformType,
     username: f.username.trim(), url: f.url.trim(),
     contactPerson: f.contactPerson.trim(), contactPhone: f.contactPhone.trim(),
     contactEmail: f.contactEmail.trim(), hasCa: f.hasCa,
-    caCustodian: f.caCustodian, remarks: f.remarks?.trim() || '' }
+    caCustodian: f.hasCa ? f.caCustodian : null, remarks: f.remarks?.trim() || '' }
   if (f.password) payload.password = f.password
 
   if (!payload.accountName || !payload.username || !payload.url
@@ -156,6 +212,9 @@ const submit = async () => {
     res = await resourcesApi.accounts.create(payload)
   }
   if (!res?.success) {
+    if (/Account name already exists/i.test(res?.msg || '')) {
+      accountNameDup.value = true
+    }
     ElMessage.error(res?.msg || (isEdit.value ? '编辑失败' : '新增失败'))
     return
   }

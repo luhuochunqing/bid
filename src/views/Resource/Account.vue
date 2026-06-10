@@ -153,8 +153,8 @@ const searchForm = ref({
 
 const userStore = useUserStore()
 const isProjectLeader = computed(() => {
-  const r = userStore.userRole
-  return r === 'sales' || r === 'bid_lead'
+  // 蓝图：项目负责人（sales）使用精简视图；投标组长（bid_lead）看全量。
+  return userStore.userRole === 'sales'
 })
 
 // 密码显示状态

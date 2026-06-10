@@ -46,6 +46,9 @@ public class PlatformAccountService {
         if (repository.findByUsername(request.getUsername()).isPresent()) {
             throw new IllegalArgumentException("Username already exists: " + request.getUsername());
         }
+        if (repository.findByAccountName(request.getAccountName()).isPresent()) {
+            throw new IllegalArgumentException("Account name already exists: " + request.getAccountName());
+        }
 
         String encryptedPassword = passwordEncryptionUtil.encrypt(request.getPassword());
 
@@ -101,6 +104,35 @@ public class PlatformAccountService {
             .collect(Collectors.toList());
     }
 
+    /**
+     * Get accounts projected for the given viewer.
+     *
+     * <p>Roles that may see the full record (admin / manager / bid_lead /
+     * bid_admin / auditor) receive the standard DTO. The "project leader"
+     * role (sales / 项目负责人) receives a sanitized summary that omits
+     * username, contact details, custodian, remarks, borrow bookkeeping
+     * and any other field the blueprint restricts to that role.
+     */
+    public List<?> getAccountsForViewer(User viewer) {
+        if (isPrivilegedViewer(viewer)) {
+            return getAllAccounts();
+        }
+        return repository.findAll().stream()
+            .map(PlatformAccountMapper::toSummaryDTO)
+            .collect(Collectors.toList());
+    }
+
+    private boolean isPrivilegedViewer(User viewer) {
+        if (viewer == null) return false;
+        String code = viewer.getRoleCode();
+        if (code == null || code.isBlank()) return false;
+        String lower = code.toLowerCase(java.util.Locale.ROOT);
+        return switch (lower) {
+            case "admin", "manager", "auditor", "bid_lead", "bid_admin" -> true;
+            default -> false;
+        };
+    }
+
     /** Update an existing account. */
     @Transactional
     @Auditable(action = "UPDATE", entityType = "PlatformAccount",
@@ -114,6 +146,12 @@ public class PlatformAccountService {
                 && !request.getUsername().equals(account.getUsername())
                 && repository.findByUsername(request.getUsername()).isPresent()) {
             throw new IllegalArgumentException("Username already exists: " + request.getUsername());
+        }
+        if (request.getAccountName() != null
+                && !request.getAccountName().trim().isEmpty()
+                && !request.getAccountName().equals(account.getAccountName())
+                && repository.findByAccountName(request.getAccountName()).isPresent()) {
+            throw new IllegalArgumentException("Account name already exists: " + request.getAccountName());
         }
 
         String encryptedPassword = request.getPassword() != null && !request.getPassword().trim().isEmpty()
@@ -155,10 +193,34 @@ public class PlatformAccountService {
         PlatformAccount account = repository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Account not found with id: " + id));
 
-        account.borrow(request.getBorrowedBy(), LocalDateTime.now(), LocalDateTime.now().plusDays(request.getDueHours() != null ? request.getDueHours() : 7));
+        LocalDateTime borrowedAt = LocalDateTime.now();
+        LocalDateTime dueAt = resolveDueAt(request, borrowedAt);
+
+        account.borrow(request.getBorrowedBy(), borrowedAt, dueAt);
 
         PlatformAccount savedAccount = repository.save(account);
         return PlatformAccountMapper.toDTO(savedAccount);
+    }
+
+    /**
+     * Resolve the due-at timestamp from the blueprint-aligned field
+     * (expectedReturnDate). Falls back to dueHours for backward compat.
+     */
+    private LocalDateTime resolveDueAt(BorrowAccountRequest request, LocalDateTime borrowedAt) {
+        String expected = request.getExpectedReturnDate();
+        if (expected != null && !expected.isBlank()) {
+            try {
+                String trimmed = expected.length() >= 10 ? expected.substring(0, 10) : expected;
+                return LocalDateTime.parse(trimmed + "T23:59:59");
+            } catch (java.time.format.DateTimeParseException ex) {
+                log.warn("Invalid expectedReturnDate '{}', falling back to dueHours/now+7d", expected);
+            }
+        }
+        Integer dueHours = request.getDueHours();
+        if (dueHours != null && dueHours > 0) {
+            return borrowedAt.plusDays(dueHours);
+        }
+        return borrowedAt.plusDays(7);
     }
 
     /** Return a borrowed account. */
