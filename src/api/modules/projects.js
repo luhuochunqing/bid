@@ -154,7 +154,7 @@ export const projectsApi = {
       return { success: true, data: [] }
     }
 
-    return httpClient.get(`/api/projects/${projectId}/tasks`)
+    return httpClient.get(`/api/tasks/project/${projectId}`)
   },
 
   async createTask(projectId, data) {
@@ -166,7 +166,7 @@ export const projectsApi = {
       return demoReadonlyFailure()
     }
 
-    return httpClient.post(`/api/projects/${projectId}/tasks`, data)
+    return httpClient.post('/api/tasks', { ...data, projectId })
   },
 
   async decomposeTasks(projectId, payload) {
