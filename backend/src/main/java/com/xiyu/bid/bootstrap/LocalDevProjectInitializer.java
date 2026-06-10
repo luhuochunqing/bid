@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -25,6 +26,7 @@ import java.util.List;
 @Profile("dev")
 @RequiredArgsConstructor
 @Slf4j
+@Order(2)
 public class LocalDevProjectInitializer implements ApplicationRunner {
 
     static final String SALES_USERNAME = "sales";
