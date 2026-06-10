@@ -267,6 +267,34 @@ if [[ "$DRY_RUN" == "1" ]]; then
   echo "  touch:    ${#TOUCH_PATHS[@]} paths"
   echo "  morning:  fetch + rebase origin/main + sync-env.sh"
   echo "  locks:    ${#LOCK_PATHS[@]} locks"
+  echo
+  if [[ "${#TOUCH_PATHS[@]}" -gt 0 ]]; then
+    echo "  touch paths:"
+    for touch_path in "${TOUCH_PATHS[@]}"; do
+      echo "    - $touch_path"
+    done
+  fi
+  echo
+  echo "Expected status summary:"
+  if [[ "${#TOUCH_PATHS[@]}" -gt 0 ]]; then
+    echo "  - .agent-task-context will record declared touch paths"
+  else
+    echo "  - no touch paths declared; consider using --touch for collaborative visibility"
+  fi
+  if [[ "$FORCE_TOUCH_CONFLICT" == "1" ]]; then
+    echo "  - conflict override is enabled; coordination evidence should be recorded if conflicts appear"
+  fi
+  if [[ "${#LOCK_PATHS[@]}" -gt 0 ]]; then
+    echo "  - initial locks will be registered in the new worktree"
+  else
+    echo "  - no initial locks will be registered automatically"
+  fi
+  if [[ "$AUTO_PUSH" == "1" ]]; then
+    echo "  - branch will be pushed automatically and become visible to other agents"
+    echo "  post-create push: git push -u origin $BRANCH_NAME"
+  else
+    echo "  - branch will remain local until you push it manually"
+  fi
   exit 0
 fi
 

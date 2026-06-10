@@ -185,7 +185,7 @@ if [ "$run_backend" = true ]; then
 
   # 门禁 14: Flyway 检查（版本 + 回滚 + 头部质量）
   info "[14/14] Flyway 完整性检查..."
-  local flyway_errors=0
+  flyway_errors=0
   if [ -n "$(git diff --cached --name-only --diff-filter=ACMR | grep 'migration-mysql/' || true)" ]; then
     if ! bash scripts/check-flyway-versions.sh --staged 2>&1; then
       fail "Flyway 版本冲突"
