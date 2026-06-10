@@ -22,6 +22,7 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -36,7 +37,7 @@ public class ExportPersonnelAppService {
 
     private final PersonnelRepository personnelRepository;
     private final PersonnelZipExporter zipExporter;
-    private final StringRedisTemplate redisTemplate;
+    private final Optional<StringRedisTemplate> redisTemplate;
     private final ObjectMapper objectMapper;
     private final PersonnelOperationLogService operationLogService;
 
@@ -95,30 +96,30 @@ public class ExportPersonnelAppService {
         Path filePath = dirPath.resolve(fileName);
         Files.write(filePath, zipBytes);
 
-        redisTemplate.opsForValue().set(
+        redisTemplate.ifPresent(template -> template.opsForValue().set(
                 "personnel:export:file:" + taskId,
                 filePath.toString(),
                 FILE_TTL
-        );
+        ));
 
         return "/api/knowledge/personnel/export/" + taskId + "/download";
     }
 
     public ExportProgress getProgress(String taskId) {
         String key = REDIS_KEY_PREFIX + taskId;
-        String progressJson = redisTemplate.opsForValue().get(key);
-        if (progressJson != null) {
+        Optional<String> progressJson = getRedisValue(key);
+        if (progressJson.isPresent()) {
             try {
-                return objectMapper.readValue(progressJson, ExportProgress.class);
+                return objectMapper.readValue(progressJson.orElseThrow(), ExportProgress.class);
             } catch (JsonProcessingException e) {
                 log.warn("解析进度JSON失败", e);
             }
         }
 
         String fileKey = "personnel:export:file:" + taskId;
-        String filePath = redisTemplate.opsForValue().get(fileKey);
-        if (filePath != null && Files.exists(Paths.get(filePath))) {
-            return new ExportProgress("COMPLETED", 100, "导出完成", 0, filePath);
+        Optional<String> filePath = getRedisValue(fileKey);
+        if (filePath.isPresent() && Files.exists(Paths.get(filePath.orElseThrow()))) {
+            return new ExportProgress("COMPLETED", 100, "导出完成", 0, filePath.orElseThrow());
         }
 
         return new ExportProgress("NOT_FOUND", 0, "任务不存在或已过期", null, null);
@@ -126,20 +127,20 @@ public class ExportPersonnelAppService {
 
     public byte[] getExportFile(String taskId) throws IOException {
         String fileKey = "personnel:export:file:" + taskId;
-        String filePath = redisTemplate.opsForValue().get(fileKey);
+        Optional<String> filePath = getRedisValue(fileKey);
 
-        if (filePath == null || !Files.exists(Paths.get(filePath))) {
+        if (filePath.isEmpty() || !Files.exists(Paths.get(filePath.orElseThrow()))) {
             throw new IllegalArgumentException("导出文件不存在或已过期");
         }
 
-        return Files.readAllBytes(Paths.get(filePath));
+        return Files.readAllBytes(Paths.get(filePath.orElseThrow()));
     }
 
     public void updateProgress(String taskId, String message, int percent) {
         String key = REDIS_KEY_PREFIX + taskId;
         try {
             ExportProgress progress = new ExportProgress("PROCESSING", percent, message, null, null);
-            redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(progress), REDIS_TTL);
+            setRedisValue(key, objectMapper.writeValueAsString(progress), REDIS_TTL);
         } catch (JsonProcessingException e) {
             log.warn("更新进度失败", e);
         }
@@ -149,7 +150,7 @@ public class ExportPersonnelAppService {
         try {
             ExportProgress progress = new ExportProgress("COMPLETED", 100,
                     "导出完成，共 " + recordCount + " 条人员记录", recordCount, downloadPath);
-            redisTemplate.opsForValue().set(
+            setRedisValue(
                     REDIS_KEY_PREFIX + taskId,
                     objectMapper.writeValueAsString(progress),
                     FILE_TTL
@@ -167,7 +168,7 @@ public class ExportPersonnelAppService {
         String key = REDIS_OPERATOR_KEY + taskId;
         try {
             ExportOperatorInfo info = new ExportOperatorInfo(operatorName, operatorId);
-            redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(info), REDIS_TTL);
+            setRedisValue(key, objectMapper.writeValueAsString(info), REDIS_TTL);
         } catch (JsonProcessingException e) {
             log.warn("存储导出操作人信息失败", e);
         }
@@ -176,10 +177,10 @@ public class ExportPersonnelAppService {
     /** 获取操作人信息 */
     private ExportOperatorInfo getOperatorInfo(String taskId) {
         String key = REDIS_OPERATOR_KEY + taskId;
-        String json = redisTemplate.opsForValue().get(key);
-        if (json != null) {
+        Optional<String> json = getRedisValue(key);
+        if (json.isPresent()) {
             try {
-                return objectMapper.readValue(json, ExportOperatorInfo.class);
+                return objectMapper.readValue(json.orElseThrow(), ExportOperatorInfo.class);
             } catch (JsonProcessingException e) {
                 log.warn("解析导出操作人信息JSON失败", e);
             }
@@ -209,7 +210,7 @@ public class ExportPersonnelAppService {
     private void failExportTask(String taskId, String errorMessage) {
         try {
             ExportProgress progress = new ExportProgress("FAILED", 0, "导出失败: " + errorMessage, null, null);
-            redisTemplate.opsForValue().set(
+            setRedisValue(
                     REDIS_KEY_PREFIX + taskId,
                     objectMapper.writeValueAsString(progress),
                     REDIS_TTL
@@ -217,6 +218,28 @@ public class ExportPersonnelAppService {
         } catch (JsonProcessingException e) {
             log.warn("更新失败状态失败", e);
         }
+    }
+
+    private Optional<String> getRedisValue(String key) {
+        return redisTemplate.flatMap(template -> {
+            try {
+                String value = template.opsForValue().get(key);
+                return value != null ? Optional.of(value) : Optional.empty();
+            } catch (RuntimeException e) {
+                log.debug("Redis unavailable, skip reading key={}: {}", key, e.getMessage());
+                return Optional.empty();
+            }
+        });
+    }
+
+    private void setRedisValue(String key, String value, Duration ttl) {
+        redisTemplate.ifPresent(template -> {
+            try {
+                template.opsForValue().set(key, value, ttl);
+            } catch (RuntimeException e) {
+                log.debug("Redis unavailable, skip writing key={}: {}", key, e.getMessage());
+            }
+        });
     }
 
     public void cleanupExpiredFiles() {

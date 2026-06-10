@@ -51,7 +51,7 @@ class ExportPersonnelAppServiceTest {
         service = new ExportPersonnelAppService(
                 repository,
                 zipExporter,
-                redisTemplate,
+                Optional.of(redisTemplate),
                 objectMapper,
                 logService
         );

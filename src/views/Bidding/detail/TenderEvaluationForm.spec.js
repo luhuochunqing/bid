@@ -90,6 +90,10 @@ const globalStubs = {
     template:
       '<button type="button" :data-button-type="type" :disabled="disabled" @click="$emit(\'click\', $event)"><slot /></button>',
   },
+  ElCard: {
+    name: 'ElCard',
+    template: '<div class="el-card-stub"><slot name="header" /><slot /></div>',
+  },
   ElCollapse: {
     name: 'ElCollapse',
     props: ['modelValue'],

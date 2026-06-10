@@ -15,7 +15,6 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -56,20 +55,10 @@ class ScoreAnalysisServiceTest {
     private ScoreAnalysisService scoreAnalysisService;
 
     private ScoreAnalysis testAnalysis;
-    private DimensionScore testDimension;
     private ScoreAnalysisCreateRequest createRequest;
 
     @BeforeEach
     void setUp() {
-        testDimension = DimensionScore.builder()
-                .id(1L)
-                .analysisId(1L)
-                .dimensionName("技术能力")
-                .score(90)
-                .weight(new BigDecimal("0.30"))
-                .comments("技术团队经验丰富")
-                .build();
-
         testAnalysis = ScoreAnalysis.builder()
                 .id(1L)
                 .projectId(100L)
@@ -112,6 +101,8 @@ class ScoreAnalysisServiceTest {
         when(scoreAnalysisRepository.save(any(ScoreAnalysis.class))).thenReturn(testAnalysis);
         when(queryService.convertToDTO(any())).thenReturn(ScoreAnalysisDTO.builder()
                 .projectId(100L)
+                .overallScore(48)
+                .riskLevel(RiskLevel.HIGH)
                 .build());
 
         // When
@@ -122,6 +113,9 @@ class ScoreAnalysisServiceTest {
         assertTrue(response.isSuccess());
         assertNotNull(response.getData());
         assertEquals(100L, response.getData().getProjectId());
+        assertEquals(48, response.getData().getOverallScore());
+        assertEquals(RiskLevel.HIGH, response.getData().getRiskLevel());
+        verify(projectAccessScopeService).assertCurrentUserCanAccessProject(100L);
         verify(scoreAnalysisRepository, times(1)).save(any(ScoreAnalysis.class));
     }
 
