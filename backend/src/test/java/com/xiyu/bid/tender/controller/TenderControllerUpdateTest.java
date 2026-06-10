@@ -75,6 +75,8 @@ class TenderControllerUpdateTest {
         TenderController controller = new TenderController(
                 tenderQueryService,
                 tenderCommandService,
+                null, // tenderSubmissionService
+                null, // tenderAiAnalysisService
                 tenderMapper,
                 tenderImportService,
                 aiDeepCapabilityService,
