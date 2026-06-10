@@ -15,6 +15,7 @@ import com.xiyu.bid.tender.dto.TenderRequest;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import com.xiyu.bid.tender.dto.TenderAbandonRequest;
 import com.xiyu.bid.tender.dto.TenderBidResponse;
+import com.xiyu.bid.tender.dto.TenderCrmLinkRequest;
 import com.xiyu.bid.tender.service.TenderAuditService;
 import com.xiyu.bid.tender.service.TenderCommandService;
 import com.xiyu.bid.tender.service.TenderImportService;
@@ -46,6 +47,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -207,6 +209,20 @@ public class TenderController {
         TenderDTO updatedTender = tenderCommandService.updateTender(id, tenderDTO, resolveUserId(userDetails));
         return ResponseEntity.ok(ApiResponse.success("更新成功", updatedTender));
     }
+
+    @PatchMapping("/{id}/crm-opportunity")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @Operation(summary = "标讯关联CRM商机", description = "只更新标讯的CRM商机关联字段，不触发完整TenderRequest校验。")
+    public ResponseEntity<ApiResponse<TenderDTO>> linkCrmOpportunity(
+            @PathVariable Long id, @Valid @RequestBody TenderCrmLinkRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        log.info("PATCH /api/tenders/{}/crm-opportunity - Linking CRM opportunity {}", id, request.getCrmOpportunityId());
+        rejectDemoMutation(id);
+        TenderDTO updatedTender = tenderCommandService.linkCrmOpportunity(
+                id, request.getCrmOpportunityId(), request.getCrmOpportunityName(), resolveUserId(userDetails));
+        return ResponseEntity.ok(ApiResponse.success("CRM商机关联成功", updatedTender));
+    }
+
 
     @GetMapping("/{id}/audit-logs")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")

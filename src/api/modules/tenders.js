@@ -309,6 +309,23 @@ export const tendersApi = {
    * @param {Object} payload - { newOwnerId }
    * @returns {Promise}
    */
+
+  /**
+   * 标讯关联CRM商机（PATCH /api/tenders/{id}/crm-opportunity）。
+   * 专用端点，只更新CRM商机关联字段，不触发完整TenderRequest校验。
+   * @param {number} id 标讯 ID
+   * @param {Object} payload - { crmOpportunityId, crmOpportunityName }
+   */
+  async linkCrmOpportunity(id, payload) {
+    if (!isNumericId(id)) {
+      return {
+        success: false,
+        message: '当前后端仅支持数字型标讯 ID'
+      }
+    }
+    return httpClient.patch(`/api/tenders/${id}/crm-opportunity`, payload)
+  },
+
   async transferTender(id, payload) {
     if (!isNumericId(id)) {
       return {

@@ -94,7 +94,10 @@
       <div v-show="activeTab === 'evaluation'" class="tab-content">
         <!-- CRM商机关联状态 -->
         <div v-if="tender?.crmOpportunityName" class="crm-status-bar">
-          <el-tag type="success" size="default" effect="plain">
+          <el-alert type="warning" :closable="false" show-icon>
+            <template #title>核对评估表内容，如需修改，请返回CRM修改对应商机信息</template>
+          </el-alert>
+          <el-tag type="success" size="default" effect="plain" class="mt-2">
             已关联商机：{{ tender?.crmOpportunityName }}
           </el-tag>
         </div>
@@ -233,6 +236,8 @@ const {
 } = useEvaluationReview(tender)
 
 const canFillEvaluation = computed(() => {
+  // 已关联CRM商机时，评估表数据来自CRM，不允许修改
+  if (tender.value?.crmOpportunityName) return false
   // TRACKING（跟踪中/待评估）状态下，bid_lead 或 sales 角色可以填写评估表字段
   if (!tender.value || !userRole.value) return false
   return tender.value.status === 'TRACKING' && ['bid_lead', 'sales'].includes(userRole.value)
@@ -300,8 +305,8 @@ async function onCrmOpportunityLinked({ opportunityId, opportunityName, evaluati
     }
     await tendersApi.saveEvaluationDraft(tender.value.id, evalPayload)
 
-    // 2. 关联CRM商机到标讯
-    await tendersApi.update(tender.value.id, {
+    // 2. 关联CRM商机到标讯（使用专用端点，避免触发完整TenderRequest校验）
+    await tendersApi.linkCrmOpportunity(tender.value.id, {
       crmOpportunityId: opportunityId,
       crmOpportunityName: opportunityName,
     })
@@ -368,6 +373,7 @@ onBeforeRouteLeave(async () => {
 </script>
 
 <style scoped>
+.crm-status-bar .mt-2 { margin-top: 8px; display: inline-block; }
 .evaluation-tab-label {
   display: inline-flex;
   align-items: center;
