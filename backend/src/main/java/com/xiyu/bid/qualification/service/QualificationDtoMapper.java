@@ -42,6 +42,7 @@ public class QualificationDtoMapper {
 
         return QualificationUpsertCommand.builder()
                 .name(dto.getName())
+                .level(dto.getLevel())
                 .subjectType(subjectType)
                 .subjectName(dto.getSubjectName() == null || dto.getSubjectName().isBlank() ? "默认主体" : dto.getSubjectName())
                 .category(category)

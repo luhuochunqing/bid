@@ -1,0 +1,9 @@
+version: 1
+task: "qual-form-merge-upload"
+locks:
+  - path: "src/views/Knowledge/components/qualification/QualFormDialog.vue"
+    scope: "file"
+    owner: "fix"
+    branch: "fix/qual-form-merge-upload"
+    expiresAt: "2026-06-11T14:42:33.136Z"
+    reason: "合并AI上传区与附件上传，移除持证人字段"

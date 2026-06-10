@@ -1,0 +1,9 @@
+version: 1
+task: "qualification-level-string"
+locks:
+  - path: "backend/src/main/java/com/xiyu/bid/entity/Qualification.java"
+    scope: "file"
+    owner: "fix"
+    branch: "fix/qualification-level-string"
+    expiresAt: "2026-06-11T12:20:30.466Z"
+    reason: "资质level字段从枚举改为String，对齐蓝图自由文本规格"
