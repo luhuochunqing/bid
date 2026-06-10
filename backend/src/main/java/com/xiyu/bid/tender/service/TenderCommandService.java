@@ -186,6 +186,19 @@ public class TenderCommandService {
         deleteTender(id, null);
     }
 
+
+    public TenderDTO linkCrmOpportunity(Long id, String crmOpportunityId, String crmOpportunityName, Long userId) {
+        log.debug("Linking CRM opportunity to tender id: {}", id);
+        Tender existingTender = tenderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Tender", id.toString()));
+        commandAccessGuard.assertCanUpdateTender(existingTender, userId);
+        existingTender.setCrmOpportunityId(crmOpportunityId);
+        existingTender.setCrmOpportunityName(crmOpportunityName);
+        Tender updatedTender = tenderRepository.save(existingTender);
+        log.info("Linked CRM opportunity {} to tender id: {}", crmOpportunityId, id);
+        return tenderMapper.toDTO(updatedTender);
+    }
+
     public void deleteTender(Long id, Long userId) {
         log.debug("Deleting tender with id: {}", id);
         Tender tender = tenderRepository.findById(id)
