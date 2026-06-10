@@ -213,6 +213,7 @@ import {
   useQualificationPermissionMatrix
 } from './components/qualification/useQualificationBorrowSection.js'
 import QualDetailDrawer from './components/qualification/QualDetailDrawer.vue'
+import RetireConfirmDialog from './components/qualification/RetireConfirmDialog.vue'
 
 const userStore = useUserStore()
 const qualificationStore = useQualificationStore()
