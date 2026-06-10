@@ -63,7 +63,7 @@ class QualificationServiceAccessTest {
         QualificationService service = newService();
 
         assertThatThrownBy(() -> service.borrowQualification(1L, borrowRequest("ABC")))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(com.xiyu.bid.exception.InvalidArgumentException.class)
                 .hasMessage("项目 ID 必须为数字");
 
         verify(borrowQualificationAppService, never()).borrow(eq(1L), any());

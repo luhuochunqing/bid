@@ -1,17 +1,29 @@
-# Systems 模块 (外部系统集成)
+# systems 模块
 
-> 一旦我所属的文件夹有所变化，请更新我。
+一旦我所属的文件夹有所变化，请更新我。
 
-## 职责
+## 说明
 
-Systems 模块负责与外部系统（第三方平台、菜单/权限系统等）的集成适配，提供统一的外部系统接入入口。
+外部系统集成模块，提供统一组织架构系统拉取本系统菜单列表等能力。
 
-## 边界清单
+## 目录结构
 
-| 文件 | 地位 | 功能 |
-|------|------|------|
-| `external/package-info.java` | 基础设施 | 外部系统集成包标记 |
-| `external/ExternalMenuTreeNode.java` | 值对象 | 外部菜单树节点模型 |
-| `external/ExternalMenuService.java` | 服务 | 外部菜单数据查询与同步 |
-| `external/ExternalMenuResponse.java` | DTO | 外部菜单接口响应 |
-| `external/SystemsExternalMenuController.java` | Controller | 外部菜单查询 REST 接口 |
+```
+systems/
+└── external/          # 外部系统对接
+    ├── ExternalMenuResponse.java
+    ├── ExternalMenuService.java
+    ├── ExternalMenuTreeNode.java
+    ├── SystemsExternalMenuController.java
+    └── package-info.java
+```
+
+## 文件清单
+
+| 文件 | 功能 |
+|------|------|
+| external/ExternalMenuResponse.java | 外部菜单响应 DTO |
+| external/ExternalMenuService.java | 外部菜单服务（构建系统菜单树） |
+| external/ExternalMenuTreeNode.java | 菜单树节点 |
+| external/SystemsExternalMenuController.java | 外部系统菜单接口 Controller |
+| external/package-info.java | 包说明文档 |

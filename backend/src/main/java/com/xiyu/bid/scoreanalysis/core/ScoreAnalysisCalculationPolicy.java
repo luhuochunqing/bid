@@ -11,7 +11,7 @@ import java.util.List;
 /**
  * 评分计算策略 (Pure Core — no Spring dependencies)
  */
-public final class ScoreAnalysisCalculationPolicy {
+public class ScoreAnalysisCalculationPolicy {
 
     public ScoreAnalysisCalculationPolicy() {}
 

@@ -50,9 +50,6 @@ class ScoreAnalysisServiceTest {
     private com.xiyu.bid.tender.service.TenderCommandService tenderCommandService;
 
     @Mock
-    private com.xiyu.bid.scoreanalysis.core.ScoreAnalysisCalculationPolicy calculationPolicy;
-
-    @Mock
     private com.xiyu.bid.scoreanalysis.service.ScoreAnalysisQueryService queryService;
 
     @InjectMocks
@@ -112,8 +109,6 @@ class ScoreAnalysisServiceTest {
     @DisplayName("应该成功创建评分分析")
     void shouldCreateAnalysisSuccessfully() {
         // Given
-        when(calculationPolicy.calculateWeightedScoreFromDTOs(any())).thenReturn(new BigDecimal("85"));
-        when(calculationPolicy.determineRiskLevel(85)).thenReturn(RiskLevel.LOW);
         when(scoreAnalysisRepository.save(any(ScoreAnalysis.class))).thenReturn(testAnalysis);
         when(queryService.convertToDTO(any())).thenReturn(ScoreAnalysisDTO.builder()
                 .projectId(100L)

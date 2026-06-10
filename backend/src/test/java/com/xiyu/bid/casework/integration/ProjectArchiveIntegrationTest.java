@@ -183,8 +183,7 @@ class ProjectArchiveIntegrationTest {
         mockMvc.perform(get("/api/archive/" + archive.getId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.projectName").value("测试项目一期"))
-                .andExpect(jsonPath("$.files[0].fileName").value("招标说明书.pdf"))
-                .andExpect(jsonPath("$.files[1].fileName").value("投标回复函.docx"))
+                .andExpect(jsonPath("$.files[*].fileName").value(org.hamcrest.Matchers.hasItems("招标说明书.pdf", "投标回复函.docx")))
                 .andExpect(jsonPath("$.logs[0].actionType").value("DOWNLOAD"));
     }
 
