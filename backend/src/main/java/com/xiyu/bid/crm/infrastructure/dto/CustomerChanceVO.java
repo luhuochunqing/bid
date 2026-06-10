@@ -1,5 +1,6 @@
 package com.xiyu.bid.crm.infrastructure.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 
@@ -7,6 +8,7 @@ import java.math.BigDecimal;
  * CRM 商机单条记录 VO。
  * <p>对应客户接口 POST /customer-chance/page-list 返回的 dataList 元素。
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record CustomerChanceVO(
     @JsonProperty("id") Long id,
     @JsonProperty("code") String code,

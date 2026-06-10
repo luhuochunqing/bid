@@ -48,7 +48,7 @@ export function useCrmOpportunitySelector(props, emit) {
       if (searchForm.name) params.body.name = searchForm.name
       if (searchForm.code) params.body.code = searchForm.code
       if (searchForm.projectStatus.length > 0) params.body.projectStatus = searchForm.projectStatus
-      if (props.tenderer && !searchForm.name) params.body.name = props.tenderer
+      if (props.tenderer && !searchForm.name) params.body.tenderSubject = props.tenderer
 
       const res = await crmApi.searchOpportunities(params)
       const data = res?.data
