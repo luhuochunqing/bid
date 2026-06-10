@@ -48,12 +48,19 @@ export function useCrmOpportunitySelector(props, emit) {
       if (searchForm.name) params.body.name = searchForm.name
       if (searchForm.code) params.body.code = searchForm.code
       if (searchForm.projectStatus.length > 0) params.body.projectStatus = searchForm.projectStatus
-      if (props.tenderer && !searchForm.name) params.body.tenderSubject = props.tenderer
+      // 查全部商机，前端按招标主体匹配
+      params.body.selectAll = true
 
       const res = await crmApi.searchOpportunities(params)
       const data = res?.data
-      results.value = data?.list || []
-      totalCount.value = data?.totalCount || 0
+      let list = data?.list || []
+      // 如果标讯有招标主体，在前端按 tenderSubject 模糊匹配
+      if (props.tenderer && list.length > 0) {
+        const keyword = props.tenderer.trim().toLowerCase()
+        list = list.filter(item => item.tenderSubject && item.tenderSubject.toLowerCase().includes(keyword))
+      }
+      results.value = list
+      totalCount.value = list.length
       searchPerformed.value = true
       if (results.value.length === 0) ElMessage.info('未找到匹配的CRM商机')
     } catch (e) {
