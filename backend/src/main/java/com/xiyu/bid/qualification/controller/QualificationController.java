@@ -170,7 +170,7 @@ public class QualificationController {
 
     @PostMapping("/scan-expiring")
     @PreAuthorize("hasAnyRole('BID_ADMIN')")
-    public ResponseEntity<ApiResponse<Integer>> scanExpiringQualifications(@RequestParam(defaultValue = "30") Integer thresholdDays) {
+    public ResponseEntity<ApiResponse<Integer>> scanExpiringQualifications(@RequestParam(defaultValue = "90") Integer thresholdDays) {
         return ResponseEntity.ok(ApiResponse.success("Qualification scan completed",
                 qualificationService.scanExpiringQualifications(thresholdDays)));
     }

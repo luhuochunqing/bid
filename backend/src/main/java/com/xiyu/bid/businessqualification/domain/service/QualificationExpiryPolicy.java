@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @Component
 public class QualificationExpiryPolicy {
 
-    private static final int DEFAULT_EXPIRING_DAYS = 30;
+    private static final int DEFAULT_EXPIRING_DAYS = 90;
 
     /** 24 小时内同证书最多提醒 1 次。 */
     public static final int REMIND_DEDUP_HOURS = 24;

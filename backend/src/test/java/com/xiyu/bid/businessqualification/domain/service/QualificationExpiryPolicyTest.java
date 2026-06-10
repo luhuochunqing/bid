@@ -4,6 +4,7 @@
 // 维护声明: 24h 去重 + 续期窗口 + 提醒策略启用三个判定为 §4.1.3.8 蓝图的硬规则.
 package com.xiyu.bid.businessqualification.domain.service;
 
+import com.xiyu.bid.businessqualification.domain.valueobject.QualificationStatus;
 import com.xiyu.bid.businessqualification.domain.valueobject.ReminderPolicy;
 import com.xiyu.bid.businessqualification.domain.valueobject.ValidityPeriod;
 import org.junit.jupiter.api.DisplayName;
@@ -115,4 +116,45 @@ class QualificationExpiryPolicyTest {
     void isReminderActive_Null_ShouldBeFalse() {
         assertThat(this.policy.isReminderActive(null)).isFalse();
     }
+
+    @Test
+    @DisplayName("资质到期判定 - 剩余 91 天（阈值 90）：应为 VALID")
+    void evaluate_Remaining91Days_ShouldBeValid() {
+        ValidityPeriod period = new ValidityPeriod(
+                LocalDate.of(2024, 1, 1),
+                LocalDate.of(2026, 9, 6)  // 距今 91 天
+        );
+        assertThat(policy.evaluate(period, LocalDate.of(2026, 6, 7))).isEqualTo(QualificationStatus.VALID);
+    }
+
+    @Test
+    @DisplayName("资质到期判定 - 剩余 90 天（阈值 90）：应为 EXPIRING")
+    void evaluate_Remaining90Days_ShouldBeExpiring() {
+        ValidityPeriod period = new ValidityPeriod(
+                LocalDate.of(2024, 1, 1),
+                LocalDate.of(2026, 9, 5)  // 距今 90 天
+        );
+        assertThat(policy.evaluate(period, LocalDate.of(2026, 6, 7))).isEqualTo(QualificationStatus.EXPIRING);
+    }
+
+    @Test
+    @DisplayName("资质到期判定 - 剩余 30 天（阈值 90）：应为 EXPIRING")
+    void evaluate_Remaining30Days_ShouldBeExpiring() {
+        ValidityPeriod period = new ValidityPeriod(
+                LocalDate.of(2024, 1, 1),
+                LocalDate.of(2026, 7, 7)  // 距今 30 天
+        );
+        assertThat(policy.evaluate(period, LocalDate.of(2026, 6, 7))).isEqualTo(QualificationStatus.EXPIRING);
+    }
+
+    @Test
+    @DisplayName("资质到期判定 - 已过期：应为 EXPIRED")
+    void evaluate_AlreadyExpired_ShouldBeExpired() {
+        ValidityPeriod period = new ValidityPeriod(
+                LocalDate.of(2024, 1, 1),
+                LocalDate.of(2026, 6, 6)  // 距今 -1 天
+        );
+        assertThat(policy.evaluate(period, LocalDate.of(2026, 6, 7))).isEqualTo(QualificationStatus.EXPIRED);
+    }
+
 }
