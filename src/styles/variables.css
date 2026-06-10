@@ -69,6 +69,10 @@
   --text-slate: #64748B;
   --text-light: #888888;
   --text-lighter: #9CA3AF;
+  
+  /* 禁用态文字颜色覆盖 — Element Plus 默认将禁用态文字色设为占位符色(#a8abb2)，过浅难以阅读 */
+  --el-disabled-text-color: var(--el-text-color-regular);
+
 
   /* 侧边栏专用颜色 */
   --sidebar-bg: #FFFFFF;
