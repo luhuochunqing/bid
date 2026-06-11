@@ -17,7 +17,7 @@
         <!-- 保证金金额 + 缴纳方式 -->
         <div class="deposit-info">
           <div class="deposit-info-item">
-            <span class="di-label">保证金金额</span>
+            <span class="di-label">保证金金额（万）</span>
             <span class="di-value">{{ formatAmount(preview?.depositAmount) }}</span>
           </div>
           <div class="deposit-info-item">
