@@ -40,78 +40,100 @@
 
     <!-- 搜索筛选 -->
     <el-card shadow="never" class="filter-card">
-      <el-form :inline="true" :model="filters" class="filter-form">
-        <el-form-item label="项目名称">
-          <el-input v-model="filters.projectName" placeholder="模糊匹配" clearable style="width: 160px" />
-        </el-form-item>
-        <el-form-item label="业主单位">
-          <el-input v-model="filters.ownerUnit" placeholder="模糊匹配" clearable style="width: 160px" />
-        </el-form-item>
-        <el-form-item label="项目负责人">
-          <el-input v-model="filters.projectLeaderName" placeholder="精准匹配" clearable style="width: 140px" />
-        </el-form-item>
-        <el-form-item label="投标负责人">
-          <el-input v-model="filters.biddingLeaderName" placeholder="精准匹配" clearable style="width: 140px" />
-        </el-form-item>
-        <el-form-item label="缴纳日期">
-          <el-date-picker v-model="filters.paymentDateRange" type="daterange" range-separator="~"
-            start-placeholder="开始" end-placeholder="结束" value-format="YYYY-MM-DD" style="width: 240px" />
-        </el-form-item>
-        <el-form-item label="应退日期">
-          <el-date-picker v-model="filters.expectedReturnDateRange" type="daterange" range-separator="~"
-            start-placeholder="开始" end-placeholder="结束" value-format="YYYY-MM-DD" style="width: 240px" />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="filters.status" placeholder="全部" clearable style="width: 120px">
-            <el-option label="已退回" value="RETURNED" />
-            <el-option label="未到期" value="PENDING" />
-            <el-option label="已超期" value="OVERDUE" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">筛选</el-button>
-          <el-button @click="handleReset">重置</el-button>
-          <el-button type="success" @click="handleExport">导出</el-button>
-        </el-form-item>
-      </el-form>
+      <div class="filter-header">
+        <span class="filter-title">筛选条件</span>
+        <div class="filter-actions">
+          <button class="filter-btn" @click="handleReset">
+            <el-icon><RefreshRight /></el-icon>
+            <span>重置</span>
+          </button>
+          <button class="filter-btn filter-btn--primary" @click="handleSearch">
+            <el-icon><Search /></el-icon>
+            <span>筛选</span>
+          </button>
+          <button class="filter-btn filter-btn--success" @click="handleExport">
+            <el-icon><Download /></el-icon>
+            <span>导出</span>
+          </button>
+        </div>
+      </div>
+      <div class="filter-body">
+        <div class="filter-row">
+          <div class="filter-field">
+            <label class="filter-label">项目名称</label>
+            <el-input v-model="filters.projectName" placeholder="模糊匹配" clearable />
+          </div>
+          <div class="filter-field">
+            <label class="filter-label">业主单位</label>
+            <el-input v-model="filters.ownerUnit" placeholder="模糊匹配" clearable />
+          </div>
+          <div class="filter-field">
+            <label class="filter-label">项目负责人</label>
+            <el-input v-model="filters.projectLeaderName" placeholder="精准匹配" clearable />
+          </div>
+          <div class="filter-field">
+            <label class="filter-label">投标负责人</label>
+            <el-input v-model="filters.biddingLeaderName" placeholder="精准匹配" clearable />
+          </div>
+        </div>
+        <div class="filter-row">
+          <div class="filter-field filter-field--wide">
+            <label class="filter-label">缴纳日期</label>
+            <el-date-picker v-model="filters.paymentDateRange" type="daterange" range-separator="~"
+              start-placeholder="开始" end-placeholder="结束" value-format="YYYY-MM-DD" />
+          </div>
+          <div class="filter-field filter-field--wide">
+            <label class="filter-label">应退日期</label>
+            <el-date-picker v-model="filters.expectedReturnDateRange" type="daterange" range-separator="~"
+              start-placeholder="开始" end-placeholder="结束" value-format="YYYY-MM-DD" />
+          </div>
+          <div class="filter-field">
+            <label class="filter-label">状态</label>
+            <el-select v-model="filters.status" placeholder="全部" clearable>
+              <el-option label="已退回" value="RETURNED" />
+              <el-option label="未到期" value="PENDING" />
+              <el-option label="已超期" value="OVERDUE" />
+            </el-select>
+          </div>
+        </div>
+      </div>
     </el-card>
 
     <!-- 数据表格 -->
     <el-card shadow="never" class="table-card">
-      <el-table :data="tableData" v-loading="loading" stripe style="width: 100%">
-        <el-table-column type="index" label="序号" width="60" />
-        <el-table-column prop="projectName" label="项目名称" min-width="180" show-overflow-tooltip>
+      <el-table :data="tableData" v-loading="loading" stripe style="width: 100%; table-layout: fixed;" class="margin-table">
+        <el-table-column type="index" label="序号" width="50" align="center" />
+        <el-table-column prop="projectName" label="项目名称" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
             <el-link type="primary" @click="goToProject(row.projectId)">{{ row.projectName }}</el-link>
           </template>
         </el-table-column>
         <el-table-column prop="ownerUnit" label="业主单位" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="projectLeaderName" label="项目负责人" width="120" />
-        <el-table-column prop="biddingLeaderName" label="投标负责人" width="120" />
-        <el-table-column prop="depositAmount" label="缴纳保证金金额" width="140" align="right">
-          <template #default="{ row }">¥ {{ fmtMoney(row.depositAmount) }}</template>
+        <el-table-column prop="projectLeaderName" label="项目负责人" width="100" />
+        <el-table-column prop="depositAmount" label="保证金金额" width="160" align="right">
+          <template #default="{ row }">¥{{ fmtMoney(row.depositAmount) }}</template>
         </el-table-column>
-        <el-table-column prop="paymentDate" label="缴纳日期" width="110">
+        <el-table-column prop="paymentDate" label="缴纳日期" width="95">
           <template #default="{ row }">{{ fmtDate(row.paymentDate) }}</template>
         </el-table-column>
-        <el-table-column prop="depositPaymentMethod" label="保证金缴纳方式" width="130" />
-        <el-table-column prop="payeeName" label="收款方名称" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="payeeAccount" label="收款方账号" width="180" show-overflow-tooltip />
-        <el-table-column prop="expectedReturnDate" label="应退日期" width="110">
+        <el-table-column prop="depositPaymentMethod" label="缴纳方式" width="80" />
+        <el-table-column prop="payeeName" label="收款方" min-width="140" show-overflow-tooltip />
+        <el-table-column prop="payeeAccount" label="收款账号" width="150" show-overflow-tooltip />
+        <el-table-column prop="expectedReturnDate" label="应退日期" width="95">
           <template #default="{ row }">{{ fmtDate(row.expectedReturnDate) }}</template>
         </el-table-column>
-        <el-table-column prop="returnedAmount" label="退回金额" width="120" align="right">
-          <template #default="{ row }">{{ row.returnedAmount != null ? '¥ ' + fmtMoney(row.returnedAmount) : '—' }}</template>
+        <el-table-column prop="returnedAmount" label="退回金额" width="150" align="right">
+          <template #default="{ row }">{{ row.returnedAmount != null ? '¥' + fmtMoney(row.returnedAmount) : '—' }}</template>
         </el-table-column>
-        <el-table-column prop="serviceFeeAmount" label="转服务费金额" width="130" align="right">
-          <template #default="{ row }">{{ row.serviceFeeAmount != null ? '¥ ' + fmtMoney(row.serviceFeeAmount) : '—' }}</template>
+        <el-table-column prop="serviceFeeAmount" label="服务费" width="130" align="right">
+          <template #default="{ row }">{{ row.serviceFeeAmount != null ? '¥' + fmtMoney(row.serviceFeeAmount) : '—' }}</template>
         </el-table-column>
-        <el-table-column prop="actualReturnDate" label="实际退回日期" width="120">
+        <el-table-column prop="actualReturnDate" label="退回日期" width="95">
           <template #default="{ row }">{{ fmtDate(row.actualReturnDate) }}</template>
         </el-table-column>
-        <el-table-column prop="statusLabel" label="状态" width="100" align="center">
+        <el-table-column prop="statusLabel" label="状态" width="70" align="center">
           <template #default="{ row }">
-            <el-tag :type="statusTagType(row.statusLabel)" effect="dark">
+            <el-tag :type="statusTagType(row.statusLabel)" effect="dark" size="small">
               {{ row.statusLabel }}
             </el-tag>
           </template>
@@ -245,8 +267,125 @@ onMounted(() => { fetchSummary(); fetchList() })
 .card-overdue-count { background: var(--el-color-danger); filter: brightness(0.85); }
 
 .filter-card { margin-bottom: 20px; }
-.filter-form .el-form-item { margin-bottom: 0; }
+
+/* 筛选区域新样式 */
+.filter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.filter-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 150ms ease;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+}
+
+.filter-btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--gray-300);
+}
+
+.filter-btn--primary {
+  background: var(--brand-xiyu-logo);
+  color: white;
+  border-color: var(--brand-xiyu-logo);
+}
+
+.filter-btn--primary:hover {
+  background: #256a4d;
+  border-color: #256a4d;
+}
+
+.filter-btn--success {
+  background: #67c23a;
+  color: white;
+  border-color: #67c23a;
+}
+
+.filter-btn--success:hover {
+  background: #529b2e;
+  border-color: #529b2e;
+}
+
+.filter-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.filter-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 140px;
+}
+
+.filter-field--wide {
+  flex: 2;
+  min-width: 240px;
+}
+
+.filter-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.filter-field .el-input,
+.filter-field .el-select,
+.filter-field .el-date-editor {
+  width: 100% !important;
+}
 
 .table-card { margin-bottom: 20px; }
+
+/* 表格样式优化 */
+.margin-table .el-table__cell {
+  white-space: nowrap !important;
+}
+
+.margin-table .el-table__cell .cell {
+  white-space: nowrap !important;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.margin-table .el-table__cell:last-child .cell {
+  padding-right: 12px;
+}
+
 .pagination-wrap { margin-top: 16px; display: flex; justify-content: flex-end; }
 </style>
