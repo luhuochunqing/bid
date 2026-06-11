@@ -1,22 +1,22 @@
 @import '../../../../styles/variables.css';
 
 .related-cases-card {
-  margin-bottom: 20px;
+  margin-bottom: var(--space-5, 20px);
 }
 
 .cases-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .case-item {
   display: flex;
   align-items: stretch;
-  gap: 16px;
-  padding: 16px;
+  gap: var(--space-4);
+  padding: var(--space-4);
   background: var(--bg-subtle);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: all 0.3s;
 }
@@ -29,7 +29,7 @@
 .case-icon {
   width: 48px;
   height: 48px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: linear-gradient(135deg, #409eff, #66b1ff);
   display: flex;
   align-items: center;
@@ -51,13 +51,13 @@
   font-size: 15px;
   font-weight: 600;
   color: var(--gray-750);
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-2);
 }
 
 .case-meta {
   display: flex;
-  gap: 16px;
-  margin-bottom: 8px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-2);
   font-size: 13px;
   color: var(--text-muted);
 }
@@ -65,13 +65,13 @@
 .case-summary {
   font-size: 13px;
   color: var(--text-secondary-ui);
-  margin: 0 0 12px;
+  margin: 0 0 var(--space-3);
   line-height: 1.6;
 }
 
 .case-highlights {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   flex-wrap: wrap;
 }
 
@@ -87,18 +87,18 @@
 }
 
 .loading-container {
-  padding: 40px;
+  padding: var(--space-2xl);
   background: var(--bg-card);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 .bidding-detail-page .el-card__header {
-  padding: 16px 20px;
+  padding: var(--space-4) var(--space-5, 20px);
   border-bottom: 1px solid var(--gray-250);
 }
 
 .bidding-detail-page .el-card__body {
-  padding: 20px;
+  padding: var(--space-5, 20px);
 }
 
 .bidding-detail-page .el-descriptions__label {
@@ -107,19 +107,19 @@
 }
 
 .bidding-detail-page .el-divider {
-  margin: 20px 0;
+  margin: var(--space-5, 20px) 0;
 }
 
 @media (max-width: 768px) {
   .bidding-detail-page {
-    padding: 12px;
+    padding: var(--space-3);
   }
 
   .detail-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
-    padding: 16px;
+    gap: var(--space-3);
+    padding: var(--space-4);
   }
 
   .detail-header-left {
@@ -134,7 +134,7 @@
     width: 100%;
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--space-2);
   }
 
   .detail-header-actions .el-button {
@@ -143,15 +143,15 @@
   }
 
   .detail-card {
-    margin-bottom: 12px;
+    margin-bottom: var(--space-3);
   }
 
   .detail-card .el-card__header {
-    padding: 12px 16px;
+    padding: var(--space-3) var(--space-4);
   }
 
   .detail-card .el-card__body {
-    padding: 16px;
+    padding: var(--space-4);
   }
 
   .bidding-detail-page .el-descriptions {
@@ -163,7 +163,7 @@
   }
 
   .content-section {
-    margin-bottom: 16px;
+    margin-bottom: var(--space-4);
   }
 
   .content-title {
@@ -175,13 +175,13 @@
   }
 
   .case-item {
-    padding: 12px;
+    padding: var(--space-3);
   }
 
   .case-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
+    gap: var(--space-2);
   }
 
   .bidding-detail-page .el-dialog {
@@ -190,7 +190,7 @@
   }
 
   .bidding-detail-page .el-dialog__body {
-    padding: 16px;
+    padding: var(--space-4);
   }
 
   .info-tags {

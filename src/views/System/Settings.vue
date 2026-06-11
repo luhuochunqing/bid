@@ -218,11 +218,9 @@ watch(() => route.query.tab, (tab) => {
 
 <style scoped>
 .settings-page {
-  min-height: 100%;
+  min-height: 100vh;
   padding: 24px;
-  background:
-    radial-gradient(circle at 0% 0%, rgba(68, 107, 73, 0.16), transparent 32%),
-    linear-gradient(135deg, #f6f3ea 0%, #eef5ed 46%, #f8faf7 100%);
+  background: var(--bg-page);
 }
 
 .settings-hero {

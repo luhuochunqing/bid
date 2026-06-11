@@ -133,13 +133,16 @@ onMounted(fetchData)
 
 <style scoped>
 .notification-inbox {
+  padding: 20px;
+  background: var(--bg-page);
+  min-height: 100vh;
 }
 
 .inbox-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: var(--space-4);
 }
 
 .inbox-title {
@@ -151,7 +154,7 @@ onMounted(fetchData)
 
 .inbox-loading,
 .inbox-empty {
-  padding: 40px 0;
+  padding: var(--space-2xl) 0;
 }
 
 .inbox-list {
@@ -159,15 +162,15 @@ onMounted(fetchData)
   flex-direction: column;
   gap: 1px;
   background: var(--border-color, #f1f5f9);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
 .inbox-item {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  padding: 16px;
+  gap: var(--space-3);
+  padding: var(--space-4);
   background: var(--bg-card);
   cursor: pointer;
   transition: background 150ms ease;
@@ -206,7 +209,7 @@ onMounted(fetchData)
 }
 
 .inbox-item-desc {
-  margin-top: 4px;
+  margin-top: var(--space-1);
   font-size: 13px;
   color: var(--text-secondary, #64748b);
   overflow: hidden;
@@ -216,10 +219,10 @@ onMounted(fetchData)
 }
 
 .inbox-item-meta {
-  margin-top: 8px;
+  margin-top: var(--space-2);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .inbox-item-time {
@@ -231,7 +234,7 @@ onMounted(fetchData)
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  padding-top: 4px;
+  padding-top: var(--space-1);
 }
 
 .inbox-item-dot {
@@ -242,7 +245,7 @@ onMounted(fetchData)
 }
 
 .inbox-pagination {
-  margin-top: 24px;
+  margin-top: var(--space-xl);
   display: flex;
   justify-content: center;
 }

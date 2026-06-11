@@ -60,6 +60,14 @@ html:not([data-keyboard-nav="true"]) .el-textarea__inner:focus {
 .search-field--datetime { flex: 0 0 360px; width: 360px; min-width: 360px; max-width: 360px; }
 .search-actions { flex: 0 0 auto; }
 
+/* 宽屏自适应：字段弹性增长，减少两侧留白 */
+@media (min-width: 1441px) {
+  .search-field { flex: 1 1 168px; max-width: 220px; }
+  .search-field--keyword { flex: 1 1 168px; max-width: 240px; }
+  .search-field--date { flex: 1 1 260px; max-width: 320px; }
+  .search-field--datetime { flex: 1 1 360px; max-width: 420px; }
+}
+
 @media (max-width: 768px) {
   .search-card .el-form--inline .el-input,
   .search-card .el-form--inline .el-select,
@@ -86,9 +94,9 @@ html:not([data-keyboard-nav="true"]) .el-textarea__inner:focus {
 .contact-group-title {
   font-size: 13px;
   font-weight: 600;
-  color: #606266;
+  color: var(--text-primary-ui);
   padding: 4px 0 2px 12px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-subtle);
   margin-bottom: 4px;
   letter-spacing: 0.5px;
 }
@@ -96,9 +104,32 @@ html:not([data-keyboard-nav="true"]) .el-textarea__inner:focus {
 .optional-tag {
   font-size: 11px;
   font-weight: 400;
-  color: #909399;
-  background: #f4f4f5;
-  border-radius: 4px;
+  color: var(--text-muted);
+  background: var(--bg-subtle);
+  border-radius: var(--radius-sm);
   padding: 0 6px;
   margin-left: 8px;
 }
+
+/* （不额外添加样式，使用 Element Plus 默认外观） */
+
+/* el-input-number：隐藏加减按钮，当作普通输入框使用，宽度拉满 */
+.el-input-number__decrease,
+.el-input-number__increase {
+  display: none !important;
+}
+
+.el-input-number .el-input__wrapper {
+  padding-left: 12px !important;
+  padding-right: 12px !important;
+}
+
+.el-input-number {
+  width: 100% !important;
+}
+
+.el-input-number .el-input__inner {
+  text-align: left !important;
+}
+
+

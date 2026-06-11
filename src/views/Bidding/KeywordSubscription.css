@@ -1,5 +1,7 @@
 .keyword-subscription-page {
   padding: 20px;
+  background: var(--bg-page);
+  min-height: 100vh;
   max-width: 960px;
   margin: 0 auto;
 }

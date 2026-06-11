@@ -27,10 +27,7 @@ function handleReload() {
 </script>
 
 <style>
-/* ========== Google Fonts ========== */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-
-/* ========== Global Styles ========== */
+/* ========== Global Styles (字体已在 variables.css 中统一导入) ========== */
 @import './styles/accessibility.css';
 @import './styles/interactions.css';
 
@@ -51,26 +48,26 @@ html, body, #app {
   align-items: center;
   justify-content: center;
   height: 100vh;
-  background: #f5f7fa;
+  background: var(--bg-page);
 }
 
 .error-boundary-content {
   text-align: center;
   padding: 48px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
 }
 
 .error-boundary-content h1 {
   font-size: 24px;
-  color: #303133;
+  color: var(--text-primary);
   margin-bottom: 16px;
 }
 
 .error-boundary-content p {
   font-size: 14px;
-  color: #909399;
+  color: var(--text-secondary);
   margin-bottom: 24px;
 }
 </style>

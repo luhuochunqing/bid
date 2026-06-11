@@ -2,8 +2,8 @@
 
 .workbench {
   padding: 24px;
-  background: #F8FAFC;
-  min-height: 100%;
+  background: var(--bg-page);
+  min-height: 100vh;
 }
 
 .page-identity {

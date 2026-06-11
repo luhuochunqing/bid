@@ -211,7 +211,11 @@ const goToCreate = () => router.push('/project/create')
 onMounted(() => { loadProjects() })
 </script>
 <style scoped>
-.project-list-container { padding: 16px; }
+.project-list-container {
+  padding: 16px;
+  background: var(--bg-page);
+  min-height: 100vh;
+}
 .table-card :deep(.el-card__header) { padding: 10px 14px; }
 .table-card :deep(.el-card__body) { padding: 0; }
 .card-header { display: flex; justify-content: space-between; align-items: center; }

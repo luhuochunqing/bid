@@ -2,22 +2,22 @@
 
 .customer-type-panel {
   background: var(--bg-card);
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 20px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: var(--space-5, 20px);
 }
 
 .customer-type-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
 }
 
 .customer-type-title {
   margin: 0;
-  color: #1f2937;
+  color: var(--text-primary);
   font-size: 18px;
   font-weight: 600;
 }
@@ -25,15 +25,15 @@
 .customer-type-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5, 18px);
 }
 
 .summary-item {
   min-width: 0;
-  border: 1px solid #edf0f5;
-  border-radius: 8px;
-  padding: 12px;
+  border: 1px solid var(--gray-100);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
   background: var(--bg-subtle);
 }
 
@@ -53,33 +53,33 @@
 .customer-type-content {
   display: grid;
   grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
-  gap: 18px;
+  gap: var(--space-5, 18px);
 }
 
 .dimension-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-sm, 10px);
 }
 
 .dimension-button {
   width: 100%;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
   background: var(--bg-card);
-  padding: 12px;
+  padding: var(--space-3);
   text-align: left;
   cursor: pointer;
 }
 
 .dimension-button:hover {
-  border-color: #409eff;
-  background: #f5f9ff;
+  border-color: var(--brand-primary);
+  background: var(--color-primary-bg);
 }
 
 .dimension-name {
   display: block;
-  color: #1f2937;
+  color: var(--text-primary);
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 4px;

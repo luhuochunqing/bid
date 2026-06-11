@@ -268,6 +268,15 @@
 
 /* 禁用态 placeholder 双重保险：变量 + 显式规则 */
 .el-textarea.is-disabled .el-textarea__inner::placeholder,
-.el-input.is-disabled .el-input__inner::placeholder {
+.el-input.is-disabled .el-input__inner::placeholder,
+.el-input-number.is-disabled .el-input__inner::placeholder {
   color: #303133 !important;
+}
+
+/* el-input-number disabled 态：覆盖 EP 默认的浅色文字和 opacity */
+.el-input-number.is-disabled .el-input__inner,
+.el-input-number.is-disabled .el-input-number__decrease,
+.el-input-number.is-disabled .el-input-number__increase {
+  color: #303133 !important;
+  opacity: 1 !important;
 }

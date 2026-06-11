@@ -102,12 +102,12 @@
       <div class="pagination-wrap">
         <el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[20,50,100]" :total="total" layout="total,sizes,prev,pager,next,jumper" @size-change="fetchQualifications" @current-change="fetchQualifications" />
       </div>
-      <el-empty v-if="!loading && !qualifications.length" :description="emptyDescription">
-        <template #description>
-          <span>{{ emptyDescription }}</span>
-        </template>
+      <el-empty v-if="!loading && !qualifications.length" description="暂无资质数据" :image-size="80">
+        <el-button v-if="canManageQualification" type="primary" size="small" @click="formVisible=true; editData=null"><el-icon><Plus /></el-icon>新增资质</el-button>
       </el-empty>
-      <el-empty v-else-if="!loading && hasFilterActive" description="未找到匹配的证书，请调整筛选条件" />
+      <el-empty v-else-if="!loading && hasFilterActive" description="未找到匹配的证书，请调整筛选条件" :image-size="80">
+        <el-button size="small" @click="resetFilters">重置筛选</el-button>
+      </el-empty>
     </el-card>
 
     <el-card v-if="canViewQualification" class="borrow-history-wrap" shadow="never">
@@ -415,7 +415,11 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
-.qualification-container { padding: 24px; }
+.qualification-container {
+  padding: 24px;
+  background: var(--bg-page);
+  min-height: 100vh;
+}
 .page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; h2 { font-weight:600; color:#1f2937; margin:0 } }
 .page-actions { display: flex; gap: 12px; flex-wrap: wrap; }
 .premium-btn { background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); border: none; box-shadow: 0 4px 6px -1px rgba(99,102,241,0.4); transition: all 0.3s ease; &:hover { transform: translateY(-2px); box-shadow: 0 6px 8px -1px rgba(99,102,241,0.5); } }

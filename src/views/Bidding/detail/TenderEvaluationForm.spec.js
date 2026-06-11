@@ -248,9 +248,9 @@ describe('TenderEvaluationForm — instance-level permission matrix (V130 3-sect
     expect(text).toContain('客户营收')
     expect(text).toContain('招标文件不利项')
     expect(text).toContain('风险预判')
-    expect(text).toContain('项目经理综合评估是否有兜底方案')
-    expect(text).toContain('项目经理是否了解评标全流程')
-    expect(text).toContain('需要的支持及其他关键信息备注')
+    expect(text).toContain('是否有兜底方案')
+    expect(text).toContain('是否了解评标全流程')
+    expect(text).toContain('需要的支持及备注')
     expect(text).toContain('项目计划 GAP')
   })
 

@@ -112,10 +112,10 @@
 .b2b-metric-card {
   position: relative;
   padding: 24px;
-  background: linear-gradient(135deg, var(--bg-card) 0%, #fafbfc 100%);
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-subtle) 100%);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--gray-100);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
 }
@@ -127,7 +127,7 @@
   top: 0;
   bottom: 0;
   width: 4px;
-  background: linear-gradient(180deg, rgba(0, 102, 204, 0.8) 0%, rgba(0, 102, 204, 0.4) 100%);
+  background: linear-gradient(180deg, var(--brand-xiyu-logo) 0%, var(--brand-xiyu-logo-light) 100%);
 }
 
 .b2b-metric-card.metric-blue::before {
@@ -135,15 +135,15 @@
 }
 
 .b2b-metric-card.metric-green::before {
-  background: linear-gradient(180deg, var(--color-success) 0%, #22CC66 100%);
+  background: linear-gradient(180deg, var(--color-success) 0%, var(--color-success-bg) 100%);
 }
 
 .b2b-metric-card.metric-orange::before {
-  background: linear-gradient(180deg, var(--color-warning) 0%, #FFAA33 100%);
+  background: linear-gradient(180deg, var(--color-warning) 0%, var(--color-warning-bg) 100%);
 }
 
 .b2b-metric-card.metric-red::before {
-  background: linear-gradient(180deg, var(--color-danger) 0%, #FF4422 100%);
+  background: linear-gradient(180deg, var(--color-danger) 0%, var(--color-danger-bg) 100%);
 }
 
 .b2b-metric-card::after {
@@ -164,7 +164,7 @@
 .b2b-metric-card.metric-red::after { background: var(--color-danger); }
 
 .b2b-metric-card:hover {
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-lg);
   transform: translateY(-2px);
 }
 
@@ -208,13 +208,13 @@
 }
 
 .b2b-metric-trend .trend-label {
-  color: #9ca3af;
+  color: var(--text-tertiary);
   font-weight: 400;
   font-size: 12px;
 }
 
 .b2b-metric-trend.positive {
-  background: linear-gradient(135deg, rgba(0, 170, 68, 0.1) 0%, rgba(0, 170, 68, 0.05) 100%);
+  background: linear-gradient(135deg, var(--color-success-bg) 0%, rgba(0, 170, 68, 0.05) 100%);
 }
 
 .b2b-metric-trend.positive .trend-value {
@@ -223,7 +223,7 @@
 }
 
 .b2b-metric-trend.negative {
-  background: linear-gradient(135deg, rgba(221, 34, 0, 0.1) 0%, rgba(221, 34, 0, 0.05) 100%);
+  background: linear-gradient(135deg, var(--color-danger-bg) 0%, rgba(221, 34, 0, 0.05) 100%);
 }
 
 .b2b-metric-trend.negative .trend-value {

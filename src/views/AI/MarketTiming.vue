@@ -28,7 +28,9 @@
 
       <div v-loading="loading" class="list-body">
         <el-empty v-if="!loading && errorMsg" :description="errorMsg" />
-        <el-empty v-else-if="!loading && predictions.length === 0" description="暂无预测数据，请确认系统中有标讯数据" />
+        <el-empty v-else-if="!loading && predictions.length === 0" description="暂无预测数据，请确认系统中有标讯数据">
+          <el-button size="small" type="primary" @click="$router.push('/bidding')">去标讯列表看看</el-button>
+        </el-empty>
 
         <div v-else class="prediction-grid">
           <div v-for="item in filteredPredictions" :key="item.purchaserHash" class="prediction-card" :class="{ 'no-data': !item.hasData }">

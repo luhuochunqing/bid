@@ -183,6 +183,8 @@ const getStatusText = (status) => getTenderStatusText(status)
 <style scoped>
 .favorites-page {
   padding: 20px 24px;
+  background: var(--bg-page);
+  min-height: 100vh;
 }
 
 .page-header {

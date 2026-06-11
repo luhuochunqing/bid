@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="gap-upload-wrapper">
     <el-input
       v-model="localGap"
       type="textarea"
@@ -104,6 +104,21 @@ function beforeGapUpload(file) {
 </script>
 
 <style scoped>
+/* 根容器：统一宽度约束，和 BasicFieldsSection 里的数字输入框/textarea 保持一致 */
+.gap-upload-wrapper {
+  width: 100%;
+  max-width: 360px;
+}
+
+/* 禁用态下也要让文字可读 */
+.gap-upload-wrapper :deep(.el-textarea) {
+  width: 100%;
+}
+
+.gap-upload-wrapper :deep(.el-textarea__inner) {
+  min-height: 72px !important;
+}
+
 .gap-file-upload {
   margin-top: 8px;
 }

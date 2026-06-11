@@ -309,7 +309,7 @@ onMounted(async () => {
 .analytics-dashboard {
   padding: 20px;
   background-color: var(--bg-subtle);
-  min-height: 100%;
+  min-height: 100vh;
 }
 
 .loading-container {

@@ -1,10 +1,5 @@
 <template>
   <div class="bidding-create-page">
-    <!-- 面包屑 + 标题 -->
-    <div class="create-breadcrumb">
-      标讯中心 <span class="separator">></span> {{ isEditMode ? '编辑标讯' : '新建标讯' }}
-    </div>
-
     <div class="create-header-card">
       <h2 class="create-title">{{ isEditMode ? '编辑标讯' : '新建标讯' }}</h2>
     </div>
@@ -229,8 +224,8 @@
     </div>
 
     <!-- 底部操作栏 — 状态机驱动按钮 -->
-    <div class="bottom-action-bar">
-      <div class="bottom-action-bar-inner">
+    <div class="form-action-bar">
+      <div class="form-action-bar-inner">
         <div class="action-bar-right">
           <!-- 编辑模式：取消(返回详情) + 保存 -->
           <template v-if="isEditMode && createdTenderId">
@@ -856,18 +851,6 @@ async function handleEvaluationSaveDraft() {
 <style scoped>
 .bidding-create-page {
   padding: 24px;
-  padding-bottom: 80px;
-}
-
-.create-breadcrumb {
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-  margin-bottom: 16px;
-}
-
-.separator {
-  margin: 0 6px;
-  color: var(--el-border-color);
 }
 
 .create-header-card {
@@ -948,19 +931,19 @@ async function handleEvaluationSaveDraft() {
   width: 100%;
 }
 
-.bottom-action-bar {
-  position: fixed;
+.form-action-bar {
+  position: sticky;
   bottom: 0;
-  left: 0;
-  right: 0;
-  background: var(--el-bg-color);
-  border-top: 1px solid var(--el-border-color-extra-light);
-  padding: 12px 24px;
-  z-index: 100;
-  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+  z-index: 10;
+  margin-top: 24px;
+  padding: 20px 24px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--gray-150);
+  border-radius: var(--radius-md);
 }
 
-.bottom-action-bar-inner {
+.form-action-bar-inner {
   display: flex;
   justify-content: flex-end;
   align-items: center;

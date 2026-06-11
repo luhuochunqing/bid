@@ -204,9 +204,8 @@ const {
 <style scoped lang="scss">
 .template-container {
   padding: 20px;
-  background:
-    radial-gradient(circle at top right, rgba(64, 158, 255, 0.08), transparent 20%),
-    linear-gradient(180deg, #f5f9ff 0%, var(--bg-card) 28%);
+  background: var(--bg-page);
+  min-height: 100vh;
 }
 
 .page-header {

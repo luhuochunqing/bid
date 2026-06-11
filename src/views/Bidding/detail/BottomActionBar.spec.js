@@ -51,7 +51,7 @@ describe('BottomActionBar', () => {
       props: { actions },
       global: { stubs: globalStubs },
     })
-    expect(wrapper.find('.bottom-action-bar').exists()).toBe(true)
+    expect(wrapper.find('.form-action-bar').exists()).toBe(true)
 
     const buttons = wrapper.findAll('button[data-test="action-btn"]')
     expect(buttons).toHaveLength(2)

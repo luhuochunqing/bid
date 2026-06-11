@@ -163,4 +163,14 @@ function onDataChange() {
   border-radius: 4px;
   overflow: hidden;
 }
+
+/* 表头与单元格：文字单行显示，不换行 */
+.matrix-table-wrapper :deep(.el-table th.el-table__cell),
+.matrix-table-wrapper :deep(.el-table td.el-table__cell) {
+  white-space: nowrap;
+}
+
+.matrix-table-wrapper :deep(.cell) {
+  white-space: nowrap;
+}
 </style>

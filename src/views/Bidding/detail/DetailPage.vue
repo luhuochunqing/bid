@@ -3,11 +3,7 @@
     <div v-if="tender" class="detail-content">
       <!-- 头部信息卡 -->
       <div class="detail-header-card">
-        <!-- 面包屑 + 标讯 ID -->
         <div class="header-top-row">
-          <div class="detail-breadcrumb">
-            标讯中心 <span class="separator">></span> 标讯详情
-          </div>
           <span class="tender-id-badge">#{{ tender.id }}</span>
         </div>
         <!-- 标题 -->
@@ -176,7 +172,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, defineAsyncComponent, ref } from 'vue'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
@@ -190,12 +186,12 @@ import { useEvaluationReview } from './useEvaluationReview.js'
 import { useDetailTabs } from './useDetailTabs.js'
 import { useDetailActions } from './useDetailActions.js'
 import { useUserStore } from '@/stores/user'
-import TenderEvaluationForm from './TenderEvaluationForm.vue'
-import OperationLogTimeline from './components/OperationLogTimeline.vue'
-import AssignDialog from '../list/components/AssignDialog.vue'
+const TenderEvaluationForm = defineAsyncComponent(() => import('./TenderEvaluationForm.vue'))
+const OperationLogTimeline = defineAsyncComponent(() => import('./components/OperationLogTimeline.vue'))
+const AssignDialog = defineAsyncComponent(() => import('../list/components/AssignDialog.vue'))
+const BasicInfoReadOnly = defineAsyncComponent(() => import('./components/BasicInfoReadOnly.vue'))
+const CrmOpportunitySelector = defineAsyncComponent(() => import('./components/CrmOpportunitySelector.vue'))
 import BottomActionBar from './BottomActionBar.vue'
-import BasicInfoReadOnly from './components/BasicInfoReadOnly.vue'
-import CrmOpportunitySelector from './components/CrmOpportunitySelector.vue'
 import FavoriteButton from '../list/components/FavoriteButton.vue'
 import './styles/detail-layout.css'
 const userStore = useUserStore()

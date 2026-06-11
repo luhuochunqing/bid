@@ -324,11 +324,7 @@ export default {
 }
 
 /* 主内容区 */
-.main-content {
-  flex: 1;
-  padding: 24px;
-  overflow: auto;
-}
+.main-content { flex: 1; padding: 24px; overflow: auto; background: var(--bg-page); min-height: 100vh; }
 
 /* Tab 样式 */
 .ai-tabs {

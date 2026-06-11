@@ -54,8 +54,8 @@
 
     <div class="grid-content" v-loading="loading">
             <template v-if="cases.length === 0">
-        <el-empty v-if="hasActiveFilters" description="未找到符合条件的案例" />
-        <el-empty v-else description="案例库还没有内容。去结项的项目页点击&#39;AI 自动生成案例&#39;" />
+        <el-empty v-if="hasActiveFilters" description="未找到符合条件的案例"><el-button size="small" @click="handleReset">重置筛选</el-button></el-empty>
+        <el-empty v-else description="案例库还没有内容。去结项的项目页点击&#39;AI 自动生成案例&#39;"><el-button type="primary" size="small" @click="$router.push('/project')">去项目页看看</el-button></el-empty>
       </template>
       <el-row v-else :gutter="20" class="card-grid">
         <el-col v-for="item in cases" :key="item.id || item.caseId" :xs="24" :sm="12" :md="8" :lg="6" class="grid-col">
@@ -286,7 +286,7 @@ onBeforeUnmount(saveDrawerState)
 </script>
 
 <style scoped>
-.case-grid-container { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.case-grid-container { padding: 16px; display: flex; flex-direction: column; gap: 16px; background: var(--bg-page); min-height: 100vh; }
 .filter-card { border-radius: 8px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.05); border: 1px solid var(--el-border-color-lighter); }
 .card-header-title { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; color: var(--el-text-color-primary); }
 .search-form { margin-bottom: -18px; }

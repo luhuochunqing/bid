@@ -129,9 +129,9 @@ const {
 .customer-opportunity-page {
   padding: var(--space-6, 24px);
   min-height: 100vh;
-  background: #f8fafc;
+  background: var(--bg-page);
   font-family: 'Plus Jakarta Sans', -apple-system, system-ui, sans-serif;
-  color: #0f172a;
+  color: var(--text-primary);
 }
 
 .page-header {

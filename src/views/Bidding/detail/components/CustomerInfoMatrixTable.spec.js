@@ -65,7 +65,7 @@ describe('CustomerInfoMatrixTable', () => {
 
     const fixedColumn = wrapper.find('[data-label="客户信息（角色名）"]')
     expect(fixedColumn.exists()).toBe(true)
-    expect(fixedColumn.attributes('data-width')).toBe('170')
+    expect(fixedColumn.attributes('data-width')).toBe('200')
     expect(wrapper.text()).toContain('董事长')
     expect(wrapper.text()).toContain('电话')
     expect(wrapper.text()).toContain('极高')

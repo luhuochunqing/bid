@@ -29,7 +29,9 @@
         </div>
       </template>
 
-      <el-empty v-if="!loading && subscriptions.length === 0" description="暂无订阅，点击上方按钮新建" />
+      <el-empty v-if="!loading && subscriptions.length === 0" description="暂无订阅，新建第一个订阅开始使用">
+        <el-button type="primary" @click="openCreateDialog"><el-icon><Plus /></el-icon>新建订阅</el-button>
+      </el-empty>
 
       <div v-else class="subscription-list">
         <div
