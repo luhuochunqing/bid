@@ -34,6 +34,12 @@
             <el-option v-for="lv in levelOptions" :key="lv" :label="lv" :value="lv" />
           </el-select>
         </el-form-item>
+        <!-- CO-155 fix: 领域(category)下拉过滤 -->
+        <el-form-item label="领域">
+          <el-select v-model="filters.category" placeholder="全部" clearable style="width:160px">
+            <el-option v-for="c in categoryOptions" :key="c.value" :label="c.label" :value="c.value" />
+          </el-select>
+        </el-form-item>
         <el-form-item><el-button type="primary" @click="fetchQualifications">查询</el-button><el-button @click="resetFilters">重置</el-button></el-form-item>
       </el-form>
     </el-card>
@@ -85,7 +91,7 @@
         </el-table-column>
         <el-table-column label="状态" width="100" align="center">
           <template #default="scope">
-            <el-tag :type="getStatusTagType(scope.row)" :class="{ 'retired-tag': scope.row.status === 'RETIRED' }">{{ statusLabel(scope.row.status) }}</el-tag>
+            <el-tag :type="getStatusTagType(scope.row)" :class="{ 'retired-tag': (scope.row.status || '').toLowerCase() === 'retired' }">{{ statusLabel(scope.row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="260" fixed="right" align="center">
@@ -93,9 +99,9 @@
             <el-button v-if="scope.row.fileUrl" link type="primary" size="small" @click.stop="handleDownload(scope.row)">下载</el-button>
             <el-button v-if="canViewQualification" link type="warning" size="small" @click.stop="openBorrow(scope.row)">借阅</el-button>
             <el-button v-if="canViewQualification" link type="info" size="small" @click.stop="openBorrowHistory(scope.row)">记录</el-button>
-            <el-button v-if="canManageQualification && scope.row.status !== 'RETIRED'" link type="primary" size="small" @click.stop="openEdit(scope.row)">编辑</el-button>
-            <el-button v-if="canManageQualification && scope.row.status !== 'RETIRED'" link type="danger" size="small" @click.stop="handleRetire(scope.row)">下架</el-button>
-            <el-button v-if="canManageQualification && scope.row.status === 'RETIRED'" link type="success" size="small" @click.stop="handleRestore(scope.row)">恢复</el-button>
+            <el-button v-if="canManageQualification && (scope.row.status || '').toLowerCase() !== 'retired'" link type="primary" size="small" @click.stop="openEdit(scope.row)">编辑</el-button>
+            <el-button v-if="canManageQualification && (scope.row.status || '').toLowerCase() !== 'retired'" link type="danger" size="small" @click.stop="handleRetire(scope.row)">下架</el-button>
+            <el-button v-if="canManageQualification && (scope.row.status || '').toLowerCase() === 'retired'" link type="success" size="small" @click.stop="handleRestore(scope.row)">恢复</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -225,9 +231,17 @@ const {
 
 const qualifications = ref([]); const loading = ref(false)
 const page = ref(1); const pageSize = ref(15); const total = ref(0)
-const filters = reactive({ keyword:'', issuer:'', expiryRange:null, statuses:['IN_STOCK','EXPIRING','EXPIRED'], level:'' })
-const statusOptions = [{ label:'在库', value:'IN_STOCK' },{ label:'即将到期', value:'EXPIRING' },{ label:'已过期', value:'EXPIRED' },{ label:'已下架', value:'RETIRED' }]
-const STATUS_LABELS = { IN_STOCK:'在库', EXPIRING:'即将到期', EXPIRED:'已过期', RETIRED:'已下架', VALID:'在库' }
+// CO-155 fix: filters 加 category 字段。statuses 默认 VALID 来自 main !444 统一
+const filters = reactive({ keyword:'', issuer:'', expiryRange:null, statuses:['VALID','EXPIRING','EXPIRED'], level:'', category:'' })
+const statusOptions = [{ label:'在库', value:'VALID' },{ label:'即将到期', value:'EXPIRING' },{ label:'已过期', value:'EXPIRED' },{ label:'已下架', value:'RETIRED' }]
+// CO-155 fix: 领域(category)选项（后端无字典表，与后端 QualificationCategory 枚举对齐）
+const categoryOptions = [
+  { label: '企业资质', value: 'LICENSE' },
+  { label: '人员证书', value: 'PERSONNEL' },
+  { label: '产品资质', value: 'PRODUCT' },
+  { label: '其他', value: 'OTHER' }
+]
+const STATUS_LABELS = { in_stock:'在库', valid:'在库', expiring:'即将到期', expired:'已过期', retired:'已下架' }
 
 const hasFilterActive = computed(() => filters.keyword || filters.issuer || filters.expiryRange || filters.statuses.length || filters.level)
 const emptyDescription = computed(() => {
@@ -276,9 +290,24 @@ const fetchQualifications = async () => {
     if (filters.expiryRange) { q.set('expiringFrom', filters.expiryRange[0]); q.set('expiringTo', filters.expiryRange[1]) }
     if (filters.statuses.length) filters.statuses.forEach(s => q.append('status', s))
     if (filters.level) q.set('level', filters.level)
-    q.set('page', page.value-1); q.set('size', pageSize.value)
+    // CO-155 fix: 拼 category 到 URL（之前完全没传，导致后端 category 字段虽存在但前端筛不掉）
+    if (filters.category) q.set('category', filters.category)
+    // CO-155 fix: 前端 page 从 1 开始 → 后端从 0 开始
+    q.set('page', page.value - 1)
+    q.set('size', pageSize.value)
     const body = await http.get(`/api/knowledge/qualifications?${q.toString()}`)
-    if (body?.code === 200) { qualifications.value = body.data?.content || body.data || []; total.value = body.data?.totalElements || qualifications.value.length }
+    if (body?.code === 200) {
+      // CO-155 fix: 后端现在返回 Page<DTO>，有 content/totalElements 字段
+      const data = body.data
+      if (data && Array.isArray(data.content)) {
+        qualifications.value = data.content
+        total.value = data.totalElements ?? data.content.length
+      } else {
+        // 兜底：老接口返回 List<DTO>
+        qualifications.value = Array.isArray(data) ? data : []
+        total.value = qualifications.value.length
+      }
+    }
   } catch { ElMessage.error('加载失败') }
   finally { loading.value = false }
 }
@@ -312,10 +341,10 @@ const {
   handleBatchDownload
 } = useQualificationBatch({ fetchQualifications })
 
-const resetFilters = () => { Object.assign(filters, { keyword:'', issuer:'', expiryRange:null, statuses:[], level:'' }); page.value = 1; fetchQualifications() }
-const getStatusTagType = (row) => { const s = row.status || ''; if (s === 'IN_STOCK' || s === 'VALID') return 'success'; if (s === 'EXPIRING') return 'warning'; if (s === 'EXPIRED') return 'danger'; return 'info' }
+const resetFilters = () => { Object.assign(filters, { keyword:'', issuer:'', expiryRange:null, statuses:[], level:'', category:'' }); page.value = 1; fetchQualifications() }
+const getStatusTagType = (row) => { const s = (row.status || '').toLowerCase(); if (s === 'in_stock' || s === 'valid') return 'success'; if (s === 'expiring') return 'warning'; if (s === 'expired') return 'danger'; return 'info' }
 const getBorrowStatusTagType = (status) => borrowStatusTagTypes[status] || 'info'
-const statusLabel = (s) => STATUS_LABELS[s] || s || '—'
+const statusLabel = (s) => STATUS_LABELS[(s || '').toLowerCase()] || s || '—'
 const openEdit = (row) => { editData.value = row; formVisible.value = true }
 const handleRetire = (row) => {
   retireTarget.value = row
@@ -358,6 +387,8 @@ const replaceQualificationId = ref(null)
 const replaceCurrentFileName = ref('')
 
 const handleFormSaved = () => {
+  // CO-155 fix: 保存后重置 page=1，确保新数据（按 id desc 排第 1 页）立刻可见
+  page.value = 1
   fetchQualifications()
   if (detailDrawerVisible.value && detailQualification.value) {
     const updated = qualifications.value.find(q => q.id === detailQualification.value.id)

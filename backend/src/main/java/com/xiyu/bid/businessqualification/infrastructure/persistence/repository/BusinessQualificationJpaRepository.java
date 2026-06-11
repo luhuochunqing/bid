@@ -3,38 +3,41 @@ package com.xiyu.bid.businessqualification.infrastructure.persistence.repository
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationStatus;
 import com.xiyu.bid.businessqualification.infrastructure.persistence.entity.BusinessQualificationEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
-public interface BusinessQualificationJpaRepository extends JpaRepository<BusinessQualificationEntity, Long> {
+public interface BusinessQualificationJpaRepository
+        extends JpaRepository<BusinessQualificationEntity, Long>,
+                JpaSpecificationExecutor<BusinessQualificationEntity> {
 
     /**
-     * 扫描所有证书号匹配的记录（可能多条，如同一编号有历史记录）。
+     * Scan all certificate-no-matching records (may be multiple, e.g. same no. with history).
      */
     List<BusinessQualificationEntity> findAllByCertificateNo(String certificateNo);
     List<BusinessQualificationEntity> findByExpiryDateLessThanEqual(LocalDate expiryDate);
 
     /**
-     * §4.1.3.8 蓝图：扫描即将到期但未下架的资质。
-     * 排除已下架（status=RETIRED）的证书。
+     * Blueprint §4.1.3.8: scan expiring-but-not-retired qualifications.
+     * Excludes retired (status=RETIRED) certificates.
      */
     List<BusinessQualificationEntity> findByExpiryDateLessThanEqualAndStatusNot(
             LocalDate expiryDate, QualificationStatus excludedStatus);
 
     /**
-     * §4.1.3.4 蓝图：按证书编号查重（导入时行级校验）。
+     * Blueprint §4.1.3.4: dedupe by certificate no (per-row validation on import).
      */
     boolean existsByCertificateNo(String certificateNo);
 
     /**
-     * §4.2.1.2 蓝图：获取所有已录入的等级列表（去重，非空）。
+     * Blueprint §4.2.1.2: get all recorded levels (dedup, non-null).
      */
     List<String> findDistinctLevelByLevelIsNotNull();
 
     /**
-     * §4.2.1.4 蓝图：按证书编号查找资质（批量关联附件时匹配）。
+     * Blueprint §4.2.1.4: find by certificate no (batch attachment matching).
      */
     Optional<BusinessQualificationEntity> findByCertificateNo(String certificateNo);
 }

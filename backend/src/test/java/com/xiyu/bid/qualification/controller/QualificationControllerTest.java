@@ -8,10 +8,14 @@ import com.xiyu.bid.qualification.dto.QualificationDTO;
 import com.xiyu.bid.qualification.service.QualificationService;
 import com.xiyu.bid.qualification.service.QualificationAiParserService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -20,7 +24,10 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -148,6 +155,87 @@ class QualificationControllerTest {
                 .andExpect(jsonPath("$.msg").value("下架原因不超过200字"));
 
         verify(qualificationService, never()).retireQualification(eq(1L), any());
+    }
+
+    @Test
+    @DisplayName("列表分页 - 返回 Page<DTO> 含 content/totalElements，category/status 透传")
+    void getAllQualifications_ShouldReturnPaginatedResponseWithFilters() throws Exception {
+        QualificationDTO dto = QualificationDTO.builder()
+                .id(1L)
+                .name("测试证书")
+                .status("in_stock")
+                .build();
+        Page<QualificationDTO> mockPage = new PageImpl<>(List.of(dto), PageRequest.of(0, 15), 1);
+        when(qualificationService.getAllQualifications(
+                isNull(), isNull(), eq("LICENSE"), anyList(), isNull(),
+                isNull(), isNull(), isNull(), isNull(), isNull(),
+                anyInt(), anyInt()
+        )).thenReturn(mockPage);
+
+        mockMvc.perform(get("/api/knowledge/qualifications")
+                        .param("category", "LICENSE")
+                        .param("status", "IN_STOCK")
+                        .param("status", "EXPIRING")
+                        .param("page", "0")
+                        .param("size", "15"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.content").isArray())
+                .andExpect(jsonPath("$.data.content[0].id").value(1))
+                .andExpect(jsonPath("$.data.content[0].name").value("测试证书"))
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.size").value(15))
+                .andExpect(jsonPath("$.data.number").value(0));
+
+        verify(qualificationService).getAllQualifications(
+                isNull(), isNull(), eq("LICENSE"), anyList(), isNull(),
+                isNull(), isNull(), isNull(), isNull(), isNull(),
+                anyInt(), anyInt()
+        );
+    }
+
+    @Test
+    @DisplayName("列表分页 - size 超过 200 自动截断到 200")
+    void getAllQualifications_ShouldClampSizeAt200() throws Exception {
+        Page<QualificationDTO> mockPage = new PageImpl<>(List.of(), PageRequest.of(0, 200), 0);
+        when(qualificationService.getAllQualifications(
+                isNull(), isNull(), isNull(), isNull(), isNull(),
+                isNull(), isNull(), isNull(), isNull(), isNull(),
+                eq(0), eq(200)
+        )).thenReturn(mockPage);
+
+        mockMvc.perform(get("/api/knowledge/qualifications")
+                        .param("page", "0")
+                        .param("size", "9999"))
+                .andExpect(status().isOk());
+
+        verify(qualificationService).getAllQualifications(
+                isNull(), isNull(), isNull(), isNull(), isNull(),
+                isNull(), isNull(), isNull(), isNull(), isNull(),
+                eq(0), eq(200)
+        );
+    }
+
+    @Test
+    @DisplayName("列表分页 - 负数 page 兜底 0，size=0 兜底 15")
+    void getAllQualifications_ShouldClampInvalidPaginationToDefaults() throws Exception {
+        Page<QualificationDTO> mockPage = new PageImpl<>(List.of(), PageRequest.of(0, 15), 0);
+        when(qualificationService.getAllQualifications(
+                isNull(), isNull(), isNull(), isNull(), isNull(),
+                isNull(), isNull(), isNull(), isNull(), isNull(),
+                eq(0), eq(15)
+        )).thenReturn(mockPage);
+
+        mockMvc.perform(get("/api/knowledge/qualifications")
+                        .param("page", "-5")
+                        .param("size", "0"))
+                .andExpect(status().isOk());
+
+        verify(qualificationService).getAllQualifications(
+                isNull(), isNull(), isNull(), isNull(), isNull(),
+                isNull(), isNull(), isNull(), isNull(), isNull(),
+                eq(0), eq(15)
+        );
     }
 
     @Test

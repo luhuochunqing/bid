@@ -21,6 +21,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -66,7 +67,7 @@ public class QualificationController {
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'ADMIN_STAFF', 'BID_ADMIN', 'BID_LEAD', 'BID_SPECIALIST')")
     @Auditable(action = "READ", entityType = "Qualification", description = "获取资质列表")
-    public ResponseEntity<ApiResponse<List<QualificationDTO>>> getAllQualifications(
+    public ResponseEntity<ApiResponse<Page<QualificationDTO>>> getAllQualifications(
             @RequestParam(required = false) String subjectType,
             @RequestParam(required = false) String subjectName,
             @RequestParam(required = false) String category,
@@ -76,11 +77,20 @@ public class QualificationController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate expiringFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate expiringTo,
             @RequestParam(required = false) String issuer,
-            @RequestParam(required = false) String keyword
+            @RequestParam(required = false) String keyword,
+            // CO-155 fix: pagination params. Frontend default page=0, size=15
+            @RequestParam(required = false, defaultValue = "0") int page,
+            @RequestParam(required = false, defaultValue = "15") int size
     ) {
         String sanitizedIssuer = issuer == null ? null : InputSanitizer.sanitizeString(issuer, 200);
+        // CO-155 fix: size clamp, cap max 200 to prevent full-table scan
+        int safeSize = size <= 0 ? 15 : Math.min(size, 200);
+        int safePage = Math.max(0, page);
         return ResponseEntity.ok(ApiResponse.success("Qualifications retrieved successfully",
-                qualificationService.getAllQualifications(subjectType, subjectName, category, status, borrowStatus, expiringWithinDays, expiringFrom, expiringTo, sanitizedIssuer, keyword)));
+                qualificationService.getAllQualifications(
+                        subjectType, subjectName, category, status, borrowStatus,
+                        expiringWithinDays, expiringFrom, expiringTo, sanitizedIssuer, keyword,
+                        safePage, safeSize)));
     }
 
     @GetMapping("/{id}")

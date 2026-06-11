@@ -3,6 +3,7 @@ package com.xiyu.bid.businessqualification.infrastructure.persistence;
 import com.xiyu.bid.businessqualification.application.command.QualificationListCriteria;
 import com.xiyu.bid.businessqualification.domain.model.BusinessQualification;
 import com.xiyu.bid.businessqualification.domain.model.QualificationAttachment;
+import com.xiyu.bid.businessqualification.domain.model.QualificationPage;
 import com.xiyu.bid.businessqualification.domain.port.BusinessQualificationRepository;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationSubject;
 import com.xiyu.bid.businessqualification.domain.valueobject.ReminderPolicy;
@@ -11,10 +12,13 @@ import com.xiyu.bid.businessqualification.infrastructure.persistence.entity.Busi
 import com.xiyu.bid.businessqualification.infrastructure.persistence.entity.QualificationAttachmentEntity;
 import com.xiyu.bid.businessqualification.infrastructure.persistence.repository.BusinessQualificationJpaRepository;
 import com.xiyu.bid.businessqualification.infrastructure.persistence.repository.QualificationAttachmentJpaRepository;
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -50,11 +54,36 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
         return qualificationJpaRepository.findById(id).map(this::toDomain);
     }
 
+    /**
+     * CO-155 fix: paginated query. SQL layer does filter+count+sort, then
+     * maps Spring's Page into the domain-layer QualificationPage record so
+     * the port boundary stays free of framework types
+     * (enforced by FPJavaArchitectureTest).
+     */
+    @Override
+    public QualificationPage<BusinessQualification> findAll(QualificationListCriteria criteria, int page, int size) {
+        org.springframework.data.domain.Pageable springPageable =
+                org.springframework.data.domain.PageRequest.of(page, size,
+                        org.springframework.data.domain.Sort.by(
+                                org.springframework.data.domain.Sort.Direction.DESC, "id"));
+        org.springframework.data.domain.Page<BusinessQualificationEntity> springPage =
+                qualificationJpaRepository.findAll(toSpecification(criteria), springPageable);
+        return new QualificationPage<>(
+                springPage.map(this::toDomain).getContent(),
+                springPage.getTotalElements(),
+                springPage.getNumber(),
+                springPage.getSize()
+        );
+    }
+
+    /**
+     * Backward-compatible query without Pageable (used by export/statistics).
+     */
     @Override
     public List<BusinessQualification> findAll(QualificationListCriteria criteria) {
-        return qualificationJpaRepository.findAll().stream()
+        return qualificationJpaRepository.findAll(toSpecification(criteria)).stream()
                 .map(this::toDomain)
-                .filter(item -> matches(item, criteria))
+                .filter(item -> matchesDerived(item, criteria))
                 .sorted(Comparator.comparing(BusinessQualification::id).reversed())
                 .collect(Collectors.toList());
     }
@@ -89,49 +118,66 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
                 .toList();
     }
 
-    private boolean matches(BusinessQualification item, QualificationListCriteria criteria) {
+    /**
+     * Push down filterable criteria to SQL via Specification.
+     * Derived status (valid/expiring/expired from validity period) is left to matchesDerived.
+     */
+    private Specification<BusinessQualificationEntity> toSpecification(QualificationListCriteria criteria) {
+        return (root, query, cb) -> {
+            if (criteria == null) return cb.conjunction();
+            List<Predicate> predicates = new ArrayList<>();
+            if (criteria.getSubjectType() != null && !criteria.getSubjectType().isBlank()) {
+                predicates.add(cb.equal(cb.upper(root.get("subjectType")), criteria.getSubjectType().toUpperCase(Locale.ROOT)));
+            }
+            if (criteria.getSubjectName() != null && !criteria.getSubjectName().isBlank()) {
+                predicates.add(cb.like(cb.lower(root.get("subjectName")), "%" + criteria.getSubjectName().toLowerCase(Locale.ROOT) + "%"));
+            }
+            if (criteria.getCategory() != null && !criteria.getCategory().isBlank()) {
+                predicates.add(cb.equal(cb.upper(root.get("category")), criteria.getCategory().toUpperCase(Locale.ROOT)));
+            }
+            if (criteria.getBorrowStatus() != null && !criteria.getBorrowStatus().isBlank()) {
+                predicates.add(cb.equal(cb.upper(root.get("currentBorrowStatus")), criteria.getBorrowStatus().toUpperCase(Locale.ROOT)));
+            }
+            if (criteria.getExpiringFrom() != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("expiryDate"), criteria.getExpiringFrom()));
+            }
+            if (criteria.getExpiringTo() != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("expiryDate"), criteria.getExpiringTo()));
+            }
+            if (criteria.getIssuer() != null && !criteria.getIssuer().isBlank()) {
+                predicates.add(cb.like(cb.lower(root.get("issuer")), "%" + criteria.getIssuer().toLowerCase(Locale.ROOT) + "%"));
+            }
+            if (criteria.getKeyword() != null && !criteria.getKeyword().isBlank()) {
+                String kw = "%" + criteria.getKeyword().toLowerCase(Locale.ROOT) + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("name")), kw),
+                        cb.like(cb.lower(cb.coalesce(root.get("certificateNo"), "")), kw),
+                        cb.like(cb.lower(cb.coalesce(root.get("issuer"), "")), kw),
+                        cb.like(cb.lower(cb.coalesce(root.get("holderName"), "")), kw)
+                ));
+            }
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+    }
+
+    /**
+     * SQL-cannot-express derived status filter (status=valid/expiring/expired is computed live by validity period).
+     * NOTE: pagination path does not use this method (frontend statuses are uppercase enum names IN_STOCK/EXPIRING/EXPIRED/RETIRED
+     * which map to DB status column string, not derived values -- the CO-155 calibrated reality).
+     * Kept for backward compatibility with findAll(criteria) old callers.
+     */
+    private boolean matchesDerived(BusinessQualification item, QualificationListCriteria criteria) {
         if (criteria == null) {
             return true;
-        }
-        if (criteria.getSubjectType() != null && !item.subject().getType().name().equalsIgnoreCase(criteria.getSubjectType())) {
-            return false;
-        }
-        if (criteria.getSubjectName() != null && !contains(item.subject().getName(), criteria.getSubjectName())) {
-            return false;
-        }
-        if (criteria.getCategory() != null && !item.category().name().equalsIgnoreCase(criteria.getCategory())) {
-            return false;
         }
         if (criteria.getStatus() != null && !criteria.getStatus().isEmpty()
                 && criteria.getStatus().stream().noneMatch(s -> item.status().name().equalsIgnoreCase(s))) {
             return false;
         }
-        if (criteria.getBorrowStatus() != null && !item.currentBorrowStatus().name().equalsIgnoreCase(criteria.getBorrowStatus())) {
-            return false;
-        }
         if (criteria.getExpiringWithinDays() != null && item.remainingDays() > criteria.getExpiringWithinDays()) {
             return false;
         }
-        if (criteria.getExpiringFrom() != null && item.validityPeriod().getExpiryDate().isBefore(criteria.getExpiringFrom())) {
-            return false;
-        }
-        if (criteria.getExpiringTo() != null && item.validityPeriod().getExpiryDate().isAfter(criteria.getExpiringTo())) {
-            return false;
-        }
-        if (criteria.getIssuer() != null && !contains(item.issuer(), criteria.getIssuer())) {
-            return false;
-        }
-        if (criteria.getKeyword() != null) {
-            return contains(item.name(), criteria.getKeyword())
-                    || contains(item.certificateNo(), criteria.getKeyword())
-                    || contains(item.issuer(), criteria.getKeyword())
-                    || contains(item.holderName(), criteria.getKeyword());
-        }
         return true;
-    }
-
-    private boolean contains(String source, String keyword) {
-        return source != null && source.toLowerCase(Locale.ROOT).contains(keyword.toLowerCase(Locale.ROOT));
     }
 
     private BusinessQualificationEntity toEntity(BusinessQualification qualification) {

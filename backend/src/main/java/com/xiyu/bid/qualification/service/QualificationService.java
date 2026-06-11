@@ -28,6 +28,7 @@ import com.xiyu.bid.qualification.dto.QualificationOverviewDTO;
 import com.xiyu.bid.qualification.dto.QualificationReturnRequest;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -72,6 +73,24 @@ public class QualificationService {
                         subjectType, subjectName, category, status, borrowStatus,
                         expiringWithinDays, expiringFrom, expiringTo, issuer, keyword))
                 .stream().map(mapper::toDto).toList();
+    }
+
+    /**
+     * CO-155 fix: paginated version. Repository uses Specification to push
+     * to SQL; controller receives Spring Page<DTO> for JSON convenience.
+     */
+    @Transactional(readOnly = true)
+    public Page<QualificationDTO> getAllQualifications(
+            String subjectType, String subjectName, String category, List<String> status, String borrowStatus,
+            Integer expiringWithinDays, LocalDate expiringFrom, LocalDate expiringTo, String issuer, String keyword,
+            int page, int size
+    ) {
+        // application service translates domain QualificationPage -> Spring Page
+        return listQualificationsAppService.list(
+                mapper.toCriteria(subjectType, subjectName, category, status, borrowStatus,
+                        expiringWithinDays, expiringFrom, expiringTo, issuer, keyword),
+                page, size
+        ).map(mapper::toDto);
     }
 
     @Transactional(readOnly = true)
