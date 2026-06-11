@@ -1,0 +1,57 @@
+version: 1
+locks:
+  - path: backend/src/main/java/com/xiyu/bid/entity/User.java
+    scope: file
+    reason: CO-157/CO-167 Entity model changes
+    owner: cursor
+    branch: agent/cursor/CO-157-qualification-500
+  - path: backend/src/main/java/com/xiyu/bid/dto/
+    scope: directory
+    reason: CO-167 DTO 添加 employeeNumber
+    owner: cursor
+    branch: agent/cursor/CO-167-person-display-name
+  - path: backend/src/main/java/com/xiyu/bid/mention/
+    scope: directory
+    reason: CO-167 用户搜索返回 employeeNumber
+    owner: cursor
+    branch: agent/cursor/CO-167-person-display-name
+  - path: backend/src/main/java/com/xiyu/bid/task/
+    scope: directory
+    reason: CO-167 任务分配候选人返回 employeeNumber
+    owner: cursor
+    branch: agent/cursor/CO-167-person-display-name
+  - path: backend/src/main/java/com/xiyu/bid/service/AdminUserQueryService.java
+    scope: file
+    reason: CO-167 用户查询含 employeeNumber
+    owner: cursor
+    branch: agent/cursor/CO-167-person-display-name
+  - path: backend/src/main/java/com/xiyu/bid/service/AdminUserService.java
+    scope: file
+    reason: CO-167 用户创建/更新含 employeeNumber
+    owner: cursor
+    branch: agent/cursor/CO-167-person-display-name
+  - path: src/utils/formatDisplayName.js
+    scope: file
+    reason: CO-167 全局姓名格式化工具
+    owner: cursor
+    branch: agent/cursor/CO-167-person-display-name
+  - path: src/api/authNormalizer.js
+    scope: file
+    reason: CO-167 登录返回 employeeNumber
+    owner: cursor
+    branch: agent/cursor/CO-167-person-display-name
+  - path: src/stores/user.js
+    scope: file
+    reason: CO-167 userName getter 使用 formatDisplayName
+    owner: cursor
+    branch: agent/cursor/CO-167-person-display-name
+  - path: src/views/
+    scope: directory
+    reason: CO-167 前端组件使用 formatDisplayName
+    owner: cursor
+    branch: agent/cursor/CO-167-person-display-name
+  - path: src/components/project/useTaskAssigneeOptions.js
+    scope: file
+    reason: CO-167 任务分配使用 formatDisplayName
+    owner: cursor
+    branch: agent/cursor/CO-167-person-display-name
