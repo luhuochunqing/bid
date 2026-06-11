@@ -85,6 +85,9 @@ public class BusinessQualificationEntity {
     @Column(name = "retire_reason", length = 500)
     private String retireReason;
 
+    @Column(nullable = false)
+    private boolean retired;
+
     @Column(name = "reminder_enabled", nullable = false)
     private boolean reminderEnabled;
 

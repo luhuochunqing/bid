@@ -69,7 +69,7 @@ class QualificationServiceTest {
 
         assertThat(result.getRemainingDays()).isEqualTo(20);
         assertThat(result.getAlertLevel()).isEqualTo("warning");
-        assertThat(result.getStatus()).isEqualTo("expiring");
+        assertThat(result.getStatus()).isEqualTo("EXPIRING");
     }
 
     @Test
@@ -111,7 +111,7 @@ class QualificationServiceTest {
         var returned = qualificationService.returnQualification(1L, QualificationReturnRequest.builder().returnRemark("已归档").build());
 
         assertThat(borrowed.getBorrower()).isEqualTo("小王");
-        assertThat(returned.getStatus()).isEqualTo("returned");
+        assertThat(returned.getStatus()).isEqualTo("RETURNED");
         verify(borrowQualificationAppService).borrow(eq(1L), any());
         verify(returnQualificationAppService).returnLoan(eq(1L), any());
     }

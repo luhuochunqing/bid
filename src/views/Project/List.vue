@@ -59,8 +59,10 @@
         </el-alert>
       </div>
       <div v-else class="table-wrapper">
-        <el-table :data="filteredProjects" stripe @sort-change="handleSortChange">
-          <el-table-column label="项目名称" min-width="180">
+        <el-table :data="filteredProjects" stripe @sort-change="handleSortChange" @selection-change="handleSelectionChange">
+          <el-table-column type="selection" width="44" fixed="left" />
+          <el-table-column type="index" label="序号" width="50" align="center" fixed="left" />
+          <el-table-column label="项目名称" min-width="180" fixed="left">
             <template #default="{ row }">
               <span class="project-name-link" @click="goToDetail(row.id)">{{ row.name || row.projectName || '-' }}</span>
             </template>
@@ -148,7 +150,7 @@
   </div>
 </template>
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import { Download, ArrowDown, Check } from '@element-plus/icons-vue'
@@ -167,6 +169,9 @@ const router = useRouter()
 const projectStore = useProjectStore()
 const userStore = useUserStore()
 
+const selectedProjects = ref([])
+function handleSelectionChange(rows) { selectedProjects.value = rows }
+
 const {
   searchForm, userOptions, userLoading, searchUsers, isFiltered,
   projectTypeOptions, customerTypeOptions,
@@ -176,6 +181,7 @@ const {
 
 const { loading, error, matchedProjects, filteredProjects, pagination, handleSizeChange, handlePageChange, resetPage, handleSortChange } =
   useProjectFilter(searchForm)
+
 const { exporting, handleExport } = useProjectExport(searchForm, userStore)
 const { columnVisible, columnOptions, visibleOptionalCount, toggleColumn } = useProjectColumns()
 

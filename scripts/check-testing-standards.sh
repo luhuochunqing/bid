@@ -47,10 +47,14 @@ STAGED_FRONTEND_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep 
 
 if [ -n "$STAGED_FRONTEND_FILES" ]; then
   echo "testing-gate: detected staged frontend files, running vitest..."
-  # 为简单起见，运行所有相关的单元测试 (Vitest 默认只跑受影响的文件)
+  # --changed 只跑与本次 staged 改动相关的测试，避免全量 170+ 测试拖垮系统
   # Skip if SKIP_TESTING_GATE=1 (worktree environment without full node_modules)
   if [ "${SKIP_TESTING_GATE:-0}" != "1" ]; then
-    npx vitest run
+    if git rev-parse HEAD >/dev/null 2>&1; then
+      npx vitest run --changed HEAD
+    else
+      npx vitest run
+    fi
   else
     echo "testing-gate: SKIP_TESTING_GATE=1, skipping vitest."
   fi

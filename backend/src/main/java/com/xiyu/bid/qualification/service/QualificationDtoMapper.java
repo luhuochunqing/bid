@@ -125,7 +125,7 @@ public class QualificationDtoMapper {
                 .holder(qualification.holderName())
                 .issueDate(qualification.validityPeriod().getIssueDate())
                 .expiryDate(qualification.validityPeriod().getExpiryDate())
-                .status(qualification.status().name().toLowerCase())
+                .status(qualification.status().name())
                 .remainingDays((int) qualification.remainingDays())
                 .alertLevel(expiryPolicy.alertLevel(qualification.status()))
                 .borrowed(qualification.currentBorrowStatus() == LoanStatus.BORROWED)

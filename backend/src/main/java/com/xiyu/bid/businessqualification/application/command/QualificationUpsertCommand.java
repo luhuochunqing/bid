@@ -11,7 +11,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @Value
-@Builder
+@Builder(toBuilder = true)
 public class QualificationUpsertCommand {
     String name;
     String level;
@@ -34,5 +34,6 @@ public class QualificationUpsertCommand {
     Boolean reminderEnabled;
     Integer reminderDays;
     String fileUrl;
+    Boolean retired;
     List<QualificationAttachment> attachments;
 }
