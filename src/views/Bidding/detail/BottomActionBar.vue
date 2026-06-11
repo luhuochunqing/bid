@@ -1,6 +1,6 @@
 <template>
-  <div v-if="actions.length > 0" class="bottom-action-bar">
-    <div class="bottom-action-bar-inner">
+  <div v-if="actions.length > 0" class="form-action-bar">
+    <div class="form-action-bar-inner">
       <div class="action-bar-right">
         <el-button
           v-for="action in actions"
@@ -25,29 +25,26 @@ const props = defineProps({
   actions: {
     type: Array,
     default: () => [],
-    // [{ key: string, label: string, type: string, icon: string|null }]
   }
 })
 
 defineEmits(['action'])
 
-// Map icon names to Element Plus icon components
 const icons = { edit: Edit }
 </script>
 
 <style scoped>
-.bottom-action-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: var(--bg-card);
-  border-top: 1px solid var(--gray-250);
-  padding: 12px 24px;
-  z-index: 100;
-  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+.form-action-bar {
+  position: sticky;
+  bottom: 20px;
+  z-index: 10;
+  margin-top: 16px;
+  padding: 8px 24px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid var(--gray-150);
 }
-.bottom-action-bar-inner {
+.form-action-bar-inner {
   display: flex;
   justify-content: flex-end;
   align-items: center;

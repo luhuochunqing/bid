@@ -19,18 +19,48 @@
       </el-form>
     </el-card>
 
+    <!-- 操作工具栏 -->
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <button class="toolbar-btn toolbar-btn--primary" @click="handleCreate">
+          <el-icon><Plus /></el-icon>
+          <span>添加账户</span>
+        </button>
+        <button class="toolbar-btn" :disabled="selectedRows.length === 0" @click="handleBatchBorrow">
+          <el-icon><Key /></el-icon>
+          <span>批量借阅</span>
+        </button>
+        <button class="toolbar-btn" :disabled="selectedRows.length === 0" @click="handleBatchReturn">
+          <el-icon><CircleCheck /></el-icon>
+          <span>批量归还</span>
+        </button>
+        <button class="toolbar-btn" :disabled="selectedRows.length === 0" @click="handleBatchEdit">
+          <el-icon><Edit /></el-icon>
+          <span>批量编辑</span>
+        </button>
+        <button class="toolbar-btn" :disabled="selectedRows.length === 0" @click="handleBatchDelete">
+          <el-icon><Delete /></el-icon>
+          <span>批量删除</span>
+        </button>
+      </div>
+      <div class="toolbar-right">
+        <button class="toolbar-btn" @click="handleExport">
+          <el-icon><Download /></el-icon>
+          <span>导出</span>
+        </button>
+      </div>
+    </div>
+
     <el-card>
       <template #header>
         <div class="card-header">
           <span>平台账户管理</span>
-          <el-button type="primary" @click="handleCreate">
-            <el-icon><Plus /></el-icon> 添加账户
-          </el-button>
+          <span class="record-count">共 {{ accounts.length }} 条记录</span>
         </div>
       </template>
 
-      <el-table :data="accounts" stripe @row-click="onRowClick">
-        <el-table-column type="index" label="序号" width="60" />
+      <el-table :data="accounts" stripe @row-click="onRowClick" @selection-change="handleSelectionChange" ref="tableRef">
+        <el-table-column type="selection" width="50" align="center" />
         <el-table-column prop="platform" label="平台名称" min-width="180">
           <template #default="{ row }">
             <div class="platform-info">
@@ -50,15 +80,19 @@
         <template v-if="!isProjectLeader">
           <el-table-column prop="username" label="账号" width="150" />
           <el-table-column prop="contactPerson" label="联系人" width="120" />
-          <el-table-column label="密码" width="80">
+          <el-table-column label="密码" width="100">
             <template #default="{ row }">
               <div class="password-cell">
-                <span class="password-text">{{ passwordVisible[row.id] ? row.password : '•••' }}</span>
-                <el-button
-                  :icon="passwordVisible[row.id] ? Hide : View"
-                  link type="primary" size="small"
-                  @click.stop="togglePasswordVisibility(row.id)"
-                />
+                <div class="password-row">
+                  <span class="password-text">{{ passwordVisible[row.id] ? row.password : '••••••' }}</span>
+                </div>
+                <button
+                  class="password-toggle-btn"
+                  @click.stop="togglePasswordVisibility(row.id)">
+                  <el-icon size="14">
+                    <component :is="passwordVisible[row.id] ? Hide : View" />
+                  </el-icon>
+                </button>
               </div>
             </template>
           </el-table-column>
@@ -69,45 +103,7 @@
           </el-table-column>
                     <el-table-column prop="custodianName" label="账号保管员" width="120" />
           <el-table-column prop="caCustodianName" label="CA 保管员" width="120" />
-          <el-table-column label="操作" width="140" fixed="right" align="center">
-            <template #default="{ row }">
-              <div class="action-buttons">
-                <el-tooltip content="借阅" placement="top">
-                  <el-button :icon="Key" circle size="small"
-                    :type="row.status === 'available' ? 'primary' : 'info'"
-                    :disabled="row.status !== 'available'"
-                    @click.stop="handleBorrow(row)" />
-                </el-tooltip>
-              <el-tooltip content="登记归还" placement="top">
-                  <el-button :icon="CircleCheck" circle size="small"
-                    :type="row.status === 'in_use' ? 'success' : 'info'"
-                    :disabled="row.status !== 'in_use'"
-                    @click.stop="handleReturn(row)" />
-                </el-tooltip>
-                <el-tooltip content="编辑" placement="top">
-                  <el-button :icon="Edit" circle size="small" type="warning"
-                    @click.stop="handleEdit(row)" />
-                </el-tooltip>
-                <el-tooltip content="复制密码" placement="top">
-                  <el-button :icon="CopyDocument" circle size="small" type="success"
-                    @click.stop="handleCopyPassword(row)" />
-                </el-tooltip>
-                <el-dropdown trigger="click" @command="(cmd) => handleMoreAction(cmd, row)">
-                  <el-button :icon="MoreFilled" circle size="small" />
-                  <template #dropdown>
-                    <el-dropdown-menu>
-                      <el-dropdown-item command="view" :icon="View">查看详情</el-dropdown-item>
-                      <el-dropdown-item command="reset" :icon="RefreshLeft">重置密码</el-dropdown-item>
-                      <el-dropdown-item command="toggle" :icon="View">
-                        {{ row.status === 'available' ? '禁用账户' : '启用账户' }}
-                      </el-dropdown-item>
-                      <el-dropdown-item divided command="delete" :icon="Delete" style="color:#f56c6c">删除账户</el-dropdown-item>
-                    </el-dropdown-menu>
-                  </template>
-                </el-dropdown>
-              </div>
-            </template>
-          </el-table-column>
+
         </template>
         <template v-else>
           <el-table-column label="是否有 CA" width="100" align="center">
@@ -138,7 +134,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus, Platform, View, Edit, Delete, CopyDocument, MoreFilled, Key, RefreshLeft, Hide, CircleCheck } from '@element-plus/icons-vue'
+import { Search, Plus, Platform, View, Edit, Delete, CopyDocument, MoreFilled, Key, RefreshLeft, Hide, CircleCheck, Download } from '@element-plus/icons-vue'
 import { resourcesApi } from '@/api'
 import { useUserStore } from '@/stores/user'
 import AccountFormDialog from './AccountFormDialog.vue'
@@ -150,6 +146,14 @@ const searchForm = ref({
   platform: '',
   hasCa: ''
 })
+
+// 选中行
+const selectedRows = ref([])
+const tableRef = ref(null)
+
+const handleSelectionChange = (rows) => {
+  selectedRows.value = rows
+}
 
 const userStore = useUserStore()
 const isProjectLeader = computed(() => {
@@ -251,6 +255,58 @@ const handleCopyPassword = async (row) => {
   })
 }
 
+// 批量操作
+const handleBatchBorrow = () => {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请先选择要借阅的账户')
+    return
+  }
+  // TODO: 实现批量借阅
+  ElMessage.info(`批量借阅 ${selectedRows.value.length} 个账户`)
+}
+
+const handleBatchReturn = () => {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请先选择要归还的账户')
+    return
+  }
+  // TODO: 实现批量归还
+  ElMessage.info(`批量归还 ${selectedRows.value.length} 个账户`)
+}
+
+const handleBatchEdit = () => {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请先选择要编辑的账户')
+    return
+  }
+  // TODO: 实现批量编辑
+  ElMessage.info(`批量编辑 ${selectedRows.value.length} 个账户`)
+}
+
+const handleBatchDelete = async () => {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请先选择要删除的账户')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(`确定要删除选中的 ${selectedRows.value.length} 个账户吗？`, '确认删除', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    // TODO: 实现批量删除
+    ElMessage.success(`已删除 ${selectedRows.value.length} 个账户`)
+    selectedRows.value = []
+    loadAccounts()
+  } catch {
+    // 用户取消
+  }
+}
+
+const handleExport = () => {
+  ElMessage.info('导出功能开发中')
+}
+
 const handleMoreAction = async (command, row) => {
   switch (command) {
     case 'view':
@@ -349,32 +405,105 @@ onMounted(() => {
   color: #409eff;
 }
 
-/* 操作按钮样式 */
-.action-buttons {
+/* 工具栏 */
+.toolbar {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
 }
 
-.action-buttons .el-button {
-  padding: 4px;
+.toolbar-left,
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.action-buttons .el-button.is-disabled {
-  opacity: 0.5;
+.toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 150ms ease;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+}
+
+.toolbar-btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--gray-300);
+}
+
+.toolbar-btn--primary {
+  background: var(--brand-xiyu-logo);
+  color: white;
+  border-color: var(--brand-xiyu-logo);
+}
+
+.toolbar-btn--primary:hover {
+  background: #256a4d;
+  border-color: #256a4d;
+}
+
+/* 工具栏按钮禁用状态 */
+.toolbar-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.toolbar-btn:disabled:hover {
+  background: var(--bg-card);
+  border-color: var(--border-light);
 }
 
 /* 密码单元格样式 */
 .password-cell {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+
+.password-row {
+  display: flex;
   align-items: center;
-  gap: 6px;
+  width: 100%;
 }
 
 .password-text {
   font-family: 'Courier New', monospace;
-  font-size: 13px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.password-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.password-toggle-btn:hover {
+  background: var(--surface-hover);
+  color: var(--brand-xiyu-logo);
 }
 
 /* 移动端响应式样式 */

@@ -22,17 +22,15 @@
       </el-header>
 
       <el-main id="main-content" class="layout-main">
-      <div class="layout-breadcrumb" v-if="breadcrumbItems.length > 1">
-        <el-breadcrumb separator="/">
-          <el-breadcrumb-item
-            v-for="item in breadcrumbItems"
-            :key="item.path"
-            :to="item.clickable ? item.path : undefined"
-          >
-            {{ item.title }}
-          </el-breadcrumb-item>
-        </el-breadcrumb>
-      </div>
+        <div class="layout-breadcrumb" v-if="breadcrumbItems.length > 0">
+          <template v-for="(item, index) in breadcrumbItems" :key="index">
+            <router-link v-if="item.to" :to="item.to" class="breadcrumb-link">
+              {{ item.title }}
+            </router-link>
+            <span v-else class="breadcrumb-current">{{ item.title }}</span>
+            <span v-if="index < breadcrumbItems.length - 1" class="breadcrumb-separator">/</span>
+          </template>
+        </div>
         <router-view v-slot="{ Component }">
           <transition name="fade-transform">
             <component :is="Component" />
@@ -69,13 +67,49 @@ const handleBack = () => {
 }
 
 const breadcrumbItems = computed(() => {
-  return route.matched
-    .filter(r => r.meta?.title && r.path !== '/')
-    .map((r, idx, arr) => ({
-      path: r.path,
-      title: r.meta.title,
-      clickable: idx < arr.length - 1,
-    }))
+  const items = []
+  const pathSegments = route.path.split('/').filter(Boolean)
+  
+  if (pathSegments.length === 0) return items
+  
+  // 定义路由路径映射表（父路径 → 标题）
+  const routeMap = {
+    'bidding': '标讯中心',
+    'project': '投标项目',
+    'knowledge': '知识库',
+    'resource': '资源管理',
+    'analytics': '数据分析',
+    'settings': '系统设置',
+    'ai-center': 'AI能力中心',
+    'document': '文档中心',
+    'inbox': '通知中心',
+    'dashboard': '工作台',
+    'operation-logs': '操作日志',
+    'audit-logs': '审计日志',
+  }
+  
+  // 一级路径
+  const firstSegment = pathSegments[0]
+  if (routeMap[firstSegment]) {
+    const isFirstPage = pathSegments.length === 1
+    items.push({
+      title: routeMap[firstSegment],
+      to: isFirstPage ? null : `/${firstSegment}`,
+    })
+  }
+  
+  // 二级及以上路径
+  if (pathSegments.length >= 2) {
+    const currentRoute = route.matched[route.matched.length - 1]
+    if (currentRoute?.meta?.title) {
+      items.push({
+        title: currentRoute.meta.title,
+        to: null,
+      })
+    }
+  }
+  
+  return items
 })
 
 // 检测是否为移动端
@@ -103,7 +137,7 @@ onUnmounted(() => {
   position: absolute;
   top: -40px;
   left: 0;
-  background: #1890ff;
+  background: var(--brand-xiyu-logo);
   color: var(--bg-card);
   padding: 8px 16px;
   text-decoration: none;
@@ -114,7 +148,7 @@ onUnmounted(() => {
 
 .skip-to-content:focus {
   top: 0;
-  outline: 2px solid #1890ff;
+  outline: 2px solid var(--brand-xiyu-logo);
   outline-offset: 2px;
 }
 
@@ -131,9 +165,9 @@ onUnmounted(() => {
 
 .layout-header {
   background: var(--bg-card);
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-light);
   padding: 0;
-  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
+  box-shadow: var(--shadow-sm);
 }
 
 .layout-main {
@@ -149,20 +183,38 @@ onUnmounted(() => {
   padding: 0 0 12px 0;
   font-size: 13px;
   color: var(--text-slate, #64748B);
+  flex-wrap: nowrap;
 }
 
-.layout-breadcrumb :deep(.el-breadcrumb__inner) {
+/* 强制所有子元素内联 */
+.layout-breadcrumb > * {
+  display: inline-flex !important;
+  align-items: center;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.breadcrumb-link {
   color: var(--text-slate, #64748B);
-  font-weight: 400;
+  text-decoration: none;
   transition: color 0.2s ease;
+  display: inline-flex !important;
+  align-items: center;
 }
 
-.layout-breadcrumb :deep(.el-breadcrumb__inner.is-link:hover) {
+.breadcrumb-link:hover {
   color: var(--brand-xiyu-logo);
 }
 
-.layout-breadcrumb :deep(.el-breadcrumb__separator) {
+.breadcrumb-current {
+  color: var(--text-slate, #64748B);
+}
+
+.breadcrumb-separator {
   color: var(--gray-300, #B0B0B0);
+  margin: 0 8px;
+  user-select: none;
+  font-weight: 300;
 }
 
 @media (max-width: 768px) {

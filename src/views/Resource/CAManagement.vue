@@ -502,13 +502,21 @@ onMounted(loadData)
 
 .stat-card {
   text-align: center;
+  height: 100%;
+}
+
+.stat-card :deep(.el-card__body) {
+  padding: 16px;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .stat-body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 8px 0;
+  justify-content: center;
+  height: 100%;
 }
 
 .stat-value {
