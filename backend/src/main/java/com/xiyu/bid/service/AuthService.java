@@ -1,8 +1,7 @@
-// Input: UserRepository、RefreshSessionRepository、PasswordEncoder、JwtUtil、AuthenticationManager
-// Output: 登录/注册结果、JWT 令牌和认证上下文
-// Pos: Auth/认证支撑层
 // 维护声明: 仅维护认证链路；权限规则调整请同步 controller 与 security 配置.
 package com.xiyu.bid.service;
+
+import com.xiyu.bid.crm.application.OssDelegationService;
 import com.xiyu.bid.admin.service.DataScopeConfigService;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 
@@ -21,6 +20,7 @@ import com.xiyu.bid.util.PasswordValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.InsufficientAuthenticationException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -53,6 +53,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final RoleProfileService roleProfileService;
     private final TokenRevocationService tokenRevocationService;
+    private final OssDelegationService ossDelegationService;
 
     @Value("${jwt.refresh-expiration:604800000}")
     private long refreshExpiration;
@@ -102,16 +103,23 @@ public class AuthService {
 
     @Transactional
     public AuthSessionResult login(LoginRequest request) {
+        User user = userRepository.findByUsername(request.getUsername())
+                .orElseThrow(() -> new UsernameNotFoundException(USER_NOT_FOUND));
+
+        // 组织架构同步用户（有 externalOrgSourceApp），委托给西域 OSS 统一认证
+        if (user.getExternalOrgSourceApp() != null && !user.getExternalOrgSourceApp().isBlank()) {
+            if (!ossDelegationService.authenticate(user, request.getPassword())) {
+                throw new BadCredentialsException("Invalid username or password");
+            }
+            return loginWithoutPassword(user);
+        }
+
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         request.getUsername(),
                         request.getPassword()
                 )
         );
-
-        User user = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new UsernameNotFoundException(USER_NOT_FOUND));
-
         String token = jwtUtil.generateAccessToken(user.getUsername());
         String refreshToken = createRefreshSession(user);
         log.info("User logged in: {}", user.getUsername());
@@ -137,7 +145,6 @@ public class AuthService {
         String token = jwtUtil.generateAccessToken(user.getUsername());
         String refreshToken = createRefreshSession(user);
         log.info("User logged in via SSO/WeCom: {}", user.getUsername());
-
         return AuthSessionResult.builder()
                 .authResponse(AuthResponse.from(
                         token,
@@ -244,7 +251,6 @@ public class AuthService {
         refreshSessionRepository.save(session);
         String rotatedRefreshToken = createRefreshSession(user);
         log.info("Token refreshed for user: {}", user.getUsername());
-
         return AuthSessionResult.builder()
                 .authResponse(AuthResponse.from(
                         accessToken,

@@ -3,6 +3,7 @@ package com.xiyu.bid.service;
 import com.xiyu.bid.admin.service.DataScopeConfigService;
 import com.xiyu.bid.auth.JwtUtil;
 import com.xiyu.bid.auth.TokenRevocationService;
+import com.xiyu.bid.crm.application.OssDelegationService;
 import com.xiyu.bid.dto.AuthSessionResult;
 import com.xiyu.bid.dto.LoginRequest;
 import com.xiyu.bid.entity.RefreshSession;
@@ -30,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
@@ -74,7 +76,8 @@ class AuthServiceTest {
                 jwtUtil,
                 authenticationManager,
                 roleProfileService,
-                tokenRevocationService
+                tokenRevocationService,
+                mock(OssDelegationService.class)
         );
         ReflectionTestUtils.setField(authService, "refreshExpiration", 7 * 24 * 60 * 60 * 1000L);
     }
