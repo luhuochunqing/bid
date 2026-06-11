@@ -90,7 +90,7 @@
           <el-table-column label="项目类型" width="110" v-if="columnVisible.projectType">
             <template #default="{ row }"><el-tag size="small">{{ row.projectType || '-' }}</el-tag></template>
           </el-table-column>
-          <el-table-column label="客户营收（万）" prop="revenue" width="150" sortable="custom" v-if="columnVisible.revenue">
+          <el-table-column label="客户营收（亿）" prop="revenue" width="150" sortable="custom" v-if="columnVisible.revenue">
             <template #default="{ row }">{{ row.revenue != null ? Number(row.revenue).toFixed(2) : '-' }}</template>
           </el-table-column>
           <el-table-column label="客户类型" width="140" v-if="columnVisible.customerType" class-name="wrap-cell">

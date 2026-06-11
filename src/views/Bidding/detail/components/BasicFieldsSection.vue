@@ -19,7 +19,7 @@
     </el-form-item>
 
     <el-form-item
-      label="电商MRO+办公流水金额（万）"
+      label="电商MRO+办公流水金额（亿）"
       prop="mroOfficeFlowAmount"
       :error="errors.mroOfficeFlowAmount"
     >
@@ -28,12 +28,12 @@
         :min="0"
         :precision="2"
         :disabled="disabled"
-        placeholder="单位万，非负数"
+        placeholder="单位亿，非负数"
       />
     </el-form-item>
 
     <el-form-item
-      label="客户营收（万）"
+      label="客户营收（亿）"
       prop="customerRevenue"
       :error="errors.customerRevenue"
     >
@@ -42,7 +42,7 @@
         :min="0"
         :precision="2"
         :disabled="disabled"
-        placeholder="单位万，非负数"
+        placeholder="单位亿，非负数"
       />
     </el-form-item>
 

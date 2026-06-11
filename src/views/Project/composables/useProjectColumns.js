@@ -14,7 +14,7 @@ const columnOptions = [
   { key: 'priority', label: '优先级' },
   { key: 'sourceModule', label: '来源平台' },
   { key: 'stage', label: '项目阶段' },
-  { key: 'revenue', label: '客户营收（万）' },
+  { key: 'revenue', label: '客户营收（亿）' },
   { key: 'region', label: '总部所在地' },
   { key: 'leaderDepartment', label: '项目负责人部门' },
   { key: 'biddingLeaderName', label: '投标负责人' },

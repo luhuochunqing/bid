@@ -37,10 +37,10 @@
 <el-divider />
 <div class="grid-2">
   <el-form-item label="计划入围供应商数量"><el-input-number v-model="form.expectedBidders" :min="1" :precision="0" /></el-form-item>
-  <el-form-item label="电商MRO+办公流水金额（万）"><el-input-number v-model="form.annualEcommerceAmount" :min="0" :precision="2" /></el-form-item>
+  <el-form-item label="电商MRO+办公流水金额（亿）"><el-input-number v-model="form.annualEcommerceAmount" :min="0" :precision="2" /></el-form-item>
 </div>
 <div class="grid-2">
-  <el-form-item label="客户营收（万）"><el-input-number v-model="form.customerRevenue" :min="0" :precision="2" /></el-form-item>
+  <el-form-item label="客户营收（亿）"><el-input-number v-model="form.customerRevenue" :min="0" :precision="2" /></el-form-item>
   <el-form-item label=" " /> <!-- spacer -->
 </div>
 <el-form-item label="招标文件不利项"><el-input v-model="form.tenderAdverseItems" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
