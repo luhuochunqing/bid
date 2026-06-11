@@ -180,9 +180,6 @@ httpClient.interceptors.response.use(
         case 403:
           ElMessage.error(response.data?.msg || '没有权限访问该资源')
           break
-        case 404:
-          ElMessage.error(response.data?.msg || '请求的资源不存在')
-          break
         case 500:
           ElMessage.error(response.data?.msg || '服务器内部错误，请稍后重试')
           break

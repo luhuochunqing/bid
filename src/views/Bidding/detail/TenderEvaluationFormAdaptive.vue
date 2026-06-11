@@ -55,7 +55,7 @@
                   :tender-id="tenderId"
                 />
               </el-form-item>
-              <el-form-item label="客户营收（万元）" prop="customerRevenue">
+              <el-form-item label="客户营收（亿元）" prop="customerRevenue">
                 <el-input-number v-model="modelValue.basic.customerRevenue" :min="0" :precision="2" />
               </el-form-item>
             </el-form>

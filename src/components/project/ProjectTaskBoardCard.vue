@@ -56,6 +56,7 @@
       :tasks="tasks"
       :project-id="normalizedProjectId"
       :can-generate="!tasks || tasks.length === 0"
+      :show-submit-button="props.showSubmitButton"
       @task-click="handleTaskClick"
       @status-change="(...args) => $emit('status-change', ...args)"
       @generate-tasks="$emit('generate-tasks')"
@@ -132,6 +133,10 @@ const props = defineProps({
   isDemoMode: {
     type: Boolean,
     default: false,
+  },
+  showSubmitButton: {
+    type: Boolean,
+    default: true,
   },
 })
 

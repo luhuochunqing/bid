@@ -32,6 +32,7 @@ function makeEmptyRow(rowDef) {
     roleKey: rowDef.roleKey,
     roleLabel: rowDef.roleLabel,
     NAME: '',
+    CONTACT_INFO: '',
     POSITION: '',
     XIYU_CONTACT: '',
     CONTACT_METHOD: '',

@@ -48,8 +48,10 @@
               v-model="localValue.assigneeId"
               data-test="task-owner-select"
               filterable
+              remote
+              :remote-method="searchAssignees"
               style="width: 100%"
-              placeholder="请选择任务执行人"
+              placeholder="模糊搜索选择执行人"
               :loading="loadingAssignees"
               @change="handleAssigneeChange"
             >
@@ -205,7 +207,7 @@ const { deliverableFileList, handleDeliverableChange, handleDeliverableRemove } 
   useTaskDeliveryForm(localValue, readonly)
 
 let syncingFromModel = false
-const { assigneeOptions, loadingAssignees, loadAssignees, ensureSelectedAssignee, handleAssigneeChange, assigneeLabel } =
+const { assigneeOptions, loadingAssignees, loadAssignees, searchAssignees, ensureSelectedAssignee, handleAssigneeChange, assigneeLabel } =
   useTaskAssigneeOptions({ localValue, isCreateMode: () => props.mode === 'create', userStore })
 
 const extendedFieldSchema = computed(() =>

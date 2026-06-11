@@ -46,8 +46,8 @@ function resolveDraftingRoleGroup(role) {
 }
 
 export function useProjectDraftingPermissions(opts = {}) {
-  // opts 支持传入 { projectManagerId, currentUserId }
-  // 用于在组件中二次约束 lead_assist 角色的提交投标权限
+  // opts 支持传入 { primaryLeadId, secondaryLeadId, currentUserId }
+  // 用于在组件中二次约束：仅该项目分配的投标负责人/辅助人员 + 管理员/组长可提交投标
   const userStore = useUserStore()
 
   const roleGroup = computed(() => resolveDraftingRoleGroup(userStore.userRole))
@@ -118,19 +118,31 @@ export function useProjectDraftingPermissions(opts = {}) {
 
   // ── 投标流程 ─────────────────────────────────────────────────────────────
 
-  /** 提交投标审核（由投标负责人发起） */
-  const canSubmitBidForReview = computed(() => roleGroup.value === 'lead_assist')
+  /** 上传投标文件、选择标书审核人（投标管理员/组长 + 投标负责人/辅助人） */
+  const canManageBidFiles = computed(() =>
+    roleGroup.value === 'admin_lead' || roleGroup.value === 'lead_assist'
+  )
+
+  /** 选择标书审核人（与上传投标文件权限一致） */
+  const canSelectReviewer = computed(() =>
+    roleGroup.value === 'admin_lead' || roleGroup.value === 'lead_assist'
+  )
+
+  /** 提交投标审核（投标管理员/组长 + 投标负责人/辅助人） */
+  const canSubmitBidForReview = computed(() =>
+    roleGroup.value === 'admin_lead' || roleGroup.value === 'lead_assist'
+  )
 
   /** 审核投标（通过/驳回）*/
   const canReviewBid = computed(() => roleGroup.value === 'auditor')
 
-  /** 提交投标（推进至评标阶段）*/
+  /** 提交投标（投标管理员/组长 + 该项目分配的投标负责人/辅助人员） */
   const canSubmitBid = computed(() => {
     if (roleGroup.value === 'admin_lead') return true
-    // lead_assist 仅当被分配为该项目的负责人时可见"完成投标"
-    if (roleGroup.value === 'lead_assist' && opts.projectManagerId && opts.currentUserId) {
-      return String(opts.projectManagerId) === String(opts.currentUserId)
-    }
+    if (roleGroup.value !== 'lead_assist' || !opts.currentUserId) return false
+    const uid = String(opts.currentUserId)
+    if (opts.primaryLeadId && String(opts.primaryLeadId) === uid) return true
+    if (opts.secondaryLeadId && String(opts.secondaryLeadId) === uid) return true
     return false
   })
 
@@ -171,6 +183,8 @@ export function useProjectDraftingPermissions(opts = {}) {
     canDeleteDocument,
     canArchiveDocument,
     // 投标
+    canManageBidFiles,
+    canSelectReviewer,
     canSubmitBidForReview,
     canReviewBid,
     canSubmitBid,

@@ -24,6 +24,7 @@
             <ProjectTaskBoardCard
               :tasks="ctx.project?.tasks || []"
               :project-id="ctx.project?.id"
+              :show-submit-button="false"
               :can-manage-project-tasks="ctx.canManageProjectTasks"
               :is-demo-mode="ctx.isDemoMode"
               @add-task="ctx.handleAddTask"

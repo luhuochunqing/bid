@@ -24,7 +24,7 @@
               <el-descriptions-item label="项目风险">{{ row.projectRiskText || '-' }}</el-descriptions-item>
               <el-descriptions-item label="评标时间">{{ row.evaluationTime || '-' }}</el-descriptions-item>
               <el-descriptions-item label="电商流水(万)">{{ row.ecommerceMroAmount ?? '-' }}</el-descriptions-item>
-              <el-descriptions-item label="客户营收(万)">{{ row.customerRevenue ?? '-' }}</el-descriptions-item>
+              <el-descriptions-item label="客户营收(亿)">{{ row.customerRevenue ?? '-' }}</el-descriptions-item>
               <el-descriptions-item label="计划入围">{{ row.planSupplierCount ?? '-' }}家</el-descriptions-item>
               <el-descriptions-item label="兜底方案">{{ row.backupPlanText || '-' }}</el-descriptions-item>
               <el-descriptions-item label="剩余时间">{{ row.bidRemainTime || '-' }}</el-descriptions-item>

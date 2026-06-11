@@ -27,7 +27,7 @@
         :action="uploadUrl"
         :headers="uploadHeaders"
         :before-upload="beforeBidUpload"
-        :disabled="bidDone"
+        :disabled="bidDone || !perm.canManageBidFiles"
         drag
         multiple
       >
@@ -43,7 +43,7 @@
       <template v-if="reviewState === 'reviewing' || reviewState === 'approved'">
         <span style="font-size:14px;color:#303133;font-weight:500;">{{ reviewerName || bidReviewerId || '未指定' }}</span>
       </template>
-      <el-select v-else v-model="bidReviewerId" filterable remote placeholder="模糊搜索选择审核人" :remote-method="searchReviewer" :loading="reviewerSearching" style="width:280px" clearable>
+      <el-select v-else-if="perm.canSelectReviewer" v-model="bidReviewerId" filterable remote placeholder="模糊搜索选择审核人" :remote-method="searchReviewer" :loading="reviewerSearching" style="width:280px" clearable>
         <el-option v-for="u in reviewerOptions" :key="u.id" :label="u.name" :value="u.id" />
       </el-select>
     </div>
@@ -117,7 +117,8 @@ const userStore = useUserStore()
 const ctx = useProjectDetailContext()
 const { bidAgent } = ctx
 const perm = useProjectDraftingPermissions({
-  projectManagerId: ctx.project?.value?.managerId || ctx.project?.value?.projectManagerId,
+  primaryLeadId: ctx.project?.value?.primaryLeadUserId,
+  secondaryLeadId: ctx.project?.value?.secondaryLeadUserId,
   currentUserId: ctx.userStore?.currentUser?.id,
 })
 

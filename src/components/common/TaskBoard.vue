@@ -94,7 +94,7 @@
     </div>
     </div>
 
-    <div class="submit-section" v-if="canSubmitToDocument">
+    <div class="submit-section" v-if="canSubmitToDocument && props.showSubmitButton">
       <el-button type="success" size="large" @click="handleSubmitToDocument" :disabled="!allTasksCompleted">
         <el-icon><DocumentAdd /></el-icon>
         提交至标书编写流程
@@ -159,6 +159,10 @@ const props = defineProps({
   },
   projectId: String,
   canGenerate: {
+    type: Boolean,
+    default: true
+  },
+  showSubmitButton: {
     type: Boolean,
     default: true
   }

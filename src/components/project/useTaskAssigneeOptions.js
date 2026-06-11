@@ -23,6 +23,23 @@ export function useTaskAssigneeOptions({ localValue, isCreateMode, userStore }) 
     }
   }
 
+  /** 全局模糊搜索（支持 remote-method） */
+  async function searchAssignees(query) {
+    if (!query || query.trim().length === 0) {
+      loadAssignees()
+      return
+    }
+    loadingAssignees.value = true
+    try {
+      const results = await usersApi.search(query.trim(), 50)
+      assigneeOptions.value = normalizeCandidates(results)
+    } catch (err) {
+      console.error('[TaskForm] Failed to search assignees', err)
+    } finally {
+      loadingAssignees.value = false
+    }
+  }
+
   function normalizeCandidates(candidates) {
     const byId = new Map()
     ;(Array.isArray(candidates) ? candidates : []).forEach((candidate) => {
@@ -87,13 +104,7 @@ export function useTaskAssigneeOptions({ localValue, isCreateMode, userStore }) 
       return applyAssignee(fromTask)
     }
 
-    if (isCreateMode()) {
-      const current = currentUserCandidate()
-      if (current?.userId != null) {
-        assigneeOptions.value = upsertCandidate(assigneeOptions.value, current)
-        applyAssignee(current)
-      }
-    }
+    // 创建模式不再自动锁定当前用户，允许从全局候选列表中搜索选择
   }
 
   function upsertCandidate(list, candidate) {
@@ -130,5 +141,5 @@ export function useTaskAssigneeOptions({ localValue, isCreateMode, userStore }) 
     return meta ? `${person.name}（${meta}）` : person.name
   }
 
-  return { assigneeOptions, loadingAssignees, loadAssignees, ensureSelectedAssignee, handleAssigneeChange, assigneeLabel }
+  return { assigneeOptions, loadingAssignees, loadAssignees, searchAssignees, ensureSelectedAssignee, handleAssigneeChange, assigneeLabel }
 }

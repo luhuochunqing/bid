@@ -220,6 +220,7 @@ export function useInitiationStageActions({
         tenderAdverseItems: src.tenderAdverseItems || src.unfavorableItems || '',
         supportNeeded: src.supportNeeded || '',
         projectPlanGap: src.projectPlanGap || '',
+        projectPlanGapFiles: Array.isArray(src.projectPlanGapFiles) ? src.projectPlanGapFiles : [],
         projectName: src.projectName || src.name || '',
         tenderId,
         createTime: project.createdAt ? new Date(project.createdAt).toLocaleString('zh-CN') : '',
@@ -242,6 +243,7 @@ export function useInitiationStageActions({
               pmUnderstandsProcess: b.processKnowledge ?? form.pmUnderstandsProcess,
               supportNeeded: b.supportNotes ?? form.supportNeeded,
               projectPlanGap: b.projectPlanGap ?? form.projectPlanGap,
+              projectPlanGapFiles: Array.isArray(b.projectPlanGapFiles) ? b.projectPlanGapFiles : form.projectPlanGapFiles,
             })
           }
           // 评估表客户信息矩阵 EAV → 立项表单 CustomerInfoRow

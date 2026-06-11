@@ -10,6 +10,9 @@
         <el-table-column label="姓名" width="100">
           <template #default="{row}"><el-input v-model="row.name" size="small" :disabled="disabled" /></template>
         </el-table-column>
+        <el-table-column label="联系方式" width="160">
+          <template #default="{row}"><el-input v-model="row.contactInfo" size="small" :disabled="disabled" placeholder="手机号/电话/邮箱" /></template>
+        </el-table-column>
         <el-table-column label="职位（集团/二级公司/电商公司）" width="180">
           <template #default="{row}"><el-input v-model="row.position" size="small" :disabled="disabled" /></template>
         </el-table-column>

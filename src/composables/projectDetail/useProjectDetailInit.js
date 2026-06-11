@@ -14,7 +14,9 @@ export function useProjectDetailInit(context) {
     // 否则 TaskBoard.columns.filter((s) => s.code !== 'IN_PROGRESS') 会把小写 'doing'
     // upcase 后的 IN_PROGRESS 任务全部过滤掉，造成"任务消失"。
     context.project.value.tasks = taskResult?.success && Array.isArray(taskResult.data)
-      ? taskResult.data.map((task) => taskBackendToCard({ ...task, deliverables: task.deliverables || [] }))
+      ? taskResult.data
+          .filter((task) => !task.title?.startsWith('【待立项】'))
+          .map((task) => taskBackendToCard({ ...task, deliverables: task.deliverables || [] }))
       : []
     context.project.value.documents = documentResult?.success && Array.isArray(documentResult.data) ? documentResult.data : []
   }
