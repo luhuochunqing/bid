@@ -56,7 +56,7 @@ class QualificationControllerTest {
                 .name("高新技术企业证书")
                 .remainingDays(15)
                 .alertLevel("warning")
-                .status("expiring")
+                .status("EXPIRING")
                 .build());
 
         mockMvc.perform(get("/api/knowledge/qualifications/{id}", 1L))
@@ -64,7 +64,7 @@ class QualificationControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.remainingDays").value(15))
                 .andExpect(jsonPath("$.data.alertLevel").value("warning"))
-                .andExpect(jsonPath("$.data.status").value("expiring"));
+                .andExpect(jsonPath("$.data.status").value("EXPIRING"));
     }
 
     @Test

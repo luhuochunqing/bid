@@ -162,11 +162,12 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
                 .expectedReturnDate(qualification.expectedReturnDate())
                 .fileUrl(qualification.fileUrl())
                 .retireReason(qualification.retireReason())
+                .retired(qualification.retired())
                 .build();
     }
 
     private BusinessQualification toDomain(BusinessQualificationEntity entity) {
-        return BusinessQualification.create(
+        return BusinessQualification.createWithRetired(
                 entity.getId(),
                 entity.getName(),
                 entity.getLevel(),
@@ -193,6 +194,7 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
                 entity.getExpectedReturnDate(),
                 entity.getFileUrl(),
                 entity.getRetireReason(),
+                entity.isRetired(),
                 attachmentJpaRepository.findByQualificationIdOrderByUploadedAtDesc(entity.getId()).stream()
                         .map(this::toDomainAttachment)
                         .toList()

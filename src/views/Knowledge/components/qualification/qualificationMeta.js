@@ -41,15 +41,17 @@ export const qualificationTypeColors = {
 }
 
 export const qualificationStatusLabels = {
-  valid: '有效',
-  expiring: '即将到期',
-  expired: '已过期'
+  valid: '有效', VALID: '在库', IN_STOCK: '在库',
+  expiring: '即将到期', EXPIRING: '即将到期',
+  expired: '已过期', EXPIRED: '已过期',
+  retired: '已下架', RETIRED: '已下架'
 }
 
 export const qualificationStatusTagTypes = {
-  valid: 'success',
-  expiring: 'warning',
-  expired: 'danger'
+  valid: 'success', VALID: 'success', IN_STOCK: 'success',
+  expiring: 'warning', EXPIRING: 'warning',
+  expired: 'danger', EXPIRED: 'danger',
+  retired: 'info', RETIRED: 'info'
 }
 
 export const qualificationStatusIcons = {
@@ -66,15 +68,17 @@ export const borrowPurposeLabels = {
 }
 
 export const borrowStatusLabels = {
-  borrowed: '借阅中',
-  returned: '已归还',
-  overdue: '逾期'
+  borrowed: '借阅中', BORROWED: '借阅中',
+  returned: '已归还', RETURNED: '已归还',
+  overdue: '逾期', OVERDUE: '逾期',
+  available: '可用', AVAILABLE: '可用'
 }
 
 export const borrowStatusTagTypes = {
-  borrowed: 'warning',
-  returned: 'success',
-  overdue: 'danger'
+  borrowed: 'warning', BORROWED: 'warning',
+  returned: 'success', RETURNED: 'success',
+  overdue: 'danger', OVERDUE: 'danger',
+  available: 'success', AVAILABLE: 'success'
 }
 
 export function formatDate(date) {

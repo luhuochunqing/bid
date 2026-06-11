@@ -35,6 +35,7 @@ public record BusinessQualification(
         LocalDate expectedReturnDate,
         String fileUrl,
         String retireReason,
+        boolean retired,
         List<QualificationAttachment> attachments
 ) {
 
@@ -90,11 +91,67 @@ public record BusinessQualification(
                 expectedReturnDate,
                 fileUrl,
                 retireReason,
+                false,
+                attachments
+        );
+    }
+
+    public static BusinessQualification createWithRetired(
+            Long id,
+            String name,
+            String level,
+            QualificationSubject subject,
+            QualificationCategory category,
+            String certificateNo,
+            String issuer,
+            String agency,
+            String agencyContact,
+            String certScope,
+            String certReviewNote,
+            String holderName,
+            ValidityPeriod validityPeriod,
+            ReminderPolicy reminderPolicy,
+            LoanStatus currentBorrowStatus,
+            String currentBorrower,
+            String currentDepartment,
+            String currentProjectId,
+            String borrowPurpose,
+            LocalDate expectedReturnDate,
+            String fileUrl,
+            String retireReason,
+            boolean retired,
+            List<QualificationAttachment> attachments
+    ) {
+        return new BusinessQualification(
+                id,
+                name,
+                level,
+                subject,
+                category,
+                certificateNo,
+                issuer,
+                agency,
+                agencyContact,
+                certScope,
+                certReviewNote,
+                holderName,
+                validityPeriod,
+                reminderPolicy,
+                currentBorrowStatus,
+                currentBorrower,
+                currentDepartment,
+                currentProjectId,
+                borrowPurpose,
+                expectedReturnDate,
+                fileUrl,
+                retireReason,
+                retired,
                 attachments
         );
     }
 
     public QualificationStatus status() {
+        if (retired) return QualificationStatus.RETIRED;
         return new QualificationExpiryPolicy().evaluate(validityPeriod, LocalDate.now());
     }
 
@@ -176,6 +233,7 @@ public record BusinessQualification(
                 nextExpectedReturnDate,
                 fileUrl,
                 retireReason,
+                retired,
                 attachments
         );
     }

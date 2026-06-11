@@ -162,20 +162,20 @@ public class QualificationService {
     @Transactional
     public QualificationDTO retireQualification(Long id, String reason) {
         var dto = getQualificationById(id);
-        dto.setStatus("RETIRED");
         dto.setRetireReason(reason);
-        updateQualificationAppService.update(id, mapper.toUpsertCommand(dto));
+        var command = mapper.toUpsertCommand(dto);
+        var retiredCommand = command.toBuilder().retired(true).build();
+        updateQualificationAppService.update(id, retiredCommand);
         return getQualificationById(id);
     }
 
     @Transactional
     public QualificationDTO restoreQualification(Long id) {
         var dto = getQualificationById(id);
-        var policy = new com.xiyu.bid.businessqualification.domain.service.QualificationExpiryPolicy();
-        var period = new com.xiyu.bid.businessqualification.domain.valueobject.ValidityPeriod(dto.getIssueDate(), dto.getExpiryDate());
-        dto.setStatus(policy.evaluate(period, LocalDate.now()).name());
         dto.setRetireReason("");
-        updateQualificationAppService.update(id, mapper.toUpsertCommand(dto));
+        var command = mapper.toUpsertCommand(dto);
+        var restoredCommand = command.toBuilder().retired(false).build();
+        updateQualificationAppService.update(id, restoredCommand);
         return getQualificationById(id);
     }
 
