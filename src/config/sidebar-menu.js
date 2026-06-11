@@ -1,4 +1,4 @@
-export const hiddenApiMenuNames = new Set(['CustomerOpportunityCenter', 'AuditLogs', 'BAR', 'BAR_SiteList', 'Expense', 'ContractBorrow', 'BidResult', 'OrganizationManagement', 'AlertRules', 'AlertHistory', 'Template'])
+export const hiddenApiMenuNames = new Set(['CustomerOpportunityCenter', 'AuditLogs', 'BAR', 'BAR_SiteList', 'Expense', 'ContractBorrow', 'BidResult', 'AlertRules', 'AlertHistory', 'Template'])
 
 export const sidebarMenuConfig = [
   {
