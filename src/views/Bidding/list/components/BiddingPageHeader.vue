@@ -26,10 +26,6 @@
         <el-icon><Plus /></el-icon>
         人工录入
       </el-button>
-      <el-button v-if="canCreateTender" @click="$emit('download-import-template')">
-        <el-icon><Download /></el-icon>
-        下载批量导入模板
-      </el-button>
       <el-button v-if="canBulkImport" type="warning" plain @click="$emit('open-bulk-import')">
         <el-icon><Upload /></el-icon>
         批量导入
@@ -55,7 +51,6 @@ defineEmits([
   'open-source-config',
   'sync-external',
   'open-manual-add',
-  'download-import-template',
   'open-bulk-import'
 ])
 

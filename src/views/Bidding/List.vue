@@ -9,7 +9,6 @@
       @open-customer-opportunities="handleOpenCustomerOpportunityCenter"
       @open-source-config="openSourceConfig"
       @sync-external="sourceConfig.syncExternalTenders"
-      @download-import-template="bulkImport.downloadImportTemplate"
       @open-bulk-import="bulkImport.openBulkImport"
     />
     <TenderSearchCard v-model="searchForm" @search="handleSearch" @reset="handleReset" />
