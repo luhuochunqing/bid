@@ -191,7 +191,6 @@ class PlatformAccountServiceTest {
     @DisplayName("归还账号成功（带密码变更）")
     void returnAccount_withPassword_success() {
         PlatformAccount account = accountWithId(1L);
-        account.setStatus(AccountStatus.IN_USE);
         ReturnAccountRequest req = ReturnAccountRequest.builder().newPassword("newSecret").build();
         when(repository.findById(1L)).thenReturn(Optional.of(account));
         when(passwordEncryptionUtil.encrypt("newSecret")).thenReturn("encrypted:newSecret");

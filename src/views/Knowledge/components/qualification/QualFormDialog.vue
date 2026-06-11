@@ -6,6 +6,21 @@
     @close="$emit('close')"
     data-testid="qual-form-dialog"
   >
+    <div class="ai-upload-area" v-loading="parsingAi" data-testid="qual-form-ai-area">
+      <el-upload
+        action="#"
+        drag
+        :auto-upload="false"
+        :on-change="handleFileChange"
+        :show-file-list="false"
+        data-testid="qual-form-ai-upload"
+      >
+        <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+        <div class="el-upload__text">
+          拖拽证书扫描件至此处，或 <em>点击上传</em><br /><span class="ai-badge">✨ AI 智能提取</span>
+        </div>
+      </el-upload>
+    </div>
     <el-form
       ref="formRef"
       :model="form"
@@ -56,6 +71,9 @@
         </el-col>
         <el-col :span="12">
           <el-divider content-position="left">补充信息</el-divider>
+          <el-form-item label="持证人" prop="holderName">
+            <el-input v-model="form.holderName" maxlength="120" placeholder="证书持有人姓名" data-testid="qf-holderName" />
+          </el-form-item>
           <el-form-item label="代理机构" prop="agency">
             <el-input v-model="form.agency" maxlength="200" data-testid="qf-agency" />
           </el-form-item>
@@ -77,38 +95,30 @@
           </el-form-item>
         </el-col>
       </el-row>
-      <el-divider content-position="left">证书附件{{ editingId ? '' : '（必填）' }}</el-divider>
-      <el-form-item prop="attachment">
-        <div class="unified-upload" :class="{ 'has-file': certFile }" v-loading="parsingAi" data-testid="qf-upload-area">
-          <template v-if="!certFile && (!editingId || !currentAttachmentName)">
-            <el-upload
-              ref="certUploadRef"
-              action="#"
-              drag
-              :auto-upload="false"
-              :limit="1"
-              accept=".pdf,.jpg,.jpeg,.png"
-              :on-change="onCertFileSelect"
-              :before-upload="() => false"
-              :show-file-list="false"
-              data-testid="qf-unified-upload"
-            >
-              <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-              <div class="el-upload__text">
-                拖拽证书扫描件至此处，或 <em>点击上传</em><br />
-                <span class="ai-badge">✨ AI 智能提取字段</span>
-              </div>
-              <template #tip>
-                <div class="el-upload__tip">PDF/JPG/PNG，≤10MB</div>
-              </template>
-            </el-upload>
-          </template>
-          <div v-else class="uploaded-file-card">
-            <el-icon :size="20"><Document /></el-icon>
-            <span class="file-name">{{ certFile?.name || currentAttachmentName }}</span>
-            <el-button link type="primary" size="small" @click="triggerFileSelect">替换</el-button>
-            <el-button v-if="certFile" link type="danger" size="small" @click="clearCertFile">移除</el-button>
-          </div>
+      <el-divider content-position="left">附件{{ editingId ? '' : '（必填）' }}</el-divider>
+      <el-form-item label="证书附件" prop="attachment">
+        <div v-if="editingId && currentAttachmentName && !certFile" class="current-attachment">
+          <el-icon><Document /></el-icon>
+          <span class="att-name">{{ currentAttachmentName }}</span>
+          <el-button link type="primary" size="small" @click="triggerFileSelect">替换</el-button>
+        </div>
+        <el-upload
+          v-else
+          ref="certUploadRef"
+          :auto-upload="false"
+          :limit="5"
+          accept=".pdf,.jpg,.jpeg,.png"
+          :on-change="onCertFileChange"
+          :on-remove="() => certFile = null"
+          :before-upload="() => false"
+          :file-list="certFileList"
+          data-testid="qf-attachment-upload"
+        >
+          <el-button type="primary" plain>{{ editingId ? '选择新文件' : '选择文件' }}</el-button>
+          <template #tip><div class="el-upload__tip">仅支持 PDF/JPG/PNG，≤50MB，最多5个</div></template>
+        </el-upload>
+        <div v-if="certFile" class="new-file-tag">
+          <el-tag closable size="small" type="info" @close="clearCertFile">{{ certFile.name }}</el-tag>
         </div>
       </el-form-item>
     </el-form>
@@ -139,6 +149,7 @@ const parsingAi = ref(false)
 const submitting = ref(false)
 const certFile = ref(null)
 const certUploadRef = ref(null)
+const certFileList = ref([])
 const editingId = ref(null)
 const formRef = ref(null)
 
@@ -157,10 +168,11 @@ const triggerFileSelect = () => {
 
 const clearCertFile = () => {
   certFile.value = null
+  certFileList.value = []
 }
 
 const form = reactive({
-  name: '', level: '', certificateNo: '', issuer: '',
+  name: '', level: '', certificateNo: '', issuer: '', holderName: '',
   issueDate: '', expiryDate: '', agency: '', agencyContact: '',
   certScope: '', certReviewNote: '',
   subjectType: 'COMPANY', subjectName: '西域', category: 'LICENSE'
@@ -180,7 +192,7 @@ function initForm() {
     editingId.value = d.id
     Object.assign(form, {
       name: d.name || '', level: d.level || '', certificateNo: d.certificateNo || '',
-      issuer: d.issuer || '',
+      issuer: d.issuer || '', holderName: d.holderName || '',
       issueDate: d.issueDate || '', expiryDate: d.expiryDate || '',
       agency: d.agency || '', agencyContact: d.agencyContact || '',
       certScope: d.certScope || '', certReviewNote: d.certReviewNote || '',
@@ -189,43 +201,22 @@ function initForm() {
   } else {
     editingId.value = null
     Object.assign(form, {
-      name: '', level: '', certificateNo: '', issuer: '',
+      name: '', level: '', certificateNo: '', issuer: '', holderName: '',
       issueDate: '', expiryDate: '', agency: '', agencyContact: '',
       certScope: '', certReviewNote: '',
       subjectType: 'COMPANY', subjectName: '西域', category: 'LICENSE'
     })
   }
   certFile.value = null
-   // 清空 formRef 校验状态
+  certFileList.value = []
+  // 清空 formRef 校验状态
   if (formRef.value && typeof formRef.value.clearValidate === 'function') formRef.value.clearValidate()
 }
 
-const onCertFileSelect = async (uploadFile) => {
-  if (!uploadFile.raw) return
-  if (uploadFile.raw.size > 10485760) { ElMessage.error('附件不能超过10MB'); return }
-  certFile.value = uploadFile.raw
-
-  // AI 智能提取
-  parsingAi.value = true
-  ElMessage.info('AI 正在全息解析证书内容...')
-  const fd = new FormData(); fd.append('file', uploadFile.raw)
-  try {
-    const resp = await http.post('/api/knowledge/qualifications/upload-parse', fd, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
-    if (resp?.code === 200) {
-      const p = resp.data
-      if (p.name) form.name = p.name
-      if (p.certificateNo) form.certificateNo = p.certificateNo
-      if (p.issuer) form.issuer = p.issuer
-      if (p.expiryDate) form.expiryDate = p.expiryDate
-      ElNotification({ title: 'AI 提取成功', message: '已自动填入证书特征与有效期等字段', type: 'success' })
-    }
-  } catch {
-    ElMessage.warning('AI解析失败，您可以手动填写')
-  } finally {
-    parsingAi.value = false
-  }
+const onCertFileChange = (f) => {
+  if (f.raw?.size > 52428800) { ElMessage.error('附件不能超过50MB'); certFileList.value = []; return }
+  certFile.value = f.raw
+  certFileList.value = [{ name: f.raw.name, uid: f.raw.name + Date.now() }]
 }
 
 const handleSubmit = async () => {
@@ -284,11 +275,34 @@ const handleSubmit = async () => {
   }
 }
 
+const handleFileChange = async (uploadFile) => {
+  if (!uploadFile.raw) return
+  parsingAi.value = true
+  ElMessage.info('AI 正在全息解析证书内容...')
+  const fd = new FormData(); fd.append('file', uploadFile.raw)
+  try {
+    const resp = await http.post('/api/knowledge/qualifications/upload-parse', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    if (resp?.code === 200) {
+      const p = resp.data
+      if (p.name) form.name = p.name
+      if (p.certificateNo) form.certificateNo = p.certificateNo
+      if (p.issuer) form.issuer = p.issuer
+      if (p.holderName) form.holderName = p.holderName
+      if (p.expiryDate) form.expiryDate = p.expiryDate
+      ElNotification({ title: 'AI 提取成功', message: '已自动填入证书特征与有效期等字段', type: 'success' })
+    }
+  } catch {
+    ElMessage.warning('AI解析失败，您可以手动填写')
+  } finally {
+    parsingAi.value = false
+  }
+}
 </script>
 
 <style scoped lang="scss">
 .edit-status-bar { display:flex; align-items:center; gap:8px; margin-bottom:12px; padding:8px 12px; background:var(--el-fill-color-light); border-radius:6px; border:1px solid var(--el-border-color-lighter); .edit-status-label { color:var(--el-text-color-secondary); font-size:13px } }
-.unified-upload { border:1px dashed var(--el-border-color); border-radius:8px; padding:20px; text-align:center; transition:border-color .2s; &:hover { border-color:var(--el-color-primary) } &.has-file { border-style:solid; padding:12px 16px; text-align:left } }
-.ai-badge { font-size:12px; color:var(--el-color-primary); background:var(--el-color-primary-light-9); padding:2px 8px; border-radius:10px }
-.uploaded-file-card { display:flex; align-items:center; gap:10px; padding:8px 0; .file-name { flex:1; font-size:13px; color:var(--el-text-color-primary); word-break:break-all } }
+.current-attachment { display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--el-fill-color-light); border-radius:6px; border:1px solid var(--el-border-color-lighter); .att-name { flex:1; color:var(--el-text-color-primary); font-size:13px; word-break:break-all } }
+.new-file-tag { margin-top:8px }
 </style>

@@ -85,7 +85,7 @@
         </el-table-column>
         <el-table-column label="状态" width="100" align="center">
           <template #default="scope">
-            <el-tag :type="getStatusTagType(scope.row)" :class="{ 'retired-tag': (scope.row.status || '').toLowerCase() === 'retired' }">{{ statusLabel(scope.row.status) }}</el-tag>
+            <el-tag :type="getStatusTagType(scope.row)" :class="{ 'retired-tag': scope.row.status === 'RETIRED' }">{{ statusLabel(scope.row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="260" fixed="right" align="center">
@@ -93,9 +93,9 @@
             <el-button v-if="scope.row.fileUrl" link type="primary" size="small" @click.stop="handleDownload(scope.row)">下载</el-button>
             <el-button v-if="canViewQualification" link type="warning" size="small" @click.stop="openBorrow(scope.row)">借阅</el-button>
             <el-button v-if="canViewQualification" link type="info" size="small" @click.stop="openBorrowHistory(scope.row)">记录</el-button>
-            <el-button v-if="canManageQualification && (scope.row.status || '').toLowerCase() !== 'retired'" link type="primary" size="small" @click.stop="openEdit(scope.row)">编辑</el-button>
-            <el-button v-if="canManageQualification && (scope.row.status || '').toLowerCase() !== 'retired'" link type="danger" size="small" @click.stop="handleRetire(scope.row)">下架</el-button>
-            <el-button v-if="canManageQualification && (scope.row.status || '').toLowerCase() === 'retired'" link type="success" size="small" @click.stop="handleRestore(scope.row)">恢复</el-button>
+            <el-button v-if="canManageQualification && scope.row.status !== 'RETIRED'" link type="primary" size="small" @click.stop="openEdit(scope.row)">编辑</el-button>
+            <el-button v-if="canManageQualification && scope.row.status !== 'RETIRED'" link type="danger" size="small" @click.stop="handleRetire(scope.row)">下架</el-button>
+            <el-button v-if="canManageQualification && scope.row.status === 'RETIRED'" link type="success" size="small" @click.stop="handleRestore(scope.row)">恢复</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -225,9 +225,9 @@ const {
 
 const qualifications = ref([]); const loading = ref(false)
 const page = ref(1); const pageSize = ref(15); const total = ref(0)
-const filters = reactive({ keyword:'', issuer:'', expiryRange:null, statuses:['VALID','EXPIRING','EXPIRED'], level:'' })
-const statusOptions = [{ label:'在库', value:'VALID' },{ label:'即将到期', value:'EXPIRING' },{ label:'已过期', value:'EXPIRED' },{ label:'已下架', value:'RETIRED' }]
-const STATUS_LABELS = { in_stock:'在库', valid:'在库', expiring:'即将到期', expired:'已过期', retired:'已下架' }
+const filters = reactive({ keyword:'', issuer:'', expiryRange:null, statuses:['IN_STOCK','EXPIRING','EXPIRED'], level:'' })
+const statusOptions = [{ label:'在库', value:'IN_STOCK' },{ label:'即将到期', value:'EXPIRING' },{ label:'已过期', value:'EXPIRED' },{ label:'已下架', value:'RETIRED' }]
+const STATUS_LABELS = { IN_STOCK:'在库', EXPIRING:'即将到期', EXPIRED:'已过期', RETIRED:'已下架', VALID:'在库' }
 
 const hasFilterActive = computed(() => filters.keyword || filters.issuer || filters.expiryRange || filters.statuses.length || filters.level)
 const emptyDescription = computed(() => {
@@ -313,9 +313,9 @@ const {
 } = useQualificationBatch({ fetchQualifications })
 
 const resetFilters = () => { Object.assign(filters, { keyword:'', issuer:'', expiryRange:null, statuses:[], level:'' }); page.value = 1; fetchQualifications() }
-const getStatusTagType = (row) => { const s = (row.status || '').toLowerCase(); if (s === 'in_stock' || s === 'valid') return 'success'; if (s === 'expiring') return 'warning'; if (s === 'expired') return 'danger'; return 'info' }
+const getStatusTagType = (row) => { const s = row.status || ''; if (s === 'IN_STOCK' || s === 'VALID') return 'success'; if (s === 'EXPIRING') return 'warning'; if (s === 'EXPIRED') return 'danger'; return 'info' }
 const getBorrowStatusTagType = (status) => borrowStatusTagTypes[status] || 'info'
-const statusLabel = (s) => STATUS_LABELS[(s || '').toLowerCase()] || s || '—'
+const statusLabel = (s) => STATUS_LABELS[s] || s || '—'
 const openEdit = (row) => { editData.value = row; formVisible.value = true }
 const handleRetire = (row) => {
   retireTarget.value = row

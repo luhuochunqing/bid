@@ -54,9 +54,3 @@ logging:
     org.springframework.security: DEBUG
     org.hibernate.stat: ERROR
     org.hibernate.engine.internal.StatisticalLoggingSessionEventListener: ERROR
-
-rate:
-  limit:
-    default:
-      max: 100000
-      window-seconds: 60

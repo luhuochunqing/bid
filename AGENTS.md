@@ -22,8 +22,6 @@
 8. JPA Entity、框架适配类可按框架约束例外处理，但不得承载复杂业务规则。
 9. 默认遵守 Split-First Rule：先拆 Application Service、Domain Policy、Mapper、Repository/Gateway，再实现。
 10. 单个 Java 文件软上限 200 行、硬上限 300 行；超过上限前必须先拆分职责。
-11. 前端 Composable 内联规则：单组件私有的小型组合逻辑（≤ 80 行、唯一引用、无复用预期）直接写在 `<script setup>` 内，不得提取到独立文件。跨组件复用或超过 80 行的 composable 方可提取独立文件，但构建后须检查产物内联完整性（`npm run build:check`）。
-
 11. 完成前必须说明：纯核心在哪里，副作用在哪里，跑了哪些验证。
 
 ## 协作口径

@@ -67,7 +67,7 @@
     "db:dev-repair": "bash scripts/dev-flyway-repair.sh",
     "check:blueprint-gaps": "node scripts/check-blueprint-gaps.mjs",
     "check:blueprint-fields": "node scripts/check-blueprint-fields.mjs",
-    "build": "npm run check:version-sync && npm run check:front-data-boundaries && npm run check:doc-governance && npm run check:task-status-literal && npm run check:token-governance && npm run check:token-governance:delta && npm run check:blueprint-gaps && npm run check:blueprint-fields && npm run check:line-budgets && vite build && npm run build:check",
+    "build": "npm run check:version-sync && npm run check:front-data-boundaries && npm run check:doc-governance && npm run check:task-status-literal && npm run check:token-governance && npm run check:token-governance:delta && npm run check:blueprint-gaps && npm run check:blueprint-fields && npm run check:line-budgets && vite build",
     "build:api": "vite build --mode api",
     "preview": "vite preview",
     "test:e2e": "npx playwright test --config playwright.config.js",
@@ -89,8 +89,7 @@
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
     "docker:restart": "docker compose restart",
-    "dev:up": "npm run docker:up",
-    "build:check": "node scripts/check-inlined-composables.cjs"
+    "dev:up": "npm run docker:up"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.0",

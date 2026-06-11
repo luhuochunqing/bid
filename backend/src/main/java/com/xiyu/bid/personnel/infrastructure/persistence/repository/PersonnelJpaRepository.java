@@ -53,7 +53,7 @@ public interface PersonnelJpaRepository extends JpaRepository<PersonnelEntity, L
            "(:certificateKeyword IS NULL OR EXISTS (SELECT 1 FROM PersonnelCertificateEntity c WHERE c.personnelId = p.id AND c.certificateName LIKE %:certificateKeyword%)) AND " +
            "(:certificateStatuses IS NULL OR EXISTS (SELECT 1 FROM PersonnelCertificateEntity c WHERE c.personnelId = p.id AND " +
            "   ( (:certificateStatuses IS NOT NULL AND 'VALID' IN :certificateStatuses AND (c.expiryDate IS NULL OR c.expiryDate > CURRENT_DATE)) OR " +
-           "     (:certificateStatuses IS NOT NULL AND 'EXPIRING' IN :certificateStatuses AND c.expiryDate IS NOT NULL AND c.expiryDate <= CURRENT_DATE + 60 AND c.expiryDate > CURRENT_DATE) OR " +
+           "     (:certificateStatuses IS NOT NULL AND 'EXPIRING' IN :certificateStatuses AND c.expiryDate IS NOT NULL AND c.expiryDate <= CURRENT_DATE + 60 DAY AND c.expiryDate > CURRENT_DATE) OR " +
            "     (:certificateStatuses IS NOT NULL AND 'EXPIRED' IN :certificateStatuses AND c.expiryDate IS NOT NULL AND c.expiryDate <= CURRENT_DATE) )))")
     List<PersonnelEntity> findByCriteriaFull(@Param("keyword") String keyword,
                                              @Param("departmentCode") String departmentCode,
@@ -80,7 +80,7 @@ public interface PersonnelJpaRepository extends JpaRepository<PersonnelEntity, L
            "(:certificateKeyword IS NULL OR EXISTS (SELECT 1 FROM PersonnelCertificateEntity c WHERE c.personnelId = p.id AND c.certificateName LIKE %:certificateKeyword%)) AND " +
            "(:certificateStatuses IS NULL OR EXISTS (SELECT 1 FROM PersonnelCertificateEntity c WHERE c.personnelId = p.id AND " +
            "   ( (:certificateStatuses IS NOT NULL AND 'VALID' IN :certificateStatuses AND (c.expiryDate IS NULL OR c.expiryDate > CURRENT_DATE)) OR " +
-           "     (:certificateStatuses IS NOT NULL AND 'EXPIRING' IN :certificateStatuses AND c.expiryDate IS NOT NULL AND c.expiryDate <= CURRENT_DATE + 60 AND c.expiryDate > CURRENT_DATE) OR " +
+           "     (:certificateStatuses IS NOT NULL AND 'EXPIRING' IN :certificateStatuses AND c.expiryDate IS NOT NULL AND c.expiryDate <= CURRENT_DATE + 60 DAY AND c.expiryDate > CURRENT_DATE) OR " +
            "     (:certificateStatuses IS NOT NULL AND 'EXPIRED' IN :certificateStatuses AND c.expiryDate IS NOT NULL AND c.expiryDate <= CURRENT_DATE) )))")
     Page<PersonnelEntity> findByCriteriaPageableFull(@Param("keyword") String keyword,
                                                      @Param("departmentCode") String departmentCode,
