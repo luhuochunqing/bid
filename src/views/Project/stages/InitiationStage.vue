@@ -14,7 +14,7 @@
     <template #fallback-form>
       <div class="initiation-stage-fallback">
 <el-card class="section-card" shadow="never"><template #header><span>投标信息</span></template>
-<el-form :model="form" label-position="top" :disabled="locked">
+<el-form :model="form" label-width="200px" :disabled="locked">
 <!-- 是否需要保证金：保留字段，放第一个 -->
 <el-form-item label="是否需要保证金" required>
   <el-select v-model="form.needDeposit" @change="onDepositChange">
@@ -23,7 +23,7 @@
   </el-select>
 </el-form-item>
 <template v-if="form.needDeposit === 'YES'">
-  <div class="grid-1">
+  <div class="grid-2">
     <el-form-item label="保证金金额" required><el-input-number v-model="form.depositAmount" :min="0" :precision="2" /></el-form-item>
     <el-form-item label="保证金缴纳方式" required>
       <el-select v-model="form.depositPaymentMethod">
@@ -35,12 +35,13 @@
 </template>
 <!-- 以下字段与标讯评估表「一、基础信息」完全对齐 -->
 <el-divider />
-<div class="grid-1">
+<div class="grid-2">
   <el-form-item label="计划入围供应商数量"><el-input-number v-model="form.expectedBidders" :min="1" :precision="0" /></el-form-item>
   <el-form-item label="电商MRO+办公流水金额（万）"><el-input-number v-model="form.annualEcommerceAmount" :min="0" :precision="2" /></el-form-item>
 </div>
-<div class="grid-1">
+<div class="grid-2">
   <el-form-item label="客户营收（亿）"><el-input-number v-model="form.customerRevenue" :min="0" :precision="2" /></el-form-item>
+  <el-form-item label=" " /> <!-- spacer -->
 </div>
 <el-form-item label="招标文件不利项"><el-input v-model="form.tenderAdverseItems" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
 <el-form-item label="风险预判"><el-input v-model="form.riskAssessment" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
@@ -126,8 +127,8 @@
       <!-- 标书制作人员分配：仅投标管理员/组长在待审核状态可见（可操作） -->
       <el-card v-if="isApprovalMode" class="section-card" shadow="never">
         <template #header><span>标书制作人员分配</span></template>
-        <el-form :model="approvalForm" label-position="top">
-          <div class="grid-1">
+        <el-form :model="approvalForm" label-width="140px">
+          <div class="grid-2">
             <el-form-item label="投标负责人" required>
               <el-select v-model="approvalForm.biddingLeaderId" filterable remote :remote-method="searchLeader" :loading="leaderSearching" placeholder="搜索人员" style="width:100%" value-key="id" @change="(id) => { const o = leaderOptions.find(u => u.id === id); approvalForm.biddingLeaderLabel = o ? o._label : '' }">
                 <el-option v-for="u in leaderOptions" :key="u.id" :label="u._label" :value="u.id" />
@@ -148,8 +149,8 @@
       <!-- 已分配人员只读展示：立项通过后任何角色均可见 -->
       <el-card v-if="reviewStatus === 'APPROVED' && (form.biddingLeaderName || form.biddingAssistantName)" class="section-card" shadow="never">
         <template #header><span>标书制作人员（已分配）</span></template>
-        <el-form label-position="top" disabled>
-          <div class="grid-1">
+        <el-form label-width="140px" disabled>
+          <div class="grid-2">
             <el-form-item label="投标负责人">
               <el-input :model-value="form.biddingLeaderName" readonly />
             </el-form-item>
@@ -262,30 +263,22 @@ onMounted(load)
 </script>
 <style scoped>
 .initiation-stage { display: flex; flex-direction: column; gap: 16px; }
-.section-card { border: 1px solid var(--el-border-color-light); border-radius: var(--radius-md); }
-.section-card :deep(.el-card__header) { padding: 14px 20px; background: var(--bg-subtle); border-bottom: 1px solid var(--el-border-color-light); font-weight: 600; color: var(--text-primary); }
-.section-card :deep(.el-card__body) { padding: 20px 24px; }
+.section-card { border: 1px solid var(--el-border-color-light); }
 .section-header { display: flex; justify-content: space-between; align-items: center; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 24px; }
 .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 24px; }
 .grid-1 { display: grid; grid-template-columns: 1fr; gap: 0; margin-top: 8px; }
-.initiation-stage-fallback :deep(.el-form-item__label) { font-size: 13px; font-weight: 500; color: var(--text-primary); text-align: left; line-height: 1.6; padding-bottom: 6px; }
-.initiation-stage-fallback :deep(.el-form-item) { margin-bottom: 18px; }
-.initiation-stage-fallback :deep(.el-form-item.is-required .el-form-item__label::before) { margin-right: 4px; color: var(--el-color-danger); }
-.initiation-stage-fallback :deep(.el-textarea__inner::placeholder),
-.initiation-stage-fallback :deep(.el-input__inner::placeholder) { color: var(--gray-400); }
-.initiation-stage-fallback :deep(.el-textarea__inner) { font-size: 14px; }
-.initiation-stage-fallback :deep(.el-divider) { margin: 16px 0; border-color: var(--el-border-color-lighter); }
-.initiation-stage-fallback :deep(.el-select) { width: 100%; }.customer-table-wrapper { overflow-x: auto; }.customer-table-wrapper :deep(.el-table .el-table__cell) { padding: 6px 10px; }
-.role-label { font-weight: 500; color: var(--text-primary); }
+.customer-table-wrapper { overflow-x: auto; }
 .ai-risk-corner { display: flex; align-items: center; gap: 10px; }
 .risk-tag { font-size: 14px; }
 .bid-doc-section { display: flex; flex-direction: column; gap: 16px; }
 .bid-doc-upload-area { display: flex; justify-content: center; }
-.bid-doc-upload-area .upload-icon { font-size: 40px; color: var(--gray-400); }
-.bid-doc-upload-area .upload-text { font-size: 14px; color: var(--text-secondary-ui); margin-top: 8px; }
-.bid-doc-upload-area .upload-text em { color: var(--brand-primary, #2E7659); font-style: normal; font-weight: 500; }
-.bid-doc-upload-area .upload-tip { font-size: 12px; color: var(--text-muted, #909399); margin-top: 4px; }
-.bid-doc-upload-area .uploader-info { font-size: 12px; color: var(--text-secondary-ui); margin-top: 4px; padding: 4px 8px; background: var(--bg-subtle); border-radius: 4px; }.bid-doc-actions { display: flex; gap: 12px; align-items: center; justify-content: flex-end; padding-top: 8px; }
+.bid-doc-upload-area .upload-icon { font-size: 40px; color: #c0c4cc; }
+.bid-doc-upload-area .upload-text { font-size: 14px; color: #606266; margin-top: 8px; }
+.bid-doc-upload-area .upload-text em { color: #2E7659; font-style: normal; }
+.bid-doc-upload-area .upload-tip { font-size: 12px; color: #909399; margin-top: 4px; }
+.bid-doc-upload-area .uploader-info { font-size: 12px; color: #606266; margin-top: 4px; padding: 4px 8px; background: #f5f7fa; border-radius: 4px; }
+.bid-doc-actions { display: flex; gap: 12px; align-items: center; justify-content: flex-end; padding-top: 8px; }
 .error-tag { font-size: 13px; }
-.ai-result-alert { margin-top: 0; }</style>
+.ai-result-alert { margin-top: 0; }
+</style>
