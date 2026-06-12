@@ -137,6 +137,17 @@ httpClient.interceptors.response.use(
     const { response, config } = error
     const shouldStaySilent = Boolean(config?.silentAuthError)
 
+    // blob 响应的错误需要特殊处理：将错误 blob 转换为文本并尝试解析
+    if (config?.responseType === 'blob' && response?.data instanceof Blob) {
+      try {
+        const text = await response.data.text()
+        const json = JSON.parse(text)
+        response.data = json
+      } catch {
+        // 非 JSON 响应，保持原样
+      }
+    }
+
     if (response?.status === 401 && config && !config._retry && !shouldSkipRefresh(config)) {
       config._retry = true
 
