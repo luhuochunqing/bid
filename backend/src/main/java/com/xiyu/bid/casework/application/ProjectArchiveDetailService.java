@@ -63,7 +63,7 @@ public class ProjectArchiveDetailService {
                 projectType = tender.getProjectType();
                 projectManager = tender.getProjectManagerName();
                 bidManager = tender.getBiddingPersonName();
-                tenderAgency = tender.getTenderAgency();
+                tenderAgency = tender.getPurchaserName();
                 bidOpeningAt = tender.getBidOpeningTime();
             }
             // 档案 4.1.1.1.1：时间戳从 Project 实体读取（替代 Tender 降级）

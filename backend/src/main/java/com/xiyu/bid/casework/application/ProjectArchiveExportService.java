@@ -131,7 +131,7 @@ public class ProjectArchiveExportService {
                                 projectType = safeString(t.getProjectType());
                                 projectManager = safeString(t.getProjectManagerName());
                                 bidManager = safeString(t.getBiddingPersonName());
-                                tenderAgency = safeString(t.getTenderAgency());
+                                tenderAgency = safeString(t.getPurchaserName());
                                 if (t.getCreatedAt() != null) initiatedAtStr = t.getCreatedAt().format(DATE_FORMATTER);
                                 if (t.getBidOpeningTime() != null) bidOpeningAtStr = t.getBidOpeningTime().format(DATE_FORMATTER);
                             }

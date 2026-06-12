@@ -11,19 +11,11 @@ import com.xiyu.bid.repository.TenderRepository;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Stream;
 
-/**
- * 4.1.1 档案台账列表响应装配：从 ProjectArchive + Project + Tender + 关联文件 计算
- * projectType / bidResult / 负责人 / 分类文件数 / lastUploadedAt 等聚合字段。
- * <p>
- * 从 ProjectArchiveWorkflowService 拆出，避免后者单文件 300 行硬上限突破。
- */
+import static java.util.stream.Collectors.*;
+
 @Component
 class ProjectArchiveResponseMapper {
 
@@ -42,45 +34,52 @@ class ProjectArchiveResponseMapper {
         this.fileRepository = fileRepository;
     }
 
-    ProjectArchiveResponse toResponse(ProjectArchive archive) {
-        String projectType = "综合";
+    List<ProjectArchiveResponse> toResponseList(List<ProjectArchive> archives) {
+        if (archives.isEmpty()) return List.of();
+
+        List<Long> projectIds = archives.stream().map(ProjectArchive::getProjectId).distinct().toList();
+        Map<Long, Project> projectMap = projectRepository.findAllById(projectIds).stream()
+                .collect(toMap(Project::getId, p -> p));
+
+        List<Long> tenderIds = projectMap.values().stream()
+                .map(Project::getTenderId).filter(Objects::nonNull).distinct().toList();
+        Map<Long, Tender> tenderMap = tenderRepository.findAllById(tenderIds).stream()
+                .collect(toMap(Tender::getId, t -> t));
+
+        List<Long> archiveIds = archives.stream().map(ProjectArchive::getId).toList();
+        Map<Long, List<ArchiveFile>> filesByArchive = fileRepository
+                .findByArchiveIdInOrderByCreatedAtDesc(archiveIds)
+                .stream().collect(groupingBy(ArchiveFile::getArchiveId));
+
+        return archives.stream().map(a -> toResponse(a, projectMap, tenderMap, filesByArchive)).toList();
+    }
+
+    private ProjectArchiveResponse toResponse(ProjectArchive archive,
+                                               Map<Long, Project> projectMap,
+                                               Map<Long, Tender> tenderMap,
+                                               Map<Long, List<ArchiveFile>> filesByArchive) {
+        Project project = projectMap.get(archive.getProjectId());
+        Tender tender = project != null ? tenderMap.get(project.getTenderId()) : null;
+
+        String projectStatus = project != null ? project.getStatus().name() : "PENDING_INITIATION";
+        String projectType = tender != null && tender.getProjectType() != null ? tender.getProjectType() : "综合";
+        String purchaserName = tender != null ? tender.getPurchaserName() : null;
+        String projectManager = tender != null ? tender.getProjectManagerName() : null;
+        String bidManager = tender != null ? tender.getBiddingPersonName() : null;
+
         String bidResult = "OTHER";
-        String projectManager = null;
-        String bidManager = null;
-        String projectStatus = "PENDING_INITIATION";
-
-        Optional<Project> projectOpt = projectRepository.findById(archive.getProjectId());
-        Optional<Tender> tenderOpt = projectOpt
-                .map(Project::getTenderId)
-                .flatMap(tenderRepository::findById);
-        if (projectOpt.isPresent()) {
-            Project p = projectOpt.get();
-            projectStatus = p.getStatus().name();
-            // bidResult 从 Project.Status 终态推导（产品蓝图 §4.3）
-            bidResult = switch (p.getStatus()) {
-                case WON -> "WON";
-                case LOST -> "LOST";
-                case FAILED -> "FAILED";
-                case ABANDONED -> "ABANDONED";
-                default -> "IN_PROGRESS";
-            };
-        }
-        if (tenderOpt.isPresent()) {
-            Tender tender = tenderOpt.get();
-            projectType = tender.getProjectType();
-            projectManager = tender.getProjectManagerName();
-            bidManager = tender.getBiddingPersonName();
+        if (project != null) {
+            Project.Status ps = project.getStatus();
+            if (ps == Project.Status.WON || ps == Project.Status.LOST
+                    || ps == Project.Status.FAILED || ps == Project.Status.ABANDONED) {
+                bidResult = ps.name();
+            }
         }
 
-        List<ArchiveFile> files = fileRepository.findByArchiveIdOrderByCreatedAtDesc(archive.getId());
+        List<ArchiveFile> files = filesByArchive.getOrDefault(archive.getId(), List.of());
         Map<String, Long> categoryDetails = new HashMap<>();
-        for (String cat : CATEGORY_KEYS) {
-            categoryDetails.put(cat, 0L);
-        }
-        files.forEach(f -> {
-            String cat = f.getDocumentCategory();
-            categoryDetails.put(cat, categoryDetails.getOrDefault(cat, 0L) + 1);
-        });
+        for (String cat : CATEGORY_KEYS) categoryDetails.put(cat, 0L);
+        files.forEach(f -> categoryDetails.merge(f.getDocumentCategory(), 1L, Long::sum));
 
         LocalDateTime lastUploadedAt = files.stream()
                 .map(ArchiveFile::getCreatedAt)
@@ -88,18 +87,15 @@ class ProjectArchiveResponseMapper {
                 .orElse(archive.getCreatedAt());
 
         return new ProjectArchiveResponse(
-                archive.getId(),
-                archive.getProjectId(),
-                archive.getProjectName(),
-                projectType,
-                projectStatus,
-                bidResult,
-                files.size(),
-                categoryDetails,
-                lastUploadedAt,
-                projectManager,
-                bidManager
-        );
+                archive.getId(), archive.getProjectId(), archive.getProjectName(),
+                projectType, projectStatus, bidResult, purchaserName,
+                files.size(), categoryDetails, lastUploadedAt,
+                projectManager, bidManager);
+    }
+
+    @Deprecated
+    ProjectArchiveResponse toResponse(ProjectArchive archive) {
+        return toResponseList(List.of(archive)).getFirst();
     }
 
     List<String> collectProjectManagers(List<ProjectArchive> archives) {
@@ -108,10 +104,7 @@ class ProjectArchiveResponseMapper {
                     Tender t = resolveTender(a);
                     return t != null && t.getProjectManagerName() != null
                             ? Stream.of(t.getProjectManagerName()) : Stream.empty();
-                })
-                .distinct()
-                .sorted()
-                .toList();
+                }).distinct().sorted().toList();
     }
 
     List<String> collectBidManagers(List<ProjectArchive> archives) {
@@ -120,10 +113,7 @@ class ProjectArchiveResponseMapper {
                     Tender t = resolveTender(a);
                     return t != null && t.getBiddingPersonName() != null
                             ? Stream.of(t.getBiddingPersonName()) : Stream.empty();
-                })
-                .distinct()
-                .sorted()
-                .toList();
+                }).distinct().sorted().toList();
     }
 
     private Tender resolveTender(ProjectArchive archive) {

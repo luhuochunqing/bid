@@ -8,4 +8,5 @@ import java.util.List;
 public interface ArchiveFileRepository extends JpaRepository<ArchiveFile, Long> {
     List<ArchiveFile> findByArchiveId(Long archiveId);
     List<ArchiveFile> findByArchiveIdOrderByCreatedAtDesc(Long archiveId);
+    List<ArchiveFile> findByArchiveIdInOrderByCreatedAtDesc(List<Long> archiveIds);
 }
