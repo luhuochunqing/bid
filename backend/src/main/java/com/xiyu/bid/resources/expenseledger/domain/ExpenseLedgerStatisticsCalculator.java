@@ -4,7 +4,6 @@ import com.xiyu.bid.resources.dto.ExpenseDTO;
 import com.xiyu.bid.resources.expenseledger.dto.ExpenseLedgerGroupSummaryDTO;
 import com.xiyu.bid.resources.expenseledger.dto.ExpenseLedgerItemDTO;
 import com.xiyu.bid.resources.expenseledger.dto.ExpenseLedgerSummaryDTO;
-import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.Comparator;
@@ -13,7 +12,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-@Component
 public class ExpenseLedgerStatisticsCalculator {
 
     public ExpenseLedgerSummaryDTO summarize(List<ExpenseLedgerItemDTO> items) {

@@ -6,6 +6,9 @@ import com.xiyu.bid.businessqualification.domain.model.QualificationAttachment;
 import com.xiyu.bid.businessqualification.domain.model.QualificationPage;
 import com.xiyu.bid.businessqualification.domain.port.BusinessQualificationRepository;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationStatus;
+import com.xiyu.bid.businessqualification.domain.valueobject.QualificationSubject;
+import com.xiyu.bid.businessqualification.domain.valueobject.ReminderPolicy;
+import com.xiyu.bid.businessqualification.domain.valueobject.ValidityPeriod;
 import com.xiyu.bid.businessqualification.infrastructure.persistence.entity.BusinessQualificationEntity;
 import com.xiyu.bid.businessqualification.infrastructure.persistence.entity.QualificationAttachmentEntity;
 import com.xiyu.bid.businessqualification.infrastructure.persistence.repository.BusinessQualificationJpaRepository;
@@ -132,9 +135,9 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
             }
             if (criteria.getCategory() != null && !criteria.getCategory().isBlank()) {
                 predicates.add(cb.equal(cb.upper(root.get("category")), criteria.getCategory().toUpperCase(Locale.ROOT)));
-            }
-            if (criteria.getBorrowStatus() != null && !criteria.getBorrowStatus().isBlank()) {
-                predicates.add(cb.equal(cb.upper(root.get("currentBorrowStatus")), criteria.getBorrowStatus().toUpperCase(Locale.ROOT)));
+}
+            if (criteria.getLevel() != null && !criteria.getLevel().isBlank()) {
+                predicates.add(cb.equal(cb.upper(root.get("level")), criteria.getLevel().toUpperCase(Locale.ROOT)));
             }
             if (criteria.getExpiringFrom() != null) {
                 predicates.add(cb.greaterThanOrEqualTo(root.get("expiryDate"), criteria.getExpiringFrom()));
@@ -198,15 +201,59 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
     }
 
     private BusinessQualificationEntity toEntity(BusinessQualification qualification) {
-        return BusinessQualificationEntity.fromDomain(qualification);
+        return BusinessQualificationEntity.builder()
+                .id(qualification.id())
+                .name(qualification.name())
+                .level(qualification.level())
+                .subjectType(qualification.subject().getType())
+                .subjectName(qualification.subject().getName())
+                .category(qualification.category())
+                .certificateNo(qualification.certificateNo())
+                .issuer(qualification.issuer())
+                .agency(qualification.agency())
+                .agencyContact(qualification.agencyContact())
+                .certScope(qualification.certScope())
+                .certReviewNote(qualification.certReviewNote())
+                .holderName(qualification.holderName())
+                .issueDate(qualification.validityPeriod().getIssueDate())
+                .expiryDate(qualification.validityPeriod().getExpiryDate())
+                .status(qualification.status())
+                .reminderEnabled(qualification.reminderPolicy().isEnabled())
+                .reminderDays(qualification.reminderPolicy().getReminderDays())
+                .lastRemindedAt(qualification.reminderPolicy().getLastRemindedAt())
+                .fileUrl(qualification.fileUrl())
+                .retireReason(qualification.retireReason())
+                .retired(qualification.retired())
+                .build();
     }
 
     private BusinessQualification toDomain(BusinessQualificationEntity entity) {
-        List<QualificationAttachment> attachments = attachmentJpaRepository
-                .findByQualificationIdOrderByUploadedAtDesc(entity.getId()).stream()
-                .map(this::toDomainAttachment)
-                .toList();
-        return entity.toDomain(attachments);
+        return BusinessQualification.createWithRetired(
+                entity.getId(),
+                entity.getName(),
+                entity.getLevel(),
+                QualificationSubject.of(entity.getSubjectType(), entity.getSubjectName()),
+                entity.getCategory(),
+                entity.getCertificateNo(),
+                entity.getIssuer(),
+                entity.getAgency(),
+                entity.getAgencyContact(),
+                entity.getCertScope(),
+                entity.getCertReviewNote(),
+                entity.getHolderName(),
+                new ValidityPeriod(entity.getIssueDate(), entity.getExpiryDate()),
+                new ReminderPolicy(
+                        entity.isReminderEnabled(),
+                        entity.getReminderDays(),
+                        entity.getLastRemindedAt()
+                ),
+                entity.getFileUrl(),
+                entity.getRetireReason(),
+                entity.isRetired(),
+                attachmentJpaRepository.findByQualificationIdOrderByUploadedAtDesc(entity.getId()).stream()
+                        .map(this::toDomainAttachment)
+                        .toList()
+        );
     }
 
     private QualificationAttachment toDomainAttachment(QualificationAttachmentEntity entity) {

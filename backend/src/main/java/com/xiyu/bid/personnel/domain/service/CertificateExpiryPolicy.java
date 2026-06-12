@@ -2,11 +2,9 @@ package com.xiyu.bid.personnel.domain.service;
 
 import com.xiyu.bid.personnel.domain.model.Personnel;
 import com.xiyu.bid.personnel.domain.valueobject.Certificate;
-import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-@Service
 public class CertificateExpiryPolicy {
 
     public List<Certificate> findExpiringSoon(List<Certificate> certificates, int warningDays) {

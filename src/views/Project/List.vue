@@ -150,7 +150,7 @@
   </div>
 </template>
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import { Download, ArrowDown, Check } from '@element-plus/icons-vue'

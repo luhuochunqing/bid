@@ -2,6 +2,7 @@
 // Input: scans all e2e/*.spec.js files for waitForTimeout calls
 // Output: per-occurrence suggestions for what to replace with
 // Pos: scripts/ — E2E waitForTimeout 存量迁移建议工具 (2026-06-12 skill-progression-map)
+// 维护声明: 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 //
 // Background:
 //   check-e2e-selectors.mjs (2026-05-29) marked waitForTimeout as error (blocking)

@@ -24,12 +24,6 @@
           <el-form-item label="证书名称" prop="name">
             <el-input v-model="form.name" maxlength="200" placeholder="如：ISO 9001 质量管理体系认证" data-testid="qf-name" />
           </el-form-item>
-          <!-- CO-155 fix: 领域(category) 改为 el-select，不再硬编码 LICENSE -->
-          <el-form-item label="领域" prop="category">
-            <el-select v-model="form.category" placeholder="选择领域" data-testid="qf-category" style="width:100%">
-              <el-option v-for="c in categoryOptions" :key="c.value" :label="c.label" :value="c.value" />
-            </el-select>
-          </el-form-item>
           <el-form-item label="等级" prop="level">
             <el-input v-model="form.level" maxlength="50" placeholder="如: AAA级" data-testid="qf-level" />
           </el-form-item>
@@ -62,15 +56,6 @@
         </el-col>
         <el-col :span="12">
           <el-divider content-position="left">补充信息</el-divider>
-          <!-- CO-155 fix: 主体类型与名称改为 el-select/可编辑，不再硬编码 COMPANY/西域 -->
-          <el-form-item label="主体类型" prop="subjectType">
-            <el-select v-model="form.subjectType" placeholder="选择主体类型" data-testid="qf-subjectType" style="width:100%">
-              <el-option v-for="s in subjectTypeOptions" :key="s.value" :label="s.label" :value="s.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="主体名称" prop="subjectName">
-            <el-input v-model="form.subjectName" maxlength="200" placeholder="如：西域数智化投标管理平台" data-testid="qf-subjectName" />
-          </el-form-item>
           <el-form-item label="代理机构" prop="agency">
             <el-input v-model="form.agency" maxlength="200" data-testid="qf-agency" />
           </el-form-item>
@@ -144,7 +129,6 @@ import { UploadFilled, Document } from '@element-plus/icons-vue'
 import http from '@/api/client'
 import { useQualFormRules } from './useQualFormRules'
 import { qualificationStatusTagTypes, qualificationStatusLabels } from './qualificationMeta.js'
-import { QUALIFICATION_CATEGORY_OPTIONS, QUALIFICATION_SUBJECT_TYPE_OPTIONS } from './qualificationFieldOptions.js'
 import { useCertAiParser } from './useCertAiParser.js'
 
 const CONTACT_REGEX = /^(1[3-9]\d{9}|(0\d{2,3})[-]?\d{7,8}|[^\s@]+@[^\s@]+\.[^\s@]+)$/
@@ -180,14 +164,8 @@ const clearCertFile = () => {
 const form = reactive({
   name: '', level: '', certificateNo: '', issuer: '',
   issueDate: '', expiryDate: '', agency: '', agencyContact: '',
-  certScope: '', certReviewNote: '',
-  // CO-155 fix: 改用空字符串占位 + 让 el-select 触发必填校验，不再硬编码 LICENSE/COMPANY/西域
-  subjectType: '', subjectName: '', category: ''
+  certScope: '', certReviewNote: ''
 })
-
-// CO-155 fix: 引用拆出的静态选项常量（避免本文件超 line-budget 300 行）
-const categoryOptions = QUALIFICATION_CATEGORY_OPTIONS
-const subjectTypeOptions = QUALIFICATION_SUBJECT_TYPE_OPTIONS
 
 const { rules: formRules } = useQualFormRules(form, certFile, editingId)
 
@@ -217,15 +195,14 @@ function initForm() {
 
 // CO-155 fix: 把 initForm 中两段重复 Object.assign 抽出，单测时易 mock
 function blankFormFields(d) {
-  const empty = { name:'', level:'', certificateNo:'', issuer:'', issueDate:'', expiryDate:'', agency:'', agencyContact:'', certScope:'', certReviewNote:'', subjectType:'', subjectName:'', category:'' }
+  const empty = { name:'', level:'', certificateNo:'', issuer:'', issueDate:'', expiryDate:'', agency:'', agencyContact:'', certScope:'', certReviewNote:'' }
   if (!d?.id) return empty
   return {
     ...empty,
     name: d.name || '', level: d.level || '', certificateNo: d.certificateNo || '',
     issuer: d.issuer || '', issueDate: d.issueDate || '', expiryDate: d.expiryDate || '',
     agency: d.agency || '', agencyContact: d.agencyContact || '',
-    certScope: d.certScope || '', certReviewNote: d.certReviewNote || '',
-    subjectType: d.subjectType || '', subjectName: d.subjectName || '', category: d.category || ''
+    certScope: d.certScope || '', certReviewNote: d.certReviewNote || ''
   }
 }
 

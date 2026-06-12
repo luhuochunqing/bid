@@ -4,7 +4,7 @@
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 import { defineStore } from 'pinia'
-import { getFeaturePlaceholder, isFeatureUnavailableResponse, qualificationsApi } from '@/api'
+import { getFeaturePlaceholder, qualificationsApi } from '@/api'
 
 const qualificationFallbackPlaceholder = {
   title: '资质库暂未接入',
@@ -15,11 +15,8 @@ const qualificationFallbackPlaceholder = {
 export const useQualificationStore = defineStore('qualification', {
   state: () => ({
     qualifications: [],
-    borrowRecords: [],
     listLoading: false,
-    borrowLoading: false,
-    listFeaturePlaceholder: null,
-    borrowFeaturePlaceholder: null
+    listFeaturePlaceholder: null
   }),
 
   actions: {
@@ -58,53 +55,7 @@ export const useQualificationStore = defineStore('qualification', {
       return result
     },
 
-    async loadBorrowRecords(qualificationId = null) {
-      this.borrowLoading = true
-      try {
-        const result = await qualificationsApi.getBorrowRecords(qualificationId)
 
-        if (result?.success) {
-          this.borrowRecords = Array.isArray(result.data) ? result.data : []
-          this.borrowFeaturePlaceholder = null
-          return result
-        }
 
-        this.borrowRecords = []
-        this.borrowFeaturePlaceholder = isFeatureUnavailableResponse(result)
-          ? getFeaturePlaceholder(result)
-          : null
-        return result
-      } finally {
-        this.borrowLoading = false
-      }
-    },
-
-    async submitBorrow(qualificationId, payload) {
-      const result = await qualificationsApi.createBorrow(qualificationId, payload)
-
-      if (result?.success) {
-        await this.loadBorrowRecords()
-        return result
-      }
-
-      this.borrowFeaturePlaceholder = isFeatureUnavailableResponse(result)
-        ? getFeaturePlaceholder(result)
-        : null
-      return result
-    },
-
-    async returnBorrow(recordId) {
-      const result = await qualificationsApi.returnBorrow(recordId)
-
-      if (result?.success) {
-        await this.loadBorrowRecords()
-        return result
-      }
-
-      this.borrowFeaturePlaceholder = isFeatureUnavailableResponse(result)
-        ? getFeaturePlaceholder(result)
-        : null
-      return result
-    }
   }
 })

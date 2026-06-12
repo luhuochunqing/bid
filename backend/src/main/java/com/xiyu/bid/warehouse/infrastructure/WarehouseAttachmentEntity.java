@@ -1,5 +1,6 @@
 package com.xiyu.bid.warehouse.infrastructure;
 
+import com.xiyu.bid.warehouse.domain.WarehouseAttachmentReadModel;
 import com.xiyu.bid.warehouse.domain.WarehouseAttachmentType;
 import jakarta.persistence.*;
 import lombok.*;
@@ -15,7 +16,7 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class WarehouseAttachmentEntity {
+public class WarehouseAttachmentEntity implements WarehouseAttachmentReadModel {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

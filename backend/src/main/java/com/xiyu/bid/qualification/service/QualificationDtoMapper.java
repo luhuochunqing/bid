@@ -1,24 +1,17 @@
 package com.xiyu.bid.qualification.service;
 
-import com.xiyu.bid.businessqualification.application.command.QualificationBorrowCommand;
 import com.xiyu.bid.businessqualification.application.command.QualificationListCriteria;
-import com.xiyu.bid.businessqualification.application.command.QualificationReturnCommand;
 import com.xiyu.bid.businessqualification.application.command.QualificationUpsertCommand;
 import com.xiyu.bid.businessqualification.domain.model.BusinessQualification;
 import com.xiyu.bid.businessqualification.domain.model.QualificationAttachment;
-import com.xiyu.bid.businessqualification.domain.model.QualificationLoan;
 import com.xiyu.bid.businessqualification.domain.service.QualificationExpiryPolicy;
-import com.xiyu.bid.businessqualification.domain.valueobject.LoanStatus;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationCategory;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationStatus;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationSubjectType;
 import com.xiyu.bid.entity.Qualification;
 import com.xiyu.bid.qualification.dto.QualificationAttachmentDTO;
-import com.xiyu.bid.qualification.dto.QualificationBorrowRecordDTO;
-import com.xiyu.bid.qualification.dto.QualificationBorrowRequest;
 import com.xiyu.bid.qualification.dto.QualificationDTO;
 import com.xiyu.bid.qualification.dto.QualificationOverviewDTO;
-import com.xiyu.bid.qualification.dto.QualificationReturnRequest;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -53,7 +46,7 @@ public class QualificationDtoMapper {
                 .agencyContact(dto.getAgencyContact())
                 .certScope(dto.getCertScope())
                 .certReviewNote(dto.getCertReviewNote())
-                .holderName(dto.getHolderName())
+                .holderName(dto.getHolderName() == null ? dto.getHolder() : dto.getHolderName())
                 .retireReason(dto.getRetireReason())
                 .issueDate(dto.getIssueDate())
                 .expiryDate(dto.getExpiryDate())
@@ -64,29 +57,14 @@ public class QualificationDtoMapper {
                 .build();
     }
 
-    public QualificationBorrowCommand toBorrowCommand(QualificationBorrowRequest request) {
-        return QualificationBorrowCommand.builder()
-                .borrower(request.getBorrower())
-                .department(request.getDepartment())
-                .projectId(request.getProjectId())
-                .purpose(request.getPurpose())
-                .expectedReturnDate(request.getExpectedReturnDate())
-                .remark(request.getRemark())
-                .build();
-    }
 
-    public QualificationReturnCommand toReturnCommand(QualificationReturnRequest request) {
-        return QualificationReturnCommand.builder()
-                .returnRemark(request == null ? null : request.getReturnRemark())
-                .build();
-    }
 
     public QualificationListCriteria toCriteria(
             String subjectType,
             String subjectName,
             String category,
+            String level,
             java.util.List<String> status,
-            String borrowStatus,
             Integer expiringWithinDays,
             java.time.LocalDate expiringFrom,
             java.time.LocalDate expiringTo,
@@ -97,8 +75,8 @@ public class QualificationDtoMapper {
                 .subjectType(subjectType)
                 .subjectName(subjectName)
                 .category(category)
+                .level(level)
                 .status(status)
-                .borrowStatus(borrowStatus)
                 .expiringWithinDays(expiringWithinDays)
                 .expiringFrom(expiringFrom)
                 .expiringTo(expiringTo)
@@ -123,45 +101,17 @@ public class QualificationDtoMapper {
                 .certScope(qualification.certScope())
                 .certReviewNote(qualification.certReviewNote())
                 .holderName(qualification.holderName())
+                .holder(qualification.holderName())
                 .issueDate(qualification.validityPeriod().getIssueDate())
                 .expiryDate(qualification.validityPeriod().getExpiryDate())
                 .status(normalizeStatus(qualification.status()))
                 .remainingDays((int) qualification.remainingDays())
                 .alertLevel(expiryPolicy.alertLevel(qualification.status()))
-                .borrowed(qualification.currentBorrowStatus() == LoanStatus.BORROWED)
-                .currentBorrowStatus(qualification.currentBorrowStatus() == null ? null : qualification.currentBorrowStatus().name().toLowerCase())
-                .currentBorrower(qualification.currentBorrower())
-                .currentDepartment(qualification.currentDepartment())
-                .currentProjectId(qualification.currentProjectId())
-                .borrowPurpose(qualification.borrowPurpose())
-                .expectedReturnDate(qualification.expectedReturnDate())
                 .reminderEnabled(qualification.reminderPolicy().isEnabled())
                 .reminderDays(qualification.reminderPolicy().getReminderDays())
                 .retireReason(qualification.retireReason())
                 .fileUrl(qualification.fileUrl())
                 .attachments(qualification.attachments().stream().map(this::toAttachmentDto).toList())
-                .build();
-    }
-
-    public QualificationBorrowRecordDTO toBorrowRecordDto(QualificationLoan loan, BusinessQualification qualification) {
-        return toBorrowRecordDto(loan, qualification.name());
-    }
-
-    public QualificationBorrowRecordDTO toBorrowRecordDto(QualificationLoan loan, String qualificationName) {
-        return QualificationBorrowRecordDTO.builder()
-                .id(loan.getId())
-                .qualificationId(loan.getQualificationId())
-                .qualificationName(qualificationName)
-                .borrower(loan.getBorrower())
-                .department(loan.getDepartment())
-                .projectId(loan.getProjectId())
-                .purpose(loan.getPurpose())
-                .remark(loan.getRemark())
-                .borrowedAt(formatTime(loan.getBorrowedAt()))
-                .expectedReturnDate(loan.getExpectedReturnDate() == null ? null : loan.getExpectedReturnDate().toString())
-                .returnedAt(formatTime(loan.getReturnedAt()))
-                .returnRemark(loan.getReturnRemark())
-                .status(loan.getStatus() == null ? null : loan.getStatus().name().toLowerCase())
                 .build();
     }
 
@@ -179,7 +129,6 @@ public class QualificationDtoMapper {
                 .total(items.size())
                 .expiring(items.stream().filter(item -> "expiring".equals(item.getStatus())).count())
                 .expired(items.stream().filter(item -> "expired".equals(item.getStatus())).count())
-                .borrowed(items.stream().filter(item -> "borrowed".equals(item.getCurrentBorrowStatus())).count())
                 .build();
     }
 

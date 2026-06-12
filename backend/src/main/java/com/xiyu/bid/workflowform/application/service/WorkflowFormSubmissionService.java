@@ -82,12 +82,6 @@ public class WorkflowFormSubmissionService {
         if (!schemaDataResult.valid()) {
             throw new IllegalArgumentException(String.join(";", schemaDataResult.errors()));
         }
-        if (command.businessType() == FormBusinessType.QUALIFICATION_BORROW) {
-            ValidationResult result = FormSubmissionValidator.validateQualificationBorrow(command.formData());
-            if (!result.valid()) {
-                throw new IllegalArgumentException(String.join(";", result.errors()));
-            }
-        }
     }
 
     private void requireAttachmentReferencesOwnedByProject(WorkflowFormSubmitCommand command) {

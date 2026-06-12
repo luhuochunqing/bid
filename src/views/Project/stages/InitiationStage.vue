@@ -24,7 +24,7 @@
 </el-form-item>
 <template v-if="form.needDeposit === 'YES'">
   <div class="grid-2">
-    <el-form-item label="保证金金额" required><el-input-number v-model="form.depositAmount" :min="0" :precision="2" /></el-form-item>
+    <el-form-item label="保证金金额（万）" required><el-input-number v-model="form.depositAmount" :min="0" :precision="2" /></el-form-item>
     <el-form-item label="保证金缴纳方式" required>
       <el-select v-model="form.depositPaymentMethod">
         <el-option label="电汇" value="WIRE" />
@@ -45,18 +45,25 @@
 </div>
 <el-form-item label="招标文件不利项"><el-input v-model="form.tenderAdverseItems" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
 <el-form-item label="风险预判"><el-input v-model="form.riskAssessment" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
-<el-form-item label="项目经理综合评估是否有兜底方案"><el-input v-model="form.riskMitigationPlan" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
+<el-form-item label="项目经理综合评估是否有兜底方案"><el-switch :model-value="form.riskMitigationPlan === '是'" @update:model-value="form.riskMitigationPlan = $event ? '是' : '否'" /></el-form-item>
 <el-form-item label="项目经理是否了解评标全流程"><el-input v-model="form.pmUnderstandsProcess" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
 <el-form-item label="需要的支持及其他关键信息备注"><el-input v-model="form.supportNeeded" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
-<el-form-item label="项目计划GAP"><el-input v-model="form.projectPlanGap" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
+<el-form-item label="项目计划GAP">
+    <el-input v-model="form.projectPlanGap" type="textarea" :rows="3" maxlength="5000" />
+    <el-upload v-model:file-list="planGapFiles" :action="planGapUploadUrl" :headers="planGapUploadHeaders" :before-upload="beforePlanGapUpload" :on-success="onPlanGapUploadSuccess" :on-remove="onPlanGapFileRemove" :disabled="!props.projectId || props.projectId === 'new'" multiple drag accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" :limit="5" style="margin-top:8px">
+      <el-button size="small" type="primary">上传附件</el-button>
+      <template #tip><div class="el-upload__tip">支持拖拽上传，最多5个文件，单个不超过10MB</div></template>
+    </el-upload>
+  </el-form-item>
 </el-form></el-card>
 <el-card class="section-card" shadow="never">
 <template #header><span>客户信息</span></template>
 <div class="customer-table-wrapper">
-<el-table :data="custFixedRows" border style="min-width:3200px" height="500">
+<el-table :data="custFixedRows" border style="min-width:3360px" height="500">
 <!-- 列顺序、标签、控件类型对齐 customerInfoMatrixConfig.js -->
 <el-table-column label="客户信息（角色名）" width="170" fixed="left"><template #default="{row}"><span class="role-label">{{ row.role }}</span></template></el-table-column>
 <el-table-column label="姓名" width="120"><template #default="{row}"><el-input v-model="row.name" size="small" placeholder="请输入姓名" /></template></el-table-column>
+<el-table-column label="联系方式" width="160"><template #default="{row}"><el-input v-model="row.contactInfo" size="small" placeholder="手机号/电话/邮箱" /></template></el-table-column>
 <el-table-column label="职位" width="140"><template #default="{row}"><el-select v-model="row.position" size="small" placeholder="请选择"><el-option v-for="o in POSITION_OPTIONS" :key="o" :label="o" :value="o" /></el-select></template></el-table-column>
 <el-table-column label="西域项目负责人" width="130"><template #default="{row}"><el-input v-model="row.xiyuContact" size="small" placeholder="请输入负责人" /></template></el-table-column>
 <el-table-column label="触达方式" width="120"><template #default="{row}"><el-select v-model="row.reachMethod" size="small" placeholder="请选择"><el-option v-for="o in CONTACT_METHOD_OPTIONS" :key="o" :label="o" :value="o" /></el-select></template></el-table-column>
@@ -169,6 +176,7 @@
 import { ref, reactive, computed, onMounted, shallowRef } from 'vue'
 import { ElMessage } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
+import { getApiUrl } from '@/api/config.js'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
 import { usersApi } from '@/api/modules/users.js'
 import { tendersApi } from '@/api/modules/tenders.js'
@@ -182,14 +190,19 @@ const props = defineProps({ projectId: { type: [String, Number], required: true 
 const emit = defineEmits(['updated'])
 const userStore = useUserStore()
 const adaptiveForm = shallowRef(null)
-const form = reactive({ projectName: '', ownerUnit: '', createTime: new Date().toISOString().slice(0, 16).replace('T', ' '), projectType: '', customerType: '', priorityLevel: 'B', headquartersLocation: '', projectLeaderName: '', projectLeaderUserId: null, leaderDepartment: '', contactName: '', contactPhone: '', contactTel: '', contactMail: '', contactName2: '', contactPhone2: '', contactTel2: '', contactMail2: '', tenderId: null, expectedBidders: 0, annualEcommerceAmount: 0, annualRevenue: 0, customerRevenue: 0, bidOpenTime: '', bidMonth: '', biddingPlatform: '', needDeposit: 'NO', depositAmount: 0, depositPaymentMethod: '', tenderAdverseItems: '', riskAssessment: '', riskMitigationPlan: '', pmUnderstandsProcess: '', supportNeeded: '', projectPlanGap: '', tenderDocumentId: null, aiRiskLevel: null, aiRiskAssessmentNotes: '', biddingLeaderName: '', biddingAssistantName: '' })
+const form = reactive({ projectName: '', ownerUnit: '', createTime: new Date().toISOString().slice(0, 16).replace('T', ' '), projectType: '', customerType: '', priorityLevel: 'B', headquartersLocation: '', projectLeaderName: '', projectLeaderUserId: null, leaderDepartment: '', contactName: '', contactPhone: '', contactTel: '', contactMail: '', contactName2: '', contactPhone2: '', contactTel2: '', contactMail2: '', tenderId: null, expectedBidders: 0, annualEcommerceAmount: 0, annualRevenue: 0, customerRevenue: 0, bidOpenTime: '', bidMonth: '', biddingPlatform: '', needDeposit: 'NO', depositAmount: 0, depositPaymentMethod: '', tenderAdverseItems: '', riskAssessment: '', riskMitigationPlan: '', pmUnderstandsProcess: '', supportNeeded: '', projectPlanGap: '', projectPlanGapFiles: [], tenderDocumentId: null, aiRiskLevel: null, aiRiskAssessmentNotes: '', biddingLeaderName: '', biddingAssistantName: '' })
 // 与 customerInfoMatrixConfig.js CUSTOMER_INFO_ROWS 对齐（14 行）
 const CUST_ROLES = ["项目最高决策人","物资公司董事长","物资公司分管电商领导","电商公司董事长","电商公司总经理","电商公司副总经理","电商公司运营负责人","招标文件制作人","其他关键决策人1","其他关键决策人2","其他关键决策人3","专家1","专家2","专家3"]
-function emptyCustRow(role) { return { role, name: '', position: '', xiyuContact: '', reached: '', reachMethod: '', preference: '', preferenceBasis: '', hasHighLevelMeeting: '', guideBid: '', canGetKeyInfo: '', canRemoveAdverse: '', isKeyTarget: '', canSyncEval: '', canConfirmWin: '', winRateImpact: '' } }
+function emptyCustRow(role) { return { role, name: '', contactInfo: '', position: '', xiyuContact: '', reached: '', reachMethod: '', preference: '', preferenceBasis: '', hasHighLevelMeeting: '', guideBid: '', canGetKeyInfo: '', canRemoveAdverse: '', isKeyTarget: '', canSyncEval: '', canConfirmWin: '', winRateImpact: '' } }
 const POSITION_OPTIONS = ['董事长','总经理','副总经理','部门负责人','项目负责人','采购负责人','技术负责人','财务负责人','法务负责人','评标专家','经办人','外部顾问','其他决策人','其他']
 const CONTACT_METHOD_OPTIONS = ['电话','微信','邮件','拜访','会议','第三方引荐','未触达']
 const IMPACT_OPTIONS = [{ label: '极高', value: 'VERY_HIGH' },{ label: '高', value: 'HIGH' },{ label: '中', value: 'MEDIUM' },{ label: '低', value: 'LOW' },{ label: '极低', value: 'VERY_LOW' },{ label: '无影响', value: 'NONE' }]
-const custFixedRows = ref(CUST_ROLES.map(emptyCustRow)); const bidDocFiles = ref([]); const existing = ref(false); const fieldLocked = ref(false); const submitting = ref(false); const saving = ref(false); const approving = ref(false); const rejecting = ref(false); const aiAssessing = ref(false); const uploadingDoc = ref(false); const errorMsg = ref(''); const reviewStatus = ref('')
+const custFixedRows = ref(CUST_ROLES.map(emptyCustRow)); const bidDocFiles = ref([]); const planGapFiles = ref([]); const existing = ref(false);
+const planGapUploadUrl = computed(() => getApiUrl(`/api/projects/${props.projectId}/documents`))
+const planGapUploadHeaders = computed(() => { const t = userStore?.token; return t ? { Authorization: 'Bearer ' + t } : {} })
+function beforePlanGapUpload(file) { const max = 10 * 1024 * 1024; if (file.size > max) { ElMessage.error('文件不能超过10MB'); return false } return true }
+function onPlanGapUploadSuccess(res) { if (res?.data) { form.projectPlanGapFiles.push(res.data); ElMessage.success('附件上传成功') } }
+function onPlanGapFileRemove(file) { const idx = (form.projectPlanGapFiles || []).findIndex(f => f.id === file.id || f.uid === file.uid); if (idx !== -1) { form.projectPlanGapFiles.splice(idx, 1) } } const fieldLocked = ref(false); const submitting = ref(false); const saving = ref(false); const approving = ref(false); const rejecting = ref(false); const aiAssessing = ref(false); const uploadingDoc = ref(false); const errorMsg = ref(''); const reviewStatus = ref('')
 // locked = reviewStatus 推导，不依赖 API 响应（后端 submit 可能未设 locked=true）
 const locked = computed(() => reviewStatus.value === 'PENDING_REVIEW' || reviewStatus.value === 'APPROVED')
 // 审批模式：投标管理员/组长 查看 PENDING_REVIEW 的立项；改用 roleCode 以匹配 bid_admin 等新角色值

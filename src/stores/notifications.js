@@ -23,7 +23,6 @@ export const useNotificationStore = defineStore('notifications', {
         this.unreadCount = result.count ?? 0
       } catch (err) {
         this.unreadCount = 0
-        throw err
       }
     },
 

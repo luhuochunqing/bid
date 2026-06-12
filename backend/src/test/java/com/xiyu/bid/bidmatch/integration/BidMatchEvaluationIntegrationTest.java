@@ -12,7 +12,6 @@ import com.xiyu.bid.bidmatch.infrastructure.persistence.repository.BidMatchScore
 import com.xiyu.bid.bidmatch.infrastructure.persistence.repository.BidMatchScoringModelJpaRepository;
 import com.xiyu.bid.bidresult.entity.BidResultFetchResult;
 import com.xiyu.bid.bidresult.repository.BidResultFetchResultRepository;
-import com.xiyu.bid.businessqualification.domain.valueobject.LoanStatus;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationCategory;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationStatus;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationSubjectType;
@@ -222,7 +221,7 @@ class BidMatchEvaluationIntegrationTest {
                 .status(QualificationStatus.VALID)
                 .reminderEnabled(true)
                 .reminderDays(30)
-                .currentBorrowStatus(LoanStatus.AVAILABLE)
+                
                 .build();
     }
 

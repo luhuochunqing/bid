@@ -2,9 +2,7 @@ package com.xiyu.bid.casework.domain.policy;
 
 import com.xiyu.bid.casework.domain.model.KnowledgeCaseMatchCriteria;
 import com.xiyu.bid.casework.domain.model.KnowledgeCaseMatchScore;
-import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
-
-import org.springframework.stereotype.Component;
+import com.xiyu.bid.casework.domain.model.KnowledgeCaseReadModel;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,9 +27,7 @@ import java.util.stream.Collectors;
  *   <li>中标案例加成：+5 分</li>
  * </ul>
  */
-import org.springframework.stereotype.Component;
 
-@Component
 public class KnowledgeCaseMatchPolicy {
 
     private static final int MAX_TITLE_SCORE = 40;
@@ -50,7 +46,7 @@ public class KnowledgeCaseMatchPolicy {
      * @param criteria  匹配条件
      * @return 评分结果（包含分数、标签、原因、高亮文本）
      */
-    public KnowledgeCaseMatchScore score(KnowledgeCase candidate, KnowledgeCaseMatchCriteria criteria) {
+    public KnowledgeCaseMatchScore score(KnowledgeCaseReadModel candidate, KnowledgeCaseMatchCriteria criteria) {
         int score = 0;
         List<String> reasons = new ArrayList<>();
 
@@ -148,7 +144,7 @@ public class KnowledgeCaseMatchPolicy {
         return (int) Math.round(jaccard * MAX_TITLE_SCORE);
     }
 
-    private int calculateKeywordOverlap(String keyword, KnowledgeCase candidate) {
+    private int calculateKeywordOverlap(String keyword, KnowledgeCaseReadModel candidate) {
         if (!hasText(keyword)) {
             return 0;
         }

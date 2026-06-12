@@ -1,5 +1,6 @@
 package com.xiyu.bid.warehouse.infrastructure;
 
+import com.xiyu.bid.warehouse.domain.WarehouseReadModel;
 import com.xiyu.bid.warehouse.domain.WarehouseStatus;
 import com.xiyu.bid.warehouse.domain.WarehouseType;
 import jakarta.persistence.*;
@@ -14,7 +15,7 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class WarehouseEntity {
+public class WarehouseEntity implements WarehouseReadModel {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

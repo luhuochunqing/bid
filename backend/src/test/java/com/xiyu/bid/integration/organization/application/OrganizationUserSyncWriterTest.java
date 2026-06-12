@@ -4,6 +4,7 @@ import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
 import com.xiyu.bid.integration.organization.infrastructure.mapper.PositionToRoleMapper;
+import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationDepartmentRepository;
 import com.xiyu.bid.repository.RoleProfileRepository;
 import com.xiyu.bid.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +31,8 @@ class OrganizationUserSyncWriterTest {
     private UserRepository userRepository;
     @Mock
     private RoleProfileRepository roleProfileRepository;
+    @Mock
+    private OrganizationDepartmentRepository organizationDepartmentRepository;
 
     private OrganizationUserSyncWriter writer;
 
@@ -37,7 +40,7 @@ class OrganizationUserSyncWriterTest {
     void setUp() {
         OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();
         PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
-        writer = new OrganizationUserSyncWriter(userRepository, roleProfileRepository, properties, positionToRoleMapper);
+        writer = new OrganizationUserSyncWriter(userRepository, organizationDepartmentRepository, roleProfileRepository, properties, positionToRoleMapper);
     }
 
     @Test

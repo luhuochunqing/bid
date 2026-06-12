@@ -241,13 +241,6 @@ public class QualificationExpiryNotificationService {
                 e.getCertificateNo(), e.getIssuer(), e.getAgency(), e.getAgencyContact(),
                 e.getCertScope(), e.getCertReviewNote(), e.getHolderName(),
                 validity, policy,
-                e.getCurrentBorrowStatus() == null
-                        ? com.xiyu.bid.businessqualification.domain.valueobject.LoanStatus.AVAILABLE
-                        : e.getCurrentBorrowStatus(),
-                e.getCurrentBorrower(), e.getCurrentDepartment(),
-                // 当前提醒流程不关心借阅项目归属，强制 null 避免污染模板。
-                null,
-                e.getBorrowPurpose(), e.getExpectedReturnDate(),
                 e.getFileUrl(), e.getRetireReason(), java.util.List.of()
         );
     }

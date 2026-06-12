@@ -51,21 +51,21 @@ html:not([data-keyboard-nav="true"]) .el-textarea__inner:focus {
 }
 
 /* ========== 搜索表单字段宽度预设（避免 el-form-item 撑满整行） ========== */
-/* 搜索卡片内联表单中 el-form-item 的宽度预设，flex 固定宽度 + min/max 约束，防止换行错位。 */
-/* 标准字段 168px，关键词与标准一致，datetime 占 2 列（168*2 + 24gap = 360px） */
-.search-field { flex: 0 0 168px; width: 168px; min-width: 168px; max-width: 168px; }
-.search-field--keyword { flex: 0 0 168px; width: 168px; min-width: 168px; max-width: 168px; }
-.search-field--date { flex: 0 0 260px; width: 260px; min-width: 260px; max-width: 260px; }
-/* datetime（含时分秒）标签较长，需 360px 才能完整显示，2 列对齐 */
-.search-field--datetime { flex: 0 0 360px; width: 360px; min-width: 360px; max-width: 360px; }
+/* 搜索卡片内联表单中 el-form-item 的宽度预设，nowrap 一行排列，超出横向滚动。 */
+/* 标准字段 130px，关键词 180px，日期 200px，datetime 240px */
+.search-field { flex: 0 0 130px; width: 130px; min-width: 130px; max-width: 130px; }
+.search-field--keyword { flex: 0 0 180px; width: 180px; min-width: 180px; max-width: 180px; }
+.search-field--date { flex: 0 0 200px; width: 200px; min-width: 200px; max-width: 200px; }
+/* datetime（含时分秒）标签较长 */
+.search-field--datetime { flex: 0 0 240px; width: 240px; min-width: 240px; max-width: 240px; }
 .search-actions { flex: 0 0 auto; }
 
 /* 宽屏自适应：字段弹性增长，减少两侧留白 */
 @media (min-width: 1441px) {
-  .search-field { flex: 1 1 168px; max-width: 220px; }
-  .search-field--keyword { flex: 1 1 168px; max-width: 240px; }
-  .search-field--date { flex: 1 1 260px; max-width: 320px; }
-  .search-field--datetime { flex: 1 1 360px; max-width: 420px; }
+  .search-field { flex: 1 1 130px; max-width: 200px; }
+  .search-field--keyword { flex: 1 1 180px; max-width: 260px; }
+  .search-field--date { flex: 1 1 200px; max-width: 280px; }
+  .search-field--datetime { flex: 1 1 240px; max-width: 340px; }
 }
 
 @media (max-width: 768px) {

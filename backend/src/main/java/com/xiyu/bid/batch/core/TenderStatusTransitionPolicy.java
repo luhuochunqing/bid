@@ -30,6 +30,15 @@ public final class TenderStatusTransitionPolicy {
         }
     }
 
+    /** 纯核心推荐：返回验证错误而非抛出异常 */
+    public static java.util.Optional<String> validateTransition(Tender.Status currentStatus, Tender.Status targetStatus) {
+        if (!canTransition(currentStatus, targetStatus)) {
+            return java.util.Optional.of(
+                    String.format("Tender status cannot transition from %s to %s", currentStatus, targetStatus));
+        }
+        return java.util.Optional.empty();
+    }
+
     private static Set<Tender.Status> allowedTargets(Tender.Status currentStatus) {
         return switch (currentStatus) {
             case PENDING_ASSIGNMENT -> EnumSet.of(Tender.Status.TRACKING, Tender.Status.ABANDONED);

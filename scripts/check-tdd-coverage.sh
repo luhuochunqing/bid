@@ -137,7 +137,7 @@ while IFS= read -r file; do
   if [[ "$file" == src/components/*.vue ]] || [[ "$file" == src/utils/*.js ]] || [[ "$file" == src/stores/*.js ]] || [[ "$file" == src/composables/*.js ]]; then
     TEST_PATH=$(frontend_to_test "$file" 2>/dev/null || true)
     if [ -n "$TEST_PATH" ] && [ ! -f "$TEST_PATH" ]; then
-      MISSING_TESTS+=("$file  →  预期测试: $TEST_PATH（不存在）")
+      MISSING_TESTS+=("$file  →  预期测试: ${TEST_PATH}（不存在）")
     fi
   fi
 

@@ -3,9 +3,7 @@ package com.xiyu.bid.templatecatalog.domain.service;
 import com.xiyu.bid.templatecatalog.domain.valueobject.DocumentType;
 import com.xiyu.bid.templatecatalog.domain.valueobject.IndustryType;
 import com.xiyu.bid.templatecatalog.domain.valueobject.ProductType;
-import org.springframework.stereotype.Component;
 
-@Component
 public class TemplateClassificationPolicy {
 
     public TemplateCatalogValidationResult validateComplete(

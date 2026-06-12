@@ -3,11 +3,9 @@ package com.xiyu.bid.integration.organization.domain;
 import com.xiyu.bid.platform.async.application.AsyncDecisionResolver;
 import com.xiyu.bid.platform.async.domain.AsyncFailureKind;
 import com.xiyu.bid.platform.async.domain.ExponentialBackoffRetrySchedule;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 
-@Component
 public class OrganizationDirectoryRetryPolicy {
     private static final int BASE_DELAY_SECONDS = 5 * 60;
     private static final int MAX_DELAY_SECONDS = 60 * 60;

@@ -45,4 +45,23 @@ public final class BatchValidationPolicy {
             throw new IllegalArgumentException(message);
         }
     }
+
+    /** 纯核心推荐：返回验证错误而非抛出异常 */
+    public static java.util.Optional<String> validateBatchInputReturnError(List<?> ids, String fieldName) {
+        if (ids == null) return java.util.Optional.of(fieldName + " cannot be null");
+        if (ids.isEmpty()) return java.util.Optional.of(fieldName + " cannot be empty");
+        if (ids.size() > MAX_BATCH_SIZE) return java.util.Optional.of("Batch size exceeds maximum allowed size of " + MAX_BATCH_SIZE);
+        return java.util.Optional.empty();
+    }
+
+    public static java.util.Optional<String> validateUserIdReturnError(Long userId) {
+        if (userId == null) return java.util.Optional.of("User ID cannot be null");
+        if (userId <= 0) return java.util.Optional.of("User ID must be positive");
+        return java.util.Optional.empty();
+    }
+
+    public static java.util.Optional<String> validateUserRoleReturnError(User.Role userRole) {
+        if (userRole == null) return java.util.Optional.of("User role cannot be null");
+        return java.util.Optional.empty();
+    }
 }

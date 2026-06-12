@@ -19,6 +19,10 @@ public class OrganizationIntegrationProperties {
     private List<String> adminRoleCodes = new ArrayList<>();
     private List<String> managerRoleCodes = new ArrayList<>();
     private List<PositionToRoleMapping> positionToRoleMappings = new ArrayList<>();
+    /** 按人员映射：通过员工邮箱/工号精确匹配 */
+    private List<PersonToRoleMapping> personToRoleMappings = new ArrayList<>();
+    /** 按部门映射：通过部门名称正则匹配 */
+    private List<DepartmentToRoleMapping> departmentToRoleMappings = new ArrayList<>();
     private Directory directory = new Directory();
     private EventSdk eventSdk = new EventSdk();
     private Retry retry = new Retry();
@@ -28,6 +32,10 @@ public class OrganizationIntegrationProperties {
     public static class EventSdk {
         private boolean enabled = false;
         private String consumerGroup = "bms";
+        /** 对外上报的主机地址/IP，默认空则使用 InetAddress.getLocalHost()，如 172.16.38.78 */
+        private String advertisedHost = "";
+        /** 对外上报的端口，0 则使用 server.port，如 8080 */
+        private int advertisedPort = 0;
     }
 
     @Data
@@ -48,6 +56,40 @@ public class OrganizationIntegrationProperties {
         private int connectTimeoutMs = 3000;
         private int readTimeoutMs = 5000;
     }
+
+    @Data
+    public static class PersonToRoleMapping {
+        /** 人员标识：西域员工邮箱或工号 */
+        private String personIdentifier = "";
+        /** 匹配后赋予的投标系统角色码，如 bid_admin、bid_lead、staff */
+        private String roleCode = "";
+
+        /** 判断此标识是否匹配给定值（忽略大小写、前后空白） */
+        public boolean matches(String value) {
+            if (value == null || value.isBlank()) {
+                return false;
+            }
+            return value.trim().equalsIgnoreCase(personIdentifier.trim());
+        }
+    }
+
+    @Data
+    public static class DepartmentToRoleMapping {
+        /** 部门名称正则表达式，如 "投标管理部"、"行政部" */
+        private String departmentPattern = "";
+        /** 匹配后赋予的投标系统角色码 */
+        private String roleCode = "";
+
+        /** 判断此部门名称是否匹配正则 */
+        public boolean matches(String departmentName) {
+            if (departmentName == null || departmentName.isBlank()
+                    || departmentPattern == null || departmentPattern.isBlank()) {
+                return false;
+            }
+            return java.util.regex.Pattern.compile(departmentPattern).matcher(departmentName).find();
+        }
+    }
+
 
     @Data
     public static class PositionToRoleMapping {
