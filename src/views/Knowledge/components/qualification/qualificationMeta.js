@@ -102,10 +102,4 @@ export function getTypeLabel(type) {
   return qualificationTypeLabels[type] || type
 }
 
-export function getPurposeLabel(purpose) {
-  return borrowPurposeLabels[purpose] || purpose
-}
 
-export function getBorrowStatusLabel(status) {
-  return borrowStatusLabels[status] || status
-}

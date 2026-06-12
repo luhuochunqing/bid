@@ -135,12 +135,9 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
             }
             if (criteria.getCategory() != null && !criteria.getCategory().isBlank()) {
                 predicates.add(cb.equal(cb.upper(root.get("category")), criteria.getCategory().toUpperCase(Locale.ROOT)));
-            }
+}
             if (criteria.getLevel() != null && !criteria.getLevel().isBlank()) {
                 predicates.add(cb.equal(cb.upper(root.get("level")), criteria.getLevel().toUpperCase(Locale.ROOT)));
-            }
-            if (criteria.getBorrowStatus() != null && !criteria.getBorrowStatus().isBlank()) {
-                predicates.add(cb.equal(cb.upper(root.get("currentBorrowStatus")), criteria.getBorrowStatus().toUpperCase(Locale.ROOT)));
             }
             if (criteria.getExpiringFrom() != null) {
                 predicates.add(cb.greaterThanOrEqualTo(root.get("expiryDate"), criteria.getExpiringFrom()));
@@ -222,14 +219,7 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
                 .status(qualification.status())
                 .reminderEnabled(qualification.reminderPolicy().isEnabled())
                 .reminderDays(qualification.reminderPolicy().getReminderDays())
-                .lastRemindedAt(qualification.reminderPolicy().getLastRemindedAt())
-                .currentBorrowStatus(qualification.currentBorrowStatus())
-                .currentBorrower(qualification.currentBorrower())
-                .currentDepartment(qualification.currentDepartment())
-                .currentProjectId(qualification.currentProjectId())
-                .borrowPurpose(qualification.borrowPurpose())
-                .expectedReturnDate(qualification.expectedReturnDate())
-                .fileUrl(qualification.fileUrl())
+                .lastRemindedAt(qualification.reminderPolicy().getLastRemindedAt())                .fileUrl(qualification.fileUrl())
                 .retireReason(qualification.retireReason())
                 .retired(qualification.retired())
                 .build();
@@ -255,12 +245,6 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
                         entity.getReminderDays(),
                         entity.getLastRemindedAt()
                 ),
-                entity.getCurrentBorrowStatus(),
-                entity.getCurrentBorrower(),
-                entity.getCurrentDepartment(),
-                entity.getCurrentProjectId(),
-                entity.getBorrowPurpose(),
-                entity.getExpectedReturnDate(),
                 entity.getFileUrl(),
                 entity.getRetireReason(),
                 entity.isRetired(),

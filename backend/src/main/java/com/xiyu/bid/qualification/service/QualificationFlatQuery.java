@@ -20,7 +20,7 @@ public class QualificationFlatQuery {
 
     public List<QualificationDTO> listAll(String keyword, List<String> status) {
         return listQualificationsAppService.list(
-                mapper.toCriteria(null, null, null, null, status, null, null, null, null, null, keyword)
+                mapper.toCriteria(null, null, null, null, status, null, null, null, null, keyword)
         ).stream().map(mapper::toDto).toList();
     }
 }

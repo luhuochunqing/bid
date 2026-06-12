@@ -1,6 +1,5 @@
 package com.xiyu.bid.businessqualification.infrastructure.persistence.entity;
 
-import com.xiyu.bid.businessqualification.domain.valueobject.LoanStatus;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationCategory;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationStatus;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationSubjectType;
@@ -97,26 +96,7 @@ public class BusinessQualificationEntity {
     @Column(name = "last_reminded_at")
     private LocalDateTime lastRemindedAt;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "current_borrow_status", nullable = false, length = 32)
-    private LoanStatus currentBorrowStatus;
-
-    @Column(name = "current_borrower", length = 120)
-    private String currentBorrower;
-
-    @Column(name = "current_department", length = 120)
-    private String currentDepartment;
-
-    @Column(name = "current_project_id", length = 64)
-    private String currentProjectId;
-
-    @Column(name = "borrow_purpose", length = 255)
-    private String borrowPurpose;
-
-    @Column(name = "expected_return_date")
-    private LocalDate expectedReturnDate;
-
-    @Column(name = "file_url", length = 500)
+@Column(name = "file_url", length = 500)
     private String fileUrl;
 
     @Column(name = "created_at", nullable = false, updatable = false)

@@ -9,15 +9,6 @@ public final class FormSubmissionValidator {
     private FormSubmissionValidator() {
     }
 
-    public static ValidationResult validateQualificationBorrow(Map<String, ?> values) {
-        List<String> errors = new ArrayList<>();
-        requirePresent(values, "qualificationId", "请选择资质", errors);
-        requirePresent(values, "borrower", "请填写借用人", errors);
-        requirePresent(values, "projectId", "请选择项目", errors);
-        requirePresent(values, "purpose", "请填写用途", errors);
-        requirePresent(values, "expectedReturnDate", "请选择预计归还日期", errors);
-        return errors.isEmpty() ? ValidationResult.ok() : ValidationResult.invalid(errors);
-    }
 
     public static ValidationResult validate(FormSchema schema, Map<String, ?> values) {
         List<String> errors = new ArrayList<>();

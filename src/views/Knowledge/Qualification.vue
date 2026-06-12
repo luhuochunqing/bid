@@ -79,11 +79,6 @@
         <el-table-column prop="expiryDate" label="证书有效期" width="130">
           <template #default="scope"><el-tag :type="getStatusTagType(scope.row)">{{ scope.row.expiryDate || '—' }}</el-tag></template>
         </el-table-column>
-        <el-table-column label="借阅状态" width="120" align="center">
-          <template #default="scope">
-            <el-tag :type="getBorrowStatusTagType(scope.row.currentBorrowStatus)">{{ getBorrowStatusLabel(scope.row.currentBorrowStatus) }}</el-tag>
-          </template>
-        </el-table-column>
         <el-table-column label="状态" width="100" align="center">
           <template #default="scope">
             <el-tag :type="getStatusTagType(scope.row)" :class="{ 'retired-tag': (scope.row.status || '').toLowerCase() === 'retired' }">{{ statusLabel(scope.row.status) }}</el-tag>
@@ -92,8 +87,6 @@
         <el-table-column label="操作" width="260" fixed="right" align="center">
           <template #default="scope">
             <el-button v-if="scope.row.fileUrl" link type="primary" size="small" @click.stop="handleDownload(scope.row)">下载</el-button>
-            <el-button v-if="canViewQualification" link type="warning" size="small" @click.stop="openBorrow(scope.row)">借阅</el-button>
-            <el-button v-if="canViewQualification" link type="info" size="small" @click.stop="openBorrowHistory(scope.row)">记录</el-button>
             <el-button v-if="canManageQualification && (scope.row.status || '').toLowerCase() !== 'retired'" link type="primary" size="small" @click.stop="openEdit(scope.row)">编辑</el-button>
             <el-button v-if="canManageQualification && (scope.row.status || '').toLowerCase() !== 'retired'" link type="danger" size="small" @click.stop="handleRetire(scope.row)">下架</el-button>
             <el-button v-if="canManageQualification && (scope.row.status || '').toLowerCase() === 'retired'" link type="success" size="small" @click.stop="handleRestore(scope.row)">恢复</el-button>
@@ -111,15 +104,6 @@
       </el-empty>
     </el-card>
 
-    <el-card v-if="canViewQualification" class="borrow-history-wrap" shadow="never">
-      <QualificationBorrowHistoryCard
-        :loading="borrowLoading"
-        :records="borrowRecords"
-        :feature-placeholder="borrowFeaturePlaceholder"
-        @create="openBorrowFromHistory"
-        @return="handleReturnBorrow"
-      />
-    </el-card>
 
     <QualFormDialog v-model="formVisible" :initial-data="editData" :status="editData?.status" @saved="handleFormSaved" />
     <AlertConfigDialog v-model="alertConfigVisible" />
@@ -142,14 +126,6 @@
       :current-file-name="replaceCurrentFileName"
       @success="handleAttachmentActionSuccess"
     />
-    <QualificationBorrowDialog
-      v-model="borrowApplyDialogVisible"
-      :form="borrowForm"
-      :schema="borrowFormSchema"
-      :qualification="currentBorrowQualification"
-      :feature-placeholder="borrowFeaturePlaceholder"
-      @confirm="submitBorrowApplication"
-    />
 
     <ImportResultDialog
       v-model="importResultVisible"
@@ -168,28 +144,6 @@
       @closed="retireTarget = null"
     />
 
-    <el-dialog v-model="borrowDialogVisible" title="安全审计" width="450px">
-      <el-alert title="该资质证书为敏感机密件" type="warning" description="系统将校验借阅权限。操作将被审计。" show-icon :closable="false" class="mb-4" />
-      <el-form><el-form-item label="关联项目ID"><el-input v-model="currentProjectId" placeholder="请输入投标项目ID" /></el-form-item></el-form>
-      <template #footer>
-        <el-button @click="borrowDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="checkingBorrow" @click="confirmBorrowCheck">验证并查看</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 导入结果报告 -->
-    <ImportResultDialog
-      v-model="importResultVisible"
-      :data="importResultData"
-      @closed="handleImportResultClosed"
-    />
-
-    <!-- 批量关联附件结果 -->
-    <BatchAttachResultDialog
-      v-model="attachResultVisible"
-      :data="attachResultData"
-      @closed="handleAttachResultClosed"
-    />
   </div>
 </template>
 
@@ -199,20 +153,14 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Upload, Document, Download } from '@element-plus/icons-vue'
 import http from '@/api/client'
 import { useQualificationBatch } from './components/qualification/useQualificationBatch.js'
-import { getBorrowStatusLabel, borrowStatusTagTypes } from './components/qualification/qualificationMeta.js'
 import { useQualificationStore } from '@/stores/qualification'
 import { useUserStore } from '@/stores/user.js'
 import QualFormDialog from './components/qualification/QualFormDialog.vue'
 import AlertConfigDialog from './components/qualification/AlertConfigDialog.vue'
 import AttachmentReplaceDialog from './components/qualification/AttachmentReplaceDialog.vue'
-import QualificationBorrowDialog from './components/qualification/QualificationBorrowDialog.vue'
-import QualificationBorrowHistoryCard from './components/qualification/QualificationBorrowHistoryCard.vue'
 import ImportResultDialog from './components/qualification/ImportResultDialog.vue'
 import BatchAttachResultDialog from './components/qualification/BatchAttachResultDialog.vue'
-import {
-  useQualificationBorrowSection,
-  useQualificationPermissionMatrix
-} from './components/qualification/useQualificationBorrowSection.js'
+import { useQualificationPermissionMatrix, useQualificationBorrowSection } from './components/qualification/useQualificationBorrowSection.js'
 import QualDetailDrawer from './components/qualification/QualDetailDrawer.vue'
 import RetireConfirmDialog from './components/qualification/RetireConfirmDialog.vue'
 
@@ -232,41 +180,15 @@ const statusOptions = [{ label:'在库', value:'VALID' },{ label:'即将到期',
 const STATUS_LABELS ={ in_stock:'在库', valid:'在库', expiring:'即将到期', expired:'已过期', retired:'已下架' }
 
 const hasFilterActive = computed(() => filters.keyword || filters.issuer || filters.expiryRange || filters.statuses.length || filters.level)
-const emptyDescription = computed(() => {
-  if (!canViewQualification.value) return '暂无权限查看资质证书'
-  return '暂无资质证书，点击右上角新增'
-})
-
 const formVisible = ref(false); const editData = ref(null)
 const retireDialogVisible = ref(false)
 const retireTarget = ref(null)
 const {
   alertConfigVisible,
   scanningExpiring,
-  borrowDialogVisible,
-  currentProjectId,
-  checkingBorrow,
-  borrowApplyDialogVisible,
-  currentBorrowQualification,
-  borrowFormSchema,
-  borrowForm,
-  borrowRecords,
-  borrowLoading,
-  borrowFeaturePlaceholder,
-  loadBorrowRecords,
-  openBorrow,
-  openBorrowFromHistory,
-  openBorrowHistory,
-  submitBorrowApplication,
-  handleReturnBorrow,
-  handleDownload,
-  confirmBorrowCheck,
   handleScanExpiring
 } = useQualificationBorrowSection({
-  qualificationStore,
-  httpClient: http,
-  canViewQualification,
-  qualificationsRef: qualifications
+  httpClient: http
 })
 
 const fetchQualifications = async () => {
@@ -329,7 +251,6 @@ const {
 
 const resetFilters = () => { Object.assign(filters, { keyword:'', issuer:'', expiryRange:null, statuses:[], level:'' }); page.value = 1; fetchQualifications() }
 const getStatusTagType = (row) => { const s = (row.status || '').toLowerCase(); if (s === 'in_stock' || s === 'valid') return 'success'; if (s === 'expiring') return 'warning'; if (s === 'expired') return 'danger'; return 'info' }
-const getBorrowStatusTagType = (status) => borrowStatusTagTypes[status] || 'info'
 const statusLabel = (s) => STATUS_LABELS[(s || '').toLowerCase()] || s || '—'
 const openEdit = (row) => { editData.value = row; formVisible.value = true }
 const handleRetire = (row) => {
@@ -425,9 +346,12 @@ const handleAttachmentUpload = () => {
   replaceDialogVisible.value = true
 }
 
+const handleDownload = (row) => {
+  if (row?.fileUrl) window.open(row.fileUrl)
+}
+
 onMounted(async () => {
   await fetchQualifications()
-  await loadBorrowRecords()
 })
 
 const downloadTemplate = async () => {
@@ -451,7 +375,7 @@ const downloadTemplate = async () => {
 .page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; h2 { font-weight:600; color:#1f2937; margin:0 } }
 .page-actions { display: flex; gap: 12px; flex-wrap: wrap; }
 .premium-btn { background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); border: none; box-shadow: 0 4px 6px -1px rgba(99,102,241,0.4); transition: all 0.3s ease; &:hover { transform: translateY(-2px); box-shadow: 0 6px 8px -1px rgba(99,102,241,0.5); } }
-.filter-card,.data-card,.borrow-history-wrap { border-radius:8px; border:1px solid var(--el-border-color-lighter); box-shadow:0 2px 8px rgba(0,0,0,.05); margin-bottom:12px }
+.filter-card,.data-card { border-radius:8px; border:1px solid var(--el-border-color-lighter); box-shadow:0 2px 8px rgba(0,0,0,.05); margin-bottom:12px }
 .pagination-wrap { display:flex; justify-content:flex-end; margin-top:16px }
 .cert-name { font-weight:500; color:#1f2937 }
 .text-muted { color:#9ca3af }

@@ -7,11 +7,8 @@ package com.xiyu.bid.qualification.controller;
 import com.xiyu.bid.annotation.Auditable;
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.qualification.dto.BatchAttachResultDTO;
-import com.xiyu.bid.qualification.dto.QualificationBorrowRecordDTO;
-import com.xiyu.bid.qualification.dto.QualificationBorrowRequest;
 import com.xiyu.bid.qualification.dto.QualificationDTO;
 import com.xiyu.bid.qualification.dto.QualificationOverviewDTO;
-import com.xiyu.bid.qualification.dto.QualificationReturnRequest;
 import com.xiyu.bid.qualification.service.BatchAttachmentService;
 import com.xiyu.bid.qualification.service.QualificationService;
 import com.xiyu.bid.qualification.service.QualificationAiParserService;
@@ -82,7 +79,6 @@ public class QualificationController {
             @RequestParam(required = false) String subjectName,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) List<String> status,
-            @RequestParam(required = false) String borrowStatus,
             @RequestParam(required = false) Integer expiringWithinDays,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate expiringFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate expiringTo,
@@ -99,7 +95,7 @@ public class QualificationController {
         int safePage = Math.max(0, page);
         return ResponseEntity.ok(ApiResponse.success("Qualifications retrieved successfully",
                 qualificationService.getAllQualifications(
-                        subjectType, subjectName, category, level, status, borrowStatus,
+                        subjectType, subjectName, category, level, status,
                         expiringWithinDays, expiringFrom, expiringTo, sanitizedIssuer, keyword,
                         safePage, safeSize)));
     }
@@ -129,57 +125,10 @@ public class QualificationController {
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping("/{id}/borrow-records")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ADMIN_STAFF', 'BID_ADMIN', 'BID_LEAD', 'BID_SPECIALIST')")
-    @Auditable(action = "READ", entityType = "QualificationBorrow", description = "查看资质借阅记录")
-    public ResponseEntity<ApiResponse<List<QualificationBorrowRecordDTO>>> getBorrowRecords(@PathVariable Long id) {
-        return ResponseEntity.ok(ApiResponse.success("Borrow records retrieved successfully",
-                qualificationService.getBorrowRecords(id)));
-    }
 
-    @GetMapping("/borrow-records")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ADMIN_STAFF', 'BID_ADMIN', 'BID_LEAD', 'BID_SPECIALIST')")
-    @Auditable(action = "READ", entityType = "QualificationBorrow", description = "查看资质借阅记录")
-    public ResponseEntity<ApiResponse<List<QualificationBorrowRecordDTO>>> getBorrowRecordsByQuery(
-            @RequestParam(required = false) Long qualificationId
-    ) {
-        return ResponseEntity.ok(ApiResponse.success("Borrow records retrieved successfully",
-                qualificationService.getBorrowRecords(qualificationId)));
-    }
 
-    @PostMapping("/{id}/borrow")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ADMIN_STAFF', 'BID_ADMIN', 'BID_LEAD', 'BID_SPECIALIST')")
-    @Auditable(action = "BORROW", entityType = "Qualification", description = "借阅资质")
-    public ResponseEntity<ApiResponse<QualificationBorrowRecordDTO>> borrowQualification(
-            @PathVariable Long id,
-            @RequestBody QualificationBorrowRequest request
-    ) {
-        sanitizeBorrowRequest(request);
-        return ResponseEntity.ok(ApiResponse.success("Qualification borrowed successfully",
-                qualificationService.borrowQualification(id, request)));
-    }
 
-    @PostMapping("/{id}/return")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ADMIN_STAFF', 'BID_ADMIN', 'BID_LEAD', 'BID_SPECIALIST')")
-    @Auditable(action = "RETURN", entityType = "Qualification", description = "归还资质")
-    public ResponseEntity<ApiResponse<QualificationBorrowRecordDTO>> returnQualification(
-            @PathVariable Long id,
-            @RequestBody(required = false) QualificationReturnRequest request
-    ) {
-        return ResponseEntity.ok(ApiResponse.success("Qualification returned successfully",
-                qualificationService.returnQualification(id, request == null ? new QualificationReturnRequest() : request)));
-    }
 
-    @PostMapping("/borrow-records/{id}/return")
-    @PreAuthorize("hasAnyRole('ADMIN', 'ADMIN_STAFF', 'BID_ADMIN', 'BID_LEAD', 'BID_SPECIALIST')")
-    @Auditable(action = "RETURN", entityType = "QualificationBorrow", description = "兼容归还资质")
-    public ResponseEntity<ApiResponse<QualificationBorrowRecordDTO>> returnQualificationByRecord(
-            @PathVariable Long id,
-            @RequestBody(required = false) QualificationReturnRequest request
-    ) {
-        return ResponseEntity.ok(ApiResponse.success("Qualification returned successfully",
-                qualificationService.returnQualificationByRecordId(id, request == null ? new QualificationReturnRequest() : request)));
-    }
 
     @GetMapping("/overview")
     @PreAuthorize("hasAnyRole('ADMIN', 'ADMIN_STAFF', 'BID_ADMIN', 'BID_LEAD', 'BID_SPECIALIST')")
@@ -223,13 +172,6 @@ public class QualificationController {
         if (dto.getFileUrl() != null) dto.setFileUrl(InputSanitizer.sanitizeString(dto.getFileUrl(), 500));
     }
 
-    private void sanitizeBorrowRequest(QualificationBorrowRequest request) {
-        if (request.getBorrower() != null) request.setBorrower(InputSanitizer.sanitizeString(request.getBorrower(), 120));
-        if (request.getDepartment() != null) request.setDepartment(InputSanitizer.sanitizeString(request.getDepartment(), 120));
-        if (request.getProjectId() != null) request.setProjectId(InputSanitizer.sanitizeString(request.getProjectId(), 64));
-        if (request.getPurpose() != null) request.setPurpose(InputSanitizer.sanitizeString(request.getPurpose(), 255));
-        if (request.getRemark() != null) request.setRemark(InputSanitizer.sanitizeString(request.getRemark(), 500));
-    }
 
     @PostMapping("/{id}/retire")
     @PreAuthorize("hasAnyRole('ADMIN', 'ADMIN_STAFF', 'BID_ADMIN', 'BID_LEAD')")

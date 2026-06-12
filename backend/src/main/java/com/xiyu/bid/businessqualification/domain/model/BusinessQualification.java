@@ -1,7 +1,6 @@
 package com.xiyu.bid.businessqualification.domain.model;
 
 import com.xiyu.bid.businessqualification.domain.service.QualificationExpiryPolicy;
-import com.xiyu.bid.businessqualification.domain.valueobject.LoanStatus;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationCategory;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationStatus;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationSubject;
@@ -27,12 +26,6 @@ public record BusinessQualification(
         String holderName,
         ValidityPeriod validityPeriod,
         ReminderPolicy reminderPolicy,
-        LoanStatus currentBorrowStatus,
-        String currentBorrower,
-        String currentDepartment,
-        String currentProjectId,
-        String borrowPurpose,
-        LocalDate expectedReturnDate,
         String fileUrl,
         String retireReason,
         boolean retired,
@@ -58,12 +51,6 @@ public record BusinessQualification(
             String holderName,
             ValidityPeriod validityPeriod,
             ReminderPolicy reminderPolicy,
-            LoanStatus currentBorrowStatus,
-            String currentBorrower,
-            String currentDepartment,
-            String currentProjectId,
-            String borrowPurpose,
-            LocalDate expectedReturnDate,
             String fileUrl,
             String retireReason,
             List<QualificationAttachment> attachments
@@ -83,12 +70,6 @@ public record BusinessQualification(
                 holderName,
                 validityPeriod,
                 reminderPolicy,
-                currentBorrowStatus,
-                currentBorrower,
-                currentDepartment,
-                currentProjectId,
-                borrowPurpose,
-                expectedReturnDate,
                 fileUrl,
                 retireReason,
                 false,
@@ -111,12 +92,6 @@ public record BusinessQualification(
             String holderName,
             ValidityPeriod validityPeriod,
             ReminderPolicy reminderPolicy,
-            LoanStatus currentBorrowStatus,
-            String currentBorrower,
-            String currentDepartment,
-            String currentProjectId,
-            String borrowPurpose,
-            LocalDate expectedReturnDate,
             String fileUrl,
             String retireReason,
             boolean retired,
@@ -137,12 +112,6 @@ public record BusinessQualification(
                 holderName,
                 validityPeriod,
                 reminderPolicy,
-                currentBorrowStatus,
-                currentBorrower,
-                currentDepartment,
-                currentProjectId,
-                borrowPurpose,
-                expectedReturnDate,
                 fileUrl,
                 retireReason,
                 retired,
@@ -159,57 +128,14 @@ public record BusinessQualification(
         return validityPeriod.remainingDays(LocalDate.now());
     }
 
-    public BusinessQualification borrow(
-            String borrower,
-            String department,
-            String projectId,
-            String purpose,
-            LocalDate expectedReturnDateValue
-    ) {
-        return copy(
-                LoanStatus.BORROWED,
-                borrower,
-                department,
-                projectId,
-                purpose,
-                expectedReturnDateValue,
-                reminderPolicy
-        );
-    }
 
-    public BusinessQualification returnBack() {
-        return copy(
-                LoanStatus.AVAILABLE,
-                null,
-                null,
-                null,
-                null,
-                null,
-                reminderPolicy
-        );
-    }
 
     public BusinessQualification recordReminder(LocalDateTime remindedAt) {
-        return copy(
-                currentBorrowStatus,
-                currentBorrower,
-                currentDepartment,
-                currentProjectId,
-                borrowPurpose,
-                expectedReturnDate,
-                reminderPolicy.recordReminder(remindedAt)
+        return copy(reminderPolicy.recordReminder(remindedAt)
         );
     }
 
-    private BusinessQualification copy(
-            LoanStatus nextBorrowStatus,
-            String nextBorrower,
-            String nextDepartment,
-            String nextProjectId,
-            String nextBorrowPurpose,
-            LocalDate nextExpectedReturnDate,
-            ReminderPolicy nextReminderPolicy
-    ) {
+    private BusinessQualification copy(ReminderPolicy nextReminderPolicy) {
         return new BusinessQualification(
                 id,
                 name,
@@ -225,12 +151,6 @@ public record BusinessQualification(
                 holderName,
                 validityPeriod,
                 nextReminderPolicy,
-                nextBorrowStatus,
-                nextBorrower,
-                nextDepartment,
-                nextProjectId,
-                nextBorrowPurpose,
-                nextExpectedReturnDate,
                 fileUrl,
                 retireReason,
                 retired,

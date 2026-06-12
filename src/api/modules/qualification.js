@@ -4,7 +4,7 @@
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 import httpClient from '../client.js'
-import { buildFeatureUnavailableResponse } from '../featureAvailability.js'
+
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000
 
@@ -78,36 +78,13 @@ function normalizeQualification(item) {
     holderName: item?.holderName || item?.holder || '-',
     status: mapQualificationStatus(expiryDate, item?.status),
     remainingDays: remainingDays ?? 0,
-    currentBorrowStatus: String(item?.currentBorrowStatus || (item?.borrowed ? 'borrowed' : 'available')).toLowerCase(),
-    currentBorrower: item?.currentBorrower || '',
-    expectedReturnDate: formatDate(item?.expectedReturnDate || item?.currentExpectedReturnDate),
     fileUrl: item?.fileUrl || '',
     retireReason: item?.retireReason || '',
     level: item?.level || qualificationLevelMap[mappedType] || 'OTHER'
   }
 }
 
-function normalizeQualificationBorrowRecord(item) {
-  return {
-    id: item?.id,
-    qualificationId: item?.qualificationId ?? item?.certificateId ?? null,
-    qualificationName: item?.qualificationName || item?.qualification?.name || '资质文件',
-    borrower: item?.borrower || item?.borrowedByName || '-',
-    department: item?.department || '-',
-    purpose: item?.purpose || 'other',
-    borrowDate: formatDate(item?.borrowDate || item?.borrowedAt || item?.createdAt),
-    returnDate: formatDate(item?.returnDate || item?.expectedReturnDate),
-    status: normalizeBorrowStatus(item?.status)
-  }
-}
 
-function normalizeBorrowStatus(status) {
-  if (!status) return 'borrowed'
-  const normalized = String(status).toUpperCase()
-  if (normalized === 'RETURNED') return 'returned'
-  if (normalized === 'OVERDUE') return 'overdue'
-  return 'borrowed'
-}
 
 function buildQualificationPayload(data = {}) {
   return {
@@ -126,16 +103,6 @@ function buildQualificationPayload(data = {}) {
   }
 }
 
-function buildBorrowPayload(data = {}) {
-  return {
-    borrower: data.borrower || '',
-    department: data.department || '',
-    projectId: data.projectId || '',
-    purpose: data.purpose || '',
-    expectedReturnDate: data.returnDate || '',
-    remark: data.remark || ''
-  }
-}
 
 function buildListQuery(params = {}) {
   const q = new URLSearchParams()
@@ -151,7 +118,6 @@ function buildListQuery(params = {}) {
   if (params.subjectType) q.set('subjectType', params.subjectType)
   if (params.subjectName) q.set('subjectName', params.subjectName)
   if (params.category) q.set('category', params.category)
-  if (params.borrowStatus) q.set('borrowStatus', params.borrowStatus)
   if (params.page != null) q.set('page', String(params.page))
   if (params.size != null) q.set('size', String(params.size))
   return q.toString()
@@ -164,13 +130,6 @@ function invalidIdMessage(entityName) {
   }
 }
 
-function buildBorrowUnavailableResponse() {
-  return buildFeatureUnavailableResponse('qualificationBorrow', {
-    title: '资质借阅暂未接入',
-    message: '真实资质借阅接口尚未提供，当前仅保留真实资质列表能力。',
-    hint: '后端补齐借阅记录、借阅申请和归还接口后即可恢复完整流程。'
-  })
-}
 
 async function fetchQualificationList(params = {}) {
   const query = buildListQuery(params)
@@ -213,52 +172,8 @@ export const qualificationsApi = {
     return httpClient.delete(`/api/knowledge/qualifications/${id}`)
   },
 
-  async getBorrowRecords(qualificationId) {
-    if (qualificationId != null && !isNumericId(qualificationId)) {
-      return Promise.resolve(invalidIdMessage('qualification'))
-    }
 
-    const query = qualificationId != null ? `?qualificationId=${qualificationId}` : ''
 
-    try {
-      const response = await httpClient.get(`/api/knowledge/qualifications/borrow-records${query}`)
-      return {
-        ...response,
-        data: Array.isArray(response?.data) ? response.data.map(normalizeQualificationBorrowRecord) : []
-      }
-    } catch (error) {
-      if (error?.response?.status === 400 || error?.response?.status === 404) {
-        return buildBorrowUnavailableResponse()
-      }
-      throw error
-    }
-  },
-
-  async createBorrow(id, data = {}) {
-    if (!isNumericId(id)) return Promise.resolve(invalidIdMessage('qualification'))
-
-    try {
-      return await httpClient.post(`/api/knowledge/qualifications/${id}/borrow`, buildBorrowPayload(data))
-    } catch (error) {
-      if (error?.response?.status === 404) {
-        return buildBorrowUnavailableResponse()
-      }
-      throw error
-    }
-  },
-
-  async returnBorrow(recordId) {
-    if (!isNumericId(recordId)) return Promise.resolve(invalidIdMessage('qualification borrow record'))
-
-    try {
-      return await httpClient.post(`/api/knowledge/qualifications/borrow-records/${recordId}/return`)
-    } catch (error) {
-      if (error?.response?.status === 404) {
-        return buildBorrowUnavailableResponse()
-      }
-      throw error
-    }
-  },
 
   async exportList(params = {}) {
     const query = buildListQuery(params)

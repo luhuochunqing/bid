@@ -61,12 +61,6 @@ public class UpdateQualificationAppService {
                         command.getReminderDays() == null ? existing.reminderPolicy().getReminderDays() : command.getReminderDays(),
                         existing.reminderPolicy().getLastRemindedAt()
                 ),
-                existing.currentBorrowStatus(),
-                existing.currentBorrower(),
-                existing.currentDepartment(),
-                existing.currentProjectId(),
-                existing.borrowPurpose(),
-                existing.expectedReturnDate(),
                 command.getFileUrl() == null ? existing.fileUrl() : command.getFileUrl(),
                 command.getRetireReason() == null ? existing.retireReason() : command.getRetireReason(),
                 command.getRetired() == null ? existing.retired() : command.getRetired(),
