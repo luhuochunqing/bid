@@ -159,11 +159,10 @@ import ProjectSearchCard from './components/ProjectSearchCard.vue'
 import { getProjectStatusText, getProjectStatusType } from './project-utils.js'
 import { formatDate, priorityTag, priorityLabel, stageText, sourceText } from './utils/projectListFormatters.js'
 import { evalSubStageText, evalSubStageTag } from './utils/evalSubStageUtils.js'
-import { useProjectExport } from './composables/useProjectExport.js'
 import { useProjectSearch } from './composables/useProjectSearch.js'
 import { useProjectFilter } from './composables/useProjectFilter.js'
-import { useProjectColumns } from './composables/useProjectColumns.js'
 import { useUserStore } from '@/stores/user'
+import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
 
 const router = useRouter()
 const projectStore = useProjectStore()
@@ -182,8 +181,116 @@ const {
 const { loading, error, matchedProjects, filteredProjects, pagination, handleSizeChange, handlePageChange, resetPage, handleSortChange } =
   useProjectFilter(searchForm)
 
-const { exporting, handleExport } = useProjectExport(searchForm, userStore)
-const { columnVisible, columnOptions, visibleOptionalCount, toggleColumn } = useProjectColumns()
+// --- useProjectExport (内联：唯一引用 + ≤80行) ---
+const exporting = ref(false)
+
+const handleExport = async () => {
+  exporting.value = true
+  try {
+    const params = {}
+    if (searchForm.value.name) params.name = searchForm.value.name
+    if (searchForm.value.ownerUnit) params.ownerUnit = searchForm.value.ownerUnit
+    if (searchForm.value.projectType) params.projectType = searchForm.value.projectType
+    if (searchForm.value.customerType) params.customerType = searchForm.value.customerType
+    if (searchForm.value.priority) params.priority = searchForm.value.priority
+    if (searchForm.value.sourceModule) params.sourceModule = searchForm.value.sourceModule
+    if (searchForm.value.bidStatus) params.bidStatus = searchForm.value.bidStatus
+    if (searchForm.value.stage) params.stage = searchForm.value.stage
+    if (searchForm.value.projectLeaderName) params.projectLeaderName = searchForm.value.projectLeaderName
+    if (searchForm.value.biddingLeaderName) params.biddingLeaderName = searchForm.value.biddingLeaderName
+    if (searchForm.value.leaderDepartment) params.leaderDepartment = searchForm.value.leaderDepartment
+    if (searchForm.value.region) params.region = searchForm.value.region
+    if (searchForm.value.biddingPlatform) params.biddingPlatform = searchForm.value.biddingPlatform
+    if (searchForm.value.bidMonth) params.bidMonth = searchForm.value.bidMonth
+    if (searchForm.value.shortlistedCountMin != null) params.shortlistedCountMin = searchForm.value.shortlistedCountMin
+    if (searchForm.value.shortlistedCountMax != null) params.shortlistedCountMax = searchForm.value.shortlistedCountMax
+    if (searchForm.value.revenueMin != null) params.revenueMin = searchForm.value.revenueMin
+    if (searchForm.value.revenueMax != null) params.revenueMax = searchForm.value.revenueMax
+    if (searchForm.value.bidOpenTimeRange?.length === 2) {
+      params.bidOpenTimeStart = searchForm.value.bidOpenTimeRange[0]
+      params.bidOpenTimeEnd = searchForm.value.bidOpenTimeRange[1]
+    }
+    if (searchForm.value.createTimeRange?.length === 2) {
+      params.createTimeStart = searchForm.value.createTimeRange[0]
+      params.createTimeEnd = searchForm.value.createTimeRange[1]
+    }
+
+    const resp = await projectLifecycleApi.exportList(params)
+    const blob = await resp.data
+    const safeTimestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    const filename = `投标项目列表_${safeTimestamp}.xlsx`
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch (e) {
+    if (e?.name === 'AbortError') {
+      ElMessage.warning('导出超时，请减小筛选范围后重试')
+    } else {
+      ElMessage.error('导出失败：' + (e?.message || '未知错误'))
+    }
+  } finally {
+    exporting.value = false
+  }
+}
+// --- useProjectColumns (内联：唯一引用 + ≤80行) ---
+const COLUMN_STORAGE_KEY = 'projectListColumnVisible'
+
+const columnOptions = [
+  { key: 'bidOpenTime', label: '开标时间' },
+  { key: 'biddingPlatform', label: '投标平台' },
+  { key: 'shortlistedCount', label: '计划入围供应商数量' },
+  { key: 'createTime', label: '创建时间' },
+  { key: 'bidMonth', label: '投标月份' },
+  { key: 'projectType', label: '项目类型' },
+  { key: 'customerType', label: '客户类型' },
+  { key: 'priority', label: '优先级' },
+  { key: 'sourceModule', label: '来源平台' },
+  { key: 'stage', label: '项目阶段' },
+  { key: 'revenue', label: '客户营收（亿）' },
+  { key: 'region', label: '总部所在地' },
+  { key: 'leaderDepartment', label: '项目负责人部门' },
+  { key: 'biddingLeaderName', label: '投标负责人' },
+]
+
+const ALL_COLUMNS_VISIBLE = Object.fromEntries(columnOptions.map(c => [c.key, true]))
+
+function loadColumnVisible() {
+  try {
+    const uid = userStore.currentUser?.id || 'default'
+    const raw = localStorage.getItem(COLUMN_STORAGE_KEY + ':' + uid)
+    if (raw) {
+      const loaded = JSON.parse(raw)
+      const validKeys = new Set(columnOptions.map((o) => o.key))
+      Object.keys(loaded).forEach((k) => { if (!validKeys.has(k)) delete loaded[k] })
+      return loaded
+    }
+  } catch (_) { /* ignore */ }
+  return { ...ALL_COLUMNS_VISIBLE }
+}
+
+function saveColumnVisible(columnVisible) {
+  try {
+    const uid = userStore.currentUser?.id || 'default'
+    localStorage.setItem(COLUMN_STORAGE_KEY + ':' + uid, JSON.stringify(columnVisible))
+  } catch (_) { /* ignore */ }
+}
+
+const columnVisible = reactive(loadColumnVisible())
+
+function toggleColumn(key) {
+  columnVisible[key] = !columnVisible[key]
+  saveColumnVisible(columnVisible)
+}
+
+const visibleOptionalCount = computed(() =>
+  columnOptions.filter(c => columnVisible[c.key]).length
+)
 
 const bidMonthOptions = computed(() => generateBidMonthOptions())
 const onSearch = () => { resetPage() }

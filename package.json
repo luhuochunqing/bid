@@ -1,7 +1,7 @@
 {
   "name": "xiyu-bid-poc",
   "version": "1.0.3",
-  "description": "西域数智化投标管理平台POC",
+  "description": "\u897f\u57df\u6570\u667a\u5316\u6295\u6807\u7ba1\u7406\u5e73\u53f0POC",
   "type": "module",
   "scripts": {
     "dev": "bash ./scripts/dev-frontend.sh",
@@ -67,7 +67,7 @@
     "db:dev-repair": "bash scripts/dev-flyway-repair.sh",
     "check:blueprint-gaps": "node scripts/check-blueprint-gaps.mjs",
     "check:blueprint-fields": "node scripts/check-blueprint-fields.mjs",
-    "build": "npm run check:version-sync && npm run check:front-data-boundaries && npm run check:doc-governance && npm run check:task-status-literal && npm run check:token-governance && npm run check:token-governance:delta && npm run check:blueprint-gaps && npm run check:blueprint-fields && npm run check:line-budgets && vite build",
+    "build": "npm run check:version-sync && npm run check:front-data-boundaries && npm run check:doc-governance && npm run check:task-status-literal && npm run check:token-governance && npm run check:token-governance:delta && npm run check:blueprint-gaps && npm run check:blueprint-fields && npm run check:line-budgets && vite build && npm run build:check && npm run check:composable-placement",
     "build:api": "vite build --mode api",
     "preview": "vite preview",
     "test:e2e": "npx playwright test --config playwright.config.js",
@@ -89,7 +89,10 @@
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
     "docker:restart": "docker compose restart",
-    "dev:up": "npm run docker:up"
+    "dev:up": "npm run docker:up",
+    "check:composable-placement": "node scripts/check-composable-placement.mjs",
+    "check:composable-placement:staged": "node scripts/check-composable-placement.mjs --staged",
+    "build:check": "node scripts/check-inlined-composables.cjs"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.0",

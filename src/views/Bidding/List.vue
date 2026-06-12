@@ -197,8 +197,11 @@ import TenderMobileCards from './list/components/TenderMobileCards.vue'
 import TenderSearchCard from './list/components/TenderSearchCard.vue'
 import TenderTable from './list/components/TenderTable.vue'
 import { useTenderListPage } from './list/useTenderListPage.js'
-import { useTenderTransfer } from './list/useTenderTransfer.js'
-import { reactive } from 'vue'
+import { tendersApi } from '@/api/modules/tenders'
+import { batchTendersApi } from '@/api/modules/tenders/batch.js'
+import { useBiddingStore } from '@/stores/bidding'
+import { normalizeAssignmentCandidate } from './list/helpers.js'
+import { computed, reactive, ref } from 'vue'
 import './list/styles/list-page.css'
 import './list/styles/table.css'
 import './list/styles/mobile-page.css'
@@ -218,7 +221,52 @@ const {
 } = useTenderListPage()
 
 // ---- 收藏状态 ----
-const { canShowTransfer, transferDialog, transferCandidates, handleTransfer, handleTransferConfirm } = useTenderTransfer({ canManageTenders })
+// --- useTenderTransfer (内联：唯一引用 + ≤80行) ---
+const canShowTransfer = computed(() => canManageTenders.value)
+const transferDialog = reactive({
+  visible: false,
+  tender: null,
+  newOwnerId: null,
+  loading: false,
+})
+const transferCandidates = ref([])
+async function handleTransfer(row) {
+  if (transferCandidates.value.length === 0) {
+    try {
+      const response = await batchTendersApi.getAssignmentCandidates()
+      transferCandidates.value = (response?.data || [])
+        .map(normalizeAssignmentCandidate)
+        .filter((item) => Number.isFinite(item.id))
+    } catch {
+      ElMessage.error('加载负责人列表失败')
+      return
+    }
+  }
+  transferDialog.tender = row
+  transferDialog.newOwnerId = null
+  transferDialog.visible = true
+}
+async function handleTransferConfirm() {
+  if (!transferDialog.newOwnerId) return ElMessage.warning('请选择目标负责人')
+  transferDialog.loading = true
+  try {
+    const result = await tendersApi.transferTender(transferDialog.tender.id, {
+      newOwnerId: transferDialog.newOwnerId,
+    })
+    if (result?.success !== false) {
+      ElMessage.success('转派成功')
+      transferDialog.visible = false
+      const biddingStore = useBiddingStore()
+      await biddingStore.getTenders()
+    } else {
+      ElMessage.error(result?.msg || '转派失败')
+    }
+  } catch {
+    ElMessage.error('转派失败，请重试')
+  } finally {
+    transferDialog.loading = false
+  }
+}
 
 const reminderDialog = reactive({ visible: false, tenderId: null })
 

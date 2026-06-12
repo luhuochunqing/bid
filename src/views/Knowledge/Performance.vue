@@ -1,3 +1,4 @@
+// --- usePerformanceSimilarSearch (内联：唯一引用 + ≤80行) ---
 <template>
   <div class="performance-container">
     <div class="page-header">
@@ -177,37 +178,35 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { performanceApi } from '@/api/modules/performance.js'
+import { ElMessage } from 'element-plus'
 import { Plus, Upload, Download, Bell, Search } from '@element-plus/icons-vue'
-import performanceApi from '@/api/modules/performance.js'
 import { usePerformanceImport } from '@/composables/usePerformanceImport.js'
-import { usePerformanceSimilarSearch } from './composables/usePerformanceSimilarSearch.js'
-import PerformanceDetailDrawer from './components/PerformanceDetailDrawer.vue'
-import PerformanceFormDialog from './components/PerformanceFormDialog.vue'
-import PerformanceAlertConfigDialog from './components/performance/PerformanceAlertConfigDialog.vue'
-import PerformanceSimilarDrawer from './components/PerformanceSimilarDrawer.vue'
+const similarVisible = ref(false)
+const similarRecords = ref([])
+const similarLoading = ref(false)
 
-const records = ref([])
-const loading = ref(false)
-const submitting = ref(false)
-const searchForm = reactive({
-  keyword: '', customerTypes: [], projectTypes: [], statuses: [], customerLevels: [],
-  territory: '', signingDateRange: null, expiryDateRange: null,
-  hasBidNotice: null, projectManagerKeyword: ''
-})
-
-const detailVisible = ref(false)
-const formVisible = ref(false)
-const alertConfigVisible = ref(false)
-const current = ref({ attachments: [] })
-const editingRow = ref(null)
-
-const {
-  similarVisible,
-  similarRecords,
-  similarLoading,
-  openSimilarSearch
-} = usePerformanceSimilarSearch(searchForm)
+const openSimilarSearch = async () => {
+  similarLoading.value = true
+  similarVisible.value = true
+  try {
+    const similarForm = { ...searchForm, keyword: '' }
+    const { data } = await performanceApi.getList(similarForm)
+    const scored = (data || []).map(r => {
+      let score = 0
+      if (searchForm.customerTypes?.length > 0 && searchForm.customerTypes.includes(r.customerType)) score += 3
+      if (searchForm.projectTypes?.length > 0 && searchForm.projectTypes.includes(r.projectType)) score += 2
+      if (searchForm.customerLevels?.length > 0 && searchForm.customerLevels.includes(r.customerLevel)) score += 1
+      if (searchForm.territory && r.territory?.includes(searchForm.territory)) score += 2
+      return { ...r, _similarScore: score }
+    })
+    similarRecords.value = scored.sort((a, b) => b._similarScore - a._similarScore).slice(0, 20)
+  } catch {
+    ElMessage.error('相似业绩搜索失败')
+  } finally {
+    similarLoading.value = false
+  }
+}
 
 const loadData = async () => {
   loading.value = true

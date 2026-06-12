@@ -374,6 +374,30 @@ mvn test -Dtest=RoleProfileServicePersistenceTest,RoleProfileBootstrapArchitectu
 
 ---
 
+
+### 2.6 Composable 内联规则
+
+#### 2.6.1 规则
+
+当组合式函数（composable）满足以下全部条件时，**必须**直接写在组件的 `<script setup>` 内，不得提取到独立文件：
+
+1. **唯一引用**：当前只被一个组件使用。
+2. **小型逻辑**：预估行数 ≤ 80 行（含空行和注释）。
+3. **无复用预期**：未来 2 个迭代内没有多组件复用的计划。
+
+#### 2.6.2 为什么
+
+Vite/Rollup 在构建时会对异步 chunk 中的跨文件依赖做内联（inline）。实测发现当 composable 被静态导入并在异步 chunk 中被内联时，tree-shaking 可能错误截断函数体——只保留部分代码（如某个 ref 初始化），丢失其余 ref 创建、方法定义和 return 语句。调用该函数返回 `undefined`，导致解构调用方崩溃。
+
+详见 PR #447 修复记录。
+
+#### 2.6.3 例外
+
+- 确实需要多组件复用且行数 > 80 行的 composable，可以提取到独立文件，但构建后**必须**通过 `npm run build:check` 检查产物，确保内联后的函数体完整。
+- 框架适配类（如 router hooks、store bridge、薄层编排型 composable）不受此限。薄层编排型 composable 指仅做子 composable 聚合编排、自身不含大量 `ref`/`reactive` 初始化逻辑的入口层 composable。
+- 构建管道已集成 `npm run build:check`（构建后产物检测）和 `npm run check:composable-placement`（源码级预检），新写 composable 前可运行 `npm run check:composable-placement --staged` 检查暂存区是否符合内联规则。
+
+
 ## 3. Mock 政策（统一决策）
 
 ### 3.1 唯一事实源
