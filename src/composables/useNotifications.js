@@ -6,14 +6,16 @@
 /**
  * 通知轮询 composable
  * 自动轮询未读通知数量
+ * 在收到 429 限流响应时自动暂停轮询 60 秒
  */
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useNotificationStore } from '@/stores/notifications'
 
 export function useNotifications(options = {}) {
-  const { pollingInterval = 15000, autoStart = true } = options
+  const { pollingInterval = 30000, autoStart = true } = options
   const store = useNotificationStore()
   const pollingTimer = ref(null)
+  const backoffUntil = ref(0)
 
   const stopPolling = () => {
     if (pollingTimer.value) {
@@ -26,7 +28,14 @@ export function useNotifications(options = {}) {
     stopPolling()
     store.fetchUnreadCount()
     pollingTimer.value = setInterval(() => {
-      store.fetchUnreadCount()
+      if (backoffUntil.value > Date.now()) {
+        return
+      }
+      store.fetchUnreadCount().catch((err) => {
+        if (err?.response?.status === 429) {
+          backoffUntil.value = Date.now() + 60000
+        }
+      })
     }, pollingInterval)
   }
 

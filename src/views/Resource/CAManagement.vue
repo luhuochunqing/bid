@@ -503,6 +503,7 @@ onMounted(loadData)
 .stat-card {
   text-align: center;
   height: 100%;
+  align-self: start;
 }
 
 .stat-card :deep(.el-card__body) {
