@@ -85,13 +85,10 @@
         label="是否有兜底方案"
         prop="contingencyPlan"
       >
-        <el-input
-          v-model="localBasic.contingencyPlan"
-          type="textarea"
-          :rows="3"
-          placeholder="请填写兜底方案评估"
-          maxlength="5000"
-          :readonly="disabled"
+        <el-switch
+          :model-value="localBasic.contingencyPlan === '是'"
+          @update:model-value="localBasic.contingencyPlan = $event ? '是' : '否'"
+          :disabled="disabled"
         />
       </el-form-item>
 
