@@ -180,22 +180,19 @@ xiyu:
       # 按人员：通过员工邮箱/工号精确匹配，指定人→指定角色
       person-to-role-mappings:
         # 投标管理员 / 投标系统管理员（张頔、郑蓉蓉、袁思琪）
-        - person-identifier: "zhangdi@ehsy.com"
+        # NOTE: 郑蓉蓉和袁思琪不在 base-oss 同步范围内，需确认西域邮箱后补充
+        - person-identifier: "dean_zhang@ehsy.com"
           role-code: "bid_admin"
-        - person-identifier: "zhengrongrong@ehsy.com"
-          role-code: "bid_admin"
-        - person-identifier: "yuansiqi@ehsy.com"
-          role-code: "bid_lead"
         # 跨部门协同人员（陈超、屈晓润、孙磊、忻鼎盛、刘成）
-        - person-identifier: "chenchao@ehsy.com"
+        - person-identifier: "kelvin_chen@ehsy.com"
           role-code: "staff"
-        - person-identifier: "quxiaorun@ehsy.com"
+        - person-identifier: "xiaorun_qu@ehsy.com"
           role-code: "staff"
-        - person-identifier: "sunlei@ehsy.com"
+        - person-identifier: "nelson_sun@ehsy.com"
           role-code: "staff"
-        - person-identifier: "xindingsheng@ehsy.com"
+        - person-identifier: "levi_xin@ehsy.com"
           role-code: "staff"
-        - person-identifier: "liucheng@ehsy.com"
+        - person-identifier: "simon_liu@ehsy.com"
           role-code: "staff"
       # 按部门：通过部门名称正则匹配，部门全员→指定角色
       department-to-role-mappings:

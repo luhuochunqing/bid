@@ -1,5 +1,7 @@
 package com.xiyu.bid.integration.organization.application;
 
+import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationDepartmentEntity;
+import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationDepartmentRepository;
 import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
@@ -24,6 +26,7 @@ public class OrganizationUserSyncWriter {
     private static final String LOCKED_PASSWORD_HASH = "$2a$10$7EqJtq98hPqEX7fNZaFWoOHIhi4YhML26vP7Hk1UR93E1Vda8yI9W";
 
     private final UserRepository userRepository;
+    private final OrganizationDepartmentRepository organizationDepartmentRepository;
     private final RoleProfileRepository roleProfileRepository;
     private final OrganizationIntegrationProperties properties;
     private final PositionToRoleMapper positionToRoleMapper;
@@ -52,6 +55,16 @@ public class OrganizationUserSyncWriter {
         user.setPhone(plan.phone());
         user.setDepartmentCode(plan.departmentCode());
         user.setDepartmentName(plan.departmentName());
+        // 如果部门名称为空但 departmentCode 有值，从 organization_departments 反查部门名称
+        String resolvedDeptName = plan.departmentName();
+        if ((resolvedDeptName == null || resolvedDeptName.isBlank())
+            && plan.departmentCode() != null && !plan.departmentCode().isBlank()) {
+            resolvedDeptName = organizationDepartmentRepository
+                .findBySourceAppAndExternalDeptId(sourceApp, plan.departmentCode())
+                .map(OrganizationDepartmentEntity::getDepartmentName)
+                .orElse("");
+        }
+        user.setDepartmentName(resolvedDeptName);
         user.setEnabled(plan.enabled());
         user.setExternalOrgUserId(snapshot.externalUserId());
         user.setExternalOrgSourceApp(sourceApp);
@@ -118,11 +131,20 @@ public class OrganizationUserSyncWriter {
      * 优先级次于按人员映射，用于部门级别统一赋权（如投标管理部→投标专员）
      */
     private String mapDepartmentToRole(OrganizationUserSnapshot snapshot) {
-        if (snapshot.departmentName() == null || snapshot.departmentName().isBlank()) {
+        // 先从 snapshot 取，空则从 organization_departments 反查
+        String deptName = snapshot.departmentName();
+        if ((deptName == null || deptName.isBlank())
+            && snapshot.departmentCode() != null && !snapshot.departmentCode().isBlank()) {
+            deptName = organizationDepartmentRepository
+                .findBySourceAppAndExternalDeptId("oss", snapshot.departmentCode())
+                .map(OrganizationDepartmentEntity::getDepartmentName)
+                .orElse(null);
+        }
+        if (deptName == null || deptName.isBlank()) {
             return null;
         }
         for (OrganizationIntegrationProperties.DepartmentToRoleMapping mapping : properties.getDepartmentToRoleMappings()) {
-            if (mapping.matches(snapshot.departmentName())) {
+            if (mapping.matches(deptName)) {
                 return mapping.getRoleCode();
             }
         }
