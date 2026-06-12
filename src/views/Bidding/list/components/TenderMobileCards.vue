@@ -25,12 +25,16 @@
         <el-button type="primary" size="small" @click="$emit('view-detail', row.id)">查看详情</el-button>
         <el-button v-if="showAiEntry" type="success" size="small" @click="$emit('ai-analysis', row.id)">AI分析</el-button>
         <el-button size="small" @click="$emit('participate', row.id)">参与投标</el-button>
-        <el-dropdown v-if="canManageTenders || canDeleteTenders || isAdmin" trigger="click">
+        <el-dropdown v-if="canManageTenders || canDeleteTenders || isAdmin || isCreatorOfUnassigned(row)" trigger="click">
           <el-button size="small">更多</el-button>
           <template #dropdown>
             <el-dropdown-menu>
               <template v-if="row.status === 'TRACKING'">
                 <el-dropdown-item @click="$emit('edit', row)">编辑</el-dropdown-item>
+              </template>
+              <template v-if="isCreatorOfUnassigned(row)">
+                <el-dropdown-item @click="$emit('view-detail', row.id)">编辑</el-dropdown-item>
+                <el-dropdown-item divided @click="$emit('delete', row)">删除</el-dropdown-item>
               </template>
               <template v-if="isAdmin && row.status === 'EVALUATED'">
                 <el-dropdown-item @click="$emit('review', row)">审核</el-dropdown-item>
@@ -61,13 +65,21 @@
 import { formatBudgetWan, getSourceTypeTagType, getSourceTypeText } from '../helpers.js'
 import { getTenderStatusTagType, getTenderStatusText } from '../../bidding-utils-status.js'
 
-defineProps({
+const props = defineProps({
   rows: { type: Array, default: () => [] },
   canManageTenders: { type: Boolean, default: false },
   canDeleteTenders: { type: Boolean, default: false },
   showAiEntry: { type: Boolean, default: true },
   isAdmin: { type: Boolean, default: false },
+  currentUserId: { type: [Number, String], default: null },
 })
 
-defineEmits(['view-detail', 'ai-analysis', 'participate', 'claim', 'assign', 'status-change', 'delete'])
+defineEmits(['view-detail', 'ai-analysis', 'participate', 'edit', 'claim', 'assign', 'status-change', 'delete'])
+
+const isCreatorOfUnassigned = (row) => {
+  return row.status === 'PENDING_ASSIGNMENT'
+    && props.currentUserId != null
+    && row.creatorId != null
+    && props.currentUserId == row.creatorId
+}
 </script>

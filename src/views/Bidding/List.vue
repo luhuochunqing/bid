@@ -79,6 +79,7 @@
         :can-delete-tenders="canDeleteTenders"
         :show-ai-entry="showTenderAiEntry"
         :is-admin="isAdmin"
+        :current-user-id="currentUserId"
         @view-detail="handleViewDetail"
         @ai-analysis="handleAIAnalysis"
         @participate="handleParticipate"
