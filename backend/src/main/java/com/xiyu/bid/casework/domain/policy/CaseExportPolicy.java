@@ -2,7 +2,7 @@ package com.xiyu.bid.casework.domain.policy;
 
 import com.xiyu.bid.casework.domain.model.CaseExportContext;
 import com.xiyu.bid.casework.domain.model.CaseExportZipEntry;
-import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
+import com.xiyu.bid.casework.domain.model.KnowledgeCaseReadModel;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -26,7 +26,7 @@ public class CaseExportPolicy {
         }
     }
 
-    public ExportValidationResult validateExportRequest(List<KnowledgeCase> cases) {
+    public ExportValidationResult validateExportRequest(List<? extends KnowledgeCaseReadModel> cases) {
         if (cases == null || cases.isEmpty()) {
             return ExportValidationResult.failure("没有可导出的案例");
         }
@@ -38,7 +38,7 @@ public class CaseExportPolicy {
         return ExportValidationResult.success();
     }
 
-    public CaseExportContext buildExportContext(List<KnowledgeCase> cases, String operatorName) {
+    public CaseExportContext buildExportContext(List<? extends KnowledgeCaseReadModel> cases, String operatorName) {
         List<CaseExportZipEntry> entries = buildZipEntries(cases);
         String zipFileName = generateZipFileName();
 
@@ -51,10 +51,10 @@ public class CaseExportPolicy {
         );
     }
 
-    public List<CaseExportZipEntry> buildZipEntries(List<KnowledgeCase> cases) {
+    public List<CaseExportZipEntry> buildZipEntries(List<? extends KnowledgeCaseReadModel> cases) {
         List<CaseExportZipEntry> entries = new ArrayList<>();
 
-        for (KnowledgeCase kc : cases) {
+        for (KnowledgeCaseReadModel kc : cases) {
             String projectFolder = safeFileName(kc.getSourceProjectName());
             String scoringTitleFolder = safeFileName(kc.getScoringPointTitle());
 
@@ -76,7 +76,7 @@ public class CaseExportPolicy {
         return String.format("方案管理-案例库文件包-%s.zip", timestamp);
     }
 
-    public String buildResponseTextContent(KnowledgeCase kc) {
+    public String buildResponseTextContent(KnowledgeCaseReadModel kc) {
         StringBuilder sb = new StringBuilder();
         sb.append("【案例库案例应答全文】\n");
         sb.append("═".repeat(50)).append("\n\n");
@@ -98,13 +98,13 @@ public class CaseExportPolicy {
         return sb.toString();
     }
 
-    public String buildIndexEntryPath(KnowledgeCase kc) {
+    public String buildIndexEntryPath(KnowledgeCaseReadModel kc) {
         String projectFolder = safeFileName(kc.getSourceProjectName());
         String scoringTitleFolder = safeFileName(kc.getScoringPointTitle());
         return String.format("%s/%s/案例索引信息.txt", projectFolder, scoringTitleFolder);
     }
 
-    public String buildIndexContent(KnowledgeCase kc) {
+    public String buildIndexContent(KnowledgeCaseReadModel kc) {
         StringBuilder sb = new StringBuilder();
         sb.append("【案例索引信息】\n");
         sb.append("═".repeat(50)).append("\n\n");
@@ -119,18 +119,18 @@ public class CaseExportPolicy {
         sb.append("产品线：").append(nullSafe(kc.getProductLine())).append("\n");
         sb.append("复用次数：").append(kc.getReuseCount()).append("\n");
         sb.append("状态：").append(nullSafe(kc.getStatus())).append("\n");
-        sb.append("是否置顶：").append(kc.getIsPinned() ? "是" : "否").append("\n");
+        sb.append("是否置顶：").append(Boolean.TRUE.equals(kc.getIsPinned()) ? "是" : "否").append("\n");
         sb.append("创建时间：").append(formatDateTime(kc.getCreatedAt())).append("\n");
         return sb.toString();
     }
 
-    public List<KnowledgeCase> sortCasesForExport(List<KnowledgeCase> cases) {
+    public List<KnowledgeCaseReadModel> sortCasesForExport(List<? extends KnowledgeCaseReadModel> cases) {
         return cases.stream()
                 .sorted(Comparator
-                        .comparing(KnowledgeCase::getIsPinned, Comparator.nullsLast(Comparator.reverseOrder()))
-                        .thenComparing(KnowledgeCase::getSourceProjectName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
-                        .thenComparing(KnowledgeCase::getScoringPointTitle, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
-                        .thenComparing(KnowledgeCase::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
+                        .comparing(KnowledgeCaseReadModel::getIsPinned, Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(KnowledgeCaseReadModel::getSourceProjectName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
+                        .thenComparing(KnowledgeCaseReadModel::getScoringPointTitle, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
+                        .thenComparing(KnowledgeCaseReadModel::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
                 .collect(Collectors.toList());
     }
 

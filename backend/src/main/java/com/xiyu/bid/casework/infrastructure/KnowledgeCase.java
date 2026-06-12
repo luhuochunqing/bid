@@ -1,5 +1,6 @@
 package com.xiyu.bid.casework.infrastructure;
 
+import com.xiyu.bid.casework.domain.model.KnowledgeCaseReadModel;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -13,7 +14,7 @@ import java.time.LocalDateTime;
 @Data
 @Entity
 @Table(name = "knowledge_case")
-public class KnowledgeCase {
+public class KnowledgeCase implements KnowledgeCaseReadModel {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
