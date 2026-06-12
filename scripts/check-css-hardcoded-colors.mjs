@@ -2,6 +2,7 @@
 // Input: staged .vue and .css files from git index
 // Output: warns when hardcoded hex/rgb colors appear in styles
 // Pos: scripts/ — CSS Design Token 硬编码颜色检查 (2026-06-12 skill-progression-map)
+// 维护声明: 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 //
 // Background (2026-05-20~06-12):
 //   Multiple PRs (CO-174, CO-175, CO-177, #449, #448) fixed the same class

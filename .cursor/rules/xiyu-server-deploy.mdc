@@ -36,11 +36,17 @@ For detailed variables, scripts, and checklists, read `references/release-runboo
    - Prefer existing automation over ad hoc SSH commands.
    - Package with `scripts/release/package-release.sh`.
    - If packaging locally, run from a clean build state such as `rm -rf backend/target` or use the CI artifact. After packaging, verify `BOOT-INF/classes/db/migration-mysql` inside `backend/app.jar` contains no duplicate migration versions.
+   - **Critical: When packaging frontend locally, must export VITE_API_BASE_URL matching the target server's public endpoint (e.g., http://172.16.38.78:8080 for winbid-01.test). The default 127.0.0.1:18080 will cause CORS errors when browser origin differs.** After packaging, verify the frontend JS contains the correct URL:
+     ```bash
+     rg "<target-host>:<port>" ".release/<release-id>/frontend/assets"/*.js
+     # If this returns nothing, the default 127.0.0.1:18080 was used and CORS will break.
+     ```
    - Deploy through GitHub production workflow or `scripts/release/remote-deploy.sh` with explicit environment variables.
    - Keep production secrets out of chat, logs, docs, and committed files.
 
 5. Prove the deployment.
    - Check backend health first, then API read endpoints, then frontend page availability.
+   - **If CORS errors appear in browser console during smoke test, it means the frontend was built with the wrong VITE_API_BASE_URL. Rebuild with the correct URL and redeploy.**
    - Run the project's production smoke script when available: `node scripts/release/run-prod-smoke.mjs`.
    - Capture exact commit, release id, URLs checked, smoke result, and any skipped checks with reasons.
 

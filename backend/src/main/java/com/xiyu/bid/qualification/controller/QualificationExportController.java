@@ -9,7 +9,7 @@ import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.qualification.dto.BatchAttachResultDTO;
 import com.xiyu.bid.qualification.service.BatchAttachmentService;
 import com.xiyu.bid.qualification.service.QualificationExportService;
-import com.xiyu.bid.qualification.service.QualificationService;
+import com.xiyu.bid.qualification.service.QualificationWebService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -35,7 +35,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class QualificationExportController {
 
-    private final QualificationService qualificationService;
+    private final QualificationWebService qualificationWebService;
     private final QualificationExportService qualificationExportService;
     private final BatchAttachmentService batchAttachmentService;
 
@@ -90,7 +90,7 @@ public class QualificationExportController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> importQualifications(@RequestParam("file") MultipartFile file) throws IOException {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String operatorName = auth != null ? auth.getName() : "系统导入";
-        var summary = qualificationService.importFromExcel(file, operatorName);
+        var summary = qualificationWebService.importFromExcel(file, operatorName);
         Map<String, Object> result = Map.of(
                 "total", summary.total(),
                 "success", summary.success(),

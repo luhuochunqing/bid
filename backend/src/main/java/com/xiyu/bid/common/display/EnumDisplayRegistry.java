@@ -1,7 +1,5 @@
 package com.xiyu.bid.common.display;
 
-import com.xiyu.bid.biddraftagent.domain.validation.QualificationMatchStatus;
-
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -27,7 +25,6 @@ public final class EnumDisplayRegistry {
     static {
         //
         // 在此注册实现了 DisplayableEnum 的枚举类。
-        register(QualificationMatchStatus.class);
     }
 
     private EnumDisplayRegistry() {}

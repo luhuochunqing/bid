@@ -2,6 +2,7 @@
 # Input: git diff between current branch and origin/main
 # Output: self-review checklist for PR body
 # Pos: scripts/ — 提交前自审清单生成器 (2026-06-12 skill-progression-map)
+# 维护声明: 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 set -euo pipefail
 
 ROOT_DIR="$(git rev-parse --show-toplevel)"
