@@ -11,6 +11,8 @@ import com.xiyu.bid.qualification.dto.QualificationDTO;
 import com.xiyu.bid.qualification.dto.QualificationOverviewDTO;
 import com.xiyu.bid.qualification.service.BatchAttachmentService;
 import com.xiyu.bid.qualification.service.QualificationService;
+import com.xiyu.bid.qualification.service.QualificationQueryService;
+import com.xiyu.bid.qualification.service.QualificationWebService;
 import com.xiyu.bid.qualification.service.QualificationAiParserService;
 import com.xiyu.bid.util.InputSanitizer;
 import jakarta.validation.Valid;
@@ -42,6 +44,8 @@ import org.springframework.web.multipart.MultipartFile;
 public class QualificationController {
 
     private final QualificationService qualificationService;
+    private final QualificationQueryService qualificationQueryService;
+    private final QualificationWebService qualificationWebService;
     private final QualificationAiParserService qualificationAiParserService;
 
     @PostMapping
@@ -68,7 +72,7 @@ public class QualificationController {
             @PathVariable Long id,
             @RequestParam("file") MultipartFile file) {
         return ResponseEntity.ok(ApiResponse.success("附件上传成功",
-                qualificationService.uploadAttachment(id, file)));
+                qualificationWebService.uploadAttachment(id, file)));
     }
 
     @GetMapping
@@ -94,7 +98,7 @@ public class QualificationController {
         int safeSize = size <= 0 ? 15 : Math.min(size, 200);
         int safePage = Math.max(0, page);
         return ResponseEntity.ok(ApiResponse.success("Qualifications retrieved successfully",
-                qualificationService.getAllQualifications(
+                qualificationQueryService.getAllQualifications(
                         subjectType, subjectName, category, level, status,
                         expiringWithinDays, expiringFrom, expiringTo, sanitizedIssuer, keyword,
                         safePage, safeSize)));
@@ -105,8 +109,9 @@ public class QualificationController {
     @Auditable(action = "READ", entityType = "Qualification", description = "获取资质详情")
     public ResponseEntity<ApiResponse<QualificationDTO>> getQualificationById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Qualification retrieved successfully",
-                qualificationService.getQualificationById(id)));
+                qualificationQueryService.getQualificationById(id)));
     }
+
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'ADMIN_STAFF', 'BID_ADMIN', 'BID_LEAD')")
@@ -135,7 +140,7 @@ public class QualificationController {
     @Auditable(action = "READ", entityType = "Qualification", description = "资质概览")
     public ResponseEntity<ApiResponse<QualificationOverviewDTO>> getOverview() {
         return ResponseEntity.ok(ApiResponse.success("Qualification overview retrieved successfully",
-                qualificationService.getOverview()));
+                qualificationQueryService.getOverview()));
     }
 
     @PostMapping("/scan-expiring")
@@ -149,14 +154,14 @@ public class QualificationController {
     @PreAuthorize("hasAnyRole('ADMIN', 'ADMIN_STAFF', 'BID_ADMIN', 'BID_LEAD', 'BID_SPECIALIST')")
     public ResponseEntity<ApiResponse<List<QualificationDTO>>> getQualificationsByType(@PathVariable com.xiyu.bid.entity.Qualification.Type type) {
         return ResponseEntity.ok(ApiResponse.success("Qualifications retrieved successfully",
-                qualificationService.getQualificationsByType(type)));
+                qualificationQueryService.getQualificationsByType(type)));
     }
 
     @GetMapping("/valid")
     @PreAuthorize("hasAnyRole('ADMIN', 'ADMIN_STAFF', 'BID_ADMIN', 'BID_LEAD', 'BID_SPECIALIST')")
     public ResponseEntity<ApiResponse<List<QualificationDTO>>> getValidQualifications() {
         return ResponseEntity.ok(ApiResponse.success("Valid qualifications retrieved successfully",
-                qualificationService.getValidQualifications()));
+                qualificationQueryService.getValidQualifications()));
     }
 
     private void sanitizeQualificationDTO(QualificationDTO dto) {
@@ -199,6 +204,7 @@ public class QualificationController {
     @PreAuthorize("hasAnyRole('ADMIN', 'ADMIN_STAFF', 'BID_ADMIN', 'BID_LEAD', 'BID_SPECIALIST')")
     @Auditable(action = "READ", entityType = "Qualification", description = "获取资质等级列表")
     public ResponseEntity<ApiResponse<List<String>>> getAllLevels() {
-        return ResponseEntity.ok(ApiResponse.success("Levels retrieved successfully", qualificationService.getAllLevels()));
+        return ResponseEntity.ok(ApiResponse.success("Levels retrieved successfully", qualificationQueryService.getAllLevels()));
     }
+
 }

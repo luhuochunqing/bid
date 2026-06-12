@@ -3,6 +3,7 @@
 # Input: API base URL, smoke credentials, backend service name
 # Output: smoke check results with pass/fail summary
 # Pos: scripts/release/ - Release automation and rehearsal helpers
+# 维护声明: 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 # 注意：端点路径必须与实际 Controller @RequestMapping 一致
 set -euo pipefail
 

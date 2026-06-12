@@ -17,7 +17,7 @@ import com.xiyu.bid.personnel.application.command.PersonnelListCriteria;
 import com.xiyu.bid.personnel.application.dto.PersonnelDTO;
 import com.xiyu.bid.personnel.application.service.ListPersonnelAppService;
 import com.xiyu.bid.qualification.dto.QualificationDTO;
-import com.xiyu.bid.qualification.service.QualificationService;
+import com.xiyu.bid.qualification.service.QualificationQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
@@ -33,7 +33,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class KnowledgeBaseDataLoader {
 
-    private final QualificationService qualificationService;
+    private final QualificationQueryService qualificationService;
     private final ListPersonnelAppService listPersonnelAppService;
     private final ListManufacturerAuthAppService listManufacturerAuthAppService;
     private final ListPerformanceAppService listPerformanceAppService;
