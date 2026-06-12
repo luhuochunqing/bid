@@ -34,12 +34,6 @@
             <el-option v-for="lv in levelOptions" :key="lv" :label="lv" :value="lv" />
           </el-select>
         </el-form-item>
-        <!-- CO-155 fix: 领域(category)下拉过滤 -->
-        <el-form-item label="领域">
-          <el-select v-model="filters.category" placeholder="全部" clearable style="width:160px">
-            <el-option v-for="c in categoryOptions" :key="c.value" :label="c.label" :value="c.value" />
-          </el-select>
-        </el-form-item>
         <el-form-item><el-button type="primary" @click="fetchQualifications">查询</el-button><el-button @click="resetFilters">重置</el-button></el-form-item>
       </el-form>
     </el-card>
@@ -233,16 +227,9 @@ const {
 const qualifications = ref([]); const loading = ref(false)
 const page = ref(1); const pageSize = ref(15); const total = ref(0)
 // filters: 初始无默认筛选，空状态显示全部
-const filters = reactive({ keyword:'', issuer:'', expiryRange:null, statuses:[], level:'', category:'' })
+const filters = reactive({ keyword:'', issuer:'', expiryRange:null, statuses:[], level:'' })
 const statusOptions = [{ label:'在库', value:'VALID' },{ label:'即将到期', value:'EXPIRING' },{ label:'已过期', value:'EXPIRED' },{ label:'已下架', value:'RETIRED' }]
-// CO-155 fix: 领域(category)选项（后端无字典表，与后端 QualificationCategory 枚举对齐）
-const categoryOptions = [
-  { label: '企业资质', value: 'LICENSE' },
-  { label: '人员证书', value: 'PERSONNEL' },
-  { label: '产品资质', value: 'PRODUCT' },
-  { label: '其他', value: 'OTHER' }
-]
-const STATUS_LABELS = { in_stock:'在库', valid:'在库', expiring:'即将到期', expired:'已过期', retired:'已下架' }
+const STATUS_LABELS ={ in_stock:'在库', valid:'在库', expiring:'即将到期', expired:'已过期', retired:'已下架' }
 
 const hasFilterActive = computed(() => filters.keyword || filters.issuer || filters.expiryRange || filters.statuses.length || filters.level)
 const emptyDescription = computed(() => {
@@ -291,8 +278,6 @@ const fetchQualifications = async () => {
     if (filters.expiryRange) { q.set('expiringFrom', filters.expiryRange[0]); q.set('expiringTo', filters.expiryRange[1]) }
     if (filters.statuses.length) filters.statuses.forEach(s => q.append('status', s))
     if (filters.level) q.set('level', filters.level)
-    // CO-155 fix: 拼 category 到 URL（之前完全没传，导致后端 category 字段虽存在但前端筛不掉）
-    if (filters.category) q.set('category', filters.category)
     // CO-155 fix: 前端 page 从 1 开始 → 后端从 0 开始
     q.set('page', page.value - 1)
     q.set('size', pageSize.value)
@@ -342,7 +327,7 @@ const {
   handleBatchDownload
 } = useQualificationBatch({ fetchQualifications })
 
-const resetFilters = () => { Object.assign(filters, { keyword:'', issuer:'', expiryRange:null, statuses:[], level:'', category:'' }); page.value = 1; fetchQualifications() }
+const resetFilters = () => { Object.assign(filters, { keyword:'', issuer:'', expiryRange:null, statuses:[], level:'' }); page.value = 1; fetchQualifications() }
 const getStatusTagType = (row) => { const s = (row.status || '').toLowerCase(); if (s === 'in_stock' || s === 'valid') return 'success'; if (s === 'expiring') return 'warning'; if (s === 'expired') return 'danger'; return 'info' }
 const getBorrowStatusTagType = (status) => borrowStatusTagTypes[status] || 'info'
 const statusLabel = (s) => STATUS_LABELS[(s || '').toLowerCase()] || s || '—'
