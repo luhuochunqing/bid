@@ -32,6 +32,10 @@ public class OrganizationIntegrationProperties {
     public static class EventSdk {
         private boolean enabled = false;
         private String consumerGroup = "bms";
+        /** 对外上报的主机地址/IP，默认空则使用 InetAddress.getLocalHost()，如 172.16.38.78 */
+        private String advertisedHost = "";
+        /** 对外上报的端口，0 则使用 server.port，如 8080 */
+        private int advertisedPort = 0;
     }
 
     @Data

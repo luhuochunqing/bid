@@ -215,6 +215,8 @@ xiyu:
       manager-role-codes: ${XIYU_ORG_MANAGER_ROLE_CODES:}
       event-sdk:
         enabled: ${XIYU_ORG_EVENT_SDK_ENABLED:false}
+        advertised-host: ${XIYU_ORG_EVENT_ADVERTISED_HOST:}
+        advertised-port: ${XIYU_ORG_EVENT_ADVERTISED_PORT:0}
         consumer-group: ${XIYU_ORG_EVENT_CONSUMER_GROUP:bms}
       directory:
         base-url: ${XIYU_ORG_DIRECTORY_BASE_URL:}
