@@ -8,7 +8,7 @@ import com.xiyu.bid.mention.core.MentionParsingPolicy.ParsedContent;
 import com.xiyu.bid.mention.dto.CreateMentionRequest;
 import com.xiyu.bid.mention.entity.Mention;
 import com.xiyu.bid.mention.repository.MentionRepository;
-import com.xiyu.bid.notification.core.NotificationDispatchPolicy.DispatchResult;
+import com.xiyu.bid.notification.core.DispatchResult;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import org.springframework.stereotype.Service;

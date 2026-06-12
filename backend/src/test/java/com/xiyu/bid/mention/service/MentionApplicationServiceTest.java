@@ -6,7 +6,7 @@ package com.xiyu.bid.mention.service;
 import com.xiyu.bid.mention.dto.CreateMentionRequest;
 import com.xiyu.bid.mention.entity.Mention;
 import com.xiyu.bid.mention.repository.MentionRepository;
-import com.xiyu.bid.notification.core.NotificationDispatchPolicy;
+import com.xiyu.bid.notification.core.DispatchResult;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import org.junit.jupiter.api.BeforeEach;
@@ -64,7 +64,7 @@ class MentionApplicationServiceTest {
         CreateMentionRequest req = new CreateMentionRequest(
             "hi @[a](7) and @[b](8)", "comment", 42L, "Comment");
         when(notificationService.createNotification(any(CreateNotificationRequest.class), anyLong()))
-            .thenReturn(NotificationDispatchPolicy.DispatchResult.validWithId(100L));
+            .thenReturn(DispatchResult.validWithId(100L));
 
         MentionApplicationService.MentionResult result = service.createMention(req, 1L);
 
@@ -86,7 +86,7 @@ class MentionApplicationServiceTest {
         CreateMentionRequest req = new CreateMentionRequest(
             "hi @[a](7) and @[b](8)", "comment", 42L, "Comment");
         when(notificationService.createNotification(any(CreateNotificationRequest.class), anyLong()))
-            .thenReturn(NotificationDispatchPolicy.DispatchResult.validWithId(100L));
+            .thenReturn(DispatchResult.validWithId(100L));
 
         service.createMention(req, 1L);
 
@@ -122,7 +122,7 @@ class MentionApplicationServiceTest {
         CreateMentionRequest req = new CreateMentionRequest(
             "@[me](1) @[other](9)", "comment", 42L, "Comment");
         when(notificationService.createNotification(any(CreateNotificationRequest.class), anyLong()))
-            .thenReturn(NotificationDispatchPolicy.DispatchResult.validWithId(100L));
+            .thenReturn(DispatchResult.validWithId(100L));
 
         MentionApplicationService.MentionResult result = service.createMention(req, 1L);
 
@@ -139,7 +139,7 @@ class MentionApplicationServiceTest {
         CreateMentionRequest req = new CreateMentionRequest(
             "@[a](7)", "comment", 42L, "Comment");
         when(notificationService.createNotification(any(CreateNotificationRequest.class), anyLong()))
-            .thenReturn(NotificationDispatchPolicy.DispatchResult.invalid("INVALID_TITLE", "blank"));
+            .thenReturn(DispatchResult.invalid("INVALID_TITLE", "blank"));
 
         MentionApplicationService.MentionResult result = service.createMention(req, 1L);
 
