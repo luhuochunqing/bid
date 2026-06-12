@@ -144,7 +144,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { MoreFilled, User, Calendar, Document, MagicStick, Upload, DocumentAdd, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import draggable from 'vuedraggable'
@@ -220,14 +220,6 @@ const allTasksCompleted = computed(() => {
 })
 
 const canSubmitToDocument = computed(() => allTasksCompleted.value)
-
-// [DIAGNOSTIC]
-watch(() => props.tasks?.length, (len) => {
-  console.log('[TaskBoard] props.tasks.length:', len, 'statuses:', props.tasks?.map(t => `${t.id}:${t.status}`))
-}, { immediate: true })
-watch(columns, (cols) => {
-  console.log('[TaskBoard] columns:', cols?.map(c => c.key))
-}, { immediate: true })
 
 const getTasksByStatus = (code) => {
   return props.tasks.filter((t) => normalizeStatus(t.status) === code)
