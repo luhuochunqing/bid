@@ -158,14 +158,14 @@ const getProjectTypeLabel = (type) => {
 }
 
 const getBidResultLabel = (result) => {
-  const map = { AWARDED: '中标', WON: '中标', LOST: '未中标', ABANDONED: '流标', IN_PROGRESS: '进行中', OTHER: '其他' }
+  const map = { WON: '已中标', LOST: '未中标', FAILED: '已流标', ABANDONED: '已放弃', IN_PROGRESS: '进行中', OTHER: '其他' }
   return map[result] || result || '-'
 }
 
 const getBidResultTagType = (result) => {
-  if (result === 'AWARDED' || result === 'WON') return 'success'
+  if (result === 'WON') return 'success'
   if (result === 'LOST') return 'danger'
-  if (result === 'ABANDONED') return 'warning'
+  if (result === 'FAILED') return 'warning'
   return 'info'
 }
 

@@ -170,7 +170,7 @@ class ProjectArchiveIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].projectName").value("测试项目一期"))
                 .andExpect(jsonPath("$.content[0].projectType").value("综合"))
-                .andExpect(jsonPath("$.content[0].bidResult").value("AWARDED"))
+                .andExpect(jsonPath("$.content[0].bidResult").value("WON"))
                 .andExpect(jsonPath("$.content[0].fileCategoryDetails.TENDER").value(1))
                 .andExpect(jsonPath("$.content[0].fileCategoryDetails.BID").value(1))
                 .andExpect(jsonPath("$.content[0].projectManager").value("张项目经理"))

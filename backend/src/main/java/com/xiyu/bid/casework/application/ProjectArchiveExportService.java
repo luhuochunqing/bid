@@ -115,14 +115,20 @@ public class ProjectArchiveExportService {
                     try {
                         Optional<Project> pOpt = projectRepository.findById(archive.getProjectId());
                         if (pOpt.isPresent()) {
-                            projectStatus = pOpt.get().getStatus().name();
-                            Optional<Tender> tOpt = tenderRepository.findById(pOpt.get().getTenderId());
+                            Project p = pOpt.get();
+                            projectStatus = p.getStatus().name();
+                            // bidResult 从 Project.Status 终态推导（Excel 直接输出中文）
+                            bidResult = switch (p.getStatus()) {
+                                case WON -> "已中标";
+                                case LOST -> "未中标";
+                                case FAILED -> "已流标";
+                                case ABANDONED -> "已放弃";
+                                default -> "进行中";
+                            };
+                            Optional<Tender> tOpt = tenderRepository.findById(p.getTenderId());
                             if (tOpt.isPresent()) {
                                 Tender t = tOpt.get();
                                 projectType = safeString(t.getProjectType());
-                                if (Tender.Status.WON == t.getStatus()) bidResult = "中标";
-                                else if (Tender.Status.LOST == t.getStatus()) bidResult = "未中标";
-                                else bidResult = safeString(t.getStatus() != null ? t.getStatus().name() : "");
                                 projectManager = safeString(t.getProjectManagerName());
                                 bidManager = safeString(t.getBiddingPersonName());
                                 tenderAgency = safeString(t.getTenderAgency());

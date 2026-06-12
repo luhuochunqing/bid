@@ -54,18 +54,20 @@ class ProjectArchiveResponseMapper {
                 .map(Project::getTenderId)
                 .flatMap(tenderRepository::findById);
         if (projectOpt.isPresent()) {
-            projectStatus = projectOpt.get().getStatus().name();
+            Project p = projectOpt.get();
+            projectStatus = p.getStatus().name();
+            // bidResult 从 Project.Status 终态推导（产品蓝图 §4.3）
+            bidResult = switch (p.getStatus()) {
+                case WON -> "WON";
+                case LOST -> "LOST";
+                case FAILED -> "FAILED";
+                case ABANDONED -> "ABANDONED";
+                default -> "IN_PROGRESS";
+            };
         }
         if (tenderOpt.isPresent()) {
             Tender tender = tenderOpt.get();
             projectType = tender.getProjectType();
-            if (Tender.Status.WON == tender.getStatus()) {
-                bidResult = "AWARDED";
-            } else if (Tender.Status.LOST == tender.getStatus()) {
-                bidResult = "LOST";
-            } else {
-                bidResult = tender.getStatus().name();
-            }
             projectManager = tender.getProjectManagerName();
             bidManager = tender.getBiddingPersonName();
         }
