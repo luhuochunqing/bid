@@ -33,14 +33,26 @@ export const useBiddingStore = defineStore('bidding', {
   },
 
   actions: {
-    async getTenders(filters = {}) {
+    async getTenders(filters = {}, retryCount = 0) {
       this.loading = true
       try {
         const result = await tendersApi.getList(filters)
         this.tenders = result?.success ? normalizeTenderCollection(result.data || []) : []
+        return this.tenders
       } catch (error) {
-        console.warn('API 调用失败，返回空列表:', error.message)
-        ElMessage.error('加载标讯列表失败，请检查网络后重试')
+        if (error?.response?.status === 429 && retryCount < 3) {
+          const delay = Math.pow(2, retryCount) * 1000
+          await new Promise(r => setTimeout(r, delay))
+          return this.getTenders(filters, retryCount + 1)
+        }
+        const isRateLimited = error?.response?.status === 429
+        if (isRateLimited) {
+          console.warn('API 限流(429)，稍后重试:', error.message)
+          ElMessage.warning('操作过于频繁，请稍后重试')
+        } else {
+          console.warn('API 调用失败，返回空列表:', error.message)
+          ElMessage.error('加载标讯列表失败，请检查网络后重试')
+        }
         this.tenders = []
       } finally {
         this.loading = false

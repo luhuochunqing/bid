@@ -232,8 +232,8 @@ const {
 
 const qualifications = ref([]); const loading = ref(false)
 const page = ref(1); const pageSize = ref(15); const total = ref(0)
-// CO-155 fix: filters 加 category 字段。statuses 默认 VALID 来自 main !444 统一
-const filters = reactive({ keyword:'', issuer:'', expiryRange:null, statuses:['VALID','EXPIRING','EXPIRED'], level:'', category:'' })
+// filters: 初始无默认筛选，空状态显示全部
+const filters = reactive({ keyword:'', issuer:'', expiryRange:null, statuses:[], level:'', category:'' })
 const statusOptions = [{ label:'在库', value:'VALID' },{ label:'即将到期', value:'EXPIRING' },{ label:'已过期', value:'EXPIRED' },{ label:'已下架', value:'RETIRED' }]
 // CO-155 fix: 领域(category)选项（后端无字典表，与后端 QualificationCategory 枚举对齐）
 const categoryOptions = [

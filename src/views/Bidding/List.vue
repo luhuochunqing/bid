@@ -214,7 +214,7 @@ const {
   handleSearch, handleReset, handleExport,
   handleViewDetail, handleParticipate, handleViewAllRecommend,
   handleOpenCustomerOpportunityCenter, openManualAdd, openSourceConfig,
-  handleAIAnalysis,
+  handleAIAnalysis, isAdmin, handleEvaluate,
 } = useTenderListPage()
 
 // ---- 收藏状态 ----
