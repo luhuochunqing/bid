@@ -209,6 +209,21 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
+     * 处理应用层失败异常（如证书编号重复、等级不能为空等）
+     */
+    @ExceptionHandler(AppFailureException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAppFailureException(
+            AppFailureException ex,
+            HttpServletRequest request) {
+        log.warn("应用层异常 - URI: {}, Message: {}",
+            request.getRequestURI(), ex.getMessage());
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(400, ex.getMessage()));
+    }
+
+    /**
      * 处理资源不存在异常
      */
     @ExceptionHandler(ResourceNotFoundException.class)
