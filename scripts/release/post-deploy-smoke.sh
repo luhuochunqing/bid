@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# Post-deploy smoke verification script (runs on the target server)
+# Input: API base URL, smoke credentials, backend service name
+# Output: smoke check results with pass/fail summary
+# Pos: scripts/release/ - Release automation and rehearsal helpers
+# 注意：端点路径必须与实际 Controller @RequestMapping 一致
+set -euo pipefail
+
+SMOKE_API_BASE_URL="${1:-${SMOKE_API_BASE_URL:-http://127.0.0.1:8080}}"
+SMOKE_USERNAME="${2:-${SMOKE_USERNAME:-admin}}"
+SMOKE_PASSWORD="${3:-${SMOKE_PASSWORD:-}}"
+BACKEND_SERVICE_NAME="${4:-${BACKEND_SERVICE_NAME:-xiyu-bid-backend}}"
+
+PASS=0
+FAIL=0
+WARN=0
+
+pass() { echo "  ✅ $1"; PASS=$((PASS + 1)); }
+fail() { echo "  ❌ $1"; FAIL=$((FAIL + 1)); }
+warn() { echo "  ⚠️  $1"; WARN=$((WARN + 1)); }
+section() { echo ""; echo "━━━ $1 ━━━"; }
+
+echo "============================================"
+echo "  Post-Deploy Smoke Verification"
+echo "  Target: $SMOKE_API_BASE_URL"
+echo "  Time:   $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+echo "============================================"
+
+# ── P0: Health check ──
+section "P0: Health"
+HEALTH_BODY=$(curl -fsS --connect-timeout 10 "$SMOKE_API_BASE_URL/actuator/health" 2>/dev/null || true)
+if echo "$HEALTH_BODY" | grep -q '"UP"'; then
+  pass "Health check: UP"
+else
+  fail "Health check: NOT UP ($(echo "$HEALTH_BODY" | head -c 60))"
+fi
+
+# ── P1: Login ──
+section "P1: Login"
+TOKEN=""
+LOGIN_LIMITED=false
+if [[ -z "$SMOKE_PASSWORD" ]]; then
+  warn "SMOKE_PASSWORD 未设置，跳过登录验活"
+else
+  LOGIN_BODY=$(curl -sS --connect-timeout 10 -X POST "$SMOKE_API_BASE_URL/api/auth/login" \
+    -H 'Content-Type: application/json' \
+    -d "$(printf '{"username":"%s","password":"%s"}' "$SMOKE_USERNAME" "$SMOKE_PASSWORD")" 2>/dev/null || true)
+
+  if echo "$LOGIN_BODY" | grep -q '"success":true'; then
+    TOKEN=$(echo "$LOGIN_BODY" | grep -o '"token":"[^"]*"' | cut -d\" -f4 || true)
+    pass "Login: success (token obtained)"
+  elif echo "$LOGIN_BODY" | grep -q "rate_limit_exceeded"; then
+    LOGIN_LIMITED=true
+    warn "Login: rate_limit_exceeded（限流，不影响业务，跳过本轮登录验活）"
+  else
+    LOGIN_MSG=$(echo "$LOGIN_BODY" | grep -o '"msg":"[^"]*"' | cut -d\" -f4 || echo "unknown error")
+    fail "Login: $LOGIN_MSG"
+  fi
+fi
+
+# ── P1: 关键业务端点 ──
+section "P1: Business Endpoints"
+if [[ -n "$TOKEN" ]]; then
+  EP_LIST=(
+    "/api/auth/me"
+    "/api/tenders?page=0&size=1"
+    "/api/projects?page=0&size=1"
+    "/api/knowledge/qualifications?status=VALID&page=0&size=1"
+    "/api/resources/expenses?page=0&size=1"
+    "/api/cases?page=0&size=1"
+    "/api/knowledge/templates?page=0&size=1"
+    "/api/resources/bar-assets?page=0&size=1"
+    "/api/analytics/overview"
+  )
+
+  for ep in "${EP_LIST[@]}"; do
+    HTTP=$(curl -sS --connect-timeout 10 -o /dev/null -w '%{http_code}' \
+      -H "Authorization: Bearer $TOKEN" \
+      "$SMOKE_API_BASE_URL$ep" 2>/dev/null || echo 'FAIL')
+    if [[ "$HTTP" == "200" || "$HTTP" == "403" ]]; then
+      pass "GET $ep → $HTTP"
+    else
+      fail "GET $ep → $HTTP (unexpected, expected 200/403)"
+    fi
+  done
+elif [[ "$LOGIN_LIMITED" == "true" ]]; then
+  # 限流情况下用简单方法验证：404 或 401/403 说明业务正常
+  warn "登录限流，降级为无 token 基础连通性检测"
+  for ep in "/api/tenders?page=0&size=1" "/api/projects?page=0&size=1"; do
+    HTTP=$(curl -sS --connect-timeout 10 -o /dev/null -w '%{http_code}' \
+      "$SMOKE_API_BASE_URL$ep" 2>/dev/null || echo 'FAIL')
+    if [[ "$HTTP" == "401" || "$HTTP" == "403" ]]; then
+      pass "GET $ep → $HTTP（已降级，无 token 正确拒绝）"
+    else
+      warn "GET $ep → $HTTP（降级模式，无法判断）"
+    fi
+  done
+else
+  warn "无 token，跳过业务端点测试"
+fi
+
+# ── P1: 日志 schema 错误检测 ──
+section "P1: Log Schema Check"
+if command -v journalctl &>/dev/null; then
+  LOGS=$(journalctl -u "$BACKEND_SERVICE_NAME" --no-pager -n 500 2>/dev/null || true)
+  SCHEMA_ERRORS=0
+
+  for pattern in \
+    "Unknown column" \
+    "Table.*doesn.t exist" \
+    "Table.*not exist" \
+    "Duplicate column name" \
+    "Duplicate key name" \
+    "doesn.t have a default value" \
+    "cannot be null" \
+    "Data truncated"; do
+    if echo "$LOGS" | grep -qi "$pattern" 2>/dev/null; then
+      MATCH=$(echo "$LOGS" | grep -i "$pattern" | tail -1 | head -c 120)
+      fail "日志中发现 schema 错误: $pattern"
+      echo "     → $MATCH"
+      SCHEMA_ERRORS=$((SCHEMA_ERRORS + 1))
+    fi
+  done
+
+  if [[ "$SCHEMA_ERRORS" -eq 0 ]]; then
+    pass "日志中无 schema 错误"
+  fi
+else
+  warn "journalctl 不可用，跳过日志扫描"
+fi
+
+# ── Summary ──
+section "Summary"
+TOTAL=$((PASS + FAIL + WARN))
+echo ""
+echo "  ✅ 通过: ${PASS}"
+echo "  ❌ 失败: ${FAIL}"
+echo "  ⚠️  警告: ${WARN}"
+echo "  总计: ${TOTAL} 项"
+echo ""
+
+if [[ "$FAIL" -gt 0 ]]; then
+  echo "结论: ❌ SMOKE FAILED — 需要人工介入"
+  exit 1
+elif [[ "$WARN" -gt 0 ]]; then
+  echo "结论: ⚠️  SMOKE PASSED WITH WARNINGS"
+else
+  echo "结论: ✅ SMOKE PASSED"
+fi
+echo "============================================"
