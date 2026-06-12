@@ -37,7 +37,6 @@ public class QualificationDTO {
     private String agencyContact;
     private String certScope;
     private String certReviewNote;
-    private String holder;
     private String holderName;
     private String remark;
     private Integer remainingDays;
@@ -46,13 +45,10 @@ public class QualificationDTO {
     private String retireReason;
     private Boolean borrowed;
     private String currentBorrower;
-    private String currentBorrowDepartment;
     private String currentDepartment;
-    private String currentBorrowPurpose;
     private String currentBorrowStatus;
     private String currentProjectId;
     private String borrowPurpose;
-    private LocalDate currentExpectedReturnDate;
     private LocalDate expectedReturnDate;
     private Boolean reminderEnabled;
     private Integer reminderDays;

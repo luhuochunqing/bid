@@ -6,9 +6,6 @@ import com.xiyu.bid.businessqualification.domain.model.QualificationAttachment;
 import com.xiyu.bid.businessqualification.domain.model.QualificationPage;
 import com.xiyu.bid.businessqualification.domain.port.BusinessQualificationRepository;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationStatus;
-import com.xiyu.bid.businessqualification.domain.valueobject.QualificationSubject;
-import com.xiyu.bid.businessqualification.domain.valueobject.ReminderPolicy;
-import com.xiyu.bid.businessqualification.domain.valueobject.ValidityPeriod;
 import com.xiyu.bid.businessqualification.infrastructure.persistence.entity.BusinessQualificationEntity;
 import com.xiyu.bid.businessqualification.infrastructure.persistence.entity.QualificationAttachmentEntity;
 import com.xiyu.bid.businessqualification.infrastructure.persistence.repository.BusinessQualificationJpaRepository;
@@ -201,70 +198,15 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
     }
 
     private BusinessQualificationEntity toEntity(BusinessQualification qualification) {
-        return BusinessQualificationEntity.builder()
-                .id(qualification.id())
-                .name(qualification.name())
-                .subjectType(qualification.subject().getType())
-                .subjectName(qualification.subject().getName())
-                .category(qualification.category())
-                .certificateNo(qualification.certificateNo())
-                .issuer(qualification.issuer())
-                .agency(qualification.agency())
-                .agencyContact(qualification.agencyContact())
-                .certScope(qualification.certScope())
-                .certReviewNote(qualification.certReviewNote())
-                .holderName(qualification.holderName())
-                .issueDate(qualification.validityPeriod().getIssueDate())
-                .expiryDate(qualification.validityPeriod().getExpiryDate())
-                .status(qualification.status())
-                .reminderEnabled(qualification.reminderPolicy().isEnabled())
-                .reminderDays(qualification.reminderPolicy().getReminderDays())
-                .lastRemindedAt(qualification.reminderPolicy().getLastRemindedAt())
-                .currentBorrowStatus(qualification.currentBorrowStatus())
-                .currentBorrower(qualification.currentBorrower())
-                .currentDepartment(qualification.currentDepartment())
-                .currentProjectId(qualification.currentProjectId())
-                .borrowPurpose(qualification.borrowPurpose())
-                .expectedReturnDate(qualification.expectedReturnDate())
-                .fileUrl(qualification.fileUrl())
-                .retireReason(qualification.retireReason())
-                .retired(qualification.retired())
-                .build();
+        return BusinessQualificationEntity.fromDomain(qualification);
     }
 
     private BusinessQualification toDomain(BusinessQualificationEntity entity) {
-        return BusinessQualification.createWithRetired(
-                entity.getId(),
-                entity.getName(),
-                entity.getLevel(),
-                QualificationSubject.of(entity.getSubjectType(), entity.getSubjectName()),
-                entity.getCategory(),
-                entity.getCertificateNo(),
-                entity.getIssuer(),
-                entity.getAgency(),
-                entity.getAgencyContact(),
-                entity.getCertScope(),
-                entity.getCertReviewNote(),
-                entity.getHolderName(),
-                new ValidityPeriod(entity.getIssueDate(), entity.getExpiryDate()),
-                new ReminderPolicy(
-                        entity.isReminderEnabled(),
-                        entity.getReminderDays(),
-                        entity.getLastRemindedAt()
-                ),
-                entity.getCurrentBorrowStatus(),
-                entity.getCurrentBorrower(),
-                entity.getCurrentDepartment(),
-                entity.getCurrentProjectId(),
-                entity.getBorrowPurpose(),
-                entity.getExpectedReturnDate(),
-                entity.getFileUrl(),
-                entity.getRetireReason(),
-                entity.isRetired(),
-                attachmentJpaRepository.findByQualificationIdOrderByUploadedAtDesc(entity.getId()).stream()
-                        .map(this::toDomainAttachment)
-                        .toList()
-        );
+        List<QualificationAttachment> attachments = attachmentJpaRepository
+                .findByQualificationIdOrderByUploadedAtDesc(entity.getId()).stream()
+                .map(this::toDomainAttachment)
+                .toList();
+        return entity.toDomain(attachments);
     }
 
     private QualificationAttachment toDomainAttachment(QualificationAttachmentEntity entity) {
