@@ -27,6 +27,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +40,7 @@ import java.util.Optional;
 public class OrganizationDirectoryHttpGateway implements OrganizationDirectoryGateway {
 
     private static final Logger log = LoggerFactory.getLogger(OrganizationDirectoryHttpGateway.class);
+    private static final DateTimeFormatter ORG_API_DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -151,8 +153,8 @@ public class OrganizationDirectoryHttpGateway implements OrganizationDirectoryGa
         int maxPages = 100; // safety limit to prevent infinite loops
         for (int page = 0; page < maxPages; page++) {
             Map<String, Object> body = Map.of(
-                    "startTime", startAt.toString(),
-                    "endTime", endAt.toString(),
+                    "startTime", startAt.format(ORG_API_DTF),
+                    "endTime", endAt.format(ORG_API_DTF),
                     "index", index
             );
             Optional<JsonNode> response = postJson(url, body, context);
