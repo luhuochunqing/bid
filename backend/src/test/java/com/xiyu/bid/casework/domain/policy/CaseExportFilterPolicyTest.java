@@ -2,6 +2,7 @@ package com.xiyu.bid.casework.domain.policy;
 
 import com.xiyu.bid.casework.domain.model.CaseExportCriteria;
 import com.xiyu.bid.casework.domain.model.CaseExportRecord;
+import com.xiyu.bid.casework.domain.model.KnowledgeCaseReadModel;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,7 +39,7 @@ class CaseExportFilterPolicyTest {
         KnowledgeCase active = createActiveCase("标题A", "技术", "国有企业", "综合", "需求内容");
         KnowledgeCase offShelf = createCaseWithStatus("标题B", "OFF_SHELF");
 
-        List<KnowledgeCase> result = CaseExportFilterPolicy.filterCases(List.of(active, offShelf), null);
+        List<KnowledgeCaseReadModel> result = CaseExportFilterPolicy.filterCases(List.of(active, offShelf), null);
         assertEquals(1, result.size());
         assertEquals("标题A", result.get(0).getScoringPointTitle());
     }
@@ -49,7 +50,7 @@ class CaseExportFilterPolicyTest {
         KnowledgeCase c1 = createActiveCase("标题A", "技术", "国有企业", "综合", "需求内容");
         KnowledgeCase c2 = createActiveCase("标题B", "商务", "民营企业", "工程", "其他需求");
 
-        List<KnowledgeCase> result = CaseExportFilterPolicy.filterCases(List.of(c1, c2), null);
+        List<KnowledgeCaseReadModel> result = CaseExportFilterPolicy.filterCases(List.of(c1, c2), null);
         assertEquals(2, result.size());
     }
 
@@ -60,7 +61,7 @@ class CaseExportFilterPolicyTest {
         KnowledgeCase nonMatching = createActiveCase("商务报价", "商务", "民营企业", "工程", "其他");
 
         CaseExportCriteria criteria = new CaseExportCriteria("技术方案", null, null, null, null, null, null, null, null);
-        List<KnowledgeCase> result = CaseExportFilterPolicy.filterCases(List.of(matching, nonMatching), criteria);
+        List<KnowledgeCaseReadModel> result = CaseExportFilterPolicy.filterCases(List.of(matching, nonMatching), criteria);
         assertEquals(1, result.size());
         assertEquals("技术方案设计", result.get(0).getScoringPointTitle());
     }
@@ -72,7 +73,7 @@ class CaseExportFilterPolicyTest {
         KnowledgeCase nonMatching = createActiveCase("标题B", "商务", "民营企业", "工程", "简单需求");
         CaseExportCriteria criteria = new CaseExportCriteria("防火墙", null, null, null, null, null, null, null, null);
 
-        List<KnowledgeCase> result = CaseExportFilterPolicy.filterCases(List.of(matching, nonMatching), criteria);
+        List<KnowledgeCaseReadModel> result = CaseExportFilterPolicy.filterCases(List.of(matching, nonMatching), criteria);
         assertEquals(1, result.size());
     }
 
@@ -84,7 +85,7 @@ class CaseExportFilterPolicyTest {
         KnowledgeCase nonMatching = createActiveCase("标题B", "商务", "民营企业", "工程", "其他内容");
         CaseExportCriteria criteria = new CaseExportCriteria("微服务架构", null, null, null, null, null, null, null, null);
 
-        List<KnowledgeCase> result = CaseExportFilterPolicy.filterCases(List.of(matching, nonMatching), criteria);
+        List<KnowledgeCaseReadModel> result = CaseExportFilterPolicy.filterCases(List.of(matching, nonMatching), criteria);
         assertEquals(1, result.size());
     }
 
@@ -94,7 +95,7 @@ class CaseExportFilterPolicyTest {
         KnowledgeCase matchTitle = createActiveCase("Technical Design", null, null, null, "需求内容");
         CaseExportCriteria criteria = new CaseExportCriteria("technical", null, null, null, null, null, null, null, null);
 
-        List<KnowledgeCase> result = CaseExportFilterPolicy.filterCases(List.of(matchTitle), criteria);
+        List<KnowledgeCaseReadModel> result = CaseExportFilterPolicy.filterCases(List.of(matchTitle), criteria);
         assertEquals(1, result.size());
     }
 
@@ -105,7 +106,7 @@ class CaseExportFilterPolicyTest {
         KnowledgeCase c2 = createActiveCase("标题B", "商务", "国有企业", "综合", "需求");
         CaseExportCriteria criteria = new CaseExportCriteria(null, "技术", null, null, null, null, null, null, null);
 
-        List<KnowledgeCase> result = CaseExportFilterPolicy.filterCases(List.of(c1, c2), criteria);
+        List<KnowledgeCaseReadModel> result = CaseExportFilterPolicy.filterCases(List.of(c1, c2), criteria);
         assertEquals(1, result.size());
         assertEquals("标题A", result.get(0).getScoringPointTitle());
     }
@@ -117,7 +118,7 @@ class CaseExportFilterPolicyTest {
         KnowledgeCase c2 = createActiveCase("标题B", "技术", "民营企业", "综合", "需求");
         CaseExportCriteria criteria = new CaseExportCriteria(null, null, "民营企业", null, null, null, null, null, null);
 
-        List<KnowledgeCase> result = CaseExportFilterPolicy.filterCases(List.of(c1, c2), criteria);
+        List<KnowledgeCaseReadModel> result = CaseExportFilterPolicy.filterCases(List.of(c1, c2), criteria);
         assertEquals(1, result.size());
     }
 
@@ -128,7 +129,7 @@ class CaseExportFilterPolicyTest {
         KnowledgeCase c2 = createActiveCase("标题B", "技术", "国有企业", "工程", "需求");
         CaseExportCriteria criteria = new CaseExportCriteria(null, null, null, List.of("综合"), null, null, null, null, null);
 
-        List<KnowledgeCase> result = CaseExportFilterPolicy.filterCases(List.of(c1, c2), criteria);
+        List<KnowledgeCaseReadModel> result = CaseExportFilterPolicy.filterCases(List.of(c1, c2), criteria);
         assertEquals(1, result.size());
     }
 
