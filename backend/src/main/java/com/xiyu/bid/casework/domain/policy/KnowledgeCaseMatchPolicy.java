@@ -4,7 +4,6 @@ import com.xiyu.bid.casework.domain.model.KnowledgeCaseMatchCriteria;
 import com.xiyu.bid.casework.domain.model.KnowledgeCaseMatchScore;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
 
-import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,9 +28,7 @@ import java.util.stream.Collectors;
  *   <li>中标案例加成：+5 分</li>
  * </ul>
  */
-import org.springframework.stereotype.Component;
 
-@Component
 public class KnowledgeCaseMatchPolicy {
 
     private static final int MAX_TITLE_SCORE = 40;

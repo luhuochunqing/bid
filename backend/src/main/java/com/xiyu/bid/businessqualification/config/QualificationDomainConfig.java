@@ -1,6 +1,8 @@
 package com.xiyu.bid.businessqualification.config;
 
 import com.xiyu.bid.businessqualification.domain.service.QualificationCreationPolicy;
+import com.xiyu.bid.businessqualification.domain.service.QualificationExpiryPolicy;
+import com.xiyu.bid.businessqualification.domain.service.QualificationValidationPolicy;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -14,5 +16,15 @@ public class QualificationDomainConfig {
     @Bean
     public QualificationCreationPolicy qualificationCreationPolicy() {
         return new QualificationCreationPolicy();
+    }
+
+    @Bean
+    public QualificationExpiryPolicy qualificationExpiryPolicy() {
+        return new QualificationExpiryPolicy();
+    }
+
+    @Bean
+    public QualificationValidationPolicy qualificationValidationPolicy() {
+        return new QualificationValidationPolicy();
     }
 }

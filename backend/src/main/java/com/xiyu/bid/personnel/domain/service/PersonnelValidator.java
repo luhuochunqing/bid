@@ -2,12 +2,10 @@ package com.xiyu.bid.personnel.domain.service;
 
 import com.xiyu.bid.personnel.domain.model.Personnel;
 import com.xiyu.bid.personnel.domain.valueobject.Education;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.util.List;
 
-@Component
 public class PersonnelValidator {
 
     public ValidationResult validate(Personnel personnel) {

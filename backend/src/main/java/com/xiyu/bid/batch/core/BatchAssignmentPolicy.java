@@ -62,6 +62,39 @@ public final class BatchAssignmentPolicy {
         }
     }
 
+    /** 纯核心推荐：返回验证错误而非抛出异常 */
+    public static java.util.Optional<String> validateAssignmentRequest(
+            TaskAssignmentRequest request, User currentUser,
+            BiFunction<User, String, List<String>> deptCodesSupplier) {
+        if (request == null || !request.hasAssignmentTarget()) {
+            return java.util.Optional.of("Assignment target cannot be empty");
+        }
+        return validateDeptAccess(currentUser, request.getAssigneeDeptCode(),
+                Boolean.TRUE.equals(request.getAllowCrossDeptCollaboration()), deptCodesSupplier);
+    }
+
+    private static java.util.Optional<String> validateDeptAccess(User currentUser, String targetDeptCode,
+                                                                  boolean allowCrossDeptCollaboration,
+                                                                  BiFunction<User, String, List<String>> deptCodesSupplier) {
+        if (currentUser == null || isAdmin(currentUser)) {
+            return java.util.Optional.empty();
+        }
+        List<String> allowedDeptCodes = new ArrayList<>(deptCodesSupplier.apply(currentUser, "READ"));
+        if (currentUser.getDepartmentCode() != null && !currentUser.getDepartmentCode().isBlank()) {
+            allowedDeptCodes.add(currentUser.getDepartmentCode().trim());
+        }
+        String normalizedTargetDept = normalizeText(targetDeptCode);
+        if (normalizedTargetDept == null || allowedDeptCodes.isEmpty()) {
+            return java.util.Optional.empty();
+        }
+        if (!allowedDeptCodes.contains(normalizedTargetDept)) {
+            return java.util.Optional.of(allowCrossDeptCollaboration
+                    ? "跨部门协作不在当前数据权限范围内"
+                    : "当前用户无权向该部门分配任务");
+        }
+        return java.util.Optional.empty();
+    }
+
     private static boolean isAdmin(User user) {
         return user != null && "admin".equalsIgnoreCase(user.getRoleCode());
     }

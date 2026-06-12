@@ -3,7 +3,6 @@ package com.xiyu.bid.casework.domain.policy;
 import com.xiyu.bid.casework.domain.model.CaseExportContext;
 import com.xiyu.bid.casework.domain.model.CaseExportZipEntry;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -12,7 +11,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
-@Component
 public class CaseExportPolicy {
 
     private static final int MAX_EXPORT_BATCH_SIZE = 500;
