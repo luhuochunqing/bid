@@ -17,6 +17,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.zip.ZipEntry;
@@ -109,28 +112,69 @@ public class QualificationExportService {
                         if (att.getFileUrl() == null || att.getFileUrl().isBlank()) continue;
                         String entryName = (item.getName() == null ? "资质" : item.getName()) + "_"
                                 + (att.getFileName() == null ? att.getFileUrl() : att.getFileName());
-                        zos.putNextEntry(new ZipEntry(entryName));
-                        try (InputStream in = new URL(att.getFileUrl()).openStream()) {
-                            in.transferTo(zos);
-                        } catch (MalformedURLException e) {
-                            zos.write(("无法下载: " + att.getFileUrl()).getBytes(StandardCharsets.UTF_8));
-                        }
-                        zos.closeEntry();
+                        writeAttachmentToZip(zos, item.getId(), att.getFileUrl(), entryName);
                     }
                 }
                 if (item.getFileUrl() != null && !item.getFileUrl().isBlank()) {
-                    String entryName = (item.getName() == null ? "资质" : item.getName()) + "_" + item.getFileUrl();
-                    zos.putNextEntry(new ZipEntry(entryName));
-                    try (InputStream in = new URL(item.getFileUrl()).openStream()) {
-                        in.transferTo(zos);
-                    } catch (MalformedURLException e) {
-                        zos.write(("无法下载: " + item.getFileUrl()).getBytes(StandardCharsets.UTF_8));
-                    }
-                    zos.closeEntry();
+                    String entryName = (item.getName() == null ? "资质" : item.getName()) + "_" + extractFileName(item.getFileUrl());
+                    writeAttachmentToZip(zos, item.getId(), item.getFileUrl(), entryName);
                 }
             }
         }
         return out.toByteArray();
+    }
+
+    private void writeAttachmentToZip(ZipOutputStream zos, Long qualificationId, String fileUrl, String entryName) throws IOException {
+        // 优先从本地文件系统读取（fileUrl 可能是 /api/knowledge/qualifications/{id}/attachments/{fileName}）
+        Path localPath = resolveLocalPath(qualificationId, fileUrl);
+        if (localPath != null && Files.exists(localPath) && !Files.isDirectory(localPath)) {
+            zos.putNextEntry(new ZipEntry(entryName));
+            Files.copy(localPath, zos);
+            zos.closeEntry();
+            return;
+        }
+        // 回退：如果是完整 URL（http/https），尝试作为 URL 打开
+        try (InputStream in = new URL(fileUrl).openStream()) {
+            zos.putNextEntry(new ZipEntry(entryName));
+            in.transferTo(zos);
+            zos.closeEntry();
+        } catch (MalformedURLException e) {
+            zos.putNextEntry(new ZipEntry(entryName + ".txt"));
+            zos.write(("无法下载: " + fileUrl).getBytes(StandardCharsets.UTF_8));
+            zos.closeEntry();
+        }
+    }
+
+    private Path resolveLocalPath(Long qualificationId, String fileUrl) {
+        if (fileUrl == null || qualificationId == null) return null;
+        String fileName;
+        // 格式: /api/knowledge/qualifications/{id}/attachments/{fileName}
+        String apiPrefix = "/api/knowledge/qualifications/";
+        if (fileUrl.startsWith(apiPrefix)) {
+            String rest = fileUrl.substring(apiPrefix.length());
+            int attachIdx = rest.indexOf("/attachments/");
+            if (attachIdx > 0) {
+                fileName = rest.substring(attachIdx + "/attachments/".length());
+            } else {
+                fileName = fileUrl;
+            }
+        } else {
+            fileName = fileUrl;
+        }
+        // 路径遍历防护
+        if (fileName.contains("/") || fileName.contains("\\") || fileName.contains("..")) {
+            return null;
+        }
+        Path baseDir = Paths.get("data/qualification-attachments").toAbsolutePath().normalize();
+        Path resolved = baseDir.resolve(String.valueOf(qualificationId)).resolve(fileName).normalize();
+        if (!resolved.startsWith(baseDir)) return null;
+        return resolved;
+    }
+
+    private String extractFileName(String fileUrl) {
+        if (fileUrl == null) return "attachment";
+        int slash = Math.max(fileUrl.lastIndexOf('/'), fileUrl.lastIndexOf('\\'));
+        return slash >= 0 ? fileUrl.substring(slash + 1) : fileUrl;
     }
 
     private static String nullToEmpty(String s) {
