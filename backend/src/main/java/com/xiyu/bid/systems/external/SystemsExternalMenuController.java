@@ -37,7 +37,7 @@ public class SystemsExternalMenuController {
      */
     @GetMapping
     public ResponseEntity<ApiResponse<ExternalMenuResponse>> getMenus() {
-        // CO-155 顺带修：!443 重构半完成，按客户方规范返 ExternalMenuResponse（含 systemCode/systemName/menus）
+        
         ApiResponse<ExternalMenuResponse> resp = ApiResponse
                 .<ExternalMenuResponse>builder()
                 .success(true)
