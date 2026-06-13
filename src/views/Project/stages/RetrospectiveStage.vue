@@ -139,7 +139,7 @@ const userStore = useUserStore()
 const isAdmin = computed(() => userStore.hasPermission('project:retrospective:review'))
 const canEdit = computed(() => {
   const role = userStore.userRole || userStore.currentUser?.role || ''
-  return ['bid_admin', 'bid_lead', 'bid_specialist', 'admin'].includes(role)
+  return ['bid_admin', 'bid_lead', 'bid_senior', 'bid_specialist', 'admin'].includes(role)
 })
 const isApplicable = computed(() => props.resultType === 'WON' || props.resultType === 'LOST')
 const form = reactive({

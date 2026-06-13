@@ -32,7 +32,7 @@ describe('TenderCreatePage button state machine', () => {
 
   it('has isAdminOrLead computed from userRole', () => {
     expect(tenderCreateSource).toContain('const isAdminOrLead = computed')
-    expect(tenderCreateSource).toContain("role === 'bid_admin' || role === 'bid_lead' || role === 'admin'")
+    expect(tenderCreateSource).toContain("role === 'bid_admin' || role === 'bid_lead' || role === 'bid_senior' || role === 'admin'")
   })
 
   it('has canProceedToNext checking TRACKING + project leader match only', () => {

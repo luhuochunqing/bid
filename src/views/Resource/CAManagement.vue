@@ -234,7 +234,7 @@ const caStore = useCaStore()
 // Role-based view determination
 const isManagerView = computed(() => {
   const role = userStore.userRole?.toLowerCase()
-  return role === 'bid_admin' || role === 'bid_lead' || userStore.hasPermission('resource-ca')
+  return role === 'bid_admin' || role === 'bid_lead' || role === 'bid_senior' || userStore.hasPermission('resource-ca')
 })
 
 // Loading states

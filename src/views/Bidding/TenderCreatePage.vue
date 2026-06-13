@@ -100,7 +100,7 @@ const tenderDetail = ref(null)
 const tenderStatus = computed(() => tenderDetail.value?.status || null)
 const isAdminOrLead = computed(() => {
   const role = (userStore.userRole || '').toLowerCase().replace(/^role_/, '')
-  return role === 'bid_admin' || role === 'bid_lead' || role === 'admin'
+  return role === 'bid_admin' || role === 'bid_lead' || role === 'bid_senior' || role === 'admin'
 })
 const currentUserId = computed(() => userStore.currentUser?.id)
 const canProceedToNext = computed(() => tenderStatus.value === 'TRACKING' && tenderDetail.value?.projectManagerId === currentUserId.value)

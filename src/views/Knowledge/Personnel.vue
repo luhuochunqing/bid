@@ -217,10 +217,10 @@ const exportDialogVisible = ref(false)
 const attachDialogVisible = ref(false)
 
 const userRole = computed(() => userStore.userRole || (userStore.currentUser && userStore.currentUser.role) || '')
-const canAdd = computed(() => ['bid_admin', 'bid_lead', 'bid_specialist'].includes(userRole.value))
-const canImportExport = computed(() => ['bid_admin', 'bid_lead'].includes(userRole.value))
-const canBatch = computed(() => ['bid_admin', 'bid_lead', 'bid_specialist'].includes(userRole.value))
-const canEdit = computed(() => ['bid_admin', 'bid_lead', 'bid_specialist'].includes(userRole.value))
+const canAdd = computed(() => ['bid_admin', 'bid_lead', 'bid_senior', 'bid_specialist'].includes(userRole.value))
+const canImportExport = computed(() => ['bid_admin', 'bid_lead', 'bid_senior'].includes(userRole.value))
+const canBatch = computed(() => ['bid_admin', 'bid_lead', 'bid_senior', 'bid_specialist'].includes(userRole.value))
+const canEdit = computed(() => ['bid_admin', 'bid_lead', 'bid_senior', 'bid_specialist'].includes(userRole.value))
 
 async function handleDownloadTemplate() {
   try {

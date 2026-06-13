@@ -51,7 +51,7 @@ public class QualificationExpiryNotificationService {
 
     /** 蓝图 §4.1.3.8 接收人角色：行政人员、投标管理员、投标组长。 */
     static final List<String> RECIPIENT_ROLE_CODES = List.of(
-            "admin_staff", "bid_admin", "bid_lead"
+            "admin_staff", "bid_admin", "bid_lead", "bid_senior"
     );
 
     private final BusinessQualificationJpaRepository qualificationJpaRepository;

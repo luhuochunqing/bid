@@ -7,9 +7,9 @@ import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 
 export function useQualificationPermissionMatrix(userStore) {
-  const MANAGED_ROLES = ['admin_staff', 'bid_admin', 'bid_lead']
-  const VIEW_ROLES = ['admin_staff', 'bid_admin', 'bid_lead', 'bid_specialist']
-  const ALERT_ADMIN_ROLES = ['bid_admin']
+  const MANAGED_ROLES = ['admin_staff', 'bid_admin', 'bid_lead', 'bid_senior']
+  const VIEW_ROLES = ['admin_staff', 'bid_admin', 'bid_lead', 'bid_senior', 'bid_specialist']
+  const ALERT_ADMIN_ROLES = ['bid_admin', 'bid_senior']
 
   const currentRoleCode = computed(() => userStore?.currentUser?.roleCode || userStore?.currentUser?.role || userStore?.userRole || '')
   const canManageQualification = computed(() => MANAGED_ROLES.includes(currentRoleCode.value))

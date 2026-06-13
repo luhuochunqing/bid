@@ -97,7 +97,7 @@ import CaseDetailDrawer from './components/CaseDetailDrawer.vue'
 import { PROJECT_TYPE_LABELS, CUSTOMER_TYPE_LABELS, SCORING_CATEGORIES, STATUS_LABELS } from './caseLabels.js'
 
 const userStore = useUserStore()
-const canManage = computed(() => { const r = userStore.currentUser?.role; return r === 'admin' || r === 'bid_admin' || r === 'bid_lead' })
+const canManage = computed(() => { const r = userStore.currentUser?.roleCode || userStore.currentUser?.role; return r === 'admin' || r === 'bid_admin' || r === 'bid_lead' || r === 'bid_senior' })
 
 const filters = reactive({ keyword: '', scoringCategory: '', customerType: '', projectTypes: [], statuses: [], sortBy: 'created', uploadDateRange: [], closeDateRange: [] })
 const loading = ref(false); const cases = ref([]); const page = ref(1); const pageSize = ref(16); const totalElements = ref(0)

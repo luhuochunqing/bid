@@ -34,7 +34,8 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             Map.entry("sales", User.Role.MANAGER),
             Map.entry("bid_specialist", User.Role.STAFF),
             Map.entry("admin_staff", User.Role.STAFF),
-            Map.entry("task_executor", User.Role.STAFF)
+            Map.entry("task_executor", User.Role.STAFF),
+            Map.entry("bid_senior", User.Role.MANAGER)
     );
 
     @Override

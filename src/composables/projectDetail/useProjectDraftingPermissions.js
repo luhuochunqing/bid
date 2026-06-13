@@ -38,7 +38,7 @@ import { useUserStore } from '@/stores/user'
  * 角色分组：按权限矩阵列合并
  */
 function resolveDraftingRoleGroup(role) {
-  if (role === 'bid_admin' || role === 'bid_lead') return 'admin_lead'
+  if (role === 'bid_admin' || role === 'bid_lead' || role === 'bid_senior') return 'admin_lead'
   if (role === 'sales') return 'lead_assist'       // 投标负责人 / 辅助人
   if (role === 'auditor') return 'auditor'         // 审核人
   if (role === 'task_executor') return 'executor'  // 任务执行人

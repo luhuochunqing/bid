@@ -32,7 +32,7 @@ export function useEvaluationReview(tenderRef) {
   const requiresReview = computed(() => Boolean(tenderEvaluation.value?.requiresReview))
   const canReview = computed(() => {
     const role = currentUserRole.value?.toLowerCase()
-    return (role === 'bid_admin' || role === 'bid_lead') && requiresReview.value
+    return (role === 'bid_admin' || role === 'bid_lead' || role === 'bid_senior') && requiresReview.value
   })
 
   // ---- load evaluation when tender resolves ----

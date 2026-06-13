@@ -11,7 +11,7 @@
 // 从 useProjectDraftingPermissions.js 提取 resolveDraftingRoleGroup
 // 避免需要完整 Pinia store
 function resolveDraftingRoleGroup(role) {
-  if (role === 'bid_admin' || role === 'bid_lead') return 'admin_lead'
+  if (role === 'bid_admin' || role === 'bid_lead' || role === 'bid_senior') return 'admin_lead'
   if (role === 'sales') return 'lead_assist'
   if (role === 'auditor') return 'auditor'
   if (role === 'task_executor') return 'executor'
@@ -35,6 +35,7 @@ describe('resolveDraftingRoleGroup', () => {
   it.each([
     ['bid_admin', 'admin_lead'],
     ['bid_lead', 'admin_lead'],
+    ['bid_senior', 'admin_lead'],
     ['sales', 'lead_assist'],
     ['auditor', 'auditor'],
     ['task_executor', 'executor'],
@@ -54,6 +55,7 @@ describe('canSubmitBid — 提交投标权限', () => {
   it.each([
     ['bid_admin', true],
     ['bid_lead', true],
+    ['bid_senior', true],
     ['sales', true],
     ['auditor', false],
     ['task_executor', false],
@@ -73,6 +75,7 @@ describe('canReviewBid — 审核投标权限', () => {
     ['auditor', true],
     ['bid_admin', false],
     ['bid_lead', false],
+    ['bid_senior', false],
     ['sales', false],
     ['task_executor', false],
     ['staff', false],
@@ -88,6 +91,7 @@ describe('canSubmitBidForReview — 提交投标审核权限', () => {
     ['sales', true],
     ['bid_admin', false],
     ['bid_lead', false],
+    ['bid_senior', false],
     ['auditor', false],
     ['task_executor', false],
     ['staff', false],

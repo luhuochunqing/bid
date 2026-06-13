@@ -207,7 +207,7 @@ function onPlanGapFileRemove(file) { const idx = (form.projectPlanGapFiles || []
 const locked = computed(() => reviewStatus.value === 'PENDING_REVIEW' || reviewStatus.value === 'APPROVED')
 // 审批模式：投标管理员/组长 查看 PENDING_REVIEW 的立项；改用 roleCode 以匹配 bid_admin 等新角色值
 const userRole = computed(() => userStore.currentUser?.roleCode || userStore.currentUser?.role || '')
-const isApprovalMode = computed(() => (userRole.value === 'bid_admin' || userRole.value === 'bid_lead') && reviewStatus.value === 'PENDING_REVIEW')
+const isApprovalMode = computed(() => (userRole.value === 'bid_admin' || userRole.value === 'bid_lead' || userRole.value === 'bid_senior') && reviewStatus.value === 'PENDING_REVIEW')
 // 人员搜索
 const leaderOptions = ref([]); const leaderSearching = ref(false)
 async function searchLeader(q) { if (!q || q.length < 1) return; leaderSearching.value = true; try { const r = await usersApi.search(q, 15); leaderOptions.value = (Array.isArray(r) ? r : []).map(u => ({ ...u, _label: u.name + '（' + (u.employeeId || '') + '）- ' + (u.departmentName || u.deptName || '') })) } catch { leaderOptions.value = [] } finally { leaderSearching.value = false } }

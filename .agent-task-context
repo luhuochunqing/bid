@@ -1,10 +1,10 @@
 agent=gemini
-task=fix-arch-and-doc
-branch=agent/gemini/fix-arch-and-doc
+task=bid-senior-role-fix
+branch=agent/gemini/bid-senior-role-fix
 base=origin/main
 worktree=/Users/user/xiyu/worktrees/gemini
 repo_root=/Users/user/xiyu/worktrees/gemini
 mode=in-place
 created_from_branch=agent/gemini-init
-created_from_rev=3d00119cdc36b046d888967389b553d64c6794f0
-created_at=2026-06-12T14:07:32Z
+created_from_rev=e13ebe77e35a9717d0fd01eb567c8f716c4e5c79
+created_at=2026-06-13T08:46:54Z

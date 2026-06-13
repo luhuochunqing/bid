@@ -44,7 +44,7 @@ const ACTION_DEFS = {
 // 'admin' (super admin), bid_admin and bid_lead always share the same column in the matrix.
 // ---------------------------------------------------------------------------
 function resolveRoleGroup(role) {
-  if (role === 'admin' || role === 'bid_admin' || role === 'bid_lead') return 'admin_lead'
+  if (role === 'admin' || role === 'bid_admin' || role === 'bid_lead' || role === 'bid_senior') return 'admin_lead'
   if (role === 'sales' || role === 'staff' || role === 'admin_staff') return 'sales'
   if (role === 'manager') return 'admin_lead'
   if (role === 'bid_specialist') return 'bid_specialist'
@@ -111,6 +111,7 @@ const BOTTOM_MATRIX = {
   TRACKING: {
     admin_lead: [],
     bid_lead: ['editBasic', 'editEvaluation', 'save', 'cancel'],
+    bid_senior: ['editBasic', 'editEvaluation', 'save', 'cancel'],
     sales: ['nextStep', 'prevStep', 'submit'],
     bid_specialist: [],
   },
