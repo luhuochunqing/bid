@@ -4,10 +4,11 @@
     "path": ".wiki/sources/bidding/附件5：西域数智化投标管理平台建设项目需求任务书.docx",
     "type": "docx",
     "topic": "bidding",
-    "hash": "c127c5d192a8b9ff15181530ec77bd797d32479b5f78f036769f4872c6b533fe",
-    "status": "extracted",
-    "extract_path": ".wiki/extracts/bidding__附件5：西域数智化投标管理平台建设项目需求任务书.docx.md",
-    "confidence": 0.85,
+    "hash": "c127c5d192a8b9ff12ff5ed9cbb83f987d6874dfb7cafafec6e4355f150b5cdf",
+    "status": "missing",
+    "extract_path": null,
+    "confidence": 0,
+    "note": "docx content not accessible by wiki extraction pipeline; needs manual review",
     "ingested_at": "2026-05-07T10:51:11.404Z"
   },
   {
@@ -53,7 +54,7 @@
     "status": "extracted",
     "extract_path": ".wiki/extracts/contract__附件3-合同报价清单人工摘录.md.md",
     "confidence": 1,
-    "ingested_at": "2026-05-07T10:51:11.450Z"
+    "ingested_at": "2026-5-07T10:51:11.450Z"
   },
   {
     "id": "f05a34b855849f3c",
@@ -72,15 +73,16 @@
     "type": "docx",
     "topic": "contract",
     "hash": "bd76b85a21b0568f17df74f9d84ba7f1acff60d3421217f951936ce4bddcfa8c",
-    "status": "extracted",
-    "extract_path": ".wiki/extracts/contract__附件4：西域数智化投标管理平台建设项目需求任务书.docx.md",
-    "confidence": 0.85,
+    "status": "missing",
+    "extract_path": null,
+    "confidence": 0,
+    "note": "docx content not accessible by wiki extraction pipeline; needs manual review",
     "ingested_at": "2026-05-07T10:51:13.669Z"
   },
   {
     "id": "1e5b16eee2fe328f",
     "path": ".wiki/sources/customer/事件库SDK接入说明方案.doc",
-    "type": "docx",
+    "type": "doc",
     "topic": "customer",
     "hash": "1e5b16eee2fe328f77a596766b98d0308ba8c8868612afc3b5f188624de81e16",
     "status": "error",
