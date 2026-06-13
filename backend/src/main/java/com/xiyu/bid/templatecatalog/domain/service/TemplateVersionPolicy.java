@@ -1,11 +1,9 @@
 package com.xiyu.bid.templatecatalog.domain.service;
 
-import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 
-@Component
 public class TemplateVersionPolicy {
 
     private static final String NUMERIC_VERSION_PATTERN = "\\d+(\\.\\d+)?";

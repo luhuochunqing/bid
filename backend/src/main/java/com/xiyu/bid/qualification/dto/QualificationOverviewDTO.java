@@ -13,5 +13,4 @@ public class QualificationOverviewDTO {
     private long total;
     private long expiring;
     private long expired;
-    private long borrowed;
 }

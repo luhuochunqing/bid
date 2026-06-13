@@ -201,13 +201,14 @@ const createdAtRange = computed({
 <style scoped>
 .tender-search-card { border: 1px solid var(--gray-100, #E8E8E8); border-radius: var(--radius-md, 8px); }
 .tender-search-card :deep(.el-card__body) { padding: var(--space-lg, 24px); }
-.tender-search-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-md, 16px) var(--space-lg, 24px); }
+.tender-search-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-md, 16px); min-width: 0; }
 .tender-search-form :deep(.el-form-item) { margin: 0; }
 .tender-search-form :deep(.el-form-item__label) { margin-bottom: var(--space-xs, 4px); color: var(--text-secondary, #666); font-size: var(--font-size-xs, 12px); font-weight: 600; line-height: 1.4; }
 /* .search-field / .search-field--keyword / .search-field--date / .search-field--datetime / .search-actions
    已抽取到 src/styles/form-controls.css（全局复用） */
 .search-input, .filter-select { width: 100%; --focus-ring-color: transparent; --focus-ring-width: 0; --el-input-hover-border-color: var(--gray-200, #D0D0D0); }
 .filter-select { --el-color-primary: var(--gray-200, #D0D0D0); --el-color-primary-light-3: var(--gray-200, #D0D0D0); --el-color-primary-light-5: var(--gray-200, #D0D0D0); --el-color-primary-light-7: var(--gray-100, #E8E8E8); --el-select-input-focus-border-color: var(--gray-200, #D0D0D0); }
+
 /* 键盘可访问性：base 规则移除默认轮廓（不使用 !important，允许 focus-visible 覆盖） */
 .tender-search-card :deep(.filter-select),
 .tender-search-card :deep(.search-input),

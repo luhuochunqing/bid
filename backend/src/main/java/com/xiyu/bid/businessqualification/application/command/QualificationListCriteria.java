@@ -12,8 +12,8 @@ public class QualificationListCriteria {
     String subjectType;
     String subjectName;
     String category;
+    String level;
     List<String> status;
-    String borrowStatus;
     Integer expiringWithinDays;
     LocalDate expiringFrom;
     LocalDate expiringTo;

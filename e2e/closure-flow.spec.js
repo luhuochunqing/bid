@@ -87,7 +87,7 @@ test.describe('项目结页 §3.3.1.6', () => {
     const closureTab = page.locator('.el-tabs__item', { hasText: '项目结项' })
     if (await closureTab.isVisible()) {
       await closureTab.click()
-      await page.waitForTimeout(1500)
+      await expect(page.locator('text=保证金管理').first()).toBeVisible({ timeout: 10000 }).catch(() => {})
     }
 
     // 验证页面渲染出关键区块
@@ -108,7 +108,7 @@ test.describe('项目结页 §3.3.1.6', () => {
     const closureTab = page.locator('.el-tabs__item', { hasText: '项目结项' })
     if (await closureTab.isVisible()) {
       await closureTab.click()
-      await page.waitForTimeout(1500)
+      await expect(page.locator('text=保证金管理').first()).toBeVisible({ timeout: 10000 }).catch(() => {})
     }
 
     // 验证可见基本字段
@@ -187,7 +187,7 @@ test.describe('项目结页 §3.3.1.6', () => {
     const closureTab = page.locator('.el-tabs__item', { hasText: '项目结项' })
     if (await closureTab.isVisible()) {
       await closureTab.click()
-      await page.waitForTimeout(1500)
+      await expect(page.locator('text=保证金管理').first()).toBeVisible({ timeout: 10000 }).catch(() => {})
     }
 
     // 验证保证金相关字段

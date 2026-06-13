@@ -1,5 +1,7 @@
 package com.xiyu.bid.integration.organization.application;
 
+import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationDepartmentEntity;
+import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationDepartmentRepository;
 import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
@@ -24,6 +26,7 @@ public class OrganizationUserSyncWriter {
     private static final String LOCKED_PASSWORD_HASH = "$2a$10$7EqJtq98hPqEX7fNZaFWoOHIhi4YhML26vP7Hk1UR93E1Vda8yI9W";
 
     private final UserRepository userRepository;
+    private final OrganizationDepartmentRepository organizationDepartmentRepository;
     private final RoleProfileRepository roleProfileRepository;
     private final OrganizationIntegrationProperties properties;
     private final PositionToRoleMapper positionToRoleMapper;
@@ -33,13 +36,17 @@ public class OrganizationUserSyncWriter {
         validateRequiredContact(snapshot);
         User user = userRepository.findByExternalOrgSourceAppAndExternalOrgUserId(sourceApp, snapshot.externalUserId())
                 .orElseGet(User::new);
+        // 按优先级解析角色码：按人员 > 按部门 > 按岗位 > 外部角色码映射 > 默认 staff
+        String personMappedRoleCode = mapPersonToRole(snapshot);
+        String deptMappedRoleCode = mapDepartmentToRole(snapshot);
         String positionMappedRoleCode = positionToRoleMapper.map(snapshot.externalRoleCode());
+        String resolvedRoleCode = firstNonNull(personMappedRoleCode, deptMappedRoleCode, positionMappedRoleCode);
         OrganizationUserSyncPlan plan = OrganizationSyncPolicy.planUserSync(
                 snapshot,
                 user.getRoleCode(),
                 normalizeSet(properties.getAdminRoleCodes()),
                 normalizeSet(properties.getManagerRoleCodes()),
-                positionMappedRoleCode
+                resolvedRoleCode
         );
         user.setUsername(plan.username());
         user.setPassword(user.getPassword() == null ? LOCKED_PASSWORD_HASH : user.getPassword());
@@ -48,6 +55,16 @@ public class OrganizationUserSyncWriter {
         user.setPhone(plan.phone());
         user.setDepartmentCode(plan.departmentCode());
         user.setDepartmentName(plan.departmentName());
+        // 如果部门名称为空但 departmentCode 有值，从 organization_departments 反查部门名称
+        String resolvedDeptName = plan.departmentName();
+        if ((resolvedDeptName == null || resolvedDeptName.isBlank())
+            && plan.departmentCode() != null && !plan.departmentCode().isBlank()) {
+            resolvedDeptName = organizationDepartmentRepository
+                .findBySourceAppAndExternalDeptId(sourceApp, plan.departmentCode())
+                .map(OrganizationDepartmentEntity::getDepartmentName)
+                .orElse("");
+        }
+        user.setDepartmentName(resolvedDeptName);
         user.setEnabled(plan.enabled());
         user.setExternalOrgUserId(snapshot.externalUserId());
         user.setExternalOrgSourceApp(sourceApp);
@@ -87,6 +104,63 @@ public class OrganizationUserSyncWriter {
 
     private Set<String> normalizeSet(java.util.List<String> values) {
         return values.stream().map(value -> value.trim().toLowerCase(Locale.ROOT)).collect(java.util.stream.Collectors.toSet());
+    }
+
+
+
+    /**
+     * 按人员映射：通过西域员工邮箱/工号精确匹配到指定角色
+     * 优先级最高，用于指定人员（如管理员）直接赋予对应角色
+     */
+    private String mapPersonToRole(OrganizationUserSnapshot snapshot) {
+        String email = snapshot.email();
+        String userExternalId = snapshot.externalUserId();
+        String snapshotUsername = snapshot.username();
+        for (OrganizationIntegrationProperties.PersonToRoleMapping mapping : properties.getPersonToRoleMappings()) {
+            if ((email != null && mapping.matches(email))
+                    || (userExternalId != null && mapping.matches(userExternalId))
+                    || (snapshotUsername != null && mapping.matches(snapshotUsername))) {
+                return mapping.getRoleCode();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 按部门映射：通过西域部门名称正则匹配，部门全员获得同一角色
+     * 优先级次于按人员映射，用于部门级别统一赋权（如投标管理部→投标专员）
+     */
+    private String mapDepartmentToRole(OrganizationUserSnapshot snapshot) {
+        // 先从 snapshot 取，空则从 organization_departments 反查
+        String deptName = snapshot.departmentName();
+        if ((deptName == null || deptName.isBlank())
+            && snapshot.departmentCode() != null && !snapshot.departmentCode().isBlank()) {
+            deptName = organizationDepartmentRepository
+                .findBySourceAppAndExternalDeptId("oss", snapshot.departmentCode())
+                .map(OrganizationDepartmentEntity::getDepartmentName)
+                .orElse(null);
+        }
+        if (deptName == null || deptName.isBlank()) {
+            return null;
+        }
+        for (OrganizationIntegrationProperties.DepartmentToRoleMapping mapping : properties.getDepartmentToRoleMappings()) {
+            if (mapping.matches(deptName)) {
+                return mapping.getRoleCode();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 取第一个非空非空白值，用于多级角色映射优先级决议
+     */
+    private static String firstNonNull(String... values) {
+        for (String v : values) {
+            if (v != null && !v.isBlank()) {
+                return v.trim().toLowerCase(Locale.ROOT);
+            }
+        }
+        return null;
     }
 
 }

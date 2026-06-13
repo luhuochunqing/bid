@@ -5,7 +5,6 @@ import com.xiyu.bid.businessqualification.domain.model.BusinessQualification;
 import com.xiyu.bid.businessqualification.domain.port.BusinessQualificationRepository;
 import com.xiyu.bid.businessqualification.domain.service.QualificationCreationPolicy;
 import com.xiyu.bid.businessqualification.domain.service.QualificationValidationResult;
-import com.xiyu.bid.businessqualification.domain.valueobject.LoanStatus;
 import com.xiyu.bid.exception.InvalidArgumentException;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationSubject;
 import com.xiyu.bid.businessqualification.domain.valueobject.ReminderPolicy;
@@ -50,8 +49,6 @@ public class CreateQualificationAppService {
                         command.getReminderDays() == null ? 30 : command.getReminderDays(),
                         null
                 ),
-                LoanStatus.AVAILABLE,
-                null, null, null, null, null,
                 command.getFileUrl(),
                 command.getRetireReason(),
                 command.getAttachments() == null ? List.of() : command.getAttachments()

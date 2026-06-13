@@ -1,0 +1,15 @@
+version: 1
+task: "trae-fix-warehouse-col"
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql/V1074__add_auditor_role.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/trae/fix-warehouse-col"
+    expiresAt: "2026-06-12T23:39:47.686Z"
+    reason: "补充缺失roles角色数据迁移"
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1074__add_auditor_role.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/trae/fix-warehouse-col"
+    expiresAt: "2026-06-12T23:39:53.908Z"
+    reason: "补充缺失roles角色数据回滚脚本"

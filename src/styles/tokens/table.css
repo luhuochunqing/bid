@@ -1,0 +1,21 @@
+/* ============================================================
+ * Table Token — 表格基线
+ * ============================================================
+ *
+ * 解决多轮 PR 中反复调整表格列宽、序号列、多选列的问题。
+ * 所有 el-table 的列宽默认值、冻结列行为统一由此定义。
+ */
+
+:root {
+  /* --- 列宽默认值 --- */
+  --tk-table-col-index:      60px;   /* 序号列 */
+  --tk-table-col-checkbox:   50px;   /* 多选列 */
+  --tk-table-col-action:     120px;  /* 操作按钮列 */
+  --tk-table-col-status:     100px;  /* 状态列 */
+  --tk-table-col-date:       160px;  /* 日期列 */
+  --tk-table-col-name:       180px;  /* 名称/标题列 */
+  --tk-table-col-code:       140px;  /* 编码列 */
+
+  /* --- 冻结列 --- */
+  --tk-table-frozen-shadow:  2px 0 4px rgba(0, 0, 0, 0.06);
+}

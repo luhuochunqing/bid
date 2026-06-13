@@ -199,7 +199,7 @@ async function fillRequiredBasicFields(wrapper) {
     if (input.exists()) await input.setValue('3')
   }
   // Find mroOfficeFlowAmount
-  const mroItem = wrapper.findAll('.el-form-item-stub').find(el => el.find('label').text() === '电商MRO+办公流水金额（亿）')
+  const mroItem = wrapper.findAll('.el-form-item-stub').find(el => el.find('label').text() === '电商MRO+办公流水金额（万）')
   if (mroItem) {
     const input = mroItem.find('input.el-input-number-stub')
     if (input.exists()) await input.setValue('500000')

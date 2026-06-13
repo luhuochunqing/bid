@@ -280,7 +280,7 @@ test.describe('§4.2.x — 阶段化按钮可见性：evaluation tab 非 SUBMITT
     const nextBtn = page.getByRole('button', { name: '下一步' })
     await expect(nextBtn).toBeVisible()
     await nextBtn.click()
-    await page.waitForTimeout(500)
+  await expect(page.locator('.el-tabs__item').filter({ hasText: '项目评估表' })).toHaveAttribute('aria-selected', 'true', { timeout: 10000 }).catch(() => {})
 
     // 确认切换到了评估表 tab
     const evalTab = page.locator('.el-tabs__item').filter({ hasText: '项目评估表' })
@@ -361,7 +361,7 @@ test.describe('§4.2.x — 完整生命周期按钮切换验证', () => {
     const nextBtn = page.getByRole('button', { name: '下一步' })
     await expect(nextBtn).toBeVisible()
     await nextBtn.click()
-    await page.waitForTimeout(500)
+  await expect(page.locator('.el-tabs__item').filter({ hasText: '项目评估表' })).toHaveAttribute('aria-selected', 'true', { timeout: 10000 }).catch(() => {})
 
     // 确认切换到了评估表 tab
     const evalTab = page.locator('.el-tabs__item').filter({ hasText: '项目评估表' })
@@ -400,7 +400,7 @@ test.describe('§4.2.x — 角色权限边界: bid_specialist', () => {
     const evalTab = page.locator('.el-tabs__item').filter({ hasText: '项目评估表' })
     if (await evalTab.isVisible()) {
       await evalTab.click()
-      await page.waitForTimeout(500)
+      await expect(page.locator('.tender-evaluation-form')).toBeVisible({ timeout: 10000 }).catch(() => {})
     }
 
     await page.waitForSelector('.tender-evaluation-form', { timeout: 10000 })

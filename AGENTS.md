@@ -194,7 +194,8 @@ git push origin --delete agent/<name>/<task>
 - **物理隔离**：各 Agent 在 `/Users/user/xiyu/worktrees/` 下的独立持久 Worktree 工作，严禁在 `main` 基准区修改代码。
 - **资源分配**：每个 Agent 拥有固定的专属端口（前端 131x / 后端 1808x）和数据库名。持久 worktree 内切分支不改变资源分配。
 - **验证责任**：遵循"谁改代码，谁在自己的 Worktree 跑通验证"原则。报告"任务完成"前，必须提供在 Worktree 内部执行 `npm run build` 和 `mvn test` 的成功证据。
-- **协作启动命令**：多 Agent 本地联调优先使用 `npm run agent:up` / `agent:restart` / `agent:status` / `agent:logs`；脚本会按当前 worktree 自动映射端口、数据库、Redis DB、sidecar 端口和 launchd label，启动类命令同样需要 `XIYU_DEV_CONFIRMED=1`。
+- **协作启动命令**：多 Agent 本地联调优先使用 `npm run agent:up` / `agent:restart` / `agent:status` / `agent:logs` / `agent:stop`；`npm run agent:morning` 等价于早操SOP（sync + 重启）；脚本会按当前 worktree 自动映射端口、数据库、Redis DB、sidecar 端口和 launchd label，启动类命令同样需要 `XIYU_DEV_CONFIRMED=1`。
+- **健康诊断**：`npm run agent:health-check` — 跨 worktree 聚合展示 sidecar/backend/frontend 健康状态。
 - **分支命名**：
   - **Worktree 锚点分支**（agent/<name>-init，如 `agent/codex-init`、`agent/cursor-init`）：各 Agent worktree 的常驻基线分支。**严禁直接在此分支上开发**（CI 门禁会拦截），**严禁删除**（本地或远端均不可删）。仅用于 worktree 锚定和多 Agent 间同步基线。
   - **任务开发分支**（`agent/<name>/<task>` 等前缀）：每个原子任务一个独立分支。PR 合入后由 CI 自动清理删除远端分支，本地分支需手动 `git branch -D`。
@@ -204,6 +205,7 @@ git push origin --delete agent/<name>/<task>
 - **锁机制**：已改为 per-task 文件模式（`.agent-locks/<task-slug>.yml`），详情见 CLAUDE.md §5.2。
 - **严禁绕过**：`git push --no-verify` / `git commit --no-verify` 已被两层防线禁止：① `scripts/git` 包装器（系统级拦截）；② git alias 强制走 `.githooks/git-push-wrapper.sh` / `.githooks/git-commit-wrapper.sh`（过滤 `--no-verify`）。由 `agent-start-task.sh` 自动配置。
 - **自动合并**：1 个 required review 批准后，`.github/workflows/auto-enable-merge-on-approved.yml` 会自动为 PR 开启 GitHub auto-merge（--squash）。真正合并仍需所有门禁（agent-locks、line-budget、frontend/backend/e2e + strict）通过。详见 CLAUDE.md §6。
+- **锁管理命令**：`npm run agent:lock-acquire` / `agent:lock-release` / `agent:lock-renew` / `agent:lock-check` / `agent:lock-cleanup` — 各 worktree 的 task lock 操作快捷入口。
 
 ## 审计与质量门禁
 
@@ -231,7 +233,7 @@ git push origin --delete agent/<name>/<task>
 - `npm run ci:local:quick` — 快速预检（编译 + 架构门禁）
 - `npm run ci:local` — 完整本地 CI 模拟（需本地 Docker）
 - `npm run agent:pre-push-dry-run` — 模拟推送前 14 道门禁
-- `bash scripts/ci-pre-pr.sh` — 提交 PR 前一站式门禁
+- `npm run ci:pre-pr` / `bash scripts/ci-pre-pr.sh` — 提交 PR 前一站式门禁
 
 
 
@@ -250,6 +252,11 @@ git push origin --delete agent/<name>/<task>
 - **PR 备注**：U 脚本在创建时需要在注释中注明 PR 编号
 - **历史补全**：历史迁移（V1047 之前）的回滚脚本可选，但推荐逐步补全
 
+### 数据库运维命令
+
+- `npm run db:dev-repair` — 修复本地 Flyway 状态（rebase/sync 后版本冲突或 checksum 漂移）
+- `npm run db:generate-rollback` — 为所有正向迁移自动生成回滚脚本骨架
+
 ## 创建 Pull Request
 
 推荐使用统一脚本 `scripts/pr-create.sh`（自动适配 GitHub / Gitee）：
@@ -266,3 +273,12 @@ BODY
 ```
 
 需要环境变量：GitHub 需要 `gh` 已登录，Gitee 需要 `GITEE_TOKEN`。
+
+### Gitee 工作流
+
+```bash
+GITEE_TOKEN=xxx npm run gitee:pr-create    # 创建 PR（当前分支→main）
+GITEE_TOKEN=xxx npm run gitee:pr-list      # 列出当前分支 PR
+GITEE_TOKEN=xxx npm run gitee:pr-merge     # 合并 PR（squash）
+npm run gitee:auto-merge                   # 自动合并已批准 PR
+```

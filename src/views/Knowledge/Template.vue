@@ -203,7 +203,6 @@ const {
 
 <style scoped lang="scss">
 .template-container {
-  padding: 20px;
   background: var(--bg-page);
   min-height: 100vh;
 }

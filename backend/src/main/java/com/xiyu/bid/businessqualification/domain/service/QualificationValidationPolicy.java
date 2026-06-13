@@ -1,11 +1,9 @@
 package com.xiyu.bid.businessqualification.domain.service;
 
 import com.xiyu.bid.businessqualification.domain.valueobject.ValidityPeriod;
-import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 
-@Component
 public class QualificationValidationPolicy {
 
     public Optional<String> validateValidityPeriod(ValidityPeriod period) {

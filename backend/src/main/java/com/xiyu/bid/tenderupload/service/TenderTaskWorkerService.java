@@ -4,7 +4,7 @@
 // 维护声明: 保持幂等与限流语义稳定，处理流程细节可独立演进.
 package com.xiyu.bid.tenderupload.service;
 
-import com.xiyu.bid.platform.async.application.AsyncDecisionResolver;
+import com.xiyu.bid.platform.async.domain.AsyncDecisionResolver;
 import com.xiyu.bid.platform.async.domain.AsyncHandlingDecision;
 import com.xiyu.bid.platform.async.domain.ExponentialBackoffRetrySchedule;
 import com.xiyu.bid.tenderupload.config.TenderProcessingProperties;

@@ -8,7 +8,7 @@ sources:
   - .wiki/sources/bidding/附件5：西域数智化投标管理平台建设项目需求任务书.docx
   - .wiki/sources/bidding/附件6：需求功能清单.md
   - .wiki/sources/bidding/附件6：需求功能清单.xlsx
-  - .wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx
+  - .wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md
   - .wiki/sources/contract/附件3-合同报价清单人工摘录.md
   - .wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx
   - backend/src/main/java/com/xiyu/bid/tenderupload/README.md

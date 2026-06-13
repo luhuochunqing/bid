@@ -14,13 +14,15 @@ test.describe('§3.3.1.4 结果确认 - 竞争对手情况表', () => {
     await injectSession(page, session)
     // 直接导航到 RESULT_PENDING 项目详情页
     await page.goto('/project/13')
-    await page.waitForTimeout(3000)
+  await page.waitForLoadState('networkidle')
+    await expect(page.locator('.competitor-table')).toBeVisible({ timeout: 10000 }).catch(() => {})
 
     // 点击结果确认阶段标签
     const resultStep = page.locator('.el-step__title', { hasText: '结果确认' })
     if (await resultStep.isVisible()) {
       await resultStep.click()
-      await page.waitForTimeout(2000)
+      await page.waitForLoadState('networkidle')
+      await expect(page.locator('.competitor-table')).toBeVisible({ timeout: 10000 }).catch(() => {})
     }
 
     // 验证竞争对手表格存在
@@ -37,28 +39,28 @@ test.describe('§3.3.1.4 结果确认 - 竞争对手情况表', () => {
     const radioFailed = page.locator('.el-radio').filter({ hasText: /^流标$/ })
 
     await radioFailed.click()
-    await page.waitForTimeout(500)
+  await expect(page.locator('.stage-view .el-upload__tip')).toBeVisible({ timeout: 5000 }).catch(() => {})
     const uploadTip = page.locator('.stage-view .el-upload__tip')
     const tipText = await uploadTip.textContent()
     expect(tipText).toContain('流标')
 
     // 切换回中标验证标签变化
     await radioWon.click()
-    await page.waitForTimeout(500)
+  await expect(page.locator('.stage-view .el-upload__tip')).toBeVisible({ timeout: 5000 }).catch(() => {})
     const wonTipText = await uploadTip.textContent()
     expect(wonTipText).toContain('中标通知书')
 
     // 验证添加/删除行
     const addBtn = competitorTable.locator('.add-row-btn')
     await addBtn.click()
-    await page.waitForTimeout(300)
+  await expect(page.locator('.el-table__body-wrapper tbody tr')).toHaveCount(rowCount + 1, { timeout: 5000 }).catch(() => {})
     const rowsAfterAdd = await tableRows.count()
     expect(rowsAfterAdd).toBe(rowCount + 1)
 
     // 删除最后一行
     const delBtns = competitorTable.locator('.el-table__body-wrapper button')
     await delBtns.last().click()
-    await page.waitForTimeout(300)
+  await expect(page.locator('.el-table__body-wrapper tbody tr')).toHaveCount(rowsAfterAdd - 1, { timeout: 5000 }).catch(() => {})
     const rowsAfterDel = await tableRows.count()
     expect(rowsAfterDel).toBe(rowsAfterAdd - 1)
 

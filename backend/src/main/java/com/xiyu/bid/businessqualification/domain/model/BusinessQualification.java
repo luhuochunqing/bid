@@ -1,7 +1,6 @@
 package com.xiyu.bid.businessqualification.domain.model;
 
 import com.xiyu.bid.businessqualification.domain.service.QualificationExpiryPolicy;
-import com.xiyu.bid.businessqualification.domain.valueobject.LoanStatus;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationCategory;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationStatus;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationSubject;
@@ -27,14 +26,9 @@ public record BusinessQualification(
         String holderName,
         ValidityPeriod validityPeriod,
         ReminderPolicy reminderPolicy,
-        LoanStatus currentBorrowStatus,
-        String currentBorrower,
-        String currentDepartment,
-        String currentProjectId,
-        String borrowPurpose,
-        LocalDate expectedReturnDate,
         String fileUrl,
         String retireReason,
+        boolean retired,
         List<QualificationAttachment> attachments
 ) {
 
@@ -57,12 +51,6 @@ public record BusinessQualification(
             String holderName,
             ValidityPeriod validityPeriod,
             ReminderPolicy reminderPolicy,
-            LoanStatus currentBorrowStatus,
-            String currentBorrower,
-            String currentDepartment,
-            String currentProjectId,
-            String borrowPurpose,
-            LocalDate expectedReturnDate,
             String fileUrl,
             String retireReason,
             List<QualificationAttachment> attachments
@@ -82,76 +70,32 @@ public record BusinessQualification(
                 holderName,
                 validityPeriod,
                 reminderPolicy,
-                currentBorrowStatus,
-                currentBorrower,
-                currentDepartment,
-                currentProjectId,
-                borrowPurpose,
-                expectedReturnDate,
                 fileUrl,
                 retireReason,
+                false,
                 attachments
         );
     }
 
-    public QualificationStatus status() {
-        return new QualificationExpiryPolicy().evaluate(validityPeriod, LocalDate.now());
-    }
-
-    public long remainingDays() {
-        return validityPeriod.remainingDays(LocalDate.now());
-    }
-
-    public BusinessQualification borrow(
-            String borrower,
-            String department,
-            String projectId,
-            String purpose,
-            LocalDate expectedReturnDateValue
-    ) {
-        return copy(
-                LoanStatus.BORROWED,
-                borrower,
-                department,
-                projectId,
-                purpose,
-                expectedReturnDateValue,
-                reminderPolicy
-        );
-    }
-
-    public BusinessQualification returnBack() {
-        return copy(
-                LoanStatus.AVAILABLE,
-                null,
-                null,
-                null,
-                null,
-                null,
-                reminderPolicy
-        );
-    }
-
-    public BusinessQualification recordReminder(LocalDateTime remindedAt) {
-        return copy(
-                currentBorrowStatus,
-                currentBorrower,
-                currentDepartment,
-                currentProjectId,
-                borrowPurpose,
-                expectedReturnDate,
-                reminderPolicy.recordReminder(remindedAt)
-        );
-    }
-
-    private BusinessQualification copy(
-            LoanStatus nextBorrowStatus,
-            String nextBorrower,
-            String nextDepartment,
-            String nextProjectId,
-            String nextBorrowPurpose,
-            LocalDate nextExpectedReturnDate,
-            ReminderPolicy nextReminderPolicy
+    public static BusinessQualification createWithRetired(
+            Long id,
+            String name,
+            String level,
+            QualificationSubject subject,
+            QualificationCategory category,
+            String certificateNo,
+            String issuer,
+            String agency,
+            String agencyContact,
+            String certScope,
+            String certReviewNote,
+            String holderName,
+            ValidityPeriod validityPeriod,
+            ReminderPolicy reminderPolicy,
+            String fileUrl,
+            String retireReason,
+            boolean retired,
+            List<QualificationAttachment> attachments
     ) {
         return new BusinessQualification(
                 id,
@@ -167,15 +111,49 @@ public record BusinessQualification(
                 certReviewNote,
                 holderName,
                 validityPeriod,
-                nextReminderPolicy,
-                nextBorrowStatus,
-                nextBorrower,
-                nextDepartment,
-                nextProjectId,
-                nextBorrowPurpose,
-                nextExpectedReturnDate,
+                reminderPolicy,
                 fileUrl,
                 retireReason,
+                retired,
+                attachments
+        );
+    }
+
+    public QualificationStatus status() {
+        if (retired) return QualificationStatus.RETIRED;
+        return new QualificationExpiryPolicy().evaluate(validityPeriod, LocalDate.now());
+    }
+
+    public long remainingDays() {
+        return validityPeriod.remainingDays(LocalDate.now());
+    }
+
+
+
+    public BusinessQualification recordReminder(LocalDateTime remindedAt) {
+        return copy(reminderPolicy.recordReminder(remindedAt)
+        );
+    }
+
+    private BusinessQualification copy(ReminderPolicy nextReminderPolicy) {
+        return new BusinessQualification(
+                id,
+                name,
+                level,
+                subject,
+                category,
+                certificateNo,
+                issuer,
+                agency,
+                agencyContact,
+                certScope,
+                certReviewNote,
+                holderName,
+                validityPeriod,
+                nextReminderPolicy,
+                fileUrl,
+                retireReason,
+                retired,
                 attachments
         );
     }

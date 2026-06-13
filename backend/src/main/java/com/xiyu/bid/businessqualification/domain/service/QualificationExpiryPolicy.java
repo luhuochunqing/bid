@@ -3,12 +3,10 @@ package com.xiyu.bid.businessqualification.domain.service;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationStatus;
 import com.xiyu.bid.businessqualification.domain.valueobject.ReminderPolicy;
 import com.xiyu.bid.businessqualification.domain.valueobject.ValidityPeriod;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-@Component
 public class QualificationExpiryPolicy {
 
     private static final int DEFAULT_EXPIRING_DAYS = 90;

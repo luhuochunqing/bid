@@ -29,7 +29,7 @@
     </el-card>
     <el-card class="stat-card" shadow="hover">
       <div class="stat-content">
-        <div class="stat-icon bg-info"><el-icon><Refresh /></el-icon></div>
+        <div class="stat-icon bg-info"><el-icon><CopyDocument /></el-icon></div>
         <div class="stat-info">
           <div class="stat-value">{{ reuseCount }}</div>
           <div class="stat-label">复用案例总数</div>
@@ -40,7 +40,7 @@
 </template>
 
 <script setup>
-import { Files, CircleCheck, Collection, Refresh } from '@element-plus/icons-vue'
+import { Files, CircleCheck, Collection, CopyDocument } from '@element-plus/icons-vue'
 
 const props = defineProps({
   totalArchives: { type: Number, default: 0 },
@@ -58,6 +58,7 @@ const props = defineProps({
 }
 
 .stat-card {
+  align-self: start;
   border-radius: 8px;
   border: 1px solid var(--el-border-color-lighter);
   transition: all 0.3s ease;

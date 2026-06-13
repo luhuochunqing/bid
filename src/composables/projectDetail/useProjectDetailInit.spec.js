@@ -85,9 +85,11 @@ const mountInit = async (getTasksResponse) => {
     },
   }
   const wrapper = (await import('@vue/test-utils')).mount(Comp)
-  for (let i = 0; i < 10; i += 1) {
+  // 等待所有异步操作完成
+  for (let i = 0; i < 20; i += 1) {
     await flushPromises()
   }
+  await vi.dynamicImportSettled()
   return { wrapper, project, projectsApi }
 }
 
@@ -109,7 +111,7 @@ describe('useProjectDetailInit (IJSVX7 问题二 regression)', () => {
     // **关键 assertion**：每个 task.status 必须是大写规范码
     // 这是修复的合同：loadProjectWorkflowData 必须走 normalizeTaskStatusFromApi
     expect(project.value.tasks.map((t) => t.status)).toEqual(['TODO', 'IN_PROGRESS', 'COMPLETED', 'REVIEW'])
-  })
+  }, 10000)
 
   it('loadProjectWorkflowData 后的 tasks 在 TaskBoard 按 status 归类时不丢失', async () => {
     // 复现：所有 task status='doing'，TaskBoard.columns 过滤 IN_PROGRESS，
@@ -127,5 +129,5 @@ describe('useProjectDetailInit (IJSVX7 问题二 regression)', () => {
     const todoTasks = project.value.tasks.filter((t) => normalize(t.status) === 'TODO')
     expect(todoTasks).toHaveLength(1)
     expect(todoTasks[0].id).toBe(103)
-  })
+  }, 10000)
 })

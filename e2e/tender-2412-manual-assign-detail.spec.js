@@ -152,7 +152,7 @@ test.describe('§2.4.1.2 标讯手动分配 — 详情页【分配】按钮（PE
     await submitBtn.click()
 
     // 成功后详情页刷新，状态应变为“跟踪中”，分配按钮消失，转派按钮出现
-    await page.waitForTimeout(1500) // 等待后端状态流转 + 前端 reload
+  await expect(page.getByRole('button', { name: '分配' })).not.toBeVisible({ timeout: 10000 }).catch(() => {})
     await expect(page.getByRole('button', { name: '分配' })).not.toBeVisible()
     await expect(page.getByRole('button', { name: '转派' })).toBeVisible()
 

@@ -2,7 +2,7 @@ package com.xiyu.bid.casework.domain.policy;
 
 import com.xiyu.bid.casework.domain.model.CaseExportCriteria;
 import com.xiyu.bid.casework.domain.model.CaseExportRecord;
-import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
+import com.xiyu.bid.casework.domain.model.KnowledgeCaseReadModel;
 
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -14,18 +14,19 @@ public final class CaseExportFilterPolicy {
 
     private CaseExportFilterPolicy() {}
 
-    public static List<KnowledgeCase> filterCases(
-            List<KnowledgeCase> cases,
+    public static List<KnowledgeCaseReadModel> filterCases(
+            List<? extends KnowledgeCaseReadModel> cases,
             CaseExportCriteria criteria) {
         if (cases == null || cases.isEmpty()) {
             return List.of();
         }
         return cases.stream()
                 .filter(c -> matchesCriteria(c, criteria))
+                .map(c -> (KnowledgeCaseReadModel) c)
                 .toList();
     }
 
-    private static boolean matchesCriteria(KnowledgeCase c, CaseExportCriteria criteria) {
+    private static boolean matchesCriteria(KnowledgeCaseReadModel c, CaseExportCriteria criteria) {
         if (c == null) return false;
         if (!"ACTIVE".equals(c.getStatus())) return false;
         if (criteria == null) return true;
@@ -57,7 +58,7 @@ public final class CaseExportFilterPolicy {
         return true;
     }
 
-    public static CaseExportRecord toExportRecord(KnowledgeCase c) {
+    public static CaseExportRecord toExportRecord(KnowledgeCaseReadModel c) {
         if (c == null) {
             return new CaseExportRecord(
                     "", "", "", "", "", "", 0, "", ""
@@ -87,7 +88,7 @@ public final class CaseExportFilterPolicy {
         return trimmed.substring(0, RESPONSE_SUMMARY_MAX_LENGTH) + "...";
     }
 
-    private static String formatCreatedAt(KnowledgeCase c) {
+    private static String formatCreatedAt(KnowledgeCaseReadModel c) {
         if (c.getCreatedAt() == null) {
             return "";
         }

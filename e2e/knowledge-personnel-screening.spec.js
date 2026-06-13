@@ -176,7 +176,7 @@ test.describe('知识库 - 人员筛选与搜索（h5）E2E 验证', () => {
     await injectSession(page, adminSession)
     await page.goto('/knowledge/personnel')
     await page.waitForLoadState('networkidle')
-    await page.waitForTimeout(600) // 等待初始列表
+  await expect(page.locator('.el-table__body tr').first()).toBeAttached({ timeout: 10000 }).catch(() => {})
 
     // 应用筛选：女 + 硕士 + 持有 "PMP"
     await page.getByLabel('性别').click()
@@ -187,7 +187,7 @@ test.describe('知识库 - 人员筛选与搜索（h5）E2E 验证', () => {
     await page.keyboard.press('Escape')
 
     await page.getByLabel('持有证书').fill('PMP')
-    await page.waitForTimeout(450) // debounce 等待
+  await expect(page.locator('.el-table__body tr')).toHaveCount(1, { timeout: 10000 }).catch(() => {})
 
     const rows = page.locator('.el-table__body tr')
     await expect(rows).toHaveCount(1, { timeout: 8000 })
@@ -208,7 +208,7 @@ test.describe('知识库 - 人员筛选与搜索（h5）E2E 验证', () => {
     await page.getByLabel('证书状态').click()
     await page.getByRole('option', { name: /即将到期/ }).click()
     await page.keyboard.press('Escape')
-    await page.waitForTimeout(400)
+  await expect(page.locator('.el-table__body tr').first()).toBeAttached({ timeout: 10000 }).catch(() => {})
 
     const rows = page.locator('.el-table__body tr')
     await expect(rows.first()).toContainText(/SCR02|李筛选/, { timeout: 8000 })
@@ -220,7 +220,7 @@ test.describe('知识库 - 人员筛选与搜索（h5）E2E 验证', () => {
     await page.getByLabel('学习形式').click()
     await page.getByRole('option', { name: '非全日制' }).click()
     await page.keyboard.press('Escape')
-    await page.waitForTimeout(400)
+  await expect(page.locator('.el-table__body tr').first()).toBeAttached({ timeout: 10000 }).catch(() => {})
 
     await expect(rows).toHaveCount(1)
     await expect(rows.first()).toContainText('SCR02')
@@ -238,12 +238,15 @@ test.describe('知识库 - 人员筛选与搜索（h5）E2E 验证', () => {
 
     // 先应用一个筛选
     await page.getByLabel('持有证书').fill('建造师')
-    await page.waitForTimeout(400)
+  await expect(page.locator('.el-table__body tr')).toHaveCount(1, { timeout: 10000 }).catch(() => {})
     await expect(page.locator('.el-table__body tr')).toHaveCount(1)
 
     // 重置
     await page.getByRole('button', { name: '重置' }).click()
-    await page.waitForTimeout(600)
+  await page.waitForResponse(
+        (response) => response.url().includes('/api/knowledge/personnel') && response.status() === 200,
+        { timeout: 10000 }
+      ).catch(() => {})
 
     // 应该至少看到 4 个我们创建的测试人员（可能更多历史数据）
     const count = await page.locator('.el-table__body tr').count()

@@ -44,16 +44,7 @@ public class QualificationDTO {
     private String alertLevel;
     private String status;
     private String retireReason;
-    private Boolean borrowed;
-    private String currentBorrower;
-    private String currentBorrowDepartment;
-    private String currentDepartment;
-    private String currentBorrowPurpose;
-    private String currentBorrowStatus;
-    private String currentProjectId;
-    private String borrowPurpose;
     private LocalDate currentExpectedReturnDate;
-    private LocalDate expectedReturnDate;
     private Boolean reminderEnabled;
     private Integer reminderDays;
     private List<QualificationAttachmentDTO> attachments;

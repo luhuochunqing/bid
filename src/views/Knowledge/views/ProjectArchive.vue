@@ -1,11 +1,6 @@
 <template>
   <div class="project-archive-container">
-    <ArchiveStatsCards
-      :total-archives="stats.totalArchives"
-      :closed-projects="stats.closedProjects"
-      :case-count="stats.caseCount"
-      :reuse-count="stats.reuseCount"
-    />
+    <ArchiveStatsCards :total-archives="stats.totalArchives" :closed-projects="stats.closedProjects" :case-count="stats.caseCount" :reuse-count="stats.reuseCount" />
 
     <ArchiveStatusTabs v-model="activeStatusTab" @change="handleStatusTabChange" />
 
@@ -51,8 +46,8 @@
             <el-option label="评标中" value="EVALUATING" />
             <el-option label="已中标" value="WON" />
             <el-option label="未中标" value="LOST" />
-            <el-option label="已流标" value="FAILED" />
-            <el-option label="已放弃" value="ABANDONED" />
+            <el-option label="流标" value="FAILED" />
+            <el-option label="弃标" value="ABANDONED" />
           </el-select>
         </el-form-item>
         <el-form-item label="项目类型">
@@ -75,6 +70,8 @@
 
     <el-card class="table-card" v-loading="loading">
       <el-table :data="tableData" style="width: 100%" border stripe highlight-current-row @row-click="handleRowClick" class="custom-table">
+        <el-table-column type="selection" width="55" />
+        <el-table-column type="index" label="序号" width="110" align="center" />
         <el-table-column prop="projectName" label="项目名称" min-width="250" show-overflow-tooltip />
         <el-table-column prop="projectType" label="项目类型" width="120" align="center">
           <template #default="{ row }"><el-tag>{{ getProjectTypeLabel(row.projectType) }}</el-tag></template>
@@ -82,7 +79,7 @@
         <el-table-column prop="projectStatus" label="项目状态" width="120" align="center">
           <template #default="{ row }"><el-tag :type="getStatusTagType(row.projectStatus)">{{ getStatusLabel(row.projectStatus) }}</el-tag></template>
         </el-table-column>
-        <el-table-column prop="bidResult" label="中标结果" width="100" align="center">
+        <el-table-column prop="bidResult" label="中标结果" width="120" align="center">
           <template #default="{ row }"><el-tag :type="getBidResultTagType(row.bidResult)">{{ getBidResultLabel(row.bidResult) }}</el-tag></template>
         </el-table-column>
         <el-table-column label="归档文件数" width="160" align="center">
@@ -111,8 +108,7 @@
         </el-table-column>
       </el-table>
       <div class="pagination-container">
-        <el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10, 20, 50, 100]"
-          layout="total, sizes, prev, pager, next, jumper" :total="totalElements" @current-change="loadData" @size-change="handleSizeChange" />
+        <el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10, 20, 50, 100]" layout="total, sizes, prev, pager, next, jumper" :total="totalElements" @current-change="loadData" @size-change="handleSizeChange" />
       </div>
     </el-card>
 
@@ -162,14 +158,14 @@ const getProjectTypeLabel = (type) => {
 }
 
 const getBidResultLabel = (result) => {
-  const map = { AWARDED: '中标', WON: '中标', LOST: '未中标', ABANDONED: '流标', IN_PROGRESS: '进行中', OTHER: '其他' }
+  const map = { WON: '已中标', LOST: '未中标', FAILED: '流标', ABANDONED: '弃标', IN_PROGRESS: '进行中', OTHER: '其他' }
   return map[result] || result || '-'
 }
 
 const getBidResultTagType = (result) => {
-  if (result === 'AWARDED' || result === 'WON') return 'success'
+  if (result === 'WON') return 'success'
   if (result === 'LOST') return 'danger'
-  if (result === 'ABANDONED') return 'warning'
+  if (result === 'FAILED') return 'warning'
   return 'info'
 }
 
@@ -294,7 +290,7 @@ onMounted(() => { loadStats(); loadData() })
 </script>
 
 <style scoped lang="scss">
-.project-archive-container { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.project-archive-container { display: flex; flex-direction: column; gap: 16px; }
 .filter-card, .table-card { border-radius: 8px; box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05); border: 1px solid var(--el-border-color-lighter); }
 .card-header-title { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; color: var(--el-text-color-primary); }
 .search-form { margin-bottom: -18px; }

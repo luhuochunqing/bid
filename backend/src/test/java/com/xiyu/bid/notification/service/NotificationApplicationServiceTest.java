@@ -1,8 +1,8 @@
 package com.xiyu.bid.notification.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.xiyu.bid.notification.core.NotificationDispatchPolicy;
-import com.xiyu.bid.notification.core.NotificationReadPolicy;
+import com.xiyu.bid.notification.core.DispatchResult;
+import com.xiyu.bid.notification.core.ReadResult;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.dto.NotificationSummary;
 import com.xiyu.bid.notification.entity.Notification;
@@ -122,7 +122,7 @@ class NotificationApplicationServiceTest {
         when(userNotificationRepository.findByNotificationIdAndUserId(notificationId, userId))
             .thenReturn(Optional.of(un));
 
-        NotificationReadPolicy.ReadResult result = service.markAsRead(notificationId, userId);
+        ReadResult result = service.markAsRead(notificationId, userId);
 
         assertThat(result.isValid()).isTrue();
         assertThat(result.alreadyRead()).isFalse();
@@ -141,7 +141,7 @@ class NotificationApplicationServiceTest {
         when(userNotificationRepository.findByNotificationIdAndUserId(notificationId, requestingId))
             .thenReturn(Optional.of(un));
 
-        NotificationReadPolicy.ReadResult result = service.markAsRead(notificationId, requestingId);
+        ReadResult result = service.markAsRead(notificationId, requestingId);
 
         assertThat(result.isValid()).isFalse();
         assertThat(result.errorCode()).isEqualTo("FORBIDDEN");
@@ -158,7 +158,7 @@ class NotificationApplicationServiceTest {
         when(userNotificationRepository.findByNotificationIdAndUserId(notificationId, userId))
             .thenReturn(Optional.of(un));
 
-        NotificationReadPolicy.ReadResult result = service.markAsRead(notificationId, userId);
+        ReadResult result = service.markAsRead(notificationId, userId);
 
         assertThat(result.isValid()).isTrue();
         assertThat(result.alreadyRead()).isTrue();
@@ -185,7 +185,7 @@ class NotificationApplicationServiceTest {
         Notification persisted = baseNotification(101L);
         when(notificationRepository.save(any(Notification.class))).thenReturn(persisted);
 
-        NotificationDispatchPolicy.DispatchResult result =
+        DispatchResult result =
             service.createNotification(request, 1L);
 
         assertThat(result.isValid()).isTrue();
@@ -199,7 +199,7 @@ class NotificationApplicationServiceTest {
         CreateNotificationRequest request = new CreateNotificationRequest(
             "INFO", null, null, "  ", "body", null, List.of(7L));
 
-        NotificationDispatchPolicy.DispatchResult result =
+        DispatchResult result =
             service.createNotification(request, 1L);
 
         assertThat(result.isValid()).isFalse();
@@ -214,7 +214,7 @@ class NotificationApplicationServiceTest {
         CreateNotificationRequest request = new CreateNotificationRequest(
             "BOGUS_TYPE", null, null, "title", "body", null, List.of(7L));
 
-        NotificationDispatchPolicy.DispatchResult result =
+        DispatchResult result =
             service.createNotification(request, 1L);
 
         assertThat(result.isValid()).isFalse();

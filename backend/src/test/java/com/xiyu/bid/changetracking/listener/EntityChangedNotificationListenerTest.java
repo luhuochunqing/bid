@@ -1,7 +1,7 @@
 package com.xiyu.bid.changetracking.listener;
 
 import com.xiyu.bid.changetracking.event.EntityChangedEvent;
-import com.xiyu.bid.notification.core.NotificationDispatchPolicy.DispatchResult;
+import com.xiyu.bid.notification.core.DispatchResult;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.subscription.entity.Subscription;

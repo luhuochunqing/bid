@@ -58,6 +58,7 @@ export function useTenderListPage() {
   const canSyncExternalSource = computed(() => permissions.value.canSyncExternalSource)
   const customerOpportunityCenterEnabled = computed(() => isAdmin.value)
   const showTenderAiEntry = computed(() => true)
+  const currentUserId = computed(() => userStore.currentUser?.id)
   const tenders = computed(() => biddingStore.tenders || [])
   const loading = computed(() => biddingStore.loading)
 
@@ -268,6 +269,7 @@ export function useTenderListPage() {
     canDeleteTenders,
     canSyncExternalSource,
     customerOpportunityCenterEnabled,
+    currentUserId,
     showTenderAiEntry,
     showParsingDialog,
     parseProgress,

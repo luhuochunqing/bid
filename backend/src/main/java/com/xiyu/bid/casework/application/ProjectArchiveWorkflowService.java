@@ -48,9 +48,7 @@ public class ProjectArchiveWorkflowService {
 
         Specification<ProjectArchive> spec = buildSpecification(query, allowedProjectIds, isAdmin);
         Page<ProjectArchive> archives = archiveRepository.findAll(spec, pageable);
-        List<ProjectArchiveResponse> content = archives.getContent().stream()
-                .map(responseMapper::toResponse)
-                .toList();
+        List<ProjectArchiveResponse> content = responseMapper.toResponseList(archives.getContent());
 
         return new PageImpl<>(content, pageable, archives.getTotalElements());
     }

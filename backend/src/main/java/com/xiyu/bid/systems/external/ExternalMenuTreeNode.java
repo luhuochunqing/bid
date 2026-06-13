@@ -20,17 +20,26 @@ import lombok.NoArgsConstructor;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ExternalMenuTreeNode {
 
-    /** 菜单 code. */
+    /** 外部系统菜单ID. */
+    private String id;
+
+    /** 外部系统菜单名称. */
+    private String menuName;
+
+    /** 父菜单ID（"0"表示根节点）. */
+    private String parentId;
+
+    /** 外部系统菜单编码. */
+    private String menuCode;
+
+    /** 前端菜单编码（与menuCode同义）. */
     private String code;
 
-    /** 菜单名称. */
+    /** 前端菜单名称（与menuName同义）. */
     private String name;
 
     /** 前端路由路径. */
     private String path;
-
-    /** 图标标识. */
-    private String icon;
 
     /** 权限键列表. */
     private List<String> permissionKeys;

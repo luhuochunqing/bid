@@ -50,7 +50,7 @@ test.describe('§4.4 仓库台账导出', () => {
   test('权限验证: sales 不应看到仓库入口', async ({ page }) => {
     await loginAsRole(page, 'sales')
     await page.goto('/')
-    await page.waitForTimeout(3000)
+  await page.waitForSelector('.el-table, .data-card, .sidebar-container', { timeout: 15000 })
 
     // sales 的菜单中不应该有"仓库信息管理"
     const warehouseMenu = page.getByRole('menuitem', { name: /仓库/ })

@@ -1,0 +1,7 @@
+version: 1
+locks:
+  - path: ".githooks/"
+    scope: "directory"
+    reason: "3 个新 pre-commit 门禁：preflight-domain-purity / check-css-hardcoded-colors / check-vue-enum-mapping error upgrade"
+    owner: "codex"
+    branch: "agent/claude/skill-progression-map-v3"

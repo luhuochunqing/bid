@@ -1,0 +1,47 @@
+/* ============================================================
+ * Spacing Token — 间距/尺寸基线
+ * ============================================================
+ *
+ * 解决 #448/#449/#453/#457 多轮 PR 反复调整间距的问题。
+ * 所有表单间距、卡片间距、按钮栏间距统一从此取值。
+ *
+ * 命名规则：--tk-space-{size}
+ *   xs  = 4px   (极紧凑)
+ *   sm  = 8px   (紧凑)
+ *   md  = 12px  (默认/标准)
+ *   lg  = 16px  (宽松)
+ *   xl  = 24px  (段落间距)
+ *   2xl = 32px  (区块间距)
+ *   3xl = 48px  (页面段落间距)
+ */
+
+:root {
+  /* --- 间距尺度 --- */
+  --tk-space-xs:   4px;
+  --tk-space-sm:   8px;
+  --tk-space-md:   12px;
+  --tk-space-lg:   16px;
+  --tk-space-xl:   24px;
+  --tk-space-2xl:  32px;
+  --tk-space-3xl:  48px;
+
+  /* --- 表单间距 --- */
+  --tk-form-label-bottom:    var(--tk-space-sm);
+  --tk-form-item-margin-bottom: var(--tk-space-lg);
+  --tk-form-inner-gap:       var(--tk-space-md);
+
+  /* --- 按钮栏间距 --- */
+  --tk-button-group-gap:     var(--tk-space-sm);
+  --tk-button-bar-padding:   var(--tk-space-lg) var(--tk-space-xl);
+
+  /* --- 卡片间距 --- */
+  --tk-card-padding:         var(--tk-space-lg);
+  --tk-card-header-gap:      var(--tk-space-md);
+
+  /* --- 表格间距 --- */
+  --tk-table-cell-padding:   var(--tk-space-sm) var(--tk-space-md);
+  --tk-table-header-height:  40px;
+
+  /* --- 面包屑间距 --- */
+  --tk-breadcrumb-item-gap:  var(--tk-space-sm);
+}

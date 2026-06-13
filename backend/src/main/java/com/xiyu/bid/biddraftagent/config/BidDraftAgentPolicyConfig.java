@@ -14,6 +14,12 @@ import org.springframework.context.annotation.Configuration;
 @Configuration(proxyBeanMethods = false)
 public final class BidDraftAgentPolicyConfig {
 
+    static {
+        com.xiyu.bid.common.display.EnumDisplayRegistry.register(
+                "com.xiyu.bid.biddraftagent.domain.validation.QualificationMatchStatus"
+        );
+    }
+
     @Bean
     public CommercialSubTypePolicy commercialSubTypePolicy() {
         return new CommercialSubTypePolicy();

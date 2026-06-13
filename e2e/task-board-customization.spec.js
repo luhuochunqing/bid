@@ -15,7 +15,7 @@ async function switchToTaskBoardTab(page) {
   const draftingTab = page.locator('.el-tabs__item', { hasText: '标书编制' }).first()
   if (await draftingTab.isVisible()) {
     await draftingTab.click()
-    await page.waitForTimeout(1500) // 等待 DraftingStage 组件渲染
+    await expect(page.locator('.drafting-tab-content, .task-board, .kanban-board').first()).toBeAttached({ timeout: 15000 }).catch(() => {})
     await page.waitForLoadState('networkidle')
   }
 }

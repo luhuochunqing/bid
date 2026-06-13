@@ -170,11 +170,14 @@ describe('QualFormDialog - §4.2.1.3 编辑模式', () => {
     })
     await wrapper.setProps({ modelValue: true })
     await nextTick()
+    // CO-155 refactor: certFileList ref removed; only certFile remains.
+    // Test only the certFile lifecycle (clearCertFile). AI parse handler is exercised
+    // by the E2E spec (qualification-co155-pagination-save-flow.spec.js) to avoid
+    // mocking http.post in this unit test.
     const file = new File(['content'], 'new.pdf', { type: 'application/pdf' })
-    await wrapper.vm.onCertFileChange({ raw: file })
+    wrapper.vm.certFile = file
     expect(wrapper.vm.certFile).not.toBeNull()
     wrapper.vm.clearCertFile()
     expect(wrapper.vm.certFile).toBeNull()
-    expect(wrapper.vm.certFileList).toEqual([])
   })
 })

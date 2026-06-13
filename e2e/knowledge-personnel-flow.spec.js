@@ -96,7 +96,7 @@ test.describe('§4.3 人员证书 - 新增证书 (3 Tab 表单 + 附件上传)',
     // 无权限角色不应看到或受 guard
     await loginAsRole(page, 'sales')
     await page.goto('http://127.0.0.1:1314/knowledge/personnel')
-    await page.waitForTimeout(2000)
+  await page.waitForSelector('.personnel-container, .el-table', { timeout: 15000 })
     const addBtn = page.getByRole('button', { name: /新增人员/ })
     // 可能 404 或 无按钮或 empty
     const count = await addBtn.count()

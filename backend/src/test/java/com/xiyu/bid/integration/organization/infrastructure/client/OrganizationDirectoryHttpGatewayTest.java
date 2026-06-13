@@ -29,7 +29,6 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 @DisplayName("OrganizationDirectoryHttpGateway - customer org master data client")
-@Disabled("FIXME: 存量失败 — parentId mapping returns empty string in test data deserialization")
 class OrganizationDirectoryHttpGatewayTest {
 
     private OrganizationIntegrationProperties properties;

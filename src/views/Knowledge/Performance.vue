@@ -1,3 +1,4 @@
+// --- usePerformanceSimilarSearch (内联：唯一引用 + ≤80行) ---
 <template>
   <div class="performance-container">
     <div class="page-header">
@@ -71,10 +72,10 @@
           <el-input v-model="searchForm.territory" placeholder="省/市关键词" clearable style="width: 140px" />
         </el-form-item>
         <el-form-item label="签约日期">
-          <el-date-picker v-model="searchForm.signingDateRange" type="daterange" start-placeholder="开始日期" end-placeholder="结束日期" value-format="YYYY-MM-DD" style="width: 220px" />
+          <el-date-picker v-model="searchForm.signingDateRange" type="daterange" start-placeholder="开始日期" end-placeholder="结束日期" value-format="YYYY-MM-DD" style="width: 260px" />
         </el-form-item>
         <el-form-item label="截止日期">
-          <el-date-picker v-model="searchForm.expiryDateRange" type="daterange" start-placeholder="开始日期" end-placeholder="结束日期" value-format="YYYY-MM-DD" style="width: 220px" />
+          <el-date-picker v-model="searchForm.expiryDateRange" type="daterange" start-placeholder="开始日期" end-placeholder="结束日期" value-format="YYYY-MM-DD" style="width: 260px" />
         </el-form-item>
         <el-form-item label="中标通知书">
           <el-select v-model="searchForm.hasBidNotice" placeholder="全部" clearable style="width: 100px">
@@ -94,7 +95,8 @@
     <!-- 数据表格 -->
     <el-card class="table-card border-glow" v-loading="loading">
       <el-table :data="records" stripe style="width: 100%" @row-click="openDetail" class="custom-table">
-        <el-table-column type="index" label="序号" width="60" align="center" />
+        <el-table-column type="selection" width="55" />
+        <el-table-column type="index" label="序号" width="110" align="center" />
         <el-table-column prop="contractName" label="合同名称" min-width="180" show-overflow-tooltip />
         <el-table-column prop="signingEntity" label="签约单位" min-width="160" show-overflow-tooltip />
         <el-table-column prop="customerType" label="客户类型" width="120">
@@ -103,17 +105,17 @@
           </template>
         </el-table-column>
         <el-table-column prop="groupCompany" label="集团公司" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="projectType" label="项目类型" width="90" align="center">
+        <el-table-column prop="projectType" label="项目类型" width="120" align="center">
           <template #default="{ row }"><el-tag type="info" size="small">{{ row.projectTypeLabel }}</el-tag></template>
         </el-table-column>
-        <el-table-column prop="customerLevel" label="客户级别" width="90" align="center">
+        <el-table-column prop="customerLevel" label="客户级别" width="120" align="center">
           <template #default="{ row }"><el-tag type="warning" size="small">{{ row.customerLevelLabel }}</el-tag></template>
         </el-table-column>
-        <el-table-column prop="signingDate" label="签约日期" width="105" align="center" />
-        <el-table-column prop="expiryDate" label="截止日期" width="105" align="center">
+        <el-table-column prop="signingDate" label="签约日期" width="140" align="center" />
+        <el-table-column prop="expiryDate" label="截止日期" width="120" align="center">
           <template #default="{ row }"><span :class="getExpiryDateClass(row)">{{ row.expiryDate }}</span></template>
         </el-table-column>
-        <el-table-column prop="daysRemaining" label="到期天数" width="100" align="center">
+        <el-table-column prop="daysRemaining" label="到期天数" width="120" align="center">
           <template #default="{ row }">
             <span :class="getDaysRemainingClass(row)" style="font-weight: 600">{{ formatDaysRemaining(row.daysRemaining) }}</span>
           </template>
@@ -176,37 +178,35 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { performanceApi } from '@/api/modules/performance.js'
+import { ElMessage } from 'element-plus'
 import { Plus, Upload, Download, Bell, Search } from '@element-plus/icons-vue'
-import performanceApi from '@/api/modules/performance.js'
 import { usePerformanceImport } from '@/composables/usePerformanceImport.js'
-import { usePerformanceSimilarSearch } from './composables/usePerformanceSimilarSearch.js'
-import PerformanceDetailDrawer from './components/PerformanceDetailDrawer.vue'
-import PerformanceFormDialog from './components/PerformanceFormDialog.vue'
-import PerformanceAlertConfigDialog from './components/performance/PerformanceAlertConfigDialog.vue'
-import PerformanceSimilarDrawer from './components/PerformanceSimilarDrawer.vue'
+const similarVisible = ref(false)
+const similarRecords = ref([])
+const similarLoading = ref(false)
 
-const records = ref([])
-const loading = ref(false)
-const submitting = ref(false)
-const searchForm = reactive({
-  keyword: '', customerTypes: [], projectTypes: [], statuses: [], customerLevels: [],
-  territory: '', signingDateRange: null, expiryDateRange: null,
-  hasBidNotice: null, projectManagerKeyword: ''
-})
-
-const detailVisible = ref(false)
-const formVisible = ref(false)
-const alertConfigVisible = ref(false)
-const current = ref({ attachments: [] })
-const editingRow = ref(null)
-
-const {
-  similarVisible,
-  similarRecords,
-  similarLoading,
-  openSimilarSearch
-} = usePerformanceSimilarSearch(searchForm)
+const openSimilarSearch = async () => {
+  similarLoading.value = true
+  similarVisible.value = true
+  try {
+    const similarForm = { ...searchForm, keyword: '' }
+    const { data } = await performanceApi.getList(similarForm)
+    const scored = (data || []).map(r => {
+      let score = 0
+      if (searchForm.customerTypes?.length > 0 && searchForm.customerTypes.includes(r.customerType)) score += 3
+      if (searchForm.projectTypes?.length > 0 && searchForm.projectTypes.includes(r.projectType)) score += 2
+      if (searchForm.customerLevels?.length > 0 && searchForm.customerLevels.includes(r.customerLevel)) score += 1
+      if (searchForm.territory && r.territory?.includes(searchForm.territory)) score += 2
+      return { ...r, _similarScore: score }
+    })
+    similarRecords.value = scored.sort((a, b) => b._similarScore - a._similarScore).slice(0, 20)
+  } catch {
+    ElMessage.error('相似业绩搜索失败')
+  } finally {
+    similarLoading.value = false
+  }
+}
 
 const loadData = async () => {
   loading.value = true

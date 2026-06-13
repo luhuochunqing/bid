@@ -62,7 +62,7 @@ class PlatformAccountBorrowServiceTest {
 
         assertThat(result.getId()).isEqualTo(100L);
         assertThat(result.getStatus()).isEqualTo("PENDING_APPROVAL");
-        verify(accountRepository, times(2)).save(any());
+        verify(accountRepository, times(1)).save(any());
     }
 
     @Test

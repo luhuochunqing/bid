@@ -131,7 +131,7 @@ const regionValue = computed({
 <style scoped>
 .project-search-card { border: 1px solid var(--gray-100, #E8E8E8); border-radius: var(--radius-md, 8px); }
 .project-search-card :deep(.el-card__body) { padding: var(--space-lg, 24px); }
-.project-search-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-md, 16px) var(--space-lg, 24px); }
+.project-search-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-md, 16px); min-width: 0; }
 .project-search-form :deep(.el-form-item) { margin: 0; }
 .project-search-form :deep(.el-form-item__label) { margin-bottom: var(--space-xs, 4px); color: var(--text-secondary, #666); font-size: var(--font-size-xs, 12px); font-weight: 600; line-height: 1.4; }
 .search-input, .filter-select { width: 100%; --focus-ring-color: transparent; --focus-ring-width: 0; --el-input-hover-border-color: var(--gray-200, #D0D0D0); }
@@ -142,7 +142,6 @@ const regionValue = computed({
 .search-submit-button { background: var(--brand-xiyu-logo, #2E7659); border-color: var(--brand-xiyu-logo, #2E7659); }
 .search-reset-button { border-color: var(--gray-200, #D0D0D0); color: var(--text-secondary, #666); }
 .filter-date-picker { width: 100%; --el-date-editor-width: 100%; }
-.search-field--datetime { width: 280px; flex: 0 0 280px; }
 @media (max-width: 768px) {
   .project-search-card :deep(.el-card__body) { padding: var(--space-md, 16px); }
   .filter-date-picker { flex: 1 1 100%; width: 100%; --el-date-editor-width: 100%; }

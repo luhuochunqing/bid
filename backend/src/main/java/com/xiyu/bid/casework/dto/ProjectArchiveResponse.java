@@ -10,6 +10,7 @@ public record ProjectArchiveResponse(
     String projectType,
     String projectStatus,
     String bidResult,
+    String purchaserName,
     Integer fileCount,
     Map<String, Long> fileCategoryDetails,
     LocalDateTime lastUploadedAt,

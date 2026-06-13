@@ -876,7 +876,7 @@ start_backend() {
       APP_CONVERTER_SIDECAR_SHARED_KEY="$SIDECAR_SHARED_KEY" \
       APP_DOC_INSIGHT_SIDECAR_URL="$SIDECAR_URL" \
       APP_DOC_INSIGHT_SIDECAR_SHARED_KEY="$SIDECAR_SHARED_KEY" \
-      CORS_ALLOWED_ORIGINS="http://localhost:${FRONTEND_PORT},http://127.0.0.1:${FRONTEND_PORT}" \
+      CORS_ALLOWED_ORIGINS="http://localhost:${FRONTEND_PORT},http://127.0.0.1:${FRONTEND_PORT}${CORS_EXTRA_ORIGINS:+,}${CORS_EXTRA_ORIGINS:-}" \
       SERVER_PORT="$BACKEND_PORT" \
       "${JAVA_HOME:-/opt/homebrew/opt/openjdk}/bin/java" \
       -XX:+UseZGC -Xms256m -Xmx512m \

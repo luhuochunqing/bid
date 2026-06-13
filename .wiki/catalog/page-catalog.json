@@ -158,7 +158,7 @@
     "category": "reference",
     "sources": [
       ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
-      ".wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx",
+      ".wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md",
       ".wiki/sources/contract/附件3：西域数智化投标管理平台建设项目合同报价清单.pdf",
       ".wiki/sources/contract/附件3-合同报价清单人工摘录.md",
       ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx"
@@ -256,7 +256,7 @@
       "README.md",
       "backend/src/main/resources/application.yml",
       "docs/plans/2026-03-10-go-live-execution-plan.md",
-      ".wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx",
+      ".wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md",
       ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx"
     ],
     "backlinks": [
@@ -369,7 +369,7 @@
       "docs/specs/UAT_PLAN.md",
       "docs/specs/UAT_SIGNOFF_TEMPLATE.md",
       "docs/release/GO_LIVE_CHECKLIST.md",
-      ".wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx",
+      ".wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md",
       ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx"
     ],
     "backlinks": [
@@ -503,7 +503,7 @@
       ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx",
       ".wiki/sources/bidding/附件6：需求功能清单.md",
       ".wiki/sources/bidding/附件6：需求功能清单.xlsx",
-      ".wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx",
+      ".wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md",
       ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
       ".wiki/pages/implementation/attachment4-gap-matrix.md",
       ".wiki/pages/implementation/attachment6-function-list-trace.md",
@@ -528,7 +528,7 @@
     "category": "guide",
     "sources": [
       ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
-      ".wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx",
+      ".wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md",
       ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx"
     ],
     "backlinks": [
@@ -551,7 +551,7 @@
     "sources": [
       ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
       "docs/specs/UAT_PLAN.md",
-      ".wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx",
+      ".wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md",
       ".wiki/sources/contract/附件3-合同报价清单人工摘录.md"
     ],
     "backlinks": [
@@ -800,7 +800,7 @@
       "docs/design-system/MASTER.md",
       "docs/research/COMMERCIAL_SCOPE.md",
       ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
-      ".wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx",
+      ".wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md",
       ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx"
     ],
     "backlinks": [
@@ -823,7 +823,7 @@
       ".wiki/sources/bidding/附件5：西域数智化投标管理平台建设项目需求任务书.docx",
       ".wiki/sources/bidding/附件6：需求功能清单.md",
       ".wiki/sources/bidding/附件6：需求功能清单.xlsx",
-      ".wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx",
+      ".wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md",
       ".wiki/sources/contract/附件3-合同报价清单人工摘录.md",
       ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx",
       "backend/src/main/java/com/xiyu/bid/tenderupload/README.md",
@@ -878,7 +878,7 @@
       ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
       "docs/specs/启动会项目组织架构与沟通矩阵.md",
       "docs/specs/项目启动会PPT大纲与核心内容.md",
-      ".wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx",
+      ".wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md",
       ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx"
     ],
     "backlinks": [

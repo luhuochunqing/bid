@@ -42,7 +42,6 @@ test.describe('项目档案台账 (Project Archive)', () => {
   test('4.4.2 档案列表加载 - 表格列正确渲染', async ({ page }) => {
     await page.goto('/knowledge/archive')
     await page.waitForLoadState('networkidle')
-    await page.waitForTimeout(1000)
 
     await expect(page.getByText('项目档案台账')).toBeVisible()
 
@@ -53,7 +52,6 @@ test.describe('项目档案台账 (Project Archive)', () => {
   test('4.4.2 档案列表分页 - 分页器正常显示', async ({ page }) => {
     await page.goto('/knowledge/archive')
     await page.waitForLoadState('networkidle')
-    await page.waitForTimeout(1000)
 
     const pagination = page.locator('.pagination-container')
     await expect(pagination).toBeVisible({ timeout: 5000 })
@@ -71,11 +69,17 @@ test.describe('项目档案台账 (Project Archive)', () => {
 
       if (await allTab.isVisible()) {
         await allTab.click()
-        await page.waitForTimeout(500)
+        await page.waitForResponse(
+          (response) => response.url().includes('/api/archive') && response.status() === 200,
+          { timeout: 10000 }
+        ).catch(() => {})
 
         if (await initiatedTab.isVisible()) {
           await initiatedTab.click()
-          await page.waitForTimeout(500)
+          await page.waitForResponse(
+            (response) => response.url().includes('/api/archive') && response.status() === 200,
+            { timeout: 10000 }
+          ).catch(() => {})
         }
       }
     }
@@ -89,7 +93,10 @@ test.describe('项目档案台账 (Project Archive)', () => {
     if (await searchInput.isVisible()) {
       await searchInput.fill('测试项目')
       await page.getByRole('button', { name: '查询' }).click()
-      await page.waitForTimeout(500)
+      await page.waitForResponse(
+        (response) => response.url().includes('/api/archive') && response.status() === 200,
+        { timeout: 10000 }
+      ).catch(() => {})
     }
 
     await expect(page.getByText('项目档案台账')).toBeVisible()
@@ -107,7 +114,10 @@ test.describe('项目档案台账 (Project Archive)', () => {
     const resetBtn = page.getByRole('button', { name: /重置/ })
     if (await resetBtn.isVisible()) {
       await resetBtn.click()
-      await page.waitForTimeout(500)
+      await page.waitForResponse(
+        (response) => response.url().includes('/api/archive') && response.status() === 200,
+        { timeout: 10000 }
+      ).catch(() => {})
     }
 
     await expect(page.getByText('项目档案台账')).toBeVisible()
@@ -117,14 +127,13 @@ test.describe('项目档案台账 (Project Archive)', () => {
     await page.goto('/knowledge/archive')
     await page.waitForLoadState('networkidle')
 
-    await page.waitForTimeout(1000)
 
     const firstRow = page.locator('.el-table__body-wrapper .el-table__row').first()
     const hasRows = await firstRow.isVisible().catch(() => false)
 
     if (hasRows) {
       await firstRow.click()
-      await page.waitForTimeout(1000)
+      await expect(page.locator('.el-drawer')).toBeVisible({ timeout: 10000 }).catch(() => {})
 
       const drawer = page.locator('.el-drawer')
       const drawerVisible = await drawer.isVisible().catch(() => false)
@@ -135,7 +144,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
         const closeBtn = drawer.locator('.el-drawer__header').locator('.el-drawer__close-btn, .el-icon')
         if (await closeBtn.isVisible()) {
           await closeBtn.click()
-          await page.waitForTimeout(500)
+          await expect(page.locator('.el-drawer')).toBeHidden({ timeout: 5000 }).catch(() => {})
         }
       }
     }
@@ -144,14 +153,13 @@ test.describe('项目档案台账 (Project Archive)', () => {
   test('4.4.2 详情抽屉 - 查看按钮打开抽屉显示完整信息', async ({ page }) => {
     await page.goto('/knowledge/archive')
     await page.waitForLoadState('networkidle')
-    await page.waitForTimeout(1000)
 
     const viewBtn = page.getByRole('button', { name: '查看' }).first()
     const hasViewBtn = await viewBtn.isVisible().catch(() => false)
 
     if (hasViewBtn) {
       await viewBtn.click()
-      await page.waitForTimeout(1500)
+      await expect(page.locator('.el-drawer')).toBeVisible({ timeout: 10000 }).catch(() => {})
 
       const drawer = page.locator('.el-drawer')
       const drawerVisible = await drawer.isVisible().catch(() => false)
@@ -166,7 +174,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
         const closeBtn = drawer.locator('.el-drawer__header').locator('button')
         if (await closeBtn.count() > 0) {
           await closeBtn.first().click()
-          await page.waitForTimeout(500)
+          await expect(page.locator('.el-drawer')).toBeHidden({ timeout: 5000 }).catch(() => {})
         }
       }
     }
@@ -175,7 +183,6 @@ test.describe('项目档案台账 (Project Archive)', () => {
   test('4.4.2 导出台账 - 点击按钮触发 Excel 下载', async ({ page }) => {
     await page.goto('/knowledge/archive')
     await page.waitForLoadState('networkidle')
-    await page.waitForTimeout(1000)
 
     const exportBtn = page.getByRole('button', { name: /导出台账/ })
     const hasExportBtn = await exportBtn.isVisible().catch(() => false)
@@ -195,7 +202,6 @@ test.describe('项目档案台账 (Project Archive)', () => {
   test('4.4.2 导出文件包 - 点击按钮触发 ZIP 下载', async ({ page }) => {
     await page.goto('/knowledge/archive')
     await page.waitForLoadState('networkidle')
-    await page.waitForTimeout(1000)
 
     const exportBtn = page.getByRole('button', { name: /导出文件包/ })
     const hasExportBtn = await exportBtn.isVisible().catch(() => false)
@@ -256,7 +262,10 @@ test.describe('项目档案台账 (Project Archive)', () => {
     const pmInput = page.locator('input[placeholder="项目负责人"]')
     if (await pmInput.isVisible()) {
       await pmInput.fill('admin')
-      await page.waitForTimeout(500)
+      await page.waitForResponse(
+        (response) => response.url().includes('/api/archive') && response.status() === 200,
+        { timeout: 10000 }
+      ).catch(() => {})
       await expect(page.getByText('项目档案台账')).toBeVisible()
     }
   })
@@ -268,7 +277,10 @@ test.describe('项目档案台账 (Project Archive)', () => {
     const bmInput = page.locator('input[placeholder="投标负责人"]')
     if (await bmInput.isVisible()) {
       await bmInput.fill('admin')
-      await page.waitForTimeout(500)
+      await page.waitForResponse(
+        (response) => response.url().includes('/api/archive') && response.status() === 200,
+        { timeout: 10000 }
+      ).catch(() => {})
       await expect(page.getByText('项目档案台账')).toBeVisible()
     }
   })
@@ -276,14 +288,13 @@ test.describe('项目档案台账 (Project Archive)', () => {
   test('4.4.2 详情抽屉 - 文件预览按钮触发窗口打开', async ({ page }) => {
     await page.goto('/knowledge/archive')
     await page.waitForLoadState('networkidle')
-    await page.waitForTimeout(1000)
 
     const viewBtn = page.getByRole('button', { name: '查看' }).first()
     const hasViewBtn = await viewBtn.isVisible().catch(() => false)
 
     if (hasViewBtn) {
       await viewBtn.click()
-      await page.waitForTimeout(1500)
+      await expect(page.locator('.el-drawer')).toBeVisible({ timeout: 10000 }).catch(() => {})
 
       const drawer = page.locator('.el-drawer')
       const drawerVisible = await drawer.isVisible().catch(() => false)
@@ -302,14 +313,13 @@ test.describe('项目档案台账 (Project Archive)', () => {
   test('4.4.2 详情抽屉 - 文件下载按钮存在', async ({ page }) => {
     await page.goto('/knowledge/archive')
     await page.waitForLoadState('networkidle')
-    await page.waitForTimeout(1000)
 
     const viewBtn = page.getByRole('button', { name: '查看' }).first()
     const hasViewBtn = await viewBtn.isVisible().catch(() => false)
 
     if (hasViewBtn) {
       await viewBtn.click()
-      await page.waitForTimeout(1500)
+      await expect(page.locator('.el-drawer')).toBeVisible({ timeout: 10000 }).catch(() => {})
 
       const drawer = page.locator('.el-drawer')
       const drawerVisible = await drawer.isVisible().catch(() => false)
@@ -397,7 +407,6 @@ test.describe('项目档案台账 (Project Archive)', () => {
   test('4.4.2 导出台账 - 文件名包含时间戳格式', async ({ page }) => {
     await page.goto('/knowledge/archive')
     await page.waitForLoadState('networkidle')
-    await page.waitForTimeout(1000)
 
     const exportBtn = page.getByRole('button', { name: /导出台账/ })
     const hasExportBtn = await exportBtn.isVisible().catch(() => false)
@@ -417,7 +426,6 @@ test.describe('项目档案台账 (Project Archive)', () => {
   test('4.4.2 导出文件包 - 文件名包含时间戳格式', async ({ page }) => {
     await page.goto('/knowledge/archive')
     await page.waitForLoadState('networkidle')
-    await page.waitForTimeout(1000)
 
     const exportBtn = page.getByRole('button', { name: /导出文件包/ })
     const hasExportBtn = await exportBtn.isVisible().catch(() => false)

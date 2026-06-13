@@ -7,10 +7,10 @@ function fmtDate(d) {
 }
 
 async function clickDropdownItem(page, index = 0) {
-  await page.waitForTimeout(400)
+  await page.waitForSelector('.el-select-dropdown:visible', { timeout: 5000 })
   await page.locator('.el-select-dropdown:visible').last()
     .locator('.el-select-dropdown__item').nth(index).click()
-  await page.waitForTimeout(300)
+  await expect(page.locator('.el-select-dropdown:visible')).toHaveCount(0, { timeout: 3000 }).catch(() => {})
 }
 
 async function setFormDates(page, deadlineDate, bidOpeningDate) {
@@ -53,7 +53,11 @@ async function fillAndSave(page, namePrefix) {
   const saveBtn = bar.getByRole('button', { name: '保存' })
   await expect(saveBtn).toBeEnabled({ timeout: 5000 })
   await saveBtn.click()
-  await page.waitForTimeout(5000)
+  await page.waitForResponse(
+    (response) => response.url().includes('/api/tenders') && response.status() === 200,
+    { timeout: 10000 }
+  ).catch(() => {})
+  await page.waitForLoadState('networkidle')
   return bar
 }
 
@@ -61,16 +65,19 @@ async function assignTender(page, bar) {
   await expect(bar.getByRole('button', { name: '分配' })).toBeVisible({ timeout: 10000 })
   await bar.getByRole('button', { name: '分配' }).click()
   await page.waitForSelector('.el-dialog:has-text("指派标讯")', { timeout: 8000 })
-  await page.waitForTimeout(1500)
   const dialog = page.locator('.el-dialog:has-text("指派标讯")')
   const assignSelect = dialog.locator('.el-select').first()
   if (await assignSelect.isVisible({ timeout: 2000 }).catch(() => false)) {
     await assignSelect.click()
-    await page.waitForTimeout(500)
+    await expect(page.locator('.el-select-dropdown:visible')).toBeVisible({ timeout: 5000 }).catch(() => {})
     try { await clickDropdownItem(page) } catch { /* no candidate */ }
   }
   await dialog.getByRole('button', { name: '确认指派' }).click()
-  await page.waitForTimeout(3000)
+  await page.waitForResponse(
+    (response) => response.url().includes('/api/tenders') && response.status() === 200,
+    { timeout: 10000 }
+  ).catch(() => {})
+  await page.waitForLoadState('networkidle')
 }
 
 test.describe('人工录入标讯全流程 — 按钮状态机', () => {
@@ -124,7 +131,7 @@ test.describe('人工录入标讯全流程 — 按钮状态机', () => {
     await assignTender(page, bar)
     await expect(bar.getByRole('button', { name: '下一步' })).toBeVisible({ timeout: 10000 })
     await bar.getByRole('button', { name: '下一步' }).click()
-    await page.waitForTimeout(800)
+  await expect(page.locator('.el-tabs__item.is-active:has-text("项目评估表")')).toBeVisible({ timeout: 10000 })
     await expect(page.locator('.el-tabs__item.is-active:has-text("项目评估表")')).toBeVisible({ timeout: 5000 })
     await expect(bar.getByRole('button', { name: '返回列表' })).toBeVisible()
     await expect(bar.getByRole('button', { name: '提交' })).toBeVisible()
@@ -142,3 +149,4 @@ test.describe('人工录入标讯全流程 — 按钮状态机', () => {
     await expect(page.locator('.el-table').first()).toBeVisible({ timeout: 5000 })
   })
 })
+

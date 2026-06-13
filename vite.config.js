@@ -46,7 +46,10 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 1314,
     strictPort: true,
-    open: true
+    open: true,
+    watch: {
+      ignored: ['**/backend/target/**', '**/backend/.runtime/**']
+    }
   },
   preview: {
     host: '0.0.0.0',

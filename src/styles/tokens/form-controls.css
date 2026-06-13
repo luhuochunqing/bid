@@ -1,0 +1,29 @@
+/* ============================================================
+ * Form Controls Token — 表单控件基线
+ * ============================================================
+ *
+ * 解决多轮 PR 中反复调整表单项间距、按钮高度的问题。
+ * 所有 el-input / el-select / el-button 的尺寸统一由此控制。
+ */
+
+:root {
+  /* --- 输入框 --- */
+  --tk-input-height:         32px;
+  --tk-input-padding-x:      12px;
+  --tk-input-border-radius:  6px;
+
+  /* --- 按钮 --- */
+  --tk-button-height-sm:     28px;
+  --tk-button-height-base:   32px;
+  --tk-button-height-lg:     36px;
+  --tk-button-border-radius: 6px;
+  --tk-button-padding-x:     16px;
+
+  /* --- 选择器 --- */
+  --tk-select-height:        32px;
+  --tk-select-border-radius: 6px;
+
+  /* --- 筛选栏 --- */
+  --tk-filter-bar-gap:       var(--tk-space-md);
+  --tk-filter-bar-padding:   var(--tk-space-lg) 0;
+}

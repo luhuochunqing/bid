@@ -10,7 +10,7 @@ class NotificationReadPolicyTest {
 
     @Test
     void validateRead_ShouldRejectWhenNotificationDoesNotBelongToRequestingUser() {
-        NotificationReadPolicy.ReadResult result =
+        ReadResult result =
             NotificationReadPolicy.validateRead(1L, 2L, null);
 
         assertThat(result.isValid()).isFalse();
@@ -22,7 +22,7 @@ class NotificationReadPolicyTest {
     void validateRead_ShouldReturnAlreadyReadWhenReadAtAlreadySet() {
         Instant existingReadAt = Instant.parse("2026-04-28T10:00:00Z");
 
-        NotificationReadPolicy.ReadResult result =
+        ReadResult result =
             NotificationReadPolicy.validateRead(1L, 1L, existingReadAt);
 
         assertThat(result.isValid()).isTrue();
@@ -33,7 +33,7 @@ class NotificationReadPolicyTest {
 
     @Test
     void validateRead_ShouldReturnValidWhenUnread() {
-        NotificationReadPolicy.ReadResult result =
+        ReadResult result =
             NotificationReadPolicy.validateRead(1L, 1L, null);
 
         assertThat(result.isValid()).isTrue();
@@ -43,9 +43,9 @@ class NotificationReadPolicyTest {
 
     @Test
     void validateRead_ShouldRejectWhenIdsAreNull() {
-        NotificationReadPolicy.ReadResult resultOwnerNull =
+        ReadResult resultOwnerNull =
             NotificationReadPolicy.validateRead(null, 1L, null);
-        NotificationReadPolicy.ReadResult resultRequesterNull =
+        ReadResult resultRequesterNull =
             NotificationReadPolicy.validateRead(1L, null, null);
 
         assertThat(resultOwnerNull.isValid()).isFalse();

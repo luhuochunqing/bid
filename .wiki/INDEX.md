@@ -7,7 +7,7 @@
 | c127c5d192a8b9ff | .wiki/sources/bidding/附件5：西域数智化投标管理平台建设项目需求任务书.docx | docx | bidding | extracted | 0.85 | .wiki/extracts/bidding__附件5：西域数智化投标管理平台建设项目需求任务书.docx.md | 2026-05-07 |
 | bf1294d092f63579 | .wiki/sources/bidding/附件6：需求功能清单.md | markdown | bidding | extracted | 1 | .wiki/extracts/bidding__附件6：需求功能清单.md.md | 2026-05-07 |
 | ae594bd338028a36 | .wiki/sources/bidding/附件6：需求功能清单.xlsx | xlsx | bidding | extracted | 0.75 | .wiki/extracts/bidding__附件6：需求功能清单.xlsx.md | 2026-05-07 |
-| adbce912402924c6 | .wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx | docx | contract | extracted | 0.85 | .wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md | 2026-05-07 |
+| adbce912402924c6 | .wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md | docx | contract | extracted | 0.85 | .wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md | 2026-05-07 |
 | 3dd8dee6dce7f5a0 | .wiki/sources/contract/附件3-合同报价清单人工摘录.md | markdown | contract | extracted | 1 | .wiki/extracts/contract__附件3-合同报价清单人工摘录.md.md | 2026-05-07 |
 | f05a34b855849f3c | .wiki/sources/contract/附件3：西域数智化投标管理平台建设项目合同报价清单.pdf | pdf | contract | manual_review | 0.2 | .wiki/extracts/contract__附件3：西域数智化投标管理平台建设项目合同报价清单.pdf.md | 2026-05-07 |
 | bd76b85a21b0568f | .wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx | docx | contract | extracted | 0.85 | .wiki/extracts/contract__附件4：西域数智化投标管理平台建设项目需求任务书.docx.md | 2026-05-07 |

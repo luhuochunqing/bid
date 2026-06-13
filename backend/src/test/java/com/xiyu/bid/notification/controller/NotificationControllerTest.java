@@ -2,8 +2,8 @@ package com.xiyu.bid.notification.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.entity.User;
-import com.xiyu.bid.notification.core.NotificationDispatchPolicy.DispatchResult;
-import com.xiyu.bid.notification.core.NotificationReadPolicy.ReadResult;
+import com.xiyu.bid.notification.core.DispatchResult;
+import com.xiyu.bid.notification.core.ReadResult;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.dto.NotificationSummary;
 import com.xiyu.bid.notification.service.NotificationApplicationService;

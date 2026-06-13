@@ -214,7 +214,6 @@ const refreshPredictions = () => {
 
 const viewTenders = (item) => {
   // 跳转到标讯列表并按业主筛选
-  console.log('查看历史标讯', item.purchaserHash)
   // TODO: 跳转到标讯列表
 }
 

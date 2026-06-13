@@ -4,6 +4,7 @@ import com.xiyu.bid.casework.application.CaseZipPackager;
 import com.xiyu.bid.casework.domain.model.CaseExportContext;
 import com.xiyu.bid.casework.domain.model.CaseExportResult;
 import com.xiyu.bid.casework.domain.model.CaseExportZipEntry;
+import com.xiyu.bid.casework.domain.model.KnowledgeCaseReadModel;
 import com.xiyu.bid.casework.domain.policy.CaseExportPolicy;
 import com.xiyu.bid.casework.dto.CaseExportQuery;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
@@ -44,7 +45,7 @@ public class CaseExportAppService {
             throw new IllegalStateException(validation.errorMessage());
         }
 
-        List<KnowledgeCase> sortedCases = caseExportPolicy.sortCasesForExport(cases);
+        List<KnowledgeCaseReadModel> sortedCases = caseExportPolicy.sortCasesForExport(cases);
         CaseExportContext context = caseExportPolicy.buildExportContext(sortedCases, operatorName);
 
         List<CaseExportZipEntry> responseEntries = context.zipEntries().stream()
@@ -143,7 +144,7 @@ public class CaseExportAppService {
         };
     }
 
-    private byte[] buildIndexExcel(List<KnowledgeCase> cases) {
+    private byte[] buildIndexExcel(List<? extends KnowledgeCaseReadModel> cases) {
         List<CaseZipPackager.CaseIndexRow> indexRows = cases.stream()
                 .map(this::toIndexRow)
                 .toList();
@@ -151,7 +152,7 @@ public class CaseExportAppService {
         return caseZipPackager.buildCaseIndexExcel(indexRows);
     }
 
-    private CaseZipPackager.CaseIndexRow toIndexRow(KnowledgeCase kc) {
+    private CaseZipPackager.CaseIndexRow toIndexRow(KnowledgeCaseReadModel kc) {
         return new CaseZipPackager.CaseIndexRow(
                 kc.getId(),
                 nullSafe(kc.getSourceProjectName()),

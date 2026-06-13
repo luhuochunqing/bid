@@ -18,8 +18,8 @@ class OrganizationDirectoryJsonMapper {
                 externalDeptId,
                 departmentCode,
                 firstText(node, "name", "deptName", "departmentName"),
-                // confirmed: YAPI uses "administrativeSuperiors" (no "parentId" field)
-                firstText(node, "administrativeSuperiors", "parentDeptId", "parentDepartmentId"),
+                // YAPI uses "administrativeSuperiors"; actual API returns "parentId"
+                firstText(node, "parentId", "administrativeSuperiors", "parentDeptId", "parentDepartmentId"),
                 // source: YAPI department response does not include parent department code
                 firstText(node, "parentCode", "parentDeptCode", "parentDepartmentCode"),
                 enabled(node)

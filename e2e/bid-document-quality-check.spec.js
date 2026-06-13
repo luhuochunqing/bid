@@ -25,7 +25,7 @@ test.describe('AI标书质量核查', () => {
     const draftingTab = page.locator('.el-tabs__item:has-text("标书制作"), [role="tab"]:has-text("标书制作")').first()
     if (await draftingTab.isVisible().catch(() => false)) {
       await draftingTab.click()
-      await page.waitForTimeout(500)
+      await expect(page.locator('button:has-text("AI标书质量核查")').first()).toBeVisible({ timeout: 10000 }).catch(() => {})
     }
 
     // 验证AI标书质量核查按钮存在
@@ -41,7 +41,7 @@ test.describe('AI标书质量核查', () => {
     const draftingTab = page.locator('.el-tabs__item:has-text("标书制作"), [role="tab"]:has-text("标书制作")').first()
     if (await draftingTab.isVisible().catch(() => false)) {
       await draftingTab.click()
-      await page.waitForTimeout(500)
+      await expect(page.locator('button:has-text("AI标书质量核查")').first()).toBeVisible({ timeout: 10000 }).catch(() => {})
     }
 
     // 点击质量核查按钮
@@ -50,7 +50,9 @@ test.describe('AI标书质量核查', () => {
       await qualityCheckButton.click()
 
       // 等待检查完成（出现成功提示或结果区域）
-      await page.waitForTimeout(2000)
+      await expect(
+          page.locator('.el-message--success, .el-notification__content:has-text("标书质量核查完成"), .bid-files-area, .quality-check-result').first()
+        ).toBeVisible({ timeout: 15000 }).catch(() => {})
 
       // 验证有成功提示或结果展示
       const successMsg = page.locator('.el-message--success, .el-notification__content:has-text("标书质量核查完成")')
@@ -73,7 +75,7 @@ test.describe('AI标书质量核查', () => {
     const draftingTab = page.locator('.el-tabs__item:has-text("标书制作"), [role="tab"]:has-text("标书制作")').first()
     if (await draftingTab.isVisible().catch(() => false)) {
       await draftingTab.click()
-      await page.waitForTimeout(500)
+      await expect(page.locator('button:has-text("AI标书质量核查")').first()).toBeVisible({ timeout: 10000 }).catch(() => {})
     }
 
     // 验证AI标书质量核查按钮不存在

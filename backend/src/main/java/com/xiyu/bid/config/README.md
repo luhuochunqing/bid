@@ -16,3 +16,4 @@
 | `PaginationConstants.java` | Config | 分页常量 |
 | `ExportConfig.java` | Config | 导出能力配置 |
 | `E2eDemoDataInitializer.java` | Config | E2E 演示数据初始化 |
+| `JacksonConfig.java` | Config | Jackson ObjectMapper 全局配置（枚举序列化标准化） |

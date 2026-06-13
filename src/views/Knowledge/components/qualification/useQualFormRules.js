@@ -38,6 +38,10 @@ export function useQualFormRules(form, certFile, editingId) {
       }
     ],
     certScope: [{ required: true, message: '请输入认证范围', trigger: 'blur' }],
+    // CO-155 fix: 这三个字段之前硬编码默认值所以未加必填规则，现在改 el-select 必须校验
+    category: [{ required: true, message: '请选择领域', trigger: 'change' }],
+    subjectType: [{ required: true, message: '请选择主体类型', trigger: 'change' }],
+    subjectName: [{ required: true, message: '请输入主体名称', trigger: 'blur' }],
     attachment: [{
       validator: (rule, value, callback) => {
         if (!certFile.value && !editingId.value) {

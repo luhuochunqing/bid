@@ -34,7 +34,6 @@
         :project-id="projectId"
         :existing-doc-ids="evidenceDocIds"
         :editable="editable"
-        hide-attach-button
       />
     </el-card>
 

@@ -21,7 +21,7 @@ export const useNotificationStore = defineStore('notifications', {
       try {
         const result = await notificationsApi.getUnreadCount()
         this.unreadCount = result.count ?? 0
-      } catch {
+      } catch (err) {
         this.unreadCount = 0
       }
     },

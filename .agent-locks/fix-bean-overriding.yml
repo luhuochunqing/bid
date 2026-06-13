@@ -1,0 +1,9 @@
+version: 1
+task: "fix-bean-overriding"
+locks:
+  - path: "backend/src/main/resources/application.yml"
+    scope: "file"
+    owner: "codex"
+    branch: "agent/codex/fix-bean-overriding"
+    expiresAt: "2026-06-14T23:59:59Z"
+    reason: "添加 spring.main.allow-bean-definition-overriding 允许 SDK Bean 覆盖"

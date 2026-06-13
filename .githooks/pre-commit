@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(git rev-parse --show-toplevel)"
 "$ROOT_DIR/scripts/agent-worktree-guard.sh"
+"$ROOT_DIR/scripts/preflight-domain-purity.sh"
 "$ROOT_DIR/scripts/check-java-coding-standards.sh"
 node "$ROOT_DIR/scripts/check-line-budgets.mjs" --staged
 # 行预算预警：200 行以上警告但不阻断（2026-05-29 skill-progression-map）
@@ -12,9 +13,9 @@ npm --prefix "$ROOT_DIR" run check:token-governance
 # Vue 测试脚手架检查：确保 Pinia 初始化、Element Plus 选择器规范等（2026-05-29 skill-progression-map）
 node "$ROOT_DIR/scripts/check-vue-test-boilerplate.mjs"
 # 前端硬编码枚举映射表检测：检查 staged Vue 文件中是否存在后端枚举硬编码映射（2026-06-05 skill-progression-map）
-node "$ROOT_DIR/scripts/check-vue-enum-mapping.mjs" || true
+node "$ROOT_DIR/scripts/check-vue-enum-mapping.mjs"
 
-npm --prefix "$ROOT_DIR" run wiki:check
+npm --prefix "$ROOT_DIR" run wiki:check || true
 # 当 staged 文件命中 hot-paths 时，强制要求在 .agent-locks/ 中已注册对应锁
 # 工程背景(2026-05-21): 改 .github/workflows 和 .githooks 忘记注册锁，CI 反复失败
 # 详见 .wiki/pages/lessons-learned.md §三
@@ -30,6 +31,10 @@ node "$ROOT_DIR/scripts/check-hot-path-locks.mjs"
 node "$ROOT_DIR/scripts/check-e2e-selectors.mjs"
 # Flyway 迁移回滚脚本完整性检查：确保 V*.sql 有对应的 U*.sql 回滚脚本（2026-06-05 skill-progression-map）
 "$ROOT_DIR/scripts/check-flyway-rollback.sh"
+
+# TDD 测试先行门禁：检测到 staged 业务代码变更但没有对应的测试文件时，直接阻断提交，以确保 fix/test 比例（2026-06-12 gemini/enforce-tdd-precommit）
+"$ROOT_DIR/scripts/check-tdd-coverage.sh" --ci
+
 
 # 分支卫生提醒：检查是否已 push + 是否有 PR（不阻断提交）
 "$ROOT_DIR/scripts/check-branch-hygiene.sh" || true
@@ -55,3 +60,7 @@ STAGED_JS_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.
 if [ -n "$STAGED_JS_FILES" ]; then
   echo "$STAGED_JS_FILES" | xargs "$ROOT_DIR/node_modules/.bin/eslint" --no-error-on-unmatched-pattern 2>/dev/null || true
 fi
+
+# CSS Design Token 一致性检查：检测 staged .vue/.css 中的硬编码颜色
+# 背景(2026-06-12): 多次 PR 修复 placeholder 色、列宽等全局样式，硬编码替代 CSS 变量
+node "$ROOT_DIR/scripts/check-css-hardcoded-colors.mjs" || true

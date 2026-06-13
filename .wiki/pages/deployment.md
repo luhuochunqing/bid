@@ -13,7 +13,7 @@ sources:
   - README.md
   - backend/src/main/resources/application.yml
   - docs/plans/2026-03-10-go-live-execution-plan.md
-  - .wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx
+  - .wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md
   - .wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx
 backlinks:
   - _index

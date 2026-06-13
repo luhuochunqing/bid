@@ -11,6 +11,7 @@ import com.xiyu.bid.businessqualification.domain.valueobject.QualificationSubjec
 import com.xiyu.bid.businessqualification.infrastructure.persistence.entity.BusinessQualificationEntity;
 import com.xiyu.bid.businessqualification.infrastructure.persistence.repository.BusinessQualificationJpaRepository;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.notification.core.DispatchResult;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.repository.UserRepository;
@@ -133,7 +134,7 @@ class QualificationExpiryNotificationServiceTest {
         when(userRepository.findEnabledByRoleProfileCodes(any()))
                 .thenReturn(List.of(user(101L), user(102L), user(103L)));
         when(notificationApplicationService.createNotification(any(), any()))
-                .thenReturn(com.xiyu.bid.notification.core.NotificationDispatchPolicy.DispatchResult.validWithId(1L));
+                .thenReturn(DispatchResult.validWithId(1L));
 
         QualificationExpiryNotificationService.ScanOutcome outcome = service.runScan(30, null);
 

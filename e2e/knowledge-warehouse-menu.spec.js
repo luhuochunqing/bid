@@ -86,7 +86,7 @@ test.describe('仓库信息 §4.4 — KbLayout 入口', () => {
     // 先 hover "知识库" 子菜单标题以展开子菜单
     const knowledgeSubmenu = page.locator('.sidebar-menu .el-sub-menu__title').filter({ hasText: '知识库' })
     await knowledgeSubmenu.hover()
-    await page.waitForTimeout(400)
+  await expect(page.locator('.sidebar-menu .el-menu-item.sub-menu-item, .sidebar-menu .el-sub-menu .el-menu-item').filter({ hasText: '仓库信息' }).first()).toBeVisible({ timeout: 5000 }).catch(() => {})
 
     // 点击展开后的"仓库信息"菜单项（el-menu-item 子菜单项）
     const warehouseMenuItem = page.locator('.sidebar-menu .el-menu-item.sub-menu-item, .sidebar-menu .el-sub-menu .el-menu-item').filter({ hasText: '仓库信息' }).first()

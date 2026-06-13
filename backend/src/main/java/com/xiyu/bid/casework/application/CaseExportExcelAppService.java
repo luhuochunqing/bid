@@ -4,6 +4,7 @@ import com.xiyu.bid.casework.domain.model.CaseExportCriteria;
 import java.time.LocalDate;
 import com.xiyu.bid.casework.domain.model.CaseExportRecord;
 import com.xiyu.bid.casework.domain.policy.CaseExportFilterPolicy;
+import com.xiyu.bid.casework.domain.model.KnowledgeCaseReadModel;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCaseRepository;
 import jakarta.persistence.criteria.Predicate;
@@ -52,7 +53,7 @@ public class CaseExportExcelAppService {
                 uploadDateFrom, uploadDateTo, closeDateFrom, closeDateTo, statuses);
 
         List<KnowledgeCase> allCases = fetchAllCases(criteria);
-        List<KnowledgeCase> filteredCases = CaseExportFilterPolicy.filterCases(allCases, criteria);
+        List<KnowledgeCaseReadModel> filteredCases = CaseExportFilterPolicy.filterCases(allCases, criteria);
 
         List<CaseExportRecord> exportRecords = filteredCases.stream()
                 .map(CaseExportFilterPolicy::toExportRecord)

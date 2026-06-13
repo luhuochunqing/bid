@@ -347,7 +347,7 @@ test.describe('§2.5 CRM商机字段（创建表单）', () => {
     await crmSelect.click()
 
     // 等待加载状态消失（loading 消失或有选项出现）
-    await page.waitForTimeout(800) // 给接口一点时间
+  await expect(page.locator('.el-select-dropdown')).toBeVisible({ timeout: 10000 }).catch(() => {})
 
     // 验证下拉选项容器出现（Element Plus 结构）
     const dropdown = page.locator('.el-select-dropdown')

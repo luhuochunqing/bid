@@ -175,7 +175,7 @@ test.describe('project list filter fields', () => {
     await page.getByRole('button', { name: '重置' }).click()
 
     // Cascader should be cleared
-    await page.waitForTimeout(500)
+  await expect(page.locator('.el-cascader input[placeholder="请选择省市"]').first()).toHaveValue('', { timeout: 5000 }).catch(() => {})
     const valueAfter = await cascaderInput.inputValue()
     expect(valueAfter || await page.locator('.el-cascader input[placeholder="请选择省市"]').count()).toBeTruthy()
   })

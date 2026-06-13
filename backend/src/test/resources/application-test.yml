@@ -44,6 +44,18 @@ platform:
   account:
     encryption-key: test-platform-encryption-key-2026
 
+rate:
+  limit:
+    default:
+      max: 999999
+      window-seconds: 1
+    api-key:
+      max: 999999
+      window-seconds: 1
+    login:
+      max-attempts: 999999
+      window-minutes: 1
+
 app:
   tender-processing:
     worker-enabled: false

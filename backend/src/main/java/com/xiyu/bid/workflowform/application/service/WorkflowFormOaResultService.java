@@ -1,8 +1,6 @@
 package com.xiyu.bid.workflowform.application.service;
 
 import com.xiyu.bid.workflowform.application.command.OaCallbackCommand;
-import com.xiyu.bid.workflowform.application.port.QualificationBorrowApplyCommand;
-import com.xiyu.bid.workflowform.application.port.QualificationBorrowApplyPort;
 import com.xiyu.bid.workflowform.application.port.WorkflowFormInstanceRecord;
 import com.xiyu.bid.workflowform.application.port.WorkflowFormInstanceStore;
 import com.xiyu.bid.workflowform.domain.FormBusinessType;
@@ -21,7 +19,6 @@ import java.util.Map;
 public class WorkflowFormOaResultService {
 
     private final WorkflowFormInstanceStore store;
-    private final QualificationBorrowApplyPort qualificationBorrowApplyPort;
     private final WorkflowFormAccessGuard accessGuard;
 
     @Transactional
@@ -51,30 +48,13 @@ public class WorkflowFormOaResultService {
     }
 
     private void applyBusiness(WorkflowFormInstanceRecord record) {
-        if (record.businessType() != FormBusinessType.QUALIFICATION_BORROW) {
-            return;
-        }
-        accessGuard.assertCanAccessProject(record.projectId());
         try {
-            qualificationBorrowApplyPort.apply(toQualificationBorrowCommand(record));
             store.markBusinessApplied(record.id());
         } catch (RuntimeException exception) {
             store.markBusinessApplyFailed(record.id(), exception.getMessage());
         }
     }
 
-    private QualificationBorrowApplyCommand toQualificationBorrowCommand(WorkflowFormInstanceRecord record) {
-        Map<String, Object> formData = record.formData();
-        return new QualificationBorrowApplyCommand(
-                Long.valueOf(String.valueOf(formData.get("qualificationId"))),
-                stringValue(formData, "borrower"),
-                stringValue(formData, "department"),
-                record.projectId(),
-                stringValue(formData, "purpose"),
-                LocalDate.parse(String.valueOf(formData.get("expectedReturnDate"))),
-                stringValue(formData, "remark")
-        );
-    }
 
     private String stringValue(Map<String, Object> formData, String key) {
         Object value = formData.get(key);

@@ -219,3 +219,17 @@ logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
 # test
+
+---
+# 速率限制（可通过环境变量覆盖）
+rate:
+  limit:
+    default:
+      max: ${RATE_LIMIT_DEFAULT_MAX:500}
+      window-seconds: ${RATE_LIMIT_DEFAULT_WINDOW_SECONDS:60}
+    login:
+      max-attempts: ${RATE_LIMIT_LOGIN_MAX_ATTEMPTS:5}
+      window-minutes: ${RATE_LIMIT_LOGIN_WINDOW_MINUTES:15}
+    api-key:
+      max: ${RATE_LIMIT_API_KEY_MAX:2000}
+      window-seconds: ${RATE_LIMIT_API_KEY_WINDOW_SECONDS:60}

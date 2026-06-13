@@ -19,7 +19,7 @@ async function createPersonViaUI(page, { name, employeeNumber, educations = [] }
 
   // Tab 2 - 教育经历
   await page.getByRole('tab', { name: '教育经历' }).click()
-  await page.waitForTimeout(200) // 等待 tab 切换动画
+  await expect(page.locator('.edu-item').first()).toBeVisible({ timeout: 5000 }).catch(() => {})
 
   for (const edu of educations) {
     await page.getByRole('button', { name: '+ 添加教育经历' }).click()
@@ -349,7 +349,10 @@ test.describe('知识库 - 人员编辑（编辑证书子节）', () => {
     // 实际项目建议给表格行或按钮加 data-testid
     await page.getByPlaceholder('搜索姓名或工号').fill(`FULLEDIT${suffix}`)
     await page.getByRole('button', { name: '查询' }).click()
-    await page.waitForTimeout(500)
+  await page.waitForResponse(
+        (response) => response.url().includes('/api/knowledge/personnel') && response.status() === 200,
+        { timeout: 10000 }
+      ).catch(() => {})
 
     // 点击该行的“编辑”按钮
     const row = page.locator('tr', { hasText: `FULLEDIT${suffix}` }).first()
@@ -367,7 +370,7 @@ test.describe('知识库 - 人员编辑（编辑证书子节）', () => {
 
     // === Tab 2: 修改教育经历（修改第一条 + 新增一条）===
     await page.getByRole('tab', { name: '教育经历' }).click()
-    await page.waitForTimeout(200)
+  await expect(page.locator('.edu-item').first()).toBeVisible({ timeout: 5000 }).catch(() => {})
 
     // 修改第一条教育经历
     const firstEduRow = page.locator('.edu-item').first()
@@ -446,7 +449,10 @@ test.describe('查看证书 - 列表 11 列 + 4 Tab 抽屉', () => {
 
     // 刷新列表
     await page.getByRole('button', { name: '查询' }).click()
-    await page.waitForTimeout(600)
+  await page.waitForResponse(
+        (response) => response.url().includes('/api/knowledge/personnel') && response.status() === 200,
+        { timeout: 10000 }
+      ).catch(() => {})
 
     const row = page.locator('tr', { hasText: `VIEW${suffix}` }).first()
     await expect(row).toBeVisible()
@@ -515,7 +521,10 @@ test.describe('删除人员 - 边界与恢复流程', () => {
     // 筛选到在职，找到该人并删除
     await page.getByPlaceholder('搜索姓名或工号').fill(`DEL${suffix}`)
     await page.getByRole('button', { name: '查询' }).click()
-    await page.waitForTimeout(500)
+  await page.waitForResponse(
+        (response) => response.url().includes('/api/knowledge/personnel') && response.status() === 200,
+        { timeout: 10000 }
+      ).catch(() => {})
 
     const row = page.locator('tr', { hasText: `DEL${suffix}` }).first()
     await row.getByRole('button', { name: '删除' }).click()
@@ -539,7 +548,10 @@ test.describe('删除人员 - 边界与恢复流程', () => {
     await page.getByRole('combobox', { name: '状态' }).click()
     await page.getByRole('option', { name: '停用' }).click()
     await page.getByRole('button', { name: '查询' }).click()
-    await page.waitForTimeout(500)
+  await page.waitForResponse(
+        (response) => response.url().includes('/api/knowledge/personnel') && response.status() === 200,
+        { timeout: 10000 }
+      ).catch(() => {})
 
     const inactiveRow = page.locator('tr', { hasText: `DEL${suffix}` }).first()
     await expect(inactiveRow).toBeVisible()
@@ -555,7 +567,10 @@ test.describe('删除人员 - 边界与恢复流程', () => {
     await page.getByRole('combobox', { name: '状态' }).click()
     await page.getByRole('option', { name: '在职' }).click()
     await page.getByRole('button', { name: '查询' }).click()
-    await page.waitForTimeout(500)
+  await page.waitForResponse(
+        (response) => response.url().includes('/api/knowledge/personnel') && response.status() === 200,
+        { timeout: 10000 }
+      ).catch(() => {})
 
     await expect(page.locator('tr', { hasText: `DEL${suffix}` })).toBeVisible()
   })

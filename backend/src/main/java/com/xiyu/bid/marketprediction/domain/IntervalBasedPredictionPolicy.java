@@ -2,7 +2,6 @@ package com.xiyu.bid.marketprediction.domain;
 
 import com.xiyu.bid.entity.Tender;
 
-import org.springframework.stereotype.Component;
 
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -19,7 +18,6 @@ import java.util.List;
  *
  * Stub 实现 - 实际生产需要接入 AI 模型进行更精准预测
  */
-@Component
 public class IntervalBasedPredictionPolicy implements MarketPredictionPolicy {
 
     private static final int MIN_HISTORICAL_COUNT = 2;

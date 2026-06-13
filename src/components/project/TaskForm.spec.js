@@ -220,6 +220,10 @@ describe('TaskForm', () => {
     })
     await flushAssigneeLoad()
 
+    // 创建模式下手动选择当前用户作为执行人（模拟用户从下拉框选择）
+    await wrapper.find('[data-test="task-owner-select"]').setValue('9')
+    await flushPromises()
+
     const r = wrapper.vm.submit()
 
     expect(getTaskAssignmentCandidatesMock).toHaveBeenCalledWith()

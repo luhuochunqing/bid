@@ -9,10 +9,6 @@ import CaseGrid from './CaseGrid.vue'
 </script>
 
 <style scoped>
-.case-wrapper-container {
-  padding: 24px;
-}
-
 /* Remove duplicate wrapper padding to keep layouts unified */
 :deep(.case-grid-container) {
   padding: 24px 0 0 0 !important;

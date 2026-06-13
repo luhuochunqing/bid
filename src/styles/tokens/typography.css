@@ -1,0 +1,35 @@
+/* ============================================================
+ * Typography Token — 文字基线
+ * ============================================================
+ *
+ * 所有字号、行高、字重统一定义在此。
+ * 不允许在组件中直接写 font-size: 14px 等硬编码值。
+ */
+
+:root {
+  /* --- 字号阶梯 --- */
+  --tk-font-xs:   12px;   /* 辅助文字、表格内容 */
+  --tk-font-sm:   13px;   /* 次要文字 */
+  --tk-font-base: 14px;   /* 正文/表单标签 */
+  --tk-font-lg:   16px;   /* 标题4级 */
+  --tk-font-xl:   18px;   /* 标题3级 */
+  --tk-font-2xl:  20px;   /* 标题2级 */
+  --tk-font-3xl:  24px;   /* 标题1级 */
+
+  /* --- 行高 --- */
+  --tk-line-height-tight:    1.2;
+  --tk-line-height-normal:   1.5;
+  --tk-line-height-relaxed:  1.8;
+
+  /* --- 字重 --- */
+  --tk-font-weight-normal:   400;
+  --tk-font-weight-medium:   500;
+  --tk-font-weight-semibold: 600;
+
+  /* --- Element Plus 覆盖（保持与 design token 一致） --- */
+  --el-font-size-extra-large:  var(--tk-font-xl);
+  --el-font-size-large:        var(--tk-font-lg);
+  --el-font-size-base:         var(--tk-font-base);
+  --el-font-size-small:        var(--tk-font-sm);
+  --el-font-size-extra-small:  var(--tk-font-xs);
+}

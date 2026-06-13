@@ -33,17 +33,6 @@
     "ingested_at": "2026-05-07T10:51:11.418Z"
   },
   {
-    "id": "adbce912402924c6",
-    "path": ".wiki/sources/contract/西域数智化投标管理平台建设项目合同-V1 0420.docx",
-    "type": "docx",
-    "topic": "contract",
-    "hash": "adbce912402924c644f5604b4102b14b66efd0e4550c1340035a34a6f2fcf7fe",
-    "status": "extracted",
-    "extract_path": ".wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md",
-    "confidence": 0.85,
-    "ingested_at": "2026-05-07T10:51:11.437Z"
-  },
-  {
     "id": "3dd8dee6dce7f5a0",
     "path": ".wiki/sources/contract/附件3-合同报价清单人工摘录.md",
     "type": "markdown",

@@ -35,3 +35,8 @@ locks:
   reason: CI quality gate reinforce — compile check + full E2E regression
   owner: codex
   branch: agent/codex/ci-quality-gate-reinforce
+- path: backend/src/main/resources/application*.yml
+  scope: file
+  reason: 放宽默认速率限制 100→500/60s
+  owner: agent
+  branch: agent/trae/fix-warehouse-col

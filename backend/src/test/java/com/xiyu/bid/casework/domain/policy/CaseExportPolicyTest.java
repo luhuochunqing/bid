@@ -2,6 +2,7 @@ package com.xiyu.bid.casework.domain.policy;
 
 import com.xiyu.bid.casework.domain.model.CaseExportContext;
 import com.xiyu.bid.casework.domain.model.CaseExportZipEntry;
+import com.xiyu.bid.casework.domain.model.KnowledgeCaseReadModel;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -111,7 +112,7 @@ class CaseExportPolicyTest {
         notPinnedB.setScoringPointTitle("标题B");
         notPinnedB.setCreatedAt(LocalDateTime.of(2026, 6, 2, 0, 0));
 
-        List<KnowledgeCase> result = policy.sortCasesForExport(List.of(notPinnedA, notPinnedB, pinned));
+        List<KnowledgeCaseReadModel> result = policy.sortCasesForExport(List.of(notPinnedA, notPinnedB, pinned));
 
         assertEquals(3, result.size());
         assertTrue(result.get(0).getIsPinned());  // 置顶排第一

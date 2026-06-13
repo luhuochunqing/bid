@@ -1,53 +1,55 @@
 <template>
   <div class="filter-bar">
-    <el-form :model="localFilters" inline @submit.prevent="handleSearch">
-      <el-form-item label="仓库名称">
-        <el-input v-model="localFilters.keyword" placeholder="仓库名称/地址/联系人" clearable style="width:160px" @keyup.enter="handleSearch" @input="onKeywordInput" />
-      </el-form-item>
-      <el-form-item label="仓库类型">
-        <el-select v-model="localFilters.types" multiple collapse-tags collapse-tags-tooltip placeholder="全部" clearable style="width:130px">
-          <el-option label="自营" value="SELF_OPERATED" />
-          <el-option label="云仓" value="CLOUD" />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="所属区域">
-        <el-select v-model="localFilters.regions" multiple collapse-tags collapse-tags-tooltip placeholder="全部" clearable style="width:170px">
-          <el-option v-for="r in REGION_OPTIONS" :key="r" :label="r" :value="r" />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="仓库状态">
-        <el-select v-model="localFilters.statuses" multiple collapse-tags collapse-tags-tooltip placeholder="全部" clearable style="width:170px">
-          <el-option label="使用中" value="IN_USE" />
-          <el-option label="即将到期" value="EXPIRING" />
-          <el-option label="已到期" value="EXPIRED" />
-          <el-option label="已关仓" value="CLOSED" />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="仓库所在省份">
-        <el-select v-model="localFilters.provinces" multiple collapse-tags collapse-tags-tooltip placeholder="全部" clearable filterable style="width:200px">
-          <el-option v-for="p in PROVINCE_OPTIONS" :key="p" :label="p" :value="p" />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="结束时间">
-        <el-date-picker v-model="localFilters.endDateRange" type="daterange" range-separator="至" start-placeholder="开始"
-          end-placeholder="结束" value-format="YYYY-MM-DD" style="width:220px" />
-      </el-form-item>
-      <el-form-item label="附件">
-        <el-checkbox v-model="localFilters.hasPropertyCert">产权证</el-checkbox>
-        <el-checkbox v-model="localFilters.hasInvoice">发票</el-checkbox>
-        <el-checkbox v-model="localFilters.hasPhotos">照片</el-checkbox>
-      </el-form-item>
-      <el-form-item label="区域联系人">
-        <el-input v-model="localFilters.contactPersonKeyword" placeholder="区域联系人" clearable style="width:120px" @keyup.enter="handleSearch" @input="onContactInput" />
-      </el-form-item>
-      <el-form-item>
-        <el-button type="primary" @click="handleSearch"><el-icon><Search /></el-icon> 搜索</el-button>
-        <el-button @click="handleReset"><el-icon><RefreshRight /></el-icon> 重置</el-button>
-      </el-form-item>
-    </el-form>
-    <div class="filter-bar-right">
+    <div class="filter-bar-main">
+      <el-form :model="localFilters" inline @submit.prevent="handleSearch">
+        <el-form-item label="仓库名称">
+          <el-input v-model="localFilters.keyword" placeholder="仓库名称/地址/联系人" clearable style="width:150px" @keyup.enter="handleSearch" @input="onKeywordInput" />
+        </el-form-item>
+        <el-form-item label="仓库类型">
+          <el-select v-model="localFilters.types" multiple collapse-tags collapse-tags-tooltip placeholder="全部" clearable style="width:120px">
+            <el-option label="自营" value="SELF_OPERATED" />
+            <el-option label="云仓" value="CLOUD" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="所属区域">
+          <el-select v-model="localFilters.regions" multiple collapse-tags collapse-tags-tooltip placeholder="全部" clearable style="width:140px">
+            <el-option v-for="r in REGION_OPTIONS" :key="r" :label="r" :value="r" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="仓库状态">
+          <el-select v-model="localFilters.statuses" multiple collapse-tags collapse-tags-tooltip placeholder="全部" clearable style="width:140px">
+            <el-option label="使用中" value="IN_USE" />
+            <el-option label="即将到期" value="EXPIRING" />
+            <el-option label="已到期" value="EXPIRED" />
+            <el-option label="已关仓" value="CLOSED" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="所在省份">
+          <el-select v-model="localFilters.provinces" multiple collapse-tags collapse-tags-tooltip placeholder="全部" clearable filterable style="width:160px">
+            <el-option v-for="p in PROVINCE_OPTIONS" :key="p" :label="p" :value="p" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="结束时间">
+          <el-date-picker v-model="localFilters.endDateRange" type="daterange" range-separator="至" start-placeholder="开始"
+            end-placeholder="结束" value-format="YYYY-MM-DD" style="width:210px" />
+        </el-form-item>
+        <el-form-item label="附件">
+          <el-checkbox v-model="localFilters.hasPropertyCert">产权证</el-checkbox>
+          <el-checkbox v-model="localFilters.hasInvoice">发票</el-checkbox>
+          <el-checkbox v-model="localFilters.hasPhotos">照片</el-checkbox>
+        </el-form-item>
+        <el-form-item label="区域联系人">
+          <el-input v-model="localFilters.contactPersonKeyword" placeholder="区域联系人" clearable style="width:110px" @keyup.enter="handleSearch" @input="onContactInput" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleSearch"><el-icon><Search /></el-icon> 搜索</el-button>
+          <el-button @click="handleReset"><el-icon><RefreshRight /></el-icon> 重置</el-button>
+        </el-form-item>
+      </el-form>
+    </div>
+    <div class="filter-bar-actions">
       <span class="total-tip">共 <strong>{{ total }}</strong> 条</span>
-      <el-button @click="$emit('download-template')"><el-icon><DocumentCopy /></el-icon> 下载批量导入模板</el-button>
+      <el-button @click="$emit('download-template')"><el-icon><DocumentCopy /></el-icon> 下载模板</el-button>
       <el-button type="warning" @click="$emit('import')"><el-icon><Upload /></el-icon> 批量导入</el-button>
       <el-button v-if="selectedCount > 0" type="success" @click="$emit('batch-export')">
         <el-icon><Download /></el-icon> 批量导出 ({{ selectedCount }})
@@ -158,11 +160,62 @@ onBeforeUnmount(() => { if (debounceTimer) clearTimeout(debounceTimer) })
 </script>
 
 <style scoped lang="scss">
-.filter-bar { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:12px 16px;
-  background:#fff; border-radius:8px; border:1px solid var(--el-border-color-lighter); margin-bottom:12px;
-  .el-form { flex-wrap:wrap; gap:4px 0 }
-  .el-form-item { margin-bottom:0; margin-right:8px }
+.filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-lighter);
+  margin-bottom: 16px;
 }
-.filter-bar-right { display:flex; align-items:center; gap:12px; flex-shrink:0; padding-top:4px }
-.total-tip { color:var(--el-text-color-secondary); font-size:13px }
+
+.filter-bar-main {
+  width: 100%;
+
+  .el-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 12px;
+    align-items: center;
+  }
+
+  .el-form-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0;
+    margin-right: 0;
+    white-space: nowrap;
+  }
+
+  :deep(.el-form-item__label) {
+    padding-right: 6px;
+    white-space: nowrap;
+    font-weight: 500;
+    color: var(--el-text-color-regular);
+    font-size: 13px;
+  }
+
+  :deep(.el-form-item__content) {
+    display: flex;
+    align-items: center;
+  }
+}
+
+.filter-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.total-tip {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  margin-right: auto;
+}
 </style>

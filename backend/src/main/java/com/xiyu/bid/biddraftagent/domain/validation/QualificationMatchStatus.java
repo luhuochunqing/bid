@@ -4,8 +4,21 @@
 
 package com.xiyu.bid.biddraftagent.domain.validation;
 
-public enum QualificationMatchStatus {
-    SATISFIED,      // 已满足 — 知识库中已找到匹配项，条件符合
-    ATTENTION,     // 需关注 — 条件临界（如证书即将到期），建议人工复核
-    UNSATISFIED     // 不满足 — 知识库中未找到匹配项或条件不符合
+import com.xiyu.bid.common.display.DisplayableEnum;
+
+public enum QualificationMatchStatus implements DisplayableEnum {
+    SATISFIED("已满足"),
+    ATTENTION("需关注"),
+    UNSATISFIED("不满足");
+
+    private final String displayName;
+
+    QualificationMatchStatus(String displayName) {
+        this.displayName = displayName;
+    }
+
+    @Override
+    public String getDisplayName() {
+        return displayName;
+    }
 }

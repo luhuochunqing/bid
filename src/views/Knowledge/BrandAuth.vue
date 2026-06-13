@@ -32,10 +32,12 @@
         </el-card>
         <el-card class="table-card" v-loading="loading">
           <el-table :data="records" stripe @row-click="openDetail">
-            <el-table-column prop="brandId" label="授权编号" width="100" />
-            <el-table-column prop="productLine" label="一级产线" width="90" />
+            <el-table-column type="selection" width="55" />
+            <el-table-column type="index" label="序号" width="110" align="center" />
+            <el-table-column prop="brandId" label="授权编号" width="120" />
+            <el-table-column prop="productLine" label="一级产线" width="120" />
             <el-table-column prop="brandName" label="品牌" width="100" />
-            <el-table-column prop="importDomestic" label="进口/国产" width="80" align="center" />
+            <el-table-column prop="importDomestic" label="进口/国产" width="120" align="center" />
             <el-table-column prop="manufacturerName" label="品牌原厂名称" min-width="140" show-overflow-tooltip />
             <el-table-column prop="authStartDate" label="授始" width="100" />
             <el-table-column prop="authEndDate" label="授止" width="100" />
@@ -88,10 +90,12 @@
         </el-card>
         <el-card class="table-card" v-loading="loading">
           <el-table :data="records" stripe @row-click="openDetail">
-            <el-table-column prop="brandId" label="授权编号" width="100" />
-            <el-table-column prop="productLine" label="一级产线" width="90" />
+            <el-table-column type="selection" width="55" />
+            <el-table-column type="index" label="序号" width="110" align="center" />
+            <el-table-column prop="brandId" label="授权编号" width="120" />
+            <el-table-column prop="productLine" label="一级产线" width="120" />
             <el-table-column prop="brandName" label="品牌" width="100" />
-            <el-table-column prop="importDomestic" label="进口/国产" width="80" align="center" />
+            <el-table-column prop="importDomestic" label="进口/国产" width="120" align="center" />
             <el-table-column prop="manufacturerName" label="品牌原厂名称" min-width="140" show-overflow-tooltip />
             <el-table-column prop="agentName" label="代理商名称" min-width="140" show-overflow-tooltip />
             <el-table-column label="有效期较早值" width="120" align="center">
@@ -257,7 +261,6 @@ onMounted(loadData)
 </script>
 
 <style scoped lang="scss">
-.brandauth-container { padding: 24px; }
 .page-header { margin-bottom: 16px; h2 { font-weight: 600; color: #1f2937; margin: 0; } }
 .tab-toolbar { display: flex; justify-content: space-between; align-items: center; margin: 12px 0; }
 .filter-card, .table-card { border-radius: 8px; border: 1px solid var(--el-border-color-lighter); box-shadow: 0 2px 8px rgba(0,0,0,.05); margin-bottom: 12px; }
