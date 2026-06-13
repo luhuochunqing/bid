@@ -202,7 +202,18 @@ async function searchReviewer(query) {
   reviewerSearching.value = true
   try {
     const list = await usersApi.search(query)
-    reviewerOptions.value = Array.isArray(list) ? list.map(u => ({ id: Number(u.id), name: formatDisplayName(u.fullName || u.name, u.employeeNumber) })) : []
+    const project = ctx.project?.value || {}
+    const managerId = project.managerId ? Number(project.managerId) : null
+    const teamMembers = Array.isArray(project.teamMembers) ? project.teamMembers.map(Number) : []
+    const primaryLeadId = project.primaryLeadUserId ? Number(project.primaryLeadUserId) : null
+    const secondaryLeadId = project.secondaryLeadUserId ? Number(project.secondaryLeadUserId) : null
+    const excludedIds = [managerId, primaryLeadId, secondaryLeadId, ...teamMembers].filter(Boolean)
+
+    reviewerOptions.value = Array.isArray(list)
+      ? list
+          .map(u => ({ id: Number(u.id), name: formatDisplayName(u.fullName || u.name, u.employeeNumber) }))
+          .filter(u => !excludedIds.includes(u.id))
+      : []
   } catch { reviewerOptions.value = [] }
   finally { reviewerSearching.value = false }
 }

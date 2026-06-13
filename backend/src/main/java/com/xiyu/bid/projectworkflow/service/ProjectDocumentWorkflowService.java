@@ -62,6 +62,20 @@ class ProjectDocumentWorkflowService {
 
     void deleteProjectDocument(Long projectId, Long documentId) {
         guardService.requireWorkflowMutationProject(projectId);
+
+        // 校验删除权限：仅系统管理员 (admin) 和投标部门管理员 (bid_admin) 允许删除文档
+        org.springframework.security.core.Authentication authentication = 
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated()) {
+            com.xiyu.bid.entity.User user = userRepository.findByUsername(authentication.getName())
+                    .orElseThrow(() -> new org.springframework.security.access.AccessDeniedException("当前用户不存在或不可用"));
+            String roleCode = user.getRoleCode();
+            if (!com.xiyu.bid.entity.RoleProfileCatalog.ADMIN_CODE.equalsIgnoreCase(roleCode) && 
+                !com.xiyu.bid.entity.RoleProfileCatalog.BID_ADMIN_CODE.equalsIgnoreCase(roleCode)) {
+                throw new org.springframework.security.access.AccessDeniedException("权限不足，仅管理员允许删除文档");
+            }
+        }
+
         ProjectDocument document = guardService.requireDocument(projectId, documentId);
         projectDocumentRepository.delete(document);
         projectDocumentBindingGateway.onDocumentDeleted(document);

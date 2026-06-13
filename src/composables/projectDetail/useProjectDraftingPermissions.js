@@ -111,7 +111,7 @@ export function useProjectDraftingPermissions(opts = {}) {
   )
 
   /** 删除文档 */
-  const canDeleteDocument = computed(() => roleGroup.value === 'admin_lead')
+  const canDeleteDocument = computed(() => userStore.isBidAdmin)
 
   /** 归档文档 */
   const canArchiveDocument = computed(() => roleGroup.value === 'admin_lead')

@@ -187,4 +187,61 @@ class BidReviewAppServiceTest {
         assertThat(state.status()).isEqualTo("REVIEWING");
         assertThat(state.reviewerId()).isEqualTo(200L);
     }
+
+    // ── submitForReview 标书审核人校验 ──────────────────────────────────────
+
+    @Test
+    void submitForReview_whenReviewerIsProjectManager_throws400() {
+        com.xiyu.bid.entity.Project project = com.xiyu.bid.entity.Project.builder()
+                .id(1L)
+                .managerId(10L)
+                .teamMembers(java.util.List.of(11L, 12L))
+                .build();
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(reviewRepository.findByProjectId(1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.submitForReview(1L, 10L, 100L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("标书审核人必须是未参与本项目的人员")
+                .extracting("statusCode").isEqualTo(HttpStatus.BAD_REQUEST);
+
+        verify(reviewRepository, never()).save(any());
+    }
+
+    @Test
+    void submitForReview_whenReviewerIsTeamMember_throws400() {
+        com.xiyu.bid.entity.Project project = com.xiyu.bid.entity.Project.builder()
+                .id(1L)
+                .managerId(10L)
+                .teamMembers(java.util.List.of(11L, 12L))
+                .build();
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(reviewRepository.findByProjectId(1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.submitForReview(1L, 11L, 100L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("标书审核人必须是未参与本项目的人员")
+                .extracting("statusCode").isEqualTo(HttpStatus.BAD_REQUEST);
+
+        verify(reviewRepository, never()).save(any());
+    }
+
+    @Test
+    void submitForReview_whenReviewerIsExternal_succeeds() {
+        com.xiyu.bid.entity.Project project = com.xiyu.bid.entity.Project.builder()
+                .id(1L)
+                .managerId(10L)
+                .teamMembers(java.util.List.of(11L, 12L))
+                .tenderId(1L)
+                .build();
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(reviewRepository.findByProjectId(1L)).thenReturn(Optional.empty());
+        lenient().when(tenderRepository.findById(any())).thenReturn(Optional.empty());
+        lenient().when(userRepository.findById(any())).thenReturn(Optional.empty());
+
+        // reviewerId=99 既不是 manager=10 也不是 teamMembers=[11, 12] → 允许
+        service.submitForReview(1L, 99L, 100L);
+
+        verify(reviewRepository).save(any(BidDocumentReviewEntity.class));
+    }
 }

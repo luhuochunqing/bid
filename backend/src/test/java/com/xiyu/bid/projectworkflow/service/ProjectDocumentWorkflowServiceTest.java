@@ -27,16 +27,18 @@ class ProjectDocumentWorkflowServiceTest {
 
     private ProjectDocumentRepository projectDocumentRepository;
     private ProjectDocumentBindingGateway bindingGateway;
+    private UserRepository userRepository;
+    private ProjectRepository projectRepository;
     private ProjectDocumentWorkflowService service;
 
     @BeforeEach
     void setUp() {
-        ProjectRepository projectRepository = mock(ProjectRepository.class);
+        projectRepository = mock(ProjectRepository.class);
         ProjectAccessScopeService projectAccessScopeService = mock(ProjectAccessScopeService.class);
         TaskRepository taskRepository = mock(TaskRepository.class);
         projectDocumentRepository = mock(ProjectDocumentRepository.class);
         ProjectScoreDraftRepository projectScoreDraftRepository = mock(ProjectScoreDraftRepository.class);
-        UserRepository userRepository = mock(UserRepository.class);
+        userRepository = mock(UserRepository.class);
         bindingGateway = mock(ProjectDocumentBindingGateway.class);
 
         ProjectWorkflowGuardService guardService = new ProjectWorkflowGuardService(
@@ -124,5 +126,68 @@ class ProjectDocumentWorkflowServiceTest {
                 "BID_RESULT",
                 2002L
         );
+    }
+
+    @Test
+    void deleteProjectDocument_asAdmin_shouldSucceed() {
+        org.springframework.security.core.Authentication auth = mock(org.springframework.security.core.Authentication.class);
+        when(auth.isAuthenticated()).thenReturn(true);
+        when(auth.getName()).thenReturn("adminuser");
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
+
+        com.xiyu.bid.entity.RoleProfile roleProfile = com.xiyu.bid.entity.RoleProfile.builder()
+                .code("bid_admin")
+                .build();
+        com.xiyu.bid.entity.User user = com.xiyu.bid.entity.User.builder()
+                .username("adminuser")
+                .roleProfile(roleProfile)
+                .build();
+        when(userRepository.findByUsername("adminuser")).thenReturn(Optional.of(user));
+
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(9001L)
+                .projectId(1001L)
+                .name("test.pdf")
+                .build();
+        when(projectDocumentRepository.findById(9001L)).thenReturn(Optional.of(doc));
+
+        service.deleteProjectDocument(1001L, 9001L);
+
+        verify(projectDocumentRepository).delete(doc);
+        verify(bindingGateway).onDocumentDeleted(doc);
+
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void deleteProjectDocument_asNonAdmin_shouldThrowAccessDeniedException() {
+        org.springframework.security.core.Authentication auth = mock(org.springframework.security.core.Authentication.class);
+        when(auth.isAuthenticated()).thenReturn(true);
+        when(auth.getName()).thenReturn("regularuser");
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
+
+        com.xiyu.bid.entity.RoleProfile roleProfile = com.xiyu.bid.entity.RoleProfile.builder()
+                .code("staff")
+                .build();
+        com.xiyu.bid.entity.User user = com.xiyu.bid.entity.User.builder()
+                .username("regularuser")
+                .roleProfile(roleProfile)
+                .build();
+        when(userRepository.findByUsername("regularuser")).thenReturn(Optional.of(user));
+
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(9001L)
+                .projectId(1001L)
+                .name("test.pdf")
+                .build();
+        when(projectDocumentRepository.findById(9001L)).thenReturn(Optional.of(doc));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.deleteProjectDocument(1001L, 9001L))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+                .hasMessageContaining("权限不足，仅管理员允许删除文档");
+
+        verify(projectDocumentRepository, org.mockito.Mockito.never()).delete(any());
+
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
     }
 }

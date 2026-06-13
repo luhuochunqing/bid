@@ -208,7 +208,7 @@
 
       <template v-if="preview?.reviewStatus === 'APPROVED'">
         <el-button type="success" disabled style="opacity:0.6;cursor:not-allowed;">已结项</el-button>
-        <el-button v-if="isProjectLeader" :loading="rebidLoading" @click="handleRebid">二次招标</el-button>
+        <el-button v-if="isProjectLeader || isBidManager" :loading="rebidLoading" @click="handleRebid">二次招标</el-button>
       </template>
     </div>
 
@@ -295,19 +295,19 @@ const isProjectLeader = computed(() => userRole.value === 'sales')
 const isBidManager = computed(() => isBidManagerHelper(userRole.value) || userRole.value === 'bid_staff')
 
 const canEditDeposit = computed(() => {
-  if (!isProjectLeader.value) return false
+  if (!isProjectLeader.value && !isBidManager.value) return false
   if (preview.value?.alreadyClosed) return false
   return preview.value?.reviewStatus !== 'APPROVED'
 })
 
 const canEditSummary = computed(() => {
-  if (!isProjectLeader.value) return false
+  if (!isProjectLeader.value && !isBidManager.value) return false
   if (preview.value?.alreadyClosed) return false
   return preview.value?.reviewStatus !== 'APPROVED'
 })
 
 const canSubmitClosure = computed(() => {
-  if (!isProjectLeader.value) return false
+  if (!isProjectLeader.value && !isBidManager.value) return false
   if (preview.value?.alreadyClosed) return false
   if (preview.value?.reviewStatus === 'APPROVED') return false
   if (preview.value?.reviewStatus === 'PENDING') return false

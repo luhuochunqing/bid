@@ -66,6 +66,16 @@ public class BidReviewAppService {
             throw toResponseStatus(decision);
         }
 
+        // 校验审核人是否参与了本项目（标书审核人必须是未参与本项目的人员）
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "项目不存在"));
+        if (reviewerId != null) {
+            if (reviewerId.equals(project.getManagerId()) || 
+                (project.getTeamMembers() != null && project.getTeamMembers().contains(reviewerId))) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "标书审核人必须是未参与本项目的人员");
+            }
+        }
+
         BidDocumentReviewEntity review = existing.orElseGet(() -> BidDocumentReviewEntity.builder()
                 .projectId(projectId).build());
         review.setReviewerId(reviewerId);
