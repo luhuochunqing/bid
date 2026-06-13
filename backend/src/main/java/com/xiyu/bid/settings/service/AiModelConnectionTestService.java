@@ -15,7 +15,7 @@ import java.time.Instant;
 @RequiredArgsConstructor
 public class AiModelConnectionTestService {
 
-    private final SettingsService settingsService;
+    private final AiConfigService aiConfigService;
     private final OpenAiCompatibleClient openAiCompatibleClient;
     private final Environment environment;
     private final AiProviderCatalog aiProviderCatalog;
@@ -28,7 +28,7 @@ public class AiModelConnectionTestService {
         String model = firstNonBlank(request == null ? null : request.getModel(), provider.getModel());
         String apiKey = firstNonBlank(
                 request == null ? null : request.getApiKeyPlaintext(),
-                settingsService.resolveAiApiKey(providerCode),
+                aiConfigService.resolveAiApiKey(providerCode),
                 resolveEnvironmentApiKey(providerCode)
         );
 
@@ -37,11 +37,11 @@ public class AiModelConnectionTestService {
         try {
             aiProviderCatalog.validateBaseUrl(providerCode, baseUrl);
             openAiCompatibleClient.testConnection(new AiProviderRuntimeConfig(providerCode, baseUrl, model, apiKey));
-            settingsService.saveSuccessfulAiProviderTestConfig(providerCode, baseUrl, model, apiKey, message);
+            aiConfigService.saveSuccessfulAiProviderTestConfig(providerCode, baseUrl, model, apiKey, message);
         } catch (RuntimeException exception) {
             status = "failed";
             message = rootMessage(exception);
-            settingsService.updateAiProviderTestResult(providerCode, status, message);
+            aiConfigService.updateAiProviderTestResult(providerCode, status, message);
         }
         return AiModelTestResponse.builder()
                 .providerCode(providerCode)
@@ -52,7 +52,7 @@ public class AiModelConnectionTestService {
     }
 
     private SettingsResponse.AiProviderSetting findProvider(String providerCode) {
-        return settingsService.getInternalAiModelConfig().getProviders().stream()
+        return aiConfigService.getInternalAiModelConfig().getProviders().stream()
                 .filter(provider -> providerCode.equals(normalize(provider.getProviderCode())))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Unsupported AI provider: " + providerCode));

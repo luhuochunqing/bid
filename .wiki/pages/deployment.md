@@ -13,11 +13,6 @@ sources:
   - README.md
   - backend/src/main/resources/application.yml
   - docs/plans/2026-03-10-go-live-execution-plan.md
-<<<<<<< Updated upstream
-  - .wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md
-  - .wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx
-=======
->>>>>>> Stashed changes
 backlinks:
   - _index
   - api-openapi

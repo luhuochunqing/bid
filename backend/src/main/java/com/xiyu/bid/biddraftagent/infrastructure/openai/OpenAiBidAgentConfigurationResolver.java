@@ -2,7 +2,7 @@ package com.xiyu.bid.biddraftagent.infrastructure.openai;
 
 import com.xiyu.bid.settings.dto.SettingsResponse;
 import com.xiyu.bid.settings.service.AiProviderCatalog;
-import com.xiyu.bid.settings.service.SettingsService;
+import com.xiyu.bid.settings.service.AiConfigService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
@@ -20,20 +20,20 @@ public class OpenAiBidAgentConfigurationResolver {
     private static final String TENDER_INTAKE_USE_CASE = "tender intake document analysis";
     private static final Duration CHAT_COMPLETION_MIN_TIMEOUT = Duration.ofSeconds(90);
 
-    private final SettingsService settingsService;
+    private final AiConfigService aiConfigService;
     private final AiProviderCatalog aiProviderCatalog;
     private final Environment environment;
     private final Duration timeout;
     private final Duration tenderIntakeTimeout;
 
     public OpenAiBidAgentConfigurationResolver(
-            SettingsService pSettingsService,
+            AiConfigService pAiConfigService,
             AiProviderCatalog pAiProviderCatalog,
             Environment pEnvironment,
             @Value("${ai.openai.timeout:PT30S}") Duration pTimeout,
             @Value("${ai.deepseek.tender-intake-timeout:PT45S}") Duration pTenderIntakeTimeout
     ) {
-        this.settingsService = pSettingsService;
+        this.aiConfigService = pAiConfigService;
         this.aiProviderCatalog = pAiProviderCatalog;
         this.environment = pEnvironment;
         this.timeout = pTimeout;
@@ -68,7 +68,7 @@ public class OpenAiBidAgentConfigurationResolver {
     }
 
     private Optional<OpenAiBidAgentRequestConfig> deepSeekProviderRequest(Duration requestTimeout) {
-        SettingsResponse.AiModelConfig aiModelConfig = settingsService.getInternalAiModelConfig();
+        SettingsResponse.AiModelConfig aiModelConfig = aiConfigService.getInternalAiModelConfig();
         if (aiModelConfig == null) {
             return Optional.empty();
         }
@@ -121,7 +121,7 @@ public class OpenAiBidAgentConfigurationResolver {
     }
 
     private Optional<String> deepSeekApiKey() {
-        return usableValue(settingsService.resolveAiApiKey(DEEPSEEK_PROVIDER))
+        return usableValue(aiConfigService.resolveAiApiKey(DEEPSEEK_PROVIDER))
                 .or(() -> providerEnvironmentApiKey(DEEPSEEK_PROVIDER));
     }
 

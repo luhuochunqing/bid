@@ -8,11 +8,6 @@ sources:
   - docs/specs/UAT_PLAN.md
   - docs/specs/UAT_SIGNOFF_TEMPLATE.md
   - docs/release/GO_LIVE_CHECKLIST.md
-<<<<<<< Updated upstream
-  - .wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md
-  - .wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx
-=======
->>>>>>> Stashed changes
 backlinks:
   - _index
   - contract-constraints

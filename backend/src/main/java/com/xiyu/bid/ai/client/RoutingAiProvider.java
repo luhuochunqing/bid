@@ -3,7 +3,7 @@ package com.xiyu.bid.ai.client;
 import com.xiyu.bid.ai.dto.AiAnalysisResponse;
 import com.xiyu.bid.settings.dto.SettingsResponse;
 import com.xiyu.bid.settings.service.AiProviderCatalog;
-import com.xiyu.bid.settings.service.SettingsService;
+import com.xiyu.bid.settings.service.AiConfigService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
@@ -17,7 +17,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class RoutingAiProvider implements AiProvider {
 
-    private final SettingsService settingsService;
+    private final AiConfigService aiConfigService;
     private final OpenAiCompatibleClient openAiCompatibleClient;
     private final MockAiProvider mockAiProvider;
     private final Environment environment;
@@ -45,14 +45,14 @@ public class RoutingAiProvider implements AiProvider {
     }
 
     public AiProviderRuntimeConfig resolveActiveConfig() {
-        if (!settingsService.isAiEnabled()) {
+        if (!aiConfigService.isAiEnabled()) {
             throw new IllegalStateException("AI 功能已在系统设置中关闭");
         }
         if ("mock".equalsIgnoreCase(legacyProviderMode)) {
             return null;
         }
 
-        SettingsResponse.AiModelConfig aiModelConfig = settingsService.getInternalAiModelConfig();
+        SettingsResponse.AiModelConfig aiModelConfig = aiConfigService.getInternalAiModelConfig();
         String providerCode = normalize(aiModelConfig.getActiveProvider());
         SettingsResponse.AiProviderSetting provider = aiModelConfig.getProviders().stream()
                 .filter(item -> providerCode.equals(normalize(item.getProviderCode())))
@@ -64,7 +64,7 @@ public class RoutingAiProvider implements AiProvider {
         }
 
         aiProviderCatalog.validateBaseUrl(providerCode, provider.getBaseUrl());
-        String apiKey = settingsService.resolveAiApiKey(providerCode);
+        String apiKey = aiConfigService.resolveAiApiKey(providerCode);
         if (apiKey == null || apiKey.isBlank()) {
             apiKey = resolveEnvironmentApiKey(providerCode);
         }
