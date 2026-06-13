@@ -295,3 +295,18 @@ GITEE_TOKEN=xxx npm run gitee:pr-list      # 列出当前分支 PR
 GITEE_TOKEN=xxx npm run gitee:pr-merge     # 合并 PR（squash）
 npm run gitee:auto-merge                   # 自动合并已批准 PR
 ```
+
+### Gitee CI（远端门禁）
+
+仓库根目录 `.gitee-ci.yml` 提供 Gitee 社区版可用的远端流水线，覆盖：
+- **治理门禁（governance）**：agent-locks、line-budget、front-data-boundaries、doc-governance
+- **前端**：变更范围检测 → 条件执行单元测试与构建
+- **后端**：变更范围检测 → 条件执行编译、ArchUnit 架构门禁（FPJavaArchitectureTest、MaintainabilityArchitectureTest）、项目权限守卫覆盖（ProjectAccessGuardCoverageTest）、Checkstyle/PMD/SpotBugs 质量门禁
+- **E2E**：默认手动触发，接入 Gitee 私有 Runner 后可改为自动执行
+
+执行逻辑：
+- quality-scope job 通过 `git diff` 检测变更范围（backend/src/e2e/doc），以 dotenv artifact 传递给后续 job
+- 无相关变更时，对应阶段跳过完整流程（如仅改文档时跳过前后端完整构建）
+- agent-locks 不依赖 quality-scope，可并行检测锁文件冲突
+
+## 数据库迁移规范
