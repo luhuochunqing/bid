@@ -99,3 +99,11 @@ test-output/
 dist/
 docker-compose.yml.bak
 .session-active
+
+# pnpm lock file — npm is the project's package manager
+pnpm-lock.yaml
+
+# 构建/临时产物
+outputs/
+tmp/
+xiyu_bid_gemini/

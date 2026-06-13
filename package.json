@@ -63,6 +63,7 @@
     "wiki:ingest": "node scripts/wiki-ingest.mjs",
     "wiki:build": "node scripts/wiki-build.mjs",
     "wiki:check": "node scripts/wiki-check.mjs",
+    "wiki:search": "bash scripts/wiki-search.sh",
     "db:generate-rollback": "node scripts/generate-flyway-rollback-scripts.mjs",
     "db:dev-repair": "bash scripts/dev-flyway-repair.sh",
     "check:blueprint-gaps": "node scripts/check-blueprint-gaps.mjs",
