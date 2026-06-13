@@ -104,7 +104,6 @@ src/main/java/com/xiyu/bid/tender/service/TenderEvaluationNotificationService.ja
 src/main/java/com/xiyu/bid/tender/service/TenderEvaluationDocumentService.java | 评估表附件服务使用 project_documents 表，通过 linkedEntityType=EVALUATION_GAP 关联标讯；权限由 TenderEvaluationController 的 @PreAuthorize 守卫保护
 src/main/java/com/xiyu/bid/project/service/ProjectExportService.java | 项目数据导出服务，本身没有独立请求入口，由 Controller 级权限守卫保护。
 src/main/java/com/xiyu/bid/resources/controller/CaCertificateController.java | CA certificate management controller, no projectId access - operates on CA resources only
-src/main/java/com/xiyu/bid/resources/service/CaCertificateService.java | CA certificate service with CRUD and borrow workflow, no project access boundary
 src/main/java/com/xiyu/bid/resources/service/CaBorrowService.java | CA borrow application service stores projectId/projectName as borrow context only; access is resource-scoped via CA controller role guards, not a standalone project visibility boundary.
 src/main/java/com/xiyu/bid/resources/controller/MarginController.java | Margin ledger read-only controller; operates on cross-table aggregated data with role-based @PreAuthorize and inline role filtering via MarginService. No standalone project write or mutation path.
 src/main/java/com/xiyu/bid/resources/service/MarginService.java | Margin ledger read-only aggregation service; fetches BID_BOND fees joined with project metadata. Project access filtered through role-based SQL conditions with no direct project mutation endpoints.

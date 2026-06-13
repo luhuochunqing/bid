@@ -1,0 +1,161 @@
+stages:
+  - check
+  - build
+  - test
+  - e2e
+
+variables:
+  MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository"
+  NODE_VERSION: "22"
+  JAVA_VERSION: "21"
+  PLATFORM_ENCRYPTION_KEY: "ci-test-key-2026"
+
+# ─────────────────────────────────────────────────────────────────
+# 缓存配置
+# ─────────────────────────────────────────────────────────────────
+cache:
+  paths:
+    - .m2/repository
+    - node_modules
+    - ~/.cache/ms-playwright
+
+# ─────────────────────────────────────────────────────────────────
+# Job 定义
+# ─────────────────────────────────────────────────────────────────
+
+agent-locks:
+  stage: check
+  image: node:22
+  script:
+    - node scripts/check-agent-locks.mjs --base $(git rev-parse HEAD~1) --head HEAD
+  only:
+    - merge_requests
+    - main
+
+line-budget:
+  stage: check
+  image: node:22
+  needs: [agent-locks]
+  script:
+    - node scripts/check-line-budgets.mjs --base $(git rev-parse HEAD~1) --head HEAD
+  only:
+    - merge_requests
+    - main
+
+quality-scope:
+  stage: check
+  image: node:22
+  needs: [line-budget]
+  script:
+    - |
+      # 检测变更范围（简化版，不依赖 dorny/paths-filter）
+      BACKEND_CHANGED=$(git diff --name-only HEAD~1 HEAD | grep -c "^backend/" || true)
+      UI_CHANGED=$(git diff --name-only HEAD~1 HEAD | grep -c "^src/" || true)
+      E2E_CHANGED=$(git diff --name-only HEAD~1 HEAD | grep -c "^e2e/" || true)
+      echo "backend_changed=$BACKEND_CHANGED" >> build.env
+      echo "ui_changed=$UI_CHANGED" >> build.env
+      echo "e2e_changed=$E2E_CHANGED" >> build.env
+      cat build.env
+  artifacts:
+    reports:
+      dotenv: build.env
+  only:
+    - merge_requests
+    - main
+
+frontend:
+  stage: build
+  image: node:22
+  needs: [line-budget, quality-scope]
+  script:
+    - |
+      if [ "$ui_changed" = "0" ] || [ -z "$ui_changed" ]; then
+        echo "No UI changes, running lightweight build check"
+        npm run build:api 2>/dev/null && echo "Build OK" || exit 1
+        exit 0
+      fi
+    - npm ci
+    - npm run test:unit
+    - npm run build
+    - npm run build:api
+  only:
+    - merge_requests
+    - main
+
+backend:
+  stage: build
+  image: maven:3.9-eclipse-temurin-21
+  needs: [line-budget, quality-scope]
+  script:
+    - |
+      if [ "$backend_changed" = "0" ] || [ -z "$backend_changed" ]; then
+        echo "No backend changes, running compile check"
+        cd backend && mvn -DskipTests compile -q
+        echo "Compile OK"
+        exit 0
+      fi
+    - cd backend
+    - mvn -DskipTests compile -q
+    - mvn -DforkCount=0 -Dtest=FPJavaArchitectureTest,MaintainabilityArchitectureTest test
+    - mvn -Dtest=FlywayBaselineContextTest,ExpenseControllerIntegrationTest,BarCertificateControllerIntegrationTest test
+    - mvn -Dtest=FlywayMysqlContainerTest,ArchitectureTest test
+    - mvn -Pjava-quality,java-quality-spotbugs,quality-strict -DskipTests -Djacoco.skip=true checkstyle:check pmd:check spotbugs:check
+  only:
+    - merge_requests
+    - main
+
+e2e:
+  stage: e2e
+  image: mcr.microsoft.com/playwright:v1.58.2-jammy
+  needs: [frontend, backend]
+  script:
+    - |
+      if [ "$ui_changed" = "0" ] || [ -z "$ui_changed" ]; then
+        echo "No UI changes, skipping E2E"
+        exit 0
+      fi
+    - npm ci
+    - npx playwright install chromium
+    - cd backend && mvn -DskipTests compile -q
+    - npm run build:api
+    - |
+      # 启动后端（后台）
+      cd backend
+      JWT_SECRET="ci-e2e-jwt-secret-key-with-32-chars-min" \
+      DB_PASSWORD="unused" \
+      SPRING_PROFILES_ACTIVE=e2e \
+      mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=18080" &
+      BACKEND_PID=$!
+      sleep 30
+    - |
+      # 启动前端（后台）
+      npx serve -s dist -l 1314 &
+      FRONTEND_PID=$!
+      sleep 5
+    - npx playwright test commercial-main-flow case-advanced-flow project-create-full-flow knowledge-qualification-flow resource-ca-management-flow ai-solution-reuse-flow ai-market-timing-flow --config playwright.config.js
+    - kill $BACKEND_PID $FRONTEND_PID || true
+  artifacts:
+    when: always
+    paths:
+      - playwright-report/
+  only:
+    - merge_requests
+    - main
+
+# 后端质量审计（非阻断）
+backend-quality-audit:
+  stage: test
+  image: maven:3.9-eclipse-temurin-21
+  needs: [quality-scope]
+  script:
+    - |
+      if [ "$backend_changed" = "0" ] || [ -z "$backend_changed" ]; then
+        echo "No backend changes, skipping"
+        exit 0
+      fi
+    - cd backend
+    - mvn -Pjava-quality,java-quality-spotbugs,quality-audit checkstyle:check pmd:check spotbugs:check
+  allow_failure: true
+  only:
+    - merge_requests
+    - main

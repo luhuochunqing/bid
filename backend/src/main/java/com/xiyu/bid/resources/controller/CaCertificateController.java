@@ -2,6 +2,7 @@ package com.xiyu.bid.resources.controller;
 
 import com.xiyu.bid.annotation.Auditable;
 import com.xiyu.bid.resources.dto.*;
+import com.xiyu.bid.resources.service.CaBorrowService;
 import com.xiyu.bid.resources.service.CaCertificateService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ import java.util.*;
 public class CaCertificateController {
 
     private final CaCertificateService caService;
+    private final CaBorrowService caBorrowService;
 
     // ========== CA 证书 CRUD ==========
 
@@ -76,7 +78,7 @@ public class CaCertificateController {
             @Valid @RequestBody CaBorrowRequest request,
             @AuthenticationPrincipal UserDetails user) {
         request.setCaCertificateId(id);
-        return ResponseEntity.ok(caService.borrow(user, request));
+        return ResponseEntity.ok(caBorrowService.borrow(user, request));
     }
 
     @PostMapping("/borrow-applications/{applicationId}/approve")
@@ -85,7 +87,7 @@ public class CaCertificateController {
             @PathVariable Long applicationId,
             @Valid @RequestBody CaApprovalRequest request,
             @AuthenticationPrincipal UserDetails user) {
-        return ResponseEntity.ok(caService.approve(applicationId, user, request.getComment()));
+        return ResponseEntity.ok(caBorrowService.approve(applicationId, user, request.getComment()));
     }
 
     @PostMapping("/borrow-applications/{applicationId}/reject")
@@ -94,7 +96,7 @@ public class CaCertificateController {
             @PathVariable Long applicationId,
             @Valid @RequestBody CaApprovalRequest request,
             @AuthenticationPrincipal UserDetails user) {
-        return ResponseEntity.ok(caService.reject(applicationId, user, request.getComment()));
+        return ResponseEntity.ok(caBorrowService.reject(applicationId, user, request.getComment()));
     }
 
     @PostMapping("/borrow-applications/{applicationId}/return")
@@ -103,7 +105,7 @@ public class CaCertificateController {
             @PathVariable Long applicationId,
             @Valid @RequestBody CaReturnRequest request,
             @AuthenticationPrincipal UserDetails user) {
-        return ResponseEntity.ok(caService.returnCertificate(applicationId, user, request));
+        return ResponseEntity.ok(caBorrowService.returnCertificate(applicationId, user, request));
     }
 
     @PostMapping("/borrow-applications/{applicationId}/cancel")
@@ -111,24 +113,24 @@ public class CaCertificateController {
     public ResponseEntity<CaBorrowApplicationDTO> cancelBorrow(
             @PathVariable Long applicationId,
             @AuthenticationPrincipal UserDetails user) {
-        return ResponseEntity.ok(caService.cancelBorrow(applicationId, user));
+        return ResponseEntity.ok(caBorrowService.cancelBorrow(applicationId, user));
     }
 
     // ========== 查询借用记录 ==========
 
     @GetMapping("/{id}/borrow-applications")
     public ResponseEntity<List<CaBorrowApplicationDTO>> getBorrowApplications(@PathVariable Long id) {
-        return ResponseEntity.ok(caService.getBorrowApplicationsByCaId(id));
+        return ResponseEntity.ok(caBorrowService.getBorrowApplicationsByCaId(id));
     }
 
     @GetMapping("/borrow-applications/{applicationId}/events")
     public ResponseEntity<List<CaBorrowEventDTO>> getBorrowEvents(@PathVariable Long applicationId) {
-        return ResponseEntity.ok(caService.getBorrowEvents(applicationId));
+        return ResponseEntity.ok(caBorrowService.getBorrowEvents(applicationId));
     }
 
     @GetMapping("/pending-approvals")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<List<CaBorrowApplicationDTO>> getPendingApprovals(@AuthenticationPrincipal UserDetails user) {
-        return ResponseEntity.ok(caService.getPendingApprovals(user));
+        return ResponseEntity.ok(caBorrowService.getPendingApprovals(user));
     }
 }

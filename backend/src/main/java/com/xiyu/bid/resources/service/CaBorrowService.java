@@ -9,6 +9,7 @@ import com.xiyu.bid.resources.dto.CaReturnRequest;
 import com.xiyu.bid.resources.entity.CaBorrowApplicationEntity;
 import com.xiyu.bid.resources.entity.CaBorrowEventEntity;
 import com.xiyu.bid.resources.entity.CaCertificateEntity;
+import com.xiyu.bid.resources.notification.CaNotificationDispatcher;
 import com.xiyu.bid.resources.repository.CaBorrowApplicationRepository;
 import com.xiyu.bid.resources.repository.CaBorrowEventRepository;
 import com.xiyu.bid.resources.repository.CaCertificateRepository;
@@ -17,7 +18,9 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -29,6 +32,7 @@ public class CaBorrowService {
     private final CaBorrowApplicationRepository borrowRepository;
     private final CaBorrowEventRepository eventRepository;
     private final UserRepository userRepository;
+    private final CaNotificationDispatcher caNotificationDispatcher;
 
     // ========== CA 借用申请 ==========
 
@@ -71,6 +75,9 @@ public class CaBorrowService {
                 .actorName(user.getUsername())
                 .statusAfter("PENDING_APPROVAL")
                 .build());
+
+        // IJTHTX 修复：提交借用申请后通知 CA 保管员
+        caNotificationDispatcher.onBorrowSubmitted(cert, app);
 
         return CaBorrowApplicationDTO.from(app);
     }
@@ -181,6 +188,16 @@ public class CaBorrowService {
                 .statusBefore(statusBefore)
                 .statusAfter("RETURNED")
                 .build());
+
+        // IJTHTX 修复：归还后检查 CA 是否即将到期 / 已过期
+        if (cert != null) {
+            long daysLeft = ChronoUnit.DAYS.between(LocalDate.now(), cert.getExpiryDate());
+            if (daysLeft < 0) {
+                caNotificationDispatcher.onExpired(cert);
+            } else if (daysLeft <= 30) {
+                caNotificationDispatcher.onExpiring(cert, daysLeft);
+            }
+        }
 
         return CaBorrowApplicationDTO.from(app);
     }
