@@ -8,9 +8,9 @@ sources:
   - .wiki/INDEX.md
   - .wiki/PAGE_INDEX.md
 backlinks:
-created: 2026-05-28
-updated: 2026-05-28
-health_checked: 2026-06-05
+created: 2026-06-13
+updated: 2026-06-13
+health_checked: 2026-06-13
 ---
 # 西域投标管理平台知识库
 
@@ -40,7 +40,7 @@ health_checked: 2026-06-05
 - [[docinsight-engine]] — DocInsight 文档智能引擎
 - [[dynamic-form-engine]] — 动态表单自定义引擎
 - [[glossary]] — 术语表
-- [[integration-oa-crm]] — OA 与 CRM 对接规范
+- [[integration-oa-crm]] — CRM 对接规范
 - [[integration-organization-event-sdk]] — 组织架构对接 - 客户事件库 SDK 方案
 - [[integration-wecom]] — 系统集成中心 - 企业微信
 - [[knowledge-base]] — 4.4 知识库 PRD (产品需求文档)
@@ -50,6 +50,7 @@ health_checked: 2026-06-05
 - [[overview]] — 项目综述
 - [[requirements]] — 需求追溯
 - [[roles-and-permissions]] — 角色与权限
+- [[root-cause-analysis-ijssgg]] — 立项招标文件上传 Bug 根因分析 (IJSSGG)
 - [[team-and-timeline]] — 团队与排期
 - [[testing/_index]] — 功能实现对照 — 测试说明文档索引
 - [[testing/module-01-workbench]] — 工作台 — 蓝图功能实现对照
@@ -61,7 +62,7 @@ health_checked: 2026-06-05
 - [[testing/module-07-settings]] — 系统设置 — 蓝图功能实现对照
 - [[testing/module-08-ai]] — Module 8 AI 能力体系 — 蓝图功能实现对照
 - [[testing/module-09-integration]] — Module 9 系统集成 — 蓝图功能实现对照
-- [[workflow-form-center]] — 流程表单中心与泛微 OA
+- [[workflow-form-center]] — 流程表单中心（OA 对接已取消）
 
 ## Implementation Space
 
@@ -74,6 +75,7 @@ health_checked: 2026-06-05
 - [[implementation/development-sprint-2026-05-23]] — 系统开发冲刺计划 2026-05-23 ~ 06-17
 - [[implementation/document-delivery-ledger]] — 文档交付台账
 - [[implementation/milestones]] — 实施里程碑与依赖
+- [[implementation/org-sdk-deployment-handoff]] — 组织架构 SDK 集成 — 部署 Handoff
 - [[implementation/risk-register]] — 实施风险台账
 - [[implementation/sow-2026-v1-4]] — SOW 2026 V1.4 执行基准
 - [[implementation/weekly-status]] — 实施周报与例会纪要模板

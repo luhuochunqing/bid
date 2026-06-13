@@ -12,8 +12,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-05-07",
-    "health_checked": "2026-05-28",
+    "updated": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/_index.md"
   },
   {
@@ -30,8 +30,8 @@
       "_index",
       "lessons-learned"
     ],
-    "updated": "2026-05-27",
-    "health_checked": "2026-05-28",
+    "updated": "2026-06-07",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/agent-sop-quickref.md"
   },
   {
@@ -60,8 +60,8 @@
       "modules",
       "requirements"
     ],
-    "updated": "2026-04-29",
-    "health_checked": "2026-05-28",
+    "updated": "2026-05-31",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/ai-capabilities.md"
   },
   {
@@ -83,7 +83,7 @@
       "workflow-form-center"
     ],
     "updated": "2026-05-27",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/api-openapi.md"
   },
   {
@@ -118,8 +118,8 @@
       "roles-and-permissions",
       "team-and-timeline"
     ],
-    "updated": "2026-05-28",
-    "health_checked": "2026-05-28",
+    "updated": "2026-06-13",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/architecture.md"
   },
   {
@@ -148,7 +148,7 @@
       "workflow-form-center"
     ],
     "updated": "2026-05-16",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/business-process.md"
   },
   {
@@ -157,11 +157,7 @@
     "space": "implementation",
     "category": "reference",
     "sources": [
-      ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
-      ".wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md",
-      ".wiki/sources/contract/附件3：西域数智化投标管理平台建设项目合同报价清单.pdf",
-      ".wiki/sources/contract/附件3-合同报价清单人工摘录.md",
-      ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx"
+      ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx"
     ],
     "backlinks": [
       "_index",
@@ -177,8 +173,8 @@
       "requirements",
       "team-and-timeline"
     ],
-    "updated": "2026-05-28",
-    "health_checked": "2026-05-28",
+    "updated": "2026-06-13",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/contract-constraints.md"
   },
   {
@@ -196,7 +192,7 @@
       "design-system"
     ],
     "updated": "2026-05-17",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/dashboard-gap-analysis.md"
   },
   {
@@ -216,8 +212,8 @@
       "implementation/attachment4-gap-matrix",
       "implementation/attachment4-requirement-task-book"
     ],
-    "updated": "2026-05-28",
-    "health_checked": "2026-05-28",
+    "updated": "2026-06-13",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/data-model.md"
   },
   {
@@ -238,7 +234,7 @@
       "workflow-form-center"
     ],
     "updated": "2026-05-27",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/data-permission-hardening.md"
   },
   {
@@ -255,9 +251,7 @@
       "docs/specs/MYSQL_8_DEPLOYMENT.md",
       "README.md",
       "backend/src/main/resources/application.yml",
-      "docs/plans/2026-03-10-go-live-execution-plan.md",
-      ".wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md",
-      ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx"
+      "docs/plans/2026-03-10-go-live-execution-plan.md"
     ],
     "backlinks": [
       "_index",
@@ -276,8 +270,8 @@
       "requirements",
       "team-and-timeline"
     ],
-    "updated": "2026-05-28",
-    "health_checked": "2026-05-28",
+    "updated": "2026-06-13",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/deployment.md"
   },
   {
@@ -298,7 +292,7 @@
       "overview"
     ],
     "updated": "2026-05-18",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/design-system.md"
   },
   {
@@ -315,8 +309,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-04-29",
-    "health_checked": "2026-05-28",
+    "updated": "2026-05-31",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/docinsight-engine.md"
   },
   {
@@ -337,7 +331,7 @@
       "_index"
     ],
     "updated": "2026-05-24",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/dynamic-form-engine.md"
   },
   {
@@ -356,7 +350,7 @@
       "data-model"
     ],
     "updated": "2026-05-16",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/glossary.md"
   },
   {
@@ -368,9 +362,7 @@
       ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
       "docs/specs/UAT_PLAN.md",
       "docs/specs/UAT_SIGNOFF_TEMPLATE.md",
-      "docs/release/GO_LIVE_CHECKLIST.md",
-      ".wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md",
-      ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx"
+      "docs/release/GO_LIVE_CHECKLIST.md"
     ],
     "backlinks": [
       "_index",
@@ -383,8 +375,8 @@
       "implementation/risk-register",
       "implementation/sow-2026-v1-4"
     ],
-    "updated": "2026-05-28",
-    "health_checked": "2026-05-28",
+    "updated": "2026-06-13",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/implementation/acceptance-and-closure.md"
   },
   {
@@ -411,7 +403,7 @@
       "implementation/document-delivery-ledger"
     ],
     "updated": "2026-05-27",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/implementation/attachment4-gap-matrix.md"
   },
   {
@@ -430,7 +422,7 @@
       "requirements"
     ],
     "updated": "2026-05-27",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/implementation/attachment4-requirement-task-book.md"
   },
   {
@@ -453,7 +445,7 @@
       "implementation/document-delivery-ledger"
     ],
     "updated": "2026-05-27",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/implementation/attachment6-function-list-trace.md"
   },
   {
@@ -473,8 +465,8 @@
       "implementation/sow-2026-v1-4",
       "implementation/xiyu-pending-confirmations"
     ],
-    "updated": "2026-05-28",
-    "health_checked": "2026-05-28",
+    "updated": "2026-06-13",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/implementation/delivery-playbook.md"
   },
   {
@@ -491,7 +483,7 @@
       "_index"
     ],
     "updated": "2026-05-27",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/implementation/development-sprint-2026-05-23.md"
   },
   {
@@ -502,13 +494,7 @@
     "sources": [
       ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx",
       ".wiki/sources/bidding/附件6：需求功能清单.md",
-      ".wiki/sources/bidding/附件6：需求功能清单.xlsx",
-      ".wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md",
-      ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
-      ".wiki/pages/implementation/attachment4-gap-matrix.md",
-      ".wiki/pages/implementation/attachment6-function-list-trace.md",
-      ".wiki/pages/contract-constraints.md",
-      ".wiki/pages/implementation/acceptance-and-closure.md"
+      ".wiki/sources/bidding/附件6：需求功能清单.xlsx"
     ],
     "backlinks": [
       "_index",
@@ -518,7 +504,7 @@
       "implementation/delivery-playbook"
     ],
     "updated": "2026-05-28",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/implementation/document-delivery-ledger.md"
   },
   {
@@ -527,9 +513,7 @@
     "space": "implementation",
     "category": "guide",
     "sources": [
-      ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
-      ".wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md",
-      ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx"
+      ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx"
     ],
     "backlinks": [
       "_index",
@@ -539,9 +523,22 @@
       "implementation/development-sprint-2026-05-23",
       "implementation/sow-2026-v1-4"
     ],
-    "updated": "2026-05-28",
-    "health_checked": "2026-05-28",
+    "updated": "2026-06-13",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/implementation/milestones.md"
+  },
+  {
+    "slug": "implementation/org-sdk-deployment-handoff",
+    "title": "组织架构 SDK 集成 — 部署 Handoff",
+    "space": "implementation",
+    "category": "guide",
+    "sources": [
+      "specs/005-org-sdk-integration/plan.md"
+    ],
+    "backlinks": [],
+    "updated": "2026-05-28",
+    "health_checked": "2026-06-13",
+    "path": ".wiki/pages/implementation/org-sdk-deployment-handoff.md"
   },
   {
     "slug": "implementation/risk-register",
@@ -550,9 +547,7 @@
     "category": "guide",
     "sources": [
       ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
-      "docs/specs/UAT_PLAN.md",
-      ".wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md",
-      ".wiki/sources/contract/附件3-合同报价清单人工摘录.md"
+      "docs/specs/UAT_PLAN.md"
     ],
     "backlinks": [
       "_index",
@@ -563,8 +558,8 @@
       "implementation/weekly-status",
       "implementation/xiyu-pending-confirmations"
     ],
-    "updated": "2026-05-28",
-    "health_checked": "2026-05-28",
+    "updated": "2026-06-13",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/implementation/risk-register.md"
   },
   {
@@ -590,8 +585,8 @@
       "requirements",
       "team-and-timeline"
     ],
-    "updated": "2026-05-28",
-    "health_checked": "2026-05-28",
+    "updated": "2026-06-13",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/implementation/sow-2026-v1-4.md"
   },
   {
@@ -612,8 +607,8 @@
       "implementation/risk-register",
       "implementation/xiyu-pending-confirmations"
     ],
-    "updated": "2026-05-28",
-    "health_checked": "2026-05-28",
+    "updated": "2026-06-13",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/implementation/weekly-status.md"
   },
   {
@@ -631,12 +626,12 @@
       "_index"
     ],
     "updated": "2026-05-28",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/implementation/xiyu-pending-confirmations.md"
   },
   {
     "slug": "integration-oa-crm",
-    "title": "OA 与 CRM 对接规范",
+    "title": "CRM 对接规范",
     "space": "engineering",
     "category": "integration",
     "sources": [
@@ -648,8 +643,8 @@
       "implementation/xiyu-pending-confirmations",
       "integration-organization-event-sdk"
     ],
-    "updated": "2026-05-28",
-    "health_checked": "2026-05-28",
+    "updated": "2026-06-13",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/integration-oa-crm.md"
   },
   {
@@ -669,8 +664,8 @@
       "implementation/xiyu-pending-confirmations",
       "integration-oa-crm"
     ],
-    "updated": "2026-05-28",
-    "health_checked": "2026-05-28",
+    "updated": "2026-06-13",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/integration-organization-event-sdk.md"
   },
   {
@@ -680,7 +675,7 @@
     "category": "integration",
     "sources": [
       "backend/src/main/java/com/xiyu/bid/integration/",
-      "src/views/System/settings/SystemIntegrationPanel.vue",
+      "src/views/System/SystemIntegration.vue",
       "src/views/System/settings/integration/",
       "docs/research/WORKFLOW_FORM_CENTER.md"
     ],
@@ -690,8 +685,8 @@
       "implementation/attachment6-function-list-trace",
       "workflow-form-center"
     ],
-    "updated": "2026-05-10",
-    "health_checked": "2026-05-28",
+    "updated": "2026-06-10",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/integration-wecom.md"
   },
   {
@@ -706,7 +701,7 @@
       "_index"
     ],
     "updated": "2026-05-20",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/knowledge-base.md"
   },
   {
@@ -720,10 +715,11 @@
       "conductor/tracks/tender_source_tag_20260509/index.md"
     ],
     "backlinks": [
+      "_index",
       "multi-agent-defense-playbook"
     ],
     "updated": "2026-05-21",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/lessons-learned.md"
   },
   {
@@ -761,8 +757,8 @@
       "team-and-timeline",
       "workflow-form-center"
     ],
-    "updated": "2026-04-29",
-    "health_checked": "2026-05-28",
+    "updated": "2026-05-31",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/modules.md"
   },
   {
@@ -786,7 +782,7 @@
       "_index"
     ],
     "updated": "2026-05-20",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/multi-agent-defense-playbook.md"
   },
   {
@@ -799,9 +795,7 @@
       "AGENTS.md",
       "docs/design-system/MASTER.md",
       "docs/research/COMMERCIAL_SCOPE.md",
-      ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
-      ".wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md",
-      ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx"
+      ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx"
     ],
     "backlinks": [
       "_index",
@@ -809,8 +803,8 @@
       "implementation/sow-2026-v1-4",
       "team-and-timeline"
     ],
-    "updated": "2026-05-28",
-    "health_checked": "2026-05-28",
+    "updated": "2026-06-13",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/overview.md"
   },
   {
@@ -822,12 +816,7 @@
       ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
       ".wiki/sources/bidding/附件5：西域数智化投标管理平台建设项目需求任务书.docx",
       ".wiki/sources/bidding/附件6：需求功能清单.md",
-      ".wiki/sources/bidding/附件6：需求功能清单.xlsx",
-      ".wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md",
-      ".wiki/sources/contract/附件3-合同报价清单人工摘录.md",
-      ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx",
-      "backend/src/main/java/com/xiyu/bid/tenderupload/README.md",
-      "backend/src/main/resources/application.yml"
+      ".wiki/sources/bidding/附件6：需求功能清单.xlsx"
     ],
     "backlinks": [
       "_index",
@@ -841,8 +830,8 @@
       "implementation/risk-register",
       "implementation/sow-2026-v1-4"
     ],
-    "updated": "2026-05-28",
-    "health_checked": "2026-05-28",
+    "updated": "2026-06-13",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/requirements.md"
   },
   {
@@ -865,9 +854,23 @@
       "implementation/attachment6-function-list-trace",
       "overview"
     ],
-    "updated": "2026-05-28",
-    "health_checked": "2026-05-28",
+    "updated": "2026-06-13",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/roles-and-permissions.md"
+  },
+  {
+    "slug": "root-cause-analysis-ijssgg",
+    "title": "立项招标文件上传 Bug 根因分析 (IJSSGG)",
+    "space": "engineering",
+    "category": "analysis",
+    "sources": [
+      "src/views/Project/stages/InitiationStage.vue",
+      "src/views/Project/stages/useInitiationStageActions.js"
+    ],
+    "backlinks": [],
+    "updated": "2026-06-06",
+    "health_checked": "2026-06-13",
+    "path": ".wiki/pages/root-cause-analysis-ijssgg.md"
   },
   {
     "slug": "team-and-timeline",
@@ -877,9 +880,7 @@
     "sources": [
       ".wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx",
       "docs/specs/启动会项目组织架构与沟通矩阵.md",
-      "docs/specs/项目启动会PPT大纲与核心内容.md",
-      ".wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md",
-      ".wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx"
+      "docs/specs/项目启动会PPT大纲与核心内容.md"
     ],
     "backlinks": [
       "_index",
@@ -893,8 +894,8 @@
       "overview",
       "requirements"
     ],
-    "updated": "2026-05-28",
-    "health_checked": "2026-05-28",
+    "updated": "2026-06-13",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/team-and-timeline.md"
   },
   {
@@ -903,13 +904,13 @@
     "space": "engineering",
     "category": "testing",
     "sources": [
-      ".wiki/sources/testing/testing-overview.md"
+      ".wiki/pages/testing/_index.md"
     ],
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-05-27",
-    "health_checked": "2026-05-28",
+    "updated": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/testing/_index.md"
   },
   {
@@ -925,7 +926,7 @@
       "_index"
     ],
     "updated": "2026-05-27",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/testing/module-01-workbench.md"
   },
   {
@@ -941,7 +942,7 @@
       "_index"
     ],
     "updated": "2026-05-27",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/testing/module-02-bidding.md"
   },
   {
@@ -957,7 +958,7 @@
       "_index"
     ],
     "updated": "2026-05-27",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/testing/module-03-project.md"
   },
   {
@@ -973,7 +974,7 @@
       "_index"
     ],
     "updated": "2026-05-27",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/testing/module-04-knowledge.md"
   },
   {
@@ -989,7 +990,7 @@
       "_index"
     ],
     "updated": "2026-05-27",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/testing/module-05-resource.md"
   },
   {
@@ -1005,7 +1006,7 @@
       "_index"
     ],
     "updated": "2026-05-27",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/testing/module-06-analytics.md"
   },
   {
@@ -1021,7 +1022,7 @@
       "_index"
     ],
     "updated": "2026-05-27",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/testing/module-07-settings.md"
   },
   {
@@ -1037,7 +1038,7 @@
       "_index"
     ],
     "updated": "2026-05-27",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/testing/module-08-ai.md"
   },
   {
@@ -1053,12 +1054,12 @@
       "_index"
     ],
     "updated": "2026-05-27",
-    "health_checked": "2026-05-28",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/testing/module-09-integration.md"
   },
   {
     "slug": "workflow-form-center",
-    "title": "流程表单中心与泛微 OA",
+    "title": "流程表单中心（OA 对接已取消）",
     "space": "engineering",
     "category": "integration",
     "sources": [
@@ -1073,8 +1074,8 @@
       "integration-wecom",
       "modules"
     ],
-    "updated": "2026-04-29",
-    "health_checked": "2026-05-28",
+    "updated": "2026-05-31",
+    "health_checked": "2026-06-13",
     "path": ".wiki/pages/workflow-form-center.md"
   }
 ]

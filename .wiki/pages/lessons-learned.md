@@ -8,10 +8,11 @@ sources:
   - RULES.md
   - conductor/tracks/tender_source_tag_20260509/index.md
 backlinks:
+  - _index
   - multi-agent-defense-playbook
 created: 2026-05-10
 updated: 2026-05-21
-health_checked: 2026-06-05
+health_checked: 2026-06-13
 ---
 # 工程经验总结
 

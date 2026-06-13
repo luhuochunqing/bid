@@ -3,11 +3,12 @@ title: 组织架构 SDK 集成 — 部署 Handoff
 space: implementation
 category: guide
 tags: [handoff, 部署, 组织架构, integration, org-sync]
-created: 2026-05-28
-updated: 2026-05-28
-health_checked: 2026-06-05
 sources:
   - specs/005-org-sdk-integration/plan.md
+backlinks:
+created: 2026-05-28
+updated: 2026-05-28
+health_checked: 2026-06-13
 ---
 # 组织架构 SDK 集成 — 部署 Handoff
 

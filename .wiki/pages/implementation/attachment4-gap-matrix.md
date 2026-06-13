@@ -21,7 +21,7 @@ backlinks:
   - implementation/document-delivery-ledger
 created: 2026-04-26
 updated: 2026-05-27
-health_checked: 2026-06-05
+health_checked: 2026-06-13
 ---
 # 附件4客户要求差距矩阵
 
