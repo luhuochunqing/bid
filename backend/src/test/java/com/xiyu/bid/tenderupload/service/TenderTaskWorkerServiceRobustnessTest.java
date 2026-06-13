@@ -1,6 +1,6 @@
 package com.xiyu.bid.tenderupload.service;
 
-import com.xiyu.bid.platform.async.application.AsyncDecisionResolver;
+import com.xiyu.bid.platform.async.domain.AsyncDecisionResolver;
 import com.xiyu.bid.platform.async.domain.ExponentialBackoffRetrySchedule;
 import com.xiyu.bid.tenderupload.config.TenderProcessingProperties;
 import com.xiyu.bid.tenderupload.entity.TenderFile;

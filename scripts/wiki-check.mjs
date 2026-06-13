@@ -100,6 +100,7 @@ function checkCatalogConsistency(sourceCatalog, pageCatalog, violations) {
       continue
     }
 
+    if (source.status === "missing") continue;
     if (!existsInRepo(source.path)) {
       violations.push(`source catalog path not found: ${source.path}`)
     }

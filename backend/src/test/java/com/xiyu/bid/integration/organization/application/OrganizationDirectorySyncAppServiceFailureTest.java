@@ -133,7 +133,7 @@ class OrganizationDirectorySyncAppServiceFailureTest {
         String errorCode;
 
         FakeInbox() {
-            super(null, new OrganizationIntegrationProperties(), new com.xiyu.bid.integration.organization.domain.OrganizationDirectoryRetryPolicy(new com.xiyu.bid.platform.async.application.AsyncDecisionResolver()), new com.xiyu.bid.metrics.OrgSyncMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()), new com.xiyu.bid.platform.async.application.AsyncDecisionResolver());
+            super(null, new OrganizationIntegrationProperties(), new com.xiyu.bid.integration.organization.domain.OrganizationDirectoryRetryPolicy(new com.xiyu.bid.platform.async.domain.AsyncDecisionResolver()), new com.xiyu.bid.metrics.OrgSyncMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()), new com.xiyu.bid.platform.async.domain.AsyncDecisionResolver());
         }
 
         public String eventKey(OrganizationEventNotice notice) {

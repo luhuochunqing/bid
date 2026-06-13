@@ -8,8 +8,11 @@ sources:
   - docs/specs/UAT_PLAN.md
   - docs/specs/UAT_SIGNOFF_TEMPLATE.md
   - docs/release/GO_LIVE_CHECKLIST.md
+<<<<<<< Updated upstream
   - .wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md
   - .wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx
+=======
+>>>>>>> Stashed changes
 backlinks:
   - _index
   - contract-constraints
@@ -21,8 +24,8 @@ backlinks:
   - implementation/risk-register
   - implementation/sow-2026-v1-4
 created: 2026-04-21
-updated: 2026-05-28
-health_checked: 2026-06-05
+updated: 2026-06-13
+health_checked: 2026-06-13
 ---
 # 实施验收与问题闭环
 

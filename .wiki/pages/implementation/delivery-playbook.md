@@ -14,8 +14,8 @@ backlinks:
   - implementation/sow-2026-v1-4
   - implementation/xiyu-pending-confirmations
 created: 2026-04-21
-updated: 2026-05-28
-health_checked: 2026-06-05
+updated: 2026-06-13
+health_checked: 2026-06-13
 ---
 # 实施交付作战包总览
 

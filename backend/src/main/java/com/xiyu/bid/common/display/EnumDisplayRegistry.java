@@ -24,9 +24,8 @@ public final class EnumDisplayRegistry {
     private static final Map<Class<? extends DisplayableEnum>, List<EnumMetadataResponse.EnumPair>> REGISTRY = new LinkedHashMap<>();
 
     static {
-        //
-        // 在此注册实现了 DisplayableEnum 的枚举类。
-        register("com.xiyu.bid.biddraftagent.domain.validation.QualificationMatchStatus");
+        // 硬编码的模块枚举注册已移除，由各模块的 @Configuration 类自行注册。
+        // 详见 BidDraftAgentPolicyConfig 中的注册示例。
     }
 
     private EnumDisplayRegistry() {}

@@ -1,7 +1,7 @@
 package com.xiyu.bid.platform.async;
 
 import com.xiyu.bid.notification.outbound.application.NotificationDeliveryJobService;
-import com.xiyu.bid.platform.async.application.AsyncDecisionResolver;
+import com.xiyu.bid.platform.async.domain.AsyncDecisionResolver;
 import com.xiyu.bid.platform.async.infrastructure.AsyncObservabilityRecorder;
 import com.xiyu.bid.webhook.application.WebhookDeliveryJobService;
 import org.junit.jupiter.api.Test;

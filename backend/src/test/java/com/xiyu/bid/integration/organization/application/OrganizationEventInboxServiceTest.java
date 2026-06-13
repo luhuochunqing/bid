@@ -118,11 +118,11 @@ class OrganizationEventInboxServiceTest {
                 .withBean(OrganizationIntegrationProperties.class, () -> properties)
                 .withBean(com.xiyu.bid.integration.organization.domain.OrganizationDirectoryRetryPolicy.class,
                         () -> new com.xiyu.bid.integration.organization.domain.OrganizationDirectoryRetryPolicy(
-                                new com.xiyu.bid.platform.async.application.AsyncDecisionResolver()))
+                                new com.xiyu.bid.platform.async.domain.AsyncDecisionResolver()))
                 .withBean(com.xiyu.bid.metrics.OrgSyncMetrics.class,
                         () -> new com.xiyu.bid.metrics.OrgSyncMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()))
-                .withBean(com.xiyu.bid.platform.async.application.AsyncDecisionResolver.class,
-                        () -> new com.xiyu.bid.platform.async.application.AsyncDecisionResolver())
+                .withBean(com.xiyu.bid.platform.async.domain.AsyncDecisionResolver.class,
+                        () -> new com.xiyu.bid.platform.async.domain.AsyncDecisionResolver())
                 .withUserConfiguration(OrganizationEventInboxService.class)
                 .run(context -> context.getBean(OrganizationEventInboxService.class)
                         .markFailed("event-key", "接口超时", "TIMEOUT"));
@@ -214,9 +214,9 @@ class OrganizationEventInboxServiceTest {
         return new OrganizationEventInboxService(
                 repository,
                 new OrganizationIntegrationProperties(),
-                new com.xiyu.bid.integration.organization.domain.OrganizationDirectoryRetryPolicy(new com.xiyu.bid.platform.async.application.AsyncDecisionResolver()),
+                new com.xiyu.bid.integration.organization.domain.OrganizationDirectoryRetryPolicy(new com.xiyu.bid.platform.async.domain.AsyncDecisionResolver()),
                 new com.xiyu.bid.metrics.OrgSyncMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry()),
-                new com.xiyu.bid.platform.async.application.AsyncDecisionResolver()
+                new com.xiyu.bid.platform.async.domain.AsyncDecisionResolver()
         );
     }
 

@@ -5,8 +5,6 @@ category: guide
 tags: [implementation, delivery]
 sources:
   - .wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx
-  - .wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md
-  - .wiki/sources/contract/附件4：西域数智化投标管理平台建设项目需求任务书.docx
 backlinks:
   - _index
   - contract-constraints
@@ -15,8 +13,8 @@ backlinks:
   - implementation/development-sprint-2026-05-23
   - implementation/sow-2026-v1-4
 created: 2026-04-21
-updated: 2026-05-28
-health_checked: 2026-06-05
+updated: 2026-06-13
+health_checked: 2026-06-13
 ---
 # 实施里程碑与依赖
 

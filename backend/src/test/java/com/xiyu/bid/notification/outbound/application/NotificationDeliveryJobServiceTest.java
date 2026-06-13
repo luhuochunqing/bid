@@ -8,7 +8,7 @@ import com.xiyu.bid.notification.outbound.infrastructure.NotificationDeliveryDlq
 import com.xiyu.bid.notification.outbound.repository.OutboundLogRepository;
 import com.xiyu.bid.notification.outbound.service.NotificationDeliveryResult;
 import com.xiyu.bid.notification.outbound.service.WeComPushService;
-import com.xiyu.bid.platform.async.application.AsyncDecisionResolver;
+import com.xiyu.bid.platform.async.domain.AsyncDecisionResolver;
 import com.xiyu.bid.platform.async.domain.AsyncFailureKind;
 import com.xiyu.bid.platform.async.infrastructure.AsyncObservabilityRecorder;
 import org.junit.jupiter.api.DisplayName;
