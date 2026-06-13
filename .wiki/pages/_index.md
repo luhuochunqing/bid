@@ -85,3 +85,21 @@ health_checked: 2026-06-13
 2. `npm run wiki:build`
 3. `npm run wiki:check`
 
+
+---
+
+## 原始文档库指引
+
+本 Wiki 知识库的内容由 `docs/` 目录下的原始文档提炼合成。
+
+| 场景 | 去哪里 |
+|------|--------|
+| 原始 Office/PDF 源文件 | `docs/` 对应子目录 → `npm run wiki:ingest` |
+| 活跃开发计划 | `docs/plans/` |
+| 历史已完成计划 | `docs/archives/` |
+| 讲标/演示素材 | `docs/artifacts/` |
+| 发布验收文档 | `docs/release/` |
+| 测试用例（原始） | `docs/testing/manual-cases/` |
+| 治理规范 | `docs/specs/WIKI.md` |
+
+> 📖 分层协议详见 `docs/specs/WIKI.md` §11：`docs/` 是原始文档库（写入），`.wiki/pages/` 是合成知识库（查阅）。

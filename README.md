@@ -337,4 +337,23 @@ xiyu-bid-poc/
 - **Agent 工作区 (Worktrees)**: `/Users/user/xiyu/worktrees/`
 - **隔离机制**: 每个 Agent 拥有独立的端口映射与数据库实例。
 
-详见 `CLAUDE.md` 获取各 Agent 的端口分配表及启动指令。
+
+---
+
+## 项目目录结构
+
+```
+xiyu-bid-poc/
+├── .agent/            # Agent 协议文件（AGENTS.md, CLAUDE.md, RULES.md...）
+├── .wiki/             # Wiki 知识库（合成知识页面）
+├── backend/           # Spring Boot 后端
+├── src/               # Vue 3 前端源码
+├── docs/              # 原始文档库
+├── e2e/               # Playwright E2E 测试
+├── scripts/           # 开发/运维脚本
+├── integration/       # 外部系统集成（微信小程序等）
+├── api-tests/         # HTTP API 测试
+├── conductor/         # 工作流编排
+├── docker/            # Docker 辅助配置
+└── document-converter-sidecar/  # 文档转换 sidecar
+```

@@ -125,3 +125,43 @@ health_checked: 2026-04-22
 - Layer 1.5 可重跑覆盖（由 ingest 负责）
 - Layer 2 页面由 build 统一规范化
 - WIKI.md 作为治理协议，重大变更需人工确认
+
+## 11. docs/ 与 .wiki/ 分层协议
+
+### 11.1 定位
+
+```text
+docs/         ← 原始文档库 / 事实源仓库
+  - 不可改写的源 Office/PDF 文件及其中文副本
+  - 临时工作产物（开发计划、调研笔记、测试用例）
+  - 交付物原始素材（讲标文件、演示脚本、汇报稿）
+  - 是"写入"的地方
+
+.wiki/pages/  ← 合成知识库 / 最终视图
+  - 由 docs 内容提炼、结构化、归约后的双空间知识页面
+  - 支持 frontmatter/backlinks/自动索引
+  - 是"查阅"的地方
+```
+
+### 11.2 单向收敛原则
+
+- `docs/` 是事实源，`.wiki/pages/` 的 `sources` 应优先指向 `docs/` 下的文件。
+- 同一份知识**禁止双写**：只在一个位置维护。如果 `.wiki/pages/` 有合成页面，`docs/` 下不应有功能重复的独立文件。
+- `docs/` 下的"最终态"文档（如架构、数据模型）应通过 `npm run wiki:ingest` + `wiki:build` 合成为知识页面，原始文件保留在 `docs/` 供追溯。
+- 清理规则：
+  - `docs/plans/`：已完成的历史计划移入 `docs/archives/`
+  - `docs/artifacts/` vs `docs/specs/`：讲标/演示类最终产物统一归 `docs/artifacts/`，`docs/specs/` 中不保留副本
+  - `docs/` 下的文件若在 `.wiki/pages/` 有对应合成页面，且不再作为独立参考物，应删除或归入 `archives/`
+
+### 11.3 用户导航指引
+
+| 场景 | 去哪里 |
+|------|--------|
+| 查阅业务知识、架构、实施状态 | `.wiki/pages/_index.md` |
+| 查阅模块需求、API 接口 | `.wiki/pages/` 对应模块页面 |
+| 投放原始 Office/PDF 文件 | `docs/` 对应子目录 |
+| 查阅开发计划 | `docs/plans/`（最新） / `docs/archives/`（历史） |
+| 查阅发布清单、验收文档 | `docs/release/` |
+| 查阅讲标、演示素材 | `docs/artifacts/` |
+| 查阅治理规范 | `docs/specs/WIKI.md` |
+| 添加新的原始素材 | 放入 `docs/` 对应子目录 → 运行 `npm run wiki:ingest` |

@@ -62,7 +62,7 @@ printf 'Node: %s\n' "$(node -v)"
 printf 'NPM: %s\n' "$(npm -v)"
 printf 'Java: %s\n' "$(java -version 2>&1 | head -n 1)"
 printf 'Maven: %s\n' "$(mvn -v | head -n 1)"
-printf 'Version: %s\n' "$(cat "$ROOT_DIR/VERSION")"
+printf 'Version: %s\n' "$(cat "$ROOT_DIR/docs/VERSION")"
 
 node "$ROOT_DIR/scripts/check-version-sync.mjs"
 
