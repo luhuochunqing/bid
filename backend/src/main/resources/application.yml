@@ -6,8 +6,6 @@ spring:
     name: xiyu-bid-poc
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:}
-  main:
-    allow-bean-definition-overriding: true
   datasource:
     url: "${DB_URL:jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:xiyu_bid_main}?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}"
     username: ${DB_USERNAME:xiyu_user}
@@ -175,47 +173,8 @@ xiyu:
       ip-whitelist: ${XIYU_ORG_IP_WHITELIST:}
       event-log-retention-days: ${XIYU_ORG_EVENT_LOG_RETENTION_DAYS:90}
       allowed-source-apps: ${XIYU_ORG_ALLOWED_SOURCE_APPS:oss,customer-org}
-
-      # 角色映射规则：三种模式（优先级：按人员 > 按部门 > 按岗位）
-      # 按人员：通过员工邮箱/工号精确匹配，指定人→指定角色
-      person-to-role-mappings:
-        # 投标管理员 / 投标系统管理员（张頔、郑蓉蓉、袁思琪）
-        # NOTE: 郑蓉蓉和袁思琪不在 base-oss 同步范围内，需确认西域邮箱后补充
-        - person-identifier: "dean_zhang@ehsy.com"
-          role-code: "bid_admin"
-        # 跨部门协同人员（陈超、屈晓润、孙磊、忻鼎盛、刘成）
-        - person-identifier: "kelvin_chen@ehsy.com"
-          role-code: "staff"
-        - person-identifier: "xiaorun_qu@ehsy.com"
-          role-code: "staff"
-        - person-identifier: "nelson_sun@ehsy.com"
-          role-code: "staff"
-        - person-identifier: "levi_xin@ehsy.com"
-          role-code: "staff"
-        - person-identifier: "simon_liu@ehsy.com"
-          role-code: "staff"
-      # 按部门：通过部门名称正则匹配，部门全员→指定角色
-      department-to-role-mappings:
-        # 投标管理部全员→投标专员
-        - department-pattern: "投标管理部"
-          role-code: "bid_specialist"
-        # 行政部全员→行政人员
-        - department-pattern: "行政部"
-          role-code: "admin_staff"
-      # 按岗位：通过岗位名称正则匹配（由 PositionToRoleMapper 处理）
-      position-to-role-mappings:
-        # 项目经理/项目总监/主管/BD经理→项目负责人
-        - position-pattern: "项目经理|项目总监|主管|BD经理"
-          role-code: "sales"
-        - position-pattern: "行政"
-          role-code: "admin_staff"
-      # 外部角色码→内部角色映射：ehsy 传的 role code 落在此列表中的→管理员/经理
-      admin-role-codes: ${XIYU_ORG_ADMIN_ROLE_CODES:}
-      manager-role-codes: ${XIYU_ORG_MANAGER_ROLE_CODES:}
       event-sdk:
         enabled: ${XIYU_ORG_EVENT_SDK_ENABLED:false}
-        advertised-host: ${XIYU_ORG_EVENT_ADVERTISED_HOST:}
-        advertised-port: ${XIYU_ORG_EVENT_ADVERTISED_PORT:0}
         consumer-group: ${XIYU_ORG_EVENT_CONSUMER_GROUP:bms}
       directory:
         base-url: ${XIYU_ORG_DIRECTORY_BASE_URL:}

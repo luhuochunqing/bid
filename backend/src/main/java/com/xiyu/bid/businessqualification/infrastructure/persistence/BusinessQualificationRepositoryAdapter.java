@@ -204,6 +204,7 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
         return BusinessQualificationEntity.builder()
                 .id(qualification.id())
                 .name(qualification.name())
+                .level(qualification.level())
                 .subjectType(qualification.subject().getType())
                 .subjectName(qualification.subject().getName())
                 .category(qualification.category())
@@ -219,7 +220,8 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
                 .status(qualification.status())
                 .reminderEnabled(qualification.reminderPolicy().isEnabled())
                 .reminderDays(qualification.reminderPolicy().getReminderDays())
-                .lastRemindedAt(qualification.reminderPolicy().getLastRemindedAt())                .fileUrl(qualification.fileUrl())
+                .lastRemindedAt(qualification.reminderPolicy().getLastRemindedAt())
+                .fileUrl(qualification.fileUrl())
                 .retireReason(qualification.retireReason())
                 .retired(qualification.retired())
                 .build();
