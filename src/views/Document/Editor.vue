@@ -59,6 +59,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import EditorHeader from './editor/components/EditorHeader.vue'
 import SectionTreePanel from './editor/components/SectionTreePanel.vue'

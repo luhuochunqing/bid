@@ -179,13 +179,16 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { performanceApi } from '@/api/modules/performance.js'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Upload, Download, Bell, Search } from '@element-plus/icons-vue'
 import { usePerformanceImport } from '@/composables/usePerformanceImport.js'
-const similarVisible = ref(false)
-const similarRecords = ref([])
-const similarLoading = ref(false)
 
+// Page state
+const searchForm = reactive({ keyword: '', customerTypes: [], projectTypes: [], statuses: [], customerLevels: [], territory: '', signingDateRange: null, expiryDateRange: null, hasBidNotice: null, projectManagerKeyword: '' })
+const loading = ref(false); const records = ref([]); const current = ref(null)
+const detailVisible = ref(false); const editingRow = ref(null); const formVisible = ref(false)
+const alertConfigVisible = ref(false); const submitting = ref(false)
+const similarVisible = ref(false); const similarRecords = ref([]); const similarLoading = ref(false)
 const openSimilarSearch = async () => {
   similarLoading.value = true
   similarVisible.value = true
@@ -290,7 +293,6 @@ const handleExport = async (command) => {
 
 onMounted(loadData)
 </script>
-
 <style scoped lang="scss" src="./components/Performance.scss"></style>
 <style scoped>
 .import-step { text-align: center; padding: 24px 0; }
