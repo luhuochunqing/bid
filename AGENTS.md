@@ -237,12 +237,16 @@ git push origin --delete agent/<name>/<task>
 
 ### Gitee CI（远端门禁）
 
-仓库根目录 `.gitlab-ci.yml` 提供 Gitee 社区版可用的远端流水线，覆盖：
-- 治理门禁：agent-locks、line-budget、front-data-boundaries、doc-governance、token-governance
-- 前端：单元测试、API 模式构建、ESLint
-- 后端：编译、ArchUnit 架构测试、项目权限守卫覆盖、Checkstyle/PMD/SpotBugs
+仓库根目录 `.gitee-ci.yml` 提供 Gitee Go 远端流水线，覆盖：
+- 治理门禁：agent-locks、line-budget、quality-scope
+- 前端：单元测试、`npm run build` / `build:api`、ESLint（无 UI 变更时走快速编译检查）
+- 后端：编译、ArchUnit 架构测试（`FPJavaArchitectureTest` / `MaintainabilityArchitectureTest`）、集成测试、Flyway 容器测试、Checkstyle / PMD / SpotBugs（无后端变更时走快速编译检查）
+- E2E：Playwright 核心流程回归（无 UI 变更时跳过）
+- 后端质量审计（非阻断）
 
-E2E 与 Flyway 容器测试因共享 Runner 资源限制，默认设为手动触发；接入 Gitee 私有 Runner 后可改为自动执行。
+触发条件：`push` 到 `main` 以及所有 Pull Request。
+
+> 注意：Gitee Go 需要在仓库「服务」→「Gitee Go」中手动开通；若流水线列表为空，请先检查是否已开通。
 
 
 
