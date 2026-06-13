@@ -217,48 +217,6 @@ public class ApprovalController {
     }
 
     /**
-     * 批量审批通过
-     */
-    @PostMapping("/batch/approve")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<Map<UUID, String>>> batchApprove(
-            @RequestBody Map<String, Object> requestBody,
-            @AuthenticationPrincipal UserDetails userDetails) {
-
-        @SuppressWarnings("unchecked")
-        List<UUID> ids = (List<UUID>) requestBody.get("ids");
-        String comment = (String) requestBody.getOrDefault("comment", "批量通过");
-
-        Long userId = getUserIdFromDetails(userDetails);
-        String userName = getCurrentUser(userDetails).getUsername();
-
-        Map<UUID, String> results = approvalWorkflowService.batchApprove(ids, userId, userName, comment);
-
-        return ResponseEntity.ok(ApiResponse.success(results));
-    }
-
-    /**
-     * 批量驳回
-     */
-    @PostMapping("/batch/reject")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<Map<UUID, String>>> batchReject(
-            @RequestBody Map<String, Object> requestBody,
-            @AuthenticationPrincipal UserDetails userDetails) {
-
-        @SuppressWarnings("unchecked")
-        List<UUID> ids = (List<UUID>) requestBody.get("ids");
-        String comment = (String) requestBody.getOrDefault("comment", "批量驳回");
-
-        Long userId = getUserIdFromDetails(userDetails);
-        String userName = getCurrentUser(userDetails).getUsername();
-
-        Map<UUID, String> results = approvalWorkflowService.batchReject(ids, userId, userName, comment);
-
-        return ResponseEntity.ok(ApiResponse.success(results));
-    }
-
-    /**
      * 重新提交审批
      */
     @PostMapping("/{id}/resubmit")
