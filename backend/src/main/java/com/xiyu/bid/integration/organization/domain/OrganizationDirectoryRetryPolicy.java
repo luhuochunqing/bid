@@ -1,6 +1,6 @@
 package com.xiyu.bid.integration.organization.domain;
 
-import com.xiyu.bid.platform.async.application.AsyncDecisionResolver;
+import com.xiyu.bid.platform.async.domain.AsyncDecisionResolver;
 import com.xiyu.bid.platform.async.domain.AsyncFailureKind;
 import com.xiyu.bid.platform.async.domain.ExponentialBackoffRetrySchedule;
 

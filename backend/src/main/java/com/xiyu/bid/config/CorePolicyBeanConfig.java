@@ -7,7 +7,7 @@ import com.xiyu.bid.casework.domain.policy.CaseExportPolicy;
 import com.xiyu.bid.casework.domain.policy.KnowledgeCaseMatchPolicy;
 import com.xiyu.bid.docinsight.domain.StructuralDocumentChunker;
 import com.xiyu.bid.integration.organization.domain.OrganizationDirectoryRetryPolicy;
-import com.xiyu.bid.platform.async.application.AsyncDecisionResolver;
+import com.xiyu.bid.platform.async.domain.AsyncDecisionResolver;
 import com.xiyu.bid.marketprediction.domain.IntervalBasedPredictionPolicy;
 import com.xiyu.bid.resources.expenseledger.domain.ExpenseLedgerStatisticsCalculator;
 import org.springframework.context.annotation.Bean;
@@ -27,6 +27,9 @@ public final class CorePolicyBeanConfig {
 
     @Bean
     ApprovalPermissionPolicy approvalPermissionPolicy() { return new ApprovalPermissionPolicy(); }
+
+    @Bean
+    AsyncDecisionResolver asyncDecisionResolver() { return new AsyncDecisionResolver(); }
 
     @Bean
     OrganizationDirectoryRetryPolicy organizationDirectoryRetryPolicy(AsyncDecisionResolver decisionResolver) {

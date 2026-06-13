@@ -5,7 +5,7 @@ import com.xiyu.bid.integration.organization.domain.OrganizationEventStatus;
 import com.xiyu.bid.integration.organization.domain.OrganizationDirectoryRetryPolicy;
 import com.xiyu.bid.integration.organization.domain.OrganizationRetryDecision;
 import com.xiyu.bid.integration.organization.domain.OrganizationSyncPolicy;
-import com.xiyu.bid.platform.async.application.AsyncDecisionResolver;
+import com.xiyu.bid.platform.async.domain.AsyncDecisionResolver;
 import com.xiyu.bid.platform.async.domain.AsyncFailureKind;
 import com.xiyu.bid.platform.async.domain.AsyncHandlingDecision;
 import com.xiyu.bid.platform.async.domain.ExponentialBackoffRetrySchedule;

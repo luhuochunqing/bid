@@ -1,13 +1,11 @@
-package com.xiyu.bid.platform.async.application;
+package com.xiyu.bid.platform.async.domain;
 
 import com.xiyu.bid.platform.async.domain.AsyncFailureKind;
 import com.xiyu.bid.platform.async.domain.AsyncHandlingDecision;
 import com.xiyu.bid.platform.async.domain.AsyncRetrySchedule;
-import org.springframework.stereotype.Component;
 
 import java.util.Objects;
 
-@Component
 public class AsyncDecisionResolver {
     public AsyncHandlingDecision resolve(
             AsyncFailureKind failureKind,
