@@ -1,0 +1,112 @@
+import { ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
+import { tendersApi } from '@/api/modules/tenders.js'
+
+const ACCEPT_FILE_TYPES = '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+const PASTED_TEXT_MAX_LENGTH = 500000
+const MAX_FILE_SIZE = 50 * 1024 * 1024
+
+export function useTenderAiParse(form) {
+  const parsingDocument = ref(false)
+
+  watch(() => form.value.pastedText, (val) => {
+    if (val && val.length > PASTED_TEXT_MAX_LENGTH) {
+      form.value.pastedText = val.substring(0, PASTED_TEXT_MAX_LENGTH)
+    }
+  })
+
+  function resolveUploadFile(file) {
+    if (file instanceof File || file instanceof Blob) return file
+    if (file?.raw instanceof File || file?.raw instanceof Blob) return file.raw
+    return null
+  }
+
+  function isSupportedParseFile(file) {
+    const name = String(file?.name || '').toLowerCase()
+    return name.endsWith('.pdf') || name.endsWith('.doc') || name.endsWith('.docx')
+  }
+
+  async function handleFileChange(file, fileList) {
+    form.value.attachments = fileList
+    const uploadFile = resolveUploadFile(file)
+    if (!uploadFile) return
+    if (uploadFile.size > MAX_FILE_SIZE) {
+      ElMessage.warning(`文件 "${uploadFile.name}" 超过 50MB 限制`)
+      form.value.attachments = fileList.filter(f => {
+        const fFile = resolveUploadFile(f)
+        return fFile && fFile.size <= MAX_FILE_SIZE
+      })
+      return
+    }
+    if (!isSupportedParseFile(uploadFile)) {
+      ElMessage.warning(`文件 "${uploadFile.name}" 格式不支持，仅支持 PDF/Word 文件`)
+      form.value.attachments = fileList.filter(f => isSupportedParseFile(resolveUploadFile(f)))
+      return
+    }
+    await runAiParse(async () => {
+      const response = await tendersApi.parseTenderIntakeDocument(uploadFile, { entityId: 'create-tender' })
+      if (!response?.success) throw new Error(response?.msg || '文档自动识别失败')
+      applyParsedFields(response.data)
+      applySourceDocumentMetadata(uploadFile, response.data)
+      return 'DeepSeek/AI 已识别附件内容，可继续编辑后保存'
+    })
+  }
+
+  async function handlePastedTextParse() {
+    const text = form.value.pastedText?.trim()
+    if (!text) { ElMessage.warning('请先粘贴标讯正文'); return }
+    await runAiParse(async () => {
+      const response = await tendersApi.parseTenderIntakeText(text, { entityId: 'create-tender' })
+      if (!response?.success) throw new Error(response?.msg || '粘贴文本识别失败')
+      applyParsedFields(response.data)
+      return 'DeepSeek/AI 已识别粘贴文本，可继续编辑后保存'
+    })
+  }
+
+  async function runAiParse(parseFn) {
+    parsingDocument.value = true
+    try {
+      const msg = await parseFn()
+      if (msg) ElMessage.success(msg)
+    } catch (error) {
+      const timedOut = error?.code === 'ECONNABORTED'
+      ElMessage.warning(timedOut ? 'AI 解析超时，可继续手动填写' : '自动识别失败，可继续手动填写')
+    } finally {
+      parsingDocument.value = false
+    }
+  }
+
+  function applyParsedFields(data) {
+    if (!data) return
+    const extracted = data?.extractedData && typeof data.extractedData === 'object' ? data.extractedData : null
+    const mappings = [
+      { title: 'title', region: 'region', tenderAgency: 'purchaser', deadline: 'deadline', bidOpeningTime: 'bidOpeningTime', customerType: 'customerType', priority: 'priority', contact: 'contact', phone: 'phone', landline: 'landline', mail: 'mail', description: 'description', tenderInfo: 'tenderInfo', projectType: 'projectType' },
+      { tenderTitle: 'title', projectName: 'title', tenderAgency: 'purchaser', deadline: 'deadline', bidOpeningTime: 'bidOpeningTime', region: 'region', customerType: 'customerType', priority: 'priority', contactName: 'contact', contactPhone: 'phone', contactEmail: 'mail', tenderScope: 'description' },
+    ]
+    const sources = [data, extracted].filter(Boolean)
+    for (const src of sources) {
+      for (const mapping of mappings) {
+        for (const [from, to] of Object.entries(mapping)) {
+          const value = src[from]
+          if (value === undefined || value === null || value === '') continue
+          if (form.value[to] === undefined || form.value[to] === null || form.value[to] === '') {
+            form.value[to] = value
+          }
+        }
+      }
+    }
+  }
+
+  function applySourceDocumentMetadata(file, parsedResult) {
+    const fileUrl = parsedResult?.documentId || parsedResult?.document?.fileUrl || ''
+    if (!fileUrl) return
+    form.value.sourceDocumentName = file?.name || parsedResult?.documentName || '招标文件'
+    form.value.sourceDocumentFileType = file?.type || parsedResult?.contentType || ''
+    form.value.sourceDocumentFileUrl = fileUrl
+  }
+
+  return {
+    parsingDocument, handleFileChange, handlePastedTextParse,
+    ACCEPT_FILE_TYPES,
+  }
+}
