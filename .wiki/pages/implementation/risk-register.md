@@ -6,6 +6,8 @@ tags: [implementation, delivery]
 sources:
   - .wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx
   - docs/specs/UAT_PLAN.md
+  - .wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md
+  - .wiki/sources/contract/附件3-合同报价清单人工摘录.md
 backlinks:
   - _index
   - contract-constraints
@@ -15,7 +17,7 @@ backlinks:
   - implementation/weekly-status
   - implementation/xiyu-pending-confirmations
 created: 2026-04-21
-updated: 2026-06-13
+updated: 2026-05-28
 health_checked: 2026-06-13
 ---
 # 实施风险台账

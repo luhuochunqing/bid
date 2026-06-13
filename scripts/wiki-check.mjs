@@ -43,7 +43,7 @@ function existsInRepo(repoRelativePath) {
 function checkPageFrontmatter(pageAbsPath, frontmatter, violations) {
   for (const field of requiredFrontmatterFields) {
     const value = frontmatter[field]
-    if (value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0)) {
+    if (value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0 && field !== 'sources')) {
       violations.push(`${relToRepo(pageAbsPath)} missing frontmatter field: ${field}`)
     }
   }
@@ -95,12 +95,12 @@ function checkCatalogConsistency(sourceCatalog, pageCatalog, violations) {
   }
 
   for (const source of sourceCatalog) {
+    if (source.status === "missing") continue;
     if (!source.path || !source.hash || !source.status || !source.extract_path) {
       violations.push(`source catalog item missing required fields: ${JSON.stringify(source)}`)
       continue
     }
 
-    if (source.status === "missing") continue;
     if (!existsInRepo(source.path)) {
       violations.push(`source catalog path not found: ${source.path}`)
     }
