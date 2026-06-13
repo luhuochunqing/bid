@@ -76,10 +76,8 @@ class TenderControllerUpdateTest {
                 tenderQueryService,
                 tenderCommandService,
                 null, // tenderSubmissionService
-                null, // tenderAiAnalysisService
                 tenderMapper,
                 tenderImportService,
-                aiDeepCapabilityService,
                 demoModeService,
                 demoDataProvider,
                 demoFusionService,

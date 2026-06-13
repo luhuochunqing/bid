@@ -42,15 +42,13 @@ class SettingsServiceTest {
         objectMapper.registerModule(new JavaTimeModule());
         aiProviderCatalog = new AiProviderCatalog();
         payloadMapper = new SettingsPayloadMapper(new SettingsDefaultPayloadFactory());
-        PasswordEncryptionUtil passwordEncryptionUtil = new PasswordEncryptionUtil();
-        passwordEncryptionUtil.initialize();
+        AiConfigService aiConfigService = mock(AiConfigService.class);
         settingsService = new SettingsService(
                 systemSettingRepository,
                 userRepository,
                 objectMapper,
                 payloadMapper,
-                passwordEncryptionUtil,
-                aiProviderCatalog
+                aiConfigService
         );
     }
 
@@ -94,15 +92,13 @@ class SettingsServiceTest {
                         .build())
                 .build());
 
-        PasswordEncryptionUtil passwordEncryptionUtil = new PasswordEncryptionUtil();
-        passwordEncryptionUtil.initialize();
+        AiConfigService reloadedAiConfigService = mock(AiConfigService.class);
         SettingsService reloadedService = new SettingsService(
                 systemSettingRepository,
                 userRepository,
                 objectMapper,
                 payloadMapper,
-                passwordEncryptionUtil,
-                aiProviderCatalog
+                reloadedAiConfigService
         );
         SettingsResponse reloaded = reloadedService.getSettings();
 

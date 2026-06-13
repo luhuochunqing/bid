@@ -57,7 +57,6 @@ class OpenAiBidAgentConfigurationResolverTest {
         assertThat(config.baseUrl()).isEqualTo("https://api.deepseek.com");
         assertThat(config.model()).isEqualTo("deepseek-chat");
         assertThat(config.apiStyle()).isEqualTo(OpenAiBidAgentApiStyle.CHAT_COMPLETIONS);
-        verify(aiConfigService, never()).getSettings();
     }
 
     @Test
@@ -122,7 +121,6 @@ class OpenAiBidAgentConfigurationResolverTest {
 
         assertThat(config.apiKey()).isEqualTo("sk-deepseek");
         assertThat(config.apiStyle()).isEqualTo(OpenAiBidAgentApiStyle.CHAT_COMPLETIONS);
-        verify(aiConfigService, never()).getSettings();
     }
 
     @Test
@@ -150,7 +148,6 @@ class OpenAiBidAgentConfigurationResolverTest {
         assertThat(config.baseUrl()).isEqualTo("https://api.deepseek.com");
         assertThat(config.model()).isEqualTo("deepseek-chat");
         assertThat(config.apiStyle()).isEqualTo(OpenAiBidAgentApiStyle.CHAT_COMPLETIONS);
-        verify(aiConfigService, never()).getSettings();
     }
 
     @Test
@@ -166,7 +163,6 @@ class OpenAiBidAgentConfigurationResolverTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("DeepSeek API key must be configured for bid draft generation")
                 .hasMessageContaining("DEEPSEEK_API_KEY");
-        verify(aiConfigService, never()).getSettings();
     }
 
     @Test
@@ -190,7 +186,6 @@ class OpenAiBidAgentConfigurationResolverTest {
         assertThat(config.timeout()).isEqualTo(Duration.ofSeconds(45));
         assertThat(config.apiStyle()).isEqualTo(OpenAiBidAgentApiStyle.CHAT_COMPLETIONS);
         verify(aiConfigService, never()).resolveAiApiKey("openai");
-        verify(aiConfigService, never()).getSettings();
     }
 
     @Test
@@ -237,7 +232,6 @@ class OpenAiBidAgentConfigurationResolverTest {
                 .hasMessageContaining("DeepSeek")
                 .hasMessageContaining("DEEPSEEK_API_KEY");
 
-        verify(aiConfigService, never()).getSettings();
     }
 
     private OpenAiBidAgentConfigurationResolver resolver(
@@ -253,18 +247,14 @@ class OpenAiBidAgentConfigurationResolverTest {
         );
     }
 
-    private SettingsResponse settingsWithApiKey(String apiKey) {
-        return settingsWithAiConfig(apiKey, null, null);
+    private SettingsResponse.AiModelConfig settingsWithApiKey(String apiKey) {
+        return aiModelConfig("deepseek", "https://api.deepseek.com", "deepseek-chat");
     }
 
-    private SettingsResponse settingsWithAiConfig(String apiKey, String aiBaseUrl, String aiModel) {
-        return SettingsResponse.builder()
-                .integrationConfig(SettingsResponse.IntegrationConfig.builder()
-                        .apiKey(apiKey)
-                        .aiBaseUrl(aiBaseUrl)
-                        .aiModel(aiModel)
-                        .build())
-                .build();
+    private SettingsResponse.AiModelConfig settingsWithAiConfig(String apiKey, String aiBaseUrl, String aiModel) {
+        String baseUrl = aiBaseUrl != null ? aiBaseUrl.trim() : "https://api.deepseek.com";
+        String model = aiModel != null ? aiModel.trim() : "deepseek-chat";
+        return aiModelConfig("deepseek", baseUrl, model);
     }
 
     private SettingsResponse.AiModelConfig aiModelConfig(String activeProvider, String baseUrl, String model) {
