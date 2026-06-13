@@ -13,6 +13,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 标讯源配置实体。
@@ -25,6 +26,7 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Slf4j
 public class TenderSourceConfig {
 
     @Id
@@ -116,6 +118,7 @@ public class TenderSourceConfig {
                         .toList();
             }
         } catch (Exception ignored) {
+            log.debug("{}: caught {} ({})", "TenderSourceConfig", ignored.getClass().getSimpleName(), ignored.getMessage());
         }
         return java.util.List.of();
     }

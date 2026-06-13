@@ -1,4 +1,5 @@
 package com.xiyu.bid.documenteditor.service;
+import lombok.extern.slf4j.Slf4j;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 class DocumentDraftTreeImportService {
 
     private final DocumentSectionRepository sectionRepository;
@@ -104,6 +106,7 @@ class DocumentDraftTreeImportService {
                 return key != null ? key : fallbackTitle;
             }
         } catch (JsonProcessingException ignored) {
+            log.debug("Legacy text metadata parse skipped", ignored);
             // fall through to the title fallback
         }
         return fallbackTitle;

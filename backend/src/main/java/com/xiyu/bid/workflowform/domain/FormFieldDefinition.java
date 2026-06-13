@@ -1,4 +1,5 @@
 package com.xiyu.bid.workflowform.domain;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 import java.util.Map;
@@ -9,6 +10,7 @@ import java.util.Optional;
  * 为保证向后兼容，原有 4 个参数（key/label/type/required）保留，
  * 新增字段以 Optional / List 形式追加，不影响现有调用方。
  */
+@Slf4j
 public record FormFieldDefinition(
         String key,
         String label,
@@ -177,7 +179,7 @@ public record FormFieldDefinition(
                     FormFieldType ft = FormFieldType.TEXT;
                     if (colType != null) {
                         try { ft = FormFieldType.valueOf(colType.toUpperCase()); }
-                        catch (IllegalArgumentException ignored) {}
+                        catch (IllegalArgumentException ignored) { log.debug("Invalid enum value", ignored); }
                     }
                     return new TableColumn(trim(m.get("key")), trim(m.get("label")), ft, Boolean.TRUE.equals(m.get("required")));
                 })

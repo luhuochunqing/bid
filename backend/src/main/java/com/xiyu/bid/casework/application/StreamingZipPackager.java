@@ -62,6 +62,7 @@ public class StreamingZipPackager {
                     try {
                         Files.deleteIfExists(tempExcelPath);
                     } catch (IOException ignored) {
+            log.debug("{}: caught {} ({})", "StreamingZipPackager", ignored.getClass().getSimpleName(), ignored.getMessage());
                     }
                 }
             }

@@ -173,7 +173,7 @@ public class CaCertificateImportService {
             if (!t.matches("^[0-9]+$")) continue;
             try {
                 out.add(Long.parseLong(t));
-            } catch (NumberFormatException ignored) { /* skip */ }
+            } catch (NumberFormatException ignored) { log.debug("Skipping non-numeric ID: {}", t); }
         }
         return out;
     }

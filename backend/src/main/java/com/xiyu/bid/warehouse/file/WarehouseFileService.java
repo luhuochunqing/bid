@@ -6,6 +6,7 @@ import com.xiyu.bid.warehouse.infrastructure.WarehouseAttachmentRepository;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Set;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class WarehouseFileService {
@@ -89,7 +91,7 @@ public class WarehouseFileService {
         try {
             Files.deleteIfExists(path);
         } catch (IOException ex) {
-            // Log but don't fail — entity deletion is the source of truth
+            log.debug("Failed to delete file: {}", attachment.getStoredFilename(), ex);
         }
         // 2. Delete entity
         attachmentRepository.delete(attachment);

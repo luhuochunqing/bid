@@ -1,4 +1,5 @@
 package com.xiyu.bid.casework.application;
+import lombok.extern.slf4j.Slf4j;
 
 import com.xiyu.bid.casework.infrastructure.ArchiveFile;
 import com.xiyu.bid.casework.infrastructure.ArchiveFileRepository;
@@ -33,6 +34,7 @@ import java.util.stream.Collectors;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ProjectArchiveExportService {
 
     private final ProjectArchiveRepository projectArchiveRepository;
@@ -136,7 +138,7 @@ public class ProjectArchiveExportService {
                                 if (t.getBidOpeningTime() != null) bidOpeningAtStr = t.getBidOpeningTime().format(DATE_FORMATTER);
                             }
                         }
-                    } catch (Exception ignored) {}
+                    } catch (Exception ignored) { log.debug("Export failed", ignored); }
 
                     List<ArchiveFile> files = archiveFileRepository.findByArchiveId(archive.getId());
                     int fileCount = files.size();

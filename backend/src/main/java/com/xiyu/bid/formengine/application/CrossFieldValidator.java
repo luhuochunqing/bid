@@ -3,6 +3,7 @@
 // Pos: Application 层（纯函数，无状态，可单测）
 // 维护声明: 跨字段评估逻辑全部在此，无框架依赖.
 package com.xiyu.bid.formengine.application;
+import lombok.extern.slf4j.Slf4j;
 
 import com.xiyu.bid.formengine.domain.CrossFieldValidationRule;
 import org.springframework.stereotype.Component;
@@ -20,6 +21,7 @@ import java.util.Objects;
  *              sum_equals / one_filled / both_filled / not_after
  */
 @Component
+@Slf4j
 public class CrossFieldValidator {
 
     /**
@@ -103,6 +105,7 @@ public class CrossFieldValidator {
                 try {
                     sum += Double.parseDouble(String.valueOf(v));
                 } catch (NumberFormatException ignored) {
+                    log.debug("Non-numeric field skipped", ignored);
                     // 非数值字段不计入
                 }
             }

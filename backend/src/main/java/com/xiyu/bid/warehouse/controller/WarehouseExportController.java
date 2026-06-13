@@ -31,6 +31,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 仓库台账导出控制器 — 独立的导出相关端点，避免 WarehouseController 超行。
@@ -38,6 +39,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/knowledge/warehouses/export")
 @RequiredArgsConstructor
+@Slf4j
 public class WarehouseExportController {
 
     private static final String PERM = RoleProfileCatalog.WAREHOUSE_MANAGE_PERMISSION;
@@ -120,7 +122,7 @@ public class WarehouseExportController {
         Set<Section> out = EnumSet.noneOf(Section.class);
         for (Object o : rawList) {
             if (o instanceof String s) {
-                try { out.add(Section.valueOf(s.toUpperCase())); } catch (IllegalArgumentException ignored) {}
+                try { out.add(Section.valueOf(s.toUpperCase())); } catch (IllegalArgumentException ignored) { log.debug("Invalid enum value", ignored); }
             }
         }
         return out;

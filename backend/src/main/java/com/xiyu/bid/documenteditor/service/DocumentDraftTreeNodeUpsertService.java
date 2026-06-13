@@ -1,4 +1,5 @@
 package com.xiyu.bid.documenteditor.service;
+import lombok.extern.slf4j.Slf4j;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -21,6 +22,7 @@ import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 class DocumentDraftTreeNodeUpsertService {
 
     private static final String LOCKED_REASON = "LOCKED";
@@ -215,6 +217,7 @@ class DocumentDraftTreeNodeUpsertService {
                 return (ObjectNode) node.deepCopy();
             }
         } catch (JsonProcessingException ignored) {
+            log.debug("Legacy metadata parse skipped", ignored);
             // Keep legacy metadata text if it cannot be parsed as JSON.
         }
 
@@ -243,6 +246,7 @@ class DocumentDraftTreeNodeUpsertService {
                 return trimToNull(node.path("sectionKey").asText(null));
             }
         } catch (JsonProcessingException ignored) {
+            log.debug("Legacy metadata parse skipped", ignored);
             // Legacy text metadata or malformed JSON should not break draft import.
         }
         return null;

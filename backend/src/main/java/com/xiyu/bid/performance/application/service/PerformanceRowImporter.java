@@ -17,12 +17,14 @@ import static com.xiyu.bid.performance.application.service.PerformanceEnumLabels
 import static com.xiyu.bid.performance.application.service.PerformanceEnumLabels.parseCustomerType;
 import static com.xiyu.bid.performance.application.service.PerformanceEnumLabels.parseDockingMethod;
 import static com.xiyu.bid.performance.application.service.PerformanceEnumLabels.parseProjectType;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 业绩单行导入服务（独立事务，避免自调用代理陷阱）
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PerformanceRowImporter {
 
     private final PerformanceRepository repository;

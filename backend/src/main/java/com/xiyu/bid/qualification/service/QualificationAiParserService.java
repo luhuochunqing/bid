@@ -61,6 +61,7 @@ public class QualificationAiParserService {
         try {
             config = routingAiProvider.resolveActiveConfig();
         } catch (Exception ignored) {
+            log.debug("{}: caught {} ({})", "QualificationAiParserService", ignored.getClass().getSimpleName(), ignored.getMessage());
         }
 
         if (config == null) {
@@ -108,7 +109,7 @@ public class QualificationAiParserService {
                 if (!expiryStr.isBlank()) {
                     try {
                         dto.setExpiryDate(LocalDate.parse(expiryStr));
-                    } catch (DateTimeParseException ignored) {}
+                    } catch (DateTimeParseException ignored) { log.debug("Invalid date parse", ignored); }
                 }
                 return dto;
             }

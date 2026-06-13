@@ -4,6 +4,8 @@
 // 维护声明: 仅做类型映射和数据清洗，不做验证（验证在 FormFieldValidator / Service 层）
 package com.xiyu.bid.formengine.application;
 
+import lombok.extern.slf4j.Slf4j;
+
 import com.xiyu.bid.contractborrow.application.command.CreateContractBorrowCommand;
 import com.xiyu.bid.project.dto.ProjectDTO;
 import com.xiyu.bid.qualification.dto.QualificationDTO;
@@ -27,6 +29,7 @@ import java.util.function.Consumer;
  * 本类是纯转换逻辑（无副作用），每个方法均为 static，
  * 可直接单元测试。
  */
+@Slf4j
 public final class FormSubmissionMappers {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -110,7 +113,7 @@ public final class FormSubmissionMappers {
         String catStr = toStr(formData.get("category"));
         if (!catStr.isBlank()) {
             try { req.setCategory(Expense.ExpenseCategory.valueOf(catStr)); }
-            catch (IllegalArgumentException ignored) {}
+            catch (IllegalArgumentException ignored) { log.debug("Invalid expense category: {}", catStr); }
         }
         return req;
     }
@@ -204,7 +207,7 @@ public final class FormSubmissionMappers {
                 String s = val.toString().trim();
                 if (!s.isEmpty()) setter.accept(Long.parseLong(s));
             }
-        } catch (NumberFormatException ignored) {}
+        } catch (NumberFormatException ignored) { log.debug("Invalid long value for key={}: {}", key, val); }
     }
 
     private static void putDate(Map<String, Object> data, String key, Consumer<LocalDate> setter) {
@@ -213,7 +216,7 @@ public final class FormSubmissionMappers {
         String s = val.toString().trim();
         if (s.isEmpty()) return;
         try { setter.accept(LocalDate.parse(s.substring(0, 10), DATE_FMT)); }
-        catch (DateTimeParseException ignored) {}
+        catch (DateTimeParseException ignored) { log.debug("Invalid date for key={}: {}", key, s); }
     }
 
     private static void putDateTime(Map<String, Object> data, String key, Consumer<LocalDateTime> setter) {
@@ -224,7 +227,7 @@ public final class FormSubmissionMappers {
         try { setter.accept(LocalDateTime.parse(s, DATETIME_FMT)); }
         catch (DateTimeParseException ignored) {
             try { setter.accept(LocalDate.parse(s.substring(0, 10), DATE_FMT).atStartOfDay()); }
-            catch (DateTimeParseException ignored2) {}
+            catch (DateTimeParseException ignored2) { log.debug("Invalid datetime for key={}: {}", key, s); }
         }
     }
 

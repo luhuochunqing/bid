@@ -122,7 +122,7 @@ public class WarehouseExportAppService {
             String filePath = saveZip(taskId, zip);
             completeTask(taskId, operatorId, operatorUsername, entities, filePath, zip, filterDTO, scope, startMs);
         } finally {
-            try { Files.deleteIfExists(zip.zipFile()); } catch (IOException ignored) { }
+            try { Files.deleteIfExists(zip.zipFile()); } catch (IOException ignored) { log.debug("Failed to delete zip file", ignored); }
         }
     }
 

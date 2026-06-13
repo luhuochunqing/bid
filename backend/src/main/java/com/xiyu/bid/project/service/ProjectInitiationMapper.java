@@ -17,9 +17,11 @@ import org.springframework.stereotype.Component;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
+import lombok.extern.slf4j.Slf4j;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class ProjectInitiationMapper {
 
     private static final DateTimeFormatter MONTH_FMT = DateTimeFormatter.ofPattern("yyyy-MM");
@@ -155,7 +157,7 @@ public class ProjectInitiationMapper {
         List<CustomerInfoRow> rows = null;
         if (e.getCustomerInfoJson() != null && !e.getCustomerInfoJson().isBlank()) {
             try { rows = objectMapper.readValue(e.getCustomerInfoJson(), new TypeReference<>() {}); }
-            catch (JsonProcessingException ex) { /* ignore parse errors */ }
+            catch (JsonProcessingException ex) { log.debug("Customer info JSON parse failed", ex); }
         }
         return InitiationViewDto.builder()
                 .id(e.getId()).projectId(e.getProjectId())

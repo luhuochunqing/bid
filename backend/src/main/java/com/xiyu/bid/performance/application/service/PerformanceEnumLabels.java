@@ -4,10 +4,12 @@ import com.xiyu.bid.performance.domain.valueobject.CustomerLevel;
 import com.xiyu.bid.performance.domain.valueobject.CustomerType;
 import com.xiyu.bid.performance.domain.valueobject.DockingMethod;
 import com.xiyu.bid.performance.domain.valueobject.ProjectType;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 业绩枚举中文映射（导入导出共用）
  */
+@Slf4j
 public final class PerformanceEnumLabels {
 
     private PerformanceEnumLabels() {}

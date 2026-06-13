@@ -18,10 +18,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+@Slf4j
 public class DocumentExportQueryService {
 
     private final DocumentExportRepository exportRepository;
@@ -50,6 +52,7 @@ public class DocumentExportQueryService {
                     try {
                         snapshot = toCaseSnapshotDto(snapshotAppService.getLatestSnapshot(record.getProjectId()));
                     } catch (ResourceNotFoundException ignored) {
+            log.debug("{}: caught {} ({})", "DocumentExportQueryService", ignored.getClass().getSimpleName(), ignored.getMessage());
                     }
                     return DocumentArchiveRecordDTO.builder()
                             .id(record.getId())
