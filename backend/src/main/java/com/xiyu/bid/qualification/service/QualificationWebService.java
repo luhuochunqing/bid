@@ -5,6 +5,7 @@
 package com.xiyu.bid.qualification.service;
 
 import com.xiyu.bid.businessqualification.application.service.ImportQualificationAppService;
+import com.xiyu.bid.businessqualification.domain.port.QualificationFileStorage;
 import com.xiyu.bid.exception.InvalidArgumentException;
 import com.xiyu.bid.qualification.dto.QualificationDTO;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ public class QualificationWebService {
     private final ImportQualificationAppService importQualificationAppService;
     private final QualificationService qualificationService;
     private final QualificationQueryService qualificationQueryService;
+    private final QualificationFileStorage fileStorage;
 
     public ImportQualificationAppService.ImportSummary importFromExcel(MultipartFile file, String operatorName) throws IOException {
         if (file == null || file.isEmpty()) {
@@ -30,12 +32,20 @@ public class QualificationWebService {
         return importQualificationAppService.importFromExcel(file, operatorName);
     }
 
-    public QualificationDTO uploadAttachment(Long id, MultipartFile file) {
+    public QualificationDTO uploadAttachment(Long id, MultipartFile file) throws IOException {
         if (file == null || file.isEmpty()) {
             throw new InvalidArgumentException("上传文件不能为空");
         }
         QualificationDTO dto = qualificationQueryService.getQualificationById(id);
-        dto.setFileUrl(file.getOriginalFilename());
+        String originalName = file.getOriginalFilename();
+
+        String url = fileStorage.storeAttachment(
+                id,
+                file.getBytes(),
+                originalName,
+                file.getContentType()
+        );
+        dto.setFileUrl(url);
         return qualificationService.updateQualification(id, dto);
     }
 }

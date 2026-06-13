@@ -16,10 +16,18 @@ import com.xiyu.bid.qualification.service.QualificationWebService;
 import com.xiyu.bid.qualification.service.QualificationAiParserService;
 import com.xiyu.bid.util.InputSanitizer;
 import jakarta.validation.Valid;
+import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
@@ -42,6 +50,8 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/knowledge/qualifications")
 @RequiredArgsConstructor
 public class QualificationController {
+
+    private static final String ATTACHMENT_BASE_DIR = "data/qualification-attachments";
 
     private final QualificationService qualificationService;
     private final QualificationQueryService qualificationQueryService;
@@ -70,7 +80,7 @@ public class QualificationController {
     @Auditable(action = "UPDATE", entityType = "Qualification", description = "上传资质附件")
     public ResponseEntity<ApiResponse<QualificationDTO>> uploadAttachment(
             @PathVariable Long id,
-            @RequestParam("file") MultipartFile file) {
+            @RequestParam("file") MultipartFile file) throws IOException {
         return ResponseEntity.ok(ApiResponse.success("附件上传成功",
                 qualificationWebService.uploadAttachment(id, file)));
     }
@@ -205,6 +215,34 @@ public class QualificationController {
     @Auditable(action = "READ", entityType = "Qualification", description = "获取资质等级列表")
     public ResponseEntity<ApiResponse<List<String>>> getAllLevels() {
         return ResponseEntity.ok(ApiResponse.success("Levels retrieved successfully", qualificationQueryService.getAllLevels()));
+    }
+
+    @GetMapping("/{id}/attachments/{fileName}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ADMIN_STAFF', 'BID_ADMIN', 'BID_LEAD', 'BID_SPECIALIST')")
+    public ResponseEntity<Resource> downloadAttachment(
+            @PathVariable Long id,
+            @PathVariable String fileName
+    ) throws IOException {
+        if (fileName == null || fileName.contains("/") || fileName.contains("\\") || fileName.contains("..")) {
+            return ResponseEntity.badRequest().build();
+        }
+        Path baseDir = Paths.get(ATTACHMENT_BASE_DIR).toAbsolutePath().normalize();
+        Path filePath = baseDir.resolve(String.valueOf(id)).resolve(fileName).normalize();
+        if (!filePath.startsWith(baseDir)) {
+            return ResponseEntity.badRequest().build();
+        }
+        if (!Files.exists(filePath) || Files.isDirectory(filePath)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        byte[] content = Files.readAllBytes(filePath);
+        String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8).replace("+", "%20");
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + encodedFileName + "\"; filename*=UTF-8''" + encodedFileName)
+                .body(new ByteArrayResource(content));
     }
 
 }

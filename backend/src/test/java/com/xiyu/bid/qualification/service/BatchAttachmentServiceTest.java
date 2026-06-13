@@ -1,5 +1,6 @@
 package com.xiyu.bid.qualification.service;
 
+import com.xiyu.bid.businessqualification.domain.port.QualificationFileStorage;
 import com.xiyu.bid.businessqualification.infrastructure.persistence.entity.BusinessQualificationEntity;
 import com.xiyu.bid.businessqualification.infrastructure.persistence.repository.BusinessQualificationJpaRepository;
 import com.xiyu.bid.qualification.dto.BatchAttachResultDTO;
@@ -10,6 +11,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,6 +23,9 @@ class BatchAttachmentServiceTest {
 
     @Mock
     private BusinessQualificationJpaRepository repository;
+
+    @Mock
+    private QualificationFileStorage fileStorage;
 
     @InjectMocks
     private BatchAttachmentService service;
@@ -79,15 +84,19 @@ class BatchAttachmentServiceTest {
     }
 
     @Test
-    void process_ValidFile_ShouldMatchAndSave() {
+    void process_ValidFile_ShouldMatchAndSave() throws IOException {
         var file = mock(MultipartFile.class);
         when(file.isEmpty()).thenReturn(false);
         when(file.getOriginalFilename()).thenReturn("QUAL_QC-001_01_doc.pdf");
+        when(file.getBytes()).thenReturn(new byte[]{1, 2, 3});
 
         var entity = new BusinessQualificationEntity();
         entity.setId(1L);
         entity.setName("ISO认证");
         when(repository.findByCertificateNo("QC-001")).thenReturn(Optional.of(entity));
+        when(fileStorage.storeAttachmentWithNaming(eq(1L), any(byte[].class), eq("QC-001"),
+                eq(1), eq("ISO认证"), eq("QUAL_QC-001_01_doc.pdf"), isNull()))
+                .thenReturn("/api/knowledge/qualifications/1/attachments/QUAL_QC-001_01_doc.pdf");
 
         var result = service.process(List.of(file));
 
@@ -99,10 +108,11 @@ class BatchAttachmentServiceTest {
     }
 
     @Test
-    void process_MultipleFiles_ShouldHandleMixedResults() {
+    void process_MultipleFiles_ShouldHandleMixedResults() throws IOException {
         var validFile = mock(MultipartFile.class);
         when(validFile.isEmpty()).thenReturn(false);
         when(validFile.getOriginalFilename()).thenReturn("QUAL_VALID_01_ok.pdf");
+        when(validFile.getBytes()).thenReturn(new byte[]{1, 2, 3});
 
         var invalidFile = mock(MultipartFile.class);
         when(invalidFile.isEmpty()).thenReturn(false);
@@ -117,6 +127,9 @@ class BatchAttachmentServiceTest {
         entity.setName("有效证书");
         when(repository.findByCertificateNo("VALID")).thenReturn(Optional.of(entity));
         when(repository.findByCertificateNo("INVALID")).thenReturn(Optional.empty());
+        when(fileStorage.storeAttachmentWithNaming(eq(10L), any(byte[].class), eq("VALID"),
+                eq(1), eq("有效证书"), eq("QUAL_VALID_01_ok.pdf"), isNull()))
+                .thenReturn("/api/knowledge/qualifications/10/attachments/QUAL_VALID_01_ok.pdf");
 
         var result = service.process(List.of(validFile, invalidFile, badNameFile));
 

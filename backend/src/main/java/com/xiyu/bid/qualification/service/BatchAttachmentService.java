@@ -1,14 +1,18 @@
 package com.xiyu.bid.qualification.service;
 
+import com.xiyu.bid.businessqualification.domain.port.QualificationFileStorage;
 import com.xiyu.bid.businessqualification.infrastructure.persistence.entity.BusinessQualificationEntity;
 import com.xiyu.bid.businessqualification.infrastructure.persistence.repository.BusinessQualificationJpaRepository;
 import com.xiyu.bid.qualification.dto.BatchAttachResultDTO;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -17,23 +21,24 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 /**
- * §4.2.1.4 批量关联附件服务
- *
+ * §4.2.1.4 批量关联附件服务。
  * 职责：
  *  1. 解析文件名提取证书编号（QUAL_{证书编号}_{序号}_{文件名}.{扩展名}）
  *  2. 按证书编号匹配证书记录
- *  3. 匹配成功则更新证书附件关联
+ *  3. 读取文件字节 → 存储到磁盘 → 更新 fileUrl 为可下载 URL
  *  4. 同名同编号重复上传时覆盖旧文件
- *  5. 支持 .zip 压缩包：自动解压后逐文件匹配
+ *  5. 支持 .zip 压缩包：自动解压后逐文件处理
  *  6. 返回成功关联列表 + 未匹配文件列表
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class BatchAttachmentService {
 
     private static final Pattern FILE_NAME_PATTERN = Pattern.compile("^QUAL_([^_]+)_(\\d+)_(.+)\\.(.+)$");
 
     private final BusinessQualificationJpaRepository repository;
+    private final QualificationFileStorage fileStorage;
 
     @Transactional
     public BatchAttachResultDTO process(List<MultipartFile> files) {
@@ -48,7 +53,11 @@ public class BatchAttachmentService {
         List<BatchAttachResultDTO.UnmatchedItem> unmatched = new ArrayList<>();
 
         for (MultipartFile file : files) {
-            if (file == null || file.isEmpty()) continue;
+            if (file == null || file.isEmpty()) {
+                unmatched.add(BatchAttachResultDTO.UnmatchedItem.builder()
+                        .fileName("(空文件)").reason("文件为空").build());
+                continue;
+            }
 
             String originalName = file.getOriginalFilename();
             if (originalName == null || originalName.isBlank()) {
@@ -57,10 +66,17 @@ public class BatchAttachmentService {
                 continue;
             }
 
-            if (isZipFile(originalName)) {
-                processZipFile(file, matched, unmatched);
-            } else {
-                processEntry(originalName, matched, unmatched);
+            try {
+                if (isZipFile(originalName)) {
+                    processZipFile(file, matched, unmatched);
+                } else {
+                    processEntry(file, originalName, matched, unmatched);
+                }
+            } catch (RuntimeException e) {
+                log.error("批量附件上传处理失败: {}", originalName, e);
+                unmatched.add(BatchAttachResultDTO.UnmatchedItem.builder()
+                        .fileName(originalName)
+                        .reason(e.getMessage() != null ? e.getMessage() : "处理异常").build());
             }
         }
 
@@ -83,11 +99,17 @@ public class BatchAttachmentService {
         try (ZipInputStream zis = new ZipInputStream(file.getInputStream())) {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
-                if (entry.isDirectory()) { zis.closeEntry(); continue; }
+                if (entry.isDirectory()) {
+                    zis.closeEntry();
+                    continue;
+                }
                 String entryName = entry.getName();
                 int lastSlash = entryName.lastIndexOf('/');
                 String fileName = lastSlash >= 0 ? entryName.substring(lastSlash + 1) : entryName;
-                processEntry(fileName, matched, unmatched);
+
+                byte[] content = readAllBytes(zis);
+                InMemoryMultipartFile innerFile = new InMemoryMultipartFile(fileName, content);
+                processEntry(innerFile, fileName, matched, unmatched);
                 zis.closeEntry();
             }
         } catch (IOException e) {
@@ -98,6 +120,7 @@ public class BatchAttachmentService {
     }
 
     private void processEntry(
+            MultipartFile file,
             String originalName,
             List<BatchAttachResultDTO.MatchedItem> matched,
             List<BatchAttachResultDTO.UnmatchedItem> unmatched
@@ -111,6 +134,13 @@ public class BatchAttachmentService {
         }
 
         String certificateNo = matcher.group(1);
+        int sequence;
+        try {
+            sequence = Integer.parseInt(matcher.group(2));
+        } catch (NumberFormatException e) {
+            sequence = 1;
+        }
+
         BusinessQualificationEntity entity = repository.findByCertificateNo(certificateNo).orElse(null);
         if (entity == null) {
             unmatched.add(BatchAttachResultDTO.UnmatchedItem.builder()
@@ -118,11 +148,66 @@ public class BatchAttachmentService {
             return;
         }
 
-        entity.setFileUrl(originalName);
+        byte[] content;
+        try {
+            content = file.getBytes();
+        } catch (IOException e) {
+            unmatched.add(BatchAttachResultDTO.UnmatchedItem.builder()
+                    .fileName(originalName).reason("读取文件失败: " + e.getMessage()).build());
+            return;
+        }
+
+        if (content.length == 0) {
+            unmatched.add(BatchAttachResultDTO.UnmatchedItem.builder()
+                    .fileName(originalName).reason("文件内容为空").build());
+            return;
+        }
+
+        String url = fileStorage.storeAttachmentWithNaming(
+                entity.getId(),
+                content,
+                certificateNo,
+                sequence,
+                entity.getName(),
+                originalName,
+                file.getContentType()
+        );
+
+        entity.setFileUrl(url);
         repository.save(entity);
 
         matched.add(BatchAttachResultDTO.MatchedItem.builder()
                 .fileName(originalName).certificateNo(certificateNo)
                 .qualificationId(entity.getId()).qualificationName(entity.getName()).build());
+    }
+
+    private static byte[] readAllBytes(InputStream is) throws IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        byte[] chunk = new byte[8192];
+        int n;
+        while ((n = is.read(chunk)) != -1) {
+            buffer.write(chunk, 0, n);
+        }
+        return buffer.toByteArray();
+    }
+
+    /**
+     * 内存中的 MultipartFile，用于承载 zip 解压后的单个文件。
+     */
+    @lombok.RequiredArgsConstructor
+    private static class InMemoryMultipartFile implements MultipartFile {
+        private final String fileName;
+        private final byte[] content;
+
+        @Override public String getName() { return fileName; }
+        @Override public String getOriginalFilename() { return fileName; }
+        @Override public String getContentType() { return null; }
+        @Override public boolean isEmpty() { return content == null || content.length == 0; }
+        @Override public long getSize() { return content != null ? content.length : 0; }
+        @Override public byte[] getBytes() { return content; }
+        @Override public InputStream getInputStream() { return new java.io.ByteArrayInputStream(content); }
+        @Override public void transferTo(java.io.File dest) throws IOException {
+            java.nio.file.Files.write(dest.toPath(), content);
+        }
     }
 }
