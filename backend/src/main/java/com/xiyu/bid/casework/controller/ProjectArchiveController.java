@@ -20,6 +20,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -51,6 +52,7 @@ public class ProjectArchiveController {
     private final ArchiveFileRepository archiveFileRepository;
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
     public ResponseEntity<Page<ProjectArchiveResponse>> queryProjectArchives(
             ProjectArchiveQuery query,
             @RequestParam(defaultValue = "0") int page,
@@ -60,12 +62,14 @@ public class ProjectArchiveController {
     }
 
     @GetMapping("/stats")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
     public ResponseEntity<ProjectArchiveStatsResponse> getArchiveStats() {
         ProjectArchiveStatsResponse stats = workflowService.getStats();
         return ResponseEntity.ok(stats);
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
     public ResponseEntity<ProjectArchiveDetailResponse> getArchiveDetail(@PathVariable Long id) {
         ProjectArchiveDetailResponse result = detailService.getArchiveDetail(id);
         return ResponseEntity.ok(result);
@@ -143,6 +147,7 @@ public class ProjectArchiveController {
     }
 
     @PostMapping("/export-excel")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
     public ResponseEntity<byte[]> exportExcel(
             @RequestBody ProjectArchiveQuery query,
             @RequestParam(required = false) Long userId) throws IOException {
@@ -175,6 +180,7 @@ public class ProjectArchiveController {
 
     /** 导出单个项目全部资料（ZIP 压缩包）。 */
     @GetMapping("/export-zip/{projectId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
     public ResponseEntity<byte[]> exportSingleProjectArchive(
             @PathVariable Long projectId) throws IOException {
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
@@ -214,6 +220,7 @@ public class ProjectArchiveController {
 
 
     @PostMapping("/export-zip")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
     public ResponseEntity<byte[]> exportZip(
             @RequestBody ProjectArchiveQuery query,
             @RequestParam(required = false) Long userId) throws IOException {
