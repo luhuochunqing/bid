@@ -3,6 +3,7 @@ package com.xiyu.bid.settings.service;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
 import com.xiyu.bid.settings.dto.SettingsResponse;
 import com.xiyu.bid.settings.dto.SettingsUpdateRequest;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,7 +23,7 @@ public class AiConfigService {
     public AiConfigService(
             PasswordEncryptionUtil passwordEncryptionUtil,
             AiProviderCatalog aiProviderCatalog,
-            SettingsService settingsService
+            @Lazy SettingsService settingsService
     ) {
         this.passwordEncryptionUtil = passwordEncryptionUtil;
         this.aiProviderCatalog = aiProviderCatalog;

@@ -30,12 +30,14 @@ public final class RoleProfileCatalog {
     public static final String TASK_EXECUTOR_CODE = "task_executor";
     public static final String BID_SPECIALIST_CODE = "bid_specialist";
     public static final String ADMIN_STAFF_CODE = "admin_staff";
+    /** 投标主管：合并投标管理员(bid_admin) + 投标组长(bid_lead) 权限 */
+    public static final String BID_SENIOR_CODE = "bid_senior";
 
     /** 拥有全局数据权限与操作权限的角色码集合。 */
-    public static final Set<String> GLOBAL_ACCESS_ROLES = Set.of(ADMIN_CODE, BID_ADMIN_CODE, BID_LEAD_CODE);
+    public static final Set<String> GLOBAL_ACCESS_ROLES = Set.of(ADMIN_CODE, BID_ADMIN_CODE, BID_LEAD_CODE, BID_SENIOR_CODE);
 
     /** 允许提交投标（推进至评标阶段）的业务角色码集合，对齐前端 useProjectDraftingPermissions.canSubmitBid。 */
-    public static final Set<String> SUBMIT_BID_ALLOWED_ROLES = Set.of(BID_ADMIN_CODE, BID_LEAD_CODE, SALES_CODE, BID_SPECIALIST_CODE);
+    public static final Set<String> SUBMIT_BID_ALLOWED_ROLES = Set.of(BID_ADMIN_CODE, BID_LEAD_CODE, BID_SENIOR_CODE, SALES_CODE, BID_SPECIALIST_CODE);
 
     private static final Map<String, SeedDefinition> DEFINITIONS = Map.ofEntries(
             Map.entry(ADMIN_CODE, new SeedDefinition(ADMIN_CODE, "管理员", "系统管理员，拥有所有权限", true, "all", List.of("all"))),
@@ -115,8 +117,26 @@ public final class RoleProfileCatalog {
                     List.of("dashboard", "knowledge", "resource",
                             "certificate.manage", "qualification.view",
                             "dashboard:view_welcome_banner", "dashboard:view_calendar", "dashboard:view_active_projects",
-                            "dashboard:view_activity_list")))
+                            "dashboard:view_activity_list"))),
+            Map.entry(BID_SENIOR_CODE, new SeedDefinition(BID_SENIOR_CODE, "投标主管",
+                    "投标组长+投标管理员合并角色：标书编制、评标推进、复盘审核与结项闸门审批", true, "all",
+                    List.of("dashboard", "operation-logs", "bidding", "project", "knowledge", "resource",
+                            "analytics", "settings",
+                            "task.review", "task.assign", "evaluation.update", "result.register",
+                            "retrospective.submit", "retrospective.review", "closure.review", "closure.request", "lead.assign",
+                            BIDDING_MANAGE_PERMISSION, BIDDING_CREATE_PERMISSION,
+                            BIDDING_DELETE_PERMISSION, BIDDING_SYNC_PERMISSION,
+                            BRAND_AUTH_VIEW_PERMISSION, BRAND_AUTH_CREATE_PERMISSION,
+                            BRAND_AUTH_EDIT_PERMISSION, BRAND_AUTH_REVOKE_PERMISSION,
+                            "knowledge-brand-auth",
+                            "dashboard:view_welcome_banner", "dashboard:view_metric_cards", "dashboard:view_calendar",
+                            "dashboard:view_tender_list", "dashboard:view_project_list", "dashboard:view_team_task",
+                            "dashboard:view_global_projects", "dashboard:view_active_projects", "dashboard:view_team_performance",
+                            "dashboard:view_approval_list", "dashboard:view_process_timeline", "dashboard:view_activity_list",
+                            "dashboard:view_priority_todos", "dashboard:view_technical_task", "dashboard:view_review_list",
+                            WAREHOUSE_MANAGE_PERMISSION)))
     );
+
 
     private RoleProfileCatalog() {
     }
@@ -130,6 +150,7 @@ public final class RoleProfileCatalog {
                 DEFINITIONS.get(SALES_CODE),
                 DEFINITIONS.get(BID_LEAD_CODE),
                 DEFINITIONS.get(BID_ADMIN_CODE),
+                DEFINITIONS.get(BID_SENIOR_CODE),
                 DEFINITIONS.get(TASK_EXECUTOR_CODE),
                 DEFINITIONS.get(BID_SPECIALIST_CODE),
                 DEFINITIONS.get(ADMIN_STAFF_CODE)
@@ -158,7 +179,7 @@ public final class RoleProfileCatalog {
         String normalizedCode = roleCode == null ? STAFF_CODE : roleCode.trim().toLowerCase(Locale.ROOT);
         return switch (normalizedCode) {
             case ADMIN_CODE -> User.Role.ADMIN;
-            case MANAGER_CODE, BID_ADMIN_CODE, BID_LEAD_CODE, SALES_CODE -> User.Role.MANAGER;
+            case MANAGER_CODE, BID_ADMIN_CODE, BID_LEAD_CODE, BID_SENIOR_CODE, SALES_CODE -> User.Role.MANAGER;
             default -> User.Role.STAFF;
         };
     }
