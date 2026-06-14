@@ -1,6 +1,6 @@
 <template>
   <el-card class="search-card tender-search-card" shadow="never">
-    <el-form :model="modelValue" class="tender-search-form el-form--inline">
+    <el-form :model="modelValue" label-position="top" class="tender-search-form">
       <el-form-item label="关键词" class="search-field search-field--keyword">
         <el-input v-model="modelValue.keyword" placeholder="搜索项目名称、招标主体" clearable class="search-input">
           <template #prefix><el-icon><Search /></el-icon></template>
