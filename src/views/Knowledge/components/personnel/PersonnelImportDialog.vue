@@ -8,6 +8,10 @@
     @close="resetAll"
   >
     <div v-if="!task.taskId.value">
+      <p class="template-hint">
+        <el-button link type="primary" size="small" @click="downloadTemplate">下载导入模板</el-button>
+        <span style="color:var(--el-text-color-secondary);font-size:12px">了解 Excel 格式</span>
+      </p>
       <el-upload
         drag
         :auto-upload="false"
@@ -80,6 +84,10 @@ const task = usePersonnelBatchTask({
   startApi: (file) => personnelBatchApi.startImport(file),
   pollApi: (taskId) => personnelBatchApi.getImportProgress(taskId)
 })
+
+const downloadTemplate = () => {
+  personnelBatchApi.downloadImportTemplate().catch(() => ElMessage.warning('模板下载失败，请稍后重试'))
+}
 
 function resetAll() {
   importFile.value = null

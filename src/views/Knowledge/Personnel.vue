@@ -9,9 +9,6 @@
           </el-button>
         </div>
         <div class="batch-actions" v-if="canBatch">
-          <el-button @click="handleDownloadTemplate">
-            <el-icon><Download /></el-icon> 下载导入模板
-          </el-button>
           <el-button v-if="canImportExport" @click="importDialogVisible = true">
             <el-icon><Upload /></el-icon> 批量导入
           </el-button>
@@ -186,7 +183,7 @@ import { isBidManager } from '@/utils/permission'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Warning, Download, Upload, Link } from '@element-plus/icons-vue'
 import personnelApi from '@/api/modules/personnel.js'
-import personnelBatchApi from '@/api/modules/personnelBatchApi.js'
+
 
 import {
   GENDER_OPTIONS, EDUCATION_OPTIONS, STUDY_FORM_OPTIONS,
@@ -222,15 +219,6 @@ const canAdd = computed(() => isBidManager(userRole.value) || userRole.value ===
 const canImportExport = computed(() => isBidManager(userRole.value))
 const canBatch = computed(() => isBidManager(userRole.value) || userRole.value === 'bid_specialist')
 const canEdit = computed(() => isBidManager(userRole.value) || userRole.value === 'bid_specialist')
-
-async function handleDownloadTemplate() {
-  try {
-    await personnelBatchApi.downloadImportTemplate()
-    ElMessage.success('模板下载成功')
-  } catch {
-    ElMessage.error('模板下载失败')
-  }
-}
 
 function openDetail(row, targetTab = 'basic') {
   if (!row?.id) return
