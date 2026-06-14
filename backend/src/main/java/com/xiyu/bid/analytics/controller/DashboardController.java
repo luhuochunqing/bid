@@ -212,11 +212,7 @@ public class DashboardController {
      * 用户清空缓存造成 cache stampede。
      */
     @PostMapping("/cache/clear")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     @PreAuthorize("hasRole('ADMIN')")
-=======
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
->>>>>>> 813ff069 (fix(security) [part 3]: 修 ClosureStage.vue L3 git conflict 标记 + 清 unused import)
     public ResponseEntity<ApiResponse<String>> clearCache() {
         dashboardAnalyticsService.clearOverviewCache();
         return ResponseEntity.ok(
