@@ -239,6 +239,8 @@ write_plist() {
     <string>${SIDECAR_PORT}</string>
     <key>SIDECAR_SHARED_KEY_FILE</key>
     <string>${SIDECAR_SHARED_KEY_FILE}</string>
+    <key>SKIP_SESSION_GATE</key>
+    <string>1</string>
   </dict>
   <key>StandardOutPath</key>
   <string>${LAUNCHD_STDOUT_LOG}</string>
