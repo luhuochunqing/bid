@@ -1,4 +1,6 @@
--- U1075: Rollback VALID -> IN_STOCK migration for business qualifications
+-- Input: V1075__migrate_valid_to_in_stock_for_business_qualifications.sql
+-- Output: U1075 rollback script for business_qualifications status migration
+-- Pos: db/rollback/migration-mysql/
 --
 -- Backout strategy: only restore rows that look like they were touched by V1075.
 -- A row "looks migrated" when:
