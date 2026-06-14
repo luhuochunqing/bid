@@ -170,18 +170,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { performanceApi } from '@/api/modules/performance.js'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Upload, Download, Bell, Search } from '@element-plus/icons-vue'
 import { usePerformanceImport } from '@/composables/usePerformanceImport.js'
-import { useUserStore } from '@/stores/user.js'
-import { isBidManager, isBidAdminOrSenior } from '@/utils/permission'
+import { useKnowledgePermission } from '@/composables/useKnowledgePermission'
 
-const userStore = useUserStore()
-const _role = () => userStore.userRole || (userStore.currentUser && userStore.currentUser.role) || ''
-const canManagePerformance = computed(() => isBidManager(_role()) || _role() === 'admin_staff')
-const canAdminPerformanceAlert = computed(() => isBidAdminOrSenior(_role()))
+const { canManage: canManagePerformance, canAdminAlert: canAdminPerformanceAlert } = useKnowledgePermission()
 
 // Page state
 const searchForm = reactive({ keyword: '', customerTypes: [], projectTypes: [], statuses: [], customerLevels: [], territory: '', signingDateRange: null, expiryDateRange: null, hasBidNotice: null, projectManagerKeyword: '' })

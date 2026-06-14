@@ -69,16 +69,11 @@
 </template>
 
 <script setup>
-import { reactive, watch, onBeforeUnmount, computed } from 'vue'
+import { reactive, watch, onBeforeUnmount } from 'vue'
 import { Search, RefreshRight, Plus, Download, Upload, Document, DocumentCopy } from '@element-plus/icons-vue'
-import { useUserStore } from '@/stores/user.js'
-import { isBidManager } from '@/utils/permission'
+import { useKnowledgePermission } from '@/composables/useKnowledgePermission'
 
-const userStore = useUserStore()
-const canManage = computed(() => {
-  const roleCode = userStore.userRole || (userStore.currentUser && userStore.currentUser.role) || ''
-  return isBidManager(roleCode) || roleCode === 'admin_staff'
-})
+const { canManage } = useKnowledgePermission()
 
 const props = defineProps({
   filters: { type: Object, default: () => ({}) },

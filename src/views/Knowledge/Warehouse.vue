@@ -86,22 +86,17 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import http from '@/api/client'
-import { useUserStore } from '@/stores/user.js'
-import { isBidManager } from '@/utils/permission'
+import { useKnowledgePermission } from '@/composables/useKnowledgePermission'
 import WarehouseFilterBar from '@/components/warehouse/WarehouseFilterBar.vue'
 import WarehouseDialog from '@/components/warehouse/WarehouseDialog.vue'
 import WarehouseDrawer from '@/components/warehouse/WarehouseDrawer.vue'
 import WarehouseExportDialog from '@/components/warehouse/WarehouseExportDialog.vue'
 import WarehouseImportDialog from '@/components/warehouse/WarehouseImportDialog.vue'
 
-const userStore = useUserStore()
-const canManage = computed(() => {
-  const roleCode = userStore.userRole || (userStore.currentUser && userStore.currentUser.role) || ''
-  return isBidManager(roleCode) || roleCode === 'admin_staff'
-})
+const { canManage } = useKnowledgePermission()
 
 const records = ref([]); const loading = ref(false)
 const page = ref(1); const size = ref(15); const total = ref(0)

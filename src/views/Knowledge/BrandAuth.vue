@@ -3,7 +3,7 @@
     <div class="page-header"><h2>品牌授权</h2></div>
     <div class="tab-toolbar">
       <el-button v-if="canManage" type="primary" @click="openCreate"><el-icon><Plus /></el-icon> {{ activeTab === 'agent' ? '新增代理商授权' : '新增原厂授权' }}</el-button>
-      <el-button @click="handleExport"><el-icon><Download /></el-icon> 导出 Excel</el-button>
+      <el-button v-if="canManage" @click="handleExport"><el-icon><Download /></el-icon> 导出 Excel</el-button>
     </div>
     <el-tabs v-model="activeTab" @tab-change="onTabChange">
       <el-tab-pane label="原厂授权" name="manufacturer">
