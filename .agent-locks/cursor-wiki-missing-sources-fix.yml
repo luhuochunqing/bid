@@ -1,0 +1,15 @@
+version: 1
+task: "cursor-wiki-missing-sources-fix"
+locks:
+  - path: "backend/src/main/java/com/xiyu/bid/entity/Project.java"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/cursor/wiki-missing-sources-fix"
+    expiresAt: "2026-06-14T23:10:34.323Z"
+    reason: "fix compiler warnings (@Builder.Default)"
+  - path: "backend/src/main/java/com/xiyu/bid/entity/Task.java"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/cursor/wiki-missing-sources-fix"
+    expiresAt: "2026-06-14T23:10:42.557Z"
+    reason: "fix compiler warnings (@Builder.Default)"
