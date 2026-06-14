@@ -2,6 +2,7 @@ package com.xiyu.bid.systems.external;
 
 import com.xiyu.bid.dto.ApiResponse;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/systems/external/menus")
+@PreAuthorize("permitAll()")
 public class SystemsExternalMenuController {
 
     /** 外部菜单服务. */

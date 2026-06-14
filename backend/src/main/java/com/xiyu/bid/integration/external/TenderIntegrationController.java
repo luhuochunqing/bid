@@ -17,6 +17,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -42,6 +43,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @RestController
 @Tag(name = "标讯同步（外部API v2.0）", description = "第三方系统对接接口，接口规范 v2.0，通过 X-API-Key 认证")
 @RequestMapping("/api/integration/tenders")
+@PreAuthorize("hasRole('EXTERNAL_API')")
 @RequiredArgsConstructor
 @Slf4j
 public class TenderIntegrationController {

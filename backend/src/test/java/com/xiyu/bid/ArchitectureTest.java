@@ -8,7 +8,6 @@ package com.xiyu.bid;
 import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
-import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
@@ -773,15 +772,11 @@ public class ArchitectureTest {
      *
      * Exclusions: @RestControllerAdvice / @ControllerAdvice / @Profile("dev").
      *
-     * <p><b>Status (2026-06-13): ADVISORY.</b> Currently violated by 14 legacy
-     * controllers accumulated before this rule was introduced (see fix report
-     * <code>docs/security/api-security-fix-2026-06-13.md</code> §遗留 2). Until
-     * the legacy backlog is cleaned up in a follow-up sprint, this test runs
-     * the rule and reports violations as log output instead of failing the
-     * build. To re-enable as a hard gate, swap the {@code @Test} below for
-     * {@code @ArchTest} on the {@code controllersMustHavePreAuthorizeRule}
-     * field above.
+     * <p><b>Status (2026-06-14): HARD GATE.</b> The 13 legacy controllers that previously
+     * violated this rule have been remediated. This rule now fails the build on any
+     * new @RestController missing @PreAuthorize at class or method level.
      */
+    @ArchTest
     public static final ArchRule controllersMustHavePreAuthorizeRule =
         classes()
             .that().areAnnotatedWith("org.springframework.web.bind.annotation.RestController")
@@ -789,25 +784,4 @@ public class ArchitectureTest {
             .because("RULE 15: every @RestController must declare @PreAuthorize at class or "
                 + "method level. URL-level rules in SecurityConfig are a coarse fallback; "
                 + "method-level @PreAuthorize is required for explicit role enforcement.");
-
-    @org.junit.jupiter.api.Test
-    void controllersMustHavePreAuthorize_advisory() {
-        ClassFileImporter importer = new ClassFileImporter();
-        JavaClasses classes;
-        try {
-            classes = importer.importPackages("com.xiyu.bid");
-        } catch (Exception e) {
-            System.err.println("RULE 15 advisory: could not import classes: " + e.getMessage());
-            return;
-        }
-        try {
-            controllersMustHavePreAuthorizeRule.check(classes);
-            System.out.println("RULE 15 advisory: PASS — no violations.");
-        } catch (AssertionError ae) {
-            // Advisory: log violations but do not fail the build.
-            // The full violation list is in `ae.getMessage()`.
-            System.out.println("RULE 15 advisory: " + ae.getMessage()
-                + " — see docs/security/api-security-fix-2026-06-13.md §遗留 2 for the backlog.");
-        }
-    }
 }

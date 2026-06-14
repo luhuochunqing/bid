@@ -11,6 +11,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -32,6 +35,10 @@ abstract class AbstractDocumentVersionControllerTest {
 
     @BeforeEach
     void setUpDocumentVersionControllerFixture() {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(
+                        "1", null, List.of(new SimpleGrantedAuthority("ROLE_STAFF"))));
+
         DocumentVersionController controller = new DocumentVersionController(versionHistoryService);
         mockMvc = MockMvcBuilders
                 .standaloneSetup(controller)

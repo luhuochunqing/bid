@@ -73,6 +73,7 @@ public class SecurityConfig {
             "/api/auth/refresh",
             "/api/auth/forgot-password",
             "/api/auth/reset-password",
+            "/api/auth/wecom/**",
             // /api/auth/sessions intentionally removed from allowlist (H1 fix 2026-06-13):
             // 会话列表/撤销是认证后操作，必须走 anyRequest().authenticated() 兜底 + 方法级 @PreAuthorize。
             "/api/auth/verify-email/**",

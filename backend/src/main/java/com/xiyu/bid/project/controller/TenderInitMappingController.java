@@ -6,6 +6,7 @@ package com.xiyu.bid.project.controller;
 
 import com.xiyu.bid.dto.ApiResponse;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -25,6 +26,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/project/tender-init-mapping")
+@PreAuthorize("isAuthenticated()")
 public class TenderInitMappingController {
 
     private static final Map<String, String> PROJECT_TYPE_MAPPING = buildProjectTypeMapping();

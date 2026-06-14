@@ -10,6 +10,7 @@ import com.xiyu.bid.integration.dto.WeComSendTestResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/admin/integrations/wecom")
+@PreAuthorize("hasRole('ADMIN')")
 @RequiredArgsConstructor
 public class WeComIntegrationController {
 

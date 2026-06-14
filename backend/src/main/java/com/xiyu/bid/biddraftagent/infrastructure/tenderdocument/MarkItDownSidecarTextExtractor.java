@@ -31,7 +31,6 @@ import org.springframework.web.client.RestTemplate;
  */
 @Deprecated(since = "next-release", forRemoval = true)
 @Component
-@Primary
 @Profile("!e2e")
 @Slf4j
 public class MarkItDownSidecarTextExtractor implements TenderDocumentTextExtractor {

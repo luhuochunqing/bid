@@ -68,6 +68,10 @@ public class BatchTenderController {
         if (userDetails == null || userDetails.getUsername() == null || userDetails.getUsername().trim().isEmpty()) {
             throw new org.springframework.security.authentication.AuthenticationServiceException("Authenticated user is required");
         }
-        return authService.resolveUserByUsername(userDetails.getUsername().trim());
+        try {
+            return authService.resolveUserByUsername(userDetails.getUsername().trim());
+        } catch (org.springframework.security.core.userdetails.UsernameNotFoundException ex) {
+            throw new org.springframework.security.authentication.AuthenticationServiceException("Authenticated user not found", ex);
+        }
     }
 }

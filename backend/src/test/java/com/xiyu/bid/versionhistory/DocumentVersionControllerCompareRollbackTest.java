@@ -4,6 +4,7 @@ import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.versionhistory.dto.DocumentVersionDTO;
 import com.xiyu.bid.versionhistory.dto.VersionDiffDTO;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.Collections;
 import java.util.List;
@@ -116,8 +117,7 @@ class DocumentVersionControllerCompareRollbackTest extends AbstractDocumentVersi
     void rollbackToVersion_WithValidData_ShouldReturn200() throws Exception {
         when(versionHistoryService.rollbackToVersion(eq(100L), eq(1L), eq(1L))).thenReturn(testVersionDTO);
 
-        mockMvc.perform(post("/api/documents/{projectId}/versions/{versionId}/rollback", 100L, 1L)
-                        .param("userId", "1"))
+        mockMvc.perform(post("/api/documents/{projectId}/versions/{versionId}/rollback", 100L, 1L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.msg").value("Rolled back successfully"))
@@ -127,11 +127,12 @@ class DocumentVersionControllerCompareRollbackTest extends AbstractDocumentVersi
     }
 
     @Test
-    void rollbackToVersion_WithNullUserId_ShouldReturn400() throws Exception {
+    void rollbackToVersion_WithMissingAuthentication_ShouldReturn401() throws Exception {
+        SecurityContextHolder.clearContext();
+
         mockMvc.perform(post("/api/documents/{projectId}/versions/{versionId}/rollback", 100L, 1L))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.msg").value("User ID is required"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false));
 
         verify(versionHistoryService, never()).rollbackToVersion(any(), any(), any());
     }
@@ -141,34 +142,32 @@ class DocumentVersionControllerCompareRollbackTest extends AbstractDocumentVersi
         when(versionHistoryService.rollbackToVersion(eq(100L), eq(999L), eq(1L)))
                 .thenThrow(new ResourceNotFoundException("Version not found with id: 999"));
 
-        mockMvc.perform(post("/api/documents/{projectId}/versions/{versionId}/rollback", 100L, 999L)
-                        .param("userId", "1"))
+        mockMvc.perform(post("/api/documents/{projectId}/versions/{versionId}/rollback", 100L, 999L))
                 .andExpect(status().isNotFound());
 
         verify(versionHistoryService).rollbackToVersion(eq(100L), eq(999L), eq(1L));
     }
 
     @Test
-    void rollbackToVersion_WithDifferentUserId_ShouldReturn200() throws Exception {
+    void rollbackToVersion_UsesCurrentAuthenticatedUserId() throws Exception {
         DocumentVersionDTO rolledBackVersion = DocumentVersionDTO.builder()
                 .id(3L)
                 .projectId(100L)
                 .versionNumber(3)
                 .content("Rolled back content")
                 .changeSummary("Rollback to version 1")
-                .createdBy(2L)
+                .createdBy(1L)
                 .isCurrent(true)
                 .build();
 
-        when(versionHistoryService.rollbackToVersion(eq(100L), eq(1L), eq(2L))).thenReturn(rolledBackVersion);
+        when(versionHistoryService.rollbackToVersion(eq(100L), eq(1L), eq(1L))).thenReturn(rolledBackVersion);
 
-        mockMvc.perform(post("/api/documents/{projectId}/versions/{versionId}/rollback", 100L, 1L)
-                        .param("userId", "2"))
+        mockMvc.perform(post("/api/documents/{projectId}/versions/{versionId}/rollback", 100L, 1L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.createdBy").value(2))
+                .andExpect(jsonPath("$.data.createdBy").value(1))
                 .andExpect(jsonPath("$.data.changeSummary").value("Rollback to version 1"));
 
-        verify(versionHistoryService).rollbackToVersion(eq(100L), eq(1L), eq(2L));
+        verify(versionHistoryService).rollbackToVersion(eq(100L), eq(1L), eq(1L));
     }
 }

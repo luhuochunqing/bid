@@ -4,6 +4,7 @@ import com.xiyu.bid.biddraftagent.application.LoadedTenderDocument;
 import com.xiyu.bid.biddraftagent.application.StoredTenderDocument;
 import com.xiyu.bid.biddraftagent.application.TenderDocumentStorage;
 import com.xiyu.bid.docinsight.application.DocumentStorage;
+import org.springframework.context.annotation.Primary;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -14,6 +15,7 @@ import java.util.Optional;
  * 基于 docinsight 模块 {@link DocumentStorage} 的招标文件存储适配器。
  */
 @Component
+@Primary
 class DocInsightTenderDocumentStorage implements TenderDocumentStorage {
 
     private static final String FILE_URL_PREFIX = "doc-insight://";
