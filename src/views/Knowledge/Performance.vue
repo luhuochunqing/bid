@@ -1,4 +1,3 @@
-// --- usePerformanceSimilarSearch (内联：唯一引用 + ≤80行) ---
 <template>
   <div class="performance-container">
     <div class="page-header">
@@ -7,19 +6,19 @@
         <span class="sub-title">合同台账与到期提醒中心</span>
       </div>
       <div class="header-right">
-        <el-button class="ghost-btn" @click="openAlertConfig">
+        <el-button v-if="canAdminPerformanceAlert" class="ghost-btn" @click="openAlertConfig">
           <el-icon class="btn-icon"><Bell /></el-icon> 提醒配置
         </el-button>
-        <el-button type="primary" class="gradient-btn" @click="openForm(null)">
+        <el-button v-if="canManagePerformance" type="primary" class="gradient-btn" @click="openForm(null)">
           <el-icon class="btn-icon"><Plus /></el-icon> 新增业绩
         </el-button>
-        <el-button class="ghost-btn" @click="handleImport">
+        <el-button v-if="canManagePerformance" class="ghost-btn" @click="handleImport">
           <el-icon class="btn-icon"><Upload /></el-icon> 批量导入
         </el-button>
         <el-button class="ghost-btn" @click="openSimilarSearch">
           <el-icon class="btn-icon"><Search /></el-icon> 相似业绩
         </el-button>
-        <el-dropdown split-button class="ghost-btn export-dropdown" @click="handleExport()" @command="handleExport">
+        <el-dropdown v-if="canManagePerformance" split-button class="ghost-btn export-dropdown" @click="handleExport()" @command="handleExport">
           <el-icon class="btn-icon"><Download /></el-icon> 导出
           <template #dropdown>
             <el-dropdown-menu>
@@ -31,7 +30,6 @@
       </div>
     </div>
 
-    <!-- 过滤器 -->
     <el-card class="filter-card border-glow">
       <el-form :inline="true" :model="searchForm" class="demo-form-inline">
         <el-form-item label="模糊搜索">
@@ -92,7 +90,6 @@
       </el-form>
     </el-card>
 
-    <!-- 数据表格 -->
     <el-card class="table-card border-glow" v-loading="loading">
       <el-table :data="records" stripe style="width: 100%" @row-click="openDetail" class="custom-table">
         <el-table-column type="selection" width="55" />
@@ -125,25 +122,21 @@
         </el-table-column>
         <el-table-column label="操作" width="130" fixed="right" align="center">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click.stop="openForm(row)">编辑</el-button>
-            <el-button type="danger" link size="small" @click.stop="handleDelete(row)">删除</el-button>
+            <el-button v-if="canManagePerformance" type="primary" link size="small" @click.stop="openForm(row)">编辑</el-button>
+            <el-button v-if="canManagePerformance" type="danger" link size="small" @click.stop="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
-    <!-- 详情抽屉 -->
     <PerformanceDetailDrawer v-model:visible="detailVisible" :data="current" />
 
-    <!-- 新增/编辑弹窗 -->
     <PerformanceFormDialog v-model:visible="formVisible" :data="editingRow" :submitting="submitting" @submit="handleSubmit" />
 
-    <!-- 提醒配置弹窗 -->
     <PerformanceAlertConfigDialog v-model="alertConfigVisible" />
 
     <PerformanceSimilarDrawer v-model="similarVisible" :records="similarRecords" :loading="similarLoading" />
 
-    <!-- 导入弹窗 -->
     <el-dialog v-model="importVisible" title="批量导入业绩" width="500px">
       <el-steps :active="importStep" finish-status="success" simple>
         <el-step title="下载模板" /><el-step title="上传文件" /><el-step title="完成" />
@@ -177,11 +170,18 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { performanceApi } from '@/api/modules/performance.js'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Upload, Download, Bell, Search } from '@element-plus/icons-vue'
 import { usePerformanceImport } from '@/composables/usePerformanceImport.js'
+import { useUserStore } from '@/stores/user.js'
+import { isBidManager, isBidAdminOrSenior } from '@/utils/permission'
+
+const userStore = useUserStore()
+const _role = () => userStore.userRole || (userStore.currentUser && userStore.currentUser.role) || ''
+const canManagePerformance = computed(() => isBidManager(_role()) || _role() === 'admin_staff')
+const canAdminPerformanceAlert = computed(() => isBidAdminOrSenior(_role()))
 
 // Page state
 const searchForm = reactive({ keyword: '', customerTypes: [], projectTypes: [], statuses: [], customerLevels: [], territory: '', signingDateRange: null, expiryDateRange: null, hasBidNotice: null, projectManagerKeyword: '' })

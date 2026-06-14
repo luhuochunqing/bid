@@ -1,13 +1,12 @@
 <template>
   <div class="brandauth-container">
     <div class="page-header"><h2>品牌授权</h2></div>
+    <div class="tab-toolbar">
+      <el-button v-if="canManage" type="primary" @click="openCreate"><el-icon><Plus /></el-icon> {{ activeTab === 'agent' ? '新增代理商授权' : '新增原厂授权' }}</el-button>
+      <el-button @click="handleExport"><el-icon><Download /></el-icon> 导出 Excel</el-button>
+    </div>
     <el-tabs v-model="activeTab" @tab-change="onTabChange">
       <el-tab-pane label="原厂授权" name="manufacturer">
-        <div class="tab-toolbar">
-          <el-button v-if="canManage" type="primary" @click="openCreate"><el-icon><Plus /></el-icon> 新增原厂授权</el-button>
-          <el-button @click="downloadTemplate"><el-icon><Download /></el-icon> 下载导入模板</el-button>
-          <el-button @click="handleExport"><el-icon><Upload /></el-icon> 导出 Excel</el-button>
-        </div>
         <el-card class="filter-card">
           <el-form :inline="true" :model="filters" size="default">
             <el-form-item label="一级产线">
@@ -60,11 +59,6 @@
         </el-card>
       </el-tab-pane>
       <el-tab-pane label="代理商授权" name="agent">
-        <div class="tab-toolbar">
-          <el-button v-if="canManage" type="primary" @click="openCreate"><el-icon><Plus /></el-icon> 新增代理商授权</el-button>
-          <el-button @click="downloadTemplate"><el-icon><Download /></el-icon> 下载导入模板</el-button>
-          <el-button @click="handleExport"><el-icon><Upload /></el-icon> 导出 Excel</el-button>
-        </div>
         <el-card class="filter-card">
           <el-form :inline="true" :model="filters" size="default">
             <el-form-item label="一级产线">
@@ -144,8 +138,9 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Download, Upload } from '@element-plus/icons-vue'
+import { Plus, Download } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import http from '@/api/client'
 import brandAuthApi, { PRODUCT_LINE_OPTIONS, STATUS_OPTIONS } from '@/api/modules/brandAuth.js'
 import BrandAuthFormDrawer from './components/BrandAuthFormDrawer.vue'
 import BrandAuthDetailDrawer from './components/BrandAuthDetailDrawer.vue'
@@ -238,23 +233,29 @@ const exportFilename = computed(() => {
 
 const handleExport = () => { exportVisible.value = true }
 
-const doExport = () => {
+const doExport = async () => {
   if (total.value > 500) { ElMessage.warning('单次最多导出500条'); return }
-  const p = new URLSearchParams()
-  if (filters.productLines?.length) p.append('productLines', filters.productLines.join(','))
-  if (filters.brandId) p.append('brandId', filters.brandId)
-  if (filters.brandName) p.append('brandName', filters.brandName)
-  if (filters.importDomestic) p.append('importDomestic', filters.importDomestic)
-  if (filters.manufacturerName) p.append('manufacturerName', filters.manufacturerName)
-  if (filters.agentName) p.append('agentName', filters.agentName)
-  if (filters.statuses?.length) p.append('statuses', filters.statuses.join(','))
-  if (filters.keyword) p.append('keyword', filters.keyword)
-  window.open('/api/knowledge/brand-auth/export?' + p.toString(), '_blank')
-  exportVisible.value = false
-}
-
-const downloadTemplate = () => {
-  window.open('/api/knowledge/brand-auth/template', '_blank')
+  try {
+    const p = new URLSearchParams()
+    if (filters.productLines?.length) p.append('productLines', filters.productLines.join(','))
+    if (filters.brandId) p.append('brandId', filters.brandId)
+    if (filters.brandName) p.append('brandName', filters.brandName)
+    if (filters.importDomestic) p.append('importDomestic', filters.importDomestic)
+    if (filters.manufacturerName) p.append('manufacturerName', filters.manufacturerName)
+    if (filters.agentName) p.append('agentName', filters.agentName)
+    if (filters.statuses?.length) p.append('statuses', filters.statuses.join(','))
+    if (filters.keyword) p.append('keyword', filters.keyword)
+    const resp = await http.get('/api/knowledge/brand-auth/export?' + p.toString(), { responseType: 'blob' })
+    const url = window.URL.createObjectURL(new Blob([resp.data]))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = exportFilename.value
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    window.URL.revokeObjectURL(url)
+  } catch { ElMessage.error('导出失败') }
+  finally { exportVisible.value = false }
 }
 const onTabChange = (t) => { page.value = 1; loadData() }
 onMounted(loadData)
