@@ -27,19 +27,20 @@ public class ImportPersonnelAppService {
 
     private final PersonnelExcelImporter excelImporter;
     private final PersonnelImportExecutor importExecutor;
-    private final PersonnelImportProgressService progressService;
+    private final java.util.Optional<PersonnelImportProgressService> progressService;
     private final PersonnelImportTaskRepository importTaskRepository;
     private final PersonnelImportErrorReportGenerator errorReportGenerator;
     private final PersonnelOperationLogService operationLogService;
 
     @Transactional
     public PersonnelImportTask initiateImportTask(Long currentUserId, String operatorName) {
-        String taskNo = progressService.generateTaskNo();
+        String taskNo = progressService.map(PersonnelImportProgressService::generateTaskNo)
+                .orElse("IMP-PER-" + System.currentTimeMillis());
         PersonnelImportTask task = PersonnelImportTask.createNew(taskNo, currentUserId);
         task = importTaskRepository.save(task);
 
-        // 存储 operatorName 以便异步完成时使用
-        progressService.storeOperatorInfo(task.id(), operatorName, currentUserId);
+        final Long taskId = task.id();
+        progressService.ifPresent(s -> s.storeOperatorInfo(taskId, operatorName, currentUserId));
 
         return task;
     }
@@ -47,11 +48,11 @@ public class ImportPersonnelAppService {
     @Async("importExportExecutor")
     public void executeImportAsync(Long taskId, MultipartFile file, Long currentUserId) {
         try {
-            progressService.updateProgress(taskId, "正在解析Excel文件...", 5);
+            progressService.ifPresent(s -> s.updateProgress(taskId, "正在解析Excel文件...", 5));
 
             PersonnelExcelImporter.ImportResult result = excelImporter.importFromStream(file.getInputStream());
 
-            progressService.updateProgress(taskId, "正在校验数据...", 20);
+            progressService.ifPresent(s -> s.updateProgress(taskId, "正在校验数据...", 20));
 
             ValidationResult validationResult = result.validationResult();
 
@@ -62,7 +63,7 @@ public class ImportPersonnelAppService {
 
             PersonnelImportExecutor.ImportResult importResult = importExecutor.executeImport(
                     result,
-                    (message, percent) -> progressService.updateProgress(taskId, message, percent + 40)
+                    (message, percent) -> progressService.ifPresent(s -> s.updateProgress(taskId, message, percent + 40))
             );
 
             completeImportTask(taskId, importResult, null);
@@ -76,7 +77,7 @@ public class ImportPersonnelAppService {
     private void handleValidationErrors(Long taskId, ValidationResult validationResult) {
         try {
             byte[] errorReport = errorReportGenerator.generateErrorReport(validationResult);
-            String reportUrl = progressService.saveErrorReport(taskId, errorReport);
+            String reportUrl = progressService.map(s -> s.saveErrorReport(taskId, errorReport)).orElse(null);
 
             List<ImportErrorDetail> errorDetails = validationResult.errors().stream()
                     .map(e -> new ImportErrorDetail(
@@ -112,15 +113,15 @@ public class ImportPersonnelAppService {
                 task.createdAt(), LocalDateTime.now()
         );
         importTaskRepository.save(updated);
-        progressService.clearProgress(taskId);
+        progressService.ifPresent(s -> s.clearProgress(taskId));
 
-        // 记录批量导入操作日志（PRD 4.3.1.8: 批量导入人员）
         recordImportLog(task, result);
     }
 
     private void recordImportLog(PersonnelImportTask task, PersonnelImportExecutor.ImportResult result) {
-        // 从 progressService 获取 operator 信息
-        PersonnelImportProgressService.OperatorInfo opInfo = progressService.getOperatorInfo(task.id());
+        PersonnelImportProgressService.OperatorInfo opInfo = progressService
+                .map(s -> s.getOperatorInfo(task.id()))
+                .orElse(null);
         String operatorName = opInfo != null ? opInfo.operatorName() : "system";
         Long operatorId = opInfo != null ? opInfo.operatorId() : 0L;
 
@@ -153,23 +154,28 @@ public class ImportPersonnelAppService {
                 task.createdAt(), LocalDateTime.now()
         );
         importTaskRepository.save(updated);
-        progressService.clearProgress(taskId);
+        progressService.ifPresent(s -> s.clearProgress(taskId));
     }
 
     public ImportProgressInfo getProgress(Long taskId) {
-        PersonnelImportProgressService.ImportProgress progress = progressService.getProgress(taskId);
-        return new ImportProgressInfo(
-                progress.status(),
-                progress.percent(),
-                progress.message(),
-                progress.totalCount(),
-                progress.successCount(),
-                progress.failureCount()
-        );
+        return progressService.map(s -> {
+            PersonnelImportProgressService.ImportProgress progress = s.getProgress(taskId);
+            return new ImportProgressInfo(
+                    progress.status(),
+                    progress.percent(),
+                    progress.message(),
+                    progress.totalCount(),
+                    progress.successCount(),
+                    progress.failureCount()
+            );
+        }).orElse(new ImportProgressInfo("UNKNOWN", 0, "Redis not available", 0, 0, 0));
     }
 
     public byte[] getErrorReport(Long taskId) throws IOException {
-        return progressService.getErrorReport(taskId);
+        return progressService.map(s -> {
+            try { return s.getErrorReport(taskId); }
+            catch (IOException e) { throw new RuntimeException(e); }
+        }).orElseThrow(() -> new IOException("Redis not available"));
     }
 
     public record ImportProgressInfo(
