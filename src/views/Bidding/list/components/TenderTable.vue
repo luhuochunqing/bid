@@ -9,8 +9,8 @@
       scrollbar-always-on
       @selection-change="$emit('selection-change', $event)"
     >
-      <el-table-column type="selection" width="44" fixed="left" />
-      <el-table-column type="index" label="序号" width="65" align="center" fixed="left" />
+      <el-table-column type="selection" width="55" fixed="left" />
+      <el-table-column type="index" label="序号" width="80" align="center" fixed="left" />
 
       <!-- 项目名称：核心区 = 项目名 + 状态 + 来源 + 操作按钮 -->
       <el-table-column prop="title" label="项目名称" min-width="260" fixed="left" class-name="tender-main-column">

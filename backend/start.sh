@@ -42,7 +42,7 @@ fi
 export JWT_SECRET="${JWT_SECRET:-xiyu-bid-poc-local-dev-secret-key-please-change-in-prod-32bytes-min}"
 export DB_USERNAME="${DB_USERNAME:-xiyu_user}"
 export DB_PASSWORD="${DB_PASSWORD:-XiyuDB!2026}"
-export CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-http://localhost:1314,http://127.0.0.1:1314}"
+export CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-http://localhost:1314,http://127.0.0.1:1314,http://localhost:1315,http://127.0.0.1:1315,http://localhost:1316,http://127.0.0.1:1316,http://localhost:1317,http://127.0.0.1:1317,http://localhost:1318,http://127.0.0.1:1318,http://localhost:1319,http://127.0.0.1:1319}"
 # CRM webhook 共享密钥；fail-closed —— 未设置或不匹配时 /api/webhooks/crm/** 一律 401。
 # 生产部署必须通过真实环境变量注入，不得依赖以下本地默认值。
 export WEBHOOK_CRM_TOKEN="${WEBHOOK_CRM_TOKEN:-xiyu-bid-poc-local-dev-crm-webhook-token-change-in-prod}"

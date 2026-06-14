@@ -58,6 +58,8 @@ elif [[ "$CURRENT_DIR" == *"worktrees/gemini"* ]]; then
   export FRONTEND_PORT=1317
   export BACKEND_PORT=18083
   export SIDECAR_PORT=8003
+  export DB_HOST="127.0.0.1"
+  export DB_PORT=13306
   export DB_NAME="xiyu_bid_gemini"
   export REDIS_DB=3
 elif [[ "$CURRENT_DIR" == *"worktrees/cursor"* ]]; then

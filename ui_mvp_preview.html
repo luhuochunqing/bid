@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>西域投标平台 - UI 视觉与交互规范 MVP 确认页</title>
+  <style>
+    /* ========== Google Fonts ========== */
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap');
+
+    :root {
+      /* 颜色定义 */
+      --brand-primary: #0066CC;
+      --brand-xiyu-logo: #2E7659;
+      --brand-xiyu-logo-hover: #27674E;
+      --brand-xiyu-logo-light: #E7F2ED;
+      --brand-xiyu-logo-soft: rgba(46, 118, 89, 0.08);
+      --brand-xiyu-logo-shadow: rgba(46, 118, 89, 0.15);
+
+      --bg-page: #F4F6F8;
+      --bg-card: #FFFFFF;
+      --border-color: #E2E8F0;
+      --border-focus: #2E7659;
+      --text-primary: #1E293B;
+      --text-secondary: #64748B;
+      --text-muted: #94A3B8;
+
+      /* 统一高度与圆角 */
+      --control-height: 40px;
+      --control-radius: 6px;
+      --font-size: 14px;
+      
+      /* 字体 */
+      --font-family: 'Plus Jakarta Sans', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-family);
+      background-color: var(--bg-page);
+      color: var(--text-primary);
+      padding: 40px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 900px;
+      background: var(--bg-card);
+      border-radius: 12px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+      padding: 36px;
+    }
+
+    header {
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 24px;
+      margin-bottom: 28px;
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--brand-xiyu-logo);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .desc {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .section-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin: 28px 0 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-primary);
+    }
+
+    .section-title::before {
+      content: '';
+      display: block;
+      width: 4px;
+      height: 16px;
+      background: var(--brand-xiyu-logo);
+      border-radius: 2px;
+    }
+
+    /* ========== 对齐网格系统 ========== */
+    .form-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: flex-end; /* 确保底部完全对齐 */
+      margin-bottom: 16px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 1 1 240px; /* 增加伸缩性 */
+      min-width: 200px;
+    }
+
+    .form-group.actions {
+      flex: 0 0 auto;
+      flex-direction: row;
+      gap: 12px;
+    }
+
+    label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    /* ========== 统一控件样式 ========== */
+    input[type="text"], select {
+      height: var(--control-height);
+      border-radius: var(--control-radius);
+      border: 1px solid var(--border-color);
+      padding: 0 14px;
+      font-family: var(--font-family);
+      font-size: var(--font-size);
+      color: var(--text-primary);
+      outline: none;
+      background-color: #fff;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      width: 100%; /* 占满父容器，靠 form-group 限制宽度 */
+      line-height: normal;
+    }
+
+    input[type="text"]:focus, select:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px var(--brand-xiyu-logo-shadow);
+    }
+
+    .btn {
+      height: var(--control-height);
+      padding: 0 20px;
+      font-family: var(--font-family);
+      font-size: var(--font-size);
+      font-weight: 500;
+      border-radius: var(--control-radius);
+      border: 1px solid transparent;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background-color: var(--brand-xiyu-logo);
+      color: #fff;
+      box-shadow: 0 2px 8px var(--brand-xiyu-logo-shadow);
+    }
+
+    .btn-primary:hover {
+      background-color: var(--brand-xiyu-logo-hover);
+    }
+
+    .btn-secondary {
+      background-color: #fff;
+      border-color: var(--border-color);
+      color: var(--text-primary);
+    }
+
+    .btn-secondary:hover {
+      background-color: #f8fafc;
+      border-color: #cbd5e1;
+    }
+
+    /* 徽章样式 */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0 8px;
+      height: 22px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 4px;
+      background: var(--brand-xiyu-logo-light);
+      color: var(--brand-xiyu-logo);
+      white-space: nowrap;
+    }
+
+    /* ========== 文本裁剪对比演示 ========== */
+    .trim-toggle-panel {
+      background: var(--brand-xiyu-logo-soft);
+      border: 1px solid #C6DFD2;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .toggle-info {
+      font-size: 13px;
+      color: var(--brand-xiyu-logo-hover);
+      font-weight: 600;
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 50px;
+      height: 26px;
+    }
+
+    .switch input { 
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #cbd5e1;
+      transition: .4s;
+      border-radius: 34px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--brand-xiyu-logo);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(24px);
+    }
+
+    /* 精准裁剪只应用于按钮文本和徽章，避免原生 input / select 被裁切溢出 */
+    .trim-active .btn span,
+    .trim-active .badge {
+      text-box: trim-both cap alphabetic;
+      -webkit-text-box-trim: trim-both;
+      -webkit-text-box-edge: cap alphabetic;
+    }
+
+    .preview-box {
+      border: 1px solid var(--border-color);
+      padding: 28px;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .demo-icon {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+  </style>
+</head>
+<body class="trim-active">
+
+  <div class="container">
+    <header>
+      <h1>西域投标平台 - UI 视觉对齐 MVP 确认页</h1>
+      <p class="desc">已针对文字长度进行了空间优化：移除了对输入框（Input/Select）原生文字的 <code>text-box</code> 直接裁切（防止中文字体溢出截断），仅对按钮、徽章和标签文本进行垂直边缘对齐，并拓宽了输入框容器空间。</p>
+    </header>
+
+    <!-- 演示模式切换 -->
+    <div class="trim-toggle-panel">
+      <div class="toggle-info">
+        ⚡ <strong>按钮与标签垂直对齐优化 (text-box-trim):</strong> <span id="status-text">已开启 (已裁切按钮文字上下幽灵间距)</span>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="trim-switch" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="preview-box">
+      <!-- 统一排版与大小 -->
+      <div class="section-title">统一表单行高对齐与防截断演示</div>
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label>公司名称（大宽度自适应，防展示不全）</label>
+          <input type="text" value="西域数智化投标管理股份有限公司" placeholder="请输入...">
+        </div>
+        
+        <div class="form-group" style="flex: 0 0 200px;">
+          <label>数据角色</label>
+          <select>
+            <option>系统管理员</option>
+            <option>标书编写员</option>
+            <option>审核专家</option>
+          </select>
+        </div>
+
+        <div class="form-group actions">
+          <button class="btn btn-primary">
+            <svg class="demo-icon" viewBox="0 0 1024 1024"><path d="M909.3 506.3L781.7 400c-4.8-4-11.9-4-16.7 0L637.4 506.3c-7.6 6.3-3.1 18.7 6.8 18.7h83.4V738c0 4.4 3.6 8 8 8h63.7c4.4 0 8-3.6 8-8V525h83.4c9.9 0 14.3-12.4 6.8-18.7zM386.6 506.3L259 400c-4.8-4-11.9-4-16.7 0L114.7 506.3c-7.6 6.3-3.1 18.7 6.8 18.7h83.4V738c0 4.4 3.6 8 8 8h63.7c4.4 0 8-3.6 8-8V525h83.4c9.9 0 14.3-12.4 6.8-18.7z"></path></svg>
+            <span>搜索标讯</span>
+          </button>
+          <button class="btn btn-secondary">
+            <span>重置</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 按钮微交互与徽章 -->
+      <div class="section-title">按钮与徽章对齐 (Buttons & Badges)</div>
+      
+      <div class="form-row">
+        <button class="btn btn-primary">
+          <span>创建新标书</span>
+          <span class="badge" style="background: rgba(255,255,255,0.25); color: #fff; margin-left: 4px;">12</span>
+        </button>
+
+        <button class="btn btn-secondary">
+          <span>导入模板</span>
+          <span class="badge">PRO</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const checkbox = document.getElementById('trim-switch');
+    const statusText = document.getElementById('status-text');
+
+    checkbox.addEventListener('change', (e) => {
+      if (e.target.checked) {
+        document.body.classList.add('trim-active');
+        statusText.innerText = '已开启 (已裁切按钮文字上下幽灵间距)';
+      } else {
+        document.body.classList.remove('trim-active');
+        statusText.innerText = '已关闭 (恢复浏览器默认幽灵空白)';
+      }
+    });
+  </script>
+</body>
+</html>

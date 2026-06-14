@@ -212,7 +212,8 @@ public class DashboardController {
      * 用户清空缓存造成 cache stampede。
      */
     @PostMapping("/cache/clear")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+
     public ResponseEntity<ApiResponse<String>> clearCache() {
         dashboardAnalyticsService.clearOverviewCache();
         return ResponseEntity.ok(
