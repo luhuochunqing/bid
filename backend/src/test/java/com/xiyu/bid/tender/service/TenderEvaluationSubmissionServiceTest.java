@@ -110,13 +110,6 @@ class TenderEvaluationSubmissionServiceTest {
 
     private TenderEvaluationSubmitRequest fullValidRequest() {
         return new TenderEvaluationSubmitRequest(
-                "背景说明",
-                "竞争对手 A/B/C",
-                LocalDate.of(2026, 6, 1),
-                LocalDate.of(2027, 6, 1),
-                3,
-                new BigDecimal("12000.00"),
-                "上次报价 9999",
                 BidRecommendation.RECOMMEND,
                 null, null, null
         );
@@ -124,8 +117,7 @@ class TenderEvaluationSubmissionServiceTest {
 
     private TenderEvaluationSubmitRequest partialDraftRequest() {
         return new TenderEvaluationSubmitRequest(
-                "只填了背景", "只填了竞争对手", null, null, null, null, null, null,
-                null, null, null);
+                null, null, null, null);
     }
 
     private void stubTenderAndEvaluator() {

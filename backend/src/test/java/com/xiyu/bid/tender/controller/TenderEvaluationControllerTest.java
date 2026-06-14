@@ -127,9 +127,7 @@ class TenderEvaluationControllerTest {
 
     private TenderEvaluationSubmitRequest validRequest() {
         return new TenderEvaluationSubmitRequest(
-                "项目背景描述", "竞争对手分析",
-                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31),
-                3, new BigDecimal("1000.00"), null, BidRecommendation.RECOMMEND,
+                BidRecommendation.RECOMMEND,
                 null, null, null
         );
     }
@@ -233,9 +231,7 @@ class TenderEvaluationControllerTest {
                 .thenThrow(new ResponseStatusException(HttpStatus.BAD_REQUEST, "projectBackground 不能为空"));
 
         TenderEvaluationSubmitRequest req = new TenderEvaluationSubmitRequest(
-                null, "竞争对手分析",
-                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31),
-                3, new BigDecimal("1000.00"), null, BidRecommendation.RECOMMEND,
+                BidRecommendation.RECOMMEND,
                 null, null, null
         );
         mockMvc.perform(post("/api/tenders/1/evaluation/submit")
@@ -252,9 +248,7 @@ class TenderEvaluationControllerTest {
                         "projectBackground, competitorAnalysis, shortlistedCount 不能为空"));
 
         TenderEvaluationSubmitRequest req = new TenderEvaluationSubmitRequest(
-                null, null,
-                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31),
-                null, new BigDecimal("1000.00"), null, null,
+                null,
                 null, null, null
         );
         mockMvc.perform(post("/api/tenders/1/evaluation/submit")
