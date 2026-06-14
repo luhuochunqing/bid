@@ -1,0 +1,9 @@
+version: 1
+task: "claude-fix-api-security-high"
+locks:
+  - path: "backend/src/main/java/com/xiyu/bid/entity/User.java"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/claude/fix-api-security-high"
+    expiresAt: "2026-06-14T10:59:43.804Z"
+    reason: "fix(security): H10 User.password 加 @JsonIgnore (PR fix-api-security-high)"
