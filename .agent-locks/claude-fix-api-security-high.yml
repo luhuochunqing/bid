@@ -1,0 +1,9 @@
+version: 1
+task: "claude-fix-api-security-high"
+locks:
+  - path: "backend/src/main/java/com/xiyu/bid/resources/service/MarginQuerySupport.java"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/claude/fix-api-security-high"
+    expiresAt: "2026-06-15T02:39:31.075Z"
+    reason: "fix(security): H9 SQL 注入 defense in depth — 抽角色枚举到独立类并校验"

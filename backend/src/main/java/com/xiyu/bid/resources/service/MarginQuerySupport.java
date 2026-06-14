@@ -92,37 +92,7 @@ final class MarginQuerySupport {
         if (role == null) {
             return;
         }
-        switch (role.toLowerCase()) {
-            case "admin":
-            case "manager":
-                return;
-            case "staff":
-            case "bid_specialist":
-            case "task_executor":
-                sql.append(" AND (").append(pa)
-                        .append(".manager_id = :muid")
-                        .append(" OR EXISTS (SELECT 1 FROM"
-                                + " project_team_members ptm"
-                                + " WHERE ptm.project_id = ")
-                        .append(pa)
-                        .append(".id AND ptm.member_id = :muid))");
-                return;
-            case "sales":
-            case "bid_lead":
-                sql.append(" AND (").append(pi)
-                        .append(".owner_user_id = :muid")
-                        .append(" OR ").append(pa)
-                        .append(".manager_id = :muid)");
-                return;
-            default:
-                sql.append(" AND (").append(pa)
-                        .append(".manager_id = :muid")
-                        .append(" OR EXISTS (SELECT 1 FROM"
-                                + " project_team_members ptm"
-                                + " WHERE ptm.project_id = ")
-                        .append(pa)
-                        .append(".id AND ptm.member_id = :muid))");
-        }
+        sql.append(MarginQueryRole.from(role).apply(pa, pi));
     }
 
     /** Append search filter conditions. */
