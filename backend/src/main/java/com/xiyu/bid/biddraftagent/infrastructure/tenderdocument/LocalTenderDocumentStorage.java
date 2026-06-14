@@ -6,6 +6,7 @@ import com.xiyu.bid.biddraftagent.application.TenderDocumentStorage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -21,6 +22,7 @@ import java.util.Optional;
  *             新代码请使用 docinsight 模块的存储实现。将在 next-release 移除。
  */
 @Deprecated(since = "next-release", forRemoval = true)
+@Profile("dev")
 @Component
 @ConditionalOnMissingBean(TenderDocumentStorage.class)
 public class LocalTenderDocumentStorage implements TenderDocumentStorage {
