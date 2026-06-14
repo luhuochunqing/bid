@@ -5,6 +5,7 @@ import com.xiyu.bid.biddraftagent.application.StoredTenderDocument;
 import com.xiyu.bid.biddraftagent.application.TenderDocumentStorage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -21,6 +22,7 @@ import java.util.Optional;
  */
 @Deprecated(since = "next-release", forRemoval = true)
 @Component
+@ConditionalOnMissingBean(TenderDocumentStorage.class)
 public class LocalTenderDocumentStorage implements TenderDocumentStorage {
 
     private static final String FILE_URL_PREFIX = "bid-agent://tender-documents/";

@@ -4,6 +4,7 @@ import com.xiyu.bid.biddraftagent.application.ExtractedTenderDocument;
 import com.xiyu.bid.biddraftagent.application.TenderDocumentTextExtractor;
 import com.xiyu.bid.docinsight.application.DocumentTextExtractor;
 import com.xiyu.bid.docinsight.application.ExtractedDocument;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Component;
 @Component
 @Primary
 @Profile("!e2e")
+@ConditionalOnMissingBean(TenderDocumentTextExtractor.class)
 class DocInsightTenderDocumentTextExtractor implements TenderDocumentTextExtractor {
 
     private final DocumentTextExtractor documentTextExtractor;

@@ -7,6 +7,7 @@ import com.xiyu.bid.personnel.domain.port.PersonnelImportTaskRepository;
 import com.xiyu.bid.personnel.infrastructure.excel.PersonnelImportErrorReportGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -19,6 +20,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Slf4j
+@ConditionalOnBean(StringRedisTemplate.class)
 class PersonnelImportProgressService {
 
     private static final String REDIS_KEY_PREFIX = "personnel:import:progress:";
