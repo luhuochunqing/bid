@@ -16,6 +16,7 @@ import com.xiyu.bid.analytics.dto.AnalyticsDrillDownResponseDTO;
 import com.xiyu.bid.analytics.service.DashboardAnalyticsService;
 import com.xiyu.bid.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -42,6 +43,7 @@ public class DashboardController {
      * Get complete dashboard overview
      */
     @GetMapping("/overview")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
     public ResponseEntity<ApiResponse<DashboardOverviewDTO>> getOverview() {
         DashboardOverviewDTO overview = dashboardAnalyticsService.getOverview();
         return ResponseEntity.ok(ApiResponse.success(overview));
@@ -51,6 +53,7 @@ public class DashboardController {
      * Get summary statistics only
      */
     @GetMapping("/summary")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
     public ResponseEntity<ApiResponse<SummaryStats>> getSummaryStats() {
         SummaryStats stats = dashboardAnalyticsService.getSummaryStats();
         return ResponseEntity.ok(ApiResponse.success(stats));
@@ -60,6 +63,7 @@ public class DashboardController {
      * Get trend analysis
      */
     @GetMapping("/trends")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
     public ResponseEntity<ApiResponse<Map<String, List<TrendData>>>> getTrends() {
         List<TrendData> tenderTrends =
                 dashboardAnalyticsService.getTenderTrends();
@@ -78,6 +82,7 @@ public class DashboardController {
      * Get competitor analysis
      */
     @GetMapping("/competitors")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
     public ResponseEntity<ApiResponse<List<CompetitorData>>> getTopCompetitors(
             @RequestParam(required = false, defaultValue = "5") Integer limit
     ) {
@@ -90,6 +95,7 @@ public class DashboardController {
      * Get regional analysis
      */
     @GetMapping("/regions")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
     public ResponseEntity<ApiResponse<List<RegionalData>>>
             getRegionalDistribution() {
         List<RegionalData> regions =
@@ -98,6 +104,7 @@ public class DashboardController {
     }
 
     @GetMapping("/product-lines")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
     public ResponseEntity<ApiResponse<List<ProductLineData>>> getProductLines() {
         List<ProductLineData> productLines =
                 dashboardAnalyticsService.getProductLinePerformance();
@@ -105,6 +112,7 @@ public class DashboardController {
     }
 
     @GetMapping("/drill-down")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
     public ResponseEntity<ApiResponse<AnalyticsDrillDownResponse>>
             getDrillDown(
             @RequestParam String type,
@@ -116,6 +124,7 @@ public class DashboardController {
     }
 
     @GetMapping("/drilldown/revenue")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
     public ResponseEntity<ApiResponse<AnalyticsDrillDownResponseDTO>>
             getRevenueDrillDown(
             @RequestParam(required = false) String status,
@@ -131,6 +140,7 @@ public class DashboardController {
     }
 
     @GetMapping("/drilldown/win-rate")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
     public ResponseEntity<ApiResponse<AnalyticsDrillDownResponseDTO>>
             getWinRateDrillDown(
             @RequestParam(required = false) String outcome,
@@ -146,6 +156,7 @@ public class DashboardController {
     }
 
     @GetMapping("/drilldown/team")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
     public ResponseEntity<ApiResponse<AnalyticsDrillDownResponseDTO>>
             getTeamDrillDown(
             @RequestParam(required = false) String role,
@@ -161,6 +172,7 @@ public class DashboardController {
     }
 
     @GetMapping("/drilldown/projects")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
     public ResponseEntity<ApiResponse<AnalyticsDrillDownResponseDTO>>
             getProjectDrillDown(
             @RequestParam(required = false) String status,
@@ -179,6 +191,7 @@ public class DashboardController {
      * Get status distribution
      */
     @GetMapping("/status-distribution")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
     public ResponseEntity<ApiResponse<Map<String, Long>>>
             getStatusDistribution() {
         Map<String, Long> distribution =
@@ -190,6 +203,7 @@ public class DashboardController {
      * Clear dashboard cache
      */
     @PostMapping("/cache/clear")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<String>> clearCache() {
         dashboardAnalyticsService.clearOverviewCache();
         return ResponseEntity.ok(
