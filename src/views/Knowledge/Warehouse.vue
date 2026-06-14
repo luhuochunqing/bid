@@ -12,6 +12,7 @@
       @import="importVisible = true"
       @download-template="handleDownloadTemplate"
       @batch-export="handleBatchExport"
+      @ledger-export="ledgerExportVisible = true"
     />
     <el-card class="data-card" shadow="never">
       <el-table :data="records" v-loading="loading" style="width:100%" @row-click="openDrawer"
@@ -51,9 +52,9 @@
         </el-table-column>
         <el-table-column label="操作" width="150" fixed="right" align="center">
           <template #default="s">
-            <el-button link type="primary" size="small" @click.stop="openEdit(s.row)">编辑</el-button>
-            <el-button v-if="s.row.status !== 'CLOSED'" link type="danger" size="small" @click.stop="handleClose(s.row)">关仓</el-button>
-            <el-button v-if="s.row.status === 'CLOSED'" link type="success" size="small" @click.stop="handleRestore(s.row)">恢复</el-button>
+            <el-button v-if="canManage" link type="primary" size="small" @click.stop="openEdit(s.row)">编辑</el-button>
+            <el-button v-if="canManage && s.row.status !== 'CLOSED'" link type="danger" size="small" @click.stop="handleClose(s.row)">关仓</el-button>
+            <el-button v-if="canManage && s.row.status === 'CLOSED'" link type="success" size="small" @click.stop="handleRestore(s.row)">恢复</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -85,15 +86,22 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import http from '@/api/client'
+import { useUserStore } from '@/stores/user.js'
+import { isBidManager } from '@/utils/permission'
 import WarehouseFilterBar from '@/components/warehouse/WarehouseFilterBar.vue'
 import WarehouseDialog from '@/components/warehouse/WarehouseDialog.vue'
 import WarehouseDrawer from '@/components/warehouse/WarehouseDrawer.vue'
 import WarehouseExportDialog from '@/components/warehouse/WarehouseExportDialog.vue'
 import WarehouseImportDialog from '@/components/warehouse/WarehouseImportDialog.vue'
-import WarehouseCloseDialog from '@/components/warehouse/WarehouseCloseDialog.vue'
+
+const userStore = useUserStore()
+const canManage = computed(() => {
+  const roleCode = userStore.userRole || (userStore.currentUser && userStore.currentUser.role) || ''
+  return isBidManager(roleCode) || roleCode === 'admin_staff'
+})
 
 const records = ref([]); const loading = ref(false)
 const page = ref(1); const size = ref(15); const total = ref(0)
@@ -108,17 +116,6 @@ const selectedRowIds = ref([])
 const exportMode = ref('filter')
 const exportFilters = ref({})
 const newlyCreatedIds = ref(new Set())
-
-const loadAllInUseCount = async () => {
-  try {
-    const { data } = await http.get('/api/knowledge/warehouses', {
-      params: { statuses: 'IN_USE', size: 1 }
-    })
-    allInUseCount.value = data.totalElements || 0
-  } catch {
-    allInUseCount.value = 0
-  }
-}
 
 const filters = ref({})
 const form = reactive({
@@ -231,6 +228,7 @@ const handleSubmitted = async (newId) => {
 
 const handleSelectionChange = (rows) => {
   selectedRows.value = rows
+  selectedRowIds.value = rows.map(r => r.id)
 }
 
 const handleDownloadTemplate = async () => {

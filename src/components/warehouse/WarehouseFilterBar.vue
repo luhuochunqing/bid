@@ -49,26 +49,36 @@
     </div>
     <div class="filter-bar-actions">
       <span class="total-tip">共 <strong>{{ total }}</strong> 条</span>
-      <el-button @click="$emit('download-template')"><el-icon><DocumentCopy /></el-icon> 下载模板</el-button>
-      <el-button type="warning" @click="$emit('import')"><el-icon><Upload /></el-icon> 批量导入</el-button>
-      <el-button v-if="selectedCount > 0" type="success" @click="$emit('batch-export')">
-        <el-icon><Download /></el-icon> 批量导出 ({{ selectedCount }})
-      </el-button>
-      <el-button v-else type="success" @click="$emit('export')"><el-icon><Download /></el-icon> 导出台账</el-button>
-      <el-button v-if="selectedCount > 0" type="primary" plain @click="$emit('ledger-export')">
-        <el-icon><Document /></el-icon> 台账导出 ({{ selectedCount }})
-      </el-button>
-      <el-button v-else type="primary" plain @click="$emit('ledger-export')">
-        <el-icon><Document /></el-icon> 台账导出
-      </el-button>
-      <el-button type="primary" @click="$emit('create')"><el-icon><Plus /></el-icon> 新增仓库</el-button>
+      <template v-if="canManage">
+        <el-button @click="$emit('download-template')"><el-icon><DocumentCopy /></el-icon> 下载模板</el-button>
+        <el-button type="warning" @click="$emit('import')"><el-icon><Upload /></el-icon> 批量导入</el-button>
+        <el-button v-if="selectedCount > 0" type="success" @click="$emit('batch-export')">
+          <el-icon><Download /></el-icon> 批量导出 ({{ selectedCount }})
+        </el-button>
+        <el-button v-else type="success" @click="$emit('export')"><el-icon><Download /></el-icon> 导出台账</el-button>
+        <el-button v-if="selectedCount > 0" type="primary" plain @click="$emit('ledger-export')">
+          <el-icon><Document /></el-icon> 台账导出 ({{ selectedCount }})
+        </el-button>
+        <el-button v-else type="primary" plain @click="$emit('ledger-export')">
+          <el-icon><Document /></el-icon> 台账导出
+        </el-button>
+        <el-button type="primary" @click="$emit('create')"><el-icon><Plus /></el-icon> 新增仓库</el-button>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup>
-import { reactive, watch, onBeforeUnmount } from 'vue'
-import { Search, RefreshRight, Plus, Download, Upload, DocumentCopy } from '@element-plus/icons-vue'
+import { reactive, watch, onBeforeUnmount, computed } from 'vue'
+import { Search, RefreshRight, Plus, Download, Upload, Document, DocumentCopy } from '@element-plus/icons-vue'
+import { useUserStore } from '@/stores/user.js'
+import { isBidManager } from '@/utils/permission'
+
+const userStore = useUserStore()
+const canManage = computed(() => {
+  const roleCode = userStore.userRole || (userStore.currentUser && userStore.currentUser.role) || ''
+  return isBidManager(roleCode) || roleCode === 'admin_staff'
+})
 
 const props = defineProps({
   filters: { type: Object, default: () => ({}) },
