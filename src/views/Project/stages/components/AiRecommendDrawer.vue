@@ -115,7 +115,7 @@
           <div class="reader-head">📄 {{ selectedCase.docName || selectedCase.sourceProjectName || '来源标书' }}<span v-if="selectedCase.page"> · 第 {{ selectedCase.page }} 页</span></div>
           <div class="reader-page">
             <h5>{{ selectedCase.scoringTitle }}</h5>
-            <div v-html="selectedCase.readerHTML || selectedCase.highlightedText || selectedCase.responseText"></div>
+            <div v-html="safeHtml(selectedCase.readerHTML || selectedCase.highlightedText || selectedCase.responseText)"></div>
           </div>
         </div>
       </div>
@@ -135,6 +135,7 @@ import { ElMessage } from 'element-plus'
 import { casesApi } from '@/api/modules/knowledge.js'
 import { projectsApi } from '@/api'
 import { getProjectTypeLabel, getCustomerTypeLabel } from '@/views/Knowledge/views/caseLabels.js'
+import { safeHtml } from '@/utils/safeHtml.js'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
 const visible = defineModel({ type: Boolean, default: false })

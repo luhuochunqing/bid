@@ -43,6 +43,7 @@ import java.util.Set;
 @RestController
 @RequestMapping("/api/archive")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
 public class ProjectArchiveController {
 
     private final ProjectArchiveWorkflowService workflowService;
@@ -71,6 +72,10 @@ public class ProjectArchiveController {
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
     public ResponseEntity<ProjectArchiveDetailResponse> getArchiveDetail(@PathVariable Long id) {
+        // H5 fix 2026-06-13: 详情访问前对 archive 所属 project 做 owner check,
+        // 避免 STAFF 越权读取任意 projectId 的档案详情 (含附件路径/内部备注)。
+        ProjectArchive archive = workflowService.findArchiveById(id);
+        workflowService.assertCurrentUserCanAccessProject(archive.getProjectId());
         ProjectArchiveDetailResponse result = detailService.getArchiveDetail(id);
         return ResponseEntity.ok(result);
     }
@@ -149,8 +154,7 @@ public class ProjectArchiveController {
     @PostMapping("/export-excel")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
     public ResponseEntity<byte[]> exportExcel(
-            @RequestBody ProjectArchiveQuery query,
-            @RequestParam(required = false) Long userId) throws IOException {
+            @RequestBody ProjectArchiveQuery query) throws IOException {
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
         HttpHeaders headers = new HttpHeaders();
         // Content-Disposition 必须是 ISO-8859-1，中文用 RFC 5987 编码作 filename* 备份
@@ -183,6 +187,10 @@ public class ProjectArchiveController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
     public ResponseEntity<byte[]> exportSingleProjectArchive(
             @PathVariable Long projectId) throws IOException {
+        // H5 fix 2026-06-13: 单项目导出前先做 project owner check,
+        // 阻止 STAFF 通过遍历 projectId 越权下载任意项目档案包。
+        workflowService.assertCurrentUserCanAccessProject(projectId);
+
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
         ProjectArchiveQuery query = new ProjectArchiveQuery();
         // Workaround: no projectId filter in query, get raw archives and filter

@@ -34,14 +34,23 @@ public class PasswordResetService {
 
         /**
          * 创建并发送密码重置令牌
+         *
+         * <p>安全策略：禁止通过响应文案区分"邮箱存在 / 账号禁用"等元信息
+         * (H3 用户枚举)。此方法对未知邮箱、已禁用账号等异常分支一律记录
+         * 日志后返回 {@code null}，由上层 API 统一返回成功响应。
          */
         @Transactional
         public String createPasswordResetToken(String email) {
-                User user = userRepository.findByEmail(email)
-                        .orElseThrow(() -> new IllegalArgumentException("User not found with email: " + email));
+                User user = userRepository.findByEmail(email).orElse(null);
+                if (user == null) {
+                        log.info("Password reset requested for unknown email; returning neutral response.");
+                        return null;
+                }
 
                 if (!user.getEnabled()) {
-                        throw new IllegalStateException("User account is disabled");
+                        log.info("Password reset requested for disabled user id={}; returning neutral response.",
+                                user.getId());
+                        return null;
                 }
 
                 // 生成原始令牌

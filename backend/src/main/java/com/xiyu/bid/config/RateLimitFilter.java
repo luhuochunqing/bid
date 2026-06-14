@@ -40,6 +40,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Value("${rate.limit.api-key.window-seconds:60}")
     private int apiKeyWindowSeconds;
 
+    @Value("${rate.limit.auth-account.max:5}")
+    private int authAccountMaxAttempts;
+
+    @Value("${rate.limit.auth-account.window-minutes:15}")
+    private int authAccountWindowMinutes;
+
     public RateLimitFilter(final RateLimitConfig.RateLimiter pRateLimiter) {
         this.rateLimiter = pRateLimiter;
     }
@@ -60,6 +66,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
+        // H3 扩展：对账号类敏感端点统一限流（防止枚举/撞库/垃圾注册）。
+        if ("POST".equalsIgnoreCase(method) && isAccountResetOrRegisterEndpoint(requestURI)) {
+            applyRateLimit(response, chain, request, "auth-account:" + clientIp,
+                    authAccountMaxAttempts, Duration.ofMinutes(authAccountWindowMinutes), false);
+            return;
+        }
+
         if (requestURI.startsWith("/api/") && "GET".equalsIgnoreCase(method)) {
             String apiKey = request.getHeader("X-API-Key");
             String rateLimitApiKey = apiKey != null ? DigestUtils.sha256(apiKey).substring(0, 16) : "anonymous";
@@ -74,6 +87,19 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
 
         chain.doFilter(request, response);
+    }
+
+    /**
+     * H3 扩展：账号相关敏感端点判定。集中维护避免散落。
+     */
+    private static boolean isAccountResetOrRegisterEndpoint(final String requestURI) {
+        if (requestURI == null) {
+            return false;
+        }
+        return "/api/auth/forgot-password".equals(requestURI)
+                || "/api/auth/register".equals(requestURI)
+                || "/api/auth/reset-password".equals(requestURI)
+                || "/api/auth/verify-email".equals(requestURI);
     }
 
     private void applyRateLimit(final HttpServletResponse response, final FilterChain chain,

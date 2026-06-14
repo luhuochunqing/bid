@@ -196,7 +196,7 @@
             <Editor style="height:300px;overflow-y:hidden" v-model="form.projectSummary" :defaultConfig="editorConfig" mode="default" @onCreated="richEditorCreated" />
           </div>
         </template>
-        <div v-else class="summary-readonly rich-text-content" v-html="form.projectSummary || '<span class=\'text-gray\'>(暂无项目总结)</span>'"></div>
+        <div v-else class="summary-readonly rich-text-content" v-html="safeHtml(form.projectSummary) || '<span class=\'text-gray\'>(暂无项目总结)</span>'"></div>
       </div>
     </div>
 
@@ -234,8 +234,8 @@ import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
 import { getApiUrl } from '@/api/config.js'
 import { casesApi } from '@/api/modules/knowledge.js'
 import { useUserStore } from '@/stores/user'
-import { isBidManager as isBidManagerHelper } from '@/utils/permission'
-import { Editor, Toolbar } from '@wangeditor/editor-for-vue'  
+import { safeHtml } from '@/utils/safeHtml.js'
+import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import '@wangeditor/editor/dist/css/style.css'
 import { useRouter } from 'vue-router'
 import { readinessToTooltip } from './readinessTooltip.js'
@@ -292,7 +292,7 @@ const form = reactive({
 })
 
 const isProjectLeader = computed(() => userRole.value === 'sales')
-const isBidManager = computed(() => isBidManagerHelper(userRole.value) || userRole.value === 'bid_staff')
+const isBidManager = computed(() => userRole.value === 'bid_admin' || userRole.value === 'bid_lead' || userRole.value === 'bid_staff')
 
 const canEditDeposit = computed(() => {
   if (!isProjectLeader.value && !isBidManager.value) return false

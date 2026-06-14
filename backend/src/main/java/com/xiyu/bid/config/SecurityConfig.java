@@ -73,7 +73,8 @@ public class SecurityConfig {
             "/api/auth/refresh",
             "/api/auth/forgot-password",
             "/api/auth/reset-password",
-            "/api/auth/sessions",
+            // /api/auth/sessions intentionally removed from allowlist (H1 fix 2026-06-13):
+            // 会话列表/撤销是认证后操作，必须走 anyRequest().authenticated() 兜底 + 方法级 @PreAuthorize。
             "/api/auth/verify-email/**",
             "/api/public/**",
             // NOTE: /api/integrations/organization/events removed — HTTP webhook path deleted per FR-012.
@@ -145,8 +146,10 @@ public class SecurityConfig {
                         auth.requestMatchers(DEV_ONLY_WHITE_LIST).permitAll();
                     }
                     // ApiKeyAuthenticationFilter 在 UsernamePasswordAuthenticationFilter 之前运行，
-                    // 对 /api/integration/** 路径设置 Authentication，后续 AuthorizationFilter 放行
-                    auth.requestMatchers("/api/integration/**").permitAll();
+                    // 对 /api/integration/** 与 /api/external/** 路径：无 X-API-Key 直接 sendError(401)
+                    // （见 ApiKeyAuthenticationFilter#doFilterInternal,H7 fix 2026-06-13），
+                    // 所以这里 permitAll 是为了让 filter 先处理,而非放行。
+                    auth.requestMatchers("/api/integration/**", "/api/external/**").permitAll();
                     auth.requestMatchers("/api/admin/**").hasRole("ADMIN")
                             .requestMatchers("/api/manager/**").hasAnyRole("ADMIN", "MANAGER")
                             // 案例库（/api/cases/**）路径级兜底：要求 ADMIN/MANAGER/STAFF 任一角色

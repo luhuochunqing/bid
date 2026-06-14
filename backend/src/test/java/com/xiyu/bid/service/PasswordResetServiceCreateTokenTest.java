@@ -8,7 +8,6 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -32,20 +31,28 @@ class PasswordResetServiceCreateTokenTest extends AbstractPasswordResetServiceTe
         verify(emailService).sendPasswordResetEmail(eq("test@example.com"), anyString());
     }
 
+    /**
+     * Security (H3): we no longer leak whether an email is registered.
+     * For unknown email we return {@code null} instead of throwing.
+     */
     @Test
-    void createPasswordResetToken_WithNonExistentEmail_ShouldThrowException() {
+    void createPasswordResetToken_WithNonExistentEmail_ShouldReturnNull() {
         when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> passwordResetService.createPasswordResetToken("nonexistent@example.com"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("User not found");
+        String result = passwordResetService.createPasswordResetToken("nonexistent@example.com");
+
+        assertThat(result).isNull();
 
         verify(tokenRepository, never()).save(any());
         verify(emailService, never()).sendPasswordResetEmail(anyString(), anyString());
     }
 
+    /**
+     * Security (H3 / L39): disabled users are also no longer distinguishable
+     * from enabled ones via the forgot-password response.
+     */
     @Test
-    void createPasswordResetToken_WithDisabledUser_ShouldThrowException() {
+    void createPasswordResetToken_WithDisabledUser_ShouldReturnNull() {
         User disabledUser = User.builder()
                 .id(1L)
                 .username("testuser")
@@ -57,9 +64,9 @@ class PasswordResetServiceCreateTokenTest extends AbstractPasswordResetServiceTe
                 .build();
         when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(disabledUser));
 
-        assertThatThrownBy(() -> passwordResetService.createPasswordResetToken("test@example.com"))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("disabled");
+        String result = passwordResetService.createPasswordResetToken("test@example.com");
+
+        assertThat(result).isNull();
 
         verify(tokenRepository, never()).save(any());
         verify(emailService, never()).sendPasswordResetEmail(anyString(), anyString());

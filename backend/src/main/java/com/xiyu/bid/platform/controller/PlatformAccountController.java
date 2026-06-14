@@ -9,6 +9,7 @@ import com.xiyu.bid.dto.ApiResponse;
 import java.util.List;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.platform.dto.BorrowAccountRequest;
+import com.xiyu.bid.platform.dto.PasswordRevealResponse;
 import com.xiyu.bid.platform.dto.PlatformAccountCreateRequest;
 import com.xiyu.bid.platform.dto.PlatformAccountDTO;
 import com.xiyu.bid.platform.dto.PlatformAccountStatisticsDTO;
@@ -18,6 +19,7 @@ import com.xiyu.bid.repository.UserRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -31,6 +33,10 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.UUID;
 
 /** REST Controller for Platform Account Management. */
 @RestController
@@ -111,14 +117,38 @@ public class PlatformAccountController {
         return ResponseEntity.ok(ApiResponse.success("账号归还成功", updated));
     }
 
+    /**
+     * Reveal the plaintext password for a platform account.
+     *
+     * <p>Security (H12): the response is wrapped in
+     * {@link PasswordRevealResponse} with an explicit {@code expiresAt}
+     * window and a fresh {@code auditId} so:
+     * <ul>
+     *   <li>the client can show a "visible for 5 minutes" indicator;</li>
+     *   <li>the server-side audit log can correlate a later access event
+     *   to this reveal by id;</li>
+     *   <li>the response carries {@code Cache-Control: no-store} so
+     *   browsers / proxies do not persist the secret in shared caches.</li>
+     * </ul>
+     * The endpoint is restricted to {@code ADMIN} via {@code @PreAuthorize}.
+     */
     @GetMapping("/{id}/password")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<String>> getPassword(
+    public ResponseEntity<ApiResponse<PasswordRevealResponse>> getPassword(
             @PathVariable Long id,
             @AuthenticationPrincipal UserDetails currentUser) {
-        log.warn("User {} is viewing password for account id: {}", currentUser.getUsername(), id);
+        String auditId = UUID.randomUUID().toString();
+        log.warn("User {} is revealing password for account id: {} (auditId={})",
+                currentUser.getUsername(), id, auditId);
         String password = platformAccountService.getPassword(id, resolveUser(currentUser));
-        return ResponseEntity.ok(ApiResponse.success(password));
+        PasswordRevealResponse payload = PasswordRevealResponse.builder()
+                .password(password)
+                .expiresAt(LocalDateTime.now().plus(Duration.ofMinutes(5)))
+                .auditId(auditId)
+                .build();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .body(ApiResponse.success(payload));
     }
 
     @GetMapping("/statistics")

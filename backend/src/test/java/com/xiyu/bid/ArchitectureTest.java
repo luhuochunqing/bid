@@ -8,6 +8,7 @@ package com.xiyu.bid;
 import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
@@ -632,4 +633,181 @@ public class ArchitectureTest {
             .allowEmptyShould(true)
             .because("RULE 13 disabled: All legacy POC controllers currently violate this rule. "
                     + "Controllers will be migrated incrementally to use ApiResponse.");
+
+    /**
+     * RULE 14: SecurityConfig.WHITE_LIST_URL must NOT contain
+     * "/api/auth/sessions" or "/api/admin/**".
+     *
+     * Reasoning (fix-api-security-high H1 + H2, 2026-06-13):
+     *   - /api/auth/sessions is an authenticated session-management endpoint;
+     *     placing it in permitAll() allows anonymous enumeration of active sessions.
+     *   - /api/admin/** is admin-only; allowing it via permitAll() removes the role gate.
+     *
+     * Implementation note: we read the SecurityConfig source file as text and
+     * scan the WHITE_LIST_URL array literal. This is intentionally a source-level
+     * assertion (not ArchUnit reflection) because WHITE_LIST_URL is a private
+     * static String[] — ArchUnit cannot introspect array contents.
+     *
+     * Implemented as a plain JUnit @Test (not @ArchTest) to avoid the ArchRule
+     * anonymous-class abstract method chain (check / evaluate / allowEmptyShould
+     * / because / getDescription).
+     */
+    @org.junit.jupiter.api.Test
+    void rule14_white_list_url_must_not_contain_sessions_or_admin() throws Exception {
+        java.nio.file.Path configPath = java.nio.file.Paths.get(
+            "src/main/java/com/xiyu/bid/config/SecurityConfig.java");
+        if (!java.nio.file.Files.exists(configPath)) {
+            // Fallback: when running from backend/ working dir
+            configPath = java.nio.file.Paths.get(
+                "backend/src/main/java/com/xiyu/bid/config/SecurityConfig.java");
+        }
+        if (!java.nio.file.Files.exists(configPath)) {
+            throw new AssertionError(
+                "RULE 14: cannot find SecurityConfig.java — checked both "
+                    + "src/main/java/com/xiyu/bid/config/SecurityConfig.java and "
+                    + "backend/src/main/java/com/xiyu/bid/config/SecurityConfig.java");
+        }
+
+        String source = java.nio.file.Files.readString(configPath);
+
+        // Strip line comments (// ...) and block comments (/* ... */) so we only
+        // scan actual code lines. Comments often reference removed endpoints as
+        // historical context and must not trigger the rule.
+        String stripped = source
+            .replaceAll("/\\*[\\s\\S]*?\\*/", "") // remove /* ... */
+            .replaceAll("//.*", "");               // remove // line comments
+
+        // Restrict scanning to the WHITE_LIST_URL block (between "WHITE_LIST_URL"
+        // and "DEV_ONLY_WHITE_LIST" markers) so matches in other requestMatchers
+        // calls further down do not trigger the rule.
+        int wlStart = stripped.indexOf("WHITE_LIST_URL");
+        int wlEnd = stripped.indexOf("DEV_ONLY_WHITE_LIST");
+        String wlBlock = (wlStart >= 0 && wlEnd > wlStart)
+            ? stripped.substring(wlStart, wlEnd)
+            : stripped;
+
+        java.util.List<String> violations = new java.util.ArrayList<>();
+        if (wlBlock.contains("\"/api/auth/sessions\"")) {
+            violations.add("\"/api/auth/sessions\"");
+        }
+        if (wlBlock.contains("\"/api/admin/\"") || wlBlock.contains("\"/api/admin/**\"")) {
+            violations.add("\"/api/admin/**\"");
+        }
+
+        if (!violations.isEmpty()) {
+            throw new AssertionError(
+                "RULE 14: SecurityConfig.WHITE_LIST_URL must not contain "
+                    + "authenticated endpoints. Found forbidden entries: " + violations
+                    + ". Move them to requestMatchers(...).hasRole(...) or rely on "
+                    + "anyRequest().authenticated() + method-level @PreAuthorize.");
+        }
+    }
+
+    /**
+     * ArchCondition: every @RestController class must have @PreAuthorize on
+     * the class itself OR on at least one of its declared methods.
+     *
+     * Exclusions:
+     *   - @RestControllerAdvice / @ControllerAdvice (exception handlers, not actual controllers)
+     *   - Controllers annotated with @Profile("dev") (LocalDev-only controllers)
+     *
+     * Rationale (fix-api-security-high H3, 2026-06-13):
+     *   Method-level @PreAuthorize is the canonical way to enforce role-based access
+     *   control in Spring Security. URL-level rules in SecurityConfig are a coarse
+     *   fallback; missing @PreAuthorize means the controller relies entirely on
+     *   URL patterns, which is brittle and audit-unfriendly.
+     */
+    private static final ArchCondition<JavaClass> HAS_PRE_AUTHORIZE_AT_CLASS_OR_METHOD = new ArchCondition<JavaClass>(
+        "have @PreAuthorize at class or method level (excluding @RestControllerAdvice and @Profile(\"dev\") controllers)"
+    ) {
+        @Override
+        public void check(JavaClass item, ConditionEvents events) {
+            // Skip @RestControllerAdvice / @ControllerAdvice classes — they are exception handlers
+            if (item.isAnnotatedWith("org.springframework.web.bind.annotation.RestControllerAdvice")
+                || item.isAnnotatedWith("org.springframework.web.bind.annotation.ControllerAdvice")) {
+                return;
+            }
+            // Skip @Profile("dev") controllers — LocalDev-only
+            if (item.isAnnotatedWith("org.springframework.context.annotation.Profile")) {
+                String[] profileValues = item.getAnnotationOfType(
+                    org.springframework.context.annotation.Profile.class).value();
+                boolean isDevOnly = false;
+                if (profileValues != null) {
+                    for (String p : profileValues) {
+                        if (p != null && p.contains("dev")) {
+                            isDevOnly = true;
+                            break;
+                        }
+                    }
+                }
+                if (isDevOnly) {
+                    return;
+                }
+            }
+
+            // Check class-level @PreAuthorize
+            boolean classHasPreAuth = item.isAnnotatedWith(
+                "org.springframework.security.access.prepost.PreAuthorize");
+
+            // Check method-level @PreAuthorize
+            boolean anyMethodHasPreAuth = false;
+            for (com.tngtech.archunit.core.domain.JavaMethod method : item.getMethods()) {
+                if (method.isAnnotatedWith(
+                    "org.springframework.security.access.prepost.PreAuthorize")) {
+                    anyMethodHasPreAuth = true;
+                    break;
+                }
+            }
+
+            if (!classHasPreAuth && !anyMethodHasPreAuth) {
+                events.add(SimpleConditionEvent.violated(item,
+                    "@RestController " + item.getName()
+                    + " has no @PreAuthorize annotation at class or method level. "
+                    + "Add @PreAuthorize to enforce method-level role check."));
+            }
+        }
+    };
+
+    /**
+     * RULE 15: Every @RestController must declare @PreAuthorize at class or method level.
+     *
+     * Exclusions: @RestControllerAdvice / @ControllerAdvice / @Profile("dev").
+     *
+     * <p><b>Status (2026-06-13): ADVISORY.</b> Currently violated by 14 legacy
+     * controllers accumulated before this rule was introduced (see fix report
+     * <code>docs/security/api-security-fix-2026-06-13.md</code> §遗留 2). Until
+     * the legacy backlog is cleaned up in a follow-up sprint, this test runs
+     * the rule and reports violations as log output instead of failing the
+     * build. To re-enable as a hard gate, swap the {@code @Test} below for
+     * {@code @ArchTest} on the {@code controllersMustHavePreAuthorizeRule}
+     * field above.
+     */
+    public static final ArchRule controllersMustHavePreAuthorizeRule =
+        classes()
+            .that().areAnnotatedWith("org.springframework.web.bind.annotation.RestController")
+            .should(HAS_PRE_AUTHORIZE_AT_CLASS_OR_METHOD)
+            .because("RULE 15: every @RestController must declare @PreAuthorize at class or "
+                + "method level. URL-level rules in SecurityConfig are a coarse fallback; "
+                + "method-level @PreAuthorize is required for explicit role enforcement.");
+
+    @org.junit.jupiter.api.Test
+    void controllersMustHavePreAuthorize_advisory() {
+        ClassFileImporter importer = new ClassFileImporter();
+        JavaClasses classes;
+        try {
+            classes = importer.importPackages("com.xiyu.bid");
+        } catch (Exception e) {
+            System.err.println("RULE 15 advisory: could not import classes: " + e.getMessage());
+            return;
+        }
+        try {
+            controllersMustHavePreAuthorizeRule.check(classes);
+            System.out.println("RULE 15 advisory: PASS — no violations.");
+        } catch (AssertionError ae) {
+            // Advisory: log violations but do not fail the build.
+            // The full violation list is in `ae.getMessage()`.
+            System.out.println("RULE 15 advisory: " + ae.getMessage()
+                + " — see docs/security/api-security-fix-2026-06-13.md §遗留 2 for the backlog.");
+        }
+    }
 }

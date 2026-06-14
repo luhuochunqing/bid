@@ -49,6 +49,8 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
+        // H7 fix 2026-06-13: /api/integration/** 与 /api/external/** 都是外部 API 网关,
+        // 必须带 X-API-Key 头才能继续。无 key 时直接 401,不再让请求穿透到 controller。
         if (!StringUtils.hasText(rawKey)) {
             log.warn("Missing API key header for {}", requestUri);
             sendError(response, 401, "Missing X-API-Key header");

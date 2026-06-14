@@ -18,6 +18,7 @@ import com.xiyu.bid.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,10 +32,15 @@ import java.util.Map;
 /**
  * REST Controller for dashboard analytics
  * Provides endpoints for dashboard data aggregation
+ *
+ * <p>H8 fix 2026-06-13: 类级 {@code @PreAuthorize} 强制要求 ADMIN/MANAGER/STAFF 角色;
+ * {@code /cache/clear} 进一步收紧到 ADMIN/MANAGER,防止任意已登录用户制造
+ * cache stampede。
  */
 @RestController
 @RequestMapping("/api/analytics")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
 public class DashboardController {
 
     private final DashboardAnalyticsService dashboardAnalyticsService;
@@ -201,9 +207,16 @@ public class DashboardController {
 
     /**
      * Clear dashboard cache
+     *
+     * <p>H8 fix 2026-06-13: 方法级覆盖,仅 ADMIN/MANAGER 可调用,避免任意已登录
+     * 用户清空缓存造成 cache stampede。
      */
     @PostMapping("/cache/clear")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     @PreAuthorize("hasRole('ADMIN')")
+=======
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+>>>>>>> 813ff069 (fix(security) [part 3]: 修 ClosureStage.vue L3 git conflict 标记 + 清 unused import)
     public ResponseEntity<ApiResponse<String>> clearCache() {
         dashboardAnalyticsService.clearOverviewCache();
         return ResponseEntity.ok(

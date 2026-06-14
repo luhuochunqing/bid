@@ -17,10 +17,29 @@ const getBrowserStorages = () => {
   return [window.localStorage, window.sessionStorage].filter(Boolean)
 }
 
-export const setAccessToken = (token, remember = true) => {
+// SECURITY (H13 fix): the access token is no longer persisted to localStorage by
+// default. localStorage is reachable from any XSS payload and any browser
+// extension, so storing a long-lived JWT there turned every stored XSS into a
+// session-takeover. The new defaults:
+//   remember=false (default) → sessionStorage only. Token evaporates when the
+//     tab closes, mirroring the historical "session cookie" mental model.
+//   remember=true           → localStorage. Higher XSS blast radius but better
+//     UX (user stays logged in across browser restarts). Opt-in only.
+// TODO: when the backend is upgraded to issue the access token via an
+// HttpOnly; Secure; SameSite=Strict cookie, this whole helper can be reduced
+// to a no-op for the token slot (refresh handling stays in cookies).
+export const setAccessToken = (token, remember = false) => {
   accessToken = token || null
   // 持久化 token 到存储
   if (token) {
+    // SECURITY: clean up any stale copies in BOTH storages before writing the
+    // new one, so toggling remember on/off never leaves a "ghost" token in
+    // the wrong store. See LOW-49 in the 2026-06-13 audit.
+    getBrowserStorages().forEach((storage) => {
+      if (storage.getItem(ACCESS_TOKEN_KEY) !== null) {
+        storage.removeItem(ACCESS_TOKEN_KEY)
+      }
+    })
     const storage = remember ? window.localStorage : window.sessionStorage
     storage.setItem(ACCESS_TOKEN_KEY, token)
   }

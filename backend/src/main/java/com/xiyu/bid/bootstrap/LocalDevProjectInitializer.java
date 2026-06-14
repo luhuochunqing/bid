@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -24,6 +25,10 @@ import java.util.List;
 
 @Component
 @Profile("dev")
+@ConditionalOnProperty(
+        name = "app.bootstrap.local-dev.enabled",
+        havingValue = "true",
+        matchIfMissing = false)
 @RequiredArgsConstructor
 @Slf4j
 @Order(2)
@@ -37,6 +42,14 @@ public class LocalDevProjectInitializer implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        // Only seed the demo project when the dev-account seeder is also enabled.
+        // This avoids leaking demo projects into environments where the dev account
+        // bootstrap is intentionally off.
+        if (System.getenv(LocalDevAccountInitializer.LOCAL_DEV_PASSWORD_ENV) == null
+                && System.getProperty(LocalDevAccountInitializer.LOCAL_DEV_PASSWORD_PROPERTY) == null) {
+            log.warn("LOCAL_DEV_PASSWORD not set; skipping local dev project seeding.");
+            return;
+        }
         seedProjects();
     }
 

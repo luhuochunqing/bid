@@ -4,6 +4,8 @@ import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.RoleProfileRepository;
 import com.xiyu.bid.repository.UserRepository;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -12,13 +14,30 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class LocalDevAccountInitializerTest {
+
+    @BeforeEach
+    void setUp() {
+        // Opt in to local-dev seeding via the system property mirror of
+        // LOCAL_DEV_PASSWORD so the production code path resolves a password.
+        System.setProperty(
+                LocalDevAccountInitializer.LOCAL_DEV_PASSWORD_PROPERTY,
+                LocalDevAccountInitializer.LOCAL_TEST_PASSWORD);
+    }
+
+    @AfterEach
+    void tearDown() {
+        System.clearProperty(LocalDevAccountInitializer.LOCAL_DEV_PASSWORD_PROPERTY);
+    }
 
     @Test
     void seedLocalAccountsShouldCreateStaffAndManagerLoginUsers() {
@@ -71,5 +90,21 @@ class LocalDevAccountInitializerTest {
         assertThat(savedUsers)
                 .extracting(User::getPassword)
                 .containsOnly("encoded-test-password");
+    }
+
+    @Test
+    void seedLocalAccountsShouldSkipWhenPasswordEnvNotSet() {
+        System.clearProperty(LocalDevAccountInitializer.LOCAL_DEV_PASSWORD_PROPERTY);
+
+        UserRepository userRepository = mock(UserRepository.class);
+        RoleProfileRepository roleProfileRepository = mock(RoleProfileRepository.class);
+        PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+        LocalDevAccountInitializer initializer =
+                new LocalDevAccountInitializer(userRepository, roleProfileRepository, passwordEncoder);
+
+        initializer.seedLocalAccounts();
+
+        verifyNoInteractions(passwordEncoder);
+        verify(userRepository, never()).save(any());
     }
 }
