@@ -9,7 +9,6 @@ import { registerAuthStoreBridge } from '@/api/authStoreBridge.js'
 import { clearAuthState, hasPersistentSession } from '@/api/modules/auth.js'
 import { persistRuntimeSettings } from '@/api/modules/settings.js'
 import {
-  bootstrapLegacyAccessToken,
   getStoredUser,
   persistUserHint
 } from '@/api/session.js'
@@ -23,7 +22,7 @@ export const useUserStore = defineStore('user', {
 
     return {
       currentUser: savedUser,
-      token: bootstrapLegacyAccessToken(),
+      // H13 根治 (2026-06-14): token 字段退役 (走 HttpOnly cookie), 登录态由 currentUser 判定
       users: [],
       isRestoringSession: false,
       hasRestoredSession: false
@@ -31,7 +30,7 @@ export const useUserStore = defineStore('user', {
   },
 
   getters: {
-    isLoggedIn: (state) => !!state.currentUser && !!state.token,
+    isLoggedIn: (state) => !!state.currentUser,
     userRole: (state) => state.currentUser?.role || 'staff',
     userName: (state) => formatDisplayName(state.currentUser?.name, state.currentUser?.employeeNumber) || '用户',
     allowedProjectIds: (state) => state.currentUser?.allowedProjectIds || [],
@@ -63,16 +62,12 @@ export const useUserStore = defineStore('user', {
   actions: {
     applyAuthSession(authData, remember = hasPersistentSession()) {
       const nextUser = authData?.user || authData
-      const nextToken = authData?.token
 
       if (!nextUser) {
         return null
       }
 
       this.currentUser = nextUser
-      if (nextToken) {
-        this.token = nextToken
-      }
       persistRuntimeSettings({
         roles: [{
           code: nextUser?.roleCode || nextUser?.role,
@@ -94,7 +89,7 @@ export const useUserStore = defineStore('user', {
         throw new Error(resolveLoginFailureMessage(error), { cause: error })
       }
 
-      if (!result?.success || !result?.data?.user || !result?.data?.token) {
+      if (!result?.success || !result?.data?.user) {
         throw new Error(resolveLoginFailureMessage(result))
       }
 
@@ -106,7 +101,7 @@ export const useUserStore = defineStore('user', {
     async loginByWeCom(code, state) {
       const result = await authApi.loginByWeCom(code, state)
 
-      if (!result?.success || !result?.data?.user || !result?.data?.token) {
+      if (!result?.success || !result?.data?.user) {
         throw new Error(result?.msg || '企业微信登录失败')
       }
 
@@ -127,9 +122,12 @@ export const useUserStore = defineStore('user', {
       this.isRestoringSession = true
 
       try {
-        const result = this.token
-          ? await authApi.getCurrentUser({ silentAuthError: true })
-          : await authApi.refreshToken()
+        // H13 根治 (2026-06-14): 不再用内存 token 选分支. 先试 /me (access cookie,
+        // client.js 401 会自动 refresh+重试), 失败再显式 refresh (refresh cookie) 兜底.
+        let result = await authApi.getCurrentUser({ silentAuthError: true })
+        if (!result?.success || !result?.data) {
+          result = await authApi.refreshToken()
+        }
 
         if (!result?.success || !result?.data) {
           throw new Error(result?.msg || 'Session restore failed')
@@ -160,7 +158,6 @@ export const useUserStore = defineStore('user', {
 
     resetSession() {
       this.currentUser = null
-      this.token = null
       this.isRestoringSession = false
       this.hasRestoredSession = true
       clearAuthState()

@@ -13,8 +13,7 @@ import { normalizeAuthSessionResponse, normalizeUser } from '../authNormalizer.j
 import {
   clearSessionState,
   getStoredUser,
-  hasPersistentUserHint,
-  setAccessToken
+  hasPersistentUserHint
 } from '../session.js'
 
 export const getSavedUser = () => getStoredUser()
@@ -34,7 +33,7 @@ export const authApi = {
     const authPayload = response?.data
     const normalizedUser = normalizeUser(authPayload)
 
-    setAccessToken(authPayload?.token, rememberMe)
+    // H13 根治 (2026-06-14): access token 走 HttpOnly cookie, 前端不持有/不持久化
     persistRuntimeSettings({
       roles: [{
         code: normalizedUser.role,
@@ -80,7 +79,7 @@ export const authApi = {
     const authPayload = response?.data
     const normalizedUser = normalizeUser(authPayload)
 
-    setAccessToken(authPayload?.token, true)
+    // H13 根治 (2026-06-14): access token 走 HttpOnly cookie, 前端不持有/不持久化
     persistRuntimeSettings({
       roles: [{
         code: normalizedUser.role,
@@ -104,7 +103,7 @@ export const authApi = {
     const authPayload = response?.data
     const normalizedUser = normalizeUser(authPayload)
 
-    setAccessToken(authPayload?.token, true)
+    // H13 根治 (2026-06-14): access token 走 HttpOnly cookie, 前端不持有/不持久化
     persistRuntimeSettings({
       roles: [{
         code: normalizedUser.role,

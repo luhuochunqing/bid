@@ -9,7 +9,7 @@
       :readonly="disabled"
     />
     <div v-if="!disabled" class="gap-file-upload">
-      <el-upload
+      <el-upload :with-credentials="true"
         :file-list="localFiles"
         :action="gapUploadUrl"
         :headers="gapUploadHeaders"

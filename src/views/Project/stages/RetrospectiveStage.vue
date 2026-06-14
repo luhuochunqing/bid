@@ -69,7 +69,7 @@
       <!-- 复盘报告 -->
       <el-card v-if="canEdit" shadow="never" class="stage-section">
         <template #header><span class="section-title">复盘报告</span></template>
-        <el-upload
+        <el-upload :with-credentials="true"
           v-model:file-list="reportFiles"
           :action="uploadUrl"
           :headers="uploadHeaders"

@@ -43,6 +43,11 @@ class WeComAuthControllerTest {
         ReflectionTestUtils.setField(controller, "refreshCookieSecure", false);
         ReflectionTestUtils.setField(controller, "refreshCookieSameSite", "Lax");
         ReflectionTestUtils.setField(controller, "refreshExpiration", 604800000L);
+        // H13 根治 (2026-06-14): access cookie 字段 (MockitoExtension 无 Spring context, 需手动注入)
+        ReflectionTestUtils.setField(controller, "accessCookieName", "access_token");
+        ReflectionTestUtils.setField(controller, "accessCookieSecure", false);
+        ReflectionTestUtils.setField(controller, "accessCookieSameSite", "Lax");
+        ReflectionTestUtils.setField(controller, "accessExpiration", 86400000L);
     }
 
     @Test
@@ -87,6 +92,7 @@ class WeComAuthControllerTest {
         AuthSessionResult authSessionResult = mock(AuthSessionResult.class);
         when(authSessionResult.getAuthResponse()).thenReturn(authResponse);
         when(authSessionResult.getRefreshToken()).thenReturn("refresh");
+        when(authSessionResult.getAccessToken()).thenReturn("access");
         
         when(weComAuthAppService.loginByWeCom("code")).thenReturn(Optional.of(authSessionResult));
 

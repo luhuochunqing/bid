@@ -50,7 +50,7 @@
 <el-form-item label="需要的支持及其他关键信息备注"><el-input v-model="form.supportNeeded" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
 <el-form-item label="项目计划GAP">
     <el-input v-model="form.projectPlanGap" type="textarea" :rows="3" maxlength="5000" />
-    <el-upload v-model:file-list="planGapFiles" :action="planGapUploadUrl" :headers="planGapUploadHeaders" :before-upload="beforePlanGapUpload" :on-success="onPlanGapUploadSuccess" :on-remove="onPlanGapFileRemove" :disabled="!props.projectId || props.projectId === 'new'" multiple drag accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" :limit="5" style="margin-top:8px">
+    <el-upload :with-credentials="true" v-model:file-list="planGapFiles" :action="planGapUploadUrl" :headers="planGapUploadHeaders" :before-upload="beforePlanGapUpload" :on-success="onPlanGapUploadSuccess" :on-remove="onPlanGapFileRemove" :disabled="!props.projectId || props.projectId === 'new'" multiple drag accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" :limit="5" style="margin-top:8px">
       <el-button size="small" type="primary">上传附件</el-button>
       <template #tip><div class="el-upload__tip">支持拖拽上传，最多5个文件，单个不超过10MB</div></template>
     </el-upload>
@@ -93,7 +93,7 @@
 </template>
 <div class="bid-doc-section">
   <div class="bid-doc-upload-area">
-    <el-upload
+    <el-upload :with-credentials="true"
       v-model:file-list="bidDocFiles"
       :before-upload="handleDocBeforeUpload"
       :before-remove="handleBeforeRemove"

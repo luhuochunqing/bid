@@ -28,6 +28,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final UserDetailsServiceImpl userDetailsService;
     private final ObjectProvider<TokenRevocationService> tokenRevocationServiceProvider;
 
+    // H13 根治 (2026-06-14): access token 优先从 HttpOnly cookie 读
+    @org.springframework.beans.factory.annotation.Value("${app.auth.access-cookie-name:access_token}")
+    private String accessCookieName;
+
     @org.springframework.beans.factory.annotation.Autowired
     public JwtAuthenticationFilter(
             JwtUtil jwtUtil,
@@ -98,9 +102,28 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private String extractJwtFromRequest(HttpServletRequest request) {
+        // H13 根治 (2026-06-14): 优先从 HttpOnly access cookie 读 (XSS 不可达);
+        // fallback Authorization Bearer header 兼容 E2E 浏览器外调用 / 旧客户端
+        String cookieToken = extractAccessTokenFromCookie(request);
+        if (StringUtils.hasText(cookieToken)) {
+            return cookieToken;
+        }
         String bearerToken = request.getHeader("Authorization");
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7);
+        }
+        return null;
+    }
+
+    private String extractAccessTokenFromCookie(HttpServletRequest request) {
+        jakarta.servlet.http.Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            return null;
+        }
+        for (jakarta.servlet.http.Cookie cookie : cookies) {
+            if (accessCookieName.equals(cookie.getName())) {
+                return cookie.getValue();
+            }
         }
         return null;
     }

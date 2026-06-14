@@ -1,5 +1,5 @@
 <template>
-  <el-upload
+  <el-upload :with-credentials="true"
     ref="uploadRef"
     :action="uploadUrl"
     :headers="uploadHeaders"

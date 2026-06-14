@@ -39,8 +39,8 @@ class AuthControllerTest {
 
     @Test
     void login_ShouldReturnAccessTokenAndRefreshCookie() throws Exception {
+        // H13 根治 (2026-06-14): access token 不再放 body (token=null), 改走 HttpOnly cookie
         AuthResponse response = AuthResponse.builder()
-                .token("access-token")
                 .type("Bearer")
                 .id(1L)
                 .username("alice")
@@ -55,6 +55,7 @@ class AuthControllerTest {
                 .thenReturn(AuthSessionResult.builder()
                         .authResponse(response)
                         .refreshToken("refresh-token")
+                        .accessToken("access-token")
                         .build());
 
         mockMvc.perform(post("/api/auth/login")
@@ -64,7 +65,11 @@ class AuthControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("refresh_token=refresh-token")))
-                .andExpect(jsonPath("$.data.token").value("access-token"))
+                .andExpect(result -> org.junit.jupiter.api.Assertions.assertTrue(
+                        result.getResponse().getHeaders(HttpHeaders.SET_COOKIE).stream()
+                                .anyMatch(c -> c.contains("access_token=access-token")),
+                        "access_token cookie missing"))
+                .andExpect(jsonPath("$.data.token").doesNotExist())
                 .andExpect(jsonPath("$.data.username").value("alice"));
     }
 
@@ -81,11 +86,16 @@ class AuthControllerTest {
 
     @Test
     void logout_ShouldReturnSuccessResponseAndClearCookie() throws Exception {
+        // H13 根治: access token 从 access_token cookie 读, logout 清除双 cookie
         mockMvc.perform(post("/api/auth/logout")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer access-jwt")
+                        .cookie(new jakarta.servlet.http.Cookie("access_token", "access-jwt"))
                         .cookie(new jakarta.servlet.http.Cookie("refresh_token", "refresh-token")))
                 .andExpect(status().isOk())
-                .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Max-Age=0")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("refresh_token=")))
+                .andExpect(result -> org.junit.jupiter.api.Assertions.assertTrue(
+                        result.getResponse().getHeaders(HttpHeaders.SET_COOKIE).stream()
+                                .anyMatch(c -> c.contains("access_token=")),
+                        "access_token cookie missing on logout"))
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.msg").value("Logout successful"));
 
@@ -94,8 +104,8 @@ class AuthControllerTest {
 
     @Test
     void refresh_ShouldIssueNewAccessTokenForRefreshCookie() throws Exception {
+        // H13 根治: access token 不放 body, 走 cookie
         AuthResponse refreshResponse = AuthResponse.builder()
-                .token("refreshed-token")
                 .type("Bearer")
                 .id(1L)
                 .username("alice")
@@ -110,15 +120,20 @@ class AuthControllerTest {
                 .thenReturn(AuthSessionResult.builder()
                         .authResponse(refreshResponse)
                         .refreshToken("rotated-refresh-token")
+                        .accessToken("refreshed-token")
                         .build());
 
         mockMvc.perform(post("/api/auth/refresh")
                         .cookie(new jakarta.servlet.http.Cookie("refresh_token", "refresh-token")))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("refresh_token=rotated-refresh-token")))
+                .andExpect(result -> org.junit.jupiter.api.Assertions.assertTrue(
+                        result.getResponse().getHeaders(HttpHeaders.SET_COOKIE).stream()
+                                .anyMatch(c -> c.contains("access_token=refreshed-token")),
+                        "access_token cookie missing"))
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.msg").value("Token refreshed successfully"))
-                .andExpect(jsonPath("$.data.token").value("refreshed-token"))
+                .andExpect(jsonPath("$.data.token").doesNotExist())
                 .andExpect(jsonPath("$.data.username").value("alice"));
     }
 

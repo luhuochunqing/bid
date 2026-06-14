@@ -1,7 +1,6 @@
-// Input: src/api/session.js — token storage helpers
-// Output: unit tests for rememberMe-driven localStorage vs sessionStorage routing
+// Input: src/api/session.js — token storage helpers (H13 HttpOnly cookie 根治后)
+// Output: unit tests verifying token is NOT persisted to JS storage (XSS-unreachable)
 // Pos: src/api/__tests__/ — session lifecycle regression
-// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
@@ -12,13 +11,12 @@ import {
 
 const TOKEN_KEY = 'token'
 
-describe('session.js — token storage routing', () => {
+describe('session.js — H13 HttpOnly cookie 根治', () => {
   beforeEach(() => {
     if (typeof window !== 'undefined') {
       window.localStorage.clear()
       window.sessionStorage.clear()
     }
-    // reset internal module state between tests
     clearSessionState()
   })
 
@@ -26,70 +24,44 @@ describe('session.js — token storage routing', () => {
     clearSessionState()
   })
 
-  it('writes access token to localStorage when rememberMe=true', () => {
+  it('setAccessToken(remember=true) 不再持久化 token 到 localStorage (走 HttpOnly cookie)', () => {
     setAccessToken('token-local-1', true)
 
-    expect(window.localStorage.getItem(TOKEN_KEY)).toBe('token-local-1')
+    expect(window.localStorage.getItem(TOKEN_KEY)).toBeNull()
     expect(window.sessionStorage.getItem(TOKEN_KEY)).toBeNull()
   })
 
-  it('writes access token to sessionStorage when rememberMe=false', () => {
+  it('setAccessToken(remember=false) 不再持久化到 sessionStorage', () => {
     setAccessToken('token-session-1', false)
 
-    expect(window.sessionStorage.getItem(TOKEN_KEY)).toBe('token-session-1')
+    expect(window.sessionStorage.getItem(TOKEN_KEY)).toBeNull()
     expect(window.localStorage.getItem(TOKEN_KEY)).toBeNull()
   })
 
-  it('default rememberMe=false (H13 spec: default to sessionStorage for XSS surface reduction)', () => {
-    setAccessToken('token-default')
+  it('getAccessToken 始终返回 null (token 走 HttpOnly cookie, JS 不可达)', () => {
+    setAccessToken('token-mem-1', true)
 
-    expect(window.sessionStorage.getItem(TOKEN_KEY)).toBe('token-default')
+    expect(getAccessToken()).toBeNull()
+  })
+
+  it('setAccessToken 清理历史 storage 残留 token (迁移期友好)', () => {
+    window.localStorage.setItem(TOKEN_KEY, 'legacy-token')
+    window.sessionStorage.setItem(TOKEN_KEY, 'legacy-token')
+
+    setAccessToken('token-new', true)
+
     expect(window.localStorage.getItem(TOKEN_KEY)).toBeNull()
+    expect(window.sessionStorage.getItem(TOKEN_KEY)).toBeNull()
   })
 
-  it('getAccessToken returns the in-memory token', () => {
-    setAccessToken('token-mem-1', false)
-    expect(getAccessToken()).toBe('token-mem-1')
-  })
-
-  it('getAccessToken can read from sessionStorage when in-memory state is empty', () => {
-    // Seed sessionStorage directly (simulates browser reload after sessionStorage write)
-    window.sessionStorage.setItem(TOKEN_KEY, 'token-persisted-session')
-    // Internal module state is empty after clearSessionState(); bootstrapLegacyAccessToken is called
-    // implicitly when consumers call getAccessToken? — verify behavior contract: in-memory is source of truth.
-    // Here we only verify that calling setAccessToken then getAccessToken round-trips.
-    setAccessToken('token-rebound', false)
-    expect(getAccessToken()).toBe('token-rebound')
-    expect(window.sessionStorage.getItem(TOKEN_KEY)).toBe('token-rebound')
-  })
-
-  it('getAccessToken can read from localStorage after persistence', () => {
-    setAccessToken('token-local-roundtrip', true)
-    expect(getAccessToken()).toBe('token-local-roundtrip')
-    expect(window.localStorage.getItem(TOKEN_KEY)).toBe('token-local-roundtrip')
-  })
-
-  it('clearSessionState removes token from both storages', () => {
-    setAccessToken('token-to-clear', true)
-    expect(window.localStorage.getItem(TOKEN_KEY)).toBe('token-to-clear')
+  it('clearSessionState 清理 storage 残留', () => {
+    window.localStorage.setItem(TOKEN_KEY, 'stale')
+    window.sessionStorage.setItem(TOKEN_KEY, 'stale')
 
     clearSessionState()
 
     expect(window.localStorage.getItem(TOKEN_KEY)).toBeNull()
     expect(window.sessionStorage.getItem(TOKEN_KEY)).toBeNull()
     expect(getAccessToken()).toBeNull()
-  })
-
-  it('switching rememberMe does not leak the old token into the other storage', () => {
-    setAccessToken('token-original', true)
-    expect(window.localStorage.getItem(TOKEN_KEY)).toBe('token-original')
-
-    setAccessToken('token-switched', false)
-    // sessionStorage now holds the new token
-    expect(window.sessionStorage.getItem(TOKEN_KEY)).toBe('token-switched')
-    // localStorage still has the old token from the first call (not auto-cleared by switch);
-    // this documents current behavior — explicit clearSessionState() must be used to clean up.
-    // We do NOT assert localStorage is cleared; the contract is "write to the right place",
-    // not "auto-clean the other place". clearSessionState covers that contract.
   })
 })

@@ -90,10 +90,8 @@ public class AuthService {
 
         user = userRepository.save(user);
         log.info("New user registered: {}", user.getUsername());
-
-        String token = jwtUtil.generateAccessToken(user.getUsername());
         return AuthResponse.from(
-                token,
+                null,
                 user,
                 projectAccessScopeService.getAllowedProjectIds(user),
                 projectAccessScopeService.getAllowedDepartmentCodes(user),
@@ -126,13 +124,14 @@ public class AuthService {
 
         return AuthSessionResult.builder()
                 .authResponse(AuthResponse.from(
-                        token,
+                        null,
                         user,
                         projectAccessScopeService.getAllowedProjectIds(user),
                         projectAccessScopeService.getAllowedDepartmentCodes(user),
                         dataScopeConfigService.getRoleMenuPermissions(user)
                 ))
                 .refreshToken(refreshToken)
+                .accessToken(token)
                 .build();
     }
 
@@ -147,13 +146,14 @@ public class AuthService {
         log.info("User logged in via SSO/WeCom: {}", user.getUsername());
         return AuthSessionResult.builder()
                 .authResponse(AuthResponse.from(
-                        token,
+                        null,
                         user,
                         projectAccessScopeService.getAllowedProjectIds(user),
                         projectAccessScopeService.getAllowedDepartmentCodes(user),
                         dataScopeConfigService.getRoleMenuPermissions(user)
                 ))
                 .refreshToken(refreshToken)
+                .accessToken(token)
                 .build();
     }
 
@@ -253,13 +253,14 @@ public class AuthService {
         log.info("Token refreshed for user: {}", user.getUsername());
         return AuthSessionResult.builder()
                 .authResponse(AuthResponse.from(
-                        accessToken,
+                        null,
                         user,
                         projectAccessScopeService.getAllowedProjectIds(user),
                         projectAccessScopeService.getAllowedDepartmentCodes(user),
                         dataScopeConfigService.getRoleMenuPermissions(user)
                 ))
                 .refreshToken(rotatedRefreshToken)
+                .accessToken(accessToken)
                 .build();
     }
 

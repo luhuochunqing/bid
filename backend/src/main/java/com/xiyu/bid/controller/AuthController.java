@@ -66,6 +66,18 @@ public class AuthController {
     @Value("${jwt.refresh-expiration:604800000}")
     private long refreshExpiration;
 
+    @Value("${app.auth.access-cookie-name:access_token}")
+    private String accessCookieName;
+
+    @Value("${app.auth.access-cookie-secure:false}")
+    private boolean accessCookieSecure;
+
+    @Value("${app.auth.access-cookie-same-site:Lax}")
+    private String accessCookieSameSite;
+
+    @Value("${jwt.expiration:86400000}")
+    private long accessExpiration;
+
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<AuthResponse>> register(@Valid @RequestBody RegisterRequest request) {
         // Sanitize user input
@@ -88,6 +100,7 @@ public class AuthController {
         AuthSessionResult sessionResult = authService.login(request);
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, buildRefreshCookie(sessionResult.getRefreshToken(), Boolean.TRUE.equals(request.getRememberMe())).toString())
+                .header(HttpHeaders.SET_COOKIE, buildAccessCookie(sessionResult.getAccessToken()).toString())
                 .body(ApiResponse.success("Login successful", sessionResult.getAuthResponse()));
     }
 
@@ -100,13 +113,19 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<Void>> logout(HttpServletRequest request) {
+        // H13 根治: access token 从 cookie 读 (fallback header 兼容旧客户端/E2E 浏览器外调用)
         authService.logout(extractAccessToken(request), extractRefreshToken(request));
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, clearRefreshCookie().toString())
+                .header(HttpHeaders.SET_COOKIE, clearAccessCookie().toString())
                 .body(ApiResponse.success("Logout successful", null));
     }
 
     private String extractAccessToken(HttpServletRequest request) {
+        String cookieToken = extractCookie(request, accessCookieName);
+        if (cookieToken != null) {
+            return cookieToken;
+        }
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (header == null) {
             return null;
@@ -123,6 +142,7 @@ public class AuthController {
         AuthSessionResult sessionResult = authService.refreshToken(extractRefreshToken(request));
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, buildRefreshCookie(sessionResult.getRefreshToken(), true).toString())
+                .header(HttpHeaders.SET_COOKIE, buildAccessCookie(sessionResult.getAccessToken()).toString())
                 .body(ApiResponse.success("Token refreshed successfully", sessionResult.getAuthResponse()));
     }
 
@@ -230,40 +250,47 @@ public class AuthController {
     }
 
     private String extractRefreshToken(HttpServletRequest request) {
+        return extractCookie(request, refreshCookieName);
+    }
+
+    private String extractCookie(HttpServletRequest request, String name) {
         Cookie[] cookies = request.getCookies();
         if (cookies == null) {
             return null;
         }
-
         for (Cookie cookie : cookies) {
-            if (refreshCookieName.equals(cookie.getName())) {
+            if (name.equals(cookie.getName())) {
                 return cookie.getValue();
             }
         }
         return null;
     }
 
-    private ResponseCookie buildRefreshCookie(String refreshToken, boolean persistent) {
-        ResponseCookie.ResponseCookieBuilder builder = ResponseCookie.from(refreshCookieName, refreshToken)
-                .httpOnly(true)
-                .secure(refreshCookieSecure)
-                .sameSite(refreshCookieSameSite)
-                .path("/");
-
+    private ResponseCookie buildRefreshCookie(String token, boolean persistent) {
+        ResponseCookie.ResponseCookieBuilder b = ResponseCookie.from(refreshCookieName, token)
+                .httpOnly(true).secure(refreshCookieSecure).sameSite(refreshCookieSameSite).path("/");
         if (persistent) {
-            builder.maxAge(Duration.ofMillis(refreshExpiration));
+            b.maxAge(Duration.ofMillis(refreshExpiration));
         }
-
-        return builder.build();
+        return b.build();
     }
 
     private ResponseCookie clearRefreshCookie() {
         return ResponseCookie.from(refreshCookieName, "")
-                .httpOnly(true)
-                .secure(refreshCookieSecure)
-                .sameSite(refreshCookieSameSite)
-                .path("/")
-                .maxAge(Duration.ZERO)
-                .build();
+                .httpOnly(true).secure(refreshCookieSecure).sameSite(refreshCookieSameSite)
+                .path("/").maxAge(Duration.ZERO).build();
+    }
+
+    // H13 根治: access token HttpOnly cookie (maxAge 对齐 jwt.expiration)
+    private ResponseCookie buildAccessCookie(String accessToken) {
+        return ResponseCookie.from(accessCookieName, accessToken == null ? "" : accessToken)
+                .httpOnly(true).secure(accessCookieSecure).sameSite(accessCookieSameSite)
+                .path("/").maxAge(Duration.ofMillis(accessExpiration)).build();
+    }
+
+    private ResponseCookie clearAccessCookie() {
+        return ResponseCookie.from(accessCookieName, "")
+                .httpOnly(true).secure(accessCookieSecure).sameSite(accessCookieSameSite)
+                .path("/").maxAge(Duration.ZERO).build();
     }
 }

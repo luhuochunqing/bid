@@ -60,7 +60,7 @@
               </div>
               <div class="field-item">
                 <label>退回凭证 <span class="required-mark">*</span></label>
-                <el-upload
+                <el-upload :with-credentials="true"
                   :action="uploadUrl"
                   :headers="uploadHeaders"
                   :data="{ tag: '保证金银行回单' }"
@@ -88,7 +88,7 @@
               </div>
               <div class="field-item">
                 <label>证明文件 <span class="required-mark">*</span></label>
-                <el-upload
+                <el-upload :with-credentials="true"
                   :action="uploadUrl"
                   :headers="uploadHeaders"
                   :data="{ tag: '保证金银行回单' }"
@@ -122,7 +122,7 @@
             <div class="field-row">
               <div class="field-item full-width">
                 <label>证明文件 <span class="required-mark">*</span></label>
-                <el-upload
+                <el-upload :with-credentials="true"
                   :action="uploadUrl"
                   :headers="uploadHeaders"
                   :data="{ tag: '保证金银行回单' }"

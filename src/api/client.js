@@ -5,12 +5,7 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { API_CONFIG } from './config'
-import {
-  bootstrapLegacyAccessToken,
-  clearSessionState,
-  getAccessToken,
-  setAccessToken
-} from './session.js'
+import { clearSessionState } from './session.js'
 import { normalizeAuthSessionResponse } from './authNormalizer.js'
 import { resetAuthStoreSession, syncAuthStoreSession } from './authStoreBridge.js'
 import router from '@/router/index.js'
@@ -38,13 +33,13 @@ const httpClient = axios.create({
 })
 
 const refreshAuthSession = async () => {
+  // H13 根治 (2026-06-14): refresh 成功后浏览器自动更新 access cookie (Set-Cookie),
+  // 前端无需持有 token
   const response = await httpClient.post('/api/auth/refresh', null, {
     skipAuthRefresh: true,
     silentAuthError: true
   })
 
-  const authPayload = response?.data
-  setAccessToken(authPayload?.token, true)
   return normalizeAuthSessionResponse(response)
 }
 
@@ -109,18 +104,11 @@ const handleAuthFailure = async () => {
 }
 
 // 请求拦截器
+// H13 根治 (2026-06-14): access token 走 HttpOnly cookie (httpClient withCredentials 自动带),
+// 不再手动注入 Authorization header.
 httpClient.interceptors.request.use(
-  (config) => {
-    // Logout still needs the bearer token, but should never enter refresh replay.
-    const token = getAccessToken() || bootstrapLegacyAccessToken()
-    if (token && !shouldSkipAuthHeader(config)) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  },
-  (error) => {
-    return Promise.reject(error)
-  }
+  (config) => config,
+  (error) => Promise.reject(error)
 )
 
 // 响应拦截器
@@ -160,13 +148,7 @@ httpClient.interceptors.response.use(
 
         const refreshResult = await refreshPromise
         await syncRefreshedSession(refreshResult)
-        const token = refreshResult?.data?.token || getAccessToken()
-
-        if (token) {
-          config.headers = config.headers || {}
-          config.headers.Authorization = `Bearer ${token}`
-        }
-
+        // H13 根治: refresh 成功后浏览器已更新 access cookie, 直接重试 (cookie 自动带)
         return httpClient(config)
       } catch (refreshError) {
         await handleAuthFailure()

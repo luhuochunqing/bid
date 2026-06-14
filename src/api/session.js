@@ -17,36 +17,17 @@ const getBrowserStorages = () => {
   return [window.localStorage, window.sessionStorage].filter(Boolean)
 }
 
-// SECURITY (H13 fix): the access token is no longer persisted to localStorage by
-// default. localStorage is reachable from any XSS payload and any browser
-// extension, so storing a long-lived JWT there turned every stored XSS into a
-// session-takeover. The new defaults:
-//   remember=false (default) → sessionStorage only. Token evaporates when the
-//     tab closes, mirroring the historical "session cookie" mental model.
-//   remember=true           → localStorage. Higher XSS blast radius but better
-//     UX (user stays logged in across browser restarts). Opt-in only.
-// TODO: when the backend is upgraded to issue the access token via an
-// HttpOnly; Secure; SameSite=Strict cookie, this whole helper can be reduced
-// to a no-op for the token slot (refresh handling stays in cookies).
-export const setAccessToken = (token, remember = false) => {
-  accessToken = token || null
-  // 持久化 token 到存储
-  if (token) {
-    // SECURITY: clean up any stale copies in BOTH storages before writing the
-    // new one, so toggling remember on/off never leaves a "ghost" token in
-    // the wrong store. See LOW-49 in the 2026-06-13 audit.
-    getBrowserStorages().forEach((storage) => {
-      if (storage.getItem(ACCESS_TOKEN_KEY) !== null) {
-        storage.removeItem(ACCESS_TOKEN_KEY)
-      }
-    })
-    const storage = remember ? window.localStorage : window.sessionStorage
-    storage.setItem(ACCESS_TOKEN_KEY, token)
-  }
+// SECURITY (H13 根治 2026-06-14): access token 改由后端 HttpOnly; Secure; SameSite=Lax cookie 投递,
+// 前端 JS 不再持有/持久化 token (XSS 不可达). setAccessToken 降级为清理历史残留的 no-op,
+// 保留导出签名避免调用方 import 报错.
+export const setAccessToken = (_token, _remember = false) => {
+  accessToken = null
+  getBrowserStorages().forEach((storage) => storage.removeItem(ACCESS_TOKEN_KEY))
   return accessToken
 }
 
-export const getAccessToken = () => accessToken
+// token 走 HttpOnly cookie, JS 永远拿不到. 始终返回 null.
+export const getAccessToken = () => null
 
 export const clearAccessToken = () => {
   accessToken = null
@@ -54,22 +35,10 @@ export const clearAccessToken = () => {
   getBrowserStorages().forEach((storage) => storage.removeItem(ACCESS_TOKEN_KEY))
 }
 
+// H13 根治 (2026-06-14): 不再从 storage 恢复 token (走 HttpOnly cookie). 仅清理历史残留.
 export const bootstrapLegacyAccessToken = () => {
-  if (accessToken) {
-    return accessToken
-  }
-
-  const legacyToken = getBrowserStorages()
-    .map((storage) => storage.getItem(ACCESS_TOKEN_KEY))
-    .find(Boolean)
-
-  if (!legacyToken) {
-    return null
-  }
-
-  accessToken = legacyToken
-  // 保留存储中的 token，不再删除
-  return accessToken
+  getBrowserStorages().forEach((storage) => storage.removeItem(ACCESS_TOKEN_KEY))
+  return null
 }
 
 export const getStoredUser = () => {

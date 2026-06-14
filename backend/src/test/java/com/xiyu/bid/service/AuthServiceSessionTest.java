@@ -111,7 +111,7 @@ class AuthServiceSessionTest {
 
         AuthSessionResult result = authService.login(request);
 
-        assertThat(result.getAuthResponse().getToken()).isEqualTo("access-token");
+        assertThat(result.getAccessToken()).isEqualTo("access-token");
         assertThat(result.getAuthResponse().getUsername()).isEqualTo("alice");
         assertThat(result.getAuthResponse().getAllowedProjectIds()).containsExactly(8L, 9L);
         assertThat(result.getAuthResponse().getAllowedDepts()).containsExactly("SALES");
@@ -140,7 +140,7 @@ class AuthServiceSessionTest {
 
         AuthSessionResult result = authService.refreshToken("old-refresh-token");
 
-        assertThat(result.getAuthResponse().getToken()).isEqualTo("new-access-token");
+        assertThat(result.getAccessToken()).isEqualTo("new-access-token");
         assertThat(result.getAuthResponse().getAllowedProjectIds()).containsExactly(99L);
         assertThat(result.getAuthResponse().getAllowedDepts()).containsExactly("BID");
         assertThat(result.getRefreshToken()).isNotBlank();

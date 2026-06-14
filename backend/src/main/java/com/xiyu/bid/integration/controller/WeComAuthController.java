@@ -57,6 +57,19 @@ public class WeComAuthController {
     @Value("${jwt.refresh-expiration:604800000}")
     private long refreshExpiration;
 
+    // H13 根治 (2026-06-14): access token HttpOnly cookie (与 AuthController 对称)
+    @Value("${app.auth.access-cookie-name:access_token}")
+    private String accessCookieName;
+
+    @Value("${app.auth.access-cookie-secure:false}")
+    private boolean accessCookieSecure;
+
+    @Value("${app.auth.access-cookie-same-site:Lax}")
+    private String accessCookieSameSite;
+
+    @Value("${jwt.expiration:86400000}")
+    private long accessExpiration;
+
     /**
      * Entry point to get the WeCom login parameters.
      *
@@ -107,10 +120,12 @@ public class WeComAuthController {
 
         if (loginResultOpt.isPresent()) {
             AuthSessionResult result = loginResultOpt.get();
-            ResponseCookie cookie = buildRefreshCookie(
+            ResponseCookie refreshCookie = buildRefreshCookie(
                     result.getRefreshToken(), true);
+            ResponseCookie accessCookie = buildAccessCookie(result.getAccessToken());
             return ResponseEntity.ok()
-                    .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                    .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
+                    .header(HttpHeaders.SET_COOKIE, accessCookie.toString())
                     .body(ApiResponse.success("WeCom login successful",
                             result.getAuthResponse()));
         } else {
@@ -134,5 +149,18 @@ public class WeComAuthController {
         }
 
         return builder.build();
+    }
+
+    /**
+     * H13 根治 (2026-06-14): access token HttpOnly cookie (与 AuthController 对称).
+     */
+    private ResponseCookie buildAccessCookie(final String accessToken) {
+        return ResponseCookie.from(accessCookieName, accessToken == null ? "" : accessToken)
+                .httpOnly(true)
+                .secure(accessCookieSecure)
+                .sameSite(accessCookieSameSite)
+                .path("/")
+                .maxAge(Duration.ofMillis(accessExpiration))
+                .build();
     }
 }

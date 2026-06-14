@@ -41,7 +41,7 @@
     <!-- 凭证文件 -->
     <el-card shadow="never" class="stage-section">
       <template #header><span class="section-title">凭证文件<span class="required-mark">*</span></span></template>
-      <el-upload
+      <el-upload :with-credentials="true"
         v-model:file-list="evidenceFiles"
         :action="uploadUrl"
         :headers="uploadHeaders"

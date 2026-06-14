@@ -1,6 +1,6 @@
 <template>
   <div class="evidence-upload">
-    <el-upload
+    <el-upload :with-credentials="true"
       v-model:file-list="fileList"
       :action="uploadUrl"
       :headers="uploadHeaders"

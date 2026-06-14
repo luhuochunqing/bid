@@ -166,6 +166,7 @@ export function useChartDrillDown({ dashboardData }) {
 
       fetch(downloadUrl, {
         method: 'GET',
+        credentials: 'include',
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       })
         .then((response) => {

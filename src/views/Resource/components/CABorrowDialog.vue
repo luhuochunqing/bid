@@ -64,7 +64,7 @@
         label="盖章承诺书"
         prop="commitmentLetterUrl"
       >
-        <el-upload
+        <el-upload :with-credentials="true"
           :action="uploadUrl"
           :headers="uploadHeaders"
           :show-file-list="false"

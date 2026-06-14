@@ -272,6 +272,7 @@ export function useQualificationPage() {
     const filename = `${row.name}.${row.fileUrl.split('.').pop() || 'pdf'}`
 
     fetch(row.fileUrl, {
+      credentials: 'include',
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     })
       .then((response) => {

@@ -99,7 +99,7 @@ class AuthServiceTest {
 
         verify(authenticationManager).authenticate(any());
         verify(refreshSessionRepository).save(any(RefreshSession.class));
-        assertThat(result.getAuthResponse().getToken()).isEqualTo("access-token");
+        assertThat(result.getAccessToken()).isEqualTo("access-token");
         assertThat(result.getAuthResponse().getAllowedProjectIds()).containsExactly(11L, 12L);
         assertThat(result.getAuthResponse().getAllowedDepts()).containsExactly("SALES");
         assertThat(result.getRefreshToken()).isNotBlank();
@@ -128,7 +128,7 @@ class AuthServiceTest {
         assertThat(captor.getAllValues().get(0).getRevokedAt()).isNotNull();
         assertThat(captor.getAllValues().get(1).getTokenHash()).isNotBlank();
         assertThat(captor.getAllValues().get(1).getUser()).isEqualTo(user);
-        assertThat(result.getAuthResponse().getToken()).isEqualTo("rotated-access-token");
+        assertThat(result.getAccessToken()).isEqualTo("rotated-access-token");
         assertThat(result.getAuthResponse().getAllowedProjectIds()).containsExactly(21L);
         assertThat(result.getAuthResponse().getAllowedDepts()).containsExactly("BID");
         assertThat(result.getRefreshToken()).isNotBlank();

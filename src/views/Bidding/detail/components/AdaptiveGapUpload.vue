@@ -8,7 +8,7 @@
       maxlength="5000"
     />
     <div v-if="gapUploadUrl" class="gap-file-upload">
-      <el-upload
+      <el-upload :with-credentials="true"
         :file-list="localFiles"
         :action="gapUploadUrl"
         :headers="gapUploadHeaders"

@@ -22,7 +22,7 @@
       </div>
     </template>
     <div class="bid-upload-area">
-      <el-upload
+      <el-upload :with-credentials="true"
         v-model:file-list="bidFiles"
         :action="uploadUrl"
         :headers="uploadHeaders"

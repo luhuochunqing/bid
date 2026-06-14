@@ -366,12 +366,12 @@ registerLoginNavigator(async () => {
 // 路由守卫
 router.beforeEach(async (to, from, next) => {
   const userStore = useUserStore()
-  let hasAuthState = Boolean(userStore.currentUser && userStore.token)
+  let hasAuthState = Boolean(userStore.currentUser)
   const shouldAttemptRestore = isRequiresAuthRoute(to) || hasAuthState || (to.path === '/login' && hasStoredUserHint())
 
   if (!userStore.hasRestoredSession && shouldAttemptRestore) {
     await userStore.restoreSession()
-    hasAuthState = Boolean(userStore.currentUser && userStore.token)
+    hasAuthState = Boolean(userStore.currentUser)
   }
 
   if (isRequiresAuthRoute(to) && !hasAuthState) {
