@@ -118,15 +118,10 @@ echo "── Step 4: 切换到 $INIT_BRANCH 并拉取最新 ──"
 
 # 确保 init 分支存在
 if ! git rev-parse --verify --quiet "$INIT_BRANCH" >/dev/null 2>&1; then
-  warn "init 分支 $INIT_BRANCH 不存在，尝试从远端创建"
+  warn "init 分支 $INIT_BRANCH 不存在，从 origin/main 创建"
   git fetch origin
-  if git ls-remote --exit-code origin "refs/heads/$INIT_BRANCH" >/dev/null 2>&1; then
-    git checkout -b "$INIT_BRANCH" "origin/$INIT_BRANCH"
-    info "已创建并切换到 $INIT_BRANCH"
-  else
-    error "远端也不存在 $INIT_BRANCH 分支"
-    exit 1
-  fi
+  git checkout -b "$INIT_BRANCH" origin/main
+  info "已创建并切换到 $INIT_BRANCH"
 else
   git checkout "$INIT_BRANCH"
   info "已切换到 $INIT_BRANCH"
