@@ -1,7 +1,8 @@
 -- V1075: Migrate VALID to IN_STOCK for business qualifications (CO-155/CO-2401)
--- QualificationStatus.VALID (@Deprecated) has been replaced by IN_STOCK in source code.
--- Existing records with status='VALID' must be migrated so they match the new IN_STOCK filter
--- used by list/aggregation queries. IN_STOCK is the canonical "在库" state going forward.
+-- 蓝图 业务资质 — QualificationStatus.VALID (@Deprecated) has been replaced by
+-- IN_STOCK in source code. Existing records with status='VALID' must be migrated
+-- so they match the new IN_STOCK filter used by list/aggregation queries.
+-- IN_STOCK is the canonical "在库" state going forward.
 --
 -- Idempotency: re-running is a no-op because we only touch rows that are still 'VALID'.
 -- Backout: see db/rollback/migration-mysql/U1075__migrate_valid_to_in_stock_for_business_qualifications.sql
