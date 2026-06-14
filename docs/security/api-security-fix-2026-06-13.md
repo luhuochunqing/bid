@@ -4,6 +4,8 @@
 > **方法**: 4 lane 并行 (后端鉴权 / 后端数据 / 前端 / 测试+ArchUnit) + 1 synthesis 验证合并。
 > **结果**: 15/15 HIGH 全部修复 + 加 2 条 ArchUnit 规则 + 新建 5 个测试文件 + 1 个新 DTO。
 > **遗留**: 1) H13 根治 = HttpOnly cookie 改造, 留待下个 sprint; 2) ArchUnit RULE 15 暴露 14 个存量 Controller 缺 @PreAuthorize, 留待下个 sprint。
+>
+> **跟进 (2026-06-14)**: 原 PR #562 推迟的 **H9** (`MarginQuerySupport` SQL 注入 defense in depth) 与 **H12-前端** (`Account.vue` 密码 on-demand fetch) 已在 `agent/claude/fix-api-security-high` 跟进分支解决 —— H9 抽 `MarginQueryRole` 枚举 + 5 个测试; H12-前端 拆 `usePasswordReveal` composable + 6 个测试, Account.vue 592→569 行。剩 **H6** (`application.yml` actuator 加固) 仍被 3 个 agent lock 占用至 2026-06-20。详见下文 §遗留 4/5/6。
 
 ---
 
