@@ -213,6 +213,7 @@ public class DashboardController {
      */
     @PostMapping("/cache/clear")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+
     public ResponseEntity<ApiResponse<String>> clearCache() {
         dashboardAnalyticsService.clearOverviewCache();
         return ResponseEntity.ok(
