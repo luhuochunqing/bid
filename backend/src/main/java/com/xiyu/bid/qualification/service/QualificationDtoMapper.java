@@ -120,7 +120,7 @@ public class QualificationDtoMapper {
      */
     private String normalizeStatus(QualificationStatus status) {
         if (status == null) return null;
-        if (status == QualificationStatus.VALID) return "in_stock";
+        if (status == QualificationStatus.IN_STOCK) return "in_stock";
         return status.name().toLowerCase();
     }
 

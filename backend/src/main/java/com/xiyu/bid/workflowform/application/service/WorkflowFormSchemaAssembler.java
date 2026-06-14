@@ -23,8 +23,12 @@ public class WorkflowFormSchemaAssembler {
         }
         return items.stream()
                 .filter(Map.class::isInstance)
-                .map(Map.class::cast)
-                .map(FormFieldDefinition::fromMap)
+                .map(WorkflowFormSchemaAssembler::toFieldDefinition)
                 .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static FormFieldDefinition toFieldDefinition(Object item) {
+        return FormFieldDefinition.fromMap((Map<String, Object>) item);
     }
 }

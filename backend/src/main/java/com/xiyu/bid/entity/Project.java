@@ -64,6 +64,7 @@ public class Project {
      */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
+    @Builder.Default
     private Project.Status status = Project.Status.PENDING_INITIATION;
 
     /**

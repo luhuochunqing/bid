@@ -97,11 +97,13 @@ public class Task {
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = LEN_STATUS)
+    @Builder.Default
     private Status status = Status.TODO;
 
     /** Task priority level. */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    @Builder.Default
     private Priority priority = Priority.MEDIUM;
 
     /** Due date for completion. */

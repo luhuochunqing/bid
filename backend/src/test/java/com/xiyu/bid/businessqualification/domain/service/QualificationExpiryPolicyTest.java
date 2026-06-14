@@ -118,13 +118,13 @@ class QualificationExpiryPolicyTest {
     }
 
     @Test
-    @DisplayName("资质到期判定 - 剩余 91 天（阈值 90）：应为 VALID")
+    @DisplayName("资质到期判定 - 剩余 91 天（阈值 90）：应为在库 IN_STOCK（VALID 仅为 deprecated alias）")
     void evaluate_Remaining91Days_ShouldBeValid() {
         ValidityPeriod period = new ValidityPeriod(
                 LocalDate.of(2024, 1, 1),
                 LocalDate.of(2026, 9, 6)  // 距今 91 天
         );
-        assertThat(policy.evaluate(period, LocalDate.of(2026, 6, 7))).isEqualTo(QualificationStatus.VALID);
+        assertThat(policy.evaluate(period, LocalDate.of(2026, 6, 7))).isEqualTo(QualificationStatus.IN_STOCK);
     }
 
     @Test

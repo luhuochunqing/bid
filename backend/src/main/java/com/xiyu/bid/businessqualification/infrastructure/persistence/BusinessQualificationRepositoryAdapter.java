@@ -196,7 +196,7 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
         if (status == null || filter == null) return false;
         String statusName = status.name();
         // VALID (deprecated) should match IN_STOCK filter
-        if (status == QualificationStatus.VALID && "IN_STOCK".equalsIgnoreCase(filter)) return true;
+        if (status == QualificationStatus.IN_STOCK && "IN_STOCK".equalsIgnoreCase(filter)) return true;
         return statusName.equalsIgnoreCase(filter);
     }
 

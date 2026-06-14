@@ -131,8 +131,8 @@ public class ProjectQueryService {
                     dto.setShortlistedCount(det.getExpectedBidders());
                 }
                 if (dto.getRevenue() == null
-                        && det.getAnnualRevenue() != null) {
-                    dto.setRevenue(det.getAnnualRevenue());
+                        && det.getAnnualEcommerceAmount() != null) {
+                    dto.setRevenue(det.getAnnualEcommerceAmount());
                 }
             }
 

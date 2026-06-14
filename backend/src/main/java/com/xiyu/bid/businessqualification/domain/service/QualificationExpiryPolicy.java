@@ -22,7 +22,7 @@ public class QualificationExpiryPolicy {
         if (remainingDays <= DEFAULT_EXPIRING_DAYS) {
             return QualificationStatus.EXPIRING;
         }
-        return QualificationStatus.VALID;
+        return QualificationStatus.IN_STOCK;
     }
 
     public String alertLevel(QualificationStatus status) {

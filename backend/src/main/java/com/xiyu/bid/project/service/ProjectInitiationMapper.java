@@ -27,6 +27,7 @@ public class ProjectInitiationMapper {
     private static final DateTimeFormatter MONTH_FMT = DateTimeFormatter.ofPattern("yyyy-MM");
     private final ObjectMapper objectMapper;
 
+    @SuppressWarnings("deprecation")
     public InitiationFieldPolicy.InitiationInput toInput(InitiationDto d) {
         return new InitiationFieldPolicy.InitiationInput(
                 d.getOwnerUnit(), d.getExpectedBidders(), d.getContractPeriodMonths(),
@@ -43,6 +44,7 @@ public class ProjectInitiationMapper {
                 d.getAiRiskAssessmentNotes());
     }
 
+    @SuppressWarnings("deprecation")
     public InitiationFieldPolicy.InitiationInput toInput(ProjectInitiationDetails e) {
         return new InitiationFieldPolicy.InitiationInput(
                 e.getOwnerUnit(), e.getExpectedBidders(), e.getContractPeriodMonths(),
@@ -60,6 +62,7 @@ public class ProjectInitiationMapper {
                 e.getAiRiskAssessmentNotes());
     }
 
+    @SuppressWarnings("deprecation")
     public InitiationDto toDto(InitiationFieldPolicy.InitiationInput in) {
         return InitiationDto.builder()
                 .ownerUnit(in.ownerUnit()).expectedBidders(in.expectedBidders())
@@ -82,6 +85,7 @@ public class ProjectInitiationMapper {
                 .build();
     }
 
+    @SuppressWarnings("deprecation")
     public InitiationFieldPolicy.InitiationInput mergeForUpdate(
             InitiationFieldPolicy.InitiationInput base, InitiationDto patch) {
         return new InitiationFieldPolicy.InitiationInput(
@@ -116,6 +120,7 @@ public class ProjectInitiationMapper {
                 patch.getAiRiskAssessmentNotes() != null ? patch.getAiRiskAssessmentNotes() : base.aiRiskAssessmentNotes());
     }
 
+    @SuppressWarnings("deprecation")
     public void applyInput(ProjectInitiationDetails e, InitiationDto d) {
         if (d.getOwnerUnit() != null) e.setOwnerUnit(d.getOwnerUnit());
         if (d.getExpectedBidders() != null) e.setExpectedBidders(d.getExpectedBidders());
@@ -153,6 +158,7 @@ public class ProjectInitiationMapper {
         }
     }
 
+    @SuppressWarnings("deprecation")
     public InitiationViewDto toView(ProjectInitiationDetails e) {
         List<CustomerInfoRow> rows = null;
         if (e.getCustomerInfoJson() != null && !e.getCustomerInfoJson().isBlank()) {

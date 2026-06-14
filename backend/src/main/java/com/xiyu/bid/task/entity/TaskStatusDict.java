@@ -89,6 +89,7 @@ public class TaskStatusDict {
     /** 是否启用（停用后不再出现在看板列与筛选器中）。 */
     @NotNull
     @Column(name = "enabled", nullable = false)
+    @Builder.Default
     private Boolean enabled = Boolean.TRUE;
 
     /** 创建时间（由 {@link PrePersist} 回调填充）。 */

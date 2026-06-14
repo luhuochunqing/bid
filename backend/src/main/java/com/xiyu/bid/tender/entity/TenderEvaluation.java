@@ -115,6 +115,7 @@ public class TenderEvaluation {
 
     /** 是否需要重新审核（已评估状态下重新编辑后设为 true）。 */
     @Column(name = "requires_review", nullable = false)
+    @Builder.Default
     private boolean requiresReview = false;
 
     /** 最后审核人 ID（与 reviewerId 类型一致）。 */

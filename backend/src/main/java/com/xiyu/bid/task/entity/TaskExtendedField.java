@@ -75,6 +75,7 @@ public class TaskExtendedField {
     /** 是否必填。 */
     @NotNull
     @Column(name = "required", nullable = false)
+    @Builder.Default
     private Boolean required = Boolean.FALSE;
 
     /** 输入占位提示。 */
@@ -87,11 +88,13 @@ public class TaskExtendedField {
 
     /** 排序字段，升序。 */
     @Column(name = "sort_order", nullable = false)
+    @Builder.Default
     private Integer sortOrder = 0;
 
     /** 是否启用（停用后不再出现在任务表单中）。 */
     @NotNull
     @Column(name = "enabled", nullable = false)
+    @Builder.Default
     private Boolean enabled = Boolean.TRUE;
 
     /** 创建时间（由 {@link PrePersist} 回调填充）。 */

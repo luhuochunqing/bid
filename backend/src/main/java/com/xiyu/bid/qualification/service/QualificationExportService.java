@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
-import java.net.URL;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -134,7 +134,7 @@ public class QualificationExportService {
             return;
         }
         // 回退：如果是完整 URL（http/https），尝试作为 URL 打开
-        try (InputStream in = new URL(fileUrl).openStream()) {
+        try (InputStream in = URI.create(fileUrl).toURL().openStream()) {
             zos.putNextEntry(new ZipEntry(entryName));
             in.transferTo(zos);
             zos.closeEntry();

@@ -83,6 +83,7 @@ public class TaskDeliverable {
 
     /** Version number starting from 1. */
     @Column(name = "version", nullable = false)
+    @Builder.Default
     private Integer version = 1;
 
     /** Uploader user id. */

@@ -45,6 +45,7 @@ public class AlertRule {
     private BigDecimal threshold;
 
     @Column(nullable = false)
+    @Builder.Default
     private Boolean enabled = true;
 
     @Column(name = "created_by", nullable = false, length = 100)

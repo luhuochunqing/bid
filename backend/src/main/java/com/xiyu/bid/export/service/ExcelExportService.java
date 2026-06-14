@@ -34,6 +34,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.TimeoutException;
 
 @Service
@@ -54,9 +55,11 @@ public class ExcelExportService {
     private static final DateTimeFormatter DATE_ONLY_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
+    private static final AtomicInteger WORKER_COUNTER = new AtomicInteger(1);
+
     private final ExecutorService exportExecutor = Executors.newFixedThreadPool(2, r -> {
         Thread t = new Thread(r);
-        t.setName("export-worker-" + t.getId());
+        t.setName("export-worker-" + WORKER_COUNTER.getAndIncrement());
         t.setDaemon(true);
         return t;
     });

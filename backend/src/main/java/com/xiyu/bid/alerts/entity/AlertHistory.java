@@ -42,6 +42,7 @@ public class AlertHistory {
     private String relatedId;
 
     @Column(nullable = false)
+    @Builder.Default
     private Boolean resolved = false;
 
     @Column(name = "acknowledged_at")
