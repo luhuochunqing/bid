@@ -9,15 +9,18 @@ import java.io.IOException;
 import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * 全局限流过滤器。
  * 覆盖登录限流 + API 数据端点限流（含 X-RateLimit-* 响应头）。
+ * E2E profile 下禁用，避免自动化测试触发限流。
  */
 @Slf4j
 @Component
+@Profile("!e2e")
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private final RateLimitConfig.RateLimiter rateLimiter;
