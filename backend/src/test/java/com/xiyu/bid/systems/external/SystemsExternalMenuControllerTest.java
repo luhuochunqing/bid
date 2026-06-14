@@ -97,18 +97,13 @@ class SystemsExternalMenuControllerTest {
 
     private static ExternalMenuResponse dummyMenuResponse() {
         ExternalMenuTreeNode dashboard = new ExternalMenuTreeNode(
-                "1001", "工作台", "0", "1001",
-                "1001", "工作台", "/dashboard", List.of(), List.of());
+                "1001", "工作台", "0", "1001", List.of());
 
         ExternalMenuTreeNode bidding = new ExternalMenuTreeNode(
-                "1002", "标讯中心", "0", "1002",
-                "1002", "标讯中心", "/bidding", List.of(), List.of(
-                new ExternalMenuTreeNode("100201", "标讯列表", "1002", "100201",
-                        "100201", "标讯列表", "/bidding/list", List.of(), List.of()),
-                new ExternalMenuTreeNode("100202", "新建标讯", "1002", "100202",
-                        "100202", "新建标讯", "/bidding/new", List.of(), List.of()),
-                new ExternalMenuTreeNode("100203", "关键词订阅", "1002", "100203",
-                        "100203", "关键词订阅", "/bidding/subscribe", List.of(), List.of())
+                "1002", "标讯中心", "0", "1002", List.of(
+                new ExternalMenuTreeNode("100201", "标讯列表", "1002", "100201", List.of()),
+                new ExternalMenuTreeNode("100202", "新建标讯", "1002", "100202", List.of()),
+                new ExternalMenuTreeNode("100203", "关键词订阅", "1002", "100203", List.of())
         ));
 
         return new ExternalMenuResponse("bid-platform", "西域数智化投标管理平台", List.of(dashboard, bidding));

@@ -1,8 +1,14 @@
 package com.xiyu.bid.systems.external;
 
-import lombok.Data;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 
-/** 外部系统菜单响应（已清空字段，仅保留占位 DTO）. */
-@Data
+import java.util.List;
+
+@Getter
+@AllArgsConstructor
 public class ExternalMenuResponse {
+    private final String systemCode;
+    private final String systemName;
+    private final List<ExternalMenuTreeNode> menus;
 }
