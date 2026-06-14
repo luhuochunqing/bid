@@ -11,8 +11,6 @@ import java.time.Duration;
 import java.time.Instant;
 
 @Slf4j
-@Service
-@Primary
 public class RedisTokenRevocationService implements TokenRevocationService {
 
     private static final String KEY_PREFIX = "revoked:jwt:";
