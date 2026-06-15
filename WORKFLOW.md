@@ -8,7 +8,7 @@
 # 人类 + 现有 Claude/Codex/Cursor agent 手动完成。
 tracker:
   kind: linear
-  project_slug: "<待人工填写:xiyu-bid-poc 在 Linear 上的 project slug>"
+  project_slug: "346a62d23636"
   required_labels:
     - symphony-eligible
   active_states:
@@ -54,7 +54,7 @@ agent:
   branch_prefix: "agent/symphony/"
 
 codex:
-  command: codex --config shell_environment_policy.inherit=all --config 'model="gpt-5.5"' --config model_reasoning_effort=high app-server
+  command: /Users/user/symphony/bin-shim/claude-app-server.py
   approval_policy: '{"reject":{"sandbox_approval":true,"rules":true,"mcp_elicitations":true}}'
   thread_sandbox: workspace-write
   turn_sandbox_policy:
