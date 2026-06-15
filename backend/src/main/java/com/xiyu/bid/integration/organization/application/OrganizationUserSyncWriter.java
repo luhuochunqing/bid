@@ -46,12 +46,15 @@ public class OrganizationUserSyncWriter {
             handleUnmappedUser(sourceApp, eventKey, snapshot, existingUser);
             return null;
         }
+        // 按人员映射时允许 admin 升级；按部门/岗位映射仍受 Admin 升级守卫保护。
+        boolean allowAdminElevation = personMappedRoleCode != null && !personMappedRoleCode.isBlank();
         OrganizationUserSyncPlan plan = OrganizationSyncPolicy.planUserSync(
                 snapshot,
                 user.getRoleCode(),
                 normalizeSet(properties.getAdminRoleCodes()),
                 normalizeSet(properties.getManagerRoleCodes()),
-                resolvedRoleCode
+                resolvedRoleCode,
+                allowAdminElevation
         );
         user.setUsername(plan.username());
         user.setPassword(user.getPassword() == null ? LOCKED_PASSWORD_HASH : user.getPassword());

@@ -175,6 +175,32 @@ class OrganizationUserSyncWriterTest {
     }
 
     @Test
+    @DisplayName("person mapping can grant admin role to new user")
+    void mapPersonToRole_admin_canElevateNewUser() {
+        OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();
+        OrganizationIntegrationProperties.PersonToRoleMapping mapping = new OrganizationIntegrationProperties.PersonToRoleMapping();
+        mapping.setPersonIdentifier("dean_zhang@ehsy.com");
+        mapping.setRoleCode("admin");
+        properties.setPersonToRoleMappings(List.of(mapping));
+        PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
+        OrganizationUserSyncWriter adminWriter = new OrganizationUserSyncWriter(
+                userRepository, organizationDepartmentRepository, roleProfileRepository, properties, positionToRoleMapper);
+
+        when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "03595")).thenReturn(Optional.empty());
+        when(roleProfileRepository.findByCodeIgnoreCase("admin")).thenReturn(Optional.of(role("admin")));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        adminWriter.upsert("oss", "event-key", new OrganizationUserSnapshot(
+                "03595", "dean_zhang", "张頔", "dean_zhang@ehsy.com",
+                "13800000000", "1001", "投标管理部", "/bidAdmin", true
+        ));
+
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(saved.capture());
+        assertThat(saved.getValue().getRoleCode()).isEqualTo("admin");
+    }
+
+    @Test
     @DisplayName("mapPersonToRole falls back to full name match")
     void mapPersonToRole_matchesByFullName() {
         OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();

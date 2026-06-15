@@ -19,13 +19,14 @@ xiyu:
       skip-unmapped-users: true
 
       # 按岗位映射（对应表格里的 role code）
+      # 注意：bid-SystemAdmin 是 OSS 临时岗位，不建议在 positionToRoleMappings 中硬映射。
+      #       如需赋予系统管理员权限，请用下面的 personToRoleMappings 按人员精确配置，
+      #       这样 OSS 岗位变化后对应人员不会丢失权限。
       positionToRoleMappings:
         - positionPattern: "^/bidAdmin$"
           roleCode: bid_admin
         - positionPattern: "^bid-TeamLeader$"
           roleCode: bid_lead
-        - positionPattern: "^bid-SystemAdmin$"
-          roleCode: admin
         - positionPattern: "^bid-Team$"
           roleCode: bid_specialist
         - positionPattern: "^bid-projectLeader$"
@@ -43,15 +44,22 @@ xiyu:
         - departmentPattern: "行政部"
           roleCode: admin_staff
 
-      # 按人员映射（姓名兜底，建议替换为邮箱或工号）
+      # 按人员映射（支持邮箱、工号/用户名/姓名，优先级最高）。
+      # 由于系统当前只能给用户绑定一个 RoleProfile，同一人命中多条时以第一条为准。
       personToRoleMappings:
-        # 投标管理员 /bidAdmin
-        - personIdentifier: "张頔"
-          roleCode: bid_admin
-        - personIdentifier: "郑蓉蓉"
-          roleCode: bid_admin
-        - personIdentifier: "袁思琪"
-          roleCode: bid_admin
-        # 投标组长 bid-TeamLeader（若希望袁思琪同时是组长，可改为 bid_senior）
-        # 由于单角色限制，已在上面给袁思琪 bid_admin；如需组长权限请调整。
-        # 投标系统管理员 bid-SystemAdmin（已在上面按最高权限处理为 admin）
+        # 投标系统管理员 bid-SystemAdmin（OSS 临时岗位）。
+        # 张頔、郑蓉蓉、袁思琪目前同时属于 /bidAdmin；由于系统只能绑定一个 RoleProfile，
+        # 按最高权限原则统一给 admin。后续若 OSS 取消 bid-SystemAdmin，可把他们改回
+        # bid_admin（张頔/郑蓉蓉）或 bid_senior（袁思琪）。
+        - personIdentifier: "03595"                # 张頔：工号
+          roleCode: admin
+        - personIdentifier: "dean_zhang@ehsy.com"  # 张頔：邮箱
+          roleCode: admin
+        - personIdentifier: "06234"                  # 郑蓉蓉：工号
+          roleCode: admin
+        - personIdentifier: "tina_zheng1@ehsy.com"   # 郑蓉蓉：邮箱
+          roleCode: admin
+        - personIdentifier: "11484"                  # 袁思琪：工号
+          roleCode: admin
+        - personIdentifier: "suki_yuan@ehsy.com"     # 袁思琪：邮箱
+          roleCode: admin

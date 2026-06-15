@@ -1,23 +1,45 @@
 -- 物理删除已同步但不属于白名单的 OSS 测试用户
 -- 使用步骤：
 -- 1. 先执行 SELECT 确认要删除的范围；
--- 2. 将白名单邮箱/工号/用户名填入 IN (...) 列表；
--- 3. 确认这些用户没有业务数据（项目、任务、标讯等外键引用），否则 DELETE 会失败；
--- 4. 再执行 DELETE。
+-- 2. 确认这些用户没有业务数据（项目、任务、标讯等外键引用），否则 DELETE 会失败；
+-- 3. 再执行 DELETE 或改用下方 UPDATE 禁用。
+
+-- 白名单（与 docs/integration/organization-role-filter-config.yml 中 personToRoleMappings 对应）。
+-- 匹配规则：email / external_org_user_id / username / full_name 任一命中即可。
+-- 当前白名单基于已确认的真实员工信息：
+--   张頔     03595  dean_zhang@ehsy.com
+--   郑蓉蓉   06234  tina_zheng1@ehsy.com
+--   袁思琪   11484  suki_yuan@ehsy.com
+-- 如需追加投标系统管理员等人员，请在 IN 列表中补充对应邮箱或工号。
 
 -- 示例：查询所有外部来源为 oss 且不在白名单里的用户
--- SELECT id, username, full_name, email, external_org_user_id, department_name
+-- SELECT id, username, full_name, email, external_org_user_id, department_name, enabled
 -- FROM users
 -- WHERE external_org_source_app = 'oss'
---   AND username NOT IN ('zhangdi', 'zhengrongrong', 'yuansiqi', ...);
+--   AND email NOT IN (
+--     'dean_zhang@ehsy.com',
+--     'tina_zheng1@ehsy.com',
+--     'suki_yuan@ehsy.com'
+--   )
+--   AND external_org_user_id NOT IN ('03595', '06234', '11484');
 
--- 示例：物理删除（请先替换白名单值）
+-- 示例：物理删除（请先替换/补充白名单值）
 -- DELETE FROM users
 -- WHERE external_org_source_app = 'oss'
---   AND username NOT IN ('zhangdi', 'zhengrongrong', 'yuansiqi', ...);
+--   AND email NOT IN (
+--     'dean_zhang@ehsy.com',
+--     'tina_zheng1@ehsy.com',
+--     'suki_yuan@ehsy.com'
+--   )
+--   AND external_org_user_id NOT IN ('03595', '06234', '11484');
 
 -- 如果存在外键引用导致无法删除，可改用禁用（物理数据保留，禁止登录）：
 -- UPDATE users
 -- SET enabled = false
 -- WHERE external_org_source_app = 'oss'
---   AND username NOT IN ('zhangdi', 'zhengrongrong', 'yuansiqi', ...);
+--   AND email NOT IN (
+--     'dean_zhang@ehsy.com',
+--     'tina_zheng1@ehsy.com',
+--     'suki_yuan@ehsy.com'
+--   )
+--   AND external_org_user_id NOT IN ('03595', '06234', '11484');

@@ -3,6 +3,17 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-06-15] update | OSS 组织架构同步角色白名单与 admin 升级规则归档
+- 更新页面：`.wiki/pages/integration-organization-event-sdk.md`（角色映射与白名单章节）
+- 更新配置模板：`docs/integration/organization-role-filter-config.yml`
+- 关键决策：
+  - 张頔（03595 / dean_zhang@ehsy.com）、郑蓉蓉（06234 / tina_zheng1@ehsy.com）、袁思琪（11484 / suki_yuan@ehsy.com）通过 `personToRoleMappings` 映射为 `admin`
+  - 袁思琪同时属于 `/bidAdmin` 与 `bid-TeamLeader`，因单角色限制按最高权限给 `admin`；后续若取消系统管理员，可改回 `bid_senior`（投标主管，PR !545 引入）
+  - `bid-SystemAdmin` 是 OSS 临时岗位，不再在 `positionToRoleMappings` 中硬映射
+  - `/bidAdmin` → `bid_admin`、`bid-TeamLeader` → `bid_lead`、`bid-Team` → `bid_specialist`、`bid-projectLeader` → `sales`、`bid-administration` → `admin_staff`
+- 代码调整：`OrganizationSyncPolicy` 新增 `allowAdminElevation` 参数，`OrganizationUserSyncWriter` 仅对 `personToRoleMappings` 命中人员时放行 admin 升级守卫
+- 验证：后端相关单测 20 个通过，ArchUnit 门禁通过，pre-push 14 道门禁通过
+
 ## [2026-04-24] ingest+build | SOW V1.4 执行基准入库
 - 新增源文件：`.wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx`
 - 新增抽取件：`.wiki/extracts/implementation__西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx.md`
