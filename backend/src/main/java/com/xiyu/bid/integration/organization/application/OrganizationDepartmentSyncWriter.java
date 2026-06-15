@@ -32,15 +32,16 @@ public class OrganizationDepartmentSyncWriter {
                     .orElse("");
         }
 
+        // 按业务主键 (source_app, department_code) 查找，避免不同 source_app 互相覆盖。
         OrganizationDepartmentEntity department = departmentRepository
-                .findBySourceAppAndExternalDeptId(sourceApp, plan.externalDeptId())
+                .findBySourceAppAndDepartmentCode(sourceApp, plan.departmentCode())
                 .orElseGet(OrganizationDepartmentEntity::new);
+        department.setSourceApp(sourceApp);
         department.setDepartmentCode(plan.departmentCode());
         department.setExternalDeptId(plan.externalDeptId());
         department.setDepartmentName(plan.departmentName());
         department.setParentExternalDeptId(plan.parentExternalDeptId());
         department.setParentDepartmentCode(resolvedParentDeptCode);
-        department.setSourceApp(sourceApp);
         department.setLastEventKey(eventKey);
         department.setLastSyncedAt(LocalDateTime.now());
         department.setEnabled(plan.enabled());

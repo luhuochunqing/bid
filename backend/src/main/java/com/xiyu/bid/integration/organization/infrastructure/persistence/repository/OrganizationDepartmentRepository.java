@@ -9,5 +9,7 @@ import java.util.Optional;
 public interface OrganizationDepartmentRepository extends JpaRepository<OrganizationDepartmentEntity, String> {
     Optional<OrganizationDepartmentEntity> findBySourceAppAndExternalDeptId(String sourceApp, String externalDeptId);
 
+    Optional<OrganizationDepartmentEntity> findBySourceAppAndDepartmentCode(String sourceApp, String departmentCode);
+
     List<OrganizationDepartmentEntity> findByEnabledTrueOrderByDepartmentCode();
 }

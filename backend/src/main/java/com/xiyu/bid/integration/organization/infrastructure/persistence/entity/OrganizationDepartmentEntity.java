@@ -3,6 +3,7 @@ package com.xiyu.bid.integration.organization.infrastructure.persistence.entity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.IdClass;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -13,7 +14,12 @@ import java.time.LocalDateTime;
 @Data
 @Entity
 @Table(name = "organization_departments")
+@IdClass(OrganizationDepartmentId.class)
 public class OrganizationDepartmentEntity {
+    @Id
+    @Column(name = "source_app", length = 100)
+    private String sourceApp;
+
     @Id
     @Column(name = "department_code", length = 100)
     private String departmentCode;
@@ -29,9 +35,6 @@ public class OrganizationDepartmentEntity {
 
     @Column(name = "parent_external_dept_id", length = 128)
     private String parentExternalDeptId;
-
-    @Column(name = "source_app", length = 100)
-    private String sourceApp;
 
     @Column(name = "last_event_key", length = 128)
     private String lastEventKey;
