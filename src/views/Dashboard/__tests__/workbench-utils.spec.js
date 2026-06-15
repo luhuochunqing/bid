@@ -272,9 +272,9 @@ describe('normalizeAlertForTodo', () => {
 describe('extractCustomersFromProjects', () => {
   it('groups projects by customerManagerId and counts them', () => {
     const projects = [
-      { id: 1, customerManager: '李四', customerManagerId: 101, name: '项目A', status: 'BIDDING' },
-      { id: 2, customerManager: '李四', customerManagerId: 101, name: '项目B', status: 'BIDDING' },
-      { id: 3, customerManager: '王五', customerManagerId: 102, name: '项目C', status: 'INITIATED' },
+      { id: 1, customerManager: '李四', customerManagerId: 101, name: '项目A', status: '投标中' },
+      { id: 2, customerManager: '李四', customerManagerId: 101, name: '项目B', status: '投标中' },
+      { id: 3, customerManager: '王五', customerManagerId: 102, name: '项目C', status: '已立项' },
     ]
     const result = extractCustomersFromProjects(projects)
     expect(result).toHaveLength(2)
@@ -286,8 +286,8 @@ describe('extractCustomersFromProjects', () => {
 
   it('sets status "跟进中"/"warning" when any project is BIDDING', () => {
     const projects = [
-      { id: 1, customerManager: '李四', customerManagerId: 101, name: '项目A', status: 'BIDDING' },
-      { id: 2, customerManager: '李四', customerManagerId: 101, name: '项目B', status: 'WON' },
+      { id: 1, customerManager: '李四', customerManagerId: 101, name: '项目A', status: '投标中' },
+      { id: 2, customerManager: '李四', customerManagerId: 101, name: '项目B', status: '已中标' },
     ]
     const r = extractCustomersFromProjects(projects)
     const lisi = r.find(c => c.id === 101)
@@ -297,7 +297,7 @@ describe('extractCustomersFromProjects', () => {
 
   it('sets status "跟进中"/"warning" when any project is EVALUATING', () => {
     const projects = [
-      { id: 1, customerManager: '张三', customerManagerId: 201, name: '项目A', status: 'EVALUATING' },
+      { id: 1, customerManager: '张三', customerManagerId: 201, name: '项目A', status: '评标中' },
     ]
     const r = extractCustomersFromProjects(projects)
     expect(r[0].status).toBe('跟进中')
@@ -306,8 +306,8 @@ describe('extractCustomersFromProjects', () => {
 
   it('sets status "已完成"/"success" when ALL projects are terminal', () => {
     const projects = [
-      { id: 1, customerManager: '李四', customerManagerId: 101, name: '项目A', status: 'WON' },
-      { id: 2, customerManager: '李四', customerManagerId: 101, name: '项目B', status: 'LOST' },
+      { id: 1, customerManager: '李四', customerManagerId: 101, name: '项目A', status: '已中标' },
+      { id: 2, customerManager: '李四', customerManagerId: 101, name: '项目B', status: '未中标' },
     ]
     const r = extractCustomersFromProjects(projects)
     expect(r[0].status).toBe('已完成')
@@ -316,7 +316,7 @@ describe('extractCustomersFromProjects', () => {
 
   it('sets status "新客户"/"info" for other statuses', () => {
     const projects = [
-      { id: 1, customerManager: '王五', customerManagerId: 102, name: '项目C', status: 'INITIATED' },
+      { id: 1, customerManager: '王五', customerManagerId: 102, name: '项目C', status: '已立项' },
     ]
     const r = extractCustomersFromProjects(projects)
     expect(r[0].status).toBe('新客户')
@@ -333,8 +333,8 @@ describe('extractCustomersFromProjects', () => {
 
   it('skips projects without customerManager field', () => {
     const projects = [
-      { id: 1, name: '项目A', status: 'BIDDING' }, // no customerManager
-      { id: 2, customerManager: '李四', customerManagerId: 101, name: '项目B', status: 'BIDDING' },
+      { id: 1, name: '项目A', status: '投标中' }, // no customerManager
+      { id: 2, customerManager: '李四', customerManagerId: 101, name: '项目B', status: '投标中' },
     ]
     const r = extractCustomersFromProjects(projects)
     expect(r).toHaveLength(1)

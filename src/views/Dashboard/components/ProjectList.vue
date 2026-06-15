@@ -93,6 +93,7 @@ Pos: src/views/Dashboard/components/ - Dashboard display components
 
 <script setup>
 import { ArrowRight, Calendar, User, Share } from '@element-plus/icons-vue'
+import { getProjectStatusType } from '@/views/Dashboard/workbench-formatters.js'
 import EmptyState from './EmptyState.vue'
 
 const props = defineProps({
@@ -120,16 +121,7 @@ const defaultProgressColor = (progress) => {
   return 'var(--color-danger)'
 }
 
-const defaultStatusType = (status) => ({
-  待立项: 'info',
-  已立项: 'info',
-  投标中: 'primary',
-  评标中: 'warning',
-  已中标: 'success',
-  未中标: 'danger',
-  已流标: 'danger',
-  已放弃: 'info',
-}[status] || 'info')
+const defaultStatusType = getProjectStatusType
 
 const resolveProgressColor = (progress) => (
   props.progressColorResolver ? props.progressColorResolver(progress) : defaultProgressColor(progress)

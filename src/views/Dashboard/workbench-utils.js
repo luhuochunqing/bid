@@ -136,8 +136,8 @@ export function extractCustomersFromProjects(projects) {
 
   return Array.from(grouped.values()).map((customer) => {
     const statuses = customer.statuses
-    const hasFollowing = statuses.some((status) => status === 'BIDDING' || status === 'EVALUATING')
-    const allTerminal = statuses.length > 0 && statuses.every((status) => ['WON', 'LOST', 'FAILED', 'ABANDONED'].includes(status))
+    const hasFollowing = statuses.some((status) => status === '投标中' || status === '评标中')
+    const allTerminal = statuses.length > 0 && statuses.every((status) => ['已中标', '未中标', '已流标', '已放弃'].includes(status))
     return {
       id: customer.id,
       name: customer.name,

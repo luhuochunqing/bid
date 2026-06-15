@@ -5,6 +5,7 @@ This folder keeps the Workbench page split by responsibility.
 - `Workbench.vue` is the page shell. It wires stores, router, lifecycle loading, and child components.
 - `components/WorkbenchStaticLayout.vue` keeps the fallback static Workbench layout presentational.
 - `workbench-core.js` contains pure functions only: formatting, DTO mapping, role rules, and route targets.
+- Workbench project statuses use the canonical 8 Chinese labels: `待立项`, `已立项`, `投标中`, `评标中`, `已中标`, `未中标`, `已流标`, `已放弃`. `workbench-formatters.js` owns the single `ElTag` type mapping; components should reuse it instead of duplicating the map.
 - Workbench project lists show visible non-archived projects first, prioritizing current-owner and urgent/high-priority items instead of hiding visible projects by strict display-name matching.
 - `workbench-quick-start-core.js` contains pure permission checks, form validation, and payload builders for the one-stop quick-start flows.
 - `useWorkbench*.js` files are application-service composables. They perform API orchestration and state writes.
