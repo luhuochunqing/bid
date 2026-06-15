@@ -141,6 +141,26 @@ class OrganizationSyncPolicyTest {
     }
 
     @Test
+    @DisplayName("person mapping can elevate non-admin existing user to admin when explicitly allowed")
+    void planUserSync_personMapping_allowedAdminElevation() {
+        OrganizationUserSnapshot snapshot = new OrganizationUserSnapshot(
+                "10001", "zhangsan", "张三", "zhangsan@example.com",
+                "13800000000", "sales", "销售部", "投标管理员", true
+        );
+
+        OrganizationUserSyncPlan plan = OrganizationSyncPolicy.planUserSync(
+                snapshot,
+                "manager",
+                Set.of(),
+                Set.of(),
+                "admin",
+                true
+        );
+
+        assertThat(plan.roleCode()).isEqualTo("admin");
+    }
+
+    @Test
     @DisplayName("position mapping can assign staff to new user when no existing role")
     void planUserSync_positionMapping_newUser() {
         OrganizationUserSnapshot snapshot = new OrganizationUserSnapshot(

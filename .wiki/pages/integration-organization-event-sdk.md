@@ -9,13 +9,14 @@ sources:
   - .wiki/extracts/technical__泊冉投标系统与西域对接技术相关内容.md.md
   - backend/src/main/java/com/xiyu/bid/entity/User.java
   - backend/src/main/java/com/xiyu/bid/dto/DataScopeConfigPayload.java
+  - docs/integration/organization-role-filter-config.yml
 backlinks:
   - _index
   - implementation/xiyu-pending-confirmations
   - integration-oa-crm
 created: 2026-04-28
-updated: 2026-06-13
-health_checked: 2026-06-13
+updated: 2026-06-15
+health_checked: 2026-06-15
 ---
 # 组织架构对接 - 客户事件库 SDK 方案
 
@@ -257,45 +258,87 @@ client:
 | 启停用/状态 | `enabled` 字段 | 接口未查询到或状态失效时禁用，不得物理删除 |
 | 职位信息 | `positionCode` / `positionName` / `jobCode` | 通过正则模式匹配映射到系统 `RoleProfile`（见下方"职位到角色映射"） |
 
-## 职位到角色映射
+## 角色映射与白名单
 
-西域组织架构接口不传递标准化角色码，只返回职位信息。系统通过 `PositionToRoleMapper` 基于正则模式匹配职位名称/编码，自动映射到 `RoleProfile`。
+西域组织架构接口不传递标准化角色码，只返回职位/部门/人员信息。系统通过三类规则映射到内部 `RoleProfile`，并支持白名单过滤：未命中任何规则的用户不会被创建；已存在则被禁用。
+
+### 三类映射规则
+
+1. `personToRoleMappings` — 按人员精确匹配（邮箱 / 工号 / 用户名 / 姓名），**优先级最高**。
+2. `departmentToRoleMappings` — 按部门名称正则匹配。
+3. `positionToRoleMappings` — 按 OSS 返回的职位编码/名称正则匹配。
 
 ### 映射优先级
 
-1. `PositionToRoleMapper.map(positionText)` — 正则匹配职位信息
-2. 回退到 `OrganizationSyncPolicy.mapRoleCode()` — `adminRoleCodes` / `managerRoleCodes` 精确匹配
-3. 保持用户现有角色（如果是已有用户）
-4. 默认 `staff`（如果是新建用户且无任何匹配）
+最终角色决议顺序：
+
+1. 人员映射
+2. 部门映射
+3. 岗位映射
+4. 回退到 `OrganizationSyncPolicy.mapRoleCode()`（`adminRoleCodes` / `managerRoleCodes` 精确匹配）
+5. 保持用户现有角色（如果是已有用户且无其他匹配）
+6. 默认 `staff`（新建用户且无其他匹配）
+
+### 白名单开关
+
+`skip-unmapped-users: true` 时：
+
+- 未命中任何映射的新用户**不创建**。
+- 已同步但不再命中映射的用户会被**禁用**（`enabled = false`），禁止登录。
+- 需要物理删除时参考 `scripts/cleanup-unmapped-oss-users.sql`。
 
 ### Admin 升级守卫
 
-若职位映射结果为 `admin`，但用户现有角色不是 `admin`，则**拒绝升级**，保持现有角色。防止西域职位误配导致普通用户意外获得系统管理员权限。
+为防止岗位/部门误配导致普通用户意外获得系统管理员权限，**按岗位/部门映射到 `admin` 时会被守卫拦截**；但通过 `personToRoleMappings` 显式指定的人员可以正常升级为 `admin`。
 
-### 配置示例
-
-在 `application.yml` 中配置：
+### 当前生产配置示例
 
 ```yaml
 xiyu:
   integrations:
     organization:
+      skip-unmapped-users: true
+
       positionToRoleMappings:
-        - positionPattern: "投标.*管理.*"
+        - positionPattern: "^/bidAdmin$"
           roleCode: bid_admin
-        - positionPattern: "投标.*组长.*"
+        - positionPattern: "^bid-TeamLeader$"
           roleCode: bid_lead
-        - positionPattern: "投标.*专员.*"
+        - positionPattern: "^bid-Team$"
           roleCode: bid_specialist
-        - positionPattern: "项目.*负责.*"
+        - positionPattern: "^bid-projectLeader$"
           roleCode: sales
-        - positionPattern: "行政.*"
+        - positionPattern: "^bid-administration$"
           roleCode: admin_staff
-        - positionPattern: "系统.*管理.*"
+        # bid-SystemAdmin 是 OSS 临时岗位，不在此处硬映射，改由 personToRoleMappings 按人员配置。
+
+      departmentToRoleMappings:
+        - departmentPattern: "投标管理部"
+          roleCode: bid_specialist
+        - departmentPattern: "行政部"
+          roleCode: admin_staff
+
+      personToRoleMappings:
+        # 张頔、郑蓉蓉、袁思琪目前同时属于 /bidAdmin，并被确认为投标系统管理员（临时）。
+        # 由于系统只能绑定一个 RoleProfile，按最高权限给 admin。
+        # 后续若 OSS 取消 bid-SystemAdmin，可改回 bid_admin（张頔/郑蓉蓉）或 bid_senior（袁思琪）。
+        - personIdentifier: "03595"                # 张頔：工号
+          roleCode: admin
+        - personIdentifier: "dean_zhang@ehsy.com"  # 张頔：邮箱
+          roleCode: admin
+        - personIdentifier: "06234"                  # 郑蓉蓉：工号
+          roleCode: admin
+        - personIdentifier: "tina_zheng1@ehsy.com"   # 郑蓉蓉：邮箱
+          roleCode: admin
+        - personIdentifier: "11484"                  # 袁思琪：工号
+          roleCode: admin
+        - personIdentifier: "suki_yuan@ehsy.com"     # 袁思琪：邮箱
           roleCode: admin
 ```
 
-> 实际 `positionPattern` 需等西域联调后根据真实职位名称格式校准。建议先配置较宽正则，联调后收紧。
+> 完整配置模板见 `docs/integration/organization-role-filter-config.yml`；清理脚本见 `scripts/cleanup-unmapped-oss-users.sql`。
+
+> `bid_senior`（投标主管）是合并 `bid_admin` + `bid_lead` 权限的角色，由 PR !545 引入，用于处理身兼多职的单角色场景。
 
 ## 实现状态与启用步骤
 
