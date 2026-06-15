@@ -107,3 +107,4 @@ pnpm-lock.yaml
 outputs/
 tmp/
 xiyu_bid_gemini/
+__pycache__/
