@@ -22,7 +22,7 @@
       class="empty-alert"
     />
 
-    <el-table :data="rows" border stripe size="small">
+    <el-table :data="rows" border stripe size="small" height="520">
       <el-table-column label="部门编码" min-width="150">
         <template #default="{ row }">
           <el-input v-model="row.deptCode" placeholder="如 SALES" />
@@ -35,19 +35,22 @@
       </el-table-column>
       <el-table-column label="上级部门" min-width="180">
         <template #default="{ row }">
-          <el-select v-model="row.parentDeptCode" clearable placeholder="根部门" style="width: 100%">
-            <el-option
-              v-for="dept in parentOptions(row.deptCode)"
-              :key="dept.deptCode"
-              :label="dept.deptName || dept.deptCode"
-              :value="dept.deptCode"
-            />
-          </el-select>
+          <el-tree-select
+            v-model="row.parentDeptCode"
+            :data="parentTreeOptions"
+            node-key="deptCode"
+            :props="{ label: 'deptName', value: 'deptCode' }"
+            check-strictly
+            clearable
+            placeholder="根部门"
+            filterable
+            style="width: 100%"
+          />
         </template>
       </el-table-column>
       <el-table-column label="成员数" width="100">
         <template #default="{ row }">
-          <el-tag>{{ memberCount(row.deptCode) }}</el-tag>
+          <el-tag>{{ memberCountMap[row.deptCode] ?? 0 }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column label="操作" width="90">
@@ -60,7 +63,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { normalizeDeptTree } from './organization-normalizers'
 
@@ -81,11 +84,37 @@ watch(
   { immediate: true, deep: true }
 )
 
-const parentOptions = (deptCode) => rows.value.filter((item) => item.deptCode && item.deptCode !== deptCode)
+const parentTreeOptions = computed(() => buildDeptTree(rows.value))
 
-const memberCount = (deptCode) => props.users
-  .filter((user) => user.departmentCode === deptCode)
-  .length
+const memberCountMap = computed(() => {
+  const map = {}
+  for (const user of props.users || []) {
+    const code = user.departmentCode
+    if (code) {
+      map[code] = (map[code] || 0) + 1
+    }
+  }
+  return map
+})
+
+function buildDeptTree(depts) {
+  const map = {}
+  const roots = []
+  for (const dept of depts) {
+    if (!dept.deptCode) continue
+    map[dept.deptCode] = { ...dept, children: [] }
+  }
+  for (const dept of depts) {
+    if (!dept.deptCode) continue
+    const parentCode = dept.parentDeptCode
+    if (parentCode && parentCode !== dept.deptCode && map[parentCode]) {
+      map[parentCode].children.push(map[dept.deptCode])
+    } else {
+      roots.push(map[dept.deptCode])
+    }
+  }
+  return roots
+}
 
 const addRow = () => {
   rows.value.push({
@@ -97,7 +126,7 @@ const addRow = () => {
 }
 
 const removeRow = (index, row) => {
-  if (memberCount(row.deptCode) > 0) {
+  if ((memberCountMap.value[row.deptCode] || 0) > 0) {
     ElMessage.warning('该部门仍有关联用户，请先迁移用户归属')
     return
   }
