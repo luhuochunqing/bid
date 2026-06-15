@@ -76,7 +76,7 @@ describe('useManualTenderCreate', () => {
     })
     expect(workflow.manualForm.value.deadline).toEqual(new Date('2026-06-01T17:00:00'))
     expect(workflow.manualForm.value.bidOpeningTime).toEqual(new Date('2026-06-03T10:00:00'))
-    expect(ElMessage.success).toHaveBeenCalledWith('DeepSeek/AI 已识别附件内容，可继续编辑后保存')
+    expect(ElMessage.success).toHaveBeenCalledWith('DeepSeek/AI 已识别标讯文件内容，可继续编辑后保存')
   })
 
   it('backfills fields from pasted tender text recognition', async () => {

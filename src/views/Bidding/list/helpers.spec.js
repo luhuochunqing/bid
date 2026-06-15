@@ -261,6 +261,34 @@ describe('isAdminRole', () => {
     expect(normalizeBudgetYuan('最高限价 328.6 万元')).toBe(3286000)
   })
 
+  it('maps contactTel from AI parse result to landline form field', () => {
+    const normalized = normalizeManualTenderParseResult({
+      extractedData: {
+        tenderTitle: '座机字段解析测试',
+        contactTel: '010-12345678',
+        contactTel2: '021-87654321',
+      },
+    })
+
+    expect(normalized.landline).toBe('010-12345678')
+    expect(normalized.landline2).toBe('021-87654321')
+  })
+
+  it('prefers contactTel over contactLandline in AI parse result', () => {
+    const normalized = normalizeManualTenderParseResult({
+      extractedData: {
+        tenderTitle: '座机字段优先级测试',
+        contactTel: '010-11111111',
+        contactLandline: '010-22222222',
+        contactTel2: '021-11111111',
+        contactLandline2: '021-22222222',
+      },
+    })
+
+    expect(normalized.landline).toBe('010-11111111')
+    expect(normalized.landline2).toBe('021-11111111')
+  })
+
   it('returns correct tag type for source type', () => {
     expect(getSourceTypeTagType('MANUAL')).toBe('warning')
     expect(getSourceTypeTagType('EXTERNAL')).toBe('success')

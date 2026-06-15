@@ -73,11 +73,11 @@ function normalizeDeadline(value) {
  * - priority    <- priority（值直接透传，不做选项映射）
  * - contact     <- contactName / contactPerson / contact
  * - phone       <- contactPhone / phone / mobile（不含 email）
- * - landline    <- contactLandline / landline
+ * - landline    <- contactTel / contactLandline / landline
  * - mail        <- contactEmail / email
  * - contact2    <- contactName2 / secondaryContact
  * - phone2      <- contactPhone2 / phone2 / secondaryPhone
- * - landline2   <- contactLandline2 / secondaryLandline
+ * - landline2   <- contactTel2 / contactLandline2 / secondaryLandline
  * - mail2       <- contactEmail2 / email2 / secondaryEmail
  * - tenderInfo  <- tenderScope（与 description 区分，description 为手填标讯描述）
  * - tags        <- tags
@@ -96,11 +96,11 @@ export function normalizeManualTenderParseResult(result = {}) {
     priority: firstText(data.priority),
     contact: firstText(data.contactName, data.contactPerson, data.contact),
     phone: firstText(data.contactPhone, data.phone, data.mobile, data.contactMobile),
-    landline: firstText(data.contactLandline, data.landline),
+    landline: firstText(data.contactTel, data.contactLandline, data.landline),
     mail: firstText(data.contactEmail, data.email),
     contact2: firstText(data.contactName2, data.secondaryContact),
     phone2: firstText(data.contactPhone2, data.phone2, data.secondaryPhone),
-    landline2: firstText(data.contactLandline2, data.secondaryLandline),
+    landline2: firstText(data.contactTel2, data.contactLandline2, data.secondaryLandline),
     mail2: firstText(data.contactEmail2, data.email2, data.secondaryEmail),
     tenderInfo: firstText(data.tenderScope),
     tags: normalizeTags(data.tags),
