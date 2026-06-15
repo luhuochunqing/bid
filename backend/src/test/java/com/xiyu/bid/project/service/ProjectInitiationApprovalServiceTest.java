@@ -13,7 +13,7 @@ import com.xiyu.bid.project.core.ProjectStageTransitionPolicy;
 import com.xiyu.bid.project.dto.InitiationApprovalRequest;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.project.entity.ProjectLeadAssignment;
-import com.xiyu.bid.project.notification.ProjectNotificationService;
+import com.xiyu.bid.project.notification.ProjectNotificationHelper;
 import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
@@ -46,7 +46,7 @@ class ProjectInitiationApprovalServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private ProjectRepository projectRepository;
     @Mock private ProjectArchiveWorkflowService projectArchiveWorkflowService;
-    @Mock private ProjectNotificationService notificationService;
+    @Mock private ProjectNotificationHelper notificationService;
 
     private ProjectInitiationApprovalService service;
 

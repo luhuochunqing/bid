@@ -12,6 +12,7 @@ import com.xiyu.bid.project.dto.RetrospectiveReviewRequest;
 import com.xiyu.bid.project.dto.RetrospectiveSubmitRequest;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.project.repository.ProjectRetrospectiveRepository;
+import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,7 +36,7 @@ class ProjectRetrospectiveServiceTest {
     private ProjectRepository projectRepo;
     private ProjectStageService stageService;
     private UserRepository userRepository;
-    private ProjectNotificationService notificationService;
+    private NotificationApplicationService notificationService;
     private ProjectRetrospectiveService service;
 
     @BeforeEach
@@ -44,7 +45,7 @@ class ProjectRetrospectiveServiceTest {
         projectRepo = mock(ProjectRepository.class);
         stageService = mock(ProjectStageService.class);
         userRepository = mock(UserRepository.class);
-        notificationService = mock(ProjectNotificationService.class);
+        notificationService = mock(NotificationApplicationService.class);
         service = new ProjectRetrospectiveService(repo, projectRepo, stageService, userRepository, notificationService);
         Project p = new Project();
         p.setId(1L);

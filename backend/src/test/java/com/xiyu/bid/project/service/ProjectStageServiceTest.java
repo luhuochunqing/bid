@@ -8,6 +8,7 @@ import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.core.ProjectStageTransitionPolicy;
+import com.xiyu.bid.project.notification.ProjectNotificationHelper;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.repository.ProjectRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,7 +33,7 @@ import static org.mockito.Mockito.when;
 class ProjectStageServiceTest {
 
     private ProjectRepository projectRepo;
-    private ProjectNotificationService notificationService;
+    private ProjectNotificationHelper notificationService;
     private ProjectStageService service;
 
     private static final Long PID = 1L;
@@ -43,7 +44,7 @@ class ProjectStageServiceTest {
     void setup() {
         projectRepo = mock(ProjectRepository.class);
         ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
-        notificationService = mock(ProjectNotificationService.class);
+        notificationService = mock(ProjectNotificationHelper.class);
         service = new ProjectStageService(projectRepo, eventPublisher, notificationService);
         when(projectRepo.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
     }
