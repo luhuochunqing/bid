@@ -42,7 +42,7 @@ describe('tendersApi', () => {
     const params = {
       keyword: 'GPU',
       status: 'PENDING',
-      source: 'external',
+      source: '第三方平台',
       region: '上海',
       industry: '数据中心',
       purchaserName: '西域采购',
@@ -82,7 +82,7 @@ describe('tendersApi', () => {
       priority: 'A',
       description: '人工录入测试',
       tags: ['数据中心'],
-      source: 'manual',
+      source: '人工录入',
       status: 'PENDING_ASSIGNMENT'
     }
     httpClient.post.mockResolvedValue({ success: true, data: { id: 10, ...payload } })

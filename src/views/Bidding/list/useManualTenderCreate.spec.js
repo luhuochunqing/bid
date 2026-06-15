@@ -193,7 +193,7 @@ describe('useManualTenderCreate', () => {
         priority: 'A',
         projectType: null,
         description: '框架协议供应商引入，无明确采购预算。',
-        source: 'manual',
+        source: '人工录入',
         tenderInfo: null,
         publishDate: expect.any(String),
         sourceDocumentName: '框架协议招标文件.docx',

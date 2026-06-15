@@ -3,6 +3,8 @@ import {
   buildManualTenderPayload,
   buildPermissionFlags,
   formatBudgetWan,
+  getSourceTagType,
+  getSourceText,
   getSourceTypeTagType,
   getSourceTypeText,
   isAdminRole,
@@ -300,5 +302,26 @@ describe('isAdminRole', () => {
     expect(getSourceTypeText('EXTERNAL')).toBe('外部获取')
     expect(getSourceTypeText('UNKNOWN')).toBe('UNKNOWN')
     expect(getSourceTypeText(null)).toBe('未知')
+  })
+
+  it('maps source to tag type for new Chinese labels and legacy English values', () => {
+    expect(getSourceTagType('第三方平台')).toBe('success')
+    expect(getSourceTagType('CRM 商机')).toBe('primary')
+    expect(getSourceTagType('人工录入')).toBe('warning')
+    expect(getSourceTagType('批量导入')).toBe('info')
+    expect(getSourceTagType('external')).toBe('success')
+    expect(getSourceTagType('manual')).toBe('warning')
+    expect(getSourceTagType('unknown')).toBe('info')
+  })
+
+  it('maps source to display text for new Chinese labels and legacy English values', () => {
+    expect(getSourceText('第三方平台')).toBe('第三方平台')
+    expect(getSourceText('CRM 商机')).toBe('CRM 商机')
+    expect(getSourceText('人工录入')).toBe('人工录入')
+    expect(getSourceText('批量导入')).toBe('批量导入')
+    expect(getSourceText('external')).toBe('第三方平台')
+    expect(getSourceText('manual')).toBe('人工录入')
+    expect(getSourceText('legacy')).toBe('legacy')
+    expect(getSourceText(null)).toBe('未知')
   })
 })

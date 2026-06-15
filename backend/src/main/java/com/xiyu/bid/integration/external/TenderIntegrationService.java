@@ -184,6 +184,7 @@ public class TenderIntegrationService {
             t.setDescription(InputSanitizer.sanitizeString(r.getContentDesc(), 5000));
         }
         t.setSourceType(com.xiyu.bid.entity.Tender.SourceType.EXTERNAL_PLATFORM);
+        t.setSource(com.xiyu.bid.entity.Tender.SourceType.EXTERNAL_PLATFORM.getLabel());
         t.setStatus(com.xiyu.bid.entity.Tender.Status.PENDING_ASSIGNMENT);
         return t;
     }

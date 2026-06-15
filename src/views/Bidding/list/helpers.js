@@ -130,7 +130,7 @@ export function buildManualTenderPayload(form = {}) {
     projectType: form.projectType || null,
     deadline: formattedDeadline,
     publishDate: formatLocalDate(),
-    source: 'manual',
+    source: '人工录入',
     contactName: form.contact || null,
     contactPhone: form.phone || null,
     contactTel: form.landline || null,
@@ -161,28 +161,33 @@ export function getScoreTagType(score) {
 }
 
 export function getSourceTagType(source) {
-  // 英文键兼容存量数据；中文键匹配 @JsonValue 新输出（fallback 为 'info' 故必须显式列出）
+  // 兼容旧英文值与新的四个中文标准值；中文键必须显式列出（fallback 为 'info'）。
   const map = {
     external: 'success',
     manual: 'warning',
+    crm: 'primary',
+    bulk: 'info',
+    '第三方平台': 'success',
+    'CRM 商机': 'primary',
     '人工录入': 'warning',
-    中国招标投标公共服务平台: 'success',
+    '批量导入': 'info',
   }
   return map[source] || 'info'
 }
 
 /**
  * 根据来源平台获取显示文本。
- * 兼容旧英文值与中文新值；中文值由 fallback 透传，无需显式映射。
+ * 兼容旧英文值；中文标准值由后端统一写入并透传。
  *
  * @param {string} source - 来源平台
  * @returns {string} 中文展示文本
  */
 export function getSourceText(source) {
   const map = {
-    external: '外部获取',
+    external: '第三方平台',
     manual: '人工录入',
-    中国招标投标公共服务平台: '外部获取',
+    crm: 'CRM 商机',
+    bulk: '批量导入',
   }
   return map[source] || source || '未知'
 }

@@ -100,6 +100,9 @@ public class TenderSyncController {
         if (request.getSourceType() == null) {
             request.setSourceType(Tender.SourceType.CRM_OPPORTUNITY);
         }
+        if (request.getSource() == null || request.getSource().isBlank()) {
+            request.setSource(Tender.SourceType.CRM_OPPORTUNITY.getLabel());
+        }
         TenderDTO dto = tenderMapper.toDTO(request);
         Long userId = resolveApiKeyUserId();
         TenderDTO created = tenderCommandService.createTender(dto, userId);

@@ -177,7 +177,8 @@ public class TenderImportService {
         req.setProjectType(cellReader.readString(row.getCell(15)));
         req.setSourcePlatform(cellReader.readString(row.getCell(16)));
         req.setDescription(cellReader.readString(row.getCell(17)));
-        req.setSource("manual");
+        req.setSource(com.xiyu.bid.entity.Tender.SourceType.BULK_IMPORT.getLabel());
+        req.setSourceType(com.xiyu.bid.entity.Tender.SourceType.BULK_IMPORT);
         req.setPublishDate(LocalDate.now());
         /* For imported tenders, registration deadline serves as the general deadline */
         if (req.getRegistrationDeadline() != null && req.getDeadline() == null) {
