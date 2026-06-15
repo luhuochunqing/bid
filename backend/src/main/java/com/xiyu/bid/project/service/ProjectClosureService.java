@@ -5,6 +5,7 @@ package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.annotation.Auditable;
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.project.core.ProjectClosureGatePolicy;
 import com.xiyu.bid.project.core.ProjectClosureGatePolicy.ClosureInput;
@@ -17,6 +18,10 @@ import com.xiyu.bid.project.entity.ProjectClosure;
 import com.xiyu.bid.project.entity.ProjectDepositSnapshot;
 import com.xiyu.bid.project.repository.ProjectClosureRepository;
 import com.xiyu.bid.repository.ProjectRepository;
+import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.notification.core.NotificationType;
+import com.xiyu.bid.notification.dto.CreateNotificationRequest;
+import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.project.service.ProjectClosureDepositAssembler.DepositStatusInfo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +44,8 @@ public class ProjectClosureService {
     private final ProjectRepository projectRepository;
     private final ProjectStageService projectStageService;
     private final ProjectClosureDepositAssembler depositAssembler;
+    private final UserRepository userRepository;
+    private final NotificationApplicationService notificationService;
 
     @Transactional(readOnly = true)
     public ClosurePreviewDTO preview(Long projectId) {
@@ -103,6 +110,10 @@ public class ProjectClosureService {
         entity.setUpdatedBy(userId);
         ProjectClosure saved = closureRepository.save(entity);
         log.info("Closure submitted for review: projectId={} userId={}", projectId, userId);
+
+        // 通知 #16: 提交结项申请 → admin/bid_admin/bid_lead/bid_senior
+        sendClosureSubmitNotification(projectId, userId);
+
         return toDto(saved);
     }
 
@@ -129,6 +140,10 @@ public class ProjectClosureService {
                     ProjectStageTransitionPolicy.GateInputs.EMPTY);
         }
         log.info("Closure approved: projectId={} userId={}", projectId, userId);
+
+        // 通知 #17: 结项审核通过 → 提交人
+        sendClosureReviewNotification(projectId, closure.getCreatedBy(), true, null, userId);
+
         return toDto(saved);
     }
 
@@ -147,6 +162,10 @@ public class ProjectClosureService {
         closure.setReviewedAt(now);
         closure.setUpdatedBy(userId);
         log.info("Closure rejected: projectId={} userId={} reason={}", projectId, userId, reason);
+
+        // 通知 #17: 结项审核驳回 → 提交人
+        sendClosureReviewNotification(projectId, closure.getCreatedBy(), false, reason, userId);
+
         return toDto(closureRepository.save(closure));
     }
 
@@ -200,5 +219,66 @@ public class ProjectClosureService {
                 .reviewedBy(e.getReviewedBy()).reviewedAt(e.getReviewedAt())
                 .closedAt(e.getClosedAt()).closedBy(e.getClosedBy())
                 .createdAt(e.getCreatedAt()).updatedAt(e.getUpdatedAt()).build();
+    }
+
+    private void sendClosureSubmitNotification(Long projectId, Long userId) {
+        try {
+            Project project = projectRepository.findById(projectId).orElse(null);
+            if (project == null) return;
+
+            String projectName = project.getName();
+            String submitterName = userRepository.findById(userId)
+                    .map(User::getFullName).orElse("");
+
+            List<Long> adminIds = getAdminUserIds();
+
+            notificationService.createNotification(new CreateNotificationRequest(
+                    NotificationType.APPROVAL.name(),
+                    "Project",
+                    projectId,
+                    "结项审核：项目提交结项申请 - " + projectName,
+                    String.format("项目名称：%s\n提交人：%s\n\n请前往项目结项页面审核。", projectName, submitterName),
+                    java.util.Map.of("projectId", String.valueOf(projectId), "projectName", projectName,
+                            "targetUrl", "/project/" + projectId + "/closure"),
+                    adminIds
+            ), userId);
+        } catch (RuntimeException e) {
+            log.warn("sendClosureSubmitNotification failed for project={}: {}", projectId, e.getMessage());
+        }
+    }
+
+    private void sendClosureReviewNotification(Long projectId, Long submitterId, boolean approved, String reason, Long reviewerId) {
+        try {
+            if (submitterId == null) return;
+
+            Project project = projectRepository.findById(projectId).orElse(null);
+            if (project == null) return;
+
+            String projectName = project.getName();
+            String action = approved ? "通过" : "驳回";
+            String reviewerName = userRepository.findById(reviewerId)
+                    .map(User::getFullName).orElse("");
+
+            notificationService.createNotification(new CreateNotificationRequest(
+                    NotificationType.INFO.name(),
+                    "Project",
+                    projectId,
+                    String.format("结项审核%s - %s", action, projectName),
+                    String.format("项目名称：%s\n审核结果：%s\n审核人：%s\n%s",
+                            projectName, action, reviewerName,
+                            approved ? "项目已结项。" : "驳回原因：" + reason),
+                    java.util.Map.of("projectId", String.valueOf(projectId), "projectName", projectName,
+                            "approved", String.valueOf(approved),
+                            "targetUrl", "/project/" + projectId + "/closure"),
+                    List.of(submitterId)
+            ), reviewerId);
+        } catch (RuntimeException e) {
+            log.warn("sendClosureReviewNotification failed for project={}: {}", projectId, e.getMessage());
+        }
+    }
+
+    private List<Long> getAdminUserIds() {
+        return userRepository.findEnabledByRoleProfileCodes(List.of("admin", "bid_admin", "bid_lead", "bid_senior"))
+                .stream().map(User::getId).collect(java.util.stream.Collectors.toList());
     }
 }

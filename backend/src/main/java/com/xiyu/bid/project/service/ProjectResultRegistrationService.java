@@ -20,6 +20,7 @@ import com.xiyu.bid.project.repository.ProjectResultRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.project.entity.ProjectResultCompetitor;
 import com.xiyu.bid.service.ProjectAccessScopeService;
+import com.xiyu.bid.project.notification.ProjectNotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -53,6 +54,7 @@ public class ProjectResultRegistrationService {
     private final ProjectRepository projectRepository;
     private final ProjectStageService projectStageService;
     private final ProjectAccessScopeService projectAccessScopeService;
+    private final ProjectNotificationService notificationService;
 
     @Auditable(action = "REGISTER_PROJECT_RESULT", entityType = "ProjectResult", description = "登记项目结果")
     public ResultDTO register(Long projectId, ResultRegistrationRequest req, Long currentUserId) {
@@ -112,6 +114,10 @@ public class ProjectResultRegistrationService {
                         ? ProjectStageTransitionPolicy.decideResultNext(req.getResultType())
                         : current,
                 currentUserId);
+
+        // 通知 #13: 登记中标/未中标/流标 → 团队成员+管理员
+        notificationService.notifyResultRegistered(projectId, req.getResultType().name(), currentUserId);
+
         return toDto(saved, currentUserId);
     }
 

@@ -150,3 +150,4 @@ src/main/java/com/xiyu/bid/casework/application/CasePrecipitationAppService.java
 src/main/java/com/xiyu/bid/resources/service/CaExpiryScanService.java | Scheduler-side CA expiry scan; scans global CA certificate and borrow records (not project-scoped) and generates alerts via AlertHistoryService.
 src/main/java/com/xiyu/bid/tender/controller/TenderAnalysisController.java | 标讯AI分析控制器委托 AiDeepCapabilityService 和 TenderAiAnalysisService 处理业务逻辑；两个 service 内部均通过 projectAccessScopeService.assertCurrentUserCanAccessProject() 执行项目级权限校验，控制器级无需重复守卫。
 src/main/java/com/xiyu/bid/versionhistory/controller/DocumentVersionController.java | 文档版本控制器委托 VersionHistoryService，service 层通过 VersionHistoryAccessGuard.requireProjectAccess() 执行项目级权限校验，控制器级无需重复守卫。
+src/main/java/com/xiyu/bid/project/notification/ProjectNotificationService.java | 项目通知服务，只负责发送通知，不涉及项目数据访问或权限校验；所有调用方已在 service 层完成权限校验。

@@ -20,6 +20,7 @@ import com.xiyu.bid.project.dto.ProjectDraftingViewDto;
 import com.xiyu.bid.project.dto.ProjectLeadAssignmentRequest;
 import com.xiyu.bid.project.entity.ProjectEvaluation;
 import com.xiyu.bid.project.entity.ProjectLeadAssignment;
+import com.xiyu.bid.project.notification.ProjectNotificationHelper;
 import com.xiyu.bid.project.repository.ProjectEvaluationRepository;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
@@ -56,6 +57,7 @@ public class ProjectDraftingService {
     private final UserRepository userRepository;
     private final BidReviewAppService bidReviewAppService;
     private final ProjectEvaluationRepository projectEvaluationRepository;
+    private final ProjectNotificationHelper notificationHelper;
 
     @Auditable(action = "ASSIGN_PROJECT_LEADS", entityType = "ProjectLeadAssignment",
             description = "分配主/副投标负责人")
@@ -181,6 +183,10 @@ public class ProjectDraftingService {
                 ProjectStageTransitionPolicy.GateInputs.EMPTY);
         ensureEvaluationInitialized(projectId, currentUserId);
         ProjectLeadAssignment lead = leadRepo.findByProjectId(projectId).orElse(null);
+
+        // 通知 #10: 提交投标→进入评标 → 团队成员
+        notificationHelper.notifyStageTransition(projectId, ProjectStage.DRAFTING, ProjectStage.EVALUATING);
+
         log.info("Bid submitted project={} stage={}->EVALUATING user={}",
                 projectId, currentStage, currentUserId);
         return toView(projectId, lead);

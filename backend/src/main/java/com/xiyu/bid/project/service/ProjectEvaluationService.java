@@ -18,10 +18,12 @@ import com.xiyu.bid.project.dto.EvaluationEvidenceAttachRequest;
 import com.xiyu.bid.project.dto.EvaluationFormUpdateRequest;
 import com.xiyu.bid.project.dto.EvaluationSubStageUpdateRequest;
 import com.xiyu.bid.project.dto.ProjectAbandonBidRequest;
+import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.project.repository.ProjectEvaluationRepository;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
+import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -46,6 +48,7 @@ public class ProjectEvaluationService {
     private final ProjectRepository projectRepository;
     private final ProjectDocumentRepository projectDocumentRepository;
     private final ProjectStageService projectStageService;
+    private final ProjectNotificationService notificationService;
 
     @Auditable(action = "TRANSITION_EVALUATION_SUB_STAGE", entityType = "ProjectEvaluation",
             description = "切换评标子状态")
@@ -81,6 +84,10 @@ public class ProjectEvaluationService {
         }
         log.info("Evaluation sub-stage transitioned project={} {}->{} user={}",
                 projectId, current, target, userId);
+
+        // 通知 #11: 评标子阶段变更(含公告) → 团队成员
+        notificationService.notifyEvaluationSubStage(projectId, target.name(), userId);
+
         return toDto(saved);
     }
 
@@ -174,6 +181,10 @@ public class ProjectEvaluationService {
         ProjectEvaluation saved = repository.save(entity);
         advanceProjectStageToResultPending(projectId);
         log.info("Bid abandoned for project={} reason={} user={}", projectId, req.getReason(), userId);
+
+        // 通知 #12: 弃标 → 团队成员+管理员
+        notificationService.notifyAbandonBid(projectId, userId);
+
         return toDto(saved);
     }
 

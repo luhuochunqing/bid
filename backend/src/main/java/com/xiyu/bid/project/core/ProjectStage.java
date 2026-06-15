@@ -8,12 +8,22 @@ package com.xiyu.bid.project.core;
  * 投标项目 6 阶段线性 FSM。CLOSED 为终态。
  */
 public enum ProjectStage {
-    INITIATED,        // 立项
-    DRAFTING,         // 标书编制
-    EVALUATING,       // 评标
-    RESULT_PENDING,   // 结果确认
-    RETROSPECTIVE,    // 复盘
-    CLOSED;           // 结项（终态）
+    INITIATED("立项"),        // 立项
+    DRAFTING("标书编制"),         // 标书编制
+    EVALUATING("评标"),       // 评标
+    RESULT_PENDING("结果确认"),   // 结果确认
+    RETROSPECTIVE("复盘"),    // 复盘
+    CLOSED("结项");           // 结项（终态）
+
+    private final String displayName;
+
+    ProjectStage(String displayName) {
+        this.displayName = displayName;
+    }
+
+    public String getDisplayName() {
+        return displayName;
+    }
 
     public boolean isTerminal() {
         return this == CLOSED;

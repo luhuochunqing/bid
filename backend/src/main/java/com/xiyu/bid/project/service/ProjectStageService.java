@@ -12,6 +12,7 @@ import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.core.ProjectStageTransitionPolicy;
 import com.xiyu.bid.project.core.ProjectStageTransitionPolicy.GateInputs;
+import com.xiyu.bid.project.notification.ProjectNotificationHelper;
 import com.xiyu.bid.repository.ProjectRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +44,7 @@ public class ProjectStageService {
 
     private final ProjectRepository projectRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final ProjectNotificationHelper notificationHelper;
 
     @Transactional(readOnly = true)
     public ProjectStage currentStage(Long projectId) {
@@ -88,6 +90,9 @@ public class ProjectStageService {
         }
         projectRepository.save(p);
         log.info("Project stage transitioned project={} {}→{}", projectId, current, target);
+
+        // 通知 #18: 阶段推进(任意→下一阶段) → 团队成员
+        notificationHelper.notifyStageTransition(projectId, current, target);
 
         // 蓝图 4.1.1.2.1：项目阶段机进入 CLOSED 之后触发 AI 案例沉淀。
         // 这里把"已结项"信号发到 ProjectClosedEvent，由 ProjectClosedEventListener 异步处理。

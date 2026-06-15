@@ -13,6 +13,7 @@ import com.xiyu.bid.project.core.ProjectFieldLockPolicy;
 import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.dto.InitiationDto;
 import com.xiyu.bid.project.dto.InitiationViewDto;
+import com.xiyu.bid.project.notification.ProjectNotificationHelper;
 import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.entity.User;
@@ -41,6 +42,7 @@ public class ProjectInitiationService {
     private final UserRepository userRepository;
     private final ProjectInitiationMapper mapper;
     private final ProjectLeadAssignmentRepository leadRepo;
+    private final ProjectNotificationHelper notificationHelper;
 
     @Auditable(action = "SUBMIT_INITIATION", entityType = "ProjectInitiationDetails", description = "提交项目立项审核")
     public InitiationViewDto submit(Long projectId, InitiationDto req, Long currentUserId) {
@@ -84,6 +86,10 @@ public class ProjectInitiationService {
         entity.setUpdatedBy(currentUserId);
         ProjectInitiationDetails saved = repository.save(entity);
         log.info("Initiation submitted for review project={} user={}", projectId, currentUserId);
+
+        // 通知 #1: 项目负责人提交立项审核 → admin/bid_admin/bid_lead/bid_senior
+        notificationHelper.notifyInitiationSubmitted(projectId, currentUserId);
+
         return mapper.toView(saved);
     }
 

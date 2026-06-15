@@ -6,6 +6,7 @@ package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.annotation.Auditable;
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.entity.User;
 import com.xiyu.bid.project.entity.ProjectRetrospective;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.project.core.BidResultType;
@@ -18,6 +19,10 @@ import com.xiyu.bid.project.dto.RetrospectiveReviewRequest;
 import com.xiyu.bid.project.dto.RetrospectiveSubmitRequest;
 import com.xiyu.bid.project.repository.ProjectRetrospectiveRepository;
 import com.xiyu.bid.repository.ProjectRepository;
+import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.notification.core.NotificationType;
+import com.xiyu.bid.notification.dto.CreateNotificationRequest;
+import com.xiyu.bid.notification.service.NotificationApplicationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -39,6 +44,8 @@ public class ProjectRetrospectiveService {
     private final ProjectRetrospectiveRepository repository;
     private final ProjectRepository projectRepository;
     private final ProjectStageService projectStageService;
+    private final UserRepository userRepository;
+    private final NotificationApplicationService notificationService;
 
     @Auditable(action = "SUBMIT_RETROSPECTIVE", entityType = "ProjectRetrospective", description = "提交项目复盘")
     public RetrospectiveDTO submit(Long projectId, RetrospectiveSubmitRequest req, Long currentUserId) {
@@ -100,6 +107,10 @@ public class ProjectRetrospectiveService {
                     ProjectStageTransitionPolicy.GateInputs.EMPTY);
         }
         log.info("Retrospective submitted project={} status=PENDING_REVIEW user={}", projectId, currentUserId);
+
+        // 通知 #14: 提交复盘 → admin
+        sendRetrospectiveSubmitNotification(projectId, currentUserId);
+
         return toDto(saved);
     }
 
@@ -135,6 +146,10 @@ public class ProjectRetrospectiveService {
                     ProjectStageTransitionPolicy.GateInputs.EMPTY);
         }
         log.info("Retrospective reviewed project={} approve={} reviewer={}", projectId, approve, reviewerId);
+
+        // 通知 #15: 复盘审核通过/驳回 → 提交人
+        sendRetrospectiveReviewNotification(projectId, entity.getCreatedBy(), approve, req.getComment(), reviewerId);
+
         return toDto(saved);
     }
 
@@ -218,5 +233,66 @@ public class ProjectRetrospectiveService {
                 .createdAt(e.getCreatedAt())
                 .updatedAt(e.getUpdatedAt())
                 .build();
+    }
+
+    private void sendRetrospectiveSubmitNotification(Long projectId, Long userId) {
+        try {
+            Project project = projectRepository.findById(projectId).orElse(null);
+            if (project == null) return;
+
+            String projectName = project.getName();
+            String submitterName = userRepository.findById(userId)
+                    .map(User::getFullName).orElse("");
+
+            List<Long> adminIds = getAdminUserIds();
+
+            notificationService.createNotification(new CreateNotificationRequest(
+                    NotificationType.APPROVAL.name(),
+                    "Project",
+                    projectId,
+                    "复盘审核：项目提交复盘 - " + projectName,
+                    String.format("项目名称：%s\n提交人：%s\n\n请前往项目复盘页面审核。", projectName, submitterName),
+                    java.util.Map.of("projectId", String.valueOf(projectId), "projectName", projectName,
+                            "targetUrl", "/project/" + projectId + "/retrospective"),
+                    adminIds
+            ), userId);
+        } catch (RuntimeException e) {
+            log.warn("sendRetrospectiveSubmitNotification failed for project={}: {}", projectId, e.getMessage());
+        }
+    }
+
+    private void sendRetrospectiveReviewNotification(Long projectId, Long submitterId, boolean approved, String comment, Long reviewerId) {
+        try {
+            if (submitterId == null) return;
+
+            Project project = projectRepository.findById(projectId).orElse(null);
+            if (project == null) return;
+
+            String projectName = project.getName();
+            String action = approved ? "通过" : "驳回";
+            String reviewerName = userRepository.findById(reviewerId)
+                    .map(User::getFullName).orElse("");
+
+            notificationService.createNotification(new CreateNotificationRequest(
+                    NotificationType.INFO.name(),
+                    "Project",
+                    projectId,
+                    String.format("复盘审核%s - %s", action, projectName),
+                    String.format("项目名称：%s\n审核结果：%s\n审核人：%s\n%s",
+                            projectName, action, reviewerName,
+                            approved ? "复盘已通过审核。" : "驳回原因：" + comment),
+                    java.util.Map.of("projectId", String.valueOf(projectId), "projectName", projectName,
+                            "approved", String.valueOf(approved),
+                            "targetUrl", "/project/" + projectId + "/retrospective"),
+                    List.of(submitterId)
+            ), reviewerId);
+        } catch (RuntimeException e) {
+            log.warn("sendRetrospectiveReviewNotification failed for project={}: {}", projectId, e.getMessage());
+        }
+    }
+
+    private List<Long> getAdminUserIds() {
+        return userRepository.findEnabledByRoleProfileCodes(List.of("admin", "bid_admin", "bid_lead", "bid_senior"))
+                .stream().map(User::getId).collect(java.util.stream.Collectors.toList());
     }
 }

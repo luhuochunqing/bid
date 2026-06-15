@@ -9,12 +9,14 @@ import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TaskRepository;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import com.xiyu.bid.task.core.TaskProjectVisibilityPolicy;
 import com.xiyu.bid.task.dto.TaskAssignmentCandidateDTO;
 import com.xiyu.bid.task.dto.TaskAssignmentRequest;
 import com.xiyu.bid.task.dto.TaskDTO;
 import com.xiyu.bid.task.dto.TeamTaskWorkloadDTO;
+import com.xiyu.bid.project.notification.ProjectNotificationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -34,19 +36,25 @@ public class TaskService {
     private final TaskAssignmentSupport assignmentSupport;
     private final TaskDtoMapper taskDtoMapper;
     private final TaskHistoryRecorder taskHistoryRecorder;
+    private final ProjectNotificationService notificationService;
+    private final UserRepository userRepository;
 
     public TaskService(TaskRepository taskRepository,
                        ProjectAccessScopeService projectAccessScopeService,
                        ProjectRepository projectRepository,
                        TaskAssignmentSupport assignmentSupport,
                        TaskDtoMapper taskDtoMapper,
-                       TaskHistoryRecorder taskHistoryRecorder) {
+                       TaskHistoryRecorder taskHistoryRecorder,
+                       ProjectNotificationService notificationService,
+                       UserRepository userRepository) {
         this.taskRepository = taskRepository;
         this.projectAccessScopeService = projectAccessScopeService;
         this.projectRepository = projectRepository;
         this.assignmentSupport = assignmentSupport;
         this.taskDtoMapper = taskDtoMapper;
         this.taskHistoryRecorder = taskHistoryRecorder;
+        this.notificationService = notificationService;
+        this.userRepository = userRepository;
     }
 
     @Transactional
@@ -196,6 +204,12 @@ public class TaskService {
         assignmentSupport.applyAssignment(task, assignmentSupport.resolveAssignmentSnapshot(request, currentUser));
         Task saved = taskRepository.save(task);
         taskHistoryRecorder.recordUpdate(before, saved, username);
+
+        // 通知 #4: 分配投标负责人 → 被分配人
+        if (request != null && request.getAssigneeId() != null) {
+            notificationService.notifyTaskAssigned(task.getProjectId(), request.getAssigneeId(), currentUser.getId());
+        }
+
         return taskDtoMapper.toDTO(saved);
     }
 
@@ -272,5 +286,4 @@ public class TaskService {
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
     }
-
 }

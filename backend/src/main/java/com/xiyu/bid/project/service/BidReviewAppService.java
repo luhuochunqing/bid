@@ -21,6 +21,7 @@ import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
+import com.xiyu.bid.project.notification.ProjectNotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -51,6 +52,7 @@ public class BidReviewAppService {
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final ProjectAccessScopeService projectAccessScopeService;
+    private final ProjectNotificationService projectNotificationService;
 
     /**
      * 提交标书审核。
@@ -128,6 +130,9 @@ public class BidReviewAppService {
         review.setReviewedAt(LocalDateTime.now());
         reviewRepository.save(review);
 
+        // 通知 #8: 标书审核通过 → 提交人
+        projectNotificationService.notifyBidReviewResult(projectId, review.getSubmittedBy(), true, currentUserId);
+
         log.info("Bid approved project={} by={} comment={}", projectId, currentUserId, comment);
     }
 
@@ -155,6 +160,9 @@ public class BidReviewAppService {
         review.setRejectReason(reason);
         review.setReviewedAt(LocalDateTime.now());
         reviewRepository.save(review);
+
+        // 通知 #9: 标书驳回 → 提交人
+        projectNotificationService.notifyBidReviewResult(projectId, review.getSubmittedBy(), false, currentUserId);
 
         log.info("Bid rejected project={} by={} reason={}", projectId, currentUserId, reason);
     }
