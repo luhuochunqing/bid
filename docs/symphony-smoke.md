@@ -7,43 +7,27 @@
 
 ## Purpose
 
-Smoke-test artifact for the Claude-exec / Codex-review routing workflow.
-Its presence on the task branch proves Symphony claimed CO-205, routed it to
-Claude (exec), Claude landed a workspace edit on this file, and Codex (review)
-was invoked against the resulting diff — all on a doc-only change with no
-hot-path overlap. "Signed off" is an outcome of the review, not something
-this artifact can assert on its own; reviewers should consult the Integrator
-review state on the PR for the current verdict.
+End-to-end smoke artifact for the Claude-exec / Codex-review routing workflow.
+Presence of the marker line on this branch proves Symphony claimed CO-205,
+routed it to Claude (exec), and a workspace edit landed here — all on a
+doc-only change with no rule-1 hot-path overlap. Review verdict lives on the
+Integrator review state of the PR, not in this file.
 
 ## Verification (reviewer-runnable)
 
-Paste from the repo root after checking out `agent/symphony/CO-204-routing-test`:
+From the repo root after checking out `agent/symphony/CO-204-routing-test`:
 
 ```bash
 set -e
 
-# 1. Marker line present, verbatim, exactly once. Uses `-Fx` (whole-line,
-#    fixed-string) so inline references elsewhere in this doc don't inflate
-#    the count.
+# 1. Marker line present, verbatim, exactly once (whole-line fixed-string).
 test "$(grep -Fxc '<!-- tested by Claude, reviewed by Codex -->' docs/symphony-smoke.md)" -eq 1
 
-# 2. Diff footprint is doc-only (rule 1 hot-path gate). Uses the
-#    triple-dot range `origin/main...HEAD` (merge-base → HEAD), NOT the
-#    double-dot `origin/main..HEAD` (endpoint diff). With `..`, if
-#    `origin/main` has advanced since the branch was forked and the branch
-#    hasn't been rebased, the endpoint diff would also list every file main
-#    changed — polluting the footprint check with files this branch never
-#    touched. `...` scopes the diff to the branch's own delta regardless of
-#    how far main has moved.
+# 2. Diff footprint is doc-only (rule 1). Triple-dot range scopes to the
+#    branch's own delta even if origin/main has advanced since fork.
 test "$(git diff --name-only origin/main...HEAD)" = "docs/symphony-smoke.md"
 
-# 3. Hot-path blacklist (rule 1) — must match nothing. Same triple-dot
-#    range as check #2 for the same reason. Capture the file list into a
-#    variable first so a `git diff` failure (e.g. `origin/main` not fetched
-#    on a fresh reviewer clone) is caught by `set -e` rather than masked
-#    by grep: without this, an errored git diff yields empty input, grep
-#    returns 1 (no match), the `!` flips it to 0, and the gate would
-#    silently pass.
+# 3. Hot-path blacklist (rule 1) — must match nothing.
 changed="$(git diff --name-only origin/main...HEAD)"
 ! printf '%s\n' "$changed" \
   | grep -E '^(backend/src/main/resources/db/migration-mysql/|backend/src/main/resources/db/rollback/migration-mysql/|backend/src/main/java/com/xiyu/bid/entity/|backend/src/main/resources/application.*\.yml|src/router/index\.js|src/views/Login\.vue|\.github/workflows/|\.githooks/)'
@@ -51,21 +35,15 @@ changed="$(git diff --name-only origin/main...HEAD)"
 # 4. Branch naming (rule 2) — must start with agent/symphony/.
 git rev-parse --abbrev-ref HEAD | grep -q '^agent/symphony/'
 
-# 5. Branch tip is published — local HEAD matches the remote-tracking ref.
-#    Uses the explicit `origin/<branch>` ref (not `@{u}`) so it does not
-#    depend on per-checkout upstream-tracking config; any reviewer who has
-#    fetched the branch has this ref. Catches the "committed but forgot to
-#    push" failure mode that the naming-only check above cannot detect.
+# 5. Branch tip is published — local HEAD matches the published remote ref.
 test "$(git rev-parse HEAD)" = "$(git rev-parse origin/agent/symphony/CO-204-routing-test)"
 ```
 
 ## Acceptance criteria
 
-- [x] The literal line `<!-- tested by Claude, reviewed by Codex -->` exists
-      in this file (once).
+- [x] The literal line `<!-- tested by Claude, reviewed by Codex -->` exists once.
 - [x] Diff footprint is doc-only (`docs/symphony-smoke.md`).
-- [x] No `WORKFLOW.md` rule-1 hot path is touched
+- [x] No rule-1 hot path is touched
       (authoritative list: [`WORKFLOW.md` §1](../WORKFLOW.md#1-hot-paths-blacklist--do-not-modify)).
-- [x] Commit lands on `agent/symphony/CO-204-routing-test`.
-- [x] Branch tip is published to `origin` (local HEAD == `origin/<branch>`).
+- [x] Commit lands on `agent/symphony/CO-204-routing-test` and is published.
 - [x] Verification block reproduces locally without external services.
