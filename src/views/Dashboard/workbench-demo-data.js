@@ -4,14 +4,14 @@
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 export const demoProjects = [
-  { id: 'P001', name: '某央企智慧办公平台', status: '编制中', progress: 45, deadline: '03-05', manager: '小王', priority: 'high' },
-  { id: 'P002', name: '华南电力集团集采项目', status: '评审中', progress: 70, deadline: '03-10', manager: '张经理', priority: 'high' },
-  { id: 'P003', name: 'XX区数字政府平台', status: '编制中', progress: 35, deadline: '03-15', manager: '张经理', priority: 'medium' },
-  { id: 'P004', name: '西部云数据中心建设', status: '即将开标', progress: 95, deadline: '03-12', manager: '小王', priority: 'urgent' },
-  { id: 'P005', name: '深圳地铁自动化系统', status: '编制中', progress: 55, deadline: '03-20', manager: '张经理', priority: 'medium' },
-  { id: 'P006', name: '华东电网信息化项目', status: '评审中', progress: 60, deadline: '03-18', manager: '小王', priority: 'medium' },
-  { id: 'P007', name: 'XX县政府数字平台', status: '编制中', progress: 25, deadline: '03-25', manager: '李工', priority: 'low' },
-  { id: 'P008', name: '制造执行系统(MES)', status: '技术方案编写', progress: 40, deadline: '03-08', manager: '李工', priority: 'high' },
+  { id: 'P001', name: '某央企智慧办公平台', status: '投标中', progress: 45, deadline: '03-05', manager: '小王', priority: 'high' },
+  { id: 'P002', name: '华南电力集团集采项目', status: '评标中', progress: 70, deadline: '03-10', manager: '张经理', priority: 'high' },
+  { id: 'P003', name: 'XX区数字政府平台', status: '已立项', progress: 35, deadline: '03-15', manager: '张经理', priority: 'medium' },
+  { id: 'P004', name: '西部云数据中心建设', status: '投标中', progress: 95, deadline: '03-12', manager: '小王', priority: 'urgent' },
+  { id: 'P005', name: '深圳地铁自动化系统', status: '待立项', progress: 55, deadline: '03-20', manager: '张经理', priority: 'medium' },
+  { id: 'P006', name: '华东电网信息化项目', status: '已中标', progress: 60, deadline: '03-18', manager: '小王', priority: 'medium' },
+  { id: 'P007', name: 'XX县政府数字平台', status: '未中标', progress: 25, deadline: '03-25', manager: '李工', priority: 'low' },
+  { id: 'P008', name: '制造执行系统(MES)', status: '已流标', progress: 40, deadline: '03-08', manager: '李工', priority: 'high' },
 ]
 
 export const hotTenders = [

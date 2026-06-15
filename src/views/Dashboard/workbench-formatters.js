@@ -58,12 +58,29 @@ export function getProgressColor(progress) {
   return '#EF4444'
 }
 
+const PROJECT_STATUS_TYPE_MAP = {
+  待立项: 'info',
+  已立项: 'info',
+  投标中: 'primary',
+  评标中: 'warning',
+  已中标: 'success',
+  未中标: 'danger',
+  已流标: 'danger',
+  已放弃: 'info',
+}
+
 export function getProjectStatusType(status) {
-  return { '编制中': 'warning', '评审中': 'primary', '即将开标': 'danger' }[status] || ''
+  return PROJECT_STATUS_TYPE_MAP[status] || 'info'
+}
+
+const PRIORITY_TYPE_MAP = {
+  high: 'danger',
+  medium: 'warning',
+  low: 'info',
 }
 
 export function getPriorityType(priority) {
-  return { high: 'danger', medium: 'warning', low: 'info' }[priority] || ''
+  return PRIORITY_TYPE_MAP[priority] || 'info'
 }
 
 export function getPriorityLabel(priority) {

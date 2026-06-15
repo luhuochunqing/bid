@@ -115,7 +115,7 @@ export function filterProjectsByRole(projects, { role = 'staff', userName = '', 
   return sorted.slice(0, limit)
 }
 
-const TERMINAL_PROJECT_STATUSES = new Set(['已归档', 'WON', 'LOST', 'FAILED', 'ABANDONED'])
+const TERMINAL_PROJECT_STATUSES = new Set(['已中标', '未中标', '已流标', '已放弃'])
 const PRIORITY_RANK = { high: 0, medium: 1, low: 2, urgent: 3 }
 
 function isActiveProject(project) {

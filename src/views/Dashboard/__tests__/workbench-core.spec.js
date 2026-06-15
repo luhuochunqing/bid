@@ -89,10 +89,10 @@ describe('workbench role model', () => {
 
 describe('workbench project and todo core', () => {
   const projects = [
-    { id: 1, manager: '小王', priority: 'high', status: '编制中' },
-    { id: 2, manager: '张经理', priority: 'medium', status: '评审中' },
-    { id: 3, manager: '小王', priority: 'urgent', status: '已归档' },
-    { id: 4, manager: '李工', priority: 'low', status: '投标中' },
+    { id: 1, manager: '小王', priority: 'high', status: '投标中' },
+    { id: 2, manager: '张经理', priority: 'medium', status: '评标中' },
+    { id: 3, manager: '小王', priority: 'urgent', status: '已中标' },
+    { id: 4, manager: '李工', priority: 'low', status: '待立项' },
   ]
 
   it('filters visible active projects by role priority and limit', () => {
@@ -276,8 +276,13 @@ describe('workbench route targets and UI mappings', () => {
   it('maps project progress, statuses, and priorities to UI tokens', () => {
     expect(getProgressColor(85)).toBe('#059669')
     expect(getProgressColor(10)).toBe('#EF4444')
-    expect(getProjectStatusType('评审中')).toBe('primary')
+    expect(getProjectStatusType('投标中')).toBe('primary')
+    expect(getProjectStatusType('评标中')).toBe('warning')
+    expect(getProjectStatusType('已中标')).toBe('success')
+    expect(getProjectStatusType('未中标')).toBe('danger')
+    expect(getProjectStatusType('未知状态')).toBe('info')
     expect(getPriorityType('medium')).toBe('warning')
+    expect(getPriorityType('unknown')).toBe('info')
     expect(getPriorityLabel('high')).toBe('高')
     expect(getPriorityLabel('urgent')).toBe('urgent')
   })

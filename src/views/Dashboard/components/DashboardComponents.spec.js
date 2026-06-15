@@ -121,7 +121,7 @@ describe('dashboard presentation components', () => {
   })
 
   it('ProjectList emits view-all and project-click events', async () => {
-    const project = { id: 'P001', name: '智慧办公平台', status: '编制中', progress: 45, deadline: '03-05', manager: '张经理' }
+    const project = { id: 'P001', name: '智慧办公平台', status: '投标中', progress: 45, deadline: '03-05', manager: '张经理' }
     const wrapper = await mountWithStubs(ProjectList, { props: { projects: [project] } })
 
     await wrapper.find('.project-card').trigger('click')

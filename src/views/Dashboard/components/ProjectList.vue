@@ -121,10 +121,15 @@ const defaultProgressColor = (progress) => {
 }
 
 const defaultStatusType = (status) => ({
-  编制中: 'warning',
-  评审中: 'primary',
-  即将开标: 'danger',
-}[status] || '')
+  待立项: 'info',
+  已立项: 'info',
+  投标中: 'primary',
+  评标中: 'warning',
+  已中标: 'success',
+  未中标: 'danger',
+  已流标: 'danger',
+  已放弃: 'info',
+}[status] || 'info')
 
 const resolveProgressColor = (progress) => (
   props.progressColorResolver ? props.progressColorResolver(progress) : defaultProgressColor(progress)
