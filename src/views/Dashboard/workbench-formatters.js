@@ -1,6 +1,6 @@
-// Input: primitive display values
-// Output: pure Workbench display formatters and UI token mappings
-// Pos: src/views/Dashboard/ - Dashboard pure core helpers
+// Input: primitive display values (currency, percent, priority key, status label, etc.)
+// Output: pure Workbench display formatters and Element Plus UI token mappings
+// Pos: src/views/Dashboard/ - Dashboard display formatters and ElTag token helpers
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 export function formatCurrency(value) {
