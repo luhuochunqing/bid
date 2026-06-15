@@ -17,8 +17,8 @@
         <div class="dept-sidebar">
           <div class="dept-header">
             <h4>部门列表</h4>
-            <el-select v-model="selectedSourceApp" size="small" style="width: 110px" @change="loadDepartments">
-              <el-option label="全部" value="" />
+            <el-select v-model="selectedSourceApp" size="small" placeholder="全部来源" style="width: 110px" @change="loadDepartments">
+              <el-option label="全部来源" value="" />
               <el-option label="ehsy" value="ehsy" />
               <el-option label="oss" value="oss" />
             </el-select>
@@ -158,7 +158,7 @@ const editDeptCode = ref('')
 
 const searchForm = ref({ keyword: '', enabled: null })
 const selectedDeptCode = ref('')
-const selectedSourceApp = ref('')
+const selectedSourceApp = ref('ehsy')
 
 let debounceTimer = null
 function debouncedSearch() {
