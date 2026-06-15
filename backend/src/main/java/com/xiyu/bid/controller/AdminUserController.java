@@ -33,6 +33,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/admin/users")
 @RequiredArgsConstructor
+@PreAuthorize("hasRole('ADMIN')")
 public class AdminUserController {
 
     private static final String ADMIN_ONLY = "hasRole('ADMIN')";

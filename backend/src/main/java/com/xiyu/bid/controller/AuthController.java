@@ -45,9 +45,10 @@ import java.time.Duration;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
+@PreAuthorize("isAuthenticated()")
 public class AuthController {
 
-    private static final String AUTHENTICATED_EXPR = "isAuthenticated()";
+    private static final String PERMIT_ALL_EXPR = "permitAll()";
 
     private final AuthService authService;
     private final PasswordResetService passwordResetService;
@@ -79,6 +80,7 @@ public class AuthController {
     private long accessExpiration;
 
     @PostMapping("/register")
+    @PreAuthorize(PERMIT_ALL_EXPR)
     public ResponseEntity<ApiResponse<AuthResponse>> register(@Valid @RequestBody RegisterRequest request) {
         // Sanitize user input
         sanitizeRegisterRequest(request);
@@ -89,6 +91,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
+    @PreAuthorize(PERMIT_ALL_EXPR)
     public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
         // Sanitize user input
         if (request.getUsername() != null) {
@@ -105,13 +108,13 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    @PreAuthorize(AUTHENTICATED_EXPR)
     public ResponseEntity<ApiResponse<AuthResponse>> getCurrentUser(Authentication authentication) {
         AuthResponse response = authService.getCurrentUser(authentication.getName());
         return ResponseEntity.ok(ApiResponse.success("Current user retrieved successfully", response));
     }
 
     @PostMapping("/logout")
+    @PreAuthorize(PERMIT_ALL_EXPR)
     public ResponseEntity<ApiResponse<Void>> logout(HttpServletRequest request) {
         // H13 根治: access token 从 cookie 读 (fallback header 兼容旧客户端/E2E 浏览器外调用)
         authService.logout(extractAccessToken(request), extractRefreshToken(request));
@@ -138,6 +141,7 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
+    @PreAuthorize(PERMIT_ALL_EXPR)
     public ResponseEntity<ApiResponse<AuthResponse>> refreshToken(HttpServletRequest request) {
         AuthSessionResult sessionResult = authService.refreshToken(extractRefreshToken(request));
         return ResponseEntity.ok()
@@ -150,6 +154,7 @@ public class AuthController {
      * 忘记密码 - 发送密码重置邮件
      */
     @PostMapping("/forgot-password")
+    @PreAuthorize(PERMIT_ALL_EXPR)
     public ResponseEntity<ApiResponse<PasswordResetResponse>> forgotPassword(
             @Valid @RequestBody ForgotPasswordRequest request
     ) {
@@ -169,6 +174,7 @@ public class AuthController {
      * 重置密码 - 使用令牌设置新密码
      */
     @PostMapping("/reset-password")
+    @PreAuthorize(PERMIT_ALL_EXPR)
     public ResponseEntity<ApiResponse<Void>> resetPassword(
             @Valid @RequestBody ResetPasswordRequest request
     ) {
@@ -180,7 +186,6 @@ public class AuthController {
      * Get all active sessions for the current user
      */
     @GetMapping("/sessions")
-    @PreAuthorize(AUTHENTICATED_EXPR)
     public ResponseEntity<ApiResponse<java.util.List<SessionDTO>>> getSessions(Authentication authentication) {
         Long userId = authService.resolveUserIdByUsername(authentication.getName());
         java.util.List<SessionDTO> sessions = sessionService.getUserSessions(userId);
@@ -191,7 +196,6 @@ public class AuthController {
      * Revoke a specific session
      */
     @DeleteMapping("/sessions/{id}")
-    @PreAuthorize(AUTHENTICATED_EXPR)
     public ResponseEntity<ApiResponse<Void>> revokeSession(
             @PathVariable Long id,
             Authentication authentication
@@ -205,7 +209,6 @@ public class AuthController {
      * Revoke all sessions except the current one
      */
     @DeleteMapping("/sessions")
-    @PreAuthorize(AUTHENTICATED_EXPR)
     public ResponseEntity<ApiResponse<Void>> revokeAllSessions(Authentication authentication, HttpServletRequest request) {
         Long userId = authService.resolveUserIdByUsername(authentication.getName());
         sessionService.revokeAllSessions(userId, extractRefreshToken(request));
@@ -216,7 +219,6 @@ public class AuthController {
      * Request email verification
      */
     @PostMapping("/verify-email")
-    @PreAuthorize(AUTHENTICATED_EXPR)
     public ResponseEntity<ApiResponse<EmailVerificationResponse>> requestEmailVerification(Authentication authentication) {
         Long userId = authService.resolveUserIdByUsername(authentication.getName());
         String result = emailVerificationService.createVerificationToken(userId);
@@ -227,6 +229,7 @@ public class AuthController {
      * Verify email using token
      */
     @GetMapping("/verify-email/{token}")
+    @PreAuthorize(PERMIT_ALL_EXPR)
     public ResponseEntity<ApiResponse<Void>> verifyEmail(@PathVariable String token) {
         // Sanitize token input
         String sanitizedToken = InputSanitizer.sanitizeString(token, 128);

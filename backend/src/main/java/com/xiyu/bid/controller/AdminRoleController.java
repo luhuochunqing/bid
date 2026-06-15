@@ -28,6 +28,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/admin/roles")
 @RequiredArgsConstructor
+@PreAuthorize("hasRole('ADMIN')")
 public class AdminRoleController {
 
     private static final String ADMIN_ONLY = "hasRole('ADMIN')";
