@@ -9,8 +9,7 @@ import { useBiddingStore } from '@/stores/bidding'
 import { useUserStore } from '@/stores/user'
 import { tendersApi } from '@/api/modules/tenders'
 import { batchTendersApi } from '@/api/modules/tenders/batch.js'
-import { ExportType } from '@/api'
-import { useExport } from '@/composables/useExport'
+import { ExportType, exportApi, notifyExportSuccess } from '@/api/modules/export'
 import { DEFAULT_SEARCH_FORM } from './constants.js'
 import { buildPermissionFlags, isAdminRole, normalizeTenderForExport, resolveUserRole } from './helpers.js'
 import {
@@ -184,10 +183,15 @@ export function useTenderListPage() {
   })
 
   const handleExport = () => {
-    const { exportExcel } = useExport()
     // 将filteredTenders数据映射为导出格式
     const exportRows = filteredTenders.value.map((tender, idx) => normalizeTenderForExport(tender, idx + 1))
-    exportExcel(ExportType.TENDERS, exportRows, '标讯列表导出成功')
+    if (exportRows.length === 0) {
+      ElMessage.warning('暂无可导出数据')
+      return
+    }
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+    exportApi.exportExcel(ExportType.TENDERS, exportRows, `tenders-${stamp}.csv`)
+    notifyExportSuccess('标讯列表导出成功')
   }
 
   const handleViewDetail = (id) => router.push(`/bidding/${id}`)

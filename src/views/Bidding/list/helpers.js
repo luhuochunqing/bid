@@ -253,34 +253,4 @@ export function summarizeExternalSyncResult(response = {}) {
   }
 }
 
-/**
- * 标讯导出字段映射函数
- * 将标讯数据对象转换为导出的CSV列
- * @param {Object} tender - 标讯数据对象
- * @param {number} index - 序号（从1开始）
- * @returns {Object} 导出行对象，键为中文列名
- */
-export function normalizeTenderForExport(tender, index) {
-  const formatDate = (val) => {
-    if (!val) return '-'
-    const d = new Date(val)
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-  }
-
-  return {
-    '序号': index,
-    '项目名称': tender.title || '-',
-    '来源平台': tender.source || '-',
-    '总部所在地': tender.region || '-',
-    '招标主体': tender.purchaserName || '-',
-    '项目类型': tender.projectType || '-',
-    '客户类型': tender.customerType || '-',
-    '报名截止日期': formatDate(tender.registrationDeadline),
-    '开标时间': formatDate(tender.bidOpeningTime),
-    '标讯状态': tender.status || '-',
-    '项目负责人': tender.projectManagerName || '-',
-    '项目部门': tender.department || '-',
-    '优先级': tender.priority ? `${tender.priority}级` : '-',
-    '创建人': tender.creatorName || '-',
-  }
-}
+export { normalizeTenderForExport } from './tenderExportFields.js'
