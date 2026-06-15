@@ -29,11 +29,11 @@
           <el-option
             v-for="candidate in candidates"
             :key="candidate.id"
-            :label="candidate.name"
+            :label="formatAssignmentCandidateLabel(candidate)"
             :value="candidate.id"
             :disabled="candidate.id === form.currentOwnerId"
           >
-            {{ candidate.name }} · {{ candidate.departmentName || '未设置部门' }}
+            {{ formatAssignmentCandidateLabel(candidate) }} · {{ candidate.departmentName || '未设置部门' }}
           </el-option>
         </el-select>
       </el-form-item>
@@ -59,6 +59,7 @@
 import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import tendersApi from '@/api/modules/tenders.js'
+import { formatAssignmentCandidateLabel } from '../helpers.js'
 
 const props = defineProps({
   visible: Boolean,

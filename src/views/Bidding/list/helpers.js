@@ -5,6 +5,7 @@
 
 import { hasAnyPermission } from '@/utils/permission'
 import { DEFAULT_SOURCE_CONFIG } from './constants.js'
+import { formatDisplayName } from '@/utils/formatDisplayName.js'
 import {
   formatBudgetWan as formatBudgetWanValue,
   safeTenderUrl as safeTenderUrlValue,
@@ -196,13 +197,19 @@ export function getSourceTypeTagType(sourceType) {
   return map[sourceType] || 'info'
 }
 export { getSourceTypeText } from '../bidding-utils.js'
+
 export function normalizeAssignmentCandidate(candidate = {}) {
   return {
     id: Number(candidate.id),
     name: candidate.name || `用户#${candidate.id}`,
+    username: candidate.username || '',
     departmentName: candidate.departmentName || '未分组',
     roleCode: candidate.roleCode || '',
   }
+}
+
+export function formatAssignmentCandidateLabel(candidate = {}) {
+  return formatDisplayName(candidate.name || `用户#${candidate.id}`, candidate.username)
 }
 
 export function buildDistributionPreview({ tenders = [], candidates = [], form = {} } = {}) {

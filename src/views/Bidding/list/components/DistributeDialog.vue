@@ -35,10 +35,10 @@
           <el-option
             v-for="candidate in candidates"
             :key="candidate.id"
-            :label="candidate.name"
+            :label="formatAssignmentCandidateLabel(candidate)"
             :value="candidate.id"
           >
-            {{ candidate.name }} · {{ candidate.departmentName }}
+            {{ formatAssignmentCandidateLabel(candidate) }} · {{ candidate.departmentName }}
           </el-option>
         </el-select>
         <el-input v-model="form.remark" type="textarea" :rows="3" placeholder="填写分发说明（选填）" />
@@ -68,6 +68,7 @@
 
 <script setup>
 import { ASSIGN_RULES } from '../constants.js'
+import { formatAssignmentCandidateLabel } from '../helpers.js'
 
 const modelValue = defineModel({ type: Boolean, default: false })
 defineModel('form', { type: Object, required: true })

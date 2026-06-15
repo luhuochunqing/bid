@@ -26,6 +26,7 @@ public class TenderAssignmentViewAssembler {
         return TenderAssignmentCandidateResponse.builder()
                 .id(user.getId())
                 .name(user.getFullName())
+                .username(user.getUsername())
                 .departmentName(user.getDepartmentName())
                 .roleCode(user.getRoleCode())
                 .build();

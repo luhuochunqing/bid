@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 public class TenderAssignmentCandidateResponse {
     private Long id;
     private String name;
+    private String username;
     private String departmentName;
     private String roleCode;
 }

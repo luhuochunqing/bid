@@ -20,10 +20,10 @@
           <el-option
             v-for="candidate in candidates"
             :key="candidate.id"
-            :label="candidate.name"
+            :label="formatAssignmentCandidateLabel(candidate)"
             :value="candidate.id"
           >
-            {{ candidate.name }} · {{ candidate.departmentName }}
+            {{ formatAssignmentCandidateLabel(candidate) }} · {{ candidate.departmentName }}
           </el-option>
         </el-select>
       </el-form-item>
@@ -48,6 +48,7 @@
 
 <script setup>
 import { computed, ref } from 'vue'
+import { formatAssignmentCandidateLabel } from '../helpers.js'
 
 const modelValue = defineModel({ type: Boolean, default: false })
 const props = defineProps({
