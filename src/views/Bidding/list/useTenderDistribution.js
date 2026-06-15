@@ -26,12 +26,10 @@ export function useTenderDistribution({
 }) {
   const showDistributeDialog = ref(false)
   const showAssignDialog = ref(false)
-  const showRecordDialog = ref(false)
   const distributeLoading = ref(false)
   const assignLoading = ref(false)
   const loadingCandidates = ref(false)
   const candidates = ref([])
-  const distributeRecords = ref([])
   const distributeForm = ref(createDistributeForm())
   const activeTender = ref(createActiveTender())
 
@@ -83,22 +81,6 @@ export function useTenderDistribution({
     activeTender.value = createActiveTender()
   }
 
-  const addRecord = ({ tender, assignee, type }) => {
-    distributeRecords.value.unshift({
-      tenderTitle: tender.title,
-      assignee: assignee?.name || '未分配',
-      type,
-      time: new Date().toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-      operator: '当前用户',
-    })
-  }
-
   const handleDistribute = async () => {
     if (distributionPreview.value.length === 0) return ElMessage.warning('请选择有效分发对象')
     distributeLoading.value = true
@@ -106,11 +88,7 @@ export function useTenderDistribution({
       const results = await Promise.all(distributionPreview.value.map((group) =>
         batchTendersApi.batchAssign(group.tenders.map((tender) => tender.id), group.id, distributeForm.value.remark),
       ))
-      distributionPreview.value.forEach((group, index) => {
-        if (results[index]?.success || results[index]?.partialSuccess) {
-          group.tenders.forEach((tender) => addRecord({ tender, assignee: group, type: distributeForm.value.type }))
-        }
-      })
+      // TODO: 分发成功记录待后端 API 补全后实现持久化 (CO-221)
       const successCount = results.reduce((sum, item) => sum + Number(item?.data?.successCount || 0), 0)
       const failureCount = results.reduce((sum, item) => sum + Number(item?.data?.failureCount || 0), 0)
       if (failureCount === 0) ElMessage.success(`成功分发 ${successCount} 条标讯`)
@@ -139,8 +117,6 @@ export function useTenderDistribution({
       )
       showBatchOperationFeedback(result, '指派成功')
       if (result.success || result.partialSuccess) {
-        const assignee = candidates.value.find((item) => item.id === payload.assignee)
-        addRecord({ tender: { title: activeTender.value.title }, assignee, type: 'manual' })
         showAssignDialog.value = false
         await refreshTenderList()
       }
@@ -154,12 +130,10 @@ export function useTenderDistribution({
   return {
     showDistributeDialog,
     showAssignDialog,
-    showRecordDialog,
     distributeLoading,
     assignLoading,
     loadingCandidates,
     candidates,
-    distributeRecords,
     distributeForm,
     activeTender,
     distributionPreview,
