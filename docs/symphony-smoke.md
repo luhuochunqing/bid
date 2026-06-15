@@ -24,11 +24,17 @@ Run from the repo root after checking out `agent/symphony/CO-204-routing-test`:
 ```bash
 # Every assertion uses `set -e` semantics: a non-zero exit fails the block.
 
-# 1. Marker line present, verbatim.
-grep -F '<!-- tested by Claude, reviewed by Codex -->' docs/symphony-smoke.md
+# 1. Marker line present, verbatim (whole-line match so the inline
+#    references in this very doc — code samples, acceptance criteria —
+#    don't inflate the count).
+grep -Fx '<!-- tested by Claude, reviewed by Codex -->' docs/symphony-smoke.md
 
 # 1b. Marker line appears exactly once (no accidental duplication).
-test "$(grep -Fc '<!-- tested by Claude, reviewed by Codex -->' docs/symphony-smoke.md)" -eq 1
+#     `-x` matches the whole line; without it `grep -Fc` counts every line
+#     that merely *contains* the marker substring (e.g. the two grep
+#     invocations below and the acceptance-criteria bullet), which on this
+#     file yields 4 and would make the assertion always fail.
+test "$(grep -Fxc '<!-- tested by Claude, reviewed by Codex -->' docs/symphony-smoke.md)" -eq 1
 
 # 2. Diff footprint is doc-only (rule 1 hot-path gate).
 test "$(git diff --name-only origin/main..HEAD)" = "docs/symphony-smoke.md"
@@ -57,6 +63,7 @@ placeholder, creating an unbounded review loop.
 | Pass 5 | Closed the remaining self-reference loop in the log. |
 | Pass 6 | Removed all inline commit hashes from the iteration log to break the `(this commit)` re-pin loop and stop introducing new review noise. No artifact-content change beyond the iteration log. |
 | Pass 7 | Added step 1b to the Verification block asserting the marker line appears exactly once (closes a gap where a duplicate marker would still pass `grep -F`). Doc-only. |
+| Pass 8 | Fixed self-inflicted break in step 1b: `grep -Fc` matched the marker *substring* inside the verification block's own sample commands and the acceptance-criteria bullet, so the count was 4 and the assertion could never pass on this file. Switched steps 1 and 1b to `grep -Fx`/`grep -Fxc` (whole-line match), which yields 1 as intended. Doc-only. |
 
 ## Acceptance criteria
 
