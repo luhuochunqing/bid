@@ -98,5 +98,5 @@ export function getPriorityType(priority) {
 }
 
 export function getPriorityLabel(priority) {
-  return { high: '高', medium: '中', low: '低' }[priority] || priority
+  return { high: '高', medium: '中', low: '低', urgent: '紧急' }[priority] || priority
 }

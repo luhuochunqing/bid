@@ -121,14 +121,12 @@ const defaultProgressColor = (progress) => {
   return 'var(--color-danger)'
 }
 
-const defaultStatusType = getProjectStatusType
-
 const resolveProgressColor = (progress) => (
   props.progressColorResolver ? props.progressColorResolver(progress) : defaultProgressColor(progress)
 )
 
 const resolveStatusType = (status) => (
-  props.statusTypeResolver ? props.statusTypeResolver(status) : defaultStatusType(status)
+  props.statusTypeResolver ? props.statusTypeResolver(status) : getProjectStatusType(status)
 )
 </script>
 

@@ -63,6 +63,7 @@ Pos: src/views/Dashboard/components/ - Dashboard display components
 
 <script setup>
 import { Check, Clock } from '@element-plus/icons-vue'
+import { getPriorityLabel, getPriorityType } from '@/views/Dashboard/workbench-formatters.js'
 import EmptyState from './EmptyState.vue'
 
 const props = defineProps({
@@ -75,13 +76,10 @@ const props = defineProps({
 
 const emit = defineEmits(['todo-toggle', 'retry'])
 
-const defaultPriorityType = (priority) => ({ high: 'danger', medium: 'warning', low: 'info', urgent: 'danger' }[priority] || '')
-const defaultPriorityLabel = (priority) => ({ high: '高', medium: '中', low: '低', urgent: '紧急' }[priority] || priority)
-
 const resolvePriorityType = (priority) => (
-  props.priorityTypeResolver ? props.priorityTypeResolver(priority) : defaultPriorityType(priority)
+  props.priorityTypeResolver ? props.priorityTypeResolver(priority) : getPriorityType(priority)
 )
 const resolvePriorityLabel = (priority) => (
-  props.priorityLabelResolver ? props.priorityLabelResolver(priority) : defaultPriorityLabel(priority)
+  props.priorityLabelResolver ? props.priorityLabelResolver(priority) : getPriorityLabel(priority)
 )
 </script>

@@ -302,6 +302,7 @@ describe('workbench route targets and UI mappings', () => {
     expect(getPriorityLabel('high')).toBe('高')
     expect(getPriorityLabel('medium')).toBe('中')
     expect(getPriorityLabel('low')).toBe('低')
-    expect(getPriorityLabel('urgent')).toBe('urgent')
+    expect(getPriorityLabel('urgent')).toBe('紧急')
+    expect(getPriorityLabel('unknown')).toBe('unknown')
   })
 })
