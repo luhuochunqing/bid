@@ -69,17 +69,22 @@ describe('global form control styles', () => {
     }
   })
 
-  it('clamps keyword field min-width in label-top mode so Chinese placeholder is not truncated', () => {
+  it('CO-211: widens keyword field min-width in label-top mode so 11-char Chinese placeholder fits', () => {
     expect(formControls).toContain('.search-card .el-form--label-top .search-field--keyword')
     expect(formControls).toMatch(/\.search-card \.el-form--label-top \.search-field--keyword\s*\{[^}]*min-width:\s*240px/)
   })
 
-  it('clamps datetime field min-width in label-top mode so datetimerange content is not truncated', () => {
+  it('CO-211: widens date field min-width in label-top mode so daterange fits', () => {
+    expect(formControls).toContain('.search-card .el-form--label-top .search-field--date')
+    expect(formControls).toMatch(/\.search-card \.el-form--label-top \.search-field--date\s*\{[^}]*min-width:\s*220px/)
+  })
+
+  it('CO-211: widens datetime field min-width in label-top mode so datetimerange fits', () => {
     expect(formControls).toContain('.search-card .el-form--label-top .search-field--datetime')
     expect(formControls).toMatch(/\.search-card \.el-form--label-top \.search-field--datetime\s*\{[^}]*min-width:\s*360px/)
   })
 
-  it('lets select dropdown popper grow to fit long option text', () => {
+  it('CO-211: lets select dropdown popper grow to fit long option text', () => {
     expect(formControls).toContain('.el-select__popper.el-popper')
     expect(formControls).toMatch(/\.el-select__popper\.el-popper\s*\{[^}]*max-width:\s*480px/)
   })

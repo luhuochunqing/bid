@@ -134,34 +134,40 @@ html:not([data-keyboard-nav="true"]) .el-textarea__inner:focus {
 
 
 
-/* ========== label-position=top 模式下搜索字段自适应宽度（防止文字截断） ========== */
-/* 顶部标签模式下固定宽度会导致中文 placeholder/已选 tag/日期范围被截断：
-   - 关键词 placeholder「搜索项目名称、招标主体」需 ≥240px 才能完整显示；
-   - datetimerange 含「YYYY-MM-DD HH:mm:ss 至 YYYY-MM-DD HH:mm:ss」需 ≥360px；
-   - 多选 select collapse-tags 需更宽触发器避免 4 字选项被 ellipsis。
-   选择器匹配任意 .search-card 下的 label-top 表单，覆盖标讯中心 + 项目列表两个筛选区。 */
-.search-card .el-form--label-top .search-field,
-.search-card .el-form--label-top .search-field--keyword,
-.search-card .el-form--label-top .search-field--date,
-.search-card .el-form--label-top .search-field--datetime {
+/* ========== CO-211: label-position=top 模式下搜索字段自适应宽度 ==========
+   背景：标讯中心 / 项目列表筛选区在 label-top 模式下使用上面定义的固定宽度
+   （.search-field: 130px、--keyword: 180px、--datetime: 240px），导致：
+   1) 关键词 placeholder「搜索项目名称、招标主体」(11 个中文) 被截断；
+   2) datetimerange 选择器显示「YYYY-MM-DD HH:mm:ss 至 YYYY-MM-DD HH:mm:ss」被截断；
+   3) 多选 select collapse-tags 在窄触发器中过早 ellipsis。
+   方案：label-top 模式下放宽 min-width 到能容纳完整内容的最小宽度，
+   并用 flex:1 1 Npx 让宽屏下继续弹性增长。选择器限定在 .search-card
+   作用域内，避免影响其它使用 .search-field 的 inline 表单。 */
+/* 通用搜索字段：min 160 保证「总部所在地」「项目负责人」等 5 字标签可完整展示 */
+.search-card .el-form--label-top .search-field {
   flex: 1 1 160px;
   width: auto;
   min-width: 160px;
   max-width: 240px;
 }
+/* 关键词：min 240 容纳 placeholder「搜索项目名称、招标主体」+ 前缀图标 + clearable */
 .search-card .el-form--label-top .search-field--keyword {
   flex: 1 1 240px;
+  width: auto;
   min-width: 240px;
   max-width: 320px;
 }
+/* daterange：min 220 容纳「YYYY-MM-DD 至 YYYY-MM-DD」 */
 .search-card .el-form--label-top .search-field--date {
   flex: 1 1 220px;
+  width: auto;
   min-width: 220px;
   max-width: 300px;
 }
-/* datetimerange 完整展示「YYYY-MM-DD HH:mm:ss 至 YYYY-MM-DD HH:mm:ss」需 ≥360px */
+/* datetimerange：min 360 容纳「YYYY-MM-DD HH:mm:ss 至 YYYY-MM-DD HH:mm:ss」+ 分隔图标 */
 .search-card .el-form--label-top .search-field--datetime {
   flex: 1 1 360px;
+  width: auto;
   min-width: 360px;
   max-width: 420px;
 }
@@ -169,7 +175,8 @@ html:not([data-keyboard-nav="true"]) .el-textarea__inner:focus {
   flex: 0 0 auto;
 }
 
-/* select 下拉面板宽度自适应内容，避免长选项被 ellipsis 截断（teleported popper） */
+/* CO-211: select 下拉面板（teleported popper）宽度自适应内容，
+   长选项（如「${u.name}（${u.employeeId}）」）不再被 ellipsis 截断 */
 .el-select__popper.el-popper {
   min-width: var(--el-component-size, 240px);
   max-width: 480px;
