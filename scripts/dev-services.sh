@@ -5,6 +5,15 @@
 # 维护声明:
 #   - 维护人: [your-name]
 #   - 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+#
+# JAVA_HOME 自愈（2026-06-15）：macOS 上若 JAVA_HOME 未设置，用 /usr/libexec/java_home
+# 自动探测，避免下方 backend 启动处硬编码的 Homebrew 默认路径（/opt/homebrew/opt/openjdk）
+# 在 Oracle/官方 JDK 机器（如 /Library/Java/JavaVirtualMachines/jdk-21.jdk）上失效导致
+# mvn package 报 "JAVA_HOME is not defined correctly"。探测失败仍保留各处 fallback。
+if [[ -z "${JAVA_HOME:-}" && -x /usr/libexec/java_home ]]; then
+  JAVA_HOME="$(/usr/libexec/java_home 2>/dev/null || true)"
+  [[ -n "$JAVA_HOME" ]] && export JAVA_HOME
+fi
 # ──────────────────────────────────────────────
 # healthcheck — Docker 模式自愈检查
 # ──────────────────────────────────────────────
