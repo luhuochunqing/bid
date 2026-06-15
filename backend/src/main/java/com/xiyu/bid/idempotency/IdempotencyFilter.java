@@ -82,11 +82,24 @@ public class IdempotencyFilter extends OncePerRequestFilter {
             return;
         }
 
-        ContentCachingRequestWrapper wrappedRequest = new BufferingRequestWrapper(request);
-        // Pre-buffer body so getContentAsByteArray() and downstream read both work.
-        byte[] requestBytes = readAllBytes(wrappedRequest);
+        // multipart/form-data 请求跳过 body 缓冲：文件上传流只能读一次，
+        // 读取后 Spring MultipartResolver 无法解析 getParts()，必报 400。
+        // 对 multipart 请求，Idempotency-Key header 本身已足够去重。
+        String contentType = request.getContentType();
+        boolean isMultipart = contentType != null
+                && contentType.toLowerCase().startsWith("multipart/form-data");
+
+        ContentCachingRequestWrapper wrappedRequest;
+        byte[] requestBytes;
+        if (isMultipart) {
+            wrappedRequest = null;
+            requestBytes = new byte[0];
+        } else {
+            wrappedRequest = new BufferingRequestWrapper(request);
+            requestBytes = readAllBytes(wrappedRequest);
+        }
         String requestBodyHash = digestBytes(requestBytes);
-        String cacheKey = buildCacheKey(wrappedRequest, headerKey);
+        String cacheKey = buildCacheKey(isMultipart ? request : wrappedRequest, headerKey);
 
         Optional<IdempotencyStore.CachedResponse> cached = store.find(cacheKey);
         if (cached.isPresent()) {
@@ -112,7 +125,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 
         ContentCachingResponseWrapper wrappedResponse = new ContentCachingResponseWrapper(response);
         try {
-            chain.doFilter(wrappedRequest, wrappedResponse);
+            chain.doFilter(isMultipart ? request : wrappedRequest, wrappedResponse);
         } finally {
             byte[] bodyBytes = wrappedResponse.getContentAsByteArray();
             int status = wrappedResponse.getStatus();
