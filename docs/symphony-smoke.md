@@ -22,7 +22,9 @@ routing workflow. Its presence on the task branch proves that:
 Run from the repo root after checking out `agent/symphony/CO-204-routing-test`:
 
 ```bash
-# Every assertion uses `set -e` semantics: a non-zero exit fails the block.
+# `set -e` makes every assertion fail the block on the first non-zero exit;
+# without it only the final command's status would propagate.
+set -e
 
 # 1. Marker line present, verbatim (whole-line match so the inline
 #    references in this very doc — code samples, acceptance criteria —
@@ -64,6 +66,7 @@ placeholder, creating an unbounded review loop.
 | Pass 6 | Removed all inline commit hashes from the iteration log to break the `(this commit)` re-pin loop and stop introducing new review noise. No artifact-content change beyond the iteration log. |
 | Pass 7 | Added step 1b to the Verification block asserting the marker line appears exactly once (closes a gap where a duplicate marker would still pass `grep -F`). Doc-only. |
 | Pass 8 | Fixed self-inflicted break in step 1b: `grep -Fc` matched the marker *substring* inside the verification block's own sample commands and the acceptance-criteria bullet, so the count was 4 and the assertion could never pass on this file. Switched steps 1 and 1b to `grep -Fx`/`grep -Fxc` (whole-line match), which yields 1 as intended. Doc-only. |
+| Pass 9 | Codex returned `changes_needed` with no inline detail; made the Verification block actually runnable end-to-end by emitting `set -e` as the first command (previously the block only *claimed* `set -e` semantics in a comment, so a paste-as-is would only surface the final command's exit). Doc-only. |
 
 ## Acceptance criteria
 
