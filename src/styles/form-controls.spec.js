@@ -68,4 +68,19 @@ describe('global form control styles', () => {
       expect(source).not.toContain('box-shadow: 0 0 0 3px rgba(3, 105, 161')
     }
   })
+
+  it('clamps keyword field min-width in label-top mode so Chinese placeholder is not truncated', () => {
+    expect(formControls).toContain('.search-card .el-form--label-top .search-field--keyword')
+    expect(formControls).toMatch(/\.search-card \.el-form--label-top \.search-field--keyword\s*\{[^}]*min-width:\s*240px/)
+  })
+
+  it('clamps datetime field min-width in label-top mode so datetimerange content is not truncated', () => {
+    expect(formControls).toContain('.search-card .el-form--label-top .search-field--datetime')
+    expect(formControls).toMatch(/\.search-card \.el-form--label-top \.search-field--datetime\s*\{[^}]*min-width:\s*360px/)
+  })
+
+  it('lets select dropdown popper grow to fit long option text', () => {
+    expect(formControls).toContain('.el-select__popper.el-popper')
+    expect(formControls).toMatch(/\.el-select__popper\.el-popper\s*\{[^}]*max-width:\s*480px/)
+  })
 })
