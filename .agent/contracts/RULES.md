@@ -214,7 +214,7 @@ public class CaseworkPolicyConfig {
 
 纯核心类本身是普通 POJO，没有 `@Component` 或其他 Spring 注解。
 `@Configuration` 类放在 `application` / `config` 包中，负责显式注册。
-这是最干净的分离方式，也是 AGENTS.md 中纯核心门禁的默认要求。
+这是最干净的分离方式，也是 ARCHITECTURE.md 中 FP-Java Agent Contract 的默认要求。
 
 #### 模式 B: @Component on 无状态纯核心（可接受，有前提）
 

@@ -292,7 +292,7 @@ npm run agent:stop     # 停止服务
 │   ├── line-budget.config.json   # ⭐ 行预算配置
 │   └── ci-pre-pr.sh              # PR 前一站式门禁
 ├── .agent-locks/                 # ⭐ 文件锁注册表目录（per-task .yml 文件）
-├── AGENTS.md                     # Agent 协作口径（必读）
+├── AGENTS.md                     # 项目导航地图（按任务找信息）
 ├── RULES.md                      # 开发红线与四阶段流程
 ├── CLAUDE.md                     # 执行入口与常用命令
 ├── .wiki/                        # 项目知识库
@@ -648,7 +648,7 @@ scripts/who-touches.sh src/views/Project/Detail.vue
 | `.githooks/git-push-wrapper.sh` | push 别名硬防线（过滤 `--no-verify`） | bash |
 | `.githooks/git-commit-wrapper.sh` | commit 别名硬防线（过滤 `--no-verify`） | bash |
 | `.github/workflows/branch-history-guard.yml` | 保护分支历史（5 行 YAML） | GitHub Actions |
-| `AGENTS.md` | Agent 协作口径 | 无 |
+| `AGENTS.md` | 项目导航地图（底线 + 按任务找信息） | 无 |
 | `RULES.md` | 开发红线与四阶段流程 | 无 |
 | `docker-compose.yml` | 数据库/Redis 通过 `${DB_NAME}` `${REDIS_DB}` 变量化 | Docker |
 
@@ -698,7 +698,7 @@ scripts/who-touches.sh src/views/Project/Detail.vue
 - [ ] **设计并固化 Agent 资源分配表**（端口/数据库/Redis DB，每个 Agent 一行）
 - [ ] 编写 `scripts/dev-env.sh`（目录路径 → 端口/数据库/Redis 映射）
 - [ ] 在 `docker-compose.yml` 中通过 `${DB_NAME}` `${REDIS_DB}` 变量化数据库和 Redis
-- [ ] 复制 AGENTS.md 模板，按项目修改
+- [ ] 复制 AGENTS.md 模板（导航地图 + 底线），按项目修改
 - [ ] 复制 RULES.md 模板，按项目技术栈裁剪
 - [ ] 配置 `.githooks/` + `scripts/install-githooks.sh`
 - [ ] 配置 `scripts/git` 安全包装器
@@ -783,17 +783,33 @@ git reset --hard 后接 push
 ## 附录 A：AGENTS.md 模板
 
 ```markdown
-# AGENTS.md - 项目智能体协作口径
+# AGENTS.md - 项目导航地图
 
-## Agent Contract
+> 本文件是 AI Agent 的入口地图。按当前任务去对应文件找详情。
 
-本项目默认采用 **{技术栈}Profile**：
+## 不可妥协的底线
 
-1. 先分清 Pure Core 和 Imperative Shell。
-2. 业务规则、校验、金额/状态/权限计算放入可单测的纯核心。
-3. Controller / Application Service / Repository 只做取数、事务、保存、消息和边界转换。
-4. 纯核心不得修改入参，不得读写数据库、API、文件、时间、随机数或日志。
-5. 预期内业务失败用 Result / Optional / ValidationResult 返回，不用异常做业务分支。
+1. **真实 API 唯一源，禁止 Mock** → 详见 `SECURITY.md`
+2. **复杂任务必走 Spec Kit 流程门禁** → 详见 `PLANS.md`
+3. **严禁在 main 基准区修改代码** → 详见 `PLANS.md`
+4. **FP-Java：纯核心可单测、不依赖框架** → 详见 `ARCHITECTURE.md`
+5. **原子提交 + 测试证据** → 详见 `RELIABILITY.md`
+
+## 按任务找信息
+
+| 你在做什么 | 先读 |
+|---|---|
+| 写后端 | `ARCHITECTURE.md` |
+| 写前端 | `FRONTEND.md` |
+| 安全/权限 | `SECURITY.md` |
+| 发起任务 | `PLANS.md` |
+| 启动服务 | `CLAUDE.md` |
+| 提交 PR | `RELIABILITY.md` |
+
+## 协作暗号
+
+- "早操SOP" → `git fetch origin && git rebase origin/main && bash scripts/sync-env.sh .`
+- "开个任务 XX" → `scripts/agent-start-task.sh <agent> <XX> origin/main --in-place`
 
 ## Agent 与 Worktree 分配
 
@@ -804,22 +820,10 @@ git reset --hard 后接 push
 | codex | `worktrees/codex/` | 1316 | 18082 | `project_codex` | 2 |
 | ... | ... | ... | ... | ... | ... |
 
-## 协作口径
+## 协作语言与品牌
 
-- **协作语言**：默认使用 {语言} 进行沟通、代码注释、测试说明和变更描述。
-- **暗号协定**：
-  - "早操SOP" → `git fetch origin && git rebase origin/main && bash scripts/sync-env.sh .`
-  - "开个任务/开个分支 XX" → `scripts/agent-start-task.sh <agent> <XX> origin/main --in-place`
-
-## Mock 政策
-
-- 以真实后端 API 为唯一事实源，禁止在 mock 路径下编写代码。
-
-## Agent 行为规范
-
-- **任务起始**：每次对话开始时声明当前 worktree 名称、分支和协作模式
-- **物理隔离**：各 Agent 在独立持久 Worktree 工作，资源分配见上表
-- **验证责任**：谁改代码，谁在自己的 Worktree 跑通验证
+- **协作语言**：{语言}
+- **项目品牌**：{品牌全称}
 ```
 
 ## 附录 B：RULES.md 模板
