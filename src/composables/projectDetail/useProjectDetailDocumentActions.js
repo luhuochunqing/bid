@@ -200,7 +200,11 @@ export function useProjectDetailDocumentActions(context) {
   const loadProjectWorkflowData = async (projectId) => {
     if (!project.value || !isApiProject.value) return
     const [taskResult, documentResult] = await Promise.all([projectsApi.getTasks(projectId), projectsApi.getDocuments(projectId)])
-    project.value.tasks = taskResult?.success && Array.isArray(taskResult.data) ? taskResult.data.map((task) => ({ ...task, deliverables: task.deliverables || [], hasDeliverable: Boolean(task.hasDeliverable) })) : []
+    project.value.tasks = taskResult?.success && Array.isArray(taskResult.data)
+      ? taskResult.data
+          .filter((task) => !task.title?.startsWith('【待立项】'))
+          .map((task) => ({ ...task, deliverables: task.deliverables || [], hasDeliverable: Boolean(task.hasDeliverable) }))
+      : []
     project.value.documents = documentResult?.success && Array.isArray(documentResult.data) ? documentResult.data : []
   }
 

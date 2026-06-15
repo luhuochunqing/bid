@@ -5,6 +5,11 @@ const { archive } = vi.hoisted(() => ({
   archive: vi.fn(),
 }))
 
+const { mockGetTasks, mockGetDocuments } = vi.hoisted(() => ({
+  mockGetTasks: vi.fn(),
+  mockGetDocuments: vi.fn(),
+}))
+
 vi.mock('@/api', () => ({
   collaborationApi: {
     exports: {
@@ -100,5 +105,39 @@ describe('project detail action regressions', () => {
     expect(state.project.value.status).toBe('archived')
     expect(success).toHaveBeenCalledWith('项目资料归档成功')
     expect(error).not.toHaveBeenCalled()
+  })
+
+  it('loadProjectWorkflowData filters out 【待立项】tasks from task board', async () => {
+    const project = ref({
+      id: 12,
+      name: '测试项目',
+      tasks: [],
+    })
+
+    const getTasks = vi.fn().mockResolvedValue({
+      success: true,
+      data: [
+        { id: 1, title: '【待立项】某标讯', status: 'TODO' },
+        { id: 2, title: '正常任务', status: 'TODO' },
+        { id: 3, title: '【待立项】另一标讯', status: 'IN_PROGRESS' },
+      ],
+    })
+    const getDocuments = vi.fn().mockResolvedValue({ success: true, data: [] })
+
+    const { loadProjectWorkflowData } = useProjectDetailDocumentActions({
+      route: { params: { id: '12' } },
+      project,
+      projectExpenses: ref([]),
+      userStore: {},
+      projectsApi: { getTasks, getDocuments },
+      isApiProject: ref(true),
+      message: { success: vi.fn(), error: vi.fn() },
+      state: {},
+    })
+
+    await loadProjectWorkflowData('12')
+
+    expect(project.value.tasks).toHaveLength(1)
+    expect(project.value.tasks[0].title).toBe('正常任务')
   })
 })
