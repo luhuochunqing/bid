@@ -81,10 +81,12 @@ export const tendersApi = {
   },
 
   async downloadImportTemplate() {
-    return httpClient.get('/api/tenders/import-template', {
+    const response = await httpClient.get('/api/tenders/import-template', {
       responseType: 'blob',
       timeout: 60000
     })
+    // client.js 响应拦截器 blob 不解包，需手动取 .data
+    return response.data
   },
 
   async bulkImport(file) {
