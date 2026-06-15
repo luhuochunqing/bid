@@ -36,19 +36,15 @@ import java.util.List;
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminUserController {
 
-    private static final String ADMIN_ONLY = "hasRole('ADMIN')";
-
     private final AdminUserService adminUserService;
     private final AdminUserQueryService adminUserQueryService;
 
     @GetMapping
-    @PreAuthorize(ADMIN_ONLY)
     public ResponseEntity<ApiResponse<List<AdminUserDTO>>> listUsers() {
         return ResponseEntity.ok(ApiResponse.success("Users retrieved successfully", adminUserService.listUsers()));
     }
 
     @GetMapping("/page")
-    @PreAuthorize(ADMIN_ONLY)
     public ResponseEntity<ApiResponse<PaginatedResult<AdminUserDTO>>> listUsersPage(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
@@ -61,7 +57,6 @@ public class AdminUserController {
     }
 
     @PostMapping
-    @PreAuthorize(ADMIN_ONLY)
     public ResponseEntity<ApiResponse<AdminUserDTO>> createUser(@Valid @RequestBody AdminUserCreateRequest request) {
         log.info("POST /api/admin/users - creating user {}", request.getUsername());
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -69,7 +64,6 @@ public class AdminUserController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize(ADMIN_ONLY)
     public ResponseEntity<ApiResponse<AdminUserDTO>> updateUser(
             @PathVariable Long id,
             @Valid @RequestBody AdminUserUpdateRequest request,
@@ -83,7 +77,6 @@ public class AdminUserController {
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize(ADMIN_ONLY)
     public ResponseEntity<ApiResponse<AdminUserDTO>> updateStatus(
             @PathVariable Long id,
             @Valid @RequestBody AdminUserStatusUpdateRequest request,
@@ -97,7 +90,6 @@ public class AdminUserController {
     }
 
     @PutMapping("/{id}/organization")
-    @PreAuthorize(ADMIN_ONLY)
     public ResponseEntity<ApiResponse<AdminUserDTO>> updateOrganization(
             @PathVariable Long id,
             @Valid @RequestBody UserOrganizationUpdateRequest request,
@@ -111,7 +103,6 @@ public class AdminUserController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize(ADMIN_ONLY)
     public ResponseEntity<ApiResponse<Void>> deleteUser(
             @PathVariable Long id,
             Authentication authentication

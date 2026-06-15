@@ -31,18 +31,14 @@ import java.util.List;
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminRoleController {
 
-    private static final String ADMIN_ONLY = "hasRole('ADMIN')";
-
     private final RoleProfileService roleProfileService;
 
     @GetMapping
-    @PreAuthorize(ADMIN_ONLY)
     public ResponseEntity<ApiResponse<List<RoleDTO>>> listRoles() {
         return ResponseEntity.ok(ApiResponse.success("Roles retrieved successfully", roleProfileService.listRoles()));
     }
 
     @PostMapping
-    @PreAuthorize(ADMIN_ONLY)
     public ResponseEntity<ApiResponse<RoleDTO>> createRole(@Valid @RequestBody CreateRoleRequest request) {
         log.info("POST /api/admin/roles - creating role {}", request.getCode());
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -50,28 +46,24 @@ public class AdminRoleController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize(ADMIN_ONLY)
     public ResponseEntity<ApiResponse<RoleDTO>> updateRole(@PathVariable Long id, @Valid @RequestBody UpdateRoleRequest request) {
         log.info("PUT /api/admin/roles/{} - updating role", id);
         return ResponseEntity.ok(ApiResponse.success("Role updated successfully", roleProfileService.updateRole(id, request)));
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize(ADMIN_ONLY)
     public ResponseEntity<ApiResponse<RoleDTO>> updateRoleStatus(@PathVariable Long id, @Valid @RequestBody UpdateRoleStatusRequest request) {
         log.info("PATCH /api/admin/roles/{}/status - updating role status", id);
         return ResponseEntity.ok(ApiResponse.success("Role status updated successfully", roleProfileService.updateRoleStatus(id, request)));
     }
 
     @PostMapping("/{id}/reset-default")
-    @PreAuthorize(ADMIN_ONLY)
     public ResponseEntity<ApiResponse<RoleDTO>> resetRole(@PathVariable Long id) {
         log.info("POST /api/admin/roles/{}/reset-default - resetting role", id);
         return ResponseEntity.ok(ApiResponse.success("Role reset successfully", roleProfileService.resetRole(id)));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize(ADMIN_ONLY)
     public ResponseEntity<ApiResponse<Void>> deleteRole(@PathVariable Long id) {
         log.info("DELETE /api/admin/roles/{} - deleting role", id);
         roleProfileService.deleteRole(id);
