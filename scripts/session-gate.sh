@@ -230,7 +230,10 @@ release_session_lock() {
 
     if [[ "$pr_exists" -eq 0 ]]; then
       echo "session-gate: 自动 push 中..."
-      git push origin HEAD:"$(git symbolic-ref --short HEAD 2>/dev/null)" 2>/dev/null || true
+      # PRE_PUSH_GATE=0 防止递归：本脚本可能被 pre-push-gate 的 vitest 测试
+      # （经 dev-env.sh → session-gate.sh）触发，若不跳过 gate 会形成
+      # push→gate→vitest→session-gate→push 的无限递归（CPU 风暴）。
+      PRE_PUSH_GATE=0 git push origin HEAD:"$(git symbolic-ref --short HEAD 2>/dev/null)" 2>/dev/null || true
       echo ""
     fi
   fi
