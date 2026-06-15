@@ -9,10 +9,12 @@ import httpClient from '../client.js'
 export const organizationApi = {
   /**
    * 查询部门列表。
+   * @param {string} [sourceApp] - 按来源应用过滤，避免多来源数据重复展示
    * @returns {Promise<Array<{departmentCode, departmentName, parentDepartmentCode, enabled}>>}
    */
-  async listDepartments() {
-    const res = await httpClient.get('/api/admin/organization/departments')
+  async listDepartments(sourceApp) {
+    const params = sourceApp ? { sourceApp } : undefined
+    const res = await httpClient.get('/api/admin/organization/departments', { params })
     return res?.data || res || []
   },
 

@@ -12,4 +12,6 @@ public interface OrganizationDepartmentRepository extends JpaRepository<Organiza
     Optional<OrganizationDepartmentEntity> findBySourceAppAndDepartmentCode(String sourceApp, String departmentCode);
 
     List<OrganizationDepartmentEntity> findByEnabledTrueOrderByDepartmentCode();
+
+    List<OrganizationDepartmentEntity> findBySourceAppAndEnabledTrueOrderByDepartmentCode(String sourceApp);
 }

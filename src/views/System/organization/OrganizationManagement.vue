@@ -17,6 +17,11 @@
         <div class="dept-sidebar">
           <div class="dept-header">
             <h4>部门列表</h4>
+            <el-select v-model="selectedSourceApp" size="small" style="width: 110px" @change="loadDepartments">
+              <el-option label="全部" value="" />
+              <el-option label="ehsy" value="ehsy" />
+              <el-option label="oss" value="oss" />
+            </el-select>
           </div>
           <div class="dept-tree-wrapper">
             <el-tree
@@ -153,6 +158,7 @@ const editDeptCode = ref('')
 
 const searchForm = ref({ keyword: '', enabled: null })
 const selectedDeptCode = ref('')
+const selectedSourceApp = ref('')
 
 let debounceTimer = null
 function debouncedSearch() {
@@ -199,7 +205,7 @@ async function loadUsers() {
 
 async function loadDepartments() {
   try {
-    const res = await organizationApi.listDepartments()
+    const res = await organizationApi.listDepartments(selectedSourceApp.value || undefined)
     departments.value = Array.isArray(res) ? res : []
   } catch {
     departments.value = []
@@ -255,7 +261,7 @@ onMounted(async () => {
 .main-card { border-radius: 8px; }
 .org-layout { display: flex; gap: 0; min-height: 500px; }
 .dept-sidebar { width: 260px; min-width: 260px; border-right: 1px solid var(--el-border-color-light); padding: 0 12px 12px 0; }
-.dept-header { padding: 8px 4px 12px; border-bottom: 1px solid var(--el-border-color-lighter); margin-bottom: 8px; }
+.dept-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 4px 12px; border-bottom: 1px solid var(--el-border-color-lighter); margin-bottom: 8px; }
 .dept-header h4 { margin: 0; font-size: 14px; color: #374151; }
 .dept-tree-wrapper { overflow-y: auto; max-height: 520px; }
 .dept-node { display: flex; align-items: center; gap: 6px; font-size: 13px; }
