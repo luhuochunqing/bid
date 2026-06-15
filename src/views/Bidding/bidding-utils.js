@@ -282,6 +282,11 @@ export function getSourceTypeText(sourceType) {
     BULK_IMPORT: '批量导入',
     MANUAL: '人工录入',
     EXTERNAL: '外部获取',
+    // 后端 @JsonValue 现在直接返回中文标签，保留直通映射
+    '第三方平台': '第三方平台',
+    'CRM 商机': 'CRM 商机',
+    '人工录入': '人工录入',
+    '批量导入': '批量导入',
   }
   return map[sourceType] || sourceType || '未知'
 }

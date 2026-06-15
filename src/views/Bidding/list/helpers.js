@@ -130,7 +130,7 @@ export function buildManualTenderPayload(form = {}) {
     projectType: form.projectType || null,
     deadline: formattedDeadline,
     publishDate: formatLocalDate(),
-    source: 'manual',
+    source: '人工录入',
     // 联系人1
     contactName: form.contact || null,
     contactPhone: form.phone || null,
@@ -166,6 +166,7 @@ export function getSourceTagType(source) {
   const map = {
     external: 'success',
     manual: 'warning',
+    '人工录入': 'warning',
     中国招标投标公共服务平台: 'success',
   }
   return map[source] || 'info'
@@ -175,6 +176,7 @@ export function getSourceText(source) {
   const map = {
     external: '外部获取',
     manual: '人工录入',
+    '人工录入': '人工录入',
     中国招标投标公共服务平台: '外部获取',
   }
   return map[source] || source || '未知'
@@ -182,7 +184,7 @@ export function getSourceText(source) {
 
 /**
  * 根据标讯来源类型获取标签类型
- * @param {string} sourceType - EXTERNAL_PLATFORM / CRM_OPPORTUNITY / MANUAL_SINGLE / BULK_IMPORT
+ * @param {string} sourceType - 英文枚举名（EXTERNAL_PLATFORM 等）或中文标签（第三方平台 等）
  * @returns {string} Element Plus tag type
  */
 export function getSourceTypeTagType(sourceType) {
@@ -193,6 +195,10 @@ export function getSourceTypeTagType(sourceType) {
     BULK_IMPORT: 'info',
     MANUAL: 'warning',
     EXTERNAL: 'success',
+    '第三方平台': 'success',
+    'CRM 商机': 'primary',
+    '人工录入': 'warning',
+    '批量导入': 'info',
   }
   return map[sourceType] || 'info'
 }

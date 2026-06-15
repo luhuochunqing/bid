@@ -36,7 +36,7 @@
       <!-- 来源平台 -->
       <el-table-column prop="source" label="来源平台" width="120" align="center" show-overflow-tooltip>
         <template #default="{ row = {} } = {}">
-          <el-tag v-if="row.source" size="small" :type="getSourceTagType(row.source)">{{ row.source === 'manual' ? '人工录入' : row.source }}</el-tag>
+          <el-tag v-if="row.source" size="small" :type="getSourceTagType(row.source)">{{ getSourceText(row.source) }}</el-tag>
           <span v-else>-</span>
         </template>
       </el-table-column>
@@ -127,7 +127,7 @@
 import { ref } from 'vue'
 import { Link as LinkIcon } from '@element-plus/icons-vue'
 import FavoriteButton from './FavoriteButton.vue'
-import { getSourceTagType, safeTenderUrl } from '../helpers.js'
+import { getSourceTagType, getSourceText, safeTenderUrl } from '../helpers.js'
 import { getTenderStatusTagType, getTenderStatusText } from '../../bidding-utils-status.js'
 
 const props = defineProps({
