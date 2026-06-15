@@ -405,39 +405,15 @@ describe('getBottomActions', () => {
 // shouldShowLogsTab
 // ===========================================================================
 describe('shouldShowLogsTab', () => {
-  it('returns false for MANUAL_SINGLE', () => {
-    expect(shouldShowLogsTab('MANUAL_SINGLE')).toBe(false)
-  })
-
-  it('returns false for Chinese label "人工录入"', () => {
-    expect(shouldShowLogsTab('人工录入')).toBe(false)
-  })
-
-  it('returns true for EXTERNAL_PLATFORM', () => {
+  it('returns true for all source types', () => {
+    expect(shouldShowLogsTab('MANUAL_SINGLE')).toBe(true)
+    expect(shouldShowLogsTab('人工录入')).toBe(true)
     expect(shouldShowLogsTab('EXTERNAL_PLATFORM')).toBe(true)
-  })
-
-  it('returns true for Chinese label "第三方平台"', () => {
     expect(shouldShowLogsTab('第三方平台')).toBe(true)
-  })
-
-  it('returns true for CRM_OPPORTUNITY', () => {
     expect(shouldShowLogsTab('CRM_OPPORTUNITY')).toBe(true)
-  })
-
-  it('returns true for Chinese label "CRM 商机"', () => {
     expect(shouldShowLogsTab('CRM 商机')).toBe(true)
-  })
-
-  it('returns true for BULK_IMPORT', () => {
     expect(shouldShowLogsTab('BULK_IMPORT')).toBe(true)
-  })
-
-  it('returns true for Chinese label "批量导入"', () => {
     expect(shouldShowLogsTab('批量导入')).toBe(true)
-  })
-
-  it('returns true for null / undefined / missing', () => {
     expect(shouldShowLogsTab(null)).toBe(true)
     expect(shouldShowLogsTab(undefined)).toBe(true)
   })

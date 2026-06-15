@@ -33,59 +33,13 @@ describe('useDetailTabs', () => {
     expect(wrapper.vm.visibleTabs).toHaveLength(3)
   })
 
-  it('MANUAL_SINGLE 时隐藏操作日志 Tab', async () => {
+  it('所有来源类型均显示全部 Tab', async () => {
     const wrapper = mount(createHarness(tenderRef))
-    tenderRef.value = { sourceType: 'MANUAL_SINGLE' }
-    await wrapper.vm.$nextTick()
-    expect(wrapper.vm.visibleTabs).toHaveLength(2)
-    expect(wrapper.vm.visibleTabs.find(t => t.name === 'logs')).toBeUndefined()
-    expect(wrapper.vm.visibleTabs.map(t => t.name)).toEqual(['basic', 'evaluation'])
-  })
-
-  it('中文标签 "人工录入" 时也隐藏操作日志 Tab', async () => {
-    const wrapper = mount(createHarness(tenderRef))
-    tenderRef.value = { sourceType: '人工录入' }
-    await wrapper.vm.$nextTick()
-    expect(wrapper.vm.visibleTabs).toHaveLength(2)
-    expect(wrapper.vm.visibleTabs.find(t => t.name === 'logs')).toBeUndefined()
-  })
-
-  it('非 MANUAL_SINGLE 时显示所有 Tab', async () => {
-    const wrapper = mount(createHarness(tenderRef))
-
-    tenderRef.value = { sourceType: 'EXTERNAL_PLATFORM' }
-    await wrapper.vm.$nextTick()
-    expect(wrapper.vm.visibleTabs).toHaveLength(3)
-
-    tenderRef.value = { sourceType: 'CRM_OPPORTUNITY' }
-    await wrapper.vm.$nextTick()
-    expect(wrapper.vm.visibleTabs).toHaveLength(3)
-
-    tenderRef.value = { sourceType: 'BULK_IMPORT' }
-    await wrapper.vm.$nextTick()
-    expect(wrapper.vm.visibleTabs).toHaveLength(3)
-
-    // 中文标签
-    tenderRef.value = { sourceType: '第三方平台' }
-    await wrapper.vm.$nextTick()
-    expect(wrapper.vm.visibleTabs).toHaveLength(3)
-  })
-
-  it('activeTab 自动修正（当当前 tab 被隐藏时切到第一个）', async () => {
-    const wrapper = mount(createHarness(tenderRef))
-    wrapper.vm.switchTab('logs')
-    expect(wrapper.vm.activeTab).toBe('logs')
-
-    tenderRef.value = { sourceType: 'MANUAL_SINGLE' }
-    await wrapper.vm.$nextTick()
-    expect(wrapper.vm.activeTab).toBe('basic')
-  })
-
-  it('activeTab 自动修正（中文标签场景）', async () => {
-    const wrapper = mount(createHarness(tenderRef))
-    wrapper.vm.switchTab('logs')
-    tenderRef.value = { sourceType: '人工录入' }
-    await wrapper.vm.$nextTick()
-    expect(wrapper.vm.activeTab).toBe('basic')
+    for (const sourceType of ['MANUAL_SINGLE', '人工录入', 'EXTERNAL_PLATFORM', '第三方平台', 'CRM_OPPORTUNITY', 'CRM 商机', 'BULK_IMPORT', '批量导入']) {
+      tenderRef.value = { sourceType }
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.visibleTabs).toHaveLength(3)
+      expect(wrapper.vm.visibleTabs.find(t => t.name === 'logs')).toBeDefined()
+    }
   })
 })

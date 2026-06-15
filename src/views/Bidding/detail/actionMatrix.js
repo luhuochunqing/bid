@@ -217,11 +217,9 @@ export function getBottomActions(status, role, _requiresReview, evaluationTabAct
 }
 
 // ---------------------------------------------------------------------------
-// shouldShowLogsTab - 判断是否显示日志 Tab（根据来源类型）
+// shouldShowLogsTab - 判断是否显示日志 Tab（保留函数签名兼容性）
 // ---------------------------------------------------------------------------
-export function shouldShowLogsTab(sourceType) {
-  if (sourceType == null) return true
-  // sourceType 可能是英文枚举名或中文标签
-  if (sourceType === 'MANUAL_SINGLE' || sourceType === '人工录入') return false
+export function shouldShowLogsTab(_sourceType) {
+  // 所有来源类型（第三方平台、CRM 商机、批量导入、人工录入）均显示操作日志 Tab
   return true
 }
