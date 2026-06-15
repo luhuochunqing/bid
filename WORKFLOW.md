@@ -31,19 +31,45 @@ workspace:
   hooks:
     after_create: |
       set -euo pipefail
-      git clone --depth 1 https://gitee.com/allinai888/bid.git .
+      if [ -d ".git" ]; then
+        echo "workspace already initialized, fetching updates"
+        git -C . fetch origin main
+        git -C . rebase origin/main || true
+      else
+        echo "cloning bid repo into workspace"
+        git clone --depth 1 https://gitee.com/allinai888/bid.git . || {
+          echo "clone failed, trying without depth"
+          git clone https://gitee.com/allinai888/bid.git .
+        }
+      fi
       git config user.email "symphony-bot@xiyu.local"
       git config user.name "Symphony Bot"
-      # 把后端锁定到 codex worktree 专属端口 + 数据库,避免覆盖 main 端口(18080)
-      # Symphony 跑的"集成测试"会引用这里的端口
-      cat > .env.runtime <<EOF
-      SPRING_PROFILES_ACTIVE=dev,mysql
-      SERVER_PORT=18082
-      DB_NAME=xiyu_bid_codex
-      VITE_API_BASE_URL=http://127.0.0.1:18082
-      FRONTEND_PORT=1316
-      LINEAR_API_KEY_OVERRIDE=use-host
-      EOF
+      python3 -c '
+      lines = [
+        "SPRING_PROFILES_ACTIVE=dev,mysql",
+        "SERVER_PORT=18082",
+        "DB_NAME=xiyu_bid_codex",
+        "VITE_API_BASE_URL=http://127.0.0.1:18082",
+        "FRONTEND_PORT=1316",
+        "LINEAR_API_KEY_OVERRIDE=use-host",
+      ]
+      open(".env.runtime", "w").write("\n".join(lines) + "\n")
+      '
+      # Branch setup: ensure workspace is on a dedicated agent/symphony/<ID> branch
+      SAFE_ID=$(basename "$(pwd)")
+      BRANCH="agent/symphony/${SAFE_ID}"
+      if git rev-parse --verify "$BRANCH" >/dev/null 2>&1; then
+        echo "Branch $BRANCH exists locally, switching and rebasing"
+        git checkout "$BRANCH" || git checkout -b "$BRANCH" origin/main
+        git -C . rebase origin/main || true
+      elif git ls-remote --heads origin "$BRANCH" 2>/dev/null | grep -q "$BRANCH"; then
+        echo "Branch $BRANCH exists on origin, checking out"
+        git checkout -b "$BRANCH" "origin/$BRANCH"
+        git -C . rebase origin/main || true
+      else
+        echo "Creating new branch $BRANCH from origin/main"
+        git checkout -b "$BRANCH" origin/main
+      fi
     before_remove: |
       # 留空,workspace 删除前不需要 hook(workspace 是 Symphony 自己的目录)
 
@@ -122,17 +148,24 @@ silently work around the blacklist.
 ### 2. Branch naming — MANDATORY
 
 Every PR branch MUST be prefixed with `agent/symphony/`. The base must be
-`origin/main` rebased to current. Do not push to any other branch.
+  `origin/main` rebased to current. Do not push to any other branch.
 
-```bash
-# Correct:
-agent/symphony/ENG-123-add-translation-coverage
+  **Use the workspace's pre-created branch**: the `after_create` hook has already
+  created `agent/symphony/{{ issue.identifier }}` (exact match, no slug). Do
+  NOT add a kebab-case slug suffix. The current branch (`git branch --show-current`)
+  should already be `agent/symphony/{{ issue.identifier }}` — if not, check it out
+  before making any changes. Any commit you make on the wrong branch (e.g. `main`)
+  will be lost on push (main is protected) and will block the auto-PR/Linear loop.
 
-# Wrong (will be rejected by who-touches.sh):
-ENG-123-add-translation-coverage
-symphony/ENG-123
-codex/ENG-123
-```
+  ```bash
+  # Correct (use the existing branch created by after_create):
+  agent/symphony/CO-219
+
+  # Wrong (will be rejected and break the post_agent_cleanup branch lookup):
+  agent/symphony/CO-219-source-type-chinese
+  agent/symphony/co-219
+  CO-219
+  ```
 
 ### 3. PR target — Gitee ONLY
 
