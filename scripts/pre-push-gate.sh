@@ -49,6 +49,29 @@ fi
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# 后端变更检测：分支相对 origin/main 引入的 backend/ 改动。
+# 注意：pre-push 时 git diff --cached 为空（改动已在 commit），必须用 origin/main...HEAD。
+# 无 backend/ 改动则跳过 3 个后端 mvn 架构测试（省 ~7 min JVM 启动+编译）。
+BACKEND_CHANGED=$(git diff --name-only origin/main...HEAD 2>/dev/null | grep -cE '^backend/' || true)
+
+# 合并 3 个后端架构测试为一次 mvn 调用（省 2 次 JVM 启动 + 重复编译），逐项结果从 surefire XML 读取以保留精度。
+_BACKEND_MVN_RAN=""
+backend_mvn_run() {
+  if [ -z "$_BACKEND_MVN_RAN" ]; then
+    cd "$ROOT_DIR/backend"
+    mvn test -Dtest='ArchitectureTest,FlywayRollbackScriptCoverageTest,ResponsibilityArchitectureTest' -q >/dev/null 2>&1 || true
+    cd "$ROOT_DIR"
+    _BACKEND_MVN_RAN=1
+  fi
+}
+surefire_failed() {
+  local xml="$ROOT_DIR/backend/target/surefire-reports/TEST-com.xiyu.bid.${1}.xml"
+  if [ ! -f "$xml" ]; then
+    return 0  # 无报告 → 保守视为失败
+  fi
+  grep -qE '<testsuite[^>]*((failures|errors)="[1-9])' "$xml"
+}
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -67,30 +90,32 @@ echo ""
 
 # ── 1. 架构检查 ──────────────────────────────────────────
 echo "── 架构合规 ──"
-if [ -d "$ROOT_DIR/backend" ]; then
-  cd "$ROOT_DIR/backend"
-  if mvn test -Dtest=ArchitectureTest -q 2>/dev/null; then
-    pass "ArchitectureTest"
-  else
-    fail "ArchitectureTest — Controller 可能直接依赖了 Repository 或 Entity"
-  fi
-  cd "$ROOT_DIR"
-else
+if [ ! -d "$ROOT_DIR/backend" ]; then
   skip "非 Java 项目"
+elif [ "${BACKEND_CHANGED:-0}" -eq 0 ]; then
+  skip "ArchitectureTest（无 backend/ 变更）"
+else
+  backend_mvn_run
+  if surefire_failed ArchitectureTest; then
+    fail "ArchitectureTest — Controller 可能直接依赖了 Repository 或 Entity"
+  else
+    pass "ArchitectureTest"
+  fi
 fi
 
 # ── 2. 回滚脚本覆盖 ──────────────────────────────────────
 echo "── 回滚脚本覆盖 ──"
-if [ -d "$ROOT_DIR/backend" ]; then
-  cd "$ROOT_DIR/backend"
-  if mvn test -Dtest=FlywayRollbackScriptCoverageTest -q 2>/dev/null; then
-    pass "FlywayRollbackScriptCoverageTest"
-  else
-    fail "FlywayRollbackScriptCoverageTest — 新迁移缺回滚脚本或 source header"
-  fi
-  cd "$ROOT_DIR"
-else
+if [ ! -d "$ROOT_DIR/backend" ]; then
   skip "非 Java 项目"
+elif [ "${BACKEND_CHANGED:-0}" -eq 0 ]; then
+  skip "FlywayRollbackScriptCoverageTest（无 backend/ 变更）"
+else
+  backend_mvn_run
+  if surefire_failed FlywayRollbackScriptCoverageTest; then
+    fail "FlywayRollbackScriptCoverageTest — 新迁移缺回滚脚本或 source header"
+  else
+    pass "FlywayRollbackScriptCoverageTest"
+  fi
 fi
 
 # ── 3. Flyway 版本号冲突检查 ─────────────────────────────
@@ -170,16 +195,17 @@ fi
 
 # ── 9. FP-Java 架构门禁 ────────────────────────────────
 echo "── FP-Java 架构 ──"
-if [ -d "$ROOT_DIR/backend" ]; then
-  cd "$ROOT_DIR/backend"
-  if mvn test -Dtest=ResponsibilityArchitectureTest -q 2>/dev/null; then
-    pass "ResponsibilityArchitectureTest"
-  else
-    fail "ResponsibilityArchitectureTest — 违反 FP-Java 规则：core 依赖框架/超 300 行/超 2 类职责"
-  fi
-  cd "$ROOT_DIR"
-else
+if [ ! -d "$ROOT_DIR/backend" ]; then
   skip "非 Java 项目"
+elif [ "${BACKEND_CHANGED:-0}" -eq 0 ]; then
+  skip "ResponsibilityArchitectureTest（无 backend/ 变更）"
+else
+  backend_mvn_run
+  if surefire_failed ResponsibilityArchitectureTest; then
+    fail "ResponsibilityArchitectureTest — 违反 FP-Java 规则：core 依赖框架/超 300 行/超 2 类职责"
+  else
+    pass "ResponsibilityArchitectureTest"
+  fi
 fi
 
 # ── 10. 路由-E2E 兼容性检查 ────────────────────────────
