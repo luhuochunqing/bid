@@ -29,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <h4>纯核心说明</h4>
  * <ul>
- *   <li>纯核心：菜单数据由 {@link ExternalMenuService#getMenus()} 提供，本测试仅验证 Controller 契约</li>
+ *   <li>纯核心：菜单数据由 {@link ExternalMenuService#getMenuList()} 提供，本测试仅验证 Controller 契约</li>
  *   <li>副作用：无，Controller 只做数据传递和包转</li>
  * </ul>
  */
@@ -52,7 +52,7 @@ class SystemsExternalMenuControllerTest {
     @Test
     @DisplayName("GET /api/systems/external/menus 返回 200 + 标准 ApiResponse 结构")
     void getMenus_shouldReturn200WithStandardResponse() throws Exception {
-        when(menuService.getMenus()).thenReturn(dummyMenuResponse());
+        when(menuService.getMenuList()).thenReturn(dummyMenuList());
 
         mockMvc.perform(get("/api/systems/external/menus")
                         .accept(MediaType.APPLICATION_JSON))
@@ -60,42 +60,39 @@ class SystemsExternalMenuControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.msg").value("ok"))
-                .andExpect(jsonPath("$.data").isMap());
+                .andExpect(jsonPath("$.data").isArray());
     }
 
     @Test
-    @DisplayName("返回的 data 包含 systemCode、systemName 和 menus 数组")
-    void getMenus_shouldReturnServiceData() throws Exception {
-        ExternalMenuResponse mockResponse = dummyMenuResponse();
-        when(menuService.getMenus()).thenReturn(mockResponse);
+    @DisplayName("data 直接返回菜单树列表，无 systemCode/systemName/menus 包装")
+    void getMenus_shouldReturnMenuListDirectly() throws Exception {
+        when(menuService.getMenuList()).thenReturn(dummyMenuList());
 
         mockMvc.perform(get("/api/systems/external/menus")
                         .accept(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.data.systemCode").value("bid-platform"))
-                .andExpect(jsonPath("$.data.systemName").value("西域数智化投标管理平台"))
-                .andExpect(jsonPath("$.data.menus.length()").value(mockResponse.getMenus().size()))
-                .andExpect(jsonPath("$.data.menus[0].id").value("1001"))
-                .andExpect(jsonPath("$.data.menus[0].menuName").value("工作台"))
-                .andExpect(jsonPath("$.data.menus[0].parentId").value("0"));
+                .andExpect(jsonPath("$.data[0].id").value("1001"))
+                .andExpect(jsonPath("$.data[0].menuName").value("工作台"))
+                .andExpect(jsonPath("$.data[0].parentId").value("0"))
+                .andExpect(jsonPath("$.data[0].menuCode").value("1001"));
     }
 
     @Test
     @DisplayName("子菜单包含在父节点的 children 字段中")
     void getMenus_shouldIncludeChildMenus() throws Exception {
-        when(menuService.getMenus()).thenReturn(dummyMenuResponse());
+        when(menuService.getMenuList()).thenReturn(dummyMenuList());
 
         mockMvc.perform(get("/api/systems/external/menus")
                         .accept(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.data.menus[1].id").value("1002"))
-                .andExpect(jsonPath("$.data.menus[1].menuName").value("标讯中心"))
-                .andExpect(jsonPath("$.data.menus[1].children.length()").value(3))
-                .andExpect(jsonPath("$.data.menus[1].children[0].menuName").value("标讯列表"))
-                .andExpect(jsonPath("$.data.menus[1].children[0].parentId").value("1002"));
+                .andExpect(jsonPath("$.data[1].id").value("1002"))
+                .andExpect(jsonPath("$.data[1].menuName").value("标讯中心"))
+                .andExpect(jsonPath("$.data[1].children.length()").value(3))
+                .andExpect(jsonPath("$.data[1].children[0].menuName").value("标讯列表"))
+                .andExpect(jsonPath("$.data[1].children[0].parentId").value("1002"));
     }
 
     // ── Helper: 构造与 ExternalMenuService 兼容的测试数据 ──
 
-    private static ExternalMenuResponse dummyMenuResponse() {
+    private static List<ExternalMenuTreeNode> dummyMenuList() {
         ExternalMenuTreeNode dashboard = new ExternalMenuTreeNode(
                 "1001", "工作台", "0", "1001", List.of());
 
@@ -106,6 +103,6 @@ class SystemsExternalMenuControllerTest {
                 new ExternalMenuTreeNode("100203", "关键词订阅", "1002", "100203", List.of())
         ));
 
-        return new ExternalMenuResponse("bid-platform", "西域数智化投标管理平台", List.of(dashboard, bidding));
+        return List.of(dashboard, bidding);
     }
 }

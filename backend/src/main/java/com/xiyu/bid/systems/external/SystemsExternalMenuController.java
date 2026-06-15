@@ -1,6 +1,7 @@
 package com.xiyu.bid.systems.external;
 
 import com.xiyu.bid.dto.ApiResponse;
+import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -38,14 +39,14 @@ public class SystemsExternalMenuController {
      * @return 菜单树列表（按客户方规范包成 ExternalMenuResponse 暴露）
      */
     @GetMapping
-    public ResponseEntity<ApiResponse<ExternalMenuResponse>> getMenus() {
-        
-        ApiResponse<ExternalMenuResponse> resp = ApiResponse
-                .<ExternalMenuResponse>builder()
+    public ResponseEntity<ApiResponse<List<ExternalMenuTreeNode>>> getMenus() {
+
+        ApiResponse<List<ExternalMenuTreeNode>> resp = ApiResponse
+                .<List<ExternalMenuTreeNode>>builder()
                 .success(true)
                 .code(0)
                 .message("ok")
-                .data(menuService.getMenus())
+                .data(menuService.getMenuList())
                 .build();
         return ResponseEntity.ok(resp);
     }

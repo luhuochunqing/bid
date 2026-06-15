@@ -8,9 +8,9 @@ import java.util.List;
 @Getter
 @AllArgsConstructor
 public class ExternalMenuTreeNode {
-    private final String menuCode;
+    private final String id;
     private final String menuName;
     private final String parentId;
-    private final String id;
+    private final String menuCode;
     private final List<ExternalMenuTreeNode> children;
 }

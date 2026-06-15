@@ -17,8 +17,8 @@ public class ExternalMenuService {
         );
     }
 
-    public ExternalMenuResponse getMenus() {
-        return cachedResponse;
+    public List<ExternalMenuTreeNode> getMenuList() {
+        return cachedResponse.getMenus();
     }
 
     private List<ExternalMenuTreeNode> buildMenuTree() {
