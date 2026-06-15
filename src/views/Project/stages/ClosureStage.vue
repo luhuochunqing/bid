@@ -228,7 +228,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, shallowRef, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, shallowRef, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
 import { getApiUrl } from '@/api/config.js'
@@ -258,9 +258,22 @@ const rejectReason = ref('')
 const richEditorRef = shallowRef(null)
 const toolbarConfig = {}
 const editorConfig = { placeholder: '请输入项目整体总结、遗留问题、后续跟进事项等（非必填）' }
+const editorUnmounted = ref(false)
 let editorInstance = null
-function richEditorCreated(editor) { editorInstance = editor; richEditorRef.value = editor }
-onBeforeUnmount(() => { if (editorInstance) { editorInstance.destroy(); editorInstance = null } })
+function richEditorCreated(editor) {
+  if (editorUnmounted.value || editor?.isDestroyed) return
+  editorInstance = editor
+  richEditorRef.value = editor
+}
+onBeforeUnmount(async () => {
+  editorUnmounted.value = true
+  richEditorRef.value = null
+  await nextTick()
+  if (editorInstance && !editorInstance.isDestroyed) {
+    editorInstance.destroy()
+  }
+  editorInstance = null
+})
 
 // 文档导出
 const exporting = ref(false)
