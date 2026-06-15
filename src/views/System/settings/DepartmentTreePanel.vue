@@ -35,17 +35,10 @@
       </el-table-column>
       <el-table-column label="上级部门" min-width="180">
         <template #default="{ row }">
-          <el-tree-select
-            v-model="row.parentDeptCode"
-            :data="parentTreeOptions"
-            node-key="deptCode"
-            :props="{ label: 'deptName', value: 'deptCode' }"
-            check-strictly
-            clearable
-            placeholder="根部门"
-            filterable
-            style="width: 100%"
-          />
+          <div class="parent-dept-cell">
+            <span class="parent-dept-text">{{ parentLabel(row.parentDeptCode) || '根部门' }}</span>
+            <el-button link type="primary" size="small" @click="openParentSelector(row)">选择</el-button>
+          </div>
         </template>
       </el-table-column>
       <el-table-column label="成员数" width="100">
@@ -59,6 +52,24 @@
         </template>
       </el-table-column>
     </el-table>
+
+    <el-dialog v-model="parentDialogVisible" title="选择上级部门" width="420px">
+      <el-tree-select
+        v-model="editingParentCode"
+        :data="parentTreeOptions"
+        node-key="deptCode"
+        :props="{ label: 'deptName', value: 'deptCode' }"
+        check-strictly
+        clearable
+        placeholder="根部门"
+        filterable
+        style="width: 100%"
+      />
+      <template #footer>
+        <el-button @click="parentDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="confirmParentChange">确定</el-button>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
@@ -75,6 +86,9 @@ const props = defineProps({
 
 const rows = ref([])
 const saving = ref(false)
+const parentDialogVisible = ref(false)
+const editingRow = ref(null)
+const editingParentCode = ref('')
 
 watch(
   () => props.deptTree,
@@ -84,7 +98,21 @@ watch(
   { immediate: true, deep: true }
 )
 
+const deptMap = computed(() => {
+  const map = {}
+  for (const row of rows.value) {
+    if (row.deptCode) map[row.deptCode] = row
+  }
+  return map
+})
+
 const parentTreeOptions = computed(() => buildDeptTree(rows.value))
+
+const parentLabel = (deptCode) => {
+  if (!deptCode) return ''
+  const dept = deptMap.value[deptCode]
+  return dept ? (dept.deptName || dept.deptCode) : deptCode
+}
 
 const memberCountMap = computed(() => {
   const map = {}
@@ -114,6 +142,20 @@ function buildDeptTree(depts) {
     }
   }
   return roots
+}
+
+const openParentSelector = (row) => {
+  editingRow.value = row
+  editingParentCode.value = row.parentDeptCode || ''
+  parentDialogVisible.value = true
+}
+
+const confirmParentChange = () => {
+  if (editingRow.value) {
+    editingRow.value.parentDeptCode = editingParentCode.value || ''
+  }
+  parentDialogVisible.value = false
+  editingRow.value = null
 }
 
 const addRow = () => {
@@ -184,5 +226,19 @@ const submit = async () => {
 
 .empty-alert {
   margin-bottom: 16px;
+}
+
+.parent-dept-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.parent-dept-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>
