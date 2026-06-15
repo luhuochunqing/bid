@@ -35,9 +35,11 @@ function normalizePersonnel(p) {
     departmentName: p.departmentName || '-',
     gender: p.gender || '',
     entryDate: formatDate(p.entryDate),
+    birthDate: formatDate(p.birthDate),
     phone: p.phone || '',
     education: p.education || '-',
     technicalTitle: p.technicalTitle || '-',
+    remark: p.remark || '',
     status: p.status || 'ACTIVE',
     statusLabel: STATUS_MAP[p.status] || p.status || '未知',
     attachmentUrl: p.attachmentUrl || '',
@@ -97,9 +99,11 @@ function buildPayload(data) {
     // 4.3 查看证书 h5 新增视图字段
     gender: data.gender || '',
     entryDate: data.entryDate || null,
+    birthDate: data.birthDate || null,
     phone: data.phone || '',
     education: data.education || '',
     technicalTitle: data.technicalTitle || '',
+    remark: data.remark || '',
     attachmentUrl: data.attachmentUrl || '',
     certificates: Array.isArray(data.certificates)
       ? data.certificates.map(c => ({
