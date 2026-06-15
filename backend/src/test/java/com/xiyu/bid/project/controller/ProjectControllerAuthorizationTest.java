@@ -22,7 +22,9 @@ class ProjectControllerAuthorizationTest {
     private ProjectExportService projectExportService;
 
     @Test
-    void getAllProjects_shouldAllowRoleCodeBasedProjectRoles() throws Exception {
+    void getAllProjects_shouldBeAccessibleToAuthenticatedUsers() throws Exception {
+        // e2282c96 放宽 getAllProjects 的 @PreAuthorize 为 isAuthenticated()（数据权限由 @DataScope 控制）。
+        // 该注解比原先的角色白名单更宽松，所有登录用户（含下方角色）均可访问。
         Method method = ProjectController.class.getMethod(
                 "getAllProjects",
                 String.class,
@@ -46,13 +48,7 @@ class ProjectControllerAuthorizationTest {
         PreAuthorize preAuthorize = method.getAnnotation(PreAuthorize.class);
 
         assertThat(preAuthorize).isNotNull();
-        assertThat(preAuthorize.value())
-                .contains("'SALES'")
-                .contains("'BID_ADMIN'")
-                .contains("'BID_LEAD'")
-                .contains("'BID_SPECIALIST'")
-                .contains("'TASK_EXECUTOR'")
-                .contains("'ADMIN_STAFF'");
+        assertThat(preAuthorize.value()).isEqualTo("isAuthenticated()");
     }
 
     @Test
