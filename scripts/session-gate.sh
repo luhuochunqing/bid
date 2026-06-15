@@ -65,7 +65,7 @@ session_gate() {
     old_branch=$(sed -n 's/^branch=//p' "$lockfile" 2>/dev/null || echo "unknown")
     old_mode=$(sed -n 's/^mode=//p' "$lockfile" 2>/dev/null || echo "")
 
-    if [[ -n "$old_pid" ]] && kill -0 "$old_pid" 2>/dev/null; then
+    if [[ -n "$old_pid" ]] && [[ "$old_pid" -ne $$ ]] && kill -0 "$old_pid" 2>/dev/null; then
       # 兼容旧锁文件（无 mode 字段）
       [[ -z "$old_mode" ]] && old_mode="开发"
 
