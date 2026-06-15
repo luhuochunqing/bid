@@ -23,6 +23,11 @@ public class OrganizationIntegrationProperties {
     private List<PersonToRoleMapping> personToRoleMappings = new ArrayList<>();
     /** 按部门映射：通过部门名称正则匹配 */
     private List<DepartmentToRoleMapping> departmentToRoleMappings = new ArrayList<>();
+    /**
+     * 是否启用 OSS 用户白名单过滤：未命中任何角色映射（人员/部门/岗位）的用户
+     * 不会被创建/更新；若本地已存在，则禁用（禁止登录）。
+     */
+    private boolean skipUnmappedUsers = false;
     private Directory directory = new Directory();
     private EventSdk eventSdk = new EventSdk();
     private Retry retry = new Retry();

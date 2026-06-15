@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -34,13 +35,17 @@ public class OrganizationUserSyncWriter {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public User upsert(String sourceApp, String eventKey, OrganizationUserSnapshot snapshot) {
         validateRequiredContact(snapshot);
-        User user = userRepository.findByExternalOrgSourceAppAndExternalOrgUserId(sourceApp, snapshot.externalUserId())
-                .orElseGet(User::new);
-        // 按优先级解析角色码：按人员 > 按部门 > 按岗位 > 外部角色码映射 > 默认 staff
+        Optional<User> existingUser = userRepository.findByExternalOrgSourceAppAndExternalOrgUserId(sourceApp, snapshot.externalUserId());
+        User user = existingUser.orElseGet(User::new);
+        // 按优先级解析角色码：按人员 > 按部门 > 按岗位
         String personMappedRoleCode = mapPersonToRole(snapshot);
         String deptMappedRoleCode = mapDepartmentToRole(snapshot);
         String positionMappedRoleCode = positionToRoleMapper.map(snapshot.externalRoleCode());
         String resolvedRoleCode = firstNonNull(personMappedRoleCode, deptMappedRoleCode, positionMappedRoleCode);
+        if (properties.isSkipUnmappedUsers() && (resolvedRoleCode == null || resolvedRoleCode.isBlank())) {
+            handleUnmappedUser(sourceApp, eventKey, snapshot, existingUser);
+            return null;
+        }
         OrganizationUserSyncPlan plan = OrganizationSyncPolicy.planUserSync(
                 snapshot,
                 user.getRoleCode(),
@@ -109,17 +114,31 @@ public class OrganizationUserSyncWriter {
 
 
     /**
-     * 按人员映射：通过西域员工邮箱/工号精确匹配到指定角色
+     * 白名单过滤：未命中任何映射的 OSS 用户，本地已存在则禁用，不存在则跳过。
+     */
+    private void handleUnmappedUser(String sourceApp, String eventKey, OrganizationUserSnapshot snapshot, Optional<User> existingUser) {
+        existingUser.ifPresent(user -> {
+            user.setEnabled(false);
+            user.setLastOrgEventKey(eventKey);
+            user.setLastOrgSyncedAt(LocalDateTime.now());
+            userRepository.save(user);
+        });
+    }
+
+    /**
+     * 按人员映射：通过西域员工邮箱/工号/用户名/姓名精确匹配到指定角色
      * 优先级最高，用于指定人员（如管理员）直接赋予对应角色
      */
     private String mapPersonToRole(OrganizationUserSnapshot snapshot) {
         String email = snapshot.email();
         String userExternalId = snapshot.externalUserId();
         String snapshotUsername = snapshot.username();
+        String fullName = snapshot.fullName();
         for (OrganizationIntegrationProperties.PersonToRoleMapping mapping : properties.getPersonToRoleMappings()) {
             if ((email != null && mapping.matches(email))
                     || (userExternalId != null && mapping.matches(userExternalId))
-                    || (snapshotUsername != null && mapping.matches(snapshotUsername))) {
+                    || (snapshotUsername != null && mapping.matches(snapshotUsername))
+                    || (fullName != null && mapping.matches(fullName))) {
                 return mapping.getRoleCode();
             }
         }

@@ -15,6 +15,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -125,6 +126,78 @@ class OrganizationUserSyncWriterTest {
         assertThat(saved.getValue().getEnabled()).isFalse();
         assertThat(saved.getValue().getLastOrgEventKey()).isEqualTo("event-key");
         assertThat(saved.getValue().getLastOrgSyncedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("skipUnmappedUsers: new user without any mapping is not created")
+    void skipUnmappedUsers_newUserWithoutMapping_notCreated() {
+        OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();
+        properties.setSkipUnmappedUsers(true);
+        PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
+        OrganizationUserSyncWriter filteringWriter = new OrganizationUserSyncWriter(
+                userRepository, organizationDepartmentRepository, roleProfileRepository, properties, positionToRoleMapper);
+
+        when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "999")).thenReturn(Optional.empty());
+
+        filteringWriter.upsert("oss", "event-key", new OrganizationUserSnapshot(
+                "999", "unknown", "未知人员", "unknown@example.com",
+                "13800000000", "9999", "未知部", "unknown", true
+        ));
+
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("skipUnmappedUsers: existing user without any mapping is disabled")
+    void skipUnmappedUsers_existingUserWithoutMapping_disabled() {
+        OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();
+        properties.setSkipUnmappedUsers(true);
+        PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
+        OrganizationUserSyncWriter filteringWriter = new OrganizationUserSyncWriter(
+                userRepository, organizationDepartmentRepository, roleProfileRepository, properties, positionToRoleMapper);
+
+        User existing = new User();
+        existing.setEnabled(true);
+        existing.setExternalOrgUserId("999");
+        existing.setExternalOrgSourceApp("oss");
+        when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "999")).thenReturn(Optional.of(existing));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        filteringWriter.upsert("oss", "event-key", new OrganizationUserSnapshot(
+                "999", "unknown", "未知人员", "unknown@example.com",
+                "13800000000", "9999", "未知部", "unknown", true
+        ));
+
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(saved.capture());
+        assertThat(saved.getValue().getEnabled()).isFalse();
+        assertThat(saved.getValue().getLastOrgEventKey()).isEqualTo("event-key");
+    }
+
+    @Test
+    @DisplayName("mapPersonToRole falls back to full name match")
+    void mapPersonToRole_matchesByFullName() {
+        OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();
+        OrganizationIntegrationProperties.PersonToRoleMapping mapping = new OrganizationIntegrationProperties.PersonToRoleMapping();
+        mapping.setPersonIdentifier("袁思琪");
+        mapping.setRoleCode("bid_lead");
+        properties.setPersonToRoleMappings(List.of(mapping));
+        PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
+        OrganizationUserSyncWriter nameMatchingWriter = new OrganizationUserSyncWriter(
+                userRepository, organizationDepartmentRepository, roleProfileRepository, properties, positionToRoleMapper);
+
+        when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "100")).thenReturn(Optional.empty());
+        when(roleProfileRepository.findByCodeIgnoreCase("bid_lead")).thenReturn(Optional.of(role("bid_lead")));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        nameMatchingWriter.upsert("oss", "event-key", new OrganizationUserSnapshot(
+                "100", "yuan123", "袁思琪", "yuan@example.com",
+                "13800000000", "1001", "投标管理部", "bid-Team", true
+        ));
+
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(saved.capture());
+        assertThat(saved.getValue().getRoleCode()).isEqualTo("bid_lead");
     }
 
     private RoleProfile role(String code) {

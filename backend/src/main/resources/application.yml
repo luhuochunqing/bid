@@ -183,6 +183,8 @@ xiyu:
       ip-whitelist: ${XIYU_ORG_IP_WHITELIST:}
       event-log-retention-days: ${XIYU_ORG_EVENT_LOG_RETENTION_DAYS:90}
       allowed-source-apps: ${XIYU_ORG_ALLOWED_SOURCE_APPS:oss,customer-org}
+      # 未命中任何角色映射（人员/部门/岗位）的 OSS 用户是否跳过同步；已存在则禁用
+      skip-unmapped-users: ${XIYU_ORG_SYNC_SKIP_UNMAPPED_USERS:false}
       event-sdk:
         enabled: ${XIYU_ORG_EVENT_SDK_ENABLED:false}
         consumer-group: ${XIYU_ORG_EVENT_CONSUMER_GROUP:bms}

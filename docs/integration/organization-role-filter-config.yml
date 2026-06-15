@@ -1,0 +1,57 @@
+# OSS 组织架构同步角色白名单配置示例
+# 用法：复制到对应环境的 application.yml / application-prod.yml，或转为环境变量注入。
+# 关键开关：skip-unmapped-users=true 时，未命中任何映射的 OSS 用户不会被创建；
+#           若本地已存在，则禁用（禁止登录）。
+#
+# 说明：
+# - personToRoleMappings：按人员精确匹配（支持邮箱、工号/用户名、姓名）。
+#   建议优先使用邮箱或工号；姓名仅在 OSS 返回 name 字段与配置完全一致时才生效。
+# - departmentToRoleMappings：按部门名称正则匹配。
+# - positionToRoleMappings：按 OSS 返回的 roleCode/positionCode 正则匹配。
+#
+# 注意：下面的人员映射是基于你提供的角色配置表，按“最高权限优先”原则暂定。
+#       如果同一人需要多个角色，需要内部合并为一个 RoleProfile（如 bid_senior），
+#       请根据实际业务调整 roleCode。
+
+xiyu:
+  integrations:
+    organization:
+      skip-unmapped-users: true
+
+      # 按岗位映射（对应表格里的 role code）
+      positionToRoleMappings:
+        - positionPattern: "^/bidAdmin$"
+          roleCode: bid_admin
+        - positionPattern: "^bid-TeamLeader$"
+          roleCode: bid_lead
+        - positionPattern: "^bid-SystemAdmin$"
+          roleCode: admin
+        - positionPattern: "^bid-Team$"
+          roleCode: bid_specialist
+        - positionPattern: "^bid-projectLeader$"
+          roleCode: sales
+        - positionPattern: "^bid-administration$"
+          roleCode: admin_staff
+        # 跨部门协同人员暂未启用，不配映射
+        # - positionPattern: "^bid-otherDept$"
+        #   roleCode: ???
+
+      # 按部门映射
+      departmentToRoleMappings:
+        - departmentPattern: "投标管理部"
+          roleCode: bid_specialist
+        - departmentPattern: "行政部"
+          roleCode: admin_staff
+
+      # 按人员映射（姓名兜底，建议替换为邮箱或工号）
+      personToRoleMappings:
+        # 投标管理员 /bidAdmin
+        - personIdentifier: "张頔"
+          roleCode: bid_admin
+        - personIdentifier: "郑蓉蓉"
+          roleCode: bid_admin
+        - personIdentifier: "袁思琪"
+          roleCode: bid_admin
+        # 投标组长 bid-TeamLeader（若希望袁思琪同时是组长，可改为 bid_senior）
+        # 由于单角色限制，已在上面给袁思琪 bid_admin；如需组长权限请调整。
+        # 投标系统管理员 bid-SystemAdmin（已在上面按最高权限处理为 admin）
