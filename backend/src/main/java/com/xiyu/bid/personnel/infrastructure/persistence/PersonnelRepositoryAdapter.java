@@ -172,6 +172,9 @@ public class PersonnelRepositoryAdapter implements PersonnelRepository {
         e.setEmployeeNumber(p.employeeNumber());
         e.setDepartmentCode(p.departmentCode());
         e.setDepartmentName(p.departmentName());
+        e.setGender(p.gender());
+        e.setEntryDate(p.entryDate());
+        e.setPhone(p.phone());
         e.setEducation(p.education());
         e.setTechnicalTitle(p.technicalTitle());
         e.setStatus(p.status());
