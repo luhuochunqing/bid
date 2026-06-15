@@ -24,13 +24,23 @@ const hasRouteAccess = (to, userStore) => {
 }
 
 const getFirstAccessiblePath = (userStore) => {
+  // CO-210 Fix: Check if user has any permissions at all
+  const perms = userStore.menuPermissions || []
+  if (perms.length === 0 && !perms.includes('all')) {
+    // User has no permissions - redirect to a safe fallback instead of /dashboard
+    // This prevents infinite redirect loops when non-admin roles have empty menuPermissions
+    return '/no-permission'
+  }
+
   if (userStore.hasPermission('dashboard')) return DEFAULT_AUTHENTICATED_HOME
   for (const menu of sidebarMenuConfig) {
     if (hasAnyPermission(userStore.menuPermissions, menu.meta?.permissionKeys)) {
       return menu.path
     }
   }
-  return DEFAULT_AUTHENTICATED_HOME
+  // CO-210 Fix: If no accessible menu found, don't default to /dashboard
+  // Instead, return to login or a safe page
+  return '/login'
 }
 
 const isHiddenApiRoute = (to) => {
@@ -47,6 +57,12 @@ const routes = [
     name: 'Login',
     component: () => import('@/views/Login.vue'),
     meta: { requiresAuth: false }
+  },
+  {
+    path: '/no-permission',
+    name: 'NoPermission',
+    component: () => import('@/views/Common/NoPermission.vue'),
+    meta: { requiresAuth: true }
   },
   {
     path: '/',
