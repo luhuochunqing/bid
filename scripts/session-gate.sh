@@ -103,7 +103,9 @@ session_gate() {
   fi
 
   # fetch + rebase
-  if git fetch origin main --depth=50 2>/dev/null; then
+  # 注：用全量 fetch（不带 --depth）。--depth 会给本地长期仓库引入/维持 shallow 边界，
+  # 导致 git merge-base / branch --merged 等图判断失灵。全量仓库做增量 fetch 开销可忽略。
+  if git fetch origin main 2>/dev/null; then
     local behind_count
     behind_count=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo "0")
     if [[ "$behind_count" -gt 0 ]]; then

@@ -37,8 +37,8 @@ get_new_tables() {
 # ── 主逻辑 ──
 SCHEMA_CONFLICT=false
 
-# 确保有最新 origin/main
-git fetch origin main --depth=50 2>/dev/null || true
+# 确保有最新 origin/main（全量 fetch，不用 --depth，避免维持 shallow 边界）
+git fetch origin main 2>/dev/null || true
 
 # 收集本地分支新加的迁移文件表名
 echo "check-schema-conflicts: 分析本地分支新增迁移文件（vs origin/main）..."

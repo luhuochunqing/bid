@@ -57,8 +57,8 @@ if [[ "$MODE" == "pre-push" ]]; then
 
   echo "flyway-versions: checking ${LOCAL_VERSIONS} local migration(s) against origin/main..."
 
-  # 获取 origin/main 的最新版本号
-  git fetch origin main --depth=1 2>/dev/null || true
+  # 获取 origin/main 的最新版本号（全量 fetch，不用 --depth，避免维持 shallow 边界）
+  git fetch origin main 2>/dev/null || true
   MAIN_VERSIONS=$(git ls-tree -r --name-only FETCH_HEAD -- "${MIGRATION_DIR}/" 2>/dev/null | \
     sed -n 's/.*\/V\([0-9]\+\).*/\1/p' | sort -n || true)
 
@@ -161,7 +161,7 @@ if [[ "${#staged_versions[@]}" -eq 0 ]]; then
 fi
 
 main_versions=""
-if git fetch origin main --depth=1 2>/dev/null; then
+if git fetch origin main 2>/dev/null; then
   main_versions=$(git ls-tree -r --name-only FETCH_HEAD -- "${MIGRATION_DIR}/" 2>/dev/null | \
     sed -n 's/.*\/V\([0-9]\+\).*/\1/p' | sort -n || true)
 fi

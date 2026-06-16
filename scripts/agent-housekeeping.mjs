@@ -235,7 +235,8 @@ function reap(repoRoot) {
 function main() {
   const repoRoot = ROOT_DIR
   if (!fs.existsSync(repoRoot)) { console.error('Repo not found:', repoRoot); process.exit(1) }
-  runGit(repoRoot, ['fetch', 'origin', 'main', '--depth=1'], { stdio: ['ignore', 'pipe', 'pipe'] })
+  // 全量 fetch，不用 --depth：避免给本地长期仓库维持 shallow 边界（会导致 merge-base 等图判断失灵）
+  runGit(repoRoot, ['fetch', 'origin', 'main'], { stdio: ['ignore', 'pipe', 'pipe'] })
   const ws = collectWorktreeStatus()
   const locks = collectLockStatus(repoRoot)
   const branches = collectBranchStatus(repoRoot)

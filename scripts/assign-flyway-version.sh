@@ -34,8 +34,8 @@ if [[ -z "$next_files_staged" && -z "$next_files_unstaged" ]]; then
   exit 0
 fi
 
-# ── 2. 获取 origin/main 的最新版本号 ──
-git fetch origin main --depth=1 2>/dev/null || true
+# ── 2. 获取 origin/main 的最新版本号 ──（全量 fetch，不用 --depth，避免维持 shallow 边界）
+git fetch origin main 2>/dev/null || true
 
 main_versions=$(git ls-tree -r --name-only FETCH_HEAD -- "${MIGRATION_DIR}/" 2>/dev/null | \
   sed -n 's/.*\/V\([0-9]\+\).*/\1/p' | sort -n || true)
