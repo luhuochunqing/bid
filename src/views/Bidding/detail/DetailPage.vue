@@ -77,7 +77,7 @@
         <div v-if="showCrmSelector || tender?.crmOpportunityName" class="crm-section-in-tab">
           <CrmOpportunitySelector
             :enabled="showCrmSelector && !tender?.crmOpportunityId"
-            :tenderer="tender?.purchaserName || '-'"
+            :tenderer="tender?.purchaserName || ''"
             :registration-deadline="tender?.registrationDeadline || ''"
             :bid-opening-time="tender?.bidOpeningTime || ''"
             :already-linked-name="tender?.crmOpportunityName || ''"

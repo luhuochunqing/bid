@@ -95,7 +95,7 @@ public class CrmHttpClient {
         while (true) {
             try {
                 ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
-                log.debug("CRM POST {} → {} {}", path, response.getStatusCode(),
+                log.info("CRM POST {} → {} {}", path, response.getStatusCode(),
                         response.getBody() != null ? response.getBody().substring(0, Math.min(200, response.getBody().length())) : "");
                 return CrmResponseHandler.parse(response.getBody());
             } catch (RuntimeException e) {
