@@ -44,10 +44,32 @@ export function useTenderAiParse(form) {
       return
     }
     await runAiParse(async () => {
-      const response = await tendersApi.parseTenderIntakeDocument(uploadFile, { entityId: 'create-tender' })
-      if (!response?.success) throw new Error(response?.msg || '文档自动识别失败')
-      applyParsedFields(response.data)
-      applySourceDocumentMetadata(uploadFile, response.data)
+      // Step 1: 上传即保存，获取 fileUrl / storagePath
+      let storedDoc = null
+      try {
+        const storeResponse = await tendersApi.storeTenderDocument(uploadFile, { entityId: 'create-tender' })
+        if (storeResponse?.success && storeResponse.data) {
+          storedDoc = storeResponse.data
+          applySourceDocumentMetadata(uploadFile, storedDoc)
+        }
+      } catch (storeErr) {
+        console.warn('文件存储失败，继续尝试 AI 解析:', storeErr?.message || storeErr)
+      }
+
+      // Step 2: AI 解析（优先用 parseExisting 避免重复上传）
+      const parseResponse = storedDoc?.storagePath
+        ? await tendersApi.parseExistingTenderDocument({
+            storagePath: storedDoc.storagePath,
+            fileName: uploadFile.name,
+            contentType: uploadFile.type,
+            entityId: 'create-tender',
+          })
+        : await tendersApi.parseTenderIntakeDocument(uploadFile, { entityId: 'create-tender' })
+      if (!parseResponse?.success) throw new Error(parseResponse?.msg || '文档自动识别失败')
+      applyParsedFields(parseResponse.data)
+      if (!form.value.sourceDocumentFileUrl) {
+        applySourceDocumentMetadata(uploadFile, parseResponse.data)
+      }
       return 'DeepSeek/AI 已识别附件内容，可继续编辑后保存'
     })
   }
@@ -117,11 +139,11 @@ export function useTenderAiParse(form) {
     }
   }
 
-  function applySourceDocumentMetadata(file, parsedResult) {
-    const fileUrl = parsedResult?.documentId || parsedResult?.document?.fileUrl || ''
+  function applySourceDocumentMetadata(file, result) {
+    const fileUrl = result?.fileUrl || result?.documentId || result?.document?.fileUrl || ''
     if (!fileUrl) return
-    form.value.sourceDocumentName = file?.name || parsedResult?.documentName || '招标文件'
-    form.value.sourceDocumentFileType = file?.type || parsedResult?.contentType || ''
+    form.value.sourceDocumentName = file?.name || result?.documentName || '招标文件'
+    form.value.sourceDocumentFileType = file?.type || result?.contentType || ''
     form.value.sourceDocumentFileUrl = fileUrl
   }
 
