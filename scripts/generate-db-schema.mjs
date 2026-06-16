@@ -387,6 +387,7 @@ function renderOutput(tables, alterLog, migrationCount) {
   lines.push('---')
   lines.push('')
   lines.push(`_Generated at ${now} from ${migrationCount} forward migrations._`)
+  lines.push('')
 
   return lines.join('\n')
 }
