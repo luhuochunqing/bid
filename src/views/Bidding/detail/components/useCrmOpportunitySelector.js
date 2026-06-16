@@ -48,16 +48,18 @@ export function useCrmOpportunitySelector(props, emit) {
       if (searchForm.name) params.body.name = searchForm.name
       if (searchForm.code) params.body.code = searchForm.code
       if (searchForm.projectStatus.length > 0) params.body.projectStatus = searchForm.projectStatus
-      // 查全部商机，前端按招标主体匹配
-      params.body.selectAll = true
+      // 有招标主体时优先按商机名称/server 侧模糊匹配；无招标主体时拉全量
+      if (props.tenderer && !searchForm.name) params.body.name = props.tenderer.trim()
+      if (!props.tenderer && !searchForm.name) params.body.selectAll = true
 
       const res = await crmApi.searchOpportunities(params)
       const data = res?.data
       let list = data?.list || []
-      // 如果标讯有招标主体，在前端按 tenderSubject 模糊匹配
+      // 二次兜底：若 server 返回全量，在前端按招标主体在多个字段中模糊匹配
       if (props.tenderer && list.length > 0) {
         const keyword = props.tenderer.trim().toLowerCase()
-        list = list.filter(item => item.tenderSubject && item.tenderSubject.toLowerCase().includes(keyword))
+        const fields = ['tenderSubject', 'name', 'title', 'customer', 'groupName', 'code']
+        list = list.filter(item => fields.some(f => item[f] && String(item[f]).toLowerCase().includes(keyword)))
       }
       results.value = list
       totalCount.value = list.length

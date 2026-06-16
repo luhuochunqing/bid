@@ -53,6 +53,7 @@ public class CrmChanceService {
         String token = authService.getValidToken();
         String baseUrl = properties.getEffectiveChanceBaseUrl();
         String path = properties.getChance().getPageListPath();
+        log.info("CRM chance page-list request: baseUrl={}, path={}, body={}", baseUrl, path, request);
         CrmResponseHandler.CrmApiResponse response = httpClient.post(baseUrl, path, token, request);
 
         if (response.isUnauthorized()) {
@@ -66,6 +67,9 @@ public class CrmChanceService {
             return new CrmChancePageResult(Collections.emptyList(), 0, 0, 0);
         }
 
+        log.info("CRM chance page-list response: code={}, msg={}, dataSnippet={}",
+                response.code(), response.msg(),
+                response.data().toString().substring(0, Math.min(500, response.data().toString().length())));
         return parsePageResponse(response.data());
     }
 
