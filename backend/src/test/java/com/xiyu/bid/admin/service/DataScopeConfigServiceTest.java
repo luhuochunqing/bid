@@ -2,6 +2,8 @@ package com.xiyu.bid.admin.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.dto.DataScopeConfigResponse;
+import com.xiyu.bid.entity.RoleProfile;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.RoleProfileRepository;
 import com.xiyu.bid.repository.UserRepository;
@@ -289,5 +291,56 @@ class DataScopeConfigServiceTest {
         assertThat(response.getUserDataScope().get(0).getAllowedProjects()).containsExactly(99L, 100L);
         assertThat(response.getDeptDataScope().get(0).getAllowedDepts()).containsExactly("TECH");
         assertThat(response.getDeptTree()).hasSize(2);
+    }
+
+    @Test
+    void getRoleMenuPermissions_ShouldReturnEmptyForUnregisteredRoleCode() {
+        // 未注册 roleCode（DB 无 + catalog 无）不应 fallback staff，避免前端菜单越权可见标讯/项目/知识库
+        RoleProfile vendorProfile = RoleProfile.builder().code("vendor-user").name("vendor-user").build();
+        User user = User.builder()
+                .id(1L).username("vendor").fullName("vendor")
+                .role(User.Role.STAFF)
+                .roleProfile(vendorProfile)
+                .enabled(true)
+                .build();
+        // findByCodeIgnoreCase 默认 mock 返回 empty（@BeforeEach）→ 走未注册 placeholder 分支
+
+        List<String> perms = dataScopeConfigService.getRoleMenuPermissions(user);
+
+        assertThat(perms).isEmpty();
+    }
+
+    @Test
+    void getRoleMenuPermissions_ShouldFallbackToCatalogForRegisteredRoleWithoutDbRow() {
+        // 已注册角色（bid_other_dept）DB 无记录时走 catalog fallback，拿自身 task 权限（非 staff）
+        RoleProfile profile = RoleProfile.builder()
+                .code(RoleProfileCatalog.BID_OTHER_DEPT_CODE)
+                .name(RoleProfileCatalog.BID_OTHER_DEPT_CODE)
+                .build();
+        User user = User.builder()
+                .id(2L).username("hanhui").fullName("hanhui")
+                .role(User.Role.STAFF)
+                .roleProfile(profile)
+                .enabled(true)
+                .build();
+
+        List<String> perms = dataScopeConfigService.getRoleMenuPermissions(user);
+
+        assertThat(perms).contains("task.view.own", "task.handle.own")
+                .doesNotContain("bidding", "project", "knowledge", "resource");
+    }
+
+    @Test
+    void getRoleMenuPermissions_ShouldFallbackToStaffForPureLegacyUser() {
+        // 纯 Legacy 用户（无 roleProfile，roleCode 从 users.role 派生为 "staff"）保留 catalog staff fallback
+        User user = User.builder()
+                .id(3L).username("legacy").fullName("legacy")
+                .role(User.Role.STAFF)
+                .enabled(true)
+                .build();
+
+        List<String> perms = dataScopeConfigService.getRoleMenuPermissions(user);
+
+        assertThat(perms).contains("bidding"); // staff catalog 含 bidding
     }
 }

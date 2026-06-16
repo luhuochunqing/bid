@@ -167,6 +167,13 @@ public class DataScopeConfigService {
         if (roleProfile.isPresent()) {
             return roleProfile.get();
         }
+        // DB 无记录时：已注册角色（含 roleCode=null 的纯 Legacy 用户）走 catalog fallback；
+        // 未注册 roleCode 不 fallback 到 staff——避免前端 AuthResponse.menuPermissions 越权可见
+        // 标讯/项目/知识库菜单。后端 API 已由 UserDetailsServiceImpl 的 shouldSkipLegacyRoleCompat
+        // 挡住（403），此处收紧前端可见性，消除"看到菜单却点不进"的不一致。
+        if (roleCode != null && !roleCode.isBlank() && !RoleProfileCatalog.isRegisteredCode(roleCode)) {
+            return unregisteredPlaceholder(roleCode);
+        }
         RoleProfileCatalog.SeedDefinition definition = RoleProfileCatalog.definitionForCode(roleCode);
         RoleProfile fallbackRole = RoleProfile.builder()
                 .code(definition.code())
@@ -178,6 +185,18 @@ public class DataScopeConfigService {
                 .build();
         fallbackRole.setMenuPermissions(definition.menuPermissions());
         return fallbackRole;
+    }
+
+    private RoleProfile unregisteredPlaceholder(String roleCode) {
+        RoleProfile placeholder = RoleProfile.builder()
+                .code(roleCode)
+                .name(roleCode)
+                .isSystem(false)
+                .enabled(true)
+                .dataScope("self")
+                .build();
+        placeholder.setMenuPermissions(List.of());
+        return placeholder;
     }
 
     private List<String> normalizeMenuPermissions(List<String> menuPermissions) {
