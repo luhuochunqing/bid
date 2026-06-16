@@ -41,7 +41,8 @@ class OrganizationDirectorySyncAppServiceFailureTest {
                 gatewayProvider,
                 new FakeDepartmentWriter(),
                 userWriter,
-                OrganizationDirectorySyncAppServiceTest.fixedSettings(true)
+                OrganizationDirectorySyncAppServiceTest.fixedSettings(true),
+                new ObjectMapper()
         );
     }
 
@@ -75,7 +76,7 @@ class OrganizationDirectorySyncAppServiceFailureTest {
     void receiveWebhook_writerException_marksFailed() {
         gateway.user = Optional.of(new OrganizationUserSnapshot(
                 "10001", "u10001", "张三", "u10001@example.com", "",
-                "sales", "销售部", "", true
+                "sales", "销售部", "", "", true
         ));
         userWriter.throwOnWrite = true;
 

@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.List;
 import java.util.Optional;
@@ -34,6 +35,8 @@ class OrganizationUserSyncWriterTest {
     private RoleProfileRepository roleProfileRepository;
     @Mock
     private OrganizationDepartmentRepository organizationDepartmentRepository;
+    @Mock
+    private ObjectProvider<OrganizationDirectoryGateway> directoryGatewayProvider;
 
     private OrganizationUserSyncWriter writer;
 
@@ -41,7 +44,7 @@ class OrganizationUserSyncWriterTest {
     void setUp() {
         OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();
         PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
-        writer = new OrganizationUserSyncWriter(userRepository, organizationDepartmentRepository, roleProfileRepository, properties, positionToRoleMapper);
+        writer = new OrganizationUserSyncWriter(userRepository, organizationDepartmentRepository, roleProfileRepository, properties, positionToRoleMapper, directoryGatewayProvider);
     }
 
     @Test
@@ -53,7 +56,7 @@ class OrganizationUserSyncWriterTest {
 
         writer.upsert("customer-org", "event-key", new OrganizationUserSnapshot(
                 "10001", "zhangsan", "张三", "zhangsan@example.com",
-                "13800000000", "sales", "销售部", "", true
+                "13800000000", "sales", "销售部", "", "", true
         ));
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
@@ -77,7 +80,7 @@ class OrganizationUserSyncWriterTest {
 
         writer.upsert("oss", "event-key", new OrganizationUserSnapshot(
                 "720518523", "zhangsan", "张三", "new@example.com",
-                "13800000000", "3730158", "销售部", "", true
+                "13800000000", "3730158", "销售部", "", "", true
         ));
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
@@ -91,7 +94,7 @@ class OrganizationUserSyncWriterTest {
     void upsert_rejectsMissingEmail() {
         assertThatThrownBy(() -> writer.upsert("oss", "event-key", new OrganizationUserSnapshot(
                 "720518523", "zhangsan", "张三", "",
-                "13800000000", "3730158", "销售部", "", true
+                "13800000000", "3730158", "销售部", "", "", true
         ))).hasMessageContaining("邮箱");
 
         verify(userRepository, never()).save(any(User.class));
@@ -102,7 +105,7 @@ class OrganizationUserSyncWriterTest {
     void upsert_rejectsMissingPhone() {
         assertThatThrownBy(() -> writer.upsert("oss", "event-key", new OrganizationUserSnapshot(
                 "720518523", "zhangsan", "张三", "zhangsan@example.com",
-                "", "3730158", "销售部", "", true
+                "", "3730158", "销售部", "", "", true
         ))).hasMessageContaining("手机号");
 
         verify(userRepository, never()).save(any(User.class));
@@ -135,13 +138,13 @@ class OrganizationUserSyncWriterTest {
         properties.setSkipUnmappedUsers(true);
         PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
         OrganizationUserSyncWriter filteringWriter = new OrganizationUserSyncWriter(
-                userRepository, organizationDepartmentRepository, roleProfileRepository, properties, positionToRoleMapper);
+                userRepository, organizationDepartmentRepository, roleProfileRepository, properties, positionToRoleMapper, null);
 
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "999")).thenReturn(Optional.empty());
 
         filteringWriter.upsert("oss", "event-key", new OrganizationUserSnapshot(
                 "999", "unknown", "未知人员", "unknown@example.com",
-                "13800000000", "9999", "未知部", "unknown", true
+                "13800000000", "9999", "未知部", "", "unknown", true
         ));
 
         verify(userRepository, never()).save(any(User.class));
@@ -154,7 +157,7 @@ class OrganizationUserSyncWriterTest {
         properties.setSkipUnmappedUsers(true);
         PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
         OrganizationUserSyncWriter filteringWriter = new OrganizationUserSyncWriter(
-                userRepository, organizationDepartmentRepository, roleProfileRepository, properties, positionToRoleMapper);
+                userRepository, organizationDepartmentRepository, roleProfileRepository, properties, positionToRoleMapper, null);
 
         User existing = new User();
         existing.setEnabled(true);
@@ -165,7 +168,7 @@ class OrganizationUserSyncWriterTest {
 
         filteringWriter.upsert("oss", "event-key", new OrganizationUserSnapshot(
                 "999", "unknown", "未知人员", "unknown@example.com",
-                "13800000000", "9999", "未知部", "unknown", true
+                "13800000000", "9999", "未知部", "", "unknown", true
         ));
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
@@ -184,7 +187,7 @@ class OrganizationUserSyncWriterTest {
         properties.setPersonToRoleMappings(List.of(mapping));
         PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
         OrganizationUserSyncWriter adminWriter = new OrganizationUserSyncWriter(
-                userRepository, organizationDepartmentRepository, roleProfileRepository, properties, positionToRoleMapper);
+                userRepository, organizationDepartmentRepository, roleProfileRepository, properties, positionToRoleMapper, null);
 
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "03595")).thenReturn(Optional.empty());
         when(roleProfileRepository.findByCodeIgnoreCase("admin")).thenReturn(Optional.of(role("admin")));
@@ -192,7 +195,7 @@ class OrganizationUserSyncWriterTest {
 
         adminWriter.upsert("oss", "event-key", new OrganizationUserSnapshot(
                 "03595", "dean_zhang", "张頔", "dean_zhang@ehsy.com",
-                "13800000000", "1001", "投标管理部", "/bidAdmin", true
+                "13800000000", "1001", "投标管理部", "", "/bidAdmin", true
         ));
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
@@ -210,7 +213,7 @@ class OrganizationUserSyncWriterTest {
         properties.setPersonToRoleMappings(List.of(mapping));
         PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
         OrganizationUserSyncWriter nameMatchingWriter = new OrganizationUserSyncWriter(
-                userRepository, organizationDepartmentRepository, roleProfileRepository, properties, positionToRoleMapper);
+                userRepository, organizationDepartmentRepository, roleProfileRepository, properties, positionToRoleMapper, null);
 
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "100")).thenReturn(Optional.empty());
         when(roleProfileRepository.findByCodeIgnoreCase("bid_lead")).thenReturn(Optional.of(role("bid_lead")));
@@ -218,7 +221,7 @@ class OrganizationUserSyncWriterTest {
 
         nameMatchingWriter.upsert("oss", "event-key", new OrganizationUserSnapshot(
                 "100", "yuan123", "袁思琪", "yuan@example.com",
-                "13800000000", "1001", "投标管理部", "bid-Team", true
+                "13800000000", "1001", "投标管理部", "", "bid-Team", true
         ));
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);

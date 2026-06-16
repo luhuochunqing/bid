@@ -13,7 +13,7 @@ class OrganizationEventNoticeParserTest {
     void parse_acceptsBaseOssDeptNotice() {
         OrganizationEventNoticeParseResult result = OrganizationEventNoticeParser.parse(new OrganizationEventNoticeFields(
                 "trace-1", "span-1", "parent-1", "customer-org", "BaseOssDept",
-                "2026-04-30T10:15:30+08:00", "evt-1", "D001", ""
+                "2026-04-30T10:15:30+08:00", "evt-1", "D001", "", ""
         ));
 
         assertThat(result.valid()).isTrue();
@@ -26,7 +26,7 @@ class OrganizationEventNoticeParserTest {
     void parse_acceptsOptionalParentIdAndEpochMillis() {
         OrganizationEventNoticeParseResult result = OrganizationEventNoticeParser.parse(new OrganizationEventNoticeFields(
                 "t509415008096264192", "s509415010981044224", "", "oss", "BaseOssUser",
-                "1730884403101", "720518523", "", "720518523"
+                "1730884403101", "720518523", "", "720518523", ""
         ));
 
         assertThat(result.valid()).isTrue();
@@ -40,7 +40,7 @@ class OrganizationEventNoticeParserTest {
     void parse_acceptsNullParentId() {
         OrganizationEventNoticeParseResult result = OrganizationEventNoticeParser.parse(new OrganizationEventNoticeFields(
                 "t509415008096264192", "s509415010981044224", null, "oss", "BaseOssUser",
-                "1730884403101", "720518523", "", "720518523"
+                "1730884403101", "720518523", "", "720518523", ""
         ));
 
         assertThat(result.valid()).isTrue();
@@ -52,7 +52,7 @@ class OrganizationEventNoticeParserTest {
     void parse_rejectsMissingUserId() {
         OrganizationEventNoticeParseResult result = OrganizationEventNoticeParser.parse(new OrganizationEventNoticeFields(
                 "trace-1", "span-1", "parent-1", "customer-org", "BaseOssUser",
-                "2026-04-30T10:15:30+08:00", "evt-1", "D001", ""
+                "2026-04-30T10:15:30+08:00", "evt-1", "D001", "", ""
         ));
 
         assertThat(result.valid()).isFalse();
@@ -64,7 +64,7 @@ class OrganizationEventNoticeParserTest {
     void parse_rejectsUnknownTopic() {
         OrganizationEventNoticeParseResult result = OrganizationEventNoticeParser.parse(new OrganizationEventNoticeFields(
                 "trace-1", "span-1", "parent-1", "customer-org", "LegacyUser",
-                "2026-04-30T10:15:30+08:00", "evt-1", "", "U001"
+                "2026-04-30T10:15:30+08:00", "evt-1", "", "U001", ""
         ));
 
         assertThat(result.valid()).isFalse();

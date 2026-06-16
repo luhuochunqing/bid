@@ -3,6 +3,7 @@ package com.xiyu.bid.integration.organization.application;
 import com.xiyu.bid.integration.organization.domain.OrganizationDepartmentSnapshot;
 import com.xiyu.bid.integration.organization.domain.OrganizationEventStatus;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
+import com.xiyu.bid.integration.organization.domain.OrganizationJobSnapshot;
 import com.xiyu.bid.integration.organization.dto.OrganizationEventWebhookRequest;
 import com.xiyu.bid.integration.organization.dto.OrganizationEventWebhookResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -42,7 +43,8 @@ class OrganizationDirectorySyncAppServiceTest {
                 gatewayProvider,
                 departmentWriter,
                 userWriter,
-                fixedSettings(true)
+                fixedSettings(true),
+                new ObjectMapper()
         );
     }
 
@@ -51,7 +53,7 @@ class OrganizationDirectorySyncAppServiceTest {
     void receiveWebhook_userNotice_fetchesThenWrites() {
         gateway.user = Optional.of(new OrganizationUserSnapshot(
                 "10001", "u10001", "张三", "u10001@example.com", "",
-                "sales", "销售部", "", true
+                "sales", "销售部", "", "", true
         ));
 
         OrganizationEventWebhookResponse response = service.receiveWebhook(request("BaseOssUser", "userId", "10001"));
@@ -163,6 +165,10 @@ class OrganizationDirectorySyncAppServiceTest {
             return List.of();
         }
 
+        public Optional<OrganizationJobSnapshot> fetchJobByJobId(String jobId) {
+            return Optional.empty();
+        }
+
         public List<OrganizationUserSnapshot> listUsersByWindow(LocalDateTime startAt, LocalDateTime endAt) {
             return List.of();
         }
@@ -226,7 +232,7 @@ class OrganizationDirectorySyncAppServiceTest {
         String disabledExternalUserId;
 
         FakeUserWriter() {
-            super(null, null, null, new OrganizationIntegrationProperties(), null);
+            super(null, null, null, new OrganizationIntegrationProperties(), null, null);
         }
 
         public com.xiyu.bid.entity.User upsert(String sourceApp, String eventKey, OrganizationUserSnapshot snapshot) {

@@ -33,7 +33,7 @@ class OrganizationSyncPolicyTest {
     void planUserSync_unknownRole_downgradesToStaff() {
         OrganizationUserSnapshot snapshot = new OrganizationUserSnapshot(
                 "10001", "zhangsan", "张三", "zhangsan@example.com",
-                "13800000000", "sales", "销售部", "boss", true
+                "13800000000", "sales", "销售部", "", "boss", true
         );
 
         OrganizationUserSyncPlan plan = OrganizationSyncPolicy.planUserSync(
@@ -51,7 +51,7 @@ class OrganizationSyncPolicyTest {
     void planUserSync_adminRole_doesNotAutoElevate() {
         OrganizationUserSnapshot snapshot = new OrganizationUserSnapshot(
                 "10001", "zhangsan", "张三", "zhangsan@example.com",
-                "13800000000", "sales", "销售部", "external-admin", true
+                "13800000000", "sales", "销售部", "", "external-admin", true
         );
 
         OrganizationUserSyncPlan plan = OrganizationSyncPolicy.planUserSync(
@@ -69,7 +69,7 @@ class OrganizationSyncPolicyTest {
     void planUserSync_positionMapping_priorityOverLegacyCodes() {
         OrganizationUserSnapshot snapshot = new OrganizationUserSnapshot(
                 "10001", "zhangsan", "张三", "zhangsan@example.com",
-                "13800000000", "sales", "销售部", "投标管理员", true
+                "13800000000", "sales", "销售部", "", "投标管理员", true
         );
 
         OrganizationUserSyncPlan plan = OrganizationSyncPolicy.planUserSync(
@@ -88,7 +88,7 @@ class OrganizationSyncPolicyTest {
     void planUserSync_nullPositionMapping_fallsBackToLegacy() {
         OrganizationUserSnapshot snapshot = new OrganizationUserSnapshot(
                 "10001", "zhangsan", "张三", "zhangsan@example.com",
-                "13800000000", "sales", "销售部", "manager", true
+                "13800000000", "sales", "销售部", "", "manager", true
         );
 
         OrganizationUserSyncPlan plan = OrganizationSyncPolicy.planUserSync(
@@ -107,7 +107,7 @@ class OrganizationSyncPolicyTest {
     void planUserSync_blankPositionMapping_fallsBackToLegacy() {
         OrganizationUserSnapshot snapshot = new OrganizationUserSnapshot(
                 "10001", "zhangsan", "张三", "zhangsan@example.com",
-                "13800000000", "sales", "销售部", "manager", true
+                "13800000000", "sales", "销售部", "", "manager", true
         );
 
         OrganizationUserSyncPlan plan = OrganizationSyncPolicy.planUserSync(
@@ -126,7 +126,7 @@ class OrganizationSyncPolicyTest {
     void planUserSync_positionMapping_adminUpgradeGuard() {
         OrganizationUserSnapshot snapshot = new OrganizationUserSnapshot(
                 "10001", "zhangsan", "张三", "zhangsan@example.com",
-                "13800000000", "sales", "销售部", "系统管理员", true
+                "13800000000", "sales", "销售部", "", "系统管理员", true
         );
 
         OrganizationUserSyncPlan plan = OrganizationSyncPolicy.planUserSync(
@@ -145,7 +145,7 @@ class OrganizationSyncPolicyTest {
     void planUserSync_personMapping_allowedAdminElevation() {
         OrganizationUserSnapshot snapshot = new OrganizationUserSnapshot(
                 "10001", "zhangsan", "张三", "zhangsan@example.com",
-                "13800000000", "sales", "销售部", "投标管理员", true
+                "13800000000", "sales", "销售部", "", "投标管理员", true
         );
 
         OrganizationUserSyncPlan plan = OrganizationSyncPolicy.planUserSync(
@@ -165,7 +165,7 @@ class OrganizationSyncPolicyTest {
     void planUserSync_positionMapping_newUser() {
         OrganizationUserSnapshot snapshot = new OrganizationUserSnapshot(
                 "10001", "zhangsan", "张三", "zhangsan@example.com",
-                "13800000000", "sales", "销售部", "投标专员", true
+                "13800000000", "sales", "销售部", "", "投标专员", true
         );
 
         OrganizationUserSyncPlan plan = OrganizationSyncPolicy.planUserSync(

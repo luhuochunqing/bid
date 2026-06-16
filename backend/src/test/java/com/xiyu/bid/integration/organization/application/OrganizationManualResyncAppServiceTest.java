@@ -6,6 +6,7 @@ import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.O
 import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationSyncRunEntity;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationSyncItemRepository;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationSyncRunRepository;
+import com.xiyu.bid.integration.organization.domain.OrganizationJobSnapshot;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -69,7 +70,7 @@ class OrganizationManualResyncAppServiceTest {
         when(gatewayProvider.getIfAvailable()).thenReturn(gateway);
         FakeUserWriter userWriter = new FakeUserWriter();
         gateway.user = Optional.of(new OrganizationUserSnapshot(
-                "10001", "zhangsan", "张三", "zhangsan@example.com", "13900000000", "sales", "销售部", "", true
+                "10001", "zhangsan", "张三", "zhangsan@example.com", "13900000000", "sales", "销售部", "", "", true
         ));
         when(runRepository.save(any(OrganizationSyncRunEntity.class))).thenAnswer(invocation -> {
             OrganizationSyncRunEntity run = invocation.getArgument(0);
@@ -94,6 +95,8 @@ class OrganizationManualResyncAppServiceTest {
     }
 
     private static class FakeGateway implements OrganizationDirectoryGateway {
+        @Override
+        public java.util.Optional<OrganizationJobSnapshot> fetchJobByJobId(String jobId) { return java.util.Optional.empty(); }
         Optional<OrganizationDepartmentSnapshot> department = Optional.empty();
         Optional<OrganizationUserSnapshot> user = Optional.empty();
         String fetchedDeptId;
@@ -139,7 +142,7 @@ class OrganizationManualResyncAppServiceTest {
         int writes;
 
         FakeUserWriter() {
-            super(null, null, null, new OrganizationIntegrationProperties(), null);
+            super(null, null, null, new OrganizationIntegrationProperties(), null, null);
         }
 
         public com.xiyu.bid.entity.User upsert(String sourceApp, String eventKey, OrganizationUserSnapshot snapshot) {
