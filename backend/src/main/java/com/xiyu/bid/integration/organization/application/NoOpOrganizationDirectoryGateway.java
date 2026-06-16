@@ -3,6 +3,7 @@ package com.xiyu.bid.integration.organization.application;
 import com.xiyu.bid.integration.organization.domain.OrganizationDepartmentSnapshot;
 import com.xiyu.bid.integration.organization.domain.OrganizationDirectoryLookupContext;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
+import com.xiyu.bid.integration.organization.domain.OrganizationJobSnapshot;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Component;
 
@@ -76,6 +77,19 @@ public class NoOpOrganizationDirectoryGateway implements OrganizationDirectoryGa
     @Override
     public List<OrganizationUserSnapshot> listUsersByWindow(LocalDateTime startAt, LocalDateTime endAt) {
         return List.of();
+    }
+
+    @Override
+    public Optional<OrganizationJobSnapshot> fetchJobByJobId(String jobId) {
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<OrganizationJobSnapshot> fetchJobByJobId(
+            String jobId,
+            OrganizationDirectoryLookupContext context
+    ) {
+        return Optional.empty();
     }
 
     @Override

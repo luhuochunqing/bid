@@ -17,6 +17,7 @@ public final class OrganizationSyncPolicy {
         return switch (blankToEmpty(eventTopic)) {
             case "BaseOssDept" -> Optional.of(OrganizationEventType.DEPARTMENT_NOTICE);
             case "BaseOssUser" -> Optional.of(OrganizationEventType.USER_NOTICE);
+            case "BaseOssJob" -> Optional.of(OrganizationEventType.JOB_NOTICE);
             default -> Optional.empty();
         };
     }

@@ -15,7 +15,14 @@ public final class OrganizationEventNoticeParser {
     }
 
     private static OrganizationEventNoticeParseResult noticeFrom(OrganizationEventNoticeFields fields, OrganizationEventType topic) {
-        String subjectId = topic == OrganizationEventType.DEPARTMENT_NOTICE ? fields.deptId() : fields.userId();
+        String subjectId;
+        if (topic == OrganizationEventType.DEPARTMENT_NOTICE) {
+            subjectId = fields.deptId();
+        } else if (topic == OrganizationEventType.JOB_NOTICE) {
+            subjectId = fields.jobId();
+        } else {
+            subjectId = fields.userId();
+        }
         String missing = firstMissing(
                 fields.traceId(),
                 fields.spanId(),

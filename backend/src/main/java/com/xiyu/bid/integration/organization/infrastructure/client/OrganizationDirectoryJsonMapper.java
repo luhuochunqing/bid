@@ -3,6 +3,7 @@ package com.xiyu.bid.integration.organization.infrastructure.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.xiyu.bid.integration.organization.domain.OrganizationDepartmentSnapshot;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
+import com.xiyu.bid.integration.organization.domain.OrganizationJobSnapshot;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,18 +36,30 @@ class OrganizationDirectoryJsonMapper {
         String fullName = firstText(node, "name", "userName", "fullName");
         // YAPI returns "mobilePhone" for phone
         String phone = firstText(node, "mobilePhone", "mobile", "phone", "telephone");
+        String jobId = firstText(node, "positionId", "jobId", "id");
         return new OrganizationUserSnapshot(
                 externalUserId,
                 username,
                 fullName,
                 firstText(node, "email", "mail"),
                 phone,
-                // confirmed: YAPI user detail includes "deptId" field
                 firstText(node, "deptCode", "departmentCode", "deptId"),
-                // YAPI user detail does NOT include department name — only deptId
                 firstText(node, "deptName", "departmentName"),
-                // YAPI user detail does NOT include role/position — use PositionToRoleMapper instead
-                firstText(node, "roleCode", "positionCode", "jobCode", "positionName"),
+                jobId,
+                firstText(node, "roleCode", "positionCode", "jobCode", "positionName", "jobName"),
+                enabled(node)
+        );
+    }
+
+    OrganizationJobSnapshot job(JsonNode root) {
+        JsonNode node = payloadNode(root);
+        String externalJobId = firstText(node, "jobId", "id");
+        String jobName = firstText(node, "name", "jobName", "positionName");
+        String jobCode = firstText(node, "code", "jobCode", "positionCode");
+        return new OrganizationJobSnapshot(
+                externalJobId,
+                jobCode,
+                jobName,
                 enabled(node)
         );
     }

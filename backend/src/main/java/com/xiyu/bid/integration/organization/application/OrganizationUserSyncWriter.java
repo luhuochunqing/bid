@@ -9,6 +9,9 @@ import com.xiyu.bid.integration.organization.domain.OrganizationSyncPolicy;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSyncPlan;
 import com.xiyu.bid.integration.organization.infrastructure.mapper.PositionToRoleMapper;
+import com.xiyu.bid.integration.organization.domain.OrganizationJobSnapshot;
+import com.xiyu.bid.integration.organization.application.OrganizationDirectoryGateway;
+import org.springframework.beans.factory.ObjectProvider;
 import com.xiyu.bid.repository.RoleProfileRepository;
 import com.xiyu.bid.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +34,7 @@ public class OrganizationUserSyncWriter {
     private final RoleProfileRepository roleProfileRepository;
     private final OrganizationIntegrationProperties properties;
     private final PositionToRoleMapper positionToRoleMapper;
+    private final ObjectProvider<OrganizationDirectoryGateway> directoryGatewayProvider;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public User upsert(String sourceApp, String eventKey, OrganizationUserSnapshot snapshot) {
@@ -41,6 +45,21 @@ public class OrganizationUserSyncWriter {
         String personMappedRoleCode = mapPersonToRole(snapshot);
         String deptMappedRoleCode = mapDepartmentToRole(snapshot);
         String positionMappedRoleCode = positionToRoleMapper.map(snapshot.externalRoleCode());
+        // 如果 externalRoleCode 为空但 jobId 存在，回查岗位数据用于岗位→角色映射
+        if ((positionMappedRoleCode == null || positionMappedRoleCode.isBlank())
+            && snapshot.jobId() != null && !snapshot.jobId().isBlank()) {
+            OrganizationDirectoryGateway gateway = directoryGatewayProvider.getIfAvailable();
+            if (gateway != null) {
+                Optional<OrganizationJobSnapshot> jobOpt = gateway.fetchJobByJobId(snapshot.jobId());
+                if (jobOpt.isPresent()) {
+                    OrganizationJobSnapshot job = jobOpt.get();
+                    positionMappedRoleCode = positionToRoleMapper.map(job.jobCode());
+                    if (positionMappedRoleCode == null || positionMappedRoleCode.isBlank()) {
+                        positionMappedRoleCode = positionToRoleMapper.map(job.jobName());
+                    }
+                }
+            }
+        }
         String resolvedRoleCode = firstNonNull(personMappedRoleCode, deptMappedRoleCode, positionMappedRoleCode);
         if (properties.isSkipUnmappedUsers() && (resolvedRoleCode == null || resolvedRoleCode.isBlank())) {
             handleUnmappedUser(sourceApp, eventKey, snapshot, existingUser);

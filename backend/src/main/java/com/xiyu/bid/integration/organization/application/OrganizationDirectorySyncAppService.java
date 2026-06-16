@@ -8,12 +8,15 @@ import com.xiyu.bid.integration.organization.domain.OrganizationDirectoryLookupC
 import com.xiyu.bid.integration.organization.dto.OrganizationEventWebhookRequest;
 import com.xiyu.bid.integration.organization.dto.OrganizationEventWebhookResponse;
 import com.xiyu.bid.integration.organization.infrastructure.client.OrganizationDirectoryHttpGatewayException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OrganizationDirectorySyncAppService {
     private final OrganizationEventInboxService inboxService;
     private final OrganizationEventNoticeJsonReader noticeJsonReader;
@@ -21,6 +24,7 @@ public class OrganizationDirectorySyncAppService {
     private final OrganizationDepartmentSyncWriter departmentWriter;
     private final OrganizationUserSyncWriter userWriter;
     private final OrganizationIntegrationSettingsResolver settingsResolver;
+    private final ObjectMapper objectMapper;
 
     public OrganizationEventWebhookResponse receiveWebhook(OrganizationEventWebhookRequest request) {
         String rawPayload = request == null ? "" : request.eventMessage();
@@ -119,6 +123,20 @@ public class OrganizationDirectorySyncAppService {
         OrganizationDirectoryGateway gateway = directoryGatewayProvider.getIfAvailable();
         if (gateway == null) {
             return response("500", "组织架构网关未配置（SDK-only 模式不执行拉取）", eventKey, false, false, OrganizationEventStatus.DEAD_LETTER);
+        }
+        if (notice.topic() == OrganizationEventType.JOB_NOTICE) {
+            return gateway.fetchJobByJobId(notice.subjectId(), context)
+                    .map(snapshot -> {
+                        log.info("组织架构回查 Job 成功: jobId={}, name={}, code={}",
+                                snapshot.externalJobId(), snapshot.jobName(), snapshot.jobCode());
+                        inboxService.markProcessed(eventKey);
+                        return response("200", "success", eventKey, true, false, OrganizationEventStatus.PROCESSED);
+                    })
+                    .orElseGet(() -> {
+                        log.info("组织架构回查 Job 未找到: jobId={}", notice.subjectId());
+                        inboxService.markProcessed(eventKey);
+                        return response("200", "success", eventKey, true, false, OrganizationEventStatus.PROCESSED);
+                    });
         }
         if (notice.topic() == OrganizationEventType.DEPARTMENT_NOTICE) {
             return gateway.fetchDepartmentByDeptId(notice.subjectId(), context)

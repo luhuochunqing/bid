@@ -2,7 +2,8 @@ package com.xiyu.bid.integration.organization.domain;
 
 public enum OrganizationEventType {
     DEPARTMENT_NOTICE("BaseOssDept", "DEPARTMENT", "deptId"),
-    USER_NOTICE("BaseOssUser", "USER", "userId");
+    USER_NOTICE("BaseOssUser", "USER", "userId"),
+    JOB_NOTICE("BaseOssJob", "JOB", "jobId");
 
     private final String topic;
     private final String entityType;

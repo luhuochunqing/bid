@@ -55,6 +55,8 @@ public class OrganizationIntegrationProperties {
         private String userWindowPath = "/subscription/msg/getUserByTimeWindow";
         /** YAPI 真实路径：POST /subscription/msg/getDeptByTimeWindow (json, body: startTime/endTime/index) */
         private String departmentWindowPath = "/subscription/msg/getDeptByTimeWindow";
+        /** YAPI 真实路径：POST /subscription/msg/job (form-urlencoded, body: jobId) */
+        private String jobDetailPath = "/subscription/msg/job";
         private String sourceApp = "";
         private String traceHeaderName = "EHSY-TraceID";
         private String sourceHeaderName = "EHSY-SRCAPP";

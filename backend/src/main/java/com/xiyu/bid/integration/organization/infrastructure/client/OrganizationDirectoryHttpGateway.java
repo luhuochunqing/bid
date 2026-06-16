@@ -8,6 +8,7 @@ import com.xiyu.bid.integration.organization.application.OrganizationIntegration
 import com.xiyu.bid.integration.organization.domain.OrganizationDepartmentSnapshot;
 import com.xiyu.bid.integration.organization.domain.OrganizationDirectoryLookupContext;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
+import com.xiyu.bid.integration.organization.domain.OrganizationJobSnapshot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Conditional;
@@ -90,6 +91,24 @@ public class OrganizationDirectoryHttpGateway implements OrganizationDirectoryGa
     @Override
     public Optional<OrganizationUserSnapshot> fetchUserByUserId(String userId) {
         return fetchUserByUserId(userId, OrganizationDirectoryLookupContext.empty());
+    }
+
+    @Override
+    public Optional<OrganizationJobSnapshot> fetchJobByJobId(String jobId) {
+        return fetchJobByJobId(jobId, OrganizationDirectoryLookupContext.empty());
+    }
+
+    @Override
+    public Optional<OrganizationJobSnapshot> fetchJobByJobId(String jobId, OrganizationDirectoryLookupContext context) {
+        String url = buildUrl(directory.getJobDetailPath());
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        log.info("组织架构回查 Job: url={}, jobId={}, traceId={}",
+            url, jobId,
+            context != null ? context.traceId() : "null");
+        form.add("jobId", jobId);
+        form.add("del", "0");
+        form.add("state", "0");
+        return postForm(url, form, context).map(mapper::job);
     }
 
     @Override

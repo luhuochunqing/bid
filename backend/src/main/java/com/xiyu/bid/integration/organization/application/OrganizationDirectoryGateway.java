@@ -3,6 +3,7 @@ package com.xiyu.bid.integration.organization.application;
 import com.xiyu.bid.integration.organization.domain.OrganizationDepartmentSnapshot;
 import com.xiyu.bid.integration.organization.domain.OrganizationDirectoryLookupContext;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
+import com.xiyu.bid.integration.organization.domain.OrganizationJobSnapshot;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -35,6 +36,12 @@ public interface OrganizationDirectoryGateway {
     }
 
     List<OrganizationUserSnapshot> listUsersByWindow(LocalDateTime startAt, LocalDateTime endAt);
+
+    Optional<OrganizationJobSnapshot> fetchJobByJobId(String jobId);
+
+    default Optional<OrganizationJobSnapshot> fetchJobByJobId(String jobId, OrganizationDirectoryLookupContext context) {
+        return fetchJobByJobId(jobId);
+    }
 
     default List<OrganizationUserSnapshot> listUsersByWindow(
             LocalDateTime startAt,

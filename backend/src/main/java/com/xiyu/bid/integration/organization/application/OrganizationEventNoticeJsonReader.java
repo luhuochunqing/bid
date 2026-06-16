@@ -30,7 +30,8 @@ public class OrganizationEventNoticeJsonReader {
                     text(root, "time"),
                     text(root, "key"),
                     text(data, "deptId"),
-                    text(data, "userId")
+                    text(data, "userId"),
+                    text(data, "jobId")
             ));
         } catch (JsonProcessingException ex) {
             return OrganizationEventNoticeParseResult.invalid("事件通知JSON格式错误");

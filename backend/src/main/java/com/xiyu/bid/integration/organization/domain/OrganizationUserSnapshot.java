@@ -8,6 +8,7 @@ public record OrganizationUserSnapshot(
         String phone,
         String departmentCode,
         String departmentName,
+        String jobId,
         String externalRoleCode,
         boolean enabled
 ) {

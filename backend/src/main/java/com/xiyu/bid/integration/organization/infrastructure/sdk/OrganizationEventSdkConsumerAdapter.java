@@ -55,6 +55,15 @@ public class OrganizationEventSdkConsumerAdapter {
     }
 
     @AcceptEvent(
+            eventTopic = "BaseOssJob",
+            consumerGroup = "bms"
+    )
+    public EventResult onJobChanged(String eventMessage) {
+        log.info("SDK BaseOssJob event received");
+        return handleEvent("BaseOssJob", eventMessage);
+    }
+
+    @AcceptEvent(
             eventTopic = "BaseOssUser",
             consumerGroup = "bms"
     )

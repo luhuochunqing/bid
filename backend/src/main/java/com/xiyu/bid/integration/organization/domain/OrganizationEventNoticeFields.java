@@ -9,6 +9,7 @@ public record OrganizationEventNoticeFields(
         String time,
         String key,
         String deptId,
-        String userId
+        String userId,
+        String jobId
 ) {
 }
