@@ -49,7 +49,7 @@ git fetch origin && git rebase origin/main && ./scripts/sync-env.sh .
 | "开个分支 XX" | `scripts/agent-start-task.sh <agent> <XX> origin/main --in-place` | 早操 + 切开发分支 |
 | "早操SOP + 开个分支 XX" | `scripts/agent-start-task.sh <agent> <XX> origin/main --in-place` | 同上，一次完成 |
 
-注意：Agent 通过 `AGENTS.md` §协作口径 → 暗号协定 推导自己的 `<agent>` 名称。
+注意：Agent 通过 `AGENTS.md` §协作暗号 推导自己的 `<agent>` 名称。
 
 ---
 
