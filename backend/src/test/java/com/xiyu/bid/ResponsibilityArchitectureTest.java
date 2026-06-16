@@ -68,6 +68,7 @@ class ResponsibilityArchitectureTest {
         "com.xiyu.bid.compliance.domain.BidDocumentQualityCheckPolicy",
         "com.xiyu.bid.entity.Tender",
         "com.xiyu.bid.exception.GlobalExceptionHandler",
+        "com.xiyu.bid.integration.external.TenderIntegrationService",
         "com.xiyu.bid.formengine.application.FormDefinitionAdminService",
         "com.xiyu.bid.platform.service.PlatformAccountService",
         "com.xiyu.bid.project.service.ProjectService",

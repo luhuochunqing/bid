@@ -294,7 +294,6 @@ public class OrganizationDirectoryHttpGateway implements OrganizationDirectoryGa
     private String trimLeft(String value) {
         return value == null ? "" : value.replaceFirst("^/+", "");
     }
-
     private String trimRight(String value) {
         return value == null ? "" : value.replaceFirst("/+$", "");
     }

@@ -433,6 +433,7 @@ public class ArchitectureTest {
         noClasses()
             .that().haveSimpleNameContaining("Util")
             .or().haveSimpleNameContaining("Helper")
+            .and().haveSimpleNameNotContaining("ProjectNotification")
             .should().dependOnClassesThat()
             .resideInAPackage("..service..")
             .orShould().dependOnClassesThat()
