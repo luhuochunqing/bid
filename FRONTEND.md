@@ -13,6 +13,7 @@
 | 动态表单引擎设计（artifact） | `docs/artifacts/dynamic-form-engine-v1-*.html` |
 | CA 管理设计（artifact） | `docs/artifacts/ca-management-design-*.html` |
 | wangEditor 用法（盲区） | `docs/references/wangeditor-notes.md` |
+| Vue 陷阱与调试经验 | `docs/references/vue-gotchas.md` |
 | 前后端对比 | `docs/architecture/frontend-backend-comparison.md` |
 
 ## 关键硬约束（一句话）
