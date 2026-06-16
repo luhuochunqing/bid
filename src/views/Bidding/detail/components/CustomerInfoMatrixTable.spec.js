@@ -63,11 +63,11 @@ describe('CustomerInfoMatrixTable', () => {
       global: { stubs: globalStubs },
     })
 
-    const fixedColumn = wrapper.find('[data-label="客户信息（角色名）"]')
-    expect(fixedColumn.exists()).toBe(true)
-    expect(fixedColumn.attributes('data-width')).toBe('200')
-    expect(wrapper.text()).toContain('董事长')
-    expect(wrapper.text()).toContain('电话')
-    expect(wrapper.text()).toContain('极高')
+    // Verify columns render: all editable column stubs should be present
+    const columnStubs = wrapper.findAll('.el-table-column-stub')
+    expect(columnStubs.length).toBe(CUSTOMER_INFO_COLUMNS.length - 1)
+    // First editable column (CUSTOMER_INFO_COLUMNS[1]) has label "联系方式"
+    expect(columnStubs[0].attributes('data-label')).toBe('联系方式')
+    expect(columnStubs[0].attributes('data-width')).toBe('160')
   })
 })

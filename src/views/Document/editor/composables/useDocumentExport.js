@@ -53,18 +53,7 @@ export function useDocumentExport({
 
   function handleExport() {
     if (!isRemoteProjectId.value) {
-      const exportContent = JSON.stringify({
-        project: projectInfo.value,
-        document: documentInfo.value,
-        sections: sectionData.value.sections,
-        exportedAt: new Date().toISOString()
-      }, null, 2)
-      downloadTextFile(
-        `${projectInfo.value.name}_标书导出.json`,
-        exportContent,
-        'application/json;charset=utf-8'
-      )
-      ElMessage.success('已生成本地导出文件')
+      ElMessage.error('当前文档仅支持通过 API 导出')
       return
     }
 
@@ -94,11 +83,10 @@ export function useDocumentExport({
   }
 
   function handleArchive() {
-    if (!isRemoteProjectId.value) {
-      ElMessage.success('已完成本地归档记录')
+        if (!isRemoteProjectId.value) {
+      ElMessage.error('当前文档仅支持通过 API 归档')
       return
     }
-
     collaborationApi.exports.archive(route.params.id, {
       archivedBy: null,
       archivedByName: '当前用户',

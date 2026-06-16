@@ -40,10 +40,7 @@ export function useProjectDetailDocumentActions(context) {
     if (!project.value) return false
     const docPayload = { name: file.name, uploader: userStore.userName, time: new Date().toLocaleString('zh-CN', { hour12: false }), size: `${Math.max(1, Math.round((file.size || 1024 * 1024) / 1024 / 1024))}MB` }
     if (!isApiProject.value) {
-      project.value.documents = Array.isArray(project.value.documents) ? project.value.documents : []
-      project.value.documents.unshift({ id: `DOC_${Date.now()}`, ...docPayload })
-      pushActivity(`上传了文档「${file.name}」`)
-      message.success(`已上传演示文档：${file.name}`)
+      message.error('当前项目仅支持通过 API 上传文档')
       return false
     }
 
@@ -67,7 +64,7 @@ export function useProjectDetailDocumentActions(context) {
   }
 
   const handleDownload = (doc) => {
-    downloadTextFile(doc.name, `演示文档：${doc.name}\n项目：${project.value?.name || ''}\n上传者：${doc.uploader || ''}`)
+    downloadTextFile(doc.name, `文档：${doc.name}\n项目：${project.value?.name || ''}\n上传者：${doc.uploader || ''}`)
     message.success(`已下载 ${doc.name}`)
   }
 
@@ -89,9 +86,7 @@ export function useProjectDetailDocumentActions(context) {
     if (!project.value) return
     const docName = `项目文档_${new Date().toLocaleDateString('zh-CN').replaceAll('/', '')}.docx`
     if (!isApiProject.value) {
-      project.value.documents.unshift({ id: `DOC_${Date.now()}`, name: docName, uploader: userStore.userName, time: new Date().toLocaleString('zh-CN', { hour12: false }), size: '1.2MB' })
-      pushActivity(`新增了项目文档「${docName}」`)
-      message.success('已新增演示文档')
+      message.error('当前项目仅支持通过 API 添加文档')
       return
     }
     try {
@@ -114,7 +109,7 @@ export function useProjectDetailDocumentActions(context) {
   const handleShare = async () => {
     const fallbackLink = `${window.location.origin}/project/${route.params.id}`
     if (!isApiProject.value) {
-      navigator.clipboard.writeText(fallbackLink).then(() => message.success('项目链接已复制到剪贴板')).catch(() => message.success(`分享链接：${fallbackLink}`))
+      message.error('当前项目仅支持通过 API 生成分享链接')
       return
     }
     try {
@@ -129,8 +124,7 @@ export function useProjectDetailDocumentActions(context) {
 
   const handleExport = () => {
     if (!isApiProject.value) {
-      downloadTextFile(`${project.value?.name || '项目资料'}_导出.json`, JSON.stringify({ project: project.value, expenses: projectExpenses.value, activities: state.activities.value, exportedAt: new Date().toISOString() }, null, 2), 'application/json;charset=utf-8')
-      message.success(`已生成演示导出包：${project.value?.name || '项目资料'}_导出.json`)
+      message.error('当前项目仅支持通过 API 导出资料')
       return
     }
     collaboration.exports.createExport(route.params.id, { format: 'json', exportedBy: userStore.currentUser?.id || null, exportedByName: userStore.userName }).then((result) => {
@@ -145,8 +139,7 @@ export function useProjectDetailDocumentActions(context) {
     if (!project.value) return
 
     if (!isApiProject.value) {
-      pushActivity('归档了项目资料')
-      message.success('已完成本地归档记录')
+      message.error('当前项目仅支持通过 API 归档资料')
       return
     }
 
@@ -173,8 +166,7 @@ export function useProjectDetailDocumentActions(context) {
     remindAt.setHours(9, 0, 0, 0)
 
     if (!isApiProject.value) {
-      pushActivity('设置了项目跟进提醒')
-      message.success('已设置本地提醒，默认明天 09:00 提醒')
+      message.error('当前项目仅支持通过 API 设置提醒')
       return
     }
 

@@ -16,10 +16,7 @@ export function useProjectDetailDocuments(context) {
     if (!project.value) return false
     const docPayload = { name: file.name, uploader: userStore.userName, time: new Date().toLocaleString('zh-CN', { hour12: false }), size: `${Math.max(1, Math.round((file.size || 1024 * 1024) / 1024 / 1024))}MB` }
     if (!isApiProject.value) {
-      if (!Array.isArray(project.value.documents)) project.value.documents = []
-      project.value.documents.unshift({ id: `DOC_${Date.now()}`, ...docPayload })
-      context.activities.value.unshift({ id: Date.now(), user: userStore.userName, action: `上传了文档「${file.name}」`, time: new Date().toLocaleString('zh-CN', { hour12: false }) })
-      context.message.success(`已上传演示文档：${file.name}`)
+      context.message.error('当前项目仅支持通过 API 上传文档')
       return false
     }
     try {
@@ -37,7 +34,7 @@ export function useProjectDetailDocuments(context) {
     return false
   }
 
-  const handleDownload = (doc) => { downloadTextFile(doc.name, `演示文档：${doc.name}\n项目：${project.value?.name || ''}\n上传者：${doc.uploader || ''}`); context.message.success(`已下载 ${doc.name}`) }
+  const handleDownload = (doc) => { downloadTextFile(doc.name, `文档：${doc.name}\n项目：${project.value?.name || ''}\n上传者：${doc.uploader || ''}`); context.message.success(`已下载 ${doc.name}`) }
   const handleDeleteDoc = async (doc) => {
     try {
       await context.confirm('确认删除该文档？', '提示', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
@@ -65,16 +62,13 @@ export function useProjectDetailDocuments(context) {
     if (!project.value) return
     const docName = `项目文档_${new Date().toLocaleDateString('zh-CN').replaceAll('/', '')}.docx`
     if (!isApiProject.value) {
-      if (!Array.isArray(project.value.documents)) project.value.documents = []
-      project.value.documents.unshift({ id: `DOC_${Date.now()}`, name: docName, uploader: userStore.userName, time: new Date().toLocaleString('zh-CN', { hour12: false }), size: '1.2MB' })
-      context.activities.value.unshift({ id: Date.now(), user: userStore.userName, action: `新增了项目文档「${docName}」`, time: new Date().toLocaleString('zh-CN', { hour12: false }) })
-      return context.message.success('已新增演示文档')
+      return context.message.error('当前项目仅支持通过 API 添加文档')
     }
     try { await handleCreateDocument(docName) } catch (error) { context.message.error(error.message || '新增项目文档失败') }
   }
   const handleShare = async () => {
     const fallbackLink = `${window.location.origin}/project/${route.params.id}`
-    if (!isApiProject.value) return navigator.clipboard.writeText(fallbackLink).then(() => context.message.success('项目链接已复制到剪贴板')).catch(() => context.message.success(`分享链接：${fallbackLink}`))
+    if (!isApiProject.value) return context.message.error('当前项目仅支持通过 API 生成分享链接')
     try {
       const result = await projectsApi.createShareLink(route.params.id, { createdBy: userStore.currentUser?.id || null, createdByName: userStore.userName, baseUrl: window.location.origin })
       await navigator.clipboard.writeText(result?.data?.url || fallbackLink)
@@ -92,14 +86,12 @@ export function useProjectDetailDocuments(context) {
       }).catch(() => context.message.error('导出资料失败'))
       return
     }
-    downloadTextFile(`${project.value?.name || '项目资料'}_导出.json`, JSON.stringify({ project: project.value, expenses: context.projectExpenses.value, activities: context.activities.value, exportedAt: new Date().toISOString() }, null, 2), 'application/json;charset=utf-8')
-    context.message.success(`已生成演示导出包：${project.value?.name || '项目资料'}_导出.json`)
+    context.message.error('当前项目仅支持通过 API 导出资料')
   }
   const handleArchiveDocuments = async () => {
     if (!project.value) return
     if (!isApiProject.value) {
-      context.activities.value.unshift({ id: Date.now(), user: userStore.userName, action: '归档了项目资料', time: new Date().toLocaleString('zh-CN', { hour12: false }) })
-      return context.message.success('已完成本地归档记录')
+      return context.message.error('当前项目仅支持通过 API 归档资料')
     }
     try {
       const result = await collaborationApi.exports.archive(route.params.id, { archivedBy: userStore.currentUser?.id || null, archivedByName: userStore.userName, archiveReason: '项目资料整理完成，归档留存' })
@@ -112,8 +104,7 @@ export function useProjectDetailDocuments(context) {
   const handleSetReminder = async () => {
     const remindAt = new Date(); remindAt.setDate(remindAt.getDate() + 1); remindAt.setHours(9, 0, 0, 0)
     if (!isApiProject.value) {
-      context.activities.value.unshift({ id: Date.now(), user: userStore.userName, action: '设置了项目跟进提醒', time: new Date().toLocaleString('zh-CN', { hour12: false }) })
-      return context.message.success('已设置本地提醒，默认明天 09:00 提醒')
+      return context.message.error('当前项目仅支持通过 API 设置提醒')
     }
     try {
       const result = await projectsApi.createReminder(route.params.id, { title: '项目跟进提醒', message: `请跟进项目「${project.value?.name || ''}」`, remindAt: remindAt.toISOString(), createdBy: userStore.currentUser?.id || null, createdByName: userStore.userName, recipient: '项目负责人' })

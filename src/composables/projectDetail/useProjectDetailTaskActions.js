@@ -192,7 +192,7 @@ export function useProjectDetailTaskActions(context) {
       state.project.value.tasks = Array.isArray(state.project.value.tasks) ? state.project.value.tasks : []
       state.project.value.tasks.unshift({ id: `TASK_${Date.now()}`, ...newTask })
       pushActivity(`新增了任务「${newTask.name}」`)
-      message.success('已新增演示任务')
+      message.success('任务已新增')
       return
     }
 
@@ -256,7 +256,7 @@ export function useProjectDetailTaskActions(context) {
         hasDeliverable: false,
       })
       pushActivity(`新增了任务「${title}」`)
-      message.success('已新增演示任务')
+      message.success('任务已新增')
       done?.()
       return
     }

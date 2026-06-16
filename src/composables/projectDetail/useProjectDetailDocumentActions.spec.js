@@ -97,3 +97,127 @@ describe('useProjectDetailDocumentActions', () => {
     expect(project.value.tasks).toEqual([])
   })
 })
+
+
+describe('real API mode — document/archive/reminder actions reject non-API calls', () => {
+  it('handleArchiveDocuments errors when not an API project', async () => {
+    const error = vi.fn()
+    const project = ref({ id: 'demo-1', name: 'Demo项目', documents: [] })
+    const state = { project, activities: ref([]) }
+
+    const { handleArchiveDocuments } = useProjectDetailDocumentActions({
+      route: { params: { id: 'demo-1' } },
+      project,
+      projectExpenses: ref([]),
+      userStore: { userName: '测试用户' },
+      projectsApi: {},
+      isApiProject: ref(false),
+      message: { success: vi.fn(), error },
+      state,
+    })
+
+    await handleArchiveDocuments()
+    expect(error).toHaveBeenCalledWith('当前项目仅支持通过 API 归档资料')
+  })
+
+  it('handleSetReminder errors when not an API project', async () => {
+    const error = vi.fn()
+    const project = ref({ id: 'demo-1', name: 'Demo项目' })
+    const state = { project, activities: ref([]) }
+
+    const { handleSetReminder } = useProjectDetailDocumentActions({
+      route: { params: { id: 'demo-1' } },
+      project,
+      projectExpenses: ref([]),
+      userStore: { userName: '测试用户' },
+      projectsApi: {},
+      isApiProject: ref(false),
+      message: { success: vi.fn(), error },
+      state,
+    })
+
+    await handleSetReminder()
+    expect(error).toHaveBeenCalledWith('当前项目仅支持通过 API 设置提醒')
+  })
+
+  it('handleAddDocument errors when not an API project', async () => {
+    const error = vi.fn()
+    const project = ref({ id: 'demo-1', name: 'Demo项目', documents: [] })
+    const state = { project, activities: ref([]) }
+
+    const { handleAddDocument } = useProjectDetailDocumentActions({
+      route: { params: { id: 'demo-1' } },
+      project,
+      projectExpenses: ref([]),
+      userStore: { userName: '测试用户' },
+      projectsApi: {},
+      isApiProject: ref(false),
+      message: { success: vi.fn(), error },
+      state,
+    })
+
+    await handleAddDocument()
+    expect(error).toHaveBeenCalledWith('当前项目仅支持通过 API 添加文档')
+  })
+
+  it('handleUpload errors when not an API project', async () => {
+    const error = vi.fn()
+    const project = ref({ id: 'demo-1', name: 'Demo项目', documents: [] })
+    const state = { project, activities: ref([]) }
+    const file = new File(['test'], 'test.docx')
+
+    const { handleUpload } = useProjectDetailDocumentActions({
+      route: { params: { id: 'demo-1' } },
+      project,
+      projectExpenses: ref([]),
+      userStore: { userName: '测试用户' },
+      projectsApi: {},
+      isApiProject: ref(false),
+      message: { success: vi.fn(), error },
+      state,
+    })
+
+    await handleUpload(file)
+    expect(error).toHaveBeenCalledWith('当前项目仅支持通过 API 上传文档')
+  })
+
+  it('handleExport errors when not an API project', async () => {
+    const error = vi.fn()
+    const project = ref({ id: 'demo-1', name: 'Demo项目' })
+    const state = { project, activities: ref([]) }
+
+    const { handleExport } = useProjectDetailDocumentActions({
+      route: { params: { id: 'demo-1' } },
+      project,
+      projectExpenses: ref([]),
+      userStore: { userName: '测试用户' },
+      projectsApi: {},
+      isApiProject: ref(false),
+      message: { success: vi.fn(), error },
+      state,
+    })
+
+    handleExport()
+    expect(error).toHaveBeenCalledWith('当前项目仅支持通过 API 导出资料')
+  })
+
+  it('handleShare errors when not an API project', async () => {
+    const error = vi.fn()
+    const project = ref({ id: 'demo-1', name: 'Demo项目' })
+    const state = { project, activities: ref([]) }
+
+    const { handleShare } = useProjectDetailDocumentActions({
+      route: { params: { id: 'demo-1' } },
+      project,
+      projectExpenses: ref([]),
+      userStore: { userName: '测试用户' },
+      projectsApi: {},
+      isApiProject: ref(false),
+      message: { success: vi.fn(), error },
+      state,
+    })
+
+    await handleShare()
+    expect(error).toHaveBeenCalledWith('当前项目仅支持通过 API 生成分享链接')
+  })
+})
