@@ -277,8 +277,8 @@ function transformCrmCustomerInfos(customerInfos) {
   if (!Array.isArray(customerInfos)) return []
   const result = []
   const infoFields = ['NAME','POSITION','XIYU_CONTACT','CONTACT_METHOD','EVALUATION_BASIS',
-    'CONTACTED','HIGH_LEVEL_EXCHANGE','GUIDED_BID','CAN_GET_KEY_INFO','CAN_REMOVE_ADVERSE',
-    'KEY_TARGET','CAN_SYNC_EVAL','TENDENCY']
+    'CONTACTED','GUIDED_BID','CAN_GET_KEY_INFO','CAN_REMOVE_ADVERSE',
+    'CAN_SYNC_EVAL','TENDENCY']
   for (const row of customerInfos) {
     for (const key of infoFields) {
       if (row[key] !== undefined) {

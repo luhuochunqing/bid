@@ -77,9 +77,9 @@ public class CrmOpportunityController {
                     Map.entry("NAME", "张德明"), Map.entry("POSITION", "采购总监"),
                     Map.entry("XIYU_CONTACT", "13800138001"), Map.entry("CONTACT_METHOD", "电话"),
                     Map.entry("EVALUATION_BASIS", "综合评分法"), Map.entry("CONTACTED", "Y"),
-                    Map.entry("HIGH_LEVEL_EXCHANGE", "Y"), Map.entry("GUIDED_BID", "Y"),
+                    Map.entry("GUIDED_BID", "Y"),
                     Map.entry("CAN_GET_KEY_INFO", "Y"), Map.entry("CAN_REMOVE_ADVERSE", "N"),
-                    Map.entry("KEY_TARGET", "Y"), Map.entry("CAN_SYNC_EVAL", "Y"), Map.entry("TENDENCY", "中性")
+                    Map.entry("CAN_SYNC_EVAL", "Y"), Map.entry("TENDENCY", "中性")
                 ),
                 Map.ofEntries(
                     Map.entry("roleKey", "INFLUENCER"),

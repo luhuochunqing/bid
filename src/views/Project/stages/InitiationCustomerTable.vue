@@ -4,9 +4,6 @@
     <template #header><span>客户信息</span></template>
     <div class="customer-table-wrapper">
       <el-table :data="rows" border style="min-width:2800px" height="500">
-        <el-table-column label="客户角色" width="160" fixed="left">
-          <template #default="{row}"><span class="role-label">{{ row.role }}</span></template>
-        </el-table-column>
         <el-table-column label="姓名" width="100">
           <template #default="{row}"><el-input v-model="row.name" size="small" :disabled="disabled" /></template>
         </el-table-column>
@@ -35,11 +32,6 @@
         <el-table-column label="倾向性评估依据" width="160">
           <template #default="{row}"><el-input v-model="row.preferenceBasis" size="small" :disabled="disabled" /></template>
         </el-table-column>
-        <el-table-column label="是否有正式的高层交流" width="100">
-          <template #default="{row}">
-            <el-select v-model="row.hasHighLevelMeeting" size="small" :disabled="disabled"><el-option label="是" value="YES" /><el-option label="否" value="NO" /></el-select>
-          </template>
-        </el-table-column>
         <el-table-column label="是否向此人引导标书" width="100">
           <template #default="{row}">
             <el-select v-model="row.guideBid" size="small" :disabled="disabled"><el-option label="是" value="YES" /><el-option label="否" value="NO" /></el-select>
@@ -53,11 +45,6 @@
         <el-table-column label="是否可以通过此人将标书中对我司不利项删除" width="140">
           <template #default="{row}">
             <el-select v-model="row.canRemoveAdverse" size="small" :disabled="disabled"><el-option label="是" value="YES" /><el-option label="否" value="NO" /></el-select>
-          </template>
-        </el-table-column>
-        <el-table-column label="是否为重点攻克对象" width="100">
-          <template #default="{row}">
-            <el-select v-model="row.isKeyTarget" size="small" :disabled="disabled"><el-option label="是" value="YES" /><el-option label="否" value="NO" /></el-select>
           </template>
         </el-table-column>
         <el-table-column label="是否可以在评标期间实时同步评标信息" width="140">

@@ -15,7 +15,7 @@ import java.util.Set;
  * <p>规则：
  * <ul>
  *   <li>role_key 必须属于预定义的 14 个固定角色 → INVALID_ROLE</li>
- *   <li>info_key 必须属于预定义的 17 个固定信息维度 → INVALID_INFO_KEY</li>
+ *   <li>info_key 必须属于预定义的 14 个固定信息维度 → INVALID_INFO_KEY</li>
  *   <li>value_type 必须与预期类型一致（TEXT / DROPDOWN / SWITCH / ENUM14 / ENUM7 / DROPDOWN6）→ INVALID_VALUE_TYPE</li>
  *   <li>不允许增删预定义之外的行-row（即不允许提交未被认可的 role_key）→ INVALID_ROLE</li>
  *   <li>必填的 info_key 值不能为空 → REQUIRED</li>
@@ -39,10 +39,9 @@ import java.util.Set;
  *   <li>EXPERT_3 — 专家 3</li>
  * </ol>
  *
- * <p>FR-005 定义的 17 个固定信息维度及其预期值类型：
+ * <p>FR-005 定义的 14 个固定信息维度及其预期值类型：
  * <table>
  *   <tr><th>info_key</th><th>中文名</th><th>类型</th></tr>
- *   <tr><td>ROLE_NAME</td><td>客户信息（角色名）</td><td>TEXT（固定不可编辑）</td></tr>
  *   <tr><td>NAME</td><td>姓名</td><td>TEXT</td></tr>
  *   <tr><td>POSITION</td><td>职位</td><td>ENUM14（14选项枚举）</td></tr>
  *   <tr><td>XIYU_CONTACT</td><td>西域项目负责人</td><td>TEXT</td></tr>
@@ -52,11 +51,9 @@ import java.util.Set;
  *   <tr><td>INFO_CLEAR_WINNER_BID</td><td>是否给出明确中标信息</td><td>SWITCH</td></tr>
  *   <tr><td>INFO_WIN_RATE_IMPACT</td><td>对中标影响率</td><td>DROPDOWN6</td></tr>
  *   <tr><td>CONTACTED</td><td>是否触达</td><td>DROPDOWN（是/否）</td></tr>
- *   <tr><td>HIGH_LEVEL_EXCHANGE</td><td>是否有正式高层交流</td><td>DROPDOWN（是/否）</td></tr>
  *   <tr><td>GUIDED_BID</td><td>是否向此人引导标书</td><td>DROPDOWN（是/否）</td></tr>
  *   <tr><td>CAN_GET_KEY_INFO</td><td>是否可获取关键信息</td><td>DROPDOWN（是/否）</td></tr>
  *   <tr><td>CAN_REMOVE_ADVERSE</td><td>是否可删除不利项</td><td>DROPDOWN（是/否）</td></tr>
- *   <tr><td>KEY_TARGET</td><td>是否为重点攻克对象</td><td>DROPDOWN（是/否）</td></tr>
  *   <tr><td>CAN_SYNC_EVAL</td><td>是否可同步评标信息</td><td>DROPDOWN（是/否）</td></tr>
  *   <tr><td>TENDENCY</td><td>对我司的倾向性</td><td>DROPDOWN（支持/中立/反对）</td></tr>
  * </table>
@@ -110,9 +107,8 @@ public final class TenderEvaluationCustomerInfoPolicy {
         Map.entry("EXPERT_3", "专家3")
     );
 
-    /** 17 个固定信息维度键。 */
+    /** 14 个固定信息维度键（2026-06-16 删除 ROLE_NAME/HIGH_LEVEL_EXCHANGE/KEY_TARGET）。 */
     public static final Set<String> VALID_INFO_KEYS = Set.of(
-        "ROLE_NAME",
         "NAME",
         "POSITION",
         "XIYU_CONTACT",
@@ -122,18 +118,15 @@ public final class TenderEvaluationCustomerInfoPolicy {
         "INFO_CLEAR_WINNER_BID",
         "INFO_WIN_RATE_IMPACT",
         "CONTACTED",
-        "HIGH_LEVEL_EXCHANGE",
         "GUIDED_BID",
         "CAN_GET_KEY_INFO",
         "CAN_REMOVE_ADVERSE",
-        "KEY_TARGET",
         "CAN_SYNC_EVAL",
         "TENDENCY"
     );
 
     /** 信息维度键 → 预期值类型。 */
     public static final Map<String, String> INFO_KEY_VALUE_TYPES = Map.ofEntries(
-        Map.entry("ROLE_NAME", "TEXT"),
         Map.entry("NAME", "TEXT"),
         Map.entry("POSITION", "ENUM14"),
         Map.entry("XIYU_CONTACT", "TEXT"),
@@ -143,18 +136,15 @@ public final class TenderEvaluationCustomerInfoPolicy {
         Map.entry("INFO_CLEAR_WINNER_BID", "SWITCH"),
         Map.entry("INFO_WIN_RATE_IMPACT", "DROPDOWN6"),
         Map.entry("CONTACTED", "DROPDOWN"),
-        Map.entry("HIGH_LEVEL_EXCHANGE", "DROPDOWN"),
         Map.entry("GUIDED_BID", "DROPDOWN"),
         Map.entry("CAN_GET_KEY_INFO", "DROPDOWN"),
         Map.entry("CAN_REMOVE_ADVERSE", "DROPDOWN"),
-        Map.entry("KEY_TARGET", "DROPDOWN"),
         Map.entry("CAN_SYNC_EVAL", "DROPDOWN"),
         Map.entry("TENDENCY", "DROPDOWN")
     );
 
     /** 信息维度键 → 中文显示名。 */
     public static final Map<String, String> INFO_DISPLAY_NAMES = Map.ofEntries(
-        Map.entry("ROLE_NAME", "客户信息（角色名）"),
         Map.entry("NAME", "姓名"),
         Map.entry("POSITION", "职位"),
         Map.entry("XIYU_CONTACT", "西域项目负责人"),
@@ -164,11 +154,9 @@ public final class TenderEvaluationCustomerInfoPolicy {
         Map.entry("INFO_CLEAR_WINNER_BID", "是否给出明确中标信息"),
         Map.entry("INFO_WIN_RATE_IMPACT", "对中标影响率"),
         Map.entry("CONTACTED", "是否触达"),
-        Map.entry("HIGH_LEVEL_EXCHANGE", "是否有正式高层交流"),
         Map.entry("GUIDED_BID", "是否向此人引导标书"),
         Map.entry("CAN_GET_KEY_INFO", "是否可获取关键信息"),
         Map.entry("CAN_REMOVE_ADVERSE", "是否可删除不利项"),
-        Map.entry("KEY_TARGET", "是否为重点攻克对象"),
         Map.entry("CAN_SYNC_EVAL", "是否可同步评标信息"),
         Map.entry("TENDENCY", "对我司的倾向性")
     );
@@ -224,7 +212,7 @@ public final class TenderEvaluationCustomerInfoPolicy {
                 errors.add(new FieldError(
                     prefix + ".infoKey",
                     CODE_INVALID_INFO_KEY,
-                    "信息维度键 '" + row.infoKey + "' 不在 17 个固定信息维度列表中"));
+                    "信息维度键 '" + row.infoKey + "' 不在 14 个固定信息维度列表中"));
                 continue;
             }
 

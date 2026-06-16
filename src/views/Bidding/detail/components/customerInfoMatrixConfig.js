@@ -1,5 +1,4 @@
 export const CUSTOMER_INFO_COLUMNS = [
-  { key: 'roleLabel', label: '客户信息（角色名）', width: 200, type: 'fixed' },
   { key: 'NAME', label: '姓名', width: 140, type: 'text', placeholder: '请输入姓名' },
   { key: 'CONTACT_INFO', label: '联系方式', width: 160, type: 'text', placeholder: '手机号/电话/邮箱' },
   { key: 'POSITION', label: '职位', width: 160, type: 'position', placeholder: '请选择' },
@@ -7,11 +6,9 @@ export const CUSTOMER_INFO_COLUMNS = [
   { key: 'CONTACT_METHOD', label: '触达方式', width: 140, type: 'contactMethod', placeholder: '请选择' },
   { key: 'INFO_TENDENCY_BASIS', label: '倾向性评估依据', width: 200, type: 'text', placeholder: '请输入依据' },
   { key: 'CONTACTED', label: '是否触达', width: 120, type: 'yesno' },
-  { key: 'HIGH_LEVEL_EXCHANGE', label: '是否有正式高层交流', width: 170, type: 'yesno' },
   { key: 'GUIDED_BID', label: '是否向此人引导标书', width: 170, type: 'yesno' },
   { key: 'CAN_GET_KEY_INFO', label: '是否可获取关键信息', width: 170, type: 'yesno' },
   { key: 'CAN_REMOVE_ADVERSE', label: '是否可删除不利项', width: 170, type: 'yesno' },
-  { key: 'KEY_TARGET', label: '是否为重点攻克对象', width: 170, type: 'yesno' },
   { key: 'CAN_SYNC_EVAL', label: '是否可同步评标信息', width: 170, type: 'yesno' },
   { key: 'TENDENCY', label: '对我司的倾向性', width: 160, type: 'tendency' },
   { key: 'INFO_CLEAR_WINNER_BID', label: '是否给出明确中标信息', width: 180, type: 'switch' },

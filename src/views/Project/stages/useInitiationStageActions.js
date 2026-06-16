@@ -253,9 +253,9 @@ export function useInitiationStageActions({
               NAME: 'name', POSITION: 'position', XIYU_CONTACT: 'xiyuContact',
               CONTACTED: 'reached', CONTACT_METHOD: 'reachMethod',
               TENDENCY: 'preference', INFO_TENDENCY_BASIS: 'preferenceBasis',
-              HIGH_LEVEL_EXCHANGE: 'hasHighLevelMeeting', GUIDED_BID: 'guideBid',
+              GUIDED_BID: 'guideBid',
               CAN_GET_KEY_INFO: 'canGetKeyInfo', CAN_REMOVE_ADVERSE: 'canRemoveAdverse',
-              KEY_TARGET: 'isKeyTarget', CAN_SYNC_EVAL: 'canSyncEval',
+              CAN_SYNC_EVAL: 'canSyncEval',
               INFO_CLEAR_WINNER_BID: 'canConfirmWin', INFO_WIN_RATE_IMPACT: 'winRateImpact',
             }
             // 按 roleKey 分组
