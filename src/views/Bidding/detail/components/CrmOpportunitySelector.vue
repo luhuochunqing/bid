@@ -123,10 +123,11 @@ const {
 .crm-field-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .label { font-weight: 600; min-width: 110px; }
 .search-filters { margin-bottom: 16px; }
-.blueprint-row { display: flex; gap: 16px; flex-wrap: nowrap; align-items: center; padding: 8px 12px; background: var(--bg-muted-2); border: 1px solid var(--border-light); border-radius: 4px; }
-.blueprint-item { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.blueprint-label { font-weight: 600; color: var(--text-badge); white-space: nowrap; }
-.blueprint-value { color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.blueprint-row { display: flex; flex-wrap: nowrap; align-items: stretch; padding: 10px 0; background: var(--bg-muted-2); border: 1px solid var(--border-light); border-radius: 6px; }
+.blueprint-item { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0 16px; border-right: 1px solid var(--border-light); }
+.blueprint-item:last-child { border-right: none; }
+.blueprint-label { font-weight: 600; color: var(--text-badge); font-size: 13px; white-space: nowrap; }
+.blueprint-value { color: var(--text-primary); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .filter-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
 .filter-input { width: 180px; }
 .manual-fallback { text-align: center; padding: 8px 0; }

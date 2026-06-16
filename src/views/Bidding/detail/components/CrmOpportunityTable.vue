@@ -11,7 +11,7 @@
       @current-change="(row) => $emit('select', row)"
       max-height="280"
       stripe
-      width="100%"
+      style="width: 100%"
     >
       <el-table-column type="expand">
         <template #default="{ row }">
