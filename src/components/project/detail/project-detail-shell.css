@@ -230,36 +230,8 @@
   }
 }
 
-/* Stage Tabs UI — 6 阶段 tab 均分宽度 + 居中 */
+/* Stage content container — stage switched via v-if driven by ProjectStageTimeline */
 .stage-tabs-container { margin-top: var(--space-5, 20px); margin-bottom: var(--space-5, 20px); background: var(--bg-card); border-radius: var(--radius-md); border: 1px solid var(--gray-100); box-shadow: var(--shadow-sm); padding: var(--space-5, 20px); }
-.custom-stage-tabs .el-tabs__header { margin-bottom: var(--space-5, 20px); margin-top: 0; }
-.custom-stage-tabs .el-tabs__nav-wrap { display: flex; justify-content: flex-start; }
-.custom-stage-tabs .el-tabs__nav { flex: 1; display: flex; width: 100% !important; border-radius: var(--radius-md); background: var(--gray-50); padding: 4px; box-sizing: border-box; }
-.custom-stage-tabs .el-tabs__nav-scroll { flex: 1; display: flex; }
-.custom-stage-tabs .el-tabs__active-bar, .custom-stage-tabs .el-tabs__nav-wrap::after { display: none; }
-.custom-stage-tabs .el-tabs__item { flex: 1 1 0; width: auto !important; min-width: 0; height: 38px; line-height: 38px; padding: 0 16px; font-size: 14px; font-weight: 500; color: var(--text-secondary-ui); text-align: center; border-radius: var(--radius-sm); transition: background-color 0.2s ease, color 0.2s ease; }
-.custom-stage-tabs .el-tabs__item:hover { color: var(--el-color-primary); background: var(--bg-card); }
-.custom-stage-tabs .el-tabs__item.is-active { color: var(--el-color-primary); font-weight: 600; background: var(--bg-card); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06); }
-
-.custom-stage-tabs .el-card.stage-view,
-.custom-stage-tabs .el-card.section-card,
-.custom-stage-tabs .el-card.stage-section {
-  border: none;
-  box-shadow: none;
-  background: transparent;
-  padding: 0;
-}
-.custom-stage-tabs .el-card.stage-view .el-card__header,
-.custom-stage-tabs .el-card.section-card .el-card__header,
-.custom-stage-tabs .el-card.stage-section .el-card__header {
-  border-bottom: 1px solid var(--border-subtle);
-  padding: var(--space-3) 0;
-  font-size: 16px;
-  font-weight: 600;
-}
-.custom-stage-tabs .el-card.stage-view .el-card__body,
-.custom-stage-tabs .el-card.section-card .el-card__body,
-.custom-stage-tabs .el-card.stage-section .el-card__body { padding: var(--space-4) 0; }
 
 .drafting-tab-content {
   display: flex;

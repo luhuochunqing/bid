@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { markRaw, ref } from 'vue'
+import { markRaw, nextTick, onMounted, ref } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 
 import ProjectDetailMainColumn from './ProjectDetailMainColumn.vue'
@@ -58,6 +58,10 @@ const taskBoardCardStub = {
 const shallowStubs = {
   ProjectBasicInfoCard: true,
   ProjectApprovalStatusCard: true,
+  ProjectStageTimeline: {
+    template: '<div />',
+    setup(_, { emit }) { onMounted(() => { emit('snapshot', { currentStage: 'DRAFTING' }) }) },
+  },
   ProjectExpenseSummaryCard: true,
   ProjectDetailWorkflowCard: true,
   ProjectDetailDocumentsCard: true,
@@ -76,8 +80,6 @@ const shallowStubs = {
   ElButton: true,
   ElUpload: true,
   ElIcon: true,
-  ElTabs: { template: '<div><slot /></div>' },
-  ElTabPane: { template: '<div><slot /></div>' },
 }
 
 describe('ProjectDetail task status event wiring', () => {
@@ -92,6 +94,7 @@ describe('ProjectDetail task status event wiring', () => {
       },
     })
 
+    await nextTick()
     await wrapper.get('[data-test="status-change"]').trigger('click')
 
     expect(mainColumnContext.handleTaskStatusChange).toHaveBeenCalledWith(

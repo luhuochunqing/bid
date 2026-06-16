@@ -205,6 +205,10 @@ const routes = [
         ]
       },
       {
+        path: 'resource',
+        redirect: 'resource/margin'
+      },
+      {
         path: 'resource/margin',
         name: 'MarginManagement',
         component: () => import('@/views/Resource/MarginManagement.vue'),
