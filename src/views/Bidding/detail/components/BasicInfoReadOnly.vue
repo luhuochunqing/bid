@@ -108,18 +108,18 @@
 <script setup>
 import { computed } from 'vue'
 import { formatTenderDateTime } from '../../bidding-utils.js'
-import { toDownloadUrl } from '@/api/modules/tenders.js'
 
 const props = defineProps({
   tender: { type: Object, default: null },
 })
 
-/**
- * 将 doc-insight:// 内部 URI 转换为 HTTP 下载 URL。
- * 其他格式（http/https）直接返回原值。
- */
 const sourceDocumentDownloadUrl = computed(() => {
-  return toDownloadUrl(props.tender?.sourceDocumentFileUrl)
+  const url = props.tender?.sourceDocumentFileUrl
+  if (!url) return ''
+  if (url.startsWith('doc-insight://')) {
+    return `/api/doc-insight/download?fileUrl=${encodeURIComponent(url)}`
+  }
+  return url
 })
 </script>
 

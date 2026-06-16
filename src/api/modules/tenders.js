@@ -47,8 +47,6 @@ function isNumericId(id) {
   return /^\d+$/.test(String(id))
 }
 
-export { toDownloadUrl } from '../doc-insight-utils.js'
-
 export const tendersApi = {
   async getList(params = {}) {
     const response = await httpClient.get('/api/tenders', { params: { ...params, size: params.size || 200 } })
