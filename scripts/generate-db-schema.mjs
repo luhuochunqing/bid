@@ -113,9 +113,9 @@ function parseCreateTable(stmt, version, fileName, tables) {
     const col = parseColumnDef(trimmed, version)
     if (col) { columns.set(col.name, col); continue }
 
-    // primary key / unique constraint inside body
-    const pk = parseInlinePrimaryKey(trimmed)
-    if (pk) continue
+    // Primary key constraint inside CREATE TABLE body (table-level)
+    const pk = parseInlinePrimaryKey(trimmed, version)
+    if (pk) { indexes.push(pk); continue }
   }
 
   tables.set(tableName, { columns, indexes, since: version, comment: tableComment || '' })
@@ -182,6 +182,7 @@ function parseColumnDef(raw, version) {
 
   const nullable = /\bNOT\s+NULL\b/i.test(raw) ? false : true
   const autoInc = /\bAUTO_INCREMENT\b/i.test(raw)
+  const primaryKey = /\bPRIMARY\s+KEY\b/i.test(raw)
 
   const defaultMatch = rest.match(/\bDEFAULT\s+('(?:[^'\\]|\\.)*'|NULL|\d+\.?\d*|\w+\(\))/i)
   const defaultValue = defaultMatch ? defaultMatch[1] : null
@@ -192,6 +193,7 @@ function parseColumnDef(raw, version) {
   return {
     name,
     type: fullType,
+    primaryKey,
     nullable: autoInc ? false : nullable,
     defaultValue,
     comment,
@@ -207,9 +209,13 @@ function parseInlineIndex(raw, version) {
   return { name: idxMatch[1], columns: idxMatch[2].trim(), since: version, unique: /^UNIQUE/i.test(raw) }
 }
 
-function parseInlinePrimaryKey(raw) {
-  return /^\s*(?:PRIMARY\s+KEY|CONSTRAINT\s+`?\w+`?\s+PRIMARY\s+KEY)/i.test(raw)
+function parseInlinePrimaryKey(raw, version) {
+  // Record the primary key as an index entry (table-level PRIMARY KEY(col, ...))
+  const match = raw.match(/^\s*(?:PRIMARY\s+KEY|CONSTRAINT\s+`?\w+`?\s+PRIMARY\s+KEY)\s*\(([^)]+)\)/i)
+  if (!match) return null
+  return { name: 'PRIMARY', columns: match[1].trim(), since: version, unique: true, isPrimary: true }
 }
+
 
 // ── CREATE INDEX ──
 
@@ -347,9 +353,10 @@ function renderOutput(tables, alterLog, migrationCount) {
     lines.push('|---|---|---|---|---|---|')
     for (const [colName, col] of t.columns) {
       const nullable = col.nullable ? '✓' : '✗'
+      const pkTag = col.primaryKey ? '🔑 ' : ''
       const def = col.defaultValue !== null ? col.defaultValue : '—'
       const comment = col.comment || '—'
-      lines.push(`| ${colName} | ${col.type} | ${nullable} | ${def} | ${comment} | V${col.since} |`)
+      lines.push(`| ${pkTag}${colName} | ${col.type} | ${nullable} | ${def} | ${comment} | V${col.since} |`)
     }
 
     // Indexes
@@ -360,7 +367,8 @@ function renderOutput(tables, alterLog, migrationCount) {
       lines.push('| 索引名 | 列 | 类型 | Since |')
       lines.push('|---|---|---|---|')
       for (const ix of t.indexes) {
-        const type = ix.unique ? 'UNIQUE' : 'INDEX'
+        let type = ix.unique ? 'UNIQUE' : 'INDEX'
+        if (ix.isPrimary) type = 'PRIMARY KEY'
         lines.push(`| ${ix.name} | ${ix.columns} | ${type} | V${ix.since} |`)
       }
     }
