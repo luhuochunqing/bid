@@ -9,8 +9,9 @@
       :data="results"
       highlight-current-row
       @current-change="(row) => $emit('select', row)"
-      max-height="340"
+      max-height="280"
       stripe
+      width="100%"
     >
       <el-table-column type="expand">
         <template #default="{ row }">
@@ -35,12 +36,12 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="name" label="商机名称" min-width="200" show-overflow-tooltip />
-      <el-table-column prop="code" label="商机编号" width="140" />
-      <el-table-column prop="groupName" label="集团" width="120" show-overflow-tooltip />
-      <el-table-column prop="projectLeaderName" label="项目负责人" width="110" />
-      <el-table-column prop="projectStatusText" label="项目状态" width="90" />
-      <el-table-column label="操作" width="80" align="center">
+      <el-table-column prop="name" label="商机名称" min-width="160" show-overflow-tooltip />
+      <el-table-column prop="code" label="商机编号" width="120" show-overflow-tooltip />
+      <el-table-column prop="groupName" label="集团" width="100" show-overflow-tooltip />
+      <el-table-column prop="projectLeaderName" label="项目负责人" width="100" show-overflow-tooltip />
+      <el-table-column prop="projectStatusText" label="项目状态" width="80" />
+      <el-table-column label="操作" width="80" align="center" fixed="right">
         <template #default="{ row }">
           <el-button
             size="small"
@@ -82,6 +83,6 @@ defineEmits(['select', 'page-change'])
 <style scoped>
 .empty-result { padding: 30px 0; }
 .expanded-detail { padding: 12px 16px; }
-.remark-block { margin-top: 8px; padding: 8px 12px; background: #f9fafb; border-radius: 4px; font-size: 13px; }
+.remark-block { margin-top: 8px; padding: 8px 12px; background: var(--bg-muted-2); border-radius: 4px; font-size: 13px; }
 .pagination-row { display: flex; justify-content: flex-end; margin-top: 12px; }
 </style>

@@ -14,14 +14,14 @@
       </template>
     </div>
 
-    <el-dialog v-model="showDialog" title="选择关联的CRM商机" width="860px"
+    <el-dialog v-model="showDialog" title="选择关联的CRM商机" width="860px" class="crm-opportunity-dialog"
       @close="showManualForm = false; manualConfirmed = false; resetSearch()">
       <div class="search-filters">
-        <el-descriptions :column="4" size="small" border :labelStyle="{ fontWeight: 600 }">
-          <el-descriptions-item label="招标主体">{{ tenderer }}</el-descriptions-item>
-          <el-descriptions-item label="报名截止">{{ registrationDeadline }}</el-descriptions-item>
-          <el-descriptions-item label="开标时间">{{ bidOpeningTime }}</el-descriptions-item>
-        </el-descriptions>
+        <div class="blueprint-row">
+          <div class="blueprint-item"><span class="blueprint-label">招标主体</span><span class="blueprint-value" :title="tenderer">{{ tenderer || '-' }}</span></div>
+          <div class="blueprint-item"><span class="blueprint-label">报名截止</span><span class="blueprint-value">{{ registrationDeadline || '-' }}</span></div>
+          <div class="blueprint-item"><span class="blueprint-label">开标时间</span><span class="blueprint-value">{{ bidOpeningTime || '-' }}</span></div>
+        </div>
         <div class="filter-row">
           <el-input v-model="searchForm.name" placeholder="商机名称（精确匹配）" clearable size="small" class="filter-input" />
           <el-input v-model="searchForm.code" placeholder="商机编号（CRM暂不支持按编号搜索）" clearable size="small" class="filter-input" />
@@ -123,12 +123,18 @@ const {
 .crm-field-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .label { font-weight: 600; min-width: 110px; }
 .search-filters { margin-bottom: 16px; }
+.blueprint-row { display: flex; gap: 16px; flex-wrap: nowrap; align-items: center; padding: 8px 12px; background: var(--bg-muted-2); border: 1px solid var(--border-light); border-radius: 4px; }
+.blueprint-item { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.blueprint-label { font-weight: 600; color: var(--text-badge); white-space: nowrap; }
+.blueprint-value { color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .filter-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
 .filter-input { width: 180px; }
 .manual-fallback { text-align: center; padding: 8px 0; }
 .manual-form { margin-top: 4px; }
-.manual-title { font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: #374151; }
+.manual-title { font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: var(--text-badge); }
 .mt-2 { margin-top: 8px; }
 :deep(.full-width) { width: 100%; }
-.selected-summary p { margin: 4px 0; font-size: 13px; color: #4b5563; }
+.selected-summary p { margin: 4px 0; font-size: 13px; color: var(--text-badge-2); }
+:deep(.crm-opportunity-dialog .el-dialog__body) { max-height: 60vh; overflow-y: auto; padding: 16px 20px; }
+:deep(.crm-opportunity-dialog .el-dialog__footer) { padding: 12px 20px; border-top: 1px solid var(--border-light); }
 </style>
