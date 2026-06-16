@@ -775,4 +775,14 @@ public class ArchitectureTest {
             .because("RULE 15: every @RestController must declare @PreAuthorize at class level. "
                 + "Class-level @PreAuthorize provides default access control; method-level "
                 + "annotations can further restrict but should not be the only defense.");
+
+    /**
+     * RULE 16: wecom 独立企微发送能力，不得反向依赖 notification 站内信模块。
+     */
+    @ArchTest
+    public static final ArchRule wecom_should_not_depend_on_notification =
+        noClasses()
+            .that().resideInAPackage("..wecom..")
+            .should().dependOnClassesThat().resideInAPackage("..notification..")
+            .because("wecom 是独立企微发送能力，不得反向依赖 notification 站内信模块");
 }

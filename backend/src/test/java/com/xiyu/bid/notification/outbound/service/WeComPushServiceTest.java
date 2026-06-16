@@ -1,17 +1,15 @@
 package com.xiyu.bid.notification.outbound.service;
 
 import com.xiyu.bid.entity.User;
-import com.xiyu.bid.integration.application.WeComCredentialCipher;
-import com.xiyu.bid.integration.application.WeComMessagePublisher;
-import com.xiyu.bid.integration.domain.WeComSendResult;
-import com.xiyu.bid.integration.infrastructure.persistence.entity.WeComIntegrationEntity;
-import com.xiyu.bid.integration.infrastructure.persistence.repository.WeComIntegrationJpaRepository;
 import com.xiyu.bid.notification.outbound.event.NotificationCreatedEvent;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.wecom.WecomMessageSender;
+import com.xiyu.bid.wecom.WecomSendResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -28,13 +26,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("WeComPushService — returns delivery result")
+@DisplayName("WeComPushService — 按工号委托 WecomMessageSender 发企微")
 class WeComPushServiceTest {
 
     @Mock private UserRepository userRepository;
-    @Mock private WeComIntegrationJpaRepository integrationRepository;
-    @Mock private WeComCredentialCipher cipher;
-    @Mock private WeComMessagePublisher publisher;
+    @Mock private WecomMessageSender wecomMessageSender;
 
     private WeComPushService service;
 
@@ -42,76 +38,48 @@ class WeComPushServiceTest {
         return new NotificationCreatedEvent(100L, List.of(7L), "MENTION", "你被提到", "PROJECT", 42L);
     }
 
+    private static User userWithEmployee(String employeeNumber) {
+        return User.builder().id(7L).username("u").email("a@x.com").password("p")
+            .fullName("User").role(User.Role.STAFF).employeeNumber(employeeNumber).build();
+    }
+
     @BeforeEach
     void setUp() {
-        service = new WeComPushService(
-            userRepository, integrationRepository, cipher, publisher,
-            "https://xiyu.example.com");
+        service = new WeComPushService(userRepository, wecomMessageSender, "https://xiyu.example.com");
     }
 
     @Test
-    @DisplayName("no integration config -> skipped result")
-    void noIntegration_Skipped() {
-        when(integrationRepository.findById(1L)).thenReturn(Optional.empty());
+    @DisplayName("用户不存在 -> skip，不调用发送器")
+    void userNotFound_skipped() {
+        when(userRepository.findById(7L)).thenReturn(Optional.empty());
 
         NotificationDeliveryResult result = service.pushForRecipient(event(), 7L);
 
         assertThat(result.successful()).isTrue();
         assertThat(result.skipped()).isTrue();
-        assertThat(result.message()).contains("disabled");
+        assertThat(result.message()).contains("employee number");
+        verify(wecomMessageSender, never()).send(anyList(), anyString(), anyString());
     }
 
     @Test
-    @DisplayName("message_enabled=false -> skipped result")
-    void disabled_Skipped() {
-        WeComIntegrationEntity integration = new WeComIntegrationEntity();
-        integration.setMessageEnabled(false);
-        when(integrationRepository.findById(1L)).thenReturn(Optional.of(integration));
+    @DisplayName("用户无工号 -> skip，不调用发送器")
+    void noEmployeeNumber_skipped() {
+        when(userRepository.findById(7L)).thenReturn(Optional.of(userWithEmployee("")));
 
         NotificationDeliveryResult result = service.pushForRecipient(event(), 7L);
 
         assertThat(result.successful()).isTrue();
         assertThat(result.skipped()).isTrue();
-        assertThat(result.message()).contains("disabled");
+        assertThat(result.message()).contains("employee number");
+        verify(wecomMessageSender, never()).send(anyList(), anyString(), anyString());
     }
 
     @Test
-    @DisplayName("user not bound -> skipped result")
-    void notBound_Skipped() {
-        WeComIntegrationEntity integration = new WeComIntegrationEntity();
-        integration.setMessageEnabled(true);
-        when(integrationRepository.findById(1L)).thenReturn(Optional.of(integration));
-
-        User user = User.builder().id(7L).username("u").email("a@x.com").password("p")
-            .fullName("User").role(User.Role.STAFF).build();
-        when(userRepository.findById(7L)).thenReturn(Optional.of(user));
-
-        NotificationDeliveryResult result = service.pushForRecipient(event(), 7L);
-
-        assertThat(result.successful()).isTrue();
-        assertThat(result.skipped()).isTrue();
-        assertThat(result.message()).contains("not bound");
-        verify(publisher, never()).sendTextMessage(anyString(), anyString(), anyString(), anyList(), anyString());
-    }
-
-    @Test
-    @DisplayName("successful send -> sent result")
-    void successfulSend_ReturnsSuccess() {
-        WeComIntegrationEntity integration = new WeComIntegrationEntity();
-        integration.setCorpId("corp");
-        integration.setAgentId("1000001");
-        integration.setEncryptedSecret("enc");
-        integration.setMessageEnabled(true);
-        when(integrationRepository.findById(1L)).thenReturn(Optional.of(integration));
-
-        User user = User.builder().id(7L).username("u").email("a@x.com").password("p")
-            .fullName("User").role(User.Role.STAFF).wecomUserId("wc_007").build();
-        when(userRepository.findById(7L)).thenReturn(Optional.of(user));
-
-        when(cipher.decrypt("enc")).thenReturn("plain-secret");
-        when(publisher.sendTextMessage(eq("corp"), eq("1000001"), eq("plain-secret"),
-            eq(List.of("wc_007")), anyString()))
-            .thenReturn(new WeComSendResult(true, 0, "ok", List.of("wc_007")));
+    @DisplayName("发送成功 -> sent，收件人为工号")
+    void successfulSend_returnsSuccess() {
+        when(userRepository.findById(7L)).thenReturn(Optional.of(userWithEmployee("E007")));
+        when(wecomMessageSender.send(eq(List.of("E007")), anyString(), anyString()))
+            .thenReturn(WecomSendResult.success(0, "ok"));
 
         NotificationDeliveryResult result = service.pushForRecipient(event(), 7L);
 
@@ -121,50 +89,42 @@ class WeComPushServiceTest {
     }
 
     @Test
-    @DisplayName("WeCom returns failure -> failed result")
-    void failedSend_ReturnsFailure() {
-        WeComIntegrationEntity integration = new WeComIntegrationEntity();
-        integration.setCorpId("corp");
-        integration.setAgentId("1");
-        integration.setEncryptedSecret("enc");
-        integration.setMessageEnabled(true);
-        when(integrationRepository.findById(1L)).thenReturn(Optional.of(integration));
-
-        User user = User.builder().id(7L).username("u").email("a@x.com").password("p")
-            .fullName("User").role(User.Role.STAFF).wecomUserId("wc_007").build();
-        when(userRepository.findById(7L)).thenReturn(Optional.of(user));
-
-        when(cipher.decrypt("enc")).thenReturn("plain");
-        when(publisher.sendTextMessage(anyString(), anyString(), anyString(), anyList(), anyString()))
-            .thenReturn(new WeComSendResult(false, 40013, "invalid agentid", List.of("wc_007")));
+    @DisplayName("发送器返回 failure -> failed")
+    void failedSend_returnsFailure() {
+        when(userRepository.findById(7L)).thenReturn(Optional.of(userWithEmployee("E007")));
+        when(wecomMessageSender.send(anyList(), anyString(), anyString()))
+            .thenReturn(WecomSendResult.failure(500, "crm down"));
 
         NotificationDeliveryResult result = service.pushForRecipient(event(), 7L);
 
         assertThat(result.successful()).isFalse();
-        assertThat(result.errcode()).isEqualTo(40013);
-        assertThat(result.message()).isEqualTo("invalid agentid");
+        assertThat(result.errcode()).isEqualTo(500);
+        assertThat(result.message()).isEqualTo("crm down");
     }
 
     @Test
-    @DisplayName("publisher throws -> bubble runtime exception")
-    void publisherThrows_BubblesException() {
-        WeComIntegrationEntity integration = new WeComIntegrationEntity();
-        integration.setCorpId("corp");
-        integration.setAgentId("1");
-        integration.setEncryptedSecret("enc");
-        integration.setMessageEnabled(true);
-        when(integrationRepository.findById(1L)).thenReturn(Optional.of(integration));
+    @DisplayName("content 含格式化描述与深链 URL")
+    void send_passesFormattedContent() {
+        when(userRepository.findById(7L)).thenReturn(Optional.of(userWithEmployee("E007")));
+        when(wecomMessageSender.send(anyList(), anyString(), anyString()))
+            .thenReturn(WecomSendResult.success(0, "ok"));
 
-        User user = User.builder().id(7L).username("u").email("a@x.com").password("p")
-            .fullName("User").role(User.Role.STAFF).wecomUserId("wc_007").build();
-        when(userRepository.findById(7L)).thenReturn(Optional.of(user));
+        service.pushForRecipient(event(), 7L);
 
-        when(cipher.decrypt("enc")).thenReturn("plain");
-        when(publisher.sendTextMessage(anyString(), anyString(), anyString(), anyList(), anyString()))
+        ArgumentCaptor<String> content = ArgumentCaptor.forClass(String.class);
+        verify(wecomMessageSender).send(eq(List.of("E007")), anyString(), content.capture());
+        assertThat(content.getValue()).contains("https://xiyu.example.com");
+    }
+
+    @Test
+    @DisplayName("发送器抛异常 -> 向上抛出，交由投递管线处理")
+    void senderThrows_bubblesException() {
+        when(userRepository.findById(7L)).thenReturn(Optional.of(userWithEmployee("E007")));
+        when(wecomMessageSender.send(anyList(), anyString(), anyString()))
             .thenThrow(new RuntimeException("timeout"));
 
         assertThatThrownBy(() -> service.pushForRecipient(event(), 7L))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("timeout");
+            .isInstanceOf(RuntimeException.class)
+            .hasMessageContaining("timeout");
     }
 }
