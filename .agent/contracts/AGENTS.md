@@ -7,7 +7,7 @@
 
 1. **真实 API 唯一源，禁止 Mock** → 详见 `SECURITY.md §Mock 政策`
 2. **复杂任务必走 Spec Kit 流程门禁** → 详见 `PLANS.md §Spec Kit 流程门禁`
-3. **严禁在 main 基准区修改代码，物理隔离** → 详见 `PLANS.md §多 Agent 协作`
+3. **严禁在 main 基准区修改代码 & 严禁删除多 Agent 持久 Worktree** → 详见 `PLANS.md §多 Agent 协作`
 4. **FP-Java：纯核心可单测、不依赖框架** → 详见 `ARCHITECTURE.md §Agent Contract`
 5. **原子提交 + 测试证据，每变必测** → 详见 `RELIABILITY.md §关键硬约束`
 

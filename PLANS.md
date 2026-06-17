@@ -72,6 +72,13 @@ git branch -D agent/<name>/<task>
 git push origin --delete agent/<name>/<task>
 ```
 
+### Worktree 保护规则
+
+- **严禁删除持久 Worktree 目录**：所有 Agent 的持久 worktree（`/Users/user/xiyu/worktrees/<name>/`）是团队共享基础设施，任何人不得删除。
+- **恢复规程**：若因误操作导致持久 worktree 目录丢失，立即执行 `git worktree add /Users/user/xiyu/worktrees/<name> origin/agent/<name>-init` 并将 HEAD 切回对应分支。
+- **门禁检查**：涉及 `git worktree remove` 的操作必须先确认目标不是持久 worktree。持久 worktree 以分支名匹配 `agent/*-init` 为准。
+- **违规处理**：违反本规则导致工作区丢失的，责任方承担恢复责任。
+
 ### 通用原则
 
 - **物理隔离**：各 Agent 在 `/Users/user/xiyu/worktrees/` 下的独立持久 Worktree 工作，严禁在 `main` 基准区修改代码。
@@ -83,6 +90,13 @@ git push origin --delete agent/<name>/<task>
   - **Worktree 锚点分支**（agent/<name>-init）：各 Agent worktree 的常驻基线分支。**严禁直接在此分支上开发**（CI 门禁会拦截），**严禁删除**（本地或远端均不可删）。仅用于 worktree 锚定和多 Agent 间同步基线。
   - **任务开发分支**（`agent/<name>/<task>` 等前缀）：每个原子任务一个独立分支。PR 合入后由 CI 自动清理删除远端分支，本地分支需手动 `git branch -D`。
   - 分支命名规范详见 `.wiki/pages/branch-naming.md`。
+### Worktree 保护规则
+
+- **严禁删除持久 Worktree 目录**：所有 Agent 的持久 worktree（）是团队共享基础设施，任何人不得删除。
+- **恢复规程**：若因误操作导致持久 worktree 目录丢失，立即执行  并将 HEAD 切回对应分支。
+- **门禁检查**：涉及  的操作必须先确认目标不是持久 worktree。持久 worktree 以分支名匹配  为准。
+- **违规处理**：违反本规则导致工作区丢失的，责任方承担恢复责任。
+
 
 ## 落计划约定
 
