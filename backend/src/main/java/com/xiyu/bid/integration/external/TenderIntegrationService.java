@@ -119,8 +119,8 @@ public class TenderIntegrationService {
                             + " sourceId=" + sourceId + " 不匹配");
                 }
             }
-        } else if (sourceSystem != null && !sourceSystem.isBlank()
-                && sourceId != null && !sourceId.isBlank()) {
+        } else if (sourceSystem != null && !sourceSystem.isBlank() && !"_".equals(sourceSystem)
+                && sourceId != null && !sourceId.isBlank() && !"_".equals(sourceId)) {
             String externalId = buildExternalId(sourceSystem, sourceId);
             tender = tenderRepository.findByExternalId(externalId)
                     .orElseThrow(() -> new com.xiyu.bid.exception.ResourceNotFoundException(
@@ -158,9 +158,9 @@ public class TenderIntegrationService {
             tender = tenderRepository.findById(request.getTenderId())
                     .orElseThrow(() -> new com.xiyu.bid.exception.ResourceNotFoundException(
                             "标讯不存在: id=" + request.getTenderId()));
-            // 若同时传了 sourceSystem/sourceId，做交叉校验
-            if (sourceSystem != null && !sourceSystem.isBlank()
-                    && sourceId != null && !sourceId.isBlank()) {
+            // 若同时传了 sourceSystem/sourceId（且非占位符 _），做交叉校验
+            if (sourceSystem != null && !sourceSystem.isBlank() && !"_".equals(sourceSystem)
+                    && sourceId != null && !sourceId.isBlank() && !"_".equals(sourceId)) {
                 String expectedExternalId = buildExternalId(sourceSystem, sourceId);
                 if (tender.getExternalId() != null && !tender.getExternalId().equals(expectedExternalId)) {
                     throw new IllegalArgumentException(
@@ -169,8 +169,8 @@ public class TenderIntegrationService {
                             + " sourceId=" + sourceId + " 不匹配");
                 }
             }
-        } else if (sourceSystem != null && !sourceSystem.isBlank()
-                && sourceId != null && !sourceId.isBlank()) {
+        } else if (sourceSystem != null && !sourceSystem.isBlank() && !"_".equals(sourceSystem)
+                && sourceId != null && !sourceId.isBlank() && !"_".equals(sourceId)) {
             String externalId = buildExternalId(sourceSystem, sourceId);
             tender = tenderRepository.findByExternalId(externalId)
                     .orElseThrow(() -> new com.xiyu.bid.exception.ResourceNotFoundException(
