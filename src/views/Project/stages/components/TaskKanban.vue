@@ -63,7 +63,7 @@
         <el-form-item label="任务名称" prop="title">
           <el-input v-model="createForm.title" placeholder="输入任务名称" maxlength="200" />
         </el-form-item>
-        <el-form-item label="详细描述" prop="description">
+        <el-form-item label="详细描述" prop="description" required>
           <el-input v-model="createForm.description" type="textarea" :rows="3" placeholder="输入详细描述" />
         </el-form-item>
         <el-form-item label="任务附件">
@@ -77,7 +77,7 @@
             <el-option v-for="u in userOptions" :key="u.id" :label="u.name" :value="u.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="截止日期" prop="dueDate">
+        <el-form-item label="截止日期" prop="dueDate" required>
           <el-date-picker v-model="createForm.dueDate" type="date" placeholder="选择截止日期" style="width:100%" value-format="YYYY-MM-DD" />
         </el-form-item>
       </el-form>
@@ -172,7 +172,7 @@ const creating = ref(false)
 const createFormRef = ref(null)
 const createForm = reactive({ title: '', description: '', assigneeId: null, dueDate: '' })
 const createFileList = ref([])
-const createRules = { title: [{ required: true, message: '请输入任务名称', trigger: 'blur' }], assigneeId: [{ required: true, message: '请选择执行人', trigger: 'change' }] }
+const createRules = { title: [{ required: true, message: '请输入任务名称', trigger: 'blur' }], description: [{ required: true, message: '请输入详细描述', trigger: 'blur' }], assigneeId: [{ required: true, message: '请选择执行人', trigger: 'change' }], dueDate: [{ required: true, message: '请选择截止日期', trigger: 'change' }] }
 
 async function handleCreate() {
   if (!createFormRef.value) return
