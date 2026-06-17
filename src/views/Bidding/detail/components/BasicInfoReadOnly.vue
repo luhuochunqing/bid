@@ -71,7 +71,14 @@
           </el-col>
           <el-col :span="24">
             <el-form-item label="标讯文件">
-              <template v-if="tender.sourceDocumentName && sourceDocumentDownloadUrl">
+              <template v-if="tender.attachments && tender.attachments.length">
+                <div v-for="(file, idx) in tender.attachments" :key="idx" style="margin-bottom:4px">
+                  <el-link type="primary" :href="file.fileUrl" target="_blank" :underline="false">
+                    📄 {{ file.fileName }}
+                  </el-link>
+                </div>
+              </template>
+              <template v-else-if="tender.sourceDocumentName && sourceDocumentDownloadUrl">
                 <el-link type="primary" :href="sourceDocumentDownloadUrl" target="_blank" :underline="false">
                   📄 {{ tender.sourceDocumentName }}
                 </el-link>

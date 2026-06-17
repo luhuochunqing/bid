@@ -114,6 +114,10 @@ public class TenderRequest {
     @Size(max = 1000, message = "源附件地址长度不能超过1000个字符")
     private String sourceDocumentFileUrl;
 
+    /** 标讯附件列表（上限 10 个） */
+    @Size(max = 10, message = "附件数量不能超过10个")
+    private List<TenderAttachmentDTO> attachments;
+
     @Size(max = 100, message = "客户类型长度不能超过100个字符")
     private String customerType;
 

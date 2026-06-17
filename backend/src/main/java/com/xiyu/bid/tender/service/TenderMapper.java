@@ -1,14 +1,18 @@
 package com.xiyu.bid.tender.service;
 
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.entity.TenderAttachment;
 import com.xiyu.bid.tender.dto.ContactDTO;
+import com.xiyu.bid.tender.dto.TenderAttachmentDTO;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import com.xiyu.bid.tender.dto.TenderRequest;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Component
 public class TenderMapper {
@@ -44,6 +48,10 @@ public class TenderMapper {
                 .sourceDocumentName(tender.getSourceDocumentName())
                 .sourceDocumentFileType(tender.getSourceDocumentFileType())
                 .sourceDocumentFileUrl(tender.getSourceDocumentFileUrl())
+                .attachments(tender.getAttachments() == null || tender.getAttachments().isEmpty() ? Collections.emptyList()
+                        : tender.getAttachments().stream().map(a -> TenderAttachmentDTO.builder()
+                                .fileName(a.getFileName()).fileType(a.getFileType()).fileUrl(a.getFileUrl()).build())
+                                .collect(Collectors.toList()))
                 .customerType(tender.getCustomerType())
                 .priority(tender.getPriority())
                 .description(tender.getDescription())
@@ -246,27 +254,17 @@ public class TenderMapper {
         if (dto.getBasicInfoSavedAt() != null) target.setBasicInfoSavedAt(dto.getBasicInfoSavedAt());
     }
 
-    /**
-     * 从实体扁平联系人字段构建联系人数组（集成接口使用）。
-     */
+    /** 从实体扁平联系人字段构建联系人数组（集成接口使用）。 */
     public List<ContactDTO> buildContacts(Tender tender) {
         List<ContactDTO> contacts = new ArrayList<>();
-        if (tender.getContactName() != null && !tender.getContactName().isBlank()) {
-            contacts.add(ContactDTO.builder()
-                    .name(tender.getContactName())
-                    .phone(tender.getContactPhone())
-                    .tel(tender.getContactTel())
-                    .mail(tender.getContactMail())
-                    .build());
-        }
-        if (tender.getContactName2() != null && !tender.getContactName2().isBlank()) {
-            contacts.add(ContactDTO.builder()
-                    .name(tender.getContactName2())
-                    .phone(tender.getContactPhone2())
-                    .tel(tender.getContactTel2())
-                    .mail(tender.getContactMail2())
-                    .build());
-        }
+        if (tender.getContactName() != null && !tender.getContactName().isBlank())
+            contacts.add(ContactDTO.builder().name(tender.getContactName())
+                    .phone(tender.getContactPhone()).tel(tender.getContactTel())
+                    .mail(tender.getContactMail()).build());
+        if (tender.getContactName2() != null && !tender.getContactName2().isBlank())
+            contacts.add(ContactDTO.builder().name(tender.getContactName2())
+                    .phone(tender.getContactPhone2()).tel(tender.getContactTel2())
+                    .mail(tender.getContactMail2()).build());
         return contacts;
     }
 

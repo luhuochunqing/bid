@@ -144,6 +144,11 @@ export function buildManualTenderPayload(form = {}) {
     sourceDocumentName: form.sourceDocumentName || '',
     sourceDocumentFileType: form.sourceDocumentFileType || '',
     sourceDocumentFileUrl: form.sourceDocumentFileUrl || '',
+    attachments: (form.attachments || []).map(f => ({
+      fileName: f.name || f.fileName || '',
+      fileType: f.type || f.fileType || '',
+      fileUrl: f.url || f.fileUrl || ''
+    })),
     status: 'PENDING_ASSIGNMENT',
   }
 }

@@ -4,11 +4,14 @@ import com.xiyu.bid.batch.entity.TenderAssignmentRecord;
 import com.xiyu.bid.batch.repository.TenderAssignmentRecordRepository;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.entity.TenderAttachment;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.repository.ProjectRepository;
+import com.xiyu.bid.repository.TenderAttachmentRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.tender.dto.TenderAttachmentDTO;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +34,7 @@ public class TenderQueryService {
 
     private final TenderRepository tenderRepository;
     private final TenderMapper tenderMapper;
+    private final TenderAttachmentRepository attachmentRepository;
     private final TenderProjectAccessGuard accessGuard;
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
@@ -50,6 +54,15 @@ public class TenderQueryService {
         accessGuard.assertCanAccessTender(tender);
         TenderDTO dto = tenderMapper.toDTO(tender);
         enrichAssignmentInfo(dto, id);
+        // 加载附件
+        List<TenderAttachment> attachments = attachmentRepository.findByTenderId(id);
+        dto.setAttachments(attachments.stream()
+                .map(a -> TenderAttachmentDTO.builder()
+                        .fileName(a.getFileName())
+                        .fileType(a.getFileType())
+                        .fileUrl(a.getFileUrl())
+                        .build())
+                .collect(Collectors.toList()));
         return dto;
     }
 

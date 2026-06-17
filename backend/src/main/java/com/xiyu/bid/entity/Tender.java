@@ -23,6 +23,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.time.LocalDateTime;
 import java.util.Locale;
 
@@ -223,6 +224,10 @@ public class Tender {
 
     @Column(name = "source_document_file_url", length = 1000)
     private String sourceDocumentFileUrl;
+
+    /** 标讯附件列表（@Transient，由 service 层手动加载/保存，上限 10 个）。 */
+    @jakarta.persistence.Transient
+    private List<TenderAttachment> attachments;
 
     @Column(name = "customer_type", length = 100)
     private String customerType;

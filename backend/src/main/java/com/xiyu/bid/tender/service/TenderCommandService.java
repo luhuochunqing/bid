@@ -3,7 +3,9 @@ package com.xiyu.bid.tender.service;
 import com.xiyu.bid.annotation.Auditable;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.entity.TenderAttachment;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.repository.TenderAttachmentRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.repository.TenderRepository;
@@ -47,6 +49,7 @@ public class TenderCommandService {
     private final ApplicationEventPublisher eventPublisher;
     private final UserRepository userRepository;
     private final NotificationApplicationService notificationAppService;
+    private final TenderAttachmentRepository attachmentRepository;
 
     public TenderDTO createTender(TenderDTO tenderDTO) {
         return createTender(tenderDTO, null);
@@ -68,6 +71,9 @@ public class TenderCommandService {
         }
         Tender savedTender = tenderRepository.save(tender);
         log.info("Created tender with id: {}", savedTender.getId());
+
+        // 保存附件
+        saveAttachments(savedTender.getId(), tenderDTO.getAttachments());
 
         // 自动分配：根据业主单位匹配 CRM 项目负责人
         // 匹配成功 → 状态变为 TRACKING；匹配失败 → 保持 PENDING_ASSIGNMENT
@@ -179,6 +185,12 @@ public class TenderCommandService {
         }
         Tender updatedTender = tenderRepository.save(existingTender);
         log.info("Updated tender with id: {}", id);
+
+        // 更新附件
+        if (tenderDTO.getAttachments() != null) {
+            saveAttachments(id, tenderDTO.getAttachments());
+        }
+
         return tenderMapper.toDTO(updatedTender);
     }
 
@@ -240,6 +252,26 @@ public class TenderCommandService {
             return HexFormat.of().formatHex(bytes).substring(0, 16);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 not available", e);
+        }
+    }
+
+    private void saveAttachments(Long tenderId, List<com.xiyu.bid.tender.dto.TenderAttachmentDTO> dtos) {
+        if (dtos == null) return;
+        // 删除旧附件
+        attachmentRepository.deleteByTenderId(tenderId);
+        // 保存新附件（上限 10 个）
+        int count = 0;
+        for (com.xiyu.bid.tender.dto.TenderAttachmentDTO dto : dtos) {
+            if (count >= 10) break;
+            if (dto.getFileName() == null && dto.getFileUrl() == null) continue;
+            TenderAttachment att = TenderAttachment.builder()
+                    .tenderId(tenderId)
+                    .fileName(dto.getFileName() != null ? dto.getFileName() : "")
+                    .fileType(dto.getFileType())
+                    .fileUrl(dto.getFileUrl() != null ? dto.getFileUrl() : "")
+                    .build();
+            attachmentRepository.save(att);
+            count++;
         }
     }
 }

@@ -52,6 +52,10 @@ public class TenderDTO {
     private String sourceDocumentName;
     private String sourceDocumentFileType;
     private String sourceDocumentFileUrl;
+
+    /** 多附件列表（标讯文件，上限 10 个） */
+    private List<TenderAttachmentDTO> attachments;
+
     private String customerType;
     private String priority;
     private String description;
