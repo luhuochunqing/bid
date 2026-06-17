@@ -82,6 +82,12 @@ function apiData(body) {
   return body
 }
 
+function extractAccessToken(response) {
+  const setCookie = response.headers.get('set-cookie') || ''
+  const match = setCookie.match(/access_token=([^;]+)/)
+  return match ? match[1] : null
+}
+
 async function main() {
   fs.mkdirSync(reportDir, { recursive: true })
 
@@ -132,7 +138,7 @@ async function main() {
       body: JSON.stringify({ username, password }),
     })
     requireStatus(response, [200], 'Smoke user login failed')
-    token = apiData(body)?.token
+    token = apiData(body)?.token || extractAccessToken(response)
     requireTruthy(token, 'Smoke user login did not return token')
     recordPass('生产 smoke 账号可登录', username)
   })
