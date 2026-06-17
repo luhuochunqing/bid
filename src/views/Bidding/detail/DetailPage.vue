@@ -236,10 +236,9 @@ const {
 } = useEvaluationReview(tender)
 
 const canFillEvaluation = computed(() => {
-  // 有 evaluationSource（CRM_PUSH / BID_SYSTEM_LINK）时，评估表第一、二部分数据来自CRM，不允许修改
-  if (tender.value?.evaluationSource) return false
-  // 兜底：存量数据 evaluationSource 为 null 但有 crmOpportunityName 时同样不允许修改
-  if (tender.value?.crmOpportunityName) return false
+  // 已关联CRM商机时，评估表第一、二部分数据来自CRM，不允许修改
+  // 含 evaluationSource（CRM_PUSH / BID_SYSTEM_LINK）和存量 crmOpportunityName 兜底
+  if (tender.value?.evaluationSource || tender.value?.crmOpportunityName) return false
   // TRACKING（跟踪中/待评估）状态下，bid_lead 或 sales 角色可以填写评估表字段
   if (!tender.value || !userRole.value) return false
   return tender.value.status === 'TRACKING' && (isBidManager(userRole.value) || userRole.value === 'sales')
@@ -277,12 +276,15 @@ const evaluationFormRef = ref(null)
 function transformCrmBasic(basic) {
   // 字段名对齐后端 EvaluationBasicDTO（V130 三段式 + V1026 字段重构）
   return {
-    plannedShortlistedCount: basic?.shortlistedCount ?? null,
-    mroOfficeFlowAmount: basic?.platformServiceFee ?? null,
-    unfavorableItems: basic?.competitorAnalysis || '',
-    riskAssessment: basic?.riskAssessment || '',
-    contractPeriodStart: basic?.contractPeriodStart || null,
-    contractPeriodEnd: basic?.contractPeriodEnd || null,
+    plannedShortlistedCount: basic?.shortlistedCount ?? basic?.planSupplierCount ?? null,
+    mroOfficeFlowAmount: basic?.platformServiceFee ?? basic?.ecommerceMroAmount ?? null,
+    unfavorableItems: basic?.competitorAnalysis ?? basic?.bidDocumentDisadvantage ?? '',
+    riskAssessment: basic?.riskPrediction ?? '',
+    contingencyPlan: basic?.contingencyPlan ?? '',
+    processKnowledge: basic?.processKnowledge ?? '',
+    supportNotes: basic?.supportNotes ?? '',
+    projectPlanGap: basic?.projectPlanGap ?? '',
+    customerRevenue: basic?.customerRevenue ?? null,
   }
 }
 

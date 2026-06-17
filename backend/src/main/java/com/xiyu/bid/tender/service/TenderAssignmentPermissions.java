@@ -49,12 +49,17 @@ public class TenderAssignmentPermissions {
         if (tenderId == null) return false;
         Optional<Tender> tenderOpt = tenderRepository.findById(tenderId);
         if (tenderOpt.isPresent()) {
-            Tender.Status status = tenderOpt.get().getStatus();
+            Tender tender = tenderOpt.get();
+            Tender.Status status = tender.getStatus();
             if (status == Tender.Status.EVALUATED ||
                 status == Tender.Status.BIDDING ||
                 status == Tender.Status.WON ||
                 status == Tender.Status.LOST ||
                 status == Tender.Status.ABANDONED) {
+                return false;
+            }
+            // 已关联CRM商机时，评估表第一、二部分数据来自CRM，不允许手动编辑
+            if (tender.getCrmOpportunityName() != null || tender.getEvaluationSource() != null) {
                 return false;
             }
         }
