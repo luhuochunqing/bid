@@ -44,7 +44,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="优先级" prop="priority">
+            <el-form-item label="优先级" prop="priority" required>
               <el-select v-model="form.priority" placeholder="选择优先级" class="full-width">
                 <el-option v-for="item in priorities" :key="item.value" :label="item.label" :value="item.value">
                   <div class="priority-option"><span>{{ item.label }} · {{ item.desc }}</span><small>{{ item.standard }}</small></div>
