@@ -1,0 +1,9 @@
+version: 1
+task: "optimize-tender-intake-recognition"
+locks:
+  - path: "src/router/index.js"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/qoder/optimize-tender-intake-recognition"
+    expiresAt: "2026-06-18T15:16:04.971Z"
+    reason: "删除 /project/create 路由，改为重定向到 /project"
