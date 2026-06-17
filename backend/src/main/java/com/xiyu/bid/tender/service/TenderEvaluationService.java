@@ -28,7 +28,9 @@ import com.xiyu.bid.tender.entity.TenderEvaluationRecommendation;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
 import com.xiyu.bid.task.dto.TaskDTO;
 import com.xiyu.bid.task.service.TaskService;
+import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -62,6 +64,7 @@ public class TenderEvaluationService {
     private final TenderEvaluationSubmissionService submissionService;
     private final TenderAssignmentPermissions permissions;
     private final TenderProjectAccessGuard accessGuard;
+    private final ApplicationEventPublisher eventPublisher;
     private final TenderEvaluationSubmissionMapper mapper = new TenderEvaluationSubmissionMapper();
 
     public TenderEvaluationService(
@@ -72,7 +75,8 @@ public class TenderEvaluationService {
             UserRepository userRepository,
             TenderEvaluationSubmissionService submissionService,
             TenderAssignmentPermissions permissions,
-            TenderProjectAccessGuard accessGuard) {
+            TenderProjectAccessGuard accessGuard,
+            ApplicationEventPublisher eventPublisher) {
         this.tenderEvaluationRepository = tenderEvaluationRepository;
         this.tenderRepository = tenderRepository;
         this.projectService = projectService;
@@ -81,6 +85,7 @@ public class TenderEvaluationService {
         this.submissionService = submissionService;
         this.permissions = permissions;
         this.accessGuard = accessGuard;
+        this.eventPublisher = eventPublisher;
     }
 
     // ---------- V119: 项目评估表草稿/提交 facade（委托给 TenderEvaluationSubmissionService） ----------
@@ -177,6 +182,22 @@ public class TenderEvaluationService {
             }
         }
         tenderRepository.save(tender);
+
+        // CO-229: 审批确认后发布状态变更事件，触发 CRM webhook 回调
+        Boolean recShouldBid = null;
+        String recReason = null;
+        if (evaluation.getBidRecommendation() != null) {
+            recShouldBid = evaluation.getBidRecommendation() == TenderEvaluation.BidRecommendation.RECOMMEND;
+        }
+        if (evaluation.getRecommendation() != null) {
+            recReason = evaluation.getRecommendation().getReason();
+        }
+        eventPublisher.publishEvent(TenderStatusChangedEvent.of(
+                tender.getId(), tender.getExternalId(),
+                Tender.Status.EVALUATED, tender.getStatus(), tender.getTitle(),
+                request.abandonmentReason(),
+                reviewerId, reviewer.getUsername(),
+                recShouldBid, recReason));
 
         log.info("Tender {} reviewed, status changed to {}", tenderId, tender.getStatus());
         boolean canFill = permissions.canFill(tenderId, reviewerId);

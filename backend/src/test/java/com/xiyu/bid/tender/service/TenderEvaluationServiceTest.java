@@ -57,6 +57,9 @@ class TenderEvaluationServiceTest {
     @Mock
     private TenderProjectAccessGuard accessGuard;
 
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
+
     private TenderEvaluationService service;
 
     @BeforeEach
@@ -69,7 +72,8 @@ class TenderEvaluationServiceTest {
                 userRepository,
                 mock(TenderEvaluationSubmissionService.class),
                 permissions,
-                accessGuard
+                accessGuard,
+                eventPublisher
         );
         // 决策类端点默认放行；individual 测试覆写为 false 检验 403 路径。
         org.mockito.Mockito.lenient()
