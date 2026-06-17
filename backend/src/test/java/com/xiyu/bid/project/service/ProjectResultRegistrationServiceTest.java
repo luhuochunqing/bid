@@ -4,6 +4,8 @@
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.project.service;
 
+import com.xiyu.bid.crm.application.CrmAuthService;
+import com.xiyu.bid.crm.infrastructure.CrmHttpClient;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.project.core.BidResultType;
 import com.xiyu.bid.project.core.ProjectStage;
@@ -14,6 +16,8 @@ import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.project.repository.ProjectResultCompetitorRepository;
 import com.xiyu.bid.project.repository.ProjectResultRepository;
 import com.xiyu.bid.repository.ProjectRepository;
+import com.xiyu.bid.repository.TenderRepository;
+import com.xiyu.bid.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
@@ -41,20 +45,28 @@ class ProjectResultRegistrationServiceTest {
     private ProjectResultRepository repo;
     private ProjectResultCompetitorRepository competitorRepo;
     private ProjectRepository projectRepo;
+    private TenderRepository tenderRepo;
+    private UserRepository userRepo;
     private ProjectStageService stageService;
     private com.xiyu.bid.service.ProjectAccessScopeService accessScopeService;
     private ProjectNotificationService notificationService;
+    private CrmAuthService crmAuthService;
+    private CrmHttpClient crmHttpClient;
     private ProjectResultRegistrationService service;
 
     @BeforeEach
     void setup() {
         repo = mock(ProjectResultRepository.class);
         projectRepo = mock(ProjectRepository.class);
+        tenderRepo = mock(TenderRepository.class);
+        userRepo = mock(UserRepository.class);
         stageService = mock(ProjectStageService.class);
         accessScopeService = mock(com.xiyu.bid.service.ProjectAccessScopeService.class);
         competitorRepo = mock(ProjectResultCompetitorRepository.class);
         notificationService = mock(ProjectNotificationService.class);
-        service = new ProjectResultRegistrationService(repo, competitorRepo, projectRepo, stageService, accessScopeService, notificationService);
+        crmAuthService = mock(CrmAuthService.class);
+        crmHttpClient = mock(CrmHttpClient.class);
+        service = new ProjectResultRegistrationService(repo, competitorRepo, projectRepo, tenderRepo, userRepo, stageService, accessScopeService, notificationService, crmAuthService, crmHttpClient);
         Project p = new Project();
         p.setId(1L);
         when(projectRepo.findById(1L)).thenReturn(Optional.of(p));

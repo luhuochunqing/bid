@@ -52,7 +52,7 @@ public class WebhookEventListener {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("event", "tender.status_changed");
             payload.put("tenderId", event.tenderId());
-            payload.put("externalId", event.externalId() == null ? "" : event.externalId());
+            payload.put("sourceId", extractSourceId(event.externalId()));
             payload.put("oldStatus", event.oldStatus().name());
             payload.put("newStatus", event.newStatus().name());
             payload.put("title", event.title());
@@ -76,5 +76,11 @@ public class WebhookEventListener {
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException("Failed to serialize webhook payload", ex);
         }
+    }
+
+    private String extractSourceId(String externalId) {
+        if (externalId == null || externalId.isBlank()) return "";
+        int idx = externalId.indexOf(':');
+        return idx >= 0 ? externalId.substring(idx + 1) : externalId;
     }
 }

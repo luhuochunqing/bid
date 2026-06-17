@@ -18,7 +18,6 @@ import java.util.stream.Collectors;
 public class TenderMapper {
 
     private static final int BID_NOTICE_TRUNCATE = 200;
-
     public TenderDTO toDTO(Tender tender) {
         if (tender == null) {
             return null;
@@ -297,5 +296,5 @@ public class TenderMapper {
     private static String truncate(String value, int maxLen) {
         if (value == null) return null;
         return value.length() <= maxLen ? value : value.substring(0, maxLen);
-    }
+}
 }
