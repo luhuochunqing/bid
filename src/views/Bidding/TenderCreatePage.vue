@@ -10,9 +10,9 @@
     </el-tabs>
 
     <TenderBasicInfoTab
+      ref="basicInfoTabRef"
       :active-tab="activeTab"
       :form="form"
-      :form-ref="formRef"
       :rules="rules"
       :regions="regions"
       :customer-types="customerTypes"
@@ -80,12 +80,13 @@ const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 
-const { formRef, form, rules, regions, customerTypes, projectTypes, priorities, canSave, populateForm, validateBeforeSave } = useTenderCreateForm()
+const { form, rules, regions, customerTypes, projectTypes, priorities, canSave, populateForm, validateBeforeSave } = useTenderCreateForm()
 const { parsingDocument, handleFileChange, handlePastedTextParse } = useTenderAiParse(form)
 
 const editTenderId = computed(() => { const id = route.query.edit; return id ? Number(id) : null })
 const isEditMode = computed(() => !!editTenderId.value)
 
+const basicInfoTabRef = ref(null)
 const activeTab = ref('basic')
 const saving = ref(false)
 const isReadOnly = ref(false)
@@ -131,7 +132,7 @@ onMounted(async () => {
 })
 
 async function handleSave() {
-  if (!(await validateBeforeSave())) return
+  if (!(await validateBeforeSave(basicInfoTabRef))) return
   saving.value = true
   try {
     const payload = buildManualTenderPayload(form.value)

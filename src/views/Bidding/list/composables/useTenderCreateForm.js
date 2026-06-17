@@ -9,7 +9,6 @@ import {
 } from '../constants.js'
 
 export function useTenderCreateForm() {
-  const formRef = ref(null)
   const form = ref(createForm())
 
   const regions = chinaRegionOptions
@@ -36,9 +35,9 @@ export function useTenderCreateForm() {
     form.value = mapTenderToForm(data)
   }
 
-  async function validateBeforeSave() {
+  async function validateBeforeSave(formElRef) {
     try {
-      await formRef.value?.validate()
+      await formElRef.value?.validate()
     } catch {
       ElMessage.warning('请填写必填项后再保存')
       return false
@@ -81,7 +80,7 @@ export function useTenderCreateForm() {
   }
 
   return {
-    formRef, form, rules, regions, customerTypes, projectTypes, priorities,
+    form, rules, regions, customerTypes, projectTypes, priorities,
     canSave, resetForm, populateForm, validateBeforeSave,
   }
 }

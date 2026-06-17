@@ -1,7 +1,7 @@
 <template>
   <div v-show="activeTab === 'basic'" class="tab-content">
     <el-card shadow="never">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="110px" :disabled="saving || isReadOnly">
+      <el-form ref="innerFormRef" :model="form" :rules="rules" label-width="110px" :disabled="saving || isReadOnly">
         <el-row :gutter="16">
           <el-col :span="24">
             <el-form-item label="项目名称" prop="title">
@@ -99,14 +99,17 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { DocumentCopy, Upload } from '@element-plus/icons-vue'
 import { chinaRegionOptions } from '@/components/common/chinaRegionData.js'
+
+const innerFormRef = ref(null)
+
+defineExpose({ validate: () => innerFormRef.value?.validate() })
 
 const props = defineProps({
   activeTab: String,
   form: Object,
-  formRef: Object,
   rules: Object,
   regions: Array,
   customerTypes: Array,
