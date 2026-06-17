@@ -1,71 +1,79 @@
 <template>
   <el-dialog destroy-on-close v-model="visible" :title="editingId ? '编辑仓库' : '新增仓库'" width="800px" :close-on-click-modal="false" @closed="resetForm">
     <el-form ref="formRef" :model="localForm" :rules="rules" label-width="110px">
-      <el-tabs v-model="activeTab">
-        <el-tab-pane label="基础信息" name="basic">
-          <el-row :gutter="20">
-            <el-col :span="12">
-              <el-form-item label="仓库名称" prop="name" required>
-                <el-input v-model="localForm.name" maxlength="200" />
-              </el-form-item>
-              <el-form-item label="仓库类型" prop="type" required>
-                <el-select v-model="localForm.type" popper-class="type-select-popper" style="width:100%">
-                  <el-option label="自营" value="SELF_OPERATED" />
-                  <el-option label="云仓" value="CLOUD" />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="所属区域" prop="region" required>
-                <el-select v-model="localForm.region" style="width:100%">
-                  <el-option v-for="r in regions" :key="r" :label="r" :value="r" />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="所在省份" prop="province" required>
-                <el-input v-model="localForm.province" maxlength="50" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="具体地址" prop="address" required>
-                <el-input v-model="localForm.address" maxlength="500" />
-              </el-form-item>
-              <el-form-item label="仓库面积(㎡)" prop="area" required>
-                <el-input v-model.number="localForm.area" type="number" min="0" step="0.01" />
-              </el-form-item>
-              <el-form-item label="区域联系人" prop="contactPerson" required>
-                <el-input v-model="localForm.contactPerson" maxlength="100" />
-              </el-form-item>
-              <el-form-item label="备注">
-                <el-input v-model="localForm.remarks" type="textarea" :rows="2" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-        </el-tab-pane>
-        <el-tab-pane label="租约/服务信息" name="lease">
-          <el-row :gutter="20">
-            <el-col :span="12">
-              <el-form-item label="开始时间" prop="startDate" required>
-                <el-date-picker v-model="localForm.startDate" type="date" value-format="YYYY-MM-DD" style="width:100%" />
-              </el-form-item>
-              <el-form-item label="出租方" prop="lessor" required>
-                <el-input v-model="localForm.lessor" maxlength="200" />
-              </el-form-item>
-              <el-form-item label="承租方" prop="lessee" required>
-                <el-input v-model="localForm.lessee" maxlength="200" placeholder="默认西域" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="结束时间" prop="endDate" required>
-                <el-date-picker v-model="localForm.endDate" type="date" value-format="YYYY-MM-DD" style="width:100%" />
-              </el-form-item>
-              <el-form-item label="发票租期">
-                <el-input v-model="localForm.invoicePeriod" maxlength="100" placeholder="如: 2025-01-01~2025-03-31" />
-              </el-form-item>
-              <el-form-item label="关仓计划">
-                <el-input v-model="localForm.closePlan" type="textarea" :rows="2" maxlength="500" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-        </el-tab-pane>
-        <el-tab-pane label="资料核验" name="cert">
+      <!-- 基础信息 -->
+      <div class="section-title">基础信息</div>
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form-item label="仓库名称" prop="name" required>
+            <el-input v-model="localForm.name" maxlength="200" />
+          </el-form-item>
+          <el-form-item label="仓库类型" prop="type" required>
+            <el-select v-model="localForm.type" popper-class="type-select-popper" style="width:100%">
+              <el-option label="自营" value="SELF_OPERATED" />
+              <el-option label="云仓" value="CLOUD" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="所属区域" prop="region" required>
+            <el-select v-model="localForm.region" style="width:100%">
+              <el-option v-for="r in regions" :key="r" :label="r" :value="r" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="所在省份" prop="province" required>
+            <el-input v-model="localForm.province" maxlength="50" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="具体地址" prop="address" required>
+            <el-input v-model="localForm.address" maxlength="500" />
+          </el-form-item>
+          <el-form-item label="仓库面积(㎡)" prop="area" required>
+            <el-input v-model.number="localForm.area" type="number" min="0" step="0.01" />
+          </el-form-item>
+          <el-form-item label="区域联系人" prop="contactPerson" required>
+            <el-input v-model="localForm.contactPerson" maxlength="100" />
+          </el-form-item>
+          <el-form-item label="备注">
+            <el-input v-model="localForm.remarks" type="textarea" :rows="2" />
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <el-divider />
+
+      <!-- 租约信息 -->
+      <div class="section-title">租约信息</div>
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form-item label="开始时间" prop="startDate" required>
+            <el-date-picker v-model="localForm.startDate" type="date" value-format="YYYY-MM-DD" style="width:100%" />
+          </el-form-item>
+          <el-form-item label="出租方" prop="lessor" required>
+            <el-input v-model="localForm.lessor" maxlength="200" />
+          </el-form-item>
+          <el-form-item label="承租方" prop="lessee" required>
+            <el-input v-model="localForm.lessee" maxlength="200" placeholder="默认西域" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="结束时间" prop="endDate" required>
+            <el-date-picker v-model="localForm.endDate" type="date" value-format="YYYY-MM-DD" style="width:100%" />
+          </el-form-item>
+          <el-form-item label="发票租期">
+            <el-input v-model="localForm.invoicePeriod" maxlength="100" placeholder="如: 2025-01-01~2025-03-31" />
+          </el-form-item>
+          <el-form-item label="关仓计划">
+            <el-input v-model="localForm.closePlan" type="textarea" :rows="2" maxlength="500" />
+          </el-form-item>
+        </el-col>
+      </el-row>
+
+      <el-divider />
+
+      <!-- 资料核验 -->
+      <div class="section-title">资料核验</div>
+      <el-row :gutter="20">
+        <el-col :span="24">
           <el-form-item label="有产权证">
             <el-switch v-model="localForm.hasPropertyCert" />
           </el-form-item>
@@ -105,8 +113,8 @@
           <el-form-item label="核验备注">
             <el-input v-model="localForm.certRemarks" type="textarea" :rows="2" maxlength="500" />
           </el-form-item>
-        </el-tab-pane>
-      </el-tabs>
+        </el-col>
+      </el-row>
     </el-form>
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
@@ -123,20 +131,19 @@ import http from '@/api/client'
 const props = defineProps({
   modelValue: Boolean,
   editingId: { type: Number, default: null },
-  form: { type: Object, default: () => ({}) },
-  initTab: { type: String, default: 'basic' }
+  form: { type: Object, default: () => ({}) }
 })
 const emit = defineEmits(['update:modelValue', 'submitted'])
 
 const visible = computed({ get: () => props.modelValue, set: (v) => emit('update:modelValue', v) })
 const formRef = ref()
 const submitting = ref(false)
-const activeTab = ref('basic')
 const regions = ['华东','华北','华南','西南','西北','东北','华中']
 
 const certFiles = ref([])
 const invoiceFiles = ref([])
 const photoFiles = ref([])
+const fileLists = { PROPERTY_CERTIFICATE: certFiles, INVOICE: invoiceFiles, PHOTOS: photoFiles }
 const existingAttachments = ref([])
 
 const defaultForm = () => ({
@@ -172,16 +179,13 @@ const loadExistingAttachments = async () => {
   } catch {}
 }
 
-watch(() => [props.modelValue, props.form, props.initTab], ([v, f, t]) => {
+watch(() => [props.modelValue, props.form], ([v, f]) => {
   if (v) {
     Object.assign(localForm, f)
-    activeTab.value = t || 'basic'
     if (props.editingId) {
       loadExistingAttachments()
     } else {
-      certFiles.value = []
-      invoiceFiles.value = []
-      photoFiles.value = []
+      for (const list of Object.values(fileLists)) list.value = []
       existingAttachments.value = []
     }
   }
@@ -189,10 +193,7 @@ watch(() => [props.modelValue, props.form, props.initTab], ([v, f, t]) => {
 
 const resetForm = () => {
   Object.assign(localForm, defaultForm())
-  activeTab.value = 'basic'
-  certFiles.value = []
-  invoiceFiles.value = []
-  photoFiles.value = []
+  for (const list of Object.values(fileLists)) list.value = []
   existingAttachments.value = []
 }
 
@@ -212,9 +213,7 @@ const handleFileChange = (file, fileList, type) => {
     return
   }
 
-  if (type === 'PROPERTY_CERTIFICATE') certFiles.value = fileList
-  else if (type === 'INVOICE') invoiceFiles.value = fileList
-  else if (type === 'PHOTOS') photoFiles.value = fileList
+  fileLists[type] && (fileLists[type].value = fileList)
 }
 
 const handleFileRemove = async (file, fileList, type) => {
@@ -229,9 +228,7 @@ const handleFileRemove = async (file, fileList, type) => {
     }
   }
 
-  if (type === 'PROPERTY_CERTIFICATE') certFiles.value = fileList
-  else if (type === 'INVOICE') invoiceFiles.value = fileList
-  else if (type === 'PHOTOS') photoFiles.value = fileList
+  fileLists[type] && (fileLists[type].value = fileList)
 }
 
 const uploadSingleFile = (warehouseId, type, file) => {
@@ -248,9 +245,8 @@ const uploadNewFiles = async (warehouseId) => {
   const newInvoices = invoiceFiles.value.filter(f => !f.id)
   const newPhotos = photoFiles.value.filter(f => !f.id)
   const uploadPromises = []
-  for (const f of newCerts) if (f.raw) uploadPromises.push(uploadSingleFile(warehouseId, 'PROPERTY_CERTIFICATE', f.raw))
-  for (const f of newInvoices) if (f.raw) uploadPromises.push(uploadSingleFile(warehouseId, 'INVOICE', f.raw))
-  for (const f of newPhotos) if (f.raw) uploadPromises.push(uploadSingleFile(warehouseId, 'PHOTOS', f.raw))
+  for (const [type, list] of Object.entries({ PROPERTY_CERTIFICATE: newCerts, INVOICE: newInvoices, PHOTOS: newPhotos }))
+    for (const f of list) if (f.raw) uploadPromises.push(uploadSingleFile(warehouseId, type, f.raw))
   if (uploadPromises.length > 0) await Promise.all(uploadPromises)
 }
 
@@ -285,3 +281,7 @@ const handleSubmit = async () => {
   finally { submitting.value = false }
 }
 </script>
+
+<style scoped>
+.section-title { font-size: 15px; font-weight: 600; color: var(--el-text-color-primary); margin-bottom: 12px; }
+</style>
