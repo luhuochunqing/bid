@@ -39,7 +39,12 @@ const normalizeApiBaseUrl = (rawValue) => {
   return fallback
 }
 
-export const API_BASE_URL = normalizeApiBaseUrl(viteEnv.VITE_API_BASE_URL)
+// 生产构建强制同源（baseURL 空）：前端+后端始终同入口部署（域名经 nginx 反代 / IP 一体），
+// 同源是唯一"无论从哪个 origin 访问都不跨域"的方案。**忽略 VITE_API_BASE_URL**，从代码层
+// 根治"构建配错绝对 URL base（IP/域名）→ 部署后跨域 403"——该 bug 已反复复发 3 次，
+// 构建期 check 可被运维绕过（手动构建/旧产物/别的工具），本强制在代码里、不可绕过。
+// dev 构建（vite serve，import.meta.env.PROD=false）仍用 VITE_API_BASE_URL 调本地后端。
+export const API_BASE_URL = import.meta.env.PROD ? '' : normalizeApiBaseUrl(viteEnv.VITE_API_BASE_URL)
 
 export const API_CONFIG = {
   mode: 'api',
