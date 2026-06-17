@@ -4,6 +4,7 @@
     <div class="tab-toolbar">
       <el-button v-if="canManage" type="primary" @click="openCreate"><el-icon><Plus /></el-icon> {{ activeTab === 'agent' ? '新增代理商授权' : '新增原厂授权' }}</el-button>
       <el-button v-if="canManage" @click="handleExport"><el-icon><Download /></el-icon> 导出 Excel</el-button>
+      <el-button v-if="canManage" type="success" @click="showImport"><el-icon><Upload /></el-icon> 批量导入</el-button>
     </div>
     <el-tabs v-model="activeTab" @tab-change="onTabChange">
       <el-tab-pane label="原厂授权" name="manufacturer">
@@ -138,12 +139,13 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Download } from '@element-plus/icons-vue'
+import { Plus, Download, Upload } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import http from '@/api/client'
 import brandAuthApi, { PRODUCT_LINE_OPTIONS, STATUS_OPTIONS } from '@/api/modules/brandAuth.js'
 import BrandAuthFormDrawer from './components/BrandAuthFormDrawer.vue'
 import BrandAuthDetailDrawer from './components/BrandAuthDetailDrawer.vue'
+import BrandAuthImportDialog from './components/BrandAuthImportDialog.vue'
 import BrandAuthRevokeDialog from './components/BrandAuthRevokeDialog.vue'
 
 const productLineOptions = PRODUCT_LINE_OPTIONS
@@ -230,6 +232,11 @@ const exportFilename = computed(() => {
     .replace('T','_').replace(/:/g,'')
   return (activeTab.value === 'agent' ? '代理商授权清单' : '原厂授权清单') + '_' + ts + '.xlsx'
 })
+
+const importDialogRef = ref(null)
+const showImport = () => { importDialogRef.value?.open() }
+const onImportClose = () => {}
+const onImportSuccess = () => { loadData() }
 
 const handleExport = () => { exportVisible.value = true }
 

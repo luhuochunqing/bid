@@ -7,6 +7,7 @@ import com.xiyu.bid.brandauth.manufacturer.application.command.UpdateManufacture
 import com.xiyu.bid.brandauth.manufacturer.application.dto.ManufacturerAuthorizationDTO;
 import com.xiyu.bid.brandauth.manufacturer.application.service.AttachmentUploadAppService;
 import com.xiyu.bid.brandauth.manufacturer.application.service.BrandAuthExportService;
+import com.xiyu.bid.brandauth.manufacturer.application.service.BrandAuthImportService;
 import com.xiyu.bid.brandauth.manufacturer.application.service.CreateManufacturerAuthAppService;
 import com.xiyu.bid.brandauth.manufacturer.application.service.ListManufacturerAuthAppService;
 import com.xiyu.bid.brandauth.manufacturer.application.service.RevokeManufacturerAuthAppService;
@@ -58,6 +59,8 @@ public class ManufacturerAuthorizationController {
     private final AttachmentUploadAppService attachmentService;
     /** Export service. */
     private final BrandAuthExportService exportService;
+    /** Import service. */
+    private final BrandAuthImportService importService;
     /** User repository for auth resolution. */
     private final UserRepository userRepository;
     /** Operation log repository. */
@@ -212,6 +215,17 @@ public class ManufacturerAuthorizationController {
                 .header("Content-Disposition",
                         "attachment; filename=品牌授权导入模板.xlsx")
                 .body(data);
+    }
+
+    /** Batch import brand authorizations from an uploaded Excel file. */
+    @PostMapping("/import")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<BrandAuthImportService.ImportResult> importExcel(
+            @RequestParam("file") final MultipartFile file) throws IOException {
+        Long userId = getCurrentUserId();
+        BrandAuthImportService.ImportResult result =
+                importService.importExcel(file.getBytes(), userId);
+        return ResponseEntity.ok(result);
     }
 
     private Long getCurrentUserId() {

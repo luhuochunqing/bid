@@ -152,6 +152,21 @@ export const brandAuthApi = {
 
   async getLogs(id) {
     return httpClient.get(`/api/knowledge/brand-auth/${id}/logs`)
+  },
+
+  /** Download import template Excel file. */
+  async downloadTemplate() {
+    return httpClient.get('/api/knowledge/brand-auth/template', {
+      responseType: 'blob'
+    })
+  },
+
+  /** Batch import brand authorizations from an Excel file. */
+  async importExcel(file) {
+    const fd = new FormData()
+    fd.append('file', file)
+    // Don't set Content-Type manually - axios will set it with boundary
+    return httpClient.post('/api/knowledge/brand-auth/import', fd)
   }
 }
 
