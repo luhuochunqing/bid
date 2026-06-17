@@ -51,8 +51,8 @@ export function useTenderCreateForm() {
       }
     }
     if (form.value.deadline && form.value.bidOpeningTime) {
-      if (new Date(form.value.bidOpeningTime) <= new Date(form.value.deadline)) {
-        ElMessage.warning('开标时间必须晚于报名截止时间')
+      if (new Date(form.value.bidOpeningTime) < new Date(form.value.deadline)) {
+        ElMessage.warning('开标时间不得早于报名截止时间')
         return false
       }
     }

@@ -32,7 +32,7 @@ public final class TenderBasicInfoValidator {
      * 校验标讯基本信息。
      * 规则：
      * - 报名截止时间必须大于当前时间
-     * - 开标时间必须大于报名截止时间
+     * - 开标时间必须大于等于报名截止时间
      *
      * @param dto 待校验的标讯 DTO
      * @return 校验结果
@@ -48,8 +48,8 @@ public final class TenderBasicInfoValidator {
             errors.add("报名截止时间必须大于当前时间");
         }
 
-        if (regDeadline != null && bidOpenTime != null && !bidOpenTime.isAfter(regDeadline)) {
-            errors.add("开标时间必须大于报名截止时间");
+        if (regDeadline != null && bidOpenTime != null && bidOpenTime.isBefore(regDeadline)) {
+            errors.add("开标时间必须大于等于报名截止时间");
         }
 
         return new ValidationResult(errors);
