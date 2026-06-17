@@ -112,6 +112,9 @@ public class TenderPushRequest {
     @Builder.Default
     private Boolean forceUpdate = false;
 
+    /** CRM 商机 ID（传入后自动关联商机并分配项目负责人）。 */
+    private String crmId;
+
     @Data
     @Builder
     @NoArgsConstructor

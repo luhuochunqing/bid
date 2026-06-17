@@ -27,6 +27,7 @@
         "backend/pom.xml",
         "backend/src/main/java/com/xiyu/bid/approval/controller/ApprovalController.java",
         "backend/src/main/java/com/xiyu/bid/entity/Tender.java",
+        "backend/src/main/java/com/xiyu/bid/integration/external/TenderIntegrationService.java",
         "backend/src/main/java/com/xiyu/bid/exception/GlobalExceptionHandler.java",
         "backend/src/main/java/com/xiyu/bid/formengine/application/FormDefinitionAdminService.java",
         "backend/src/main/java/com/xiyu/bid/integration/organization/infrastructure/client/OrganizationDirectoryHttpGateway.java",

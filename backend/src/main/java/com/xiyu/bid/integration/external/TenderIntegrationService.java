@@ -41,6 +41,7 @@ public class TenderIntegrationService {
     private final TenderEvaluationRepository tenderEvaluationRepository;
     private final TenderEvaluationCustomerInfoRepository customerInfoRepository;
     private final TenderEvaluationSubmissionMapper submissionMapper;
+    private final CrmTenderLinkService crmTenderLinkService;
     /**
      * 幂等推送标讯。
      * 按 (sourceSystem, sourceId) 组合 externalId 进行幂等判断：
@@ -57,6 +58,7 @@ public class TenderIntegrationService {
                         if (userId != null) {
                             existing.setCreatorId(userId);
                         }
+                        crmTenderLinkService.linkIfPresent(existing, request.getCrmId());
                         Tender saved = tenderRepository.save(existing);
                         log.info("Force-updated tender id={} externalId={}", saved.getId(), externalId);
                         return TenderPushResponse.builder()
@@ -77,6 +79,7 @@ public class TenderIntegrationService {
                     if (userId != null) {
                         tender.setCreatorId(userId);
                     }
+                    crmTenderLinkService.linkIfPresent(tender, request.getCrmId());
                     Tender saved = tenderRepository.save(tender);
                     log.info("Created tender id={} externalId={}", saved.getId(), externalId);
                     return TenderPushResponse.builder()
@@ -205,6 +208,7 @@ public class TenderIntegrationService {
             tender.setEvaluationSource(com.xiyu.bid.entity.Tender.EvaluationSource.CRM_PUSH);
         }
 
+        crmTenderLinkService.linkIfPresent(tender, request.getCrmId());
         Tender saved = tenderRepository.save(tender);
         log.info("Updated tender id={} externalId={}", saved.getId(), externalId);
         // 处理评估数据
@@ -453,6 +457,7 @@ public class TenderIntegrationService {
         t.setEvaluationSource(com.xiyu.bid.entity.Tender.EvaluationSource.CRM_PUSH);
         return t;
     }
+
     /** 解析 datetime 字符串，兼容 yyyy-MM-dd HH:mm、yyyy-MM-ddTHH:mm、yyyy-MM-ddTHH:mm:ss */
     private static java.time.LocalDateTime parseDateTime(String value) {
         if (value == null || value.isBlank()) return null;

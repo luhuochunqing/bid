@@ -147,6 +147,7 @@ src/main/java/com/xiyu/bid/compliance/application/BidDocumentQualityCheckAppServ
 src/main/java/com/xiyu/bid/casework/application/service/KnowledgeCaseRecommendAppService.java | AI knowledge case recommendation carries projectId; pending unified ProjectAccessScopeService migration.
 src/main/java/com/xiyu/bid/casework/controller/KnowledgeCaseController.java | Knowledge case controller delegates to recommendation service; project access guard pending.
 src/main/java/com/xiyu/bid/integration/external/TenderIntegrationService.java | 外部系统 API Key 集成服务，通过 ApiKeyAuthenticationFilter 的 ROLE_EXTERNAL_API 权限独立鉴权，无需 ProjectAccessScopeService 守卫。
+src/main/java/com/xiyu/bid/integration/external/CrmTenderLinkService.java | CRM 标讯自动关联服务，由 TenderIntegrationService 调用，同属外部系统 API Key 鉴权链（ROLE_EXTERNAL_API），不走项目成员可见性链。
 src/main/java/com/xiyu/bid/casework/application/CasePrecipitationAppService.java | Case precipitation readiness check and manual trigger; operates on already-CLOSED projects where access guard checks passed during closure workflow. Read-only check + event publish, no project data mutation.
 src/main/java/com/xiyu/bid/resources/service/CaExpiryScanService.java | Scheduler-side CA expiry scan; scans global CA certificate and borrow records (not project-scoped) and generates alerts via AlertHistoryService.
 src/main/java/com/xiyu/bid/tender/controller/TenderAnalysisController.java | 标讯AI分析控制器委托 AiDeepCapabilityService 和 TenderAiAnalysisService 处理业务逻辑；两个 service 内部均通过 projectAccessScopeService.assertCurrentUserCanAccessProject() 执行项目级权限校验，控制器级无需重复守卫。
