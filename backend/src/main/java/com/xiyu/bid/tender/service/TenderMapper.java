@@ -45,6 +45,7 @@ public class TenderMapper {
                 .contactPhone2(tender.getContactPhone2())
                 .contactTel2(tender.getContactTel2())
                 .contactMail2(tender.getContactMail2())
+                .contactInfo(buildContacts(tender))
                 .sourceDocumentName(tender.getSourceDocumentName())
                 .sourceDocumentFileType(tender.getSourceDocumentFileType())
                 .sourceDocumentFileUrl(tender.getSourceDocumentFileUrl())
@@ -255,17 +256,21 @@ public class TenderMapper {
         if (dto.getBasicInfoSavedAt() != null) target.setBasicInfoSavedAt(dto.getBasicInfoSavedAt());
     }
 
-    /** 从实体扁平联系人字段构建联系人数组（集成接口使用）。 */
     public List<ContactDTO> buildContacts(Tender tender) {
+        return buildContacts(tender.getContactName(), tender.getContactPhone(), tender.getContactTel(), tender.getContactMail(),
+                tender.getContactName2(), tender.getContactPhone2(), tender.getContactTel2(), tender.getContactMail2());
+    }
+
+    /** 从 DTO 扁平字段构建联系人数组（列表接口使用）。 */
+    public List<ContactDTO> buildContactsFromDTO(TenderDTO dto) {
+        return buildContacts(dto.getContactName(), dto.getContactPhone(), dto.getContactTel(), dto.getContactMail(),
+                dto.getContactName2(), dto.getContactPhone2(), dto.getContactTel2(), dto.getContactMail2());
+    }
+
+    private List<ContactDTO> buildContacts(String n1, String p1, String t1, String m1, String n2, String p2, String t2, String m2) {
         List<ContactDTO> contacts = new ArrayList<>();
-        if (tender.getContactName() != null && !tender.getContactName().isBlank())
-            contacts.add(ContactDTO.builder().name(tender.getContactName())
-                    .phone(tender.getContactPhone()).tel(tender.getContactTel())
-                    .mail(tender.getContactMail()).build());
-        if (tender.getContactName2() != null && !tender.getContactName2().isBlank())
-            contacts.add(ContactDTO.builder().name(tender.getContactName2())
-                    .phone(tender.getContactPhone2()).tel(tender.getContactTel2())
-                    .mail(tender.getContactMail2()).build());
+        if (n1 != null && !n1.isBlank()) contacts.add(ContactDTO.builder().name(n1).phone(p1).tel(t1).mail(m1).build());
+        if (n2 != null && !n2.isBlank()) contacts.add(ContactDTO.builder().name(n2).phone(p2).tel(t2).mail(m2).build());
         return contacts;
     }
 
@@ -285,12 +290,10 @@ public class TenderMapper {
         }
         return tags.stream()
                 .filter(tag -> tag != null && !tag.isBlank())
-                .map(String::trim)
                 .distinct()
                 .reduce((left, right) -> left + "," + right)
                 .orElse("");
     }
-
     private static String truncate(String value, int maxLen) {
         if (value == null) return null;
         return value.length() <= maxLen ? value : value.substring(0, maxLen);

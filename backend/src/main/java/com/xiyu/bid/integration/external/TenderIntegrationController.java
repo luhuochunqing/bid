@@ -70,7 +70,7 @@ public class TenderIntegrationController {
         Page<TenderDTO> page = tenderQueryService.searchTendersPaged(
                 criteria, PageRequest.of(safePage, safeSize));
 
-        // 归一化 source 为中文标签
+        // 归一化 source + 组装 contactInfo
         page.getContent().forEach(dto -> {
             if (dto.getSourceType() != null) {
                 switch (dto.getSourceType()) {
@@ -86,6 +86,8 @@ public class TenderIntegrationController {
                         break;
                 }
             }
+            // 联系人数组，与标讯详情接口格式一致
+            dto.setContactInfo(tenderMapper.buildContactsFromDTO(dto));
         });
 
         Map<String, Object> data = Map.of(
