@@ -117,6 +117,7 @@ public class TenderMapper {
                 .sourceDocumentName(request.getSourceDocumentName())
                 .sourceDocumentFileType(request.getSourceDocumentFileType())
                 .sourceDocumentFileUrl(request.getSourceDocumentFileUrl())
+                .attachments(request.getAttachments())
                 .customerType(request.getCustomerType())
                 .priority(request.getPriority())
                 .description(request.getDescription())

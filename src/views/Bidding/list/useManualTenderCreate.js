@@ -67,6 +67,14 @@ function applySourceDocumentMetadata(form, file, result = {}) {
   form.sourceDocumentName = file?.name || result?.documentName || '招标文件'
   form.sourceDocumentFileType = file?.type || result?.contentType || ''
   form.sourceDocumentFileUrl = fileUrl
+  // 将 URL 回写到 attachments 数组中对应文件
+  if (Array.isArray(form.attachments)) {
+    const target = form.attachments.find(f => (f.uid && f.uid === file?.uid) || f.name === file?.name)
+    if (target) {
+      target.url = fileUrl
+      target.fileUrl = fileUrl
+    }
+  }
 }
 
 function hasGlobalHttpErrorMessage(error) {
