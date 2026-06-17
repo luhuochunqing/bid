@@ -43,6 +43,17 @@ class ProjectDocumentWorkflowService {
 
     ProjectDocumentDTO createProjectDocument(Long projectId, ProjectDocumentCreateRequest request) {
         guardService.requireWorkflowMutationProject(projectId);
+        Long uploaderId = request.getUploaderId();
+        String uploaderName = request.getUploaderName();
+        if (uploaderId == null && (uploaderName == null || uploaderName.isBlank())) {
+            var currentUser = getCurrentUser();
+            if (currentUser != null) {
+                uploaderId = currentUser.getId();
+                uploaderName = currentUser.getFullName();
+            }
+        } else {
+            uploaderName = resolveDisplayName(uploaderId, uploaderName);
+        }
         ProjectDocument document = ProjectDocument.builder()
                 .projectId(projectId)
                 .name(request.getName().trim())
@@ -52,8 +63,8 @@ class ProjectDocumentWorkflowService {
                 .linkedEntityType(trimToNull(request.getLinkedEntityType()))
                 .linkedEntityId(request.getLinkedEntityId())
                 .fileUrl(trimToNull(request.getFileUrl()))
-                .uploaderId(request.getUploaderId())
-                .uploaderName(resolveDisplayName(request.getUploaderId(), request.getUploaderName()))
+                .uploaderId(uploaderId)
+                .uploaderName(uploaderName)
                 .build();
         ProjectDocument savedDocument = projectDocumentRepository.save(document);
         projectDocumentBindingGateway.onDocumentCreated(savedDocument);
@@ -79,6 +90,13 @@ class ProjectDocumentWorkflowService {
         ProjectDocument document = guardService.requireDocument(projectId, documentId);
         projectDocumentRepository.delete(document);
         projectDocumentBindingGateway.onDocumentDeleted(document);
+    }
+
+    private com.xiyu.bid.entity.User getCurrentUser() {
+        org.springframework.security.core.Authentication auth =
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) return null;
+        return userRepository.findByUsername(auth.getName()).orElse(null);
     }
 
     private String resolveDisplayName(Long userId, String fallback) {
