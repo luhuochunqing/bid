@@ -385,9 +385,13 @@ public class TenderIntegrationService {
                 customerInfoRepository.deleteAll(evalEntity.getCustomerInfos());
             }
             List<TenderEvaluationCustomerInfo> newRows = new ArrayList<>();
+            int roleIndex = 1;
             for (Map<String, Object> roleData : eval.getEvaluationCustomerInfos()) {
                 String roleKey = (String) roleData.get("roleKey");
-                if (roleKey == null) continue;
+                if (roleKey == null || roleKey.isBlank()) {
+                    roleKey = "EXTERNAL_ROLE_" + roleIndex;
+                }
+                roleIndex++;
                 for (Map.Entry<String, Object> entry : roleData.entrySet()) {
                     if ("roleKey".equals(entry.getKey()) || entry.getValue() == null) continue;
                     TenderEvaluationCustomerInfo row = new TenderEvaluationCustomerInfo();
