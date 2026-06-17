@@ -1,5 +1,5 @@
 <template>
-  <el-dialog v-model="visible" title="批量导入平台账号" width="560px" :close-on-click-modal="false" destroy-on-close>
+  <el-dialog v-model="visible" title="批量导入CA证书" width="560px" :close-on-click-modal="false" destroy-on-close>
     <!-- 初始态 -->
     <div v-if="!taskId" class="import-init">
       <el-alert title="请先下载模板，按格式填写后上传" type="info" :closable="false" show-icon style="margin-bottom:16px" />
@@ -61,7 +61,7 @@
 import { ref, computed, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Download, UploadFilled } from '@element-plus/icons-vue'
-import { resourcesApi } from '@/api'
+import { caApi } from '@/api/modules/ca.js'
 import http from '@/api/client'
 
 const props = defineProps({
@@ -114,7 +114,7 @@ const startPolling = () => {
   stopPolling()
   pollTimer = setInterval(async () => {
     try {
-      const res = await resourcesApi.accounts.getImportTask(taskId.value)
+      const res = await caApi.getImportTask(taskId.value)
       const data = res?.data || res
       status.value = data.status
       task.value = data
@@ -130,11 +130,11 @@ const startPolling = () => {
 
 const downloadTemplate = async () => {
   try {
-    const res = await http.get('/api/platform/accounts/template', { responseType: 'blob' })
+    const res = await http.get('/api/ca-certificates/template', { responseType: 'blob' })
     const url = window.URL.createObjectURL(new Blob([res]))
     const a = document.createElement('a')
     a.href = url
-    a.download = '平台账户导入模板.xlsx'
+    a.download = 'CA证书导入模板.xlsx'
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -148,7 +148,7 @@ const downloadTemplate = async () => {
 const startImport = async () => {
   if (!fileList.value.length) return
   try {
-    const res = await resourcesApi.accounts.importFile(fileList.value[0].raw)
+    const res = await caApi.importFile(fileList.value[0].raw)
     taskId.value = res?.data?.taskId
     status.value = 'PENDING'
     startPolling()

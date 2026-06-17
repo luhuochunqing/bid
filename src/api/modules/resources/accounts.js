@@ -117,5 +117,23 @@ export const accountsApi = {
   async getPassword(id) {
     if (!isNumericId(id)) return Promise.resolve(invalidIdMessage('account'))
     return httpClient.get(`/api/platform/accounts/${id}/password`)
+  },
+
+  // ── 批量导入 ────────────────────────────────────────────────────────────────
+
+  async importFile(file) {
+    const fd = new FormData()
+    fd.append('file', file)
+    return httpClient.post('/api/platform/accounts/import', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+
+  async getImportTask(taskId) {
+    return httpClient.get(`/api/platform/accounts/import/tasks/${taskId}`)
+  },
+
+  async listImportTasks() {
+    return httpClient.get('/api/platform/accounts/import/tasks')
   }
 }

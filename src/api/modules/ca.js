@@ -253,6 +253,24 @@ export const caApi = {
       ? response.data.map(normalizeBorrowApplication)
       : []
     return { ...response, data }
+  },
+
+  // ── 批量导入 ────────────────────────────────────────────────────────────────
+
+  async importFile(file) {
+    const fd = new FormData()
+    fd.append('file', file)
+    return httpClient.post(`${BASE}/import`, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+
+  async getImportTask(taskId) {
+    return httpClient.get(`${BASE}/import/tasks/${taskId}`)
+  },
+
+  async listImportTasks() {
+    return httpClient.get(`${BASE}/import/tasks`)
   }
 }
 

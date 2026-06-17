@@ -55,6 +55,7 @@
           <div class="header-actions">
             <el-button @click="loadData"><el-icon><Refresh /></el-icon>刷新</el-button>
             <el-button v-if="isManagerView" type="primary" @click="handleCreate"><el-icon><Plus /></el-icon>新增</el-button>
+            <el-button v-if="isManagerView" @click="showImportDialog = true"><el-icon><Upload /></el-icon>批量导入</el-button>
           </div>
         </div>
       </template>
@@ -213,12 +214,13 @@
       :submitting="returnSubmitting"
       @submit="handleReturnSubmit"
     />
+    <CAImportDialog v-model="showImportDialog" @imported="loadData" />
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { Search, Refresh, Plus } from '@element-plus/icons-vue'
+import { Search, Refresh, Plus, Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { useCaStore } from '@/stores/ca'
@@ -228,6 +230,7 @@ import CADetailDrawer from './components/CADetailDrawer.vue'
 import CAFormDialog from './components/CAFormDialog.vue'
 import CABorrowDialog from './components/CABorrowDialog.vue'
 import CAReturnDialog from './components/CAReturnDialog.vue'
+import CAImportDialog from './components/CAImportDialog.vue'
 
 const userStore = useUserStore()
 const caStore = useCaStore()
@@ -268,6 +271,7 @@ const drawerVisible = ref(false)
 const formVisible = ref(false)
 const borrowVisible = ref(false)
 const returnVisible = ref(false)
+const showImportDialog = ref(false)
 
 // Selected item
 const selectedCa = ref(null)

@@ -22,7 +22,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/** CA certificate Excel batch import service. */
+/**
+ * CA certificate Excel batch import service.
+ * @deprecated 已被 {@link CaCertificateImportAppService} 取代（异步任务模式）。
+ *             保留仅供历史参考，新功能请使用新服务。
+ */
+@Deprecated
 @Service
 @RequiredArgsConstructor
 @Slf4j
