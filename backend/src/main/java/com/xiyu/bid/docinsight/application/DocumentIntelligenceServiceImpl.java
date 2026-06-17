@@ -69,8 +69,19 @@ public class DocumentIntelligenceServiceImpl implements DocumentIntelligenceServ
     }
 
     private DocumentAnalysisResult parse(String profileCode, StoredDocument stored, String fileName, String contentType, byte[] content) {
+        long extractStart = System.currentTimeMillis();
         ExtractedDocument extracted = extractor.extract(fileName, contentType, content);
+        long extractDuration = System.currentTimeMillis() - extractStart;
+
         String extractedText = extracted.text();
+        String extractorSource = extracted.extras() != null
+                ? String.valueOf(extracted.extras().getOrDefault("fallbackReason", "sidecar"))
+                : "sidecar";
+        int usableChars = countUsableChars(extractedText);
+
+        log.info("Document extraction finished: fileName={}, extractor={}, duration={}ms, textLength={}, usableChars={}",
+                fileName, extractorSource, extractDuration,
+                extractedText == null ? 0 : extractedText.length(), usableChars);
 
         DocumentAnalyzer analyzer = analyzers.stream()
                 .filter(a -> a.supports(profileCode))
@@ -91,6 +102,12 @@ public class DocumentIntelligenceServiceImpl implements DocumentIntelligenceServ
             );
         }
 
+        // 额外检测：如果可用字符比例过低，可能是二进制文件被错误提取
+        if (extractedText.length() > 0 && usableChars < extractedText.length() * 0.3) {
+            log.warn("Document {} has low usable character ratio ({}%), possible binary extraction failure",
+                    fileName, (100 * usableChars) / extractedText.length());
+        }
+
         List<DocumentChunk> chunks = chunker.chunk(extractedText, extracted.structuredMetadata());
 
         DocumentAnalysisInput input = new DocumentAnalysisInput(
@@ -104,6 +121,30 @@ public class DocumentIntelligenceServiceImpl implements DocumentIntelligenceServ
         );
 
         return analyzer.analyze(input);
+    }
+
+    /**
+     * Count "usable" characters: ASCII printable + CJK unified ideographs + common CJK punctuation.
+     * This avoids false positives for Chinese documents where ASCII-only ratio would be low.
+     */
+    private int countUsableChars(String text) {
+        if (text == null) return 0;
+        int count = 0;
+        for (char c : text.toCharArray()) {
+            if (c >= 32 && c <= 126) {
+                count++;
+            } else if (c >= '\u4e00' && c <= '\u9fff') {
+                // CJK Unified Ideographs
+                count++;
+            } else if (c >= '\u3000' && c <= '\u303f') {
+                // CJK Symbols and Punctuation
+                count++;
+            } else if (c >= '\uff00' && c <= '\uffef') {
+                // Halfwidth and Fullwidth Forms (includes fullwidth punctuation)
+                count++;
+            }
+        }
+        return count;
     }
 
     /**

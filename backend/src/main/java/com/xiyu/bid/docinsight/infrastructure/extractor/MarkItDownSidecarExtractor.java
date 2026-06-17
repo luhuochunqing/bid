@@ -8,11 +8,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.docinsight.application.DocumentTextExtractor;
 import com.xiyu.bid.docinsight.application.ExtractedDocument;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.hwpf.HWPFDocument;
+import org.apache.poi.hwpf.extractor.WordExtractor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Recover;
@@ -20,9 +23,12 @@ import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Map;
@@ -32,6 +38,7 @@ import java.util.Map;
 public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
 
     private static final String SIDECAR_KEY_HEADER = "X-Sidecar-Key";
+    private static final int MIN_USABLE_TEXT_LENGTH = 100;
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -57,6 +64,7 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
     public ExtractedDocument extract(String fileName, String contentType, byte[] content) {
         if (isPlainText(contentType)) {
             String text = new String(content, StandardCharsets.UTF_8);
+            log.info("Plain text document extracted: fileName={}, length={}", fileName, text.length());
             return new ExtractedDocument(
                     text,
                     text.length(),
@@ -66,11 +74,23 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
             );
         }
 
-        log.info("Sending document {} to MarkItDown sidecar...", fileName);
+        log.info("Document extraction started: fileName={}, contentType={}, size={} bytes, sidecarUrl={}",
+                fileName, contentType, content.length, sidecarUrl);
+
+        // Sidecar health check before upload
+        boolean sidecarHealthy = checkSidecarHealth();
+        if (!sidecarHealthy) {
+            log.warn("Sidecar health check failed for {}, proceeding with fallback extraction", sidecarUrl);
+            return fallbackExtract(fileName, contentType, content, "sidecar_unhealthy");
+        }
+
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
         if (!sidecarSharedKey.isBlank()) {
             headers.set(SIDECAR_KEY_HEADER, sidecarSharedKey);
+            log.debug("Using sidecar shared key authentication");
+        } else {
+            log.warn("Sidecar shared key is not configured — sending request without authentication");
         }
         TraceHeaderInjector.inject(headers);
 
@@ -84,13 +104,27 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
 
         HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
+        long startTime = System.currentTimeMillis();
         try {
             String responseStr = restTemplate.postForObject(sidecarUrl + "/convert", requestEntity, String.class);
+            long duration = System.currentTimeMillis() - startTime;
+
             JsonNode root = objectMapper.readTree(responseStr);
             String markdown = root.path("markdown").asText("");
+            JsonNode warningsNode = root.path("warnings");
+            String converter = root.path("converter").asText("unknown");
+
+            log.info("Sidecar extraction completed: fileName={}, duration={}ms, converter={}, markdownLength={}, warnings={}",
+                    fileName, duration, converter, markdown.length(), warningsNode);
 
             if (markdown.isBlank()) {
-                throw new IllegalStateException("Sidecar returned empty markdown");
+                log.warn("Sidecar returned empty markdown for {}, falling back to local extraction", fileName);
+                return fallbackExtract(fileName, contentType, content, "sidecar_empty_markdown");
+            }
+
+            if (markdown.trim().length() < MIN_USABLE_TEXT_LENGTH) {
+                log.warn("Sidecar returned very short text ({} chars) for {}, may be a scanned document",
+                        markdown.trim().length(), fileName);
             }
 
             return new ExtractedDocument(
@@ -98,41 +132,111 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
                     markdown.length(),
                     responseStr,
                     "markitdown-sidecar",
-                    Map.of()
+                    Map.of("converter", converter, "sidecarUrl", sidecarUrl)
             );
         } catch (JsonProcessingException e) {
-            throw new RuntimeException("Failed to parse sidecar response", e);
+            log.error("Failed to parse sidecar response for {}: {}", fileName, e.getMessage());
+            return fallbackExtract(fileName, contentType, content, "sidecar_json_parse_error");
+        }
+    }
+
+    /**
+     * Check sidecar health before attempting document conversion.
+     */
+    private boolean checkSidecarHealth() {
+        try {
+            restTemplate.getForObject(sidecarUrl + "/health", String.class);
+            return true;
+        } catch (ResourceAccessException e) {
+            log.warn("Sidecar connection refused at {}: {}", sidecarUrl, e.getMessage());
+            return false;
+        } catch (RestClientException e) {
+            log.warn("Sidecar health check failed at {}: {}", sidecarUrl, e.getMessage());
+            return false;
         }
     }
 
     @Recover
     public ExtractedDocument recover(RestClientException e, String fileName, String contentType, byte[] content) {
-        log.warn("Sidecar extraction failed after retries for {} ({}), falling back to plain text: {}",
+        log.warn("Sidecar extraction failed after retries for {} ({}): {}, falling back to local extraction",
                 fileName, contentType, e.getMessage());
-        return fallbackText(fileName, contentType, content);
+        return fallbackExtract(fileName, contentType, content, "sidecar_rest_exception");
     }
 
     @Recover
     public ExtractedDocument recover(IllegalStateException e, String fileName, String contentType, byte[] content) {
-        log.warn("Sidecar returned invalid result after retries for {} ({}): {}",
+        log.warn("Sidecar returned invalid result after retries for {} ({}): {}, falling back to local extraction",
                 fileName, contentType, e.getMessage());
-        return fallbackText(fileName, contentType, content);
+        return fallbackExtract(fileName, contentType, content, "sidecar_invalid_result");
     }
 
-    private ExtractedDocument fallbackText(String fileName, String contentType, byte[] content) {
+    /**
+     * Fallback extraction when sidecar fails.
+     * For .doc files: uses Apache POI HWPF.
+     * For other files: attempts plain text fallback (best effort, may produce garbage for binary files).
+     */
+    private ExtractedDocument fallbackExtract(String fileName, String contentType, byte[] content, String reason) {
         if (content == null || content.length == 0) {
             throw new IllegalStateException("Sidecar extraction failed for " + fileName
                     + " and no fallback content available");
         }
+
+        String lowerName = fileName.toLowerCase(Locale.ROOT);
+
+        // Try Apache POI HWPF for .doc files
+        if (lowerName.endsWith(".doc") || "application/msword".equals(contentType)) {
+            String text = extractDocWithPoi(content);
+            if (text != null && !text.isBlank()) {
+                log.info("POI HWPF fallback extraction succeeded for {}: {} chars", fileName, text.length());
+                return new ExtractedDocument(
+                        text,
+                        text.length(),
+                        null,
+                        "poi-hwpf-fallback",
+                        Map.of("fallbackReason", reason, "originalExtractor", "markitdown-sidecar")
+                );
+            }
+            log.warn("POI HWPF fallback extraction returned empty for {}", fileName);
+        }
+
+        // Last resort: plain text (will likely be garbage for binary files)
         String text = new String(content, StandardCharsets.UTF_8);
-        log.info("Fallback plain text extraction for {}: {} bytes", fileName, text.length());
+        int printableCount = 0;
+        for (char c : text.toCharArray()) {
+            if (c >= 32 && c <= 126) printableCount++;
+        }
+        log.warn("Fallback plain text extraction for {}: totalChars={}, printableChars={}, ratio={:.1f}%, reason={}",
+                fileName, text.length(), printableCount,
+                text.length() > 0 ? (100.0 * printableCount / text.length()) : 0,
+                reason);
+
         return new ExtractedDocument(
                 text,
                 text.length(),
                 null,
                 "sidecar-fallback-plaintext",
-                Map.of("fallbackReason", "sidecar_unavailable")
+                Map.of("fallbackReason", reason, "printableChars", String.valueOf(printableCount))
         );
+    }
+
+    /**
+     * Extract text from .doc file using Apache POI HWPF.
+     * Returns null if extraction fails.
+     */
+    private String extractDocWithPoi(byte[] content) {
+        try (ByteArrayInputStream bis = new ByteArrayInputStream(content);
+             HWPFDocument doc = new HWPFDocument(bis);
+             WordExtractor extractor = new WordExtractor(doc)) {
+            String text = extractor.getText();
+            if (text != null) {
+                return text.trim();
+            }
+        } catch (IOException e) {
+            log.warn("POI HWPF extraction failed: {}", e.getMessage());
+        } catch (RuntimeException e) {
+            log.warn("POI HWPF extraction unexpected error: {}", e.getMessage());
+        }
+        return null;
     }
 
     private boolean isPlainText(String contentType) {
