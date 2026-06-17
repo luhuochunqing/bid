@@ -1,0 +1,15 @@
+version: 1
+task: "co-238-template"
+locks:
+  - path: "backend/src/main/java/com/xiyu/bid/personnel/domain/importvalidation/ParsedPersonnelRow.java"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/mimo/fix-co-238-template"
+    expiresAt: "2026-06-18T00:00:00.000Z"
+    reason: "CO-238 add departmentName/remark fields"
+  - path: "backend/src/main/java/com/xiyu/bid/personnel/infrastructure/excel/PersonnelImportTemplateGenerator.java"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/mimo/fix-co-238-template"
+    expiresAt: "2026-06-18T00:00:00.000Z"
+    reason: "CO-238 template column alignment"

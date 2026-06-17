@@ -108,7 +108,9 @@ public class PersonnelExcelImporter {
                 getCellDateValue(row.getCell(4)),
                 getCellStringValue(row.getCell(5)),
                 getCellStringValue(row.getCell(6)),
-                getCellStringValue(row.getCell(7))
+                getCellStringValue(row.getCell(7)),
+                getCellStringValue(row.getCell(8)),
+                getCellStringValue(row.getCell(9))
         );
     }
 
@@ -122,7 +124,8 @@ public class PersonnelExcelImporter {
                 getCellDateValue(row.getCell(4)),
                 getCellStringValue(row.getCell(5)),
                 getCellStringValue(row.getCell(6)),
-                getCellStringValue(row.getCell(7))
+                getCellStringValue(row.getCell(7)),
+                parseBoolCell(row.getCell(8))
         );
     }
 
@@ -136,8 +139,17 @@ public class PersonnelExcelImporter {
                 getCellStringValue(row.getCell(4)),
                 getCellDateValue(row.getCell(5)),
                 getCellDateValue(row.getCell(6)),
-                getCellStringValue(row.getCell(7))
+                getCellStringValue(row.getCell(7)),
+                getCellStringValue(row.getCell(8)),
+                parseBoolCell(row.getCell(9)),
+                getCellStringValue(row.getCell(10))
         );
+    }
+
+    private Boolean parseBoolCell(Cell cell) {
+        String val = getCellStringValue(cell);
+        if (val == null || val.isBlank()) return null;
+        return "是".equals(val) || "true".equalsIgnoreCase(val) || "1".equals(val);
     }
 
     private String getCellStringValue(Cell cell) {

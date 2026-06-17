@@ -85,10 +85,10 @@ class PersonnelImportExecutor {
             List<Education> edus = p.educations();
             personnel = new com.xiyu.bid.personnel.domain.model.Personnel(
                     p.id(), row.name(), row.employeeNumber(),
-                    p.departmentCode(), p.departmentName(),
+                    p.departmentCode(), row.departmentName() != null ? row.departmentName() : p.departmentName(),
                     row.gender(), row.entryDate(), row.birthDate(),
                     row.phone(), row.education(), row.technicalTitle(),
-                    p.status(), p.attachmentUrl(), p.remark(),
+                    p.status(), p.attachmentUrl(), row.remark() != null ? row.remark() : p.remark(),
                     certs, edus,
                     p.createdAt(), LocalDateTime.now()
             );
@@ -98,7 +98,7 @@ class PersonnelImportExecutor {
                     row.name(),
                     row.employeeNumber(),
                     null,
-                    null,
+                    row.departmentName(),
                     row.gender(),
                     row.entryDate(),
                     row.birthDate(),
@@ -107,7 +107,7 @@ class PersonnelImportExecutor {
                     row.technicalTitle(),
                     PersonnelStatus.ACTIVE,
                     null,
-                    null,
+                    row.remark(),
                     List.of(),
                     List.of()
             );
@@ -137,7 +137,7 @@ class PersonnelImportExecutor {
                         row.highestEducation(),
                         row.studyForm(),
                         row.major(),
-                        false
+                        Boolean.TRUE.equals(row.isHighestEducationSchool())
                 );
                 personnelRepository.addEducation(personnelId, education);
             } catch (RuntimeException e) {
@@ -172,9 +172,9 @@ class PersonnelImportExecutor {
                         row.issueDate(),
                         row.expiryDate(),
                         null,
-                        null,
-                        false,
-                        null
+                        row.title(),
+                        Boolean.TRUE.equals(row.isPermanent()),
+                        row.remark()
                 );
                 personnelRepository.addCertificate(personnelId, certificate);
             } catch (RuntimeException e) {

@@ -24,15 +24,15 @@ public class PersonnelImportTemplateGenerator {
     private static final String SHEET_CERTIFICATES = "证书与职称";
 
     private static final String[] BASIC_INFO_HEADERS = {
-            "工号", "姓名", "性别", "入职时间", "手机", "学历", "技术职称"
+            "工号", "姓名", "性别", "入职时间", "出生日期", "手机", "学历", "技术职称", "部门", "备注"
     };
 
     private static final String[] EDUCATION_HEADERS = {
-            "工号", "姓名", "学校名称", "入学时间", "毕业时间", "最高学历", "学习形式", "专业"
+            "工号", "姓名", "学校名称", "入学时间", "毕业时间", "最高学历", "学习形式", "专业", "是否为最高学历学校"
     };
 
     private static final String[] CERTIFICATE_HEADERS = {
-            "工号", "姓名", "证书名称", "证书编号", "证书类型", "发证日期", "有效期至", "附件文件名"
+            "工号", "姓名", "证书名称", "证书编号", "证书类型", "发证日期", "有效期至", "附件文件名", "职称", "永久有效", "备注"
     };
 
     private static final String INSTRUCTION_SHEET = "填写说明";
@@ -52,9 +52,12 @@ public class PersonnelImportTemplateGenerator {
             "  姓名：必填",
             "  性别：选填，可填 男/女",
             "  入职时间：格式如 2024-01-15",
+            "  出生日期：格式如 1990-01-15",
             "  手机：选填",
             "  学历：选填，如 博士/硕士/本科/大专/中专等",
             "  技术职称：选填",
+            "  部门：选填",
+            "  备注：选填",
             "",
             "三、教育经历填写规范",
             "  工号：必填，需与【基础信息】中的工号一致",
@@ -64,6 +67,7 @@ public class PersonnelImportTemplateGenerator {
             "  最高学历：选填",
             "  学习形式：选填，如 全日制/非全日制/网络教育等",
             "  专业：选填",
+            "  是否为最高学历学校：选填，可填 是/否",
             "",
             "四、证书与职称填写规范",
             "  工号：必填，需与【基础信息】中的工号一致",
@@ -76,6 +80,9 @@ public class PersonnelImportTemplateGenerator {
             "  附件文件名：请填写已上传附件的文件名，命名规范：",
             "    格式：PER_{姓名}_{工号}_{序号}_{证书名称}.{扩展名}",
             "    示例：PER_张三_EMP001_01_一级建造师.pdf",
+            "  职称：选填，如 高级工程师、工程师等",
+            "  永久有效：选填，可填 是/否",
+            "  备注：选填",
             "",
             "五、注意事项",
             "  1. 请勿修改表头行（第一行）",
@@ -150,11 +157,6 @@ public class PersonnelImportTemplateGenerator {
             cell.setCellValue(headers[i]);
             cell.setCellStyle(headerStyle);
             sheet.setColumnWidth(i, 18 * 256);
-        }
-
-        Row sampleRow = sheet.createRow(1);
-        for (int i = 0; i < headers.length; i++) {
-            sampleRow.createCell(i).setCellValue("");
         }
     }
 }

@@ -8,11 +8,12 @@ import java.time.LocalDate;
 public record ParsedEducationRow(
         Integer excelRow,
         String employeeNumber,
-        String name,                    // 用于交叉校验
+        String name,
         String schoolName,
         LocalDate startDate,
         LocalDate endDate,
         String highestEducation,
         String studyForm,
-        String major
+        String major,
+        Boolean isHighestEducationSchool
 ) {}

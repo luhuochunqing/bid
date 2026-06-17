@@ -14,5 +14,8 @@ public record ParsedCertificateRow(
         String type,
         LocalDate issueDate,
         LocalDate expiryDate,
-        String attachmentFileName   // 原始文件名，供 AttachmentNameParser 进一步解析
+        String attachmentFileName,
+        String title,
+        Boolean isPermanent,
+        String remark
 ) {}
