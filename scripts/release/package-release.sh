@@ -29,6 +29,9 @@ printf '==> Building frontend release assets\n'
 cd "$ROOT_DIR"
 VITE_API_MODE=api VITE_API_BASE_URL="$API_BASE_URL" npm run build:api
 
+printf '\n==> 验证前端产物不含 dev API 地址（localhost/127.0.0.1:port）\n'
+npm run --silent check:frontend-api-base
+
 printf '\n==> Packaging backend jar\n'
 cd "$BACKEND_DIR"
 mvn -DskipTests package
