@@ -5,12 +5,15 @@ import com.xiyu.bid.tender.dto.ContactDTO;
 import com.xiyu.bid.tender.dto.EvaluationBasicDTO;
 import com.xiyu.bid.tender.dto.EvaluationCustomerInfoDTO;
 import com.xiyu.bid.tender.dto.EvaluationRecommendationDTO;
+import com.xiyu.bid.tender.dto.TenderAttachmentDTO;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import com.xiyu.bid.tender.dto.TenderEvaluationDTO;
+import com.xiyu.bid.tender.entity.TenderAttachment;
 import com.xiyu.bid.tender.entity.TenderEvaluation;
 import com.xiyu.bid.tender.entity.TenderEvaluationBasic;
 import com.xiyu.bid.tender.entity.TenderEvaluationCustomerInfo;
 import com.xiyu.bid.tender.entity.TenderEvaluationRecommendation;
+import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
 import com.xiyu.bid.tender.repository.TenderEvaluationCustomerInfoRepository;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
 import com.xiyu.bid.tender.service.TenderEvaluationSubmissionMapper;
@@ -34,6 +37,7 @@ import java.util.stream.Collectors;
 public class TenderIntegrationService {
     private final TenderRepository tenderRepository;
     private final TenderMapper tenderMapper;
+    private final TenderAttachmentRepository attachmentRepository;
     private final TenderEvaluationRepository tenderEvaluationRepository;
     private final TenderEvaluationCustomerInfoRepository customerInfoRepository;
     private final TenderEvaluationSubmissionMapper submissionMapper;
@@ -127,9 +131,21 @@ public class TenderIntegrationService {
         TenderDTO dto = tenderMapper.toDTO(tender);
         dto.setContactInfo(tenderMapper.buildContacts(tender));
         dto.setEvaluation(buildEvaluationDTO(tender.getId(), tender));
+        enrichAttachments(dto, tender.getId());
         normalizeSourceForIntegration(dto, tender);
         normalizeFileUrls(dto);
         return dto;
+    }
+    /** 从 attachmentRepository 加载附件并设置到 DTO。 */
+    private void enrichAttachments(TenderDTO dto, Long tenderId) {
+        List<TenderAttachment> attachments = attachmentRepository.findByTenderId(tenderId);
+        dto.setAttachments(attachments.stream()
+                .map(a -> TenderAttachmentDTO.builder()
+                        .fileName(a.getFileName())
+                        .fileType(a.getFileType())
+                        .fileUrl(a.getFileUrl())
+                        .build())
+                .collect(Collectors.toList()));
     }
     /**
      * 按 externalId 或 tenderId 更新标讯字段（二选一必传）。
@@ -198,7 +214,9 @@ public class TenderIntegrationService {
         TenderDTO dto = tenderMapper.toDTO(saved);
         dto.setContactInfo(tenderMapper.buildContacts(saved));
         dto.setEvaluation(buildEvaluationDTO(saved.getId(), saved));
+        enrichAttachments(dto, saved.getId());
         normalizeSourceForIntegration(dto, saved);
+        normalizeFileUrls(dto);
         return dto;
     }
     /** 将 source 字段映射为中文标签，与 sourceType 保持一致。 */
