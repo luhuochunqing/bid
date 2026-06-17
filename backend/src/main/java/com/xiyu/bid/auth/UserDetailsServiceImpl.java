@@ -69,9 +69,6 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         }
         
         // 3. Auditor Role check (kept for compatibility)
-        if (RoleProfileCatalog.AUDITOR_CODE.equalsIgnoreCase(roleCode)) {
-            authorities.add("ROLE_" + RoleProfileCatalog.AUDITOR_CODE.toUpperCase(Locale.ROOT));
-        }
         
         // 4. Menu permissions — merge DB-stored permissions with catalog (catalog is authoritative)
         if (user.getRoleProfile() != null) {
@@ -96,7 +93,8 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         //     granted even when the DB-stored permission list is stale.
         //     仅对已注册角色生效——未注册 roleCode 的 definitionForCode 会 fallback 到 staff，
         //     错误授予标讯/项目/知识库权限，故用 isRegisteredCode 拦截。
-        if (roleCode != null && !roleCode.isBlank() && RoleProfileCatalog.isRegisteredCode(roleCode)) {
+        if (roleCode != null && !roleCode.isBlank() && RoleProfileCatalog.isRegisteredCode(roleCode)
+                && (user.getRoleProfile() == null || user.getRoleProfile().getMenuPermissions().isEmpty())) {
             RoleProfileCatalog.SeedDefinition catalogDef = RoleProfileCatalog.definitionForCode(roleCode);
             if (catalogDef != null && catalogDef.menuPermissions() != null) {
                 authorities.addAll(catalogDef.menuPermissions());

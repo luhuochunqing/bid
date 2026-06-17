@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TenderTransferPermissionPolicyTest {
 
     @ParameterizedTest(name = "canTransfer: role={0} -> true")
-    @ValueSource(strings = {"admin", "bid_admin", "bid_lead", "bid_senior"})
+    @ValueSource(strings = {"admin", "bid_admin", "bid_lead", "bid_admin"})
     @DisplayName("可转派角色返回 true")
     void canTransfer_transferableRoles_returnsTrue(String roleCode) {
         assertThat(TenderTransferPermissionPolicy.canTransfer(roleCode)).isTrue();

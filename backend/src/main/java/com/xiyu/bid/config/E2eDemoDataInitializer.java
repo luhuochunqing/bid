@@ -68,13 +68,10 @@ public class E2eDemoDataInitializer implements ApplicationRunner {
     void seedDemoUsers() {
         List<DemoUser> demoUsers = List.of(
                 new DemoUser("lizong", "李总", "lizong@example.com", RoleProfileCatalog.ADMIN_CODE),
-                new DemoUser("zhangjingli", "张经理", "zhangjingli@example.com", RoleProfileCatalog.MANAGER_CODE),
                 new DemoUser("xiaowang", "小王", "xiaowang@example.com", RoleProfileCatalog.STAFF_CODE),
-                new DemoUser("xiaozhao", "赵审计", "xiaozhao@example.com", RoleProfileCatalog.AUDITOR_CODE),
                 new DemoUser("xiaochen", "陈投标管理", "xiaochen@example.com", RoleProfileCatalog.BID_ADMIN_CODE),
                 new DemoUser("xiaoliu", "刘投标组长", "xiaoliu@example.com", RoleProfileCatalog.BID_LEAD_CODE),
                 new DemoUser("xiaozhang", "张销售", "xiaozhang@example.com", RoleProfileCatalog.SALES_CODE),
-                new DemoUser("xiaowu", "吴执行", "xiaowu@example.com", RoleProfileCatalog.TASK_EXECUTOR_CODE),
                 new DemoUser("xiaozhou", "周投标专员", "xiaozhou@example.com", RoleProfileCatalog.BID_SPECIALIST_CODE),
                 new DemoUser("xiaozheng", "郑行政", "xiaozheng@example.com", RoleProfileCatalog.ADMIN_STAFF_CODE)
         );

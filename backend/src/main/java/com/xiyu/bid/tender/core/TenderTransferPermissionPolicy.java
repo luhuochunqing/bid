@@ -21,8 +21,7 @@ public final class TenderTransferPermissionPolicy {
     private static final Set<String> TRANSFERABLE_ROLES = Set.of(
             "admin",
             "bid_admin",
-            "bid_lead",
-            "bid_senior"
+            "bid_lead"
     );
 
     /**

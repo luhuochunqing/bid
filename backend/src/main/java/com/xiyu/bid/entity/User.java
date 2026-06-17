@@ -117,7 +117,6 @@ public class User {
             }
             return switch (code.trim().toLowerCase(java.util.Locale.ROOT)) {
                 case "admin" -> ADMIN;
-                case "manager" -> MANAGER;
                 default -> STAFF;
             };
         }

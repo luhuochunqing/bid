@@ -34,7 +34,7 @@ class RoleProfileBootstrapTest {
     @Test
     void ensureSystemRolesShouldPreserveCustomizedSystemRolePermissions() {
         Map<String, RoleProfile> roles = seedRoles();
-        RoleProfile manager = roles.get(RoleProfileCatalog.MANAGER_CODE);
+        RoleProfile manager = roles.get("manager");
         manager.setMenuPermissions(List.of("dashboard"));
         when(roleProfileRepository.findByCodeIgnoreCase(anyString()))
                 .thenAnswer(invocation -> Optional.ofNullable(roles.get(invocation.getArgument(0))));

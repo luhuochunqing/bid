@@ -47,7 +47,7 @@ public class WarehouseExpiryScanTask {
         int alertCount = 0;
 
         // 获取所有投标管理员与投标组长
-        List<User> recipients = userRepo.findEnabledByRoleProfileCodes(List.of("bid_admin", "bid_lead", "bid_senior"));
+        List<User> recipients = userRepo.findEnabledByRoleProfileCodes(List.of("bid_admin", "bid_lead"));
         if (recipients.isEmpty()) {
             log.warn("[WarehouseExpiryScanTask] No active users with bid_admin or bid_lead roles. Skipping notifications.");
             return 0;

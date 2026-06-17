@@ -189,7 +189,6 @@ public class TaskAssignmentSupport {
 
     private boolean canSeeTeamWorkload(User currentUser) {
         return roleProfileService.hasGlobalAccess(currentUser)
-                || "manager".equalsIgnoreCase(currentUser.getRoleCode())
                 || "部门主管".equals(currentUser.getRoleName());
     }
 

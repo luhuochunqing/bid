@@ -71,19 +71,19 @@ class LocalDevAccountInitializerTest {
         initializer.seedLocalAccounts();
 
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
-        verify(userRepository, times(9)).save(userCaptor.capture());
-        verify(passwordEncoder, times(9)).encode(LocalDevAccountInitializer.LOCAL_TEST_PASSWORD);
+        verify(userRepository, times(5)).save(userCaptor.capture());
+        verify(passwordEncoder, times(5)).encode(LocalDevAccountInitializer.LOCAL_TEST_PASSWORD);
 
         List<User> savedUsers = userCaptor.getAllValues();
         assertThat(savedUsers)
                 .extracting(User::getUsername)
-                .containsExactly("staff", "manager", "auditor", "bid_admin", "bid_lead", "sales", "task_executor", "bid_specialist", "admin_staff");
+                .containsExactly("bid_admin", "bid_lead", "sales", "bid_specialist", "admin_staff");
         assertThat(savedUsers)
                 .extracting(User::getFullName)
-                .containsExactly("小王", "张经理", "赵审计", "陈投标管理", "刘投标组长", "张销售", "吴执行", "周投标专员", "郑行政");
+                .containsExactly("陈投标管理", "刘投标组长", "张销售", "周投标专员", "郑行政");
         assertThat(savedUsers)
                 .extracting(User::getRole)
-                .containsExactly(User.Role.STAFF, User.Role.MANAGER, User.Role.STAFF, User.Role.MANAGER, User.Role.MANAGER, User.Role.MANAGER, User.Role.STAFF, User.Role.STAFF, User.Role.STAFF);
+                .containsExactly(User.Role.MANAGER, User.Role.MANAGER, User.Role.MANAGER, User.Role.STAFF, User.Role.STAFF);
         assertThat(savedUsers)
                 .extracting(User::getEnabled)
                 .containsOnly(true);

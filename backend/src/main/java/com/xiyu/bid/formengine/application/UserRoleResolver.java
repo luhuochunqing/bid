@@ -20,8 +20,8 @@ import java.util.Set;
 public class UserRoleResolver {
 
     private static final List<String> ADMIN_ROLES = List.of("admin", "bid_admin", "ADMIN", "BID_ADMIN");
-    private static final List<String> MANAGER_ROLES = List.of("manager", "bid_lead", "bid_senior", "sales", "auditor", "MANAGER", "BID_LEAD", "BID_SENIOR");
-    private static final List<String> STAFF_ROLES = List.of("staff", "bid_specialist", "task_executor", "admin_staff", "STAFF");
+    private static final List<String> MANAGER_ROLES = List.of("bid_lead", "sales", "MANAGER", "BID_LEAD", "BID_SENIOR");
+    private static final List<String> STAFF_ROLES = List.of("bid_specialist", "admin_staff", "STAFF");
 
     /**
      * 根据用户名解析用户角色集合。
@@ -51,10 +51,6 @@ public class UserRoleResolver {
         // 如果是已知测试账号，添加精确角色
         if (lower.equals("admin") || lower.equals("lizong")) {
             roles.add("admin");
-        } else if (lower.equals("manager") || lower.equals("zhangjingli") || lower.equals("bid_lead") || lower.equals("sales")) {
-            roles.add("manager");
-        } else if (lower.equals("staff") || lower.equals("xiaowang") || lower.equals("xiaozhou")) {
-            roles.add("staff");
         }
 
         // 默认角色

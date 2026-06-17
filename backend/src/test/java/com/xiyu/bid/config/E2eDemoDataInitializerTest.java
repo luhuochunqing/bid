@@ -40,13 +40,13 @@ class E2eDemoDataInitializerTest {
         initializer.seedDemoUsers();
 
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
-        verify(userRepository, times(10)).save(userCaptor.capture());
-        verify(passwordEncoder, times(10)).encode("123456");
+        verify(userRepository, times(7)).save(userCaptor.capture());
+        verify(passwordEncoder, times(7)).encode("123456");
 
         List<User> savedUsers = userCaptor.getAllValues();
         assertThat(savedUsers)
                 .extracting(User::getUsername)
-                .containsExactly("lizong", "zhangjingli", "xiaowang", "xiaozhao", "xiaochen", "xiaoliu", "xiaozhang", "xiaowu", "xiaozhou", "xiaozheng");
+                .containsExactly("lizong", "xiaowang", "xiaochen", "xiaoliu", "xiaozhang", "xiaozhou", "xiaozheng");
         assertThat(savedUsers)
                 .extracting(User::getPassword)
                 .containsOnly("encoded-123456");

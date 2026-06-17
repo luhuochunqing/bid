@@ -129,7 +129,7 @@ class TenderEditPermissionPolicyTest {
     static Stream<org.junit.jupiter.params.provider.Arguments> editMatrix() {
         Stream.Builder<org.junit.jupiter.params.provider.Arguments> builder = Stream.builder();
 
-        for (String globalRole : new String[]{"admin", "bid_admin", "bid_lead", "bid_senior"}) {
+        for (String globalRole : new String[]{"admin", "bid_admin", "bid_lead"}) {
             builder.add(args(globalRole, Tender.Status.PENDING_ASSIGNMENT, Ownership.OTHER, true));
             builder.add(args(globalRole, Tender.Status.TRACKING, Ownership.OTHER, true));
             builder.add(args(globalRole, Tender.Status.EVALUATED, Ownership.OTHER, true));
@@ -170,7 +170,7 @@ class TenderEditPermissionPolicyTest {
     static Stream<org.junit.jupiter.params.provider.Arguments> deleteMatrix() {
         Stream.Builder<org.junit.jupiter.params.provider.Arguments> builder = Stream.builder();
 
-        for (String globalRole : new String[]{"admin", "bid_admin", "bid_lead", "bid_senior"}) {
+        for (String globalRole : new String[]{"admin", "bid_admin", "bid_lead"}) {
             builder.add(args(globalRole, Tender.Status.PENDING_ASSIGNMENT, Ownership.OTHER, true));
             builder.add(args(globalRole, Tender.Status.TRACKING, Ownership.OTHER, true));
             builder.add(args(globalRole, Tender.Status.EVALUATED, Ownership.OTHER, false));

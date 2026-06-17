@@ -11,6 +11,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -103,15 +104,15 @@ class UserDetailsServiceImplTest {
     }
 
     @Test
-    void auditorRoleProfileShouldAddAuditorAuthorityWithoutChangingLegacyRole() {
-        User user = userWithRoleProfile("auditor", User.Role.STAFF, RoleProfileCatalog.AUDITOR_CODE);
-        when(userRepository.findByUsername("auditor")).thenReturn(Optional.of(user));
+    void bidSpecialistRoleProfileShouldAddBidSpecialistAuthorityWithoutChangingLegacyRole() {
+        User user = userWithRoleProfile("bid_specialist", User.Role.STAFF, "bid_specialist");
+        when(userRepository.findByUsername("bid_specialist")).thenReturn(Optional.of(user));
 
-        UserDetails details = userDetailsService.loadUserByUsername("auditor");
+        UserDetails details = userDetailsService.loadUserByUsername("bid_specialist");
 
         assertThat(details.getAuthorities())
                 .extracting("authority")
-                .contains("ROLE_STAFF", "ROLE_AUDITOR", "auditor", "ROLE_AUDITOR");
+                .contains("ROLE_STAFF", "ROLE_BID_SPECIALIST", "bid_specialist");
     }
 
 
@@ -153,5 +154,51 @@ class UserDetailsServiceImplTest {
                 .roleProfile(roleProfile)
                 .enabled(true)
                 .build();
+    }
+
+    // ——— catalog 守卫（第4b步）测试 ———
+
+    @Test
+    void registeredRoleWithCustomMenuPermissionsShouldNotMergeCatalog() {
+        // bid_admin（已注册角色）DB 中有自定义 menuPermissions=["dashboard"]，
+        // catalog 中定义的 "bidding", "project" 等不应合并进来
+        RoleProfile roleProfile = RoleProfile.builder()
+                .code("bid_admin")
+                .name("投标部门管理员")
+                .build();
+        roleProfile.setMenuPermissions(List.of("dashboard"));
+        User user = User.builder()
+                .username("custom_bid_admin")
+                .password("{noop}password")
+                .email("custom_bid_admin@example.com")
+                .fullName("custom_bid_admin")
+                .role(User.Role.STAFF)
+                .roleProfile(roleProfile)
+                .enabled(true)
+                .build();
+        when(userRepository.findByUsername("custom_bid_admin")).thenReturn(Optional.of(user));
+
+        UserDetails details = userDetailsService.loadUserByUsername("custom_bid_admin");
+
+        assertThat(details.getAuthorities())
+                .extracting("authority")
+                .contains("dashboard")
+                .contains("bid_admin", "ROLE_BID_ADMIN", "ROLE_ADMIN")
+                // catalog 中有但不含在自定义 DB 列表中 → 不应出现
+                .doesNotContain("bidding", "project", "bidding.manage", "task.review");
+    }
+
+    @Test
+    void registeredRoleWithoutMenuPermissionsShouldFallbackToCatalog() {
+        // bid_admin DB 中 menu_permissions 为 null → 应 fallback 到 catalog 合并
+        // userWithRoleProfile 默认不设 menuPermissions → menuPermissionsValue=null
+        User user = userWithRoleProfile("default_bid_admin", User.Role.STAFF, "bid_admin");
+        when(userRepository.findByUsername("default_bid_admin")).thenReturn(Optional.of(user));
+
+        UserDetails details = userDetailsService.loadUserByUsername("default_bid_admin");
+
+        assertThat(details.getAuthorities())
+                .extracting("authority")
+                .contains("bidding", "bidding.manage", "task.review", "project");
     }
 }

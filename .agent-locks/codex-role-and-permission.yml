@@ -1,0 +1,15 @@
+version: 1
+task: "chinese-encoding-fix-and-role-permission"
+locks:
+  - path: "backend/src/main/java/com/xiyu/bid/entity"
+    scope: "directory"
+    owner: "agent"
+    branch: "agent/codex/role-and-permission"
+    expiresAt: "2026-06-18T12:00:00Z"
+    reason: "中文乱码修复+角色权限相关实体修改，需注册锁才能提交"
+  - path: "backend/src/main/resources/application.yml"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/codex/role-and-permission"
+    expiresAt: "2026-06-18T12:00:00Z"
+    reason: "application.yml JDBC URL 编码配置修复"

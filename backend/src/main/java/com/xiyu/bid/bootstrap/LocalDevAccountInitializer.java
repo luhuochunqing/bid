@@ -60,13 +60,9 @@ public class LocalDevAccountInitializer implements ApplicationRunner {
             return;
         }
         List<LocalAccount> accounts = List.of(
-                new LocalAccount("staff", "小王", "staff@xiyu-local", RoleProfileCatalog.STAFF_CODE),
-                new LocalAccount("manager", "张经理", "manager@xiyu-local", RoleProfileCatalog.MANAGER_CODE),
-                new LocalAccount("auditor", "赵审计", "auditor@xiyu-local", RoleProfileCatalog.AUDITOR_CODE),
                 new LocalAccount("bid_admin", "陈投标管理", "bidadmin@xiyu-local", RoleProfileCatalog.BID_ADMIN_CODE),
                 new LocalAccount("bid_lead", "刘投标组长", "bidlead@xiyu-local", RoleProfileCatalog.BID_LEAD_CODE),
                 new LocalAccount("sales", "张销售", "sales@xiyu-local", RoleProfileCatalog.SALES_CODE),
-                new LocalAccount("task_executor", "吴执行", "taskexecutor@xiyu-local", RoleProfileCatalog.TASK_EXECUTOR_CODE),
                 new LocalAccount("bid_specialist", "周投标专员", "bidspecialist@xiyu-local", RoleProfileCatalog.BID_SPECIALIST_CODE),
                 new LocalAccount("admin_staff", "郑行政", "adminstaff@xiyu-local", RoleProfileCatalog.ADMIN_STAFF_CODE)
         );
