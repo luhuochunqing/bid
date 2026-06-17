@@ -10,7 +10,6 @@
       @create="openCreate"
       @export="exportVisible = true"
       @import="importVisible = true"
-      @download-template="handleDownloadTemplate"
       @batch-export="handleBatchExport"
       @ledger-export="ledgerExportVisible = true"
     />

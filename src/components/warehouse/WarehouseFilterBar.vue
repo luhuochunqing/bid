@@ -50,7 +50,6 @@
     <div class="filter-bar-actions">
       <span class="total-tip">共 <strong>{{ total }}</strong> 条</span>
       <template v-if="canManage">
-        <el-button @click="$emit('download-template')"><el-icon><DocumentCopy /></el-icon> 下载模板</el-button>
         <el-button type="warning" @click="$emit('import')"><el-icon><Upload /></el-icon> 批量导入</el-button>
         <el-button v-if="selectedCount > 0" type="success" @click="$emit('batch-export')">
           <el-icon><Download /></el-icon> 批量导出 ({{ selectedCount }})
@@ -70,7 +69,7 @@
 
 <script setup>
 import { reactive, watch, onBeforeUnmount } from 'vue'
-import { Search, RefreshRight, Plus, Download, Upload, Document, DocumentCopy } from '@element-plus/icons-vue'
+import { Search, RefreshRight, Plus, Download, Upload, Document } from '@element-plus/icons-vue'
 import { useKnowledgePermission } from '@/composables/useKnowledgePermission'
 
 const { canManage } = useKnowledgePermission()
@@ -80,7 +79,7 @@ const props = defineProps({
   total: { type: Number, default: 0 },
   selectedCount: { type: Number, default: 0 }
 })
-const emit = defineEmits(['update:filters', 'search', 'reset', 'create', 'export', 'import', 'download-template', 'batch-export', 'realtime-search', 'ledger-export'])
+const emit = defineEmits(['update:filters', 'search', 'reset', 'create', 'export', 'import', 'batch-export', 'realtime-search', 'ledger-export'])
 
 // 7 大区域
 const REGION_OPTIONS = ['华北', '东北', '华东', '华中', '华南', '西北', '西南']
