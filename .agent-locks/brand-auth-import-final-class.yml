@@ -1,0 +1,9 @@
+version: 1
+task: "brand-auth-import-final-class"
+locks:
+  - path: "backend/src/main/java/com/xiyu/bid/brandauth/manufacturer/application/service/BrandAuthImportService.java"
+    scope: "file"
+    owner: "hotfix"
+    branch: "hotfix/brand-auth-import-final-class"
+    expiresAt: "2026-06-18T22:00:59.419Z"
+    reason: "hotfix: remove final modifier to allow Spring CGLIB proxy"

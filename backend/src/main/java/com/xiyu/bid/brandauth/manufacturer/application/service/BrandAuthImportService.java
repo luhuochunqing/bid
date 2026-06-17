@@ -31,7 +31,7 @@ import java.util.Optional;
 /** Batch import brand authorizations from Excel. */
 @Service
 @RequiredArgsConstructor
-public final class BrandAuthImportService {
+public class BrandAuthImportService {
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private final ManufacturerAuthorizationRepository repository;
     private final BrandAuthOperationLogJpaRepository logRepository;
