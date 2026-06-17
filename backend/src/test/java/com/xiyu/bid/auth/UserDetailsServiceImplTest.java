@@ -201,4 +201,30 @@ class UserDetailsServiceImplTest {
                 .extracting("authority")
                 .contains("bidding", "bidding.manage", "task.review", "project");
     }
+
+    @Test
+    void adminStaffShouldNotInheritStaffLegacyRole() {
+        User user = userWithRoleProfile("admin_staff_user", User.Role.STAFF, RoleProfileCatalog.ADMIN_STAFF_CODE);
+        when(userRepository.findByUsername("admin_staff_user")).thenReturn(Optional.of(user));
+
+        UserDetails details = userDetailsService.loadUserByUsername("admin_staff_user");
+
+        assertThat(details.getAuthorities())
+                .extracting("authority")
+                .contains("admin_staff", "ROLE_ADMIN_STAFF")
+                .doesNotContain("ROLE_STAFF");
+    }
+
+    @Test
+    void adminStaffShouldKeepCatalogPermissions() {
+        User user = userWithRoleProfile("admin_staff2", User.Role.STAFF, RoleProfileCatalog.ADMIN_STAFF_CODE);
+        when(userRepository.findByUsername("admin_staff2")).thenReturn(Optional.of(user));
+
+        UserDetails details = userDetailsService.loadUserByUsername("admin_staff2");
+
+        assertThat(details.getAuthorities())
+                .extracting("authority")
+                .contains("certificate.manage", "qualification.view")
+                .doesNotContain("bidding", "project", "knowledge", "resource", "settings");
+    }
 }

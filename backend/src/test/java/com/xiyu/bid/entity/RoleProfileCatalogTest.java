@@ -49,8 +49,8 @@ class RoleProfileCatalogTest {
         // 未注册角色：跳过（防御手动 INSERT 的角色误拿 STAFF fallback）
         assertThat(RoleProfileCatalog.shouldSkipLegacyRoleCompat("legal-reviewer")).isTrue();
         assertThat(RoleProfileCatalog.shouldSkipLegacyRoleCompat("  Unknown ")).isTrue();
-        // 已注册的普通角色：不跳过（保留 STAFF/ADMIN/MANAGER 兼容）
-        assertThat(RoleProfileCatalog.shouldSkipLegacyRoleCompat(RoleProfileCatalog.ADMIN_STAFF_CODE)).isFalse();
+        // 行政人员（admin_staff）和跨部门协同（bid_other_dept）：跳过（不应通过 ROLE_STAFF 误入标讯/项目模块）
+        assertThat(RoleProfileCatalog.shouldSkipLegacyRoleCompat(RoleProfileCatalog.ADMIN_STAFF_CODE)).isTrue();
         assertThat(RoleProfileCatalog.shouldSkipLegacyRoleCompat(RoleProfileCatalog.BID_ADMIN_CODE)).isFalse();
         assertThat(RoleProfileCatalog.shouldSkipLegacyRoleCompat(RoleProfileCatalog.SALES_CODE)).isFalse();
         // 纯 Legacy 用户（roleCode 为空）：不跳过，保留 user.getRole() 鉴权

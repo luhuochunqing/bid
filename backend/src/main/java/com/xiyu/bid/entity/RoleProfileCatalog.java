@@ -38,7 +38,7 @@ public final class RoleProfileCatalog {
      *  STAFF 兼容，会因 {@code hasAnyRole(... 'STAFF' ...)} 类白名单误入标讯/项目/知识库等
      *  STAFF 可见模块（如跨部门协同人员按蓝图不应访问标讯中心）。
      *  <p>其合法 API（如 {@code TaskController}）用 {@code isAuthenticated()}，移除 legacy 兼容不影响任务处理。 */
-    public static final Set<String> ROLES_WITHOUT_LEGACY_ROLE_COMPAT = Set.of(BID_OTHER_DEPT_CODE);
+    public static final Set<String> ROLES_WITHOUT_LEGACY_ROLE_COMPAT = Set.of(BID_OTHER_DEPT_CODE, ADMIN_STAFF_CODE);
 
     /** 允许提交投标（推进至评标阶段）的业务角色码集合，对齐前端 useProjectDraftingPermissions.canSubmitBid。 */
     public static final Set<String> SUBMIT_BID_ALLOWED_ROLES = Set.of(BID_ADMIN_CODE, BID_LEAD_CODE, SALES_CODE, BID_SPECIALIST_CODE);
