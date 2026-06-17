@@ -41,7 +41,7 @@
         <div class="package-detail">
           <div class="detail-title">📦 ZIP 包内容</div>
           <ul class="detail-list">
-            <li>仓库信息台账.xlsx（{{ totalCount }} 条，29 列含系统字段）</li>
+            <li>仓库信息台账.xlsx（{{ totalCount }} 条，24 列含系统字段）</li>
             <li v-if="hasAttachments">attachments/</li>
             <li v-if="summary.propertyCertCount" class="indent">产权证 {{ summary.propertyCertCount }} 份</li>
             <li v-if="summary.invoiceCount" class="indent">发票 {{ summary.invoiceCount }} 份</li>
@@ -63,7 +63,9 @@
     </div>
     <template #footer>
       <div class="dialog-footer">
-        <span v-if="status !== 'COMPLETED'" class="footer-hint">关闭后仍可稍后在导出记录中下载</span>
+        <span v-if="!taskId" class="footer-hint">点击"开始导出"以提交导出任务</span>
+        <span v-else-if="status !== 'COMPLETED'" class="footer-hint">关闭后仍可稍后在导出记录中下载</span>
+        <el-button v-if="!taskId" type="primary" @click="startExport">开始导出</el-button>
         <el-button @click="handleClose">{{ status === 'COMPLETED' ? '关闭' : '取消' }}</el-button>
       </div>
     </template>
@@ -219,7 +221,7 @@ watch(() => props.modelValue, (v) => {
     totalCount.value = 0
     failureReason.value = ''
     summary.value = {}
-    startExport()
+
   } else {
     stopPolling()
   }

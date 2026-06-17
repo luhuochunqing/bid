@@ -68,7 +68,6 @@
       v-model="dialogVisible"
       :editing-id="editingId"
       :form="form"
-      :init-tab="activeTab"
       @submitted="handleSubmitted"
     />
     <WarehouseDrawer v-model="drawerVisible" :warehouse-id="detailId" @edit="handleDrawerEdit" />
@@ -94,6 +93,7 @@ import WarehouseDialog from '@/components/warehouse/WarehouseDialog.vue'
 import WarehouseDrawer from '@/components/warehouse/WarehouseDrawer.vue'
 import WarehouseExportDialog from '@/components/warehouse/WarehouseExportDialog.vue'
 import WarehouseImportDialog from '@/components/warehouse/WarehouseImportDialog.vue'
+import WarehouseLedgerExportDialog from '@/components/warehouse/WarehouseLedgerExportDialog.vue'
 
 const { canManage } = useKnowledgePermission()
 
@@ -101,8 +101,9 @@ const records = ref([]); const loading = ref(false)
 const page = ref(1); const size = ref(15); const total = ref(0)
 
 const dialogVisible = ref(false); const drawerVisible = ref(false)
-const activeTab = ref('basic'); const editingId = ref(null); const detailId = ref(null)
+const editingId = ref(null); const detailId = ref(null)
 const exportVisible = ref(false)
+const importVisible = ref(false)
 const ledgerExportVisible = ref(false)
 const allInUseCount = ref(0)
 const selectedRows = ref([])
@@ -163,7 +164,7 @@ const openCreate = () => {
     startDate:null, endDate:null, lessor:'', lessee:'西域', invoicePeriod:'', closePlan:'',
     hasPropertyCert:false, hasInvoice:false, hasPhotos:false, certRemarks:''
   })
-  activeTab.value = 'basic'; editingId.value = null; dialogVisible.value = true
+  editingId.value = null; dialogVisible.value = true
 }
 
 const openEdit = (row) => {
@@ -175,7 +176,7 @@ const openEdit = (row) => {
     hasPropertyCert: row.hasPropertyCert || false, hasInvoice: row.hasInvoice || false, hasPhotos: row.hasPhotos || false,
     certRemarks: row.certRemarks || ''
   })
-  activeTab.value = 'basic'; editingId.value = row.id; dialogVisible.value = true
+  editingId.value = row.id; dialogVisible.value = true
 }
 
 const openDrawer = (row) => { detailId.value = row.id; drawerVisible.value = true }
@@ -190,7 +191,7 @@ const handleDrawerEdit = (row) => {
     hasPropertyCert: row.hasPropertyCert || false, hasInvoice: row.hasInvoice || false, hasPhotos: row.hasPhotos || false,
     certRemarks: row.certRemarks || ''
   })
-  activeTab.value = 'basic'; editingId.value = row.id; dialogVisible.value = true
+  editingId.value = row.id; dialogVisible.value = true
 }
 
 const handleClose = async (row) => {
