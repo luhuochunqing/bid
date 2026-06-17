@@ -124,8 +124,6 @@ const {
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
-
 .customer-opportunity-page {
   padding: var(--space-6, 24px);
   min-height: 100vh;

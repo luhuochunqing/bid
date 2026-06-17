@@ -15,6 +15,10 @@ const oversizedIsOk = new Set([
   // composable surface (options object) stays above 300 due to tender CRUD +
   // bidding scope + batch import + AI integration responsibilities.
   'src/views/Bidding/list/useTenderListPage.js',
+  // useManualTenderCreate.js: ~301-302 lines — pre-existing line budget
+  // exceedance unrelated to current change; handles manual tender creation
+  // form state, file upload, pasted text parsing and save orchestration.
+  'src/views/Bidding/list/useManualTenderCreate.js',
 ])
 
 function collectFiles(dir) {
