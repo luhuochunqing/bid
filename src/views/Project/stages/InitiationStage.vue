@@ -253,7 +253,7 @@ const { handleDocBeforeUpload, onDepositChange, handleApprove, handleReject, sav
   },
 })
 
-async function runAIAssessment() { if (!form.tenderDocumentId) return ElMessage.warning('请先上传招标文件'); aiAssessing.value = true; try { const { scoreAnalysisApi } = await import('@/api/modules/ai.js'); const r = await scoreAnalysisApi.generatePreview({ documentId: form.tenderDocumentId }); form.aiRiskLevel = r?.data?.riskLevel || 'MEDIUM'; form.aiRiskAssessmentNotes = r?.data?.summary || 'AI 评估已完成'; ElMessage.success('AI 风险评估完成') } catch (e) { if (e?.response?.status === 503 || e?.response?.status === 502) { ElMessage.warning('AI 服务暂不可用，请稍后重试') } else if (e?.response?.status === 401 || e?.response?.status === 403) { ElMessage.error('AI 评估权限不足') } else { ElMessage.error('AI 评估失败：' + (e?.message || '未知错误')) } } finally { aiAssessing.value = false } }
+async function runAIAssessment() { if (!form.tenderDocumentId) return ElMessage.warning('请先上传招标文件'); aiAssessing.value = true; try { const { scoreAnalysisApi } = await import('@/api/modules/ai.js'); const r = await scoreAnalysisApi.generatePreview({ documentId: form.tenderDocumentId }); form.aiRiskLevel = r?.data?.riskLevel || 'MEDIUM'; form.aiRiskAssessmentNotes = r?.data?.summary || 'AI 评估已完成'; ElMessage.success('AI 风险评估完成') } catch (e) { if (e?.response?.status === 503 || e?.response?.status === 502) { ElMessage.warning('AI 服务暂不可用，请稍后重试') } else if (e?.response?.status === 401 || e?.response?.status === 403) { return } else { ElMessage.error('AI 评估失败：' + (e?.message || '未知错误')) } } finally { aiAssessing.value = false } }
 
 /**
  * Sync updates from DynamicFormRenderer back into the reactive form.

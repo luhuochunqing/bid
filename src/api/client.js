@@ -171,7 +171,7 @@ httpClient.interceptors.response.use(
           await handleAuthFailure()
           break
         case 403:
-          ElMessage.error(response.data?.msg || '没有权限访问该资源')
+          console.warn('403 无权限:', config?.url)
           break
         case 429:
           console.warn('API 限流(429)，请求已跳过:', config?.url)

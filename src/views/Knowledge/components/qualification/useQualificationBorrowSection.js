@@ -33,7 +33,7 @@ export function useQualificationBorrowSection({ httpClient }) {
       ElMessage.success(`扫描完成，命中 ${count} 条即将到期资质`)
       await onSuccess?.()
     } catch (error) {
-      if (error.response?.status === 403) ElMessage.error('权限不足')
+      if (error.response?.status === 403) return
       else ElMessage.error(error.response?.data?.msg || '扫描失败')
     } finally {
       scanningExpiring.value = false
