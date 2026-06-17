@@ -121,7 +121,7 @@ export function useCrmOpportunitySelector(props, emit) {
         opportunityId: null,
         opportunityName: mf.name,
         evaluationData: {
-          opportunityId: null, basic: { projectBackground: mf.remark || '', competitorAnalysis: '',
+          opportunityId: null, basic: { riskAssessment: mf.remark || '', competitorAnalysis: '',
             contractPeriodStart: mf.evaluationTime || '', contractPeriodEnd: '',
             shortlistedCount: 0, platformServiceFee: 0 },
           customerInfos: [], recommendation: { shouldBid: true, reason: '' },
@@ -140,7 +140,7 @@ export function useCrmOpportunitySelector(props, emit) {
       evaluationData: {
         opportunityId: chance.id,
         basic: {
-          projectBackground: chance.remark || '',
+          riskAssessment: chance.remark || '',
           competitorAnalysis: chance.bidDocumentDisadvantage || '',
           contractPeriodStart: chance.evaluationTime || '',
           contractPeriodEnd: '',

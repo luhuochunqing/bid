@@ -236,7 +236,9 @@ const {
 } = useEvaluationReview(tender)
 
 const canFillEvaluation = computed(() => {
-  // 已关联CRM商机时，评估表第一、二部分数据来自CRM，不允许修改
+  // 有 evaluationSource（CRM_PUSH / BID_SYSTEM_LINK）时，评估表第一、二部分数据来自CRM，不允许修改
+  if (tender.value?.evaluationSource) return false
+  // 兜底：存量数据 evaluationSource 为 null 但有 crmOpportunityName 时同样不允许修改
   if (tender.value?.crmOpportunityName) return false
   // TRACKING（跟踪中/待评估）状态下，bid_lead 或 sales 角色可以填写评估表字段
   if (!tender.value || !userRole.value) return false
@@ -273,13 +275,14 @@ const crmLinking = ref(false)
 const evaluationFormRef = ref(null)
 
 function transformCrmBasic(basic) {
+  // 字段名对齐后端 EvaluationBasicDTO（V130 三段式 + V1026 字段重构）
   return {
-    projectBackground: basic?.projectBackground || '',
-    competitorAnalysis: basic?.competitorAnalysis || '',
+    plannedShortlistedCount: basic?.shortlistedCount ?? null,
+    mroOfficeFlowAmount: basic?.platformServiceFee ?? null,
+    unfavorableItems: basic?.competitorAnalysis || '',
+    riskAssessment: basic?.riskAssessment || '',
     contractPeriodStart: basic?.contractPeriodStart || null,
     contractPeriodEnd: basic?.contractPeriodEnd || null,
-    shortlistedCount: basic?.shortlistedCount || null,
-    platformServiceFee: basic?.platformServiceFee || null,
   }
 }
 
@@ -305,7 +308,7 @@ async function onCrmOpportunityLinked({ opportunityId, opportunityName, evaluati
   try {
     // 1. 保存评估草稿（CRM回填数据）
     const evalPayload = {
-      ...transformCrmBasic(evaluationData.basic),
+      evaluationBasic: transformCrmBasic(evaluationData.basic),
       evaluationCustomerInfos: transformCrmCustomerInfos(evaluationData.customerInfos),
       evaluationRecommendation: {
         shouldBid: evaluationData.recommendation?.shouldBid ?? true,
