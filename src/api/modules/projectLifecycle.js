@@ -99,9 +99,6 @@ export const projectLifecycleApi = {
   submitRetrospective(id, payload) {
     return httpClient.post(`${base(id)}/retrospective`, payload)
   },
-  reviewRetrospective(id, payload) {
-    return httpClient.patch(`${base(id)}/retrospective/review`, payload)
-  },
 
   // WS-F closure
   getClosurePreview(id) {

@@ -16,6 +16,7 @@ import com.xiyu.bid.projectworkflow.dto.ProjectShareLinkDTO;
 import com.xiyu.bid.projectworkflow.dto.ProjectTaskCreateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectTaskStatusUpdateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectTaskViewDTO;
+import com.xiyu.bid.projectworkflow.service.ProjectTaskAuthorizationGuard;
 import com.xiyu.bid.projectworkflow.service.ProjectTaskBreakdownService;
 import com.xiyu.bid.projectworkflow.service.ProjectWorkflowService;
 import com.xiyu.bid.task.dto.BidSubmissionResponse;
@@ -57,6 +58,7 @@ public class ProjectWorkflowController {
     private final ProjectTaskBreakdownService projectTaskBreakdownService;
     private final TaskDeliverableService taskDeliverableService;
     private final BidProcessService bidProcessService;
+    private final ProjectTaskAuthorizationGuard taskAuthzGuard;
 
     @GetMapping("/tasks")
     @PreAuthorize("isAuthenticated()")
@@ -71,6 +73,7 @@ public class ProjectWorkflowController {
             @Valid @RequestBody ProjectTaskCreateRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
         sanitizeTaskRequest(request);
+        taskAuthzGuard.assertCanManageTask(projectId, currentUsername(userDetails));
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Project task created successfully",
                         projectWorkflowService.createProjectTask(projectId, request, currentUsername(userDetails))));
@@ -78,7 +81,10 @@ public class ProjectWorkflowController {
 
     @PostMapping("/tasks/decompose")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<List<ProjectTaskViewDTO>>> decomposeProjectTasks(@PathVariable Long projectId) {
+    public ResponseEntity<ApiResponse<List<ProjectTaskViewDTO>>> decomposeProjectTasks(
+            @PathVariable Long projectId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        taskAuthzGuard.assertCanManageTask(projectId, currentUsername(userDetails));
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Project tasks decomposed from tender breakdown successfully",
                         projectTaskBreakdownService.decomposeProjectTasks(projectId)));
@@ -91,6 +97,8 @@ public class ProjectWorkflowController {
             @PathVariable Long taskId,
             @Valid @RequestBody ProjectTaskStatusUpdateRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
+        String targetStatus = request.getStatus() == null ? null : request.getStatus().name();
+        taskAuthzGuard.assertStatusTransition(projectId, taskId, targetStatus, currentUsername(userDetails));
         return ResponseEntity.ok(ApiResponse.success("Project task status updated successfully",
                 projectWorkflowService.updateProjectTaskStatus(projectId, taskId, request, currentUsername(userDetails))));
     }
@@ -189,10 +197,11 @@ public class ProjectWorkflowController {
     public ResponseEntity<ApiResponse<TaskDeliverableDTO>> createTaskDeliverable(
             @PathVariable Long projectId,
             @PathVariable Long taskId,
-            @Valid @RequestBody TaskDeliverableCreateRequest request) {
+            @Valid @RequestBody TaskDeliverableCreateRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("交付物已上传",
-                        taskDeliverableService.createDeliverable(projectId, taskId, request, "system")));
+                        taskDeliverableService.createDeliverable(projectId, taskId, request, currentUsername(userDetails))));
     }
 
     @DeleteMapping("/tasks/{taskId}/deliverables/{deliverableId}")

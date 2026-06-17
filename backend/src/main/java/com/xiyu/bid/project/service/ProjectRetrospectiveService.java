@@ -1,5 +1,5 @@
-// Input: 提交/审核复盘请求 + 当前用户
-// Output: RetrospectiveDTO；通过策略校验+持久化+审计；审核通过后推进 stage
+// Input: 提交复盘请求 + 当前用户
+// Output: RetrospectiveDTO；通过策略校验+持久化+审计；提交即推进 stage（§2.6 无需审核）
 // Pos: project/service/ - 编排层（不含纯规则）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.project.service;
@@ -15,7 +15,6 @@ import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.core.ProjectStageTransitionPolicy;
 import com.xiyu.bid.project.core.RetrospectiveFieldPolicy;
 import com.xiyu.bid.project.dto.RetrospectiveDTO;
-import com.xiyu.bid.project.dto.RetrospectiveReviewRequest;
 import com.xiyu.bid.project.dto.RetrospectiveSubmitRequest;
 import com.xiyu.bid.project.repository.ProjectRetrospectiveRepository;
 import com.xiyu.bid.repository.ProjectRepository;
@@ -88,7 +87,7 @@ public class ProjectRetrospectiveService {
         entity.setProcessProblems(req.getProcessProblems());
         entity.setPostLossMeasures(req.getPostLossMeasures());
         entity.setReportFileIds(toCsvLong(req.getReportFileIds()));
-        entity.setReviewStatus(ProjectRetrospective.ReviewStatus.PENDING_REVIEW.name());
+        entity.setReviewStatus(ProjectRetrospective.ReviewStatus.APPROVED.name());
         entity.setUpdatedBy(currentUserId);
         ProjectRetrospective saved = repository.save(entity);
         // §5.4: 复盘提交后推进 RESULT_PENDING → RETROSPECTIVE（幂等跳过）
@@ -97,58 +96,16 @@ public class ProjectRetrospectiveService {
             projectStageService.requestTransition(projectId, ProjectStage.RETROSPECTIVE,
                     ProjectStageTransitionPolicy.GateInputs.EMPTY);
         }
-        // 复盘提交后同时推进 RETROSPECTIVE → CLOSED（幂等跳过），
-        // 与 review() 中审批通过后的推进路径互补：
-        // - submit() 直达 CLOSED（无需审批的场景）
-        // - review() 中的推进保留作为审批通过后的兜底
+        // §2.6: 复盘无需审核，提交即转。submit() 直达 CLOSED。
         ProjectStage afterRetroTransition = projectStageService.currentStage(projectId);
         if (afterRetroTransition == ProjectStage.RETROSPECTIVE) {
             projectStageService.requestTransition(projectId, ProjectStage.CLOSED,
                     ProjectStageTransitionPolicy.GateInputs.EMPTY);
         }
-        log.info("Retrospective submitted project={} status=PENDING_REVIEW user={}", projectId, currentUserId);
+        log.info("Retrospective submitted project={} status=APPROVED user={}", projectId, currentUserId);
 
         // 通知 #14: 提交复盘 → admin
         sendRetrospectiveSubmitNotification(projectId, currentUserId);
-
-        return toDto(saved);
-    }
-
-    @Auditable(action = "REVIEW_RETROSPECTIVE", entityType = "ProjectRetrospective", description = "审核项目复盘")
-    public RetrospectiveDTO review(Long projectId, RetrospectiveReviewRequest req, Long reviewerId) {
-        mustGetProject(projectId);
-        // §3.6 全字段锁定 — CLOSED 阶段拒绝写入。
-        ProjectStage stage = projectStageService.currentStage(projectId);
-        var lockDecision = ProjectFieldLockPolicy.assertWritable(stage, "retrospective");
-        if (!lockDecision.allowed()) {
-            var deny = (ProjectFieldLockPolicy.Decision.Deny) lockDecision;
-            throw new ResponseStatusException(HttpStatus.LOCKED, deny.reason());
-        }
-        ProjectRetrospective entity = repository.findByProjectId(projectId)
-                .orElseThrow(() -> new ResourceNotFoundException("ProjectRetrospective", String.valueOf(projectId)));
-        if (!ProjectRetrospective.ReviewStatus.PENDING_REVIEW.name().equals(entity.getReviewStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "复盘当前状态不可审核：" + entity.getReviewStatus());
-        }
-        boolean approve = Boolean.TRUE.equals(req.getApprove());
-        if (!approve && (req.getComment() == null || req.getComment().trim().isEmpty())) {
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "驳回必须提供 comment");
-        }
-        entity.setReviewStatus(approve
-                ? ProjectRetrospective.ReviewStatus.APPROVED.name()
-                : ProjectRetrospective.ReviewStatus.REJECTED.name());
-        entity.setReviewComment(req.getComment());
-        entity.setReviewedBy(reviewerId);
-        entity.setReviewedAt(LocalDateTime.now());
-        entity.setUpdatedBy(reviewerId);
-        ProjectRetrospective saved = repository.save(entity);
-        if (approve && stage == ProjectStage.RETROSPECTIVE) {
-            projectStageService.requestTransition(projectId, ProjectStage.CLOSED,
-                    ProjectStageTransitionPolicy.GateInputs.EMPTY);
-        }
-        log.info("Retrospective reviewed project={} approve={} reviewer={}", projectId, approve, reviewerId);
-
-        // 通知 #15: 复盘审核通过/驳回 → 提交人
-        sendRetrospectiveReviewNotification(projectId, entity.getCreatedBy(), approve, req.getComment(), reviewerId);
 
         return toDto(saved);
     }
@@ -166,7 +123,7 @@ public class ProjectRetrospectiveService {
     private Supplier<ProjectRetrospective> newEntity(Long projectId, Long userId) {
         return () -> ProjectRetrospective.builder()
                 .projectId(projectId)
-                .reviewStatus(ProjectRetrospective.ReviewStatus.PENDING_REVIEW.name())
+                .reviewStatus(ProjectRetrospective.ReviewStatus.APPROVED.name())
                 .createdBy(userId)
                 .build();
     }
@@ -258,36 +215,6 @@ public class ProjectRetrospectiveService {
             ), userId);
         } catch (RuntimeException e) {
             log.warn("sendRetrospectiveSubmitNotification failed for project={}: {}", projectId, e.getMessage());
-        }
-    }
-
-    private void sendRetrospectiveReviewNotification(Long projectId, Long submitterId, boolean approved, String comment, Long reviewerId) {
-        try {
-            if (submitterId == null) return;
-
-            Project project = projectRepository.findById(projectId).orElse(null);
-            if (project == null) return;
-
-            String projectName = project.getName();
-            String action = approved ? "通过" : "驳回";
-            String reviewerName = userRepository.findById(reviewerId)
-                    .map(User::getFullName).orElse("");
-
-            notificationService.createNotification(new CreateNotificationRequest(
-                    NotificationType.INFO.name(),
-                    "Project",
-                    projectId,
-                    String.format("复盘审核%s - %s", action, projectName),
-                    String.format("项目名称：%s\n审核结果：%s\n审核人：%s\n%s",
-                            projectName, action, reviewerName,
-                            approved ? "复盘已通过审核。" : "驳回原因：" + comment),
-                    java.util.Map.of("projectId", String.valueOf(projectId), "projectName", projectName,
-                            "approved", String.valueOf(approved),
-                            "targetUrl", "/project/" + projectId + "/retrospective"),
-                    List.of(submitterId)
-            ), reviewerId);
-        } catch (RuntimeException e) {
-            log.warn("sendRetrospectiveReviewNotification failed for project={}: {}", projectId, e.getMessage());
         }
     }
 

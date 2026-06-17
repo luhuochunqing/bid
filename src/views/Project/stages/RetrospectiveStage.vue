@@ -90,29 +90,6 @@
           </template>
         </el-upload>
       </el-card>
-      <!-- 审核区域（管理员可见） -->
-      <el-card v-if="isAdmin && view" shadow="never" class="stage-section">
-        <template #header><span class="section-title">审核</span></template>
-        <el-form :model="review" label-width="140px">
-          <el-form-item label="审核决定">
-            <el-radio-group v-model="review.decision">
-              <el-radio value="APPROVE">通过</el-radio>
-              <el-radio value="REJECT">驳回</el-radio>
-            </el-radio-group>
-          </el-form-item>
-          <el-form-item label="审核意见" :required="review.decision === 'REJECT'">
-            <el-input v-model="review.comment" type="textarea" :rows="2" />
-          </el-form-item>
-          <el-form-item>
-            <el-button
-              type="warning"
-              :disabled="review.decision === 'REJECT' && !review.comment"
-              :loading="reviewing"
-              @click="doReview"
-            >提交审核</el-button>
-          </el-form-item>
-        </el-form>
-      </el-card>
       <!-- 提交按钮 -->
       <div v-if="canEdit" class="btn-container">
         <el-button type="primary" size="large" :loading="submitting" :disabled="locked" @click="submit">提交复盘</el-button>
@@ -137,7 +114,6 @@ const props = defineProps({
 })
 const emit = defineEmits(["submitted"])
 const userStore = useUserStore()
-const isAdmin = computed(() => userStore.hasPermission('project:retrospective:review'))
 const canEdit = computed(() => {
   const role = userStore.userRole || userStore.currentUser?.role || ''
   return isBidManager(role) || role === 'bid_specialist'
@@ -156,11 +132,9 @@ const form = reactive({
   reportFileIds: [],
 })
 const reportFiles = ref([])
-const review = reactive({ decision: 'APPROVE', comment: '' })
 const view = ref(null)
 const locked = ref(false)
 const submitting = ref(false)
-const reviewing = ref(false)
 const uploadUrl = computed(() => getApiUrl(`/api/projects/${props.projectId}/documents`))
 const uploadHeaders = computed(() => userStore?.token ? { Authorization: `Bearer ${userStore.token}` } : {})
 const MAX_FILE_MB = 20
@@ -239,22 +213,6 @@ async function submit() {
     ElMessage.error(e?.response?.data?.msg || '提交失败')
   } finally {
     submitting.value = false
-  }
-}
-async function doReview() {
-  if (review.decision === 'REJECT' && !review.comment.trim()) {
-    return ElMessage.warning('驳回必须填写审核意见')
-  }
-  reviewing.value = true
-  try {
-    await projectLifecycleApi.reviewRetrospective(props.projectId, review)
-    ElMessage.success('审核已提交')
-    emit('submitted')
-    await load()
-  } catch (e) {
-    ElMessage.error(e?.response?.data?.msg || '审核失败')
-  } finally {
-    reviewing.value = false
   }
 }
 onMounted(load)

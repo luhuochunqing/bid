@@ -68,19 +68,14 @@ describe('projectLifecycleApi', () => {
     })
   })
 
-  it('result register + retrospective submit/review', async () => {
+  it('result register + retrospective submit', async () => {
     httpClient.post.mockResolvedValue({ success: true })
-    httpClient.patch.mockResolvedValue({ success: true })
 
     await projectLifecycleApi.registerResult(4, { resultType: 'WON' })
     await projectLifecycleApi.submitRetrospective(4, { summary: 'ok' })
-    await projectLifecycleApi.reviewRetrospective(4, { decision: 'APPROVE' })
 
     expect(httpClient.post).toHaveBeenCalledWith('/api/projects/4/result', { resultType: 'WON' })
     expect(httpClient.post).toHaveBeenCalledWith('/api/projects/4/retrospective', { summary: 'ok' })
-    expect(httpClient.patch).toHaveBeenCalledWith('/api/projects/4/retrospective/review', {
-      decision: 'APPROVE',
-    })
   })
 
   it('closure preview + submit', async () => {

@@ -48,6 +48,10 @@ public final class RoleProfileCatalog {
     /** 允许提交投标（推进至评标阶段）的业务角色码集合，对齐前端 useProjectDraftingPermissions.canSubmitBid。 */
     public static final Set<String> SUBMIT_BID_ALLOWED_ROLES = Set.of(BID_ADMIN_CODE, BID_LEAD_CODE, BID_SENIOR_CODE, SALES_CODE, BID_SPECIALIST_CODE);
 
+    /** 允许管理/审核项目任务的角色：投标管理员/组长/主管/投标专员(负责人/辅助)。对齐蓝图 §2.3.1。 */
+    public static final Set<String> TASK_MUTATION_ALLOWED_ROLES =
+            Set.of(ADMIN_CODE, BID_ADMIN_CODE, BID_LEAD_CODE, BID_SENIOR_CODE, BID_SPECIALIST_CODE);
+
     private static final Map<String, SeedDefinition> DEFINITIONS = Map.ofEntries(
             Map.entry(ADMIN_CODE, new SeedDefinition(ADMIN_CODE, "管理员", "系统管理员，拥有所有权限", true, "all", List.of("all"))),
             Map.entry(AUDITOR_CODE, new SeedDefinition(AUDITOR_CODE, "审计员", "审计人员，可查看全量审计日志和个人操作日志", true, "all",

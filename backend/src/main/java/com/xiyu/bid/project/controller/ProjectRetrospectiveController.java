@@ -1,4 +1,4 @@
-// Input: HTTP 请求 (submit/review/get)
+// Input: HTTP 请求 (submit/get)
 // Output: ApiResponse<RetrospectiveDTO>
 // Pos: project/controller/
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -6,7 +6,6 @@ package com.xiyu.bid.project.controller;
 
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.project.dto.RetrospectiveDTO;
-import com.xiyu.bid.project.dto.RetrospectiveReviewRequest;
 import com.xiyu.bid.project.dto.RetrospectiveSubmitRequest;
 import com.xiyu.bid.project.service.ProjectRetrospectiveService;
 import com.xiyu.bid.service.AuthService;
@@ -19,7 +18,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -50,18 +48,7 @@ public class ProjectRetrospectiveController {
                 .body(ApiResponse.success("Retrospective submitted", dto));
     }
 
-    /** 审核复盘：BID_ADMIN（映射到 ADMIN）。 */
-    @PatchMapping("/review")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<RetrospectiveDTO>> review(
-            @PathVariable Long projectId,
-            @Valid @RequestBody RetrospectiveReviewRequest req,
-            @AuthenticationPrincipal UserDetails userDetails) {
-        Long reviewerId = currentUserId(userDetails);
-        RetrospectiveDTO dto = service.review(projectId, req, reviewerId);
-        return ResponseEntity.ok(ApiResponse.success("Retrospective reviewed", dto));
-    }
-
+    /** 查询复盘：ADMIN/MANAGER/STAFF 可见。 */
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','STAFF')")
     public ResponseEntity<ApiResponse<RetrospectiveDTO>> get(@PathVariable Long projectId) {

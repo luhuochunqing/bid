@@ -49,7 +49,7 @@ public class ProjectClosureController {
 
     /** 提交结项申请：管理员/组长/项目负责人/投标负责人/投标辅助（任务执行人不可提交）。 */
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_LEAD', 'BID_SENIOR', 'SALES', 'BID_SPECIALIST')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SALES')")
     public ResponseEntity<ApiResponse<ClosureDTO>> submit(
             @PathVariable Long projectId,
             @Valid @RequestBody ClosureSubmitRequest req,

@@ -186,7 +186,7 @@ public class TenderEvaluationController {
      * V150: 删除评估表附件。
      */
     @DeleteMapping("/{tenderId}/evaluation/documents/{documentId}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteEvaluationDocument(
             @PathVariable Long tenderId,
             @PathVariable Long documentId) {

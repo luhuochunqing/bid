@@ -45,7 +45,8 @@ class TaskDeliverableContractTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(new ProjectWorkflowController(
-                null, null, taskDeliverableService, bidProcessService))
+                null, null, taskDeliverableService, bidProcessService, null))
+                .setCustomArgumentResolvers(new org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver())
                 .setControllerAdvice(new com.xiyu.bid.exception.GlobalExceptionHandler())
                 .build();
         objectMapper = new ObjectMapper().findAndRegisterModules();

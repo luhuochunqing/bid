@@ -8,15 +8,20 @@ import com.xiyu.bid.task.dto.TaskDeliverableCreateRequest;
 import com.xiyu.bid.task.dto.TaskDeliverableDTO;
 import com.xiyu.bid.task.entity.TaskDeliverable;
 import com.xiyu.bid.entity.Task;
+import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.TaskRepository;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.task.repository.TaskDeliverableRepository;
 import com.xiyu.bid.util.InputSanitizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -30,6 +35,7 @@ public class TaskDeliverableService {
 
     private final TaskRepository taskRepository;
     private final TaskDeliverableRepository taskDeliverableRepository;
+    private final UserRepository userRepository;
 
     @Transactional
     public TaskDeliverableDTO createDeliverable(
@@ -43,6 +49,15 @@ public class TaskDeliverableService {
                 .orElseThrow(() -> new IllegalArgumentException("任务不存在: " + taskId));
         if (!task.getProjectId().equals(projectId)) {
             throw new IllegalArgumentException("任务不属于该项目");
+        }
+
+        // 1b. 仅任务指派人本人可上传交付物（蓝图 §2.3.1；角色无关）。
+        // 内部调用（username 为 null 或 "system"）跳过身份校验。
+        if (username != null && !"system".equals(username)) {
+            User currentUser = userRepository.findByUsername(username).orElse(null);
+            if (currentUser != null && !Objects.equals(currentUser.getId(), task.getAssigneeId())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "仅任务执行人本人可提交/上传交付物");
+            }
         }
 
         // 2. Validate association rules
