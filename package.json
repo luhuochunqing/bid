@@ -1,7 +1,7 @@
 {
   "name": "xiyu-bid-poc",
   "version": "1.0.3",
-  "description": "\u897f\u57df\u6570\u667a\u5316\u6295\u6807\u7ba1\u7406\u5e73\u53f0POC",
+  "description": "西域数智化投标管理平台POC",
   "type": "module",
   "scripts": {
     "dev": "bash ./scripts/dev-frontend.sh",
