@@ -50,6 +50,7 @@ class CollaborationSelfVerifyingTest extends SelfVerifyingTest {
     void createThread_shouldPersistAndAudit() {
         // When
         CollaborationThreadDTO result = collaborationService.createThread(threadRequest);
+        awaitAsync(200);
 
         // Then - 跨层验证
         shadowVerify("collaboration_threads", result.getId())

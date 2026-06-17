@@ -9,6 +9,7 @@ import com.xiyu.bid.auth.UserDetailsServiceImpl;
 import com.xiyu.bid.idempotency.IdempotencyFilter;
 import com.xiyu.bid.apikey.infrastructure.ApiKeyAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -58,10 +59,21 @@ public class SecurityConfig {
 
     private final UserDetailsServiceImpl userDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final RateLimitFilter rateLimitFilter;
+    private final ObjectProvider<RateLimitFilter> rateLimitFilterProvider;
     private final IdempotencyFilter idempotencyFilter;
     private final Environment environment;
     private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
+
+    private HttpSecurity addFilters(HttpSecurity http) throws Exception {
+        RateLimitFilter rateLimitFilter = rateLimitFilterProvider.getIfAvailable();
+        if (rateLimitFilter != null) {
+            http.addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class);
+        }
+        return http
+                .addFilterBefore(apiKeyAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(idempotencyFilter, JwtAuthenticationFilter.class);
+    }
 
     @Value("${cors.allowed-origins:http://localhost:1314,http://127.0.0.1:1314,http://localhost:5173,http://localhost:5174,http://localhost:3000,https://winbid-test.ehsy.com,http://winbid-test.ehsy.com}")
     private String[] corsAllowedOrigins;
@@ -158,13 +170,8 @@ public class SecurityConfig {
                             .requestMatchers("/api/cases/**").hasAnyRole("ADMIN", "MANAGER", "STAFF")
                             .anyRequest().authenticated();
                 })
-                .authenticationProvider(authenticationProvider())
-                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(apiKeyAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(idempotencyFilter, JwtAuthenticationFilter.class);
-
-        // H2 Console
+                .authenticationProvider(authenticationProvider());
+        addFilters(http);
         http.headers(headers -> headers
                 .frameOptions(frameOptions -> frameOptions.sameOrigin())
                 .contentSecurityPolicy(csp -> csp.policyDirectives(CONTENT_SECURITY_POLICY))
