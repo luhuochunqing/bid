@@ -55,9 +55,13 @@ class WarehouseExportPolicyTest {
         lenient().when(wh.getInvoicePeriodEnd()).thenReturn(LocalDate.of(2026, 12, 31));
     }
 
+    private Map<Long, String> usernameMap() {
+        return Map.of(1L, "管理员");
+    }
+
     @Test
     void buildRows_WithEmptyEntities_ShouldReturnEmptyList() {
-        List<String[]> rows = WarehouseExportPolicy.buildRows(List.of(), Map.of());
+        List<String[]> rows = WarehouseExportPolicy.buildRows(List.of(), Map.of(), Map.of());
         assertThat(rows).isEmpty();
     }
 
@@ -66,7 +70,7 @@ class WarehouseExportPolicyTest {
         stubBasicFields();
         lenient().when(wh.getStatus()).thenReturn(WarehouseStatus.IN_USE);
 
-        List<String[]> rows = WarehouseExportPolicy.buildRows(List.of(wh), Map.of(1L, List.of()));
+        List<String[]> rows = WarehouseExportPolicy.buildRows(List.of(wh), Map.of(1L, List.of()), usernameMap());
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0)).hasSize(WarehouseExportPolicy.HEADER_COUNT);
     }
@@ -75,7 +79,7 @@ class WarehouseExportPolicyTest {
     void buildRows_ShouldPopulateBasicFieldsCorrectly() {
         stubBasicFields();
 
-        List<String[]> rows = WarehouseExportPolicy.buildRows(List.of(wh), Map.of(1L, List.of()));
+        List<String[]> rows = WarehouseExportPolicy.buildRows(List.of(wh), Map.of(1L, List.of()), usernameMap());
         String[] row = rows.get(0);
 
         assertThat(row[0]).isEqualTo("上海仓");
@@ -88,12 +92,12 @@ class WarehouseExportPolicyTest {
     void buildRows_WithBooleanFlags_ShouldUseChineseLabels() {
         stubBasicFields();
 
-        List<String[]> rows = WarehouseExportPolicy.buildRows(List.of(wh), Map.of(1L, List.of()));
+        List<String[]> rows = WarehouseExportPolicy.buildRows(List.of(wh), Map.of(1L, List.of()), usernameMap());
         String[] row = rows.get(0);
 
-        assertThat(row[17]).isEqualTo("是");
-        assertThat(row[19]).isEqualTo("否");
-        assertThat(row[21]).isEqualTo("是");
+        assertThat(row[15]).isEqualTo("是");
+        assertThat(row[17]).isEqualTo("否");
+        assertThat(row[19]).isEqualTo("是");
     }
 
     @Test
@@ -108,13 +112,13 @@ class WarehouseExportPolicyTest {
 
         List<String[]> rows = WarehouseExportPolicy.buildRows(
                 List.of(wh),
-                Map.of(1L, List.of(certAttach, invoiceAttach, photoAttach)));
+                Map.of(1L, List.of(certAttach, invoiceAttach, photoAttach)), usernameMap());
         String[] row = rows.get(0);
 
-        assertThat(row[18]).isEqualTo("产权证.pdf");
-        assertThat(row[20]).isEqualTo("发票.pdf");
-        assertThat(row[22]).isEqualTo("照片1.jpg");
-        assertThat(row[28]).contains("产权证.pdf", "发票.pdf", "照片1.jpg");
+        assertThat(row[16]).isEqualTo("产权证.pdf");
+        assertThat(row[18]).isEqualTo("发票.pdf");
+        assertThat(row[20]).isEqualTo("照片1.jpg");
+        assertThat(row[26]).contains("产权证.pdf", "发票.pdf", "照片1.jpg");
     }
 
     @Test
@@ -142,14 +146,14 @@ class WarehouseExportPolicyTest {
         lenient().when(wh.getUpdatedBy()).thenReturn(null);
         lenient().when(wh.getUpdatedAt()).thenReturn(null);
 
-        List<String[]> rows = WarehouseExportPolicy.buildRows(List.of(wh), Map.of(2L, List.of()));
+        List<String[]> rows = WarehouseExportPolicy.buildRows(List.of(wh), Map.of(2L, List.of()), Map.of());
         String[] row = rows.get(0);
 
         assertThat(row[0]).isEmpty();
         assertThat(row[1]).isEmpty();
+        assertThat(row[15]).isEqualTo("否");
         assertThat(row[17]).isEqualTo("否");
         assertThat(row[19]).isEqualTo("否");
-        assertThat(row[21]).isEqualTo("否");
     }
 
     @Test
@@ -161,7 +165,7 @@ class WarehouseExportPolicyTest {
 
         List<String[]> rows = WarehouseExportPolicy.buildRows(
                 List.of(wh, wh2),
-                Map.of(1L, List.of(), 2L, List.of()));
+                Map.of(1L, List.of(), 2L, List.of()), Map.of());
         assertThat(rows).hasSize(2);
         assertThat(rows.get(1)[0]).isEqualTo("北京仓");
     }
@@ -172,7 +176,18 @@ class WarehouseExportPolicyTest {
 
         List<String[]> rows = WarehouseExportPolicy.buildRows(
                 List.of(wh),
-                Map.of());
+                Map.of(), Map.of());
         assertThat(rows).hasSize(1);
+    }
+
+    @Test
+    void buildRows_ShouldMapCreatedByToUsername() {
+        stubBasicFields();
+
+        List<String[]> rows = WarehouseExportPolicy.buildRows(List.of(wh), Map.of(1L, List.of()), usernameMap());
+        String[] row = rows.get(0);
+
+        assertThat(row[24]).isEqualTo("管理员");
+        assertThat(row[25]).isEqualTo("管理员");
     }
 }

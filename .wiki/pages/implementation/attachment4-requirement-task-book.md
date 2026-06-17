@@ -3,7 +3,7 @@ title: 附件4需求任务书交付基线
 space: implementation
 category: reference
 tags: [附件4, 需求任务书, 交付基线, 验收, 非功能, 文档清单]
-sources: [internal]
+sources: []
 backlinks:
   - _index
   - contract-constraints

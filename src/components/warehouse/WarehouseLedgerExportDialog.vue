@@ -31,6 +31,7 @@
             <el-checkbox value="BASIC">仓库基础信息</el-checkbox>
             <el-checkbox value="LEASE">租约/服务信息</el-checkbox>
             <el-checkbox value="DOC">资料核验状态</el-checkbox>
+            <el-checkbox value="META">创建信息</el-checkbox>
           </el-checkbox-group>
         </el-form-item>
         <el-form-item label="导出格式">
@@ -103,7 +104,7 @@ let pollTimer = null
 
 const form = reactive({
   scope: 'filter',
-  sections: ['BASIC', 'LEASE', 'DOC']
+  sections: ['BASIC', 'LEASE', 'DOC', 'META']
 })
 
 const summaryScope = computed(() => {
@@ -119,7 +120,7 @@ const reset = () => {
   failureReason.value = ''
   summary.value = {}
   form.scope = 'filter'
-  form.sections = ['BASIC', 'LEASE', 'DOC']
+  form.sections = ['BASIC', 'LEASE', 'DOC', 'META']
 }
 
 const handleStart = async () => {

@@ -12,6 +12,8 @@ import com.xiyu.bid.warehouse.infrastructure.WarehouseExcelWriter;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskEntity.ExportStatus;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskRepository;
+import com.xiyu.bid.entity.User;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.warehouse.service.WarehouseFilterService;
 import com.xiyu.bid.warehouse.service.WarehouseLogService;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +34,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -53,6 +56,7 @@ public class WarehouseExportAppService {
     private final WarehouseLogService warehouseLogService;
     private final WarehouseExportNotificationPublisher exportPublisher;
     private final ObjectMapper objectMapper;
+    private final UserRepository userRepository;
 
     @Value("${warehouse.export.root:/tmp/warehouse-exports}")
     private String exportRoot;
@@ -115,7 +119,8 @@ public class WarehouseExportAppService {
                           List<WarehouseEntity> entities, WarehouseFilterDTO filterDTO,
                           String scope, long startMs) throws IOException {
         Map<Long, List<WarehouseAttachmentEntity>> attachmentsByWhId = loadAttachments(entities);
-        List<String[]> rows = WarehouseExportPolicy.buildRows(entities, attachmentsByWhId);
+        Map<Long, String> usernameById = loadUsernames(entities);
+        List<String[]> rows = WarehouseExportPolicy.buildRows(entities, attachmentsByWhId, usernameById);
         byte[] xlsxBytes = excelWriter.write(WarehouseExportPolicy.HEADERS, rows);
         WarehouseExportZipBuilder.ZipBuildResult zip = zipBuilder.buildZip(xlsxBytes, entities, attachmentsByWhId);
         try {
@@ -222,6 +227,21 @@ public class WarehouseExportAppService {
         return attachmentRepo.findByWarehouseIdIn(ids).stream()
                 .collect(Collectors.groupingBy(a -> a.getWarehouse().getId()));
     }
+
+    private Map<Long, String> loadUsernames(List<WarehouseEntity> entities) {
+        if (entities.isEmpty()) return Map.of();
+        Set<Long> userIds = entities.stream()
+                .map(WarehouseEntity::getCreatedBy).filter(id -> id != null)
+                .collect(Collectors.toSet());
+        userIds.addAll(entities.stream()
+                .map(WarehouseEntity::getUpdatedBy).filter(id -> id != null)
+                .toList());
+        if (userIds.isEmpty()) return Map.of();
+        return userRepository.findByIdIn(userIds).stream()
+                .collect(Collectors.toMap(User::getId, u -> nvl(u.getFullName())));
+    }
+
+    private static String nvl(String s) { return s != null ? s : ""; }
 
     private String saveZip(Long taskId, WarehouseExportZipBuilder.ZipBuildResult zip) throws IOException {
         Path dir = Paths.get(exportRoot);

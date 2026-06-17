@@ -1,6 +1,8 @@
 package com.xiyu.bid.warehouse.application;
 
+import com.xiyu.bid.entity.User;
 import com.xiyu.bid.notification.outbound.event.NotificationCreatedEvent;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.warehouse.domain.WarehouseLedgerExportPolicy;
 import com.xiyu.bid.warehouse.domain.WarehouseLedgerExportPolicy.Section;
 import com.xiyu.bid.warehouse.domain.WarehouseStatus;
@@ -32,6 +34,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 台账导出应用服务 — 19 列精简版（无附件、无系统字段）。
@@ -50,6 +53,7 @@ public class WarehouseLedgerExportAppService {
     private final WarehouseExcelWriter excelWriter;
     private final WarehouseLogService warehouseLogService;
     private final ApplicationEventPublisher eventPublisher;
+    private final UserRepository userRepository;
 
     @Value("${warehouse.export.root:/tmp/warehouse-exports}")
     private String exportRoot;
@@ -74,8 +78,9 @@ public class WarehouseLedgerExportAppService {
         try {
             markProcessing(taskId);
             List<WarehouseEntity> entities = loadEntities(req);
+            Map<Long, String> usernameById = loadUsernames(entities);
             String[] headers = WarehouseLedgerExportPolicy.getHeaders(req.sections());
-            List<String[]> rows = WarehouseLedgerExportPolicy.buildRows(entities, req.sections());
+            List<String[]> rows = WarehouseLedgerExportPolicy.buildRows(entities, req.sections(), usernameById);
             byte[] xlsx = excelWriter.write(headers, rows);
             String filePath = saveXlsx(taskId, xlsx);
             complete(taskId, operatorId, operatorUsername, entities, req, filePath, startMs);
@@ -101,6 +106,16 @@ public class WarehouseLedgerExportAppService {
         }
         // 默认: current filter
         return filterService.filterAll(req.filter() != null ? req.filter() : null);
+    }
+
+    private Map<Long, String> loadUsernames(List<WarehouseEntity> entities) {
+        if (entities.isEmpty()) return Map.of();
+        java.util.Set<Long> userIds = entities.stream()
+                .map(WarehouseEntity::getCreatedBy).filter(id -> id != null)
+                .collect(java.util.stream.Collectors.toSet());
+        if (userIds.isEmpty()) return Map.of();
+        return userRepository.findByIdIn(userIds).stream()
+                .collect(Collectors.toMap(User::getId, u -> u.getFullName() != null ? u.getFullName() : ""));
     }
 
     private String saveXlsx(Long taskId, byte[] xlsx) throws IOException {

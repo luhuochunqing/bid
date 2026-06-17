@@ -7,6 +7,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,12 +39,18 @@ class WarehouseLedgerExportPolicyTest {
         lenient().when(wh.getStatus()).thenReturn(WarehouseStatus.IN_USE);
         lenient().when(wh.getInvoicePeriodStart()).thenReturn(LocalDate.of(2026, 1, 1));
         lenient().when(wh.getInvoicePeriodEnd()).thenReturn(LocalDate.of(2026, 12, 31));
+        lenient().when(wh.getCreatedBy()).thenReturn(1L);
+        lenient().when(wh.getCreatedAt()).thenReturn(java.time.LocalDateTime.of(2026, 1, 1, 0, 0));
+    }
+
+    private Map<Long, String> usernameMap() {
+        return Map.of(1L, "管理员");
     }
 
     @Test
     void buildRows_WithEmptyEntities_ShouldReturnEmptyList() {
         List<String[]> rows = WarehouseLedgerExportPolicy.buildRows(
-                List.of(), Set.of(WarehouseLedgerExportPolicy.Section.BASIC));
+                List.of(), Set.of(WarehouseLedgerExportPolicy.Section.BASIC), Map.of());
         assertThat(rows).isEmpty();
     }
 
@@ -55,7 +62,8 @@ class WarehouseLedgerExportPolicyTest {
                 List.of(wh),
                 Set.of(WarehouseLedgerExportPolicy.Section.BASIC,
                        WarehouseLedgerExportPolicy.Section.LEASE,
-                       WarehouseLedgerExportPolicy.Section.DOC));
+                       WarehouseLedgerExportPolicy.Section.DOC,
+                       WarehouseLedgerExportPolicy.Section.META), usernameMap());
         assertThat(rows).hasSize(1);
         String[] row = rows.get(0);
 
@@ -78,6 +86,9 @@ class WarehouseLedgerExportPolicyTest {
         assertThat(row[WarehouseLedgerExportPolicy.COL_HAS_PHOTOS]).isEqualTo("是");
         // STATUS column
         assertThat(row[WarehouseLedgerExportPolicy.COL_STATUS]).isEqualTo("使用中");
+        // META columns
+        assertThat(row[WarehouseLedgerExportPolicy.COL_CREATED_AT]).isEqualTo("2026-01-01T00:00");
+        assertThat(row[WarehouseLedgerExportPolicy.COL_CREATED_BY]).isEqualTo("管理员");
     }
 
     @Test
@@ -85,7 +96,7 @@ class WarehouseLedgerExportPolicyTest {
         stubBasicFields();
 
         List<String[]> rows = WarehouseLedgerExportPolicy.buildRows(
-                List.of(wh), Set.of(WarehouseLedgerExportPolicy.Section.BASIC));
+                List.of(wh), Set.of(WarehouseLedgerExportPolicy.Section.BASIC), Map.of());
         String[] row = rows.get(0);
 
         // Index + BASIC should be non-empty
@@ -103,6 +114,9 @@ class WarehouseLedgerExportPolicyTest {
         assertThat(row[WarehouseLedgerExportPolicy.COL_HAS_INVOICE]).isEmpty();
         assertThat(row[WarehouseLedgerExportPolicy.COL_HAS_PHOTOS]).isEmpty();
         assertThat(row[WarehouseLedgerExportPolicy.COL_STATUS]).isEmpty();
+        // META should be empty
+        assertThat(row[WarehouseLedgerExportPolicy.COL_CREATED_AT]).isEmpty();
+        assertThat(row[WarehouseLedgerExportPolicy.COL_CREATED_BY]).isEmpty();
     }
 
     @Test
@@ -112,7 +126,7 @@ class WarehouseLedgerExportPolicyTest {
         List<String[]> rows = WarehouseLedgerExportPolicy.buildRows(
                 List.of(wh),
                 Set.of(WarehouseLedgerExportPolicy.Section.LEASE,
-                       WarehouseLedgerExportPolicy.Section.DOC));
+                       WarehouseLedgerExportPolicy.Section.DOC), Map.of());
         String[] row = rows.get(0);
 
         assertThat(row[WarehouseLedgerExportPolicy.COL_INDEX]).isNotEmpty();
@@ -131,12 +145,15 @@ class WarehouseLedgerExportPolicyTest {
         String[] headers = WarehouseLedgerExportPolicy.getHeaders(
                 Set.of(WarehouseLedgerExportPolicy.Section.BASIC,
                        WarehouseLedgerExportPolicy.Section.LEASE,
-                       WarehouseLedgerExportPolicy.Section.DOC));
+                       WarehouseLedgerExportPolicy.Section.DOC,
+                       WarehouseLedgerExportPolicy.Section.META));
         assertThat(headers).hasSize(WarehouseLedgerExportPolicy.HEADER_COUNT);
         assertThat(headers[WarehouseLedgerExportPolicy.COL_INDEX]).isNotEmpty();
         assertThat(headers[WarehouseLedgerExportPolicy.COL_NAME]).isNotEmpty();
         assertThat(headers[WarehouseLedgerExportPolicy.COL_START]).isNotEmpty();
         assertThat(headers[WarehouseLedgerExportPolicy.COL_HAS_CERT]).isNotEmpty();
+        assertThat(headers[WarehouseLedgerExportPolicy.COL_CREATED_AT]).isEqualTo("创建时间");
+        assertThat(headers[WarehouseLedgerExportPolicy.COL_CREATED_BY]).isEqualTo("创建人");
     }
 
     @Test
@@ -147,6 +164,7 @@ class WarehouseLedgerExportPolicyTest {
         assertThat(headers[WarehouseLedgerExportPolicy.COL_NAME]).isNotEmpty();
         assertThat(headers[WarehouseLedgerExportPolicy.COL_START]).isEmpty();
         assertThat(headers[WarehouseLedgerExportPolicy.COL_HAS_CERT]).isEmpty();
+        assertThat(headers[WarehouseLedgerExportPolicy.COL_CREATED_AT]).isEmpty();
     }
 
     @Test
@@ -155,7 +173,7 @@ class WarehouseLedgerExportPolicyTest {
         assertThat(headers).hasSize(WarehouseLedgerExportPolicy.HEADER_COUNT);
         // Verify first and last headers
         assertThat(headers[WarehouseLedgerExportPolicy.COL_INDEX]).isEqualTo("序号");
-        assertThat(headers[WarehouseLedgerExportPolicy.COL_REMARKS]).isEqualTo("备注");
+        assertThat(headers[WarehouseLedgerExportPolicy.COL_CREATED_BY]).isEqualTo("创建人");
     }
 
     @Test
@@ -163,7 +181,7 @@ class WarehouseLedgerExportPolicyTest {
         stubBasicFields();
 
         String[] row = WarehouseLedgerExportPolicy.buildRows(
-                List.of(wh), Set.of(WarehouseLedgerExportPolicy.Section.LEASE)).get(0);
+                List.of(wh), Set.of(WarehouseLedgerExportPolicy.Section.LEASE), Map.of()).get(0);
         assertThat(row[WarehouseLedgerExportPolicy.COL_INVOICE_PERIOD]).isEqualTo("2026-01-01 ~ 2026-12-31");
     }
 
@@ -181,7 +199,7 @@ class WarehouseLedgerExportPolicyTest {
         lenient().when(wh.getStatus()).thenReturn(WarehouseStatus.IN_USE);
 
         String[] row = WarehouseLedgerExportPolicy.buildRows(
-                List.of(wh), Set.of(WarehouseLedgerExportPolicy.Section.LEASE)).get(0);
+                List.of(wh), Set.of(WarehouseLedgerExportPolicy.Section.LEASE), Map.of()).get(0);
         assertThat(row[WarehouseLedgerExportPolicy.COL_INVOICE_PERIOD]).isEmpty();
     }
 
