@@ -176,6 +176,10 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Upload, Download, Bell, Search } from '@element-plus/icons-vue'
 import { usePerformanceImport } from '@/composables/usePerformanceImport.js'
 import { useKnowledgePermission } from '@/composables/useKnowledgePermission'
+import PerformanceDetailDrawer from './components/PerformanceDetailDrawer.vue'
+import PerformanceFormDialog from './components/PerformanceFormDialog.vue'
+import PerformanceAlertConfigDialog from './components/performance/PerformanceAlertConfigDialog.vue'
+import PerformanceSimilarDrawer from './components/PerformanceSimilarDrawer.vue'
 
 const { canManage: canManagePerformance, canAdminAlert: canAdminPerformanceAlert } = useKnowledgePermission()
 
