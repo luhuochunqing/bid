@@ -122,6 +122,7 @@ const {
 .crm-opportunity-selector { padding: 12px 0; }
 .crm-field-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .label { font-weight: 600; min-width: 110px; }
+.crm-field-row .el-tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .search-filters { margin-bottom: 16px; }
 .blueprint-row { display: flex; flex-wrap: nowrap; align-items: stretch; padding: 10px 0; background: var(--bg-muted-2); border: 1px solid var(--border-light); border-radius: 6px; }
 .blueprint-item { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0 16px; border-right: 1px solid var(--border-light); }

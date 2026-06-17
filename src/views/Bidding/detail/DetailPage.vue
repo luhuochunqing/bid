@@ -277,10 +277,10 @@ const evaluationFormRef = ref(null)
 function transformCrmBasic(basic) {
   // 字段名对齐后端 EvaluationBasicDTO（V130 三段式 + V1026 字段重构）
   return {
-    plannedShortlistedCount: basic?.shortlistedCount ?? basic?.planSupplierCount ?? null,
-    mroOfficeFlowAmount: basic?.platformServiceFee ?? basic?.ecommerceMroAmount ?? null,
-    unfavorableItems: basic?.competitorAnalysis ?? basic?.bidDocumentDisadvantage ?? '',
-    riskAssessment: basic?.riskPrediction ?? '',
+    plannedShortlistedCount: basic?.plannedShortlistedCount ?? basic?.shortlistedCount ?? basic?.planSupplierCount ?? null,
+    mroOfficeFlowAmount: basic?.mroOfficeFlowAmount ?? basic?.platformServiceFee ?? basic?.ecommerceMroAmount ?? null,
+    unfavorableItems: basic?.unfavorableItems ?? basic?.competitorAnalysis ?? basic?.bidDocumentDisadvantage ?? '',
+    riskAssessment: basic?.riskAssessment ?? basic?.riskPrediction ?? basic?.projectBackground ?? '',
     contingencyPlan: basic?.contingencyPlan ?? '',
     processKnowledge: basic?.processKnowledge ?? '',
     supportNotes: basic?.supportNotes ?? '',
@@ -309,8 +309,9 @@ async function onCrmOpportunityLinked({ opportunityId, opportunityName, evaluati
   if (!tender.value?.id) return
   crmLinking.value = true
   try {
-    // 1. 保存评估草稿（CRM回填数据）
+    // 1. 组装评估表 payload（三段式结构对齐后端 TenderEvaluationSubmitRequest）
     const evalPayload = {
+      bidRecommendation: evaluationData.recommendation?.shouldBid ? 'RECOMMEND' : 'NOT_RECOMMEND',
       evaluationBasic: transformCrmBasic(evaluationData.basic),
       evaluationCustomerInfos: transformCrmCustomerInfos(evaluationData.customerInfos),
       evaluationRecommendation: {
@@ -388,7 +389,7 @@ onBeforeRouteLeave(async () => {
 </script>
 
 <style scoped>
-.crm-status-bar .mt-2 { margin-top: 8px; display: inline-block; }
+.crm-status-bar .mt-2 { margin-top: 8px; display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .evaluation-tab-label {
   display: inline-flex;
   align-items: center;
