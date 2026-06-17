@@ -93,6 +93,14 @@ skip() { echo -e "${YELLOW}⊘${NC} $1 (skipped)"; SKIPD=$((SKIPD + 1)); }
 echo "=== 推送前门禁 $(date '+%H:%M:%S') ==="
 echo ""
 
+# ── 0. 持久 Worktree 完整性检查 ─────────────────────────
+echo "── 持久 Worktree 完整性 ──"
+if bash "$ROOT_DIR/scripts/check-worktree-protection.sh" 2>/dev/null; then
+  pass "持久 Worktree 完好"
+else
+  fail "持久 Worktree 缺失 — 请先恢复再推送!"
+fi
+
 # ── 1. 架构检查 ──────────────────────────────────────────
 echo "── 架构合规 ──"
 if [ ! -d "$ROOT_DIR/backend" ]; then
