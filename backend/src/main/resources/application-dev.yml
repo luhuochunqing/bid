@@ -65,7 +65,7 @@ app:
     auth-base-url: ${XIYU_CRM_AUTH_BASE_URL:}
     customer-base-url: ${XIYU_CRM_CUSTOMER_BASE_URL:}
     message-base-url: ${XIYU_CRM_MESSAGE_BASE_URL:}
-    chance-base-url: ${XIYU_CRM_CHANCE_BASE_URL:}
+    chance-base-url: ${XIYU_CRM_CHANCE_BASE_URL:https://winbid-test.ehsy.com}
     contact-person-base-url: ${XIYU_CRM_CONTACT_PERSON_BASE_URL:}
     client-id: ${XIYU_CRM_CLIENT_ID:}
     client-secret: ${XIYU_CRM_CLIENT_SECRET:}

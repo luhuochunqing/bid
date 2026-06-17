@@ -37,7 +37,8 @@ public class WebhookDeliveryJobService {
     private final WebhookFailureClassifier failureClassifier;
     private final AsyncDecisionResolver decisionResolver;
     private final AsyncObservabilityRecorder observabilityRecorder;
-    private final ExponentialBackoffRetrySchedule retrySchedule = new ExponentialBackoffRetrySchedule(2, 60, 4);
+    /** 重试间隔: 1min / 5min / 15min（与 CRM 结果确认回调保持一致） */
+    private final ExponentialBackoffRetrySchedule retrySchedule = new ExponentialBackoffRetrySchedule(60, 900, 5);
 
     @Scheduled(fixedDelayString = "${webhook.crm.worker-fixed-delay-ms:5000}")
     public void processDueTasks() {

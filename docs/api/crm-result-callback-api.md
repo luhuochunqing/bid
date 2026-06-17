@@ -34,7 +34,7 @@
 {
   "tenderId": 256,
   "projectId": 128,
-  "crmOpportunityId": "CRM-OPP-2026-0510-003",
+  "sourceId": "CRM-OPP-2026-0510-003",
   "bidResult": "WON",
   "evidenceFiles": [
     {
@@ -84,7 +84,7 @@
 | `tenderId` | Long | ✅ | 投标系统内部标讯ID |
 | `projectId` | Long | ✅ | 投标系统内部项目ID |
 | `systemName` | String | ✅ | 调用方系统名称，固定值 `西域数智化投标管理平台` |
-| `crmOpportunityId` | String | ✅ | CRM 推送标讯时的商机ID（VARCHAR 64），用于 CRM 侧关联回对应的商机 |
+| `sourceId` | String | ✅ | 来源系统的数据唯一 ID（与标讯推送接口的 sourceId 取值一致），用于 CRM 侧关联回对应商机 |
 | `bidResult` | Enum | ✅ | 投标结果：`WON` / `LOST` / `FAILED` / `ABANDONED` |
 | `evidenceFiles` | Array\<FileInfo\> | ✅ | 凭证文件列表，每个结果类型至少 1 个 |
 | `competitors` | Array\<Competitor\> | ⭕ | 竞争对手情况表，**仅 WON / LOST 时有值**，FAILED / ABANDONED 时为空数组 |
@@ -142,7 +142,7 @@
 {
   "tenderId": 256,
   "projectId": 128,
-  "crmOpportunityId": "CRM-OPP-2026-0510-003",
+  "sourceId": "CRM-OPP-2026-0510-003",
   "bidResult": "WON",
   "evidenceFiles": [
     {
@@ -172,7 +172,7 @@
 {
   "tenderId": 301,
   "projectId": 156,
-  "crmOpportunityId": "CRM-OPP-2026-0615-012",
+  "sourceId": "CRM-OPP-2026-0615-012",
   "bidResult": "ABANDONED",
   "evidenceFiles": [
     {
