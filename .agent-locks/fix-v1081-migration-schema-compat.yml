@@ -1,0 +1,9 @@
+version: 1
+task: "fix-v1081-migration-schema-compat"
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql/V1081__remove_task_executor_role.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/kimi/fix-v1081-migration-schema-compat"
+    expiresAt: "2026-06-18T12:00:00.000Z"
+    reason: "Make V1081 compatible with schemas that lack role_menu_permissions table"
