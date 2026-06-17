@@ -1,9 +1,0 @@
-version: 1
-task: "kimi-fix-crm-query-strategy"
-locks:
-  - path: "backend/src/main/resources/application.yml"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/kimi/fix-crm-query-strategy"
-    expiresAt: "2026-06-17T15:36:17.644Z"
-    reason: "Update CRM matching strategy feature flag"
