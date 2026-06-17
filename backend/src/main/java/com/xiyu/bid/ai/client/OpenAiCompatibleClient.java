@@ -121,7 +121,10 @@ public class OpenAiCompatibleClient {
             return providerName + " API 余额不足，请在 " + providerName + " 控制台充值，或更换有余额的 API Key 后再测试。";
         }
         if (exception.getStatusCode().value() == 401 || exception.getStatusCode().value() == 403) {
-            return providerName + " API Key 无效或无权限，请检查后台配置的 API Key。";
+            String detail = (providerMessage != null && !providerMessage.isBlank())
+                    ? "（" + providerMessage + "）"
+                    : "";
+            return providerName + " API Key 无效或无权限，请检查后台配置的 API Key。" + detail;
         }
         if (exception.getStatusCode().value() == 429) {
             return providerName + " API 请求过于频繁或额度受限，请稍后重试或检查厂商限额。";
@@ -134,21 +137,15 @@ public class OpenAiCompatibleClient {
     }
 
     private String extractProviderErrorMessage(String responseBody) {
-        if (responseBody == null || responseBody.isBlank()) {
-            return "";
-        }
+        if (responseBody == null || responseBody.isBlank()) return "";
         try {
             JsonNode root = objectMapper.readTree(responseBody);
             JsonNode error = root.path("error");
             if (error.isObject()) {
                 String message = error.path("message").asText("");
+                if (message.isBlank()) return "";
                 String code = error.path("code").asText("");
-                if (!message.isBlank() && !code.isBlank()) {
-                    return message + " (" + code + ")";
-                }
-                if (!message.isBlank()) {
-                    return message;
-                }
+                return code.isBlank() ? message : message + " (" + code + ")";
             }
             return root.path("message").asText("");
         } catch (JsonProcessingException ignored) {
