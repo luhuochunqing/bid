@@ -127,6 +127,7 @@ src/main/java/com/xiyu/bid/tender/service/TenderImportService.java | 标讯 Exce
 src/main/java/com/xiyu/bid/marketinsight/service/MarketInsightService.java | PR 617; market insight on tender/project, debt.
 src/main/java/com/xiyu/bid/marketprediction/MarketPredictionService.java | PR 617; prediction service, debt.
 src/main/java/com/xiyu/bid/tender/service/TenderAutoAssignmentService.java | 标讯自动分配服务，通过 tender-project link；权限由 Tender 控制器 @PreAuthorize 和 assignment policy 保护。
+src/main/java/com/xiyu/bid/tender/service/TenderCommandAccessGuard.java | 标讯命令权限守卫仅编排标讯级编辑/删除策略（TenderEditPermissionPolicy），不直接访问项目数据；入口角色由 TenderController @PreAuthorize 守卫。
 src/main/java/com/xiyu/bid/tender/service/TenderDeduplicationService.java | 标讯去重服务，类似。
 src/main/java/com/xiyu/bid/tender/service/TenderEvaluationReviewService.java | 标讯评估审核服务，通过 tender 关联 project 上下文；评估权限由 TenderEvaluationController @PreAuthorize + service 验证。
 src/main/java/com/xiyu/bid/tender/service/TenderService.java | 标讯主服务，处理 project link；权限委托。
