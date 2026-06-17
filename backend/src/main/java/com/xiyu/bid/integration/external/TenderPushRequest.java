@@ -88,6 +88,25 @@ public class TenderPushRequest {
     @Size(max = 5000)
     private String contentDesc;
 
+    /** 标讯信息（最长 5000 字符） */
+    @Size(max = 5000)
+    private String tenderInfo;
+
+    /** 项目负责人姓名 */
+    @Size(max = 100)
+    private String projectManagerName;
+
+    /** 项目部门 */
+    @Size(max = 100)
+    private String department;
+
+    /** 创建人姓名（覆盖系统默认值） */
+    @Size(max = 100)
+    private String creatorName;
+
+    /** 创建时间（格式 yyyy-MM-dd HH:mm 或 yyyy-MM-ddTHH:mm） */
+    private String createdAt;
+
     private List<AttachmentRef> attachments;
 
     @Builder.Default

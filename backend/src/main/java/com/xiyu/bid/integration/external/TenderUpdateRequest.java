@@ -83,6 +83,20 @@ public class TenderUpdateRequest {
     @Size(max = 5000)
     private String contentDesc;
 
+    @Size(max = 5000)
+    private String tenderInfo;
+
+    @Size(max = 100)
+    private String projectManagerName;
+
+    @Size(max = 100)
+    private String department;
+
+    @Size(max = 100)
+    private String creatorName;
+
+    private String createdAt;
+
     private List<TenderPushRequest.AttachmentRef> attachments;
 
     // ── 项目评估（v3.1 新增）─────────────────────────────────────────

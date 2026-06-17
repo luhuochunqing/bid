@@ -93,6 +93,11 @@ public class TenderIntegrationService {
                 r.getPriority(), r.getProjectType(), r.getSourcePlatform(), r.getSource(), r.getTags());
         applyContactInfo(tender, r.getContactInfo());
         if (r.getContentDesc() != null) tender.setDescription(InputSanitizer.sanitizeString(r.getContentDesc(), 5000));
+        if (r.getTenderInfo() != null) tender.setTenderInfo(InputSanitizer.sanitizeString(r.getTenderInfo(), 5000));
+        if (r.getProjectManagerName() != null) tender.setProjectManagerName(InputSanitizer.sanitizeString(r.getProjectManagerName(), 100));
+        if (r.getDepartment() != null) tender.setDepartment(InputSanitizer.sanitizeString(r.getDepartment(), 100));
+        if (r.getCreatorName() != null) tender.setCreatorName(InputSanitizer.sanitizeString(r.getCreatorName(), 100));
+        if (r.getCreatedAt() != null) tender.setCreatedAt(parseDateTime(r.getCreatedAt()));
         tender.setEvaluationSource(com.xiyu.bid.entity.Tender.EvaluationSource.CRM_PUSH);
     }
     /**
@@ -185,6 +190,11 @@ public class TenderIntegrationService {
         if (request.getContentDesc() != null) {
             tender.setDescription(InputSanitizer.sanitizeString(request.getContentDesc(), 5000));
         }
+        if (request.getTenderInfo() != null) tender.setTenderInfo(InputSanitizer.sanitizeString(request.getTenderInfo(), 5000));
+        if (request.getProjectManagerName() != null) tender.setProjectManagerName(InputSanitizer.sanitizeString(request.getProjectManagerName(), 100));
+        if (request.getDepartment() != null) tender.setDepartment(InputSanitizer.sanitizeString(request.getDepartment(), 100));
+        if (request.getCreatorName() != null) tender.setCreatorName(InputSanitizer.sanitizeString(request.getCreatorName(), 100));
+        if (request.getCreatedAt() != null) tender.setCreatedAt(parseDateTime(request.getCreatedAt()));
         if (request.getEvaluation() != null) {
             tender.setEvaluationSource(com.xiyu.bid.entity.Tender.EvaluationSource.CRM_PUSH);
         }
@@ -420,6 +430,11 @@ public class TenderIntegrationService {
         if (r.getContentDesc() != null) {
             t.setDescription(InputSanitizer.sanitizeString(r.getContentDesc(), 5000));
         }
+        if (r.getTenderInfo() != null) t.setTenderInfo(InputSanitizer.sanitizeString(r.getTenderInfo(), 5000));
+        if (r.getProjectManagerName() != null) t.setProjectManagerName(InputSanitizer.sanitizeString(r.getProjectManagerName(), 100));
+        if (r.getDepartment() != null) t.setDepartment(InputSanitizer.sanitizeString(r.getDepartment(), 100));
+        if (r.getCreatorName() != null) t.setCreatorName(InputSanitizer.sanitizeString(r.getCreatorName(), 100));
+        if (r.getCreatedAt() != null) t.setCreatedAt(parseDateTime(r.getCreatedAt()));
         t.setSourceType(com.xiyu.bid.entity.Tender.SourceType.EXTERNAL_PLATFORM);
         t.setSource(com.xiyu.bid.entity.Tender.SourceType.EXTERNAL_PLATFORM.getLabel());
         t.setStatus(com.xiyu.bid.entity.Tender.Status.PENDING_ASSIGNMENT);
