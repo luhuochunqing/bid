@@ -63,18 +63,22 @@ function applyParsedFields(form, parsedFields) {
  */
 function applySourceDocumentMetadata(form, file, result = {}) {
   const fileUrl = result?.fileUrl || result?.documentId || result?.document?.fileUrl || ''
-  if (!fileUrl) return
-  form.sourceDocumentName = file?.name || result?.documentName || '招标文件'
-  form.sourceDocumentFileType = file?.type || result?.contentType || ''
-  form.sourceDocumentFileUrl = fileUrl
-  // 将 URL 回写到 attachments 数组中对应文件
+  const fileType = file?.type || result?.contentType || ''
+  // 将 URL 和 fileType 回写到 attachments 数组中对应文件
   if (Array.isArray(form.attachments)) {
     const target = form.attachments.find(f => (f.uid && f.uid === file?.uid) || f.name === file?.name)
     if (target) {
-      target.url = fileUrl
-      target.fileUrl = fileUrl
+      if (fileType) target.fileType = fileType
+      if (fileUrl) {
+        target.url = fileUrl
+        target.fileUrl = fileUrl
+      }
     }
   }
+  if (!fileUrl) return
+  form.sourceDocumentName = file?.name || result?.documentName || '招标文件'
+  form.sourceDocumentFileType = fileType
+  form.sourceDocumentFileUrl = fileUrl
 }
 
 function hasGlobalHttpErrorMessage(error) {
@@ -119,6 +123,7 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
   const handleFileChange = async (file, fileList) => {
     manualForm.value.attachments = fileList
     const uploadFile = resolveUploadFile(file)
+    const fileIndex = fileList.findIndex(f => (f.uid && f.uid === file?.uid) || f.name === file?.name)
 
     // 文件大小验证
     const sizeValidation = validateFileSize(uploadFile)
@@ -155,6 +160,15 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
       const storeResponse = await tendersApi.storeTenderDocument(uploadFile, { entityId: 'manual-tender' })
       if (storeResponse?.success && storeResponse.data) {
         storedDoc = storeResponse.data
+        // 直接按索引回写 fileType 和 fileUrl，避免匹配失败
+        if (fileIndex >= 0 && manualForm.value.attachments[fileIndex]) {
+          const att = manualForm.value.attachments[fileIndex]
+          if (uploadFile.type) att.fileType = uploadFile.type
+          if (storedDoc.fileUrl) {
+            att.url = storedDoc.fileUrl
+            att.fileUrl = storedDoc.fileUrl
+          }
+        }
         applySourceDocumentMetadata(manualForm.value, uploadFile, storedDoc)
         ElMessage.success('标讯文件已上传保存')
       } else {
