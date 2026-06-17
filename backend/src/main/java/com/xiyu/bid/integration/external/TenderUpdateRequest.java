@@ -95,7 +95,7 @@ public class TenderUpdateRequest {
     @Size(max = 100)
     private String creatorName;
 
-    private String createdAt;
+    private String createDate;
 
     private List<TenderPushRequest.AttachmentRef> attachments;
 

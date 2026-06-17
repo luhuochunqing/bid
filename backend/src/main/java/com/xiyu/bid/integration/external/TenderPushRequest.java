@@ -105,7 +105,7 @@ public class TenderPushRequest {
     private String creatorName;
 
     /** 创建时间（格式 yyyy-MM-dd HH:mm 或 yyyy-MM-ddTHH:mm） */
-    private String createdAt;
+    private String createDate;
 
     private List<AttachmentRef> attachments;
 

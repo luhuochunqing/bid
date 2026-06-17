@@ -97,7 +97,7 @@ public class TenderIntegrationService {
         if (r.getProjectManagerName() != null) tender.setProjectManagerName(InputSanitizer.sanitizeString(r.getProjectManagerName(), 100));
         if (r.getDepartment() != null) tender.setDepartment(InputSanitizer.sanitizeString(r.getDepartment(), 100));
         if (r.getCreatorName() != null) tender.setCreatorName(InputSanitizer.sanitizeString(r.getCreatorName(), 100));
-        if (r.getCreatedAt() != null) tender.setCreatedAt(parseDateTime(r.getCreatedAt()));
+        if (r.getCreateDate() != null) tender.setCreatedAt(parseDateTime(r.getCreateDate()));
         tender.setEvaluationSource(com.xiyu.bid.entity.Tender.EvaluationSource.CRM_PUSH);
     }
     /**
@@ -194,7 +194,7 @@ public class TenderIntegrationService {
         if (request.getProjectManagerName() != null) tender.setProjectManagerName(InputSanitizer.sanitizeString(request.getProjectManagerName(), 100));
         if (request.getDepartment() != null) tender.setDepartment(InputSanitizer.sanitizeString(request.getDepartment(), 100));
         if (request.getCreatorName() != null) tender.setCreatorName(InputSanitizer.sanitizeString(request.getCreatorName(), 100));
-        if (request.getCreatedAt() != null) tender.setCreatedAt(parseDateTime(request.getCreatedAt()));
+        if (request.getCreateDate() != null) tender.setCreatedAt(parseDateTime(request.getCreateDate()));
         if (request.getEvaluation() != null) {
             tender.setEvaluationSource(com.xiyu.bid.entity.Tender.EvaluationSource.CRM_PUSH);
         }
@@ -434,7 +434,7 @@ public class TenderIntegrationService {
         if (r.getProjectManagerName() != null) t.setProjectManagerName(InputSanitizer.sanitizeString(r.getProjectManagerName(), 100));
         if (r.getDepartment() != null) t.setDepartment(InputSanitizer.sanitizeString(r.getDepartment(), 100));
         if (r.getCreatorName() != null) t.setCreatorName(InputSanitizer.sanitizeString(r.getCreatorName(), 100));
-        if (r.getCreatedAt() != null) t.setCreatedAt(parseDateTime(r.getCreatedAt()));
+        if (r.getCreateDate() != null) t.setCreatedAt(parseDateTime(r.getCreateDate()));
         t.setSourceType(com.xiyu.bid.entity.Tender.SourceType.EXTERNAL_PLATFORM);
         t.setSource(com.xiyu.bid.entity.Tender.SourceType.EXTERNAL_PLATFORM.getLabel());
         t.setStatus(com.xiyu.bid.entity.Tender.Status.PENDING_ASSIGNMENT);
