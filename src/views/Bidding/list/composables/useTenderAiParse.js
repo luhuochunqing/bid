@@ -8,6 +8,9 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024
 
 export function useTenderAiParse(form) {
   const parsingDocument = ref(false)
+  // Track which fields were filled by AI parse, so re-parse can overwrite
+  // previously AI-filled values without clobbering user manual input.
+  const aiFilledFields = ref(new Set())
 
   watch(() => form.value.pastedText, (val) => {
     if (val && val.length > PASTED_TEXT_MAX_LENGTH) {
@@ -46,7 +49,7 @@ export function useTenderAiParse(form) {
     await runAiParse(async () => {
       const response = await tendersApi.parseTenderIntakeDocument(uploadFile, { entityId: 'create-tender' })
       if (!response?.success) throw new Error(response?.msg || '文档自动识别失败')
-      applyParsedFields(response.data)
+      applyParsedFields(response.data, true)
       applySourceDocumentMetadata(uploadFile, response.data)
       return 'DeepSeek/AI 已识别附件内容，可继续编辑后保存'
     })
@@ -58,7 +61,7 @@ export function useTenderAiParse(form) {
     await runAiParse(async () => {
       const response = await tendersApi.parseTenderIntakeText(text, { entityId: 'create-tender' })
       if (!response?.success) throw new Error(response?.msg || '粘贴文本识别失败')
-      applyParsedFields(response.data)
+      applyParsedFields(response.data, true)
       return 'DeepSeek/AI 已识别粘贴文本，可继续编辑后保存'
     })
   }
@@ -76,13 +79,14 @@ export function useTenderAiParse(form) {
     }
   }
 
-  function applyParsedFields(data) {
+  function applyParsedFields(data, overwrite = false) {
     if (!data) return
     const extracted = data?.extractedData && typeof data.extractedData === 'object' ? data.extractedData : null
     // Two mapping sets cover different AI field naming conventions:
     //   [0] AI returns form-style names (landline, phone, …)
     //   [1] AI returns API-style names (contactTel, contactName, …)
-    // First non-empty value wins for each target field.
+    // When overwrite is true (re-parse), we overwrite fields that were
+    // previously filled by AI, but never clobber user manual input.
     const mappings = [
       {
         title: 'title', region: 'region', tenderAgency: 'purchaser',
@@ -109,8 +113,11 @@ export function useTenderAiParse(form) {
         for (const [from, to] of Object.entries(mapping)) {
           const value = src[from]
           if (value === undefined || value === null || value === '') continue
-          if (form.value[to] === undefined || form.value[to] === null || form.value[to] === '') {
+          const isEmpty = form.value[to] === undefined || form.value[to] === null || form.value[to] === ''
+          const shouldFill = isEmpty || (overwrite && aiFilledFields.value.has(to))
+          if (shouldFill) {
             form.value[to] = value
+            aiFilledFields.value.add(to)
           }
         }
       }

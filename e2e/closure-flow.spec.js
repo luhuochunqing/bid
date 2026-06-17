@@ -81,19 +81,19 @@ test.describe('项目结页 §3.3.1.6', () => {
 
     // 导航到项目详情页
     await page.goto(`/project/${projectId}`)
-    await page.waitForLoadState('domcontentloaded')
+    await page.waitForSelector('.project-detail-page, .el-tabs', { timeout: 15000 })
 
     // 切换到"项目结项" tab
     const closureTab = page.locator('.el-tabs__item', { hasText: '项目结项' })
     if (await closureTab.isVisible()) {
       await closureTab.click()
-      await expect(page.getByText('保证金管理').first()).toBeVisible({ timeout: 10000 }).catch(() => {})
+      await expect(page.getByText('保证金管理')).toBeVisible({ timeout: 10000 }).catch(() => {})
     }
 
     // 验证页面渲染出关键区块
-    await expect(page.getByText('保证金管理').first()).toBeVisible({ timeout: 10000 })
-    await expect(page.getByText('是否有保证金').first()).toBeVisible()
-    await expect(page.getByText('项目总结').first()).toBeVisible()
+    await expect(page.getByText('保证金管理')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText('是否有保证金')).toBeVisible()
+    await expect(page.getByText('项目总结')).toBeVisible()
   })
 
   test('2. 投标管理员可查看并审核结项', async ({ page }) => {
@@ -102,18 +102,18 @@ test.describe('项目结页 §3.3.1.6', () => {
     await injectSession(page, session)
 
     await page.goto(`/project/${projectId}`)
-    await page.waitForLoadState('domcontentloaded')
+    await page.waitForSelector('.project-detail-page, .el-tabs', { timeout: 15000 })
 
     // 切换到结项 tab
     const closureTab = page.locator('.el-tabs__item', { hasText: '项目结项' })
     if (await closureTab.isVisible()) {
       await closureTab.click()
-      await expect(page.getByText('保证金管理').first()).toBeVisible({ timeout: 10000 }).catch(() => {})
+      await expect(page.getByText('保证金管理')).toBeVisible({ timeout: 10000 }).catch(() => {})
     }
 
     // 验证可见基本字段
-    await expect(page.getByText('保证金管理').first()).toBeVisible({ timeout: 10000 })
-    await expect(page.getByText('项目总结').first()).toBeVisible()
+    await expect(page.getByText('保证金管理')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText('项目总结')).toBeVisible()
 
     // 投标管理员可以看到"通过"和"驳回"按钮
     const approveBtn = page.locator('button', { hasText: '通过' })
@@ -182,17 +182,17 @@ test.describe('项目结页 §3.3.1.6', () => {
 
     // 导航查看
     await page.goto(`/project/${pid}`)
-    await page.waitForLoadState('domcontentloaded')
+    await page.waitForSelector('.project-detail-page, .el-tabs', { timeout: 15000 })
 
     const closureTab = page.locator('.el-tabs__item', { hasText: '项目结项' })
     if (await closureTab.isVisible()) {
       await closureTab.click()
-      await expect(page.getByText('保证金管理').first()).toBeVisible({ timeout: 10000 }).catch(() => {})
+      await expect(page.getByText('保证金管理')).toBeVisible({ timeout: 10000 }).catch(() => {})
     }
 
     // 验证保证金相关字段
-    await expect(page.getByText('保证金金额').first()).toBeVisible({ timeout: 10000 })
-    await expect(page.getByText('保证金退回情况').first()).toBeVisible()
+    await expect(page.getByText('保证金金额')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText('保证金退回情况')).toBeVisible()
   })
 
 })
