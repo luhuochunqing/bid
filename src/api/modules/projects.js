@@ -1,5 +1,7 @@
-// Input: httpClient, API mode config, project normalizers and demo adapters — once updated, update this header
-// Output: projectsApi — project list, detail, task decomposition, and lifecycle accessors | Pos: src/api/modules/
+// Input: httpClient, API mode config, project normalizers and demo adapters
+// Output: projectsApi — project list, detail, task decomposition, and lifecycle accessors
+// Pos: src/api/modules/ - Frontend API module layer
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 /**
  * 项目模块 API
@@ -8,7 +10,6 @@
 import httpClient from '../client.js'
 import { apiModeFailure, demoReadonlyFailure, isDemoEntityId, isNumericId } from './projectApiGuards.js'
 import * as tenderBreakdownApi from './projectTenderBreakdown.js'
-
 function matchesProjectStatus(projectStatus, filterStatus) {
   return String(projectStatus || '').toLowerCase() === String(filterStatus || '').toLowerCase()
 }
@@ -38,7 +39,6 @@ function applyProjectFilters(projects, params = {}) {
     return true
   })
 }
-
 function normalizeScoreDraft(draft = {}) {
   const deliverables = Array.isArray(draft.suggestedDeliverables)
     ? draft.suggestedDeliverables
