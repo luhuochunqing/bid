@@ -1,9 +1,0 @@
-version: 1
-task: "co-232-eval-source"
-locks:
-  - path: "backend/src/main/java/com/xiyu/bid/integration/external/TenderIntegrationService.java"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/mimo/fix-co-232-eval-source-origin"
-    expiresAt: "2026-06-18T00:00:00.000Z"
-    reason: "CO-232 fix evaluationSource not set on CRM push"
