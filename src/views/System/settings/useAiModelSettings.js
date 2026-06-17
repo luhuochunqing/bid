@@ -163,7 +163,7 @@ export function useAiModelSettings() {
       })
       if (!result?.success) throw new Error(result?.msg || '测试连接失败')
       provider.lastTestStatus = result.data?.status || ''
-      provider.lastTestMessage = result.data?.msg || ''
+      provider.lastTestMessage = result.data?.message || result.data?.msg || ''
       provider.lastTestAt = result.data?.testedAt || new Date().toISOString()
       if (provider.lastTestStatus === 'success') {
         ElMessage.success(`${provider.providerName} 连接测试成功`)
