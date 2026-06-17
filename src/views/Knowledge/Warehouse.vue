@@ -74,7 +74,7 @@
     />
     <WarehouseDrawer v-model="drawerVisible" :warehouse-id="detailId" @edit="handleDrawerEdit" />
     <WarehouseExportDialog v-model="exportVisible" :filters="exportFilters" :mode="exportMode" :selected-ids="selectedRowIds" />
-    <WarehouseImportDialog v-model="importVisible" @imported="handleImported" />
+    <WarehouseImportDialog v-model="importVisible" @imported="handleImported" @download-template="handleDownloadTemplate" />
     <WarehouseLedgerExportDialog
       v-model="ledgerExportVisible"
       :filter="filters"

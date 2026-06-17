@@ -10,7 +10,12 @@
   >
     <div v-if="!taskId" class="import-init">
       <el-alert title="请按模板填写 Excel 上传；如模板中标「是」的资料，请按规范命名附件一起上传" :closable="false" type="info" show-icon />
-      <el-form label-width="120px" style="margin-top:16px">
+      <div class="template-download" style="margin-top:12px">
+        <el-link type="primary" :underline="false" @click="$emit('download-template')">
+          <el-icon><DocumentCopy /></el-icon> 下载导入模板
+        </el-link>
+      </div>
+      <el-form label-width="120px" style="margin-top:12px">
         <el-form-item label="选择 Excel 文件" required>
           <el-upload
             ref="excelUploadRef"
@@ -105,6 +110,7 @@
       <div class="dialog-footer">
         <el-button v-if="!taskId" @click="handleClose">取消</el-button>
         <el-button v-if="!taskId" type="primary" :disabled="!excelFile" :loading="submitting" @click="startImport">开始导入</el-button>
+        <el-button v-else-if="status === 'PENDING' || status === 'VALIDATING' || status === 'IMPORTING'" @click="handleClose">取消</el-button>
         <el-button v-else-if="status === 'COMPLETED' || status === 'FAILED'" @click="handleClose">关闭</el-button>
       </div>
     </template>
@@ -114,13 +120,13 @@
 <script setup>
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { UploadFilled, Files, Download } from '@element-plus/icons-vue'
+import { UploadFilled, Files, Download, DocumentCopy } from '@element-plus/icons-vue'
 import http from '@/api/client'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false }
 })
-const emit = defineEmits(['update:modelValue', 'imported'])
+const emit = defineEmits(['update:modelValue', 'imported', 'download-template'])
 
 const taskId = ref(null)
 const status = ref('')
@@ -143,26 +149,9 @@ const excelUploadRef = ref()
 const attachUploadRef = ref()
 
 const attachCount = computed(() => attachFiles.value.length)
-const statusPercent = computed(() => {
-  if (status.value === 'PENDING') return 15
-  if (status.value === 'VALIDATING') return 45
-  if (status.value === 'IMPORTING') return 80
-  return 100
-})
-const statusText = computed(() => {
-  if (status.value === 'PENDING') return '任务排队中...'
-  if (status.value === 'VALIDATING') return '正在校验 Excel...'
-  if (status.value === 'IMPORTING') return '正在写入数据库...'
-  return ''
-})
-const truncatedErrors = computed(() => {
-  if (!errorDetails.value) return ''
-  return errorDetails.value
-    .split('\n')
-    .filter(l => !l.startsWith('[CORRECTION_FILE]') && !l.startsWith('[ATTACH_RESULT]') && !l.startsWith('[UNMATCHED] '))
-    .slice(0, 200)
-    .join('\n')
-})
+const statusPercent = computed(() => ({ PENDING:15, VALIDATING:45, IMPORTING:80 }[status.value] || 100))
+const statusText = computed(() => ({ PENDING:'任务排队中...', VALIDATING:'正在校验 Excel...', IMPORTING:'正在写入数据库...' }[status.value] || ''))
+const truncatedErrors = computed(() => errorDetails.value ? errorDetails.value.split('\n').filter(l => !l.startsWith('[CORRECTION_FILE]') && !l.startsWith('[ATTACH_RESULT]') && !l.startsWith('[UNMATCHED] ')).slice(0,200).join('\n') : '')
 
 function applyTaskStatus(data) {
   status.value = data.status
