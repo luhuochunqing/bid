@@ -45,6 +45,7 @@ public class TenderMapper {
                 .contactPhone2(tender.getContactPhone2())
                 .contactTel2(tender.getContactTel2())
                 .contactMail2(tender.getContactMail2())
+                .contactInfo(buildContacts(tender))
                 .sourceDocumentName(tender.getSourceDocumentName())
                 .sourceDocumentFileType(tender.getSourceDocumentFileType())
                 .sourceDocumentFileUrl(tender.getSourceDocumentFileUrl())
