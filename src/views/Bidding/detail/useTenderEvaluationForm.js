@@ -22,7 +22,7 @@ function makeEmptyForm() { return { basic: makeEmptyBasic(), customerInfo: [], r
 
 // ---- Mapping helpers ----
 /** Map column key → backend valueType */
-const VT = {
+export const VT = {
   NAME: 'TEXT', POSITION: 'ENUM14', XIYU_CONTACT: 'TEXT', CONTACT_METHOD: 'ENUM7',
   INFO_TENDENCY_BASIS: 'TEXT', INFO_CLEAR_WINNER_BID: 'SWITCH', INFO_WIN_RATE_IMPACT: 'DROPDOWN6',
   CONTACTED: 'DROPDOWN', GUIDED_BID: 'DROPDOWN',
@@ -52,12 +52,26 @@ export function evaluationToForm(evaluation) {
       projectPlanGap: basicDTO.projectPlanGap ?? blank.basic.projectPlanGap,
       projectPlanGapFiles: Array.isArray(basicDTO.projectPlanGapFiles) ? basicDTO.projectPlanGapFiles : blank.basic.projectPlanGapFiles,
     },
-    customerInfo: Array.isArray(customers) ? customers : [],
+    customerInfo: eavToFlat(customers),
     recommendation: {
       shouldBid: recDTO.shouldBid != null ? recDTO.shouldBid : (evaluation.bidRecommendation != null ? (evaluation.bidRecommendation === 'RECOMMEND') : blank.recommendation.shouldBid),
       reason: recDTO.reason ?? blank.recommendation.reason,
     },
   }
+}
+
+/** Convert backend EAV format to frontend flat row format. */
+function eavToFlat(eavRows) {
+  if (!Array.isArray(eavRows) || eavRows.length === 0) return []
+  const byRole = new Map()
+  for (const row of eavRows) {
+    if (!row.roleKey) continue
+    if (!byRole.has(row.roleKey)) {
+      byRole.set(row.roleKey, { roleKey: row.roleKey })
+    }
+    byRole.get(row.roleKey)[row.infoKey] = row.value
+  }
+  return Array.from(byRole.values())
 }
 
 /**
@@ -80,7 +94,7 @@ export function buildApiPayload(form) {
       projectPlanGap: b.projectPlanGap || null,
     },
     evaluationCustomerInfos: Array.isArray(form.customerInfo) ? form.customerInfo.flatMap((row) =>
-      CUSTOMER_INFO_COLUMNS.slice(1)
+      CUSTOMER_INFO_COLUMNS
         .filter(col => col.key in row && row[col.key] != null && String(row[col.key]).trim() !== '')
         .map(col => ({
           roleKey: row.roleKey, infoKey: col.key, value: String(row[col.key]), valueType: VT[col.key] || 'TEXT',

@@ -6,6 +6,7 @@
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { crmApi } from '@/api/modules/crm.js'
+import { CUSTOMER_INFO_ROWS } from './customerInfoMatrixConfig.js'
 
 export function useCrmOpportunitySelector(props, emit) {
   const showDialog = ref(false)
@@ -142,8 +143,9 @@ export function useCrmOpportunitySelector(props, emit) {
       try {
         const contactRes = await crmApi.getContactPersons(chance.id)
         const contacts = contactRes?.data || []
-        customerInfos = contacts.map(c => ({
-          roleKey: 'OTHER_KEY_DECISION_MAKER_1',
+        const roleKeys = CUSTOMER_INFO_ROWS.map(r => r.roleKey)
+        customerInfos = contacts.map((c, idx) => ({
+          roleKey: roleKeys[idx % roleKeys.length],
           NAME: c.name || '',
           CONTACT_INFO: c.phone || c.email || '',
           POSITION: '',

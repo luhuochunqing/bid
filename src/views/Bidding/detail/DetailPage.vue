@@ -189,6 +189,7 @@ import { useDetailActions } from './useDetailActions.js'
 import { useUserStore } from '@/stores/user'
 import { isBidManager } from '@/utils/permission'
 import { formatAssignmentCandidateLabel } from '../list/helpers.js'
+import { VT } from './useTenderEvaluationForm.js'
 const TenderEvaluationForm = defineAsyncComponent(() => import('./TenderEvaluationForm.vue'))
 const OperationLogTimeline = defineAsyncComponent(() => import('./components/OperationLogTimeline.vue'))
 const AssignDialog = defineAsyncComponent(() => import('../list/components/AssignDialog.vue'))
@@ -291,13 +292,13 @@ function transformCrmBasic(basic) {
 function transformCrmCustomerInfos(customerInfos) {
   if (!Array.isArray(customerInfos)) return []
   const result = []
-  const infoFields = ['NAME','POSITION','XIYU_CONTACT','CONTACT_METHOD','EVALUATION_BASIS',
+  const infoFields = ['NAME','CONTACT_INFO','POSITION','XIYU_CONTACT','CONTACT_METHOD','INFO_TENDENCY_BASIS',
     'CONTACTED','GUIDED_BID','CAN_GET_KEY_INFO','CAN_REMOVE_ADVERSE',
-    'CAN_SYNC_EVAL','TENDENCY']
+    'CAN_SYNC_EVAL','TENDENCY','INFO_CLEAR_WINNER_BID','INFO_WIN_RATE_IMPACT']
   for (const row of customerInfos) {
     for (const key of infoFields) {
-      if (row[key] !== undefined) {
-        result.push({ roleKey: row.roleKey, infoKey: key, value: row[key], valueType: 'TEXT' })
+      if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') {
+        result.push({ roleKey: row.roleKey, infoKey: key, value: String(row[key]), valueType: VT[key] || 'TEXT' })
       }
     }
   }
