@@ -62,7 +62,7 @@
           :rows="3"
           placeholder="请填写招标文件中的不利项"
           maxlength="5000"
-          :readonly="disabled"
+          :disabled="disabled"
         />
       </el-form-item>
 
@@ -77,7 +77,7 @@
           :rows="3"
           placeholder="请填写风险预判"
           maxlength="5000"
-          :readonly="disabled"
+          :disabled="disabled"
         />
       </el-form-item>
 
@@ -102,7 +102,7 @@
           :rows="3"
           placeholder="请填写对评标流程的了解程度"
           maxlength="5000"
-          :readonly="disabled"
+          :disabled="disabled"
         />
       </el-form-item>
 
@@ -116,7 +116,7 @@
           :rows="3"
           placeholder="请填写需要的支持及备注"
           maxlength="5000"
-          :readonly="disabled"
+          :disabled="disabled"
         />
       </el-form-item>
     </div>

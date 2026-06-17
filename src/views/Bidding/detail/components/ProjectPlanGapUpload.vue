@@ -6,7 +6,7 @@
       :rows="3"
       placeholder="请填写项目计划差距（可选）"
       maxlength="5000"
-      :readonly="disabled"
+      :disabled="disabled"
     />
     <div v-if="!disabled" class="gap-file-upload">
       <el-upload :with-credentials="true"
