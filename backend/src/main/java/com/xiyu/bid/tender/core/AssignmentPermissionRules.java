@@ -5,8 +5,6 @@
 package com.xiyu.bid.tender.core;
 
 import com.xiyu.bid.batch.entity.TenderAssignmentRecord;
-import com.xiyu.bid.entity.Tender;
-import com.xiyu.bid.entity.User;
 
 import java.util.Objects;
 import java.util.Optional;
@@ -37,39 +35,4 @@ public final class AssignmentPermissionRules {
                 .orElse(false);
     }
 
-    /**
-     * 判定当前用户是否允许编辑标讯基本信息。
-     * 
-     * <p>规则：
-     * <ul>
-     *   <li>如果用户是投标专员 (bid_specialist)：
-     *     <ul>
-     *       <li>如果 status == PENDING_ASSIGNMENT 且 creatorId == userId -> false（无法编辑自己创建的未分配标讯）</li>
-     *       <li>如果 creatorId == userId -> true（允许编辑自己创建的且已分配的标讯）</li>
-     *       <li>否则 -> false（无权编辑他人创建的标讯）</li>
-     *     </ul>
-     *   </li>
-     *   <li>如果 legacyRole == STAFF (其他普通员工类型) -> false</li>
-     *   <li>否则 (ADMIN/MANAGER) -> true</li>
-     * </ul>
-     */
-    public static boolean canEditTender(String userRoleCode, User.Role legacyRole, Long userId, Long creatorId, Tender.Status status) {
-        if (userId == null) return false;
-
-        // 创建人可以在 PENDING_ASSIGNMENT 状态下编辑自己的标讯（修正录入错误）
-        if (status == Tender.Status.PENDING_ASSIGNMENT && Objects.equals(creatorId, userId)) {
-            return true;
-        }
-
-        String roleCode = userRoleCode == null ? "" : userRoleCode.trim().toLowerCase(java.util.Locale.ROOT);
-        if ("bid_specialist".equals(roleCode)) {
-            return Objects.equals(creatorId, userId);
-        }
-
-        if (legacyRole == User.Role.STAFF) {
-            return false;
-        }
-
-        return true;
-    }
 }
