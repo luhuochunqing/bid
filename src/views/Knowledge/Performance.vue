@@ -129,7 +129,7 @@
       </el-table>
     </el-card>
 
-    <PerformanceDetailDrawer v-model:visible="detailVisible" :data="current" />
+    <PerformanceDetailDrawer v-if="current" v-model:visible="detailVisible" :data="current" />
 
     <PerformanceFormDialog v-model:visible="formVisible" :data="editingRow" :submitting="submitting" @submit="handleSubmit" />
 
