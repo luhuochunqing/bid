@@ -21,7 +21,7 @@
           :tasks="ctx.project?.tasks || []"
           :project-id="ctx.project?.id"
           :show-submit-button="false"
-          :can-manage-project-tasks="ctx.canManageProjectTasks"
+          :can-manage-project-tasks="ctx.canManageProjectTasks && currentProjectStage === 'DRAFTING'"
           :is-demo-mode="ctx.isDemoMode"
           @add-task="ctx.handleAddTask"
           @reset-tasks="ctx.handleResetTasks"
@@ -120,6 +120,9 @@ const ctx = useProjectDetailContext()
 const projectStore = useProjectStore()
 
 const activeStageTab = ref('')
+// 项目真实当前阶段（来自 timeline snapshot），与 activeStageTab（用户当前查看的 tab）解耦。
+// 用于阶段门禁：标书制作阶段结束后，即使通过时间线回到 DRAFTING tab，也不应再展示任务操作按钮。
+const currentProjectStage = ref('')
 const timelineRef = ref(null)
 const scoreParseRef = ref(null)
 const taskDecomposeRef = ref(null)
@@ -155,6 +158,7 @@ function handleSnapshot(snapshot) {
   if (snapshotLock.value) return
   if (snapshot?.currentStage) {
     activeStageTab.value = snapshot.currentStage
+    currentProjectStage.value = snapshot.currentStage
   }
 }
 
@@ -173,6 +177,11 @@ async function handleStageUpdated() {
   // switch-tab 已将 tab 设为目标阶段，handleStageUpdated 不应再通过滞后快照回退。
   if (timelineRef.value?.snapshot?.currentStage && !snapshotLock.value) {
     activeStageTab.value = timelineRef.value.snapshot.currentStage
+  }
+  // 同步项目真实当前阶段（用于阶段门禁）。即使 snapshotLock 激活，真实阶段也应更新，
+  // 因为阶段推进是真实事件，不应被 tab 切换锁掩盖。
+  if (timelineRef.value?.snapshot?.currentStage) {
+    currentProjectStage.value = timelineRef.value.snapshot.currentStage
   }
   await loadResultType()
   if (ctx.project?.id) {
