@@ -26,6 +26,7 @@
           <el-icon><Plus /></el-icon>
           <span>添加账户</span>
         </button>
+        <button v-if="!isProjectLeader" class="toolbar-btn" @click="showImportDialog = true"><el-icon><Upload /></el-icon><span>批量导入</span></button>
         <button class="toolbar-btn" :disabled="selectedRows.length === 0" @click="handleBatchBorrow">
           <el-icon><Key /></el-icon>
           <span>批量借阅</span>
@@ -128,27 +129,26 @@
    <AccountBorrowDialog v-model="showBorrowDialog" :account="currentAccount" @submitted="loadAccounts" />
     <AccountReturnDialog v-model="showReturnDialog" :account="currentReturnAccount" @submitted="onAccountReturned" />
     <AccountDetailDialog v-model="showDetailDialog" :data="currentAccountDetail" @edit="editFromDetail" @return="handleReturnFromDetail" />
-    <AccountFormDialog v-model="showCreateDialog" :edit-row="editRow" @saved="loadAccounts" />
+    <AccountFormDialog v-model="showCreateDialog" :edit-row="editRow" @saved="loadAccounts" /><AccountImportDialog v-model="showImportDialog" @imported="loadAccounts" />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus, Platform, View, Edit, Delete, Key, Hide, CircleCheck, Download } from '@element-plus/icons-vue'
+import { Search, Plus, Platform, View, Edit, Delete, Key, Hide, CircleCheck, Download, Upload } from '@element-plus/icons-vue'
 import { resourcesApi } from '@/api'
 import { useUserStore } from '@/stores/user'
 import { usePasswordReveal } from './composables/usePasswordReveal.js'
 import AccountFormDialog from './AccountFormDialog.vue'
 import AccountDetailDialog from './AccountDetailDialog.vue'
 import AccountBorrowDialog from './AccountBorrowDialog.vue'
-import AccountReturnDialog from './AccountReturnDialog.vue'
+import AccountReturnDialog from './AccountReturnDialog.vue'; import AccountImportDialog from './components/AccountImportDialog.vue'
 
 const searchForm = ref({
   platform: '',
   hasCa: ''
 })
-
 // 选中行
 const selectedRows = ref([])
 const tableRef = ref(null)
@@ -173,7 +173,7 @@ const showCreateDialog = ref(false)
 const currentAccount = ref(null)
 const currentReturnAccount = ref(null)
 const currentAccountDetail = ref(null)
-const editRow = ref(null)
+const editRow = ref(null); const showImportDialog = ref(false)
 
 const loadAccounts = async () => {
   try {

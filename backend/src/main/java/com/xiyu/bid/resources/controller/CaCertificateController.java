@@ -1,13 +1,18 @@
 package com.xiyu.bid.resources.controller;
 
 import com.xiyu.bid.annotation.Auditable;
+import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.resources.dto.*;
 import com.xiyu.bid.resources.service.CaBorrowService;
+import com.xiyu.bid.resources.service.CaCertificateImportAppService;
 import com.xiyu.bid.resources.service.CaCertificateService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -21,7 +26,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 @RestController
@@ -32,6 +41,7 @@ public class CaCertificateController {
 
     private final CaCertificateService caService;
     private final CaBorrowService caBorrowService;
+    private final CaCertificateImportAppService importAppService;
 
     // ========== CA 证书 CRUD ==========
 
@@ -141,5 +151,52 @@ public class CaCertificateController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<List<CaBorrowApplicationDTO>> getPendingApprovals(@AuthenticationPrincipal UserDetails user) {
         return ResponseEntity.ok(caBorrowService.getPendingApprovals(user));
+    }
+
+    // ── 批量导入 ────────────────────────────────────────────────────────────────
+
+    /** 下载批量导入模板 */
+    @GetMapping("/template")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<byte[]> downloadTemplate() throws IOException {
+        byte[] template = importAppService.generateTemplate();
+        String filename = URLEncoder.encode("CA证书导入模板.xlsx", StandardCharsets.UTF_8);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + filename)
+                .body(template);
+    }
+
+    /** 触发批量导入，返回 taskId */
+    @PostMapping("/import")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<?>> importCertificates(
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal UserDetails currentUser) throws IOException {
+        Long taskId = importAppService.triggerImport(
+                file.getBytes(), file.getOriginalFilename(), currentUser.getUsername());
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(ApiResponse.success("导入任务已创建", java.util.Map.of("taskId", taskId)));
+    }
+
+    /** 查询导入任务状态 */
+    @GetMapping("/import/tasks/{taskId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> getImportTask(
+            @PathVariable Long taskId) {
+        java.util.Map<String, Object> task = importAppService.getTaskAsMap(taskId);
+        if (task == null) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(ApiResponse.success(task));
+    }
+
+    /** 查询导入任务历史 */
+    @GetMapping("/import/tasks")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<java.util.List<java.util.Map<String, Object>>>> listImportTasks(
+            @AuthenticationPrincipal UserDetails currentUser) {
+        java.util.List<java.util.Map<String, Object>> tasks =
+                importAppService.listTasksAsMap(currentUser.getUsername());
+        return ResponseEntity.ok(ApiResponse.success(tasks));
     }
 }

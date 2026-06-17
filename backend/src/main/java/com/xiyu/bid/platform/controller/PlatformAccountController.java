@@ -14,6 +14,8 @@ import com.xiyu.bid.platform.dto.PlatformAccountCreateRequest;
 import com.xiyu.bid.platform.dto.PlatformAccountDTO;
 import com.xiyu.bid.platform.dto.PlatformAccountStatisticsDTO;
 import com.xiyu.bid.platform.dto.ReturnAccountRequest;
+import com.xiyu.bid.platform.infrastructure.persistence.entity.PlatformAccountImportTaskEntity;
+import com.xiyu.bid.platform.service.PlatformAccountImportAppService;
 import com.xiyu.bid.platform.service.PlatformAccountService;
 import com.xiyu.bid.repository.UserRepository;
 import jakarta.validation.Valid;
@@ -21,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -32,10 +35,16 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /** REST Controller for Platform Account Management. */
@@ -47,6 +56,7 @@ import java.util.UUID;
 public class PlatformAccountController {
 
     private final PlatformAccountService platformAccountService;
+    private final PlatformAccountImportAppService importAppService;
     private final UserRepository userRepository;
 
     @PostMapping
@@ -177,6 +187,54 @@ public class PlatformAccountController {
         log.info("Returning platform account with id: {} and password change", id);
         PlatformAccountDTO updated = platformAccountService.returnAccount(id, request, resolveUser(currentUser));
         return ResponseEntity.ok(ApiResponse.success("账号归还成功（密码已更新）", updated));
+    }
+
+    // ── 批量导入 ────────────────────────────────────────────────────────────────
+
+    /** 下载批量导入模板 */
+    @GetMapping("/template")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<byte[]> downloadTemplate() throws IOException {
+        byte[] template = importAppService.generateTemplate();
+        String filename = URLEncoder.encode("平台账户导入模板.xlsx", StandardCharsets.UTF_8);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + filename)
+                .body(template);
+    }
+
+    /** 触发批量导入，返回 taskId */
+    @PostMapping("/import")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<?>> importAccounts(
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal UserDetails currentUser) throws IOException {
+        User user = resolveUser(currentUser);
+        Long taskId = importAppService.triggerImport(
+                file.getBytes(), file.getOriginalFilename(), user.getId());
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(ApiResponse.success("导入任务已创建", java.util.Map.of("taskId", taskId)));
+    }
+
+    /** 查询导入任务状态 */
+    @GetMapping("/import/tasks/{taskId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<PlatformAccountImportTaskEntity>> getImportTask(
+            @PathVariable Long taskId) {
+        PlatformAccountImportTaskEntity task = importAppService.getTask(taskId);
+        if (task == null) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(ApiResponse.success(task));
+    }
+
+    /** 查询导入任务历史 */
+    @GetMapping("/import/tasks")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    public ResponseEntity<ApiResponse<List<PlatformAccountImportTaskEntity>>> listImportTasks(
+            @AuthenticationPrincipal UserDetails currentUser) {
+        User user = resolveUser(currentUser);
+        List<PlatformAccountImportTaskEntity> tasks = importAppService.listTasks(user.getId());
+        return ResponseEntity.ok(ApiResponse.success(tasks));
     }
 
     /** Resolve User entity from UserDetails principal. */
