@@ -116,7 +116,7 @@ public final class RoleProfileCatalog {
                 DEFINITIONS.get(BID_ADMIN_CODE),
                 DEFINITIONS.get(BID_SPECIALIST_CODE),
                 DEFINITIONS.get(BID_OTHER_DEPT_CODE),
-                DEFINITIONS.get(ADMIN_CODE)
+                DEFINITIONS.get(ADMIN_STAFF_CODE)
         );
     }
 

@@ -33,7 +33,7 @@ public class OrganizationUserSyncWriter {
     private static final java.util.Map<String, String> OSS_TO_INTERNAL_ROLE = java.util.Map.of(
         "/bidAdmin", "bid_admin",
         "bid-TeamLeader", "bid_lead",
-        "bid-SystemAdmin", "bid_admin",
+        "bid-SystemAdmin", "admin",
         "bid-Team", "bid_specialist",
         "bid-projectLeader", "sales",
         "bid-administration", "admin_staff",

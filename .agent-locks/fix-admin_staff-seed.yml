@@ -1,0 +1,9 @@
+version: 1
+task: "fix-admin_staff-seed"
+locks:
+  - path: "backend/src/main/java/com/xiyu/bid/entity/RoleProfileCatalog.java"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/codex/fix-admin_staff-seed"
+    expiresAt: "2026-06-20T16:00:00Z"
+    reason: "修复 seedDefinitions() ADMIN_CODE 重复→ADMIN_STAFF_CODE"
