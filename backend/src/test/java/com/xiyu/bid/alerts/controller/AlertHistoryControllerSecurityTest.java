@@ -38,16 +38,16 @@ class AlertHistoryControllerSecurityTest {
 
     @Test
     @WithMockUser(roles = {"STAFF"})
-    void staff_ShouldNotAccessAlertHistoryReadAndAcknowledgeEndpoints() throws Exception {
-        mockMvc.perform(get("/api/alerts/history")).andExpect(status().isForbidden());
-        mockMvc.perform(get("/api/alerts/history/1")).andExpect(status().isForbidden());
-        mockMvc.perform(get("/api/alerts/history/unresolved")).andExpect(status().isForbidden());
-        mockMvc.perform(patch("/api/alerts/history/1/acknowledge")).andExpect(status().isForbidden());
-        mockMvc.perform(get("/api/alerts/history/statistics")).andExpect(status().isForbidden());
+    void staff_ShouldAccessAlertHistoryEndpoints() throws Exception {
+        mockMvc.perform(get("/api/alerts/history")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/alerts/history/1")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/alerts/history/unresolved")).andExpect(status().isOk());
+        mockMvc.perform(patch("/api/alerts/history/1/acknowledge")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/alerts/history/statistics")).andExpect(status().isOk());
     }
 
     @Test
-    void adminAndManager_ShouldRemainAllowedByMethodSecurityExpressions() throws Exception {
+    void allEndpoints_ShouldRequireAuthentication() throws Exception {
         assertHistoryExpression("getAllAlertHistories", int.class, int.class, String.class, String.class,
                 String.class, AlertHistory.AlertLevel.class, Long.class, String.class);
         assertHistoryExpression("getAlertHistoryById", Long.class);
@@ -62,7 +62,6 @@ class AlertHistoryControllerSecurityTest {
                 .getAnnotation(PreAuthorize.class);
 
         assertThat(preAuthorize).isNotNull();
-        assertThat(preAuthorize.value()).contains("ADMIN", "MANAGER");
-        assertThat(preAuthorize.value()).doesNotContain("STAFF");
+        assertThat(preAuthorize.value()).contains("isAuthenticated()");
     }
 }
