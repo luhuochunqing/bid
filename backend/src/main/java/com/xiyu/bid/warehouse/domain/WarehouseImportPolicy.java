@@ -16,7 +16,7 @@ public class WarehouseImportPolicy {
 
     public static final String[] TEMPLATE_HEADERS = {
             "仓库名称", "仓库类型", "省份", "地址", "面积", "区域", "联系人", "备注",
-            "开始时间", "结束时间", "开始时间(精简版)", "到期天数",
+            "开始时间", "结束时间",
             "出租方", "承租方", "发票租期起", "发票租期止", "关仓计划",
             "是否有产权证", "产权证附件",
             "是否有发票", "发票附件",
@@ -34,22 +34,20 @@ public class WarehouseImportPolicy {
     public static final int COL_REMARKS = 7;
     public static final int COL_START_DATE = 8;
     public static final int COL_END_DATE = 9;
-    public static final int COL_START_DATE_SIMPLE = 10;
-    public static final int COL_DAYS_TO_EXPIRY = 11;
-    public static final int COL_LESSOR = 12;
-    public static final int COL_LESSEE = 13;
-    public static final int COL_INVOICE_START = 14;
-    public static final int COL_INVOICE_END = 15;
-    public static final int COL_CLOSE_PLAN = 16;
-    public static final int COL_HAS_PROPERTY_CERT = 17;
-    public static final int COL_PROPERTY_CERT_FILE = 18;
-    public static final int COL_HAS_INVOICE = 19;
-    public static final int COL_INVOICE_FILE = 20;
-    public static final int COL_HAS_PHOTOS = 21;
-    public static final int COL_PHOTOS_FILE = 22;
-    public static final int COL_CERT_REMARKS = 23;
+    public static final int COL_LESSOR = 10;
+    public static final int COL_LESSEE = 11;
+    public static final int COL_INVOICE_START = 12;
+    public static final int COL_INVOICE_END = 13;
+    public static final int COL_CLOSE_PLAN = 14;
+    public static final int COL_HAS_PROPERTY_CERT = 15;
+    public static final int COL_PROPERTY_CERT_FILE = 16;
+    public static final int COL_HAS_INVOICE = 17;
+    public static final int COL_INVOICE_FILE = 18;
+    public static final int COL_HAS_PHOTOS = 19;
+    public static final int COL_PHOTOS_FILE = 20;
+    public static final int COL_CERT_REMARKS = 21;
 
-    public static final int EXPECTED_COL_COUNT = 24;
+    public static final int EXPECTED_COL_COUNT = 22;
 
     private static final Pattern SPECIAL_CHARS = Pattern.compile("[/\\\\:*?\"<>|]");
     private static final Set<String> TYPE_VALUES = Set.of("自营", "云仓");

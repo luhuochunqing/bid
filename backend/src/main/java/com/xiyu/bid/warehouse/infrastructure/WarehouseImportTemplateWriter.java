@@ -52,8 +52,6 @@ public class WarehouseImportTemplateWriter {
             hints[WarehouseImportPolicy.COL_REMARKS] = "选填";
             hints[WarehouseImportPolicy.COL_START_DATE] = "YYYY-MM-DD";
             hints[WarehouseImportPolicy.COL_END_DATE] = "YYYY-MM-DD";
-            hints[WarehouseImportPolicy.COL_START_DATE_SIMPLE] = "冗余列，可留空";
-            hints[WarehouseImportPolicy.COL_DAYS_TO_EXPIRY] = "系统自动计算，请留空";
             hints[WarehouseImportPolicy.COL_LESSOR] = "出租方/服务方";
             hints[WarehouseImportPolicy.COL_LESSEE] = "承租方";
             hints[WarehouseImportPolicy.COL_INVOICE_START] = "YYYY-MM-DD";
