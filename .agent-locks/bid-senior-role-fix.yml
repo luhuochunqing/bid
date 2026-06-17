@@ -1,9 +1,0 @@
-version: 1
-task: "bid-senior-role-fix"
-locks:
-  - path: "backend/src/main/java/com/xiyu/bid/entity/RoleProfileCatalog.java"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/gemini/bid-senior-role-fix"
-    expiresAt: "2026-06-14T09:17:35.333Z"
-    reason: "Refactor role profile compatibility"

@@ -1,9 +1,0 @@
-version: 1
-task: "claude-fix-api-security-high"
-locks:
-  - path: "backend/src/main/resources/application.yml"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/claude/fix-api-security-high"
-    expiresAt: "2026-06-15T03:25:01.222Z"
-    reason: "H6 actuator hardening"

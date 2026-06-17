@@ -1,9 +1,0 @@
-version: 1
-task: "gemini-fix-startup-error"
-locks:
-  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1074__add_auditor_role.sql"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/gemini/fix-startup-error"
-    expiresAt: "2026-06-13T10:00:00.000Z"
-    reason: "修复回滚脚本审计格式缺陷"

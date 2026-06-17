@@ -1,9 +1,0 @@
-version: 1
-task: "cleanup-dead-code"
-locks:
-  - path: "backend/src/main/java/com/xiyu/bid/entity/"
-    scope: "directory"
-    owner: "mimo"
-    branch: "agent/mimo/cleanup-dead-code"
-    expiresAt: "2026-06-15T23:59:59Z"
-    reason: "删除空文件 TenderRiskLevel.java（无引用，冗余代码清理）"

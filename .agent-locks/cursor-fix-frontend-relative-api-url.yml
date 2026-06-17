@@ -1,9 +1,0 @@
-version: 1
-task: "fix-frontend-relative-api-url"
-locks:
-  - path: "src/api/config.js"
-    scope: "file"
-    owner: "cursor"
-    branch: "agent/cursor/fix-frontend-relative-api-url"
-    expiresAt: "2026-06-16T23:59:59Z"
-    reason: "生产环境前端 API baseURL 支持相对路径，避免直接请求被防火墙拦截的 18080 端口"
