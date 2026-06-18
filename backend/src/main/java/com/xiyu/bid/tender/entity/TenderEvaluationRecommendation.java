@@ -9,18 +9,26 @@ import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /**
  * 标讯评估表-投标负责人建议段（V130 三段式重构新增）。
  *
  * <p>共享主键模式：evaluation_id 同时为主键和外键，与 TenderEvaluation 一对一。
  * 对应 PRD §4.2.5 评估表第三段「投标负责人建议」。
+ *
+ * <p>注意：使用 @Getter+@Setter+@EqualsAndHashCode(exclude=...) 而非 @Data，
+ * 因为 evaluation 字段反向引用父实体，
+ * @Data 生成的 hashCode()/equals() 会无限递归导致 StackOverflowError。
  */
 @Entity
 @Table(name = "tender_evaluation_recommendation")
-@Data
+@Getter
+@Setter
+@EqualsAndHashCode(exclude = {"evaluation"})
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor

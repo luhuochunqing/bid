@@ -13,8 +13,10 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /**
  * 标讯评估表-客户信息段 EAV 行（V130 三段式重构新增）。
@@ -22,13 +24,19 @@ import lombok.NoArgsConstructor;
  * <p>采用 EAV（实体-属性-值）模式存储 14 角色 × 17 维度的客户信息矩阵。
  * 每个单元格为一条记录，通过 (evaluation_id, role_key, info_key) 三元组唯一标识。
  * 对应 PRD §4.2.5 评估表第二段「客户信息」。
+ *
+ * <p>注意：使用 @Getter+@Setter+@EqualsAndHashCode(exclude=...) 而非 @Data，
+ * 因为 evaluation 字段反向引用父实体，
+ * @Data 生成的 hashCode()/equals() 会无限递归导致 StackOverflowError。
  */
 @Entity
 @Table(name = "tender_evaluation_customer_info", uniqueConstraints = {
     @UniqueConstraint(columnNames = {"evaluation_id", "role_key", "info_key"},
         name = "uk_eval_role_info")
 })
-@Data
+@Getter
+@Setter
+@EqualsAndHashCode(exclude = {"evaluation"})
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor

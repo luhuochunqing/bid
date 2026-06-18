@@ -10,8 +10,10 @@ import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.math.BigDecimal;
 
@@ -20,10 +22,16 @@ import java.math.BigDecimal;
  *
  * <p>承载 8 个基础评估字段，与 TenderEvaluation 一对一关系。
  * 对应 PRD §4.2.5 评估表第一段「基础信息」。
+ *
+ * <p>注意：使用 @Getter+@Setter+@EqualsAndHashCode(exclude=...) 而非 @Data，
+ * 因为 evaluation 字段反向引用父实体，
+ * @Data 生成的 hashCode()/equals() 会无限递归导致 StackOverflowError。
  */
 @Entity
 @Table(name = "tender_evaluation_basics")
-@Data
+@Getter
+@Setter
+@EqualsAndHashCode(exclude = {"evaluation"})
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor

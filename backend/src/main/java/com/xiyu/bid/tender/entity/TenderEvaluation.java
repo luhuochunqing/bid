@@ -18,8 +18,10 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -32,13 +34,15 @@ import java.util.List;
  * V118 起即存在的审核字段（reviewStatus/reviewer.../reviewedAt/reviewComment）。
  * <p>本实体为纯数据 + JPA 注解，不承载业务逻辑。
  *
- * <p>TODO(post-V119): consider replacing {@code @Data} with {@code @Getter} and
- * making fields final via a builder copy pattern so the entity stops violating
- * the Split-First mutability guard. Out of scope for V119.
+ * <p>注意：使用 @Getter+@Setter+@EqualsAndHashCode(exclude=...) 而非 @Data，
+ * 因为 basic/customerInfos/recommendation 子实体持有反向引用 evaluation，
+ * @Data 生成的 hashCode()/equals() 会无限递归导致 StackOverflowError。
  */
 @Entity
 @Table(name = "tender_evaluations")
-@Data
+@Getter
+@Setter
+@EqualsAndHashCode(exclude = {"basic", "customerInfos", "recommendation"})
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
