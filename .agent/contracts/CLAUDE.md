@@ -515,5 +515,5 @@ sync-env.sh .
 保护分支（`main`、`agent/*-init` 等）跳过 rebase。
 
 <!-- SPECKIT START -->
-> Spec Kit 相关计划文档路径已过时，请使用 `./scripts/who-touches.sh` 动态查询当前有效的 agent/* 分支活跃状态。
+当前活跃 feature：`specs/001-oss-batch-job-role-sync/plan.md`
 <!-- SPECKIT END -->
