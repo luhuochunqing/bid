@@ -107,6 +107,14 @@ export function useOrganizationSettings() {
     ElMessage.success('角色已恢复默认配置')
   }
 
+  const syncRoleMenuFromOss = async (role, jobNumber) => {
+    const result = await settingsApi.syncRoleMenuPermissionsFromOss(role.id, jobNumber)
+    if (!result?.success) throw new Error(result?.msg || '从 OSS 同步菜单权限失败')
+    await load()
+    await refreshCurrentSession()
+    ElMessage.success('角色菜单权限已从 OSS 同步')
+  }
+
   return {
     loading,
     deptTree,
@@ -121,6 +129,7 @@ export function useOrganizationSettings() {
     saveUserOrganization,
     saveRole,
     toggleRole,
-    resetRole
+    resetRole,
+    syncRoleMenuFromOss
   }
 }

@@ -296,6 +296,17 @@ export const settingsApi = {
     }
   },
 
+  async syncRoleMenuPermissionsFromOss(roleId, jobNumber) {
+    const response = await httpClient.post(
+      `/api/admin/roles/${roleId}/sync-oss-menu-permissions`,
+      { jobNumber }
+    )
+    return {
+      ...response,
+      data: response?.data
+    }
+  },
+
   async getSystemSettings() {
 
     return httpClient.get('/api/settings')

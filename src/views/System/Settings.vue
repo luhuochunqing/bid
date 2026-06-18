@@ -37,6 +37,7 @@
           :save-handler="saveRole"
           :toggle-handler="toggleRole"
           :reset-handler="resetRole"
+          :sync-oss-handler="syncRoleMenuFromOss"
         />
       </el-tab-pane>
       <el-tab-pane label="接口权限矩阵" name="interface-permissions" lazy>
@@ -152,7 +153,8 @@ const {
   saveUserOrganization,
   saveRole,
   toggleRole,
-  resetRole
+  resetRole,
+  syncRoleMenuFromOss
 } = useOrganizationSettings()
 
 const {

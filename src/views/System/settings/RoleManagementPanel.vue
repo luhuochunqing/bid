@@ -37,7 +37,7 @@ Pos: src/views/System/settings/ - System settings panels
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="180" fixed="right">
+      <el-table-column label="操作" width="240" fixed="right">
         <template #default="{ row }">
           <el-button-group>
             <el-button link type="primary" @click="handleEditRole(row)">编辑</el-button>
@@ -45,6 +45,7 @@ Pos: src/views/System/settings/ - System settings panels
               {{ row.enabled ? '禁用' : '启用' }}
             </el-button>
             <el-button link type="warning" @click="resetHandler(row)">重置</el-button>
+            <el-button link type="primary" @click="openSyncOssDialog(row)">从OSS同步</el-button>
           </el-button-group>
         </template>
       </el-table-column>
@@ -107,6 +108,27 @@ Pos: src/views/System/settings/ - System settings panels
         <el-button type="primary" :loading="saving" @click="saveRole">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- OSS Menu Sync Dialog -->
+    <el-dialog
+      v-model="syncDialogVisible"
+      title="OSS 同步菜单权限"
+      width="480px"
+      destroy-on-close
+    >
+      <el-form label-width="80px">
+        <el-form-item label="角色">
+          <el-tag size="small">{{ syncForm.roleName }}</el-tag>
+        </el-form-item>
+        <el-form-item label="OSS 工号" required>
+          <el-input v-model="syncForm.jobNumber" placeholder="如 08402" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="syncDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="syncing" @click="confirmSyncOss">同步</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -128,12 +150,17 @@ const props = defineProps({
   deptOptions: { type: Array, default: () => [] },
   saveHandler: { type: Function, required: true },
   toggleHandler: { type: Function, required: true },
-  resetHandler: { type: Function, required: true }
+  resetHandler: { type: Function, required: true },
+  syncOssHandler: { type: Function, default: null }
 })
 
 const dialogVisible = ref(false)
 const saving = ref(false)
 const form = ref(emptyForm())
+
+const syncDialogVisible = ref(false)
+const syncing = ref(false)
+const syncForm = ref({ roleId: null, roleName: '', jobNumber: '' })
 
 const menuGroups = roleMenuGroups
 const menuOptions = roleMenuOptions
@@ -194,6 +221,28 @@ const saveRole = async () => {
     ElMessage.error(error?.message || '保存角色失败')
   } finally {
     saving.value = false
+  }
+}
+
+const openSyncOssDialog = (role) => {
+  if (typeof props.syncOssHandler !== 'function') {
+    ElMessage.warning('未启用 OSS 菜单同步')
+    return
+  }
+  syncForm.value = { roleId: role.id, roleName: role.name || role.code, jobNumber: '' }
+  syncDialogVisible.value = true
+}
+const confirmSyncOss = async () => {
+  if (!syncForm.value.jobNumber.trim()) return ElMessage.warning('请填写 OSS 工号')
+  syncing.value = true
+  try {
+    const role = props.roles.find((r) => r.id === syncForm.value.roleId)
+    await props.syncOssHandler(role, syncForm.value.jobNumber.trim())
+    syncDialogVisible.value = false
+  } catch (error) {
+    ElMessage.error(error?.message || '从 OSS 同步菜单权限失败')
+  } finally {
+    syncing.value = false
   }
 }
 </script>
