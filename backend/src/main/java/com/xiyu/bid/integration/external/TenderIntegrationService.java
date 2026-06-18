@@ -271,6 +271,21 @@ public class TenderIntegrationService {
     private String buildExternalId(String sourceSystem, String sourceId) {
         return sourceSystem + ":" + sourceId;
     }
+
+    /**
+     * 将 CRM 推送的字段名标准化为前端矩阵使用的 infoKey。
+     * <p>接口文档 v3.1 中使用的 CONTACT / EVALUATION_BASIS 与前端矩阵的
+     * CONTACT_INFO / INFO_TENDENCY_BASIS 不一致，保存前统一映射，避免前端显示为空。
+     */
+    private static String normalizeCustomerInfoKey(String infoKey) {
+        if (infoKey == null) return null;
+        return switch (infoKey) {
+            case "CONTACT" -> "CONTACT_INFO";
+            case "EVALUATION_BASIS" -> "INFO_TENDENCY_BASIS";
+            default -> infoKey;
+        };
+    }
+
     /**
      * 将请求中的联系人数组映射到实体扁平字段（最多取前 2 个）。
      */
@@ -439,10 +454,11 @@ public class TenderIntegrationService {
                 roleIndex++;
                 for (Map.Entry<String, Object> entry : roleData.entrySet()) {
                     if ("roleKey".equals(entry.getKey()) || entry.getValue() == null) continue;
+                    String infoKey = normalizeCustomerInfoKey(entry.getKey());
                     TenderEvaluationCustomerInfo row = new TenderEvaluationCustomerInfo();
                     row.setEvaluation(evalEntity);
                     row.setRoleKey(roleKey);
-                    row.setInfoKey(entry.getKey());
+                    row.setInfoKey(infoKey);
                     row.setCellValue(entry.getValue().toString());
                     row.setValueType(TenderEvaluationCustomerInfo.ValueType.TEXT);
                     evalEntity.getCustomerInfos().add(row);

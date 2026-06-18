@@ -43,6 +43,15 @@
   source: docs/generated/README.md
   note: 由 `scripts/generate-db-schema.mjs` 自动生成，跟随 Flyway 迁移刷新。
 
+### 字段名双轨制
+
+- area: `backend/src/main/java/com/xiyu/bid/tender/core/TenderEvaluationCustomerInfoPolicy.java`
+  type: out-of-sync-doc
+  severity: medium
+  status: open
+  source: docs/lessons/root-cause-analysis-co-266-co-267.md
+  note: 客户信息 infoKey 存在双轨命名：EVALUATION_BASIS / INFO_TENDENCY_BASIS、CONTACT（旧 CRM 字段）/ CONTACT_INFO（新标准）。当前通过 TenderIntegrationService 兼容映射缓解，建议未来统一收敛为一套标准 key，并移除兼容代码。
+
 ### 待登记
 
 > 后续发现的技术债请追加到对应分类下，不要新建文件。

@@ -117,4 +117,32 @@ class TenderIntegrationServicePushEvaluationTest {
         assertThat(rows.get(0).getInfoKey()).isEqualTo("position");
         assertThat(rows.get(0).getCellValue()).isEqualTo("总监");
     }
+
+    @Test
+    @DisplayName("pushTender 应将 CRM 字段名 CONTACT/EVALUATION_BASIS 标准化为 CONTACT_INFO/INFO_TENDENCY_BASIS")
+    void pushTender_crmLegacyInfoKeys_shouldBeNormalizedBeforeSave() {
+        Map<String, Object> roleData = new LinkedHashMap<>();
+        roleData.put("roleKey", "PROJECT_HIGHEST_DECISION_MAKER");
+        roleData.put("NAME", "张三");
+        roleData.put("CONTACT", "13800138000");
+        roleData.put("EVALUATION_BASIS", "长期合作");
+        TenderPushRequest.EvaluationUpdate evaluation = TenderPushRequest.EvaluationUpdate.builder()
+                .evaluationCustomerInfos(List.of(roleData))
+                .build();
+        TenderPushRequest request = buildPushRequest("CRM", "OPP-003", false, evaluation);
+
+        TenderPushResponse response = service.pushTender(request, null);
+
+        assertThat(response.getStatus()).isEqualTo("CREATED");
+        Long tenderId = response.getTenderId();
+        TenderEvaluation eval = tenderEvaluationRepository.findByTenderId(tenderId).orElseThrow();
+        List<TenderEvaluationCustomerInfo> rows = customerInfoRepository.findByEvaluationId(eval.getId());
+        assertThat(rows).hasSize(3);
+        assertThat(rows).anyMatch(r -> "PROJECT_HIGHEST_DECISION_MAKER".equals(r.getRoleKey())
+                && "NAME".equals(r.getInfoKey()) && "张三".equals(r.getCellValue()));
+        assertThat(rows).anyMatch(r -> "PROJECT_HIGHEST_DECISION_MAKER".equals(r.getRoleKey())
+                && "CONTACT_INFO".equals(r.getInfoKey()) && "13800138000".equals(r.getCellValue()));
+        assertThat(rows).anyMatch(r -> "PROJECT_HIGHEST_DECISION_MAKER".equals(r.getRoleKey())
+                && "INFO_TENDENCY_BASIS".equals(r.getInfoKey()) && "长期合作".equals(r.getCellValue()));
+    }
 }
