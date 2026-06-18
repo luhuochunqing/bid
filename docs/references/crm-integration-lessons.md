@@ -161,3 +161,137 @@ grep -rn "record EvaluationBasicDTO" backend/src/main/java/
 - [西域CRM商机对接接口.md](../integration/西域CRM商机对接接口.md) — CRM 接口规范
 - [useCrmOpportunitySelector.js](../../src/views/Bidding/detail/components/useCrmOpportunitySelector.js) — 字段映射修复位置
 - [CustomerChanceVO.java](../../backend/src/main/java/com/xiyu/bid/crm/infrastructure/dto/CustomerChanceVO.java) — CRM 商机字段定义
+
+## 11. CRM 回传 code:1 —— buildPayload 用 sourceId 填 code 字段（CO-263）
+
+### 事故一句话总结
+
+CRM 回传 HTTP 200 但业务返回 `{"code":"1","msg":null}`（失败），因为 `WebhookEventListener.buildPayload` 把 `external_id` 的 sourceId 部分（来源系统数据唯一 ID）当成商机编号填到了 bidInfoSync 的 `code` 字段，CRM 侧按 code 找不到商机。
+
+### 根因：code 字段填了错误的值
+
+`bidInfoSync` 契约（`crm-field-mapping.md`、`西域CRM商机对接接口.md`）明确 `code` = **商机编号**。但 `buildPayload` 用 `extractSourceId(event.externalId())` 把 `"CRM:241"` → `"241"` 填到 code 字段，而 "241" 是 CRM 推标讯时的 `sourceId`（来源系统数据唯一 ID），**不是商机编号**。
+
+**证据链（DB 直查对比）**：
+
+| tender | external_id | payload code | CRM 响应 | 结论 |
+|---|---|---|---|---|
+| 249 | `NULL` | `""`（空） | `code:0` success | 空 code 被 CRM 接受 |
+| 268 | `CRM:241` | `"241"` | `code:1` 失败 | "241" 不是商机编号，匹配失败 |
+
+用户确认：`code:0`=成功，`code:1`=失败。
+
+### 深层原因：CRM 推标讯未传 crmId，crm_opportunity_id 为 NULL
+
+服务器日志铁证（traceId `37808f8daf054db4b499013326ecf7c9`）：
+```
+POST /api/integration/tenders/push - sourceSystem=CRM sourceId=241 title=zf商机001
+Created tender id=268 externalId=CRM:241
+```
+全程无 `Applying CRM link` 日志 → CRM 推送时只传了 `sourceSystem`+`sourceId`，**没传 `crmId`**。
+
+`TenderPushRequest` 里 `sourceId`（生成 external_id 用）和 `crmId`（关联商机用）是两个独立字段。没传 crmId → `CrmTenderLinkService.linkIfPresent` 直接 return → `crm_opportunity_id` 保持 NULL。
+
+### 字段语义澄清：crm_opportunity_id 存的是商机编号(code)，不是 id
+
+- `V118__fix_crm_opportunity_id_type.sql` 注释："存商机编号如 CC20260610180"
+- `CrmTenderLinkService` 存 `leader.opportunityCode()`（商机 code）
+- `crm-field-mapping.md` 说 `id` 回写 `crm_opportunity_id` —— **此条文档与代码/迁移注释矛盾，待对齐**
+
+⚠️ 前端手动关联路径（`useCrmOpportunitySelector.js:177`）传的是 `chance.id`（商机 id，数字），与 V118 设计意图（存 code）不符。这是独立的前端 bug，单独处理。
+
+### 修复内容
+
+`WebhookEventListener.java`：
+- 注入 `TenderRepository`，`onTenderStatusChanged` 通过 `event.tenderId()` 查 tender
+- `buildPayload`：`code` ← `tender.getCrmOpportunityId()`（商机编号），`name` ← `tender.getCrmOpportunityName()`（商机名称），NULL → 空字符串
+- 删除 `extractSourceId` 方法（不再用 externalId 填 code/name）
+
+无关联商机时 code/name 填空，CRM 侧接受（实测 tender 249 返回 `code:0` success）。
+
+### 服务器验证（2026-06-18，jetty@172.16.38.78）
+
+部署修复后重置 tender 268 状态触发弃标，`webhook_delivery_logs` 三组对比铁证：
+
+| 场景 | payload `code` | payload `name` | CRM 响应 | 结论 |
+|---|---|---|---|---|
+| 修复前（sourceId 错填） | `"241"` | `"241"` | `{"code":"1","msg":null}` | 商机匹配失败 |
+| 修复后·无商机关联 | `""` | `""` | `{"code":"0","msg":"success"}` | ✅ 成功 |
+| 修复后·有商机关联 | `"CC20260618267"` | 商机名称 | 配合第 12 节 status=6 修复后 CRM 状态变弃标 | ✅ 业务生效 |
+
+**核心结论**：code 字段从错填 sourceId 改为正确填商机编号，修复目标 100% 达成。
+
+### 旁证：前端 4 处 bidInfoSync 调用全是死代码
+
+前端 `useTenderActions.js`（2 处）和 `bidResultPage.actions.js`（2 处）调 `bidInfoSync` 时用 `tender.crmOpportunityCode` / `saved.tenderCode`，但：
+- 后端 `TenderDTO` 从不返回 `crmOpportunityCode` 字段
+- 后端从不返回 `tenderCode` 字段
+- → `if (tender?.crmOpportunityCode)` 永远 false → 前端手动回传从未执行
+
+## 12. CRM 回传 status 映射错位——接口文档枚举写错，弃标应是 6 非 1（CO-263）
+
+### 事故一句话总结
+
+`mapToCrmStatus` 把 ABANDONED 映射成 `1`（照抄接口文档"1-弃标"），但 CRM 真实枚举里 `1=跟进中`、`6=弃标`。回传后 CRM 返回 `code:0` success，却把商机状态改成了"跟进中"而非"弃标"——**接口返回成功，业务结果错误**，险些靠 code:0 蒙混过关。
+
+### 根因：接口文档枚举与 CRM 实际不一致
+
+`西域CRM商机对接接口.md` 原文：
+```
+status|integer|...|状态 1-弃标 2-中标 3-丢标 4-流标
+```
+
+但 CRM 商机操作记录原文（余海燕编辑商机时 CRM 自己显示的枚举）：
+```
+【项目状态 1-跟进中 2-中标 3-丢标 4-流标 5-投标中 6-弃标】
+```
+
+两套枚举对 `1` 的定义完全相反：文档说 1=弃标，实际 1=跟进中。照抄文档实现，ABANDONED→1 实际写成了"跟进中"。
+
+### 决定性证据：CRM 操作记录
+
+tender 268 弃标回传 status=1 后，CRM 商机 `CC20260618267` 操作记录：
+```
+2026-06-18 22:18:38  招投标管理系统 编辑商机
+【项目状态】由 【投标中】 变更为 【跟进中】   ← 我们回传 status=1，CRM 写成了"跟进中"
+```
+
+修复后回传 status=6，用户确认 CRM 商机状态变成了"弃标"。
+
+### 最大教训：code:0 是谎言，必须核对 CRM 前端实际状态
+
+本次最危险的陷阱：**CRM 对所有"能识别的 code"统一返回 `{"code":"0","msg":"success"}`**，即使 status 写错也会"成功"写入错误状态。
+
+| 验证手段 | 结论 | 是否可靠 |
+|---|---|---|
+| `webhook_delivery_logs.response_body` = `code:0` | "成功" | ❌ 不可靠，status 写错也返回 code:0 |
+| CRM 前端商机项目状态 | 修复前=跟进中（错），修复后=弃标（对） | ✅ 唯一可靠 |
+
+**铁律**：bidInfoSync 回传后，必须去 CRM 前端核对商机 `项目状态` 字段，不能只看接口响应。`code:0` 只代表"请求被接受"，不代表"状态改对了"。
+
+### 修复内容
+
+`WebhookEventListener.mapToCrmStatus`：
+```java
+case ABANDONED -> 6;   // 原来是 1（跟进中），修正为 6（弃标）
+case WON -> 2;         // 不变
+case LOST -> 3;        // 不变
+```
+
+同步修正：
+- `西域CRM商机对接接口.md` status 枚举改为真实值，标注文档曾误写
+- `WebhookEventListener` 注释更新为完整枚举（1-跟进中 2-中标 3-丢标 4-流标 5-投标中 6-弃标）
+- 单测 abandoned 断言 status=6
+
+### 通用规则：外部系统枚举值必须用对方系统的"源真相"校验
+
+1. 接口文档的枚举值不可全信——文档和实现脱节是常态。必须用对方系统的**操作记录/数据库/前端显示**等"源真相"交叉校验
+2. 对接外部系统时，先用**非破坏性探针**（如查一条记录的状态字段）确认枚举语义，再写映射代码
+3. 回传类接口的"成功"必须用**对方系统的实际状态变化**验证，不能用响应码代替——`code:0` 可能只是"请求格式合法"
+4. 当回传值是状态码时，注释里必须写**完整枚举**（含中间态），不能只写自己用到的几个值，否则无法发现"文档漏列了枚举值"的问题（本次文档漏了 5-投标中、6-弃标）
+
+### 相关文档
+
+- [西域CRM商机对接接口.md](../integration/西域CRM商机对接接口.md) — bidInfoSync 契约（status 枚举已修正）
+- [WebhookEventListener.java](../../backend/src/main/java/com/xiyu/bid/webhook/application/WebhookEventListener.java) — mapToCrmStatus 映射
+- [WebhookEventListenerTest.java](../../backend/src/test/java/com/xiyu/bid/webhook/application/WebhookEventListenerTest.java) — status=6 断言
