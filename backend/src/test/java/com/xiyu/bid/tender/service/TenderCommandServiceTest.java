@@ -56,6 +56,8 @@ class TenderCommandServiceTest {
     @Mock
     private com.xiyu.bid.notification.service.NotificationApplicationService notificationAppService;
     @Mock
+    private TenderAssignmentNotifier assignmentNotifier;
+    @Mock
     private TenderAttachmentRepository tenderAttachmentRepository;
 
     private TenderCommandService tenderCommandService;
@@ -74,7 +76,7 @@ class TenderCommandServiceTest {
                 tenderDeduplicationService, tenderRepository, projectRepository,
                 tenderMapper, accessGuard, taskService, commandAccessGuard,
                 autoAssignmentService, eventPublisher, userRepository, notificationAppService,
-                tenderAttachmentRepository);
+                assignmentNotifier, tenderAttachmentRepository);
 
         tender = Tender.builder()
                 .id(1L)
@@ -129,6 +131,23 @@ class TenderCommandServiceTest {
         assertThat(savedDto.getProjectManagerName()).isEqualTo("张三");
         assertThat(savedDto.getDepartment()).isEqualTo("销售部");
         verify(tenderRepository, times(2)).save(any(Tender.class));
+    }
+
+    @Test
+    @DisplayName("CO-261: CRM 匹配成功后给被分配的负责人发站内通知")
+    void createTender_CrmMatch_ShouldNotifyAssignee() {
+        when(tenderRepository.save(any(Tender.class))).thenAnswer(invocation -> {
+            Tender saved = invocation.getArgument(0);
+            saved.setId(1L);
+            return saved;
+        });
+        when(autoAssignmentService.autoAssignIfPossible(any(Tender.class))).thenReturn(
+                AssignmentResult.success("CRM-001", "1001", "张三", "DEPT-001", "销售部"));
+
+        tenderCommandService.createTender(tenderDTO);
+
+        // CO-261: 自动分配成功后必须通知被分配人（Notifier 内部保证异常不影响主事务）
+        verify(assignmentNotifier).notifyAutoAssigned(any(Tender.class));
     }
 
     @Test
