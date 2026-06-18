@@ -172,6 +172,9 @@ management:
 
 webhook:
   crm:
+    # 4.1 标讯状态变更回调 - 回调到 CRM 系统 bidInfoSync 接口
+    # 鉴权与访问 CRM 其他接口一致（Bearer JWT token，由 CrmAuthService 自动获取）
+    url: ${WEBHOOK_CRM_URL:https://crm-test.ehsy.com/customer-chance/bidInfoSync}
     # 共享密钥；fail-closed —— 未设置或 header 不匹配时 /api/webhooks/crm/** 一律 401
     token: ${WEBHOOK_CRM_TOKEN:}
 
