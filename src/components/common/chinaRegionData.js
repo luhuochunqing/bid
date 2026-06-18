@@ -13,12 +13,15 @@ export function isMunicipalityName(name) {
 
 /**
  * 将 cascader 选中路径归一为总部所在地存储字符串。
- * - 直辖市 / 港澳台：仅存本级行政区名（如 "北京市"、"香港特别行政区"），丢弃下级。
+ * - 直辖市：存为 市-市 格式（如 "北京市-北京市"），与普通省的 省-市 格式保持一致。
+ * - 港澳台：仅存本级行政区名（如 "香港特别行政区"、"台湾省"），丢弃下级。
  * - 普通省/自治区：存 省+市（如 "广东省深圳市"）。
  */
 export function normalizeHeadquartersRegionPath(path) {
   if (!Array.isArray(path) || path.length === 0) return ''
-  if (isProvinceOnlyName(path[0])) return path[0]
+  const first = path[0]
+  if (isMunicipalityName(first)) return `${first}-${first}`
+  if (isProvinceOnlyName(first)) return first
   return path.join('')
 }
 
@@ -690,14 +693,16 @@ export const chinaRegionOptions = [
 ]
 
 /**
- * 校验存储值是否符合"省市格式 / 直辖市仅市"。
- * 通过：4 个直辖市或港澳台单名，或 普通省/自治区 的 省+市 组合。
+ * 校验存储值是否符合"省市格式 / 直辖市市-市格式"。
+ * 通过：4 个直辖市的 市-市 格式（如 "北京市-北京市"）或旧单名（兼容历史数据），
+ *       港澳台单名，或 普通省/自治区 的 省+市 组合。
  * 不通过：普通省仅选省级（如 "广东省"）、直辖市带区（如 "北京市东城区"）、空值。
  */
 export function isValidHeadquartersRegion(value) {
   if (!value) return false
   if (isProvinceOnlyName(value)) return true
   for (const province of chinaRegionOptions) {
+    if (isMunicipalityName(province.name) && value === `${province.name}-${province.name}`) return true
     if (isProvinceOnlyName(province.name)) continue
     if (province.children) {
       for (const city of province.children) {
@@ -711,7 +716,8 @@ export function isValidHeadquartersRegion(value) {
 /**
  * 将总部所在地存储值反向解析为 cascader 选中路径，用于编辑回显。
  * 兼容：
- * - 直辖市/港澳台单名（如 "北京市"）→ [本级行政区名]
+ * - 直辖市市-市格式（如 "北京市-北京市"）→ [市名]
+ * - 直辖市/港澳台旧单名（如 "北京市"）→ [本级行政区名]
  * - 省+市（如 "广东省深圳市"）→ [省名, 市名]
  * - 直辖市带区历史值（如 "北京市东城区"）→ 回退到 [直辖市名]，避免回显空白
  * - 省+市+区历史值（如 "广东省深圳市福田区"）→ 回退到 [省名, 市名]（cascader 仅两级）
@@ -721,6 +727,9 @@ export function isValidHeadquartersRegion(value) {
 export function regionValueToCascaderPath(value) {
   if (!value) return null
   for (const province of chinaRegionOptions) {
+    if (isMunicipalityName(province.name) && value === `${province.name}-${province.name}`) {
+      return [province.name]
+    }
     if (province.name === value) return [value]
     if (isProvinceOnlyName(province.name) && value.startsWith(province.name)) {
       return [province.name]

@@ -25,10 +25,10 @@ describe('isMunicipalityName', () => {
 })
 
 describe('normalizeHeadquartersRegionPath', () => {
-  it('直辖市仅存市名，丢弃区', () => {
-    expect(normalizeHeadquartersRegionPath(['北京市'])).toBe('北京市')
-    expect(normalizeHeadquartersRegionPath(['北京市', '东城区'])).toBe('北京市')
-    expect(normalizeHeadquartersRegionPath(['上海市', '浦东新区'])).toBe('上海市')
+  it('直辖市存为 市-市 格式，丢弃区', () => {
+    expect(normalizeHeadquartersRegionPath(['北京市'])).toBe('北京市-北京市')
+    expect(normalizeHeadquartersRegionPath(['北京市', '东城区'])).toBe('北京市-北京市')
+    expect(normalizeHeadquartersRegionPath(['上海市', '浦东新区'])).toBe('上海市-上海市')
   })
 
   it('港澳台仅存本级行政区名，丢弃区', () => {
@@ -49,7 +49,12 @@ describe('normalizeHeadquartersRegionPath', () => {
 })
 
 describe('isValidHeadquartersRegion', () => {
-  it('直辖市单名通过', () => {
+  it('直辖市市-市格式通过', () => {
+    expect(isValidHeadquartersRegion('北京市-北京市')).toBe(true)
+    expect(isValidHeadquartersRegion('重庆市-重庆市')).toBe(true)
+  })
+
+  it('直辖市旧单名仍兼容通过', () => {
     expect(isValidHeadquartersRegion('北京市')).toBe(true)
     expect(isValidHeadquartersRegion('重庆市')).toBe(true)
   })
@@ -84,7 +89,12 @@ describe('isValidHeadquartersRegion', () => {
 })
 
 describe('regionValueToCascaderPath', () => {
-  it('直辖市单名回填为 [市名]', () => {
+  it('直辖市市-市格式回填为 [市名]', () => {
+    expect(regionValueToCascaderPath('北京市-北京市')).toEqual(['北京市'])
+    expect(regionValueToCascaderPath('上海市-上海市')).toEqual(['上海市'])
+  })
+
+  it('直辖市旧单名回填为 [市名]', () => {
     expect(regionValueToCascaderPath('北京市')).toEqual(['北京市'])
     expect(regionValueToCascaderPath('上海市')).toEqual(['上海市'])
   })
