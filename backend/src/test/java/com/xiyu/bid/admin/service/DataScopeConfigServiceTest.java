@@ -341,6 +341,8 @@ class DataScopeConfigServiceTest {
 
         List<String> perms = dataScopeConfigService.getRoleMenuPermissions(user);
 
-        assertThat(perms).contains("bidding"); // staff catalog 含 bidding
+        // STAFF 用户（含 pure legacy）走 STAFF seed definition：基础 dashboard 快捷入口 + AI 中心访问
+        // （非"无权限"——蓝图允许普通员工访问基础功能；具体权限见 RoleProfileCatalog.STAFF_CODE seed）
+        assertThat(perms).contains(RoleProfileCatalog.QUICK_START_PERMISSION, RoleProfileCatalog.AI_CENTER_PERMISSION);
     }
 }

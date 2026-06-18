@@ -124,6 +124,10 @@ public final class RoleProfileCatalog {
                             WAREHOUSE_MANAGE_PERMISSION))),
             Map.entry(ADMIN_STAFF_CODE, new SeedDefinition(ADMIN_STAFF_CODE, "行政人员", "资质证书管理与行政事务", true, "self",
                     List.of("certificate.manage", "qualification.view"))),
+            Map.entry(STAFF_CODE, new SeedDefinition(STAFF_CODE, "普通员工", "基础 dashboard 快捷入口与 AI 中心访问", true, "self",
+                    List.of(QUICK_START_PERMISSION, AI_CENTER_PERMISSION,
+                            "operation-logs",
+                            "dashboard:view_welcome_banner", "dashboard:view_activity_list", "dashboard:view_priority_todos"))),
                         Map.entry(BID_OTHER_DEPT_CODE, new SeedDefinition(BID_OTHER_DEPT_CODE, "跨部门协同人员", "项目任务处理", true, "self",
                     List.of("task.view.own", "task.handle.own",
                             "dashboard:view_welcome_banner", "dashboard:view_technical_task",
@@ -137,6 +141,7 @@ public final class RoleProfileCatalog {
     public static List<SeedDefinition> seedDefinitions() {
         return List.of(
                 DEFINITIONS.get(ADMIN_CODE),
+                DEFINITIONS.get(STAFF_CODE),
                 DEFINITIONS.get(SALES_CODE),
                 DEFINITIONS.get(BID_LEAD_CODE),
                 DEFINITIONS.get(BID_ADMIN_CODE),
@@ -159,7 +164,8 @@ public final class RoleProfileCatalog {
         }
         return switch (role) {
             case ADMIN -> DEFINITIONS.get(ADMIN_CODE);
-            case MANAGER, STAFF -> DEFINITIONS.get(ADMIN_CODE);
+            case MANAGER -> DEFINITIONS.get(ADMIN_CODE);
+            case STAFF -> DEFINITIONS.get(STAFF_CODE);
         };
     }
 

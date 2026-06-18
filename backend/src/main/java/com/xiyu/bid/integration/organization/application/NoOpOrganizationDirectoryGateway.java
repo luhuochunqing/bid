@@ -7,7 +7,6 @@ import com.xiyu.bid.integration.organization.domain.OrganizationJobSnapshot;
 import com.xiyu.bid.integration.organization.dto.OssMenuTreeNode;
 import com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -30,8 +29,6 @@ import java.util.Optional;
  * {@link OrganizationDirectorySyncAppService} from failing to start when the gateway
  * bean is absent.
  */
-@Component
-@ConditionalOnMissingBean(OrganizationDirectoryGateway.class)
 public class NoOpOrganizationDirectoryGateway implements OrganizationDirectoryGateway {
 
     @Override

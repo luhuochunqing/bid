@@ -34,7 +34,9 @@ class RoleProfileBootstrapTest {
     @Test
     void ensureSystemRolesShouldPreserveCustomizedSystemRolePermissions() {
         Map<String, RoleProfile> roles = seedRoles();
-        RoleProfile manager = roles.get("manager");
+        // catalog 当前 sales/bid_lead/bid_admin 等替代了早期 "manager"；用 SALES_CODE 验证
+        // "已注册系统角色的定制 menu_permissions 不被 bootstrap 覆盖" 这一行为契约。
+        RoleProfile manager = roles.get(RoleProfileCatalog.SALES_CODE);
         manager.setMenuPermissions(List.of("dashboard"));
         when(roleProfileRepository.findByCodeIgnoreCase(anyString()))
                 .thenAnswer(invocation -> Optional.ofNullable(roles.get(invocation.getArgument(0))));
