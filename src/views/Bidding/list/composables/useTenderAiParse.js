@@ -47,7 +47,7 @@ export function useTenderAiParse(form) {
       const response = await tendersApi.parseTenderIntakeDocument(uploadFile, { entityId: 'create-tender' })
       if (!response?.success) throw new Error(response?.msg || '文档自动识别失败')
       applyParsedFields(response.data)
-      applySourceDocumentMetadata(uploadFile, response.data)
+      applyAttachmentFileUrl(uploadFile, response.data)
       return 'DeepSeek/AI 已识别附件内容，可继续编辑后保存'
     })
   }
@@ -126,12 +126,27 @@ export function useTenderAiParse(form) {
     }
   }
 
-  function applySourceDocumentMetadata(file, parseResult) {
+  function applyAttachmentFileUrl(file, parseResult) {
     const fileUrl = parseResult?.documentId || ''
     if (!fileUrl) return
-    form.value.sourceDocumentName = file?.name || '招标文件'
-    form.value.sourceDocumentFileType = file?.type || ''
-    form.value.sourceDocumentFileUrl = fileUrl
+    // 把 AI 解析返回的 documentId 写入 attachments 中对应文件的 fileUrl
+    const targetName = file?.name || ''
+    const attachments = form.value.attachments || []
+    const idx = attachments.findIndex(f => {
+      const fFile = resolveUploadFile(f)
+      return fFile?.name === targetName || f?.name === targetName
+    })
+    if (idx >= 0) {
+      attachments[idx] = {
+        ...attachments[idx],
+        name: attachments[idx].name || targetName,
+        type: attachments[idx].type || file?.type || '',
+        url: fileUrl,
+        fileUrl,
+        fileName: attachments[idx].fileName || targetName,
+        fileType: attachments[idx].fileType || file?.type || '',
+      }
+    }
   }
 
   return {

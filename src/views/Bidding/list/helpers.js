@@ -141,9 +141,6 @@ export function buildManualTenderPayload(form = {}) {
     contactMail2: form.mail2 || null,
     description: form.description || null,
     tenderInfo: form.tenderInfo || null,
-    sourceDocumentName: form.sourceDocumentName || '',
-    sourceDocumentFileType: form.sourceDocumentFileType || '',
-    sourceDocumentFileUrl: form.sourceDocumentFileUrl || '',
     attachments: (form.attachments || []).map(f => ({
       fileName: f.name || f.fileName || '',
       fileType: f.type || f.fileType || '',

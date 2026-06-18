@@ -93,7 +93,6 @@ function createForm() {
     contact: '', phone: '', landline: '', mail: '',
     contact2: '', phone2: '', landline2: '', mail2: '',
     description: '', tenderInfo: '', attachments: [],
-    sourceDocumentName: '', sourceDocumentFileType: '', sourceDocumentFileUrl: '',
     pastedText: '',
   }
 }
@@ -114,10 +113,14 @@ function mapTenderToForm(tender) {
     contact2: tender.contactName2 || '', phone2: tender.contactPhone2 || '',
     landline2: tender.contactTel2 || '', mail2: tender.contactMail2 || '',
     description: tender.description || '', tenderInfo: tender.tenderInfo || '',
-    attachments: [],
-    sourceDocumentName: tender.sourceDocumentName || '',
-    sourceDocumentFileType: tender.sourceDocumentFileType || '',
-    sourceDocumentFileUrl: tender.sourceDocumentFileUrl || '',
+    attachments: (tender.attachments || []).map(a => ({
+      name: a.fileName || '',
+      type: a.fileType || '',
+      url: a.fileUrl || '',
+      fileName: a.fileName || '',
+      fileType: a.fileType || '',
+      fileUrl: a.fileUrl || '',
+    })),
     pastedText: '',
   }
 }

@@ -187,9 +187,6 @@ export function createManualTenderForm() {
     description: '',
     tenderInfo: '',
     attachments: [],
-    sourceDocumentName: '',
-    sourceDocumentFileType: '',
-    sourceDocumentFileUrl: '',
     pastedText: '',
     crmOpportunityId: null,
   }

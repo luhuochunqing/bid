@@ -192,7 +192,7 @@ describe('isAdminRole', () => {
     })
   })
 
-  it('keeps parsed source document metadata in manual tender create payload', () => {
+  it('maps manual tender attachments to attachments array with fileUrl', () => {
     const payload = buildManualTenderPayload({
       title: '带附件标讯',
       region: '上海',
@@ -204,9 +204,13 @@ describe('isAdminRole', () => {
       customerType: 'KA 客户',
       priority: 'B',
       description: '附件已由 doc-insight 解析',
-      sourceDocumentName: '招标文件.pdf',
-      sourceDocumentFileType: 'application/pdf',
-      sourceDocumentFileUrl: 'doc-insight://TENDER_INTAKE/manual-tender/hash-招标文件.pdf',
+      attachments: [
+        {
+          name: '招标文件.pdf',
+          type: 'application/pdf',
+          url: 'doc-insight://TENDER_INTAKE/manual-tender/hash-招标文件.pdf',
+        },
+      ],
     })
 
     expect(payload).toMatchObject({
@@ -214,9 +218,15 @@ describe('isAdminRole', () => {
       bidOpeningTime: '2026-06-03T09:30:00',
       customerType: 'KA 客户',
       priority: 'B',
-      sourceDocumentName: '招标文件.pdf',
-      sourceDocumentFileType: 'application/pdf',
-      sourceDocumentFileUrl: 'doc-insight://TENDER_INTAKE/manual-tender/hash-招标文件.pdf',
+    })
+    expect(payload).not.toHaveProperty('sourceDocumentName')
+    expect(payload).not.toHaveProperty('sourceDocumentFileType')
+    expect(payload).not.toHaveProperty('sourceDocumentFileUrl')
+    expect(payload.attachments).toHaveLength(1)
+    expect(payload.attachments[0]).toMatchObject({
+      fileName: '招标文件.pdf',
+      fileType: 'application/pdf',
+      fileUrl: 'doc-insight://TENDER_INTAKE/manual-tender/hash-招标文件.pdf',
     })
   })
 

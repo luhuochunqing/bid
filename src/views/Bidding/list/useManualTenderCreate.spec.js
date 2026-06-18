@@ -70,9 +70,12 @@ describe('useManualTenderCreate', () => {
       priority: 'S',
       tenderInfo: '仓储自动化设备采购',
       tags: ['公开招标', '智能仓储'],
-      sourceDocumentName: '招标文件.pdf',
-      sourceDocumentFileType: 'application/pdf',
-      sourceDocumentFileUrl: 'doc-insight://TENDER_INTAKE/manual-tender/hash-招标文件.pdf',
+    })
+    expect(workflow.manualForm.value.attachments[0]).toMatchObject({
+      name: '招标文件.pdf',
+      fileType: 'application/pdf',
+      url: 'doc-insight://TENDER_INTAKE/manual-tender/hash-招标文件.pdf',
+      fileUrl: 'doc-insight://TENDER_INTAKE/manual-tender/hash-招标文件.pdf',
     })
     expect(workflow.manualForm.value.deadline).toEqual(new Date('2026-06-01T17:00:00'))
     expect(workflow.manualForm.value.bidOpeningTime).toEqual(new Date('2026-06-03T10:00:00'))
@@ -111,9 +114,6 @@ describe('useManualTenderCreate', () => {
       mail: 'wang@example.com',
       customerType: 'KA 客户',
       priority: 'A',
-      sourceDocumentName: '粘贴标讯文本.txt',
-      sourceDocumentFileType: 'text/plain',
-      sourceDocumentFileUrl: 'doc-insight://TENDER_INTAKE/manual-tender/hash-粘贴标讯文本.txt',
     })
     expect(workflow.manualForm.value.bidOpeningTime).toEqual(new Date('2026-06-03T10:00:00'))
     expect(ElMessage.success).toHaveBeenCalledWith('DeepSeek/AI 已识别粘贴文本，可继续编辑后保存')
@@ -166,9 +166,16 @@ describe('useManualTenderCreate', () => {
       customerType: '央企集团',
       priority: 'A',
       description: '框架协议供应商引入，无明确采购预算。',
-      sourceDocumentName: '框架协议招标文件.docx',
-      sourceDocumentFileType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      sourceDocumentFileUrl: 'doc-insight://TENDER_INTAKE/manual-tender/hash-框架协议招标文件.docx',
+      attachments: [
+        {
+          name: '框架协议招标文件.docx',
+          type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          url: 'doc-insight://TENDER_INTAKE/manual-tender/hash-框架协议招标文件.docx',
+          fileName: '框架协议招标文件.docx',
+          fileType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          fileUrl: 'doc-insight://TENDER_INTAKE/manual-tender/hash-框架协议招标文件.docx',
+        },
+      ],
       publishDate: expect.any(String),
     }
 
@@ -196,12 +203,19 @@ describe('useManualTenderCreate', () => {
         source: '人工录入',
         tenderInfo: null,
         publishDate: expect.any(String),
-        sourceDocumentName: '框架协议招标文件.docx',
-        sourceDocumentFileType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        sourceDocumentFileUrl: 'doc-insight://TENDER_INTAKE/manual-tender/hash-框架协议招标文件.docx',
         status: 'PENDING_ASSIGNMENT',
       }),
     )
+    const callArgs = tendersApi.create.mock.calls[0][0]
+    expect(callArgs).not.toHaveProperty('sourceDocumentName')
+    expect(callArgs).not.toHaveProperty('sourceDocumentFileType')
+    expect(callArgs).not.toHaveProperty('sourceDocumentFileUrl')
+    expect(callArgs.attachments).toHaveLength(1)
+    expect(callArgs.attachments[0]).toMatchObject({
+      fileName: '框架协议招标文件.docx',
+      fileType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      fileUrl: 'doc-insight://TENDER_INTAKE/manual-tender/hash-框架协议招标文件.docx',
+    })
     expect(refreshTenderList).toHaveBeenCalled()
   })
 
