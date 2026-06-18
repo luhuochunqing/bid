@@ -74,15 +74,8 @@ public class TenderCommandService {
         }
         Tender savedTender = tenderRepository.save(tender);
         log.info("Created tender with id: {}", savedTender.getId());
-
-        // 保存附件
         saveAttachments(savedTender.getId(), tenderDTO.getAttachments());
-
-        // 自动分配：根据业主单位匹配 CRM 项目负责人
-        // 匹配成功 → 状态变为 TRACKING；匹配失败 → 保持 PENDING_ASSIGNMENT
         boolean assigned = tryAutoAssign(savedTender);
-
-        // 未匹配到 CRM 项目负责人时，为投标管理员和投标组长创建分配待办和通知
         if (!assigned) {
             String taskTitle = "【待分配】" + savedTender.getTitle();
             String taskDesc = "标讯「" + savedTender.getTitle()
@@ -145,13 +138,11 @@ public class TenderCommandService {
                 eventPublisher.publishEvent(TenderStatusChangedEvent.of(tender.getId(), tender.getExternalId(), Tender.Status.PENDING_ASSIGNMENT, Tender.Status.TRACKING, tender.getTitle()));
                 tenderRepository.save(tender);
                 log.info("Tender {} auto-assigned, status changed to TRACKING", tender.getId());
-                // CO-261: 自动分配成功后给被分配的负责人发站内通知（失败不影响分配事务）
                 assignmentNotifier.notifyAutoAssigned(tender);
                 return true;
             }
         } catch (RuntimeException e) {
-            log.warn("Auto-assignment failed for tender {}, keeping PENDING_ASSIGNMENT: {}",
-                    tender.getId(), e.getMessage());
+            log.warn("Auto-assignment failed for tender {}, keeping PENDING_ASSIGNMENT: {}", tender.getId(), e.getMessage());
         }
         return false;
     }
@@ -224,6 +215,8 @@ public class TenderCommandService {
         Tender existingTender = tenderRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(409, "标讯已被删除，无法关联CRM商机"));
         commandAccessGuard.assertCanUpdateTender(existingTender, userId);
+        // CO-269: 投标中/已中标/未中标/已放弃状态不允许更换CRM商机
+        assertCrmLinkAllowed(existingTender.getStatus());
         existingTender.setCrmOpportunityId(crmOpportunityId);
         existingTender.setCrmOpportunityName(crmOpportunityName);
         existingTender.setEvaluationSource(com.xiyu.bid.entity.Tender.EvaluationSource.BID_SYSTEM_LINK);
@@ -295,6 +288,13 @@ public class TenderCommandService {
                     .build();
             attachmentRepository.save(att);
             count++;
+        }
+    }
+
+    private static void assertCrmLinkAllowed(Tender.Status status) {
+        if (status == Tender.Status.BIDDING || status == Tender.Status.WON
+                || status == Tender.Status.LOST || status == Tender.Status.ABANDONED) {
+            throw new BusinessException(409, "标讯已进入「" + status.name() + "」状态，无法更换CRM商机");
         }
     }
 }

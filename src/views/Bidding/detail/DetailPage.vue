@@ -270,6 +270,10 @@ const currentUserId = computed(() => userStore.currentUser?.id)
 const showCrmSelector = computed(() =>
   currentUserId.value != null &&
   tender.value?.status !== 'PENDING_ASSIGNMENT' &&
+  tender.value?.status !== 'BIDDING' &&
+  tender.value?.status !== 'WON' &&
+  tender.value?.status !== 'LOST' &&
+  tender.value?.status !== 'ABANDONED' &&
   tender.value?.projectManagerId === currentUserId.value
 )
 

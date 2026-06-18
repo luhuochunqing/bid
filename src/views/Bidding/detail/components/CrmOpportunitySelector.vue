@@ -5,7 +5,7 @@
       <template v-if="linkedOpportunity">
         <el-tag type="success" size="large">{{ linkedOpportunity.name }}</el-tag>
         <el-tag v-if="linkedOpportunity.code" type="info" size="small">{{ linkedOpportunity.code }}</el-tag>
-        <el-button text type="primary" size="small" @click="openSearch">更换</el-button>
+        <el-button v-if="enabled" text type="primary" size="small" @click="openSearch">更换</el-button>
       </template>
       <template v-else>
         <el-button type="primary" :disabled="!enabled" :loading="searching" @click="openSearch">
