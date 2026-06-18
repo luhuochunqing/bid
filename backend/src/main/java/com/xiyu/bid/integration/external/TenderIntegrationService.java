@@ -217,6 +217,15 @@ public class TenderIntegrationService {
         }
 
         crmTenderLinkService.linkIfPresent(tender, request.getCrmId());
+        // CO-271: 确保 crmId 非空时自动关联商机效果与手动选择一致
+        if (request.getCrmId() != null && !request.getCrmId().isBlank()) {
+            tender.setEvaluationSource(com.xiyu.bid.entity.Tender.EvaluationSource.CRM_PUSH);
+            tender.setStatus(com.xiyu.bid.entity.Tender.Status.EVALUATED);
+            // 降级兜底：linkIfPresent 因 CRM 接口异常未设置 crmOpportunityId 时，用传入的 crmId 兜底
+            if (tender.getCrmOpportunityId() == null || tender.getCrmOpportunityId().isBlank()) {
+                tender.setCrmOpportunityId(request.getCrmId());
+            }
+        }
         Tender saved = tenderRepository.save(tender);
         log.info("Updated tender id={} externalId={}", saved.getId(), externalId);
         // 处理附件
