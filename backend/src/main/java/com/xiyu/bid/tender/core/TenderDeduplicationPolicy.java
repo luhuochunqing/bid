@@ -30,7 +30,12 @@ public final class TenderDeduplicationPolicy {
         if (isBlank(purchaser1) || isBlank(purchaser2)) {
             return false;
         }
-        return Objects.equals(normalize(purchaser1), normalize(purchaser2))
+        // 时间字段必须都有值才能判定重复；任一为 null 表示未填写，不应与任何情况匹配
+        if (regDeadline1 == null || regDeadline2 == null
+                || bidOpenTime1 == null || bidOpenTime2 == null) {
+            return false;
+        }
+        return normalize(purchaser1).equalsIgnoreCase(normalize(purchaser2))
                 && Objects.equals(regDeadline1, regDeadline2)
                 && Objects.equals(bidOpenTime1, bidOpenTime2);
     }
