@@ -3,7 +3,7 @@
 // Pos: src/views/Bidding/detail/components/ - CRM opportunity selector composable
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
-import { ref, reactive } from 'vue'
+import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { crmApi } from '@/api/modules/crm.js'
 import { CUSTOMER_INFO_ROWS } from './customerInfoMatrixConfig.js'
@@ -31,6 +31,13 @@ export function useCrmOpportunitySelector(props, emit) {
   const linkedOpportunity = ref(
     props.alreadyLinkedName ? { name: props.alreadyLinkedName } : null
   )
+
+  // 同步父组件传入的 alreadyLinkedName 变化（如 loadTenderDetail 完成后）
+  watch(() => props.alreadyLinkedName, (newName) => {
+    if (newName && (!linkedOpportunity.value || linkedOpportunity.value.name !== newName)) {
+      linkedOpportunity.value = { name: newName }
+    }
+  })
 
   function hasBlueprintCriteria() {
     return Boolean(props.tenderer?.trim())
@@ -190,7 +197,6 @@ export function useCrmOpportunitySelector(props, emit) {
       },
     })
     showDialog.value = false
-    ElMessage.success('CRM商机已关联，评估表已回填')
   }
 
   function resetSearch() { showManualForm.value = false; manualConfirmed.value = false }
