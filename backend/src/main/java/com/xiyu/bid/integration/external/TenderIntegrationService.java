@@ -101,6 +101,7 @@ public class TenderIntegrationService {
         applyContactInfo(tender, r.getContactInfo());
         if (r.getContentDesc() != null) tender.setDescription(InputSanitizer.sanitizeString(r.getContentDesc(), 5000));
         tender.setEvaluationSource(com.xiyu.bid.entity.Tender.EvaluationSource.CRM_PUSH);
+        tender.setStatus(com.xiyu.bid.entity.Tender.Status.EVALUATED);
     }
     /**
      * 按 externalId 或 tenderId 查询标讯详情（二选一必传）。
@@ -206,6 +207,7 @@ public class TenderIntegrationService {
         }
         if (request.getEvaluation() != null) {
             tender.setEvaluationSource(com.xiyu.bid.entity.Tender.EvaluationSource.CRM_PUSH);
+            tender.setStatus(com.xiyu.bid.entity.Tender.Status.EVALUATED);
         }
 
         crmTenderLinkService.linkIfPresent(tender, request.getCrmId());
