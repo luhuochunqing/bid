@@ -409,3 +409,87 @@ Class <com.xiyu.bid.controller.AdminRoleOssMenuSyncController> does not match an
 | 日期 | 分支 | 变更内容 |
 |------|------|----------|
 | 2026-06-18 | `agent/kimi/002-oss-menu-permission-sync` | 将 `AdminRoleOssMenuSyncController` 从根包迁移到 `integration.organization` 包，修复 ArchUnit 违规 |
+
+## 六、PR 合并验证盲区——编号复用 + rebase 丢 commit + 服务器/main 代码漂移（2026-06-19）
+
+> 来源：CRM bidInfoSync 回传修复（CO-263）
+> 涉及分支：`agent/zcode/webhook-crmbidinfosync-fix`（旧，含核心修复）→ 重新发起为 PR !827
+> 教训级别：**P0**（险些导致已验证的线上修复被回退）
+
+### 6.1 事故
+
+CRM bidInfoSync 回传有两个核心修复：(A) `mapToCrmStatus` 弃标 status `1→6`（CRM 真实枚举 1=跟进中、6=弃标），(B) `buildPayload` 的 code 字段改用 `crm_opportunity_id`（商机编号）而非 sourceId。修复已在服务器部署并通过 tender 268 实测验证（用户确认 CRM 商机状态变为"弃标"）。
+
+次日继续工作时，为修另一个前端 bug 从 main 开新分支，发现 main 上的 `WebhookEventListener.mapToCrmStatus` 仍是 `ABANDONED -> 1`（错误值），`buildPayload` 仍用 sourceId——**两个核心修复从未进入 main**。而服务器上跑的 jar 是修复版（commit `29bd3bc91`），**服务器代码与 main 不一致**，下次从 main 部署会回退到 status=1，CRM 商机状态又会被错误改成"跟进中"。
+
+### 6.2 根因：三个叠加的验证盲区
+
+**盲区一：PR 编号复用导致"已合并"假象**
+
+Gitee PR 编号是全局递增的，标题/分支可复用。本案例中：
+- 旧分支 `agent/zcode/webhook-crmbidinfosync-fix` 含核心修复（commit `b035dea50`/`29bd3bc91`/`fb2c7038d`）
+- 但 Gitee `!820` 标题是"@TransactionalEventListener save 静默失效 + status 列截断"，实际合并的是**另一个 commit `ddf4661d3`**（只含 6 个文件：NotificationDeliveryTaskListener、status 列加宽、V1086 迁移），**不含我们的 status 1→6 修复**
+- 前一会话总结里写"PR !820 已合并"，照着 `git log origin/main` 看到 `!820` 字样就以为核心修复已合并，**未核对 !820 实际合并的 commit 是否就是本分支的 commit**
+
+**盲区二：rebase 静默丢弃 commit**
+
+从 main 开新分支时执行了 `git rebase origin/main`。由于 main 上已有同号 `!820` 占位（内容不同），rebase 时旧分支的 4 个 commit **被静默丢弃**（`git log origin/main..HEAD` 为空），但没有任何告警。开发者以为"分支已与 main 同步"，实际是"修复被丢了"。
+
+**盲区三：服务器/main 代码漂移未被察觉**
+
+服务器上跑的 jar 是某个临时 commit（`29bd3bc91`）编译的，该 commit 从未进 main。这种"线上跑的代码 ≠ main 代码"的状态在以下情况下会导致回退：
+- 下次从 main 重新部署 → 回退到未修复版本
+- 他人基于 main 开发 → 看到旧代码，可能重复修或引入冲突
+
+### 6.3 决定性证据
+
+```bash
+# origin/main 上 !820 实际合并的 commit
+$ git show --stat b3c30f93c   # !820 merge commit
+Merge: 963c9c475 ddf4661d3    # 来源是 ddf4661d3，不是我们的 29bd3bc91
+ 6 files changed              # 只含 NotificationDeliveryTaskListener + status 列加宽 + V1086 迁移
+
+# origin/main 上 mapToCrmStatus 仍是错误值
+$ git show origin/main:.../WebhookEventListener.java | grep ABANDONED
+    case ABANDONED -> 1;      # 错误！弃标应为 6
+
+# 我们的核心修复 commit 是否在 origin/main 历史中
+$ git branch -r --contains 29bd3bc91
+  origin/agent/zcode/webhook-crmbidinfosync-fix   # 只在旧分支，不在 origin/main
+```
+
+### 6.4 修复
+
+重新发起 PR !827（分支 `agent/zcode/fix-crm-opportunity-code`，基于 latest main 重做两个核心修复）：
+- `mapToCrmStatus`: `ABANDONED 1→6`
+- `buildPayload`: 注入 `TenderRepository`，code ← `crm_opportunity_id`，删除 `extractSourceId`
+- 单测 9/9 绿，文档同步修正
+
+### 6.5 预防 Checklist
+
+**PR 合并验证（不能只看编号）**：
+- [ ] 合并后必须用 `git log origin/main --oneline | grep <本分支 commit hash>` 确认**本分支的具体 commit** 进了 main，不能只看 PR 编号或标题
+- [ ] 用 `git branch -r --contains <commit-hash>` 确认核心 commit 在 `origin/main` 历史中
+- [ ] 若 PR 标题/分支被复用，必须核对 `git show <merge-commit> --stat` 实际合并的文件清单是否覆盖本次修复
+
+**rebase 后验证**：
+- [ ] rebase 后立即跑 `git log origin/main..HEAD --oneline`，确认本分支的 commit 仍在（不为空）
+- [ ] 若为空但本应有改动，说明 commit 被丢弃，需 `git reflog` 找回或重新应用
+
+**服务器/main 一致性**：
+- [ ] 服务器部署的 jar 必须对应一个**已在 main 上的 commit**，不能是临时 commit
+- [ ] 部署后在服务器上跑 `git log -1` 或记录 commit hash，与 main 对比
+- [ ] 定期（至少每次从 main 部署前）核对 `服务器 jar 对应 commit` ∈ `origin/main 历史`
+
+### 6.6 通用规则
+
+1. **PR 编号不是合并证据**——编号可复用，标题可相似。唯一可靠的合并证据是"本分支的具体 commit hash 出现在目标分支历史中"
+2. **rebase 不保证保留 commit**——当 main 已有同号/同标题 PR 占位时，rebase 会静默丢弃"看似已合并"的 commit。rebase 后必须用 `git log origin/main..HEAD` 验证 commit 仍在
+3. **线上 jar 必须可追溯到 main**——任何部署到服务器的 jar 都必须对应 main 上的一个 commit，否则就是"未进 main 的修复"，下次部署必回退
+4. **"已合并"的状态要在新分支上验证**——开新分支从 main rebase 后，若发现代码仍是旧值，说明前一个 PR 的修复未真正进 main，要立即调查而不是继续闷头干活
+
+### 6.7 经验值变更记录
+
+| 日期 | 分支 | 变更内容 |
+|------|------|----------|
+| 2026-06-19 | `agent/zcode/fix-crm-opportunity-code`（PR !827） | 重新发起被 PR !820 编号复用误导而丢失的核心修复（status 1→6 + code 改用 crm_opportunity_id）；沉淀本节 PR 合并验证 checklist |
