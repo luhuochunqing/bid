@@ -178,7 +178,7 @@ describe('useCrmOpportunitySelector', () => {
     await flushPromises()
 
     expect(emitFn).toHaveBeenCalledWith('linked', expect.objectContaining({
-      opportunityId: 100,
+      opportunityId: 'C001',
       evaluationData: expect.objectContaining({
         basic: expect.objectContaining({
           riskAssessment: '竞争对手低价冲击',

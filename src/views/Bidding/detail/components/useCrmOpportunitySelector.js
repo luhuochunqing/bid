@@ -173,11 +173,14 @@ export function useCrmOpportunitySelector(props, emit) {
       } catch { /* ignore */ }
     }
     linkedOpportunity.value = { name: chance.name, code: chance.code, id: chance.id }
+    // opportunityId 传商机编号（code，CC... 格式），非商机数字 id。
+    // 后端 crm_opportunity_id 字段存商机编号（V118 迁移注释明确"存商机编号如 CC20260610180"），
+    // webhook bidInfoSync 回传时 code 字段也取此值匹配 CRM 商机。若传数字 id 会导致 CRM 匹配失败。
     emit('linked', {
-      opportunityId: chance.id,
+      opportunityId: chance.code,
       opportunityName: chance.name,
       evaluationData: {
-        opportunityId: chance.id,
+        opportunityId: chance.code,
         basic: {
           riskAssessment: chance.riskPrediction || '',
           unfavorableItems: chance.bidDocumentDisadvantage || '',
