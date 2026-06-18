@@ -215,7 +215,7 @@ async function loadUsers() {
       keyword: searchForm.value.keyword || undefined,
       enabled: searchForm.value.enabled,
       departmentCode: selectedDeptCode.value || undefined,
-      sourceApp: selectedSourceApp.value || undefined,
+      sourceApp: selectedDeptCode.value ? (selectedSourceApp.value || undefined) : undefined,
     }
     const res = await organizationApi.listUsersPage(params)
     userList.value = res.list || []

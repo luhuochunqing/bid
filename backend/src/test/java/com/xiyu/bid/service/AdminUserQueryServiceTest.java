@@ -98,4 +98,27 @@ class AdminUserQueryServiceTest {
                 .containsExactlyInAnyOrder("u1", "u2");
         assertThat(result.totalCount()).isEqualTo(2);
     }
+
+    @Test
+    void listUsersPage_ignoresSourceApp_whenDepartmentCodeNotGiven() {
+        User enabledUser = User.builder().username("enabled-user").enabled(true).role(User.Role.STAFF).build();
+        User disabledUser = User.builder().username("disabled-user").enabled(false).role(User.Role.STAFF).build();
+
+        when(userRepository.findAll()).thenReturn(List.of(enabledUser, disabledUser));
+
+        PaginatedResult<com.xiyu.bid.dto.AdminUserDTO> noSourceApp =
+                service.listUsersPage(1, 10, null, true, null, null);
+        PaginatedResult<com.xiyu.bid.dto.AdminUserDTO> withEhsy =
+                service.listUsersPage(1, 10, null, true, null, "ehsy");
+        PaginatedResult<com.xiyu.bid.dto.AdminUserDTO> withOss =
+                service.listUsersPage(1, 10, null, true, null, "oss");
+
+        assertThat(noSourceApp.list()).hasSize(1);
+        assertThat(withEhsy.list()).hasSize(1);
+        assertThat(withOss.list()).hasSize(1);
+        assertThat(noSourceApp.totalCount()).isEqualTo(1);
+        assertThat(withEhsy.totalCount()).isEqualTo(1);
+        assertThat(withOss.totalCount()).isEqualTo(1);
+        assertThat(noSourceApp.list().get(0).getUsername()).isEqualTo("enabled-user");
+    }
 }
