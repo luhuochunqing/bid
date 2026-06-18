@@ -1,6 +1,6 @@
 package com.xiyu.bid.integration.organization.controller;
 
-import com.xiyu.bid.controller.AdminRoleOssMenuSyncController;
+import com.xiyu.bid.integration.organization.controller.AdminRoleOssMenuSyncController;
 import com.xiyu.bid.dto.RoleDTO;
 import com.xiyu.bid.integration.organization.application.OrganizationRoleMenuSyncAppService;
 import com.xiyu.bid.integration.organization.dto.SyncRoleMenuPermissionRequest;
