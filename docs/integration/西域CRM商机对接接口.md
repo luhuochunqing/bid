@@ -2646,7 +2646,7 @@ POST /contact-person-info/page-list
 |---|---|---|---|---|---|
 |name|string|false|none||名称|
 |code|string|false|none||编号|
-|status|integer|false|none||状态 1-弃标 2-中标 3-丢标 4-流标|
+|status|integer|false|none||状态 1-跟进中 2-中标 3-丢标 4-流标 5-投标中 6-弃标（⚠️ 文档曾误写为"1-弃标 2-中标 3-丢标 4-流标"，实际 1=跟进中、弃标=6，见 crm-integration-lessons.md 第 12 节）|
 |statusEditor|string|false|none||状态变更人|
 |statusEditTime|string|false|none||状态编辑时间 yyyy-MM-dd HH:mm:ss|
 |feedback|string|false|none||项目状态反馈 json包含原因+友商+账期+备注+操作人+操作时间|

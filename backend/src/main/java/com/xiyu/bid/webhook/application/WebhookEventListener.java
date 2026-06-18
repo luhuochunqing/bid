@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.crm.infrastructure.dto.BidInfoInnerDTO;
 import com.xiyu.bid.crm.infrastructure.dto.BidInfoSyncDTO;
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTask;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTaskRepository;
@@ -30,6 +31,7 @@ public class WebhookEventListener {
     private static final DateTimeFormatter STATUS_EDIT_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final WebhookDeliveryTaskRepository taskRepository;
+    private final TenderRepository tenderRepository;
     private final ObjectMapper objectMapper;
 
     @Value("${webhook.crm.url:}")
@@ -50,17 +52,28 @@ public class WebhookEventListener {
                     event.newStatus(), event.tenderId());
             return;
         }
+        // 取标讯关联的 CRM 商机编号/名称，用于填充 bidInfoSync 的 code/name 字段。
+        // code 必须是 CRM 商机编号（crm_opportunity_id，V118 迁移注释明确存商机编号如 CC20260610180），
+        // 而非 externalId 的 sourceId 部分（那是来源系统数据唯一 ID，非商机编号，会导致 CRM 匹配失败返回 code:1）。
+        // 无关联商机时 code/name 填空字符串，CRM 侧接受（实测 tender 249 返回 code:0 success）。
+        Tender tender = tenderRepository.findById(event.tenderId()).orElse(null);
+        if (tender == null) {
+            log.warn("Tender {} not found, skip webhook (cannot resolve crm opportunity code)", event.tenderId());
+            return;
+        }
+        String crmOpportunityCode = tender.getCrmOpportunityId() != null ? tender.getCrmOpportunityId() : "";
+        String crmOpportunityName = tender.getCrmOpportunityName() != null ? tender.getCrmOpportunityName() : "";
         taskRepository.save(WebhookDeliveryTask.builder()
                 .tenderId(event.tenderId())
                 .externalId(event.externalId())
                 .targetUrl(crmWebhookUrl)
                 .eventType("tender.status_changed")
                 .businessKey(buildBusinessKey(event))
-                .payload(buildPayload(event, crmStatus))
+                .payload(buildPayload(event, crmStatus, crmOpportunityCode, crmOpportunityName))
                 .status(WebhookDeliveryTaskStatus.PENDING)
                 .build());
-        log.info("Webhook delivery task enqueued for tender {}, crmStatus={}, url={}",
-                event.tenderId(), crmStatus, crmWebhookUrl);
+        log.info("Webhook delivery task enqueued for tender {}, crmStatus={}, crmOpportunityCode={}, url={}",
+                event.tenderId(), crmStatus, crmOpportunityCode.isEmpty() ? "(none)" : crmOpportunityCode, crmWebhookUrl);
     }
 
     private String buildBusinessKey(TenderStatusChangedEvent event) {
@@ -68,13 +81,17 @@ public class WebhookEventListener {
     }
 
     /**
-     * 映射标讯终态到 CRM bidInfoSync 的 status 数字。
-     * <p>CRM 契约：1-弃标 2-中标 3-丢标 4-流标。
-     * 中间态（待分配/跟踪/评估/投标）不回传，返回 null。
+     * 映射标讯终态到 CRM bidInfoSync 的 status 数字（即 CRM projectStatus 枚举值）。
+     * <p>CRM projectStatus 枚举（来自 CRM 商机操作记录原文）：
+     * 1-跟进中 2-中标 3-丢标 4-流标 5-投标中 6-弃标。
+     * <p>⚠️ 接口文档《西域CRM商机对接接口.md》曾误写为"1-弃标 2-中标 3-丢标 4-流标"，
+     * 实际 1=跟进中、弃标=6。曾因照抄错误文档把 ABANDONED 映射成 1，导致回传后 CRM
+     * 把商机状态改成"跟进中"而非"弃标"（tender 268 实测，2026-06-18 排查）。
+     * <p>中间态（待分配/跟踪/评估/投标）不回传，返回 null。
      */
     private Integer mapToCrmStatus(Tender.Status status) {
         return switch (status) {
-            case ABANDONED -> 1;
+            case ABANDONED -> 6;
             case WON -> 2;
             case LOST -> 3;
             default -> null;
@@ -83,16 +100,19 @@ public class WebhookEventListener {
 
     /**
      * 构造符合 CRM POST /customer-chance/bidInfoSync 契约的请求体。
-     * <p>name/code 用 sourceId（externalId 冒号后部分，即 CRM 商机 id）填充。
+     * <p>code 填 CRM 商机编号（crm_opportunity_id），name 填商机名称（crm_opportunity_name）。
+     * 无关联商机时两者填空字符串——CRM 侧接受（实测返回 code:0 success）。
+     * <p>⚠️ 切勿用 externalId 的 sourceId 部分填 code：那是来源系统数据唯一 ID，非商机编号，
+     * 会导致 CRM 匹配失败返回 code:1（tender 268 案例）。
      */
-    private String buildPayload(TenderStatusChangedEvent event, Integer crmStatus) {
+    private String buildPayload(TenderStatusChangedEvent event, Integer crmStatus,
+                                String crmOpportunityCode, String crmOpportunityName) {
         try {
-            String sourceId = extractSourceId(event.externalId());
             String statusEditTime = event.occurredAt().format(STATUS_EDIT_TIME_FORMAT);
             String operator = event.operatorName() != null ? event.operatorName() : "";
             BidInfoInnerDTO inner = new BidInfoInnerDTO(
-                    sourceId,
-                    sourceId,
+                    crmOpportunityName,
+                    crmOpportunityCode,
                     crmStatus,
                     operator,
                     statusEditTime,
@@ -121,11 +141,5 @@ public class WebhookEventListener {
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException("Failed to serialize feedback", ex);
         }
-    }
-
-    private String extractSourceId(String externalId) {
-        if (externalId == null || externalId.isBlank()) return "";
-        int idx = externalId.indexOf(':');
-        return idx >= 0 ? externalId.substring(idx + 1) : externalId;
     }
 }
