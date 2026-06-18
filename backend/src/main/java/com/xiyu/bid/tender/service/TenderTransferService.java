@@ -54,6 +54,7 @@ public class TenderTransferService {
     private final UserRepository userRepository;
     private final TenderAssignmentRecordRepository assignmentRecordRepository;
     private final TenderAuditService tenderAuditService;
+    private final TenderAssignmentNotifier assignmentNotifier;
 
     /**
      * 执行标讯转派。
@@ -122,6 +123,9 @@ public class TenderTransferService {
 
         log.info("Tender {} transferred from {} (id={}) to {} (id={}) by operator {}",
                 tenderId, oldOwnerName, oldOwnerId, newOwner.getFullName(), newOwnerId, operatorId);
+
+        // CO-261: 转派成功后给新负责人发站内通知（失败不影响转派事务）
+        assignmentNotifier.notifyTransferred(tender, newOwnerId, oldOwnerName, operatorName, operatorId);
 
         // 9. 返回转派结果
         return TenderTransferResponse.builder()

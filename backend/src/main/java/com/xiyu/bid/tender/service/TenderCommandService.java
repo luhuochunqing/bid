@@ -50,6 +50,7 @@ public class TenderCommandService {
     private final ApplicationEventPublisher eventPublisher;
     private final UserRepository userRepository;
     private final NotificationApplicationService notificationAppService;
+    private final TenderAssignmentNotifier assignmentNotifier;
     private final TenderAttachmentRepository attachmentRepository;
 
     public TenderDTO createTender(TenderDTO tenderDTO) {
@@ -143,6 +144,8 @@ public class TenderCommandService {
                 eventPublisher.publishEvent(TenderStatusChangedEvent.of(tender.getId(), tender.getExternalId(), Tender.Status.PENDING_ASSIGNMENT, Tender.Status.TRACKING, tender.getTitle()));
                 tenderRepository.save(tender);
                 log.info("Tender {} auto-assigned, status changed to TRACKING", tender.getId());
+                // CO-261: 自动分配成功后给被分配的负责人发站内通知（失败不影响分配事务）
+                assignmentNotifier.notifyAutoAssigned(tender);
                 return true;
             }
         } catch (RuntimeException e) {
