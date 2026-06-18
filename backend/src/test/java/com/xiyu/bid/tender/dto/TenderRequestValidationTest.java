@@ -64,6 +64,29 @@ class TenderRequestValidationTest {
         assertTrue(validator.validate(request).isEmpty());
     }
 
+    @Test
+    void shouldRejectRegionInPlainProvinceNameFormat() {
+        TenderRequest request = validRequest();
+        request.setRegion("北京");
+
+        boolean hasRegionViolation = validator.validate(request).stream()
+                .anyMatch(violation -> "region".equals(violation.getPropertyPath().toString()));
+
+        assertTrue(hasRegionViolation);
+    }
+
+    @Test
+    void shouldAcceptRegionInMunicipalityOrProvincePlusCityFormat() {
+        TenderRequest request = validRequest();
+        request.setRegion("北京市");
+        assertTrue(validator.validate(request).stream()
+                .noneMatch(violation -> "region".equals(violation.getPropertyPath().toString())));
+
+        request.setRegion("广东省深圳市");
+        assertTrue(validator.validate(request).stream()
+                .noneMatch(violation -> "region".equals(violation.getPropertyPath().toString())));
+    }
+
     private TenderRequest validRequest() {
         TenderRequest request = new TenderRequest();
         request.setTitle("框架协议供应商引入项目");

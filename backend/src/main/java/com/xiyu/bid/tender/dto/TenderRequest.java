@@ -1,6 +1,7 @@
 package com.xiyu.bid.tender.dto;
 
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.tender.validation.HeadquartersRegion;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Future;
@@ -42,6 +43,7 @@ public class TenderRequest {
     private BigDecimal budget;
 
     @Size(max = 100, message = "地区长度不能超过100个字符")
+    @HeadquartersRegion
     private String region;
 
     @Size(max = 100, message = "行业长度不能超过100个字符")

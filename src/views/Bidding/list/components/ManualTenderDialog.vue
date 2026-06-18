@@ -34,7 +34,7 @@
                 <el-cascader
                   v-model="regionCascaderValue"
                   :options="chinaRegionOptions"
-                  :props="{ expandTrigger: 'hover', label: 'name', value: 'name', checkStrictly: false, emitPath: true }"
+                  :props="{ expandTrigger: 'hover', label: 'name', value: 'name', checkStrictly: true, emitPath: true }"
                   placeholder="选择总部所在地"
                   clearable
                   filterable
@@ -172,7 +172,7 @@
 import { computed, ref, shallowRef } from 'vue'
 import { DocumentCopy, Upload } from '@element-plus/icons-vue'
 import AdaptiveFormPage from '@/components/common/AdaptiveFormPage.vue'
-import { chinaRegionOptions } from '@/components/common/chinaRegionData.js'
+import { chinaRegionOptions, normalizeHeadquartersRegionPath, regionValueToCascaderPath } from '@/components/common/chinaRegionData.js'
 import {
   CUSTOMER_TYPE_OPTIONS,
   MANUAL_FORM_RULES,
@@ -204,31 +204,14 @@ const adaptiveFormRef = shallowRef(null)
  * Mirrors TenderSearchCard.vue regionValue pattern for consistency.
  */
 const regionCascaderValue = computed({
-  get: () => {
-    const v = form.value.region
-    if (!v) return null
-    for (const province of chinaRegionOptions) {
-      if (province.name === v || province.name === v + '市' || province.name === v + '省' || province.name === v + '自治区') return [province.name]
-      if (province.children) {
-        for (const city of province.children) {
-          if (v === province.name + city.name) return [province.name, city.name]
-          if (city.children) {
-            for (const district of city.children) {
-              if (v === province.name + city.name + district.name) return [province.name, city.name, district.name]
-            }
-          }
-        }
-      }
-    }
-    return v
-  },
+  get: () => regionValueToCascaderPath(form.value.region),
   set: (val) => {
     if (!val) {
       form.value.region = ''
       return
     }
     if (Array.isArray(val)) {
-      form.value.region = val.join('')
+      form.value.region = normalizeHeadquartersRegionPath(val)
     } else {
       form.value.region = val
     }

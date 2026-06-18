@@ -8,6 +8,7 @@ package com.xiyu.bid.tender.service;
 import com.xiyu.bid.tender.dto.TenderImportResultDTO;
 import com.xiyu.bid.tender.dto.TenderImportResultDTO.RowError;
 import com.xiyu.bid.tender.dto.TenderRequest;
+import com.xiyu.bid.tender.core.TenderRegionCatalog;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
@@ -49,12 +50,7 @@ public class TenderImportService {
 
     static final List<String> CUSTOMER_TYPES = List.of("央企集团", "国有集团", "KA 客户");
     static final List<String> PRIORITIES = List.of("S", "A", "B", "C");
-    static final List<String> REGIONS = List.of(
-            "北京", "天津", "河北", "山西", "内蒙古", "辽宁", "吉林", "黑龙江", "上海", "江苏",
-            "浙江", "安徽", "福建", "江西", "山东", "河南", "湖北", "湖南", "广东", "广西",
-            "海南", "重庆", "四川", "贵州", "云南", "西藏", "陕西", "甘肃", "青海", "宁夏",
-            "新疆", "台湾", "香港", "澳门"
-    );
+    static final List<String> REGIONS = TenderRegionCatalog.REGIONS;
 
     static final List<String> PROJECT_TYPES = List.of("货物类", "工程类", "服务类");
 
@@ -235,8 +231,8 @@ public class TenderImportService {
                 errors.add(new RowError(displayRow, v.getPropertyPath().toString(), v.getMessage()));
             }
         }
-        if (request.getRegion() != null && !REGIONS.contains(request.getRegion())) {
-            errors.add(new RowError(displayRow, "region", "总部所在地不在支持范围内"));
+        if (request.getRegion() != null && !TenderRegionCatalog.isValid(request.getRegion())) {
+            errors.add(new RowError(displayRow, "region", "总部所在地须为省+市格式（直辖市仅市，如\"北京市\"、\"广东省深圳市\"）"));
         }
         if (request.getCustomerType() != null && !CUSTOMER_TYPES.contains(request.getCustomerType())) {
             errors.add(new RowError(displayRow, "customerType",

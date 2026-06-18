@@ -13,7 +13,7 @@
               <el-cascader
                 v-model="regionCascaderValue"
                 :options="chinaRegionOptions"
-                :props="{ expandTrigger: 'hover', label: 'name', value: 'name', checkStrictly: false, emitPath: true }"
+                :props="{ expandTrigger: 'hover', label: 'name', value: 'name', checkStrictly: true, emitPath: true }"
                 placeholder="选择总部所在地"
                 clearable
                 filterable
@@ -101,7 +101,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { DocumentCopy, Upload } from '@element-plus/icons-vue'
-import { chinaRegionOptions } from '@/components/common/chinaRegionData.js'
+import { chinaRegionOptions, normalizeHeadquartersRegionPath, regionValueToCascaderPath } from '@/components/common/chinaRegionData.js'
 
 const innerFormRef = ref(null)
 
@@ -128,31 +128,14 @@ defineEmits(['parse-paste', 'file-change'])
  * Mirrors TenderSearchCard.vue regionValue pattern for consistency.
  */
 const regionCascaderValue = computed({
-  get: () => {
-    const v = props.form.region
-    if (!v) return null
-    for (const province of chinaRegionOptions) {
-      if (province.name === v || province.name === v + '市' || province.name === v + '省' || province.name === v + '自治区') return [province.name]
-      if (province.children) {
-        for (const city of province.children) {
-          if (v === province.name + city.name) return [province.name, city.name]
-          if (city.children) {
-            for (const district of city.children) {
-              if (v === province.name + city.name + district.name) return [province.name, city.name, district.name]
-            }
-          }
-        }
-      }
-    }
-    return v
-  },
+  get: () => regionValueToCascaderPath(props.form.region),
   set: (val) => {
     if (!val) {
       props.form.region = ''
       return
     }
     if (Array.isArray(val)) {
-      props.form.region = val.join('')
+      props.form.region = normalizeHeadquartersRegionPath(val)
     } else {
       props.form.region = val
     }

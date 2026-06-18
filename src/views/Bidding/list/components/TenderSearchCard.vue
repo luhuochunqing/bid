@@ -10,7 +10,7 @@
         <el-cascader
           v-model="regionValue"
           :options="chinaRegionOptions"
-          :props="{ expandTrigger: 'hover', label: 'name', value: 'name', checkStrictly: false, emitPath: true }"
+          :props="{ expandTrigger: 'hover', label: 'name', value: 'name', checkStrictly: true, emitPath: true }"
           placeholder="全部"
           clearable
           filterable
@@ -86,7 +86,7 @@
 <script setup>
 import { RefreshLeft, Search } from '@element-plus/icons-vue'
 import { SOURCE_PLATFORM_OPTIONS, PROJECT_TYPE_OPTIONS, CUSTOMER_TYPE_OPTIONS, PRIORITY_OPTIONS } from '../constants.js'
-import { chinaRegionOptions } from '@/components/common/chinaRegionData.js'
+import { chinaRegionOptions, normalizeHeadquartersRegionPath, regionValueToCascaderPath } from '@/components/common/chinaRegionData.js'
 import { usersApi } from '@/api/modules/users.js'
 import { computed, reactive, ref } from 'vue'
 
@@ -114,50 +114,15 @@ async function searchUsers(query, scope) {
   }
 }
 
-function findPath(node, target, path = []) {
-  if (!node.children) {
-    return node.name === target ? path : null
-  }
-  for (const child of node.children) {
-    const found = findPath(child, target, [...path, node.name])
-    if (found) return found
-  }
-  return null
-}
-
-function findCityPath(province, cityName) {
-  if (!province.children) return null
-  for (const city of province.children) {
-    if (city.name === cityName) return [province.name, city.name]
-  }
-  return null
-}
-
 const regionValue = computed({
-  get: () => {
-    const v = modelValue.value.region
-    if (!v) return null
-    for (const province of chinaRegionOptions) {
-      if (province.name === v) return [v]
-      const path = findCityPath(province, v)
-      if (path) return path
-      if (province.children) {
-        for (const city of province.children) {
-          if (v.startsWith(province.name) && v.endsWith(city.name)) {
-            return [province.name, city.name]
-          }
-        }
-      }
-    }
-    return v
-  },
+  get: () => regionValueToCascaderPath(modelValue.value.region),
   set: (val) => {
     if (!val) {
       modelValue.value.region = null
       return
     }
     if (Array.isArray(val)) {
-      modelValue.value.region = val.join('')
+      modelValue.value.region = normalizeHeadquartersRegionPath(val)
     } else {
       modelValue.value.region = val
     }

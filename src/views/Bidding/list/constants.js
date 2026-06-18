@@ -2,6 +2,7 @@
 // Output: Bidding list page option constants, nationwide region options, and default form factories
 // Pos: src/views/Bidding/list/ - Local constants for the bidding list page
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+import { isValidHeadquartersRegion } from '@/components/common/chinaRegionData.js'
 
 export const REGION_OPTIONS = [
   '北京',
@@ -210,7 +211,19 @@ const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
 export const MANUAL_FORM_RULES = {
   title: [{ required: true, message: '请输入项目名称', trigger: 'blur' }],
   purchaser: [{ required: true, message: '请输入招标主体', trigger: 'blur' }],
-  region: [{ required: true, message: '请选择总部所在地', trigger: 'change' }],
+  region: [
+    { required: true, message: '请选择总部所在地', trigger: 'change' },
+    {
+      validator: (rule, value, callback) => {
+        if (value && !isValidHeadquartersRegion(value)) {
+          callback(new Error('总部所在地须选择省市，直辖市仅选市'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'change',
+    },
+  ],
   deadline: [{ required: true, message: '请选择报名截止时间', trigger: 'change' }],
   bidOpeningTime: [{ required: true, message: '请选择开标时间', trigger: 'change' }],
   customerType: [{ required: true, message: '请选择客户类型', trigger: 'change' }],

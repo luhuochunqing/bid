@@ -179,6 +179,54 @@ class TenderImportServiceTest {
     }
 
     @Test
+    @DisplayName("总部所在地为纯省名（如\"北京\"）应当全量回滚")
+    void plainProvinceNameRegionTriggersRollback() throws Exception {
+        when(validator.validate(any(TenderRequest.class))).thenReturn(Collections.emptySet());
+
+        String[] row = exampleRow();
+        row[2] = "北京";
+        byte[] bytes = buildWorkbookWithHeaders(TenderImportService.HEADERS, new String[][]{row});
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "import.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bytes);
+
+        assertThatThrownBy(() -> service.importFromExcel(file, 1L))
+                .isInstanceOf(TenderImportRollbackException.class)
+                .satisfies(ex -> {
+                    TenderImportResultDTO result = ((TenderImportRollbackException) ex).getResult();
+                    assertThat(result.getErrors().get(0).field()).isEqualTo("region");
+                    assertThat(result.getErrors().get(0).message()).contains("省+市");
+                });
+
+        verify(tenderCommandService, never()).createTender(any(), any());
+    }
+
+    @Test
+    @DisplayName("总部所在地为省+市格式（如\"广东省深圳市\"）应当通过校验")
+    void provincePlusCityRegionIsAccepted() throws Exception {
+        when(validator.validate(any(TenderRequest.class))).thenReturn(Collections.emptySet());
+        when(tenderMapper.toDTO(any(TenderRequest.class))).thenReturn(new TenderDTO());
+
+        String[] row = exampleRow();
+        row[2] = "广东省深圳市";
+        byte[] bytes = buildWorkbookWithHeaders(TenderImportService.HEADERS, new String[][]{row});
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "import.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bytes);
+
+        TenderImportResultDTO result = service.importFromExcel(file, 1L);
+        assertThat(result.getSuccessCount()).isEqualTo(1);
+        verify(tenderCommandService, times(1)).createTender(any(), any());
+    }
+
+    @Test
+    @DisplayName("REGIONS 白名单为省+市格式，不含纯省名")
+    void regionsWhitelistUsesProvincePlusCityFormat() {
+        assertThat(TenderImportService.REGIONS).contains("北京市", "广东省深圳市");
+        assertThat(TenderImportService.REGIONS).doesNotContain("北京", "广东");
+    }
+
+    @Test
     @DisplayName("模板表头共 18 列且顺序与蓝图一致")
     void templateHasEighteenColumns() {
         assertThat(TenderImportService.HEADERS).hasSize(18);
@@ -241,7 +289,7 @@ class TenderImportServiceTest {
         return new String[]{
                 "测试项目名称",
                 "测试招标主体",
-                "北京",
+                "北京市",
                 "2026-12-31 17:00",
                 "2026-12-25 09:30",
                 "张三",

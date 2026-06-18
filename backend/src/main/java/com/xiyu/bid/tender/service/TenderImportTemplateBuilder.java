@@ -33,7 +33,7 @@ public class TenderImportTemplateBuilder {
     private static final String[] EXAMPLE_ROW = {
             "示例：XX数据中心机房改造项目",
             "XX集团有限公司",
-            "北京",
+            "北京市",
             "2026-12-31 17:00",
             "2026-12-25 09:30",
             "张三",
@@ -87,7 +87,7 @@ public class TenderImportTemplateBuilder {
         Sheet dict = workbook.createSheet("字典参考");
         CellStyle headerStyle = headerStyle(workbook, IndexedColors.GREY_25_PERCENT.getIndex());
 
-        String[] columns = {"地区（总部所在地）", "客户类型", "优先级", "项目类型"};
+        String[] columns = {"地区（总部所在地：省+市，直辖市仅市）", "客户类型", "优先级", "项目类型"};
         Row header = dict.createRow(0);
         for (int i = 0; i < columns.length; i++) {
             Cell cell = header.createCell(i);
