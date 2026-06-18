@@ -282,7 +282,7 @@ export function getSourceTypeText(sourceType) {
     EXTERNAL_PLATFORM: '第三方平台',
     CRM_OPPORTUNITY: 'CRM 商机',
     MANUAL_SINGLE: '人工录入',
-    BULK_IMPORT: '批量导入',
+    BULK_IMPORT: '人工录入',
     MANUAL: '人工录入',
     EXTERNAL: '外部获取',
   }
