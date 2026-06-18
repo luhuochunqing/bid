@@ -86,7 +86,8 @@
 <script setup>
 import { RefreshLeft, Search } from '@element-plus/icons-vue'
 import { SOURCE_PLATFORM_OPTIONS, PROJECT_TYPE_OPTIONS, CUSTOMER_TYPE_OPTIONS, PRIORITY_OPTIONS } from '../constants.js'
-import { chinaRegionOptions, normalizeHeadquartersRegionPath, regionValueToCascaderPath } from '@/components/common/chinaRegionData.js'
+import { chinaRegionOptions } from '@/components/common/chinaRegionData.js'
+import { useRegionCascaderValue } from '@/composables/useRegionCascaderValue.js'
 import { usersApi } from '@/api/modules/users.js'
 import { computed, reactive, ref } from 'vue'
 
@@ -114,20 +115,12 @@ async function searchUsers(query, scope) {
   }
 }
 
-const regionValue = computed({
-  get: () => regionValueToCascaderPath(modelValue.value.region),
-  set: (val) => {
-    if (!val) {
-      modelValue.value.region = null
-      return
-    }
-    if (Array.isArray(val)) {
-      modelValue.value.region = normalizeHeadquartersRegionPath(val)
-    } else {
-      modelValue.value.region = val
-    }
-  }
-})
+// 搜索过滤场景：emptyValue 传 null（"未筛选"），区别于表单 reset 的 ''
+const regionValue = useRegionCascaderValue(
+  () => modelValue.value.region,
+  (v) => { modelValue.value.region = v },
+  { emptyValue: null },
+)
 
 const registrationDeadlineRange = computed({
   get: () => {

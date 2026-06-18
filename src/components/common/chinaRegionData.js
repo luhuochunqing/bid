@@ -19,9 +19,7 @@ export function isMunicipalityName(name) {
  */
 export function normalizeHeadquartersRegionPath(path) {
   if (!Array.isArray(path) || path.length === 0) return ''
-  const first = path[0]
-  if (isMunicipalityName(first)) return `${first}-${first}`
-  if (isProvinceOnlyName(first)) return first
+  if (isProvinceOnlyName(path[0])) return path[0]
   return path.join('')
 }
 

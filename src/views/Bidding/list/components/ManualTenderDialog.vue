@@ -172,7 +172,8 @@
 import { computed, ref, shallowRef } from 'vue'
 import { DocumentCopy, Upload } from '@element-plus/icons-vue'
 import AdaptiveFormPage from '@/components/common/AdaptiveFormPage.vue'
-import { chinaRegionOptions, normalizeHeadquartersRegionPath, regionValueToCascaderPath } from '@/components/common/chinaRegionData.js'
+import { chinaRegionOptions } from '@/components/common/chinaRegionData.js'
+import { useRegionCascaderValue } from '@/composables/useRegionCascaderValue.js'
 import {
   CUSTOMER_TYPE_OPTIONS,
   MANUAL_FORM_RULES,
@@ -200,23 +201,13 @@ const innerFormRef = ref(null)
 const adaptiveFormRef = shallowRef(null)
 
 /**
- * Bridge computed: converts between cascader array ['省','市'] and form.region joined string '省市'.
- * Mirrors TenderSearchCard.vue regionValue pattern for consistency.
+ * 双向绑定 cascader path ↔ form.value.region（省+市 / 直辖市仅市 / 港澳台仅本级）。
  */
-const regionCascaderValue = computed({
-  get: () => regionValueToCascaderPath(form.value.region),
-  set: (val) => {
-    if (!val) {
-      form.value.region = ''
-      return
-    }
-    if (Array.isArray(val)) {
-      form.value.region = normalizeHeadquartersRegionPath(val)
-    } else {
-      form.value.region = val
-    }
-  },
-})
+const regionCascaderValue = useRegionCascaderValue(
+  () => form.value.region,
+  (v) => { form.value.region = v },
+  { emptyValue: '' },
+)
 
 const acceptFileTypes = ACCEPT_FILE_TYPES
 

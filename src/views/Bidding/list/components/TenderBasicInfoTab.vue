@@ -99,9 +99,10 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { DocumentCopy, Upload } from '@element-plus/icons-vue'
-import { chinaRegionOptions, normalizeHeadquartersRegionPath, regionValueToCascaderPath } from '@/components/common/chinaRegionData.js'
+import { chinaRegionOptions } from '@/components/common/chinaRegionData.js'
+import { useRegionCascaderValue } from '@/composables/useRegionCascaderValue.js'
 
 const innerFormRef = ref(null)
 
@@ -124,23 +125,13 @@ const props = defineProps({
 defineEmits(['parse-paste', 'file-change'])
 
 /**
- * Bridge computed: converts between cascader array ['省','市'] and form.region joined string '省市'.
- * Mirrors TenderSearchCard.vue regionValue pattern for consistency.
+ * 双向绑定 cascader path ↔ props.form.region（省+市 / 直辖市仅市 / 港澳台仅本级）。
  */
-const regionCascaderValue = computed({
-  get: () => regionValueToCascaderPath(props.form.region),
-  set: (val) => {
-    if (!val) {
-      props.form.region = ''
-      return
-    }
-    if (Array.isArray(val)) {
-      props.form.region = normalizeHeadquartersRegionPath(val)
-    } else {
-      props.form.region = val
-    }
-  },
-})
+const regionCascaderValue = useRegionCascaderValue(
+  () => props.form.region,
+  (v) => { props.form.region = v },
+  { emptyValue: '' },
+)
 </script>
 
 <style scoped>
