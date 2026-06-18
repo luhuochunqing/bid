@@ -144,4 +144,80 @@ describe('useCrmOpportunitySelector', () => {
       body: { selectAll: true },
     })
   })
+
+  it('CRM 选择模式字段映射：风险预判←riskPrediction，支持备注←remark，GAP 附件←gapFile，投标建议理由留空', async () => {
+    const chance = {
+      id: 100,
+      name: 'CRM商机',
+      code: 'C001',
+      riskPrediction: '竞争对手低价冲击',
+      remark: '客户决策周期长',
+      bidDocumentDisadvantage: '资质门槛高',
+      backupPlan: true,
+      managerUnderstandProcess: '是',
+      projectGap: '时间紧张',
+      gapFile: 'https://crm.example.com/gap.pdf',
+      customerRevenue: 5000,
+      planSupplierCount: 5,
+      ecommerceMroAmount: 200,
+      evaluationTime: '2026-06-04',
+    }
+    searchOpportunities.mockResolvedValue({ data: { list: [chance], totalCount: 1 } })
+
+    const props = { tenderer: '', registrationDeadline: '', bidOpeningTime: '', alreadyLinkedName: '' }
+    const emitFn = vi.fn()
+    const wrapper = mount(defineComponent({
+      template: '<div />',
+      setup() { return useCrmOpportunitySelector(props, emitFn) },
+    }))
+    await wrapper.vm.openSearch()
+    await flushPromises()
+
+    wrapper.vm.onSelect(chance)
+    await wrapper.vm.confirmLink()
+    await flushPromises()
+
+    expect(emitFn).toHaveBeenCalledWith('linked', expect.objectContaining({
+      opportunityId: 100,
+      evaluationData: expect.objectContaining({
+        basic: expect.objectContaining({
+          riskAssessment: '竞争对手低价冲击',
+          supportNotes: '客户决策周期长',
+          projectPlanGap: '时间紧张',
+          projectPlanGapFiles: [{ fileName: 'GAP附件', fileUrl: 'https://crm.example.com/gap.pdf' }],
+        }),
+        recommendation: expect.objectContaining({
+          shouldBid: false,
+          reason: '',
+        }),
+      }),
+    }))
+  })
+
+  it('手动输入模式字段映射：风险预判←projectRiskText，支持备注←remark', async () => {
+    const props = { tenderer: '', registrationDeadline: '', bidOpeningTime: '', alreadyLinkedName: '' }
+    const emitFn = vi.fn()
+    const wrapper = mount(defineComponent({
+      template: '<div />',
+      setup() { return useCrmOpportunitySelector(props, emitFn) },
+    }))
+
+    wrapper.vm.manualForm.name = '手动商机'
+    wrapper.vm.manualForm.projectRiskText = '手动风险'
+    wrapper.vm.manualForm.remark = '手动备注'
+    wrapper.vm.confirmManual()
+    await wrapper.vm.confirmLink()
+    await flushPromises()
+
+    expect(emitFn).toHaveBeenCalledWith('linked', expect.objectContaining({
+      opportunityName: '手动商机',
+      evaluationData: expect.objectContaining({
+        basic: expect.objectContaining({
+          riskAssessment: '手动风险',
+          supportNotes: '手动备注',
+          projectPlanGapFiles: [],
+        }),
+      }),
+    }))
+  })
 })

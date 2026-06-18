@@ -123,10 +123,12 @@ export function useCrmOpportunitySelector(props, emit) {
         opportunityName: mf.name,
         evaluationData: {
           opportunityId: null, basic: {
-            riskAssessment: mf.remark || '', unfavorableItems: '',
+            riskAssessment: mf.projectRiskText || '', unfavorableItems: '',
             contractPeriodStart: mf.evaluationTime || '', contractPeriodEnd: '',
             plannedShortlistedCount: 0, mroOfficeFlowAmount: 0,
-            contingencyPlan: '', processKnowledge: '', supportNotes: '', projectPlanGap: '',
+            contingencyPlan: '', processKnowledge: '',
+            supportNotes: mf.remark || '', projectPlanGap: '',
+            projectPlanGapFiles: [],
             customerRevenue: null,
           },
           customerInfos: [], recommendation: { shouldBid: true, reason: '' },
@@ -170,7 +172,7 @@ export function useCrmOpportunitySelector(props, emit) {
       evaluationData: {
         opportunityId: chance.id,
         basic: {
-          riskAssessment: chance.remark || '',
+          riskAssessment: chance.riskPrediction || '',
           unfavorableItems: chance.bidDocumentDisadvantage || '',
           contractPeriodStart: chance.evaluationTime || '',
           contractPeriodEnd: '',
@@ -178,12 +180,13 @@ export function useCrmOpportunitySelector(props, emit) {
           mroOfficeFlowAmount: chance.ecommerceMroAmount || 0,
           contingencyPlan: chance.backupPlan != null ? (chance.backupPlan ? '是' : '否') : '',
           processKnowledge: chance.managerUnderstandProcess || '',
-          supportNotes: '',
+          supportNotes: chance.remark || '',
           projectPlanGap: chance.projectGap || '',
+          projectPlanGapFiles: chance.gapFile ? [{ fileName: 'GAP附件', fileUrl: chance.gapFile }] : [],
           customerRevenue: chance.customerRevenue || null,
         },
         customerInfos,
-        recommendation: { shouldBid: !chance.backupPlan, reason: chance.riskPrediction || '' },
+        recommendation: { shouldBid: !chance.backupPlan, reason: '' },
       },
     })
     showDialog.value = false
