@@ -71,9 +71,8 @@ public class ProjectResultRegistrationService {
     private final CrmAuthService crmAuthService;
     private final CrmHttpClient crmHttpClient;
 
-    @Value("${webhook.crm.url:https://winbid-test.ehsy.com}")
+    @Value("${webhook.crm.url:https://crm-test.ehsy.com/customer-chance/bidInfoSync}")
     private String crmCallbackBaseUrl;
-    private static final String CRM_CALLBACK_PATH = "/customer-chance/bidInfoSync";
 
     @Auditable(action = "REGISTER_PROJECT_RESULT", entityType = "ProjectResult", description = "登记项目结果")
     public ResultDTO register(Long projectId, ResultRegistrationRequest req, Long currentUserId) {
@@ -239,9 +238,10 @@ public class ProjectResultRegistrationService {
             payload.put("operatedAt", LocalDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
 
             String token = crmAuthService.getValidToken();
-            crmHttpClient.post(crmCallbackBaseUrl, CRM_CALLBACK_PATH, token, payload);
+            crmHttpClient.post(crmCallbackBaseUrl, "", token, payload);
             log.info("CRM callback sent: projectId={} tenderId={} sourceId={} resultType={}", projectId, tenderId, sourceId, resultType);
         } catch (RuntimeException e) {
+            log.error("CRM result callback failed: projectId={} resultType={} error={}", projectId, resultType, e.getMessage(), e);
         }
     }
 
