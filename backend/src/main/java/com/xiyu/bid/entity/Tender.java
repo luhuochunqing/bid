@@ -377,7 +377,7 @@ public class Tender {
         EXTERNAL_PLATFORM("第三方平台"),
         CRM_OPPORTUNITY("CRM 商机"),
         MANUAL_SINGLE("人工录入"),
-        BULK_IMPORT("批量导入");
+        BULK_IMPORT("人工录入");
 
         /** 中文展示标签，通过 @JsonValue 作为 JSON 序列化值。 */
         private final String label;

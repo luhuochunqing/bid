@@ -311,13 +311,13 @@ function sourceTagType(source) {
     THIRD_PARTY: 'warning',
     EXTERNAL_PLATFORM: 'warning',
     MANUAL: 'info',
-    MANUAL_SINGLE: 'info',
-    BULK_IMPORT: 'info',
+    MANUAL_SINGLE: 'warning',
+    BULK_IMPORT: 'warning',
     // 中文标签（@JsonValue 输出，fallback 为空字符串故需显式列出）
     '第三方平台': 'warning',
     'CRM 商机': 'success',
-    '人工录入': 'info',
-    '批量导入': 'info',
+    '人工录入': 'warning',
+    '批量导入': 'warning',
   }
   return map[source] || ''
 }

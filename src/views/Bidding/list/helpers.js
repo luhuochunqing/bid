@@ -171,11 +171,11 @@ export function getSourceTagType(source) {
     external: 'success',
     manual: 'warning',
     crm: 'primary',
-    bulk: 'info',
+    bulk: 'warning',
     '第三方平台': 'success',
     'CRM 商机': 'primary',
     '人工录入': 'warning',
-    '批量导入': 'info',
+    '批量导入': 'warning',
   }
   return map[source] || 'info'
 }
@@ -192,7 +192,9 @@ export function getSourceText(source) {
     external: '第三方平台',
     manual: '人工录入',
     crm: 'CRM 商机',
-    bulk: '批量导入',
+    bulk: '人工录入',
+    // 向后兼容：数据库中 source 字段仍为旧标签"批量导入"的历史数据
+    '批量导入': '人工录入',
   }
   return map[source] || source || '未知'
 }
@@ -209,13 +211,13 @@ export function getSourceTypeTagType(sourceType) {
     EXTERNAL_PLATFORM: 'success',
     CRM_OPPORTUNITY: 'primary',
     MANUAL_SINGLE: 'warning',
-    BULK_IMPORT: 'info',
+    BULK_IMPORT: 'warning',
     MANUAL: 'warning',
     EXTERNAL: 'success',
     '第三方平台': 'success',
     'CRM 商机': 'primary',
     '人工录入': 'warning',
-    '批量导入': 'info',
+    '批量导入': 'warning',
   }
   return map[sourceType] || 'info'
 }

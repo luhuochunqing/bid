@@ -1,0 +1,9 @@
+version: 1
+task: "claude-fix-bulk-import-source-display"
+locks:
+  - path: "backend/src/main/java/com/xiyu/bid/entity/Tender.java"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/claude/fix-bulk-import-source-display"
+    expiresAt: "2026-06-19T02:28:29.401Z"
+    reason: "fix: BULK_IMPORT enum label 统一为人工录入"

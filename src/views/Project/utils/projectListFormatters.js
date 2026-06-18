@@ -50,7 +50,7 @@ export function sourceText(source) {
     EXTERNAL_PLATFORM: '外部平台',
     MANUAL: '人工录入',
     MANUAL_SINGLE: '人工录入',
-    BULK_IMPORT: '批量导入',
+    BULK_IMPORT: '人工录入',
   }
   return map[source] || source || '-'
 }
