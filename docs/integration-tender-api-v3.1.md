@@ -372,11 +372,11 @@ data.status 取值说明：CREATED — 新建成功（HTTP 201）；UPDATED — 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | NAME | String | 否 | 姓名，TEXT |
-| CONTACT | String | 否 | 联系方式，TEXT |
+| CONTACT_INFO | String | 否 | 联系方式，TEXT |
 | POSITION | String | 否 | 职位，ENUM14 |
 | XIYU_CONTACT | String | 否 | 西域项目负责人，TEXT |
 | CONTACT_METHOD | String | 是 | 触达方式，ENUM7 |
-| EVALUATION_BASIS | String | 否 | 倾向性评估依据，TEXT |
+| INFO_TENDENCY_BASIS | String | 否 | 倾向性评估依据，TEXT |
 | INFO_CLEAR_WINNER_BID | Boolean | 否 | 是否给出明确中标信息，SWITCH |
 | INFO_WIN_RATE_IMPACT | String | 否 | 对中标影响率，DROPDOWN6 |
 | CONTACTED | String | 否 | 是否触达，DROPDOWN（是/否） |
@@ -421,11 +421,11 @@ X-API-Key: <your-api-key>
     "evaluationCustomerInfos": [
       {
         "NAME": "张三",
-        "CONTACT": "13800138000",
+        "CONTACT_INFO": "13800138000",
         "POSITION": "总经理",
         "XIYU_CONTACT": "李四",
         "CONTACT_METHOD": "电话",
-        "EVALUATION_BASIS": "长期合作",
+        "INFO_TENDENCY_BASIS": "长期合作",
         "INFO_CLEAR_WINNER_BID": false,
         "INFO_WIN_RATE_IMPACT": "高",
         "CONTACTED": "是",
@@ -550,7 +550,7 @@ X-API-Key: <your-api-key>
           "POSITION": "总经理",
           "XIYU_CONTACT": "李四",
           "CONTACT_METHOD": "电话",
-          "EVALUATION_BASIS": "长期合作",
+          "INFO_TENDENCY_BASIS": "长期合作",
           "INFO_CLEAR_WINNER_BID": false,
           "INFO_WIN_RATE_IMPACT": "高",
           "CONTACTED": "是",
@@ -736,7 +736,7 @@ X-API-Key: <your-api-key>
           "POSITION": "总经理",
           "XIYU_CONTACT": "李四",
           "CONTACT_METHOD": "电话",
-          "EVALUATION_BASIS": "长期合作",
+          "INFO_TENDENCY_BASIS": "长期合作",
           "INFO_CLEAR_WINNER_BID": false,
           "INFO_WIN_RATE_IMPACT": "高",
           "CONTACTED": "是",

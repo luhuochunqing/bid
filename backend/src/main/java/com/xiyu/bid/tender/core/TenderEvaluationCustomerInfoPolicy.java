@@ -107,11 +107,12 @@ public final class TenderEvaluationCustomerInfoPolicy {
         Map.entry("EXPERT_3", "专家3")
     );
 
-    /** 14 个固定信息维度键（2026-06-16 删除 ROLE_NAME/HIGH_LEVEL_EXCHANGE/KEY_TARGET）。 */
+    /** 15 个固定信息维度键（2026-06-16 删除 ROLE_NAME/HIGH_LEVEL_EXCHANGE/KEY_TARGET；2026-06-18 新增 CONTACT_INFO 兼容 CRM 字段映射）。 */
     public static final Set<String> VALID_INFO_KEYS = Set.of(
         "NAME",
         "POSITION",
         "XIYU_CONTACT",
+        "CONTACT_INFO",
         "CONTACT_METHOD",
         "EVALUATION_BASIS",
         "INFO_TENDENCY_BASIS",
@@ -130,6 +131,7 @@ public final class TenderEvaluationCustomerInfoPolicy {
         Map.entry("NAME", "TEXT"),
         Map.entry("POSITION", "ENUM14"),
         Map.entry("XIYU_CONTACT", "TEXT"),
+        Map.entry("CONTACT_INFO", "TEXT"),
         Map.entry("CONTACT_METHOD", "ENUM7"),
         Map.entry("EVALUATION_BASIS", "TEXT"),
         Map.entry("INFO_TENDENCY_BASIS", "TEXT"),
@@ -148,6 +150,7 @@ public final class TenderEvaluationCustomerInfoPolicy {
         Map.entry("NAME", "姓名"),
         Map.entry("POSITION", "职位"),
         Map.entry("XIYU_CONTACT", "西域项目负责人"),
+        Map.entry("CONTACT_INFO", "联系方式"),
         Map.entry("CONTACT_METHOD", "触达方式"),
         Map.entry("EVALUATION_BASIS", "倾向性评估依据"),
         Map.entry("INFO_TENDENCY_BASIS", "倾向性评估依据"),
