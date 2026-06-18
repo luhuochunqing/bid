@@ -71,7 +71,7 @@ public class ProjectResultRegistrationService {
     private final CrmAuthService crmAuthService;
     private final CrmHttpClient crmHttpClient;
 
-    @Value("${crm.result.callback.url:https://winbid-test.ehsy.com}")
+    @Value("${webhook.crm.url:https://winbid-test.ehsy.com}")
     private String crmCallbackBaseUrl;
     private static final String CRM_CALLBACK_PATH = "/customer-chance/bidInfoSync";
 
