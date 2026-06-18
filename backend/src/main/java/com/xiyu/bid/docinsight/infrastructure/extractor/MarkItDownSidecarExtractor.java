@@ -8,6 +8,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.docinsight.application.DocumentTextExtractor;
 import com.xiyu.bid.docinsight.application.ExtractedDocument;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.poi.hwpf.HWPFDocument;
 import org.apache.poi.hwpf.extractor.WordExtractor;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -173,6 +175,7 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
     /**
      * Fallback extraction when sidecar fails.
      * For .doc files: uses Apache POI HWPF.
+     * For .pdf files: uses Apache PDFBox.
      * For other files: attempts plain text fallback (best effort, may produce garbage for binary files).
      */
     private ExtractedDocument fallbackExtract(String fileName, String contentType, byte[] content, String reason) {
@@ -197,6 +200,22 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
                 );
             }
             log.warn("POI HWPF fallback extraction returned empty for {}", fileName);
+        }
+
+        // Try Apache PDFBox for .pdf files
+        if (lowerName.endsWith(".pdf") || "application/pdf".equals(contentType)) {
+            String text = extractPdfWithPdfBox(content);
+            if (text != null && !text.isBlank()) {
+                log.info("PDFBox fallback extraction succeeded for {}: {} chars", fileName, text.length());
+                return new ExtractedDocument(
+                        text,
+                        text.length(),
+                        null,
+                        "pdfbox-fallback",
+                        Map.of("fallbackReason", reason, "originalExtractor", "markitdown-sidecar")
+                );
+            }
+            log.warn("PDFBox fallback extraction returned empty for {}", fileName);
         }
 
         // Last resort: plain text (will likely be garbage for binary files)
@@ -235,6 +254,29 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
             log.warn("POI HWPF extraction failed: {}", e.getMessage());
         } catch (RuntimeException e) {
             log.warn("POI HWPF extraction unexpected error: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Extract text from .pdf file using Apache PDFBox.
+     * Returns null if extraction fails.
+     */
+    private String extractPdfWithPdfBox(byte[] content) {
+        try (ByteArrayInputStream bis = new ByteArrayInputStream(content);
+             PDDocument document = PDDocument.load(bis)) {
+            PDFTextStripper stripper = new PDFTextStripper();
+            stripper.setSortByPosition(true);
+            String text = stripper.getText(document);
+            if (text != null) {
+                return text.trim()
+                        .replace('\u00A0', ' ')
+                        .replaceAll(" {2,}", " ");
+            }
+        } catch (IOException e) {
+            log.warn("PDFBox extraction failed: {}", e.getMessage());
+        } catch (RuntimeException e) {
+            log.warn("PDFBox extraction unexpected error: {}", e.getMessage());
         }
         return null;
     }
