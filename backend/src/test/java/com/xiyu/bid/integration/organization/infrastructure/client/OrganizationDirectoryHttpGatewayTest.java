@@ -5,6 +5,7 @@ import com.xiyu.bid.integration.organization.application.OrganizationIntegration
 import com.xiyu.bid.integration.organization.domain.OrganizationDirectoryLookupContext;
 import com.xiyu.bid.integration.organization.domain.OrganizationDepartmentSnapshot;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
+import com.xiyu.bid.integration.organization.dto.OssMenuTreeNode;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -22,6 +23,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.queryParam;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withResourceNotFound;
@@ -342,6 +344,60 @@ class OrganizationDirectoryHttpGatewayTest {
 
         java.util.Map<String, com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto> result =
                 gateway(restTemplate, props).getUserJobAndRoleListByJobNumbers(List.of("08402"));
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("fetches user menu tree via GET with query params")
+    void fetchUserMenuTree_mapsMenuTreeNodes() {
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+        server.expect(requestTo(org.hamcrest.Matchers.startsWith("https://oss.example.test/sysMenuUrl/getUserMenuTree")))
+                .andExpect(queryParam("systemName", "xiyu-bid-poc"))
+                .andExpect(queryParam("menuRetrievalType", "2"))
+                .andRespond(withSuccess("""
+                        {
+                          "code": 0,
+                          "data": [
+                            {
+                              "id": 1,
+                              "menuCode": "projectmanager",
+                              "menuName": "项目管理",
+                              "menuType": "M",
+                              "children": [
+                                {
+                                  "id": 2,
+                                  "menuCode": "bidding",
+                                  "menuName": "投标",
+                                  "menuType": "C",
+                                  "children": []
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        Optional<List<OssMenuTreeNode>> result = gateway(restTemplate, defaultProperties())
+                .fetchUserMenuTree("08402");
+
+        assertThat(result).isPresent();
+        assertThat(result.get()).hasSize(1);
+        assertThat(result.get().get(0).menuCode()).isEqualTo("projectmanager");
+        assertThat(result.get().get(0).children()).hasSize(1);
+        assertThat(result.get().get(0).children().get(0).menuCode()).isEqualTo("bidding");
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("returns empty when user menu tree path is blank")
+    void fetchUserMenuTree_blankPath_returnsEmpty() {
+        RestTemplate restTemplate = new RestTemplate();
+        OrganizationIntegrationProperties props = defaultProperties();
+        props.getDirectory().setUserMenuTreePath("");
+
+        Optional<List<OssMenuTreeNode>> result = gateway(restTemplate, props).fetchUserMenuTree("08402");
 
         assertThat(result).isEmpty();
     }

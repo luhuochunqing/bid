@@ -15,6 +15,7 @@ import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.RoleProfileRepository;
 import com.xiyu.bid.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrganizationUserSyncWriter {
@@ -34,6 +36,7 @@ public class OrganizationUserSyncWriter {
     private final OrganizationDepartmentRepository organizationDepartmentRepository;
     private final OrganizationIntegrationProperties properties;
     private final JobRoleLookupResolver jobRoleLookupResolver;
+    private final OssRoleMenuPermissionAutoSync ossRoleMenuPermissionAutoSync;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public User upsert(String sourceApp, String eventKey, OrganizationUserSnapshot snapshot) {
@@ -82,7 +85,24 @@ public class OrganizationUserSyncWriter {
         user.setLastOrgEventKey(eventKey);
         user.setLastOrgSyncedAt(LocalDateTime.now());
         applyRole(user, plan.roleCode());
-        return userRepository.save(user);
+        User saved = userRepository.save(user);
+        if (properties.getDirectory().isAutoSyncMenuPermissions()) {
+            autoSyncMenuPermissions(saved);
+        }
+        return saved;
+    }
+
+    private void autoSyncMenuPermissions(User user) {
+        RoleProfile role = user.getRoleProfile();
+        if (role == null || user.getUsername() == null || user.getUsername().isBlank()) {
+            return;
+        }
+        try {
+            ossRoleMenuPermissionAutoSync.mergeUserMenuPermissionsIntoRole(user.getUsername(), role);
+        } catch (RuntimeException ex) {
+            log.warn("自动同步用户 OSS 菜单权限失败: userId={}, roleCode={}, error={}",
+                user.getId(), role.getCode(), ex.getMessage());
+        }
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

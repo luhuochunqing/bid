@@ -5,7 +5,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Component
@@ -70,6 +72,22 @@ public class OrganizationIntegrationProperties {
         private int batchConnectTimeoutMs = 3000;
         /** 批量岗位/角色回查读取超时（毫秒），批量返回数据量较大，默认高于单条接口 */
         private int batchReadTimeoutMs = 10000;
+        /** OSS 菜单树接口路径：GET /sysMenuUrl/getUserMenuTree */
+        private String userMenuTreePath = "/sysMenuUrl/getUserMenuTree";
+        /** OSS 菜单树查询 systemName，如 xiyu-bid-poc */
+        private String userMenuTreeSystemName = "xiyu-bid-poc";
+        /** OSS 菜单树查询类型：1=url，2=本地配置 */
+        private int userMenuTreeRetrievalType = 2;
+        /** 菜单树接口连接超时（毫秒） */
+        private int userMenuTreeConnectTimeoutMs = 3000;
+        /** 菜单树接口读取超时（毫秒） */
+        private int userMenuTreeReadTimeoutMs = 5000;
+        /** 是否在组织架构同步时自动聚合 OSS 菜单权限 */
+        private boolean autoSyncMenuPermissions = false;
+        /** OSS 菜单编码 -> 内部权限码 映射（大小写不敏感） */
+        private Map<String, String> menuCodeToPermissionKeyMappings = new HashMap<>();
+        /** 未映射 OSS 菜单编码的默认处理：IGNORE 或 USE_NORMALIZED_CODE */
+        private String unmappedMenuCodeBehavior = "IGNORE";
     }
 
     @Data

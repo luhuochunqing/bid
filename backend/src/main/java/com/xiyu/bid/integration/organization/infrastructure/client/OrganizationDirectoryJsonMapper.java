@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.xiyu.bid.integration.organization.domain.OrganizationDepartmentSnapshot;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
 import com.xiyu.bid.integration.organization.domain.OrganizationJobSnapshot;
+import com.xiyu.bid.integration.organization.dto.OssMenuTreeNode;
 import com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto;
 
 import java.util.ArrayList;
@@ -75,6 +76,103 @@ class OrganizationDirectoryJsonMapper {
 
     List<OssUserJobAndRoleDto> jobAndRoleList(JsonNode root) {
         return snapshotNodes(root).stream().map(this::jobAndRole).toList();
+    }
+
+    List<OssMenuTreeNode> menuTree(JsonNode root) {
+        return snapshotNodes(root).stream().map(this::menuNode).toList();
+    }
+
+    private OssMenuTreeNode menuNode(JsonNode node) {
+        return new OssMenuTreeNode(
+                firstLong(node, "id"),
+                firstText(node, "menuCode", "code"),
+                firstText(node, "menuName", "name"),
+                firstText(node, "menuType", "type"),
+                firstLong(node, "parentId"),
+                firstInt(node, "orderNum"),
+                firstText(node, "reqUrl", "url"),
+                firstText(node, "iconUrl", "icon"),
+                firstText(node, "systemUrl", "systemUrl"),
+                firstInt(node, "isSso"),
+                firstBoolean(node, "visible"),
+                menuChildren(node),
+                firstText(node, "component"),
+                firstText(node, "path"),
+                firstText(node, "menuAliasName", "alias"),
+                firstLong(node, "serviceId"),
+                firstLong(node, "systemId"),
+                firstLong(node, "serviceMenuId"),
+                firstText(node, "serviceName"),
+                firstText(node, "serviceMenuParentId"),
+                firstText(node, "serviceMenuParentName"),
+                firstText(node, "sysMenuCode", "systemMenuCode")
+        );
+    }
+
+    private List<OssMenuTreeNode> menuChildren(JsonNode node) {
+        JsonNode children = node.path("children");
+        if (!children.isArray()) {
+            return List.of();
+        }
+        List<OssMenuTreeNode> result = new ArrayList<>();
+        children.forEach(child -> result.add(menuNode(child)));
+        return result;
+    }
+
+    private Long firstLong(JsonNode node, String... fields) {
+        for (String field : fields) {
+            JsonNode value = node.path(field);
+            if (value.isNumber() && !value.isNull()) {
+                return value.asLong();
+            }
+            if (value.isTextual()) {
+                try {
+                    return Long.parseLong(value.asText().trim());
+                } catch (NumberFormatException ignored) {
+                    // continue to next field
+                }
+            }
+        }
+        return null;
+    }
+
+    private Integer firstInt(JsonNode node, String... fields) {
+        for (String field : fields) {
+            JsonNode value = node.path(field);
+            if (value.isNumber() && !value.isNull()) {
+                return value.asInt();
+            }
+            if (value.isTextual()) {
+                try {
+                    return Integer.parseInt(value.asText().trim());
+                } catch (NumberFormatException ignored) {
+                    // continue to next field
+                }
+            }
+        }
+        return null;
+    }
+
+    private Boolean firstBoolean(JsonNode node, String... fields) {
+        for (String field : fields) {
+            JsonNode value = node.path(field);
+            if (value.isBoolean()) {
+                return value.asBoolean();
+            }
+            if (value.isNumber()) {
+                return value.asInt() != 0;
+            }
+            if (value.isTextual()) {
+                String text = value.asText().trim().toLowerCase(Locale.ROOT);
+                if (text.equals("true") || text.equals("1") || text.equals("yes")) {
+                    return true;
+                }
+                if (text.equals("false") || text.equals("0") || text.equals("no")) {
+                    return false;
+                }
+            }
+        }
+        return null;
     }
 
     private OssUserJobAndRoleDto jobAndRole(JsonNode node) {

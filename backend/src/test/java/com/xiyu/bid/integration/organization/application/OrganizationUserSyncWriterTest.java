@@ -47,7 +47,7 @@ class OrganizationUserSyncWriterTest {
         PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
         SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
         JobRoleLookupResolver resolver = new JobRoleLookupResolver(properties, positionToRoleMapper, systemRoleListMapper);
-        writer = new OrganizationUserSyncWriter(userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver);
+        writer = new OrganizationUserSyncWriter(userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver, null);
     }
 
     @Test
@@ -143,7 +143,7 @@ class OrganizationUserSyncWriterTest {
         SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
         JobRoleLookupResolver resolver = new JobRoleLookupResolver(properties, positionToRoleMapper, systemRoleListMapper);
         OrganizationUserSyncWriter filteringWriter = new OrganizationUserSyncWriter(
-                userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver);
+                userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver, null);
 
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "999")).thenReturn(Optional.empty());
 
@@ -164,7 +164,7 @@ class OrganizationUserSyncWriterTest {
         SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
         JobRoleLookupResolver resolver = new JobRoleLookupResolver(properties, positionToRoleMapper, systemRoleListMapper);
         OrganizationUserSyncWriter filteringWriter = new OrganizationUserSyncWriter(
-                userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver);
+                userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver, null);
 
         User existing = new User();
         existing.setEnabled(true);
@@ -196,7 +196,7 @@ class OrganizationUserSyncWriterTest {
         SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
         JobRoleLookupResolver resolver = new JobRoleLookupResolver(properties, positionToRoleMapper, systemRoleListMapper);
         OrganizationUserSyncWriter adminWriter = new OrganizationUserSyncWriter(
-                userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver);
+                userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver, null);
 
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "03595")).thenReturn(Optional.empty());
         when(roleProfileRepository.findByCodeIgnoreCase("admin")).thenReturn(Optional.of(role("admin")));
@@ -224,7 +224,7 @@ class OrganizationUserSyncWriterTest {
         SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
         JobRoleLookupResolver resolver = new JobRoleLookupResolver(properties, positionToRoleMapper, systemRoleListMapper);
         OrganizationUserSyncWriter nameMatchingWriter = new OrganizationUserSyncWriter(
-                userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver);
+                userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver, null);
 
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "100")).thenReturn(Optional.empty());
         when(roleProfileRepository.findByCodeIgnoreCase("bid_lead")).thenReturn(Optional.of(role("bid_lead")));
@@ -252,7 +252,7 @@ class OrganizationUserSyncWriterTest {
         SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
         JobRoleLookupResolver resolver = new JobRoleLookupResolver(properties, positionToRoleMapper, systemRoleListMapper);
         OrganizationUserSyncWriter projectLeaderWriter = new OrganizationUserSyncWriter(
-                userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver);
+                userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver, null);
 
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "1001")).thenReturn(Optional.empty());
         when(roleProfileRepository.findByCodeIgnoreCase("sales")).thenReturn(Optional.of(role("sales")));
@@ -279,7 +279,7 @@ class OrganizationUserSyncWriterTest {
         SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
         JobRoleLookupResolver resolver = new JobRoleLookupResolver(properties, positionToRoleMapper, systemRoleListMapper);
         OrganizationUserSyncWriter sysRoleWriter = new OrganizationUserSyncWriter(
-                userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver);
+                userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver, null);
 
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "1002")).thenReturn(Optional.empty());
         when(roleProfileRepository.findByCodeIgnoreCase("sales")).thenReturn(Optional.of(role("sales")));
@@ -314,7 +314,7 @@ class OrganizationUserSyncWriterTest {
         SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
         JobRoleLookupResolver resolver = new JobRoleLookupResolver(properties, positionToRoleMapper, systemRoleListMapper);
         OrganizationUserSyncWriter priorityWriter = new OrganizationUserSyncWriter(
-                userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver);
+                userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver, null);
 
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "1003")).thenReturn(Optional.empty());
         when(roleProfileRepository.findByCodeIgnoreCase("admin")).thenReturn(Optional.of(role("admin")));

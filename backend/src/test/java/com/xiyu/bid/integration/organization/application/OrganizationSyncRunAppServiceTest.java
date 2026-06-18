@@ -196,7 +196,7 @@ class OrganizationSyncRunAppServiceTest {
         boolean throwOnWrite;
 
         FakeUserWriter() {
-            super(null, null, null, new OrganizationIntegrationProperties(), null);
+            super(null, null, null, new OrganizationIntegrationProperties(), null, null);
         }
 
         public com.xiyu.bid.entity.User upsert(String sourceApp, String eventKey, OrganizationUserSnapshot snapshot) {

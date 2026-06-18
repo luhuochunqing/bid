@@ -141,6 +141,14 @@ public class RoleProfileService {
         return findRole(roleId);
     }
 
+    @Transactional
+    public RoleDTO updateMenuPermissions(Long roleId, List<String> menuPermissions) {
+        ensureSystemRoles();
+        RoleProfile role = findRole(roleId);
+        role.setMenuPermissions(menuPermissions == null ? List.of() : menuPermissions);
+        return toDto(roleProfileRepository.save(role), countUsers(role));
+    }
+
     public RoleProfile resolveRoleProfile(String roleCode, User.Role legacyRole) {
         ensureSystemRoles();
         String normalizedCode = sanitizeCode(roleCode);

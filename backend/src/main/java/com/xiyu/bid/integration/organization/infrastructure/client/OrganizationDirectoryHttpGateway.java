@@ -9,6 +9,7 @@ import com.xiyu.bid.integration.organization.domain.OrganizationDepartmentSnapsh
 import com.xiyu.bid.integration.organization.domain.OrganizationDirectoryLookupContext;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
 import com.xiyu.bid.integration.organization.domain.OrganizationJobSnapshot;
+import com.xiyu.bid.integration.organization.dto.OssMenuTreeNode;
 import com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.web.client.RestTemplateBuilder;
@@ -171,6 +172,23 @@ public class OrganizationDirectoryHttpGateway implements OrganizationDirectoryGa
     ) {
         String url = buildUrl(directory.getUserWindowPath());
         return fetchWindow(url, startAt, endAt, context, mapper::users);
+    }
+
+    @Override
+    public Optional<List<OssMenuTreeNode>> fetchUserMenuTree(
+            String jobNumber,
+            OrganizationDirectoryLookupContext context
+    ) {
+        String url = buildUrl(directory.getUserMenuTreePath());
+        log.info("组织架构回查 UserMenuTree: url={}, jobNumber={}, systemName={}, retrievalType={}, traceId={}",
+            url, jobNumber, directory.getUserMenuTreeSystemName(),
+            directory.getUserMenuTreeRetrievalType(),
+            context != null ? context.traceId() : "null");
+        Map<String, String> params = Map.of(
+                "systemName", directory.getUserMenuTreeSystemName(),
+                "menuRetrievalType", String.valueOf(directory.getUserMenuTreeRetrievalType())
+        );
+        return restClient.get(url, params, context).map(mapper::menuTree);
     }
 
     private <T> List<T> fetchWindow(

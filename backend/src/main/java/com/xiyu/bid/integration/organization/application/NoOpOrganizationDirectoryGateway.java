@@ -4,6 +4,7 @@ import com.xiyu.bid.integration.organization.domain.OrganizationDepartmentSnapsh
 import com.xiyu.bid.integration.organization.domain.OrganizationDirectoryLookupContext;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
 import com.xiyu.bid.integration.organization.domain.OrganizationJobSnapshot;
+import com.xiyu.bid.integration.organization.dto.OssMenuTreeNode;
 import com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Component;
@@ -109,5 +110,13 @@ public class NoOpOrganizationDirectoryGateway implements OrganizationDirectoryGa
             OrganizationDirectoryLookupContext context
     ) {
         return Map.of();
+    }
+
+    @Override
+    public Optional<List<OssMenuTreeNode>> fetchUserMenuTree(
+            String jobNumber,
+            OrganizationDirectoryLookupContext context
+    ) {
+        return Optional.empty();
     }
 }

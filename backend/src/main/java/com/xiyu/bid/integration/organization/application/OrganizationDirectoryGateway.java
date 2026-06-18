@@ -4,6 +4,7 @@ import com.xiyu.bid.integration.organization.domain.OrganizationDepartmentSnapsh
 import com.xiyu.bid.integration.organization.domain.OrganizationDirectoryLookupContext;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
 import com.xiyu.bid.integration.organization.domain.OrganizationJobSnapshot;
+import com.xiyu.bid.integration.organization.dto.OssMenuTreeNode;
 import com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto;
 
 import java.time.LocalDateTime;
@@ -74,5 +75,29 @@ public interface OrganizationDirectoryGateway {
             OrganizationDirectoryLookupContext context
     ) {
         return listUsersByWindow(startAt, endAt);
+    }
+
+    /**
+     * 查询指定用户在 OSS 侧的菜单树。
+     *
+     * @param jobNumber 用户工号
+     * @return OSS 菜单树节点列表
+     */
+    default Optional<List<OssMenuTreeNode>> fetchUserMenuTree(String jobNumber) {
+        return fetchUserMenuTree(jobNumber, OrganizationDirectoryLookupContext.empty());
+    }
+
+    /**
+     * 查询指定用户在 OSS 侧的菜单树（带调用上下文）。
+     *
+     * @param jobNumber 用户工号
+     * @param context   调用上下文
+     * @return OSS 菜单树节点列表
+     */
+    default Optional<List<OssMenuTreeNode>> fetchUserMenuTree(
+            String jobNumber,
+            OrganizationDirectoryLookupContext context
+    ) {
+        return Optional.empty();
     }
 }

@@ -7,6 +7,7 @@ import com.xiyu.bid.integration.organization.application.OrganizationIntegration
 import com.xiyu.bid.integration.organization.domain.OrganizationDirectoryLookupContext;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.LinkedMultiValueMap;
@@ -15,6 +16,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.Map;
 import java.util.Optional;
@@ -61,6 +63,49 @@ class OrganizationDirectoryRestClient {
         } catch (JsonProcessingException ex) {
             throw OrganizationDirectoryHttpGatewayException.retryable("请求序列化失败", ex);
         }
+    }
+
+    Optional<JsonNode> get(
+            String url,
+            Map<String, String> queryParams,
+            OrganizationDirectoryLookupContext context
+    ) {
+        if (url.isBlank()) {
+            return Optional.empty();
+        }
+        String fullUrl = buildUrlWithQueryParams(url, queryParams);
+        HttpEntity<Void> entity = new HttpEntity<>(authHeaders.headers(context == null ? OrganizationDirectoryLookupContext.empty() : context));
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(fullUrl, HttpMethod.GET, entity, String.class);
+            String preview = response.getBody();
+            if (preview != null && preview.length() > 200) {
+                preview = preview.substring(0, 200);
+            }
+            log.info("组织架构回查成功: url={}, status={}, response={}",
+                fullUrl, response.getStatusCode(), preview);
+            return OrganizationDirectoryHttpResponseHandler.parseResponse(objectMapper, response.getBody());
+        } catch (HttpClientErrorException.NotFound ex) {
+            return Optional.empty();
+        } catch (HttpStatusCodeException ex) {
+            if (ex.getStatusCode().is4xxClientError()) {
+                throw OrganizationDirectoryHttpGatewayException.nonRetryable("组织架构主数据接口拒绝请求", ex);
+            }
+            throw OrganizationDirectoryHttpGatewayException.retryable("组织架构主数据接口调用失败", ex);
+        } catch (JsonProcessingException | RestClientException ex) {
+            throw OrganizationDirectoryHttpGatewayException.retryable("组织架构主数据接口调用失败", ex);
+        }
+    }
+
+    private String buildUrlWithQueryParams(String url, Map<String, String> queryParams) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(url);
+        if (queryParams != null) {
+            queryParams.forEach((key, value) -> {
+                if (key != null && value != null) {
+                    builder.queryParam(key, value);
+                }
+            });
+        }
+        return builder.toUriString();
     }
 
     private HttpHeaders formHeaders(OrganizationDirectoryLookupContext context) {
