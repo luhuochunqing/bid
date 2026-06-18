@@ -47,7 +47,8 @@ public class TenderEvaluationSubmissionMapper {
         entity.setBidRecommendation(req.bidRecommendation());
 
         applyBasic(entity, req.evaluationBasic());
-        applyCustomerInfos(entity, req.evaluationCustomerInfos());
+        // CO-266: 客户信息段的 clear() + addAll() 由 Service 层负责，
+        // 避免 INSERT-before-DELETE flush 顺序撞 uk_eval_role_info 唯一约束。
         applyRecommendation(entity, req.evaluationRecommendation());
     }
 
@@ -72,12 +73,18 @@ public class TenderEvaluationSubmissionMapper {
         entity.setBasic(b);
     }
 
-    private void applyCustomerInfos(TenderEvaluation entity, List<EvaluationCustomerInfoDTO> infos) {
+    /**
+     * 构建客户信息段新行列表（不修改 entity.customerInfos）。
+     * <p>CO-266 修复：原实现 {@code clear() + addAll()} 在同一事务内会触发
+     * Hibernate INSERT-before-DELETE flush 顺序，撞 uk_eval_role_info 唯一约束。
+     * 现改为只构建新行列表，由调用方（Service 层）负责先 {@code clear() + saveAndFlush()}
+     * 确保 DELETE SQL 落库，再 {@code addAll(newRows)}。
+     */
+    List<TenderEvaluationCustomerInfo> buildCustomerInfoRows(TenderEvaluation entity, List<EvaluationCustomerInfoDTO> infos) {
         if (infos == null) {
-            entity.setCustomerInfos(Collections.emptyList());
-            return;
+            return Collections.emptyList();
         }
-        List<TenderEvaluationCustomerInfo> entities = infos.stream()
+        return infos.stream()
                 .map(dto -> {
                     TenderEvaluationCustomerInfo.ValueType vt = parseValueType(dto.valueType());
                     return TenderEvaluationCustomerInfo.builder()
@@ -89,11 +96,6 @@ public class TenderEvaluationSubmissionMapper {
                             .build();
                 })
                 .collect(Collectors.toList());
-        if (entity.getCustomerInfos() == null) {
-            entity.setCustomerInfos(new ArrayList<>());
-        }
-        entity.getCustomerInfos().clear();
-        entity.getCustomerInfos().addAll(entities);
     }
 
     private static TenderEvaluationCustomerInfo.ValueType parseValueType(String vtStr) {

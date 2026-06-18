@@ -15,6 +15,7 @@ import com.xiyu.bid.tender.dto.TenderEvaluationDTO;
 import com.xiyu.bid.tender.dto.TenderEvaluationSubmitRequest;
 import com.xiyu.bid.tender.entity.TenderEvaluation;
 import com.xiyu.bid.tender.entity.TenderEvaluation.EvaluationStatus;
+import com.xiyu.bid.tender.entity.TenderEvaluationCustomerInfo;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -130,6 +133,10 @@ public class TenderEvaluationSubmissionService {
         mapper.applyRequest(entity, req);
         entity.setEvaluationStatus(EvaluationStatus.DRAFT);
 
+        // CO-266: 客户信息段必须先 clear() + saveAndFlush() 确保 DELETE SQL 落库，
+        // 再 addAll(newRows)，避免 INSERT-before-DELETE flush 顺序撞 uk_eval_role_info 唯一约束。
+        applyCustomerInfosWithFlush(entity, req.evaluationCustomerInfos());
+
         TenderEvaluation saved = evaluationRepository.save(entity);
         boolean canDecide = permissions.canDecide(tenderId, evaluatorId);
         return mapper.toDTO(saved, tender, true, canDecide);
@@ -194,6 +201,10 @@ public class TenderEvaluationSubmissionService {
             entity.setEvaluatorName(evaluator.getUsername());
         }
 
+        // CO-266: 客户信息段必须先 clear() + saveAndFlush() 确保 DELETE SQL 落库，
+        // 再 addAll(newRows)，避免 INSERT-before-DELETE flush 顺序撞 uk_eval_role_info 唯一约束。
+        applyCustomerInfosWithFlush(entity, req.evaluationCustomerInfos());
+
         TenderEvaluation saved = evaluationRepository.save(entity);
 
         // H5: 推进 tender.status 到 EVALUATED（tender 是受管实体，脏检查自动刷新）
@@ -209,6 +220,30 @@ public class TenderEvaluationSubmissionService {
     }
 
     // ---------- helpers ----------
+
+    /**
+     * CO-266 修复：应用客户信息段，确保 DELETE SQL 先于 INSERT 落库。
+     * <p>原 {@link TenderEvaluationSubmissionMapper#applyRequest} 中的
+     * {@code clear() + addAll()} 在同一事务内会触发 Hibernate INSERT-before-DELETE
+     * flush 顺序，撞 uk_eval_role_info (evaluation_id, role_key, info_key) 唯一约束。
+     * <p>修复方案：clear() 触发 orphanRemoval 后立即 saveAndFlush 执行 DELETE SQL，
+     * 然后再 addAll 新行并 save 执行 INSERT SQL。
+     */
+    private void applyCustomerInfosWithFlush(TenderEvaluation entity,
+                                             List<com.xiyu.bid.tender.dto.EvaluationCustomerInfoDTO> infos) {
+        if (infos == null) {
+            return;
+        }
+        List<TenderEvaluationCustomerInfo> newRows = mapper.buildCustomerInfoRows(entity, infos);
+        if (entity.getCustomerInfos() == null) {
+            entity.setCustomerInfos(new ArrayList<>());
+        }
+        if (!entity.getCustomerInfos().isEmpty()) {
+            entity.getCustomerInfos().clear();
+            evaluationRepository.saveAndFlush(entity);
+        }
+        entity.getCustomerInfos().addAll(newRows);
+    }
 
     private Tender requireTender(Long tenderId) {
         return tenderRepository.findById(tenderId)
