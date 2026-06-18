@@ -7,6 +7,7 @@ import com.xiyu.bid.integration.organization.dto.OssMenuTreeNode;
 import com.xiyu.bid.repository.RoleProfileRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,15 +26,15 @@ public class OssRoleMenuPermissionAutoSync {
 
     private static final Logger log = LoggerFactory.getLogger(OssRoleMenuPermissionAutoSync.class);
 
-    private final OrganizationDirectoryGateway gateway;
+    private final ObjectProvider<OrganizationDirectoryGateway> gatewayProvider;
     private final RoleProfileRepository roleProfileRepository;
     private final OrganizationIntegrationProperties.Directory directory;
 
     public OssRoleMenuPermissionAutoSync(
-            OrganizationDirectoryGateway gateway,
+            ObjectProvider<OrganizationDirectoryGateway> gatewayProvider,
             RoleProfileRepository roleProfileRepository,
             OrganizationIntegrationProperties properties) {
-        this.gateway = gateway;
+        this.gatewayProvider = gatewayProvider;
         this.roleProfileRepository = roleProfileRepository;
         this.directory = properties.getDirectory();
     }
@@ -41,6 +42,11 @@ public class OssRoleMenuPermissionAutoSync {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void mergeUserMenuPermissionsIntoRole(String jobNumber, RoleProfile role) {
         if (jobNumber == null || jobNumber.isBlank() || role == null) {
+            return;
+        }
+        OrganizationDirectoryGateway gateway = gatewayProvider.getIfAvailable();
+        if (gateway == null) {
+            log.debug("OrganizationDirectoryGateway 不可用，跳过 OSS 菜单权限同步: jobNumber={}", jobNumber);
             return;
         }
         Optional<List<OssMenuTreeNode>> menuTree = gateway.fetchUserMenuTree(

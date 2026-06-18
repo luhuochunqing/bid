@@ -11,6 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,9 @@ class OrganizationRoleMenuSyncAppServiceTest {
     private OrganizationDirectoryGateway gateway;
 
     @Mock
+    private ObjectProvider<OrganizationDirectoryGateway> gatewayProvider;
+
+    @Mock
     private RoleProfileService roleProfileService;
 
     private OrganizationIntegrationProperties properties;
@@ -41,12 +45,13 @@ class OrganizationRoleMenuSyncAppServiceTest {
         properties = new OrganizationIntegrationProperties();
         properties.getDirectory().setMenuCodeToPermissionKeyMappings(
                 Map.of("projectmanager", "project.manager", "bidding", "bidding"));
-        service = new OrganizationRoleMenuSyncAppService(gateway, roleProfileService, properties);
+        service = new OrganizationRoleMenuSyncAppService(gatewayProvider, roleProfileService, properties);
     }
 
     @Test
     @DisplayName("syncRoleMenuPermissions maps OSS menu tree and updates role")
     void syncRoleMenuPermissions_mapsAndUpdatesRole() {
+        when(gatewayProvider.getIfAvailable()).thenReturn(gateway);
         when(gateway.fetchUserMenuTree("08402", OrganizationDirectoryLookupContext.empty()))
                 .thenReturn(Optional.of(List.of(
                         node("projectmanager", List.of(node("bidding", List.of())))
@@ -65,6 +70,7 @@ class OrganizationRoleMenuSyncAppServiceTest {
     @Test
     @DisplayName("syncRoleMenuPermissions clears permissions when OSS returns empty tree")
     void syncRoleMenuPermissions_emptyTree_clearsPermissions() {
+        when(gatewayProvider.getIfAvailable()).thenReturn(gateway);
         when(gateway.fetchUserMenuTree("08402", OrganizationDirectoryLookupContext.empty()))
                 .thenReturn(Optional.of(List.of()));
         RoleDTO expected = RoleDTO.builder().id(1L).code("bid_lead").build();
