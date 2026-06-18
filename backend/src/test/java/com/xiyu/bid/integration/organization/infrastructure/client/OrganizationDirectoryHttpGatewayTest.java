@@ -288,10 +288,68 @@ class OrganizationDirectoryHttpGatewayTest {
         assertThat(snapshots.get(4).externalUserId()).isEqualTo("5");
         server.verify();
     }
+    @Test
+    @DisplayName("batch job/role lookup maps response by job number")
+    void getUserJobAndRoleListByJobNumbers_mapsByJobNumber() {
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+        server.expect(requestTo("https://oss.example.test/oss/admin-web/v1/output/data/getUserJobListByJobNumberList"))
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andRespond(withSuccess("""
+                        {
+                          "code": 200,
+                          "message": "success",
+                          "data": [
+                            { "jobNumber": "08402", "jobName": "项目经理", "sysRoleList": ["投标项目负责人"], "status": "启用", "username": "张三" },
+                            { "jobNumber": "08640", "jobName": "项目总监", "sysRoleList": ["投标项目负责人", "管理员"], "status": "启用", "username": "李四" }
+                          ]
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        java.util.Map<String, com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto> result =
+                gateway(restTemplate, defaultProperties()).getUserJobAndRoleListByJobNumbers(List.of("08402", "08640"));
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get("08402").jobName()).isEqualTo("项目经理");
+        assertThat(result.get("08402").sysRoleList()).containsExactly("投标项目负责人");
+        assertThat(result.get("08640").jobName()).isEqualTo("项目总监");
+        assertThat(result.get("08640").sysRoleList()).containsExactly("投标项目负责人", "管理员");
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("batch job/role lookup returns partial map on failure and does not throw")
+    void getUserJobAndRoleListByJobNumbers_failure_returnsPartialMap() {
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+        server.expect(requestTo("https://oss.example.test/oss/admin-web/v1/output/data/getUserJobListByJobNumberList"))
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+
+        java.util.Map<String, com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto> result =
+                gateway(restTemplate, defaultProperties()).getUserJobAndRoleListByJobNumbers(List.of("08402"));
+
+        assertThat(result).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("batch job/role lookup returns empty for blank path")
+    void getUserJobAndRoleListByJobNumbers_blankPath_returnsEmpty() {
+        RestTemplate restTemplate = new RestTemplate();
+        OrganizationIntegrationProperties props = defaultProperties();
+        props.getDirectory().setBatchJobRoleLookupPath("");
+
+        java.util.Map<String, com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto> result =
+                gateway(restTemplate, props).getUserJobAndRoleListByJobNumbers(List.of("08402"));
+
+        assertThat(result).isEmpty();
+    }
+
     private static OrganizationDirectoryHttpGateway gateway(
             RestTemplate restTemplate,
             OrganizationIntegrationProperties props) {
-        return new OrganizationDirectoryHttpGateway(restTemplate, new ObjectMapper(), props);
+        return new OrganizationDirectoryHttpGateway(restTemplate, restTemplate, new ObjectMapper(), props);
     }
 
     private static OrganizationIntegrationProperties defaultProperties() {
@@ -301,6 +359,8 @@ class OrganizationDirectoryHttpGatewayTest {
         props.getDirectory().setDepartmentDetailPath("/subscription/msg/dept");
         props.getDirectory().setUserWindowPath("/subscription/msg/getUserByTimeWindow");
         props.getDirectory().setDepartmentWindowPath("/subscription/msg/getDeptByTimeWindow");
+        props.getDirectory().setBatchJobRoleLookupPath("/oss/admin-web/v1/output/data/getUserJobListByJobNumberList");
+        props.getDirectory().setBatchQuerySize(50);
         return props;
     }
 }

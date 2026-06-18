@@ -3,6 +3,9 @@ package com.xiyu.bid.integration.organization.application;
 import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
+import com.xiyu.bid.integration.organization.domain.policy.JobRoleLookupResolver;
+import com.xiyu.bid.integration.organization.domain.policy.SystemRoleListMapper;
+import com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto;
 import com.xiyu.bid.integration.organization.infrastructure.mapper.PositionToRoleMapper;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationDepartmentRepository;
 import com.xiyu.bid.repository.RoleProfileRepository;
@@ -14,14 +17,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -35,8 +38,6 @@ class OrganizationUserSyncWriterTest {
     private RoleProfileRepository roleProfileRepository;
     @Mock
     private OrganizationDepartmentRepository organizationDepartmentRepository;
-    @Mock
-    private ObjectProvider<OrganizationDirectoryGateway> directoryGatewayProvider;
 
     private OrganizationUserSyncWriter writer;
 
@@ -44,7 +45,9 @@ class OrganizationUserSyncWriterTest {
     void setUp() {
         OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();
         PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
-        writer = new OrganizationUserSyncWriter(userRepository, organizationDepartmentRepository, roleProfileRepository, properties, positionToRoleMapper, directoryGatewayProvider);
+        SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
+        JobRoleLookupResolver resolver = new JobRoleLookupResolver(properties, positionToRoleMapper, systemRoleListMapper);
+        writer = new OrganizationUserSyncWriter(userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver);
     }
 
     @Test
@@ -137,8 +140,10 @@ class OrganizationUserSyncWriterTest {
         OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();
         properties.setSkipUnmappedUsers(true);
         PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
+        SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
+        JobRoleLookupResolver resolver = new JobRoleLookupResolver(properties, positionToRoleMapper, systemRoleListMapper);
         OrganizationUserSyncWriter filteringWriter = new OrganizationUserSyncWriter(
-                userRepository, organizationDepartmentRepository, roleProfileRepository, properties, positionToRoleMapper, null);
+                userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver);
 
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "999")).thenReturn(Optional.empty());
 
@@ -156,8 +161,10 @@ class OrganizationUserSyncWriterTest {
         OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();
         properties.setSkipUnmappedUsers(true);
         PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
+        SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
+        JobRoleLookupResolver resolver = new JobRoleLookupResolver(properties, positionToRoleMapper, systemRoleListMapper);
         OrganizationUserSyncWriter filteringWriter = new OrganizationUserSyncWriter(
-                userRepository, organizationDepartmentRepository, roleProfileRepository, properties, positionToRoleMapper, null);
+                userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver);
 
         User existing = new User();
         existing.setEnabled(true);
@@ -186,8 +193,10 @@ class OrganizationUserSyncWriterTest {
         mapping.setRoleCode("admin");
         properties.setPersonToRoleMappings(List.of(mapping));
         PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
+        SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
+        JobRoleLookupResolver resolver = new JobRoleLookupResolver(properties, positionToRoleMapper, systemRoleListMapper);
         OrganizationUserSyncWriter adminWriter = new OrganizationUserSyncWriter(
-                userRepository, organizationDepartmentRepository, roleProfileRepository, properties, positionToRoleMapper, null);
+                userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver);
 
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "03595")).thenReturn(Optional.empty());
         when(roleProfileRepository.findByCodeIgnoreCase("admin")).thenReturn(Optional.of(role("admin")));
@@ -212,8 +221,10 @@ class OrganizationUserSyncWriterTest {
         mapping.setRoleCode("bid_lead");
         properties.setPersonToRoleMappings(List.of(mapping));
         PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
+        SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
+        JobRoleLookupResolver resolver = new JobRoleLookupResolver(properties, positionToRoleMapper, systemRoleListMapper);
         OrganizationUserSyncWriter nameMatchingWriter = new OrganizationUserSyncWriter(
-                userRepository, organizationDepartmentRepository, roleProfileRepository, properties, positionToRoleMapper, null);
+                userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver);
 
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "100")).thenReturn(Optional.empty());
         when(roleProfileRepository.findByCodeIgnoreCase("bid_lead")).thenReturn(Optional.of(role("bid_lead")));
@@ -238,8 +249,10 @@ class OrganizationUserSyncWriterTest {
         mapping.setRoleCode("bid-projectLeader");
         properties.setPositionToRoleMappings(List.of(mapping));
         PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
+        SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
+        JobRoleLookupResolver resolver = new JobRoleLookupResolver(properties, positionToRoleMapper, systemRoleListMapper);
         OrganizationUserSyncWriter projectLeaderWriter = new OrganizationUserSyncWriter(
-                userRepository, organizationDepartmentRepository, roleProfileRepository, properties, positionToRoleMapper, null);
+                userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver);
 
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "1001")).thenReturn(Optional.empty());
         when(roleProfileRepository.findByCodeIgnoreCase("sales")).thenReturn(Optional.of(role("sales")));
@@ -252,6 +265,72 @@ class OrganizationUserSyncWriterTest {
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(saved.capture());
         assertThat(saved.getValue().getRoleCode()).isEqualTo("sales");
+    }
+
+    @Test
+    @DisplayName("sysRoleList fallback maps to internal role when job name does not match")
+    void mapSysRoleList_fallback_resolvesToInternalRole() {
+        OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();
+        OrganizationIntegrationProperties.PositionToRoleMapping mapping = new OrganizationIntegrationProperties.PositionToRoleMapping();
+        mapping.setPositionPattern("^投标项目负责人$");
+        mapping.setRoleCode("bid-projectLeader");
+        properties.setPositionToRoleMappings(List.of(mapping));
+        PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
+        SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
+        JobRoleLookupResolver resolver = new JobRoleLookupResolver(properties, positionToRoleMapper, systemRoleListMapper);
+        OrganizationUserSyncWriter sysRoleWriter = new OrganizationUserSyncWriter(
+                userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver);
+
+        when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "1002")).thenReturn(Optional.empty());
+        when(roleProfileRepository.findByCodeIgnoreCase("sales")).thenReturn(Optional.of(role("sales")));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Map<String, OssUserJobAndRoleDto> lookupMap = Map.of(
+                "staff002", new OssUserJobAndRoleDto("staff002", "主管", List.of("投标项目负责人"), "在职", "启用", "主管用户")
+        );
+
+        sysRoleWriter.upsert("oss", "event-key", new OrganizationUserSnapshot(
+                "1002", "staff002", "主管用户", "supervisor@example.com",
+                "13800000000", "2002", "投标项目部", "", "", true), lookupMap);
+
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(saved.capture());
+        assertThat(saved.getValue().getRoleCode()).isEqualTo("sales");
+    }
+
+    @Test
+    @DisplayName("person mapping takes precedence over sysRoleList")
+    void rolePriority_personOverSysRoleList() {
+        OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();
+        OrganizationIntegrationProperties.PersonToRoleMapping personMapping = new OrganizationIntegrationProperties.PersonToRoleMapping();
+        personMapping.setPersonIdentifier("boss@example.com");
+        personMapping.setRoleCode("admin");
+        properties.setPersonToRoleMappings(List.of(personMapping));
+        OrganizationIntegrationProperties.PositionToRoleMapping positionMapping = new OrganizationIntegrationProperties.PositionToRoleMapping();
+        positionMapping.setPositionPattern("^投标项目负责人$");
+        positionMapping.setRoleCode("bid-projectLeader");
+        properties.setPositionToRoleMappings(List.of(positionMapping));
+        PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
+        SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
+        JobRoleLookupResolver resolver = new JobRoleLookupResolver(properties, positionToRoleMapper, systemRoleListMapper);
+        OrganizationUserSyncWriter priorityWriter = new OrganizationUserSyncWriter(
+                userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver);
+
+        when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "1003")).thenReturn(Optional.empty());
+        when(roleProfileRepository.findByCodeIgnoreCase("admin")).thenReturn(Optional.of(role("admin")));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Map<String, OssUserJobAndRoleDto> lookupMap = Map.of(
+                "boss001", new OssUserJobAndRoleDto("boss001", "主管", List.of("投标项目负责人"), "在职", "启用", "老板")
+        );
+
+        priorityWriter.upsert("oss", "event-key", new OrganizationUserSnapshot(
+                "1003", "boss001", "老板", "boss@example.com",
+                "13800000000", "2003", "投标项目部", "", "", true), lookupMap);
+
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(saved.capture());
+        assertThat(saved.getValue().getRoleCode()).isEqualTo("admin");
     }
 
     private RoleProfile role(String code) {

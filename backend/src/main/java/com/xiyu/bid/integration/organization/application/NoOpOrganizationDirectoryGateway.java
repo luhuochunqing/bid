@@ -4,11 +4,13 @@ import com.xiyu.bid.integration.organization.domain.OrganizationDepartmentSnapsh
 import com.xiyu.bid.integration.organization.domain.OrganizationDirectoryLookupContext;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
 import com.xiyu.bid.integration.organization.domain.OrganizationJobSnapshot;
+import com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -99,5 +101,13 @@ public class NoOpOrganizationDirectoryGateway implements OrganizationDirectoryGa
             OrganizationDirectoryLookupContext context
     ) {
         return List.of();
+    }
+
+    @Override
+    public java.util.Map<String, OssUserJobAndRoleDto> getUserJobAndRoleListByJobNumbers(
+            List<String> jobNumbers,
+            OrganizationDirectoryLookupContext context
+    ) {
+        return Map.of();
     }
 }

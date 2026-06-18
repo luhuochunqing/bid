@@ -3,6 +3,7 @@ package com.xiyu.bid.integration.organization.application;
 import com.xiyu.bid.integration.organization.domain.OrganizationDepartmentSnapshot;
 import com.xiyu.bid.integration.organization.domain.OrganizationDirectoryLookupContext;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
+import com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationSyncItemEntity;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationSyncRunEntity;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationSyncItemRepository;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -67,10 +69,27 @@ public class OrganizationSyncRunAppService {
             counters = counters.add(processDepartment(run, sourceApp, department));
         }
         List<OrganizationUserSnapshot> users = gateway.listUsersByWindow(startAt, endAt, context);
+        Map<String, OssUserJobAndRoleDto> jobRoleLookupMap = buildJobRoleLookupMap(gateway, users, context);
         for (OrganizationUserSnapshot user : users) {
-            counters = counters.add(processUser(run, sourceApp, user));
+            counters = counters.add(processUser(run, sourceApp, user, jobRoleLookupMap));
         }
         return counters;
+    }
+
+    private Map<String, OssUserJobAndRoleDto> buildJobRoleLookupMap(
+            OrganizationDirectoryGateway gateway,
+            List<OrganizationUserSnapshot> users,
+            OrganizationDirectoryLookupContext context
+    ) {
+        List<String> jobNumbers = users.stream()
+                .map(OrganizationUserSnapshot::username)
+                .filter(username -> username != null && !username.isBlank())
+                .distinct()
+                .toList();
+        if (jobNumbers.isEmpty()) {
+            return Map.of();
+        }
+        return gateway.getUserJobAndRoleListByJobNumbers(jobNumbers, context);
     }
 
     private OrganizationSyncRunEntity createRun(String sourceApp, String runType) {
@@ -95,10 +114,15 @@ public class OrganizationSyncRunAppService {
         }
     }
 
-    private RunCounters processUser(OrganizationSyncRunEntity run, String sourceApp, OrganizationUserSnapshot snapshot) {
+    private RunCounters processUser(
+            OrganizationSyncRunEntity run,
+            String sourceApp,
+            OrganizationUserSnapshot snapshot,
+            Map<String, OssUserJobAndRoleDto> jobRoleLookupMap
+    ) {
         String eventKey = run.getRunKey() + "|USER|" + snapshot.externalUserId();
         try {
-            userWriter.upsert(sourceApp, eventKey, snapshot);
+            userWriter.upsert(sourceApp, eventKey, snapshot, jobRoleLookupMap);
             itemRepository.save(successItem(run.getId(), "USER", null, snapshot.externalUserId(), eventKey));
             return RunCounters.success();
         } catch (RuntimeException ex) {

@@ -2,6 +2,7 @@ package com.xiyu.bid.integration.organization.application;
 
 import com.xiyu.bid.integration.organization.domain.OrganizationDepartmentSnapshot;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
+import com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationSyncItemEntity;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationSyncRunEntity;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationSyncItemRepository;
@@ -70,6 +71,39 @@ class OrganizationSyncRunAppServiceTest {
     }
 
     @Test
+    @DisplayName("sync window batches job/role lookup by job numbers")
+    void syncWindow_batchesJobRoleLookup() {
+        FakeGateway gateway = new FakeGateway();
+        ObjectProvider<OrganizationDirectoryGateway> gatewayProvider = mock(ObjectProvider.class);
+        when(gatewayProvider.getIfAvailable()).thenReturn(gateway);
+        FakeDepartmentWriter departmentWriter = new FakeDepartmentWriter();
+        FakeUserWriter userWriter = new FakeUserWriter();
+        when(runRepository.save(any(OrganizationSyncRunEntity.class))).thenAnswer(invocation -> {
+            OrganizationSyncRunEntity run = invocation.getArgument(0);
+            run.setId(10L);
+            return run;
+        });
+        OrganizationSyncRunAppService service = new OrganizationSyncRunAppService(
+                gatewayProvider,
+                departmentWriter,
+                userWriter,
+                runRepository,
+                itemRepository,
+                OrganizationDirectorySyncAppServiceTest.fixedSettings(true)
+        );
+
+        service.syncWindow(
+                "customer-org",
+                LocalDateTime.now().minusDays(1),
+                LocalDateTime.now(),
+                "COMPENSATION"
+        );
+
+        assertThat(gateway.batchLookupCallCount).isEqualTo(1);
+        assertThat(gateway.batchLookupRequestedJobNumbers).containsExactly("zhangsan");
+    }
+
+    @Test
     @DisplayName("sync window records failed items and keeps run inspectable")
     void syncWindow_itemFailure_marksPartialFailed() {
         FakeGateway gateway = new FakeGateway();
@@ -108,6 +142,9 @@ class OrganizationSyncRunAppServiceTest {
     }
 
     private static class FakeGateway implements OrganizationDirectoryGateway {
+        int batchLookupCallCount = 0;
+        java.util.List<String> batchLookupRequestedJobNumbers = java.util.List.of();
+
         @Override
         public java.util.Optional<OrganizationJobSnapshot> fetchJobByJobId(String jobId) { return java.util.Optional.empty(); }
         public Optional<OrganizationDepartmentSnapshot> fetchDepartmentByDeptId(String deptId) {
@@ -124,6 +161,16 @@ class OrganizationSyncRunAppServiceTest {
 
         public List<OrganizationUserSnapshot> listUsersByWindow(LocalDateTime startAt, LocalDateTime endAt) {
             return List.of(new OrganizationUserSnapshot("10001", "zhangsan", "张三", "zhangsan@example.com", "", "sales", "销售部", "", "", true));
+        }
+
+        @Override
+        public java.util.Map<String, OssUserJobAndRoleDto> getUserJobAndRoleListByJobNumbers(
+                java.util.List<String> jobNumbers,
+                com.xiyu.bid.integration.organization.domain.OrganizationDirectoryLookupContext context
+        ) {
+            batchLookupCallCount++;
+            batchLookupRequestedJobNumbers = java.util.List.copyOf(jobNumbers);
+            return java.util.Map.of();
         }
     }
 
@@ -149,7 +196,7 @@ class OrganizationSyncRunAppServiceTest {
         boolean throwOnWrite;
 
         FakeUserWriter() {
-            super(null, null, null, new OrganizationIntegrationProperties(), null, null);
+            super(null, null, null, new OrganizationIntegrationProperties(), null);
         }
 
         public com.xiyu.bid.entity.User upsert(String sourceApp, String eventKey, OrganizationUserSnapshot snapshot) {
@@ -158,6 +205,16 @@ class OrganizationSyncRunAppServiceTest {
             }
             writes++;
             return new com.xiyu.bid.entity.User();
+        }
+
+        @Override
+        public com.xiyu.bid.entity.User upsert(
+                String sourceApp,
+                String eventKey,
+                OrganizationUserSnapshot snapshot,
+                java.util.Map<String, com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto> jobRoleLookupMap
+        ) {
+            return upsert(sourceApp, eventKey, snapshot);
         }
     }
 }

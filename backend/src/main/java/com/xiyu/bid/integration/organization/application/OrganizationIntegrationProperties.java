@@ -57,11 +57,19 @@ public class OrganizationIntegrationProperties {
         private String departmentWindowPath = "/subscription/msg/getDeptByTimeWindow";
         /** YAPI 真实路径：POST /subscription/msg/job (form-urlencoded, body: jobId) */
         private String jobDetailPath = "/subscription/msg/job";
+        /** YAPI 真实路径：POST /oss/admin-web/v1/output/data/getUserJobListByJobNumberList (json, body: data=[jobNumbers]) */
+        private String batchJobRoleLookupPath = "/oss/admin-web/v1/output/data/getUserJobListByJobNumberList";
         private String sourceApp = "";
         private String traceHeaderName = "EHSY-TraceID";
         private String sourceHeaderName = "EHSY-SRCAPP";
         private int connectTimeoutMs = 3000;
         private int readTimeoutMs = 5000;
+        /** 批量岗位/角色回查单批最大工号数 */
+        private int batchQuerySize = 50;
+        /** 批量岗位/角色回查连接超时（毫秒） */
+        private int batchConnectTimeoutMs = 3000;
+        /** 批量岗位/角色回查读取超时（毫秒），批量返回数据量较大，默认高于单条接口 */
+        private int batchReadTimeoutMs = 10000;
     }
 
     @Data

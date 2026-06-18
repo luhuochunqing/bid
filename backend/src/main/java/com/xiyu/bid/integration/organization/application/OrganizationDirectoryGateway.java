@@ -4,6 +4,7 @@ import com.xiyu.bid.integration.organization.domain.OrganizationDepartmentSnapsh
 import com.xiyu.bid.integration.organization.domain.OrganizationDirectoryLookupContext;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
 import com.xiyu.bid.integration.organization.domain.OrganizationJobSnapshot;
+import com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -41,6 +42,30 @@ public interface OrganizationDirectoryGateway {
 
     default Optional<OrganizationJobSnapshot> fetchJobByJobId(String jobId, OrganizationDirectoryLookupContext context) {
         return fetchJobByJobId(jobId);
+    }
+
+    /**
+     * 按工号列表批量回查岗位名称与系统角色列表。
+     *
+     * @param jobNumbers 工号列表
+     * @return 按工号索引的查询结果
+     */
+    default java.util.Map<String, OssUserJobAndRoleDto> getUserJobAndRoleListByJobNumbers(List<String> jobNumbers) {
+        return getUserJobAndRoleListByJobNumbers(jobNumbers, OrganizationDirectoryLookupContext.empty());
+    }
+
+    /**
+     * 按工号列表批量回查岗位名称与系统角色列表（带调用上下文）。
+     *
+     * @param jobNumbers 工号列表
+     * @param context    调用上下文
+     * @return 按工号索引的查询结果
+     */
+    default java.util.Map<String, OssUserJobAndRoleDto> getUserJobAndRoleListByJobNumbers(
+            List<String> jobNumbers,
+            OrganizationDirectoryLookupContext context
+    ) {
+        return java.util.Map.of();
     }
 
     default List<OrganizationUserSnapshot> listUsersByWindow(

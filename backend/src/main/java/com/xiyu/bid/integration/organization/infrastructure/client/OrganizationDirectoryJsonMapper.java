@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.xiyu.bid.integration.organization.domain.OrganizationDepartmentSnapshot;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
 import com.xiyu.bid.integration.organization.domain.OrganizationJobSnapshot;
+import com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -70,6 +71,35 @@ class OrganizationDirectoryJsonMapper {
 
     List<OrganizationUserSnapshot> users(JsonNode root) {
         return snapshotNodes(root).stream().map(this::user).toList();
+    }
+
+    List<OssUserJobAndRoleDto> jobAndRoleList(JsonNode root) {
+        return snapshotNodes(root).stream().map(this::jobAndRole).toList();
+    }
+
+    private OssUserJobAndRoleDto jobAndRole(JsonNode node) {
+        return new OssUserJobAndRoleDto(
+                firstText(node, "jobNumber", "userNo", "jobNo", "employeeNo"),
+                firstText(node, "jobName", "positionName", "name"),
+                textList(node, "sysRoleList"),
+                firstText(node, "employeeStatus", "employeeStatusName"),
+                firstText(node, "status", "userStatus"),
+                firstText(node, "username", "userName", "name")
+        );
+    }
+
+    private List<String> textList(JsonNode node, String fieldName) {
+        JsonNode array = node.path(fieldName);
+        if (!array.isArray()) {
+            return List.of();
+        }
+        List<String> result = new ArrayList<>();
+        array.forEach(element -> {
+            if (element.isTextual() && !element.isNull()) {
+                result.add(element.asText());
+            }
+        });
+        return result;
     }
 
     private List<JsonNode> snapshotNodes(JsonNode root) {

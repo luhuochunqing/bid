@@ -9,6 +9,7 @@ import com.xiyu.bid.integration.organization.domain.OrganizationDepartmentSnapsh
 import com.xiyu.bid.integration.organization.domain.OrganizationDirectoryLookupContext;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
 import com.xiyu.bid.integration.organization.domain.OrganizationJobSnapshot;
+import com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Conditional;
@@ -41,6 +42,7 @@ public class OrganizationDirectoryHttpGateway implements OrganizationDirectoryGa
     private static final DateTimeFormatter ORG_API_DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final RestTemplate restTemplate;
+    private final RestTemplate batchRestTemplate;
     private final ObjectMapper objectMapper;
     private final OrganizationIntegrationProperties.Directory directory;
     private final OrganizationDirectoryJsonMapper mapper = new OrganizationDirectoryJsonMapper();
@@ -51,17 +53,26 @@ public class OrganizationDirectoryHttpGateway implements OrganizationDirectoryGa
             RestTemplateBuilder restTemplateBuilder,
             ObjectMapper objectMapper,
             OrganizationIntegrationProperties properties) {
-        this(restTemplateBuilder
-                .setConnectTimeout(Duration.ofMillis(properties.getDirectory().getConnectTimeoutMs()))
-                .setReadTimeout(Duration.ofMillis(properties.getDirectory().getReadTimeoutMs()))
-                .build(), objectMapper, properties);
+        this(
+                restTemplateBuilder
+                        .setConnectTimeout(Duration.ofMillis(properties.getDirectory().getConnectTimeoutMs()))
+                        .setReadTimeout(Duration.ofMillis(properties.getDirectory().getReadTimeoutMs()))
+                        .build(),
+                restTemplateBuilder
+                        .setConnectTimeout(Duration.ofMillis(properties.getDirectory().getBatchConnectTimeoutMs()))
+                        .setReadTimeout(Duration.ofMillis(properties.getDirectory().getBatchReadTimeoutMs()))
+                        .build(),
+                objectMapper,
+                properties);
     }
 
     OrganizationDirectoryHttpGateway(
             RestTemplate restTemplate,
+            RestTemplate batchRestTemplate,
             ObjectMapper objectMapper,
             OrganizationIntegrationProperties properties) {
         this.restTemplate = restTemplate;
+        this.batchRestTemplate = batchRestTemplate;
         this.objectMapper = objectMapper;
         this.directory = properties.getDirectory();
         this.authHeaders = new OrganizationDirectoryAuthHeaders(directory);
@@ -109,6 +120,50 @@ public class OrganizationDirectoryHttpGateway implements OrganizationDirectoryGa
         form.add("del", "0");
         form.add("state", "0");
         return postForm(url, form, context).map(mapper::job);
+    }
+
+    @Override
+    public java.util.Map<String, OssUserJobAndRoleDto> getUserJobAndRoleListByJobNumbers(
+            List<String> jobNumbers,
+            OrganizationDirectoryLookupContext context
+    ) {
+        String url = buildUrl(directory.getBatchJobRoleLookupPath());
+        if (url.isBlank() || jobNumbers == null || jobNumbers.isEmpty()) {
+            return java.util.Map.of();
+        }
+        int batchSize = Math.max(1, directory.getBatchQuerySize());
+        java.util.Map<String, OssUserJobAndRoleDto> allResults = new java.util.HashMap<>();
+        long startNs = System.nanoTime();
+        int requestCount = 0;
+        int responseCount = 0;
+        for (int i = 0; i < jobNumbers.size(); i += batchSize) {
+            List<String> batch = jobNumbers.subList(i, Math.min(i + batchSize, jobNumbers.size()));
+            requestCount += batch.size();
+            try {
+                Optional<JsonNode> response = postJsonBatch(url, Map.of("data", batch), context);
+                if (response.isPresent()) {
+                    List<OssUserJobAndRoleDto> batchResults = mapper.jobAndRoleList(response.get());
+                    for (OssUserJobAndRoleDto dto : batchResults) {
+                        if (dto.jobNumber() != null && !dto.jobNumber().isBlank()) {
+                            allResults.merge(dto.jobNumber(), dto, (existing, incoming) -> {
+                                log.warn("批量岗位/角色回查结果中工号重复，保留第一条: jobNumber={}", dto.jobNumber());
+                                return existing;
+                            });
+                            responseCount++;
+                        } else {
+                            log.warn("批量岗位/角色回查结果中存在空工号记录，已忽略");
+                        }
+                    }
+                }
+            } catch (RuntimeException ex) {
+                log.error("批量岗位/角色回查失败: url={}, batchSize={}, error={}", url, batch.size(), ex.getMessage(), ex);
+                // 批量查询失败不影响同步主流程，返回已获取的部分结果
+            }
+        }
+        long durationMs = (System.nanoTime() - startNs) / 1_000_000;
+        log.info("批量岗位/角色回查完成: url={}, requested={}, returned={}, durationMs={}",
+                url, requestCount, responseCount, durationMs);
+        return java.util.Map.copyOf(allResults);
     }
 
     @Override
@@ -242,6 +297,20 @@ public class OrganizationDirectoryHttpGateway implements OrganizationDirectoryGa
         }
     }
 
+    private Optional<JsonNode> postJsonBatch(
+            String url,
+            Map<String, Object> body,
+            OrganizationDirectoryLookupContext context
+    ) {
+        try {
+            String jsonBody = objectMapper.writeValueAsString(body);
+            return executeBatchPost(url, new HttpEntity<>(jsonBody, jsonHeaders(context)), String.class);
+        } catch (JsonProcessingException ex) {
+            log.error("批量岗位/角色回查请求序列化失败: error={}", ex.getMessage(), ex);
+            return Optional.empty();
+        }
+    }
+
     private HttpHeaders formHeaders(OrganizationDirectoryLookupContext context) {
         HttpHeaders headers = authHeaders.headers(context == null ? OrganizationDirectoryLookupContext.empty() : context);
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
@@ -276,6 +345,31 @@ public class OrganizationDirectoryHttpGateway implements OrganizationDirectoryGa
             throw OrganizationDirectoryHttpGatewayException.retryable("组织架构主数据接口调用失败", ex);
         } catch (JsonProcessingException | RestClientException ex) {
             throw OrganizationDirectoryHttpGatewayException.retryable("组织架构主数据接口调用失败", ex);
+        }
+    }
+
+    private <T> Optional<JsonNode> executeBatchPost(String url, HttpEntity<T> entity, Class<String> responseType) {
+        if (url.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            ResponseEntity<String> response = batchRestTemplate.postForEntity(url, entity, responseType);
+            String preview = response.getBody();
+            if (preview != null && preview.length() > 200) {
+                preview = preview.substring(0, 200);
+            }
+            log.info("批量岗位/角色回查成功: url={}, status={}, response={}",
+                    url, response.getStatusCode(), preview);
+            return OrganizationDirectoryHttpResponseHandler.parseResponse(objectMapper, response.getBody());
+        } catch (HttpClientErrorException.NotFound ex) {
+            return Optional.empty();
+        } catch (HttpStatusCodeException ex) {
+            log.error("批量岗位/角色回查接口返回错误状态: url={}, status={}, body={}",
+                    url, ex.getStatusCode(), ex.getResponseBodyAsString(), ex);
+            return Optional.empty();
+        } catch (JsonProcessingException | RestClientException ex) {
+            log.error("批量岗位/角色回查接口调用失败: url={}, error={}", url, ex.getMessage(), ex);
+            return Optional.empty();
         }
     }
 
