@@ -211,6 +211,10 @@ public class TenderIntegrationService {
         crmTenderLinkService.linkIfPresent(tender, request.getCrmId());
         Tender saved = tenderRepository.save(tender);
         log.info("Updated tender id={} externalId={}", saved.getId(), externalId);
+        // 处理附件
+        if (request.getAttachments() != null) {
+            saveAttachments(saved.getId(), request.getAttachments());
+        }
         // 处理评估数据
         if (request.getEvaluation() != null) {
             saveEvaluation(saved.getId(), request.getEvaluation());
@@ -465,5 +469,23 @@ public class TenderIntegrationService {
         String normalized = value.replace(' ', 'T');
         if (normalized.length() == 16) normalized += ":00";
         return java.time.LocalDateTime.parse(normalized);
+    }
+
+    /** 保存附件到数据库。 */
+    private void saveAttachments(Long tenderId, List<TenderPushRequest.AttachmentRef> refs) {
+        if (refs == null || refs.isEmpty()) return;
+        attachmentRepository.deleteByTenderId(tenderId);
+        int count = 0;
+        for (TenderPushRequest.AttachmentRef ref : refs) {
+            if (count >= 10) break;
+            if (ref.getFileName() == null && ref.getFileUrl() == null) continue;
+            TenderAttachment att = TenderAttachment.builder()
+                    .tenderId(tenderId)
+                    .fileName(ref.getFileName() != null ? ref.getFileName() : "")
+                    .fileUrl(ref.getFileUrl() != null ? ref.getFileUrl() : "")
+                    .build();
+            attachmentRepository.save(att);
+            count++;
+        }
     }
 }
