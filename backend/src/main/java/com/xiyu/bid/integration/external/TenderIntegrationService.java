@@ -463,9 +463,17 @@ public class TenderIntegrationService {
         if (r.getDepartment() != null) t.setDepartment(InputSanitizer.sanitizeString(r.getDepartment(), 100));
         if (r.getCreatorName() != null) t.setCreatorName(InputSanitizer.sanitizeString(r.getCreatorName(), 100));
         if (r.getCreateDate() != null) t.setCreatedAt(parseDateTime(r.getCreateDate()));
-        t.setSourceType(com.xiyu.bid.entity.Tender.SourceType.EXTERNAL_PLATFORM);
-        t.setSource(com.xiyu.bid.entity.Tender.SourceType.EXTERNAL_PLATFORM.getLabel());
-        t.setStatus(com.xiyu.bid.entity.Tender.Status.PENDING_ASSIGNMENT);
+        // 根据 crmId 判断来源：有 crmId = CRM 转入（已评估状态）；否则 = 第三方平台（待分配状态）
+        boolean isFromCrm = r.getCrmId() != null && !r.getCrmId().isBlank();
+        if (isFromCrm) {
+            t.setSourceType(com.xiyu.bid.entity.Tender.SourceType.CRM_OPPORTUNITY);
+            t.setSource(com.xiyu.bid.entity.Tender.SourceType.CRM_OPPORTUNITY.getLabel());
+            t.setStatus(com.xiyu.bid.entity.Tender.Status.EVALUATED);
+        } else {
+            t.setSourceType(com.xiyu.bid.entity.Tender.SourceType.EXTERNAL_PLATFORM);
+            t.setSource(com.xiyu.bid.entity.Tender.SourceType.EXTERNAL_PLATFORM.getLabel());
+            t.setStatus(com.xiyu.bid.entity.Tender.Status.PENDING_ASSIGNMENT);
+        }
         t.setEvaluationSource(com.xiyu.bid.entity.Tender.EvaluationSource.CRM_PUSH);
         return t;
     }

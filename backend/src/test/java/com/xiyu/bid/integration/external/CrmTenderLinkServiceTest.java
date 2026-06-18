@@ -24,12 +24,12 @@ import static org.mockito.Mockito.when;
  * {@link CrmTenderLinkService} 单元测试。
  * <p>覆盖 CO-252 测试要点：
  * <ol>
- *   <li>传入 crmId → 状态自动变为 TRACKING</li>
+ *   <li>传入 crmId → 状态自动变为 EVALUATED</li>
  *   <li>项目负责人自动分配（按工号匹配本地用户）</li>
  *   <li>商机自动关联</li>
  *   <li>不传 crmId 时行为不变</li>
  *   <li>CRM 接口异常时降级（保持 PENDING_ASSIGNMENT）</li>
- *   <li>未找到负责人时仍关联商机并设为 TRACKING</li>
+ *   <li>未找到负责人时仍关联商机并设为 EVALUATED</li>
  * </ol>
  */
 @ExtendWith(MockitoExtension.class)
@@ -52,10 +52,10 @@ class CrmTenderLinkServiceTest {
         return t;
     }
 
-    // ===== 测试要点 1+2+3：传入 crmId → TRACKING + 负责人分配 + 商机关联 =====
+    // ===== 测试要点 1+2+3：传入 crmId → EVALUATED + 负责人分配 + 商机关联 =====
 
     @Test
-    void linkIfPresent_withCrmId_assignsLeaderAndSetsTracking() {
+    void linkIfPresent_withCrmId_assignsLeaderAndSetsEvaluated() {
         Tender tender = newTender();
         CrmProjectLeaderService.ProjectLeaderResult leader =
                 new CrmProjectLeaderService.ProjectLeaderResult(
@@ -69,7 +69,7 @@ class CrmTenderLinkServiceTest {
 
         service.linkIfPresent(tender, "CC001");
 
-        assertThat(tender.getStatus()).isEqualTo(Tender.Status.TRACKING);
+        assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
         assertThat(tender.getProjectManagerId()).isEqualTo(50L);
         assertThat(tender.getProjectManagerName()).isEqualTo("张三");
         assertThat(tender.getCrmOpportunityId()).isEqualTo("CC001");
@@ -100,16 +100,16 @@ class CrmTenderLinkServiceTest {
         verify(crmProjectLeaderService, never()).findProjectLeaderByChanceCode(any());
     }
 
-    // ===== 降级场景 1：未找到负责人 → 仍关联商机并设为 TRACKING =====
+    // ===== 降级场景 1：未找到负责人 → 仍关联商机并设为 EVALUATED =====
 
     @Test
-    void linkIfPresent_noLeader_linksOpportunityAndSetsTracking() {
+    void linkIfPresent_noLeader_linksOpportunityAndSetsEvaluated() {
         Tender tender = newTender();
         when(crmProjectLeaderService.findProjectLeaderByChanceCode("CC002")).thenReturn(null);
 
         service.linkIfPresent(tender, "CC002");
 
-        assertThat(tender.getStatus()).isEqualTo(Tender.Status.TRACKING);
+        assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
         assertThat(tender.getCrmOpportunityId()).isEqualTo("CC002");
         assertThat(tender.getProjectManagerId()).isNull();
         assertThat(tender.getProjectManagerName()).isNull();
@@ -142,7 +142,7 @@ class CrmTenderLinkServiceTest {
 
         service.linkIfPresent(tender, "CC004");
 
-        assertThat(tender.getStatus()).isEqualTo(Tender.Status.TRACKING);
+        assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
         assertThat(tender.getProjectManagerId()).isNull();
         assertThat(tender.getProjectManagerName()).isEqualTo("李四");
         assertThat(tender.getCrmOpportunityId()).isEqualTo("CC004");
@@ -161,7 +161,7 @@ class CrmTenderLinkServiceTest {
 
         service.linkIfPresent(tender, "CC005");
 
-        assertThat(tender.getStatus()).isEqualTo(Tender.Status.TRACKING);
+        assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
         assertThat(tender.getProjectManagerName()).isEqualTo("王五");
         assertThat(tender.getProjectManagerId()).isNull();
         verify(userRepository, never()).findByEmployeeNumber(any());

@@ -55,10 +55,10 @@ public class CrmTenderLinkService {
             CrmProjectLeaderService.ProjectLeaderResult leader =
                     crmProjectLeaderService.findProjectLeaderByChanceCode(crmId);
             if (leader == null) {
-                log.warn("CRM link: no project leader found for crmId={}, linking opportunity and setting TRACKING", crmId);
-                // 未找到负责人：仍关联商机（用传入的 crmId），状态设为跟踪中
+                log.warn("CRM link: no project leader found for crmId={}, linking opportunity and setting EVALUATED", crmId);
+                // 未找到负责人：仍关联商机（用传入的 crmId），状态设为已评估
                 tender.setCrmOpportunityId(crmId);
-                tender.setStatus(Tender.Status.TRACKING);
+                tender.setStatus(Tender.Status.EVALUATED);
                 return;
             }
 
@@ -89,9 +89,9 @@ public class CrmTenderLinkService {
                         leader.projectLeaderName(), crmId);
             }
 
-            // 将标讯状态设置为跟踪中
-            tender.setStatus(Tender.Status.TRACKING);
-            log.info("CRM link: tender status set to TRACKING for crmId={}", crmId);
+            // 将标讯状态设置为已评估
+            tender.setStatus(Tender.Status.EVALUATED);
+            log.info("CRM link: tender status set to EVALUATED for crmId={}", crmId);
         } catch (RuntimeException e) {
             log.error("CRM link failed for crmId={}, keeping PENDING_ASSIGNMENT: {}", crmId, e.getMessage());
             // 降级：CRM 接口异常时不中断主流程，仅记录错误
