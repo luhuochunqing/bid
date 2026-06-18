@@ -212,6 +212,11 @@ const regionCascaderValue = computed({
       if (province.children) {
         for (const city of province.children) {
           if (v === province.name + city.name) return [province.name, city.name]
+          if (city.children) {
+            for (const district of city.children) {
+              if (v === province.name + city.name + district.name) return [province.name, city.name, district.name]
+            }
+          }
         }
       }
     }
