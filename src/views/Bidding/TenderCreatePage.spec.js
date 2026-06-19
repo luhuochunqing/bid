@@ -64,7 +64,7 @@ describe('TenderCreatePage button state machine', () => {
 
   it('handleNextStep switches to evaluation tab instead of navigating', () => {
     expect(tenderCreateSource).toContain("activeTab.value = 'evaluation'")
-    const handleNextStepBlock = tenderCreateSource.match(/function handleNextStep[\s\S]*?^}/m)
+    const handleNextStepBlock = tenderCreateSource.match(/function handleNextStep\(\)\s*\{[^}]*\}/m)
     expect(handleNextStepBlock).toBeTruthy()
     expect(handleNextStepBlock[0]).toContain("activeTab.value = 'evaluation'")
   })

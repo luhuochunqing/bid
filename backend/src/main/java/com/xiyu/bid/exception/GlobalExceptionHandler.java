@@ -7,7 +7,6 @@ package com.xiyu.bid.exception;
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.docinsight.application.exception.DocumentNotFoundException;
 import com.xiyu.bid.docinsight.application.exception.UnsupportedProfileException;
-import com.xiyu.bid.tender.dto.TenderDTO;
 import com.openai.errors.UnauthorizedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -172,25 +171,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * 处理标讯重复异常
      */
     @ExceptionHandler(TenderDuplicateException.class)
-    public ResponseEntity<ApiResponse<Object>> handleTenderDuplicate(
+    public ResponseEntity<ApiResponse<Void>> handleTenderDuplicate(
             TenderDuplicateException ex,
             HttpServletRequest request) {
         log.warn("标讯重复 - URI: {}, Duplicates: {}", request.getRequestURI(), ex.getDuplicates().size());
 
-        List<TenderDTO> duplicateDTOs = ex.getDuplicates().stream()
-                .map(t -> TenderDTO.builder()
-                        .id(t.getId())
-                        .title(t.getTitle())
-                        .purchaserName(t.getPurchaserName())
-                        .registrationDeadline(t.getRegistrationDeadline())
-                        .bidOpeningTime(t.getBidOpeningTime())
-                        .status(t.getStatus())
-                        .build())
-                .toList();
-
         return ResponseEntity
-                .status(HttpStatus.CONFLICT)
-                .body(ApiResponse.error(409, ex.getMessage(), duplicateDTOs));
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(400, ex.getMessage()));
     }
 
     /**
