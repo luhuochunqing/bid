@@ -53,7 +53,6 @@
     />
 
     <AssignDialog v-model="showAssignDialog" v-model:form="assignForm" :candidates="assignCandidates" :loading="assigning" :loading-candidates="loadingCandidates" @reset="assignForm.assignee = null" @submit="doAssign" />
-    <DuplicateWarningDialog v-model="showDuplicateDialog" :duplicates="duplicateList" :current-tender="currentTenderForDuplicate" @notify-admin="handleNotifyAdmin" />
   </div>
 </template>
 
@@ -68,7 +67,6 @@ import { isBidManager } from '@/utils/permission'
 import { buildManualTenderPayload } from './list/helpers.js'
 import TenderEvaluationForm from './detail/TenderEvaluationForm.vue'
 import AssignDialog from './list/components/AssignDialog.vue'
-import DuplicateWarningDialog from './list/components/DuplicateWarningDialog.vue'
 import TenderBasicInfoTab from './list/components/TenderBasicInfoTab.vue'
 import TenderActionBar from './list/components/TenderActionBar.vue'
 import { useTenderCreateForm } from './list/composables/useTenderCreateForm.js'
@@ -93,10 +91,6 @@ const isReadOnly = ref(false)
 const evaluation = ref({})
 const createdTenderId = ref(null)
 const hasUnsavedChanges = ref(false)
-
-const showDuplicateDialog = ref(false)
-const duplicateList = ref([])
-const currentTenderForDuplicate = ref({})
 
 const tenderDetail = ref(null)
 const tenderStatus = computed(() => tenderDetail.value?.status || null)
@@ -140,9 +134,6 @@ async function handleSave() {
       ? await tendersApi.update(editTenderId.value, payload)
       : await tendersApi.create(payload)
     if (!response?.success) {
-      if (response?.code === 409 || response?.status === 409) {
-        if (handleCreateConflict(response)) return
-      }
       throw new Error(response?.msg || (isEditMode.value ? '标讯更新失败' : '标讯入库失败'))
     }
     if (!isEditMode.value) createdTenderId.value = response.data?.id
@@ -152,35 +143,11 @@ async function handleSave() {
     if (!isEditMode.value) await fetchTenderDetail()
     router.push(`/bidding/${isEditMode.value ? editTenderId.value : createdTenderId.value}`)
   } catch (error) {
-    const conflictResponse = error?.response?.data
-    if (conflictResponse?.code === 409 || conflictResponse?.status === 409) {
-      if (handleCreateConflict(conflictResponse)) return
-    }
     if (!error?.isAxiosError && !error?.response) {
       ElMessage.error(error.message || (isEditMode.value ? '标讯更新失败' : '标讯入库失败'))
     }
   } finally { saving.value = false }
 }
-
-function handleCreateConflict(response) {
-  const dup = response?.data
-  if (Array.isArray(dup) && dup.length > 0) {
-    duplicateList.value = dup
-    currentTenderForDuplicate.value = { title: form.value.title, purchaserName: form.value.purchaser, registrationDeadline: form.value.deadline, bidOpeningTime: form.value.bidOpeningTime }
-    showDuplicateDialog.value = true
-    return true
-  }
-  ElMessage.error(response?.msg || '标讯入库失败')
-  return false
-}
-
-async function handleNotifyAdmin() {
-  showDuplicateDialog.value = false
-  ElMessage.success('已通知管理员复核')
-  router.push('/bidding')
-}
-
-function handleNextStep() { activeTab.value = 'evaluation' }
 function handleCancel() { router.push('/bidding') }
 function handleCancelEdit() { router.push(editTenderId.value ? `/bidding/${editTenderId.value}` : '/bidding') }
 
@@ -225,6 +192,7 @@ async function handleEvaluationSaveDraft() {
 }
 
 function onFormDirtyChanged(dirty) { hasUnsavedChanges.value = dirty }
+function handleNextStep() { activeTab.value = 'evaluation' }
 </script>
 
 <style scoped>

@@ -122,7 +122,7 @@ test.describe('§4.2.3 人工录入', () => {
     await expect(page).toHaveURL(/\/bidding\/detail\/\d+/)
   })
 
-  test('填写重复的招标主体+截止时间+开标时间 → 保存 → 出现重复标讯弹窗', async ({ page }) => {
+  test('填写重复的招标主体+截止时间+开标时间 → 保存 → 提示标讯已存在', async ({ page }) => {
     const session = await loginAsBidAdmin(page)
     const authHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` }
 
@@ -183,148 +183,9 @@ test.describe('§4.2.3 人工录入', () => {
     const saveButton = page.getByRole('button', { name: '保存' })
     await saveButton.click()
 
-    // 应出现重复标讯弹窗（409 响应，前端应捕获并弹窗提示）
-    await expect(page.locator('.el-dialog, .el-message-box, [role="dialog"]')
-      .filter({ hasText: /重复|duplicate|已存在/i }))
+    // 应出现错误提示（400 响应，前端统一显示 ElMessage.error）
+    await expect(page.locator('.el-message--error').filter({ hasText: /标讯已存在/i }))
       .toBeVisible({ timeout: 10000 })
-  })
-
-  test('重复弹窗点【取消】→ 弹窗关闭，返回创建页', async ({ page }) => {
-    const session = await loginAsBidAdmin(page)
-    const authHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` }
-
-    const uniqueSuffix = Date.now() + 1
-    const purchaser = 'E2E-重复取消-' + uniqueSuffix
-    const deadline = futureDateStr(10)
-    const bidOpen = futureDateStr(15)
-
-    // 先创建一笔标讯
-    await fetch(`${apiBaseUrl}/api/tenders`, {
-      method: 'POST',
-      headers: authHeaders,
-      body: JSON.stringify({
-        title: 'E2E-重复取消标讯-' + uniqueSuffix,
-        source: 'MANUAL_SINGLE',
-        purchaserName: purchaser,
-        registrationDeadline: deadline,
-        bidOpeningTime: bidOpen,
-        region: '北京',
-        priority: 'A',
-        customerType: '央企集团',
-        status: 'PENDING_ASSIGNMENT'
-      })
-    })
-
-    await page.goto('/bidding/create')
-    await page.waitForSelector('.el-form', { timeout: 10000 })
-
-    await page.fill('input[placeholder="请输入招标主体"]', 'E2E-重复取消2-' + uniqueSuffix)
-    await page.fill('input[placeholder="请输入招标主体"]', '测试招标代理')
-    await page.fill('input[placeholder="招标人/采购人名称"]', purchaser)
-    await page.fill('input[placeholder="联系人姓名"]', '测试联系人')
-    await page.fill('input[placeholder="手机号"]', '13800138000')
-
-    const selects2 = page.locator('.el-select')
-    await selects2.first().click()
-    await page.locator('.el-select-dropdown__item').filter({ hasText: '北京' }).first().click()
-
-    const deadlineInput = page.locator('input[placeholder="报名截止时间"]')
-    await deadlineInput.click()
-    const dateStr = new Date(Date.now() + 10 * 86400000).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-')
-    await deadlineInput.fill(dateStr)
-
-    const bidOpenInput = page.locator('input[placeholder="开标时间"]')
-    await bidOpenInput.click()
-    const dateStr2 = new Date(Date.now() + 15 * 86400000).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-')
-    await bidOpenInput.fill(dateStr2)
-
-    await page.waitForFunction(() => {
-      const btn = document.querySelector('button:has-text("保存")')
-      return btn && !btn.disabled
-    }, { timeout: 5000 })
-    await page.getByRole('button', { name: '保存' }).click()
-
-    // 等待弹窗出现
-    const dialog = page.locator('.el-dialog, .el-message-box, [role="dialog"]')
-      .filter({ hasText: /重复|duplicate|已存在/i })
-    await dialog.waitFor({ state: 'visible', timeout: 10000 })
-
-    // 点击取消按钮
-    const cancelButton = dialog.getByRole('button', { name: /取消/i })
-    await expect(cancelButton).toBeVisible()
-    await cancelButton.click()
-
-    // 弹窗应关闭
-    await expect(dialog).not.toBeVisible({ timeout: 5000 })
-
-    // 仍停留在创建页
-    await expect(page).toHaveURL(/\/bidding\/create/)
-  })
-
-  test('重复弹窗点【通知管理员复核】→ 显示 Toast', async ({ page }) => {
-    const session = await loginAsBidAdmin(page)
-    const authHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` }
-
-    const uniqueSuffix = Date.now() + 2
-    const purchaser = 'E2E-重复通知-' + uniqueSuffix
-
-    // 先创建一笔标讯
-    await fetch(`${apiBaseUrl}/api/tenders`, {
-      method: 'POST',
-      headers: authHeaders,
-      body: JSON.stringify({
-        title: 'E2E-重复通知标讯-' + uniqueSuffix,
-        source: 'MANUAL_SINGLE',
-        purchaserName: purchaser,
-        registrationDeadline: futureDateStr(10),
-        bidOpeningTime: futureDateStr(15),
-        region: '北京',
-        priority: 'A',
-        customerType: '央企集团',
-        status: 'PENDING_ASSIGNMENT'
-      })
-    })
-
-    await page.goto('/bidding/create')
-    await page.waitForSelector('.el-form', { timeout: 10000 })
-
-    await page.fill('input[placeholder="请输入招标主体"]', 'E2E-重复通知2-' + uniqueSuffix)
-    await page.fill('input[placeholder="请输入招标主体"]', '测试招标代理')
-    await page.fill('input[placeholder="招标人/采购人名称"]', purchaser)
-    await page.fill('input[placeholder="联系人姓名"]', '测试联系人')
-    await page.fill('input[placeholder="手机号"]', '13800138000')
-
-    const selects3 = page.locator('.el-select')
-    await selects3.first().click()
-    await page.locator('.el-select-dropdown__item').filter({ hasText: '北京' }).first().click()
-
-    const deadlineInput = page.locator('input[placeholder="报名截止时间"]')
-    await deadlineInput.click()
-    await deadlineInput.fill(new Date(Date.now() + 10 * 86400000).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-'))
-
-    const bidOpenInput = page.locator('input[placeholder="开标时间"]')
-    await bidOpenInput.click()
-    await bidOpenInput.fill(new Date(Date.now() + 15 * 86400000).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-'))
-
-    await page.waitForFunction(() => {
-      const btn = document.querySelector('button:has-text("保存")')
-      return btn && !btn.disabled
-    }, { timeout: 5000 })
-    await page.getByRole('button', { name: '保存' }).click()
-
-    // 等待重复弹窗
-    const dialog = page.locator('.el-dialog, .el-message-box, [role="dialog"]')
-      .filter({ hasText: /重复|duplicate|已存在/i })
-    await dialog.waitFor({ state: 'visible', timeout: 10000 })
-
-    // 点击通知管理员复核按钮（如果有的话）
-    const confirmButton = dialog.getByRole('button', { name: /通知|确认|复核/i })
-    if (await confirmButton.isVisible()) {
-      await confirmButton.click()
-      // 应显示成功提示
-      await expect(page.locator('.el-message').filter({ hasText: /成功|已通知/i }))
-        .toBeVisible({ timeout: 8000 })
-    }
   })
 })
 

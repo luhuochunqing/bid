@@ -3,12 +3,16 @@ package com.xiyu.bid.exception;
 import com.openai.core.http.Headers;
 import com.openai.errors.UnauthorizedException;
 import com.openai.models.ErrorObject;
+import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.dto.ApiResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -109,5 +113,26 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getCode()).isEqualTo(404);
         assertThat(response.getBody().getMessage()).isEqualTo("请求无法处理");
+    }
+
+    @Test
+    void handleTenderDuplicateException_shouldReturn400WithMessage() {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/tenders");
+        Tender duplicate = Tender.builder()
+                .id(1L)
+                .title("已有标讯")
+                .purchaserName("测试采购人")
+                .registrationDeadline(LocalDateTime.of(2026, 7, 1, 12, 0))
+                .bidOpeningTime(LocalDateTime.of(2026, 7, 15, 10, 0))
+                .build();
+        TenderDuplicateException exception = new TenderDuplicateException(List.of(duplicate));
+
+        ResponseEntity<ApiResponse<Void>> response = handler.handleTenderDuplicate(exception, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getCode()).isEqualTo(400);
+        assertThat(response.getBody().getMessage()).isEqualTo("标讯已存在");
+        assertThat(response.getBody().getData()).isNull();
     }
 }
