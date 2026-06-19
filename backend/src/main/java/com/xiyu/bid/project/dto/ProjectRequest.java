@@ -1,5 +1,6 @@
 package com.xiyu.bid.project.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.xiyu.bid.entity.Project;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.DecimalMin;
@@ -47,9 +48,11 @@ public class ProjectRequest {
     private List<@NotNull(message = "成员ID不能为null") Long> teamMembers;
 
     @NotNull(message = "开始日期不能为空")
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime startDate;
 
     @NotNull(message = "结束日期不能为空")
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime endDate;
 
     @Size(max = 100, message = "来源模块长度不能超过100个字符")
@@ -93,6 +96,7 @@ public class ProjectRequest {
     @Size(max = 255, message = "平台名称长度不能超过255个字符")
     private String platform;
 
+    @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate deadline;
 
     @Size(max = 5000, message = "项目描述长度不能超过5000个字符")
