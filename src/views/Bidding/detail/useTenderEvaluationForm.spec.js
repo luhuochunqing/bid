@@ -132,6 +132,25 @@ describe('buildApiPayload', () => {
     expect(eavRows.some(r => r.infoKey === 'CONTACT_INFO')).toBe(false)
     expect(eavRows.some(r => r.infoKey === 'CONTACTED')).toBe(false)
   })
+
+  it('preserves external role rows when building EAV payload', () => {
+    const form = {
+      basic: makeEmptyBasic(),
+      customerInfo: [
+        { roleKey: 'EXTERNAL_ROLE_1', NAME: '张三', CONTACT_INFO: '18888888888' },
+      ],
+      recommendation: { shouldBid: true, reason: '' },
+    }
+
+    const payload = buildApiPayload(form)
+
+    expect(payload.evaluationCustomerInfos).toContainEqual(
+      expect.objectContaining({ roleKey: 'EXTERNAL_ROLE_1', infoKey: 'NAME', value: '张三', valueType: 'TEXT' })
+    )
+    expect(payload.evaluationCustomerInfos).toContainEqual(
+      expect.objectContaining({ roleKey: 'EXTERNAL_ROLE_1', infoKey: 'CONTACT_INFO', value: '18888888888', valueType: 'TEXT' })
+    )
+  })
 })
 
 function makeEmptyBasic() {

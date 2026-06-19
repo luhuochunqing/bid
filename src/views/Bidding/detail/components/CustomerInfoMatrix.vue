@@ -1,7 +1,7 @@
 <template>
   <div class="customer-info-matrix">
     <div class="matrix-header">
-      <span class="matrix-title">客户信息矩阵（{{ CUSTOMER_INFO_ROWS.length }} 个角色 × {{ CUSTOMER_INFO_COLUMNS.length }} 个信息维度）</span>
+      <span class="matrix-title">客户信息矩阵（{{ localData.length }} 个角色 × {{ CUSTOMER_INFO_COLUMNS.length }} 个信息维度）</span>
       <span class="matrix-hint">角色行固定不可增删</span>
     </div>
     <CustomerInfoMatrixTable
@@ -52,16 +52,26 @@ function mergeData(incoming) {
   const map = new Map()
   if (Array.isArray(incoming)) {
     for (const item of incoming) {
-      if (item.roleKey) map.set(item.roleKey, item)
+      if (item?.roleKey) map.set(item.roleKey, item)
     }
   }
-  return CUSTOMER_INFO_ROWS.map((r) => {
+  const fixedKeys = new Set(CUSTOMER_INFO_ROWS.map(r => r.roleKey))
+  const fixedRows = CUSTOMER_INFO_ROWS.map((r) => {
     const existing = map.get(r.roleKey)
     if (existing) {
       return { ...makeEmptyRow(r), ...existing, roleKey: r.roleKey, roleLabel: r.roleLabel }
     }
     return makeEmptyRow(r)
   })
+  const extraRows = Array.isArray(incoming)
+    ? incoming
+      .filter(item => item?.roleKey && !fixedKeys.has(item.roleKey))
+      .map(item => {
+        const roleLabel = item.roleLabel || item.roleKey
+        return { ...makeEmptyRow({ roleKey: item.roleKey, roleLabel }), ...item, roleKey: item.roleKey, roleLabel }
+      })
+    : []
+  return [...fixedRows, ...extraRows]
 }
 
 const localData = ref(mergeData(props.modelValue))
