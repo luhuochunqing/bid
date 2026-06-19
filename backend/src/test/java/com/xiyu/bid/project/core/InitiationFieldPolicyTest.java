@@ -87,14 +87,13 @@ class InitiationFieldPolicyTest {
     }
 
     @Test
-    void missingProjectType_denied() {
+    void projectType_optional() {
         var in = new InitiationFieldPolicy.InitiationInput("国网", 3, 12, null,
                 InitiationFieldPolicy.CustomerType.CENTRAL_SOE,
                 new BigDecimal("1"), null, LocalDateTime.now(), 1L, "部门",
                 new BigDecimal("1"), "汇票", "NO", null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null);
-        assertTrue(((InitiationFieldPolicy.Decision.Deny)
-                InitiationFieldPolicy.validate(in)).missingFields().contains("projectType"));
+        assertTrue(InitiationFieldPolicy.validate(in).allowed());
     }
 
     @Test

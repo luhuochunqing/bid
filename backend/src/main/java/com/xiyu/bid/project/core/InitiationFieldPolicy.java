@@ -13,8 +13,9 @@ import java.util.Set;
 /**
  * PRD §3.1 立项字段策略（纯规则，无 Spring/JPA）。
  *
- * <p>必填项（§3.1.1）：业主单位、入围家数、合同期限(start+end)、项目类型、
+ * <p>必填项（§3.1.1）：业主单位、入围家数、合同期限(start+end)、
  * 客户类型、营业收入、开标时间、业务负责人、归属部门、保证金额、缴纳方式。
+ * 项目类型改为可选项（CO-281）。
  * 投标月份由 bidOpenTime 推导，不直接校验；竞争对手为可选项。
  *
  * <p>锁定项（§3.1.2，提交后不可改）：bidOpenTime、ownerUnit。
@@ -47,7 +48,6 @@ public final class InitiationFieldPolicy {
 
         requireText("ownerUnit", input.ownerUnit(), missing);
         requirePositive("expectedBidders", input.expectedBidders(), missing);
-        requireNotNull("projectType", input.projectType(), missing);
         requireNotNull("customerType", input.customerType(), missing);
         requirePositiveAmount("annualRevenue", input.annualRevenue(), missing);
         requireNotNull("bidOpenTime", input.bidOpenTime(), missing);
