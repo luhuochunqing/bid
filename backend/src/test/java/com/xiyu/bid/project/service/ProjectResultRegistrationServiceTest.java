@@ -4,8 +4,6 @@
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.project.service;
 
-import com.xiyu.bid.crm.application.CrmAuthService;
-import com.xiyu.bid.crm.infrastructure.CrmHttpClient;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.project.core.BidResultType;
 import com.xiyu.bid.project.core.ProjectStage;
@@ -50,8 +48,7 @@ class ProjectResultRegistrationServiceTest {
     private ProjectStageService stageService;
     private com.xiyu.bid.service.ProjectAccessScopeService accessScopeService;
     private ProjectNotificationService notificationService;
-    private CrmAuthService crmAuthService;
-    private CrmHttpClient crmHttpClient;
+    private ProjectResultCrmCallbackService crmCallbackService;
     private ProjectResultRegistrationService service;
 
     @BeforeEach
@@ -64,9 +61,8 @@ class ProjectResultRegistrationServiceTest {
         accessScopeService = mock(com.xiyu.bid.service.ProjectAccessScopeService.class);
         competitorRepo = mock(ProjectResultCompetitorRepository.class);
         notificationService = mock(ProjectNotificationService.class);
-        crmAuthService = mock(CrmAuthService.class);
-        crmHttpClient = mock(CrmHttpClient.class);
-        service = new ProjectResultRegistrationService(repo, competitorRepo, projectRepo, tenderRepo, userRepo, stageService, accessScopeService, notificationService, crmAuthService, crmHttpClient);
+        crmCallbackService = mock(ProjectResultCrmCallbackService.class);
+        service = new ProjectResultRegistrationService(repo, competitorRepo, projectRepo, tenderRepo, userRepo, stageService, accessScopeService, notificationService, crmCallbackService);
         Project p = new Project();
         p.setId(1L);
         when(projectRepo.findById(1L)).thenReturn(Optional.of(p));

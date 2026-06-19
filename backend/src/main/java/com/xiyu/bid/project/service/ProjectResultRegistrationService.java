@@ -5,8 +5,6 @@
 package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.annotation.Auditable;
-import com.xiyu.bid.crm.application.CrmAuthService;
-import com.xiyu.bid.crm.infrastructure.CrmHttpClient;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
@@ -29,17 +27,13 @@ import com.xiyu.bid.service.ProjectAccessScopeService;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -68,11 +62,7 @@ public class ProjectResultRegistrationService {
     private final ProjectStageService projectStageService;
     private final ProjectAccessScopeService projectAccessScopeService;
     private final ProjectNotificationService notificationService;
-    private final CrmAuthService crmAuthService;
-    private final CrmHttpClient crmHttpClient;
-
-    @Value("${webhook.crm.url:https://crm-test.ehsy.com/customer-chance/bidInfoSync}")
-    private String crmCallbackBaseUrl;
+    private final ProjectResultCrmCallbackService crmCallbackService;
 
     @Auditable(action = "REGISTER_PROJECT_RESULT", entityType = "ProjectResult", description = "登记项目结果")
     public ResultDTO register(Long projectId, ResultRegistrationRequest req, Long currentUserId) {
@@ -117,8 +107,9 @@ public class ProjectResultRegistrationService {
         ProjectResult saved = repository.save(entity);
         // 保存竞争对手情况（PRD §3.3.1.4）
         persistCompetitors(saved.getId(), req.getCompetitors());
-        // CRM 回调：异步通知 CRM 系统结果已确认
-        crmResultCallback(projectId, req.getResultType(), req.getCompetitors(), currentUserId, saved.getId());
+        // CRM 回调：异步通知 CRM 系统结果已确认。
+        // 委托给独立 Bean——同类内 this. 自调用会绕过 Spring AOP 代理使 @Async 失效（同步阻塞事务）。
+        crmCallbackService.notifyResultConfirmed(projectId, req.getResultType(), req.getCompetitors(), currentUserId, saved.getId());
         // §5.4: 结果登记后按结果类型分流推进 RESULT_PENDING → RETROSPECTIVE / CLOSED（幂等跳过）
         ProjectStage current = projectStageService.currentStage(projectId);
         if (current == ProjectStage.RESULT_PENDING) {
@@ -207,59 +198,6 @@ public class ProjectResultRegistrationService {
                 .map(e -> new ResultDTO.CompetitorRow(e.getName(), e.getDiscount(),
                         e.getPaymentTerm(), e.getNotes()))
                 .toList();
-    }
-
-    /**
-     * CRM 结果确认回调（PRD §3.3.1.4）。
-     * 结果确认后，异步通知 CRM 系统，失败不影响主流程。
-     */
-    @Async
-    private void crmResultCallback(Long projectId, BidResultType resultType,
-                                   List<ResultRegistrationRequest.CompetitorRow> competitors,
-                                   Long userId, Long resultId) {
-        try {
-            Long tenderId = projectRepository.findById(projectId).map(Project::getTenderId).orElse(null);
-            if (tenderId == null) { log.warn("CRM callback skipped: projectId={} has no tenderId", projectId); return; }
-            Tender tender = tenderRepository.findById(tenderId).orElse(null);
-            if (tender == null) { log.warn("CRM callback skipped: tenderId={} not found", tenderId); return; }
-            String sourceId = extractSourceId(tender.getExternalId());
-            User user = userRepository.findById(userId).orElse(null);
-            String operatorName = user != null ? user.getFullName() : "未知";
-            String operatorEmployeeId = user != null ? user.getEmployeeNumber() : "";
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("tenderId", tenderId);
-            payload.put("sourceId", sourceId != null ? sourceId : "");
-            payload.put("bidResult", resultType.name());
-            payload.put("evidenceFiles", List.of());
-            payload.put("competitors", buildCompetitorList(competitors));
-            payload.put("systemName", "西域数智化投标管理平台");
-            payload.put("operatorName", operatorName);
-            payload.put("operatorEmployeeId", operatorEmployeeId != null ? operatorEmployeeId : "");
-            payload.put("operatedAt", LocalDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
-
-            String token = crmAuthService.getValidToken();
-            crmHttpClient.post(crmCallbackBaseUrl, "", token, payload);
-            log.info("CRM callback sent: projectId={} tenderId={} sourceId={} resultType={}", projectId, tenderId, sourceId, resultType);
-        } catch (RuntimeException e) {
-            log.error("CRM result callback failed: projectId={} resultType={} error={}", projectId, resultType, e.getMessage(), e);
-        }
-    }
-
-    private String extractSourceId(String externalId) {
-        if (externalId == null || externalId.isBlank()) return null;
-        int idx = externalId.indexOf(':');
-        return idx >= 0 ? externalId.substring(idx + 1) : externalId;
-    }
-
-    private List<Map<String, Object>> buildCompetitorList(List<ResultRegistrationRequest.CompetitorRow> competitors) {
-        if (competitors == null || competitors.isEmpty()) return List.of();
-        return competitors.stream().filter(c -> c != null && !isStrBlank(c.name())).map(c -> {
-            Map<String, Object> m = new HashMap<>();
-            m.put("name", c.name()); m.put("discount", c.discount() != null ? c.discount() : "");
-            m.put("paymentTerm", c.paymentTerm() != null ? c.paymentTerm() : "");
-            m.put("notes", c.notes() != null ? c.notes() : "");
-            return m;
-        }).toList();
     }
 
     /**
