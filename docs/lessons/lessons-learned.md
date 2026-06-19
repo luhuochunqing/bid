@@ -39,3 +39,44 @@ grep -R "proceedToBid" src/api src/views
 
 - `docs/lessons/root-cause-analysis-co-274.md` — 完整根因分析
 - `docs/exec-plans/tech-debt-tracker.md` — 相关技术债登记
+
+---
+
+## 2. 前端热更新部署时不能只保留 index.html 引用的文件
+
+### 问题背景
+
+2026-06-19 部署前端更新时，清理旧 assets 脚本只保留了 `index.html` 直接引用的 7 个文件，但 Vite 入口 JS 通过动态 import() 引用了大量 chunk 文件（如 `expensePageShared-*.js`、`MainLayout-*.js` 等）。这些 chunk 被误删后，用户访问页面时报 404，页面白屏。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 清理脚本只检查 index.html 引用 | Vite 动态 import 的 chunk 不在 index.html 中 | 前端部署必须保留完整 dist 目录 |
+| 先清理旧文件再部署新文件 | 清理和部署顺序错误 | 先部署新文件 → 验证通过 → 再清理旧版本 |
+| 缺少部署后验证 | 未检查动态 chunk 是否完整 | 部署后检查 assets 目录文件数是否与本地 dist 一致 |
+
+### 正确做法
+
+```bash
+# 方式 1：直接覆盖整个 dist 目录（推荐热更新）
+rm -rf /srv/www/xiyu-bid/*
+cp -R dist/. /srv/www/xiyu-bid/
+
+# 方式 2：版本化目录切换（推荐正式发布）
+ln -sfn /opt/xiyu-bid/releases/<hash>/frontend /srv/www/xiyu-bid
+```
+
+### 验证命令
+
+```bash
+# 本地 dist 文件数
+ls dist/assets/ | wc -l
+
+# 服务器文件数（应一致）
+ssh jetty@172.16.38.78 'ls /srv/www/xiyu-bid/assets/ | wc -l'
+```
+
+### 相关文档
+
+- `docs/lessons/root-cause-analysis-frontend-404.md` — 完整根因分析

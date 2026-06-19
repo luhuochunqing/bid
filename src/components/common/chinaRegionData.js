@@ -19,6 +19,9 @@ export function isMunicipalityName(name) {
  */
 export function normalizeHeadquartersRegionPath(path) {
   if (!Array.isArray(path) || path.length === 0) return ''
+  if (isMunicipalityName(path[0])) {
+    return `${path[0]}-${path[0]}`
+  }
   if (isProvinceOnlyName(path[0])) return path[0]
   return path.join('')
 }
@@ -29,46 +32,12 @@ export const chinaRegionOptions = [
   {
     name: '北京市',
     code: '110000',
-    children: [
-      { name: '东城区', code: '110101' },
-      { name: '西城区', code: '110102' },
-      { name: '朝阳区', code: '110105' },
-      { name: '丰台区', code: '110106' },
-      { name: '石景山区', code: '110107' },
-      { name: '海淀区', code: '110108' },
-      { name: '门头沟区', code: '110109' },
-      { name: '房山区', code: '110111' },
-      { name: '通州区', code: '110112' },
-      { name: '顺义区', code: '110113' },
-      { name: '昌平区', code: '110114' },
-      { name: '大兴区', code: '110115' },
-      { name: '怀柔区', code: '110116' },
-      { name: '平谷区', code: '110117' },
-      { name: '密云区', code: '110118' },
-      { name: '延庆区', code: '110119' },
-    ],
+    children: [{ name: '北京市', code: '110100' }],
   },
   {
     name: '天津市',
     code: '120000',
-    children: [
-      { name: '和平区', code: '120101' },
-      { name: '河东区', code: '120102' },
-      { name: '河西区', code: '120103' },
-      { name: '南开区', code: '120104' },
-      { name: '河北区', code: '120105' },
-      { name: '红桥区', code: '120106' },
-      { name: '东丽区', code: '120110' },
-      { name: '西青区', code: '120111' },
-      { name: '津南区', code: '120112' },
-      { name: '北辰区', code: '120113' },
-      { name: '武清区', code: '120114' },
-      { name: '宝坻区', code: '120115' },
-      { name: '滨海新区', code: '120116' },
-      { name: '宁河区', code: '120117' },
-      { name: '静海区', code: '120118' },
-      { name: '蓟州区', code: '120119' },
-    ],
+    children: [{ name: '天津市', code: '120100' }],
   },
   {
     name: '河北省',
@@ -179,24 +148,7 @@ export const chinaRegionOptions = [
   {
     name: '上海市',
     code: '310000',
-    children: [
-      { name: '黄浦区', code: '310101' },
-      { name: '徐汇区', code: '310104' },
-      { name: '长宁区', code: '310105' },
-      { name: '静安区', code: '310106' },
-      { name: '普陀区', code: '310107' },
-      { name: '虹口区', code: '310109' },
-      { name: '杨浦区', code: '310110' },
-      { name: '闵行区', code: '310112' },
-      { name: '宝山区', code: '310113' },
-      { name: '嘉定区', code: '310114' },
-      { name: '浦东新区', code: '310115' },
-      { name: '金山区', code: '310116' },
-      { name: '松江区', code: '310117' },
-      { name: '青浦区', code: '310118' },
-      { name: '奉贤区', code: '310120' },
-      { name: '崇明区', code: '310151' },
-    ],
+    children: [{ name: '上海市', code: '310100' }],
   },
   {
     name: '江苏省',
@@ -452,31 +404,7 @@ export const chinaRegionOptions = [
   {
     name: '重庆市',
     code: '500000',
-    children: [
-      { name: '万州区', code: '500101' },
-      { name: '涪陵区', code: '500102' },
-      { name: '渝中区', code: '500103' },
-      { name: '大渡口区', code: '500104' },
-      { name: '江北区', code: '500105' },
-      { name: '沙坪坝区', code: '500106' },
-      { name: '九龙坡区', code: '500107' },
-      { name: '南岸区', code: '500108' },
-      { name: '北碚区', code: '500109' },
-      { name: '渝北区', code: '500112' },
-      { name: '巴南区', code: '500113' },
-      { name: '长寿区', code: '500115' },
-      { name: '江津区', code: '500116' },
-      { name: '合川区', code: '500117' },
-      { name: '永川区', code: '500118' },
-      { name: '南川区', code: '500119' },
-      { name: '璧山区', code: '500120' },
-      { name: '铜梁区', code: '500151' },
-      { name: '潼南区', code: '500152' },
-      { name: '荣昌区', code: '500153' },
-      { name: '开州区', code: '500154' },
-      { name: '梁平区', code: '500155' },
-      { name: '武隆区', code: '500156' },
-    ],
+    children: [{ name: '重庆市', code: '500100' }],
   },
   {
     name: '四川省',

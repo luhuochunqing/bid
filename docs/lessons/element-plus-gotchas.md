@@ -4,7 +4,64 @@
 
 ---
 
-## 1. el-cascader 级联选择器与后端字符串字段的转换陷阱
+## 1. el-input 与 el-cascader/el-select/el-date-picker 宽度不一致
+
+### 问题
+
+表单中 `el-input` 的边框视觉上比其他输入组件短：
+
+```vue
+<el-row :gutter="16">
+  <el-col :span="12">
+    <el-form-item label="总部所在地">
+      <el-cascader class="full-width" />  <!-- 占满 -->
+    </el-form-item>
+  </el-col>
+  <el-col :span="12">
+    <el-form-item label="招标主体">
+      <el-input placeholder="请输入" />  <!-- 视觉上更短！ -->
+    </el-form-item>
+  </el-col>
+</el-row>
+```
+
+### 根因
+
+Element Plus 组件默认宽度行为不一致：
+
+| 组件 | 默认宽度行为 |
+|------|-------------|
+| `el-cascader` | 需要显式设置宽度，通常配合 `class="full-width"` |
+| `el-select` | 需要显式设置宽度，通常配合 `class="full-width"` |
+| `el-date-picker` | 需要显式设置宽度，通常配合 `class="full-width"` |
+| `el-input` | 默认由内部机制决定，**不自动占满父容器** |
+
+当给前者添加 `class="full-width"`（`width: 100%`）而 `el-input` 没有时，出现宽度差异。
+
+### 修复
+
+统一给所有 `el-input` 添加 `class="full-width"`：
+
+```vue
+<!-- ❌ 错误：el-input 没有 full-width -->
+<el-input v-model="form.purchaser" placeholder="请输入招标主体" />
+
+<!-- ✅ 正确：统一添加 full-width -->
+<el-input v-model="form.purchaser" placeholder="请输入招标主体" class="full-width" />
+```
+
+### 涉及文件
+
+- `src/views/Bidding/list/components/ManualTenderDialog.vue`
+- `src/views/Bidding/list/components/TenderBasicInfoTab.vue`
+
+### 规范建议
+
+在 Element Plus 表单中，**统一给所有输入组件添加 `class="full-width"`**，确保宽度一致。
+
+---
+
+## 2. el-cascader 级联选择器与后端字符串字段的转换陷阱
 
 ### 问题
 

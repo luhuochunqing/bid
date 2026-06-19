@@ -23,7 +23,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="招标主体" prop="purchaser">
-              <el-input v-model="form.purchaser" placeholder="请输入招标主体" />
+              <el-input v-model="form.purchaser" placeholder="请输入招标主体" class="full-width" />
             </el-form-item>
           </el-col>
           <el-col :span="12">

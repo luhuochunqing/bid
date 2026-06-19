@@ -44,7 +44,7 @@
             </el-col>
             <el-col :span="12">
               <el-form-item label="招标主体" prop="purchaser">
-                <el-input v-model="form.purchaser" placeholder="请输入招标主体" />
+                <el-input v-model="form.purchaser" placeholder="请输入招标主体" class="full-width" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
@@ -85,22 +85,22 @@
             </el-col>
             <el-col :span="12">
               <el-form-item label="联系人" prop="contact">
-                <el-input v-model="form.contact" placeholder="联系人姓名" />
+                <el-input v-model="form.contact" placeholder="联系人姓名" class="full-width" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="联系方式" prop="phone">
-                <el-input v-model="form.phone" placeholder="手机号/座机/邮箱" />
+                <el-input v-model="form.phone" placeholder="手机号/座机/邮箱" class="full-width" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="联系人2">
-                <el-input v-model="form.contact2" placeholder="联系人姓名（选填）" />
+                <el-input v-model="form.contact2" placeholder="联系人姓名（选填）" class="full-width" />
               </el-form-item>
             </el-col>
             <el-col :span="12">
               <el-form-item label="联系方式2">
-                <el-input v-model="form.phone2" placeholder="手机号/座机/邮箱（选填）" />
+                <el-input v-model="form.phone2" placeholder="手机号/座机/邮箱（选填）" class="full-width" />
               </el-form-item>
             </el-col>
             <el-col :span="24">

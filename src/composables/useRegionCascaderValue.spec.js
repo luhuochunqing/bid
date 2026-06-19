@@ -45,11 +45,11 @@ describe('useRegionCascaderValue', () => {
     expect(r.value).toBe('广东省深圳市')
   })
 
-  it('set: 直辖市路径 → 仅市名（丢弃区）', () => {
+  it('set: 直辖市路径 → 市-市格式', () => {
     const r = ref('')
     const v = useRegionCascaderValue(() => r.value, (x) => { r.value = x })
-    v.value = ['北京市', '东城区']
-    expect(r.value).toBe('北京市')
+    v.value = ['北京市', '北京市']
+    expect(r.value).toBe('北京市-北京市')
   })
 
   it('set: 空值/清空 → 写入 emptyValue（默认 ""）', () => {
