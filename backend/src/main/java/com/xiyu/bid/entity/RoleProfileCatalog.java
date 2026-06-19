@@ -125,6 +125,9 @@ public final class RoleProfileCatalog {
             Map.entry(ADMIN_STAFF_CODE, new SeedDefinition(ADMIN_STAFF_CODE, "行政人员", "资质证书管理与行政事务", true, "self",
                     List.of("certificate.manage", "qualification.view"))),
             Map.entry(STAFF_CODE, new SeedDefinition(STAFF_CODE, "普通员工", "基础 dashboard 快捷入口与 AI 中心访问", true, "self",
+                    // TODO(产品决策)："operation-logs"（审计日志查看）是否应给所有 STAFF？
+                    // 当前测试期望包含该权限（RoleProfileServicePersistence*Test#resetRole...）。
+                    // 业务上普通员工是否需要查看全局审计日志待产品确认。follow-up issue 待开。
                     List.of(QUICK_START_PERMISSION, AI_CENTER_PERMISSION,
                             "operation-logs",
                             "dashboard:view_welcome_banner", "dashboard:view_activity_list", "dashboard:view_priority_todos"))),
