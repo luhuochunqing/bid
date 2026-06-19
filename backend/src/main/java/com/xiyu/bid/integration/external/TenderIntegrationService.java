@@ -50,6 +50,12 @@ public class TenderIntegrationService {
      */
     @Transactional
     public TenderPushResponse pushTender(TenderPushRequest request, Long userId) {
+        // CO-275 诊断日志：取证 CRM 推送实际传入的字段（region/projectType/sourcePlatform 等），
+        // 用于定位"总部所在地/项目类型字段没带过来"的根因。部署后等一次真实 CRM 推送即可确认。
+        log.info("pushTender received: sourceSystem={}, sourceId={}, crmId={}, title={}, region={}, projectType={}, sourcePlatform={}, source={}, industry={}",
+                request.getSourceSystem(), request.getSourceId(), request.getCrmId(), request.getTitle(),
+                request.getRegion(), request.getProjectType(), request.getSourcePlatform(),
+                request.getSource(), request.getIndustry());
         String externalId = buildExternalId(request.getSourceSystem(), request.getSourceId());
         return tenderRepository.findByExternalId(externalId)
                 .map(existing -> {
