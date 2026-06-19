@@ -17,9 +17,12 @@ public class CrmProjectLeaderService {
     private static final Logger log = LoggerFactory.getLogger(CrmProjectLeaderService.class);
 
     private final CrmChanceService crmChanceService;
+    private final CrmChanceDetailService crmChanceDetailService;
 
-    public CrmProjectLeaderService(CrmChanceService crmChanceService) {
+    public CrmProjectLeaderService(CrmChanceService crmChanceService,
+                                   CrmChanceDetailService crmChanceDetailService) {
         this.crmChanceService = crmChanceService;
+        this.crmChanceDetailService = crmChanceDetailService;
     }
 
     /**
@@ -59,6 +62,40 @@ public class CrmProjectLeaderService {
                 first.projectLeaderNo(),
                 first.name(),
                 first.code()
+        );
+    }
+
+    /**
+     * 按商机主键 id 查询项目负责人信息。
+     * <p>用于外部系统推送标讯时只携带商机主键 id（sourceId）未携带 code（crmId）的场景：
+     * 通过 CRM detail 接口反查商机详情，取出 code/name/projectLeader。
+     * <p>降级策略：查询失败或未找到返回 null，由调用方决定后续行为。
+     *
+     * @param id CRM 商机主键 id
+     * @return 项目负责人信息；{@code null} 表示查询失败或未找到
+     */
+    public ProjectLeaderResult findProjectLeaderByChanceId(Long id) {
+        if (id == null) {
+            log.warn("findProjectLeaderByChanceId skipped: id is null");
+            return null;
+        }
+        CustomerChanceVO vo = crmChanceDetailService.getDetailById(id);
+        if (vo == null) {
+            log.warn("findProjectLeaderByChanceId: no opportunity found for id={}", id);
+            return null;
+        }
+        if (vo.projectLeaderName() == null || vo.projectLeaderName().isBlank()) {
+            log.info("findProjectLeaderByChanceId: id={} has no projectLeaderName", id);
+            // 仍返回，因为调用方需要 vo.code() 来关联商机
+            return new ProjectLeaderResult(null, null, vo.name(), vo.code());
+        }
+        log.info("findProjectLeaderByChanceId: id={}, code={}, leader={}, leaderNo={}",
+                id, vo.code(), vo.projectLeaderName(), vo.projectLeaderNo());
+        return new ProjectLeaderResult(
+                vo.projectLeaderName(),
+                vo.projectLeaderNo(),
+                vo.name(),
+                vo.code()
         );
     }
 
