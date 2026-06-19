@@ -49,7 +49,7 @@ function isNumericId(id) {
 
 export const tendersApi = {
   async getList(params = {}) {
-    const response = await httpClient.get('/api/tenders', { params: { ...params, size: params.size || 200 } })
+    const response = await httpClient.get('/api/tenders', { params: { ...params, size: params.size || 10000 } })
     // 兼容两种格式：旧 flat array / 新 PagedResult { content, totalElements }
     const rawData = response?.data
     const list = Array.isArray(rawData) ? rawData
