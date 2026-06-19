@@ -176,6 +176,8 @@ export function useCrmOpportunitySelector(props, emit) {
     // opportunityId 传商机编号（code，CC... 格式），非商机数字 id。
     // 后端 crm_opportunity_id 字段存商机编号（V118 迁移注释明确"存商机编号如 CC20260610180"），
     // webhook bidInfoSync 回传时 code 字段也取此值匹配 CRM 商机。若传数字 id 会导致 CRM 匹配失败。
+    // 注：CRM 自动推送路径（非手动关联）实测传的是 id（CO-277），后端 applyCrmLinkAndAssignment
+    // 会自动按 id 反查 code 落库；但前端手动关联路径直接传 code，无需反查。
     emit('linked', {
       opportunityId: chance.code,
       opportunityName: chance.name,

@@ -94,11 +94,15 @@ public class TenderUpdateRequest {
     private String crmId;
 
     /**
-     * CRM 商机编号（对外公开字段，语义同 {@link #crmId}，即商机编号 code 如 CC20260619283）。
+     * CRM 商机标识（对外公开字段，语义同 {@link #crmId}）。
      * <p>CO-276：CRM 通过 PUT 推送时使用 crmOpportunityId 字段名，与代码内 crmId 不一致，
      * 导致 Jackson 反序列化时丢弃该字段、商机未关联、放弃/中标状态无法回传 CRM（tender 273 案例）。
      * 新增此公开别名字段兼容 CRM 文档字段名，业务侧用
      * {@code firstNonBlank(crmOpportunityId, crmId)} 合并取值，两者任一非空即可。
+     * <p>⚠️ CO-277 实测纠正：CRM 实际推送的是商机<strong>主键 id</strong>（纯数字如 20916），
+     * 而非商机编号 code（CC... 格式）。本字段值可能是 id 或 code，
+     * 由 {@code CrmTenderLinkService.applyCrmLinkAndAssignment} 自动识别并按 id 反查 code 后落库。
+     * 因此 {@code crmId}/{@code crmOpportunityId} 的语义是"CRM 推送的商机标识"，不保证是 code 格式。
      */
     private String crmOpportunityId;
 

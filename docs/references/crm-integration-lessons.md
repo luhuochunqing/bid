@@ -198,6 +198,11 @@ Created tender id=268 externalId=CRM:241
 - `CrmTenderLinkService` 存 `leader.opportunityCode()`（商机 code）
 - `crm-field-mapping.md` 说 `id` 回写 `crm_opportunity_id` —— **此条文档与代码/迁移注释矛盾，待对齐**
 
+> ✅ CO-277 已解决此矛盾：CRM 推送的 `crmOpportunityId` 实测是商机**主键 id**（纯数字如 20916），
+> `CrmTenderLinkService.applyCrmLinkAndAssignment`（CO-277）自动识别纯数字 id 并按 id 反查 code 后落库。
+> 即：CRM 推 id → 系统反查 code → `crm_opportunity_id` 列存 code（CC... 格式）→ 回传 bidInfoSync 的 code 字段。
+> `crm-field-mapping.md` 所说"id 回写"指的是 CRM 推送入口接收 id，但持久化的是反查后的 code。
+
 ⚠️ 前端手动关联路径（`useCrmOpportunitySelector.js:177`）传的是 `chance.id`（商机 id，数字），与 V118 设计意图（存 code）不符。这是独立的前端 bug，单独处理。
 
 ### 修复内容

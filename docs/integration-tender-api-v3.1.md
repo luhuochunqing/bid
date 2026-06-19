@@ -198,7 +198,7 @@ API Key 由本平台管理员分配，分为两种权限范围：
 | projectType | String | 否 | 项目类型（最长 20 字符）| "货物" |
 | sourcePlatform | String | 否 | 来源平台名称（最长 100 字符）| "中国政府采购网" |
 | source | String | 否 | 来源（最长 200 字符）| "政府采购网" |
-| crmOpportunityId | String | 否 | CRM 商机编号（CC... 格式，非商机主键 id）。传入后系统会自动关联 CRM 商机并回填商机负责人，弃标/中标/丢标时用于回传 CRM 状态 | "CC20260619283" |
+| crmOpportunityId | String | 否 | CRM 商机标识：商机编号 code（CC... 格式）**或** 商机主键 id（纯数字如 20916）。系统自动识别并按 id 反查 code 落库。传入后系统会自动关联 CRM 商机并回填商机负责人，弃标/中标/丢标时用于回传 CRM 状态 | "CC20260619283" 或 "20916" |
 | crmOpportunityName | String | 否 | CRM 商机名称，与 crmOpportunityId 配套传入用于回填商机名称展示 | "zf商机001" |
 | tags | List\<String\> | 否 | 标签列表 | ["MRO", "信息化"] |
 | contactInfo | List\<ContactDTO\> | 否 | 联系人数组（最多取前 2 个），见下方 ContactDTO 结构 | 见示例 |
@@ -349,7 +349,7 @@ data.status 取值说明：CREATED — 新建成功（HTTP 201）；UPDATED — 
 | projectType | String | 否 | 项目类型 | "货物" |
 | sourcePlatform | String | 否 | 来源平台名称 | "中国政府采购网" |
 | source | String | 否 | 来源 | "政府采购网" |
-| crmOpportunityId | String | 否 | CRM 商机编号（CC... 格式，非商机主键 id）。用于关联 CRM 商机；若标讯尚无关联商机则建立关联，弃标/中标/丢标时用于回传 CRM 状态 | "CC20260619283" |
+| crmOpportunityId | String | 否 | CRM 商机标识：商机编号 code（CC... 格式）**或** 商机主键 id（纯数字如 20916）。系统自动识别并按 id 反查 code 落库。用于关联 CRM 商机；若标讯尚无关联商机则建立关联，弃标/中标/丢标时用于回传 CRM 状态 | "CC20260619283" 或 "20916" |
 | crmOpportunityName | String | 否 | CRM 商机名称，与 crmOpportunityId 配套传入；标讯已有商机名称时不覆盖 | "zf商机001" |
 | tags | List\<String\> | 否 | 标签列表 | ["MRO"] |
 | contactInfo | List\<ContactDTO\> | 否 | 联系人数组（v3.1 变更：替代原来的 contactPerson/contactPhone 独立字段） | 见示例 |

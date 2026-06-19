@@ -66,7 +66,8 @@ public class TenderIntegrationService {
                         if (userId != null) {
                             existing.setCreatorId(userId);
                         }
-                        // CO-276：兼容 CRM 文档字段名 crmOpportunityId（语义同 crmId，商机编号 code）
+                        // CO-276：兼容 CRM 文档字段名 crmOpportunityId（语义同 crmId）
+                        // CO-277：CRM 实测推商机主键 id（纯数字），非 code；applyCrmLinkAndAssignment 自动识别反查
                         String crmId = firstNonBlank(request.getCrmOpportunityId(), request.getCrmId());
                         crmTenderLinkService.linkIfPresent(existing, crmId);
                         // CO-275 兜底：同创建分支，sourceSystem=CRM 且未传 crmId 时用 sourceId 反查商机编号
@@ -248,7 +249,8 @@ public class TenderIntegrationService {
             tender.setStatus(com.xiyu.bid.entity.Tender.Status.EVALUATED);
         }
 
-        // CO-276：兼容 CRM 文档字段名 crmOpportunityId（语义同 crmId，商机编号 code）
+        // CO-276：兼容 CRM 文档字段名 crmOpportunityId（语义同 crmId）
+        // CO-277：CRM 实测推商机主键 id（纯数字），非 code；applyCrmLinkAndAssignment 自动识别反查
         String crmId = firstNonBlank(request.getCrmOpportunityId(), request.getCrmId());
         crmTenderLinkService.linkIfPresent(tender, crmId);
         // CO-271: 确保 crmId 非空时自动关联商机效果与手动选择一致
@@ -314,8 +316,10 @@ public class TenderIntegrationService {
     }
 
     /**
-     * CO-276：合并取 CRM 商机编号。CRM 文档字段名为 crmOpportunityId，代码历史字段名为 crmId，
-     * 两者语义相同（商机编号 code），任一非空即可。优先用公开字段 crmOpportunityId。
+     * CO-276：合并取 CRM 商机标识。CRM 文档字段名为 crmOpportunityId，代码历史字段名为 crmId，
+     * 两者语义相同（CRM 推送的商机标识），任一非空即可。优先用公开字段 crmOpportunityId。
+     * <p>⚠️ CO-277 实测：CRM 推的是商机主键 id（纯数字如 20916），非 code（CC... 格式）。
+     * 返回值可能是 id 或 code，由 {@code CrmTenderLinkService} 自动识别反查后落库 code。
      */
     private static String firstNonBlank(String... values) {
         if (values == null) return null;
@@ -561,7 +565,8 @@ public class TenderIntegrationService {
         if (r.getCreatorName() != null) t.setCreatorName(InputSanitizer.sanitizeString(r.getCreatorName(), 100));
         if (r.getCreateDate() != null) t.setCreatedAt(parseDateTime(r.getCreateDate()));
         // 根据 crmId 判断来源：有 crmId = CRM 转入（已评估状态）；否则 = 第三方平台（待分配状态）
-        // CO-276：兼容 CRM 文档字段名 crmOpportunityId（语义同 crmId，商机编号 code）
+        // CO-276：兼容 CRM 文档字段名 crmOpportunityId（语义同 crmId）
+        // CO-277：CRM 实测推商机主键 id（纯数字），非 code；applyCrmLinkAndAssignment 自动识别反查
         boolean isFromCrm = firstNonBlank(r.getCrmOpportunityId(), r.getCrmId()) != null;
         if (isFromCrm) {
             t.setSourceType(com.xiyu.bid.entity.Tender.SourceType.CRM_OPPORTUNITY);
