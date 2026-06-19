@@ -343,6 +343,15 @@ public class TenderIntegrationService {
         };
     }
 
+    private static TenderEvaluationCustomerInfo.ValueType parseCustomerInfoValueType(String valueType) {
+        if (valueType == null || valueType.isBlank()) return TenderEvaluationCustomerInfo.ValueType.TEXT;
+        try {
+            return TenderEvaluationCustomerInfo.ValueType.valueOf(valueType);
+        } catch (IllegalArgumentException ex) {
+            return TenderEvaluationCustomerInfo.ValueType.TEXT;
+        }
+    }
+
     /**
      * 将请求中的联系人数组映射到实体扁平字段（最多取前 2 个）。
      */
@@ -516,19 +525,15 @@ public class TenderIntegrationService {
                     String roleKey = (String) row.get("roleKey");
                     if (roleKey == null || roleKey.isBlank()) continue;
                     String infoKey = normalizeCustomerInfoKey((String) row.get("infoKey"));
-                    if (infoKey == null) continue;
-                    String value = row.get("value") != null ? row.get("value").toString() : null;
-                    String valueTypeStr = (String) row.get("valueType");
-                    TenderEvaluationCustomerInfo.ValueType valueType =
-                            valueTypeStr != null ? TenderEvaluationCustomerInfo.ValueType.valueOf(valueTypeStr)
-                                    : TenderEvaluationCustomerInfo.ValueType.TEXT;
+                    Object value = row.get("value");
+                    if (infoKey == null || infoKey.isBlank() || value == null) continue;
 
                     TenderEvaluationCustomerInfo entity = new TenderEvaluationCustomerInfo();
                     entity.setEvaluation(evalEntity);
                     entity.setRoleKey(roleKey);
                     entity.setInfoKey(infoKey);
-                    entity.setCellValue(value);
-                    entity.setValueType(valueType);
+                    entity.setCellValue(value.toString());
+                    entity.setValueType(parseCustomerInfoValueType((String) row.get("valueType")));
                     evalEntity.getCustomerInfos().add(entity);
                 }
             } else {

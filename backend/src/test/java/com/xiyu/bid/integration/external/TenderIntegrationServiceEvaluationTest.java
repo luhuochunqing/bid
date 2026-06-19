@@ -200,6 +200,61 @@ class TenderIntegrationServiceEvaluationTest {
     }
 
     @Test
+    @DisplayName("saveEvaluation 应支持 EAV 格式 customerInfos")
+    void saveEvaluation_eavFormatCustomerInfos_shouldSaveInfoKeyAndValue() throws Exception {
+        Long tenderId = createTender();
+
+        Map<String, Object> eavRow = new LinkedHashMap<>();
+        eavRow.put("roleKey", "PROJECT_HIGHEST_DECISION_MAKER");
+        eavRow.put("infoKey", "CONTACT_INFO");
+        eavRow.put("value", "13800138000");
+        eavRow.put("valueType", "TEXT");
+        TenderUpdateRequest.EvaluationUpdate eval = TenderUpdateRequest.EvaluationUpdate.builder()
+                .evaluationCustomerInfos(List.of(eavRow))
+                .build();
+
+        invokeSaveEvaluation(tenderId, eval);
+
+        TenderEvaluation evaluation = tenderEvaluationRepository.findByTenderId(tenderId).orElseThrow();
+        List<TenderEvaluationCustomerInfo> rows = customerInfoRepository.findByEvaluationId(evaluation.getId());
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).getRoleKey()).isEqualTo("PROJECT_HIGHEST_DECISION_MAKER");
+        assertThat(rows.get(0).getInfoKey()).isEqualTo("CONTACT_INFO");
+        assertThat(rows.get(0).getCellValue()).isEqualTo("13800138000");
+        assertThat(rows.get(0).getValueType()).isEqualTo(TenderEvaluationCustomerInfo.ValueType.TEXT);
+    }
+
+    @Test
+    @DisplayName("saveEvaluation 应将 EAV 格式 CRM 旧字段名标准化")
+    void saveEvaluation_eavLegacyInfoKeys_shouldBeNormalizedBeforeSave() throws Exception {
+        Long tenderId = createTender();
+
+        Map<String, Object> contactRow = new LinkedHashMap<>();
+        contactRow.put("roleKey", "PROJECT_HIGHEST_DECISION_MAKER");
+        contactRow.put("infoKey", "CONTACT");
+        contactRow.put("value", "13800138000");
+        contactRow.put("valueType", "TEXT");
+        Map<String, Object> basisRow = new LinkedHashMap<>();
+        basisRow.put("roleKey", "PROJECT_HIGHEST_DECISION_MAKER");
+        basisRow.put("infoKey", "EVALUATION_BASIS");
+        basisRow.put("value", "长期合作");
+        basisRow.put("valueType", "TEXT");
+        TenderUpdateRequest.EvaluationUpdate eval = TenderUpdateRequest.EvaluationUpdate.builder()
+                .evaluationCustomerInfos(List.of(contactRow, basisRow))
+                .build();
+
+        invokeSaveEvaluation(tenderId, eval);
+
+        TenderEvaluation evaluation = tenderEvaluationRepository.findByTenderId(tenderId).orElseThrow();
+        List<TenderEvaluationCustomerInfo> rows = customerInfoRepository.findByEvaluationId(evaluation.getId());
+        assertThat(rows).hasSize(2);
+        assertThat(rows).anyMatch(r -> "PROJECT_HIGHEST_DECISION_MAKER".equals(r.getRoleKey())
+                && "CONTACT_INFO".equals(r.getInfoKey()) && "13800138000".equals(r.getCellValue()));
+        assertThat(rows).anyMatch(r -> "PROJECT_HIGHEST_DECISION_MAKER".equals(r.getRoleKey())
+                && "INFO_TENDENCY_BASIS".equals(r.getInfoKey()) && "长期合作".equals(r.getCellValue()));
+    }
+
+    @Test
     @DisplayName("saveEvaluation 应将 CRM 旧字段名 CONTACT/EVALUATION_BASIS 标准化为 CONTACT_INFO/INFO_TENDENCY_BASIS")
     void saveEvaluation_crmLegacyInfoKeys_shouldBeNormalizedBeforeSave() throws Exception {
         Long tenderId = createTender();
