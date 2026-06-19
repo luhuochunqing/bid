@@ -4,7 +4,6 @@
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 import { ElMessage } from 'element-plus'
-import { crmApi } from '@/api/modules/crm.js'
 
 import { bidResultsApi } from '@/api'
 
@@ -111,27 +110,6 @@ export function createBidResultPageActions(state) {
       const saved = response.data
       await persistAttachment(saved.projectId, saved.id, registerForm)
       await persistCompetitors(saved.projectId, registerForm.competitors)
-      // CRM标讯回传：登记结果
-      try {
-        const statusMap = { won: 2, lost: 3, abandoned: 1, failed: 4 }
-        const resultStatus = statusMap[registerForm.result] || 0
-        if (resultStatus > 0 && saved?.tenderCode) {
-          await crmApi.bidInfoSync([{
-            name: saved.projectName || registerForm.projectName || '',
-            code: saved.tenderCode || '',
-            status: resultStatus,
-            statusEditor: '',
-            statusEditTime: new Date().toISOString().slice(0, 19).replace('T', ' '),
-            feedback: JSON.stringify({
-              result: registerForm.result,
-              winningVendor: registerForm.winningVendor || '',
-              bidAmount: registerForm.bidAmount || '',
-              remark: registerForm.remark || '',
-              time: new Date().toISOString(),
-            }),
-          }])
-        }
-      } catch { /* 非关键路径，静默处理 */ }
       ElMessage.success(registerForm.id ? '结果已更新' : '结果已登记')
       resetRegisterForm()
       await queryActions.loadPage()
@@ -158,27 +136,6 @@ export function createBidResultPageActions(state) {
       }
       await persistAttachment(result.data.projectId, result.data.id, confirmForm)
       await persistCompetitors(result.data.projectId, confirmForm.competitors)
-      // CRM标讯回传：确认外部结果
-      try {
-        const statusMap = { won: 2, lost: 3, abandoned: 1, failed: 4 }
-        const resultStatus = statusMap[confirmForm.result] || 0
-        if (resultStatus > 0 && result.data?.tenderCode) {
-          await crmApi.bidInfoSync([{
-            name: result.data.projectName || confirmForm.projectName || '',
-            code: result.data.tenderCode || '',
-            status: resultStatus,
-            statusEditor: '',
-            statusEditTime: new Date().toISOString().slice(0, 19).replace('T', ' '),
-            feedback: JSON.stringify({
-              result: confirmForm.result,
-              winningVendor: confirmForm.winningVendor || '',
-              bidAmount: confirmForm.bidAmount || '',
-              remark: confirmForm.remark || '',
-              time: new Date().toISOString(),
-            }),
-          }])
-        }
-      } catch { /* 非关键路径，静默处理 */ }
       ElMessage.success('外部结果已确认')
       confirmDialogVisible.value = false
       await queryActions.loadPage()
