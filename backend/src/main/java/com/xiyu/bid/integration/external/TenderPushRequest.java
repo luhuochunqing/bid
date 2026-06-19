@@ -123,6 +123,17 @@ public class TenderPushRequest {
     /** CRM 商机 ID（传入后自动关联商机并分配项目负责人）。 */
     private String crmId;
 
+    /**
+     * CRM 商机编号（对外公开字段，语义同 {@link #crmId}，即商机编号 code 如 CC20260619283）。
+     * <p>CO-276：CRM 通过 PUT/POST 推送时使用 crmOpportunityId 字段名，与代码内 crmId 不一致，
+     * 导致 Jackson 反序列化时丢弃该字段。新增此公开别名字段兼容 CRM 文档字段名，
+     * 业务侧用 {@code firstNonBlank(crmOpportunityId, crmId)} 合并取值，两者任一非空即可。
+     */
+    private String crmOpportunityId;
+
+    /** CRM 商机名称（对外公开字段，与 crmOpportunityId 配套，可选）。 */
+    private String crmOpportunityName;
+
     @Data
     @Builder
     @NoArgsConstructor

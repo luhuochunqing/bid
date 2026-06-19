@@ -81,7 +81,7 @@ export const PRIORITY_OPTIONS = [
 // 来源类型下拉选项。value 用英文枚举名作为查询参数（@JsonCreator 兼容中英文）
 export const SOURCE_OPTIONS = [
   { label: '第三方平台', value: 'EXTERNAL_PLATFORM' },
-  { label: 'CRM 商机', value: 'CRM_OPPORTUNITY' },
+  { label: 'CRM 创建', value: 'CRM_OPPORTUNITY' },
   { label: '人工录入', value: 'MANUAL_SINGLE' },
   { label: '批量导入', value: 'BULK_IMPORT' },
 ]
@@ -89,7 +89,7 @@ export const SOURCE_OPTIONS = [
 export const SOURCE_TYPE_OPTIONS = [
   { label: '全部来源', value: '' },
   { label: '第三方平台', value: 'EXTERNAL_PLATFORM' },
-  { label: 'CRM 商机', value: 'CRM_OPPORTUNITY' },
+  { label: 'CRM 创建', value: 'CRM_OPPORTUNITY' },
   { label: '人工录入', value: 'MANUAL_SINGLE' },
   { label: '批量导入', value: 'BULK_IMPORT' },
 ]

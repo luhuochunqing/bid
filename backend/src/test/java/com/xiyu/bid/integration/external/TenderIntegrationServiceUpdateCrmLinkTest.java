@@ -136,4 +136,88 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.PENDING_ASSIGNMENT);
         assertThat(tender.getCrmOpportunityId()).isNull();
     }
+
+    // ── CO-276: crmOpportunityId 字段名兼容（CRM 文档字段名 vs 代码历史字段名 crmId）──────────
+
+    @Test
+    @DisplayName("CO-276: 仅传 crmOpportunityId（不传 crmId）应触发关联，等价于传 crmId")
+    void updateByExternalId_onlyCrmOpportunityId_triggersLink() {
+        Tender tender = createExistingTender();
+        when(tenderRepository.findByExternalId("crm:test-001")).thenReturn(Optional.of(tender));
+
+        // linkIfPresent 收到合并后的 crmOpportunityId 值时应正常设置商机字段
+        org.mockito.Mockito.doAnswer(inv -> {
+            Tender t = inv.getArgument(0);
+            t.setCrmOpportunityId("CC20260619283");
+            t.setCrmOpportunityName("测试商机");
+            t.setStatus(Tender.Status.EVALUATED);
+            return null;
+        }).when(crmTenderLinkService).linkIfPresent(any(Tender.class), org.mockito.ArgumentMatchers.eq("CC20260619283"));
+
+        // CRM 文档字段名为 crmOpportunityId，不传 crmId
+        TenderUpdateRequest request = TenderUpdateRequest.builder()
+                .crmOpportunityId("CC20260619283")
+                .crmOpportunityName("测试商机")
+                .build();
+
+        service.updateByExternalId("crm", "test-001", request);
+
+        // linkIfPresent 应被调用且收到正确的商机编号
+        org.mockito.Mockito.verify(crmTenderLinkService)
+                .linkIfPresent(any(Tender.class), org.mockito.ArgumentMatchers.eq("CC20260619283"));
+        assertThat(tender.getCrmOpportunityId()).isEqualTo("CC20260619283");
+        assertThat(tender.getEvaluationSource()).isEqualTo(Tender.EvaluationSource.CRM_PUSH);
+        assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
+    }
+
+    @Test
+    @DisplayName("CO-276: crmOpportunityId 与 crmId 同时传时优先用 crmOpportunityId")
+    void updateByExternalId_bothPresent_prefersCrmOpportunityId() {
+        Tender tender = createExistingTender();
+        when(tenderRepository.findByExternalId("crm:test-001")).thenReturn(Optional.of(tender));
+
+        org.mockito.Mockito.doAnswer(inv -> {
+            Tender t = inv.getArgument(0);
+            t.setCrmOpportunityId("CC-PUBLIC");
+            t.setStatus(Tender.Status.EVALUATED);
+            return null;
+        }).when(crmTenderLinkService).linkIfPresent(any(Tender.class), org.mockito.ArgumentMatchers.eq("CC-PUBLIC"));
+
+        TenderUpdateRequest request = TenderUpdateRequest.builder()
+                .crmId("CC-LEGACY")
+                .crmOpportunityId("CC-PUBLIC")
+                .build();
+
+        service.updateByExternalId("crm", "test-001", request);
+
+        // 应优先用 crmOpportunityId 的值，而非 crmId
+        org.mockito.Mockito.verify(crmTenderLinkService)
+                .linkIfPresent(any(Tender.class), org.mockito.ArgumentMatchers.eq("CC-PUBLIC"));
+        org.mockito.Mockito.verify(crmTenderLinkService,
+                org.mockito.Mockito.never())
+                .linkIfPresent(any(Tender.class), org.mockito.ArgumentMatchers.eq("CC-LEGACY"));
+    }
+
+    @Test
+    @DisplayName("CO-276: 仅传 crmOpportunityId + CRM 异常降级时用 crmOpportunityId 兜底落库")
+    void updateByExternalId_onlyCrmOpportunityId_fallbackSetsOpportunityId() {
+        Tender tender = createExistingTender();
+        when(tenderRepository.findByExternalId("crm:test-001")).thenReturn(Optional.of(tender));
+
+        // linkIfPresent 因 CRM 异常未设置任何字段
+        org.mockito.Mockito.doNothing().when(crmTenderLinkService).linkIfPresent(any(Tender.class), any());
+
+        TenderUpdateRequest request = TenderUpdateRequest.builder()
+                .crmOpportunityId("CC20260619283")
+                .crmOpportunityName("测试商机")
+                .build();
+
+        service.updateByExternalId("crm", "test-001", request);
+
+        // 兜底逻辑应确保 crmOpportunityId 和 crmOpportunityName 被设置
+        assertThat(tender.getCrmOpportunityId()).isEqualTo("CC20260619283");
+        assertThat(tender.getCrmOpportunityName()).isEqualTo("测试商机");
+        assertThat(tender.getEvaluationSource()).isEqualTo(Tender.EvaluationSource.CRM_PUSH);
+        assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
+    }
 }

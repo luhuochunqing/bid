@@ -316,7 +316,7 @@ describe('isAdminRole', () => {
 
   it('maps source to tag type for new Chinese labels and legacy English values', () => {
     expect(getSourceTagType('第三方平台')).toBe('success')
-    expect(getSourceTagType('CRM 商机')).toBe('primary')
+    expect(getSourceTagType('CRM 创建')).toBe('primary')
     expect(getSourceTagType('人工录入')).toBe('warning')
     expect(getSourceTagType('批量导入')).toBe('warning')
     expect(getSourceTagType('external')).toBe('success')
@@ -326,7 +326,7 @@ describe('isAdminRole', () => {
 
   it('maps source to display text for new Chinese labels and legacy English values', () => {
     expect(getSourceText('第三方平台')).toBe('第三方平台')
-    expect(getSourceText('CRM 商机')).toBe('CRM 商机')
+    expect(getSourceText('CRM 创建')).toBe('CRM 创建')
     expect(getSourceText('人工录入')).toBe('人工录入')
     expect(getSourceText('批量导入')).toBe('人工录入')
     expect(getSourceText('external')).toBe('第三方平台')

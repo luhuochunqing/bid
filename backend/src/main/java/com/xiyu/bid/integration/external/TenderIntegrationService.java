@@ -50,6 +50,14 @@ public class TenderIntegrationService {
      */
     @Transactional
     public TenderPushResponse pushTender(TenderPushRequest request, Long userId) {
+        // CO-275 诊断日志：取证 CRM 推送实际传入的字段（region/projectType/sourcePlatform 等），
+        // 用于定位"总部所在地/项目类型字段没带过来"的根因。部署后等一次真实 CRM 推送即可确认。
+        // CO-276：日志同时记录 crmId 与 crmOpportunityId，用于定位字段名不匹配导致的商机未关联问题。
+        log.info("pushTender received: sourceSystem={}, sourceId={}, crmId={}, crmOpportunityId={}, crmOpportunityName={}, title={}, region={}, projectType={}, sourcePlatform={}, source={}, industry={}",
+                request.getSourceSystem(), request.getSourceId(), request.getCrmId(),
+                request.getCrmOpportunityId(), request.getCrmOpportunityName(), request.getTitle(),
+                request.getRegion(), request.getProjectType(), request.getSourcePlatform(),
+                request.getSource(), request.getIndustry());
         String externalId = buildExternalId(request.getSourceSystem(), request.getSourceId());
         return tenderRepository.findByExternalId(externalId)
                 .map(existing -> {
@@ -58,7 +66,18 @@ public class TenderIntegrationService {
                         if (userId != null) {
                             existing.setCreatorId(userId);
                         }
-                        crmTenderLinkService.linkIfPresent(existing, request.getCrmId());
+                        // CO-276：兼容 CRM 文档字段名 crmOpportunityId（语义同 crmId，商机编号 code）
+                        String crmId = firstNonBlank(request.getCrmOpportunityId(), request.getCrmId());
+                        crmTenderLinkService.linkIfPresent(existing, crmId);
+                        // CO-275 兜底：同创建分支，sourceSystem=CRM 且未传 crmId 时用 sourceId 反查商机编号
+                        if (existing.getCrmOpportunityId() == null || existing.getCrmOpportunityId().isBlank()) {
+                            boolean linked = crmTenderLinkService.linkByChanceIdIfPresent(
+                                    existing, request.getSourceSystem(), request.getSourceId());
+                            if (linked) {
+                                existing.setSourceType(com.xiyu.bid.entity.Tender.SourceType.CRM_OPPORTUNITY);
+                                existing.setSource(com.xiyu.bid.entity.Tender.SourceType.CRM_OPPORTUNITY.getLabel());
+                            }
+                        }
                         Tender saved = tenderRepository.save(existing);
                         if (request.getEvaluation() != null) {
                             saveEvaluation(saved.getId(), request.getEvaluation());
@@ -82,7 +101,20 @@ public class TenderIntegrationService {
                     if (userId != null) {
                         tender.setCreatorId(userId);
                     }
-                    crmTenderLinkService.linkIfPresent(tender, request.getCrmId());
+                    crmTenderLinkService.linkIfPresent(tender, firstNonBlank(request.getCrmOpportunityId(), request.getCrmId()));
+                    // CO-275 兜底：sourceSystem=CRM 但未传 crmId（商机编号）时，
+                    // 尝试用 sourceId（商机主键 id）反查商机编号再关联。
+                    // 背景：CRM 创建标讯时天然知道商机，但推送可能只传商机主键 id 作为 sourceId，
+                    // 导致 crmOpportunityId 为空、后续状态回传无法匹配商机（tender 273 案例）。
+                    // 兜底成功时把 sourceType/source 修正为 CRM_OPPORTUNITY，与正常 CRM 关联一致。
+                    if (tender.getCrmOpportunityId() == null || tender.getCrmOpportunityId().isBlank()) {
+                        boolean linked = crmTenderLinkService.linkByChanceIdIfPresent(
+                                tender, request.getSourceSystem(), request.getSourceId());
+                        if (linked) {
+                            tender.setSourceType(com.xiyu.bid.entity.Tender.SourceType.CRM_OPPORTUNITY);
+                            tender.setSource(com.xiyu.bid.entity.Tender.SourceType.CRM_OPPORTUNITY.getLabel());
+                        }
+                    }
                     Tender saved = tenderRepository.save(tender);
                     if (request.getEvaluation() != null) {
                         saveEvaluation(saved.getId(), request.getEvaluation());
@@ -216,18 +248,27 @@ public class TenderIntegrationService {
             tender.setStatus(com.xiyu.bid.entity.Tender.Status.EVALUATED);
         }
 
-        crmTenderLinkService.linkIfPresent(tender, request.getCrmId());
+        // CO-276：兼容 CRM 文档字段名 crmOpportunityId（语义同 crmId，商机编号 code）
+        String crmId = firstNonBlank(request.getCrmOpportunityId(), request.getCrmId());
+        crmTenderLinkService.linkIfPresent(tender, crmId);
         // CO-271: 确保 crmId 非空时自动关联商机效果与手动选择一致
-        if (request.getCrmId() != null && !request.getCrmId().isBlank()) {
+        if (crmId != null && !crmId.isBlank()) {
             tender.setEvaluationSource(com.xiyu.bid.entity.Tender.EvaluationSource.CRM_PUSH);
             tender.setStatus(com.xiyu.bid.entity.Tender.Status.EVALUATED);
             // 降级兜底：linkIfPresent 因 CRM 接口异常未设置 crmOpportunityId 时，用传入的 crmId 兜底
             if (tender.getCrmOpportunityId() == null || tender.getCrmOpportunityId().isBlank()) {
-                tender.setCrmOpportunityId(request.getCrmId());
+                tender.setCrmOpportunityId(crmId);
+            }
+            // CO-276：CRM 同时传入商机名称时一并落库（linkIfPresent 走 CRM 反查时已设置，此处兜底）
+            if (request.getCrmOpportunityName() != null && !request.getCrmOpportunityName().isBlank()
+                    && (tender.getCrmOpportunityName() == null || tender.getCrmOpportunityName().isBlank())) {
+                tender.setCrmOpportunityName(request.getCrmOpportunityName());
             }
         }
         Tender saved = tenderRepository.save(tender);
-        log.info("Updated tender id={} externalId={}", saved.getId(), externalId);
+        // CO-276：日志记录合并后的 crmId 与落库的 crmOpportunityId，便于排查字段名不匹配问题
+        log.info("Updated tender id={} externalId={} crmId={} crmOpportunityId={}",
+                saved.getId(), externalId, crmId, saved.getCrmOpportunityId());
         // 处理附件
         if (request.getAttachments() != null) {
             saveAttachments(saved.getId(), request.getAttachments());
@@ -253,7 +294,7 @@ public class TenderIntegrationService {
                 dto.setSource("人工录入");
                 break;
             case CRM_OPPORTUNITY:
-                dto.setSource("CRM 商机");
+                dto.setSource("CRM 创建");
                 break;
             case EXTERNAL_PLATFORM:
                 dto.setSource("第三方平台");
@@ -270,6 +311,18 @@ public class TenderIntegrationService {
     private static String toDownloadUrl(String u) { return "/api/doc-insight/download?fileUrl=" + java.net.URLEncoder.encode(u, java.nio.charset.StandardCharsets.UTF_8); }
     private String buildExternalId(String sourceSystem, String sourceId) {
         return sourceSystem + ":" + sourceId;
+    }
+
+    /**
+     * CO-276：合并取 CRM 商机编号。CRM 文档字段名为 crmOpportunityId，代码历史字段名为 crmId，
+     * 两者语义相同（商机编号 code），任一非空即可。优先用公开字段 crmOpportunityId。
+     */
+    private static String firstNonBlank(String... values) {
+        if (values == null) return null;
+        for (String v : values) {
+            if (v != null && !v.isBlank()) return v;
+        }
+        return null;
     }
 
     /**
@@ -508,7 +561,8 @@ public class TenderIntegrationService {
         if (r.getCreatorName() != null) t.setCreatorName(InputSanitizer.sanitizeString(r.getCreatorName(), 100));
         if (r.getCreateDate() != null) t.setCreatedAt(parseDateTime(r.getCreateDate()));
         // 根据 crmId 判断来源：有 crmId = CRM 转入（已评估状态）；否则 = 第三方平台（待分配状态）
-        boolean isFromCrm = r.getCrmId() != null && !r.getCrmId().isBlank();
+        // CO-276：兼容 CRM 文档字段名 crmOpportunityId（语义同 crmId，商机编号 code）
+        boolean isFromCrm = firstNonBlank(r.getCrmOpportunityId(), r.getCrmId()) != null;
         if (isFromCrm) {
             t.setSourceType(com.xiyu.bid.entity.Tender.SourceType.CRM_OPPORTUNITY);
             t.setSource(com.xiyu.bid.entity.Tender.SourceType.CRM_OPPORTUNITY.getLabel());

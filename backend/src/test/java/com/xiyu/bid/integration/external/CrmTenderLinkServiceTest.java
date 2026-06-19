@@ -166,4 +166,73 @@ class CrmTenderLinkServiceTest {
         assertThat(tender.getProjectManagerId()).isNull();
         verify(userRepository, never()).findByEmployeeNumber(any());
     }
+
+    // ===== CO-275：linkByChanceIdIfPresent 兜底反查 =====
+
+    @Test
+    void linkByChanceIdIfPresent_crmSourceWithNumericSourceId_looksUpByChanceId() {
+        Tender tender = newTender();
+        // detail 接口反查到商机编号 CC20260619283
+        CrmProjectLeaderService.ProjectLeaderResult leader =
+                new CrmProjectLeaderService.ProjectLeaderResult(
+                        "张三", "EMP001", "商机A", "CC20260619283");
+        when(crmProjectLeaderService.findProjectLeaderByChanceId(243L)).thenReturn(leader);
+        when(userRepository.findByEmployeeNumber("EMP001")).thenReturn(Optional.empty());
+
+        boolean linked = service.linkByChanceIdIfPresent(tender, "CRM", "243");
+
+        assertThat(linked).isTrue();
+        assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
+        assertThat(tender.getCrmOpportunityId()).isEqualTo("CC20260619283");
+        assertThat(tender.getCrmOpportunityName()).isEqualTo("商机A");
+        verify(crmProjectLeaderService).findProjectLeaderByChanceId(243L);
+    }
+
+    @Test
+    void linkByChanceIdIfPresent_nonCrmSource_returnsFalseNoLookup() {
+        Tender tender = newTender();
+
+        boolean linked = service.linkByChanceIdIfPresent(tender, "EXTERNAL", "243");
+
+        assertThat(linked).isFalse();
+        assertThat(tender.getCrmOpportunityId()).isNull();
+        verify(crmProjectLeaderService, never()).findProjectLeaderByChanceId(any());
+    }
+
+    @Test
+    void linkByChanceIdIfPresent_nonNumericSourceId_returnsFalseNoLookup() {
+        Tender tender = newTender();
+
+        // sourceId 不是数字（如第三方平台的字母数字 id），不是商机主键，跳过
+        boolean linked = service.linkByChanceIdIfPresent(tender, "CRM", "ABC-243");
+
+        assertThat(linked).isFalse();
+        assertThat(tender.getCrmOpportunityId()).isNull();
+        verify(crmProjectLeaderService, never()).findProjectLeaderByChanceId(any());
+    }
+
+    @Test
+    void linkByChanceIdIfPresent_detailReturnsNull_returnsFalseKeepsPending() {
+        Tender tender = newTender();
+        when(crmProjectLeaderService.findProjectLeaderByChanceId(999L)).thenReturn(null);
+
+        boolean linked = service.linkByChanceIdIfPresent(tender, "CRM", "999");
+
+        assertThat(linked).isFalse();
+        assertThat(tender.getStatus()).isEqualTo(Tender.Status.PENDING_ASSIGNMENT);
+        assertThat(tender.getCrmOpportunityId()).isNull();
+    }
+
+    @Test
+    void linkByChanceIdIfPresent_detailThrows_returnsFalseKeepsPending() {
+        Tender tender = newTender();
+        when(crmProjectLeaderService.findProjectLeaderByChanceId(243L))
+                .thenThrow(new RuntimeException("CRM 服务不可用"));
+
+        boolean linked = service.linkByChanceIdIfPresent(tender, "CRM", "243");
+
+        assertThat(linked).isFalse();
+        assertThat(tender.getStatus()).isEqualTo(Tender.Status.PENDING_ASSIGNMENT);
+        assertThat(tender.getCrmOpportunityId()).isNull();
+    }
 }

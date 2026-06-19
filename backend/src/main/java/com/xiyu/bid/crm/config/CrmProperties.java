@@ -201,6 +201,8 @@ public class CrmProperties {
     public static class CrmChancePaths {
         /** pageListPath. */
         private String pageListPath = "/customer-chance/page-list";
+        /** detailPath（按商机主键 id 查商机详情，返回含 code 商机编号）. */
+        private String detailPath = "/customer-chance/detail";
         /** bidInfoSyncPath. */
         private String bidInfoSyncPath = "/customer-chance/bidInfoSync";
     }
