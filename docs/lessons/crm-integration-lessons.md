@@ -253,14 +253,25 @@ Webhook delivery task enqueued for tender 268, crmStatus=1, crmOpportunityCode=C
 
 ⚠️ 第三组（有商机关联）CRM 仍返回 code:1，这是 **CRM 侧匹配规则问题**（商机 `CC20260616198` 可能已关闭/状态不符/归属人限制），**不属于 webhook payload 构造 bug**。payload 的 code/name 已正确，需 CRM 团队确认该商机为何匹配不上。
 
-### 旁证：前端 4 处 bidInfoSync 调用全是死代码
+### 旁证：前端 4 处 bidInfoSync 调用因字段名错配而瘫痪（已删除）
 
-前端 `useTenderActions.js`（2 处）和 `bidResultPage.actions.js`（2 处）调 `bidInfoSync` 时用 `tender.crmOpportunityCode` / `saved.tenderCode`，但：
-- 后端 `TenderDTO` 从不返回 `crmOpportunityCode` 字段
-- 后端从不返回 `tenderCode` 字段
-- → `if (tender?.crmOpportunityCode)` 永远 false → 前端手动回传从未执行
+前端曾有 4 处 `crmApi.bidInfoSync` 调用作为冗余兜底，但全部因 guard 字段名错配而从未执行：
 
-所有 CRM 回传实际只走 webhook 路径。前端死代码修复单独开 issue。
+| 文件 | 处数 | guard 读取字段 | 后端实际返回字段 | 结果 |
+|------|------|---------------|-----------------|------|
+| `useTenderActions.js` | 2（投标/弃标） | `tender.crmOpportunityCode` | `TenderDTO.crmOpportunityId`（无 `crmOpportunityCode`） | guard 永远 false |
+| `bidResultPage.actions.js` | 2（登记/保存结果） | `saved.tenderCode` / `result.data.tenderCode` | 后端 src 全局 0 命中（幻觉字段，不存在） | guard 永远 false |
+
+→ 4 处 guard 永远 false → 前端手动回传**从未执行过一次**。
+
+这 4 处是"想兜底但兜不了"的死分支，而非"已被后端 webhook 取代才闲置"——它们从写下第一天起就没生效过。所有 CRM 回传实际只走后端 webhook 路径（`WebhookEventListener`，本节及第 12 节所述）。
+
+**现状**：已通过 PR !832（commit `aec5159c4`）按字面清理删除（-72 行，纯删除不修复字段名）。决策依据：guard 永远 false → 从未执行 → 业务影响零；真实业务状态变更走后端 webhook，与本路径无关。
+
+**若未来要让前端冗余回传真正生效**（非当前需求，仅备查）：
+1. `useTenderActions.js`：guard 改 `crmOpportunityCode` → `crmOpportunityId`，并修正 status 映射（弃标 `1`→`6`、投标 `2`→`5`）
+2. `bidResultPage.actions.js`：`tenderCode` 在后端 DTO 不存在，需二选一——后端 `BidResultFetchResultDTO` 加 `crmOpportunityId` 字段，或前端保存时 `tendersApi.getById(tenderId)` 单独取；statusMap `abandoned: 1` → `6`
+3. 启用前务必先评估与后端 webhook 的**重复回传**问题（同一状态变更会被回传两次）
 
 ### 通用规则：bidInfoSync 的 code 字段必须填商机编号
 
