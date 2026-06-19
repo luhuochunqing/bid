@@ -24,10 +24,10 @@ class TenderSourceTypeTest {
         }
 
         @Test
-        @DisplayName("CRM_OPPORTUNITY 序列化为中文标签 'CRM 商机'")
+        @DisplayName("CRM_OPPORTUNITY 序列化为中文标签 'CRM 创建'")
         void crmOpportunitySerializesToChinese() throws Exception {
             String json = mapper.writeValueAsString(Tender.SourceType.CRM_OPPORTUNITY);
-            assertThat(json).isEqualTo("\"CRM 商机\"");
+            assertThat(json).isEqualTo("\"CRM 创建\"");
         }
 
         @Test
@@ -64,9 +64,9 @@ class TenderSourceTypeTest {
         }
 
         @Test
-        @DisplayName("中文标签 'CRM 商机' 反序列化为 CRM_OPPORTUNITY")
+        @DisplayName("中文标签 'CRM 创建' 反序列化为 CRM_OPPORTUNITY")
         void crmChineseLabelDeserializes() throws Exception {
-            Tender.SourceType result = mapper.readValue("\"CRM 商机\"", Tender.SourceType.class);
+            Tender.SourceType result = mapper.readValue("\"CRM 创建\"", Tender.SourceType.class);
             assertThat(result).isEqualTo(Tender.SourceType.CRM_OPPORTUNITY);
         }
 
@@ -109,7 +109,7 @@ class TenderSourceTypeTest {
             assertThat(Tender.SourceType.fromValue("EXTERNAL_PLATFORM"))
                     .isSameAs(Tender.SourceType.fromValue("第三方平台"));
             assertThat(Tender.SourceType.fromValue("CRM_OPPORTUNITY"))
-                    .isSameAs(Tender.SourceType.fromValue("CRM 商机"));
+                    .isSameAs(Tender.SourceType.fromValue("CRM 创建"));
             assertThat(Tender.SourceType.fromValue("MANUAL_SINGLE"))
                     .isSameAs(Tender.SourceType.fromValue("人工录入"));
             assertThat(Tender.SourceType.fromValue("BULK_IMPORT"))

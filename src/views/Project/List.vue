@@ -315,7 +315,7 @@ function sourceTagType(source) {
     BULK_IMPORT: 'warning',
     // 中文标签（@JsonValue 输出，fallback 为空字符串故需显式列出）
     '第三方平台': 'warning',
-    'CRM 商机': 'success',
+    'CRM 创建': 'success',
     '人工录入': 'warning',
     '批量导入': 'warning',
   }

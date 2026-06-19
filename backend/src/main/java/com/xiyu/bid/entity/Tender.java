@@ -375,7 +375,7 @@ public class Tender {
      */
     public enum SourceType {
         EXTERNAL_PLATFORM("第三方平台"),
-        CRM_OPPORTUNITY("CRM 商机"),
+        CRM_OPPORTUNITY("CRM 创建"),
         MANUAL_SINGLE("人工录入"),
         BULK_IMPORT("人工录入");
 

@@ -15,7 +15,7 @@ import static org.mockito.Mockito.mock;
  *
  * <p>验证 CRM 转入与第三方平台转入的来源/状态区分逻辑：
  * <ul>
- *   <li>带 crmId → sourceType=CRM_OPPORTUNITY, source="CRM 商机", status=EVALUATED</li>
+ *   <li>带 crmId → sourceType=CRM_OPPORTUNITY, source="CRM 创建", status=EVALUATED</li>
  *   <li>不带 crmId → sourceType=EXTERNAL_PLATFORM, source="第三方平台", status=PENDING_ASSIGNMENT</li>
  *   <li>crmId 为空字符串 → 视为非 CRM 转入</li>
  *   <li>crmId 为空白字符 → 视为非 CRM 转入</li>
@@ -55,7 +55,7 @@ class TenderIntegrationServiceMapToEntityTest {
     }
 
     @Test
-    @DisplayName("带 crmId → 来源=CRM 商机，状态=已评估")
+    @DisplayName("带 crmId → 来源=CRM 创建，状态=已评估")
     void mapToEntity_withCrmId_setsCrmSourceAndEvaluatedStatus() throws Exception {
         TenderPushRequest r = baseRequest();
         r.setCrmId("CC001");
@@ -63,7 +63,7 @@ class TenderIntegrationServiceMapToEntityTest {
         Tender t = invokeMapToEntity(r);
 
         assertThat(t.getSourceType()).isEqualTo(Tender.SourceType.CRM_OPPORTUNITY);
-        assertThat(t.getSource()).isEqualTo("CRM 商机");
+        assertThat(t.getSource()).isEqualTo("CRM 创建");
         assertThat(t.getStatus()).isEqualTo(Tender.Status.EVALUATED);
     }
 

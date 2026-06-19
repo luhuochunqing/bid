@@ -170,7 +170,7 @@ export function getSourceTagType(source) {
     crm: 'primary',
     bulk: 'warning',
     '第三方平台': 'success',
-    'CRM 商机': 'primary',
+    'CRM 创建': 'primary',
     '人工录入': 'warning',
     '批量导入': 'warning',
   }
@@ -188,7 +188,7 @@ export function getSourceText(source) {
   const map = {
     external: '第三方平台',
     manual: '人工录入',
-    crm: 'CRM 商机',
+    crm: 'CRM 创建',
     bulk: '人工录入',
     // 向后兼容：数据库中 source 字段仍为旧标签"批量导入"的历史数据
     '批量导入': '人工录入',
@@ -212,7 +212,7 @@ export function getSourceTypeTagType(sourceType) {
     MANUAL: 'warning',
     EXTERNAL: 'success',
     '第三方平台': 'success',
-    'CRM 商机': 'primary',
+    'CRM 创建': 'primary',
     '人工录入': 'warning',
     '批量导入': 'warning',
   }

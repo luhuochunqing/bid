@@ -253,7 +253,7 @@ public class TenderIntegrationService {
                 dto.setSource("人工录入");
                 break;
             case CRM_OPPORTUNITY:
-                dto.setSource("CRM 商机");
+                dto.setSource("CRM 创建");
                 break;
             case EXTERNAL_PLATFORM:
                 dto.setSource("第三方平台");

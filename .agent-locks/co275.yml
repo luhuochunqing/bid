@@ -1,0 +1,9 @@
+version: 1
+task: "co275"
+locks:
+  - path: "backend/src/main/java/com/xiyu/bid/entity/Tender.java"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/zcode/co275"
+    expiresAt: "2026-06-20T05:18:37.039Z"
+    reason: "CO-275: SourceType.CRM_OPPORTUNITY label 改为 'CRM 创建'"
