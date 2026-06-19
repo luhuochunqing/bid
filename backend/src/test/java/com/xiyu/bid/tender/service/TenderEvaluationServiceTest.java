@@ -7,6 +7,7 @@ import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.project.dto.ProjectDTO;
 import com.xiyu.bid.project.service.ProjectService;
+import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.task.dto.TaskDTO;
@@ -49,6 +50,9 @@ class TenderEvaluationServiceTest {
     private TaskService taskService;
 
     @Mock
+    private TaskRepository taskRepository;
+
+    @Mock
     private UserRepository userRepository;
 
     @Mock
@@ -69,6 +73,7 @@ class TenderEvaluationServiceTest {
                 tenderRepository,
                 projectService,
                 taskService,
+                taskRepository,
                 userRepository,
                 mock(TenderEvaluationSubmissionService.class),
                 permissions,
@@ -155,6 +160,49 @@ class TenderEvaluationServiceTest {
     }
 
     @Test
+    @DisplayName("快速投标无评估表时以当前操作人作为项目经理")
+    void proceedToBid_WithoutEvaluation_UsesCurrentUserAsManager() {
+        Tender tender = Tender.builder()
+                .id(1L)
+                .title("测试标讯")
+                .status(Tender.Status.BIDDING)
+                .industry("制造业")
+                .region("上海")
+                .purchaserName("测试采购方")
+                .description("需要创建立项")
+                .deadline(LocalDateTime.of(2026, 5, 20, 10, 0))
+                .build();
+
+        when(tenderEvaluationRepository.findByTenderId(1L)).thenReturn(Optional.empty());
+        when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
+        when(projectService.createProject(any(ProjectDTO.class))).thenReturn(ProjectDTO.builder()
+                .id(101L)
+                .name("测试标讯")
+                .status(Project.Status.PENDING_INITIATION)
+                .build());
+        when(taskService.createTask(any(TaskDTO.class))).thenReturn(TaskDTO.builder()
+                .id(202L)
+                .title("【待立项】测试标讯")
+                .status(Task.Status.TODO)
+                .build());
+
+        TenderBidResult result = service.proceedToBid(1L, 99L);
+
+        assertThat(result.projectId()).isEqualTo(101L);
+        assertThat(result.taskId()).isEqualTo(202L);
+        verify(projectService).createProject(argThat(project ->
+                project.getTenderId().equals(1L)
+                        && project.getManagerId().equals(99L)
+                        && project.getStatus() == Project.Status.PENDING_INITIATION
+        ));
+        verify(taskService).createTask(argThat(task ->
+                task.getProjectId().equals(101L)
+                        && task.getAssigneeId().equals(99L)
+                        && task.getStatus() == Task.Status.TODO
+        ));
+    }
+
+    @Test
     @DisplayName("非投标中状态禁止发起立项")
     void proceedToBid_ShouldRejectNonBiddingTender() {
         Tender tender = Tender.builder()
@@ -162,12 +210,7 @@ class TenderEvaluationServiceTest {
                 .title("测试标讯")
                 .status(Tender.Status.EVALUATED)
                 .build();
-        TenderEvaluation evaluation = TenderEvaluation.builder()
-                .tenderId(1L)
-                .evaluatorId(18L)
-                .build();
 
-        when(tenderEvaluationRepository.findByTenderId(1L)).thenReturn(Optional.of(evaluation));
         when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
 
         assertThrows(IllegalStateException.class, () -> service.proceedToBid(1L, 99L));

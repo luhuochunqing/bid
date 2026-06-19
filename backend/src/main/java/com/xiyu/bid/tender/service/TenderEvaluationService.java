@@ -12,6 +12,7 @@ import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.project.dto.ProjectDTO;
 import com.xiyu.bid.project.service.ProjectService;
+import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.tender.controller.TenderEvaluationController.TenderBidResult;
@@ -38,6 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -60,6 +62,7 @@ public class TenderEvaluationService {
     private final TenderRepository tenderRepository;
     private final ProjectService projectService;
     private final TaskService taskService;
+    private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final TenderEvaluationSubmissionService submissionService;
     private final TenderAssignmentPermissions permissions;
@@ -72,6 +75,7 @@ public class TenderEvaluationService {
             TenderRepository tenderRepository,
             ProjectService projectService,
             TaskService taskService,
+            TaskRepository taskRepository,
             UserRepository userRepository,
             TenderEvaluationSubmissionService submissionService,
             TenderAssignmentPermissions permissions,
@@ -81,6 +85,7 @@ public class TenderEvaluationService {
         this.tenderRepository = tenderRepository;
         this.projectService = projectService;
         this.taskService = taskService;
+        this.taskRepository = taskRepository;
         this.userRepository = userRepository;
         this.submissionService = submissionService;
         this.permissions = permissions;
@@ -206,7 +211,7 @@ public class TenderEvaluationService {
     }
 
     /**
-     * 投标立项：审核通过后创建项目和待办。
+     * 投标立项：标讯 BIDDING 后创建项目和待办。兼容评估-审核流程与详情页快速投标流程。
      */
     public TenderBidResult proceedToBid(Long tenderId, Long adminId) {
         log.info("Proceeding to bid for tender {} by user {}", tenderId, adminId);
@@ -220,18 +225,20 @@ public class TenderEvaluationService {
                     "user " + adminId + " is not the assigner of tender " + tenderId);
         }
 
-        TenderEvaluation evaluation = tenderEvaluationRepository.findByTenderId(tenderId)
-                .orElseThrow(() -> new ResourceNotFoundException("标讯尚未提交评估"));
-
         if (tender.getStatus() != Tender.Status.BIDDING) {
             throw new IllegalStateException("标讯状态不是已投标，无法创建立项待办");
         }
+
+        Long projectManagerId = tenderEvaluationRepository.findByTenderId(tenderId)
+                .map(TenderEvaluation::getEvaluatorId)
+                .filter(Objects::nonNull)
+                .orElse(adminId);
 
         ProjectDTO projectDTO = ProjectDTO.builder()
                 .name(tender.getTitle())
                 .tenderId(tenderId)
                 .status(Project.Status.PENDING_INITIATION)
-                .managerId(evaluation.getEvaluatorId())
+                .managerId(projectManagerId)
                 .customer(tender.getPurchaserName())
                 .budget(tender.getBudget())
                 .region(tender.getRegion())
@@ -246,19 +253,8 @@ public class TenderEvaluationService {
         tender.setProjectId(createdProject.getId());
         tenderRepository.save(tender);
 
-        tender.setProjectId(createdProject.getId());
-        tenderRepository.save(tender);
-
-        TaskDTO taskDTO = TaskDTO.builder()
-                .projectId(createdProject.getId())
-                .title("【待立项】" + tender.getTitle())
-                .description("标讯「" + tender.getTitle() + "」已通过审核，请项目经理尽快完成立项流程。")
-                .assigneeId(evaluation.getEvaluatorId())
-                .status(Task.Status.TODO)
-                .priority(Task.Priority.HIGH)
-                .build();
-
-        TaskDTO createdTask = taskService.createTask(taskDTO);
+        TaskDTO createdTask = reuseOrCreateInitiationTask(
+                tenderId, createdProject.getId(), tender.getTitle(), projectManagerId);
 
         log.info("Project {} and task {} created for tender {}", createdProject.getId(), createdTask.getId(), tenderId);
         return new TenderBidResult(
@@ -267,6 +263,31 @@ public class TenderEvaluationService {
                 createdTask.getId(),
                 createdTask.getTitle()
         );
+    }
+
+    /** 复用 participate 创建的立项待办任务；不存在时再新建，避免重复。 */
+    private TaskDTO reuseOrCreateInitiationTask(
+            Long tenderId, Long projectId, String tenderTitle, Long assigneeId) {
+        String initiationTitle = "【待立项】" + tenderTitle;
+        Optional<Task> existing = taskRepository.findByProjectId(tenderId).stream()
+                .filter(t -> t.getStatus() == Task.Status.TODO && initiationTitle.equals(t.getTitle()))
+                .findFirst();
+
+        if (existing.isPresent()) {
+            Task task = existing.get();
+            task.setProjectId(projectId);
+            task.setAssigneeId(assigneeId);
+            return taskService.getTaskById(taskRepository.save(task).getId());
+        }
+
+        return taskService.createTask(TaskDTO.builder()
+                .projectId(projectId)
+                .title(initiationTitle)
+                .description("标讯「" + tenderTitle + "」已投标，请项目经理尽快完成立项流程。")
+                .assigneeId(assigneeId)
+                .status(Task.Status.TODO)
+                .priority(Task.Priority.HIGH)
+                .build());
     }
 
     // ---------- DTO 转换（V130 三段式） ----------
