@@ -207,6 +207,12 @@ xiyu:
         source-header-name: ${XIYU_ORG_DIRECTORY_SOURCE_HEADER:EHSY-SRCAPP}
         connect-timeout-ms: ${XIYU_ORG_DIRECTORY_CONNECT_TIMEOUT_MS:3000}
         read-timeout-ms: ${XIYU_ORG_DIRECTORY_READ_TIMEOUT_MS:5000}
+        # OSS 菜单权限自动同步：组织架构同步时自动聚合用户菜单权限到角色
+        auto-sync-menu-permissions: ${XIYU_ORG_AUTO_SYNC_MENU_PERMISSIONS:false}
+        # OSS 菜单编码 -> 内部权限码映射（大小写不敏感）
+        menu-code-to-permission-key-mappings: ${XIYU_ORG_MENU_CODE_MAPPINGS:}
+        # 未映射菜单编码处理：IGNORE 或 USE_NORMALIZED_CODE
+        unmapped-menu-code-behavior: ${XIYU_ORG_UNMAPPED_MENU_BEHAVIOR:IGNORE}
       retry:
         enabled: ${XIYU_ORG_RETRY_ENABLED:true}
         max-attempts: ${XIYU_ORG_RETRY_MAX_ATTEMPTS:5}
