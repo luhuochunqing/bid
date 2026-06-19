@@ -82,6 +82,10 @@ class TenderRequestValidationTest {
         assertTrue(validator.validate(request).stream()
                 .noneMatch(violation -> "region".equals(violation.getPropertyPath().toString())));
 
+        request.setRegion("北京市-北京市");
+        assertTrue(validator.validate(request).stream()
+                .noneMatch(violation -> "region".equals(violation.getPropertyPath().toString())));
+
         request.setRegion("广东省深圳市");
         assertTrue(validator.validate(request).stream()
                 .noneMatch(violation -> "region".equals(violation.getPropertyPath().toString())));
