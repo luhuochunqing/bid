@@ -10,6 +10,15 @@
       :show-header="true"
       highlight-current-row
     >
+      <el-table-column
+        label="角色"
+        width="180"
+        fixed="left"
+      >
+        <template #default="{ row }">
+          <span class="role-label">{{ row?.roleLabel || row?.roleKey || '-' }}</span>
+        </template>
+      </el-table-column>
       <!-- Editable columns -->
       <el-table-column
         v-for="col in editableColumns"
@@ -163,5 +172,10 @@ function onDataChange() {
 
 .matrix-table-wrapper :deep(.cell) {
   white-space: nowrap;
+}
+
+.role-label {
+  font-weight: 500;
+  color: #303133;
 }
 </style>

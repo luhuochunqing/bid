@@ -170,7 +170,10 @@ export function useCrmOpportunitySelector(props, emit) {
           INFO_CLEAR_WINNER_BID: c.guaranteeWin || false,
           INFO_WIN_RATE_IMPACT: c.impactRate || null,
         }))
-      } catch { /* ignore */ }
+      } catch {
+        ElMessage.error('CRM对接人查询失败，无法带入客户信息')
+        return
+      }
     }
     linkedOpportunity.value = { name: chance.name, code: chance.code, id: chance.id }
     // opportunityId 传商机编号（code，CC... 格式），非商机数字 id。

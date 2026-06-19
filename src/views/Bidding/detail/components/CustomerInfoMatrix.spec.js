@@ -14,6 +14,35 @@ const globalStubs = {
 }
 
 describe('CustomerInfoMatrix', () => {
+  it('shows external role rows converted from tender 285 EAV response', () => {
+    const wrapper = mount(CustomerInfoMatrix, {
+      props: {
+        modelValue: [
+          {
+            roleKey: 'EXTERNAL_ROLE_1',
+            CAN_GET_KEY_INFO: 'true',
+            CAN_REMOVE_ADVERSE: 'true',
+            CAN_SYNC_EVAL: 'true',
+            CONTACT_INFO: '18888888888',
+            INFO_TENDENCY_BASIS: '客户明确偏向西域',
+          },
+        ],
+      },
+      global: { stubs: globalStubs },
+    })
+
+    const table = wrapper.findComponent({ name: 'CustomerInfoMatrixTable' })
+    const localData = table.props('localData')
+
+    expect(localData).toHaveLength(CUSTOMER_INFO_ROWS.length + 1)
+    expect(localData).toContainEqual(expect.objectContaining({
+      roleKey: 'EXTERNAL_ROLE_1',
+      roleLabel: 'EXTERNAL_ROLE_1',
+      CONTACT_INFO: '18888888888',
+      INFO_TENDENCY_BASIS: '客户明确偏向西域',
+    }))
+  })
+
   it('keeps external role rows visible and emits them back on change', async () => {
     const wrapper = mount(CustomerInfoMatrix, {
       props: {
