@@ -52,6 +52,29 @@
   source: docs/lessons/root-cause-analysis-co-266-co-267.md
   note: 客户信息 infoKey 存在双轨命名：EVALUATION_BASIS / INFO_TENDENCY_BASIS、CONTACT（旧 CRM 字段）/ CONTACT_INFO（新标准）。当前通过 TenderIntegrationService 兼容映射缓解，建议未来统一收敛为一套标准 key，并移除兼容代码。
 
+### 流程不一致与死代码类
+
+- area: `backend/src/main/java/com/xiyu/bid/tender/service/TenderSubmissionService.java`
+  type: dead-code
+  severity: low
+  status: open
+  source: CO-274 复盘（PR #842）
+  note: `TenderSubmissionService.proceedToBid()` 没有任何 Controller 调用，疑似 V118/V119 快速投标遗留方法；建议确认后删除，或由 TenderEvaluationController 统一调用。
+
+- area: `src/views/Bidding/detail/useTenderActions.js` / `src/views/Bidding/list/useTenderListPage.js`
+  type: out-of-sync-doc
+  severity: medium
+  status: open
+  source: CO-274 复盘（PR #842）
+  note: 标讯「投标」存在两个行为不一致的入口：详情页自动创建项目，列表页跳转 `/project/create` 手工创建。建议产品侧统一交互，或至少在两处入口补充一致的测试覆盖。
+
+- area: `src/views/Bidding/detail/useTenderActions.js`
+  type: test-gap
+  severity: medium
+  status: open
+  source: CO-274 复盘（PR #842）
+  note: `proceedToBid` 失败被空 catch 吞掉，导致后端 404 对用户不可见。需补充错误反馈与 E2E 回归测试。
+
 ### 待登记
 
 > 后续发现的技术债请追加到对应分类下，不要新建文件。
