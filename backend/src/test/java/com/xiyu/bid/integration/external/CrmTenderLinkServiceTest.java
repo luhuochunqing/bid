@@ -235,4 +235,60 @@ class CrmTenderLinkServiceTest {
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.PENDING_ASSIGNMENT);
         assertThat(tender.getCrmOpportunityId()).isNull();
     }
+
+    // ===== CO-277：applyCrmLinkAndAssignment 识别纯数字 id 并按 id 反查 code =====
+
+    @Test
+    void linkIfPresent_numericId_looksUpByChanceIdAndStoresCode() {
+        // CRM 推送 crmOpportunityId=20916（商机主键 id），应按 id 反查拿 code 存入
+        Tender tender = newTender();
+        CrmProjectLeaderService.ProjectLeaderResult leader =
+                new CrmProjectLeaderService.ProjectLeaderResult(
+                        "张三", "EMP001", "cye测试3", "CC20260619285");
+        when(crmProjectLeaderService.findProjectLeaderByChanceId(20916L)).thenReturn(leader);
+        when(userRepository.findByEmployeeNumber("EMP001")).thenReturn(Optional.empty());
+
+        service.linkIfPresent(tender, "20916");
+
+        assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
+        // 关键断言：存的是反查到的 code（CC... 格式），不是原始 id（20916）
+        assertThat(tender.getCrmOpportunityId()).isEqualTo("CC20260619285");
+        assertThat(tender.getCrmOpportunityName()).isEqualTo("cye测试3");
+        // 应按 id 查，不应按 code 查
+        verify(crmProjectLeaderService).findProjectLeaderByChanceId(20916L);
+        verify(crmProjectLeaderService, never()).findProjectLeaderByChanceCode(any());
+    }
+
+    @Test
+    void linkIfPresent_numericId_detailReturnsNull_doesNotStoreId() {
+        // id 格式反查失败时，不能把 id 存入 crm_opportunity_id（会让兜底跳过 + 回传 code 错误）
+        Tender tender = newTender();
+        when(crmProjectLeaderService.findProjectLeaderByChanceId(20916L)).thenReturn(null);
+
+        service.linkIfPresent(tender, "20916");
+
+        assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
+        // 关键断言：id 格式反查失败时保持 null，不存 20916
+        assertThat(tender.getCrmOpportunityId()).isNull();
+        verify(crmProjectLeaderService).findProjectLeaderByChanceId(20916L);
+        verify(crmProjectLeaderService, never()).findProjectLeaderByChanceCode(any());
+    }
+
+    @Test
+    void linkIfPresent_codeFormat_stillUsesChanceCodeLookup() {
+        // code 格式（CC...）保持原逻辑，走 findProjectLeaderByChanceCode
+        Tender tender = newTender();
+        CrmProjectLeaderService.ProjectLeaderResult leader =
+                new CrmProjectLeaderService.ProjectLeaderResult(
+                        "张三", "EMP001", "商机A", "CC20260619285");
+        when(crmProjectLeaderService.findProjectLeaderByChanceCode("CC20260619285")).thenReturn(leader);
+        when(userRepository.findByEmployeeNumber("EMP001")).thenReturn(Optional.empty());
+
+        service.linkIfPresent(tender, "CC20260619285");
+
+        assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
+        assertThat(tender.getCrmOpportunityId()).isEqualTo("CC20260619285");
+        verify(crmProjectLeaderService).findProjectLeaderByChanceCode("CC20260619285");
+        verify(crmProjectLeaderService, never()).findProjectLeaderByChanceId(any());
+    }
 }
