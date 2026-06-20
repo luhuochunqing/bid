@@ -219,6 +219,15 @@ public class TenderIntegrationMapper {
         return sourceSystem + ":" + sourceId;
     }
 
+    /**
+     * 判断是否携带有效外部来源（非空且非 "_" 占位符）。
+     * 用于 Resolver 的交叉校验和 externalId 查询，保证两处口径一致。
+     */
+    static boolean hasExternalSource(String sourceSystem, String sourceId) {
+        return sourceSystem != null && !sourceSystem.isBlank() && !"_".equals(sourceSystem)
+                && sourceId != null && !sourceId.isBlank() && !"_".equals(sourceId);
+    }
+
     static String firstNonBlank(String... values) {
         if (values == null) return null;
         for (String v : values) {

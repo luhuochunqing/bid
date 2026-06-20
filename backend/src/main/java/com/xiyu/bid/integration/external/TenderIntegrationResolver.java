@@ -30,9 +30,8 @@ public class TenderIntegrationResolver {
             Tender tender = tenderRepository.findById(tenderId)
                     .orElseThrow(() -> new com.xiyu.bid.exception.ResourceNotFoundException(
                             "标讯不存在: id=" + tenderId));
-            // 若同时传了 sourceSystem/sourceId，做交叉校验（"_"/"_" 占位符表示手动创建，跳过校验）
-            if (sourceSystem != null && !sourceSystem.isBlank() && !"_".equals(sourceSystem)
-                    && sourceId != null && !sourceId.isBlank() && !"_".equals(sourceId)) {
+            // 若同时传了 sourceSystem/sourceId，做交叉校验（占位符判断收敛到 hasExternalSource）
+            if (TenderIntegrationMapper.hasExternalSource(sourceSystem, sourceId)) {
                 String expectedExternalId = TenderIntegrationMapper.buildExternalId(sourceSystem, sourceId);
                 if (tender.getExternalId() != null && !tender.getExternalId().equals(expectedExternalId)) {
                     throw new IllegalArgumentException(
@@ -44,8 +43,7 @@ public class TenderIntegrationResolver {
             return tender;
         }
 
-        if (sourceSystem != null && !sourceSystem.isBlank() && !"_".equals(sourceSystem)
-                && sourceId != null && !sourceId.isBlank() && !"_".equals(sourceId)) {
+        if (TenderIntegrationMapper.hasExternalSource(sourceSystem, sourceId)) {
             String externalId = TenderIntegrationMapper.buildExternalId(sourceSystem, sourceId);
             return tenderRepository.findByExternalId(externalId)
                     .orElseThrow(() -> new com.xiyu.bid.exception.ResourceNotFoundException(
