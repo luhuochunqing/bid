@@ -377,6 +377,7 @@ data.status 取值说明：CREATED — 新建成功（HTTP 201）；UPDATED — 
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
+| roleKey | String | 否 | 客户角色键；不传时系统按行顺序兜底生成 `EXTERNAL_ROLE_N`，页面展示为“外部对接人N” |
 | NAME | String | 否 | 姓名，TEXT |
 | CONTACT_INFO | String | 否 | 联系方式，TEXT |
 | POSITION | String | 否 | 职位，ENUM14 |
@@ -400,6 +401,8 @@ data.status 取值说明：CREATED — 新建成功（HTTP 201）；UPDATED — 
 |--------|------|------|------|--------|
 | shouldBid | Boolean | 否 | 是否建议投标 | true |
 | reason | String | 否 | 建议理由 | "项目匹配度高，利润可观" |
+
+> `roleKey` 可选。若外部系统无法判断客户属于 14 个固定角色中的哪一类，可不传；系统会生成 `EXTERNAL_ROLE_1`、`EXTERNAL_ROLE_2` 等兜底角色键保存，前端展示为“外部对接人1”、“外部对接人2”。若外部系统能明确角色，建议传入固定角色键，避免客户信息落入外部兜底行。
 
 **请求示例（含评估数据）**
 

@@ -37,7 +37,7 @@ describe('CustomerInfoMatrix', () => {
     expect(localData).toHaveLength(CUSTOMER_INFO_ROWS.length + 1)
     expect(localData).toContainEqual(expect.objectContaining({
       roleKey: 'EXTERNAL_ROLE_1',
-      roleLabel: 'EXTERNAL_ROLE_1',
+      roleLabel: '外部对接人1',
       CONTACT_INFO: '18888888888',
       INFO_TENDENCY_BASIS: '客户明确偏向西域',
     }))
@@ -64,7 +64,7 @@ describe('CustomerInfoMatrix', () => {
     expect(localData).toHaveLength(CUSTOMER_INFO_ROWS.length + 1)
     expect(externalRow).toMatchObject({
       roleKey: 'EXTERNAL_ROLE_1',
-      roleLabel: 'EXTERNAL_ROLE_1',
+      roleLabel: '外部对接人1',
       NAME: '张三',
       CONTACT_INFO: '18888888888',
     })

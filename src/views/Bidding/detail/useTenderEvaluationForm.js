@@ -1,6 +1,6 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { CUSTOMER_INFO_COLUMNS } from './components/customerInfoMatrixConfig.js'
+import { CUSTOMER_INFO_COLUMNS, getCustomerInfoRoleLabel } from './components/customerInfoMatrixConfig.js'
 
 // ---- Default factories ----
 function makeEmptyBasic() {
@@ -67,7 +67,7 @@ function eavToFlat(eavRows) {
   for (const row of eavRows) {
     if (!row.roleKey) continue
     if (!byRole.has(row.roleKey)) {
-      byRole.set(row.roleKey, { roleKey: row.roleKey })
+      byRole.set(row.roleKey, { roleKey: row.roleKey, roleLabel: getCustomerInfoRoleLabel(row.roleKey) })
     }
     byRole.get(row.roleKey)[row.infoKey] = row.value
   }
