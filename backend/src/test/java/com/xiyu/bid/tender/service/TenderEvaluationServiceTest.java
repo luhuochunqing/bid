@@ -15,6 +15,7 @@ import com.xiyu.bid.task.service.TaskService;
 import com.xiyu.bid.tender.controller.TenderEvaluationController.TenderBidResult;
 import com.xiyu.bid.tender.dto.TenderReviewRequest;
 import com.xiyu.bid.tender.entity.TenderEvaluation;
+import com.xiyu.bid.tender.entity.TenderEvaluationBasic;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -64,6 +65,9 @@ class TenderEvaluationServiceTest {
     @Mock
     private org.springframework.context.ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private TenderEvaluationDocumentService tenderEvaluationDocumentService;
+
     private TenderEvaluationService service;
 
     @BeforeEach
@@ -78,7 +82,8 @@ class TenderEvaluationServiceTest {
                 mock(TenderEvaluationSubmissionService.class),
                 permissions,
                 accessGuard,
-                eventPublisher
+                eventPublisher,
+                tenderEvaluationDocumentService
         );
         // 决策类端点默认放行；individual 测试覆写为 false 检验 403 路径。
         org.mockito.Mockito.lenient()
@@ -256,5 +261,80 @@ class TenderEvaluationServiceTest {
                 () -> service.reviewTender(1L, new TenderReviewRequest(true, null, "通过"), 9L));
 
         verify(tenderEvaluationRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    // ---------- CO-262 P0-1: reviewTender / getEvaluation 返回的 DTO 必须包含 GAP 附件 ----------
+
+    @Test
+    @DisplayName("CO-262 P0-1: reviewTender 返回的 DTO 必须填充 projectPlanGapFiles")
+    void reviewTender_returnsDtoWithGapFiles() {
+        Tender tender = Tender.builder()
+                .id(1L)
+                .title("测试标讯")
+                .status(Tender.Status.EVALUATED)
+                .build();
+        TenderEvaluation evaluation = TenderEvaluation.builder()
+                .tenderId(1L)
+                .reviewStatus(TenderEvaluation.ReviewStatus.PENDING)
+                .basic(TenderEvaluationBasic.builder().id(1L).plannedShortlistedCount(1).build())
+                .build();
+        User reviewer = User.builder().id(9L).username("admin-reviewer").build();
+
+        when(tenderEvaluationRepository.findByTenderId(1L)).thenReturn(Optional.of(evaluation));
+        when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
+        when(userRepository.findById(9L)).thenReturn(Optional.of(reviewer));
+        when(tenderEvaluationRepository.save(any(TenderEvaluation.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(tenderRepository.save(any(Tender.class))).thenAnswer(inv -> inv.getArgument(0));
+        // 模拟 project_documents 表有 GAP 附件
+        com.xiyu.bid.projectworkflow.entity.ProjectDocument gapDoc =
+                com.xiyu.bid.projectworkflow.entity.ProjectDocument.builder()
+                        .id(200L).projectId(1L)
+                        .name("GAP附件")
+                        .fileUrl("https://crm.example.com/gap.pdf")
+                        .linkedEntityType("EVALUATION_GAP")
+                        .linkedEntityId(1L)
+                        .build();
+        when(tenderEvaluationDocumentService.getDocuments(1L))
+                .thenReturn(java.util.List.of(gapDoc));
+
+        com.xiyu.bid.tender.dto.TenderEvaluationDTO dto = service.reviewTender(
+                1L, new TenderReviewRequest(true, null, "通过"), 9L);
+
+        assertThat(dto).isNotNull();
+        assertThat(dto.evaluationBasic()).isNotNull();
+        assertThat(dto.evaluationBasic().projectPlanGapFiles()).hasSize(1);
+        assertThat(dto.evaluationBasic().projectPlanGapFiles().get(0).fileName()).isEqualTo("GAP附件");
+        assertThat(dto.evaluationBasic().projectPlanGapFiles().get(0).fileUrl())
+                .isEqualTo("https://crm.example.com/gap.pdf");
+    }
+
+    @Test
+    @DisplayName("CO-262 P0-1: getEvaluation 返回的 DTO 必须填充 projectPlanGapFiles")
+    void getEvaluation_returnsDtoWithGapFiles() {
+        Tender tender = Tender.builder().id(1L).title("测试标讯").build();
+        TenderEvaluation evaluation = TenderEvaluation.builder()
+                .tenderId(1L)
+                .basic(TenderEvaluationBasic.builder().id(1L).plannedShortlistedCount(1).build())
+                .build();
+
+        when(tenderEvaluationRepository.findByTenderId(1L)).thenReturn(Optional.of(evaluation));
+        when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
+        com.xiyu.bid.projectworkflow.entity.ProjectDocument gapDoc =
+                com.xiyu.bid.projectworkflow.entity.ProjectDocument.builder()
+                        .id(200L).projectId(1L)
+                        .name("GAP附件")
+                        .fileUrl("https://crm.example.com/gap.pdf")
+                        .linkedEntityType("EVALUATION_GAP")
+                        .linkedEntityId(1L)
+                        .build();
+        when(tenderEvaluationDocumentService.getDocuments(1L))
+                .thenReturn(java.util.List.of(gapDoc));
+
+        Optional<com.xiyu.bid.tender.dto.TenderEvaluationDTO> dto = service.getEvaluation(1L);
+
+        assertThat(dto).isPresent();
+        assertThat(dto.get().evaluationBasic()).isNotNull();
+        assertThat(dto.get().evaluationBasic().projectPlanGapFiles()).hasSize(1);
+        assertThat(dto.get().evaluationBasic().projectPlanGapFiles().get(0).fileName()).isEqualTo("GAP附件");
     }
 }

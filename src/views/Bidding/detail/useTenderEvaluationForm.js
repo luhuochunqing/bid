@@ -102,6 +102,11 @@ function eavToFlat(eavRows) {
 /**
  * Build the API payload from form state (3-section structure).
  * Backend expects: TenderEvaluationSubmitRequest with legacy bidRecommendation + evaluationBasic/evaluationCustomerInfos/evaluationRecommendation
+ *
+ * CO-262: 透传 projectPlanGapFiles（CRM 回填的 GAP 附件外部 URL 引用），
+ * 由后端 SubmissionService 在保存评估表时原子性持久化到 project_documents 表。
+ * 用户手动上传的附件已通过 uploadEvaluationDocument 接口落库，
+ * 此处仅传递 CRM 回填的外部 URL 引用，后端会先清空再重建。
  */
 export function buildApiPayload(form) {
   const b = form.basic
@@ -117,6 +122,7 @@ export function buildApiPayload(form) {
       processKnowledge: b.processKnowledge || null,
       supportNotes: b.supportNotes || null,
       projectPlanGap: b.projectPlanGap || null,
+      projectPlanGapFiles: Array.isArray(b.projectPlanGapFiles) ? b.projectPlanGapFiles : [],
     },
     evaluationCustomerInfos: Array.isArray(form.customerInfo) ? form.customerInfo.flatMap((row) =>
       CUSTOMER_INFO_COLUMNS

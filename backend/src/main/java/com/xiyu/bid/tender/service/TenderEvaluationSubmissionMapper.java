@@ -6,6 +6,7 @@ package com.xiyu.bid.tender.service;
 
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.tender.dto.EvaluationBasicDTO;
 import com.xiyu.bid.tender.dto.EvaluationCustomerInfoDTO;
 import com.xiyu.bid.tender.dto.EvaluationRecommendationDTO;
@@ -128,8 +129,19 @@ public class TenderEvaluationSubmissionMapper {
         entity.setRecommendation(r);
     }
 
-    /** 将实体转换为完整 DTO。 */
+    /** 将实体转换为完整 DTO（不加载 GAP 附件，gapFiles=null）。 */
     public TenderEvaluationDTO toDTO(TenderEvaluation e, Tender tender, boolean canFill, boolean canDecide) {
+        return toDTO(e, tender, canFill, canDecide, null);
+    }
+
+    /**
+     * 将实体转换为完整 DTO（CO-262 增强版）。
+     *
+     * @param gapFiles 已加载的 GAP 附件列表（可为 null，表示不填充 projectPlanGapFiles）。
+     *                 由 Service 层从 project_documents 表查询后传入。
+     */
+    public TenderEvaluationDTO toDTO(TenderEvaluation e, Tender tender, boolean canFill, boolean canDecide,
+                                     List<ProjectDocument> gapFiles) {
         if (e == null) {
             return null;
         }
@@ -145,7 +157,8 @@ public class TenderEvaluationSubmissionMapper {
                     b.getProcessKnowledge(),
                     b.getSupportNotes(),
                     b.getProjectPlanGap(),
-                    b.getCustomerRevenue()
+                    b.getCustomerRevenue(),
+                    toGapFileRefs(gapFiles)
             );
         }
 
@@ -212,5 +225,18 @@ public class TenderEvaluationSubmissionMapper {
                 null,
                 1
         );
+    }
+
+    /**
+     * CO-262: 将 ProjectDocument 实体列表转换为 GapFileRef DTO 列表。
+     * <p>仅提取 fileName 和 fileUrl 两个字段，供前端只读展示与下载。
+     */
+    private List<EvaluationBasicDTO.GapFileRef> toGapFileRefs(List<ProjectDocument> gapFiles) {
+        if (gapFiles == null || gapFiles.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return gapFiles.stream()
+                .map(doc -> new EvaluationBasicDTO.GapFileRef(doc.getName(), doc.getFileUrl()))
+                .collect(Collectors.toList());
     }
 }

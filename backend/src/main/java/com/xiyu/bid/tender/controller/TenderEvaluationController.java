@@ -212,6 +212,7 @@ public class TenderEvaluationController {
                 .documentCategory(doc.getDocumentCategory())
                 .linkedEntityType(doc.getLinkedEntityType())
                 .linkedEntityId(doc.getLinkedEntityId())
+                .fileUrl(doc.getFileUrl())
                 .uploader(doc.getUploaderName())
                 .createdAt(doc.getCreatedAt())
                 .build();

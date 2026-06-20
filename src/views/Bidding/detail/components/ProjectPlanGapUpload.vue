@@ -37,11 +37,24 @@
     <div v-else-if="localFiles.length" class="gap-file-list">
       <div
         v-for="file in localFiles"
-        :key="file.id"
+        :key="file.id || file.fileUrl"
         class="gap-file-item"
       >
         <el-icon><Document /></el-icon>
-        <span class="gap-file-name" :title="file.name">{{ file.name || file.fileName }}</span>
+        <el-link
+          v-if="file.fileUrl"
+          type="primary"
+          :href="resolveFileUrl(file.fileUrl)"
+          target="_blank"
+          rel="noopener noreferrer"
+          :title="file.name || file.fileName"
+          class="gap-file-name"
+        >
+          {{ file.name || file.fileName || 'GAP附件' }}
+        </el-link>
+        <span v-else class="gap-file-name" :title="file.name || file.fileName">
+          {{ file.name || file.fileName }}
+        </span>
       </div>
     </div>
   </div>
@@ -74,6 +87,20 @@ const gapUploadHeaders = computed(() => {
   const token = userStore?.token
   return token ? { Authorization: `Bearer ${token}` } : {}
 })
+
+/**
+ * CO-262: 解析附件 URL，支持外部绝对 URL（http/https）和相对路径（/api/...）。
+ * - 绝对 URL（如 CRM 返回的 https://image-c.ehsy.com/...）：直接返回
+ * - 相对路径（如 /api/tenders/.../documents/.../download）：拼接当前 origin
+ * - 其他协议（javascript:、data: 等）：返回 '#' 防止 XSS
+ */
+function resolveFileUrl(fileUrl) {
+  if (!fileUrl) return '#'
+  if (/^https?:\/\//i.test(fileUrl)) return fileUrl
+  if (fileUrl.startsWith('/')) return `${window.location.origin}${fileUrl}`
+  // 防御深度：非 http(s):// 且非相对路径的 URL 一律拒绝，避免 javascript: 等协议注入
+  return '#'
+}
 
 function handleGapFileSuccess(response) {
   if (response?.data) {
@@ -160,6 +187,19 @@ function beforeGapUpload(file) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* CO-262: el-link 在 flex 容器中需要限制宽度以触发省略号 */
+.gap-file-name.el-link {
+  max-width: 100%;
+}
+
+.gap-file-name :deep(.el-link__inner) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  max-width: 100%;
 }
 
 .readonly-textarea {

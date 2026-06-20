@@ -16,17 +16,12 @@ import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.tender.controller.TenderEvaluationController.TenderBidResult;
-import com.xiyu.bid.tender.dto.EvaluationBasicDTO;
-import com.xiyu.bid.tender.dto.EvaluationCustomerInfoDTO;
-import com.xiyu.bid.tender.dto.EvaluationRecommendationDTO;
 import com.xiyu.bid.tender.dto.TenderEvaluationDTO;
 import com.xiyu.bid.tender.dto.TenderEvaluationSubmitRequest;
 import com.xiyu.bid.tender.dto.TenderReviewRequest;
 import com.xiyu.bid.tender.entity.TenderEvaluation;
-import com.xiyu.bid.tender.entity.TenderEvaluationBasic;
-import com.xiyu.bid.tender.entity.TenderEvaluationCustomerInfo;
-import com.xiyu.bid.tender.entity.TenderEvaluationRecommendation;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
+import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.task.dto.TaskDTO;
 import com.xiyu.bid.task.service.TaskService;
 import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
@@ -37,11 +32,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * 标讯评估服务（V130 三段式重构）。
@@ -68,6 +61,7 @@ public class TenderEvaluationService {
     private final TenderAssignmentPermissions permissions;
     private final TenderProjectAccessGuard accessGuard;
     private final ApplicationEventPublisher eventPublisher;
+    private final TenderEvaluationDocumentService documentService;
     private final TenderEvaluationSubmissionMapper mapper = new TenderEvaluationSubmissionMapper();
 
     public TenderEvaluationService(
@@ -80,7 +74,8 @@ public class TenderEvaluationService {
             TenderEvaluationSubmissionService submissionService,
             TenderAssignmentPermissions permissions,
             TenderProjectAccessGuard accessGuard,
-            ApplicationEventPublisher eventPublisher) {
+            ApplicationEventPublisher eventPublisher,
+            TenderEvaluationDocumentService documentService) {
         this.tenderEvaluationRepository = tenderEvaluationRepository;
         this.tenderRepository = tenderRepository;
         this.projectService = projectService;
@@ -91,6 +86,7 @@ public class TenderEvaluationService {
         this.permissions = permissions;
         this.accessGuard = accessGuard;
         this.eventPublisher = eventPublisher;
+        this.documentService = documentService;
     }
 
     // ---------- V119: 项目评估表草稿/提交 facade（委托给 TenderEvaluationSubmissionService） ----------
@@ -292,7 +288,9 @@ public class TenderEvaluationService {
 
     // ---------- DTO 转换（V130 三段式） ----------
 
+    /** CO-262: 转换 DTO 时同步加载 GAP 附件回填到 evaluationBasic.projectPlanGapFiles。 */
     private TenderEvaluationDTO toDTO(TenderEvaluation evaluation, Tender tender, boolean canFill, boolean canDecide) {
-        return mapper.toDTO(evaluation, tender, canFill, canDecide);
+        List<ProjectDocument> gapFiles = documentService.getDocuments(evaluation.getTenderId());
+        return mapper.toDTO(evaluation, tender, canFill, canDecide, gapFiles);
     }
 }
