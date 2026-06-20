@@ -8,16 +8,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * 标讯评估客户信息段固定表格校验策略（纯函数）。
  *
  * <p>规则：
  * <ul>
- *   <li>role_key 必须属于预定义的 14 个固定角色 → INVALID_ROLE</li>
+ *   <li>role_key 必须属于预定义的 14 个固定角色，或外部接口兜底生成的 EXTERNAL_ROLE_N → INVALID_ROLE</li>
  *   <li>info_key 必须属于预定义的 14 个固定信息维度 → INVALID_INFO_KEY</li>
  *   <li>value_type 必须与预期类型一致（TEXT / DROPDOWN / SWITCH / ENUM14 / ENUM7 / DROPDOWN6）→ INVALID_VALUE_TYPE</li>
- *   <li>不允许增删预定义之外的行-row（即不允许提交未被认可的 role_key）→ INVALID_ROLE</li>
+ *   <li>不允许提交未被认可的 role_key → INVALID_ROLE</li>
  *   <li>必填的 info_key 值不能为空 → REQUIRED</li>
  * </ul>
  *
@@ -70,6 +71,7 @@ public final class TenderEvaluationCustomerInfoPolicy {
     private static final String CODE_INVALID_INFO_KEY = "INVALID_INFO_KEY";
     private static final String CODE_INVALID_VALUE_TYPE = "INVALID_VALUE_TYPE";
     private static final String CODE_REQUIRED = "REQUIRED";
+    private static final Pattern EXTERNAL_ROLE_KEY_PATTERN = Pattern.compile("EXTERNAL_ROLE_\\d+");
 
     /** 14 个固定角色键。 */
     public static final Set<String> VALID_ROLE_KEYS = Set.of(
@@ -202,11 +204,11 @@ public final class TenderEvaluationCustomerInfoPolicy {
             String prefix = "customerInfos[" + i + "]";
 
             // role_key 合法性
-            if (row.roleKey == null || !VALID_ROLE_KEYS.contains(row.roleKey)) {
+            if (!isValidRoleKey(row.roleKey)) {
                 errors.add(new FieldError(
                     prefix + ".roleKey",
                     CODE_INVALID_ROLE,
-                    "角色键 '" + row.roleKey + "' 不在 14 个固定角色列表中"));
+                    "角色键 '" + row.roleKey + "' 不是固定角色或合法外部兜底角色"));
                 continue;
             }
 
@@ -244,10 +246,14 @@ public final class TenderEvaluationCustomerInfoPolicy {
     }
 
     /**
-     * 校验 role_key 是否为合法的固定角色。
+     * 校验 role_key 是否为合法的固定角色或外部兜底角色。
      */
     public static boolean isValidRoleKey(String roleKey) {
-        return roleKey != null && VALID_ROLE_KEYS.contains(roleKey);
+        return roleKey != null && (VALID_ROLE_KEYS.contains(roleKey) || isExternalRoleKey(roleKey));
+    }
+
+    private static boolean isExternalRoleKey(String roleKey) {
+        return EXTERNAL_ROLE_KEY_PATTERN.matcher(roleKey).matches();
     }
 
     /**

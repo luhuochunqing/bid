@@ -16,7 +16,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import CustomerInfoMatrixTable from './CustomerInfoMatrixTable.vue'
-import { CUSTOMER_INFO_COLUMNS, CUSTOMER_INFO_ROWS } from './customerInfoMatrixConfig.js'
+import { CUSTOMER_INFO_COLUMNS, CUSTOMER_INFO_ROWS, getCustomerInfoRoleLabel } from './customerInfoMatrixConfig.js'
 
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
@@ -67,7 +67,7 @@ function mergeData(incoming) {
     ? incoming
       .filter(item => item?.roleKey && !fixedKeys.has(item.roleKey))
       .map(item => {
-        const roleLabel = item.roleLabel || item.roleKey
+        const roleLabel = getCustomerInfoRoleLabel(item.roleKey, item.roleLabel)
         return { ...makeEmptyRow({ roleKey: item.roleKey, roleLabel }), ...item, roleKey: item.roleKey, roleLabel }
       })
     : []

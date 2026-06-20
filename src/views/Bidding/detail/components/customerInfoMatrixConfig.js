@@ -32,6 +32,15 @@ export const CUSTOMER_INFO_ROWS = [
   { roleKey: 'EXPERT_3', roleLabel: '专家3' },
 ]
 
+export function getCustomerInfoRoleLabel(roleKey, roleLabel) {
+  if (roleLabel && roleLabel !== roleKey) return roleLabel
+  const fixed = CUSTOMER_INFO_ROWS.find(row => row.roleKey === roleKey)
+  if (fixed) return fixed.roleLabel
+  const externalRole = /^EXTERNAL_ROLE_(\d+)$/.exec(roleKey || '')
+  if (externalRole) return `外部对接人${externalRole[1]}`
+  return roleLabel || roleKey || ''
+}
+
 export const POSITION_OPTIONS = [
   '董事长',
   '总经理',

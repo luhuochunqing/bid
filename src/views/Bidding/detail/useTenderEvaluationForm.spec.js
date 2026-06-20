@@ -45,6 +45,7 @@ describe('evaluationToForm', () => {
     expect(result.customerInfo).toEqual([
       expect.objectContaining({
         roleKey: 'EXTERNAL_ROLE_1',
+        roleLabel: '外部对接人1',
         CAN_GET_KEY_INFO: 'true',
         CAN_REMOVE_ADVERSE: 'true',
         CAN_SYNC_EVAL: 'true',

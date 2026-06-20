@@ -76,7 +76,7 @@ describe('CustomerInfoMatrixTable', () => {
         localData: [
           {
             roleKey: 'EXTERNAL_ROLE_1',
-            roleLabel: 'EXTERNAL_ROLE_1',
+            roleLabel: '外部对接人1',
             NAME: '张三',
             CONTACT_INFO: '18888888888',
             XIYU_CONTACT: '张頔',
@@ -91,6 +91,7 @@ describe('CustomerInfoMatrixTable', () => {
 
     const columnStubs = wrapper.findAll('.el-table-column-stub')
     expect(columnStubs[0].attributes('data-label')).toBe('角色')
-    expect(wrapper.text()).toContain('EXTERNAL_ROLE_1')
+    expect(wrapper.text()).toContain('外部对接人1')
+    expect(wrapper.text()).not.toContain('EXTERNAL_ROLE_1')
   })
 })
