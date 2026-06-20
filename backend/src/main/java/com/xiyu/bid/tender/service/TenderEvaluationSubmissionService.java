@@ -8,6 +8,8 @@ package com.xiyu.bid.tender.service;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
+import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
+import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.tender.core.FieldError;
@@ -60,6 +62,8 @@ public class TenderEvaluationSubmissionService {
     private final TenderProjectAccessGuard accessGuard;
     private final TenderAssignmentPermissions permissions;
     private final TenderEvaluationSubmissionNotifier submissionNotifier;
+    private final TenderEvaluationGapFilesSync gapFilesSync;
+    private final TenderEvaluationDocumentService documentService;
     private final TenderEvaluationSubmissionMapper mapper = new TenderEvaluationSubmissionMapper();
     private final Clock clock;
 
@@ -70,6 +74,8 @@ public class TenderEvaluationSubmissionService {
             TenderProjectAccessGuard accessGuard,
             TenderAssignmentPermissions permissions,
             TenderEvaluationSubmissionNotifier submissionNotifier,
+            ProjectDocumentRepository projectDocumentRepository,
+            TenderEvaluationDocumentService documentService,
             Clock clock) {
         this.evaluationRepository = evaluationRepository;
         this.tenderRepository = tenderRepository;
@@ -77,12 +83,16 @@ public class TenderEvaluationSubmissionService {
         this.accessGuard = accessGuard;
         this.permissions = permissions;
         this.submissionNotifier = submissionNotifier;
+        this.gapFilesSync = new TenderEvaluationGapFilesSync(projectDocumentRepository);
+        this.documentService = documentService;
         this.clock = clock;
     }
 
     /**
      * 加载已有评估表，或返回一个未持久化的空白 DRAFT 视图。
      * <p>V130: 返回数据包含三段式信息（basic / customerInfos / recommendation）。
+     * <p>CO-262: 同步加载 project_documents 表中 linkedEntityType=EVALUATION_GAP
+     * 的附件列表，填充到 basic.projectPlanGapFiles，供前端只读展示。
      */
     @Transactional(readOnly = true)
     public TenderEvaluationDTO loadOrInitDraft(Long tenderId, Long evaluatorId) {
@@ -93,7 +103,7 @@ public class TenderEvaluationSubmissionService {
         boolean canFill = permissions.canFill(tenderId, evaluatorId);
         boolean canDecide = permissions.canDecide(tenderId, evaluatorId);
         return evaluationRepository.findByTenderId(tenderId)
-                .map(existing -> mapper.toDTO(existing, tender, canFill, canDecide))
+                .map(existing -> mapper.toDTO(existing, tender, canFill, canDecide, documentService.getDocuments(tenderId)))
                 .orElseGet(() -> mapper.emptyDraftDTO(tender, evaluator, canFill, canDecide));
     }
 
@@ -138,8 +148,10 @@ public class TenderEvaluationSubmissionService {
         applyCustomerInfosWithFlush(entity, req.evaluationCustomerInfos());
 
         TenderEvaluation saved = evaluationRepository.save(entity);
+        // CO-262: 持久化 CRM 回填的 GAP 附件引用（外部 URL）到 project_documents 表
+        List<ProjectDocument> gapFiles = gapFilesSync.applyGapFiles(tenderId, req.evaluationBasic());
         boolean canDecide = permissions.canDecide(tenderId, evaluatorId);
-        return mapper.toDTO(saved, tender, true, canDecide);
+        return mapper.toDTO(saved, tender, true, canDecide, gapFiles);
     }
 
     /**
@@ -215,8 +227,10 @@ public class TenderEvaluationSubmissionService {
         // 发送审核通知
         submissionNotifier.notifyEvaluationSubmitted(tender);
 
+        // CO-262: 持久化 CRM 回填的 GAP 附件引用（外部 URL）到 project_documents 表
+        List<ProjectDocument> gapFiles = gapFilesSync.applyGapFiles(tenderId, req.evaluationBasic());
         boolean canDecide = permissions.canDecide(tenderId, evaluatorId);
-        return mapper.toDTO(saved, tender, true, canDecide);
+        return mapper.toDTO(saved, tender, true, canDecide, gapFiles);
     }
 
     // ---------- helpers ----------

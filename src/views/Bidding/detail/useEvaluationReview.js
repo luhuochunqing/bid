@@ -45,22 +45,10 @@ export function useEvaluationReview(tenderRef) {
     try {
       const result = await tendersApi.loadEvaluation(id)
       if (result?.success !== false) {
-        const evalData = result?.data || null
-        // 同步加载评估表附件列表（附件存储在 project_documents 表，独立于 evaluation 接口）
-        if (evalData) {
-          try {
-            const docsResult = await tendersApi.getEvaluationDocuments(id)
-            if (docsResult?.success !== false) {
-              const docs = docsResult?.data || []
-              // 填充到 evaluationBasic.projectPlanGapFiles，供 ProjectPlanGapUpload 组件回显
-              if (!evalData.evaluationBasic) evalData.evaluationBasic = {}
-              evalData.evaluationBasic.projectPlanGapFiles = docs
-            }
-          } catch (e) {
-            console.warn('getEvaluationDocuments failed:', e?.message || e)
-          }
-        }
-        tenderEvaluation.value = evalData
+        // CO-262 P0-2: 后端 loadOrInitDraft 已在 evaluationBasic.projectPlanGapFiles
+        // 中返回 GapFileRef 列表（含 fileName/fileUrl），前端不再单独调用
+        // getEvaluationDocuments 覆盖，避免数据结构不一致和重复查询。
+        tenderEvaluation.value = result?.data || null
         hasUnsavedChanges.value = false
       }
     } catch (e) {

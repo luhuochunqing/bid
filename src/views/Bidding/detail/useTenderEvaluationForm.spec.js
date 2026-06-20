@@ -246,6 +246,94 @@ describe('buildApiPayload', () => {
       expect.objectContaining({ roleKey: 'EXTERNAL_ROLE_1', infoKey: 'CONTACT_INFO', value: '18888888888', valueType: 'TEXT' })
     )
   })
+
+  // CO-262: buildApiPayload 必须透传 projectPlanGapFiles，否则 CRM 回填的 GAP 附件无法持久化
+  it('CO-262: 透传 projectPlanGapFiles 到 evaluationBasic payload', () => {
+    const form = {
+      basic: {
+        ...makeEmptyBasic(),
+        projectPlanGapFiles: [
+          { fileName: 'GAP附件', fileUrl: 'https://crm.example.com/gap.pdf' },
+        ],
+      },
+      customerInfo: [],
+      recommendation: { shouldBid: true, reason: '' },
+    }
+
+    const payload = buildApiPayload(form)
+
+    expect(payload.evaluationBasic.projectPlanGapFiles).toEqual([
+      { fileName: 'GAP附件', fileUrl: 'https://crm.example.com/gap.pdf' },
+    ])
+  })
+
+  it('CO-262: projectPlanGapFiles 为空数组时 payload 中也是空数组', () => {
+    const form = {
+      basic: makeEmptyBasic(),
+      customerInfo: [],
+      recommendation: { shouldBid: true, reason: '' },
+    }
+
+    const payload = buildApiPayload(form)
+
+    expect(payload.evaluationBasic.projectPlanGapFiles).toEqual([])
+  })
+
+  it('CO-262: projectPlanGapFiles 缺失时 payload 中补空数组', () => {
+    const form = {
+      basic: {
+        plannedShortlistedCount: null,
+        mroOfficeFlowAmount: null,
+        customerRevenue: null,
+        unfavorableItems: '',
+        riskAssessment: '',
+        contingencyPlan: '',
+        processKnowledge: '',
+        supportNotes: '',
+        projectPlanGap: '',
+        // projectPlanGapFiles 故意缺失
+      },
+      customerInfo: [],
+      recommendation: { shouldBid: true, reason: '' },
+    }
+
+    const payload = buildApiPayload(form)
+
+    expect(payload.evaluationBasic.projectPlanGapFiles).toEqual([])
+  })
+})
+
+describe('evaluationToForm - CO-262 projectPlanGapFiles', () => {
+  it('从后端 evaluationBasic.projectPlanGapFiles 回填到 form.basic', () => {
+    const evaluation = {
+      evaluationBasic: {
+        plannedShortlistedCount: 1,
+        projectPlanGapFiles: [
+          { fileName: 'GAP附件', fileUrl: 'https://crm.example.com/gap.pdf' },
+        ],
+      },
+      evaluationCustomerInfos: [],
+      evaluationRecommendation: {},
+    }
+
+    const result = evaluationToForm(evaluation)
+
+    expect(result.basic.projectPlanGapFiles).toEqual([
+      { fileName: 'GAP附件', fileUrl: 'https://crm.example.com/gap.pdf' },
+    ])
+  })
+
+  it('后端未返回 projectPlanGapFiles 时回填空数组', () => {
+    const evaluation = {
+      evaluationBasic: { plannedShortlistedCount: 1 },
+      evaluationCustomerInfos: [],
+      evaluationRecommendation: {},
+    }
+
+    const result = evaluationToForm(evaluation)
+
+    expect(result.basic.projectPlanGapFiles).toEqual([])
+  })
 })
 
 function makeEmptyBasic() {

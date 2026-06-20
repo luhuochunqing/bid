@@ -3,6 +3,7 @@ package com.xiyu.bid.tender.service;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
+import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.tender.core.TenderEvaluationFormPolicy;
@@ -33,6 +34,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -71,6 +74,12 @@ class TenderEvaluationSubmissionServiceTest {
     @Mock
     private TenderEvaluationNotificationService notificationService;
 
+    @Mock
+    private ProjectDocumentRepository projectDocumentRepository;
+
+    @Mock
+    private TenderEvaluationDocumentService tenderEvaluationDocumentService;
+
     private TenderEvaluationSubmissionNotifier notifier;
     private Clock fixedClock;
     private TenderEvaluationSubmissionService service;
@@ -88,6 +97,8 @@ class TenderEvaluationSubmissionServiceTest {
                 accessGuard,
                 permissions,
                 notifier,
+                projectDocumentRepository,
+                tenderEvaluationDocumentService,
                 fixedClock
         );
         // Default permissive — individual tests override for forbidden cases.
@@ -517,5 +528,218 @@ class TenderEvaluationSubmissionServiceTest {
                 .hasMessageContaining("Validation failed");
 
         verify(evaluationRepository, never()).save(any());
+    }
+
+    // ---------- 8. CO-262: GAP 附件持久化与加载 ----------
+
+    @Test
+    @DisplayName("CO-262 saveDraft: 携带 projectPlanGapFiles 时持久化到 project_documents 表")
+    void saveDraft_withGapFiles_persistsToProjectDocuments() {
+        stubTenderAndEvaluator();
+        when(evaluationRepository.findByTenderId(TENDER_ID)).thenReturn(Optional.empty());
+        when(evaluationRepository.save(any(TenderEvaluation.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc(
+                any(), any())).thenReturn(java.util.List.of());
+
+        EvaluationBasicDTO basicWithGap = new EvaluationBasicDTO(
+                1, BigDecimal.ZERO, "", "", "", "", "", "", BigDecimal.ZERO,
+                java.util.List.of(new EvaluationBasicDTO.GapFileRef("GAP附件", "https://crm.example.com/gap.pdf")));
+        TenderEvaluationSubmitRequest req = new TenderEvaluationSubmitRequest(
+                BidRecommendation.RECOMMEND, basicWithGap, null, null);
+
+        service.saveDraft(TENDER_ID, req, EVALUATOR_ID);
+
+        // 验证：调用了 projectDocumentRepository.save 保存 GAP 附件
+        verify(projectDocumentRepository).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    @DisplayName("CO-262 saveDraft: projectPlanGapFiles 为空列表时清空已有 GAP 附件")
+    void saveDraft_emptyGapFiles_clearsExisting() {
+        stubTenderAndEvaluator();
+        when(evaluationRepository.findByTenderId(TENDER_ID)).thenReturn(Optional.empty());
+        when(evaluationRepository.save(any(TenderEvaluation.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        // 模拟已有 GAP 附件
+        com.xiyu.bid.projectworkflow.entity.ProjectDocument existingDoc =
+                com.xiyu.bid.projectworkflow.entity.ProjectDocument.builder()
+                        .id(100L).projectId(TENDER_ID)
+                        .linkedEntityType("EVALUATION_GAP")
+                        .linkedEntityId(TENDER_ID)
+                        .fileUrl("https://old.example.com/gap.pdf")
+                        .build();
+        when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc(
+                any(), any())).thenReturn(java.util.List.of(existingDoc));
+
+        EvaluationBasicDTO basicNoGap = new EvaluationBasicDTO(
+                1, BigDecimal.ZERO, "", "", "", "", "", "", BigDecimal.ZERO,
+                java.util.List.of());
+        TenderEvaluationSubmitRequest req = new TenderEvaluationSubmitRequest(
+                BidRecommendation.RECOMMEND, basicNoGap, null, null);
+
+        service.saveDraft(TENDER_ID, req, EVALUATOR_ID);
+
+        // 验证：调用了 deleteAll 清空已有附件
+        verify(projectDocumentRepository).deleteAll(org.mockito.ArgumentMatchers.anyList());
+        // 验证：没有调用 save（空列表无需保存）
+        verify(projectDocumentRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("CO-262 loadOrInitDraft: 加载时回填 projectPlanGapFiles 到 basic DTO")
+    void loadOrInitDraft_existingEvaluation_fillsGapFiles() {
+        TenderEvaluation existing = TenderEvaluation.builder()
+                .id(50L).tenderId(TENDER_ID).evaluatorId(EVALUATOR_ID)
+                .evaluationStatus(EvaluationStatus.SUBMITTED)
+                .basic(com.xiyu.bid.tender.entity.TenderEvaluationBasic.builder()
+                        .id(1L)
+                        .plannedShortlistedCount(1)
+                        .build())
+                .build();
+        stubTenderAndEvaluator();
+        when(evaluationRepository.findByTenderId(TENDER_ID)).thenReturn(Optional.of(existing));
+        // 模拟 project_documents 表有 GAP 附件（通过 DocumentService.getDocuments 入口）
+        com.xiyu.bid.projectworkflow.entity.ProjectDocument gapDoc =
+                com.xiyu.bid.projectworkflow.entity.ProjectDocument.builder()
+                        .id(200L).projectId(TENDER_ID)
+                        .name("GAP附件")
+                        .fileUrl("https://crm.example.com/gap.pdf")
+                        .linkedEntityType("EVALUATION_GAP")
+                        .linkedEntityId(TENDER_ID)
+                        .build();
+        when(tenderEvaluationDocumentService.getDocuments(TENDER_ID)).thenReturn(java.util.List.of(gapDoc));
+
+        TenderEvaluationDTO dto = service.loadOrInitDraft(TENDER_ID, EVALUATOR_ID);
+
+        assertThat(dto.evaluationBasic()).isNotNull();
+        assertThat(dto.evaluationBasic().projectPlanGapFiles()).hasSize(1);
+        assertThat(dto.evaluationBasic().projectPlanGapFiles().get(0).fileName()).isEqualTo("GAP附件");
+        assertThat(dto.evaluationBasic().projectPlanGapFiles().get(0).fileUrl())
+                .isEqualTo("https://crm.example.com/gap.pdf");
+    }
+
+    @Test
+    @DisplayName("CO-262 loadOrInitDraft: 无 GAP 附件时 basic.projectPlanGapFiles 为空列表")
+    void loadOrInitDraft_noGapFiles_returnsEmptyList() {
+        TenderEvaluation existing = TenderEvaluation.builder()
+                .id(50L).tenderId(TENDER_ID).evaluatorId(EVALUATOR_ID)
+                .evaluationStatus(EvaluationStatus.DRAFT)
+                .basic(com.xiyu.bid.tender.entity.TenderEvaluationBasic.builder()
+                        .id(1L)
+                        .plannedShortlistedCount(1)
+                        .build())
+                .build();
+        stubTenderAndEvaluator();
+        when(evaluationRepository.findByTenderId(TENDER_ID)).thenReturn(Optional.of(existing));
+        when(tenderEvaluationDocumentService.getDocuments(TENDER_ID)).thenReturn(java.util.List.of());
+
+        TenderEvaluationDTO dto = service.loadOrInitDraft(TENDER_ID, EVALUATOR_ID);
+
+        assertThat(dto.evaluationBasic()).isNotNull();
+        assertThat(dto.evaluationBasic().projectPlanGapFiles()).isEmpty();
+    }
+
+    // ---------- CO-262 P1-3: applyGapFiles 语义严谨性 ----------
+
+    @Test
+    @DisplayName("CO-262 P1-3: basic 为 null 时不删除已有 GAP 附件，返回已有列表")
+    void saveDraft_basicNull_preservesExistingGapFiles() {
+        stubTenderAndEvaluator();
+        when(evaluationRepository.findByTenderId(TENDER_ID)).thenReturn(Optional.empty());
+        when(evaluationRepository.save(any(TenderEvaluation.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        // 模拟已有 GAP 附件
+        com.xiyu.bid.projectworkflow.entity.ProjectDocument existingDoc =
+                com.xiyu.bid.projectworkflow.entity.ProjectDocument.builder()
+                        .id(100L).projectId(TENDER_ID)
+                        .linkedEntityType("EVALUATION_GAP")
+                        .linkedEntityId(TENDER_ID)
+                        .fileUrl("https://old.example.com/gap.pdf")
+                        .build();
+        when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc(
+                any(), any())).thenReturn(java.util.List.of(existingDoc));
+
+        // basic 为 null
+        TenderEvaluationSubmitRequest req = new TenderEvaluationSubmitRequest(
+                BidRecommendation.RECOMMEND, null, null, null);
+
+        service.saveDraft(TENDER_ID, req, EVALUATOR_ID);
+
+        // 验证：未调用 deleteAll（不删除已有附件）
+        verify(projectDocumentRepository, never()).deleteAll(anyList());
+        // 验证：未调用 save（不新增附件）
+        verify(projectDocumentRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("CO-262 P1-3: projectPlanGapFiles 为 null 时不删除已有 GAP 附件")
+    void saveDraft_gapFilesNull_preservesExistingGapFiles() {
+        stubTenderAndEvaluator();
+        when(evaluationRepository.findByTenderId(TENDER_ID)).thenReturn(Optional.empty());
+        when(evaluationRepository.save(any(TenderEvaluation.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        // 模拟已有 GAP 附件
+        com.xiyu.bid.projectworkflow.entity.ProjectDocument existingDoc =
+                com.xiyu.bid.projectworkflow.entity.ProjectDocument.builder()
+                        .id(100L).projectId(TENDER_ID)
+                        .linkedEntityType("EVALUATION_GAP")
+                        .linkedEntityId(TENDER_ID)
+                        .fileUrl("https://old.example.com/gap.pdf")
+                        .build();
+        when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc(
+                any(), any())).thenReturn(java.util.List.of(existingDoc));
+
+        // projectPlanGapFiles 为 null（使用旧版构造器）
+        EvaluationBasicDTO basicWithNullGapFiles = new EvaluationBasicDTO(
+                1, BigDecimal.ZERO, "", "", "", "", "", "", BigDecimal.ZERO);
+        TenderEvaluationSubmitRequest req = new TenderEvaluationSubmitRequest(
+                BidRecommendation.RECOMMEND, basicWithNullGapFiles, null, null);
+
+        service.saveDraft(TENDER_ID, req, EVALUATOR_ID);
+
+        // 验证：未调用 deleteAll
+        verify(projectDocumentRepository, never()).deleteAll(anyList());
+        // 验证：未调用 save
+        verify(projectDocumentRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("CO-262 P1-3: projectPlanGapFiles 为空列表时清空已有 GAP 附件")
+    void saveDraft_gapFilesEmptyList_clearsExisting() {
+        stubTenderAndEvaluator();
+        when(evaluationRepository.findByTenderId(TENDER_ID)).thenReturn(Optional.empty());
+        when(evaluationRepository.save(any(TenderEvaluation.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        // 模拟已有 GAP 附件
+        com.xiyu.bid.projectworkflow.entity.ProjectDocument existingDoc =
+                com.xiyu.bid.projectworkflow.entity.ProjectDocument.builder()
+                        .id(100L).projectId(TENDER_ID)
+                        .linkedEntityType("EVALUATION_GAP")
+                        .linkedEntityId(TENDER_ID)
+                        .fileUrl("https://old.example.com/gap.pdf")
+                        .build();
+        when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc(
+                any(), any())).thenReturn(java.util.List.of(existingDoc));
+
+        // projectPlanGapFiles 为空列表（明确清空）
+        EvaluationBasicDTO basicWithEmptyGapFiles = new EvaluationBasicDTO(
+                1, BigDecimal.ZERO, "", "", "", "", "", "", BigDecimal.ZERO,
+                java.util.List.of());
+        TenderEvaluationSubmitRequest req = new TenderEvaluationSubmitRequest(
+                BidRecommendation.RECOMMEND, basicWithEmptyGapFiles, null, null);
+
+        service.saveDraft(TENDER_ID, req, EVALUATOR_ID);
+
+        // P2-2 修复：使用 argThat 验证删除的是非空列表
+        verify(projectDocumentRepository).deleteAll(nonEmptyList());
+        verify(projectDocumentRepository, never()).save(any());
+    }
+
+    /** ArgumentMatcher：匹配非空 List（用于验证 deleteAll 收到的是非空列表）。 */
+    private static <T> java.util.List<T> nonEmptyList() {
+        return argThat(list -> list != null
+                && java.util.Collection.class.isInstance(list)
+                && !((java.util.Collection<?>) list).isEmpty());
     }
 }

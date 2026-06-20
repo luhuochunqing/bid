@@ -3,6 +3,7 @@ package com.xiyu.bid.tender.service;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
+import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.tender.dto.EvaluationCustomerInfoDTO;
@@ -48,6 +49,7 @@ class TenderEvaluationSubmissionCustomerInfoFlushTest {
     @Autowired private TenderEvaluationRepository evaluationRepository;
     @Autowired private TenderEvaluationCustomerInfoRepository customerInfoRepository;
     @Autowired private UserRepository userRepository;
+    @Autowired private ProjectDocumentRepository projectDocumentRepository;
 
     private static final Clock FIXED_CLOCK = Clock.fixed(
             java.time.LocalDateTime.of(2026, 6, 18, 10, 0)
@@ -80,6 +82,8 @@ class TenderEvaluationSubmissionCustomerInfoFlushTest {
 
         // Mock 依赖
         TenderProjectAccessGuard accessGuard = mock(TenderProjectAccessGuard.class);
+        TenderEvaluationDocumentService documentService = mock(TenderEvaluationDocumentService.class);
+        when(documentService.getDocuments(tenderId)).thenReturn(java.util.List.of());
         TenderAssignmentPermissions permissions = mock(TenderAssignmentPermissions.class);
         TenderEvaluationSubmissionNotifier notifier = mock(TenderEvaluationSubmissionNotifier.class);
 
@@ -93,6 +97,8 @@ class TenderEvaluationSubmissionCustomerInfoFlushTest {
                 accessGuard,
                 permissions,
                 notifier,
+                projectDocumentRepository,
+                documentService,
                 FIXED_CLOCK);
     }
 

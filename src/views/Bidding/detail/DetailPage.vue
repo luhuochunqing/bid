@@ -283,6 +283,8 @@ const evaluationFormRef = ref(null)
 
 function transformCrmBasic(basic) {
   // 字段名对齐后端 EvaluationBasicDTO（V130 三段式 + V1026 字段重构）
+  // CO-262: 透传 projectPlanGapFiles（CRM 回填的 GAP 附件外部 URL 引用），
+  // 由后端 SubmissionService 在保存评估表时原子性持久化到 project_documents 表。
   return {
     plannedShortlistedCount: basic?.plannedShortlistedCount ?? basic?.shortlistedCount ?? basic?.planSupplierCount ?? null,
     mroOfficeFlowAmount: basic?.mroOfficeFlowAmount ?? basic?.platformServiceFee ?? basic?.ecommerceMroAmount ?? null,
@@ -293,6 +295,7 @@ function transformCrmBasic(basic) {
     supportNotes: basic?.supportNotes ?? '',
     projectPlanGap: basic?.projectPlanGap ?? '',
     customerRevenue: basic?.customerRevenue ?? null,
+    projectPlanGapFiles: Array.isArray(basic?.projectPlanGapFiles) ? basic.projectPlanGapFiles : [],
   }
 }
 

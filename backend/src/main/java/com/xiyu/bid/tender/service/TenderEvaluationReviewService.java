@@ -18,6 +18,7 @@ import com.xiyu.bid.tender.entity.TenderEvaluationBasic;
 import com.xiyu.bid.tender.entity.TenderEvaluationCustomerInfo;
 import com.xiyu.bid.tender.entity.TenderEvaluationRecommendation;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
+import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,16 +43,19 @@ public class TenderEvaluationReviewService {
     private final TenderRepository tenderRepository;
     private final UserRepository userRepository;
     private final TenderAssignmentPermissions permissions;
+    private final TenderEvaluationDocumentService documentService;
     private final TenderEvaluationSubmissionMapper mapper = new TenderEvaluationSubmissionMapper();
 
     public TenderEvaluationReviewService(TenderEvaluationRepository tenderEvaluationRepository,
                                           TenderRepository tenderRepository,
                                           UserRepository userRepository,
-                                          TenderAssignmentPermissions permissions) {
+                                          TenderAssignmentPermissions permissions,
+                                          TenderEvaluationDocumentService documentService) {
         this.tenderEvaluationRepository = tenderEvaluationRepository;
         this.tenderRepository = tenderRepository;
         this.userRepository = userRepository;
         this.permissions = permissions;
+        this.documentService = documentService;
     }
 
     /**
@@ -99,6 +103,7 @@ public class TenderEvaluationReviewService {
 
     private TenderEvaluationDTO toDTO(TenderEvaluation evaluation, boolean canFill, boolean canDecide) {
         Tender tender = tenderRepository.findById(evaluation.getTenderId()).orElse(null);
-        return mapper.toDTO(evaluation, tender, canFill, canDecide);
+        List<ProjectDocument> gapFiles = documentService.getDocuments(evaluation.getTenderId());
+        return mapper.toDTO(evaluation, tender, canFill, canDecide, gapFiles);
     }
 }
