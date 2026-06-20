@@ -12,9 +12,10 @@
 | `root-cause-analysis-co-274.md` | Bug 根因分析 | 标讯快速投标未创建项目导致列表不显示 | 2026-06-19 |
 | `root-cause-analysis-h13-e2e-fix.md` | Bug 根因分析 | H13改造后E2E测试全面修复（token提取、mock断言、速率限制） | 2026-06-19 |
 | `lessons-learned.md` | 通用工程教训 | 后端接口契约变更必须同步前端所有入口、字段必填性变更、前端热更新部署 | 2026-06-19 |
-| `crm-integration-lessons.md` | 外部集成经验 | CRM 接口字段映射、405 事故、code 字段错填、status 枚举映射错位、CO-277 id 反查 code | 2026-06-19 |
+| `crm-integration-lessons.md` | 外部集成经验 | CRM 接口字段映射、405 事故、code 字段错填、status 枚举映射错位、CO-277 id 反查 code、CO-283 附件 URL 双重嵌套 | 2026-06-20 |
 | `root-cause-analysis-frontend-404.md` | Bug 根因分析 | 前端热更新部署时动态 import chunk 被误删导致 404 | 2026-06-19 |
 | `root-cause-analysis-co-279.md` | Bug 根因分析 | 提交立项 `bidOpenTime` 日期格式解析失败 | 2026-06-19 |
+| `root-cause-analysis-co-283.md` | Bug 根因分析 | CRM 标讯文件下载 URL 双重嵌套 | 2026-06-20 |
 | `spring-boot-actuator-gotchas.md` | 技术陷阱 | 业务 API 正常但 actuator health 返回 OUT_OF_SERVICE | 2026-06-19 |
 | `element-plus-gotchas.md` | 技术陷阱 | el-cascader 级联选择器与后端字符串字段转换、el-input 宽度不一致 | 2026-06-18 |
 | `vue-gotchas.md` | 技术陷阱 | Composable 中 ref 初始化与 props 同步 | 2026-06-18 |
