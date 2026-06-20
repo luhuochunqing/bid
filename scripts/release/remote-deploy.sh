@@ -118,7 +118,9 @@ run_systemctl restart "$BACKEND_SERVICE_NAME"
 run_systemctl --no-pager --full status "$BACKEND_SERVICE_NAME" || true
 
 printf '==> Waiting for health check %s\n' "$HEALTHCHECK_URL"
-for _ in {1..60}; do
+# 部分环境 ApplicationReadyEvent（如 OrganizationEvent SDK 注册/Kafka 启动）耗时超过 2 分钟，
+# 将 health check 等待上限延长至 4 分钟，避免后端已正常启动但脚本提前失败。
+for _ in {1..120}; do
   if curl -fsS "$HEALTHCHECK_URL" >/dev/null 2>&1; then
     break
   fi
