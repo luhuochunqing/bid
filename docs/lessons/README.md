@@ -21,6 +21,7 @@
 | `element-plus-gotchas.md` | 技术陷阱 | el-cascader 级联选择器与后端字符串字段转换、el-input 宽度不一致 | 2026-06-18 |
 | `vue-gotchas.md` | 技术陷阱 | Composable 中 ref 初始化与 props 同步 | 2026-06-18 |
 | `root-cause-analysis-bcrypt-invalid-hash.md` | Bug 根因分析 | OSS 同步员工默认密码 BCrypt 哈希无效导致登录失败 | 2026-06-20 |
+| `root-cause-analysis-co-282.md` | Bug 根因分析 | 客户信息 14 行残留与游客兜底（固定矩阵展示策略 + 身份 fallback + SPA 缓存） | 2026-06-20 |
 | `shell-gotchas.md` | 技术陷阱 | Shell 转义导致 SQL 中 `$` 特殊字符截断，密码值被破坏 | 2026-06-20 |
 | `build-gotchas.md` | 技术陷阱 | git-commit-id-plugin 在 worktree 读取主仓库 HEAD，git.properties 失真 | 2026-06-19 |
 

@@ -446,3 +446,105 @@ journalctl -u xiyu-bid-backend --since "5 minutes ago" | tail -5
 
 - `docs/lessons/root-cause-analysis-bcrypt-invalid-hash.md` — 完整根因分析
 - `docs/lessons/shell-gotchas.md` — Shell 转义陷阱
+
+---
+
+## 7. 模板录入视图与真实数据回显视图必须分离
+
+### 问题背景
+
+CO-282 中，客户信息矩阵历史上来自「固定 15 列 × 14 行」的人工录入模板；但外部/API 创建标讯详情页需要的是「真实传入多少客户信息就展示多少」。多轮修复已经解决后端保存、字段映射、EAV/flat 转换、外部角色显示，但前端 `CustomerInfoMatrix.mergeData()` 仍先生成 `CUSTOMER_INFO_ROWS` 固定 14 行，再过滤空行，导致接口返回 0 行时 UI 仍可能显示预设角色行。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 历史模板被当作回显数据源 | 模板行是录入辅助，不是接口真实数据 | 回显组件不得无条件生成模板数据 |
+| 「生成后过滤」替代了根治 | 只要模板行有默认值/残留值，就可能重新显示 | 回显场景应从源头不生成模板行 |
+| 多轮修复只看数据链路 | 后端返回正确不代表前端展示正确 | 同时验证 API payload 与组件渲染结果 |
+
+### 正确做法
+
+```js
+// ✅ 回显模式：只展示真实传入数据
+function mergeData(incoming) {
+  if (!Array.isArray(incoming)) return []
+
+  return incoming
+    .filter(item => item?.roleKey)
+    .map(item => normalizeIncomingRow(item))
+    .filter(hasCustomerInfoValue)
+}
+```
+
+如果后续需要保留「人工录入固定 14 行模板」，应显式拆分模式，例如：
+
+```js
+// create/edit template mode: 可以生成 CUSTOMER_INFO_ROWS
+// external readonly/detail mode: 只能展示 incoming rows
+```
+
+### 验证命令
+
+```bash
+pnpm vitest run src/views/Bidding/detail/components/CustomerInfoMatrix.spec.js
+
+# 服务器真实数据验证：后端返回 0 行时，前端不能补 14 行
+curl -s -b /tmp/xiyu-cookie.txt \
+  http://localhost:18080/api/tenders/324/evaluation
+```
+
+### 相关文档
+
+- `docs/lessons/root-cause-analysis-co-282.md` — 完整根因分析
+- `docs/lessons/root-cause-analysis-co-266-co-267.md` — 客户信息字段名不一致的前序根因
+
+---
+
+## 8. SPA 用户可见修复必须做四层验证：API、产物、入口缓存、真实页面
+
+### 问题背景
+
+CO-282 同时出现「客户信息 14 行」和「当前用户显示游客」。前者是前端固定矩阵展示策略，后者是 Header fallback 与旧 bundle/cache 风险。部署后如果只验证 API 或只替换静态文件，用户仍可能因为旧 `index.html` 加载旧 bundle 而看到旧文案。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 只验证 API | API 正确不代表 UI 不会补数据 | 验证接口返回与前端渲染两层 |
+| 只验证源码 | 用户运行的是部署产物，不是源码 | 对 dist/server assets 做字面量检查 |
+| `index.html` 仍可缓存 | hashed assets 更新了，旧入口仍可能引用旧 bundle | SPA 入口必须 no-store/no-cache |
+| 多个症状混在一起 | 缓存问题和业务逻辑问题会互相干扰 | 用四层验证拆开判断 |
+
+### 操作规范
+
+```text
+Layer 1 — API 数据层
+  └─ 直接 curl 关键接口，确认后端真实返回。
+
+Layer 2 — 前端产物层
+  └─ strings/rg 检查 dist 或 /srv/www 中是否仍含旧字面量。
+
+Layer 3 — 入口缓存层
+  └─ curl -I /index.html，确认 Cache-Control/Pragma/Expires。
+
+Layer 4 — 真实页面层
+  └─ 浏览器访问目标页面，必要时强刷，确认用户可见结果。
+```
+
+### CO-282 的最小验证证据
+
+```text
+evaluation_324=True:200:customer_rows=0
+asset_check=none
+HTTP/1.1 200 OK
+Cache-Control: no-cache, no-store, must-revalidate
+Pragma: no-cache
+Expires: 0
+me=True:200:系统管理员
+```
+
+### 相关文档
+
+- `docs/lessons/root-cause-analysis-co-282.md` — 完整根因分析
+- `docs/lessons/lessons-learned.md` §6 — 部署后配置未生效的四层模型
