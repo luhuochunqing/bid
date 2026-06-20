@@ -1,6 +1,7 @@
 package com.xiyu.bid.integration.external;
 
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.tender.core.TenderEvaluationCustomerInfoPolicy;
 import com.xiyu.bid.tender.dto.EvaluationCustomerInfoDTO;
 import com.xiyu.bid.tender.dto.TenderEvaluationDTO;
 import com.xiyu.bid.tender.entity.TenderEvaluationCustomerInfo;
@@ -13,6 +14,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 外部标讯集成评估数据 Mapper。
@@ -21,6 +23,14 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class TenderEvaluationIntegrationMapper {
+
+    private static final Set<String> YES_NO_INFO_KEYS = Set.of(
+            "CONTACTED",
+            "GUIDED_BID",
+            "CAN_GET_KEY_INFO",
+            "CAN_REMOVE_ADVERSE",
+            "CAN_SYNC_EVAL"
+    );
 
     private final TenderEvaluationRepository tenderEvaluationRepository;
     private final TenderEvaluationSubmissionMapper submissionMapper;
@@ -92,14 +102,50 @@ public class TenderEvaluationIntegrationMapper {
     }
 
     /**
-     * 解析客户信息值类型。
+     * 按 infoKey 推导客户信息标准值类型。
      */
-    TenderEvaluationCustomerInfo.ValueType parseCustomerInfoValueType(String valueType) {
-        if (valueType == null || valueType.isBlank()) return TenderEvaluationCustomerInfo.ValueType.TEXT;
+    TenderEvaluationCustomerInfo.ValueType expectedCustomerInfoValueType(String infoKey) {
+        String expectedType = TenderEvaluationCustomerInfoPolicy.INFO_KEY_VALUE_TYPES.get(infoKey);
+        if (expectedType == null || expectedType.isBlank()) return TenderEvaluationCustomerInfo.ValueType.TEXT;
         try {
-            return TenderEvaluationCustomerInfo.ValueType.valueOf(valueType);
+            return TenderEvaluationCustomerInfo.ValueType.valueOf(expectedType);
         } catch (IllegalArgumentException ex) {
             return TenderEvaluationCustomerInfo.ValueType.TEXT;
         }
+    }
+
+    /**
+     * 解析客户信息值类型；类型缺失、非法或与 infoKey 不匹配时回退到标准类型。
+     */
+    TenderEvaluationCustomerInfo.ValueType parseCustomerInfoValueType(String infoKey, String valueType) {
+        TenderEvaluationCustomerInfo.ValueType expectedType = expectedCustomerInfoValueType(infoKey);
+        if (valueType == null || valueType.isBlank()) return expectedType;
+        try {
+            TenderEvaluationCustomerInfo.ValueType parsed = TenderEvaluationCustomerInfo.ValueType.valueOf(valueType);
+            return parsed == expectedType ? parsed : expectedType;
+        } catch (IllegalArgumentException ex) {
+            return expectedType;
+        }
+    }
+
+    /**
+     * 归一化外部接口传入的是否/开关值。
+     */
+    String normalizeCustomerInfoValue(String infoKey, Object value) {
+        if (value == null) return null;
+        TenderEvaluationCustomerInfo.ValueType valueType = expectedCustomerInfoValueType(infoKey);
+        String text = value.toString();
+        if (valueType == TenderEvaluationCustomerInfo.ValueType.DROPDOWN && !YES_NO_INFO_KEYS.contains(infoKey)) {
+            return text;
+        }
+        if (valueType != TenderEvaluationCustomerInfo.ValueType.DROPDOWN
+                && valueType != TenderEvaluationCustomerInfo.ValueType.SWITCH) {
+            return text;
+        }
+        if ("是".equals(text)) return "true";
+        if ("否".equals(text)) return "false";
+        if ("true".equalsIgnoreCase(text)) return "true";
+        if ("false".equalsIgnoreCase(text)) return "false";
+        return text;
     }
 }

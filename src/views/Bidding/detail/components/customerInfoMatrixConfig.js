@@ -42,37 +42,43 @@ export function getCustomerInfoRoleLabel(roleKey, roleLabel) {
 }
 
 export const POSITION_OPTIONS = [
-  '董事长',
-  '总经理',
-  '副总经理',
-  '部门负责人',
-  '项目负责人',
-  '采购负责人',
-  '技术负责人',
-  '财务负责人',
-  '法务负责人',
-  '评标专家',
-  '经办人',
-  '外部顾问',
-  '其他决策人',
-  '其他',
+  { label: '项目最高决策人', value: '1' },
+  { label: '物资公司董事长', value: '2' },
+  { label: '物资公司分管电商领导', value: '3' },
+  { label: '电商公司董事长', value: '4' },
+  { label: '电商公司总经理', value: '5' },
+  { label: '电商公司副总经理', value: '6' },
+  { label: '电商公司运营负责人', value: '7' },
+  { label: '招标文件制作人', value: '8' },
+  { label: '其他关键决策人1', value: '9' },
+  { label: '其他关键决策人2', value: '10' },
+  { label: '其他关键决策人3', value: '11' },
+  { label: '专家1', value: '12' },
+  { label: '专家2', value: '13' },
+  { label: '专家3', value: '14' },
 ]
 
 export const CONTACT_METHOD_OPTIONS = [
-  '电话',
-  '微信',
-  '邮件',
-  '拜访',
-  '会议',
-  '第三方引荐',
-  '未触达',
+  { label: '自主开发', value: '1' },
+  { label: '老客户转介绍', value: '2' },
+  { label: '供应商渠道推荐', value: '3' },
+  { label: '展会/行业峰会', value: '4' },
+  { label: '政府/协会推荐', value: '5' },
+  { label: '客户主动咨询', value: '6' },
+  { label: '其他', value: '7' },
+]
+
+export const TENDENCY_OPTIONS = [
+  { label: '支持', value: '1' },
+  { label: '中立', value: '2' },
+  { label: '反对', value: '3' },
 ]
 
 export const IMPACT_OPTIONS = [
-  { label: '极高', value: 'VERY_HIGH' },
-  { label: '高', value: 'HIGH' },
-  { label: '中', value: 'MEDIUM' },
-  { label: '低', value: 'LOW' },
-  { label: '极低', value: 'VERY_LOW' },
-  { label: '无影响', value: 'NONE' },
+  { label: '100%', value: '1' },
+  { label: '80%', value: '2' },
+  { label: '60%', value: '3' },
+  { label: '50%', value: '4' },
+  { label: '30%', value: '5' },
+  { label: '10%', value: '6' },
 ]

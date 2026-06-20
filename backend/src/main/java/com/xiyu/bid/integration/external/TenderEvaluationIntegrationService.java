@@ -97,9 +97,13 @@ public class TenderEvaluationIntegrationService {
     }
 
     private void applyEavFormat(TenderEvaluation evalEntity, List<Map<String, Object>> evaluationCustomerInfos) {
+        int roleIndex = 1;
         for (Map<String, Object> row : evaluationCustomerInfos) {
             String roleKey = (String) row.get("roleKey");
-            if (roleKey == null || roleKey.isBlank()) continue;
+            if (roleKey == null || roleKey.isBlank()) {
+                roleKey = "EXTERNAL_ROLE_" + roleIndex;
+            }
+            roleIndex++;
             String infoKey = mapper.normalizeCustomerInfoKey((String) row.get("infoKey"));
             Object value = row.get("value");
             if (infoKey == null || infoKey.isBlank() || value == null) continue;
@@ -108,8 +112,9 @@ public class TenderEvaluationIntegrationService {
             entity.setEvaluation(evalEntity);
             entity.setRoleKey(roleKey);
             entity.setInfoKey(infoKey);
-            entity.setCellValue(value.toString());
-            entity.setValueType(mapper.parseCustomerInfoValueType((String) row.get("valueType")));
+            Object valueType = row.get("valueType");
+            entity.setCellValue(mapper.normalizeCustomerInfoValue(infoKey, value));
+            entity.setValueType(mapper.parseCustomerInfoValueType(infoKey, valueType == null ? null : valueType.toString()));
             evalEntity.getCustomerInfos().add(entity);
         }
     }
@@ -129,8 +134,8 @@ public class TenderEvaluationIntegrationService {
                 row.setEvaluation(evalEntity);
                 row.setRoleKey(roleKey);
                 row.setInfoKey(infoKey);
-                row.setCellValue(entry.getValue().toString());
-                row.setValueType(TenderEvaluationCustomerInfo.ValueType.TEXT);
+                row.setCellValue(mapper.normalizeCustomerInfoValue(infoKey, entry.getValue()));
+                row.setValueType(mapper.expectedCustomerInfoValueType(infoKey));
                 evalEntity.getCustomerInfos().add(row);
             }
         }

@@ -23,11 +23,36 @@ function makeEmptyForm() { return { basic: makeEmptyBasic(), customerInfo: [], r
 // ---- Mapping helpers ----
 /** Map column key → backend valueType */
 export const VT = {
-  NAME: 'TEXT', POSITION: 'ENUM14', XIYU_CONTACT: 'TEXT', CONTACT_METHOD: 'ENUM7',
+  NAME: 'TEXT', CONTACT_INFO: 'TEXT', POSITION: 'ENUM14', XIYU_CONTACT: 'TEXT', CONTACT_METHOD: 'ENUM7',
   INFO_TENDENCY_BASIS: 'TEXT', INFO_CLEAR_WINNER_BID: 'SWITCH', INFO_WIN_RATE_IMPACT: 'DROPDOWN6',
   CONTACTED: 'DROPDOWN', GUIDED_BID: 'DROPDOWN',
   CAN_GET_KEY_INFO: 'DROPDOWN', CAN_REMOVE_ADVERSE: 'DROPDOWN',
   CAN_SYNC_EVAL: 'DROPDOWN', TENDENCY: 'DROPDOWN',
+}
+
+const BOOLEAN_INFO_KEYS = new Set([
+  'INFO_CLEAR_WINNER_BID',
+  'CONTACTED',
+  'GUIDED_BID',
+  'CAN_GET_KEY_INFO',
+  'CAN_REMOVE_ADVERSE',
+  'CAN_SYNC_EVAL',
+])
+
+function toBooleanFormValue(value) {
+  if (value === true || value === false) return value
+  if (value == null) return value
+  const text = String(value).trim()
+  if (text === 'true' || text === '是') return true
+  if (text === 'false' || text === '否') return false
+  return value
+}
+
+function toBackendCellValue(infoKey, value) {
+  if (!BOOLEAN_INFO_KEYS.has(infoKey)) return String(value)
+  const normalized = toBooleanFormValue(value)
+  if (normalized === true || normalized === false) return String(normalized)
+  return String(value)
 }
 
 /**
@@ -69,7 +94,7 @@ function eavToFlat(eavRows) {
     if (!byRole.has(row.roleKey)) {
       byRole.set(row.roleKey, { roleKey: row.roleKey, roleLabel: getCustomerInfoRoleLabel(row.roleKey) })
     }
-    byRole.get(row.roleKey)[row.infoKey] = row.value
+    byRole.get(row.roleKey)[row.infoKey] = BOOLEAN_INFO_KEYS.has(row.infoKey) ? toBooleanFormValue(row.value) : row.value
   }
   return Array.from(byRole.values())
 }
@@ -97,7 +122,7 @@ export function buildApiPayload(form) {
       CUSTOMER_INFO_COLUMNS
         .filter(col => col.key in row && row[col.key] != null && String(row[col.key]).trim() !== '')
         .map(col => ({
-          roleKey: row.roleKey, infoKey: col.key, value: String(row[col.key]), valueType: VT[col.key] || 'TEXT',
+          roleKey: row.roleKey, infoKey: col.key, value: toBackendCellValue(col.key, row[col.key]), valueType: VT[col.key] || 'TEXT',
         }))
     ) : [],
     evaluationRecommendation: { shouldBid: form.recommendation.shouldBid ?? null, reason: form.recommendation.reason || null },
