@@ -320,6 +320,55 @@ class OrganizationDirectoryHttpGatewayTest {
     }
 
     @Test
+    @DisplayName("batch job/role lookup maps object-style response keyed by job number")
+    void getUserJobAndRoleListByJobNumbers_objectStyleResponse_mapsByJobNumber() {
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+        server.expect(requestTo("https://oss.example.test/oss/admin-web/v1/output/data/getUserJobListByJobNumberList"))
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andRespond(withSuccess("""
+                        {
+                          "code": 0,
+                          "msg": "操作成功",
+                          "data": {
+                            "08402": {
+                              "jobName": "Java开发工程师",
+                              "sysRoleList": [
+                                { "id": 18, "roleName": "员工测试", "status": 0 },
+                                { "id": 2, "roleName": "管理员", "status": 1, "isDefault": 1 }
+                              ],
+                              "employeeStatus": 3,
+                              "jobNumber": "08402",
+                              "username": "张锡臣",
+                              "status": 1
+                            },
+                            "08640": {
+                              "jobName": "运输管理专员",
+                              "sysRoleList": [],
+                              "employeeStatus": 8,
+                              "jobNumber": "08640",
+                              "username": "范子文",
+                              "status": 0
+                            }
+                          },
+                          "timestamp": 1747292370541
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        java.util.Map<String, com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto> result =
+                gateway(restTemplate, defaultProperties()).getUserJobAndRoleListByJobNumbers(List.of("08402", "08640"));
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get("08402").jobName()).isEqualTo("Java开发工程师");
+        assertThat(result.get("08402").sysRoleList()).containsExactly("员工测试", "管理员");
+        assertThat(result.get("08402").username()).isEqualTo("张锡臣");
+        assertThat(result.get("08640").jobName()).isEqualTo("运输管理专员");
+        assertThat(result.get("08640").sysRoleList()).isEmpty();
+        assertThat(result.get("08640").username()).isEqualTo("范子文");
+        server.verify();
+    }
+
+    @Test
     @DisplayName("batch job/role lookup returns partial map on failure and does not throw")
     void getUserJobAndRoleListByJobNumbers_failure_returnsPartialMap() {
         RestTemplate restTemplate = new RestTemplate();

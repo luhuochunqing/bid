@@ -75,6 +75,12 @@ class OrganizationDirectoryJsonMapper {
     }
 
     List<OssUserJobAndRoleDto> jobAndRoleList(JsonNode root) {
+        JsonNode payload = payloadNode(root);
+        if (payload.isObject()) {
+            List<OssUserJobAndRoleDto> results = new ArrayList<>();
+            payload.fields().forEachRemaining(e -> { if (e.getValue().isObject()) results.add(jobAndRoleFromObjectNode(e.getValue(), e.getKey())); });
+            return results;
+        }
         return snapshotNodes(root).stream().map(this::jobAndRole).toList();
     }
 
@@ -186,16 +192,33 @@ class OrganizationDirectoryJsonMapper {
         );
     }
 
+    private OssUserJobAndRoleDto jobAndRoleFromObjectNode(JsonNode node, String fallbackJobNumber) {
+        String jobNumber = firstText(node, "jobNumber", "userNo", "jobNo", "employeeNo");
+        return new OssUserJobAndRoleDto(
+                jobNumber.isBlank() ? fallbackJobNumber : jobNumber,
+                firstText(node, "jobName", "positionName", "name"),
+                roleNameList(node, "sysRoleList"),
+                firstText(node, "employeeStatus", "employeeStatusName"),
+                firstText(node, "status", "userStatus"),
+                firstText(node, "username", "userName", "name")
+        );
+    }
+
     private List<String> textList(JsonNode node, String fieldName) {
         JsonNode array = node.path(fieldName);
-        if (!array.isArray()) {
-            return List.of();
-        }
+        if (!array.isArray()) return List.of();
         List<String> result = new ArrayList<>();
-        array.forEach(element -> {
-            if (element.isTextual() && !element.isNull()) {
-                result.add(element.asText());
-            }
+        array.forEach(e -> { if (e.isTextual() && !e.isNull()) result.add(e.asText()); });
+        return result;
+    }
+
+    private List<String> roleNameList(JsonNode node, String fieldName) {
+        JsonNode array = node.path(fieldName);
+        if (!array.isArray()) return List.of();
+        List<String> result = new ArrayList<>();
+        array.forEach(e -> {
+            if (e.isTextual() && !e.isNull()) result.add(e.asText());
+            else if (e.isObject()) { String rn = firstText(e, "roleName", "name", "role"); if (!rn.isBlank()) result.add(rn); }
         });
         return result;
     }
