@@ -80,6 +80,23 @@ esac
 title="${1:?用法: pr-create.sh <title> [body_file]}"
 body_file="${2:-}"
 
+# 防御性 title 校验：拦截空字符串、纯空白、看起来像 CLI flag 的值。
+# 背景：2026-06-20 `pr-create.sh --help` 误把 --help 当 title 创建 PR #866
+# 并在 38 秒内被 squash merge 进 main（commit abb472310），commit message
+# 变成 "!866 --help"，污染 main 历史。详见 memory:
+#   pr-create-script-title-help-disaster-2026-06-20.md
+if [[ -z "$title" || "$title" =~ ^[[:space:]]*$ ]]; then
+  echo "❌ ERROR: PR title 不能为空" >&2
+  echo "   用法: $0 <title> [body_file]" >&2
+  exit 1
+fi
+if [[ "$title" =~ ^- ]]; then
+  echo "❌ ERROR: PR title 不能以 '-' 开头（看起来像 CLI flag，会被误用）" >&2
+  echo "   传入值: $title" >&2
+  echo "   用法: $0 <title> [body_file]" >&2
+  exit 1
+fi
+
 if [[ -n "$body_file" ]]; then
   body="$(cat "$body_file")"
 else
@@ -118,10 +135,28 @@ print(json.dumps(payload))
     )"
     curl -s -X POST "https://gitee.com/api/v5/repos/${repo_path}/pulls" \
       -H "Content-Type: application/json;charset=UTF-8" \
-      -d "$json_payload" | python3 -c "
+      -d "$json_payload" -o /tmp/pr-create-response.json -w "HTTP %{http_code}\n" \
+    && python3 -c "
 import sys, json
-d = json.load(sys.stdin)
-print('PR #' + str(d.get('number','?')) + ': ' + d.get('html_url','?'))
+try:
+    d = json.load(open('/tmp/pr-create-response.json'))
+except Exception as e:
+    print('❌ ERROR: 无法解析 Gitee 响应', file=sys.stderr)
+    print('  异常:', e, file=sys.stderr)
+    print('  原始响应（前 500 字符）:', file=sys.stderr)
+    with open('/tmp/pr-create-response.json') as f:
+        print(f.read()[:500], file=sys.stderr)
+    sys.exit(2)
+pr_number = d.get('number')
+pr_url = d.get('html_url')
+if pr_number is None or pr_url is None:
+    # POST 成功但响应缺少预期字段 —— 通常意味着 Gitee 拒绝了请求
+    # (例如 head 分支已存在 PR、权限不足、token 失效等)
+    print('❌ ERROR: Gitee 响应缺少 number/html_url 字段', file=sys.stderr)
+    print('  完整响应:', file=sys.stderr)
+    print(json.dumps(d, ensure_ascii=False, indent=2)[:1000], file=sys.stderr)
+    sys.exit(3)
+print('PR #' + str(pr_number) + ': ' + pr_url)
 "
     ;;
 esac
