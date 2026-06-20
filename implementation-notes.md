@@ -20,6 +20,12 @@
 - 外部接口 `dueDate`、`bidOpeningTime`、`registrationDeadline`、`createDate` 仍严格按文档要求接收 `yyyy-MM-ddTHH:mm` 或 `yyyy-MM-ddTHH:mm:ss`，不把 date-only 静默补全为默认时间。
 - 日期时间格式错误现在转换为 `IllegalArgumentException`，由全局异常处理返回 HTTP 400，避免对接方收到 500「系统繁忙」。
 
+## 客户信息矩阵展示优化
+
+- 客户信息矩阵仍先按 14 个预设角色合并接口/表单数据，保留预设顺序、角色名解析和默认结构；展示前再过滤掉没有任何客户信息值的预设空行。
+- 表格隐藏左侧角色列，避免展示外部生成角色名。
+- `职位` 和 `触达方式` 两列宽度分别调整为 220、180，减少下拉值显示不全。
+
 ## 未纳入本次范围
 
 - 不处理评估审核 `reviewEvaluation` 前端 API 缺失问题。

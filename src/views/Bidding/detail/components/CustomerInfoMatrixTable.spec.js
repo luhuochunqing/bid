@@ -13,7 +13,7 @@ import {
 const globalStubs = {
   ElTable: {
     name: 'ElTable',
-    props: ['data', 'maxHeight', 'showHeader'],
+    props: ['data', 'maxHeight', 'showHeader', 'emptyText'],
     provide() {
       return { tableRows: this.data }
     },
@@ -57,26 +57,25 @@ const globalStubs = {
 }
 
 describe('CustomerInfoMatrixTable', () => {
-  it('renders matrix columns without relying on parent-only constants', () => {
+  it('renders editable columns without the role column', () => {
     const wrapper = mount(CustomerInfoMatrixTable, {
       props: {
         localData: [{ roleKey: 'PROJECT_HIGHEST_DECISION_MAKER', roleLabel: '项目最高决策人' }],
-        editableColumns: CUSTOMER_INFO_COLUMNS.slice(1),
+        editableColumns: CUSTOMER_INFO_COLUMNS,
         disabled: false,
       },
       global: { stubs: globalStubs },
     })
 
-    // Verify columns render: role column + all editable column stubs should be present
     const columnStubs = wrapper.findAll('.el-table-column-stub')
     expect(columnStubs.length).toBe(CUSTOMER_INFO_COLUMNS.length)
-    expect(columnStubs[0].attributes('data-label')).toBe('角色')
-    // First editable column (CUSTOMER_INFO_COLUMNS[1]) has label "联系方式"
-    expect(columnStubs[1].attributes('data-label')).toBe('联系方式')
-    expect(columnStubs[1].attributes('data-width')).toBe('160')
+    expect(columnStubs[0].attributes('data-label')).toBe('姓名')
+    expect(columnStubs.some(col => col.attributes('data-label') === '角色')).toBe(false)
   })
 
   it('uses numeric index values with Chinese labels for integration option fields', () => {
+    expect(CUSTOMER_INFO_COLUMNS.find(col => col.key === 'POSITION')?.width).toBe(220)
+    expect(CUSTOMER_INFO_COLUMNS.find(col => col.key === 'CONTACT_METHOD')?.width).toBe(180)
     expect(POSITION_OPTIONS[0]).toEqual({ label: '项目最高决策人', value: '1' })
     expect(POSITION_OPTIONS[13]).toEqual({ label: '专家3', value: '14' })
     expect(CONTACT_METHOD_OPTIONS[2]).toEqual({ label: '供应商渠道推荐', value: '3' })
@@ -88,7 +87,7 @@ describe('CustomerInfoMatrixTable', () => {
     expect(IMPACT_OPTIONS[3]).toEqual({ label: '50%', value: '4' })
   })
 
-  it('shows role label column so tender 285 external customer row is identifiable', () => {
+  it('does not render role labels in the first column', () => {
     const wrapper = mount(CustomerInfoMatrixTable, {
       props: {
         localData: [
@@ -107,9 +106,7 @@ describe('CustomerInfoMatrixTable', () => {
       global: { stubs: globalStubs },
     })
 
-    const columnStubs = wrapper.findAll('.el-table-column-stub')
-    expect(columnStubs[0].attributes('data-label')).toBe('角色')
-    expect(wrapper.text()).toContain('外部对接人1')
+    expect(wrapper.text()).not.toContain('外部对接人1')
     expect(wrapper.text()).not.toContain('EXTERNAL_ROLE_1')
   })
 })
