@@ -1,9 +1,0 @@
-version: 1
-task: "trae-fix-crm-callback-url"
-locks:
-  - path: "backend/src/main/resources/application.yml"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/trae/fix-crm-callback-url"
-    expiresAt: "2026-06-19T09:03:03.938Z"
-    reason: "修正 CRM 回调地址配置 (4.1 标讯状态变更回调和 4.2 项目结果确认回调)"
