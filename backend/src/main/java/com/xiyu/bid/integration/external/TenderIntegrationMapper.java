@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -53,7 +54,7 @@ public class TenderIntegrationMapper {
         if (r.getPublishDate() != null) {
             t.setPublishDate(r.getPublishDate());
         }
-        if (r.getDueDate() != null) t.setDeadline(parseDateTime(r.getDueDate()));
+        if (r.getDueDate() != null) t.setDeadline(parseDateTime("dueDate", r.getDueDate()));
         if (r.getBudgetAmount() != null) {
             t.setBudget(r.getBudgetAmount());
         }
@@ -68,7 +69,7 @@ public class TenderIntegrationMapper {
         if (r.getProjectManagerName() != null) t.setProjectManagerName(InputSanitizer.sanitizeString(r.getProjectManagerName(), 100));
         if (r.getDepartment() != null) t.setDepartment(InputSanitizer.sanitizeString(r.getDepartment(), 100));
         if (r.getCreatorName() != null) t.setCreatorName(InputSanitizer.sanitizeString(r.getCreatorName(), 100));
-        if (r.getCreateDate() != null) t.setCreatedAt(parseDateTime(r.getCreateDate()));
+        if (r.getCreateDate() != null) t.setCreatedAt(parseDateTime("createDate", r.getCreateDate()));
         boolean isFromCrm = firstNonBlank(r.getCrmOpportunityId(), r.getCrmId()) != null;
         if (isFromCrm) {
             t.setSourceType(Tender.SourceType.CRM_OPPORTUNITY);
@@ -150,8 +151,8 @@ public class TenderIntegrationMapper {
         if (region != null) t.setRegion(InputSanitizer.sanitizeString(region, 100));
         if (industry != null) t.setIndustry(InputSanitizer.sanitizeString(industry, 100));
         if (tenderAgency != null) t.setTenderAgency(InputSanitizer.sanitizeString(tenderAgency, 255));
-        if (bidOpeningTime != null) t.setBidOpeningTime(parseDateTime(bidOpeningTime));
-        if (registrationDeadline != null) t.setRegistrationDeadline(parseDateTime(registrationDeadline));
+        if (bidOpeningTime != null) t.setBidOpeningTime(parseDateTime("bidOpeningTime", bidOpeningTime));
+        if (registrationDeadline != null) t.setRegistrationDeadline(parseDateTime("registrationDeadline", registrationDeadline));
         if (customerType != null) t.setCustomerType(InputSanitizer.sanitizeString(customerType, 100));
         if (priority != null) t.setPriority(InputSanitizer.sanitizeString(priority, 10));
         if (projectType != null) t.setProjectType(InputSanitizer.sanitizeString(projectType, 20));
@@ -172,7 +173,7 @@ public class TenderIntegrationMapper {
         if (r.getTitle() != null) tender.setTitle(InputSanitizer.sanitizeString(r.getTitle(), 500));
         if (r.getCustomerName() != null) tender.setPurchaserName(InputSanitizer.sanitizeString(r.getCustomerName(), 500));
         if (r.getPublishDate() != null) tender.setPublishDate(r.getPublishDate());
-        if (r.getDueDate() != null) tender.setDeadline(parseDateTime(r.getDueDate()));
+        if (r.getDueDate() != null) tender.setDeadline(parseDateTime("dueDate", r.getDueDate()));
         if (r.getBudgetAmount() != null) tender.setBudget(r.getBudgetAmount());
         applyBasicInfo(tender, r.getRegion(), r.getIndustry(), r.getTenderAgency(),
                 r.getBidOpeningTime(), r.getRegistrationDeadline(), r.getCustomerType(),
@@ -285,10 +286,14 @@ public class TenderIntegrationMapper {
         return null;
     }
 
-    static LocalDateTime parseDateTime(String value) {
+    static LocalDateTime parseDateTime(String fieldName, String value) {
         if (value == null || value.isBlank()) return null;
         String normalized = value.replace(' ', 'T');
         if (normalized.length() == 16) normalized += ":00";
-        return LocalDateTime.parse(normalized);
+        try {
+            return LocalDateTime.parse(normalized);
+        } catch (DateTimeParseException ex) {
+            throw new IllegalArgumentException(fieldName + " 格式错误，应为 yyyy-MM-ddTHH:mm 或 yyyy-MM-ddTHH:mm:ss", ex);
+        }
     }
 }

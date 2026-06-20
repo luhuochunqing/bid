@@ -90,8 +90,8 @@ public class TenderIntegrationCommandService {
         }
 
         String purchaserName = InputSanitizer.sanitizeString(request.getCustomerName(), 500);
-        LocalDateTime registrationDeadline = TenderIntegrationMapper.parseDateTime(request.getRegistrationDeadline());
-        LocalDateTime bidOpeningTime = TenderIntegrationMapper.parseDateTime(request.getBidOpeningTime());
+        LocalDateTime registrationDeadline = TenderIntegrationMapper.parseDateTime("registrationDeadline", request.getRegistrationDeadline());
+        LocalDateTime bidOpeningTime = TenderIntegrationMapper.parseDateTime("bidOpeningTime", request.getBidOpeningTime());
         tenderRepository.findFirstByPurchaserNameAndRegistrationDeadlineAndBidOpeningTime(
                 purchaserName, registrationDeadline, bidOpeningTime)
                 .ifPresent(existing -> {
@@ -166,7 +166,7 @@ public class TenderIntegrationCommandService {
             tender.setPublishDate(request.getPublishDate());
         }
         if (request.getDueDate() != null) {
-            tender.setDeadline(TenderIntegrationMapper.parseDateTime(request.getDueDate()));
+            tender.setDeadline(TenderIntegrationMapper.parseDateTime("dueDate", request.getDueDate()));
         }
         if (request.getBudgetAmount() != null) {
             tender.setBudget(request.getBudgetAmount());

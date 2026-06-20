@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -117,5 +118,28 @@ class TenderIntegrationServiceMapToEntityTest {
         assertThat(mapper.toDownloadUrl(null)).isNull();
         assertThat(mapper.toDownloadUrl("")).isEmpty();
         assertThat(mapper.toDownloadUrl("   ")).isEqualTo("   ");
+    }
+
+    @Test
+    @DisplayName("dueDate 仅传日期时应按外部接口契约返回参数错误")
+    void toEntity_dueDateDateOnly_shouldRejectWithFieldMessage() {
+        TenderPushRequest r = baseRequest();
+        r.setDueDate("2026-12-31");
+
+        assertThatThrownBy(() -> mapper.toEntity(r))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("dueDate 格式错误，应为 yyyy-MM-ddTHH:mm 或 yyyy-MM-ddTHH:mm:ss");
+    }
+
+    @Test
+    @DisplayName("dueDate 支持到分钟和到秒格式")
+    void toEntity_dueDateDateTime_shouldAcceptMinuteAndSecondPrecision() {
+        TenderPushRequest minute = baseRequest();
+        minute.setDueDate("2026-12-31T23:59");
+        TenderPushRequest second = baseRequest();
+        second.setDueDate("2026-12-31T23:59:30");
+
+        assertThat(mapper.toEntity(minute).getDeadline()).hasToString("2026-12-31T23:59");
+        assertThat(mapper.toEntity(second).getDeadline()).hasToString("2026-12-31T23:59:30");
     }
 }
