@@ -210,7 +210,9 @@ xiyu:
         # OSS 菜单权限自动同步：组织架构同步时自动聚合用户菜单权限到角色
         auto-sync-menu-permissions: ${XIYU_ORG_AUTO_SYNC_MENU_PERMISSIONS:false}
         # OSS 菜单编码 -> 内部权限码映射（大小写不敏感）
-        menu-code-to-permission-key-mappings: ${XIYU_ORG_MENU_CODE_MAPPINGS:}
+        # 默认空 map；生产环境可通过 relaxed binding 用环境变量覆盖，
+        # 例如 XIYU_ORG_MENU_CODE_MAPPINGS_<MENU_CODE>=<permission_key>
+        menu-code-to-permission-key-mappings: {}
         # 未映射菜单编码处理：IGNORE 或 USE_NORMALIZED_CODE
         unmapped-menu-code-behavior: ${XIYU_ORG_UNMAPPED_MENU_BEHAVIOR:IGNORE}
       retry:
