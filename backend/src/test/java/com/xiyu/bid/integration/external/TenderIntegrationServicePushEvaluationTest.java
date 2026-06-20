@@ -16,11 +16,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -151,5 +153,56 @@ class TenderIntegrationServicePushEvaluationTest {
                 && "CONTACT_INFO".equals(r.getInfoKey()) && "13800138000".equals(r.getCellValue()));
         assertThat(rows).anyMatch(r -> "PROJECT_HIGHEST_DECISION_MAKER".equals(r.getRoleKey())
                 && "INFO_TENDENCY_BASIS".equals(r.getInfoKey()) && "长期合作".equals(r.getCellValue()));
+    }
+
+    @Test
+    @DisplayName("CO-265: 不同 sourceId 但招标主体、报名截止、开标时间重复时应拒绝创建")
+    void pushTender_duplicateBusinessKeyWithDifferentSourceId_shouldReject() {
+        Tender existing = new Tender();
+        existing.setTitle("已有标讯");
+        existing.setExternalId("CRM:EXISTING-001");
+        existing.setPurchaserName("西域测试客户");
+        existing.setRegistrationDeadline(LocalDateTime.of(2026, 6, 30, 10, 0));
+        existing.setBidOpeningTime(LocalDateTime.of(2026, 7, 1, 9, 30));
+        existing.setStatus(Tender.Status.PENDING_ASSIGNMENT);
+        existing.setSourceType(Tender.SourceType.EXTERNAL_PLATFORM);
+        tenderRepository.save(existing);
+        long countBefore = tenderRepository.count();
+
+        TenderPushRequest request = buildPushRequest("CRM", "NEW-001", false, null);
+        request.setCustomerName("西域测试客户");
+        request.setRegistrationDeadline("2026-06-30T10:00:00");
+        request.setBidOpeningTime("2026-07-01T09:30:00");
+
+        assertThatThrownBy(() -> commandService.pushTender(request, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("标讯已存在");
+        assertThat(tenderRepository.count()).isEqualTo(countBefore);
+        assertThat(tenderRepository.findByExternalId("CRM:NEW-001")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("CO-265: 招标主体相同但时间不同仍应正常创建")
+    void pushTender_samePurchaserDifferentTime_shouldCreate() {
+        Tender existing = new Tender();
+        existing.setTitle("已有标讯");
+        existing.setExternalId("CRM:EXISTING-002");
+        existing.setPurchaserName("西域测试客户");
+        existing.setRegistrationDeadline(LocalDateTime.of(2026, 6, 30, 10, 0));
+        existing.setBidOpeningTime(LocalDateTime.of(2026, 7, 1, 9, 30));
+        existing.setStatus(Tender.Status.PENDING_ASSIGNMENT);
+        existing.setSourceType(Tender.SourceType.EXTERNAL_PLATFORM);
+        tenderRepository.save(existing);
+
+        TenderPushRequest request = buildPushRequest("CRM", "NEW-002", false, null);
+        request.setCustomerName("西域测试客户");
+        request.setRegistrationDeadline("2026-06-30T10:00:00");
+        request.setBidOpeningTime("2026-07-02T09:30:00");
+
+        TenderPushResponse response = commandService.pushTender(request, null);
+
+        assertThat(response.getStatus()).isEqualTo("CREATED");
+        Tender created = tenderRepository.findByExternalId("CRM:NEW-002").orElseThrow();
+        assertThat(created.getPurchaserName()).isEqualTo("西域测试客户");
     }
 }

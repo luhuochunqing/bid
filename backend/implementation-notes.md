@@ -937,3 +937,12 @@ https://gitee.com/allinai888/bid/pulls/55
 
 所有 per 技能硬性要求 + SOP + FP-Java (FE 变更无 backend core 影响) + AGENTS。
 
+
+## 2026-06-20 CO-265 外部标讯推送三元组去重
+
+- 范围：只处理 `POST /api/integration/tenders/push`；不改内部标讯创建流程。
+- 根因：原逻辑仅按 `externalId = sourceSystem + ':' + sourceId` 幂等，CRM 换新 `sourceId` 时会绕过去重并创建新标讯。
+- 决策 D1：保留同 externalId 的现有幂等/forceUpdate 优先级；只有 externalId 不存在、准备新建前，才按 `purchaserName + registrationDeadline + bidOpeningTime` 精确拦截。
+- 决策 D2：三元组只有在请求同时提供招标主体、报名截止、开标时间时才参与去重；避免把缺字段历史数据误判为重复。
+- 决策 D3：使用全局 `IllegalArgumentException -> HTTP 400` 映射返回 `标讯已存在`，不新增 Controller 分支或新异常类型，保持最小改动。
+- 变更：`TenderRepository` 新增三元组查询；`TenderIntegrationCommandService` 新建前执行业务去重；补充 DataJpaTest 覆盖不同 sourceId 重复拒绝、同主体不同时间正常创建。

@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -43,7 +44,10 @@ public class TenderIntegrationCommandService {
         String externalId = TenderIntegrationMapper.buildExternalId(request.getSourceSystem(), request.getSourceId());
         return tenderRepository.findByExternalId(externalId)
                 .map(existing -> handleExistingTender(existing, request, userId, externalId))
-                .orElseGet(() -> createNewTender(request, userId, externalId));
+                .orElseGet(() -> {
+                    rejectDuplicateBusinessTender(request);
+                    return createNewTender(request, userId, externalId);
+                });
     }
 
     /**
@@ -77,6 +81,25 @@ public class TenderIntegrationCommandService {
     }
 
     // ── 私有方法 ──────────────────────────────────────────────────────────────
+
+    private void rejectDuplicateBusinessTender(TenderPushRequest request) {
+        if (request.getCustomerName() == null || request.getCustomerName().isBlank()
+                || request.getRegistrationDeadline() == null || request.getRegistrationDeadline().isBlank()
+                || request.getBidOpeningTime() == null || request.getBidOpeningTime().isBlank()) {
+            return;
+        }
+
+        String purchaserName = InputSanitizer.sanitizeString(request.getCustomerName(), 500);
+        LocalDateTime registrationDeadline = TenderIntegrationMapper.parseDateTime(request.getRegistrationDeadline());
+        LocalDateTime bidOpeningTime = TenderIntegrationMapper.parseDateTime(request.getBidOpeningTime());
+        tenderRepository.findFirstByPurchaserNameAndRegistrationDeadlineAndBidOpeningTime(
+                purchaserName, registrationDeadline, bidOpeningTime)
+                .ifPresent(existing -> {
+                    log.warn("Duplicate tender business key rejected: existingId={}, purchaserName={}, registrationDeadline={}, bidOpeningTime={}",
+                            existing.getId(), purchaserName, registrationDeadline, bidOpeningTime);
+                    throw new IllegalArgumentException("标讯已存在");
+                });
+    }
 
     private TenderPushResponse handleExistingTender(Tender existing, TenderPushRequest request, Long userId, String externalId) {
         if (Boolean.TRUE.equals(request.getForceUpdate())) {

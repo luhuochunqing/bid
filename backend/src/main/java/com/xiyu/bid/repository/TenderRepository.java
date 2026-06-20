@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 标讯数据访问接口
@@ -20,7 +21,13 @@ public interface TenderRepository extends JpaRepository<Tender, Long>, JpaSpecif
     /**
      * 根据外部 ID 查询标讯
      */
-    java.util.Optional<Tender> findByExternalId(String externalId);
+    Optional<Tender> findByExternalId(String externalId);
+
+    /**
+     * 按业务唯一键查询标讯，用于外部推送去重。
+     */
+    Optional<Tender> findFirstByPurchaserNameAndRegistrationDeadlineAndBidOpeningTime(
+            String purchaserName, LocalDateTime registrationDeadline, LocalDateTime bidOpeningTime);
 
     /**
      * 根据状态查询标讯
