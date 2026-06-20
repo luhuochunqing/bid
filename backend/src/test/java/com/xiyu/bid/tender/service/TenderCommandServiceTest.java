@@ -6,6 +6,7 @@ import com.xiyu.bid.batch.core.TenderStatusTransitionPolicy;
 import com.xiyu.bid.crm.domain.AssignmentResult;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.exception.BusinessException;
+import com.xiyu.bid.exception.TenderDuplicateException;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
 import com.xiyu.bid.repository.TenderRepository;
@@ -24,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -116,6 +118,40 @@ class TenderCommandServiceTest {
 
         assertThat(savedDto.getTitle()).isEqualTo(tenderDTO.getTitle());
         verify(tenderRepository).save(any(Tender.class));
+    }
+
+    @Test
+    @DisplayName("CO-265: 创建标讯时招标主体+报名截止+开标时间重复应抛 TenderDuplicateException")
+    void createTender_DuplicatePurchaserDeadlineBidTime_ThrowsTenderDuplicateException() {
+        TenderDTO duplicateDto = TenderDTO.builder()
+                .title("已有标讯")
+                .purchaserName("重复采购人")
+                .registrationDeadline(LocalDateTime.of(2026, 7, 1, 12, 0))
+                .bidOpeningTime(LocalDateTime.of(2026, 7, 15, 10, 0))
+                .status(Tender.Status.PENDING_ASSIGNMENT)
+                .build();
+
+        Tender existing = Tender.builder()
+                .id(99L)
+                .title("已有标讯")
+                .purchaserName("重复采购人")
+                .registrationDeadline(LocalDateTime.of(2026, 7, 1, 12, 0))
+                .bidOpeningTime(LocalDateTime.of(2026, 7, 15, 10, 0))
+                .status(Tender.Status.PENDING_ASSIGNMENT)
+                .build();
+
+        when(tenderDeduplicationService.findDuplicates(any(Tender.class)))
+                .thenReturn(List.of(existing));
+
+        TenderDuplicateException ex = assertThrows(
+                TenderDuplicateException.class,
+                () -> tenderCommandService.createTender(duplicateDto)
+        );
+
+        assertThat(ex.getCode()).isEqualTo(400);
+        assertThat(ex.getMessage()).isEqualTo("标讯已存在");
+        assertThat(ex.getDuplicates()).hasSize(1);
+        verify(tenderRepository, never()).save(any(Tender.class));
     }
 
     @Test
