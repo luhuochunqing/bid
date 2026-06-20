@@ -41,5 +41,5 @@
 | `sync-env.sh` | 环境同步脚本 | 将根目录环境模板同步到指定 worktree，辅助多 Agent 环境初始化 |
 | `sync-version.mjs` | 维护脚本 | 以根目录 `VERSION` 为单一版本源，同步前端 `package.json` 和后端 `backend/pom.xml` |
 | `who-touches.sh` | 协作诊断脚本 | 列出未合并且触碰指定路径的 `agent/*` 分支，辅助多 Agent 冲突排查 |
-| `release/` | 发布脚本目录 | 管理发布演练、后端预编译与启动诊断、复用演练栈的 E2E 门禁、产物打包、远端激活、备份恢复和生产 smoke 验活；数据库口径统一为 MySQL 8.0 |
+| `release/` | 发布脚本目录 | 管理发布演练、后端预编译与启动诊断、复用演练栈的 E2E 门禁、产物打包、远端激活、备份恢复和生产 smoke 验活；生产 smoke 包含 CRM page-list 只读探针（`CRM_SMOKE_MODE`）和部署后 CRM token/config 日志回归扫描；数据库口径统一为 MySQL 8.0 |
 | `test/` | 测试基线目录 | Playwright 与 API 联调测试的启动、停止和说明脚本；其中 `agent-start-task-dryrun-contract.sh` 用于守护 `agent-start-task.sh --dry-run` 的输出契约，防止 touch/lock/push 协作提示回退；可通过 `npm run test:agent-start-task-contract` 执行 |

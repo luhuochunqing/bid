@@ -316,6 +316,8 @@ PRODUCTION_WEB_BASE_URL=http://172.16.38.78:8080 \
 PROD_SMOKE_USERNAME='<smoke-username>' \
 PROD_SMOKE_PASSWORD='<smoke-password>' \
 PROMETHEUS_MODE=skip \
+CRM_SMOKE_MODE=required \
+CRM_SMOKE_PAGE_SIZE=1 \
 REPORT_DIR="/tmp/xiyu-prod-smoke-${RELEASE_ID}" \
 node scripts/release/run-prod-smoke.mjs
 
@@ -327,6 +329,7 @@ Go / No-Go：
 - smoke 报告 `Verdict: GO`
 - `Failed Checks: 0`
 - 登录可拿到 token
+- CRM page-list smoke 通过；客户测试服务器应使用 `CRM_SMOKE_MODE=required`，空商机或 409 都是 NO-GO
 - `nginx` 和 `xiyu-bid-backend` 都是 `active`
 
 ## 11. 清理

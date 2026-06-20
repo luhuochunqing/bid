@@ -79,6 +79,12 @@
   - 例如重载 Nginx、清理旧版本等
 - `PROD_PROMETHEUS_MODE`
   - `protected`（默认）、`public`、`skip`
+- `CRM_SMOKE_MODE`
+  - `optional`（默认）、`required`、`skip`
+  - `required` 用于客户测试/生产可访问真实 CRM 时：CRM page-list 必须 HTTP 200 且返回非空商机。
+  - `optional` 只验证接口契约、禁止 409；空结果不阻断。
+- `CRM_SMOKE_PAGE_SIZE`
+  - 默认 `1`，范围 `1..100`
 
 ## 生产验活口径
 
@@ -96,6 +102,8 @@ P0 通过项：
 - 项目列表可读
 - 资质、案例、模板列表可读
 - 费用、BAR 资产列表可读
+- CRM `/api/xiyu/crm/chances/page-list` 只读查询契约正常：HTTP 200、响应成功、列表字段为数组，且不得返回 409
+- `CRM_SMOKE_MODE=required` 时，CRM page-list 必须返回非空商机；`optional` 时允许空结果但仍阻断 409/token 配置回归
 
 Go / No-Go 口径：
 

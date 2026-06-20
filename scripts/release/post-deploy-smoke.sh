@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Post-deploy smoke verification script (runs on the target server)
 # Input: API base URL, smoke credentials, backend service name
-# Output: smoke check results with pass/fail summary
+# Output: smoke check results with pass/fail summary and CRM integration log regression scan
 # Pos: scripts/release/ - Release automation and rehearsal helpers
 # 维护声明: 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 # 注意：端点路径必须与实际 Controller @RequestMapping 一致
@@ -125,6 +125,23 @@ if command -v journalctl &>/dev/null; then
 
   if [[ "$SCHEMA_ERRORS" -eq 0 ]]; then
     pass "日志中无 schema 错误"
+  fi
+
+  CRM_ERRORS=0
+  for pattern in \
+    "baseUrl=null" \
+    "Cannot acquire CRM token" \
+    "OSS token acquisition failed"; do
+    if echo "$LOGS" | grep -qi "$pattern" 2>/dev/null; then
+      MATCH=$(echo "$LOGS" | grep -i "$pattern" | tail -1 | head -c 120)
+      fail "日志中发现 CRM 配置/token 回归: $pattern"
+      echo "     → $MATCH"
+      CRM_ERRORS=$((CRM_ERRORS + 1))
+    fi
+  done
+
+  if [[ "$CRM_ERRORS" -eq 0 ]]; then
+    pass "日志中无 CRM 配置/token 回归"
   fi
 else
   warn "journalctl 不可用，跳过日志扫描"

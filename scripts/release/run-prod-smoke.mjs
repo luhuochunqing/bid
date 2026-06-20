@@ -1,4 +1,4 @@
-// Input: production base URLs, smoke credentials, and report output directory
+// Input: production base URLs, smoke credentials, CRM smoke mode, and report output directory
 // Output: production smoke verification reports with go/no-go verdict
 // Pos: scripts/release/ - Release automation and rehearsal helpers
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -11,10 +11,22 @@ const username = process.env.PROD_SMOKE_USERNAME
 const password = process.env.PROD_SMOKE_PASSWORD
 const reportDir = process.env.REPORT_DIR || path.resolve(process.cwd(), 'docs/reports')
 const prometheusMode = (process.env.PROMETHEUS_MODE || 'protected').toLowerCase()
+const crmSmokeMode = (process.env.CRM_SMOKE_MODE || 'optional').toLowerCase()
+const crmSmokePageSize = Number.parseInt(process.env.CRM_SMOKE_PAGE_SIZE || '1', 10)
 const runId = new Date().toISOString().replace(/[:.]/g, '-')
 
 if (!apiBaseUrl || !webBaseUrl || !username || !password) {
   console.error('Missing required env: PRODUCTION_API_BASE_URL, PRODUCTION_WEB_BASE_URL, PROD_SMOKE_USERNAME, PROD_SMOKE_PASSWORD')
+  process.exit(1)
+}
+
+if (!['skip', 'optional', 'required'].includes(crmSmokeMode)) {
+  console.error('CRM_SMOKE_MODE must be one of: skip, optional, required')
+  process.exit(1)
+}
+
+if (!Number.isInteger(crmSmokePageSize) || crmSmokePageSize < 1 || crmSmokePageSize > 100) {
+  console.error('CRM_SMOKE_PAGE_SIZE must be an integer between 1 and 100')
   process.exit(1)
 }
 
@@ -80,6 +92,19 @@ function apiData(body) {
     return body.data
   }
   return body
+}
+
+function isApiSuccess(body) {
+  if (!body || typeof body !== 'object') {
+    return false
+  }
+  if ('success' in body) {
+    return body.success === true
+  }
+  if ('code' in body) {
+    return body.code === 0 || body.code === '0'
+  }
+  return true
 }
 
 function extractAccessToken(response) {
@@ -174,6 +199,38 @@ async function main() {
       recordPass(name, endpoint)
     })
   }
+
+  await expectOk('CRM page-list 只读查询契约正常', async () => {
+    if (crmSmokeMode === 'skip') {
+      recordPass('CRM page-list 只读查询契约正常', 'skipped by CRM_SMOKE_MODE=skip')
+      return
+    }
+
+    const { response, body } = await fetchJson(`${apiBaseUrl}/api/xiyu/crm/chances/page-list`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        pageIndex: 1,
+        pageSize: crmSmokePageSize,
+        body: { selectAll: true },
+      }),
+    })
+    if (response.status === 409) {
+      throw new Error('CRM page-list returned 409 Conflict; token/config regression likely')
+    }
+    requireStatus(response, [200], 'CRM page-list failed')
+    requireTruthy(isApiSuccess(body), 'CRM page-list response is not successful')
+
+    const data = apiData(body)
+    const list = data?.list || data?.records || data?.content || []
+    requireTruthy(Array.isArray(list), 'CRM page-list data list is not an array')
+    const totalCount = Number(data?.totalCount ?? data?.total ?? data?.totalElements ?? list.length)
+    requireTruthy(Number.isFinite(totalCount), 'CRM page-list total count is not numeric')
+    if (crmSmokeMode === 'required') {
+      requireTruthy(list.length > 0 || totalCount > 0, 'CRM page-list returned empty result in required mode')
+    }
+    recordPass('CRM page-list 只读查询契约正常', `mode=${crmSmokeMode} status=200 total=${totalCount} rows=${list.length}`)
+  })
 
   await expectOk('CRM search-by-tender 可返回匹配商机（空结果阻断发布）', async () => {
     const probeVars = ['PROBE_API_BASE_URL', 'PROBE_USERNAME', 'PROBE_PASSWORD', 'PROBE_GROUP_NAME', 'PROBE_EVALUATION_DATE']

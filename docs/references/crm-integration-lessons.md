@@ -57,7 +57,30 @@
 
 ---
 
-## 9. CRM 商机字段映射错位导致评估表数据错乱（CO-262 / PR795）
+## 9. CRM 生产配置映射漂移导致商机列表 409（2026-06-20）
+
+### 事故一句话总结
+
+服务器 `/etc/xiyu-bid/backend.env` 已配置 `XIYU_CRM_*`，但生产 profile 合并后的 Spring 配置没有把这些环境变量绑定到 `app.crm.*`，导致运行时 `OSS oauth login: baseUrl=null, username=`，最终 `/api/xiyu/crm/chances/page-list` 从只读查询退化为 token 异常并暴露 409。
+
+### 工程规则
+
+1. 外部集成的 env-to-app 配置映射必须放在共享 `application.yml`，不能只放在 dev/profile 专用配置里。
+2. 每个外部集成都必须有生产 profile 合并配置契约测试，至少锁定 base-url、认证字段、核心 path、开关和超时字段。
+3. 启动日志只能输出“是否已配置”和模式/策略，禁止打印账号、密码、token、clientSecret 或 URL 明文。
+4. 部署 smoke 必须包含 CRM page-list 只读探针；`409 Conflict`、`baseUrl=null`、`Cannot acquire CRM token`、`OSS token acquisition failed` 都是发布阻断信号。
+5. 只读查询失败可降级为空结果，但部署验证不能只接受“接口不炸”；`CRM_SMOKE_MODE=required` 时必须验证真实 CRM 可返回商机。
+
+### 防线落点
+
+- `ProductionSecurityPropertiesTest`：锁定 prod 合并后的 CRM 与组织集成环境变量映射。
+- `StartupConfigurationSummaryLogger`：启动期输出外部集成配置摘要，只打印布尔值和策略名。
+- `scripts/release/run-prod-smoke.mjs`：增加 `CRM_SMOKE_MODE` / `CRM_SMOKE_PAGE_SIZE`，验证 CRM page-list HTTP 200 且不允许 409。
+- `scripts/release/post-deploy-smoke.sh`：扫描最近后端日志中的 CRM 配置/token 回归关键词。
+
+---
+
+## 10. CRM 商机字段映射错位导致评估表数据错乱（CO-262 / PR795）
 
 > 来源：2026-06-18 CO-262 CRM 商机关联投标评估表字段映射错误事故复盘（PR795）
 > 适用范围：所有 CRM 商机字段映射到投标评估表的场景
