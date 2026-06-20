@@ -32,7 +32,7 @@ public class OrganizationUserSyncWriter {
     public static final String LOCKED_PASSWORD_HASH = "$2a$10$7EqJtq98hPqEX7fNZaFWoOHIhi4YhML26vP7Hk1UR93E1Vda8yI9W";
 
     /** 默认测试密码 123456 的 BCrypt 编码，用于 OSS 同步员工本地登录。 */
-    public static final String DEFAULT_PASSWORD_HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMy.MqrqhmM6JGKpS4G3R1G2JH8YpfB0Bqy";
+    public static final String DEFAULT_PASSWORD_HASH = "$2a$10$FwCOuxKv3WA8f2uwiUE23umE0ooMOPDOoOs2JTK49zN8i8PYLxK4y";
 
     private final UserRepository userRepository;
     private final RoleProfileRepository roleProfileRepository;
