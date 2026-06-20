@@ -8,11 +8,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const searchOpportunities = vi.fn()
 const searchOpportunitiesByTender = vi.fn()
+const getContactPersons = vi.fn()
 
 vi.mock('@/api/modules/crm.js', () => ({
   crmApi: {
     searchOpportunities,
     searchOpportunitiesByTender,
+    getContactPersons,
   },
 }))
 
@@ -146,6 +148,7 @@ describe('useCrmOpportunitySelector', () => {
   })
 
   it('CRM 选择模式字段映射：风险预判←riskPrediction，支持备注←remark，GAP 附件←gapFile，投标建议理由留空', async () => {
+    getContactPersons.mockResolvedValue({ data: [] })
     const chance = {
       id: 100,
       name: 'CRM商机',
@@ -192,6 +195,90 @@ describe('useCrmOpportunitySelector', () => {
         }),
       }),
     }))
+  })
+
+  it('CRM 选择模式会把对接人映射为客户信息', async () => {
+    const chance = { id: 285001, name: '最新标讯商机', code: 'CC20260619001' }
+    searchOpportunities.mockResolvedValue({ data: { list: [chance], totalCount: 1 } })
+    getContactPersons.mockResolvedValue({
+      data: [
+        {
+          name: '张三',
+          phone: '18888888888',
+          email: 'zhangsan@example.com',
+          ehsyProjectManager: '张頔',
+          contactMethod: '电话',
+          preferenceBasis: '客户明确偏向西域',
+          contacted: true,
+          guidedBidDocument: true,
+          getKeyInfo: true,
+          deleteDisadvantage: false,
+          syncInfo: true,
+          preferenceLevel: 'HIGH',
+          guaranteeWin: true,
+          impactRate: '80%',
+        },
+      ],
+    })
+
+    const props = { tenderer: '', registrationDeadline: '', bidOpeningTime: '', alreadyLinkedName: '' }
+    const emitFn = vi.fn()
+    const wrapper = mount(defineComponent({
+      template: '<div />',
+      setup() { return useCrmOpportunitySelector(props, emitFn) },
+    }))
+    await wrapper.vm.openSearch()
+    await flushPromises()
+
+    wrapper.vm.onSelect(chance)
+    await wrapper.vm.confirmLink()
+    await flushPromises()
+
+    expect(getContactPersons).toHaveBeenCalledWith(285001)
+    expect(emitFn).toHaveBeenCalledWith('linked', expect.objectContaining({
+      opportunityId: 'CC20260619001',
+      evaluationData: expect.objectContaining({
+        customerInfos: [expect.objectContaining({
+          NAME: '张三',
+          CONTACT_INFO: '18888888888',
+          XIYU_CONTACT: '张頔',
+          CONTACT_METHOD: '电话',
+          INFO_TENDENCY_BASIS: '客户明确偏向西域',
+          CONTACTED: '是',
+          GUIDED_BID: '是',
+          CAN_GET_KEY_INFO: '是',
+          CAN_REMOVE_ADVERSE: '否',
+          CAN_SYNC_EVAL: '是',
+          TENDENCY: 'HIGH',
+          INFO_CLEAR_WINNER_BID: true,
+          INFO_WIN_RATE_IMPACT: '80%',
+        })],
+      }),
+    }))
+  })
+
+  it('CRM 对接人查询失败时不应静默提交空客户信息', async () => {
+    const chance = { id: 285001, name: '最新标讯商机', code: 'CC20260619001' }
+    searchOpportunities.mockResolvedValue({ data: { list: [chance], totalCount: 1 } })
+    getContactPersons.mockRejectedValue(new Error('contact-persons failed'))
+
+    const props = { tenderer: '', registrationDeadline: '', bidOpeningTime: '', alreadyLinkedName: '' }
+    const emitFn = vi.fn()
+    const wrapper = mount(defineComponent({
+      template: '<div />',
+      setup() { return useCrmOpportunitySelector(props, emitFn) },
+    }))
+    await wrapper.vm.openSearch()
+    await flushPromises()
+
+    wrapper.vm.onSelect(chance)
+    await wrapper.vm.confirmLink()
+    await flushPromises()
+
+    expect(emitFn).not.toHaveBeenCalledWith('linked', expect.objectContaining({
+      evaluationData: expect.objectContaining({ customerInfos: [] }),
+    }))
+    expect(elMessage.error).toHaveBeenCalledWith('CRM对接人查询失败，无法带入客户信息')
   })
 
   it('手动输入模式字段映射：风险预判←projectRiskText，支持备注←remark', async () => {

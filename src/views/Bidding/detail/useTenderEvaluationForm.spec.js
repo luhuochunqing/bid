@@ -27,6 +27,33 @@ describe('evaluationToForm', () => {
     expect(row.INFO_WIN_RATE_IMPACT).toBe('HIGH')
   })
 
+  it('converts tender 285 external-role EAV rows to one flat visible row', () => {
+    const evaluation = {
+      evaluationBasic: {},
+      evaluationCustomerInfos: [
+        { roleKey: 'EXTERNAL_ROLE_1', infoKey: 'CAN_GET_KEY_INFO', value: 'true', valueType: 'TEXT' },
+        { roleKey: 'EXTERNAL_ROLE_1', infoKey: 'CAN_REMOVE_ADVERSE', value: 'true', valueType: 'TEXT' },
+        { roleKey: 'EXTERNAL_ROLE_1', infoKey: 'CAN_SYNC_EVAL', value: 'true', valueType: 'TEXT' },
+        { roleKey: 'EXTERNAL_ROLE_1', infoKey: 'CONTACT_INFO', value: '18888888888', valueType: 'TEXT' },
+        { roleKey: 'EXTERNAL_ROLE_1', infoKey: 'INFO_TENDENCY_BASIS', value: '客户明确偏向西域', valueType: 'TEXT' },
+      ],
+      evaluationRecommendation: {},
+    }
+
+    const result = evaluationToForm(evaluation)
+
+    expect(result.customerInfo).toEqual([
+      expect.objectContaining({
+        roleKey: 'EXTERNAL_ROLE_1',
+        CAN_GET_KEY_INFO: 'true',
+        CAN_REMOVE_ADVERSE: 'true',
+        CAN_SYNC_EVAL: 'true',
+        CONTACT_INFO: '18888888888',
+        INFO_TENDENCY_BASIS: '客户明确偏向西域',
+      }),
+    ])
+  })
+
   it('groups multiple roleKeys into separate rows', () => {
     const evaluation = {
       evaluationBasic: {},
