@@ -3,6 +3,7 @@ package com.xiyu.bid.crm.infrastructure;
 import com.xiyu.bid.crm.application.CrmChanceService;
 import com.xiyu.bid.crm.application.CrmContactPersonService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.crm.infrastructure.dto.CustomerChancePageRequest;
 import com.xiyu.bid.crm.infrastructure.dto.CustomerChanceSearchByTenderRequest;
 import com.xiyu.bid.crm.infrastructure.dto.CustomerChanceVO;
 import org.junit.jupiter.api.Test;
@@ -63,6 +64,27 @@ class CrmChanceControllerIntegrationTest {
                                 {"tenderer":"山东海化集团有限公司","registrationDeadline":"2026-06-03 23:59:00","bidOpeningTime":"2026-06-04 23:59:00","pageIndex":1,"pageSize":10}
                                 """))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "staff", roles = {"STAFF"})
+    void pageList_shouldReturnEmptyResultWhenServiceReturnsEmptyPage() throws Exception {
+        CrmChanceService.CrmChancePageResult result =
+                new CrmChanceService.CrmChancePageResult(List.of(), 0, 0, 0);
+        when(chanceService.pageList(any(CustomerChancePageRequest.class))).thenReturn(result);
+
+        mockMvc.perform(post("/api/xiyu/crm/chances/page-list")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"pageIndex":1,"pageSize":10,"body":{"selectAll":true}}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.list").isEmpty())
+                .andExpect(jsonPath("$.data.totalCount").value(0));
+
+        verify(chanceService).pageList(any(CustomerChancePageRequest.class));
     }
 
     @Test

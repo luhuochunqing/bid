@@ -75,6 +75,33 @@ ai:
 app:
   version: ${project.version:1.0.3}
   crm:
+    # Shared CRM binding for all profiles. Server env files inject XIYU_CRM_*;
+    # profile-specific yml must not be the only place these mappings exist.
+    base-url: ${XIYU_CRM_BASE_URL:}
+    auth-base-url: ${XIYU_CRM_AUTH_BASE_URL:}
+    customer-base-url: ${XIYU_CRM_CUSTOMER_BASE_URL:}
+    message-base-url: ${XIYU_CRM_MESSAGE_BASE_URL:}
+    chance-base-url: ${XIYU_CRM_CHANCE_BASE_URL:}
+    contact-person-base-url: ${XIYU_CRM_CONTACT_PERSON_BASE_URL:}
+    client-id: ${XIYU_CRM_CLIENT_ID:}
+    client-secret: ${XIYU_CRM_CLIENT_SECRET:}
+    oauth-username: ${XIYU_CRM_OAUTH_USERNAME:}
+    oauth-password: ${XIYU_CRM_OAUTH_PASSWORD:}
+    oauth-system: ${XIYU_CRM_OAUTH_SYSTEM:HOME}
+    generate-token-path: ${XIYU_CRM_GENERATE_TOKEN_PATH:/common/inner/generateToken}
+    generate-token-nick-name: ${XIYU_CRM_GENERATE_TOKEN_NICK_NAME:}
+    generate-token-sales-no: ${XIYU_CRM_GENERATE_TOKEN_SALES_NO:}
+    auth:
+      apply-token-path: ${XIYU_CRM_AUTH_APPLY_TOKEN_PATH:/auth/applyToken}
+      oauth-login-path: ${XIYU_CRM_AUTH_OAUTH_LOGIN_PATH:/oauth/login}
+      logout-path: ${XIYU_CRM_AUTH_LOGOUT_PATH:/auth/logout}
+      menu-tree-path: ${XIYU_CRM_AUTH_MENU_TREE_PATH:/menu/tree}
+      employee-path: ${XIYU_CRM_AUTH_EMPLOYEE_PATH:/employee/info}
+    customer:
+      search-path: ${XIYU_CRM_CUSTOMER_SEARCH_PATH:/customer/search}
+      contacts-path: ${XIYU_CRM_CUSTOMER_CONTACTS_PATH:/customer/contacts/batch}
+    message:
+      send-path: ${XIYU_CRM_MESSAGE_SEND_PATH:/common/sendMessage}
     matching-strategy: ${APP_CRM_MATCHING_STRATEGY:GROUP}
   bid-agent:
     upload-dir: ${BID_AGENT_UPLOAD_DIR:}

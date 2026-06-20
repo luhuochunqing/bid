@@ -1,0 +1,9 @@
+version: 1
+task: "crm-opportunity-link-409"
+locks:
+  - path: "backend/src/main/resources/application.yml"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/zcode/crm-opportunity-link-409"
+    expiresAt: "2026-06-21T13:55:02.384Z"
+    reason: "CRM prod config binding fix"

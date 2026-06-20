@@ -171,8 +171,7 @@ export function useCrmOpportunitySelector(props, emit) {
           INFO_WIN_RATE_IMPACT: c.impactRate || null,
         }))
       } catch {
-        ElMessage.error('CRM对接人查询失败，无法带入客户信息')
-        return
+        ElMessage.warning('CRM对接人查询失败，已继续关联商机，客户信息未自动带入')
       }
     }
     linkedOpportunity.value = { name: chance.name, code: chance.code, id: chance.id }

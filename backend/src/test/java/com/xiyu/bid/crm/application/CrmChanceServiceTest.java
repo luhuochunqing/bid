@@ -3,6 +3,7 @@ package com.xiyu.bid.crm.application;
 import com.xiyu.bid.crm.config.CrmProperties;
 import com.xiyu.bid.crm.infrastructure.CrmHttpClient;
 import com.xiyu.bid.crm.infrastructure.CrmResponseHandler;
+import com.xiyu.bid.crm.infrastructure.dto.CustomerChanceDTO;
 import com.xiyu.bid.crm.infrastructure.dto.CustomerChancePageRequest;
 import com.xiyu.bid.crm.infrastructure.dto.CustomerChanceSearchByTenderRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,6 +18,7 @@ import org.mockito.quality.Strictness;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -41,6 +43,74 @@ class CrmChanceServiceTest {
         properties.setBaseUrl("http://crm.example.com");
         service = new CrmChanceService(httpClient, authService, properties);
         when(authService.getValidToken()).thenReturn("token");
+    }
+
+    @Test
+    void pageList_tokenAcquisitionFailure_returnsEmptyResult() {
+        when(authService.getValidToken()).thenThrow(new IllegalStateException("OSS applyToken failed"));
+        CustomerChancePageRequest request = new CustomerChancePageRequest(1, 10, selectAllBody());
+
+        CrmChanceService.CrmChancePageResult result = service.pageList(request);
+
+        assertThat(result.list()).isEmpty();
+        assertThat(result.totalCount()).isZero();
+        assertThat(result.pageSize()).isZero();
+        assertThat(result.pageIndex()).isZero();
+        verify(httpClient, never()).post(any(), any(), any(), any(CustomerChancePageRequest.class));
+    }
+
+    @Test
+    void searchByTender_tokenAcquisitionFailure_returnsEmptyResult() {
+        when(authService.getValidToken()).thenThrow(new IllegalStateException("CRM generateToken failed"));
+        CustomerChanceSearchByTenderRequest request = new CustomerChanceSearchByTenderRequest(
+                "山东海化集团有限公司", "2026-06-03 23:59:00", "2026-06-04 23:59:00", 1, 10);
+
+        CrmChanceService.CrmChancePageResult result = service.searchByTender(request);
+
+        assertThat(result.list()).isEmpty();
+        assertThat(result.totalCount()).isZero();
+        assertThat(result.pageSize()).isZero();
+        assertThat(result.pageIndex()).isZero();
+        verify(httpClient, never()).post(any(), any(), any(), any(CustomerChancePageRequest.class));
+    }
+
+    @Test
+    void pageList_unauthorizedThenTokenRefreshFailure_returnsEmptyResult() {
+        when(authService.getValidToken())
+                .thenReturn("expired-token")
+                .thenThrow(new IllegalStateException("CRM generateToken failed"));
+        when(httpClient.post(any(), any(), eq("expired-token"), any(CustomerChancePageRequest.class)))
+                .thenReturn(unauthorizedCrmResponse());
+        CustomerChancePageRequest request = new CustomerChancePageRequest(1, 10, selectAllBody());
+
+        CrmChanceService.CrmChancePageResult result = service.pageList(request);
+
+        assertThat(result.list()).isEmpty();
+        assertThat(result.totalCount()).isZero();
+        assertThat(result.pageSize()).isZero();
+        assertThat(result.pageIndex()).isZero();
+        verify(authService).handleUnauthorized();
+        verify(httpClient, times(1)).post(any(), any(), eq("expired-token"), any(CustomerChancePageRequest.class));
+    }
+
+    @Test
+    void searchByTender_unauthorizedThenTokenRefreshFailure_returnsEmptyResult() {
+        when(authService.getValidToken())
+                .thenReturn("expired-token")
+                .thenThrow(new IllegalStateException("CRM generateToken failed"));
+        when(httpClient.post(any(), any(), eq("expired-token"), any(CustomerChancePageRequest.class)))
+                .thenReturn(unauthorizedCrmResponse());
+        CustomerChanceSearchByTenderRequest request = new CustomerChanceSearchByTenderRequest(
+                "山东海化集团有限公司", "2026-06-03 23:59:00", "2026-06-04 23:59:00", 1, 10);
+
+        CrmChanceService.CrmChancePageResult result = service.searchByTender(request);
+
+        assertThat(result.list()).isEmpty();
+        assertThat(result.totalCount()).isZero();
+        assertThat(result.pageSize()).isZero();
+        assertThat(result.pageIndex()).isZero();
+        verify(authService).handleUnauthorized();
+        verify(httpClient, times(1)).post(any(), any(), eq("expired-token"), any(CustomerChancePageRequest.class));
     }
 
     @Test
@@ -189,7 +259,17 @@ class CrmChanceServiceTest {
         assertThat(captor.getAllValues().get(1).body().evaluationStartTime()).startsWith("2026-06-04");
     }
 
+    private CustomerChanceDTO selectAllBody() {
+        return new CustomerChanceDTO(
+                null, null, null, null, null, null, null,
+                null, null, null, null, null, null, true, null, null, null);
+    }
+
     private CrmResponseHandler.CrmApiResponse emptyCrmResponse() {
         return CrmResponseHandler.parse("{\"code\":0,\"totalCount\":0,\"pageSize\":10,\"pageIndex\":1,\"dataList\":[]}");
+    }
+
+    private CrmResponseHandler.CrmApiResponse unauthorizedCrmResponse() {
+        return CrmResponseHandler.parse("{\"code\":401,\"msg\":\"unauthorized\",\"data\":null}");
     }
 }

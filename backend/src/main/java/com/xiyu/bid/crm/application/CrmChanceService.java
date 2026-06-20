@@ -61,27 +61,7 @@ public class CrmChanceService {
      * @return 分页结果，含商机列表和分页信息；查询失败返回空列表
      */
     public CrmChancePageResult pageList(CustomerChancePageRequest request) {
-        String token = authService.getValidToken();
-        String baseUrl = properties.getEffectiveChanceBaseUrl();
-        String path = properties.getChance().getPageListPath();
-        log.info("CRM chance page-list request: baseUrl={}, path={}, body={}", baseUrl, path, request);
-        CrmResponseHandler.CrmApiResponse response = httpClient.post(baseUrl, path, token, request);
-
-        if (response.isUnauthorized()) {
-            authService.handleUnauthorized();
-            token = authService.getValidToken();
-            response = httpClient.post(baseUrl, path, token, request);
-        }
-
-        if (!response.success() || response.data() == null) {
-            log.warn("CRM chance page-list failed: code={}, msg={}", response.code(), response.msg());
-            return new CrmChancePageResult(Collections.emptyList(), 0, 0, 0);
-        }
-
-        log.info("CRM chance page-list response: code={}, msg={}, dataSnippet={}",
-                response.code(), response.msg(),
-                response.data().toString().substring(0, Math.min(500, response.data().toString().length())));
-        return parsePageResponse(response.data());
+        return doPageList(request);
     }
 
     /**
@@ -149,7 +129,13 @@ public class CrmChanceService {
     }
 
     private CrmChancePageResult doPageList(CustomerChancePageRequest request) {
-        String token = authService.getValidToken();
+        String token;
+        try {
+            token = authService.getValidToken();
+        } catch (IllegalStateException e) {
+            log.warn("CRM page-list skipped because token acquisition failed: {}", e.getMessage());
+            return emptyPageResult();
+        }
         String baseUrl = properties.getEffectiveChanceBaseUrl();
         String path = properties.getChance().getPageListPath();
         return doPageList(token, baseUrl, path, request);
@@ -162,13 +148,19 @@ public class CrmChanceService {
 
         if (response.isUnauthorized()) {
             authService.handleUnauthorized();
-            token = authService.getValidToken();
+            try {
+                token = authService.getValidToken();
+            } catch (IllegalStateException e) {
+                log.warn("CRM chance page-list skipped because token refresh failed after unauthorized: {}",
+                        e.getMessage());
+                return emptyPageResult();
+            }
             response = httpClient.post(baseUrl, path, token, request);
         }
 
         if (!response.success() || response.data() == null) {
             log.warn("CRM chance page-list failed: code={}, msg={}", response.code(), response.msg());
-            return new CrmChancePageResult(Collections.emptyList(), 0, 0, 0);
+            return emptyPageResult();
         }
         return parsePageResponse(response.data());
     }
@@ -277,8 +269,12 @@ public class CrmChanceService {
             return new CrmChancePageResult(list, totalCount, pageSize, pageIndex);
         } catch (JsonProcessingException | RuntimeException e) {
             log.error("Failed to parse CRM chance page response", e);
-            return new CrmChancePageResult(Collections.emptyList(), 0, 0, 0);
+            return emptyPageResult();
         }
+    }
+
+    private CrmChancePageResult emptyPageResult() {
+        return new CrmChancePageResult(Collections.emptyList(), 0, 0, 0);
     }
 
     /**

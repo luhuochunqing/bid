@@ -257,7 +257,7 @@ describe('useCrmOpportunitySelector', () => {
     }))
   })
 
-  it('CRM 对接人查询失败时不应静默提交空客户信息', async () => {
+  it('CRM 对接人查询失败时仍应继续关联商机并提交空客户信息', async () => {
     const chance = { id: 285001, name: '最新标讯商机', code: 'CC20260619001' }
     searchOpportunities.mockResolvedValue({ data: { list: [chance], totalCount: 1 } })
     getContactPersons.mockRejectedValue(new Error('contact-persons failed'))
@@ -275,10 +275,14 @@ describe('useCrmOpportunitySelector', () => {
     await wrapper.vm.confirmLink()
     await flushPromises()
 
-    expect(emitFn).not.toHaveBeenCalledWith('linked', expect.objectContaining({
+    expect(getContactPersons).toHaveBeenCalledWith(285001)
+    expect(emitFn).toHaveBeenCalledWith('linked', expect.objectContaining({
+      opportunityId: 'CC20260619001',
+      opportunityName: '最新标讯商机',
       evaluationData: expect.objectContaining({ customerInfos: [] }),
     }))
-    expect(elMessage.error).toHaveBeenCalledWith('CRM对接人查询失败，无法带入客户信息')
+    expect(elMessage.warning).toHaveBeenCalledWith('CRM对接人查询失败，已继续关联商机，客户信息未自动带入')
+    expect(elMessage.error).not.toHaveBeenCalledWith('CRM对接人查询失败，无法带入客户信息')
   })
 
   it('手动输入模式字段映射：风险预判←projectRiskText，支持备注←remark', async () => {

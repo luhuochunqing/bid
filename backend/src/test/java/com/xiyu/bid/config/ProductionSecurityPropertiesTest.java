@@ -50,6 +50,26 @@ class ProductionSecurityPropertiesTest {
     }
 
     @Test
+    void productionProfileKeepsCrmBindingsExternalized() {
+        YamlPropertiesFactoryBean factoryBean = new YamlPropertiesFactoryBean();
+        factoryBean.setResources(new ClassPathResource("application.yml"), new ClassPathResource("application-prod.yml"));
+        Properties properties = factoryBean.getObject();
+
+        assertThat(properties).isNotNull();
+        assertThat(properties.getProperty("app.crm.auth-base-url")).isEqualTo("${XIYU_CRM_AUTH_BASE_URL:}");
+        assertThat(properties.getProperty("app.crm.base-url")).isEqualTo("${XIYU_CRM_BASE_URL:}");
+        assertThat(properties.getProperty("app.crm.chance-base-url")).isEqualTo("${XIYU_CRM_CHANCE_BASE_URL:}");
+        assertThat(properties.getProperty("app.crm.oauth-username")).isEqualTo("${XIYU_CRM_OAUTH_USERNAME:}");
+        assertThat(properties.getProperty("app.crm.oauth-password")).isEqualTo("${XIYU_CRM_OAUTH_PASSWORD:}");
+        assertThat(properties.getProperty("app.crm.generate-token-nick-name"))
+                .isEqualTo("${XIYU_CRM_GENERATE_TOKEN_NICK_NAME:}");
+        assertThat(properties.getProperty("app.crm.generate-token-sales-no"))
+                .isEqualTo("${XIYU_CRM_GENERATE_TOKEN_SALES_NO:}");
+        assertThat(properties.getProperty("app.crm.auth.oauth-login-path"))
+                .isEqualTo("${XIYU_CRM_AUTH_OAUTH_LOGIN_PATH:/oauth/login}");
+    }
+
+    @Test
     void developmentCorsAllowsTheLocalFrontendOrigins() {
         YamlPropertiesFactoryBean factoryBean = new YamlPropertiesFactoryBean();
         factoryBean.setResources(new ClassPathResource("application.yml"));
