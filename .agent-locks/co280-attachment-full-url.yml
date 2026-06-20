@@ -1,0 +1,9 @@
+version: 1
+task: "co280-attachment-full-url"
+locks:
+  - path: "backend/src/main/resources/application-prod.yml"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/trae/co280-attachment-full-url"
+    expiresAt: "2026-06-21T05:30:08.311Z"
+    reason: "CO-280: 新增 xiyu.public-base-url 配置项供 CRM 跨域访问"
