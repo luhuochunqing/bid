@@ -548,3 +548,56 @@ me=True:200:系统管理员
 
 - `docs/lessons/root-cause-analysis-co-282.md` — 完整根因分析
 - `docs/lessons/lessons-learned.md` §6 — 部署后配置未生效的四层模型
+
+---
+
+## 7. sync-env.sh stash pop 失败导致修改丢失，用 git fsck 找回
+
+### 问题背景
+
+2026-06-20 提交 CO-262 PR 前，执行 `./scripts/sync-env.sh .` 同步基线。脚本自动 `git stash` 保存未提交变更，rebase 后 `git stash pop` 恢复。但 stash pop 失败（原因未明），`git status` 显示所有修改消失，只剩 untracked 文件。
+
+`git stash list` 为空，`git reflog` 显示 3 次 `reset: moving to HEAD`，修改似乎彻底丢失。
+
+### 教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| stash pop 失败后修改丢失 | git 对象不会立即被 GC，dangling commits 仍可找回 | 修改丢失时第一时间跑 `git fsck --lost-found` |
+| `git stash list` 为空不代表数据已删除 | stash pop 失败后 stash 可能被 drop，但 commit 对象仍在 | 用 `git fsck` 搜索 dangling commits |
+| 无法区分哪个 dangling commit 是自己的 | stash commit 的 message 包含分支名和时间戳 | 用 `git log -1 --format="%ci %s" <hash>` 逐个排查 |
+
+### 恢复方法
+
+```bash
+# 1. 列出所有 dangling commits
+git fsck --no-reflogs --lost-found 2>&1 | grep "dangling commit"
+
+# 2. 逐个检查 message，找到包含自己分支名的 stash
+# stash commit message 格式: "On <branch>: <stash-message>"
+for c in <hash1> <hash2> ...; do
+  git log -1 --format="%ci %s" $c
+done
+
+# 3. 确认包含自己修改的 stash commit
+git show --stat <hash>  # 查看包含哪些文件
+
+# 4. 恢复修改（apply 不会删除 stash，安全）
+git stash apply <hash>
+```
+
+### 验证命令
+
+```bash
+# 确认所有修改已恢复
+git status
+git diff --stat
+```
+
+### 相关文档
+
+- `scripts/sync-env.sh` — 早操脚本，含 stash/rebase/pop 逻辑
+
+---
+
+
