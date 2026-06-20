@@ -64,9 +64,12 @@
               style="width: 100%"
               @change="onDataChange"
             >
-              <el-option label="支持" value="支持" />
-              <el-option label="中立" value="中立" />
-              <el-option label="反对" value="反对" />
+              <el-option
+                v-for="opt in TENDENCY_OPTIONS"
+                :key="opt.value"
+                :label="opt.label"
+                :value="opt.value"
+              />
             </el-select>
             <!-- Position dropdown (14 options) -->
             <el-select
@@ -81,9 +84,9 @@
             >
               <el-option
                 v-for="opt in POSITION_OPTIONS"
-                :key="opt"
-                :label="opt"
-                :value="opt"
+                :key="opt.value"
+                :label="opt.label"
+                :value="opt.value"
               />
             </el-select>
             <!-- Contact method dropdown (7 options) -->
@@ -99,9 +102,9 @@
             >
               <el-option
                 v-for="opt in CONTACT_METHOD_OPTIONS"
-                :key="opt"
-                :label="opt"
-                :value="opt"
+                :key="opt.value"
+                :label="opt.label"
+                :value="opt.value"
               />
             </el-select>
             <!-- Switch for clear winner bid info -->
@@ -142,6 +145,7 @@ import {
   CUSTOMER_INFO_COLUMNS,
   IMPACT_OPTIONS,
   POSITION_OPTIONS,
+  TENDENCY_OPTIONS,
 } from './customerInfoMatrixConfig.js'
 
 defineProps({

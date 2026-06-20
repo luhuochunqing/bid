@@ -2,7 +2,13 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 
 import CustomerInfoMatrixTable from './CustomerInfoMatrixTable.vue'
-import { CUSTOMER_INFO_COLUMNS } from './customerInfoMatrixConfig.js'
+import {
+  CONTACT_METHOD_OPTIONS,
+  CUSTOMER_INFO_COLUMNS,
+  IMPACT_OPTIONS,
+  POSITION_OPTIONS,
+  TENDENCY_OPTIONS,
+} from './customerInfoMatrixConfig.js'
 
 const globalStubs = {
   ElTable: {
@@ -68,6 +74,18 @@ describe('CustomerInfoMatrixTable', () => {
     // First editable column (CUSTOMER_INFO_COLUMNS[1]) has label "联系方式"
     expect(columnStubs[1].attributes('data-label')).toBe('联系方式')
     expect(columnStubs[1].attributes('data-width')).toBe('160')
+  })
+
+  it('uses numeric index values with Chinese labels for integration option fields', () => {
+    expect(POSITION_OPTIONS[0]).toEqual({ label: '项目最高决策人', value: '1' })
+    expect(POSITION_OPTIONS[13]).toEqual({ label: '专家3', value: '14' })
+    expect(CONTACT_METHOD_OPTIONS[2]).toEqual({ label: '供应商渠道推荐', value: '3' })
+    expect(TENDENCY_OPTIONS).toEqual([
+      { label: '支持', value: '1' },
+      { label: '中立', value: '2' },
+      { label: '反对', value: '3' },
+    ])
+    expect(IMPACT_OPTIONS[3]).toEqual({ label: '50%', value: '4' })
   })
 
   it('shows role label column so tender 285 external customer row is identifiable', () => {

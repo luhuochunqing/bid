@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { evaluationToForm, buildApiPayload } from './useTenderEvaluationForm.js'
+import { CUSTOMER_INFO_COLUMNS } from './components/customerInfoMatrixConfig.js'
+import { evaluationToForm, buildApiPayload, VT } from './useTenderEvaluationForm.js'
 
 describe('evaluationToForm', () => {
   it('converts EAV customerInfos to flat row format', () => {
@@ -8,9 +9,9 @@ describe('evaluationToForm', () => {
       evaluationCustomerInfos: [
         { roleKey: 'OTHER_KEY_DECISION_MAKER_1', infoKey: 'NAME', value: '张三', valueType: 'TEXT' },
         { roleKey: 'OTHER_KEY_DECISION_MAKER_1', infoKey: 'CONTACT_INFO', value: '13800138000', valueType: 'TEXT' },
-        { roleKey: 'OTHER_KEY_DECISION_MAKER_1', infoKey: 'CONTACTED', value: '是', valueType: 'DROPDOWN' },
+        { roleKey: 'OTHER_KEY_DECISION_MAKER_1', infoKey: 'CONTACTED', value: 'true', valueType: 'DROPDOWN' },
         { roleKey: 'OTHER_KEY_DECISION_MAKER_1', infoKey: 'INFO_CLEAR_WINNER_BID', value: 'true', valueType: 'SWITCH' },
-        { roleKey: 'OTHER_KEY_DECISION_MAKER_1', infoKey: 'INFO_WIN_RATE_IMPACT', value: 'HIGH', valueType: 'DROPDOWN6' },
+        { roleKey: 'OTHER_KEY_DECISION_MAKER_1', infoKey: 'INFO_WIN_RATE_IMPACT', value: '4', valueType: 'DROPDOWN6' },
       ],
       evaluationRecommendation: { shouldBid: true, reason: '建议投标' },
     }
@@ -22,9 +23,9 @@ describe('evaluationToForm', () => {
     expect(row.roleKey).toBe('OTHER_KEY_DECISION_MAKER_1')
     expect(row.NAME).toBe('张三')
     expect(row.CONTACT_INFO).toBe('13800138000')
-    expect(row.CONTACTED).toBe('是')
-    expect(row.INFO_CLEAR_WINNER_BID).toBe('true')
-    expect(row.INFO_WIN_RATE_IMPACT).toBe('HIGH')
+    expect(row.CONTACTED).toBe(true)
+    expect(row.INFO_CLEAR_WINNER_BID).toBe(true)
+    expect(row.INFO_WIN_RATE_IMPACT).toBe('4')
   })
 
   it('converts tender 285 external-role EAV rows to one flat visible row', () => {
@@ -46,9 +47,9 @@ describe('evaluationToForm', () => {
       expect.objectContaining({
         roleKey: 'EXTERNAL_ROLE_1',
         roleLabel: '外部对接人1',
-        CAN_GET_KEY_INFO: 'true',
-        CAN_REMOVE_ADVERSE: 'true',
-        CAN_SYNC_EVAL: 'true',
+        CAN_GET_KEY_INFO: true,
+        CAN_REMOVE_ADVERSE: true,
+        CAN_SYNC_EVAL: true,
         CONTACT_INFO: '18888888888',
         INFO_TENDENCY_BASIS: '客户明确偏向西域',
       }),
@@ -104,6 +105,33 @@ describe('evaluationToForm', () => {
 })
 
 describe('buildApiPayload', () => {
+  it('uses explicit valueTypes for all 14 customer info fields', () => {
+    const row = CUSTOMER_INFO_COLUMNS.reduce((acc, col) => {
+      acc[col.key] = col.key === 'INFO_CLEAR_WINNER_BID' ? true : `value-${col.key}`
+      return acc
+    }, { roleKey: 'OTHER_KEY_DECISION_MAKER_1' })
+    const form = {
+      basic: makeEmptyBasic(),
+      customerInfo: [row],
+      recommendation: { shouldBid: true, reason: '' },
+    }
+
+    const payload = buildApiPayload(form)
+
+    expect(CUSTOMER_INFO_COLUMNS).toHaveLength(14)
+    expect(payload.evaluationCustomerInfos).toHaveLength(14)
+    for (const col of CUSTOMER_INFO_COLUMNS) {
+      expect(VT[col.key]).toBeDefined()
+      expect(payload.evaluationCustomerInfos).toContainEqual(
+        expect.objectContaining({
+          roleKey: 'OTHER_KEY_DECISION_MAKER_1',
+          infoKey: col.key,
+          valueType: VT[col.key],
+        })
+      )
+    }
+  })
+
   it('converts flat customerInfo rows to EAV format with correct valueTypes', () => {
     const form = {
       basic: makeEmptyBasic(),
@@ -112,10 +140,10 @@ describe('buildApiPayload', () => {
           roleKey: 'OTHER_KEY_DECISION_MAKER_1',
           NAME: '张三',
           CONTACT_INFO: '13800138000',
-          POSITION: '采购总监',
-          CONTACTED: '是',
+          POSITION: '1',
+          CONTACTED: true,
           INFO_CLEAR_WINNER_BID: true,
-          INFO_WIN_RATE_IMPACT: 'HIGH',
+          INFO_WIN_RATE_IMPACT: '4',
         },
       ],
       recommendation: { shouldBid: true, reason: '' },
@@ -131,16 +159,55 @@ describe('buildApiPayload', () => {
       expect.objectContaining({ roleKey: 'OTHER_KEY_DECISION_MAKER_1', infoKey: 'CONTACT_INFO', value: '13800138000', valueType: 'TEXT' })
     )
     expect(eavRows).toContainEqual(
-      expect.objectContaining({ roleKey: 'OTHER_KEY_DECISION_MAKER_1', infoKey: 'POSITION', value: '采购总监', valueType: 'ENUM14' })
+      expect.objectContaining({ roleKey: 'OTHER_KEY_DECISION_MAKER_1', infoKey: 'POSITION', value: '1', valueType: 'ENUM14' })
     )
     expect(eavRows).toContainEqual(
-      expect.objectContaining({ roleKey: 'OTHER_KEY_DECISION_MAKER_1', infoKey: 'CONTACTED', value: '是', valueType: 'DROPDOWN' })
+      expect.objectContaining({ roleKey: 'OTHER_KEY_DECISION_MAKER_1', infoKey: 'CONTACTED', value: 'true', valueType: 'DROPDOWN' })
     )
     expect(eavRows).toContainEqual(
       expect.objectContaining({ roleKey: 'OTHER_KEY_DECISION_MAKER_1', infoKey: 'INFO_CLEAR_WINNER_BID', value: 'true', valueType: 'SWITCH' })
     )
     expect(eavRows).toContainEqual(
-      expect.objectContaining({ roleKey: 'OTHER_KEY_DECISION_MAKER_1', infoKey: 'INFO_WIN_RATE_IMPACT', value: 'HIGH', valueType: 'DROPDOWN6' })
+      expect.objectContaining({ roleKey: 'OTHER_KEY_DECISION_MAKER_1', infoKey: 'INFO_WIN_RATE_IMPACT', value: '4', valueType: 'DROPDOWN6' })
+    )
+  })
+
+  it('keeps numeric index values required by integration contract', () => {
+    const form = {
+      basic: makeEmptyBasic(),
+      customerInfo: [
+        {
+          roleKey: 'EXTERNAL_ROLE_1',
+          POSITION: '1',
+          CONTACT_METHOD: '3',
+          TENDENCY: '2',
+          INFO_WIN_RATE_IMPACT: '4',
+          INFO_CLEAR_WINNER_BID: true,
+          CONTACTED: false,
+        },
+      ],
+      recommendation: { shouldBid: true, reason: '' },
+    }
+
+    const eavRows = buildApiPayload(form).evaluationCustomerInfos
+
+    expect(eavRows).toContainEqual(
+      expect.objectContaining({ roleKey: 'EXTERNAL_ROLE_1', infoKey: 'POSITION', value: '1', valueType: 'ENUM14' })
+    )
+    expect(eavRows).toContainEqual(
+      expect.objectContaining({ roleKey: 'EXTERNAL_ROLE_1', infoKey: 'CONTACT_METHOD', value: '3', valueType: 'ENUM7' })
+    )
+    expect(eavRows).toContainEqual(
+      expect.objectContaining({ roleKey: 'EXTERNAL_ROLE_1', infoKey: 'TENDENCY', value: '2', valueType: 'DROPDOWN' })
+    )
+    expect(eavRows).toContainEqual(
+      expect.objectContaining({ roleKey: 'EXTERNAL_ROLE_1', infoKey: 'INFO_WIN_RATE_IMPACT', value: '4', valueType: 'DROPDOWN6' })
+    )
+    expect(eavRows).toContainEqual(
+      expect.objectContaining({ roleKey: 'EXTERNAL_ROLE_1', infoKey: 'INFO_CLEAR_WINNER_BID', value: 'true', valueType: 'SWITCH' })
+    )
+    expect(eavRows).toContainEqual(
+      expect.objectContaining({ roleKey: 'EXTERNAL_ROLE_1', infoKey: 'CONTACTED', value: 'false', valueType: 'DROPDOWN' })
     )
   })
 
