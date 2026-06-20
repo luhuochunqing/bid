@@ -338,3 +338,111 @@ sudo tail -20 /var/log/nginx/error.log
 - `scripts/release/package-release.sh` — 打包脚本
 - `/etc/systemd/system/xiyu-bid-backend.service` — systemd 服务配置
 - `/etc/nginx/conf.d/xiyu-bid.conf` — Nginx 配置
+
+---
+
+## 6. 部署后配置未生效的排查方法论
+
+### 问题背景
+
+PR #888 修改了 OSS 同步员工的默认密码逻辑，直接更新数据库后测试人员仍无法登录。排查过程涉及多个层面，最终发现是代码中的 `DEFAULT_PASSWORD_HASH` 本身无效，同时数据库更新时遭遇 shell 转义截断。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 部署后密码未生效，不知从何排查 | 需要系统化的部署验证清单 | 每次部署后按「代码→配置→数据→运行时」四层验证 |
+| 数据库 UPDATE 含 `$` 被 shell 截断 | 命令行执行 SQL 要注意特殊字符转义 | 含特殊字符的 SQL 必须使用文件方式执行 |
+| 硬编码的 BCrypt 哈希未验证有效性 | "看起来像"不等于"真的是" | 任何密码哈希必须通过 `matches()` 验证后才能入库 |
+
+### 操作规范（部署后验证清单）
+
+```
+部署后验证四层模型：
+
+Layer 1 — 代码层
+  └─ 检查 jar 是否包含预期修改（javap / strings / jar tf）
+  └─ 验证 class 文件修改时间是否新于部署时间
+
+Layer 2 — 配置层
+  └─ 检查环境变量/配置文件是否加载正确
+  └─ 验证数据库连接配置指向预期实例
+
+Layer 3 — 数据层
+  └─ 检查数据库记录是否更新（COUNT / LENGTH）
+  └─ 抽样验证数据值是否符合预期（不被转义截断）
+
+Layer 4 — 运行时层
+  └─ 检查服务日志是否有异常（journalctl / grep ERROR）
+  └─ 直接调用 API 验证功能（curl / Postman）
+  └─ 验证日志中的关键路径是否按预期执行
+```
+
+### 正确做法：验证 jar 内容
+
+```bash
+# 验证 jar 是否包含新代码
+unzip -p app.jar BOOT-INF/classes/com/xiyu/bid/integration/organization/application/OrganizationUserSyncWriter.class | strings | grep "DEFAULT_PASSWORD_HASH"
+
+# 验证 AuthService 是否包含本地密码回退逻辑
+unzip -p app.jar BOOT-INF/classes/com/xiyu/bid/service/AuthService.class | strings | grep "isLocalPasswordValid"
+```
+
+### 正确做法：验证数据库
+
+```bash
+# 检查更新记录数
+mysql -h ... -e "SELECT COUNT(*) FROM winbid.users WHERE source = 'OSS'"
+
+# 检查密码长度（BCrypt 应为 60 字符）
+mysql -h ... -e "SELECT LENGTH(password) FROM winbid.users WHERE source = 'OSS' LIMIT 1"
+
+# 抽样验证密码值（注意：生产环境谨慎操作）
+mysql -h ... -e "SELECT SUBSTRING(password, 1, 7) FROM winbid.users WHERE source = 'OSS' LIMIT 1"
+# 期望输出：$2a$10$
+```
+
+### 正确做法：验证日志
+
+```bash
+# 查看服务启动日志
+sudo journalctl -u xiyu-bid-backend --since "10 minutes ago" | grep -E "ERROR|WARN|Started"
+
+# 查看认证相关日志
+sudo journalctl -u xiyu-bid-backend --since "10 minutes ago" | grep -i "password\|auth\|login"
+```
+
+### 正确做法：端到端验证
+
+```bash
+# 直接调用登录 API 验证
+curl -s -X POST http://172.16.38.78:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"00444","password":"123456"}' | jq '.success'
+# 期望输出：true
+```
+
+### 验证命令
+
+```bash
+# 一键检查四层状态
+#!/bin/bash
+echo "=== Layer 1: 代码层 ==="
+jar tf /opt/xiyu-bid/shared/backend/app.jar | grep -E "OrganizationUserSyncWriter|AuthService"
+
+echo "=== Layer 2: 配置层 ==="
+grep -E "DB_HOST|DB_NAME" /etc/xiyu-bid/backend.env
+
+echo "=== Layer 3: 数据层 ==="
+mysql -h winbid-01.test.rds.ehsy.com -P3306 -u ea_bid -p'ra(D7np+Z' winbid \
+  -e "SELECT COUNT(*) as total, LENGTH(password) as pwd_len FROM winbid.users WHERE source = 'OSS' LIMIT 1"
+
+echo "=== Layer 4: 运行时层 ==="
+systemctl is-active xiyu-bid-backend
+journalctl -u xiyu-bid-backend --since "5 minutes ago" | tail -5
+```
+
+### 相关文档
+
+- `docs/lessons/root-cause-analysis-bcrypt-invalid-hash.md` — 完整根因分析
+- `docs/lessons/shell-gotchas.md` — Shell 转义陷阱
