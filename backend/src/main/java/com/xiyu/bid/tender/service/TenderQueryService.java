@@ -60,10 +60,17 @@ public class TenderQueryService {
                 .map(a -> TenderAttachmentDTO.builder()
                         .fileName(a.getFileName())
                         .fileType(a.getFileType())
-                        .fileUrl(a.getFileUrl())
+                        .fileUrl(toDownloadUrl(a.getFileUrl()))
                         .build())
                 .collect(Collectors.toList()));
         return dto;
+    }
+
+    private static String toDownloadUrl(String fileUrl) {
+        if (fileUrl != null && fileUrl.startsWith("doc-insight://")) {
+            return "/api/doc-insight/download?fileUrl=" + java.net.URLEncoder.encode(fileUrl, java.nio.charset.StandardCharsets.UTF_8);
+        }
+        return fileUrl;
     }
 
     public List<TenderDTO> getTendersByStatus(Tender.Status status) {

@@ -24,9 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 /**
- * {@link TenderIntegrationService#pushTender} 评估数据落库验证。
- *
- * <p>覆盖 CO-267：CRM 调用 push 接口创建/覆盖标讯时，evaluation 客户信息应被写入。</p>
+ * {@link TenderIntegrationCommandService#pushTender} 评估数据落库验证。
  */
 @DataJpaTest
 @ActiveProfiles("test")
@@ -36,18 +34,25 @@ class TenderIntegrationServicePushEvaluationTest {
     @Autowired private TenderEvaluationRepository tenderEvaluationRepository;
     @Autowired private TenderEvaluationCustomerInfoRepository customerInfoRepository;
 
-    private TenderIntegrationService service;
+    private TenderIntegrationCommandService commandService;
 
     @BeforeEach
     void setUp() {
-        service = new TenderIntegrationService(
-                tenderRepository,
-                mock(TenderMapper.class),
-                mock(TenderAttachmentRepository.class),
+        TenderEvaluationIntegrationMapper evaluationMapper = new TenderEvaluationIntegrationMapper(
                 tenderEvaluationRepository,
-                customerInfoRepository,
-                mock(TenderEvaluationSubmissionMapper.class),
-                mock(CrmTenderLinkService.class));
+                mock(TenderEvaluationSubmissionMapper.class));
+        TenderIntegrationMapper mapper = new TenderIntegrationMapper(
+                mock(TenderMapper.class),
+                evaluationMapper);
+        TenderEvaluationIntegrationService evaluationService = new TenderEvaluationIntegrationService(
+                tenderEvaluationRepository,
+                evaluationMapper);
+        commandService = new TenderIntegrationCommandService(
+                tenderRepository,
+                mock(TenderAttachmentRepository.class),
+                mock(CrmTenderLinkService.class),
+                mapper,
+                evaluationService);
     }
 
     private TenderPushRequest.EvaluationUpdate buildEval(String roleKey, String infoKey, String value) {
@@ -77,7 +82,7 @@ class TenderIntegrationServicePushEvaluationTest {
         TenderPushRequest request = buildPushRequest("CRM", "OPP-001", false,
                 buildEval("DECISION_MAKER", "attitude", "支持"));
 
-        TenderPushResponse response = service.pushTender(request, null);
+        TenderPushResponse response = commandService.pushTender(request, null);
 
         assertThat(response.getStatus()).isEqualTo("CREATED");
         Long tenderId = response.getTenderId();
@@ -106,7 +111,7 @@ class TenderIntegrationServicePushEvaluationTest {
         TenderPushRequest request = buildPushRequest("CRM", "OPP-002", true,
                 buildEval("INFLUENCER", "position", "总监"));
 
-        TenderPushResponse response = service.pushTender(request, null);
+        TenderPushResponse response = commandService.pushTender(request, null);
 
         assertThat(response.getStatus()).isEqualTo("UPDATED");
         Long tenderId = response.getTenderId();
@@ -131,7 +136,7 @@ class TenderIntegrationServicePushEvaluationTest {
                 .build();
         TenderPushRequest request = buildPushRequest("CRM", "OPP-003", false, evaluation);
 
-        TenderPushResponse response = service.pushTender(request, null);
+        TenderPushResponse response = commandService.pushTender(request, null);
 
         assertThat(response.getStatus()).isEqualTo("CREATED");
         Long tenderId = response.getTenderId();

@@ -50,7 +50,7 @@ public class TenderMapper {
                 .sourceDocumentFileUrl(tender.getSourceDocumentFileUrl())
                 .attachments(tender.getAttachments() == null || tender.getAttachments().isEmpty() ? Collections.emptyList()
                         : tender.getAttachments().stream().map(a -> TenderAttachmentDTO.builder()
-                                .fileName(a.getFileName()).fileType(a.getFileType()).fileUrl(a.getFileUrl()).build())
+                                .fileName(a.getFileName()).fileType(a.getFileType()).fileUrl(toDownloadUrl(a.getFileUrl())).build())
                                 .collect(Collectors.toList()))
                 .customerType(tender.getCustomerType())
                 .priority(tender.getPriority())
@@ -289,5 +289,12 @@ public class TenderMapper {
     private static String truncate(String value, int maxLen) {
         if (value == null) return null;
         return value.length() <= maxLen ? value : value.substring(0, maxLen);
-}
+    }
+
+    private static String toDownloadUrl(String fileUrl) {
+        if (fileUrl != null && fileUrl.startsWith("doc-insight://")) {
+            return "/api/doc-insight/download?fileUrl=" + java.net.URLEncoder.encode(fileUrl, java.nio.charset.StandardCharsets.UTF_8);
+        }
+        return fileUrl;
+    }
 }
