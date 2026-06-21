@@ -175,6 +175,7 @@ async function handleStageUpdated() {
   // 仅当快照锁未激活时（即未通过 @switch-tab 等事件切换），才用快照覆盖 activeStageTab。
   // 避免 @switch-tab + @advanced/@registered 先后触发时的时序竞争：
   // switch-tab 已将 tab 设为目标阶段，handleStageUpdated 不应再通过滞后快照回退。
+  // 但阶段推进完成后（projectStore 已刷新），必须同步 activeStageTab 到真实阶段。
   if (timelineRef.value?.snapshot?.currentStage && !snapshotLock.value) {
     activeStageTab.value = timelineRef.value.snapshot.currentStage
   }
@@ -186,6 +187,11 @@ async function handleStageUpdated() {
   await loadResultType()
   if (ctx.project?.id) {
     await projectStore.getProjectById(ctx.project.id)
+  }
+  // 阶段推进完成后，强制同步 activeStageTab 到真实阶段，确保 UI 即时更新。
+  // 此时 snapshotLock 已过期（2s 超时），可直接覆盖。
+  if (timelineRef.value?.snapshot?.currentStage) {
+    activeStageTab.value = timelineRef.value.snapshot.currentStage
   }
 }
 
