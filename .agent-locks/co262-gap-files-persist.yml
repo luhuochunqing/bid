@@ -1,0 +1,15 @@
+version: 1
+task: "co262-gap-files-persist"
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql/V1087__fix_api_key_status_enum_case.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/trae/co262-gap-files-persist"
+    expiresAt: "2026-06-22T03:49:20.393Z"
+    reason: "CO-262 修复 api_keys.status 枚举大小写不一致"
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1087__fix_api_key_status_enum_case.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/trae/co262-gap-files-persist"
+    expiresAt: "2026-06-22T03:49:20.762Z"
+    reason: "CO-262 V1087 回滚脚本"
