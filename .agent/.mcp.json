@@ -8,6 +8,11 @@
         "@noushad999/github-mcp-server"
       ],
       "env": {}
+    },
+    "linear": {
+      "type": "stdio",
+      "command": "/opt/homebrew/bin/linear-mcp",
+      "args": []
     }
   }
 }
