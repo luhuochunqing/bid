@@ -29,11 +29,9 @@ final class ProjectTenderPopulator {
         if (dto.getBidMonth() == null && t.getBidOpeningTime() != null) {
             dto.setBidMonth(t.getBidOpeningTime().toLocalDate().toString().substring(0, 7));
         }
-        if (dto.getSourceModule() == null) {
-            String sp = t.getSourcePlatform();
-            if (sp == null && t.getSourceType() != null) sp = t.getSourceType().name();
-            dto.setSourceModule(sp);
-        }
+        // sourceModule 收敛到 Tender.SourceType 分类（中文 label），与项目列表 UI 筛选项对齐：
+        // 具体招标平台名（如"建工招采"）由 biddingPlatform 字段承载。
+        if (dto.getSourceModule() == null && t.getSourceType() != null) dto.setSourceModule(t.getSourceType().getLabel());
         if (dto.getBudget() == null && t.getBudget() != null) dto.setBudget(t.getBudget());
         // Leader fields: fallback to tender when not populated by initiation details
         if (isBlank(dto.getProjectLeaderName()) && !isBlank(t.getProjectManagerName()))

@@ -39,9 +39,9 @@ export const priorityOptions = [
 ]
 
 export const sourceOptions = [
-  { value: 'CRM', label: 'CRM系统' },
-  { value: 'THIRD_PARTY', label: '三方平台推送' },
-  { value: 'MANUAL', label: '人工录入' },
+  { value: '人工录入', label: '人工录入' },
+  { value: 'CRM 创建', label: 'CRM 创建' },
+  { value: '第三方平台', label: '第三方平台' },
 ]
 
 export const stageOptions = [

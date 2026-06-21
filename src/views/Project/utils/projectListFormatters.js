@@ -44,11 +44,9 @@ export function stageText(stage) {
 
 export function sourceText(source) {
   const map = {
-    CRM: 'CRM系统',
-    CRМ_OPPORTUNITY: 'CRM商机',
-    THIRD_PARTY: '三方平台推送',
-    EXTERNAL_PLATFORM: '外部平台',
-    MANUAL: '人工录入',
+    // 历史数据兼容：旧版写入的英文枚举名仍按 Tender.SourceType 中文 label 显示
+    CRM_OPPORTUNITY: 'CRM 创建',
+    EXTERNAL_PLATFORM: '第三方平台',
     MANUAL_SINGLE: '人工录入',
     BULK_IMPORT: '人工录入',
   }
