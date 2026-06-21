@@ -24,6 +24,8 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ProjectNotificationService {
 
+    private static final Long SYSTEM_USER_ID = 0L;
+
     private final NotificationApplicationService notificationService;
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
@@ -57,13 +59,18 @@ public class ProjectNotificationService {
     }
 
     public void notifyStageTransition(Long projectId, ProjectStage fromStage, ProjectStage toStage) {
+        notifyStageTransition(projectId, fromStage, toStage, SYSTEM_USER_ID);
+    }
+
+    public void notifyStageTransition(Long projectId, ProjectStage fromStage, ProjectStage toStage, Long userId) {
         Project project = findProject(projectId);
         if (project == null) return;
 
         List<Long> teamMemberIds = getProjectTeamMemberIds(projectId);
         if (teamMemberIds.isEmpty()) return;
 
-        sendNotification(projectId, "项目阶段变更", NotificationType.INFO, null, teamMemberIds, "");
+        sendNotification(projectId, "项目阶段变更", NotificationType.INFO,
+                userId == null ? SYSTEM_USER_ID : userId, teamMemberIds, "");
     }
 
     public void notifyTaskAssigned(Long projectId, Long assigneeId, Long assignedBy) {

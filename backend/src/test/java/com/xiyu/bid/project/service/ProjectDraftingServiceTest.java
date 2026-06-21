@@ -228,6 +228,11 @@ class ProjectDraftingServiceTest {
                 eq(1L),
                 eq(ProjectStage.EVALUATING),
                 any());
+        verify(notificationService).notifyStageTransition(
+                eq(1L),
+                eq(ProjectStage.DRAFTING),
+                eq(ProjectStage.EVALUATING),
+                eq(1L));
     }
 
     @Test

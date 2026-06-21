@@ -184,7 +184,7 @@ public class ProjectDraftingService {
         ensureEvaluationInitialized(projectId, currentUserId);
 
         // 通知 #10: 提交投标→进入评标 → 团队成员
-        notificationService.notifyStageTransition(projectId, ProjectStage.DRAFTING, ProjectStage.EVALUATING);
+        notificationService.notifyStageTransition(projectId, ProjectStage.DRAFTING, ProjectStage.EVALUATING, currentUserId);
 
         log.info("Bid submitted project={} stage={}->EVALUATING user={}",
                 projectId, currentStage, currentUserId);

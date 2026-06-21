@@ -174,9 +174,22 @@ class ProjectNotificationServiceTest {
             when(projectMemberRepository.findByProjectId(PID))
                     .thenReturn(List.of(member(1L, "VIEWER"), member(2L, "EDITOR")));
 
+            svc.notifyStageTransition(PID, ProjectStage.DRAFTING, ProjectStage.EVALUATING, UID);
+
+            verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
+            assertThat(requestCaptor.getValue().recipientUserIds()).containsExactlyInAnyOrder(1L, 2L);
+        }
+
+        @Test
+        @DisplayName("legacy signature uses system actor instead of null createdBy")
+        void legacySignatureUsesSystemActor() {
+            when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
+            when(projectMemberRepository.findByProjectId(PID))
+                    .thenReturn(List.of(member(1L, "VIEWER"), member(2L, "EDITOR")));
+
             svc.notifyStageTransition(PID, ProjectStage.DRAFTING, ProjectStage.EVALUATING);
 
-            verify(notificationService).createNotification(requestCaptor.capture(), eq(null));
+            verify(notificationService).createNotification(requestCaptor.capture(), eq(0L));
             assertThat(requestCaptor.getValue().recipientUserIds()).containsExactlyInAnyOrder(1L, 2L);
         }
 

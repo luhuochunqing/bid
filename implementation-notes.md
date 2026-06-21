@@ -167,3 +167,11 @@
 - GREEN：移除 `submitBid` 内未完成任务闸门后，单测 `mvn test -Dtest=ProjectDraftingServiceTest#submitBid_approvedReview_allowsIncompleteTasks` 通过。
 - 回归：`mvn test -Dtest=ProjectDraftingServiceTest,AllTasksCompletedPolicyTest,BidReviewPolicyTest` 通过，54 tests。
 - 补充权限覆盖：`mvn test -Dtest=ProjectAccessGuardCoverageTest` 通过。
+
+## 2026-06-21 服务器 500 补充修复
+
+- 服务器日志确认：任务闸门移除后，项目 13 已执行到 `DRAFTING→EVALUATING`，随后阶段变更通知插入 `notification` 表时报 `Column 'created_by' cannot be null`，导致接口从原 409 变为 500。
+- 根因在 `ProjectNotificationService.notifyStageTransition` 旧三参方法用 `null` 作为通知创建人；`notification.created_by` 为非空列，且通知写入异常会污染当前事务。
+- 本次新增四参 `notifyStageTransition(..., userId)`，`submitBid` 传入当前提交人作为通知创建人；旧三参方法保留并使用系统用户 `0L` 兜底，避免其他旧调用继续传空。
+- 新增回归测试锁定：阶段变更通知使用真实操作者；旧三参签名也不再传 `null createdBy`。
+- 回归：`mvn test -Dtest=ProjectNotificationServiceTest,ProjectDraftingServiceTest,AllTasksCompletedPolicyTest,BidReviewPolicyTest,ProjectAccessGuardCoverageTest` 通过，83 tests。
