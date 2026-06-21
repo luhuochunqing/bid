@@ -14,6 +14,7 @@ import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.core.BidResultType;
 import com.xiyu.bid.project.core.ProjectStageTransitionPolicy;
 import com.xiyu.bid.project.core.ResultRegistrationFieldPolicy;
+import com.xiyu.bid.project.domain.ProjectResultConfirmedEvent;
 import com.xiyu.bid.project.dto.ResultDTO;
 import com.xiyu.bid.project.dto.ResultRegistrationRequest;
 import com.xiyu.bid.project.entity.ProjectResult;
@@ -27,6 +28,7 @@ import com.xiyu.bid.service.ProjectAccessScopeService;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -62,7 +64,7 @@ public class ProjectResultRegistrationService {
     private final ProjectStageService projectStageService;
     private final ProjectAccessScopeService projectAccessScopeService;
     private final ProjectNotificationService notificationService;
-    private final ProjectResultCrmCallbackService crmCallbackService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Auditable(action = "REGISTER_PROJECT_RESULT", entityType = "ProjectResult", description = "登记项目结果")
     public ResultDTO register(Long projectId, ResultRegistrationRequest req, Long currentUserId) {
@@ -107,9 +109,13 @@ public class ProjectResultRegistrationService {
         ProjectResult saved = repository.save(entity);
         // 保存竞争对手情况（PRD §3.3.1.4）
         persistCompetitors(saved.getId(), req.getCompetitors());
-        // CRM 回调：异步通知 CRM 系统结果已确认。
-        // 委托给独立 Bean——同类内 this. 自调用会绕过 Spring AOP 代理使 @Async 失效（同步阻塞事务）。
-        crmCallbackService.notifyResultConfirmed(projectId, req.getResultType(), req.getCompetitors(), currentUserId, saved.getId());
+        // §4.2 CRM 回调：发布领域事件，由 ProjectResultConfirmedWebhookListener 监听后入队
+        // WebhookDeliveryTask，复用 §4.1 的 1min/5min/15min 重试机制（AFTER_COMMIT 保证主事务成功）。
+        eventPublisher.publishEvent(ProjectResultConfirmedEvent.of(
+                projectId, project.getTenderId(), req.getResultType(),
+                req.getEvidenceFileIds(),
+                toCompetitorSnapshots(req.getCompetitors()),
+                currentUserId, saved.getId()));
         // §5.4: 结果登记后按结果类型分流推进 RESULT_PENDING → RETROSPECTIVE / CLOSED（幂等跳过）
         ProjectStage current = projectStageService.currentStage(projectId);
         if (current == ProjectStage.RESULT_PENDING) {
@@ -185,6 +191,18 @@ public class ProjectResultRegistrationService {
     private boolean isBlankRow(ResultRegistrationRequest.CompetitorRow row) {
         return row == null || (isStrBlank(row.name()) && isStrBlank(row.discount())
                 && isStrBlank(row.paymentTerm()) && isStrBlank(row.notes()));
+    }
+
+    /**
+     * 将 Controller DTO 转为领域事件快照，避免事件层依赖 Controller DTO（分层违规）。
+     */
+    private static List<ProjectResultConfirmedEvent.CompetitorSnapshot> toCompetitorSnapshots(
+            List<ResultRegistrationRequest.CompetitorRow> competitors) {
+        if (competitors == null || competitors.isEmpty()) return List.of();
+        return competitors.stream()
+                .map(c -> new ProjectResultConfirmedEvent.CompetitorSnapshot(
+                        c.name(), c.discount(), c.paymentTerm(), c.notes()))
+                .toList();
     }
 
     private static boolean isStrBlank(String s) {

@@ -18,6 +18,7 @@ import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
@@ -48,7 +49,7 @@ class ProjectResultRegistrationServiceTest {
     private ProjectStageService stageService;
     private com.xiyu.bid.service.ProjectAccessScopeService accessScopeService;
     private ProjectNotificationService notificationService;
-    private ProjectResultCrmCallbackService crmCallbackService;
+    private ApplicationEventPublisher eventPublisher;
     private ProjectResultRegistrationService service;
 
     @BeforeEach
@@ -61,8 +62,8 @@ class ProjectResultRegistrationServiceTest {
         accessScopeService = mock(com.xiyu.bid.service.ProjectAccessScopeService.class);
         competitorRepo = mock(ProjectResultCompetitorRepository.class);
         notificationService = mock(ProjectNotificationService.class);
-        crmCallbackService = mock(ProjectResultCrmCallbackService.class);
-        service = new ProjectResultRegistrationService(repo, competitorRepo, projectRepo, tenderRepo, userRepo, stageService, accessScopeService, notificationService, crmCallbackService);
+        eventPublisher = mock(ApplicationEventPublisher.class);
+        service = new ProjectResultRegistrationService(repo, competitorRepo, projectRepo, tenderRepo, userRepo, stageService, accessScopeService, notificationService, eventPublisher);
         Project p = new Project();
         p.setId(1L);
         when(projectRepo.findById(1L)).thenReturn(Optional.of(p));
