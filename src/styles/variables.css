@@ -106,6 +106,18 @@
   --system-info-success: #67c23a;
   --system-info-success-rgb: 103, 194, 58;
 
+  /* 登录页品牌区深色主题 */
+  --login-brand-bg-start: #0F172A;
+  --login-brand-bg-mid: #1e293b;
+  --login-brand-accent-rgb: 3, 105, 161;
+  --login-brand-success-rgb: 0, 170, 68;
+  --login-brand-warning-rgb: 255, 136, 0;
+  --login-brand-purple-rgb: 139, 92, 246;
+  --login-brand-feature-blue: #38bdf8;
+  --login-brand-feature-green: #4ade80;
+  --login-brand-feature-orange: #fb923c;
+  --login-brand-feature-purple: #a78bfa;
+
   /* 焦点状态颜色 */
   --focus-primary: rgba(46, 118, 89, 0.4);
   --focus-success: rgba(0, 170, 68, 0.4);
@@ -188,6 +200,7 @@
   --radius-full: 50%;
 
   /* ========== 阴影 ========== */
+  --shadow-dark-rgb: 0, 0, 0;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.10), 0 2px 6px rgba(0, 0, 0, 0.05);

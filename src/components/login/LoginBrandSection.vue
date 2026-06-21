@@ -63,7 +63,7 @@
 <style scoped>
 .brand-section {
   flex: 1;
-  background: linear-gradient(135deg, #0F172A 0%, #1e293b 50%, #0F172A 100%);
+  background: linear-gradient(135deg, var(--login-brand-bg-start) 0%, var(--login-brand-bg-mid) 50%, var(--login-brand-bg-start) 100%);
   position: relative;
   overflow: hidden;
   display: flex;
@@ -79,7 +79,7 @@
   right: -20%;
   width: 80%;
   height: 200%;
-  background: radial-gradient(circle, rgba(3, 105, 161, 0.15) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(var(--login-brand-accent-rgb), 0.15) 0%, transparent 70%);
   pointer-events: none;
 }
 
@@ -90,7 +90,7 @@
   left: -10%;
   width: 60%;
   height: 160%;
-  background: radial-gradient(circle, rgba(0, 170, 68, 0.08) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(var(--login-brand-success-rgb), 0.08) 0%, transparent 70%);
   pointer-events: none;
 }
 
@@ -111,12 +111,12 @@
 .logo-icon {
   width: 48px;
   height: 48px;
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(var(--bg-white-rgb), 0.96);
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 12px 28px rgba(var(--shadow-dark-rgb), 0.18);
 }
 
 .logo-icon img {
@@ -147,7 +147,7 @@
 
 .hero-desc {
   font-size: 18px;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(var(--bg-white-rgb), 0.7);
   line-height: 1.6;
 }
 
@@ -163,15 +163,15 @@
   align-items: center;
   gap: 12px;
   padding: 16px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(var(--bg-white-rgb), 0.05);
+  border: 1px solid rgba(var(--bg-white-rgb), 0.1);
   border-radius: 12px;
   transition: all 0.3s ease;
 }
 
 .feature-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(var(--bg-white-rgb), 0.08);
+  border-color: rgba(var(--bg-white-rgb), 0.15);
   transform: translateX(4px);
 }
 
@@ -191,34 +191,34 @@
 }
 
 .feature-blue {
-  background: linear-gradient(135deg, rgba(3, 105, 161, 0.2) 0%, rgba(3, 105, 161, 0.1) 100%);
-  color: #38bdf8;
+  background: linear-gradient(135deg, rgba(var(--login-brand-accent-rgb), 0.2) 0%, rgba(var(--login-brand-accent-rgb), 0.1) 100%);
+  color: var(--login-brand-feature-blue);
 }
 
 .feature-green {
-  background: linear-gradient(135deg, rgba(0, 170, 68, 0.2) 0%, rgba(0, 170, 68, 0.1) 100%);
-  color: #4ade80;
+  background: linear-gradient(135deg, rgba(var(--login-brand-success-rgb), 0.2) 0%, rgba(var(--login-brand-success-rgb), 0.1) 100%);
+  color: var(--login-brand-feature-green);
 }
 
 .feature-orange {
-  background: linear-gradient(135deg, rgba(255, 136, 0, 0.2) 0%, rgba(255, 136, 0, 0.1) 100%);
-  color: #fb923c;
+  background: linear-gradient(135deg, rgba(var(--login-brand-warning-rgb), 0.2) 0%, rgba(var(--login-brand-warning-rgb), 0.1) 100%);
+  color: var(--login-brand-feature-orange);
 }
 
 .feature-purple {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(139, 92, 246, 0.1) 100%);
-  color: #a78bfa;
+  background: linear-gradient(135deg, rgba(var(--login-brand-purple-rgb), 0.2) 0%, rgba(var(--login-brand-purple-rgb), 0.1) 100%);
+  color: var(--login-brand-feature-purple);
 }
 
 .feature-text {
   font-size: 14px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(var(--bg-white-rgb), 0.9);
 }
 
 .brand-footer {
   text-align: center;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(var(--bg-white-rgb), 0.4);
   font-size: 13px;
 }
 
