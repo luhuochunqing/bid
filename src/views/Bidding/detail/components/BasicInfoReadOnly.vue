@@ -73,13 +73,13 @@
             <el-form-item label="标讯文件">
               <template v-if="tender.attachments && tender.attachments.length">
                 <div v-for="(file, idx) in tender.attachments" :key="idx" style="margin-bottom:4px">
-                  <el-link type="primary" :href="normalizeDownloadUrl(file.fileUrl)" target="_blank" :underline="false">
+                  <el-link type="primary" @click.prevent="downloadWithFilename(file.fileUrl, file.fileName)" :underline="false">
                     📄 {{ file.fileName }}
                   </el-link>
                 </div>
               </template>
               <template v-else-if="tender.sourceDocumentName && sourceDocumentDownloadUrl">
-                <el-link type="primary" :href="sourceDocumentDownloadUrl" target="_blank" :underline="false">
+                <el-link type="primary" @click.prevent="downloadWithFilename(tender.sourceDocumentFileUrl, tender.sourceDocumentName)" :underline="false">
                   📄 {{ tender.sourceDocumentName }}
                 </el-link>
               </template>
@@ -130,6 +130,29 @@ function normalizeDownloadUrl(url) {
     return `${API_BASE_URL}${url}`
   }
   return url
+}
+
+async function downloadWithFilename(url, fallbackName) {
+  const fullUrl = normalizeDownloadUrl(url)
+  if (!fullUrl) return
+  try {
+    const resp = await fetch(fullUrl, { credentials: 'include' })
+    if (!resp.ok) { window.open(fullUrl, '_blank'); return }
+    const disposition = resp.headers.get('Content-Disposition') || ''
+    const match = disposition.match(/filename\*=UTF-8''(.+?)(?:;|$)/i)
+      || disposition.match(/filename="?([^";\n]+)"?/i)
+    const filename = match ? decodeURIComponent(match[1].trim()) : fallbackName
+    const blob = await resp.blob()
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(a.href)
+  } catch {
+    window.open(fullUrl, '_blank')
+  }
 }
 
 const sourceDocumentDownloadUrl = computed(() => normalizeDownloadUrl(props.tender?.sourceDocumentFileUrl))

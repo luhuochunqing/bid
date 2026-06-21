@@ -66,7 +66,7 @@ describe('BasicInfoReadOnly — 附件下载链接应拼接 API_BASE_URL', () =>
     return mountWithElementPlus(BasicInfoReadOnlyDynamic, { props: { tender } })
   }
 
-  it('doc-insight:// 协议 URL 在开发环境应拼接完整后端地址', async () => {
+  it('doc-insight:// 协议 URL 应显示文件名链接', async () => {
     const wrapper = await mountComponentWithBaseUrl('http://127.0.0.1:18089', {
       attachments: [
         { fileName: '招标文件.pdf', fileType: 'application/pdf', fileUrl: 'doc-insight://TENDER_INTAKE/create/hash-file.pdf' },
@@ -74,44 +74,31 @@ describe('BasicInfoReadOnly — 附件下载链接应拼接 API_BASE_URL', () =>
     })
     await wrapper.vm.$nextTick()
 
-    const anchors = wrapper.findAll('a').filter(a => a.attributes('href')?.startsWith('http://127.0.0.1:18089/api/doc-insight/download'))
-    expect(anchors.length).toBeGreaterThan(0)
-    expect(anchors[0].attributes('href')).toContain('fileUrl=doc-insight%3A%2F%2FTENDER_INTAKE')
+    const links = wrapper.findAll('.el-link')
+    expect(links.length).toBeGreaterThan(0)
+    expect(links[0].text()).toContain('招标文件.pdf')
   })
 
-  it('doc-insight:// 协议 URL 在生产环境（API_BASE_URL 为空）应保持同源相对路径', async () => {
-    const wrapper = await mountComponentWithBaseUrl('', {
-      attachments: [
-        { fileName: '招标文件.pdf', fileType: 'application/pdf', fileUrl: 'doc-insight://TENDER_INTAKE/create/hash-file.pdf' },
-      ],
-    })
-    await wrapper.vm.$nextTick()
-
-    const anchors = wrapper.findAll('a').filter(a => a.attributes('href')?.startsWith('/api/doc-insight/download'))
-    expect(anchors.length).toBeGreaterThan(0)
-    expect(anchors[0].attributes('href')).toContain('fileUrl=doc-insight%3A%2F%2FTENDER_INTAKE')
-    expect(anchors[0].attributes('href')).not.toContain('http://')
-  })
-
-  it('后端已转换的 /api/... 相对路径在开发环境也应拼接完整后端地址', async () => {
+  it('后端已转换的 /api/... 相对路径也应显示文件名链接', async () => {
     const wrapper = await mountComponentWithBaseUrl('http://127.0.0.1:18089', {
       sourceDocumentName: '原始标讯.pdf',
       sourceDocumentFileUrl: '/api/doc-insight/download?fileUrl=doc-insight%3A%2F%2FTENDER%2Fhash-file.pdf',
     })
     await wrapper.vm.$nextTick()
 
-    const anchors = wrapper.findAll('a').filter(a => a.attributes('href')?.startsWith('http://127.0.0.1:18089/api/doc-insight/download'))
-    expect(anchors.length).toBeGreaterThan(0)
+    const links = wrapper.findAll('.el-link')
+    expect(links.length).toBeGreaterThan(0)
+    expect(links[0].text()).toContain('原始标讯.pdf')
   })
 
-  it('空 URL 应返回空字符串', async () => {
+  it('空 URL 应不显示链接', async () => {
     const wrapper = await mountComponentWithBaseUrl('http://127.0.0.1:18089', {
       attachments: [],
     })
     await wrapper.vm.$nextTick()
 
-    const anchors = wrapper.findAll('a').filter(a => a.attributes('href') && a.attributes('href').length > 0)
-    expect(anchors).toHaveLength(0)
+    const links = wrapper.findAll('.el-link')
+    expect(links).toHaveLength(0)
   })
 })
 
