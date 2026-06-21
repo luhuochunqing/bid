@@ -10,9 +10,10 @@
 
 ## 仓库路径
 
-- 项目根目录：`/Users/user/xiyu/worktrees/cursor`  （Cursor Agent Worktree）
+- **主工作区（开发环境所在地）**：`/Users/user/xiyu/worktrees/trae`（Trae Agent Worktree）
 - 主目录基准区：`/Users/user/xiyu/xiyu-bid-poc`
-- 后端目录：`/Users/user/xiyu/worktrees/cursor/backend`
+- 后端目录：`/Users/user/xiyu/worktrees/trae/backend`
+- **其他 worktree（claude/codex/cursor/gemini/kimi/mimo/qoder/zcode）**：仅用于代码编辑和 git 操作，不启动开发环境
 
 ## 当前项目口径
 
@@ -43,43 +44,43 @@
 > 本地跑：`export XIYU_DEV_CONFIRMED=1` 再调用脚本；生产部署不得走这些脚本。
 
 ```bash
-# 推荐：一键联调
-cd /Users/user/xiyu/worktrees/cursor
+# 推荐：一键联调（仅主工作区 trae）
+cd /Users/user/xiyu/worktrees/trae
 export XIYU_DEV_CONFIRMED=1
 npm run dev:all
 ```
 
 ```bash
-# 手动方式：后端
-cd /Users/user/xiyu/worktrees/cursor/backend
+# 手动方式：后端（仅主工作区 trae）
+cd /Users/user/xiyu/worktrees/trae/backend
 # 推荐：使用 start.sh（已内置默认环境变量，需 XIYU_DEV_CONFIRMED=1）
 XIYU_DEV_CONFIRMED=1 ./start.sh
 
 # 或直接使用 mvn（需手动传入必需环境变量）
 JWT_SECRET="xiyu-bid-poc-local-dev-secret-key-please-change-in-prod-32bytes-min" \
 DB_PASSWORD="XiyuDB!2026" \
-CORS_ALLOWED_ORIGINS="http://localhost:1314,http://127.0.0.1:1314" \
+CORS_ALLOWED_ORIGINS="http://localhost:1323,http://127.0.0.1:1323" \
 mvn spring-boot:run -Dspring-boot.run.profiles=dev \
-  -Dspring-boot.run.arguments="--server.port=18080"
+  -Dspring-boot.run.arguments="--server.port=18089"
 ```
 
 > 后端必需环境变量（未设置会导致启动失败）：
 > - `JWT_SECRET`：JWT 签名密钥（至少 32 字节），`backend/start.sh` 已提供本地默认值
 > - `DB_PASSWORD`：MySQL 8.0 密码（默认 `XiyuDB!2026`）
-> - `CORS_ALLOWED_ORIGINS`：允许的前端源地址，默认包含 `http://localhost:1314` 与 `http://127.0.0.1:1314`
+> - `CORS_ALLOWED_ORIGINS`：允许的前端源地址，默认包含 `http://localhost:1323` 与 `http://127.0.0.1:1323`
 >
 > 生产部署必须通过真实环境注入这些值，**不得依赖上述默认值**。
 
 ```bash
-# 手动方式：前端（真实 API 模式）
-cd /Users/user/xiyu/worktrees/cursor
-VITE_API_MODE=api VITE_API_BASE_URL=http://127.0.0.1:18080 npm run dev -- --host 127.0.0.1 --port 1314
+# 手动方式：前端（真实 API 模式，仅主工作区 trae）
+cd /Users/user/xiyu/worktrees/trae
+VITE_API_MODE=api VITE_API_BASE_URL=http://127.0.0.1:18089 npm run dev -- --host 127.0.0.1 --port 1323
 ```
 
 ### 前端与文档验证
 
 ```bash
-cd /Users/user/xiyu/worktrees/cursor
+cd /Users/user/xiyu/worktrees/trae
 npm run check:front-data-boundaries
 npm run check:doc-governance
 npm run check:line-budgets
@@ -91,7 +92,7 @@ npm run test:e2e
 ### 后端验证
 
 ```bash
-cd /Users/user/xiyu/worktrees/cursor/backend
+cd /Users/user/xiyu/worktrees/trae/backend
 mvn test -Dtest=<相关测试类>
 # 架构边界测试（CI 实际运行下列三类）：
 mvn test -Dtest=ArchitectureTest
@@ -179,10 +180,19 @@ npm run test:e2e
 
 ## 端口约定
 
-- 前端开发与演示统一使用 `1314`
-- 后端 API 统一使用 `18080`
-- 默认访问地址：`http://127.0.0.1:1314`
-- 默认后端健康检查：`http://127.0.0.1:18080/actuator/health`
+> **自 2026-06-21 起，开发环境统一到主工作区 `/Users/user/xiyu/worktrees/trae`。**
+> 其他 worktree 不再分配独立端口和数据库，也不允许启动开发环境
+> （`start-frontend.sh` / `start-backend.sh` / `dev-services.sh` 均有守卫拒绝执行）。
+
+- **主工作区（trae）**：
+  - 前端开发与演示统一使用 `1323`
+  - 后端 API 统一使用 `18089`
+  - Sidecar 统一使用 `8009`
+  - 数据库统一使用 `xiyu_bid_main`
+  - Redis 统一使用 DB `0`
+- 默认访问地址：`http://127.0.0.1:1323`
+- 默认后端健康检查：`http://127.0.0.1:18089/actuator/health`
+- **其他 worktree（claude/codex/cursor/gemini/kimi/mimo/qoder/zcode）**：仅用于代码编辑和 git 操作，不启动开发环境。如需联调，请切换到主工作区。
 
 ## 环境坑点
 
@@ -190,10 +200,10 @@ npm run test:e2e
    如果任务需要真实链路联调，优先使用 `npm run dev:all`，不要误以为单独前端已经代表系统启动完成。
 
 2. **根目录 `start.sh` 会强制真实 API 模式**
-   当前脚本会给后端注入 `SPRING_PROFILES_ACTIVE=dev,mysql`，给前端注入 `VITE_API_MODE=api` 和 `VITE_API_BASE_URL=http://127.0.0.1:18080`。
+   当前脚本会给后端注入 `SPRING_PROFILES_ACTIVE=dev,mysql`，给前端注入 `VITE_API_MODE=api` 和 `VITE_API_BASE_URL=http://127.0.0.1:18089`。
 
-3. **后端默认端口不是 8080，而是 18080**
-   当前文档、脚本、E2E 和联调路径都以 `18080` 为准。
+3. **后端默认端口不是 8080，而是 18089**
+   当前文档、脚本、E2E 和联调路径都以 `18089` 为准（主工作区 trae 统一端口）。
 
 4. **Mock 模式已退役（2026-04-30）**
    `src/api/mock.js`、`src/api/mock-adapters/`、`.env.mock` 均已删除；`src/api/config.js` 硬编码 `mode: 'api'`，不再读取 `VITE_API_MODE`。旧文档里的"双模式切换"/`isMockMode()` 路径均为已退役的历史表述，不要再把它们当作现状。
@@ -212,8 +222,8 @@ npm run test:e2e
    本地开发推荐使用 `backend/start.sh`（已内置默认值），或参考“推荐命令 / 手动方式：后端”传入完整环境变量。
    生产部署必须通过真实环境注入，**不得使用 `start.sh` 中的本地默认值**。
 
-9. **launchd 守护进程会在后台自动重启 dev-services**
-   `~/Library/LaunchAgents/com.xiyu.bid.dev-services.{main,codex,gemini,claude}.plist` 会在登录时自动启动 `scripts/dev-services.sh watch-run`。`pkill` 杀不掉它们，launchd 会立即重启。要彻底停某一个，用 `launchctl bootout gui/$(id -u)/com.xiyu.bid.dev-services.<label>`。
+9. **launchd 守护进程会在后台自动重启 dev-services（仅主工作区）**
+   自 2026-06-21 起，只有主工作区（trae）注册了 launchd 守护进程：`~/Library/LaunchAgents/com.xiyu.bid.dev-services.main.plist`。它会在登录时自动启动 `scripts/dev-services.sh watch-run`。`pkill` 杀不掉它，launchd 会立即重启。要彻底停掉，用 `launchctl bootout gui/$(id -u)/com.xiyu.bid.dev-services.main`。其他 worktree 不再注册 launchd 守护进程。
 
 10. **watchdog 后端失败 10 次会进入 STOPPED 状态**
     新版 `scripts/dev-services.sh` 给 backend 重启加了指数退避（30s → 2min → 10min → 30min cap）。连续失败 10 次后写入 `.runtime/dev-services/backend.fail-state` 并停止重试。`scripts/dev-services.sh start` 在 fail-state 存在时会拒绝启动并打印最后的错误行。修复后用 `rm .runtime/dev-services/backend.fail-state && ./scripts/dev-services.sh start` 恢复。
@@ -277,24 +287,49 @@ npm run test:e2e
 2. **同步环境**：在 Worktree 根目录下执行 `./scripts/sync-env.sh .`（包含 main-forward rebase）。
 3. **环境检测**：执行 `source scripts/dev-env.sh`。
 
-### 2. 专属资源映射表
-> 以 `scripts/dev-env.sh` 为唯一源。新增 Agent 需同步更新此表与 `dev-env.sh`。
-| Agent | 前端端口 | 后端端口 | 数据库名 | Redis DB |
-| :--- | :--- | :--- | :--- | :--- |
-| **Claude** | 1315 | 18081 | xiyu_bid_claude | 1 |
-| **Codex** | 1316 | 18082 | xiyu_bid_codex | 2 |
-| **Gemini** | 1317 | 18083 | xiyu_bid_gemini | 3 |
-| **Cursor** | 1318 | 18084 | xiyu_bid_cursor | 4 |
-| **Integrator** | 1319 | 18085 | xiyu_bid_integrator | 5 |
-| **Qoder** | 1320 | 18086 | xiyu_bid_qoder | 6 |
-| **Kimi** | 1321 | 18087 | xiyu_bid_kimi | 7 |
-| **Mimo** | 1322 | 18088 | xiyu_bid_mimo | 8 |
-| **Trae** | 1323 | 18089 | xiyu_bid_trae | 9 |
+### 2. 专属资源映射表（已废弃，统一到主工作区）
 
-### 3. 协作启动命令
-Agent 必须使用包装脚本启动，以自动适配上述隔离端口：
-- **启动前端**：`./scripts/start-frontend.sh`
-- **启动后端**：`./scripts/start-backend.sh`
+> **⚠️ 自 2026-06-21 起，此映射表已废弃。**
+> 开发环境（前端/后端/sidecar/数据库/Redis）统一在主工作区 `/Users/user/xiyu/worktrees/trae` 启动。
+> 其他 worktree 不再分配独立端口和数据库，也不允许启动开发环境。
+>
+> **主工作区（trae）资源配置**：
+> | 资源 | 值 |
+> | :--- | :--- |
+> | 前端端口 | 1323 |
+> | 后端端口 | 18089 |
+> | Sidecar 端口 | 8009 |
+> | 数据库名 | xiyu_bid_main |
+> | Redis DB | 0 |
+>
+> **历史映射表（仅作参考，不再生效）**：
+> | Agent | 前端端口 | 后端端口 | 数据库名 | Redis DB |
+> | :--- | :--- | :--- | :--- | :--- |
+> | Claude | 1315 | 18081 | xiyu_bid_claude | 1 |
+> | Codex | 1316 | 18082 | xiyu_bid_codex | 2 |
+> | Gemini | 1317 | 18083 | xiyu_bid_gemini | 3 |
+> | Cursor | 1318 | 18084 | xiyu_bid_cursor | 4 |
+> | Integrator | 1319 | 18085 | xiyu_bid_integrator | 5 |
+> | Qoder | 1320 | 18086 | xiyu_bid_qoder | 6 |
+> | Kimi | 1321 | 18087 | xiyu_bid_kimi | 7 |
+> | Mimo | 1322 | 18088 | xiyu_bid_mimo | 8 |
+> | Trae（主工作区） | 1323 | 18089 | xiyu_bid_main | 0 |
+
+### 3. 协作启动命令（仅主工作区可用）
+
+> **只有主工作区（trae）允许启动开发环境。** 其他 worktree 的 `start-frontend.sh` / `start-backend.sh` / `dev-services.sh` 有守卫拒绝执行。
+
+Agent 必须使用包装脚本启动（仅限主工作区）：
+- **启动前端**：`cd /Users/user/xiyu/worktrees/trae && ./scripts/start-frontend.sh`
+- **启动后端**：`cd /Users/user/xiyu/worktrees/trae && ./scripts/start-backend.sh`
+- **启动全部服务（launchd 守护）**：`cd /Users/user/xiyu/worktrees/trae && XIYU_DEV_CONFIRMED=1 ./scripts/dev-services-launchd.sh install`
+
+其他 worktree 如需联调，请切换到主工作区：
+```bash
+cd /Users/user/xiyu/worktrees/trae
+source scripts/dev-env.sh
+./scripts/start-frontend.sh  # 或 start-backend.sh
+```
 
 ### 4. 任务完成门禁
 在报告完成前，必须在 **当前 Worktree** 运行：

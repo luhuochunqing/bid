@@ -49,6 +49,22 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUNTIME_DIR="$ROOT_DIR/.runtime/dev-services"
 mkdir -p "$RUNTIME_DIR"
 
+# 主工作区守卫：只有 trae 工作区允许 install/start/restart launchd 守护进程
+# uninstall/stop/status/logs 等只读/清理命令允许在任何工作区执行（用于清理旧配置）
+case "${1:-}" in
+  install|start|restart)
+    if [[ "$ROOT_DIR" != *"/worktrees/trae" ]]; then
+      echo "❌ 拒绝安装 launchd 守护进程：当前工作区 $(basename "$ROOT_DIR") 不是主工作区（trae）。"
+      echo "   开发环境已统一到主工作区：/Users/user/xiyu/worktrees/trae"
+      echo "   其他 worktree 不再允许安装 launchd 守护进程。"
+      echo "   请切换到主工作区后重试：cd /Users/user/xiyu/worktrees/trae"
+      exit 1
+    fi
+    # 主工作区固定使用 com.xiyu.bid.dev-services.main 标签
+    LAUNCHD_LABEL="${LAUNCHD_LABEL:-com.xiyu.bid.dev-services.main}"
+    ;;
+esac
+
 BACKEND_PROFILE="${BACKEND_PROFILE:-dev,mysql}"
 WATCHDOG_INTERVAL_SECONDS="${WATCHDOG_INTERVAL_SECONDS:-5}"
 LAUNCHD_LABEL="${LAUNCHD_LABEL:-com.xiyu.bid.dev-services}"

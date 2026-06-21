@@ -42,108 +42,46 @@ fi
 
 CURRENT_DIR="$(pwd)"
 
-if [[ "$CURRENT_DIR" == *"worktrees/claude"* ]]; then
-  export FRONTEND_PORT=1315
-  export BACKEND_PORT=18081
-  export SIDECAR_PORT=8001
-  export DB_NAME="xiyu_bid_claude"
-  export REDIS_DB=1
-elif [[ "$CURRENT_DIR" == *"worktrees/codex"* ]]; then
-  export FRONTEND_PORT=1316
-  export BACKEND_PORT=18082
-  export SIDECAR_PORT=8002
-  export DB_NAME="xiyu_bid_codex"
-  export REDIS_DB=2
-elif [[ "$CURRENT_DIR" == *"worktrees/gemini"* ]]; then
-  export FRONTEND_PORT=1317
-  export BACKEND_PORT=18083
-  export SIDECAR_PORT=8003
-  export DB_HOST="127.0.0.1"
-  export DB_PORT=13306
-  export DB_NAME="xiyu_bid_gemini"
-  export REDIS_DB=3
-elif [[ "$CURRENT_DIR" == *"worktrees/cursor"* ]]; then
-  export FRONTEND_PORT=1318
-  export BACKEND_PORT=18084
-  export SIDECAR_PORT=8004
-  export DB_NAME="xiyu_bid_cursor"
-  export REDIS_DB=4
-elif [[ "$CURRENT_DIR" == *"worktrees/integrator"* ]]; then
-  export FRONTEND_PORT=1319
-  export BACKEND_PORT=18085
-  export SIDECAR_PORT=8005
-  export DB_NAME="xiyu_bid_integrator"
-  export REDIS_DB=5
-elif [[ "$CURRENT_DIR" == *"worktrees/qoder"* ]]; then
-  export FRONTEND_PORT=1320
-  export BACKEND_PORT=18086
-  export SIDECAR_PORT=8006
-  export DB_NAME="xiyu_bid_qoder"
-  export REDIS_DB=6
-elif [[ "$CURRENT_DIR" == *"worktrees/kimi"* ]]; then
-  export FRONTEND_PORT=1321
-  export BACKEND_PORT=18087
-  export SIDECAR_PORT=8007
-  export DB_NAME="xiyu_bid_kimi"
-  export REDIS_DB=7
-elif [[ "$CURRENT_DIR" == *"worktrees/mimo"* ]]; then
-  export FRONTEND_PORT=1322
-  export BACKEND_PORT=18088
-  export SIDECAR_PORT=8008
-  export DB_NAME="xiyu_bid_mimo"
-  export REDIS_DB=8
-elif [[ "$CURRENT_DIR" == *"worktrees/trae"* ]]; then
+# ─────────────────────────────────────────────────────────────────────────────
+# 开发环境统一到主工作区（trae）
+# ─────────────────────────────────────────────────────────────────────────────
+# 自 2026-06-21 起，所有开发环境（前端/后端/sidecar/数据库/Redis）统一在主工作区
+# /Users/user/xiyu/worktrees/trae 启动。其他 worktree 不再分配独立端口和数据库，
+# 也不允许启动开发环境（start-frontend.sh / start-backend.sh / dev-services.sh
+# 均有守卫拒绝执行）。
+#
+# 历史背景：此前每个 agent worktree 都有独立端口（1315~1323）和数据库
+# （xiyu_bid_claude/codex/...），导致资源浪费、launchd 守护进程繁多、数据库膨胀。
+# 现在统一到主工作区，其他 worktree 仅用于代码编辑和 git 操作。
+# ─────────────────────────────────────────────────────────────────────────────
+
+XIYU_MAIN_WORKTREE="/Users/user/xiyu/worktrees/trae"
+
+if [[ "$CURRENT_DIR" == *"worktrees/trae"* ]]; then
+  # 主工作区（trae）：唯一允许启动开发环境的工作区
   export FRONTEND_PORT=1323
   export BACKEND_PORT=18089
   export SIDECAR_PORT=8009
-  export DB_NAME="xiyu_bid_trae"
-  export REDIS_DB=9
-else
-  # Default for main project root (/Users/user/xiyu/xiyu-bid-poc/)
-  export FRONTEND_PORT=1314
-  export BACKEND_PORT=18080
-  export SIDECAR_PORT=8000
   export DB_NAME="xiyu_bid_main"
   export REDIS_DB=0
-fi
-
-# Apply branch-based database suffix only for agent worktrees.
-# Main checkout always uses the base DB_NAME without suffix.
-IS_WORKTREE=""
-[[ "$CURRENT_DIR" == *"/worktrees/"* ]] && IS_WORKTREE=1
-
-# Apply branch-based database suffix if in a git repo and not on protected/anchor branches
-if [[ -n "$IS_WORKTREE" ]] && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  CURRENT_BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null || echo "")"
-  if [[ -n "$CURRENT_BRANCH" ]]; then
-    case "$CURRENT_BRANCH" in
-      main|master|integrate/baseline|*-init)
-        # Skip suffixing for protected/anchor branches
-        ;;
-      *)
-        # Extract last part or strip common prefixes: agent/<name>/
-        # e.g., agent/gemini/feat-login -> feat-login
-        CLEAN_BRANCH="$(echo "$CURRENT_BRANCH" | sed -E 's/^agent\/[a-zA-Z0-9_-]+\///')"
-        # Lowercase, convert '/' and '-' to '_', remove non-safe characters
-        CLEAN_BRANCH="$(echo "$CLEAN_BRANCH" | tr '[:upper:]' '[:lower:]' | tr '/-' '_' | tr -cd 'a-z0-9_')"
-        # Limit suffix to 30 characters
-        CLEAN_BRANCH="${CLEAN_BRANCH:0:30}"
-        # Remove leading/trailing underscores
-        CLEAN_BRANCH="$(echo "$CLEAN_BRANCH" | sed -e 's/^_*//' -e 's/_*$//')"
-        if [[ -n "$CLEAN_BRANCH" ]]; then
-          export DB_NAME="${DB_NAME}_${CLEAN_BRANCH}"
-        fi
-        ;;
-    esac
-  fi
+  export XIYU_IS_MAIN_WORKTREE=1
+else
+  # 非主工作区：不设置开发环境变量，start-*.sh / dev-services.sh 会拒绝执行
+  export XIYU_IS_MAIN_WORKTREE=0
+  echo "⚠️  当前目录 $(basename "$CURRENT_DIR") 不是主工作区（trae）。"
+  echo "    开发环境已统一到主工作区：$XIYU_MAIN_WORKTREE"
+  echo "    其他 worktree 不再分配独立端口/数据库，也不允许启动开发环境。"
+  echo "    如需启动开发环境，请：cd $XIYU_MAIN_WORKTREE"
 fi
 
 echo "Environment detected: $(basename "$CURRENT_DIR")"
-echo "Frontend Port: $FRONTEND_PORT"
-echo "Backend Port: $BACKEND_PORT"
-echo "Sidecar Port: $SIDECAR_PORT"
-echo "DB Name: $DB_NAME"
-echo "Redis DB: $REDIS_DB"
+if [[ "${XIYU_IS_MAIN_WORKTREE:-0}" == "1" ]]; then
+  echo "Frontend Port: $FRONTEND_PORT"
+  echo "Backend Port: $BACKEND_PORT"
+  echo "Sidecar Port: $SIDECAR_PORT"
+  echo "DB Name: $DB_NAME"
+  echo "Redis DB: $REDIS_DB"
+fi
 
 # --- Verify git wrapper is active (system-level --no-verify prohibition) ---
 GIT_PATH="$(command -v git 2>/dev/null || echo '')"

@@ -226,6 +226,15 @@ if [[ -f "$ROOT_DIR/scripts/dev-env.sh" ]]; then
   source "$ROOT_DIR/scripts/dev-env.sh"
 fi
 
+# 主工作区守卫：只有 trae 工作区允许启动开发环境
+if [[ "${XIYU_IS_MAIN_WORKTREE:-0}" != "1" ]]; then
+  echo "❌ 拒绝启动：当前工作区 $(basename "$ROOT_DIR") 不是主工作区（trae）。"
+  echo "   开发环境已统一到主工作区：/Users/user/xiyu/worktrees/trae"
+  echo "   其他 worktree 不再分配独立端口/数据库，也不允许启动开发环境。"
+  echo "   请切换到主工作区后重试：cd /Users/user/xiyu/worktrees/trae"
+  exit 1
+fi
+
 BACKEND_PORT="${BACKEND_PORT:-18080}"
 FRONTEND_PORT="${FRONTEND_PORT:-1314}"
 SIDECAR_PORT="${SIDECAR_PORT:-8000}"

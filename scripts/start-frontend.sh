@@ -8,6 +8,14 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/dev-env.sh"
 
+# 主工作区守卫：只有 trae 工作区允许启动开发环境
+if [[ "${XIYU_IS_MAIN_WORKTREE:-0}" != "1" ]]; then
+  echo "❌ 拒绝启动：当前工作区不是主工作区（trae）。"
+  echo "   开发环境已统一到主工作区：/Users/user/xiyu/worktrees/trae"
+  echo "   请切换到主工作区后重试：cd /Users/user/xiyu/worktrees/trae"
+  exit 1
+fi
+
 # Pin VITE_API_BASE_URL to the worktree's own backend so non-main worktrees
 # don't fall back to .env.api's 18080 (其它 worktree 的后端，CORS 只放行 1314)。
 export VITE_API_MODE="${VITE_API_MODE:-api}"

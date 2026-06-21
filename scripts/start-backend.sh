@@ -8,6 +8,14 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/dev-env.sh"
 
+# 主工作区守卫：只有 trae 工作区允许启动开发环境
+if [[ "${XIYU_IS_MAIN_WORKTREE:-0}" != "1" ]]; then
+  echo "❌ 拒绝启动：当前工作区不是主工作区（trae）。"
+  echo "   开发环境已统一到主工作区：/Users/user/xiyu/worktrees/trae"
+  echo "   请切换到主工作区后重试：cd /Users/user/xiyu/worktrees/trae"
+  exit 1
+fi
+
 DEFAULT_REDIS_PORT="6379"
 FALLBACK_REDIS_PORT="16379"
 

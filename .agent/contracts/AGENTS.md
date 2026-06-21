@@ -34,7 +34,8 @@
 - **"开个任务/开个分支 XX"** → `scripts/agent-start-task.sh <当前agent名> <XX> origin/main --in-place`
 - **"早操SOP + 开个分支 XX"** → 同上，相当于 `--in-place` 一次完成全部流程
 - **"收个任务/收尾"** → `scripts/agent-finish-task.sh`（三重合入检查 + 锁清理 + 切回锚点 + 可选删除远端分支，支持 `--dry-run` 预览）
-- **"健康检查"** → `npm run agent:health-check`（跨 worktree 聚合 sidecar/backend/frontend 健康状态）
+- **"健康检查"** → `npm run agent:health-check`（聚合主工作区 sidecar/backend/frontend 健康状态；其他 worktree 不再启动开发环境）
+- **"启动开发环境"** → 仅主工作区（`/Users/user/xiyu/worktrees/trae`）允许执行 `./scripts/start-frontend.sh` / `./scripts/start-backend.sh` / `./scripts/dev-services.sh`；其他 worktree 由脚本守卫拒绝执行
 
 ## 文件树概览
 
@@ -77,4 +78,5 @@
 
 - **技术栈**：Vue 3 + Vite 5 + Element Plus | Java 21 + Spring Boot 3.2 + JPA + MySQL 8.0 + Flyway | Playwright（以 `backend/pom.xml` 为唯一源）
 - **本地启动必须**：`export XIYU_DEV_CONFIRMED=1`（生产部署不得使用本地脚本）
-- **开场约定**：AI 代理开启新任务时，先声明当前环境（worktree 名称、当前分支、协作模式）
+- **开发环境统一**：自 2026-06-21 起，所有开发资源（前端 1323 / 后端 18089 / Sidecar 8009 / 数据库 xiyu_bid_main / Redis DB 0）统一到主工作区 `/Users/user/xiyu/worktrees/trae`。其他 worktree（claude/codex/cursor/gemini/kimi/mimo/qoder/zcode）仅用于代码编辑和 git 操作，不启动开发环境，不分配独立端口/数据库。详见 `CLAUDE.md §多 Agent 执行手册`
+- **开场约定**：AI 代理开启新任务时，先声明当前环境（worktree 名称、当前分支、协作模式、是否主工作区）
