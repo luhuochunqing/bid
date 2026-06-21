@@ -100,10 +100,11 @@
 
 <script setup>
 import { DocumentChecked, MagicStick, Search, Trophy, UploadFilled } from '@element-plus/icons-vue'
-import { ref, computed, nextTick, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getApiUrl } from '@/api/config.js'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
+import { STAGE_TRANSITION_MAP } from '@/constants/projectStages.js'
 import { usersApi } from '@/api/modules/users.js'
 import { useUserStore } from '@/stores/user'
 import ProjectDocumentTable from './components/ProjectDocumentTable.vue'
@@ -275,7 +276,7 @@ async function advanceToEvaluation() {
     bidDone.value = true
     ElMessage.success('已推进至评标阶段')
     emit('advanced')
-    nextTick(() => emit('switch-tab', 'EVALUATING'))
+    emit('switch-tab', STAGE_TRANSITION_MAP.DRAFTING)
   } catch (e) {
     if (e?.response?.status === 409) advanceError.value = e?.response?.data?.msg || '存在未完成任务'
     else ElMessage.error(e?.response?.data?.msg || '推进失败')

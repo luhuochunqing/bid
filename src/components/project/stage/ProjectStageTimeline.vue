@@ -26,14 +26,9 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
 
-const STAGES = Object.freeze([
-  { code: 'INITIATED', title: '项目立项', route: 'initiation' },
-  { code: 'DRAFTING', title: '标书制作', route: 'drafting' },
-  { code: 'EVALUATING', title: '评标中', route: 'evaluation' },
-  { code: 'RESULT_PENDING', title: '结果确认', route: 'result' },
-  { code: 'RETROSPECTIVE', title: '项目复盘', route: 'retrospective' },
-  { code: 'CLOSED', title: '项目结项', route: 'closure' },
-])
+import { PROJECT_STAGES } from '@/constants/projectStages.js'
+
+const STAGES = PROJECT_STAGES
 
 const props = defineProps({
   projectId: { type: [String, Number], required: true },

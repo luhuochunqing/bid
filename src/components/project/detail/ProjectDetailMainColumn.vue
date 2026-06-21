@@ -152,10 +152,7 @@ function handleStageClick(stage) {
   activeStageTab.value = stage.code
 }
 
-const snapshotLock = ref(false)
-
 function handleSnapshot(snapshot) {
-  if (snapshotLock.value) return
   if (snapshot?.currentStage) {
     activeStageTab.value = snapshot.currentStage
     currentProjectStage.value = snapshot.currentStage
@@ -163,37 +160,40 @@ function handleSnapshot(snapshot) {
 }
 
 function handleSwitchTab(v) {
-  snapshotLock.value = true
   activeStageTab.value = v
-  setTimeout(() => { snapshotLock.value = false }, 2000)
+}
+
+// 纯函数：同步 tab 到时间线快照的真实阶段
+function syncTabToRealStage() {
+  const realStage = timelineRef.value?.snapshot?.currentStage
+  if (realStage) {
+    activeStageTab.value = realStage
+    currentProjectStage.value = realStage
+  }
 }
 
 async function handleStageUpdated() {
-  if (timelineRef.value?.reload) {
-    await timelineRef.value.reload()
-  }
-  // 仅当快照锁未激活时（即未通过 @switch-tab 等事件切换），才用快照覆盖 activeStageTab。
-  // 避免 @switch-tab + @advanced/@registered 先后触发时的时序竞争：
-  // switch-tab 已将 tab 设为目标阶段，handleStageUpdated 不应再通过滞后快照回退。
-  if (timelineRef.value?.snapshot?.currentStage && !snapshotLock.value) {
-    activeStageTab.value = timelineRef.value.snapshot.currentStage
-  }
-  // 同步项目真实当前阶段（用于阶段门禁）。即使 snapshotLock 激活，真实阶段也应更新，
-  // 因为阶段推进是真实事件，不应被 tab 切换锁掩盖。
-  if (timelineRef.value?.snapshot?.currentStage) {
-    currentProjectStage.value = timelineRef.value.snapshot.currentStage
-  }
-  await loadResultType()
-  if (ctx.project?.id) {
-    await projectStore.getProjectById(ctx.project.id)
-  }
+  // 并行刷新 timeline 和 resultType（两者无依赖）
+  const timelinePromise = timelineRef.value?.reload
+    ? timelineRef.value.reload()
+    : Promise.resolve()
+  const resultTypePromise = loadResultType()
+
+  await timelinePromise
+
+  // 阶段推进后必须同步到真实阶段（不受任何锁影响）
+  syncTabToRealStage()
+
+  // 并行刷新项目数据和 resultType
+  const projectPromise = ctx.project?.id
+    ? projectStore.getProjectById(ctx.project.id)
+    : Promise.resolve()
+
+  await Promise.all([projectPromise, resultTypePromise])
 }
 
 async function onRetrospectiveSubmitted() {
-  // 在 handleStageUpdated 之前设锁，防止时间线快照回退 activeStageTab
-  snapshotLock.value = true
   await handleStageUpdated()
   activeStageTab.value = 'CLOSED'
-  setTimeout(() => { snapshotLock.value = false }, 300)
 }
 </script>
