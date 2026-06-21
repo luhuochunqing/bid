@@ -179,7 +179,7 @@
 </template>
 
 <script setup>
-import { ref, shallowRef } from 'vue'
+import { ref, shallowRef, nextTick } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import AdaptiveFormPage from '@/components/common/AdaptiveFormPage.vue'
@@ -231,7 +231,9 @@ async function handleSyncFromCRM() {
 
 function handleBudgetFocus() {
   if (basicForm.value.budget === 0) {
-    basicForm.value.budget = null
+    nextTick(() => {
+      basicForm.value.budget = null
+    })
   }
 }
 
