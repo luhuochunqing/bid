@@ -114,24 +114,22 @@ import QualityCheckDialog from './components/QualityCheckDialog.vue'
 import { useProjectDetailContext } from '@/composables/projectDetail/context.js'
 import { useProjectDraftingPermissions } from '@/composables/projectDetail/useProjectDraftingPermissions.js'
 import { formatUserLabel } from '@/utils/formatUserLabel.js'
-
 const userStore = useUserStore()
 const ctx = useProjectDetailContext()
 const { bidAgent } = ctx
 
-// bidReviewerId 需在 perm 之前定义，供 useProjectDraftingPermissions 的 canReviewBid 使用
-const bidReviewerId = ref(null)
+// bidReviewerId/primaryLeadId/secondaryLeadId 需在 perm 之前定义
+const bidReviewerId = ref(null), primaryLeadId = ref(null), secondaryLeadId = ref(null)
 
 const perm = useProjectDraftingPermissions({
-  primaryLeadId: ctx.project?.value?.primaryLeadUserId,
-  secondaryLeadId: ctx.project?.value?.secondaryLeadUserId,
+  primaryLeadId,
+  secondaryLeadId,
   currentUserId: ctx.userStore?.currentUser?.id,
   reviewerId: bidReviewerId,
 })
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
 const emit = defineEmits(['advanced', 'switch-tab'])
-
 const view = ref(null)
 const aiDrawerVisible = ref(false)
 const perfDrawerVisible = ref(false)
@@ -187,6 +185,8 @@ async function load() {
       rejectReasonText.value = d.rejectReason || ""
       bidReviewerId.value = d.reviewerId || null
       reviewerName.value = d.reviewerName || ''
+      primaryLeadId.value = d.primaryLeadUserId || null
+      secondaryLeadId.value = d.secondaryLeadUserId || null
       // 预置审核人姓名到下拉选项，使 el-select 能展示姓名而非 ID
       if (d.reviewerId && d.reviewerName) {
         const existing = reviewerOptions.value.find(u => u.id === Number(d.reviewerId))
