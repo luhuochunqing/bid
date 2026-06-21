@@ -33,7 +33,15 @@ public class TaskDtoMapper {
         return tasks.stream().map(this::toDTO).toList();
     }
 
+    public List<TaskDTO> toDTOs(List<Task> tasks, Map<Long, String> assigneeNames) {
+        return tasks.stream().map(t -> toDTO(t, assigneeNames.get(t.getAssigneeId()))).toList();
+    }
+
     public TaskDTO toDTO(Task task) {
+        return toDTO(task, null);
+    }
+
+    public TaskDTO toDTO(Task task, String assigneeName) {
         return TaskDTO.builder()
                 .id(task.getId())
                 .projectId(task.getProjectId())
@@ -41,6 +49,7 @@ public class TaskDtoMapper {
                 .description(task.getDescription())
                 .content(task.getContent())
                 .assigneeId(task.getAssigneeId())
+                .assigneeName(assigneeName)
                 .assigneeDeptCode(task.getAssigneeDeptCode())
                 .assigneeDeptName(task.getAssigneeDeptName())
                 .assigneeRoleCode(task.getAssigneeRoleCode())
