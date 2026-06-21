@@ -239,7 +239,8 @@ xiyu:
         # OSS 菜单编码 -> 内部权限码映射（大小写不敏感）
         # 默认空 map；生产环境可通过 relaxed binding 用环境变量覆盖，
         # 例如 XIYU_ORG_MENU_CODE_MAPPINGS_<MENU_CODE>=<permission_key>
-        menu-code-to-permission-key-mappings: {}
+        menu-code-to-permission-key-mappings:
+          "1011": "task-board"
         # 未映射菜单编码处理：IGNORE 或 USE_NORMALIZED_CODE
         unmapped-menu-code-behavior: ${XIYU_ORG_UNMAPPED_MENU_BEHAVIOR:IGNORE}
       retry:

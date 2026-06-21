@@ -278,6 +278,12 @@ const routes = [
         redirect: '/analytics/dashboard'
       },
       {
+        path: 'task-board',
+        name: 'TaskBoard',
+        component: () => import('@/views/TaskBoard/TaskBoardPage.vue'),
+        meta: { title: '任务看板', permissionKeys: ['task-board'] }
+      },
+      {
         path: 'operation-logs',
         name: 'OperationLogs',
         component: () => import('@/views/System/OperationLogPage.vue'),

@@ -93,6 +93,11 @@ export const sidebarMenuConfig = [
     meta: { title: '数据分析', icon: 'analytics', permissionKeys: ['analytics', 'analytics-dashboard'] }
   },
   {
+    path: '/task-board',
+    name: 'TaskBoard',
+    meta: { title: '任务看板', icon: 'task', permissionKeys: ['task-board'] }
+  },
+  {
     path: '/settings',
     name: 'Settings',
     meta: { title: '系统设置', icon: 'settings', permissionKeys: ['settings'] },
