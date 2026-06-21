@@ -78,7 +78,7 @@ class TaskExtendedFieldsPersistenceTest {
                 projectAccessScopeService,
                 projectRepository,
                 assignmentSupport,
-                new TaskDtoMapper(objectMapper, userRepository),
+                new TaskDtoMapper(objectMapper),
                 taskHistoryRecorder,
                 notificationService,
                 userRepository
