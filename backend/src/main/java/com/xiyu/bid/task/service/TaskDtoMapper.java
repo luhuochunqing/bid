@@ -103,6 +103,7 @@ public class TaskDtoMapper {
             return Collections.emptyList();
         }
         return documents.stream()
+                .filter(doc -> "TASK_ATTACHMENT".equals(doc.getDocumentCategory()))
                 .map(this::toProjectDocumentDTO)
                 .toList();
     }

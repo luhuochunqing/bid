@@ -3,6 +3,7 @@ package com.xiyu.bid.projectworkflow.service;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentCreateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
+import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDownloadFile;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.projectworkflow.repository.ProjectScoreDraftRepository;
@@ -13,6 +14,9 @@ import com.xiyu.bid.service.ProjectAccessScopeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import org.springframework.core.io.ByteArrayResource;
+
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -27,9 +31,11 @@ class ProjectDocumentWorkflowServiceTest {
 
     private ProjectDocumentRepository projectDocumentRepository;
     private ProjectDocumentBindingGateway bindingGateway;
+    private ProjectDocumentFileStorage fileStorage;
     private UserRepository userRepository;
     private ProjectRepository projectRepository;
     private ProjectDocumentWorkflowService service;
+    private ProjectDocumentDownloadService downloadService;
 
     @BeforeEach
     void setUp() {
@@ -40,6 +46,7 @@ class ProjectDocumentWorkflowServiceTest {
         ProjectScoreDraftRepository projectScoreDraftRepository = mock(ProjectScoreDraftRepository.class);
         userRepository = mock(UserRepository.class);
         bindingGateway = mock(ProjectDocumentBindingGateway.class);
+        fileStorage = mock(ProjectDocumentFileStorage.class);
 
         ProjectWorkflowGuardService guardService = new ProjectWorkflowGuardService(
                 projectRepository,
@@ -57,6 +64,7 @@ class ProjectDocumentWorkflowServiceTest {
                 viewAssembler,
                 bindingGateway
         );
+        downloadService = new ProjectDocumentDownloadService(guardService, fileStorage);
 
         when(projectRepository.findById(1001L)).thenReturn(Optional.of(Project.builder().id(1001L).status(Project.Status.BIDDING).build()));
     }
@@ -87,6 +95,58 @@ class ProjectDocumentWorkflowServiceTest {
         assertThat(dto.getLinkedEntityId()).isEqualTo(2001L);
         assertThat(dto.getFileUrl()).isEqualTo("https://files.example.com/notice.pdf");
         verify(bindingGateway).onDocumentCreated(any(ProjectDocument.class));
+    }
+
+    @Test
+    void getProjectDocumentFile_ShouldLoadStoredDocumentBytes() throws Exception {
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(3003L)
+                .projectId(1001L)
+                .name("任务附件.docx")
+                .fileType("docx")
+                .fileUrl("doc-insight://task/file.docx")
+                .build();
+        when(projectDocumentRepository.findById(3003L)).thenReturn(Optional.of(doc));
+        when(fileStorage.load("doc-insight://task/file.docx"))
+                .thenReturn(Optional.of(new LoadedProjectDocumentFile(
+                        "doc-insight://task/file.docx",
+                        null,
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "附件内容".getBytes(StandardCharsets.UTF_8)
+                )));
+
+        ProjectDocumentDownloadFile file = downloadService.getProjectDocumentFile(1001L, 3003L);
+
+        assertThat(file.fileName()).isEqualTo("任务附件.docx");
+        assertThat(file.fileUrl()).isEqualTo("doc-insight://task/file.docx");
+        assertThat(file.resource().getContentAsByteArray()).isEqualTo("附件内容".getBytes(StandardCharsets.UTF_8));
+        assertThat(file.contentType()).isEqualTo("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+        assertThat(file.contentLength()).isEqualTo("附件内容".getBytes(StandardCharsets.UTF_8).length);
+    }
+
+    @Test
+    void getProjectDocumentFile_ShouldPreferStoredResourceAndInferContentTypeByFileName() throws Exception {
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(3004L)
+                .projectId(1001L)
+                .name("投标报价.xlsx")
+                .fileUrl("doc-insight://task/price.xlsx")
+                .build();
+        when(projectDocumentRepository.findById(3004L)).thenReturn(Optional.of(doc));
+        when(fileStorage.load("doc-insight://task/price.xlsx"))
+                .thenReturn(Optional.of(new LoadedProjectDocumentFile(
+                        "doc-insight://task/price.xlsx",
+                        null,
+                        null,
+                        "报价".getBytes(StandardCharsets.UTF_8),
+                        new ByteArrayResource("报价".getBytes(StandardCharsets.UTF_8))
+                )));
+
+        ProjectDocumentDownloadFile file = downloadService.getProjectDocumentFile(1001L, 3004L);
+
+        assertThat(file.fileName()).isEqualTo("投标报价.xlsx");
+        assertThat(file.resource().getContentAsByteArray()).isEqualTo("报价".getBytes(StandardCharsets.UTF_8));
+        assertThat(file.contentType()).isEqualTo("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     }
 
     @Test

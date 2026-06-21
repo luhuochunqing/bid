@@ -38,7 +38,7 @@ const baseStubs = {
   TaskForm: {
     name: 'TaskForm',
     props: ['modelValue', 'mode'],
-    emits: ['update:modelValue', 'submit'],
+    emits: ['update:modelValue', 'submit', 'attachment-preview'],
     template: '<div class="task-form-stub" />',
     methods: {
       submit() {
@@ -189,5 +189,27 @@ describe('ProjectTaskBoardCard', () => {
     await flushPromises()
 
     expect(wrapper.emitted('add-deliverable')?.[0]).toEqual([31, { id: 501, name: '附件.docx' }])
+  })
+
+  it('opens saved task attachment preview from the drawer container', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const wrapper = mount(ProjectTaskBoardCard, {
+      props: {
+        canManageProjectTasks: true,
+        tasks: [{ id: 31, name: 'T', status: 'TODO' }],
+        projectId: 12,
+      },
+      global: { stubs: baseStubs },
+    })
+
+    wrapper.vm.openView({ id: 31, name: 'T', status: 'TODO' })
+    await flushPromises()
+    wrapper.findComponent({ name: 'TaskForm' }).vm.$emit('attachment-preview', {
+      name: '任务附件.docx',
+      url: '/api/projects/12/documents/801/download',
+    })
+
+    expect(openSpy).toHaveBeenCalledWith('/api/projects/12/documents/801/download', '_blank', 'noopener')
+    openSpy.mockRestore()
   })
 })

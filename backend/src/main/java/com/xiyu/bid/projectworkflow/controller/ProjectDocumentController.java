@@ -3,10 +3,13 @@ package com.xiyu.bid.projectworkflow.controller;
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentCreateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
+import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDownloadFile;
 import com.xiyu.bid.projectworkflow.service.ProjectWorkflowService;
 import com.xiyu.bid.util.InputSanitizer;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @RestController
@@ -45,6 +49,23 @@ public class ProjectDocumentController {
                 linkedEntityType,
                 linkedEntityId
         )));
+    }
+
+    @GetMapping("/{documentId}/download")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<org.springframework.core.io.Resource> downloadProjectDocument(
+            @PathVariable Long projectId,
+            @PathVariable Long documentId
+    ) {
+        ProjectDocumentDownloadFile file = projectWorkflowService.getProjectDocumentFile(projectId, documentId);
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename(file.fileName(), StandardCharsets.UTF_8)
+                .build();
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(file.contentType()))
+                .contentLength(file.contentLength())
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(file.resource());
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)

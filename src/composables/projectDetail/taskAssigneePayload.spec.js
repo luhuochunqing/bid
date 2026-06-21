@@ -133,7 +133,7 @@ describe('taskAssigneePayload', () => {
   describe('uploadTaskAttachmentsWithFallback', () => {
     it('does nothing when there are no attachments', async () => {
       const message = { warning: vi.fn() }
-      await uploadTaskAttachmentsWithFallback({}, [], {}, 'msg', message)
+      await expect(uploadTaskAttachmentsWithFallback({}, [], {}, 'msg', message)).resolves.toBe(true)
       expect(message.warning).not.toHaveBeenCalled()
     })
 
@@ -152,7 +152,7 @@ describe('taskAssigneePayload', () => {
           '保存成功但附件上传失败',
           message
         )
-      ).resolves.toBeUndefined()
+      ).resolves.toBe(false)
 
       expect(message.warning).toHaveBeenCalledWith('保存成功但附件上传失败')
       consoleSpy.mockRestore()

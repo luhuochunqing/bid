@@ -78,7 +78,8 @@ class ProjectWorkflowServiceTest {
                 mock(ProjectDocumentUploadWorkflowService.class);
         ProjectDocumentFacade projectDocumentFacade = new ProjectDocumentFacade(
                 projectDocumentWorkflowService,
-                projectDocumentUploadWorkflowService
+                projectDocumentUploadWorkflowService,
+                mock(ProjectDocumentDownloadService.class)
         );
         ProjectReminderWorkflowService projectReminderWorkflowService = new ProjectReminderWorkflowService(
                 guardService,

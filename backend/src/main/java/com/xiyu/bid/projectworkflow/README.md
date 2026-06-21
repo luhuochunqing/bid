@@ -10,7 +10,7 @@
 | 文件 | 地位 | 功能 |
 |------|------|------|
 | `controller/ProjectWorkflowController.java` | Controller | 项目流程接口 |
-| `controller/ProjectDocumentController.java` | Controller | 项目文档接口，承接结果附件查询、真实文件上传、元数据创建和删除 |
+| `controller/ProjectDocumentController.java` | Controller | 项目文档接口，承接结果附件查询、真实文件上传、元数据创建、下载和删除 |
 | `core/ScoreDraftPolicy.java` | Core | 评分草稿更新与任务生成的纯规则，返回显式决策和值对象，不直接做 I/O |
 | `core/TaskBreakdownPolicy.java` | Core | 根据招标需求项或标书章节快照生成任务拆解决策，不访问数据库或框架 |
 | `service/ProjectWorkflowService.java` | Service | 项目流程门面；转调任务、评分草稿、文档、提醒和分享链接子服务 |
@@ -20,8 +20,10 @@
 | `service/ProjectTaskRequirementSourceGateway.java` | Port | 任务拆解读取招标需求来源的端口，由招标文件解析能力侧提供实现，避免流程模块反向依赖解析模块实体 |
 | `service/ProjectDocumentWorkflowService.java` | Service | 项目文档查询、元数据创建和删除编排，调用文档绑定边界 |
 | `service/ProjectDocumentUploadWorkflowService.java` | Service | 项目文档真实文件上传编排；通过文件存储端口落盘后转交文档创建服务 |
-| `service/ProjectDocumentFacade.java` | Component | 文档查询、元数据创建、真实上传和删除的内部组合门面，保持 ProjectWorkflowService 依赖数稳定 |
-| `service/ProjectDocumentFileStorage.java` | Port | 项目文档文件落盘端口，由 bid-agent 文件存储适配器实现，避免 projectworkflow 反向依赖解析模块 |
+| `service/ProjectDocumentDownloadService.java` | Service | 项目文档真实文件下载装配；通过文件存储端口读取 Resource |
+| `service/ProjectDocumentFacade.java` | Component | 文档查询、元数据创建、真实上传、下载和删除的内部组合门面，保持 ProjectWorkflowService 依赖数稳定 |
+| `service/ProjectDocumentFileStorage.java` | Port | 项目文档文件落盘/读取端口，由 bid-agent 文件存储适配器实现，避免 projectworkflow 反向依赖解析模块 |
+| `dto/ProjectDocumentDownloadFile.java` | DTO | 下载响应边界对象，携带文件名、MIME、长度和 Resource，避免 Controller 重复查文档列表 |
 | `service/ProjectDocumentViewAssembler.java` | Assembler | 项目文档实体到 DTO 的装配 |
 | `service/ProjectDocumentBindingGateway.java` | Port | 项目文档与外部附件业务的可替换集成边界 |
 | `service/ScoreDraftParserService.java` | Service | 评分草稿解析，支持 Word、Excel 和文本型 PDF 上传 |

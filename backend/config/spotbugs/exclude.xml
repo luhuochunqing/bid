@@ -17,4 +17,9 @@
         <Class name="com.xiyu.bid.auth.JwtUtil"/>
         <Bug pattern="CT_CONSTRUCTOR_THROW"/>
     </Match>
+    <Match>
+        <!-- Spring DI facade stores framework-managed collaborator references. -->
+        <Class name="com.xiyu.bid.projectworkflow.service.ProjectWorkflowService"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
 </FindBugsFilter>

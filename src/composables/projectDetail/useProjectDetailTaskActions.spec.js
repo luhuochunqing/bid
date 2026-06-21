@@ -115,7 +115,7 @@ describe('useProjectDetailTaskActions', () => {
     }))
   })
 
-  it('API 项目新增任务后把表单附件上传为任务交付物', async () => {
+  it('API 项目新增任务后把表单附件上传为任务附件', async () => {
     const file = new File(['附件内容'], '任务附件.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
     const createTask = vi.fn().mockResolvedValue({
       success: true,
@@ -148,7 +148,7 @@ describe('useProjectDetailTaskActions', () => {
 
     expect(uploadTaskAttachment).toHaveBeenCalledWith('12', 603, expect.objectContaining({
       name: '任务附件.docx',
-      deliverableType: 'DOCUMENT',
+      documentCategory: 'TASK_ATTACHMENT',
       file,
       uploaderId: 9,
       uploaderName: '测试用户',
@@ -193,9 +193,51 @@ describe('useProjectDetailTaskActions', () => {
 
     expect(state.project.value.tasks).toHaveLength(1)
     expect(state.project.value.tasks[0].name).toBe('带失败附件的任务')
-    expect(warning).toHaveBeenCalledWith('任务已新增，但附件上传失败')
-    expect(done).toHaveBeenCalled()
+    expect(warning).toHaveBeenCalledWith('任务已新增，但附件上传失败，请重试')
+    expect(done).not.toHaveBeenCalled()
     consoleWarnSpy.mockRestore()
+  })
+
+  it('API 项目新增任务后把表单交付物上传为任务交付物', async () => {
+    const file = new File(['交付物内容'], '技术方案.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
+    const createTask = vi.fn().mockResolvedValue({
+      success: true,
+      data: { id: 606, title: '准备交付物任务', status: 'TODO' },
+    })
+    const addDeliverable = vi.fn().mockResolvedValue({ id: 902, name: '技术方案.docx', url: '/files/902' })
+    const state = {
+      project: ref({ id: 12, name: '测试项目', tasks: [] }),
+      activities: ref([]),
+      scoreDraftDialogVisible: ref(false),
+      currentTask: ref(null),
+      taskDialogVisible: ref(false),
+    }
+
+    const { handleSaveTask } = useProjectDetailTaskActions({
+      route: { params: { id: '12' } },
+      userStore: { userName: '测试用户', currentUser: { id: 9 } },
+      projectStore: { addDeliverable },
+      projectsApi: { createTask },
+      isApiProject: ref(true),
+      message: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
+      state,
+      workflow: {},
+    })
+
+    await handleSaveTask({
+      mode: 'create',
+      data: { name: '准备交付物任务', priority: 'medium', deliverableFiles: [file] },
+    })
+
+    expect(addDeliverable).toHaveBeenCalledWith('12', 606, expect.objectContaining({
+      name: '技术方案.docx',
+      deliverableType: 'DOCUMENT',
+      file,
+      uploaderId: 9,
+      uploaderName: '测试用户',
+    }))
+    expect(state.project.value.tasks[0].deliverables).toEqual([expect.objectContaining({ id: 902 })])
+    expect(state.project.value.tasks[0].hasDeliverable).toBe(true)
   })
 
   it('API 项目新增任务无附件时不调用 uploadTaskAttachment', async () => {
@@ -806,6 +848,37 @@ describe('handleSaveTask edit branch', () => {
     expect(updated.content).toBe('md')
     expect(updated.deadline).toBe('2026-06-01')
     expect(message.success).toHaveBeenCalledWith('任务已更新')
+  })
+
+  it('uploads deliverableFiles through addDeliverable after editing task', async () => {
+    const file = new File(['交付物内容'], '编辑交付物.pdf', { type: 'application/pdf' })
+    const updateTask = vi.fn().mockResolvedValue({
+      id: 7,
+      title: 'New',
+      status: 'TODO',
+      priority: 'HIGH',
+    })
+    const addDeliverable = vi.fn().mockResolvedValue({ id: 903, name: '编辑交付物.pdf', url: '/files/903' })
+    const tasks = [{ id: 7, name: 'Old', status: 'TODO', deliverables: [] }]
+    const { ctx, state } = buildEditCtx({ updateTask, projectTasks: tasks })
+    ctx.projectStore.addDeliverable = addDeliverable
+
+    const { handleSaveTask } = useProjectDetailTaskActions(ctx)
+    await handleSaveTask({
+      mode: 'edit',
+      data: { id: 7, name: 'New', priority: 'high', deliverableFiles: [file] },
+    })
+
+    expect(updateTask).toHaveBeenCalledWith(1, 7, {
+      title: 'New',
+      priority: 'HIGH',
+    })
+    expect(addDeliverable).toHaveBeenCalledWith('1', 7, expect.objectContaining({
+      name: '编辑交付物.pdf',
+      deliverableType: 'DOCUMENT',
+      file,
+    }))
+    expect(state.project.value.tasks[0].deliverables).toEqual([expect.objectContaining({ id: 903 })])
   })
 
   it('shows error toast when updateTask rejects', async () => {

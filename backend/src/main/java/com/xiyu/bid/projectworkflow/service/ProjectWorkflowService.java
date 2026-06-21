@@ -1,11 +1,12 @@
 // Input: project workflow application services and request DTOs
-// Output: project workflow orchestration facade for controllers
+// Output: project workflow orchestration facade and document file loading for controllers
 // Pos: Service/业务编排层
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.projectworkflow.service;
 
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentCreateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
+import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDownloadFile;
 import com.xiyu.bid.projectworkflow.dto.ProjectReminderCreateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectReminderDTO;
 import com.xiyu.bid.projectworkflow.dto.ProjectScoreDraftDTO;
@@ -87,6 +88,11 @@ public class ProjectWorkflowService {
                 linkedEntityType,
                 linkedEntityId
         );
+    }
+
+    @Transactional(readOnly = true)
+    public ProjectDocumentDownloadFile getProjectDocumentFile(Long projectId, Long documentId) {
+        return projectDocumentFacade.getProjectDocumentFile(projectId, documentId);
     }
 
     public ProjectDocumentDTO createProjectDocument(

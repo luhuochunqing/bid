@@ -1,7 +1,7 @@
 import { ElMessageBox } from 'element-plus'
 import { taskTemplates } from './constants.js'
 import { normalizeProjectTaskList, openScoreDraftDialogWhenTenderSourceMissing } from './projectDetailTaskGeneration.js'
-import { createTaskAssigneePayload, uploadTaskAttachmentsWithFallback } from './taskAssigneePayload.js'
+import { createTaskAssigneePayload, uploadTaskFilesWithFallback } from './taskAssigneePayload.js'
 import { normalizeTaskStatusForApi, taskFormDtoToBackend, taskBackendToCard } from '@/views/Project/project-utils'
 export function useProjectDetailTaskActions(context) {
   const { route, userStore, projectStore, projectsApi, tenderBreakdownApi = projectsApi, isApiProject, message, state, workflow } = context
@@ -226,7 +226,10 @@ export function useProjectDetailTaskActions(context) {
         const dto = taskFormDtoToBackend(data)
         const updated = await projectStore.updateTask(state.project.value.id, target.id, dto)
         Object.assign(target, taskBackendToCard(updated))
-        await uploadTaskAttachmentsWithFallback(target, data.attachments, { projectStore, projectId: route.params.id, userStore }, '任务已更新，但附件上传失败', message)
+        const uploadOk = await uploadTaskFilesWithFallback(target, data, { projectStore, projectId: route.params.id, userStore }, {
+          attachments: '任务已更新，但附件上传失败，请重试', deliverables: '任务已更新，但交付物上传失败，请重试',
+        }, message)
+        if (!uploadOk) return
         pushActivity(`更新了任务「${target.name}」`)
         message.success('任务已更新')
         done?.()
@@ -242,18 +245,12 @@ export function useProjectDetailTaskActions(context) {
     if (!isApiProject.value) {
       const list = ensureTaskList()
       list.unshift({
-        id: `TASK_${Date.now()}`,
-        name: title,
-        owner: data?.owner || userStore.userName,
-        assignee: data?.owner || userStore.userName,
-        department: '投标管理部',
-        dueDate: dueDate.toISOString().split('T')[0],
-        priority: data?.priority || 'medium',
-        status: data?.status || 'todo',
-        content: data?.content || '',
-        extendedFields: data?.extendedFields || {},
-        deliverables: [],
-        hasDeliverable: false,
+        id: `TASK_${Date.now()}`, name: title,
+        owner: data?.owner || userStore.userName, assignee: data?.owner || userStore.userName,
+        department: '投标管理部', dueDate: dueDate.toISOString().split('T')[0],
+        priority: data?.priority || 'medium', status: data?.status || 'todo',
+        content: data?.content || '', extendedFields: data?.extendedFields || {},
+        deliverables: [], hasDeliverable: false,
       })
       pushActivity(`新增了任务「${title}」`)
       message.success('任务已新增')
@@ -272,9 +269,12 @@ export function useProjectDetailTaskActions(context) {
       })
       if (!result?.success || !result?.data) throw new Error(result?.msg || '新增任务失败')
       const createdTask = taskBackendToCard({ ...result.data, deliverables: [] })
-      await uploadTaskAttachmentsWithFallback(createdTask, data.attachments, { projectStore, projectId: route.params.id, userStore }, '任务已新增，但附件上传失败', message)
+      const uploadOk = await uploadTaskFilesWithFallback(createdTask, data, { projectStore, projectId: route.params.id, userStore }, {
+        attachments: '任务已新增，但附件上传失败，请重试', deliverables: '任务已新增，但交付物上传失败，请重试',
+      }, message)
       ensureTaskList().unshift(createdTask)
       pushActivity(`新增了任务「${createdTask.name}」`)
+      if (!uploadOk) return
       message.success('任务已新增')
       done?.()
     } catch (error) {

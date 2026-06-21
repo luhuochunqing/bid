@@ -77,6 +77,7 @@
         ref="taskFormRef"
         v-model="editingTask"
         :mode="drawerMode"
+        @attachment-preview="handleAttachmentPreview"
       />
       <template #footer>
         <div class="drawer-footer">
@@ -177,6 +178,10 @@ function handleTaskClick(task) {
 
 function handleCancelTask() {
   drawerVisible.value = false
+}
+
+function handleAttachmentPreview(file) {
+  if (file?.url && typeof window !== 'undefined' && typeof window.open === 'function') window.open(file.url, '_blank', 'noopener')
 }
 
 async function handleSaveTask() {

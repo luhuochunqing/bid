@@ -121,7 +121,7 @@ const globalStubs = {
   ElUpload: {
     name: 'ElUpload',
     props: ['fileList', 'autoUpload', 'disabled', 'accept'],
-    emits: ['change', 'remove'],
+    emits: ['change', 'remove', 'preview'],
     template: '<div class="el-upload-stub" data-test="task-attachment-upload"><slot /><slot name="tip" /></div>',
   },
   TaskActivityPanel: {
@@ -200,6 +200,38 @@ describe('TaskForm', () => {
     expect(wrapper.text()).toContain('任务附件')
     expect(r.valid).toBe(true)
     expect(r.data.attachments).toEqual([file])
+  })
+
+  it('emits attachment-preview with document download url for saved task attachments', async () => {
+    const wrapper = mount(TaskForm, {
+      props: {
+        mode: 'view',
+        modelValue: {
+          id: 31,
+          name: 'X',
+          attachments: [{ id: 801, projectId: 12, name: '任务附件.docx', fileUrl: 'doc-insight://task/file.docx' }],
+        },
+      },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+
+    const upload = wrapper.findComponent({ name: 'ElUpload' })
+    expect(upload.props('fileList')[0]).toMatchObject({
+      name: '任务附件.docx',
+      url: '/api/projects/12/documents/801/download',
+    })
+
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    upload.vm.$emit('preview', upload.props('fileList')[0])
+
+    expect(wrapper.emitted('attachment-preview')?.[0]?.[0]).toMatchObject({
+      id: 801,
+      projectId: 12,
+      url: '/api/projects/12/documents/801/download',
+    })
+    expect(openSpy).not.toHaveBeenCalled()
+    openSpy.mockRestore()
   })
 
   it('defaults status to dict.initial code on mount when empty', async () => {

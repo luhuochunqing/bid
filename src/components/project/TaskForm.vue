@@ -24,8 +24,8 @@
               :disabled="readonly"
               accept=".doc,.docx,.pdf,.xls,.xlsx"
               multiple
-              @change="handleAttachmentChange"
-              @remove="handleAttachmentRemove"
+              @change="handleAttachmentChange" @remove="handleAttachmentRemove"
+              @preview="file => emit('attachment-preview', file)"
             >
               <el-button :icon="Upload" :disabled="readonly">添加附件</el-button>
             </el-upload>
@@ -144,7 +144,7 @@ const props = defineProps({
   modelValue: { type: Object, default: () => ({}) },
   mode: { type: String, default: 'create' }, // create | edit | view
 })
-const emit = defineEmits(['submit', 'submit-review', 'update:modelValue'])
+const emit = defineEmits(['submit', 'submit-review', 'update:modelValue', 'attachment-preview'])
 
 const projectStore = useProjectStore()
 const userStore = useUserStore()
@@ -192,9 +192,9 @@ const canDeliver = computed(() => {
   const taskStatus = String(localValue.status || '').toLowerCase()
   return String(taskAssigneeId) === String(currentUserId) && taskStatus === 'todo'
 })
-const attachmentFileList = computed(() => localValue.attachments.map((file, index) => ({
-  name: file?.name || `附件${index + 1}`,
-  raw: file,
+const attachmentFileList = computed(() => localValue.attachments.map((file, index) => ({ ...file,
+  name: file?.name || `附件${index + 1}`, raw: file instanceof File ? file : file?.raw,
+  url: (file?.projectId || localValue.projectId) && file?.id ? `/api/projects/${file.projectId || localValue.projectId}/documents/${file.id}/download` : file?.url,
 })))
 
 const { deliverableFileList, handleDeliverableChange, handleDeliverableRemove } =

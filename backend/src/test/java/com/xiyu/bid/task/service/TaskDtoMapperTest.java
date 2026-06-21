@@ -77,6 +77,46 @@ class TaskDtoMapperTest {
     }
 
     @Test
+    @DisplayName("toDTO 不把 TASK_DELIVERABLE 项目文档混入任务附件")
+    void toDTO_excludesTaskDeliverableDocumentsFromAttachments() {
+        TaskDtoMapper mapper = new TaskDtoMapper(objectMapper, projectDocumentRepository);
+
+        Task task = Task.builder()
+                .id(5L)
+                .projectId(10L)
+                .title("测试任务")
+                .status(Task.Status.TODO)
+                .priority(Task.Priority.MEDIUM)
+                .build();
+
+        ProjectDocument attachment = ProjectDocument.builder()
+                .id(103L)
+                .projectId(10L)
+                .name("任务附件.docx")
+                .documentCategory("TASK_ATTACHMENT")
+                .linkedEntityType("TASK")
+                .linkedEntityId(5L)
+                .build();
+        ProjectDocument deliverable = ProjectDocument.builder()
+                .id(104L)
+                .projectId(10L)
+                .name("交付物.docx")
+                .documentCategory("TASK_DELIVERABLE")
+                .linkedEntityType("TASK")
+                .linkedEntityId(5L)
+                .build();
+
+        when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc("TASK", 5L))
+                .thenReturn(List.of(deliverable, attachment));
+
+        var dto = mapper.toDTO(task);
+
+        assertThat(dto.getAttachments())
+                .extracting(ProjectDocumentDTO::getName)
+                .containsExactly("任务附件.docx");
+    }
+
+    @Test
     @DisplayName("toDTO 当 task 无附件时返回空列表")
     void toDTO_returnsEmptyListWhenNoAttachments() {
         TaskDtoMapper mapper = new TaskDtoMapper(objectMapper, projectDocumentRepository);
@@ -101,8 +141,8 @@ class TaskDtoMapperTest {
     }
 
     @Test
-    @DisplayName("toDTO 仅返回 linkedEntityType='TASK' 的文档，不混入其他类型")
-    void toDTO_onlyReturnsTaskLinkedDocuments() {
+    @DisplayName("toDTO 只返回 TASK_ATTACHMENT 分类文档")
+    void toDTO_onlyReturnsTaskAttachmentDocuments() {
         TaskDtoMapper mapper = new TaskDtoMapper(objectMapper, projectDocumentRepository);
 
         Task task = Task.builder()
@@ -117,17 +157,34 @@ class TaskDtoMapperTest {
                 .id(101L)
                 .projectId(10L)
                 .name("任务附件.docx")
+                .documentCategory("TASK_ATTACHMENT")
+                .linkedEntityType("TASK")
+                .linkedEntityId(3L)
+                .build();
+        ProjectDocument uncategorizedDoc = ProjectDocument.builder()
+                .id(102L)
+                .projectId(10L)
+                .name("历史未分类文档.docx")
+                .linkedEntityType("TASK")
+                .linkedEntityId(3L)
+                .build();
+        ProjectDocument otherCategoryDoc = ProjectDocument.builder()
+                .id(103L)
+                .projectId(10L)
+                .name("其他任务文档.docx")
+                .documentCategory("OTHER")
                 .linkedEntityType("TASK")
                 .linkedEntityId(3L)
                 .build();
 
         when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc("TASK", 3L))
-                .thenReturn(List.of(taskDoc));
+                .thenReturn(List.of(otherCategoryDoc, uncategorizedDoc, taskDoc));
 
         var dto = mapper.toDTO(task);
 
-        assertThat(dto.getAttachments()).hasSize(1);
-        assertThat(dto.getAttachments().get(0).getName()).isEqualTo("任务附件.docx");
+        assertThat(dto.getAttachments())
+                .extracting(ProjectDocumentDTO::getName)
+                .containsExactly("任务附件.docx");
     }
 
     @Test
@@ -146,6 +203,7 @@ class TaskDtoMapperTest {
         ProjectDocument doc = ProjectDocument.builder()
                 .id(102L)
                 .name("附件.xlsx")
+                .documentCategory("TASK_ATTACHMENT")
                 .linkedEntityType("TASK")
                 .linkedEntityId(4L)
                 .build();
@@ -167,8 +225,8 @@ class TaskDtoMapperTest {
         Task task1 = Task.builder().id(1L).projectId(10L).title("任务1").status(Task.Status.TODO).priority(Task.Priority.MEDIUM).build();
         Task task2 = Task.builder().id(2L).projectId(10L).title("任务2").status(Task.Status.TODO).priority(Task.Priority.MEDIUM).build();
 
-        ProjectDocument doc1 = ProjectDocument.builder().id(201L).name("附件1.pdf").linkedEntityType("TASK").linkedEntityId(1L).build();
-        ProjectDocument doc2 = ProjectDocument.builder().id(202L).name("附件2.pdf").linkedEntityType("TASK").linkedEntityId(2L).build();
+        ProjectDocument doc1 = ProjectDocument.builder().id(201L).name("附件1.pdf").documentCategory("TASK_ATTACHMENT").linkedEntityType("TASK").linkedEntityId(1L).build();
+        ProjectDocument doc2 = ProjectDocument.builder().id(202L).name("附件2.pdf").documentCategory("TASK_ATTACHMENT").linkedEntityType("TASK").linkedEntityId(2L).build();
 
         when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc("TASK", 1L))
                 .thenReturn(List.of(doc1));

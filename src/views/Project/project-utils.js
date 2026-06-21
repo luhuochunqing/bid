@@ -196,7 +196,6 @@ export function taskFormDtoToBackend(form = {}) {
   if (form.assigneeRoleName !== undefined) dto.assigneeRoleName = form.assigneeRoleName
   if (form.completionNote !== undefined) dto.completionNote = form.completionNote
   if (form.createdById !== undefined) dto.createdById = form.createdById
-  if (form.deliverableFiles !== undefined) dto.deliverableFiles = form.deliverableFiles
   if (form.attachments !== undefined) dto.attachments = form.attachments
   if (form.extendedFields !== undefined) dto.extendedFields = form.extendedFields
   return dto

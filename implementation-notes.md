@@ -1,3 +1,28 @@
+# 添加任务附件查看与交付物保存修复实施记录
+
+## 问题口径
+
+- “任务附件可以上传/保存但不能查看”：已保存附件只有项目文档元数据，任务表单没有给 `el-upload` 生成可访问的下载 URL，后端也缺少 `/api/projects/{projectId}/documents/{documentId}/download` 闭环。
+- “交付物上传能选择但保存不成功”：任务保存链路只上传 `attachments`，没有处理 `deliverableFiles`；编辑任务时还会把 `File` 对象塞进任务 DTO。
+
+## 决策与权衡
+
+- 保持任务附件和交付物两条现有业务语义：任务附件继续走 `TASK_ATTACHMENT` 项目文档；交付物继续先上传 `TASK_DELIVERABLE` 项目文档，再创建任务交付物元数据。
+- 不引入 Mock，不改上传接口；复用现有 `projectStore.addDeliverable()`，只在任务新增/编辑成功后补上传 `deliverableFiles`。
+- `taskFormDtoToBackend()` 不再透传 `deliverableFiles`，避免把浏览器 `File` 对象提交到 JSON 任务 DTO。
+- 任务附件查看采用项目文档下载 URL：`/api/projects/{projectId}/documents/{documentId}/download`，后端通过现有文件存储端口读取真实文件内容。
+- Review 后收敛下载边界：Controller 不再为文件名全量查询项目文档列表，改由 service 一次返回 `fileName`、`contentType`、`contentLength` 和 `Resource`；MIME 推断改用 Spring `MediaTypeFactory`。
+- 文件存储读取仍兼容既有 byte[] 返回；当真实路径存在时使用 `FileSystemResource`，否则退回 `ByteArrayResource`，避免扩大到 docinsight 存储深改。
+- `TaskForm` 只负责发出 `attachment-preview`，打开新窗口的副作用上移到 `ProjectTaskBoardCard`。
+- `TaskDtoMapper` 严格只把 `documentCategory=TASK_ATTACHMENT` 的项目文档映射为任务附件；历史空分类 TASK 文档不再混入附件列表，需通过数据清洗补分类。
+- 上传一致性采用最小前端恢复策略：任务已保存但附件/交付物上传失败时保留抽屉不关闭、不给成功提示，用户可直接重试；暂不引入“任务+文件”组合事务接口。
+- Linear MCP 未读取：当前会话可用工具中没有 Linear MCP，且本轮提示未提供具体 Linear issue ID/URL。
+
+## 验证计划
+
+- 前端：`pnpm exec vitest run src/composables/projectDetail/useProjectDetailTaskActions.spec.js src/components/project/TaskForm.spec.js src/components/project/ProjectTaskBoardCard.spec.js`
+- 后端：`mvn -f backend/pom.xml test -Dtest=TaskDtoMapperTest,ProjectDocumentWorkflowServiceTest,ProjectDocumentControllerTest`
+
 # CO-282 实施记录
 
 ## 问题口径
