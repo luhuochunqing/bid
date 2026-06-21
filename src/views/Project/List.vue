@@ -67,7 +67,7 @@
               <span class="project-name-link" @click="goToDetail(row.id)">{{ row.name || row.projectName || '-' }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="sourceModule" label="来源平台" width="110" align="center" v-if="columnVisible.sourceModule">
+          <el-table-column prop="sourceModule" label="来源平台" width="120" align="center" v-if="columnVisible.sourceModule">
             <template #default="{ row }">
               <el-tag v-if="row.sourceModule" size="small" :type="sourceTagType(row.sourceModule)">{{ sourceText(row.sourceModule) }}</el-tag>
               <span v-else>-</span>
