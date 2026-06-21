@@ -368,6 +368,7 @@ describe('task DTO mapper', () => {
       completionNote: '已完成',
       deliverableFiles: [{ name: '标书.pdf' }],
       extendedFields: { chapter: '扩展值ABC' },
+      attachments: [],
       deliverables: [{ id: 1 }], hasDeliverable: true,
     })
   })

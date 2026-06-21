@@ -121,7 +121,7 @@ describe('useProjectDetailTaskActions', () => {
       success: true,
       data: { id: 603, name: '准备附件任务', status: 'TODO' },
     })
-    const addDeliverable = vi.fn().mockResolvedValue({ id: 901, name: '任务附件.docx', url: '/files/901' })
+    const uploadTaskAttachment = vi.fn().mockResolvedValue({ id: 901, name: '任务附件.docx', url: '/files/901' })
     const state = {
       project: ref({ id: 12, name: '测试项目', tasks: [] }),
       activities: ref([]),
@@ -133,7 +133,7 @@ describe('useProjectDetailTaskActions', () => {
     const { handleSaveTask } = useProjectDetailTaskActions({
       route: { params: { id: '12' } },
       userStore: { userName: '测试用户', currentUser: { id: 9 } },
-      projectStore: { addDeliverable },
+      projectStore: { uploadTaskAttachment },
       projectsApi: { createTask },
       isApiProject: ref(true),
       message: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
@@ -146,15 +146,14 @@ describe('useProjectDetailTaskActions', () => {
       data: { name: '准备附件任务', priority: 'medium', attachments: [file] },
     })
 
-    expect(addDeliverable).toHaveBeenCalledWith('12', 603, expect.objectContaining({
+    expect(uploadTaskAttachment).toHaveBeenCalledWith('12', 603, expect.objectContaining({
       name: '任务附件.docx',
       deliverableType: 'DOCUMENT',
       file,
       uploaderId: 9,
       uploaderName: '测试用户',
     }))
-    expect(state.project.value.tasks[0].deliverables).toEqual([expect.objectContaining({ id: 901 })])
-    expect(state.project.value.tasks[0].hasDeliverable).toBe(true)
+    expect(state.project.value.tasks[0].attachments).toEqual([expect.objectContaining({ id: 901 })])
   })
 
   it('API 项目新增任务时附件上传失败不阻断任务创建', async () => {
@@ -164,7 +163,7 @@ describe('useProjectDetailTaskActions', () => {
       success: true,
       data: { id: 604, title: '带失败附件的任务', status: 'TODO' },
     })
-    const addDeliverable = vi.fn().mockRejectedValue(new Error('网络超时'))
+    const uploadTaskAttachment = vi.fn().mockRejectedValue(new Error('网络超时'))
     const warning = vi.fn()
     const done = vi.fn()
     const state = {
@@ -178,7 +177,7 @@ describe('useProjectDetailTaskActions', () => {
     const { handleSaveTask } = useProjectDetailTaskActions({
       route: { params: { id: '12' } },
       userStore: { userName: '测试用户', currentUser: { id: 9 } },
-      projectStore: { addDeliverable },
+      projectStore: { uploadTaskAttachment },
       projectsApi: { createTask },
       isApiProject: ref(true),
       message: { success: vi.fn(), error: vi.fn(), warning },
@@ -199,12 +198,12 @@ describe('useProjectDetailTaskActions', () => {
     consoleWarnSpy.mockRestore()
   })
 
-  it('API 项目新增任务无附件时不调用 addDeliverable', async () => {
+  it('API 项目新增任务无附件时不调用 uploadTaskAttachment', async () => {
     const createTask = vi.fn().mockResolvedValue({
       success: true,
       data: { id: 605, title: '无附件任务', status: 'TODO' },
     })
-    const addDeliverable = vi.fn()
+    const uploadTaskAttachment = vi.fn()
     const state = {
       project: ref({ id: 12, name: '测试项目', tasks: [] }),
       activities: ref([]),
@@ -216,7 +215,7 @@ describe('useProjectDetailTaskActions', () => {
     const { handleSaveTask } = useProjectDetailTaskActions({
       route: { params: { id: '12' } },
       userStore: { userName: '测试用户', currentUser: { id: 9 } },
-      projectStore: { addDeliverable },
+      projectStore: { uploadTaskAttachment },
       projectsApi: { createTask },
       isApiProject: ref(true),
       message: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
@@ -226,7 +225,7 @@ describe('useProjectDetailTaskActions', () => {
 
     await handleSaveTask({ mode: 'create', data: { name: '无附件任务', priority: 'medium' } })
 
-    expect(addDeliverable).not.toHaveBeenCalled()
+    expect(uploadTaskAttachment).not.toHaveBeenCalled()
     expect(state.project.value.tasks).toHaveLength(1)
   })
 

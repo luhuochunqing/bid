@@ -32,10 +32,9 @@ export function createTaskAttachmentPayload(file, userStore = {}) {
 
 export async function uploadTaskAttachments(task, attachments, { projectStore, projectId, userStore } = {}) {
   for (const file of normalizeTaskAttachmentFiles(attachments)) {
-    const saved = await projectStore?.addDeliverable?.(projectId, task.id, createTaskAttachmentPayload(file, userStore))
+    const saved = await projectStore?.uploadTaskAttachment?.(projectId, task.id, createTaskAttachmentPayload(file, userStore))
     if (!saved) continue
-    task.deliverables = [saved, ...(task.deliverables || []).filter((item) => String(item.id) !== String(saved.id))]
-    task.hasDeliverable = true
+    task.attachments = [saved, ...(task.attachments || []).filter((item) => String(item.id) !== String(saved.id))]
   }
 }
 

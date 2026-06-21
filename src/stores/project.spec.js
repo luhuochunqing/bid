@@ -38,6 +38,45 @@ describe('useProjectStore task deliverables', () => {
     deleteTaskDeliverableMock.mockReset()
   })
 
+  it('uploads task attachment files as real project documents without creating deliverable', async () => {
+    const store = useProjectStore()
+    store.currentProject = {
+      id: 12,
+      tasks: [{ id: 31, name: '技术方案', attachments: [] }],
+    }
+    const file = new File(['参考文档'], '参考文档.docx', {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    })
+    uploadDocumentMock.mockResolvedValue({
+      success: true,
+      data: {
+        id: 801,
+        name: '参考文档.docx',
+        size: '1KB',
+        fileType: 'docx',
+        fileUrl: 'project-documents://12/参考文档.docx',
+      },
+    })
+
+    const saved = await store.uploadTaskAttachment(12, 31, {
+      name: '参考文档.docx',
+      file,
+      uploaderId: 9,
+      uploaderName: '测试用户',
+    })
+
+    const formData = uploadDocumentMock.mock.calls[0][1]
+    expect(uploadDocumentMock).toHaveBeenCalledWith(12, expect.any(FormData))
+    expect(formData.get('file')).toBe(file)
+    expect(formData.get('documentCategory')).toBe('TASK_ATTACHMENT')
+    expect(formData.get('linkedEntityType')).toBe('TASK')
+    expect(formData.get('linkedEntityId')).toBe('31')
+    expect(formData.get('uploaderId')).toBe('9')
+    expect(createTaskDeliverableMock).not.toHaveBeenCalled()
+    expect(saved.id).toBe(801)
+    expect(store.currentProject.tasks[0].attachments).toEqual([saved])
+  })
+
   it('uploads task deliverable files as real project documents before creating the task record', async () => {
     const store = useProjectStore()
     store.currentProject = {

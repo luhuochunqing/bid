@@ -292,6 +292,41 @@ export const useProjectStore = defineStore('project', {
       this.taskExtendedFieldsLoaded = false
     },
 
+    async uploadTaskAttachment(projectId, taskId, data = {}) {
+      const file = data.file || null
+      if (!file) {
+        throw new Error('任务附件文件不能为空')
+      }
+      const formData = new FormData()
+      formData.set('file', file)
+      formData.set('name', data.name || file.name || '任务附件')
+      formData.set('size', data.size || formatFileSize(file))
+      formData.set('fileType', data.fileType || file.type || '')
+      formData.set('documentCategory', 'TASK_ATTACHMENT')
+      formData.set('linkedEntityType', 'TASK')
+      formData.set('linkedEntityId', String(taskId))
+      if (data.uploaderId != null) {
+        formData.set('uploaderId', String(data.uploaderId))
+      }
+      if (data.uploaderName) {
+        formData.set('uploaderName', data.uploaderName)
+      }
+      const uploadResult = await projectsApi.uploadDocument(projectId, formData)
+      if (!uploadResult?.success || !uploadResult?.data) {
+        throw new Error(uploadResult?.message || '上传任务附件失败')
+      }
+      const uploadedDocument = uploadResult.data
+      const task = findTaskInProject(this.currentProject, taskId)
+      if (task) {
+        task.attachments = Array.isArray(task.attachments) ? task.attachments : []
+        const exists = task.attachments.some((item) => String(item.id) === String(uploadedDocument.id))
+        if (!exists) {
+          task.attachments.unshift(uploadedDocument)
+        }
+      }
+      return uploadedDocument
+    },
+
     async addDeliverable(projectId, taskId, data = {}) {
       const file = data.file || null
       let uploadedDocument = null
@@ -299,7 +334,7 @@ export const useProjectStore = defineStore('project', {
       if (file) {
         const formData = new FormData()
         formData.set('file', file)
-        formData.set('name', data.name || file.name || '任务附件')
+        formData.set('name', data.name || file.name || '任务交付物')
         formData.set('size', data.size || formatFileSize(file))
         formData.set('fileType', data.fileType || file.type || '')
         formData.set('documentCategory', 'TASK_DELIVERABLE')
@@ -313,13 +348,13 @@ export const useProjectStore = defineStore('project', {
         }
         const uploadResult = await projectsApi.uploadDocument(projectId, formData)
         if (!uploadResult?.success || !uploadResult?.data) {
-          throw new Error(uploadResult?.message || '上传任务附件失败')
+          throw new Error(uploadResult?.message || '上传任务交付物失败')
         }
         uploadedDocument = uploadResult.data
       }
 
       const payload = {
-        name: data.name || uploadedDocument?.name || file?.name || '任务附件',
+        name: data.name || uploadedDocument?.name || file?.name || '任务交付物',
         deliverableType: data.deliverableType || 'DOCUMENT',
         size: uploadedDocument?.size || data.size || (file ? formatFileSize(file) : null),
         fileType: uploadedDocument?.fileType || data.fileType || file?.type || null,

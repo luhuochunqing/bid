@@ -206,6 +206,7 @@ export function taskFormDtoToBackend(form = {}) {
  */
 export function taskBackendToCard(dto = {}) {
   const deliverables = Array.isArray(dto.deliverables) ? dto.deliverables : []
+  const attachments = Array.isArray(dto.attachments) ? dto.attachments : []
   const assigneeName = dto.assigneeName ?? dto.owner ?? dto.assignee ?? ''
   return {
     id: dto.id,
@@ -228,6 +229,7 @@ export function taskBackendToCard(dto = {}) {
     completionNote: dto.completionNote ?? '',
     deliverableFiles: dto.deliverableFiles ?? [],
     extendedFields: dto.extendedFields || {},
+    attachments,
     deliverables,
     hasDeliverable: deliverables.length > 0,
   }

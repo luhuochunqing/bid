@@ -95,40 +95,38 @@ describe('taskAssigneePayload', () => {
   })
 
   describe('uploadTaskAttachments', () => {
-    it('uploads files and updates task deliverables', async () => {
+    it('uploads files and updates task attachments', async () => {
       const saved = { id: 100, name: 'saved.pdf' }
-      const addDeliverable = vi.fn().mockResolvedValue(saved)
-      const projectStore = { addDeliverable }
+      const uploadTaskAttachment = vi.fn().mockResolvedValue(saved)
+      const projectStore = { uploadTaskAttachment }
       const file = new File(['x'], 'x.pdf')
-      const task = { id: 1, deliverables: [] }
+      const task = { id: 1, attachments: [] }
 
       await uploadTaskAttachments(task, [file], { projectStore, projectId: 'p1', userStore: {} })
 
-      expect(addDeliverable).toHaveBeenCalledWith('p1', 1, expect.objectContaining({ name: 'x.pdf' }))
-      expect(task.deliverables).toEqual([saved])
-      expect(task.hasDeliverable).toBe(true)
+      expect(uploadTaskAttachment).toHaveBeenCalledWith('p1', 1, expect.objectContaining({ name: 'x.pdf' }))
+      expect(task.attachments).toEqual([saved])
     })
 
-    it('skips deliverables when addDeliverable returns falsy', async () => {
-      const addDeliverable = vi.fn().mockResolvedValue(null)
-      const projectStore = { addDeliverable }
-      const task = { id: 1, deliverables: [] }
+    it('skips attachments when uploadTaskAttachment returns falsy', async () => {
+      const uploadTaskAttachment = vi.fn().mockResolvedValue(null)
+      const projectStore = { uploadTaskAttachment }
+      const task = { id: 1, attachments: [] }
 
       await uploadTaskAttachments(task, [new File(['x'], 'x.pdf')], { projectStore, projectId: 'p1', userStore: {} })
 
-      expect(task.deliverables).toEqual([])
-      expect(task.hasDeliverable).toBeUndefined()
+      expect(task.attachments).toEqual([])
     })
 
-    it('deduplicates deliverables by id', async () => {
+    it('deduplicates attachments by id', async () => {
       const saved = { id: 100, name: 'new.pdf' }
-      const addDeliverable = vi.fn().mockResolvedValue(saved)
-      const projectStore = { addDeliverable }
-      const task = { id: 1, deliverables: [{ id: 100, name: 'old.pdf' }] }
+      const uploadTaskAttachment = vi.fn().mockResolvedValue(saved)
+      const projectStore = { uploadTaskAttachment }
+      const task = { id: 1, attachments: [{ id: 100, name: 'old.pdf' }] }
 
       await uploadTaskAttachments(task, [new File(['x'], 'x.pdf')], { projectStore, projectId: 'p1', userStore: {} })
 
-      expect(task.deliverables).toEqual([saved])
+      expect(task.attachments).toEqual([saved])
     })
   })
 
@@ -140,8 +138,8 @@ describe('taskAssigneePayload', () => {
     })
 
     it('warns but does not throw when upload fails', async () => {
-      const addDeliverable = vi.fn().mockRejectedValue(new Error('network'))
-      const projectStore = { addDeliverable }
+      const uploadTaskAttachment = vi.fn().mockRejectedValue(new Error('network'))
+      const projectStore = { uploadTaskAttachment }
       const message = { warning: vi.fn() }
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
       const task = { id: 1 }
@@ -162,10 +160,10 @@ describe('taskAssigneePayload', () => {
 
     it('uploads successfully when no error occurs', async () => {
       const saved = { id: 100, name: 'saved.pdf' }
-      const addDeliverable = vi.fn().mockResolvedValue(saved)
-      const projectStore = { addDeliverable }
+      const uploadTaskAttachment = vi.fn().mockResolvedValue(saved)
+      const projectStore = { uploadTaskAttachment }
       const message = { warning: vi.fn() }
-      const task = { id: 1, deliverables: [] }
+      const task = { id: 1, attachments: [] }
 
       await uploadTaskAttachmentsWithFallback(
         task,
@@ -175,7 +173,7 @@ describe('taskAssigneePayload', () => {
         message
       )
 
-      expect(task.deliverables).toEqual([saved])
+      expect(task.attachments).toEqual([saved])
       expect(message.warning).not.toHaveBeenCalled()
     })
   })
