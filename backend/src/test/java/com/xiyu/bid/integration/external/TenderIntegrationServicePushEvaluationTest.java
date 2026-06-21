@@ -7,7 +7,10 @@ import com.xiyu.bid.tender.entity.TenderEvaluationCustomerInfo;
 import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
 import com.xiyu.bid.tender.repository.TenderEvaluationCustomerInfoRepository;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
+import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
+import com.xiyu.bid.tender.dto.EvaluationBasicDTO;
+import com.xiyu.bid.tender.service.TenderEvaluationDocumentService;
 import com.xiyu.bid.tender.service.TenderEvaluationSubmissionMapper;
 import com.xiyu.bid.tender.service.TenderMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -156,6 +159,70 @@ class TenderIntegrationServicePushEvaluationTest {
                 && "CONTACT_INFO".equals(r.getInfoKey()) && "13800138000".equals(r.getCellValue()));
         assertThat(rows).anyMatch(r -> "PROJECT_HIGHEST_DECISION_MAKER".equals(r.getRoleKey())
                 && "INFO_TENDENCY_BASIS".equals(r.getInfoKey()) && "长期合作".equals(r.getCellValue()));
+    }
+
+    @Test
+    @DisplayName("CO-262: pushTender 携带 projectPlanGapFiles 应持久化到 project_documents 表")
+    void pushTender_withProjectPlanGapFiles_shouldPersistGapFiles() {
+        EvaluationBasicDTO.GapFileRef gapRef = new EvaluationBasicDTO.GapFileRef(
+                "测试GAP附件.pdf", "https://example.com/gap.pdf");
+        EvaluationBasicDTO basic = new EvaluationBasicDTO(
+                null, null, null, null, null, null, null,
+                "测试项目计划GAP", null, List.of(gapRef));
+        TenderPushRequest.EvaluationUpdate evaluation = TenderPushRequest.EvaluationUpdate.builder()
+                .evaluationBasic(basic)
+                .build();
+        TenderPushRequest request = buildPushRequest("CRM", "OPP-GAP-001", false, evaluation);
+
+        TenderPushResponse response = commandService.pushTender(request, null);
+
+        assertThat(response.getStatus()).isEqualTo("CREATED");
+        Long tenderId = response.getTenderId();
+
+        List<ProjectDocument> docs = projectDocumentRepository
+                .findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc(
+                        TenderEvaluationDocumentService.ENTITY_TYPE_EVALUATION_GAP, tenderId);
+        assertThat(docs).hasSize(1);
+        assertThat(docs.get(0).getName()).isEqualTo("测试GAP附件.pdf");
+        assertThat(docs.get(0).getFileUrl()).isEqualTo("https://example.com/gap.pdf");
+        assertThat(docs.get(0).getDocumentCategory()).isEqualTo(TenderEvaluationDocumentService.ENTITY_TYPE_EVALUATION_GAP);
+    }
+
+    @Test
+    @DisplayName("CO-262: forceUpdate 推送空 projectPlanGapFiles 应清空已有 GAP 附件")
+    void pushTender_forceUpdateWithEmptyGapFiles_shouldClearExistingGapFiles() {
+        Tender first = new Tender();
+        first.setTitle("原始标讯");
+        first.setExternalId("CRM:OPP-GAP-002");
+        first.setStatus(Tender.Status.PENDING_ASSIGNMENT);
+        first.setSourceType(Tender.SourceType.EXTERNAL_PLATFORM);
+        tenderRepository.save(first);
+
+        EvaluationBasicDTO.GapFileRef gapRef = new EvaluationBasicDTO.GapFileRef(
+                "旧GAP附件.pdf", "https://example.com/old-gap.pdf");
+        EvaluationBasicDTO basicWithFile = new EvaluationBasicDTO(
+                null, null, null, null, null, null, null,
+                "旧GAP", null, List.of(gapRef));
+        TenderPushRequest.EvaluationUpdate firstEvaluation = TenderPushRequest.EvaluationUpdate.builder()
+                .evaluationBasic(basicWithFile)
+                .build();
+        commandService.pushTender(buildPushRequest("CRM", "OPP-GAP-002", true, firstEvaluation), null);
+
+        EvaluationBasicDTO basicEmpty = new EvaluationBasicDTO(
+                null, null, null, null, null, null, null,
+                "已清空", null, List.of());
+        TenderPushRequest.EvaluationUpdate secondEvaluation = TenderPushRequest.EvaluationUpdate.builder()
+                .evaluationBasic(basicEmpty)
+                .build();
+        TenderPushResponse response = commandService.pushTender(
+                buildPushRequest("CRM", "OPP-GAP-002", true, secondEvaluation), null);
+
+        assertThat(response.getStatus()).isEqualTo("UPDATED");
+        Long tenderId = response.getTenderId();
+        List<ProjectDocument> docs = projectDocumentRepository
+                .findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc(
+                        TenderEvaluationDocumentService.ENTITY_TYPE_EVALUATION_GAP, tenderId);
+        assertThat(docs).isEmpty();
     }
 
     @Test
