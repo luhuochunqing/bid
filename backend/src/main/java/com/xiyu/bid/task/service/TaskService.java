@@ -24,7 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -81,13 +83,13 @@ public class TaskService {
                 .extendedFieldsJson(taskDtoMapper.serializeExtendedFields(taskDTO.getExtendedFields()))
                 .build());
         log.info("Task created successfully with id: {}", savedTask.getId());
-        return taskDtoMapper.toDTO(savedTask);
+        return taskDtoMapper.toDTO(savedTask, resolveAssigneeName(savedTask.getAssigneeId()));
     }
 
     @Transactional(readOnly = true)
     public List<TaskDTO> getAllTasks() {
         log.debug("Fetching all tasks");
-        return taskDtoMapper.toDTOs(visibleTasks(taskRepository.findAll()));
+        return toDTOsWithNames(visibleTasks(taskRepository.findAll()));
     }
 
     @Transactional(readOnly = true)
@@ -95,7 +97,7 @@ public class TaskService {
         log.debug("Fetching task by id: {}", id);
         Task task = findTask(id);
         assertCanAccessProject(task.getProjectId());
-        return taskDtoMapper.toDTO(task);
+        return taskDtoMapper.toDTO(task, resolveAssigneeName(task.getAssigneeId()));
     }
 
     @Transactional
@@ -135,7 +137,7 @@ public class TaskService {
         }
         Task saved = taskRepository.save(task);
         taskHistoryRecorder.recordUpdate(before, saved, actorUsername);
-        return taskDtoMapper.toDTO(saved);
+        return taskDtoMapper.toDTO(saved, resolveAssigneeName(saved.getAssigneeId()));
     }
 
     @Transactional
@@ -151,13 +153,13 @@ public class TaskService {
     public List<TaskDTO> getTasksByProjectId(Long projectId) {
         log.debug("Fetching tasks for project: {}", projectId);
         assertCanAccessProject(projectId);
-        return taskDtoMapper.toDTOs(taskRepository.findByProjectId(projectId));
+        return toDTOsWithNames(taskRepository.findByProjectId(projectId));
     }
 
     @Transactional(readOnly = true)
     public List<TaskDTO> getTasksByAssigneeId(Long assigneeId) {
         log.debug("Fetching tasks for assignee: {}", assigneeId);
-        return taskDtoMapper.toDTOs(visibleTasks(taskRepository.findByAssigneeId(assigneeId)));
+        return toDTOsWithNames(visibleTasks(taskRepository.findByAssigneeId(assigneeId)));
     }
 
     @Transactional(readOnly = true)
@@ -174,7 +176,7 @@ public class TaskService {
     @Transactional(readOnly = true)
     public List<TaskDTO> getTasksByStatus(Task.Status status) {
         log.debug("Fetching tasks with status: {}", status);
-        return taskDtoMapper.toDTOs(visibleTasks(taskRepository.findByStatus(status)));
+        return toDTOsWithNames(visibleTasks(taskRepository.findByStatus(status)));
     }
 
     @Transactional
@@ -191,7 +193,7 @@ public class TaskService {
         task.setStatus(status);
         Task saved = taskRepository.save(task);
         taskHistoryRecorder.recordUpdate(before, saved, actorUsername);
-        return taskDtoMapper.toDTO(saved);
+        return taskDtoMapper.toDTO(saved, resolveAssigneeName(saved.getAssigneeId()));
     }
 
     @Transactional
@@ -210,7 +212,7 @@ public class TaskService {
             notificationService.notifyTaskAssigned(task.getProjectId(), request.getAssigneeId(), currentUser.getId());
         }
 
-        return taskDtoMapper.toDTO(saved);
+        return taskDtoMapper.toDTO(saved, resolveAssigneeName(saved.getAssigneeId()));
     }
 
     @Transactional(readOnly = true)
@@ -226,13 +228,13 @@ public class TaskService {
     @Transactional(readOnly = true)
     public List<TaskDTO> getUpcomingTasks(LocalDateTime beforeDate) {
         log.debug("Fetching tasks due before: {}", beforeDate);
-        return taskDtoMapper.toDTOs(visibleTasks(taskRepository.findByDueDateBefore(beforeDate)));
+        return toDTOsWithNames(visibleTasks(taskRepository.findByDueDateBefore(beforeDate)));
     }
 
     @Transactional(readOnly = true)
     public List<TaskDTO> getOverdueTasks() {
         log.debug("Fetching overdue tasks");
-        return taskDtoMapper.toDTOs(visibleTasks(taskRepository.findByDueDateBeforeAndStatusNot(LocalDateTime.now(), Task.Status.COMPLETED)));
+        return toDTOsWithNames(visibleTasks(taskRepository.findByDueDateBeforeAndStatusNot(LocalDateTime.now(), Task.Status.COMPLETED)));
     }
 
     public Long countProjectTasks(Long projectId) {
@@ -285,5 +287,14 @@ public class TaskService {
 
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+    private List<TaskDTO> toDTOsWithNames(List<Task> tasks) {
+        var names = userRepository.findAllById(tasks.stream().map(Task::getAssigneeId).filter(Objects::nonNull).collect(Collectors.toSet()))
+                .stream().filter(u -> u.getFullName() != null && !u.getFullName().isBlank()).collect(Collectors.toMap(User::getId, User::getFullName, (a, b) -> a));
+        return taskDtoMapper.toDTOs(tasks, names);
+    }
+    private String resolveAssigneeName(Long userId) {
+        if (userId == null) return null;
+        return userRepository.findById(userId).map(User::getFullName).filter(n -> n != null && !n.isBlank()).orElse(null);
     }
 }

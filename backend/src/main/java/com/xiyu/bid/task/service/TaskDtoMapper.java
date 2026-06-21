@@ -7,8 +7,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.entity.Task;
-import com.xiyu.bid.entity.User;
-import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.task.dto.TaskDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,18 +24,24 @@ public class TaskDtoMapper {
             new TypeReference<>() {};
 
     private final ObjectMapper objectMapper;
-    private final UserRepository userRepository;
 
-    public TaskDtoMapper(ObjectMapper objectMapper, UserRepository userRepository) {
+    public TaskDtoMapper(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
-        this.userRepository = userRepository;
     }
 
     public List<TaskDTO> toDTOs(List<Task> tasks) {
         return tasks.stream().map(this::toDTO).toList();
     }
 
+    public List<TaskDTO> toDTOs(List<Task> tasks, Map<Long, String> assigneeNames) {
+        return tasks.stream().map(t -> toDTO(t, assigneeNames.get(t.getAssigneeId()))).toList();
+    }
+
     public TaskDTO toDTO(Task task) {
+        return toDTO(task, null);
+    }
+
+    public TaskDTO toDTO(Task task, String assigneeName) {
         return TaskDTO.builder()
                 .id(task.getId())
                 .projectId(task.getProjectId())
@@ -45,7 +49,7 @@ public class TaskDtoMapper {
                 .description(task.getDescription())
                 .content(task.getContent())
                 .assigneeId(task.getAssigneeId())
-                .assigneeName(resolveDisplayName(task.getAssigneeId()))
+                .assigneeName(assigneeName)
                 .assigneeDeptCode(task.getAssigneeDeptCode())
                 .assigneeDeptName(task.getAssigneeDeptName())
                 .assigneeRoleCode(task.getAssigneeRoleCode())
@@ -81,15 +85,5 @@ public class TaskDtoMapper {
             log.warn("Failed to parse extendedFieldsJson for task {}: {}", task.getId(), e.getMessage());
             return Collections.emptyMap();
         }
-    }
-
-    private String resolveDisplayName(Long userId) {
-        if (userId == null) {
-            return null;
-        }
-        return userRepository.findById(userId)
-                .map(User::getFullName)
-                .filter(name -> name != null && !name.isBlank())
-                .orElse(null);
     }
 }
