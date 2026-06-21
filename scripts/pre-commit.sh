@@ -9,6 +9,10 @@
 #   1. Blueprint gap table exists for §4.x.x touched files
 #   2. New Vue/JS files >200 lines warn about line-budget
 #   3. Placeholder anti-patterns (fake success messages)
+#   4. Vue template tag balance (warning only)
+#   5. Dead role/permission references (warning only)
+#   6. Composable ref/raw input convention (warning only)
+#   7. Backend core policy CR enforcement (warning only)
 
 set -euo pipefail
 
@@ -72,6 +76,26 @@ if [[ -n "$FAKE_SUCCESS" ]]; then
   echo "   This is a warning only — not blocking commit"
 fi
 echo "   ✅ Placeholder gate passed"
+
+# ── Gate 4: Vue template tag balance ─────────────────────────────────────────
+echo "🔍 [gate-4/7] Checking Vue template tag balance..."
+node "${SCRIPTS_DIR}/check-vue-template-balance.mjs" --staged || true
+echo "   ✅ Vue template balance gate passed (warnings only)"
+
+# ── Gate 5: Dead role/permission references ──────────────────────────────────
+echo "🔍 [gate-5/7] Checking for dead role/permission references..."
+node "${SCRIPTS_DIR}/check-dead-roles.mjs" --staged || true
+echo "   ✅ Dead role gate passed (warnings only)"
+
+# ── Gate 6: Composable ref/raw input convention ──────────────────────────────
+echo "🔍 [gate-6/7] Checking composable ref/raw input convention..."
+node "${SCRIPTS_DIR}/check-composable-unpack.mjs" --staged || true
+echo "   ✅ Composable input convention gate passed (warnings only)"
+
+# ── Gate 7: Backend core policy CR enforcement ───────────────────────────────
+echo "🔍 [gate-7/7] Checking backend core policy CR enforcement..."
+node "${SCRIPTS_DIR}/check-core-policy-cr.mjs" --staged || true
+echo "   ✅ Core policy CR gate passed (warnings only)"
 
 echo ""
 echo "✅ All pre-commit gates passed"

@@ -1,5 +1,6 @@
 package com.xiyu.bid.projectworkflow.service;
 
+import com.xiyu.bid.projectworkflow.core.ProjectDocumentWorkflowPolicy;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentCreateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
@@ -74,22 +75,26 @@ class ProjectDocumentWorkflowService {
     void deleteProjectDocument(Long projectId, Long documentId) {
         guardService.requireWorkflowMutationProject(projectId);
 
-        // 校验删除权限：仅系统管理员 (admin) 和投标部门管理员 (bid_admin) 允许删除文档
-        org.springframework.security.core.Authentication authentication = 
-                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.isAuthenticated()) {
-            com.xiyu.bid.entity.User user = userRepository.findByUsername(authentication.getName())
-                    .orElseThrow(() -> new org.springframework.security.access.AccessDeniedException("当前用户不存在或不可用"));
-            String roleCode = user.getRoleCode();
-            if (!com.xiyu.bid.entity.RoleProfileCatalog.ADMIN_CODE.equalsIgnoreCase(roleCode) && 
-                !com.xiyu.bid.entity.RoleProfileCatalog.BID_ADMIN_CODE.equalsIgnoreCase(roleCode)) {
-                throw new org.springframework.security.access.AccessDeniedException("权限不足，仅管理员允许删除文档");
-            }
+        String roleCode = resolveCurrentRoleCode();
+        ProjectDocumentWorkflowPolicy.Decision decision = ProjectDocumentWorkflowPolicy.canDeleteProjectDocument(roleCode);
+        if (!decision.allowed()) {
+            throw new org.springframework.security.access.AccessDeniedException(decision.reason());
         }
 
         ProjectDocument document = guardService.requireDocument(projectId, documentId);
         projectDocumentRepository.delete(document);
         projectDocumentBindingGateway.onDocumentDeleted(document);
+    }
+
+    private String resolveCurrentRoleCode() {
+        org.springframework.security.core.Authentication auth =
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return null;
+        }
+        return userRepository.findByUsername(auth.getName())
+                .map(com.xiyu.bid.entity.User::getRoleCode)
+                .orElse(null);
     }
 
     private com.xiyu.bid.entity.User getCurrentUser() {

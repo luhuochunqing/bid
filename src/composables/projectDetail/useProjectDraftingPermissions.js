@@ -32,6 +32,7 @@
 
 import { computed } from 'vue'
 import { useUserStore } from '@/stores/user'
+import { resolveOpt } from '@/utils/resolveOpt.js'
 
 /**
  * 角色分组：按权限矩阵列合并
@@ -40,14 +41,6 @@ function resolveDraftingRoleGroup(role) {
   if (role === 'admin' || role === 'bid_admin' || role === 'bid_lead') return 'admin_lead'
   if (role === 'sales' || role === 'bid_specialist') return 'lead_assist'  // 投标负责人 / 辅助人
   return null
-}
-
-/**
- * 解包 opts 中的值：兼容 ref/computed（.value）与原始值
- * 避免调用方误传 ref 对象导致 String(ref) === "[object Object]"
- */
-function resolveOpt(v) {
-  return v != null && typeof v === 'object' && 'value' in v ? v.value : v
 }
 
 export function useProjectDraftingPermissions(opts = {}) {

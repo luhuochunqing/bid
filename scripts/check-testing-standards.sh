@@ -47,16 +47,46 @@ STAGED_FRONTEND_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep 
 
 if [ -n "$STAGED_FRONTEND_FILES" ]; then
   echo "testing-gate: detected staged frontend files, running vitest..."
-  # --changed 只跑与本次 staged 改动相关的测试，避免全量 170+ 测试拖垮系统
   # Skip if SKIP_TESTING_GATE=1 (worktree environment without full node_modules)
-  if [ "${SKIP_TESTING_GATE:-0}" != "1" ]; then
-    if git rev-parse HEAD >/dev/null 2>&1; then
+  if [ "${SKIP_TESTING_GATE:-0}" == "1" ]; then
+    echo "testing-gate: SKIP_TESTING_GATE=1, skipping vitest."
+  else
+    # 策略：优先只跑与 staged 文件直接对应的 spec/test，避免 vitest --changed HEAD
+    # 在遇到新文件时回退为全量 213 个测试（>30s），进而触发 session-gate 中途 auto-stash
+    # 导致新 spec 文件被删除、vitest 报 "Failed to load url" 的问题。
+    # 只有当找不到对应测试时才回退到 --changed HEAD。
+    TARGETED_TESTS=""
+    for file in $STAGED_FRONTEND_FILES; do
+      dir=$(dirname "$file")
+      base=$(basename "$file")
+      name="${base%.*}"
+      for ext in spec.js spec.ts test.js; do
+        if [ -f "${dir}/${name}.${ext}" ]; then
+          TARGETED_TESTS="$TARGETED_TESTS ${dir}/${name}.${ext}"
+          break
+        fi
+      done
+    done
+
+    # 新添加的测试文件也显式加入，避免 --changed HEAD 把它们当成“无历史”而跑全量
+    NEW_TEST_FILES=$(git diff --cached --name-only --diff-filter=A | grep -E '^src/.*\.(spec|test)\.(js|ts)$' || true)
+    if [ -n "$NEW_TEST_FILES" ]; then
+      TARGETED_TESTS="$TARGETED_TESTS $NEW_TEST_FILES"
+    fi
+
+    # 去重
+    TARGETED_TESTS=$(echo "$TARGETED_TESTS" | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/^ *//;s/ *$//')
+
+    if [ -n "$TARGETED_TESTS" ]; then
+      echo "testing-gate: running targeted tests: $TARGETED_TESTS"
+      npx vitest run $TARGETED_TESTS
+    elif git rev-parse HEAD >/dev/null 2>&1; then
+      echo "testing-gate: no targeted tests, falling back to --changed HEAD"
       npx vitest run --changed HEAD
     else
+      echo "testing-gate: no targeted tests and no HEAD, running full suite"
       npx vitest run
     fi
-  else
-    echo "testing-gate: SKIP_TESTING_GATE=1, skipping vitest."
   fi
 fi
 

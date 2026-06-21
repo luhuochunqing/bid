@@ -89,6 +89,31 @@ else
   fail "token-governance"
 fi
 
+# Warning-only governance checks (CO-290 recurrence prevention)
+if npm run check:vue-template-balance --silent 2>/dev/null; then
+  pass "vue-template-balance"
+else
+  warn "vue-template-balance — 详见上方输出"
+fi
+
+if npm run check:dead-roles --silent 2>/dev/null; then
+  pass "dead-roles"
+else
+  warn "dead-roles — 详见上方输出"
+fi
+
+if npm run check:composable-unpack --silent 2>/dev/null; then
+  pass "composable-unpack"
+else
+  warn "composable-unpack — 详见上方输出"
+fi
+
+if npm run check:core-policy-cr --silent 2>/dev/null; then
+  pass "core-policy-cr"
+else
+  warn "core-policy-cr — 详见上方输出"
+fi
+
 # ── Phase 2: Frontend contract tests + unit tests + build ──
 section "前端契约测试 + 单元测试 + 构建"
 if npm run test:agent-start-task-contract --silent 2>/dev/null; then
