@@ -271,7 +271,7 @@ class DocInsightControllerTest {
         mockMvc.perform(get("/api/doc-insight/download").param("fileUrl", fileUrl))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Disposition",
-                        "attachment; filename=\"test.pdf\""))
+                        "attachment; filename=\"test.pdf\"; filename*=UTF-8''test.pdf"))
                 .andExpect(content().contentType("application/pdf"));
     }
 
@@ -368,6 +368,23 @@ class DocInsightControllerTest {
                         throw new AssertionError("外部 URL 应返回 404 或 502，实际: " + status);
                     }
                 });
+    }
+
+    @Test
+    @DisplayName("GET /download doc-insight:// 中文文件名返回正确的 Content-Disposition")
+    void download_chineseFilename_returnsCorrectContentDisposition() throws Exception {
+        // 准备中文文件名的本地文件
+        Path file = tempUploadDir.resolve("TENDER_INTAKE").resolve("abc123-招标公告及要求.pdf");
+        Files.createDirectories(file.getParent());
+        Files.write(file, "test content".getBytes());
+
+        String fileUrl = "doc-insight://TENDER_INTAKE/abc123-招标公告及要求.pdf";
+
+        mockMvc.perform(get("/api/doc-insight/download").param("fileUrl", fileUrl))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition",
+                        "attachment; filename=\"招标公告及要求.pdf\"; filename*=UTF-8''%E6%8B%9B%E6%A0%87%E5%85%AC%E5%91%8A%E5%8F%8A%E8%A6%81%E6%B1%82.pdf"))
+                .andExpect(content().contentType("application/pdf"));
     }
 
     @Test

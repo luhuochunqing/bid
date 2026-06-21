@@ -1,7 +1,6 @@
 // Input: HTTP multipart/form-data 上传请求（profile, entityId, file）；parse-existing 请求（profile, entityId, storagePath, fileName, contentType）；下载请求（fileUrl）
 // Output: DocumentAnalysisResult / StoredDocument 包装在 ApiResponse；文件下载流；边界校验（大小、类型、参数格式、项目访问范围）
 // Pos: docinsight/controller — 文档智能分析 REST 入口
-// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.docinsight.controller;
 
 import com.xiyu.bid.dto.ApiResponse;
@@ -29,6 +28,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
@@ -169,7 +170,8 @@ public class DocInsightController {
         }
         HttpHeaders headers = new HttpHeaders();
         headers.add(HttpHeaders.CONTENT_DISPOSITION,
-                "attachment; filename=\"" + sanitizeFilename(displayName) + "\"");
+                "attachment; filename=\"" + sanitizeFilename(displayName) + "\"; "
+                + "filename*=UTF-8''" + URLEncoder.encode(sanitizeFilename(displayName), StandardCharsets.UTF_8));
         headers.setContentType(MediaType.parseMediaType(inferContentType(displayName)));
         headers.setContentLength(fileSize);
         return new ResponseEntity<>(new FileSystemResource(targetPath), headers, HttpStatus.OK);
@@ -196,7 +198,8 @@ public class DocInsightController {
         }
         HttpHeaders headers = new HttpHeaders();
         headers.add(HttpHeaders.CONTENT_DISPOSITION,
-                "attachment; filename=\"" + sanitizeFilename(displayName) + "\"");
+                "attachment; filename=\"" + sanitizeFilename(displayName) + "\"; "
+                + "filename*=UTF-8''" + URLEncoder.encode(sanitizeFilename(displayName), StandardCharsets.UTF_8));
         headers.setContentType(MediaType.parseMediaType(inferContentType(displayName)));
         if (fileSize > 0) {
             headers.setContentLength(fileSize);
