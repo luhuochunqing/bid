@@ -60,7 +60,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { REGION_OPTIONS, SOURCE_KEYWORD_OPTIONS, SOURCE_PLATFORM_OPTIONS } from '../constants.js'
+import { EXTERNAL_PLATFORM_SOURCE_LABEL, REGION_OPTIONS, SOURCE_KEYWORD_OPTIONS, SOURCE_PLATFORM_OPTIONS } from '../constants.js'
 
 const modelValue = defineModel({ type: Boolean, default: false })
 const sourceConfig = defineModel('sourceConfig', { type: Object, required: true })
@@ -76,7 +76,7 @@ defineEmits(['save', 'test'])
 
 const canTestConnection = computed(() => {
   const config = sourceConfig.value
-  const hasThirdParty = config.platforms?.includes('第三方商机服务')
+  const hasThirdParty = config.platforms?.includes(EXTERNAL_PLATFORM_SOURCE_LABEL)
   const hasEndpoint = config.apiEndpoint && config.apiEndpoint.trim().length > 0
   const hasKey = config.apiKey && config.apiKey.trim().length > 0
   return hasThirdParty && hasEndpoint && hasKey

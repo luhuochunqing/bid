@@ -6,6 +6,7 @@ import {
   PROJECT_TYPE_OPTIONS,
   PRIORITY_OPTIONS,
   MANUAL_FORM_RULES,
+  MANUAL_SOURCE_LABEL,
 } from '../constants.js'
 
 export function useTenderCreateForm() {
@@ -89,7 +90,7 @@ function createForm() {
   return {
     title: '', purchaser: '', region: '', deadline: null, bidOpeningTime: null,
     customerType: '', priority: '', projectType: '',
-    sourcePlatform: '人工录入',
+    sourcePlatform: MANUAL_SOURCE_LABEL,
     contact: '', phone: '', landline: '', mail: '',
     contact2: '', phone2: '', landline2: '', mail2: '',
     description: '', tenderInfo: '', attachments: [],
@@ -107,7 +108,7 @@ function mapTenderToForm(tender) {
     customerType: tender.customerType || '',
     priority: tender.priority || '',
     projectType: tender.projectType || '',
-    sourcePlatform: tender.source || '人工录入',
+    sourcePlatform: tender.source || MANUAL_SOURCE_LABEL,
     contact: tender.contactName || '', phone: tender.contactPhone || '',
     landline: tender.contactTel || '', mail: tender.contactMail || '',
     contact2: tender.contactName2 || '', phone2: tender.contactPhone2 || '',

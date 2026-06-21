@@ -5,7 +5,7 @@
 
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { DEFAULT_FETCH_RESULT, DEFAULT_SOURCE_CONFIG } from './constants.js'
+import { DEFAULT_FETCH_RESULT, DEFAULT_SOURCE_CONFIG, EXTERNAL_PLATFORM_SOURCE_LABEL } from './constants.js'
 import {
   summarizeExternalSyncResult,
 } from './helpers.js'
@@ -103,8 +103,8 @@ export function useTenderSourceConfig({
       return false
     }
 
-    if (!sourceConfig.value.platforms.includes('第三方商机服务')) {
-      ElMessage.warning('仅支持测试「第三方商机服务」平台的连接')
+    if (!sourceConfig.value.platforms.includes(EXTERNAL_PLATFORM_SOURCE_LABEL)) {
+      ElMessage.warning(`仅支持测试「${EXTERNAL_PLATFORM_SOURCE_LABEL}」平台的连接`)
       return false
     }
 
@@ -116,7 +116,7 @@ export function useTenderSourceConfig({
     testingConnection.value = true
     try {
       const response = await tenderSourcesApi.testConnection({
-        platform: '第三方商机服务',
+        platform: EXTERNAL_PLATFORM_SOURCE_LABEL,
         apiEndpoint: sourceConfig.value.apiEndpoint,
         apiKey: sourceConfig.value.apiKey,
       })

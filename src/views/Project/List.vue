@@ -158,6 +158,12 @@ import { ElMessage } from 'element-plus'
 import ProjectSearchCard from './components/ProjectSearchCard.vue'
 import { getProjectStatusText, getProjectStatusType } from './project-utils.js'
 import { formatDate, priorityTag, priorityLabel, stageText, sourceText } from './utils/projectListFormatters.js'
+import {
+  CRM_SOURCE_LABEL,
+  EXTERNAL_PLATFORM_SOURCE_LABEL,
+  LEGACY_CRM_SOURCE_LABEL,
+  MANUAL_SOURCE_LABEL,
+} from '@/utils/sourceLabels.js'
 import { evalSubStageText, evalSubStageTag } from './utils/evalSubStageUtils.js'
 import { useProjectSearch } from './composables/useProjectSearch.js'
 import { useProjectFilter } from './composables/useProjectFilter.js'
@@ -314,9 +320,10 @@ function sourceTagType(source) {
     MANUAL_SINGLE: 'warning',
     BULK_IMPORT: 'warning',
     // 中文标签（@JsonValue 输出，fallback 为空字符串故需显式列出）
-    '第三方平台': 'warning',
-    'CRM 创建': 'success',
-    '人工录入': 'warning',
+    [EXTERNAL_PLATFORM_SOURCE_LABEL]: 'warning',
+    [CRM_SOURCE_LABEL]: 'success',
+    [LEGACY_CRM_SOURCE_LABEL]: 'success',
+    [MANUAL_SOURCE_LABEL]: 'warning',
     '批量导入': 'warning',
   }
   return map[source] || ''

@@ -3,6 +3,7 @@
 // Pos: src/views/Bidding/ - Bidding module utilities
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
+import { CRM_SOURCE_LABEL, EXTERNAL_PLATFORM_SOURCE_LABEL, MANUAL_SOURCE_LABEL } from '@/utils/sourceLabels.js'
 import {
   getTenderStatusText,
   toBackendTenderStatus,
@@ -21,7 +22,7 @@ export function normalizeTenderStatus(backendStatus) {
 export function normalizeTenderForCreate(formData) {
   return {
     title: formData.title || '',
-    source: formData.source || '人工录入',
+    source: formData.source || MANUAL_SOURCE_LABEL,
     budget: formData.budget != null ? Number(formData.budget) : 0,
     deadline: formData.deadline || null,
     status: 'PENDING_ASSIGNMENT',
@@ -279,11 +280,11 @@ export function toBackendStatus(frontendStatus) {
  */
 export function getSourceTypeText(sourceType) {
   const map = {
-    EXTERNAL_PLATFORM: '第三方平台',
-    CRM_OPPORTUNITY: 'CRM 创建',
-    MANUAL_SINGLE: '人工录入',
-    BULK_IMPORT: '人工录入',
-    MANUAL: '人工录入',
+    EXTERNAL_PLATFORM: EXTERNAL_PLATFORM_SOURCE_LABEL,
+    CRM_OPPORTUNITY: CRM_SOURCE_LABEL,
+    MANUAL_SINGLE: MANUAL_SOURCE_LABEL,
+    BULK_IMPORT: MANUAL_SOURCE_LABEL,
+    MANUAL: MANUAL_SOURCE_LABEL,
     EXTERNAL: '外部获取',
   }
   return map[sourceType] || sourceType || '未知'

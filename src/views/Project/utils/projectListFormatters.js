@@ -1,6 +1,12 @@
 /**
  * Formatters for project list display.
  */
+import {
+  CRM_SOURCE_LABEL,
+  EXTERNAL_PLATFORM_SOURCE_LABEL,
+  LEGACY_CRM_SOURCE_LABEL,
+  MANUAL_SOURCE_LABEL,
+} from '@/utils/sourceLabels.js'
 
 export function formatDate(d) {
   if (!d) return '-'
@@ -45,10 +51,15 @@ export function stageText(stage) {
 export function sourceText(source) {
   const map = {
     // 历史数据兼容：旧版写入的英文枚举名仍按 Tender.SourceType 中文 label 显示
-    CRM_OPPORTUNITY: 'CRM 创建',
-    EXTERNAL_PLATFORM: '第三方平台',
-    MANUAL_SINGLE: '人工录入',
-    BULK_IMPORT: '人工录入',
+    CRM_OPPORTUNITY: CRM_SOURCE_LABEL,
+    EXTERNAL_PLATFORM: EXTERNAL_PLATFORM_SOURCE_LABEL,
+    MANUAL_SINGLE: MANUAL_SOURCE_LABEL,
+    BULK_IMPORT: MANUAL_SOURCE_LABEL,
+    // 历史中文标签兼容：旧 CRM 空格标签展示为当前标准标签
+    [LEGACY_CRM_SOURCE_LABEL]: CRM_SOURCE_LABEL,
+    [CRM_SOURCE_LABEL]: CRM_SOURCE_LABEL,
+    [EXTERNAL_PLATFORM_SOURCE_LABEL]: EXTERNAL_PLATFORM_SOURCE_LABEL,
+    [MANUAL_SOURCE_LABEL]: MANUAL_SOURCE_LABEL,
   }
   return map[source] || source || '-'
 }

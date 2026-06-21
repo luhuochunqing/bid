@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import source from './TenderSearchCard.vue?raw'
+import { SOURCE_FILTER_OPTIONS } from '../constants.js'
+
+describe('TenderSearchCard source filters', () => {
+  it('uses backend source values for the source platform filter', () => {
+    expect(SOURCE_FILTER_OPTIONS).toEqual(['人工录入', 'CRM创建', '第三方平台'])
+    expect(SOURCE_FILTER_OPTIONS).not.toContain('CRM商机转入')
+    expect(SOURCE_FILTER_OPTIONS).not.toContain('第三方标讯平台名称')
+    expect(SOURCE_FILTER_OPTIONS).not.toContain('CRM 创建')
+  })
+})
 
 describe('TenderSearchCard focus styles', () => {
   it('keeps search inputs full width and avoids primary blue select accents', () => {

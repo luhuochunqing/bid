@@ -35,7 +35,7 @@ describe('useDetailTabs', () => {
 
   it('所有来源类型均显示全部 Tab', async () => {
     const wrapper = mount(createHarness(tenderRef))
-    for (const sourceType of ['MANUAL_SINGLE', '人工录入', 'EXTERNAL_PLATFORM', '第三方平台', 'CRM_OPPORTUNITY', 'CRM 创建', 'BULK_IMPORT', '批量导入']) {
+    for (const sourceType of ['MANUAL_SINGLE', '人工录入', 'EXTERNAL_PLATFORM', '第三方平台', 'CRM_OPPORTUNITY', 'CRM创建', 'BULK_IMPORT', '批量导入']) {
       tenderRef.value = { sourceType }
       await wrapper.vm.$nextTick()
       expect(wrapper.vm.visibleTabs).toHaveLength(3)

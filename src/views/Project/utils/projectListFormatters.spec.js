@@ -6,9 +6,9 @@ import { sourceText } from './projectListFormatters.js'
 
 describe('sourceText (CO-286: 与标讯中心来源平台列显示一致)', () => {
   it.each([
-    // 改动 1 后，新写入的 project.sourceModule 是 Tender.SourceType 中文 label —— 透传显示
+    // 新写入的 project.sourceModule 是 Tender.SourceType 中文 label —— 透传/归一显示
     ['人工录入', '人工录入'],
-    ['CRM 创建', 'CRM 创建'],
+    ['CRM创建', 'CRM创建'],
     ['第三方平台', '第三方平台'],
   ])('passes through Tender.SourceType 中文 label "%s" as-is', (input, expected) => {
     expect(sourceText(input)).toBe(expected)
@@ -17,11 +17,15 @@ describe('sourceText (CO-286: 与标讯中心来源平台列显示一致)', () =
   it.each([
     // 历史数据兼容：旧版 ProjectTenderPopulator 写入的是英文枚举名，应显示为对应中文 label
     ['EXTERNAL_PLATFORM', '第三方平台'],
-    ['CRM_OPPORTUNITY', 'CRM 创建'],
+    ['CRM_OPPORTUNITY', 'CRM创建'],
     ['MANUAL_SINGLE', '人工录入'],
     ['BULK_IMPORT', '人工录入'],
   ])('maps historical enum name "%s" to localized label "%s"', (input, expected) => {
     expect(sourceText(input)).toBe(expected)
+  })
+
+  it('normalizes legacy spaced CRM source label for project list display', () => {
+    expect(sourceText('CRM 创建')).toBe('CRM创建')
   })
 
   it('falls back to raw string for unknown values (e.g. 真实平台名"建工招采")', () => {

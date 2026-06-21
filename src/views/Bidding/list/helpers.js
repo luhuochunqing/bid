@@ -4,7 +4,13 @@
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 import { hasAnyPermission } from '@/utils/permission'
-import { DEFAULT_SOURCE_CONFIG } from './constants.js'
+import {
+  CRM_SOURCE_LABEL,
+  DEFAULT_SOURCE_CONFIG,
+  EXTERNAL_PLATFORM_SOURCE_LABEL,
+  LEGACY_CRM_SOURCE_LABEL,
+  MANUAL_SOURCE_LABEL,
+} from './constants.js'
 import { formatDisplayName } from '@/utils/formatDisplayName.js'
 import {
   formatBudgetWan as formatBudgetWanValue,
@@ -130,7 +136,7 @@ export function buildManualTenderPayload(form = {}) {
     projectType: form.projectType || null,
     deadline: formattedDeadline,
     publishDate: formatLocalDate(),
-    source: '人工录入',
+    source: MANUAL_SOURCE_LABEL,
     contactName: form.contact || null,
     contactPhone: form.phone || null,
     contactTel: form.landline || null,
@@ -169,9 +175,10 @@ export function getSourceTagType(source) {
     manual: 'warning',
     crm: 'primary',
     bulk: 'warning',
-    '第三方平台': 'success',
-    'CRM 创建': 'primary',
-    '人工录入': 'warning',
+    [EXTERNAL_PLATFORM_SOURCE_LABEL]: 'success',
+    [CRM_SOURCE_LABEL]: 'primary',
+    [LEGACY_CRM_SOURCE_LABEL]: 'primary',
+    [MANUAL_SOURCE_LABEL]: 'warning',
     '批量导入': 'warning',
   }
   return map[source] || 'info'
@@ -186,12 +193,13 @@ export function getSourceTagType(source) {
  */
 export function getSourceText(source) {
   const map = {
-    external: '第三方平台',
-    manual: '人工录入',
-    crm: 'CRM 创建',
-    bulk: '人工录入',
+    external: EXTERNAL_PLATFORM_SOURCE_LABEL,
+    manual: MANUAL_SOURCE_LABEL,
+    crm: CRM_SOURCE_LABEL,
+    bulk: MANUAL_SOURCE_LABEL,
+    [LEGACY_CRM_SOURCE_LABEL]: CRM_SOURCE_LABEL,
     // 向后兼容：数据库中 source 字段仍为旧标签"批量导入"的历史数据
-    '批量导入': '人工录入',
+    '批量导入': MANUAL_SOURCE_LABEL,
   }
   return map[source] || source || '未知'
 }
@@ -211,9 +219,9 @@ export function getSourceTypeTagType(sourceType) {
     BULK_IMPORT: 'warning',
     MANUAL: 'warning',
     EXTERNAL: 'success',
-    '第三方平台': 'success',
-    'CRM 创建': 'primary',
-    '人工录入': 'warning',
+    [EXTERNAL_PLATFORM_SOURCE_LABEL]: 'success',
+    [CRM_SOURCE_LABEL]: 'primary',
+    [MANUAL_SOURCE_LABEL]: 'warning',
     '批量导入': 'warning',
   }
   return map[sourceType] || 'info'

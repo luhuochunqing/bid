@@ -23,6 +23,60 @@ class TenderRepositorySearchTest {
     private TenderRepository tenderRepository;
 
     @Test
+    @DisplayName("标讯检索 - 来源筛选 CRM创建 兼容旧空格标签")
+    void searchTenders_CrmSourceFilterMatchesLegacySpacedLabel() {
+        Tender legacyCrmTender = Tender.builder()
+                .title("CRM 历史商机标讯")
+                .source("CRM 创建")
+                .status(Tender.Status.PENDING_ASSIGNMENT)
+                .build();
+        Tender externalTender = Tender.builder()
+                .title("第三方平台标讯")
+                .source("第三方平台")
+                .status(Tender.Status.PENDING_ASSIGNMENT)
+                .build();
+
+        tenderRepository.saveAll(List.of(legacyCrmTender, externalTender));
+
+        TenderSearchCriteria criteria = TenderSearchCriteria.builder()
+                .source(List.of("CRM创建"))
+                .build();
+
+        List<Tender> result = tenderRepository.findAll(TenderSpecification.byCriteria(criteria));
+
+        assertThat(result)
+                .extracting(Tender::getTitle)
+                .containsExactly("CRM 历史商机标讯");
+    }
+
+    @Test
+    @DisplayName("标讯检索 - 来源筛选旧空格标签兼容 CRM创建")
+    void searchTenders_LegacyCrmSourceFilterMatchesCurrentLabel() {
+        Tender currentCrmTender = Tender.builder()
+                .title("CRM 新标签商机标讯")
+                .source("CRM创建")
+                .status(Tender.Status.PENDING_ASSIGNMENT)
+                .build();
+        Tender externalTender = Tender.builder()
+                .title("第三方平台标讯")
+                .source("第三方平台")
+                .status(Tender.Status.PENDING_ASSIGNMENT)
+                .build();
+
+        tenderRepository.saveAll(List.of(currentCrmTender, externalTender));
+
+        TenderSearchCriteria criteria = TenderSearchCriteria.builder()
+                .source(List.of("CRM 创建"))
+                .build();
+
+        List<Tender> result = tenderRepository.findAll(TenderSpecification.byCriteria(criteria));
+
+        assertThat(result)
+                .extracting(Tender::getTitle)
+                .containsExactly("CRM 新标签商机标讯");
+    }
+
+    @Test
     @DisplayName("标讯检索 - 支持真实字段与组合条件")
     void searchTenders_ShouldFilterByRealDimensions() {
         Tender matchingTender = Tender.builder()

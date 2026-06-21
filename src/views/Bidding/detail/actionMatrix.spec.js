@@ -411,7 +411,7 @@ describe('shouldShowLogsTab', () => {
     expect(shouldShowLogsTab('EXTERNAL_PLATFORM')).toBe(true)
     expect(shouldShowLogsTab('第三方平台')).toBe(true)
     expect(shouldShowLogsTab('CRM_OPPORTUNITY')).toBe(true)
-    expect(shouldShowLogsTab('CRM 创建')).toBe(true)
+    expect(shouldShowLogsTab('CRM创建')).toBe(true)
     expect(shouldShowLogsTab('BULK_IMPORT')).toBe(true)
     expect(shouldShowLogsTab('批量导入')).toBe(true)
     expect(shouldShowLogsTab(null)).toBe(true)

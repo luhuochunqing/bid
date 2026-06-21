@@ -85,7 +85,7 @@
 
 <script setup>
 import { RefreshLeft, Search } from '@element-plus/icons-vue'
-import { SOURCE_PLATFORM_OPTIONS, PROJECT_TYPE_OPTIONS, CUSTOMER_TYPE_OPTIONS, PRIORITY_OPTIONS } from '../constants.js'
+import { SOURCE_FILTER_OPTIONS, PROJECT_TYPE_OPTIONS, CUSTOMER_TYPE_OPTIONS, PRIORITY_OPTIONS } from '../constants.js'
 import { chinaRegionOptions } from '@/components/common/chinaRegionData.js'
 import { useRegionCascaderValue, REGION_CASCADER_PROPS } from '@/composables/useRegionCascaderValue.js'
 import { usersApi } from '@/api/modules/users.js'
@@ -95,7 +95,7 @@ const modelValue = defineModel({ type: Object, required: true })
 defineEmits(['search', 'reset'])
 
 const props = defineProps({
-  sourcePlatformOptions: { type: Array, default: () => SOURCE_PLATFORM_OPTIONS },
+  sourcePlatformOptions: { type: Array, default: () => SOURCE_FILTER_OPTIONS },
   projectTypeOptions: { type: Array, default: () => PROJECT_TYPE_OPTIONS },
   customerTypeOptions: { type: Array, default: () => CUSTOMER_TYPE_OPTIONS },
   priorityOptions: { type: Array, default: () => PRIORITY_OPTIONS },

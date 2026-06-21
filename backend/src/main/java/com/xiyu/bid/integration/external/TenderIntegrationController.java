@@ -2,6 +2,7 @@ package com.xiyu.bid.integration.external;
 
 import com.xiyu.bid.apikey.application.ApiKeyService;
 import com.xiyu.bid.dto.ApiResponse;
+import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.service.AuthService;
 import com.xiyu.bid.tender.dto.TenderDTO;
@@ -73,17 +74,10 @@ public class TenderIntegrationController {
         // 归一化 source + 组装 contactInfo
         page.getContent().forEach(dto -> {
             if (dto.getSourceType() != null) {
-                switch (dto.getSourceType()) {
-                    case MANUAL_SINGLE:
-                    case BULK_IMPORT:
-                        dto.setSource("人工录入");
-                        break;
-                    case CRM_OPPORTUNITY:
-                        dto.setSource("CRM 商机");
-                        break;
-                    case EXTERNAL_PLATFORM:
-                        dto.setSource("第三方平台");
-                        break;
+                if (dto.getSourceType() == Tender.SourceType.BULK_IMPORT) {
+                    dto.setSource(Tender.SourceType.MANUAL_SINGLE.getLabel());
+                } else {
+                    dto.setSource(dto.getSourceType().getLabel());
                 }
             }
             // 联系人数组，与标讯详情接口格式一致

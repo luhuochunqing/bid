@@ -192,13 +192,11 @@ public class TenderIntegrationMapper {
         switch (tender.getSourceType()) {
             case MANUAL_SINGLE:
             case BULK_IMPORT:
-                dto.setSource("人工录入");
+                dto.setSource(Tender.SourceType.MANUAL_SINGLE.getLabel());
                 break;
             case CRM_OPPORTUNITY:
-                dto.setSource("CRM 创建");
-                break;
             case EXTERNAL_PLATFORM:
-                dto.setSource("第三方平台");
+                dto.setSource(tender.getSourceType().getLabel());
                 break;
             default:
                 break;

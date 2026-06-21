@@ -375,7 +375,7 @@ public class Tender {
      */
     public enum SourceType {
         EXTERNAL_PLATFORM("第三方平台"),
-        CRM_OPPORTUNITY("CRM 创建"),
+        CRM_OPPORTUNITY("CRM创建"),
         MANUAL_SINGLE("人工录入"),
         BULK_IMPORT("批量导入");
 
@@ -408,6 +408,9 @@ public class Tender {
                 if (st.name().equals(value) || st.label.equals(value)) {
                     return st;
                 }
+            }
+            if ("CRM 创建".equals(value)) {
+                return CRM_OPPORTUNITY;
             }
             throw new IllegalArgumentException("不支持的来源类型: " + value);
         }

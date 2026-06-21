@@ -36,7 +36,7 @@ class TenderIntegrationServiceMapToEntityTest {
     }
 
     @Test
-    @DisplayName("带 crmId → 来源=CRM 创建，状态=已评估")
+    @DisplayName("带 crmId → 来源=CRM创建，状态=已评估")
     void toEntity_withCrmId_setsCrmSourceAndEvaluatedStatus() {
         TenderPushRequest r = baseRequest();
         r.setCrmId("CC001");
@@ -44,7 +44,7 @@ class TenderIntegrationServiceMapToEntityTest {
         Tender t = mapper.toEntity(r);
 
         assertThat(t.getSourceType()).isEqualTo(Tender.SourceType.CRM_OPPORTUNITY);
-        assertThat(t.getSource()).isEqualTo("CRM 创建");
+        assertThat(t.getSource()).isEqualTo("CRM创建");
         assertThat(t.getStatus()).isEqualTo(Tender.Status.EVALUATED);
     }
 

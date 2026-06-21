@@ -91,13 +91,13 @@ describe('isAdminRole', () => {
   it('removes legacy apiKey from stored source config while restoring safe fields', () => {
     const writer = vi.fn()
     const restored = restoreSourceConfig(JSON.stringify({
-      platforms: ['第三方商机服务'],
+      platforms: ['第三方平台'],
       apiKey: 'legacy-secret',
       regions: ['上海'],
     }), writer)
 
     expect(restored.apiKey).toBe('')
-    expect(restored.platforms).toEqual(['第三方商机服务'])
+    expect(restored.platforms).toEqual(['第三方平台'])
     expect(writer).toHaveBeenCalledOnce()
     expect(JSON.parse(writer.mock.calls[0][0])).not.toHaveProperty('apiKey')
   })
@@ -316,6 +316,7 @@ describe('isAdminRole', () => {
 
   it('maps source to tag type for new Chinese labels and legacy English values', () => {
     expect(getSourceTagType('第三方平台')).toBe('success')
+    expect(getSourceTagType('CRM创建')).toBe('primary')
     expect(getSourceTagType('CRM 创建')).toBe('primary')
     expect(getSourceTagType('人工录入')).toBe('warning')
     expect(getSourceTagType('批量导入')).toBe('warning')
@@ -326,7 +327,8 @@ describe('isAdminRole', () => {
 
   it('maps source to display text for new Chinese labels and legacy English values', () => {
     expect(getSourceText('第三方平台')).toBe('第三方平台')
-    expect(getSourceText('CRM 创建')).toBe('CRM 创建')
+    expect(getSourceText('CRM创建')).toBe('CRM创建')
+    expect(getSourceText('CRM 创建')).toBe('CRM创建')
     expect(getSourceText('人工录入')).toBe('人工录入')
     expect(getSourceText('批量导入')).toBe('人工录入')
     expect(getSourceText('external')).toBe('第三方平台')

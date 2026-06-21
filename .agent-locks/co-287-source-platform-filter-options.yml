@@ -1,0 +1,9 @@
+version: 1
+task: "co-287-source-platform-filter-options"
+locks:
+  - path: "backend/src/main/java/com/xiyu/bid/entity/Tender.java"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/zcode/co-287-source-platform-filter-options"
+    expiresAt: "2026-06-22T23:59:59.000Z"
+    reason: "CO-287 unify tender CRM source label and preserve legacy compatibility"

@@ -24,6 +24,11 @@ describe('Project/List.vue layout', () => {
     expect(projectListSource).toContain('getProjectStatusType(row.bidStatus)')
   })
 
+  it('keeps legacy spaced CRM source tag compatible', () => {
+    expect(projectListSource).toContain('LEGACY_CRM_SOURCE_LABEL')
+    expect(projectListSource).toContain('[LEGACY_CRM_SOURCE_LABEL]: \'success\'')
+  })
+
   it('has no fixed-right columns', () => {
     expect(projectListSource).not.toContain('fixed="right"')
   })

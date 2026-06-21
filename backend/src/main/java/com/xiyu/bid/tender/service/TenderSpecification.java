@@ -7,10 +7,15 @@ import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 public final class TenderSpecification {
+
+    private static final String CRM_SOURCE_LABEL = Tender.SourceType.CRM_OPPORTUNITY.getLabel();
+    private static final String LEGACY_CRM_SOURCE_LABEL = "CRM 创建";
 
     private TenderSpecification() {
     }
@@ -29,8 +34,10 @@ public final class TenderSpecification {
                 predicates.add(root.get("status").in(safeCriteria.getStatus()));
             }
             if (safeCriteria.getSource() != null && !safeCriteria.getSource().isEmpty()) {
-                predicates.add(root.get("sourceNormalized").in(
-                        safeCriteria.getSource().stream().map(s -> s.trim().toLowerCase(Locale.ROOT)).toList()));
+                List<String> normalizedSources = normalizeSourceValues(safeCriteria.getSource());
+                if (!normalizedSources.isEmpty()) {
+                    predicates.add(root.get("sourceNormalized").in(normalizedSources));
+                }
             }
             if (safeCriteria.getSourceType() != null) {
                 predicates.add(criteriaBuilder.equal(root.get("sourceType"), safeCriteria.getSourceType()));
@@ -113,6 +120,24 @@ public final class TenderSpecification {
             }
             return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
         };
+    }
+
+    private static List<String> normalizeSourceValues(List<String> values) {
+        Set<String> normalized = new LinkedHashSet<>();
+        for (String value : values) {
+            if (!hasText(value)) {
+                continue;
+            }
+            String item = normalize(value);
+            normalized.add(item);
+            String crm = normalize(CRM_SOURCE_LABEL);
+            String legacyCrm = normalize(LEGACY_CRM_SOURCE_LABEL);
+            if (crm.equals(item) || legacyCrm.equals(item)) {
+                normalized.add(crm);
+                normalized.add(legacyCrm);
+            }
+        }
+        return new ArrayList<>(normalized);
     }
 
     private static void addStringEquals(List<Predicate> predicates, CriteriaBuilder cb, Expression<String> path, String value) {
