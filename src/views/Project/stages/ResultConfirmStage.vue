@@ -235,8 +235,8 @@ async function submit() {
     await projectLifecycleApi.registerResult(props.projectId, payload)
     resultDone.value = true
     ElMessage.success('结果已登记，已推进至下一阶段')
-    emit('switch-tab', resultNextTab.value)
     emit('registered')
+    emit('switch-tab', resultNextTab.value)
   } catch (e) { ElMessage.error(e?.response?.data?.msg || '登记失败') }
   finally { submitting.value = false }
 }

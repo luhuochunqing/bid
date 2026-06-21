@@ -123,8 +123,8 @@ async function handleSubmit() {
     await projectLifecycleApi.advanceEvaluation(props.projectId)
     evaluationDone.value = true
     ElMessage.success('提交成功，已推进至结果确认阶段')
-    emit('switch-tab', 'RESULT_PENDING')
     emit('advanced')
+    emit('switch-tab', 'RESULT_PENDING')
   } catch (e) {
     ElMessage.error(e?.response?.data?.msg || '提交失败')
   } finally {
