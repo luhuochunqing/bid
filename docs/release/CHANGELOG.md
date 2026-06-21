@@ -4,6 +4,15 @@
 
 ## [未发布]
 
+### Infrastructure
+- **Markitdown Sidecar 首次部署到客户测试服务器**（2026-06-21）：`winbid-01.test`（`172.16.38.78`）首次以 Docker 容器方式部署 `xiyu-sidecar`，端口 `8000`，`--restart=always`。
+  - **背景**：服务器此前从未运行过 sidecar，所有 doc-insight 调用都走 fallback 纯文本提取，丢失标题层级、表格结构、OCR 能力，导致 LLM 智能解析质量差。
+  - **部署方式**：Docker 容器（服务器有 Docker 26.1.4，无 Python 3.9+，无法直接 venv 部署）。
+  - **新增 `Dockerfile.cn`**：国内镜像源加速版（阿里云 debian + 清华 PyPI），解决服务器无法直连 Docker Hub 默认源的问题。构建耗时从"卡死 7 分钟"降到 2 分钟。
+  - **修复 markitdown 安装**：`requirements.txt` 注释说"NOT on PyPI"是历史误判，`Dockerfile.cn` 显式 `pip install markitdown[all]`。
+  - **验证**：`GET /health` 返回 `{"status":"up"}`，`POST /convert` 成功转换测试文档返回完整 markdown + sections + contentHash，容器内存占用 122MB。
+  - **详见**：`docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md §14`
+
 ### Added
 - **西域组织架构 SDK 接入 Phase 1**（分支 `agent/cursor/organization-sdk-integration`）：实现 SDK 直连接入框架、Bearer token 动态换取、HTTP fallback 路径清理。
   - 新增 `OrganizationTokenService`（Bearer token 换取 + 内存缓存 + 10% 比例自动续期 + 3次失败 cooldown），模式与 `CrmAuthService` 完全一致。

@@ -463,3 +463,169 @@ sudo journalctl -u xiyu-bid-backend --since "10 min ago" --no-pager
 7. 执行本文第 10 节全部验证
 
 如果第 4-7 步任一步失败，立即恢复备份目录中的旧 jar、旧前端和旧部署记录。
+
+## 14. Markitdown Sidecar 部署（2026-06-21 首次部署）
+
+### 14.1 背景
+
+后端 `MarkItDownSidecarExtractor` 默认调用 `http://localhost:8000/convert` 提取 PDF/DOCX/PPTX/XLSX 等富文本文档。在 sidecar 未部署时，后端走 fallback 纯文本提取模式，丢失标题层级、表格结构、OCR 等能力，导致 LLM 智能解析质量差。
+
+本次部署前，服务器从未运行过 sidecar（systemd/docker/进程均无痕迹），所有 doc-insight 调用都走 fallback。6/16-6/17 日志显示典型模式：3 秒内重试 3 次 sidecar 连接被拒后立即 fallback。
+
+### 14.2 部署架构
+
+| 项 | 值 |
+|---|---|
+| 部署方式 | Docker 容器（服务器有 Docker 26.1.4，无 Python 3.9+） |
+| 容器名 | `xiyu-sidecar` |
+| 镜像 | `document-converter-sidecar:latest`（583MB） |
+| 端口映射 | `0.0.0.0:8000->8000/tcp` |
+| 重启策略 | `--restart=always`（异常自动重启 + 开机自启） |
+| 内存占用 | ~122MB / 7.4GB |
+| 源码位置 | `/opt/xiyu-bid/sidecar/`（含 `app.py`、`converter.py`、`requirements.txt`、`Dockerfile`、`Dockerfile.cn`） |
+
+### 14.3 Dockerfile.cn（国内镜像源加速版）
+
+服务器无法直连 Docker Hub（超时），且默认 debian 源 `deb.debian.org` 下载 9MB Packages 文件卡 7 分钟无响应。`Dockerfile.cn` 是国内镜像源加速版：
+
+- **debian 源**：替换为 `mirrors.aliyun.com`（阿里云）
+- **PyPI 源**：`https://pypi.tuna.tsinghua.edu.cn/simple`（清华）
+- **额外依赖**：`libmagic1`（file type detection）、`libpoppler-cpp-dev`（pdfminer）、`tesseract-ocr`（OCR）
+- **markitdown 安装**：显式 `pip install markitdown[all]`（requirements.txt 注释说"NOT on PyPI"是错的，实际在 PyPI 上）
+
+构建命令：
+
+```bash
+cd /opt/xiyu-bid/sidecar
+sudo docker build --progress=plain -f Dockerfile.cn -t document-converter-sidecar:latest .
+```
+
+构建耗时约 2 分钟（apt + pip 都走国内源）。
+
+### 14.4 首次部署步骤
+
+```bash
+# 1. 本地打包 sidecar 源码
+cd /Users/user/xiyu/worktrees/trae/document-converter-sidecar
+tar czf /tmp/document-converter-sidecar.tar.gz .
+
+# 2. 上传到服务器
+scp /tmp/document-converter-sidecar.tar.gz jetty@172.16.38.78:/tmp/
+
+# 3. 服务器上解压 + 清理 macOS 元数据
+ssh jetty@172.16.38.78 '
+  sudo mkdir -p /opt/xiyu-bid/sidecar
+  sudo chown jetty:jetty /opt/xiyu-bid/sidecar
+  cd /opt/xiyu-bid/sidecar
+  tar xzf /tmp/document-converter-sidecar.tar.gz
+  find . -name "._*" -delete
+'
+
+# 4. 创建 Dockerfile.cn（见 14.3 节内容，或从仓库 document-converter-sidecar/Dockerfile.cn 同步）
+
+# 5. 配置 docker 国内镜像源（拉 python:3.11-slim 用）
+ssh jetty@172.16.38.78 '
+  echo "{\"registry-mirrors\": [\"https://docker.m.daocloud.io\", \"https://docker.mirrors.ustc.edu.cn\", \"https://hub-mirror.c.163.com\"]}" | sudo tee /etc/docker/daemon.json
+  sudo systemctl restart docker
+  sudo docker pull python:3.11-slim
+'
+
+# 6. 构建镜像
+ssh jetty@172.16.38.78 'cd /opt/xiyu-bid/sidecar && sudo docker build --progress=plain -f Dockerfile.cn -t document-converter-sidecar:latest .'
+
+# 7. 启动容器
+ssh jetty@172.16.38.78 'sudo docker run -d --name xiyu-sidecar --restart=always -p 8000:8000 document-converter-sidecar:latest'
+
+# 8. 验证（见 14.5 节）
+```
+
+### 14.5 验证清单
+
+```bash
+# 容器状态
+sudo docker ps --filter 'name=xiyu-sidecar'
+
+# 健康检查
+curl -s http://127.0.0.1:8000/health
+# 期望: {"status":"up"}
+
+# 文档转换测试
+echo '# 测试标题\n\n正文内容' > /tmp/test.md
+curl -s -X POST http://127.0.0.1:8000/convert -F 'file=@/tmp/test.md' | head -c 500
+# 期望: 返回 JSON，含 markdown、sections、contentHash 字段
+
+# 容器日志（确认无错误）
+sudo docker logs xiyu-sidecar 2>&1 | tail -20
+# 期望: "Uvicorn running on http://0.0.0.0:8000"，无 ModuleNotFoundError
+
+# 资源占用
+sudo docker stats xiyu-sidecar --no-stream
+# 期望: MEM < 200MB
+```
+
+### 14.6 日常维护命令
+
+```bash
+# 查看实时日志
+sudo docker logs -f xiyu-sidecar
+
+# 重启容器
+sudo docker restart xiyu-sidecar
+
+# 停止/启动
+sudo docker stop xiyu-sidecar
+sudo docker start xiyu-sidecar
+
+# 查看资源占用
+sudo docker stats xiyu-sidecar --no-stream
+
+# 进入容器调试
+sudo docker exec -it xiyu-sidecar bash
+```
+
+### 14.7 升级 sidecar 代码
+
+当 `document-converter-sidecar/app.py` 或 `converter.py` 有更新时：
+
+```bash
+# 1. 本地重新打包上传
+cd /Users/user/xiyu/worktrees/trae/document-converter-sidecar
+tar czf /tmp/document-converter-sidecar.tar.gz .
+scp /tmp/document-converter-sidecar.tar.gz jetty@172.16.38.78:/tmp/
+
+# 2. 服务器上解压覆盖
+ssh jetty@172.16.38.78 '
+  cd /opt/xiyu-bid/sidecar
+  tar xzf /tmp/document-converter-sidecar.tar.gz
+  find . -name "._*" -delete
+'
+
+# 3. 重新构建镜像 + 重启容器
+ssh jetty@172.16.38.78 '
+  cd /opt/xiyu-bid/sidecar
+  sudo docker build --progress=plain -f Dockerfile.cn -t document-converter-sidecar:latest .
+  sudo docker restart xiyu-sidecar
+'
+
+# 4. 验证（见 14.5 节）
+```
+
+### 14.8 已知限制
+
+1. **SIDECAR_SHARED_KEY 未设置**：容器启动时日志会打印 `WARNING app: SIDECAR_SHARED_KEY is not set — authentication is disabled`。当前后端也未设置该密钥（backend.env 无 `SIDECAR_SHARED_KEY`），双方都走无认证模式。如需加固，需同时在后端 env 和容器 env 注入相同密钥。
+
+2. **ffmpeg 未安装**：日志会打印 `Couldn't find ffmpeg or avconv`。影响音频/视频转写（markitdown transcription 功能），不影响 PDF/DOCX/XLSX 提取。如需音频转写，在 Dockerfile.cn 中加 `ffmpeg` 包。
+
+3. **`.doc` 格式支持有限**：markitdown 在 Linux 上无法用 macOS `textutil` 预转换 `.doc`，需额外安装 `libreoffice`（体积大，未默认安装）。
+
+4. **LLM 余额不足仍会 500**：sidecar 只解决文档提取质量问题。doc-insight 完整链路是 `sidecar 提取 → LLM 智能解析`，LLM 余额不足时仍返回 500。需在系统设置页充值或更换 API Key。
+
+### 14.9 故障排查
+
+| 现象 | 排查 |
+|---|---|
+| 容器 `Restarting (1)` | `sudo docker logs xiyu-sidecar` 看启动错误，常见为 `ModuleNotFoundError`（markitdown 未装） |
+| 后端日志 `Connection refused localhost:8000` | `sudo docker ps` 确认容器在运行；`curl http://127.0.0.1:8000/health` 测连通性 |
+| 后端仍走 fallback | 后端默认 sidecar URL 是 `http://localhost:8000`，容器已映射到宿主机 8000，无需额外配置 |
+| 文档转换返回 500 | `sudo docker logs xiyu-sidecar 2>&1 \| tail -50` 看转换异常，常见为 PDF 加密、文件损坏 |
+| 内存持续增长 | markitdown 处理大文件可能内存泄漏，`sudo docker restart xiyu-sidecar` 重启释放 |
