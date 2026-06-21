@@ -10,6 +10,7 @@ import com.xiyu.bid.crm.infrastructure.dto.ProjectResultCallbackPayload;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.integration.external.ExternalIdParser;
+import com.xiyu.bid.integration.external.TenderAttachmentUrlResolver;
 import com.xiyu.bid.project.core.BidResultType;
 import com.xiyu.bid.project.domain.ProjectResultConfirmedEvent;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
@@ -81,6 +82,8 @@ public class ProjectResultPayloadAssembler {
     /**
      * 构造凭证文件列表：按 evidenceFileIds 查 ProjectDocument，取 fileName/fileUrl/fileSize。
      * 查不到的 id 静默跳过（不阻塞回调）。
+     * <p>CO-280 修复：将原始 fileUrl（doc-insight:// / 内部端点 URL）标准化为 CRM 集成下载端点
+     * {@code /api/integration/tenders/attachments/download}，确保外部系统可通过 API Key 访问。
      */
     private List<EvidenceFile> buildEvidenceFiles(List<Long> evidenceFileIds) {
         if (evidenceFileIds == null || evidenceFileIds.isEmpty()) return List.of();
@@ -90,7 +93,7 @@ public class ProjectResultPayloadAssembler {
             if (doc == null) continue;
             files.add(new EvidenceFile(
                     safe(doc.getName()),
-                    safe(doc.getFileUrl()),
+                    TenderAttachmentUrlResolver.toIntegrationFullUrl(safe(doc.getFileUrl())),
                     parseSize(doc.getSize())));
         }
         return files;

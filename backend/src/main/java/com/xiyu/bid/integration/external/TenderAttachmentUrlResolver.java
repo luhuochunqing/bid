@@ -9,6 +9,8 @@ import org.springframework.stereotype.Component;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
+import static com.xiyu.bid.apikey.infrastructure.ApiKeyAuthConstants.DEFAULT_QUERY_PARAM;
+
 /**
  * 附件下载 URL 转换器（CO-280 403 修复）。
  *
@@ -173,6 +175,6 @@ public class TenderAttachmentUrlResolver {
     /** 附加 api_key 查询参数到 URL，正确处理已有 query string 的情况。 */
     private static String appendApiKeyParam(String url, String apiKey) {
         char separator = url.contains("?") ? '&' : '?';
-        return url + separator + "api_key=" + apiKey;
+        return url + separator + DEFAULT_QUERY_PARAM + "=" + apiKey;
     }
 }

@@ -11,7 +11,6 @@ import com.xiyu.bid.tender.service.TenderQueryService;
 import com.xiyu.bid.tender.service.TenderSearchCriteria;
 import com.xiyu.bid.util.InputSanitizer;
 import jakarta.validation.Valid;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -32,7 +31,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
+import java.util.List;
 import java.util.Map;
+
+import static com.xiyu.bid.apikey.infrastructure.ApiKeyAuthConstants.API_KEY_HEADERS;
+import static com.xiyu.bid.apikey.infrastructure.ApiKeyAuthConstants.API_KEY_PARAMS;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -50,9 +53,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @RequiredArgsConstructor
 @Slf4j
 public class TenderIntegrationController {
-
-    private static final List<String> API_KEY_HEADERS = List.of("X-API-Key", "X-Api-Key");
-    private static final List<String> API_KEY_PARAMS = List.of("api_key", "api-key", "X-API-Key", "X-Api-Key");
 
     private final TenderQueryService tenderQueryService;
     private final TenderIntegrationService tenderIntegrationService;

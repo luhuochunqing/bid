@@ -20,12 +20,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
+import static com.xiyu.bid.apikey.infrastructure.ApiKeyAuthConstants.API_KEY_HEADERS;
+import static com.xiyu.bid.apikey.infrastructure.ApiKeyAuthConstants.API_KEY_PARAMS;
+
 @Slf4j
 @Component
 public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
-
-    private static final List<String> API_KEY_HEADERS = List.of("X-API-Key", "X-Api-Key");
-    private static final List<String> API_KEY_PARAMS = List.of("api_key", "api-key", "X-API-Key", "X-Api-Key");
 
     private final ApiKeyService apiKeyService;
 
