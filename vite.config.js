@@ -28,6 +28,9 @@ export default defineConfig({
           if (!id.includes('node_modules')) {
             return undefined
           }
+          if (id.includes('@element-plus/icons-vue')) {
+            return 'element-plus-icons'
+          }
           if (id.includes('element-plus') || id.includes('@element-plus')) {
             return 'element-plus'
           }
@@ -36,6 +39,15 @@ export default defineConfig({
           }
           if (id.includes('vue-router') || id.includes('/vue/') || id.includes('pinia') || id.includes('vuedraggable')) {
             return 'vue-vendor'
+          }
+          if (id.includes('@wangeditor')) {
+            return 'wangeditor'
+          }
+          if (id.includes('marked') || id.includes('dompurify')) {
+            return 'markdown'
+          }
+          if (id.includes('qrcode')) {
+            return 'qrcode'
           }
           return 'vendor'
         }
