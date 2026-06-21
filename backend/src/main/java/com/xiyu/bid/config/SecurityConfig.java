@@ -229,6 +229,9 @@ public class SecurityConfig {
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);  // 1小时
 
+        // 暴露 Content-Disposition 头，使浏览器能读取下载文件名（CO-285）
+        configuration.setExposedHeaders(Arrays.asList("Content-Disposition", "Content-Length"));
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
