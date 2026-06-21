@@ -54,12 +54,18 @@ public class WebhookDeliveryJobService {
 
         try {
             WebhookSendResult result = httpSender.send(managedTask.getTargetUrl(), managedTask.getPayload());
+            log.info("Webhook sent: taskId={}, tenderId={}, targetUrl={}, statusCode={}, responseBody={}, payload={}",
+                    managedTask.getId(), managedTask.getTenderId(), managedTask.getTargetUrl(),
+                    result.statusCode(), result.responseBody(), managedTask.getPayload());
             if (result.successful()) {
                 handleSuccess(managedTask, result);
                 return;
             }
             handleStatusFailure(managedTask, result);
         } catch (IOException | InterruptedException | RuntimeException ex) {
+            log.error("Webhook send threw: taskId={}, tenderId={}, targetUrl={}, payload={}, error={}",
+                    managedTask.getId(), managedTask.getTenderId(), managedTask.getTargetUrl(),
+                    managedTask.getPayload(), ex.getMessage(), ex);
             handleThrowableFailure(managedTask, ex);
         }
     }

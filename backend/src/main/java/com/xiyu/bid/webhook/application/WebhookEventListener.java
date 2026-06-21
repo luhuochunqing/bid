@@ -68,17 +68,18 @@ public class WebhookEventListener {
                     event.newStatus(), TRIGGER_STATES, event.tenderId());
             return;
         }
+        String payload = buildPayload(event);
         taskRepository.save(WebhookDeliveryTask.builder()
                 .tenderId(event.tenderId())
                 .externalId(event.externalId())
                 .targetUrl(crmWebhookUrl)
                 .eventType(EVENT_TYPE)
                 .businessKey(buildBusinessKey(event))
-                .payload(buildPayload(event))
+                .payload(payload)
                 .status(WebhookDeliveryTaskStatus.PENDING)
                 .build());
-        log.info("Webhook delivery task enqueued for tender {}, newStatus={}, url={}",
-                event.tenderId(), event.newStatus(), crmWebhookUrl);
+        log.info("Webhook delivery task enqueued for tender {}, newStatus={}, url={}, payload={}",
+                event.tenderId(), event.newStatus(), crmWebhookUrl, payload);
     }
 
     private String buildBusinessKey(TenderStatusChangedEvent event) {
