@@ -237,6 +237,12 @@ export const tasksApi = {
     return httpClient.patch(`/api/tasks/${id}/status`, JSON.stringify('COMPLETED'), {
       headers: {
         'Content-Type': 'application/json' } })
+  },
+
+  async updateStatus(id, status) {
+    return httpClient.patch(`/api/tasks/${id}/status`, JSON.stringify(status), {
+      headers: {
+        'Content-Type': 'application/json' } })
   } }
 
 export const todosApi = {

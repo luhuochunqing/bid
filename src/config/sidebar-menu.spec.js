@@ -13,6 +13,7 @@ describe('sidebar-menu config', () => {
       '知识库',
       '资源管理',
             '数据分析',
+      '任务看板',
       '系统设置'
     ])
     expect(topLevelOptions.map((item) => item.label)).not.toEqual(
@@ -61,6 +62,7 @@ describe('sidebar-menu config', () => {
       '知识库',
       '资源管理',
             '数据分析',
+      '任务看板',
       '系统设置'
     ])
     expect(dashboardGroup.children.map((item) => item.label)).toEqual([
