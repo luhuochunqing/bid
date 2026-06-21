@@ -1,16 +1,11 @@
 package com.xiyu.bid.tender.service;
 
 import com.xiyu.bid.annotation.Auditable;
-import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
-import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
-import com.xiyu.bid.project.entity.ProjectInitiationDetails;
-import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
-import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.task.dto.TaskDTO;
@@ -18,8 +13,6 @@ import com.xiyu.bid.task.service.TaskService;
 import com.xiyu.bid.tender.dto.TenderAbandonRequest;
 import com.xiyu.bid.tender.dto.TenderBidResponse;
 import com.xiyu.bid.tender.entity.TenderEvaluation;
-import com.xiyu.bid.tender.entity.TenderEvaluationBasic;
-import com.xiyu.bid.tender.entity.TenderEvaluationCustomerInfo;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -29,10 +22,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -41,9 +31,7 @@ import java.util.Optional;
 public class TenderSubmissionService {
 
     private final TenderRepository tenderRepository;
-    private final ProjectRepository projectRepository;
     private final TenderEvaluationRepository tenderEvaluationRepository;
-    private final ProjectInitiationDetailsRepository initiationDetailsRepository;
     private final UserRepository userRepository;
     private final TaskService taskService;
     private final TenderAssignmentPermissions permissions;
@@ -152,79 +140,6 @@ public class TenderSubmissionService {
         tenderRepository.save(tender);
         log.info("Tender {} abandoned by user {}, reason: {}", tenderId, userId, req.getReason());
         return rejectedBidResponse(true, "已放弃该标讯");
-    }
-
-    @Transactional
-    @Auditable(action = "PROCEED_TO_BID", entityType = "Tender", description = "标讯转项目立项")
-    public TenderBidResponse proceedToBid(Long tenderId, Long userId) {
-        Tender tender = tenderRepository.findById(tenderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Tender", tenderId.toString()));
-        accessGuard.assertCanAccessTender(tender);
-
-        if (!permissions.canDecide(tenderId, userId)) {
-            throw new AccessDeniedException(
-                    "user " + userId + " is not the assigner of tender " + tenderId);
-        }
-
-        if (tender.getStatus() != Tender.Status.BIDDING) {
-            return rejectedBidResponse(false, "仅有已投标的标讯可转为项目");
-        }
-
-        if (tender.getProjectId() != null) {
-            projectRepository.findById(tender.getProjectId())
-                    .ifPresent(existingProject -> { });
-            return TenderBidResponse.builder()
-                    .accepted(true)
-                    .message("项目已存在")
-                    .projectId(tender.getProjectId())
-                    .build();
-        }
-
-        if (!projectRepository.findById(tender.getProjectId() != null ? tender.getProjectId() : -1L).isEmpty()) {
-            return TenderBidResponse.builder()
-                    .accepted(true)
-                    .message("项目已存在")
-                    .projectId(tender.getProjectId())
-                    .build();
-        }
-
-        Project newProject = Project.builder()
-                .name(tender.getTitle())
-                .tenderId(tender.getId())
-                .status(Project.Status.PENDING_INITIATION)
-                .region(tender.getRegion())
-                .industry(tender.getIndustry())
-                .budget(tender.getBudget())
-                .customer(tender.getPurchaserName())
-                .managerId(userId)
-                .build();
-        Project savedProject = projectRepository.save(newProject);
-
-        tender.setProjectId(savedProject.getId());
-        tender.setStatus(Tender.Status.BIDDING);
-        tenderRepository.save(tender);
-
-        copyEvaluationToProject(tenderId, savedProject.getId());
-
-        log.info("Tender {} converted to project {}, manager={}", tenderId, savedProject.getId(), userId);
-        return TenderBidResponse.builder()
-                .accepted(true)
-                .message("项目立项成功")
-                .projectId(savedProject.getId())
-                .build();
-    }
-
-    private void copyEvaluationToProject(Long tenderId, Long projectId) {
-        Optional<TenderEvaluation> evalOpt = tenderEvaluationRepository.findByTenderId(tenderId);
-        if (evalOpt.isEmpty()) {
-            return;
-        }
-        TenderEvaluation eval = evalOpt.get();
-        ProjectInitiationDetails details = ProjectInitiationDetails.builder()
-                .projectId(projectId)
-                .customerInfoJson(eval.getBasic() != null ? eval.getBasic().toString() : null)
-                .build();
-        initiationDetailsRepository.save(details);
     }
 
     private TenderBidResponse rejectedBidResponse(boolean accepted, String message) {

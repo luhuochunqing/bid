@@ -87,9 +87,16 @@
 - area: `backend/src/main/java/com/xiyu/bid/tender/service/TenderSubmissionService.java`
   type: dead-code
   severity: low
-  status: open
+  status: resolved
   source: CO-274 复盘（PR #842）
-  note: `TenderSubmissionService.proceedToBid()` 没有任何 Controller 调用，疑似 V118/V119 快速投标遗留方法；建议确认后删除，或由 TenderEvaluationController 统一调用。
+  note: `TenderSubmissionService.proceedToBid()` 没有任何 Controller 调用，疑似 V118/V119 快速投标遗留方法。已删除该方法及关联的 `copyEvaluationToProject` 方法，清理无用 import 和字段。
+
+- area: `backend/src/main/java/com/xiyu/bid/tender/core/AssignmentPermissionRules.java`
+  type: dead-code
+  severity: low
+  status: resolved
+  source: 权限矩阵审计报告（2026-06-17）§5.5 第1项
+  note: 审计报告误判为死代码。实际被 `TenderAssignmentPermissions.java` 第68行和第79行调用，用于 `canFill` 和 `canDecide` 权限判定。非死代码，无需清理。
 
 - area: `src/views/Bidding/detail/useTenderActions.js` / `src/views/Bidding/list/useTenderListPage.js`
   type: out-of-sync-doc

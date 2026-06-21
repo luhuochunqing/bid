@@ -2,7 +2,6 @@ package com.xiyu.bid.tender.service;
 
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.Tender;
-import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.task.dto.TaskDTO;
@@ -10,7 +9,6 @@ import com.xiyu.bid.task.service.TaskService;
 import com.xiyu.bid.tender.dto.TenderAbandonRequest;
 import com.xiyu.bid.tender.dto.TenderBidResponse;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
-import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -33,11 +31,7 @@ class TenderSubmissionServiceTest {
     @Mock
     private TenderRepository tenderRepository;
     @Mock
-    private ProjectRepository projectRepository;
-    @Mock
     private TenderEvaluationRepository tenderEvaluationRepository;
-    @Mock
-    private ProjectInitiationDetailsRepository initiationDetailsRepository;
     @Mock
     private UserRepository userRepository;
     @Mock
@@ -58,8 +52,8 @@ class TenderSubmissionServiceTest {
     @BeforeEach
     void setUp() {
         submissionService = new TenderSubmissionService(
-                tenderRepository, projectRepository, tenderEvaluationRepository,
-                initiationDetailsRepository, userRepository, taskService,
+                tenderRepository, tenderEvaluationRepository,
+                userRepository, taskService,
                 permissions, accessGuard, objectMapper, eventPublisher, notificationAppService);
     }
 
