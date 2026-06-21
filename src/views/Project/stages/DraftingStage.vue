@@ -117,10 +117,15 @@ import { formatUserLabel } from '@/utils/formatUserLabel.js'
 const userStore = useUserStore()
 const ctx = useProjectDetailContext()
 const { bidAgent } = ctx
+
+// bidReviewerId 需在 perm 之前定义，供 useProjectDraftingPermissions 的 canReviewBid 使用
+const bidReviewerId = ref(null)
+
 const perm = useProjectDraftingPermissions({
   primaryLeadId: ctx.project?.value?.primaryLeadUserId,
   secondaryLeadId: ctx.project?.value?.secondaryLeadUserId,
   currentUserId: ctx.userStore?.currentUser?.id,
+  reviewerId: bidReviewerId,
 })
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
@@ -132,7 +137,6 @@ const perfDrawerVisible = ref(false)
 const advancing = ref(false)
 const advanceError = ref('')
 const bidFiles = ref([])
-const bidReviewerId = ref(null)
 const bidSubmitted = ref(false)
 const bidDone = ref(false)
 const submittingReview = ref(false)

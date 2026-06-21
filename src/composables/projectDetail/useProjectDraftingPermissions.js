@@ -37,15 +37,25 @@ import { useUserStore } from '@/stores/user'
  * 角色分组：按权限矩阵列合并
  */
 function resolveDraftingRoleGroup(role) {
-  if (role === 'bid_admin' || role === 'bid_lead' || role === 'bid_senior') return 'admin_lead'
-  if (role === 'sales') return 'lead_assist'       // 投标负责人 / 辅助人
-  if (role === 'auditor') return 'auditor'         // 审核人
+  if (role === 'admin' || role === 'bid_admin' || role === 'bid_lead') return 'admin_lead'
+  if (role === 'sales' || role === 'bid_specialist') return 'lead_assist'  // 投标负责人 / 辅助人
   return null
 }
 
+/**
+ * 解包 opts 中的值：兼容 ref/computed（.value）与原始值
+ * 避免调用方误传 ref 对象导致 String(ref) === "[object Object]"
+ */
+function resolveOpt(v) {
+  return v != null && typeof v === 'object' && 'value' in v ? v.value : v
+}
+
 export function useProjectDraftingPermissions(opts = {}) {
-  // opts 支持传入 { primaryLeadId, secondaryLeadId, currentUserId }
-  // 用于在组件中二次约束：仅该项目分配的投标负责人/辅助人员 + 管理员/组长可提交投标
+  // opts 支持传入 { primaryLeadId, secondaryLeadId, currentUserId, reviewerId }
+  // 用于在组件中二次约束：
+  //   - 仅该项目分配的投标负责人/辅助人员 + 管理员/组长可提交投标
+  //   - 仅指派的审核人（reviewerId == currentUserId）可审核投标
+  // 注意：opts 中的值可以是原始值或 ref/computed，内部统一通过 resolveOpt 解包
   const userStore = useUserStore()
 
   const roleGroup = computed(() => resolveDraftingRoleGroup(userStore.userRole))
@@ -53,7 +63,6 @@ export function useProjectDraftingPermissions(opts = {}) {
 
   const isAdminLead = computed(() => roleGroup.value === 'admin_lead')
   const isLeadAssist = computed(() => roleGroup.value === 'lead_assist')
-  const isAuditor = computed(() => roleGroup.value === 'auditor')
   const isExecutor = computed(() => roleGroup.value === 'executor')
 
   // ── AI 能力 ────────────────────────────────────────────────────────────────
@@ -109,7 +118,7 @@ export function useProjectDraftingPermissions(opts = {}) {
   )
 
   /** 删除文档 */
-  const canDeleteDocument = computed(() => userStore.isBidAdmin)
+  const canDeleteDocument = computed(() => roleGroup.value === 'admin_lead')
 
   /** 归档文档 */
   const canArchiveDocument = computed(() => roleGroup.value === 'admin_lead')
@@ -131,16 +140,30 @@ export function useProjectDraftingPermissions(opts = {}) {
     roleGroup.value === 'admin_lead' || roleGroup.value === 'lead_assist'
   )
 
-  /** 审核投标（通过/驳回）*/
-  const canReviewBid = computed(() => roleGroup.value === 'auditor')
+  /** 审核投标（通过/驳回）— 仅指派的审核人本人可操作，与角色无关（对齐后端 BidReviewPolicy.canApprove/canReject） */
+  const canReviewBid = computed(() => {
+    const reviewerId = resolveOpt(opts.reviewerId)
+    const currentUserId = resolveOpt(opts.currentUserId)
+    return !!(reviewerId && currentUserId
+      && String(reviewerId) === String(currentUserId))
+  })
 
   /** 提交投标（投标管理员/组长 + 该项目分配的投标负责人/辅助人员） */
   const canSubmitBid = computed(() => {
     if (roleGroup.value === 'admin_lead') return true
-    if (roleGroup.value !== 'lead_assist' || !opts.currentUserId) return false
-    const uid = String(opts.currentUserId)
-    if (opts.primaryLeadId && String(opts.primaryLeadId) === uid) return true
-    if (opts.secondaryLeadId && String(opts.secondaryLeadId) === uid) return true
+    const currentUserId = resolveOpt(opts.currentUserId)
+    if (roleGroup.value !== 'lead_assist' || !currentUserId) return false
+    const uid = String(currentUserId)
+    const primaryLeadId = resolveOpt(opts.primaryLeadId)
+    const secondaryLeadId = resolveOpt(opts.secondaryLeadId)
+    // sales（投标项目负责人）仅匹配 primaryLeadId
+    // bid_specialist（投标专员）仅匹配 secondaryLeadId
+    if (role.value === 'sales') {
+      return !!(primaryLeadId && String(primaryLeadId) === uid)
+    }
+    if (role.value === 'bid_specialist') {
+      return !!(secondaryLeadId && String(secondaryLeadId) === uid)
+    }
     return false
   })
 
@@ -163,7 +186,6 @@ export function useProjectDraftingPermissions(opts = {}) {
     roleGroup,
     isAdminLead,
     isLeadAssist,
-    isAuditor,
     isExecutor,
     // AI
     canAIScoreDraftDecompose,

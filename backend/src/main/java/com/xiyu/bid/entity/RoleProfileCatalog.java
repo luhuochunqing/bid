@@ -30,6 +30,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public final class RoleProfileCatalog {
 
@@ -66,8 +68,24 @@ public final class RoleProfileCatalog {
      *  <p>其合法 API（如 {@code TaskController}）用 {@code isAuthenticated()}，移除 legacy 兼容不影响任务处理。 */
     public static final Set<String> ROLES_WITHOUT_LEGACY_ROLE_COMPAT = Set.of(BID_OTHER_DEPT_CODE, ADMIN_STAFF_CODE);
 
-    /** 允许提交投标（推进至评标阶段）的业务角色码集合，对齐前端 useProjectDraftingPermissions.canSubmitBid。 */
-    public static final Set<String> SUBMIT_BID_ALLOWED_ROLES = Set.of(BID_ADMIN_CODE, BID_LEAD_CODE, SALES_CODE, BID_SPECIALIST_CODE);
+    /** 允许提交投标（推进至评标阶段）的业务角色码集合，对齐前端 useProjectDraftingPermissions.canSubmitBid。
+     *  <p>语义划分：
+     *  <ul>
+     *    <li>{@link #SUBMIT_BID_DIRECT_ROLES}（admin/bid_admin/bid_lead）：直接放行</li>
+     *    <li>{@link #SUBMIT_BID_LEAD_REQUIRED_ROLES}（sales/bid_specialist）：需在 ProjectDraftingService 中
+     *        校验是否为该项目分配的负责人（sales→primaryLeadUserId，bid_specialist→secondaryLeadUserId）</li>
+     *  </ul>
+     *  <p>使用时优先用上述两个子集合；本集合由两者 union 派生，保持代数关系不变量。 */
+    public static final Set<String> SUBMIT_BID_DIRECT_ROLES = Set.of(ADMIN_CODE, BID_ADMIN_CODE, BID_LEAD_CODE);
+
+    /** 需项目级负责人分配才能提交投标的角色：sales→primaryLeadUserId，bid_specialist→secondaryLeadUserId。 */
+    public static final Set<String> SUBMIT_BID_LEAD_REQUIRED_ROLES = Set.of(SALES_CODE, BID_SPECIALIST_CODE);
+
+    /** 允许提交投标的全部角色 = {@link #SUBMIT_BID_DIRECT_ROLES} ∪ {@link #SUBMIT_BID_LEAD_REQUIRED_ROLES}。 */
+    public static final Set<String> SUBMIT_BID_ALLOWED_ROLES = Stream.concat(
+            SUBMIT_BID_DIRECT_ROLES.stream(),
+            SUBMIT_BID_LEAD_REQUIRED_ROLES.stream()
+    ).collect(Collectors.toUnmodifiableSet());
 
     /** 允许管理/审核项目任务的角色：投标管理员/组长/主管/投标专员(负责人/辅助)。对齐蓝图 §2.3.1。 */
     public static final Set<String> TASK_MUTATION_ALLOWED_ROLES =

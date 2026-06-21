@@ -12,6 +12,7 @@ import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.project.core.AllTasksCompletedPolicy;
 import com.xiyu.bid.project.core.BidReviewPolicy;
 import com.xiyu.bid.project.core.BidReviewStatus;
+import com.xiyu.bid.project.core.BidSubmissionAuthorizationPolicy;
 import com.xiyu.bid.project.core.ProjectFieldLockPolicy;
 import com.xiyu.bid.project.core.EvaluationSubStage;
 import com.xiyu.bid.project.core.ProjectStage;
@@ -141,17 +142,25 @@ public class ProjectDraftingService {
             description = "提交投标并推进到评标阶段")
     public ProjectDraftingViewDto submitBid(Long projectId, Long currentUserId) {
 
-        // 业务角色校验：仅投标管理员/组长/负责人可以提交投标（通过 roleProfile.code 判断，不回退到 User.role 枚举）
-
+        // 业务角色校验：仅投标系统管理员/投标管理员/投标组长/投标项目负责人/投标专员可以提交投标
+        // （通过 roleProfile.code 判断，不回退到 User.role 枚举）
         User currentUser = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "用户不存在"));
 
-        RoleProfileCatalog.SeedDefinition profile = currentUser.getRoleProfile() != null
-                ? RoleProfileCatalog.definitionForCode(currentUser.getRoleProfile().getCode())
+        // 直接使用 roleProfile.code，不经过 RoleProfileCatalog.definitionForCode 的 fallback
+        // （definitionForCode 对未注册 code 会 fallback 到 admin，会导致 admin_staff 等角色被误判为 admin）
+        String effectiveRoleCode = currentUser.getRoleProfile() != null
+                ? currentUser.getRoleProfile().getCode()
                 : null;
-        String effectiveRoleCode = profile != null ? profile.code() : null;
-        if (effectiveRoleCode == null || !RoleProfileCatalog.SUBMIT_BID_ALLOWED_ROLES.contains(effectiveRoleCode)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "当前角色无权限提交投标");
+
+        // 项目级投标负责人分配（同时用于权限校验和返回视图，避免重复查询）
+        ProjectLeadAssignment lead = leadRepo.findByProjectId(projectId).orElse(null);
+
+        // 纯核心授权决策：角色白名单 + 项目级负责人匹配
+        BidSubmissionAuthorizationPolicy.Decision authDecision =
+                BidSubmissionAuthorizationPolicy.canSubmitBid(effectiveRoleCode, currentUserId, lead);
+        if (!authDecision.allowed()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, authDecision.reason());
         }
 
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
@@ -176,13 +185,11 @@ public class ProjectDraftingService {
         if (currentStage != ProjectStage.DRAFTING) {
             log.info("Bid submission skipped (idempotent) project={} currentStage={}",
                     projectId, currentStage);
-            ProjectLeadAssignment lead = leadRepo.findByProjectId(projectId).orElse(null);
             return toView(projectId, lead);
         }
         projectStageService.requestTransition(projectId, ProjectStage.EVALUATING,
                 ProjectStageTransitionPolicy.GateInputs.EMPTY);
         ensureEvaluationInitialized(projectId, currentUserId);
-        ProjectLeadAssignment lead = leadRepo.findByProjectId(projectId).orElse(null);
 
         // 通知 #10: 提交投标→进入评标 → 团队成员
         notificationService.notifyStageTransition(projectId, ProjectStage.DRAFTING, ProjectStage.EVALUATING);

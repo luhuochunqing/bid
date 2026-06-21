@@ -130,42 +130,50 @@ npm run test:e2e
 
 ### dev / prod
 
-| 用户名 | 密码 | 角色 | 来源 |
-|--------|------|------|------|
-| `admin` | `XiyuAdmin2026!` | `admin` (ADMIN) | V57 迁移 + DefaultAdminInitializer |
+| 用户名 | 密码 | RoleProfile code | 角色名称 | 来源 |
+|--------|------|------|------|------|
+| `admin` | `XiyuAdmin2026!` | `admin` | 管理员 | V57 迁移 + DefaultAdminInitializer |
 
 ### e2e
 
-| 用户名 | 密码 | RoleProfile | Legacy 角色 | 来源 |
-|--------|------|-------------|-------------|------|
-| `lizong` | `123456` | `admin` | ADMIN | E2eDemoDataInitializer |
-| `zhangjingli` | `123456` | `manager` | MANAGER | E2eDemoDataInitializer |
-| `xiaowang` | `123456` | `staff` | STAFF | E2eDemoDataInitializer |
-| `xiaozhao` | `123456` | `auditor` | AUDITOR | E2eDemoDataInitializer |
-| `xiaochen` | `123456` | `bid_admin` | MANAGER | E2eDemoDataInitializer |
-| `xiaoliu` | `123456` | `bid_lead` | MANAGER | E2eDemoDataInitializer |
-| `xiaozhang` | `123456` | `sales` | MANAGER | E2eDemoDataInitializer |
-| `xiaowu` | `123456` | `task_executor` | STAFF | E2eDemoDataInitializer |
-| `xiaozhou` | `123456` | `bid_specialist` | STAFF | E2eDemoDataInitializer |
-| `xiaozheng` | `123456` | `admin_staff` | STAFF | E2eDemoDataInitializer |
+> 来源：`E2eDemoDataInitializer`，密码统一为 `123456`。
+
+| 用户名 | 密码 | RoleProfile code | 角色名称 |
+|--------|------|------|------|
+| `lizong` | `123456` | `admin` | 管理员 |
+| `xiaowang` | `123456` | `staff` | 普通员工 |
+| `xiaochen` | `123456` | `bid_admin` | 投标管理员 |
+| `xiaoliu` | `123456` | `bid_lead` | 投标组长 |
+| `xiaozhang` | `123456` | `sales` | 投标项目负责人 |
+| `xiaozhou` | `123456` | `bid_specialist` | 投标专员 |
+| `xiaozheng` | `123456` | `admin_staff` | 行政人员 |
 
 ### dev (本地联调，SPRING_PROFILES_ACTIVE=dev)
 
-| 用户名 | 密码 | RoleProfile | Legacy 角色 | 来源 |
-|--------|------|-------------|-------------|------|
-| `staff` | `Test@123` | `staff` | STAFF | LocalDevAccountInitializer |
-| `manager` | `Test@123` | `manager` | MANAGER | LocalDevAccountInitializer |
-| `auditor` | `Test@123` | `auditor` | AUDITOR | LocalDevAccountInitializer |
-| `bid_admin` | `Test@123` | `bid_admin` | MANAGER | LocalDevAccountInitializer |
-| `bid_lead` | `Test@123` | `bid_lead` | MANAGER | LocalDevAccountInitializer |
-| `sales` | `Test@123` | `sales` | MANAGER | LocalDevAccountInitializer |
-| `task_executor` | `Test@123` | `task_executor` | STAFF | LocalDevAccountInitializer |
-| `bid_specialist` | `Test@123` | `bid_specialist` | STAFF | LocalDevAccountInitializer |
-| `admin_staff` | `Test@123` | `admin_staff` | STAFF | LocalDevAccountInitializer |
+> 来源：`LocalDevAccountInitializer`，需设置 `LOCAL_DEV_PASSWORD` 环境变量（默认密码 `Test@123`）。
 
-> `bid_specialist` 与 `admin_staff` 为 2026-05-16 新增角色，对应产品蓝图 "投标专员" 与 "行政人员"。
-> `auditor` 与 `task_executor` 于 2026-05-17 补充测试账号。
-> `sales` RoleProfile 的前端展示名于 2026-05-18 统一为 "项目负责人"（原 "销售人员"），后端 RoleProfile 代码不变。
+| 用户名 | 密码 | RoleProfile code | 角色名称 |
+|--------|------|------|------|
+| `bid_admin` | `Test@123` | `bid_admin` | 投标管理员 |
+| `bid_lead` | `Test@123` | `bid_lead` | 投标组长 |
+| `sales` | `Test@123` | `sales` | 投标项目负责人 |
+| `bid_specialist` | `Test@123` | `bid_specialist` | 投标专员 |
+| `admin_staff` | `Test@123` | `admin_staff` | 行政人员 |
+
+### 角色清单（RoleProfileCatalog）
+
+> 当前系统仅存在以下 8 个 RoleProfile，`auditor`/`manager`/`bid_senior` 等角色已不存在。
+
+| RoleProfile code | 角色名称 | 配置规则 |
+|---|---|---|
+| `admin` | 管理员 | 按人员 |
+| `bid_admin` | 投标管理员 | 按人员 |
+| `bid_lead` | 投标组长 | 按人员 |
+| `sales` | 投标项目负责人 | 按岗位 |
+| `bid_specialist` | 投标专员 | 按部门 |
+| `admin_staff` | 行政人员 | 按部门 |
+| `bid_other_dept` | 跨部门协同人员 | 按人员 |
+| `staff` | 普通员工 | - |
 
 生产环境通过 `ADMIN_PASSWORD` 环境变量覆盖默认密码。任何 profile 启动后数据库至少有一个可登录账户。
 

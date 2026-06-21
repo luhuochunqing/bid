@@ -30,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -159,6 +160,7 @@ class ProjectDraftingServiceTest {
 
     private void prepareSubmitBidHappyPath() {
         lenient().when(taskRepository.findByProjectId(1L)).thenReturn(List.of());
+        // 默认 mock：lead 未分配（admin/bid_admin/bid_lead 路径不依赖 lead；sales/bid_specialist 测试按需覆盖）
         lenient().when(leadRepo.findByProjectId(1L)).thenReturn(Optional.empty());
         lenient().when(projectStageService.currentStage(1L)).thenReturn(ProjectStage.DRAFTING);
         lenient().when(bidReviewAppService.getReviewState(1L))
@@ -168,18 +170,40 @@ class ProjectDraftingServiceTest {
                 .thenAnswer(inv -> inv.getArgument(0));
     }
 
+    /** 构造项目级负责人分配 mock：primaryLeadId/secondaryLeadId 任一为 null 表示未分配该角色。 */
+    private void prepareLeadAssignment(Long primaryLeadId, Long secondaryLeadId) {
+        when(leadRepo.findByProjectId(1L)).thenReturn(Optional.of(
+                ProjectLeadAssignment.builder().id(5L).projectId(1L)
+                        .primaryLeadUserId(primaryLeadId)
+                        .secondaryLeadUserId(secondaryLeadId)
+                        .build()));
+    }
+
     @Test
-    void submitBid_sales_allowed() {
+    void submitBid_sales_asPrimaryLead_allowed() {
         prepareSubmitBidHappyPath();
         when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "sales")));
+        prepareLeadAssignment(1L, 2L);  // sales 用户=1 是 primaryLead
         var view = service.submitBid(1L, 1L);
         assertThat(view).isNotNull();
+    }
+
+    @Test
+    void submitBid_sales_asSecondaryLead_denied_403() {
+        // sales 只能匹配 primaryLead，不能匹配 secondaryLead
+        prepareSubmitBidHappyPath();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "sales")));
+        prepareLeadAssignment(2L, 1L);  // sales 用户=1 是 secondaryLead，不是 primaryLead
+        assertThatThrownBy(() -> service.submitBid(1L, 1L))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting("statusCode").isEqualTo(HttpStatus.FORBIDDEN);
     }
 
     @Test
     void submitBid_initializesEvaluationRecord() {
         prepareSubmitBidHappyPath();
         when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "sales")));
+        prepareLeadAssignment(1L, 2L);
         service.submitBid(1L, 1L);
         verify(projectEvaluationRepository).save(argThat(e ->
                 e.getProjectId().equals(1L)
@@ -205,8 +229,57 @@ class ProjectDraftingServiceTest {
     }
 
     @Test
-    void submitBid_auditor_denied_403() {
-        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "auditor")));
+    void submitBid_admin_allowed() {
+        prepareSubmitBidHappyPath();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "admin")));
+        // admin 路径权限判断不依赖 lead；prepareSubmitBidHappyPath 默认 lead=empty 也能通过
+        var view = service.submitBid(1L, 1L);
+        assertThat(view).isNotNull();
+    }
+
+    @Test
+    void submitBid_bidSpecialist_asSecondaryLead_allowed() {
+        prepareSubmitBidHappyPath();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid_specialist")));
+        prepareLeadAssignment(2L, 1L);  // bid_specialist 用户=1 是 secondaryLead
+        var view = service.submitBid(1L, 1L);
+        assertThat(view).isNotNull();
+    }
+
+    @Test
+    void submitBid_bidSpecialist_asPrimaryLead_denied_403() {
+        // bid_specialist 只能匹配 secondaryLead，不能匹配 primaryLead
+        prepareSubmitBidHappyPath();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid_specialist")));
+        prepareLeadAssignment(1L, 2L);  // bid_specialist 用户=1 是 primaryLead，不是 secondaryLead
+        assertThatThrownBy(() -> service.submitBid(1L, 1L))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting("statusCode").isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void submitBid_sales_notLead_denied_403() {
+        prepareSubmitBidHappyPath();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "sales")));
+        prepareLeadAssignment(2L, 3L);  // sales 用户=1 既不是 primary 也不是 secondary
+        assertThatThrownBy(() -> service.submitBid(1L, 1L))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting("statusCode").isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void submitBid_sales_noLeadAssignment_denied_403() {
+        prepareSubmitBidHappyPath();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "sales")));
+        // prepareSubmitBidHappyPath 默认 lead=empty，sales 无 lead 分配应被拒绝
+        assertThatThrownBy(() -> service.submitBid(1L, 1L))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting("statusCode").isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void submitBid_adminStaff_denied_403() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "admin_staff")));
         assertThatThrownBy(() -> service.submitBid(1L, 1L))
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting("statusCode").isEqualTo(HttpStatus.FORBIDDEN);

@@ -41,10 +41,10 @@
             <div v-if="task.completionNotes" class="card-info" style="margin-top:4px;">
               <span>完成情况：{{ task.completionNotes }}</span>
             </div>
-            <!-- TODO 列：交付物上传 + 提交 -->
-            <div v-if="col.status === 'TODO'" class="card-actions">
-              <el-button size="small" @click="openDeliverableUpload(task)">交付物上传</el-button>
-              <el-button size="small" type="primary" :disabled="!hasDeliverable(task)" @click="openSubmitDialog(task)">提交</el-button>
+            <!-- TODO / IN_PROGRESS 列：交付物上传 + 提交（仅任务执行人本人可操作） -->
+            <div v-if="col.status === 'TODO' || col.status === 'IN_PROGRESS'" class="card-actions">
+              <el-button size="small" :disabled="!isTaskAssignee(task)" @click="openDeliverableUpload(task)">交付物上传</el-button>
+              <el-button size="small" type="primary" :disabled="!isTaskAssignee(task) || !hasDeliverable(task)" @click="openSubmitDialog(task)">提交</el-button>
             </div>
             <!-- REVIEW 列：驳回/通过 -->
             <div v-if="col.status === 'REVIEW'" class="card-actions">
@@ -126,15 +126,18 @@ import { ElMessage } from 'element-plus'
 import { projectsApi } from '@/api/modules/projects.js'
 import { usersApi } from '@/api/modules/users.js'
 import { formatDisplayName } from '@/utils/formatDisplayName.js'
+import { useUserStore } from '@/stores/user.js'
 const props = defineProps({
   projectId: { type: [String, Number], required: true },
   canUseAI: Boolean,
   scoreRiskCount: { type: Number, default: 0 },
 })
 const emit = defineEmits(['openScoreParse', 'openDecompose'])
+const userStore = useUserStore()
 
 const columns = [
   { status: 'TODO', label: '待办', tag: '' },
+  { status: 'IN_PROGRESS', label: '进行中', tag: 'primary' },
   { status: 'REVIEW', label: '待审核', tag: 'warning' },
   { status: 'COMPLETED', label: '已完成', tag: 'success' },
 ]
@@ -148,6 +151,10 @@ const grouped = computed(() => {
   }
   return g
 })
+function isTaskAssignee(task) {
+  const uid = userStore?.currentUser?.id
+  return uid != null && task?.assigneeId != null && String(uid) === String(task.assigneeId)
+}
 const userOptions = ref([])
 const searching = ref(false)
 async function searchUsers(query) {
