@@ -8,6 +8,7 @@ import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.service.RoleProfileService;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
+import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.task.dto.TaskDTO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -60,6 +61,9 @@ class TaskContentPersistenceTest {
     @Mock
     private ProjectNotificationService notificationService;
 
+    @Mock
+    private ProjectDocumentRepository projectDocumentRepository;
+
     private TaskService taskService;
 
     @BeforeEach
@@ -76,7 +80,7 @@ class TaskContentPersistenceTest {
                 projectAccessScopeService,
                 projectRepository,
                 assignmentSupport,
-                new TaskDtoMapper(new ObjectMapper()),
+                new TaskDtoMapper(new ObjectMapper(), projectDocumentRepository),
                 taskHistoryRecorder,
                 notificationService,
                 userRepository

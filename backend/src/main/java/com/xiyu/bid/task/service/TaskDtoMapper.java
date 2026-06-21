@@ -7,6 +7,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.entity.Task;
+import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
+import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
+import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.task.dto.TaskDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,9 +27,11 @@ public class TaskDtoMapper {
             new TypeReference<>() {};
 
     private final ObjectMapper objectMapper;
+    private final ProjectDocumentRepository projectDocumentRepository;
 
-    public TaskDtoMapper(ObjectMapper objectMapper) {
+    public TaskDtoMapper(ObjectMapper objectMapper, ProjectDocumentRepository projectDocumentRepository) {
         this.objectMapper = objectMapper;
+        this.projectDocumentRepository = projectDocumentRepository;
     }
 
     public List<TaskDTO> toDTOs(List<Task> tasks) {
@@ -60,6 +65,7 @@ public class TaskDtoMapper {
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
                 .extendedFields(deserializeExtendedFields(task))
+                .attachments(loadTaskAttachments(task.getId()))
                 .build();
     }
 
@@ -85,5 +91,36 @@ public class TaskDtoMapper {
             log.warn("Failed to parse extendedFieldsJson for task {}: {}", task.getId(), e.getMessage());
             return Collections.emptyMap();
         }
+    }
+
+    private List<ProjectDocumentDTO> loadTaskAttachments(Long taskId) {
+        if (taskId == null || projectDocumentRepository == null) {
+            return Collections.emptyList();
+        }
+        List<ProjectDocument> documents = projectDocumentRepository
+                .findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc("TASK", taskId);
+        if (documents == null || documents.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return documents.stream()
+                .map(this::toProjectDocumentDTO)
+                .toList();
+    }
+
+    private ProjectDocumentDTO toProjectDocumentDTO(ProjectDocument doc) {
+        return ProjectDocumentDTO.builder()
+                .id(doc.getId())
+                .projectId(doc.getProjectId())
+                .name(doc.getName())
+                .size(doc.getSize())
+                .fileType(doc.getFileType())
+                .documentCategory(doc.getDocumentCategory())
+                .linkedEntityType(doc.getLinkedEntityType())
+                .linkedEntityId(doc.getLinkedEntityId())
+                .fileUrl(doc.getFileUrl())
+                .uploaderId(doc.getUploaderId())
+                .uploader(doc.getUploaderName())
+                .createdAt(doc.getCreatedAt())
+                .build();
     }
 }

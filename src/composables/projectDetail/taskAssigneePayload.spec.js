@@ -76,7 +76,7 @@ describe('taskAssigneePayload', () => {
       const userStore = { currentUser: { id: 9 }, userName: '赵六' }
       expect(createTaskAttachmentPayload(file, userStore)).toEqual({
         name: 'd.pdf',
-        deliverableType: 'DOCUMENT',
+        documentCategory: 'TASK_ATTACHMENT',
         file,
         uploaderId: 9,
         uploaderName: '赵六',
@@ -86,7 +86,7 @@ describe('taskAssigneePayload', () => {
     it('uses default name when file name is missing', () => {
       expect(createTaskAttachmentPayload({}, {})).toEqual({
         name: '任务附件',
-        deliverableType: 'DOCUMENT',
+        documentCategory: 'TASK_ATTACHMENT',
         file: {},
         uploaderId: null,
         uploaderName: undefined,

@@ -23,7 +23,7 @@ export function normalizeTaskAttachmentFiles(attachments = []) {
 export function createTaskAttachmentPayload(file, userStore = {}) {
   return {
     name: file?.name || '任务附件',
-    deliverableType: 'DOCUMENT',
+    documentCategory: 'TASK_ATTACHMENT',
     file,
     uploaderId: userStore.currentUser?.id ?? null,
     uploaderName: userStore.userName,

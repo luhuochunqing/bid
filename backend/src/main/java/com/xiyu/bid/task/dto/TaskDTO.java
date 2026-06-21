@@ -1,12 +1,14 @@
 package com.xiyu.bid.task.dto;
 
 import com.xiyu.bid.entity.Task;
+import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -45,4 +47,11 @@ public class TaskDTO {
      * 当底层 JSON 为空时，{@code toDTO} 返回空 Map 而非 {@code null}。
      */
     private Map<String, Object> extendedFields;
+
+    /**
+     * 任务附件列表，来自 {@code project_documents} 表中
+     * {@code linkedEntityType='TASK'} 且 {@code linkedEntityId=task.id} 的记录。
+     * 当无附件时返回空列表而非 {@code null}。
+     */
+    private List<ProjectDocumentDTO> attachments;
 }
