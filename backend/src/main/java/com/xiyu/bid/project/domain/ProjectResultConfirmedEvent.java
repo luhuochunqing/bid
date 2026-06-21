@@ -23,6 +23,7 @@ public record ProjectResultConfirmedEvent(
         List<Long> evidenceFileIds,
         List<CompetitorSnapshot> competitors,
         Long operatorUserId,
+        String operatorName,
         Long resultId,
         LocalDateTime occurredAt
 ) {
@@ -39,8 +40,8 @@ public record ProjectResultConfirmedEvent(
     public static ProjectResultConfirmedEvent of(Long projectId, Long tenderId, BidResultType resultType,
                                                   List<Long> evidenceFileIds,
                                                   List<CompetitorSnapshot> competitors,
-                                                  Long operatorUserId, Long resultId) {
+                                                  Long operatorUserId, String operatorName, Long resultId) {
         return new ProjectResultConfirmedEvent(projectId, tenderId, resultType, evidenceFileIds,
-                competitors, operatorUserId, resultId, LocalDateTime.now());
+                competitors, operatorUserId, operatorName, resultId, LocalDateTime.now());
     }
 }

@@ -1,0 +1,15 @@
+version: 1
+task: "fix-project-status-bid-result"
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql/V1088__fix_project_status_from_bid_result.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/trae/fix-project-status-bid-result"
+    expiresAt: "2026-06-22T15:30:00.000Z"
+    reason: "V1088 修复 projects.status 历史数据"
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1088__fix_project_status_from_bid_result.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/trae/fix-project-status-bid-result"
+    expiresAt: "2026-06-22T15:30:00.000Z"
+    reason: "U1088 回滚脚本"

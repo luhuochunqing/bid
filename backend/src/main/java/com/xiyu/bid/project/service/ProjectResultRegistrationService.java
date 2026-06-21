@@ -111,17 +111,21 @@ public class ProjectResultRegistrationService {
         persistCompetitors(saved.getId(), req.getCompetitors());
         // §4.2 CRM 回调：发布领域事件，由 ProjectResultConfirmedWebhookListener 监听后入队
         // WebhookDeliveryTask，复用 §4.1 的 1min/5min/15min 重试机制（AFTER_COMMIT 保证主事务成功）。
+        // 传入 operatorName 供 CRM 回调使用（bidInfoSync 需要 statusEditor 字段）。
+        User operator = userRepository.findById(currentUserId).orElse(null);
+        String operatorName = operator != null ? operator.getFullName() : "";
         eventPublisher.publishEvent(ProjectResultConfirmedEvent.of(
                 projectId, project.getTenderId(), req.getResultType(),
                 req.getEvidenceFileIds(),
                 toCompetitorSnapshots(req.getCompetitors()),
-                currentUserId, saved.getId()));
+                currentUserId, operatorName, saved.getId()));
         // §5.4: 结果登记后按结果类型分流推进 RESULT_PENDING → RETROSPECTIVE / CLOSED（幂等跳过）
+        // 传入 bidResult 让 ProjectStatusPolicy 正确计算 Project.Status（WON/LOST/FAILED/ABANDONED）
         ProjectStage current = projectStageService.currentStage(projectId);
         if (current == ProjectStage.RESULT_PENDING) {
             ProjectStage nextStage = ProjectStageTransitionPolicy.decideResultNext(req.getResultType());
             projectStageService.requestTransition(projectId, nextStage,
-                    ProjectStageTransitionPolicy.GateInputs.EMPTY);
+                    ProjectStageTransitionPolicy.GateInputs.EMPTY, req.getResultType().name());
         }
         log.info("ProjectResult registered project={} type={} nextStage={} user={}",
                 projectId, req.getResultType(),

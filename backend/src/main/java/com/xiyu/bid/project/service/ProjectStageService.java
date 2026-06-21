@@ -71,6 +71,15 @@ public class ProjectStageService {
     @Auditable(action = "PROJECT_STAGE_TRANSITIONED", entityType = "Project",
             description = "推进项目阶段")
     public ProjectStage requestTransition(Long projectId, ProjectStage target, GateInputs gateInputs) {
+        return requestTransition(projectId, target, gateInputs, null);
+    }
+
+    /**
+     * 推进阶段（带投标结果）：结果登记场景需要 bidResult 来正确计算 Project.Status。
+     * 其他场景调用 {@link #requestTransition(Long, ProjectStage, GateInputs)} 即可。
+     */
+    public ProjectStage requestTransition(Long projectId, ProjectStage target, GateInputs gateInputs,
+                                          String bidResult) {
         Project p = mustGet(projectId);
         ProjectStage current = parse(p.getStage());
         var decision = ProjectStageTransitionPolicy.decide(current, target,
@@ -80,7 +89,7 @@ public class ProjectStageService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, deny.reason());
         }
         p.setStage(target.name());
-        syncProjectStatus(p, target);
+        syncProjectStatus(p, target, bidResult);
         // 档案 4.1.1.1.1：阶段时间戳自动记录（首次写入原则）
         if (target == ProjectStage.EVALUATING && p.getEvaluatingAt() == null) {
             p.setEvaluatingAt(LocalDateTime.now());
@@ -107,8 +116,8 @@ public class ProjectStageService {
                 .orElseThrow(() -> new ResourceNotFoundException("Project", String.valueOf(projectId)));
     }
 
-    private void syncProjectStatus(Project project, ProjectStage targetStage) {
-        Project.Status nextStatus = ProjectStatusPolicy.compute(targetStage, null, true);
+    private void syncProjectStatus(Project project, ProjectStage targetStage, String bidResult) {
+        Project.Status nextStatus = ProjectStatusPolicy.compute(targetStage, bidResult, true);
         project.setStatus(nextStatus);
     }
 

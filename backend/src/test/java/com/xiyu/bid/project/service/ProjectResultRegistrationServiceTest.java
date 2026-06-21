@@ -109,7 +109,8 @@ class ProjectResultRegistrationServiceTest {
                 .build();
         service.register(1L, req, 7L);
         verify(stageService, times(1)).requestTransition(eq(1L),
-                eq(ProjectStage.RETROSPECTIVE), any(ProjectStageTransitionPolicy.GateInputs.class));
+                eq(ProjectStage.RETROSPECTIVE), any(ProjectStageTransitionPolicy.GateInputs.class),
+                eq("WON"));
     }
 
     @Test
@@ -128,7 +129,8 @@ class ProjectResultRegistrationServiceTest {
                 .build();
         service.register(1L, req, 7L);
         verify(stageService, times(1)).requestTransition(eq(1L),
-                eq(ProjectStage.CLOSED), any(ProjectStageTransitionPolicy.GateInputs.class));
+                eq(ProjectStage.CLOSED), any(ProjectStageTransitionPolicy.GateInputs.class),
+                eq("FAILED"));
     }
 
     @Test
@@ -148,6 +150,7 @@ class ProjectResultRegistrationServiceTest {
                 .build();
         service.register(1L, req, 7L);
         verify(stageService, never()).requestTransition(any(), any(), any());
+        verify(stageService, never()).requestTransition(any(), any(), any(), any());
     }
 
     @Test

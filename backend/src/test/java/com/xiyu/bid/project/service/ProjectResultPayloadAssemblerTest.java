@@ -211,6 +211,6 @@ class ProjectResultPayloadAssemblerTest {
                                                     List<Long> evidenceFileIds,
                                                     List<ProjectResultConfirmedEvent.CompetitorSnapshot> competitors) {
         return ProjectResultConfirmedEvent.of(
-                PROJECT_ID, TENDER_ID, resultType, evidenceFileIds, competitors, USER_ID, RESULT_ID);
+                PROJECT_ID, TENDER_ID, resultType, evidenceFileIds, competitors, USER_ID, "", RESULT_ID);
     }
 }
