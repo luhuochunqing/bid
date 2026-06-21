@@ -40,7 +40,7 @@ export const priorityOptions = [
 
 export const sourceOptions = [
   { value: '人工录入', label: '人工录入' },
-  { value: 'CRM 创建', label: 'CRM 创建' },
+  { value: 'CRM创建', label: 'CRM创建' },
   { value: '第三方平台', label: '第三方平台' },
 ]
 
