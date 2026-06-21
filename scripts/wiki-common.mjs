@@ -15,6 +15,7 @@ export const extractsRoot = path.join(wikiRoot, 'extracts')
 export const pagesRoot = path.join(wikiRoot, 'pages')
 export const catalogRoot = path.join(wikiRoot, 'catalog')
 export const outputsRoot = path.join(wikiRoot, 'outputs')
+export const docsRoot = path.join(repoRoot, 'docs')
 
 export function ensureWikiDirs() {
   for (const dir of [wikiRoot, sourcesRoot, extractsRoot, pagesRoot, catalogRoot, outputsRoot]) {
@@ -36,6 +37,52 @@ export function escapeRegExp(input) {
 
 export function isIgnoredFile(fileName) {
   return fileName === '.DS_Store' || fileName === '.gitkeep' || fileName === 'README.md'
+}
+
+// docs/ 下需要忽略的目录：历史归档、自动生成、资源文件等
+// 这些目录的 md 文件不作为 wiki sources 追踪，避免噪声
+const DOCS_IGNORED_DIRS = new Set([
+  'archives',      // 历史归档，只读不修改
+  'generated',     // 自动生成（db-schema.md 等）
+  'images',        // 图片资源
+  'assets',        // 共享资源
+  'prototypes',    // 可交互原型
+  'design-system', // 设计系统规范
+  'artifacts',     // AI 生成活文档
+])
+
+// docs/ 下需要忽略的文件名模式
+const DOCS_IGNORED_FILE_PATTERNS = [
+  /^README\.md$/i,        // 各目录的 README
+  /^TODO\.md$/i,          // 待办清单
+  /^VERSION$/i,           // 版本号
+  /^favicon\.ico$/i,      // 图标
+]
+
+export function isDocsIgnored(repoRelativePath) {
+  const normalized = repoRelativePath.replace(/\\/g, '/')
+  // 只追踪 docs/ 下的 .md 文件
+  if (!normalized.startsWith('docs/')) {
+    return true
+  }
+  // 必须是 .md 扩展名
+  if (!normalized.toLowerCase().endsWith('.md')) {
+    return true
+  }
+  const relToDocs = normalized.slice(5) // 去掉 'docs/'
+  const segments = relToDocs.split('/')
+  // 检查是否在忽略目录中
+  if (segments.length > 1 && DOCS_IGNORED_DIRS.has(segments[0])) {
+    return true
+  }
+  // 检查文件名模式
+  const fileName = segments[segments.length - 1]
+  for (const pattern of DOCS_IGNORED_FILE_PATTERNS) {
+    if (pattern.test(fileName)) {
+      return true
+    }
+  }
+  return false
 }
 
 export function walkFiles(rootDir) {

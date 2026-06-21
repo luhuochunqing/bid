@@ -3,7 +3,7 @@
 - source_path: .wiki/sources/technical/泊冉投标系统与西域对接技术相关内容.md
 - source_type: markdown
 - topic: technical
-- generated_at: 2026-05-07T10:51:13.700Z
+- generated_at: 2026-06-21T13:44:57.527Z
 - status: extracted
 - confidence: 1
 # 泊冉投标系统与西域对接技术相关内容

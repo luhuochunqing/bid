@@ -70,6 +70,7 @@
     "wiki:fix": "node scripts/wiki-fix.mjs --auto-fix",
     "wiki:fix:dry-run": "node scripts/wiki-fix.mjs --dry-run",
     "wiki:search": "bash scripts/wiki-search.sh",
+    "wiki:all": "npm run wiki:ingest && npm run wiki:build && npm run wiki:check",
     "validate:agents-refs": "node scripts/validate-agents-refs.mjs",
     "db:generate-rollback": "node scripts/generate-flyway-rollback-scripts.mjs",
     "db:generate-schema": "node scripts/generate-db-schema.mjs",

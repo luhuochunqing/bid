@@ -14,8 +14,8 @@ backlinks:
   - implementation/attachment6-function-list-trace
   - workflow-form-center
 created: 2026-04-25
-updated: 2026-06-10
-health_checked: 2026-06-20
+updated: 2026-06-21
+health_checked: 2026-06-21
 ---
 # 系统集成中心 - 企业微信
 

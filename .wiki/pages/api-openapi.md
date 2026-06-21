@@ -12,11 +12,12 @@ backlinks:
   - architecture
   - implementation/attachment4-gap-matrix
   - implementation/attachment6-function-list-trace
+  - integration-tender-api
   - integration-wecom
   - workflow-form-center
 created: 2026-04-25
 updated: 2026-05-27
-health_checked: 2026-06-20
+health_checked: 2026-06-21
 ---
 # OpenAPI/Swagger 接口规范
 
@@ -119,6 +120,7 @@ springdoc 会自动扫描 `@RestController + @RequestMapping("/api/...")` 注解
 
 ## 相关文档
 
+- [[integration-tender-api]] 标讯集成接口（外部系统 → 投标系统）
 - [[architecture]] §5 API 集成层
 - [[deployment]] 端口与部署
 - `docs/research/API_INTEGRATION.md` 前后端集成与统一响应规范

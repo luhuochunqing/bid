@@ -10,9 +10,10 @@ backlinks:
   - _index
   - implementation/xiyu-pending-confirmations
   - integration-organization-event-sdk
+  - integration-tender-api
 created: 2026-05-07
 updated: 2026-06-20
-health_checked: 2026-06-20
+health_checked: 2026-06-21
 ---
 # CRM 对接规范
 
@@ -134,6 +135,7 @@ https://域名/[服务名]/[客户端类型]/[版本号]/路径
 ---
 
 ## 相关文档
+- [[integration-tender-api]] 标讯集成接口（外部系统 → 投标系统推送标讯，与本文档的"投标系统 → CRM 查询"方向相反）
 - [[integration-organization-event-sdk]] 组织架构对接方案
 - [[architecture]] §5 API 集成层
 - `.wiki/sources/technical/泊冉投标系统与西域对接技术相关内容.pdf` (原始文档)

@@ -9,8 +9,8 @@ sources:
 backlinks:
   - _index
 created: 2026-05-28
-updated: 2026-05-27
-health_checked: 2026-06-20
+updated: 2026-06-21
+health_checked: 2026-06-21
 ---
 > 蓝图章节：§4.7 系统设置
 > 对应飞书蓝图：https://my.feishu.cn/docx/FgLAdRmFho4QhwxncgAcfxKJn0d

@@ -3,7 +3,7 @@
 - source_path: .wiki/sources/contract/附件3-合同报价清单人工摘录.md
 - source_type: markdown
 - topic: contract
-- generated_at: 2026-05-07T10:51:11.450Z
+- generated_at: 2026-06-21T13:44:57.443Z
 - status: extracted
 - confidence: 1
 # 附件3：合同报价清单人工摘录

@@ -5,14 +5,15 @@
     "space": "engineering",
     "category": "guide",
     "sources": [
+      "docs/specs/WIKI.md",
       ".wiki/INDEX.md",
       ".wiki/PAGE_INDEX.md"
     ],
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-06-20",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/_index.md"
   },
   {
@@ -30,7 +31,7 @@
       "lessons-learned"
     ],
     "updated": "2026-06-07",
-    "health_checked": "2026-06-20",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/agent-sop-quickref.md"
   },
   {
@@ -59,8 +60,8 @@
       "modules",
       "requirements"
     ],
-    "updated": "2026-05-31",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/ai-capabilities.md"
   },
   {
@@ -78,11 +79,12 @@
       "architecture",
       "implementation/attachment4-gap-matrix",
       "implementation/attachment6-function-list-trace",
+      "integration-tender-api",
       "integration-wecom",
       "workflow-form-center"
     ],
     "updated": "2026-05-27",
-    "health_checked": "2026-06-20",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/api-openapi.md"
   },
   {
@@ -111,14 +113,15 @@
       "implementation/delivery-playbook",
       "implementation/milestones",
       "integration-oa-crm",
+      "integration-tender-api",
       "lessons-learned",
       "overview",
       "requirements",
       "roles-and-permissions",
       "team-and-timeline"
     ],
-    "updated": "2026-06-20",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/architecture.md"
   },
   {
@@ -145,8 +148,8 @@
       "team-and-timeline",
       "workflow-form-center"
     ],
-    "updated": "2026-06-16",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/business-process.md"
   },
   {
@@ -175,7 +178,7 @@
       "team-and-timeline"
     ],
     "updated": "2026-06-20",
-    "health_checked": "2026-06-20",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/contract-constraints.md"
   },
   {
@@ -191,8 +194,8 @@
       "_index",
       "design-system"
     ],
-    "updated": "2026-06-17",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/dashboard-gap-analysis.md"
   },
   {
@@ -212,8 +215,8 @@
       "implementation/attachment4-gap-matrix",
       "implementation/attachment4-requirement-task-book"
     ],
-    "updated": "2026-06-20",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/data-model.md"
   },
   {
@@ -233,8 +236,8 @@
       "roles-and-permissions",
       "workflow-form-center"
     ],
-    "updated": "2026-05-27",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/data-permission-hardening.md"
   },
   {
@@ -270,8 +273,8 @@
       "requirements",
       "team-and-timeline"
     ],
-    "updated": "2026-06-20",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/deployment.md"
   },
   {
@@ -292,7 +295,7 @@
       "overview"
     ],
     "updated": "2026-06-19",
-    "health_checked": "2026-06-20",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/design-system.md"
   },
   {
@@ -310,7 +313,7 @@
       "_index"
     ],
     "updated": "2026-05-31",
-    "health_checked": "2026-06-20",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/docinsight-engine.md"
   },
   {
@@ -330,8 +333,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-05-24",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/dynamic-form-engine.md"
   },
   {
@@ -348,8 +351,8 @@
       "_index",
       "data-model"
     ],
-    "updated": "2026-06-16",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/glossary.md"
   },
   {
@@ -375,8 +378,8 @@
       "implementation/risk-register",
       "implementation/sow-2026-v1-4"
     ],
-    "updated": "2026-06-20",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/implementation/acceptance-and-closure.md"
   },
   {
@@ -401,8 +404,8 @@
       "implementation/attachment6-function-list-trace",
       "implementation/document-delivery-ledger"
     ],
-    "updated": "2026-05-27",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/implementation/attachment4-gap-matrix.md"
   },
   {
@@ -421,7 +424,7 @@
       "requirements"
     ],
     "updated": "2026-05-27",
-    "health_checked": "2026-06-20",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/implementation/attachment4-requirement-task-book.md"
   },
   {
@@ -444,7 +447,7 @@
       "implementation/document-delivery-ledger"
     ],
     "updated": "2026-05-27",
-    "health_checked": "2026-06-20",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/implementation/attachment6-function-list-trace.md"
   },
   {
@@ -464,8 +467,8 @@
       "implementation/sow-2026-v1-4",
       "implementation/xiyu-pending-confirmations"
     ],
-    "updated": "2026-06-20",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/implementation/delivery-playbook.md"
   },
   {
@@ -482,7 +485,7 @@
       "_index"
     ],
     "updated": "2026-05-27",
-    "health_checked": "2026-06-20",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/implementation/development-sprint-2026-05-23.md"
   },
   {
@@ -502,7 +505,7 @@
       "implementation/delivery-playbook"
     ],
     "updated": "2026-05-28",
-    "health_checked": "2026-06-20",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/implementation/document-delivery-ledger.md"
   },
   {
@@ -523,7 +526,7 @@
       "implementation/sow-2026-v1-4"
     ],
     "updated": "2026-06-20",
-    "health_checked": "2026-06-20",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/implementation/milestones.md"
   },
   {
@@ -538,7 +541,7 @@
       "_index"
     ],
     "updated": "2026-05-28",
-    "health_checked": "2026-06-20",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/implementation/org-sdk-deployment-handoff.md"
   },
   {
@@ -561,8 +564,8 @@
       "implementation/weekly-status",
       "implementation/xiyu-pending-confirmations"
     ],
-    "updated": "2026-06-20",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/implementation/risk-register.md"
   },
   {
@@ -589,7 +592,7 @@
       "team-and-timeline"
     ],
     "updated": "2026-06-20",
-    "health_checked": "2026-06-20",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/implementation/sow-2026-v1-4.md"
   },
   {
@@ -610,8 +613,8 @@
       "implementation/risk-register",
       "implementation/xiyu-pending-confirmations"
     ],
-    "updated": "2026-06-20",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/implementation/weekly-status.md"
   },
   {
@@ -627,7 +630,7 @@
       "_index"
     ],
     "updated": "2026-05-28",
-    "health_checked": "2026-06-20",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/implementation/xiyu-pending-confirmations.md"
   },
   {
@@ -642,10 +645,11 @@
     "backlinks": [
       "_index",
       "implementation/xiyu-pending-confirmations",
-      "integration-organization-event-sdk"
+      "integration-organization-event-sdk",
+      "integration-tender-api"
     ],
     "updated": "2026-06-20",
-    "health_checked": "2026-06-20",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/integration-oa-crm.md"
   },
   {
@@ -667,8 +671,29 @@
       "integration-oa-crm"
     ],
     "updated": "2026-06-20",
-    "health_checked": "2026-06-20",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/integration-organization-event-sdk.md"
+  },
+  {
+    "slug": "integration-tender-api",
+    "title": "标讯集成接口（外部系统对接）",
+    "space": "engineering",
+    "category": "integration",
+    "sources": [
+      "docs/integration/标讯集成接口文档-v3.8.md",
+      "docs/integration/外部业务系统对接技术设计与接口规范说明.md",
+      "docs/integration/西域CRM商机对接接口.md",
+      "docs/integration/CO-262-crm-chance-fields-spec.md",
+      "docs/integration/crm-migration-guide.md"
+    ],
+    "backlinks": [
+      "_index",
+      "api-openapi",
+      "integration-oa-crm"
+    ],
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
+    "path": ".wiki/pages/integration-tender-api.md"
   },
   {
     "slug": "integration-wecom",
@@ -687,8 +712,8 @@
       "implementation/attachment6-function-list-trace",
       "workflow-form-center"
     ],
-    "updated": "2026-06-10",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/integration-wecom.md"
   },
   {
@@ -702,8 +727,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-06-20",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/knowledge-base.md"
   },
   {
@@ -721,7 +746,7 @@
       "multi-agent-defense-playbook"
     ],
     "updated": "2026-06-18",
-    "health_checked": "2026-06-20",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/lessons-learned.md"
   },
   {
@@ -760,7 +785,7 @@
       "workflow-form-center"
     ],
     "updated": "2026-05-31",
-    "health_checked": "2026-06-20",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/modules.md"
   },
   {
@@ -784,7 +809,7 @@
       "_index"
     ],
     "updated": "2026-06-20",
-    "health_checked": "2026-06-20",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/multi-agent-defense-playbook.md"
   },
   {
@@ -806,8 +831,8 @@
       "implementation/sow-2026-v1-4",
       "team-and-timeline"
     ],
-    "updated": "2026-06-20",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/overview.md"
   },
   {
@@ -837,7 +862,7 @@
       "implementation/sow-2026-v1-4"
     ],
     "updated": "2026-06-20",
-    "health_checked": "2026-06-20",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/requirements.md"
   },
   {
@@ -861,7 +886,7 @@
       "overview"
     ],
     "updated": "2026-06-20",
-    "health_checked": "2026-06-20",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/roles-and-permissions.md"
   },
   {
@@ -877,7 +902,7 @@
       "_index"
     ],
     "updated": "2026-06-06",
-    "health_checked": "2026-06-20",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/root-cause-analysis-ijssgg.md"
   },
   {
@@ -903,8 +928,8 @@
       "overview",
       "requirements"
     ],
-    "updated": "2026-06-20",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/team-and-timeline.md"
   },
   {
@@ -919,7 +944,7 @@
       "_index"
     ],
     "updated": "2026-05-28",
-    "health_checked": "2026-06-20",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/testing/_index.md"
   },
   {
@@ -934,8 +959,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-05-27",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/testing/module-01-workbench.md"
   },
   {
@@ -950,8 +975,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-05-27",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/testing/module-02-bidding.md"
   },
   {
@@ -966,8 +991,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-05-27",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/testing/module-03-project.md"
   },
   {
@@ -982,8 +1007,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-05-27",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/testing/module-04-knowledge.md"
   },
   {
@@ -998,8 +1023,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-05-27",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/testing/module-05-resource.md"
   },
   {
@@ -1014,8 +1039,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-05-27",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/testing/module-06-analytics.md"
   },
   {
@@ -1030,8 +1055,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-05-27",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/testing/module-07-settings.md"
   },
   {
@@ -1046,8 +1071,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-05-27",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/testing/module-08-ai.md"
   },
   {
@@ -1062,8 +1087,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-05-27",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/testing/module-09-integration.md"
   },
   {
@@ -1083,8 +1108,8 @@
       "integration-wecom",
       "modules"
     ],
-    "updated": "2026-05-31",
-    "health_checked": "2026-06-20",
+    "updated": "2026-06-21",
+    "health_checked": "2026-06-21",
     "path": ".wiki/pages/workflow-form-center.md"
   }
 ]
