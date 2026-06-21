@@ -28,6 +28,7 @@ public class TaskDTO {
      */
     private String content;
     private Long assigneeId;
+    private String assigneeName;
     private String assigneeDeptCode;
     private String assigneeDeptName;
     private String assigneeRoleCode;

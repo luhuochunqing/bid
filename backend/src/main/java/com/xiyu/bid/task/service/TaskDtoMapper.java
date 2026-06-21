@@ -7,6 +7,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.entity.Task;
+import com.xiyu.bid.entity.User;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.task.dto.TaskDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,9 +26,11 @@ public class TaskDtoMapper {
             new TypeReference<>() {};
 
     private final ObjectMapper objectMapper;
+    private final UserRepository userRepository;
 
-    public TaskDtoMapper(ObjectMapper objectMapper) {
+    public TaskDtoMapper(ObjectMapper objectMapper, UserRepository userRepository) {
         this.objectMapper = objectMapper;
+        this.userRepository = userRepository;
     }
 
     public List<TaskDTO> toDTOs(List<Task> tasks) {
@@ -41,6 +45,7 @@ public class TaskDtoMapper {
                 .description(task.getDescription())
                 .content(task.getContent())
                 .assigneeId(task.getAssigneeId())
+                .assigneeName(resolveDisplayName(task.getAssigneeId()))
                 .assigneeDeptCode(task.getAssigneeDeptCode())
                 .assigneeDeptName(task.getAssigneeDeptName())
                 .assigneeRoleCode(task.getAssigneeRoleCode())
@@ -76,5 +81,15 @@ public class TaskDtoMapper {
             log.warn("Failed to parse extendedFieldsJson for task {}: {}", task.getId(), e.getMessage());
             return Collections.emptyMap();
         }
+    }
+
+    private String resolveDisplayName(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        return userRepository.findById(userId)
+                .map(User::getFullName)
+                .filter(name -> name != null && !name.isBlank())
+                .orElse(null);
     }
 }

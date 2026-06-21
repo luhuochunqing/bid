@@ -65,7 +65,7 @@ class TaskServiceProjectAccessTest {
                 projectAccessScopeService,
                 projectRepository,
                 assignmentSupport,
-                new TaskDtoMapper(new ObjectMapper()),
+                new TaskDtoMapper(new ObjectMapper(), userRepository),
                 taskHistoryRecorder,
                 notificationService,
                 userRepository
