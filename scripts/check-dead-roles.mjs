@@ -2,6 +2,7 @@
 // Input: src/, backend/src/, e2e/, docs/ source trees
 // Output: violation report when deprecated role codes/names are still referenced
 // Pos: scripts/ — 死角色/死权限残留检测 (2026-06-21 CO-290 复盘)
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 //
 // Background:
 //   CO-290 修复过程中发现 auditor/manager/bid_senior/task_executor 等角色

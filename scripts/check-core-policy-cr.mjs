@@ -2,6 +2,7 @@
 // Input: backend/src/main/java/**/*Service.java and *AppService.java
 // Output: warning when authorization logic is implemented in Service/AppService instead of core/*Policy
 // Pos: scripts/ - Pure core policy CR enforcement helper (2026-06-21 CO-290 复盘)
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 //
 // Background:
 //   CO-290 中 ProjectDraftingService.submitBid() 直接比较 role code 做权限判定，

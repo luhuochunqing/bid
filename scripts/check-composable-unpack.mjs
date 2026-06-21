@@ -2,6 +2,7 @@
 // Input: src/ use*.js files (full scan or --staged)
 // Output: warning when a composable parameter may be ref/raw ambiguous
 // Pos: scripts/ - Composable ref/raw input convention linter (2026-06-21 CO-290 复盘)
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 //
 // Background:
 //   CO-290 中 canReviewBid 基于 opts.reviewerId 做比较，调用方误传 ref 对象，

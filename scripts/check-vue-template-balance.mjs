@@ -2,6 +2,7 @@
 // Input: staged or all .vue files
 // Output: warning when <template> section has unmatched opening/closing tags
 // Pos: scripts/ — Vue 模板标签平衡检查 (2026-06-21 CO-290 复盘)
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 //
 // Background:
 //   CO-290 修复过程中，TaskKanban.vue 第 53 行的 </div> 闭合标签被误删，
