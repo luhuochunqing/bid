@@ -111,4 +111,28 @@ describe('InitiationStage — PRD §4.3 4-section layout', () => {
     await flushPromises()
     expect(projectLifecycleApi.submitInitiation).not.toHaveBeenCalled()
   })
+
+  it('clears 0 default on focus and restores 0 on blur for amount fields', async () => {
+    projectLifecycleApi.getInitiation.mockRejectedValue({ response: { status: 404 } })
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    const fields = ['depositAmount', 'annualEcommerceAmount', 'customerRevenue']
+    for (const key of fields) {
+      wrapper.vm.form[key] = 0
+      wrapper.vm.handleAmountFocus(key)
+      expect(wrapper.vm.form[key]).toBeNull()
+      wrapper.vm.handleAmountBlur(key)
+      expect(wrapper.vm.form[key]).toBe(0)
+    }
+  })
+
+  it('does not clear non-zero amount on focus', async () => {
+    projectLifecycleApi.getInitiation.mockRejectedValue({ response: { status: 404 } })
+    const wrapper = createWrapper()
+    await flushPromises()
+    wrapper.vm.form.depositAmount = 123.45
+    wrapper.vm.handleAmountFocus('depositAmount')
+    expect(wrapper.vm.form.depositAmount).toBe(123.45)
+  })
 })

@@ -24,7 +24,7 @@
 </el-form-item>
 <template v-if="form.needDeposit === 'YES'">
   <div class="grid-2">
-    <el-form-item label="保证金金额（万）" required><el-input-number v-model="form.depositAmount" :min="0" :precision="2" /></el-form-item>
+    <el-form-item label="保证金金额（万）" required><el-input-number v-model="form.depositAmount" :min="0" :precision="2" @focus="handleAmountFocus('depositAmount')" @blur="handleAmountBlur('depositAmount')" /></el-form-item>
     <el-form-item label="保证金缴纳方式" required>
       <el-select v-model="form.depositPaymentMethod">
         <el-option label="电汇" value="WIRE" />
@@ -37,10 +37,10 @@
 <el-divider />
 <div class="grid-2">
   <el-form-item label="计划入围供应商数量"><el-input-number v-model="form.expectedBidders" :min="1" :precision="0" /></el-form-item>
-  <el-form-item label="电商MRO+办公流水金额（万）"><el-input-number v-model="form.annualEcommerceAmount" :min="0" :precision="2" /></el-form-item>
+  <el-form-item label="电商MRO+办公流水金额（万）"><el-input-number v-model="form.annualEcommerceAmount" :min="0" :precision="2" @focus="handleAmountFocus('annualEcommerceAmount')" @blur="handleAmountBlur('annualEcommerceAmount')" /></el-form-item>
 </div>
 <div class="grid-2">
-  <el-form-item label="客户营收（亿）"><el-input-number v-model="form.customerRevenue" :min="0" :precision="2" /></el-form-item>
+  <el-form-item label="客户营收（亿）"><el-input-number v-model="form.customerRevenue" :min="0" :precision="2" @focus="handleAmountFocus('customerRevenue')" @blur="handleAmountBlur('customerRevenue')" /></el-form-item>
 </div>
 <el-form-item label="招标文件不利项"><el-input v-model="form.tenderAdverseItems" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
 <el-form-item label="风险预判"><el-input v-model="form.riskAssessment" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
@@ -269,9 +269,12 @@ async function handleDynamicSubmit(formData) {
   if (formData) Object.assign(form, formData)
   await submit()
 }
+function handleAmountFocus(field) { if (form[field] === 0) form[field] = null }
+function handleAmountBlur(field) { if (form[field] == null || form[field] === '') form[field] = 0 }
+
 onMounted(load)
 
-defineExpose({ load })
+defineExpose({ load, handleAmountFocus, handleAmountBlur })
 </script>
 <style scoped>
 .initiation-stage { display: flex; flex-direction: column; gap: 16px; }
