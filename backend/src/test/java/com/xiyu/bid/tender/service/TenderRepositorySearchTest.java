@@ -141,4 +141,42 @@ class TenderRepositorySearchTest {
                 .extracting(Tender::getTitle)
                 .containsExactly("华东数据中心 GPU 算力平台采购项目");
     }
+
+    @Test
+    @DisplayName("标讯列表排序 - 按入库时间 createdAt 倒序")
+    void searchTenders_ShouldOrderByCreatedAtDesc() throws InterruptedException {
+        Tender earlyTender = Tender.builder()
+                .title("早期标讯")
+                .source("人工录入")
+                .status(Tender.Status.PENDING_ASSIGNMENT)
+                .publishDate(LocalDate.of(2026, 6, 20))
+                .build();
+
+        Tender middleTender = Tender.builder()
+                .title("中期标讯")
+                .source("人工录入")
+                .status(Tender.Status.PENDING_ASSIGNMENT)
+                .publishDate(LocalDate.of(2026, 6, 15))
+                .build();
+
+        Tender latestTender = Tender.builder()
+                .title("最新标讯")
+                .source("人工录入")
+                .status(Tender.Status.PENDING_ASSIGNMENT)
+                .publishDate(LocalDate.of(2026, 6, 10))
+                .build();
+
+        tenderRepository.save(earlyTender);
+        Thread.sleep(10);
+        tenderRepository.save(middleTender);
+        Thread.sleep(10);
+        tenderRepository.save(latestTender);
+
+        TenderSearchCriteria criteria = TenderSearchCriteria.builder().build();
+        List<Tender> result = tenderRepository.findAll(TenderSpecification.byCriteria(criteria));
+
+        assertThat(result)
+                .extracting(Tender::getTitle)
+                .containsExactly("最新标讯", "中期标讯", "早期标讯");
+    }
 }

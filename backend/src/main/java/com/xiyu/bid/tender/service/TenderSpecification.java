@@ -114,7 +114,6 @@ public final class TenderSpecification {
 
             if (query != null) {
                 query.orderBy(
-                        criteriaBuilder.desc(root.get("publishDate")),
                         criteriaBuilder.desc(root.get("createdAt"))
                 );
             }
