@@ -6,12 +6,13 @@ package com.xiyu.bid.webhook.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.xiyu.bid.crm.application.CrmProjectLeaderService;
 import com.xiyu.bid.crm.infrastructure.dto.BidInfoInnerDTO;
 import com.xiyu.bid.crm.infrastructure.dto.BidInfoSyncDTO;
+import com.xiyu.bid.crm.infrastructure.dto.CrmProjectStatus;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
+import com.xiyu.bid.webhook.infrastructure.CrmOpportunityCodeResolver;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTask;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTaskRepository;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTaskStatus;
@@ -46,13 +47,10 @@ public class WebhookEventListener {
     private static final DateTimeFormatter STATUS_EDIT_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final String EVENT_TYPE = "tender.status_changed";
 
-    private static final Set<Tender.Status> TRIGGER_STATES = Set.of(
-            Tender.Status.BIDDING, Tender.Status.ABANDONED);
-
     private final WebhookDeliveryTaskRepository taskRepository;
     private final TenderRepository tenderRepository;
     private final ObjectMapper objectMapper;
-    private final CrmProjectLeaderService crmProjectLeaderService;
+    private final CrmOpportunityCodeResolver crmOpportunityCodeResolver;
 
     @Value("${webhook.crm.url:}")
     private String crmWebhookUrl;
@@ -66,9 +64,9 @@ public class WebhookEventListener {
             log.warn("CRM webhook URL not configured, skipping enqueue for tender {}", event.tenderId());
             return;
         }
-        if (!TRIGGER_STATES.contains(event.newStatus())) {
-            log.info("Tender status {} not in trigger states {} (v3.8), skip webhook for tender {}",
-                    event.newStatus(), TRIGGER_STATES, event.tenderId());
+        if (!Set.of(Tender.Status.BIDDING, Tender.Status.ABANDONED, Tender.Status.EVALUATED).contains(event.newStatus())) {
+            log.info("Tender status {} not in trigger states [BIDDING, ABANDONED, EVALUATED] (v3.9), skip webhook for tender {}",
+                    event.newStatus(), event.tenderId());
             return;
         }
         Integer crmStatus = mapToCrmStatus(event.newStatus());
@@ -77,7 +75,7 @@ public class WebhookEventListener {
             log.warn("Tender {} not found, skip webhook", event.tenderId());
             return;
         }
-        String crmOpportunityCode = resolveCrmOpportunityCode(tender.getCrmOpportunityId());
+        String crmOpportunityCode = crmOpportunityCodeResolver.resolve(tender.getCrmOpportunityId());
         String crmOpportunityName = tender.getCrmOpportunityName() != null ? tender.getCrmOpportunityName() : "";
         String payload = buildPayload(event, crmStatus, crmOpportunityCode, crmOpportunityName);
         taskRepository.save(WebhookDeliveryTask.builder()
@@ -104,14 +102,16 @@ public class WebhookEventListener {
      */
     private Integer mapToCrmStatus(Tender.Status tenderStatus) {
         return switch (tenderStatus) {
-            case BIDDING -> 5;
-            case ABANDONED -> 6;
+            case BIDDING -> CrmProjectStatus.BIDDING;
+            case ABANDONED -> CrmProjectStatus.ABANDONED;
+            case EVALUATED -> CrmProjectStatus.FOLLOW_UP;  // CO-298: 待评估标讯关联商机后提交 → 跟进中
             default -> null;
         };
     }
 
     /**
      * 构造符合 CRM POST /customer-chance/bidInfoSync 契约的请求体。
+     * <p>⚠️ 2026-06-22 新增 tenderId 字段（CO-298）：标讯内部 ID，方便 CRM 侧关联回标讯。
      */
     private String buildPayload(TenderStatusChangedEvent event, Integer crmStatus,
                                 String crmOpportunityCode, String crmOpportunityName) {
@@ -124,7 +124,8 @@ public class WebhookEventListener {
                     crmStatus,
                     operator,
                     statusEditTime,
-                    buildFeedback(event));
+                    buildFeedback(event),
+                    event.tenderId());  // CO-298: tenderId 字段
             BidInfoSyncDTO dto = new BidInfoSyncDTO(List.of(inner));
             return objectMapper.writeValueAsString(dto);
         } catch (JsonProcessingException ex) {
@@ -144,44 +145,6 @@ public class WebhookEventListener {
             return objectMapper.writeValueAsString(fb);
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException("Failed to serialize feedback", ex);
-        }
-    }
-
-    /**
-     * 解析 CRM 商机编号（CC 前缀格式）。
-     * <p>CO-277: tender.crm_opportunity_id 可能存的是商机主键 id（纯数字），
-     * 而非商机编号 code（CC 前缀）。CRM bidInfoSync 接口期望 code 格式。
-     */
-    private String resolveCrmOpportunityCode(String crmOpportunityId) {
-        if (crmOpportunityId == null || crmOpportunityId.isBlank()) {
-            return "";
-        }
-        Long chanceId = tryParseChanceId(crmOpportunityId);
-        if (chanceId == null) {
-            // 已经是非纯数字（可能是 CC 前缀），直接返回
-            return crmOpportunityId;
-        }
-        try {
-            CrmProjectLeaderService.ProjectLeaderResult leader =
-                    crmProjectLeaderService.findProjectLeaderByChanceId(chanceId);
-            if (leader != null && leader.opportunityCode() != null && !leader.opportunityCode().isBlank()) {
-                log.info("Resolved crmOpportunityId: id={} → code={}", chanceId, leader.opportunityCode());
-                return leader.opportunityCode();
-            }
-            log.warn("resolveCrmOpportunityCode: CRM returned no code for chanceId={}, using raw id as fallback", chanceId);
-        } catch (RuntimeException e) {
-            log.error("resolveCrmOpportunityCode: CRM lookup failed for chanceId={}, using raw id as fallback: {}",
-                    chanceId, e.getMessage());
-        }
-        return crmOpportunityId;
-    }
-
-    private Long tryParseChanceId(String value) {
-        if (value == null || value.isBlank()) return null;
-        try {
-            return Long.parseLong(value.trim());
-        } catch (NumberFormatException e) {
-            return null;
         }
     }
 }
