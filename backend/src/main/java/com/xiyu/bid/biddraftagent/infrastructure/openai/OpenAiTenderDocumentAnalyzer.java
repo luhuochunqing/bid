@@ -70,7 +70,7 @@ public class OpenAiTenderDocumentAnalyzer
     @Override
     public DocumentAnalysisResult analyze(DocumentAnalysisInput input) {
         if (!DocInsightProfiles.isTenderIntake(input.profileCode())) {
-            return super.analyze(input);
+            return analyzeWithFallback(input);
         }
         String focusedText = buildTenderIntakeCandidateText(input.fullText());
         DocumentChunk focusedChunk = new DocumentChunk(focusedText, List.of("人工录入候选字段"));
@@ -84,7 +84,28 @@ public class OpenAiTenderDocumentAnalyzer
                 input.context()
         );
         String prompt = buildPrompt(focusedInput, focusedChunk, 1, 1);
-        return mergeAndMap(focusedInput, List.of(requestAi(prompt, focusedInput)));
+        OpenAiBidAgentRequestConfig config = configurationResolver.resolveTenderIntake();
+        TenderRequirementOutput output = requestAiSafe(prompt, config, "DeepSeek tender intake extraction");
+        if (output == null) {
+            return new DocumentAnalysisResult(
+                    input.documentId(),
+                    Map.of(),
+                    List.of(),
+                    input.fullText(),
+                    List.of("AI_DOCUMENT_ANALYSIS_FAILED: AI 文档分析服务暂不可用（可能是 API 余额不足或网络异常）。"
+                            + "文档已成功存储，您可以手动填写标讯信息。")
+            );
+        }
+        return mergeAndMap(focusedInput, List.of(output));
+    }
+
+    private DocumentAnalysisResult analyzeWithFallback(DocumentAnalysisInput input) {
+        try { return super.analyze(input); }
+        catch (RuntimeException ex) {
+            log.warn("Document analysis failed for docId={}: {}", input.documentId(), ex.getMessage());
+            return new DocumentAnalysisResult(input.documentId(), Map.of(), List.of(), input.fullText(),
+                    List.of("AI_DOCUMENT_ANALYSIS_FAILED: AI 服务暂不可用，文档已存储，请手动填写。"));
+        }
     }
 
     @Override
@@ -97,10 +118,18 @@ public class OpenAiTenderDocumentAnalyzer
                 chunks, DocInsightProfiles.TENDER, Map.of("projectId", input.projectId())
         );
         List<TenderRequirementProfile> profiles = new ArrayList<>();
+        boolean anySuccess = false;
         for (int i = 0; i < chunks.size(); i++) {
             String prompt = buildPrompt(genericInput, chunks.get(i), i + 1, chunks.size());
-            profiles.add(TenderRequirementProfileMapper.toTenderProfile(
-                    requestAi(prompt), chunks.get(i).sectionPath()));
+            TenderRequirementOutput output = requestAiSafe(prompt, configurationResolver.resolve(USE_CASE), USE_CASE);
+            if (output != null) {
+                profiles.add(TenderRequirementProfileMapper.toTenderProfile(output, chunks.get(i).sectionPath()));
+                anySuccess = true;
+            }
+        }
+        if (!anySuccess && profiles.isEmpty()) {
+            log.warn("All AI chunk analyses failed for tenderId={}, returning empty profile",
+                    input.tenderId());
         }
         return TenderRequirementProfileMerger.merge(profiles);
     }
@@ -147,6 +176,22 @@ public class OpenAiTenderDocumentAnalyzer
                     Duration.between(startedAt, Instant.now()).toMillis(),
                     exception.getMessage());
             throw exception;
+        }
+    }
+
+    /**
+     * AI 请求的安全版本 —— 失败时返回 null 而不是抛出异常。
+     * 用于标讯录入场景：AI 分析是增强功能，失败不应该阻塞标讯的正常创建。
+     */
+    private TenderRequirementOutput requestAiSafe(String prompt, OpenAiBidAgentRequestConfig config, String label) {
+        long started = System.currentTimeMillis();
+        try {
+            return structuredOutputService.request(prompt, TenderRequirementOutput.class, config,
+                    "AI structured response did not include tender requirements");
+        } catch (RuntimeException ex) {
+            log.warn("{} failed after {}ms: {} — returning null (fallback, not fatal)",
+                    label, System.currentTimeMillis() - started, ex.getMessage());
+            return null;
         }
     }
 

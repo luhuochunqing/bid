@@ -97,8 +97,8 @@ public class DocumentIntelligenceServiceImpl implements DocumentIntelligenceServ
                     Map.of(),
                     List.of(),
                     extractedText,
-                    List.of("SCANNED_DOCUMENT: 该文件可能是扫描件（图片型PDF），无法提取文本内容。" +
-                            "请尝试上传可编辑的PDF/Word文件，或直接使用粘贴识别功能。")
+                    List.of("SCANNED_DOCUMENT: 该文件可能是扫描件（图片型PDF），无法提取文本内容。"
+                            + "请尝试上传可编辑的PDF/Word文件，或直接使用粘贴识别功能。")
             );
         }
 
@@ -120,7 +120,21 @@ public class DocumentIntelligenceServiceImpl implements DocumentIntelligenceServ
                 Map.of()
         );
 
-        return analyzer.analyze(input);
+        // AI 分析是增强功能 —— 失败不应阻塞整个流程
+        try {
+            return analyzer.analyze(input);
+        } catch (RuntimeException ex) {
+            log.warn("AI analysis failed for document {}: {} — returning fallback result with stored file",
+                    fileName, ex.getMessage());
+            return new DocumentAnalysisResult(
+                    stored.fileUrl(),
+                    Map.of(),
+                    List.of(),
+                    extractedText,
+                    List.of("AI_DOCUMENT_ANALYSIS_FAILED: AI 文档分析服务暂不可用（可能是 API 余额不足或网络异常）。"
+                            + "文档已成功存储，文件可正常下载。请手动填写标讯信息。")
+            );
+        }
     }
 
     /**

@@ -50,8 +50,24 @@ export function useTenderAiParse(form) {
     await runAiParse(async () => {
       const response = await tendersApi.parseTenderIntakeDocument(uploadFile, { entityId: 'create-tender' })
       if (!response?.success) throw new Error(response?.msg || '文档自动识别失败')
-      applyParsedFields(response.data)
+
+      // AI 分析是增强功能 —— 文件存储成功是底线，AI 失败不应阻塞标讯创建
+      const warnings = response?.data?.warnings || []
+      const hasAiFailure = warnings.some(w => String(w).startsWith('AI_DOCUMENT_ANALYSIS_FAILED'))
+      const hasScannedDoc = warnings.some(w => String(w).startsWith('SCANNED_DOCUMENT'))
+
+      // 无论 AI 是否成功，都要把 fileUrl 设置上 —— 文件已成功存储在服务器
       applyAttachmentFileUrl(file, uploadFile, response.data, fileIndex)
+
+      if (hasScannedDoc) {
+        return '该文件可能是扫描件，无法提取文字。文件已保存，请手动填写标讯信息。'
+      }
+      if (hasAiFailure) {
+        return '文件已成功保存（可下载），但 AI 文档分析服务暂不可用，请手动填写标讯信息。'
+      }
+
+      // AI 成功：正常填充字段
+      applyParsedFields(response.data)
       return 'DeepSeek/AI 已识别附件内容，可继续编辑后保存'
     })
   }
@@ -62,6 +78,14 @@ export function useTenderAiParse(form) {
     await runAiParse(async () => {
       const response = await tendersApi.parseTenderIntakeText(text, { entityId: 'create-tender' })
       if (!response?.success) throw new Error(response?.msg || '粘贴文本识别失败')
+
+      const warnings = response?.data?.warnings || []
+      const hasAiFailure = warnings.some(w => String(w).startsWith('AI_DOCUMENT_ANALYSIS_FAILED'))
+
+      if (hasAiFailure) {
+        return '文本已保存，但 AI 分析服务暂不可用，请手动填写标讯信息。'
+      }
+
       applyParsedFields(response.data)
       return 'DeepSeek/AI 已识别粘贴文本，可继续编辑后保存'
     })
@@ -71,7 +95,14 @@ export function useTenderAiParse(form) {
     parsingDocument.value = true
     try {
       const msg = await parseFn()
-      if (msg) ElMessage.success(msg)
+      if (msg) {
+        // AI 分析失败但文件保存成功时提示 warning，成功时提示 success
+        if (msg.includes('暂不可用') || msg.includes('无法提取')) {
+          ElMessage.warning(msg)
+        } else {
+          ElMessage.success(msg)
+        }
+      }
     } catch (error) {
       const timedOut = error?.code === 'ECONNABORTED'
       ElMessage.warning(timedOut ? 'AI 解析超时，可继续手动填写' : '自动识别失败，可继续手动填写')
