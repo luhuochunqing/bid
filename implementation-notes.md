@@ -276,3 +276,12 @@
 - GREEN：补齐完整内部下载 URL 改写后，上述单测通过。
 - Review 后补强：`api_key` 只追加到本站集成下载端点；外部 URL 即使路径文本包含 `/api/integration/tenders/attachments/download` 也保持原样，避免泄露 API Key。
 - 回归：`mvn test -Dtest=TenderIntegrationMapperToDownloadUrlTest,CallerContextUrlResolverTest,TenderAttachmentDownloadServiceTest` 通过，48 tests。
+
+## 2026-06-22 二次根因修复
+
+- 服务器日志确认第一轮 URL 改写已生效：CRM 点击的地址已经是 `/api/integration/tenders/attachments/download?...&api_key=...`，且 `ApiKeyAuthenticationFilter` 打出 `API Key auth OK`。
+- 同一请求随后仍返回 403，日志中的拒绝用户变成普通登录用户 `06234`，说明浏览器同站请求自动带上了西域登录态 `access_token` Cookie。
+- 根因是 `JwtAuthenticationFilter` 在 API Key 过滤器之后执行时无条件写入 `SecurityContext`，把 `api-key:3` / `ROLE_EXTERNAL_API` 覆盖成普通 JWT 用户，导致 `TenderAttachmentDownloadController` 的 `hasRole('EXTERNAL_API')` 方法级鉴权失败。
+- 本次不调整 filter 顺序、不放宽集成下载 Controller 权限、不把内部 JWT 用户加入 `ROLE_EXTERNAL_API`；只在 `JwtAuthenticationFilter` 中识别已有 `api-key:` 认证上下文并直接放行，避免 JWT Cookie 覆盖更具体的 API Key 身份。
+- 新增回归测试覆盖“API Key 上下文 + 同时存在 `access_token` Cookie”场景；RED 阶段断言失败，实际 principal 被覆盖为 `06234`；GREEN 后保持 `api-key:3` 和 `ROLE_EXTERNAL_API`。
+- 验证：`mvn test -Dtest=JwtAuthenticationFilterRevocationTest,TenderIntegrationMapperToDownloadUrlTest,CallerContextUrlResolverTest,TenderAttachmentDownloadServiceTest` 通过，52 tests；`git diff --check`、`npm run check:line-budgets`、`npm run agent:lock-check:changed` 均通过。
