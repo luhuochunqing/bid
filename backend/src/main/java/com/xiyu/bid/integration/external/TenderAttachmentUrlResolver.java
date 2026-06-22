@@ -8,6 +8,8 @@ import org.springframework.stereotype.Component;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 import static com.xiyu.bid.apikey.infrastructure.ApiKeyAuthConstants.DEFAULT_QUERY_PARAM;
 
@@ -160,6 +162,40 @@ public class TenderAttachmentUrlResolver {
         if (apiKey != null && !apiKey.isBlank() && result != null
                 && result.contains("/api/integration/tenders/attachments/download")) {
             return appendApiKeyParam(result, apiKey);
+        }
+        return result;
+    }
+
+    /**
+     * 统一入口：根据调用方上下文选择正确的端点和认证方式。
+     *
+     * <ul>
+     *   <li>内部用户 → {@link #toDownloadUrl(String)}</li>
+     *   <li>外部系统且有 apiKey → {@link #toIntegrationFullUrl(String, String)}</li>
+     *   <li>外部系统但无 apiKey → {@link #toIntegrationFullUrl(String)}</li>
+     * </ul>
+     */
+    public static String resolve(String fileUrl, CallerContext context) {
+        if (context == null || context.isInternalUser()) {
+            return toDownloadUrl(fileUrl);
+        }
+        String apiKey = context.apiKey();
+        if (apiKey != null && !apiKey.isBlank()) {
+            return toIntegrationFullUrl(fileUrl, apiKey);
+        }
+        return toIntegrationFullUrl(fileUrl);
+    }
+
+    /**
+     * 批量转换 URL，返回与输入同大小的列表，null/空值保留原样。
+     *
+     * @see #resolve(String, CallerContext)
+     */
+    public static List<String> resolveBatch(List<String> fileUrls, CallerContext context) {
+        if (fileUrls == null) return null;
+        List<String> result = new ArrayList<>(fileUrls.size());
+        for (String url : fileUrls) {
+            result.add(resolve(url, context));
         }
         return result;
     }

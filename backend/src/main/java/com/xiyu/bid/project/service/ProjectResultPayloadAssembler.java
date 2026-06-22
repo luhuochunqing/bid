@@ -9,6 +9,7 @@ import com.xiyu.bid.crm.infrastructure.dto.EvidenceFile;
 import com.xiyu.bid.crm.infrastructure.dto.ProjectResultCallbackPayload;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.integration.external.CallerContext;
 import com.xiyu.bid.integration.external.ExternalIdParser;
 import com.xiyu.bid.integration.external.TenderAttachmentUrlResolver;
 import com.xiyu.bid.project.core.BidResultType;
@@ -93,7 +94,7 @@ public class ProjectResultPayloadAssembler {
             if (doc == null) continue;
             files.add(new EvidenceFile(
                     safe(doc.getName()),
-                    TenderAttachmentUrlResolver.toIntegrationFullUrl(safe(doc.getFileUrl())),
+                    TenderAttachmentUrlResolver.resolve(safe(doc.getFileUrl()), CallerContext.externalSystem(null)),
                     parseSize(doc.getSize())));
         }
         return files;

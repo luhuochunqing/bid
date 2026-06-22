@@ -1,6 +1,7 @@
 package com.xiyu.bid.tender.service;
 
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.integration.external.TenderAttachmentUrlResolver;
 import com.xiyu.bid.integration.external.TenderIntegrationMapper;
 import com.xiyu.bid.tender.entity.TenderAttachment;
 import com.xiyu.bid.tender.dto.ContactDTO;
@@ -48,7 +49,7 @@ public class TenderMapper {
                 .contactInfo(buildContacts(tender))
                 .sourceDocumentName(tender.getSourceDocumentName())
                 .sourceDocumentFileType(tender.getSourceDocumentFileType())
-                .sourceDocumentFileUrl(tender.getSourceDocumentFileUrl())
+                .sourceDocumentFileUrl(TenderAttachmentUrlResolver.toDownloadUrl(tender.getSourceDocumentFileUrl()))
                 .attachments(tender.getAttachments() == null || tender.getAttachments().isEmpty() ? Collections.emptyList()
                         : tender.getAttachments().stream().map(a -> TenderAttachmentDTO.builder()
                                 .fileName(a.getFileName()).fileType(a.getFileType()).fileUrl(toDownloadUrl(a.getFileUrl())).build())
@@ -73,7 +74,7 @@ public class TenderMapper {
                 .creatorId(tender.getCreatorId())
                 .creatorName(tender.getCreatorName())
                 .bidNotice(truncate(tender.getBidNotice(), BID_NOTICE_TRUNCATE))
-                .bidNoticeFileUrl(tender.getBidNoticeFileUrl())
+                .bidNoticeFileUrl(TenderAttachmentUrlResolver.toDownloadUrl(tender.getBidNoticeFileUrl()))
                 .projectType(tender.getProjectType())
                 .projectId(tender.getProjectId())
                 .tenderInfo(tender.getTenderInfo())

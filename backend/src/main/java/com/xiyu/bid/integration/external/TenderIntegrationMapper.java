@@ -7,6 +7,7 @@ import com.xiyu.bid.tender.dto.TenderDTO;
 import com.xiyu.bid.tender.entity.TenderAttachment;
 import com.xiyu.bid.tender.service.TenderMapper;
 import com.xiyu.bid.util.InputSanitizer;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -191,34 +192,38 @@ public class TenderIntegrationMapper {
     }
 
     /**
-     * 将 doc-insight:// 格式的 URL 转换为可直接下载的 URL（CRM 集成专用）。
-     * 同时处理已被 TenderMapper 转换为 /api/... 相对路径的 URL，补全为完整 URL。
+     * 将 URL 标准化为集成下载端点但不附加 api_key（CO-280 修复）。
      *
-     * <p>CO-280 403 修复：URL 指向 {@code /api/integration/tenders/attachments/download}，
-     * 走 X-API-Key 认证，避免 CRM 用户被 {@code @PreAuthorize("isAuthenticated()")} 拦截。
+     * <p>内部委托到 {@link #normalizeFileUrls(TenderDTO, CallerContext)}，
+     * 以 {@code CallerContext.externalSystem(null)} 为上下文，保持向后兼容。
      */
     void normalizeFileUrls(TenderDTO dto) {
-        dto.setSourceDocumentFileUrl(TenderAttachmentUrlResolver.toIntegrationFullUrl(dto.getSourceDocumentFileUrl()));
-        dto.setBidNoticeFileUrl(TenderAttachmentUrlResolver.toIntegrationFullUrl(dto.getBidNoticeFileUrl()));
-        if (dto.getAttachments() != null) {
-            dto.getAttachments().forEach(a -> a.setFileUrl(TenderAttachmentUrlResolver.toIntegrationFullUrl(a.getFileUrl())));
-        }
+        normalizeFileUrls(dto, CallerContext.externalSystem(null));
     }
 
     /**
      * 将 URL 标准化为集成下载端点并附加 api_key 查询参数（CO-280 修复）。
      *
-     * <p>此版本供 {@link TenderIntegrationController} 在已知 API Key 时使用，
-     * 生成的 URL 可被浏览器直接点击访问（无需额外 Header）。
-     *
-     * @param dto  待标准化的 DTO
-     * @param apiKey 明文 API Key（为 null 或空串时等同于无参数版本）
+     * <p>内部委托到 {@link #normalizeFileUrls(TenderDTO, CallerContext)}，
+     * 以 {@code CallerContext.externalSystem(apiKey)} 为上下文，保持向后兼容。
      */
     void normalizeFileUrls(TenderDTO dto, String apiKey) {
-        dto.setSourceDocumentFileUrl(TenderAttachmentUrlResolver.toIntegrationFullUrl(dto.getSourceDocumentFileUrl(), apiKey));
-        dto.setBidNoticeFileUrl(TenderAttachmentUrlResolver.toIntegrationFullUrl(dto.getBidNoticeFileUrl(), apiKey));
+        normalizeFileUrls(dto, CallerContext.externalSystem(apiKey));
+    }
+
+    /**
+     * 统一入口：根据调用方上下文选择正确的端点和认证方式，标准化附件 URL。
+     *
+     * <p>底层使用 {@link TenderAttachmentUrlResolver#resolve(String, CallerContext)}。
+     */
+    void normalizeFileUrls(TenderDTO dto, CallerContext context) {
+        dto.setSourceDocumentFileUrl(
+                TenderAttachmentUrlResolver.resolve(dto.getSourceDocumentFileUrl(), context));
+        dto.setBidNoticeFileUrl(
+                TenderAttachmentUrlResolver.resolve(dto.getBidNoticeFileUrl(), context));
         if (dto.getAttachments() != null) {
-            dto.getAttachments().forEach(a -> a.setFileUrl(TenderAttachmentUrlResolver.toIntegrationFullUrl(a.getFileUrl(), apiKey)));
+            dto.getAttachments().forEach(a ->
+                    a.setFileUrl(TenderAttachmentUrlResolver.resolve(a.getFileUrl(), context)));
         }
     }
 

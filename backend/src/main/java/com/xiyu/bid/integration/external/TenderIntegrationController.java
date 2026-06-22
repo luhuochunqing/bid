@@ -77,10 +77,10 @@ public class TenderIntegrationController {
         Page<TenderDTO> page = tenderQueryService.searchTendersPaged(
                 criteria, PageRequest.of(safePage, safeSize));
 
-        // CO-280: 从请求中获取 apiKey（与 Filter 相同的读取策略）
-        String apiKey = extractApiKey(request);
+        // CO-280: 从请求中构建 CallerContext（与 Filter 相同的读取策略）
+        CallerContext ctx = buildCallerContext(request);
 
-        // 归一化 source + 组装 contactInfo + 标准化附件 URL（附加 api_key 参数）
+        // 归一化 source + 组装 contactInfo + 标准化附件 URL（根据上下文附加 api_key）
         page.getContent().forEach(dto -> {
             if (dto.getSourceType() != null) {
                 if (dto.getSourceType() == Tender.SourceType.BULK_IMPORT) {
@@ -91,8 +91,8 @@ public class TenderIntegrationController {
             }
             // 联系人数组，与标讯详情接口格式一致
             dto.setContactInfo(tenderMapper.buildContactsFromDTO(dto));
-            // 将 doc-insight:// URL 转换为 CRM 集成下载端点并附加 api_key
-            tenderIntegrationMapper.normalizeFileUrls(dto, apiKey);
+            // 将 doc-insight:// URL 转换为 CRM 集成下载端点，按上下文附加 api_key
+            tenderIntegrationMapper.normalizeFileUrls(dto, ctx);
         });
 
         Map<String, Object> data = Map.of(
@@ -166,10 +166,10 @@ public class TenderIntegrationController {
             jakarta.servlet.http.HttpServletRequest request) {
         log.info("INTEGRATION GET /api/integration/tenders/{}/{} tenderId={}", sourceSystem, sourceId, tenderId);
         TenderDTO tender = tenderIntegrationService.getByExternalId(sourceSystem, sourceId, tenderId);
-        // CO-280: 将 doc-insight:// URL 转换为集成下载端点并附加 api_key
+        // CO-280: 将 doc-insight:// URL 转换为集成下载端点，按上下文附加 api_key
         if (tender != null) {
-            String apiKey = extractApiKey(request);
-            tenderIntegrationMapper.normalizeFileUrls(tender, apiKey);
+            CallerContext ctx = buildCallerContext(request);
+            tenderIntegrationMapper.normalizeFileUrls(tender, ctx);
         }
         return ResponseEntity.ok(ApiResponse.success("查询成功", tender));
     }
@@ -177,22 +177,24 @@ public class TenderIntegrationController {
     // ── 内部方法 ────────────────────────────────────────────────────────────
 
     /**
-     * 从请求中读取 API Key（与 ApiKeyAuthenticationFilter 相同策略）。
+     * 从请求中构建 {@link CallerContext}（与 ApiKeyAuthenticationFilter 相同的读取策略）。
      * 优先 Header（X-API-Key / X-Api-Key），回落到查询参数（api_key / api-key / X-API-Key / X-Api-Key）。
      * 用于生成下载 URL 时附加 api_key 参数，使 CRM 用户可直接点击下载。
      */
-    private String extractApiKey(jakarta.servlet.http.HttpServletRequest request) {
-        String key = API_KEY_HEADERS.stream()
+    private CallerContext buildCallerContext(jakarta.servlet.http.HttpServletRequest request) {
+        String apiKey = API_KEY_HEADERS.stream()
                 .map(request::getHeader)
                 .filter(v -> v != null && !v.isBlank())
                 .findFirst()
                 .orElse(null);
-        if (key != null) return key;
-        return API_KEY_PARAMS.stream()
-                .map(request::getParameter)
-                .filter(v -> v != null && !v.isBlank())
-                .findFirst()
-                .orElse(null);
+        if (apiKey == null) {
+            apiKey = API_KEY_PARAMS.stream()
+                    .map(request::getParameter)
+                    .filter(v -> v != null && !v.isBlank())
+                    .findFirst()
+                    .orElse(null);
+        }
+        return CallerContext.externalSystem(apiKey);
     }
 
     private void sanitizeCriteria(TenderSearchCriteria criteria) {
