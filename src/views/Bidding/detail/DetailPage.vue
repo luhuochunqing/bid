@@ -241,12 +241,8 @@ const {
 } = useEvaluationReview(tender)
 
 const canFillEvaluation = computed(() => {
-  // 已关联CRM商机时，评估表第一、二部分数据来自CRM，不允许修改
-  // 含 evaluationSource（CRM_PUSH / BID_SYSTEM_LINK）和存量 crmOpportunityName 兜底
-  if (tender.value?.evaluationSource || tender.value?.crmOpportunityName) return false
-  // TRACKING（跟踪中/待评估）状态下，bid_lead 或 sales 角色可以填写评估表字段
-  if (!tender.value || !userRole.value) return false
-  return tender.value.status === 'TRACKING' && (isBidManager(userRole.value) || userRole.value === 'sales')
+  // CO-309: 业务约束——评估表第一、二部分值只能从 CRM 传入,任何场景都不可人工编辑
+  return false
 })
 
 // CO-232: 投标系统主动关联CRM商机时，第三部分（项目负责人建议）仍可编辑

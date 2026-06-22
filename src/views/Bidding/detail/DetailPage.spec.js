@@ -16,3 +16,17 @@ describe('Bidding/detail/DetailPage.vue label compliance', () => {
     })
   })
 })
+
+describe('CO-309 — 评估表第一/二部分彻底锁死只读', () => {
+  it('canFillEvaluation computed 直接 return false,不含 TRACKING/sales 等条件分支', () => {
+    const match = detailPageSource.match(/const canFillEvaluation = computed\([\s\S]*?\n\}\)/)
+    expect(match).not.toBeNull()
+    const body = match[0]
+    // 不应再依赖 tender 状态、角色判断
+    expect(body).not.toContain('return tender.value.status')
+    expect(body).not.toContain("=== 'sales'")
+    expect(body).not.toContain('isBidManager')
+    // 应直接 return false
+    expect(body).toContain('return false')
+  })
+})
