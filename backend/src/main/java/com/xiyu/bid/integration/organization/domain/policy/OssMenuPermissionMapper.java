@@ -57,6 +57,35 @@ public class OssMenuPermissionMapper {
         return Set.copyOf(permissions);
     }
 
+    /**
+     * 将 OSS 权限码列表（如 ["1001","100402"]）直接映射为内部权限码集合。
+     *
+     * @param codes OSS 返回的菜单权限码列表
+     * @return 去重后的内部权限码集合
+     */
+    public Set<String> mapCodes(List<String> codes) {
+        Set<String> permissions = new HashSet<>();
+        if (codes == null || codes.isEmpty()) {
+            return permissions;
+        }
+        for (String code : codes) {
+            if (code == null) {
+                continue;
+            }
+            String normalized = code.trim().toLowerCase(Locale.ROOT);
+            if (normalized.isBlank()) {
+                continue;
+            }
+            String mapped = codeMappings.get(normalized);
+            if (mapped != null && !mapped.isBlank()) {
+                permissions.add(mapped.trim());
+            } else if (unmappedBehavior == UnmappedBehavior.USE_NORMALIZED_CODE) {
+                permissions.add(normalized);
+            }
+        }
+        return Set.copyOf(permissions);
+    }
+
     private Optional<String> mapNode(OssMenuTreeNode node) {
         String normalized = node.normalizedMenuCode();
         if (normalized.isBlank()) {

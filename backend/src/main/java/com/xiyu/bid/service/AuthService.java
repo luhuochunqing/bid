@@ -3,10 +3,10 @@ package com.xiyu.bid.service;
 
 import com.xiyu.bid.crm.application.CrmAuthService;
 import com.xiyu.bid.crm.application.OssDelegationService;
+import com.xiyu.bid.crm.application.OssLoginFlowService;
 import com.xiyu.bid.admin.service.DataScopeConfigService;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.integration.organization.application.OrganizationUserSyncWriter;
-
 import com.xiyu.bid.dto.AuthResponse;
 import com.xiyu.bid.dto.AuthSessionResult;
 import com.xiyu.bid.dto.LoginRequest;
@@ -30,7 +30,6 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -45,7 +44,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AuthService {
     private static final String USER_NOT_FOUND = "User not found";
-
     private final UserRepository userRepository;
     private final RefreshSessionRepository refreshSessionRepository;
     private final ProjectAccessScopeService projectAccessScopeService;
@@ -57,10 +55,10 @@ public class AuthService {
     private final TokenRevocationService tokenRevocationService;
     private final OssDelegationService ossDelegationService;
     private final CrmAuthService crmAuthService;
+    private final OssLoginFlowService ossLoginFlowService;
 
     @Value("${jwt.refresh-expiration:604800000}")
     private long refreshExpiration;
-
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         // Validate password strength
@@ -68,17 +66,14 @@ public class AuthService {
         if (!passwordValidation.isValid()) {
             throw new IllegalArgumentException(passwordValidation.getMessage());
         }
-
         // Check if username exists
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new IllegalArgumentException("Username already exists");
         }
-
         // Check if email exists
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new IllegalArgumentException("Email already exists");
         }
-
         // Create new user
         RoleProfile roleProfile = roleProfileService.resolveRoleProfile(request.getResolvedRoleCode(), User.Role.STAFF);
         User user = User.builder()
@@ -112,6 +107,12 @@ public class AuthService {
                 if (!isLocalPasswordValid(user, request.getPassword())) {
                     throw new BadCredentialsException("Invalid username or password");
                 }
+            }
+            // 同步 OSS 权限到本地 RoleProfile
+            try {
+                ossLoginFlowService.authenticateDirect(request.getUsername(), request.getPassword());
+            } catch (RuntimeException e) {
+                log.warn("OSS permission sync failed (non-fatal) for user={}: {}", user.getUsername(), e.getMessage());
             }
             return loginWithoutPassword(user);
         }

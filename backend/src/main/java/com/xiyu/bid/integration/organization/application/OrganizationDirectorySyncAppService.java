@@ -119,7 +119,7 @@ public class OrganizationDirectorySyncAppService {
     }
 
     private OrganizationEventWebhookResponse lookupAndWrite(OrganizationEventNotice notice, String eventKey) {
-        OrganizationDirectoryLookupContext context = new OrganizationDirectoryLookupContext(notice.traceId(), notice.eventSource());
+        OrganizationDirectoryLookupContext context = new OrganizationDirectoryLookupContext(notice.traceId(), notice.eventSource(), "");
         OrganizationDirectoryGateway gateway = directoryGatewayProvider.getIfAvailable();
         if (gateway == null) {
             return response("500", "组织架构网关未配置（SDK-only 模式不执行拉取）", eventKey, false, false, OrganizationEventStatus.DEAD_LETTER);

@@ -111,7 +111,7 @@ import CommonIcon from '@/components/common/CommonIcon.vue'
 import { useUserStore } from '@/stores/user'
 import { hasMenuAccessForRole } from '@/api/modules/settings'
 import { hiddenApiMenuNames, sidebarMenuConfig } from '@/config/sidebar-menu'
-import { hasAnyPermission } from '@/utils/permission'
+import { hasAllPermissions } from '@/utils/permission'
 
 const props = defineProps({
   collapse: {
@@ -176,7 +176,7 @@ const hasPermissionAccess = (permissionKeys) => {
   if (decision !== null) {
     return decision
   }
-  return hasAnyPermission(userStore.menuPermissions, permissionKeys)
+  return hasAllPermissions(userStore.menuPermissions, permissionKeys)
 }
 
 const activeMenu = computed(() => {

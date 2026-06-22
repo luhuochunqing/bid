@@ -168,14 +168,10 @@ const myProjectCount = computed(() => workbenchProjects.value.length)
 const {
   summaryStats, metricsLoading, metricsError, metrics, loadWorkbenchSummary, handleMetricClick,
 } = useWorkbenchMetrics({
-  router,
-  message: ElMessage,
-  currentUserRoleRef: currentUserRole,
-  pendingCountRef: pendingCount,
-  pendingApprovalsTotalCountRef: pendingApprovalsTotalCount,
-  myProjectCountRef: myProjectCount,
-  completedTodoCountRef: completedTodoCount,
-  icons: Icons,
+  router, message: ElMessage, currentUserRoleRef: currentUserRole,
+  pendingCountRef: pendingCount, pendingApprovalsTotalCountRef: pendingApprovalsTotalCount,
+  myProjectCountRef: myProjectCount, completedTodoCountRef: completedTodoCount,
+  icons: Icons, menuPermissionsRef: computed(() => userStore.menuPermissions),
 })
 
 const { deadlineMetrics, deadlineMetricsLoading, deadlineMetricsError, loadDeadlineStats } = useWorkbenchDeadline({ menuPermissionsRef: computed(() => userStore.menuPermissions) })

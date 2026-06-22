@@ -1,7 +1,9 @@
 package com.xiyu.bid.crm.infrastructure;
 
 import com.xiyu.bid.crm.application.CrmAuthService;
+import com.xiyu.bid.crm.application.CrmJobListResponse;
 import com.xiyu.bid.crm.application.CrmPermissionService;
+import com.xiyu.bid.crm.application.CrmRoleService;
 import com.xiyu.bid.crm.application.CrmUserPermission;
 import com.xiyu.bid.crm.application.OssLoginFlowService;
 import com.xiyu.bid.crm.application.OssLoginResult;
@@ -13,6 +15,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /**
  * CRM 接口测试 Controller。
@@ -29,13 +33,16 @@ public class CrmTestController {
 
     private final OssLoginFlowService loginFlowService;
     private final CrmPermissionService permissionService;
+    private final CrmRoleService roleService;
     private final CrmAuthService authService;
 
     public CrmTestController(OssLoginFlowService loginFlowService,
                              CrmPermissionService permissionService,
+                             CrmRoleService roleService,
                              CrmAuthService authService) {
         this.loginFlowService = loginFlowService;
         this.permissionService = permissionService;
+        this.roleService = roleService;
         this.authService = authService;
     }
 
@@ -81,5 +88,20 @@ public class CrmTestController {
     public ResponseEntity<ApiResponse<String>> getSystemToken() {
         String token = authService.getValidOssToken();
         return ResponseEntity.ok(ApiResponse.success("System OSS token", token));
+    }
+
+    /**
+     * 测试获取用户角色（泊冉接口4）。
+     * POST /api/crm/test/job-list
+     * Body: {"data":["08402","08640"]}
+     */
+    @PostMapping("/job-list")
+    public ResponseEntity<ApiResponse<CrmJobListResponse>> testJobList(
+            @RequestParam List<String> jobNumbers) {
+        CrmJobListResponse response = roleService.getUserJobList(jobNumbers);
+        if (response != null) {
+            return ResponseEntity.ok(ApiResponse.success("Job list retrieved", response));
+        }
+        return ResponseEntity.ok(ApiResponse.error("Failed to get job list"));
     }
 }

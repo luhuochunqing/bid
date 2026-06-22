@@ -6,6 +6,7 @@
 import { computed, ref } from 'vue'
 import { dashboardApi as defaultDashboardApi } from '@/api'
 import { getMetricRouteTarget, getRoleMetrics } from '@/views/Dashboard/workbench-core.js'
+import { hasAnyPermission } from '@/utils/permission'
 
 const noopMessage = {
   info: () => {},
@@ -23,6 +24,7 @@ export function useWorkbenchMetrics({
   myProjectCountRef,
   completedTodoCountRef,
   icons = {},
+  menuPermissionsRef,
 } = {}) {
   const summaryStats = ref(null)
   const metricsLoading = ref(true)
@@ -41,7 +43,12 @@ export function useWorkbenchMetrics({
     icon: icons[metric.icon] || metric.icon,
   })
 
+  const canLoadSummary = computed(() =>
+    hasAnyPermission(menuPermissionsRef?.value || [], ['analytics', 'dashboard:view_metric_cards'])
+  )
+
   const loadWorkbenchSummary = async () => {
+    if (!canLoadSummary.value) return null
     metricsError.value = ''
     try {
       const result = await api.getSummary()
@@ -80,6 +87,7 @@ export function useWorkbenchMetrics({
     summaryStats,
     metricsLoading,
     metricsError,
+    canLoadSummary,
     adminMetrics,
     biddingMetrics,
     staffMetrics,

@@ -19,6 +19,22 @@ export function hasAnyPermission(userPermissions, requiredPermissions) {
 }
 
 /**
+ * Check if a user has ALL of the required permissions.
+ * Used for hierarchical permission checks where permissionKeys like
+ * ['knowledge', 'knowledge-archive'] require BOTH parent and child permissions.
+ * @param {string[]|null|undefined} userPermissions - user's menuPermissions
+ * @param {string[]|null|undefined} requiredPermissions - required permission keys (ALL must be present)
+ * @returns {boolean}
+ */
+export function hasAllPermissions(userPermissions, requiredPermissions) {
+  if (!requiredPermissions || requiredPermissions.length === 0) return true
+  const perms = Array.isArray(userPermissions) ? userPermissions : []
+  if (perms.length === 0) return false
+  if (perms.includes('all')) return true
+  return requiredPermissions.every((key) => perms.includes(key))
+}
+
+/**
  * Check if the given role code represents an admin.
  * @param {string} roleCode
  * @returns {boolean}

@@ -172,7 +172,7 @@ export const hasMenuAccessForRole = (role, permissionKeys = []) => {
   if (normalizedKeys.length === 0) return true
 
   if (profile.menuPermissions.includes('all')) return true
-  return normalizedKeys.some((key) => profile.menuPermissions.includes(key))
+  return normalizedKeys.every((key) => profile.menuPermissions.includes(key))
 }
 
 export const settingsApi = {

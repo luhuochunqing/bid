@@ -191,6 +191,8 @@ public class CrmProperties {
         private String userPermissionPath = "/oauth/getUserPermission";
         /** userPermissionSystemName - default query param for getUserPermission. */
         private String userPermissionSystemName = "xiyu-bid-poc";
+        /** getUserJobListPath - POST /oss/admin-web/v1/output/data/getUserJobListByJobNumberList. */
+        private String getUserJobListPath = "/oss/admin-web/v1/output/data/getUserJobListByJobNumberList";
     }
 
     @Data

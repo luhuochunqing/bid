@@ -1,3 +1,12 @@
+---
+title: 泊冉系统获取用户权限接口顺序
+space: implementation
+category: api
+sources: []
+updated: 2026-06-22
+health_checked: 2026-06-22
+---
+
 # 泊冉系统获取用户权限接口顺序
 
 > 来源：泊冉系统获取用户权限接口顺序.xlsx

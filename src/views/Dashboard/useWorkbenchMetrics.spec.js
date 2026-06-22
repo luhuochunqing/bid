@@ -20,6 +20,7 @@ describe('useWorkbenchMetrics', () => {
       api,
       currentUserRoleRef: ref('admin'),
       icons: { TrendCharts: 'trend', Flag: 'flag', Document: 'doc', Briefcase: 'briefcase' },
+      menuPermissionsRef: ref(['analytics']),
     })
 
     await metrics.loadWorkbenchSummary()
