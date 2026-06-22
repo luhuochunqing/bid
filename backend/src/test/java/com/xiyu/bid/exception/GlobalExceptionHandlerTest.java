@@ -132,7 +132,7 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getCode()).isEqualTo(400);
-        assertThat(response.getBody().getMessage()).isEqualTo("标讯已存在");
+        assertThat(response.getBody().getMessage()).isEqualTo("投标管理系统该标讯已存在");
         assertThat(response.getBody().getData()).isNull();
     }
 }

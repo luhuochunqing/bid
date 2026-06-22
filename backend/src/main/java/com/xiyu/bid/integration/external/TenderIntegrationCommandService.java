@@ -97,7 +97,7 @@ public class TenderIntegrationCommandService {
                 .ifPresent(existing -> {
                     log.warn("Duplicate tender business key rejected: existingId={}, purchaserName={}, registrationDeadline={}, bidOpeningTime={}",
                             existing.getId(), purchaserName, registrationDeadline, bidOpeningTime);
-                    throw new IllegalArgumentException("标讯已存在");
+                    throw new IllegalArgumentException("投标管理系统该标讯已存在");
                 });
     }
 
@@ -127,7 +127,7 @@ public class TenderIntegrationCommandService {
         return TenderPushResponse.builder()
                 .tenderId(existing.getId())
                 .status("DUPLICATE")
-                .message("标讯已存在")
+                .message("投标管理系统该标讯已存在")
                 .build();
     }
 

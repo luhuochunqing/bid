@@ -184,7 +184,7 @@ test.describe('§4.2.3 人工录入', () => {
     await saveButton.click()
 
     // 应出现错误提示（400 响应，前端统一显示 ElMessage.error）
-    await expect(page.locator('.el-message--error').filter({ hasText: /标讯已存在/i }))
+    await expect(page.locator('.el-message--error').filter({ hasText: /投标管理系统该标讯已存在/i }))
       .toBeVisible({ timeout: 10000 })
   })
 })

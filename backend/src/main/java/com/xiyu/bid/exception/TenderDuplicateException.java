@@ -15,7 +15,7 @@ public class TenderDuplicateException extends BusinessException {
     private final transient List<Tender> duplicates;
 
     public TenderDuplicateException(List<Tender> duplicates) {
-        super(400, "标讯已存在");
+        super(400, "投标管理系统该标讯已存在");
         this.duplicates = List.copyOf(duplicates);
     }
 }

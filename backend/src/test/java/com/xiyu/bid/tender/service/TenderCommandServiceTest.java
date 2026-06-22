@@ -149,7 +149,7 @@ class TenderCommandServiceTest {
         );
 
         assertThat(ex.getCode()).isEqualTo(400);
-        assertThat(ex.getMessage()).isEqualTo("标讯已存在");
+        assertThat(ex.getMessage()).isEqualTo("投标管理系统该标讯已存在");
         assertThat(ex.getDuplicates()).hasSize(1);
         verify(tenderRepository, never()).save(any(Tender.class));
     }

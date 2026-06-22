@@ -195,7 +195,7 @@ class TenderDeduplicationServiceTest {
                 .satisfies(ex -> {
                     TenderDuplicateException dup = (TenderDuplicateException) ex;
                     assertThat(dup.getCode()).isEqualTo(400);
-                    assertThat(dup.getMessage()).isEqualTo("标讯已存在");
+                    assertThat(dup.getMessage()).isEqualTo("投标管理系统该标讯已存在");
                     assertThat(dup.getDuplicates()).hasSize(1);
                     assertThat(dup.getDuplicates().get(0).getId()).isEqualTo(77L);
                 });

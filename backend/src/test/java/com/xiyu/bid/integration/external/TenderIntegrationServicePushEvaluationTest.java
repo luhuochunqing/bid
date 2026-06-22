@@ -246,7 +246,7 @@ class TenderIntegrationServicePushEvaluationTest {
 
         assertThatThrownBy(() -> commandService.pushTender(request, null))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("标讯已存在");
+                .hasMessage("投标管理系统该标讯已存在");
         assertThat(tenderRepository.count()).isEqualTo(countBefore);
         assertThat(tenderRepository.findByExternalId("CRM:NEW-001")).isEmpty();
     }
