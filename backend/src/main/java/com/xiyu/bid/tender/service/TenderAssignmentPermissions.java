@@ -51,17 +51,19 @@ public class TenderAssignmentPermissions {
         if (tenderOpt.isPresent()) {
             Tender tender = tenderOpt.get();
             Tender.Status status = tender.getStatus();
-            if (status == Tender.Status.EVALUATED ||
-                status == Tender.Status.BIDDING ||
+            // BIDDING/WON/LOST/ABANDONED 状态下不允许填评估表
+            // EVALUATED 状态允许：CRM 关联后前端需要调用 submitEvaluationFinal
+            // （TenderEvaluationSubmissionService.submit() 也允许 EVALUATED 状态）
+            if (status == Tender.Status.BIDDING ||
                 status == Tender.Status.WON ||
                 status == Tender.Status.LOST ||
                 status == Tender.Status.ABANDONED) {
                 return false;
             }
-            // 已关联CRM商机时，评估表第一、二部分数据来自CRM，不允许手动编辑
-            // 但 CRM 关联流程中需要自动提交评估表，此时标讯状态仍为 TRACKING，允许提交
+            // 已关联CRM商机时，评估表数据来自CRM，不允许手动编辑
+            // 但允许 TRACKING/EVALUATED 状态下的提交（CRM 关联流程：saveDraft→linkCrm→submit）
             if ((tender.getCrmOpportunityName() != null || tender.getEvaluationSource() != null)
-                    && status != Tender.Status.TRACKING) {
+                    && status != Tender.Status.TRACKING && status != Tender.Status.EVALUATED) {
                 return false;
             }
         }
