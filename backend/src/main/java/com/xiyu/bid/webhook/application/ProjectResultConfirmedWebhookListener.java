@@ -12,6 +12,7 @@ import com.xiyu.bid.crm.infrastructure.dto.BidInfoSyncDTO;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.project.core.BidResultType;
 import com.xiyu.bid.project.domain.ProjectResultConfirmedEvent;
+import com.xiyu.bid.project.service.ProjectResultPayloadAssembler;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTask;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTaskRepository;
@@ -26,10 +27,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.format.DateTimeFormatter;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * 项目结果确认回调监听器（接口文档 §4.2）。
@@ -53,6 +51,7 @@ public class ProjectResultConfirmedWebhookListener {
     private final TenderRepository tenderRepository;
     private final ObjectMapper objectMapper;
     private final CrmProjectLeaderService crmProjectLeaderService;
+    private final ProjectResultPayloadAssembler payloadAssembler;
 
     @Value("${webhook.crm.url:}")
     private String crmWebhookUrl;
@@ -186,27 +185,12 @@ public class ProjectResultConfirmedWebhookListener {
     }
 
     /**
-     * CRM 要求 feedback 为 JSON 字符串，包含原因+友商+账期+备注+操作人+操作时间。
-     * <p>reason 填 resultType 名称；vendor 填竞争对手名称（逗号分隔）；paymentTerm/remark 暂空。
+     * CRM 要求 feedback 为 JSON 字符串，包含原因+友商+账期+备注+操作人+操作时间
+     * + evidenceFiles/competitors/systemName（CO-300）。
+     * <p>组装逻辑委托给 {@link ProjectResultPayloadAssembler#buildFeedbackString}，
+     * 避免与 ProjectResultPayloadAssembler 中相同逻辑重复维护。
      */
     private String buildFeedback(ProjectResultConfirmedEvent event, String operator) {
-        Map<String, Object> fb = new LinkedHashMap<>();
-        fb.put("reason", event.resultType().name());
-        String vendor = event.competitors() != null && !event.competitors().isEmpty()
-                ? event.competitors().stream()
-                    .map(c -> c.name() != null ? c.name() : "")
-                    .filter(s -> !s.isEmpty())
-                    .collect(Collectors.joining(", "))
-                : "";
-        fb.put("vendor", vendor);
-        fb.put("paymentTerm", "");
-        fb.put("remark", "");
-        fb.put("operator", operator);
-        fb.put("operateTime", event.occurredAt().format(STATUS_EDIT_TIME_FORMAT));
-        try {
-            return objectMapper.writeValueAsString(fb);
-        } catch (JsonProcessingException ex) {
-            throw new IllegalStateException("Failed to serialize feedback", ex);
-        }
+        return payloadAssembler.buildFeedbackString(event, operator);
     }
 }

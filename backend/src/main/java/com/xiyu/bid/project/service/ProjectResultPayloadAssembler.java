@@ -4,6 +4,8 @@
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.project.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.crm.infrastructure.dto.CompetitorInfo;
 import com.xiyu.bid.crm.infrastructure.dto.EvidenceFile;
 import com.xiyu.bid.crm.infrastructure.dto.ProjectResultCallbackPayload;
@@ -26,7 +28,9 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -44,10 +48,13 @@ public class ProjectResultPayloadAssembler {
     private static final ZoneId ZONE_SHANGHAI = ZoneId.of("Asia/Shanghai");
     private static final DateTimeFormatter OPERATED_AT_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX");
+    private static final DateTimeFormatter STATUS_EDIT_TIME_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final TenderRepository tenderRepository;
     private final UserRepository userRepository;
     private final ProjectDocumentRepository projectDocumentRepository;
+    private final ObjectMapper objectMapper;
 
     /**
      * 组装 §4.2 回调载荷。
@@ -78,6 +85,75 @@ public class ProjectResultPayloadAssembler {
                 operatorName,
                 operatorEmployeeId,
                 operatedAt);
+    }
+
+    /**
+     * 组装 CRM feedback JSON 字符串（供 §4.2 bidInfoSync 接口使用）。
+     * <p>包含：reason / vendor / paymentTerm / remark / operator / operateTime
+     * / evidenceFiles / competitors / systemName。
+     * <p>CO-300: evidenceFiles 使用 TenderAttachmentUrlResolver.resolve() 标准化
+     * doc-insight:// / 内部端点 URL → CRM 集成下载端点，确保外部系统可通过 API Key 访问。
+     */
+    public String buildFeedbackString(ProjectResultConfirmedEvent event, String operator) {
+        Map<String, Object> fb = new LinkedHashMap<>();
+        fb.put("reason", event.resultType().name());
+        String vendor = event.competitors() != null && !event.competitors().isEmpty()
+                ? event.competitors().stream()
+                    .map(c -> c.name() != null ? c.name() : "")
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.joining(", "))
+                : "";
+        fb.put("vendor", vendor);
+        fb.put("paymentTerm", "");
+        fb.put("remark", "");
+        fb.put("operator", operator);
+        fb.put("operateTime", event.occurredAt().format(STATUS_EDIT_TIME_FORMAT));
+        fb.put("evidenceFiles", buildEvidenceFileMaps(event.evidenceFileIds()));
+        fb.put("competitors", buildCompetitorMaps(event.competitors()));
+        fb.put("systemName", SYSTEM_NAME);
+        try {
+            return objectMapper.writeValueAsString(fb);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("Failed to serialize feedback", ex);
+        }
+    }
+
+    /**
+     * evidenceFiles 数组（feedback 使用）：fileName/fileUrl/fileSize，
+     * fileUrl 使用 {@link TenderAttachmentUrlResolver#resolve} 转换为 CRM 集成下载端点。
+     */
+    private List<Map<String, Object>> buildEvidenceFileMaps(List<Long> evidenceFileIds) {
+        if (evidenceFileIds == null || evidenceFileIds.isEmpty()) return List.of();
+        List<ProjectDocument> docs = projectDocumentRepository.findAllById(evidenceFileIds);
+        List<Map<String, Object>> files = new ArrayList<>();
+        for (ProjectDocument doc : docs) {
+            if (doc == null) continue;
+            Map<String, Object> file = new LinkedHashMap<>();
+            file.put("fileName", safe(doc.getName()));
+            file.put("fileUrl", TenderAttachmentUrlResolver.resolve(
+                    safe(doc.getFileUrl()), CallerContext.externalSystem(null)));
+            file.put("fileSize", parseSize(doc.getSize()));
+            files.add(file);
+        }
+        return files;
+    }
+
+    /**
+     * competitors 对象数组（feedback 使用）：name/discount/paymentTerm/notes，过滤空行。
+     */
+    private List<Map<String, Object>> buildCompetitorMaps(List<ProjectResultConfirmedEvent.CompetitorSnapshot> competitors) {
+        if (competitors == null || competitors.isEmpty()) return List.of();
+        return competitors.stream()
+                .filter(c -> c != null && !isBlankRow(c))
+                .map(c -> {
+                    Map<String, Object> competitor = new LinkedHashMap<>();
+                    competitor.put("name", safe(c.name()));
+                    competitor.put("discount", safe(c.discount()));
+                    competitor.put("paymentTerm", safe(c.paymentTerm()));
+                    competitor.put("notes", safe(c.notes()));
+                    return competitor;
+                })
+                .collect(Collectors.toList());
     }
 
     /**

@@ -42,7 +42,7 @@ class ProjectResultPayloadAssemblerTest {
     @Mock private ProjectDocumentRepository projectDocumentRepository;
 
     private ProjectResultPayloadAssembler assembler() {
-        return new ProjectResultPayloadAssembler(tenderRepository, userRepository, projectDocumentRepository);
+        return new ProjectResultPayloadAssembler(tenderRepository, userRepository, projectDocumentRepository, new ObjectMapper());
     }
 
     @Test
