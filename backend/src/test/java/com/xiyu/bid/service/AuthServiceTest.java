@@ -3,6 +3,7 @@ package com.xiyu.bid.service;
 import com.xiyu.bid.admin.service.DataScopeConfigService;
 import com.xiyu.bid.auth.JwtUtil;
 import com.xiyu.bid.auth.TokenRevocationService;
+import com.xiyu.bid.crm.application.CrmAuthService;
 import com.xiyu.bid.crm.application.OssDelegationService;
 import com.xiyu.bid.dto.AuthSessionResult;
 import com.xiyu.bid.dto.LoginRequest;
@@ -64,6 +65,9 @@ class AuthServiceTest {
     @Mock
     private TokenRevocationService tokenRevocationService;
 
+    @Mock
+    private CrmAuthService crmAuthService;
+
     private AuthService authService;
 
     @BeforeEach
@@ -78,7 +82,8 @@ class AuthServiceTest {
                 authenticationManager,
                 roleProfileService,
                 tokenRevocationService,
-                mock(OssDelegationService.class)
+                mock(OssDelegationService.class),
+                crmAuthService
         );
         ReflectionTestUtils.setField(authService, "refreshExpiration", 7 * 24 * 60 * 60 * 1000L);
     }
@@ -205,7 +210,8 @@ class AuthServiceTest {
                 authenticationManager,
                 roleProfileService,
                 tokenRevocationService,
-                ossDelegationService
+                ossDelegationService,
+                crmAuthService
         );
         ReflectionTestUtils.setField(authService, "refreshExpiration", 7 * 24 * 60 * 60 * 1000L);
 
@@ -242,7 +248,8 @@ class AuthServiceTest {
                 authenticationManager,
                 roleProfileService,
                 tokenRevocationService,
-                ossDelegationService
+                ossDelegationService,
+                crmAuthService
         );
         ReflectionTestUtils.setField(authService, "refreshExpiration", 7 * 24 * 60 * 60 * 1000L);
 
