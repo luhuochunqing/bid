@@ -6,8 +6,8 @@ import com.xiyu.bid.crm.application.CrmUserPermission;
 import com.xiyu.bid.crm.application.OssLoginFlowService;
 import com.xiyu.bid.crm.application.OssLoginResult;
 import com.xiyu.bid.dto.ApiResponse;
-import com.xiyu.bid.entity.User;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,9 +19,12 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>
  * 提供独立的测试端点，无需 JWT 认证，直接使用系统级 OSS token 调用泊冉接口。
  * 适用于接口调试和验证。
+ * <p>
+ * 注意：此类为测试用途，已配置为 permitAll，生产环境应移除或添加适当的安全控制。
  */
 @RestController
 @RequestMapping("/api/crm/test")
+@PreAuthorize("permitAll()")
 public class CrmTestController {
 
     private final OssLoginFlowService loginFlowService;
@@ -44,8 +47,7 @@ public class CrmTestController {
     public ResponseEntity<ApiResponse<OssLoginResult>> testLogin(
             @RequestParam String username,
             @RequestParam String password) {
-        User tempUser = User.builder().username(username).externalOrgSourceApp("oss").build();
-        OssLoginResult result = loginFlowService.authenticate(tempUser, password);
+        OssLoginResult result = loginFlowService.authenticateDirect(username, password);
         if (result.isAuthenticated()) {
             return ResponseEntity.ok(ApiResponse.success("OSS login success", result));
         }

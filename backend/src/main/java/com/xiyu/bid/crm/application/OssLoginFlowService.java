@@ -3,7 +3,6 @@ package com.xiyu.bid.crm.application;
 import com.xiyu.bid.crm.config.CrmProperties;
 import com.xiyu.bid.crm.infrastructure.CrmHttpClient;
 import com.xiyu.bid.crm.infrastructure.CrmResponseHandler;
-import com.xiyu.bid.entity.User;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,26 +34,32 @@ public class OssLoginFlowService {
     private final CrmProperties crmProperties;
     private final CrmPermissionService permissionService;
 
-    public OssLoginResult authenticate(User user, String rawPassword) {
+    /**
+     * 直接使用用户名和密码进行 OSS 认证（不依赖 User entity）。
+     * @param username 用户名
+     * @param password 密码
+     * @return 登录结果
+     */
+    public OssLoginResult authenticateDirect(String username, String password) {
         String baseUrl = crmProperties.getEffectiveAuthBaseUrl();
         String systemName = crmProperties.getOauthSystem();
 
         OssLoginResult.Builder result = OssLoginResult.builder();
-        result.username(user.getUsername());
+        result.username(username);
 
         // Step 1: POST /oauth/login - 获取 token
         LinkedMultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
-        formData.add("username", user.getUsername());
-        formData.add("password", rawPassword);
+        formData.add("username", username);
+        formData.add("password", password);
         formData.add("system", systemName);
 
-        log.info("OSS login flow step 1: POST /oauth/login for user={}", user.getUsername());
+        log.info("OSS login flow step 1: POST /oauth/login for user={}", username);
         CrmResponseHandler.CrmApiResponse loginResponse = crmHttpClient.postForm(
                 baseUrl, crmProperties.getAuth().getOauthLoginPath(), formData);
 
         if (!loginResponse.success() || loginResponse.data() == null) {
             log.warn("OSS login failed for user={} code={} msg={}",
-                    user.getUsername(), loginResponse.code(), loginResponse.msg());
+                    username, loginResponse.code(), loginResponse.msg());
             result.authenticated(false);
             return result.build();
         }
@@ -62,10 +67,10 @@ public class OssLoginFlowService {
         String accessToken = loginResponse.data().path("access_token").asText();
         result.authenticated(true);
         result.ossAccessToken(accessToken);
-        log.info("OSS login succeeded for user={}", user.getUsername());
+        log.info("OSS login succeeded for user={}", username);
 
         if (accessToken == null || accessToken.isBlank()) {
-            log.warn("OSS login returned empty access_token for user={}", user.getUsername());
+            log.warn("OSS login returned empty access_token for user={}", username);
             return result.build();
         }
 
@@ -76,7 +81,7 @@ public class OssLoginFlowService {
                     baseUrl, employeePath, accessToken);
             if (employeeResponse != null && employeeResponse.data() != null) {
                 result.employeeInfo(employeeResponse.data());
-                log.info("OSS user info retrieved for user={}", user.getUsername());
+                log.info("OSS user info retrieved for user={}", username);
             }
         } catch (RuntimeException e) {
             log.warn("OSS getUserInfo failed (non-fatal): {}", e.getMessage());
@@ -87,7 +92,7 @@ public class OssLoginFlowService {
             CrmUserPermission permission = permissionService.getUserPermission(accessToken, systemName);
             if (permission != null && !permission.isEmpty()) {
                 result.permission(permission);
-                log.info("OSS user permission retrieved for user={}", user.getUsername());
+                log.info("OSS user permission retrieved for user={}", username);
             }
         } catch (RuntimeException e) {
             log.warn("OSS getUserPermission failed (non-fatal): {}", e.getMessage());
