@@ -65,9 +65,9 @@ class ProductionSecurityPropertiesTest {
                 "${XIYU_CRM_AUTH_APPLY_TOKEN_PATH:/auth/applyToken}");
         assertPlaceholder(properties, "app.crm.auth.oauth-login-path",
                 "${XIYU_CRM_AUTH_OAUTH_LOGIN_PATH:/oauth/login}");
-        assertPlaceholder(properties, "app.crm.auth.logout-path", "${XIYU_CRM_AUTH_LOGOUT_PATH:/auth/logout}");
+        assertPlaceholder(properties, "app.crm.auth.logout-path", "${XIYU_CRM_AUTH_LOGOUT_PATH:/oauth/logout}");
         assertPlaceholder(properties, "app.crm.auth.menu-tree-path", "${XIYU_CRM_AUTH_MENU_TREE_PATH:/menu/tree}");
-        assertPlaceholder(properties, "app.crm.auth.employee-path", "${XIYU_CRM_AUTH_EMPLOYEE_PATH:/employee/info}");
+        assertPlaceholder(properties, "app.crm.auth.employee-path", "${XIYU_CRM_AUTH_EMPLOYEE_PATH:/oauth/getUserInfo}");
         assertPlaceholder(properties, "app.crm.customer.search-path",
                 "${XIYU_CRM_CUSTOMER_SEARCH_PATH:/customer/search}");
         assertPlaceholder(properties, "app.crm.customer.contacts-path",

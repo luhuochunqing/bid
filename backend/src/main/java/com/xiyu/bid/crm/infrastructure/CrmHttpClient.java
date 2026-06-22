@@ -83,6 +83,25 @@ public class CrmHttpClient {
         }
     }
 
+    /**
+     * GET with Bearer token (for /oauth/getUserInfo etc.).
+     */
+    public CrmResponseHandler.CrmApiResponse get(String baseUrl, String path, String accessToken) {
+        String url = baseUrl + path;
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(accessToken);
+        TraceHeaderInjector.inject(headers);
+        HttpEntity<Void> request = new HttpEntity<>(headers);
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, request, String.class);
+            log.info("CRM GET {} -> {}", url, response.getStatusCode());
+            return CrmResponseHandler.parse(response.getBody());
+        } catch (RuntimeException e) {
+            log.error("CRM GET failed: {}", e.getMessage());
+            return CrmResponseHandler.CrmApiResponse.parseError(e.getMessage());
+        }
+    }
+
     private CrmResponseHandler.CrmApiResponse executePost(String url, String path, String accessToken, Object body) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);

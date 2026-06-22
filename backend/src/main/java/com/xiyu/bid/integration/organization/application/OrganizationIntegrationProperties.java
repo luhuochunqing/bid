@@ -76,8 +76,8 @@ public class OrganizationIntegrationProperties {
         private int batchConnectTimeoutMs = 3000;
         /** 批量岗位/角色回查读取超时（毫秒），批量返回数据量较大，默认高于单条接口 */
         private int batchReadTimeoutMs = 10000;
-        /** OSS 菜单树接口路径：GET /sysMenuUrl/getUserMenuTree */
-        private String userMenuTreePath = "/sysMenuUrl/getUserMenuTree";
+        /** OSS 菜单树接口路径：GET /oauth/getUserPermission */
+        private String userMenuTreePath = "/oauth/getUserPermission";
         /** OSS 菜单树查询 systemName，如 xiyu-bid-poc */
         private String userMenuTreeSystemName = "xiyu-bid-poc";
         /** OSS 菜单树查询类型：1=url，2=本地配置 */

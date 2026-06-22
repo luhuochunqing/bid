@@ -44,6 +44,7 @@ health_checked: 2026-06-21
 - [[integration-organization-event-sdk]] — 组织架构对接 - 客户事件库 SDK 方案
 - [[integration-tender-api]] — 标讯集成接口（外部系统对接）
 - [[integration-wecom]] — 系统集成中心 - 企业微信
+- [[integration-boran-permission-api]] — 泊冉系统获取用户权限接口顺序
 - [[knowledge-base]] — 4.4 知识库 PRD (产品需求文档)
 - [[lessons-learned]] — 工程经验总结
 - [[modules]] — 模块目录

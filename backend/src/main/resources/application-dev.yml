@@ -81,9 +81,9 @@ app:
 
     auth:
       apply-token-path: ${XIYU_CRM_AUTH_APPLY_TOKEN_PATH:/auth/applyToken}
-      logout-path: ${XIYU_CRM_AUTH_LOGOUT_PATH:/auth/logout}
+      logout-path: ${XIYU_CRM_AUTH_LOGOUT_PATH:/oauth/logout}
       menu-tree-path: ${XIYU_CRM_AUTH_MENU_TREE_PATH:/menu/tree}
-      employee-path: ${XIYU_CRM_AUTH_EMPLOYEE_PATH:/employee/info}
+      employee-path: ${XIYU_CRM_AUTH_EMPLOYEE_PATH:/oauth/getUserInfo}
     customer:
       search-path: ${XIYU_CRM_CUSTOMER_SEARCH_PATH:/customer/search}
       contacts-path: ${XIYU_CRM_CUSTOMER_CONTACTS_PATH:/customer/contacts/batch}
