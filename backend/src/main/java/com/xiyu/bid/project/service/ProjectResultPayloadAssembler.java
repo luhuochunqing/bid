@@ -20,8 +20,8 @@ import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.ZoneId;
@@ -40,7 +40,6 @@ import java.util.stream.Collectors;
  * <p>sourceId 解析复用 {@link ExternalIdParser#extractSourceId}，避免逻辑重复。
  */
 @Component
-@RequiredArgsConstructor
 @Slf4j
 public class ProjectResultPayloadAssembler {
 
@@ -55,6 +54,20 @@ public class ProjectResultPayloadAssembler {
     private final UserRepository userRepository;
     private final ProjectDocumentRepository projectDocumentRepository;
     private final ObjectMapper objectMapper;
+    private final String attachmentApiKey;
+
+    public ProjectResultPayloadAssembler(
+            TenderRepository tenderRepository,
+            UserRepository userRepository,
+            ProjectDocumentRepository projectDocumentRepository,
+            ObjectMapper objectMapper,
+            @Value("${xiyu.attachment-api-key:${XIYU_ATTACHMENT_API_KEY:}}") String attachmentApiKey) {
+        this.tenderRepository = tenderRepository;
+        this.userRepository = userRepository;
+        this.projectDocumentRepository = projectDocumentRepository;
+        this.objectMapper = objectMapper;
+        this.attachmentApiKey = attachmentApiKey;
+    }
 
     /**
      * 组装 §4.2 回调载荷。
@@ -131,7 +144,7 @@ public class ProjectResultPayloadAssembler {
             Map<String, Object> file = new LinkedHashMap<>();
             file.put("fileName", safe(doc.getName()));
             file.put("fileUrl", TenderAttachmentUrlResolver.resolve(
-                    safe(doc.getFileUrl()), CallerContext.externalSystem(null)));
+                    safe(doc.getFileUrl()), CallerContext.externalSystem(attachmentApiKey)));
             file.put("fileSize", parseSize(doc.getSize()));
             files.add(file);
         }
@@ -170,7 +183,7 @@ public class ProjectResultPayloadAssembler {
             if (doc == null) continue;
             files.add(new EvidenceFile(
                     safe(doc.getName()),
-                    TenderAttachmentUrlResolver.resolve(safe(doc.getFileUrl()), CallerContext.externalSystem(null)),
+                    TenderAttachmentUrlResolver.resolve(safe(doc.getFileUrl()), CallerContext.externalSystem(attachmentApiKey)),
                     parseSize(doc.getSize())));
         }
         return files;

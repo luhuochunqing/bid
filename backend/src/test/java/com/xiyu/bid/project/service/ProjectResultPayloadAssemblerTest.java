@@ -37,12 +37,22 @@ class ProjectResultPayloadAssemblerTest {
     private static final Long USER_ID = 493L;
     private static final Long RESULT_ID = 7700L;
 
+    private static final String TEST_API_KEY = "xiyu_sk_test_key_12345";
+
     @Mock private TenderRepository tenderRepository;
     @Mock private UserRepository userRepository;
     @Mock private ProjectDocumentRepository projectDocumentRepository;
 
     private ProjectResultPayloadAssembler assembler() {
-        return new ProjectResultPayloadAssembler(tenderRepository, userRepository, projectDocumentRepository, new ObjectMapper());
+        return new ProjectResultPayloadAssembler(
+                tenderRepository, userRepository, projectDocumentRepository,
+                new ObjectMapper(), TEST_API_KEY);
+    }
+
+    private ProjectResultPayloadAssembler assemblerNoApiKey() {
+        return new ProjectResultPayloadAssembler(
+                tenderRepository, userRepository, projectDocumentRepository,
+                new ObjectMapper(), "");
     }
 
     @Test
@@ -194,6 +204,66 @@ class ProjectResultPayloadAssemblerTest {
         assertThat(root.has("operatorName")).isTrue();
         assertThat(root.has("operatorEmployeeId")).isTrue();
         assertThat(root.has("operatedAt")).isTrue();
+    }
+
+    @Test
+    @DisplayName("evidenceFiles fileUrl 含 api_key 参数（CRM 点击即下载）")
+    void evidenceFileUrl_containsApiKey() {
+        mockTenderAndUser();
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(1032L).projectId(PROJECT_ID)
+                .name("中标通知书.pdf").size("2048000")
+                .fileUrl("doc-insight://attachments/1032.pdf")
+                .uploaderName("张三").build();
+        when(projectDocumentRepository.findAllById(List.of(1032L))).thenReturn(List.of(doc));
+
+        ProjectResultCallbackPayload payload = assembler().assemble(buildEvent(
+                BidResultType.WON, List.of(1032L), List.of()));
+
+        String fileUrl = payload.evidenceFiles().get(0).fileUrl();
+        assertThat(fileUrl).contains("/api/integration/tenders/attachments/download");
+        assertThat(fileUrl).contains("api_key=" + TEST_API_KEY);
+    }
+
+    @Test
+    @DisplayName("feedback JSON 中 evidenceFiles fileUrl 含 api_key 参数")
+    void feedbackJson_evidenceFileUrl_containsApiKey() throws Exception {
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(1032L).projectId(PROJECT_ID)
+                .name("中标通知书.pdf").size("2048000")
+                .fileUrl("doc-insight://attachments/1032.pdf")
+                .uploaderName("张三").build();
+        when(projectDocumentRepository.findAllById(List.of(1032L))).thenReturn(List.of(doc));
+
+        String feedback = assembler().buildFeedbackString(buildEvent(
+                BidResultType.WON, List.of(1032L), List.of()), "张三");
+
+        JsonNode root = new ObjectMapper().readTree(feedback);
+        JsonNode files = root.get("evidenceFiles");
+        assertThat(files.isArray()).isTrue();
+        assertThat(files.size()).isEqualTo(1);
+        String fileUrl = files.get(0).get("fileUrl").asText();
+        assertThat(fileUrl).contains("/api/integration/tenders/attachments/download");
+        assertThat(fileUrl).contains("api_key=" + TEST_API_KEY);
+    }
+
+    @Test
+    @DisplayName("未配置 attachment-api-key 时 URL 不含 api_key 参数（不报错，退化为无参数）")
+    void noApiKey_urlDoesNotContainApiKey() {
+        mockTenderAndUser();
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(1032L).projectId(PROJECT_ID)
+                .name("中标通知书.pdf").size("2048000")
+                .fileUrl("doc-insight://attachments/1032.pdf")
+                .uploaderName("张三").build();
+        when(projectDocumentRepository.findAllById(List.of(1032L))).thenReturn(List.of(doc));
+
+        ProjectResultCallbackPayload payload = assemblerNoApiKey().assemble(buildEvent(
+                BidResultType.WON, List.of(1032L), List.of()));
+
+        String fileUrl = payload.evidenceFiles().get(0).fileUrl();
+        assertThat(fileUrl).contains("/api/integration/tenders/attachments/download");
+        assertThat(fileUrl).doesNotContain("api_key=");
     }
 
     private void mockTenderAndUser() {
