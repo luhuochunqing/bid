@@ -30,7 +30,7 @@ import static org.mockito.Mockito.when;
  * WebhookEventListener 单元测试（§4.1 bidInfoSync 格式）。
  * <p>覆盖：
  * <ul>
- *   <li>触发时机：仅 BIDDING 和 ABANDONED 入队；TRACKING/WON/LOST 跳过。</li>
+ *   <li>触发时机：仅 BIDDING、ABANDONED 和 EVALUATED 入队；TRACKING/WON/LOST 跳过。</li>
  *   <li>载荷符合 CRM POST /customer-chance/bidInfoSync 契约（bidInfoList 格式）。</li>
  *   <li>code 从 tender.crm_opportunity_id 解析（CC 前缀）。</li>
  *   <li>crmWebhookUrl 未配置时跳过。</li>
@@ -79,7 +79,7 @@ class WebhookEventListenerTest {
     }
 
     @Test
-    @DisplayName("BIDDING -> 入队，bidInfoList 格式，crmStatus=5")
+    @DisplayName("BIDDING -> 入队，bidInfoList 格式，crmStatus=5，tenderId 字段存在")
     void bidding_enqueuesWithBidInfoSync() throws Exception {
         WebhookEventListener l = listener();
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(mockTender()));
@@ -100,6 +100,7 @@ class WebhookEventListenerTest {
         assertThat(bidInfo.path("statusEditor").asText()).isEqualTo("张三");
         assertThat(bidInfo.path("statusEditTime").asText()).isNotEmpty();
         assertThat(bidInfo.has("feedback")).isTrue();
+        assertThat(bidInfo.path("tenderId").asLong()).isEqualTo(TENDER_ID);
     }
 
     @Test
@@ -119,6 +120,42 @@ class WebhookEventListenerTest {
         JsonNode feedback = objectMapper.readTree(bidInfo.path("feedback").asText());
         assertThat(feedback.path("reason").asText()).isEqualTo("ABANDONED");
         assertThat(feedback.path("remark").asText()).isEqualTo("客户预算过低，放弃投标");
+    }
+
+    @Test
+    @DisplayName("EVALUATED -> 入队，bidInfoList 格式，crmStatus=1，tenderId 存在（CO-298）")
+    void evaluated_enqueuesWithBidInfoSync_crmStatus1() throws Exception {
+        WebhookEventListener l = listener();
+        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(mockTender()));
+
+        l.onTenderStatusChanged(event(Tender.Status.EVALUATED, null, "王五"));
+
+        WebhookDeliveryTask saved = captureSingleSaved();
+        JsonNode root = objectMapper.readTree(saved.getPayload());
+        JsonNode bidInfo = root.path("bidInfoList").get(0);
+        assertThat(bidInfo.path("status").asInt()).isEqualTo(1);  // CRM status: 1=跟进中
+        assertThat(bidInfo.path("statusEditor").asText()).isEqualTo("王五");
+        assertThat(bidInfo.path("tenderId").asLong()).isEqualTo(TENDER_ID);  // CO-298: tenderId 字段
+    }
+
+    @Test
+    @DisplayName("EVALUATED + 无商机 -> 入队，code 为空，tenderId 存在")
+    void evaluated_noCrmOpportunity_sendsEmptyCode() throws Exception {
+        WebhookEventListener l = listener();
+        Tender tender = new Tender();
+        tender.setId(TENDER_ID);
+        tender.setCrmOpportunityId(null);
+        tender.setCrmOpportunityName(null);
+        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender));
+
+        l.onTenderStatusChanged(event(Tender.Status.EVALUATED, null, "赵六"));
+
+        WebhookDeliveryTask saved = captureSingleSaved();
+        JsonNode root = objectMapper.readTree(saved.getPayload());
+        JsonNode bidInfo = root.path("bidInfoList").get(0);
+        assertThat(bidInfo.path("code").asText()).isEmpty();
+        assertThat(bidInfo.path("name").asText()).isEmpty();
+        assertThat(bidInfo.path("tenderId").asLong()).isEqualTo(TENDER_ID);
     }
 
     @Test

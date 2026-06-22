@@ -47,7 +47,7 @@ public class WebhookEventListener {
     private static final String EVENT_TYPE = "tender.status_changed";
 
     private static final Set<Tender.Status> TRIGGER_STATES = Set.of(
-            Tender.Status.BIDDING, Tender.Status.ABANDONED);
+            Tender.Status.BIDDING, Tender.Status.ABANDONED, Tender.Status.EVALUATED);
 
     private final WebhookDeliveryTaskRepository taskRepository;
     private final TenderRepository tenderRepository;
@@ -106,12 +106,14 @@ public class WebhookEventListener {
         return switch (tenderStatus) {
             case BIDDING -> 5;
             case ABANDONED -> 6;
+            case EVALUATED -> 1;  // CO-298: 待评估标讯关联商机后提交 → 跟进中
             default -> null;
         };
     }
 
     /**
      * 构造符合 CRM POST /customer-chance/bidInfoSync 契约的请求体。
+     * <p>⚠️ 2026-06-22 新增 tenderId 字段（CO-298）：标讯内部 ID，方便 CRM 侧关联回标讯。
      */
     private String buildPayload(TenderStatusChangedEvent event, Integer crmStatus,
                                 String crmOpportunityCode, String crmOpportunityName) {
@@ -124,7 +126,8 @@ public class WebhookEventListener {
                     crmStatus,
                     operator,
                     statusEditTime,
-                    buildFeedback(event));
+                    buildFeedback(event),
+                    event.tenderId());  // CO-298: tenderId 字段
             BidInfoSyncDTO dto = new BidInfoSyncDTO(List.of(inner));
             return objectMapper.writeValueAsString(dto);
         } catch (JsonProcessingException ex) {

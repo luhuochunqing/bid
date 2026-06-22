@@ -165,6 +165,7 @@ public class ProjectResultConfirmedWebhookListener {
      * 无关联商机时两者填空字符串——CRM 侧接受（实测返回 code:0 success）。
      * <p>⚠️ 切勿用 externalId 的 sourceId 部分填 code：那是来源系统数据唯一 ID，非商机编号，
      * 会导致 CRM 匹配失败返回 code:1。
+     * <p>⚠️ 2026-06-22 新增 tenderId 字段（CO-298）：标讯内部 ID，方便 CRM 侧关联回标讯。
      */
     private String buildPayload(ProjectResultConfirmedEvent event, Integer crmStatus,
                                 String crmOpportunityCode, String crmOpportunityName) {
@@ -177,7 +178,8 @@ public class ProjectResultConfirmedWebhookListener {
                     crmStatus,
                     operator,
                     statusEditTime,
-                    buildFeedback(event, operator));
+                    buildFeedback(event, operator),
+                    event.tenderId());  // CO-298: tenderId 字段
             BidInfoSyncDTO dto = new BidInfoSyncDTO(List.of(inner));
             return objectMapper.writeValueAsString(dto);
         } catch (JsonProcessingException ex) {
