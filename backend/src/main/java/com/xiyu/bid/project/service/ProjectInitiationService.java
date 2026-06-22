@@ -85,7 +85,8 @@ public class ProjectInitiationService {
         entity.setRejectionReason(null);
         entity.setUpdatedBy(currentUserId);
         ProjectInitiationDetails saved = repository.save(entity);
-        log.info("Initiation submitted for review project={} user={}", projectId, currentUserId);
+        log.info("Initiation submitted for review: projectId={}, userId={}, reviewStatus={}",
+                projectId, currentUserId, saved.getReviewStatus());
 
         // 通知 #1: 项目负责人提交立项审核 → admin/bid_admin/bid_lead/bid_senior
         notificationService.notifyInitiationSubmitted(projectId, currentUserId);
@@ -95,6 +96,10 @@ public class ProjectInitiationService {
 
     @Auditable(action = "UPDATE_INITIATION", entityType = "ProjectInitiationDetails", description = "更新项目立项")
     public InitiationViewDto update(Long projectId, InitiationDto req, Long currentUserId) {
+        return doUpdate(projectId, req, currentUserId);
+    }
+
+    private InitiationViewDto doUpdate(Long projectId, InitiationDto req, Long currentUserId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         var project = mustGetProject(projectId);
         ProjectStage stage = projectStageService.currentStage(projectId);
@@ -135,7 +140,8 @@ public class ProjectInitiationService {
         mapper.applyInput(existing, mapper.toDto(requestedInput));
         existing.setUpdatedBy(currentUserId);
         ProjectInitiationDetails saved = repository.save(existing);
-        log.info("Initiation updated project={} user={}", projectId, currentUserId);
+        log.info("Initiation updated: projectId={}, userId={}, reviewStatus={}",
+                projectId, currentUserId, saved.getReviewStatus());
         return mapper.toView(saved);
     }
 

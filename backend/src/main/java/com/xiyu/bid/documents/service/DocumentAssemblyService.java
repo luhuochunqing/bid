@@ -46,24 +46,28 @@ public class DocumentAssemblyService {
     @Auditable(action = "CREATE", entityType = "AssemblyTemplate", description = "Create assembly template")
     @Transactional
     public AssemblyTemplateDTO createTemplate(TemplateCreateRequest request) {
-        log.info("Creating assembly template: {}", request.getName());
+        log.info("DocumentAssembly createTemplate: name={}, category={}", request.getName(), request.getCategory());
+        try {
+            validateTemplateRequest(request);
 
-        // Validate input
-        validateTemplateRequest(request);
+            AssemblyTemplate template = AssemblyTemplate.builder()
+                    .name(request.getName())
+                    .description(request.getDescription())
+                    .category(request.getCategory())
+                    .templateContent(request.getTemplateContent())
+                    .variables(request.getVariables())
+                    .createdBy(request.getCreatedBy())
+                    .build();
 
-        AssemblyTemplate template = AssemblyTemplate.builder()
-                .name(request.getName())
-                .description(request.getDescription())
-                .category(request.getCategory())
-                .templateContent(request.getTemplateContent())
-                .variables(request.getVariables())
-                .createdBy(request.getCreatedBy())
-                .build();
+            AssemblyTemplate savedTemplate = templateRepository.save(template);
+            log.info("DocumentAssembly createTemplate success: templateId={}", savedTemplate.getId());
 
-        AssemblyTemplate savedTemplate = templateRepository.save(template);
-        log.info("Created assembly template with id: {}", savedTemplate.getId());
-
-        return convertToDTO(savedTemplate);
+            return convertToDTO(savedTemplate);
+        } catch (RuntimeException ex) {
+            log.error("DocumentAssembly createTemplate failed: name={}, category={}",
+                    request.getName(), request.getCategory(), ex);
+            throw ex;
+        }
     }
 
     /**
@@ -85,28 +89,32 @@ public class DocumentAssemblyService {
     @Transactional
     public DocumentAssemblyDTO assembleDocument(Long projectId, Long templateId,
                                                  String variables, Long assembledBy) {
-        log.info("Assembling document for project: {} using template: {}", projectId, templateId);
+        log.info("DocumentAssembly assembleDocument: projectId={}, templateId={}, assembledBy={}",
+                projectId, templateId, assembledBy);
+        try {
+            AssemblyTemplate template = templateRepository.findById(templateId)
+                    .orElseThrow(() -> new ResourceNotFoundException("AssemblyTemplate", String.valueOf(templateId)));
 
-        // Get template
-        AssemblyTemplate template = templateRepository.findById(templateId)
-                .orElseThrow(() -> new ResourceNotFoundException("AssemblyTemplate", String.valueOf(templateId)));
+            String assembledContent = replaceVariables(template.getTemplateContent(), variables);
 
-        // Replace variables in template content
-        String assembledContent = replaceVariables(template.getTemplateContent(), variables);
+            DocumentAssembly assembly = DocumentAssembly.builder()
+                    .projectId(projectId)
+                    .templateId(templateId)
+                    .assembledContent(assembledContent)
+                    .variables(variables)
+                    .assembledBy(assembledBy)
+                    .build();
 
-        // Create assembly record
-        DocumentAssembly assembly = DocumentAssembly.builder()
-                .projectId(projectId)
-                .templateId(templateId)
-                .assembledContent(assembledContent)
-                .variables(variables)
-                .assembledBy(assembledBy)
-                .build();
+            DocumentAssembly savedAssembly = assemblyRepository.save(assembly);
+            log.info("DocumentAssembly assembleDocument success: projectId={}, assemblyId={}",
+                    projectId, savedAssembly.getId());
 
-        DocumentAssembly savedAssembly = assemblyRepository.save(assembly);
-        log.info("Assembled document with id: {}", savedAssembly.getId());
-
-        return convertToDTO(savedAssembly);
+            return convertToDTO(savedAssembly);
+        } catch (RuntimeException ex) {
+            log.error("DocumentAssembly assembleDocument failed: projectId={}, templateId={}",
+                    projectId, templateId, ex);
+            throw ex;
+        }
     }
 
     /**
@@ -127,34 +135,35 @@ public class DocumentAssemblyService {
     @Auditable(action = "REGENERATE", entityType = "DocumentAssembly", description = "Regenerate assembled document")
     @Transactional
     public DocumentAssemblyDTO regenerateAssembly(Long assemblyId) {
-        log.info("Regenerating assembly with id: {}", assemblyId);
+        log.info("DocumentAssembly regenerateAssembly: assemblyId={}", assemblyId);
+        try {
+            DocumentAssembly existingAssembly = assemblyRepository.findById(assemblyId)
+                    .orElseThrow(() -> new ResourceNotFoundException("DocumentAssembly", String.valueOf(assemblyId)));
 
-        // Get existing assembly
-        DocumentAssembly existingAssembly = assemblyRepository.findById(assemblyId)
-                .orElseThrow(() -> new ResourceNotFoundException("DocumentAssembly", String.valueOf(assemblyId)));
+            AssemblyTemplate template = templateRepository.findById(existingAssembly.getTemplateId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Template not found with id: " + existingAssembly.getTemplateId()));
 
-        // Get template
-        AssemblyTemplate template = templateRepository.findById(existingAssembly.getTemplateId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Template not found with id: " + existingAssembly.getTemplateId()));
+            String assembledContent = replaceVariables(template.getTemplateContent(),
+                    existingAssembly.getVariables());
 
-        // Reassemble content
-        String assembledContent = replaceVariables(template.getTemplateContent(),
-                existingAssembly.getVariables());
+            DocumentAssembly newAssembly = DocumentAssembly.builder()
+                    .projectId(existingAssembly.getProjectId())
+                    .templateId(existingAssembly.getTemplateId())
+                    .assembledContent(assembledContent)
+                    .variables(existingAssembly.getVariables())
+                    .assembledBy(existingAssembly.getAssembledBy())
+                    .build();
 
-        // Create new assembly record
-        DocumentAssembly newAssembly = DocumentAssembly.builder()
-                .projectId(existingAssembly.getProjectId())
-                .templateId(existingAssembly.getTemplateId())
-                .assembledContent(assembledContent)
-                .variables(existingAssembly.getVariables())
-                .assembledBy(existingAssembly.getAssembledBy())
-                .build();
+            DocumentAssembly savedAssembly = assemblyRepository.save(newAssembly);
+            log.info("DocumentAssembly regenerateAssembly success: assemblyId={}, newAssemblyId={}",
+                    assemblyId, savedAssembly.getId());
 
-        DocumentAssembly savedAssembly = assemblyRepository.save(newAssembly);
-        log.info("Regenerated document with new id: {}", savedAssembly.getId());
-
-        return convertToDTO(savedAssembly);
+            return convertToDTO(savedAssembly);
+        } catch (RuntimeException ex) {
+            log.error("DocumentAssembly regenerateAssembly failed: assemblyId={}", assemblyId, ex);
+            throw ex;
+        }
     }
 
     /**

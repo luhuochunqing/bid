@@ -88,6 +88,7 @@ public class ApprovalController {
         String userName = getCurrentUser(userDetails).getUsername();
 
         ApprovalDetailDTO result = approvalWorkflowService.approve(id, userId, userName, request.getComment());
+        log.info("Approval approve: approvalId={}, userId={}, status={}", id, userId, result.getStatus());
 
         Map<String, Object> data = new HashMap<>();
         data.put("id", result.getId());
@@ -134,6 +135,7 @@ public class ApprovalController {
         String userName = getCurrentUser(userDetails).getUsername();
 
         approvalWorkflowService.cancel(id, userId, userName);
+        log.info("Approval cancel: approvalId={}, userId={}", id, userId);
 
         return ResponseEntity.ok(ApiResponse.success("审批已取消", null));
     }

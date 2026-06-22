@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@noushad999/github-mcp-server"
+      ],
+      "env": {}
+    }
+  }
+}

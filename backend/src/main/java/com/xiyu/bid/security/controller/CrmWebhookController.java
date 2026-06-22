@@ -29,13 +29,24 @@ public class CrmWebhookController {
     public ResponseEntity<ApiResponse<Void>> syncPermissions(
             @RequestHeader(value = WebhookTokenAuthenticator.CRM_HEADER, required = false) String token,
             @RequestBody CrmPermissionWebhookPayload payload) {
+        log.info("CRM permission webhook received: payload={}", payload);
         if (!tokenAuthenticator.isValidCrmToken(token)) {
-            log.warn("CRM permission webhook rejected: invalid or missing token");
+            log.warn("CRM permission webhook rejected: invalid or missing token, customerId={}",
+                    payload != null ? payload.getCustomerId() : "null");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(ApiResponse.error("Invalid webhook token"));
         }
-        log.info("Received CRM permission sync request for customer: {}", payload.getCustomerId());
-        syncService.syncCustomerPermissions(payload);
-        return ResponseEntity.ok(ApiResponse.success("CRM permissions synced successfully", null));
+        log.info("CRM permission webhook token OK, syncing customerId={}", payload.getCustomerId());
+        try {
+            syncService.syncCustomerPermissions(payload);
+            log.info("CRM permission webhook sync succeeded: customerId={}, permissionCount={}",
+                    payload.getCustomerId(), payload.getPermissions() != null ? payload.getPermissions().size() : 0);
+            return ResponseEntity.ok(ApiResponse.success("CRM permissions synced successfully", null));
+        } catch (RuntimeException ex) {
+            log.error("CRM permission webhook sync failed: customerId={}, payload={}",
+                    payload.getCustomerId(), payload, ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("CRM permission sync failed: " + ex.getMessage()));
+        }
     }
 }
