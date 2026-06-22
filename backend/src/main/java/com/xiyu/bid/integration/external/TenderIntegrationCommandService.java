@@ -1,13 +1,19 @@
 package com.xiyu.bid.integration.external;
 
+import com.xiyu.bid.batch.core.TenderStatusTransitionPolicy;
+import com.xiyu.bid.crm.domain.AssignmentResult;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import com.xiyu.bid.tender.entity.TenderAttachment;
 import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
+import com.xiyu.bid.tender.service.TenderAutoAssignmentService;
+import com.xiyu.bid.tender.service.TenderAssignmentNotifier;
 import com.xiyu.bid.util.InputSanitizer;
+import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +35,9 @@ public class TenderIntegrationCommandService {
     private final TenderIntegrationMapper mapper;
     private final TenderEvaluationIntegrationService evaluationService;
     private final TenderIntegrationResolver helper;
+    private final TenderAutoAssignmentService autoAssignmentService;
+    private final TenderAssignmentNotifier assignmentNotifier;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 幂等推送标讯。
@@ -148,11 +157,54 @@ public class TenderIntegrationCommandService {
                     eval.getEvaluationCustomerInfos(), eval.getEvaluationRecommendation());
         }
         log.info("Created tender id={} externalId={}", saved.getId(), externalId);
+
+        // CO-302: 第三方平台拉取标讯自动分配
+        tryAutoAssign(saved);
+
         return TenderPushResponse.builder()
                 .tenderId(saved.getId())
                 .status("CREATED")
                 .message("标讯创建成功")
                 .build();
+    }
+
+    /**
+     * CO-302: 尝试自动分配标讯负责人.
+     * <p>匹配策略：先查本地 CrmProjectMapping 映射表，失败后调 CRM 商机接口实时查询。
+     * <p>降级策略：匹配失败保持 PENDING_ASSIGNMENT 状态，不影响标讯入库。
+     */
+    private void tryAutoAssign(Tender tender) {
+        try {
+            AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
+            if (result.isMatched()) {
+                applyAssignmentResult(tender, result);
+                TenderStatusTransitionPolicy.assertTransition(tender.getStatus(), Tender.Status.TRACKING);
+                tender.setStatus(Tender.Status.TRACKING);
+                eventPublisher.publishEvent(TenderStatusChangedEvent.of(
+                        tender.getId(), tender.getExternalId(),
+                        Tender.Status.PENDING_ASSIGNMENT, Tender.Status.TRACKING,
+                        tender.getTitle()));
+                tenderRepository.save(tender);
+                log.info("Tender {} auto-assigned from external platform, status changed to TRACKING", tender.getId());
+                assignmentNotifier.notifyAutoAssigned(tender);
+            }
+        } catch (RuntimeException e) {
+            log.warn("Auto-assignment failed for external tender {}, keeping PENDING_ASSIGNMENT: {}",
+                    tender.getId(), e.getMessage());
+        }
+    }
+
+    private void applyAssignmentResult(Tender tender, AssignmentResult result) {
+        if (result.projectManagerId() != null) {
+            try {
+                tender.setProjectManagerId(Long.valueOf(result.projectManagerId()));
+            } catch (NumberFormatException e) {
+                log.warn("Cannot convert projectManagerId '{}' to Long for tender {}",
+                        result.projectManagerId(), tender.getId());
+            }
+        }
+        tender.setProjectManagerName(result.projectManagerName());
+        tender.setDepartment(result.departmentName());
     }
 
     private void applyUpdateFields(Tender tender, TenderUpdateRequest request) {

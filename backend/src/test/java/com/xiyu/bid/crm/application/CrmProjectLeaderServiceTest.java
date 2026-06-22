@@ -68,7 +68,7 @@ class CrmProjectLeaderServiceTest {
     @Test
     void findProjectLeaderByChanceCode_emptyResult_returnsNull() {
         when(crmChanceService.pageList(any(CustomerChancePageRequest.class)))
-                .thenReturn(new CrmChanceService.CrmChancePageResult(List.of(), 0, 1, 10));
+                .thenReturn(new CrmChancePageResult(List.of(), 0, 1, 10));
 
         assertThat(service.findProjectLeaderByChanceCode("CC001")).isNull();
     }
@@ -76,7 +76,7 @@ class CrmProjectLeaderServiceTest {
     @Test
     void findProjectLeaderByChanceCode_chanceWithoutLeader_returnsNull() {
         when(crmChanceService.pageList(any(CustomerChancePageRequest.class)))
-                .thenReturn(new CrmChanceService.CrmChancePageResult(
+                .thenReturn(new CrmChancePageResult(
                         List.of(buildVO("CC001", "商机A", "", "")), 1, 1, 10));
 
         assertThat(service.findProjectLeaderByChanceCode("CC001")).isNull();
@@ -85,7 +85,7 @@ class CrmProjectLeaderServiceTest {
     @Test
     void findProjectLeaderByChanceCode_chanceWithLeader_returnsResult() {
         when(crmChanceService.pageList(any(CustomerChancePageRequest.class)))
-                .thenReturn(new CrmChanceService.CrmChancePageResult(
+                .thenReturn(new CrmChancePageResult(
                         List.of(buildVO("CC001", "商机A", "张三", "EMP001")), 1, 1, 10));
 
         CrmProjectLeaderService.ProjectLeaderResult result = service.findProjectLeaderByChanceCode("CC001");

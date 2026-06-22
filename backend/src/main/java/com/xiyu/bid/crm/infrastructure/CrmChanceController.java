@@ -1,5 +1,6 @@
 package com.xiyu.bid.crm.infrastructure;
 
+import com.xiyu.bid.crm.application.CrmChancePageResult;
 import com.xiyu.bid.crm.application.CrmChanceService;
 import com.xiyu.bid.crm.application.CrmContactPersonService;
 import com.xiyu.bid.crm.infrastructure.dto.BidInfoSyncDTO;
@@ -40,9 +41,9 @@ public class CrmChanceController {
      * 代理客户 POST /customer-chance/page-list。
      */
     @PostMapping("/page-list")
-    public ResponseEntity<ApiResponse<CrmChanceService.CrmChancePageResult>> pageList(
+    public ResponseEntity<ApiResponse<CrmChancePageResult>> pageList(
             @RequestBody CustomerChancePageRequest request) {
-        CrmChanceService.CrmChancePageResult result = chanceService.pageList(request);
+        CrmChancePageResult result = chanceService.pageList(request);
         return ResponseEntity.ok(ApiResponse.success("查询成功", result));
     }
 
@@ -51,9 +52,9 @@ public class CrmChanceController {
      * <p>使用招标主体、报名截止时间、开标时间组合匹配。
      */
     @PostMapping("/search-by-tender")
-    public ResponseEntity<ApiResponse<CrmChanceService.CrmChancePageResult>> searchByTender(
+    public ResponseEntity<ApiResponse<CrmChancePageResult>> searchByTender(
             @RequestBody CustomerChanceSearchByTenderRequest request) {
-        CrmChanceService.CrmChancePageResult result = chanceService.searchByTender(request);
+        CrmChancePageResult result = chanceService.searchByTender(request);
         return ResponseEntity.ok(ApiResponse.success("查询成功", result));
     }
 

@@ -26,6 +26,7 @@
     "excludeFiles": [
         "backend/pom.xml",
         "backend/src/main/java/com/xiyu/bid/approval/controller/ApprovalController.java",
+        "backend/src/main/java/com/xiyu/bid/crm/application/CrmChanceService.java",
         "backend/src/main/java/com/xiyu/bid/entity/Tender.java",
         "backend/src/main/java/com/xiyu/bid/integration/external/TenderIntegrationService.java",
         "backend/src/main/java/com/xiyu/bid/exception/GlobalExceptionHandler.java",

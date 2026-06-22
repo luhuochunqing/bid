@@ -7,6 +7,7 @@ import com.xiyu.bid.crm.infrastructure.dto.CustomerChanceDTO;
 import com.xiyu.bid.crm.infrastructure.dto.CustomerChancePageRequest;
 import com.xiyu.bid.crm.infrastructure.dto.CustomerChanceSearchByTenderRequest;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -50,7 +51,7 @@ class CrmChanceServiceTest {
         when(authService.getValidToken()).thenThrow(new IllegalStateException("OSS applyToken failed"));
         CustomerChancePageRequest request = new CustomerChancePageRequest(1, 10, selectAllBody());
 
-        CrmChanceService.CrmChancePageResult result = service.pageList(request);
+        CrmChancePageResult result = service.pageList(request);
 
         assertThat(result.list()).isEmpty();
         assertThat(result.totalCount()).isZero();
@@ -65,7 +66,7 @@ class CrmChanceServiceTest {
         CustomerChanceSearchByTenderRequest request = new CustomerChanceSearchByTenderRequest(
                 "山东海化集团有限公司", "2026-06-03 23:59:00", "2026-06-04 23:59:00", 1, 10);
 
-        CrmChanceService.CrmChancePageResult result = service.searchByTender(request);
+        CrmChancePageResult result = service.searchByTender(request);
 
         assertThat(result.list()).isEmpty();
         assertThat(result.totalCount()).isZero();
@@ -83,7 +84,7 @@ class CrmChanceServiceTest {
                 .thenReturn(unauthorizedCrmResponse());
         CustomerChancePageRequest request = new CustomerChancePageRequest(1, 10, selectAllBody());
 
-        CrmChanceService.CrmChancePageResult result = service.pageList(request);
+        CrmChancePageResult result = service.pageList(request);
 
         assertThat(result.list()).isEmpty();
         assertThat(result.totalCount()).isZero();
@@ -103,7 +104,7 @@ class CrmChanceServiceTest {
         CustomerChanceSearchByTenderRequest request = new CustomerChanceSearchByTenderRequest(
                 "山东海化集团有限公司", "2026-06-03 23:59:00", "2026-06-04 23:59:00", 1, 10);
 
-        CrmChanceService.CrmChancePageResult result = service.searchByTender(request);
+        CrmChancePageResult result = service.searchByTender(request);
 
         assertThat(result.list()).isEmpty();
         assertThat(result.totalCount()).isZero();
@@ -121,7 +122,7 @@ class CrmChanceServiceTest {
         CustomerChanceSearchByTenderRequest request = new CustomerChanceSearchByTenderRequest(
                 "", "2026-08-08 23:59:00", "2026-09-18 23:59:00", 1, 10);
 
-        CrmChanceService.CrmChancePageResult result = service.searchByTender(request);
+        CrmChancePageResult result = service.searchByTender(request);
 
         assertThat(result.list()).isEmpty();
         assertThat(result.totalCount()).isZero();
@@ -146,7 +147,7 @@ class CrmChanceServiceTest {
                 .thenReturn(CrmResponseHandler.parse(groupEmptyBody))
                 .thenReturn(CrmResponseHandler.parse(allBody));
 
-        CrmChanceService.CrmChancePageResult result = service.searchByTender(request);
+        CrmChancePageResult result = service.searchByTender(request);
 
         assertThat(result.list()).hasSize(1);
         assertThat(result.list().get(0).code()).isEqualTo("CC2");
@@ -175,7 +176,7 @@ class CrmChanceServiceTest {
                 .thenReturn(CrmResponseHandler.parse(emptyBody))
                 .thenReturn(CrmResponseHandler.parse(groupBody));
 
-        CrmChanceService.CrmChancePageResult result = service.searchByTender(request);
+        CrmChancePageResult result = service.searchByTender(request);
 
         assertThat(result.list()).hasSize(1);
         assertThat(result.list().get(0).code()).isEqualTo("CC3");
@@ -205,7 +206,7 @@ class CrmChanceServiceTest {
         when(httpClient.post(any(), any(), any(), any(CustomerChancePageRequest.class)))
                 .thenReturn(CrmResponseHandler.parse(responseBody));
 
-        CrmChanceService.CrmChancePageResult result = service.searchByTender(request);
+        CrmChancePageResult result = service.searchByTender(request);
 
         assertThat(result.list()).hasSize(1);
         verify(httpClient, times(1)).post(any(), any(), any(), any(CustomerChancePageRequest.class));
@@ -225,7 +226,7 @@ class CrmChanceServiceTest {
         when(httpClient.post(any(), any(), any(), any(CustomerChancePageRequest.class)))
                 .thenReturn(CrmResponseHandler.parse(allBody));
 
-        CrmChanceService.CrmChancePageResult result = service.searchByTender(request);
+        CrmChancePageResult result = service.searchByTender(request);
 
         assertThat(result.list()).hasSize(1);
         ArgumentCaptor<CustomerChancePageRequest> captor = ArgumentCaptor.forClass(CustomerChancePageRequest.class);
@@ -259,17 +260,18 @@ class CrmChanceServiceTest {
         assertThat(captor.getAllValues().get(1).body().evaluationStartTime()).startsWith("2026-06-04");
     }
 
+
+    private CrmResponseHandler.CrmApiResponse unauthorizedCrmResponse() {
+        return CrmResponseHandler.parse("{\"code\":401,\"msg\":\"unauthorized\",\"data\":null}");
+    }
+
+    private CrmResponseHandler.CrmApiResponse emptyCrmResponse() {
+        return CrmResponseHandler.parse("{\"code\":200,\"msg\":\"success\",\"data\":{\"list\":[],\"totalCount\":0,\"pageSize\":10,\"pageIndex\":1}}");
+    }
+
     private CustomerChanceDTO selectAllBody() {
         return new CustomerChanceDTO(
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null, true, null, null, null);
-    }
-
-    private CrmResponseHandler.CrmApiResponse emptyCrmResponse() {
-        return CrmResponseHandler.parse("{\"code\":0,\"totalCount\":0,\"pageSize\":10,\"pageIndex\":1,\"dataList\":[]}");
-    }
-
-    private CrmResponseHandler.CrmApiResponse unauthorizedCrmResponse() {
-        return CrmResponseHandler.parse("{\"code\":401,\"msg\":\"unauthorized\",\"data\":null}");
     }
 }

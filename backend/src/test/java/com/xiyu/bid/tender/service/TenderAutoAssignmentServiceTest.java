@@ -1,5 +1,7 @@
 package com.xiyu.bid.tender.service;
 
+import com.xiyu.bid.crm.application.CrmCustomerLeaderQueryService;
+import com.xiyu.bid.crm.application.CustomerLeaderResult;
 import com.xiyu.bid.crm.domain.CrmProjectMapping;
 import com.xiyu.bid.crm.domain.CrmProjectMappingRepository;
 import com.xiyu.bid.entity.Tender;
@@ -20,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class TenderAutoAssignmentServiceTest {
@@ -27,12 +30,15 @@ class TenderAutoAssignmentServiceTest {
     @Mock
     private CrmProjectMappingRepository mappingRepository;
 
+    @Mock
+    private CrmCustomerLeaderQueryService customerLeaderQueryService;
+
     private TenderAutoAssignmentService autoAssignmentService;
     private Tender tender;
 
     @BeforeEach
     void setUp() {
-        autoAssignmentService = new TenderAutoAssignmentService(mappingRepository);
+        autoAssignmentService = new TenderAutoAssignmentService(mappingRepository, customerLeaderQueryService);
         tender = Tender.builder()
                 .id(1L)
                 .title("测试标讯")
@@ -121,12 +127,15 @@ class TenderAutoAssignmentServiceTest {
         assertThat(result.projectManagerName()).isEqualTo("李四");
     }
 
+    // ── CO-302: CRM 自动分配测试 ─────────────────────────────────────────────────────────────
+
     @Test
-    @DisplayName("autoAssignIfPossible_匹配成功返回 matched result")
-    void autoAssignIfPossible_Match_ShouldReturnMatchedResult() {
+    @DisplayName("autoAssignIfPossible_本地映射匹配成功_不调用CRM")
+    void autoAssignIfPossible_LocalMatch_ShouldNotCallCrm() {
         CrmProjectMapping mapping = CrmProjectMapping.builder()
                 .purchaserName("上海西域采购中心")
                 .projectManagerName("王五")
+                .projectManagerId("10086")
                 .build();
 
         when(mappingRepository.findByPurchaserName("上海西域采购中心"))
@@ -136,15 +145,91 @@ class TenderAutoAssignmentServiceTest {
 
         assertThat(result.isMatched()).isTrue();
         assertThat(result.projectManagerName()).isEqualTo("王五");
+        assertThat(result.projectManagerId()).isEqualTo("10086");
+        verify(customerLeaderQueryService, never()).findLeaderByGroupName(anyString());
     }
 
     @Test
-    @DisplayName("autoAssignIfPossible_匹配失败返回 noMatch")
-    void autoAssignIfPossible_NoMatch_ShouldReturnNoMatch() {
-        when(mappingRepository.findByPurchaserName(anyString()))
+    @DisplayName("autoAssignIfPossible_本地匹配失败_CRM匹配成功")
+    void autoAssignIfPossible_LocalNoMatch_CrmMatch_ShouldReturnCrmResult() {
+        // 本地映射表无匹配
+        when(mappingRepository.findByPurchaserName("上海西域采购中心"))
                 .thenReturn(Optional.empty());
 
+        // CRM 返回负责人信息
+        CustomerLeaderResult crmLeader =
+                new CustomerLeaderResult("上海西域采购中心", "张三", "10001");
+        when(customerLeaderQueryService.findLeaderByGroupName("上海西域采购中心"))
+                .thenReturn(crmLeader);
+
         AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
+
+        assertThat(result.isMatched()).isTrue();
+        assertThat(result.projectManagerName()).isEqualTo("张三");
+        assertThat(result.projectManagerId()).isEqualTo("10001");
+        verify(mappingRepository).findByPurchaserName("上海西域采购中心");
+        verify(customerLeaderQueryService).findLeaderByGroupName("上海西域采购中心");
+    }
+
+    @Test
+    @DisplayName("autoAssignIfPossible_本地和CRM都匹配失败_返回noMatch")
+    void autoAssignIfPossible_BothNoMatch_ShouldReturnNoMatch() {
+        when(mappingRepository.findByPurchaserName("上海西域采购中心"))
+                .thenReturn(Optional.empty());
+        when(customerLeaderQueryService.findLeaderByGroupName("上海西域采购中心"))
+                .thenReturn(null);
+
+        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
+
+        assertThat(result.isMatched()).isFalse();
+    }
+
+    @Test
+    @DisplayName("autoAssignIfPossible_CRM调用异常_降级为noMatch")
+    void autoAssignIfPossible_CrmException_ShouldReturnNoMatch() {
+        when(mappingRepository.findByPurchaserName("上海西域采购中心"))
+                .thenReturn(Optional.empty());
+        when(customerLeaderQueryService.findLeaderByGroupName("上海西域采购中心"))
+                .thenThrow(new RuntimeException("CRM connection timeout"));
+
+        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
+
+        assertThat(result.isMatched()).isFalse();
+    }
+
+    @Test
+    @DisplayName("tryAutoAssignFromCrm_purchaserName为空_返回noMatch")
+    void tryAutoAssignFromCrm_BlankPurchaserName_ShouldReturnNoMatch() {
+        tender.setPurchaserName(null);
+
+        AssignmentResult result = autoAssignmentService.tryAutoAssignFromCrm(tender);
+
+        assertThat(result.isMatched()).isFalse();
+        verify(customerLeaderQueryService, never()).findLeaderByGroupName(anyString());
+    }
+
+    @Test
+    @DisplayName("tryAutoAssignFromCrm_CRM返回负责人信息_匹配成功")
+    void tryAutoAssignFromCrm_CrmLeaderFound_ShouldReturnMatched() {
+        CustomerLeaderResult crmLeader =
+                new CustomerLeaderResult("上海西域采购中心", "李四", "10002");
+        when(customerLeaderQueryService.findLeaderByGroupName("上海西域采购中心"))
+                .thenReturn(crmLeader);
+
+        AssignmentResult result = autoAssignmentService.tryAutoAssignFromCrm(tender);
+
+        assertThat(result.isMatched()).isTrue();
+        assertThat(result.projectManagerName()).isEqualTo("李四");
+        assertThat(result.projectManagerId()).isEqualTo("10002");
+    }
+
+    @Test
+    @DisplayName("tryAutoAssignFromCrm_CRM返回null_返回noMatch")
+    void tryAutoAssignFromCrm_CrmReturnsNull_ShouldReturnNoMatch() {
+        when(customerLeaderQueryService.findLeaderByGroupName("上海西域采购中心"))
+                .thenReturn(null);
+
+        AssignmentResult result = autoAssignmentService.tryAutoAssignFromCrm(tender);
 
         assertThat(result.isMatched()).isFalse();
     }

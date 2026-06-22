@@ -1,5 +1,6 @@
 package com.xiyu.bid.crm.infrastructure;
 
+import com.xiyu.bid.crm.application.CrmChancePageResult;
 import com.xiyu.bid.crm.application.CrmChanceService;
 import com.xiyu.bid.crm.application.CrmContactPersonService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -69,8 +70,8 @@ class CrmChanceControllerIntegrationTest {
     @Test
     @WithMockUser(username = "staff", roles = {"STAFF"})
     void pageList_shouldReturnEmptyResultWhenServiceReturnsEmptyPage() throws Exception {
-        CrmChanceService.CrmChancePageResult result =
-                new CrmChanceService.CrmChancePageResult(List.of(), 0, 0, 0);
+        CrmChancePageResult result =
+                new CrmChancePageResult(List.of(), 0, 0, 0);
         when(chanceService.pageList(any(CustomerChancePageRequest.class))).thenReturn(result);
 
         mockMvc.perform(post("/api/xiyu/crm/chances/page-list")
@@ -94,8 +95,8 @@ class CrmChanceControllerIntegrationTest {
         CustomerChanceVO chance = mapper.readValue("""
                 {"id":1,"code":"CC-001","name":"海化集团MRO商机","groupName":"山东海化集团有限公司"}
                 """, CustomerChanceVO.class);
-        CrmChanceService.CrmChancePageResult result =
-                new CrmChanceService.CrmChancePageResult(List.of(chance), 1, 10, 1);
+        CrmChancePageResult result =
+                new CrmChancePageResult(List.of(chance), 1, 10, 1);
         when(chanceService.searchByTender(any(CustomerChanceSearchByTenderRequest.class))).thenReturn(result);
 
         mockMvc.perform(post("/api/xiyu/crm/chances/search-by-tender")

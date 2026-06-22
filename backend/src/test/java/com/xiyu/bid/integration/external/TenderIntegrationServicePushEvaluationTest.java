@@ -7,6 +7,8 @@ import com.xiyu.bid.tender.entity.TenderEvaluationCustomerInfo;
 import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
 import com.xiyu.bid.tender.repository.TenderEvaluationCustomerInfoRepository;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
+import com.xiyu.bid.tender.service.TenderAutoAssignmentService;
+import com.xiyu.bid.tender.service.TenderAssignmentNotifier;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.tender.dto.EvaluationBasicDTO;
@@ -18,6 +20,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.LocalDateTime;
@@ -62,7 +65,10 @@ class TenderIntegrationServicePushEvaluationTest {
                 mock(CrmTenderLinkService.class),
                 mapper,
                 evaluationService,
-                helper);
+                helper,
+                mock(TenderAutoAssignmentService.class),
+                mock(TenderAssignmentNotifier.class),
+                mock(ApplicationEventPublisher.class));
     }
 
     private TenderPushRequest.EvaluationUpdate buildEval(String roleKey, String infoKey, String value) {

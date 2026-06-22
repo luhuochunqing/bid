@@ -5,6 +5,8 @@ import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
+import com.xiyu.bid.tender.service.TenderAutoAssignmentService;
+import com.xiyu.bid.tender.service.TenderAssignmentNotifier;
 import com.xiyu.bid.tender.service.TenderEvaluationSubmissionMapper;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.tender.service.TenderMapper;
@@ -16,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Collections;
 import java.util.Optional;
@@ -38,6 +41,9 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
     @Mock private TenderEvaluationSubmissionMapper submissionMapper;
     @Mock private CrmTenderLinkService crmTenderLinkService;
     @Mock private ProjectDocumentRepository projectDocumentRepository;
+    @Mock private TenderAutoAssignmentService autoAssignmentService;
+    @Mock private TenderAssignmentNotifier assignmentNotifier;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     private TenderIntegrationCommandService commandService;
 
@@ -51,7 +57,8 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
                 tenderEvaluationRepository, evaluationMapper, projectDocumentRepository);
         TenderIntegrationResolver helper = new TenderIntegrationResolver(tenderRepository);
         commandService = new TenderIntegrationCommandService(
-                tenderRepository, attachmentRepository, crmTenderLinkService, mapper, evaluationService, helper);
+                tenderRepository, attachmentRepository, crmTenderLinkService, mapper, evaluationService, helper,
+                autoAssignmentService, assignmentNotifier, eventPublisher);
         when(tenderRepository.save(any(Tender.class))).thenAnswer(inv -> inv.getArgument(0));
         TenderDTO stubDto = TenderDTO.builder().build();
         when(tenderMapper.toDTO(any(Tender.class))).thenReturn(stubDto);

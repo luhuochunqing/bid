@@ -42,7 +42,7 @@ public class CrmProjectLeaderService {
                 null, null, null, null
         );
         CustomerChancePageRequest request = new CustomerChancePageRequest(1, 10, filter);
-        CrmChanceService.CrmChancePageResult result = crmChanceService.pageList(request);
+        CrmChancePageResult result = crmChanceService.pageList(request);
 
         if (result.list() == null || result.list().isEmpty()) {
             log.warn("findProjectLeaderByChanceCode: no opportunity found for code={}", code);
