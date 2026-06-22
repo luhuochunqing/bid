@@ -40,7 +40,7 @@ public class OrganizationManualResyncAppService {
         }
         String eventKey = run.getRunKey() + "|DEPARTMENT|" + deptId;
         try {
-            OrganizationDirectoryLookupContext context = new OrganizationDirectoryLookupContext(run.getRunKey(), sourceApp);
+            OrganizationDirectoryLookupContext context = new OrganizationDirectoryLookupContext(run.getRunKey(), sourceApp, "");
             Optional<OrganizationDepartmentSnapshot> snapshot = gateway.fetchDepartmentByDeptId(deptId, context);
             if (snapshot.isPresent()) {
                 departmentWriter.upsert(sourceApp, eventKey, snapshot.get());
@@ -66,7 +66,7 @@ public class OrganizationManualResyncAppService {
         }
         String eventKey = run.getRunKey() + "|USER|" + userId;
         try {
-            OrganizationDirectoryLookupContext context = new OrganizationDirectoryLookupContext(run.getRunKey(), sourceApp);
+            OrganizationDirectoryLookupContext context = new OrganizationDirectoryLookupContext(run.getRunKey(), sourceApp, "");
             Optional<OrganizationUserSnapshot> snapshot = gateway.fetchUserByUserId(userId, context);
             if (snapshot.isPresent()) {
                 userWriter.upsert(sourceApp, eventKey, snapshot.get());

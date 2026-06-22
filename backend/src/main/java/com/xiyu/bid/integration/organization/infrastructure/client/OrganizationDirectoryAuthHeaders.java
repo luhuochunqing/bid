@@ -23,7 +23,12 @@ public class OrganizationDirectoryAuthHeaders {
         set(headers, directory.getTraceHeaderName(), value(context.traceId()));
         // 3. 源应用标识
         set(headers, directory.getSourceHeaderName(), firstPresent(directory.getSourceApp(), context.sourceApp()));
-        // 4. 可选组织目录鉴权 Header；仅从配置注入，不记录 token
+        // 4. OSS 动态 token（优先使用 context 中的动态 token，其次使用配置的静态 token）
+        String authToken = firstPresent(context.ossToken(), directory.getAuthToken());
+        if (!isBlank(authToken)) {
+            headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + authToken);
+        }
+        // 5. 可选组织目录鉴权 Header（兼容旧配置）
         set(headers, directory.getAuthHeaderName(), directory.getAuthToken());
         return headers;
     }

@@ -97,7 +97,7 @@ class OrganizationDirectoryHttpGatewayTest {
         props.getDirectory().setSourceApp("BidSystem");
 
         Optional<OrganizationUserSnapshot> snapshot = gateway(restTemplate, props)
-                .fetchUserByUserId("720518523", new OrganizationDirectoryLookupContext("trace-1", "oss"));
+                .fetchUserByUserId("720518523", new OrganizationDirectoryLookupContext("trace-1", "oss", ""));
 
         assertThat(snapshot).isPresent();
         server.verify();

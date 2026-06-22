@@ -63,7 +63,7 @@ public class OrganizationSyncRunAppService {
             return new RunCounters(0, 0, 0);
         }
         RunCounters counters = new RunCounters(0, 0, 0);
-        OrganizationDirectoryLookupContext context = new OrganizationDirectoryLookupContext(run.getRunKey(), sourceApp);
+        OrganizationDirectoryLookupContext context = new OrganizationDirectoryLookupContext(run.getRunKey(), sourceApp, "");
         List<OrganizationDepartmentSnapshot> departments = gateway.listDepartmentsByWindow(startAt, endAt, context);
         for (OrganizationDepartmentSnapshot department : departments) {
             counters = counters.add(processDepartment(run, sourceApp, department));

@@ -51,7 +51,7 @@ public class OssLoginFlowService {
     private final UserRepository userRepository;
     private final RoleProfileRepository roleProfileRepository;
     private final ObjectProvider<OrganizationDirectoryGateway> gatewayProvider;
-    private final ObjectProvider<OrganizationIntegrationProperties.Directory> directoryProvider;
+    private final OrganizationIntegrationProperties organizationProperties;
 
     /**
      * 直接使用用户名和密码进行 OSS 认证（不依赖 User entity）。
@@ -137,8 +137,8 @@ public class OssLoginFlowService {
 
         // Step 5: 同步 OSS 权限到本地 RoleProfile（前端菜单显示需要）
         CrmUserPermission permission = result.build().getPermission();
-        if (permission != null && !permission.isEmpty() && jobNumber != null) {
-            syncOssPermissionsToRole(username, jobNumber, permission);
+        if (permission != null && !permission.isEmpty() && jobNumber != null && accessToken != null) {
+            syncOssPermissionsToRole(username, jobNumber, permission, accessToken);
         }
 
         return result.build();
@@ -151,7 +151,7 @@ public class OssLoginFlowService {
      * 然后合并到用户的 RoleProfile.menu_permissions，供前端菜单显示使用。
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void syncOssPermissionsToRole(String username, String jobNumber, CrmUserPermission permission) {
+    public void syncOssPermissionsToRole(String username, String jobNumber, CrmUserPermission permission, String accessToken) {
         try {
             // 1. 根据用户名查找本地用户
             Optional<User> userOpt = userRepository.findByUsername(username);
@@ -169,46 +169,40 @@ public class OssLoginFlowService {
             }
             Optional<RoleProfile> roleOpt = roleProfileRepository.findByCodeIgnoreCase(roleCode);
             if (roleOpt.isEmpty()) {
-                log.debug("OSS login: role profile not found, skip permission sync: username={}, roleCode={}", username, roleCode);
+                log.warn("OSS login: role profile not found, skip permission sync: username={}, roleCode={}", username, roleCode);
                 return;
             }
             RoleProfile role = roleOpt.get();
 
-            // 3. 通过 OrganizationDirectoryGateway 获取 OSS 菜单树
-            OrganizationDirectoryGateway gateway = gatewayProvider.getIfAvailable();
-            if (gateway == null) {
-                log.debug("OSS login: OrganizationDirectoryGateway not available, skip permission sync");
-                return;
-            }
-            Optional<List<OssMenuTreeNode>> menuTree = gateway.fetchUserMenuTree(
-                    jobNumber, OrganizationDirectoryLookupContext.empty());
-            if (menuTree.isEmpty()) {
-                log.info("OSS login: menu tree is empty, skip permission sync: username={}, jobNumber={}", username, jobNumber);
-                return;
-            }
-
-            // 4. 获取 Directory 配置
-            OrganizationIntegrationProperties.Directory directory = directoryProvider.getIfAvailable();
+            // 3. 获取 Directory 配置（含菜单 code 到内部权限码的映射表）
+            OrganizationIntegrationProperties.Directory directory = organizationProperties.getDirectory();
             if (directory == null) {
-                log.debug("OSS login: Directory config not available, skip permission sync");
+                log.warn("OSS login: Directory config not available, skip permission sync");
                 return;
             }
 
-            // 5. 使用 OssMenuPermissionMapper 将菜单 code 映射为内部权限码
+            // 4. 直接用 OSS 返回的权限码列表做映射（不再依赖 gateway.fetchUserMenuTree）
+            String systemName = crmProperties.getAuth().getUserPermissionSystemName();
+            List<String> ossMenuCodes = permission.getMenusForSystem(systemName);
+            if (ossMenuCodes.isEmpty()) {
+                log.info("OSS login: no menu codes for system={}, skip permission sync: username={}", systemName, username);
+                return;
+            }
+
             OssMenuPermissionMapper mapper = new OssMenuPermissionMapper(
                     directory.getMenuCodeToPermissionKeyMappings(),
                     directory.getUnmappedMenuCodeBehavior()
             );
-            Set<String> internalPermissions = mapper.map(menuTree.get());
+            Set<String> internalPermissions = mapper.mapCodes(ossMenuCodes);
 
-            // 6. 合并到 RoleProfile.menu_permissions
+            // 5. 合并到 RoleProfile.menu_permissions
             Set<String> merged = new HashSet<>(role.getMenuPermissions());
             merged.addAll(internalPermissions);
             role.setMenuPermissions(new ArrayList<>(merged));
             roleProfileRepository.save(role);
 
-            log.info("OSS login: permission sync completed: username={}, roleCode={}, newPermissions={}",
-                    username, roleCode, internalPermissions);
+            log.info("OSS login: permission sync completed: username={}, roleCode={}, ossCodes={}, newPermissions={}",
+                    username, roleCode, ossMenuCodes, internalPermissions);
         } catch (RuntimeException e) {
             log.error("OSS login: permission sync failed: username={}, error={}", username, e.getMessage());
             // 非致命错误，不影响登录流程
