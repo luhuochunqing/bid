@@ -3,10 +3,14 @@ package com.xiyu.bid.project.integration;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.ProjectGroup;
+import com.xiyu.bid.entity.RoleProfile;
+import com.xiyu.bid.entity.RoleProfileCatalog;
+import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.ProjectGroupRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.RoleProfileRepository;
+import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.settings.entity.SystemSetting;
 import com.xiyu.bid.settings.repository.SystemSettingRepository;
@@ -35,6 +39,9 @@ abstract class AbstractProjectControllerIntegrationTest {
     protected RoleProfileRepository roleProfileRepository;
 
     @Autowired
+    protected TaskRepository taskRepository;
+
+    @Autowired
     protected SystemSettingRepository systemSettingRepository;
 
     @Autowired
@@ -45,20 +52,32 @@ abstract class AbstractProjectControllerIntegrationTest {
     protected User outsiderUser;
     protected User departmentViewerUser;
     protected User groupViewerUser;
+    protected User crossDeptAssigneeUser;
+    protected Long visibleProjectId;
+    protected Long restrictedProjectId;
 
     @BeforeEach
     void setUpProjectControllerFixtures() {
+        taskRepository.deleteAll();
         projectGroupRepository.deleteAll();
         projectRepository.deleteAll();
         systemSettingRepository.deleteAll();
         userRepository.deleteAll();
         roleProfileRepository.deleteAll();
 
-        com.xiyu.bid.entity.RoleProfile defaultProfile = roleProfileRepository.save(
-                com.xiyu.bid.entity.RoleProfile.builder()
+        RoleProfile defaultProfile = roleProfileRepository.save(
+                RoleProfile.builder()
                         .code("test-profile")
                         .name("测试权限")
                         .dataScope("self")
+                        .build()
+        );
+        RoleProfile crossDeptProfile = roleProfileRepository.save(
+                RoleProfile.builder()
+                        .code(RoleProfileCatalog.BID_OTHER_DEPT_CODE)
+                        .name("跨部门协同人员")
+                        .dataScope("self")
+                        .menuPermissionsValue("task-board,task.view.own,task.handle.own")
                         .build()
         );
 
@@ -107,8 +126,17 @@ abstract class AbstractProjectControllerIntegrationTest {
                 "财务部",
                 defaultProfile
         );
+        crossDeptAssigneeUser = createUser(
+                "cross-dept-assignee",
+                "cross-dept-assignee@example.com",
+                "跨部门任务执行人",
+                User.Role.STAFF,
+                "OTHER",
+                "跨部门",
+                crossDeptProfile
+        );
 
-        projectRepository.save(Project.builder()
+        Project restrictedProject = projectRepository.save(Project.builder()
                 .name("无权限项目")
                 .tenderId(102L)
                 .status(Project.Status.EVALUATING)
@@ -117,7 +145,8 @@ abstract class AbstractProjectControllerIntegrationTest {
                 .startDate(LocalDateTime.of(2026, 3, 12, 9, 0))
                 .endDate(LocalDateTime.of(2026, 3, 22, 18, 0))
                 .build());
-        projectRepository.save(Project.builder()
+        restrictedProjectId = restrictedProject.getId();
+        Project visibleProject = projectRepository.save(Project.builder()
                 .name("真实项目列表回归")
                 .tenderId(101L)
                 .status(Project.Status.BIDDING)
@@ -126,10 +155,14 @@ abstract class AbstractProjectControllerIntegrationTest {
                 .startDate(LocalDateTime.of(2026, 3, 10, 9, 0))
                 .endDate(LocalDateTime.of(2026, 3, 20, 18, 0))
                 .build());
-
-        Long visibleProjectId = projectRepository.findByNameContainingIgnoreCase("真实项目列表回归")
-                .get(0)
-                .getId();
+        visibleProjectId = visibleProject.getId();
+        taskRepository.save(Task.builder()
+                .projectId(visibleProjectId)
+                .title("跨部门协同任务")
+                .assigneeId(crossDeptAssigneeUser.getId())
+                .status(Task.Status.TODO)
+                .priority(Task.Priority.MEDIUM)
+                .build());
         projectGroupRepository.saveAndFlush(ProjectGroup.builder()
                 .groupCode("G1")
                 .groupName("重点项目组")
@@ -152,7 +185,7 @@ abstract class AbstractProjectControllerIntegrationTest {
             User.Role role,
             String departmentCode,
             String departmentName,
-            com.xiyu.bid.entity.RoleProfile roleProfile
+            RoleProfile roleProfile
     ) {
         return userRepository.save(User.builder()
                 .username(username)

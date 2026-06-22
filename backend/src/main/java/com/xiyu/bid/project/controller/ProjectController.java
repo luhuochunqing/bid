@@ -96,7 +96,7 @@ public class ProjectController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<ProjectDTO>> getProjectById(@PathVariable Long id) {
         log.info("GET /api/projects/{} - Fetching project", id);
         ProjectDTO project = projectService.getProjectById(id);

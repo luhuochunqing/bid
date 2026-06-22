@@ -62,8 +62,23 @@ class ProjectControllerAccessIntegrationTest extends AbstractProjectControllerIn
     @Test
     @WithMockUser(username = "outsider-user", roles = {"STAFF"})
     void getProjectById_ShouldReturnForbiddenForUnauthorizedProject() throws Exception {
-        Long restrictedProjectId = projectRepository.findByNameContainingIgnoreCase("真实项目列表回归").get(0).getId();
+        mockMvc.perform(get("/api/projects/{id}", visibleProjectId))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.msg").value("权限不足，无法访问该资源"));
+    }
 
+    @Test
+    @WithMockUser(username = "cross-dept-assignee", roles = {"BID_OTHER_DEPT"})
+    void getProjectById_ShouldAllowBidOtherDeptAssigneeForAssignedTaskProject() throws Exception {
+        mockMvc.perform(get("/api/projects/{id}", visibleProjectId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(visibleProjectId))
+                .andExpect(jsonPath("$.data.name").value("真实项目列表回归"));
+    }
+
+    @Test
+    @WithMockUser(username = "cross-dept-assignee", roles = {"BID_OTHER_DEPT"})
+    void getProjectById_ShouldForbidBidOtherDeptAssigneeForUnassignedProject() throws Exception {
         mockMvc.perform(get("/api/projects/{id}", restrictedProjectId))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.msg").value("权限不足，无法访问该资源"));

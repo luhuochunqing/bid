@@ -44,7 +44,20 @@ class UserDetailsServiceImplTest {
     void bidOtherDeptShouldNotInheritStaffButKeepOwnCodeAndTaskPermissions() {
         // bid_other_dept（跨部门协同人员）按蓝图不应访问标讯/项目/知识库 → 不继承 ROLE_STAFF；
         // 但保留 ROLE_BID_OTHER_DEPT + catalog 的 task 权限（任务 API 用 isAuthenticated，仍可用）
-        User user = userWithRoleProfile("hanhui", User.Role.STAFF, RoleProfileCatalog.BID_OTHER_DEPT_CODE);
+        RoleProfile roleProfile = RoleProfile.builder()
+                .code(RoleProfileCatalog.BID_OTHER_DEPT_CODE)
+                .name(RoleProfileCatalog.BID_OTHER_DEPT_CODE)
+                .build();
+        roleProfile.setMenuPermissions(List.of("task-board", "task.view.own", "task.handle.own"));
+        User user = User.builder()
+                .username("hanhui")
+                .password("{noop}password")
+                .email("hanhui@example.com")
+                .fullName("hanhui")
+                .role(User.Role.STAFF)
+                .roleProfile(roleProfile)
+                .enabled(true)
+                .build();
         when(userRepository.findByUsername("hanhui")).thenReturn(Optional.of(user));
 
         UserDetails details = userDetailsService.loadUserByUsername("hanhui");
@@ -52,7 +65,7 @@ class UserDetailsServiceImplTest {
         assertThat(details.getAuthorities())
                 .extracting("authority")
                 .contains(RoleProfileCatalog.BID_OTHER_DEPT_CODE, "ROLE_BID_OTHER_DEPT",
-                        "task.view.own", "task.handle.own")
+                        "task-board", "task.view.own", "task.handle.own")
                 .doesNotContain("ROLE_STAFF", "bidding", "project", "knowledge", "resource");
     }
 
