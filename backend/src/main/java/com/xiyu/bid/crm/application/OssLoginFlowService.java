@@ -51,7 +51,7 @@ public class OssLoginFlowService {
     private final UserRepository userRepository;
     private final RoleProfileRepository roleProfileRepository;
     private final ObjectProvider<OrganizationDirectoryGateway> gatewayProvider;
-    private final OrganizationIntegrationProperties.Directory directory;
+    private final ObjectProvider<OrganizationIntegrationProperties.Directory> directoryProvider;
 
     /**
      * 直接使用用户名和密码进行 OSS 认证（不依赖 User entity）。
@@ -187,14 +187,21 @@ public class OssLoginFlowService {
                 return;
             }
 
-            // 4. 使用 OssMenuPermissionMapper 将菜单 code 映射为内部权限码
+            // 4. 获取 Directory 配置
+            OrganizationIntegrationProperties.Directory directory = directoryProvider.getIfAvailable();
+            if (directory == null) {
+                log.debug("OSS login: Directory config not available, skip permission sync");
+                return;
+            }
+
+            // 5. 使用 OssMenuPermissionMapper 将菜单 code 映射为内部权限码
             OssMenuPermissionMapper mapper = new OssMenuPermissionMapper(
                     directory.getMenuCodeToPermissionKeyMappings(),
                     directory.getUnmappedMenuCodeBehavior()
             );
             Set<String> internalPermissions = mapper.map(menuTree.get());
 
-            // 5. 合并到 RoleProfile.menu_permissions
+            // 6. 合并到 RoleProfile.menu_permissions
             Set<String> merged = new HashSet<>(role.getMenuPermissions());
             merged.addAll(internalPermissions);
             role.setMenuPermissions(new ArrayList<>(merged));
