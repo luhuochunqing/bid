@@ -6,6 +6,7 @@ package com.xiyu.bid.biddraftagent.infrastructure.openai;
 import com.xiyu.bid.docinsight.application.DocumentAnalysisInput;
 import com.xiyu.bid.docinsight.domain.DocumentChunk;
 import static com.xiyu.bid.biddraftagent.infrastructure.openai.TenderIntakeTextProcessor.sanitizeUntrusted;
+import static com.xiyu.bid.biddraftagent.infrastructure.openai.TenderIntakeTextProcessor.sanitizeUntrusted;
 
 final class TenderDocumentPrompts {
 

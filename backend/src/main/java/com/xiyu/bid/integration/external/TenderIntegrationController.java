@@ -165,12 +165,8 @@ public class TenderIntegrationController {
             @RequestParam(required = false) Long tenderId,
             jakarta.servlet.http.HttpServletRequest request) {
         log.info("INTEGRATION GET /api/integration/tenders/{}/{} tenderId={}", sourceSystem, sourceId, tenderId);
-        TenderDTO tender = tenderIntegrationService.getByExternalId(sourceSystem, sourceId, tenderId);
-        // CO-280: 将 doc-insight:// URL 转换为集成下载端点，按上下文附加 api_key
-        if (tender != null) {
-            CallerContext ctx = buildCallerContext(request);
-            tenderIntegrationMapper.normalizeFileUrls(tender, ctx);
-        }
+        CallerContext ctx = buildCallerContext(request);
+        TenderDTO tender = tenderIntegrationService.getByExternalId(sourceSystem, sourceId, tenderId, ctx);
         return ResponseEntity.ok(ApiResponse.success("查询成功", tender));
     }
 

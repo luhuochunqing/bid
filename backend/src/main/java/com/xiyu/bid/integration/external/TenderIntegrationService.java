@@ -1,6 +1,7 @@
 package com.xiyu.bid.integration.external;
 
 import com.xiyu.bid.tender.dto.TenderDTO;
+import com.xiyu.bid.integration.external.CallerContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -41,6 +42,16 @@ public class TenderIntegrationService {
     @Transactional(readOnly = true)
     public TenderDTO getByExternalId(String sourceSystem, String sourceId, Long tenderId) {
         return queryService.getByExternalId(sourceSystem, sourceId, tenderId);
+    }
+
+    /**
+     * 按 externalId 或 tenderId 查询标讯详情（二选一必传）。
+     *
+     * @param context 调用方上下文，用于生成正确的下载 URL（附加 api_key 参数）
+     */
+    @Transactional(readOnly = true)
+    public TenderDTO getByExternalId(String sourceSystem, String sourceId, Long tenderId, CallerContext context) {
+        return queryService.getByExternalId(sourceSystem, sourceId, tenderId, context);
     }
 
     /**

@@ -74,14 +74,26 @@ public class TenderIntegrationMapper {
 
     /**
      * 将 Entity 转换为 DTO（含联系人、评估、附件、来源标准化）。
+     *
+     * <p>不带 CallerContext 的版本，保持向后兼容。
+     * 内部委托到 {@link #toDTO(Tender, List, CallerContext)}。
      */
     TenderDTO toDTO(Tender tender, List<TenderAttachment> attachments) {
+        return toDTO(tender, attachments, CallerContext.externalSystem(null));
+    }
+
+    /**
+     * 将 Entity 转换为 DTO（含联系人、评估、附件、来源标准化）。
+     *
+     * <p>根据 CallerContext 选择正确的端点和认证方式，标准化附件 URL。
+     */
+    TenderDTO toDTO(Tender tender, List<TenderAttachment> attachments, CallerContext context) {
         TenderDTO dto = tenderMapper.toDTO(tender);
         dto.setContactInfo(tenderMapper.buildContacts(tender));
         dto.setEvaluation(evaluationMapper.buildEvaluationDTO(tender.getId(), tender));
         dto.setAttachments(toAttachmentDTOs(attachments));
         normalizeSourceForIntegration(dto, tender);
-        normalizeFileUrls(dto);
+        normalizeFileUrls(dto, context);
         return dto;
     }
 
