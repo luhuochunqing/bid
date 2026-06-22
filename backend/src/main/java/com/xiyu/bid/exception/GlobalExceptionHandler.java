@@ -8,6 +8,8 @@ import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.docinsight.application.exception.DocumentNotFoundException;
 import com.xiyu.bid.docinsight.application.exception.UnsupportedProfileException;
 import com.openai.errors.UnauthorizedException;
+import com.openai.errors.BadRequestException;
+import com.xiyu.bid.integration.application.WeComApiException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -295,6 +297,92 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.BAD_GATEWAY)
                 .body(ApiResponse.error(502, "AI provider API Key 无效或已失效，请检查系统设置中的对应 provider key 或服务端环境变量后重启。"));
+    }
+
+    /**
+     * 处理 OpenAI SDK 返回的 400 级错误（BadRequest / InvalidRequest / RateLimit 等）。
+     * 上游明确拒绝了请求，不是我们的内部异常 —— 把上游返回的错误信息直接透传给前端，给用户可操作的指引。
+     */
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<ApiResponse<Void>> handleOpenAiBadRequestException(
+            BadRequestException ex,
+            HttpServletRequest request) {
+        String message = ex.getMessage();
+        log.warn("AI provider 返回 4xx 错误 - URI: {}, message: {}", request.getRequestURI(), message);
+
+        String lower = message == null ? "" : message.toLowerCase();
+        if (lower.contains("rate limit")) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body(ApiResponse.error(429, "AI provider 请求过于频繁，请稍后重试。"));
+        }
+        if (lower.contains("insufficient") || lower.contains("balance")) {
+            return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED)
+                    .body(ApiResponse.error(402, "AI provider 余额不足，请充值或更换 API Key。"));
+        }
+        if (lower.contains("invalid") && lower.contains("key")) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .body(ApiResponse.error(502, "AI provider API Key 无效，请检查配置。"));
+        }
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(ApiResponse.error(502, "AI provider 返回错误: " + message));
+    }
+
+    /**
+     * 处理所有外部/上游服务调用失败 —— 包括 AI API、企微、泛微 OA 等。
+     * 关键：根据 {@link ExternalServiceException#getUpstreamStatusCode()} 返回给前端正确的 HTTP 状态码，
+     * 而不是统一的 500 "系统繁忙"。
+     */
+    @ExceptionHandler(ExternalServiceException.class)
+    public ResponseEntity<ApiResponse<Void>> handleExternalServiceException(
+            ExternalServiceException ex,
+            HttpServletRequest request) {
+        log.warn("外部服务调用失败 - URI: {}, service: {}, upstreamStatus: {}, message: {}, raw: {}",
+                request.getRequestURI(),
+                ex.getServiceName(),
+                ex.getUpstreamStatusCode(),
+                ex.getUserFriendlyMessage(),
+                ex.getUpstreamRawMessage());
+
+        HttpStatus httpStatus = ex.resolveHttpStatus();
+        return ResponseEntity
+                .status(httpStatus)
+                .body(ApiResponse.error(httpStatus.value(), ex.getUserFriendlyMessage()));
+    }
+
+    /**
+     * 处理企微 API 异常（WeComApiException）。
+     * 企微异常可能是 HTTP 级别的错误，也可能是 HTTP 200 但业务 errcode != 0 的情况。
+     * 把这些信息以友好方式返回给前端，而不是 500。
+     */
+    @ExceptionHandler(WeComApiException.class)
+    public ResponseEntity<ApiResponse<Void>> handleWeComApiException(
+            WeComApiException ex,
+            HttpServletRequest request) {
+        log.warn("企微 API 调用失败 - URI: {}, errcode: {}, message: {}",
+                request.getRequestURI(), ex.errcode(), ex.getMessage());
+
+        HttpStatus status = HttpStatus.BAD_GATEWAY;
+        int errcode = ex.errcode();
+        // 企微常见错误码的有意义映射
+        if (errcode == 42001 || errcode == 42007 || errcode == 40014 || errcode == 40001) {
+            // access_token 过期/无效/不存在 → 需要重新获取 token
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .body(ApiResponse.error(502, "企微 access_token 无效或已过期，请稍后重试或联系管理员刷新配置。"));
+        }
+        if (errcode == 45009 || errcode == 45047) {
+            // 接口调用超出频率限制
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body(ApiResponse.error(429, "企微接口调用过于频繁，请稍后重试。"));
+        }
+        if (errcode == 60011) {
+            // 无权限访问
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .body(ApiResponse.error(502, "企微应用权限不足，请联系管理员检查应用权限配置。"));
+        }
+        // 默认 502，附带企微返回的原始业务错误信息，便于用户了解具体问题
+        String message = ex.getMessage();
+        return ResponseEntity.status(status)
+                .body(ApiResponse.error(status.value(), "企微服务调用失败: " + message));
     }
 
     /**
