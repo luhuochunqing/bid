@@ -124,7 +124,7 @@
   width: 100%;
   background: linear-gradient(to bottom, var(--bg-subtle) 0%, var(--bg-card) 100%);
   border-left: 3px solid var(--brand-xiyu-logo);
-  padding: 0 var(--space-5, 20px) 0 calc(var(--space-4) + 1px);
+  padding: 0 var(--space-5, 20px) 0 calc(var(--space-4, 16px) + 1px);
 }
 
 .project-detail-page .board-columns-container { overflow-x: auto; padding-bottom: var(--space-1); }
