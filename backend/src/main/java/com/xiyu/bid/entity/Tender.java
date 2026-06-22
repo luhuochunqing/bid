@@ -53,7 +53,8 @@ import java.util.Locale;
     @Index(name = "idx_tender_bid_opening_time", columnList = "bid_opening_time"),
     @Index(name = "idx_tender_status_region_industry_normalized",
             columnList = "status, region_normalized, industry_normalized"),
-    @Index(name = "idx_tender_source_type", columnList = "source_type")
+    @Index(name = "idx_tender_source_type", columnList = "source_type"),
+    @Index(name = "idx_tender_crm_opportunity_id", columnList = "crm_opportunity_id")
 })
 @Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
 public class Tender {

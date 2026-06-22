@@ -88,4 +88,9 @@ public interface TenderRepository extends JpaRepository<Tender, Long>, JpaSpecif
      */
     @Query("SELECT t FROM Tender t WHERE t.createdAt > :since ORDER BY t.createdAt DESC")
     List<Tender> findTendersCreatedAfter(@Param("since") LocalDateTime since);
+
+    /**
+     * CO-297: 按 CRM 商机 ID 查询已关联的标讯，用于关联去重。
+     */
+    Optional<Tender> findFirstByCrmOpportunityId(String crmOpportunityId);
 }

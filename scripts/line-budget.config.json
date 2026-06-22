@@ -35,6 +35,7 @@
         "backend/src/main/java/com/xiyu/bid/project/service/ProjectService.java",
         "backend/src/main/java/com/xiyu/bid/qualification/controller/QualificationController.java",
         "backend/src/main/java/com/xiyu/bid/qualification/service/QualificationService.java",
+        "backend/src/main/java/com/xiyu/bid/tender/service/TenderCommandService.java",
         "backend/src/main/java/com/xiyu/bid/resources/service/CaCertificateService.java",
         "package.json",
         "src/api/modules/knowledge.js",

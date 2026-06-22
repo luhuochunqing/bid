@@ -53,6 +53,7 @@ public class TenderCommandService {
     private final NotificationApplicationService notificationAppService;
     private final TenderAssignmentNotifier assignmentNotifier;
     private final TenderAttachmentRepository attachmentRepository;
+    private final TenderCrmLinkGuard crmLinkGuard;
 
     public TenderDTO createTender(TenderDTO tenderDTO) {
         return createTender(tenderDTO, null);
@@ -209,7 +210,6 @@ public class TenderCommandService {
         deleteTender(id, null);
     }
 
-
     public TenderDTO linkCrmOpportunity(Long id, String crmOpportunityId, String crmOpportunityName, Long userId) {
         log.debug("Linking CRM opportunity to tender id: {}", id);
         Tender existingTender = tenderRepository.findById(id)
@@ -217,6 +217,7 @@ public class TenderCommandService {
         commandAccessGuard.assertCanUpdateTender(existingTender, userId);
         // CO-269: 投标中/已中标/未中标/已放弃状态不允许更换CRM商机
         assertCrmLinkAllowed(existingTender.getStatus());
+        crmLinkGuard.assertCrmOpportunityNotOccupied(id, crmOpportunityId); // CO-297: 已被其他标讯关联的 CRM 商机不能再关联
         existingTender.setCrmOpportunityId(crmOpportunityId);
         existingTender.setCrmOpportunityName(crmOpportunityName);
         existingTender.setEvaluationSource(com.xiyu.bid.entity.Tender.EvaluationSource.BID_SYSTEM_LINK);
@@ -228,6 +229,7 @@ public class TenderCommandService {
         log.info("Linked CRM opportunity {} to tender id: {}", crmOpportunityId, id);
         return tenderMapper.toDTO(updatedTender);
     }
+
     public void deleteTender(Long id, Long userId) {
         log.debug("Deleting tender with id: {}", id);
         Tender tender = tenderRepository.findById(id)
