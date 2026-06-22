@@ -79,17 +79,15 @@ public class OpenAiBidAgentConfigurationResolver {
             resolvedProviderCode = activeProviderCode;
         }
 
-        final String finalResolvedProviderCode = resolvedProviderCode;
         SettingsResponse.AiProviderSetting finalProvider = provider;
-        SettingsResponse.AiProviderSetting defaultSetting = aiProviderCatalog.defaultProviderSetting(finalResolvedProviderCode);
+        SettingsResponse.AiProviderSetting defaultSetting = aiProviderCatalog.defaultProviderSetting(resolvedProviderCode);
 
-        return resolveApiKey(finalResolvedProviderCode)
+        return resolveApiKey(resolvedProviderCode)
                 .map(apiKey -> buildRequestConfig(
                         apiKey,
                         firstNonBlank(finalProvider.getBaseUrl(), defaultSetting.getBaseUrl()),
                         firstNonBlank(finalProvider.getModel(), defaultSetting.getModel()),
-                        requestTimeout,
-                        finalResolvedProviderCode
+                        requestTimeout
                 ));
     }
 
@@ -113,8 +111,7 @@ public class OpenAiBidAgentConfigurationResolver {
                             apiKey,
                             defaultSetting.getBaseUrl(),
                             defaultSetting.getModel(),
-                            requestTimeout,
-                            defaultProvider
+                            requestTimeout
                     );
                 });
     }
@@ -123,17 +120,14 @@ public class OpenAiBidAgentConfigurationResolver {
             String apiKey,
             String rawBaseUrl,
             String rawModel,
-            Duration requestTimeout,
-            String providerCode
+            Duration requestTimeout
     ) {
-        String normalizedBaseUrl = normalizedBaseUrl(rawBaseUrl);
         return new OpenAiBidAgentRequestConfig(
                 apiKey,
-                normalizedBaseUrl,
+                normalizedBaseUrl(rawBaseUrl),
                 rawModel,
                 requestTimeout,
-                OpenAiBidAgentApiStyle.CHAT_COMPLETIONS,
-                buildFullEndpoint(normalizedBaseUrl, providerCode)
+                OpenAiBidAgentApiStyle.CHAT_COMPLETIONS
         );
     }
 
@@ -213,33 +207,7 @@ public class OpenAiBidAgentConfigurationResolver {
         } else if (trimmed.endsWith("/responses")) {
             trimmed = trimmed.substring(0, trimmed.length() - "/responses".length());
         }
-        if (trimmed.endsWith("/v1")) {
-            trimmed = trimmed.substring(0, trimmed.length() - "/v1".length());
-        } else if (trimmed.endsWith("/v3")) {
-            trimmed = trimmed.substring(0, trimmed.length() - "/v3".length());
-        } else if (trimmed.endsWith("/v2")) {
-            trimmed = trimmed.substring(0, trimmed.length() - "/v2".length());
-        } else if (trimmed.endsWith("/beta")) {
-            trimmed = trimmed.substring(0, trimmed.length() - "/beta".length());
-        } else if (trimmed.endsWith("/api/v3")) {
-            trimmed = trimmed.substring(0, trimmed.length() - "/api/v3".length()) + "/api";
-        } else if (trimmed.endsWith("/api/v1")) {
-            trimmed = trimmed.substring(0, trimmed.length() - "/api/v1".length()) + "/api";
-        } else if (trimmed.endsWith("/compatible-mode/v1")) {
-            trimmed = trimmed.substring(0, trimmed.length() - "/compatible-mode/v1".length()) + "/compatible-mode";
-        }
         return trimmed;
-    }
-
-    // 豆包需要特殊的 endpoint 处理
-    private static final String DOUBAO_HOST = "ark.cn-beijing.volces.com";
-
-    private String buildFullEndpoint(String baseUrl, String resolvedProviderCode) {
-        // 只有豆包需要特殊处理
-        if (resolvedProviderCode != null && resolvedProviderCode.contains("doubao")) {
-            return baseUrl + "/chat/completions";
-        }
-        return "";
     }
 
     private Duration effectiveChatCompletionTimeout() {

@@ -81,16 +81,11 @@ class OpenAiSdkStructuredOutputTransport implements OpenAiStructuredOutputTransp
     }
 
     private OpenAIClient client(OpenAiBidAgentRequestConfig config) {
-        OpenAIOkHttpClient.Builder builder = OpenAIOkHttpClient.builder()
+        return OpenAIOkHttpClient.builder()
                 .apiKey(config.apiKey())
-                .timeout(config.timeout());
-        // 如果配置了 fullEndpoint，使用它；否则使用 baseUrl
-        if (config.fullEndpoint() != null && !config.fullEndpoint().isBlank()) {
-            builder.baseUrl(config.fullEndpoint());
-        } else {
-            builder.baseUrl(config.baseUrl());
-        }
-        return builder.build();
+                .baseUrl(config.baseUrl())
+                .timeout(config.timeout())
+                .build();
     }
 
     private <T> Optional<T> requestWithJsonObject(
