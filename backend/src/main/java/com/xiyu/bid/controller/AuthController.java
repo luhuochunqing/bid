@@ -82,9 +82,9 @@ public class AuthController {
     @PostMapping("/register")
     @PreAuthorize(PERMIT_ALL_EXPR)
     public ResponseEntity<ApiResponse<AuthResponse>> register(@Valid @RequestBody RegisterRequest request) {
-        // Sanitize user input
         sanitizeRegisterRequest(request);
         AuthResponse response = authService.register(request);
+        log.info("Auth register success: username={}, email={}", request.getUsername(), request.getEmail());
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(ApiResponse.success("User registered successfully", response));
@@ -93,18 +93,24 @@ public class AuthController {
     @PostMapping("/login")
     @PreAuthorize(PERMIT_ALL_EXPR)
     public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
-        // Sanitize user input
-        if (request.getUsername() != null) {
-            request.setUsername(InputSanitizer.sanitizeString(request.getUsername(), 50));
+        String username = request.getUsername();
+        if (username != null) {
+            request.setUsername(InputSanitizer.sanitizeString(username, 50));
         }
         if (request.getPassword() != null) {
             request.setPassword(request.getPassword().trim());
         }
-        AuthSessionResult sessionResult = authService.login(request);
-        return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, buildRefreshCookie(sessionResult.getRefreshToken(), Boolean.TRUE.equals(request.getRememberMe())).toString())
-                .header(HttpHeaders.SET_COOKIE, buildAccessCookie(sessionResult.getAccessToken()).toString())
-                .body(ApiResponse.success("Login successful", sessionResult.getAuthResponse()));
+        try {
+            AuthSessionResult sessionResult = authService.login(request);
+            log.info("Auth login success: username={}, rememberMe={}", username, request.getRememberMe());
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.SET_COOKIE, buildRefreshCookie(sessionResult.getRefreshToken(), Boolean.TRUE.equals(request.getRememberMe())).toString())
+                    .header(HttpHeaders.SET_COOKIE, buildAccessCookie(sessionResult.getAccessToken()).toString())
+                    .body(ApiResponse.success("Login successful", sessionResult.getAuthResponse()));
+        } catch (RuntimeException ex) {
+            log.warn("Auth login failed: username={}, reason={}", username, ex.getMessage());
+            throw ex;
+        }
     }
 
     @GetMapping("/me")
@@ -116,8 +122,14 @@ public class AuthController {
     @PostMapping("/logout")
     @PreAuthorize(PERMIT_ALL_EXPR)
     public ResponseEntity<ApiResponse<Void>> logout(HttpServletRequest request) {
-        // H13 根治: access token 从 cookie 读 (fallback header 兼容旧客户端/E2E 浏览器外调用)
-        authService.logout(extractAccessToken(request), extractRefreshToken(request));
+        String accessToken = extractAccessToken(request);
+        String refreshToken = extractRefreshToken(request);
+        authService.logout(accessToken, refreshToken);
+        if (refreshToken != null) {
+            log.info("Auth logout: refreshTokenPresent=true");
+        } else {
+            log.info("Auth logout: refreshTokenPresent=false");
+        }
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, clearRefreshCookie().toString())
                 .header(HttpHeaders.SET_COOKIE, clearAccessCookie().toString())
@@ -143,58 +155,53 @@ public class AuthController {
     @PostMapping("/refresh")
     @PreAuthorize(PERMIT_ALL_EXPR)
     public ResponseEntity<ApiResponse<AuthResponse>> refreshToken(HttpServletRequest request) {
-        AuthSessionResult sessionResult = authService.refreshToken(extractRefreshToken(request));
+        String refreshToken = extractRefreshToken(request);
+        if (refreshToken == null) {
+            log.warn("Auth refresh: missing refresh token");
+        } else {
+            log.info("Auth refresh: tokenPresent=true");
+        }
+        AuthSessionResult sessionResult = authService.refreshToken(refreshToken);
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, buildRefreshCookie(sessionResult.getRefreshToken(), true).toString())
                 .header(HttpHeaders.SET_COOKIE, buildAccessCookie(sessionResult.getAccessToken()).toString())
                 .body(ApiResponse.success("Token refreshed successfully", sessionResult.getAuthResponse()));
     }
 
-    /**
-     * 忘记密码 - 发送密码重置邮件
-     */
     @PostMapping("/forgot-password")
     @PreAuthorize(PERMIT_ALL_EXPR)
     public ResponseEntity<ApiResponse<PasswordResetResponse>> forgotPassword(
             @Valid @RequestBody ForgotPasswordRequest request
     ) {
-        // 清理邮箱输入
         String sanitizedEmail = InputSanitizer.sanitizeString(request.email(), 100);
         String result = passwordResetService.createPasswordResetToken(sanitizedEmail);
-
-        // 开发环境返回令牌，生产环境只返回成功消息
+        log.info("Auth forgot-password: email={}, tokenGenerated={}", sanitizedEmail, result != null);
         PasswordResetResponse response = new PasswordResetResponse(
                 "If an account exists with this email, a password reset link has been sent",
-                result // 仅开发环境使用
-        );
+                result);
         return ResponseEntity.ok(ApiResponse.success("Password reset initiated", response));
     }
 
-    /**
-     * 重置密码 - 使用令牌设置新密码
-     */
     @PostMapping("/reset-password")
     @PreAuthorize(PERMIT_ALL_EXPR)
     public ResponseEntity<ApiResponse<Void>> resetPassword(
             @Valid @RequestBody ResetPasswordRequest request
     ) {
         passwordResetService.resetPassword(request.token(), request.newPassword());
+        log.info("Auth reset-password: tokenPrefix={}",
+                request.token() != null && request.token().length() > 8
+                        ? request.token().substring(0, 8) + "***" : "***");
         return ResponseEntity.ok(ApiResponse.success("Password has been reset successfully", null));
     }
 
-    /**
-     * Get all active sessions for the current user
-     */
     @GetMapping("/sessions")
     public ResponseEntity<ApiResponse<java.util.List<SessionDTO>>> getSessions(Authentication authentication) {
         Long userId = authService.resolveUserIdByUsername(authentication.getName());
         java.util.List<SessionDTO> sessions = sessionService.getUserSessions(userId);
+        log.info("Auth getSessions: userId={}, sessionCount={}", userId, sessions.size());
         return ResponseEntity.ok(ApiResponse.success("Sessions retrieved", sessions));
     }
 
-    /**
-     * Revoke a specific session
-     */
     @DeleteMapping("/sessions/{id}")
     public ResponseEntity<ApiResponse<Void>> revokeSession(
             @PathVariable Long id,
@@ -202,44 +209,37 @@ public class AuthController {
     ) {
         Long userId = authService.resolveUserIdByUsername(authentication.getName());
         sessionService.revokeSession(id, userId);
+        log.info("Auth revokeSession: userId={}, sessionId={}", userId, id);
         return ResponseEntity.ok(ApiResponse.success("Session revoked", null));
     }
 
-    /**
-     * Revoke all sessions except the current one
-     */
     @DeleteMapping("/sessions")
     public ResponseEntity<ApiResponse<Void>> revokeAllSessions(Authentication authentication, HttpServletRequest request) {
         Long userId = authService.resolveUserIdByUsername(authentication.getName());
         sessionService.revokeAllSessions(userId, extractRefreshToken(request));
+        log.info("Auth revokeAllSessions: userId={}", userId);
         return ResponseEntity.ok(ApiResponse.success("All sessions revoked", null));
     }
 
-    /**
-     * Request email verification
-     */
     @PostMapping("/verify-email")
     public ResponseEntity<ApiResponse<EmailVerificationResponse>> requestEmailVerification(Authentication authentication) {
         Long userId = authService.resolveUserIdByUsername(authentication.getName());
         String result = emailVerificationService.createVerificationToken(userId);
+        log.info("Auth requestEmailVerification: userId={}", userId);
         return ResponseEntity.ok(ApiResponse.success("Verification email sent", new EmailVerificationResponse(result)));
     }
 
-    /**
-     * Verify email using token
-     */
     @GetMapping("/verify-email/{token}")
     @PreAuthorize(PERMIT_ALL_EXPR)
     public ResponseEntity<ApiResponse<Void>> verifyEmail(@PathVariable String token) {
-        // Sanitize token input
         String sanitizedToken = InputSanitizer.sanitizeString(token, 128);
+        log.info("Auth verifyEmail: tokenPrefix={}",
+                sanitizedToken != null && sanitizedToken.length() > 8
+                        ? sanitizedToken.substring(0, 8) + "***" : "***");
         emailVerificationService.verifyEmail(sanitizedToken);
         return ResponseEntity.ok(ApiResponse.success("Email verified successfully", null));
     }
 
-    /**
-     * 清洗注册请求中的用户输入
-     */
     private void sanitizeRegisterRequest(RegisterRequest request) {
         if (request.getUsername() != null) {
             request.setUsername(InputSanitizer.sanitizeString(request.getUsername(), 50));
@@ -284,7 +284,6 @@ public class AuthController {
                 .path("/").maxAge(Duration.ZERO).build();
     }
 
-    // H13 根治: access token HttpOnly cookie (maxAge 对齐 jwt.expiration)
     private ResponseCookie buildAccessCookie(String accessToken) {
         return ResponseCookie.from(accessCookieName, accessToken == null ? "" : accessToken)
                 .httpOnly(true).secure(accessCookieSecure).sameSite(accessCookieSameSite)
