@@ -521,25 +521,27 @@ Bootstrap worktree（`/Users/user/xiyu/worktrees/codex` 等）的用途：
 
 #### 任务分支的生命周期
 
-每个任务用 `scripts/agent-start-task.sh` 创建**独立 worktree + 独立分支**：
+每个任务用 `scripts/agent-start-task.sh --in-place` 在持久 worktree 内创建分支：
 
 ```bash
-# 创建任务工作区 → 自动创建 worktree + branch
-./scripts/agent-start-task.sh codex project-task-breakdown-from-tender origin/main
-# → worktree: /Users/user/xiyu/worktrees/codex-project-task-breakdown-from-tender
+# 在持久 worktree 内创建任务分支（必须使用 --in-place）
+./scripts/agent-start-task.sh codex project-task-breakdown-from-tender origin/main --in-place
+# → worktree: /Users/user/xiyu/worktrees/codex（持久 worktree）
 # → branch:   agent/codex/project-task-breakdown-from-tender
 ```
 
+> **⚠️ 自 2026-06-22 起，不再允许创建独立的临时 worktree。**
+> 所有任务必须在持久 worktree 内以 `--in-place` 模式完成。
+
 **生命周期规则：**
 1. 任务分支 PR 合入 `main` 后，该分支**视为终结**
-2. 下次新任务 → 用 `agent-start-task.sh` 创建**全新的** worktree + 分支
-3. 已完成的 worktree 可以保留（用于查看历史），但不应继续在上面开发
-4. **不要在 `*-init` bootstrap 分支上做任务开发**
+2. 下次新任务 → 回到锚点分支，再次执行 `agent-start-task.sh --in-place`
+3. **不要在 `*-init` bootstrap 分支上做任务开发**
 
 这样做的好处：
+- 避免临时 worktree 膨胀
+- 简化资源管理（开发环境统一到主工作区）
 - 每个分支天然是 `origin/main` 的最新衍伸，不会积累陈旧
-- `who-touches.sh` 输出准确，无过期 stale branch 干扰
-- 冲突只可能在一个原子任务的 rebase 过程中发生，范围极小
 
 #### 早操 main-forward 的工作原理
 
