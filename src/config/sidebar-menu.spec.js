@@ -42,6 +42,7 @@ describe('sidebar-menu config', () => {
 
   it('uses the same primary permission key as the top-level sidebar menu', () => {
     const topLevelOptions = roleMenuGroups.map((g) => ({ value: g.value, label: g.label }))
+    const taskBoardOption = topLevelOptions.find((item) => item.label === '任务看板')
 
     expect(topLevelOptions).toEqual(
       roleMenuGroups.map((group) => ({
@@ -49,6 +50,7 @@ describe('sidebar-menu config', () => {
         label: group.label
       }))
     )
+    expect(taskBoardOption).toEqual({ value: 'task-board', label: '任务看板' })
     expect(new Set(roleMenuOptions.map((item) => item.value)).size).toBe(roleMenuOptions.length)
   })
 

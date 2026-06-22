@@ -311,12 +311,14 @@ class DataScopeConfigServiceTest {
     }
 
     @Test
-    void getRoleMenuPermissions_ShouldFallbackToCatalogForRegisteredRoleWithoutDbRow() {
-        // 已注册角色（bid_other_dept）DB 无记录时走 catalog fallback，拿自身 task 权限（非 staff）
+    void getRoleMenuPermissions_ShouldUseDbTaskBoardPermissionForBidOtherDept() {
         RoleProfile profile = RoleProfile.builder()
                 .code(RoleProfileCatalog.BID_OTHER_DEPT_CODE)
                 .name(RoleProfileCatalog.BID_OTHER_DEPT_CODE)
                 .build();
+        profile.setMenuPermissions(List.of("task-board", "task.view.own", "task.handle.own"));
+        when(roleProfileRepository.findByCodeIgnoreCase(RoleProfileCatalog.BID_OTHER_DEPT_CODE))
+                .thenReturn(Optional.of(profile));
         User user = User.builder()
                 .id(2L).username("hanhui").fullName("hanhui")
                 .role(User.Role.STAFF)
@@ -326,7 +328,7 @@ class DataScopeConfigServiceTest {
 
         List<String> perms = dataScopeConfigService.getRoleMenuPermissions(user);
 
-        assertThat(perms).contains("task.view.own", "task.handle.own")
+        assertThat(perms).contains("task-board", "task.view.own", "task.handle.own")
                 .doesNotContain("bidding", "project", "knowledge", "resource");
     }
 

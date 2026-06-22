@@ -175,6 +175,15 @@
 - GREEN 后运行 `mvn test -Dtest=ProjectAccessScopeServiceTest` 通过。
 - 补跑 `mvn test -Dtest=ProjectAccessGuardCoverageTest` 通过。
 
+## 2026-06-22 菜单与项目详情补充修复
+
+- 复核后确认 PR #918 只把任务执行人所属项目加入后端可访问项目范围，没有处理前端菜单权限。
+- “任务看板”是独立顶层菜单，前端 Sidebar/Router 依赖 `task-board`；工作台组件权限 `dashboard:view_technical_task` 不能让 `/task-board` 可见或可访问。
+- 本次只给 `bid_other_dept` 补充 `task-board`，不补 `project`、`bidding`、`knowledge`、`resource`，避免把跨部门协同人员扩大成普通员工/完整项目角色。
+- 由于已有 DB 中的 `roles` 记录不会被 RoleProfileBootstrap 覆盖，新增 V1089 数据迁移对既有 `bid_other_dept` 角色幂等追加 `task-board`。
+- PR #918 的 scope 生效仍会被 `GET /api/projects/{id}` 方法级 `hasAnyRole('ADMIN','MANAGER','STAFF')` 提前拦截；本次仅把项目详情接口调整为 `isAuthenticated()`，继续由 `ProjectAccessScopeService.assertCurrentUserCanAccessProject` 做对象级 403。
+- 不修改项目列表、项目创建/更新/删除、任务流转或任务看板页面生产代码。
+
 # CO-290 提交投标未完成任务闸门修复实施记录
 
 ## 问题口径
