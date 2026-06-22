@@ -51,8 +51,9 @@ public class CrmPermissionService {
     }
 
     public CrmUserPermission getUserPermission(String userAccessToken, String systemName) {
-        String cacheKey = (userAccessToken != null ? userAccessToken.substring(0, Math.min(20, userAccessToken.length())) : "unknown")
-                + "::" + (systemName != null ? systemName : "default");
+        // 缓存 key 必须基于完整 token 的 hash，不能用 token 前缀
+        // 因为 JWT token 前缀（header 部分）对所有用户都相同，会导致缓存串号
+        String cacheKey = buildCacheKey(userAccessToken, systemName);
         java.util.Optional<CrmUserPermission> cached = permissionCache.get(cacheKey);
         if (cached.isPresent()) {
             log.debug("OSS permission cache hit for key={}", cacheKey);
@@ -96,5 +97,32 @@ public class CrmPermissionService {
             }
         });
         return new CrmUserPermission(systemPermissions);
+    }
+
+    /**
+     * 构建权限缓存 key。
+     * <p>
+     * 使用完整 access_token 的 SHA-256 hash 作为用户标识，避免 JWT token 前缀
+     * （header 部分）对所有用户相同导致的缓存串号问题。
+     */
+    private String buildCacheKey(String userAccessToken, String systemName) {
+        String tokenHash;
+        if (userAccessToken == null || userAccessToken.isBlank()) {
+            tokenHash = "unknown";
+        } else {
+            try {
+                java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+                byte[] hashBytes = md.digest(userAccessToken.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                StringBuilder sb = new StringBuilder();
+                for (byte b : hashBytes) {
+                    sb.append(String.format("%02x", b));
+                }
+                tokenHash = sb.toString();
+            } catch (java.security.NoSuchAlgorithmException e) {
+                // SHA-256 是 JDK 内置算法，理论上不会缺失；降级为完整 token 的 hashCode
+                tokenHash = String.valueOf(userAccessToken.hashCode());
+            }
+        }
+        return tokenHash + "::" + (systemName != null ? systemName : "default");
     }
 }
