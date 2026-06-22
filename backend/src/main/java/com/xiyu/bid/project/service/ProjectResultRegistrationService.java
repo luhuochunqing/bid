@@ -111,9 +111,8 @@ public class ProjectResultRegistrationService {
         persistCompetitors(saved.getId(), req.getCompetitors());
         // §4.2 CRM 回调：发布领域事件，由 ProjectResultConfirmedWebhookListener 监听后入队
         // WebhookDeliveryTask，复用 §4.1 的 1min/5min/15min 重试机制（AFTER_COMMIT 保证主事务成功）。
-        // 传入 operatorName 供 CRM 回调使用（bidInfoSync 需要 statusEditor 字段）。
-        User operator = userRepository.findById(currentUserId).orElse(null);
-        String operatorName = operator != null ? operator.getFullName() : "";
+        User currentUser = userRepository.findById(currentUserId).orElse(null);
+        String operatorName = currentUser != null ? currentUser.getUsername() : "unknown";
         eventPublisher.publishEvent(ProjectResultConfirmedEvent.of(
                 projectId, project.getTenderId(), req.getResultType(),
                 req.getEvidenceFileIds(),
