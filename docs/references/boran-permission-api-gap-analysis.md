@@ -282,30 +282,81 @@ void shouldCallGetEndpointWithBearerToken() {
 
 ### 2.3 接口 3：获取用户菜单树 `/oauth/getUserPermission`
 
-**状态**：❌ 路径不一致
+**状态**：❌ **未按文档实现**（接口路径和响应格式完全不同）
 
 **YApi**：https://yapi.ehsy.com/project/406/interface/api/23484
 
-**文档要求**：调用 `/oauth/getUserPermission`
+---
 
-**当前实现**：
-- 使用 `/sysMenuUrl/getUserMenuTree` 接口
+#### 泊冉文档要求
+
+| 项目 | 值 |
+|------|-----|
+| HTTP 方法 | `GET` |
+| 接口路径 | `/oauth/getUserPermission` |
+| Authorization | `Bearer <token>`（在 Header 中） |
+| Query 参数 | `systemName`（可选） |
+| 响应格式 | 扁平对象，键是系统名，值是菜单路径数组 |
+
+**响应示例**：
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "trace": null,
+  "data": {
+    "OPC": ["sale_log", "sale_order"],
+    "SMS": ["sys_org", "sys_user"]
+  }
+}
+```
+
+---
+
+#### 当前实现
+
+**调用链 1：组织架构同步时获取菜单树**
+
+```
+OrganizationUserSyncWriter.syncUser()
+    └─► OssRoleMenuPermissionAutoSync.mergeUserMenuPermissionsIntoRole(jobNumber, role)
+            └─► OrganizationDirectoryHttpGateway.fetchUserMenuTree(jobNumber, context)
+                    └─► GET /sysMenuUrl/getUserMenuTree?jobNumber=xxx&systemName=xiyu-bid-poc&menuRetrievalType=2
+```
+
+**调用链 2：前端直接调用**
+
+```
+CrmController.getMenuTree(@RequestParam String systemType)
+    └─► CrmMenuService.getMenuTree(systemType)
+            └─► POST /menu/tree (JSON body: {"systemType": "xxx"})
+```
 
 **代码引用**：
 
 ```java
-// OrganizationIntegrationProperties.java:79-80
-/** OSS 菜单树接口路径：GET /sysMenuUrl/getUserMenuTree */
-private String userMenuTreePath = "/sysMenuUrl/getUserMenuTree";
-
-// OrganizationDirectoryHttpGateway.java:179-197
+// OrganizationDirectoryHttpGateway.java:179-196
 @Override
 public Optional<List<OssMenuTreeNode>> fetchUserMenuTree(
         String jobNumber,
         OrganizationDirectoryLookupContext context
 ) {
-    String url = buildUrl(directory.getUserMenuTreePath());
-    // /sysMenuUrl/getUserMenuTree
+    String url = buildUrl(directory.getUserMenuTreePath());  // /sysMenuUrl/getUserMenuTree
+    Map<String, String> params = new LinkedHashMap<>();
+    params.put(jobNumberParamName, jobNumber);               // jobNumber 参数
+    params.put("systemName", directory.getUserMenuTreeSystemName());  // xiyu-bid-poc
+    params.put("menuRetrievalType", String.valueOf(directory.getUserMenuTreeRetrievalType()));  // 2
+    return restClient.get(url, params, context).map(mapper::menuTree);
+}
+
+// CrmMenuService.java:28-34
+public CrmResponseHandler.CrmApiResponse getMenuTree(String systemType) {
+    String token = authService.getValidOssToken();
+    String baseUrl = properties.getEffectiveAuthBaseUrl();
+    String path = properties.getAuth().getMenuTreePath();  // /menu/tree
+    return httpClient.post(baseUrl, path, token,
+            Map.of("systemType", systemType));             // POST JSON
 }
 ```
 
@@ -314,28 +365,167 @@ public Optional<List<OssMenuTreeNode>> fetchUserMenuTree(
 ```yaml
 # application.yml:241
 xiyu.integrations.organization.directory.user-menu-tree-path: ${XIYU_ORG_USER_MENU_TREE_PATH:/sysMenuUrl/getUserMenuTree}
+xiyu.integrations.organization.directory.user-menu-tree-system-name: xiyu-bid-poc
+xiyu.integrations.organization.directory.user-menu-tree-retrieval-type: 2
+
+# CrmProperties.java:186-187
+private String menuTreePath = "/menu/tree";
 ```
 
-**使用情况**：
-- `OssRoleMenuPermissionAutoSync.mergeUserMenuPermissionsIntoRole()` 调用此接口
-- 在组织架构同步时获取菜单权限
-- **不在登录流程中调用**
+---
 
-**差距分析**：
+#### 差距分析（关键）
 
-| 项目 | 文档要求 | 当前实现 | 影响 |
-|------|---------|---------|------|
-| 接口路径 | `/oauth/getUserPermission` | `/sysMenuUrl/getUserMenuTree` | 可能返回不同数据 |
-| HTTP 方法 | GET | GET | 一致 |
-| 鉴权方式 | Bearer token | Bearer token | 一致 |
-| 响应格式 | 菜单树 | 菜单树 | 可能不同 |
+| # | 项目 | 泊冉文档要求 | 当前实现 | 影响 | 严重度 |
+|---|------|-------------|---------|------|--------|
+| 1 | HTTP 方法 | `GET` | `GET` (fetchUserMenuTree) / `POST` (getMenuTree) | ⚠️ 不一致 | 🟡 中 |
+| 2 | 接口路径 | `/oauth/getUserPermission` | `/sysMenuUrl/getUserMenuTree` 或 `/menu/tree` | 🔴 完全不同 | 🔴 高 |
+| 3 | 请求参数 | Authorization Bearer + systemName | jobNumber + systemName + menuRetrievalType | 🔴 完全不同 | 🔴 高 |
+| 4 | 响应格式 | 扁平对象 `{系统名: [菜单路径]}` | 树形结构 `[OssMenuTreeNode{...}]` | 🔴 完全不同 | 🔴 高 |
+| 5 | 调用场景 | 登录后立即调用 | 组织架构同步时调用 | 🔴 流程差异 | 🔴 高 |
 
-**关键问题**：泊冉文档要求**登录后立即获取菜单树**，但当前实现是在**组织架构同步时**获取，且缓存在角色级别而非用户级别。
+**响应格式差异详解**：
 
-**需要确认**：
-1. OSS 系统是否同时提供两个路径？
-2. 登录时是否必须调用此接口？
-3. 当前实现是否能满足业务需求？
+| 维度 | 泊冉文档 | 当前实现 |
+|------|---------|---------|
+| 结构 | 扁平对象 | 树形节点列表 |
+| 数据 | `{系统名: [菜单路径字符串]}` | `[OssMenuTreeNode{id, menuCode, menuName, children, ...}]` |
+| 用途 | 快速获取用户在各系统的菜单权限 | 获取完整的菜单树结构 |
+
+**泊冉响应**：
+
+```json
+{
+  "data": {
+    "OPC": ["sale_log", "sale_order"],
+    "SMS": ["sys_org", "sys_user"]
+  }
+}
+```
+
+**当前响应**：
+
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "menuCode": "dashboard",
+      "menuName": "仪表盘",
+      "menuType": "M",
+      "children": [
+        {"id": 2, "menuCode": "dashboard_analysis", "menuName": "分析页", ...}
+      ]
+    }
+  ]
+}
+```
+
+---
+
+#### 调用场景分析
+
+| 场景 | 当前实现 | 是否按文档实现 |
+|------|---------|--------------|
+| 登录后获取菜单权限 | ❌ 不在登录流程中 | 否 |
+| 组织架构同步 | ✅ 调用 `fetchUserMenuTree` | 接口不同 |
+| 前端直接获取菜单 | ⚠️ 调用 `getMenuTree` (POST `/menu/tree`) | 接口不同 |
+
+**当前 `fetchUserMenuTree()` 的实际用途**：
+- 在组织架构同步时，通过 `OssRoleMenuPermissionAutoSync.mergeUserMenuPermissionsIntoRole()` 调用
+- 将 OSS 菜单权限合并到本地角色的 `menuPermissions` 字段
+- **不是登录流程的一部分**
+
+---
+
+#### 最小修改方案
+
+**前提**：OSS 系统提供 `/oauth/getUserPermission` 接口且响应格式相同
+
+**方案 A：仅修改配置路径（如果响应格式兼容）**
+
+⚠️ **不可行**：响应格式完全不同，无法直接替换
+
+**方案 B：新增接口适配（如果需要按泊冉文档实现）**
+
+需要新增：
+1. `OssPermissionService` — 调用 `/oauth/getUserPermission`
+2. `OssUserPermission` DTO — 解析扁平响应
+3. 在登录流程中调用
+
+```java
+// 新增 DTO
+public record OssUserPermission(
+    Map<String, List<String>> systemPermissions  // {系统名: [菜单路径]}
+) {}
+
+// 新增服务
+@Service
+public class OssPermissionService {
+    private final CrmHttpClient httpClient;
+    private final CrmAuthService authService;
+    private final CrmProperties properties;
+
+    public OssUserPermission getUserPermission(String token, String systemName) {
+        String baseUrl = properties.getEffectiveAuthBaseUrl();
+        String path = "/oauth/getUserPermission";
+        // GET 请求，Bearer token 在 Header
+        // Query 参数: systemName
+        // 解析响应为 Map<String, List<String>>
+    }
+}
+```
+
+**方案 C：保持现状（如果当前实现已满足业务需求）**
+
+- 当前通过 `/sysMenuUrl/getUserMenuTree` 获取树形菜单结构
+- 在组织架构同步时合并到角色权限
+- 如果业务不需要登录时获取菜单权限，可以保持现状
+
+---
+
+#### 结论
+
+**接口 3 未按泊冉文档实现**：
+- 接口路径不同
+- 请求参数不同（jobNumber vs Bearer token）
+- **响应格式完全不同**（扁平对象 vs 树形结构）
+- 不在登录流程中调用
+
+**是否需要修改**：
+- 如果 OSS 系统同时提供两个接口，且用途不同 → 保持现状
+- 如果需要按泊冉文档在登录时获取菜单权限 → 方案 B
+
+---
+
+#### 需要确认的问题
+
+| # | 问题 | 重要性 |
+|---|------|--------|
+| Q1 | OSS 系统是否同时提供 `/oauth/getUserPermission` 和 `/sysMenuUrl/getUserMenuTree`？ | 🔴 高 |
+| Q2 | 两个接口的响应格式是否相同？ | 🔴 高 |
+| Q3 | 是否需要在登录时获取菜单权限？ | 🟡 中 |
+| Q4 | 当前组织架构同步时的菜单权限获取是否满足业务需求？ | 🟡 中 |
+
+---
+
+#### 测试用例建议
+
+```java
+@Test
+void shouldCallGetUserPermissionWithBearerToken() {
+    // Given
+    String token = "user-access-token";
+    String systemName = "xiyu-bid-poc";
+
+    // When
+    OssUserPermission permission = ossPermissionService.getUserPermission(token, systemName);
+
+    // Then
+    verify(httpClient).get(baseUrl, "/oauth/getUserPermission?systemName=" + systemName, token);
+    assertThat(permission.systemPermissions()).containsKey("xiyu-bid-poc");
+}
+```
 
 ---
 
