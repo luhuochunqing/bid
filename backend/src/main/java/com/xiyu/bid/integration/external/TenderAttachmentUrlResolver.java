@@ -90,9 +90,9 @@ public class TenderAttachmentUrlResolver {
             return prependPublicBaseUrl(u);
         }
         // 旧 /api/doc-insight/download? 格式重定向到新端点
-        if (u.startsWith("/api/doc-insight/download?")) {
-            String params = u.substring("/api/doc-insight/download?".length());
-            return prependPublicBaseUrl("/api/integration/tenders/attachments/download?" + params);
+        String legacyDocInsightParams = extractOwnLegacyDocInsightParams(u);
+        if (legacyDocInsightParams != null) {
+            return prependPublicBaseUrl("/api/integration/tenders/attachments/download?" + legacyDocInsightParams);
         }
         // doc-insight:// 转换为集成下载端点
         if (u.startsWith("doc-insight://")) {
@@ -132,9 +132,9 @@ public class TenderAttachmentUrlResolver {
             return toIntegrationDownloadUrl(url);
         }
         // 旧 /api/doc-insight/download? 格式重定向到新端点
-        if (url.startsWith("/api/doc-insight/download?")) {
-            String params = url.substring("/api/doc-insight/download?".length());
-            return prependPublicBaseUrl("/api/integration/tenders/attachments/download?" + params);
+        String legacyDocInsightParams = extractOwnLegacyDocInsightParams(url);
+        if (legacyDocInsightParams != null) {
+            return prependPublicBaseUrl("/api/integration/tenders/attachments/download?" + legacyDocInsightParams);
         }
         // 已是集成下载地址
         if (url.startsWith("/api/integration/tenders/attachments/download?")) {
@@ -159,8 +159,7 @@ public class TenderAttachmentUrlResolver {
      */
     public static String toIntegrationFullUrl(String url, String apiKey) {
         String result = toIntegrationFullUrl(url);
-        if (apiKey != null && !apiKey.isBlank() && result != null
-                && result.contains("/api/integration/tenders/attachments/download")) {
+        if (apiKey != null && !apiKey.isBlank() && isOwnIntegrationDownloadUrl(result)) {
             return appendApiKeyParam(result, apiKey);
         }
         return result;
@@ -198,6 +197,38 @@ public class TenderAttachmentUrlResolver {
             result.add(resolve(url, context));
         }
         return result;
+    }
+
+    private static String extractOwnLegacyDocInsightParams(String url) {
+        String legacyPath = "/api/doc-insight/download?";
+        if (url.startsWith(legacyPath)) {
+            return url.substring(legacyPath.length());
+        }
+        String ownAbsoluteLegacyPath = ownAbsolutePathPrefix(legacyPath);
+        if (ownAbsoluteLegacyPath != null && url.startsWith(ownAbsoluteLegacyPath)) {
+            return url.substring(ownAbsoluteLegacyPath.length());
+        }
+        return null;
+    }
+
+    private static boolean isOwnIntegrationDownloadUrl(String url) {
+        if (url == null) return false;
+        String integrationPath = "/api/integration/tenders/attachments/download";
+        if (url.startsWith(integrationPath)) {
+            return true;
+        }
+        String ownAbsoluteIntegrationPath = ownAbsolutePathPrefix(integrationPath);
+        return ownAbsoluteIntegrationPath != null && url.startsWith(ownAbsoluteIntegrationPath);
+    }
+
+    private static String ownAbsolutePathPrefix(String path) {
+        if (publicBaseUrl == null || publicBaseUrl.isBlank()) {
+            return null;
+        }
+        String baseUrl = publicBaseUrl.endsWith("/")
+                ? publicBaseUrl.substring(0, publicBaseUrl.length() - 1)
+                : publicBaseUrl;
+        return baseUrl + path;
     }
 
     /** 若配置了 publicBaseUrl，将相对路径补全为完整 URL；否则原样返回。 */

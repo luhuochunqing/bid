@@ -167,6 +167,14 @@ class TenderIntegrationMapperToDownloadUrlTest {
     }
 
     @Test
+    @DisplayName("toIntegrationFullUrl 已是集成下载地址且有 apiKey 时追加 api_key")
+    void toIntegrationFullUrl_alreadyIntegrationUrlWithApiKey_appendsApiKey() {
+        String input = "/api/integration/tenders/attachments/download?fileUrl=doc-insight%3A%2F%2Ftest.pdf";
+        String result = TenderAttachmentUrlResolver.toIntegrationFullUrl(input, "xiyu_sk_test_key");
+        assertThat(result).isEqualTo("/api/integration/tenders/attachments/download?fileUrl=doc-insight%3A%2F%2Ftest.pdf&api_key=xiyu_sk_test_key");
+    }
+
+    @Test
     @DisplayName("toIntegrationDownloadUrl http(s):// 外部 URL 原样返回")
     void toIntegrationDownloadUrl_httpUrl_returnsAsIs() {
         String input = "https://image-c.ehsy.com/files/test.pdf";
@@ -200,11 +208,29 @@ class TenderIntegrationMapperToDownloadUrlTest {
     }
 
     @Test
+    @DisplayName("toIntegrationFullUrl CO-303 修复：完整内部下载 URL 重定向到集成端点并追加 api_key")
+    void toIntegrationFullUrl_absoluteLegacyDocInsightUrlWithApiKey_redirectsToNewEndpoint() throws Exception {
+        setPublicBaseUrl("https://winbid-test.ehsy.com");
+        String input = "https://winbid-test.ehsy.com/api/doc-insight/download?fileUrl=doc-insight%3A%2F%2Ftest.pdf";
+        String result = TenderAttachmentUrlResolver.toIntegrationFullUrl(input, "xiyu_sk_test_key");
+        assertThat(result).isEqualTo("https://winbid-test.ehsy.com/api/integration/tenders/attachments/download?fileUrl=doc-insight%3A%2F%2Ftest.pdf&api_key=xiyu_sk_test_key");
+    }
+
+    @Test
     @DisplayName("toIntegrationFullUrl 处理 http(s):// 完整 URL，原样返回")
     void toIntegrationFullUrl_httpUrl_returnsAsIs() throws Exception {
         setPublicBaseUrl("https://winbid-test.ehsy.com");
         String result = TenderAttachmentUrlResolver.toIntegrationFullUrl("https://image-c.ehsy.com/files/test.pdf");
         assertThat(result).isEqualTo("https://image-c.ehsy.com/files/test.pdf");
+    }
+
+    @Test
+    @DisplayName("toIntegrationFullUrl 外部 URL 即使包含集成下载路径也不追加 api_key")
+    void toIntegrationFullUrl_externalIntegrationLikeUrlWithApiKey_returnsAsIs() throws Exception {
+        setPublicBaseUrl("https://winbid-test.ehsy.com");
+        String input = "https://external.example/api/integration/tenders/attachments/download?fileUrl=x";
+        String result = TenderAttachmentUrlResolver.toIntegrationFullUrl(input, "xiyu_sk_test_key");
+        assertThat(result).isEqualTo(input);
     }
 
     @Test

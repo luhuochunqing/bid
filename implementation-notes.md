@@ -254,3 +254,25 @@
 
 - 后端：`mvn test -Dtest=OssMenuPermissionMapperTest,OrganizationDirectoryHttpGatewayTest,OrganizationRoleMenuSyncAppServiceTest`
 - 架构：视测试耗时补跑 `mvn test -Dtest=ArchitectureTest`
+
+# CO-303 本地上传附件下载 403 修复实施记录
+
+## 问题口径
+
+- CRM 通过外部集成接口拿到本地上传附件链接后，浏览器直接点击下载时无法携带 `X-API-Key` Header。
+- `/api/doc-insight/download` 是内部登录态下载端点，要求 JWT；CRM 直接点击该链接出现 403 属于权限边界按设计生效。
+- 本次复现到的缺口是：当附件链接已经被补全为 `https://.../api/doc-insight/download?...` 完整 URL 时，外部 URL 归一化没有把它改写成 `/api/integration/tenders/attachments/download`，导致 CRM 仍拿到内部端点。
+
+## 决策与权衡
+
+- 不放宽 `DocInsightController` 的 `isAuthenticated()`，避免让内部下载端点同时承担 API Key 认证，扩大权限面。
+- 继续复用已有集成下载端点 `/api/integration/tenders/attachments/download` 和 `ApiKeyAuthenticationFilter`。
+- 只在 `TenderAttachmentUrlResolver` 中补齐“本站完整内部下载 URL”的识别与改写；外部 `http(s)://` 文件地址仍保持原样，不误改第三方链接。
+- `api_key` 追加逻辑保持在外部调用上下文路径中，解决 CRM 浏览器点击无法带 Header 的问题。
+
+## 验证
+
+- TDD RED：`mvn test -Dtest=TenderIntegrationMapperToDownloadUrlTest#toIntegrationFullUrl_absoluteLegacyDocInsightUrlWithApiKey_redirectsToNewEndpoint` 先失败，实际仍返回 `https://winbid-test.ehsy.com/api/doc-insight/download?...`。
+- GREEN：补齐完整内部下载 URL 改写后，上述单测通过。
+- Review 后补强：`api_key` 只追加到本站集成下载端点；外部 URL 即使路径文本包含 `/api/integration/tenders/attachments/download` 也保持原样，避免泄露 API Key。
+- 回归：`mvn test -Dtest=TenderIntegrationMapperToDownloadUrlTest,CallerContextUrlResolverTest,TenderAttachmentDownloadServiceTest` 通过，48 tests。
