@@ -5,6 +5,8 @@ import com.xiyu.bid.crm.application.CrmCustomerService;
 import com.xiyu.bid.crm.application.CrmEmployeeService;
 import com.xiyu.bid.crm.application.CrmMenuService;
 import com.xiyu.bid.crm.application.CrmMessageService;
+import com.xiyu.bid.crm.application.CrmPermissionService;
+import com.xiyu.bid.crm.application.CrmUserPermission;
 import com.xiyu.bid.dto.ApiResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -29,15 +32,18 @@ public class CrmController {
     private final CrmMenuService menuService;
     private final CrmEmployeeService employeeService;
     private final CrmMessageService messageService;
+    private final CrmPermissionService permissionService;
 
     public CrmController(CrmCustomerService customerService, CrmAuthService authService,
                          CrmMenuService menuService, CrmEmployeeService employeeService,
-                         CrmMessageService messageService) {
+                         CrmMessageService messageService,
+                         CrmPermissionService permissionService) {
         this.customerService = customerService;
         this.authService = authService;
         this.menuService = menuService;
         this.employeeService = employeeService;
         this.messageService = messageService;
+        this.permissionService = permissionService;
     }
 
     @GetMapping("/customers")
@@ -106,6 +112,17 @@ public class CrmController {
             return ResponseEntity.ok(ApiResponse.success("消息发送成功", null));
         }
         return ResponseEntity.ok(ApiResponse.error("消息发送失败: " + response.msg()));
+    }
+
+    @GetMapping("/permissions")
+    public ResponseEntity<ApiResponse<CrmUserPermission>> getPermissions(
+            @RequestParam(required = false) String systemName,
+            @RequestHeader(value = "X-OSS-Access-Token", required = false) String accessToken) {
+        String token = accessToken != null && !accessToken.isBlank()
+                ? accessToken
+                : authService.getValidOssToken();
+        CrmUserPermission permission = permissionService.getUserPermission(token, systemName);
+        return ResponseEntity.ok(ApiResponse.success("Permissions retrieved", permission));
     }
 
     @PostMapping("/auth/logout")

@@ -187,6 +187,10 @@ public class CrmProperties {
         private String menuTreePath = "/menu/tree";
         /** employeePath. */
         private String employeePath = "/oauth/getUserInfo";
+        /** userPermissionPath - GET /oauth/getUserPermission. */
+        private String userPermissionPath = "/oauth/getUserPermission";
+        /** userPermissionSystemName - default query param for getUserPermission. */
+        private String userPermissionSystemName = "xiyu-bid-poc";
     }
 
     @Data
