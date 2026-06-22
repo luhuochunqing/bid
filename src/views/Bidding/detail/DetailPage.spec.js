@@ -61,27 +61,3 @@ describe('CO-311 — 评估表 tab 关联状态与基本信息 tab 同步回滚'
     expect(body).toContain('crmLinkFailedSignal.value = 0')
   })
 })
-
-describe('CO-312 — 关联 CRM 商机时 shouldBid/bidRecommendation 的 null 安全', () => {
-  it('onCrmOpportunityLinked 中 shouldBid 为 null 时 bidRecommendation 也为 null（不能默认 NOT_RECOMMEND）', () => {
-    // 原实现 `shouldBid ? 'RECOMMEND' : 'NOT_RECOMMEND'` 在 shouldBid=null/undefined 时会落到 'NOT_RECOMMEND'，是 bug。
-    // 修复后应为 `shouldBid == null ? null : (shouldBid ? 'RECOMMEND' : 'NOT_RECOMMEND')`。
-    const snippet = detailPageSource.match(/bidRecommendation:[\s\S]*?shouldBid[\s\S]*?,/m)
-    expect(snippet).not.toBeNull()
-    const body = snippet[0]
-    // 必须显式判断 null/undefined，不能让 falsy 值（false）也走 null 分支
-    expect(body).toMatch(/shouldBid\s*==\s*null/)
-    // 必须有 null 分支（外层三元），不能直接 shouldBid ? 'RECOMMEND' : 'NOT_RECOMMEND'
-    expect(body).toMatch(/\?\s*null\s*:/)
-  })
-
-  it('onCrmOpportunityLinked 中 evaluationRecommendation.shouldBid 默认值为 null（不能默认 true）', () => {
-    // 原实现 `shouldBid ?? true` 在 CRM 没传值时默认 true（建议投标），与"待决策"语义冲突。
-    // 修复后应为 `shouldBid ?? null`。
-    const snippet = detailPageSource.match(/shouldBid:\s*evaluationData\.recommendation\?\.shouldBid\s*\?\?\s*\w+/m)
-    expect(snippet).not.toBeNull()
-    const body = snippet[0]
-    expect(body).toMatch(/\?\?\s*null/)
-    expect(body).not.toMatch(/\?\?\s*true/)
-  })
-})

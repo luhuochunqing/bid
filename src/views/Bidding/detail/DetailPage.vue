@@ -328,24 +328,6 @@ async function onCrmOpportunityLinked({ opportunityId, opportunityName }) {
   crmLinking.value = true
   try {
     // CO-310: 关联 CRM 商机只做 PATCH,不再触发 saveEvaluationDraft/submitEvaluationFinal(原链路错配导致 sales 403)
-    // 1. 组装评估表 payload（三段式结构对齐后端 TenderEvaluationSubmitRequest）
-    const evalPayload = {
-      // CO-312: shouldBid 为 null/undefined 时 bidRecommendation 必须为 null（"待决策"），
-      // 不能默认 'NOT_RECOMMEND'，否则刷新页面后前端显示"不投标"。
-      bidRecommendation: evaluationData.recommendation?.shouldBid == null
-        ? null
-        : (evaluationData.recommendation.shouldBid ? 'RECOMMEND' : 'NOT_RECOMMEND'),
-      evaluationBasic: transformCrmBasic(evaluationData.basic),
-      evaluationCustomerInfos: transformCrmCustomerInfos(evaluationData.customerInfos),
-      evaluationRecommendation: {
-        // CO-312: CRM 没传 shouldBid 时默认 null（"待决策"），不能默认 true。
-        shouldBid: evaluationData.recommendation?.shouldBid ?? null,
-        reason: evaluationData.recommendation?.reason || '',
-      },
-    }
-    await tendersApi.saveEvaluationDraft(tender.value.id, evalPayload)
-
-    // 2. 关联CRM商机到标讯（使用专用端点，避免触发完整TenderRequest校验）
     await tendersApi.linkCrmOpportunity(tender.value.id, {
       crmOpportunityId: opportunityId,
       crmOpportunityName: opportunityName,
