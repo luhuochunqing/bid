@@ -97,6 +97,7 @@
 </template>
 
 <script setup>
+import { watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { useCrmOpportunitySelector } from './useCrmOpportunitySelector.js'
 import CrmOpportunityTable from './CrmOpportunityTable.vue'
@@ -107,6 +108,8 @@ const props = defineProps({
   registrationDeadline: { type: String, default: '' },
   bidOpeningTime: { type: String, default: '' },
   alreadyLinkedName: { type: String, default: '' },
+  // CO-308: 父组件递增此信号通知关联失败,触发子组件重置 UI 状态
+  linkFailed: { type: Number, default: 0 },
 })
 const emit = defineEmits(['linked'])
 
@@ -116,6 +119,12 @@ const {
   manualConfirmed, searchForm, manualForm, linkedOpportunity,
   openSearch, doSearch, onSelect, confirmManual, confirmLink, resetSearch,
 } = useCrmOpportunitySelector(props, emit)
+
+// CO-308: 父组件告知关联失败(后端业务冲突),重置乐观写入的 linkedOpportunity,
+// 让字段回到"未关联"展示,引导用户重新选择商机
+watch(() => props.linkFailed, (val, oldVal) => {
+  if (val > oldVal) linkedOpportunity.value = null
+})
 </script>
 
 <style scoped>

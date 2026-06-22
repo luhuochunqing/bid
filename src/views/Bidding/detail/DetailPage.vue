@@ -82,6 +82,7 @@
             :registration-deadline="tender?.registrationDeadline || ''"
             :bid-opening-time="tender?.bidOpeningTime || ''"
             :already-linked-name="tender?.crmOpportunityName || ''"
+            :link-failed="crmLinkFailedSignal"
             @linked="onCrmOpportunityLinked"
           />
           <el-divider />
@@ -279,6 +280,8 @@ const showCrmSelector = computed(() =>
 
 // CRM商机关联后：回填评估表并自动提交
 const crmLinking = ref(false)
+// CO-308: 关联失败时递增此信号,通知 CrmOpportunitySelector 重置乐观写入的 UI 状态
+const crmLinkFailedSignal = ref(0)
 const evaluationFormRef = ref(null)
 
 function transformCrmBasic(basic) {
@@ -348,12 +351,17 @@ async function onCrmOpportunityLinked({ opportunityId, opportunityName, evaluati
       if (evalResult?.success !== false) tenderEvaluation.value = evalResult?.data || null
     } catch { /* ignore */ }
   } catch (e) {
-    // CO-258: 404/409 是标讯已被删除，给出单一明确提示；其他错误复用后端 msg
+    // CO-308: 404 是标讯已被删除(给出明确提示);其他错误(含 409 业务冲突)透传后端真实信息
+    // 注:后端 GlobalExceptionHandler 当前把 BusinessException(409,...) 映射为 HTTP 400,
+    // 因此前端按 400 处理;响应体 code 字段仍为 409,msg 含真实占用信息。
     const status = e?.response?.status
-    if (status === 404 || status === 409) {
+    if (status === 404) {
       ElMessage.warning('该标讯已被删除，无法关联CRM商机')
     } else {
+      // 业务冲突(如 CRM 商机已被占用)或其他错误:透传后端 msg
       ElMessage.error(e?.response?.data?.msg || 'CRM关联提交失败')
+      // 通知子组件重置乐观写入的 UI 状态,引导用户重新选择商机
+      crmLinkFailedSignal.value++
     }
   } finally {
     crmLinking.value = false
