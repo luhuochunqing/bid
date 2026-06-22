@@ -98,7 +98,7 @@ app:
       menu-tree-path: ${XIYU_CRM_AUTH_MENU_TREE_PATH:/menu/tree}
       employee-path: ${XIYU_CRM_AUTH_EMPLOYEE_PATH:/oauth/getUserInfo}
       user-permission-path: ${XIYU_CRM_AUTH_USER_PERMISSION_PATH:/oauth/getUserPermission}
-      user-permission-system-name: ${XIYU_CRM_AUTH_USER_PERMISSION_SYSTEM_NAME:xiyu-bid-poc}
+      user-permission-system-name: ${XIYU_CRM_AUTH_USER_PERMISSION_SYSTEM_NAME:西域数智化投标管理平台}
     customer:
       search-path: ${XIYU_CRM_CUSTOMER_SEARCH_PATH:/customer/search}
       contacts-path: ${XIYU_CRM_CUSTOMER_CONTACTS_PATH:/customer/contacts/batch}
@@ -241,7 +241,7 @@ xiyu:
         connect-timeout-ms: ${XIYU_ORG_DIRECTORY_CONNECT_TIMEOUT_MS:3000}
         read-timeout-ms: ${XIYU_ORG_DIRECTORY_READ_TIMEOUT_MS:5000}
         user-menu-tree-path: ${XIYU_ORG_USER_MENU_TREE_PATH:/oauth/getUserPermission}
-        user-menu-tree-system-name: ${XIYU_ORG_USER_MENU_TREE_SYSTEM_NAME:xiyu-bid-poc}
+        user-menu-tree-system-name: ${XIYU_ORG_USER_MENU_TREE_SYSTEM_NAME:西域数智化投标管理平台}
         user-menu-tree-retrieval-type: ${XIYU_ORG_USER_MENU_TREE_RETRIEVAL_TYPE:2}
         user-menu-tree-job-number-param-name: ${XIYU_ORG_USER_MENU_TREE_JOB_NUMBER_PARAM_NAME:jobNumber}
         user-menu-tree-connect-timeout-ms: ${XIYU_ORG_USER_MENU_TREE_CONNECT_TIMEOUT_MS:3000}

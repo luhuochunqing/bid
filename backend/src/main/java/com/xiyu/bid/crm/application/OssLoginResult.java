@@ -21,6 +21,7 @@ public class OssLoginResult {
     private final String ossAccessToken;
     private final JsonNode employeeInfo;
     private final CrmUserPermission permission;
+    private final CrmJobListResponse jobList;
 
     private OssLoginResult(Builder builder) {
         this.username = builder.username;
@@ -28,6 +29,7 @@ public class OssLoginResult {
         this.ossAccessToken = builder.ossAccessToken;
         this.employeeInfo = builder.employeeInfo;
         this.permission = builder.permission;
+        this.jobList = builder.jobList;
     }
 
     public String username() {
@@ -48,6 +50,10 @@ public class OssLoginResult {
 
     public CrmUserPermission permission() {
         return permission;
+    }
+
+    public CrmJobListResponse jobList() {
+        return jobList;
     }
 
     public Map<String, Object> toMap() {
@@ -103,6 +109,7 @@ public class OssLoginResult {
         private String ossAccessToken;
         private JsonNode employeeInfo;
         private CrmUserPermission permission;
+        private CrmJobListResponse jobList;
 
         public Builder username(String value) {
             this.username = value;
@@ -126,6 +133,11 @@ public class OssLoginResult {
 
         public Builder permission(CrmUserPermission value) {
             this.permission = value;
+            return this;
+        }
+
+        public Builder jobList(CrmJobListResponse value) {
+            this.jobList = value;
             return this;
         }
 

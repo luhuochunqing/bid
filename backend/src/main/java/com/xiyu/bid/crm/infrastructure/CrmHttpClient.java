@@ -123,6 +123,45 @@ public class CrmHttpClient {
         }
     }
 
+    /**
+     * POST JSON without Bearer token (for /oss/admin-web/... getUserJobList).
+     */
+    public CrmResponseHandler.CrmApiResponse postJson(String baseUrl, String path, Object body) {
+        String url = baseUrl + path;
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        TraceHeaderInjector.inject(headers);
+        HttpEntity<Object> request = new HttpEntity<>(body, headers);
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
+            log.info("CRM POST JSON {} -> {}", url, response.getStatusCode());
+            return CrmResponseHandler.parse(response.getBody());
+        } catch (RuntimeException e) {
+            log.error("CRM POST JSON failed: {}", e.getMessage());
+            return CrmResponseHandler.CrmApiResponse.parseError(e.getMessage());
+        }
+    }
+
+    /**
+     * POST JSON without Bearer token, return raw response body string.
+     * 适用于需要自行解析响应的场景（如响应中 code 为浮点大数字）。
+     */
+    public String postJsonRaw(String baseUrl, String path, Object body) {
+        String url = baseUrl + path;
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        TraceHeaderInjector.inject(headers);
+        HttpEntity<Object> request = new HttpEntity<>(body, headers);
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
+            log.info("CRM POST JSON raw {} -> {}", url, response.getStatusCode());
+            return response.getBody();
+        } catch (RuntimeException e) {
+            log.error("CRM POST JSON raw failed: {}", e.getMessage());
+            return null;
+        }
+    }
+
     private CrmResponseHandler.CrmApiResponse executePost(String url, String path, String accessToken, Object body) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);

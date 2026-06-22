@@ -3,6 +3,7 @@ package com.xiyu.bid.crm.application;
 import com.xiyu.bid.crm.config.CrmProperties;
 import com.xiyu.bid.crm.infrastructure.CrmHttpClient;
 import com.xiyu.bid.crm.infrastructure.CrmResponseHandler;
+import com.xiyu.bid.integration.organization.application.OrganizationIntegrationProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,12 +38,15 @@ public class CrmPermissionService {
 
     private final CrmHttpClient httpClient;
     private final CrmProperties properties;
+    private final OrganizationIntegrationProperties orgProperties;
     private final OssPermissionCache permissionCache;
 
     public CrmPermissionService(CrmHttpClient httpClient, CrmProperties properties,
+                                OrganizationIntegrationProperties orgProperties,
                                 OssPermissionCache permissionCache) {
         this.httpClient = httpClient;
         this.properties = properties;
+        this.orgProperties = orgProperties;
         this.permissionCache = permissionCache;
     }
 
@@ -54,8 +58,9 @@ public class CrmPermissionService {
             log.debug("OSS permission cache hit for key={}", cacheKey);
             return cached.get();
         }
-        String baseUrl = properties.getEffectiveAuthBaseUrl();
-        String path = properties.getAuth().getUserPermissionPath();
+        // 使用 OSS 的 base URL（而非 CRM 的 auth base URL）
+        String baseUrl = orgProperties.getDirectory().getBaseUrl();
+        String path = orgProperties.getDirectory().getUserMenuTreePath();
         if (systemName != null && !systemName.isBlank()) {
             path = path + "?systemName=" + systemName;
         }
@@ -72,7 +77,7 @@ public class CrmPermissionService {
     }
 
     public CrmUserPermission getUserPermission(String userAccessToken) {
-        return getUserPermission(userAccessToken, properties.getAuth().getUserPermissionSystemName());
+        return getUserPermission(userAccessToken, orgProperties.getDirectory().getUserMenuTreeSystemName());
     }
 
     private CrmUserPermission parsePermission(JsonNode data) {

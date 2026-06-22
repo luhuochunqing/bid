@@ -33,6 +33,7 @@ public class OssLoginFlowService {
     private final CrmHttpClient crmHttpClient;
     private final CrmProperties crmProperties;
     private final CrmPermissionService permissionService;
+    private final CrmRoleService roleService;
 
     /**
      * 直接使用用户名和密码进行 OSS 认证（不依赖 User entity）。
@@ -42,7 +43,8 @@ public class OssLoginFlowService {
      */
     public OssLoginResult authenticateDirect(String username, String password) {
         String baseUrl = crmProperties.getEffectiveAuthBaseUrl();
-        String systemName = crmProperties.getOauthSystem();
+        String oauthSystem = crmProperties.getOauthSystem();
+        String permissionSystemName = crmProperties.getAuth().getUserPermissionSystemName();
 
         OssLoginResult.Builder result = OssLoginResult.builder();
         result.username(username);
@@ -51,7 +53,7 @@ public class OssLoginFlowService {
         LinkedMultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("username", username);
         formData.add("password", password);
-        formData.add("system", systemName);
+        formData.add("system", oauthSystem);
 
         log.info("OSS login flow step 1: POST /oauth/login for user={}", username);
         CrmResponseHandler.CrmApiResponse loginResponse = crmHttpClient.postForm(
@@ -75,13 +77,17 @@ public class OssLoginFlowService {
         }
 
         // Step 2: GET /oauth/getUserInfo - 获取员工信息
+        // 注意：OSS返回的employeeInfo中，username字段就是工号(jobNumber)
+        String jobNumber = null;
         try {
             String employeePath = crmProperties.getAuth().getEmployeePath();
             CrmResponseHandler.CrmApiResponse employeeResponse = crmHttpClient.get(
                     baseUrl, employeePath, accessToken);
             if (employeeResponse != null && employeeResponse.data() != null) {
                 result.employeeInfo(employeeResponse.data());
-                log.info("OSS user info retrieved for user={}", username);
+                // OSS接口返回的username字段就是工号
+                jobNumber = employeeResponse.data().path("username").asText(null);
+                log.info("OSS user info retrieved for user={}, jobNumber={}", username, jobNumber);
             }
         } catch (RuntimeException e) {
             log.warn("OSS getUserInfo failed (non-fatal): {}", e.getMessage());
@@ -89,13 +95,26 @@ public class OssLoginFlowService {
 
         // Step 3: GET /oauth/getUserPermission - 获取系统权限
         try {
-            CrmUserPermission permission = permissionService.getUserPermission(accessToken, systemName);
+            CrmUserPermission permission = permissionService.getUserPermission(accessToken, permissionSystemName);
             if (permission != null && !permission.isEmpty()) {
                 result.permission(permission);
                 log.info("OSS user permission retrieved for user={}", username);
             }
         } catch (RuntimeException e) {
             log.warn("OSS getUserPermission failed (non-fatal): {}", e.getMessage());
+        }
+
+        // Step 4: POST /oss/.../getUserJobListByJobNumberList - 获取用户角色
+        if (jobNumber != null && !jobNumber.isBlank()) {
+            try {
+                CrmJobListResponse jobList = roleService.getUserJobList(List.of(jobNumber));
+                if (jobList != null) {
+                    result.jobList(jobList);
+                    log.info("OSS user job list retrieved for user={}, jobNumber={}", username, jobNumber);
+                }
+            } catch (RuntimeException e) {
+                log.warn("OSS getUserJobList failed (non-fatal): {}", e.getMessage());
+            }
         }
 
         return result.build();
