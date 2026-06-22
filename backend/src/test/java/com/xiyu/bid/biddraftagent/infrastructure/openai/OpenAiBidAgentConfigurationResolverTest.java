@@ -241,6 +241,100 @@ class OpenAiBidAgentConfigurationResolverTest {
 
     }
 
+    // ── CO-301: 豆包 endpoint 特殊处理测试 ──────────────────────────────────────
+
+    @Test
+    void resolve_doubaoProvider_returnsChatCompletionsEndpoint() {
+        AiConfigService aiConfigService = mock(AiConfigService.class);
+        Environment environment = mock(Environment.class);
+        when(aiConfigService.getInternalAiModelConfig()).thenReturn(aiModelConfig(
+                "doubao",
+                "https://ark.cn-beijing.volces.com/api/v3",
+                "doubao-pro-32k"
+        ));
+        when(aiConfigService.resolveAiApiKey("doubao")).thenReturn("doubao-api-key");
+        OpenAiBidAgentConfigurationResolver resolver = resolver(aiConfigService, environment);
+
+        OpenAiBidAgentRequestConfig config = resolver.resolve("tender document analysis");
+
+        assertThat(config.apiKey()).isEqualTo("doubao-api-key");
+        assertThat(config.baseUrl()).isEqualTo("https://ark.cn-beijing.volces.com/api");
+        assertThat(config.model()).isEqualTo("doubao-pro-32k");
+        assertThat(config.fullEndpoint()).isEqualTo("https://ark.cn-beijing.volces.com/api/chat/completions");
+    }
+
+    @Test
+    void resolve_doubaoProvider_normalizesBaseUrlRemovesV3Suffix() {
+        AiConfigService aiConfigService = mock(AiConfigService.class);
+        Environment environment = mock(Environment.class);
+        when(aiConfigService.getInternalAiModelConfig()).thenReturn(aiModelConfig(
+                "doubao",
+                "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+                "doubao-pro-32k"
+        ));
+        when(aiConfigService.resolveAiApiKey("doubao")).thenReturn("doubao-api-key");
+        OpenAiBidAgentConfigurationResolver resolver = resolver(aiConfigService, environment);
+
+        OpenAiBidAgentRequestConfig config = resolver.resolve("tender document analysis");
+
+        assertThat(config.baseUrl()).isEqualTo("https://ark.cn-beijing.volces.com/api");
+        assertThat(config.fullEndpoint()).isEqualTo("https://ark.cn-beijing.volces.com/api/chat/completions");
+    }
+
+    @Test
+    void resolve_nonDoubaoProvider_returnsEmptyFullEndpoint() {
+        AiConfigService aiConfigService = mock(AiConfigService.class);
+        Environment environment = mock(Environment.class);
+        when(aiConfigService.getInternalAiModelConfig()).thenReturn(aiModelConfig(
+                "openai",
+                "https://api.openai.com/v1",
+                "gpt-4o-mini"
+        ));
+        when(aiConfigService.resolveAiApiKey("openai")).thenReturn("openai-api-key");
+        OpenAiBidAgentConfigurationResolver resolver = resolver(aiConfigService, environment);
+
+        OpenAiBidAgentRequestConfig config = resolver.resolve("tender document analysis");
+
+        assertThat(config.fullEndpoint()).isEmpty();
+    }
+
+    @Test
+    void resolveTenderIntake_doubaoProvider_returnsCorrectEndpoint() {
+        AiConfigService aiConfigService = mock(AiConfigService.class);
+        Environment environment = mock(Environment.class);
+        when(aiConfigService.getInternalAiModelConfig()).thenReturn(aiModelConfig(
+                "doubao",
+                "https://ark.cn-beijing.volces.com/api/v3",
+                "doubao-pro-32k"
+        ));
+        when(aiConfigService.resolveAiApiKey("doubao")).thenReturn("doubao-api-key");
+        OpenAiBidAgentConfigurationResolver resolver = resolver(aiConfigService, environment);
+
+        OpenAiBidAgentRequestConfig config = resolver.resolveTenderIntake();
+
+        assertThat(config.baseUrl()).isEqualTo("https://ark.cn-beijing.volces.com/api");
+        assertThat(config.fullEndpoint()).isEqualTo("https://ark.cn-beijing.volces.com/api/chat/completions");
+        assertThat(config.timeout()).isEqualTo(Duration.ofSeconds(45));
+    }
+
+    @Test
+    void resolve_doubaoProvider_withCompatibleModePath_normalizesCorrectly() {
+        AiConfigService aiConfigService = mock(AiConfigService.class);
+        Environment environment = mock(Environment.class);
+        when(aiConfigService.getInternalAiModelConfig()).thenReturn(aiModelConfig(
+                "doubao",
+                "https://ark.cn-beijing.volces.com/compatible-mode/v1",
+                "doubao-pro-32k"
+        ));
+        when(aiConfigService.resolveAiApiKey("doubao")).thenReturn("doubao-api-key");
+        OpenAiBidAgentConfigurationResolver resolver = resolver(aiConfigService, environment);
+
+        OpenAiBidAgentRequestConfig config = resolver.resolve("tender document analysis");
+
+        assertThat(config.baseUrl()).isEqualTo("https://ark.cn-beijing.volces.com/compatible-mode");
+        assertThat(config.fullEndpoint()).isEqualTo("https://ark.cn-beijing.volces.com/compatible-mode/chat/completions");
+    }
+
     private OpenAiBidAgentConfigurationResolver resolver(
             AiConfigService aiConfigService,
             Environment environment
