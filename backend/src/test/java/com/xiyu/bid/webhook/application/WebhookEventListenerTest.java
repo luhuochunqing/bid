@@ -2,11 +2,10 @@ package com.xiyu.bid.webhook.application;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.xiyu.bid.crm.application.CrmProjectLeaderService;
-import com.xiyu.bid.crm.application.CrmProjectLeaderService.ProjectLeaderResult;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
+import com.xiyu.bid.webhook.infrastructure.CrmOpportunityCodeResolver;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTask;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTaskRepository;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTaskStatus;
@@ -16,12 +15,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -38,6 +40,7 @@ import static org.mockito.Mockito.when;
  * </ul>
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("WebhookEventListener — §4.1 bidInfoSync 格式")
 class WebhookEventListenerTest {
 
@@ -48,20 +51,31 @@ class WebhookEventListenerTest {
 
     @Mock private WebhookDeliveryTaskRepository taskRepository;
     @Mock private TenderRepository tenderRepository;
-    @Mock private CrmProjectLeaderService crmProjectLeaderService;
+    @Mock private CrmOpportunityCodeResolver crmOpportunityCodeResolver;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private WebhookEventListener listener() {
-        WebhookEventListener l = new WebhookEventListener(taskRepository, tenderRepository, objectMapper, crmProjectLeaderService);
+        configureDefaultCodeResolverAnswer();
+        WebhookEventListener l = new WebhookEventListener(taskRepository, tenderRepository, objectMapper, crmOpportunityCodeResolver);
         ReflectionTestUtils.setField(l, "crmWebhookUrl", CRM_URL);
         return l;
     }
 
     private WebhookEventListener listenerWithoutUrl() {
-        WebhookEventListener l = new WebhookEventListener(taskRepository, tenderRepository, objectMapper, crmProjectLeaderService);
+        configureDefaultCodeResolverAnswer();
+        WebhookEventListener l = new WebhookEventListener(taskRepository, tenderRepository, objectMapper, crmOpportunityCodeResolver);
         ReflectionTestUtils.setField(l, "crmWebhookUrl", "");
         return l;
+    }
+
+    private void configureDefaultCodeResolverAnswer() {
+        // Default: return input as-is（CC 前缀 code 直接返回），null/blank 返回空字符串
+        lenient().when(crmOpportunityCodeResolver.resolve(any()))
+                .thenAnswer(inv -> {
+                    String input = inv.getArgument(0);
+                    return (input == null || input.isBlank()) ? "" : input;
+                });
     }
 
     private TenderStatusChangedEvent event(Tender.Status newStatus, String abandonReason, String operatorName) {
@@ -159,15 +173,14 @@ class WebhookEventListenerTest {
     }
 
     @Test
-    @DisplayName("crmOpportunityId 为纯数字时，通过 CRM 反查 CC 前缀编号")
+    @DisplayName("crmOpportunityId 为纯数字时，通过 CrmOpportunityCodeResolver 解析为 CC 前缀编号")
     void pureNumericId_resolvesToCcPrefix() throws Exception {
         WebhookEventListener l = listener();
         Tender tender = new Tender();
         tender.setId(TENDER_ID);
         tender.setCrmOpportunityId("321");
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender));
-        when(crmProjectLeaderService.findProjectLeaderByChanceId(321L))
-                .thenReturn(new ProjectLeaderResult("张三", "EMP001", "cye测试gap附件", "CC20260621321"));
+        when(crmOpportunityCodeResolver.resolve("321")).thenReturn("CC20260621321");
 
         l.onTenderStatusChanged(event(Tender.Status.BIDDING, null, "张三"));
 

@@ -6,13 +6,14 @@ package com.xiyu.bid.webhook.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.xiyu.bid.crm.application.CrmProjectLeaderService;
 import com.xiyu.bid.crm.infrastructure.dto.BidInfoInnerDTO;
 import com.xiyu.bid.crm.infrastructure.dto.BidInfoSyncDTO;
+import com.xiyu.bid.crm.infrastructure.dto.CrmProjectStatus;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.project.core.BidResultType;
 import com.xiyu.bid.project.domain.ProjectResultConfirmedEvent;
 import com.xiyu.bid.repository.TenderRepository;
+import com.xiyu.bid.webhook.infrastructure.CrmOpportunityCodeResolver;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTask;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTaskRepository;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTaskStatus;
@@ -52,7 +53,7 @@ public class ProjectResultConfirmedWebhookListener {
     private final WebhookDeliveryTaskRepository taskRepository;
     private final TenderRepository tenderRepository;
     private final ObjectMapper objectMapper;
-    private final CrmProjectLeaderService crmProjectLeaderService;
+    private final CrmOpportunityCodeResolver crmOpportunityCodeResolver;
 
     @Value("${webhook.crm.url:}")
     private String crmWebhookUrl;
@@ -80,7 +81,7 @@ public class ProjectResultConfirmedWebhookListener {
             log.warn("Tender {} not found, skip webhook (cannot resolve crm opportunity code)", event.tenderId());
             return;
         }
-        String crmOpportunityCode = resolveCrmOpportunityCode(tender.getCrmOpportunityId());
+        String crmOpportunityCode = crmOpportunityCodeResolver.resolve(tender.getCrmOpportunityId());
         String crmOpportunityName = tender.getCrmOpportunityName() != null ? tender.getCrmOpportunityName() : "";
         taskRepository.save(WebhookDeliveryTask.builder()
                 .tenderId(event.tenderId())
@@ -109,54 +110,11 @@ public class ProjectResultConfirmedWebhookListener {
      */
     private Integer mapToCrmStatus(BidResultType resultType) {
         return switch (resultType) {
-            case WON -> 2;
-            case LOST -> 3;
-            case FAILED -> 4;
-            case ABANDONED -> 6;
+            case WON -> CrmProjectStatus.WON;
+            case LOST -> CrmProjectStatus.LOST;
+            case FAILED -> CrmProjectStatus.FAILED;
+            case ABANDONED -> CrmProjectStatus.ABANDONED;
         };
-    }
-
-    /**
-     * 解析 CRM 商机编号（CC 前缀格式）。
-     * <p>CO-277: tender.crm_opportunity_id 可能存的是商机主键 id（纯数字如 20942），
-     * 而非商机编号 code（CC 前缀如 CC20260621323）。CRM bidInfoSync 接口期望 code 格式。
-     * <p>若 crmOpportunityId 为纯数字，调用 CRM detail 接口反查 code；
-     * 反查失败则降级用原值（CRM 可能仍返回 code:1，但至少有审计线索）。
-     * <p>若 crmOpportunityId 已是 CC 前缀格式或为空，直接返回。
-     */
-    private String resolveCrmOpportunityCode(String crmOpportunityId) {
-        if (crmOpportunityId == null || crmOpportunityId.isBlank()) {
-            return "";
-        }
-        // 非纯数字 → 已是 code 格式，直接返回
-        Long chanceId = tryParseChanceId(crmOpportunityId);
-        if (chanceId == null) {
-            return crmOpportunityId;
-        }
-        // 纯数字 → 调用 CRM 反查 code
-        try {
-            CrmProjectLeaderService.ProjectLeaderResult leader =
-                    crmProjectLeaderService.findProjectLeaderByChanceId(chanceId);
-            if (leader != null && leader.opportunityCode() != null && !leader.opportunityCode().isBlank()) {
-                log.info("Resolved crmOpportunityId: id={} → code={}", chanceId, leader.opportunityCode());
-                return leader.opportunityCode();
-            }
-            log.warn("resolveCrmOpportunityCode: CRM returned no code for chanceId={}, using raw id as fallback", chanceId);
-        } catch (RuntimeException e) {
-            log.error("resolveCrmOpportunityCode: CRM lookup failed for chanceId={}, using raw id as fallback: {}",
-                    chanceId, e.getMessage());
-        }
-        // 降级：返回原值（数字 id），CRM 会返回 code:1 但至少有审计线索
-        return crmOpportunityId;
-    }
-
-    private Long tryParseChanceId(String value) {
-        if (value == null || value.isBlank()) return null;
-        try {
-            return Long.parseLong(value.trim());
-        } catch (NumberFormatException e) {
-            return null;
-        }
     }
 
     /**
