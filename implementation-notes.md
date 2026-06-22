@@ -225,3 +225,23 @@
 - 后端：`mvn -f backend/pom.xml -Dtest=BidSubmissionAuthorizationPolicyTest,ProjectDraftingServiceTest,ProjectInitiationApprovalServiceTest,UserSearchServiceTest,UserSearchControllerTest test` 通过，57 tests。
 - 前端：`pnpm vitest run src/composables/projectDetail/useProjectDraftingPermissions.spec.js src/views/Project/stages/InitiationStage.spec.js src/api/modules/users.spec.js` 通过，70 tests（保留既有 Element Plus stub 警告）。
 - 质量检查：`git diff --check && npm run check:line-budgets && npm run agent:lock-check:changed` 通过。
+
+# OSS 二级菜单权限同步修复实施记录
+
+## 问题口径
+
+- 06288 在 OSS 已配置二级菜单权限，但本地角色权限没有出现对应 `bidding-list`、`project-list`、`analytics-dashboard` 等内部权限 key。
+- 现场日志说明 OSS 登录成功，但登录链路不会刷新菜单权限；菜单权限依赖组织同步/手动同步链路把 OSS 菜单树映射进本地角色。
+
+## 决策与权衡
+
+- 不把菜单权限同步塞进登录链路，避免每次登录都依赖 OSS 菜单树接口的性能与稳定性；本次先修复组织同步/手动同步链路。
+- 补齐默认 OSS 数字菜单编码映射，只映射当前前端已有明确权限 key 的菜单；没有明确权限 key 的 OSS 菜单继续按 `IGNORE` 丢弃，避免误授权。
+- `fetchUserMenuTree` 原来只在日志中记录 `jobNumber`，请求没有携带用户工号；本次默认以 `jobNumber` query 参数传给 OSS，并把参数名做成配置 `user-menu-tree-job-number-param-name` 以兼容接口合同变化。
+- `Authorization` 等额外鉴权不硬编码；新增 `auth-header-name` / `auth-token` 可选配置，只有配置完整时才发送，且不在日志中输出 token。
+- 同步成功后仍需要对目标用户/角色触发一次组织菜单同步，已落库角色权限不会仅因代码发布自动刷新。
+
+## 验证计划
+
+- 后端：`mvn test -Dtest=OssMenuPermissionMapperTest,OrganizationDirectoryHttpGatewayTest,OrganizationRoleMenuSyncAppServiceTest`
+- 架构：视测试耗时补跑 `mvn test -Dtest=ArchitectureTest`

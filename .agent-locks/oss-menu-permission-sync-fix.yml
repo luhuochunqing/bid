@@ -1,0 +1,9 @@
+version: 1
+task: "oss-menu-permission-sync-fix"
+locks:
+  - path: "backend/src/main/resources/application.yml"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/zcode/oss-menu-permission-sync-fix"
+    expiresAt: "2026-06-23T01:51:32.587Z"
+    reason: "OSS menu permission sync config mapping"

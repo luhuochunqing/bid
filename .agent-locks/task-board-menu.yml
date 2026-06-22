@@ -1,12 +1,6 @@
 version: 1
 task: "task-board-menu"
 locks:
-  - path: "backend/src/main/resources/application.yml"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/cursor/task-board-menu"
-    expiresAt: "2026-06-22T08:26:44.216Z"
-    reason: "新增 OSS menuCode 映射 1011 -> task-board (cursor/task-board-menu)"
   - path: "src/router/index.js"
     scope: "file"
     owner: "agent"

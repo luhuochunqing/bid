@@ -89,6 +89,20 @@ class OssMenuPermissionMapperTest {
         assertThat(result).containsExactly("child.permission");
     }
 
+    @Test
+    @DisplayName("按真实 OSS 数字二级菜单编码映射")
+    void map_numericSecondLevelMenuCode_returnsInternalPermissionKeys() {
+        OssMenuPermissionMapper mapper = new OssMenuPermissionMapper(
+                Map.of("1002", "bidding", "100201", "bidding-list"),
+                "IGNORE"
+        );
+        List<OssMenuTreeNode> tree = List.of(node("1002", List.of(node("100201", List.of()))));
+
+        Set<String> result = mapper.map(tree);
+
+        assertThat(result).containsExactlyInAnyOrder("bidding", "bidding-list");
+    }
+
     private OssMenuTreeNode node(String menuCode, List<OssMenuTreeNode> children) {
         return new OssMenuTreeNode(
                 null, menuCode, null, null, null, null,

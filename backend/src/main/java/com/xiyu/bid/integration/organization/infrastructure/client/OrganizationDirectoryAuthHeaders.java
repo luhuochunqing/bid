@@ -23,6 +23,8 @@ public class OrganizationDirectoryAuthHeaders {
         set(headers, directory.getTraceHeaderName(), value(context.traceId()));
         // 3. 源应用标识
         set(headers, directory.getSourceHeaderName(), firstPresent(directory.getSourceApp(), context.sourceApp()));
+        // 4. 可选组织目录鉴权 Header；仅从配置注入，不记录 token
+        set(headers, directory.getAuthHeaderName(), directory.getAuthToken());
         return headers;
     }
 

@@ -403,6 +403,7 @@ class OrganizationDirectoryHttpGatewayTest {
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
         server.expect(requestTo(org.hamcrest.Matchers.startsWith("https://oss.example.test/sysMenuUrl/getUserMenuTree")))
+                .andExpect(queryParam("jobNumber", "08402"))
                 .andExpect(queryParam("systemName", "xiyu-bid-poc"))
                 .andExpect(queryParam("menuRetrievalType", "2"))
                 .andRespond(withSuccess("""
@@ -436,6 +437,29 @@ class OrganizationDirectoryHttpGatewayTest {
         assertThat(result.get().get(0).menuCode()).isEqualTo("projectmanager");
         assertThat(result.get().get(0).children()).hasSize(1);
         assertThat(result.get().get(0).children().get(0).menuCode()).isEqualTo("bidding");
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("sends optional auth header when fetching user menu tree")
+    void fetchUserMenuTree_sendsConfiguredAuthHeader() {
+        RestTemplate restTemplate = new RestTemplate();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+        OrganizationIntegrationProperties props = defaultProperties();
+        props.getDirectory().setAuthHeaderName("Authorization");
+        props.getDirectory().setAuthToken("Bearer test-token");
+
+        server.expect(requestTo(org.hamcrest.Matchers.startsWith("https://oss.example.test/sysMenuUrl/getUserMenuTree")))
+                .andExpect(header("Authorization", "Bearer test-token"))
+                .andExpect(queryParam("jobNumber", "08402"))
+                .andExpect(queryParam("systemName", "xiyu-bid-poc"))
+                .andExpect(queryParam("menuRetrievalType", "2"))
+                .andRespond(withSuccess("{\"code\":0,\"data\":[{\"menuCode\":\"1002\"}]}", MediaType.APPLICATION_JSON));
+
+        Optional<List<OssMenuTreeNode>> result = gateway(restTemplate, props).fetchUserMenuTree("08402");
+
+        assertThat(result).isPresent();
+        assertThat(result.get()).hasSize(1);
         server.verify();
     }
 

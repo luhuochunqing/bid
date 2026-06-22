@@ -64,6 +64,10 @@ public class OrganizationIntegrationProperties {
         private String sourceApp = "";
         private String traceHeaderName = "EHSY-TraceID";
         private String sourceHeaderName = "EHSY-SRCAPP";
+        /** 可选组织目录接口鉴权 Header 名；为空则不发送额外鉴权 Header */
+        private String authHeaderName = "";
+        /** 可选组织目录接口鉴权 Token；为空则不发送额外鉴权 Header */
+        private String authToken = "";
         private int connectTimeoutMs = 3000;
         private int readTimeoutMs = 5000;
         /** 批量岗位/角色回查单批最大工号数 */
@@ -78,6 +82,8 @@ public class OrganizationIntegrationProperties {
         private String userMenuTreeSystemName = "xiyu-bid-poc";
         /** OSS 菜单树查询类型：1=url，2=本地配置 */
         private int userMenuTreeRetrievalType = 2;
+        /** OSS 菜单树用户工号 query 参数名 */
+        private String userMenuTreeJobNumberParamName = "jobNumber";
         /** 菜单树接口连接超时（毫秒） */
         private int userMenuTreeConnectTimeoutMs = 3000;
         /** 菜单树接口读取超时（毫秒） */

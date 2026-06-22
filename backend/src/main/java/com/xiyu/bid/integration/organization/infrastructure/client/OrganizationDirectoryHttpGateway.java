@@ -30,6 +30,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -184,10 +185,14 @@ public class OrganizationDirectoryHttpGateway implements OrganizationDirectoryGa
             url, jobNumber, directory.getUserMenuTreeSystemName(),
             directory.getUserMenuTreeRetrievalType(),
             context != null ? context.traceId() : "null");
-        Map<String, String> params = Map.of(
-                "systemName", directory.getUserMenuTreeSystemName(),
-                "menuRetrievalType", String.valueOf(directory.getUserMenuTreeRetrievalType())
-        );
+        Map<String, String> params = new LinkedHashMap<>();
+        String jobNumberParamName = directory.getUserMenuTreeJobNumberParamName();
+        if (jobNumberParamName != null && !jobNumberParamName.isBlank()
+                && jobNumber != null && !jobNumber.isBlank()) {
+            params.put(jobNumberParamName.trim(), jobNumber.trim());
+        }
+        params.put("systemName", directory.getUserMenuTreeSystemName());
+        params.put("menuRetrievalType", String.valueOf(directory.getUserMenuTreeRetrievalType()));
         return restClient.get(url, params, context).map(mapper::menuTree);
     }
 

@@ -229,17 +229,44 @@ xiyu:
         department-detail-path: ${XIYU_ORG_DIRECTORY_DEPARTMENT_DETAIL_PATH:/subscription/msg/dept}
         user-window-path: ${XIYU_ORG_DIRECTORY_USER_WINDOW_PATH:/subscription/msg/getUserByTimeWindow}
         department-window-path: ${XIYU_ORG_DIRECTORY_DEPARTMENT_WINDOW_PATH:/subscription/msg/getDeptByTimeWindow}
+        job-detail-path: ${XIYU_ORG_DIRECTORY_JOB_DETAIL_PATH:/subscription/msg/job}
+        batch-job-role-lookup-path: ${XIYU_ORG_DIRECTORY_BATCH_JOB_ROLE_LOOKUP_PATH:/oss/admin-web/v1/output/data/getUserJobListByJobNumberList}
         source-app: ${XIYU_ORG_DIRECTORY_SOURCE_APP:}
         trace-header-name: ${XIYU_ORG_DIRECTORY_TRACE_HEADER:EHSY-TraceID}
         source-header-name: ${XIYU_ORG_DIRECTORY_SOURCE_HEADER:EHSY-SRCAPP}
+        auth-header-name: ${XIYU_ORG_DIRECTORY_AUTH_HEADER_NAME:}
+        auth-token: ${XIYU_ORG_DIRECTORY_AUTH_TOKEN:}
         connect-timeout-ms: ${XIYU_ORG_DIRECTORY_CONNECT_TIMEOUT_MS:3000}
         read-timeout-ms: ${XIYU_ORG_DIRECTORY_READ_TIMEOUT_MS:5000}
+        user-menu-tree-path: ${XIYU_ORG_USER_MENU_TREE_PATH:/sysMenuUrl/getUserMenuTree}
+        user-menu-tree-system-name: ${XIYU_ORG_USER_MENU_TREE_SYSTEM_NAME:xiyu-bid-poc}
+        user-menu-tree-retrieval-type: ${XIYU_ORG_USER_MENU_TREE_RETRIEVAL_TYPE:2}
+        user-menu-tree-job-number-param-name: ${XIYU_ORG_USER_MENU_TREE_JOB_NUMBER_PARAM_NAME:jobNumber}
+        user-menu-tree-connect-timeout-ms: ${XIYU_ORG_USER_MENU_TREE_CONNECT_TIMEOUT_MS:3000}
+        user-menu-tree-read-timeout-ms: ${XIYU_ORG_USER_MENU_TREE_READ_TIMEOUT_MS:5000}
         # OSS 菜单权限自动同步：组织架构同步时自动聚合用户菜单权限到角色
         auto-sync-menu-permissions: ${XIYU_ORG_AUTO_SYNC_MENU_PERMISSIONS:false}
         # OSS 菜单编码 -> 内部权限码映射（大小写不敏感）
-        # 默认空 map；生产环境可通过 relaxed binding 用环境变量覆盖，
-        # 例如 XIYU_ORG_MENU_CODE_MAPPINGS_<MENU_CODE>=<permission_key>
         menu-code-to-permission-key-mappings:
+          "1001": "dashboard"
+          "1002": "bidding"
+          "100201": "bidding-list"
+          "1003": "project"
+          "100301": "project-list"
+          "1004": "knowledge"
+          "100401": "knowledge-archive"
+          "100402": "knowledge-qualification"
+          "100403": "knowledge-personnel"
+          "100404": "knowledge-performance"
+          "100405": "knowledge-brand-auth"
+          "100406": "knowledge-case"
+          "1005": "resource"
+          "100502": "resource-expense"
+          "100504": "resource-account"
+          "100505": "resource-ca"
+          "1007": "analytics"
+          "1010": "settings"
+          "101003": "settings-workflow-forms"
           "1011": "task-board"
         # 未映射菜单编码处理：IGNORE 或 USE_NORMALIZED_CODE
         unmapped-menu-code-behavior: ${XIYU_ORG_UNMAPPED_MENU_BEHAVIOR:IGNORE}
