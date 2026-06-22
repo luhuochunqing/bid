@@ -18,6 +18,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Clock;
@@ -85,7 +86,7 @@ class TenderEvaluationSubmissionCustomerInfoFlushTest {
         TenderEvaluationDocumentService documentService = mock(TenderEvaluationDocumentService.class);
         when(documentService.getDocuments(tenderId)).thenReturn(java.util.List.of());
         TenderAssignmentPermissions permissions = mock(TenderAssignmentPermissions.class);
-        TenderEvaluationSubmissionNotifier notifier = mock(TenderEvaluationSubmissionNotifier.class);
+        ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
 
         when(permissions.canFill(tenderId, evaluatorId)).thenReturn(true);
         when(permissions.canDecide(tenderId, evaluatorId)).thenReturn(true);
@@ -96,7 +97,7 @@ class TenderEvaluationSubmissionCustomerInfoFlushTest {
                 userRepository,
                 accessGuard,
                 permissions,
-                notifier,
+                eventPublisher,
                 projectDocumentRepository,
                 documentService,
                 FIXED_CLOCK);

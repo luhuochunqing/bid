@@ -221,8 +221,13 @@ public class TenderCommandService {
         existingTender.setCrmOpportunityId(crmOpportunityId);
         existingTender.setCrmOpportunityName(crmOpportunityName);
         existingTender.setEvaluationSource(com.xiyu.bid.entity.Tender.EvaluationSource.BID_SYSTEM_LINK);
+        // CO-305: 人工关联商机时统一走 TenderStatusChangedEvent 事件流
         if (existingTender.getStatus() == com.xiyu.bid.entity.Tender.Status.TRACKING) {
+            Tender.Status previousStatus = existingTender.getStatus();
             existingTender.setStatus(com.xiyu.bid.entity.Tender.Status.EVALUATED);
+            eventPublisher.publishEvent(TenderStatusChangedEvent.of(
+                    existingTender.getId(), existingTender.getExternalId(),
+                    previousStatus, Tender.Status.EVALUATED, existingTender.getTitle()));
         }
         Tender updatedTender;
         try {

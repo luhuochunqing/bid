@@ -14,6 +14,7 @@ import com.xiyu.bid.tender.entity.TenderEvaluation;
 import com.xiyu.bid.tender.entity.TenderEvaluation.BidRecommendation;
 import com.xiyu.bid.tender.entity.TenderEvaluation.EvaluationStatus;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
+import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.math.BigDecimal;
@@ -80,13 +82,14 @@ class TenderEvaluationSubmissionServiceTest {
     @Mock
     private TenderEvaluationDocumentService tenderEvaluationDocumentService;
 
-    private TenderEvaluationSubmissionNotifier notifier;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private Clock fixedClock;
     private TenderEvaluationSubmissionService service;
 
     @BeforeEach
     void setUp() {
-        notifier = new TenderEvaluationSubmissionNotifier(notificationService);
         fixedClock = Clock.fixed(
                 FIXED_NOW.atZone(ZoneId.systemDefault()).toInstant(),
                 ZoneId.systemDefault());
@@ -96,7 +99,7 @@ class TenderEvaluationSubmissionServiceTest {
                 userRepository,
                 accessGuard,
                 permissions,
-                notifier,
+                eventPublisher,
                 projectDocumentRepository,
                 tenderEvaluationDocumentService,
                 fixedClock
@@ -389,8 +392,8 @@ class TenderEvaluationSubmissionServiceTest {
     // ---------- 6. H5: tender.status 在 submit 后 transition 到 EVALUATED ----------
 
     @Test
-    @DisplayName("submit: 提交后将 tender.status 推进到 EVALUATED")
-    void submit_movesTenderStatusToEvaluated() {
+    @DisplayName("CO-305 submit: 提交后将 tender.status 推进到 EVALUATED 并发布 TenderStatusChangedEvent")
+    void submit_movesTenderStatusToEvaluated_andPublishesEvent() {
         Tender pending = Tender.builder()
                 .id(TENDER_ID).title("测试标讯").status(Tender.Status.TRACKING).build();
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(pending));
@@ -401,10 +404,12 @@ class TenderEvaluationSubmissionServiceTest {
         service.submit(TENDER_ID, fullValidRequest(), EVALUATOR_ID);
 
         assertThat(pending.getStatus()).isEqualTo(Tender.Status.EVALUATED);
+        // CO-305: 验证 TenderStatusChangedEvent 被发布
+        verify(eventPublisher).publishEvent(any(TenderStatusChangedEvent.class));
     }
 
     @Test
-    @DisplayName("submit: 标讯已是 EVALUATED 时不再二次切换 / 不持久化 tender")
+    @DisplayName("CO-305 submit: 标讯已是 EVALUATED 时不发布 TenderStatusChangedEvent")
     void submit_skipsTenderStatusUpdate_whenAlreadyEvaluated() {
         Tender already = Tender.builder()
                 .id(TENDER_ID).title("测试标讯").status(Tender.Status.EVALUATED).build();
@@ -418,6 +423,8 @@ class TenderEvaluationSubmissionServiceTest {
 
         assertThat(already.getStatus()).isEqualTo(Tender.Status.EVALUATED);
         verify(tenderRepository, never()).save(any(Tender.class));
+        // CO-305: 验证状态未变更时不发布 TenderStatusChangedEvent
+        verify(eventPublisher, never()).publishEvent(any(TenderStatusChangedEvent.class));
     }
 
     // ---------- 7. instance-level permissions (canFill / canDecide) ----------

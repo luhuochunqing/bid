@@ -67,6 +67,8 @@ public class TenderIntegrationCommandService {
         Tender tender = helper.resolveTender(sourceSystem, sourceId, request.getTenderId());
         String externalId = tender.getExternalId();
 
+        // CO-305: 记录更新前的状态，用于判断是否需要发布 Event
+        Tender.Status previousStatus = tender.getStatus();
         applyUpdateFields(tender, request);
 
         String crmId = TenderIntegrationMapper.firstNonBlank(request.getCrmOpportunityId(), request.getCrmId());
@@ -74,6 +76,12 @@ public class TenderIntegrationCommandService {
         applyCrmFallback(tender, crmId, request.getCrmOpportunityName());
 
         Tender saved = tenderRepository.save(tender);
+        // CO-305: 更新后状态变为 EVALUATED 时发布 TenderStatusChangedEvent
+        if (saved.getStatus() == Tender.Status.EVALUATED && previousStatus != Tender.Status.EVALUATED) {
+            eventPublisher.publishEvent(TenderStatusChangedEvent.of(
+                    saved.getId(), saved.getExternalId(),
+                    previousStatus, Tender.Status.EVALUATED, saved.getTitle()));
+        }
         log.info("Updated tender id={} externalId={} crmId={} crmOpportunityId={}",
                 saved.getId(), externalId, crmId, saved.getCrmOpportunityId());
 
@@ -112,6 +120,8 @@ public class TenderIntegrationCommandService {
 
     private TenderPushResponse handleExistingTender(Tender existing, TenderPushRequest request, Long userId, String externalId) {
         if (Boolean.TRUE.equals(request.getForceUpdate())) {
+            // CO-305: 记录更新前的状态，用于判断是否需要发布 Event
+            Tender.Status previousStatus = existing.getStatus();
             mapper.applyUpdate(existing, request);
             if (userId != null) {
                 existing.setCreatorId(userId);
@@ -121,6 +131,12 @@ public class TenderIntegrationCommandService {
             applyCrmFallback(existing, crmId, null);
 
             Tender saved = tenderRepository.save(existing);
+            // CO-305: 强制更新后状态变为 EVALUATED 时发布 TenderStatusChangedEvent
+            if (saved.getStatus() == Tender.Status.EVALUATED && previousStatus != Tender.Status.EVALUATED) {
+                eventPublisher.publishEvent(TenderStatusChangedEvent.of(
+                        saved.getId(), saved.getExternalId(),
+                        previousStatus, Tender.Status.EVALUATED, saved.getTitle()));
+            }
             if (request.getEvaluation() != null) {
                 var eval = request.getEvaluation();
                 evaluationService.saveEvaluation(saved.getId(), eval.getEvaluationBasic(),
@@ -146,11 +162,19 @@ public class TenderIntegrationCommandService {
         if (userId != null) {
             tender.setCreatorId(userId);
         }
+        // CO-305: 记录创建时的初始状态，用于判断是否需要发布 Event
+        Tender.Status initialStatus = tender.getStatus();
         String crmId = TenderIntegrationMapper.firstNonBlank(request.getCrmOpportunityId(), request.getCrmId());
         crmTenderLinkService.linkIfPresent(tender, crmId);
         applyCrmFallback(tender, crmId, null);
 
         Tender saved = tenderRepository.save(tender);
+        // CO-305: CRM 推送创建的标讯状态变为 EVALUATED 时发布 TenderStatusChangedEvent
+        if (saved.getStatus() == Tender.Status.EVALUATED && initialStatus != Tender.Status.EVALUATED) {
+            eventPublisher.publishEvent(TenderStatusChangedEvent.of(
+                    saved.getId(), saved.getExternalId(),
+                    initialStatus, Tender.Status.EVALUATED, saved.getTitle()));
+        }
         if (request.getEvaluation() != null) {
             var eval = request.getEvaluation();
             evaluationService.saveEvaluation(saved.getId(), eval.getEvaluationBasic(),

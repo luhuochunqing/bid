@@ -24,12 +24,14 @@ import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.springframework.context.ApplicationEventPublisher;
 
 /**
  * 标讯项目评估表草稿与提交服务（V130 三段式重构）。
@@ -48,7 +50,7 @@ import java.util.stream.Collectors;
  *   <li>提交时校验三段完整性（委托 {@link TenderEvaluationSubmissionValidator}）</li>
  *   <li>已评估状态下重新编辑保存时设 requires_review=true 并递增 evaluation_round</li>
  *   <li>DTO/Entity 映射委托 {@link TenderEvaluationSubmissionMapper}</li>
- *   <li>审核通知委托 {@link TenderEvaluationSubmissionNotifier}</li>
+ *   <li>CO-305: 状态变更统一走 TenderStatusChangedEvent 事件流</li>
  * </ul>
  */
 @Service
@@ -61,7 +63,7 @@ public class TenderEvaluationSubmissionService {
     private final UserRepository userRepository;
     private final TenderProjectAccessGuard accessGuard;
     private final TenderAssignmentPermissions permissions;
-    private final TenderEvaluationSubmissionNotifier submissionNotifier;
+    private final ApplicationEventPublisher eventPublisher;
     private final TenderEvaluationGapFilesSync gapFilesSync;
     private final TenderEvaluationDocumentService documentService;
     private final TenderEvaluationSubmissionMapper mapper = new TenderEvaluationSubmissionMapper();
@@ -73,7 +75,7 @@ public class TenderEvaluationSubmissionService {
             UserRepository userRepository,
             TenderProjectAccessGuard accessGuard,
             TenderAssignmentPermissions permissions,
-            TenderEvaluationSubmissionNotifier submissionNotifier,
+            ApplicationEventPublisher eventPublisher,
             ProjectDocumentRepository projectDocumentRepository,
             TenderEvaluationDocumentService documentService,
             Clock clock) {
@@ -82,7 +84,7 @@ public class TenderEvaluationSubmissionService {
         this.userRepository = userRepository;
         this.accessGuard = accessGuard;
         this.permissions = permissions;
-        this.submissionNotifier = submissionNotifier;
+        this.eventPublisher = eventPublisher;
         this.gapFilesSync = new TenderEvaluationGapFilesSync(projectDocumentRepository);
         this.documentService = documentService;
         this.clock = clock;
@@ -219,13 +221,14 @@ public class TenderEvaluationSubmissionService {
 
         TenderEvaluation saved = evaluationRepository.save(entity);
 
-        // H5: 推进 tender.status 到 EVALUATED（tender 是受管实体，脏检查自动刷新）
+        // CO-305: 推进 tender.status 到 EVALUATED，统一走 TenderStatusChangedEvent 事件流
         if (tender.getStatus() == Tender.Status.TRACKING) {
+            Tender.Status previousStatus = tender.getStatus();
             tender.setStatus(Tender.Status.EVALUATED);
+            eventPublisher.publishEvent(TenderStatusChangedEvent.of(
+                    tender.getId(), tender.getExternalId(),
+                    previousStatus, Tender.Status.EVALUATED, tender.getTitle()));
         }
-
-        // 发送审核通知
-        submissionNotifier.notifyEvaluationSubmitted(tender);
 
         // CO-262: 持久化 CRM 回填的 GAP 附件引用（外部 URL）到 project_documents 表
         List<ProjectDocument> gapFiles = gapFilesSync.applyGapFiles(tenderId, req.evaluationBasic());

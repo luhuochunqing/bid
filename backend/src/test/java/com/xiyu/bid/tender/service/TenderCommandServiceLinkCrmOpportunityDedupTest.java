@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Optional;
 
@@ -36,6 +37,7 @@ class TenderCommandServiceLinkCrmOpportunityDedupTest {
     @Mock private TenderCommandAccessGuard commandAccessGuard;
     @Mock private TenderMapper tenderMapper;
     @Mock private TenderCrmOccupancyChecker crmOccupancyChecker;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     private TenderCommandService tenderCommandService;
 
@@ -58,7 +60,7 @@ class TenderCommandServiceLinkCrmOpportunityDedupTest {
                 null,                  // TaskService
                 commandAccessGuard,
                 null,                  // TenderAutoAssignmentService
-                null,                  // ApplicationEventPublisher
+                eventPublisher,        // CO-305: ApplicationEventPublisher
                 null,                  // UserRepository
                 null,                  // NotificationApplicationService
                 null,                  // TenderAssignmentNotifier
