@@ -12,20 +12,20 @@ Usage:
 
 Options:
   --in-place             早操三连 + 在当前 worktree 内创建分支（自动 fetch + rebase + sync-env）
+                         ⚠️ 自 2026-06-22 起，此模式为唯一支持模式，不再允许创建独立 worktree。
   --lock <path>          Acquire an initial file lock after worktree creation.
   --lock-dir <path>      Acquire an initial directory lock after worktree creation.
   --touch <path>         Run who-touches preflight check for a planned change path.
   --force-touch-conflict Continue even if who-touches finds active agent branches.
   --push                 Push the new branch to origin after initialization completes.
-  --force                强制创建独立 worktree，即使持久区已有未完成的 in-place 任务。
   --lock-reason <reason> Reason used for all initial locks.
   --lock-days <days>     Lock lifetime in days. Default: 1.
   --dry-run              Print the planned operations without changing files.
 
 Example:
-  scripts/agent-start-task.sh codex project-task-breakdown-from-tender origin/main
-  scripts/agent-start-task.sh codex project-page --lock src/views/Project/Detail.vue --lock-reason "项目详情页改造"
-  scripts/agent-start-task.sh codex project-page --touch src/views/Project/Detail.vue
+  scripts/agent-start-task.sh codex project-task-breakdown-from-tender origin/main --in-place
+  scripts/agent-start-task.sh codex project-page --in-place --lock src/views/Project/Detail.vue --lock-reason "项目详情页改造"
+  scripts/agent-start-task.sh codex project-page --in-place --touch src/views/Project/Detail.vue
   scripts/agent-start-task.sh codex quick-fix origin/main --in-place
 USAGE
 }
@@ -55,7 +55,6 @@ LOCK_SCOPES=()
 TOUCH_PATHS=()
 FORCE_TOUCH_CONFLICT=0
 AUTO_PUSH=0
-FORCE=0
 
 POSITIONAL_REST=()
 while [[ $# -gt 0 ]]; do
@@ -100,10 +99,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --push)
       AUTO_PUSH=1
-      shift
-      ;;
-    --force)
-      FORCE=1
       shift
       ;;
     --lock-reason)
@@ -158,6 +153,17 @@ if [[ ! "$LOCK_DAYS" =~ ^[1-9][0-9]*$ ]]; then
   exit 1
 fi
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 自 2026-06-22 起，强制要求 --in-place 模式，不再允许创建独立 worktree
+# ─────────────────────────────────────────────────────────────────────────────
+if [[ "$IN_PLACE" != "1" ]]; then
+  echo "agent-start-task: 错误 - 必须使用 --in-place 模式。" >&2
+  echo "  自 2026-06-22 起，不再允许创建独立的临时 worktree。" >&2
+  echo "  所有任务必须在持久 worktree 内以 --in-place 模式完成。" >&2
+  echo "  用法: scripts/agent-start-task.sh <agent> <task> origin/main --in-place" >&2
+  exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Resolve the true repository root even when this script is invoked from inside a worktree.
@@ -185,55 +191,15 @@ resolve_repo_root() {
 REPO_ROOT="$(resolve_repo_root "$(cd "$SCRIPT_DIR/.." && pwd)")"
 WORKTREES_ROOT="${WORKTREES_ROOT:-$HOME/xiyu/worktrees}"
 INVOCATION_WORKTREE_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "$REPO_ROOT")"
-PERSISTENT_WORKTREE="$WORKTREES_ROOT/$AGENT_NAME"
 
-if [[ "$IN_PLACE" == "1" ]]; then
-  # --in-place 模式：在当前 worktree 内创建分支
-  WORKTREE_PATH="$INVOCATION_WORKTREE_ROOT"
-  WORKTREE_NAME="$(basename "$WORKTREE_PATH")"
-  CREATE_WORKTREE=0
-else
-  WORKTREE_PATH="$WORKTREES_ROOT/$AGENT_NAME-$TASK_SLUG"
-  WORKTREE_NAME="$AGENT_NAME-$TASK_SLUG"
-  CREATE_WORKTREE=1
-fi
+# --in-place 模式：在当前 worktree 内创建分支
+WORKTREE_PATH="$INVOCATION_WORKTREE_ROOT"
+WORKTREE_NAME="$(basename "$WORKTREE_PATH")"
 BRANCH_NAME="agent/$AGENT_NAME/$TASK_SLUG"
-WORKTREE_CREATED=0
 BRANCH_CREATED=0
 LOCKS_ACQUIRED=0
 ACQUIRED_LOCK_PATHS=()
 ACQUIRED_LOCK_SCOPES=()
-
-# Detect the current branch checked out in a worktree directory (if present).
-worktree_branch() {
-  local wt_path="$1"
-  if [[ -d "$wt_path" ]]; then
-    git -C "$wt_path" rev-parse --abbrev-ref HEAD 2>/dev/null || true
-  fi
-}
-
-# Warn when the agent's persistent worktree is already busy with an in-place task branch.
-check_active_inplace_task() {
-  local agent="$1"
-  local new_branch="$2"
-  local persistent_wt="$WORKTREES_ROOT/$agent"
-  if [[ ! -d "$persistent_wt" ]]; then
-    return 0
-  fi
-  local current_branch
-  current_branch="$(worktree_branch "$persistent_wt")"
-  if [[ -z "$current_branch" || "$current_branch" == "agent/${agent}-init" ]]; then
-    return 0
-  fi
-  if [[ "$current_branch" == "$new_branch" ]]; then
-    return 0
-  fi
-  echo "agent-start-task: 检测到 '$agent' 的持久工作区正忙于其他任务分支: $current_branch" >&2
-  echo "  持久工作区: $persistent_wt" >&2
-  echo "  新任务分支: $new_branch" >&2
-  echo "  规则：持久工作区应串行处理任务；如需并行开发，请使用 --force 强制创建独立 worktree。" >&2
-  return 1
-}
 
 run_touch_preflight() {
   if [[ "${#TOUCH_PATHS[@]}" -eq 0 ]]; then
@@ -323,23 +289,12 @@ if git show-ref --verify --quiet "refs/heads/$BRANCH_NAME"; then
   exit 1
 fi
 
-# 检查同一任务是否已在持久工作区以 in-place 方式存在
-if [[ "$IN_PLACE" != "1" ]]; then
-  if ! check_active_inplace_task "$AGENT_NAME" "$BRANCH_NAME"; then
-    if [[ "$FORCE" != "1" ]]; then
-      echo "agent-start-task: 使用 --force 可忽略此警告并继续创建独立 worktree。" >&2
-      exit 1
-    fi
-    echo "agent-start-task: --force 已设置，继续创建独立 worktree（请确认这是并行开发需求）。" >&2
-  fi
-fi
-
 if [[ "$DRY_RUN" == "1" ]]; then
   echo "Dry run task branch:"
   echo "  worktree: $WORKTREE_PATH"
   echo "  branch:   $BRANCH_NAME"
   echo "  base:     $BASE_REF"
-  echo "  mode:     $([ "$IN_PLACE" == "1" ] && echo 'in-place (current worktree)' || echo 'new worktree')"
+  echo "  mode:     in-place (current worktree)"
   echo "  touch:    ${#TOUCH_PATHS[@]} paths"
   echo "  morning:  fetch + rebase origin/main + sync-env.sh"
   echo "  locks:    ${#LOCK_PATHS[@]} locks"
@@ -375,25 +330,24 @@ if [[ "$DRY_RUN" == "1" ]]; then
 fi
 
 # --in-place 模式：确认当前在锚点分支上，pull 最新 main，再切分支
-if [[ "$IN_PLACE" == "1" ]]; then
-  current_branch="$(git rev-parse --abbrev-ref HEAD)"
-  if [[ "$current_branch" != "agent/${AGENT_NAME}-init" ]]; then
-    echo "agent-start-task: --in-place requires being on the anchor branch 'agent/${AGENT_NAME}-init' (currently on '$current_branch')" >&2
-    exit 1
-  fi
-  # --- 早操三连：基线对齐 + 环境同步（agent-sop-quickref.md §一）---
- 
-  echo "agent-start-task: [morning-routine] git fetch origin..."
-  git fetch origin
-  echo "agent-start-task: [morning-routine] git rebase origin/main..."
-  git rebase origin/main
-  echo "agent-start-task: [morning-routine] sync-env.sh ."
-  bash scripts/sync-env.sh .
-  # -------------------------------------
-  echo "agent-start-task: creating branch $BRANCH_NAME in current worktree..."
-  git checkout -b "$BRANCH_NAME"
-  BRANCH_CREATED=1
-  cat > "$WORKTREE_PATH/.agent-task-context" <<EOF
+current_branch="$(git rev-parse --abbrev-ref HEAD)"
+if [[ "$current_branch" != "agent/${AGENT_NAME}-init" ]]; then
+  echo "agent-start-task: --in-place requires being on the anchor branch 'agent/${AGENT_NAME}-init' (currently on '$current_branch')" >&2
+  exit 1
+fi
+# --- 早操三连：基线对齐 + 环境同步（agent-sop-quickref.md §一）---
+
+echo "agent-start-task: [morning-routine] git fetch origin..."
+git fetch origin
+echo "agent-start-task: [morning-routine] git rebase origin/main..."
+git rebase origin/main
+echo "agent-start-task: [morning-routine] sync-env.sh ."
+bash scripts/sync-env.sh .
+# -------------------------------------
+echo "agent-start-task: creating branch $BRANCH_NAME in current worktree..."
+git checkout -b "$BRANCH_NAME"
+BRANCH_CREATED=1
+cat > "$WORKTREE_PATH/.agent-task-context" <<EOF
 agent=$AGENT_NAME
 task=$TASK_SLUG
 branch=$BRANCH_NAME
@@ -406,123 +360,6 @@ created_from_rev=$(git rev-parse HEAD)
 created_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 EOF
 
-  if [[ "${#TOUCH_PATHS[@]}" -gt 0 ]]; then
-    {
-      echo "touch_paths<<'PATHS'"
-      printf '%s\n' "${TOUCH_PATHS[@]}"
-      echo "PATHS"
-    } >> "$WORKTREE_PATH/.agent-task-context"
-  fi
-
-  # 增量安装 hooks（检查是否已安装）
-  if [[ ! -f "$WORKTREE_PATH/.githooks/pre-commit" ]]; then
-    (cd "$WORKTREE_PATH" && bash scripts/install-githooks.sh && bash scripts/install-java-standards-hook.sh) || true
-  fi
-
-  # 配置 git alias，防止 --no-verify 绕过门禁（仅首次设置）
-  if ! git config alias.push 2>/dev/null | grep -q 'git-push-wrapper'; then
-    git config alias.push '!bash .githooks/git-push-wrapper.sh'
-    echo "agent-start-task: git alias push → .githooks/git-push-wrapper.sh (门禁强制)"
-  fi
-  if ! git config alias.commit 2>/dev/null | grep -q 'git-commit-wrapper'; then
-    git config alias.commit '!bash .githooks/git-commit-wrapper.sh'
-    echo "agent-start-task: git alias commit → .githooks/git-commit-wrapper.sh (门禁强制)"
-  fi
-
-  # 增量安装 node 依赖（检查 node_modules 是否存在）
-  if [[ -f "$WORKTREE_PATH/package.json" && ! -d "$WORKTREE_PATH/node_modules" ]]; then
-    echo "agent-start-task: package.json detected, running fast offline-first pnpm install..."
-    (cd "$WORKTREE_PATH" && pnpm install --prefer-offline --reporter=silent || pnpm install)
-  fi
-
-  if [[ "${#LOCK_PATHS[@]}" -gt 0 ]]; then
-    for index in "${!LOCK_PATHS[@]}"; do
-      (
-        cd "$WORKTREE_PATH"
-        node scripts/manage-agent-locks.mjs acquire \
-          --path "${LOCK_PATHS[$index]}" \
-          --scope "${LOCK_SCOPES[$index]}" \
-          --reason "$LOCK_REASON" \
-          --days "$LOCK_DAYS"
-      )
-      ACQUIRED_LOCK_PATHS+=("${LOCK_PATHS[$index]}")
-      ACQUIRED_LOCK_SCOPES+=("${LOCK_SCOPES[$index]}")
-      LOCKS_ACQUIRED=1
-    done
-    (cd "$WORKTREE_PATH" && node scripts/check-agent-locks.mjs)
-  fi
-
-  if [[ "$AUTO_PUSH" == "1" ]]; then
-    git -C "$WORKTREE_PATH" push -u origin "$BRANCH_NAME"
-  fi
-
-  trap - EXIT
-
-  echo "Created task branch (in-place):"
-  echo "  worktree: $WORKTREE_PATH"
-  echo "  branch:   $BRANCH_NAME"
-  echo "  base:     $BASE_REF"
-  if [[ "${#TOUCH_PATHS[@]}" -gt 0 ]]; then
-    echo "  touch paths:"
-    for touch_path in "${TOUCH_PATHS[@]}"; do
-      echo "    - $touch_path"
-    done
-  fi
-  if [[ "${#LOCK_PATHS[@]}" -gt 0 ]]; then
-    echo "  initial locks:"
-    for index in "${!LOCK_PATHS[@]}"; do
-      printf "    lock %-10s %s\n" "${LOCK_SCOPES[$index]}:" "${LOCK_PATHS[$index]}"
-    done
-  fi
-  if [[ "$AUTO_PUSH" == "1" ]]; then
-    echo "  remote branch: origin/$BRANCH_NAME"
-  fi
-  echo
-  echo "Status summary:"
-  if [[ "${#TOUCH_PATHS[@]}" -gt 0 ]]; then
-    echo "  - who-touches preflight completed for declared paths"
-  else
-    echo "  - no touch paths declared"
-  fi
-  if [[ "${#LOCK_PATHS[@]}" -gt 0 ]]; then
-    echo "  - initial locks registered"
-  fi
-  echo
-  echo "Next:"
-  echo "  Develop on this branch, commit, push, and create a PR."
-  echo "  After PR merged, run:"
-  echo "    git checkout agent/${AGENT_NAME}-init"
-  echo "    git pull origin main"
-  echo "    git branch -D $BRANCH_NAME"
-  exit 0
-fi
-
-# ─── 以下是传统模式（新 worktree）────────────────────────────────────────────────
-if ! git rev-parse --verify --quiet "$BASE_REF" >/dev/null; then
-  echo "agent-start-task: base ref does not exist or cannot be resolved: $BASE_REF" >&2
-  exit 1
-fi
-
-run_touch_preflight
-
-mkdir -p "$WORKTREES_ROOT"
-git fetch origin --prune
-git worktree add -b "$BRANCH_NAME" "$WORKTREE_PATH" "$BASE_REF"
-WORKTREE_CREATED=1
-BRANCH_CREATED=1
-
-cat > "$WORKTREE_PATH/.agent-task-context" <<EOF
-agent=$AGENT_NAME
-task=$TASK_SLUG
-branch=$BRANCH_NAME
-base=$BASE_REF
-worktree=$WORKTREE_PATH
-repo_root=$WORKTREE_PATH
-created_from_branch=$(git rev-parse --abbrev-ref HEAD)
-created_from_rev=$(git rev-parse HEAD)
-created_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-EOF
-
 if [[ "${#TOUCH_PATHS[@]}" -gt 0 ]]; then
   {
     echo "touch_paths<<'PATHS'"
@@ -531,29 +368,25 @@ if [[ "${#TOUCH_PATHS[@]}" -gt 0 ]]; then
   } >> "$WORKTREE_PATH/.agent-task-context"
 fi
 
-# 同步环境模板并执行 main-forward，确保新 worktree 进入可开发状态
-(cd "$WORKTREE_PATH" && bash scripts/sync-env.sh .)
-
-# 安装 git hooks（本地 CI 门禁），新 worktree 自动激活
-(cd "$WORKTREE_PATH" && bash scripts/install-githooks.sh && bash scripts/install-java-standards-hook.sh)
+# 增量安装 hooks（检查是否已安装）
+if [[ ! -f "$WORKTREE_PATH/.githooks/pre-commit" ]]; then
+  (cd "$WORKTREE_PATH" && bash scripts/install-githooks.sh && bash scripts/install-java-standards-hook.sh) || true
+fi
 
 # 配置 git alias，防止 --no-verify 绕过门禁（仅首次设置）
-if ! git -C "$WORKTREE_PATH" config alias.push 2>/dev/null | grep -q 'git-push-wrapper'; then
-  git -C "$WORKTREE_PATH" config alias.push '!bash .githooks/git-push-wrapper.sh'
+if ! git config alias.push 2>/dev/null | grep -q 'git-push-wrapper'; then
+  git config alias.push '!bash .githooks/git-push-wrapper.sh'
   echo "agent-start-task: git alias push → .githooks/git-push-wrapper.sh (门禁强制)"
 fi
-if ! git -C "$WORKTREE_PATH" config alias.commit 2>/dev/null | grep -q 'git-commit-wrapper'; then
-  git -C "$WORKTREE_PATH" config alias.commit '!bash .githooks/git-commit-wrapper.sh'
+if ! git config alias.commit 2>/dev/null | grep -q 'git-commit-wrapper'; then
+  git config alias.commit '!bash .githooks/git-commit-wrapper.sh'
   echo "agent-start-task: git alias commit → .githooks/git-commit-wrapper.sh (门禁强制)"
 fi
 
-# 自动检测并以离线优先方式安装 node 依赖，缩减冷启动时间
-if [[ -f "$WORKTREE_PATH/package.json" ]]; then
+# 增量安装 node 依赖（检查 node_modules 是否存在）
+if [[ -f "$WORKTREE_PATH/package.json" && ! -d "$WORKTREE_PATH/node_modules" ]]; then
   echo "agent-start-task: package.json detected, running fast offline-first pnpm install..."
-  (
-    cd "$WORKTREE_PATH"
-    pnpm install --prefer-offline --reporter=silent || pnpm install
-  )
+  (cd "$WORKTREE_PATH" && pnpm install --prefer-offline --reporter=silent || pnpm install)
 fi
 
 if [[ "${#LOCK_PATHS[@]}" -gt 0 ]]; then
@@ -570,10 +403,7 @@ if [[ "${#LOCK_PATHS[@]}" -gt 0 ]]; then
     ACQUIRED_LOCK_SCOPES+=("${LOCK_SCOPES[$index]}")
     LOCKS_ACQUIRED=1
   done
-  (
-    cd "$WORKTREE_PATH"
-    node scripts/check-agent-locks.mjs
-  )
+  (cd "$WORKTREE_PATH" && node scripts/check-agent-locks.mjs)
 fi
 
 if [[ "$AUTO_PUSH" == "1" ]]; then
@@ -582,7 +412,7 @@ fi
 
 trap - EXIT
 
-echo "Created task worktree:"
+echo "Created task branch (in-place):"
 echo "  worktree: $WORKTREE_PATH"
 echo "  branch:   $BRANCH_NAME"
 echo "  base:     $BASE_REF"
@@ -602,42 +432,19 @@ if [[ "$AUTO_PUSH" == "1" ]]; then
   echo "  remote branch: origin/$BRANCH_NAME"
 fi
 echo
-
 echo "Status summary:"
 if [[ "${#TOUCH_PATHS[@]}" -gt 0 ]]; then
   echo "  - who-touches preflight completed for declared paths"
-  if [[ "$FORCE_TOUCH_CONFLICT" == "1" ]]; then
-    echo "  - conflict override was used; record coordination evidence in your PR or task notes"
-  fi
 else
-  echo "  - no touch paths declared; consider using --touch for collaborative visibility"
+  echo "  - no touch paths declared"
 fi
 if [[ "${#LOCK_PATHS[@]}" -gt 0 ]]; then
-  echo "  - initial locks are already registered in this worktree"
-else
-  echo "  - no initial locks registered yet; acquire locks before editing hot paths"
+  echo "  - initial locks registered"
 fi
-if [[ "$AUTO_PUSH" == "1" ]]; then
-  echo "  - branch has already been pushed so other agents can see it"
-else
-  echo "  - branch has not been pushed yet; push before ending the session"
-fi
-
 echo
-
 echo "Next:"
-echo "  cd $WORKTREE_PATH"
-echo "  npm run agent:lock-check"
-if [[ "$AUTO_PUSH" != "1" ]]; then
-  echo "  git push -u origin $BRANCH_NAME"
-fi
-if [[ "${#LOCK_PATHS[@]}" -gt 0 ]]; then
-  echo "  git status"
-  echo "  git add .agent-locks/"
-  echo "  git commit -m \"chore: register initial agent locks for $TASK_SLUG\""
-else
-  echo "  npm run agent:lock-acquire -- --path <path> --scope file --reason \"<reason>\""
-fi
-if [[ "$FORCE_TOUCH_CONFLICT" == "1" ]]; then
-  echo "  # 在 PR 描述或任务记录中补充冲突协调说明"
-fi
+echo "  Develop on this branch, commit, push, and create a PR."
+echo "  After PR merged, run:"
+echo "    git checkout agent/${AGENT_NAME}-init"
+echo "    git pull origin main"
+echo "    git branch -D $BRANCH_NAME"
