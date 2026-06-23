@@ -108,7 +108,7 @@ class AdminProjectGroupControllerTest {
                 .groupName("重点项目组-更新")
                 .managerUserId(1L)
                 .visibility("custom")
-                .allowedRoles(List.of("bid_specialist"))
+                .allowedRoles(List.of("bid-Team"))
                 .projectIds(List.of(10L))
                 .build();
 
@@ -118,7 +118,7 @@ class AdminProjectGroupControllerTest {
                         .groupCode("G1")
                         .groupName("重点项目组-更新")
                         .visibility("custom")
-                        .allowedRoles(List.of("bid_specialist"))
+                        .allowedRoles(List.of("bid-Team"))
                         .projectIds(List.of(10L))
                         .build());
 
@@ -128,7 +128,7 @@ class AdminProjectGroupControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.groupName").value("重点项目组-更新"))
-                .andExpect(jsonPath("$.data.allowedRoles[0]").value("bid_specialist"));
+                .andExpect(jsonPath("$.data.allowedRoles[0]").value("bid-Team"));
     }
 
     @Test

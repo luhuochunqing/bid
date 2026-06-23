@@ -11,8 +11,8 @@ PREPARE stmt FROM @rm_sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
--- 将引用 task_executor 角色的用户迁移到 bid_specialist
-UPDATE users SET role_id = (SELECT id FROM roles WHERE code = 'bid_specialist' LIMIT 1)
+-- 将引用 task_executor 角色的用户迁移到 bid-Team
+UPDATE users SET role_id = (SELECT id FROM roles WHERE code = 'bid-Team' LIMIT 1)
 WHERE role_id = (SELECT id FROM roles WHERE code = 'task_executor' LIMIT 1);
 
 DELETE FROM roles WHERE code = 'task_executor';

@@ -67,10 +67,10 @@ export function useWorkbenchMetrics({
 
   const adminMetrics = computed(() => getRoleMetrics('admin', metricContext.value).map(iconize))
   const biddingMetrics = computed(() => getRoleMetrics('manager', metricContext.value).map(iconize))
-  const staffMetrics = computed(() => getRoleMetrics('bid_specialist', metricContext.value).map(iconize))
+  const staffMetrics = computed(() => getRoleMetrics('bid-Team', metricContext.value).map(iconize))
 
   const metrics = computed(() => {
-    const role = readRef(currentUserRoleRef, 'bid_specialist')
+    const role = readRef(currentUserRoleRef, 'bid-Team')
     return getRoleMetrics(role, metricContext.value).map(iconize)
   })
 

@@ -141,10 +141,10 @@ class RoleBasedFieldFilterTest {
         void fuzzyMatch_contains() {
             List<ResolvedField> fields = List.of(field("f1"));
             List<FieldVisibility> rules = List.of(
-                    FieldVisibility.withRole("f1", "bid_specialist", true, false, false)
+                    FieldVisibility.withRole("f1", "bid-Team", true, false, false)
             );
 
-            List<ResolvedField> result = filter.apply(fields, rules, Set.of("staff", "bid_specialist"));
+            List<ResolvedField> result = filter.apply(fields, rules, Set.of("staff", "bid-Team"));
 
             // exact match → score=10
             assertThat(result.get(0).readonly()).isFalse();
@@ -156,10 +156,10 @@ class RoleBasedFieldFilterTest {
         void fuzzyMatch_patternContainsRole() {
             List<ResolvedField> fields = List.of(field("f1"));
             List<FieldVisibility> rules = List.of(
-                    FieldVisibility.withRole("f1", "specialist", true, false, false)
+                    FieldVisibility.withRole("f1", "Team", true, false, false)
             );
 
-            List<ResolvedField> result = filter.apply(fields, rules, Set.of("bid_specialist"));
+            List<ResolvedField> result = filter.apply(fields, rules, Set.of("bid-Team"));
 
             assertThat(result.get(0).readonly()).isFalse();
         }

@@ -31,7 +31,7 @@ class JobRoleLookupResolverTest {
         properties.setPositionToRoleMappings(List.of(positionMapping, sysRoleMapping));
         OrganizationIntegrationProperties.DepartmentToRoleMapping deptMapping = new OrganizationIntegrationProperties.DepartmentToRoleMapping();
         deptMapping.setDepartmentPattern("投标管理部");
-        deptMapping.setRoleCode("bid_specialist");
+        deptMapping.setRoleCode("bid-Team");
         properties.setDepartmentToRoleMappings(List.of(deptMapping));
         OrganizationIntegrationProperties.PersonToRoleMapping personMapping = new OrganizationIntegrationProperties.PersonToRoleMapping();
         personMapping.setPersonIdentifier("vip@example.com");
@@ -61,7 +61,7 @@ class JobRoleLookupResolverTest {
 
         JobRoleLookupResolver.ResolvedRole result = resolver.resolve(snapshot, Map.of());
 
-        assertThat(result.roleCode()).isEqualTo("bid_specialist");
+        assertThat(result.roleCode()).isEqualTo("bid-Team");
         assertThat(result.source()).isEqualTo(JobRoleLookupResolver.RoleMappingSource.DEPARTMENT);
     }
 
@@ -76,7 +76,7 @@ class JobRoleLookupResolverTest {
 
         JobRoleLookupResolver.ResolvedRole result = resolver.resolve(snapshot, lookupMap);
 
-        assertThat(result.roleCode()).isEqualTo("sales");
+        assertThat(result.roleCode()).isEqualTo("bid-projectleader");
         assertThat(result.source()).isEqualTo(JobRoleLookupResolver.RoleMappingSource.JOB);
     }
 
@@ -91,7 +91,7 @@ class JobRoleLookupResolverTest {
 
         JobRoleLookupResolver.ResolvedRole result = resolver.resolve(snapshot, lookupMap);
 
-        assertThat(result.roleCode()).isEqualTo("sales");
+        assertThat(result.roleCode()).isEqualTo("bid-projectleader");
         assertThat(result.source()).isEqualTo(JobRoleLookupResolver.RoleMappingSource.SYS_ROLE_LIST);
     }
 
@@ -114,7 +114,7 @@ class JobRoleLookupResolverTest {
 
         JobRoleLookupResolver.ResolvedRole result = resolver.resolve(snapshot, Map.of());
 
-        assertThat(result.roleCode()).isEqualTo("bid_specialist");
+        assertThat(result.roleCode()).isEqualTo("bid-Team");
         assertThat(result.source()).isEqualTo(JobRoleLookupResolver.RoleMappingSource.DEPARTMENT);
     }
 

@@ -24,15 +24,15 @@ xiyu:
       #       这样 OSS 岗位变化后对应人员不会丢失权限。
       positionToRoleMappings:
         - positionPattern: "^/bidAdmin$"
-          roleCode: bid_admin
+          roleCode: bidAdmin
         - positionPattern: "^bid-TeamLeader$"
-          roleCode: bid_lead
+          roleCode: bid-TeamLeader
         - positionPattern: "^bid-Team$"
-          roleCode: bid_specialist
+          roleCode: bid-Team
         - positionPattern: "^bid-projectLeader$"
-          roleCode: sales
+          roleCode: bid-projectLeader
         - positionPattern: "^bid-administration$"
-          roleCode: admin_staff
+          roleCode: bid-administration
         # 跨部门协同人员暂未启用，不配映射
         # - positionPattern: "^bid-otherDept$"
         #   roleCode: ???
@@ -40,9 +40,9 @@ xiyu:
       # 按部门映射
       departmentToRoleMappings:
         - departmentPattern: "投标管理部"
-          roleCode: bid_specialist
+          roleCode: bid-Team
         - departmentPattern: "行政部"
-          roleCode: admin_staff
+          roleCode: bid-administration
 
       # 按人员映射（支持邮箱、工号/用户名/姓名，优先级最高）。
       # 由于系统当前只能给用户绑定一个 RoleProfile，同一人命中多条时以第一条为准。

@@ -105,7 +105,7 @@ class ProjectDraftingControllerTest {
     @Test
     void get_accessible_for_bid_other_dept_reviewer() throws Exception {
         UserDetails reviewer = User.withUsername("09118").password("x")
-                .authorities("bid_other_dept", "ROLE_BID_OTHER_DEPT")
+                .authorities("bid-otherDept", "ROLE_BID_OTHERDEPT")
                 .build();
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(reviewer, "x", reviewer.getAuthorities()));
@@ -121,7 +121,7 @@ class ProjectDraftingControllerTest {
     @Test
     void post_approve_accessible_for_bid_other_dept_reviewer() throws Exception {
         UserDetails reviewer = User.withUsername("09118").password("x")
-                .authorities("bid_other_dept", "ROLE_BID_OTHER_DEPT")
+                .authorities("bid-otherDept", "ROLE_BID_OTHERDEPT")
                 .build();
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(reviewer, "x", reviewer.getAuthorities()));
@@ -138,7 +138,7 @@ class ProjectDraftingControllerTest {
     @Test
     void post_reject_accessible_for_bid_other_dept_reviewer() throws Exception {
         UserDetails reviewer = User.withUsername("09118").password("x")
-                .authorities("bid_other_dept", "ROLE_BID_OTHER_DEPT")
+                .authorities("bid-otherDept", "ROLE_BID_OTHERDEPT")
                 .build();
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(reviewer, "x", reviewer.getAuthorities()));

@@ -210,7 +210,7 @@ class AiDeepCapabilityIntegrationTest {
                 .fullName("AI 普通用户")
                 .role(User.Role.MANAGER)
                 .roleProfile(roleProfileRepository.save(RoleProfile.builder()
-                        .code("bid_specialist")
+                        .code("bid-Team")
                         .name("普通员工")
                         .dataScope("self")
                         .build()))

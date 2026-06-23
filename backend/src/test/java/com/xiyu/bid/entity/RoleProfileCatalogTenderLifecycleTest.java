@@ -27,7 +27,7 @@ class RoleProfileCatalogTenderLifecycleTest {
 
     @Test
     void bidSpecialistShouldHaveOwnTaskCapabilities() {
-        assertThat(RoleProfileCatalog.definitionForCode("bid_specialist").menuPermissions())
+        assertThat(RoleProfileCatalog.definitionForCode("bid-Team").menuPermissions())
                 .contains("task.view.own", "task.handle.own");
     }
 }

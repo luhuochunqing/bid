@@ -37,14 +37,14 @@ class BidSubmissionAuthorizationPolicyTest {
 
     @Test
     void canSubmitBid_adminStaff_notInWhitelist_denied_identity() {
-        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("admin_staff", 1L, lead(1L, 2L));
+        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid-administration", 1L, lead(1L, 2L));
         assertThat(d.allowed()).isFalse();
         assertThat(d.reason()).contains("当前角色无权限");
     }
 
     @Test
     void canSubmitBid_bidOtherDept_notInWhitelist_denied_identity() {
-        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid_other_dept", 1L, lead(1L, 2L));
+        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid-otherDept", 1L, lead(1L, 2L));
         assertThat(d.allowed()).isFalse();
     }
 
@@ -60,13 +60,13 @@ class BidSubmissionAuthorizationPolicyTest {
 
     @Test
     void canSubmitBid_bidAdmin_directPermit_noLeadNeeded() {
-        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid_admin", 1L, null);
+        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bidAdmin", 1L, null);
         assertThat(d.allowed()).isTrue();
     }
 
     @Test
     void canSubmitBid_bidLead_directPermit_noLeadNeeded() {
-        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid_lead", 1L, null);
+        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid-TeamLeader", 1L, null);
         assertThat(d.allowed()).isTrue();
     }
 
@@ -81,27 +81,27 @@ class BidSubmissionAuthorizationPolicyTest {
 
     @Test
     void canSubmitBid_sales_asPrimaryLead_allowed() {
-        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("sales", 1L, lead(1L, 2L));
+        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid-projectLeader", 1L, lead(1L, 2L));
         assertThat(d.allowed()).isTrue();
     }
 
     @Test
     void canSubmitBid_sales_asSecondaryLead_denied() {
         // sales 只能匹配 primaryLead，不能匹配 secondaryLead
-        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("sales", 1L, lead(2L, 1L));
+        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid-projectLeader", 1L, lead(2L, 1L));
         assertThat(d.allowed()).isFalse();
         assertThat(d.reason()).contains("不是该项目的投标负责人");
     }
 
     @Test
     void canSubmitBid_sales_notLead_denied() {
-        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("sales", 1L, lead(2L, 3L));
+        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid-projectLeader", 1L, lead(2L, 3L));
         assertThat(d.allowed()).isFalse();
     }
 
     @Test
     void canSubmitBid_sales_nullCurrentUserId_denied() {
-        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("sales", null, lead(1L, 2L));
+        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid-projectLeader", null, lead(1L, 2L));
         assertThat(d.allowed()).isFalse();
     }
 
@@ -109,19 +109,19 @@ class BidSubmissionAuthorizationPolicyTest {
 
     @Test
     void canSubmitBid_bidSpecialist_asSecondaryLead_allowed() {
-        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid_specialist", 1L, lead(2L, 1L));
+        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid-Team", 1L, lead(2L, 1L));
         assertThat(d.allowed()).isTrue();
     }
 
     @Test
     void canSubmitBid_bidSpecialist_asPrimaryLead_allowed() {
-        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid_specialist", 1L, lead(1L, 2L));
+        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid-Team", 1L, lead(1L, 2L));
         assertThat(d.allowed()).isTrue();
     }
 
     @Test
     void canSubmitBid_bidSpecialist_notLead_denied() {
-        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid_specialist", 1L, lead(2L, 3L));
+        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid-Team", 1L, lead(2L, 3L));
         assertThat(d.allowed()).isFalse();
     }
 
@@ -129,7 +129,7 @@ class BidSubmissionAuthorizationPolicyTest {
 
     @Test
     void canSubmitBid_sales_leadNull_denied_withContactAdminMessage() {
-        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("sales", 1L, null);
+        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid-projectLeader", 1L, null);
         assertThat(d.allowed()).isFalse();
         assertThat(d.reason()).contains("尚未分配投标负责人");
         assertThat(d.reason()).contains("联系管理员");
@@ -137,7 +137,7 @@ class BidSubmissionAuthorizationPolicyTest {
 
     @Test
     void canSubmitBid_bidSpecialist_leadNull_denied() {
-        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid_specialist", 1L, null);
+        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid-Team", 1L, null);
         assertThat(d.allowed()).isFalse();
         assertThat(d.reason()).contains("尚未分配投标负责人");
     }
@@ -145,13 +145,13 @@ class BidSubmissionAuthorizationPolicyTest {
     @Test
     void canSubmitBid_sales_primaryLeadNull_denied() {
         // lead 存在但 primaryLeadUserId 为 null
-        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("sales", 1L, lead(null, 2L));
+        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid-projectLeader", 1L, lead(null, 2L));
         assertThat(d.allowed()).isFalse();
     }
 
     @Test
     void canSubmitBid_bidSpecialist_secondaryLeadNull_denied() {
-        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid_specialist", 1L, lead(2L, null));
+        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid-Team", 1L, lead(2L, null));
         assertThat(d.allowed()).isFalse();
     }
 
@@ -167,7 +167,7 @@ class BidSubmissionAuthorizationPolicyTest {
 
     @Test
     void decision_deny_hasCauseAndReason() {
-        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("admin_staff", 1L, null);
+        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid-administration", 1L, null);
         assertThat(d.allowed()).isFalse();
         assertThat(d.cause()).isEqualTo(BidSubmissionAuthorizationPolicy.Decision.Cause.IDENTITY);
         assertThat(d.reason()).isNotBlank();

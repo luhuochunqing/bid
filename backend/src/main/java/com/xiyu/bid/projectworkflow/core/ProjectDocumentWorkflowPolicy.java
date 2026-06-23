@@ -17,7 +17,7 @@ public final class ProjectDocumentWorkflowPolicy {
 
     /**
      * 校验指定角色是否有权删除项目文档。
-     * <p>当前仅系统管理员（{@code admin}）和投标部门管理员（{@code bid_admin}）允许删除。</p>
+     * <p>当前仅系统管理员（{@code admin}）和投标部门管理员（{@code bidAdmin}）允许删除。</p>
      *
      * @param roleCode 当前操作者角色 code（可为 null）
      * @return 授权决策结果
@@ -26,9 +26,9 @@ public final class ProjectDocumentWorkflowPolicy {
         if (roleCode == null) {
             return Decision.deny("当前用户未分配角色，无权删除文档");
         }
-        String normalized = roleCode.trim().toLowerCase();
-        if (RoleProfileCatalog.ADMIN_CODE.equals(normalized)
-                || RoleProfileCatalog.BID_ADMIN_CODE.equals(normalized)) {
+        String normalized = roleCode.trim();
+        if (RoleProfileCatalog.ADMIN_CODE.equalsIgnoreCase(normalized)
+                || RoleProfileCatalog.BID_ADMIN_CODE.equalsIgnoreCase(normalized)) {
             return Decision.permit();
         }
         return Decision.deny("权限不足，仅管理员允许删除文档");

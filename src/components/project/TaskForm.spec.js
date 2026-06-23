@@ -4,12 +4,12 @@ import { defineComponent, nextTick, reactive, ref } from 'vue'
 import TaskForm from './TaskForm.vue'
 
 const getTaskAssignmentCandidatesMock = vi.hoisted(() => vi.fn().mockResolvedValue([
-  { userId: 9, name: '测试用户', deptCode: 'BID', deptName: '投标管理部', roleCode: 'bid_specialist', roleName: '销售' },
+  { userId: 9, name: '测试用户', deptCode: 'BID', deptName: '投标管理部', roleCode: 'bid-Team', roleName: '销售' },
   { userId: 10, name: '张经理', deptCode: 'BID', deptName: '投标管理部', roleCode: 'manager', roleName: '经理' },
 ]))
 
 const defaultAssignmentCandidates = [
-  { userId: 9, name: '测试用户', deptCode: 'BID', deptName: '投标管理部', roleCode: 'bid_specialist', roleName: '销售' },
+  { userId: 9, name: '测试用户', deptCode: 'BID', deptName: '投标管理部', roleCode: 'bid-Team', roleName: '销售' },
   { userId: 10, name: '张经理', deptCode: 'BID', deptName: '投标管理部', roleCode: 'manager', roleName: '经理' },
 ]
 
@@ -37,7 +37,7 @@ vi.mock('@/stores/user', () => ({
       name: '测试用户',
       departmentCode: 'BID',
       departmentName: '投标管理部',
-      roleCode: 'bid_specialist',
+      roleCode: 'bid-Team',
       roleName: '销售',
     },
   }),
@@ -266,7 +266,7 @@ describe('TaskForm', () => {
       assignee: '测试用户',
       department: '投标管理部',
       assigneeDeptCode: 'BID',
-      assigneeRoleCode: 'bid_specialist',
+      assigneeRoleCode: 'bid-Team',
     })
   })
 

@@ -66,7 +66,7 @@ describe('workbench role model', () => {
       label: '负责项目',
       value: '2个',
     })
-    expect(getRoleMetrics('bid_specialist', { completedTodoCount: 4 })[1]).toMatchObject({
+    expect(getRoleMetrics('bid-Team', { completedTodoCount: 4 })[1]).toMatchObject({
       key: 'completedThisWeek',
       label: '已完成',
       value: '4项',

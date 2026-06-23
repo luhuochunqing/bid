@@ -137,7 +137,7 @@ class TenderControllerUpdateTest {
 
         User user = User.builder().id(1L).username("specialist-user").role(User.Role.MANAGER).build();
         User spyUser = spy(user);
-        lenient().when(spyUser.getRoleCode()).thenReturn("bid_specialist");
+        lenient().when(spyUser.getRoleCode()).thenReturn("bid-Team");
         when(authService.resolveUserByUsername("specialist-user")).thenReturn(spyUser);
 
         TenderDTO tenderDTO = TenderDTO.builder().id(100L).creatorId(1L).status(Tender.Status.PENDING_ASSIGNMENT).title("Original").build();
@@ -163,7 +163,7 @@ class TenderControllerUpdateTest {
 
         User user = User.builder().id(1L).username("specialist-user").role(User.Role.MANAGER).build();
         User spyUser = spy(user);
-        lenient().when(spyUser.getRoleCode()).thenReturn("bid_specialist");
+        lenient().when(spyUser.getRoleCode()).thenReturn("bid-Team");
         when(authService.resolveUserByUsername("specialist-user")).thenReturn(spyUser);
 
         TenderDTO tenderDTO = TenderDTO.builder().id(100L).creatorId(1L).status(Tender.Status.TRACKING).build();

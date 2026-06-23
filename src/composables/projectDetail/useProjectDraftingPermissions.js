@@ -23,12 +23,12 @@
  * | 提交投标                |  ✅  |  ✅  |  —   |  —   |
  *
  * 角色代码说明（RoleProfile）：
- * - bid_admin  → 投标管理员（蓝图"投标管理员/组长"）
- * - bid_lead   → 投标组长（蓝图"投标管理员/组长"）
- * - sales      → 投标项目负责人（蓝图"投标负责人/辅助人"）
- * - bid_specialist → 投标专员，可作为投标负责人或辅助人员（蓝图"投标负责人/辅助人"）
+ * - bidAdmin  → 投标管理员（蓝图"投标管理员/组长"）
+ * - bid-TeamLeader   → 投标组长（蓝图"投标管理员/组长"）
+ * - bid-projectLeader      → 投标项目负责人（蓝图"投标负责人/辅助人"）
+ * - bid-Team → 投标专员，可作为投标负责人或辅助人员（蓝图"投标负责人/辅助人"）
  * - admin      → 系统管理员（归入"投标管理员/组长"权限组）
- * - 其他（admin_staff, bid_other_dept, bid_specialist 等）→ 默认可见页面，但无特殊操作权限
+ * - 其他（bid-administration, bid-otherDept, bid-Team 等）→ 默认可见页面，但无特殊操作权限
  */
 
 import { computed } from 'vue'
@@ -39,8 +39,8 @@ import { resolveOpt } from '@/utils/resolveOpt.js'
  * 角色分组：按权限矩阵列合并
  */
 function resolveDraftingRoleGroup(role) {
-  if (role === 'admin' || role === 'bid_admin' || role === 'bid_lead') return 'admin_lead'
-  if (role === 'sales' || role === 'bid_specialist') return 'lead_assist'  // 投标负责人 / 辅助人
+  if (role === 'admin' || role === 'bidAdmin' || role === 'bid-TeamLeader') return 'admin_lead'
+  if (role === 'bid-projectLeader' || role === 'bid-Team') return 'lead_assist'  // 投标负责人 / 辅助人
   return null
 }
 
@@ -150,12 +150,12 @@ export function useProjectDraftingPermissions(opts = {}) {
     const uid = String(currentUserId)
     const primaryLeadId = resolveOpt(opts.primaryLeadId)
     const secondaryLeadId = resolveOpt(opts.secondaryLeadId)
-    // sales（投标项目负责人）仅匹配 primaryLeadId
-    // bid_specialist（投标专员）可作为投标负责人或辅助人员
-    if (role.value === 'sales') {
+    // bid-projectLeader（投标项目负责人）仅匹配 primaryLeadId
+    // bid-Team（投标专员）可作为投标负责人或辅助人员
+    if (role.value === 'bid-projectLeader') {
       return !!(primaryLeadId && String(primaryLeadId) === uid)
     }
-    if (role.value === 'bid_specialist') {
+    if (role.value === 'bid-Team') {
       return !!((primaryLeadId && String(primaryLeadId) === uid)
         || (secondaryLeadId && String(secondaryLeadId) === uid))
     }

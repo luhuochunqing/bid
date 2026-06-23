@@ -1,6 +1,7 @@
 package com.xiyu.bid.resources.service;
 
-import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.BiFunction;
 
 /**
@@ -12,6 +13,10 @@ import java.util.function.BiFunction;
  *
  * <p>Each constant knows the exact SQL fragment it contributes. Unknown roles
  * fall back to the most restrictive scope (staff / team member visibility).</p>
+ *
+ * <p>Role code aliases are aligned with the OSS doc role profile codes and
+ * authority names (e.g. {@code bid-Team}/{@code BID_TEAM} for bid_specialist,
+ * {@code bid-projectLeader}/{@code BID_PROJECTLEADER} for sales).</p>
  */
 enum MarginQueryRole {
 
@@ -25,16 +30,32 @@ enum MarginQueryRole {
 
     private final BiFunction<String, String, String> fragment;
 
+    /** Case-insensitive lookup mapping role strings (old + new codes) to policies. */
+    private static final Map<String, MarginQueryRole> LOOKUP = new HashMap<>();
+    static {
+        for (MarginQueryRole r : values()) {
+            LOOKUP.put(r.name().toLowerCase(), r);
+        }
+        // New role profile code aliases (aligned with OSS doc)
+        LOOKUP.put("bid-team", BID_SPECIALIST);          // bid_specialist → bid-Team
+        LOOKUP.put("bid-projectleader", SALES);           // sales → bid-projectLeader
+        LOOKUP.put("bid-teamleader", BID_LEAD);           // bid_lead → bid-TeamLeader
+        // New authority name aliases (underscore form, aligned with OSS doc)
+        LOOKUP.put("bid_team", BID_SPECIALIST);           // BID_SPECIALIST → BID_TEAM
+        LOOKUP.put("bid_projectleader", SALES);           // SALES → BID_PROJECTLEADER
+        LOOKUP.put("bid_teamleader", BID_LEAD);           // BID_LEAD → BID_TEAMLEADER
+    }
+
     MarginQueryRole(final BiFunction<String, String, String> fragment) {
         this.fragment = fragment;
     }
 
     /** Resolve a runtime role string to a typed policy, defaulting to UNKNOWN. */
     static MarginQueryRole from(final String role) {
-        return Arrays.stream(values())
-                .filter(r -> r.name().equalsIgnoreCase(role))
-                .findFirst()
-                .orElse(UNKNOWN);
+        if (role == null) {
+            return UNKNOWN;
+        }
+        return LOOKUP.getOrDefault(role.toLowerCase(), UNKNOWN);
     }
 
     /** SQL fragment ({@code AND (...)} or empty) for this role. */

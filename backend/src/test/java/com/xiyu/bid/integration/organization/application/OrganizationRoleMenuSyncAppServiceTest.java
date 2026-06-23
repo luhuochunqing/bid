@@ -56,7 +56,7 @@ class OrganizationRoleMenuSyncAppServiceTest {
                 .thenReturn(Optional.of(List.of(
                         node("projectmanager", List.of(node("bidding", List.of())))
                 )));
-        RoleDTO expected = RoleDTO.builder().id(1L).code("bid_lead").build();
+        RoleDTO expected = RoleDTO.builder().id(1L).code("bid-TeamLeader").build();
         when(roleProfileService.updateMenuPermissions(eq(1L), any())).thenReturn(expected);
 
         RoleDTO result = service.syncRoleMenuPermissions(1L, "08402");
@@ -73,7 +73,7 @@ class OrganizationRoleMenuSyncAppServiceTest {
         when(gatewayProvider.getIfAvailable()).thenReturn(gateway);
         when(gateway.fetchUserMenuTree("08402", OrganizationDirectoryLookupContext.empty()))
                 .thenReturn(Optional.of(List.of()));
-        RoleDTO expected = RoleDTO.builder().id(1L).code("bid_lead").build();
+        RoleDTO expected = RoleDTO.builder().id(1L).code("bid-TeamLeader").build();
         when(roleProfileService.updateMenuPermissions(eq(1L), any())).thenReturn(expected);
 
         service.syncRoleMenuPermissions(1L, "08402");

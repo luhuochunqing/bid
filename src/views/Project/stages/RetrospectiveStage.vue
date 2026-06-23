@@ -116,7 +116,7 @@ const emit = defineEmits(["submitted"])
 const userStore = useUserStore()
 const canEdit = computed(() => {
   const role = userStore.userRole || userStore.currentUser?.role || ''
-  return isBidManager(role) || role === 'bid_specialist'
+  return isBidManager(role) || role === 'bid-Team'
 })
 const isApplicable = computed(() => props.resultType === 'WON' || props.resultType === 'LOST')
 const form = reactive({

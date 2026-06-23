@@ -73,7 +73,7 @@ const stubs = {
 
 const baseRole = {
   id: 7,
-  code: 'sales',
+  code: 'bid-projectLeader',
   name: '投标项目负责人',
   description: '立项发起人',
   enabled: true,

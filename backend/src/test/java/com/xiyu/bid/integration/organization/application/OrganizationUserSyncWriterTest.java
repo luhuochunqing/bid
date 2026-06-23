@@ -57,7 +57,7 @@ class OrganizationUserSyncWriterTest {
     @DisplayName("upsert maps external user id without using it as username")
     void upsert_mapsExternalUserIdSeparately() {
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("customer-org", "10001")).thenReturn(Optional.empty());
-        when(roleProfileRepository.findByCodeIgnoreCase("bid_specialist")).thenReturn(Optional.of(role("bid_specialist")));
+        when(roleProfileRepository.findByCodeIgnoreCase("bid-Team")).thenReturn(Optional.of(role("bid-Team")));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         writer.upsert("customer-org", "event-key", new OrganizationUserSnapshot(
@@ -81,7 +81,7 @@ class OrganizationUserSyncWriterTest {
         existing.setRole(User.Role.MANAGER);
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "720518523"))
                 .thenReturn(Optional.of(existing));
-        when(roleProfileRepository.findByCodeIgnoreCase("bid_specialist")).thenReturn(Optional.of(role("bid_specialist")));
+        when(roleProfileRepository.findByCodeIgnoreCase("bid-Team")).thenReturn(Optional.of(role("bid-Team")));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         writer.upsert("oss", "event-key", new OrganizationUserSnapshot(
@@ -221,7 +221,7 @@ class OrganizationUserSyncWriterTest {
         OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();
         OrganizationIntegrationProperties.PersonToRoleMapping mapping = new OrganizationIntegrationProperties.PersonToRoleMapping();
         mapping.setPersonIdentifier("袁思琪");
-        mapping.setRoleCode("bid_lead");
+        mapping.setRoleCode("bid-TeamLeader");
         properties.setPersonToRoleMappings(List.of(mapping));
         PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
         SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
@@ -230,7 +230,7 @@ class OrganizationUserSyncWriterTest {
                 userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver, null);
 
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "100")).thenReturn(Optional.empty());
-        when(roleProfileRepository.findByCodeIgnoreCase("bid_lead")).thenReturn(Optional.of(role("bid_lead")));
+        when(roleProfileRepository.findByCodeIgnoreCase("bid-TeamLeader")).thenReturn(Optional.of(role("bid-TeamLeader")));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         nameMatchingWriter.upsert("oss", "event-key", new OrganizationUserSnapshot(
@@ -240,7 +240,8 @@ class OrganizationUserSyncWriterTest {
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(saved.capture());
-        assertThat(saved.getValue().getRoleCode()).isEqualTo("bid_lead");
+        // User.getRoleCode() 统一返回小写，参见 User#getRoleCode()
+        assertThat(saved.getValue().getRoleCode()).isEqualTo("bid-teamleader");
     }
 
     @Test
@@ -258,7 +259,7 @@ class OrganizationUserSyncWriterTest {
                 userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver, null);
 
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "1001")).thenReturn(Optional.empty());
-        when(roleProfileRepository.findByCodeIgnoreCase("sales")).thenReturn(Optional.of(role("sales")));
+        when(roleProfileRepository.findByCodeIgnoreCase("bid-projectleader")).thenReturn(Optional.of(role("bid-projectleader")));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         projectLeaderWriter.upsert("oss", "event-key", new OrganizationUserSnapshot(
@@ -267,7 +268,7 @@ class OrganizationUserSyncWriterTest {
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(saved.capture());
-        assertThat(saved.getValue().getRoleCode()).isEqualTo("sales");
+        assertThat(saved.getValue().getRoleCode()).isEqualTo("bid-projectleader");
     }
 
     @Test
@@ -285,7 +286,7 @@ class OrganizationUserSyncWriterTest {
                 userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver, null);
 
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "1002")).thenReturn(Optional.empty());
-        when(roleProfileRepository.findByCodeIgnoreCase("sales")).thenReturn(Optional.of(role("sales")));
+        when(roleProfileRepository.findByCodeIgnoreCase("bid-projectleader")).thenReturn(Optional.of(role("bid-projectleader")));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Map<String, OssUserJobAndRoleDto> lookupMap = Map.of(
@@ -298,7 +299,7 @@ class OrganizationUserSyncWriterTest {
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(saved.capture());
-        assertThat(saved.getValue().getRoleCode()).isEqualTo("sales");
+        assertThat(saved.getValue().getRoleCode()).isEqualTo("bid-projectleader");
     }
 
     @Test

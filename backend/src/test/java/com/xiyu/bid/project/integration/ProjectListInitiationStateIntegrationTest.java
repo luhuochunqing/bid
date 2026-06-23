@@ -98,7 +98,7 @@ class ProjectListInitiationStateIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "sales", roles = {"SALES", "MANAGER"})
+    @WithMockUser(username = "sales", roles = {"BID_PROJECTLEADER", "MANAGER"})
     void getProjects_shouldReturnPendingInitiationRowForDraftInitiation() throws Exception {
         mockMvc.perform(get("/api/projects"))
                 .andExpect(status().isOk())
@@ -108,7 +108,7 @@ class ProjectListInitiationStateIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "sales", roles = {"SALES", "MANAGER"})
+    @WithMockUser(username = "sales", roles = {"BID_PROJECTLEADER", "MANAGER"})
     void getProjects_shouldFallbackToInitiatedWhenStageValueIsInvalid() throws Exception {
         Project project = projectRepository.findAll().getFirst();
         project.setStage("PENDING_INITIATION");
@@ -123,7 +123,7 @@ class ProjectListInitiationStateIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "sales", roles = {"SALES", "MANAGER"})
+    @WithMockUser(username = "sales", roles = {"BID_PROJECTLEADER", "MANAGER"})
     void getProjects_shouldReturnPendingInitiationAfterRejection() throws Exception {
         ProjectInitiationDetails details = initiationDetailsRepository.findAll().getFirst();
         details.setReviewStatus("REJECTED");
@@ -137,7 +137,7 @@ class ProjectListInitiationStateIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "sales", roles = {"SALES", "MANAGER"})
+    @WithMockUser(username = "sales", roles = {"BID_PROJECTLEADER", "MANAGER"})
     void getProjects_shouldReturnInitiatedRowAfterSubmission() throws Exception {
         ProjectInitiationDetails details = initiationDetailsRepository.findAll().getFirst();
         details.setReviewStatus("PENDING_REVIEW");

@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * CO-310: 验证 PATCH /api/tenders/{id}/crm-opportunity 端点的 @PreAuthorize 注解
- * 包含 SALES 等业务角色,确保 sales 角色能关联 CRM 商机(不再 403)。
+ * 包含 BID_PROJECTLEADER 等业务角色,确保 bid-projectLeader 角色能关联 CRM 商机(不再 403)。
  *
  * <p>采用反射方式校验注解值,与 {@link TenderControllerPermissionTest} 保持一致。
  * 服务层已有 {@code commandAccessGuard.assertCanUpdateTender} 实例级守卫,
@@ -21,23 +21,23 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TenderControllerLinkCrmOpportunityRoleTest {
 
     @Test
-    @DisplayName("linkCrmOpportunity 注解包含 SALES 角色(R2 修复核心)")
+    @DisplayName("linkCrmOpportunity 注解包含 BID_PROJECTLEADER 角色(R2 修复核心)")
     void linkCrmOpportunity_allowsSalesRole() throws NoSuchMethodException {
         PreAuthorize annotation = getLinkCrmOpportunityAnnotation();
 
-        // 注解值必须包含 SALES,否则 sales 角色会被 403 拦截
-        assertThat(annotation.value()).contains("SALES");
+        // 注解值必须包含 BID_PROJECTLEADER,否则 bid-projectLeader 角色会被 403 拦截
+        assertThat(annotation.value()).contains("BID_PROJECTLEADER");
     }
 
     @Test
-    @DisplayName("linkCrmOpportunity 注解包含 BID_LEAD/BID_ADMIN/BID_SPECIALIST 业务角色")
+    @DisplayName("linkCrmOpportunity 注解包含 BID_TEAMLEADER/BIDADMIN/BID_TEAM 业务角色")
     void linkCrmOpportunity_allowsBusinessRoles() throws NoSuchMethodException {
         PreAuthorize annotation = getLinkCrmOpportunityAnnotation();
 
         // 与 createTender 端点(TenderControllerPermissionTest)对齐,覆盖核心业务角色
-        assertThat(annotation.value()).contains("BID_LEAD");
-        assertThat(annotation.value()).contains("BID_ADMIN");
-        assertThat(annotation.value()).contains("BID_SPECIALIST");
+        assertThat(annotation.value()).contains("BID_TEAMLEADER");
+        assertThat(annotation.value()).contains("BIDADMIN");
+        assertThat(annotation.value()).contains("BID_TEAM");
     }
 
     @Test

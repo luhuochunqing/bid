@@ -95,10 +95,10 @@ class TenderEditPermissionPolicyTest {
                 "ADMIN", User.Role.ADMIN, USER_ID, OTHER_USER_ID, OTHER_USER_ID, Tender.Status.PENDING_ASSIGNMENT))
                 .isTrue();
         assertThat(TenderEditPermissionPolicy.canEdit(
-                "  BID_ADMIN  ", User.Role.ADMIN, USER_ID, OTHER_USER_ID, OTHER_USER_ID, Tender.Status.TRACKING))
+                "  BIDADMIN  ", User.Role.ADMIN, USER_ID, OTHER_USER_ID, OTHER_USER_ID, Tender.Status.TRACKING))
                 .isTrue();
         assertThat(TenderEditPermissionPolicy.canEdit(
-                "Sales", User.Role.MANAGER, USER_ID, CREATOR_ID, PROJECT_MANAGER_ID, Tender.Status.TRACKING))
+                "bid-projectLeader", User.Role.MANAGER, USER_ID, CREATOR_ID, PROJECT_MANAGER_ID, Tender.Status.TRACKING))
                 .isTrue();
     }
 
@@ -119,17 +119,17 @@ class TenderEditPermissionPolicyTest {
     }
 
     @Test
-    @DisplayName("canDelete: sales 非创建人不可删除")
+    @DisplayName("canDelete: bid-projectLeader 非创建人不可删除")
     void canDelete_salesNotCreator_returnsFalse() {
         boolean result = TenderEditPermissionPolicy.canDelete(
-                "sales", User.Role.MANAGER, USER_ID, OTHER_USER_ID, USER_ID, Tender.Status.PENDING_ASSIGNMENT);
+                "bid-projectLeader", User.Role.MANAGER, USER_ID, OTHER_USER_ID, USER_ID, Tender.Status.PENDING_ASSIGNMENT);
         assertThat(result).isFalse();
     }
 
     static Stream<org.junit.jupiter.params.provider.Arguments> editMatrix() {
         Stream.Builder<org.junit.jupiter.params.provider.Arguments> builder = Stream.builder();
 
-        for (String globalRole : new String[]{"admin", "bid_admin", "bid_lead"}) {
+        for (String globalRole : new String[]{"admin", "bidAdmin", "bid-TeamLeader"}) {
             builder.add(args(globalRole, Tender.Status.PENDING_ASSIGNMENT, Ownership.OTHER, true));
             builder.add(args(globalRole, Tender.Status.TRACKING, Ownership.OTHER, true));
             builder.add(args(globalRole, Tender.Status.EVALUATED, Ownership.OTHER, true));
@@ -139,26 +139,26 @@ class TenderEditPermissionPolicyTest {
             builder.add(args(globalRole, Tender.Status.ABANDONED, Ownership.OTHER, false));
         }
 
-        // sales: PENDING_ASSIGNMENT 仅 creator 可编辑
-        builder.add(args("sales", Tender.Status.PENDING_ASSIGNMENT, Ownership.SELF_CREATOR, true));
-        builder.add(args("sales", Tender.Status.PENDING_ASSIGNMENT, Ownership.SELF_PM, false));
-        builder.add(args("sales", Tender.Status.PENDING_ASSIGNMENT, Ownership.OTHER, false));
+        // bid-projectLeader: PENDING_ASSIGNMENT 仅 creator 可编辑
+        builder.add(args("bid-projectLeader", Tender.Status.PENDING_ASSIGNMENT, Ownership.SELF_CREATOR, true));
+        builder.add(args("bid-projectLeader", Tender.Status.PENDING_ASSIGNMENT, Ownership.SELF_PM, false));
+        builder.add(args("bid-projectLeader", Tender.Status.PENDING_ASSIGNMENT, Ownership.OTHER, false));
 
-        // sales: TRACKING/EVALUATED creator 或 projectManager 可编辑
+        // bid-projectLeader: TRACKING/EVALUATED creator 或 projectManager 可编辑
         for (Tender.Status status : new Tender.Status[]{Tender.Status.TRACKING, Tender.Status.EVALUATED}) {
-            builder.add(args("sales", status, Ownership.SELF_CREATOR, true));
-            builder.add(args("sales", status, Ownership.SELF_PM, true));
-            builder.add(args("sales", status, Ownership.OTHER, false));
+            builder.add(args("bid-projectLeader", status, Ownership.SELF_CREATOR, true));
+            builder.add(args("bid-projectLeader", status, Ownership.SELF_PM, true));
+            builder.add(args("bid-projectLeader", status, Ownership.OTHER, false));
         }
 
-        // sales: BIDDING 及之后不可编辑
+        // bid-projectLeader: BIDDING 及之后不可编辑
         for (Tender.Status status : new Tender.Status[]{Tender.Status.BIDDING, Tender.Status.WON, Tender.Status.LOST, Tender.Status.ABANDONED}) {
-            builder.add(args("sales", status, Ownership.SELF_CREATOR, false));
-            builder.add(args("sales", status, Ownership.SELF_PM, false));
+            builder.add(args("bid-projectLeader", status, Ownership.SELF_CREATOR, false));
+            builder.add(args("bid-projectLeader", status, Ownership.SELF_PM, false));
         }
 
         // 无编辑权限角色
-        for (String role : new String[]{"bid_specialist", "admin_staff"}) {
+        for (String role : new String[]{"bid-Team", "bid-administration"}) {
             for (Tender.Status status : Tender.Status.values()) {
                 builder.add(args(role, status, Ownership.SELF_CREATOR, false));
             }
@@ -170,7 +170,7 @@ class TenderEditPermissionPolicyTest {
     static Stream<org.junit.jupiter.params.provider.Arguments> deleteMatrix() {
         Stream.Builder<org.junit.jupiter.params.provider.Arguments> builder = Stream.builder();
 
-        for (String globalRole : new String[]{"admin", "bid_admin", "bid_lead"}) {
+        for (String globalRole : new String[]{"admin", "bidAdmin", "bid-TeamLeader"}) {
             builder.add(args(globalRole, Tender.Status.PENDING_ASSIGNMENT, Ownership.OTHER, true));
             builder.add(args(globalRole, Tender.Status.TRACKING, Ownership.OTHER, true));
             builder.add(args(globalRole, Tender.Status.EVALUATED, Ownership.OTHER, false));
@@ -180,20 +180,20 @@ class TenderEditPermissionPolicyTest {
             builder.add(args(globalRole, Tender.Status.ABANDONED, Ownership.OTHER, false));
         }
 
-        // sales: 自己创建且未评估前可删除
+        // bid-projectLeader: 自己创建且未评估前可删除
         for (Tender.Status status : new Tender.Status[]{Tender.Status.PENDING_ASSIGNMENT, Tender.Status.TRACKING}) {
-            builder.add(args("sales", status, Ownership.SELF_CREATOR, true));
-            builder.add(args("sales", status, Ownership.SELF_PM, false));
-            builder.add(args("sales", status, Ownership.OTHER, false));
+            builder.add(args("bid-projectLeader", status, Ownership.SELF_CREATOR, true));
+            builder.add(args("bid-projectLeader", status, Ownership.SELF_PM, false));
+            builder.add(args("bid-projectLeader", status, Ownership.OTHER, false));
         }
 
-        // sales: EVALUATED 及之后不可删除
+        // bid-projectLeader: EVALUATED 及之后不可删除
         for (Tender.Status status : new Tender.Status[]{Tender.Status.EVALUATED, Tender.Status.BIDDING, Tender.Status.WON, Tender.Status.LOST, Tender.Status.ABANDONED}) {
-            builder.add(args("sales", status, Ownership.SELF_CREATOR, false));
+            builder.add(args("bid-projectLeader", status, Ownership.SELF_CREATOR, false));
         }
 
         // 无删除权限角色
-        for (String role : new String[]{"bid_specialist", "admin_staff"}) {
+        for (String role : new String[]{"bid-Team", "bid-administration"}) {
             for (Tender.Status status : Tender.Status.values()) {
                 builder.add(args(role, status, Ownership.SELF_CREATOR, false));
             }

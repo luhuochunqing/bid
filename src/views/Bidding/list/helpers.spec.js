@@ -43,12 +43,12 @@ describe('resolveUserRole', () => {
   })
 
   it('falls back to userRole property', () => {
-    expect(resolveUserRole({ userRole: 'bid_specialist' })).toBe('bid_specialist')
+    expect(resolveUserRole({ userRole: 'bid-Team' })).toBe('bid-Team')
   })
 
-  it('defaults to bid_specialist when nothing is available', () => {
-    expect(resolveUserRole({})).toBe('bid_specialist')
-    expect(resolveUserRole(null)).toBe('bid_specialist')
+  it('defaults to bid-Team when nothing is available', () => {
+    expect(resolveUserRole({})).toBe('bid-Team')
+    expect(resolveUserRole(null)).toBe('bid-Team')
   })
 })
 
@@ -63,7 +63,7 @@ describe('isAdminRole', () => {
 
   it('returns false for non-admin roles', () => {
     expect(isAdminRole('MANAGER')).toBe(false)
-    expect(isAdminRole('bid_specialist')).toBe(false)
+    expect(isAdminRole('bid-Team')).toBe(false)
     expect(isAdminRole('')).toBe(false)
   })
 

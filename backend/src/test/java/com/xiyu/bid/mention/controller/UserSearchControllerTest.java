@@ -71,7 +71,7 @@ class UserSearchControllerTest {
     @DisplayName("GET /api/users/search returns wrapped data envelope")
     void search_ReturnsWrapped() throws Exception {
         when(searchService.search(eq("ali"), any())).thenReturn(List.of(
-            new UserSearchResult(3L, "Alice", null, "MANAGER", null, "sales")));
+            new UserSearchResult(3L, "Alice", null, "MANAGER", null, "bid-projectLeader")));
 
         mockMvc.perform(get("/api/users/search").param("q", "ali"))
             .andExpect(status().isOk())
@@ -79,7 +79,7 @@ class UserSearchControllerTest {
             .andExpect(jsonPath("$.data[0].id").value(3))
             .andExpect(jsonPath("$.data[0].name").value("Alice"))
             .andExpect(jsonPath("$.data[0].role").value("MANAGER"))
-            .andExpect(jsonPath("$.data[0].roleCode").value("sales"));
+            .andExpect(jsonPath("$.data[0].roleCode").value("bid-projectLeader"));
     }
 
     @Test

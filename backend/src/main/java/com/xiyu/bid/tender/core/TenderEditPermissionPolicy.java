@@ -70,9 +70,9 @@ public final class TenderEditPermissionPolicy {
 
         String normalizedRole = normalizeRole(roleCode);
         return switch (normalizedRole) {
-            case "admin", "bid_admin", "bid_lead" ->
+            case "admin", "bidadmin", "bid-teamleader" ->
                     EDITABLE_STATUSES_FOR_GLOBAL_ROLES.contains(status);
-            case "sales" -> canSalesEdit(userId, creatorId, projectManagerId, status);
+            case "bid-projectleader" -> canSalesEdit(userId, creatorId, projectManagerId, status);
             default -> false;
         };
     }
@@ -101,9 +101,9 @@ public final class TenderEditPermissionPolicy {
 
         String normalizedRole = normalizeRole(roleCode);
         return switch (normalizedRole) {
-            case "admin", "bid_admin", "bid_lead" ->
+            case "admin", "bidadmin", "bid-teamleader" ->
                     DELETABLE_STATUSES_FOR_GLOBAL_ROLES.contains(status);
-            case "sales" ->
+            case "bid-projectleader" ->
                     DELETABLE_STATUSES_FOR_GLOBAL_ROLES.contains(status) && Objects.equals(creatorId, userId);
             default -> false;
         };

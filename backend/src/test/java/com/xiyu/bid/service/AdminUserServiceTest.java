@@ -67,7 +67,7 @@ class AdminUserServiceTest {
     @Test
     void updateOrganization_ShouldResolveDepartmentNameFromDepartmentTree() {
         User user = User.builder().id(7L).username("alice").role(User.Role.MANAGER).enabled(true).build();
-        RoleProfile role = RoleProfile.builder().id(3L).code("bid_specialist").name("投标专员").enabled(true).build();
+        RoleProfile role = RoleProfile.builder().id(3L).code("bid-Team").name("投标专员").enabled(true).build();
         UserOrganizationUpdateRequest request = new UserOrganizationUpdateRequest();
         request.setDepartmentCode("TECH");
         request.setRoleId(3L);
@@ -86,7 +86,7 @@ class AdminUserServiceTest {
     @Test
     void updateOrganization_ShouldRejectUnknownDepartmentForEnabledUser() {
         User user = User.builder().id(7L).username("alice").role(User.Role.MANAGER).enabled(true).build();
-        RoleProfile role = RoleProfile.builder().id(3L).code("bid_specialist").name("投标专员").enabled(true).build();
+        RoleProfile role = RoleProfile.builder().id(3L).code("bid-Team").name("投标专员").enabled(true).build();
         UserOrganizationUpdateRequest request = new UserOrganizationUpdateRequest();
         request.setDepartmentCode("UNKNOWN");
         request.setRoleId(3L);

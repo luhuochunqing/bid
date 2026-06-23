@@ -40,14 +40,14 @@ class UserDetailsServiceImplTest {
 
         assertThat(details.getAuthorities())
                 .extracting("authority")
-                .contains("legal-reviewer", "ROLE_LEGAL-REVIEWER")
+                .contains("legal-reviewer", "ROLE_LEGAL_REVIEWER")
                 .doesNotContain("ROLE_STAFF", "bidding", "project", "knowledge");
     }
 
     @Test
     void bidOtherDeptShouldNotInheritStaffButKeepOwnCodeAndTaskPermissions() {
-        // bid_other_dept（跨部门协同人员）按蓝图不应访问标讯/项目/知识库 → 不继承 ROLE_STAFF；
-        // 但保留 ROLE_BID_OTHER_DEPT + catalog 的 task 权限（任务 API 用 isAuthenticated，仍可用）
+        // bid-otherDept（跨部门协同人员）按蓝图不应访问标讯/项目/知识库 → 不继承 ROLE_STAFF；
+        // 但保留 ROLE_BID_OTHERDEPT + catalog 的 task 权限（任务 API 用 isAuthenticated，仍可用）
         RoleProfile roleProfile = RoleProfile.builder()
                 .code(RoleProfileCatalog.BID_OTHER_DEPT_CODE)
                 .name(RoleProfileCatalog.BID_OTHER_DEPT_CODE)
@@ -68,7 +68,7 @@ class UserDetailsServiceImplTest {
 
         assertThat(details.getAuthorities())
                 .extracting("authority")
-                .contains(RoleProfileCatalog.BID_OTHER_DEPT_CODE, "ROLE_BID_OTHER_DEPT",
+                .contains("bid-otherdept", "ROLE_BID_OTHERDEPT",
                         "task-board", "task.view.own", "task.handle.own")
                 .doesNotContain("ROLE_STAFF", "bidding", "project", "knowledge", "resource");
     }
@@ -116,35 +116,35 @@ class UserDetailsServiceImplTest {
 
         assertThat(details.getAuthorities())
                 .extracting("authority")
-                .contains("custom.perm", "vendor-user", "ROLE_VENDOR-USER")
+                .contains("custom.perm", "vendor-user", "ROLE_VENDOR_USER")
                 .doesNotContain("ROLE_STAFF", "bidding");
     }
 
     @Test
     void bidSpecialistRoleProfileShouldAddBidSpecialistAuthority() {
-        User user = userWithRoleProfile("bid_specialist", User.Role.MANAGER, "bid_specialist");
+        User user = userWithRoleProfile("bid_specialist", User.Role.MANAGER, "bid-Team");
         when(userRepository.findByUsername("bid_specialist")).thenReturn(Optional.of(user));
 
         UserDetails details = userDetailsService.loadUserByUsername("bid_specialist");
 
         assertThat(details.getAuthorities())
                 .extracting("authority")
-                .contains("ROLE_BID_SPECIALIST", "bid_specialist")
+                .contains("ROLE_BID_TEAM", "bid-team")
                 .doesNotContain("ROLE_STAFF");
     }
 
 
     @Test
     void bidAdminShouldHaveRoleAdminCompatibility() {
-        User user = userWithRoleProfile("bid_admin", User.Role.MANAGER, "bid_admin");
+        User user = userWithRoleProfile("bid_admin", User.Role.MANAGER, "bidAdmin");
         when(userRepository.findByUsername("bid_admin")).thenReturn(Optional.of(user));
         UserDetails details = userDetailsService.loadUserByUsername("bid_admin");
-        assertThat(details.getAuthorities()).extracting("authority").contains("ROLE_ADMIN", "ROLE_BID_ADMIN");
+        assertThat(details.getAuthorities()).extracting("authority").contains("ROLE_ADMIN", "ROLE_BIDADMIN");
     }
 
     @Test
     void salesShouldHaveRoleManagerCompatibility() {
-        User user = userWithRoleProfile("sales_user", User.Role.MANAGER, "sales");
+        User user = userWithRoleProfile("sales_user", User.Role.MANAGER, "bid-projectLeader");
         when(userRepository.findByUsername("sales_user")).thenReturn(Optional.of(user));
         UserDetails details = userDetailsService.loadUserByUsername("sales_user");
         assertThat(details.getAuthorities()).extracting("authority").contains("ROLE_MANAGER");
@@ -152,12 +152,12 @@ class UserDetailsServiceImplTest {
 
     @Test
     void bidSpecialistShouldNotHaveRoleStaffCompatibility() {
-        User user = userWithRoleProfile("spec_user", User.Role.MANAGER, "bid_specialist");
+        User user = userWithRoleProfile("spec_user", User.Role.MANAGER, "bid-Team");
         when(userRepository.findByUsername("spec_user")).thenReturn(Optional.of(user));
         UserDetails details = userDetailsService.loadUserByUsername("spec_user");
         assertThat(details.getAuthorities())
                 .extracting("authority")
-                .contains("ROLE_BID_SPECIALIST", "bid_specialist")
+                .contains("ROLE_BID_TEAM", "bid-team")
                 .doesNotContain("ROLE_STAFF");
     }
 
@@ -184,7 +184,7 @@ class UserDetailsServiceImplTest {
         // bid_admin（已注册角色）DB 中有自定义 menuPermissions=["dashboard"]，
         // catalog 中定义的 "bidding", "project" 等不应合并进来
         RoleProfile roleProfile = RoleProfile.builder()
-                .code("bid_admin")
+                .code("bidAdmin")
                 .name("投标部门管理员")
                 .build();
         roleProfile.setMenuPermissions(List.of("dashboard"));
@@ -204,7 +204,7 @@ class UserDetailsServiceImplTest {
         assertThat(details.getAuthorities())
                 .extracting("authority")
                 .contains("dashboard")
-                .contains("bid_admin", "ROLE_BID_ADMIN", "ROLE_ADMIN")
+                .contains("bidadmin", "ROLE_BIDADMIN", "ROLE_ADMIN")
                 // catalog 中有但不含在自定义 DB 列表中 → 不应出现
                 .doesNotContain("bidding", "project", "bidding.manage", "task.review");
     }
@@ -213,7 +213,7 @@ class UserDetailsServiceImplTest {
     void registeredRoleWithoutMenuPermissionsShouldFallbackToCatalog() {
         // bid_admin DB 中 menu_permissions 为 null → 应 fallback 到 catalog 合并
         // userWithRoleProfile 默认不设 menuPermissions → menuPermissionsValue=null
-        User user = userWithRoleProfile("default_bid_admin", User.Role.MANAGER, "bid_admin");
+        User user = userWithRoleProfile("default_bid_admin", User.Role.MANAGER, "bidAdmin");
         when(userRepository.findByUsername("default_bid_admin")).thenReturn(Optional.of(user));
 
         UserDetails details = userDetailsService.loadUserByUsername("default_bid_admin");
@@ -232,7 +232,7 @@ class UserDetailsServiceImplTest {
 
         assertThat(details.getAuthorities())
                 .extracting("authority")
-                .contains("admin_staff", "ROLE_ADMIN_STAFF")
+                .contains("bid-administration", "ROLE_BID_ADMINISTRATION")
                 .doesNotContain("ROLE_STAFF");
     }
 

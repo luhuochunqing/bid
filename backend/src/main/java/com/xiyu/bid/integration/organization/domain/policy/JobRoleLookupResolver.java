@@ -1,5 +1,6 @@
 package com.xiyu.bid.integration.organization.domain.policy;
 
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.integration.organization.application.OrganizationIntegrationProperties;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
 import com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto;
@@ -12,24 +13,13 @@ import java.util.Map;
  * 按 Constitution V 优先级解析用户内部角色码。
  * <p>
  * 优先级：人员级规则 > 部门级规则 > 岗位级规则 > 系统角色列表（sysRoleList）。
- * 所有文本比较大小写不敏感，返回的角色码已转换为小写并经过 OSS 角色码标准化映射。
+ * 所有文本比较大小写不敏感，返回的角色码已经过 OSS 角色码标准化映射。
+ * <p>
+ * OSS code 与内部 code 已对齐（如 bid-TeamLeader、bid-Team、bid-projectLeader 等），
+ * 不再需要 OSS_TO_INTERNAL_ROLE 映射表。唯一例外：bid-SystemAdmin → admin
+ * （投标系统管理员对应系统默认 admin）。
  */
 public class JobRoleLookupResolver {
-
-    /** OSS 侧历史角色码到内部角色码的映射（配置中大小写可能不一致，查找时忽略大小写） */
-    private static final Map<String, String> OSS_TO_INTERNAL_ROLE = Map.of(
-            "/bidAdmin", "bid_admin",
-            "bid-TeamLeader", "bid_lead",
-            "bid-SystemAdmin", "bid_admin",
-            "bid-Team", "bid_specialist",
-            "bid-projectLeader", "sales",
-            "bid-administration", "admin_staff",
-            "bid-otherDept", "bid_other_dept"
-    );
-    private static final Map<String, String> OSS_TO_INTERNAL_ROLE_IGNORE_CASE = OSS_TO_INTERNAL_ROLE.entrySet().stream()
-            .collect(java.util.stream.Collectors.toUnmodifiableMap(
-                    e -> e.getKey().toLowerCase(Locale.ROOT),
-                    Map.Entry::getValue));
 
     /**
      * OSS sysRoleList 中 roleName（中文角色名称）到内部角色码的映射。
@@ -38,13 +28,13 @@ public class JobRoleLookupResolver {
      * 此映射用于将中文角色名称直接映射为内部角色码。
      */
     private static final Map<String, String> OSS_ROLE_NAME_TO_INTERNAL = Map.of(
-            "投标管理员", "bid_admin",
-            "投标组长", "bid_lead",
-            "投标系统管理员", "bid_admin",
-            "投标专员", "bid_specialist",
-            "投标项目负责人", "sales",
-            "行政人员", "admin_staff",
-            "跨部门协同人员", "bid_other_dept"
+            "投标管理员", "bidAdmin",
+            "投标组长", "bid-TeamLeader",
+            "投标系统管理员", "admin",
+            "投标专员", "bid-Team",
+            "投标项目负责人", "bid-projectLeader",
+            "行政人员", "bid-administration",
+            "跨部门协同人员", "bid-otherDept"
     );
     private static final Map<String, String> OSS_ROLE_NAME_TO_INTERNAL_IGNORE_CASE = OSS_ROLE_NAME_TO_INTERNAL.entrySet().stream()
             .collect(java.util.stream.Collectors.toUnmodifiableMap(
@@ -169,17 +159,27 @@ public class JobRoleLookupResolver {
     }
 
     /**
-     * 将 OSS 角色码映射为内部角色码（大小写不敏感）。
+     * 将 OSS 角色码映射为内部角色码。
      * <p>
-     * 例如：bid-projectLeader → sales，/bidAdmin → bid_admin。
-     * 未命中的 OSS 角色码返回 null。
+     * OSS code 与内部 code 已对齐，直接返回输入（仅当是已注册的内部 code 时）。
+     * 唯一例外：bid-SystemAdmin → admin（投标系统管理员对应系统默认 admin）。
+     * <p>
+     * 未命中（null/空白/未注册）返回 null，以便调用方继续尝试 positionToRoleMapper 等后续映射。
      */
     public static String mapOssRoleCodeToInternal(String ossRoleCode) {
         if (ossRoleCode == null || ossRoleCode.isBlank()) {
             return null;
         }
-        String trimmed = ossRoleCode.trim().toLowerCase(Locale.ROOT);
-        return OSS_TO_INTERNAL_ROLE_IGNORE_CASE.get(trimmed);
+        String trimmed = ossRoleCode.trim();
+        // 唯一例外：投标系统管理员对应系统默认 admin
+        if (trimmed.equalsIgnoreCase("bid-SystemAdmin")) {
+            return "admin";
+        }
+        // OSS code = 内部 code，直接返回（仅当是已注册的 code 时）
+        if (RoleProfileCatalog.isRegisteredCode(trimmed)) {
+            return trimmed;
+        }
+        return null;
     }
 
     /**
@@ -217,8 +217,7 @@ public class JobRoleLookupResolver {
         if (roleCode == null || roleCode.isBlank()) {
             return null;
         }
-        String trimmed = roleCode.trim().toLowerCase(Locale.ROOT);
-        return OSS_TO_INTERNAL_ROLE_IGNORE_CASE.getOrDefault(trimmed, trimmed);
+        return roleCode.trim();
     }
 
     public record ResolvedRole(String roleCode, RoleMappingSource source, String matchedText) {

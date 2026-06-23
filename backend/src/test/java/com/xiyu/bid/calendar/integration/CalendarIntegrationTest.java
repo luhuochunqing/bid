@@ -251,7 +251,7 @@ class CalendarIntegrationTest {
     }
 
     @Test
-    @WithMockUser(roles = "BID_SPECIALIST")
+    @WithMockUser(roles = "BID_TEAM")
     @DisplayName("非管理员/经理角色不应该能够创建事件")
     void bidSpecialistShouldNotCreateEvents() throws Exception {
         CalendarEventCreateRequest request = CalendarEventCreateRequest.builder()

@@ -42,7 +42,7 @@ public class ProjectInitiationController {
 
     /** 提交立项：SALES/BID_LEAD（映射到 MANAGER/ADMIN）。 */
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN','SALES')")
+    @PreAuthorize("hasAnyRole('ADMIN','BID_PROJECTLEADER')")
     public ResponseEntity<ApiResponse<InitiationViewDto>> submit(
             @PathVariable Long projectId,
             @Valid @RequestBody InitiationDto req,
@@ -55,7 +55,7 @@ public class ProjectInitiationController {
 
     /** 更新立项：触碰 lockedFields 返回 423。 */
     @PatchMapping
-    @PreAuthorize("hasAnyRole('ADMIN','SALES')")
+    @PreAuthorize("hasAnyRole('ADMIN','BID_PROJECTLEADER')")
     public ResponseEntity<ApiResponse<InitiationViewDto>> update(
             @PathVariable Long projectId,
             @Valid @RequestBody InitiationDto req,
@@ -75,7 +75,7 @@ public class ProjectInitiationController {
 
     /** 审核通过：管理员/组长限定。分配团队后推进 INITIATED→DRAFTING。 */
     @PostMapping("/approve")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_LEAD', 'BID_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN')")
     public ResponseEntity<ApiResponse<Void>> approve(
             @PathVariable Long projectId,
             @Valid @RequestBody InitiationApprovalRequest req,
@@ -87,7 +87,7 @@ public class ProjectInitiationController {
 
     /** 审核驳回：管理员/组长限定。必须填写驳回原因。 */
     @PostMapping("/reject")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_LEAD', 'BID_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN')")
     public ResponseEntity<ApiResponse<Void>> reject(
             @PathVariable Long projectId,
             @Valid @RequestBody InitiationRejectionRequest req,

@@ -159,8 +159,8 @@ const handleSelectionChange = (rows) => {
 
 const userStore = useUserStore()
 const isProjectLeader = computed(() => {
-  // 蓝图：项目负责人（sales）使用精简视图；投标组长（bid_lead）看全量。
-  return userStore.userRole === 'sales'
+  // 蓝图：项目负责人（bid-projectLeader）使用精简视图；投标组长（bid-TeamLeader）看全量。
+  return userStore.userRole === 'bid-projectLeader'
 })
 
 const password = usePasswordReveal((id) => resourcesApi.accounts.getPassword(id))

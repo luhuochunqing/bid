@@ -31,7 +31,7 @@ Pos: src/views/Dashboard/components/ - Dashboard display components
 
 <script setup>
 defineProps({
-  role: { type: String, default: 'bid_specialist' },
+  role: { type: String, default: 'bid-Team' },
   title: { type: String, default: '' },
   subtitle: { type: String, default: '' },
   actions: { type: Array, default: () => [] },

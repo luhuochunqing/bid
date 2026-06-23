@@ -226,51 +226,51 @@ xiyu:
         - admin
       # 经理角色码（小写）
       manager-role-codes:
-        - bid_admin
-        - bid_lead
+        - bidAdmin
+        - bid-TeamLeader
       # 按人员映射：通过工号精确匹配（OSS 同步数据中的 username/jobNumber 字段）
       # 数据源：OSS /subscription/msg/getUserByTimeWindow + 本地 users 表核对
       person-to-role-mappings:
         # 投标管理员 + 投标系统管理员（按人员）：张頔、郑蓉蓉、袁思琪
         - person-identifier: "03595"  # 张頔
-          role-code: bid_admin
+          role-code: bidAdmin
         - person-identifier: "06234"  # 郑蓉蓉
-          role-code: bid_admin
+          role-code: bidAdmin
         - person-identifier: "11484"  # 袁思琪
-          role-code: bid_admin
+          role-code: bidAdmin
         # 投标组长（按人员）：袁思琪（兼任）
         - person-identifier: "11484"  # 袁思琪
-          role-code: bid_lead
+          role-code: bid-TeamLeader
         # 跨部门协同人员（按人员）：陈超、屈晓润、孙磊、忻鼎盛、刘成
         - person-identifier: "04727"  # 陈超（kelvin_chen）
-          role-code: bid_other_dept
+          role-code: bid-otherDept
         - person-identifier: "07440"  # 屈晓润
-          role-code: bid_other_dept
+          role-code: bid-otherDept
         - person-identifier: "06708"  # 孙磊
-          role-code: bid_other_dept
+          role-code: bid-otherDept
         - person-identifier: "03483"  # 忻鼎盛
-          role-code: bid_other_dept
+          role-code: bid-otherDept
         - person-identifier: "03895"  # 刘成（simon_liu）
-          role-code: bid_other_dept
+          role-code: bid-otherDept
       # 按部门映射：通过部门名称正则匹配
       department-to-role-mappings:
         # 投标专员（按部门）：投标管理部
         - department-pattern: ".*投标管理部.*"
-          role-code: bid_specialist
+          role-code: bid-Team
         # 行政人员（按部门）：行政部
         - department-pattern: ".*行政部.*"
-          role-code: admin_staff
+          role-code: bid-administration
       # 按岗位映射：通过岗位名称正则匹配
       position-to-role-mappings:
         # 投标项目负责人（按岗位）：项目经理、项目总监、主管、BD经理
         - position-pattern: ".*项目经理.*"
-          role-code: sales
+          role-code: bid-projectLeader
         - position-pattern: ".*项目总监.*"
-          role-code: sales
+          role-code: bid-projectLeader
         - position-pattern: ".*主管.*"
-          role-code: sales
+          role-code: bid-projectLeader
         - position-pattern: ".*BD经理.*"
-          role-code: sales
+          role-code: bid-projectLeader
       event-sdk:
         enabled: ${XIYU_ORG_EVENT_SDK_ENABLED:false}
         consumer-group: ${XIYU_ORG_EVENT_CONSUMER_GROUP:bms}

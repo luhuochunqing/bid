@@ -214,10 +214,10 @@ const exportDialogVisible = ref(false)
 const attachDialogVisible = ref(false)
 
 const userRole = computed(() => userStore.userRole || (userStore.currentUser && userStore.currentUser.role) || '')
-const canAdd = computed(() => isBidManager(userRole.value) || userRole.value === 'bid_specialist')
+const canAdd = computed(() => isBidManager(userRole.value) || userRole.value === 'bid-Team')
 const canImportExport = computed(() => isBidManager(userRole.value))
-const canBatch = computed(() => isBidManager(userRole.value) || userRole.value === 'bid_specialist')
-const canEdit = computed(() => isBidManager(userRole.value) || userRole.value === 'bid_specialist')
+const canBatch = computed(() => isBidManager(userRole.value) || userRole.value === 'bid-Team')
+const canEdit = computed(() => isBidManager(userRole.value) || userRole.value === 'bid-Team')
 
 function openDetail(row, targetTab = 'basic') {
   if (!row?.id) return

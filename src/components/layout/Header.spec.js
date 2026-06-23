@@ -101,7 +101,7 @@ beforeEach(() => {
 
     userStore.currentUser = {
       name: '张三',
-      role: 'bid_specialist',
+      role: 'bid-Team',
       roleName: '员工',
       menuPermissions: [],
     }

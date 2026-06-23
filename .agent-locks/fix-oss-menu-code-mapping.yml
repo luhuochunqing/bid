@@ -1,9 +1,0 @@
-version: 1
-task: "fix-oss-menu-code-mapping"
-locks:
-  - path: "backend/src/main/resources/application.yml"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/mimo/fix-oss-menu-code-mapping"
-    expiresAt: "2026-06-24T08:10:13.613Z"
-    reason: "fix OSS menu code to permission key mappings"

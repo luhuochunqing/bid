@@ -5,7 +5,7 @@
 
 INSERT INTO roles (code, name, description, is_system, enabled, data_scope, menu_permissions, created_at, updated_at)
 VALUES (
-    'bid_other_dept',
+    'bid-otherDept',
     '跨部门协同人员',
     '项目任务处理',
     true,

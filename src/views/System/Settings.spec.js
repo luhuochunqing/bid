@@ -172,7 +172,7 @@ describe('Settings', () => {
   })
 
   it('does not keep audit log active when a non-privileged role requests the audit tab', () => {
-    const wrapper = mountSettings({ role: 'bid_specialist', query: { tab: 'audit' } })
+    const wrapper = mountSettings({ role: 'bid-Team', query: { tab: 'audit' } })
 
     expect(wrapper.find('.settings-tabs').attributes('data-active')).toBe('departments')
   })
@@ -188,7 +188,7 @@ describe('Settings', () => {
   })
 
   it('redirects task-status-dict query tab away for non-admin', () => {
-    const wrapper = mountSettings({ role: 'bid_specialist', query: { tab: 'task-status-dict' } })
+    const wrapper = mountSettings({ role: 'bid-Team', query: { tab: 'task-status-dict' } })
 
     expect(wrapper.find('.settings-tabs').attributes('data-active')).toBe('departments')
   })
@@ -204,7 +204,7 @@ describe('Settings', () => {
   })
 
   it('redirects task-extended-fields query tab away for non-admin', () => {
-    const wrapper = mountSettings({ role: 'bid_specialist', query: { tab: 'task-extended-fields' } })
+    const wrapper = mountSettings({ role: 'bid-Team', query: { tab: 'task-extended-fields' } })
 
     expect(wrapper.find('.settings-tabs').attributes('data-active')).toBe('departments')
   })

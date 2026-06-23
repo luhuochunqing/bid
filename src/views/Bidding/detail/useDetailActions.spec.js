@@ -87,7 +87,7 @@ describe('useDetailActions', () => {
 
   it('sales on PENDING_ASSIGNMENT sees only viewAnnouncement (no assign/delete)', async () => {
     tenderRef.value = { status: 'PENDING_ASSIGNMENT', originalUrl: 'https://example.com' }
-    roleRef.value = 'sales'
+    roleRef.value = 'bid-projectLeader'
     const wrapper = mount(createHarness(tenderRef, roleRef, loadDetailFn))
     await flushPromises()
     expect(wrapper.vm.headerActions).toHaveLength(1)
@@ -100,7 +100,7 @@ describe('useDetailActions', () => {
 
   it('bottomActions computed 返回正确的按钮列表 (bid_admin on PENDING)', async () => {
     tenderRef.value = { status: 'PENDING_ASSIGNMENT' }
-    roleRef.value = 'bid_admin'
+    roleRef.value = 'bidAdmin'
     const wrapper = mount(createHarness(tenderRef, roleRef, loadDetailFn))
     await flushPromises()
     expect(wrapper.vm.bottomActions).toHaveLength(1)

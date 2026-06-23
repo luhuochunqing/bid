@@ -50,7 +50,7 @@ const roleMetricDefinitions = {
     ['pendingApprovals', '待审批', 'TrendCharts', 'amber', (ctx) => formatCount(ctx.pendingApprovalsTotalCount, '项')],
     ['activeProjects', '进行中项目', 'User', 'green', (ctx) => (ctx.summaryStats ? formatCount(ctx.summaryStats.activeProjects, '个') : '--')],
   ],
-  bid_specialist: [
+  'bid-Team': [
     ['myTasks', '我的任务', 'Document', 'blue', (ctx) => formatCount(ctx.pendingCount, '项')],
     ['completedThisWeek', '已完成', 'Check', 'green', (ctx) => formatCount(ctx.completedTodoCount, '项')],
     ['pendingReviews', '待审批', 'Flag', 'red', (ctx) => formatCount(ctx.pendingApprovalsTotalCount, '项')],
@@ -63,7 +63,7 @@ function makeMetric([key, label, icon, variant, valueGetter], context) {
 }
 
 export function getRoleMetrics(role, context = {}) {
-  const definitions = roleMetricDefinitions[role] || roleMetricDefinitions.bid_specialist
+  const definitions = roleMetricDefinitions[role] || roleMetricDefinitions['bid-Team']
   const safeContext = { summaryStats: null, myProjectCount: 0, pendingCount: 0, pendingApprovalsTotalCount: 0, completedTodoCount: 0, ...context }
   return definitions.map((definition) => makeMetric(definition, safeContext))
 }
@@ -104,7 +104,7 @@ export function getBannerActionConfig(role) {
   ]
 }
 
-export function filterProjectsByRole(projects, { role = 'bid_specialist', userName = '', limit = 3 } = {}) {
+export function filterProjectsByRole(projects, { role = 'bid-Team', userName = '', limit = 3 } = {}) {
   const source = Array.isArray(projects) ? projects : []
   const activeProjects = source.filter(isActiveProject)
   const sorted = [...activeProjects].sort((left, right) => {

@@ -128,7 +128,7 @@ public class PlatformAccountService {
         if (code == null || code.isBlank()) return false;
         String lower = code.toLowerCase(java.util.Locale.ROOT);
         return switch (lower) {
-            case "admin", "bid_lead", "bid_admin" -> true;
+            case "admin", "bid-teamleader", "bidadmin" -> true;
             default -> false;
         };
     }

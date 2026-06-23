@@ -47,7 +47,7 @@ public class ProjectResultController {
      * @return 登记后的结果 DTO
      */
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_LEAD', 'BID_ADMIN', 'BID_SPECIALIST')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_TEAM')")
     public ResponseEntity<ApiResponse<ResultDTO>> register(
             @PathVariable final Long projectId,
             @Valid @RequestBody final ResultRegistrationRequest req,

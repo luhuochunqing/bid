@@ -19,8 +19,8 @@ import java.util.Set;
 @Component
 public class UserRoleResolver {
 
-    private static final List<String> ADMIN_ROLES = List.of("admin", "bid_admin", "ADMIN", "BID_ADMIN");
-    private static final List<String> MANAGER_ROLES = List.of("bid_lead", "sales", "MANAGER", "BID_LEAD", "BID_ADMIN");
+    private static final List<String> ADMIN_ROLES = List.of("admin", "bidAdmin", "ADMIN", "BIDADMIN");
+    private static final List<String> MANAGER_ROLES = List.of("bid-TeamLeader", "bid-projectLeader", "MANAGER", "BID_TEAMLEADER", "BID_PROJECTLEADER");
 
     /**
      * 根据用户名解析用户角色集合。
@@ -50,7 +50,7 @@ public class UserRoleResolver {
 
         // 默认角色
         if (roles.isEmpty()) {
-            roles.add("bid_specialist"); // 默认降级为投标专员
+            roles.add("bid-Team"); // 默认降级为投标专员
         }
 
         return roles;

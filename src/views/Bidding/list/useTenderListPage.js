@@ -52,7 +52,7 @@ export function useTenderListPage() {
   const permissions = computed(() => buildPermissionFlags(userStore.menuPermissions))
   const canManageTenders = computed(() => permissions.value.canManageTenders)
   const canCreateTender = computed(() => permissions.value.canCreateTender)
-  const canBulkImport = computed(() => permissions.value.canCreateTender && userRole.value !== 'sales')
+  const canBulkImport = computed(() => permissions.value.canCreateTender && userRole.value !== 'bid-projectLeader')
   const canDeleteTenders = computed(() => permissions.value.canDeleteTenders)
   const canSyncExternalSource = computed(() => permissions.value.canSyncExternalSource)
   const customerOpportunityCenterEnabled = computed(() => isAdmin.value)

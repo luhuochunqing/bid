@@ -41,7 +41,7 @@ public class TenderTransferController {
      * FR-009 ~ FR-014
      */
     @PostMapping("/{id}/transfer")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_LEAD', 'BID_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN')")
     public ResponseEntity<ApiResponse<TenderTransferResponse>> transferTender(
             @PathVariable Long id,
             @Valid @RequestBody TenderTransferRequest request,

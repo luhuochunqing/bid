@@ -52,16 +52,16 @@ class LocalDevAccountInitializerTest {
                 .thenReturn(Optional.of(RoleProfile.builder().id(2L).code("manager").build()));
         when(roleProfileRepository.findByCodeIgnoreCase("auditor"))
                 .thenReturn(Optional.of(RoleProfile.builder().id(4L).code("auditor").build()));
-        when(roleProfileRepository.findByCodeIgnoreCase("bid_admin"))
-                .thenReturn(Optional.of(RoleProfile.builder().id(5L).code("bid_admin").build()));
-        when(roleProfileRepository.findByCodeIgnoreCase("bid_lead"))
-                .thenReturn(Optional.of(RoleProfile.builder().id(6L).code("bid_lead").build()));
-        when(roleProfileRepository.findByCodeIgnoreCase("sales"))
-                .thenReturn(Optional.of(RoleProfile.builder().id(7L).code("sales").build()));
-        when(roleProfileRepository.findByCodeIgnoreCase("bid_specialist"))
-                .thenReturn(Optional.of(RoleProfile.builder().id(9L).code("bid_specialist").build()));
-        when(roleProfileRepository.findByCodeIgnoreCase("admin_staff"))
-                .thenReturn(Optional.of(RoleProfile.builder().id(10L).code("admin_staff").build()));
+        when(roleProfileRepository.findByCodeIgnoreCase("bidAdmin"))
+                .thenReturn(Optional.of(RoleProfile.builder().id(5L).code("bidAdmin").build()));
+        when(roleProfileRepository.findByCodeIgnoreCase("bid-TeamLeader"))
+                .thenReturn(Optional.of(RoleProfile.builder().id(6L).code("bid-TeamLeader").build()));
+        when(roleProfileRepository.findByCodeIgnoreCase("bid-projectLeader"))
+                .thenReturn(Optional.of(RoleProfile.builder().id(7L).code("bid-projectLeader").build()));
+        when(roleProfileRepository.findByCodeIgnoreCase("bid-Team"))
+                .thenReturn(Optional.of(RoleProfile.builder().id(9L).code("bid-Team").build()));
+        when(roleProfileRepository.findByCodeIgnoreCase("bid-administration"))
+                .thenReturn(Optional.of(RoleProfile.builder().id(10L).code("bid-administration").build()));
         when(passwordEncoder.encode(LocalDevAccountInitializer.LOCAL_TEST_PASSWORD)).thenReturn("encoded-test-password");
 
         initializer.seedLocalAccounts();

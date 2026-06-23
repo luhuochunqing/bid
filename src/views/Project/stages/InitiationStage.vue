@@ -202,11 +202,11 @@ function onPlanGapUploadSuccess(res) { if (res?.data) { form.projectPlanGapFiles
 function onPlanGapFileRemove(file) { const idx = (form.projectPlanGapFiles || []).findIndex(f => f.id === file.id || f.uid === file.uid); if (idx !== -1) { form.projectPlanGapFiles.splice(idx, 1) } } const fieldLocked = ref(false); const submitting = ref(false); const saving = ref(false); const approving = ref(false); const rejecting = ref(false); const aiAssessing = ref(false); const uploadingDoc = ref(false); const errorMsg = ref(''); const reviewStatus = ref('')
 // locked = reviewStatus 推导，不依赖 API 响应（后端 submit 可能未设 locked=true）
 const locked = computed(() => reviewStatus.value === 'PENDING_REVIEW' || reviewStatus.value === 'APPROVED')
-// 审批模式：投标管理员/组长 查看 PENDING_REVIEW 的立项；改用 roleCode 以匹配 bid_admin 等新角色值
+// 审批模式：投标管理员/组长 查看 PENDING_REVIEW 的立项；改用 roleCode 以匹配 bidAdmin 等新角色值
 const userRole = computed(() => userStore.currentUser?.roleCode || userStore.currentUser?.role || '')
 const isApprovalMode = computed(() => isBidManager(userRole.value) && reviewStatus.value === 'PENDING_REVIEW')
-const BID_ASSISTANT_ROLE = 'bid_specialist'
-function roleOptions(users, roleCode) { const list = Array.isArray(users) ? users : []; const filtered = roleCode ? list.filter(u => String(u?.roleCode || u?.role || '').trim().toLowerCase() === roleCode) : list; return filtered.map(u => ({ ...u, _label: u.name + '（' + (u.employeeId || u.employeeNumber || '') + '）- ' + (u.departmentName || u.deptName || '') })) }
+const BID_ASSISTANT_ROLE = 'bid-Team'
+function roleOptions(users, roleCode) { const list = Array.isArray(users) ? users : []; const filtered = roleCode ? list.filter(u => String(u?.roleCode || u?.role || '').trim() === roleCode) : list; return filtered.map(u => ({ ...u, _label: u.name + '（' + (u.employeeId || u.employeeNumber || '') + '）- ' + (u.departmentName || u.deptName || '') })) }
 const leaderOptions = ref([]); const leaderSearching = ref(false); const assistantOptions = ref([]); const assistantSearching = ref(false)
 async function searchLeader(q) { if (!q || q.length < 1) return; leaderSearching.value = true; try { const r = await usersApi.search(q, 15); leaderOptions.value = roleOptions(r) } catch { leaderOptions.value = [] } finally { leaderSearching.value = false } }
 async function searchAssistant(q) { if (!q || q.length < 1) return; assistantSearching.value = true; try { const r = await usersApi.search(q, 15); assistantOptions.value = roleOptions(r, BID_ASSISTANT_ROLE) } catch { assistantOptions.value = [] } finally { assistantSearching.value = false } }

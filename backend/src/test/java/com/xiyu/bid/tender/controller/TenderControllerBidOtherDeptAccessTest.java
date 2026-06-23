@@ -42,13 +42,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 端到端验证 #679/#680 的修复效果：跨部门协同人员（bid_other_dept）登录后不应能访问标讯中心。
+ * 端到端验证 #679/#680 的修复效果：跨部门协同人员（bid-otherDept）登录后不应能访问标讯中心。
  *
- * <p>bid_other_dept 的 authority 集为 {@code {bid_other_dept, ROLE_BID_OTHER_DEPT, task.view.own, task.handle.own}}
+ * <p>bid-otherDept 的 authority 集为 {@code {bid-otherDept, ROLE_BID_OTHERDEPT, task.view.own, task.handle.own}}
  * （{@link com.xiyu.bid.auth.UserDetailsServiceImpl} 已不再向其颁发 ROLE_STAFF）。
- * TenderController 类级与方法级 @PreAuthorize 的白名单均不含 BID_OTHER_DEPT，
- * 故对其所有 endpoint 应返回 403。本测试以 @WithMockUser(roles="BID_OTHER_DEPT")
- * 模拟该 authority 集，作为 regression gate：防止未来 @PreAuthorize 被误改为含 BID_OTHER_DEPT、
+ * TenderController 类级与方法级 @PreAuthorize 的白名单均不含 BID_OTHERDEPT，
+ * 故对其所有 endpoint 应返回 403。本测试以 @WithMockUser(roles="BID_OTHERDEPT")
+ * 模拟该 authority 集，作为 regression gate：防止未来 @PreAuthorize 被误改为含 BID_OTHERDEPT、
  * 或 authoritiesFor 回退到再次颁发 ROLE_STAFF。
  */
 @WebMvcTest(controllers = TenderController.class,
@@ -98,7 +98,7 @@ class TenderControllerBidOtherDeptAccessTest {
 
     @Test
     @DisplayName("跨部门协同人员访问标讯列表 → 403")
-    @WithMockUser(roles = "BID_OTHER_DEPT")
+    @WithMockUser(roles = "BID_OTHERDEPT")
     void listTenders_shouldReturn403_forBidOtherDept() throws Exception {
         mockMvc.perform(get("/api/tenders"))
                 .andExpect(status().isForbidden());
@@ -106,7 +106,7 @@ class TenderControllerBidOtherDeptAccessTest {
 
     @Test
     @DisplayName("跨部门协同人员访问标讯详情 → 403")
-    @WithMockUser(roles = "BID_OTHER_DEPT")
+    @WithMockUser(roles = "BID_OTHERDEPT")
     void getTenderById_shouldReturn403_forBidOtherDept() throws Exception {
         mockMvc.perform(get("/api/tenders/1"))
                 .andExpect(status().isForbidden());
@@ -125,7 +125,7 @@ class TenderControllerBidOtherDeptAccessTest {
 
     @Test
     @DisplayName("CO-317：行政人员不可只读访问标讯列表（listTenders 方法级 @PreAuthorize 仅限 ADMIN/MANAGER）")
-    @WithMockUser(roles = "ADMIN_STAFF")
+    @WithMockUser(roles = "BID_ADMINISTRATION")
     void listTenders_shouldReturn403_forAdminStaff() throws Exception {
         mockMvc.perform(get("/api/tenders"))
                 .andExpect(status().isForbidden());
@@ -133,7 +133,7 @@ class TenderControllerBidOtherDeptAccessTest {
 
     @Test
     @DisplayName("CO-317：行政人员仍不可创建标讯")
-    @WithMockUser(roles = "ADMIN_STAFF")
+    @WithMockUser(roles = "BID_ADMINISTRATION")
     void createTender_shouldReturn403_forAdminStaff() throws Exception {
         mockMvc.perform(post("/api/tenders")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -148,7 +148,7 @@ class TenderControllerBidOtherDeptAccessTest {
 
     @Test
     @DisplayName("CO-317：行政人员仍不可删除标讯")
-    @WithMockUser(roles = "ADMIN_STAFF")
+    @WithMockUser(roles = "BID_ADMINISTRATION")
     void deleteTender_shouldReturn403_forAdminStaff() throws Exception {
         mockMvc.perform(delete("/api/tenders/1"))
                 .andExpect(status().isForbidden());

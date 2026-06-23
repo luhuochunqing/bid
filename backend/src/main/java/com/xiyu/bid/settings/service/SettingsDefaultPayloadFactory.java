@@ -60,7 +60,7 @@ class SettingsDefaultPayloadFactory {
         return List.of(
                 SettingsResponse.RoleSetting.builder().code("admin").name("管理员").description("系统管理员，拥有所有权限").userCount(1).dataScope("all").menuPermissions(List.of("all")).allowedProjects(List.of("pg1", "pg2", "pg3")).allowedDepts(List.of("dept1", "dept2", "dept3", "dept4", "dept5")).build(),
                 SettingsResponse.RoleSetting.builder().code("manager").name("经理").description("部门经理，可查看报表和审批").userCount(1).dataScope("dept").menuPermissions(List.of("dashboard", "project", "ai-center", "analytics")).allowedProjects(List.of("pg1", "pg2", "pg3")).allowedDepts(List.of("dept1", "dept5")).build(),
-                SettingsResponse.RoleSetting.builder().code("sales").name("销售").description("销售人员，可创建项目和查看数据").userCount(5).dataScope("self").menuPermissions(List.of("dashboard", "project", "bidding", "ai-center")).allowedProjects(List.of("pg1")).allowedDepts(List.of("dept1", "dept2")).build(),
+                SettingsResponse.RoleSetting.builder().code("bid-projectLeader").name("销售").description("销售人员，可创建项目和查看数据").userCount(5).dataScope("self").menuPermissions(List.of("dashboard", "project", "bidding", "ai-center")).allowedProjects(List.of("pg1")).allowedDepts(List.of("dept1", "dept2")).build(),
                 SettingsResponse.RoleSetting.builder().code("tech").name("技术人员").description("技术人员，可参与项目任务").userCount(10).dataScope("self").menuPermissions(List.of("dashboard", "project", "ai-center")).allowedProjects(List.of("pg2")).allowedDepts(List.of("dept3")).build()
         );
     }
@@ -76,8 +76,8 @@ class SettingsDefaultPayloadFactory {
 
     private List<SettingsResponse.ProjectGroupScopeSetting> defaultProjectScopes() {
         return List.of(
-                SettingsResponse.ProjectGroupScopeSetting.builder().groupName("央企项目组").manager("张经理").memberCount(5).visibility("members").allowedRoles(List.of("admin", "manager", "sales")).build(),
-                SettingsResponse.ProjectGroupScopeSetting.builder().groupName("政府项目组").manager("李经理").memberCount(3).visibility("members").allowedRoles(List.of("admin", "manager", "sales")).build(),
+                SettingsResponse.ProjectGroupScopeSetting.builder().groupName("央企项目组").manager("张经理").memberCount(5).visibility("members").allowedRoles(List.of("admin", "manager", "bid-projectLeader")).build(),
+                SettingsResponse.ProjectGroupScopeSetting.builder().groupName("政府项目组").manager("李经理").memberCount(3).visibility("members").allowedRoles(List.of("admin", "manager", "bid-projectLeader")).build(),
                 SettingsResponse.ProjectGroupScopeSetting.builder().groupName("军队项目组").manager("王经理").memberCount(2).visibility("manager").allowedRoles(List.of("admin", "manager")).build()
         );
     }

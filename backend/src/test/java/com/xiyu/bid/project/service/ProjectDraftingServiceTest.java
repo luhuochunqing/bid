@@ -201,7 +201,7 @@ class ProjectDraftingServiceTest {
     @Test
     void submitBid_sales_asPrimaryLead_allowed() {
         prepareSubmitBidHappyPath();
-        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "sales")));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid-projectLeader")));
         prepareLeadAssignment(1L, 2L);  // sales 用户=1 是 primaryLead
         var view = service.submitBid(1L, 1L);
         assertThat(view).isNotNull();
@@ -211,7 +211,7 @@ class ProjectDraftingServiceTest {
     void submitBid_sales_asSecondaryLead_denied_403() {
         // sales 只能匹配 primaryLead，不能匹配 secondaryLead
         prepareSubmitBidHappyPath();
-        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "sales")));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid-projectLeader")));
         prepareLeadAssignment(2L, 1L);  // sales 用户=1 是 secondaryLead，不是 primaryLead
         assertThatThrownBy(() -> service.submitBid(1L, 1L))
                 .isInstanceOf(ResponseStatusException.class)
@@ -221,7 +221,7 @@ class ProjectDraftingServiceTest {
     @Test
     void submitBid_initializesEvaluationRecord() {
         prepareSubmitBidHappyPath();
-        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "sales")));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid-projectLeader")));
         prepareLeadAssignment(1L, 2L);
         service.submitBid(1L, 1L);
         verify(projectEvaluationRepository).save(argThat(e ->
@@ -236,7 +236,7 @@ class ProjectDraftingServiceTest {
         prepareSubmitBidHappyPath();
         when(taskRepository.findByProjectId(1L)).thenReturn(List.of(
                 Task.builder().id(1L).projectId(1L).title("a").status(Task.Status.IN_PROGRESS).build()));
-        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "sales")));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid-projectLeader")));
         prepareLeadAssignment(1L, 2L);
 
         var view = service.submitBid(1L, 1L);
@@ -256,7 +256,7 @@ class ProjectDraftingServiceTest {
     @Test
     void submitBid_bidAdmin_allowed() {
         prepareSubmitBidHappyPath();
-        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid_admin")));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bidAdmin")));
         var view = service.submitBid(1L, 1L);
         assertThat(view).isNotNull();
     }
@@ -264,7 +264,7 @@ class ProjectDraftingServiceTest {
     @Test
     void submitBid_bidLead_allowed() {
         prepareSubmitBidHappyPath();
-        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid_lead")));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid-TeamLeader")));
         var view = service.submitBid(1L, 1L);
         assertThat(view).isNotNull();
     }
@@ -281,7 +281,7 @@ class ProjectDraftingServiceTest {
     @Test
     void submitBid_bidSpecialist_asSecondaryLead_allowed() {
         prepareSubmitBidHappyPath();
-        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid_specialist")));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid-Team")));
         prepareLeadAssignment(2L, 1L);  // bid_specialist 用户=1 是 secondaryLead
         var view = service.submitBid(1L, 1L);
         assertThat(view).isNotNull();
@@ -290,7 +290,7 @@ class ProjectDraftingServiceTest {
     @Test
     void submitBid_bidSpecialist_asPrimaryLead_allowed() {
         prepareSubmitBidHappyPath();
-        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid_specialist")));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid-Team")));
         prepareLeadAssignment(1L, 2L);  // bid_specialist 用户=1 是 primaryLead
         var view = service.submitBid(1L, 1L);
         assertThat(view).isNotNull();
@@ -299,7 +299,7 @@ class ProjectDraftingServiceTest {
     @Test
     void submitBid_sales_notLead_denied_403() {
         prepareSubmitBidHappyPath();
-        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "sales")));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid-projectLeader")));
         prepareLeadAssignment(2L, 3L);  // sales 用户=1 既不是 primary 也不是 secondary
         assertThatThrownBy(() -> service.submitBid(1L, 1L))
                 .isInstanceOf(ResponseStatusException.class)
@@ -309,7 +309,7 @@ class ProjectDraftingServiceTest {
     @Test
     void submitBid_sales_noLeadAssignment_denied_403() {
         prepareSubmitBidHappyPath();
-        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "sales")));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid-projectLeader")));
         // prepareSubmitBidHappyPath 默认 lead=empty，sales 无 lead 分配应被拒绝
         assertThatThrownBy(() -> service.submitBid(1L, 1L))
                 .isInstanceOf(ResponseStatusException.class)
@@ -318,7 +318,7 @@ class ProjectDraftingServiceTest {
 
     @Test
     void submitBid_adminStaff_denied_403() {
-        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "admin_staff")));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid-administration")));
         assertThatThrownBy(() -> service.submitBid(1L, 1L))
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting("statusCode").isEqualTo(HttpStatus.FORBIDDEN);

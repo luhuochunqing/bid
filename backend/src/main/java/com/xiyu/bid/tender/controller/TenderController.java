@@ -49,7 +49,7 @@ import java.util.*;
 @RequestMapping("/api/tenders")
 @RequiredArgsConstructor
 @Slf4j
-@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_LEAD', 'BID_ADMIN', 'SALES', 'BID_SPECIALIST', 'ADMIN_STAFF')")
+@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM', 'BID_ADMINISTRATION')")
 public class TenderController {
 
     private final TenderQueryService tenderQueryService;
@@ -93,7 +93,7 @@ public class TenderController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_LEAD', 'BID_ADMIN', 'SALES', 'BID_SPECIALIST')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM')")
     @Idempotent
     @Operation(summary = "创建标讯")
     public ResponseEntity<ApiResponse<TenderDTO>> createTender(@Valid @RequestBody TenderRequest req, @AuthenticationPrincipal UserDetails user) {
@@ -113,7 +113,7 @@ public class TenderController {
     }
 
     @PatchMapping("/{id}/crm-opportunity")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_LEAD', 'BID_ADMIN', 'SALES', 'BID_SPECIALIST')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM')")
     @Operation(summary = "标讯关联CRM商机")
     public ResponseEntity<ApiResponse<TenderDTO>> linkCrmOpportunity(@PathVariable Long id, @Valid @RequestBody TenderCrmLinkRequest req, @AuthenticationPrincipal UserDetails user) {
         rejectDemoMutation(id);
@@ -137,7 +137,7 @@ public class TenderController {
     }
 
     @PostMapping("/{id}/participate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_LEAD', 'BID_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN')")
     @Operation(summary = "投标决策")
     public ResponseEntity<ApiResponse<TenderBidResponse>> participateBid(@PathVariable Long id, @AuthenticationPrincipal UserDetails user) {
         rejectDemoMutation(id);
@@ -146,7 +146,7 @@ public class TenderController {
     }
 
     @PostMapping("/{id}/abandon")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_LEAD', 'BID_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN')")
     @Operation(summary = "弃标决策")
     public ResponseEntity<ApiResponse<TenderBidResponse>> abandonBid(@PathVariable Long id, @Valid @RequestBody TenderAbandonRequest req, @AuthenticationPrincipal UserDetails user) {
         rejectDemoMutation(id);
@@ -155,7 +155,7 @@ public class TenderController {
     }
 
     @GetMapping("/import-template")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_LEAD', 'BID_SPECIALIST', 'ADMIN_STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BID_TEAM', 'BID_ADMINISTRATION')")
     @Operation(summary = "下载标讯批量导入模板")
     public ResponseEntity<byte[]> downloadImportTemplate() {
         byte[] body = tenderImportService.generateTemplate();
@@ -165,7 +165,7 @@ public class TenderController {
     }
 
     @PostMapping(path = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_LEAD', 'BID_SPECIALIST')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BID_TEAM')")
     @Idempotent
     @Operation(summary = "批量导入标讯")
     public ResponseEntity<ApiResponse<com.xiyu.bid.tender.dto.TenderImportResultDTO>> importTenders(@RequestParam("file") MultipartFile file, @AuthenticationPrincipal UserDetails user) {

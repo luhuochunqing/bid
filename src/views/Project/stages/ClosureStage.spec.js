@@ -7,7 +7,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 
 const mockUserStore = {
-  userRole: 'sales',
+  userRole: 'bid-projectLeader',
 }
 
 vi.mock('@/api/modules/projectLifecycle.js', () => ({
@@ -68,7 +68,7 @@ const elStubs = {
 describe('ClosureStage — 蓝图 §3.3.1.6 deposit-return gate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockUserStore.userRole = 'sales'
+    mockUserStore.userRole = 'bid-projectLeader'
   })
 
   it('submit disabled when hasDeposit && status NOT_RETURNED', async () => {
@@ -153,7 +153,7 @@ describe('ClosureStage — 蓝图 §3.3.1.6 deposit-return gate', () => {
   })
 
   it('bid_lead can see approve button when PENDING', async () => {
-    mockUserStore.userRole = 'bid_lead'
+    mockUserStore.userRole = 'bid-TeamLeader'
     projectLifecycleApi.getClosurePreview.mockResolvedValue({
       data: {
         projectId: 1,

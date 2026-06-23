@@ -58,7 +58,7 @@ class RoleProfileServicePersistenceContractTest {
 
     @Test
     void updateRoleShouldStayStableAfterListRefreshTriggersBootstrap() {
-        RoleProfile staff = rolesByCode.get(RoleProfileCatalog.BID_SPECIALIST_CODE);
+        RoleProfile staff = rolesByCode.get(normalize(RoleProfileCatalog.BID_SPECIALIST_CODE));
         UpdateRoleRequest request = new UpdateRoleRequest();
         request.setName("投标专员");
         request.setDescription("管理员自定义员工权限");
@@ -84,7 +84,7 @@ class RoleProfileServicePersistenceContractTest {
 
     @Test
     void resetRoleIsTheExplicitPathForRestoringSeedPermissions() {
-        RoleProfile staff = rolesByCode.get(RoleProfileCatalog.BID_SPECIALIST_CODE);
+        RoleProfile staff = rolesByCode.get(normalize(RoleProfileCatalog.BID_SPECIALIST_CODE));
         staff.setMenuPermissions(List.of("dashboard", "bidding"));
 
         RoleDTO reset = roleProfileService.resetRole(staff.getId());

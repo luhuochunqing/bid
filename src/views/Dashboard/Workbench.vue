@@ -140,7 +140,7 @@ const Icons = markRaw({ Briefcase, Calendar, Check, DataAnalysis, Document, Flag
 const router = useRouter()
 const userStore = useUserStore()
 const biddingStore = useBiddingStore()
-const currentUserRole = computed(() => userStore.currentUser?.role || 'bid_specialist')
+const currentUserRole = computed(() => userStore.currentUser?.role || 'bid-Team')
 const currentUserName = computed(() => userStore.currentUser?.name || '用户')
 const currentUserId = computed(() => userStore.currentUser?.id || null)
 const currentDate = computed(() => formatCurrentDate())

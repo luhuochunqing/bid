@@ -205,7 +205,7 @@ import FavoriteButton from '../list/components/FavoriteButton.vue'
 import './styles/detail-layout.css'
 import { formatUserLabel } from '@/utils/formatUserLabel.js'
 const userStore = useUserStore()
-const userRole = computed(() => userStore.userRole?.toLowerCase() || 'bid_specialist')
+const userRole = computed(() => userStore.userRole || 'bid-Team')
 const {
   tender,
   tenderNotFound,
@@ -251,7 +251,7 @@ const canFillEvaluation = computed(() => {
 const canFillRecommendation = computed(() => {
   if (!tender.value || !userRole.value) return false
   if (tender.value?.evaluationSource === 'BID_SYSTEM_LINK') {
-    return tender.value.status === 'TRACKING' && (isBidManager(userRole.value) || userRole.value === 'sales')
+    return tender.value.status === 'TRACKING' && (isBidManager(userRole.value) || userRole.value === 'bid-projectLeader')
   }
   return canFillEvaluation.value
 })

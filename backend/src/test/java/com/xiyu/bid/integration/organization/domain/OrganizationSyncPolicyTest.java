@@ -74,13 +74,13 @@ class OrganizationSyncPolicyTest {
 
         OrganizationUserSyncPlan plan = OrganizationSyncPolicy.planUserSync(
                 snapshot,
-                "bid_specialist",
+                "bid-Team",
                 Set.of("boss"),
                 Set.of("manager"),
-                "bid_admin"
+                "bidAdmin"
         );
 
-        assertThat(plan.roleCode()).isEqualTo("bid_admin");
+        assertThat(plan.roleCode()).isEqualTo("bidAdmin");
     }
 
     @Test
@@ -93,7 +93,7 @@ class OrganizationSyncPolicyTest {
 
         OrganizationUserSyncPlan plan = OrganizationSyncPolicy.planUserSync(
                 snapshot,
-                "bid_specialist",
+                "bid-Team",
                 Set.of(),
                 Set.of("manager"),
                 null
@@ -112,7 +112,7 @@ class OrganizationSyncPolicyTest {
 
         OrganizationUserSyncPlan plan = OrganizationSyncPolicy.planUserSync(
                 snapshot,
-                "bid_specialist",
+                "bid-Team",
                 Set.of(),
                 Set.of("manager"),
                 ""
@@ -173,9 +173,9 @@ class OrganizationSyncPolicyTest {
                 null,
                 Set.of(),
                 Set.of(),
-                "bid_specialist"
+                "bid-Team"
         );
 
-        assertThat(plan.roleCode()).isEqualTo("bid_specialist");
+        assertThat(plan.roleCode()).isEqualTo("bid-Team");
     }
 }

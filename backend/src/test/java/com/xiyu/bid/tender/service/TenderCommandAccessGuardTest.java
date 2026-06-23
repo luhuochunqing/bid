@@ -66,19 +66,19 @@ class TenderCommandAccessGuardTest {
     }
 
     @Test
-    @DisplayName("assertCanUpdateTender: bid_admin 且状态 TRACKING → 通过")
+    @DisplayName("assertCanUpdateTender: bidAdmin 且状态 TRACKING → 通过")
     void updateTender_bidAdminTracking_allows() {
         Tender tender = tender(Tender.Status.TRACKING, CREATOR_ID, null);
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("bid_admin")));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("bidAdmin")));
 
         assertThatNoException().isThrownBy(() -> guard.assertCanUpdateTender(tender, USER_ID));
     }
 
     @Test
-    @DisplayName("assertCanUpdateTender: bid_lead 且状态 EVALUATED → 通过")
+    @DisplayName("assertCanUpdateTender: bid-TeamLeader 且状态 EVALUATED → 通过")
     void updateTender_bidLeadEvaluated_allows() {
         Tender tender = tender(Tender.Status.EVALUATED, CREATOR_ID, null);
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("bid_lead")));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("bid-TeamLeader")));
 
         assertThatNoException().isThrownBy(() -> guard.assertCanUpdateTender(tender, USER_ID));
     }
@@ -95,28 +95,28 @@ class TenderCommandAccessGuardTest {
     }
 
     @Test
-    @DisplayName("assertCanUpdateTender: sales 是 creator 且状态 PENDING_ASSIGNMENT → 通过")
+    @DisplayName("assertCanUpdateTender: bid-projectLeader 是 creator 且状态 PENDING_ASSIGNMENT → 通过")
     void updateTender_salesCreatorPendingAssignment_allows() {
         Tender tender = tender(Tender.Status.PENDING_ASSIGNMENT, USER_ID, null);
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("sales")));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("bid-projectLeader")));
 
         assertThatNoException().isThrownBy(() -> guard.assertCanUpdateTender(tender, USER_ID));
     }
 
     @Test
-    @DisplayName("assertCanUpdateTender: sales 是 projectManager 且状态 TRACKING → 通过")
+    @DisplayName("assertCanUpdateTender: bid-projectLeader 是 projectManager 且状态 TRACKING → 通过")
     void updateTender_salesProjectManagerTracking_allows() {
         Tender tender = tender(Tender.Status.TRACKING, CREATOR_ID, USER_ID);
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("sales")));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("bid-projectLeader")));
 
         assertThatNoException().isThrownBy(() -> guard.assertCanUpdateTender(tender, USER_ID));
     }
 
     @Test
-    @DisplayName("assertCanUpdateTender: sales 非 creator/projectManager → 拒绝")
+    @DisplayName("assertCanUpdateTender: bid-projectLeader 非 creator/projectManager → 拒绝")
     void updateTender_salesNotOwner_denies() {
         Tender tender = tender(Tender.Status.TRACKING, OTHER_USER_ID, OTHER_USER_ID);
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("sales")));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("bid-projectLeader")));
 
         assertThatThrownBy(() -> guard.assertCanUpdateTender(tender, USER_ID))
                 .isInstanceOf(AccessDeniedException.class)
@@ -144,19 +144,19 @@ class TenderCommandAccessGuardTest {
     }
 
     @Test
-    @DisplayName("assertCanDeleteTender: bid_admin 且状态 TRACKING → 通过")
+    @DisplayName("assertCanDeleteTender: bidAdmin 且状态 TRACKING → 通过")
     void deleteTender_bidAdminTracking_allows() {
         Tender tender = tender(Tender.Status.TRACKING, CREATOR_ID, null);
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("bid_admin")));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("bidAdmin")));
 
         assertThatNoException().isThrownBy(() -> guard.assertCanDeleteTender(tender, USER_ID));
     }
 
     @Test
-    @DisplayName("assertCanDeleteTender: bid_lead 且状态 EVALUATED → 拒绝")
+    @DisplayName("assertCanDeleteTender: bid-TeamLeader 且状态 EVALUATED → 拒绝")
     void deleteTender_bidLeadEvaluated_denies() {
         Tender tender = tender(Tender.Status.EVALUATED, CREATOR_ID, null);
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("bid_lead")));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("bid-TeamLeader")));
 
         assertThatThrownBy(() -> guard.assertCanDeleteTender(tender, USER_ID))
                 .isInstanceOf(AccessDeniedException.class)
@@ -164,19 +164,19 @@ class TenderCommandAccessGuardTest {
     }
 
     @Test
-    @DisplayName("assertCanDeleteTender: sales 是 creator 且状态 PENDING_ASSIGNMENT → 通过")
+    @DisplayName("assertCanDeleteTender: bid-projectLeader 是 creator 且状态 PENDING_ASSIGNMENT → 通过")
     void deleteTender_salesCreatorPendingAssignment_allows() {
         Tender tender = tender(Tender.Status.PENDING_ASSIGNMENT, USER_ID, null);
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("sales")));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("bid-projectLeader")));
 
         assertThatNoException().isThrownBy(() -> guard.assertCanDeleteTender(tender, USER_ID));
     }
 
     @Test
-    @DisplayName("assertCanDeleteTender: sales 非 creator → 拒绝")
+    @DisplayName("assertCanDeleteTender: bid-projectLeader 非 creator → 拒绝")
     void deleteTender_salesNotCreator_denies() {
         Tender tender = tender(Tender.Status.PENDING_ASSIGNMENT, OTHER_USER_ID, null);
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("sales")));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("bid-projectLeader")));
 
         assertThatThrownBy(() -> guard.assertCanDeleteTender(tender, USER_ID))
                 .isInstanceOf(AccessDeniedException.class)

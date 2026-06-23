@@ -21,8 +21,11 @@ export {
   normalizeManualTenderParseResult,
 } from './manualTenderParseHelpers.js'
 
+// Legacy Authority (admin/manager/staff) 大写形式需小写化；新 RoleProfile code 保留原样
+const LEGACY_AUTHORITY_RE = /^(role_)?(admin|manager|staff)$/i
 export function normalizeRole(value) {
-  return String(value || '').trim().toLowerCase().replace(/^role_/, '')
+  const raw = String(value || '').trim()
+  return LEGACY_AUTHORITY_RE.test(raw) ? raw.toLowerCase().replace(/^role_/, '') : raw.replace(/^role_/, '')
 }
 
 export function resolveUserRole(userStore) {
@@ -30,7 +33,7 @@ export function resolveUserRole(userStore) {
     userStore?.currentUser?.roleCode
       || userStore?.currentUser?.role
       || userStore?.userRole
-      || 'bid_specialist',
+      || 'bid-Team',
   )
 }
 

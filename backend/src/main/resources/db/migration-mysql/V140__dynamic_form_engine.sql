@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS form_field_visibility (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键',
     definition_id   BIGINT NOT NULL COMMENT '关联 form_definition_registry.id',
     field_key       VARCHAR(64) NOT NULL COMMENT '字段 key',
-    role_pattern    VARCHAR(64) DEFAULT NULL COMMENT '角色匹配，支持通配符如 bid_specialist，NULL=所有角色',
+    role_pattern    VARCHAR(64) DEFAULT NULL COMMENT '角色匹配，支持通配符如 bid-Team，NULL=所有角色',
     org_id          BIGINT DEFAULT NULL COMMENT 'NULL=所有组织',
     visible         BOOLEAN NOT NULL DEFAULT TRUE COMMENT '是否可见',
     readonly        BOOLEAN NOT NULL DEFAULT FALSE COMMENT '是否只读',

@@ -144,7 +144,7 @@ defineProps({
   getProgressColor: { type: Function, required: true },
   getProjectStatusType: { type: Function, required: true },
   teamMembers: { type: Array, default: () => [] },
-  currentUserRole: { type: String, default: 'bid_specialist' },
+  currentUserRole: { type: String, default: 'bid-Team' },
   teamPerformance: { type: Array, default: () => [] },
   pendingApprovals: { type: Array, default: () => [] },
   approvalsError: { type: String, default: '' },

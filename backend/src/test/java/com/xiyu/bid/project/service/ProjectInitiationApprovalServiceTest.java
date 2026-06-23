@@ -102,7 +102,7 @@ class ProjectInitiationApprovalServiceTest {
                 .thenReturn(Optional.of(Project.builder().id(100L).name("测试项目").build()));
         when(leadRepo.save(any(ProjectLeadAssignment.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
-        when(userRepository.findById(3L)).thenReturn(Optional.of(user(3L, "sales")));
+        when(userRepository.findById(3L)).thenReturn(Optional.of(user(3L, "bid-projectLeader")));
 
         InitiationApprovalRequest req = InitiationApprovalRequest.builder()
                 .primaryLeadUserId(3L)

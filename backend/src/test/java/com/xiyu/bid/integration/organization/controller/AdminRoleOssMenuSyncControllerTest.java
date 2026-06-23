@@ -30,7 +30,7 @@ class AdminRoleOssMenuSyncControllerTest {
     @Test
     @DisplayName("sync endpoint delegates to app service and returns role DTO")
     void syncRoleMenuPermissions_delegatesAndReturnsRole() {
-        RoleDTO role = RoleDTO.builder().id(42L).code("bid_lead").build();
+        RoleDTO role = RoleDTO.builder().id(42L).code("bid-TeamLeader").build();
         when(syncAppService.syncRoleMenuPermissions(42L, "08402")).thenReturn(role);
 
         ResponseEntity<com.xiyu.bid.dto.ApiResponse<RoleDTO>> response =

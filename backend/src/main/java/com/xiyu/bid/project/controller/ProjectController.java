@@ -119,7 +119,7 @@ public class ProjectController {
      * POST /api/projects/import
      */
     @PostMapping("/import")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BIDADMIN')")
     public ResponseEntity<ApiResponse<ProjectDTO>> importProject(@Valid @RequestBody ProjectImportRequest request) {
         log.info("POST /api/projects/import - Importing historical project: {}", request.getName());
         ProjectDTO imported = projectService.importProject(request);

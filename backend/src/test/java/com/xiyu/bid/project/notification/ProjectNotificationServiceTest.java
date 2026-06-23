@@ -88,7 +88,7 @@ class ProjectNotificationServiceTest {
         @DisplayName("sends APPROVAL to admins via sendToAdmins")
         void sendsToAdmins() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(userRepository.findEnabledByRoleProfileCodes(List.of("admin", "bid_admin", "bid_lead")))
+            when(userRepository.findEnabledByRoleProfileCodes(List.of("admin", "bidAdmin", "bid-TeamLeader")))
                     .thenReturn(List.of(user(1L, "张三"), user(2L, "李四")));
 
             svc.notifyInitiationSubmitted(PID, UID);
@@ -310,7 +310,7 @@ class ProjectNotificationServiceTest {
         void sendsToTeamAndAdmins() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
             when(projectMemberRepository.findByProjectId(PID)).thenReturn(List.of(member(1L, "VIEWER")));
-            when(userRepository.findEnabledByRoleProfileCodes(List.of("admin", "bid_admin", "bid_lead")))
+            when(userRepository.findEnabledByRoleProfileCodes(List.of("admin", "bidAdmin", "bid-TeamLeader")))
                     .thenReturn(List.of(user(2L, "管理员")));
 
             svc.notifyAbandonBid(PID, UID);
@@ -340,7 +340,7 @@ class ProjectNotificationServiceTest {
         void sendsToTeamAndAdmins() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
             when(projectMemberRepository.findByProjectId(PID)).thenReturn(List.of(member(1L, "VIEWER")));
-            when(userRepository.findEnabledByRoleProfileCodes(List.of("admin", "bid_admin", "bid_lead")))
+            when(userRepository.findEnabledByRoleProfileCodes(List.of("admin", "bidAdmin", "bid-TeamLeader")))
                     .thenReturn(List.of(user(2L, "管理员")));
 
             svc.notifyResultRegistered(PID, "中标", UID);
@@ -358,7 +358,7 @@ class ProjectNotificationServiceTest {
         @DisplayName("sends APPROVAL to admins")
         void sendsToAdmins() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(userRepository.findEnabledByRoleProfileCodes(List.of("admin", "bid_admin", "bid_lead")))
+            when(userRepository.findEnabledByRoleProfileCodes(List.of("admin", "bidAdmin", "bid-TeamLeader")))
                     .thenReturn(List.of(user(1L, "管理员")));
 
             svc.notifyRetrospectiveSubmitted(PID, UID);
@@ -413,7 +413,7 @@ class ProjectNotificationServiceTest {
         @DisplayName("sends APPROVAL to admins")
         void sendsToAdmins() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(userRepository.findEnabledByRoleProfileCodes(List.of("admin", "bid_admin", "bid_lead")))
+            when(userRepository.findEnabledByRoleProfileCodes(List.of("admin", "bidAdmin", "bid-TeamLeader")))
                     .thenReturn(List.of(user(1L, "管理员")));
 
             svc.notifyClosureSubmitted(PID, UID);

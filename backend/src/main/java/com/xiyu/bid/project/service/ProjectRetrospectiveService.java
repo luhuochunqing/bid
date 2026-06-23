@@ -219,7 +219,7 @@ public class ProjectRetrospectiveService {
     }
 
     private List<Long> getAdminUserIds() {
-        return userRepository.findEnabledByRoleProfileCodes(List.of("admin", "bid_admin", "bid_lead"))
+        return userRepository.findEnabledByRoleProfileCodes(List.of("admin", "bidAdmin", "bid-TeamLeader"))
                 .stream().map(User::getId).collect(java.util.stream.Collectors.toList());
     }
 }

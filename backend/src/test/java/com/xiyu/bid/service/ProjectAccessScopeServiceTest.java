@@ -149,7 +149,7 @@ class ProjectAccessScopeServiceTest {
                 .id(803L)
                 .username("cross-dept-task-assignee")
                 .role(User.Role.MANAGER)
-                .roleProfile(RoleProfile.builder().code("bid_other_dept").name("跨部门协同人员").build())
+                .roleProfile(RoleProfile.builder().code("bid-otherDept").name("跨部门协同人员").build())
                 .enabled(true)
                 .build();
 

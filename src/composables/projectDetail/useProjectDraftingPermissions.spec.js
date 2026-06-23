@@ -11,8 +11,8 @@
 // 从 useProjectDraftingPermissions.js 提取 resolveDraftingRoleGroup
 // 避免需要完整 Pinia store
 function resolveDraftingRoleGroup(role) {
-  if (role === 'admin' || role === 'bid_admin' || role === 'bid_lead') return 'admin_lead'
-  if (role === 'sales' || role === 'bid_specialist') return 'lead_assist'
+  if (role === 'admin' || role === 'bidAdmin' || role === 'bid-TeamLeader') return 'admin_lead'
+  if (role === 'bid-projectLeader' || role === 'bid-Team') return 'lead_assist'
   return null
 }
 
@@ -23,10 +23,10 @@ function computeCanSubmitBid(role, opts = {}) {
   if (group === 'admin_lead') return true
   if (group !== 'lead_assist' || !opts.currentUserId) return false
   const uid = String(opts.currentUserId)
-  if (role === 'sales') {
+  if (role === 'bid-projectLeader') {
     return !!(opts.primaryLeadId && String(opts.primaryLeadId) === uid)
   }
-  if (role === 'bid_specialist') {
+  if (role === 'bid-Team') {
     return !!((opts.primaryLeadId && String(opts.primaryLeadId) === uid)
       || (opts.secondaryLeadId && String(opts.secondaryLeadId) === uid))
   }
@@ -55,12 +55,12 @@ function computeCanDeleteDocument(role) {
 describe('resolveDraftingRoleGroup', () => {
   it.each([
     ['admin', 'admin_lead'],
-    ['bid_admin', 'admin_lead'],
-    ['bid_lead', 'admin_lead'],
-    ['sales', 'lead_assist'],
-    ['bid_specialist', 'lead_assist'],
-    ['admin_staff', null],
-    ['bid_other_dept', null],
+    ['bidAdmin', 'admin_lead'],
+    ['bid-TeamLeader', 'admin_lead'],
+    ['bid-projectLeader', 'lead_assist'],
+    ['bid-Team', 'lead_assist'],
+    ['bid-administration', null],
+    ['bid-otherDept', null],
     ['', null],
     [undefined, null],
     [null, null],
@@ -72,10 +72,10 @@ describe('resolveDraftingRoleGroup', () => {
 describe('canSubmitBid — 提交投标权限（基础角色判断）', () => {
   it.each([
     ['admin', true],
-    ['bid_admin', true],
-    ['bid_lead', true],
-    ['admin_staff', false],
-    ['bid_other_dept', false],
+    ['bidAdmin', true],
+    ['bid-TeamLeader', true],
+    ['bid-administration', false],
+    ['bid-otherDept', false],
     [undefined, false],
     [null, false],
   ])('角色 %s → canSubmitBid=%s', (role, expected) => {
@@ -85,34 +85,34 @@ describe('canSubmitBid — 提交投标权限（基础角色判断）', () => {
 
 describe('canSubmitBid — lead_assist 组项目级负责人匹配', () => {
   it('sales 匹配 primaryLeadId → true', () => {
-    expect(computeCanSubmitBid('sales', { currentUserId: 10, primaryLeadId: 10, secondaryLeadId: 20 })).toBe(true)
+    expect(computeCanSubmitBid('bid-projectLeader', { currentUserId: 10, primaryLeadId: 10, secondaryLeadId: 20 })).toBe(true)
   })
   it('sales 匹配 secondaryLeadId → false（sales 只能匹配 primaryLead）', () => {
-    expect(computeCanSubmitBid('sales', { currentUserId: 20, primaryLeadId: 10, secondaryLeadId: 20 })).toBe(false)
+    expect(computeCanSubmitBid('bid-projectLeader', { currentUserId: 20, primaryLeadId: 10, secondaryLeadId: 20 })).toBe(false)
   })
   it('sales 无 currentUserId → false', () => {
-    expect(computeCanSubmitBid('sales', { primaryLeadId: 10, secondaryLeadId: 20 })).toBe(false)
+    expect(computeCanSubmitBid('bid-projectLeader', { primaryLeadId: 10, secondaryLeadId: 20 })).toBe(false)
   })
   it('sales 都不匹配 → false', () => {
-    expect(computeCanSubmitBid('sales', { currentUserId: 99, primaryLeadId: 10, secondaryLeadId: 20 })).toBe(false)
+    expect(computeCanSubmitBid('bid-projectLeader', { currentUserId: 99, primaryLeadId: 10, secondaryLeadId: 20 })).toBe(false)
   })
   it('sales 无 primaryLeadId → false', () => {
-    expect(computeCanSubmitBid('sales', { currentUserId: 10, secondaryLeadId: 20 })).toBe(false)
+    expect(computeCanSubmitBid('bid-projectLeader', { currentUserId: 10, secondaryLeadId: 20 })).toBe(false)
   })
   it('bid_specialist 匹配 secondaryLeadId → true', () => {
-    expect(computeCanSubmitBid('bid_specialist', { currentUserId: 20, primaryLeadId: 10, secondaryLeadId: 20 })).toBe(true)
+    expect(computeCanSubmitBid('bid-Team', { currentUserId: 20, primaryLeadId: 10, secondaryLeadId: 20 })).toBe(true)
   })
   it('bid_specialist 匹配 primaryLeadId → true（投标专员可作为投标负责人）', () => {
-    expect(computeCanSubmitBid('bid_specialist', { currentUserId: 10, primaryLeadId: 10, secondaryLeadId: 20 })).toBe(true)
+    expect(computeCanSubmitBid('bid-Team', { currentUserId: 10, primaryLeadId: 10, secondaryLeadId: 20 })).toBe(true)
   })
   it('bid_specialist 无 currentUserId → false', () => {
-    expect(computeCanSubmitBid('bid_specialist', { primaryLeadId: 10, secondaryLeadId: 20 })).toBe(false)
+    expect(computeCanSubmitBid('bid-Team', { primaryLeadId: 10, secondaryLeadId: 20 })).toBe(false)
   })
   it('bid_specialist 都不匹配 → false', () => {
-    expect(computeCanSubmitBid('bid_specialist', { currentUserId: 99, primaryLeadId: 10, secondaryLeadId: 20 })).toBe(false)
+    expect(computeCanSubmitBid('bid-Team', { currentUserId: 99, primaryLeadId: 10, secondaryLeadId: 20 })).toBe(false)
   })
   it('bid_specialist 仅 primaryLeadId 不匹配且无 secondaryLeadId → false', () => {
-    expect(computeCanSubmitBid('bid_specialist', { currentUserId: 20, primaryLeadId: 10 })).toBe(false)
+    expect(computeCanSubmitBid('bid-Team', { currentUserId: 20, primaryLeadId: 10 })).toBe(false)
   })
 })
 
@@ -140,12 +140,12 @@ describe('canReviewBid — 审核投标权限（基于指派审核人，与角�
 describe('canSubmitBidForReview — 提交投标审核权限', () => {
   it.each([
     ['admin', true],
-    ['bid_admin', true],
-    ['bid_lead', true],
-    ['sales', true],
-    ['bid_specialist', true],
-    ['admin_staff', false],
-    ['bid_other_dept', false],
+    ['bidAdmin', true],
+    ['bid-TeamLeader', true],
+    ['bid-projectLeader', true],
+    ['bid-Team', true],
+    ['bid-administration', false],
+    ['bid-otherDept', false],
   ])('角色 %s → canSubmitBidForReview=%s', (role, expected) => {
     expect(computeCanSubmitBidForReview(role)).toBe(expected)
   })
@@ -154,12 +154,12 @@ describe('canSubmitBidForReview — 提交投标审核权限', () => {
 describe('canDeleteDocument — 删除文档权限（仅 admin_lead）', () => {
   it.each([
     ['admin', true],
-    ['bid_admin', true],
-    ['bid_lead', true],
-    ['sales', false],
-    ['bid_specialist', false],
-    ['admin_staff', false],
-    ['bid_other_dept', false],
+    ['bidAdmin', true],
+    ['bid-TeamLeader', true],
+    ['bid-projectLeader', false],
+    ['bid-Team', false],
+    ['bid-administration', false],
+    ['bid-otherDept', false],
   ])('角色 %s → canDeleteDocument=%s', (role, expected) => {
     expect(computeCanDeleteDocument(role)).toBe(expected)
   })

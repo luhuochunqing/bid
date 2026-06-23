@@ -83,10 +83,12 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             authorities.add("ROLE_" + legacyRole.name());
         }
 
-        // 2. Role code as authority (e.g., bid_admin) + 新旧兼容映射
+        // 2. Role code as authority (e.g., bidAdmin) + 新旧兼容映射
         if (roleCode != null && !roleCode.isBlank()) {
             authorities.add(roleCode);
-            authorities.add("ROLE_" + roleCode.toUpperCase(Locale.ROOT));
+            // Spring Security authority 生成规则：连字符转下划线再大写
+            // bid-TeamLeader → ROLE_BID_TEAMLEADER，bidAdmin → ROLE_BIDADMIN
+            authorities.add("ROLE_" + roleCode.replace("-", "_").toUpperCase(Locale.ROOT));
             // 新角色 (roleCode) → 旧角色 (User.Role) 兼容层代理：
             User.Role compatLegacy = RoleProfileCatalog.legacyRoleForCode(roleCode);
             if (compatLegacy != null && !skipLegacyCompat) {

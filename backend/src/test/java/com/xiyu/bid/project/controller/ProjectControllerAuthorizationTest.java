@@ -64,8 +64,8 @@ class ProjectControllerAuthorizationTest {
         assertThat(preAuthorize).isNotNull();
         assertThat(preAuthorize.value())
                 .contains("'ADMIN'")
-                .contains("'BID_ADMIN'")
-                .contains("'BID_LEAD'")
-                .contains("'BID_SPECIALIST'");
+                .contains("'BIDADMIN'")
+                .contains("'BID_TEAMLEADER'")
+                .contains("'BID_TEAM'");
     }
 }

@@ -16,7 +16,7 @@ class TenderControllerPermissionTest {
                 .getMethod("createTender", TenderRequest.class, UserDetails.class)
                 .getAnnotation(PreAuthorize.class);
 
-        assertThat(annotation.value()).isEqualTo("hasAnyRole('ADMIN', 'BID_LEAD', 'BID_ADMIN', 'SALES', 'BID_SPECIALIST')");
+        assertThat(annotation.value()).isEqualTo("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM')");
     }
 
     @Test
@@ -43,6 +43,6 @@ class TenderControllerPermissionTest {
                 .getMethod("transferTender", Long.class, TenderTransferRequest.class, UserDetails.class)
                 .getAnnotation(PreAuthorize.class);
 
-        assertThat(annotation.value()).isEqualTo("hasAnyRole('ADMIN', 'BID_LEAD', 'BID_ADMIN')");
+        assertThat(annotation.value()).isEqualTo("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN')");
     }
 }

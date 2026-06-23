@@ -68,7 +68,7 @@ class ProjectControllerAccessIntegrationTest extends AbstractProjectControllerIn
     }
 
     @Test
-    @WithMockUser(username = "cross-dept-assignee", roles = {"BID_OTHER_DEPT"})
+    @WithMockUser(username = "cross-dept-assignee", roles = {"BID_OTHERDEPT"})
     void getProjectById_ShouldAllowBidOtherDeptAssigneeForAssignedTaskProject() throws Exception {
         mockMvc.perform(get("/api/projects/{id}", visibleProjectId))
                 .andExpect(status().isOk())
@@ -77,7 +77,7 @@ class ProjectControllerAccessIntegrationTest extends AbstractProjectControllerIn
     }
 
     @Test
-    @WithMockUser(username = "cross-dept-assignee", roles = {"BID_OTHER_DEPT"})
+    @WithMockUser(username = "cross-dept-assignee", roles = {"BID_OTHERDEPT"})
     void getProjectById_ShouldForbidBidOtherDeptAssigneeForUnassignedProject() throws Exception {
         mockMvc.perform(get("/api/projects/{id}", restrictedProjectId))
                 .andExpect(status().isForbidden())

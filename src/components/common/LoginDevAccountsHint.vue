@@ -22,11 +22,11 @@ const DEV_ACCOUNTS = [
   '管理员: admin / XiyuAdmin2026!',
   '审计员: auditor / Test@123',
   '经理: manager / Test@123',
-  '投标部门管理员: bid_admin / Test@123',
-  '投标组长: bid_lead / Test@123',
-  '项目负责人: sales / Test@123',
-  '投标专员: bid_specialist / Test@123',
-  '行政人员: admin_staff / Test@123'
+  '投标部门管理员: bidAdmin / Test@123',
+  '投标组长: bid-TeamLeader / Test@123',
+  '项目负责人: bid-projectLeader / Test@123',
+  '投标专员: bid-Team / Test@123',
+  '行政人员: bid-administration / Test@123'
 ]
 const DEV_HINT = '本地测试账号已按角色权限划分，方便实际测试'
 </script>

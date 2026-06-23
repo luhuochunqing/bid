@@ -32,8 +32,8 @@ class RoleProfileCatalogTest {
     void isRegisteredCodeShouldRecognizeCatalogCodesOnly() {
         assertThat(RoleProfileCatalog.isRegisteredCode(RoleProfileCatalog.ADMIN_STAFF_CODE)).isTrue();
         assertThat(RoleProfileCatalog.isRegisteredCode(RoleProfileCatalog.BID_OTHER_DEPT_CODE)).isTrue();
-        assertThat(RoleProfileCatalog.isRegisteredCode("BID_ADMIN")).isTrue();
-        assertThat(RoleProfileCatalog.isRegisteredCode("  bid_lead  ")).isTrue();
+        assertThat(RoleProfileCatalog.isRegisteredCode("BIDADMIN")).isTrue();
+        assertThat(RoleProfileCatalog.isRegisteredCode("  bid-TeamLeader  ")).isTrue();
         assertThat(RoleProfileCatalog.isRegisteredCode("legal-reviewer")).isFalse();
         assertThat(RoleProfileCatalog.isRegisteredCode("unknown_role")).isFalse();
         assertThat(RoleProfileCatalog.isRegisteredCode(null)).isFalse();
@@ -72,8 +72,8 @@ class RoleProfileCatalogTest {
     @DisplayName("OSS_TO_INTERNAL_ROLE 所有映射目标都是已知角色 code")
     void ossMappingTargetsShouldBeKnownRoles() {
         var targets = java.util.Set.of(
-                "bid_admin", "bid_lead", "admin",
-                "bid_specialist", "sales", "admin_staff", "bid_other_dept");
+                "bidAdmin", "bid-TeamLeader", "admin",
+                "bid-Team", "bid-projectLeader", "bid-administration", "bid-otherDept");
         for (String target : targets) {
             boolean known = RoleProfileCatalog.isRegisteredCode(target)
                     || "admin".equals(target) || "manager".equals(target);

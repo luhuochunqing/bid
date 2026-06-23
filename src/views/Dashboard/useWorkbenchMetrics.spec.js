@@ -49,7 +49,7 @@ describe('useWorkbenchMetrics', () => {
     expect(metrics.metrics.value.map((item) => item.value)).toContain('5项')
     expect(metrics.metrics.value.map((item) => item.value)).toContain('2项')
 
-    role.value = 'bid_specialist'
+    role.value = 'bid-Team'
     expect(metrics.metrics.value.map((item) => item.value)).toContain('7项')
     expect(metrics.metrics.value.map((item) => item.value)).toContain('4个')
   })

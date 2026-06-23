@@ -9,8 +9,8 @@ import { isBidManager, isBidAdminOrSenior } from '@/utils/permission'
 
 export function useQualificationPermissionMatrix(userStore) {
   const currentRoleCode = computed(() => userStore?.currentUser?.roleCode || userStore?.currentUser?.role || userStore?.userRole || '')
-  const canManageQualification = computed(() => isBidManager(currentRoleCode.value) || currentRoleCode.value === 'admin_staff')
-  const canViewQualification = computed(() => isBidManager(currentRoleCode.value) || ['admin_staff', 'bid_specialist'].includes(currentRoleCode.value))
+  const canManageQualification = computed(() => isBidManager(currentRoleCode.value) || currentRoleCode.value === 'bid-administration')
+  const canViewQualification = computed(() => isBidManager(currentRoleCode.value) || ['bid-administration', 'bid-Team'].includes(currentRoleCode.value))
   const canAdminQualificationAlert = computed(() => isBidAdminOrSenior(currentRoleCode.value))
 
   return {

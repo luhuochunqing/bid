@@ -35,7 +35,7 @@ class TenderPermissionIntegrationTest {
 
     @Test
     @DisplayName("PUT /api/tenders/{id}: bid_specialist 应返回 403")
-    @WithMockUser(username = "bid-specialist", roles = {"BID_SPECIALIST"})
+    @WithMockUser(username = "bid-specialist", roles = {"BID_TEAM"})
     void updateTender_byBidSpecialist_returnsForbidden() throws Exception {
         mockMvc.perform(put("/api/tenders/1")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -65,7 +65,7 @@ class TenderPermissionIntegrationTest {
 
     @Test
     @DisplayName("POST /api/tenders/{id}/transfer: bid_specialist 应返回 403")
-    @WithMockUser(username = "bid-specialist", roles = {"BID_SPECIALIST"})
+    @WithMockUser(username = "bid-specialist", roles = {"BID_TEAM"})
     void transferTender_byBidSpecialist_returnsForbidden() throws Exception {
         mockMvc.perform(post("/api/tenders/1/transfer")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -79,7 +79,7 @@ class TenderPermissionIntegrationTest {
 
     @Test
     @DisplayName("POST /api/tenders/{id}/transfer: sales 应返回 403")
-    @WithMockUser(username = "sales", roles = {"SALES"})
+    @WithMockUser(username = "sales", roles = {"BID_PROJECTLEADER"})
     void transferTender_bySales_returnsForbidden() throws Exception {
         mockMvc.perform(post("/api/tenders/1/transfer")
                         .contentType(MediaType.APPLICATION_JSON)

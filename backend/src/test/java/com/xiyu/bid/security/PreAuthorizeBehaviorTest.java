@@ -72,36 +72,36 @@ class PreAuthorizeBehaviorTest {
             UserDetails manager = User.withUsername("manager")
                 .password("{noop}pass").roles("MANAGER").build();
             UserDetails bidspecialist = User.withUsername("bidspecialist")
-                .password("{noop}pass").roles("BID_SPECIALIST").build();
+                .password("{noop}pass").roles("BID_TEAM").build();
             UserDetails bidLead = User.withUsername("bidlead")
-                .password("{noop}pass").roles("BID_LEAD").build();
+                .password("{noop}pass").roles("BID_TEAMLEADER").build();
             UserDetails bidSenior = User.withUsername("bidsenior")
-                .password("{noop}pass").roles("BID_ADMIN").build();
+                .password("{noop}pass").roles("BIDADMIN").build();
             return new InMemoryUserDetailsManager(admin, manager, bidspecialist, bidLead, bidSenior);
         }
     }
 
     // ==================== Controller A：类级+方法级 不同角色 ====================
-    // 类级: ADMIN/MANAGER/BID_SPECIALIST
-    // 方法级: ADMIN/BID_LEAD/BID_ADMIN
+    // 类级: ADMIN/MANAGER/BID_TEAM
+    // 方法级: ADMIN/BID_TEAMLEADER/BIDADMIN
 
     @RestController
     @RequestMapping("/test/a")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_SPECIALIST')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAM')")
     static class ControllerA {
         @GetMapping
-        @PreAuthorize("hasAnyRole('ADMIN', 'BID_LEAD', 'BID_ADMIN')")
+        @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN')")
         public String endpoint() {
             return "A-ok";
         }
     }
 
     // ==================== Controller B：仅类级 ====================
-    // 类级: ADMIN/MANAGER/BID_SPECIALIST
+    // 类级: ADMIN/MANAGER/BID_TEAM
 
     @RestController
     @RequestMapping("/test/b")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_SPECIALIST')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAM')")
     static class ControllerB {
         @GetMapping
         public String endpoint() {
@@ -110,44 +110,44 @@ class PreAuthorizeBehaviorTest {
     }
 
     // ==================== Controller C：仅方法级 ====================
-    // 方法级: ADMIN/BID_LEAD/BID_ADMIN
+    // 方法级: ADMIN/BID_TEAMLEADER/BIDADMIN
 
     @RestController
     @RequestMapping("/test/c")
     static class ControllerC {
         @GetMapping
-        @PreAuthorize("hasAnyRole('ADMIN', 'BID_LEAD', 'BID_ADMIN')")
+        @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN')")
         public String endpoint() {
             return "C-ok";
         }
     }
 
     // ==================== Controller D：类级比方法级更严格 ====================
-    // 类级: ADMIN/MANAGER（没有 BID_SPECIALIST）
-    // 方法级: ADMIN/BID_SPECIALIST/BID_LEAD
+    // 类级: ADMIN/MANAGER（没有 BID_TEAM）
+    // 方法级: ADMIN/BID_TEAM/BID_TEAMLEADER
 
     @RestController
     @RequestMapping("/test/d")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     static class ControllerD {
         @GetMapping
-        @PreAuthorize("hasAnyRole('ADMIN', 'BID_SPECIALIST', 'BID_LEAD')")
+        @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAM', 'BID_TEAMLEADER')")
         public String endpoint() {
             return "D-ok";
         }
     }
 
     // ==================== Controller E：混合方法（有/无方法级注解） ====================
-    // 类级: ADMIN/MANAGER/BID_SPECIALIST
-    // endpoint1: 有方法级 ADMIN/BID_LEAD
+    // 类级: ADMIN/MANAGER/BID_TEAM
+    // endpoint1: 有方法级 ADMIN/BID_TEAMLEADER
     // endpoint2: 无方法级（使用类级默认）
 
     @RestController
     @RequestMapping("/test/e")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_SPECIALIST')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAM')")
     static class ControllerE {
         @GetMapping("/with-method")
-        @PreAuthorize("hasAnyRole('ADMIN', 'BID_LEAD')")
+        @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER')")
         public String withMethodLevel() {
             return "E-withMethod";
         }
@@ -179,23 +179,23 @@ class PreAuthorizeBehaviorTest {
     }
 
     @Test
-    @DisplayName("A: BID_LEAD 类级失败，方法级通过 → 200（方法级覆盖类级）")
+    @DisplayName("A: BID_TEAMLEADER 类级失败，方法级通过 → 200（方法级覆盖类级）")
     void A_bidLead() throws Exception {
-        mockMvc.perform(get("/test/a").with(user("bidlead").roles("BID_LEAD")))
+        mockMvc.perform(get("/test/a").with(user("bidlead").roles("BID_TEAMLEADER")))
             .andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("A: BID_SPECIALIST 类级通过，方法级失败 → 403（方法级覆盖）")
+    @DisplayName("A: BID_TEAM 类级通过，方法级失败 → 403（方法级覆盖）")
     void A_bidspecialist() throws Exception {
-        mockMvc.perform(get("/test/a").with(user("bidspecialist").roles("BID_SPECIALIST")))
+        mockMvc.perform(get("/test/a").with(user("bidspecialist").roles("BID_TEAM")))
             .andExpect(status().isForbidden());
     }
 
     // ==================== 场景 B：仅类级 ====================
 
     @Test
-    @DisplayName("B: ADMIN/MANAGER/BID_SPECIALIST 可访问")
+    @DisplayName("B: ADMIN/MANAGER/BID_TEAM 可访问")
     void B_admin() throws Exception {
         mockMvc.perform(get("/test/b").with(user("admin").roles("ADMIN")))
             .andExpect(status().isOk());
@@ -209,21 +209,21 @@ class PreAuthorizeBehaviorTest {
 
     @Test
     void B_bidspecialist() throws Exception {
-        mockMvc.perform(get("/test/b").with(user("bidspecialist").roles("BID_SPECIALIST")))
+        mockMvc.perform(get("/test/b").with(user("bidspecialist").roles("BID_TEAM")))
             .andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("B: BID_LEAD 不在类级角色中 → 403")
+    @DisplayName("B: BID_TEAMLEADER 不在类级角色中 → 403")
     void B_bidLead() throws Exception {
-        mockMvc.perform(get("/test/b").with(user("bidlead").roles("BID_LEAD")))
+        mockMvc.perform(get("/test/b").with(user("bidlead").roles("BID_TEAMLEADER")))
             .andExpect(status().isForbidden());
     }
 
     // ==================== 场景 C：仅方法级 ====================
 
     @Test
-    @DisplayName("C: ADMIN/BID_LEAD/BID_ADMIN 可访问")
+    @DisplayName("C: ADMIN/BID_TEAMLEADER/BIDADMIN 可访问")
     void C_admin() throws Exception {
         mockMvc.perform(get("/test/c").with(user("admin").roles("ADMIN")))
             .andExpect(status().isOk());
@@ -231,7 +231,7 @@ class PreAuthorizeBehaviorTest {
 
     @Test
     void C_bidLead() throws Exception {
-        mockMvc.perform(get("/test/c").with(user("bidlead").roles("BID_LEAD")))
+        mockMvc.perform(get("/test/c").with(user("bidlead").roles("BID_TEAMLEADER")))
             .andExpect(status().isOk());
     }
 
@@ -252,25 +252,25 @@ class PreAuthorizeBehaviorTest {
     }
 
     @Test
-    @DisplayName("D: BID_SPECIALIST 类级失败，方法级通过 → 200（方法级覆盖类级）")
+    @DisplayName("D: BID_TEAM 类级失败，方法级通过 → 200（方法级覆盖类级）")
     void D_bidspecialist() throws Exception {
-        mockMvc.perform(get("/test/d").with(user("bidspecialist").roles("BID_SPECIALIST")))
+        mockMvc.perform(get("/test/d").with(user("bidspecialist").roles("BID_TEAM")))
             .andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("D: BID_LEAD 类级失败，方法级通过 → 200（方法级覆盖类级）")
+    @DisplayName("D: BID_TEAMLEADER 类级失败，方法级通过 → 200（方法级覆盖类级）")
     void D_bidLead() throws Exception {
-        mockMvc.perform(get("/test/d").with(user("bidlead").roles("BID_LEAD")))
+        mockMvc.perform(get("/test/d").with(user("bidlead").roles("BID_TEAMLEADER")))
             .andExpect(status().isOk());
     }
 
     // ==================== 场景 E：混合方法（有/无方法级注解） ====================
 
     @Test
-    @DisplayName("E-withMethod: BID_LEAD 方法级通过 → 200")
+    @DisplayName("E-withMethod: BID_TEAMLEADER 方法级通过 → 200")
     void E_withMethod_bidLead() throws Exception {
-        mockMvc.perform(get("/test/e/with-method").with(user("bidlead").roles("BID_LEAD")))
+        mockMvc.perform(get("/test/e/with-method").with(user("bidlead").roles("BID_TEAMLEADER")))
             .andExpect(status().isOk());
     }
 
@@ -282,9 +282,9 @@ class PreAuthorizeBehaviorTest {
     }
 
     @Test
-    @DisplayName("E-withoutMethod: BID_LEAD 类级失败 → 403（类级作为默认值生效）")
+    @DisplayName("E-withoutMethod: BID_TEAMLEADER 类级失败 → 403（类级作为默认值生效）")
     void E_withoutMethod_bidLead() throws Exception {
-        mockMvc.perform(get("/test/e/without-method").with(user("bidlead").roles("BID_LEAD")))
+        mockMvc.perform(get("/test/e/without-method").with(user("bidlead").roles("BID_TEAMLEADER")))
             .andExpect(status().isForbidden());
     }
 

@@ -103,7 +103,7 @@ const props = defineProps({ projectId: { type: [String, Number], required: true 
 const emit = defineEmits(['registered', 'switch-tab'])
 const userStore = useUserStore()
 
-const OPERABLE_ROLES = ['admin', 'admin_staff', 'auditor', 'bid_admin', 'bid_lead', 'bid_senior', 'bid_specialist', 'manager', 'sales']
+const OPERABLE_ROLES = ['admin', 'bid-administration', 'auditor', 'bidAdmin', 'bid-TeamLeader', 'bid-Team', 'manager', 'bid-projectLeader']
 const currentRoleCode = computed(() => userStore?.currentUser?.roleCode || userStore?.currentUser?.role || '')
 const resultDone = ref(false)
 const canOperate = computed(() => !resultDone.value && OPERABLE_ROLES.includes(currentRoleCode.value))

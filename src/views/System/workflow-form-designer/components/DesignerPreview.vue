@@ -6,7 +6,7 @@
         <el-select v-model="role" size="small" placeholder="模拟角色" style="width: 120px">
           <el-option label="管理员" value="admin" />
           <el-option label="经理" value="manager" />
-          <el-option label="投标专员" value="bid_specialist" />
+          <el-option label="投标专员" value="bid-Team" />
         </el-select>
         <el-button size="small" @click="$emit('open-full-preview')">全屏预览</el-button>
         <el-button size="small" :loading="trialLoading" @click="$emit('trial-submit')">试提交</el-button>

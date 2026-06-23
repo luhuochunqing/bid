@@ -44,53 +44,55 @@ describe('useUserStore getters', () => {
 
   it('correctly determines isBidAdmin', () => {
     const store = useUserStore()
-    
-    store.currentUser = { role: 'bid_admin' }
+
+    store.currentUser = { role: 'bidAdmin' }
     expect(store.isBidAdmin).toBe(true)
 
     store.currentUser = { roleCode: 'admin' }
     expect(store.isBidAdmin).toBe(true)
 
-    store.currentUser = { role: 'bid_lead' }
+    store.currentUser = { role: 'bid-TeamLeader' }
     expect(store.isBidAdmin).toBe(false)
   })
 
   it('correctly determines isBidLead', () => {
     const store = useUserStore()
 
-    store.currentUser = { role: 'bid_lead' }
+    store.currentUser = { role: 'bid-TeamLeader' }
     expect(store.isBidLead).toBe(true)
 
-    store.currentUser = { role: 'bid_admin' }
+    store.currentUser = { role: 'bidAdmin' }
     expect(store.isBidLead).toBe(false)
   })
 
   it('correctly determines isBidSenior', () => {
     const store = useUserStore()
 
-    store.currentUser = { role: 'bid_senior' }
+    // bid_senior 已删除，映射到 bid-TeamLeader
+    store.currentUser = { role: 'bid-TeamLeader' }
     expect(store.isBidSenior).toBe(true)
 
-    store.currentUser = { role: 'bid_lead' }
+    store.currentUser = { role: 'bidAdmin' }
     expect(store.isBidSenior).toBe(false)
   })
 
   it('correctly determines isBidManager', () => {
     const store = useUserStore()
 
-    store.currentUser = { role: 'bid_senior' }
+    // bid_senior 已删除，映射到 bid-TeamLeader
+    store.currentUser = { role: 'bid-TeamLeader' }
     expect(store.isBidManager).toBe(true)
 
-    store.currentUser = { role: 'bid_lead' }
+    store.currentUser = { role: 'bid-TeamLeader' }
     expect(store.isBidManager).toBe(true)
 
-    store.currentUser = { role: 'bid_admin' }
+    store.currentUser = { role: 'bidAdmin' }
     expect(store.isBidManager).toBe(true)
 
     store.currentUser = { roleCode: 'admin' }
     expect(store.isBidManager).toBe(true)
 
-    store.currentUser = { role: 'sales' }
+    store.currentUser = { role: 'bid-projectLeader' }
     expect(store.isBidManager).toBe(false)
   })
 })

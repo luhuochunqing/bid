@@ -14,7 +14,7 @@ import {
 const rows = [
   { method: 'GET', path: '/api/admin/roles', module: 'admin', controller: 'AdminRoleController', roles: ['admin'], source: 'METHOD_PRE_AUTHORIZE', riskLevel: 'HIGH' },
   { method: 'GET', path: '/api/alerts/history/unresolved', module: 'alerts', controller: 'AlertHistoryController', roles: ['admin', 'manager'], source: 'METHOD_PRE_AUTHORIZE', riskLevel: 'MEDIUM' },
-  { method: 'POST', path: '/api/projects', module: 'project', controller: 'ProjectController', roles: ['admin', 'manager', 'bid_specialist'], source: 'DEFAULT_AUTHENTICATED', riskLevel: 'LOW' },
+  { method: 'POST', path: '/api/projects', module: 'project', controller: 'ProjectController', roles: ['admin', 'manager', 'bid-Team'], source: 'DEFAULT_AUTHENTICATED', riskLevel: 'LOW' },
 ]
 
 describe('interface-permission-matrix-core', () => {
@@ -32,7 +32,7 @@ describe('interface-permission-matrix-core', () => {
   })
 
   it('derives role tags and labels without mutating rows', () => {
-    expect(hasEndpointRole(rows[0], 'bid_specialist')).toBe(false)
+    expect(hasEndpointRole(rows[0], 'bid-Team')).toBe(false)
     expect(permissionRoleTags(rows[1])).toEqual(['管理员', '经理'])
     expect(riskTagType('HIGH')).toBe('danger')
     expect(sourceLabel('METHOD_PRE_AUTHORIZE')).toBe('后端注解')

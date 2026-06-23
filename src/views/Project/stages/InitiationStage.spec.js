@@ -143,8 +143,8 @@ describe('InitiationStage — PRD §4.3 4-section layout', () => {
   it('does not hard-limit bidding leader candidates to sales role', async () => {
     projectLifecycleApi.getInitiation.mockRejectedValue({ response: { status: 404 } })
     usersApi.search.mockResolvedValue([
-      { id: 1, name: '销售负责人', employeeNumber: 'S001', roleCode: 'sales' },
-      { id: 2, name: '投标专员', employeeNumber: 'B001', roleCode: 'bid_specialist' },
+      { id: 1, name: '销售负责人', employeeNumber: 'S001', roleCode: 'bid-projectLeader' },
+      { id: 2, name: '投标专员', employeeNumber: 'B001', roleCode: 'bid-Team' },
     ])
     const wrapper = createWrapper()
     await flushPromises()
@@ -157,8 +157,8 @@ describe('InitiationStage — PRD §4.3 4-section layout', () => {
   it('filters bidding assistant candidates to bid specialist role', async () => {
     projectLifecycleApi.getInitiation.mockRejectedValue({ response: { status: 404 } })
     usersApi.search.mockResolvedValue([
-      { id: 1, name: '销售负责人', employeeNumber: 'S001', roleCode: 'sales' },
-      { id: 2, name: '投标专员', employeeNumber: 'B001', roleCode: 'bid_specialist' },
+      { id: 1, name: '销售负责人', employeeNumber: 'S001', roleCode: 'bid-projectLeader' },
+      { id: 2, name: '投标专员', employeeNumber: 'B001', roleCode: 'bid-Team' },
     ])
     const wrapper = createWrapper()
     await flushPromises()

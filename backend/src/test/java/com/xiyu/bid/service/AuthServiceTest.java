@@ -234,7 +234,7 @@ class AuthServiceTest {
         when(projectAccessScopeService.getAllowedProjectIds(user)).thenReturn(List.of());
         when(projectAccessScopeService.getAllowedDepartmentCodes(user)).thenReturn(List.of());
         when(dataScopeConfigService.getRoleMenuPermissions(user)).thenReturn(List.of());
-        when(ossPermissionCache.getRoleCode("00444")).thenReturn(Optional.of("bid_specialist"));
+        when(ossPermissionCache.getRoleCode("00444")).thenReturn(Optional.of("bid-Team"));
 
         AuthSessionResult result = authService.login(request);
 
@@ -308,7 +308,7 @@ class AuthServiceTest {
                 .email("caiqin@xiyu.com")
                 .fullName("蔡勤")
                 .role(User.Role.MANAGER)
-                .roleProfile(RoleProfile.builder().id(2L).code("bid_specialist").name("投标专员").build())
+                .roleProfile(RoleProfile.builder().id(2L).code("bid-Team").name("投标专员").build())
                 .enabled(true)
                 .password("encoded")
                 .externalOrgSourceApp("oss")

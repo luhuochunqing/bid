@@ -28,7 +28,7 @@ class PositionToRoleMapperTest {
     @DisplayName("returns null when position text is null")
     void map_nullPosition_returnsNull() {
         PositionToRoleMapper mapper = createMapper(List.of(
-                mapping("投标.*管理.*", "bid_admin")
+                mapping("投标.*管理.*", "bidAdmin")
         ));
 
         assertThat(mapper.map(null)).isNull();
@@ -38,7 +38,7 @@ class PositionToRoleMapperTest {
     @DisplayName("returns null when position text is blank")
     void map_blankPosition_returnsNull() {
         PositionToRoleMapper mapper = createMapper(List.of(
-                mapping("投标.*管理.*", "bid_admin")
+                mapping("投标.*管理.*", "bidAdmin")
         ));
 
         assertThat(mapper.map("   ")).isNull();
@@ -48,32 +48,32 @@ class PositionToRoleMapperTest {
     @DisplayName("matches position name with regex pattern")
     void map_matchingPattern_returnsRoleCode() {
         PositionToRoleMapper mapper = createMapper(List.of(
-                mapping("投标.*管理.*", "bid_admin"),
-                mapping("投标.*组长.*", "bid_lead"),
-                mapping("投标.*专员.*", "bid_specialist")
+                mapping("投标.*管理.*", "bidAdmin"),
+                mapping("投标.*组长.*", "bid-TeamLeader"),
+                mapping("投标.*专员.*", "bid-Team")
         ));
 
-        assertThat(mapper.map("投标管理员")).isEqualTo("bid_admin");
-        assertThat(mapper.map("投标组长")).isEqualTo("bid_lead");
-        assertThat(mapper.map("投标专员")).isEqualTo("bid_specialist");
+        assertThat(mapper.map("投标管理员")).isEqualTo("bidadmin");
+        assertThat(mapper.map("投标组长")).isEqualTo("bid-teamleader");
+        assertThat(mapper.map("投标专员")).isEqualTo("bid-team");
     }
 
     @Test
     @DisplayName("returns first match when multiple patterns match")
     void map_multipleMatches_returnsFirst() {
         PositionToRoleMapper mapper = createMapper(List.of(
-                mapping("投标.*", "bid_specialist"),
-                mapping("投标.*管理.*", "bid_admin")
+                mapping("投标.*", "bid-Team"),
+                mapping("投标.*管理.*", "bidAdmin")
         ));
 
-        assertThat(mapper.map("投标管理员")).isEqualTo("bid_specialist");
+        assertThat(mapper.map("投标管理员")).isEqualTo("bid-team");
     }
 
     @Test
     @DisplayName("returns null when no pattern matches")
     void map_noMatch_returnsNull() {
         PositionToRoleMapper mapper = createMapper(List.of(
-                mapping("投标.*管理.*", "bid_admin")
+                mapping("投标.*管理.*", "bidAdmin")
         ));
 
         assertThat(mapper.map("销售人员")).isNull();
@@ -91,35 +91,35 @@ class PositionToRoleMapperTest {
     @DisplayName("skips mapping entries with blank pattern or role code")
     void map_blankMappingEntries_skips() {
         PositionToRoleMapper mapper = createMapper(List.of(
-                mapping("", "bid_admin"),
+                mapping("", "bidAdmin"),
                 mapping("投标.*管理.*", ""),
-                mapping(null, "bid_lead"),
-                mapping("投标.*专员.*", "bid_specialist")
+                mapping(null, "bid-TeamLeader"),
+                mapping("投标.*专员.*", "bid-Team")
         ));
 
         assertThat(mapper.map("投标管理员")).isNull();
-        assertThat(mapper.map("投标专员")).isEqualTo("bid_specialist");
+        assertThat(mapper.map("投标专员")).isEqualTo("bid-team");
     }
 
     @Test
     @DisplayName("normalizes returned role code to lowercase")
     void map_returnsLowercaseRoleCode() {
         PositionToRoleMapper mapper = createMapper(List.of(
-                mapping("投标.*管理.*", "BID_ADMIN")
+                mapping("投标.*管理.*", "BIDADMIN")
         ));
 
-        assertThat(mapper.map("投标管理员")).isEqualTo("bid_admin");
+        assertThat(mapper.map("投标管理员")).isEqualTo("bidadmin");
     }
 
     @Test
     @DisplayName("matches partial text within position name")
     void map_partialMatch_returnsRoleCode() {
         PositionToRoleMapper mapper = createMapper(List.of(
-                mapping("行政.*", "admin_staff"),
-                mapping("项目.*负责.*", "sales")
+                mapping("行政.*", "bid-administration"),
+                mapping("项目.*负责.*", "bid-projectLeader")
         ));
 
-        assertThat(mapper.map("高级行政助理")).isEqualTo("admin_staff");
-        assertThat(mapper.map("项目总负责人")).isEqualTo("sales");
+        assertThat(mapper.map("高级行政助理")).isEqualTo("bid-administration");
+        assertThat(mapper.map("项目总负责人")).isEqualTo("bid-projectleader");
     }
 }
