@@ -45,6 +45,8 @@ class OrganizationUserSyncWriterTest {
     @BeforeEach
     void setUp() {
         OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();
+        // 测试 upsert 主流程时不启用白名单过滤（skipUnmappedUsers 默认 true 会跳过未匹配用户）
+        properties.setSkipUnmappedUsers(false);
         PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
         SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
         JobRoleLookupResolver resolver = new JobRoleLookupResolver(properties, positionToRoleMapper, systemRoleListMapper);

@@ -1,0 +1,9 @@
+version: 1
+task: "fix-oss-user-sync-whitelist"
+locks:
+  - path: "backend/src/main/resources/application.yml"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/mimo/fix-oss-user-sync-whitelist"
+    expiresAt: "2026-06-24T01:47:26.407Z"
+    reason: "fix OSS user sync whitelist: add role mappings + change skipUnmappedUsers default"

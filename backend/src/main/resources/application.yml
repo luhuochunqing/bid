@@ -218,7 +218,58 @@ xiyu:
       event-log-retention-days: ${XIYU_ORG_EVENT_LOG_RETENTION_DAYS:90}
       allowed-source-apps: ${XIYU_ORG_ALLOWED_SOURCE_APPS:oss,customer-org}
       # 未命中任何角色映射（人员/部门/岗位）的 OSS 用户是否跳过同步；已存在则禁用
-      skip-unmapped-users: ${XIYU_ORG_SYNC_SKIP_UNMAPPED_USERS:false}
+      # 默认 true：白名单模式，只有命中下列映射规则的用户才会被同步到本地
+      skip-unmapped-users: ${XIYU_ORG_SYNC_SKIP_UNMAPPED_USERS:true}
+      # 管理员角色码（小写）；命中后允许提升为 ADMIN
+      admin-role-codes:
+        - admin
+      # 经理角色码（小写）
+      manager-role-codes:
+        - bid_admin
+        - bid_lead
+      # 按人员映射：通过工号精确匹配（OSS 同步数据中的 username/jobNumber 字段）
+      # 数据源：OSS /subscription/msg/getUserByTimeWindow + 本地 users 表核对
+      person-to-role-mappings:
+        # 投标管理员 + 投标系统管理员（按人员）：张頔、郑蓉蓉、袁思琪
+        - person-identifier: "03595"  # 张頔
+          role-code: bid_admin
+        - person-identifier: "06234"  # 郑蓉蓉
+          role-code: bid_admin
+        - person-identifier: "11484"  # 袁思琪
+          role-code: bid_admin
+        # 投标组长（按人员）：袁思琪（兼任）
+        - person-identifier: "11484"  # 袁思琪
+          role-code: bid_lead
+        # 跨部门协同人员（按人员）：陈超、屈晓润、孙磊、忻鼎盛、刘成
+        - person-identifier: "04727"  # 陈超（kelvin_chen）
+          role-code: bid_other_dept
+        - person-identifier: "07440"  # 屈晓润
+          role-code: bid_other_dept
+        - person-identifier: "06708"  # 孙磊
+          role-code: bid_other_dept
+        - person-identifier: "03483"  # 忻鼎盛
+          role-code: bid_other_dept
+        - person-identifier: "03895"  # 刘成（simon_liu）
+          role-code: bid_other_dept
+      # 按部门映射：通过部门名称正则匹配
+      department-to-role-mappings:
+        # 投标专员（按部门）：投标管理部
+        - department-pattern: ".*投标管理部.*"
+          role-code: bid_specialist
+        # 行政人员（按部门）：行政部
+        - department-pattern: ".*行政部.*"
+          role-code: admin_staff
+      # 按岗位映射：通过岗位名称正则匹配
+      position-to-role-mappings:
+        # 投标项目负责人（按岗位）：项目经理、项目总监、主管、BD经理
+        - position-pattern: ".*项目经理.*"
+          role-code: sales
+        - position-pattern: ".*项目总监.*"
+          role-code: sales
+        - position-pattern: ".*主管.*"
+          role-code: sales
+        - position-pattern: ".*BD经理.*"
+          role-code: sales
       event-sdk:
         enabled: ${XIYU_ORG_EVENT_SDK_ENABLED:false}
         consumer-group: ${XIYU_ORG_EVENT_CONSUMER_GROUP:bms}
