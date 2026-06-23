@@ -55,7 +55,7 @@ export function useTaskBoard() {
     error.value = ''
     try {
       const res = await tasksApi.getBoardItems()
-      items.value = Array.isArray(res?.data?.data) ? res.data.data : []
+      items.value = Array.isArray(res?.data) ? res.data : []
     } catch (e) {
       error.value = e?.message || '加载任务失败'
       items.value = []
