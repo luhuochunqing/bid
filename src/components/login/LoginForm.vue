@@ -40,6 +40,13 @@
       </div>
     </el-form-item>
 
+    <Transition name="error-fade">
+      <div v-if="errorMessage" class="login-error">
+        <el-icon class="login-error-icon"><WarningFilled /></el-icon>
+        <span>{{ errorMessage }}</span>
+      </div>
+    </Transition>
+
     <el-form-item>
       <el-button
         type="primary"
@@ -57,8 +64,7 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { User, Lock } from '@element-plus/icons-vue'
+import { User, Lock, WarningFilled } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
@@ -66,6 +72,7 @@ const userStore = useUserStore()
 
 const loginFormRef = ref(null)
 const loading = ref(false)
+const errorMessage = ref('')
 
 const loginForm = reactive({
   username: '',
@@ -87,16 +94,16 @@ const handleLogin = async () => {
   if (!loginFormRef.value) return
 
   try {
+    errorMessage.value = ''
     await loginFormRef.value.validate()
     loading.value = true
 
     await userStore.login(loginForm.username, loginForm.password, loginForm.remember)
 
-    ElMessage.success('登录成功')
     router.push('/dashboard')
   } catch (error) {
     if (error !== false) {
-      ElMessage.error(error?.message || '登录失败，请稍后重试')
+      errorMessage.value = error?.message || '登录失败，请稍后重试'
     }
   } finally {
     loading.value = false
@@ -178,5 +185,38 @@ const handleLogin = async () => {
 .login-button:hover {
   transform: translateY(-1px);
   box-shadow: 0 8px 20px rgba(3, 105, 161, 0.25);
+}
+
+/* 登录错误提示 */
+.login-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #991B1B;
+}
+
+.login-error-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  font-size: 16px;
+  color: #DC2626;
+}
+
+.error-fade-enter-active,
+.error-fade-leave-active {
+  transition: all 0.25s ease;
+}
+
+.error-fade-enter-from,
+.error-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 </style>
