@@ -15,22 +15,6 @@
         </div>
       </div>
 
-      <!-- 中标 → 合同信息 -->
-      <div v-if="form.resultType === 'WON'" class="contract-row">
-        <div class="contract-field">
-          <label class="field-label">中标金额（万元）</label>
-          <el-input-number v-model="form.awardAmount" :min="0" :precision="2" :disabled="!canOperate" />
-        </div>
-        <div class="contract-field">
-          <label class="field-label">合同开始日期</label>
-          <el-date-picker v-model="form.contractStartDate" type="date" value-format="YYYY-MM-DD" :disabled="!canOperate" />
-        </div>
-        <div class="contract-field">
-          <label class="field-label">合同结束日期</label>
-          <el-date-picker v-model="form.contractEndDate" type="date" value-format="YYYY-MM-DD" :disabled="!canOperate" />
-        </div>
-      </div>
-
       <!-- 流标/弃标 → 结果摘要 -->
       <div v-if="form.resultType === 'FAILED' || form.resultType === 'ABANDONED'" class="summary-section">
         <label class="field-label">结果摘要<span class="required-mark">*</span></label>
@@ -140,7 +124,7 @@ const DEFAULT_COMPETITOR = () => ({ name: '', discount: '', paymentTerm: '', not
 const DEFAULT_COMPETITORS = () => [DEFAULT_COMPETITOR(), DEFAULT_COMPETITOR(), DEFAULT_COMPETITOR()]
 
 const form = reactive({
-  resultType: 'WON', awardAmount: 0, contractStartDate: '', contractEndDate: '',
+  resultType: 'WON',
   notes: '', summary: '', evidenceFileIds: [], competitors: DEFAULT_COMPETITORS(),
 })
 
@@ -206,9 +190,6 @@ async function load() {
     if (data) {
       // 恢复所有表单字段
       if (data.resultType) form.resultType = data.resultType
-      if (data.awardAmount != null) form.awardAmount = data.awardAmount
-      if (data.contractStartDate) form.contractStartDate = data.contractStartDate
-      if (data.contractEndDate) form.contractEndDate = data.contractEndDate
       if (data.notes != null) form.notes = data.notes
       if (data.summary != null) form.summary = data.summary
       if (data.evidenceFileIds?.length) form.evidenceFileIds = [...data.evidenceFileIds]
@@ -227,9 +208,6 @@ async function submit() {
   try {
     const payload = {
       resultType: form.resultType,
-      awardAmount: form.resultType === 'WON' ? form.awardAmount : null,
-      contractStartDate: form.resultType === 'WON' ? form.contractStartDate || null : null,
-      contractEndDate: form.resultType === 'WON' ? form.contractEndDate || null : null,
       notes: form.notes, summary: form.summary,
       evidenceFileIds: form.evidenceFileIds, competitors: form.competitors,
     }

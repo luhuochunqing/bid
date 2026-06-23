@@ -15,7 +15,7 @@ import java.util.List;
  *
  * <p>必填映射：
  * <ul>
- *   <li>WON: awardAmount(>0), evidenceFileIds(中标通知书)；contractStart/End 可选但若同时存在则 end >= start</li>
+ *   <li>WON: evidenceFileIds(中标通知书)</li>
  *   <li>LOST: evidenceFileIds(中标公告)</li>
  *   <li>FAILED: evidenceFileIds(流标公告/说明), summary(流标原因)</li>
  *   <li>ABANDONED: evidenceFileIds(弃标说明), summary(弃标决策依据)</li>
@@ -45,12 +45,7 @@ public final class ResultRegistrationFieldPolicy {
         }
         switch (rt) {
             case WON -> {
-                if (!isPositive(input.awardAmount())) {
-                    missing.add("awardAmount");
-                }
-                if (!datesValid(input.contractStartDate(), input.contractEndDate())) {
-                    missing.add("contractEndDate");
-                }
+                // CO-320: 移除 awardAmount/合同日期必填（前端已删字段），WON 仅要求证据（已在前面统一校验）
             }
             case LOST -> {
                 // 仅证据必填（已在前面统一加入）
@@ -70,19 +65,8 @@ public final class ResultRegistrationFieldPolicy {
         return ids != null && !ids.isEmpty();
     }
 
-    private static boolean isPositive(BigDecimal v) {
-        return v != null && v.compareTo(BigDecimal.ZERO) > 0;
-    }
-
     private static boolean isBlank(String s) {
         return s == null || s.trim().isEmpty();
-    }
-
-    private static boolean datesValid(LocalDate start, LocalDate end) {
-        if (start == null || end == null) {
-            return true; // 合同日期为可选；同时缺失视为合法
-        }
-        return !end.isBefore(start);
     }
 
     /** 结果登记输入。所有字段可为 null，由策略按 resultType 决定必填。 */

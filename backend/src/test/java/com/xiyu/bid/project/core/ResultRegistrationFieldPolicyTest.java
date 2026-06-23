@@ -45,42 +45,6 @@ class ResultRegistrationFieldPolicyTest {
     }
 
     @Test
-    void won_missingAmount_denied() {
-        var input = ResultRegistrationFieldPolicy.ResultInput.builder()
-                .resultType(BidResultType.WON)
-                .evidenceFileIds(List.of(101L))
-                .build();
-        var d = ResultRegistrationFieldPolicy.validate(input);
-        var deny = assertInstanceOf(ResultRegistrationFieldPolicy.Decision.Deny.class, d);
-        assertTrue(deny.missing().contains("awardAmount"));
-    }
-
-    @Test
-    void won_zeroAmount_denied() {
-        var input = ResultRegistrationFieldPolicy.ResultInput.builder()
-                .resultType(BidResultType.WON)
-                .awardAmount(BigDecimal.ZERO)
-                .evidenceFileIds(List.of(101L))
-                .build();
-        var d = ResultRegistrationFieldPolicy.validate(input);
-        assertFalse(d.allowed());
-    }
-
-    @Test
-    void won_contractEndBeforeStart_denied() {
-        var input = ResultRegistrationFieldPolicy.ResultInput.builder()
-                .resultType(BidResultType.WON)
-                .awardAmount(new BigDecimal("100"))
-                .contractStartDate(LocalDate.of(2026, 6, 1))
-                .contractEndDate(LocalDate.of(2026, 5, 1))
-                .evidenceFileIds(List.of(101L))
-                .build();
-        var d = ResultRegistrationFieldPolicy.validate(input);
-        var deny = assertInstanceOf(ResultRegistrationFieldPolicy.Decision.Deny.class, d);
-        assertTrue(deny.missing().contains("contractEndDate"));
-    }
-
-    @Test
     void lost_complete_allowed() {
         var input = ResultRegistrationFieldPolicy.ResultInput.builder()
                 .resultType(BidResultType.LOST)
@@ -183,9 +147,8 @@ class ResultRegistrationFieldPolicyTest {
                 .resultType(BidResultType.WON).build();
         var d = ResultRegistrationFieldPolicy.validate(input);
         var deny = assertInstanceOf(ResultRegistrationFieldPolicy.Decision.Deny.class, d);
-        // WON 必填：awardAmount + evidenceFileIds (合同日期可选)
-        assertEquals(2, deny.missing().size(), "expected awardAmount + evidenceFileIds");
-        assertTrue(deny.missing().contains("awardAmount"));
+        // CO-320: WON 必填仅 evidenceFileIds（awardAmount/合同日期已移除）
+        assertEquals(1, deny.missing().size(), "expected evidenceFileIds");
         assertTrue(deny.missing().contains("evidenceFileIds"));
     }
 }
