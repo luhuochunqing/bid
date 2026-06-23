@@ -130,9 +130,18 @@ public class JobRoleLookupResolver {
 
     private String mapJobToRole(OrganizationUserSnapshot snapshot, Map<String, OssUserJobAndRoleDto> lookupMap) {
         // 优先使用快照中的岗位码/岗位名
-        String roleCode = positionToRoleMapper.map(snapshot.externalRoleCode());
-        if (roleCode != null && !roleCode.isBlank()) {
-            return roleCode;
+        String externalRoleCode = snapshot.externalRoleCode();
+        if (externalRoleCode != null && !externalRoleCode.isBlank()) {
+            // 先尝试 OSS 角色码硬编码映射（如 bid-Team -> bid_specialist）
+            String ossMappedRoleCode = mapOssRoleCodeToInternal(externalRoleCode);
+            if (ossMappedRoleCode != null && !ossMappedRoleCode.isBlank()) {
+                return ossMappedRoleCode;
+            }
+            // 再用配置的正则映射
+            String roleCode = positionToRoleMapper.map(externalRoleCode);
+            if (roleCode != null && !roleCode.isBlank()) {
+                return roleCode;
+            }
         }
 
         // 从批量回查结果取岗位名再映射

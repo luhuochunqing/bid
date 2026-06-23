@@ -43,7 +43,7 @@ import java.util.UUID;
 @Slf4j
 @PreAuthorize("isAuthenticated()")
 public class ExportController {
-    private static final String ADMIN_MANAGER_STAFF_EXPR = "hasAnyRole('ADMIN', 'MANAGER', 'STAFF')";
+    private static final String ADMIN_MANAGER_EXPR = "hasAnyRole('ADMIN', 'MANAGER')";
 
     private final ExcelExportService excelExportService;
     private final ExportConfig exportConfig;
@@ -55,11 +55,11 @@ public class ExportController {
 
     /**
      * Export data to Excel file.
-     * Requires ADMIN, MANAGER, or STAFF role.
+     * Requires ADMIN or MANAGER role.
      * Rate limited to prevent abuse.
      */
     @PostMapping("/excel")
-    @PreAuthorize(ADMIN_MANAGER_STAFF_EXPR)
+    @PreAuthorize(ADMIN_MANAGER_EXPR)
     @Auditable(action = "EXPORT_EXCEL", entityType = "DATA", description = "Export data to Excel")
     public ResponseEntity<?> exportToExcel(
             @Valid @RequestBody ExportRequest request,
@@ -126,7 +126,7 @@ public class ExportController {
      * Export and download Excel file directly.
      */
     @PostMapping("/excel/download")
-    @PreAuthorize(ADMIN_MANAGER_STAFF_EXPR)
+    @PreAuthorize(ADMIN_MANAGER_EXPR)
     @Auditable(action = "EXPORT_EXCEL_DOWNLOAD", entityType = "DATA", description = "Export and download Excel file")
     public ResponseEntity<byte[]> exportAndDownload(
             @Valid @RequestBody ExportRequest request,
@@ -178,7 +178,7 @@ public class ExportController {
      * Get supported export types.
      */
     @GetMapping("/types")
-    @PreAuthorize(ADMIN_MANAGER_STAFF_EXPR)
+    @PreAuthorize(ADMIN_MANAGER_EXPR)
     public ResponseEntity<ApiResponse<java.util.List<String>>> getSupportedTypes() {
         return ResponseEntity.ok(ApiResponse.success(java.util.List.of(
                 "tenders", "projects", "qualifications", "cases", "templates"
@@ -189,7 +189,7 @@ public class ExportController {
      * Get export configuration (for admin display).
      */
     @GetMapping("/config")
-    @PreAuthorize(ADMIN_MANAGER_STAFF_EXPR)
+    @PreAuthorize(ADMIN_MANAGER_EXPR)
     @Auditable(action = "VIEW_EXPORT_CONFIG", entityType = "SYSTEM", description = "View export configuration")
     public ResponseEntity<ApiResponse<ExportConfigInfo>> getExportConfig(
             @AuthenticationPrincipal UserDetails userDetails) {

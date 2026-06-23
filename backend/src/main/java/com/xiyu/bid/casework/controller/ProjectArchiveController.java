@@ -43,7 +43,7 @@ import java.util.Set;
 @RestController
 @RequestMapping("/api/archive")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
 public class ProjectArchiveController {
 
     private final ProjectArchiveWorkflowService workflowService;
@@ -53,7 +53,7 @@ public class ProjectArchiveController {
     private final ArchiveFileRepository archiveFileRepository;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<Page<ProjectArchiveResponse>> queryProjectArchives(
             ProjectArchiveQuery query,
             @RequestParam(defaultValue = "0") int page,
@@ -63,17 +63,17 @@ public class ProjectArchiveController {
     }
 
     @GetMapping("/stats")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ProjectArchiveStatsResponse> getArchiveStats() {
         ProjectArchiveStatsResponse stats = workflowService.getStats();
         return ResponseEntity.ok(stats);
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ProjectArchiveDetailResponse> getArchiveDetail(@PathVariable Long id) {
         // H5 fix 2026-06-13: 详情访问前对 archive 所属 project 做 owner check,
-        // 避免 STAFF 越权读取任意 projectId 的档案详情 (含附件路径/内部备注)。
+        // 避免非项目成员越权读取任意 projectId 的档案详情 (含附件路径/内部备注)。
         ProjectArchive archive = workflowService.findArchiveById(id);
         workflowService.assertCurrentUserCanAccessProject(archive.getProjectId());
         ProjectArchiveDetailResponse result = detailService.getArchiveDetail(id);
@@ -152,7 +152,7 @@ public class ProjectArchiveController {
     }
 
     @PostMapping("/export-excel")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<byte[]> exportExcel(
             @RequestBody ProjectArchiveQuery query) throws IOException {
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
@@ -184,11 +184,11 @@ public class ProjectArchiveController {
 
     /** 导出单个项目全部资料（ZIP 压缩包）。 */
     @GetMapping("/export-zip/{projectId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<byte[]> exportSingleProjectArchive(
             @PathVariable Long projectId) throws IOException {
         // H5 fix 2026-06-13: 单项目导出前先做 project owner check,
-        // 阻止 STAFF 通过遍历 projectId 越权下载任意项目档案包。
+        // 阻止非项目成员通过遍历 projectId 越权下载任意项目档案包。
         workflowService.assertCurrentUserCanAccessProject(projectId);
 
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
@@ -228,7 +228,7 @@ public class ProjectArchiveController {
 
 
     @PostMapping("/export-zip")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<byte[]> exportZip(
             @RequestBody ProjectArchiveQuery query,
             @RequestParam(required = false) Long userId) throws IOException {

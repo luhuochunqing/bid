@@ -27,7 +27,7 @@ function mountHeader(props = {}) {
 }
 
 describe('BiddingPageHeader permissions', () => {
-  it('shows manual create but keeps source sync hidden for staff users', () => {
+  it('shows manual create but keeps source sync hidden for bid_specialist users', () => {
     const wrapper = mountHeader({ canCreateTender: true })
 
     expect(wrapper.text()).toContain('客户商机中心')

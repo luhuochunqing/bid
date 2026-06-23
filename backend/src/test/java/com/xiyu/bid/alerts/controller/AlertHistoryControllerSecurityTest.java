@@ -37,7 +37,7 @@ class AlertHistoryControllerSecurityTest {
     private AlertHistoryCommandService alertHistoryCommandService;
 
     @Test
-    @WithMockUser(roles = {"STAFF"})
+    @WithMockUser(roles = {"MANAGER"})
     void staff_ShouldAccessAlertHistoryEndpoints() throws Exception {
         mockMvc.perform(get("/api/alerts/history")).andExpect(status().isOk());
         mockMvc.perform(get("/api/alerts/history/1")).andExpect(status().isOk());

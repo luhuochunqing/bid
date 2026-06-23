@@ -24,37 +24,37 @@ import java.util.List;
 @PreAuthorize("isAuthenticated()")
 public class BidResultQueryController {
 
-    private static final String ADMIN_MANAGER_STAFF_EXPR = "hasAnyRole('ADMIN', 'MANAGER', 'STAFF')";
+    private static final String ADMIN_MANAGER_EXPR = "hasAnyRole('ADMIN', 'MANAGER')";
 
     private final BidResultQueryService queryService;
     private final CompetitorReportQueryService competitorReportQueryService;
 
     @GetMapping("/overview")
-    @PreAuthorize(ADMIN_MANAGER_STAFF_EXPR)
+    @PreAuthorize(ADMIN_MANAGER_EXPR)
     public ResponseEntity<ApiResponse<BidResultOverviewDTO>> getOverview() {
         return ResponseEntity.ok(ApiResponse.success(queryService.getOverview()));
     }
 
     @GetMapping("/fetch-results")
-    @PreAuthorize(ADMIN_MANAGER_STAFF_EXPR)
+    @PreAuthorize(ADMIN_MANAGER_EXPR)
     public ResponseEntity<ApiResponse<List<BidResultFetchResultDTO>>> getFetchResults() {
         return ResponseEntity.ok(ApiResponse.success(queryService.getFetchResults()));
     }
 
     @GetMapping("/reminders")
-    @PreAuthorize(ADMIN_MANAGER_STAFF_EXPR)
+    @PreAuthorize(ADMIN_MANAGER_EXPR)
     public ResponseEntity<ApiResponse<List<BidResultReminderDTO>>> getReminders() {
         return ResponseEntity.ok(ApiResponse.success(queryService.getReminders()));
     }
 
     @GetMapping("/competitor-report")
-    @PreAuthorize(ADMIN_MANAGER_STAFF_EXPR)
+    @PreAuthorize(ADMIN_MANAGER_EXPR)
     public ResponseEntity<ApiResponse<List<BidResultCompetitorReportRowDTO>>> getCompetitorReport() {
         return ResponseEntity.ok(ApiResponse.success(competitorReportQueryService.getCompetitorReport()));
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize(ADMIN_MANAGER_STAFF_EXPR)
+    @PreAuthorize(ADMIN_MANAGER_EXPR)
     public ResponseEntity<ApiResponse<BidResultDetailDTO>> getDetail(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(queryService.getDetail(id)));
     }

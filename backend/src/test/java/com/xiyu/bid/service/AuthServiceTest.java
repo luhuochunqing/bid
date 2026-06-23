@@ -136,7 +136,6 @@ class AuthServiceTest {
         when(projectAccessScopeService.getAllowedProjectIds(user)).thenReturn(List.of(21L));
         when(projectAccessScopeService.getAllowedDepartmentCodes(user)).thenReturn(List.of("BID"));
         when(dataScopeConfigService.getRoleMenuPermissions(user)).thenReturn(List.of("all"));
-        when(ossPermissionCache.getRoleCode("alice")).thenReturn(Optional.of("staff"));
 
         AuthSessionResult result = authService.refreshToken("raw-refresh-token");
 
@@ -235,7 +234,7 @@ class AuthServiceTest {
         when(projectAccessScopeService.getAllowedProjectIds(user)).thenReturn(List.of());
         when(projectAccessScopeService.getAllowedDepartmentCodes(user)).thenReturn(List.of());
         when(dataScopeConfigService.getRoleMenuPermissions(user)).thenReturn(List.of());
-        when(ossPermissionCache.getRoleCode("00444")).thenReturn(Optional.of("staff"));
+        when(ossPermissionCache.getRoleCode("00444")).thenReturn(Optional.of("bid_specialist"));
 
         AuthSessionResult result = authService.login(request);
 
@@ -279,13 +278,36 @@ class AuthServiceTest {
         verify(passwordEncoder, never()).matches(any(), any());
     }
 
+    @Test
+    void refreshToken_ShouldAllowLocalAccountWithoutOssRole() {
+        User localUser = buildUser();
+        RefreshSession session = RefreshSession.builder()
+                .id(2L)
+                .user(localUser)
+                .tokenHash("local-user-hash")
+                .expiresAt(LocalDateTime.now().plusHours(1))
+                .build();
+
+        when(refreshSessionRepository.findByTokenHash(any())).thenReturn(Optional.of(session));
+        when(jwtUtil.generateAccessToken("alice")).thenReturn("local-access-token");
+        when(projectAccessScopeService.getAllowedProjectIds(localUser)).thenReturn(List.of(1L));
+        when(projectAccessScopeService.getAllowedDepartmentCodes(localUser)).thenReturn(List.of("ADMIN"));
+        when(dataScopeConfigService.getRoleMenuPermissions(localUser)).thenReturn(List.of("all"));
+
+        AuthSessionResult result = authService.refreshToken("raw-local-refresh-token");
+
+        verify(ossPermissionCache, never()).getRoleCode(any());
+        assertThat(result.getAccessToken()).isEqualTo("local-access-token");
+        assertThat(result.getRefreshToken()).isNotBlank();
+    }
+
     private User buildOssUser() {
         return User.builder()
                 .id(2L)
                 .username("00444")
                 .email("caiqin@xiyu.com")
                 .fullName("蔡勤")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .roleProfile(RoleProfile.builder().id(2L).code("bid_specialist").name("投标专员").build())
                 .enabled(true)
                 .password("encoded")

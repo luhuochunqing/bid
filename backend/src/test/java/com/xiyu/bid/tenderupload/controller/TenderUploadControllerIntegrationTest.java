@@ -60,7 +60,7 @@ class TenderUploadControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "staff", roles = {"STAFF"})
+    @WithMockUser(username = "bid_specialist", roles = {"MANAGER"})
     void initUpload_shouldValidateRequiredFields() throws Exception {
         mockMvc.perform(post("/api/tenders/upload-init")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -73,7 +73,7 @@ class TenderUploadControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "staff", roles = {"STAFF"})
+    @WithMockUser(username = "bid_specialist", roles = {"MANAGER"})
     void initUpload_shouldSupportV1Alias() throws Exception {
         when(tenderUploadTaskService.initUpload(any(), any(UserDetails.class)))
                 .thenReturn(TenderUploadInitResponse.builder()
@@ -127,7 +127,7 @@ class TenderUploadControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "staff", roles = {"STAFF"})
+    @WithMockUser(username = "bid_specialist", roles = {"MANAGER"})
     void uploadComplete_shouldReturnQueuedTask() throws Exception {
         when(tenderUploadTaskService.completeUpload(any(), any(UserDetails.class)))
                 .thenReturn(TenderUploadCompleteResponse.builder()
@@ -149,7 +149,7 @@ class TenderUploadControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "staff", roles = {"STAFF"})
+    @WithMockUser(username = "bid_specialist", roles = {"MANAGER"})
     void taskStatus_shouldReturnTaskPayload() throws Exception {
         when(tenderUploadTaskService.getTaskStatus(eq(88L), any(UserDetails.class)))
                 .thenReturn(TenderTaskStatusResponse.builder()
@@ -183,7 +183,7 @@ class TenderUploadControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "staff", roles = {"STAFF"})
+    @WithMockUser(username = "bid_specialist", roles = {"MANAGER"})
     void uploadComplete_shouldSupportV1Alias() throws Exception {
         when(tenderUploadTaskService.completeUpload(any(), any(UserDetails.class)))
                 .thenReturn(TenderUploadCompleteResponse.builder()

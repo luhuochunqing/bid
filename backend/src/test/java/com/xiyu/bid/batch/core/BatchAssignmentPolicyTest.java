@@ -22,7 +22,7 @@ class BatchAssignmentPolicyTest {
     void resolveDepartmentAssignment_RejectsUnauthorizedDepartment() {
         User currentUser = User.builder()
                 .id(1L)
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .departmentCode("D1")
                 .build();
         when(SUPPLIER.apply(currentUser, "READ")).thenReturn(List.of("D1"));
@@ -48,7 +48,7 @@ class BatchAssignmentPolicyTest {
                 .enabled(true)
                 .departmentCode("D2")
                 .departmentName("Dept 2")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .build();
 
         BatchAssignmentSnapshot snapshot = BatchAssignmentPolicy.resolveUserAssignment(assignee, currentUser, false, SUPPLIER);

@@ -26,12 +26,12 @@ class ApprovalControllerSecurityTest {
     void getUserIdFromDetails_ResolvesPersistedUserByUsername() throws Exception {
         UserDetails userDetails = org.springframework.security.core.userdetails.User.withUsername("alice")
                 .password("password")
-                .authorities("ROLE_STAFF")
+                .authorities("ROLE_MANAGER")
                 .build();
         User user = User.builder()
                 .id(42L)
                 .username("alice")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .email("alice@example.com")
                 .fullName("Alice")
                 .password("secret")
@@ -57,7 +57,7 @@ class ApprovalControllerSecurityTest {
     void getUserIdFromDetails_RejectsUnknownAuthenticatedUser() throws Exception {
         UserDetails userDetails = org.springframework.security.core.userdetails.User.withUsername("ghost")
                 .password("password")
-                .authorities("ROLE_STAFF")
+                .authorities("ROLE_MANAGER")
                 .build();
 
         org.mockito.Mockito.when(userRepository.findByUsername("ghost"))

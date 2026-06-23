@@ -188,7 +188,7 @@ class TenderCommandAccessGuardTest {
                 .id(USER_ID)
                 .username("user" + USER_ID)
                 .roleProfile(RoleProfile.builder().code(roleCode).build())
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .enabled(true)
                 .build();
     }

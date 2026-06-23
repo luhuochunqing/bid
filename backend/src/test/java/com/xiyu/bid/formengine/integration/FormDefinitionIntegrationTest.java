@@ -373,7 +373,7 @@ class FormDefinitionIntegrationTest {
 
         @Test
         @DisplayName("Non-admin accessing admin endpoint → 403")
-        @WithMockUser(username = "regular-user", roles = {"STAFF"})
+        @WithMockUser(username = "regular-user", roles = {"MANAGER"})
         void nonAdmin_forbidden() throws Exception {
             mockMvc.perform(get("/api/admin/form-definitions"))
                     .andExpect(status().isForbidden());

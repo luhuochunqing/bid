@@ -61,7 +61,7 @@ class UserSearchServiceTest {
     void normalQuery_MapsResultsAndPassesLimit() {
         User alice = User.builder()
             .id(3L).username("alice").email("a@x.com").password("p")
-            .fullName("Alice Smith").role(User.Role.STAFF).build();
+            .fullName("Alice Smith").role(User.Role.MANAGER).build();
         User bob = User.builder()
             .id(4L).username("bob").email("b@x.com").password("p")
             .fullName("Bob Lee").role(User.Role.MANAGER).build();
@@ -70,7 +70,7 @@ class UserSearchServiceTest {
         List<UserSearchResult> results = service.search("ali", 5);
 
         assertThat(results).hasSize(2);
-        assertThat(results.get(0)).isEqualTo(new UserSearchResult(3L, "Alice Smith", null, "STAFF", null, "staff"));
+        assertThat(results.get(0)).isEqualTo(new UserSearchResult(3L, "Alice Smith", null, "MANAGER", null, "manager"));
         assertThat(results.get(1)).isEqualTo(new UserSearchResult(4L, "Bob Lee", null, "MANAGER", null, "manager"));
     }
 
@@ -135,6 +135,6 @@ class UserSearchServiceTest {
         List<UserSearchResult> results = service.search("x", 10);
 
         assertThat(results.get(0).role()).isNull();
-        assertThat(results.get(0).roleCode()).isEqualTo("staff");
+        assertThat(results.get(0).roleCode()).isEqualTo("manager");
     }
 }

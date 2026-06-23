@@ -1,5 +1,6 @@
 package com.xiyu.bid.service;
 
+import com.xiyu.bid.admin.service.DataScopeAccessProfile;
 import com.xiyu.bid.admin.service.DataScopeConfigService;
 import com.xiyu.bid.admin.service.ProjectGroupService;
 import com.xiyu.bid.entity.Project;
@@ -73,11 +74,11 @@ class ProjectAccessScopeServiceTest {
         User user = User.builder()
                 .id(601L)
                 .username("staff-user")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .enabled(true)
                 .build();
 
-        when(dataScopeConfigService.getAccessProfile(user)).thenReturn(DataScopeConfigService.AccessProfile.builder()
+        when(dataScopeConfigService.getAccessProfile(user)).thenReturn(DataScopeAccessProfile.builder()
                 .dataScope("self")
                 .build());
         when(projectRepository.findAccessibleProjectIdsByUserId(601L)).thenReturn(List.of(9L, 3L, 5L));
@@ -93,11 +94,11 @@ class ProjectAccessScopeServiceTest {
         User user = User.builder()
                 .id(602L)
                 .username("dept-user")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .enabled(true)
                 .build();
 
-        when(dataScopeConfigService.getAccessProfile(user)).thenReturn(DataScopeConfigService.AccessProfile.builder()
+        when(dataScopeConfigService.getAccessProfile(user)).thenReturn(DataScopeAccessProfile.builder()
                 .dataScope("dept")
                 .allowedDepartmentCodes(List.of("TECH"))
                 .explicitProjectIds(List.of(6L))
@@ -116,7 +117,7 @@ class ProjectAccessScopeServiceTest {
         User user = User.builder()
                 .id(601L)
                 .username("staff-user")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .enabled(true)
                 .build();
         SecurityContextHolder.getContext().setAuthentication(
@@ -124,7 +125,7 @@ class ProjectAccessScopeServiceTest {
         );
 
         when(userRepository.findByUsername("staff-user")).thenReturn(Optional.of(user));
-        when(dataScopeConfigService.getAccessProfile(user)).thenReturn(DataScopeConfigService.AccessProfile.builder()
+        when(dataScopeConfigService.getAccessProfile(user)).thenReturn(DataScopeAccessProfile.builder()
                 .dataScope("self")
                 .build());
         when(projectRepository.findAccessibleProjectIdsByUserId(601L)).thenReturn(List.of(1L));
@@ -147,12 +148,12 @@ class ProjectAccessScopeServiceTest {
         User user = User.builder()
                 .id(803L)
                 .username("cross-dept-task-assignee")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .roleProfile(RoleProfile.builder().code("bid_other_dept").name("跨部门协同人员").build())
                 .enabled(true)
                 .build();
 
-        when(dataScopeConfigService.getAccessProfile(user)).thenReturn(DataScopeConfigService.AccessProfile.builder()
+        when(dataScopeConfigService.getAccessProfile(user)).thenReturn(DataScopeAccessProfile.builder()
                 .dataScope("self")
                 .build());
         when(projectRepository.findAccessibleProjectIdsByUserId(803L)).thenReturn(List.of());
@@ -173,11 +174,11 @@ class ProjectAccessScopeServiceTest {
         User user = User.builder()
                 .id(801L)
                 .username("secondary-lead")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .enabled(true)
                 .build();
 
-        when(dataScopeConfigService.getAccessProfile(user)).thenReturn(DataScopeConfigService.AccessProfile.builder()
+        when(dataScopeConfigService.getAccessProfile(user)).thenReturn(DataScopeAccessProfile.builder()
                 .dataScope("self")
                 .build());
         when(projectRepository.findAccessibleProjectIdsByUserId(801L)).thenReturn(List.of());
@@ -200,11 +201,11 @@ class ProjectAccessScopeServiceTest {
         User user = User.builder()
                 .id(802L)
                 .username("both-leads")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .enabled(true)
                 .build();
 
-        when(dataScopeConfigService.getAccessProfile(user)).thenReturn(DataScopeConfigService.AccessProfile.builder()
+        when(dataScopeConfigService.getAccessProfile(user)).thenReturn(DataScopeAccessProfile.builder()
                 .dataScope("self")
                 .build());
         when(projectRepository.findAccessibleProjectIdsByUserId(802L)).thenReturn(List.of());
@@ -227,11 +228,11 @@ class ProjectAccessScopeServiceTest {
         User user = User.builder()
                 .id(901L)
                 .username("bid-reviewer")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .enabled(true)
                 .build();
 
-        when(dataScopeConfigService.getAccessProfile(user)).thenReturn(DataScopeConfigService.AccessProfile.builder()
+        when(dataScopeConfigService.getAccessProfile(user)).thenReturn(DataScopeAccessProfile.builder()
                 .dataScope("self")
                 .build());
         when(projectRepository.findAccessibleProjectIdsByUserId(901L)).thenReturn(List.of());
@@ -253,7 +254,7 @@ class ProjectAccessScopeServiceTest {
         User user = User.builder()
                 .id(701L)
                 .username("outsider-user")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .enabled(true)
                 .build();
         SecurityContextHolder.getContext().setAuthentication(
@@ -261,7 +262,7 @@ class ProjectAccessScopeServiceTest {
         );
 
         when(userRepository.findByUsername("outsider-user")).thenReturn(Optional.of(user));
-        when(dataScopeConfigService.getAccessProfile(user)).thenReturn(DataScopeConfigService.AccessProfile.builder()
+        when(dataScopeConfigService.getAccessProfile(user)).thenReturn(DataScopeAccessProfile.builder()
                 .dataScope("self")
                 .build());
         when(projectRepository.findAccessibleProjectIdsByUserId(701L)).thenReturn(List.of());

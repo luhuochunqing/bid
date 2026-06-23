@@ -201,16 +201,16 @@ class AiDeepCapabilityIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "ai-staff", roles = {"STAFF"})
+    @WithMockUser(username = "ai-staff", roles = {"MANAGER"})
     void aiEndpoints_ForStaff_ShouldDenyHiddenAndUnlinkedTargets() throws Exception {
         User staffUser = userRepository.save(User.builder()
                 .username("ai-staff")
                 .password("XiyuDemo!2026")
                 .email("ai-staff@example.com")
                 .fullName("AI 普通用户")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .roleProfile(roleProfileRepository.save(RoleProfile.builder()
-                        .code("staff")
+                        .code("bid_specialist")
                         .name("普通员工")
                         .dataScope("self")
                         .build()))

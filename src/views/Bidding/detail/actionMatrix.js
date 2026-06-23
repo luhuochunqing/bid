@@ -47,7 +47,7 @@ const ACTION_DEFS = {
 // ---------------------------------------------------------------------------
 function resolveRoleGroup(role) {
   if (role === 'admin' || role === 'bid_admin' || role === 'bid_lead' || role === 'bid_senior') return 'admin_lead'
-  if (role === 'sales' || role === 'staff' || role === 'admin_staff') return 'sales'
+  if (role === 'sales' || role === 'bid_other_dept' || role === 'admin_staff') return 'sales'
   if (role === 'manager') return 'admin_lead'
   if (role === 'bid_specialist') return 'bid_specialist'
   return null

@@ -17,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.InsufficientAuthenticationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
@@ -127,22 +128,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
-     * 处理 OSS 权限不足异常（用户无 bid-platform 系统访问权限）。
-     * 与 BadCredentialsException（密码错误）区分，返回 403 而非 401。
-     */
-    @ExceptionHandler(InsufficientAuthenticationException.class)
-    public ResponseEntity<ApiResponse<Void>> handleInsufficientAuthenticationException(
-            InsufficientAuthenticationException ex,
-            HttpServletRequest request) {
-        log.warn("OSS权限不足 - URI: {}, IP: {}, msg: {}",
-                request.getRequestURI(), getClientIp(request), ex.getMessage());
-
-        return ResponseEntity
-                .status(HttpStatus.FORBIDDEN)
-                .body(ApiResponse.error(403, "您没有该系统的访问权限，请联系管理员"));
-    }
-
-    /**
      * 处理认证异常
      */
     @ExceptionHandler(AuthenticationException.class)
@@ -180,10 +165,51 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             HttpServletRequest request) {
         log.warn("登录失败 - URI: {}, IP: {}", request.getRequestURI(), getClientIp(request));
 
-        // 使用通用错误消息，防止用户枚举攻击
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.error(401, "用户名或密码错误"));
+                .body(ApiResponse.error(401, "AUTHENTICATION_FAILED: 用户名或密码错误"));
+    }
+
+    /**
+     * 处理账户已停用异常
+     */
+    @ExceptionHandler(DisabledException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDisabledException(
+            DisabledException ex,
+            HttpServletRequest request) {
+        log.warn("账户已停用 - URI: {}, IP: {}", request.getRequestURI(), getClientIp(request));
+
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error(403, "ACCOUNT_DISABLED: 账户已停用"));
+    }
+
+    /**
+     * 处理角色未授权异常：OSS 用户角色不在白名单中，返回 403。
+     */
+    @ExceptionHandler(RoleNotAuthorizedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleRoleNotAuthorizedException(
+            RoleNotAuthorizedException ex,
+            HttpServletRequest request) {
+        log.warn("角色未授权 - URI: {}, IP: {}, msg: {}",
+                request.getRequestURI(), getClientIp(request), ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error(403, "ROLE_NOT_AUTHORIZED: " + ex.getMessage()));
+    }
+
+    /**
+     * 处理认证不充分异常：返回 401。
+     */
+    @ExceptionHandler(InsufficientAuthenticationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInsufficientAuthenticationException(
+            InsufficientAuthenticationException ex,
+            HttpServletRequest request) {
+        log.warn("认证不充分 - URI: {}, IP: {}",
+                request.getRequestURI(), getClientIp(request));
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.error(401, "AUTHENTICATION_FAILED: " + (ex.getMessage() != null ? ex.getMessage() : "认证失败")));
     }
 
     /**

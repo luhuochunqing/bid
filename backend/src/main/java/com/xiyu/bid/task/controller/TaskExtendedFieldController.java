@@ -37,7 +37,7 @@ public class TaskExtendedFieldController {
      * @return 启用字段列表，封装在 {@link ApiResponse} 中
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     @Auditable(action = "READ", entityType = "TaskExtendedField",
         description = "列出已启用的任务扩展字段")
     public ResponseEntity<ApiResponse<List<TaskExtendedFieldDTO>>> list() {

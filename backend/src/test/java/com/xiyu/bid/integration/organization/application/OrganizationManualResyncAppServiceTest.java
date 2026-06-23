@@ -145,9 +145,9 @@ class OrganizationManualResyncAppServiceTest {
             super(null, null, null, new OrganizationIntegrationProperties(), null, null);
         }
 
-        public com.xiyu.bid.entity.User upsert(String sourceApp, String eventKey, OrganizationUserSnapshot snapshot) {
+        public java.util.Optional<com.xiyu.bid.entity.User> upsert(String sourceApp, String eventKey, OrganizationUserSnapshot snapshot) {
             writes++;
-            return new com.xiyu.bid.entity.User();
+            return java.util.Optional.of(new com.xiyu.bid.entity.User());
         }
     }
 }

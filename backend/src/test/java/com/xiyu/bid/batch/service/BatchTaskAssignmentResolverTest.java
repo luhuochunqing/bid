@@ -38,7 +38,7 @@ class BatchTaskAssignmentResolverTest {
         User assignee = User.builder()
                 .id(20L)
                 .enabled(true)
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .departmentCode("D1")
                 .departmentName("研发部")
                 .build();
@@ -73,7 +73,7 @@ class BatchTaskAssignmentResolverTest {
     void resolveAssignment_ShouldRejectCrossDepartmentWithoutPermission() {
         User currentUser = User.builder()
                 .id(1L)
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .departmentCode("D1")
                 .build();
         when(projectAccessScopeService.getAllowedDepartmentCodes(currentUser)).thenReturn(List.of("D1"));

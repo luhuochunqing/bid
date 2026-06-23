@@ -81,7 +81,7 @@ class ProjectInitiationApprovalServiceTest {
         return User.builder()
                 .id(id)
                 .fullName("用户" + id)
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .roleProfile(roleProfile(roleProfileCode))
                 .build();
     }

@@ -9,7 +9,6 @@ import java.util.regex.MatchResult;
 import java.util.regex.Pattern;
 
 public final class EndpointPermissionPolicy {
-    private static final List<String> AUTHENTICATED_ROLES = List.of("ADMIN", "MANAGER", "STAFF");
     private static final Pattern QUOTED_TOKEN = Pattern.compile("['\"]([A-Z_]+)['\"]");
 
     public EndpointPermissionDescriptor describe(
@@ -51,7 +50,7 @@ public final class EndpointPermissionPolicy {
 
     private List<String> allowedRoles(String expression) {
         if (expression.contains("permitAll")) return List.of();
-        if (expression.contains("isAuthenticated")) return AUTHENTICATED_ROLES;
+        if (expression.contains("isAuthenticated")) return List.of("ADMIN", "MANAGER");
         if (expression.contains("hasRole") || expression.contains("hasAnyRole")) {
             return QUOTED_TOKEN.matcher(expression).results()
                     .map(MatchResult::group)
@@ -67,7 +66,6 @@ public final class EndpointPermissionPolicy {
         if (expression.contains("hasAuthority")) return "AUTHORITY_BASED";
         if (roles.equals(List.of("ADMIN"))) return "ADMIN_ONLY";
         if (roles.equals(List.of("ADMIN", "MANAGER"))) return "ADMIN_MANAGER";
-        if (roles.equals(AUTHENTICATED_ROLES)) return "AUTHENTICATED";
         return roles.isEmpty() ? "CUSTOM_EXPRESSION" : "ROLE_BASED";
     }
 

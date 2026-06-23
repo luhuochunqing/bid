@@ -44,7 +44,7 @@ class TaskStatusDictControllerTest {
     private TaskStatusDictService taskStatusDictService;
 
     @Test
-    @WithMockUser(roles = "STAFF")
+    @WithMockUser(roles = "MANAGER")
     void listsEnabledStatuses() throws Exception {
         when(taskStatusDictService.listEnabled()).thenReturn(List.of(
                 new TaskStatusDictDTO("TODO", "待办", "OPEN", "#909399", 10, true, false),

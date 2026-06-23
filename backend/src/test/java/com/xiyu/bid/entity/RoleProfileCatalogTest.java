@@ -8,8 +8,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class RoleProfileCatalogTest {
 
     @Test
-    @DisplayName("业务人员默认拥有工作台快速发起和 AI 中心权限")
-    void staffRoleShouldIncludeQuickStartAndAiCenterPermission() {
+    @DisplayName("行政人员默认拥有资质证书管理与行政事务权限")
+    void adminStaffRoleShouldIncludeCertificateAndQualificationPermissions() {
         RoleProfileCatalog.SeedDefinition definition =
                 RoleProfileCatalog.definitionForCode(RoleProfileCatalog.ADMIN_STAFF_CODE);
 
@@ -24,7 +24,7 @@ class RoleProfileCatalogTest {
                 RoleProfileCatalog.definitionForCode(RoleProfileCatalog.BID_ADMIN_CODE);
 
         assertThat(definition.menuPermissions()).contains("operation-logs", "settings");
-        assertThat(RoleProfileCatalog.legacyRoleForCode(RoleProfileCatalog.BID_ADMIN_CODE)).isEqualTo(User.Role.MANAGER);
+        assertThat(RoleProfileCatalog.legacyRoleForCode(RoleProfileCatalog.BID_ADMIN_CODE)).isEqualTo(User.Role.ADMIN);
     }
 
     @Test
@@ -42,7 +42,7 @@ class RoleProfileCatalogTest {
     }
 
     @Test
-    @DisplayName("shouldSkipLegacyRoleCompat：受限角色与未注册角色跳过 STAFF 兼容，已注册普通角色与纯 Legacy 用户保留")
+    @DisplayName("shouldSkipLegacyRoleCompat：受限角色与未注册角色跳过 legacy 角色兼容，已注册普通角色与纯 Legacy 用户保留")
     void shouldSkipLegacyRoleCompatShouldCoverRestrictedAndUnregistered() {
         assertThat(RoleProfileCatalog.shouldSkipLegacyRoleCompat(RoleProfileCatalog.BID_OTHER_DEPT_CODE)).isTrue();
         assertThat(RoleProfileCatalog.shouldSkipLegacyRoleCompat("legal-reviewer")).isTrue();
@@ -76,7 +76,7 @@ class RoleProfileCatalogTest {
                 "bid_specialist", "sales", "admin_staff", "bid_other_dept");
         for (String target : targets) {
             boolean known = RoleProfileCatalog.isRegisteredCode(target)
-                    || "admin".equals(target) || "manager".equals(target) || "staff".equals(target);
+                    || "admin".equals(target) || "manager".equals(target);
             assertThat(known)
                     .as("OSS mapping target '%s' must be a known role code", target)
                     .isTrue();

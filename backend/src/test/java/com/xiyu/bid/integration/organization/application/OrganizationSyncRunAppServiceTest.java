@@ -199,16 +199,16 @@ class OrganizationSyncRunAppServiceTest {
             super(null, null, null, new OrganizationIntegrationProperties(), null, null);
         }
 
-        public com.xiyu.bid.entity.User upsert(String sourceApp, String eventKey, OrganizationUserSnapshot snapshot) {
+        public java.util.Optional<com.xiyu.bid.entity.User> upsert(String sourceApp, String eventKey, OrganizationUserSnapshot snapshot) {
             if (throwOnWrite) {
                 throw new IllegalStateException("write failed");
             }
             writes++;
-            return new com.xiyu.bid.entity.User();
+            return java.util.Optional.of(new com.xiyu.bid.entity.User());
         }
 
         @Override
-        public com.xiyu.bid.entity.User upsert(
+        public java.util.Optional<com.xiyu.bid.entity.User> upsert(
                 String sourceApp,
                 String eventKey,
                 OrganizationUserSnapshot snapshot,

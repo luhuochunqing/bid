@@ -76,7 +76,7 @@ class TenderEvaluationSubmissionCustomerInfoFlushTest {
                 .password("dummy")
                 .email("co266-evaluator@test.local")
                 .fullName("CO-266 测试评估人")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .emailVerified(false)
                 .build();
         evaluatorId = userRepository.save(evaluator).getId();

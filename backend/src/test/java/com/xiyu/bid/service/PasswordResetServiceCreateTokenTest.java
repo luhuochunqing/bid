@@ -59,7 +59,7 @@ class PasswordResetServiceCreateTokenTest extends AbstractPasswordResetServiceTe
                 .email("test@example.com")
                 .password("encodedPassword")
                 .fullName("Test User")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .enabled(false)
                 .build();
         when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(disabledUser));

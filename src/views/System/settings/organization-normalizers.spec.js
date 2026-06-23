@@ -27,7 +27,7 @@ describe('organization-normalizers', () => {
   })
 
   it('builds user organization payload from selected department and role', () => {
-    const users = normalizeUsers([{ id: 1, fullName: '张三', departmentCode: 'TECH', roleCode: 'staff', enabled: true }])
+    const users = normalizeUsers([{ id: 1, fullName: '张三', departmentCode: 'TECH', roleCode: 'bid_specialist', enabled: true }])
 
     expect(users[0].departmentName).toBe('未配置部门')
     expect(buildUserOrganizationPayload({ departmentCode: ' TECH ', roleId: 3, enabled: true }))

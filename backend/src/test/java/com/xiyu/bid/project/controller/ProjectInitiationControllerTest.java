@@ -84,7 +84,7 @@ class ProjectInitiationControllerTest {
         dto.setOwnerUnit("西域事业部");
         when(service.submit(eq(100L), any(InitiationDto.class), eq(42L))).thenReturn(dto);
 
-        UserDetails principal = User.withUsername("sales").password("x").roles("STAFF").build();
+        UserDetails principal = User.withUsername("sales").password("x").roles("MANAGER").build();
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(principal, "x", principal.getAuthorities()));
 
@@ -103,7 +103,7 @@ class ProjectInitiationControllerTest {
         dto.setOwnerUnit("西域事业部");
         when(service.submit(eq(100L), any(InitiationDto.class), eq(42L))).thenReturn(dto);
 
-        UserDetails principal = User.withUsername("sales").password("x").roles("STAFF").build();
+        UserDetails principal = User.withUsername("sales").password("x").roles("MANAGER").build();
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(principal, "x", principal.getAuthorities()));
 

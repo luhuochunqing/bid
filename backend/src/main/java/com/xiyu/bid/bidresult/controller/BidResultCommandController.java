@@ -31,7 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("isAuthenticated()")
 public class BidResultCommandController {
 
-    private static final String ADMIN_MANAGER_STAFF_EXPR = "hasAnyRole('ADMIN', 'MANAGER', 'STAFF')";
+    private static final String ADMIN_MANAGER_EXPR = "hasAnyRole('ADMIN', 'MANAGER')";
 
     private final BidResultRegistrationAppService registrationAppService;
     private final BidResultFetchConfirmationAppService fetchConfirmationAppService;
@@ -40,21 +40,21 @@ public class BidResultCommandController {
     private final BidResultCurrentUserResolver currentUserResolver;
 
     @PostMapping("/sync")
-    @PreAuthorize(ADMIN_MANAGER_STAFF_EXPR)
+    @PreAuthorize(ADMIN_MANAGER_EXPR)
     public ResponseEntity<ApiResponse<BidResultSyncResponseDTO>> sync(@AuthenticationPrincipal UserDetails userDetails) {
         User user = currentUserResolver.resolve(userDetails);
         return ResponseEntity.ok(ApiResponse.success(syncAppService.syncInternal(user.getId(), user.getFullName())));
     }
 
     @PostMapping("/fetch")
-    @PreAuthorize(ADMIN_MANAGER_STAFF_EXPR)
+    @PreAuthorize(ADMIN_MANAGER_EXPR)
     public ResponseEntity<ApiResponse<BidResultSyncResponseDTO>> fetch(@AuthenticationPrincipal UserDetails userDetails) {
         User user = currentUserResolver.resolve(userDetails);
         return ResponseEntity.ok(ApiResponse.success(syncAppService.fetchPublicResults(user.getId(), user.getFullName())));
     }
 
     @PostMapping("/register")
-    @PreAuthorize(ADMIN_MANAGER_STAFF_EXPR)
+    @PreAuthorize(ADMIN_MANAGER_EXPR)
     public ResponseEntity<ApiResponse<BidResultFetchResultDTO>> register(
             @RequestBody BidResultRegisterRequest request,
             @AuthenticationPrincipal UserDetails userDetails
@@ -64,7 +64,7 @@ public class BidResultCommandController {
     }
 
     @PostMapping("/{id}/update")
-    @PreAuthorize(ADMIN_MANAGER_STAFF_EXPR)
+    @PreAuthorize(ADMIN_MANAGER_EXPR)
     public ResponseEntity<ApiResponse<BidResultFetchResultDTO>> update(
             @PathVariable Long id,
             @RequestBody BidResultUpdateRequest request,
@@ -75,7 +75,7 @@ public class BidResultCommandController {
     }
 
     @PostMapping("/fetch-results/{id}/confirm-with-data")
-    @PreAuthorize(ADMIN_MANAGER_STAFF_EXPR)
+    @PreAuthorize(ADMIN_MANAGER_EXPR)
     public ResponseEntity<ApiResponse<BidResultFetchResultDTO>> confirmWithData(
             @PathVariable Long id,
             @RequestBody(required = false) BidResultConfirmRequest request,
@@ -86,14 +86,14 @@ public class BidResultCommandController {
     }
 
     @PostMapping("/fetch-results/{id}/ignore")
-    @PreAuthorize(ADMIN_MANAGER_STAFF_EXPR)
+    @PreAuthorize(ADMIN_MANAGER_EXPR)
     public ResponseEntity<ApiResponse<Void>> ignore(@PathVariable Long id, @RequestBody BidResultIgnoreRequest request) {
         fetchConfirmationAppService.ignore(id, request.getComment());
         return ResponseEntity.ok(ApiResponse.success("已忽略该记录", null));
     }
 
     @PostMapping("/fetch-results/confirm-batch")
-    @PreAuthorize(ADMIN_MANAGER_STAFF_EXPR)
+    @PreAuthorize(ADMIN_MANAGER_EXPR)
     public ResponseEntity<ApiResponse<BidResultSyncResponseDTO>> confirmBatch(
             @RequestBody BidResultBatchRequest request,
             @AuthenticationPrincipal UserDetails userDetails
@@ -109,7 +109,7 @@ public class BidResultCommandController {
     }
 
     @PostMapping("/{resultId}/attachments/bind")
-    @PreAuthorize(ADMIN_MANAGER_STAFF_EXPR)
+    @PreAuthorize(ADMIN_MANAGER_EXPR)
     public ResponseEntity<ApiResponse<BidResultFetchResultDTO>> bindAttachment(
             @PathVariable Long resultId,
             @RequestBody BidResultAttachmentBindRequest request,

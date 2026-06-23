@@ -55,7 +55,7 @@ class RoleProfileBootstrapTest {
         ArgumentCaptor<RoleProfile> captor = ArgumentCaptor.forClass(RoleProfile.class);
         verify(roleProfileRepository, atLeastOnce()).save(captor.capture());
         assertThat(captor.getAllValues())
-                .filteredOn(role -> RoleProfileCatalog.STAFF_CODE.equals(role.getCode()))
+                .filteredOn(role -> RoleProfileCatalog.BID_SPECIALIST_CODE.equals(role.getCode()))
                 .singleElement()
                 .satisfies(role -> assertThat(role.getMenuPermissions())
                         .contains(RoleProfileCatalog.QUICK_START_PERMISSION, RoleProfileCatalog.AI_CENTER_PERMISSION));

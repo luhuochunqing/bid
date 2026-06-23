@@ -4,6 +4,7 @@
 // 维护声明: 仅维护标讯与关联项目的数据权限判断；标讯业务流转留在命令/查询服务。
 package com.xiyu.bid.tender.service;
 
+import com.xiyu.bid.admin.service.DataScopeAccessProfile;
 import com.xiyu.bid.admin.service.DataScopeConfigService;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
@@ -139,7 +140,7 @@ class TenderProjectAccessGuard {
 
     private String resolveDataScope(User user) {
         if (user == null) return "self";
-        DataScopeConfigService.AccessProfile profile = dataScopeConfigService.getAccessProfile(user);
+        DataScopeAccessProfile profile = dataScopeConfigService.getAccessProfile(user);
         return profile == null ? "self" : profile.getDataScope();
     }
 }

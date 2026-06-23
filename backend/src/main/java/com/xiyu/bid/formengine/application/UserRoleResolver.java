@@ -21,7 +21,6 @@ public class UserRoleResolver {
 
     private static final List<String> ADMIN_ROLES = List.of("admin", "bid_admin", "ADMIN", "BID_ADMIN");
     private static final List<String> MANAGER_ROLES = List.of("bid_lead", "sales", "MANAGER", "BID_LEAD", "BID_ADMIN");
-    private static final List<String> STAFF_ROLES = List.of("bid_specialist", "admin_staff", "STAFF");
 
     /**
      * 根据用户名解析用户角色集合。
@@ -44,10 +43,6 @@ public class UserRoleResolver {
         if (MANAGER_ROLES.stream().anyMatch(r -> lower.contains(r.toLowerCase()))) {
             roles.add("manager");
         }
-        if (STAFF_ROLES.stream().anyMatch(r -> lower.contains(r.toLowerCase()))) {
-            roles.add("staff");
-        }
-
         // 如果是已知测试账号，添加精确角色
         if (lower.equals("admin") || lower.equals("lizong")) {
             roles.add("admin");
@@ -55,7 +50,7 @@ public class UserRoleResolver {
 
         // 默认角色
         if (roles.isEmpty()) {
-            roles.add("staff"); // 默认降级为普通员工
+            roles.add("bid_specialist"); // 默认降级为投标专员
         }
 
         return roles;

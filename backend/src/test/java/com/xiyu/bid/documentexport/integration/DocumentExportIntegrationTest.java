@@ -84,7 +84,7 @@ class DocumentExportIntegrationTest {
                 .password("XiyuDemo!2026")
                 .email("export-outsider@example.com")
                 .fullName("无权用户")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .enabled(true)
                 .build());
 
@@ -187,7 +187,7 @@ class DocumentExportIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "export-outsider", roles = {"STAFF"})
+    @WithMockUser(username = "export-outsider", roles = {"MANAGER"})
     void exportAndArchiveEndpoints_WhenProjectOutsideCurrentUserScope_ShouldReturnForbidden() throws Exception {
         DocumentStructure structure = structureRepository.save(DocumentStructure.builder()
                 .projectId(project.getId())

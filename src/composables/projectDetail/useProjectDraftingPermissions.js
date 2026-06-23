@@ -28,7 +28,7 @@
  * - sales      → 投标项目负责人（蓝图"投标负责人/辅助人"）
  * - bid_specialist → 投标专员，可作为投标负责人或辅助人员（蓝图"投标负责人/辅助人"）
  * - admin      → 系统管理员（归入"投标管理员/组长"权限组）
- * - 其他（admin_staff, bid_other_dept, staff 等）→ 默认可见页面，但无特殊操作权限
+ * - 其他（admin_staff, bid_other_dept, bid_specialist 等）→ 默认可见页面，但无特殊操作权限
  */
 
 import { computed } from 'vue'

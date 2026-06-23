@@ -40,7 +40,7 @@ class LocalDevAccountInitializerTest {
     }
 
     @Test
-    void seedLocalAccountsShouldCreateStaffAndManagerLoginUsers() {
+    void seedLocalAccountsShouldCreateManagerRoleLoginUsers() {
         UserRepository userRepository = mock(UserRepository.class);
         RoleProfileRepository roleProfileRepository = mock(RoleProfileRepository.class);
         PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
@@ -48,8 +48,6 @@ class LocalDevAccountInitializerTest {
                 new LocalDevAccountInitializer(userRepository, roleProfileRepository, passwordEncoder);
 
         when(userRepository.findByUsername(anyString())).thenReturn(Optional.empty());
-        when(roleProfileRepository.findByCodeIgnoreCase("staff"))
-                .thenReturn(Optional.of(RoleProfile.builder().id(3L).code("staff").build()));
         when(roleProfileRepository.findByCodeIgnoreCase("manager"))
                 .thenReturn(Optional.of(RoleProfile.builder().id(2L).code("manager").build()));
         when(roleProfileRepository.findByCodeIgnoreCase("auditor"))
@@ -81,7 +79,7 @@ class LocalDevAccountInitializerTest {
                 .containsExactly("陈投标管理", "刘投标组长", "张销售", "周投标专员", "郑行政");
         assertThat(savedUsers)
                 .extracting(User::getRole)
-                .containsExactly(User.Role.MANAGER, User.Role.MANAGER, User.Role.MANAGER, User.Role.STAFF, User.Role.STAFF);
+                .containsExactly(User.Role.ADMIN, User.Role.MANAGER, User.Role.MANAGER, User.Role.MANAGER, User.Role.MANAGER);
         assertThat(savedUsers)
                 .extracting(User::getEnabled)
                 .containsOnly(true);

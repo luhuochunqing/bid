@@ -20,7 +20,7 @@ import java.util.Optional;
  */
 @RestController
 @RequestMapping("/api/market-prediction")
-@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
 @RequiredArgsConstructor
 public class MarketPredictionController {
 

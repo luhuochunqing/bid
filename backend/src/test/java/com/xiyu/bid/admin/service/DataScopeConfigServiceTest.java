@@ -60,7 +60,7 @@ class DataScopeConfigServiceTest {
                 .id(1L)
                 .username("alice")
                 .fullName("Alice")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .departmentCode("SALES")
                 .departmentName("销售部")
                 .enabled(true)
@@ -142,7 +142,7 @@ class DataScopeConfigServiceTest {
                 .id(1L)
                 .username("alice")
                 .fullName("Alice")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .departmentCode("SALES")
                 .departmentName("销售部")
                 .enabled(true)
@@ -180,7 +180,7 @@ class DataScopeConfigServiceTest {
         when(systemSettingRepository.findByConfigKey(DataScopeConfigService.DATA_SCOPE_CONFIG_KEY))
                 .thenReturn(Optional.of(SystemSetting.builder().configKey(DataScopeConfigService.DATA_SCOPE_CONFIG_KEY).payloadJson(payloadJson).build()));
 
-        DataScopeConfigService.AccessProfile profile = dataScopeConfigService.getAccessProfile(salesUser);
+        DataScopeAccessProfile profile = dataScopeConfigService.getAccessProfile(salesUser);
 
         assertThat(profile.getDataScope()).isEqualTo("self");
         assertThat(profile.getExplicitProjectIds()).containsExactly(9L);
@@ -230,7 +230,7 @@ class DataScopeConfigServiceTest {
         when(systemSettingRepository.findByConfigKey(DataScopeConfigService.DATA_SCOPE_CONFIG_KEY))
                 .thenReturn(Optional.of(SystemSetting.builder().configKey(DataScopeConfigService.DATA_SCOPE_CONFIG_KEY).payloadJson(payloadJson).build()));
 
-        DataScopeConfigService.AccessProfile profile = dataScopeConfigService.getAccessProfile(managerUser);
+        DataScopeAccessProfile profile = dataScopeConfigService.getAccessProfile(managerUser);
 
         assertThat(profile.getAllowedDepartmentCodes()).containsExactly("SALES", "SALES_EAST");
     }
@@ -241,7 +241,7 @@ class DataScopeConfigServiceTest {
                 .id(1L)
                 .username("alice")
                 .fullName("Alice")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .departmentCode("SALES")
                 .departmentName("销售部")
                 .enabled(true)
@@ -301,7 +301,7 @@ class DataScopeConfigServiceTest {
         // 菜单权限必须完全根据 OSS 的 /oauth/getUserPermission 接口返回
         User user = User.builder()
                 .id(9L).username("06234").fullName("郑蓉蓉")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .enabled(true)
                 .build();
         OssPermissionCache ossPermissionCache = new OssPermissionCache();
@@ -323,7 +323,7 @@ class DataScopeConfigServiceTest {
         RoleProfile vendorProfile = RoleProfile.builder().code("vendor-user").name("vendor-user").build();
         User user = User.builder()
                 .id(1L).username("vendor").fullName("vendor")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .roleProfile(vendorProfile)
                 .enabled(true)
                 .build();
@@ -340,7 +340,7 @@ class DataScopeConfigServiceTest {
         // 缓存为空时返回空列表（即使本地 DB 有 task-board 权限）
         User user = User.builder()
                 .id(2L).username("hanhui").fullName("hanhui")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .enabled(true)
                 .build();
 
@@ -355,7 +355,7 @@ class DataScopeConfigServiceTest {
         // 新行为：纯 Legacy 用户也只从 OSS 缓存读取，缓存为空时返回空列表
         User user = User.builder()
                 .id(3L).username("legacy").fullName("legacy")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .enabled(true)
                 .build();
 

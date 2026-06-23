@@ -45,7 +45,7 @@ class AuthResponseTest {
                 .id(43L)
                 .username("bob")
                 .email("bob@example.com")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .build();
 
         AuthResponse response = AuthResponse.from("token", user);

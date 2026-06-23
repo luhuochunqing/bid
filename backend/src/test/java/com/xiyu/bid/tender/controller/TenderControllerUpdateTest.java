@@ -133,9 +133,9 @@ class TenderControllerUpdateTest {
     @Test
     @DisplayName("updateTender: Specialist, unassigned and self-created -> Success (creator can edit PENDING_ASSIGNMENT)")
     void updateTender_specialist_unassignedSelfCreated_success() throws Exception {
-        authenticateAs("specialist-user", "STAFF");
+        authenticateAs("specialist-user", "MANAGER");
 
-        User user = User.builder().id(1L).username("specialist-user").role(User.Role.STAFF).build();
+        User user = User.builder().id(1L).username("specialist-user").role(User.Role.MANAGER).build();
         User spyUser = spy(user);
         lenient().when(spyUser.getRoleCode()).thenReturn("bid_specialist");
         when(authService.resolveUserByUsername("specialist-user")).thenReturn(spyUser);
@@ -159,9 +159,9 @@ class TenderControllerUpdateTest {
     @Test
     @DisplayName("updateTender: Specialist, assigned and self-created -> Success")
     void updateTender_specialist_assignedSelfCreated_success() throws Exception {
-        authenticateAs("specialist-user", "STAFF");
+        authenticateAs("specialist-user", "MANAGER");
 
-        User user = User.builder().id(1L).username("specialist-user").role(User.Role.STAFF).build();
+        User user = User.builder().id(1L).username("specialist-user").role(User.Role.MANAGER).build();
         User spyUser = spy(user);
         lenient().when(spyUser.getRoleCode()).thenReturn("bid_specialist");
         when(authService.resolveUserByUsername("specialist-user")).thenReturn(spyUser);

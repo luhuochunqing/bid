@@ -51,7 +51,7 @@ class AuditLogControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(username = "staff", roles = {"STAFF"})
+    @WithMockUser(username = "bid_specialist", roles = {"MANAGER"})
     void staffCannotQueryAuditLogs() throws Exception {
         mockMvc.perform(get("/api/audit"))
                 .andExpect(status().isForbidden());
@@ -65,7 +65,7 @@ class AuditLogControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(username = "staff", roles = {"STAFF"})
+    @WithMockUser(username = "bid_specialist", roles = {"MANAGER"})
     void staffCanQueryOwnOperationLogs() throws Exception {
         mockMvc.perform(get("/api/audit/my"))
                 .andExpect(status().isOk());

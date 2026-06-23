@@ -172,7 +172,7 @@ class ProjectWorkflowServiceTest {
                 .fullName("测试用户")
                 .email("creator@example.com")
                 .password("pw")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .departmentCode("BID")
                 .departmentName("投标管理部")
                 .build()));
@@ -190,7 +190,7 @@ class ProjectWorkflowServiceTest {
         assertThat(task.getAssigneeId()).isEqualTo(9L);
         assertThat(task.getOwner()).isEqualTo("测试用户");
         assertThat(task.getDepartment()).isEqualTo("投标管理部");
-        assertThat(task.getRoleName()).isEqualTo("员工");
+        assertThat(task.getRoleName()).isEqualTo("经理");
     }
 
     @Test

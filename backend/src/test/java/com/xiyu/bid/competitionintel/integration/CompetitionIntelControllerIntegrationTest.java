@@ -235,7 +235,7 @@ class CompetitionIntelControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(roles = {"STAFF"})
+    @WithMockUser(roles = {"MANAGER"})
     void getHistoricalPerformance_WithNonExistentCompetitor_ShouldReturnEmptyList() throws Exception {
         mockMvc.perform(get("/api/ai/competition/competitor/99999/history"))
                 .andExpect(status().isOk())
@@ -245,7 +245,7 @@ class CompetitionIntelControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(roles = {"STAFF"})
+    @WithMockUser(roles = {"MANAGER"})
     void getAllCompetitors_WhenEmpty_ShouldReturnEmptyList() throws Exception {
         // Clear database
         analysisRepository.deleteAll();

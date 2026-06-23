@@ -34,7 +34,7 @@ class WeComBindingServiceTest {
 
     private static User user(Long id, String wecomUserId) {
         return User.builder().id(id).username("u" + id).email("u" + id + "@x.com")
-            .password("p").fullName("User " + id).role(User.Role.STAFF)
+            .password("p").fullName("User " + id).role(User.Role.MANAGER)
             .wecomUserId(wecomUserId).build();
     }
 

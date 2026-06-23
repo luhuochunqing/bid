@@ -60,13 +60,13 @@ describe('workbench role model', () => {
     expect(metrics[0]).toMatchObject({ variant: 'green', changeClass: 'neutral' })
   })
 
-  it('builds manager and staff metrics with role-specific labels', () => {
+  it('builds manager and bid_specialist metrics with role-specific labels', () => {
     expect(getRoleMetrics('manager', { myProjectCount: 2, pendingCount: 5 })[0]).toMatchObject({
       key: 'myProjects',
       label: '负责项目',
       value: '2个',
     })
-    expect(getRoleMetrics('staff', { completedTodoCount: 4 })[1]).toMatchObject({
+    expect(getRoleMetrics('bid_specialist', { completedTodoCount: 4 })[1]).toMatchObject({
       key: 'completedThisWeek',
       label: '已完成',
       value: '4项',

@@ -50,9 +50,9 @@ class ExpenseAccessGuardTest {
     @Test
     void visibleProjectIdsForCurrentUser_ShouldReturnScopeForNonAdmin() {
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
-                "staff",
+                "user",
                 "N/A",
-                List.of(new SimpleGrantedAuthority("ROLE_STAFF"))
+                List.of(new SimpleGrantedAuthority("ROLE_MANAGER"))
         ));
         when(projectAccessScopeService.getAllowedProjectIdsForCurrentUser()).thenReturn(List.of(10L, 20L));
 

@@ -39,9 +39,9 @@ public class ProjectEvaluationController {
     private final ProjectEvaluationService service;
     private final AuthService authService;
 
-    /** 切换评标子状态：投标团队（ADMIN/MANAGER/STAFF）。蓝图 §3.3.1.3 */
+    /** 切换评标子状态：投标团队（ADMIN/MANAGER）。蓝图 §3.3.1.3 */
     @PatchMapping("/sub-stage")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public ResponseEntity<ApiResponse<EvaluationDTO>> transitionSubStage(
             @PathVariable Long projectId,
             @Valid @RequestBody EvaluationSubStageUpdateRequest req,
@@ -53,7 +53,7 @@ public class ProjectEvaluationController {
 
     /** 推进到结果确认阶段。 */
     @PostMapping("/advance")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public ResponseEntity<ApiResponse<Void>> advance(
             @PathVariable Long projectId,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -61,9 +61,9 @@ public class ProjectEvaluationController {
         return ResponseEntity.ok(ApiResponse.success("advanced to RESULT_PENDING", null));
     }
 
-    /** 附加评标证据：投标团队（ADMIN/MANAGER/STAFF）。 */
+    /** 附加评标证据：投标团队（ADMIN/MANAGER）。 */
     @PostMapping("/evidence")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public ResponseEntity<ApiResponse<EvaluationDTO>> attachEvidence(
             @PathVariable Long projectId,
             @Valid @RequestBody EvaluationEvidenceAttachRequest req,
@@ -74,9 +74,9 @@ public class ProjectEvaluationController {
                 .body(ApiResponse.success("Evidence attached", dto));
     }
 
-    /** 填写项目评估表单：投标团队（ADMIN/MANAGER/STAFF）。 */
+    /** 填写项目评估表单：投标团队（ADMIN/MANAGER）。 */
     @PatchMapping("/form")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public ResponseEntity<ApiResponse<EvaluationDTO>> updateForm(
             @PathVariable Long projectId,
             @Valid @RequestBody EvaluationFormUpdateRequest req,
@@ -87,7 +87,7 @@ public class ProjectEvaluationController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public ResponseEntity<ApiResponse<EvaluationDTO>> get(@PathVariable Long projectId) {
         EvaluationDTO dto = service.getByProject(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "评标尚未开始"));

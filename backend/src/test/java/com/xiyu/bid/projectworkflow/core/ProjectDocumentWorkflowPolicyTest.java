@@ -24,7 +24,7 @@ class ProjectDocumentWorkflowPolicyTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"bid_lead", "sales", "bid_specialist", "admin_staff", "bid_other_dept", "staff"})
+    @ValueSource(strings = {"bid_lead", "sales", "bid_specialist", "admin_staff", "bid_other_dept", "unknown"})
     void canDeleteProjectDocument_whenNonAdminRole_shouldDeny(String roleCode) {
         var result = ProjectDocumentWorkflowPolicy.canDeleteProjectDocument(roleCode);
         assertThat(result.allowed()).isFalse();

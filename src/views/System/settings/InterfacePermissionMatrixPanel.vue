@@ -18,7 +18,7 @@
       <el-select v-model="filters.role" clearable placeholder="角色">
         <el-option label="管理员" value="admin" />
         <el-option label="经理" value="manager" />
-        <el-option label="项目负责人" value="staff" />
+        <el-option label="投标专员" value="bid_specialist" />
       </el-select>
       <el-select v-model="filters.riskLevel" clearable placeholder="风险">
         <el-option label="高" value="HIGH" />

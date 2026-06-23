@@ -52,14 +52,14 @@ class OrganizationUserSyncWriterAutoSyncTest {
     @Test
     @DisplayName("auto sync enabled calls merge for saved user with role")
     void upsert_autoSyncEnabled_callsMerge() {
-        RoleProfile role = role("staff");
+        RoleProfile role = role("bid_specialist");
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "100")).thenReturn(Optional.empty());
-        when(roleProfileRepository.findByCodeIgnoreCase("staff")).thenReturn(Optional.of(role));
+        when(roleProfileRepository.findByCodeIgnoreCase("bid_specialist")).thenReturn(Optional.of(role));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         writer.upsert("oss", "event-key", new OrganizationUserSnapshot(
                 "100", "zhangsan", "张三", "zhangsan@example.com",
-                "13800000000", "sales", "销售部", "", "", true));
+                "13800000000", "sales", "销售部", "", "bid-Team", true));
 
         verify(autoSync).mergeUserMenuPermissionsIntoRole(eq("zhangsan"), eq(role));
     }
@@ -75,14 +75,14 @@ class OrganizationUserSyncWriterAutoSyncTest {
         OrganizationUserSyncWriter noSyncWriter = new OrganizationUserSyncWriter(
                 userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver, autoSync);
 
-        RoleProfile role = role("staff");
+        RoleProfile role = role("bid_specialist");
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "100")).thenReturn(Optional.empty());
-        when(roleProfileRepository.findByCodeIgnoreCase("staff")).thenReturn(Optional.of(role));
+        when(roleProfileRepository.findByCodeIgnoreCase("bid_specialist")).thenReturn(Optional.of(role));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         noSyncWriter.upsert("oss", "event-key", new OrganizationUserSnapshot(
                 "100", "zhangsan", "张三", "zhangsan@example.com",
-                "13800000000", "sales", "销售部", "", "", true));
+                "13800000000", "sales", "销售部", "", "bid-Team", true));
 
         verify(autoSync, never()).mergeUserMenuPermissionsIntoRole(any(), any());
     }

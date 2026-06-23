@@ -32,7 +32,7 @@ import java.util.List;
  * 提供文档版本管理的REST API端点
  *
  * <p>H4 fix 2026-06-13: 类级 @PreAuthorize 强制要求已认证用户角色为
- * ADMIN/MANAGER/STAFF;{@code rollbackToVersion} 取消 {@code userId}
+ * ADMIN/MANAGER;{@code rollbackToVersion} 取消 {@code userId}
  * query 参数,改从 SecurityContext 解析当前用户,防止伪造审计操作人。
  */
 @RestController
@@ -40,7 +40,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 @Validated
-@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
 public class DocumentVersionController {
 
     private final VersionHistoryService versionHistoryService;

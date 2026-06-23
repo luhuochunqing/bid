@@ -53,7 +53,7 @@ class TaskContentMarkdownSanitizeTest {
     private TaskActivityService taskActivityService;
 
     @Test
-    @WithMockUser(roles = "STAFF")
+    @WithMockUser(roles = "MANAGER")
     void markdownLineBreaksSurviveSanitize() throws Exception {
         ArgumentCaptor<TaskDTO> captor = ArgumentCaptor.forClass(TaskDTO.class);
         when(taskService.createTask(any(TaskDTO.class))).thenAnswer(inv -> {
@@ -91,7 +91,7 @@ class TaskContentMarkdownSanitizeTest {
     }
 
     @Test
-    @WithMockUser(roles = "STAFF")
+    @WithMockUser(roles = "MANAGER")
     void dangerousControlCharsStrippedButNewlinesKept() throws Exception {
         ArgumentCaptor<TaskDTO> captor = ArgumentCaptor.forClass(TaskDTO.class);
         when(taskService.createTask(any(TaskDTO.class))).thenAnswer(inv -> {

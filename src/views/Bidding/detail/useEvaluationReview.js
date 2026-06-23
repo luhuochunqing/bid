@@ -16,7 +16,7 @@ import { isBidManagerExcludeAdmin } from '@/utils/permission'
  */
 export function useEvaluationReview(tenderRef) {
   const userStore = useUserStore()
-  const currentUserRole = computed(() => userStore?.userRole || 'STAFF')
+  const currentUserRole = computed(() => userStore?.userRole || 'BID_SPECIALIST')
 
   const tenderEvaluation = ref(null)
   const submitting = ref(false)

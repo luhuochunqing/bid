@@ -57,12 +57,12 @@ class OrganizationUserSyncWriterTest {
     @DisplayName("upsert maps external user id without using it as username")
     void upsert_mapsExternalUserIdSeparately() {
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("customer-org", "10001")).thenReturn(Optional.empty());
-        when(roleProfileRepository.findByCodeIgnoreCase("staff")).thenReturn(Optional.of(role("staff")));
+        when(roleProfileRepository.findByCodeIgnoreCase("bid_specialist")).thenReturn(Optional.of(role("bid_specialist")));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         writer.upsert("customer-org", "event-key", new OrganizationUserSnapshot(
                 "10001", "zhangsan", "张三", "zhangsan@example.com",
-                "13800000000", "sales", "销售部", "", "", true
+                "13800000000", "sales", "销售部", "", "bid-Team", true
         ));
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
@@ -78,15 +78,15 @@ class OrganizationUserSyncWriterTest {
         User existing = new User();
         existing.setUsername("zhangsan");
         existing.setEmail("old@example.com");
-        existing.setRole(User.Role.STAFF);
+        existing.setRole(User.Role.MANAGER);
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "720518523"))
                 .thenReturn(Optional.of(existing));
-        when(roleProfileRepository.findByCodeIgnoreCase("staff")).thenReturn(Optional.of(role("staff")));
+        when(roleProfileRepository.findByCodeIgnoreCase("bid_specialist")).thenReturn(Optional.of(role("bid_specialist")));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         writer.upsert("oss", "event-key", new OrganizationUserSnapshot(
                 "720518523", "zhangsan", "张三", "new@example.com",
-                "13800000000", "3730158", "销售部", "", "", true
+                "13800000000", "3730158", "销售部", "", "bid-Team", true
         ));
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);

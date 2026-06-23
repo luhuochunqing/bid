@@ -22,7 +22,7 @@ function mountBar(props = {}) {
 }
 
 describe('TenderBatchActionBar permissions', () => {
-  it('hides batch management actions from staff users', () => {
+  it('hides batch management actions from bid_specialist users', () => {
     const wrapper = mountBar()
 
     expect(wrapper.text()).toContain('已选择 2 条标讯')

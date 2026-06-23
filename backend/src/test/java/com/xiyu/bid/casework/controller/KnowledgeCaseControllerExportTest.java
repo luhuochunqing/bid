@@ -54,7 +54,7 @@ class KnowledgeCaseControllerExportTest {
     @MockBean private ProjectAccessScopeService projectAccessScopeService;
 
     @Test
-    @WithMockUser(roles = "STAFF")
+    @WithMockUser(roles = "MANAGER")
     void exportExcel_ReturnsOctetStream() throws Exception {
         when(caseExportExcelAppService.exportCasesAsExcel(
                 any(), any(), any(), any(),
@@ -69,7 +69,7 @@ class KnowledgeCaseControllerExportTest {
     }
 
     @Test
-    @WithMockUser(roles = "STAFF")
+    @WithMockUser(roles = "MANAGER")
     void exportZip_ReturnsZip() throws Exception {
         when(caseExportZipAppService.exportCases(any(), any()))
                 .thenReturn(new CaseExportResult(

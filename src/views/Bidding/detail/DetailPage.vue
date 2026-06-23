@@ -205,7 +205,7 @@ import FavoriteButton from '../list/components/FavoriteButton.vue'
 import './styles/detail-layout.css'
 import { formatUserLabel } from '@/utils/formatUserLabel.js'
 const userStore = useUserStore()
-const userRole = computed(() => userStore.userRole?.toLowerCase() || 'staff')
+const userRole = computed(() => userStore.userRole?.toLowerCase() || 'bid_specialist')
 const {
   tender,
   tenderNotFound,

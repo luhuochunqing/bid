@@ -29,8 +29,8 @@ class OrganizationSyncPolicyTest {
     }
 
     @Test
-    @DisplayName("unknown external role is downgraded to staff")
-    void planUserSync_unknownRole_downgradesToStaff() {
+    @DisplayName("unknown external role returns null")
+    void planUserSync_unknownRole_returnsNull() {
         OrganizationUserSnapshot snapshot = new OrganizationUserSnapshot(
                 "10001", "zhangsan", "张三", "zhangsan@example.com",
                 "13800000000", "sales", "销售部", "", "boss", true
@@ -38,12 +38,12 @@ class OrganizationSyncPolicyTest {
 
         OrganizationUserSyncPlan plan = OrganizationSyncPolicy.planUserSync(
                 snapshot,
-                "staff",
+                null,
                 Set.of("boss"),
                 Set.of()
         );
 
-        assertThat(plan.roleCode()).isEqualTo("staff");
+        assertThat(plan.roleCode()).isNull();
     }
 
     @Test
@@ -74,7 +74,7 @@ class OrganizationSyncPolicyTest {
 
         OrganizationUserSyncPlan plan = OrganizationSyncPolicy.planUserSync(
                 snapshot,
-                "staff",
+                "bid_specialist",
                 Set.of("boss"),
                 Set.of("manager"),
                 "bid_admin"
@@ -93,7 +93,7 @@ class OrganizationSyncPolicyTest {
 
         OrganizationUserSyncPlan plan = OrganizationSyncPolicy.planUserSync(
                 snapshot,
-                "staff",
+                "bid_specialist",
                 Set.of(),
                 Set.of("manager"),
                 null
@@ -112,7 +112,7 @@ class OrganizationSyncPolicyTest {
 
         OrganizationUserSyncPlan plan = OrganizationSyncPolicy.planUserSync(
                 snapshot,
-                "staff",
+                "bid_specialist",
                 Set.of(),
                 Set.of("manager"),
                 ""
@@ -161,7 +161,7 @@ class OrganizationSyncPolicyTest {
     }
 
     @Test
-    @DisplayName("position mapping can assign staff to new user when no existing role")
+    @DisplayName("position mapping can assign bid_specialist to new user when no existing role")
     void planUserSync_positionMapping_newUser() {
         OrganizationUserSnapshot snapshot = new OrganizationUserSnapshot(
                 "10001", "zhangsan", "张三", "zhangsan@example.com",

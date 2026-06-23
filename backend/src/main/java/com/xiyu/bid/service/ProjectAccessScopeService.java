@@ -15,6 +15,7 @@ import com.xiyu.bid.project.entity.BidDocumentReviewEntity;
 import com.xiyu.bid.project.repository.BidDocumentReviewRepository;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
+import com.xiyu.bid.admin.service.DataScopeAccessProfile;
 import com.xiyu.bid.admin.service.DataScopeConfigService;
 import com.xiyu.bid.admin.service.ProjectGroupService;
 import com.xiyu.bid.repository.TaskRepository;
@@ -54,7 +55,7 @@ public class ProjectAccessScopeService {
         if (user == null || RoleProfileCatalog.ADMIN_CODE.equalsIgnoreCase(user.getRoleCode())) {
             return List.of();
         }
-        DataScopeConfigService.AccessProfile accessProfile = dataScopeConfigService.getAccessProfile(user);
+        DataScopeAccessProfile accessProfile = dataScopeConfigService.getAccessProfile(user);
         if ("all".equals(accessProfile.getDataScope())) {
             return projectRepository.findAllProjectIds().stream()
                     .filter(java.util.Objects::nonNull)

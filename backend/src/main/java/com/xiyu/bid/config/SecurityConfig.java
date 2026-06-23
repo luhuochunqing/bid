@@ -167,9 +167,9 @@ public class SecurityConfig {
                     auth.requestMatchers("/api/integration/**", "/api/external/**").permitAll();
                     auth.requestMatchers("/api/admin/**").hasRole("ADMIN")
                             .requestMatchers("/api/manager/**").hasAnyRole("ADMIN", "MANAGER")
-                            // 案例库（/api/cases/**）路径级兜底：要求 ADMIN/MANAGER/STAFF 任一角色
+                            // 案例库（/api/cases/**）路径级兜底：要求 ADMIN/MANAGER 任一角色
                             // 配合 @PreAuthorize 在方法级做更精细的角色 / 资源范围控制
-                            .requestMatchers("/api/cases/**").hasAnyRole("ADMIN", "MANAGER", "STAFF")
+                            .requestMatchers("/api/cases/**").hasAnyRole("ADMIN", "MANAGER")
                             .anyRequest().authenticated();
                 })
                 .authenticationProvider(authenticationProvider());

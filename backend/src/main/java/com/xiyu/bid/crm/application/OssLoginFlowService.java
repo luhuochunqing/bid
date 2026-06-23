@@ -1,5 +1,6 @@
 package com.xiyu.bid.crm.application;
 
+import com.xiyu.bid.security.domain.LoginRoleWhitelist;
 import com.xiyu.bid.crm.config.CrmProperties;
 import com.xiyu.bid.crm.infrastructure.CrmHttpClient;
 import com.xiyu.bid.crm.infrastructure.CrmResponseHandler;
@@ -142,6 +143,9 @@ public class OssLoginFlowService {
      * <p>
      * 替代原 syncOssPermissionsToRole 方法：不再写本地 DB RoleProfile.menu_permissions，
      * 改为写入 OssPermissionCache，供 UserDetailsServiceImpl 和 DataScopeConfigService 读取。
+     * <p>
+     * 若解析到的角色不在登录白名单（staff/未映射角色），则清空缓存并拒绝写入，
+     * 确保这些用户无法通过缓存角色登录。
      */
     private void cacheOssPermissions(OssLoginResult loginResult, String username,
                                       String jobNumber, String permissionSystemName) {
@@ -153,8 +157,14 @@ public class OssLoginFlowService {
             }
 
             String resolvedRoleCode = resolveRoleCodeFromJobList(loginResult.getJobList(), jobNumber, username);
-            List<String> menuPermissions = mapOssPermissionsToInternal(permission, permissionSystemName);
+            if (!LoginRoleWhitelist.isAllowed(resolvedRoleCode)) {
+                log.warn("OSS login: role not allowed for user={}, roleCode={}, clearing cache",
+                        username, resolvedRoleCode);
+                ossPermissionCache.invalidate(username);
+                return;
+            }
 
+            List<String> menuPermissions = mapOssPermissionsToInternal(permission, permissionSystemName);
             ossPermissionCache.put(username, resolvedRoleCode, menuPermissions, permission);
             log.info("OSS login: permission cached (not written to DB): username={}, roleCode={}, menuPermissions={}",
                     username, resolvedRoleCode, menuPermissions);

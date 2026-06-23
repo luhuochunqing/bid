@@ -68,7 +68,7 @@ class CrmChanceControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "staff", roles = {"STAFF"})
+    @WithMockUser(username = "bid_specialist", roles = {"MANAGER"})
     void pageList_shouldReturnEmptyResultWhenServiceReturnsEmptyPage() throws Exception {
         CrmChancePageResult result =
                 new CrmChancePageResult(List.of(), 0, 0, 0);
@@ -89,7 +89,7 @@ class CrmChanceControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "staff", roles = {"STAFF"})
+    @WithMockUser(username = "bid_specialist", roles = {"MANAGER"})
     void searchByTender_shouldAcceptBlueprintCriteriaAndReturnResult() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         CustomerChanceVO chance = mapper.readValue("""
