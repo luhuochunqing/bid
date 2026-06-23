@@ -6,7 +6,6 @@ import java.util.Set;
 
 public final class OrganizationSyncPolicy {
 
-    private static final String STAFF = "staff";
     private static final String MANAGER = "manager";
     private static final String ADMIN = "admin";
 
@@ -39,7 +38,7 @@ public final class OrganizationSyncPolicy {
         if (managerRoleCodes.contains(normalized)) {
             return MANAGER;
         }
-        return STAFF;
+        return null;
     }
 
     public static OrganizationUserSyncPlan planUserSync(
@@ -113,9 +112,13 @@ public final class OrganizationSyncPolicy {
         } else {
             targetRole = mapRoleCode(externalRoleCode, adminRoleCodes, managerRoleCodes);
         }
+        if (targetRole == null) {
+            return null;
+        }
         String existingRole = normalize(existingRoleCode);
         if (ADMIN.equals(targetRole) && !ADMIN.equals(existingRole) && !allowAdminElevation) {
-            return STAFF.equals(existingRole) || MANAGER.equals(existingRole) ? existingRole : STAFF;
+            // 不允许提升为 admin 时，保留已有角色（若存在），否则无角色
+            return existingRole.isBlank() ? null : existingRole;
         }
         return targetRole;
     }

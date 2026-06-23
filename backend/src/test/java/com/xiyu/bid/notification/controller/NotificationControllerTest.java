@@ -59,11 +59,11 @@ class NotificationControllerTest {
 
     private static final User TEST_USER = User.builder()
         .id(7L).username("alice").email("a@x.com").fullName("Alice").password("p")
-        .role(User.Role.STAFF).build();
+        .role(User.Role.MANAGER).build();
     private static final UserDetails TEST_DETAILS = org.springframework.security.core.userdetails.User
         .withUsername("alice")
         .password("p")
-        .authorities("ROLE_STAFF")
+        .authorities("ROLE_MANAGER")
         .build();
 
     @BeforeEach

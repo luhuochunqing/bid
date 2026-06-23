@@ -104,7 +104,7 @@ public class ProjectController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<ProjectDTO>> createProject(@Valid @RequestBody ProjectRequest projectRequest) {
         log.info("POST /api/projects - Creating new project: {}", projectRequest.getName());
         sanitizeProjectRequest(projectRequest);
@@ -161,7 +161,7 @@ public class ProjectController {
     }
 
     @GetMapping("/status/{status}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<List<ProjectDTO>>> getProjectsByStatus(@PathVariable com.xiyu.bid.entity.Project.Status status) {
         log.info("GET /api/projects/status/{} - Fetching projects by status", status);
         List<ProjectDTO> projects = projectService.getProjectsByStatus(status);
@@ -169,7 +169,7 @@ public class ProjectController {
     }
 
     @GetMapping("/manager/{managerId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<List<ProjectDTO>>> getProjectsByManager(@PathVariable Long managerId) {
         log.info("GET /api/projects/manager/{} - Fetching projects by manager", managerId);
         List<ProjectDTO> projects = projectService.getProjectsByManager(managerId);
@@ -177,7 +177,7 @@ public class ProjectController {
     }
 
     @GetMapping("/tender/{tenderId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<List<ProjectDTO>>> getProjectsByTender(@PathVariable Long tenderId) {
         log.info("GET /api/projects/tender/{} - Fetching projects by tender", tenderId);
         List<ProjectDTO> projects = projectService.getProjectsByTender(tenderId);
@@ -185,7 +185,7 @@ public class ProjectController {
     }
 
     @GetMapping("/active")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<List<ProjectDTO>>> getActiveProjects() {
         log.info("GET /api/projects/active - Fetching active projects");
         List<ProjectDTO> projects = projectService.getActiveProjects();
@@ -193,7 +193,7 @@ public class ProjectController {
     }
 
     @GetMapping("/search")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<List<ProjectDTO>>> searchProjects(@RequestParam String name) {
         log.info("GET /api/projects/search?name={} - Searching projects", name);
         String sanitizedName = InputSanitizer.sanitizeString(name, 100);
@@ -210,7 +210,7 @@ public class ProjectController {
     }
 
     @GetMapping("/export")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<InputStreamResource> exportProjects(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String name,

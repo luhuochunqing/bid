@@ -68,7 +68,7 @@ import { nextTick } from 'vue'
 
 const mockState = vi.hoisted(() => ({
   routerPush: vi.fn(),
-  currentUser: { id: 7, name: '小王', role: 'staff' },
+  currentUser: { id: 7, name: '小王', role: 'bid_specialist' },
   setCalendar: vi.fn(),
   dashboardGetSummary: vi.fn(),
   tasksGetMine: vi.fn(),
@@ -152,7 +152,7 @@ export const users = {
   sales: {
     id: 7,
     name: '小王',
-    role: 'staff',
+    role: 'sales',
     dept: '销售一部',
     menuPermissions: [
       'dashboard', 'dashboard.quickStart', 'bidding', 'project', 'project.create',
@@ -175,10 +175,10 @@ export const users = {
       'dashboard:view_priority_todos'
     ]
   },
-  staff: {
+  bid_specialist: {
     id: 9,
     name: '李工',
-    role: 'staff',
+    role: 'bid_specialist',
     menuPermissions: [
       'dashboard', 'bidding', 'project', 'task.review',
       'dashboard:view_welcome_banner', 'dashboard:view_metric_cards', 'dashboard:view_calendar',

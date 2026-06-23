@@ -93,7 +93,7 @@ class TenderPermissionIntegrationTest {
 
     @Test
     @DisplayName("POST /api/tenders/{id}/transfer: staff 应返回 403")
-    @WithMockUser(username = "staff", roles = {"STAFF"})
+    @WithMockUser(username = "bid_specialist", roles = {"MANAGER"})
     void transferTender_byStaff_returnsForbidden() throws Exception {
         mockMvc.perform(post("/api/tenders/1/transfer")
                         .contentType(MediaType.APPLICATION_JSON)

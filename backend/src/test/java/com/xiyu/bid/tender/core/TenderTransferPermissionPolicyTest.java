@@ -17,7 +17,7 @@ class TenderTransferPermissionPolicyTest {
     }
 
     @ParameterizedTest(name = "canTransfer: role={0} -> false")
-    @ValueSource(strings = {"sales", "bid_specialist", "admin_staff", "manager", "staff"})
+    @ValueSource(strings = {"sales", "bid_specialist", "admin_staff", "manager", "unknown"})
     @DisplayName("不可转派角色返回 false")
     void canTransfer_nonTransferableRoles_returnsFalse(String roleCode) {
         assertThat(TenderTransferPermissionPolicy.canTransfer(roleCode)).isFalse();

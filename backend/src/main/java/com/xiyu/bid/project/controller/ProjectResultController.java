@@ -65,7 +65,7 @@ public class ProjectResultController {
      * @return 结果 DTO（未登记时返回 null）
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public ResponseEntity<ApiResponse<ResultDTO>> get(@PathVariable final Long projectId) {
         return service.getByProject(projectId)
                 .map(dto -> ResponseEntity.ok(ApiResponse.success("ok", dto)))

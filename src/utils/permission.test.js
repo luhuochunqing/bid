@@ -73,7 +73,7 @@ describe('isAdminRole', () => {
 
   it('returns false for non-admin roles', () => {
     expect(isAdminRole('manager')).toBe(false)
-    expect(isAdminRole('staff')).toBe(false)
+    expect(isAdminRole('bid_specialist')).toBe(false)
     expect(isAdminRole('bid_admin')).toBe(false)
     expect(isAdminRole('')).toBe(false)
     expect(isAdminRole(undefined)).toBe(false)

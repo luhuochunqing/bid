@@ -50,7 +50,7 @@ abstract class AbstractPasswordResetServiceTest {
                 .email("test@example.com")
                 .password("encodedPassword")
                 .fullName("Test User")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .enabled(true)
                 .build();
 

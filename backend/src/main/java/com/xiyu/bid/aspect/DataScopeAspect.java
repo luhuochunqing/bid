@@ -1,5 +1,6 @@
 package com.xiyu.bid.aspect;
 
+import com.xiyu.bid.admin.service.DataScopeAccessProfile;
 import com.xiyu.bid.admin.service.DataScopeConfigService;
 import com.xiyu.bid.annotation.DataScope;
 import com.xiyu.bid.entity.User;
@@ -58,7 +59,7 @@ public class DataScopeAspect {
             return;
         }
 
-        DataScopeConfigService.AccessProfile profile = dataScopeConfigService.getAccessProfile(user);
+        DataScopeAccessProfile profile = dataScopeConfigService.getAccessProfile(user);
         DataScopeType scopeType = parseScopeType(profile.getDataScope());
 
         DataScopeContext context = DataScopeContext.builder()

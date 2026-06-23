@@ -39,8 +39,8 @@ class AdminUserQueryServiceTest {
         dept.setExternalDeptId("997091");
         dept.setSourceApp("ehsy");
 
-        User matchingUser = User.builder().username("u1").departmentCode("997091").enabled(true).role(User.Role.STAFF).build();
-        User nonMatchingUser = User.builder().username("u2").departmentCode("12345").enabled(true).role(User.Role.STAFF).build();
+        User matchingUser = User.builder().username("u1").departmentCode("997091").enabled(true).role(User.Role.MANAGER).build();
+        User nonMatchingUser = User.builder().username("u2").departmentCode("12345").enabled(true).role(User.Role.MANAGER).build();
 
         when(departmentRepository.findBySourceAppAndDepartmentCode("ehsy", "0001"))
                 .thenReturn(Optional.of(dept));
@@ -80,9 +80,9 @@ class AdminUserQueryServiceTest {
         child.setSourceApp("ehsy");
         child.setParentDepartmentCode("0001");
 
-        User parentUser = User.builder().username("u1").departmentCode("997091").enabled(true).role(User.Role.STAFF).build();
-        User childUser = User.builder().username("u2").departmentCode("3084983").enabled(true).role(User.Role.STAFF).build();
-        User otherUser = User.builder().username("u3").departmentCode("12345").enabled(true).role(User.Role.STAFF).build();
+        User parentUser = User.builder().username("u1").departmentCode("997091").enabled(true).role(User.Role.MANAGER).build();
+        User childUser = User.builder().username("u2").departmentCode("3084983").enabled(true).role(User.Role.MANAGER).build();
+        User otherUser = User.builder().username("u3").departmentCode("12345").enabled(true).role(User.Role.MANAGER).build();
 
         when(departmentRepository.findBySourceAppAndDepartmentCode("ehsy", "0001"))
                 .thenReturn(Optional.of(parent));
@@ -101,8 +101,8 @@ class AdminUserQueryServiceTest {
 
     @Test
     void listUsersPage_ignoresSourceApp_whenDepartmentCodeNotGiven() {
-        User enabledUser = User.builder().username("enabled-user").enabled(true).role(User.Role.STAFF).build();
-        User disabledUser = User.builder().username("disabled-user").enabled(false).role(User.Role.STAFF).build();
+        User enabledUser = User.builder().username("enabled-user").enabled(true).role(User.Role.MANAGER).build();
+        User disabledUser = User.builder().username("disabled-user").enabled(false).role(User.Role.MANAGER).build();
 
         when(userRepository.findAll()).thenReturn(List.of(enabledUser, disabledUser));
 

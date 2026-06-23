@@ -34,7 +34,7 @@ const mountInput = (props = {}) =>
 describe('MentionInput', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    usersApi.search.mockResolvedValue({ data: [{ id: 7, name: 'Alice', role: 'STAFF' }] })
+    usersApi.search.mockResolvedValue({ data: [{ id: 7, name: 'Alice', role: 'BID_SPECIALIST' }] })
   })
 
   it('mounts with initial value', () => {

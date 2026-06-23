@@ -63,7 +63,7 @@ class TaskActivityServiceTest {
     @DisplayName("createComment 写 task_comment 并复用 MentionApplicationService")
     void createComment_PersistsAndDispatchesMentions() {
         Task task = Task.builder().id(99L).projectId(10L).title("准备商务标").build();
-        User actor = User.builder().id(7L).username("alice").fullName("Alice").role(User.Role.STAFF).build();
+        User actor = User.builder().id(7L).username("alice").fullName("Alice").role(User.Role.MANAGER).build();
         when(taskRepository.findById(99L)).thenReturn(Optional.of(task));
         when(accessScopeService.getAllowedProjectIdsForCurrentUser()).thenReturn(List.of(10L));
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(actor));

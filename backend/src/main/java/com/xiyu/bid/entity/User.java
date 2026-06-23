@@ -108,16 +108,15 @@ public class User {
 
     public enum Role {
         ADMIN,
-        MANAGER,
-        STAFF;
+        MANAGER;
 
         public static Role fromCode(String code) {
             if (code == null || code.isBlank()) {
-                return STAFF;
+                return MANAGER;
             }
             return switch (code.trim().toLowerCase(java.util.Locale.ROOT)) {
                 case "admin" -> ADMIN;
-                default -> STAFF;
+                default -> MANAGER;
             };
         }
     }
@@ -126,7 +125,7 @@ public class User {
         if (roleProfile != null && roleProfile.getCode() != null && !roleProfile.getCode().isBlank()) {
             return roleProfile.getCode().trim().toLowerCase(java.util.Locale.ROOT);
         }
-        return role == null ? "staff" : role.name().toLowerCase(java.util.Locale.ROOT);
+        return role == null ? "manager" : role.name().toLowerCase(java.util.Locale.ROOT);
     }
 
     public String getRoleName() {
@@ -136,7 +135,6 @@ public class User {
         return switch (getRole()) {
             case ADMIN -> "管理员";
             case MANAGER -> "经理";
-            case STAFF -> "员工";
         };
     }
 }

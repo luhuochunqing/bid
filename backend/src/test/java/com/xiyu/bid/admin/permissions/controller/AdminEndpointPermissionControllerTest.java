@@ -59,7 +59,7 @@ class AdminEndpointPermissionControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "STAFF")
+    @WithMockUser(roles = "MANAGER")
     void staffCannotListEndpointPermissionMatrix() throws Exception {
         mockMvc.perform(get("/api/admin/permissions/endpoints"))
                 .andExpect(status().isForbidden());

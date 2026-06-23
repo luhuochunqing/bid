@@ -21,13 +21,13 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("isAuthenticated()")
 public class CompetitorWinController {
 
-    private static final String ADMIN_MANAGER_STAFF_EXPR = "hasAnyRole('ADMIN', 'MANAGER', 'STAFF')";
+    private static final String ADMIN_MANAGER_EXPR = "hasAnyRole('ADMIN', 'MANAGER')";
 
     private final CompetitorWinCommandService competitorWinCommandService;
     private final BidResultCurrentUserResolver currentUserResolver;
 
     @PostMapping
-    @PreAuthorize(ADMIN_MANAGER_STAFF_EXPR)
+    @PreAuthorize(ADMIN_MANAGER_EXPR)
     public ResponseEntity<ApiResponse<CompetitorWinDTO>> create(
             @RequestBody CompetitorWinRequest request,
             @AuthenticationPrincipal UserDetails userDetails

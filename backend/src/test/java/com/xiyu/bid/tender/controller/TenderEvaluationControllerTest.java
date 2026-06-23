@@ -157,7 +157,7 @@ class TenderEvaluationControllerTest {
 
     @Test
     void get_returns403_whenCallerIsNeitherOwnerNorAdmin() throws Exception {
-        authenticateAs("other", "STAFF");
+        authenticateAs("other", "MANAGER");
         when(tenderEvaluationService.loadOrInitDraft(eq(1L), anyLong()))
                 .thenThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "无权访问该标讯评估"));
 
@@ -181,7 +181,7 @@ class TenderEvaluationControllerTest {
 
     @Test
     void put_returns403_whenCallerIsNotProjectManager() throws Exception {
-        authenticateAs("other", "STAFF");
+        authenticateAs("other", "MANAGER");
         when(tenderEvaluationService.saveDraft(eq(1L), any(), anyLong()))
                 .thenThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "非项目经理不可编辑"));
 

@@ -40,7 +40,7 @@ public class ProjectInitiationController {
     private final ProjectInitiationApprovalService approvalService;
     private final ProjectCurrentUserLookupService currentUserLookupService;
 
-    /** 提交立项：SALES/BID_LEAD（映射到 MANAGER/STAFF/ADMIN）。 */
+    /** 提交立项：SALES/BID_LEAD（映射到 MANAGER/ADMIN）。 */
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN','SALES')")
     public ResponseEntity<ApiResponse<InitiationViewDto>> submit(
@@ -66,7 +66,7 @@ public class ProjectInitiationController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public ResponseEntity<ApiResponse<InitiationViewDto>> get(@PathVariable Long projectId) {
         InitiationViewDto dto = service.getByProject(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "立项未提交"));

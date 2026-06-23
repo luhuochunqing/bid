@@ -43,7 +43,7 @@ class PlatformAccountServiceTest {
 
     private static final String ENCRYPTED_PWD = "encrypted:secret123";
     private static final User ADMIN_USER = User.builder().id(1L).role(User.Role.ADMIN).build();
-    private static final User STAFF_USER = User.builder().id(2L).role(User.Role.STAFF).build();
+    private static final User STAFF_USER = User.builder().id(2L).role(User.Role.MANAGER).build();
 
     @BeforeEach
     void setUp() {

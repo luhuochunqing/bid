@@ -5,6 +5,7 @@ import com.xiyu.bid.crm.application.OssDelegationService;
 import com.xiyu.bid.crm.application.OssLoginFlowService;
 import com.xiyu.bid.crm.application.OssPermissionCache;
 import com.xiyu.bid.admin.service.DataScopeConfigService;
+import com.xiyu.bid.security.domain.LoginRoleWhitelist;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.integration.organization.application.OrganizationUserSyncWriter;
 import com.xiyu.bid.dto.AuthResponse;
@@ -14,6 +15,7 @@ import com.xiyu.bid.dto.RegisterRequest;
 import com.xiyu.bid.entity.RefreshSession;
 import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.exception.RoleNotAuthorizedException;
 import com.xiyu.bid.repository.RefreshSessionRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.auth.JwtUtil;
@@ -74,7 +76,7 @@ public class AuthService {
             throw new IllegalArgumentException("Email already exists");
         }
         // Create new user
-        RoleProfile roleProfile = roleProfileService.resolveRoleProfile(request.getResolvedRoleCode(), User.Role.STAFF);
+        RoleProfile roleProfile = roleProfileService.resolveRoleProfile(request.getResolvedRoleCode(), User.Role.MANAGER);
         User user = User.builder()
                 .username(request.getUsername())
                 .password(passwordEncoder.encode(request.getPassword()))
@@ -145,14 +147,23 @@ public class AuthService {
                 .build();
     }
 
-    /** OSS 用户登录权限检查：必须有 OSS 缓存角色才允许登录。 */
+    /** OSS 用户登录权限检查：必须有 OSS 缓存角色且为允许的业务角色。
+     *  本地账号（非 OSS 同步，externalOrgSourceApp 为空）直接放行。 */
     private void requireOssRole(User user) {
+        if (user.getExternalOrgSourceApp() == null || user.getExternalOrgSourceApp().isBlank()) {
+            return;
+        }
         Optional<String> cachedRoleCode = ossPermissionCache.getRoleCode(user.getUsername());
         if (cachedRoleCode.isEmpty() || cachedRoleCode.get().isBlank()) {
             log.warn("Login denied for user={}: no valid OSS role", user.getUsername());
-            throw new InsufficientAuthenticationException("无有效 OSS 角色，不允许登录");
+            throw new RoleNotAuthorizedException("无有效 OSS 角色，不允许登录");
         }
-        log.info("Login allowed for user={}: OSS role={}", user.getUsername(), cachedRoleCode.get());
+        String roleCode = cachedRoleCode.get();
+        if (!LoginRoleWhitelist.isAllowed(roleCode)) {
+            log.warn("Login denied for user={}: role={} not in login whitelist", user.getUsername(), roleCode);
+            throw new RoleNotAuthorizedException("角色未授权，不允许登录");
+        }
+        log.info("Login allowed for user={}: OSS role={}", user.getUsername(), roleCode);
     }
 
     public AuthResponse getCurrentUser(String username) {

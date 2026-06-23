@@ -33,7 +33,7 @@ class UserDetailsServiceImplTest {
     @Test
     void unregisteredCustomRoleShouldNotInheritLegacyStaffAuthority() {
         // 未注册 roleCode（legal-reviewer）不应继承 STAFF 兼容，避免误入 hasAnyRole(... 'STAFF' ...) 白名单
-        User user = userWithRoleProfile("legal", User.Role.STAFF, "legal-reviewer");
+        User user = userWithRoleProfile("legal", User.Role.MANAGER, "legal-reviewer");
         when(userRepository.findByUsername("legal")).thenReturn(Optional.of(user));
 
         UserDetails details = userDetailsService.loadUserByUsername("legal");
@@ -58,7 +58,7 @@ class UserDetailsServiceImplTest {
                 .password("{noop}password")
                 .email("hanhui@example.com")
                 .fullName("hanhui")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .roleProfile(roleProfile)
                 .enabled(true)
                 .build();
@@ -74,14 +74,14 @@ class UserDetailsServiceImplTest {
     }
 
     @Test
-    void legacyUserWithoutRoleProfileShouldStillGetStaffAuthority() {
-        // roleCode 为 null 的纯 Legacy 用户（仅 users.role=STAFF）不受影响，保留 ROLE_STAFF
+    void legacyUserWithoutRoleProfileShouldStillGetManagerAuthority() {
+        // roleCode 为 null 的纯 Legacy 用户（仅 users.role=MANAGER）不受影响，保留 ROLE_MANAGER
         User user = User.builder()
                 .username("legacy")
                 .password("{noop}password")
                 .email("legacy@example.com")
                 .fullName("legacy")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .enabled(true)
                 .build();
         when(userRepository.findByUsername("legacy")).thenReturn(Optional.of(user));
@@ -90,7 +90,7 @@ class UserDetailsServiceImplTest {
 
         assertThat(details.getAuthorities())
                 .extracting("authority")
-                .contains("ROLE_STAFF");
+                .contains("ROLE_MANAGER");
     }
 
     @Test
@@ -106,7 +106,7 @@ class UserDetailsServiceImplTest {
                 .password("{noop}password")
                 .email("vendor@example.com")
                 .fullName("vendor")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .roleProfile(roleProfile)
                 .enabled(true)
                 .build();
@@ -121,21 +121,22 @@ class UserDetailsServiceImplTest {
     }
 
     @Test
-    void bidSpecialistRoleProfileShouldAddBidSpecialistAuthorityWithoutChangingLegacyRole() {
-        User user = userWithRoleProfile("bid_specialist", User.Role.STAFF, "bid_specialist");
+    void bidSpecialistRoleProfileShouldAddBidSpecialistAuthority() {
+        User user = userWithRoleProfile("bid_specialist", User.Role.MANAGER, "bid_specialist");
         when(userRepository.findByUsername("bid_specialist")).thenReturn(Optional.of(user));
 
         UserDetails details = userDetailsService.loadUserByUsername("bid_specialist");
 
         assertThat(details.getAuthorities())
                 .extracting("authority")
-                .contains("ROLE_STAFF", "ROLE_BID_SPECIALIST", "bid_specialist");
+                .contains("ROLE_BID_SPECIALIST", "bid_specialist")
+                .doesNotContain("ROLE_STAFF");
     }
 
 
     @Test
     void bidAdminShouldHaveRoleAdminCompatibility() {
-        User user = userWithRoleProfile("bid_admin", User.Role.STAFF, "bid_admin");
+        User user = userWithRoleProfile("bid_admin", User.Role.MANAGER, "bid_admin");
         when(userRepository.findByUsername("bid_admin")).thenReturn(Optional.of(user));
         UserDetails details = userDetailsService.loadUserByUsername("bid_admin");
         assertThat(details.getAuthorities()).extracting("authority").contains("ROLE_ADMIN", "ROLE_BID_ADMIN");
@@ -143,18 +144,21 @@ class UserDetailsServiceImplTest {
 
     @Test
     void salesShouldHaveRoleManagerCompatibility() {
-        User user = userWithRoleProfile("sales_user", User.Role.STAFF, "sales");
+        User user = userWithRoleProfile("sales_user", User.Role.MANAGER, "sales");
         when(userRepository.findByUsername("sales_user")).thenReturn(Optional.of(user));
         UserDetails details = userDetailsService.loadUserByUsername("sales_user");
         assertThat(details.getAuthorities()).extracting("authority").contains("ROLE_MANAGER");
     }
 
     @Test
-    void bidSpecialistShouldHaveRoleStaffCompatibility() {
-        User user = userWithRoleProfile("spec_user", User.Role.STAFF, "bid_specialist");
+    void bidSpecialistShouldNotHaveRoleStaffCompatibility() {
+        User user = userWithRoleProfile("spec_user", User.Role.MANAGER, "bid_specialist");
         when(userRepository.findByUsername("spec_user")).thenReturn(Optional.of(user));
         UserDetails details = userDetailsService.loadUserByUsername("spec_user");
-        assertThat(details.getAuthorities()).extracting("authority").contains("ROLE_STAFF");
+        assertThat(details.getAuthorities())
+                .extracting("authority")
+                .contains("ROLE_BID_SPECIALIST", "bid_specialist")
+                .doesNotContain("ROLE_STAFF");
     }
 
     private User userWithRoleProfile(String username, User.Role role, String roleCode) {
@@ -189,7 +193,7 @@ class UserDetailsServiceImplTest {
                 .password("{noop}password")
                 .email("custom_bid_admin@example.com")
                 .fullName("custom_bid_admin")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .roleProfile(roleProfile)
                 .enabled(true)
                 .build();
@@ -209,7 +213,7 @@ class UserDetailsServiceImplTest {
     void registeredRoleWithoutMenuPermissionsShouldFallbackToCatalog() {
         // bid_admin DB 中 menu_permissions 为 null → 应 fallback 到 catalog 合并
         // userWithRoleProfile 默认不设 menuPermissions → menuPermissionsValue=null
-        User user = userWithRoleProfile("default_bid_admin", User.Role.STAFF, "bid_admin");
+        User user = userWithRoleProfile("default_bid_admin", User.Role.MANAGER, "bid_admin");
         when(userRepository.findByUsername("default_bid_admin")).thenReturn(Optional.of(user));
 
         UserDetails details = userDetailsService.loadUserByUsername("default_bid_admin");
@@ -221,7 +225,7 @@ class UserDetailsServiceImplTest {
 
     @Test
     void adminStaffShouldNotInheritStaffLegacyRole() {
-        User user = userWithRoleProfile("admin_staff_user", User.Role.STAFF, RoleProfileCatalog.ADMIN_STAFF_CODE);
+        User user = userWithRoleProfile("admin_staff_user", User.Role.MANAGER, RoleProfileCatalog.ADMIN_STAFF_CODE);
         when(userRepository.findByUsername("admin_staff_user")).thenReturn(Optional.of(user));
 
         UserDetails details = userDetailsService.loadUserByUsername("admin_staff_user");
@@ -234,7 +238,7 @@ class UserDetailsServiceImplTest {
 
     @Test
     void adminStaffShouldKeepCatalogPermissions() {
-        User user = userWithRoleProfile("admin_staff2", User.Role.STAFF, RoleProfileCatalog.ADMIN_STAFF_CODE);
+        User user = userWithRoleProfile("admin_staff2", User.Role.MANAGER, RoleProfileCatalog.ADMIN_STAFF_CODE);
         when(userRepository.findByUsername("admin_staff2")).thenReturn(Optional.of(user));
 
         UserDetails details = userDetailsService.loadUserByUsername("admin_staff2");

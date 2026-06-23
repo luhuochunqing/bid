@@ -52,7 +52,7 @@ import java.util.List;
 @RequestMapping("/api/knowledge/personnel")
 @RequiredArgsConstructor
 @Slf4j
-@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
 public class PersonnelController {
 
     private final CreatePersonnelAppService createService;
@@ -80,7 +80,7 @@ public class PersonnelController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     @Auditable(action = "READ", entityType = "Personnel", description = "获取人员列表")
     public ResponseEntity<ApiResponse<List<PersonnelDTO>>> list(
             @RequestParam(required = false) String keyword,
@@ -109,7 +109,7 @@ public class PersonnelController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     @Auditable(action = "READ", entityType = "Personnel", description = "获取人员详情")
     public ResponseEntity<ApiResponse<PersonnelDTO>> get(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("人员详情获取成功", listService.get(id)));
@@ -258,7 +258,7 @@ public class PersonnelController {
      * 查询人员操作日志（4.3.1.3 详情抽屉 Tab 4）。
      */
     @GetMapping("/{id}/operation-logs")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     @Auditable(action = "READ", entityType = "PersonnelOperationLog", description = "查询人员操作日志")
     public ResponseEntity<ApiResponse<List<PersonnelOperationLogDTO>>> getOperationLogs(@PathVariable Long id) {
         var logs = operationLogService.findByPersonnelId(id);
@@ -272,7 +272,7 @@ public class PersonnelController {
      * 提供证书附件下载，使详情页 "下载" 链接可用。
      */
     @GetMapping("/attachments/{personnelId}/{filename:.+}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<Resource> downloadCertAttachment(
             @PathVariable Long personnelId,
             @PathVariable String filename) {

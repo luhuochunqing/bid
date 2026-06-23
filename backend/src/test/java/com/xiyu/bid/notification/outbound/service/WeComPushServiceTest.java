@@ -40,7 +40,7 @@ class WeComPushServiceTest {
 
     private static User userWithEmployee(String employeeNumber) {
         return User.builder().id(7L).username("u").email("a@x.com").password("p")
-            .fullName("User").role(User.Role.STAFF).employeeNumber(employeeNumber).build();
+            .fullName("User").role(User.Role.MANAGER).employeeNumber(employeeNumber).build();
     }
 
     @BeforeEach

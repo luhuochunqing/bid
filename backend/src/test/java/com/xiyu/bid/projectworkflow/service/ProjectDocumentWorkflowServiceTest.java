@@ -227,7 +227,7 @@ class ProjectDocumentWorkflowServiceTest {
         org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
 
         com.xiyu.bid.entity.RoleProfile roleProfile = com.xiyu.bid.entity.RoleProfile.builder()
-                .code("staff")
+                .code("bid_specialist")
                 .build();
         com.xiyu.bid.entity.User user = com.xiyu.bid.entity.User.builder()
                 .username("regularuser")

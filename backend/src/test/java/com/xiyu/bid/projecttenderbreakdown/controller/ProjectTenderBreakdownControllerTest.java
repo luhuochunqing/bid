@@ -61,7 +61,7 @@ class ProjectTenderBreakdownControllerTest {
     private ProjectTenderBreakdownReadinessService readinessService;
 
     @Test
-    @WithMockUser(roles = "STAFF")
+    @WithMockUser(roles = "MANAGER")
     void parseTenderBreakdown_shouldPersistProjectRequirementSnapshotWithoutStartingDraftRun() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
@@ -109,7 +109,7 @@ class ProjectTenderBreakdownControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "STAFF")
+    @WithMockUser(roles = "MANAGER")
     void getReadiness_missingDeepSeekKey_shouldReturnActionableGuidance() throws Exception {
         when(readinessService.readiness(12L)).thenReturn(TenderBreakdownReadiness.missingDeepSeekKey());
 
@@ -127,7 +127,7 @@ class ProjectTenderBreakdownControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "STAFF")
+    @WithMockUser(roles = "MANAGER")
     void getLatestParsedTenderBreakdown_shouldReturnReusableSnapshotWithoutUpload() throws Exception {
         BidTenderDocumentParseDTO result = BidTenderDocumentParseDTO.builder()
                 .message("已复用已解析的招标文件")
@@ -168,7 +168,7 @@ class ProjectTenderBreakdownControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "STAFF")
+    @WithMockUser(roles = "MANAGER")
     void getLatestParsedTenderBreakdown_withoutSnapshot_shouldReturnEmptySuccess() throws Exception {
         when(importAppService.latestParsedTenderDocument(12L)).thenReturn(Optional.empty());
 
@@ -183,7 +183,7 @@ class ProjectTenderBreakdownControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "STAFF")
+    @WithMockUser(roles = "MANAGER")
     void reuseUploadedTenderBreakdown_shouldParseExistingProjectDocumentWithoutMultipartUpload() throws Exception {
         BidTenderDocumentParseDTO result = BidTenderDocumentParseDTO.builder()
                 .message("已复用项目已上传的招标文件")
@@ -225,7 +225,7 @@ class ProjectTenderBreakdownControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = "STAFF")
+    @WithMockUser(roles = "MANAGER")
     void getReadiness_whenProjectOutsideScope_shouldReturnForbidden() throws Exception {
         org.mockito.Mockito.doThrow(new org.springframework.security.access.AccessDeniedException("无权访问"))
                 .when(projectAccessScopeService).assertCurrentUserCanAccessProject(99L);

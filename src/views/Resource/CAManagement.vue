@@ -136,7 +136,7 @@
         </el-table-column>
       </el-table>
 
-      <!-- Staff View: 5-column simplified view -->
+      <!-- Default View: 5-column simplified view -->
       <el-table
         v-else
         v-loading="loading"

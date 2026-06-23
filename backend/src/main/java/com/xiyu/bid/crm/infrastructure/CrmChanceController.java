@@ -24,7 +24,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/xiyu/crm/chances")
-@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
 public class CrmChanceController {
 
     private final CrmChanceService chanceService;

@@ -30,7 +30,7 @@ class DashboardSummaryContractTest {
     private DashboardAnalyticsService dashboardAnalyticsService;
 
     @Test
-    @WithMockUser(username = "alice", roles = {"STAFF"})
+    @WithMockUser(username = "alice", roles = {"MANAGER"})
     void getSummaryStats_returnsExpectedShape() throws Exception {
         SummaryStats stats = SummaryStats.builder()
                 .totalTenders(42L)

@@ -21,7 +21,6 @@ import com.xiyu.bid.repository.RoleProfileRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.roleprofile.RoleProfileBootstrap;
 import com.xiyu.bid.settings.repository.SystemSettingRepository;
-import lombok.Builder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -111,9 +110,9 @@ public class DataScopeConfigService {
         return getConfig();
     }
 
-    public AccessProfile getAccessProfile(User user) {
+    public DataScopeAccessProfile getAccessProfile(User user) {
         if (user == null) {
-            return AccessProfile.empty();
+            return DataScopeAccessProfile.empty();
         }
         List<User> users = loadUsers();
         DataScopeConfigPayload payload = configStore.loadPayload();
@@ -125,7 +124,7 @@ public class DataScopeConfigService {
                 toRoleAccessRule(resolveRoleProfile(user)),
                 graph
         );
-        return AccessProfile.builder()
+        return DataScopeAccessProfile.builder()
                 .dataScope(profile.dataScope())
                 .explicitProjectIds(profile.explicitProjectIds())
                 .allowedDepartmentCodes(profile.allowedDepartmentCodes())
@@ -157,15 +156,16 @@ public class DataScopeConfigService {
     }
 
     public String getRoleCode(User user) {
-        if (user == null) return "staff";
+        if (user == null) return null;
         Optional<String> cachedRoleCode = ossPermissionCache.getRoleCode(user.getUsername());
         if (cachedRoleCode.isPresent()) return cachedRoleCode.get();
         if (isLocalSystemAccount(user)) {
             String dbRoleCode = user.getRoleCode();
             if (dbRoleCode != null && !dbRoleCode.isBlank()) return dbRoleCode;
         }
-        log.warn("OSS role cache miss for user={}, returning 'staff' (need re-login)", user.getUsername());
-        return "staff";
+        log.warn("OSS role cache miss for user={}, falling back to local role code", user.getUsername());
+        String dbRoleCode = user.getRoleCode();
+        return dbRoleCode != null && !dbRoleCode.isBlank() ? dbRoleCode : null;
     }
 
     public String getRoleName(User user) {
@@ -272,29 +272,4 @@ public class DataScopeConfigService {
         }
     }
 
-    @Builder
-    public static class AccessProfile {
-        @Builder.Default
-        private String dataScope = "self";
-        @Builder.Default
-        private List<Long> explicitProjectIds = List.of();
-        @Builder.Default
-        private List<String> allowedDepartmentCodes = List.of();
-
-        public static AccessProfile empty() {
-            return AccessProfile.builder().build();
-        }
-
-        public String getDataScope() {
-            return dataScope;
-        }
-
-        public List<Long> getExplicitProjectIds() {
-            return explicitProjectIds == null ? List.of() : explicitProjectIds;
-        }
-
-        public List<String> getAllowedDepartmentCodes() {
-            return allowedDepartmentCodes == null ? List.of() : allowedDepartmentCodes;
-        }
-    }
 }

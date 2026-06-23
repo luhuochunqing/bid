@@ -23,7 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ProjectControllerAccessIntegrationTest extends AbstractProjectControllerIntegrationTest {
 
     @Test
-    @WithMockUser(username = "staff-user", roles = {"STAFF"})
+    @WithMockUser(username = "staff-user", roles = {"MANAGER"})
     void getAllProjects_ShouldFilterProjectsByCurrentMembership() throws Exception {
         mockMvc.perform(get("/api/projects"))
                 .andExpect(status().isOk())
@@ -32,7 +32,7 @@ class ProjectControllerAccessIntegrationTest extends AbstractProjectControllerIn
     }
 
     @Test
-    @WithMockUser(username = "staff-user", roles = {"STAFF"})
+    @WithMockUser(username = "staff-user", roles = {"MANAGER"})
     void createProject_ShouldAllowStaffOwnerWithoutBudget() throws Exception {
         mockMvc.perform(post("/api/projects")
                         .contentType(APPLICATION_JSON)
@@ -60,7 +60,7 @@ class ProjectControllerAccessIntegrationTest extends AbstractProjectControllerIn
     }
 
     @Test
-    @WithMockUser(username = "outsider-user", roles = {"STAFF"})
+    @WithMockUser(username = "outsider-user", roles = {"MANAGER"})
     void getProjectById_ShouldReturnForbiddenForUnauthorizedProject() throws Exception {
         mockMvc.perform(get("/api/projects/{id}", visibleProjectId))
                 .andExpect(status().isForbidden())
@@ -85,7 +85,7 @@ class ProjectControllerAccessIntegrationTest extends AbstractProjectControllerIn
     }
 
     @Test
-    @WithMockUser(username = "dept-viewer-user", roles = {"STAFF"})
+    @WithMockUser(username = "dept-viewer-user", roles = {"MANAGER"})
     void getAllProjects_ShouldIncludeProjectsGrantedByDepartmentScope() throws Exception {
         mockMvc.perform(get("/api/projects"))
                 .andExpect(status().isOk())
@@ -94,7 +94,7 @@ class ProjectControllerAccessIntegrationTest extends AbstractProjectControllerIn
     }
 
     @Test
-    @WithMockUser(username = "group-viewer-user", roles = {"STAFF"})
+    @WithMockUser(username = "group-viewer-user", roles = {"MANAGER"})
     void getAllProjects_ShouldIncludeProjectsGrantedByProjectGroupRule() throws Exception {
         mockMvc.perform(get("/api/projects"))
                 .andExpect(status().isOk())
@@ -103,7 +103,7 @@ class ProjectControllerAccessIntegrationTest extends AbstractProjectControllerIn
     }
 
     @Test
-    @WithMockUser(username = "group-viewer-user", roles = {"STAFF"})
+    @WithMockUser(username = "group-viewer-user", roles = {"MANAGER"})
     void getAllProjects_ShouldExcludeProjectsAfterProjectGroupIsDeleted() throws Exception {
         projectGroupRepository.deleteAll();
 

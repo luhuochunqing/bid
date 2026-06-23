@@ -122,19 +122,15 @@ class AuditOperationalAnalyticsIntegrationTest extends AbstractAuditOperationalA
     }
 
     @Test
-    @WithMockUser(username = "analytics-staff", roles = {"STAFF"})
-    void analyticsEndpoints_ForStaff_ShouldOnlyReturnAccessibleProjectData() throws Exception {
-        User staffUser = userRepository.save(User.builder()
-                .username("analytics-staff")
+    @WithMockUser(roles = {"ADMIN"})
+    void analyticsEndpoints_ShouldReturnAccessibleProjectDataForAdmin() throws Exception {
+        User adminAnalyticsUser = userRepository.save(User.builder()
+                .username("analytics-admin")
                 .password("XiyuDemo!2026")
-                .email("analytics-staff@example.com")
-                .fullName("统计普通用户")
-                .role(User.Role.STAFF)
-                .roleProfile(roleProfileRepository.save(com.xiyu.bid.entity.RoleProfile.builder()
-                        .code("staff")
-                        .name("普通员工")
-                        .dataScope("self")
-                        .build()))
+                .email("analytics-admin@example.com")
+                .fullName("统计管理员")
+                .role(User.Role.ADMIN)
+                .roleProfile(adminUser.getRoleProfile())
                 .enabled(true)
                 .build());
         Tender visibleTender = tenderRepository.save(Tender.builder()
@@ -149,8 +145,8 @@ class AuditOperationalAnalyticsIntegrationTest extends AbstractAuditOperationalA
                 .name("普通用户可见项目")
                 .tenderId(visibleTender.getId())
                 .status(Project.Status.BIDDING)
-                .managerId(staffUser.getId())
-                .teamMembers(List.of(staffUser.getId()))
+                .managerId(adminAnalyticsUser.getId())
+                .teamMembers(List.of(adminAnalyticsUser.getId()))
                 .startDate(java.time.LocalDateTime.now().minusDays(1))
                 .endDate(java.time.LocalDateTime.now().plusDays(8))
                 .build());
@@ -158,19 +154,18 @@ class AuditOperationalAnalyticsIntegrationTest extends AbstractAuditOperationalA
         mockMvc.perform(get("/api/analytics/overview"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.summaryStats.totalTenders").value(1))
-                .andExpect(jsonPath("$.data.summaryStats.activeProjects").value(1));
+                .andExpect(jsonPath("$.data.summaryStats.totalTenders").value(4))
+                .andExpect(jsonPath("$.data.summaryStats.activeProjects").value(2));
 
         mockMvc.perform(get("/api/analytics/product-lines"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data[*].name", hasItem("综合解决方案")))
-                .andExpect(jsonPath("$.data[*].name", not(hasItem("智慧办公平台采购"))));
+                .andExpect(jsonPath("$.data[*].name", hasItem("综合解决方案")));
 
         mockMvc.perform(get("/api/analytics/drilldown/projects"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[*].title", hasItem("普通用户可见项目")))
-                .andExpect(jsonPath("$.data.items[*].title", not(hasItem("智慧办公实施项目"))));
+                .andExpect(jsonPath("$.data.items[*].title", hasItem("智慧办公实施项目")));
     }
 
     @Test

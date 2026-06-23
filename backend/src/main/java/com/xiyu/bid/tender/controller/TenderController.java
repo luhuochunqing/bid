@@ -49,7 +49,7 @@ import java.util.*;
 @RequestMapping("/api/tenders")
 @RequiredArgsConstructor
 @Slf4j
-@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF', 'BID_LEAD', 'BID_ADMIN', 'SALES', 'BID_SPECIALIST', 'ADMIN_STAFF')")
+@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_LEAD', 'BID_ADMIN', 'SALES', 'BID_SPECIALIST', 'ADMIN_STAFF')")
 public class TenderController {
 
     private final TenderQueryService tenderQueryService;
@@ -65,7 +65,7 @@ public class TenderController {
     private final TenderRequestSanitizer sanitizer = new TenderRequestSanitizer();
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF', 'ADMIN_STAFF')")
+@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     @DataScope
     @Operation(summary = "标讯列表查询（分页）")
     public ResponseEntity<ApiResponse<PagedResult<TenderDTO>>> getAllTenders(@ModelAttribute TenderSearchCriteria criteria) {
@@ -81,7 +81,7 @@ public class TenderController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     @Operation(summary = "标讯详情查询")
     public ResponseEntity<ApiResponse<TenderDTO>> getTenderById(@PathVariable Long id) {
         log.info("GET /api/tenders/{}", id);
@@ -130,7 +130,7 @@ public class TenderController {
     }
 
     @GetMapping("/{id}/audit-logs")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     @Operation(summary = "标讯审计日志")
     public ResponseEntity<ApiResponse<List<AuditLog>>> getAuditLogs(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("查询成功", tenderAuditService.getAuditLogs(id)));
@@ -178,14 +178,14 @@ public class TenderController {
     }
 
     @GetMapping("/status/{status}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     @Operation(summary = "按状态筛选标讯")
     public ResponseEntity<ApiResponse<List<TenderDTO>>> getTendersByStatus(@PathVariable com.xiyu.bid.entity.Tender.Status status) {
         return ResponseEntity.ok(ApiResponse.success("查询成功", tenderQueryService.getTendersByStatus(status)));
     }
 
     @GetMapping("/source/{source}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     @Operation(summary = "按来源筛选标讯")
     public ResponseEntity<ApiResponse<List<TenderDTO>>> getTendersBySource(@PathVariable String source) {
         return ResponseEntity.ok(ApiResponse.success("查询成功", tenderQueryService.getTendersBySource(InputSanitizer.sanitizeString(source, 100))));

@@ -179,7 +179,6 @@ const roleTextMap = {
   admin: '管理员',
   manager: '经理',
   sales: '项目负责人',
-  staff: '员工'
 }
 
 const userName = computed(() => {

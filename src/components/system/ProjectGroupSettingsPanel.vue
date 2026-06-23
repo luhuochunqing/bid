@@ -74,7 +74,7 @@ const visibilityOptions = [
 const roleOptions = [
   { label: '管理员', value: 'admin' },
   { label: '经理', value: 'manager' },
-  { label: '普通员工', value: 'staff' }
+  { label: '投标专员', value: 'bid_specialist' },
 ]
 
 const resolveUserName = (userId) => {

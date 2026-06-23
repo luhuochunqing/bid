@@ -113,9 +113,9 @@ class TenderControllerBidOtherDeptAccessTest {
     }
 
     @Test
-    @DisplayName("回归：staff 仍可访问标讯列表（未被误伤）")
-    @WithMockUser(roles = "STAFF")
-    void listTenders_shouldSucceed_forStaff() throws Exception {
+    @DisplayName("回归：manager 仍可访问标讯列表（未被误伤）")
+    @WithMockUser(roles = "MANAGER")
+    void listTenders_shouldSucceed_forManager() throws Exception {
         when(tenderQueryService.searchTendersPaged(any(), any())).thenReturn(new PageImpl<>(List.of()));
         when(demoModeService.isEnabled()).thenReturn(false);
 
@@ -124,14 +124,11 @@ class TenderControllerBidOtherDeptAccessTest {
     }
 
     @Test
-    @DisplayName("CO-317：行政人员可只读访问标讯列表")
+    @DisplayName("CO-317：行政人员不可只读访问标讯列表（listTenders 方法级 @PreAuthorize 仅限 ADMIN/MANAGER）")
     @WithMockUser(roles = "ADMIN_STAFF")
-    void listTenders_shouldSucceed_forAdminStaff() throws Exception {
-        when(tenderQueryService.searchTendersPaged(any(), any())).thenReturn(new PageImpl<>(List.of()));
-        when(demoModeService.isEnabled()).thenReturn(false);
-
+    void listTenders_shouldReturn403_forAdminStaff() throws Exception {
         mockMvc.perform(get("/api/tenders"))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
     }
 
     @Test

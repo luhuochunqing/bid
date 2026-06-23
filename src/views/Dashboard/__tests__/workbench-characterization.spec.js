@@ -34,11 +34,11 @@ describe('Dashboard Workbench characterization', () => {
     expect(manager.text()).toContain('团队任务分配')
     manager.unmount()
 
-    const staff = await mountWorkbench(users.staff)
-    expect(staff.text()).toContain('上午好，李工')
-    expect(staff.text()).toContain('我的任务')
-    expect(staff.text()).toContain('待我评审')
-    staff.unmount()
+    const bid_specialist = await mountWorkbench(users.bid_specialist)
+    expect(bid_specialist.text()).toContain('上午好，李工')
+    expect(bid_specialist.text()).toContain('我的任务')
+    expect(bid_specialist.text()).toContain('待我评审')
+    bid_specialist.unmount()
 
     const admin = await mountWorkbench(users.admin)
     expect(admin.text()).toContain('上午好，管理员')
@@ -56,7 +56,7 @@ describe('Dashboard Workbench characterization', () => {
     expect(all.text()).toContain('快速发起')
     all.unmount()
 
-    const denied = await mountWorkbench({ ...users.staff, menuPermissions: ['dashboard'] })
+    const denied = await mountWorkbench({ ...users.bid_specialist, menuPermissions: ['dashboard'] })
     expect(denied.text()).not.toContain('快速发起')
     denied.unmount()
   })
@@ -134,7 +134,7 @@ describe('Dashboard Workbench characterization', () => {
   })
 
   it('completes API-backed todo items without re-completing finished rows', async () => {
-    const wrapper = await mountWorkbench(users.staff)
+    const wrapper = await mountWorkbench(users.bid_specialist)
     const todo = findByText(wrapper, '.todo-item', 'API任务：完善技术方案')
 
     await todo.find('.todo-checkbox').trigger('click')

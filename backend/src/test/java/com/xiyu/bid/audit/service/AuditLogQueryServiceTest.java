@@ -77,7 +77,7 @@ class AuditLogQueryServiceTest {
                 .id(42L)
                 .username("xiaowang")
                 .fullName("小王")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .build();
         when(userRepository.findByUsername("xiaowang")).thenReturn(Optional.of(user));
         when(auditLogRepository.searchLogsForActor("删除", "DELETE", "xiaowang", "42", null, null, true))

@@ -33,7 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("isAuthenticated()")
 public class TenderUploadController {
 
-    private static final String ACCESS_EXPR = "hasAnyRole('ADMIN', 'MANAGER', 'STAFF')";
+    private static final String ACCESS_EXPR = "hasAnyRole('ADMIN', 'MANAGER')";
 
     private final TenderUploadTaskService tenderUploadTaskService;
 

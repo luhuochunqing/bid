@@ -36,7 +36,6 @@ import java.util.stream.Stream;
 public final class RoleProfileCatalog {
 
     public static final String ADMIN_CODE = "admin";
-    public static final String STAFF_CODE = "staff";
     public static final String QUICK_START_PERMISSION = "dashboard.quickStart";
     public static final String AI_CENTER_PERMISSION = "ai-center";
     public static final String BIDDING_MANAGE_PERMISSION = "bidding.manage";
@@ -61,12 +60,11 @@ public final class RoleProfileCatalog {
     /** 拥有全局数据权限与操作权限的角色码集合。 */
     public static final Set<String> GLOBAL_ACCESS_ROLES = Set.of(ADMIN_CODE, BID_ADMIN_CODE, BID_LEAD_CODE);
 
-    /** 不应继承 Legacy User.Role 鉴权兼容（ROLE_STAFF/ADMIN/MANAGER）的新式受限角色。
+    /** 不应继承 Legacy User.Role 鉴权兼容（ROLE_ADMIN/MANAGER）的新式受限角色。
      *  <p>这些角色仅靠自身 {@code ROLE_<CODE>} + 细粒度 menuPermissions 鉴权。若让它们继承
-     *  STAFF 兼容，会因 {@code hasAnyRole(... 'STAFF' ...)} 类白名单误入标讯/项目/知识库等
-     *  STAFF 可见模块（如跨部门协同人员按蓝图不应访问标讯中心）。
+     *  MANAGER 兼容，会因 {@code hasAnyRole(... 'MANAGER' ...)} 类白名单误入本不应访问的模块。
      *  <p>其合法 API（如 {@code TaskController}）用 {@code isAuthenticated()}，移除 legacy 兼容不影响任务处理。 */
-    public static final Set<String> ROLES_WITHOUT_LEGACY_ROLE_COMPAT = Set.of(BID_OTHER_DEPT_CODE, ADMIN_STAFF_CODE);
+    public static final Set<String> ROLES_WITHOUT_LEGACY_ROLE_COMPAT = Set.of(BID_OTHER_DEPT_CODE, ADMIN_STAFF_CODE, BID_SPECIALIST_CODE);
 
     /** 允许提交投标（推进至评标阶段）的业务角色码集合，对齐前端 useProjectDraftingPermissions.canSubmitBid。
      *  <p>语义划分：
@@ -136,20 +134,14 @@ public final class RoleProfileCatalog {
                             BIDDING_CREATE_PERMISSION,
                             BRAND_AUTH_VIEW_PERMISSION, BRAND_AUTH_CREATE_PERMISSION,
                             BRAND_AUTH_EDIT_PERMISSION, "knowledge-brand-auth",
+                            QUICK_START_PERMISSION, AI_CENTER_PERMISSION, "operation-logs",
                             "dashboard:view_welcome_banner", "dashboard:view_metric_cards", "dashboard:view_calendar",
                             "dashboard:view_tender_list", "dashboard:view_technical_task", "dashboard:view_active_projects",
                             "dashboard:view_activity_list", "dashboard:view_priority_todos",
                             WAREHOUSE_MANAGE_PERMISSION))),
             Map.entry(ADMIN_STAFF_CODE, new SeedDefinition(ADMIN_STAFF_CODE, "行政人员", "资质证书管理与行政事务", true, "self",
                     List.of("certificate.manage", "qualification.view"))),
-            Map.entry(STAFF_CODE, new SeedDefinition(STAFF_CODE, "普通员工", "基础 dashboard 快捷入口与 AI 中心访问", true, "self",
-                    // TODO(产品决策)："operation-logs"（审计日志查看）是否应给所有 STAFF？
-                    // 当前测试期望包含该权限（RoleProfileServicePersistence*Test#resetRole...）。
-                    // 业务上普通员工是否需要查看全局审计日志待产品确认。follow-up issue 待开。
-                    List.of(QUICK_START_PERMISSION, AI_CENTER_PERMISSION,
-                            "operation-logs",
-                            "dashboard:view_welcome_banner", "dashboard:view_activity_list", "dashboard:view_priority_todos"))),
-                        Map.entry(BID_OTHER_DEPT_CODE, new SeedDefinition(BID_OTHER_DEPT_CODE, "跨部门协同人员", "项目任务处理", true, "self",
+            Map.entry(BID_OTHER_DEPT_CODE, new SeedDefinition(BID_OTHER_DEPT_CODE, "跨部门协同人员", "项目任务处理", true, "self",
                     List.of("task.view.own", "task.handle.own",
                             "dashboard:view_welcome_banner", "dashboard:view_technical_task",
                             "dashboard:view_activity_list", "dashboard:view_priority_todos")))
@@ -162,7 +154,6 @@ public final class RoleProfileCatalog {
     public static List<SeedDefinition> seedDefinitions() {
         return List.of(
                 DEFINITIONS.get(ADMIN_CODE),
-                DEFINITIONS.get(STAFF_CODE),
                 DEFINITIONS.get(SALES_CODE),
                 DEFINITIONS.get(BID_LEAD_CODE),
                 DEFINITIONS.get(BID_ADMIN_CODE),
@@ -186,25 +177,15 @@ public final class RoleProfileCatalog {
         return switch (role) {
             case ADMIN -> DEFINITIONS.get(ADMIN_CODE);
             case MANAGER -> DEFINITIONS.get(ADMIN_CODE);
-            case STAFF -> DEFINITIONS.get(STAFF_CODE);
         };
     }
 
     public static User.Role legacyRoleForCode(String roleCode) {
-        String normalizedCode = roleCode == null ? STAFF_CODE : roleCode.trim().toLowerCase(Locale.ROOT);
-        return switch (normalizedCode) {
-            case ADMIN_CODE -> User.Role.ADMIN;
-            case BID_ADMIN_CODE, BID_LEAD_CODE, SALES_CODE -> User.Role.MANAGER;
-            default -> User.Role.STAFF;
-        };
-    }
-
-    public static User.Role securityCompatLegacyRole(String roleCode) {
-        String normalizedCode = roleCode == null ? STAFF_CODE : roleCode.trim().toLowerCase(Locale.ROOT);
+        String normalizedCode = roleCode == null ? "" : roleCode.trim().toLowerCase(Locale.ROOT);
         return switch (normalizedCode) {
             case ADMIN_CODE, BID_ADMIN_CODE -> User.Role.ADMIN;
             case BID_LEAD_CODE, SALES_CODE -> User.Role.MANAGER;
-            default -> User.Role.STAFF;
+            default -> User.Role.MANAGER;
         };
     }
 

@@ -7,6 +7,7 @@ import com.xiyu.bid.integration.organization.domain.OrganizationSyncPolicy;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSyncPlan;
 import com.xiyu.bid.integration.organization.dto.OssUserJobAndRoleDto;
+import com.xiyu.bid.security.domain.LoginRoleWhitelist;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationDepartmentEntity;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationDepartmentRepository;
 import com.xiyu.bid.entity.RoleProfile;
@@ -42,12 +43,12 @@ public class OrganizationUserSyncWriter {
     private final OssRoleMenuPermissionAutoSync ossRoleMenuPermissionAutoSync;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public User upsert(String sourceApp, String eventKey, OrganizationUserSnapshot snapshot) {
+    public Optional<User> upsert(String sourceApp, String eventKey, OrganizationUserSnapshot snapshot) {
         return upsert(sourceApp, eventKey, snapshot, Map.of());
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public User upsert(
+    public Optional<User> upsert(
             String sourceApp,
             String eventKey,
             OrganizationUserSnapshot snapshot,
@@ -61,9 +62,9 @@ public class OrganizationUserSyncWriter {
         ResolvedRole resolvedRole = jobRoleLookupResolver.resolve(enrichedSnapshot, jobRoleLookupMap);
         String resolvedRoleCode = resolvedRole.roleCode();
 
-        if (properties.isSkipUnmappedUsers() && (resolvedRoleCode == null || resolvedRoleCode.isBlank())) {
+        if (!LoginRoleWhitelist.isAllowed(resolvedRoleCode)) {
             handleUnmappedUser(sourceApp, eventKey, snapshot, existingUser);
-            return null;
+            return Optional.empty();
         }
 
         boolean allowAdminElevation = resolvedRole.source() == RoleMappingSource.PERSON;
@@ -92,7 +93,7 @@ public class OrganizationUserSyncWriter {
         if (properties.getDirectory().isAutoSyncMenuPermissions()) {
             autoSyncMenuPermissions(saved);
         }
-        return saved;
+        return Optional.of(saved);
     }
 
     private void autoSyncMenuPermissions(User user) {
@@ -155,9 +156,7 @@ public class OrganizationUserSyncWriter {
     }
 
     private void applyRole(User user, String roleCode) {
-        RoleProfile roleProfile = roleProfileRepository.findByCodeIgnoreCase(roleCode)
-                .or(() -> roleProfileRepository.findByCodeIgnoreCase(RoleProfileCatalog.STAFF_CODE))
-                .orElse(null);
+        RoleProfile roleProfile = roleProfileRepository.findByCodeIgnoreCase(roleCode).orElse(null);
         user.setRoleProfile(roleProfile);
         user.setRole(RoleProfileCatalog.legacyRoleForCode(roleProfile == null ? roleCode : roleProfile.getCode()));
     }

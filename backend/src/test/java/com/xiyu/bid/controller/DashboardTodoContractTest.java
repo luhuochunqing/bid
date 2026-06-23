@@ -42,7 +42,7 @@ class DashboardTodoContractTest {
     private TaskActivityService taskActivityService;
 
     @Test
-    @WithMockUser(username = "alice", roles = {"STAFF"})
+    @WithMockUser(username = "alice", roles = {"MANAGER"})
     void getMyTasks_ShouldReturnApiModeTodoPayload() throws Exception {
         TaskDTO task = TaskDTO.builder()
                 .id(101L)
@@ -66,7 +66,7 @@ class DashboardTodoContractTest {
     }
 
     @Test
-    @WithMockUser(username = "alice", roles = {"STAFF"})
+    @WithMockUser(username = "alice", roles = {"MANAGER"})
     void updateTaskStatus_ShouldReturnCompletedTodoPayload() throws Exception {
         TaskDTO updatedTask = TaskDTO.builder()
                 .id(101L)

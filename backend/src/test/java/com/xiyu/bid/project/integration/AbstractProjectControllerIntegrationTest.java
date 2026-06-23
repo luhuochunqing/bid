@@ -94,7 +94,7 @@ abstract class AbstractProjectControllerIntegrationTest {
                 "staff-user",
                 "staff@example.com",
                 "项目成员",
-                User.Role.STAFF,
+                User.Role.MANAGER,
                 "TECH",
                 "技术部",
                 defaultProfile
@@ -103,7 +103,7 @@ abstract class AbstractProjectControllerIntegrationTest {
                 "outsider-user",
                 "outsider@example.com",
                 "外部人员",
-                User.Role.STAFF,
+                User.Role.MANAGER,
                 "SALES",
                 "销售部",
                 defaultProfile
@@ -112,7 +112,7 @@ abstract class AbstractProjectControllerIntegrationTest {
                 "dept-viewer-user",
                 "dept-viewer@example.com",
                 "同部门查看人",
-                User.Role.STAFF,
+                User.Role.MANAGER,
                 "BID",
                 "投标管理部",
                 defaultProfile
@@ -121,7 +121,7 @@ abstract class AbstractProjectControllerIntegrationTest {
                 "group-viewer-user",
                 "group-viewer@example.com",
                 "项目组查看人",
-                User.Role.STAFF,
+                User.Role.MANAGER,
                 "FINANCE",
                 "财务部",
                 defaultProfile
@@ -130,7 +130,7 @@ abstract class AbstractProjectControllerIntegrationTest {
                 "cross-dept-assignee",
                 "cross-dept-assignee@example.com",
                 "跨部门任务执行人",
-                User.Role.STAFF,
+                User.Role.MANAGER,
                 "OTHER",
                 "跨部门",
                 crossDeptProfile

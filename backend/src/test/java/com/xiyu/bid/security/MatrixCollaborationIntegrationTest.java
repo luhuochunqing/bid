@@ -53,7 +53,7 @@ class MatrixCollaborationIntegrationTest {
                 .password(passwordEncoder.encode("password"))
                 .email("collab@example.com")
                 .fullName("Collaborator User")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .build();
         userRepository.save(user);
 
@@ -88,7 +88,7 @@ class MatrixCollaborationIntegrationTest {
                 .password(passwordEncoder.encode("password"))
                 .email("crm@example.com")
                 .fullName("CRM User")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .build();
         userRepository.save(user);
 

@@ -98,7 +98,7 @@ describe('CO-210: Router permission redirect fix', () => {
     expect(result).toBe('/dashboard')
   })
 
-  it('should handle staff role with limited permissions correctly', () => {
+  it('should handle bid_specialist role with limited permissions correctly', () => {
     const userStore = createMockUserStore([
       'dashboard',
       'bidding',

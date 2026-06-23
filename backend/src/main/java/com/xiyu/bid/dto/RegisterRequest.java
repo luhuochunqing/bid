@@ -26,11 +26,11 @@ public class RegisterRequest {
     private String fullName;
 
     @JsonAlias("role")
-    private String roleCode = "staff";
+    private String roleCode = "bid_specialist";
 
     public String getResolvedRoleCode() {
         if (roleCode == null || roleCode.isBlank()) {
-            return "staff";
+            return "bid_specialist";
         }
         return roleCode;
     }

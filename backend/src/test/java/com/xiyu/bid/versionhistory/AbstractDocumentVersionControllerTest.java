@@ -37,7 +37,7 @@ abstract class AbstractDocumentVersionControllerTest {
     void setUpDocumentVersionControllerFixture() {
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(
-                        "1", null, List.of(new SimpleGrantedAuthority("ROLE_STAFF"))));
+                        "1", null, List.of(new SimpleGrantedAuthority("ROLE_MANAGER"))));
 
         DocumentVersionController controller = new DocumentVersionController(versionHistoryService);
         mockMvc = MockMvcBuilders

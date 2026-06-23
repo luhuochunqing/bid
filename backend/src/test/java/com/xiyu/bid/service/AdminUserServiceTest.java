@@ -66,8 +66,8 @@ class AdminUserServiceTest {
 
     @Test
     void updateOrganization_ShouldResolveDepartmentNameFromDepartmentTree() {
-        User user = User.builder().id(7L).username("alice").role(User.Role.STAFF).enabled(true).build();
-        RoleProfile role = RoleProfile.builder().id(3L).code("staff").name("员工").enabled(true).build();
+        User user = User.builder().id(7L).username("alice").role(User.Role.MANAGER).enabled(true).build();
+        RoleProfile role = RoleProfile.builder().id(3L).code("bid_specialist").name("投标专员").enabled(true).build();
         UserOrganizationUpdateRequest request = new UserOrganizationUpdateRequest();
         request.setDepartmentCode("TECH");
         request.setRoleId(3L);
@@ -85,8 +85,8 @@ class AdminUserServiceTest {
 
     @Test
     void updateOrganization_ShouldRejectUnknownDepartmentForEnabledUser() {
-        User user = User.builder().id(7L).username("alice").role(User.Role.STAFF).enabled(true).build();
-        RoleProfile role = RoleProfile.builder().id(3L).code("staff").name("员工").enabled(true).build();
+        User user = User.builder().id(7L).username("alice").role(User.Role.MANAGER).enabled(true).build();
+        RoleProfile role = RoleProfile.builder().id(3L).code("bid_specialist").name("投标专员").enabled(true).build();
         UserOrganizationUpdateRequest request = new UserOrganizationUpdateRequest();
         request.setDepartmentCode("UNKNOWN");
         request.setRoleId(3L);
@@ -101,5 +101,43 @@ class AdminUserServiceTest {
         assertThatThrownBy(() -> service.updateOrganization(7L, request, "admin"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("有效部门");
+    }
+
+    @Test
+    void updateStatus_ShouldRejectChangingOssUserEnabledStatus() {
+        User user = User.builder()
+                .id(7L)
+                .username("alice")
+                .role(User.Role.MANAGER)
+                .enabled(true)
+                .externalOrgSourceApp("oss")
+                .externalOrgUserId("oss-alice")
+                .build();
+        com.xiyu.bid.dto.AdminUserStatusUpdateRequest request = new com.xiyu.bid.dto.AdminUserStatusUpdateRequest();
+        request.setEnabled(false);
+
+        when(userRepository.findById(7L)).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> service.updateStatus(7L, request, "admin"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("OSS 同步用户的启用状态");
+    }
+
+    @Test
+    void updateStatus_ShouldAllowChangingLocalUserEnabledStatus() {
+        User user = User.builder()
+                .id(7L)
+                .username("alice")
+                .role(User.Role.MANAGER)
+                .enabled(true)
+                .build();
+        com.xiyu.bid.dto.AdminUserStatusUpdateRequest request = new com.xiyu.bid.dto.AdminUserStatusUpdateRequest();
+        request.setEnabled(false);
+
+        when(userRepository.findById(7L)).thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenReturn(user);
+
+        AdminUserDTO dto = service.updateStatus(7L, request, "admin");
+        assertThat(dto.getEnabled()).isFalse();
     }
 }

@@ -30,7 +30,7 @@ export function resolveUserRole(userStore) {
     userStore?.currentUser?.roleCode
       || userStore?.currentUser?.role
       || userStore?.userRole
-      || 'staff',
+      || 'bid_specialist',
   )
 }
 

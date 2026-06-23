@@ -19,7 +19,7 @@ describe('usersApi', () => {
   })
 
   it('searches users with query and default limit', async () => {
-    httpClient.get.mockResolvedValue({ success: true, data: [{ id: 1, name: 'Alice', role: 'STAFF' }] })
+    httpClient.get.mockResolvedValue({ success: true, data: [{ id: 1, name: 'Alice', role: 'BID_SPECIALIST' }] })
     const result = await usersApi.search('ali')
     expect(httpClient.get).toHaveBeenCalledWith('/api/users/search', { params: { q: 'ali', limit: 10 } })
     expect(result).toHaveLength(1)

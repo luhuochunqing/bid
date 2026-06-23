@@ -14,6 +14,6 @@ describe('LoginDevAccountsHint', () => {
     expect(wrapper.text()).toContain('bid_admin')
     expect(wrapper.text()).toContain('bid_lead')
     expect(wrapper.text()).toContain('sales')
-    expect(wrapper.text()).toContain('staff')
+    expect(wrapper.text()).toContain('bid_specialist')
   })
 })

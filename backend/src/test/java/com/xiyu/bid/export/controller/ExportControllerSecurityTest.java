@@ -44,12 +44,12 @@ class ExportControllerSecurityTest {
     void extractUserId_ResolvesPersistedUserByUsername() throws Exception {
         UserDetails userDetails = org.springframework.security.core.userdetails.User.withUsername("alice")
                 .password("password")
-                .authorities("ROLE_STAFF")
+                .authorities("ROLE_MANAGER")
                 .build();
         User user = User.builder()
                 .id(7L)
                 .username("alice")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .email("alice@example.com")
                 .fullName("Alice")
                 .password("secret")
@@ -78,12 +78,12 @@ class ExportControllerSecurityTest {
     void exportToExcel_ReturnsRecordCountFromServiceResult() throws Exception {
         UserDetails userDetails = org.springframework.security.core.userdetails.User.withUsername("alice")
                 .password("password")
-                .authorities("ROLE_STAFF")
+                .authorities("ROLE_MANAGER")
                 .build();
         User user = User.builder()
                 .id(7L)
                 .username("alice")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .email("alice@example.com")
                 .fullName("Alice")
                 .password("secret")
@@ -124,7 +124,7 @@ class ExportControllerSecurityTest {
     void extractUserId_RejectsUnknownAuthenticatedUser() throws Exception {
         UserDetails userDetails = org.springframework.security.core.userdetails.User.withUsername("ghost")
                 .password("password")
-                .authorities("ROLE_STAFF")
+                .authorities("ROLE_MANAGER")
                 .build();
 
         org.mockito.Mockito.when(authService.resolveUserByUsername("ghost"))

@@ -171,7 +171,7 @@ class OrganizationDirectorySyncAppServiceFailureTest {
     private static class FakeUserWriter extends OrganizationDirectorySyncAppServiceTest.FakeUserWriter {
         boolean throwOnWrite;
 
-        public com.xiyu.bid.entity.User upsert(String sourceApp, String eventKey, OrganizationUserSnapshot snapshot) {
+        public java.util.Optional<com.xiyu.bid.entity.User> upsert(String sourceApp, String eventKey, OrganizationUserSnapshot snapshot) {
             if (throwOnWrite) {
                 throw new IllegalStateException("write failed");
             }

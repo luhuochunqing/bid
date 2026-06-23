@@ -31,7 +31,7 @@ export const useUserStore = defineStore('user', {
 
   getters: {
     isLoggedIn: (state) => !!state.currentUser,
-    userRole: (state) => state.currentUser?.role || 'staff',
+    userRole: (state) => state.currentUser?.role || 'bid_specialist',
     userName: (state) => formatDisplayName(state.currentUser?.name, state.currentUser?.employeeNumber) || '用户',
     allowedProjectIds: (state) => state.currentUser?.allowedProjectIds || [],
     allowedDepts: (state) => state.currentUser?.allowedDepts || [],

@@ -52,7 +52,7 @@ import java.util.UUID;
 @RequestMapping("/api/platform/accounts")
 @RequiredArgsConstructor
 @Slf4j
-@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
 public class PlatformAccountController {
 
     private final PlatformAccountService platformAccountService;
@@ -108,7 +108,7 @@ public class PlatformAccountController {
     }
 
     @PostMapping("/{id}/borrow")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<PlatformAccountDTO>> borrowAccount(
             @PathVariable Long id,
             @Valid @RequestBody BorrowAccountRequest request,
@@ -119,7 +119,7 @@ public class PlatformAccountController {
     }
 
     @PostMapping("/{id}/return")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<PlatformAccountDTO>> returnAccount(
             @PathVariable Long id,
             @AuthenticationPrincipal UserDetails currentUser) {
@@ -179,7 +179,7 @@ public class PlatformAccountController {
     }
 
     @PostMapping("/{id}/return-with-password")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<PlatformAccountDTO>> returnAccountWithPassword(
             @PathVariable Long id,
             @Valid @RequestBody ReturnAccountRequest request,

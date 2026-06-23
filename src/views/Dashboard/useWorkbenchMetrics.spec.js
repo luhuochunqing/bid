@@ -30,7 +30,7 @@ describe('useWorkbenchMetrics', () => {
     expect(metrics.metrics.value.map((item) => item.value)).toEqual(['¥250万', '66.6%', '12条', '3个'])
   })
 
-  it('uses dependent count refs for manager and staff metrics', () => {
+  it('uses dependent count refs for manager and bid_specialist metrics', () => {
     const role = ref('manager')
     const pendingCount = computed(() => 5)
     const approvalCount = ref(2)
@@ -49,7 +49,7 @@ describe('useWorkbenchMetrics', () => {
     expect(metrics.metrics.value.map((item) => item.value)).toContain('5项')
     expect(metrics.metrics.value.map((item) => item.value)).toContain('2项')
 
-    role.value = 'staff'
+    role.value = 'bid_specialist'
     expect(metrics.metrics.value.map((item) => item.value)).toContain('7项')
     expect(metrics.metrics.value.map((item) => item.value)).toContain('4个')
   })

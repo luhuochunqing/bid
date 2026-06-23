@@ -25,13 +25,13 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("isAuthenticated()")
 public class BidResultReminderController {
 
-    private static final String ADMIN_MANAGER_STAFF_EXPR = "hasAnyRole('ADMIN', 'MANAGER', 'STAFF')";
+    private static final String ADMIN_MANAGER_EXPR = "hasAnyRole('ADMIN', 'MANAGER')";
 
     private final BidResultReminderAppService reminderAppService;
     private final BidResultCurrentUserResolver currentUserResolver;
 
     @PostMapping("/send")
-    @PreAuthorize(ADMIN_MANAGER_STAFF_EXPR)
+    @PreAuthorize(ADMIN_MANAGER_EXPR)
     public ResponseEntity<ApiResponse<BidResultReminderDTO>> sendReminder(
             @RequestBody BidResultReminderSendRequest request,
             @AuthenticationPrincipal UserDetails userDetails
@@ -46,7 +46,7 @@ public class BidResultReminderController {
     }
 
     @PostMapping("/send-batch")
-    @PreAuthorize(ADMIN_MANAGER_STAFF_EXPR)
+    @PreAuthorize(ADMIN_MANAGER_EXPR)
     public ResponseEntity<ApiResponse<BidResultSyncResponseDTO>> sendReminderBatch(
             @RequestBody BidResultBatchRequest request,
             @AuthenticationPrincipal UserDetails userDetails
@@ -57,7 +57,7 @@ public class BidResultReminderController {
     }
 
     @PostMapping("/{reminderId}/mark-uploaded")
-    @PreAuthorize(ADMIN_MANAGER_STAFF_EXPR)
+    @PreAuthorize(ADMIN_MANAGER_EXPR)
     public ResponseEntity<ApiResponse<BidResultReminderDTO>> markUploaded(
             @PathVariable Long reminderId,
             @RequestBody BidResultAttachmentBindRequest request,

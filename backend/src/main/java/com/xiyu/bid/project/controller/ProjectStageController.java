@@ -28,7 +28,7 @@ public class ProjectStageController {
     private final ProjectStageService service;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public ResponseEntity<ApiResponse<StageViewDto>> get(@PathVariable Long projectId) {
         ProjectStage current = service.currentStage(projectId);
         List<ProjectStage> next = service.allowedNext(projectId);

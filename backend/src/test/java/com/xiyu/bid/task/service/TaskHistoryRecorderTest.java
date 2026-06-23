@@ -50,7 +50,7 @@ class TaskHistoryRecorderTest {
                 .status(Task.Status.IN_PROGRESS)
                 .priority(Task.Priority.HIGH)
                 .build();
-        User actor = User.builder().id(7L).username("alice").fullName("Alice").role(User.Role.STAFF).build();
+        User actor = User.builder().id(7L).username("alice").fullName("Alice").role(User.Role.MANAGER).build();
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(actor));
         when(historyRepository.save(any(TaskHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
 

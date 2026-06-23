@@ -17,7 +17,7 @@ const rolePermissions = {
   admin: ['all'],
   auditor: ['audit-logs', 'operation-logs', 'dashboard'],
   manager: ['settings', 'dashboard', 'bidding', 'project', 'knowledge', 'resource', 'analytics'],
-  staff: ['dashboard', 'operation-logs', 'bidding', 'project', 'knowledge', 'resource'],
+  bid_specialist: ['dashboard', 'operation-logs', 'bidding', 'project', 'knowledge', 'resource'],
 }
 
 vi.mock('@/stores/user', () => ({
@@ -172,7 +172,7 @@ describe('Settings', () => {
   })
 
   it('does not keep audit log active when a non-privileged role requests the audit tab', () => {
-    const wrapper = mountSettings({ role: 'staff', query: { tab: 'audit' } })
+    const wrapper = mountSettings({ role: 'bid_specialist', query: { tab: 'audit' } })
 
     expect(wrapper.find('.settings-tabs').attributes('data-active')).toBe('departments')
   })
@@ -188,7 +188,7 @@ describe('Settings', () => {
   })
 
   it('redirects task-status-dict query tab away for non-admin', () => {
-    const wrapper = mountSettings({ role: 'staff', query: { tab: 'task-status-dict' } })
+    const wrapper = mountSettings({ role: 'bid_specialist', query: { tab: 'task-status-dict' } })
 
     expect(wrapper.find('.settings-tabs').attributes('data-active')).toBe('departments')
   })
@@ -204,7 +204,7 @@ describe('Settings', () => {
   })
 
   it('redirects task-extended-fields query tab away for non-admin', () => {
-    const wrapper = mountSettings({ role: 'staff', query: { tab: 'task-extended-fields' } })
+    const wrapper = mountSettings({ role: 'bid_specialist', query: { tab: 'task-extended-fields' } })
 
     expect(wrapper.find('.settings-tabs').attributes('data-active')).toBe('departments')
   })

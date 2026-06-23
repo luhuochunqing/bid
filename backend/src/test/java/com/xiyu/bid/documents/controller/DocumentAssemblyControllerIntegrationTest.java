@@ -92,7 +92,7 @@ class DocumentAssemblyControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(roles = {"STAFF"})
+    @WithMockUser(roles = {"MANAGER"})
     void getTemplates_WithoutCategory_ShouldReturnEmptyList() throws Exception {
         mockMvc.perform(get("/api/documents/assembly/templates"))
                 .andExpect(status().isOk())
@@ -136,7 +136,7 @@ class DocumentAssemblyControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(roles = {"STAFF"})
+    @WithMockUser(roles = {"MANAGER"})
     void getAssembliesByProject_ShouldReturnAssemblies() throws Exception {
         mockMvc.perform(get("/api/documents/assembly/{projectId}", 100L))
                 .andExpect(status().isOk())
@@ -147,7 +147,7 @@ class DocumentAssemblyControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(roles = {"STAFF"})
+    @WithMockUser(roles = {"MANAGER"})
     void getAssembliesByProject_WithNoAssemblies_ShouldReturnEmptyList() throws Exception {
         mockMvc.perform(get("/api/documents/assembly/{projectId}", 999L))
                 .andExpect(status().isOk())
@@ -157,7 +157,7 @@ class DocumentAssemblyControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(roles = {"STAFF"})
+    @WithMockUser(roles = {"MANAGER"})
     void assembleDocument_WithValidData_ShouldReturnCreated() throws Exception {
         AssemblyRequest request = AssemblyRequest.builder()
                 .templateId(testTemplate.getId())
@@ -176,7 +176,7 @@ class DocumentAssemblyControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(roles = {"STAFF"})
+    @WithMockUser(roles = {"MANAGER"})
     void assembleDocument_WithInvalidTemplateId_ShouldReturnNotFound() throws Exception {
         AssemblyRequest request = AssemblyRequest.builder()
                 .templateId(999L)
@@ -206,7 +206,7 @@ class DocumentAssemblyControllerIntegrationTest {
     }
 
     @Test
-    @WithMockUser(username = "user", roles = {"STAFF"})
+    @WithMockUser(username = "user", roles = {"MANAGER"})
     void getTemplates_WithoutAuthentication_ShouldReturnUnauthorized() throws Exception {
         // This test verifies that without authentication, the endpoint is protected
         // Since we're using @WithMockUser, the request is authenticated

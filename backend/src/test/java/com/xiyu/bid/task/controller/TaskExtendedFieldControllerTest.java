@@ -44,7 +44,7 @@ class TaskExtendedFieldControllerTest {
     private TaskExtendedFieldService service;
 
     @Test
-    @WithMockUser(roles = "STAFF")
+    @WithMockUser(roles = "MANAGER")
     void listsEnabledFields() throws Exception {
         when(service.listEnabled()).thenReturn(List.of(
                 new TaskExtendedFieldDTO(

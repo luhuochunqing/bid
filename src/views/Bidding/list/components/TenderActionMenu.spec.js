@@ -63,10 +63,10 @@ afterEach(() => {
 })
 
 describe('TenderActionMenu permissions (standalone)', () => {
-  it('hides management and delete menu items from staff users', () => {
+  it('hides management and delete menu items from bid_specialist users', () => {
     const wrapper = mountMenu()
 
-    // staff 用户看不到管理相关菜单
+    // bid_specialist 用户看不到管理相关菜单
     const dropdownHtml = wrapper.html()
     expect(dropdownHtml).not.toContain('删除')
   })

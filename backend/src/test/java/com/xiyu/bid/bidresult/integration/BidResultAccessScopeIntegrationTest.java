@@ -47,7 +47,7 @@ class BidResultAccessScopeIntegrationTest extends AbstractBidResultIntegrationTe
                 .password("XiyuDemo!2026")
                 .email("bid-staff@example.com")
                 .fullName("投标结果专员")
-                .role(User.Role.STAFF)
+                .role(User.Role.MANAGER)
                 .enabled(true)
                 .build());
         visibleProject = createProject("可见投标结果项目", 87001L, staffUser.getId(), List.of(staffUser.getId()));
@@ -95,7 +95,7 @@ class BidResultAccessScopeIntegrationTest extends AbstractBidResultIntegrationTe
     }
 
     @Test
-    @WithMockUser(username = "bid-staff", roles = {"STAFF"})
+    @WithMockUser(username = "bid-staff", roles = {"MANAGER"})
     void queryEndpoints_ShouldFilterByAccessibleProjectsForNonAdmin() throws Exception {
         mockMvc.perform(get("/api/bid-results/fetch-results"))
                 .andExpect(status().isOk())
@@ -120,7 +120,7 @@ class BidResultAccessScopeIntegrationTest extends AbstractBidResultIntegrationTe
     }
 
     @Test
-    @WithMockUser(username = "bid-staff", roles = {"STAFF"})
+    @WithMockUser(username = "bid-staff", roles = {"MANAGER"})
     void detailEndpoint_WithInaccessibleProjectResult_ShouldReturnForbidden() throws Exception {
         mockMvc.perform(get("/api/bid-results/{id}", hiddenResult.getId()))
                 .andExpect(status().isForbidden())
@@ -128,7 +128,7 @@ class BidResultAccessScopeIntegrationTest extends AbstractBidResultIntegrationTe
     }
 
     @Test
-    @WithMockUser(username = "bid-staff", roles = {"STAFF"})
+    @WithMockUser(username = "bid-staff", roles = {"MANAGER"})
     void commandEndpoints_WithInaccessibleProjectResult_ShouldReturnForbidden() throws Exception {
         ProjectDocument hiddenDocument = fixtures.saveProjectDocument(
                 hiddenProject.getId(),
@@ -202,7 +202,7 @@ class BidResultAccessScopeIntegrationTest extends AbstractBidResultIntegrationTe
     }
 
     @Test
-    @WithMockUser(username = "bid-staff", roles = {"STAFF"})
+    @WithMockUser(username = "bid-staff", roles = {"MANAGER"})
     void projectIdCommandEndpoints_WithInaccessibleProject_ShouldReturnForbidden() throws Exception {
         mockMvc.perform(post("/api/bid-results/register")
                         .contentType(MediaType.APPLICATION_JSON)

@@ -6,7 +6,6 @@
 const ROLE_LABELS = {
   admin: '管理员',
   manager: '经理',
-  staff: '项目负责人',
 }
 
 const SOURCE_LABELS = {

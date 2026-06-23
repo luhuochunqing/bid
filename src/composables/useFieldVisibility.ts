@@ -35,7 +35,7 @@ export interface VisibilityRule {
  * 支持格式：
  *   "ADMIN"          - 精确匹配
  *   "bid_specialist"  - 精确匹配
- *   "STAFF,bid_specialist" - 多角色之一
+ *   "BID_SPECIALIST,bid_specialist" - 多角色之一
  *   "*"              - 所有角色
  *   null             - 所有角色
  */
@@ -121,7 +121,7 @@ export function useFieldVisibility(
   const userStore = useUserStore()
 
   return computed(() => {
-    const role = userRoleOverride ?? userStore.userRole ?? 'staff'
+    const role = userRoleOverride ?? userStore.userRole ?? 'bid_specialist'
     const orgId = userOrgIdOverride ?? null
     return computeVisibilityStates(visibilityRules, role, orgId)
   })

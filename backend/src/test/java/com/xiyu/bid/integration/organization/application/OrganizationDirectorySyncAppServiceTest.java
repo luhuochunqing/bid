@@ -235,9 +235,9 @@ class OrganizationDirectorySyncAppServiceTest {
             super(null, null, null, new OrganizationIntegrationProperties(), null, null);
         }
 
-        public com.xiyu.bid.entity.User upsert(String sourceApp, String eventKey, OrganizationUserSnapshot snapshot) {
+        public java.util.Optional<com.xiyu.bid.entity.User> upsert(String sourceApp, String eventKey, OrganizationUserSnapshot snapshot) {
             this.snapshot = snapshot;
-            return new com.xiyu.bid.entity.User();
+            return java.util.Optional.of(new com.xiyu.bid.entity.User());
         }
 
         public void disableByExternalId(String sourceApp, String eventKey, String externalUserId) {

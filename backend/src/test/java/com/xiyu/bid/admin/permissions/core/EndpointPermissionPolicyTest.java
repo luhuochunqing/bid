@@ -69,8 +69,8 @@ class EndpointPermissionPolicyTest {
                 "isAuthenticated()"
         );
 
-        assertThat(descriptor.allowedRoles()).isEqualTo(List.of("ADMIN", "MANAGER", "STAFF"));
-        assertThat(descriptor.accessLevel()).isEqualTo("AUTHENTICATED");
+        assertThat(descriptor.allowedRoles()).isEqualTo(List.of("ADMIN", "MANAGER"));
+        assertThat(descriptor.accessLevel()).isEqualTo("ADMIN_MANAGER");
         assertThat(descriptor.configurable()).isFalse();
     }
 }
