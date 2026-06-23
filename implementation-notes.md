@@ -1,3 +1,22 @@
+# OSS 权限接入后评标编辑权限修复实施记录
+
+## 问题口径
+
+- 用户 `06234` 通过 `/api/auth/me` 返回 `roleCode=admin`，但前端项目评标页不可编辑。
+- 评标页编辑态由 `menuPermissions` 中的 `project:evaluate` / `evaluation.update` / `task.review` / `all` 间接决定；OSS 菜单权限缓存只返回菜单级权限，未带回本地角色目录中的业务操作权限。
+
+## 决策与权衡
+
+- 修复放在后端 `DataScopeConfigService.getRoleMenuPermissions` 的 OSS 缓存返回口，保持前端权限判断不变。
+- 对 OSS 已解析出的已注册内部角色，合并 `RoleProfileCatalog` 默认业务权限；未知角色不补齐，避免越权。
+- `admin` 对齐 `UserDetailsServiceImpl` 后端鉴权语义：保留 OSS 菜单权限，同时补 `all` 和 catalog 全部已知权限，确保 `/api/auth/me` 与 Spring Security authorities 不再错位。
+- 不修改 OSS 菜单编码配置，不要求 OSS 侧新增按钮级菜单；本次目标是恢复西域数智化投标管理平台内部角色应有的业务操作权限。
+
+## 验证
+
+- 先新增回归测试 `DataScopeConfigServiceTest#getRoleMenuPermissions_ShouldEnrichOssAdminPermissionsWithCatalogDefaults`，RED 确认为只返回 `project/project-detail`、缺少 `all/evaluation.update/task.review`。
+- 修复后执行：`mvn -f /Users/user/xiyu/worktrees/zcode/backend/pom.xml test -Dtest=DataScopeConfigServiceTest`，10 tests passed。
+
 # 消息接口交付文档整理实施记录
 
 ## 问题口径
