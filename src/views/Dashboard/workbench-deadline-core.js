@@ -46,7 +46,7 @@ const DEADLINE_METRIC_DEFS = {
     { key: 'deposit_week', label: '本周保证金截止', deadlineType: 'depositDeadline', period: 'weekCount', icon: 'TrendCharts', variant: 'blue' },
   ],
   // default → personal: 3 cards
-  bid_specialist: [
+  'bid-Team': [
     { key: 'reg_today', label: '今日报名截止', deadlineType: 'registrationDeadline', period: 'todayCount', icon: 'Document', variant: 'red' },
     { key: 'opening_week', label: '本周开标', deadlineType: 'bidOpening', period: 'weekCount', icon: 'Flag', variant: 'amber' },
     { key: 'deposit_month', label: '本月保证金截止', deadlineType: 'depositDeadline', period: 'monthCount', icon: 'TrendCharts', variant: 'blue' },
@@ -74,7 +74,7 @@ export function selectDeadlineMetrics(menuPermissions, deadlineStats) {
   if (hasAnyProjectAccess(menuPermissions)) {
     return buildMetrics(DEADLINE_METRIC_DEFS.manager, safeStats)
   }
-  return buildMetrics(DEADLINE_METRIC_DEFS.bid_specialist, safeStats)
+  return buildMetrics(DEADLINE_METRIC_DEFS['bid-Team'], safeStats)
 }
 
 function hasAnyAnalyticsAccess(perms) {

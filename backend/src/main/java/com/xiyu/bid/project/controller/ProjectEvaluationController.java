@@ -94,7 +94,7 @@ public class ProjectEvaluationController {
         return ResponseEntity.ok(ApiResponse.success("ok", dto));
     }
 
-    /** 弃标申请：BID_LEAD（映射 MANAGER）。 */
+    /** 弃标申请：bid-TeamLeader（映射 MANAGER）。 */
     @PostMapping("/abandon")
     @PreAuthorize("hasAnyRole('MANAGER')")
     public ResponseEntity<ApiResponse<EvaluationDTO>> abandonBid(

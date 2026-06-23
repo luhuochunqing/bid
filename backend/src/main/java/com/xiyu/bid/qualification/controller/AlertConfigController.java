@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 资质到期提醒告警配置接口。
  * <p>
- * 仅 BID_ADMIN（投标管理员）可访问，支持查询当前配置和更新配置。
+ * 仅 bidAdmin（投标管理员）可访问，支持查询当前配置和更新配置。
  */
 @RestController
 @RequestMapping("/api/qualifications/alert-config")

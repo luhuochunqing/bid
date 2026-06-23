@@ -50,7 +50,7 @@ function resolveRoleGroup(role) {
   if (role === 'admin' || role === 'bidAdmin' || role === 'bid-TeamLeader') return 'admin_lead'
   if (role === 'bid-projectLeader' || role === 'bid-otherDept' || role === 'bid-administration') return 'sales'
   if (role === 'manager') return 'admin_lead'
-  if (role === 'bid-Team') return 'bid_specialist'
+  if (role === 'bid-Team') return 'bid_team'
   return null
 }
 
@@ -64,7 +64,7 @@ const HEADER_MATRIX = {
       currentUserId != null && currentUserId === creatorId
         ? ['edit', 'delete']
         : [],
-    bid_specialist: ({ currentUserId, creatorId }) =>
+    bid_team: ({ currentUserId, creatorId }) =>
       currentUserId != null && currentUserId === creatorId
         ? ['edit', 'delete']
         : [],
@@ -72,32 +72,32 @@ const HEADER_MATRIX = {
   TRACKING: {
     admin_lead: ['transfer', 'delete'],
     sales: [],
-    bid_specialist: [],
+    bid_team: [],
   },
   EVALUATED: {
     admin_lead: ['transfer'],
     sales: [],
-    bid_specialist: [],
+    bid_team: [],
   },
   BIDDING: {
     admin_lead: ['viewProject'],
     sales: ['viewProject'],
-    bid_specialist: ['viewProject'],
+    bid_team: ['viewProject'],
   },
   WON: {
     admin_lead: ['viewProject'],
     sales: ['viewProject'],
-    bid_specialist: ['viewProject'],
+    bid_team: ['viewProject'],
   },
   LOST: {
     admin_lead: ['viewProject'],
     sales: ['viewProject'],
-    bid_specialist: ['viewProject'],
+    bid_team: ['viewProject'],
   },
   ABANDONED: {
     admin_lead: [],
     sales: [],
-    bid_specialist: [],
+    bid_team: [],
   },
 }
 
@@ -109,38 +109,38 @@ const BOTTOM_MATRIX = {
   PENDING_ASSIGNMENT: {
     admin_lead: ['edit'],
     sales: [],
-    bid_specialist: [],
+    bid_team: [],
   },
   TRACKING: {
     admin_lead: [],
     'bid-TeamLeader': ['editBasic', 'editEvaluation', 'save', 'cancel'],
     sales: ['nextStep', 'prevStep', 'submit'],
-    bid_specialist: [],
+    bid_team: [],
   },
   EVALUATED: {
     admin_lead: ['bid', 'abandon'],
     sales: [],
-    bid_specialist: [],
+    bid_team: [],
   },
   BIDDING: {
     admin_lead: [],
     sales: [],
-    bid_specialist: [],
+    bid_team: [],
   },
   WON: {
     admin_lead: [],
     sales: [],
-    bid_specialist: [],
+    bid_team: [],
   },
   LOST: {
     admin_lead: [],
     sales: [],
-    bid_specialist: [],
+    bid_team: [],
   },
   ABANDONED: {
     admin_lead: [],
     sales: [],
-    bid_specialist: [],
+    bid_team: [],
   },
 }
 
@@ -188,7 +188,7 @@ export function getBottomActions(status, role, _requiresReview, evaluationTabAct
   const statusActions = BOTTOM_MATRIX[status]
   if (!statusActions) return []
 
-  // 优先查 role 级别（如 bid_lead），再回退到 group 级别（如 admin_lead）
+  // 优先查 role 级别（如 bid-TeamLeader），再回退到 group 级别（如 admin_lead）
   let keys = statusActions[role]
   if (keys === undefined) {
     keys = statusActions[group]

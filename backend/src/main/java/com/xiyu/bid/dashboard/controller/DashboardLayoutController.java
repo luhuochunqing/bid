@@ -27,7 +27,7 @@ public class DashboardLayoutController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<DashboardLayoutDTO>> getMyLayout() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String roleCode = "BID_SPECIALIST"; // default
+        String roleCode = "BID_TEAM"; // default
         
         if (auth != null && auth.getAuthorities() != null) {
             for (GrantedAuthority authority : auth.getAuthorities()) {

@@ -17,7 +17,7 @@ const rolePermissions = {
   admin: ['all'],
   auditor: ['audit-logs', 'operation-logs', 'dashboard'],
   manager: ['settings', 'dashboard', 'bidding', 'project', 'knowledge', 'resource', 'analytics'],
-  bid_specialist: ['dashboard', 'operation-logs', 'bidding', 'project', 'knowledge', 'resource'],
+  'bid-Team': ['dashboard', 'operation-logs', 'bidding', 'project', 'knowledge', 'resource'],
 }
 
 vi.mock('@/stores/user', () => ({

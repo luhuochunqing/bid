@@ -6,6 +6,7 @@ import com.xiyu.bid.batch.repository.TenderAssignmentRecordRepository;
 import com.xiyu.bid.crm.domain.AssignmentResult;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.tender.entity.TenderAttachment;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
@@ -90,9 +91,9 @@ public class TenderCommandService {
                     + (savedTender.getCreatorName() != null
                         ? savedTender.getCreatorName() : "系统");
             List<User> managers = userRepository.findEnabledByRoleProfileCodes(
-                    List.of("BID_ADMIN", "BID_LEAD"));
+                    List.of(RoleProfileCatalog.BID_ADMIN_CODE, RoleProfileCatalog.BID_LEAD_CODE));
             if (managers.isEmpty()) {
-                log.warn("No bid_admin or bid_lead users found for tender {} pending assignment",
+                log.warn("No bidAdmin or bid-TeamLeader users found for tender {} pending assignment",
                         savedTender.getId());
             }
             for (User manager : managers) {

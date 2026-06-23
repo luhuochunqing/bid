@@ -114,7 +114,7 @@ export function formatMetricCell(column, value, _row = {}, metricDrawerType = ''
       return { WON: '已中标', LOST: '未中标', IN_PROGRESS: '进行中' }[value] || value
     }
     if (metricDrawerType === 'team' && column.key === 'role') {
-      return { ADMIN: '管理员', MANAGER: '经理', BID_SPECIALIST: '员工' }[value] || value
+      return { ADMIN: '管理员', MANAGER: '经理', BID_TEAM: '员工' }[value] || value
     }
   }
 
@@ -149,7 +149,7 @@ export function getMetricStatusTagType(value, type) {
     return { WON: 'success', LOST: 'danger', IN_PROGRESS: 'warning' }[value] || 'info'
   }
   if (type === 'team') {
-    return { ADMIN: 'danger', MANAGER: 'primary', BID_SPECIALIST: 'success' }[value] || 'info'
+    return { ADMIN: 'danger', MANAGER: 'primary', BID_TEAM: 'success' }[value] || 'info'
   }
   return 'info'
 }

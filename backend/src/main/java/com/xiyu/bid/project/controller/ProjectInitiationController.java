@@ -40,7 +40,7 @@ public class ProjectInitiationController {
     private final ProjectInitiationApprovalService approvalService;
     private final ProjectCurrentUserLookupService currentUserLookupService;
 
-    /** 提交立项：SALES/BID_LEAD（映射到 MANAGER/ADMIN）。 */
+    /** 提交立项：bid-projectLeader/bid-TeamLeader（映射到 MANAGER/ADMIN）。 */
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN','BID_PROJECTLEADER')")
     public ResponseEntity<ApiResponse<InitiationViewDto>> submit(

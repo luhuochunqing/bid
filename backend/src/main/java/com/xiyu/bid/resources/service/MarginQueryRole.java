@@ -15,35 +15,35 @@ import java.util.function.BiFunction;
  * fall back to the most restrictive scope (staff / team member visibility).</p>
  *
  * <p>Role code aliases are aligned with the OSS doc role profile codes and
- * authority names (e.g. {@code bid-Team}/{@code BID_TEAM} for bid_specialist,
- * {@code bid-projectLeader}/{@code BID_PROJECTLEADER} for sales).</p>
+ * authority names (e.g. {@code bid-Team}/{@code BID_TEAM} for 投标专员,
+ * {@code bid-projectLeader}/{@code BID_PROJECTLEADER} for 投标项目负责人).</p>
  */
 enum MarginQueryRole {
 
     ADMIN((pa, pi) -> ""),
     MANAGER((pa, pi) -> ""),
     STAFF(MarginQueryRole::staffFragment),
-    BID_SPECIALIST(MarginQueryRole::staffFragment),
+    BID_TEAM(MarginQueryRole::staffFragment),
     SALES(MarginQueryRole::ownerFragment),
-    BID_LEAD(MarginQueryRole::ownerFragment),
+    BID_TEAMLEADER(MarginQueryRole::ownerFragment),
     UNKNOWN(MarginQueryRole::staffFragment);
 
     private final BiFunction<String, String, String> fragment;
 
-    /** Case-insensitive lookup mapping role strings (old + new codes) to policies. */
+    /** Case-insensitive lookup mapping role strings to policies. */
     private static final Map<String, MarginQueryRole> LOOKUP = new HashMap<>();
     static {
         for (MarginQueryRole r : values()) {
             LOOKUP.put(r.name().toLowerCase(), r);
         }
-        // New role profile code aliases (aligned with OSS doc)
-        LOOKUP.put("bid-team", BID_SPECIALIST);          // bid_specialist → bid-Team
-        LOOKUP.put("bid-projectleader", SALES);           // sales → bid-projectLeader
-        LOOKUP.put("bid-teamleader", BID_LEAD);           // bid_lead → bid-TeamLeader
-        // New authority name aliases (underscore form, aligned with OSS doc)
-        LOOKUP.put("bid_team", BID_SPECIALIST);           // BID_SPECIALIST → BID_TEAM
-        LOOKUP.put("bid_projectleader", SALES);           // SALES → BID_PROJECTLEADER
-        LOOKUP.put("bid_teamleader", BID_LEAD);           // BID_LEAD → BID_TEAMLEADER
+        // Role profile code aliases (aligned with OSS doc)
+        LOOKUP.put("bid-team", BID_TEAM);
+        LOOKUP.put("bid-projectleader", SALES);
+        LOOKUP.put("bid-teamleader", BID_TEAMLEADER);
+        // Authority name aliases (underscore form, aligned with OSS doc)
+        LOOKUP.put("bid_team", BID_TEAM);
+        LOOKUP.put("bid_projectleader", SALES);
+        LOOKUP.put("bid_teamleader", BID_TEAMLEADER);
     }
 
     MarginQueryRole(final BiFunction<String, String, String> fragment) {
