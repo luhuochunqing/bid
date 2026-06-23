@@ -213,6 +213,10 @@ export const tasksApi = {
     return httpClient.get('/api/tasks/my', { params: { assigneeId } })
   },
 
+  async getBoardItems() {
+    return httpClient.get('/api/task-board/items')
+  },
+
   async getList(params) {
     return httpClient.get('/api/tasks', { params })
   },

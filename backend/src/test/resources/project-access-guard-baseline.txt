@@ -72,6 +72,7 @@ src/main/java/com/xiyu/bid/resources/service/expense/ExpensePaymentService.java 
 src/main/java/com/xiyu/bid/roi/controller/ROIAnalysisController.java | ROI project analysis remains P1/P2 permission debt until service-level project guard is added.
 src/main/java/com/xiyu/bid/scoreanalysis/controller/ScoreAnalysisController.java | Score analysis project endpoint remains P1/P2 permission debt until service-level project guard is added.
 src/main/java/com/xiyu/bid/security/controller/ProjectMemberController.java | Controller delegates to ProjectMemberService, which owns the unified project access guard (assertCanAccessProject). Guarded by ProjectMemberControllerTest 403 coverage.
+src/main/java/com/xiyu/bid/task/controller/TaskBoardController.java | Controller delegates to TaskBoardService; service layer guards project visibility via ProjectAccessScopeService.filterByProjectVisibility.
 src/main/java/com/xiyu/bid/task/controller/TaskController.java | Controller delegates to TaskService; project visibility is covered in TaskServiceProjectAccessTest.
 src/main/java/com/xiyu/bid/task/controller/TaskStatusDictController.java | Read-only global enum dictionary endpoint; not project-scoped (returns same list for every authenticated user).
 src/main/java/com/xiyu/bid/task/service/BidProcessService.java | Bid process helper carries project task data but is not the project visibility boundary.
