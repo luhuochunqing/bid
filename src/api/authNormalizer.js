@@ -19,6 +19,21 @@ const normalizeAllowedDepts = (allowedDepts) => {
   return [...new Set(allowedDepts.filter((deptCode) => deptCode !== null && deptCode !== undefined && deptCode !== ''))]
 }
 
+const normalizeMenuPermissions = (menuPermissions) => {
+  if (!Array.isArray(menuPermissions)) {
+    return []
+  }
+
+  const normalized = new Set(menuPermissions.filter((permission) => permission))
+  const hasKnowledgeChild = [...normalized].some((permission) => String(permission).startsWith('knowledge-'))
+
+  if (hasKnowledgeChild) {
+    normalized.add('knowledge')
+  }
+
+  return [...normalized]
+}
+
 export const normalizeUser = (authPayload) => ({
   id: authPayload?.id,
   name: authPayload?.fullName || authPayload?.name || authPayload?.username,
@@ -33,7 +48,7 @@ export const normalizeUser = (authPayload) => ({
   deptCode: authPayload?.deptCode || authPayload?.departmentCode || '',
   allowedProjectIds: normalizeAllowedProjectIds(authPayload?.allowedProjectIds),
   allowedDepts: normalizeAllowedDepts(authPayload?.allowedDepts),
-  menuPermissions: Array.isArray(authPayload?.menuPermissions) ? authPayload.menuPermissions : []
+  menuPermissions: normalizeMenuPermissions(authPayload?.menuPermissions)
 })
 
 export const normalizeAuthSessionResponse = (response) => {

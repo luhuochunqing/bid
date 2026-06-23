@@ -413,3 +413,10 @@
 - TDD RED：先在 `TenderControllerBidOtherDeptAccessTest` 中增加 `admin_staff` 访问列表应 200、创建/删除仍 403 的回归用例；修复前列表用例返回 403。
 - GREEN：仅修改 `TenderController#getAllTenders` 的 `@PreAuthorize` 后，执行 `mvn -f /Users/user/xiyu/worktrees/zcode/backend/pom.xml test -Dtest=TenderControllerBidOtherDeptAccessTest` 通过，6 tests，0 failures，0 errors。
 - 保护性断言确认 `admin_staff` 仍不能创建/删除标讯。
+
+## 2026-06-23 线上 06643 二次根因
+
+- 后端部署后读取测试服务器日志确认，用户 `06643` 登录时 OSS 角色解析为 `admin_staff`，菜单编码 `[1001, 100402]` 映射为 `[knowledge-qualification, dashboard]`。
+- 同一测试窗口内 `/api/tenders?size=10000` 已返回 200，未再出现该接口 4xx/5xx，说明原后端 `/api/tenders` 403 已修复。
+- 剩余阻断来自前端路由权限：资质证书路由要求同时具备 `knowledge` 与 `knowledge-qualification`，但 OSS 登录链路只返回子权限 `knowledge-qualification`，缺少父级 `knowledge`。
+- 本次最小修复放在前端认证 DTO 归一化边界：任一 `knowledge-*` 子权限存在时补齐父级 `knowledge`；不修改 `hasAllPermissions` 全局语义，不补其他子权限，不扩大后端或 OSS 权限。

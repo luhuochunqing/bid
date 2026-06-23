@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { hasAnyPermission, isAdminRole } from './permission'
+import { hasAnyPermission, hasAllPermissions, isAdminRole } from './permission'
 
 describe('hasAnyPermission', () => {
   it('returns true when requiredPermissions is empty (no restriction needed)', () => {
@@ -31,6 +31,38 @@ describe('hasAnyPermission', () => {
     expect(hasAnyPermission(undefined, undefined)).toBe(true) // empty required → allowed
     expect(hasAnyPermission(undefined, ['dashboard'])).toBe(false) // no permissions → denied
     expect(hasAnyPermission(['all'], undefined)).toBe(true) // empty required → allowed
+  })
+})
+
+describe('hasAllPermissions', () => {
+  it('returns true when user has every required permission', () => {
+    expect(hasAllPermissions(
+      ['knowledge', 'knowledge-qualification'],
+      ['knowledge', 'knowledge-qualification']
+    )).toBe(true)
+  })
+
+  it('does not infer parent permission from child permission', () => {
+    expect(hasAllPermissions(
+      ['knowledge-qualification'],
+      ['knowledge', 'knowledge-qualification']
+    )).toBe(false)
+  })
+
+  it('returns false when one required child permission is missing', () => {
+    expect(hasAllPermissions(
+      ['knowledge', 'knowledge-qualification'],
+      ['knowledge', 'knowledge-case']
+    )).toBe(false)
+  })
+
+  it('returns true when userPermissions includes "all"', () => {
+    expect(hasAllPermissions(['all'], ['knowledge', 'knowledge-qualification'])).toBe(true)
+  })
+
+  it('returns true when requiredPermissions is empty', () => {
+    expect(hasAllPermissions([], [])).toBe(true)
+    expect(hasAllPermissions(undefined, undefined)).toBe(true)
   })
 })
 
