@@ -22,6 +22,8 @@ import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.roleprofile.RoleProfileBootstrap;
 import com.xiyu.bid.settings.repository.SystemSettingRepository;
 import lombok.Builder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +36,8 @@ import java.util.Set;
 @Service
 @Transactional(readOnly = true)
 public class DataScopeConfigService {
+
+    private static final Logger log = LoggerFactory.getLogger(DataScopeConfigService.class);
 
     public static final String DATA_SCOPE_CONFIG_KEY = DataScopeConfigStore.DATA_SCOPE_CONFIG_KEY;
 
@@ -132,49 +136,46 @@ public class DataScopeConfigService {
         if (user == null) {
             return List.of();
         }
-        // 优先从 OSS 权限缓存读取实时抓取的权限（不读本地 DB RoleProfile.menu_permissions）
         Optional<List<String>> cachedPermissions = ossPermissionCache.getMenuPermissions(user.getUsername());
         if (cachedPermissions.isPresent()) {
             return normalizeMenuPermissions(cachedPermissions.get());
         }
-        // 缓存未命中：用本地 DB 兜底
+        // OSS 用户缓存未命中时不 fallback 到本地 DB（本地 staff 角色配置了所有菜单，会导致越权）
+        if (isOssSyncedUser(user)) {
+            log.warn("OSS permission cache miss for OSS user={}, returning empty (need re-login)", user.getUsername());
+            return List.of();
+        }
         return normalizeMenuPermissions(resolveRoleProfile(user).getMenuPermissions());
     }
 
-    /**
-     * 获取用户角色码：优先从 OSS 权限缓存读取，缓存未命中用本地 DB 兜底。
-     */
+    private boolean isOssSyncedUser(User user) {
+        return user.getExternalOrgSourceApp() != null && !user.getExternalOrgSourceApp().isBlank();
+    }
+
     public String getRoleCode(User user) {
-        if (user == null) {
+        if (user == null) return "staff";
+        Optional<String> cachedRoleCode = ossPermissionCache.getRoleCode(user.getUsername());
+        if (cachedRoleCode.isPresent()) return cachedRoleCode.get();
+        if (isOssSyncedUser(user)) {
+            log.warn("OSS role cache miss for OSS user={}, returning 'staff' (need re-login)", user.getUsername());
             return "staff";
         }
-        // 优先从 OSS 权限缓存读取
-        Optional<String> cachedRoleCode = ossPermissionCache.getRoleCode(user.getUsername());
-        if (cachedRoleCode.isPresent()) {
-            return cachedRoleCode.get();
-        }
-        // 缓存未命中：用本地 DB 兜底
         return user.getRoleCode();
     }
 
-    /**
-     * 获取用户角色名称：优先从 OSS 权限缓存读取，缓存未命中用本地 DB 兜底。
-     */
     public String getRoleName(User user) {
-        if (user == null) {
-            return "员工";
-        }
-        // 优先从 OSS 权限缓存读取角色码，再查 RoleProfileCatalog 获取角色名称
+        if (user == null) return "员工";
         Optional<String> cachedRoleCode = ossPermissionCache.getRoleCode(user.getUsername());
         if (cachedRoleCode.isPresent()) {
             String roleCode = cachedRoleCode.get();
             RoleProfileCatalog.SeedDefinition def = RoleProfileCatalog.definitionForCode(roleCode);
-            if (def != null && def.name() != null && !def.name().isBlank()) {
-                return def.name();
-            }
+            if (def != null && def.name() != null && !def.name().isBlank()) return def.name();
             return roleCode;
         }
-        // 缓存未命中：用本地 DB 兜底
+        if (isOssSyncedUser(user)) {
+            log.warn("OSS role cache miss for OSS user={}, returning '员工' (need re-login)", user.getUsername());
+            return "员工";
+        }
         return user.getRoleName();
     }
 
