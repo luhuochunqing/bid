@@ -296,6 +296,26 @@ class DataScopeConfigServiceTest {
     }
 
     @Test
+    void getRoleMenuPermissions_ShouldEnrichOssAdminPermissionsWithCatalogDefaults() {
+        User user = User.builder()
+                .id(9L).username("06234").fullName("郑蓉蓉")
+                .role(User.Role.STAFF)
+                .enabled(true)
+                .build();
+        OssPermissionCache ossPermissionCache = new OssPermissionCache();
+        ossPermissionCache.put(user.getUsername(), RoleProfileCatalog.ADMIN_CODE,
+                List.of("project", "project-detail"), null);
+        dataScopeConfigService = new DataScopeConfigService(systemSettingRepository, userRepository, roleProfileRepository,
+                roleProfileBootstrap, new ObjectMapper(), ossPermissionCache);
+
+        List<String> perms = dataScopeConfigService.getRoleMenuPermissions(user);
+
+        assertThat(perms)
+                .contains("project", "project-detail", "all", "evaluation.update", "task.review")
+                .doesNotHaveDuplicates();
+    }
+
+    @Test
     void getRoleMenuPermissions_ShouldReturnEmptyForUnregisteredRoleCode() {
         // 未注册 roleCode（DB 无 + catalog 无）不应 fallback staff，避免前端菜单越权可见标讯/项目/知识库
         RoleProfile vendorProfile = RoleProfile.builder().code("vendor-user").name("vendor-user").build();
