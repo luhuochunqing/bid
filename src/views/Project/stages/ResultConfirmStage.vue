@@ -15,10 +15,10 @@
         </div>
       </div>
 
-      <!-- 流标/弃标 → 结果摘要 -->
-      <div v-if="form.resultType === 'FAILED' || form.resultType === 'ABANDONED'" class="summary-section">
-        <label class="field-label">结果摘要<span class="required-mark">*</span></label>
-        <el-input v-model="form.summary" type="textarea" :rows="3" placeholder="请填写流标/弃标原因摘要..." :disabled="!canOperate" />
+      <!-- 未中标/流标/弃标 → 原因（CO-322）；CO-320: 中标金额/合同日期字段已移除 -->
+      <div v-if="NON_WON_TYPES.includes(form.resultType)" class="summary-section">
+        <label class="field-label">{{ summaryLabel }}<span class="required-mark">*</span></label>
+        <el-input v-model="form.summary" type="textarea" :rows="3" :placeholder="summaryPlaceholder" :disabled="!canOperate" />
       </div>
     </el-card>
 
@@ -81,11 +81,6 @@
       <el-button v-if="canOperate" class="add-row-btn" type="primary" plain size="small" :icon="Plus" @click="addCompetitor">添加一行</el-button>
     </el-card>
 
-    <!-- 备注 -->
-    <el-card shadow="never" class="stage-section">
-      <template #header><span class="section-title">备注</span></template>
-      <el-input v-model="form.notes" type="textarea" :rows="3" placeholder="其他备注信息（选填）" :disabled="!canOperate" />
-    </el-card>
 
     <!-- 操作按钮 -->
     <div v-if="canOperate" class="btn-container">
@@ -147,6 +142,16 @@ const evidenceTip = computed(() => {
   return `${tips[form.resultType] || ''}，支持 PDF/图片/Word，单文件≤10MB，最多5个`
 })
 
+const SUMMARY_META = {
+  LOST: { label: '丢标原因', placeholder: '请填写丢标原因...' },
+  FAILED: { label: '流标原因', placeholder: '请填写流标原因...' },
+  ABANDONED: { label: '弃标原因', placeholder: '请填写弃标原因...' },
+}
+// CO-322: 非 WON 结果类型单一来源（template v-if + submit 校验共用），避免新增类型时分歧
+const NON_WON_TYPES = Object.keys(SUMMARY_META)
+const summaryLabel = computed(() => (SUMMARY_META[form.resultType] || {}).label || '原因')
+const summaryPlaceholder = computed(() => (SUMMARY_META[form.resultType] || {}).placeholder || '')
+
 const uploadHeaders = computed(() => {
   const token = userStore?.token
   return token ? { Authorization: `Bearer ${token}` } : {}
@@ -202,7 +207,7 @@ async function load() {
 
 async function submit() {
   if (!form.resultType) return ElMessage.warning('请选择结果类型')
-  if ((form.resultType === 'FAILED' || form.resultType === 'ABANDONED') && !form.summary?.trim()) return ElMessage.warning('流标/弃标结果需填写摘要')
+  if (NON_WON_TYPES.includes(form.resultType) && !form.summary?.trim()) return ElMessage.warning('请填写原因')
   if (!form.evidenceFileIds.length) return ElMessage.warning('请上传凭证文件')
   submitting.value = true
   try {

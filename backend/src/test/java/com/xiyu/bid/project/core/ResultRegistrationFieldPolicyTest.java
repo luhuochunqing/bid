@@ -89,6 +89,17 @@ class ResultRegistrationFieldPolicyTest {
         assertTrue(deny.missing().contains("summary"),
                 "流标必须说明原因");
     }
+    @Test
+    void lost_missingSummary_denied() {
+        var input = ResultRegistrationFieldPolicy.ResultInput.builder()
+                .resultType(BidResultType.LOST)
+                .evidenceFileIds(List.of(303L))
+                .build();
+        var d = ResultRegistrationFieldPolicy.validate(input);
+        var deny = assertInstanceOf(ResultRegistrationFieldPolicy.Decision.Deny.class, d);
+        assertTrue(deny.missing().contains("summary"),
+                "未中标必须填写丢标原因");
+    }
 
     @Test
     void abandoned_complete_allowed() {

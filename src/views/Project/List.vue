@@ -124,12 +124,6 @@
           <el-table-column label="项目阶段" width="95" v-if="columnVisible.stage">
             <template #default="{ row }">{{ stageText(row.stage) }}</template>
           </el-table-column>
-          <el-table-column label="评标状态" width="110">
-            <template #default="{ row }">
-              <el-tag v-if="row.evaluationSubStage" :type="evalSubStageTag(row.evaluationSubStage)" size="small">{{ evalSubStageText(row.evaluationSubStage) }}</el-tag>
-              <span v-else>-</span>
-            </template>
-          </el-table-column>
           <el-table-column prop="biddingPlatform" label="投标平台" min-width="130" v-if="columnVisible.biddingPlatform">
             <template #default="{ row }">{{ row.biddingPlatform || '-' }}</template>
           </el-table-column>
@@ -164,7 +158,6 @@ import {
   LEGACY_CRM_SOURCE_LABEL,
   MANUAL_SOURCE_LABEL,
 } from '@/utils/sourceLabels.js'
-import { evalSubStageText, evalSubStageTag } from './utils/evalSubStageUtils.js'
 import { useProjectSearch } from './composables/useProjectSearch.js'
 import { useProjectFilter } from './composables/useProjectFilter.js'
 import { useUserStore } from '@/stores/user'

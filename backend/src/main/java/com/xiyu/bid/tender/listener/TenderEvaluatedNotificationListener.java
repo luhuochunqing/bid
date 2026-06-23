@@ -1,5 +1,5 @@
 // Input: TenderStatusChangedEvent (AFTER_COMMIT)
-// Output: 站内通知 + 待办（投标组长 + 投标管理员）
+// Output: 站内通知（投标组长 + 投标管理员）
 // Pos: Listener/标讯评估通知
 package com.xiyu.bid.tender.listener;
 
@@ -16,15 +16,9 @@ import org.springframework.transaction.event.TransactionalEventListener;
 /**
  * 标讯状态变更通知监听器（CO-304）。
  * <p>监听 {@link TenderStatusChangedEvent}，当状态变为 EVALUATED 时发送审核通知。
- * <p>入口 A（TenderEvaluationSubmissionService.submit）已显式调用 notifier，不走此路径。
- * <p>本 listener 补齐其余 5 个入口的通知缺口：
- * <ul>
- *   <li>入口 B: 人工关联商机</li>
- *   <li>入口 C: CRM 推送回写</li>
- *   <li>入口 D: 集成 mapper</li>
- *   <li>入口 E: 评分分析审核</li>
- *   <li>入口 F: 批量状态变更</li>
- * </ul>
+ * <p>所有 EVALUATED 入口（CO-305 统一走 TenderStatusChangedEvent：人工提交评估、CRM 推送、
+ * 批量状态变更等）均由本 listener 统一发审核通知给投标组长/投标管理员；
+ * submit 仅 publishEvent 不显式调 notifier，故无重复通知。
  */
 @Component
 @RequiredArgsConstructor
@@ -36,7 +30,7 @@ public class TenderEvaluatedNotificationListener {
 
     /**
      * 监听 TenderStatusChangedEvent，当状态变为 EVALUATED 时发送审核通知。
-     * <p>仅处理 newStatus == EVALUATED 的事件，给投标组长和投标管理员发待办+通知。
+     * <p>仅处理 newStatus == EVALUATED 的事件，给投标组长和投标管理员发审核通知。
      * <p>使用 AFTER_COMMIT 相位，与 WebhookEventListener 并行执行，各自独立 try/catch。
      */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
@@ -58,6 +52,6 @@ public class TenderEvaluatedNotificationListener {
                     event.tenderId(), tender.getStatus());
             return;
         }
-        notificationService.createEvaluationNotificationTodos(tender);
+        notificationService.createEvaluationNotifications(tender);
     }
 }

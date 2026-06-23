@@ -29,8 +29,8 @@
             :key="item.type + '-' + item.id"
             :item="item"
             :available-statuses="availableStatuses"
-            @click="handleCardClick"
             @status-change="handleStatusChange"
+            @deliverable-changed="handleDeliverableChanged"
           />
           <el-empty
             v-if="getTasksByStatus(column.key).length === 0"
@@ -55,8 +55,8 @@ const {
   columns,
   availableStatuses,
   getTasksByStatus,
-  handleCardClick,
   handleStatusChange,
+  handleDeliverableChanged,
   loadTasks
 } = useTaskBoard()
 </script>

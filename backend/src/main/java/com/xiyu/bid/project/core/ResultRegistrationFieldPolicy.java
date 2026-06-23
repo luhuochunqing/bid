@@ -16,7 +16,7 @@ import java.util.List;
  * <p>必填映射：
  * <ul>
  *   <li>WON: evidenceFileIds(中标通知书)</li>
- *   <li>LOST: evidenceFileIds(中标公告)</li>
+ *   <li>LOST: evidenceFileIds(中标公告), summary(丢标原因)</li>
  *   <li>FAILED: evidenceFileIds(流标公告/说明), summary(流标原因)</li>
  *   <li>ABANDONED: evidenceFileIds(弃标说明), summary(弃标决策依据)</li>
  * </ul>
@@ -47,10 +47,8 @@ public final class ResultRegistrationFieldPolicy {
             case WON -> {
                 // CO-320: 移除 awardAmount/合同日期必填（前端已删字段），WON 仅要求证据（已在前面统一校验）
             }
-            case LOST -> {
-                // 仅证据必填（已在前面统一加入）
-            }
-            case FAILED, ABANDONED -> {
+            case LOST, FAILED, ABANDONED -> {
+                // CO-322: 丢标原因/流标原因/弃标原因(summary)必填
                 if (isBlank(input.summary())) {
                     missing.add("summary");
                 }

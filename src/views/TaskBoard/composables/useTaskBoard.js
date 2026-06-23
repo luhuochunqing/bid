@@ -1,7 +1,7 @@
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { tasksApi } from '@/api/modules/dashboard'
+import { projectsApi } from '@/api/modules/projects'
 
 const COLUMNS = [
   { key: 'TODO', title: '待开始', color: '#909399' },
@@ -17,36 +17,23 @@ const AVAILABLE_STATUSES = [
   { code: 'COMPLETED', name: '已完成' }
 ]
 
-const PRIORITY_TYPE_MAP = { HIGH: 'danger', MEDIUM: 'warning', LOW: 'info' }
-const PRIORITY_TEXT_MAP = { HIGH: '高', MEDIUM: '中', LOW: '低' }
-
 export function useTaskBoard() {
-  const router = useRouter()
   const items = ref([])
   const loading = ref(false)
   const error = ref('')
 
   const getTasksByStatus = (status) => items.value.filter((t) => t.status === status)
-  const getPriorityType = (priority) => PRIORITY_TYPE_MAP[priority] || 'info'
-  const getPriorityText = (priority) => PRIORITY_TEXT_MAP[priority] || priority
 
-  const isUrgent = (dueDate) => {
-    if (!dueDate) return false
-    const diff = new Date(dueDate) - new Date()
-    return diff > 0 && diff < 3 * 24 * 60 * 60 * 1000
-  }
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return ''
-    const d = new Date(dateStr)
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  }
-
-  const canUpdateTask = (item) => item.type === 'TASK' && !!item.id
-
-  const handleCardClick = (item) => {
-    if (item.targetUrl) {
-      router.push(item.targetUrl)
+  const loadTaskDeliverables = async (item) => {
+    if (item.type !== 'TASK' || !item.projectId || !item.id) {
+      item.deliverables = []
+      return
+    }
+    try {
+      const res = await projectsApi.getTaskDeliverables(item.projectId, item.id)
+      item.deliverables = Array.isArray(res?.data) ? res.data : []
+    } catch {
+      item.deliverables = []
     }
   }
 
@@ -56,6 +43,7 @@ export function useTaskBoard() {
     try {
       const res = await tasksApi.getBoardItems()
       items.value = Array.isArray(res?.data) ? res.data : []
+      await Promise.all(items.value.map(loadTaskDeliverables))
     } catch (e) {
       error.value = e?.message || '加载任务失败'
       items.value = []
@@ -78,6 +66,9 @@ export function useTaskBoard() {
     }
   }
 
+  // 卡片内操作完成后刷新看板
+  const handleDeliverableChanged = async () => { await loadTasks() }
+
   onMounted(loadTasks)
 
   return {
@@ -87,13 +78,8 @@ export function useTaskBoard() {
     columns: COLUMNS,
     availableStatuses: AVAILABLE_STATUSES,
     getTasksByStatus,
-    getPriorityType,
-    getPriorityText,
-    isUrgent,
-    formatDate,
-    canUpdateTask,
-    handleCardClick,
     handleStatusChange,
+    handleDeliverableChanged,
     loadTasks
   }
 }

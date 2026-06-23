@@ -63,7 +63,7 @@ class TenderEvaluatedNotificationListenerTest {
         listener.onTenderEvaluated(event);
 
         // then
-        verify(notificationService, times(1)).createEvaluationNotificationTodos(tender);
+        verify(notificationService, times(1)).createEvaluationNotifications(tender);
     }
 
     @Test
@@ -78,7 +78,7 @@ class TenderEvaluatedNotificationListenerTest {
         listener.onTenderEvaluated(event);
 
         // then
-        verify(notificationService, never()).createEvaluationNotificationTodos(any());
+        verify(notificationService, never()).createEvaluationNotifications(any());
         verify(tenderRepository, never()).findById(any());
     }
 
@@ -95,7 +95,7 @@ class TenderEvaluatedNotificationListenerTest {
         listener.onTenderEvaluated(event);
 
         // then
-        verify(notificationService, never()).createEvaluationNotificationTodos(any());
+        verify(notificationService, never()).createEvaluationNotifications(any());
     }
 
     @Test
@@ -112,6 +112,6 @@ class TenderEvaluatedNotificationListenerTest {
         listener.onTenderEvaluated(event);
 
         // then
-        verify(notificationService, never()).createEvaluationNotificationTodos(any());
+        verify(notificationService, never()).createEvaluationNotifications(any());
     }
 }

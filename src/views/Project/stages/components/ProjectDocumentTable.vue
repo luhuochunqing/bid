@@ -3,7 +3,7 @@
     <template #header>
       <div class="doc-header">
         <span class="doc-title">项目文档</span>
-        <div class="doc-actions">
+        <div v-if="!readonly" class="doc-actions">
           <el-button size="small" @click="handleExport">导出</el-button>
           <el-button size="small" @click="handleUpload">上传</el-button>
         </div>
@@ -21,11 +21,11 @@
       <el-table-column label="操作" width="140" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" size="small" @click="handleDownload(row)">下载</el-button>
-          <el-button link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+          <el-button v-if="!readonly" link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
-    <input ref="fileInputRef" type="file" multiple style="display:none" @change="onFileSelected" />
+    <input v-if="!readonly" ref="fileInputRef" type="file" multiple style="display:none" @change="onFileSelected" />
   </el-card>
 </template>
 
@@ -36,7 +36,10 @@ import { projectsApi } from '@/api/modules/projects.js'
 import httpClient from '@/api/client.js'
 import { getApiUrl } from '@/api/config.js'
 
-const props = defineProps({ projectId: { type: [String, Number], required: true } })
+const props = defineProps({
+  projectId: { type: [String, Number], required: true },
+  readonly: { type: Boolean, default: false }
+})
 const emit = defineEmits(['export'])
 const documents = ref([])
 const loading = ref(false)

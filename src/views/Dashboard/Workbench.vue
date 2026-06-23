@@ -356,17 +356,17 @@ async function loadWorkbenchProjects() {
 }
 
 async function loadWorkbenchTenders() {
+  if (!userStore.hasPermission('bidding')) { hotTenders.value = []; return }
   try {
     const response = await tendersApi.getList()
     const tenders = Array.isArray(response?.data) ? response.data : []
     hotTenders.value = tenders.slice(0, 6).map((item) => {
       const score = Number(item.aiScore || 0)
-      const prob = score >= 85 ? 'high' : 'medium'
       return {
         id: item.id, title: item.title || '未命名标讯', budget: Number(item.budget || 0),
         region: item.region || '-', aiScore: score,
         scoreLevel: score >= 85 ? 'high' : score >= 70 ? 'medium' : 'low',
-        probability: prob, probibilityText: prob === 'high' ? '高概率' : '中等概率'
+        probability: score >= 85 ? 'high' : 'medium', probibilityText: score >= 85 ? '高概率' : '中等概率'
       }
     })
   } catch {

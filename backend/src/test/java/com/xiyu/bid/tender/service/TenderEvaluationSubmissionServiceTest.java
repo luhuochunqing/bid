@@ -74,9 +74,6 @@ class TenderEvaluationSubmissionServiceTest {
     private TenderAssignmentPermissions permissions;
 
     @Mock
-    private TenderEvaluationNotificationService notificationService;
-
-    @Mock
     private ProjectDocumentRepository projectDocumentRepository;
 
     @Mock
