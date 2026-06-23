@@ -39,6 +39,11 @@ export const sidebarMenuConfig = [
         meta: { title: '案例库', permissionKeys: ['knowledge-case'] }
       },
       {
+        path: '/knowledge/template',
+        name: 'Template',
+        meta: { title: '模板库', permissionKeys: ['knowledge-template'] }
+      },
+      {
         path: '/knowledge/qualification',
         name: 'Qualification',
         meta: { title: '资质证书', permissionKeys: ['knowledge-qualification'] }
@@ -73,7 +78,7 @@ export const sidebarMenuConfig = [
       {
         path: '/resource/margin',
         name: 'MarginManagement',
-        meta: { title: '保证金管理', permissionKeys: ['resource-expense'] }
+        meta: { title: '保证金管理', permissionKeys: ['resource-margin'] }
       },
       {
         path: '/resource/account',
