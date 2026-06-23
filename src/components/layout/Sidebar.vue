@@ -109,7 +109,6 @@ import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import CommonIcon from '@/components/common/CommonIcon.vue'
 import { useUserStore } from '@/stores/user'
-import { hasMenuAccessForRole } from '@/api/modules/settings'
 import { hiddenApiMenuNames, sidebarMenuConfig } from '@/config/sidebar-menu'
 import { hasAllPermissions } from '@/utils/permission'
 
@@ -172,10 +171,6 @@ const userStore = useUserStore()
 const isApiDeliveryMode = computed(() => true)
 
 const hasPermissionAccess = (permissionKeys) => {
-  const decision = hasMenuAccessForRole(userStore.userRole, permissionKeys)
-  if (decision !== null) {
-    return decision
-  }
   return hasAllPermissions(userStore.menuPermissions, permissionKeys)
 }
 
@@ -194,10 +189,8 @@ const filteredMenus = computed(() => {
       if (isApiDeliveryMode.value && hiddenApiMenuNames.has(menu.name)) {
         return null
       }
-      if (!hasPermissionAccess(menu.meta?.permissionKeys)) {
-        return null
-      }
 
+      // 有子菜单的父级：先过滤可见子菜单，有可见子菜单则显示父级（不强制要求父级 permissionKeys）
       if (menu.children) {
         const visibleChildren = menu.children.filter(
           child => (
@@ -214,6 +207,11 @@ const filteredMenus = computed(() => {
           ...menu,
           children: visibleChildren
         }
+      }
+
+      // 无子菜单的菜单项：检查自身 permissionKeys
+      if (!hasPermissionAccess(menu.meta?.permissionKeys)) {
+        return null
       }
 
       return menu

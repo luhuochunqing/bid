@@ -19,7 +19,7 @@ export const sidebarMenuConfig = [
       {
         path: '/project',
         name: 'ProjectList',
-        meta: { title: '项目列表', permissionKeys: ['project', 'project-list'] }
+        meta: { title: '项目列表', permissionKeys: ['project-list'] }
       }
     ]
   },
@@ -31,37 +31,37 @@ export const sidebarMenuConfig = [
       {
         path: '/knowledge/archive',
         name: 'ProjectArchive',
-        meta: { title: '项目档案', permissionKeys: ['knowledge', 'knowledge-archive'] }
+        meta: { title: '项目档案', permissionKeys: ['knowledge-archive'] }
       },
       {
         path: '/knowledge/case',
         name: 'Case',
-        meta: { title: '案例库', permissionKeys: ['knowledge', 'knowledge-case'] }
+        meta: { title: '案例库', permissionKeys: ['knowledge-case'] }
       },
       {
         path: '/knowledge/qualification',
         name: 'Qualification',
-        meta: { title: '资质证书', permissionKeys: ['knowledge', 'knowledge-qualification'] }
+        meta: { title: '资质证书', permissionKeys: ['knowledge-qualification'] }
       },
       {
         path: '/knowledge/personnel',
         name: 'Personnel',
-        meta: { title: '人员证书', permissionKeys: ['knowledge', 'knowledge-personnel'] }
+        meta: { title: '人员证书', permissionKeys: ['knowledge-personnel'] }
       },
       {
         path: '/knowledge/warehouse',
         name: 'Warehouse',
-        meta: { title: '仓库信息', permissionKeys: ['knowledge', 'knowledge-warehouse'] }
+        meta: { title: '仓库信息', permissionKeys: ['knowledge-warehouse'] }
       },
       {
         path: '/knowledge/performance',
         name: 'Performance',
-        meta: { title: '业绩管理', permissionKeys: ['knowledge', 'knowledge-performance'] }
+        meta: { title: '业绩管理', permissionKeys: ['knowledge-performance'] }
       },
       {
         path: '/knowledge/brand-auth',
         name: 'BrandAuth',
-        meta: { title: '品牌授权', permissionKeys: ['knowledge', 'knowledge-brand-auth'] }
+        meta: { title: '品牌授权', permissionKeys: ['knowledge-brand-auth'] }
       }
     ]
   },
@@ -73,24 +73,24 @@ export const sidebarMenuConfig = [
       {
         path: '/resource/margin',
         name: 'MarginManagement',
-        meta: { title: '保证金管理', permissionKeys: ['resource', 'resource-expense'] }
+        meta: { title: '保证金管理', permissionKeys: ['resource-expense'] }
       },
       {
         path: '/resource/account',
         name: 'Account',
-        meta: { title: '账户管理', permissionKeys: ['resource', 'resource-account'] }
+        meta: { title: '账户管理', permissionKeys: ['resource-account'] }
       },
       {
         path: '/resource/ca-management',
         name: 'CAManagement',
-        meta: { title: 'CA信息管理', permissionKeys: ['resource', 'resource-ca'] }
+        meta: { title: 'CA信息管理', permissionKeys: ['resource-ca'] }
       }
     ]
   },
   {
     path: '/analytics/dashboard',
     name: 'AnalyticsDashboard',
-    meta: { title: '数据分析', icon: 'analytics', permissionKeys: ['analytics', 'analytics-dashboard'] }
+    meta: { title: '数据分析', icon: 'analytics', permissionKeys: ['analytics-dashboard'] }
   },
   {
     path: '/task-board',
@@ -115,17 +115,17 @@ export const sidebarMenuConfig = [
       {
         path: '/settings/workflow-forms',
         name: 'WorkflowFormDesigner',
-        meta: { title: '流程表单配置', permissionKeys: ['settings', 'settings-workflow-forms'] }
+        meta: { title: '流程表单配置', permissionKeys: ['settings-workflow-forms'] }
       },
       {
         path: '/settings/messages-tasks',
         name: 'MessagesTasks',
-        meta: { title: '消息与任务', permissionKeys: ['settings', 'settings-messages-tasks'] }
+        meta: { title: '消息与任务', permissionKeys: ['settings-messages-tasks'] }
       },
       {
         path: '/settings/ai-models',
         name: 'AiModels',
-        meta: { title: 'AI能力模型', permissionKeys: ['settings', 'settings-ai-models'] }
+        meta: { title: 'AI能力模型', permissionKeys: ['settings-ai-models'] }
       },
       {
         path: '/ai-center',
@@ -135,7 +135,7 @@ export const sidebarMenuConfig = [
       {
         path: '/settings/integration',
         name: 'SystemIntegration',
-        meta: { title: '系统集成', permissionKeys: ['settings', 'settings-integration'] }
+        meta: { title: '系统集成', permissionKeys: ['settings-integration'] }
       },
       {
         path: '/operation-logs',
