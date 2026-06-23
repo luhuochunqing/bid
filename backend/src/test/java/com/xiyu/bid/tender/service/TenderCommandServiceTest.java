@@ -215,6 +215,31 @@ class TenderCommandServiceTest {
     }
 
     @Test
+    @DisplayName("创建标讯 - 拒绝保存已选择但未上传完成的附件")
+    void createTender_WithBlankAttachmentUrl_ShouldRejectBeforeSaving() {
+        TenderDTO dtoWithBlankAttachment = TenderDTO.builder()
+                .title("附件未上传完成标讯")
+                .region("上海")
+                .status(Tender.Status.PENDING_ASSIGNMENT)
+                .attachments(List.of(TenderAttachmentDTO.builder()
+                        .fileName("招标文件.pdf")
+                        .fileType("application/pdf")
+                        .fileUrl("")
+                        .build()))
+                .build();
+
+        BusinessException ex = assertThrows(
+                BusinessException.class,
+                () -> tenderCommandService.createTender(dtoWithBlankAttachment)
+        );
+
+        assertThat(ex.getCode()).isEqualTo(400);
+        assertThat(ex.getMessage()).isEqualTo("标讯附件未完成上传，请重新上传后再保存");
+        verify(tenderRepository, never()).save(any(Tender.class));
+        verify(tenderAttachmentRepository, never()).save(any(TenderAttachment.class));
+    }
+
+    @Test
     @DisplayName("更新标讯 - 成功更新")
     void updateTender_Success() {
         when(tenderRepository.findById(1L)).thenReturn(java.util.Optional.of(tender));
@@ -229,6 +254,31 @@ class TenderCommandServiceTest {
 
         assertThat(result.getTitle()).isEqualTo("更新后的标题");
         verify(tenderRepository).save(any(Tender.class));
+    }
+
+    @Test
+    @DisplayName("更新标讯 - 拒绝保存已选择但未上传完成的附件且不删除旧附件")
+    void updateTender_WithBlankAttachmentUrl_ShouldRejectBeforeDeletingAttachments() {
+        when(tenderRepository.findById(1L)).thenReturn(java.util.Optional.of(tender));
+
+        TenderDTO updateDto = TenderDTO.builder()
+                .attachments(List.of(TenderAttachmentDTO.builder()
+                        .fileName("招标文件.pdf")
+                        .fileType("application/pdf")
+                        .fileUrl(" ")
+                        .build()))
+                .build();
+
+        BusinessException ex = assertThrows(
+                BusinessException.class,
+                () -> tenderCommandService.updateTender(1L, updateDto)
+        );
+
+        assertThat(ex.getCode()).isEqualTo(400);
+        assertThat(ex.getMessage()).isEqualTo("标讯附件未完成上传，请重新上传后再保存");
+        verify(tenderRepository, never()).save(any(Tender.class));
+        verify(tenderAttachmentRepository, never()).deleteByTenderId(any());
+        verify(tenderAttachmentRepository, never()).save(any(TenderAttachment.class));
     }
 
     @Test

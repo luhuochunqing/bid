@@ -41,6 +41,13 @@ describe('TenderCreatePage button state machine', () => {
     expect(tenderCreateSource).toContain('projectManagerId === currentUserId.value')
   })
 
+  it('disables save while document upload or parse is still running', () => {
+    expect(tenderActionBarSource).toContain('parsingDocument: Boolean')
+    expect(tenderActionBarSource).toContain(':disabled="!canSave || parsingDocument"')
+    expect(tenderCreateSource).toContain(':parsing-document="parsingDocument"')
+    expect(tenderCreateSource).toContain('if (parsingDocument.value)')
+  })
+
   it('fetches tender detail after successful save', () => {
     expect(tenderCreateSource).toContain('await fetchTenderDetail()')
   })

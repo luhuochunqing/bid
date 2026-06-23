@@ -125,6 +125,18 @@ export function formatLocalDate(value = new Date()) {
 
 export function buildManualTenderPayload(form = {}) {
   const formattedDeadline = formatManualTenderDeadline(form.deadline)
+  const attachments = (form.attachments || []).map(f => {
+    const fileName = f.name || f.fileName || ''
+    const fileUrl = f.url || f.fileUrl || ''
+    if (fileName && !fileUrl) {
+      throw new Error('标讯附件未完成上传，请重新上传后再保存')
+    }
+    return {
+      fileName,
+      fileType: f.type || f.fileType || '',
+      fileUrl,
+    }
+  })
   return {
     title: form.title,
     region: form.region,
@@ -147,11 +159,7 @@ export function buildManualTenderPayload(form = {}) {
     contactMail2: form.mail2 || null,
     description: form.description || null,
     tenderInfo: form.tenderInfo || null,
-    attachments: (form.attachments || []).map(f => ({
-      fileName: f.name || f.fileName || '',
-      fileType: f.type || f.fileType || '',
-      fileUrl: f.url || f.fileUrl || ''
-    })),
+    attachments,
     status: 'PENDING_ASSIGNMENT',
   }
 }

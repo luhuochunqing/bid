@@ -12,6 +12,8 @@ vi.mock('element-plus', () => ({
 
 vi.mock('@/api/modules/tenders.js', () => ({
   tendersApi: {
+    storeTenderDocument: vi.fn(),
+    parseExistingTenderDocument: vi.fn(),
     parseTenderIntakeDocument: vi.fn(),
     parseTenderIntakeText: vi.fn(),
   },
@@ -21,7 +23,7 @@ import { tendersApi } from '@/api/modules/tenders.js'
 
 describe('useTenderAiParse', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
   })
 
   function makeUploadFile(name, type = 'application/pdf', uid) {
@@ -41,6 +43,68 @@ describe('useTenderAiParse', () => {
       },
     }
   }
+
+  function mockStoreResponse(fileUrl = 'doc-insight://TENDER_INTAKE/create-tender/hash-tender.pdf', overrides = {}) {
+    return {
+      success: true,
+      data: {
+        fileUrl,
+        storagePath: 'TENDER_INTAKE/create-tender/hash-tender.pdf',
+        contentType: 'application/pdf',
+        ...overrides,
+      },
+    }
+  }
+
+  it('stores the attachment first and backfills url/fileUrl before AI parse enhancement', async () => {
+    const form = ref({ attachments: [], pastedText: '' })
+    const { handleFileChange } = useTenderAiParse(form)
+    const file = makeUploadFile('tender.pdf', 'application/pdf', 1)
+
+    tendersApi.storeTenderDocument.mockResolvedValue(
+      mockStoreResponse('doc-insight://TENDER_INTAKE/create-tender/hash-tender.pdf')
+    )
+    tendersApi.parseExistingTenderDocument.mockResolvedValue(
+      mockParseResponse('doc-insight://TENDER_INTAKE/create-tender/hash-tender.pdf')
+    )
+
+    await handleFileChange(file, [file])
+
+    expect(tendersApi.storeTenderDocument).toHaveBeenCalledWith(file.raw, { entityId: 'create-tender' })
+    expect(tendersApi.parseExistingTenderDocument).toHaveBeenCalledWith({
+      storagePath: 'TENDER_INTAKE/create-tender/hash-tender.pdf',
+      fileName: 'tender.pdf',
+      contentType: 'application/pdf',
+      entityId: 'create-tender',
+    })
+    expect(tendersApi.parseTenderIntakeDocument).not.toHaveBeenCalled()
+    expect(form.value.attachments[0]).toMatchObject({
+      name: 'tender.pdf',
+      type: 'application/pdf',
+      fileName: 'tender.pdf',
+      fileType: 'application/pdf',
+      url: 'doc-insight://TENDER_INTAKE/create-tender/hash-tender.pdf',
+      fileUrl: 'doc-insight://TENDER_INTAKE/create-tender/hash-tender.pdf',
+    })
+  })
+
+  it('keeps stored url/fileUrl when parse-existing fails', async () => {
+    const form = ref({ attachments: [], pastedText: '' })
+    const { handleFileChange } = useTenderAiParse(form)
+    const file = makeUploadFile('tender.pdf', 'application/pdf', 1)
+
+    tendersApi.storeTenderDocument.mockResolvedValue(
+      mockStoreResponse('doc-insight://TENDER_INTAKE/create-tender/hash-tender.pdf')
+    )
+    tendersApi.parseExistingTenderDocument.mockRejectedValue(new Error('AI unavailable'))
+
+    await handleFileChange(file, [file])
+
+    expect(form.value.attachments[0]).toMatchObject({
+      url: 'doc-insight://TENDER_INTAKE/create-tender/hash-tender.pdf',
+      fileUrl: 'doc-insight://TENDER_INTAKE/create-tender/hash-tender.pdf',
+    })
+  })
 
   it('backfills attachment url/fileUrl from parsed documentId', async () => {
     const form = ref({ attachments: [], pastedText: '' })

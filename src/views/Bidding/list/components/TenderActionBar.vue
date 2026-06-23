@@ -4,11 +4,11 @@
       <div class="action-bar-right">
         <template v-if="isEditMode && createdTenderId">
           <el-button size="large" @click="$emit('cancel-edit')">取消</el-button>
-          <el-button type="primary" size="large" :loading="saving" :disabled="!canSave" @click="$emit('save')">保存</el-button>
+          <el-button type="primary" size="large" :loading="saving" :disabled="!canSave || parsingDocument" @click="$emit('save')">保存</el-button>
         </template>
         <template v-else-if="!createdTenderId">
           <el-button size="large" @click="$emit('cancel')">取消</el-button>
-          <el-button type="primary" size="large" :loading="saving" :disabled="!canSave" @click="$emit('save')">保存</el-button>
+          <el-button type="primary" size="large" :loading="saving" :disabled="!canSave || parsingDocument" @click="$emit('save')">保存</el-button>
         </template>
         <template v-else-if="tenderStatus === 'PENDING_ASSIGNMENT' && isAdminOrLead">
           <el-button size="large" @click="$emit('cancel')">返回列表</el-button>
@@ -42,6 +42,7 @@ defineProps({
   activeTab: String,
   canSave: Boolean,
   saving: Boolean,
+  parsingDocument: Boolean,
   submittingEval: Boolean,
 })
 

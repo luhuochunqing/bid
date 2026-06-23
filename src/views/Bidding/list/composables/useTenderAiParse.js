@@ -48,7 +48,25 @@ export function useTenderAiParse(form) {
       return
     }
     await runAiParse(async () => {
-      const response = await tendersApi.parseTenderIntakeDocument(uploadFile, { entityId: 'create-tender' })
+      let storedDoc = null
+      try {
+        const storeResponse = await tendersApi.storeTenderDocument(uploadFile, { entityId: 'create-tender' })
+        if (storeResponse?.success && storeResponse.data) {
+          storedDoc = storeResponse.data
+          applyAttachmentFileUrl(file, uploadFile, storedDoc, fileIndex)
+        }
+      } catch (storeError) {
+        console.warn('标讯文件存储失败，回退到一站式解析:', storeError?.message || storeError)
+      }
+
+      const response = storedDoc?.storagePath
+        ? await tendersApi.parseExistingTenderDocument({
+            storagePath: storedDoc.storagePath,
+            fileName: uploadFile.name,
+            contentType: uploadFile.type,
+            entityId: 'create-tender',
+          })
+        : await tendersApi.parseTenderIntakeDocument(uploadFile, { entityId: 'create-tender' })
       if (!response?.success) throw new Error(response?.msg || '文档自动识别失败')
 
       // AI 分析是增强功能 —— 文件存储成功是底线，AI 失败不应阻塞标讯创建
@@ -56,7 +74,7 @@ export function useTenderAiParse(form) {
       const hasAiFailure = warnings.some(w => String(w).startsWith('AI_DOCUMENT_ANALYSIS_FAILED'))
       const hasScannedDoc = warnings.some(w => String(w).startsWith('SCANNED_DOCUMENT'))
 
-      // 无论 AI 是否成功，都要把 fileUrl 设置上 —— 文件已成功存储在服务器
+      // 一站式解析回退时，仍需从解析结果回填 fileUrl。
       applyAttachmentFileUrl(file, uploadFile, response.data, fileIndex)
 
       if (hasScannedDoc) {
@@ -162,7 +180,7 @@ export function useTenderAiParse(form) {
   }
 
   function applyAttachmentFileUrl(file, uploadFile, parseResult, fileIndex) {
-    const fileUrl = parseResult?.documentId || ''
+    const fileUrl = parseResult?.fileUrl || parseResult?.documentId || parseResult?.document?.fileUrl || ''
     if (!fileUrl) return
     // 用上传时记录的下标直接定位附件，避免同名文件覆盖错对象；与 useManualTenderCreate.js 保持一致。
     const attachments = form.value.attachments || []

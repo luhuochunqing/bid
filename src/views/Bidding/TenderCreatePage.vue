@@ -43,6 +43,7 @@
       :active-tab="activeTab"
       :can-save="canSave"
       :saving="saving"
+      :parsing-document="parsingDocument"
       :submitting-eval="submittingEval"
       @save="handleSave"
       @cancel="handleCancel"
@@ -126,6 +127,10 @@ onMounted(async () => {
 })
 
 async function handleSave() {
+  if (parsingDocument.value) {
+    ElMessage.warning('标讯附件仍在上传或识别中，请稍后再保存')
+    return
+  }
   if (!(await validateBeforeSave(basicInfoTabRef))) return
   saving.value = true
   try {

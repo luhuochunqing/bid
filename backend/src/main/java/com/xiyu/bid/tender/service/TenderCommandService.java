@@ -68,6 +68,8 @@ public class TenderCommandService {
             throw new IllegalArgumentException(String.join("; ", validation.errors()));
         }
 
+        validateAttachmentFileUrls(tenderDTO.getAttachments());
+
         resolveCreator(tenderDTO, userId);
         Tender tender = tenderMapper.toEntity(withCommandDefaults(tenderDTO, userId));
         var duplicates = tenderDeduplicationService.findDuplicates(tender);
@@ -188,6 +190,7 @@ public class TenderCommandService {
                 .orElseThrow(() -> new ResourceNotFoundException("Tender", id.toString()));
 
         commandAccessGuard.assertCanUpdateTender(existingTender, userId);
+        validateAttachmentFileUrls(tenderDTO.getAttachments());
 
         tenderMapper.updateEntity(existingTender, tenderDTO);
         if (!hasText(existingTender.getPurchaserHash()) && hasText(existingTender.getPurchaserName())) {
@@ -298,6 +301,16 @@ public class TenderCommandService {
 
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
+    }
+
+    private void validateAttachmentFileUrls(List<com.xiyu.bid.tender.dto.TenderAttachmentDTO> dtos) {
+        if (dtos == null) return;
+        for (com.xiyu.bid.tender.dto.TenderAttachmentDTO dto : dtos) {
+            if (dto == null) continue;
+            if (hasText(dto.getFileName()) && !hasText(dto.getFileUrl())) {
+                throw new BusinessException(400, "标讯附件未完成上传，请重新上传后再保存");
+            }
+        }
     }
 
     private String generatePurchaserHash(String purchaserName) {

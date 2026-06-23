@@ -1,3 +1,21 @@
+# 消息接口交付文档整理实施记录
+
+## 问题口径
+
+- 客户需要“所有消息接口”的交付说明，本次按当前代码真实实现整理为 `docs/api/message-interfaces.md`。
+- 覆盖范围包括平台站内通知接口、CRM/客户消息中心代理发送接口，以及内部企微消息中心发送能力。
+
+## 决策与权衡
+
+- 不新增或修改接口，只整理现有实现与已沉淀的 wiki/spec 口径。
+- 将前端已声明但后端未实现的 `GET /api/notifications/{id}` 标为“前端预留，后端未实现”，避免把未交付能力写成已完成。
+- 将 CRM 消息发送路径差异显式列为待确认项：当前运行默认 `/common/sendMessage`，历史 Spec 曾记录 `/message/send`，联调时以客户 YAPI `project/557/api/35649` 真实路径为准。
+- 响应结构按当前模块实际情况分别说明；没有强行改写成理想统一格式，避免文档与代码不一致。
+
+## 验证
+
+- 本次为文档整理，无代码逻辑变更；验证方式为基于当前源码路径与配置逐项核对接口、请求体、响应示例和限制说明。
+
 # 添加任务附件查看与交付物保存修复实施记录
 
 ## 问题口径
@@ -285,3 +303,25 @@
 - 本次不调整 filter 顺序、不放宽集成下载 Controller 权限、不把内部 JWT 用户加入 `ROLE_EXTERNAL_API`；只在 `JwtAuthenticationFilter` 中识别已有 `api-key:` 认证上下文并直接放行，避免 JWT Cookie 覆盖更具体的 API Key 身份。
 - 新增回归测试覆盖“API Key 上下文 + 同时存在 `access_token` Cookie”场景；RED 阶段断言失败，实际 principal 被覆盖为 `06234`；GREEN 后保持 `api-key:3` 和 `ROLE_EXTERNAL_API`。
 - 验证：`mvn test -Dtest=JwtAuthenticationFilterRevocationTest,TenderIntegrationMapperToDownloadUrlTest,CallerContextUrlResolverTest,TenderAttachmentDownloadServiceTest` 通过，52 tests；`git diff --check`、`npm run check:line-budgets`、`npm run agent:lock-check:changed` 均通过。
+
+# 标讯附件空 URL 入库修复实施记录
+
+## 问题口径
+
+- 测试环境 `/bidding/400` 的标讯附件列表存在文件名但 `fileUrl=""`，因此详情页下载按钮拿不到可下载地址。
+- 根因不是下载接口本身，而是新建标讯页在文件选择后先把 Element Plus `fileList` 放入 `form.attachments`，但存储/解析异步完成前用户仍可保存，导致空 URL 附件被提交。
+- 后端 `TenderCommandService.saveAttachments()` 只跳过“文件名和 URL 都为 null”的条目，允许“文件名存在但 URL 为空字符串”的坏数据入库。
+
+## 决策与权衡
+
+- 新建页文件处理改为“先存储、后解析”：选择文件后先调用 `/api/doc-insight/store` 获得 `fileUrl/storagePath` 并立即回填附件，再用 `/api/doc-insight/parse-existing` 做 AI 识别增强。
+- 若存储失败，仍保留原 `/api/doc-insight/parse` 一站式解析作为回退；但保存阶段会校验附件 URL，避免再把空 URL 附件提交到后端。
+- 保存按钮在 `parsingDocument` 为 true 时禁用，`handleSave()` 也增加二次防线，避免通过事件或状态竞争绕过按钮禁用。
+- `buildManualTenderPayload()` 对“有文件名但没有 fileUrl”的附件直接抛错，不做静默过滤，原因是静默过滤会造成用户以为附件已保存但实际丢失。
+- 后端在创建/更新标讯变更实体或删除旧附件前校验附件元数据；发现 `fileName` 有值但 `fileUrl` 为空时返回 `BusinessException(400, "标讯附件未完成上传，请重新上传后再保存")`，避免部分写入或误删旧附件。
+
+## 验证
+
+- RED：新增前端/后端回归测试后，确认旧实现会失败：前端未调用 `storeTenderDocument`、保存按钮未受 `parsingDocument` 控制、payload 仍生成空 `fileUrl`；后端创建/更新未按 400 拒绝。
+- GREEN 前端：`pnpm vitest run src/views/Bidding/list/composables/useTenderAiParse.spec.js src/views/Bidding/list/helpers.spec.js src/views/Bidding/TenderCreatePage.spec.js` 通过，45 tests。
+- GREEN 后端：`mvn -f backend/pom.xml test -Dtest=TenderCommandServiceTest` 通过，12 tests（2 skipped，保留既有 disabled 用例）。

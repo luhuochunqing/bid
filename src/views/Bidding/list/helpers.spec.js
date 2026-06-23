@@ -192,6 +192,21 @@ describe('isAdminRole', () => {
     })
   })
 
+  it('rejects manual tender attachments with file name but blank fileUrl', () => {
+    expect(() => buildManualTenderPayload({
+      title: '附件未上传完成标讯',
+      region: '上海',
+      deadline: '2026-06-01 17:00',
+      attachments: [
+        {
+          name: '招标文件.pdf',
+          type: 'application/pdf',
+          url: '',
+        },
+      ],
+    })).toThrow('标讯附件未完成上传，请重新上传后再保存')
+  })
+
   it('maps manual tender attachments to attachments array with fileUrl', () => {
     const payload = buildManualTenderPayload({
       title: '带附件标讯',
