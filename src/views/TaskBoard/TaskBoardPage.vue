@@ -31,6 +31,8 @@
             :available-statuses="availableStatuses"
             @status-change="handleStatusChange"
             @deliverable-changed="handleDeliverableChanged"
+            @approve-bid="handleApproveBid"
+            @reject-bid="handleRejectBid"
           />
           <el-empty
             v-if="getTasksByStatus(column.key).length === 0"
@@ -57,6 +59,8 @@ const {
   getTasksByStatus,
   handleStatusChange,
   handleDeliverableChanged,
+  handleApproveBid,
+  handleRejectBid,
   loadTasks
 } = useTaskBoard()
 </script>

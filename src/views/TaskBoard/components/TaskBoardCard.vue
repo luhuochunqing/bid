@@ -16,18 +16,30 @@
       <el-dropdown v-if="canUpdate" trigger="click" @click.stop>
         <el-icon class="more-icon"><MoreFilled /></el-icon>
         <template #dropdown>
-          <el-dropdown-item
-            v-for="s in availableStatuses"
-            :key="s.code"
-            :disabled="item.status === s.code"
-            @click="$emit('status-change', item, s.code)"
-          >
-            设为{{ s.name }}
-          </el-dropdown-item>
-          <el-dropdown-item divided @click="openUploadDialog">
-            <el-icon><Upload /></el-icon>
-            上传交付物
-          </el-dropdown-item>
+          <template v-if="item.type === 'BID_REVIEW'">
+            <el-dropdown-item @click="$emit('approve-bid', item)">
+              <el-icon><Select /></el-icon>
+              通过审核
+            </el-dropdown-item>
+            <el-dropdown-item divided @click="$emit('reject-bid', item)">
+              <el-icon><CloseBold /></el-icon>
+              驳回审核
+            </el-dropdown-item>
+          </template>
+          <template v-else>
+            <el-dropdown-item
+              v-for="s in availableStatuses"
+              :key="s.code"
+              :disabled="item.status === s.code"
+              @click="$emit('status-change', item, s.code)"
+            >
+              设为{{ s.name }}
+            </el-dropdown-item>
+            <el-dropdown-item divided @click="openUploadDialog">
+              <el-icon><Upload /></el-icon>
+              上传交付物
+            </el-dropdown-item>
+          </template>
         </template>
       </el-dropdown>
     </div>
@@ -102,7 +114,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { MoreFilled, User, Calendar, OfficeBuilding, Upload, Document } from '@element-plus/icons-vue'
+import { MoreFilled, User, Calendar, OfficeBuilding, Upload, Document, Select, CloseBold } from '@element-plus/icons-vue'
 import { projectsApi } from '@/api/modules/projects'
 
 const props = defineProps({
@@ -110,14 +122,14 @@ const props = defineProps({
   availableStatuses: { type: Array, required: true }
 })
 
-const emit = defineEmits(['status-change', 'deliverable-changed'])
+const emit = defineEmits(['status-change', 'deliverable-changed', 'approve-bid', 'reject-bid'])
 
 const PRIORITY_TYPE_MAP = { HIGH: 'danger', MEDIUM: 'warning', LOW: 'info' }
 const PRIORITY_TEXT_MAP = { HIGH: '高', MEDIUM: '中', LOW: '低' }
 
 const priorityType = computed(() => PRIORITY_TYPE_MAP[props.item.priority] || 'info')
 const priorityText = computed(() => PRIORITY_TEXT_MAP[props.item.priority] || props.item.priority)
-const canUpdate = computed(() => props.item.type === 'TASK' && !!props.item.id)
+const canUpdate = computed(() => !!props.item.id && (props.item.type === 'TASK' || props.item.type === 'BID_REVIEW'))
 
 const isUrgent = computed(() => {
   if (!props.item.dueDate) return false

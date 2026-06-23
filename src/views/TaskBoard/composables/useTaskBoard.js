@@ -1,7 +1,8 @@
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { tasksApi } from '@/api/modules/dashboard'
 import { projectsApi } from '@/api/modules/projects'
+import { projectLifecycleApi } from '@/api/modules/projectLifecycle'
 
 const COLUMNS = [
   { key: 'TODO', title: '待开始', color: '#909399' },
@@ -68,6 +69,42 @@ export function useTaskBoard() {
 
   const handleDeliverableChanged = (item) => loadTaskDeliverables(item)
 
+  const handleApproveBid = async (item) => {
+    try {
+      await ElMessageBox.confirm(`确定通过项目「${item.projectName || item.projectId}」的标书审核？`, '审核通过', { type: 'success' })
+    } catch {
+      return
+    }
+    try {
+      await projectLifecycleApi.approveBid(item.projectId, { comment: '' })
+      ElMessage.success('审核已通过')
+      await loadTasks()
+    } catch (e) {
+      ElMessage.error(e?.message || '审核通过失败')
+    }
+  }
+
+  const handleRejectBid = async (item) => {
+    let reason = ''
+    try {
+      const result = await ElMessageBox.prompt('请输入驳回原因', '驳回审核', {
+        type: 'warning',
+        inputPlaceholder: '请输入驳回原因',
+        inputValidator: (v) => (v && v.trim() ? true : '驳回原因不能为空')
+      })
+      reason = result.value
+    } catch {
+      return
+    }
+    try {
+      await projectLifecycleApi.rejectBid(item.projectId, { reason })
+      ElMessage.success('已驳回')
+      await loadTasks()
+    } catch (e) {
+      ElMessage.error(e?.message || '驳回失败')
+    }
+  }
+
   onMounted(loadTasks)
 
   return {
@@ -79,6 +116,8 @@ export function useTaskBoard() {
     getTasksByStatus,
     handleStatusChange,
     handleDeliverableChanged,
+    handleApproveBid,
+    handleRejectBid,
     loadTasks
   }
 }
