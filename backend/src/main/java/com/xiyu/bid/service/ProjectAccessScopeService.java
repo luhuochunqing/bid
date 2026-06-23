@@ -11,6 +11,8 @@ import com.xiyu.bid.matrixcollaboration.entity.ProjectMember;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.matrixcollaboration.repository.CrmCustomerPermissionRepository;
 import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
+import com.xiyu.bid.project.entity.BidDocumentReviewEntity;
+import com.xiyu.bid.project.repository.BidDocumentReviewRepository;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.admin.service.DataScopeConfigService;
@@ -46,6 +48,7 @@ public class ProjectAccessScopeService {
     private final CrmCustomerPermissionRepository crmCustomerPermissionRepository;
     private final ProjectLeadAssignmentRepository leadAssignmentRepository;
     private final TaskRepository taskRepository;
+    private final BidDocumentReviewRepository bidDocumentReviewRepository;
 
     public List<Long> getAllowedProjectIds(User user) {
         if (user == null || RoleProfileCatalog.ADMIN_CODE.equalsIgnoreCase(user.getRoleCode())) {
@@ -88,6 +91,11 @@ public class ProjectAccessScopeService {
                     .map(Project::getId)
                     .collect(Collectors.toList()));
         }
+
+        // CO-315: Add projects where current user is assigned as bid document reviewer
+        allowedIds.addAll(bidDocumentReviewRepository.findByReviewerId(user.getId()).stream()
+                .map(BidDocumentReviewEntity::getProjectId)
+                .collect(Collectors.toList()));
 
         if (!accessProfile.getAllowedDepartmentCodes().isEmpty()) {
             allowedIds.addAll(projectRepository.findAccessibleProjectIdsByDepartmentCodes(accessProfile.getAllowedDepartmentCodes()));

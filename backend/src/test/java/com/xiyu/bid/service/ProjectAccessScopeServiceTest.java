@@ -7,6 +7,8 @@ import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.matrixcollaboration.repository.CrmCustomerPermissionRepository;
 import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
+import com.xiyu.bid.project.entity.BidDocumentReviewEntity;
+import com.xiyu.bid.project.repository.BidDocumentReviewRepository;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TaskRepository;
@@ -55,11 +57,14 @@ class ProjectAccessScopeServiceTest {
     @Mock
     private TaskRepository taskRepository;
 
+    @Mock
+    private BidDocumentReviewRepository bidDocumentReviewRepository;
+
     private ProjectAccessScopeService projectAccessScopeService;
 
     @BeforeEach
     void setUp() {
-        projectAccessScopeService = new ProjectAccessScopeService(userRepository, projectRepository, dataScopeConfigService, projectGroupService, projectMemberRepository, crmCustomerPermissionRepository, leadAssignmentRepository, taskRepository);
+        projectAccessScopeService = new ProjectAccessScopeService(userRepository, projectRepository, dataScopeConfigService, projectGroupService, projectMemberRepository, crmCustomerPermissionRepository, leadAssignmentRepository, taskRepository, bidDocumentReviewRepository);
         SecurityContextHolder.clearContext();
     }
 
@@ -214,6 +219,33 @@ class ProjectAccessScopeServiceTest {
         ));
 
         assertThat(projectAccessScopeService.getAllowedProjectIds(user)).containsExactly(300L);
+    }
+
+    @Test
+    void getAllowedProjectIds_ShouldIncludeReviewerProjects() {
+        // CO-315: a bid document reviewer must be able to access the project for review.
+        User user = User.builder()
+                .id(901L)
+                .username("bid-reviewer")
+                .role(User.Role.STAFF)
+                .enabled(true)
+                .build();
+
+        when(dataScopeConfigService.getAccessProfile(user)).thenReturn(DataScopeConfigService.AccessProfile.builder()
+                .dataScope("self")
+                .build());
+        when(projectRepository.findAccessibleProjectIdsByUserId(901L)).thenReturn(List.of());
+        when(projectGroupService.getGrantedProjectIds(user)).thenReturn(List.of());
+        when(projectMemberRepository.findByUserId(anyLong())).thenReturn(List.of());
+        when(crmCustomerPermissionRepository.findByUserId(anyLong())).thenReturn(List.of());
+        when(leadAssignmentRepository.findByPrimaryLeadUserId(901L)).thenReturn(List.of());
+        when(leadAssignmentRepository.findBySecondaryLeadUserId(901L)).thenReturn(List.of());
+        when(taskRepository.findDistinctProjectIdsByAssigneeId(901L)).thenReturn(List.of());
+        when(bidDocumentReviewRepository.findByReviewerId(901L)).thenReturn(List.of(
+                BidDocumentReviewEntity.builder().projectId(42L).reviewerId(901L).build()
+        ));
+
+        assertThat(projectAccessScopeService.getAllowedProjectIds(user)).containsExactly(42L);
     }
 
     @Test

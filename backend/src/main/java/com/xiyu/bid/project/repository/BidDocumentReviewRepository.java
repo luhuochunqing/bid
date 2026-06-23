@@ -7,6 +7,7 @@ import com.xiyu.bid.project.entity.BidDocumentReviewEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -16,6 +17,8 @@ import java.util.Optional;
 public interface BidDocumentReviewRepository extends JpaRepository<BidDocumentReviewEntity, Long> {
 
     Optional<BidDocumentReviewEntity> findByProjectId(Long projectId);
+
+    List<BidDocumentReviewEntity> findByReviewerId(Long reviewerId);
 
     void deleteByProjectId(Long projectId);
 }
