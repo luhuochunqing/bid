@@ -227,8 +227,8 @@ public class OpenAiTenderDocumentAnalyzer
             if (item == null) continue;
             putIfBlank(data, "tenderAgency", item.tenderAgency); putIfBlank(data, "bidOpeningTime", item.bidOpeningTime);
             putIfBlank(data, "contactName", item.contactName); putIfBlank(data, "contactPhone", item.contactPhone);
-            putIfBlank(data, "contactEmail", item.contactEmail); putIfBlank(data, "customerType", item.customerType);
-            putIfBlank(data, "priority", item.priority);
+            putIfBlank(data, "contactLandline", item.contactLandline); putIfBlank(data, "contactEmail", item.contactEmail);
+            putIfBlank(data, "customerType", item.customerType); putIfBlank(data, "priority", item.priority);
         }
     }
 

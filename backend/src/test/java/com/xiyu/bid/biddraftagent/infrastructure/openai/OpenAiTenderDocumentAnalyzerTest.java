@@ -273,6 +273,7 @@ class OpenAiTenderDocumentAnalyzerTest {
         output.bidOpeningTime = "2026-06-03T10:00:00";
         output.contactName = "李经理";
         output.contactPhone = "13800138000";
+        output.contactLandline = "010-87654321";
         output.customerType = "KA 客户";
         output.priority = "A";
         when(structuredOutputService.request(anyString(), eq(TenderRequirementOutput.class), any(), anyString()))
@@ -291,6 +292,7 @@ class OpenAiTenderDocumentAnalyzerTest {
         assertThat(result.extractedData()).containsEntry("tenderAgency", "上海招标代理有限公司")
                 .containsEntry("bidOpeningTime", "2026-06-03T10:00:00")
                 .containsEntry("contactPhone", "13800138000")
+                .containsEntry("contactLandline", "010-87654321")
                 .containsEntry("customerType", "KA 客户")
                 .containsEntry("priority", "A");
         assertThat(prompt).doesNotContain("requirementItems 必须逐条列出");

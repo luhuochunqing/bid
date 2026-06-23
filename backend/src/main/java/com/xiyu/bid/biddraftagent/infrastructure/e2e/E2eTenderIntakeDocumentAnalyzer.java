@@ -26,7 +26,8 @@ public class E2eTenderIntakeDocumentAnalyzer implements DocumentAnalyzer {
             Map.entry("deadline", List.of("报名截止时间", "截止时间", "投标截止时间", "响应截止时间")),
             Map.entry("bidOpeningTime", List.of("开标时间")),
             Map.entry("contactName", List.of("联系人")),
-            Map.entry("contactPhone", List.of("联系方式", "联系电话", "手机号", "手机", "电话")),
+            Map.entry("contactPhone", List.of("手机号", "手机", "移动电话")),
+            Map.entry("contactLandline", List.of("座机", "座机号", "固定电话", "联系电话")),
             Map.entry("contactEmail", List.of("邮箱", "电子邮箱")),
             Map.entry("customerType", List.of("客户类型")),
             Map.entry("priority", List.of("优先级"))

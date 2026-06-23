@@ -18,6 +18,7 @@ public class TenderRequirementOutput {
     public String bidOpeningTime;
     public String contactName;
     public String contactPhone;
+    public String contactLandline;
     public String contactEmail;
     public String customerType;
     public String priority;

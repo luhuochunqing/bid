@@ -22,7 +22,8 @@ class E2eTenderIntakeDocumentAnalyzerTest {
                 报名截止时间：2026-06-10 10:00
                 开标时间：2026-06-12 09:30
                 联系人：王工
-                联系方式：13800138000
+                手机号：13800138000
+                座机：020-12345678
                 客户类型：央企集团
                 优先级：S
                 """;
@@ -47,7 +48,34 @@ class E2eTenderIntakeDocumentAnalyzerTest {
                 .containsEntry("bidOpeningTime", "2026-06-12 09:30")
                 .containsEntry("contactName", "王工")
                 .containsEntry("contactPhone", "13800138000")
+                .containsEntry("contactLandline", "020-12345678")
                 .containsEntry("customerType", "央企集团")
                 .containsEntry("priority", "S");
+    }
+
+    @Test
+    void shouldRouteContactTelToLandlineWhenNoMobilePhone() {
+        // 联系电话 通常是座机，应映射到 contactLandline 而非 contactPhone
+        E2eTenderIntakeDocumentAnalyzer analyzer = new E2eTenderIntakeDocumentAnalyzer();
+        String text = """
+                标题：测试项目
+                联系人：张工
+                联系电话：010-87654321
+                """;
+
+        DocumentAnalysisResult result = analyzer.analyze(new DocumentAnalysisInput(
+                "doc-insight://TENDER_INTAKE/manual-tender/paste.txt",
+                "paste.txt",
+                text,
+                null,
+                List.of(),
+                "TENDER_INTAKE",
+                Map.of()
+        ));
+
+        assertThat(result.extractedData())
+                .containsEntry("contactName", "张工")
+                .containsEntry("contactLandline", "010-87654321")
+                .doesNotContainKey("contactPhone");
     }
 }
