@@ -59,8 +59,12 @@ public class CrmPermissionService {
             log.debug("OSS permission cache hit for key={}", cacheKey);
             return cached.get();
         }
-        // 使用 OSS 的 base URL（而非 CRM 的 auth base URL）
+        // 使用 OSS 的 base URL（优先 directory.baseUrl，为空时 fallback 到 CRM auth base URL）
         String baseUrl = orgProperties.getDirectory().getBaseUrl();
+        if (baseUrl == null || baseUrl.isBlank()) {
+            baseUrl = properties.getEffectiveAuthBaseUrl();
+            log.warn("OSS directory base-url is empty, falling back to CRM auth base-url: {}", baseUrl);
+        }
         String path = orgProperties.getDirectory().getUserMenuTreePath();
         if (systemName != null && !systemName.isBlank()) {
             path = path + "?systemName=" + systemName;

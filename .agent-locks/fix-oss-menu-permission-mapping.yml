@@ -1,0 +1,15 @@
+version: 1
+task: "fix-oss-menu-permission-mapping"
+locks:
+  - path: "backend/src/main/resources/application.yml"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/mimo/fix-oss-menu-permission-mapping"
+    expiresAt: "2026-06-24T05:48:04.487Z"
+    reason: "fix OSS menu permission mapping, systemName default, and baseUrl fallback"
+  - path: "src/router/index.js"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/mimo/fix-oss-menu-permission-mapping"
+    expiresAt: "2026-06-24T06:03:25.215Z"
+    reason: "fix analytics-dashboard permissionKeys to match backend mapping"

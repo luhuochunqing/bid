@@ -274,7 +274,7 @@ const routes = [
         path: 'analytics/dashboard',
         name: 'AnalyticsDashboard',
         component: () => import('@/views/Analytics/Dashboard.vue'),
-        meta: { title: '数据分析', permissionKeys: ['analytics', 'analytics-dashboard'] }
+        meta: { title: '数据分析', permissionKeys: ['analytics-dashboard'] }
       },
       {
         path: 'analytics',
