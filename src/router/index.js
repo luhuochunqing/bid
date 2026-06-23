@@ -113,7 +113,7 @@ const routes = [
         path: 'ai-center',
         name: 'AICenter',
         component: () => import('@/views/AI/Center.vue'),
-        meta: { title: 'AI能力中心', icon: 'MagicStick' }
+        meta: { title: 'AI能力中心', icon: 'MagicStick', permissionKeys: ['ai-center'] }
       },
       {
         path: 'ai-center/solution-reuse',
@@ -290,7 +290,7 @@ const routes = [
         path: 'operation-logs',
         name: 'OperationLogs',
         component: () => import('@/views/System/OperationLogPage.vue'),
-        meta: { title: '日志说明', showBack: true }
+        meta: { title: '日志说明', showBack: true, permissionKeys: ['operation-logs'] }
       },
       {
         path: 'audit-logs',
@@ -332,19 +332,19 @@ const routes = [
         path: 'settings/ai-models',
         name: 'AiModels',
         component: () => import('@/views/System/AiModelSettings.vue'),
-        meta: { title: 'AI能力模型', permissionKeys: ['settings'], showBack: true }
+        meta: { title: 'AI能力模型', permissionKeys: ['settings', 'settings-ai-models'], showBack: true }
       },
       {
         path: 'settings/messages-tasks',
         name: 'MessagesTasks',
         component: () => import('@/views/System/MessagesTasks.vue'),
-        meta: { title: '消息与任务', permissionKeys: ['settings'], showBack: true }
+        meta: { title: '消息与任务', permissionKeys: ['settings', 'settings-messages-tasks'], showBack: true }
       },
       {
         path: 'settings/integration',
         name: 'SystemIntegration',
         component: () => import('@/views/System/SystemIntegration.vue'),
-        meta: { title: '系统集成', permissionKeys: ['settings'], showBack: true }
+        meta: { title: '系统集成', permissionKeys: ['settings', 'settings-integration'], showBack: true }
       },
       {
         path: 'inbox',
