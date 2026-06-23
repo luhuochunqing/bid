@@ -128,6 +128,39 @@ for _ in {1..120}; do
 done
 curl -fsS "$HEALTHCHECK_URL" >/dev/null
 
+# ── 前端一致性校验：确保 nginx 根目录与发布包一致 ──
+printf '==> Verifying frontend consistency\n'
+RELEASE_INDEX_HTML="$RELEASE_DIR/frontend/index.html"
+PUBLIC_INDEX_HTML="$FRONTEND_PUBLIC_DIR/index.html"
+if [[ -f "$RELEASE_INDEX_HTML" && -f "$PUBLIC_INDEX_HTML" ]]; then
+  RELEASE_ENTRY=$(grep -oP 'src="/assets/[^"]+' "$RELEASE_INDEX_HTML" | head -1)
+  PUBLIC_ENTRY=$(grep -oP 'src="/assets/[^"]+' "$PUBLIC_INDEX_HTML" | head -1)
+  if [[ "$RELEASE_ENTRY" != "$PUBLIC_ENTRY" ]]; then
+    printf '⚠️  Frontend mismatch detected! Entry: %s (release) vs %s (public)\n' "$RELEASE_ENTRY" "$PUBLIC_ENTRY"
+    printf '==> Auto-fixing frontend: re-syncing from release archive\n'
+    rm -rf "$PENDING_FRONTEND_DIR"
+    mkdir -p "$PENDING_FRONTEND_DIR"
+    cp -R "$RELEASE_DIR/frontend/." "$PENDING_FRONTEND_DIR/"
+    rm -rf "$FRONTEND_PUBLIC_DIR"
+    mv "$PENDING_FRONTEND_DIR" "$FRONTEND_PUBLIC_DIR"
+    printf '✅ Frontend re-synced successfully\n'
+  else
+    printf '✅ Frontend matches release (%s)\n' "$RELEASE_ENTRY"
+  fi
+else
+  if [[ ! -f "$RELEASE_INDEX_HTML" ]]; then
+    printf '⚠️  Release frontend index.html not found — skipping frontend verification\n'
+  fi
+  if [[ ! -f "$PUBLIC_INDEX_HTML" ]]; then
+    printf '⚠️  Public frontend index.html not found at %s — re-syncing\n' "$PUBLIC_INDEX_HTML"
+    rm -rf "$PENDING_FRONTEND_DIR"
+    mkdir -p "$PENDING_FRONTEND_DIR"
+    cp -R "$RELEASE_DIR/frontend/." "$PENDING_FRONTEND_DIR/"
+    rm -rf "$FRONTEND_PUBLIC_DIR"
+    mv "$PENDING_FRONTEND_DIR" "$FRONTEND_PUBLIC_DIR"
+  fi
+fi
+
 if [[ -n "$POST_DEPLOY_COMMAND" ]]; then
   printf '==> Running post deploy command\n'
   bash -lc "$POST_DEPLOY_COMMAND"
