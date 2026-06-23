@@ -49,7 +49,7 @@ class OrganizationDirectoryJsonMapper {
                 firstText(node, "deptName", "departmentName"),
                 jobId,
                 firstText(node, "roleCode", "positionCode", "jobCode", "positionName", "jobName"),
-                enabled(node)
+                UserEnabledDetector.isEnabled(node)
         );
     }
 
@@ -270,8 +270,7 @@ class OrganizationDirectoryJsonMapper {
     }
 
     private boolean enabled(JsonNode node) {
-        // confirmed: del=0=active, del=1=deleted. status=1 and activationState=1 = enabled.
-        // Request already sends del=0&state=0, so server filters; this is safety net.
+        // 部门判定：del=1=已删，status=0/1 视作启用（部门没有"在职"语义）
         JsonNode del = node.path("del");
         if (del.isInt() && del.asInt() == 1) {
             return false;
@@ -280,21 +279,10 @@ class OrganizationDirectoryJsonMapper {
         if (status.isInt()) {
             return status.asInt() == 1;
         }
-        JsonNode activationState = node.path("activationState");
-        if (activationState.isInt()) {
-            return activationState.asInt() == 1;
-        }
-        // Fallback to boolean fields (for compatibility with other formats)
         JsonNode enabled = node.path("enabled");
         if (enabled.isBoolean()) {
             return enabled.asBoolean();
         }
-        JsonNode disabled = node.path("disabled");
-        if (disabled.isBoolean()) {
-            return !disabled.asBoolean();
-        }
-        String statusText = firstText(node, "status", "userStatus", "deptStatus").toLowerCase(Locale.ROOT);
-        return !statusText.contains("disabled") && !statusText.contains("inactive")
-                && !statusText.contains("停用") && !statusText.contains("离职");
+        return true;
     }
 }
