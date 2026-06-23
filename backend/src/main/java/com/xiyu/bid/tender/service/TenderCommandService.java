@@ -54,6 +54,7 @@ public class TenderCommandService {
     private final TenderAssignmentNotifier assignmentNotifier;
     private final TenderAttachmentRepository attachmentRepository;
     private final TenderCrmOccupancyChecker crmOccupancyChecker;
+    private final TenderEvaluationBackfillService evaluationBackfillService;
 
     public TenderDTO createTender(TenderDTO tenderDTO) {
         return createTender(tenderDTO, null);
@@ -211,6 +212,18 @@ public class TenderCommandService {
     }
 
     public TenderDTO linkCrmOpportunity(Long id, String crmOpportunityId, String crmOpportunityName, Long userId) {
+        return linkCrmOpportunity(id, crmOpportunityId, crmOpportunityName, null, userId);
+    }
+
+    /**
+     * CO-310 修复：关联 CRM 商机并可选回填评估表数据。
+     * <p>当提供 {@code evaluationPayload} 时，调用 {@link TenderEvaluationSubmissionService#backfillFromCrmLink}
+     * 一步完成评估表回填，绕过 canFill 守卫（sales 角色关联商机是其核心职责）。
+     * <p>不提供时保持原行为（仅关联商机），向后兼容。
+     */
+    public TenderDTO linkCrmOpportunity(Long id, String crmOpportunityId, String crmOpportunityName,
+                                          com.xiyu.bid.tender.dto.TenderEvaluationSubmitRequest evaluationPayload,
+                                          Long userId) {
         log.debug("Linking CRM opportunity to tender id: {}", id);
         Tender existingTender = tenderRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(409, "标讯已被删除，无法关联CRM商机"));
@@ -238,6 +251,19 @@ public class TenderCommandService {
                     "CRM 商机已被其他标讯关联（并发冲突），请刷新后重试");
         }
         log.info("Linked CRM opportunity {} to tender id: {}", crmOpportunityId, id);
+
+        // CO-310: 关联成功后回填评估表数据（如果提供）
+        if (evaluationPayload != null) {
+            try {
+                evaluationBackfillService.backfillFromCrmLink(id, evaluationPayload, userId);
+                log.info("CO-310: Backfilled evaluation for tender {} from CRM link", id);
+            } catch (BusinessException | IllegalStateException ex) {
+                // 回填失败不影响关联结果，但记录错误日志便于排查
+                log.error("CO-310: Failed to backfill evaluation for tender {} from CRM link: {}",
+                        id, ex.getMessage(), ex);
+                throw new BusinessException(500, "CRM商机关联成功，但评估表回填失败: " + ex.getMessage());
+            }
+        }
         return tenderMapper.toDTO(updatedTender);
     }
 

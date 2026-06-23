@@ -11,6 +11,9 @@ import lombok.NoArgsConstructor;
 /**
  * 标讯关联CRM商机请求体。
  * 专用 DTO 避免触发完整的 @Valid TenderRequest 校验（title/deadline 可为空）。
+ * <p>CO-310 修复：新增可选的 evaluationPayload 字段，用于在关联 CRM 商机时
+ * 一步完成评估表回填。后端 {@code linkCrmOpportunity} 收到该字段后会调用
+ * {@code backfillFromCrmLink} 绕过 canFill 守卫保存评估表数据。
  */
 @Data
 @Builder
@@ -26,4 +29,7 @@ public class TenderCrmLinkRequest {
     @NotBlank(message = "CRM商机名称不能为空")
     @Schema(description = "CRM商机名称", requiredMode = RequiredMode.REQUIRED)
     private String crmOpportunityName;
+
+    @Schema(description = "评估表三段式数据（CO-310：可选，提供则一步完成回填，避免 sales 403）")
+    private TenderEvaluationSubmitRequest evaluationPayload;
 }

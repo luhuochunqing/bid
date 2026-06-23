@@ -323,16 +323,31 @@ function transformCrmCustomerInfos(customerInfos) {
   return result
 }
 
-async function onCrmOpportunityLinked({ opportunityId, opportunityName }) {
+async function onCrmOpportunityLinked({ opportunityId, opportunityName, evaluationData }) {
   if (!tender.value?.id) return
   crmLinking.value = true
   try {
-    // CO-310: 关联 CRM 商机只做 PATCH,不再触发 saveEvaluationDraft/submitEvaluationFinal(原链路错配导致 sales 403)
-    await tendersApi.linkCrmOpportunity(tender.value.id, {
+    // CO-310 修复：关联 CRM 商机时一步完成评估表回填。
+    // 原 CO-310 改动砍掉了 saveEvaluationDraft/submitEvaluationFinal 调用，导致评估表数据不落库。
+    // 现在通过扩展后的 linkCrmOpportunity 端点（新增 evaluationPayload 字段）一步完成，
+    // 后端 backfillFromCrmLink 方法绕过 canFill 守卫（sales 关联商机是其核心职责）。
+    const payload = {
       crmOpportunityId: opportunityId,
       crmOpportunityName: opportunityName,
-    })
-    ElMessage.success('CRM商机已关联')
+    }
+    if (evaluationData) {
+      payload.evaluationPayload = {
+        bidRecommendation: evaluationData.recommendation?.shouldBid ? 'RECOMMEND' : 'NOT_RECOMMEND',
+        evaluationBasic: transformCrmBasic(evaluationData.basic),
+        evaluationCustomerInfos: transformCrmCustomerInfos(evaluationData.customerInfos),
+        evaluationRecommendation: {
+          shouldBid: evaluationData.recommendation?.shouldBid ?? true,
+          reason: evaluationData.recommendation?.reason || '',
+        },
+      }
+    }
+    await tendersApi.linkCrmOpportunity(tender.value.id, payload)
+    ElMessage.success('CRM商机已关联，评估表已自动提交')
 
     // 刷新 tender 和评估表
     await loadTenderDetail()

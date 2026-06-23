@@ -65,7 +65,8 @@ class TenderCommandServiceLinkCrmOpportunityDedupTest {
                 null,                  // NotificationApplicationService
                 null,                  // TenderAssignmentNotifier
                 null,                  // TenderAttachmentRepository
-                crmOccupancyChecker    // CO-297: CRM 商机占用校验器（应用层 + UNIQUE 双层防御）
+                crmOccupancyChecker,   // CO-297: CRM 商机占用校验器（应用层 + UNIQUE 双层防御）
+                null                   // CO-310: TenderEvaluationBackfillService（本测试不涉及回填）
         );
     }
 
