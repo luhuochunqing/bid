@@ -44,7 +44,7 @@ final class TaskBoardItemMapper {
                 .dueDate(task.getDueDate())
                 .projectId(task.getProjectId())
                 .projectName(projectNames.getOrDefault(task.getProjectId(), ""))
-                .targetUrl("/project/" + task.getProjectId())
+                .targetUrl(null)
                 .assigneeName(assigneeName)
                 .build();
     }
@@ -67,7 +67,7 @@ final class TaskBoardItemMapper {
                 .dueDate(review.getReviewedAt())
                 .projectId(review.getProjectId())
                 .projectName(projectName)
-                .targetUrl("/project/" + review.getProjectId())
+                .targetUrl(null)
                 .submitterName(submitterName)
                 .build();
     }
