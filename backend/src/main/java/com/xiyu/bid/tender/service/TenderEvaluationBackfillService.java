@@ -130,8 +130,10 @@ public class TenderEvaluationBackfillService {
         }
 
         mapper.applyRequest(entity, req);
-        entity.setEvaluationStatus(EvaluationStatus.SUBMITTED);
-        entity.setSubmittedAt(now());
+        // CO-310 两步流程：关联时只回填为 DRAFT（不提交、不记 submittedAt）；
+        // 项目负责人填"是否投标"后手动 submit() 才置 SUBMITTED。
+        entity.setEvaluationStatus(EvaluationStatus.DRAFT);
+        entity.setSubmittedAt(null); // CO-310: DRAFT 不保留旧提交时间（二次关联场景清残留）
         if (entity.getEvaluatorId() == null || !entity.getEvaluatorId().equals(evaluator.getId())) {
             if (entity.getEvaluatorId() != null) {
                 log.info("CO-310: Evaluation {} evaluator changed from {} to {} via CRM link",

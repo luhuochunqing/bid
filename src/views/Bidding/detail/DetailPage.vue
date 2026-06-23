@@ -323,6 +323,8 @@ function transformCrmCustomerInfos(customerInfos) {
   return result
 }
 
+const { activeTab, visibleTabs } = useDetailTabs(tender)
+
 async function onCrmOpportunityLinked({ opportunityId, opportunityName, evaluationData }) {
   if (!tender.value?.id) return
   crmLinking.value = true
@@ -352,7 +354,7 @@ async function onCrmOpportunityLinked({ opportunityId, opportunityName, evaluati
       }
     }
     await tendersApi.linkCrmOpportunity(tender.value.id, payload)
-    ElMessage.success('CRM商机已关联，评估表已自动提交')
+    ElMessage.success('CRM商机已关联，请在评估表填写是否投标后提交')
 
     // 刷新 tender 和评估表
     await loadTenderDetail()
@@ -360,6 +362,8 @@ async function onCrmOpportunityLinked({ opportunityId, opportunityName, evaluati
     crmLinkFailedSignal.value = 0
     try {
       const evalResult = await tendersApi.loadEvaluation(tender.value.id)
+      // CO-310 两步流程：关联成功后切到评估表 tab，引导项目负责人填写是否投标
+      activeTab.value = 'evaluation'
       if (evalResult?.success !== false) tenderEvaluation.value = evalResult?.data || null
     } catch { /* ignore */ }
   } catch (e) {
@@ -382,7 +386,6 @@ async function onCrmOpportunityLinked({ opportunityId, opportunityName, evaluati
 // Suppress unused-var warnings for refs used as v-loading bindings in template
 void submitting, savingDraft, ElMessage
 // ---- Tab 管理 ----
-const { activeTab, visibleTabs } = useDetailTabs(tender)
 const currentUserIdVal = computed(() => userStore.currentUser?.id)
 const tenderCreatorId = computed(() => tender.value?.creatorId)
 const { headerActions, bottomActions, handleAction } = useDetailActions(tender, userRole, loadTenderDetail, {

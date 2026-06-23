@@ -1,9 +1,0 @@
-version: 1
-task: "claude-co-312-crm-link-no-recommendation"
-locks:
-  - path: "src/views/Bidding/detail/DetailPage.vue"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/claude/co-312-crm-link-no-recommendation"
-    expiresAt: "2026-06-24T08:01:09.370Z"
-    reason: "CO-312: onCrmOpportunityLinked 关联CRM不再带recommendation段"
