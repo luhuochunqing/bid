@@ -274,7 +274,8 @@ xiyu:
         enabled: ${XIYU_ORG_EVENT_SDK_ENABLED:false}
         consumer-group: ${XIYU_ORG_EVENT_CONSUMER_GROUP:bms}
       directory:
-        base-url: ${XIYU_ORG_DIRECTORY_BASE_URL:}
+        # OSS 目录接口 base URL（测试环境默认值，生产环境必须通过环境变量覆盖）
+        base-url: ${XIYU_ORG_DIRECTORY_BASE_URL:https://base-oss-test.ehsy.com}
         # YAPI 真实路径（POST + request body）
         # 详情接口：Content-Type=application/x-www-form-urlencoded，参数在 form body
         # 窗口接口：Content-Type=application/json，参数在 JSON body（startTime/endTime/index）
@@ -292,7 +293,8 @@ xiyu:
         connect-timeout-ms: ${XIYU_ORG_DIRECTORY_CONNECT_TIMEOUT_MS:3000}
         read-timeout-ms: ${XIYU_ORG_DIRECTORY_READ_TIMEOUT_MS:5000}
         user-menu-tree-path: ${XIYU_ORG_USER_MENU_TREE_PATH:/oauth/getUserPermission}
-        user-menu-tree-system-name: ${XIYU_ORG_USER_MENU_TREE_SYSTEM_NAME:西域数智化投标管理平台}
+        # OSS 菜单树查询 systemName，必须与登录接口的 system 标识一致（bid-platform）
+        user-menu-tree-system-name: ${XIYU_ORG_USER_MENU_TREE_SYSTEM_NAME:bid-platform}
         user-menu-tree-retrieval-type: ${XIYU_ORG_USER_MENU_TREE_RETRIEVAL_TYPE:2}
         user-menu-tree-job-number-param-name: ${XIYU_ORG_USER_MENU_TREE_JOB_NUMBER_PARAM_NAME:jobNumber}
         user-menu-tree-connect-timeout-ms: ${XIYU_ORG_USER_MENU_TREE_CONNECT_TIMEOUT_MS:3000}
@@ -317,6 +319,7 @@ xiyu:
           "100405": "knowledge-brand-auth"
           "100406": "knowledge-case"
           "100407": "knowledge-template"
+          "100408": "knowledge-warehouse"
           "1005": "resource"
           "100501": "resource-margin"
           "100502": "resource-expense"
@@ -326,7 +329,7 @@ xiyu:
           "100506": "resource-bid-result"
           "100507": "resource-bar"
           "1006": "task-board"
-          "1007": "analytics"
+          "1007": "analytics-dashboard"
           "1008": "audit-logs"
           "1009": "notifications"
           "1010": "settings"
@@ -335,7 +338,10 @@ xiyu:
           "101003": "settings-workflow-forms"
           "101004": "settings-ai-models"
           "101005": "settings-integration"
+          "101006": "settings-messages-tasks"
           "1011": "task-board"
+          "1012": "ai-center"
+          "1013": "operation-logs"
         # 未映射菜单编码处理：IGNORE 或 USE_NORMALIZED_CODE
         unmapped-menu-code-behavior: ${XIYU_ORG_UNMAPPED_MENU_BEHAVIOR:IGNORE}
       retry:
