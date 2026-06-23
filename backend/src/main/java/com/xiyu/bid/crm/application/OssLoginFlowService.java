@@ -186,9 +186,11 @@ public class OssLoginFlowService {
                 if ("1".equals(sysRole.getStatus()) && !Boolean.TRUE.equals(sysRole.getDel())) {
                     String roleName = sysRole.getRoleName();
                     if (roleName != null && !roleName.isBlank()) {
-                        String roleCode = positionToRoleMapper.map(roleName);
+                        // 先用综合映射（OSS 角色码 + 中文角色名称精确匹配）
+                        String roleCode = JobRoleLookupResolver.mapOssRoleTextToInternal(roleName);
+                        // 再用 PositionToRoleMapper 正则匹配岗位名（如"主管"等宽泛匹配）
                         if (roleCode == null || roleCode.isBlank()) {
-                            roleCode = JobRoleLookupResolver.mapOssRoleCodeToInternal(roleName);
+                            roleCode = positionToRoleMapper.map(roleName);
                         }
                         if (roleCode != null && !roleCode.isBlank()) {
                             log.info("OSS login: role resolved from sysRoleList: {} -> {}", roleName, roleCode);
@@ -202,9 +204,11 @@ public class OssLoginFlowService {
         // 2. 从 jobName 解析
         String jobName = jobInfo.getJobName();
         if (jobName != null && !jobName.isBlank()) {
-            String roleCode = positionToRoleMapper.map(jobName);
+            // 先用综合映射（OSS 角色码 + 中文角色名称精确匹配）
+            String roleCode = JobRoleLookupResolver.mapOssRoleTextToInternal(jobName);
+            // 再用 PositionToRoleMapper 正则匹配岗位名
             if (roleCode == null || roleCode.isBlank()) {
-                roleCode = JobRoleLookupResolver.mapOssRoleCodeToInternal(jobName);
+                roleCode = positionToRoleMapper.map(jobName);
             }
             if (roleCode != null && !roleCode.isBlank()) {
                 log.info("OSS login: role resolved from jobName: {} -> {}", jobName, roleCode);

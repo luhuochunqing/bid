@@ -31,6 +31,26 @@ public class JobRoleLookupResolver {
                     e -> e.getKey().toLowerCase(Locale.ROOT),
                     Map.Entry::getValue));
 
+    /**
+     * OSS sysRoleList 中 roleName（中文角色名称）到内部角色码的映射。
+     * <p>
+     * OSS 接口返回的 sysRoleList 只包含 roleName（如"投标项目负责人"），不包含 roleCode（如 bid-projectLeader）。
+     * 此映射用于将中文角色名称直接映射为内部角色码。
+     */
+    private static final Map<String, String> OSS_ROLE_NAME_TO_INTERNAL = Map.of(
+            "投标管理员", "bid_admin",
+            "投标组长", "bid_lead",
+            "投标系统管理员", "admin",
+            "投标专员", "bid_specialist",
+            "投标项目负责人", "sales",
+            "行政人员", "admin_staff",
+            "跨部门协同人员", "bid_other_dept"
+    );
+    private static final Map<String, String> OSS_ROLE_NAME_TO_INTERNAL_IGNORE_CASE = OSS_ROLE_NAME_TO_INTERNAL.entrySet().stream()
+            .collect(java.util.stream.Collectors.toUnmodifiableMap(
+                    e -> e.getKey().toLowerCase(Locale.ROOT),
+                    Map.Entry::getValue));
+
     private final OrganizationIntegrationProperties properties;
     private final PositionToRoleMapper positionToRoleMapper;
     private final SystemRoleListMapper systemRoleListMapper;
@@ -151,6 +171,37 @@ public class JobRoleLookupResolver {
         }
         String trimmed = ossRoleCode.trim().toLowerCase(Locale.ROOT);
         return OSS_TO_INTERNAL_ROLE_IGNORE_CASE.get(trimmed);
+    }
+
+    /**
+     * 将 OSS sysRoleList 中的 roleName（中文角色名称）映射为内部角色码。
+     * <p>
+     * OSS 接口返回的 sysRoleList 只包含 roleName（如"投标项目负责人"），不包含 roleCode。
+     * 此方法用于在 {@link #mapOssRoleCodeToInternal} 未命中时，尝试用中文角色名称匹配。
+     * 未命中的角色名称返回 null。
+     */
+    public static String mapOssRoleNameToInternal(String ossRoleName) {
+        if (ossRoleName == null || ossRoleName.isBlank()) {
+            return null;
+        }
+        String trimmed = ossRoleName.trim().toLowerCase(Locale.ROOT);
+        return OSS_ROLE_NAME_TO_INTERNAL_IGNORE_CASE.get(trimmed);
+    }
+
+    /**
+     * 综合映射：先尝试 OSS 角色码映射，再尝试中文角色名称映射。
+     * <p>
+     * 用于 sysRoleList.roleName 或 jobName 等不确定是角色码还是角色名称的场景。
+     *
+     * @param text 待映射的文本（可能是 OSS 角色码或中文角色名称）
+     * @return 内部角色码，未命中返回 null
+     */
+    public static String mapOssRoleTextToInternal(String text) {
+        String roleCode = mapOssRoleCodeToInternal(text);
+        if (roleCode != null) {
+            return roleCode;
+        }
+        return mapOssRoleNameToInternal(text);
     }
 
     private String normalizeRoleCode(String roleCode) {

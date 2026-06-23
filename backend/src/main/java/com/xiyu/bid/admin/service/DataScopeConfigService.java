@@ -141,6 +141,43 @@ public class DataScopeConfigService {
         return normalizeMenuPermissions(resolveRoleProfile(user).getMenuPermissions());
     }
 
+    /**
+     * 获取用户角色码：优先从 OSS 权限缓存读取，缓存未命中用本地 DB 兜底。
+     */
+    public String getRoleCode(User user) {
+        if (user == null) {
+            return "staff";
+        }
+        // 优先从 OSS 权限缓存读取
+        Optional<String> cachedRoleCode = ossPermissionCache.getRoleCode(user.getUsername());
+        if (cachedRoleCode.isPresent()) {
+            return cachedRoleCode.get();
+        }
+        // 缓存未命中：用本地 DB 兜底
+        return user.getRoleCode();
+    }
+
+    /**
+     * 获取用户角色名称：优先从 OSS 权限缓存读取，缓存未命中用本地 DB 兜底。
+     */
+    public String getRoleName(User user) {
+        if (user == null) {
+            return "员工";
+        }
+        // 优先从 OSS 权限缓存读取角色码，再查 RoleProfileCatalog 获取角色名称
+        Optional<String> cachedRoleCode = ossPermissionCache.getRoleCode(user.getUsername());
+        if (cachedRoleCode.isPresent()) {
+            String roleCode = cachedRoleCode.get();
+            RoleProfileCatalog.SeedDefinition def = RoleProfileCatalog.definitionForCode(roleCode);
+            if (def != null && def.name() != null && !def.name().isBlank()) {
+                return def.name();
+            }
+            return roleCode;
+        }
+        // 缓存未命中：用本地 DB 兜底
+        return user.getRoleName();
+    }
+
     public DepartmentGraph getDepartmentGraph() {
         return assembler.buildGraph(loadUsers(), configStore.loadPayload());
     }

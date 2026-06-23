@@ -86,13 +86,7 @@ public class AuthService {
                 .build();
         user = userRepository.save(user);
         log.info("New user registered: {}", user.getUsername());
-        return AuthResponse.from(
-                null,
-                user,
-                projectAccessScopeService.getAllowedProjectIds(user),
-                projectAccessScopeService.getAllowedDepartmentCodes(user),
-                dataScopeConfigService.getRoleMenuPermissions(user)
-        );
+        return buildAuthResponse(user);
     }
     @Transactional
     public AuthSessionResult login(LoginRequest request) {
@@ -119,10 +113,7 @@ public class AuthService {
         String refreshToken = createRefreshSession(user);
         log.info("User logged in: {}", user.getUsername());
         return AuthSessionResult.builder()
-                .authResponse(AuthResponse.from(null, user,
-                        projectAccessScopeService.getAllowedProjectIds(user),
-                        projectAccessScopeService.getAllowedDepartmentCodes(user),
-                        dataScopeConfigService.getRoleMenuPermissions(user)))
+                .authResponse(buildAuthResponse(user))
                 .refreshToken(refreshToken)
                 .accessToken(token)
                 .build();
@@ -150,14 +141,12 @@ public class AuthService {
         String refreshToken = createRefreshSession(user);
         log.info("User logged in via SSO/WeCom: {}", user.getUsername());
         return AuthSessionResult.builder()
-                .authResponse(AuthResponse.from(null, user,
-                        projectAccessScopeService.getAllowedProjectIds(user),
-                        projectAccessScopeService.getAllowedDepartmentCodes(user),
-                        dataScopeConfigService.getRoleMenuPermissions(user)))
+                .authResponse(buildAuthResponse(user))
                 .refreshToken(refreshToken)
                 .accessToken(token)
                 .build();
     }
+
     public AuthResponse getCurrentUser(String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException(USER_NOT_FOUND));
@@ -169,9 +158,9 @@ public class AuthService {
                 .email(user.getEmail())
                 .phone(user.getPhone())
                 .fullName(user.getFullName())
-                .role(user.getRoleCode())
-                .roleCode(user.getRoleCode())
-                .roleName(user.getRoleName())
+                .role(dataScopeConfigService.getRoleCode(user))
+                .roleCode(dataScopeConfigService.getRoleCode(user))
+                .roleName(dataScopeConfigService.getRoleName(user))
                 .deptCode(user.getDepartmentCode())
                 .dept(user.getDepartmentName())
                 .allowedProjectIds(projectAccessScopeService.getAllowedProjectIds(user))
@@ -255,10 +244,7 @@ public class AuthService {
         String rotatedRefreshToken = createRefreshSession(user);
         log.info("Token refreshed for user: {}", user.getUsername());
         return AuthSessionResult.builder()
-                .authResponse(AuthResponse.from(null, user,
-                        projectAccessScopeService.getAllowedProjectIds(user),
-                        projectAccessScopeService.getAllowedDepartmentCodes(user),
-                        dataScopeConfigService.getRoleMenuPermissions(user)))
+                .authResponse(buildAuthResponse(user))
                 .refreshToken(rotatedRefreshToken)
                 .accessToken(accessToken)
                 .build();
@@ -266,6 +252,18 @@ public class AuthService {
 
     String hashTokenForTest(String token) {
         return hashToken(token);
+    }
+
+    /**
+     * 构造 AuthResponse：角色信息优先从 OSS 权限缓存读取，缓存未命中用本地 DB 兜底。
+     */
+    private AuthResponse buildAuthResponse(User user) {
+        return AuthResponse.from(null, user,
+                projectAccessScopeService.getAllowedProjectIds(user),
+                projectAccessScopeService.getAllowedDepartmentCodes(user),
+                dataScopeConfigService.getRoleMenuPermissions(user),
+                dataScopeConfigService.getRoleCode(user),
+                dataScopeConfigService.getRoleName(user));
     }
 
     private String createRefreshSession(User user) {
