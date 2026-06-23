@@ -32,7 +32,7 @@ import static org.mockito.Mockito.when;
  * WebhookEventListener 单元测试（§4.1 bidInfoSync 格式）。
  * <p>覆盖：
  * <ul>
- *   <li>触发时机：仅 BIDDING、ABANDONED 和 EVALUATED 入队；TRACKING/WON/LOST 跳过。</li>
+ *   <li>触发时机：仅 ABANDONED 和 EVALUATED 入队；BIDDING/TRACKING/WON/LOST 跳过（CO-314：立即投标不再触发 CRM 回调）。</li>
  *   <li>载荷符合 CRM POST /customer-chance/bidInfoSync 契约（bidInfoList 格式）。</li>
  *   <li>code 从 tender.crm_opportunity_id 解析（CC 前缀）。</li>
  *   <li>crmWebhookUrl 未配置时跳过。</li>
@@ -93,28 +93,14 @@ class WebhookEventListenerTest {
     }
 
     @Test
-    @DisplayName("BIDDING -> 入队，bidInfoList 格式，crmStatus=5，tenderId 字段存在")
-    void bidding_enqueuesWithBidInfoSync() throws Exception {
+    @DisplayName("BIDDING -> 不入队（CO-314：立即投标不再触发 CRM 回调，仅放弃投标触发）")
+    void bidding_notEnqueued() {
         WebhookEventListener l = listener();
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(mockTender()));
 
         l.onTenderStatusChanged(event(Tender.Status.BIDDING, null, "张三"));
 
-        WebhookDeliveryTask saved = captureSingleSaved();
-        assertThat(saved.getStatus()).isEqualTo(WebhookDeliveryTaskStatus.PENDING);
-        assertThat(saved.getTargetUrl()).isEqualTo(CRM_URL);
-        assertThat(saved.getEventType()).isEqualTo("tender.status_changed");
-
-        JsonNode root = objectMapper.readTree(saved.getPayload());
-        assertThat(root.has("bidInfoList")).isTrue();
-        JsonNode bidInfo = root.path("bidInfoList").get(0);
-        assertThat(bidInfo.path("code").asText()).isEqualTo(CRM_OPPORTUNITY_ID);
-        assertThat(bidInfo.path("name").asText()).isEqualTo(CRM_OPPORTUNITY_NAME);
-        assertThat(bidInfo.path("status").asInt()).isEqualTo(5);
-        assertThat(bidInfo.path("statusEditor").asText()).isEqualTo("张三");
-        assertThat(bidInfo.path("statusEditTime").asText()).isNotEmpty();
-        assertThat(bidInfo.has("feedback")).isTrue();
-        assertThat(bidInfo.path("tenderId").asLong()).isEqualTo(TENDER_ID);
+        verify(taskRepository, never()).save(any());
     }
 
     @Test
@@ -182,7 +168,7 @@ class WebhookEventListenerTest {
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender));
         when(crmOpportunityCodeResolver.resolve("321")).thenReturn("CC20260621321");
 
-        l.onTenderStatusChanged(event(Tender.Status.BIDDING, null, "张三"));
+        l.onTenderStatusChanged(event(Tender.Status.ABANDONED, "放弃投标", "张三"));
 
         WebhookDeliveryTask saved = captureSingleSaved();
         JsonNode root = objectMapper.readTree(saved.getPayload());
@@ -199,7 +185,7 @@ class WebhookEventListenerTest {
         tender.setCrmOpportunityId(null);
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender));
 
-        l.onTenderStatusChanged(event(Tender.Status.BIDDING, null, "张三"));
+        l.onTenderStatusChanged(event(Tender.Status.ABANDONED, "放弃投标", "张三"));
 
         WebhookDeliveryTask saved = captureSingleSaved();
         JsonNode root = objectMapper.readTree(saved.getPayload());
@@ -253,7 +239,7 @@ class WebhookEventListenerTest {
         WebhookEventListener l = listener();
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.empty());
 
-        l.onTenderStatusChanged(event(Tender.Status.BIDDING, null, "张三"));
+        l.onTenderStatusChanged(event(Tender.Status.ABANDONED, "放弃投标", "张三"));
 
         verify(taskRepository, never()).save(any());
     }

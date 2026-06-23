@@ -34,8 +34,9 @@ import java.util.Set;
 /**
  * 标讯状态变更回调监听器（接口文档 §4.1）。
  * <p>本平台在标讯状态发生变化时，向 CRM 推送 bidInfoSync 回调。
- * <p>触发时机：标讯提交投标（PENDING → BIDDING）或弃标（→ ABANDONED）时。
+ * <p>触发时机：标讯弃标（→ ABANDONED）或评估完成（→ EVALUATED，CO-298）时。
  * <p>⚠️ v3.8 变更：WON/LOST 不再走本回调，改由 §4.2 项目结果确认回调承担。
+ * <p>⚠️ CO-314 变更：立即投标（→ BIDDING）不再触发 CRM 回调，仅放弃投标触发。
  * <p>⚠️ 2026-06-22 修复：原 tender.status_changed 格式 CRM 不识别（code:0 谎言），
  *    改为 bidInfoSync 格式（与 §4.2 ProjectResultConfirmedWebhookListener 一致）。
  */
@@ -64,8 +65,8 @@ public class WebhookEventListener {
             log.warn("CRM webhook URL not configured, skipping enqueue for tender {}", event.tenderId());
             return;
         }
-        if (!Set.of(Tender.Status.BIDDING, Tender.Status.ABANDONED, Tender.Status.EVALUATED).contains(event.newStatus())) {
-            log.info("Tender status {} not in trigger states [BIDDING, ABANDONED, EVALUATED] (v3.9), skip webhook for tender {}",
+        if (!Set.of(Tender.Status.ABANDONED, Tender.Status.EVALUATED).contains(event.newStatus())) {
+            log.info("Tender status {} not in trigger states [ABANDONED, EVALUATED] (CO-314), skip webhook for tender {}",
                     event.newStatus(), event.tenderId());
             return;
         }
