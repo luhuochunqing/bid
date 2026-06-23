@@ -389,3 +389,27 @@
 ## 验证计划
 
 - 前端：`pnpm exec vitest run src/utils/download.spec.js src/views/Bidding/detail/components/BasicInfoReadOnly.spec.js`。
+
+# CO-317 行政人员点击资质证书触发 /api/tenders 403
+
+## 问题口径
+
+- `admin_staff` 点击「资质证书」时观测到 `/api/tenders` 返回 403。
+- 代码排查确认资质证书页面自身请求 `/api/knowledge/qualifications`，但全局或并行页面逻辑可能触发标讯列表请求。
+- Linear 页面因认证/JS 加载限制未能读取 issue 正文和评论；本次依据 issue 标题与代码路径做最小修复。
+
+## 根因
+
+- `admin_staff` 被显式排除在 legacy `ROLE_STAFF` 兼容外。
+- `TenderController` 类级授权包含 `ADMIN_STAFF`，但 `GET /api/tenders` 方法级授权仅包含 `ADMIN/MANAGER/STAFF`，方法级鉴权覆盖后导致只读列表 403。
+
+## 决策与权衡
+
+- 按用户确认的方案 A，只放开 `GET /api/tenders` 的只读列表权限，增加 `ADMIN_STAFF`。
+- 不修改标讯详情、创建、修改、删除、投标/弃标决策、角色目录或前端资质页面，避免扩大写权限和无关范围。
+
+## 验证
+
+- TDD RED：先在 `TenderControllerBidOtherDeptAccessTest` 中增加 `admin_staff` 访问列表应 200、创建/删除仍 403 的回归用例；修复前列表用例返回 403。
+- GREEN：仅修改 `TenderController#getAllTenders` 的 `@PreAuthorize` 后，执行 `mvn -f /Users/user/xiyu/worktrees/zcode/backend/pom.xml test -Dtest=TenderControllerBidOtherDeptAccessTest` 通过，6 tests，0 failures，0 errors。
+- 保护性断言确认 `admin_staff` 仍不能创建/删除标讯。

@@ -65,7 +65,7 @@ public class TenderController {
     private final TenderRequestSanitizer sanitizer = new TenderRequestSanitizer();
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'STAFF', 'ADMIN_STAFF')")
     @DataScope
     @Operation(summary = "标讯列表查询（分页）")
     public ResponseEntity<ApiResponse<PagedResult<TenderDTO>>> getAllTenders(@ModelAttribute TenderSearchCriteria criteria) {

@@ -24,6 +24,7 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -35,7 +36,9 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -118,5 +121,39 @@ class TenderControllerBidOtherDeptAccessTest {
 
         mockMvc.perform(get("/api/tenders"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("CO-317：行政人员可只读访问标讯列表")
+    @WithMockUser(roles = "ADMIN_STAFF")
+    void listTenders_shouldSucceed_forAdminStaff() throws Exception {
+        when(tenderQueryService.searchTendersPaged(any(), any())).thenReturn(new PageImpl<>(List.of()));
+        when(demoModeService.isEnabled()).thenReturn(false);
+
+        mockMvc.perform(get("/api/tenders"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("CO-317：行政人员仍不可创建标讯")
+    @WithMockUser(roles = "ADMIN_STAFF")
+    void createTender_shouldReturn403_forAdminStaff() throws Exception {
+        mockMvc.perform(post("/api/tenders")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "行政人员不应创建标讯",
+                                  "deadline": "2026-12-31T18:00:00"
+                                }
+                                """))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("CO-317：行政人员仍不可删除标讯")
+    @WithMockUser(roles = "ADMIN_STAFF")
+    void deleteTender_shouldReturn403_forAdminStaff() throws Exception {
+        mockMvc.perform(delete("/api/tenders/1"))
+                .andExpect(status().isForbidden());
     }
 }
