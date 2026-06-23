@@ -248,11 +248,13 @@ public class OssLoginFlowService {
             log.info("OSS login: no menu codes for system={}", systemName);
             return List.of();
         }
+        log.info("OSS login: raw menu codes for user, system={}, codes={}", systemName, ossMenuCodes);
         OssMenuPermissionMapper mapper = new OssMenuPermissionMapper(
                 directory.getMenuCodeToPermissionKeyMappings(),
                 directory.getUnmappedMenuCodeBehavior()
         );
         Set<String> internalPermissions = mapper.mapCodes(ossMenuCodes);
+        log.info("OSS login: mapped internal permissions={}", internalPermissions);
         return new ArrayList<>(internalPermissions);
     }
 }

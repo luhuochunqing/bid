@@ -136,31 +136,22 @@ public class DataScopeConfigService {
         if (user == null) {
             return List.of();
         }
+        // 只从 OSS 权限缓存读取，不 fallback 到本地 DB
+        // 原因：本地 DB 的 RoleProfile.menu_permissions 可能配置了过多权限，会导致越权
         Optional<List<String>> cachedPermissions = ossPermissionCache.getMenuPermissions(user.getUsername());
         if (cachedPermissions.isPresent()) {
             return normalizeMenuPermissions(cachedPermissions.get());
         }
-        // OSS 用户缓存未命中时不 fallback 到本地 DB（本地 staff 角色配置了所有菜单，会导致越权）
-        if (isOssSyncedUser(user)) {
-            log.warn("OSS permission cache miss for OSS user={}, returning empty (need re-login)", user.getUsername());
-            return List.of();
-        }
-        return normalizeMenuPermissions(resolveRoleProfile(user).getMenuPermissions());
-    }
-
-    private boolean isOssSyncedUser(User user) {
-        return user.getExternalOrgSourceApp() != null && !user.getExternalOrgSourceApp().isBlank();
+        log.warn("OSS permission cache miss for user={}, returning empty (need re-login)", user.getUsername());
+        return List.of();
     }
 
     public String getRoleCode(User user) {
         if (user == null) return "staff";
         Optional<String> cachedRoleCode = ossPermissionCache.getRoleCode(user.getUsername());
         if (cachedRoleCode.isPresent()) return cachedRoleCode.get();
-        if (isOssSyncedUser(user)) {
-            log.warn("OSS role cache miss for OSS user={}, returning 'staff' (need re-login)", user.getUsername());
-            return "staff";
-        }
-        return user.getRoleCode();
+        log.warn("OSS role cache miss for user={}, returning 'staff' (need re-login)", user.getUsername());
+        return "staff";
     }
 
     public String getRoleName(User user) {
@@ -172,11 +163,8 @@ public class DataScopeConfigService {
             if (def != null && def.name() != null && !def.name().isBlank()) return def.name();
             return roleCode;
         }
-        if (isOssSyncedUser(user)) {
-            log.warn("OSS role cache miss for OSS user={}, returning '员工' (need re-login)", user.getUsername());
-            return "员工";
-        }
-        return user.getRoleName();
+        log.warn("OSS role cache miss for user={}, returning '员工' (need re-login)", user.getUsername());
+        return "员工";
     }
 
     public DepartmentGraph getDepartmentGraph() {

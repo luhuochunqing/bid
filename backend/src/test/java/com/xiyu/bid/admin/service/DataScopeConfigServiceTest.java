@@ -314,29 +314,23 @@ class DataScopeConfigServiceTest {
 
     @Test
     void getRoleMenuPermissions_ShouldUseDbTaskBoardPermissionForBidOtherDept() {
-        RoleProfile profile = RoleProfile.builder()
-                .code(RoleProfileCatalog.BID_OTHER_DEPT_CODE)
-                .name(RoleProfileCatalog.BID_OTHER_DEPT_CODE)
-                .build();
-        profile.setMenuPermissions(List.of("task-board", "task.view.own", "task.handle.own"));
-        when(roleProfileRepository.findByCodeIgnoreCase(RoleProfileCatalog.BID_OTHER_DEPT_CODE))
-                .thenReturn(Optional.of(profile));
+        // 新行为：只从 OSS 缓存读取，不 fallback 到本地 DB
+        // 缓存为空时返回空列表（即使本地 DB 有 task-board 权限）
         User user = User.builder()
                 .id(2L).username("hanhui").fullName("hanhui")
                 .role(User.Role.STAFF)
-                .roleProfile(profile)
                 .enabled(true)
                 .build();
 
         List<String> perms = dataScopeConfigService.getRoleMenuPermissions(user);
 
-        assertThat(perms).contains("task-board", "task.view.own", "task.handle.own")
-                .doesNotContain("bidding", "project", "knowledge", "resource");
+        // 缓存为空，返回空列表，不 fallback 到本地 DB
+        assertThat(perms).isEmpty();
     }
 
     @Test
     void getRoleMenuPermissions_ShouldFallbackToStaffForPureLegacyUser() {
-        // 纯 Legacy 用户（无 roleProfile，roleCode 从 users.role 派生为 "staff"）保留 catalog staff fallback
+        // 新行为：纯 Legacy 用户也只从 OSS 缓存读取，缓存为空时返回空列表
         User user = User.builder()
                 .id(3L).username("legacy").fullName("legacy")
                 .role(User.Role.STAFF)
@@ -345,8 +339,7 @@ class DataScopeConfigServiceTest {
 
         List<String> perms = dataScopeConfigService.getRoleMenuPermissions(user);
 
-        // STAFF 用户（含 pure legacy）走 STAFF seed definition：基础 dashboard 快捷入口 + AI 中心访问
-        // （非"无权限"——蓝图允许普通员工访问基础功能；具体权限见 RoleProfileCatalog.STAFF_CODE seed）
-        assertThat(perms).contains(RoleProfileCatalog.QUICK_START_PERMISSION, RoleProfileCatalog.AI_CENTER_PERMISSION);
+        // 缓存为空，返回空列表
+        assertThat(perms).isEmpty();
     }
 }

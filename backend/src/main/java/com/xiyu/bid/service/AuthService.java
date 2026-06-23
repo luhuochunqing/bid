@@ -134,9 +134,7 @@ public class AuthService {
     }
     @Transactional
     public AuthSessionResult loginWithoutPassword(User user) {
-        if (!Boolean.TRUE.equals(user.getEnabled())) {
-            throw new InsufficientAuthenticationException("User account is disabled");
-        }
+        requireOssRole(user);
         String token = jwtUtil.generateAccessToken(user.getUsername());
         String refreshToken = createRefreshSession(user);
         log.info("User logged in via SSO/WeCom: {}", user.getUsername());
@@ -147,26 +145,20 @@ public class AuthService {
                 .build();
     }
 
+    /** OSS 用户登录权限检查：必须有 OSS 缓存角色才允许登录。 */
+    private void requireOssRole(User user) {
+        Optional<String> cachedRoleCode = ossPermissionCache.getRoleCode(user.getUsername());
+        if (cachedRoleCode.isEmpty() || cachedRoleCode.get().isBlank()) {
+            log.warn("Login denied for user={}: no valid OSS role", user.getUsername());
+            throw new InsufficientAuthenticationException("无有效 OSS 角色，不允许登录");
+        }
+        log.info("Login allowed for user={}: OSS role={}", user.getUsername(), cachedRoleCode.get());
+    }
+
     public AuthResponse getCurrentUser(String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException(USER_NOT_FOUND));
-
-        return AuthResponse.builder()
-                .type("Bearer")
-                .id(user.getId())
-                .username(user.getUsername())
-                .email(user.getEmail())
-                .phone(user.getPhone())
-                .fullName(user.getFullName())
-                .role(dataScopeConfigService.getRoleCode(user))
-                .roleCode(dataScopeConfigService.getRoleCode(user))
-                .roleName(dataScopeConfigService.getRoleName(user))
-                .deptCode(user.getDepartmentCode())
-                .dept(user.getDepartmentName())
-                .allowedProjectIds(projectAccessScopeService.getAllowedProjectIds(user))
-                .allowedDepts(projectAccessScopeService.getAllowedDepartmentCodes(user))
-                .menuPermissions(dataScopeConfigService.getRoleMenuPermissions(user))
-                .build();
+        return buildAuthResponse(user);
     }
 
     @Transactional(readOnly = true)
@@ -235,9 +227,7 @@ public class AuthService {
             throw new InsufficientAuthenticationException("Refresh token is no longer valid");
         }
         User user = session.getUser();
-        if (!Boolean.TRUE.equals(user.getEnabled())) {
-            throw new InsufficientAuthenticationException("User account is disabled");
-        }
+        requireOssRole(user);
         String accessToken = jwtUtil.generateAccessToken(user.getUsername());
         session.setRevokedAt(now);
         refreshSessionRepository.save(session);

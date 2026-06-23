@@ -136,6 +136,7 @@ class AuthServiceTest {
         when(projectAccessScopeService.getAllowedProjectIds(user)).thenReturn(List.of(21L));
         when(projectAccessScopeService.getAllowedDepartmentCodes(user)).thenReturn(List.of("BID"));
         when(dataScopeConfigService.getRoleMenuPermissions(user)).thenReturn(List.of("all"));
+        when(ossPermissionCache.getRoleCode("alice")).thenReturn(Optional.of("staff"));
 
         AuthSessionResult result = authService.refreshToken("raw-refresh-token");
 
@@ -234,6 +235,7 @@ class AuthServiceTest {
         when(projectAccessScopeService.getAllowedProjectIds(user)).thenReturn(List.of());
         when(projectAccessScopeService.getAllowedDepartmentCodes(user)).thenReturn(List.of());
         when(dataScopeConfigService.getRoleMenuPermissions(user)).thenReturn(List.of());
+        when(ossPermissionCache.getRoleCode("00444")).thenReturn(Optional.of("staff"));
 
         AuthSessionResult result = authService.login(request);
 
