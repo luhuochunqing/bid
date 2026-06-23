@@ -20,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 
@@ -88,7 +87,11 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             authorities.add(roleCode);
             // Spring Security authority 生成规则：连字符转下划线再大写
             // bid-TeamLeader → ROLE_BID_TEAMLEADER，bidAdmin → ROLE_BIDADMIN
-            authorities.add("ROLE_" + roleCode.replace("-", "_").toUpperCase(Locale.ROOT));
+            // 使用 RoleProfileCatalog.toAuthorityName 统一转换，避免各处手动 replace
+            String authorityName = RoleProfileCatalog.toAuthorityName(roleCode);
+            if (authorityName != null) {
+                authorities.add("ROLE_" + authorityName);
+            }
             // 新角色 (roleCode) → 旧角色 (User.Role) 兼容层代理：
             User.Role compatLegacy = RoleProfileCatalog.legacyRoleForCode(roleCode);
             if (compatLegacy != null && !skipLegacyCompat) {

@@ -44,7 +44,7 @@ const ACTION_DEFS = {
 // ---------------------------------------------------------------------------
 // Role grouping
 // 'admin' (super admin), bidAdmin and bid-TeamLeader always share the same column in the matrix.
-// Note: bid_senior 已删除，映射到 bid-TeamLeader。
+// 内部 group 标识符统一使用下划线风格（与角色码的连字符风格区分）。
 // ---------------------------------------------------------------------------
 function resolveRoleGroup(role) {
   if (role === 'admin' || role === 'bidAdmin' || role === 'bid-TeamLeader') return 'admin_lead'

@@ -3,6 +3,7 @@
 // Pos: src/views/Dashboard/ - Dashboard pure core helpers
 
 import { hasAnyPermission } from '@/utils/permission'
+import { ROLE_CODES } from '@/constants/roleCodes'
 
 /**
  * Normalize raw API deadline stats response into clean object.
@@ -31,6 +32,7 @@ export function normalizeDeadlineStats(raw = {}) {
 }
 
 // Permission-driven metric definitions
+// key 统一使用角色码（含连字符的用方括号访问）
 const DEADLINE_METRIC_DEFS = {
   // analytics permission → admin-level: 4 cards
   admin: [
@@ -46,7 +48,7 @@ const DEADLINE_METRIC_DEFS = {
     { key: 'deposit_week', label: '本周保证金截止', deadlineType: 'depositDeadline', period: 'weekCount', icon: 'TrendCharts', variant: 'blue' },
   ],
   // default → personal: 3 cards
-  'bid-Team': [
+  [ROLE_CODES.BID_SPECIALIST]: [
     { key: 'reg_today', label: '今日报名截止', deadlineType: 'registrationDeadline', period: 'todayCount', icon: 'Document', variant: 'red' },
     { key: 'opening_week', label: '本周开标', deadlineType: 'bidOpening', period: 'weekCount', icon: 'Flag', variant: 'amber' },
     { key: 'deposit_month', label: '本月保证金截止', deadlineType: 'depositDeadline', period: 'monthCount', icon: 'TrendCharts', variant: 'blue' },
@@ -74,7 +76,7 @@ export function selectDeadlineMetrics(menuPermissions, deadlineStats) {
   if (hasAnyProjectAccess(menuPermissions)) {
     return buildMetrics(DEADLINE_METRIC_DEFS.manager, safeStats)
   }
-  return buildMetrics(DEADLINE_METRIC_DEFS['bid-Team'], safeStats)
+  return buildMetrics(DEADLINE_METRIC_DEFS[ROLE_CODES.BID_SPECIALIST], safeStats)
 }
 
 function hasAnyAnalyticsAccess(perms) {

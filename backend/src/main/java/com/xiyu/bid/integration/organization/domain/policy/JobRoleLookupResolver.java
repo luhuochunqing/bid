@@ -26,15 +26,16 @@ public class JobRoleLookupResolver {
      * <p>
      * OSS 接口返回的 sysRoleList 只包含 roleName（如"投标项目负责人"），不包含 roleCode（如 bid-projectLeader）。
      * 此映射用于将中文角色名称直接映射为内部角色码。
+     * 角色码引用 {@link RoleProfileCatalog} 常量，避免硬编码。
      */
     private static final Map<String, String> OSS_ROLE_NAME_TO_INTERNAL = Map.of(
-            "投标管理员", "bidAdmin",
-            "投标组长", "bid-TeamLeader",
-            "投标系统管理员", "admin",
-            "投标专员", "bid-Team",
-            "投标项目负责人", "bid-projectLeader",
-            "行政人员", "bid-administration",
-            "跨部门协同人员", "bid-otherDept"
+            "投标管理员", RoleProfileCatalog.BID_ADMIN_CODE,
+            "投标组长", RoleProfileCatalog.BID_LEAD_CODE,
+            "投标系统管理员", RoleProfileCatalog.ADMIN_CODE,
+            "投标专员", RoleProfileCatalog.BID_SPECIALIST_CODE,
+            "投标项目负责人", RoleProfileCatalog.SALES_CODE,
+            "行政人员", RoleProfileCatalog.ADMIN_STAFF_CODE,
+            "跨部门协同人员", RoleProfileCatalog.BID_OTHER_DEPT_CODE
     );
     private static final Map<String, String> OSS_ROLE_NAME_TO_INTERNAL_IGNORE_CASE = OSS_ROLE_NAME_TO_INTERNAL.entrySet().stream()
             .collect(java.util.stream.Collectors.toUnmodifiableMap(
@@ -172,8 +173,8 @@ public class JobRoleLookupResolver {
         }
         String trimmed = ossRoleCode.trim();
         // 唯一例外：投标系统管理员对应系统默认 admin
-        if (trimmed.equalsIgnoreCase("bid-SystemAdmin")) {
-            return "admin";
+        if (trimmed.equalsIgnoreCase(RoleProfileCatalog.ADMIN_CODE)) {
+            return RoleProfileCatalog.ADMIN_CODE;
         }
         // OSS code = 内部 code，直接返回（仅当是已注册的 code 时）
         if (RoleProfileCatalog.isRegisteredCode(trimmed)) {

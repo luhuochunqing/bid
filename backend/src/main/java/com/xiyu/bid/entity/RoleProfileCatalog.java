@@ -223,6 +223,28 @@ public final class RoleProfileCatalog {
         return ROLES_WITHOUT_LEGACY_ROLE_COMPAT.contains(normalized) || !DEFINITIONS.containsKey(normalized);
     }
 
+    /**
+     * 将角色码转换为 Spring Security authority 名称。
+     * <p>
+     * 规则：连字符转下划线再大写。
+     * <ul>
+     *   <li>{@code bidAdmin} → {@code BIDADMIN}</li>
+     *   <li>{@code bid-TeamLeader} → {@code BID_TEAMLEADER}</li>
+     *   <li>{@code bid-otherDept} → {@code BID_OTHERDEPT}</li>
+     * </ul>
+     * 用于统一 {@code @PreAuthorize} 中的 {@code hasRole()/hasAuthority()} 写法，
+     * 避免各处手动 {@code replace("-", "_").toUpperCase()} 导致的不一致。
+     *
+     * @param roleCode 角色码（如 bidAdmin）
+     * @return authority 名称（如 BIDADMIN），null/空白返回 null
+     */
+    public static String toAuthorityName(String roleCode) {
+        if (roleCode == null || roleCode.isBlank()) {
+            return null;
+        }
+        return roleCode.trim().replace("-", "_").toUpperCase(java.util.Locale.ROOT);
+    }
+
     public record SeedDefinition(
             String code,
             String name,

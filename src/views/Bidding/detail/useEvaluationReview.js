@@ -3,6 +3,7 @@ import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { tendersApi } from '@/api'
 import { isBidManagerExcludeAdmin } from '@/utils/permission'
+import { ROLE_AUTHORITIES } from '@/constants/roleCodes'
 
 /**
  * V130: Evaluation API orchestration composable.
@@ -16,7 +17,7 @@ import { isBidManagerExcludeAdmin } from '@/utils/permission'
  */
 export function useEvaluationReview(tenderRef) {
   const userStore = useUserStore()
-  const currentUserRole = computed(() => userStore?.userRole || 'BID_TEAM')
+  const currentUserRole = computed(() => userStore?.userRole || ROLE_AUTHORITIES.BID_SPECIALIST)
 
   const tenderEvaluation = ref(null)
   const submitting = ref(false)

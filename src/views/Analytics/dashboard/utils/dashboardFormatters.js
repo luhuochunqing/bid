@@ -1,5 +1,7 @@
 // Status / file-type / amount / rate formatters shared across dashboard widgets
 
+import { getRoleDisplayName } from '@/constants/roleCodes'
+
 export function formatAmount(amount) {
   const numeric = Number(amount || 0)
   if (numeric >= 100000000) {
@@ -114,7 +116,7 @@ export function formatMetricCell(column, value, _row = {}, metricDrawerType = ''
       return { WON: '已中标', LOST: '未中标', IN_PROGRESS: '进行中' }[value] || value
     }
     if (metricDrawerType === 'team' && column.key === 'role') {
-      return { ADMIN: '管理员', MANAGER: '经理', BID_TEAM: '员工' }[value] || value
+      return getRoleDisplayName(value)
     }
   }
 
@@ -149,7 +151,16 @@ export function getMetricStatusTagType(value, type) {
     return { WON: 'success', LOST: 'danger', IN_PROGRESS: 'warning' }[value] || 'info'
   }
   if (type === 'team') {
-    return { ADMIN: 'danger', MANAGER: 'primary', BID_TEAM: 'success' }[value] || 'info'
+    return {
+      ADMIN: 'danger',
+      MANAGER: 'primary',
+      BIDADMIN: 'danger',
+      BID_TEAMLEADER: 'primary',
+      BID_PROJECTLEADER: 'success',
+      BID_TEAM: 'success',
+      BID_ADMINISTRATION: 'info',
+      BID_OTHERDEPT: 'info'
+    }[value] || 'info'
   }
   return 'info'
 }
