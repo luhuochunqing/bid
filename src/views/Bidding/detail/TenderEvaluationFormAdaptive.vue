@@ -135,7 +135,7 @@ const emit = defineEmits([
   'abandon',
 ])
 
-const activeSection = ref('basic')
+const activeSection = ref(['recommendation'])
 const adaptiveForm = ref(null)
 
 function handleUpdate(value) {

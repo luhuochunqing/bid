@@ -1,6 +1,8 @@
 package com.xiyu.bid.tender.service;
 
 import com.xiyu.bid.annotation.Auditable;
+import com.xiyu.bid.batch.entity.TenderAssignmentRecord;
+import com.xiyu.bid.batch.repository.TenderAssignmentRecordRepository;
 import com.xiyu.bid.crm.domain.AssignmentResult;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.Tender;
@@ -55,6 +57,7 @@ public class TenderCommandService {
     private final TenderAttachmentRepository attachmentRepository;
     private final TenderCrmOccupancyChecker crmOccupancyChecker;
     private final TenderEvaluationBackfillService evaluationBackfillService;
+    private final TenderAssignmentRecordRepository assignmentRecordRepository;
 
     public TenderDTO createTender(TenderDTO tenderDTO) {
         return createTender(tenderDTO, null);
@@ -237,14 +240,8 @@ public class TenderCommandService {
         existingTender.setCrmOpportunityId(crmOpportunityId);
         existingTender.setCrmOpportunityName(crmOpportunityName);
         existingTender.setEvaluationSource(com.xiyu.bid.entity.Tender.EvaluationSource.BID_SYSTEM_LINK);
-        // CO-305: 人工关联商机时统一走 TenderStatusChangedEvent 事件流
-        if (existingTender.getStatus() == com.xiyu.bid.entity.Tender.Status.TRACKING) {
-            Tender.Status previousStatus = existingTender.getStatus();
-            existingTender.setStatus(com.xiyu.bid.entity.Tender.Status.EVALUATED);
-            eventPublisher.publishEvent(TenderStatusChangedEvent.of(
-                    existingTender.getId(), existingTender.getExternalId(),
-                    previousStatus, Tender.Status.EVALUATED, existingTender.getTitle()));
-        }
+        // CO-310 两步流程：关联商机不再立即切 EVALUATED/发事件——标讯保持 TRACKING，
+        // 评估表以 DRAFT 回填；由项目负责人填"是否投标"并点"提交"后，submit() 才推进 EVALUATED + 发事件。
         Tender updatedTender;
         try {
             updatedTender = tenderRepository.save(existingTender);
@@ -253,6 +250,9 @@ public class TenderCommandService {
             throw new com.xiyu.bid.exception.BusinessException(409,
                     "CRM 商机已被其他标讯关联（并发冲突），请刷新后重试");
         }
+        // CO-310 两步流程：写 DISPATCH 分配记录，让关联人(sales)成为 latest assignee，
+        // 从而通过后续 submit() 的 canFill 实例守卫（AssignmentPermissionRules.canFill）。
+        assignOnCrmLink(id, userId);
         log.info("Linked CRM opportunity {} to tender id: {}", crmOpportunityId, id);
 
         // CO-310: 关联成功后回填评估表数据（如果提供）
@@ -268,6 +268,31 @@ public class TenderCommandService {
             }
         }
         return tenderMapper.toDTO(updatedTender);
+    }
+
+    /**
+     * CO-310 两步流程：关联 CRM 商机时写一条 DISPATCH 分配记录，让关联人成为 latest assignee。
+     * <p>照搬 {@link TenderTransferService#transfer} 的 record builder 模式。sales 关联商机即视为
+     * 接手该标讯的评估，需通过后续 submit() 的 canFill 实例守卫。
+     */
+    private void assignOnCrmLink(Long tenderId, Long assigneeId) {
+        User assignee = userRepository.findById(assigneeId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", String.valueOf(assigneeId)));
+        String assigneeName = assignee.getFullName() != null
+                ? assignee.getFullName() : assignee.getUsername();
+        TenderAssignmentRecord record = TenderAssignmentRecord.builder()
+                .tenderId(tenderId)
+                .assigneeId(assigneeId)
+                .assigneeName(assigneeName)
+                .assignedById(assigneeId)
+                .assignedByName(assigneeName)
+                .type(TenderAssignmentRecord.AssignmentType.DISPATCH)
+                .remark("CRM商机关联，自动接手评估")
+                .assignedAt(LocalDateTime.now())
+                .build();
+        assignmentRecordRepository.save(record);
+        log.info("CO-310: Tender {} auto-assigned to {} (id={}) on CRM link",
+                tenderId, assignee.getFullName(), assigneeId);
     }
 
     public void deleteTender(Long id, Long userId) {

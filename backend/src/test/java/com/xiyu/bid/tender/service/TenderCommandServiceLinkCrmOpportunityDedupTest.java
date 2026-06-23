@@ -1,8 +1,11 @@
 package com.xiyu.bid.tender.service;
 
+import com.xiyu.bid.batch.repository.TenderAssignmentRecordRepository;
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.repository.TenderRepository;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -16,6 +19,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
@@ -29,6 +33,9 @@ import static org.mockito.Mockito.when;
  * - TenderCrmOccupancyChecker 自身的占位判定（happy / 自身幂等 / 冲突 / null / blank）由
  *   {@link TenderCrmOccupancyCheckerTest} 覆盖。
  * - 本测试只验证 service 端是否正确调用 checker、透传异常、不破坏 happy path。
+ * <p>
+ * CO-310 两步流程：关联后标讯保持 TRACKING（不再立即切 EVALUATED），并写一条 DISPATCH
+ * assignee record，让关联人通过后续 submit() 的 canFill 守卫。
  */
 @ExtendWith(MockitoExtension.class)
 class TenderCommandServiceLinkCrmOpportunityDedupTest {
@@ -38,6 +45,8 @@ class TenderCommandServiceLinkCrmOpportunityDedupTest {
     @Mock private TenderMapper tenderMapper;
     @Mock private TenderCrmOccupancyChecker crmOccupancyChecker;
     @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private UserRepository userRepository;
+    @Mock private TenderAssignmentRecordRepository assignmentRecordRepository;
 
     private TenderCommandService tenderCommandService;
 
@@ -60,30 +69,34 @@ class TenderCommandServiceLinkCrmOpportunityDedupTest {
                 null,                  // TaskService
                 commandAccessGuard,
                 null,                  // TenderAutoAssignmentService
-                eventPublisher,        // CO-305: ApplicationEventPublisher
-                null,                  // UserRepository
+                eventPublisher,
+                userRepository,        // CO-310: assignOnCrmLink 查 user
                 null,                  // NotificationApplicationService
                 null,                  // TenderAssignmentNotifier
                 null,                  // TenderAttachmentRepository
-                crmOccupancyChecker,   // CO-297: CRM 商机占用校验器（应用层 + UNIQUE 双层防御）
-                null                   // CO-310: TenderEvaluationBackfillService（本测试不涉及回填）
-        );
+                crmOccupancyChecker,   // CO-297: CRM 商机占用校验器
+                null,                  // CO-310: TenderEvaluationBackfillService（本测试不涉及回填）
+                assignmentRecordRepository); // CO-310: 写 assignee record
     }
 
     @Test
-    @DisplayName("CO-297 happy：checker 不抛错时，service 正常完成关联并切换状态")
+    @DisplayName("CO-297 happy + CO-310 两步流程：checker 通过则关联成功，保持 TRACKING 并写 assignee record")
     void linkCrmOpportunity_WhenCheckerPasses_ShouldSucceed() {
         when(tenderRepository.findById(100L)).thenReturn(Optional.of(tenderA));
         when(tenderRepository.save(tenderA)).thenReturn(tenderA);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(
+                User.builder().id(1L).fullName("Sales").build()));
         when(tenderMapper.toDTO(tenderA)).thenReturn(TenderDTO.builder().id(100L).build());
 
         TenderDTO result = tenderCommandService.linkCrmOpportunity(100L, CRM_OPP_X, "商机 X", 1L);
 
         assertThat(result).isNotNull();
         assertThat(tenderA.getCrmOpportunityId()).isEqualTo(CRM_OPP_X);
-        assertThat(tenderA.getStatus()).isEqualTo(Tender.Status.EVALUATED);
-        // 验证 service 确实调用了 checker
+        // CO-310 两步流程：关联后保持 TRACKING（不再立即切 EVALUATED），由提交时才推进
+        assertThat(tenderA.getStatus()).isEqualTo(Tender.Status.TRACKING);
         verify(crmOccupancyChecker).assertCrmOpportunityNotOccupied(100L, CRM_OPP_X);
+        // CO-310: 写了 DISPATCH assignee record，让 sales 通过后续 submit() 的 canFill 守卫
+        verify(assignmentRecordRepository).save(any(com.xiyu.bid.batch.entity.TenderAssignmentRecord.class));
     }
 
     @Test

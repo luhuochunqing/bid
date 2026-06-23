@@ -47,8 +47,8 @@ describe('CO-310 修复 — onCrmOpportunityLinked 评估表回填链路恢复',
     expect(functionBody).not.toContain('tendersApi.submitEvaluationFinal')
   })
 
-  it('成功提示文案恢复为"CRM商机已关联，评估表已自动提交"', () => {
-    expect(functionBody).toContain('CRM商机已关联，评估表已自动提交')
+  it('成功提示文案为"CRM商机已关联，请在评估表填写是否投标后提交"（CO-310 两步流程）', () => {
+    expect(functionBody).toContain('CRM商机已关联，请在评估表填写是否投标后提交')
   })
 
   it('保留 loadTenderDetail 刷新(刷新标讯详情)', () => {

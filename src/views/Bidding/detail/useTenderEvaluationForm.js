@@ -215,13 +215,16 @@ export function useTenderEvaluationForm(props, emit) {
   const showDecisionButtons = computed(() => (props.canDecide || props.canFillRecommendation) && isSubmitted.value)
 
   // ---- active section / collapsible panel state ----
-  const activeSection = ref('basic')
+  // CO-310 两步流程：默认展开第三部分（项目负责人建议），一/二部分（CRM 只读数据）收起可手动展开
+  const activeSection = ref(['recommendation'])
 
   // ---- handlers -----------------------------------------------------------
   function handleSubmit() {
     const result = validateAll(form)
     if (!result.valid) {
-      activeSection.value = result.section
+      if (!activeSection.value.includes(result.section)) {
+        activeSection.value = [...activeSection.value, result.section]
+      }
       ElMessage.warning(result.message)
       return
     }

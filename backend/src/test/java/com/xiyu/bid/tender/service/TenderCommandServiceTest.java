@@ -87,7 +87,8 @@ class TenderCommandServiceTest {
                 tenderMapper, accessGuard, taskService, commandAccessGuard,
                 autoAssignmentService, eventPublisher, userRepository, notificationAppService,
                 assignmentNotifier, tenderAttachmentRepository, crmOccupancyChecker,
-                null); // CO-310: TenderEvaluationBackfillService（本测试不涉及回填）
+                null, // CO-310: TenderEvaluationBackfillService（本测试不涉及回填）
+                tenderAssignmentRecordRepository);
 
         tender = Tender.builder()
                 .id(1L)

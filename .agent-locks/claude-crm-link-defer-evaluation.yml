@@ -1,0 +1,9 @@
+version: 1
+task: "claude-crm-link-defer-evaluation"
+locks:
+  - path: "src/views/Bidding/detail/DetailPage.vue"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/claude/crm-link-defer-evaluation"
+    expiresAt: "2026-06-24T14:00:12.689Z"
+    reason: "CO-310 关联CRM两步流程: onCrmOpportunityLinked 切tab+提示语"
