@@ -31,10 +31,10 @@
         </div>
       </div>
 
-      <!-- 流标/弃标 → 结果摘要 -->
-      <div v-if="form.resultType === 'FAILED' || form.resultType === 'ABANDONED'" class="summary-section">
-        <label class="field-label">结果摘要<span class="required-mark">*</span></label>
-        <el-input v-model="form.summary" type="textarea" :rows="3" placeholder="请填写流标/弃标原因摘要..." :disabled="!canOperate" />
+      <!-- 未中标/流标/弃标 → 原因（CO-322） -->
+      <div v-if="form.resultType === 'LOST' || form.resultType === 'FAILED' || form.resultType === 'ABANDONED'" class="summary-section">
+        <label class="field-label">{{ summaryLabel }}<span class="required-mark">*</span></label>
+        <el-input v-model="form.summary" type="textarea" :rows="3" :placeholder="summaryPlaceholder" :disabled="!canOperate" />
       </div>
     </el-card>
 
@@ -97,11 +97,6 @@
       <el-button v-if="canOperate" class="add-row-btn" type="primary" plain size="small" :icon="Plus" @click="addCompetitor">添加一行</el-button>
     </el-card>
 
-    <!-- 备注 -->
-    <el-card shadow="never" class="stage-section">
-      <template #header><span class="section-title">备注</span></template>
-      <el-input v-model="form.notes" type="textarea" :rows="3" placeholder="其他备注信息（选填）" :disabled="!canOperate" />
-    </el-card>
 
     <!-- 操作按钮 -->
     <div v-if="canOperate" class="btn-container">
@@ -141,7 +136,7 @@ const DEFAULT_COMPETITORS = () => [DEFAULT_COMPETITOR(), DEFAULT_COMPETITOR(), D
 
 const form = reactive({
   resultType: 'WON', awardAmount: 0, contractStartDate: '', contractEndDate: '',
-  notes: '', summary: '', evidenceFileIds: [], competitors: DEFAULT_COMPETITORS(),
+  summary: '', evidenceFileIds: [], competitors: DEFAULT_COMPETITORS(),
 })
 
 function selectResult(value) {
@@ -161,6 +156,15 @@ const ALLOWED_MIMES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'
 const evidenceTip = computed(() => {
   const tips = { WON: '中标通知书', LOST: '未中标说明或官方结果公告', FAILED: '流标公告', ABANDONED: '弃标说明' }
   return `${tips[form.resultType] || ''}，支持 PDF/图片/Word，单文件≤10MB，最多5个`
+})
+
+const summaryLabel = computed(() => {
+  const map = { LOST: '丢标原因', FAILED: '流标原因', ABANDONED: '弃标原因' }
+  return map[form.resultType] || '原因'
+})
+const summaryPlaceholder = computed(() => {
+  const map = { LOST: '请填写丢标原因...', FAILED: '请填写流标原因...', ABANDONED: '请填写弃标原因...' }
+  return map[form.resultType] || ''
 })
 
 const uploadHeaders = computed(() => {
@@ -209,7 +213,6 @@ async function load() {
       if (data.awardAmount != null) form.awardAmount = data.awardAmount
       if (data.contractStartDate) form.contractStartDate = data.contractStartDate
       if (data.contractEndDate) form.contractEndDate = data.contractEndDate
-      if (data.notes != null) form.notes = data.notes
       if (data.summary != null) form.summary = data.summary
       if (data.evidenceFileIds?.length) form.evidenceFileIds = [...data.evidenceFileIds]
       if (data.competitors?.length) form.competitors = data.competitors.map(c => ({ ...c }))
@@ -221,7 +224,7 @@ async function load() {
 
 async function submit() {
   if (!form.resultType) return ElMessage.warning('请选择结果类型')
-  if ((form.resultType === 'FAILED' || form.resultType === 'ABANDONED') && !form.summary?.trim()) return ElMessage.warning('流标/弃标结果需填写摘要')
+  if (form.resultType !== 'WON' && !form.summary?.trim()) return ElMessage.warning('请填写原因')
   if (!form.evidenceFileIds.length) return ElMessage.warning('请上传凭证文件')
   submitting.value = true
   try {
@@ -230,7 +233,7 @@ async function submit() {
       awardAmount: form.resultType === 'WON' ? form.awardAmount : null,
       contractStartDate: form.resultType === 'WON' ? form.contractStartDate || null : null,
       contractEndDate: form.resultType === 'WON' ? form.contractEndDate || null : null,
-      notes: form.notes, summary: form.summary,
+      summary: form.summary,
       evidenceFileIds: form.evidenceFileIds, competitors: form.competitors,
     }
     await projectLifecycleApi.registerResult(props.projectId, payload)
