@@ -15,6 +15,43 @@
 - 后端目录：`/Users/user/xiyu/worktrees/trae/backend`
 - **其他 worktree（claude/codex/cursor/gemini/kimi/mimo/qoder/zcode）**：仅用于代码编辑和 git 操作，不启动开发环境
 
+### 双远程仓库配置（Gitee 主 + GitHub AI 协作入口）
+
+> 自 2026-06-24 起启用双远程仓库。**Gitee 为主仓库**，GitHub 作为 AI Coding 工具（Cursor/Codex/Claude 等）的远端协作入口 + 镜像备份。同步流程详见 skill `github-sync`。
+
+| Remote 名 | URL | 用途 |
+|---|---|---|
+| `origin` | `git@gitee.com:allinai888/bid.git` | **主仓库**：PR / CI / 协作走这里 |
+| `github` | `git@github-bid:yzcynk5vtp-ship-it/bid.git` | **AI 协作入口 + 镜像**：AI 工具改代码，本地同步回 Gitee |
+
+**日常推送命令**：
+```bash
+git push origin main    # → Gitee（主仓库，PR/CI 走这里）
+git push github main    # → GitHub（供 AI 工具拉取 + 镜像备份）
+```
+
+**从 GitHub 拉取 AI 改动**：
+```bash
+git fetch github                    # 拉取 GitHub 远端
+git branch -r | grep github/        # 查看 AI 工具创建的分支
+git checkout -b review/ai-xxx github/<branch>  # 审查 AI 改动
+# 审查 OK 后合入 main，推回 Gitee
+git checkout main && git merge review/ai-xxx && git push origin main
+```
+
+**SSH 配置**：
+- Gitee：`~/.ssh/id_ed25519`（默认 key）
+- GitHub：`~/.ssh/github_bid_mirror` + `~/.ssh/config` 中的 `Host github-bid`（`IdentitiesOnly yes`）
+- GitHub 账户：`yzcynk5vtp-ship-it`（deploy key 仅绑定 `bid` 仓库，已开启 write access）
+
+**重要约定**：
+- **Gitee 是唯一 source of truth**：所有最终代码以 Gitee main 为准
+- **GitHub 改动必须审查**：AI 工具的改动不能直接合入，必须本地审查
+- 所有 PR / Code Review / CI 仍走 Gitee，GitHub 不走 Gitee CI
+- 推送前门禁（`pre-push-gate.sh` 等）对两个 remote 都生效
+- 旧 GitHub 账户 `ericforai` 已封禁，新账户为 `yzcynk5vtp-ship-it`
+- 完整同步流程详见 skill `github-sync`
+
 ## 当前项目口径
 
 - 对外项目名称统一为“西域数智化投标管理平台”。
@@ -360,7 +397,7 @@ source scripts/dev-env.sh
 
 > **⚠️ 已过期（2026-06 迁移到 Gitee 后失效）**
 > 本节描述的 auto-merge workflow (`.github/workflows/auto-enable-merge-on-approved.yml`) 依赖 GitHub CLI (`gh`) 和 GitHub Token。
-> 项目当前远程仓库为 **Gitee**（`gitee.com/allinai888/bid`），Gitee 不支持 GitHub Actions 的 auto-merge 功能。
+> 项目主远程仓库为 **Gitee**（`gitee.com/allinai888/bid`，remote 名 `origin`）；另设有 GitHub 远程（`github` remote，作为 AI 协作入口 + 镜像备份）。详见上方"双远程仓库配置"小节。Gitee 不支持 GitHub Actions 的 auto-merge 功能。
 > 该 workflow 文件首行已标注 `[STALE for Gitee]`，**不会在 Gitee CI 中执行**。
 > 本节内容仅保留作为历史设计参考；当前 PR 合并请走 Gitee 原生流程（人工点击合并或通过 Gitee API）。
 

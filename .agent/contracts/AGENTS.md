@@ -36,6 +36,8 @@
 - **"收个任务/收尾"** → `scripts/agent-finish-task.sh`（三重合入检查 + 锁清理 + 切回锚点 + 可选删除远端分支，支持 `--dry-run` 预览）
 - **"健康检查"** → `npm run agent:health-check`（聚合主工作区 sidecar/backend/frontend 健康状态；其他 worktree 不再启动开发环境）
 - **"启动开发环境"** → 仅主工作区（`/Users/user/xiyu/worktrees/trae`）允许执行 `./scripts/start-frontend.sh` / `./scripts/start-backend.sh` / `./scripts/dev-services.sh`；其他 worktree 由脚本守卫拒绝执行
+- **"推 GitHub 镜像"** → `git push github main`（GitHub 为 AI 协作入口 + 镜像备份，PR/CI 仍走 Gitee `origin`；同步流程详见 skill `github-sync` 或 `CLAUDE.md §双远程仓库配置`）
+- **"同步 GitHub 改动"** → `git fetch github && git checkout -b review/ai-xxx github/<branch>`（拉取 AI 工具在 GitHub 的改动到本地审查，审查 OK 后合入 main 推回 Gitee）
 
 ## 文件树概览
 
