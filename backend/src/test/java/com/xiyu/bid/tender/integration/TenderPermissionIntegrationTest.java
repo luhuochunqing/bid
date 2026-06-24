@@ -14,6 +14,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -117,5 +118,22 @@ class TenderPermissionIntegrationTest {
                                 }
                                 """))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("GET /api/tenders: bid_specialist 应返回 200")
+    @WithMockUser(username = "bid-specialist", roles = {"BID_TEAM"})
+    void listTenders_byBidSpecialist_returnsOk() throws Exception {
+        mockMvc.perform(get("/api/tenders").param("page", "0").param("size", "20"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("GET /api/tenders/{id}: bid_specialist 应放行（资源不存在时 404 而非 403）")
+    @WithMockUser(username = "bid-specialist", roles = {"BID_TEAM"})
+    void getTenderById_byBidSpecialist_isAllowed() throws Exception {
+        mockMvc.perform(get("/api/tenders/1"))
+                // 权限放行后，测试库无该记录 → 业务层返回 404；若被 @PreAuthorize 拦截则是 403
+                .andExpect(status().isNotFound());
     }
 }

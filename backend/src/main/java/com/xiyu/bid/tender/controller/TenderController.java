@@ -49,7 +49,7 @@ import java.util.*;
 @RequestMapping("/api/tenders")
 @RequiredArgsConstructor
 @Slf4j
-@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM', 'BID_ADMINISTRATION')")
+@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM')")
 public class TenderController {
 
     private final TenderQueryService tenderQueryService;
@@ -65,7 +65,6 @@ public class TenderController {
     private final TenderRequestSanitizer sanitizer = new TenderRequestSanitizer();
 
     @GetMapping
-@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     @DataScope
     @Operation(summary = "标讯列表查询（分页）")
     public ResponseEntity<ApiResponse<PagedResult<TenderDTO>>> getAllTenders(@ModelAttribute TenderSearchCriteria criteria) {
@@ -81,7 +80,7 @@ public class TenderController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM')")
     @Operation(summary = "标讯详情查询")
     public ResponseEntity<ApiResponse<TenderDTO>> getTenderById(@PathVariable Long id) {
         log.info("GET /api/tenders/{}", id);
@@ -155,7 +154,7 @@ public class TenderController {
     }
 
     @GetMapping("/import-template")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BID_TEAM', 'BID_ADMINISTRATION')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BID_TEAM')")
     @Operation(summary = "下载标讯批量导入模板")
     public ResponseEntity<byte[]> downloadImportTemplate() {
         byte[] body = tenderImportService.generateTemplate();
