@@ -295,9 +295,9 @@ xiyu:
         auth-token: ${XIYU_ORG_DIRECTORY_AUTH_TOKEN:}
         connect-timeout-ms: ${XIYU_ORG_DIRECTORY_CONNECT_TIMEOUT_MS:3000}
         read-timeout-ms: ${XIYU_ORG_DIRECTORY_READ_TIMEOUT_MS:5000}
-        user-menu-tree-path: ${XIYU_ORG_USER_MENU_TREE_PATH:/oauth/getUserPermission}
-        # OSS 菜单树查询 systemName，必须与登录接口的 system 标识一致（bid-platform）
-        user-menu-tree-system-name: ${XIYU_ORG_USER_MENU_TREE_SYSTEM_NAME:bid-platform}
+        user-menu-tree-path: ${XIYU_ORG_USER_MENU_TREE_PATH:/sysMenuUrl/getUserMenuTree}
+        # OSS 菜单树查询 systemName，必须与登录接口的 system 标识一致
+        user-menu-tree-system-name: ${XIYU_ORG_USER_MENU_TREE_SYSTEM_NAME:xiyu-bid-poc}
         user-menu-tree-retrieval-type: ${XIYU_ORG_USER_MENU_TREE_RETRIEVAL_TYPE:2}
         user-menu-tree-job-number-param-name: ${XIYU_ORG_USER_MENU_TREE_JOB_NUMBER_PARAM_NAME:jobNumber}
         user-menu-tree-connect-timeout-ms: ${XIYU_ORG_USER_MENU_TREE_CONNECT_TIMEOUT_MS:3000}

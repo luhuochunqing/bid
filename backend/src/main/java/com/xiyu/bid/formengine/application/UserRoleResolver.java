@@ -19,7 +19,7 @@ import java.util.Set;
 @Component
 public class UserRoleResolver {
 
-    private static final List<String> ADMIN_ROLES = List.of("admin", "/bidAdmin", "ADMIN", "BIDADMIN");
+    private static final List<String> ADMIN_ROLES = List.of("admin", "bidAdmin", "ADMIN", "BIDADMIN");
     private static final List<String> MANAGER_ROLES = List.of("bid-TeamLeader", "bid-projectLeader", "MANAGER", "BID_TEAMLEADER", "BID_PROJECTLEADER");
 
     /**
