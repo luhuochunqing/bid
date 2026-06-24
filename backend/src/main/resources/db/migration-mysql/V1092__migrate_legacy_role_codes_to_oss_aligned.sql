@@ -14,6 +14,9 @@
 --   步骤 2: 若新 code 已存在（新旧两条记录），将 users.role_id 从旧角色迁移到新角色，再删除旧角色
 --   幂等：旧 code 不存在时 no-op
 --
+-- MySQL 兼容性：MySQL 1093 禁止 UPDATE 目标表出现在子查询 FROM 中。
+--   用派生表包裹子查询：(SELECT 1 FROM (SELECT 1 FROM roles WHERE ...) AS tmp)
+--
 -- 事务：使用显式事务保证原子性，中途失败回滚避免半迁移状态
 
 START TRANSACTION;
@@ -22,7 +25,7 @@ START TRANSACTION;
 -- 0a. 若 /bidAdmin 不存在，直接更新 roles.code
 UPDATE roles SET code = '/bidAdmin', updated_at = NOW()
 WHERE code = 'bidAdmin'
-  AND NOT EXISTS (SELECT 1 FROM roles WHERE code = '/bidAdmin');
+  AND NOT EXISTS (SELECT 1 FROM (SELECT 1 FROM roles WHERE code = '/bidAdmin') AS tmp);
 -- 0b. 若 /bidAdmin 已存在（新旧两条记录），迁移 users 并删除旧角色
 UPDATE users SET role_id = (SELECT id FROM roles WHERE code = '/bidAdmin' LIMIT 1)
 WHERE role_id IN (SELECT id FROM roles WHERE code = 'bidAdmin');
@@ -32,7 +35,7 @@ DELETE FROM roles WHERE code = 'bidAdmin';
 -- 1a. 若 /bidAdmin 不存在，直接更新 roles.code
 UPDATE roles SET code = '/bidAdmin', updated_at = NOW()
 WHERE code = 'bid_admin'
-  AND NOT EXISTS (SELECT 1 FROM roles WHERE code = '/bidAdmin');
+  AND NOT EXISTS (SELECT 1 FROM (SELECT 1 FROM roles WHERE code = '/bidAdmin') AS tmp);
 -- 1b. 若 /bidAdmin 已存在（新旧两条记录），迁移 users 并删除旧角色
 UPDATE users SET role_id = (SELECT id FROM roles WHERE code = '/bidAdmin' LIMIT 1)
 WHERE role_id IN (SELECT id FROM roles WHERE code = 'bid_admin');
@@ -41,7 +44,7 @@ DELETE FROM roles WHERE code = 'bid_admin';
 -- 2. bid_lead → bid-TeamLeader
 UPDATE roles SET code = 'bid-TeamLeader', updated_at = NOW()
 WHERE code = 'bid_lead'
-  AND NOT EXISTS (SELECT 1 FROM roles WHERE code = 'bid-TeamLeader');
+  AND NOT EXISTS (SELECT 1 FROM (SELECT 1 FROM roles WHERE code = 'bid-TeamLeader') AS tmp);
 UPDATE users SET role_id = (SELECT id FROM roles WHERE code = 'bid-TeamLeader' LIMIT 1)
 WHERE role_id IN (SELECT id FROM roles WHERE code = 'bid_lead');
 DELETE FROM roles WHERE code = 'bid_lead';
@@ -49,7 +52,7 @@ DELETE FROM roles WHERE code = 'bid_lead';
 -- 3. sales → bid-projectLeader
 UPDATE roles SET code = 'bid-projectLeader', updated_at = NOW()
 WHERE code = 'sales'
-  AND NOT EXISTS (SELECT 1 FROM roles WHERE code = 'bid-projectLeader');
+  AND NOT EXISTS (SELECT 1 FROM (SELECT 1 FROM roles WHERE code = 'bid-projectLeader') AS tmp);
 UPDATE users SET role_id = (SELECT id FROM roles WHERE code = 'bid-projectLeader' LIMIT 1)
 WHERE role_id IN (SELECT id FROM roles WHERE code = 'sales');
 DELETE FROM roles WHERE code = 'sales';
@@ -57,7 +60,7 @@ DELETE FROM roles WHERE code = 'sales';
 -- 4. bid_specialist → bid-Team
 UPDATE roles SET code = 'bid-Team', updated_at = NOW()
 WHERE code = 'bid_specialist'
-  AND NOT EXISTS (SELECT 1 FROM roles WHERE code = 'bid-Team');
+  AND NOT EXISTS (SELECT 1 FROM (SELECT 1 FROM roles WHERE code = 'bid-Team') AS tmp);
 UPDATE users SET role_id = (SELECT id FROM roles WHERE code = 'bid-Team' LIMIT 1)
 WHERE role_id IN (SELECT id FROM roles WHERE code = 'bid_specialist');
 DELETE FROM roles WHERE code = 'bid_specialist';
@@ -65,7 +68,7 @@ DELETE FROM roles WHERE code = 'bid_specialist';
 -- 5. admin_staff → bid-administration
 UPDATE roles SET code = 'bid-administration', updated_at = NOW()
 WHERE code = 'admin_staff'
-  AND NOT EXISTS (SELECT 1 FROM roles WHERE code = 'bid-administration');
+  AND NOT EXISTS (SELECT 1 FROM (SELECT 1 FROM roles WHERE code = 'bid-administration') AS tmp);
 UPDATE users SET role_id = (SELECT id FROM roles WHERE code = 'bid-administration' LIMIT 1)
 WHERE role_id IN (SELECT id FROM roles WHERE code = 'admin_staff');
 DELETE FROM roles WHERE code = 'admin_staff';
@@ -73,7 +76,7 @@ DELETE FROM roles WHERE code = 'admin_staff';
 -- 6. bid_other_dept → bid-otherDept
 UPDATE roles SET code = 'bid-otherDept', updated_at = NOW()
 WHERE code = 'bid_other_dept'
-  AND NOT EXISTS (SELECT 1 FROM roles WHERE code = 'bid-otherDept');
+  AND NOT EXISTS (SELECT 1 FROM (SELECT 1 FROM roles WHERE code = 'bid-otherDept') AS tmp);
 UPDATE users SET role_id = (SELECT id FROM roles WHERE code = 'bid-otherDept' LIMIT 1)
 WHERE role_id IN (SELECT id FROM roles WHERE code = 'bid_other_dept');
 DELETE FROM roles WHERE code = 'bid_other_dept';
