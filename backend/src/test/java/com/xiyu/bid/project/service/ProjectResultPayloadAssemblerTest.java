@@ -238,6 +238,36 @@ class ProjectResultPayloadAssemblerTest {
         assertThat(fileUrl).doesNotContain("api_key=");
     }
 
+    @Test
+    @DisplayName("CO-300: LOST/FAILED/ABANDONED feedback 含对应原因字段，WON 不含")
+    void feedback_containsReasonFieldByResultType() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        // LOST -> lossReason
+        JsonNode lost = mapper.readTree(assembler().buildFeedbackString(
+                buildEvent(BidResultType.LOST, List.of(), List.of(), "价格过高"), "张三"));
+        assertThat(lost.get("lossReason").asText()).isEqualTo("价格过高");
+        assertThat(lost.has("bidFailureReason")).isFalse();
+        assertThat(lost.has("abandonmentReason")).isFalse();
+        // FAILED -> bidFailureReason
+        JsonNode failed = mapper.readTree(assembler().buildFeedbackString(
+                buildEvent(BidResultType.FAILED, List.of(), List.of(), "有效投标不足"), "张三"));
+        assertThat(failed.get("bidFailureReason").asText()).isEqualTo("有效投标不足");
+        assertThat(failed.has("lossReason")).isFalse();
+        assertThat(failed.has("abandonmentReason")).isFalse();
+        // ABANDONED -> abandonmentReason
+        JsonNode abandoned = mapper.readTree(assembler().buildFeedbackString(
+                buildEvent(BidResultType.ABANDONED, List.of(), List.of(), "战略放弃"), "张三"));
+        assertThat(abandoned.get("abandonmentReason").asText()).isEqualTo("战略放弃");
+        assertThat(abandoned.has("lossReason")).isFalse();
+        assertThat(abandoned.has("bidFailureReason")).isFalse();
+        // WON -> 无原因字段
+        JsonNode won = mapper.readTree(assembler().buildFeedbackString(
+                buildEvent(BidResultType.WON, List.of(), List.of(), "不应出现"), "张三"));
+        assertThat(won.has("lossReason")).isFalse();
+        assertThat(won.has("bidFailureReason")).isFalse();
+        assertThat(won.has("abandonmentReason")).isFalse();
+    }
+
     private void mockTenderAndUser() {
         Tender tender = new Tender();
         tender.setId(TENDER_ID);
@@ -252,7 +282,14 @@ class ProjectResultPayloadAssemblerTest {
     private ProjectResultConfirmedEvent buildEvent(BidResultType resultType,
                                                     List<Long> evidenceFileIds,
                                                     List<ProjectResultConfirmedEvent.CompetitorSnapshot> competitors) {
+        return buildEvent(resultType, evidenceFileIds, competitors, "");
+    }
+
+    private ProjectResultConfirmedEvent buildEvent(BidResultType resultType,
+                                                    List<Long> evidenceFileIds,
+                                                    List<ProjectResultConfirmedEvent.CompetitorSnapshot> competitors,
+                                                    String reason) {
         return ProjectResultConfirmedEvent.of(
-                PROJECT_ID, TENDER_ID, resultType, evidenceFileIds, competitors, USER_ID, "", RESULT_ID);
+                PROJECT_ID, TENDER_ID, resultType, reason, evidenceFileIds, competitors, USER_ID, "", RESULT_ID);
     }
 }

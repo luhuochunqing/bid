@@ -115,6 +115,7 @@ public class ProjectResultRegistrationService {
         String operatorName = formatOperatorName(currentUser);
         eventPublisher.publishEvent(ProjectResultConfirmedEvent.of(
                 projectId, project.getTenderId(), req.getResultType(),
+                req.getSummary(),
                 req.getEvidenceFileIds(),
                 toCompetitorSnapshots(req.getCompetitors()),
                 currentUserId, operatorName, saved.getId()));

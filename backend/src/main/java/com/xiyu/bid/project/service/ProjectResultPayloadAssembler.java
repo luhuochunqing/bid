@@ -90,13 +90,21 @@ public class ProjectResultPayloadAssembler {
     /**
      * 组装 CRM feedback JSON 字符串（供 §4.2 bidInfoSync 接口使用）。
      * <p>包含：reason / vendor / paymentTerm / remark / operator / operateTime
-     * / evidenceFiles / competitors / systemName。
+     * / evidenceFiles / competitors / systemName；未中标/流标/弃标时另含
+     * lossReason / bidFailureReason / abandonmentReason（CO-300，按结果类型取值）。
      * <p>CO-300: evidenceFiles 使用 TenderAttachmentUrlResolver.resolve() 标准化
      * doc-insight:// / 内部端点 URL → CRM 集成下载端点，确保外部系统可通过 API Key 访问。
      */
     public String buildFeedbackString(ProjectResultConfirmedEvent event, String operator) {
         Map<String, Object> fb = new LinkedHashMap<>();
         fb.put("reason", event.resultType().name());
+        // CO-300: 未中标/流标/弃标时 feedback 增加对应原因字段（值=结果确认表单填写的 summary）
+        switch (event.resultType()) {
+            case LOST -> fb.put("lossReason", safe(event.reason()));
+            case FAILED -> fb.put("bidFailureReason", safe(event.reason()));
+            case ABANDONED -> fb.put("abandonmentReason", safe(event.reason()));
+            default -> { /* WON 无原因 */ }
+        }
         String vendor = event.competitors() != null && !event.competitors().isEmpty()
                 ? event.competitors().stream()
                     .map(c -> c.name() != null ? c.name() : "")

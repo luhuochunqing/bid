@@ -89,7 +89,7 @@ class ProjectResultConfirmedWebhookListenerTest {
 
     private ProjectResultConfirmedEvent event(BidResultType resultType) {
         return ProjectResultConfirmedEvent.of(
-                PROJECT_ID, TENDER_ID, resultType, List.of(1032L),
+                PROJECT_ID, TENDER_ID, resultType, "", List.of(1032L),
                 List.of(new ProjectResultConfirmedEvent.CompetitorSnapshot(
                         "京东企业购", "95折", "月结60天", "含仓储")),
                 USER_ID, "张三", RESULT_ID);
