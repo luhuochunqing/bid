@@ -79,6 +79,7 @@ public class AuditableAspect {
                     .action(auditable.action())
                     .entityType(auditable.entityType())
                     .entityId(extractEntityId(joinPoint.getArgs(), result))
+                    .projectId(extractProjectId(joinPoint.getArgs(), result))
                     .description(auditable.description().isEmpty() ?
                         method.getName() : auditable.description())
                     .success(success)
@@ -119,6 +120,52 @@ public class AuditableAspect {
             }
         }
         return null;
+    }
+
+    /**
+     * CO-324: 从方法参数/返回值提取项目 ID（项目动态按项目查询）。
+     * 顺序：返回值 getProjectId() -> 入参 Long（约定第一参为 projectId）-> 入参 getProjectId()。
+     * 非项目操作返回 null。
+     */
+    private Long extractProjectId(Object[] args, Object result) {
+        // CO-324: args-first —— 项目 service 第一参约定为 Long projectId（避免 rebidProject 等
+        // 返回新实体 id 的方法把日志归到错误项目）。args 扫不到再回退返回值 getProjectId()。
+        if (args != null) {
+            for (Object arg : args) {
+                String pid = extractProjectIdFromObject(arg, 0);
+                if (pid != null) {
+                    return parseLongId(pid);
+                }
+            }
+        }
+        return parseLongId(extractProjectIdFromObject(result, 0));
+    }
+
+    private Long parseLongId(String pid) {
+        if (pid == null) {
+            return null;
+        }
+        try {
+            return Long.valueOf(pid);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private String extractProjectIdFromObject(Object value, int depth) {
+        if (value == null || depth > 4) {
+            return null;
+        }
+        if (value instanceof ResponseEntity<?> response) {
+            return extractProjectIdFromObject(response.getBody(), depth + 1);
+        }
+        if (value instanceof ApiResponse<?> apiResponse) {
+            return extractProjectIdFromObject(apiResponse.getData(), depth + 1);
+        }
+        if (value instanceof Long longVal) {
+            return longVal.toString();
+        }
+        return invokeNoArgIdMethod(value, "getProjectId");
     }
 
     private String extractIdFromObject(Object value, int depth) {

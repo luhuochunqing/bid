@@ -23,6 +23,15 @@ public class AuditLogQueryService {
     private final AuditLogRepository auditLogRepository;
     private final UserRepository userRepository;
     private final AuditLogItemMapper itemMapper;
+    
+    /**
+     * CO-324: 项目动态操作日志（按 projectId 查询，最新在前）。
+     */
+    public java.util.List<com.xiyu.bid.audit.dto.AuditLogItemDTO> findByProject(Long projectId) {
+        return auditLogRepository.findByProjectIdOrderByTimestampDesc(projectId).stream()
+                .map(log -> itemMapper.toItemDto(log, null))
+                .toList();
+    }
 
     public AuditLogQueryResponse queryLogs(String keyword,
                                            String action,

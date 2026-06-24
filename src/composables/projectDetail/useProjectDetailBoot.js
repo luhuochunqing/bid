@@ -1,6 +1,7 @@
 import { onMounted } from 'vue'
 import { approvalApi, knowledgeApi } from '@/api'
 import { buildProjectBaselineActivities } from './useProjectDetailActivities.js'
+import { auditApi } from '@/api/modules/audit.js'
 
 export function useProjectDetailBoot(context) {
   const { route, userStore, projectStore, barStore, state, workflow, expenseAggregation, loadProjectWorkflowData } = context
@@ -54,9 +55,26 @@ export function useProjectDetailBoot(context) {
     await Promise.all([templatePromise, expensePromise, workflowPromise])
   }
 
-  const initializeProjectActivities = () => {
+  // CO-324: 项目动态改读后端 audit_logs（按 projectId）；接口失败回退伪造基线
+  const initializeProjectActivities = async () => {
     const currentProject = ensureProjectCollections()
-    state.activities.value = buildProjectBaselineActivities(currentProject, userStore?.userName)
+    const baseline = buildProjectBaselineActivities(currentProject, userStore?.userName)
+    try {
+      const resp = await auditApi.getProjectActivityLogs(currentProject.id)
+      const logs = resp?.data || resp || []
+      const mapped = (Array.isArray(logs) ? logs : []).map((log, idx) => ({
+        id: log.id != null ? String(log.id) : `${log.time}-${log.actionType}-${idx}`,
+        user: log.operator || '系统',
+        action: (log.detail && String(log.detail).trim()) || log.actionType || '操作',
+        time: log.time || '',
+      }))
+      // CO-324: 接口数据无"创建了项目"时 prepend 基线，保证首条可见
+      state.activities.value = (mapped.some(a => a.action === '创建了项目'))
+        ? mapped : [...baseline, ...mapped]
+    } catch (e) {
+      console.warn('加载项目动态失败，回退基线:', e)
+      state.activities.value = baseline
+    }
   }
 
   onMounted(async () => {
@@ -66,7 +84,7 @@ export function useProjectDetailBoot(context) {
       await projectStore.getProjectById(projectId)
       await projectStore.loadTaskStatuses()
       ensureProjectCollections()
-      initializeProjectActivities()
+      await initializeProjectActivities()
       state.loading.value = false
 
       void loadProjectDetailDependencies(projectId).then(() => {

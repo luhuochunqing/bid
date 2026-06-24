@@ -157,3 +157,9 @@ src/main/java/com/xiyu/bid/tender/controller/TenderAnalysisController.java | 标
 src/main/java/com/xiyu/bid/versionhistory/controller/DocumentVersionController.java | 文档版本控制器委托 VersionHistoryService，service 层通过 VersionHistoryAccessGuard.requireProjectAccess() 执行项目级权限校验，控制器级无需重复守卫。
 src/main/java/com/xiyu/bid/project/notification/ProjectNotificationService.java | 项目通知服务，只负责发送通知，不涉及项目数据访问或权限校验；所有调用方已在 service 层完成权限校验。
 src/main/java/com/xiyu/bid/tender/service/InitiationPrefillService.java | CO-323 评估带入服务，由 proceedToBid 的 canDecide 守卫前置校验权限，prefill 仅写立项数据无独立请求入口。
+src/main/java/com/xiyu/bid/audit/controller/AuditLogController.java | CO-324 项目动态审计日志查询端点，按 projectId 查 audit_logs，是审计日志查询非项目数据访问，不需 project access guard。
+src/main/java/com/xiyu/bid/audit/service/AuditLogQueryService.java | CO-324 按 projectId 过滤审计日志，非项目数据边界。
+src/main/java/com/xiyu/bid/audit/service/AuditLogService.java | CO-324 findByProject 委托 QueryService，审计门面非项目数据访问。
+src/main/java/com/xiyu/bid/audit/service/IAuditLogService.java | CO-324 findByProject 审计日志查询接口，按 projectId 查 audit_logs，非项目数据访问。
+src/main/java/com/xiyu/bid/qualification/controller/QualificationAuditController.java | 资质审计查询端点，审计日志查询非项目数据访问。
+src/main/java/com/xiyu/bid/tender/service/TenderAuditService.java | 标讯审计服务，审计日志非项目数据边界。

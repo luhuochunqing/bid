@@ -17,6 +17,10 @@ export const auditApi = {
   },
   async getQualificationLogs(qualificationId) {
     return httpClient.get(`/api/qualifications/${qualificationId}/audit-logs`)
+  },
+  // CO-324: 项目动态操作日志
+  async getProjectActivityLogs(projectId) {
+    return httpClient.get(`/api/audit/project/${projectId}`)
   }
 }
 

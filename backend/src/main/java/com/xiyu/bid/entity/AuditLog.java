@@ -108,6 +108,10 @@ public class AuditLog {
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
 
+    /** CO-324: 关联项目 id（项目动态按此查询；非项目操作为 null） */
+    @Column(name = "project_id")
+    private Long projectId;
+
     /**
      * 操作时间戳
      */

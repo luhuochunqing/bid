@@ -65,8 +65,8 @@ public class ProjectResultRegistrationService {
     private final ProjectAccessScopeService projectAccessScopeService;
     private final ProjectNotificationService notificationService;
     private final ApplicationEventPublisher eventPublisher;
+    private final com.xiyu.bid.audit.service.IAuditLogService auditLogService;
 
-    @Auditable(action = "REGISTER_PROJECT_RESULT", entityType = "ProjectResult", description = "登记项目结果")
     public ResultDTO register(Long projectId, ResultRegistrationRequest req, Long currentUserId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         Project project = mustGetProject(projectId);
@@ -135,6 +135,27 @@ public class ProjectResultRegistrationService {
 
         // 通知 #13: 登记中标/未中标/流标 → 团队成员+管理员
         notificationService.notifyResultRegistered(projectId, req.getResultType().name(), currentUserId);
+
+        // CO-324: 显式记录动态 description（中标/未中标+原因/流标/弃标），含 projectId
+        String reasonSuffix = (req.getSummary() == null || req.getSummary().isBlank())
+                ? "" : "（原因：" + req.getSummary() + "）";
+        String resultDesc = switch (req.getResultType().name()) {
+            case "WON" -> "登记项目结果：中标";
+            case "LOST" -> "登记项目结果：未中标" + reasonSuffix;
+            case "FAILED" -> "登记项目结果：流标" + reasonSuffix;
+            case "ABANDONED" -> "登记项目结果：弃标" + reasonSuffix;
+            default -> "登记项目结果：" + req.getResultType();
+        };
+        auditLogService.log(com.xiyu.bid.audit.service.AuditLogService.AuditLogEntry.builder()
+                .userId(operatorName)
+                .username(operatorName)
+                .action("REGISTER_PROJECT_RESULT")
+                .entityType("ProjectResult")
+                .entityId(String.valueOf(saved.getId()))
+                .projectId(projectId)
+                .description(resultDesc)
+                .success(true)
+                .build());
 
         return toDto(saved, currentUserId);
     }

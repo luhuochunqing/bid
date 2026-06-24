@@ -15,6 +15,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
@@ -65,6 +66,16 @@ public class AuditLogController {
                 success
         );
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * CO-324: 项目动态操作日志（项目详情「项目动态」）。
+     */
+    @GetMapping("/project/{projectId}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<java.util.List<com.xiyu.bid.audit.dto.AuditLogItemDTO>>> getProjectActivityLogs(
+            @PathVariable Long projectId) {
+        return ResponseEntity.ok(ApiResponse.success(auditLogService.findByProject(projectId)));
     }
 
     private Boolean successFromStatus(String status) {

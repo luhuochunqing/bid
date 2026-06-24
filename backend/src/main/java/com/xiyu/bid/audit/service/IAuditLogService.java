@@ -38,4 +38,7 @@ public interface IAuditLogService {
                                                LocalDateTime start,
                                                LocalDateTime end,
                                                Boolean success);
+
+    /** CO-324: 项目动态操作日志 */
+    java.util.List<com.xiyu.bid.audit.dto.AuditLogItemDTO> findByProject(Long projectId);
 }

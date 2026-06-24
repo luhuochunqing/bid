@@ -24,6 +24,7 @@ public class AuditLogMapper {
                 .userAgent(truncate(context == null ? null : context.userAgent(), 500))
                 .success(entry.getSuccess() != null ? entry.getSuccess() : true)
                 .errorMessage(entry.getErrorMessage())
+                .projectId(entry.getProjectId())
                 .timestamp(timestamp)
                 .build();
     }

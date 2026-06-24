@@ -154,6 +154,11 @@ public class AuditLogService implements IAuditLogService {
         return auditLogQueryService.queryLogsForActor(username, keyword, action, module, start, end, success);
     }
 
+    @Override
+    public java.util.List<com.xiyu.bid.audit.dto.AuditLogItemDTO> findByProject(Long projectId) {
+        return auditLogQueryService.findByProject(projectId);
+    }
+
     private String toJsonString(Object obj) {
         if (obj == null) {
             return null;
@@ -182,5 +187,6 @@ public class AuditLogService implements IAuditLogService {
         private String newValue;
         private Boolean success;
         private String errorMessage;
+        private Long projectId;
     }
 }

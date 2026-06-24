@@ -34,6 +34,11 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     List<AuditLog> findByActionOrderByTimestampDesc(String action);
 
     /**
+     * CO-324: 查询项目的操作日志（项目动态，按 project_id 过滤）
+     */
+    List<AuditLog> findByProjectIdOrderByTimestampDesc(Long projectId);
+
+    /**
      * 查询时间范围内的日志
      */
     List<AuditLog> findByTimestampBetweenOrderByTimestampDesc(
