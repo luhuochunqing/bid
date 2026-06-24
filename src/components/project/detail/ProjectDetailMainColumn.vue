@@ -153,8 +153,9 @@ function handleStageClick(stage) {
 }
 
 function handleSnapshot(snapshot) {
-  if (snapshot?.currentStage) {
-    activeStageTab.value = snapshot.currentStage
+  if (snapshot?.defaultOpenStage || snapshot?.currentStage) {
+    const stage = snapshot.defaultOpenStage || snapshot.currentStage
+    activeStageTab.value = stage
     currentProjectStage.value = snapshot.currentStage
   }
 }

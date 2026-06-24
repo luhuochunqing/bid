@@ -1,5 +1,5 @@
 // Input: ProjectStageTimeline mounted with mocked lifecycle API
-// Output: linear stepper renders 6 stages and emits stage-click only for unlocked stages
+// Output: linear stepper renders 6 stages and emits stage-click only for snapshot-accessible stages
 // Pos: src/components/project/stage/ - 6-stage UI tests
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -72,5 +72,24 @@ describe('ProjectStageTimeline', () => {
     expect(emitted).toHaveLength(1)
     expect(emitted[0][0].code).toBe('INITIATED')
     expect(ElMessage.info).toHaveBeenCalledWith('该阶段尚未到达，无法进入')
+  })
+
+  it('emits stage-click for backend-accessible drafting stage', async () => {
+    projectLifecycleApi.getStage.mockResolvedValue({
+      data: { currentStage: 'INITIATED', completedStages: [], accessibleStages: ['INITIATED', 'DRAFTING'] },
+    })
+    const wrapper = mount(ProjectStageTimeline, {
+      props: { projectId: 1 },
+      global: { stubs },
+    })
+    await flushPromises()
+
+    const steps = wrapper.findAll('.el-step')
+    await steps[1].trigger('click') // DRAFTING (extra unlocked)
+
+    const emitted = wrapper.emitted('stage-click') || []
+    expect(emitted).toHaveLength(1)
+    expect(emitted[0][0].code).toBe('DRAFTING')
+    expect(ElMessage.info).not.toHaveBeenCalled()
   })
 })
