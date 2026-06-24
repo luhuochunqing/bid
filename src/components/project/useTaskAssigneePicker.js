@@ -1,41 +1,18 @@
-import { ref } from 'vue'
-import { usersApi } from '@/api/modules/users.js'
 import { formatDisplayName } from '@/utils/formatDisplayName.js'
+import { useUserPicker } from '@/composables/useUserPicker.js'
 
 /**
- * Task assignee picker composable.
- * Loads task assignment candidates and normalizes them for UserPicker.
+ * P1.5: TaskForm 专用 assignee picker composable.
+ *
+ * 复用 useUserPicker 的候选人加载逻辑（统一端点 + 竞态保护 + 卸载清理），
+ * 只保留 TaskForm 特有的字段同步和已选候选人补全逻辑。
  */
 export function useTaskAssigneePicker({ localValue, userStore }) {
-  const assigneeOptions = ref([])
-  const loadingAssignees = ref(false)
-
-  async function loadAssignees() {
-    loadingAssignees.value = true
-    try {
-      const candidates = await usersApi.getTaskAssignmentCandidates()
-      assigneeOptions.value = normalizeCandidates(candidates)
-    } catch (err) {
-      console.error('[TaskForm] Failed to load task assignment candidates', err)
-      assigneeOptions.value = []
-    } finally {
-      ensureSelectedAssignee()
-      loadingAssignees.value = false
-    }
-  }
-
-  function normalizeCandidates(candidates) {
-    const byId = new Map()
-    ;(Array.isArray(candidates) ? candidates : []).forEach((candidate) => {
-      const normalized = normalizeCandidate(candidate)
-      if (normalized?.id != null) byId.set(Number(normalized.id), normalized)
-    })
-    const current = currentUserCandidate()
-    if (current?.id != null && !byId.has(Number(current.id))) {
-      byId.set(Number(current.id), current)
-    }
-    return Array.from(byId.values())
-  }
+  // P1.5: 复用 useUserPicker 的加载逻辑，统一走 /api/users/assignable-candidates
+  const { options: candidateOptions, loading: loadingCandidates, loadCandidates } = useUserPicker({
+    mode: 'candidates',
+    context: 'task',
+  })
 
   function normalizeCandidate(candidate = {}) {
     const id = candidate.userId ?? candidate.id
@@ -85,14 +62,19 @@ export function useTaskAssigneePicker({ localValue, userStore }) {
 
   function ensureSelectedAssignee() {
     const selectedId = localValue.assigneeId == null ? null : Number(localValue.assigneeId)
-    const selected = selectedId == null ? null : assigneeOptions.value.find((person) => Number(person.id) === selectedId)
+    const selected = selectedId == null ? null : candidateOptions.value.find((person) => Number(person.id) === selectedId)
     if (selected) return applyAssignee(selected)
 
     const fromTask = candidateFromTaskValue()
     if (fromTask?.id != null) {
-      assigneeOptions.value = upsertCandidate(assigneeOptions.value, fromTask)
+      candidateOptions.value = upsertCandidate(candidateOptions.value, fromTask)
       return applyAssignee(fromTask)
     }
+  }
+
+  async function loadAssignees() {
+    await loadCandidates()
+    ensureSelectedAssignee()
   }
 
   function handleAssigneeSelect(user) {
@@ -120,8 +102,8 @@ export function useTaskAssigneePicker({ localValue, userStore }) {
   }
 
   return {
-    assigneeOptions,
-    loadingAssignees,
+    assigneeOptions: candidateOptions,
+    loadingAssignees: loadingCandidates,
     loadAssignees,
     ensureSelectedAssignee,
     handleAssigneeSelect,

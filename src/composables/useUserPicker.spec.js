@@ -39,7 +39,8 @@ describe('useUserPicker', () => {
     vi.advanceTimersByTime(300)
     await flushPromises()
 
-    expect(usersApi.search).toHaveBeenCalledWith('张', 10)
+    // P1.3: search 现在接收 signal 参数用于竞态保护
+    expect(usersApi.search).toHaveBeenCalledWith('张', 10, expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(options.value).toHaveLength(1)
     expect(options.value[0]).toMatchObject({ id: 1, name: '张三' })
   })
@@ -53,11 +54,12 @@ describe('useUserPicker', () => {
 
     await loadCandidates()
 
+    // P1.3: getAssignableCandidates 现在接收 signal 参数
     expect(usersApi.getAssignableCandidates).toHaveBeenCalledWith({
       context: 'task',
       deptCode: undefined,
       roleCode: undefined,
-    })
+    }, expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(options.value).toHaveLength(1)
     expect(options.value[0]).toMatchObject({ id: 1, name: '张三' })
   })
@@ -73,7 +75,7 @@ describe('useUserPicker', () => {
     expect(usersApi.search).not.toHaveBeenCalled()
 
     vi.advanceTimersByTime(1)
-    expect(usersApi.search).toHaveBeenCalledWith('张', 10)
+    expect(usersApi.search).toHaveBeenCalledWith('张', 10, expect.objectContaining({ signal: expect.any(AbortSignal) }))
 
     await flushPromises()
   })

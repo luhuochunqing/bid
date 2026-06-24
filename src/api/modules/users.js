@@ -5,8 +5,11 @@
 import httpClient from '../client.js'
 
 export const usersApi = {
-  async search(query, limit = 10) {
-    const { data } = await httpClient.get('/api/users/search', { params: { q: query, limit } })
+  async search(query, limit = 10, requestOptions = {}) {
+    const { data } = await httpClient.get('/api/users/search', {
+      params: { q: query, limit },
+      ...requestOptions,
+    })
     return data
   },
 
@@ -25,12 +28,14 @@ export const usersApi = {
    * @param {string} params.context - 业务场景：'task' 或 'tender'
    * @param {string} [params.deptCode] - 可选：按部门码过滤
    * @param {string} [params.roleCode] - 可选：按角色码过滤
+   * @param {Object} [requestOptions] - 可选：axios 请求配置（如 signal）
    * @returns {Promise<Array>} 候选人列表
    */
-  async getAssignableCandidates(params = {}) {
+  async getAssignableCandidates(params = {}, requestOptions = {}) {
     const { context, deptCode, roleCode } = params
     const response = await httpClient.get('/api/users/assignable-candidates', {
-      params: { context, deptCode, roleCode }
+      params: { context, deptCode, roleCode },
+      ...requestOptions,
     })
     return response?.data || []
   }

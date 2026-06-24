@@ -30,7 +30,7 @@ class AssignmentCandidatePolicyTest {
         );
 
         List<AssignmentCandidateDTO> result = policy.filter(
-                candidates, true, List.of(), null, null);
+                candidates, true, List.of(), AssignmentContext.of("task", null, null), null, null);
 
         assertThat(result).hasSize(3);
         assertThat(result).extracting(AssignmentCandidateDTO::userId)
@@ -47,7 +47,7 @@ class AssignmentCandidatePolicyTest {
         );
 
         List<AssignmentCandidateDTO> result = policy.filter(
-                candidates, false, List.of("D1"), null, null);
+                candidates, false, List.of("D1"), AssignmentContext.of("task", null, null), null, null);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).userId()).isEqualTo(1L);
@@ -63,7 +63,7 @@ class AssignmentCandidatePolicyTest {
         );
 
         List<AssignmentCandidateDTO> result = policy.filter(
-                candidates, true, List.of(), "bid_dept", null);
+                candidates, true, List.of(), AssignmentContext.of("task", null, null), "bid_dept", null);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).deptCode()).isEqualTo("BID_DEPT");
@@ -78,7 +78,7 @@ class AssignmentCandidatePolicyTest {
         );
 
         List<AssignmentCandidateDTO> result = policy.filter(
-                candidates, true, List.of(), null, "BID_ADMIN");
+                candidates, true, List.of(), AssignmentContext.of("task", null, null), null, "BID_ADMIN");
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).roleCode()).isEqualTo("bid_admin");
@@ -91,11 +91,11 @@ class AssignmentCandidatePolicyTest {
                 user(3L, "王五", "D2", "二部", "sales", "销售"),
                 user(1L, "张三", "D1", "一部", "bid_admin", "投标管理员"),
                 user(2L, "李四", "D1", "一部", "bid_lead", "投标组长"),
-                user(4L, "赵六", null, null, "staff", "员工")
+                user(4L, "赵六", null, null, "bid_specialist", "投标专员")
         );
 
         List<AssignmentCandidateDTO> result = policy.filter(
-                candidates, true, List.of(), null, null);
+                candidates, true, List.of(), AssignmentContext.of("task", null, null), null, null);
 
         assertThat(result).extracting(AssignmentCandidateDTO::userId)
                 .containsExactly(1L, 2L, 3L, 4L);
@@ -105,7 +105,7 @@ class AssignmentCandidatePolicyTest {
     @DisplayName("空候选人列表返回空列表")
     void filter_EmptyCandidates_ReturnsEmptyList() {
         List<AssignmentCandidateDTO> result = policy.filter(
-                List.of(), true, List.of(), null, null);
+                List.of(), true, List.of(), AssignmentContext.of("task", null, null), null, null);
 
         assertThat(result).isEmpty();
     }
@@ -120,11 +120,42 @@ class AssignmentCandidatePolicyTest {
         );
 
         List<AssignmentCandidateDTO> result = policy.filter(
-                candidates, true, List.of(), "bid_dept", "bid_admin");
+                candidates, true, List.of(), AssignmentContext.of("task", null, null), "bid_dept", "bid_admin");
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).userId()).isEqualTo(1L);
         assertThat(result.get(0).deptCode()).isEqualTo("BID_DEPT");
+        assertThat(result.get(0).roleCode()).isEqualTo("bid_admin");
+    }
+
+    @Test
+    @DisplayName("P1.2: task 场景排除 staff 角色")
+    void filter_TaskContext_ExcludesStaffRole() {
+        List<User> candidates = List.of(
+                user(1L, "张三", "D1", "一部", "bid_admin", "投标管理员"),
+                user(2L, "李四", "D1", "一部", "staff", "普通员工")
+        );
+
+        List<AssignmentCandidateDTO> result = policy.filter(
+                candidates, true, List.of(), AssignmentContext.of("task", null, null), null, null);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).roleCode()).isEqualTo("bid_admin");
+    }
+
+    @Test
+    @DisplayName("P1.2: tender 场景排除 staff + admin_staff 角色")
+    void filter_TenderContext_ExcludesStaffAndAdminStaffRoles() {
+        List<User> candidates = List.of(
+                user(1L, "张三", "D1", "一部", "bid_admin", "投标管理员"),
+                user(2L, "李四", "D1", "一部", "staff", "普通员工"),
+                user(3L, "王五", "D1", "一部", "admin_staff", "行政人员")
+        );
+
+        List<AssignmentCandidateDTO> result = policy.filter(
+                candidates, true, List.of(), AssignmentContext.of("tender", null, null), null, null);
+
+        assertThat(result).hasSize(1);
         assertThat(result.get(0).roleCode()).isEqualTo("bid_admin");
     }
 

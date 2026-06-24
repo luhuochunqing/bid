@@ -73,7 +73,7 @@ class AssignmentCandidateAppServiceTest {
         when(userRepository.findByEnabledTrue()).thenReturn(users);
         when(projectAccessScopeService.getAllowedDepartmentCodes(currentUser)).thenReturn(List.of("D1"));
         when(roleProfileService.hasGlobalAccess(currentUser)).thenReturn(true);
-        when(assignmentCandidatePolicy.filter(anyList(), anyBoolean(), anyList(), any(), any()))
+        when(assignmentCandidatePolicy.filter(anyList(), anyBoolean(), anyList(), any(), any(), any()))
                 .thenReturn(expected);
 
         List<AssignmentCandidateDTO> result = service.findCandidates(context, currentUser);
@@ -82,7 +82,7 @@ class AssignmentCandidateAppServiceTest {
         verify(userRepository).findByEnabledTrue();
         verify(projectAccessScopeService).getAllowedDepartmentCodes(currentUser);
         verify(roleProfileService).hasGlobalAccess(currentUser);
-        verify(assignmentCandidatePolicy).filter(eq(users), eq(true), anyList(), any(), any());
+        verify(assignmentCandidatePolicy).filter(eq(users), eq(true), anyList(), any(), any(), any());
     }
 
     @Test
@@ -99,13 +99,13 @@ class AssignmentCandidateAppServiceTest {
         when(userRepository.findByEnabledTrue()).thenReturn(users);
         when(projectAccessScopeService.getAllowedDepartmentCodes(currentUser)).thenReturn(List.of("D2"));
         when(roleProfileService.hasGlobalAccess(currentUser)).thenReturn(false);
-        when(assignmentCandidatePolicy.filter(anyList(), anyBoolean(), anyList(), any(), any()))
+        when(assignmentCandidatePolicy.filter(anyList(), anyBoolean(), anyList(), any(), any(), any()))
                 .thenReturn(expected);
 
         List<AssignmentCandidateDTO> result = service.findCandidates(context, currentUser);
 
         assertThat(result).isEqualTo(expected);
-        verify(assignmentCandidatePolicy).filter(eq(users), eq(false), anyList(), any(), any());
+        verify(assignmentCandidatePolicy).filter(eq(users), eq(false), anyList(), any(), any(), any());
     }
 
     @Test

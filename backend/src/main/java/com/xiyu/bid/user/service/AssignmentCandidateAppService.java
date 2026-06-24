@@ -70,6 +70,7 @@ public class AssignmentCandidateAppService {
                 candidates,
                 hasGlobalAccess,
                 allowedDeptCodes,
+                context,
                 context.deptCode(),
                 context.roleCode());
         return result == null ? List.of() : result;
