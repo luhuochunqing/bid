@@ -3,6 +3,7 @@
 // Pos: project/dto/
 package com.xiyu.bid.project.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -18,11 +19,14 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class CustomerInfoRow {
     /** 角色（如：项目决策人/技术负责人/采购负责人等）。 */
     private String role;
     /** 姓名。 */
     private String name;
+    /** 联系方式（手机号/电话/邮箱）。 */
+    private String contactInfo;
     /** 职位。 */
     private String position;
     /** 西域对接人。 */
@@ -49,4 +53,6 @@ public class CustomerInfoRow {
     private String canSyncEval;
     /** 是否能确认中标(YES/NO)。 */
     private String canConfirmWin;
+    /** 对中标影响率。 */
+    private String winRateImpact;
 }

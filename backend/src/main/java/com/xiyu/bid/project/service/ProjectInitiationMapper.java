@@ -187,7 +187,8 @@ public class ProjectInitiationMapper {
                 .biddingLeaderName(e.getBiddingLeaderName()).biddingPlatform(e.getBiddingPlatform())
                 .bidResultStatus(e.getBidResultStatus()).projectLeaderName(e.getProjectLeaderName())
                 .leaderDepartment(e.getLeaderDepartment()).headquartersLocation(e.getHeadquartersLocation())
-                .customerInfoRows(rows).createdAt(e.getCreatedAt()).updatedAt(e.getUpdatedAt())
+                .customerInfoRows(rows).evalPrefilled(e.getEvalPrefilled())
+                .createdAt(e.getCreatedAt()).updatedAt(e.getUpdatedAt())
                 .build();
     }
 

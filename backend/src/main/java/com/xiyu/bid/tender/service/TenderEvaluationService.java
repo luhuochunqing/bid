@@ -6,7 +6,6 @@ package com.xiyu.bid.tender.service;
 
 import com.xiyu.bid.batch.core.TenderStatusTransitionPolicy;
 import com.xiyu.bid.entity.Project;
-import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
@@ -62,6 +61,8 @@ public class TenderEvaluationService {
     private final TenderProjectAccessGuard accessGuard;
     private final ApplicationEventPublisher eventPublisher;
     private final TenderEvaluationDocumentService documentService;
+    private final InitiationPrefillService initiationPrefillService;
+    private final TenderBidTaskFactory bidTaskFactory;
     private final TenderEvaluationSubmissionMapper mapper = new TenderEvaluationSubmissionMapper();
 
     public TenderEvaluationService(
@@ -75,7 +76,9 @@ public class TenderEvaluationService {
             TenderAssignmentPermissions permissions,
             TenderProjectAccessGuard accessGuard,
             ApplicationEventPublisher eventPublisher,
-            TenderEvaluationDocumentService documentService) {
+            TenderEvaluationDocumentService documentService,
+            InitiationPrefillService initiationPrefillService,
+            TenderBidTaskFactory bidTaskFactory) {
         this.tenderEvaluationRepository = tenderEvaluationRepository;
         this.tenderRepository = tenderRepository;
         this.projectService = projectService;
@@ -87,6 +90,8 @@ public class TenderEvaluationService {
         this.accessGuard = accessGuard;
         this.eventPublisher = eventPublisher;
         this.documentService = documentService;
+        this.initiationPrefillService = initiationPrefillService;
+        this.bidTaskFactory = bidTaskFactory;
     }
 
     // ---------- V119: 项目评估表草稿/提交 facade（委托给 TenderEvaluationSubmissionService） ----------
@@ -225,7 +230,8 @@ public class TenderEvaluationService {
             throw new IllegalStateException("标讯状态不是已投标，无法创建立项待办");
         }
 
-        Long projectManagerId = tenderEvaluationRepository.findByTenderId(tenderId)
+        var evaluationOpt = tenderEvaluationRepository.findByTenderId(tenderId);
+        Long projectManagerId = evaluationOpt
                 .map(TenderEvaluation::getEvaluatorId)
                 .filter(Objects::nonNull)
                 .orElse(adminId);
@@ -249,7 +255,14 @@ public class TenderEvaluationService {
         tender.setProjectId(createdProject.getId());
         tenderRepository.save(tender);
 
-        TaskDTO createdTask = reuseOrCreateInitiationTask(
+        // CO-323: 评估数据带入立项（幂等，无评估数据则跳过；预填失败不阻塞投标流程 FR-005）
+        try {
+            initiationPrefillService.prefillFromEvaluation(createdProject.getId(), evaluationOpt.orElse(null));
+        } catch (RuntimeException ex) {
+            log.warn("CO-323: prefill initiation failed for tender {}, non-blocking", tenderId, ex);
+        }
+
+        TaskDTO createdTask = bidTaskFactory.reuseOrCreate(
                 tenderId, createdProject.getId(), tender.getTitle(), projectManagerId);
 
         log.info("Project {} and task {} created for tender {}", createdProject.getId(), createdTask.getId(), tenderId);
@@ -259,31 +272,6 @@ public class TenderEvaluationService {
                 createdTask.getId(),
                 createdTask.getTitle()
         );
-    }
-
-    /** 复用 participate 创建的立项待办任务；不存在时再新建，避免重复。 */
-    private TaskDTO reuseOrCreateInitiationTask(
-            Long tenderId, Long projectId, String tenderTitle, Long assigneeId) {
-        String initiationTitle = "【待立项】" + tenderTitle;
-        Optional<Task> existing = taskRepository.findByProjectId(tenderId).stream()
-                .filter(t -> t.getStatus() == Task.Status.TODO && initiationTitle.equals(t.getTitle()))
-                .findFirst();
-
-        if (existing.isPresent()) {
-            Task task = existing.get();
-            task.setProjectId(projectId);
-            task.setAssigneeId(assigneeId);
-            return taskService.getTaskById(taskRepository.save(task).getId());
-        }
-
-        return taskService.createTask(TaskDTO.builder()
-                .projectId(projectId)
-                .title(initiationTitle)
-                .description("标讯「" + tenderTitle + "」已投标，请项目经理尽快完成立项流程。")
-                .assigneeId(assigneeId)
-                .status(Task.Status.TODO)
-                .priority(Task.Priority.HIGH)
-                .build());
     }
 
     // ---------- DTO 转换（V130 三段式） ----------

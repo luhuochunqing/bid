@@ -36,20 +36,20 @@
 <!-- 以下字段与标讯评估表「一、基础信息」完全对齐 -->
 <el-divider />
 <div class="grid-2">
-  <el-form-item label="计划入围供应商数量"><el-input-number v-model="form.expectedBidders" :min="1" :precision="0" /></el-form-item>
-  <el-form-item label="电商MRO+办公流水金额（万）"><el-input-number v-model="form.annualEcommerceAmount" :min="0" :precision="2" @focus="handleAmountFocus('annualEcommerceAmount')" @blur="handleAmountBlur('annualEcommerceAmount')" /></el-form-item>
+  <el-form-item label="计划入围供应商数量"><el-input-number v-model="form.expectedBidders" :disabled="fieldDisabled" :min="1" :precision="0" /></el-form-item>
+  <el-form-item label="电商MRO+办公流水金额（万）"><el-input-number v-model="form.annualEcommerceAmount" :disabled="fieldDisabled" :min="0" :precision="2" @focus="handleAmountFocus('annualEcommerceAmount')" @blur="handleAmountBlur('annualEcommerceAmount')" /></el-form-item>
 </div>
 <div class="grid-2">
-  <el-form-item label="客户营收（亿）"><el-input-number v-model="form.customerRevenue" :min="0" :precision="2" @focus="handleAmountFocus('customerRevenue')" @blur="handleAmountBlur('customerRevenue')" /></el-form-item>
+  <el-form-item label="客户营收（亿）"><el-input-number v-model="form.customerRevenue" :disabled="fieldDisabled" :min="0" :precision="2" @focus="handleAmountFocus('customerRevenue')" @blur="handleAmountBlur('customerRevenue')" /></el-form-item>
 </div>
-<el-form-item label="招标文件不利项"><el-input v-model="form.tenderAdverseItems" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
-<el-form-item label="风险预判"><el-input v-model="form.riskAssessment" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
-<el-form-item label="项目经理综合评估是否有兜底方案"><el-switch :model-value="form.riskMitigationPlan === '是'" @update:model-value="form.riskMitigationPlan = $event ? '是' : '否'" /></el-form-item>
-<el-form-item label="项目经理是否了解评标全流程"><el-input v-model="form.pmUnderstandsProcess" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
-<el-form-item label="需要的支持及其他关键信息备注"><el-input v-model="form.supportNeeded" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
+<el-form-item label="招标文件不利项"><el-input v-model="form.tenderAdverseItems" :disabled="fieldDisabled" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
+<el-form-item label="风险预判"><el-input v-model="form.riskAssessment" :disabled="fieldDisabled" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
+<el-form-item label="项目经理综合评估是否有兜底方案"><el-switch :model-value="form.riskMitigationPlan === '是'" :disabled="fieldDisabled" @update:model-value="form.riskMitigationPlan = $event ? '是' : '否'" /></el-form-item>
+<el-form-item label="项目经理是否了解评标全流程"><el-input v-model="form.pmUnderstandsProcess" :disabled="fieldDisabled" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
+<el-form-item label="需要的支持及其他关键信息备注"><el-input v-model="form.supportNeeded" :disabled="fieldDisabled" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
 <el-form-item label="项目计划GAP">
-    <el-input v-model="form.projectPlanGap" type="textarea" :rows="3" maxlength="5000" />
-    <el-upload :with-credentials="true" v-model:file-list="planGapFiles" :action="planGapUploadUrl" :headers="planGapUploadHeaders" :before-upload="beforePlanGapUpload" :on-success="onPlanGapUploadSuccess" :on-remove="onPlanGapFileRemove" :disabled="!props.projectId || props.projectId === 'new'" multiple drag accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" :limit="5" style="margin-top:8px">
+    <el-input v-model="form.projectPlanGap" :disabled="fieldDisabled" type="textarea" :rows="3" maxlength="5000" />
+    <el-upload :with-credentials="true" v-model:file-list="planGapFiles" :action="planGapUploadUrl" :headers="planGapUploadHeaders" :before-upload="beforePlanGapUpload" :on-success="onPlanGapUploadSuccess" :on-remove="onPlanGapFileRemove" :disabled="fieldDisabled || !props.projectId || props.projectId === 'new'" multiple drag accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" :limit="5" style="margin-top:8px">
       <el-button size="small" type="primary">上传附件</el-button>
       <template #tip><div class="el-upload__tip">支持拖拽上传，最多5个文件，单个不超过10MB</div></template>
     </el-upload>
@@ -60,20 +60,20 @@
 <div class="customer-table-wrapper">
 <el-table :data="custFixedRows" border style="min-width:3360px" height="500">
 <!-- 列顺序、标签、控件类型对齐 customerInfoMatrixConfig.js -->
-<el-table-column label="姓名" width="120"><template #default="{row}"><el-input v-model="row.name" size="small" placeholder="请输入姓名" /></template></el-table-column>
-<el-table-column label="联系方式" width="160"><template #default="{row}"><el-input v-model="row.contactInfo" size="small" placeholder="手机号/电话/邮箱" /></template></el-table-column>
-<el-table-column label="职位" width="140"><template #default="{row}"><el-select v-model="row.position" size="small" placeholder="请选择"><el-option v-for="o in POSITION_OPTIONS" :key="o" :label="o" :value="o" /></el-select></template></el-table-column>
-<el-table-column label="西域项目负责人" width="130"><template #default="{row}"><el-input v-model="row.xiyuContact" size="small" placeholder="请输入负责人" /></template></el-table-column>
-<el-table-column label="触达方式" width="120"><template #default="{row}"><el-select v-model="row.reachMethod" size="small" placeholder="请选择"><el-option v-for="o in CONTACT_METHOD_OPTIONS" :key="o" :label="o" :value="o" /></el-select></template></el-table-column>
-<el-table-column label="倾向性评估依据" width="180"><template #default="{row}"><el-input v-model="row.preferenceBasis" size="small" placeholder="请输入依据" /></template></el-table-column>
-<el-table-column label="是否触达" width="110"><template #default="{row}"><el-select v-model="row.reached" size="small"><el-option label="是" value="YES" /><el-option label="否" value="NO" /></el-select></template></el-table-column>
-<el-table-column label="是否向此人引导标书" width="150"><template #default="{row}"><el-select v-model="row.guideBid" size="small"><el-option label="是" value="YES" /><el-option label="否" value="NO" /></el-select></template></el-table-column>
-<el-table-column label="是否可获取关键信息" width="150"><template #default="{row}"><el-select v-model="row.canGetKeyInfo" size="small"><el-option label="是" value="YES" /><el-option label="否" value="NO" /></el-select></template></el-table-column>
-<el-table-column label="是否可删除不利项" width="150"><template #default="{row}"><el-select v-model="row.canRemoveAdverse" size="small"><el-option label="是" value="YES" /><el-option label="否" value="NO" /></el-select></template></el-table-column>
-<el-table-column label="是否可同步评标信息" width="150"><template #default="{row}"><el-select v-model="row.canSyncEval" size="small"><el-option label="是" value="YES" /><el-option label="否" value="NO" /></el-select></template></el-table-column>
-<el-table-column label="对我司的倾向性" width="150"><template #default="{row}"><el-select v-model="row.preference" size="small"><el-option label="支持" value="SUPPORT" /><el-option label="中立" value="NEUTRAL" /><el-option label="反对" value="OPPOSE" /></el-select></template></el-table-column>
-<el-table-column label="是否给出明确中标信息" width="160"><template #default="{row}"><el-select v-model="row.canConfirmWin" size="small"><el-option label="是" value="YES" /><el-option label="否" value="NO" /></el-select></template></el-table-column>
-<el-table-column label="对中标影响率" width="130"><template #default="{row}"><el-select v-model="row.winRateImpact" size="small" placeholder="请选择"><el-option v-for="o in IMPACT_OPTIONS" :key="o.value" :label="o.label" :value="o.value" /></el-select></template></el-table-column>
+<el-table-column label="姓名" width="120"><template #default="{row}"><el-input v-model="row.name" :disabled="fieldDisabled" size="small" placeholder="请输入姓名" /></template></el-table-column>
+<el-table-column label="联系方式" width="160"><template #default="{row}"><el-input v-model="row.contactInfo" :disabled="fieldDisabled" size="small" placeholder="手机号/电话/邮箱" /></template></el-table-column>
+<el-table-column label="职位" width="140"><template #default="{row}"><el-select v-model="row.position" :disabled="fieldDisabled" size="small" placeholder="请选择"><el-option v-for="o in POSITION_OPTIONS" :key="o" :label="o" :value="o" /></el-select></template></el-table-column>
+<el-table-column label="西域项目负责人" width="130"><template #default="{row}"><el-input v-model="row.xiyuContact" :disabled="fieldDisabled" size="small" placeholder="请输入负责人" /></template></el-table-column>
+<el-table-column label="触达方式" width="120"><template #default="{row}"><el-select v-model="row.reachMethod" :disabled="fieldDisabled" size="small" placeholder="请选择"><el-option v-for="o in CONTACT_METHOD_OPTIONS" :key="o" :label="o" :value="o" /></el-select></template></el-table-column>
+<el-table-column label="倾向性评估依据" width="180"><template #default="{row}"><el-input v-model="row.preferenceBasis" :disabled="fieldDisabled" size="small" placeholder="请输入依据" /></template></el-table-column>
+<el-table-column label="是否触达" width="110"><template #default="{row}"><el-select v-model="row.reached" :disabled="fieldDisabled" size="small"><el-option label="是" value="YES" /><el-option label="否" value="NO" /></el-select></template></el-table-column>
+<el-table-column label="是否向此人引导标书" width="150"><template #default="{row}"><el-select v-model="row.guideBid" :disabled="fieldDisabled" size="small"><el-option label="是" value="YES" /><el-option label="否" value="NO" /></el-select></template></el-table-column>
+<el-table-column label="是否可获取关键信息" width="150"><template #default="{row}"><el-select v-model="row.canGetKeyInfo" :disabled="fieldDisabled" size="small"><el-option label="是" value="YES" /><el-option label="否" value="NO" /></el-select></template></el-table-column>
+<el-table-column label="是否可删除不利项" width="150"><template #default="{row}"><el-select v-model="row.canRemoveAdverse" :disabled="fieldDisabled" size="small"><el-option label="是" value="YES" /><el-option label="否" value="NO" /></el-select></template></el-table-column>
+<el-table-column label="是否可同步评标信息" width="150"><template #default="{row}"><el-select v-model="row.canSyncEval" :disabled="fieldDisabled" size="small"><el-option label="是" value="YES" /><el-option label="否" value="NO" /></el-select></template></el-table-column>
+<el-table-column label="对我司的倾向性" width="150"><template #default="{row}"><el-select v-model="row.preference" :disabled="fieldDisabled" size="small"><el-option label="支持" value="SUPPORT" /><el-option label="中立" value="NEUTRAL" /><el-option label="反对" value="OPPOSE" /></el-select></template></el-table-column>
+<el-table-column label="是否给出明确中标信息" width="160"><template #default="{row}"><el-select v-model="row.canConfirmWin" :disabled="fieldDisabled" size="small"><el-option label="是" value="YES" /><el-option label="否" value="NO" /></el-select></template></el-table-column>
+<el-table-column label="对中标影响率" width="130"><template #default="{row}"><el-select v-model="row.winRateImpact" :disabled="fieldDisabled" size="small" placeholder="请选择"><el-option v-for="o in IMPACT_OPTIONS" :key="o.value" :label="o.label" :value="o.value" /></el-select></template></el-table-column>
 </el-table></div></el-card>
 <el-card class="section-card" shadow="never">
 <template #header>
@@ -202,6 +202,9 @@ function onPlanGapUploadSuccess(res) { if (res?.data) { form.projectPlanGapFiles
 function onPlanGapFileRemove(file) { const idx = (form.projectPlanGapFiles || []).findIndex(f => f.id === file.id || f.uid === file.uid); if (idx !== -1) { form.projectPlanGapFiles.splice(idx, 1) } } const fieldLocked = ref(false); const submitting = ref(false); const saving = ref(false); const approving = ref(false); const rejecting = ref(false); const aiAssessing = ref(false); const uploadingDoc = ref(false); const errorMsg = ref(''); const reviewStatus = ref('')
 // locked = reviewStatus 推导，不依赖 API 响应（后端 submit 可能未设 locked=true）
 const locked = computed(() => reviewStatus.value === 'PENDING_REVIEW' || reviewStatus.value === 'APPROVED')
+const evalPrefilled = ref(false)
+// CO-323: 带入字段（评估/客户信息）只读，保证金/招标文件除外
+const fieldDisabled = computed(() => locked.value || evalPrefilled.value)
 // 审批模式：投标管理员/组长 查看 PENDING_REVIEW 的立项；改用 roleCode 以匹配 bidAdmin 等新角色值
 const userRole = computed(() => userStore.currentUser?.roleCode || userStore.currentUser?.role || '')
 const isApprovalMode = computed(() => isBidManager(userRole.value) && reviewStatus.value === 'PENDING_REVIEW')
@@ -250,6 +253,7 @@ const { handleDocBeforeUpload, onDepositChange, handleApprove, handleReject, sav
     reviewStatus,
     fieldLocked,
     approvalForm,
+    evalPrefilled,
   },
 })
 

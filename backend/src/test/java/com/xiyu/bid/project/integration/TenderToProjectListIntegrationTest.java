@@ -6,6 +6,10 @@ import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.support.NoOpPasswordEncryptionTestConfig;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.project.entity.ProjectInitiationDetails;
+import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
+import com.xiyu.bid.tender.entity.TenderEvaluationBasic;
 import com.xiyu.bid.tender.entity.TenderEvaluation;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +30,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(properties = "spring.main.allow-bean-definition-overriding=true")
 @AutoConfigureMockMvc
@@ -41,6 +46,9 @@ class TenderToProjectListIntegrationTest {
     private UserRepository userRepository;
 
     @Autowired
+    private ProjectInitiationDetailsRepository initiationRepository;
+
+    @Autowired
     private TenderRepository tenderRepository;
 
     @Autowired
@@ -53,6 +61,7 @@ class TenderToProjectListIntegrationTest {
         tenderEvaluationRepository.deleteAll();
         tenderRepository.deleteAll();
         userRepository.deleteAll();
+        initiationRepository.deleteAll();
 
         admin = userRepository.save(User.builder()
                 .username("admin-user")

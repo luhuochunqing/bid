@@ -31,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -68,6 +69,12 @@ class TenderEvaluationServiceTest {
     @Mock
     private TenderEvaluationDocumentService tenderEvaluationDocumentService;
 
+    @Mock
+    private InitiationPrefillService initiationPrefillService;
+
+    @Mock
+    private TenderBidTaskFactory bidTaskFactory;
+
     private TenderEvaluationService service;
 
     @BeforeEach
@@ -83,7 +90,9 @@ class TenderEvaluationServiceTest {
                 permissions,
                 accessGuard,
                 eventPublisher,
-                tenderEvaluationDocumentService
+                tenderEvaluationDocumentService,
+                initiationPrefillService,
+                bidTaskFactory
         );
         // 决策类端点默认放行；individual 测试覆写为 false 检验 403 路径。
         org.mockito.Mockito.lenient()
@@ -142,7 +151,7 @@ class TenderEvaluationServiceTest {
                 .name("测试标讯")
                 .status(Project.Status.PENDING_INITIATION)
                 .build());
-        when(taskService.createTask(any(TaskDTO.class))).thenReturn(TaskDTO.builder()
+        when(bidTaskFactory.reuseOrCreate(any(), any(), any(), any())).thenReturn(TaskDTO.builder()
                 .id(202L)
                 .title("【待立项】测试标讯")
                 .status(Task.Status.TODO)
@@ -157,11 +166,7 @@ class TenderEvaluationServiceTest {
                         && project.getManagerId().equals(18L)
                         && project.getStatus() == Project.Status.PENDING_INITIATION
         ));
-        verify(taskService).createTask(argThat(task ->
-                task.getProjectId().equals(101L)
-                        && task.getStatus() == Task.Status.TODO
-                        && task.getPriority() == Task.Priority.HIGH
-        ));
+        verify(bidTaskFactory).reuseOrCreate(eq(1L), eq(101L), eq("测试标讯"), eq(18L));
     }
 
     @Test
@@ -185,7 +190,7 @@ class TenderEvaluationServiceTest {
                 .name("测试标讯")
                 .status(Project.Status.PENDING_INITIATION)
                 .build());
-        when(taskService.createTask(any(TaskDTO.class))).thenReturn(TaskDTO.builder()
+        when(bidTaskFactory.reuseOrCreate(any(), any(), any(), any())).thenReturn(TaskDTO.builder()
                 .id(202L)
                 .title("【待立项】测试标讯")
                 .status(Task.Status.TODO)
@@ -200,11 +205,7 @@ class TenderEvaluationServiceTest {
                         && project.getManagerId().equals(99L)
                         && project.getStatus() == Project.Status.PENDING_INITIATION
         ));
-        verify(taskService).createTask(argThat(task ->
-                task.getProjectId().equals(101L)
-                        && task.getAssigneeId().equals(99L)
-                        && task.getStatus() == Task.Status.TODO
-        ));
+        verify(bidTaskFactory).reuseOrCreate(eq(1L), eq(101L), eq("测试标讯"), eq(99L));
     }
 
     @Test
@@ -246,7 +247,7 @@ class TenderEvaluationServiceTest {
                 () -> service.proceedToBid(1L, 999L));
 
         verify(projectService, org.mockito.Mockito.never()).createProject(any());
-        verify(taskService, org.mockito.Mockito.never()).createTask(any());
+        verify(bidTaskFactory, org.mockito.Mockito.never()).reuseOrCreate(any(), any(), any(), any());
     }
 
     @Test

@@ -147,6 +147,11 @@ public class ProjectInitiationDetails {
     @Column(name = "customer_info_json", columnDefinition = "JSON")
     private String customerInfoJson;
 
+    /** CO-323: 评估表带入标记（proceedToBid 由标讯评估表带入则 true，前端据此设带入字段只读）。 */
+    @Column(name = "eval_prefilled", nullable = false)
+    @Builder.Default
+    private Boolean evalPrefilled = Boolean.FALSE;
+
     /** 招标文件附件 id。 */
     @Column(name = "tender_document_id")
     private Long tenderDocumentId;

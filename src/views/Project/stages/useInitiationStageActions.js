@@ -61,6 +61,7 @@ export function useInitiationStageActions({
     reviewStatus,
     fieldLocked,
     approvalForm,
+    evalPrefilled,
   } = projectsState
 
   function beforeUploadDoc(file) {
@@ -174,6 +175,7 @@ export function useInitiationStageActions({
       if (data.biddingAssistantName) form.biddingAssistantName = data.biddingAssistantName
       existing.value = true
       reviewStatus.value = data.reviewStatus || ''
+      evalPrefilled.value = !!data.evalPrefilled
       fieldLocked.value = !!data.bidOpenTime && !!data.ownerUnit
     } catch (e) {
       if (e?.response?.status === 404) {
@@ -185,6 +187,8 @@ export function useInitiationStageActions({
   }
 
   async function autoFillFromTender() {
+    // CO-323: 兜底带入路径也标记 evalPrefilled，保证带入字段只读
+    evalPrefilled.value = true
     try {
       const projectResp = await projectsApi.getDetail(props.projectId)
       const project = projectResp?.data || projectResp
@@ -250,7 +254,7 @@ export function useInitiationStageActions({
           const evalCustomerInfos = evaluation?.evaluationCustomerInfos
           if (Array.isArray(evalCustomerInfos) && evalCustomerInfos.length > 0) {
             const INFO_KEY_MAP = {
-              NAME: 'name', POSITION: 'position', XIYU_CONTACT: 'xiyuContact',
+              NAME: 'name', CONTACT_INFO: 'contactInfo', POSITION: 'position', XIYU_CONTACT: 'xiyuContact',
               CONTACTED: 'reached', CONTACT_METHOD: 'reachMethod',
               TENDENCY: 'preference', INFO_TENDENCY_BASIS: 'preferenceBasis',
               GUIDED_BID: 'guideBid',

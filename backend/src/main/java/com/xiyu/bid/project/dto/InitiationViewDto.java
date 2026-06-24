@@ -82,6 +82,8 @@ public class InitiationViewDto {
     private String headquartersLocation;
     /** 客户信息表格行列表（15列 x 14行）。V133 新增。 */
     private List<CustomerInfoRow> customerInfoRows;
+    /** CO-323: 评估表带入标记（true=带入字段前端只读）。 */
+    private Boolean evalPrefilled;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
