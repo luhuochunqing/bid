@@ -257,15 +257,15 @@ public class TenderCommandService {
         log.info("Linked CRM opportunity {} to tender id: {}", crmOpportunityId, id);
 
         // CO-310: 关联成功后回填评估表数据（如果提供）
+        // 回填失败不阻塞 CRM 关联（关联是核心操作，回填是附加操作）
+        // 评估表数据不完整时跳过回填，用户可后续手动补充
         if (evaluationPayload != null) {
             try {
                 evaluationBackfillService.backfillFromCrmLink(id, evaluationPayload, userId);
                 log.info("CO-310: Backfilled evaluation for tender {} from CRM link", id);
             } catch (BusinessException | IllegalStateException ex) {
-                // 回填失败不影响关联结果，但记录错误日志便于排查
-                log.error("CO-310: Failed to backfill evaluation for tender {} from CRM link: {}",
-                        id, ex.getMessage(), ex);
-                throw new BusinessException(500, "CRM商机关联成功，但评估表回填失败: " + ex.getMessage());
+                log.warn("CO-310: Skipped evaluation backfill for tender {} from CRM link (validation failed): {}",
+                        id, ex.getMessage());
             }
         }
         return tenderMapper.toDTO(updatedTender);
