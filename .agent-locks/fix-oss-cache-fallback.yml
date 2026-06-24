@@ -1,9 +1,0 @@
-version: 1
-task: "fix-oss-cache-fallback"
-locks:
-  - path: "backend/src/main/java/com/xiyu/bid/admin/service/DataScopeConfigService.java"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/mimo/fix-oss-cache-fallback"
-    expiresAt: "2026-06-24T04:40:28.720Z"
-    reason: "fix OSS cache fallback to local DB"
