@@ -1,9 +1,0 @@
-version: 1
-task: "task-board-menu"
-locks:
-  - path: "src/router/index.js"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/cursor/task-board-menu"
-    expiresAt: "2026-06-22T08:26:44.747Z"
-    reason: "新增 /task-board 路由 (cursor/task-board-menu)"
