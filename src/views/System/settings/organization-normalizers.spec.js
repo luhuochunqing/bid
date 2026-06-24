@@ -21,9 +21,9 @@ describe('organization-normalizers', () => {
   it('normalizes role rows and role payloads', () => {
     const roles = normalizeRoles([{ code: 'MANAGER', name: '', menuPermissions: ['dashboard', 'dashboard'] }])
 
-    expect(roles[0].code).toBe('manager')
+    expect(roles[0].code).toBe('MANAGER')
     expect(roles[0].menuPermissions).toEqual(['dashboard'])
-    expect(buildRolePayload({ code: 'Bid_Manager', name: '投标经理', enabled: true }).code).toBe('bid_manager')
+    expect(buildRolePayload({ code: 'Bid_Manager', name: '投标经理', enabled: true }).code).toBe('Bid_Manager')
   })
 
   it('builds user organization payload from selected department and role', () => {

@@ -23,7 +23,9 @@ public class PositionToRoleMapper {
                 continue;
             }
             if (Pattern.compile(pattern).matcher(positionText).find()) {
-                return roleCode.trim().toLowerCase(java.util.Locale.ROOT);
+                // 保留 roleCode 原始大小写：OSS 角色码大小写敏感（如 bidAdmin、bid-TeamLeader）
+                // RoleProfileCatalog 用 case-insensitive TreeMap 查找，但 User.roleCode 字段存原值
+                return roleCode.trim();
             }
         }
         return null;

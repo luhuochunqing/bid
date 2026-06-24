@@ -41,7 +41,7 @@ describe('permissionMatrixApi', () => {
     expect(result.data[0]).toMatchObject({
       method: 'GET',
       path: '/api/alerts/history/unresolved',
-      roles: ['admin', 'manager'],
+      roles: ['ADMIN', 'MANAGER'],
       configurable: false,
     })
   })

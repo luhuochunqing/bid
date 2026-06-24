@@ -35,7 +35,8 @@ public class SystemRoleListMapper {
             }
             String roleCode = positionToRoleMapper.map(roleName.trim());
             if (roleCode != null && !roleCode.isBlank()) {
-                return roleCode.toLowerCase(Locale.ROOT);
+                // 保留 roleCode 原始大小写：OSS 角色码大小写敏感（如 bidAdmin、bid-TeamLeader）
+                return roleCode;
             }
         }
         return null;

@@ -18,7 +18,8 @@ const SOURCE_LABELS = {
 
 export const hasEndpointRole = (row, role) => {
   const roles = Array.isArray(row?.roles) ? row.roles : []
-  return roles.includes(String(role || '').toLowerCase())
+  // 保留 roleCode 原始大小写：OSS 角色码大小写敏感（如 bidAdmin、bid-TeamLeader）
+  return roles.includes(String(role || '').trim())
 }
 
 export const permissionRoleTags = (row) => (
@@ -39,7 +40,7 @@ export function filterEndpointPermissions(rows = [], filters = {}) {
   const keyword = String(filters.keyword || '').trim().toLowerCase()
   const method = String(filters.method || '').trim().toUpperCase()
   const moduleName = String(filters.module || '').trim()
-  const role = String(filters.role || '').trim().toLowerCase()
+  const role = String(filters.role || '').trim()
   const riskLevel = String(filters.riskLevel || '').trim()
   const source = String(filters.source || '').trim()
 

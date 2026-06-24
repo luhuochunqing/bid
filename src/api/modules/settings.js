@@ -5,7 +5,8 @@
 
 import httpClient from '../client.js'
 
-const normalizeRole = (role) => String(role || '').trim().toLowerCase()
+// 保留 roleCode 原始大小写：OSS 角色码大小写敏感（如 bidAdmin、bid-TeamLeader）
+const normalizeRole = (role) => String(role || '').trim()
 const normalizePermissionList = (permissions) => (
   Array.isArray(permissions)
     ? [...new Set(permissions.map((item) => String(item || '').trim()).filter(Boolean))]

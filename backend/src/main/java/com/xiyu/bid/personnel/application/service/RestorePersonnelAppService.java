@@ -29,7 +29,7 @@ public class RestorePersonnelAppService {
      * 恢复已停用人员
      */
     @Transactional
-    @PreAuthorize("hasAnyAuthority('bid_admin', 'bid_lead')")
+    @PreAuthorize("hasAnyAuthority('bidAdmin', 'bid-TeamLeader')")
     public void restore(Long id, Long currentUserId, String operatorName) {
         Personnel person = personnelRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Personnel", String.valueOf(id)));

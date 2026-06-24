@@ -53,9 +53,9 @@ class PositionToRoleMapperTest {
                 mapping("投标.*专员.*", "bid-Team")
         ));
 
-        assertThat(mapper.map("投标管理员")).isEqualTo("bidadmin");
-        assertThat(mapper.map("投标组长")).isEqualTo("bid-teamleader");
-        assertThat(mapper.map("投标专员")).isEqualTo("bid-team");
+        assertThat(mapper.map("投标管理员")).isEqualTo("bidAdmin");
+        assertThat(mapper.map("投标组长")).isEqualTo("bid-TeamLeader");
+        assertThat(mapper.map("投标专员")).isEqualTo("bid-Team");
     }
 
     @Test
@@ -66,7 +66,7 @@ class PositionToRoleMapperTest {
                 mapping("投标.*管理.*", "bidAdmin")
         ));
 
-        assertThat(mapper.map("投标管理员")).isEqualTo("bid-team");
+        assertThat(mapper.map("投标管理员")).isEqualTo("bid-Team");
     }
 
     @Test
@@ -98,17 +98,17 @@ class PositionToRoleMapperTest {
         ));
 
         assertThat(mapper.map("投标管理员")).isNull();
-        assertThat(mapper.map("投标专员")).isEqualTo("bid-team");
+        assertThat(mapper.map("投标专员")).isEqualTo("bid-Team");
     }
 
     @Test
-    @DisplayName("normalizes returned role code to lowercase")
-    void map_returnsLowercaseRoleCode() {
+    @DisplayName("preserves original case of role code")
+    void map_preservesOriginalCaseRoleCode() {
         PositionToRoleMapper mapper = createMapper(List.of(
                 mapping("投标.*管理.*", "BIDADMIN")
         ));
 
-        assertThat(mapper.map("投标管理员")).isEqualTo("bidadmin");
+        assertThat(mapper.map("投标管理员")).isEqualTo("BIDADMIN");
     }
 
     @Test
@@ -120,6 +120,6 @@ class PositionToRoleMapperTest {
         ));
 
         assertThat(mapper.map("高级行政助理")).isEqualTo("bid-administration");
-        assertThat(mapper.map("项目总负责人")).isEqualTo("bid-projectleader");
+        assertThat(mapper.map("项目总负责人")).isEqualTo("bid-projectLeader");
     }
 }

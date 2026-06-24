@@ -41,8 +41,10 @@ export const normalizeUser = (authPayload) => ({
   username: authPayload?.username,
   email: authPayload?.email,
   phone: authPayload?.phone || authPayload?.mobile,
-  role: String(authPayload?.roleCode || authPayload?.role || '').toLowerCase(),
-  roleCode: String(authPayload?.roleCode || authPayload?.role || '').toLowerCase(),
+  // 保留 roleCode 原始大小写：OSS 角色码大小写敏感（如 bidAdmin、bid-TeamLeader）
+  // 下游 stores/user.js 的权限判断用 r === 'bidAdmin' 等精确匹配
+  role: String(authPayload?.roleCode || authPayload?.role || ''),
+  roleCode: String(authPayload?.roleCode || authPayload?.role || ''),
   roleName: authPayload?.roleName || '',
   dept: authPayload?.dept || authPayload?.departmentName || '',
   deptCode: authPayload?.deptCode || authPayload?.departmentCode || '',

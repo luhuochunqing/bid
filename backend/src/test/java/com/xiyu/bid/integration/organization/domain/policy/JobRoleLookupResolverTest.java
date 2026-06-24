@@ -76,7 +76,7 @@ class JobRoleLookupResolverTest {
 
         JobRoleLookupResolver.ResolvedRole result = resolver.resolve(snapshot, lookupMap);
 
-        assertThat(result.roleCode()).isEqualTo("bid-projectleader");
+        assertThat(result.roleCode()).isEqualTo("bid-projectLeader");
         assertThat(result.source()).isEqualTo(JobRoleLookupResolver.RoleMappingSource.JOB);
     }
 
@@ -91,7 +91,7 @@ class JobRoleLookupResolverTest {
 
         JobRoleLookupResolver.ResolvedRole result = resolver.resolve(snapshot, lookupMap);
 
-        assertThat(result.roleCode()).isEqualTo("bid-projectleader");
+        assertThat(result.roleCode()).isEqualTo("bid-projectLeader");
         assertThat(result.source()).isEqualTo(JobRoleLookupResolver.RoleMappingSource.SYS_ROLE_LIST);
     }
 

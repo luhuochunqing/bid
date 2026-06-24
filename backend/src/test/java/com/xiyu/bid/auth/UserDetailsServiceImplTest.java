@@ -68,7 +68,7 @@ class UserDetailsServiceImplTest {
 
         assertThat(details.getAuthorities())
                 .extracting("authority")
-                .contains("bid-otherdept", "ROLE_BID_OTHERDEPT",
+                .contains("bid-otherDept", "ROLE_BID_OTHERDEPT",
                         "task-board", "task.view.own", "task.handle.own")
                 .doesNotContain("ROLE_STAFF", "bidding", "project", "knowledge", "resource");
     }
@@ -129,7 +129,7 @@ class UserDetailsServiceImplTest {
 
         assertThat(details.getAuthorities())
                 .extracting("authority")
-                .contains("ROLE_BID_TEAM", "bid-team")
+                .contains("ROLE_BID_TEAM", "bid-Team")
                 .doesNotContain("ROLE_STAFF");
     }
 
@@ -157,7 +157,7 @@ class UserDetailsServiceImplTest {
         UserDetails details = userDetailsService.loadUserByUsername("spec_user");
         assertThat(details.getAuthorities())
                 .extracting("authority")
-                .contains("ROLE_BID_TEAM", "bid-team")
+                .contains("ROLE_BID_TEAM", "bid-Team")
                 .doesNotContain("ROLE_STAFF");
     }
 
@@ -204,7 +204,7 @@ class UserDetailsServiceImplTest {
         assertThat(details.getAuthorities())
                 .extracting("authority")
                 .contains("dashboard")
-                .contains("bidadmin", "ROLE_BIDADMIN", "ROLE_ADMIN")
+                .contains("bidAdmin", "ROLE_BIDADMIN", "ROLE_ADMIN")
                 // catalog 中有但不含在自定义 DB 列表中 → 不应出现
                 .doesNotContain("bidding", "project", "bidding.manage", "task.review");
     }

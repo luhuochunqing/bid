@@ -7,7 +7,8 @@ import httpClient from '../client.js'
 
 const normalizeRoles = (roles) => (
   Array.isArray(roles)
-    ? [...new Set(roles.map((role) => String(role || '').trim().toLowerCase()).filter(Boolean))]
+    // 保留 roleCode 原始大小写：OSS 角色码大小写敏感（如 bidAdmin、bid-TeamLeader）
+    ? [...new Set(roles.map((role) => String(role || '').trim()).filter(Boolean))]
     : []
 )
 

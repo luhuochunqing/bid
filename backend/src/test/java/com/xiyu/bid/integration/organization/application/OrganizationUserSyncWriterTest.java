@@ -240,8 +240,8 @@ class OrganizationUserSyncWriterTest {
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(saved.capture());
-        // User.getRoleCode() 统一返回小写，参见 User#getRoleCode()
-        assertThat(saved.getValue().getRoleCode()).isEqualTo("bid-teamleader");
+        // User.getRoleCode() 保留原始大小写（OSS 角色码大小写敏感）
+        assertThat(saved.getValue().getRoleCode()).isEqualTo("bid-TeamLeader");
     }
 
     @Test
@@ -259,7 +259,7 @@ class OrganizationUserSyncWriterTest {
                 userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver, null);
 
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "1001")).thenReturn(Optional.empty());
-        when(roleProfileRepository.findByCodeIgnoreCase("bid-projectleader")).thenReturn(Optional.of(role("bid-projectleader")));
+        when(roleProfileRepository.findByCodeIgnoreCase("bid-projectLeader")).thenReturn(Optional.of(role("bid-projectLeader")));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         projectLeaderWriter.upsert("oss", "event-key", new OrganizationUserSnapshot(
@@ -268,7 +268,7 @@ class OrganizationUserSyncWriterTest {
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(saved.capture());
-        assertThat(saved.getValue().getRoleCode()).isEqualTo("bid-projectleader");
+        assertThat(saved.getValue().getRoleCode()).isEqualTo("bid-projectLeader");
     }
 
     @Test
@@ -286,7 +286,7 @@ class OrganizationUserSyncWriterTest {
                 userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver, null);
 
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "1002")).thenReturn(Optional.empty());
-        when(roleProfileRepository.findByCodeIgnoreCase("bid-projectleader")).thenReturn(Optional.of(role("bid-projectleader")));
+        when(roleProfileRepository.findByCodeIgnoreCase("bid-projectLeader")).thenReturn(Optional.of(role("bid-projectLeader")));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Map<String, OssUserJobAndRoleDto> lookupMap = Map.of(
@@ -299,7 +299,7 @@ class OrganizationUserSyncWriterTest {
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(saved.capture());
-        assertThat(saved.getValue().getRoleCode()).isEqualTo("bid-projectleader");
+        assertThat(saved.getValue().getRoleCode()).isEqualTo("bid-projectLeader");
     }
 
     @Test

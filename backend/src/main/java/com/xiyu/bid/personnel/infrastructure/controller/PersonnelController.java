@@ -69,7 +69,7 @@ public class PersonnelController {
     @PostMapping
     // 严格按照蓝图 4.3「人员证书」权限矩阵：仅投标部门三个角色可新增
     // 其他角色（项目负责人、行政人员、跨部门协同人员等）均无权限
-    @PreAuthorize("hasAnyAuthority('bid_admin', 'bid_lead', 'bid_specialist')")
+    @PreAuthorize("hasAnyAuthority('bidAdmin', 'bid-TeamLeader', 'bid-Team')")
     @Auditable(action = "CREATE", entityType = "Personnel", description = "创建人员")
     public ResponseEntity<ApiResponse<PersonnelDTO>> create(@Valid @RequestBody PersonnelUpsertCommand command,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -116,10 +116,10 @@ public class PersonnelController {
     }
 
     @PutMapping("/{id}")
-    // 按蓝图 4.3「编辑证书」要求：仅 本人(bid_specialist) + 投标组长(bid_lead) + 投标管理员(bid_admin) 可编辑
+    // 按蓝图 4.3「编辑证书」要求：仅 本人(bid-Team) + 投标组长(bid-TeamLeader) + 投标管理员(bidAdmin) 可编辑
     @PreAuthorize("""
-        hasAnyAuthority('bid_admin', 'bid_lead') or
-        (hasAuthority('bid_specialist') and #id == authentication.principal.id)
+        hasAnyAuthority('bidAdmin', 'bid-TeamLeader') or
+        (hasAuthority('bid-Team') and #id == authentication.principal.id)
         """)
     @Auditable(action = "UPDATE", entityType = "Personnel", description = "更新人员")
     public ResponseEntity<ApiResponse<PersonnelEditResponse>> update(@PathVariable Long id,
@@ -143,7 +143,7 @@ public class PersonnelController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('bid_admin', 'bid_lead')")
+    @PreAuthorize("hasAnyAuthority('bidAdmin', 'bid-TeamLeader')")
     @Auditable(action = "DELETE", entityType = "Personnel", description = "删除人员")
     public ResponseEntity<Void> delete(@PathVariable Long id,
                                        @RequestBody(required = false) DeletePersonnelRequest request,
@@ -173,7 +173,7 @@ public class PersonnelController {
     }
 
     @PostMapping("/{id}/restore")
-    @PreAuthorize("hasAnyAuthority('bid_admin', 'bid_lead')")
+    @PreAuthorize("hasAnyAuthority('bidAdmin', 'bid-TeamLeader')")
     @Auditable(action = "RESTORE", entityType = "Personnel", description = "恢复已停用人员")
     public ResponseEntity<Void> restore(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
         Long currentUserId = extractUserId(userDetails);
@@ -188,7 +188,7 @@ public class PersonnelController {
      * 保存后返回可下载的 attachmentUrl，详情页 "下载" 链接可直接使用。
      */
     @PostMapping("/{personnelId}/certificates/{certId}/attachment")
-    @PreAuthorize("hasAnyAuthority('bid_admin', 'bid_lead', 'bid_specialist')")
+    @PreAuthorize("hasAnyAuthority('bidAdmin', 'bid-TeamLeader', 'bid-Team')")
     @Auditable(action = "UPDATE", entityType = "PersonnelCertificate", description = "上传/替换证书附件")
     public ResponseEntity<ApiResponse<String>> uploadCertAttachment(
             @PathVariable Long personnelId,

@@ -20,7 +20,7 @@ class SystemRoleListMapperTest {
 
         String roleCode = mapper.map(List.of("管理员", "投标项目负责人"));
 
-        assertThat(roleCode).isEqualTo("bid-projectleader");
+        assertThat(roleCode).isEqualTo("bid-projectLeader");
     }
 
     @Test
@@ -44,14 +44,14 @@ class SystemRoleListMapperTest {
     }
 
     @Test
-    @DisplayName("matches case-insensitively")
-    void map_caseInsensitive_returnsLowercaseRoleCode() {
+    @DisplayName("preserves original case of role code")
+    void map_caseInsensitive_preservesOriginalCaseRoleCode() {
         OrganizationIntegrationProperties properties = propertiesWithMapping("^投标项目负责人$", "bid-projectLeader");
         SystemRoleListMapper mapper = new SystemRoleListMapper(new PositionToRoleMapper(properties));
 
         String roleCode = mapper.map(List.of("投标项目负责人"));
 
-        assertThat(roleCode).isEqualTo("bid-projectleader");
+        assertThat(roleCode).isEqualTo("bid-projectLeader");
     }
 
     private OrganizationIntegrationProperties propertiesWithMapping(String pattern, String roleCode) {

@@ -123,7 +123,9 @@ public class User {
 
     public String getRoleCode() {
         if (roleProfile != null && roleProfile.getCode() != null && !roleProfile.getCode().isBlank()) {
-            return roleProfile.getCode().trim().toLowerCase(java.util.Locale.ROOT);
+            // 保留 roleCode 原始大小写：OSS 角色码大小写敏感（如 bidAdmin、bid-TeamLeader）
+            // RoleProfileCatalog 用 case-insensitive TreeMap 查找，但 User.roleCode 字段存原值
+            return roleProfile.getCode().trim();
         }
         return role == null ? "manager" : role.name().toLowerCase(java.util.Locale.ROOT);
     }

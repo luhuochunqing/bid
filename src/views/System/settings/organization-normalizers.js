@@ -18,7 +18,8 @@ export const normalizeDeptTree = (items = []) => (Array.isArray(items) ? items :
 export const normalizeRoles = (items = []) => (Array.isArray(items) ? items : [])
   .map((role) => ({
     id: role.id ?? null,
-    code: String(role.code || role.roleCode || '').trim().toLowerCase(),
+    // 保留 roleCode 原始大小写：OSS 角色码大小写敏感（如 bidAdmin、bid-TeamLeader）
+    code: String(role.code || role.roleCode || '').trim(),
     name: role.name || role.code || '未命名角色',
     description: role.description || '',
     isSystem: Boolean(role.isSystem ?? role.system),
@@ -39,7 +40,8 @@ export const normalizeUsers = (items = []) => (Array.isArray(items) ? items : []
     departmentCode: normalizeDeptCode(user.departmentCode || user.deptCode),
     departmentName: user.departmentName || user.dept || '未配置部门',
     roleId: user.roleId ?? null,
-    roleCode: String(user.roleCode || user.role || '').toLowerCase(),
+    // 保留 roleCode 原始大小写：OSS 角色码大小写敏感
+    roleCode: String(user.roleCode || user.role || '').trim(),
     roleName: user.roleName || user.role || '未配置角色',
     enabled: Boolean(user.enabled)
   }))
@@ -54,7 +56,8 @@ export const toDeptTreeNodes = (items = []) => {
 }
 
 export const buildRolePayload = (role = {}) => ({
-  code: String(role.code || '').trim().toLowerCase(),
+  // 保留 roleCode 原始大小写：OSS 角色码大小写敏感，回写后端必须用正确大小写
+  code: String(role.code || '').trim(),
   name: String(role.name || '').trim(),
   description: String(role.description || '').trim(),
   enabled: Boolean(role.enabled),
