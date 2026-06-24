@@ -181,6 +181,12 @@ class UserDetailsServiceImplTest {
                 .build();
     }
 
+    private User ossUserWithRoleProfile(String username, User.Role role, String roleCode) {
+        User user = userWithRoleProfile(username, role, roleCode);
+        user.setExternalOrgSourceApp("OSS");
+        return user;
+    }
+
     // ——— catalog 守卫（第4b步）测试 ———
 
     @Test
@@ -313,11 +319,77 @@ class UserDetailsServiceImplTest {
 
         UserDetails details = userDetailsService.loadUserByUsername("oss_cache_hit");
 
-        // 权限来自缓存（/bidAdmin + bidding），而非 DB 的 bid-specialist
+        // 权限来自缓存（/bidAdmin + bidding），而非 DB 的 bid-specialist；并保留旧接口 ROLE_ADMIN 兼容
         assertThat(details.getAuthorities())
                 .extracting("authority")
-                .contains("/bidAdmin", "ROLE_BIDADMIN", "bidding")
+                .contains("/bidAdmin", "ROLE_BIDADMIN", "ROLE_ADMIN", "bidding")
                 .doesNotContain("bid-specialist", "task.view.own");
+    }
+
+    @Test
+    @DisplayName("OSS 管理类标准角色 cache hit 时应保留 Legacy Role 兼容")
+    void ossManagementRolesShouldKeepLegacyRoleCompatibility() {
+        User bidLead = ossUserWithRoleProfile("oss_bid_lead", User.Role.MANAGER, RoleProfileCatalog.BID_SPECIALIST_CODE);
+        when(userRepository.findByUsername("oss_bid_lead")).thenReturn(Optional.of(bidLead));
+        when(ossPermissionCache.getEntry("oss_bid_lead")).thenReturn(Optional.of(new OssPermissionCache.CacheEntry(
+                RoleProfileCatalog.BID_LEAD_CODE, List.of("dashboard"), null, Instant.now().plusSeconds(60))));
+
+        UserDetails bidLeadDetails = userDetailsService.loadUserByUsername("oss_bid_lead");
+
+        assertThat(bidLeadDetails.getAuthorities())
+                .extracting("authority")
+                .contains(RoleProfileCatalog.BID_LEAD_CODE, "ROLE_BID_TEAMLEADER", "ROLE_MANAGER");
+
+        User sales = ossUserWithRoleProfile("oss_sales", User.Role.MANAGER, RoleProfileCatalog.BID_SPECIALIST_CODE);
+        when(userRepository.findByUsername("oss_sales")).thenReturn(Optional.of(sales));
+        when(ossPermissionCache.getEntry("oss_sales")).thenReturn(Optional.of(new OssPermissionCache.CacheEntry(
+                RoleProfileCatalog.SALES_CODE, List.of("dashboard"), null, Instant.now().plusSeconds(60))));
+
+        UserDetails salesDetails = userDetailsService.loadUserByUsername("oss_sales");
+
+        assertThat(salesDetails.getAuthorities())
+                .extracting("authority")
+                .contains(RoleProfileCatalog.SALES_CODE, "ROLE_BID_PROJECTLEADER", "ROLE_MANAGER");
+    }
+
+    @Test
+    @DisplayName("OSS 受限标准角色 cache hit 时不应继承 Legacy Role 兼容")
+    void ossRestrictedRolesShouldNotInheritLegacyRoleCompatibility() {
+        User specialist = ossUserWithRoleProfile("oss_specialist", User.Role.MANAGER, RoleProfileCatalog.BID_ADMIN_CODE);
+        when(userRepository.findByUsername("oss_specialist")).thenReturn(Optional.of(specialist));
+        when(ossPermissionCache.getEntry("oss_specialist")).thenReturn(Optional.of(new OssPermissionCache.CacheEntry(
+                RoleProfileCatalog.BID_SPECIALIST_CODE, List.of("task.view.own"), null, Instant.now().plusSeconds(60))));
+
+        UserDetails specialistDetails = userDetailsService.loadUserByUsername("oss_specialist");
+
+        assertThat(specialistDetails.getAuthorities())
+                .extracting("authority")
+                .contains(RoleProfileCatalog.BID_SPECIALIST_CODE, "ROLE_BID_TEAM", "task.view.own")
+                .doesNotContain("ROLE_MANAGER", "ROLE_ADMIN");
+
+        User adminStaff = ossUserWithRoleProfile("oss_admin_staff", User.Role.MANAGER, RoleProfileCatalog.BID_ADMIN_CODE);
+        when(userRepository.findByUsername("oss_admin_staff")).thenReturn(Optional.of(adminStaff));
+        when(ossPermissionCache.getEntry("oss_admin_staff")).thenReturn(Optional.of(new OssPermissionCache.CacheEntry(
+                RoleProfileCatalog.ADMIN_STAFF_CODE, List.of("certificate.manage"), null, Instant.now().plusSeconds(60))));
+
+        UserDetails adminStaffDetails = userDetailsService.loadUserByUsername("oss_admin_staff");
+
+        assertThat(adminStaffDetails.getAuthorities())
+                .extracting("authority")
+                .contains(RoleProfileCatalog.ADMIN_STAFF_CODE, "ROLE_BID_ADMINISTRATION", "certificate.manage")
+                .doesNotContain("ROLE_MANAGER", "ROLE_ADMIN");
+
+        User otherDept = ossUserWithRoleProfile("oss_other_dept", User.Role.MANAGER, RoleProfileCatalog.BID_ADMIN_CODE);
+        when(userRepository.findByUsername("oss_other_dept")).thenReturn(Optional.of(otherDept));
+        when(ossPermissionCache.getEntry("oss_other_dept")).thenReturn(Optional.of(new OssPermissionCache.CacheEntry(
+                RoleProfileCatalog.BID_OTHER_DEPT_CODE, List.of("task.handle.own"), null, Instant.now().plusSeconds(60))));
+
+        UserDetails otherDeptDetails = userDetailsService.loadUserByUsername("oss_other_dept");
+
+        assertThat(otherDeptDetails.getAuthorities())
+                .extracting("authority")
+                .contains(RoleProfileCatalog.BID_OTHER_DEPT_CODE, "ROLE_BID_OTHERDEPT", "task.handle.own")
+                .doesNotContain("ROLE_MANAGER", "ROLE_ADMIN");
     }
 
     @Test

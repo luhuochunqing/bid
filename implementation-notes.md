@@ -420,3 +420,21 @@
 - 同一测试窗口内 `/api/tenders?size=10000` 已返回 200，未再出现该接口 4xx/5xx，说明原后端 `/api/tenders` 403 已修复。
 - 剩余阻断来自前端路由权限：资质证书路由要求同时具备 `knowledge` 与 `knowledge-qualification`，但 OSS 登录链路只返回子权限 `knowledge-qualification`，缺少父级 `knowledge`。
 - 本次最小修复放在前端认证 DTO 归一化边界：任一 `knowledge-*` 子权限存在时补齐父级 `knowledge`；不修改 `hasAllPermissions` 全局语义，不补其他子权限，不扩大后端或 OSS 权限。
+
+# OSS 用户 Legacy Role 兼容回归测试补强实施记录
+
+## 问题口径
+
+- 曾有实现把 OSS cache hit 用户统一设置为 `skipLegacyCompat=true`，导致 `/bidAdmin`、`bid-TeamLeader`、`bid-projectLeader` 等管理/负责人角色不再获得 `ROLE_ADMIN` / `ROLE_MANAGER`。
+- 系统仍有大量历史接口使用 `@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")`，上述角色缺少 legacy authority 会造成批量 403。
+
+## 决策与权衡
+
+- 当前生产代码已使用 `RoleProfileCatalog.shouldSkipLegacyRoleCompat(roleCode)` 按角色目录决定是否跳过 legacy 兼容，本次不改生产逻辑。
+- 不简单给所有 OSS 用户恢复 `ROLE_MANAGER`：`bid-Team`、`bid-administration`、`bid-otherDept` 是受限角色，若继承 `ROLE_MANAGER` 会误入旧接口白名单。
+- 继续保留 OSS cache miss fail-closed，不回退 DB roleProfile，避免 OSS 用户拿到过期或被篡改的本地高权限。
+- 本次补强单元测试锁定两类边界：管理/负责人 OSS 角色必须保留 legacy 兼容；受限 OSS 角色必须不继承 legacy 兼容。
+
+## 验证计划
+
+- 后端：`mvn -f backend/pom.xml test -Dtest=UserDetailsServiceImplTest`。
