@@ -1,0 +1,9 @@
+version: 1
+task: "unify-oauth-login-system"
+locks:
+  - path: "backend/src/main/resources/application.yml"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/claude/unify-oauth-login-system"
+    expiresAt: "2026-06-25T04:25:44.289Z"
+    reason: "统一 /oauth/login system 参数为 bid-platform"

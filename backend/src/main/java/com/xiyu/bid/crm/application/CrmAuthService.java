@@ -118,7 +118,7 @@ public class CrmAuthService {
         LinkedMultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("username", properties.getOauthUsername());
         formData.add("password", properties.getOauthPassword());
-        formData.add("system", properties.getOauthSystem());
+        formData.add("system", properties.getAuth().getUserLoginSystem());
         log.info("OSS oauth login: baseUrl={}, path={}, username={}", baseUrl, path, properties.getOauthUsername());
         CrmResponseHandler.CrmApiResponse response = httpClient.postForm(baseUrl, path, formData);
 

@@ -105,7 +105,7 @@ public class CrmProperties {
     private String oauthPassword = "";
 
     /** OAuth login system code. */
-    private String oauthSystem = "HOME";
+    private String oauthSystem = "bid-platform";
 
     /** GenerateToken path for CRM JWT token exchange. */
     private String generateTokenPath = "/common/inner/generateToken";
@@ -190,7 +190,7 @@ public class CrmProperties {
         /** userPermissionPath - GET /oauth/getUserPermission. */
         private String userPermissionPath = "/oauth/getUserPermission";
         /** userPermissionSystemName - default query param for getUserPermission. */
-        private String userPermissionSystemName = "xiyu-bid-poc";
+        private String userPermissionSystemName = "bid-platform";
         /** userLoginSystem - OSS system 参数，用于用户登录认证（区别于内部 CRM API 调用的 oauthSystem）。 */
         private String userLoginSystem = "bid-platform";
         /** getUserJobListPath - POST /oss/admin-web/v1/output/data/getUserJobListByJobNumberList. */

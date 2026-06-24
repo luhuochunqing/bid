@@ -1,9 +1,0 @@
-version: 1
-task: "hotfix-v1092-mysql-compat"
-locks:
-  - path: "backend/src/main/resources/db/migration-mysql/V1092__migrate_legacy_role_codes_to_oss_aligned.sql"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/claude/hotfix-v1092-mysql-compat"
-    expiresAt: "2026-06-25T03:35:22.779Z"
-    reason: "Hotfix V1092 MySQL 1093 compatibility - production deploy"

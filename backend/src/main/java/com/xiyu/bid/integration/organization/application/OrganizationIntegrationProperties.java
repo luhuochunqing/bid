@@ -87,7 +87,7 @@ public class OrganizationIntegrationProperties {
         /** OSS 菜单树接口路径：GET /sysMenuUrl/getUserMenuTree */
         private String userMenuTreePath = "/sysMenuUrl/getUserMenuTree";
         /** OSS 菜单树查询 systemName，必须与登录接口的 system 标识一致 */
-        private String userMenuTreeSystemName = "xiyu-bid-poc";
+        private String userMenuTreeSystemName = "bid-platform";
         /** OSS 菜单树查询类型：1=url，2=本地配置 */
         private int userMenuTreeRetrievalType = 2;
         /** OSS 菜单树用户工号 query 参数名 */
