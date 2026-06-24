@@ -2,6 +2,7 @@ package com.xiyu.bid.tender.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
@@ -35,17 +36,26 @@ class InitiationPrefillServiceTest {
     private InitiationPrefillService service;
 
     @Test
-    void shouldSkipWhenInitiationAlreadyExists() {
-        when(repository.findByProjectId(1L)).thenReturn(Optional.of(new ProjectInitiationDetails()));
-        service.prefillFromEvaluation(1L, null, null);
+    void shouldSkipWhenInitiationAlreadyComplete() {
+        ProjectInitiationDetails existing = ProjectInitiationDetails.builder()
+                .projectId(1L).ownerUnit("已有单位").customerType("GOVERNMENT").build();
+        when(repository.findByProjectId(1L)).thenReturn(Optional.of(existing));
+        service.prefillFromEvaluation(1L, 1L, null, null);
         verify(repository, never()).save(any());
     }
 
     @Test
-    void shouldSkipWhenNoEvaluationOrBasic() {
-        when(repository.findByProjectId(1L)).thenReturn(Optional.empty());
-        service.prefillFromEvaluation(1L, null, null);
-        verify(repository, never()).save(any());
+    void shouldBackfillMissingRequiredFieldsWhenAlreadyExists() {
+        ProjectInitiationDetails existing = ProjectInitiationDetails.builder()
+                .projectId(1L).ownerUnit(null).customerType(null).build();
+        when(repository.findByProjectId(1L)).thenReturn(Optional.of(existing));
+        Tender tender = Tender.builder().purchaserName("补全单位").customerType("央企").build();
+
+        service.prefillFromEvaluation(1L, 1L, null, tender);
+
+        verify(repository).save(existing);
+        assertThat(existing.getOwnerUnit()).isEqualTo("补全单位");
+        assertThat(existing.getCustomerType()).isEqualTo("CENTRAL_SOE");
     }
 
     @Test
@@ -70,7 +80,7 @@ class InitiationPrefillServiceTest {
         when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc(any(), any()))
                 .thenReturn(Collections.emptyList());
 
-        service.prefillFromEvaluation(1L, 1L, eval);
+        service.prefillFromEvaluation(1L, 1L, eval, null);
 
         ArgumentCaptor<ProjectInitiationDetails> captor = ArgumentCaptor.forClass(ProjectInitiationDetails.class);
         verify(repository).save(captor.capture());
@@ -84,5 +94,69 @@ class InitiationPrefillServiceTest {
         assertThat(saved.getSupportNeeded()).isEqualTo("支持Z");
         assertThat(saved.getProjectPlanGap()).isEqualTo("GAP说明");
         assertThat(saved.getCustomerInfoJson()).isEqualTo("[]");
+    }
+
+    @Test
+    void shouldPrefillOwnerUnitAndCustomerTypeFromTender() {
+        when(repository.findByProjectId(1L)).thenReturn(Optional.empty());
+        when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc(any(), any()))
+                .thenReturn(Collections.emptyList());
+        Tender tender = Tender.builder()
+                .purchaserName("测试采购方")
+                .customerType("政府机关")
+                .build();
+
+        service.prefillFromEvaluation(1L, 1L, null, tender);
+
+        ArgumentCaptor<ProjectInitiationDetails> captor = ArgumentCaptor.forClass(ProjectInitiationDetails.class);
+        verify(repository).save(captor.capture());
+        ProjectInitiationDetails saved = captor.getValue();
+        assertThat(saved.getOwnerUnit()).isEqualTo("测试采购方");
+        assertThat(saved.getCustomerType()).isEqualTo("GOVERNMENT");
+        assertThat(saved.getEvalPrefilled()).isTrue();
+    }
+
+    @Test
+    void shouldMapVariousCustomerTypeFormats() {
+        when(repository.findByProjectId(1L)).thenReturn(Optional.empty());
+        when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc(any(), any()))
+                .thenReturn(Collections.emptyList());
+
+        // 验证中文文本映射
+        service.prefillFromEvaluation(1L, 1L, null, Tender.builder().purchaserName("A").customerType("央企").build());
+        ArgumentCaptor<ProjectInitiationDetails> captor1 = ArgumentCaptor.forClass(ProjectInitiationDetails.class);
+        verify(repository, times(1)).save(captor1.capture());
+        assertThat(captor1.getValue().getCustomerType()).isEqualTo("CENTRAL_SOE");
+
+        // 验证历史数据"政府"映射
+        reset(repository);
+        when(repository.findByProjectId(2L)).thenReturn(Optional.empty());
+        when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc(any(), any()))
+                .thenReturn(Collections.emptyList());
+        service.prefillFromEvaluation(2L, 2L, null, Tender.builder().purchaserName("B").customerType("政府").build());
+        ArgumentCaptor<ProjectInitiationDetails> captor2 = ArgumentCaptor.forClass(ProjectInitiationDetails.class);
+        verify(repository).save(captor2.capture());
+        assertThat(captor2.getValue().getCustomerType()).isEqualTo("GOVERNMENT");
+    }
+
+    @Test
+    void shouldStillPrefillFromTenderEvenWithoutEvaluation() {
+        when(repository.findByProjectId(1L)).thenReturn(Optional.empty());
+        when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc(any(), any()))
+                .thenReturn(Collections.emptyList());
+        Tender tender = Tender.builder()
+                .purchaserName("无评估表的采购方")
+                .customerType("民企")
+                .build();
+
+        service.prefillFromEvaluation(1L, 1L, null, tender);
+
+        ArgumentCaptor<ProjectInitiationDetails> captor = ArgumentCaptor.forClass(ProjectInitiationDetails.class);
+        verify(repository).save(captor.capture());
+        ProjectInitiationDetails saved = captor.getValue();
+        // 即使无评估表，标讯基础字段仍应带入
+        assertThat(saved.getOwnerUnit()).isEqualTo("无评估表的采购方");
+        assertThat(saved.getCustomerType()).isEqualTo("PRIVATE");
+        assertThat(saved.getEvalPrefilled()).isTrue();
     }
 }

@@ -1,10 +1,11 @@
-// Input: projectId + tenderId + TenderEvaluation（basic + customerInfos + GAP 附件）
+// Input: projectId + tenderId + TenderEvaluation（basic + customerInfos + GAP 附件）+ Tender（ownerUnit/customerType）
 // Output: 副作用——建 ProjectInitiationDetails（评估数据 + evalPrefilled=true）+ 拷贝 GAP 附件
 // Pos: tender/service/ - CO-323 标讯评估表 → 项目立项预填（命令式外壳）
 package com.xiyu.bid.tender.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.project.dto.CustomerInfoRow;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
@@ -21,8 +22,9 @@ import java.util.List;
 /**
  * CO-323: 标讯评估表 → 项目立项预填服务。
  * <p>{@code TenderEvaluationService.proceedToBid} 创建项目后调用，把评估数据（basic +
- * 客户信息 EAV + GAP 附件）带入 {@link ProjectInitiationDetails}，并标记 {@code evalPrefilled=true}
- * （前端据此将带入字段设为只读，保证金/招标文件除外）。幂等（已存在不重复建）。
+ * 客户信息 EAV + GAP 附件）以及标讯基础字段（ownerUnit/customerType）带入 {@link ProjectInitiationDetails}，
+ * 并标记 {@code evalPrefilled=true}（前端据此将带入字段设为只读，保证金/招标文件除外）。
+ * 幂等（已存在则补全缺失必填字段）。
  */
 @Service
 @RequiredArgsConstructor
@@ -34,33 +36,57 @@ public class InitiationPrefillService {
     private final ProjectDocumentRepository projectDocumentRepository;
 
     /**
-     * 把评估数据带入项目立项。评估表不存在/为空则跳过（FR-005），不阻塞 proceedToBid。
+     * 把评估数据和标讯基础字段带入项目立项。评估表不存在/为空则跳过评估带入（FR-005），
+     * 但标讯的 ownerUnit/customerType 仍会带入（必填项），不阻塞 proceedToBid。
      *
      * @param projectId  新创建的项目 id
      * @param tenderId   标讯 id（评估表 GAP 附件的 linkedEntityId）
      * @param evaluation 标讯评估表（可为 null）
+     * @param tender     标讯实体（用于带入 ownerUnit/customerType，可为 null）
      */
     @Transactional
-    public void prefillFromEvaluation(Long projectId, Long tenderId, TenderEvaluation evaluation) {
-        if (initiationRepository.findByProjectId(projectId).isPresent()) {
-            log.info("CO-323: ProjectInitiationDetails already exists for project {}, skip prefill", projectId);
+    public void prefillFromEvaluation(Long projectId, Long tenderId, TenderEvaluation evaluation, Tender tender) {
+        var existingOpt = initiationRepository.findByProjectId(projectId);
+        ProjectInitiationDetails details;
+        if (existingOpt.isPresent()) {
+            // 幂等：已存在则补全缺失的必填字段（如 prefill 曾部分失败）
+            details = existingOpt.get();
+            boolean updated = false;
+            if (details.getOwnerUnit() == null && tender != null
+                    && tender.getPurchaserName() != null && !tender.getPurchaserName().isBlank()) {
+                details.setOwnerUnit(tender.getPurchaserName());
+                updated = true;
+            }
+            if (details.getCustomerType() == null && tender != null) {
+                String mapped = EvaluationToInitiationMapper.mapCustomerType(tender.getCustomerType());
+                if (mapped != null) {
+                    details.setCustomerType(mapped);
+                    updated = true;
+                }
+            }
+            if (updated) {
+                initiationRepository.save(details);
+                log.info("CO-323: backfilled missing required fields for project {}", projectId);
+            } else {
+                log.info("CO-323: ProjectInitiationDetails already exists for project {}, skip prefill", projectId);
+            }
             return;
         }
-        if (evaluation == null || evaluation.getBasic() == null) {
-            log.info("CO-323: no evaluation data for project {}, skip prefill", projectId);
-            return;
-        }
-        ProjectInitiationDetails details = ProjectInitiationDetails.builder()
+        details = ProjectInitiationDetails.builder()
                 .projectId(projectId)
                 .evalPrefilled(Boolean.TRUE)
                 .reviewStatus("DRAFT")
                 .build();
-        EvaluationToInitiationMapper.applyEvaluationBasic(details, evaluation.getBasic());
-        List<CustomerInfoRow> rows = EvaluationToInitiationMapper.toCustomerInfoRows(evaluation.getCustomerInfos());
-        try {
-            details.setCustomerInfoJson(objectMapper.writeValueAsString(rows));
-        } catch (JsonProcessingException ex) {
-            throw new IllegalStateException("CO-323: serialize customer info rows failed", ex);
+        // 标讯基础字段 → 立项 ownerUnit/customerType（必填项，必须带入否则提交立项校验失败）
+        EvaluationToInitiationMapper.applyTenderFields(details, tender);
+        if (evaluation != null && evaluation.getBasic() != null) {
+            EvaluationToInitiationMapper.applyEvaluationBasic(details, evaluation.getBasic());
+            List<CustomerInfoRow> rows = EvaluationToInitiationMapper.toCustomerInfoRows(evaluation.getCustomerInfos());
+            try {
+                details.setCustomerInfoJson(objectMapper.writeValueAsString(rows));
+            } catch (JsonProcessingException ex) {
+                throw new IllegalStateException("CO-323: serialize customer info rows failed", ex);
+            }
         }
         initiationRepository.save(details);
         copyGapAttachments(projectId, tenderId);

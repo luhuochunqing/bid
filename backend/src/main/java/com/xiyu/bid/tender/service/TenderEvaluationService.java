@@ -257,9 +257,9 @@ public class TenderEvaluationService {
 
         // CO-323: 评估数据带入立项（幂等，无评估数据则跳过；预填失败不阻塞投标流程 FR-005）
         try {
-            initiationPrefillService.prefillFromEvaluation(createdProject.getId(), tenderId, evaluationOpt.orElse(null));
+            initiationPrefillService.prefillFromEvaluation(createdProject.getId(), tenderId, evaluationOpt.orElse(null), tender);
         } catch (RuntimeException ex) {
-            log.warn("CO-323: prefill initiation failed for tender {}, non-blocking", tenderId, ex);
+            log.error("CO-323: prefill initiation failed for tender {}, this may cause submission validation errors later", tenderId, ex);
         }
 
         TaskDTO createdTask = bidTaskFactory.reuseOrCreate(

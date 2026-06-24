@@ -1,13 +1,8 @@
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const PROJECT_TYPE_SUBMIT_MAP = {
-  OFFICE: 'OFFICE',
-  COMPREHENSIVE: 'COMPREHENSIVE',
-  GROUP_PURCHASE: 'COLLECTIVE',
-  COLLECTIVE: 'COLLECTIVE',
   INDUSTRIAL_EC: 'INDUSTRIAL',
-  INDUSTRIAL: 'INDUSTRIAL',
-  OTHER: 'OTHER',
+  GROUP_PURCHASE: 'COLLECTIVE',
   办公: 'OFFICE',
   综合: 'COMPREHENSIVE',
   集采: 'COLLECTIVE',
@@ -18,16 +13,15 @@ const PROJECT_TYPE_SUBMIT_MAP = {
 
 const CUSTOMER_TYPE_SUBMIT_MAP = {
   GOVERNMENT_INSTITUTION: 'GOVERNMENT',
-  GOVERNMENT: 'GOVERNMENT',
-  CENTRAL_SOE: 'CENTRAL_SOE',
-  LOCAL_SOE: 'LOCAL_SOE',
   PRIVATE_ENTERPRISE: 'PRIVATE',
-  PRIVATE: 'PRIVATE',
   FOREIGN_HK_MACAO_TW: 'FOREIGN',
-  FOREIGN: 'FOREIGN',
   政府机关: 'GOVERNMENT',
+  政府: 'GOVERNMENT',
+  事业单位: 'GOVERNMENT',
+  高校: 'GOVERNMENT',
   '政府机关/事业单位/高校': 'GOVERNMENT',
   央企: 'CENTRAL_SOE',
+  国企: 'CENTRAL_SOE',
   地方国企: 'LOCAL_SOE',
   民企: 'PRIVATE',
   企业客户: 'PRIVATE',
@@ -185,6 +179,11 @@ export function useInitiationStageActions({
       reviewStatus.value = data.reviewStatus || ''
       evalPrefilled.value = !!data.evalPrefilled
       fieldLocked.value = !!data.bidOpenTime && !!data.ownerUnit
+      // 修复：已存在的立项实体可能缺少必填字段 ownerUnit/customerType（如 CO-323 prefill 未带入），
+      // 从标讯/项目数据补充，避免提交立项时校验失败
+      if (!form.ownerUnit || !form.customerType) {
+        await fillMissingRequiredFromTender()
+      }
     } catch (e) {
       if (e?.response?.status === 404) {
         await autoFillFromTender()
@@ -194,15 +193,21 @@ export function useInitiationStageActions({
     }
   }
 
+  // 公共：获取项目关联的标讯数据源，供 autoFillFromTender 和 fillMissingRequiredFromTender 复用
+  async function fetchTenderSource() {
+    const projectResp = await projectsApi.getDetail(props.projectId)
+    const project = projectResp?.data || projectResp
+    const tenderId = project?.tenderId
+    const tender = tenderId ? (await tendersApi.getDetail(tenderId).then(r => r?.data || r).catch(() => null)) : null
+    return { project, tender, src: tender || project || {} }
+  }
+
   async function autoFillFromTender() {
     // CO-323: 兜底带入路径也标记 evalPrefilled，保证带入字段只读
     evalPrefilled.value = true
     try {
-      const projectResp = await projectsApi.getDetail(props.projectId)
-      const project = projectResp?.data || projectResp
+      const { project, tender, src } = await fetchTenderSource()
       const tenderId = project?.tenderId
-      const tender = tenderId ? (await tendersApi.getDetail(tenderId).then(r => r?.data || r).catch(() => null)) : null
-      const src = tender || project || {}
       const bidTime = src.bidOpeningTime || src.bidOpenTime || ''
       Object.assign(form, {
         bidOpenTime: bidTime,
@@ -306,6 +311,23 @@ export function useInitiationStageActions({
       }
     } catch (e) {
       console.warn('[InitiationStage] auto-fill from tender failed', e)
+    }
+  }
+
+  // 修复：已存在立项实体缺少必填字段 ownerUnit/customerType 时，从标讯/项目数据补充
+  // 不设置 evalPrefilled，仅补充缺失的必填字段
+  async function fillMissingRequiredFromTender() {
+    try {
+      const { src } = await fetchTenderSource()
+      if (!form.ownerUnit) {
+        form.ownerUnit = src.purchaserName || src.ownerUnit || src.customer || ''
+      }
+      if (!form.customerType) {
+        const raw = src.customerType || ''
+        form.customerType = CUSTOMER_TYPE_SUBMIT_MAP[raw] || raw
+      }
+    } catch (e) {
+      console.warn('[InitiationStage] fill missing required fields failed', e)
     }
   }
 

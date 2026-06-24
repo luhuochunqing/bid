@@ -6,7 +6,9 @@ package com.xiyu.bid.project.core;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -29,6 +31,59 @@ public final class InitiationFieldPolicy {
     public enum CustomerType { GOVERNMENT, CENTRAL_SOE, LOCAL_SOE, PRIVATE, FOREIGN }
 
     private static final Set<String> LOCKED_FIELDS = Set.of("bidOpenTime", "ownerUnit");
+
+    /**
+     * 标讯项目类型文本/枚举 → 立项 ProjectType 枚举名的统一映射。
+     * 覆盖中文文本、标讯系统枚举、历史数据。后端 EvaluationToInitiationMapper 和
+     * TenderInitMappingController 统一引用此映射，前端通过 /api/project/tender-init-mapping 获取。
+     * 无法识别时映射为 null。
+     */
+    public static final Map<String, String> PROJECT_TYPE_MAPPING = buildProjectTypeMapping();
+
+    /**
+     * 标讯客户类型文本/枚举 → 立项 CustomerType 枚举名的统一映射。
+     * 覆盖中文文本、标讯系统枚举、历史数据。后端 EvaluationToInitiationMapper 和
+     * TenderInitMappingController 统一引用此映射，前端通过 /api/project/tender-init-mapping 获取。
+     * 无法识别时映射为 null。
+     */
+    public static final Map<String, String> CUSTOMER_TYPE_MAPPING = buildCustomerTypeMapping();
+
+    private static Map<String, String> buildProjectTypeMapping() {
+        Map<String, String> m = new LinkedHashMap<>();
+        m.put("工业品", "INDUSTRIAL");
+        m.put("INDUSTRIAL_EC", "INDUSTRIAL");
+        m.put("办公", "OFFICE");
+        m.put("集采", "COLLECTIVE");
+        m.put("GROUP_PURCHASE", "COLLECTIVE");
+        m.put("综合", "COMPREHENSIVE");
+        m.put("公开招标", "COMPREHENSIVE");
+        return Map.copyOf(m);
+    }
+
+    private static Map<String, String> buildCustomerTypeMapping() {
+        Map<String, String> m = new LinkedHashMap<>();
+        m.put("政府机关/事业单位/高校", "GOVERNMENT");
+        m.put("政府机关", "GOVERNMENT");
+        m.put("政府", "GOVERNMENT");
+        m.put("事业单位", "GOVERNMENT");
+        m.put("高校", "GOVERNMENT");
+        m.put("GOVERNMENT_INSTITUTION", "GOVERNMENT");
+        m.put("GOVERNMENT", "GOVERNMENT");
+        m.put("央企", "CENTRAL_SOE");
+        m.put("国企", "CENTRAL_SOE");
+        m.put("CENTRAL_SOE", "CENTRAL_SOE");
+        m.put("地方国企", "LOCAL_SOE");
+        m.put("LOCAL_SOE", "LOCAL_SOE");
+        m.put("民企", "PRIVATE");
+        m.put("企业客户", "PRIVATE");
+        m.put("个人", "PRIVATE");
+        m.put("PRIVATE_ENTERPRISE", "PRIVATE");
+        m.put("PRIVATE", "PRIVATE");
+        m.put("港澳台及外企", "FOREIGN");
+        m.put("FOREIGN_HK_MACAO_TW", "FOREIGN");
+        m.put("FOREIGN", "FOREIGN");
+        return Map.copyOf(m);
+    }
 
     private InitiationFieldPolicy() {
     }

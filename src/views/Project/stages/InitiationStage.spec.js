@@ -21,6 +21,12 @@ vi.mock('@/api/modules/users.js', () => ({
 vi.mock('@/api/modules/ai.js', () => ({
   scoreAnalysisApi: { generatePreview: vi.fn() },
 }))
+vi.mock('@/api/modules/tenders.js', () => ({
+  tendersApi: { getDetail: vi.fn(), getEvaluation: vi.fn() },
+}))
+vi.mock('@/api/modules/projects.js', () => ({
+  projectsApi: { getDetail: vi.fn(), getDocuments: vi.fn() },
+}))
 vi.mock('element-plus', () => ({
   ElMessage: { info: vi.fn(), success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }))

@@ -1,8 +1,9 @@
-// Input: TenderEvaluationBasic + List<TenderEvaluationCustomerInfo>(EAV)
+// Input: TenderEvaluationBasic + List<TenderEvaluationCustomerInfo>(EAV) + Tender(ownerUnit/customerType)
 // Output: ProjectInitiationDetails 字段映射 + List<CustomerInfoRow>
 // Pos: tender/service/ - CO-323 标讯评估表 → 项目立项映射（纯函数，无 Spring/JPA 依赖）
 package com.xiyu.bid.tender.service;
 
+import com.xiyu.bid.project.core.InitiationFieldPolicy;
 import com.xiyu.bid.project.dto.CustomerInfoRow;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.tender.entity.TenderEvaluationBasic;
@@ -14,6 +15,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
+import com.xiyu.bid.entity.Tender;
 
 /**
  * CO-323: 标讯评估表数据 → 项目立项映射。
@@ -41,6 +44,34 @@ public final class EvaluationToInitiationMapper {
         if (b.getProcessKnowledge() != null) e.setPmUnderstandsProcess(b.getProcessKnowledge());
         if (b.getSupportNotes() != null) e.setSupportNeeded(b.getSupportNotes());
         if (b.getProjectPlanGap() != null) e.setProjectPlanGap(b.getProjectPlanGap());
+    }
+
+    /**
+     * 标讯 → 立项：带入 ownerUnit（业主单位，来自 tender.purchaserName）和
+     * customerType（客户类型枚举，来自 tender.customerType，需转换为立项枚举名）。
+     * <p>对齐前端 {@code autoFillFromTender} 的 ownerUnit/customerType 取值逻辑，
+     * 以及 {@code TenderInitMappingController} 的枚举映射。
+     * 仅覆盖非空值，避免覆盖已有数据。
+     */
+    public static void applyTenderFields(ProjectInitiationDetails e, Tender tender) {
+        if (tender == null) return;
+        if (tender.getPurchaserName() != null && !tender.getPurchaserName().isBlank()) {
+            e.setOwnerUnit(tender.getPurchaserName());
+        }
+        String mapped = mapCustomerType(tender.getCustomerType());
+        if (mapped != null) {
+            e.setCustomerType(mapped);
+        }
+    }
+
+    /**
+     * 标讯客户类型文本 → 立项 CustomerType 枚举名。
+     * 委托 {@link InitiationFieldPolicy#CUSTOMER_TYPE_MAPPING}，统一映射来源。
+     * 无法识别时返回 null（不覆盖）。
+     */
+    public static String mapCustomerType(String tenderCustomerType) {
+        if (tenderCustomerType == null || tenderCustomerType.isBlank()) return null;
+        return InitiationFieldPolicy.CUSTOMER_TYPE_MAPPING.get(tenderCustomerType.trim());
     }
 
     /** 评估表客户信息 EAV infoKey → CustomerInfoRow 字段（对齐前端 INFO_KEY_MAP）。 */
