@@ -53,7 +53,6 @@ class ProjectResultRegistrationServiceTest {
     private com.xiyu.bid.service.ProjectAccessScopeService accessScopeService;
     private ProjectNotificationService notificationService;
     private ApplicationEventPublisher eventPublisher;
-    private com.xiyu.bid.audit.service.IAuditLogService auditLogService;
     private ProjectResultRegistrationService service;
 
     @BeforeEach
@@ -67,8 +66,7 @@ class ProjectResultRegistrationServiceTest {
         competitorRepo = mock(ProjectResultCompetitorRepository.class);
         notificationService = mock(ProjectNotificationService.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
-        auditLogService = mock(com.xiyu.bid.audit.service.IAuditLogService.class);
-        service = new ProjectResultRegistrationService(repo, competitorRepo, projectRepo, tenderRepo, userRepo, stageService, accessScopeService, notificationService, eventPublisher, auditLogService);
+        service = new ProjectResultRegistrationService(repo, competitorRepo, projectRepo, tenderRepo, userRepo, stageService, accessScopeService, notificationService, eventPublisher);
         Project p = new Project();
         p.setId(1L);
         when(projectRepo.findById(1L)).thenReturn(Optional.of(p));
