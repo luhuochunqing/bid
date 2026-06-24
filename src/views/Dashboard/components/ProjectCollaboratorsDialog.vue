@@ -10,22 +10,12 @@
       <div class="add-member-section">
         <el-form :inline="true" :model="form" class="member-form">
           <el-form-item label="添加成员">
-            <el-select
+            <UserPicker
               v-model="form.userId"
-              filterable
-              remote
+              mode="search"
               placeholder="搜索人员..."
-              :remote-method="searchUsers"
-              :loading="searching"
               style="width: 200px"
-            >
-              <el-option
-                v-for="user in userOptions"
-                :key="user.id"
-                :label="user.fullName"
-                :value="user.id"
-              />
-            </el-select>
+            />
           </el-form-item>
           <el-form-item label="角色">
             <el-select v-model="form.memberRole" style="width: 140px">
@@ -75,7 +65,7 @@
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { projectsApi } from '@/api'
-import { formatUserLabel } from '@/utils/formatUserLabel.js'
+import UserPicker from '@/components/common/UserPicker.vue'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -92,8 +82,6 @@ const visible = computed({
 const members = ref([])
 const loading = ref(false)
 const adding = ref(false)
-const searching = ref(false)
-const userOptions = ref([])
 
 const form = ref({
   userId: null,
@@ -113,28 +101,6 @@ const loadMembers = async () => {
     ElMessage.error('加载成员失败')
   } finally {
     loading.value = false
-  }
-}
-
-const searchUsers = async (query) => {
-  if (!query || query.length < 2) return
-  searching.value = true
-  try {
-    // Lazy import keeps `usersApi` out of this dialog's eager module graph,
-    // so component-mount tests that mock `@/api` don't have to also mock the
-    // transitive client.js + router import chain reached via @/api/modules/users.js.
-    const { usersApi } = await import('@/api/modules/users.js')
-    // usersApi.search already unwraps the {success, data} envelope and returns the array directly.
-    // Backend UserSearchResult: { id, name, role }; UI el-option label uses `fullName`.
-    const list = await usersApi.search(query)
-    userOptions.value = Array.isArray(list)
-      ? list.map((u) => ({ id: u.id, name: u.name, fullName: u.fullName || u.name, employeeNumber: u.employeeNumber || u.employeeId || u.username, role: u.role }))
-      : []
-  } catch (err) {
-    userOptions.value = []
-    ElMessage.error('搜索成员失败')
-  } finally {
-    searching.value = false
   }
 }
 

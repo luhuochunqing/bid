@@ -78,18 +78,10 @@ export function useBiddingDetailPage() {
   const showAssignDialog = ref(false)
   const showTransferDialog = ref(false)
   const assignForm = ref({ tenderTitle: '', assignee: null, priority: 'medium', remark: '' })
-  const assignCandidates = ref([])
   const assigning = ref(false)
-  const loadingCandidates = ref(false)
 
   const openAssign = async () => {
     assignForm.value = { tenderTitle: tender.value?.title || '', assignee: null, priority: 'medium', remark: '' }
-    loadingCandidates.value = true
-    try {
-      const res = await batchTendersApi.getAssignmentCandidates()
-      assignCandidates.value = res?.data || []
-    } catch { ElMessage.error('获取候选人列表失败') }
-    finally { loadingCandidates.value = false }
     showAssignDialog.value = true
   }
 
@@ -110,18 +102,11 @@ export function useBiddingDetailPage() {
     finally { assigning.value = false }
   }
 
-  const transferCandidates = ref([])
   const transferTarget = ref(null)
   const transferring = ref(false)
 
   const openTransfer = async () => {
     transferTarget.value = null
-    loadingCandidates.value = true
-    try {
-      const res = await batchTendersApi.getAssignmentCandidates()
-      transferCandidates.value = (res?.data || []).filter(c => c.id !== tender.value?.projectManagerId)
-    } catch { ElMessage.error('获取候选人列表失败') }
-    finally { loadingCandidates.value = false }
     showTransferDialog.value = true
   }
 
@@ -159,7 +144,7 @@ export function useBiddingDetailPage() {
     handleParticipate, handleViewOriginal, handleAbandon,
     loadMatchScore, loadTenderDetail,
     handleEdit,
-    showAssignDialog, assignForm, assignCandidates, assigning, loadingCandidates, openAssign, doAssign,
-    showTransferDialog, transferCandidates, transferTarget, transferring, openTransfer, doTransfer,
+    showAssignDialog, assignForm, assigning, openAssign, doAssign,
+    showTransferDialog, transferTarget, transferring, openTransfer, doTransfer,
   }
 }

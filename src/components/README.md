@@ -44,10 +44,9 @@
 
 | 文件 | 功能 |
 |------|------|
-| `TaskForm.vue` | 项目任务表单，负责人从组织候选人中选择并默认当前创建人，支持保存时上传任务附件、对已保存附件发出预览事件和查看动态 Tab |
+| `TaskForm.vue` | 项目任务表单，负责人通过 UserPicker 选择并默认当前创建人，支持保存时上传任务附件、对已保存附件发出预览事件和查看动态 Tab |
 | `ProjectTaskBoardCard.vue` | 项目任务看板卡片，承接 TaskForm 附件预览事件并打开真实下载 URL |
 | `TaskActivityPanel.vue` | 任务动态面板，展示评论、历史快照并通过真实 API 发表评论 |
-| `useTaskAssigneeOptions.js` | 任务负责人候选人加载、默认值和选择字段同步逻辑 |
 
 ## ai 组件
 

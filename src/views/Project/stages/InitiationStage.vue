@@ -133,9 +133,7 @@
         <el-form :model="approvalForm" label-width="140px">
           <div class="grid-2">
             <el-form-item label="投标负责人" required>
-              <el-select v-model="approvalForm.biddingLeaderId" filterable remote :remote-method="searchLeader" :loading="leaderSearching" placeholder="搜索人员" style="width:100%" value-key="id" @change="(id) => { const o = leaderOptions.find(u => u.id === id); approvalForm.biddingLeaderLabel = o ? o._label : '' }">
-                <el-option v-for="u in leaderOptions" :key="u.id" :label="u._label" :value="u.id" />
-              </el-select>
+              <UserPicker v-model="approvalForm.biddingLeaderId" mode="search" placeholder="搜索人员" clearable style="width:100%" @select="onLeaderSelect" />
             </el-form-item>
             <el-form-item label="投标辅助人员">
               <el-select v-model="approvalForm.biddingAssistantId" filterable remote :remote-method="searchAssistant" :loading="assistantSearching" placeholder="搜索人员" style="width:100%" value-key="id" clearable @change="(id) => { const o = assistantOptions.find(u => u.id === id); approvalForm.biddingAssistantLabel = o ? o._label : '' }">
@@ -181,6 +179,7 @@ import { projectsApi } from '@/api/modules/projects.js'
 import { useUserStore } from '@/stores/user.js'
 import { isBidManager } from '@/utils/permission'
 import AdaptiveFormPage from '@/components/common/AdaptiveFormPage.vue'
+import UserPicker from '@/components/common/UserPicker.vue'
 import { useInitiationStageActions } from './useInitiationStageActions.js'
 import { POSITION_OPTIONS, CONTACT_METHOD_OPTIONS, TENDENCY_OPTIONS, IMPACT_OPTIONS } from '@/views/Bidding/detail/components/customerInfoMatrixConfig.js'
 
@@ -214,6 +213,7 @@ const leaderOptions = ref([]); const leaderSearching = ref(false); const assista
 async function searchLeader(q) { if (!q || q.length < 1) return; leaderSearching.value = true; try { const r = await usersApi.search(q, 15); leaderOptions.value = roleOptions(r) } catch { leaderOptions.value = [] } finally { leaderSearching.value = false } }
 async function searchAssistant(q) { if (!q || q.length < 1) return; assistantSearching.value = true; try { const r = await usersApi.search(q, 15); assistantOptions.value = roleOptions(r, BID_ASSISTANT_ROLE) } catch { assistantOptions.value = [] } finally { assistantSearching.value = false } }
 const approvalForm = reactive({ biddingLeaderId: null, biddingLeaderLabel: '', biddingAssistantId: null, biddingAssistantLabel: '' })
+function onLeaderSelect(user) { if (user) { approvalForm.biddingLeaderLabel = user.name || user.fullName || '' } }
 const uploadUrl = '/api/upload'
 const uploadHeaders = computed(() => { const t = userStore?.token; return t ? { Authorization: 'Bearer ' + t } : {} })
 const riskTagType = computed(() => form.aiRiskLevel === 'HIGH' ? 'danger' : form.aiRiskLevel === 'MEDIUM' ? 'warning' : form.aiRiskLevel === 'LOW' ? 'success' : 'info')

@@ -23,7 +23,6 @@ export const useUserStore = defineStore('user', {
     return {
       currentUser: savedUser,
       // H13 根治 (2026-06-14): token 字段退役 (走 HttpOnly cookie), 登录态由 currentUser 判定
-      users: [],
       isRestoringSession: false,
       hasRestoredSession: false
     }

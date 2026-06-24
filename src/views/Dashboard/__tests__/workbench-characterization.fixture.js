@@ -52,6 +52,9 @@ const elementComponentStubs = vi.hoisted(() => {
       template: '<div class="el-calendar-stub"><slot name="date-cell" :data="{ date: modelValue || new Date(), day: \'2026-04-22\', viewType: \'month\' }" /></div>',
     },
     ApprovalDialog: passthrough('<div class="approval-dialog-stub" />', ['visible', 'mode', 'approvalInfo']),
+    // Stub UserPicker so mounting Workbench does not pull useUserPicker → usersApi →
+    // client.js → router/index.js (createRouter) into the test module graph.
+    UserPicker: true,
   }
 })
 
@@ -131,6 +134,15 @@ vi.mock('@/api/modules/alerts.js', () => ({ alertHistoryApi: { getUnresolved: mo
 vi.mock('@/api/modules/tenders.js', () => ({ tendersApi: { getList: mockState.tendersGetList } }))
 vi.mock('@/api/modules/workbench.js', () => ({ workbenchApi: { getScheduleOverview: mockState.scheduleGetOverview, getDeadlineStats: mockState.workbenchGetDeadlineStats } }))
 vi.mock('@/api/modules/contractBorrow.js', () => ({ contractBorrowApi: { create: mockState.contractBorrowCreate } }))
+// Mock usersApi to break the UserPicker → useUserPicker → usersApi → client.js → router
+// import chain. The workbench fixture only mocks useRouter, not createRouter.
+vi.mock('@/api/modules/users.js', () => ({
+  usersApi: {
+    search: vi.fn().mockResolvedValue([]),
+    getTaskAssignmentCandidates: vi.fn().mockResolvedValue([]),
+    getAssignableCandidates: vi.fn().mockResolvedValue([]),
+  },
+}))
 vi.mock('element-plus', () => ({
   ElMessage: {
     success: mockState.messageSuccess,

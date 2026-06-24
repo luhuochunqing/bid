@@ -156,6 +156,7 @@ describe('List.vue (标讯中心)', () => {
           'el-pagination': { template: '<nav />' },
           'el-radio-button': { template: '<button><slot /></button>' },
           'el-radio-group': { template: '<div><slot /></div>' },
+          UserPicker: true,
         },
       },
     })

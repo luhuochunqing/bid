@@ -58,14 +58,10 @@
           start-placeholder="开始时间" end-placeholder="结束时间" value-format="YYYY-MM-DDTHH:mm:ss" class="filter-datetime-picker" clearable />
       </el-form-item>
       <el-form-item label="项目负责人" class="search-field">
-        <el-select v-model="modelValue.projectManagerId" placeholder="全部" clearable filterable remote :remote-method="(q) => searchUsers(q, 'pm')" :loading="userLoading.pm" class="filter-select">
-          <el-option v-for="u in userOptions.pm" :key="u.id" :label="`${u.name}（${u.employeeId}）`" :value="u.id" />
-        </el-select>
+        <UserPicker v-model="modelValue.projectManagerId" mode="search" placeholder="全部" clearable class="filter-select" />
       </el-form-item>
       <el-form-item label="创建人" class="search-field">
-        <el-select v-model="modelValue.creatorId" placeholder="全部" clearable filterable remote :remote-method="(q) => searchUsers(q, 'cr')" :loading="userLoading.cr" class="filter-select">
-          <el-option v-for="u in userOptions.cr" :key="u.id" :label="`${u.name}（${u.employeeId}）`" :value="u.id" />
-        </el-select>
+        <UserPicker v-model="modelValue.creatorId" mode="search" placeholder="全部" clearable class="filter-select" />
       </el-form-item>
       <el-form-item label="创建时间" class="search-field--datetime">
         <el-date-picker v-model="createdAtRange" type="datetimerange" range-separator="至"
@@ -88,8 +84,8 @@ import { RefreshLeft, Search } from '@element-plus/icons-vue'
 import { SOURCE_FILTER_OPTIONS, PROJECT_TYPE_OPTIONS, CUSTOMER_TYPE_OPTIONS, PRIORITY_OPTIONS } from '../constants.js'
 import { chinaRegionOptions } from '@/components/common/chinaRegionData.js'
 import { useRegionCascaderValue, REGION_CASCADER_PROPS } from '@/composables/useRegionCascaderValue.js'
-import { usersApi } from '@/api/modules/users.js'
-import { computed, reactive, ref } from 'vue'
+import UserPicker from '@/components/common/UserPicker.vue'
+import { computed } from 'vue'
 
 const modelValue = defineModel({ type: Object, required: true })
 defineEmits(['search', 'reset'])
@@ -100,20 +96,6 @@ const props = defineProps({
   customerTypeOptions: { type: Array, default: () => CUSTOMER_TYPE_OPTIONS },
   priorityOptions: { type: Array, default: () => PRIORITY_OPTIONS },
 })
-
-const userOptions = reactive({ pm: [], cr: [] })
-const userLoading = reactive({ pm: false, cr: false })
-
-async function searchUsers(query, scope) {
-  if (!query || query.length < 1) { userOptions[scope] = []; return }
-  userLoading[scope] = true
-  try {
-    const result = await usersApi.search(query, 20)
-    userOptions[scope] = Array.isArray(result) ? result : []
-  } finally {
-    userLoading[scope] = false
-  }
-}
 
 // 搜索过滤场景：emptyValue 传 null（"未筛选"），区别于表单 reset 的 ''
 const regionValue = useRegionCascaderValue(

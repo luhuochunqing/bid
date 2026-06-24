@@ -43,9 +43,7 @@
         </el-table-column>
         <el-table-column label="执行人 *" width="150">
           <template #default="{ row }">
-            <el-select v-model="row.assigneeId" filterable remote placeholder="搜索人员" :remote-method="q => searchUsers(q, row)" :loading="row._searching" size="small" style="width:140px;" clearable>
-              <el-option v-for="u in (row._userOptions || [])" :key="u.id" :label="u.name" :value="u.id" />
-            </el-select>
+            <UserPicker v-model="row.assigneeId" mode="search" placeholder="搜索人员" size="small" style="width:140px;" clearable />
           </template>
         </el-table-column>
         <el-table-column label="操作" width="52">
@@ -73,8 +71,7 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { projectsApi } from '@/api/modules/projects.js'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
-import { usersApi } from '@/api/modules/users.js'
-import { formatDisplayName } from '@/utils/formatDisplayName.js'
+import UserPicker from '@/components/common/UserPicker.vue'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
 const emit = defineEmits(['tasksAdded'])
@@ -98,15 +95,7 @@ const depositLabels = {
 const assignedCount = computed(() => tasks.value.filter(t => t.assigneeId).length)
 
 function emptyRow() {
-  return { name: '', desc: '', deliver: '', assigneeId: null, _userOptions: [] }
-}
-
-function searchUsers(query, row) {
-  if (!query) return
-  row._searching = true
-  usersApi.search(query).then(list => {
-      row._userOptions = Array.isArray(list) ? list.map(u => ({ id: Number(u.id), name: formatDisplayName(u.fullName || u.name, u.employeeNumber) })) : []
-  }).catch(() => { row._userOptions = [] }).finally(() => { row._searching = false })
+  return { name: '', desc: '', deliver: '', assigneeId: null }
 }
 
 async function open() {
@@ -126,13 +115,13 @@ async function open() {
     chapterCount.value = 7
 
     const baseTasks = [
-      { name: '招标文件全文研读', desc: '通读招标公告、招标文件主体、技术规格书、合同条款，识别废标项、关键时间节点与重要约束条件。', deliver: '研读笔记 + 关键条款清单（Excel）', assigneeId: null, _userOptions: [] },
-      { name: '资格审查材料准备', desc: '按招标文件第三章资格要求，准备营业执照、行业资质、安全生产许可证、近三年财务审计报告等合规材料。', deliver: '资格证明材料合集（PDF）', assigneeId: null, _userOptions: [] },
-      { name: '技术方案撰写', desc: '基于评分标准第 1-3 项，撰写整体技术架构、双活方案、安全防护章节，需对照评分要点逐项响应。', deliver: '技术方案初稿（Word）', assigneeId: null, _userOptions: [] },
-      { name: '商务报价编制', desc: '按招标清单逐项报价，含设备、实施、服务三大类，编制详细的分项报价表与汇总表。', deliver: '报价清单 + 报价说明（Excel）', assigneeId: null, _userOptions: [] },
-      { name: '类似项目业绩证明', desc: '梳理近 3 年同类项目业绩清单，整理中标通知书、合同首末页、验收证明三件套。', deliver: '业绩清单 + 佐证材料合集（PDF）', assigneeId: null, _userOptions: [] },
-      { name: '项目实施方案撰写', desc: '按交付计划编制实施方案，含里程碑节点、风险预案、人员投入计划与培训方案。', deliver: '实施方案（Word）', assigneeId: null, _userOptions: [] },
-      { name: '售后服务承诺书', desc: '编制售后服务承诺，含响应等级、备件库布点、季度巡检与年度健康报告承诺。', deliver: '售后服务承诺书（Word）', assigneeId: null, _userOptions: [] },
+      { name: '招标文件全文研读', desc: '通读招标公告、招标文件主体、技术规格书、合同条款，识别废标项、关键时间节点与重要约束条件。', deliver: '研读笔记 + 关键条款清单（Excel）', assigneeId: null },
+      { name: '资格审查材料准备', desc: '按招标文件第三章资格要求，准备营业执照、行业资质、安全生产许可证、近三年财务审计报告等合规材料。', deliver: '资格证明材料合集（PDF）', assigneeId: null },
+      { name: '技术方案撰写', desc: '基于评分标准第 1-3 项，撰写整体技术架构、双活方案、安全防护章节，需对照评分要点逐项响应。', deliver: '技术方案初稿（Word）', assigneeId: null },
+      { name: '商务报价编制', desc: '按招标清单逐项报价，含设备、实施、服务三大类，编制详细的分项报价表与汇总表。', deliver: '报价清单 + 报价说明（Excel）', assigneeId: null },
+      { name: '类似项目业绩证明', desc: '梳理近 3 年同类项目业绩清单，整理中标通知书、合同首末页、验收证明三件套。', deliver: '业绩清单 + 佐证材料合集（PDF）', assigneeId: null },
+      { name: '项目实施方案撰写', desc: '按交付计划编制实施方案，含里程碑节点、风险预案、人员投入计划与培训方案。', deliver: '实施方案（Word）', assigneeId: null },
+      { name: '售后服务承诺书', desc: '编制售后服务承诺，含响应等级、备件库布点、季度巡检与年度健康报告承诺。', deliver: '售后服务承诺书（Word）', assigneeId: null },
     ]
 
     if (initiation?.needDeposit === 'YES') {
@@ -141,7 +130,6 @@ async function open() {
         desc: `联系财务办理投标保证金。${initiation?.depositPaymentMethod === 'GUARANTEE' ? '采用保险/保函方式' : '采用电汇方式'}，回单须从基本账户汇出。`,
         deliver: '保证金凭证（PDF）',
         assigneeId: null,
-        _userOptions: [],
         depositFields: {
           depositAmount: initiation?.depositAmount != null ? String(initiation.depositAmount) : '',
           paymentMethod: initiation?.depositPaymentMethod === 'GUARANTEE' ? '保险/保函' : initiation?.depositPaymentMethod === 'WIRE' ? '电汇' : '',

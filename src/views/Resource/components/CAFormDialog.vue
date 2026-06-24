@@ -97,19 +97,14 @@
       </el-form-item>
 
       <el-form-item label="保管员" prop="custodianId">
-        <el-select
+        <UserPicker
           v-model="form.custodianId"
-          filterable
-          remote
-          reserve-keyword
+          mode="search"
           placeholder="搜索选择保管员"
-          :remote-method="searchCustodian"
-          :loading="custodianSearching"
+          clearable
           style="width: 100%"
-          @change="onCustodianSelect"
-        >
-          <el-option v-for="u in custodianOptions" :key="u.id" :label="u.name" :value="u.id" />
-        </el-select>
+          @select="onCustodianSelect"
+        />
       </el-form-item>
 
       <el-form-item label="备注" prop="remarks">
@@ -145,9 +140,8 @@
 
 <script setup>
 import { ref, reactive, computed, watch } from 'vue'
-import { usersApi } from '@/api/modules/users.js'
 import { usePlatformAccountSearch } from '@/composables/usePlatformAccountSearch.js'
-import { formatDisplayName } from '@/utils/formatDisplayName.js'
+import UserPicker from '@/components/common/UserPicker.vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -165,8 +159,6 @@ const visible = computed({
 const isEdit = computed(() => !!props.ca?.id)
 const formRef = ref(null)
 const { platformOptions, platformOptionsLoading, searchPlatforms } = usePlatformAccountSearch()
-const custodianSearching = ref(false)
-const custodianOptions = ref([])
 
 function createDefaultForm() {
   return {
@@ -188,20 +180,9 @@ function createDefaultForm() {
 
 const form = reactive(createDefaultForm())
 
-async function searchCustodian(query) {
-  if (!query) return
-  custodianSearching.value = true
-  try {
-    const list = await usersApi.search(query)
-    custodianOptions.value = Array.isArray(list) ? list.map(u => ({ id: Number(u.id), name: formatDisplayName(u.fullName || u.name, u.employeeNumber) })) : []
-  } catch { custodianOptions.value = [] }
-  finally { custodianSearching.value = false }
-}
-
-function onCustodianSelect(id) {
-  const selected = custodianOptions.value.find(u => u.id === Number(id))
-  if (selected) {
-    form.custodianName = selected.name
+function onCustodianSelect(user) {
+  if (user) {
+    form.custodianName = user.name || user.fullName || ''
   }
 }
 
@@ -225,9 +206,7 @@ watch(() => props.ca, (ca) => {
     form.holderName = ca.holderName || ''
     form.caPlatformUrl = ca.caPlatformUrl || ''
     form.custodianId = ca.custodianId || ''
-    if (ca.custodianId && ca.custodianName) {
-      custodianOptions.value = [{ id: Number(ca.custodianId), name: ca.custodianName }]
-    }
+    form.custodianName = ca.custodianName || ''
     form.status = ca.status || 'ACTIVE'
     form.remarks = ca.remarks || ca.remark || ''
   } else {

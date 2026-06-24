@@ -1,5 +1,4 @@
 import { ref, reactive, computed } from 'vue'
-import { useUserStore } from '@/stores/user'
 import { usersApi } from '@/api/modules/users.js'
 import { chinaRegionOptions } from '@/components/common/chinaRegionData.js'
 
@@ -67,8 +66,6 @@ export function generateBidMonthOptions() {
 }
 
 export function useProjectSearch() {
-  const userStore = useUserStore()
-
   const searchForm = ref({
     name: '',
     ownerUnit: '',
@@ -92,7 +89,7 @@ export function useProjectSearch() {
     revenueMax: null,
   })
 
-  const userList = computed(() => userStore.users || [])
+  const userList = computed(() => [])
 
   const userOptions = reactive({ pm: [], bp: [] })
   const userLoading = reactive({ pm: false, bp: false })

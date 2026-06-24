@@ -190,20 +190,10 @@ describe('useBiddingDetailPage', () => {
     expect(elMessage.success).toHaveBeenCalledWith('投标成功，已生成项目立项待办')
   })
 
-  it('assigns tender successfully', async () => {
-    const getAssignmentCandidates = vi.mocked(
-      (await import('@/api')).batchTendersApi.getAssignmentCandidates
-    )
+  it('opens assign dialog and assigns tender successfully', async () => {
     const batchAssign = vi.mocked(
       (await import('@/api')).batchTendersApi.batchAssign
     )
-    getAssignmentCandidates.mockResolvedValue({
-      success: true,
-      data: [
-        { id: 101, name: '张三', departmentName: '交付一部' },
-        { id: 102, name: '李四', departmentName: '交付二部' },
-      ],
-    })
     batchAssign.mockResolvedValue({ success: true })
 
     const wrapper = mount(createHarness())
@@ -213,7 +203,6 @@ describe('useBiddingDetailPage', () => {
     await flushPromises()
 
     expect(wrapper.vm.showAssignDialog).toBe(true)
-    expect(wrapper.vm.assignCandidates).toHaveLength(2)
 
     wrapper.vm.assignForm.assignee = 101
     await wrapper.vm.doAssign()
@@ -225,19 +214,9 @@ describe('useBiddingDetailPage', () => {
   })
 
   it('doAssign uses payload.assignee instead of assignForm.assignee', async () => {
-    const getAssignmentCandidates = vi.mocked(
-      (await import('@/api')).batchTendersApi.getAssignmentCandidates
-    )
     const batchAssign = vi.mocked(
       (await import('@/api')).batchTendersApi.batchAssign
     )
-    getAssignmentCandidates.mockResolvedValue({
-      success: true,
-      data: [
-        { id: 101, name: '张三', departmentName: '交付一部' },
-        { id: 102, name: '李四', departmentName: '交付二部' },
-      ],
-    })
     batchAssign.mockResolvedValue({ success: true })
 
     const wrapper = mount(createHarness())
@@ -257,16 +236,9 @@ describe('useBiddingDetailPage', () => {
   })
 
   it('doAssign falls back to assignForm when no payload provided', async () => {
-    const getAssignmentCandidates = vi.mocked(
-      (await import('@/api')).batchTendersApi.getAssignmentCandidates
-    )
     const batchAssign = vi.mocked(
       (await import('@/api')).batchTendersApi.batchAssign
     )
-    getAssignmentCandidates.mockResolvedValue({
-      success: true,
-      data: [{ id: 101, name: '张三', departmentName: '交付一部' }],
-    })
     batchAssign.mockResolvedValue({ success: true })
 
     const wrapper = mount(createHarness())
@@ -283,7 +255,7 @@ describe('useBiddingDetailPage', () => {
     expect(batchAssign).toHaveBeenCalledWith(['9001'], 101, '')
   })
 
-  it('transfers tender successfully and filters current manager', async () => {
+  it('opens transfer dialog and transfers tender successfully', async () => {
     getDetail.mockResolvedValue({
       success: true,
       data: {
@@ -297,19 +269,9 @@ describe('useBiddingDetailPage', () => {
       },
     })
 
-    const getAssignmentCandidates = vi.mocked(
-      (await import('@/api')).batchTendersApi.getAssignmentCandidates
-    )
     const transferTender = vi.mocked(
       (await import('@/api')).tendersApi.transferTender
     )
-    getAssignmentCandidates.mockResolvedValue({
-      success: true,
-      data: [
-        { id: 101, name: '张三', departmentName: '交付一部' },
-        { id: 102, name: '李四', departmentName: '交付二部' },
-      ],
-    })
     transferTender.mockResolvedValue({ success: true })
 
     const wrapper = mount(createHarness())
@@ -319,8 +281,6 @@ describe('useBiddingDetailPage', () => {
     await flushPromises()
 
     expect(wrapper.vm.showTransferDialog).toBe(true)
-    expect(wrapper.vm.transferCandidates).toHaveLength(1)
-    expect(wrapper.vm.transferCandidates[0].id).toBe(102)
 
     wrapper.vm.transferTarget = 102
     await wrapper.vm.doTransfer()

@@ -151,9 +151,7 @@
   <AssignDialog
     v-model="showAssignDialog"
     v-model:form="assignForm"
-    :candidates="assignCandidates"
     :loading="assigning"
-    :loading-candidates="loadingCandidates"
     @reset="assignForm.assignee = null"
     @submit="doAssign"
   />
@@ -162,11 +160,7 @@
     <el-form label-width="100px">
       <el-form-item label="项目名称"><el-text>{{ tender?.title }}</el-text></el-form-item>
       <el-form-item label="新负责人" required>
-        <el-select v-model="transferTarget" filterable placeholder="选择新的项目负责人" style="width:100%">
-          <el-option v-for="c in transferCandidates" :key="c.id" :label="formatAssignmentCandidateLabel(c)" :value="c.id">
-            {{ formatAssignmentCandidateLabel(c) }} · {{ c.departmentName }}
-          </el-option>
-        </el-select>
+        <UserPicker v-model="transferTarget" mode="candidates" context="tender" placeholder="选择新的项目负责人" style="width:100%" />
       </el-form-item>
     </el-form>
     <template #footer>
@@ -192,7 +186,7 @@ import { useDetailTabs } from './useDetailTabs.js'
 import { useDetailActions } from './useDetailActions.js'
 import { useUserStore } from '@/stores/user'
 import { isBidManager } from '@/utils/permission'
-import { formatAssignmentCandidateLabel } from '../list/helpers.js'
+import UserPicker from '@/components/common/UserPicker.vue'
 import { VT } from './useTenderEvaluationForm.js'
 const TenderEvaluationForm = defineAsyncComponent(() => import('./TenderEvaluationForm.vue'))
 const OperationLogTimeline = defineAsyncComponent(() => import('./components/OperationLogTimeline.vue'))
@@ -223,8 +217,8 @@ const {
   handleAbandon,
   handleViewOriginal,
   isEditing, handleEdit, handleCancelEdit, handleSaveEdit,
-  showAssignDialog, assignForm, assignCandidates, assigning, loadingCandidates, openAssign, doAssign,
-  showTransferDialog, transferCandidates, transferTarget, transferring, openTransfer, doTransfer,
+  showAssignDialog, assignForm, assigning, openAssign, doAssign,
+  showTransferDialog, transferTarget, transferring, openTransfer, doTransfer,
 } = useBiddingDetailPage()
 const {
   tenderEvaluation,

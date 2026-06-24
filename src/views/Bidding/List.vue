@@ -110,9 +110,7 @@
       v-model="distribution.showAssignDialog.value"
       :tender-id="distribution.activeTender.value.id"
       :tender-title="distribution.activeTender.value.title"
-      :candidates="distribution.candidates.value"
       :loading="distribution.assignLoading.value"
-      :loading-candidates="distribution.loadingCandidates.value"
       @reset="distribution.resetAssignForm"
       @submit="distribution.handleAssign"
     />
@@ -163,9 +161,7 @@
       <el-form label-width="100px">
         <el-form-item label="标讯"><span>{{ transferDialog.tender?.title }}</span></el-form-item>
         <el-form-item label="目标负责人">
-          <el-select v-model="transferDialog.newOwnerId" placeholder="请选择负责人" style="width:100%" filterable>
-            <el-option v-for="c in transferCandidates" :key="c.id" :label="formatAssignmentCandidateLabel(c)" :value="c.id" />
-          </el-select>
+          <UserPicker v-model="transferDialog.newOwnerId" mode="candidates" context="tender" placeholder="请选择负责人" style="width:100%" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -196,11 +192,10 @@ import TenderSearchCard from './list/components/TenderSearchCard.vue'
 import TenderTable from './list/components/TenderTable.vue'
 import { useTenderListPage } from './list/useTenderListPage.js'
 import { tendersApi } from '@/api/modules/tenders'
-import { batchTendersApi } from '@/api/modules/tenders/batch.js'
 import { useBiddingStore } from '@/stores/bidding'
 import { ElMessage } from 'element-plus'
-import { normalizeAssignmentCandidate, formatAssignmentCandidateLabel } from './list/helpers.js'
 import { computed, reactive, ref } from 'vue'
+import UserPicker from '@/components/common/UserPicker.vue'
 import './list/styles/list-page.css'
 import './list/styles/table.css'
 import './list/styles/mobile-page.css'
@@ -229,19 +224,7 @@ const transferDialog = reactive({
   newOwnerId: null,
   loading: false,
 })
-const transferCandidates = ref([])
 async function handleTransfer(row) {
-  if (transferCandidates.value.length === 0) {
-    try {
-      const response = await batchTendersApi.getAssignmentCandidates()
-      transferCandidates.value = (response?.data || [])
-        .map(normalizeAssignmentCandidate)
-        .filter((item) => Number.isFinite(item.id))
-    } catch {
-      ElMessage.error('加载负责人列表失败')
-      return
-    }
-  }
   transferDialog.tender = row
   transferDialog.newOwnerId = null
   transferDialog.visible = true

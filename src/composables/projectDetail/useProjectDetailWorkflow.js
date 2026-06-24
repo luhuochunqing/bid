@@ -46,7 +46,7 @@ export function useProjectDetailWorkflow(context) {
 
   const availableReviewers = computed(() => {
     const existingIds = reviewers.value.map((r) => r.id)
-    return (userStore.users || []).filter((u) => !existingIds.includes(u.id))
+    return [].filter((u) => !existingIds.includes(u.id))
   })
 
   const getStepOrder = (step) => ({ draft: 0, review: 1, seal: 2, submit: 3 }[step] ?? 0)
@@ -89,7 +89,7 @@ export function useProjectDetailWorkflow(context) {
   const handleAddReviewer = () => { reviewerForm.value = { userId: '', role: '' }; context.reviewerDialogVisible.value = true }
   const handleConfirmAddReviewer = () => {
     if (!reviewerForm.value.userId || !reviewerForm.value.role) return context.message.warning('请填写完整信息')
-    const user = (userStore.users || []).find((u) => u.id === reviewerForm.value.userId)
+    const user = [].find((u) => u.id === reviewerForm.value.userId)
     if (!user) return context.message.warning('未找到评审人信息')
     reviewers.value.push({ id: user.id, name: user.name, role: reviewerForm.value.role, status: 'pending', comment: '', reviewTime: '' })
     context.reviewerDialogVisible.value = false

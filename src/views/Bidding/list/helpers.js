@@ -246,7 +246,7 @@ export function normalizeAssignmentCandidate(candidate = {}) {
     fullName: candidate.fullName || candidate.name || '',
     username: candidate.username || '',
     employeeNumber: candidate.employeeNumber || candidate.employeeId || candidate.username || '',
-    departmentName: candidate.departmentName || '未分组',
+    departmentName: candidate.departmentName || candidate.deptName || '未分组',
     roleCode: candidate.roleCode || '',
   }
 }

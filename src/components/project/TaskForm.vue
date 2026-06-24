@@ -41,29 +41,15 @@
           </el-form-item>
 
           <el-form-item label="任务执行人" required>
-            <el-select
+            <UserPicker
               v-model="localValue.assigneeId"
               data-test="task-owner-select"
-              filterable
-              remote
-              :remote-method="searchAssignees"
-              style="width: 100%"
+              mode="search"
               placeholder="模糊搜索选择执行人"
-              :loading="loadingAssignees"
-              @change="handleAssigneeChange"
-            >
-              <el-option
-                v-for="person in assigneeOptions"
-                :key="person.userId"
-                :label="assigneeLabel(person)"
-                :value="person.userId"
-              >
-                <div class="assignee-option">
-                  <span>{{ person.name }}</span>
-                  <small>{{ person.deptName || '未配置部门' }} · {{ person.roleName || '未配置角色' }}</small>
-                </div>
-              </el-option>
-            </el-select>
+              :disabled="readonly"
+              :initial-options="assigneeOptions"
+              @select="handleAssigneeSelect"
+            />
           </el-form-item>
 
           <el-form-item label="截止日期">
@@ -136,8 +122,9 @@ import { taskStatusDictApi } from '@/api/modules/taskStatusDict.js'
 import { useProjectStore } from '@/stores/project'
 import { useUserStore } from '@/stores/user'
 import DynamicFormRenderer from '@/components/common/DynamicFormRenderer.vue'
+import UserPicker from '@/components/common/UserPicker.vue'
 import TaskActivityPanel from '@/components/project/TaskActivityPanel.vue'
-import { useTaskAssigneeOptions } from './useTaskAssigneeOptions.js'
+import { useTaskAssigneePicker } from './useTaskAssigneePicker.js'
 import { useTaskDeliveryForm } from './useTaskDeliveryForm.js'
 
 const props = defineProps({
@@ -145,10 +132,8 @@ const props = defineProps({
   mode: { type: String, default: 'create' }, // create | edit | view
 })
 const emit = defineEmits(['submit', 'submit-review', 'update:modelValue', 'attachment-preview'])
-
 const projectStore = useProjectStore()
 const userStore = useUserStore()
-
 const localValue = reactive({ ...props.modelValue })
 if (!localValue.extendedFields) {
   localValue.extendedFields = {}
@@ -162,7 +147,6 @@ const validationMessage = ref('')
 const extFormRef = ref(null)
 const activeTab = ref('detail')
 const readonly = computed(() => props.mode === 'view')
-
 // 状态仅分配人可改（创建=分配人，编辑≠执行人，查看=只读）
 const canManageStatus = computed(() => {
   if (props.mode === 'create') return true
@@ -173,16 +157,10 @@ const canManageStatus = computed(() => {
   if (taskAssigneeId == null) return true
   return String(currentUserId) !== String(taskAssigneeId)
 })
-
 const availableStatuses = computed(() =>
   statuses.value.filter(s => s.code !== 'IN_PROGRESS')
 )
-
-/**
- * 执行人可在任务 TODO 状态下填写交付物和完成情况说明。
- * 该 computed 用于交付物上传、完成情况说明字段的 disabled 覆盖，
- * 以及抽屉底部「提交审核」按钮的显隐控制。
- */
+/** 执行人可在任务 TODO 状态下填写交付物和完成情况说明。computed 用于交付物上传、完成情况说明字段的 disabled 覆盖，以及抽屉底部「提交审核」按钮的显隐控制。 */
 const canDeliver = computed(() => {
   if (props.mode !== 'view') return false
   const currentUserId = userStore.currentUser?.id
@@ -201,8 +179,9 @@ const { deliverableFileList, handleDeliverableChange, handleDeliverableRemove } 
   useTaskDeliveryForm(localValue, readonly)
 
 let syncingFromModel = false
-const { assigneeOptions, loadingAssignees, loadAssignees, searchAssignees, ensureSelectedAssignee, handleAssigneeChange, assigneeLabel } =
-  useTaskAssigneeOptions({ localValue, isCreateMode: () => props.mode === 'create', userStore })
+
+const { assigneeOptions, loadingAssignees, loadAssignees, ensureSelectedAssignee, handleAssigneeSelect } =
+  useTaskAssigneePicker({ localValue, userStore })
 
 const extendedFieldSchema = computed(() =>
   (projectStore.taskExtendedFields || []).map((f) => ({
@@ -317,17 +296,4 @@ defineExpose({ submit, submitForReview, validate, canDeliver })
 
 <style scoped>
 .task-form { width: 100%; }
-
-.assignee-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.assignee-option small {
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.4;
-}
 </style>

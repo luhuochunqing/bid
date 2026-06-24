@@ -53,7 +53,7 @@
       @submit-eval="handleSubmitEvaluation"
     />
 
-    <AssignDialog v-model="showAssignDialog" v-model:form="assignForm" :candidates="assignCandidates" :loading="assigning" :loading-candidates="loadingCandidates" @reset="assignForm.assignee = null" @submit="doAssign" />
+    <AssignDialog v-model="showAssignDialog" v-model:form="assignForm" :loading="assigning" @reset="assignForm.assignee = null" @submit="doAssign" />
   </div>
 </template>
 
@@ -102,9 +102,7 @@ const canFillEvaluation = computed(() => Boolean(createdTenderId.value))
 
 const showAssignDialog = ref(false)
 const assignForm = ref({ tenderTitle: '', assignee: null, priority: 'medium', remark: '' })
-const assignCandidates = ref([])
 const assigning = ref(false)
-const loadingCandidates = ref(false)
 
 const submittingEval = ref(false)
 
@@ -163,10 +161,6 @@ async function fetchTenderDetail() {
 
 async function openAssignDialog() {
   assignForm.value = { tenderTitle: tenderDetail.value?.title || '', assignee: null, priority: 'medium', remark: '' }
-  loadingCandidates.value = true
-  try { const res = await batchTendersApi.getAssignmentCandidates(); assignCandidates.value = res?.data || [] }
-  catch { ElMessage.error('获取候选人列表失败') }
-  finally { loadingCandidates.value = false }
   showAssignDialog.value = true
 }
 

@@ -10,22 +10,14 @@
         <el-text>{{ tenderTitle }}</el-text>
       </el-form-item>
       <el-form-item label="指派给" required>
-        <el-select
+        <UserPicker
           v-model="localForm.assignee"
-          filterable
+          mode="candidates"
+          context="tender"
           placeholder="选择人员"
           class="full-width"
-          :loading="loadingCandidates"
-        >
-          <el-option
-            v-for="candidate in candidates"
-            :key="candidate.id"
-            :label="formatAssignmentCandidateLabel(candidate)"
-            :value="candidate.id"
-          >
-            {{ formatAssignmentCandidateLabel(candidate) }} · {{ candidate.departmentName }}
-          </el-option>
-        </el-select>
+          @select="onUserSelect"
+        />
       </el-form-item>
       <el-form-item label="项目部门">
         <el-text>{{ selectedDepartment || '请先选择项目负责人' }}</el-text>
@@ -47,26 +39,28 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import { formatAssignmentCandidateLabel } from '../helpers.js'
+import { ref, computed } from 'vue'
+import UserPicker from '@/components/common/UserPicker.vue'
 
 const modelValue = defineModel({ type: Boolean, default: false })
 const props = defineProps({
   tenderId: { type: Number, default: null },
   tenderTitle: { type: String, default: '' },
-  candidates: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
-  loadingCandidates: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['reset', 'submit'])
 
 const localForm = ref({ assignee: null, remark: '' })
+const selectedUser = ref(null)
 
 const selectedDepartment = computed(() => {
-  const candidate = props.candidates?.find(c => c.id === localForm.value.assignee)
-  return candidate?.departmentName || ''
+  return selectedUser.value?.departmentName || selectedUser.value?.deptName || ''
 })
+
+function onUserSelect(user) {
+  selectedUser.value = user
+}
 
 const handleSubmit = () => {
   emit('submit', {
@@ -78,6 +72,7 @@ const handleSubmit = () => {
 
 const handleClose = () => {
   localForm.value = { assignee: null, remark: '' }
+  selectedUser.value = null
   emit('reset')
 }
 </script>

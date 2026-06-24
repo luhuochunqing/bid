@@ -1,20 +1,20 @@
-// Input: Task form local state, mode accessor, current user store, and usersApi
-// Output: task assignee select options and selection helpers
-// Pos: src/components/project/ - Task form pure-ish UI state helper
-// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
-
 import { ref } from 'vue'
 import { usersApi } from '@/api/modules/users.js'
 import { formatDisplayName } from '@/utils/formatDisplayName.js'
 
-export function useTaskAssigneeOptions({ localValue, isCreateMode, userStore }) {
+/**
+ * Task assignee picker composable.
+ * Loads task assignment candidates and normalizes them for UserPicker.
+ */
+export function useTaskAssigneePicker({ localValue, userStore }) {
   const assigneeOptions = ref([])
   const loadingAssignees = ref(false)
 
   async function loadAssignees() {
     loadingAssignees.value = true
     try {
-      assigneeOptions.value = normalizeCandidates(await usersApi.getTaskAssignmentCandidates())
+      const candidates = await usersApi.getTaskAssignmentCandidates()
+      assigneeOptions.value = normalizeCandidates(candidates)
     } catch (err) {
       console.error('[TaskForm] Failed to load task assignment candidates', err)
       assigneeOptions.value = []
@@ -24,32 +24,15 @@ export function useTaskAssigneeOptions({ localValue, isCreateMode, userStore }) 
     }
   }
 
-  /** 全局模糊搜索（支持 remote-method） */
-  async function searchAssignees(query) {
-    if (!query || query.trim().length === 0) {
-      loadAssignees()
-      return
-    }
-    loadingAssignees.value = true
-    try {
-      const results = await usersApi.search(query.trim(), 50)
-      assigneeOptions.value = normalizeCandidates(results)
-    } catch (err) {
-      console.error('[TaskForm] Failed to search assignees', err)
-    } finally {
-      loadingAssignees.value = false
-    }
-  }
-
   function normalizeCandidates(candidates) {
     const byId = new Map()
     ;(Array.isArray(candidates) ? candidates : []).forEach((candidate) => {
       const normalized = normalizeCandidate(candidate)
-      if (normalized?.userId != null) byId.set(Number(normalized.userId), normalized)
+      if (normalized?.id != null) byId.set(Number(normalized.id), normalized)
     })
     const current = currentUserCandidate()
-    if (current?.userId != null && !byId.has(Number(current.userId))) {
-      byId.set(Number(current.userId), current)
+    if (current?.id != null && !byId.has(Number(current.id))) {
+      byId.set(Number(current.id), current)
     }
     return Array.from(byId.values())
   }
@@ -58,7 +41,7 @@ export function useTaskAssigneeOptions({ localValue, isCreateMode, userStore }) 
     const id = candidate.userId ?? candidate.id
     if (id == null) return null
     return {
-      userId: Number(id),
+      id: Number(id),
       name: formatDisplayName(candidate.name || candidate.fullName || candidate.username, candidate.employeeNumber) || `用户#${id}`,
       deptCode: candidate.deptCode || candidate.departmentCode || '',
       deptName: candidate.deptName || candidate.departmentName || '',
@@ -94,33 +77,32 @@ export function useTaskAssigneeOptions({ localValue, isCreateMode, userStore }) 
     })
   }
 
-  function ensureSelectedAssignee() {
-    const selectedId = localValue.assigneeId == null ? null : Number(localValue.assigneeId)
-    const selected = selectedId == null ? null : assigneeOptions.value.find((person) => Number(person.userId) === selectedId)
-    if (selected) return applyAssignee(selected)
-
-    const fromTask = candidateFromTaskValue()
-    if (fromTask?.userId != null) {
-      assigneeOptions.value = upsertCandidate(assigneeOptions.value, fromTask)
-      return applyAssignee(fromTask)
-    }
-
-    // 创建模式不再自动锁定当前用户，允许从全局候选列表中搜索选择
-  }
-
   function upsertCandidate(list, candidate) {
-    const next = new Map((list || []).map((item) => [Number(item.userId), item]))
-    next.set(Number(candidate.userId), candidate)
+    const next = new Map((list || []).map((item) => [Number(item.id), item]))
+    next.set(Number(candidate.id), candidate)
     return Array.from(next.values())
   }
 
-  function handleAssigneeChange(value) {
-    const selected = assigneeOptions.value.find((person) => String(person.userId) === String(value))
-    if (selected) applyAssignee(selected)
+  function ensureSelectedAssignee() {
+    const selectedId = localValue.assigneeId == null ? null : Number(localValue.assigneeId)
+    const selected = selectedId == null ? null : assigneeOptions.value.find((person) => Number(person.id) === selectedId)
+    if (selected) return applyAssignee(selected)
+
+    const fromTask = candidateFromTaskValue()
+    if (fromTask?.id != null) {
+      assigneeOptions.value = upsertCandidate(assigneeOptions.value, fromTask)
+      return applyAssignee(fromTask)
+    }
+  }
+
+  function handleAssigneeSelect(user) {
+    if (!user) return
+    const normalized = normalizeCandidate(user)
+    if (normalized) applyAssignee(normalized)
   }
 
   function applyAssignee(person) {
-    assignIfChanged('assigneeId', Number(person.userId))
+    assignIfChanged('assigneeId', Number(person.id))
     assignIfChanged('owner', person.name)
     assignIfChanged('assignee', person.name)
     assignIfChanged('department', person.deptName || '')
@@ -137,10 +119,11 @@ export function useTaskAssigneeOptions({ localValue, isCreateMode, userStore }) 
     }
   }
 
-  function assigneeLabel(person) {
-    const meta = [person.deptName, person.roleName].filter(Boolean).join(' / ')
-    return meta ? `${person.name}（${meta}）` : person.name
+  return {
+    assigneeOptions,
+    loadingAssignees,
+    loadAssignees,
+    ensureSelectedAssignee,
+    handleAssigneeSelect,
   }
-
-  return { assigneeOptions, loadingAssignees, loadAssignees, searchAssignees, ensureSelectedAssignee, handleAssigneeChange, assigneeLabel }
 }

@@ -6,6 +6,7 @@
 import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { buildDistributionPreview, normalizeAssignmentCandidate } from './helpers.js'
+import { useUserPicker } from '@/composables/useUserPicker.js'
 
 function createDistributeForm() {
   return { type: 'auto', rule: 'average', assignees: [], deadline: null, remark: '' }
@@ -28,10 +29,19 @@ export function useTenderDistribution({
   const showAssignDialog = ref(false)
   const distributeLoading = ref(false)
   const assignLoading = ref(false)
-  const loadingCandidates = ref(false)
-  const candidates = ref([])
   const distributeForm = ref(createDistributeForm())
   const activeTender = ref(createActiveTender())
+
+  const { options: userOptions, loading: loadingCandidates, loadCandidates } = useUserPicker({
+    mode: 'candidates',
+    context: 'tender',
+  })
+
+  const candidates = computed(() =>
+    (userOptions.value || [])
+      .map(normalizeAssignmentCandidate)
+      .filter((item) => Number.isFinite(item.id))
+  )
 
   const distributionPreview = computed(() => buildDistributionPreview({
     tenders: selectedTenders.value,
@@ -41,17 +51,7 @@ export function useTenderDistribution({
 
   const ensureCandidatesLoaded = async () => {
     if (candidates.value.length > 0 || loadingCandidates.value) return
-    loadingCandidates.value = true
-    try {
-      const response = await batchTendersApi.getAssignmentCandidates()
-      candidates.value = (response?.data || [])
-        .map(normalizeAssignmentCandidate)
-        .filter((item) => Number.isFinite(item.id))
-    } catch {
-      ElMessage.error('加载指派候选人失败')
-    } finally {
-      loadingCandidates.value = false
-    }
+    await loadCandidates()
   }
 
   const openDistributeDialog = async () => {

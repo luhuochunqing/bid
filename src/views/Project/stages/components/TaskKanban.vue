@@ -73,9 +73,7 @@
           </el-upload>
         </el-form-item>
         <el-form-item label="执行人" prop="assigneeId">
-          <el-select v-model="createForm.assigneeId" filterable remote placeholder="搜索人员" :remote-method="searchUsers" :loading="searching" style="width:100%">
-            <el-option v-for="u in userOptions" :key="u.id" :label="u.name" :value="u.id" />
-          </el-select>
+          <UserPicker v-model="createForm.assigneeId" mode="search" placeholder="搜索人员" style="width:100%" />
         </el-form-item>
         <el-form-item label="截止日期" prop="dueDate" required>
           <el-date-picker v-model="createForm.dueDate" type="date" placeholder="选择截止日期" style="width:100%" value-format="YYYY-MM-DD" />
@@ -124,9 +122,8 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { projectsApi } from '@/api/modules/projects.js'
-import { usersApi } from '@/api/modules/users.js'
-import { formatDisplayName } from '@/utils/formatDisplayName.js'
 import { useUserStore } from '@/stores/user.js'
+import UserPicker from '@/components/common/UserPicker.vue'
 const props = defineProps({
   projectId: { type: [String, Number], required: true },
   canUseAI: Boolean,
@@ -154,17 +151,6 @@ const grouped = computed(() => {
 function isTaskAssignee(task) {
   const uid = userStore?.currentUser?.id
   return uid != null && task?.assigneeId != null && String(uid) === String(task.assigneeId)
-}
-const userOptions = ref([])
-const searching = ref(false)
-async function searchUsers(query) {
-  if (!query) return
-  searching.value = true
-  try {
-    const list = await usersApi.search(query)
-    userOptions.value = Array.isArray(list) ? list.map(u => ({ id: Number(u.id), name: formatDisplayName(u.fullName || u.name, u.employeeNumber) })) : []
-  } catch { userOptions.value = [] }
-  finally { searching.value = false }
 }
 
 async function loadTasks() {

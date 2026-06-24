@@ -10,19 +10,19 @@
     @change="handleChange"
   >
     <el-option
-      v-for="user in options"
+      v-for="user in mergedOptions"
       :key="user.id"
       :label="formatLabel(user)"
       :value="user.id"
     />
-    <template v-if="options.length === 0" #empty>
+    <template v-if="mergedOptions.length === 0" #empty>
       无匹配用户
     </template>
   </el-select>
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
 import { useUserPicker } from '@/composables/useUserPicker.js'
 
 const props = defineProps({
@@ -33,6 +33,7 @@ const props = defineProps({
   roleCode: { type: String, default: '' },
   placeholder: { type: String, default: '请选择用户' },
   disabled: { type: Boolean, default: false },
+  initialOptions: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits(['update:modelValue', 'select'])
@@ -45,6 +46,20 @@ const { options, loading, search, loadCandidates, formatLabel } = useUserPicker(
 })
 
 const selectedId = ref(props.modelValue)
+
+// Merge initial options with searched options, deduped by id, so callers
+// can preload candidates (e.g. from a dedicated list endpoint) while still
+// benefiting from UserPicker's remote search.
+const mergedOptions = computed(() => {
+  const byId = new Map()
+  for (const u of props.initialOptions) {
+    if (u?.id != null) byId.set(u.id, u)
+  }
+  for (const u of options.value) {
+    if (u?.id != null) byId.set(u.id, u)
+  }
+  return Array.from(byId.values())
+})
 
 watch(() => props.modelValue, (val) => {
   if (val !== selectedId.value) {
@@ -59,7 +74,8 @@ function handleRemoteSearch(query) {
 }
 
 function handleChange(value) {
-  const selected = options.value.find((user) => user.id === value)
+  // Use loose equality so both numeric and string ids from stubbed selects work.
+  const selected = mergedOptions.value.find((user) => user.id == value)
   emit('update:modelValue', value)
   if (selected) {
     emit('select', selected)

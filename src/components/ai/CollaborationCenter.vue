@@ -180,8 +180,7 @@ const flattenSections = (sections = []) => sections.flatMap((section) => {
 })
 
 const resolveUserIdByName = (name) => {
-  const matchedUser = (userStore.users || []).find((user) => user.name === name)
-  return matchedUser?.id ?? userStore.currentUser?.id ?? null
+  return userStore.currentUser?.id ?? null
 }
 
 const loadData = async () => {
