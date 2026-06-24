@@ -57,7 +57,7 @@ public class OssLoginFlowService {
      */
     public OssLoginResult authenticateDirect(String username, String password) {
         String baseUrl = crmProperties.getEffectiveAuthBaseUrl();
-        String oauthSystem = crmProperties.getAuth().getUserLoginSystem();
+        String userLoginSystem = crmProperties.getAuth().getUserLoginSystem();
         String permissionSystemName = crmProperties.getAuth().getUserPermissionSystemName();
 
         OssLoginResult.Builder result = OssLoginResult.builder();
@@ -67,7 +67,7 @@ public class OssLoginFlowService {
         LinkedMultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
         formData.add("username", username);
         formData.add("password", password);
-        formData.add("system", oauthSystem);
+        formData.add("system", userLoginSystem);
 
         log.info("OSS login flow step 1: POST /oauth/login for user={}", username);
         CrmResponseHandler.CrmApiResponse loginResponse = crmHttpClient.postForm(
