@@ -12,6 +12,7 @@ import com.xiyu.bid.roleprofile.RoleProfileBootstrap;
 import com.xiyu.bid.settings.entity.SystemSetting;
 import com.xiyu.bid.settings.repository.SystemSettingRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -363,5 +364,99 @@ class DataScopeConfigServiceTest {
 
         // 缓存为空，返回空列表
         assertThat(perms).isEmpty();
+    }
+
+    @Test
+    @DisplayName("OSS 用户 cache miss 时 getRoleCode 返回 null，不 fallback 到 DB 的 /bidAdmin")
+    void getRoleCode_ShouldReturnNullForOssUserCacheMiss() {
+        // OSS 用户：externalOrgSourceApp 非空 → isLocalSystemAccount 返回 false
+        // DB roleProfile.code 为 /bidAdmin（历史同步值），用于验证不 fallback
+        RoleProfile bidAdminProfile = RoleProfile.builder()
+                .code(RoleProfileCatalog.BID_ADMIN_CODE).name("投标管理员").build();
+        User ossUser = User.builder()
+                .id(10L)
+                .username("oss-user-01")
+                .fullName("OSS用户")
+                .role(User.Role.MANAGER)
+                .roleProfile(bidAdminProfile)
+                .externalOrgSourceApp("oss-app")
+                .enabled(true)
+                .build();
+        // @BeforeEach 创建的 OssPermissionCache 为空 → cache miss
+
+        String roleCode = dataScopeConfigService.getRoleCode(ossUser);
+
+        // fail-closed：返回 null，不返回 DB 中的 /bidAdmin（避免越权拿到 DB 权限）
+        assertThat(roleCode).isNull();
+    }
+
+    @Test
+    @DisplayName("OSS 用户 cache miss 时 getRoleName 返回 null，不 fallback 到 DB 角色名或默认'员工'")
+    void getRoleName_ShouldReturnNullForOssUserCacheMiss() {
+        // OSS 用户：externalOrgSourceApp 非空 → isLocalSystemAccount 返回 false
+        // DB roleProfile 名为"投标管理员"，用于验证不 fallback
+        RoleProfile bidAdminProfile = RoleProfile.builder()
+                .code(RoleProfileCatalog.BID_ADMIN_CODE).name("投标管理员").build();
+        User ossUser = User.builder()
+                .id(11L)
+                .username("oss-user-02")
+                .fullName("OSS用户2")
+                .role(User.Role.MANAGER)
+                .roleProfile(bidAdminProfile)
+                .externalOrgSourceApp("oss-app")
+                .enabled(true)
+                .build();
+        // @BeforeEach 创建的 OssPermissionCache 为空 → cache miss
+
+        String roleName = dataScopeConfigService.getRoleName(ossUser);
+
+        // fail-closed：返回 null，不返回 DB 中的"投标管理员"或默认"员工"
+        assertThat(roleName).isNull();
+    }
+
+    @Test
+    @DisplayName("OSS 用户 cache hit 时 getRoleCode 正常返回缓存值")
+    void getRoleCode_ShouldReturnCachedValueForOssUserCacheHit() {
+        User ossUser = User.builder()
+                .id(12L)
+                .username("oss-user-03")
+                .fullName("OSS用户3")
+                .role(User.Role.MANAGER)
+                .externalOrgSourceApp("oss-app")
+                .enabled(true)
+                .build();
+        // 构造缓存命中的 OssPermissionCache
+        OssPermissionCache ossPermissionCache = new OssPermissionCache();
+        ossPermissionCache.put(ossUser.getUsername(), RoleProfileCatalog.BID_ADMIN_CODE, List.of(), null);
+        dataScopeConfigService = new DataScopeConfigService(systemSettingRepository, userRepository, roleProfileRepository,
+                roleProfileBootstrap, new ObjectMapper(), ossPermissionCache);
+
+        String roleCode = dataScopeConfigService.getRoleCode(ossUser);
+
+        // 缓存命中，返回缓存的 /bidAdmin
+        assertThat(roleCode).isEqualTo(RoleProfileCatalog.BID_ADMIN_CODE);
+    }
+
+    @Test
+    @DisplayName("本地系统账号 cache miss 时 getRoleCode fallback 到 DB roleCode")
+    void getRoleCode_ShouldFallbackToDbForLocalSystemAccountCacheMiss() {
+        // 本地系统账号：externalOrgSourceApp 为空 且 roleCode 为 admin → isLocalSystemAccount 返回 true
+        RoleProfile adminProfile = RoleProfile.builder()
+                .code(RoleProfileCatalog.ADMIN_CODE).name("管理员").build();
+        User adminUser = User.builder()
+                .id(13L)
+                .username("admin")
+                .fullName("管理员")
+                .role(User.Role.ADMIN)
+                .roleProfile(adminProfile)
+                .externalOrgSourceApp(null)
+                .enabled(true)
+                .build();
+        // @BeforeEach 创建的 OssPermissionCache 为空 → cache miss
+
+        String roleCode = dataScopeConfigService.getRoleCode(adminUser);
+
+        // 本地系统账号 cache miss 时 fallback 到 DB roleCode（admin）
+        assertThat(roleCode).isEqualTo(RoleProfileCatalog.ADMIN_CODE);
     }
 }

@@ -5,17 +5,21 @@ import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.UserRepository;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -247,5 +251,89 @@ class UserDetailsServiceImplTest {
                 .extracting("authority")
                 .contains("certificate.manage", "qualification.view")
                 .doesNotContain("bidding", "project", "knowledge", "resource", "settings");
+    }
+
+    // ——— OSS fail-closed 单元测试 ———
+
+    @Test
+    @DisplayName("OSS 用户 cache miss 时应抛 UsernameNotFoundException，禁止 DB 兜底")
+    void ossUserCacheMissShouldThrowAndNotFallbackToDb() {
+        // 构造一个 OSS 用户（externalOrgSourceApp 不为空），DB 中虽有 roleProfile 但不应被读取
+        RoleProfile roleProfile = RoleProfile.builder()
+                .code("/bidAdmin")
+                .name("投标管理员")
+                .build();
+        roleProfile.setMenuPermissions(List.of("bidding"));
+        User user = User.builder()
+                .username("oss_cache_miss")
+                .password("{noop}password")
+                .email("oss_cache_miss@example.com")
+                .fullName("oss_cache_miss")
+                .role(User.Role.MANAGER)
+                .roleProfile(roleProfile)
+                .externalOrgSourceApp("OSS")
+                .enabled(true)
+                .build();
+        when(userRepository.findByUsername("oss_cache_miss")).thenReturn(Optional.of(user));
+        // mock cache miss
+        when(ossPermissionCache.getEntry("oss_cache_miss")).thenReturn(Optional.empty());
+
+        // 抛出 UsernameNotFoundException 即证明 DB 兜底分支未被执行
+        // （若走了 DB fallback，roleCode=/bidAdmin 不会抛异常，会正常返回 authorities）
+        assertThatThrownBy(() -> userDetailsService.loadUserByUsername("oss_cache_miss"))
+                .isInstanceOf(UsernameNotFoundException.class)
+                .hasMessageContaining("OSS 用户缓存未命中")
+                .hasMessageContaining("oss_cache_miss");
+    }
+
+    @Test
+    @DisplayName("OSS 用户 cache hit 时应返回缓存中的实时角色权限")
+    void ossUserCacheHitShouldReturnAuthoritiesFromCache() {
+        // 构造一个 OSS 用户，DB roleProfile 与缓存角色不一致，验证权限来自缓存而非 DB
+        RoleProfile roleProfile = RoleProfile.builder()
+                .code("bid-specialist")
+                .name("投标专员")
+                .build();
+        roleProfile.setMenuPermissions(List.of("task.view.own"));
+        User user = User.builder()
+                .username("oss_cache_hit")
+                .password("{noop}password")
+                .email("oss_cache_hit@example.com")
+                .fullName("oss_cache_hit")
+                .role(User.Role.MANAGER)
+                .roleProfile(roleProfile)
+                .externalOrgSourceApp("OSS")
+                .enabled(true)
+                .build();
+        when(userRepository.findByUsername("oss_cache_hit")).thenReturn(Optional.of(user));
+        // mock cache hit: /bidAdmin + bidding 权限（与 DB 中的 bid-specialist 不同）
+        OssPermissionCache.CacheEntry entry = new OssPermissionCache.CacheEntry(
+                "/bidAdmin", List.of("bidding"), null, Instant.now().plusSeconds(60));
+        when(ossPermissionCache.getEntry("oss_cache_hit")).thenReturn(Optional.of(entry));
+
+        UserDetails details = userDetailsService.loadUserByUsername("oss_cache_hit");
+
+        // 权限来自缓存（/bidAdmin + bidding），而非 DB 的 bid-specialist
+        assertThat(details.getAuthorities())
+                .extracting("authority")
+                .contains("/bidAdmin", "ROLE_BIDADMIN", "bidding")
+                .doesNotContain("bid-specialist", "task.view.own");
+    }
+
+    @Test
+    @DisplayName("本地账号 cache miss 时应使用 DB roleProfile 兜底")
+    void localUserCacheMissShouldFallbackToDbRoleProfile() {
+        // 构造一个本地账号（externalOrgSourceApp 为空），cache miss 时走 DB 兜底
+        User user = userWithRoleProfile("local_admin_fallback", User.Role.MANAGER, "/bidAdmin");
+        when(userRepository.findByUsername("local_admin_fallback")).thenReturn(Optional.of(user));
+        // mock cache miss
+        when(ossPermissionCache.getEntry("local_admin_fallback")).thenReturn(Optional.empty());
+
+        UserDetails details = userDetailsService.loadUserByUsername("local_admin_fallback");
+
+        // 权限来自 DB roleProfile（/bidAdmin），证明 DB 兜底正常工作
+        assertThat(details.getAuthorities())
+                .extracting("authority")
+                .contains("/bidAdmin", "ROLE_BIDADMIN", "ROLE_ADMIN");
     }
 }

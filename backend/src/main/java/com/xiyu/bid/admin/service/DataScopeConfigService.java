@@ -159,13 +159,16 @@ public class DataScopeConfigService {
         if (user == null) return null;
         Optional<String> cachedRoleCode = ossPermissionCache.getRoleCode(user.getUsername());
         if (cachedRoleCode.isPresent()) return cachedRoleCode.get();
+        // admin 系统内置账户（不走 OSS 认证）：cache miss 时 fallback 到本地 DB RoleProfile
         if (isLocalSystemAccount(user)) {
             String dbRoleCode = user.getRoleCode();
             if (dbRoleCode != null && !dbRoleCode.isBlank()) return dbRoleCode;
         }
-        log.warn("OSS role cache miss for user={}, falling back to local role code", user.getUsername());
-        String dbRoleCode = user.getRoleCode();
-        return dbRoleCode != null && !dbRoleCode.isBlank() ? dbRoleCode : null;
+        // OSS 用户 cache miss：fail-closed，不 fallback 到 DB roleCode
+        // 原因：OSS 用户的 DB roleCode 可能是 /bidAdmin 等历史同步值，fallback 会导致越权拿到 DB 权限。
+        // OSS 用户权限以 OSS 缓存为准，缓存失效应要求重新登录（与 getRoleMenuPermissions 一致）。
+        log.warn("OSS role cache miss for user={}, returning null (need re-login)", user.getUsername());
+        return null;
     }
 
     public String getRoleName(User user) {
@@ -177,12 +180,16 @@ public class DataScopeConfigService {
             if (def != null && def.name() != null && !def.name().isBlank()) return def.name();
             return roleCode;
         }
+        // admin 系统内置账户（不走 OSS 认证）：cache miss 时 fallback 到本地 DB RoleProfile
         if (isLocalSystemAccount(user)) {
             RoleProfile roleProfile = resolveRoleProfile(user);
             if (roleProfile.getName() != null && !roleProfile.getName().isBlank()) return roleProfile.getName();
         }
-        log.warn("OSS role cache miss for user={}, returning '员工' (need re-login)", user.getUsername());
-        return "员工";
+        // OSS 用户 cache miss：fail-closed，不 fallback 到 DB roleName
+        // 原因：与 getRoleCode 保持一致，避免 OSS 用户拿到 /bidAdmin 等 DB 权限对应的角色名。
+        // 返回 null 而非 "员工"，避免前端误展示默认角色名而掩盖权限失效的真实状态。
+        log.warn("OSS role cache miss for user={}, returning null (need re-login)", user.getUsername());
+        return null;
     }
 
     public DepartmentGraph getDepartmentGraph() {
