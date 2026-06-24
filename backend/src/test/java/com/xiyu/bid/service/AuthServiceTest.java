@@ -11,6 +11,7 @@ import com.xiyu.bid.dto.AuthSessionResult;
 import com.xiyu.bid.dto.LoginRequest;
 import com.xiyu.bid.entity.RefreshSession;
 import com.xiyu.bid.entity.RoleProfile;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.RefreshSessionRepository;
 import com.xiyu.bid.repository.UserRepository;
@@ -359,9 +360,9 @@ class AuthServiceTest {
         when(projectAccessScopeService.getAllowedProjectIds(user)).thenReturn(List.of());
         when(projectAccessScopeService.getAllowedDepartmentCodes(user)).thenReturn(List.of());
         when(dataScopeConfigService.getRoleMenuPermissions(user)).thenReturn(List.of());
-        when(dataScopeConfigService.getRoleCode(user)).thenReturn("bid-Team");
+        when(dataScopeConfigService.getRoleCode(user)).thenReturn(RoleProfileCatalog.BID_SPECIALIST_CODE);
         when(dataScopeConfigService.getRoleName(user)).thenReturn("投标专员");
-        when(ossPermissionCache.getRoleCode("00444")).thenReturn(Optional.of("bid-Team"));
+        when(ossPermissionCache.getRoleCode("00444")).thenReturn(Optional.of(RoleProfileCatalog.BID_SPECIALIST_CODE));
 
         AuthSessionResult result = authService.loginWithoutPassword(user);
 
