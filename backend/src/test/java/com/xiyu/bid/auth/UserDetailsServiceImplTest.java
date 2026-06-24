@@ -321,6 +321,38 @@ class UserDetailsServiceImplTest {
     }
 
     @Test
+    @DisplayName("OSS 缓存菜单权限非空时应合并标准角色 catalog 权限")
+    void ossCachedMenuPermissionsShouldMergeRegisteredRoleCatalogPermissions() {
+        RoleProfile roleProfile = RoleProfile.builder()
+                .code(RoleProfileCatalog.BID_SPECIALIST_CODE)
+                .name("投标专员")
+                .build();
+        roleProfile.setMenuPermissions(List.of("task.view.own"));
+        User user = User.builder()
+                .username("oss_catalog_merge")
+                .password("{noop}password")
+                .email("oss_catalog_merge@example.com")
+                .fullName("oss_catalog_merge")
+                .role(User.Role.MANAGER)
+                .roleProfile(roleProfile)
+                .externalOrgSourceApp("OSS")
+                .enabled(true)
+                .build();
+        when(userRepository.findByUsername("oss_catalog_merge")).thenReturn(Optional.of(user));
+        OssPermissionCache.CacheEntry entry = new OssPermissionCache.CacheEntry(
+                RoleProfileCatalog.BID_ADMIN_CODE, List.of("dashboard", "bidding"), null, Instant.now().plusSeconds(60));
+        when(ossPermissionCache.getEntry("oss_catalog_merge")).thenReturn(Optional.of(entry));
+
+        UserDetails details = userDetailsService.loadUserByUsername("oss_catalog_merge");
+
+        assertThat(details.getAuthorities())
+                .extracting("authority")
+                .contains("dashboard", "bidding",
+                        "retrospective.submit", "bidding.sync", "warehouse.manage", "brand-auth.edit")
+                .doesNotContain("task.view.own");
+    }
+
+    @Test
     @DisplayName("本地账号 cache miss 时应使用 DB roleProfile 兜底")
     void localUserCacheMissShouldFallbackToDbRoleProfile() {
         // 构造一个本地账号（externalOrgSourceApp 为空），cache miss 时走 DB 兜底

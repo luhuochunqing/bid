@@ -57,12 +57,14 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         String roleCode;
         List<String> menuPermissions;
         boolean skipLegacyCompat;
+        boolean usingOssCachedPermissions = false;
 
         if (ossEntry.isPresent() && ossEntry.get().roleCode() != null) {
             // OSS 用户：用缓存中的实时角色+权限（来自 5 接口实时抓取）
             roleCode = ossEntry.get().roleCode();
             menuPermissions = ossEntry.get().menuPermissions();
             skipLegacyCompat = RoleProfileCatalog.shouldSkipLegacyRoleCompat(roleCode);
+            usingOssCachedPermissions = true;
         } else if (isOssUser) {
             // OSS 用户 cache miss：fail-closed，禁止 DB fallback
             // 原因：OSS 用户的角色+权限必须由 OSS 实时抓取决定，DB 中的 roleProfile 可能过期或被篡改。
@@ -122,10 +124,11 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             }
         }
 
-        // 4. catalog 兜底（仅对已注册角色且 menuPermissions 为空时）
-        //    确保 catalog 定义的新增权限（如 retrospective.submit）在权限为空时仍被授予。
+        // 4. catalog 基线权限（仅对已注册标准角色）
+        //    OSS 缓存权限只表达菜单可见性，需补充 catalog 中的细粒度业务权限；
+        //    本地 DB 显式 menu_permissions 仍保持权威，仅为空时才 fallback 到 catalog。
         if (roleCode != null && !roleCode.isBlank() && RoleProfileCatalog.isRegisteredCode(roleCode)
-                && (menuPermissions == null || menuPermissions.isEmpty())) {
+                && (usingOssCachedPermissions || menuPermissions == null || menuPermissions.isEmpty())) {
             RoleProfileCatalog.SeedDefinition catalogDef = RoleProfileCatalog.definitionForCode(roleCode);
             if (catalogDef != null && catalogDef.menuPermissions() != null) {
                 authorities.addAll(catalogDef.menuPermissions());
