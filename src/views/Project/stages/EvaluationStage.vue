@@ -72,13 +72,14 @@ const statusOptions = [
   { label: '评标结果公示', value: 'ANNOUNCED' }
 ]
 
-const editable = computed(() =>
-  !evaluationDone.value && (
-    userStore.hasPermission('project:evaluate') ||
-    userStore.hasPermission('evaluation.update') ||
-    userStore.hasPermission('task.review')
-  )
-)
+const editable = computed(() => {
+  if (evaluationDone.value) return false
+  const role = userStore.userRole
+  // 评标编辑权限：投标管理员/组长 + 投标负责人/辅助人（与蓝图权限矩阵一致）
+  if (role === 'admin' || role === '/bidAdmin' || role === 'bid-TeamLeader') return true
+  if (role === 'bid-projectLeader' || role === 'bid-Team') return true
+  return false
+})
 
 function selectStatus(value) {
   if (!editable.value) return
