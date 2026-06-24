@@ -41,6 +41,7 @@ export function useInitiationStageActions({
   form,
   custFixedRows,
   bidDocFiles,
+  planGapFiles,
   userStore,
   projectLifecycleApi,
   projectsApi,
@@ -170,6 +171,13 @@ export function useInitiationStageActions({
       } else {
         bidDocFiles.value = []
       }
+      // CO-323: 回填评估表带入的 GAP 附件到 el-upload file-list
+      // （form.projectPlanGapFiles 已由上方 Object.assign(form, data) 覆盖，此处同步上传控件显示）
+      planGapFiles.value = (data.projectPlanGapFiles || []).map(f => ({
+        name: f.fileName || f.name || '',
+        url: f.fileUrl || '',
+        status: 'success',
+      }))
       // 修复：确保已分配人员姓名字段在 APPROVED 状态可读（后端可能以 biddingLeaderName / biddingAssistantName 返回）
       if (data.biddingLeaderName) form.biddingLeaderName = data.biddingLeaderName
       if (data.biddingAssistantName) form.biddingAssistantName = data.biddingAssistantName
@@ -256,7 +264,7 @@ export function useInitiationStageActions({
             const INFO_KEY_MAP = {
               NAME: 'name', CONTACT_INFO: 'contactInfo', POSITION: 'position', XIYU_CONTACT: 'xiyuContact',
               CONTACTED: 'reached', CONTACT_METHOD: 'reachMethod',
-              TENDENCY: 'preference', INFO_TENDENCY_BASIS: 'preferenceBasis',
+              TENDENCY: 'preference', INFO_TENDENCY_BASIS: 'preferenceBasis', EVALUATION_BASIS: 'preferenceBasis',
               GUIDED_BID: 'guideBid',
               CAN_GET_KEY_INFO: 'canGetKeyInfo', CAN_REMOVE_ADVERSE: 'canRemoveAdverse',
               CAN_SYNC_EVAL: 'canSyncEval',

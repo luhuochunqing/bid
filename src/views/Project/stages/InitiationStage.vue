@@ -62,17 +62,17 @@
 <!-- 列顺序、标签、控件类型对齐 customerInfoMatrixConfig.js -->
 <el-table-column label="姓名" width="120"><template #default="{row}"><el-input v-model="row.name" :disabled="fieldDisabled" size="small" placeholder="请输入姓名" /></template></el-table-column>
 <el-table-column label="联系方式" width="160"><template #default="{row}"><el-input v-model="row.contactInfo" :disabled="fieldDisabled" size="small" placeholder="手机号/电话/邮箱" /></template></el-table-column>
-<el-table-column label="职位" width="140"><template #default="{row}"><el-select v-model="row.position" :disabled="fieldDisabled" size="small" placeholder="请选择"><el-option v-for="o in POSITION_OPTIONS" :key="o" :label="o" :value="o" /></el-select></template></el-table-column>
+<el-table-column label="职位" width="140"><template #default="{row}"><el-select v-model="row.position" :disabled="fieldDisabled" size="small" placeholder="请选择"><el-option v-for="o in POSITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" /></el-select></template></el-table-column>
 <el-table-column label="西域项目负责人" width="130"><template #default="{row}"><el-input v-model="row.xiyuContact" :disabled="fieldDisabled" size="small" placeholder="请输入负责人" /></template></el-table-column>
-<el-table-column label="触达方式" width="120"><template #default="{row}"><el-select v-model="row.reachMethod" :disabled="fieldDisabled" size="small" placeholder="请选择"><el-option v-for="o in CONTACT_METHOD_OPTIONS" :key="o" :label="o" :value="o" /></el-select></template></el-table-column>
+<el-table-column label="触达方式" width="120"><template #default="{row}"><el-select v-model="row.reachMethod" :disabled="fieldDisabled" size="small" placeholder="请选择"><el-option v-for="o in CONTACT_METHOD_OPTIONS" :key="o.value" :label="o.label" :value="o.value" /></el-select></template></el-table-column>
 <el-table-column label="倾向性评估依据" width="180"><template #default="{row}"><el-input v-model="row.preferenceBasis" :disabled="fieldDisabled" size="small" placeholder="请输入依据" /></template></el-table-column>
-<el-table-column label="是否触达" width="110"><template #default="{row}"><el-select v-model="row.reached" :disabled="fieldDisabled" size="small"><el-option label="是" value="YES" /><el-option label="否" value="NO" /></el-select></template></el-table-column>
-<el-table-column label="是否向此人引导标书" width="150"><template #default="{row}"><el-select v-model="row.guideBid" :disabled="fieldDisabled" size="small"><el-option label="是" value="YES" /><el-option label="否" value="NO" /></el-select></template></el-table-column>
-<el-table-column label="是否可获取关键信息" width="150"><template #default="{row}"><el-select v-model="row.canGetKeyInfo" :disabled="fieldDisabled" size="small"><el-option label="是" value="YES" /><el-option label="否" value="NO" /></el-select></template></el-table-column>
-<el-table-column label="是否可删除不利项" width="150"><template #default="{row}"><el-select v-model="row.canRemoveAdverse" :disabled="fieldDisabled" size="small"><el-option label="是" value="YES" /><el-option label="否" value="NO" /></el-select></template></el-table-column>
-<el-table-column label="是否可同步评标信息" width="150"><template #default="{row}"><el-select v-model="row.canSyncEval" :disabled="fieldDisabled" size="small"><el-option label="是" value="YES" /><el-option label="否" value="NO" /></el-select></template></el-table-column>
-<el-table-column label="对我司的倾向性" width="150"><template #default="{row}"><el-select v-model="row.preference" :disabled="fieldDisabled" size="small"><el-option label="支持" value="SUPPORT" /><el-option label="中立" value="NEUTRAL" /><el-option label="反对" value="OPPOSE" /></el-select></template></el-table-column>
-<el-table-column label="是否给出明确中标信息" width="160"><template #default="{row}"><el-select v-model="row.canConfirmWin" :disabled="fieldDisabled" size="small"><el-option label="是" value="YES" /><el-option label="否" value="NO" /></el-select></template></el-table-column>
+<el-table-column label="是否触达" width="110"><template #default="{row}"><el-select v-model="row.reached" :disabled="fieldDisabled" size="small"><el-option label="是" value="true" /><el-option label="否" value="false" /></el-select></template></el-table-column>
+<el-table-column label="是否向此人引导标书" width="150"><template #default="{row}"><el-select v-model="row.guideBid" :disabled="fieldDisabled" size="small"><el-option label="是" value="true" /><el-option label="否" value="false" /></el-select></template></el-table-column>
+<el-table-column label="是否可获取关键信息" width="150"><template #default="{row}"><el-select v-model="row.canGetKeyInfo" :disabled="fieldDisabled" size="small"><el-option label="是" value="true" /><el-option label="否" value="false" /></el-select></template></el-table-column>
+<el-table-column label="是否可删除不利项" width="150"><template #default="{row}"><el-select v-model="row.canRemoveAdverse" :disabled="fieldDisabled" size="small"><el-option label="是" value="true" /><el-option label="否" value="false" /></el-select></template></el-table-column>
+<el-table-column label="是否可同步评标信息" width="150"><template #default="{row}"><el-select v-model="row.canSyncEval" :disabled="fieldDisabled" size="small"><el-option label="是" value="true" /><el-option label="否" value="false" /></el-select></template></el-table-column>
+<el-table-column label="对我司的倾向性" width="150"><template #default="{row}"><el-select v-model="row.preference" :disabled="fieldDisabled" size="small"><el-option v-for="o in TENDENCY_OPTIONS" :key="o.value" :label="o.label" :value="o.value" /></el-select></template></el-table-column>
+<el-table-column label="是否给出明确中标信息" width="160"><template #default="{row}"><el-switch :model-value="row.canConfirmWin === 'true'" :disabled="fieldDisabled" @update:model-value="row.canConfirmWin = $event ? 'true' : 'false'" /></template></el-table-column>
 <el-table-column label="对中标影响率" width="130"><template #default="{row}"><el-select v-model="row.winRateImpact" :disabled="fieldDisabled" size="small" placeholder="请选择"><el-option v-for="o in IMPACT_OPTIONS" :key="o.value" :label="o.label" :value="o.value" /></el-select></template></el-table-column>
 </el-table></div></el-card>
 <el-card class="section-card" shadow="never">
@@ -182,6 +182,7 @@ import { useUserStore } from '@/stores/user.js'
 import { isBidManager } from '@/utils/permission'
 import AdaptiveFormPage from '@/components/common/AdaptiveFormPage.vue'
 import { useInitiationStageActions } from './useInitiationStageActions.js'
+import { POSITION_OPTIONS, CONTACT_METHOD_OPTIONS, TENDENCY_OPTIONS, IMPACT_OPTIONS } from '@/views/Bidding/detail/components/customerInfoMatrixConfig.js'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
 const emit = defineEmits(['updated'])
@@ -191,9 +192,8 @@ const form = reactive({ projectName: '', ownerUnit: '', createTime: new Date().t
 // 与 customerInfoMatrixConfig.js CUSTOMER_INFO_ROWS 对齐（14 行）
 const CUST_ROLES = ["项目最高决策人","物资公司董事长","物资公司分管电商领导","电商公司董事长","电商公司总经理","电商公司副总经理","电商公司运营负责人","招标文件制作人","其他关键决策人1","其他关键决策人2","其他关键决策人3","专家1","专家2","专家3"]
 function emptyCustRow(role) { return { role, name: '', contactInfo: '', position: '', xiyuContact: '', reached: '', reachMethod: '', preference: '', preferenceBasis: '', guideBid: '', canGetKeyInfo: '', canRemoveAdverse: '', canSyncEval: '', canConfirmWin: '', winRateImpact: '' } }
-const POSITION_OPTIONS = ['董事长','总经理','副总经理','部门负责人','项目负责人','采购负责人','技术负责人','财务负责人','法务负责人','评标专家','经办人','外部顾问','其他决策人','其他']
-const CONTACT_METHOD_OPTIONS = ['电话','微信','邮件','拜访','会议','第三方引荐','未触达']
-const IMPACT_OPTIONS = [{ label: '极高', value: 'VERY_HIGH' },{ label: '高', value: 'HIGH' },{ label: '中', value: 'MEDIUM' },{ label: '低', value: 'LOW' },{ label: '极低', value: 'VERY_LOW' },{ label: '无影响', value: 'NONE' }]
+// CO-323 fix: POSITION/CONTACT_METHOD/TENDENCY/IMPACT OPTIONS 复用评估表 customerInfoMatrixConfig.js，
+// 保证立项页客户信息矩阵与标讯评估表完全一致（值域对齐，mapper 原样透传即可正确显示）
 const custFixedRows = ref(CUST_ROLES.map(emptyCustRow)); const bidDocFiles = ref([]); const planGapFiles = ref([]); const existing = ref(false);
 const planGapUploadUrl = computed(() => getApiUrl(`/api/projects/${props.projectId}/documents`))
 const planGapUploadHeaders = computed(() => { const t = userStore?.token; return t ? { Authorization: 'Bearer ' + t } : {} })
@@ -235,6 +235,7 @@ const { handleDocBeforeUpload, onDepositChange, handleApprove, handleReject, sav
   form,
   custFixedRows,
   bidDocFiles,
+  planGapFiles,
   userStore,
   projectLifecycleApi,
   projectsApi,

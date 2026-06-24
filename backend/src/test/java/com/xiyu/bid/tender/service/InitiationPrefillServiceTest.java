@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
+import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.tender.entity.TenderEvaluation;
 import com.xiyu.bid.tender.entity.TenderEvaluationBasic;
 import org.junit.jupiter.api.Test;
@@ -28,20 +29,22 @@ class InitiationPrefillServiceTest {
     private ProjectInitiationDetailsRepository repository;
     @Mock
     private ObjectMapper objectMapper;
+    @Mock
+    private ProjectDocumentRepository projectDocumentRepository;
     @InjectMocks
     private InitiationPrefillService service;
 
     @Test
     void shouldSkipWhenInitiationAlreadyExists() {
         when(repository.findByProjectId(1L)).thenReturn(Optional.of(new ProjectInitiationDetails()));
-        service.prefillFromEvaluation(1L, null);
+        service.prefillFromEvaluation(1L, null, null);
         verify(repository, never()).save(any());
     }
 
     @Test
     void shouldSkipWhenNoEvaluationOrBasic() {
         when(repository.findByProjectId(1L)).thenReturn(Optional.empty());
-        service.prefillFromEvaluation(1L, null);
+        service.prefillFromEvaluation(1L, null, null);
         verify(repository, never()).save(any());
     }
 
@@ -63,8 +66,11 @@ class InitiationPrefillServiceTest {
                 .build();
         eval.setBasic(basic);
         eval.setCustomerInfos(Collections.emptyList());
+        // CO-323: copyGapAttachments 会查 GAP 附件，mock 返回空列表避免 NPE
+        when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc(any(), any()))
+                .thenReturn(Collections.emptyList());
 
-        service.prefillFromEvaluation(1L, eval);
+        service.prefillFromEvaluation(1L, 1L, eval);
 
         ArgumentCaptor<ProjectInitiationDetails> captor = ArgumentCaptor.forClass(ProjectInitiationDetails.class);
         verify(repository).save(captor.capture());

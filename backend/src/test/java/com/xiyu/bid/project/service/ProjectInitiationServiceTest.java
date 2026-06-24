@@ -13,6 +13,7 @@ import com.xiyu.bid.project.dto.InitiationDto;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
+import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
@@ -47,13 +48,14 @@ class ProjectInitiationServiceTest {
     @Mock UserRepository userRepository;
     @Mock ProjectLeadAssignmentRepository leadAssignmentRepository;
     @Mock ProjectNotificationService notificationService;
+    @Mock ProjectDocumentRepository projectDocumentRepository;
     ProjectInitiationMapper realMapper;
     ProjectInitiationService service;
 
     @BeforeEach
     void setUp() {
         realMapper = new ProjectInitiationMapper(new ObjectMapper());
-        service = new ProjectInitiationService(repo, projectRepository, projectStageService, projectAccessScopeService, userRepository, realMapper, leadAssignmentRepository, notificationService);
+        service = new ProjectInitiationService(repo, projectRepository, projectStageService, projectAccessScopeService, userRepository, realMapper, leadAssignmentRepository, notificationService, projectDocumentRepository);
         lenient().doNothing().when(projectAccessScopeService).assertCurrentUserCanAccessProject(1L);
         lenient().doNothing().when(projectAccessScopeService).assertCurrentUserCanAccessProject(2L);
         lenient().when(projectRepository.findById(1L)).thenReturn(Optional.of(Project.builder().id(1L).managerId(55L).build()));

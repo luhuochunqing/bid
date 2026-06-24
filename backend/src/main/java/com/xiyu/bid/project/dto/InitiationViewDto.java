@@ -4,6 +4,7 @@
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.project.dto;
 
+import com.xiyu.bid.tender.dto.EvaluationBasicDTO;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -82,6 +83,8 @@ public class InitiationViewDto {
     private String headquartersLocation;
     /** 客户信息表格行列表（15列 x 14行）。V133 新增。 */
     private List<CustomerInfoRow> customerInfoRows;
+    /** CO-323: 评估表 GAP 附件（带入展示，与评估表 GapFileRef 对齐）。 */
+    private List<EvaluationBasicDTO.GapFileRef> projectPlanGapFiles;
     /** CO-323: 评估表带入标记（true=带入字段前端只读）。 */
     private Boolean evalPrefilled;
     private LocalDateTime createdAt;

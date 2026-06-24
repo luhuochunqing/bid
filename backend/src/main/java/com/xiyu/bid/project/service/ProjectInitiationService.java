@@ -16,6 +16,9 @@ import com.xiyu.bid.project.dto.InitiationViewDto;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
+import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
+import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
+import com.xiyu.bid.tender.dto.EvaluationBasicDTO;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.repository.ProjectRepository;
@@ -27,6 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -43,6 +47,7 @@ public class ProjectInitiationService {
     private final ProjectInitiationMapper mapper;
     private final ProjectLeadAssignmentRepository leadRepo;
     private final ProjectNotificationService notificationService;
+    private final ProjectDocumentRepository projectDocumentRepository;
 
     @Auditable(action = "SUBMIT_INITIATION", entityType = "ProjectInitiationDetails", description = "提交项目立项审核")
     public InitiationViewDto submit(Long projectId, InitiationDto req, Long currentUserId) {
@@ -153,6 +158,13 @@ public class ProjectInitiationService {
                 dto.setPrimaryLeadUserId(lead.getPrimaryLeadUserId());
                 dto.setSecondaryLeadUserId(lead.getSecondaryLeadUserId());
             });
+            // CO-323: 回填评估表带入的 GAP 附件（project_documents，documentCategory=EVALUATION_GAP，
+            // 对应 TenderEvaluationDocumentService.ENTITY_TYPE_EVALUATION_GAP）
+            List<ProjectDocument> gapDocs = projectDocumentRepository
+                    .findByProjectIdAndFiltersOrderByCreatedAtDesc(projectId, "EVALUATION_GAP", null, null);
+            dto.setProjectPlanGapFiles(gapDocs.stream()
+                    .map(d -> new EvaluationBasicDTO.GapFileRef(d.getName(), d.getFileUrl()))
+                    .toList());
             return dto;
         });
     }

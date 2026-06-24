@@ -52,6 +52,9 @@ public final class EvaluationToInitiationMapper {
             Map.entry("CONTACTED", "reached"),
             Map.entry("CONTACT_METHOD", "reachMethod"),
             Map.entry("INFO_TENDENCY_BASIS", "preferenceBasis"),
+            // CO-323 fix: CRM 回填用 EVALUATION_BASIS（policy VALID_INFO_KEYS 允许），
+            // 与 INFO_TENDENCY_BASIS 同列「倾向性评估依据」，补齐避免整列丢失。
+            Map.entry("EVALUATION_BASIS", "preferenceBasis"),
             Map.entry("GUIDED_BID", "guideBid"),
             Map.entry("CAN_GET_KEY_INFO", "canGetKeyInfo"),
             Map.entry("CAN_REMOVE_ADVERSE", "canRemoveAdverse"),

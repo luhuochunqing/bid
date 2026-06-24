@@ -1,5 +1,5 @@
-// Input: projectId + TenderEvaluation（basic + customerInfos）
-// Output: 副作用——建 ProjectInitiationDetails（评估数据 + evalPrefilled=true）
+// Input: projectId + tenderId + TenderEvaluation（basic + customerInfos + GAP 附件）
+// Output: 副作用——建 ProjectInitiationDetails（评估数据 + evalPrefilled=true）+ 拷贝 GAP 附件
 // Pos: tender/service/ - CO-323 标讯评估表 → 项目立项预填（命令式外壳）
 package com.xiyu.bid.tender.service;
 
@@ -8,6 +8,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.project.dto.CustomerInfoRow;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
+import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
+import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.tender.entity.TenderEvaluation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +21,7 @@ import java.util.List;
 /**
  * CO-323: 标讯评估表 → 项目立项预填服务。
  * <p>{@code TenderEvaluationService.proceedToBid} 创建项目后调用，把评估数据（basic +
- * 客户信息 EAV）带入 {@link ProjectInitiationDetails}，并标记 {@code evalPrefilled=true}
+ * 客户信息 EAV + GAP 附件）带入 {@link ProjectInitiationDetails}，并标记 {@code evalPrefilled=true}
  * （前端据此将带入字段设为只读，保证金/招标文件除外）。幂等（已存在不重复建）。
  */
 @Service
@@ -29,15 +31,17 @@ public class InitiationPrefillService {
 
     private final ProjectInitiationDetailsRepository initiationRepository;
     private final ObjectMapper objectMapper;
+    private final ProjectDocumentRepository projectDocumentRepository;
 
     /**
      * 把评估数据带入项目立项。评估表不存在/为空则跳过（FR-005），不阻塞 proceedToBid。
      *
      * @param projectId  新创建的项目 id
+     * @param tenderId   标讯 id（评估表 GAP 附件的 linkedEntityId）
      * @param evaluation 标讯评估表（可为 null）
      */
     @Transactional
-    public void prefillFromEvaluation(Long projectId, TenderEvaluation evaluation) {
+    public void prefillFromEvaluation(Long projectId, Long tenderId, TenderEvaluation evaluation) {
         if (initiationRepository.findByProjectId(projectId).isPresent()) {
             log.info("CO-323: ProjectInitiationDetails already exists for project {}, skip prefill", projectId);
             return;
@@ -59,6 +63,49 @@ public class InitiationPrefillService {
             throw new IllegalStateException("CO-323: serialize customer info rows failed", ex);
         }
         initiationRepository.save(details);
+        copyGapAttachments(projectId, tenderId);
         log.info("CO-323: prefilled ProjectInitiationDetails for project {} from evaluation", projectId);
+    }
+
+    /**
+     * CO-323: 拷贝评估表 GAP 附件到新项目（project_documents）。
+     * <p>评估表 GAP 附件 {@code linkedEntityType=EVALUATION_GAP}、{@code linkedEntityId=tenderId}；
+     * 拷贝后归属本项目（projectId + linkedEntityId 均改为新项目 id），供立项页回填展示。
+     * 幂等：上层 {@code prefillFromEvaluation} 已保证仅在首次创建 details 时进入。
+     */
+    private void copyGapAttachments(Long projectId, Long tenderId) {
+        if (tenderId == null) {
+            return;
+        }
+        try {
+            List<ProjectDocument> gapFiles = projectDocumentRepository
+                    .findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc(
+                            TenderEvaluationDocumentService.ENTITY_TYPE_EVALUATION_GAP, tenderId);
+            if (gapFiles.isEmpty()) {
+                return;
+            }
+            List<ProjectDocument> copies = gapFiles.stream()
+                    .map(doc -> ProjectDocument.builder()
+                            .projectId(projectId)
+                            .name(doc.getName())
+                            .size(doc.getSize())
+                            .fileType(doc.getFileType())
+                            .fileUrl(doc.getFileUrl())
+                            .uploaderId(doc.getUploaderId())
+                            .uploaderName(doc.getUploaderName() != null ? doc.getUploaderName() : "评估表带入")
+                            .documentCategory(TenderEvaluationDocumentService.ENTITY_TYPE_EVALUATION_GAP)
+                            .linkedEntityType(TenderEvaluationDocumentService.ENTITY_TYPE_EVALUATION_GAP)
+                            .linkedEntityId(projectId)
+                            .build())
+                    .toList();
+            projectDocumentRepository.saveAll(copies);
+            log.info("CO-323: copied {} gap attachment(s) from tender {} to project {}",
+                    copies.size(), tenderId, projectId);
+        } catch (RuntimeException ex) {
+            // CO-323: 附件拷贝失败不阻塞投标主流程（ProjectInitiationDetails 已在同事务保存）。
+            // 此处吞异常，避免外层事务被标记 rollback-only 进而抛 UnexpectedRollbackException；
+            // 代价是该次附件未拷贝（不影响投标，可后续重同步补齐）。
+            log.warn("CO-323: copy gap attachments failed for tender {}, non-blocking", tenderId, ex);
+        }
     }
 }
