@@ -387,7 +387,7 @@ registerLoginNavigator(async () => {
     window.routerPushCalled = true
   }
 
-  await router.push('/login')
+  await router.replace('/login')
 })
 
 // 路由守卫

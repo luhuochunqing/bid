@@ -11,7 +11,8 @@
 | 文件 | 地位 | 功能 |
 |------|------|------|
 | `index.js` | Router Config | 路由配置主文件 |
-| `sessionNavigation.js` | Navigation Bridge | 为认证 store 提供登录跳转桥接，避免 store 动态导入 router |
+| `sessionNavigation.js` | Navigation Bridge | 为认证 store 提供可兜底的登录跳转桥接，避免 store 动态导入 router |
+| `sessionNavigation.spec.js` | Unit Test | 登录跳转桥接失败时硬跳转兜底回归测试 |
 
 ## 路由结构
 

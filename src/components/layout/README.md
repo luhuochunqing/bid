@@ -15,5 +15,5 @@
 |------|------|------|
 | `MainLayout.vue` | Component | 主布局容器 |
 | `Header.vue` | Component | 顶部导航栏 |
-| `Header.spec.js` | Unit Test | 顶部栏用户展示回归测试 |
+| `Header.spec.js` | Unit Test | 顶部栏用户展示与退出登录回归测试 |
 | `Sidebar.vue` | Component | 侧边菜单 |

@@ -1,4 +1,30 @@
-# OSS 权限接入后评标编辑权限修复实施记录
+# 退出登录未回登录页修复实施记录
+
+## 问题口径
+
+- 用户在业务页点击账户“退出登录”后，期望立即进入登录页，但现场仍停留在业务页面。
+- 当前认证已切到 HttpOnly cookie，前端只持有 `currentUser` 和 `user` hint；因此退出必须同时完成后端登出、本地状态清理、登录页导航三件事。
+
+## 根因判断
+
+- `userStore.logout()` 会在 `finally` 中执行 `resetSession()` 和 `navigateToLogin()`，但如果路由跳转 reject，整个 `logout()` 仍会 reject。
+- `Header.vue` 外层 catch 把所有异常都按“用户取消”静默吞掉，导致后续 `router.replace('/login')` 不执行，用户留在当前业务页且没有错误提示。
+- 顶部用户下拉菜单中 `profile` 与 `keyword-subscription` 的 `<el-dropdown-item>` 存在无效嵌套，可能影响 Element Plus 下拉项 command 结构，顺手修正为平级菜单项。
+
+## 决策与权衡
+
+- 保持真实 API 登出，不引入 Mock，不绕过后端 `/api/auth/logout`。
+- 将登录页跳转统一收敛到 `userStore.logout()`/`navigateToLogin()`，Header 不再重复 `router.replace('/login')`，避免双重导航和二次异常。
+- `navigateToLogin()` 捕获路由跳转失败并兜底 `window.location.assign('/login')`，确保登出后的本地会话清理不会因为前端路由异常而被用户感知为“没退出”。
+- Header 不再静默吞掉非预期异常；如果 store 登出链路真的抛错，会记录错误并提示用户刷新重试。
+
+## 验证
+
+- `pnpm exec vitest run src/components/layout/Header.spec.js src/router/sessionNavigation.spec.js`：2 files / 5 tests passed。
+- `npm run check:vue-template-balance`：Vue template balance check passed。
+- `pnpm exec eslint src/components/layout/Header.vue src/components/layout/Header.spec.js src/router/sessionNavigation.js src/router/sessionNavigation.spec.js src/router/index.js src/stores/user.js`：通过，无 lint 输出。
+- `git diff --check`：通过，无空白错误。
+
 
 ## 问题口径
 

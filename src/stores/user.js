@@ -1,8 +1,7 @@
-// Input: authApi responses, persisted session snapshot, runtime settings
-// Output: useUserStore - Pinia store for auth, session restore, and user scope state
+// Input: authApi responses, persisted session snapshot, runtime settings, and login navigation bridge
+// Output: useUserStore - Pinia store for auth, resilient logout, session restore, and user scope state
 // Pos: src/stores/ - State management layer
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
-
 import { defineStore } from 'pinia'
 import { authApi } from '@/api'
 import { registerAuthStoreBridge } from '@/api/authStoreBridge.js'
@@ -150,10 +149,10 @@ export const useUserStore = defineStore('user', {
         await authApi.logout()
       } catch (error) {
         console.warn('Logout request failed, clearing local session anyway:', error)
-      } finally {
-        this.resetSession()
-        await navigateToLogin()
       }
+
+      this.resetSession()
+      await navigateToLogin()
     },
 
     resetSession() {

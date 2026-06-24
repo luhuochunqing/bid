@@ -77,10 +77,10 @@
             <el-dropdown-item v-if="globalSearchEnabled" command="profile">
               <el-icon><User /></el-icon>
               个人中心
+            </el-dropdown-item>
             <el-dropdown-item command="keyword-subscription">
               <el-icon><Bell /></el-icon>
               关键词订阅
-            </el-dropdown-item>
             </el-dropdown-item>
             <el-dropdown-item v-if="canAccessSettings" command="settings">
               <el-icon><Setting /></el-icon>
@@ -128,7 +128,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   Search, Bell, ArrowDown, ArrowLeft, User, Setting,
-  SwitchButton, Expand, StarFilled, Fold, Menu, DocumentChecked
+  SwitchButton, Expand, Fold, Menu, DocumentChecked
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useNotificationStore } from '@/stores/notifications'
@@ -233,10 +233,10 @@ const handleCommand = async (command) => {
     case 'logout':
       try {
         await userStore.logout()
-        await router.replace('/login')
         ElMessage.success('已退出登录')
-      } catch {
-        // 用户取消
+      } catch (error) {
+        console.error('Logout failed:', error)
+        ElMessage.error('退出登录失败，请刷新后重试')
       }
       break
   }

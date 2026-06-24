@@ -1,0 +1,9 @@
+version: 1
+task: "logout-redirect-login"
+locks:
+  - path: "src/router/index.js"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/zcode/logout-redirect-login"
+    expiresAt: "2026-06-25T13:16:13.884Z"
+    reason: "修复退出登录后跳转登录页"

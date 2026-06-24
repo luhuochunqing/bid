@@ -1,4 +1,4 @@
-import { shallowMount } from '@vue/test-utils'
+import { shallowMount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, getActivePinia, setActivePinia } from 'pinia'
@@ -6,8 +6,20 @@ import { createPinia, getActivePinia, setActivePinia } from 'pinia'
 import Header from './Header.vue'
 import { useUserStore } from '@/stores/user'
 
+const messageSuccess = vi.hoisted(() => vi.fn())
+const messageError = vi.hoisted(() => vi.fn())
+
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
+}))
+
+vi.mock('element-plus', () => ({
+  ElMessage: {
+    error: messageError,
+    info: vi.fn(),
+    success: messageSuccess,
+    warning: vi.fn(),
+  },
 }))
 
 vi.mock('@/stores/notifications', () => ({
@@ -41,8 +53,10 @@ vi.mock('@/api/session.js', () => ({
   getStoredUser: vi.fn(() => null),
   persistUserHint: vi.fn(),
 }))
+const navigateToLogin = vi.hoisted(() => vi.fn())
+
 vi.mock('@/router/sessionNavigation.js', () => ({
-  navigateToLogin: vi.fn(),
+  navigateToLogin,
 }))
 
 const globalStubs = {
@@ -50,7 +64,11 @@ const globalStubs = {
   'el-icon': { template: '<span><slot /></span>' },
   'el-popover': { template: '<div><slot name="reference" /><slot /></div>' },
   'el-badge': { template: '<span><slot /></span>' },
-  'el-dropdown': { template: '<div><slot /><slot name="dropdown" /></div>' },
+  'el-dropdown': {
+    name: 'ElDropdown',
+    emits: ['command'],
+    template: '<div data-test="user-dropdown"><slot /><slot name="dropdown" /></div>',
+  },
   'el-dropdown-menu': { template: '<div><slot /></div>' },
   'el-dropdown-item': { template: '<div><slot /></div>' },
   'el-dialog': { template: '<div><slot /><slot name="footer" /></div>' },
@@ -73,6 +91,7 @@ const forbiddenGuestText = '\u6e38\u5ba2'
 
 describe('Header user display', () => {
 beforeEach(() => {
+  vi.clearAllMocks()
   setActivePinia(createPinia())
   pinia = getActivePinia()
 })
@@ -110,5 +129,25 @@ beforeEach(() => {
     expect(wrapper.text()).toContain('张三')
     expect(wrapper.text()).toContain('员工')
     expect(wrapper.text()).not.toContain(forbiddenGuestText)
+  })
+
+  it('clears session and navigates to login when logout command is selected', async () => {
+    const wrapper = mountHeader()
+    const userStore = useUserStore()
+    userStore.currentUser = {
+      name: '张三',
+      role: 'bid-Team',
+      roleName: '员工',
+      menuPermissions: [],
+    }
+
+    const dropdown = wrapper.findComponent({ name: 'ElDropdown' })
+    await dropdown.vm.$emit('command', 'logout')
+    await flushPromises()
+
+    expect(userStore.currentUser).toBeNull()
+    expect(navigateToLogin).toHaveBeenCalledTimes(1)
+    expect(messageSuccess).toHaveBeenCalledWith('已退出登录')
+    expect(messageError).not.toHaveBeenCalled()
   })
 })
