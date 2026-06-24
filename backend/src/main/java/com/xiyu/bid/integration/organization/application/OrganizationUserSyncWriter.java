@@ -17,6 +17,7 @@ import com.xiyu.bid.repository.RoleProfileRepository;
 import com.xiyu.bid.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,11 +44,13 @@ public class OrganizationUserSyncWriter {
     private final OssRoleMenuPermissionAutoSync ossRoleMenuPermissionAutoSync;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @CacheEvict(value = "users:enabled", key = "'all'")
     public Optional<User> upsert(String sourceApp, String eventKey, OrganizationUserSnapshot snapshot) {
         return upsert(sourceApp, eventKey, snapshot, Map.of());
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @CacheEvict(value = "users:enabled", key = "'all'")
     public Optional<User> upsert(
             String sourceApp,
             String eventKey,
@@ -110,6 +113,7 @@ public class OrganizationUserSyncWriter {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @CacheEvict(value = "users:enabled", key = "'all'")
     public void disableByExternalId(String sourceApp, String eventKey, String externalUserId) {
         userRepository.findByExternalOrgSourceAppAndExternalOrgUserId(sourceApp, externalUserId)
                 .ifPresent(user -> {

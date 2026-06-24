@@ -65,7 +65,8 @@ public class ArchitectureTest {
         "com.xiyu.bid.projectworkflow.controller..",
         "com.xiyu.bid.resources.controller..",
         "com.xiyu.bid.casework.controller..",
-        "com.xiyu.bid.analytics.controller.."
+        "com.xiyu.bid.analytics.controller..",
+        "com.xiyu.bid.user.controller.."
     };
 
     private static final String[] DTO_READY_CONTROLLER_PACKAGES = {
@@ -84,6 +85,9 @@ public class ArchitectureTest {
         "com.xiyu.bid.resources.controller..",
         "com.xiyu.bid.casework.controller..",
         "com.xiyu.bid.analytics.controller.."
+        // P2.3: com.xiyu.bid.user.controller.. 暂不加入 DTO_READY 列表
+        // 原因: AssignmentCandidateController 使用 @AuthenticationPrincipal User（entity），
+        // 违反 RULE 4（controller 不依赖 entity）。需先将 Principal 类型迁移到 DTO 才能加入。
     };
 
     private static final String[] STRICT_SERVICE_PACKAGES = {
@@ -103,7 +107,8 @@ public class ArchitectureTest {
         "com.xiyu.bid.resources.service..",
         "com.xiyu.bid.casework.service..",
         "com.xiyu.bid.casework.application.service..",
-        "com.xiyu.bid.analytics.service.."
+        "com.xiyu.bid.analytics.service..",
+        "com.xiyu.bid.user.service.."
     };
 
     private static final String[] STRICT_DTO_PACKAGES = {
@@ -119,7 +124,8 @@ public class ArchitectureTest {
         "com.xiyu.bid.documents.dto..",
         "com.xiyu.bid.settings.dto..",
         "com.xiyu.bid.projectworkflow.dto..",
-        "com.xiyu.bid.analytics.dto.."
+        "com.xiyu.bid.analytics.dto..",
+        "com.xiyu.bid.user.dto.."
     };
 
     private static final String[] DTO_ENTITY_FREE_PACKAGES = {
