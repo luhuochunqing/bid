@@ -88,7 +88,7 @@ async function openNewlyCreatedDrawer(page, certName) {
 
 test.describe('§4.1.3.7 操作日志 Tab 数据接入', () => {
   test('正向流程：详情抽屉 Tab 2 展示该资质的操作日志（时间倒序 + 真实数据）', async ({ page }) => {
-    const session = await loginAsRole(page, 'bidAdmin', 'E2E oplog admin')
+    const session = await loginAsRole(page, '/bidAdmin', 'E2E oplog admin')
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
     const certName = `E2E oplog test cert ${suffix}`
     const newId = await createQualificationWithAudit(session.token, suffix, certName)
@@ -130,7 +130,7 @@ test.describe('§4.1.3.7 操作日志 Tab 数据接入', () => {
   })
 
   test('时间倒序：多条日志时，最新一条在最上方', async ({ page }) => {
-    const session = await loginAsRole(page, 'bidAdmin', 'E2E oplog admin')
+    const session = await loginAsRole(page, '/bidAdmin', 'E2E oplog admin')
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
     const certName = `E2E oplog test cert ${suffix}`
     const newId = await createQualificationWithAudit(session.token, suffix, certName)
@@ -164,7 +164,7 @@ test.describe('§4.1.3.7 操作日志 Tab 数据接入', () => {
   })
 
   test('权限：bid_specialist 也能查看操作日志（不限 ADMIN / AUDITOR）', async ({ page }) => {
-    const adminSession = await loginAsRole(page, 'bidAdmin', 'E2E oplog admin')
+    const adminSession = await loginAsRole(page, '/bidAdmin', 'E2E oplog admin')
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
     const certName = `E2E oplog test cert ${suffix}`
     const newId = await createQualificationWithAudit(adminSession.token, suffix, certName)
@@ -189,7 +189,7 @@ test.describe('§4.1.3.7 操作日志 Tab 数据接入', () => {
   })
 
   test('边界：重复切换 tab 不报错且数据稳定', async ({ page }) => {
-    const session = await loginAsRole(page, 'bidAdmin', 'E2E oplog admin')
+    const session = await loginAsRole(page, '/bidAdmin', 'E2E oplog admin')
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
     const certName = `E2E oplog test cert ${suffix}`
     await createQualificationWithAudit(session.token, suffix, certName)

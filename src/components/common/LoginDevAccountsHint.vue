@@ -22,7 +22,7 @@ const DEV_ACCOUNTS = [
   '管理员: admin / XiyuAdmin2026!',
   '审计员: auditor / Test@123',
   '经理: manager / Test@123',
-  '投标部门管理员: bidAdmin / Test@123',
+  '投标部门管理员: /bidAdmin / Test@123',
   '投标组长: bid-TeamLeader / Test@123',
   '项目负责人: bid-projectLeader / Test@123',
   '投标专员: bid-Team / Test@123',

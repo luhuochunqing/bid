@@ -38,7 +38,7 @@ public class PersonnelExportController {
     private final ExportPersonnelAppService exportAppService;
 
     @PostMapping("/export")
-    @PreAuthorize("hasAnyAuthority('bidAdmin', 'bid-TeamLeader', 'bid-Team')")
+    @PreAuthorize("hasAnyAuthority('/bidAdmin', 'bid-TeamLeader', 'bid-Team')")
     public ResponseEntity<ApiResponse<ExportTaskResponse>> startExport(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String departmentCode,
@@ -79,14 +79,14 @@ public class PersonnelExportController {
     }
 
     @GetMapping("/export/{taskId}")
-    @PreAuthorize("hasAnyAuthority('bidAdmin', 'bid-TeamLeader', 'bid-Team')")
+    @PreAuthorize("hasAnyAuthority('/bidAdmin', 'bid-TeamLeader', 'bid-Team')")
     public ResponseEntity<ApiResponse<ExportProgress>> getExportProgress(@PathVariable String taskId) {
         ExportProgress progress = exportAppService.getProgress(taskId);
         return ResponseEntity.ok(ApiResponse.success("获取进度成功", progress));
     }
 
     @GetMapping("/export/{taskId}/download")
-    @PreAuthorize("hasAnyAuthority('bidAdmin', 'bid-TeamLeader', 'bid-Team')")
+    @PreAuthorize("hasAnyAuthority('/bidAdmin', 'bid-TeamLeader', 'bid-Team')")
     public ResponseEntity<Resource> downloadExportFile(@PathVariable String taskId) {
         try {
             byte[] zipBytes = exportAppService.getExportFile(taskId);

@@ -35,7 +35,7 @@ public class DeletePersonnelAppService {
      * @param operatorName  操作人姓名
      */
     @Transactional
-    @PreAuthorize("hasAnyAuthority('bidAdmin', 'bid-TeamLeader')")
+    @PreAuthorize("hasAnyAuthority('/bidAdmin', 'bid-TeamLeader')")
     public void delete(Long id, String reason, Long currentUserId, String operatorName) {
         if (reason == null || reason.isBlank()) {
             throw new IllegalArgumentException("删除原因不能为空");

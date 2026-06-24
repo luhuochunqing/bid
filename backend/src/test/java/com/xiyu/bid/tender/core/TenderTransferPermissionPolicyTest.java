@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TenderTransferPermissionPolicyTest {
 
     @ParameterizedTest(name = "canTransfer: role={0} -> true")
-    @ValueSource(strings = {"admin", "bidAdmin", "bid-TeamLeader", "bidAdmin"})
+    @ValueSource(strings = {"admin", "/bidAdmin", "bid-TeamLeader", "/bidAdmin"})
     @DisplayName("可转派角色返回 true")
     void canTransfer_transferableRoles_returnsTrue(String roleCode) {
         assertThat(TenderTransferPermissionPolicy.canTransfer(roleCode)).isTrue();
@@ -45,7 +45,7 @@ class TenderTransferPermissionPolicyTest {
     @DisplayName("canTransfer: roleCode 大小写不敏感且忽略前后空格")
     void canTransfer_roleCodeCaseInsensitiveAndTrimmed() {
         assertThat(TenderTransferPermissionPolicy.canTransfer("ADMIN")).isTrue();
-        assertThat(TenderTransferPermissionPolicy.canTransfer("  BIDADMIN  ")).isTrue();
+        assertThat(TenderTransferPermissionPolicy.canTransfer("  /BIDADMIN  ")).isTrue();
         assertThat(TenderTransferPermissionPolicy.canTransfer("bid-teamleader")).isTrue();
         assertThat(TenderTransferPermissionPolicy.canTransfer("BID-PROJECTLEADER")).isFalse();
     }

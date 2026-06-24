@@ -11,7 +11,7 @@
 // 从 useProjectDraftingPermissions.js 提取 resolveDraftingRoleGroup
 // 避免需要完整 Pinia store
 function resolveDraftingRoleGroup(role) {
-  if (role === 'admin' || role === 'bidAdmin' || role === 'bid-TeamLeader') return 'admin_lead'
+  if (role === 'admin' || role === '/bidAdmin' || role === 'bid-TeamLeader') return 'admin_lead'
   if (role === 'bid-projectLeader' || role === 'bid-Team') return 'lead_assist'
   return null
 }
@@ -55,7 +55,7 @@ function computeCanDeleteDocument(role) {
 describe('resolveDraftingRoleGroup', () => {
   it.each([
     ['admin', 'admin_lead'],
-    ['bidAdmin', 'admin_lead'],
+    ['/bidAdmin', 'admin_lead'],
     ['bid-TeamLeader', 'admin_lead'],
     ['bid-projectLeader', 'lead_assist'],
     ['bid-Team', 'lead_assist'],
@@ -72,7 +72,7 @@ describe('resolveDraftingRoleGroup', () => {
 describe('canSubmitBid — 提交投标权限（基础角色判断）', () => {
   it.each([
     ['admin', true],
-    ['bidAdmin', true],
+    ['/bidAdmin', true],
     ['bid-TeamLeader', true],
     ['bid-administration', false],
     ['bid-otherDept', false],
@@ -140,7 +140,7 @@ describe('canReviewBid — 审核投标权限（基于指派审核人，与角�
 describe('canSubmitBidForReview — 提交投标审核权限', () => {
   it.each([
     ['admin', true],
-    ['bidAdmin', true],
+    ['/bidAdmin', true],
     ['bid-TeamLeader', true],
     ['bid-projectLeader', true],
     ['bid-Team', true],
@@ -154,7 +154,7 @@ describe('canSubmitBidForReview — 提交投标审核权限', () => {
 describe('canDeleteDocument — 删除文档权限（仅 admin_lead）', () => {
   it.each([
     ['admin', true],
-    ['bidAdmin', true],
+    ['/bidAdmin', true],
     ['bid-TeamLeader', true],
     ['bid-projectLeader', false],
     ['bid-Team', false],

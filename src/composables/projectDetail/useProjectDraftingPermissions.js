@@ -39,7 +39,7 @@ import { resolveOpt } from '@/utils/resolveOpt.js'
  * 角色分组：按权限矩阵列合并
  */
 function resolveDraftingRoleGroup(role) {
-  if (role === 'admin' || role === 'bidAdmin' || role === 'bid-TeamLeader') return 'admin_lead'
+  if (role === 'admin' || role === '/bidAdmin' || role === 'bid-TeamLeader') return 'admin_lead'
   if (role === 'bid-projectLeader' || role === 'bid-Team') return 'lead_assist'  // 投标负责人 / 辅助人
   return null
 }

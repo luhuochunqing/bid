@@ -47,7 +47,7 @@ const ACTION_DEFS = {
 // 内部 group 标识符统一使用下划线风格（与角色码的连字符风格区分）。
 // ---------------------------------------------------------------------------
 function resolveRoleGroup(role) {
-  if (role === 'admin' || role === 'bidAdmin' || role === 'bid-TeamLeader') return 'admin_lead'
+  if (role === 'admin' || role === '/bidAdmin' || role === 'bid-TeamLeader') return 'admin_lead'
   if (role === 'bid-projectLeader' || role === 'bid-otherDept' || role === 'bid-administration') return 'sales'
   if (role === 'manager') return 'admin_lead'
   if (role === 'bid-Team') return 'bid_team'

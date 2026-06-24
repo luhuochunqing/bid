@@ -160,7 +160,7 @@ public class ProjectNotificationService {
     }
 
     private List<Long> getAdminUserIds() {
-        return userRepository.findEnabledByRoleProfileCodes(List.of("admin", "bidAdmin", "bid-TeamLeader"))
+        return userRepository.findEnabledByRoleProfileCodes(List.of("admin", "/bidAdmin", "bid-TeamLeader"))
                 .stream().map(User::getId).collect(Collectors.toList());
     }
 

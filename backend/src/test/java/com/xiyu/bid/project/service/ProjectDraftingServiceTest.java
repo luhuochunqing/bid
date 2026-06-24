@@ -256,7 +256,7 @@ class ProjectDraftingServiceTest {
     @Test
     void submitBid_bidAdmin_allowed() {
         prepareSubmitBidHappyPath();
-        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bidAdmin")));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "/bidAdmin")));
         var view = service.submitBid(1L, 1L);
         assertThat(view).isNotNull();
     }

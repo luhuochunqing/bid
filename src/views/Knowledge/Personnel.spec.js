@@ -37,7 +37,7 @@ vi.mock('@/api/modules/personnelBatchApi.js', () => ({
 
 // Mock user store
 vi.mock('@/stores/user.js', () => ({
-  useUserStore: () => ({ userRole: 'bidAdmin', currentUser: { role: 'bidAdmin' } })
+  useUserStore: () => ({ userRole: '/bidAdmin', currentUser: { role: '/bidAdmin' } })
 }))
 
 // Mock qualification store

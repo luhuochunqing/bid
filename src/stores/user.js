@@ -43,7 +43,7 @@ export const useUserStore = defineStore('user', {
       },
       isBidAdmin: (state) => {
         const r = state.currentUser?.roleCode || state.currentUser?.role || ''
-        return r === 'admin' || r === 'bidAdmin'
+        return r === 'admin' || r === '/bidAdmin'
       },
       isBidLead: (state) => {
         const r = state.currentUser?.roleCode || state.currentUser?.role || ''
@@ -56,7 +56,7 @@ export const useUserStore = defineStore('user', {
       },
       isBidManager: (state) => {
         const r = state.currentUser?.roleCode || state.currentUser?.role || ''
-        return ['admin', 'bidAdmin', 'bid-TeamLeader'].includes(r)
+        return ['admin', '/bidAdmin', 'bid-TeamLeader'].includes(r)
       }
   },
 

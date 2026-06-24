@@ -83,7 +83,7 @@ describe('getHeaderActions', () => {
     })
 
     it('bid_admin sees assign + delete', () => {
-      expectActions(getHeaderActions(PENDING, 'bidAdmin'), [
+      expectActions(getHeaderActions(PENDING, '/bidAdmin'), [
         ACTIONS.ASSIGN,
         ACTIONS.DELETE,
       ])
@@ -106,7 +106,7 @@ describe('getHeaderActions', () => {
 
   describe('TRACKING', () => {
     it('bid_admin sees transfer + delete', () => {
-      expectActions(getHeaderActions(TRACKING, 'bidAdmin'), [
+      expectActions(getHeaderActions(TRACKING, '/bidAdmin'), [
         ACTIONS.TRANSFER,
         ACTIONS.DELETE,
       ])
@@ -130,7 +130,7 @@ describe('getHeaderActions', () => {
 
   describe('EVALUATED', () => {
     it('bid_admin sees transfer only (delete not allowed per §4.2.8)', () => {
-      expectActions(getHeaderActions(EVALUATED, 'bidAdmin'), [
+      expectActions(getHeaderActions(EVALUATED, '/bidAdmin'), [
         ACTIONS.TRANSFER,
       ])
     })
@@ -152,7 +152,7 @@ describe('getHeaderActions', () => {
 
   describe('BIDDING', () => {
     it('bid_admin sees viewProject', () => {
-      expectActions(getHeaderActions(BIDDING, 'bidAdmin'), [
+      expectActions(getHeaderActions(BIDDING, '/bidAdmin'), [
         ACTIONS.VIEW_PROJECT,
       ])
     })
@@ -172,7 +172,7 @@ describe('getHeaderActions', () => {
 
   describe('WON', () => {
     it('bid_admin sees viewProject', () => {
-      expectActions(getHeaderActions(WON, 'bidAdmin'), [
+      expectActions(getHeaderActions(WON, '/bidAdmin'), [
         ACTIONS.VIEW_PROJECT,
       ])
     })
@@ -180,7 +180,7 @@ describe('getHeaderActions', () => {
 
   describe('LOST', () => {
     it('bid_admin sees viewProject', () => {
-      expectActions(getHeaderActions(LOST, 'bidAdmin'), [
+      expectActions(getHeaderActions(LOST, '/bidAdmin'), [
         ACTIONS.VIEW_PROJECT,
       ])
     })
@@ -188,7 +188,7 @@ describe('getHeaderActions', () => {
 
   describe('ABANDONED', () => {
     it('bid_admin sees nothing', () => {
-      expect(getHeaderActions(ABANDONED, 'bidAdmin')).toEqual([])
+      expect(getHeaderActions(ABANDONED, '/bidAdmin')).toEqual([])
     })
 
     it('sales sees nothing', () => {
@@ -206,7 +206,7 @@ describe('getHeaderActions', () => {
     })
 
     it('returns empty array for unknown status', () => {
-      expect(getHeaderActions('UNKNOWN_STATUS', 'bidAdmin')).toEqual([])
+      expect(getHeaderActions('UNKNOWN_STATUS', '/bidAdmin')).toEqual([])
     })
   })
 
@@ -242,7 +242,7 @@ describe('getHeaderActions', () => {
     })
 
     it('bid_admin sees assign + delete regardless of creator', () => {
-      expectActions(getHeaderActions(PENDING, 'bidAdmin', false, 1, 2), [
+      expectActions(getHeaderActions(PENDING, '/bidAdmin', false, 1, 2), [
         ACTIONS.ASSIGN,
         ACTIONS.DELETE,
       ])
@@ -297,7 +297,7 @@ describe('getBottomActions', () => {
     })
 
     it('bid_admin sees edit', () => {
-      expectActions(getBottomActions(PENDING, 'bidAdmin'), [
+      expectActions(getBottomActions(PENDING, '/bidAdmin'), [
         ACTIONS.EDIT,
       ])
     })
@@ -319,7 +319,7 @@ describe('getBottomActions', () => {
 
   describe('TRACKING', () => {
     it.skip('admin_lead sees no bottom actions — 待基线同步后修复', () => {
-      expect(getBottomActions(TRACKING, 'bidAdmin')).toEqual([])
+      expect(getBottomActions(TRACKING, '/bidAdmin')).toEqual([])
     })
 
     it('bid_lead sees editBasic, editEvaluation, save, and cancel', () => {
@@ -344,7 +344,7 @@ describe('getBottomActions', () => {
 
   describe('EVALUATED', () => {
     it('bid_admin sees bid + abandon', () => {
-      expectActions(getBottomActions(EVALUATED, 'bidAdmin'), [
+      expectActions(getBottomActions(EVALUATED, '/bidAdmin'), [
         ACTIONS.BID,
         ACTIONS.ABANDON,
       ])
@@ -368,25 +368,25 @@ describe('getBottomActions', () => {
 
   describe('BIDDING', () => {
     it('bid_admin sees nothing', () => {
-      expect(getBottomActions(BIDDING, 'bidAdmin')).toEqual([])
+      expect(getBottomActions(BIDDING, '/bidAdmin')).toEqual([])
     })
   })
 
   describe('WON', () => {
     it('bid_admin sees nothing', () => {
-      expect(getBottomActions(WON, 'bidAdmin')).toEqual([])
+      expect(getBottomActions(WON, '/bidAdmin')).toEqual([])
     })
   })
 
   describe('LOST', () => {
     it('bid_admin sees nothing', () => {
-      expect(getBottomActions(LOST, 'bidAdmin')).toEqual([])
+      expect(getBottomActions(LOST, '/bidAdmin')).toEqual([])
     })
   })
 
   describe('ABANDONED', () => {
     it('bid_admin sees nothing', () => {
-      expect(getBottomActions(ABANDONED, 'bidAdmin')).toEqual([])
+      expect(getBottomActions(ABANDONED, '/bidAdmin')).toEqual([])
     })
   })
 
@@ -396,7 +396,7 @@ describe('getBottomActions', () => {
     })
 
     it('returns empty array for unknown status', () => {
-      expect(getBottomActions('UNKNOWN_STATUS', 'bidAdmin')).toEqual([])
+      expect(getBottomActions('UNKNOWN_STATUS', '/bidAdmin')).toEqual([])
     })
   })
 })

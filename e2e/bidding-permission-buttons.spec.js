@@ -67,7 +67,7 @@ test.beforeEach(({ page }) => {
 // ---------------------------------------------------------------------------
 test.describe('§4.2.1 — bidding list bulk import button visibility', () => {
   test('bid_admin sees the batch import button', async ({ page }) => {
-    await loginAsRole(page, 'bidAdmin')
+    await loginAsRole(page, '/bidAdmin')
     await page.goto('/bidding')
     await page.waitForSelector('.el-table', { timeout: 10000 })
     await expect(page.getByRole('button', { name: '批量导入', exact: true })).toBeVisible()
@@ -88,7 +88,7 @@ test.describe('§4.2.1 — bidding list bulk import button visibility', () => {
 // ---------------------------------------------------------------------------
 test.describe('§4.2.4 — tender detail page assign/transfer button visibility', () => {
   test('bid_admin sees 分配 button on PENDING_ASSIGNMENT tender detail', async ({ page }) => {
-    const session = await loginAsRole(page, 'bidAdmin')
+    const session = await loginAsRole(page, '/bidAdmin')
     const tenderId = await seedTenderForDetail(session, 'PENDING_ASSIGNMENT')
     expect(tenderId).toBeTruthy()
 
@@ -100,7 +100,7 @@ test.describe('§4.2.4 — tender detail page assign/transfer button visibility'
   })
 
   test('bid_admin sees 转派 button on TRACKING tender detail', async ({ page }) => {
-    const session = await loginAsRole(page, 'bidAdmin')
+    const session = await loginAsRole(page, '/bidAdmin')
     const tenderId = await seedTenderForDetail(session, 'TRACKING')
     expect(tenderId).toBeTruthy()
 
@@ -124,7 +124,7 @@ test.describe('§4.2.4 — tender detail page assign/transfer button visibility'
   })
 
   test('bid_admin sees 删除 button on detail page, but sales and bid_lead do not', async ({ page }) => {
-    const sessionAdmin = await loginAsRole(page, 'bidAdmin')
+    const sessionAdmin = await loginAsRole(page, '/bidAdmin')
     const tenderId = await seedTenderForDetail(sessionAdmin, 'PENDING_ASSIGNMENT')
     expect(tenderId).toBeTruthy()
 

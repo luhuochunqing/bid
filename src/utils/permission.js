@@ -51,7 +51,7 @@ export function isAdminRole(roleCode) {
  */
 export function isBidManager(roleCode) {
   const r = (roleCode || '').replace(/^role_/, '')
-  return ['admin', 'bidAdmin', 'bid-TeamLeader'].includes(r)
+  return ['admin', '/bidAdmin', 'bid-TeamLeader'].includes(r)
 }
 
 /**
@@ -62,7 +62,7 @@ export function isBidManager(roleCode) {
  */
 export function isBidAdminOrSenior(roleCode) {
   const r = (roleCode || '').replace(/^role_/, '')
-  return ['bidAdmin', 'bid-TeamLeader'].includes(r)
+  return ['/bidAdmin', 'bid-TeamLeader'].includes(r)
 }
 
 /**
@@ -73,6 +73,6 @@ export function isBidAdminOrSenior(roleCode) {
  */
 export function isBidManagerExcludeAdmin(roleCode) {
   const r = (roleCode || '').replace(/^role_/, '')
-  return ['bidAdmin', 'bid-TeamLeader'].includes(r)
+  return ['/bidAdmin', 'bid-TeamLeader'].includes(r)
 }
 

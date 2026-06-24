@@ -60,7 +60,7 @@ class BidSubmissionAuthorizationPolicyTest {
 
     @Test
     void canSubmitBid_bidAdmin_directPermit_noLeadNeeded() {
-        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bidAdmin", 1L, null);
+        var d = BidSubmissionAuthorizationPolicy.canSubmitBid("/bidAdmin", 1L, null);
         assertThat(d.allowed()).isTrue();
     }
 

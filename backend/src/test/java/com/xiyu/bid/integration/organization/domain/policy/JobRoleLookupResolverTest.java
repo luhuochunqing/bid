@@ -142,21 +142,25 @@ class JobRoleLookupResolverTest {
     }
 
     @Test
-    @DisplayName("BUG #2: /bidAdmin（带斜杠前缀）映射到 bidAdmin")
-    void mapOssRoleCodeToInternal_leadingSlash_stripped() {
+    @DisplayName("BUG #2: /bidAdmin（带斜杠前缀）是 OSS 规范角色码，直接返回规范码")
+    void mapOssRoleCodeToInternal_leadingSlash_preserved() {
+        // OSS 投标管理员角色码本身带前导斜杠（/bidAdmin），这是 OSS 规范
         assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("/bidAdmin"))
-                .isEqualTo("bidAdmin");
-        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("/bid-TeamLeader"))
+                .isEqualTo("/bidAdmin");
+        // 其他角色码不带斜杠
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("bid-TeamLeader"))
                 .isEqualTo("bid-TeamLeader");
     }
 
     @Test
     @DisplayName("BUG #3: 大小写不一致输入返回规范码")
     void mapOssRoleCodeToInternal_mixedCase_returnsCanonicalCode() {
-        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("BidAdmin"))
-                .isEqualTo("bidAdmin");
-        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("BIDADMIN"))
-                .isEqualTo("bidAdmin");
+        // /bidAdmin 的大小写变体
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("/BidAdmin"))
+                .isEqualTo("/bidAdmin");
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("/BIDADMIN"))
+                .isEqualTo("/bidAdmin");
+        // 不带斜杠的角色码大小写变体
         assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("bid-teamleader"))
                 .isEqualTo("bid-TeamLeader");
         assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("BID-TEAMLEADER"))

@@ -1,6 +1,6 @@
 -- Input: V1092__migrate_legacy_role_codes_to_oss_aligned.sql
 -- Data rollback required: 回滚 V1092，将新角色码恢复为旧角色码。
---  - bidAdmin → bid_admin
+--  - /bidAdmin → bid_admin          （注意：OSS 投标管理员带前导斜杠）
 --  - bid-TeamLeader → bid_lead
 --  - bid-projectLeader → sales
 --  - bid-Team → bid_specialist
@@ -9,13 +9,21 @@
 --  - admin 保持不变
 -- 注意：回滚是幂等的，新 code 不存在时 no-op。
 
--- 1. bidAdmin → bid_admin
+-- 0. /bidAdmin → bidAdmin（回滚到 V1074 历史状态）
+UPDATE users SET role_id = (SELECT id FROM roles WHERE code = 'bidAdmin' LIMIT 1)
+WHERE role_id IN (SELECT id FROM roles WHERE code = '/bidAdmin')
+  AND role_id NOT IN (SELECT id FROM roles WHERE code = 'bidAdmin');
+DELETE FROM roles WHERE code = '/bidAdmin'
+  AND EXISTS (SELECT 1 FROM roles WHERE code = 'bidAdmin');
+UPDATE roles SET code = 'bidAdmin', updated_at = NOW() WHERE code = '/bidAdmin';
+
+-- 1. /bidAdmin → bid_admin（回滚到 V1092 之前的状态）
 UPDATE users SET role_id = (SELECT id FROM roles WHERE code = 'bid_admin' LIMIT 1)
-WHERE role_id IN (SELECT id FROM roles WHERE code = 'bidAdmin')
+WHERE role_id IN (SELECT id FROM roles WHERE code = '/bidAdmin')
   AND role_id NOT IN (SELECT id FROM roles WHERE code = 'bid_admin');
-DELETE FROM roles WHERE code = 'bidAdmin'
+DELETE FROM roles WHERE code = '/bidAdmin'
   AND EXISTS (SELECT 1 FROM roles WHERE code = 'bid_admin');
-UPDATE roles SET code = 'bid_admin', updated_at = NOW() WHERE code = 'bidAdmin';
+UPDATE roles SET code = 'bid_admin', updated_at = NOW() WHERE code = '/bidAdmin';
 
 -- 2. bid-TeamLeader → bid_lead
 UPDATE users SET role_id = (SELECT id FROM roles WHERE code = 'bid_lead' LIMIT 1)

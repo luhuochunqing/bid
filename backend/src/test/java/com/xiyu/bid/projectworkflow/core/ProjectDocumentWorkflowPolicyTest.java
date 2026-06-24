@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ProjectDocumentWorkflowPolicyTest {
 
     @ParameterizedTest
-    @ValueSource(strings = {"admin", "bidAdmin", "ADMIN", "BidAdmin"})
+    @ValueSource(strings = {"admin", "/bidAdmin", "ADMIN", "/BidAdmin"})
     void canDeleteProjectDocument_whenAdminOrBidAdmin_shouldPermit(String roleCode) {
         var result = ProjectDocumentWorkflowPolicy.canDeleteProjectDocument(roleCode);
         assertThat(result.allowed()).isTrue();

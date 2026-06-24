@@ -77,10 +77,10 @@ class OrganizationSyncPolicyTest {
                 "bid-Team",
                 Set.of("boss"),
                 Set.of("manager"),
-                "bidAdmin"
+                "/bidAdmin"
         );
 
-        assertThat(plan.roleCode()).isEqualTo("bidAdmin");
+        assertThat(plan.roleCode()).isEqualTo("/bidAdmin");
     }
 
     @Test

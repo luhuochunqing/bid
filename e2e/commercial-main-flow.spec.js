@@ -119,7 +119,7 @@ test.describe('commercial main flow', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `commercial_admin_${suffix}`,
-      role: 'bidAdmin',
+      role: '/bidAdmin',
       fullName: 'Commercial Admin'
     })
     const seeded = await seedCommercialData(session, suffix)
@@ -164,7 +164,7 @@ test.describe('commercial main flow', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `commercial_detail_${suffix}`,
-      role: 'bidAdmin',
+      role: '/bidAdmin',
       fullName: 'Commercial Detail Admin'
     })
     const seeded = await seedCommercialData(session, suffix)

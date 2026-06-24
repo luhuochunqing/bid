@@ -18,7 +18,7 @@ class ProjectTaskAuthorizationPolicyTest {
     // ── canManageTask ───────────────────────────────────────────────────
 
     @ParameterizedTest
-    @ValueSource(strings = {"admin", "bidAdmin", "bid-TeamLeader", "bid-Team"})
+    @ValueSource(strings = {"admin", "/bidAdmin", "bid-TeamLeader", "bid-Team"})
     void canManageTask_whenAllowedRole_shouldPermit(String roleCode) {
         var result = ProjectTaskAuthorizationPolicy.canManageTask(roleCode);
         assertThat(result.allowed()).isTrue();
@@ -69,7 +69,7 @@ class ProjectTaskAuthorizationPolicyTest {
     // ── canReviewTask ───────────────────────────────────────────────────
 
     @ParameterizedTest
-    @ValueSource(strings = {"admin", "bidAdmin", "bid-TeamLeader", "bid-Team"})
+    @ValueSource(strings = {"admin", "/bidAdmin", "bid-TeamLeader", "bid-Team"})
     void canReviewTask_whenAllowedRole_shouldPermit(String roleCode) {
         var result = ProjectTaskAuthorizationPolicy.canReviewTask(roleCode);
         assertThat(result.allowed()).isTrue();
@@ -90,7 +90,7 @@ class ProjectTaskAuthorizationPolicyTest {
     void decideStatusTransition_fromReviewToCompleted_shouldRouteToCanReviewTask() {
         // REVIEW→COMPLETED：管理员可审核
         var allowed = ProjectTaskAuthorizationPolicy.decideStatusTransition(
-                "REVIEW", "COMPLETED", "bidAdmin", false);
+                "REVIEW", "COMPLETED", "/bidAdmin", false);
         assertThat(allowed.allowed()).isTrue();
         // 执行人不可审核
         var denied = ProjectTaskAuthorizationPolicy.decideStatusTransition(
@@ -140,7 +140,7 @@ class ProjectTaskAuthorizationPolicyTest {
     void decideStatusTransition_otherTransitions_shouldRouteToCanManageTask() {
         // 其余转换（如直接置 COMPLETED/CANCELLED）走管理权限
         var allowed = ProjectTaskAuthorizationPolicy.decideStatusTransition(
-                "TODO", "COMPLETED", "bidAdmin", false);
+                "TODO", "COMPLETED", "/bidAdmin", false);
         assertThat(allowed.allowed()).isTrue();
         // 非管理角色不可
         var denied = ProjectTaskAuthorizationPolicy.decideStatusTransition(

@@ -100,7 +100,7 @@ describe('useDetailActions', () => {
 
   it('bottomActions computed 返回正确的按钮列表 (bid_admin on PENDING)', async () => {
     tenderRef.value = { status: 'PENDING_ASSIGNMENT' }
-    roleRef.value = 'bidAdmin'
+    roleRef.value = '/bidAdmin'
     const wrapper = mount(createHarness(tenderRef, roleRef, loadDetailFn))
     await flushPromises()
     expect(wrapper.vm.bottomActions).toHaveLength(1)

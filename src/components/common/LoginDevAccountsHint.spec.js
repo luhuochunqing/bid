@@ -11,7 +11,7 @@ describe('LoginDevAccountsHint', () => {
 
   it('contains expected role hints', () => {
     const wrapper = mount(LoginDevAccountsHint)
-    expect(wrapper.text()).toContain('bidAdmin')
+    expect(wrapper.text()).toContain('/bidAdmin')
     expect(wrapper.text()).toContain('bid-TeamLeader')
     expect(wrapper.text()).toContain('bid-projectLeader')
     expect(wrapper.text()).toContain('bid-Team')

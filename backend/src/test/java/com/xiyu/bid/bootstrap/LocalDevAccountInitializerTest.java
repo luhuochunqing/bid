@@ -52,8 +52,8 @@ class LocalDevAccountInitializerTest {
                 .thenReturn(Optional.of(RoleProfile.builder().id(2L).code("manager").build()));
         when(roleProfileRepository.findByCodeIgnoreCase("auditor"))
                 .thenReturn(Optional.of(RoleProfile.builder().id(4L).code("auditor").build()));
-        when(roleProfileRepository.findByCodeIgnoreCase("bidAdmin"))
-                .thenReturn(Optional.of(RoleProfile.builder().id(5L).code("bidAdmin").build()));
+        when(roleProfileRepository.findByCodeIgnoreCase("/bidAdmin"))
+                .thenReturn(Optional.of(RoleProfile.builder().id(5L).code("/bidAdmin").build()));
         when(roleProfileRepository.findByCodeIgnoreCase("bid-TeamLeader"))
                 .thenReturn(Optional.of(RoleProfile.builder().id(6L).code("bid-TeamLeader").build()));
         when(roleProfileRepository.findByCodeIgnoreCase("bid-projectLeader"))

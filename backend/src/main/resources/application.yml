@@ -226,20 +226,20 @@ xiyu:
       # 管理员角色码（小写）；命中后允许提升为 ADMIN
       admin-role-codes:
         - admin
-      # 经理角色码（小写）
+      # 经理角色码（注意：/bidAdmin 带前导斜杠，OSS 规范）
       manager-role-codes:
-        - bidAdmin
+        - /bidAdmin
         - bid-TeamLeader
       # 按人员映射：通过工号精确匹配（OSS 同步数据中的 username/jobNumber 字段）
       # 数据源：OSS /subscription/msg/getUserByTimeWindow + 本地 users 表核对
       person-to-role-mappings:
         # 投标管理员 + 投标系统管理员（按人员）：张頔、郑蓉蓉、袁思琪
         - person-identifier: "03595"  # 张頔
-          role-code: bidAdmin
+          role-code: /bidAdmin
         - person-identifier: "06234"  # 郑蓉蓉
-          role-code: bidAdmin
+          role-code: /bidAdmin
         - person-identifier: "11484"  # 袁思琪
-          role-code: bidAdmin
+          role-code: /bidAdmin
         # 投标组长（按人员）：袁思琪（兼任）
         - person-identifier: "11484"  # 袁思琪
           role-code: bid-TeamLeader

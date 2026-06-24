@@ -18,7 +18,7 @@ async function loginAsRole(page, role) {
 test.describe('§4.4 仓库台账导出', () => {
 
   test('正向流程: bid_admin 导出台账', async ({ page }) => {
-    await loginAsRole(page, 'bidAdmin')
+    await loginAsRole(page, '/bidAdmin')
     await page.goto('/knowledge/warehouse')
     await page.waitForSelector('.el-table, .data-card', { timeout: 10000 })
 

@@ -52,7 +52,7 @@ public final class RoleProfileCatalog {
     // PRD §2 角色：销售/业务负责人、投标负责人、投标部门管理员、任务执行人
     public static final String SALES_CODE = "bid-projectLeader";
     public static final String BID_LEAD_CODE = "bid-TeamLeader";
-    public static final String BID_ADMIN_CODE = "bidAdmin";
+    public static final String BID_ADMIN_CODE = "/bidAdmin";
     public static final String BID_SPECIALIST_CODE = "bid-Team";
     public static final String ADMIN_STAFF_CODE = "bid-administration";
     /** 跨部门协同人员：项目任务处理 */
@@ -247,23 +247,31 @@ public final class RoleProfileCatalog {
     /**
      * 将角色码转换为 Spring Security authority 名称。
      * <p>
-     * 规则：连字符转下划线再大写。
+     * 规则：去除前导斜杠，连字符转下划线再大写。
      * <ul>
-     *   <li>{@code bidAdmin} → {@code BIDADMIN}</li>
+     *   <li>{@code /bidAdmin} → {@code BIDADMIN}</li>
      *   <li>{@code bid-TeamLeader} → {@code BID_TEAMLEADER}</li>
      *   <li>{@code bid-otherDept} → {@code BID_OTHERDEPT}</li>
      * </ul>
      * 用于统一 {@code @PreAuthorize} 中的 {@code hasRole()/hasAuthority()} 写法，
      * 避免各处手动 {@code replace("-", "_").toUpperCase()} 导致的不一致。
      *
-     * @param roleCode 角色码（如 bidAdmin）
+     * @param roleCode 角色码（如 /bidAdmin）
      * @return authority 名称（如 BIDADMIN），null/空白返回 null
      */
     public static String toAuthorityName(String roleCode) {
         if (roleCode == null || roleCode.isBlank()) {
             return null;
         }
-        return roleCode.trim().replace("-", "_").toUpperCase(java.util.Locale.ROOT);
+        // 去除前导斜杠（OSS 角色码如 /bidAdmin 中的 / 不是 authority 名的一部分）
+        String normalized = roleCode.trim();
+        while (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        return normalized.replace("-", "_").toUpperCase(java.util.Locale.ROOT);
     }
 
     public record SeedDefinition(

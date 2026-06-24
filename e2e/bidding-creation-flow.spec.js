@@ -42,7 +42,7 @@ async function loginAsRole(page, roleProfile) {
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
     const session = await ensureApiSession({
       username: `e2e_${roleProfile}_${suffix}`,
-      role: 'bidAdmin',
+      role: '/bidAdmin',
       fullName: `E2E ${roleProfile}`,
     })
     await injectSession(page, session)
@@ -217,7 +217,7 @@ async function fillTenderDateSmart(page, labelPatterns, value) {
 test.describe('§标讯中心-创建 — 创建入口权限矩阵', () => {
 
   test('bid_admin 可以看到所有创建入口（人工 + 批量导入 + 源配置）', async ({ page }) => {
-    await loginAsRole(page, 'bidAdmin')
+    await loginAsRole(page, '/bidAdmin')
     await page.goto('/bidding')
     await page.waitForSelector('.el-table', { timeout: 10000 })
 
@@ -350,7 +350,7 @@ test.describe('§标讯中心-创建 — 第三方平台自动拉取与源配置
   // 参考：可能存在的 source-config 相关测试或页面
 
   test('bid_admin 可以配置第三方标讯源', async ({ page }) => {
-    await loginAsRole(page, 'bidAdmin')
+    await loginAsRole(page, '/bidAdmin')
     // TODO: 进入标讯源配置页面，新增/编辑配置
     // 验证：配置保存成功 + 列表刷新
   })

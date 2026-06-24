@@ -95,7 +95,7 @@ class TenderEditPermissionPolicyTest {
                 "ADMIN", User.Role.ADMIN, USER_ID, OTHER_USER_ID, OTHER_USER_ID, Tender.Status.PENDING_ASSIGNMENT))
                 .isTrue();
         assertThat(TenderEditPermissionPolicy.canEdit(
-                "  BIDADMIN  ", User.Role.ADMIN, USER_ID, OTHER_USER_ID, OTHER_USER_ID, Tender.Status.TRACKING))
+                "  /BIDADMIN  ", User.Role.ADMIN, USER_ID, OTHER_USER_ID, OTHER_USER_ID, Tender.Status.TRACKING))
                 .isTrue();
         assertThat(TenderEditPermissionPolicy.canEdit(
                 "bid-projectLeader", User.Role.MANAGER, USER_ID, CREATOR_ID, PROJECT_MANAGER_ID, Tender.Status.TRACKING))
@@ -129,7 +129,7 @@ class TenderEditPermissionPolicyTest {
     static Stream<org.junit.jupiter.params.provider.Arguments> editMatrix() {
         Stream.Builder<org.junit.jupiter.params.provider.Arguments> builder = Stream.builder();
 
-        for (String globalRole : new String[]{"admin", "bidAdmin", "bid-TeamLeader"}) {
+        for (String globalRole : new String[]{"admin", "/bidAdmin", "bid-TeamLeader"}) {
             builder.add(args(globalRole, Tender.Status.PENDING_ASSIGNMENT, Ownership.OTHER, true));
             builder.add(args(globalRole, Tender.Status.TRACKING, Ownership.OTHER, true));
             builder.add(args(globalRole, Tender.Status.EVALUATED, Ownership.OTHER, true));
@@ -170,7 +170,7 @@ class TenderEditPermissionPolicyTest {
     static Stream<org.junit.jupiter.params.provider.Arguments> deleteMatrix() {
         Stream.Builder<org.junit.jupiter.params.provider.Arguments> builder = Stream.builder();
 
-        for (String globalRole : new String[]{"admin", "bidAdmin", "bid-TeamLeader"}) {
+        for (String globalRole : new String[]{"admin", "/bidAdmin", "bid-TeamLeader"}) {
             builder.add(args(globalRole, Tender.Status.PENDING_ASSIGNMENT, Ownership.OTHER, true));
             builder.add(args(globalRole, Tender.Status.TRACKING, Ownership.OTHER, true));
             builder.add(args(globalRole, Tender.Status.EVALUATED, Ownership.OTHER, false));

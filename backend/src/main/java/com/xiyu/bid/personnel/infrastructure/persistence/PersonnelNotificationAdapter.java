@@ -23,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class PersonnelNotificationAdapter implements PersonnelNotificationPort {
 
-    private static final List<String> RECIPIENT_ROLES = List.of("bidAdmin", "bid-TeamLeader");
+    private static final List<String> RECIPIENT_ROLES = List.of("/bidAdmin", "bid-TeamLeader");
     private static final Duration DEDUP_WINDOW = Duration.ofHours(24);
 
     private final NotificationApplicationService notificationService;

@@ -36,7 +36,7 @@ public class PersonnelAttachmentController {
      * 服务端将按工号匹配人员、按证书名匹配证书、存储文件并更新 attachmentUrl。
      */
     @PostMapping("/attachments/batch-upload")
-    @PreAuthorize("hasAnyAuthority('bidAdmin', 'bid-TeamLeader', 'bid-Team')")
+    @PreAuthorize("hasAnyAuthority('/bidAdmin', 'bid-TeamLeader', 'bid-Team')")
     @Auditable(action = "UPDATE", entityType = "PersonnelCertificate", description = "批量关联证书附件")
     public ResponseEntity<ApiResponse<BatchAttachmentUploadResult>> batchUpload(
             @RequestParam("files") List<MultipartFile> files) {

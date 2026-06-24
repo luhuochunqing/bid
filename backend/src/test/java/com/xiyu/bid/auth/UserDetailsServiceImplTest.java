@@ -136,7 +136,7 @@ class UserDetailsServiceImplTest {
 
     @Test
     void bidAdminShouldHaveRoleAdminCompatibility() {
-        User user = userWithRoleProfile("bid_admin", User.Role.MANAGER, "bidAdmin");
+        User user = userWithRoleProfile("bid_admin", User.Role.MANAGER, "/bidAdmin");
         when(userRepository.findByUsername("bid_admin")).thenReturn(Optional.of(user));
         UserDetails details = userDetailsService.loadUserByUsername("bid_admin");
         assertThat(details.getAuthorities()).extracting("authority").contains("ROLE_ADMIN", "ROLE_BIDADMIN");
@@ -184,7 +184,7 @@ class UserDetailsServiceImplTest {
         // bid_admin（已注册角色）DB 中有自定义 menuPermissions=["dashboard"]，
         // catalog 中定义的 "bidding", "project" 等不应合并进来
         RoleProfile roleProfile = RoleProfile.builder()
-                .code("bidAdmin")
+                .code("/bidAdmin")
                 .name("投标部门管理员")
                 .build();
         roleProfile.setMenuPermissions(List.of("dashboard"));
@@ -204,7 +204,7 @@ class UserDetailsServiceImplTest {
         assertThat(details.getAuthorities())
                 .extracting("authority")
                 .contains("dashboard")
-                .contains("bidAdmin", "ROLE_BIDADMIN", "ROLE_ADMIN")
+                .contains("/bidAdmin", "ROLE_BIDADMIN", "ROLE_ADMIN")
                 // catalog 中有但不含在自定义 DB 列表中 → 不应出现
                 .doesNotContain("bidding", "project", "bidding.manage", "task.review");
     }
@@ -213,7 +213,7 @@ class UserDetailsServiceImplTest {
     void registeredRoleWithoutMenuPermissionsShouldFallbackToCatalog() {
         // bid_admin DB 中 menu_permissions 为 null → 应 fallback 到 catalog 合并
         // userWithRoleProfile 默认不设 menuPermissions → menuPermissionsValue=null
-        User user = userWithRoleProfile("default_bid_admin", User.Role.MANAGER, "bidAdmin");
+        User user = userWithRoleProfile("default_bid_admin", User.Role.MANAGER, "/bidAdmin");
         when(userRepository.findByUsername("default_bid_admin")).thenReturn(Optional.of(user));
 
         UserDetails details = userDetailsService.loadUserByUsername("default_bid_admin");

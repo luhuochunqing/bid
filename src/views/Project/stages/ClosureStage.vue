@@ -305,7 +305,7 @@ const form = reactive({
 })
 
 const isProjectLeader = computed(() => userRole.value === 'bid-projectLeader')
-const isBidManager = computed(() => userRole.value === 'bidAdmin' || userRole.value === 'bid-TeamLeader' || userRole.value === 'bid-Team')
+const isBidManager = computed(() => userRole.value === '/bidAdmin' || userRole.value === 'bid-TeamLeader' || userRole.value === 'bid-Team')
 
 const canEditDeposit = computed(() => {
   if (!isProjectLeader.value && !isBidManager.value) return false

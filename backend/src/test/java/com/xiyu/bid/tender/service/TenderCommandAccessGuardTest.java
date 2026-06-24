@@ -69,7 +69,7 @@ class TenderCommandAccessGuardTest {
     @DisplayName("assertCanUpdateTender: bidAdmin 且状态 TRACKING → 通过")
     void updateTender_bidAdminTracking_allows() {
         Tender tender = tender(Tender.Status.TRACKING, CREATOR_ID, null);
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("bidAdmin")));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("/bidAdmin")));
 
         assertThatNoException().isThrownBy(() -> guard.assertCanUpdateTender(tender, USER_ID));
     }
@@ -147,7 +147,7 @@ class TenderCommandAccessGuardTest {
     @DisplayName("assertCanDeleteTender: bidAdmin 且状态 TRACKING → 通过")
     void deleteTender_bidAdminTracking_allows() {
         Tender tender = tender(Tender.Status.TRACKING, CREATOR_ID, null);
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("bidAdmin")));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("/bidAdmin")));
 
         assertThatNoException().isThrownBy(() -> guard.assertCanDeleteTender(tender, USER_ID));
     }

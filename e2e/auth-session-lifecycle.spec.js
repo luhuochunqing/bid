@@ -14,7 +14,7 @@ test.describe('auth session lifecycle', () => {
         name: 'Alice',
         username: 'alice',
         email: 'alice@example.com',
-        role: 'bidAdmin'
+        role: '/bidAdmin'
       }))
     })
 
@@ -39,8 +39,8 @@ test.describe('auth session lifecycle', () => {
             username: 'alice',
             fullName: 'Alice',
             email: 'alice@example.com',
-            role: 'bidAdmin',
-            roleCode: 'bidAdmin',
+            role: '/bidAdmin',
+            roleCode: '/bidAdmin',
             menuPermissions: ['all']
           }
         })
@@ -62,8 +62,8 @@ test.describe('auth session lifecycle', () => {
             username: 'alice',
             fullName: 'Alice',
             email: 'alice@example.com',
-            role: 'bidAdmin',
-            roleCode: 'bidAdmin',
+            role: '/bidAdmin',
+            roleCode: '/bidAdmin',
             menuPermissions: ['all']
           }
         })
@@ -108,8 +108,8 @@ test.describe('auth session lifecycle', () => {
             username: 'alice',
             fullName: 'Alice',
             email: 'alice@example.com',
-            role: 'bidAdmin',
-            roleCode: 'bidAdmin',
+            role: '/bidAdmin',
+            roleCode: '/bidAdmin',
             menuPermissions: ['all']
           }
         })

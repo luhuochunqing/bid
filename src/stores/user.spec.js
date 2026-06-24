@@ -45,7 +45,7 @@ describe('useUserStore getters', () => {
   it('correctly determines isBidAdmin', () => {
     const store = useUserStore()
 
-    store.currentUser = { role: 'bidAdmin' }
+    store.currentUser = { role: '/bidAdmin' }
     expect(store.isBidAdmin).toBe(true)
 
     store.currentUser = { roleCode: 'admin' }
@@ -61,7 +61,7 @@ describe('useUserStore getters', () => {
     store.currentUser = { role: 'bid-TeamLeader' }
     expect(store.isBidLead).toBe(true)
 
-    store.currentUser = { role: 'bidAdmin' }
+    store.currentUser = { role: '/bidAdmin' }
     expect(store.isBidLead).toBe(false)
   })
 
@@ -72,7 +72,7 @@ describe('useUserStore getters', () => {
     store.currentUser = { role: 'bid-TeamLeader' }
     expect(store.isBidSenior).toBe(true)
 
-    store.currentUser = { role: 'bidAdmin' }
+    store.currentUser = { role: '/bidAdmin' }
     expect(store.isBidSenior).toBe(false)
   })
 
@@ -86,7 +86,7 @@ describe('useUserStore getters', () => {
     store.currentUser = { role: 'bid-TeamLeader' }
     expect(store.isBidManager).toBe(true)
 
-    store.currentUser = { role: 'bidAdmin' }
+    store.currentUser = { role: '/bidAdmin' }
     expect(store.isBidManager).toBe(true)
 
     store.currentUser = { roleCode: 'admin' }

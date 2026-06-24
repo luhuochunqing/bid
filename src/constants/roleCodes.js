@@ -12,7 +12,7 @@
 // 角色码（与后端 RoleProfileCatalog 常量一致）
 export const ROLE_CODES = {
   ADMIN: 'admin',
-  BID_ADMIN: 'bidAdmin',
+  BID_ADMIN: '/bidAdmin',
   BID_LEAD: 'bid-TeamLeader',
   SALES: 'bid-projectLeader',
   BID_SPECIALIST: 'bid-Team',

@@ -85,7 +85,7 @@ test.describe('§4.3 人员证书 - 新增证书 (3 Tab 表单 + 附件上传)',
 
   test('bid_admin / bid_lead / bid_specialist 均可访问，project负责人 无权限（按钮或页面受控）', async ({ page }) => {
     // 允许角色有新增按钮
-    for (const role of ['bidAdmin', 'bid-TeamLeader', 'bid-Team']) {
+    for (const role of ['/bidAdmin', 'bid-TeamLeader', 'bid-Team']) {
       await loginAsRole(page, role)
       await page.goto('http://127.0.0.1:1314/knowledge/personnel')
       await page.waitForSelector('.personnel-container', { timeout: 10000 })
