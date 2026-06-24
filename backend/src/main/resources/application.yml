@@ -87,7 +87,6 @@ app:
     client-secret: ${XIYU_CRM_CLIENT_SECRET:}
     oauth-username: ${XIYU_CRM_OAUTH_USERNAME:}
     oauth-password: ${XIYU_CRM_OAUTH_PASSWORD:}
-    oauth-system: ${XIYU_CRM_OAUTH_SYSTEM:bid-platform}
     generate-token-path: ${XIYU_CRM_GENERATE_TOKEN_PATH:/common/inner/generateToken}
     generate-token-nick-name: ${XIYU_CRM_GENERATE_TOKEN_NICK_NAME:}
     generate-token-sales-no: ${XIYU_CRM_GENERATE_TOKEN_SALES_NO:}

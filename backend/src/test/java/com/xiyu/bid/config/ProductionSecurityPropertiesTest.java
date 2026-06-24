@@ -54,7 +54,6 @@ class ProductionSecurityPropertiesTest {
         assertPlaceholder(properties, "app.crm.client-secret", "${XIYU_CRM_CLIENT_SECRET:}");
         assertPlaceholder(properties, "app.crm.oauth-username", "${XIYU_CRM_OAUTH_USERNAME:}");
         assertPlaceholder(properties, "app.crm.oauth-password", "${XIYU_CRM_OAUTH_PASSWORD:}");
-        assertPlaceholder(properties, "app.crm.oauth-system", "${XIYU_CRM_OAUTH_SYSTEM:HOME}");
         assertPlaceholder(properties, "app.crm.generate-token-path",
                 "${XIYU_CRM_GENERATE_TOKEN_PATH:/common/inner/generateToken}");
         assertPlaceholder(properties, "app.crm.generate-token-nick-name",
