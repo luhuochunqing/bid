@@ -118,6 +118,12 @@ public class OrganizationDirectorySyncAppService {
         return response("500", ex.getMessage(), eventKey, false, false, status);
     }
 
+    // P2.4 后续迭代: 事件库批量回查优化
+    // 当前每条 Kafka 事件单独回查一次 OSS API（fetchUserByUserId/fetchDepartmentByDeptId/fetchJobByJobId），
+    // 短时间内大量事件（如批量导入用户）会产生多次 HTTP 请求。
+    // 优化方向：引入窗口化批量机制，收集 100ms 内的同类型事件，合并为批量回查请求。
+    // 注意：批量回查需使用 OrganizationDirectoryBatchHttpClient.getUserJobAndRoleListByJobNumbers，
+    // 该方法目前仅在定时同步（OrganizationSyncRunAppService）中调用，不在事件消费链路中。
     private OrganizationEventWebhookResponse lookupAndWrite(OrganizationEventNotice notice, String eventKey) {
         OrganizationDirectoryLookupContext context = new OrganizationDirectoryLookupContext(notice.traceId(), notice.eventSource(), "");
         OrganizationDirectoryGateway gateway = directoryGatewayProvider.getIfAvailable();
