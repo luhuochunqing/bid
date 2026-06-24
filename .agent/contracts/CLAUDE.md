@@ -597,5 +597,5 @@ sync-env.sh .
 保护分支（`main`、`agent/*-init` 等）跳过 rebase。
 
 <!-- SPECKIT START -->
-当前活跃 feature：`specs/003-remove-staff-unify-oss-enabled/plan.md`
+当前活跃 feature：`.specify/specs/021-user-picker-event-sync/plan.md`
 <!-- SPECKIT END -->
