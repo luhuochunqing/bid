@@ -13,6 +13,10 @@
 --   步骤 1: 若新 code 不存在，直接 UPDATE roles.code（users.role_id 不变，仍指向同一行）
 --   步骤 2: 若新 code 已存在（新旧两条记录），将 users.role_id 从旧角色迁移到新角色，再删除旧角色
 --   幂等：旧 code 不存在时 no-op
+--
+-- 事务：使用显式事务保证原子性，中途失败回滚避免半迁移状态
+
+START TRANSACTION;
 
 -- 1. bid_admin → bidAdmin
 -- 1a. 若 bidAdmin 不存在，直接更新 roles.code
@@ -63,3 +67,5 @@ WHERE code = 'bid_other_dept'
 UPDATE users SET role_id = (SELECT id FROM roles WHERE code = 'bid-otherDept' LIMIT 1)
 WHERE role_id IN (SELECT id FROM roles WHERE code = 'bid_other_dept');
 DELETE FROM roles WHERE code = 'bid_other_dept';
+
+COMMIT;

@@ -31,14 +31,28 @@ public final class OrganizationSyncPolicy {
     }
 
     public static String mapRoleCode(String externalRoleCode, Set<String> adminRoleCodes, Set<String> managerRoleCodes) {
+        // 保留 roleCode 原始大小写：OSS 角色码大小写敏感（如 bidAdmin、bid-TeamLeader）
+        // 使用 case-insensitive 比较匹配 admin/manager 角色码集合
         String normalized = normalize(externalRoleCode);
-        if (adminRoleCodes.contains(normalized)) {
+        if (containsIgnoreCase(adminRoleCodes, normalized)) {
             return ADMIN;
         }
-        if (managerRoleCodes.contains(normalized)) {
+        if (containsIgnoreCase(managerRoleCodes, normalized)) {
             return MANAGER;
         }
         return null;
+    }
+
+    private static boolean containsIgnoreCase(Set<String> codes, String target) {
+        if (target == null || target.isBlank()) {
+            return false;
+        }
+        for (String code : codes) {
+            if (code != null && code.equalsIgnoreCase(target)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static OrganizationUserSyncPlan planUserSync(

@@ -213,6 +213,8 @@ xiyu:
     abandon-roles: ${XIYU_TENDER_ABANDON_ROLES:ADMIN,MANAGER}
   integrations:
     organization:
+      # 默认值与 OrganizationIntegrationProperties.java 保持一致
+      # Java 默认 enabled=false（安全默认：避免意外同步），开发环境通过环境变量开启
       enabled: ${XIYU_ORG_SYNC_ENABLED:false}
       # webhook-secret removed — HTTP webhook path deleted per FR-012
       ip-whitelist: ${XIYU_ORG_IP_WHITELIST:}

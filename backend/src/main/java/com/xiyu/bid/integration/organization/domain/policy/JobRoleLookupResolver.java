@@ -160,10 +160,16 @@ public class JobRoleLookupResolver {
     }
 
     /**
-     * 将 OSS 角色码映射为内部角色码。
+     * 将 OSS 角色码映射为内部规范角色码（来自 {@link RoleProfileCatalog#DEFINITIONS}）。
      * <p>
-     * OSS code 与内部 code 已对齐，直接返回输入（仅当是已注册的内部 code 时）。
-     * 唯一例外：bid-SystemAdmin → admin（投标系统管理员对应系统默认 admin）。
+     * 处理三种 OSS 输入变体：
+     * <ul>
+     *   <li>带前导斜杠（如 {@code /bidAdmin}）— OSS 接口可能返回此格式</li>
+     *   <li>大小写不一致（如 {@code BidAdmin}、{@code BIDADMIN}）— 归一化为规范码</li>
+     *   <li>特殊映射：{@code bid-SystemAdmin} → {@code admin}（投标系统管理员对应系统默认 admin）</li>
+     * </ul>
+     * 返回的总是 {@link RoleProfileCatalog} 中注册的规范码（如 {@code bidAdmin}），
+     * 而非原始输入，避免大小写不一致导致后续权限匹配失败。
      * <p>
      * 未命中（null/空白/未注册）返回 null，以便调用方继续尝试 positionToRoleMapper 等后续映射。
      */
@@ -171,16 +177,21 @@ public class JobRoleLookupResolver {
         if (ossRoleCode == null || ossRoleCode.isBlank()) {
             return null;
         }
+        // 去除前导斜杠和空白（OSS 可能返回 "/bidAdmin" 格式）
         String trimmed = ossRoleCode.trim();
-        // 唯一例外：投标系统管理员对应系统默认 admin
-        if (trimmed.equalsIgnoreCase(RoleProfileCatalog.ADMIN_CODE)) {
+        while (trimmed.startsWith("/")) {
+            trimmed = trimmed.substring(1).trim();
+        }
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        // 特殊映射：bid-SystemAdmin → admin（投标系统管理员对应系统默认 admin）
+        if (trimmed.equalsIgnoreCase("bid-SystemAdmin")) {
             return RoleProfileCatalog.ADMIN_CODE;
         }
-        // OSS code = 内部 code，直接返回（仅当是已注册的 code 时）
-        if (RoleProfileCatalog.isRegisteredCode(trimmed)) {
-            return trimmed;
-        }
-        return null;
+        // 通过 case-insensitive 查找返回规范码（而非原始输入）
+        // 例如输入 "BidAdmin" 或 "BIDADMIN" → 返回 "bidAdmin"
+        return RoleProfileCatalog.canonicalCode(trimmed);
     }
 
     /**

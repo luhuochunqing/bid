@@ -87,13 +87,13 @@ class ProductionSecurityPropertiesTest {
         assertPlaceholder(properties, "xiyu.integrations.organization.allowed-source-apps",
                 "${XIYU_ORG_ALLOWED_SOURCE_APPS:oss,customer-org}");
         assertPlaceholder(properties, "xiyu.integrations.organization.skip-unmapped-users",
-                "${XIYU_ORG_SYNC_SKIP_UNMAPPED_USERS:false}");
+                "${XIYU_ORG_SYNC_SKIP_UNMAPPED_USERS:true}");
         assertPlaceholder(properties, "xiyu.integrations.organization.event-sdk.enabled",
                 "${XIYU_ORG_EVENT_SDK_ENABLED:false}");
         assertPlaceholder(properties, "xiyu.integrations.organization.event-sdk.consumer-group",
                 "${XIYU_ORG_EVENT_CONSUMER_GROUP:bms}");
         assertPlaceholder(properties, "xiyu.integrations.organization.directory.base-url",
-                "${XIYU_ORG_DIRECTORY_BASE_URL:}");
+                "${XIYU_ORG_DIRECTORY_BASE_URL:https://base-oss-test.ehsy.com}");
         assertPlaceholder(properties, "xiyu.integrations.organization.directory.user-detail-path",
                 "${XIYU_ORG_DIRECTORY_USER_DETAIL_PATH:/subscription/msg/user}");
         assertPlaceholder(properties, "xiyu.integrations.organization.directory.department-detail-path",

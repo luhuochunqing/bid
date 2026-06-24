@@ -122,4 +122,52 @@ class JobRoleLookupResolverTest {
         return new OrganizationUserSnapshot(
                 "100", "u100", "用户", email, "13800000000", "", deptName, "", externalRoleCode, true);
     }
+
+    // ——— mapOssRoleCodeToInternal 单元测试 ———
+
+    @Test
+    @DisplayName("BUG #1: bid-SystemAdmin 映射到 admin")
+    void mapOssRoleCodeToInternal_bidSystemAdmin_mapsToAdmin() {
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("bid-SystemAdmin"))
+                .isEqualTo("admin");
+    }
+
+    @Test
+    @DisplayName("BUG #1: bid-SystemAdmin 大小写不敏感")
+    void mapOssRoleCodeToInternal_bidSystemAdmin_caseInsensitive() {
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("bid-systemadmin"))
+                .isEqualTo("admin");
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("BID-SYSTEMADMIN"))
+                .isEqualTo("admin");
+    }
+
+    @Test
+    @DisplayName("BUG #2: /bidAdmin（带斜杠前缀）映射到 bidAdmin")
+    void mapOssRoleCodeToInternal_leadingSlash_stripped() {
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("/bidAdmin"))
+                .isEqualTo("bidAdmin");
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("/bid-TeamLeader"))
+                .isEqualTo("bid-TeamLeader");
+    }
+
+    @Test
+    @DisplayName("BUG #3: 大小写不一致输入返回规范码")
+    void mapOssRoleCodeToInternal_mixedCase_returnsCanonicalCode() {
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("BidAdmin"))
+                .isEqualTo("bidAdmin");
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("BIDADMIN"))
+                .isEqualTo("bidAdmin");
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("bid-teamleader"))
+                .isEqualTo("bid-TeamLeader");
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("BID-TEAMLEADER"))
+                .isEqualTo("bid-TeamLeader");
+    }
+
+    @Test
+    @DisplayName("未注册的 roleCode 返回 null")
+    void mapOssRoleCodeToInternal_unregisteredCode_returnsNull() {
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("unknown-role")).isNull();
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("")).isNull();
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal(null)).isNull();
+    }
 }

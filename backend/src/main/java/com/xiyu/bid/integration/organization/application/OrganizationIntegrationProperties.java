@@ -13,7 +13,13 @@ import java.util.Map;
 @Component
 @ConfigurationProperties(prefix = "xiyu.integrations.organization")
 public class OrganizationIntegrationProperties {
-    private boolean enabled = true;
+    /**
+     * 是否启用 OSS 组织架构同步。
+     * <p>默认 false（安全默认）：避免开发/测试环境意外触发 OSS 同步。
+     * 需要时通过环境变量 {@code XIYU_ORG_SYNC_ENABLED=true} 或 application.yml 显式开启。
+     * <p>与 application.yml 的 {@code ${XIYU_ORG_SYNC_ENABLED:false}} 保持一致。
+     */
+    private boolean enabled = false;
     private String webhookSecret = "";
     private String ipWhitelist = "";
     private int eventLogRetentionDays = 90;
