@@ -28,7 +28,7 @@ public class OssPermissionCache {
 
     private static final Logger log = LoggerFactory.getLogger(OssPermissionCache.class);
 
-    private static final long DEFAULT_TTL_SECONDS = 1800; // 30 分钟
+    private static final long DEFAULT_TTL_SECONDS = 28800; // 8 小时
 
     private final ConcurrentMap<String, CacheEntry> cache = new ConcurrentHashMap<>();
 
