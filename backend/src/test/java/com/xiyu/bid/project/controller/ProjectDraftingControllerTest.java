@@ -1,5 +1,5 @@
-// Input: 模拟 HTTP 请求 (PATCH leads / POST advance / GET)
-// Output: 验证路由 + 状态码（200/409）
+// Input: 模拟 HTTP 请求 (PATCH leads / POST advance / GET) + CO-315 方法级鉴权反射检查
+// Output: 验证路由、状态码（200/409）与审核人入口不再被 legacy role 白名单拦截
 // Pos: backend test source - 单元级 MockMvc (standalone)
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.project.controller;
@@ -14,6 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.User;
@@ -23,6 +24,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -150,5 +154,18 @@ class ProjectDraftingControllerTest {
                         .content("{\"reason\":\"reason\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.reviewStatus").value("rejected"));
+    }
+
+    @Test
+    void co315_reviewer_endpoints_do_not_keep_legacy_role_preauthorize() throws Exception {
+        assertNull(ProjectDraftingController.class
+                .getMethod("get", Long.class)
+                .getAnnotation(PreAuthorize.class));
+        assertNull(ProjectDraftingController.class
+                .getMethod("approve", Long.class, Map.class, UserDetails.class)
+                .getAnnotation(PreAuthorize.class));
+        assertNull(ProjectDraftingController.class
+                .getMethod("reject", Long.class, Map.class, UserDetails.class)
+                .getAnnotation(PreAuthorize.class));
     }
 }

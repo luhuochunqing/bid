@@ -17,6 +17,29 @@
 - 先新增回归测试 `DataScopeConfigServiceTest#getRoleMenuPermissions_ShouldEnrichOssAdminPermissionsWithCatalogDefaults`，RED 确认为只返回 `project/project-detail`、缺少 `all/evaluation.update/task.review`。
 - 修复后执行：`mvn -f /Users/user/xiyu/worktrees/zcode/backend/pom.xml test -Dtest=DataScopeConfigServiceTest`，10 tests passed。
 
+# CO-315 标书审核人进入标书制作阶段修复实施记录
+
+## 问题口径
+
+- 标书制作阶段由投标负责人上传标书并指定标书审核人后，审核人进入 `/project/42` 时需要进入“标书制作”阶段完成查看、通过或驳回。
+- 当前 `ProjectStageTimeline` 只按项目真实阶段顺序开放当前及历史阶段；如果项目真实阶段不在 `DRAFTING`，被指定审核人无法通过阶段入口进入标书制作审核界面。
+
+## 决策与权衡
+
+- 最小修复放在前端阶段入口：`ProjectStageTimeline` 增加 `extraUnlockedStages`，保留原有按阶段进度解锁规则，只允许调用方显式追加少量业务解锁阶段。
+- `ProjectDetailMainColumn` 复用真实接口 `projectLifecycleApi.getDrafting(projectId)` 获取审核状态；仅当当前用户 ID 等于 `reviewerId` 且 `reviewStatus=REVIEWING` 时追加解锁 `DRAFTING`。
+- 不改角色目录、不新增接口、不引入 Mock 数据、不调整 `DraftingStage` 的审核按钮逻辑；审核按钮仍由既有“当前用户是指定审核人且状态 reviewing”判断控制。
+- `getDrafting` 失败时保持默认阶段锁定并仅记录 warning，避免阶段时间线整体不可用。
+- Review 后按“全部修直”收口设计：阶段入口能力改由后端 `/api/projects/{id}/stage` 快照返回 `accessibleStages/defaultOpenStage`；前端 `ProjectDetailMainColumn` 不再额外调用 `getDrafting()` 判断审核人身份，`ProjectStageTimeline` 只消费后端快照。
+- `/stage` 移除 `ADMIN/MANAGER` 方法级白名单，保留类级认证并显式调用 `ProjectAccessScopeService.assertCurrentUserCanAccessProject(projectId)`；被指定且 `REVIEWING` 的审核人默认打开 `DRAFTING`，非审核人保持真实阶段默认打开。
+- 这样避免了前端重复实现 `reviewerId + reviewStatus` 权限规则、重复请求完整 drafting view、异步 watcher 乱序和审核后父组件解锁状态残留等设计弯路。
+
+## 验证计划
+
+- RED：新增 `ProjectStageTimeline.spec.js` 用例，确认旧实现即使传入 `extraUnlockedStages: ['DRAFTING']` 也不会 emit `stage-click`。
+- RED：新增 `ProjectDetailMainColumn.spec.js` 用例，确认旧实现不会读取 `getDrafting`，也不会给时间线传入 `['DRAFTING']`。
+- GREEN：运行 `pnpm exec vitest run src/components/project/stage/ProjectStageTimeline.spec.js src/components/project/detail/ProjectDetailMainColumn.spec.js`。
+
 # 消息接口交付文档整理实施记录
 
 ## 问题口径

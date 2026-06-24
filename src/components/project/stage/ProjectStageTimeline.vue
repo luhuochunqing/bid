@@ -58,10 +58,18 @@ function describe(stage) {
   const completed = snapshot.value?.completedStages || []
   if (completed.includes(stage.code)) return '已完成'
   if (stage.code === currentCode.value) return '进行中'
+  const accessible = snapshot.value?.accessibleStages
+  if (Array.isArray(accessible) && accessible.includes(stage.code) && stage.code !== currentCode.value) {
+    return '可进入'
+  }
   return '待进入'
 }
 
 function isUnlocked(stage) {
+  const accessible = snapshot.value?.accessibleStages
+  if (Array.isArray(accessible) && accessible.length > 0) {
+    return accessible.includes(stage.code)
+  }
   const idx = stages.findIndex((s) => s.code === stage.code)
   return idx <= activeIndex.value
 }

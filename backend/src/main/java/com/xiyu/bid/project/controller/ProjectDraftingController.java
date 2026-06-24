@@ -91,7 +91,6 @@ public class ProjectDraftingController {
 
     /** 审核通过（CO-315：鉴权下沉到项目访问权限 + BidReviewPolicy 校验审核人身份） */
     @PostMapping("/approve")
-@PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public ResponseEntity<ApiResponse<ProjectDraftingViewDto>> approve(
             @PathVariable Long projectId,
             @RequestBody(required = false) Map<String, String> payload,
@@ -104,7 +103,6 @@ public class ProjectDraftingController {
 
     /** 驳回（CO-315：鉴权下沉到项目访问权限 + BidReviewPolicy 校验审核人身份） */
     @PostMapping("/reject")
-@PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public ResponseEntity<ApiResponse<ProjectDraftingViewDto>> reject(
             @PathVariable Long projectId,
             @RequestBody Map<String, String> payload,
@@ -117,7 +115,6 @@ public class ProjectDraftingController {
 
     /** 获取标书制作视图（CO-315：鉴权下沉到项目访问权限，审核人可见） */
     @GetMapping
-@PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public ResponseEntity<ApiResponse<ProjectDraftingViewDto>> get(@PathVariable Long projectId) {
         return ResponseEntity.ok(ApiResponse.success("ok", service.get(projectId)));
     }
