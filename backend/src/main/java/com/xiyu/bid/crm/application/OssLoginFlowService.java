@@ -183,11 +183,13 @@ public class OssLoginFlowService {
      */
     private String resolveRoleCodeFromJobList(CrmJobListResponse jobList, String jobNumber, String fallbackUsername) {
         if (jobList == null || jobList.getData() == null || jobNumber == null) {
-            return resolveLocalRoleCode(fallbackUsername);
+            log.warn("OSS login: jobList or jobNumber is null, denying role resolution for user={}", fallbackUsername);
+            return null;
         }
         CrmJobListResponse.JobInfo jobInfo = jobList.getData().get(jobNumber);
         if (jobInfo == null) {
-            return resolveLocalRoleCode(fallbackUsername);
+            log.warn("OSS login: jobInfo not found for jobNumber={}, denying role resolution for user={}", jobNumber, fallbackUsername);
+            return null;
         }
 
         // 1. 优先从 sysRoleList 解析

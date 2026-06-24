@@ -58,13 +58,19 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         List<String> menuPermissions;
         boolean skipLegacyCompat;
 
-        if (ossEntry.isPresent() && ossEntry.get().roleCode() != null) {
-            // OSS 用户：用缓存中的实时角色+权限（来自 5 接口实时抓取）
-            roleCode = ossEntry.get().roleCode();
-            menuPermissions = ossEntry.get().menuPermissions();
-            skipLegacyCompat = RoleProfileCatalog.shouldSkipLegacyRoleCompat(roleCode);
+        if (isOssUser) {
+            if (ossEntry.isPresent() && ossEntry.get().roleCode() != null) {
+                // OSS 用户：用缓存中的实时角色+权限（来自 5 接口实时抓取）
+                roleCode = ossEntry.get().roleCode();
+                menuPermissions = ossEntry.get().menuPermissions();
+                skipLegacyCompat = true; // OSS 用户严格断绝 legacy role 兼容注入，防止角色越权
+            } else {
+                // OSS 用户缓存未命中/失效：严格执行“缓存/OSS调用失败即无权限”的合规底线，禁止本地 DB 兜底
+                log.warn("UserDetails denied for OSS user={}: Cache/OSS call failed or expired", user.getUsername());
+                throw new org.springframework.security.core.AuthenticationException("权限验证失败：无法实时获取OSS权限信息，请重新登录") {};
+            }
         } else {
-            // 非 OSS 用户或缓存未命中：用本地 DB 兜底
+            // 非 OSS 用户（本地内置测试账号）：用本地 DB 兜底
             roleCode = user.getRoleCode();
             menuPermissions = user.getRoleProfile() != null ? user.getRoleProfile().getMenuPermissions() : null;
             skipLegacyCompat = RoleProfileCatalog.shouldSkipLegacyRoleCompat(roleCode);
