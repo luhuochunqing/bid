@@ -139,4 +139,19 @@ public class User {
             case MANAGER -> "经理";
         };
     }
+
+    /**
+     * Returns the employee number if present, falling back to username
+     * when the employee number column is blank (e.g. org-synced users whose
+     * visible job number was historically stored in the username field).
+     * <p>
+     * This is the single source of truth for display-oriented employee-number
+     * resolution used by user search, candidate lists, and similar features.
+     */
+    public String getDisplayEmployeeNumber() {
+        if (employeeNumber != null && !employeeNumber.isBlank()) {
+            return employeeNumber;
+        }
+        return username;
+    }
 }

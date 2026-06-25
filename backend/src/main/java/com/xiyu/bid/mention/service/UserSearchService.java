@@ -39,23 +39,11 @@ public class UserSearchService {
             .map(u -> new UserSearchResult(
                 u.getId(),
                 u.getFullName(),
-                employeeNumberOrUsername(u),
+                u.getDisplayEmployeeNumber(),
                 u.getRole() == null ? null : u.getRole().name(),
                 u.getDepartmentName(),
                 u.getRoleCode()))
             .toList();
-    }
-
-    /**
-     * Historical organization-sync data may store the visible job number in username
-     * while employee_number is blank. Keep this as a search-display compatibility
-     * fallback; the long-term source of truth should be employee_number backfill.
-     */
-    private static String employeeNumberOrUsername(User user) {
-        if (user.getEmployeeNumber() != null && !user.getEmployeeNumber().isBlank()) {
-            return user.getEmployeeNumber();
-        }
-        return user.getUsername();
     }
 
     private static String escapeLike(String raw) {

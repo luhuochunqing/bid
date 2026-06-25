@@ -581,3 +581,40 @@
 - GREEN 前端：`pnpm exec vitest run src/api/modules/users.spec.js src/components/common/UserPicker.spec.js src/composables/useUserPicker.spec.js`，3 files / 20 tests passed（保留既有 Vue lifecycle warning）。
 - GREEN 后端：`mvn -f backend/pom.xml test -Dtest=AssignmentCandidateControllerTest,AssignmentCandidateAppServiceTest,AssignmentCandidatePolicyTest`，22 tests passed。
 - `git diff --check`：通过，无空白错误。
+
+# 选人控件缺失工号后端修复实施记录
+
+## 问题口径
+
+- 上一轮修复后，选人控件不再报"找不到工号"错误，但工号也完全消失了——下拉列表只显示姓名，不再显示"姓名（工号）"格式。
+- 用户确认：先后端分析不改代码，发现上一轮合入时其他 agent 的改动没有覆盖/污染我的文件，是个独立的新 bug。
+
+## 根因
+
+三个原因叠加：
+
+1. **数据库 `employee_number` 为 NULL**：V1095 迁移只建列+索引，不做数据 backfill。所有已有用户 `employee_number = NULL`。
+2. **候选人路径无 username 降级**：`AssignmentCandidatePolicy.toDTO()` 直接取 `user.getEmployeeNumber()`，没有像 `UserSearchService` 那样 fallback 到 `username`。
+3. **后端 DTO 不含 `username` 字段**：`UserSearchResult` 和 `AssignmentCandidateDTO` 都没有 `username` 字段，前端 `firstNonBlank(..., user.username)` 的最终降级链永远拿到 `undefined`。
+
+## 决策与权衡
+
+- **不 backfill 数据库**：应用层降级比数据库回填更安全、可逆。等到组织同步持久化工号后再统一回填。
+- **在 `User.java` 实体上集中 `getDisplayEmployeeNumber()`**：遵循业务实体已有的 `getRoleCode()`/`getRoleName()` 回退模式。一个方法覆盖所有调用方，消除 `UserSearchService` 的私有方法重复。
+- **同时修复两条后端路径**：搜索结果路径（`/api/users/search`）已有 fallback，委托到实体方法；候选人路径（`/api/users/assignable-candidates`）加上 fallback。
+
+## 改动摘要
+
+4 个文件，最小改动：
+
+| 文件 | 改动 |
+|---|---|
+| `backend/.../entity/User.java` | 新增 `getDisplayEmployeeNumber()`：`employeeNumber` 非空非空白返回，否则 `username` |
+| `backend/.../mention/service/UserSearchService.java` | 删除私有 `employeeNumberOrUsername()`，改委托 `u.getDisplayEmployeeNumber()` |
+| `backend/.../user/core/AssignmentCandidatePolicy.java` | `toDTO()` 中 `user.getEmployeeNumber()` → `user.getDisplayEmployeeNumber()` |
+| `backend/.../user/core/AssignmentCandidatePolicyTest.java` | 新增 2 个测试：有值保留、null 时降级 username |
+
+## 验证
+
+- `mvn -f backend/pom.xml test -Dtest=UserSearchServiceTest,AssignmentCandidatePolicyTest,AssignmentCandidateControllerTest`：28 tests passed，0 failures，0 errors。
+- `git diff --check`：通过，无空白错误。
