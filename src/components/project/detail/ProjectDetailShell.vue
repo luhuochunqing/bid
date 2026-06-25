@@ -8,18 +8,18 @@
         <el-button type="primary" @click="goBack">返回项目列表</el-button>
       </el-empty>
     </div>
-    <el-container v-else class="project-detail-container">
+    <div v-else class="project-detail-container">
       <ProjectDetailHeader />
-      <el-container class="detail-content">
+      <div class="detail-content">
         <ProjectDetailMainColumn />
         <ProjectDetailSidebar />
-      </el-container>
+      </div>
       <ProjectDetailAssistantPanels />
       <ProjectDetailResultDialogs />
       <ProjectDetailWorkflowDialogs />
       <ProjectTenderBreakdownDialog />
       <ProjectDetailBidAgentDrawer />
-    </el-container>
+    </div>
   </div>
 </template>
 

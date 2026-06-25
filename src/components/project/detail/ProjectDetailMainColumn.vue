@@ -1,5 +1,5 @@
 <template>
-  <el-main class="main-content">
+  <div class="main-content">
     <ProjectBasicInfoCard :project="ctx.project" />
     <ProjectStageTimeline
       v-if="ctx.project?.id"
@@ -88,10 +88,10 @@
     </el-card>
     -->
 
-    <!-- 协作讨论（暂时隐藏）
+    <!-- 协作讨论（暂时隐藏
     <ProjectCollaborationCard :project-id="ctx.project?.id" />
     -->
-  </el-main>
+  </div>
 </template>
 
 <script setup>

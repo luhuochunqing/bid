@@ -34,7 +34,6 @@ describe('ProjectDetailMainColumn', () => {
           ProjectBasicInfoCard: true,
           ProjectStageTimeline: true,
           ProjectApprovalStatusCard: true,
-          ElMain: { template: '<main><slot /></main>' },
           ElEmpty: false,
         },
         provide: {
@@ -44,7 +43,7 @@ describe('ProjectDetailMainColumn', () => {
         },
       },
     })
-    expect(wrapper.find('main').exists()).toBe(true)
+    expect(wrapper.find('.main-content').exists()).toBe(true)
   })
 
   it('opens the backend default stage from timeline snapshot', async () => {
@@ -68,7 +67,6 @@ describe('ProjectDetailMainColumn', () => {
           ProjectTaskBoardCard: true,
           ScoreParseDrawer: true,
           TaskDecomposeDialog: true,
-          ElMain: { template: '<main><slot /></main>' },
           ElEmpty: true,
         },
         provide: {
