@@ -100,12 +100,13 @@ public class WebhookEventListener {
     /**
      * 映射 Tender.Status 到 CRM bidInfoSync 的 status 数字。
      * <p>CRM projectStatus 枚举：1-跟进中 2-中标 3-丢标 4-流标 5-投标中 6-弃标。
+     * <p>CO-346: EVALUATED 状态不回调 status（置空），避免 CRM 侧产生无意义的"跟进中"记录。
      */
     private Integer mapToCrmStatus(Tender.Status tenderStatus) {
         return switch (tenderStatus) {
             case BIDDING -> CrmProjectStatus.BIDDING;
             case ABANDONED -> CrmProjectStatus.ABANDONED;
-            case EVALUATED -> CrmProjectStatus.FOLLOW_UP;  // CO-298: 待评估标讯关联商机后提交 → 跟进中
+            case EVALUATED -> null;  // CO-346: 关联商机提交时不回调 status
             default -> null;
         };
     }
