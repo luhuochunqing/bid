@@ -4,6 +4,115 @@
 
 ---
 
+## 3. Maven target 目录残留旧 Flyway 迁移文件导致打包后版本冲突
+
+### 问题
+
+2026-06-25 部署 `b122e9f4-api8080` 时，后端启动失败，Flyway 报错发现两个 V1096 版本的迁移脚本：
+- `V1096__add_users_employee_number_pinyin.sql`（新版本，正确）
+- `V1096__add_users_full_name_pinyin.sql`（旧版本，已被 V1097 替代，不应存在）
+
+```
+FlywayException: Found more than one migration with version 1096
+```
+
+但 `src/main/resources/db/migration-mysql/` 目录下只有一个 V1096 文件。
+
+### 根因
+
+`mvn package` 使用增量编译，`target/classes/db/migration-mysql/` 目录中残留了**之前构建时复制的旧迁移文件**。即使源码目录已经删除或重命名了旧文件，`target/` 目录中的旧文件不会被自动清理，最终被打进 jar 包。
+
+```
+源码目录（正确）：
+  V1095__add_users_employee_number.sql
+  V1096__add_users_employee_number_pinyin.sql  ← 新版本
+  V1097__drop_users_full_name_pinyin.sql
+
+target/classes 目录（错误，残留旧文件）：
+  V1095__add_users_employee_number.sql
+  V1096__add_users_employee_number_pinyin.sql  ← 新复制的
+  V1096__add_users_full_name_pinyin.sql        ← 上一次构建残留的！
+  V1097__drop_users_full_name_pinyin.sql
+```
+
+Flyway 按版本号去重，检测到两个 V1096 直接启动失败。
+
+### 危害
+
+1. **部署直接失败**：Flyway 检测到重复版本后抛异常，应用无法启动
+2. **需要回滚**：服务中断，必须恢复上一版本的 jar 和前端资源
+3. **排查耗时**：第一反应是怀疑源码有问题，但源码是干净的，容易误导排查方向
+
+### 正确做法
+
+**发布打包必须用 `mvn clean package`，不能省略 `clean`**。
+
+```bash
+# ✅ 正确：先 clean 再打包，确保 target 目录干净
+mvn clean package -DskipTests
+
+# ❌ 错误：增量打包，target 中可能残留旧文件
+mvn package -DskipTests
+```
+
+### 发布前验证
+
+打包后、部署前，必须验证 jar 包中 Flyway 迁移脚本无重复版本：
+
+```bash
+# 检查 jar 中所有 Flyway 迁移版本是否有重复
+jar tf target/bid-poc-1.0.3.jar \
+  | grep "migration-mysql/V" \
+  | sed 's|BOOT-INF/classes/db/migration-mysql/V||' \
+  | sed 's|__.*||' \
+  | sort \
+  | uniq -d
+
+# 期望输出：空（无重复版本）
+# 如果有输出，说明存在重复版本号，不能部署
+```
+
+快速检查某个版本范围：
+
+```bash
+# 只看 V109x 版本
+jar tf target/bid-poc-1.0.3.jar | grep "migration-mysql/V109" | sort
+```
+
+### 排查步骤
+
+遇到 Flyway 版本冲突时，按以下顺序排查：
+
+```bash
+# 1. 先看源码目录是否有重复（最不可能，但先排除）
+ls backend/src/main/resources/db/migration-mysql/ | grep V1096
+
+# 2. 再看 target/classes 目录（大概率在这里）
+ls backend/target/classes/db/migration-mysql/ | grep V1096
+
+# 3. 最后看 jar 包内
+jar tf backend/target/bid-poc-1.0.3.jar | grep V1096
+
+# 如果 target 中有重复，clean 后重新打包
+cd backend && mvn clean package -DskipTests
+```
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| `mvn package` 不清理 target 旧文件 | 增量构建会保留已删除/重命名的资源文件 | **发布打包必须 `clean`**，开发调试可以增量 |
+| Flyway 版本冲突导致启动失败 | 迁移脚本是数据库结构的唯一真相，不能有歧义 | 部署前必须验证 jar 中迁移版本无重复 |
+| 只看源码目录容易误判 | 源码干净 ≠ 产物干净 | 以 jar 包实际内容为准，不以源码为准 |
+
+### 相关文档
+
+- `docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md` — 部署运行手册
+- `backend/src/main/resources/db/migration-mysql/` — Flyway 迁移脚本目录
+- `scripts/release/package-release.sh` — 发布打包脚本
+
+---
+
 ## 2. Maven `-DskipTests` 只跳过测试运行，不跳过测试编译
 
 ### 问题

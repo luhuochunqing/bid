@@ -13,7 +13,7 @@
 | `root-cause-analysis-co-266-co-267.md` | Bug 根因分析 | CRM推送客户信息字段名不一致导致前端不显示 | 2026-06-18 |
 | `root-cause-analysis-co-274.md` | Bug 根因分析 | 标讯快速投标未创建项目导致列表不显示 | 2026-06-19 |
 | `root-cause-analysis-h13-e2e-fix.md` | Bug 根因分析 | H13改造后E2E测试全面修复（token提取、mock断言、速率限制） | 2026-06-19 |
-| `lessons-learned.md` | 通用工程教训 | 后端接口契约变更必须同步前端所有入口、字段必填性变更、前端热更新部署、PR 回滚前必须确认根因、部署期间并发部署导致 502、部署后验证四层模型、stash 丢失找回、同一接口错误形态变化先看日志、PR 已合入后追加修复先确认 merge-base、业务异常消息应包含系统上下文、服务器部署 jar 验证四原则、Bug 修复前必须先验证实际行为 | 2026-06-22 |
+| `lessons-learned.md` | 通用工程教训 | 后端接口契约变更必须同步前端所有入口、字段必填性变更、前端热更新部署、PR 回滚前必须确认根因、部署期间并发部署导致 502、部署后验证四层模型、stash 丢失找回、同一接口错误形态变化先看日志、PR 已合入后追加修复先确认 merge-base、业务异常消息应包含系统上下文、服务器部署 jar 验证四原则、Bug 修复前必须先验证实际行为、部署前必须验证 jar 中 Flyway 迁移脚本无重复版本 | 2026-06-25 |
 | `crm-integration-lessons.md` | 外部集成经验 | CRM 接口字段映射、405 事故、code 字段错填、status 枚举映射错位、CO-277 id 反查 code、CO-283 附件 URL 双重嵌套、CO-280 跨域 URL 完整地址、CO-262 GAP 附件持久化 | 2026-06-20 |
 | `root-cause-analysis-frontend-404.md` | Bug 根因分析 | 前端热更新部署时动态 import chunk 被误删导致 404 | 2026-06-19 |
 | `root-cause-analysis-co-279.md` | Bug 根因分析 | 提交立项 `bidOpenTime` 日期格式解析失败 | 2026-06-19 |
@@ -29,7 +29,7 @@
 | `root-cause-analysis-submit-bid-review-gate.md` | Bug 根因分析 | 提交投标误复用任务完成闸门导致审核通过后仍 409 | 2026-06-21 |
 | `root-cause-analysis-stage-notification-created-by.md` | Bug 根因分析 | 阶段变更通知 created_by 为空导致提交投标 500 | 2026-06-21 |
 | `shell-gotchas.md` | 技术陷阱 | Shell 转义导致 SQL 中 `$` 特殊字符截断，密码值被破坏 | 2026-06-20 |
-| `build-gotchas.md` | 技术陷阱 | git-commit-id-plugin 在 worktree 读取主仓库 HEAD，git.properties 失真；Maven `-DskipTests` 只跳过测试运行不跳过编译 | 2026-06-25 |
+| `build-gotchas.md` | 技术陷阱 | git-commit-id-plugin 在 worktree 读取主仓库 HEAD，git.properties 失真；Maven `-DskipTests` 只跳过测试运行不跳过编译；Maven target 目录残留旧 Flyway 迁移文件导致打包后版本冲突 | 2026-06-25 |
 
 ## 如何使用
 
