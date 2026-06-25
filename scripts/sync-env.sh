@@ -415,4 +415,82 @@ if [[ -f "$(dirname "${BASH_SOURCE[0]}")/check-local-gates.sh" ]]; then
   bash "$(dirname "${BASH_SOURCE[0]}")/check-local-gates.sh" 2>/dev/null && info "✅ 本地门禁就绪"
 fi
 
+# ── GitHub 镜像状态检测 + 可选同步（嵌入早操） ──
+#
+# 背景: 双远程架构——Gitee 主仓库 + GitHub 镜像/AI协作入口。
+#       长期不同步会导致分叉，AI 在旧基线上开发后 cherry-pick 回来容易冲突。
+#
+# 策略:
+#   - 默认只读检测: 每次早操检查两边 main 的差异并打印提示
+#   - 可选推送: 设置 SYNC_TO_GITHUB=1 时，主工作区自动执行 sync-to-github.sh
+#   - 安全: 非主工作区即使设了 SYNC_TO_GITHUB=1 也只检测不推送（避免并发推送）
+github_mirror_check() {
+  local worktree_root="$1"
+  local sync_script="$(dirname "${BASH_SOURCE[0]}")/sync-to-github.sh"
+
+  # 没有 sync-to-github.sh 就跳过
+  [[ -f "$sync_script" ]] || return 0
+
+  # 进入目标 worktree
+  (
+    cd "$worktree_root" 2>/dev/null || return 0
+
+    # 没有 github remote 就跳过
+    git remote get-url github &>/dev/null || return 0
+
+    # 拉取两边最新（只读操作，安全）
+    git fetch origin main --prune -q 2>/dev/null || true
+    git fetch github main --prune -q 2>/dev/null || true
+
+    local gitee_head github_head
+    gitee_head=$(git rev-parse origin/main 2>/dev/null || echo "")
+    github_head=$(git rev-parse github/main 2>/dev/null || echo "")
+
+    [[ -z "$gitee_head" || -z "$github_head" ]] && return 0
+
+    # 一致就不用说了
+    if [[ "$gitee_head" == "$github_head" ]]; then
+      info "✅ GitHub 镜像已同步"
+      return 0
+    fi
+
+    local ahead behind
+    ahead=$(git rev-list --count github/main..origin/main 2>/dev/null || echo "?")
+    behind=$(git rev-list --count origin/main..github/main 2>/dev/null || echo "?")
+
+    # 判断是否为主工作区（trae）——只有主工作区允许推送
+    local is_main_worktree=0
+    case "$worktree_root" in
+      */worktrees/trae) is_main_worktree=1 ;;
+    esac
+
+    if [[ "$ahead" != "0" && "$ahead" != "?" ]]; then
+      info "💡 GitHub 镜像落后 Gitee ${ahead} 个 commit"
+      if [[ "${SYNC_TO_GITHUB:-0}" == "1" && "$is_main_worktree" == "1" ]]; then
+        info "   SYNC_TO_GITHUB=1 且为主工作区，自动同步..."
+        echo ""
+        if bash "$sync_script" 2>&1; then
+          info "✅ GitHub 镜像同步完成"
+        else
+          warn "GitHub 镜像同步失败，请手动执行: bash scripts/sync-to-github.sh"
+        fi
+      else
+        if [[ "$is_main_worktree" == "1" ]]; then
+          info "   同步命令: SYNC_TO_GITHUB=1 bash scripts/sync-env.sh ."
+          info "   或手动:   bash scripts/sync-to-github.sh"
+        else
+          info "   （非主工作区，仅检测不推送；请在主工作区 trae 执行同步）"
+        fi
+      fi
+    fi
+
+    if [[ "$behind" != "0" && "$behind" != "?" ]]; then
+      warn "⚠️  GitHub main 领先 Gitee ${behind} 个 commit（方向反了！）"
+      warn "    这意味着 GitHub 上有 Gitee 没有的改动。"
+      warn "    请先用 scripts/sync-from-github.sh 把 GitHub 改动 cherry-pick 回 Gitee。"
+    fi
+  )
+}
+github_mirror_check "$TARGET_DIR"
+
 info "=== sync-env done ==="
