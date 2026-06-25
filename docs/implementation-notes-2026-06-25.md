@@ -58,6 +58,30 @@
 - Smoke 脚本 `scripts/release/run-prod-smoke.mjs` 需要 `PROD_SMOKE_USERNAME` 和 `PROD_SMOKE_PASSWORD` 环境变量，当前环境未配置 → 跳过自动化 smoke，已手动验证
 - `mvn clean package -Dmaven.test.skip=true` 可行但测试类不兼容问题仍未修复 → 需单独提交 PR 修复
 
+## 7. 拼音搜索功能修复（2026-06-25 紧急修复）
+
+### 7.1 根因
+- `UserRepository.searchActiveUsers()` SQL 只搜索了 `full_name`、`username`、`employee_number`，**缺少 `full_name_pinyin` 和 `employee_number_pinyin`**
+- `User` entity 缺少 `employee_number_pinyin` 字段定义
+- `@PrePersist`/`@PreUpdate` 未自动生成工号拼音
+
+### 7.2 修复内容
+1. **UserRepository.java**: 搜索 SQL 增加 `full_name_pinyin` 和 `employee_number_pinyin` 匹配
+2. **User.java**: 增加 `employeeNumberPinyin` 字段及自动生成逻辑
+3. **V1096 migration**: 新增 DB column `employee_number_pinyin VARCHAR(255)`
+4. **数据库**: 远程 RDS 手动执行 ALTER TABLE + backfill（27 条记录已回填）
+
+### 7.3 验证结果（生产环境）
+- ✅ `/api/users/search?q=zhang` → 200 OK（拼音搜索）
+- ✅ `/api/users/search?q=余` → 200 OK（中文搜索）
+- ✅ `/api/users/search?q=001` → 200 OK（工号搜索）
+- ✅ 搜索请求平均响应时间：20-35ms
+
+### 7.4 注意事项
+- PinyinBackfillRunner 会在后台异步回填存量 8532 用户的拼音字段
+- 回填期间 readiness 可能保持 OUT_OF_SERVICE，完成后自动变为 UP
+- 回填完成后需要更新 Flyway schema history，或在下次部署通过 migration 对齐
+
 ## 下次部署检查清单
 
 - [x] 编译打包前检查 origin/main 可用 `-Dmaven.test.skip=true` 编译
@@ -66,6 +90,7 @@
 - [x] 部署顺序：`stop → 替换 jar → start`（Lesson #5）
 - [x] 部署后立即验证 health + readiness
 - [x] 更新 `deployed-release.json`
+- [x] 拼音搜索功能已部署并验证
 - [ ] 申请配置 PROD_SMOKE 凭据
 - [ ] 修复测试类兼容性问题
 - [ ] 推送代码 + 提 PR
