@@ -13,7 +13,7 @@ const config = loadConfig()
 describe('check-line-budgets', () => {
   it('guards core source paths and skips excluded files', () => {
     expect(isGuardedPath('src/views/Project/Detail.vue', config)).toBe(true)
-    expect(isGuardedPath('backend/src/main/java/com/xiyu/bid/task/service/TaskService.java', config)).toBe(true)
+    expect(isGuardedPath('backend/src/main/java/com/xiyu/bid/task/service/TaskCommandService.java', config)).toBe(true)
     expect(isGuardedPath('src/api/modules/projects.spec.js', config)).toBe(false)
     expect(isGuardedPath('backend/src/test/java/com/xiyu/bid/TaskServiceTest.java', config)).toBe(false)
     expect(isGuardedPath('scripts/dev-services.sh', config)).toBe(false)

@@ -3,14 +3,14 @@ import { afterEach, describe, it, expect, vi } from 'vitest'
 import { defineComponent, nextTick, reactive, ref } from 'vue'
 import TaskForm from './TaskForm.vue'
 
-const getTaskAssignmentCandidatesMock = vi.hoisted(() => vi.fn().mockResolvedValue([
-  { userId: 9, name: '测试用户', deptCode: 'BID', deptName: '投标管理部', roleCode: 'bid-Team', roleName: '销售' },
-  { userId: 10, name: '张经理', deptCode: 'BID', deptName: '投标管理部', roleCode: 'manager', roleName: '经理' },
+const getAssignableCandidatesMock = vi.hoisted(() => vi.fn().mockResolvedValue([
+  { id: 9, name: '测试用户', deptCode: 'BID', deptName: '投标管理部', roleCode: 'bid-Team', roleName: '销售' },
+  { id: 10, name: '张经理', deptCode: 'BID', deptName: '投标管理部', roleCode: 'manager', roleName: '经理' },
 ]))
 
 const defaultAssignmentCandidates = [
-  { userId: 9, name: '测试用户', deptCode: 'BID', deptName: '投标管理部', roleCode: 'bid-Team', roleName: '销售' },
-  { userId: 10, name: '张经理', deptCode: 'BID', deptName: '投标管理部', roleCode: 'manager', roleName: '经理' },
+  { id: 9, name: '测试用户', deptCode: 'BID', deptName: '投标管理部', roleCode: 'bid-Team', roleName: '销售' },
+  { id: 10, name: '张经理', deptCode: 'BID', deptName: '投标管理部', roleCode: 'manager', roleName: '经理' },
 ]
 
 vi.mock('@/api/modules/taskStatusDict.js', () => ({
@@ -25,7 +25,8 @@ vi.mock('@/api/modules/taskStatusDict.js', () => ({
 
 vi.mock('@/api/modules/users.js', () => ({
   usersApi: {
-    getTaskAssignmentCandidates: getTaskAssignmentCandidatesMock,
+    getAssignableCandidates: getAssignableCandidatesMock,
+    search: vi.fn().mockResolvedValue([]),
   },
 }))
 
@@ -138,8 +139,8 @@ describe('TaskForm', () => {
     mockStoreState.taskExtendedFields = []
     mockStoreState.taskExtendedFieldsLoaded = false
     mockStoreState.loadTaskExtendedFields.mockClear()
-    getTaskAssignmentCandidatesMock.mockReset()
-    getTaskAssignmentCandidatesMock.mockResolvedValue(defaultAssignmentCandidates)
+    getAssignableCandidatesMock.mockReset()
+    getAssignableCandidatesMock.mockResolvedValue(defaultAssignmentCandidates)
   })
 
   afterEach(() => {
@@ -248,17 +249,24 @@ describe('TaskForm', () => {
   it('defaults owner to the current creator and keeps organization fields on create', async () => {
     const wrapper = mount(TaskForm, {
       props: { mode: 'create', modelValue: { name: 'X' } },
-      global: { stubs: globalStubs },
+      global: { stubs: { ...globalStubs, UserPicker: false } },
     })
     await flushAssigneeLoad()
 
-    // 创建模式下手动选择当前用户作为执行人（模拟用户从下拉框选择）
-    await wrapper.find('[data-test="task-owner-select"]').setValue('9')
+    const userPicker = wrapper.findComponent({ name: 'UserPicker' })
+    await userPicker.vm.$emit('select', {
+      id: 9,
+      name: '测试用户',
+      deptCode: 'BID',
+      deptName: '投标管理部',
+      roleCode: 'bid-Team',
+      roleName: '销售',
+    })
     await flushPromises()
 
     const r = wrapper.vm.submit()
 
-    expect(getTaskAssignmentCandidatesMock).toHaveBeenCalledWith()
+    expect(getAssignableCandidatesMock).toHaveBeenCalled()
     expect(r.valid).toBe(true)
     expect(r.data).toMatchObject({
       assigneeId: 9,
@@ -273,11 +281,21 @@ describe('TaskForm', () => {
   it('changing the owner selects a real colleague instead of free text', async () => {
     const wrapper = mount(TaskForm, {
       props: { mode: 'create', modelValue: { name: 'X' } },
-      global: { stubs: globalStubs },
+      global: { stubs: { ...globalStubs, UserPicker: false } },
     })
     await flushAssigneeLoad()
 
-    await wrapper.find('[data-test="task-owner-select"]').setValue('10')
+    const userPicker = wrapper.findComponent({ name: 'UserPicker' })
+    await userPicker.vm.$emit('select', {
+      id: 10,
+      name: '张经理',
+      deptCode: 'BID',
+      deptName: '投标管理部',
+      roleCode: 'manager',
+      roleName: '经理',
+    })
+    await flushPromises()
+
     const r = wrapper.vm.submit()
 
     expect(r.data).toMatchObject({
@@ -301,7 +319,7 @@ describe('TaskForm', () => {
   })
 
   it('seeds edit owner from task data before async candidates finish', async () => {
-    getTaskAssignmentCandidatesMock.mockImplementationOnce(() => new Promise(() => {}))
+    getAssignableCandidatesMock.mockImplementationOnce(() => new Promise(() => {}))
     const wrapper = mount(TaskForm, {
       props: {
         mode: 'edit',
@@ -320,7 +338,7 @@ describe('TaskForm', () => {
 
     const r = wrapper.vm.submit()
 
-    expect(getTaskAssignmentCandidatesMock).not.toHaveBeenCalled()
+    expect(getAssignableCandidatesMock).not.toHaveBeenCalled()
     expect(r.data).toMatchObject({
       assigneeId: 28,
       owner: 'ERI-92 E2E',
@@ -331,7 +349,7 @@ describe('TaskForm', () => {
   })
 
   it('does not enter a v-model echo loop when normalizing owner fields', async () => {
-    getTaskAssignmentCandidatesMock.mockImplementationOnce(() => new Promise(() => {}))
+    getAssignableCandidatesMock.mockImplementationOnce(() => new Promise(() => {}))
     const Parent = defineComponent({
       components: { TaskForm },
       setup() {
