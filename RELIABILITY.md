@@ -85,6 +85,17 @@ npm run gitee:auto-merge                   # 自动合并已批准 PR
 - 涉及 UI 变更必带 Playwright 证据。
 - 原子提交：每次提交应包含功能实现、对应的 Flyway 迁移脚本（如涉及库表）、以及至少一个验证成功的测试用例证据。
 - JPA 优先：后端存储必须通过 JPA 实体映射到 MySQL，禁止使用内存 Map 模拟。
+- 事务传播自检：涉及 `@Transactional` 的 PR 必须确认事务边界（见 ARCHITECTURE.md §事务边界三原则）。
+
+### PR 事务传播自检 Checklist
+
+涉及 `@Transactional` 改动时，PR 描述中必须回答以下问题：
+
+- [ ] 本次新增/修改的 `@Transactional` 方法，传播策略已明确（REQUIRED / REQUIRES_NEW / NESTED）
+- [ ] 如果有 try-catch RuntimeException，确认子方法是否 `REQUIRES_NEW`（否则事务已 rollback-only，catch 无效）
+- [ ] 如果调用了其他 `@Transactional` 方法，确认是否复用主事务（默认 REQUIRED = 复用）
+- [ ] `@Auditable` 方法的子调用，是否在独立事务中执行（`REQUIRES_NEW`）
+- [ ] ArchUnit RULE 17 已通过（无新增"类级 `@Transactional` + `@Auditable`"组合）
 
 ## 参考文档索引
 

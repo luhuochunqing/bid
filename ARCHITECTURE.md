@@ -32,6 +32,35 @@
 - **可维护性约束**：受保护模块的防上帝类门禁由 `MaintainabilityArchitectureTest` 执行。
 - **标书生成 Agent**：`com.xiyu.bid.biddraftagent.domain` 是纯核心，`application` 只做 run 编排和写入计划，`infrastructure/documenteditor` 负责实际写入章节树。
 
+## 事务边界三原则（CO-325）
+
+> 2026-06-25 新增。起因：`PATCH /api/tenders/430/crm-opportunity` 500 错误，
+> 根因是 `@Transactional` 事务传播陷阱：子方法抛 RuntimeException → Spring 标记主事务 rollback-only →
+> 调用方 try-catch 吞异常 → 事务提交时抛 `UnexpectedRollbackException` → 500。
+
+### 强制规则
+
+1. **禁止"类级 `@Transactional` + `@Auditable` 方法"组合**
+   - `@Auditable` 切面的 finally 块在事务中执行审计写入，如果主事务被标记 rollback-only，审计写入也会失败
+   - ArchUnit RULE 17 自动拦截（白名单：现有 12 个违规类需逐步收敛）
+   - 新代码必须用方法级 `@Transactional` 或将子调用改为 `REQUIRES_NEW`
+
+2. **"附加操作"必须 `REQUIRES_NEW`**
+   - 审计日志、回填数据、发通知等"附加操作"必须使用 `Propagation.REQUIRES_NEW`
+   - 独立事务执行，失败不影响主流程
+   - 参考：`TenderEvaluationBackfillService.backfillFromCrmLink`、`TenderEvaluationCustomerInfoDeleteService`
+
+3. **禁止在 `@Transactional` 方法中 try-catch RuntimeException 后继续执行**
+   - Spring 事务拦截器在 RuntimeException 抛出时标记 rollback-only，即使调用方 catch 了异常，事务状态也无法恢复
+   - 必须 catch 时，必须配合 `REQUIRES_NEW` 隔离子调用事务
+   - 否则事务提交时抛 `UnexpectedRollbackException` → 500
+
+### 测试要求
+
+- 涉及 `@Transactional` 的 Service 方法，应继承 `AbstractTransactionBoundaryTest` 编写事务边界测试
+- 测试方法用 `@Transactional(propagation = Propagation.NEVER)`，强制被测方法自管事务
+- 如果被测方法有事务泄漏（未正确提交或回滚），测试会立即失败
+
 ## 数据库迁移规范
 
 ### 迁移文件命名

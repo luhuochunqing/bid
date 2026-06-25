@@ -793,4 +793,63 @@ public class ArchitectureTest {
             .that().resideInAPackage("..wecom..")
             .should().dependOnClassesThat().resideInAPackage("..notification..")
             .because("wecom 是独立企微发送能力，不得反向依赖 notification 站内信模块");
+
+    /**
+     * RULE 17 (CO-325): 禁止"类级 @Transactional + @Auditable 方法"的危险组合。
+     *
+     * <p>根因：@Auditable 切面的 finally 块在事务中执行审计写入。
+     * 如果主事务被子方法异常标记 rollback-only（Spring 默认对 RuntimeException 标记），
+     * 即使调用方 try-catch 了异常，事务提交时仍会抛 UnexpectedRollbackException → 500。
+     *
+     * <p>白名单：现有 12 个违规类需逐步收敛（将类级 @Transactional 改为方法级，
+     * 或将 @Auditable 方法的子调用改为 REQUIRES_NEW 传播）。
+     * 新代码必须避免此组合。
+     *
+     * <p>参考修复：TenderEvaluationBackfillService.backfillFromCrmLink
+     * 已改为 @Transactional(propagation = Propagation.REQUIRES_NEW)。
+     */
+    private static final Set<String> AUDITABLE_TRANSACTIONAL_WHITELIST = Set.of(
+        "TenderCommandService",
+        "TenderSubmissionService",
+        "TenderAiAnalysisService",
+        "ProjectResultRegistrationService",
+        "ProjectInitiationService",
+        "ProjectInitiationApprovalService",
+        "ProjectRetrospectiveService",
+        "ProjectDraftingService",
+        "ProjectClosureService",
+        "BidReviewAppService",
+        "ProjectService",
+        "ProjectEvaluationService"
+    );
+
+    private static final ArchCondition<JavaClass> NO_AUDITABLE_METHODS = new ArchCondition<JavaClass>(
+        "not contain @Auditable methods (class-level @Transactional + @Auditable is forbidden by RULE 17)"
+    ) {
+        @Override
+        public void check(JavaClass item, ConditionEvents events) {
+            if (AUDITABLE_TRANSACTIONAL_WHITELIST.contains(item.getSimpleName())) {
+                return;
+            }
+            item.getMethods().stream()
+                .filter(m -> m.isAnnotatedWith("com.xiyu.bid.annotation.Auditable"))
+                .forEach(m -> events.add(SimpleConditionEvent.violated(item,
+                    "Class " + item.getSimpleName() + " has class-level @Transactional and method '"
+                    + m.getName() + "' has @Auditable. This combination causes UnexpectedRollbackException "
+                    + "when sub-methods throw RuntimeException (CO-325). Fix: move @Transactional to method level, "
+                    + "or make @Auditable method's sub-calls use REQUIRES_NEW.")));
+        }
+    };
+
+    @ArchTest
+    public static final ArchRule class_level_transactional_should_not_have_auditable_methods =
+        classes()
+            .that().areAnnotatedWith("org.springframework.transaction.annotation.Transactional")
+            .should(NO_AUDITABLE_METHODS)
+            .because("RULE 17 (CO-325): @Auditable's finally block runs inside the transaction. "
+                + "If a sub-method throws RuntimeException, Spring marks the transaction rollback-only. "
+                + "Even if the caller try-catches the exception, the transaction cannot be committed, "
+                + "resulting in UnexpectedRollbackException → 500. "
+                + "New code must avoid class-level @Transactional + @Auditable combination. "
+                + "Use method-level @Transactional or REQUIRES_NEW for sub-calls.");
 }
