@@ -20,6 +20,13 @@ export const ROLE_CODES = {
   BID_OTHER_DEPT: 'bid-otherDept',
 }
 
+// 全局管理/审核角色（与后端 RoleProfileCatalog.GLOBAL_ACCESS_ROLES 对齐）
+export const GLOBAL_MANAGE_ROLES = [
+  ROLE_CODES.ADMIN,
+  ROLE_CODES.BID_ADMIN,
+  ROLE_CODES.BID_LEAD,
+]
+
 // authority 形式（大写，连字符转下划线，用于 @PreAuthorize 和前端权限判断）
 export const ROLE_AUTHORITIES = {
   ADMIN: 'ADMIN',

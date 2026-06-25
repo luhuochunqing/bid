@@ -1,5 +1,6 @@
 package com.xiyu.bid.task.core;
 
+import com.xiyu.bid.common.domain.AuthorizationDecision;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 
 import java.util.TreeSet;
@@ -16,32 +17,32 @@ public final class TaskOperationPolicy {
     private TaskOperationPolicy() {
     }
 
-    public static TaskOperationDecision canManageTask(
+    public static AuthorizationDecision canManageTask(
             String roleCode,
             Long currentUserId,
             Long primaryLeadId,
             Long secondaryLeadId
     ) {
         if (roleCode != null && DIRECT_MANAGE_ROLES.contains(roleCode)) {
-            return TaskOperationDecision.permit();
+            return AuthorizationDecision.permit();
         }
 
         if (RoleProfileCatalog.SALES_CODE.equalsIgnoreCase(roleCode)) {
             if (currentUserId != null && currentUserId.equals(primaryLeadId)) {
-                return TaskOperationDecision.permit();
+                return AuthorizationDecision.permit();
             }
-            return TaskOperationDecision.deny("投标项目负责人仅可管理自己作为负责人的项目任务");
+            return AuthorizationDecision.deny("投标项目负责人仅可管理自己作为负责人的项目任务");
         }
 
         if (RoleProfileCatalog.BID_SPECIALIST_CODE.equalsIgnoreCase(roleCode)) {
             if (currentUserId != null
                     && (currentUserId.equals(primaryLeadId) || currentUserId.equals(secondaryLeadId))) {
-                return TaskOperationDecision.permit();
+                return AuthorizationDecision.permit();
             }
-            return TaskOperationDecision.deny("投标专员仅可管理自己作为负责人或辅助负责人的项目任务");
+            return AuthorizationDecision.deny("投标专员仅可管理自己作为负责人或辅助负责人的项目任务");
         }
 
-        return TaskOperationDecision.deny("当前角色无权管理任务");
+        return AuthorizationDecision.deny("当前角色无权管理任务");
     }
 
     /**
@@ -52,11 +53,11 @@ public final class TaskOperationPolicy {
      * @param currentUserId 当前用户 ID
      * @return 授权决策
      */
-    public static TaskOperationDecision canActAsAssignee(Long assigneeId, Long currentUserId) {
+    public static AuthorizationDecision canActAsAssignee(Long assigneeId, Long currentUserId) {
         if (assigneeId != null && assigneeId.equals(currentUserId)) {
-            return TaskOperationDecision.permit();
+            return AuthorizationDecision.permit();
         }
-        return TaskOperationDecision.deny("仅任务执行人本人可执行此操作");
+        return AuthorizationDecision.deny("仅任务执行人本人可执行此操作");
     }
 
     /**
@@ -70,7 +71,7 @@ public final class TaskOperationPolicy {
      * @param assigneeId     任务执行人 ID（用于防止自审）
      * @return 授权决策
      */
-    public static TaskOperationDecision canReviewTask(
+    public static AuthorizationDecision canReviewTask(
             String roleCode,
             Long currentUserId,
             Long primaryLeadId,
@@ -79,7 +80,7 @@ public final class TaskOperationPolicy {
     ) {
         // 职责分离：不能审核自己提交的任务
         if (currentUserId != null && currentUserId.equals(assigneeId)) {
-            return TaskOperationDecision.deny("不能审核自己提交的任务");
+            return AuthorizationDecision.deny("不能审核自己提交的任务");
         }
         return canManageTask(roleCode, currentUserId, primaryLeadId, secondaryLeadId);
     }
