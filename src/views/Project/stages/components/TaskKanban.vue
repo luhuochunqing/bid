@@ -46,8 +46,8 @@
               <el-button size="small" :disabled="!isTaskAssignee(task)" @click="openDeliverableUpload(task)">交付物上传</el-button>
               <el-button size="small" type="primary" :disabled="!isTaskAssignee(task) || !hasDeliverable(task)" @click="openSubmitDialog(task)">提交</el-button>
             </div>
-            <!-- REVIEW 列：驳回/通过 -->
-            <div v-if="col.status === 'REVIEW'" class="card-actions">
+            <!-- REVIEW 列：驳回/通过（仅管理员/组长/项目负责人可操作） -->
+            <div v-if="col.status === 'REVIEW' && canReviewTasks" class="card-actions">
               <el-button size="small" type="danger" plain @click="rejectTask(task)">驳回</el-button>
               <el-button size="small" type="success" @click="approveTask(task)">通过</el-button>
             </div>
@@ -105,16 +105,7 @@
     </el-dialog>
 
     <!-- 驳回原因对话框 -->
-    <el-dialog v-model="showRejectDialog" title="驳回任务" width="420px" :close-on-click-modal="false">
-      <el-form label-width="0">
-        <el-form-item :label="'驳回：' + (rejectingTask?.title || '')" />
-        <el-input v-model="rejectReason" type="textarea" :rows="3" placeholder="请填写驳回原因" />
-      </el-form>
-      <template #footer>
-        <el-button @click="showRejectDialog = false">取消</el-button>
-        <el-button type="danger" :loading="rejectingLoading" @click="confirmReject">确认驳回</el-button>
-      </template>
-    </el-dialog>
+    <TaskRejectDialog v-model:visible="showRejectDialog" :task="rejectingTask" :loading="rejectingLoading" @confirm="confirmReject" />
   </el-card>
 </template>
 
@@ -124,10 +115,13 @@ import { ElMessage } from 'element-plus'
 import { projectsApi } from '@/api/modules/projects.js'
 import { useUserStore } from '@/stores/user.js'
 import UserPicker from '@/components/common/UserPicker.vue'
+import TaskRejectDialog from './TaskRejectDialog.vue'
 const props = defineProps({
   projectId: { type: [String, Number], required: true },
   canUseAI: Boolean,
   scoreRiskCount: { type: Number, default: 0 },
+  primaryLeadId: { type: [String, Number], default: null },
+  secondaryLeadId: { type: [String, Number], default: null },
 })
 const emit = defineEmits(['openScoreParse', 'openDecompose'])
 const userStore = useUserStore()
@@ -152,6 +146,21 @@ function isTaskAssignee(task) {
   const uid = userStore?.currentUser?.id
   return uid != null && task?.assigneeId != null && String(uid) === String(task.assigneeId)
 }
+
+const canReviewTasks = computed(() => {
+  const roleCode = userStore?.currentUser?.roleCode || userStore?.currentUser?.role || ''
+  const GLOBAL_REVIEW_ROLES = ['admin', '/bidAdmin', 'bid-TeamLeader']
+  if (GLOBAL_REVIEW_ROLES.includes(roleCode)) {
+    return true
+  }
+  const currentUserId = userStore?.currentUser?.id
+  if (currentUserId == null) return false
+  const pid = props.primaryLeadId
+  const sid = props.secondaryLeadId
+  if (pid != null && String(currentUserId) === String(pid)) return true
+  if (sid != null && String(currentUserId) === String(sid)) return true
+  return false
+})
 
 async function loadTasks() {
   try {
@@ -250,15 +259,14 @@ async function approveTask(task) {
   } catch (e) { ElMessage.error(e?.response?.data?.msg || '审核失败') }
 }
 // Reject with reason
-const showRejectDialog = ref(false), rejectingTask = ref(null), rejectReason = ref(''), rejectingLoading = ref(false)
-function rejectTask(task) { rejectingTask.value = task; rejectReason.value = ''; showRejectDialog.value = true }
+const showRejectDialog = ref(false), rejectingTask = ref(null), rejectingLoading = ref(false)
+function rejectTask(task) { rejectingTask.value = task; showRejectDialog.value = true }
 
-async function confirmReject() {
-  if (!rejectReason.value.trim()) return ElMessage.warning('请填写驳回原因')
+async function confirmReject(reason) {
   if (!rejectingTask.value) return
   rejectingLoading.value = true
   try {
-    await projectsApi.updateTask(rejectingTask.value.id, { rejectionReason: rejectReason.value.trim() })
+    await projectsApi.updateTask(rejectingTask.value.id, { rejectionReason: reason })
     await projectsApi.updateTaskStatus(props.projectId, rejectingTask.value.id, 'TODO')
     ElMessage.success('已驳回，任务退回待办')
     showRejectDialog.value = false

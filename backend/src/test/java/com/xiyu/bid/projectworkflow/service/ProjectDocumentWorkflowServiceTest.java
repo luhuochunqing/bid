@@ -7,6 +7,7 @@ import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDownloadFile;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.projectworkflow.repository.ProjectScoreDraftRepository;
+import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.UserRepository;
@@ -56,11 +57,13 @@ class ProjectDocumentWorkflowServiceTest {
                 projectScoreDraftRepository
         );
         ProjectDocumentViewAssembler viewAssembler = new ProjectDocumentViewAssembler();
+        ProjectLeadAssignmentRepository projectLeadAssignmentRepository = mock(ProjectLeadAssignmentRepository.class);
 
         service = new ProjectDocumentWorkflowService(
                 guardService,
                 projectDocumentRepository,
                 userRepository,
+                projectLeadAssignmentRepository,
                 viewAssembler,
                 bindingGateway
         );

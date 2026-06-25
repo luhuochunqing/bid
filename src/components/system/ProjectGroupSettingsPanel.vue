@@ -88,13 +88,13 @@ const roleOptions = [
   { label: '投标专员', value: 'bid-Team' },
 ]
 
+const syncMeta = (row) => {
+  row.memberCount = Array.isArray(row.memberUserIds) ? row.memberUserIds.length : 0
+}
+
 const handleManagerSelect = (row, user) => {
   row.manager = toUserName(user)
   syncMeta(row)
-}
-
-const syncMeta = (row) => {
-  row.memberCount = Array.isArray(row.memberUserIds) ? row.memberUserIds.length : 0
 }
 
 const handleVisibilityChange = (row) => {

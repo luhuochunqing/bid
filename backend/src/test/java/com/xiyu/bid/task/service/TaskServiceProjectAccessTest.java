@@ -54,6 +54,9 @@ class TaskServiceProjectAccessTest {
     @Mock
     private ProjectDocumentRepository projectDocumentRepository;
 
+    @Mock
+    private TaskPermissionGuard taskPermissionGuard;
+
     private TaskService taskService;
 
     @BeforeEach
@@ -72,7 +75,8 @@ class TaskServiceProjectAccessTest {
                 new TaskDtoMapper(new ObjectMapper(), projectDocumentRepository),
                 taskHistoryRecorder,
                 notificationService,
-                userRepository
+                userRepository,
+                taskPermissionGuard
         );
     }
 

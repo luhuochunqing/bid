@@ -64,9 +64,9 @@ public class ProjectClosureController {
                 .body(ApiResponse.success("结项申请已提交，等待审核", dto));
     }
 
-    /** 审核通过：系统管理员/投标管理员/投标主管/投标组长/投标辅助（项目负责人不可审核）。 */
+    /** 审核通过：系统管理员/投标管理员/投标主管/投标组长/项目负责人/投标辅助。 */
     @PostMapping("/approve")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BIDADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_TEAM')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM')")
     public ResponseEntity<ApiResponse<ClosureDTO>> approve(
             @PathVariable Long projectId,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -75,9 +75,9 @@ public class ProjectClosureController {
         return ResponseEntity.ok(ApiResponse.success("项目结项审核通过", dto));
     }
 
-    /** 审核驳回：管理员/组长/投标负责人/投标辅助。 */
+    /** 审核驳回：管理员/组长/投标负责人/项目负责人/投标辅助。 */
     @PostMapping("/reject")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_TEAM')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM')")
     public ResponseEntity<ApiResponse<ClosureDTO>> reject(
             @PathVariable Long projectId,
             @Valid @RequestBody ClosureReviewRequest req,

@@ -64,6 +64,9 @@ class TaskExtendedFieldsPersistenceTest {
     @Mock
     private ProjectDocumentRepository projectDocumentRepository;
 
+    @Mock
+    private TaskPermissionGuard taskPermissionGuard;
+
     private TaskService taskService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -85,7 +88,8 @@ class TaskExtendedFieldsPersistenceTest {
                 new TaskDtoMapper(objectMapper, projectDocumentRepository),
                 taskHistoryRecorder,
                 notificationService,
-                userRepository
+                userRepository,
+                taskPermissionGuard
         );
     }
 

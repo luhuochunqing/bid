@@ -1,0 +1,9 @@
+version: 1
+task: "cherry-pick-permission-task-board"
+locks:
+  - path: "backend/src/main/java/com/xiyu/bid/entity/RoleProfileCatalog.java"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/mimo/cherry-pick-permission-task-board"
+    expiresAt: "2026-06-26T04:44:40.018Z"
+    reason: "cherry-pick trae/agent-14H8bV: 角色 code 对齐 OSS 文档 + 权限匹配分析"
