@@ -68,6 +68,7 @@ public class TenderEvaluationSubmissionService {
     private final TenderEvaluationDocumentService documentService;
     private final TenderEvaluationSubmissionMapper mapper = new TenderEvaluationSubmissionMapper();
     private final Clock clock;
+    private final TenderAuditService tenderAuditService;
 
     public TenderEvaluationSubmissionService(
             TenderEvaluationRepository evaluationRepository,
@@ -78,7 +79,8 @@ public class TenderEvaluationSubmissionService {
             ApplicationEventPublisher eventPublisher,
             ProjectDocumentRepository projectDocumentRepository,
             TenderEvaluationDocumentService documentService,
-            Clock clock) {
+            Clock clock,
+            TenderAuditService tenderAuditService) {
         this.evaluationRepository = evaluationRepository;
         this.tenderRepository = tenderRepository;
         this.userRepository = userRepository;
@@ -88,6 +90,7 @@ public class TenderEvaluationSubmissionService {
         this.gapFilesSync = new TenderEvaluationGapFilesSync(projectDocumentRepository);
         this.documentService = documentService;
         this.clock = clock;
+        this.tenderAuditService = tenderAuditService;
     }
 
     /**
@@ -233,6 +236,11 @@ public class TenderEvaluationSubmissionService {
         // CO-262: 持久化 CRM 回填的 GAP 附件引用（外部 URL）到 project_documents 表
         List<ProjectDocument> gapFiles = gapFilesSync.applyGapFiles(tenderId, req.evaluationBasic());
         boolean canDecide = permissions.canDecide(tenderId, evaluatorId);
+
+        // CO-332: 记录提交评估表操作日志
+        String submitUsername = userRepository.findById(evaluatorId).map(User::getUsername).orElse("system");
+        tenderAuditService.logEvaluationSubmit(tenderId, submitUsername, String.valueOf(evaluatorId), null);
+
         return mapper.toDTO(saved, tender, true, canDecide, gapFiles);
     }
 

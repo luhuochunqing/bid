@@ -59,6 +59,7 @@ public class TenderCommandService {
     private final TenderCrmOccupancyChecker crmOccupancyChecker;
     private final TenderEvaluationBackfillService evaluationBackfillService;
     private final TenderAssignmentRecordRepository assignmentRecordRepository;
+    private final TenderAuditService tenderAuditService;
 
     public TenderDTO createTender(TenderDTO tenderDTO) {
         return createTender(tenderDTO, null);
@@ -133,6 +134,11 @@ public class TenderCommandService {
                 }
             }
         }
+
+        // CO-332: 记录创建标讯操作日志
+        String createUsername = userId != null ? userRepository.findById(userId).map(User::getUsername).orElse("system") : "system";
+        String createUserId = userId != null ? String.valueOf(userId) : "system";
+        tenderAuditService.logCreate(savedTender.getId(), createUsername, createUserId, null);
 
         return tenderMapper.toDTO(savedTender);
     }
@@ -213,6 +219,11 @@ public class TenderCommandService {
             saveAttachments(id, tenderDTO.getAttachments());
         }
 
+        // CO-332: 记录编辑标讯操作日志
+        String updateUsername = userId != null ? userRepository.findById(userId).map(User::getUsername).orElse("system") : "system";
+        String updateUserId = userId != null ? String.valueOf(userId) : "system";
+        tenderAuditService.logEdit(id, "标讯信息", null, "已更新", updateUsername, updateUserId, null);
+
         return tenderMapper.toDTO(updatedTender);
     }
 
@@ -271,6 +282,12 @@ public class TenderCommandService {
                         id, ex.getMessage());
             }
         }
+
+        // CO-332: 记录关联CRM商机操作日志
+        String linkUsername = userId != null ? userRepository.findById(userId).map(User::getUsername).orElse("system") : "system";
+        String linkUserId = userId != null ? String.valueOf(userId) : "system";
+        tenderAuditService.logEdit(id, "CRM商机", null, crmOpportunityId, linkUsername, linkUserId, null);
+
         return tenderMapper.toDTO(updatedTender);
     }
 
@@ -309,6 +326,11 @@ public class TenderCommandService {
 
         tenderRepository.delete(tender);
         log.info("Deleted tender with id: {}", id);
+
+        // CO-332: 记录删除标讯操作日志
+        String deleteUsername = userId != null ? userRepository.findById(userId).map(User::getUsername).orElse("system") : "system";
+        String deleteUserId = userId != null ? String.valueOf(userId) : "system";
+        tenderAuditService.logDelete(id, deleteUsername, deleteUserId, null);
     }
 
     private void resolveCreator(TenderDTO dto, Long userId) {

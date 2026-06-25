@@ -33,6 +33,7 @@ public class TenderIntegrationCommandService {
     private final TenderIntegrationResolver helper;
     private final TenderIntegrationCommandSupport support;
     private final ApplicationEventPublisher eventPublisher;
+    private final com.xiyu.bid.tender.service.TenderAuditService tenderAuditService;
 
     /**
      * 幂等推送标讯。
@@ -179,6 +180,11 @@ public class TenderIntegrationCommandService {
 
         // CO-302: 第三方平台拉取标讯自动分配
         support.tryAutoAssign(saved);
+
+        // CO-332: 记录接口创建标讯操作日志
+        String createUsername = userId != null ? "integration-" + request.getSourceSystem() : "system";
+        String createUserId = userId != null ? String.valueOf(userId) : "system";
+        tenderAuditService.logCreate(saved.getId(), createUsername, createUserId, null);
 
         return TenderPushResponse.builder()
                 .tenderId(saved.getId())
