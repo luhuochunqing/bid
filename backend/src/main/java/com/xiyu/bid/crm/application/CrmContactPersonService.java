@@ -57,31 +57,67 @@ public class CrmContactPersonService {
             response = httpClient.post(baseUrl, path, token, body);
         }
 
-        if (!response.success() || response.data() == null) {
-            log.warn("CRM contact-person page-list failed: code={}, msg={}", response.code(), response.msg());
+        if (response.data() == null) {
+            log.warn("CRM contact-person page-list returned no data: code={}, msg={}", response.code(), response.msg());
             return Collections.emptyList();
         }
-
-        return parseListResponse(response.data());
+        // 放宽 success 判断：部分 CRM 环境（含客户现场）对接人接口成功返回时 code 不为 0，
+        // 死卡 code==0 会把已返回的对接人误判失败、客户信息矩阵带不过来（CO-329 遗留）。
+        // 改为：只要 data 能解析出对接人就返回；解析为空且 code 异常时才告警。
+        List<ContactPersonInfoVO> contacts = parseListResponse(response.data());
+        if (contacts.isEmpty() && !response.success()) {
+            log.warn("CRM contact-person page-list failed and no contacts parsed: code={}, msg={}", response.code(), response.msg());
+        }
+        return contacts;
     }
 
     private List<ContactPersonInfoVO> parseListResponse(JsonNode data) {
         try {
-            // CRM 对接人 page-list 响应与商机 page-list 一致：扁平结构 {code, totalCount, dataList:[...]}
-            // （无外层 data 字段，CrmResponseHandler.data() 回退到根节点）。对接人数组在 dataList 字段里，
-            // 并非直接数组——此前仅判 data.isArray() 会把 CRM 已返回的对接人解析成空列表。
-            // 此处优先取 dataList，同时兼容直接数组形态（防御）。
-            JsonNode arrNode = data.isArray() ? data : data.path("dataList");
-            if (arrNode.isArray() && arrNode.size() > 0) {
-                String jsonArray = MAPPER.writeValueAsString(arrNode);
-                CollectionType collectionType = MAPPER.getTypeFactory()
-                        .constructCollectionType(List.class, ContactPersonInfoVO.class);
-                return MAPPER.readValue(jsonArray, collectionType);
+            // CRM 对接人 page-list 响应结构因环境/版本而异：文档契约为 {code,msg,data:[...]}，
+            // 实测存在 {code,totalCount,dataList:[...]}、{code,list/rows:[...]}、{code,data:{list:[...]}}
+            // 以及成功时 code 非 0 等多种形态。逐个兼容常见数组字段，避免把已返回的对接人解析成空。
+            ResolvedArray resolved = resolveArrayNode(data);
+            if (resolved == null || !resolved.node().isArray() || resolved.node().size() == 0) {
+                log.warn("CRM contact-person response has no recognizable contact array (tried data/dataList/list/rows/records/nested); node={}",
+                        summarize(data));
+                return Collections.emptyList();
             }
-            return Collections.emptyList();
+            log.info("CRM contact-person parsed {} entries from field '{}'", resolved.node().size(), resolved.path());
+            String jsonArray = MAPPER.writeValueAsString(resolved.node());
+            CollectionType collectionType = MAPPER.getTypeFactory()
+                    .constructCollectionType(List.class, ContactPersonInfoVO.class);
+            return MAPPER.readValue(jsonArray, collectionType);
         } catch (JsonProcessingException | RuntimeException e) {
             log.error("Failed to parse CRM contact-person response", e);
             return Collections.emptyList();
         }
     }
+
+    /**
+     * 在响应节点中定位对接人数组，兼容多种字段命名与嵌套形态。
+     * 返回命中的数组节点及其字段路径（用于诊断日志）；找不到返回 null。
+     */
+    private ResolvedArray resolveArrayNode(JsonNode data) {
+        if (data.isArray()) return new ResolvedArray(data, "<root>");
+        for (String field : List.of("dataList", "list", "rows", "records")) {
+            JsonNode n = data.path(field);
+            if (n.isArray()) return new ResolvedArray(n, field);
+        }
+        JsonNode inner = data.path("data");
+        if (inner.isObject()) {
+            for (String field : List.of("list", "dataList", "rows", "records")) {
+                JsonNode n = inner.path(field);
+                if (n.isArray()) return new ResolvedArray(n, "data." + field);
+            }
+        }
+        return null;
+    }
+
+    /** 节点概要（截断），仅用于告警日志，避免打印超长响应体。 */
+    private static String summarize(JsonNode data) {
+        String s = data != null ? data.toString() : "null";
+        return s.length() > 300 ? s.substring(0, 300) + "...(truncated)" : s;
+    }
+
+    private record ResolvedArray(JsonNode node, String path) {}
 }
