@@ -238,6 +238,31 @@ class ProjectResultRegistrationServiceTest {
     }
 
     @Test
+    void register_publishesEventWithOperatorNameFallingBackToUsernameWhenEmployeeNumberBlank() {
+        when(repo.findByProjectId(1L)).thenReturn(Optional.empty());
+        when(repo.save(any())).thenAnswer(inv -> {
+            ProjectResult e = inv.getArgument(0);
+            e.setId(99L);
+            return e;
+        });
+        User user = new User();
+        user.setFullName("郑蓉蓉");
+        user.setUsername("06234");
+        // employeeNumber 为空（生产环境中常见）
+        when(userRepo.findById(7L)).thenReturn(Optional.of(user));
+        var req = ResultRegistrationRequest.builder()
+                .resultType(BidResultType.WON)
+                .awardAmount(new BigDecimal("88888"))
+                .evidenceFileIds(List.of(11L))
+                .summary("中标通知书已上传")
+                .build();
+        service.register(1L, req, 7L);
+        ArgumentCaptor<ProjectResultConfirmedEvent> captor = ArgumentCaptor.forClass(ProjectResultConfirmedEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertEquals("郑蓉蓉（06234）", captor.getValue().operatorName());
+    }
+
+    @Test
     void getByProject_present_returnsDto() {
         ProjectResult e = ProjectResult.builder()
                 .id(33L).projectId(1L).resultType("ABANDONED")
