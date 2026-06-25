@@ -113,22 +113,20 @@ public final class ProjectDocumentWorkflowPolicy {
             return Decision.deny("当前用户未分配角色，无权删除文档");
         }
         String normalized = roleCode.trim();
-        if (isGlobalDocumentAdminRole(normalized)) {
+        if (isGlobalDocumentAccessRole(normalized)) {
             return Decision.permit();
         }
         return Decision.deny("权限不足，仅管理员允许删除文档");
     }
 
     private static boolean isGlobalDocumentAccessRole(String roleCode) {
-        return RoleProfileCatalog.ADMIN_CODE.equalsIgnoreCase(roleCode)
-                || RoleProfileCatalog.BID_ADMIN_CODE.equalsIgnoreCase(roleCode)
-                || RoleProfileCatalog.BID_LEAD_CODE.equalsIgnoreCase(roleCode);
-    }
-
-    private static boolean isGlobalDocumentAdminRole(String roleCode) {
-        return RoleProfileCatalog.ADMIN_CODE.equalsIgnoreCase(roleCode)
-                || RoleProfileCatalog.BID_ADMIN_CODE.equalsIgnoreCase(roleCode)
-                || RoleProfileCatalog.BID_LEAD_CODE.equalsIgnoreCase(roleCode);
+        // 复用 RoleProfileCatalog.GLOBAL_ACCESS_ROLES，大小写不敏感匹配
+        for (String globalRole : RoleProfileCatalog.GLOBAL_ACCESS_ROLES) {
+            if (globalRole.equalsIgnoreCase(roleCode)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

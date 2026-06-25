@@ -50,8 +50,7 @@ class TaskPermissionGuard {
         if (manageDecision.allowed()) {
             return;
         }
-        TaskOperationDecision submitDecision = TaskOperationPolicy.canSubmitTask(
-                currentUser.getRoleCode(),
+        TaskOperationDecision submitDecision = TaskOperationPolicy.canActAsAssignee(
                 task.getAssigneeId(),
                 currentUser.getId()
         );
@@ -67,8 +66,7 @@ class TaskPermissionGuard {
         }
         Long[] leadIds = resolveProjectLeadIds(task.getProjectId());
         if (targetStatus == Task.Status.REVIEW) {
-            TaskOperationDecision decision = TaskOperationPolicy.canSubmitTask(
-                    currentUser.getRoleCode(),
+            TaskOperationDecision decision = TaskOperationPolicy.canActAsAssignee(
                     task.getAssigneeId(),
                     currentUser.getId()
             );
@@ -80,7 +78,8 @@ class TaskPermissionGuard {
                     currentUser.getRoleCode(),
                     currentUser.getId(),
                     leadIds[0],
-                    leadIds[1]
+                    leadIds[1],
+                    task.getAssigneeId()
             );
             if (!decision.allowed()) {
                 throw new AccessDeniedException(decision.reason());
@@ -89,9 +88,7 @@ class TaskPermissionGuard {
     }
 
     private Long[] resolveProjectLeadIds(Long projectId) {
-        return projectLeadAssignmentRepository.findByProjectId(projectId)
-                .map(a -> new Long[]{a.getPrimaryLeadUserId(), a.getSecondaryLeadUserId()})
-                .orElse(new Long[]{null, null});
+        return projectLeadAssignmentRepository.resolveLeadIdsByProjectId(projectId);
     }
 
     private User resolveCurrentUser() {

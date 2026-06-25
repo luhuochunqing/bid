@@ -18,4 +18,17 @@ public interface ProjectLeadAssignmentRepository extends JpaRepository<ProjectLe
     List<ProjectLeadAssignment> findByProjectIdIn(Collection<Long> projectIds);
     List<ProjectLeadAssignment> findByPrimaryLeadUserId(Long userId);
     List<ProjectLeadAssignment> findBySecondaryLeadUserId(Long userId);
+
+    /**
+     * 解析项目负责人 ID 数组 [primaryLeadUserId, secondaryLeadUserId]。
+     * <p>避免调用方重复实现此逻辑。</p>
+     *
+     * @param projectId 项目 ID
+     * @return [primaryLeadUserId, secondaryLeadUserId]，不存在时返回 [null, null]
+     */
+    default Long[] resolveLeadIdsByProjectId(Long projectId) {
+        return findByProjectId(projectId)
+                .map(a -> new Long[]{a.getPrimaryLeadUserId(), a.getSecondaryLeadUserId()})
+                .orElse(new Long[]{null, null});
+    }
 }

@@ -2,15 +2,16 @@ package com.xiyu.bid.task.core;
 
 import com.xiyu.bid.entity.RoleProfileCatalog;
 
-import java.util.Set;
+import java.util.TreeSet;
 
 public final class TaskOperationPolicy {
 
-    private static final Set<String> DIRECT_MANAGE_ROLES = Set.of(
-            RoleProfileCatalog.ADMIN_CODE,
-            RoleProfileCatalog.BID_ADMIN_CODE,
-            RoleProfileCatalog.BID_LEAD_CODE
-    );
+    // 复用 RoleProfileCatalog.GLOBAL_ACCESS_ROLES 的语义，使用大小写不敏感 TreeSet
+    // （OSS 同步可能传入不同大小写的 roleCode，如 "/bidadmin" vs "/bidAdmin"）
+    private static final TreeSet<String> DIRECT_MANAGE_ROLES = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+    static {
+        DIRECT_MANAGE_ROLES.addAll(RoleProfileCatalog.GLOBAL_ACCESS_ROLES);
+    }
 
     private TaskOperationPolicy() {
     }
@@ -25,14 +26,14 @@ public final class TaskOperationPolicy {
             return TaskOperationDecision.permit();
         }
 
-        if (RoleProfileCatalog.SALES_CODE.equals(roleCode)) {
+        if (RoleProfileCatalog.SALES_CODE.equalsIgnoreCase(roleCode)) {
             if (currentUserId != null && currentUserId.equals(primaryLeadId)) {
                 return TaskOperationDecision.permit();
             }
             return TaskOperationDecision.deny("投标项目负责人仅可管理自己作为负责人的项目任务");
         }
 
-        if (RoleProfileCatalog.BID_SPECIALIST_CODE.equals(roleCode)) {
+        if (RoleProfileCatalog.BID_SPECIALIST_CODE.equalsIgnoreCase(roleCode)) {
             if (currentUserId != null
                     && (currentUserId.equals(primaryLeadId) || currentUserId.equals(secondaryLeadId))) {
                 return TaskOperationDecision.permit();
@@ -43,34 +44,43 @@ public final class TaskOperationPolicy {
         return TaskOperationDecision.deny("当前角色无权管理任务");
     }
 
-    public static TaskOperationDecision canSubmitTask(
-            String roleCode,
-            Long assigneeId,
-            Long currentUserId
-    ) {
+    /**
+     * 校验任务执行人身份 — 仅执行人本人可提交/上传交付物。
+     * <p>注意：角色不影响此权限，仅身份匹配判定。</p>
+     *
+     * @param assigneeId   任务指派人 ID
+     * @param currentUserId 当前用户 ID
+     * @return 授权决策
+     */
+    public static TaskOperationDecision canActAsAssignee(Long assigneeId, Long currentUserId) {
         if (assigneeId != null && assigneeId.equals(currentUserId)) {
             return TaskOperationDecision.permit();
         }
-        return TaskOperationDecision.deny("仅任务执行人本人可提交任务");
+        return TaskOperationDecision.deny("仅任务执行人本人可执行此操作");
     }
 
-    public static TaskOperationDecision canUploadDeliverable(
-            String roleCode,
-            Long assigneeId,
-            Long currentUserId
-    ) {
-        if (assigneeId != null && assigneeId.equals(currentUserId)) {
-            return TaskOperationDecision.permit();
-        }
-        return TaskOperationDecision.deny("仅任务执行人本人可上传交付物");
-    }
-
+    /**
+     * 校验审核权限 — 管理权限持有者可审核，但不能审核自己提交的任务。
+     * <p>职责分离原则：提交者不应审核自己提交的工作。</p>
+     *
+     * @param roleCode       当前操作者角色 code
+     * @param currentUserId  当前用户 ID
+     * @param primaryLeadId  项目主负责人 ID
+     * @param secondaryLeadId 项目副负责人 ID
+     * @param assigneeId     任务执行人 ID（用于防止自审）
+     * @return 授权决策
+     */
     public static TaskOperationDecision canReviewTask(
             String roleCode,
             Long currentUserId,
             Long primaryLeadId,
-            Long secondaryLeadId
+            Long secondaryLeadId,
+            Long assigneeId
     ) {
+        // 职责分离：不能审核自己提交的任务
+        if (currentUserId != null && currentUserId.equals(assigneeId)) {
+            return TaskOperationDecision.deny("不能审核自己提交的任务");
+        }
         return canManageTask(roleCode, currentUserId, primaryLeadId, secondaryLeadId);
     }
 }

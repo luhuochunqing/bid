@@ -103,9 +103,7 @@ class ProjectDocumentWorkflowService {
     }
 
     private Long[] resolveProjectLeadIds(Long projectId) {
-        return projectLeadAssignmentRepository.findByProjectId(projectId)
-                .map(a -> new Long[]{a.getPrimaryLeadUserId(), a.getSecondaryLeadUserId()})
-                .orElse(new Long[]{null, null});
+        return projectLeadAssignmentRepository.resolveLeadIdsByProjectId(projectId);
     }
 
     private void assertCanViewProjectDocuments(Long projectId) {

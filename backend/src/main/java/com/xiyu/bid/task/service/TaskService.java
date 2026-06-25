@@ -65,7 +65,7 @@ public class TaskService {
     public TaskDTO createTask(TaskDTO taskDTO) {
         log.info("Creating task: {}", taskDTO.getTitle());
         assertCanAccessProject(taskDTO.getProjectId());
-        assertCanManageTask(taskDTO.getProjectId());
+        taskPermissionGuard.assertCanManageTask(taskDTO.getProjectId());
         TaskAssignmentSupport.AssignmentSnapshot assignment = assignmentSupport.resolveAssignmentSnapshot(
                 assignmentRequestFrom(taskDTO),
                 null
@@ -113,7 +113,7 @@ public class TaskService {
         log.info("Updating task: {}", id);
         Task task = findTask(id);
         assertCanAccessProject(task.getProjectId());
-        assertCanManageOrSubmitTask(task);
+        taskPermissionGuard.assertCanManageOrSubmitTask(task);
         Task before = TaskSnapshots.copy(task);
         if (taskDTO.getTitle() != null) {
             task.setTitle(taskDTO.getTitle());
@@ -149,7 +149,7 @@ public class TaskService {
         log.info("Deleting task: {}", id);
         Task task = findTask(id);
         assertCanAccessProject(task.getProjectId());
-        assertCanManageTask(task.getProjectId());
+        taskPermissionGuard.assertCanManageTask(task.getProjectId());
         taskRepository.deleteById(id);
         log.info("Task deleted successfully: {}", id);
     }
@@ -194,7 +194,7 @@ public class TaskService {
         log.info("Updating task {} status to: {}", id, status);
         Task task = findTask(id);
         assertCanAccessProject(task.getProjectId());
-        assertCanTransitionTaskStatus(task, status);
+        taskPermissionGuard.assertCanTransitionTaskStatus(task, status);
         Task before = TaskSnapshots.copy(task);
         task.setStatus(status);
         Task saved = taskRepository.save(task);
@@ -207,7 +207,7 @@ public class TaskService {
         log.info("Assigning task {} to user: {}", id, request == null ? null : request.getAssigneeId());
         Task task = findTask(id);
         assertCanAccessProject(task.getProjectId());
-        assertCanManageTask(task.getProjectId());
+        taskPermissionGuard.assertCanManageTask(task.getProjectId());
         User currentUser = assignmentSupport.resolveEnabledUserByUsername(username);
         Task before = TaskSnapshots.copy(task);
         assignmentSupport.applyAssignment(task, assignmentSupport.resolveAssignmentSnapshot(request, currentUser));
@@ -269,18 +269,6 @@ public class TaskService {
         )) {
             throw new AccessDeniedException("权限不足，无法访问该项目任务");
         }
-    }
-
-    private void assertCanManageTask(Long projectId) {
-        taskPermissionGuard.assertCanManageTask(projectId);
-    }
-
-    private void assertCanManageOrSubmitTask(Task task) {
-        taskPermissionGuard.assertCanManageOrSubmitTask(task);
-    }
-
-    private void assertCanTransitionTaskStatus(Task task, Task.Status targetStatus) {
-        taskPermissionGuard.assertCanTransitionTaskStatus(task, targetStatus);
     }
 
     private static TaskAssignmentRequest assignmentRequestFrom(TaskDTO taskDTO) {
