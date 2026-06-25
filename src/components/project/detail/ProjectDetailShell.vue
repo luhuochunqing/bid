@@ -12,7 +12,6 @@
       <ProjectDetailHeader />
       <div class="detail-content">
         <ProjectDetailMainColumn />
-        <ProjectDetailSidebar />
       </div>
       <ProjectDetailAssistantPanels />
       <ProjectDetailResultDialogs />
@@ -50,11 +49,9 @@ import ProjectDetailBidAgentDrawer from './ProjectDetailBidAgentDrawer.vue'
 import ProjectDetailHeader from './ProjectDetailHeader.vue'
 import ProjectDetailMainColumn from './ProjectDetailMainColumn.vue'
 import ProjectDetailResultDialogs from './ProjectDetailResultDialogs.vue'
-import ProjectDetailSidebar from './ProjectDetailSidebar.vue'
 import ProjectTenderBreakdownDialog from './ProjectTenderBreakdownDialog.vue'
 import ProjectDetailWorkflowDialogs from './ProjectDetailWorkflowDialogs.vue'
 import './project-detail-shell.css'
-import './project-detail-sidebar.css'
 
 const route = useRoute()
 const router = useRouter()

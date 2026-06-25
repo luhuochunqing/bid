@@ -82,6 +82,28 @@
       @quick-reject="ctx.handleQuickReject"
     />
 
+    <el-card class="timeline-card">
+      <template #header>
+        <div class="card-title">
+          <el-icon><Clock /></el-icon>
+          <span>项目动态</span>
+        </div>
+      </template>
+      <el-timeline>
+        <el-timeline-item
+          v-for="activity in ctx.activities"
+          :key="activity.id"
+          :timestamp="activity.time"
+          placement="top"
+        >
+          <div class="activity-content">
+            <span class="activity-user">{{ activity.user }}</span>
+            <span class="activity-action">{{ activity.action }}</span>
+          </div>
+        </el-timeline-item>
+      </el-timeline>
+    </el-card>
+
     <!-- 项目文档（暂时隐藏）
     <el-card class="document-card">
       ...
@@ -96,6 +118,7 @@
 
 <script setup>
 import { ref, watch } from 'vue'
+import { Clock } from '@element-plus/icons-vue'
 // import { Document, DocumentChecked, Folder, Upload } from '@element-plus/icons-vue' // 暂时隐藏项目文档
 import { useProjectDetailContext } from '@/composables/projectDetail/context.js'
 import { useProjectStore } from '@/stores/project'

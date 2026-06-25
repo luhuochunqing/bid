@@ -109,16 +109,16 @@ describe('ProjectDetail layout', () => {
     expect(wrapper.find('.timeline-card').exists()).toBe(true)
   })
 
-  it('documents the responsive layout rules that prevent horizontal clipping', () => {
+  it('documents the single-column layout that prevents horizontal clipping', () => {
     const shellCss = readFileSync(
       resolve(process.cwd(), 'src/components/project/detail/project-detail-shell.css'),
       'utf8',
     )
 
-    expect(shellCss).toContain('grid-template-columns: minmax(0, 1fr) minmax(320px, 380px)')
-    expect(shellCss).toContain('@media (max-width: 1280px)')
-    expect(shellCss).toContain('grid-template-columns: minmax(0, 1fr)')
-    expect(shellCss).toContain('width: 100% !important')
+    // 右栏移除后 detail-content 单列布局，main-content 撑满且 min-width: 0 防裁剪
+    expect(shellCss).toContain('.project-detail-page .detail-content')
+    expect(shellCss).toContain('min-width: 0')
+    expect(shellCss).not.toContain('minmax(320px, 380px)')
   })
 
   it('documents aligned secondary action controls', () => {
