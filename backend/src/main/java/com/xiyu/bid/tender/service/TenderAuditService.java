@@ -19,7 +19,8 @@ import java.util.Objects;
 
 /**
  * 标讯操作审计服务。
- * 记录标讯中心的 9 类操作日志。
+ * 记录标讯中心全流程操作日志：创建/编辑/删除/分配/转派/评估提交/评估审核确认/
+ * 评估决策(投标·弃标)/立即投标/投标立项/弃标/状态变更。
  */
 @Service
 @RequiredArgsConstructor
@@ -104,6 +105,41 @@ public class TenderAuditService {
                             String username, String userId, String ipAddress) {
         AuditLog log = buildAuditLog("TRANSFER", "TENDER", String.valueOf(tenderId),
                 "标讯转派", oldManager, newManager, username, userId, ipAddress);
+        auditLogRepository.save(log);
+    }
+
+    /**
+     * CO-332: 评估决策（投标 / 弃标）—— EVALUATED → BIDDING/ABANDONED。
+     */
+    @Transactional
+    public void logReview(Long tenderId, String decision, String oldStatus, String newStatus,
+                          String username, String userId, String ipAddress) {
+        AuditLog log = buildAuditLog("REVIEW", "TENDER", String.valueOf(tenderId),
+                "评估决策: " + decision, oldStatus, newStatus, username, userId, ipAddress);
+        auditLogRepository.save(log);
+    }
+
+    /**
+     * CO-332: 投标立项 —— BIDDING 后创建 Project，打通标讯→项目。
+     */
+    @Transactional
+    public void logProceedToBid(Long tenderId, Long projectId,
+                                String username, String userId, String ipAddress) {
+        AuditLog log = buildAuditLog("PROCEED_TO_BID", "TENDER", String.valueOf(tenderId),
+                "投标立项, 项目ID: " + projectId, null,
+                projectId == null ? null : String.valueOf(projectId),
+                username, userId, ipAddress);
+        auditLogRepository.save(log);
+    }
+
+    /**
+     * CO-332: 评估审核确认 —— 评估表 requires_review=true→false，恢复可决策状态。
+     */
+    @Transactional
+    public void logEvaluationReview(Long tenderId, String username, String userId, String ipAddress) {
+        AuditLog log = buildAuditLog("EVALUATION_REVIEW", "TENDER", String.valueOf(tenderId),
+                "评估审核确认", "requires_review=true", "requires_review=false",
+                username, userId, ipAddress);
         auditLogRepository.save(log);
     }
 

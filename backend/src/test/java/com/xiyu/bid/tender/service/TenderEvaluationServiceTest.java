@@ -85,7 +85,8 @@ class TenderEvaluationServiceTest {
                 accessGuard,
                 eventPublisher,
                 tenderEvaluationDocumentService,
-                initiationPrefillService
+                initiationPrefillService,
+                mock(TenderAuditService.class)
         );
         // 决策类端点默认放行；individual 测试覆写为 false 检验 403 路径。
         org.mockito.Mockito.lenient()

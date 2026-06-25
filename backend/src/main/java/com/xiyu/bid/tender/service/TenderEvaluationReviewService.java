@@ -44,18 +44,21 @@ public class TenderEvaluationReviewService {
     private final UserRepository userRepository;
     private final TenderAssignmentPermissions permissions;
     private final TenderEvaluationDocumentService documentService;
+    private final TenderAuditService tenderAuditService;
     private final TenderEvaluationSubmissionMapper mapper = new TenderEvaluationSubmissionMapper();
 
     public TenderEvaluationReviewService(TenderEvaluationRepository tenderEvaluationRepository,
                                           TenderRepository tenderRepository,
                                           UserRepository userRepository,
                                           TenderAssignmentPermissions permissions,
-                                          TenderEvaluationDocumentService documentService) {
+                                          TenderEvaluationDocumentService documentService,
+                                          TenderAuditService tenderAuditService) {
         this.tenderEvaluationRepository = tenderEvaluationRepository;
         this.tenderRepository = tenderRepository;
         this.userRepository = userRepository;
         this.permissions = permissions;
         this.documentService = documentService;
+        this.tenderAuditService = tenderAuditService;
     }
 
     /**
@@ -95,6 +98,9 @@ public class TenderEvaluationReviewService {
         }
 
         TenderEvaluation saved = tenderEvaluationRepository.save(evaluation);
+        // CO-332: 记录评估审核确认审计日志
+        tenderAuditService.logEvaluationReview(saved.getTenderId(),
+                reviewer.getUsername(), String.valueOf(reviewerId), null);
 
         boolean canFill = permissions.canFill(saved.getTenderId(), reviewerId);
         boolean canDecide = permissions.canDecide(saved.getTenderId(), reviewerId);

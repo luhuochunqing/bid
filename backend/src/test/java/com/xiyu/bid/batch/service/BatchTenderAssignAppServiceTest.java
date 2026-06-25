@@ -55,7 +55,8 @@ class BatchTenderAssignAppServiceTest {
                 projectAccessGuard,
                 assignmentSupport,
                 new BatchOperationLogService(auditLogService),
-                notificationAppService
+                notificationAppService,
+                mock(com.xiyu.bid.tender.service.TenderAuditService.class)
         );
     }
 

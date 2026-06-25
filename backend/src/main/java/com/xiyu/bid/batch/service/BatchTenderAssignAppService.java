@@ -28,6 +28,7 @@ public class BatchTenderAssignAppService {
     private final BatchTenderAssignmentSupport assignmentSupport;
     private final BatchOperationLogService batchOperationLogService;
     private final NotificationApplicationService notificationAppService;
+    private final com.xiyu.bid.tender.service.TenderAuditService tenderAuditService;
 
     @Transactional
     public BatchOperationResponse batchAssign(BatchTenderAssignRequest request, User currentUser) {
@@ -93,6 +94,7 @@ public class BatchTenderAssignAppService {
         try {
             projectAccessGuard.requireTender(tender.getId());
             TenderStatusTransitionPolicy.assertTransition(tender.getStatus(), Tender.Status.TRACKING);
+            String oldManagerName = tender.getProjectManagerName();
             tender.setProjectManagerId(assignee.getId());
             tender.setProjectManagerName(assignee.getFullName());
             tender.setDepartment(assignee.getDepartmentName());
@@ -100,6 +102,10 @@ public class BatchTenderAssignAppService {
             changedTenders.add(tender);
             records.add(assignmentSupport.buildRecord(tender.getId(), assignee, request, currentUser));
             response.addSuccess(tender.getId());
+            // CO-332: 记录标讯分配审计日志
+            tenderAuditService.logAssign(tender.getId(), oldManagerName, assignee.getFullName(),
+                    currentUser == null ? "system" : currentUser.getUsername(),
+                    currentUser == null ? "system" : String.valueOf(currentUser.getId()), null);
         } catch (IllegalArgumentException exception) {
             response.addError(tender.getId(), exception.getMessage(), "INVALID_STATUS_TRANSITION");
         } catch (RuntimeException exception) {

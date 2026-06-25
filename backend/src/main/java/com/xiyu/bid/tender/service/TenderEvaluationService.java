@@ -61,6 +61,7 @@ public class TenderEvaluationService {
     private final ApplicationEventPublisher eventPublisher;
     private final TenderEvaluationDocumentService documentService;
     private final InitiationPrefillService initiationPrefillService;
+    private final TenderAuditService tenderAuditService;
     private final TenderEvaluationSubmissionMapper mapper = new TenderEvaluationSubmissionMapper();
 
     public TenderEvaluationService(
@@ -75,7 +76,8 @@ public class TenderEvaluationService {
             TenderProjectAccessGuard accessGuard,
             ApplicationEventPublisher eventPublisher,
             TenderEvaluationDocumentService documentService,
-            InitiationPrefillService initiationPrefillService) {
+            InitiationPrefillService initiationPrefillService,
+            TenderAuditService tenderAuditService) {
         this.tenderEvaluationRepository = tenderEvaluationRepository;
         this.tenderRepository = tenderRepository;
         this.projectService = projectService;
@@ -88,6 +90,7 @@ public class TenderEvaluationService {
         this.eventPublisher = eventPublisher;
         this.documentService = documentService;
         this.initiationPrefillService = initiationPrefillService;
+        this.tenderAuditService = tenderAuditService;
     }
 
     // ---------- V119: 项目评估表草稿/提交 facade（委托给 TenderEvaluationSubmissionService） ----------
@@ -202,6 +205,10 @@ public class TenderEvaluationService {
                 recShouldBid, recReason));
 
         log.info("Tender {} reviewed, status changed to {}", tenderId, tender.getStatus());
+        // CO-332: 记录评估决策（投标/弃标）审计日志
+        tenderAuditService.logReview(tenderId, request.approved() ? "投标" : "弃标",
+                Tender.Status.EVALUATED.name(), tender.getStatus().name(),
+                reviewer.getUsername(), String.valueOf(reviewerId), null);
         boolean canFill = permissions.canFill(tenderId, reviewerId);
         boolean canDecide = permissions.canDecide(tenderId, reviewerId);
         return toDTO(savedEvaluation, tender, canFill, canDecide);
@@ -266,6 +273,10 @@ public class TenderEvaluationService {
         // CO-349: 不再创建"【待立项】"占位任务——它会卡住"提交投标"的全任务完成闸门
         // （AllTasksCompletedPolicy），导致报"仍有 N 个任务未完成"。历史残留由迁移脚本清理。
         log.info("Project {} created for tender {}", createdProject.getId(), tenderId);
+        // CO-332: 记录投标立项审计日志
+        String proceedAdminName = userRepository.findById(adminId).map(User::getUsername).orElse("system");
+        tenderAuditService.logProceedToBid(tenderId, createdProject.getId(),
+                proceedAdminName, String.valueOf(adminId), null);
         return new TenderBidResult(
                 createdProject.getId(),
                 createdProject.getName(),

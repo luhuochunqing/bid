@@ -153,6 +153,9 @@ public class TenderCommandService {
                 eventPublisher.publishEvent(TenderStatusChangedEvent.of(tender.getId(), tender.getExternalId(), Tender.Status.PENDING_ASSIGNMENT, Tender.Status.TRACKING, tender.getTitle()));
                 tenderRepository.save(tender);
                 log.info("Tender {} auto-assigned, status changed to TRACKING", tender.getId());
+                // CO-332: 记录自动分配审计日志（oldManager=null，系统按采购方/部门规则自动匹配）
+                tenderAuditService.logAssign(tender.getId(), null, tender.getProjectManagerName(),
+                        "auto", "auto", null);
                 assignmentNotifier.notifyAutoAssigned(tender);
                 return true;
             }
