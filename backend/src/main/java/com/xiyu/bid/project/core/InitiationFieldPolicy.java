@@ -102,9 +102,7 @@ public final class InitiationFieldPolicy {
         List<String> reasons = new ArrayList<>();
 
         requireText("ownerUnit", input.ownerUnit(), missing);
-        requirePositive("expectedBidders", input.expectedBidders(), missing);
-        requireNotNull("customerType", input.customerType(), missing);
-        requirePositiveAmount("annualRevenue", input.annualRevenue(), missing);
+        // CO-347: expectedBidders/customerType/annualRevenue 改为可选
         requireNotNull("bidOpenTime", input.bidOpenTime(), missing);
         requirePositive("ownerUserId", input.ownerUserId(), missing);
         requireText("departmentSnapshot", input.departmentSnapshot(), missing);
