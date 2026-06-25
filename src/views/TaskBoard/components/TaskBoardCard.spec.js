@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { createPinia } from 'pinia'
+import { setActivePinia, createPinia } from 'pinia'
 
 vi.mock('@/api/modules/projects.js', () => ({
   projectsApi: { createTaskDeliverable: vi.fn(), updateTask: vi.fn(), updateTaskStatus: vi.fn() }
@@ -30,6 +30,7 @@ const stubs = {
   'el-form-item': { template: '<div><slot /></div>', props: ['label'] },
   'el-input': { template: '<input />' },
   'el-upload': { template: '<div><slot /></div>' },
+  ProjectDocumentTable: { template: '<div class="project-documents-stub" />' },
 }
 
 function createWrapper(item) {
@@ -41,6 +42,7 @@ function createWrapper(item) {
 
 describe('TaskBoardCard', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
     mockUserState.currentUser = { id: 1, name: '当前用户' }
     vi.clearAllMocks()
   })
@@ -114,20 +116,52 @@ describe('TaskBoardCard', () => {
     expect(uploadBtn?.attributes('disabled')).toBeDefined()
   })
 
-  it('hasDeliverable returns true when deliverables array has items', async () => {
-    const item = {
-      type: 'TASK',
-      id: 1,
-      title: '任务1',
-      status: 'TODO',
-      assigneeId: 1,
-      deliverables: [{ name: 'file.pdf' }],
-    }
-    const wrapper = createWrapper(item)
-    await flushPromises()
-    const buttons = wrapper.findAll('button')
-    const submitBtn = buttons.find(b => b.text().includes('提交'))
-    // assigneeId=1 且有 deliverables，提交按钮应可点击
-    expect(submitBtn?.attributes('disabled')).toBeUndefined()
-  })
+it('hasDeliverable returns true when deliverables array has items', async () => {
+	    const item = {
+	      type: 'TASK',
+	      id: 1,
+	      title: '任务1',
+	      status: 'TODO',
+	      assigneeId: 1,
+	      deliverables: [{ name: 'file.pdf' }],
+	    }
+	    const wrapper = createWrapper(item)
+	    await flushPromises()
+	    const buttons = wrapper.findAll('button')
+	    const submitBtn = buttons.find(b => b.text().includes('提交'))
+	    // assigneeId=1 且有 deliverables，提交按钮应可点击
+	    expect(submitBtn?.attributes('disabled')).toBeUndefined()
+	  })
+
+	  it('点击卡片根元素 emit task-click', async () => {
+	    const item = {
+	      type: 'TASK',
+	      id: 1,
+	      title: '任务1',
+	      status: 'TODO',
+	      assigneeId: 1,
+	    }
+	    const wrapper = createWrapper(item)
+	    await flushPromises()
+	    await wrapper.find('.task-card').trigger('click')
+	    expect(wrapper.emitted('task-click')).toBeTruthy()
+	    expect(wrapper.emitted('task-click')[0]).toEqual([item])
+	  })
+
+	  it('点击内部按钮不触发 task-click', async () => {
+	    const item = {
+	      type: 'TASK',
+	      id: 1,
+	      title: '任务1',
+	      status: 'TODO',
+	      assigneeId: 1,
+	      deliverables: [{ name: 'file.pdf' }],
+	    }
+	    const wrapper = createWrapper(item)
+	    await flushPromises()
+	    // 点击"提交"按钮，不应触发 task-click
+	    const submitBtn = wrapper.findAll('button').find(b => b.text().includes('提交'))
+	    await submitBtn.trigger('click')
+	    expect(wrapper.emitted('task-click')).toBeFalsy()
+	  })
 })
