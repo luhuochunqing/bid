@@ -33,6 +33,7 @@ public class TenderSubmissionService {
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
     private final NotificationApplicationService notificationAppService;
+    private final TenderAuditService tenderAuditService;
 
     @Transactional
     @Auditable(action = "PARTICIPATE", entityType = "TENDER", description = "投标标讯")
@@ -77,6 +78,11 @@ public class TenderSubmissionService {
 
         // CO-349: 删除投标时自动创建的待立项任务，避免提交投标时因任务未完成而报错
         log.info("Tender {} participated by user {}", tenderId, userId);
+
+        // CO-332: 记录立即投标操作日志
+        String participateUsername = userRepository.findById(userId).map(User::getUsername).orElse("system");
+        tenderAuditService.logParticipate(tenderId, participateUsername, String.valueOf(userId), null);
+
         return TenderBidResponse.builder()
                 .accepted(true)
                 .message("投标成功")
@@ -122,6 +128,11 @@ public class TenderSubmissionService {
                         req.getReason(), userId, operatorName, recShouldBid, recReason));
         tenderRepository.save(tender);
         log.info("Tender {} abandoned by user {}, reason: {}", tenderId, userId, req.getReason());
+
+        // CO-332: 记录弃标操作日志
+        String abandonUsername = userRepository.findById(userId).map(User::getUsername).orElse("system");
+        tenderAuditService.logAbandon(tenderId, req.getReason(), abandonUsername, String.valueOf(userId), null);
+
         return rejectedBidResponse(true, "已放弃该标讯");
     }
 
