@@ -163,3 +163,4 @@ src/main/java/com/xiyu/bid/audit/service/AuditLogService.java | CO-324 findByPro
 src/main/java/com/xiyu/bid/audit/service/IAuditLogService.java | CO-324 findByProject 审计日志查询接口，按 projectId 查 audit_logs，非项目数据访问。
 src/main/java/com/xiyu/bid/qualification/controller/QualificationAuditController.java | 资质审计查询端点，审计日志查询非项目数据访问。
 src/main/java/com/xiyu/bid/tender/service/TenderAuditService.java | 标讯审计服务，审计日志非项目数据边界。
+src/main/java/com/xiyu/bid/task/service/TaskPermissionGuard.java | 任务权限守卫，编排 TaskOperationPolicy（角色+负责人匹配）；项目访问边界由 ProjectAccessScopeService 在 TaskService 层守卫，本类仅做任务级操作授权。

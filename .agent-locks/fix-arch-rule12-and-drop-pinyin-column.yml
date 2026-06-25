@@ -1,0 +1,15 @@
+version: 1
+task: "fix-arch-rule12-and-drop-pinyin-column"
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql/V1097__drop_users_full_name_pinyin.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/codex/fix-arch-rule12-and-drop-pinyin-column"
+    expiresAt: "2026-06-26T09:27:27.410Z"
+    reason: "P0 修复：清理 full_name_pinyin 脏列"
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1097__drop_users_full_name_pinyin.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/codex/fix-arch-rule12-and-drop-pinyin-column"
+    expiresAt: "2026-06-26T09:27:30.178Z"
+    reason: "P0 修复：清理 full_name_pinyin 脏列（回滚脚本）"
