@@ -129,11 +129,6 @@ export function useProjectDraftingPermissions(opts = {}) {
     roleGroup.value === 'admin_lead' || roleGroup.value === 'lead_assist'
   )
 
-  /** 提交投标审核（投标管理员/组长 + 投标负责人/辅助人） */
-  const canSubmitBidForReview = computed(() =>
-    roleGroup.value === 'admin_lead' || roleGroup.value === 'lead_assist'
-  )
-
   /** 审核投标（通过/驳回）— 仅指派的审核人本人可操作，与角色无关（对齐后端 BidReviewPolicy.canApprove/canReject） */
   const canReviewBid = computed(() => {
     const reviewerId = resolveOpt(opts.reviewerId)
@@ -162,6 +157,11 @@ export function useProjectDraftingPermissions(opts = {}) {
     return false
   })
 
+  /** 提交投标审核。
+   *  当前与 {@link #canSubmitBid} 同口径（admin_lead 直通，lead_assist 需匹配项目级 lead），
+   *  保留独立 computed 是为未来"提交审核"与"提交投标"语义可能分化预留扩展点。 */
+  const canSubmitBidForReview = computed(() => canSubmitBid.value)
+
   // ── 快捷操作（右侧边栏）─────────────────────────────────────────────────
 
   /** 添加文档（快捷操作栏）*/
@@ -176,6 +176,8 @@ export function useProjectDraftingPermissions(opts = {}) {
   /** 设置提醒 */
   const canSetReminder = computed(() => true)
 
+  // 消费端（DraftingStage.vue）需用 reactive() 包装返回值，使 perm.xxx 自动解包 ComputedRef。
+  // 不包装时模板拿到的是 ComputedRef 对象（恒 truthy），按钮可见性会失效。
   return {
     role,
     roleGroup,
@@ -200,9 +202,9 @@ export function useProjectDraftingPermissions(opts = {}) {
     // 投标
     canManageBidFiles,
     canSelectReviewer,
-    canSubmitBidForReview,
     canReviewBid,
     canSubmitBid,
+    canSubmitBidForReview,
     // 快捷操作
     canAddDocument,
     canShareProject,

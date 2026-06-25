@@ -101,7 +101,7 @@
 
 <script setup>
 import { DocumentChecked, MagicStick, Search, Trophy, UploadFilled } from '@element-plus/icons-vue'
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, reactive, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getApiUrl } from '@/api/config.js'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
@@ -122,12 +122,12 @@ const { bidAgent } = ctx
 // bidReviewerId/primaryLeadId/secondaryLeadId 需在 perm 之前定义
 const bidReviewerId = ref(null), primaryLeadId = ref(null), secondaryLeadId = ref(null)
 
-const perm = useProjectDraftingPermissions({
+const perm = reactive(useProjectDraftingPermissions({
   primaryLeadId,
   secondaryLeadId,
   currentUserId: ctx.userStore?.currentUser?.id,
   reviewerId: bidReviewerId,
-})
+}))
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
 const emit = defineEmits(['advanced', 'switch-tab'])
