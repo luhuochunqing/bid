@@ -84,7 +84,8 @@
     </el-tabs>
     <template #footer>
       <el-button @click="$emit('update:modelValue', false)">取消</el-button>
-      <el-button type="primary" :loading="submitting" @click="handleSubmit">保存</el-button>
+      <el-button v-if="!isLastTab" type="primary" @click="goNext">下一步</el-button>
+      <el-button v-else type="primary" :loading="submitting" @click="handleSubmit">保存</el-button>
     </template>
   </el-dialog>
 </template>
@@ -103,6 +104,8 @@ const emit = defineEmits(['update:modelValue', 'saved'])
 
 const activeTab = ref('basic')
 const submitting = ref(false)
+const TABS = ['basic', 'education', 'certificate']
+const isLastTab = computed(() => activeTab.value === TABS[TABS.length - 1])
 const isEdit = ref(false)
 const originalEmployeeNumber = ref('')
 const certAttachmentFiles = ref({})
@@ -110,6 +113,38 @@ const certAttachmentFiles = ref({})
 const defaultForm = () => ({ name: '', employeeNumber: '', departmentName: '', gender: '', entryDate: null, birthDate: null, phone: '', education: '', technicalTitle: '', remark: '', certificates: [], educations: [] })
 const form = ref(defaultForm())
 const isEmployeeNumberChanged = computed(() => isEdit.value && originalEmployeeNumber.value && form.value.employeeNumber !== originalEmployeeNumber.value)
+
+const validateTab = (tabName) => {
+  if (tabName === 'basic') {
+    if (!form.value.name || !form.value.employeeNumber) {
+      ElMessage.warning('姓名和工号必填')
+      return false
+    }
+    if (form.value.phone && !/^\d{11}$/.test(form.value.phone)) {
+      ElMessage.warning('请输入有效的手机号')
+      return false
+    }
+  }
+  if (tabName === 'education') {
+    if (!form.value.educations?.length) {
+      ElMessage.error('请至少添加1条完整的教育经历')
+      return false
+    }
+    for (const e of form.value.educations) {
+      if (!e.schoolName || !e.highestEducation || !e.studyForm || !e.startDate || !e.endDate) {
+        ElMessage.error('教育经历每条都必须填写学校、最高学历、学习形式、入学/毕业时间')
+        return false
+      }
+    }
+  }
+  return true
+}
+
+const goNext = () => {
+  if (!validateTab(activeTab.value)) return
+  const idx = TABS.indexOf(activeTab.value)
+  if (idx < TABS.length - 1) activeTab.value = TABS[idx + 1]
+}
 
 watch(() => props.modelValue, (visible) => {
   if (!visible) return
@@ -180,9 +215,6 @@ function highlightNewPerson(empNo) {
 }
 
 async function handleSubmit() {
-  if ((form.value.certificates || []).some((c, idx) => c?.name && !c.attachmentUrl && !certAttachmentFiles.value[idx])) {
-    ElMessage.error('请为已填写的证书上传附件（PDF/JPG/PNG ≤10MB）'); return
-  }
   form.value.educations = (form.value.educations || []).filter(e => e?.schoolName || e?.highestEducation || e?.studyForm)
   const origCerts = form.value.certificates || []
   form.value.certificates = origCerts.filter(c => c?.name || c?.certificateNumber)
@@ -190,13 +222,9 @@ async function handleSubmit() {
   origCerts.forEach((c, oldIdx) => { if (c && (c.name || c.certificateNumber) && certAttachmentFiles.value[oldIdx]) { newFiles[newIdx] = certAttachmentFiles.value[oldIdx]; newIdx++ } })
   certAttachmentFiles.value = newFiles
 
-  if (!form.value.name || !form.value.employeeNumber) { ElMessage.warning('姓名和工号必填'); return }
-  if (form.value.phone && !/^\d{11}$/.test(form.value.phone)) { ElMessage.warning('请输入有效的手机号'); return }
-  if (!form.value.educations?.length) { ElMessage.error('请至少添加1条完整的教育经历'); return }
-  for (const e of form.value.educations) {
-    if (!e.schoolName || !e.highestEducation || !e.studyForm || !e.startDate || !e.endDate) {
-      ElMessage.error('教育经历每条都必须填写学校、最高学历、学习形式、入学/毕业时间'); return
-    }
+  if (!validateTab('basic') || !validateTab('education')) return
+  if ((form.value.certificates || []).some((c, idx) => c?.name && !c.attachmentUrl && !certAttachmentFiles.value[idx])) {
+    ElMessage.error('请为已填写的证书上传附件（PDF/JPG/PNG ≤10MB）'); return
   }
   submitting.value = true
   try {
