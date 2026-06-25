@@ -231,10 +231,15 @@ public class TenderEvaluationService {
         }
 
         var evaluationOpt = tenderEvaluationRepository.findByTenderId(tenderId);
-        Long projectManagerId = evaluationOpt
-                .map(TenderEvaluation::getEvaluatorId)
-                .filter(Objects::nonNull)
-                .orElse(adminId);
+        // CO-333: 优先用标讯项目负责人作为 project.managerId（项目查看/立项提交权限锚点）
+        // 标讯无项目负责人时回退到评估人，再回退到操作人
+        Long projectManagerId = tender.getProjectManagerId();
+        if (projectManagerId == null) {
+            projectManagerId = evaluationOpt
+                    .map(TenderEvaluation::getEvaluatorId)
+                    .filter(Objects::nonNull)
+                    .orElse(adminId);
+        }
 
         ProjectDTO projectDTO = ProjectDTO.builder()
                 .name(tender.getTitle())
