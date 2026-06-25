@@ -3,6 +3,7 @@
 // Output: blocks commit when a UserPicker call site expected to use mode="search"
 //         is modified to use a different mode (e.g. "candidates").
 // Pos: scripts/ — UserPicker 模式回归检测 (2026-06-25)
+// 维护声明: 若 SEARCH_MODE_FILES 名单或 UserPicker 默认 mode 变化，请同步更新此脚本与 docs/implementation-notes/UserPicker-remote-search-fix.md。
 //
 // Background (2026-06-25):
 //   PR #1088 (sync GitHub main) reverted mode="search" back to mode="candidates"

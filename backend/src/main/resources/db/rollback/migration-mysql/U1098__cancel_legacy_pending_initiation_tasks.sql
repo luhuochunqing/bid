@@ -1,3 +1,4 @@
+-- Input: V1098__cancel_legacy_pending_initiation_tasks.sql
 -- U1098: 回滚 V1098 (CO-349 历史占位任务清理)
 -- Backout strategy: 仅恢复"看起来被 V1098 改过"的行——即 title 以"【待立项】"开头、当前
 --   status='CANCELLED' 的任务，把它们改回 'TODO'。

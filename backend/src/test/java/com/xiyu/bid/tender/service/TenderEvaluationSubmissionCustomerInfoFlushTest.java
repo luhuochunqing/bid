@@ -100,7 +100,8 @@ class TenderEvaluationSubmissionCustomerInfoFlushTest {
                 eventPublisher,
                 projectDocumentRepository,
                 documentService,
-                FIXED_CLOCK);
+                FIXED_CLOCK,
+                mock(TenderAuditService.class));
     }
 
     private TenderEvaluationSubmitRequest buildRequest(String roleKey, String infoKey, String value) {

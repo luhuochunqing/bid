@@ -47,6 +47,7 @@ class TenderCommandServiceLinkCrmOpportunityDedupTest {
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private UserRepository userRepository;
     @Mock private TenderAssignmentRecordRepository assignmentRecordRepository;
+    @Mock private TenderAuditService tenderAuditService;
 
     private TenderCommandService tenderCommandService;
 
@@ -76,7 +77,8 @@ class TenderCommandServiceLinkCrmOpportunityDedupTest {
                 null,                  // TenderAttachmentRepository
                 crmOccupancyChecker,   // CO-297: CRM 商机占用校验器
                 null,                  // CO-310: TenderEvaluationBackfillService（本测试不涉及回填）
-                assignmentRecordRepository); // CO-310: 写 assignee record
+                assignmentRecordRepository, // CO-310: 写 assignee record
+                tenderAuditService);       // TenderAuditService
     }
 
     @Test

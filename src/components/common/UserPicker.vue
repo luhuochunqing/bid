@@ -35,6 +35,12 @@ const props = defineProps({
   initialOptions: { type: Array, default: () => [] },
   clearable: { type: Boolean, default: true },
   multiple: { type: Boolean, default: false },
+  // 要从下拉中排除的用户 id 列表（如审核人场景排除项目负责人/团队成员）。
+  // 过滤在合并后选项上做，避免后端搜索接口为此新增参数。
+  excludeIds: { type: Array, default: () => [] },
+  // 可选：按 roleCode 在前端进一步过滤候选（如辅助人员仅展示 bid-Team 角色）。
+  // 之所以放在前端是因为 usersApi.search 不支持 roleCode 过滤；保留偏离实现的原有语义。
+  roleFilter: { type: String, default: '' },
 })
 
 const emit = defineEmits(['update:modelValue', 'select'])
@@ -67,11 +73,27 @@ const mergedOptions = computed(() => {
 // (el-select + slot el-option has a bug where optionsArray is not recomputed
 //  after remote results arrive while the dropdown is open)
 const selectOptions = computed(() => {
-  return mergedOptions.value.map((user) => ({
-    value: getOptionValue(user),
-    label: formatLabel(user),
-  }))
+  return mergedOptions.value
+    .filter((user) => !isExcluded(user))
+    .filter((user) => matchesRoleFilter(user))
+    .map((user) => ({
+      value: getOptionValue(user),
+      label: formatLabel(user),
+    }))
 })
+
+function isExcluded(user) {
+  if (!props.excludeIds || props.excludeIds.length === 0) return false
+  const uid = getOptionValue(user)
+  // 宽松比较，兼容 number/string id
+  return props.excludeIds.some((id) => id == uid)
+}
+
+function matchesRoleFilter(user) {
+  if (!props.roleFilter) return true
+  const code = String(user?.roleCode || user?.role || '').trim()
+  return code === props.roleFilter
+}
 
 watch(() => props.modelValue, (val) => {
   if (props.multiple) {

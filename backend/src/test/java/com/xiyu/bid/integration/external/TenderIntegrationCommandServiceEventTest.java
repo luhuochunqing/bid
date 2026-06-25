@@ -10,6 +10,7 @@ import com.xiyu.bid.tender.service.TenderAssignmentNotifier;
 import com.xiyu.bid.tender.service.TenderEvaluationSubmissionMapper;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.tender.service.TenderMapper;
+import com.xiyu.bid.tender.service.TenderAuditService;
 import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -62,6 +63,7 @@ class TenderIntegrationCommandServiceEventTest {
     @Mock private ProjectDocumentRepository projectDocumentRepository;
     @Mock private TenderAutoAssignmentService autoAssignmentService;
     @Mock private TenderAssignmentNotifier assignmentNotifier;
+    @Mock private TenderAuditService tenderAuditService;
     @Mock private ApplicationEventPublisher eventPublisher;
 
     private TenderIntegrationCommandService commandService;
@@ -82,7 +84,8 @@ class TenderIntegrationCommandServiceEventTest {
                 eventPublisher,
                 tenderRepository);
         commandService = new TenderIntegrationCommandService(
-                tenderRepository, attachmentRepository, crmTenderLinkService, mapper, evaluationService, helper, support, eventPublisher);
+                tenderRepository, attachmentRepository, crmTenderLinkService, mapper, evaluationService, helper, support, eventPublisher,
+                tenderAuditService);
         when(tenderRepository.save(any(Tender.class))).thenAnswer(inv -> inv.getArgument(0));
         TenderDTO stubDto = TenderDTO.builder().build();
         when(tenderMapper.toDTO(any(Tender.class))).thenReturn(stubDto);

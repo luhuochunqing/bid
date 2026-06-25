@@ -60,4 +60,52 @@ class UserRepositorySearchTest {
 
         assertThat(results).isEmpty();
     }
+
+    @Test
+    void searchActiveUsers_MatchesFullNamePinyin() {
+        // @PrePersist 在 persist 时回填 fullNamePinyin（PinyinUtils.toPinyin）
+        User user = User.builder()
+            .username("zhangsan")
+            .email("zhangsan-py@example.com")
+            .password("p")
+            .fullName("张三")
+            .role(User.Role.MANAGER)
+            .enabled(true)
+            .build();
+        entityManager.persist(user);
+        entityManager.flush();
+
+        // 搜全拼 zhangsan 应命中"张三"（通过 full_name_pinyin 列匹配，而非 full_name 汉字）
+        List<User> results = userRepository.searchActiveUsers("zhangsan", 10);
+
+        assertThat(results)
+            .extracting(User::getFullName)
+            .contains("张三");
+    }
+
+    @Test
+    void searchActiveUsers_MatchesPinyinPrefix() {
+        User user = User.builder()
+            .username("ouyang")
+            .email("ouyang-py@example.com")
+            .password("p")
+            .fullName("欧阳小明")
+            .role(User.Role.MANAGER)
+            .enabled(true)
+            .build();
+        entityManager.persist(user);
+        entityManager.flush();
+
+        // 拼音前缀 ouyang 应命中"欧阳小明"
+        List<User> prefixResults = userRepository.searchActiveUsers("ouyang", 10);
+        assertThat(prefixResults)
+            .extracting(User::getFullName)
+            .contains("欧阳小明");
+
+        // 拼音片段 ming 也应命中（LIKE '%ming%' 匹配 ouyangxiaoming）
+        List<User> fragmentResults = userRepository.searchActiveUsers("ming", 10);
+        assertThat(fragmentResults)
+            .extracting(User::getFullName)
+            .contains("欧阳小明");
+    }
 }

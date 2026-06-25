@@ -42,6 +42,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
     /** 查询所有启用用户。 */
     List<User> findByEnabledTrue();
 
+    /** 查找 full_name_pinyin 为空且 full_name 非空的存量用户（供启动回填 runner 使用）。 */
+    @Query("SELECT u FROM User u WHERE u.fullNamePinyin IS NULL AND u.fullName IS NOT NULL AND u.fullName <> ''")
+    List<User> findByFullNamePinyinNullAndFullNameNotNull();
+
     List<User> findByIdIn(Collection<Long> ids);
 
     /** 根据 RoleProfile.code 查找所有启用用户（用于按角色发送通知）。 */
@@ -61,6 +65,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
         + "AND (LOWER(u.full_name) LIKE LOWER(CONCAT('%', :q, '%')) "
         + "OR LOWER(u.username) LIKE LOWER(CONCAT('%', :q, '%')) "
         + "OR LOWER(u.employee_number) LIKE LOWER(CONCAT('%', :q, '%')) "
+        + "OR LOWER(u.full_name_pinyin) LIKE LOWER(CONCAT('%', :q, '%')) "
         + "OR LOWER(u.employee_number_pinyin) LIKE LOWER(CONCAT('%', :q, '%'))) "
         + "ORDER BY u.full_name LIMIT :lim", nativeQuery = true)
     List<User> searchActiveUsers(@Param("q") String query, @Param("lim") int limit);

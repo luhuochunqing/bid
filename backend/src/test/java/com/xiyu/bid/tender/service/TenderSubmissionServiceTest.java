@@ -41,6 +41,8 @@ class TenderSubmissionServiceTest {
     private ApplicationEventPublisher eventPublisher;
     @Mock
     private com.xiyu.bid.notification.service.NotificationApplicationService notificationAppService;
+    @Mock
+    private TenderAuditService tenderAuditService;
 
     private TenderSubmissionService submissionService;
 
@@ -49,7 +51,8 @@ class TenderSubmissionServiceTest {
         submissionService = new TenderSubmissionService(
                 tenderRepository, tenderEvaluationRepository,
                 userRepository, permissions, accessGuard,
-                objectMapper, eventPublisher, notificationAppService);
+                objectMapper, eventPublisher, notificationAppService,
+                tenderAuditService);
     }
 
     @Test

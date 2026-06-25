@@ -15,6 +15,7 @@ import com.xiyu.bid.tender.dto.EvaluationBasicDTO;
 import com.xiyu.bid.tender.service.TenderEvaluationDocumentService;
 import com.xiyu.bid.tender.service.TenderEvaluationSubmissionMapper;
 import com.xiyu.bid.tender.service.TenderMapper;
+import com.xiyu.bid.tender.service.TenderAuditService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -73,7 +74,8 @@ class TenderIntegrationServicePushEvaluationTest {
                 evaluationService,
                 helper,
                 support,
-                mock(ApplicationEventPublisher.class));
+                mock(ApplicationEventPublisher.class),
+                mock(TenderAuditService.class));
     }
 
     private TenderPushRequest.EvaluationUpdate buildEval(String roleKey, String infoKey, String value) {

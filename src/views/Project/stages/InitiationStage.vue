@@ -136,9 +136,16 @@
               <UserPicker v-model="approvalForm.biddingLeaderId" mode="search" placeholder="搜索人员" clearable style="width:100%" @select="onLeaderSelect" />
             </el-form-item>
             <el-form-item label="投标辅助人员">
-              <el-select v-model="approvalForm.biddingAssistantId" filterable remote :remote-method="searchAssistant" :loading="assistantSearching" placeholder="搜索人员" style="width:100%" value-key="id" clearable @change="(id) => { const o = assistantOptions.find(u => u.id === id); approvalForm.biddingAssistantLabel = o ? o._label : '' }">
-                <el-option v-for="u in assistantOptions" :key="u.id" :label="u._label" :value="u.id" />
-              </el-select>
+              <UserPicker
+                v-model="approvalForm.biddingAssistantId"
+                mode="search"
+                role-filter="bid-Team"
+                :initial-options="assistantOptions"
+                placeholder="搜索人员"
+                clearable
+                style="width:100%"
+                @select="(u) => { approvalForm.biddingAssistantLabel = u ? (u.name + (u.employeeNumber ? '（' + u.employeeNumber + '）' : '')) : '' }"
+              />
             </el-form-item>
           </div>
         </el-form>

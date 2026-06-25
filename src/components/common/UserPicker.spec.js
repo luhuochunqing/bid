@@ -142,4 +142,32 @@ describe('UserPicker', () => {
     ])
     expect(select.props('valueKey')).toBe('id')
   })
+
+  it('excludes users listed in excludeIds from options', () => {
+    const otherUser = { ...mockUser, id: 2, name: '李四', employeeNumber: '20260510' }
+    mockComposable({ options: ref([mockUser, otherUser]) })
+    const wrapper = mount(UserPicker, {
+      props: { mode: 'search', excludeIds: [1] },
+      global: { stubs: elementStubs },
+    })
+    const select = wrapper.findComponent({ name: 'ElSelectV2' })
+    // mockUser (id=1) 被排除，只剩 otherUser (id=2)
+    expect(select.props('options')).toEqual([
+      { value: 2, label: '李四（20260510）' },
+    ])
+  })
+
+  it('filters options by roleFilter when provided', () => {
+    const salesUser = { ...mockUser, id: 3, name: '王五', roleCode: 'sales' }
+    const teamUser = { ...mockUser, id: 4, name: '赵六', roleCode: 'bid-Team' }
+    mockComposable({ options: ref([salesUser, teamUser]) })
+    const wrapper = mount(UserPicker, {
+      props: { mode: 'search', roleFilter: 'bid-Team' },
+      global: { stubs: elementStubs },
+    })
+    const select = wrapper.findComponent({ name: 'ElSelectV2' })
+    // 只剩 roleCode === 'bid-Team' 的赵六
+    expect(select.props('options')).toHaveLength(1)
+    expect(select.props('options')[0].value).toBe(4)
+  })
 })

@@ -76,6 +76,9 @@ public class User {
     @Column(name = "employee_number", length = 32)
     private String employeeNumber;
 
+    @Column(name = "full_name_pinyin", length = 255)
+    private String fullNamePinyin;
+
     @Column(name = "employee_number_pinyin", length = 255)
     private String employeeNumberPinyin;
 
@@ -104,6 +107,9 @@ public class User {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
+        if (fullNamePinyin == null && fullName != null && !fullName.isBlank()) {
+            fullNamePinyin = PinyinUtils.toPinyin(fullName);
+        }
         if (employeeNumberPinyin == null && employeeNumber != null && !employeeNumber.isBlank()) {
             employeeNumberPinyin = PinyinUtils.toPinyin(employeeNumber);
         }
@@ -112,7 +118,10 @@ public class User {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
-        // Always refresh pinyin when employeeNumber changes (org sync, admin edit, etc.)
+        // Always refresh pinyin when fullName or employeeNumber changes (org sync, admin edit, etc.)
+        if (fullName != null && !fullName.isBlank()) {
+            fullNamePinyin = PinyinUtils.toPinyin(fullName);
+        }
         if (employeeNumber != null && !employeeNumber.isBlank()) {
             employeeNumberPinyin = PinyinUtils.toPinyin(employeeNumber);
         }
