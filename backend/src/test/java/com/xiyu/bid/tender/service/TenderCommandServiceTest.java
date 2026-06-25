@@ -69,6 +69,8 @@ class TenderCommandServiceTest {
     private TenderAttachmentRepository tenderAttachmentRepository;
     @Mock
     private TenderCrmOccupancyChecker crmOccupancyChecker;
+    @Mock
+    private TenderAuditService tenderAuditService;
 
     private TenderCommandService tenderCommandService;
     private TenderMapper tenderMapper;
@@ -88,7 +90,8 @@ class TenderCommandServiceTest {
                 autoAssignmentService, eventPublisher, userRepository, notificationAppService,
                 assignmentNotifier, tenderAttachmentRepository, crmOccupancyChecker,
                 null, // CO-310: TenderEvaluationBackfillService（本测试不涉及回填）
-                tenderAssignmentRecordRepository);
+                tenderAssignmentRecordRepository,
+                tenderAuditService);
 
         tender = Tender.builder()
                 .id(1L)

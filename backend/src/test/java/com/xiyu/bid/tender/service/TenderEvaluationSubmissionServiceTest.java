@@ -82,6 +82,9 @@ class TenderEvaluationSubmissionServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private TenderAuditService tenderAuditService;
+
     private Clock fixedClock;
     private TenderEvaluationSubmissionService service;
 
@@ -99,7 +102,8 @@ class TenderEvaluationSubmissionServiceTest {
                 eventPublisher,
                 projectDocumentRepository,
                 tenderEvaluationDocumentService,
-                fixedClock
+                fixedClock,
+                tenderAuditService
         );
         // Default permissive — individual tests override for forbidden cases.
         // lenient() because not every test path consults both flags.
