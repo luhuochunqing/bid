@@ -153,6 +153,7 @@ import { useUserStore } from '@/stores/user'
 import { useTaskBoardDrag } from './useTaskBoardDrag'
 import { getPriorityType, getPriorityLabel as getPriorityText } from '@/views/Dashboard/workbench-formatters.js'
 import { isTaskAssignee } from '@/utils/permission.js'
+import { hexToSoftBackground } from '@/utils/color.js'
 
 const props = defineProps({
   tasks: {
@@ -236,20 +237,6 @@ const getTasksByStatus = (code) => {
 
 const getTaskCount = (code) => {
   return getTasksByStatus(code).length
-}
-
-const hexToSoftBackground = (hex) => {
-  if (typeof hex !== 'string' || !/^#([\da-f]{3}|[\da-f]{6})$/i.test(hex)) {
-    return 'var(--bg-subtle)'
-  }
-  let normalized = hex.replace('#', '')
-  if (normalized.length === 3) {
-    normalized = normalized.split('').map((c) => c + c).join('')
-  }
-  const r = parseInt(normalized.slice(0, 2), 16)
-  const g = parseInt(normalized.slice(2, 4), 16)
-  const b = parseInt(normalized.slice(4, 6), 16)
-  return `rgba(${r}, ${g}, ${b}, 0.12)`
 }
 
 const getColumnHeaderStyle = (column) => {
