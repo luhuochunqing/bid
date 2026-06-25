@@ -1,6 +1,8 @@
 package com.xiyu.bid.task.service;
 
+import com.xiyu.bid.common.domain.AuthorizationDecision;
 import com.xiyu.bid.task.core.DeliverableAssociationPolicy;
+import com.xiyu.bid.task.core.TaskOperationPolicy;
 import com.xiyu.bid.task.core.TaskTransitionPolicy;
 import com.xiyu.bid.task.dto.DeliverableCoverageDTO;
 import com.xiyu.bid.task.dto.TaskDeliverableAssembler;
@@ -21,7 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -55,8 +56,10 @@ public class TaskDeliverableService {
         // 内部调用（username 为 null 或 "system"）跳过身份校验。
         if (username != null && !"system".equals(username)) {
             User currentUser = userRepository.findByUsername(username).orElse(null);
-            if (currentUser != null && !Objects.equals(currentUser.getId(), task.getAssigneeId())) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "仅任务执行人本人可提交/上传交付物");
+            Long currentUserId = currentUser != null ? currentUser.getId() : null;
+            AuthorizationDecision decision = TaskOperationPolicy.canActAsAssignee(task.getAssigneeId(), currentUserId);
+            if (!decision.allowed()) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, decision.reason());
             }
         }
 

@@ -105,7 +105,16 @@
     </el-dialog>
 
     <!-- 驳回原因对话框 -->
-    <TaskRejectDialog v-model:visible="showRejectDialog" :task="rejectingTask" :loading="rejectingLoading" @confirm="confirmReject" />
+    <el-dialog v-model="showRejectDialog" title="驳回任务" width="420px" :close-on-click-modal="false">
+      <el-form label-width="0">
+        <el-form-item :label="'驳回：' + (rejectingTask?.title || '')" />
+        <el-input v-model="rejectReason" type="textarea" :rows="3" placeholder="请填写驳回原因" />
+      </el-form>
+      <template #footer>
+        <el-button @click="showRejectDialog = false">取消</el-button>
+        <el-button type="danger" :loading="rejectingLoading" @click="confirmReject">确认驳回</el-button>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
@@ -114,10 +123,8 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { projectsApi } from '@/api/modules/projects.js'
 import { useUserStore } from '@/stores/user.js'
-import { GLOBAL_MANAGE_ROLES } from '@/constants/roleCodes.js'
+import { ROLE_CODES, GLOBAL_MANAGE_ROLES } from '@/constants/roleCodes.js'
 import UserPicker from '@/components/common/UserPicker.vue'
-import TaskRejectDialog from './TaskRejectDialog.vue'
-
 const props = defineProps({
   projectId: { type: [String, Number], required: true },
   canUseAI: Boolean,
@@ -151,7 +158,7 @@ function isTaskAssignee(task) {
 
 const canReviewTasks = computed(() => {
   const roleCode = userStore?.currentUser?.roleCode || userStore?.currentUser?.role || ''
-  if (GLOBAL_MANAGE_ROLES.some(r => r.toLowerCase() === roleCode?.toLowerCase())) {
+  if (GLOBAL_MANAGE_ROLES.some(r => r.toLowerCase() === roleCode.toLowerCase())) {
     return true
   }
   const currentUserId = userStore?.currentUser?.id
@@ -260,14 +267,15 @@ async function approveTask(task) {
   } catch (e) { ElMessage.error(e?.response?.data?.msg || '审核失败') }
 }
 // Reject with reason
-const showRejectDialog = ref(false), rejectingTask = ref(null), rejectingLoading = ref(false)
-function rejectTask(task) { rejectingTask.value = task; showRejectDialog.value = true }
+const showRejectDialog = ref(false), rejectingTask = ref(null), rejectReason = ref(''), rejectingLoading = ref(false)
+function rejectTask(task) { rejectingTask.value = task; rejectReason.value = ''; showRejectDialog.value = true }
 
-async function confirmReject(reason) {
+async function confirmReject() {
+  if (!rejectReason.value.trim()) return ElMessage.warning('请填写驳回原因')
   if (!rejectingTask.value) return
   rejectingLoading.value = true
   try {
-    await projectsApi.updateTask(rejectingTask.value.id, { rejectionReason: reason })
+    await projectsApi.updateTask(rejectingTask.value.id, { rejectionReason: rejectReason.value.trim() })
     await projectsApi.updateTaskStatus(props.projectId, rejectingTask.value.id, 'TODO')
     ElMessage.success('已驳回，任务退回待办')
     showRejectDialog.value = false
