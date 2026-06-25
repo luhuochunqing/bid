@@ -25,9 +25,17 @@ export function useNotifications(options = {}) {
     }
   }
 
-  const startPolling = () => {
+  const startPolling = async () => {
     stopPolling()
-    store.fetchUnreadCount()
+    // 首次获取未读数，403 时停止轮询
+    try {
+      await store.fetchUnreadCount()
+    } catch (err) {
+      if (err?.response?.status === 401 || err?.response?.status === 403) {
+        stopPolling()
+        return
+      }
+    }
     pollingTimer.value = setInterval(async () => {
       if (backoffUntil.value > Date.now()) {
         return

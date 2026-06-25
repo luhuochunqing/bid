@@ -141,7 +141,12 @@ const loadLogs = async () => {
       : (payload?.items || payload?.logs || payload?.list || [])
     logs.value = Array.isArray(list) ? list : []
   } catch (err) {
-    ElMessage.warning('操作日志加载失败')
+    const status = err?.response?.status
+    if (status === 403) {
+      ElMessage.warning('操作日志暂时无法加载')
+    } else {
+      ElMessage.warning('操作日志加载失败')
+    }
     logs.value = []
   } finally {
     loading.value = false

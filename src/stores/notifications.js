@@ -22,6 +22,11 @@ export const useNotificationStore = defineStore('notifications', {
         const result = await notificationsApi.getUnreadCount()
         this.unreadCount = result.count ?? 0
       } catch (err) {
+        const status = err?.response?.status
+        // 401/403 向上抛出，让调用方决定是否停止轮询
+        if (status === 401 || status === 403) {
+          throw err
+        }
         this.unreadCount = 0
       }
     },

@@ -16,7 +16,7 @@ export const auditApi = {
     return httpClient.get('/api/audit', { params })
   },
   async getQualificationLogs(qualificationId) {
-    return httpClient.get(`/api/qualifications/${qualificationId}/audit-logs`)
+    return httpClient.get(`/api/qualifications/${qualificationId}/audit-logs`, { silentError: true })
   },
   // CO-324: 项目动态操作日志
   async getProjectActivityLogs(projectId) {
