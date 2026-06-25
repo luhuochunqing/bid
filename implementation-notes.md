@@ -29,6 +29,33 @@
 - 后端：`mvn -f backend/pom.xml test -Dtest=UserSearchServiceTest,UserSearchControllerTest,UserRepositorySearchTest,ProjectControllerAuthorizationTest,ProjectControllerIntegrationTest,ProjectListInitiationStateIntegrationTest`：29 tests passed，BUILD SUCCESS；提交前因行数预算拆分 `ProjectListEnrichmentSupport` 后补跑 `mvn -f backend/pom.xml test -Dtest=ProjectListInitiationStateIntegrationTest,ProjectControllerIntegrationTest,ProjectControllerAuthorizationTest`：15 tests passed，BUILD SUCCESS；保留 Maven `systemPath`、git-commit-id 插件参数、ByteBuddy agent 等既有 warning。
 - 通用：`git diff --check`：通过，无空白错误。
 
+---
+
+## 2026-06-25 UserPicker filter-method 回归 Bug
+
+### 问题
+commit `61dd1fd87` 为 UserPicker 加了 `:filter-method="mode === 'search' ? () => {} : undefined"`，目的是在 `mode='search'` 时禁用前端过滤，让用户只能通过远程搜索选人。
+
+但这在 Element Plus 的 `handleQueryChange` 中产生副作用：
+```
+if (filterable && isFunction(filterMethod))  → 调用 filterMethod(val) ← 空函数命中
+else if (filterable && remote && isFunction(remoteMethod)) → 永不到达
+```
+
+结果：输入文字 → 空函数执行 → API 永不触发 → 用户搜索不到执行人。
+
+### 修复
+- 删除 `:filter-method` 行（`UserPicker.vue:7`）。
+- 在 `scripts/check-userpicker-mode.mjs` 新增 `checkFilterMethodInUserPicker()` 守卫，任何 staged `.vue` 文件中 `<UserPicker>` 带 `filter-method` 属性都会被阻止提交。
+
+### 权衡
+- 移除 `filter-method` 后，`mode='search'` 时用户仍然可以前端过滤 — 但这不是问题，因为 `remote` + `remote-method` 下 Element Plus 的行为是先调 `remoteMethod`，结果显示在 option 中，前端过滤只是锦上添花。
+- 更彻底的方案可以设 `filterable="mode !== 'search'"`（之前的 commit 这么做过又还原了），但会让 mode 切换行为不一致，且需要改测试和 pre-commit 检查。当前方案最小化改动。
+
+### 防复发
+- 新增的 pre-commit 守卫强制阻断任何为 UserPicker 加 `filter-method` 的提交。
+- 已有 `SEARCH_MODE_FILES` 列表确保关键文件必须使用 `mode='search'`。
+
 # 标讯/项目列表选人工号未知修复实施记录
 
 ## 问题口径

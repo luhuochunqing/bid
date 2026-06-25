@@ -135,7 +135,46 @@ function main() {
     }
   }
 
+  exitCode = checkFilterMethodInUserPicker() || exitCode;
+
   process.exit(exitCode);
+}
+
+// ---------------------------------------------------------------------------
+// Guard (2026-06-25): block filter-method on UserPicker — it breaks remote
+// search in Element Plus because filterMethod takes priority over remoteMethod
+// in handleQueryChange:
+//   if (filterable && isFunction(filterMethod)) → no-op, never reaches remote-method
+function checkFilterMethodInUserPicker() {
+  const pickerTagRe = /<UserPicker\b([^>]*)\/?>/g;
+  const filterMethodRe = /filter-method\s*=/;
+
+  const files = stagedFiles();
+  for (const file of files) {
+    if (!file.endsWith('.vue')) continue;
+    const fullPath = `${ROOT}/${file}`;
+    let content;
+    try {
+      const buf = spawnSync('git', ['show', ':' + file], {
+        encoding: 'utf-8', cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      content = buf.stdout;
+    } catch {
+      try { content = fs.readFileSync(fullPath, 'utf-8'); } catch { continue; }
+    }
+    let match;
+    while ((match = pickerTagRe.exec(content)) !== null) {
+      if (filterMethodRe.test(match[1])) {
+        console.error(
+          `\n[check-userpicker-mode] BLOCKED: ${file}` +
+          `\n  UserPicker must NOT have a filter-method attribute — it suppresses remote search.` +
+          `\n  Remove ':filter-method' from the <UserPicker> tag.`
+        );
+        return 1;
+      }
+    }
+  }
+  return 0;
 }
 
 main();
