@@ -263,7 +263,7 @@ export function useInitiationStageActions({
               projectPlanGapFiles: Array.isArray(b.projectPlanGapFiles) ? b.projectPlanGapFiles : form.projectPlanGapFiles,
             })
           }
-          // 评估表客户信息矩阵 EAV → 立项表单 CustomerInfoRow
+          // CO-323: 评估表客户信息矩阵 EAV → 立项动态行（0 行 × 14 列，和标讯完全一致）
           const evalCustomerInfos = evaluation?.evaluationCustomerInfos
           if (Array.isArray(evalCustomerInfos) && evalCustomerInfos.length > 0) {
             const INFO_KEY_MAP = {
@@ -282,7 +282,7 @@ export function useInitiationStageActions({
               const fieldKey = INFO_KEY_MAP[e.infoKey]
               if (fieldKey) roleMap[e.roleKey][fieldKey] = e.value
             })
-            // 映射到 custFixedRows
+            // CO-323: 动态行——只生成有数据的角色行，按 ROW_ROLE_MAP 顺序排序
             const ROW_ROLE_MAP = {
               PROJECT_HIGHEST_DECISION_MAKER: '项目最高决策人',
               MATERIALS_COMPANY_CHAIRMAN: '物资公司董事长',
@@ -299,11 +299,16 @@ export function useInitiationStageActions({
               EXPERT_2: '专家2',
               EXPERT_3: '专家3',
             }
-            custFixedRows.value = custFixedRows.value.map(row => {
-              const roleKey = Object.keys(ROW_ROLE_MAP).find(k => ROW_ROLE_MAP[k] === row.role)
-              if (!roleKey || !roleMap[roleKey]) return row
-              return { ...row, ...roleMap[roleKey] }
-            })
+            custFixedRows.value = Object.entries(ROW_ROLE_MAP)
+              .filter(([roleKey]) => roleMap[roleKey])
+              .map(([roleKey, roleLabel]) => ({
+                role: roleLabel,
+                name: '', contactInfo: '', position: '', xiyuContact: '',
+                reached: '', reachMethod: '', preference: '', preferenceBasis: '',
+                guideBid: '', canGetKeyInfo: '', canRemoveAdverse: '', canSyncEval: '',
+                canConfirmWin: '', winRateImpact: '',
+                ...roleMap[roleKey],
+              }))
           }
         } catch (evalErr) {
           console.warn('[InitiationStage] auto-fill evaluation data failed', evalErr)

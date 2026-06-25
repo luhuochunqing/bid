@@ -79,8 +79,11 @@ public class InitiationPrefillService {
                 .build();
         // 标讯基础字段 → 立项 ownerUnit/customerType（必填项，必须带入否则提交立项校验失败）
         EvaluationToInitiationMapper.applyTenderFields(details, tender);
-        if (evaluation != null && evaluation.getBasic() != null) {
-            EvaluationToInitiationMapper.applyEvaluationBasic(details, evaluation.getBasic());
+        if (evaluation != null) {
+            // CO-323: basic 和 customerInfos 解耦——basic 可为空，有 customerInfos 也要带入
+            if (evaluation.getBasic() != null) {
+                EvaluationToInitiationMapper.applyEvaluationBasic(details, evaluation.getBasic());
+            }
             List<CustomerInfoRow> rows = EvaluationToInitiationMapper.toCustomerInfoRows(evaluation.getCustomerInfos());
             try {
                 details.setCustomerInfoJson(objectMapper.writeValueAsString(rows));

@@ -58,7 +58,7 @@
 <el-card class="section-card" shadow="never">
 <template #header><span>客户信息</span></template>
 <div class="customer-table-wrapper">
-<el-table :data="custFixedRows" border style="min-width:3360px" height="500">
+<el-table :data="custFixedRows" border style="min-width:3360px" height="500" empty-text="暂无客户信息（由标讯评估表带入）">
 <!-- 列顺序、标签、控件类型对齐 customerInfoMatrixConfig.js -->
 <el-table-column label="姓名" width="120"><template #default="{row}"><el-input v-model="row.name" :disabled="fieldDisabled" size="small" placeholder="请输入姓名" /></template></el-table-column>
 <el-table-column label="联系方式" width="160"><template #default="{row}"><el-input v-model="row.contactInfo" :disabled="fieldDisabled" size="small" placeholder="手机号/电话/邮箱" /></template></el-table-column>
@@ -192,12 +192,8 @@ const emit = defineEmits(['updated'])
 const userStore = useUserStore()
 const adaptiveForm = shallowRef(null)
 const form = reactive({ projectName: '', ownerUnit: '', createTime: new Date().toISOString().slice(0, 16).replace('T', ' '), projectType: '', customerType: '', priorityLevel: 'B', headquartersLocation: '', projectLeaderName: '', projectLeaderUserId: null, leaderDepartment: '', contactName: '', contactPhone: '', contactTel: '', contactMail: '', contactName2: '', contactPhone2: '', contactTel2: '', contactMail2: '', tenderId: null, expectedBidders: 0, annualEcommerceAmount: 0, annualRevenue: 0, customerRevenue: 0, bidOpenTime: '', bidMonth: '', biddingPlatform: '', needDeposit: 'NO', depositAmount: 0, depositPaymentMethod: '', tenderAdverseItems: '', riskAssessment: '', riskMitigationPlan: '', pmUnderstandsProcess: '', supportNeeded: '', projectPlanGap: '', projectPlanGapFiles: [], tenderDocumentId: null, aiRiskLevel: null, aiRiskAssessmentNotes: '', biddingLeaderName: '', biddingAssistantName: '' })
-// 与 customerInfoMatrixConfig.js CUSTOMER_INFO_ROWS 对齐（14 行）
-const CUST_ROLES = ["项目最高决策人","物资公司董事长","物资公司分管电商领导","电商公司董事长","电商公司总经理","电商公司副总经理","电商公司运营负责人","招标文件制作人","其他关键决策人1","其他关键决策人2","其他关键决策人3","专家1","专家2","专家3"]
-function emptyCustRow(role) { return { role, name: '', contactInfo: '', position: '', xiyuContact: '', reached: '', reachMethod: '', preference: '', preferenceBasis: '', guideBid: '', canGetKeyInfo: '', canRemoveAdverse: '', canSyncEval: '', canConfirmWin: '', winRateImpact: '' } }
-// CO-323 fix: POSITION/CONTACT_METHOD/TENDENCY/IMPACT OPTIONS 复用评估表 customerInfoMatrixConfig.js，
-// 保证立项页客户信息矩阵与标讯评估表完全一致（值域对齐，mapper 原样透传即可正确显示）
-const custFixedRows = ref(CUST_ROLES.map(emptyCustRow)); const bidDocFiles = ref([]); const planGapFiles = ref([]); const existing = ref(false);
+// CO-323: 客户信息矩阵改成 0 行 × 14 列，和标讯完全一致（动态行，由标讯评估表带入）
+const custFixedRows = ref([]); const bidDocFiles = ref([]); const planGapFiles = ref([]); const existing = ref(false);
 const planGapUploadUrl = computed(() => getApiUrl(`/api/projects/${props.projectId}/documents`))
 const planGapUploadHeaders = computed(() => { const t = userStore?.token; return t ? { Authorization: 'Bearer ' + t } : {} })
 function beforePlanGapUpload(file) { const max = 10 * 1024 * 1024; if (file.size > max) { ElMessage.error('文件不能超过10MB'); return false } return true }
