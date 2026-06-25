@@ -8,49 +8,40 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.annotation.RequestScope;
 
 /**
  * 当前用户解析器。
- * <p>统一封装「从 SecurityContext 获取认证信息 → 查询 DB 获取 User 实体」的逻辑，
- * 并利用 @RequestScope 做请求级缓存，避免同一次请求内多次查询。</p>
+ * <p>统一封装「从 SecurityContext 获取认证信息 → 查询 DB 获取 User 实体」的逻辑。</p>
  * <p>
  * <b>注意</b>：新代码优先在 Controller 层通过 @AuthenticationPrincipal 获取用户身份再传入 Service，
  * 而非在 Service 层直接调用此 Resolver。此 Resolver 主要用于遗留代码过渡和 AOP/切面等无法从参数获取用户的场景。
  * </p>
  * <p>
- * <b>限制</b>：因使用 @RequestScope，仅在 HTTP 请求线程中可用。
- * 在 @Async / @Scheduled / 消息队列消费者等非 HTTP 线程中调用会抛出 IllegalStateException。
- * 后台线程场景应通过参数显式传入 User 对象，不依赖此 Resolver。
+ * <b>设计决策</b>：不使用 @RequestScope 进行请求级缓存，原因见 Lesson #13：
+ * ehsy 组织事件 SDK 在 ApplicationReadyEvent 时通过 getBeansOfType() 扫描所有 bean，
+ * 若存在 @RequestScope bean 会导致 ScopeNotActiveException 启动失败。
+ * 改为单例 + 每次直接查询数据库（走主键/用户名索引，性能可忽略）。
  * </p>
  */
 @Component
-@RequestScope
 @RequiredArgsConstructor
 public class CurrentUserResolver {
 
     private final UserRepository userRepository;
 
-    private User cachedUser;
-    private boolean resolved;
-
     /**
      * 获取当前认证用户。
+     * <p>每次调用直接查询数据库，不使用请求级缓存。
+     * 用户查询走 username 索引，性能影响可忽略。</p>
      *
      * @return 当前用户，未认证或不存在时返回 null
      */
     public User getCurrentUser() {
-        if (resolved) {
-            return cachedUser;
-        }
-        resolved = true;
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {
-            cachedUser = null;
             return null;
         }
-        cachedUser = userRepository.findByUsername(auth.getName()).orElse(null);
-        return cachedUser;
+        return userRepository.findByUsername(auth.getName()).orElse(null);
     }
 
     /**
