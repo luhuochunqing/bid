@@ -60,25 +60,24 @@
 
 ## 7. 拼音搜索功能修复（2026-06-25 紧急修复）
 
-### 7.1 根因
-- **后端**: `UserRepository.searchActiveUsers()` SQL 只搜索了 `full_name`、`username`、`employee_number`，**缺少 `full_name_pinyin` 和 `employee_number_pinyin`**
-- **后端**: `User` entity 缺少 `employee_number_pinyin` 字段定义
-- **前端**: UserPicker.vue 同时设置了 `:filterable="true"` 和 `:remote="true"`，Element Plus 优先执行前端静态过滤，**不触发远程搜索**
-- **后端**: `@PrePersist`/`@PreUpdate` 未自动生成工号拼音
+### 7.1 根因分析
+- **后端**：`UserRepository.searchActiveUsers()` SQL 只搜索了 `full_name`、`username`、`employee_number`，**缺少 `full_name_pinyin` 和 `employee_number_pinyin`**
+- **后端**：`User` entity 缺少 `employee_number_pinyin` 字段定义
+- **后端**：`@PrePersist`/`@PreUpdate` 未自动生成工号拼音
+- **前端**：UserPicker.vue `filterable=true` + `remote=true` 配置是**正确的**！我之前的分析错误，误以为 filterable 会阻止 remote-method 触发——实际上两者同时开启才能输入并触发远程搜索
 
 ### 7.2 修复内容
 1. **UserRepository.java**: 搜索 SQL 增加 `full_name_pinyin` 和 `employee_number_pinyin` 匹配
 2. **User.java**: 增加 `employeeNumberPinyin` 字段及自动生成逻辑
 3. **V1096 migration**: 新增 DB column `employee_number_pinyin VARCHAR(255)`
-4. **UserPicker.vue**: `:filterable="mode !== 'search'"` — search 模式禁用前端过滤，强制走远程搜索
-5. **数据库**: 远程 RDS 手动执行 ALTER TABLE + backfill（27 条记录已回填）
+4. **数据库**: 远程 RDS 手动执行 ALTER TABLE + backfill（27 条记录已回填）
 
 ### 7.3 验证结果（生产环境）
 - ✅ `/api/users/search?q=zhang` → 200 OK（拼音搜索，后端动态搜索）
 - ✅ `/api/users/search?q=余` → 200 OK（中文搜索）
 - ✅ `/api/users/search?q=001` → 200 OK（工号搜索）
 - ✅ 搜索请求平均响应时间：20-35ms
-- ✅ 前端 UserPicker search 模式：输入触发远程搜索，不再仅依赖 initialOptions 静态过滤
+- ✅ 前端 UserPicker search 模式：`filterable=true` + `remote=true`，可以输入并触发远程搜索
 
 ### 7.4 注意事项
 - PinyinBackfillRunner 会在后台异步回填存量 8532 用户的拼音字段
