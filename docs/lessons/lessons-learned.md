@@ -1080,3 +1080,108 @@ curl -s -D- -o /dev/null -X OPTIONS "http://172.16.38.78:8080/api/doc-insight/do
 
 ---
 
+## 17. 部署前必须验证 jar 中 Flyway 迁移脚本无重复版本
+
+### 问题背景
+
+2026-06-25 部署 `b122e9f4-api8080` 时，后端启动失败，Flyway 检测到 V1096 版本重复。源码目录只有一个 V1096，但 `target/` 目录残留了旧的迁移文件，被一起打进 jar 包，导致 Flyway 启动时发现两个同版本脚本，直接抛异常退出。
+
+### 事故时间线
+
+| 时间 (CST) | 事件 | 影响 |
+|------------|------|------|
+| 22:30 | 打包发布包（未 clean，直接 package） | target 残留旧迁移文件 |
+| 22:40 | 上传发布包到服务器 | 包内已包含重复迁移 |
+| 22:45 | 执行 remote-deploy.sh 激活发布 | 后端启动失败 |
+| 22:48 | Nginx 返回 502，服务不可用 | 用户无法访问 |
+| 22:50 | 回滚到上一稳定版本 `03811f07-api8080` | 服务恢复 |
+| 22:53 | 清理 target 后重新 clean package | 生成干净的 jar |
+| 22:55 | 重新部署成功 | 服务完全恢复 |
+
+### 根因分析
+
+**直接原因**：`mvn package` 增量构建不会删除 target 中已存在的资源文件。旧的迁移文件（已被重命名或删除）残留在 `target/classes/db/migration-mysql/`，被一起打进 jar 包。
+
+**深层原因**：
+
+1. **发布打包缺少 clean 步骤**：`package-release.sh` 或手动打包时省略了 `clean`，直接 `package`
+2. **部署前缺少迁移版本校验**：没有检查 jar 中是否有重复的 Flyway 版本
+3. **回滚流程虽然可用，但仍有约 10 分钟服务中断**：从发现问题到回滚完成需要时间
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| `mvn package` 不清理 target 旧文件 | 增量构建不适合发布场景 | **发布打包必须 `mvn clean package`**，不能省略 clean |
+| 部署后才发现迁移冲突 | 应该在部署前、甚至打包后立即发现 | **打包后必须校验 Flyway 迁移版本无重复**，作为发布门禁 |
+| 只检查源码目录 | 源码干净 ≠ 产物干净 | 以 jar 包实际内容为准，不以源码目录为准 |
+| 回滚导致服务中断 | 应该在部署前拦截，而不是部署后回滚 | 把 Flyway 版本校验加入 pre-deploy checklist |
+
+### 发布前检查清单（Pre-deploy Checklist）
+
+每次部署前，必须完成以下检查：
+
+```
+□ 1. 使用 mvn clean package 打包（不是 mvn package）
+□ 2. 验证 jar 中 Flyway 迁移版本无重复
+□ 3. 验证 jar 大小和关键 class 文件符合预期
+□ 4. 数据库备份已完成
+□ 5. 上一版本的 release 目录存在（回滚锚点）
+```
+
+### 验证命令
+
+```bash
+# 1. 检查 jar 中 Flyway 迁移版本是否有重复（核心检查）
+jar tf target/bid-poc-1.0.3.jar \
+  | grep "migration-mysql/V" \
+  | sed 's|BOOT-INF/classes/db/migration-mysql/V||' \
+  | sed 's|__.*||' \
+  | sort \
+  | uniq -d
+# 期望输出：空（无重复版本）
+
+# 2. 快速查看 V109x 等近期迁移是否正常
+jar tf target/bid-poc-1.0.3.jar | grep "migration-mysql/V109" | sort
+
+# 3. 检查迁移脚本总数（与源码目录对比）
+echo "源码目录迁移脚本数:"
+ls backend/src/main/resources/db/migration-mysql/ | wc -l
+echo "jar 包内迁移脚本数:"
+jar tf target/bid-poc-1.0.3.jar | grep "migration-mysql/V" | wc -l
+# 两者应该相等（或 jar 包中略多，因为包含 B 基线版本）
+
+# 4. 服务器上验证（部署前可在 incoming 目录先检查）
+ssh jetty@172.16.38.78 'jar tf /opt/xiyu-bid/incoming/app.jar | grep "migration-mysql/V" | sort | tail -20'
+```
+
+### 建议固化到打包脚本
+
+在 `scripts/release/package-release.sh` 中增加 Flyway 版本校验步骤：
+
+```bash
+# 打包后校验 Flyway 迁移无重复版本
+duplicate_versions=$(jar tf "$BACKEND_JAR" \
+  | grep "migration-mysql/V" \
+  | sed 's|BOOT-INF/classes/db/migration-mysql/V||' \
+  | sed 's|__.*||' \
+  | sort \
+  | uniq -d)
+
+if [ -n "$duplicate_versions" ]; then
+  echo "❌ ERROR: Found duplicate Flyway migration versions:"
+  echo "$duplicate_versions"
+  exit 1
+fi
+echo "✅ Flyway migration versions: no duplicates"
+```
+
+### 相关文档
+
+- `docs/lessons/build-gotchas.md` §3 — Maven target 目录残留旧 Flyway 迁移文件陷阱
+- `docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md` — 部署运行手册
+- `scripts/release/package-release.sh` — 发布打包脚本
+- `backend/src/main/resources/db/migration-mysql/` — Flyway 迁移脚本目录
+
+---
+
