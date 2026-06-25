@@ -19,6 +19,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import com.xiyu.bid.common.util.PinyinUtils;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -74,6 +76,12 @@ public class User {
     @Column(name = "employee_number", length = 32)
     private String employeeNumber;
 
+    @Column(name = "full_name_pinyin", length = 255)
+    private String fullNamePinyin;
+
+    @Column(name = "employee_number_pinyin", length = 255)
+    private String employeeNumberPinyin;
+
     @Column(name = "wecom_user_id", length = 64)
     private String wecomUserId;
 
@@ -99,11 +107,24 @@ public class User {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
+        if (fullNamePinyin == null && fullName != null && !fullName.isBlank()) {
+            fullNamePinyin = PinyinUtils.toPinyin(fullName);
+        }
+        if (employeeNumberPinyin == null && employeeNumber != null && !employeeNumber.isBlank()) {
+            employeeNumberPinyin = PinyinUtils.toPinyin(employeeNumber);
+        }
     }
 
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+        // Always refresh pinyin when fullName or employeeNumber changes (org sync, admin edit, etc.)
+        if (fullName != null && !fullName.isBlank()) {
+            fullNamePinyin = PinyinUtils.toPinyin(fullName);
+        }
+        if (employeeNumber != null && !employeeNumber.isBlank()) {
+            employeeNumberPinyin = PinyinUtils.toPinyin(employeeNumber);
+        }
     }
 
     public enum Role {
@@ -138,5 +159,20 @@ public class User {
             case ADMIN -> "管理员";
             case MANAGER -> "经理";
         };
+    }
+
+    /**
+     * Returns the employee number if present, falling back to username
+     * when the employee number column is blank (e.g. org-synced users whose
+     * visible job number was historically stored in the username field).
+     * <p>
+     * This is the single source of truth for display-oriented employee-number
+     * resolution used by user search, candidate lists, and similar features.
+     */
+    public String getDisplayEmployeeNumber() {
+        if (employeeNumber != null && !employeeNumber.isBlank()) {
+            return employeeNumber;
+        }
+        return username;
     }
 }

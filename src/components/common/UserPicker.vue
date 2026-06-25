@@ -1,9 +1,10 @@
 <template>
   <el-select
     v-model="selectedId"
-    :filterable="mode === 'search'"
+    :filterable="true"
     :remote="mode === 'search'"
     :remote-method="handleRemoteSearch"
+    :filter-method="mode === 'search' ? () => {} : undefined"
     :loading="loading"
     :placeholder="placeholder"
     :disabled="disabled"

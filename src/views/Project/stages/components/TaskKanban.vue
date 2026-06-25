@@ -123,6 +123,7 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { projectsApi } from '@/api/modules/projects.js'
 import { useUserStore } from '@/stores/user.js'
+import { isTaskAssignee } from '@/utils/permission.js'
 import { ROLE_CODES, GLOBAL_MANAGE_ROLES } from '@/constants/roleCodes.js'
 import UserPicker from '@/components/common/UserPicker.vue'
 const props = defineProps({
@@ -149,14 +150,10 @@ const grouped = computed(() => {
     if (!g[s]) g[s] = []
     g[s].push(t)
   }
-  return g
-})
-function isTaskAssignee(task) {
-  const uid = userStore?.currentUser?.id
-  return uid != null && task?.assigneeId != null && String(uid) === String(task.assigneeId)
-}
+return g
+	})
 
-const canReviewTasks = computed(() => {
+	const canReviewTasks = computed(() => {
   const roleCode = userStore?.currentUser?.roleCode || userStore?.currentUser?.role || ''
   if (GLOBAL_MANAGE_ROLES.some(r => r.toLowerCase() === roleCode.toLowerCase())) {
     return true

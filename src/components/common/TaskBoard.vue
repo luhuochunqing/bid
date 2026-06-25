@@ -50,12 +50,12 @@
                   <el-dropdown-item
                     v-for="s in availableStatuses"
                     :key="s.code"
-                    :disabled="normalizeStatus(task.status) === s.code"
+                    :disabled="normalizeStatus(task.status) === s.code || !canChangeStatus(task)"
                     @click="handleStatusChange(task, s.code)"
                   >
                     设为{{ s.name }}
                   </el-dropdown-item>
-                  <el-dropdown-item divided @click="handleUploadDeliverable(task)">
+                  <el-dropdown-item divided @click="handleUploadDeliverable(task)" v-if="isTaskAssignee(task)">
                     <el-icon><Upload /></el-icon>
                     上传交付物
                   </el-dropdown-item>
@@ -77,7 +77,7 @@
             <div v-if="task.deliverables && task.deliverables.length > 0" class="deliverables">
               <div class="deliverable-title">交付物:</div>
               <div v-for="del in task.deliverables" :key="del.id" class="deliverable-item">
-                <el-tag size="small" closable @close="handleRemoveDeliverable(task, del)">
+                <el-tag size="small" :closable="isTaskAssignee(task)" @close="handleRemoveDeliverable(task, del)">
                   <el-link :href="del.url" target="_blank" type="primary">
                     <el-icon><Document /></el-icon>
                     {{ del.name }}
@@ -145,13 +145,16 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { MoreFilled, User, Calendar, Document, MagicStick, Upload, DocumentAdd, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { MoreFilled, User, Calendar, Document, MagicStick, Upload, DocumentAdd, UploadFilled } from '@element-plus/icons-vue'
 import draggable from 'vuedraggable'
 import { useProjectStore } from '@/stores/project'
 import { useUserStore } from '@/stores/user'
 import { useTaskBoardDrag } from './useTaskBoardDrag'
+import { useDeliverableUpload } from '@/composables/useDeliverableUpload.js'
 import { getPriorityType, getPriorityLabel as getPriorityText } from '@/views/Dashboard/workbench-formatters.js'
+import { isTaskAssignee } from '@/utils/permission.js'
+import { hexToSoftBackground } from '@/utils/color.js'
 
 const props = defineProps({
   tasks: {
@@ -174,14 +177,32 @@ const emit = defineEmits(['task-click', 'status-change', 'generate-tasks', 'subm
 const projectStore = useProjectStore()
 const userStore = useUserStore()
 
-const showUploadDialog = ref(false)
-const currentTask = ref(null)
-const fileList = ref([])
-
-const deliverableForm = ref({
-  name: '',
-  type: 'document',
-  file: null
+const {
+  dialogVisible: showUploadDialog,
+  currentTask,
+  fileList,
+  form: deliverableForm,
+  saving: uploadSaving,
+  openDialog: handleUploadDeliverable,
+  handleFileChange,
+  save: handleSaveDeliverable,
+} = useDeliverableUpload({
+  onSave: async (task, payload) => {
+    const typeMap = {
+      document: 'DOCUMENT', qualification: 'QUALIFICATION',
+      technical: 'TECHNICAL', quotation: 'QUOTATION', other: 'OTHER',
+    }
+    const saved = await projectStore.addDeliverable(props.projectId, task.id, {
+      name: payload.name,
+      deliverableType: typeMap[payload.type] || 'DOCUMENT',
+      size: payload.file ? `${(payload.file.size / 1024).toFixed(1)}KB` : null,
+      fileType: payload.file?.type || null,
+      file: payload.file,
+      uploaderId: userStore.currentUser?.id ?? null,
+      uploaderName: userStore.userName,
+    })
+    emit('add-deliverable', task.id, saved)
+  },
 })
 
 const statuses = computed(() => projectStore.taskStatuses)
@@ -196,6 +217,17 @@ onMounted(() => {
 
 const normalizeStatus = (status) => String(status || '').toUpperCase()
 
+const canChangeStatus = (task) => {
+  if (isTaskAssignee(task) || userStore.isBidManager) return true
+  const project = projectStore.currentProject
+  if (!project) return false
+  const uid = userStore?.currentUser?.id
+  return uid != null && (
+    (project.primaryLeadUserId != null && String(uid) === String(project.primaryLeadUserId)) ||
+    (project.secondaryLeadUserId != null && String(uid) === String(project.secondaryLeadUserId))
+  )
+}
+
 const columns = computed(() => availableStatuses.value
   .map((s) => ({
     key: s.code,
@@ -205,9 +237,7 @@ const columns = computed(() => availableStatuses.value
     terminal: s.terminal
   })))
 
-const terminalCodes = computed(() => new Set(
-  statuses.value.filter((s) => s.terminal).map((s) => s.code)
-))
+const terminalCodes = computed(() => new Set(statuses.value.filter((s) => s.terminal).map((s) => s.code)))
 
 const progress = computed(() => {
   if (props.tasks.length === 0) return 0
@@ -226,23 +256,7 @@ const getTasksByStatus = (code) => {
   return props.tasks.filter((t) => normalizeStatus(t.status) === code)
 }
 
-const getTaskCount = (code) => {
-  return getTasksByStatus(code).length
-}
-
-const hexToSoftBackground = (hex) => {
-  if (typeof hex !== 'string' || !/^#([\da-f]{3}|[\da-f]{6})$/i.test(hex)) {
-    return 'var(--bg-subtle)'
-  }
-  let normalized = hex.replace('#', '')
-  if (normalized.length === 3) {
-    normalized = normalized.split('').map((c) => c + c).join('')
-  }
-  const r = parseInt(normalized.slice(0, 2), 16)
-  const g = parseInt(normalized.slice(2, 4), 16)
-  const b = parseInt(normalized.slice(4, 6), 16)
-  return `rgba(${r}, ${g}, ${b}, 0.12)`
-}
+const getTaskCount = (code) => getTasksByStatus(code).length
 
 const getColumnHeaderStyle = (column) => {
   const color = column?.color || 'var(--text-muted)'
@@ -260,13 +274,9 @@ const isUrgent = (deadline) => {
   return diffDays <= 3
 }
 
-const handleTaskClick = (task) => {
-  emit('task-click', task)
-}
+const handleTaskClick = (task) => emit('task-click', task)
 
-const handleStatusChange = (task, newStatus) => {
-  emit('status-change', task, newStatus)
-}
+const handleStatusChange = (task, newStatus) => emit('status-change', task, newStatus)
 
 const {
   isStatusTransitionInFlight, onDragChange, handleMouseDragStart, handleMouseDrop,
@@ -274,58 +284,6 @@ const {
   normalizeStatus,
   emitStatusChange: handleStatusChange,
 })
-
-const handleUploadDeliverable = (task) => {
-  currentTask.value = task
-  showUploadDialog.value = true
-  deliverableForm.value = {
-    name: '',
-    type: 'document',
-    file: null
-  }
-  fileList.value = []
-}
-
-const handleFileChange = (file) => {
-  deliverableForm.value.file = file.raw
-}
-
-const handleSaveDeliverable = async () => {
-  if (!currentTask.value || !deliverableForm.value.name) {
-    ElMessage.warning('请填写交付物名称')
-    return
-  }
-
-  try {
-    const typeMap = {
-      document: 'DOCUMENT',
-      qualification: 'QUALIFICATION',
-      technical: 'TECHNICAL',
-      quotation: 'QUOTATION',
-      other: 'OTHER'
-    }
-
-    const savedDeliverable = await projectStore.addDeliverable(props.projectId, currentTask.value.id, {
-      name: deliverableForm.value.name,
-      deliverableType: typeMap[deliverableForm.value.type] || 'DOCUMENT',
-      size: deliverableForm.value.file ? `${(deliverableForm.value.file.size / 1024).toFixed(1)}KB` : null,
-      fileType: deliverableForm.value.file?.type || null,
-      file: deliverableForm.value.file,
-      uploaderId: userStore.currentUser?.id ?? null,
-      uploaderName: userStore.userName,
-    })
-
-    emit('add-deliverable', currentTask.value.id, savedDeliverable)
-
-    showUploadDialog.value = false
-    deliverableForm.value = { name: '', type: 'document', file: null }
-    fileList.value = []
-
-    ElMessage.success('交付物已保存')
-  } catch (error) {
-    ElMessage.error(error?.message || '交付物上传失败')
-  }
-}
 
 const handleRemoveDeliverable = async (task, deliverable) => {
   try {
@@ -353,189 +311,33 @@ const handleSubmitToDocument = async () => {
 </script>
 
 <style scoped>
-.task-board {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.board-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.board-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--gray-750);
-}
-
-.board-columns-container {
-  display: flex;
-  gap: 16px;
-  min-height: 500px;
-}
-
-.board-column {
-  background: var(--bg-subtle);
-  border-radius: 8px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  min-width: 260px;
-  flex: 1;
-}
-
-.column-header {
-  padding: 12px 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-weight: 500;
-}
-
-.column-title {
-  font-size: 14px;
-}
-
-.column-content {
-  flex: 1;
-  padding: 12px;
-  overflow-y: auto;
-  max-height: 500px;
-}
-
-.task-card {
-  background: white;
-  border-radius: 6px;
-  padding: 12px;
-  margin-bottom: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-}
-
-.task-card:hover {
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
-}
-
-.task-card-ghost {
-  opacity: 0.5;
-  background: #eef5ff !important;
-  border: 1px dashed #409eff !important;
-}
-
-.task-card-dragging {
-  opacity: 0.9;
-  transform: rotate(2deg);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2) !important;
-  cursor: grabbing;
-}
-
-.task-high {
-  border-left: 3px solid #f56c6c;
-}
-
-.task-review {
-  border-left: 3px solid #e6a23c;
-}
-
-.task-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  gap: 8px;
-}
-
-.more-icon {
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 16px;
-}
-
-.more-icon:hover {
-  color: #409eff;
-}
-
-.task-name {
-  font-size: 14px;
-  color: var(--gray-750);
-  margin-bottom: 8px;
-  font-weight: 500;
-  line-height: 1.4;
-}
-
-.task-desc {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-bottom: 12px;
-  line-height: 1.4;
-}
-
-.task-meta {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.task-owner,
-.task-deadline {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.task-deadline.deadline-urgent {
-  color: #f56c6c;
-}
-
-.deliverables {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px dashed #dcdfe6;
-}
-
-.deliverable-title {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-bottom: 8px;
-}
-
-.deliverable-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin: 0 8px 8px 0;
-}
-
-.submit-section {
-  margin-top: 16px;
-  padding: 16px;
-  background: #f0f9ff;
-  border: 1px solid #b3e8ff;
-  border-radius: 8px;
-  text-align: center;
-}
-
-.submit-tip {
-  margin-top: 8px;
-  font-size: 12px;
-  color: #409eff;
-}
-
-.badge :deep(.el-badge__content) {
-  background-color: transparent;
-  color: inherit;
-  border: none;
-}
+.task-board { display: flex; flex-direction: column; gap: 16px; }
+.board-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.header-left { display: flex; align-items: center; gap: 12px; }
+.board-title { font-size: 16px; font-weight: 600; color: var(--gray-750); }
+.board-columns-container { display: flex; gap: 16px; min-height: 500px; }
+.board-column { background: var(--bg-subtle); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; min-width: 260px; flex: 1; }
+.column-header { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; font-weight: 500; }
+.column-title { font-size: 14px; }
+.column-content { flex: 1; padding: 12px; overflow-y: auto; max-height: 500px; }
+.task-card { background: white; border-radius: 6px; padding: 12px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.task-card:hover { box-shadow: 0 6px 16px rgba(0,0,0,0.15); }
+.task-card-ghost { opacity: 0.5; background: #eef5ff !important; border: 1px dashed #409eff !important; }
+.task-card-dragging { opacity: 0.9; transform: rotate(2deg); box-shadow: 0 12px 24px rgba(0,0,0,0.2) !important; cursor: grabbing; }
+.task-high { border-left: 3px solid #f56c6c; }
+.task-review { border-left: 3px solid #e6a23c; }
+.task-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; }
+.more-icon { color: var(--text-muted); cursor: pointer; font-size: 16px; }
+.more-icon:hover { color: #409eff; }
+.task-name { font-size: 14px; color: var(--gray-750); margin-bottom: 8px; font-weight: 500; line-height: 1.4; }
+.task-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.4; }
+.task-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); }
+.task-owner, .task-deadline { display: flex; align-items: center; gap: 4px; }
+.task-deadline.deadline-urgent { color: #f56c6c; }
+.deliverables { margin-top: 12px; padding-top: 12px; border-top: 1px dashed #dcdfe6; }
+.deliverable-title { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
+.deliverable-item { display: inline-flex; align-items: center; gap: 4px; margin: 0 8px 8px 0; }
+.submit-section { margin-top: 16px; padding: 16px; background: #f0f9ff; border: 1px solid #b3e8ff; border-radius: 8px; text-align: center; }
+.submit-tip { margin-top: 8px; font-size: 12px; color: #409eff; }
+.badge :deep(.el-badge__content) { background-color: transparent; color: inherit; border: none; }
 </style>

@@ -3,6 +3,8 @@
  * Replaces hardcoded role comparisons with menuPermission-driven logic.
  */
 
+import { useUserStore } from '@/stores/user.js'
+
 /**
  * Check if a user has any of the required permissions.
  * Authorization model: "deny by default, allow only when explicitly authorized."
@@ -76,3 +78,33 @@ export function isBidManagerExcludeAdmin(roleCode) {
   return ['/bidadmin', 'bid-teamleader'].includes(r)
 }
 
+/**
+ * Check if the given id matches the currently logged-in user.
+ * Safely handles null/undefined values for both sides.
+ * @param {number|string|null|undefined} id
+ * @returns {boolean}
+ */
+export function matchesCurrentUser(id) {
+  if (id == null || id === '') return false
+  const store = useUserStore()
+  const uid = store.currentUser?.id
+  return uid != null && String(uid) === String(id)
+}
+
+/**
+ * Check if the given task is assigned to the currently logged-in user.
+ * @param {Object|null|undefined} task - task object with assigneeId
+ * @returns {boolean}
+ */
+export function isTaskAssignee(task) {
+  return matchesCurrentUser(task?.assigneeId)
+}
+
+/**
+ * Check if the current user is the reviewer for the given item.
+ * @param {Object|null|undefined} item - item object with reviewerId
+ * @returns {boolean}
+ */
+export function isBidReviewer(item) {
+  return matchesCurrentUser(item?.reviewerId)
+}

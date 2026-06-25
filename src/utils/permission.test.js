@@ -1,5 +1,16 @@
-import { describe, it, expect } from 'vitest'
-import { hasAnyPermission, hasAllPermissions, isAdminRole } from './permission'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import { hasAnyPermission, hasAllPermissions, isAdminRole, matchesCurrentUser, isTaskAssignee, isBidReviewer } from './permission'
+
+vi.mock('@/stores/user', () => ({
+  useUserStore: () => ({
+    currentUser: { id: 1 }
+  })
+}))
+
+beforeEach(() => {
+  setActivePinia(createPinia())
+})
 
 describe('hasAnyPermission', () => {
   it('returns true when requiredPermissions is empty (no restriction needed)', () => {
@@ -77,5 +88,65 @@ describe('isAdminRole', () => {
     expect(isAdminRole('/bidAdmin')).toBe(false)
     expect(isAdminRole('')).toBe(false)
     expect(isAdminRole(undefined)).toBe(false)
+  })
+})
+
+describe('matchesCurrentUser', () => {
+  it('returns true when the id matches the mocked global currentUser.id', () => {
+    // Default mock: currentUser.id = 1
+    expect(matchesCurrentUser(1)).toBe(true)
+    expect(matchesCurrentUser('1')).toBe(true)
+  })
+
+  it('returns false when the id does not match', () => {
+    expect(matchesCurrentUser(99)).toBe(false)
+    expect(matchesCurrentUser('99')).toBe(false)
+  })
+
+  it('returns false for null/undefined id', () => {
+    expect(matchesCurrentUser(null)).toBe(false)
+    expect(matchesCurrentUser(undefined)).toBe(false)
+  })
+})
+
+describe('isTaskAssignee', () => {
+  it('returns true when task.assigneeId matches currentUser.id', () => {
+    expect(isTaskAssignee({ assigneeId: 1 })).toBe(true)
+    expect(isTaskAssignee({ assigneeId: '1' })).toBe(true)
+  })
+
+  it('returns false when task.assigneeId does not match', () => {
+    expect(isTaskAssignee({ assigneeId: 99 })).toBe(false)
+  })
+
+  it('returns false when task.assigneeId is null/undefined', () => {
+    expect(isTaskAssignee({ assigneeId: null })).toBe(false)
+    expect(isTaskAssignee({ assigneeId: undefined })).toBe(false)
+  })
+
+  it('returns false when task is null/undefined', () => {
+    expect(isTaskAssignee(null)).toBe(false)
+    expect(isTaskAssignee(undefined)).toBe(false)
+  })
+})
+
+describe('isBidReviewer', () => {
+  it('returns true when item.reviewerId matches currentUser.id', () => {
+    expect(isBidReviewer({ reviewerId: 1 })).toBe(true)
+    expect(isBidReviewer({ reviewerId: '1' })).toBe(true)
+  })
+
+  it('returns false when item.reviewerId does not match', () => {
+    expect(isBidReviewer({ reviewerId: 99 })).toBe(false)
+  })
+
+  it('returns false when item.reviewerId is null/undefined', () => {
+    expect(isBidReviewer({ reviewerId: null })).toBe(false)
+    expect(isBidReviewer({ reviewerId: undefined })).toBe(false)
+  })
+
+  it('returns false when item is null/undefined', () => {
+    expect(isBidReviewer(null)).toBe(false)
+    expect(isBidReviewer(undefined)).toBe(false)
   })
 })

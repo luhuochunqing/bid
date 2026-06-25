@@ -95,9 +95,10 @@ const PRIORITY_TYPE_MAP = {
  */
 export function getPriorityType(priority) {
   if (priority == null || priority === '') return 'info'
-  return PRIORITY_TYPE_MAP[priority] || 'info'
+  return PRIORITY_TYPE_MAP[String(priority).toLowerCase()] || 'info'
 }
 
 export function getPriorityLabel(priority) {
-  return { high: '高', medium: '中', low: '低', urgent: '紧急' }[priority] || priority
+  if (priority == null || priority === '') return ''
+  return { high: '高', medium: '中', low: '低', urgent: '紧急' }[String(priority).toLowerCase()] || priority
 }

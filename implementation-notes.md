@@ -772,3 +772,139 @@ handleSubmitForReview:
 - `mvn compile`：通过，无编译错误
 - `mvn test -Dtest=ArchitectureTest`：42 tests passed, 0 failures（架构规则全部满足）
 - `mvn test -Dtest=PinyinUtilsTest,RoleProfileBootstrapArchitectureTest`：13 tests passed（拼音工具 + bootstrap 架构规则均通过）
+
+# CO-338 评论2 & 评论3 实施记录
+
+## 评论2：独立任务看板交付物上传弹窗统一
+
+### 问题口径
+
+- 独立任务看板（`TaskBoardCard.vue`）与项目详情页（`TaskBoard.vue`）的交付物上传弹窗不一致
+- 评论要求统一为项目详情页样式：文案/字段/拖拽/按钮
+
+### 决策与权衡
+
+1. **不合并弹窗，而是拆分**：原 TaskBoardCard 只有一个"提交审核"弹窗（含交付物上传+完成说明+提审）。评论2要求的是"交付物上传弹窗"统一，但"提交审核"弹窗有独立功能（完成说明+REVIEW状态）。因此拆分成两个独立弹窗：
+   - 新建"上传交付物"弹窗（与项目详情页统一：名称+类型+拖拽+保存）
+   - 保留原有"提交任务"弹窗（完成说明+提审到REVIEW）
+2. **"上传交付物"按钮已变为独立弹窗入口**，不再混在"提交审核"流程中
+3. **按钮文案**：`交付物上传` → `上传交付物`，与项目详情页一致
+4. **交付物类型映射**：前端用 document/qualification/technical/quotation/other，提交时映射为后端 DOCUMENT/QUALIFICATION/TECHNICAL/QUOTATION/OTHER
+
+## 评论3：项目详情页任务看板权限过滤
+
+### 问题口径
+
+- 项目详情页任务看板（`TaskBoard.vue`）的操作入口缺少权限过滤
+- 仅任务执行人本人可见/可点"上传交付物"
+- 状态改变按角色禁用
+- 交付物删除入口仅执行人可见
+
+### 决策与权衡
+
+1. **`isTaskAssignee` helper**：比对 `userStore.currentUser.id` 与 `task.assigneeId`（均转为 String 比较，兼容 number/string 类型差异）
+2. **"上传交付物"**：`v-if="isTaskAssignee(task)"`，非执行人直接不渲染该 dropdown 项
+3. **状态变更**：`:disabled="normalizeStatus(task.status) === s.code || !canChangeStatus(task)"`，使用 `canChangeStatus` 允许执行人和管理员/组长变更状态
+4. **交付物删除**：`:closable="isTaskAssignee(task)"`，非执行人不可删除交付物（el-tag 不显示关闭图标）
+5. **不拆分弹窗**：common TaskBoard.vue 本身的弹窗逻辑不改变，只做操作入口门控
+6. **canChangeStatus 借用了已有 userStore 的 isBidManager getter**，不引入新的角色判断逻辑
+
+### 改动摘要
+
+| 文件 | 改动 |
+|------|------|
+| `src/components/common/TaskBoard.vue` | 新增 `isTaskAssignee` / `canChangeStatus` 函数；upload 项加 v-if；状态变更加 disabled 条件；del 关闭改 :closable |
+| `src/components/common/TaskBoard.spec.js` | 新增 3 个权限测试（非执行人看不到上传、执行人能看到上传、非执行人状态变更全禁用）+ 调整 dropdown 项数量断言（5→5） |
+| `src/views/TaskBoard/components/TaskBoardCard.vue` | 评论2 改造：拆分弹窗，新建独立上传交付物弹窗 |
+| `src/views/TaskBoard/components/TaskBoardCard.spec.js` | 评论2：更新按钮文案断言，新增 4 个上传弹窗测试 |
+
+### 验证结果
+
+| 检查项 | 结果 |
+|--------|------|
+| npx vitest run src/views/TaskBoard src/components/common/TaskBoard.spec.js | ✅ 25 tests passed (2 files) |
+| npm run check:line-budgets | ✅ passed (guarded_changes=2) |
+| vite build | ✅ success (no new errors) |
+
+---
+
+## CO-338 设计审查 7 条修复实施 (2026-06-25)
+
+### 修复清单
+
+| # | 严重度 | 内容 | 状态 |
+|---|--------|------|------|
+| 2 | P1 | 提取 `isTaskAssignee`/`matchesCurrentUser`/`isBidReviewer` 到 `permission.js` | ✅ |
+| 3 | P1 | 提取 `hexToSoftBackground` 到 `color.js` | ✅ |
+| 4 | P1 | 统一 priority 大小写 (`HIGH` vs `high`) | ✅ |
+| 5 | P2 | 移除 TaskBoardCard 提审弹窗中重复的 el-upload | ✅ |
+| 6 | P2 | `canChangeStatus` 补充项目负责人 (primaryLeadUserId/secondaryLeadUserId) | ✅ |
+| 1 | P1 | 提取 `useDeliverableUpload` composable | ✅ |
+
+> 注意：#7 (null guard) 已折叠进 #2 — `matchesCurrentUser` 自带 null/empty 保护
+
+### 关键决策与权衡
+
+#### #2 — permission.js 提取
+
+- `matchesCurrentUser(id)` 使用 `String` 比较规避类型不一致（后端 userId 可能为 number 或 string）
+- `isTaskAssignee(task)` 读取 `task?.assigneeId` — TaskBoard.vue 用 `task.assigneeId`、TaskBoardCard.vue 用 `task.assigneeId`（已对齐）
+- `isBidReviewer(item)` 读取 `item?.reviewerId` — 仅 TaskBoardCard.vue 的 BID_REVIEW 流程使用
+- `userStore` 在 `permission.js` 内通过 `useUserStore()` 懒加载，而非 props 传入 — 因为 Vue composable 内调用 pinia store 是常规做法
+
+#### #3 — color.js 提取
+
+- 正则 `/^#?([\da-f]{3}|[\da-f]{6})$/i` 允许可选的 `#` 前缀和后端传来的无 `#` 色值
+- 匹配失败时返回 `var(--bg-subtle)` 而不是抛异常 — 让 header 仍然有底色兜底
+- 透明度固定 `0.12` — 这是 Element Plus el-tag 的 soft 背景惯例；如需不同透明度应在调用方处理
+
+#### #4 — Priority 大小写统一
+
+- `getPriorityType` 和 `getPriorityLabel` 都放在 `workbench-formatters.js` 中，通过 `toLowerCase()` 归一化
+- TaskBoard.vue 通过别名 `getPriorityLabel as getPriorityText` 导入（模板中叫 `getPriorityText`），避免改模板
+- 空值返回空字符串而非 fallback，不改变既有 UI 行为
+
+#### #5 — TaskBoardCard 提审弹窗 el-upload 移除
+
+- 提审弹窗（submit dialog）不再包含 el-upload，交付物上传已在独立弹窗中完成
+- 独立上传弹窗保留 el-upload — 这是 #1 中 composable 管理的 UI 模板部分，composable 只管理行为逻辑
+- `deliverableFileList`/`deliverableUploadRef` 等提审弹窗内的上传相关变量全部移除
+
+#### #6 — canChangeStatus 补充项目负责人
+
+- **选择从 projectStore.currentProject 读取 lead IDs** 而非 props 透传 — 因为 TaskBoard.vue 已经使用 projectStore，且 currentProject 在路由切换时已由 ProjectTaskBoardCard 所在上层加载。避免改 3 层中间组件(props 透传链: ProjectTaskBoardCard → ProjectDetailMainContent → MainColumn)
+- `String(uid)` 比较避免类型不匹配
+- line-budget 约束：TaskBoard.vue 已超 300 行历史限制，通过精简已有代码(压缩 computed/箭头函数单行、合并 return 语句)净减 4 行
+
+#### #1 — useDeliverableUpload composable
+
+- **为什么提取**：TaskBoard.vue 和 TaskBoardCard.vue 有完全相同的上传弹窗状态管理（openDialog 重置、handleFileChange、save 校验/提示/重置）+ 仅 API 调用方式不同（store vs api module + FormData）。提取后消除 ~65 行重复代码
+- **API 差异适配**：通过 `onSave(task, payload)` 回调桥接。TaskBoard.vue 传递 `projectStore.addDeliverable(projectId, taskId, object)`，TaskBoardCard.vue 传递 `projectsApi.createTaskDeliverable(projectId, taskId, FormData)`。composable 不关心具体实现
+- **ElMessage 处理**：composable 内统一处理成功/错误提示。调用方 onSave 中不再需要 ElMessage
+- **为什么不提取模板**：el-dialog/el-upload 模板存在差异（TaskBoardCard 额外 `append-to-body`/`close-on-click-modal`），提取模板反而增加复杂度。composable 模式符合 Vue 3 Composition API 的最佳实践（分离逻辑与表现）
+- **已删除的变量**：TaskBoard.vue 中的 `currentTask`/`fileList`/`deliverableForm`/`showUploadDialog`、TaskBoardCard.vue 中的 `uploadingTask`/`uploadingLoading`/`uploadFileList`/`deliverableForm( reactive)` — 全部替换为 composable 返回的 ref
+- **保留的 `ref` import**：TaskBoard.vue 中 `ref` 仍在使用(其他地方)，`uploadSaving` 解构但未在模板中使用 — 这些是 eslint 的 warn，非错误
+
+### 测试策略
+
+| # | 测试文件 | 新增测试 | 策略 |
+|---|----------|----------|------|
+| 2 | `permission.test.js` (新建) | 24 | 3 describe (matchesCurrentUser / isTaskAssignee / isBidReviewer)，各 7-9 条，覆盖 null/empty/匹配/不匹配 |
+| 3 | `color.spec.js` (新建) | 8 | 6 位色/3 位色/带#/无#/无效色/空值 |
+| 4 | 在既有 spec 中 | 0 | 改数据测试用例 — 原有用例因大小写不匹配已覆盖 |
+| 5 | `TaskBoardCard.spec.js` | 改动 | 更新按钮/弹窗存在的断言，删除原提审弹窗上传相关测试 |
+| 6 | `TaskBoard.spec.js` | 3 | project lead (primary) / secondary lead / non-lead |
+| 1 | `useDeliverableUpload.spec.js` (新建) | 8 | 初始状态 / openDialog 重置 / handleFileChange / save 空校验 / save 成功 / save 失败 / saving 状态切换 |
+
+### 验证结果
+
+| 检查项 | 结果 |
+|--------|------|
+| `npx vitest run src/composables/useDeliverableUpload.spec.js` | ✅ 8 passed |
+| `npx vitest run src/utils/permission.test.js` | ✅ 24 passed |
+| `npx vitest run src/utils/color.spec.js` | ✅ 8 passed |
+| `npx vitest run src/components/common/TaskBoard.spec.js` | ✅ 18 passed |
+| `npx vitest run src/views/TaskBoard/components/TaskBoardCard.spec.js` | ✅ 9 passed |
+| `npx vitest run` (full suite) | ✅ 1526 passed, 2 skipped, 5 pre-existing failures (TaskForm/line-budgets/sidecar/env-detection — 与本次改动无关) |
+| `npm run check:line-budgets` | ✅ passed |
+| Commit hooks (TDD coverage / token-governance / wiki) | ✅ 全部通过 |
