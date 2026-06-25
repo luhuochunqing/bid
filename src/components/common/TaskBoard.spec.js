@@ -125,11 +125,39 @@ describe('TaskBoard (dynamic columns)', () => {
   })
 
   it('dropdown items reflect dict (no hardcoded 4)', async () => {
-    const wrapper = mountBoard({ tasks: [{ id: 1, name: 'T1', status: 'TODO' }] })
+    const wrapper = mountBoard({ tasks: [{ id: 1, name: 'T1', status: 'TODO', assigneeId: 9 }] })
     await flushPromises()
     const items = wrapper.findAllComponents({ name: 'ElDropdownItem' })
-    // At least 5 status transitions + 1 "上传交付物" = 6
+    // 4 status transitions + 1 "上传交付物" = 5
     expect(items.length).toBeGreaterThanOrEqual(5)
+  })
+
+  it('non-assignee does not see "上传交付物" dropdown item', async () => {
+    const wrapper = mountBoard({ tasks: [{ id: 1, name: 'T1', status: 'TODO', assigneeId: 999 }] })
+    await flushPromises()
+    const items = wrapper.findAllComponents({ name: 'ElDropdownItem' })
+    // 4 status transitions only — "上传交付物" hidden by v-if
+    expect(items.length).toBe(4)
+  })
+
+  it('task assignee sees "上传交付物" dropdown item', async () => {
+    const wrapper = mountBoard({ tasks: [{ id: 1, name: 'T1', status: 'TODO', assigneeId: 9 }] })
+    await flushPromises()
+    const items = wrapper.findAllComponents({ name: 'ElDropdownItem' })
+    // 4 status transitions + "上传交付物" = 5
+    expect(items.length).toBeGreaterThanOrEqual(5)
+    const allText = wrapper.text()
+    expect(allText).toContain('上传交付物')
+  })
+
+  it('status-change items are disabled for non-assignee', async () => {
+    const wrapper = mountBoard({ tasks: [{ id: 2, name: 'T2', status: 'TODO', assigneeId: 999 }] })
+    await flushPromises()
+    const items = wrapper.findAllComponents({ name: 'ElDropdownItem' })
+    // All visible items (status changes) should be disabled for non-assignee
+    items.forEach((item) => {
+      expect(item.props('disabled')).toBe(true)
+    })
   })
 
   it('uploads the selected file through projectStore and emits the saved deliverable', async () => {

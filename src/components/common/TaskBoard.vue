@@ -50,12 +50,12 @@
                   <el-dropdown-item
                     v-for="s in availableStatuses"
                     :key="s.code"
-                    :disabled="normalizeStatus(task.status) === s.code"
+                    :disabled="normalizeStatus(task.status) === s.code || !canChangeStatus(task)"
                     @click="handleStatusChange(task, s.code)"
                   >
                     设为{{ s.name }}
                   </el-dropdown-item>
-                  <el-dropdown-item divided @click="handleUploadDeliverable(task)">
+                  <el-dropdown-item divided @click="handleUploadDeliverable(task)" v-if="isTaskAssignee(task)">
                     <el-icon><Upload /></el-icon>
                     上传交付物
                   </el-dropdown-item>
@@ -77,7 +77,7 @@
             <div v-if="task.deliverables && task.deliverables.length > 0" class="deliverables">
               <div class="deliverable-title">交付物:</div>
               <div v-for="del in task.deliverables" :key="del.id" class="deliverable-item">
-                <el-tag size="small" closable @close="handleRemoveDeliverable(task, del)">
+                <el-tag size="small" :closable="isTaskAssignee(task)" @close="handleRemoveDeliverable(task, del)">
                   <el-link :href="del.url" target="_blank" type="primary">
                     <el-icon><Document /></el-icon>
                     {{ del.name }}
@@ -195,6 +195,18 @@ onMounted(() => {
 })
 
 const normalizeStatus = (status) => String(status || '').toUpperCase()
+
+const isTaskAssignee = (task) => {
+  const uid = userStore.currentUser?.id
+  return uid != null && task?.assigneeId != null && String(uid) === String(task.assigneeId)
+}
+
+const canChangeStatus = (task) => {
+  // 仅任务执行人或管理员/组长可变更状态
+  if (isTaskAssignee(task)) return true
+  if (userStore.isBidManager) return true
+  return false
+}
 
 const columns = computed(() => availableStatuses.value
   .map((s) => ({
@@ -353,189 +365,33 @@ const handleSubmitToDocument = async () => {
 </script>
 
 <style scoped>
-.task-board {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.board-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.board-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--gray-750);
-}
-
-.board-columns-container {
-  display: flex;
-  gap: 16px;
-  min-height: 500px;
-}
-
-.board-column {
-  background: var(--bg-subtle);
-  border-radius: 8px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  min-width: 260px;
-  flex: 1;
-}
-
-.column-header {
-  padding: 12px 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-weight: 500;
-}
-
-.column-title {
-  font-size: 14px;
-}
-
-.column-content {
-  flex: 1;
-  padding: 12px;
-  overflow-y: auto;
-  max-height: 500px;
-}
-
-.task-card {
-  background: white;
-  border-radius: 6px;
-  padding: 12px;
-  margin-bottom: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-}
-
-.task-card:hover {
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
-}
-
-.task-card-ghost {
-  opacity: 0.5;
-  background: #eef5ff !important;
-  border: 1px dashed #409eff !important;
-}
-
-.task-card-dragging {
-  opacity: 0.9;
-  transform: rotate(2deg);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2) !important;
-  cursor: grabbing;
-}
-
-.task-high {
-  border-left: 3px solid #f56c6c;
-}
-
-.task-review {
-  border-left: 3px solid #e6a23c;
-}
-
-.task-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  gap: 8px;
-}
-
-.more-icon {
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 16px;
-}
-
-.more-icon:hover {
-  color: #409eff;
-}
-
-.task-name {
-  font-size: 14px;
-  color: var(--gray-750);
-  margin-bottom: 8px;
-  font-weight: 500;
-  line-height: 1.4;
-}
-
-.task-desc {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-bottom: 12px;
-  line-height: 1.4;
-}
-
-.task-meta {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.task-owner,
-.task-deadline {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.task-deadline.deadline-urgent {
-  color: #f56c6c;
-}
-
-.deliverables {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px dashed #dcdfe6;
-}
-
-.deliverable-title {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-bottom: 8px;
-}
-
-.deliverable-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin: 0 8px 8px 0;
-}
-
-.submit-section {
-  margin-top: 16px;
-  padding: 16px;
-  background: #f0f9ff;
-  border: 1px solid #b3e8ff;
-  border-radius: 8px;
-  text-align: center;
-}
-
-.submit-tip {
-  margin-top: 8px;
-  font-size: 12px;
-  color: #409eff;
-}
-
-.badge :deep(.el-badge__content) {
-  background-color: transparent;
-  color: inherit;
-  border: none;
-}
+.task-board { display: flex; flex-direction: column; gap: 16px; }
+.board-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.header-left { display: flex; align-items: center; gap: 12px; }
+.board-title { font-size: 16px; font-weight: 600; color: var(--gray-750); }
+.board-columns-container { display: flex; gap: 16px; min-height: 500px; }
+.board-column { background: var(--bg-subtle); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; min-width: 260px; flex: 1; }
+.column-header { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; font-weight: 500; }
+.column-title { font-size: 14px; }
+.column-content { flex: 1; padding: 12px; overflow-y: auto; max-height: 500px; }
+.task-card { background: white; border-radius: 6px; padding: 12px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.task-card:hover { box-shadow: 0 6px 16px rgba(0,0,0,0.15); }
+.task-card-ghost { opacity: 0.5; background: #eef5ff !important; border: 1px dashed #409eff !important; }
+.task-card-dragging { opacity: 0.9; transform: rotate(2deg); box-shadow: 0 12px 24px rgba(0,0,0,0.2) !important; cursor: grabbing; }
+.task-high { border-left: 3px solid #f56c6c; }
+.task-review { border-left: 3px solid #e6a23c; }
+.task-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; }
+.more-icon { color: var(--text-muted); cursor: pointer; font-size: 16px; }
+.more-icon:hover { color: #409eff; }
+.task-name { font-size: 14px; color: var(--gray-750); margin-bottom: 8px; font-weight: 500; line-height: 1.4; }
+.task-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.4; }
+.task-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); }
+.task-owner, .task-deadline { display: flex; align-items: center; gap: 4px; }
+.task-deadline.deadline-urgent { color: #f56c6c; }
+.deliverables { margin-top: 12px; padding-top: 12px; border-top: 1px dashed #dcdfe6; }
+.deliverable-title { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
+.deliverable-item { display: inline-flex; align-items: center; gap: 4px; margin: 0 8px 8px 0; }
+.submit-section { margin-top: 16px; padding: 16px; background: #f0f9ff; border: 1px solid #b3e8ff; border-radius: 8px; text-align: center; }
+.submit-tip { margin-top: 8px; font-size: 12px; color: #409eff; }
+.badge :deep(.el-badge__content) { background-color: transparent; color: inherit; border: none; }
 </style>

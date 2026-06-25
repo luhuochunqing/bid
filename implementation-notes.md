@@ -772,3 +772,56 @@ handleSubmitForReview:
 - `mvn compile`：通过，无编译错误
 - `mvn test -Dtest=ArchitectureTest`：42 tests passed, 0 failures（架构规则全部满足）
 - `mvn test -Dtest=PinyinUtilsTest,RoleProfileBootstrapArchitectureTest`：13 tests passed（拼音工具 + bootstrap 架构规则均通过）
+
+# CO-338 评论2 & 评论3 实施记录
+
+## 评论2：独立任务看板交付物上传弹窗统一
+
+### 问题口径
+
+- 独立任务看板（`TaskBoardCard.vue`）与项目详情页（`TaskBoard.vue`）的交付物上传弹窗不一致
+- 评论要求统一为项目详情页样式：文案/字段/拖拽/按钮
+
+### 决策与权衡
+
+1. **不合并弹窗，而是拆分**：原 TaskBoardCard 只有一个"提交审核"弹窗（含交付物上传+完成说明+提审）。评论2要求的是"交付物上传弹窗"统一，但"提交审核"弹窗有独立功能（完成说明+REVIEW状态）。因此拆分成两个独立弹窗：
+   - 新建"上传交付物"弹窗（与项目详情页统一：名称+类型+拖拽+保存）
+   - 保留原有"提交任务"弹窗（完成说明+提审到REVIEW）
+2. **"上传交付物"按钮已变为独立弹窗入口**，不再混在"提交审核"流程中
+3. **按钮文案**：`交付物上传` → `上传交付物`，与项目详情页一致
+4. **交付物类型映射**：前端用 document/qualification/technical/quotation/other，提交时映射为后端 DOCUMENT/QUALIFICATION/TECHNICAL/QUOTATION/OTHER
+
+## 评论3：项目详情页任务看板权限过滤
+
+### 问题口径
+
+- 项目详情页任务看板（`TaskBoard.vue`）的操作入口缺少权限过滤
+- 仅任务执行人本人可见/可点"上传交付物"
+- 状态改变按角色禁用
+- 交付物删除入口仅执行人可见
+
+### 决策与权衡
+
+1. **`isTaskAssignee` helper**：比对 `userStore.currentUser.id` 与 `task.assigneeId`（均转为 String 比较，兼容 number/string 类型差异）
+2. **"上传交付物"**：`v-if="isTaskAssignee(task)"`，非执行人直接不渲染该 dropdown 项
+3. **状态变更**：`:disabled="normalizeStatus(task.status) === s.code || !canChangeStatus(task)"`，使用 `canChangeStatus` 允许执行人和管理员/组长变更状态
+4. **交付物删除**：`:closable="isTaskAssignee(task)"`，非执行人不可删除交付物（el-tag 不显示关闭图标）
+5. **不拆分弹窗**：common TaskBoard.vue 本身的弹窗逻辑不改变，只做操作入口门控
+6. **canChangeStatus 借用了已有 userStore 的 isBidManager getter**，不引入新的角色判断逻辑
+
+### 改动摘要
+
+| 文件 | 改动 |
+|------|------|
+| `src/components/common/TaskBoard.vue` | 新增 `isTaskAssignee` / `canChangeStatus` 函数；upload 项加 v-if；状态变更加 disabled 条件；del 关闭改 :closable |
+| `src/components/common/TaskBoard.spec.js` | 新增 3 个权限测试（非执行人看不到上传、执行人能看到上传、非执行人状态变更全禁用）+ 调整 dropdown 项数量断言（5→5） |
+| `src/views/TaskBoard/components/TaskBoardCard.vue` | 评论2 改造：拆分弹窗，新建独立上传交付物弹窗 |
+| `src/views/TaskBoard/components/TaskBoardCard.spec.js` | 评论2：更新按钮文案断言，新增 4 个上传弹窗测试 |
+
+### 验证结果
+
+| 检查项 | 结果 |
+|--------|------|
+| npx vitest run src/views/TaskBoard src/components/common/TaskBoard.spec.js | ✅ 25 tests passed (2 files) |
+| npm run check:line-budgets | ✅ passed (guarded_changes=2) |
+| vite build | ✅ success (no new errors) |

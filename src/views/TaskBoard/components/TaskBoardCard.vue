@@ -35,22 +35,51 @@
     <!-- BID_REVIEW：标书文件列表（只读下载） -->
     <ProjectDocumentTable v-if="item.type === 'BID_REVIEW' && item.projectId" :project-id="item.projectId" readonly />
 
-    <!-- TASK：交付物操作（复用 TaskKanban 逻辑） -->
+    <!-- TASK：操作按钮（交付物上传 → 独立弹窗，提交 → 提审弹窗） -->
     <div v-if="item.type === 'TASK'" class="card-actions">
-      <el-button size="small" :disabled="!isTaskAssignee(item)" @click="openDeliverableUpload(item)">交付物上传</el-button>
+      <el-button size="small" :disabled="!isTaskAssignee(item)" @click="openUploadDialog(item)">上传交付物</el-button>
       <el-button size="small" type="primary" :disabled="!isTaskAssignee(item) || !hasDeliverable(item)" @click="openSubmitDialog(item)">提交</el-button>
     </div>
 
-    <!-- BID_REVIEW：审核操作（仅审核人可操作） -->
+    <!-- BID_REVIEW：审核操作 -->
     <div v-if="item.type === 'BID_REVIEW'" class="card-actions">
       <el-button size="small" type="danger" plain :disabled="!isBidReviewer(item)" @click="openRejectDialog(item)">驳回</el-button>
       <el-button size="small" type="success" :disabled="!isBidReviewer(item)" @click="handleApproveBid(item)">通过审核</el-button>
     </div>
 
-    <!-- 交付物上传 + 提交对话框（TASK） -->
+    <!-- 上传交付物弹窗（与项目详情页统一：名称+类型+拖拽+保存） -->
+    <el-dialog v-model="uploadDialogVisible" title="上传交付物" width="500px" :close-on-click-modal="false" append-to-body>
+      <el-form :model="deliverableForm" label-width="80px">
+        <el-form-item label="交付物名称">
+          <el-input v-model="deliverableForm.name" placeholder="请输入交付物名称" />
+        </el-form-item>
+        <el-form-item label="交付物类型">
+          <el-select v-model="deliverableForm.type" placeholder="请选择类型">
+            <el-option label="文档" value="document" />
+            <el-option label="资质文件" value="qualification" />
+            <el-option label="技术方案" value="technical" />
+            <el-option label="报价单" value="quotation" />
+            <el-option label="其他" value="other" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="上传文件">
+          <el-upload drag action="#" :auto-upload="false" :on-change="handleFileChange" :file-list="uploadFileList">
+            <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+            <div class="el-upload__text">拖拽文件到此处或<em>点击上传</em></div>
+            <template #tip><div class="el-upload__tip">支持 doc/docx/pdf/xls/xlsx 格式</div></template>
+          </el-upload>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="uploadDialogVisible = false">取消</el-button>
+        <el-button type="primary" :disabled="!deliverableForm.name || !deliverableForm.file" :loading="uploadingLoading" @click="handleSaveDeliverable">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 提交任务弹窗（含完成情况说明 + 提交审核） -->
     <el-dialog v-model="showSubmitDialog" :title="'提交任务 - ' + (submittingTask?.title || '')" width="480px" :close-on-click-modal="false" append-to-body>
       <el-form label-width="100px">
-        <el-form-item label="交付物" required>
+        <el-form-item label="交付物">
           <el-upload ref="deliverableUploadRef" :auto-upload="false" :file-list="deliverableFileList" :limit="1" accept=".pdf,.doc,.docx,.xlsx,.jpg,.png">
             <el-button size="small">选择文件</el-button>
             <template #tip><span style="font-size:11px;color:#909399">上传交付物（PDF/Word/Excel/图片）</span></template>
@@ -81,9 +110,9 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
-import { User, Calendar, OfficeBuilding } from '@element-plus/icons-vue'
+import { User, Calendar, OfficeBuilding, UploadFilled } from '@element-plus/icons-vue'
 import { projectsApi } from '@/api/modules/projects.js'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
 import { useUserStore } from '@/stores/user.js'
@@ -112,35 +141,59 @@ const formattedDate = computed(() => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 })
 
-// 复用 TaskKanban 的交付物逻辑
-function matchesCurrentUser(id) {
-  const uid = userStore?.currentUser?.id
-  return uid != null && id != null && String(uid) === String(id)
-}
-function isTaskAssignee(task) {
-  return matchesCurrentUser(task?.assigneeId)
-}
-function isBidReviewer(item) {
-  return matchesCurrentUser(item?.reviewerId)
-}
-function hasDeliverable(task) {
-  return task.deliverables && task.deliverables.length > 0
+function matchesCurrentUser(id) { const uid = userStore?.currentUser?.id; return uid != null && id != null && String(uid) === String(id) }
+function isTaskAssignee(task) { return matchesCurrentUser(task?.assigneeId) }
+function isBidReviewer(item) { return matchesCurrentUser(item?.reviewerId) }
+function hasDeliverable(task) { return task.deliverables && task.deliverables.length > 0 }
+
+// 上传交付物弹窗（独立，与项目详情页 TaskBoard.vue 统一）
+const uploadDialogVisible = ref(false)
+const uploadingTask = ref(null)
+const uploadingLoading = ref(false)
+const uploadFileList = ref([])
+const deliverableForm = reactive({ name: '', type: 'document', file: null })
+
+function openUploadDialog(task) {
+  uploadingTask.value = task
+  deliverableForm.name = ''
+  deliverableForm.type = 'document'
+  deliverableForm.file = null
+  uploadFileList.value = []
+  uploadDialogVisible.value = true
 }
 
-// 交付物上传 + 提交对话框（复用 TaskKanban）
+function handleFileChange(file) {
+  deliverableForm.file = file.raw
+}
+
+async function handleSaveDeliverable() {
+  if (!uploadingTask.value || !deliverableForm.name) return
+  uploadingLoading.value = true
+  try {
+    const typeMap = { document: 'DOCUMENT', qualification: 'QUALIFICATION', technical: 'TECHNICAL', quotation: 'QUOTATION', other: 'OTHER' }
+    const formData = new FormData()
+    formData.append('file', deliverableForm.file)
+    formData.append('taskId', uploadingTask.value.id)
+    formData.append('name', deliverableForm.name)
+    formData.append('deliverableType', typeMap[deliverableForm.type] || 'DOCUMENT')
+    await projectsApi.createTaskDeliverable(uploadingTask.value.projectId, uploadingTask.value.id, formData)
+    ElMessage.success('交付物已保存')
+    uploadDialogVisible.value = false
+    emit('deliverable-changed', uploadingTask.value)
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.msg || '交付物上传失败')
+  } finally {
+    uploadingLoading.value = false
+  }
+}
+
+// === 提交任务弹窗（含完成情况说明 + 提交审核） ===
 const showSubmitDialog = ref(false)
 const submittingTask = ref(null)
 const submittingTaskLoading = ref(false)
 const deliverableFileList = ref([])
 const deliverableUploadRef = ref(null)
 const submitNotes = ref('')
-
-function openDeliverableUpload(task) {
-  submittingTask.value = task
-  showSubmitDialog.value = true
-  deliverableFileList.value = task.deliverableUrl ? [{ name: task.deliverableName || '已上传文件', url: task.deliverableUrl }] : []
-  submitNotes.value = task.completionNotes || ''
-}
 
 function openSubmitDialog(task) {
   if (!hasDeliverable(task)) {
@@ -229,28 +282,14 @@ async function confirmReject() {
   &.task-high { border-left: 3px solid #f56c6c; }
   &.task-review { border-left: 3px solid #e6a23c; }
 }
-
-.task-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  .header-tags { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .type-tag { flex-shrink: 0; }
-}
-
+.task-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.header-tags { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.type-tag { flex-shrink: 0; }
 .task-name { font-size: 14px; font-weight: 500; margin-bottom: 6px; color: #303133; }
 .task-desc { font-size: 12px; color: #909399; margin-bottom: 8px; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.task-meta {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: #606266;
-  .task-owner, .task-deadline { display: flex; align-items: center; gap: 4px; }
-  .deadline-urgent { color: #f56c6c; }
-}
-
-.task-project { display: flex; align-items: center; gap: 4px; margin-top: 8px; font-size: 12px; color: #909399; .el-icon { flex-shrink: 0; } }
+.task-meta { display: flex; justify-content: space-between; font-size: 12px; color: #606266; }
+.task-owner, .task-deadline { display: flex; align-items: center; gap: 4px; }
+.deadline-urgent { color: #f56c6c; }
+.task-project { display: flex; align-items: center; gap: 4px; margin-top: 8px; font-size: 12px; color: #909399; }
 .card-actions { margin-top: 8px; display: flex; gap: 6px; justify-content: flex-end; }
-:deep(.project-documents) { margin-top: 8px; .el-card__header { padding: 8px 12px; } .el-card__body { padding: 8px; } }
 </style>
