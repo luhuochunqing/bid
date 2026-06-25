@@ -107,6 +107,7 @@ public final class RoleProfileCatalog {
         map.put(SALES_CODE, new SeedDefinition(SALES_CODE, "投标项目负责人", "立项发起人，维护客户与开标信息", true, "self",
                 List.of("dashboard", "bidding", "project",
                         "project.create", "project.view", "deposit.return.fill",
+                        "retrospective.submit",
                         BIDDING_CREATE_PERMISSION,
                         "dashboard:view_welcome_banner", "dashboard:view_metric_cards", "dashboard:view_calendar",
                         "dashboard:view_tender_list", "dashboard:view_project_list", "dashboard:view_active_projects",

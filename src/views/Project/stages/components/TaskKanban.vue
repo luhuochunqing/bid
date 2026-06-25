@@ -46,8 +46,8 @@
               <el-button size="small" :disabled="!isTaskAssignee(task)" @click="openDeliverableUpload(task)">交付物上传</el-button>
               <el-button size="small" type="primary" :disabled="!isTaskAssignee(task) || !hasDeliverable(task)" @click="openSubmitDialog(task)">提交</el-button>
             </div>
-            <!-- REVIEW 列：驳回/通过 -->
-            <div v-if="col.status === 'REVIEW'" class="card-actions">
+            <!-- REVIEW 列：驳回/通过（仅管理员/组长/项目负责人可操作） -->
+            <div v-if="col.status === 'REVIEW' && canReviewTasks" class="card-actions">
               <el-button size="small" type="danger" plain @click="rejectTask(task)">驳回</el-button>
               <el-button size="small" type="success" @click="approveTask(task)">通过</el-button>
             </div>
@@ -128,6 +128,8 @@ const props = defineProps({
   projectId: { type: [String, Number], required: true },
   canUseAI: Boolean,
   scoreRiskCount: { type: Number, default: 0 },
+  primaryLeadId: { type: [String, Number], default: null },
+  secondaryLeadId: { type: [String, Number], default: null },
 })
 const emit = defineEmits(['openScoreParse', 'openDecompose'])
 const userStore = useUserStore()
@@ -152,6 +154,21 @@ function isTaskAssignee(task) {
   const uid = userStore?.currentUser?.id
   return uid != null && task?.assigneeId != null && String(uid) === String(task.assigneeId)
 }
+
+const canReviewTasks = computed(() => {
+  const roleCode = userStore?.currentUser?.roleCode || userStore?.currentUser?.role || ''
+  const GLOBAL_REVIEW_ROLES = ['admin', '/bidAdmin', 'bid-TeamLeader']
+  if (GLOBAL_REVIEW_ROLES.includes(roleCode)) {
+    return true
+  }
+  const currentUserId = userStore?.currentUser?.id
+  if (currentUserId == null) return false
+  const pid = props.primaryLeadId
+  const sid = props.secondaryLeadId
+  if (pid != null && String(currentUserId) === String(pid)) return true
+  if (sid != null && String(currentUserId) === String(sid)) return true
+  return false
+})
 
 async function loadTasks() {
   try {

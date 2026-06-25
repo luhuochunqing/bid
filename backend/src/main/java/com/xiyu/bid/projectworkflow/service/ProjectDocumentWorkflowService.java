@@ -5,6 +5,7 @@ import com.xiyu.bid.projectworkflow.dto.ProjectDocumentCreateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
+import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,7 @@ class ProjectDocumentWorkflowService {
     private final ProjectWorkflowGuardService guardService;
     private final ProjectDocumentRepository projectDocumentRepository;
     private final UserRepository userRepository;
+    private final ProjectLeadAssignmentRepository projectLeadAssignmentRepository;
     private final ProjectDocumentViewAssembler projectDocumentViewAssembler;
     private final ProjectDocumentBindingGateway projectDocumentBindingGateway;
 
@@ -32,6 +34,7 @@ class ProjectDocumentWorkflowService {
             Long linkedEntityId
     ) {
         guardService.requireProject(projectId);
+        assertCanViewProjectDocuments(projectId);
         return projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
                         projectId,
                         trimToNull(documentCategory),
@@ -44,6 +47,7 @@ class ProjectDocumentWorkflowService {
 
     ProjectDocumentDTO createProjectDocument(Long projectId, ProjectDocumentCreateRequest request) {
         guardService.requireWorkflowMutationProject(projectId);
+        assertCanUploadProjectDocument();
         Long uploaderId = request.getUploaderId();
         String uploaderName = request.getUploaderName();
         if (uploaderId == null && (uploaderName == null || uploaderName.isBlank())) {
@@ -87,14 +91,8 @@ class ProjectDocumentWorkflowService {
     }
 
     private String resolveCurrentRoleCode() {
-        org.springframework.security.core.Authentication auth =
-                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) {
-            return null;
-        }
-        return userRepository.findByUsername(auth.getName())
-                .map(com.xiyu.bid.entity.User::getRoleCode)
-                .orElse(null);
+        com.xiyu.bid.entity.User user = getCurrentUser();
+        return user != null ? user.getRoleCode() : null;
     }
 
     private com.xiyu.bid.entity.User getCurrentUser() {
@@ -102,6 +100,37 @@ class ProjectDocumentWorkflowService {
                 org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) return null;
         return userRepository.findByUsername(auth.getName()).orElse(null);
+    }
+
+    private Long[] resolveProjectLeadIds(Long projectId) {
+        return projectLeadAssignmentRepository.findByProjectId(projectId)
+                .map(a -> new Long[]{a.getPrimaryLeadUserId(), a.getSecondaryLeadUserId()})
+                .orElse(new Long[]{null, null});
+    }
+
+    private void assertCanViewProjectDocuments(Long projectId) {
+        com.xiyu.bid.entity.User currentUser = getCurrentUser();
+        if (currentUser == null) {
+            throw new org.springframework.security.access.AccessDeniedException("无法识别当前用户");
+        }
+        Long[] leadIds = resolveProjectLeadIds(projectId);
+        ProjectDocumentWorkflowPolicy.Decision decision = ProjectDocumentWorkflowPolicy.canViewProjectDocuments(
+                currentUser.getRoleCode(),
+                currentUser.getId(),
+                leadIds[0],
+                leadIds[1]
+        );
+        if (!decision.allowed()) {
+            throw new org.springframework.security.access.AccessDeniedException(decision.reason());
+        }
+    }
+
+    private void assertCanUploadProjectDocument() {
+        String roleCode = resolveCurrentRoleCode();
+        ProjectDocumentWorkflowPolicy.Decision decision = ProjectDocumentWorkflowPolicy.canUploadProjectDocument(roleCode);
+        if (!decision.allowed()) {
+            throw new org.springframework.security.access.AccessDeniedException(decision.reason());
+        }
     }
 
     private String resolveDisplayName(Long userId, String fallback) {
