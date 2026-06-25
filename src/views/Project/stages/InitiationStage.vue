@@ -136,9 +136,13 @@
               <UserPicker v-model="approvalForm.biddingLeaderId" mode="search" placeholder="搜索人员" clearable style="width:100%" @select="onLeaderSelect" />
             </el-form-item>
             <el-form-item label="投标辅助人员">
-              <el-select v-model="approvalForm.biddingAssistantId" filterable remote :remote-method="searchAssistant" :loading="assistantSearching" placeholder="搜索人员" style="width:100%" value-key="id" clearable @change="(id) => { const o = assistantOptions.find(u => u.id === id); approvalForm.biddingAssistantLabel = o ? o._label : '' }">
-                <el-option v-for="u in assistantOptions" :key="u.id" :label="u._label" :value="u.id" />
-              </el-select>
+              <UserPicker
+                v-model="approvalForm.biddingAssistantId"
+                placeholder="搜索人员（姓名/工号/拼音）"
+                clearable
+                style="width:100%"
+                @select="onAssistantSelect"
+              />
             </el-form-item>
           </div>
         </el-form>
@@ -172,7 +176,6 @@ import { ElMessage } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
 import { getApiUrl } from '@/api/config.js'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
-import { usersApi } from '@/api/modules/users.js'
 import { tendersApi } from '@/api/modules/tenders.js'
 import { projectsApi } from '@/api/modules/projects.js'
 
@@ -207,13 +210,9 @@ const fieldDisabled = computed(() => locked.value || evalPrefilled.value)
 // 审批模式：投标管理员/组长 查看 PENDING_REVIEW 的立项；改用 roleCode 以匹配 bidAdmin 等新角色值
 const userRole = computed(() => userStore.currentUser?.roleCode || userStore.currentUser?.role || '')
 const isApprovalMode = computed(() => isBidManager(userRole.value) && reviewStatus.value === 'PENDING_REVIEW')
-const BID_ASSISTANT_ROLE = 'bid-Team'
-function roleOptions(users, roleCode) { const list = Array.isArray(users) ? users : []; const filtered = roleCode ? list.filter(u => String(u?.roleCode || u?.role || '').trim() === roleCode) : list; return filtered.map(u => ({ ...u, _label: u.name + '（' + (u.employeeId || u.employeeNumber || '') + '）- ' + (u.departmentName || u.deptName || '') })) }
-const leaderOptions = ref([]); const leaderSearching = ref(false); const assistantOptions = ref([]); const assistantSearching = ref(false)
-async function searchLeader(q) { if (!q || q.length < 1) return; leaderSearching.value = true; try { const r = await usersApi.search(q, 15); leaderOptions.value = roleOptions(r) } catch { leaderOptions.value = [] } finally { leaderSearching.value = false } }
-async function searchAssistant(q) { if (!q || q.length < 1) return; assistantSearching.value = true; try { const r = await usersApi.search(q, 15); assistantOptions.value = roleOptions(r, BID_ASSISTANT_ROLE) } catch { assistantOptions.value = [] } finally { assistantSearching.value = false } }
 const approvalForm = reactive({ biddingLeaderId: null, biddingLeaderLabel: '', biddingAssistantId: null, biddingAssistantLabel: '' })
 function onLeaderSelect(user) { if (user) { approvalForm.biddingLeaderLabel = user.name || user.fullName || '' } }
+function onAssistantSelect(user) { if (user) { approvalForm.biddingAssistantLabel = user.name || user.fullName || '' } }
 const uploadUrl = '/api/upload'
 const uploadHeaders = computed(() => { const t = userStore?.token; return t ? { Authorization: 'Bearer ' + t } : {} })
 const riskTagType = computed(() => form.aiRiskLevel === 'HIGH' ? 'danger' : form.aiRiskLevel === 'MEDIUM' ? 'warning' : form.aiRiskLevel === 'LOW' ? 'success' : 'info')
@@ -240,9 +239,6 @@ const { handleDocBeforeUpload, onDepositChange, handleApprove, handleReject, sav
   projectLifecycleApi,
   projectsApi,
   tendersApi,
-  usersApi,
-  leaderOptions,
-  assistantOptions,
   projectsState: {
     existing,
     saving,
@@ -279,7 +275,7 @@ function handleAmountBlur(field) { if (form[field] == null || form[field] === ''
 
 onMounted(load)
 
-defineExpose({ load, handleAmountFocus, handleAmountBlur, searchLeader, searchAssistant, leaderOptions, assistantOptions })
+defineExpose({ load, handleAmountFocus, handleAmountBlur })
 </script>
 <style scoped>
 .initiation-stage { display: flex; flex-direction: column; gap: 16px; }

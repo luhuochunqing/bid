@@ -658,3 +658,4 @@
 | `src/views/Bidding/detail/DetailPage.vue` | `mode="candidates"` → `mode="search"` |
 | `src/views/Bidding/list/components/AssignDialog.vue` | `mode="candidates"` → `mode="search"` |
 | `.agent-locks/user-picker-pinyin-search.yml` | **新建**：文件锁 (entity + migration)
+

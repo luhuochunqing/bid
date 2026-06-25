@@ -23,26 +23,13 @@
       </el-form-item>
 
       <el-form-item label="通知对象" required>
-        <el-select
-          v-model="form.reminderTargets"
+        <UserPicker
+          v-model="selectedUserIds"
           multiple
-          placeholder="选择通知对象"
-          value-key="userId"
-          :loading="loadingUsers"
+          placeholder="搜索并选择通知对象（姓名/工号/拼音）"
           style="width: 100%"
-        >
-          <el-option
-            v-for="user in users"
-            :key="user.id"
-            :label="formatUserLabel(user)"
-            :value="{ userId: user.id, userName: user.name, wecomUserId: user.wecomUserId || '' }"
-          >
-            <div class="user-option">
-              <span>{{ formatUserLabel(user) }}</span>
-              <span class="user-role">{{ user.roleName || user.role || '' }}</span>
-            </div>
-          </el-option>
-        </el-select>
+          @select="handleUsersSelected"
+        />
       </el-form-item>
 
       <el-form-item label="启用状态">
@@ -73,9 +60,9 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useReminderSettings } from './useReminderSettings.js'
-import { formatUserLabel } from '@/utils/formatUserLabel.js'
+import UserPicker from '@/components/common/UserPicker.vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, required: true },
@@ -88,8 +75,6 @@ const {
   form,
   editingReminder,
   saving,
-  users,
-  loadingUsers,
   openCreateDialog,
   openEditDialog,
   saveReminder
@@ -99,6 +84,27 @@ const modelValue = computed({
   get: () => props.modelValue,
   set: (val) => emit('update:modelValue', val)
 })
+
+// UserPicker 使用 userId 数组，转换为 API 需要的格式
+const selectedUserIds = ref([])
+
+// 编辑时从 reminderTargets 恢复 userId 列表
+watch(editingReminder, (reminder) => {
+  if (reminder && reminder.reminderTargets) {
+    selectedUserIds.value = reminder.reminderTargets.map(t => t.userId)
+  } else {
+    selectedUserIds.value = []
+  }
+})
+
+function handleUsersSelected(users) {
+  // 将 User 对象数组转换为 API 需要的格式
+  form.reminderTargets = users.map(user => ({
+    userId: user.id,
+    userName: user.name,
+    wecomUserId: user.wecomUserId || ''
+  }))
+}
 
 function handleSave() {
   saveReminder().then(() => {
@@ -110,6 +116,7 @@ function removeTarget(target) {
   const index = form.reminderTargets.findIndex(t => t.userId === target.userId)
   if (index > -1) {
     form.reminderTargets.splice(index, 1)
+    selectedUserIds.value = selectedUserIds.value.filter(id => id !== target.userId)
   }
 }
 
@@ -121,17 +128,6 @@ defineExpose({
 </script>
 
 <style scoped>
-.user-option {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.user-role {
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-
 .selected-targets {
   display: flex;
   flex-wrap: wrap;

@@ -50,6 +50,7 @@ const stubs = {
   'el-button': { props: ['disabled', 'loading', 'type', 'text'], template: '<button :disabled="disabled"><slot /></button>' },
   'el-cascader': { template: '<div><slot /></div>' },
   'el-divider': { template: '<div><slot /></div>' },
+  'UserPicker': { name: 'UserPicker', template: '<div class="user-picker-stub"></div>' },
 }
 
 function createWrapper() {
@@ -146,32 +147,16 @@ describe('InitiationStage — PRD §4.3 4-section layout', () => {
     expect(wrapper.vm.form.depositAmount).toBe(123.45)
   })
 
-  it('does not hard-limit bidding leader candidates to sales role', async () => {
+  it('uses UserPicker for user selection without local search methods', async () => {
     projectLifecycleApi.getInitiation.mockRejectedValue({ response: { status: 404 } })
-    usersApi.search.mockResolvedValue([
-      { id: 1, name: '销售负责人', employeeNumber: 'S001', roleCode: 'bid-projectLeader' },
-      { id: 2, name: '投标专员', employeeNumber: 'B001', roleCode: 'bid-Team' },
-    ])
     const wrapper = createWrapper()
     await flushPromises()
 
-    await wrapper.vm.searchLeader('张')
-
-    expect(wrapper.vm.leaderOptions.map(u => u.id)).toEqual([1, 2])
-  })
-
-  it('filters bidding assistant candidates to bid specialist role', async () => {
-    projectLifecycleApi.getInitiation.mockRejectedValue({ response: { status: 404 } })
-    usersApi.search.mockResolvedValue([
-      { id: 1, name: '销售负责人', employeeNumber: 'S001', roleCode: 'bid-projectLeader' },
-      { id: 2, name: '投标专员', employeeNumber: 'B001', roleCode: 'bid-Team' },
-    ])
-    const wrapper = createWrapper()
-    await flushPromises()
-
-    await wrapper.vm.searchAssistant('李')
-
-    expect(wrapper.vm.assistantOptions).toHaveLength(1)
-    expect(wrapper.vm.assistantOptions[0].id).toBe(2)
+    // 不再有本地 searchLeader/searchAssistant 方法，所有用户搜索走 UserPicker 组件
+    // 支持按姓名、工号、拼音远程搜索，不再预加载100人候选列表
+    expect(typeof wrapper.vm.searchLeader).toBe('undefined')
+    expect(typeof wrapper.vm.searchAssistant).toBe('undefined')
+    expect(typeof wrapper.vm.leaderOptions).toBe('undefined')
+    expect(typeof wrapper.vm.assistantOptions).toBe('undefined')
   })
 })

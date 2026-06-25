@@ -25,7 +25,7 @@ const mockUser = {
 const elementStubs = {
   ElSelect: {
     name: 'ElSelect',
-    props: ['modelValue', 'filterable', 'remote', 'remoteMethod', 'loading', 'placeholder'],
+    props: ['modelValue', 'filterable', 'remote', 'remoteMethod', 'loading', 'placeholder', 'disabled', 'clearable', 'multiple'],
     emits: ['update:modelValue', 'change'],
     template: '<select class="el-select-stub"><slot /><slot name="empty" /></select>',
   },
@@ -147,5 +147,58 @@ describe('UserPicker', () => {
     })
     const option = wrapper.findComponent({ name: 'ElOption' })
     expect(option.props('label')).toBe('张三（20260509）')
+  })
+
+  describe('multiple mode', () => {
+    const mockUser2 = {
+      id: 2,
+      name: '李四',
+      employeeNumber: '20260510',
+    }
+
+    beforeEach(() => {
+      mockComposable({ options: ref([mockUser, mockUser2]) })
+    })
+
+    it('passes multiple prop to el-select', () => {
+      const wrapper = mount(UserPicker, {
+        props: { mode: 'search', multiple: true },
+        global: { stubs: elementStubs },
+      })
+      expect(wrapper.findComponent({ name: 'ElSelect' }).props('multiple')).toBe(true)
+    })
+
+    it('binds v-model with array of userIds', async () => {
+      const wrapper = mount(UserPicker, {
+        props: { modelValue: [1], mode: 'search', multiple: true },
+        global: { stubs: elementStubs },
+      })
+      await wrapper.findComponent({ name: 'ElSelect' }).vm.$emit('change', [1, 2])
+      const emitted = wrapper.emitted('update:modelValue')
+      expect(emitted).toBeTruthy()
+      expect(emitted[emitted.length - 1][0]).toEqual([1, 2])
+    })
+
+    it('emits select with array of user objects in multiple mode', async () => {
+      const wrapper = mount(UserPicker, {
+        props: { mode: 'search', multiple: true },
+        global: { stubs: elementStubs },
+      })
+      await wrapper.findComponent({ name: 'ElSelect' }).vm.$emit('change', [1, 2])
+      const emitted = wrapper.emitted('select')
+      expect(emitted).toBeTruthy()
+      expect(emitted[0][0]).toBeInstanceOf(Array)
+      expect(emitted[0][0]).toHaveLength(2)
+      expect(emitted[0][0][0]).toMatchObject({ id: 1, name: '张三' })
+      expect(emitted[0][0][1]).toMatchObject({ id: 2, name: '李四' })
+    })
+
+    it('initializes with empty array when multiple and no modelValue', () => {
+      const wrapper = mount(UserPicker, {
+        props: { mode: 'search', multiple: true },
+        global: { stubs: elementStubs },
+      })
+      expect(wrapper.findComponent({ name: 'ElSelect' }).props('modelValue')).toEqual([])
+    })
   })
 })

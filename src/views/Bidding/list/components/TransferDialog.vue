@@ -18,24 +18,12 @@
         prop="newOwnerId"
         :rules="[{ required: true, message: '请选择新的项目负责人', trigger: 'change' }]"
       >
-        <el-select
+        <UserPicker
           v-model="form.newOwnerId"
-          filterable
-          placeholder="选择新的项目负责人"
+          placeholder="搜索并选择新的项目负责人"
           class="full-width"
-          :loading="loadingCandidates"
-          @change="onOwnerChange"
-        >
-          <el-option
-            v-for="candidate in candidates"
-            :key="candidate.id"
-            :label="formatAssignmentCandidateLabel(candidate)"
-            :value="candidate.id"
-            :disabled="candidate.id === form.currentOwnerId"
-          >
-            {{ formatAssignmentCandidateLabel(candidate) }} · {{ candidate.departmentName || '未设置部门' }}
-          </el-option>
-        </el-select>
+          @select="onOwnerChange"
+        />
       </el-form-item>
       <el-form-item v-if="form.newOwnerId === form.currentOwnerId" label=" ">
         <el-alert type="warning" :closable="false" show-icon title="不能转派给当前负责人" />
@@ -59,7 +47,7 @@
 import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import tendersApi from '@/api/modules/tenders.js'
-import { formatAssignmentCandidateLabel } from '../helpers.js'
+import UserPicker from '@/components/common/UserPicker.vue'
 
 const props = defineProps({
   visible: Boolean,
@@ -67,8 +55,6 @@ const props = defineProps({
   tenderTitle: String,
   currentOwnerId: [Number, String],
   currentOwnerName: String,
-  candidates: { type: Array, default: () => [] },
-  loadingCandidates: Boolean,
 })
 
 const emit = defineEmits(['update:visible', 'success', 'close'])
@@ -93,7 +79,7 @@ watch(() => props.visible, (v) => {
 })
 
 function onOwnerChange(val) {
-  // allow re-selection — validation handles it
+  // 禁用当前负责人的逻辑在提交时验证
 }
 
 async function handleConfirm() {
