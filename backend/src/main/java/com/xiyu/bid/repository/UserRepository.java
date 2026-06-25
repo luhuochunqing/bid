@@ -54,15 +54,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
     /** 查找指定 Role 的最早启用账号（无指定 admin 用户时回退）。 */
     Optional<User> findFirstByRoleAndEnabledTrueOrderByIdAsc(User.Role role);
 
-    /** 查找 full_name_pinyin 为 NULL 的所有启用用户（存量回填用）。 */
-    @Query(value = "SELECT * FROM users u WHERE u.enabled = TRUE AND u.full_name_pinyin IS NULL", nativeQuery = true)
-    List<User> findEnabledWithNullPinyin();
+    /** 查找存量的拼音回填用户 — V1097 已删除 full_name_pinyin 列，此方法不再使用。 */
+    // List<User> findEnabledWithNullPinyin();
 
     @Query(value = "SELECT * FROM users u WHERE u.enabled = TRUE "
         + "AND (LOWER(u.full_name) LIKE LOWER(CONCAT('%', :q, '%')) "
         + "OR LOWER(u.username) LIKE LOWER(CONCAT('%', :q, '%')) "
         + "OR LOWER(u.employee_number) LIKE LOWER(CONCAT('%', :q, '%')) "
-        + "OR LOWER(u.full_name_pinyin) LIKE LOWER(CONCAT('%', :q, '%')) "
         + "OR LOWER(u.employee_number_pinyin) LIKE LOWER(CONCAT('%', :q, '%'))) "
         + "ORDER BY u.full_name LIMIT :lim", nativeQuery = true)
     List<User> searchActiveUsers(@Param("q") String query, @Param("lim") int limit);
