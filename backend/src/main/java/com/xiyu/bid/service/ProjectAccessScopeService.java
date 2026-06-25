@@ -72,11 +72,8 @@ public class ProjectAccessScopeService {
                 .map(ProjectMember::getProjectId)
                 .collect(Collectors.toList()));
 
-        // Add projects where user is assigned as bidding lead (primary or secondary)
+        // Add projects where user is assigned as primary bidding lead
         allowedIds.addAll(leadAssignmentRepository.findByPrimaryLeadUserId(user.getId()).stream()
-                .map(a -> a.getProjectId())
-                .collect(Collectors.toList()));
-        allowedIds.addAll(leadAssignmentRepository.findBySecondaryLeadUserId(user.getId()).stream()
                 .map(a -> a.getProjectId())
                 .collect(Collectors.toList()));
 
