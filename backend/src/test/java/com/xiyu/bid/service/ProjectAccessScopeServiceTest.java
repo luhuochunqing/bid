@@ -161,16 +161,15 @@ class ProjectAccessScopeServiceTest {
         when(projectMemberRepository.findByUserId(anyLong())).thenReturn(List.of());
         when(crmCustomerPermissionRepository.findByUserId(anyLong())).thenReturn(List.of());
         when(leadAssignmentRepository.findByPrimaryLeadUserId(803L)).thenReturn(List.of());
-        when(leadAssignmentRepository.findBySecondaryLeadUserId(803L)).thenReturn(List.of());
         when(taskRepository.findDistinctProjectIdsByAssigneeId(803L)).thenReturn(List.of(400L));
 
         assertThat(projectAccessScopeService.getAllowedProjectIds(user)).containsExactly(400L);
     }
 
     @Test
-    void getAllowedProjectIds_ShouldIncludePrimaryAndSecondaryLeadProjects() {
-        // Regression: IJSU2Q — 副投标负责人 (任意角色) 必须能访问
-        // 对应实体的 primaryLeadUserId / secondaryLeadUserId 字段
+    void getAllowedProjectIds_SecondaryLeadShouldNotGetProjectVisibility() {
+        // 对齐权限矩阵：副负责人不自动获得项目可见性
+        // 投标项目负责人仅看主负责人项目（"自己的"），投标专员通过任务指派获得可见性（"参与的"）
         User user = User.builder()
                 .id(801L)
                 .username("secondary-lead")
@@ -185,19 +184,16 @@ class ProjectAccessScopeServiceTest {
         when(projectGroupService.getGrantedProjectIds(user)).thenReturn(List.of());
         when(projectMemberRepository.findByUserId(anyLong())).thenReturn(List.of());
         when(crmCustomerPermissionRepository.findByUserId(anyLong())).thenReturn(List.of());
-        // primary lead on project 100, secondary lead on project 200
         when(leadAssignmentRepository.findByPrimaryLeadUserId(801L)).thenReturn(List.of());
-        when(leadAssignmentRepository.findBySecondaryLeadUserId(801L)).thenReturn(List.of(
-                com.xiyu.bid.project.entity.ProjectLeadAssignment.builder().projectId(200L).build()
-        ));
+        when(taskRepository.findDistinctProjectIdsByAssigneeId(801L)).thenReturn(List.of());
 
-        // Should include project 200 (secondary lead) even when not primary lead
-        assertThat(projectAccessScopeService.getAllowedProjectIds(user)).containsExactly(200L);
+        // 仅为副负责人时，不应看到该项目
+        assertThat(projectAccessScopeService.getAllowedProjectIds(user)).isEmpty();
     }
 
     @Test
-    void getAllowedProjectIds_ShouldDeduplicatePrimaryAndSecondaryLeadProjects() {
-        // Both primary and secondary point to same project → dedup via Set
+    void getAllowedProjectIds_ShouldDeduplicatePrimaryLeadWithTaskAssignmentProjects() {
+        // 主负责人项目与任务指派项目重叠 → 通过 Set 去重
         User user = User.builder()
                 .id(802L)
                 .username("both-leads")
@@ -215,9 +211,7 @@ class ProjectAccessScopeServiceTest {
         when(leadAssignmentRepository.findByPrimaryLeadUserId(802L)).thenReturn(List.of(
                 com.xiyu.bid.project.entity.ProjectLeadAssignment.builder().projectId(300L).build()
         ));
-        when(leadAssignmentRepository.findBySecondaryLeadUserId(802L)).thenReturn(List.of(
-                com.xiyu.bid.project.entity.ProjectLeadAssignment.builder().projectId(300L).build()
-        ));
+        when(taskRepository.findDistinctProjectIdsByAssigneeId(802L)).thenReturn(List.of(300L));
 
         assertThat(projectAccessScopeService.getAllowedProjectIds(user)).containsExactly(300L);
     }
@@ -240,7 +234,6 @@ class ProjectAccessScopeServiceTest {
         when(projectMemberRepository.findByUserId(anyLong())).thenReturn(List.of());
         when(crmCustomerPermissionRepository.findByUserId(anyLong())).thenReturn(List.of());
         when(leadAssignmentRepository.findByPrimaryLeadUserId(901L)).thenReturn(List.of());
-        when(leadAssignmentRepository.findBySecondaryLeadUserId(901L)).thenReturn(List.of());
         when(taskRepository.findDistinctProjectIdsByAssigneeId(901L)).thenReturn(List.of());
         when(bidDocumentReviewRepository.findByReviewerId(901L)).thenReturn(List.of(
                 BidDocumentReviewEntity.builder().projectId(42L).reviewerId(901L).build()
