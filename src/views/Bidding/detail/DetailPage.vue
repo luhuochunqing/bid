@@ -234,7 +234,7 @@ const {
   handleEvaluationSubmit,
   handleReviewEvaluation,
   handleAbandonWithReason,
-} = useEvaluationReview(tender)
+} = useEvaluationReview(tender, { onSubmitted: loadTenderDetail })
 
 const canFillEvaluation = computed(() => {
   // CO-309: 业务约束——评估表第一、二部分值只能从 CRM 传入,任何场景都不可人工编辑

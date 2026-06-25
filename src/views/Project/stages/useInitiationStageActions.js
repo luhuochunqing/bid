@@ -242,7 +242,7 @@ export function useInitiationStageActions({
         tenderId,
         createTime: project.createdAt ? new Date(project.createdAt).toLocaleString('zh-CN') : '',
       })
-      // 从标讯评估表补充字段
+      // 从标讯评估表补充字段（basic 可选，客户信息独立带入，不依赖 basic）
       if (tenderId) {
         try {
           const evalResp = await tendersApi.getEvaluation(tenderId)
@@ -263,7 +263,7 @@ export function useInitiationStageActions({
               projectPlanGapFiles: Array.isArray(b.projectPlanGapFiles) ? b.projectPlanGapFiles : form.projectPlanGapFiles,
             })
           }
-          // 评估表客户信息矩阵 EAV → 立项表单 CustomerInfoRow
+          // 评估表客户信息矩阵 EAV → 立项表单动态行（只生成有数据的角色行）
           const evalCustomerInfos = evaluation?.evaluationCustomerInfos
           if (Array.isArray(evalCustomerInfos) && evalCustomerInfos.length > 0) {
             const INFO_KEY_MAP = {
@@ -275,14 +275,6 @@ export function useInitiationStageActions({
               CAN_SYNC_EVAL: 'canSyncEval',
               INFO_CLEAR_WINNER_BID: 'canConfirmWin', INFO_WIN_RATE_IMPACT: 'winRateImpact',
             }
-            // 按 roleKey 分组
-            const roleMap = {}
-            evalCustomerInfos.forEach(e => {
-              if (!roleMap[e.roleKey]) roleMap[e.roleKey] = {}
-              const fieldKey = INFO_KEY_MAP[e.infoKey]
-              if (fieldKey) roleMap[e.roleKey][fieldKey] = e.value
-            })
-            // 映射到 custFixedRows
             const ROW_ROLE_MAP = {
               PROJECT_HIGHEST_DECISION_MAKER: '项目最高决策人',
               MATERIALS_COMPANY_CHAIRMAN: '物资公司董事长',
@@ -299,11 +291,20 @@ export function useInitiationStageActions({
               EXPERT_2: '专家2',
               EXPERT_3: '专家3',
             }
-            custFixedRows.value = custFixedRows.value.map(row => {
-              const roleKey = Object.keys(ROW_ROLE_MAP).find(k => ROW_ROLE_MAP[k] === row.role)
-              if (!roleKey || !roleMap[roleKey]) return row
-              return { ...row, ...roleMap[roleKey] }
+            // 按 roleKey 分组 EAV
+            const roleMap = {}
+            evalCustomerInfos.forEach(e => {
+              if (!roleMap[e.roleKey]) roleMap[e.roleKey] = {}
+              const fieldKey = INFO_KEY_MAP[e.infoKey]
+              if (fieldKey) roleMap[e.roleKey][fieldKey] = e.value
             })
+            // 动态生成行：只对有 EAV 数据的 roleKey 生成行
+            const rows = []
+            Object.keys(roleMap).forEach(roleKey => {
+              const roleLabel = ROW_ROLE_MAP[roleKey] || roleKey
+              rows.push({ role: roleLabel, ...roleMap[roleKey] })
+            })
+            custFixedRows.value = rows
           }
         } catch (evalErr) {
           console.warn('[InitiationStage] auto-fill evaluation data failed', evalErr)

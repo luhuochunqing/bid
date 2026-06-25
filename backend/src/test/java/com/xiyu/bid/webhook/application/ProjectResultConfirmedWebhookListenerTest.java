@@ -49,6 +49,7 @@ class ProjectResultConfirmedWebhookListenerTest {
     private static final Long PROJECT_ID = 9001L;
     private static final Long TENDER_ID = 254L;
     private static final Long USER_ID = 493L;
+    private static final String OPERATOR_NAME = "张三（06234）";
     private static final Long RESULT_ID = 7700L;
     private static final String CRM_OPPORTUNITY_CODE = "CC20260610180";
     private static final String CRM_OPPORTUNITY_NAME = "西域五金年度框架协议";
@@ -92,7 +93,7 @@ class ProjectResultConfirmedWebhookListenerTest {
                 PROJECT_ID, TENDER_ID, resultType, "", List.of(1032L),
                 List.of(new ProjectResultConfirmedEvent.CompetitorSnapshot(
                         "京东企业购", "95折", "月结60天", "含仓储")),
-                USER_ID, "张三", RESULT_ID);
+                USER_ID, OPERATOR_NAME, RESULT_ID);
     }
 
     @Test
@@ -122,13 +123,13 @@ class ProjectResultConfirmedWebhookListenerTest {
         assertThat(inner.path("code").asText()).isEqualTo(CRM_OPPORTUNITY_CODE);
         assertThat(inner.path("name").asText()).isEqualTo(CRM_OPPORTUNITY_NAME);
         assertThat(inner.path("status").asInt()).isEqualTo(2);
-        assertThat(inner.path("statusEditor").asText()).isEqualTo("张三");
+        assertThat(inner.path("statusEditor").asText()).isEqualTo(OPERATOR_NAME);
         assertThat(inner.path("statusEditTime").asText()).isNotEmpty();
         // feedback 包含 resultType 和竞争对手
         JsonNode feedback = new ObjectMapper().readTree(inner.path("feedback").asText());
         assertThat(feedback.path("reason").asText()).isEqualTo("WON");
         assertThat(feedback.path("vendor").asText()).isEqualTo("京东企业购");
-        assertThat(feedback.path("operator").asText()).isEqualTo("张三");
+        assertThat(feedback.path("operator").asText()).isEqualTo(OPERATOR_NAME);
         // CO-300: evidenceFiles, competitors, systemName
         assertThat(feedback.has("evidenceFiles")).isTrue();
         assertThat(feedback.path("evidenceFiles").isArray()).isTrue();

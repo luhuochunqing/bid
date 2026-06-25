@@ -8,6 +8,7 @@ import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.tender.entity.TenderEvaluation;
 import com.xiyu.bid.tender.entity.TenderEvaluationBasic;
+import com.xiyu.bid.tender.entity.TenderEvaluationCustomerInfo;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -17,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -61,7 +63,6 @@ class InitiationPrefillServiceTest {
     @Test
     void shouldPrefillAndMarkEvalPrefilledWhenEvaluationPresent() throws JsonProcessingException {
         when(repository.findByProjectId(1L)).thenReturn(Optional.empty());
-        when(objectMapper.writeValueAsString(any())).thenReturn("[]");
         TenderEvaluation eval = new TenderEvaluation();
         TenderEvaluationBasic basic = TenderEvaluationBasic.builder()
                 .plannedShortlistedCount(5)
@@ -93,7 +94,7 @@ class InitiationPrefillServiceTest {
         assertThat(saved.getRiskMitigationPlan()).isEqualTo("是");
         assertThat(saved.getSupportNeeded()).isEqualTo("支持Z");
         assertThat(saved.getProjectPlanGap()).isEqualTo("GAP说明");
-        assertThat(saved.getCustomerInfoJson()).isEqualTo("[]");
+        assertThat(saved.getCustomerInfoJson()).isNull();
     }
 
     @Test
@@ -158,5 +159,30 @@ class InitiationPrefillServiceTest {
         assertThat(saved.getOwnerUnit()).isEqualTo("无评估表的采购方");
         assertThat(saved.getCustomerType()).isEqualTo("PRIVATE");
         assertThat(saved.getEvalPrefilled()).isTrue();
+    }
+
+    @Test
+    void shouldPrefillCustomerInfoEvenWhenBasicIsNull() throws JsonProcessingException {
+        when(repository.findByProjectId(1L)).thenReturn(Optional.empty());
+        when(objectMapper.writeValueAsString(any())).thenReturn("[{\"role\":\"专家1\",\"name\":\"王专家\"}]");
+        when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc(any(), any()))
+                .thenReturn(Collections.emptyList());
+        TenderEvaluation eval = new TenderEvaluation();
+        eval.setBasic(null);
+        eval.setCustomerInfos(List.of(
+                TenderEvaluationCustomerInfo.builder()
+                        .roleKey("EXPERT_1")
+                        .infoKey("NAME")
+                        .cellValue("王专家")
+                        .valueType(TenderEvaluationCustomerInfo.ValueType.TEXT)
+                        .build()));
+
+        service.prefillFromEvaluation(1L, 1L, eval, null);
+
+        ArgumentCaptor<ProjectInitiationDetails> captor = ArgumentCaptor.forClass(ProjectInitiationDetails.class);
+        verify(repository).save(captor.capture());
+        ProjectInitiationDetails saved = captor.getValue();
+        assertThat(saved.getEvalPrefilled()).isTrue();
+        assertThat(saved.getCustomerInfoJson()).isEqualTo("[{\"role\":\"专家1\",\"name\":\"王专家\"}]");
     }
 }

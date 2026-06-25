@@ -79,13 +79,17 @@ public class InitiationPrefillService {
                 .build();
         // 标讯基础字段 → 立项 ownerUnit/customerType（必填项，必须带入否则提交立项校验失败）
         EvaluationToInitiationMapper.applyTenderFields(details, tender);
-        if (evaluation != null && evaluation.getBasic() != null) {
-            EvaluationToInitiationMapper.applyEvaluationBasic(details, evaluation.getBasic());
+        if (evaluation != null) {
+            if (evaluation.getBasic() != null) {
+                EvaluationToInitiationMapper.applyEvaluationBasic(details, evaluation.getBasic());
+            }
             List<CustomerInfoRow> rows = EvaluationToInitiationMapper.toCustomerInfoRows(evaluation.getCustomerInfos());
-            try {
-                details.setCustomerInfoJson(objectMapper.writeValueAsString(rows));
-            } catch (JsonProcessingException ex) {
-                throw new IllegalStateException("CO-323: serialize customer info rows failed", ex);
+            if (!rows.isEmpty()) {
+                try {
+                    details.setCustomerInfoJson(objectMapper.writeValueAsString(rows));
+                } catch (JsonProcessingException ex) {
+                    throw new IllegalStateException("CO-323: serialize customer info rows failed", ex);
+                }
             }
         }
         initiationRepository.save(details);

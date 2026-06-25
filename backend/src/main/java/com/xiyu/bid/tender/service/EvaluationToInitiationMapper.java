@@ -112,8 +112,9 @@ public final class EvaluationToInitiationMapper {
             Map.entry("EXPERT_3", "专家3"));
 
     /**
-     * 评估表客户信息 EAV → 立项 14 行 CustomerInfoRow（按 ROW_ROLES 顺序）。
-     * <p>按 roleKey 分组 EAV，每组填入对应 CustomerInfoRow 字段；无 EAV 数据的角色留空行。
+     * 评估表客户信息 EAV → 立项动态行 CustomerInfoRow（只返回有 EAV 数据的角色）。
+     * <p>按 roleKey 分组 EAV，每组填入对应 CustomerInfoRow 字段；无 EAV 数据的角色不返回。
+     * 对齐前端 CustomerInfoMatrix.vue 的 .filter(hasCustomerInfoValue) 逻辑。
      */
     public static List<CustomerInfoRow> toCustomerInfoRows(List<TenderEvaluationCustomerInfo> infos) {
         Map<String, Map<String, String>> byRole = new HashMap<>();
@@ -125,11 +126,13 @@ public final class EvaluationToInitiationMapper {
                         .put(field, ci.getCellValue());
             }
         }
-        List<CustomerInfoRow> rows = new ArrayList<>(ROW_ROLES.size());
-        for (Map.Entry<String, String> role : ROW_ROLES) {
-            Map<String, String> f = byRole.getOrDefault(role.getKey(), Collections.emptyMap());
+        List<CustomerInfoRow> rows = new ArrayList<>(byRole.size());
+        for (Map.Entry<String, Map<String, String>> e : byRole.entrySet()) {
+            String roleKey = e.getKey();
+            String roleLabel = getRoleLabel(roleKey);
+            Map<String, String> f = e.getValue();
             rows.add(CustomerInfoRow.builder()
-                    .role(role.getValue())
+                    .role(roleLabel)
                     .name(f.getOrDefault("name", ""))
                     .contactInfo(f.getOrDefault("contactInfo", ""))
                     .position(f.getOrDefault("position", ""))
@@ -147,5 +150,13 @@ public final class EvaluationToInitiationMapper {
                     .build());
         }
         return rows;
+    }
+
+    /** roleKey → 中文 roleLabel，未命中时返回原 roleKey。 */
+    private static String getRoleLabel(String roleKey) {
+        for (Map.Entry<String, String> e : ROW_ROLES) {
+            if (e.getKey().equals(roleKey)) return e.getValue();
+        }
+        return roleKey;
     }
 }

@@ -33,6 +33,8 @@ vi.mock('element-plus', () => ({
 
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
 import { usersApi } from '@/api/modules/users.js'
+import { tendersApi } from '@/api/modules/tenders.js'
+import { projectsApi } from '@/api/modules/projects.js'
 import InitiationStage from './InitiationStage.vue'
 
 const stubs = {
@@ -173,5 +175,44 @@ describe('InitiationStage — PRD §4.3 4-section layout', () => {
 
     expect(wrapper.vm.assistantOptions).toHaveLength(1)
     expect(wrapper.vm.assistantOptions[0].id).toBe(2)
+  })
+
+  it('initializes customer info rows as empty (0 rows, dynamic from tender evaluation)', async () => {
+    projectLifecycleApi.getInitiation.mockRejectedValue({ response: { status: 404 } })
+    const wrapper = createWrapper()
+    await flushPromises()
+    expect(wrapper.vm.custFixedRows).toEqual([])
+  })
+
+  it('autoFillFromTender generates dynamic customer info rows from evaluation EAV', async () => {
+    projectLifecycleApi.getInitiation.mockRejectedValue({ response: { status: 404 } })
+    projectsApi.getDetail.mockResolvedValue({
+      data: { id: 1, tenderId: 42 },
+    })
+    tendersApi.getDetail.mockResolvedValue({
+      data: { id: 42, purchaserName: '测试单位', customerType: '政府' },
+    })
+    tendersApi.getEvaluation.mockResolvedValue({
+      data: {
+        evaluationCustomerInfos: [
+          { roleKey: 'EXPERT_1', infoKey: 'NAME', value: '王专家' },
+          { roleKey: 'EXPERT_1', infoKey: 'CONTACT_INFO', value: 'wang@test.com' },
+          { roleKey: 'PROJECT_HIGHEST_DECISION_MAKER', infoKey: 'NAME', value: '张总' },
+          { roleKey: 'PROJECT_HIGHEST_DECISION_MAKER', infoKey: 'TENDENCY', value: '1' },
+        ],
+      },
+    })
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    expect(wrapper.vm.custFixedRows).toHaveLength(2)
+    const roles = wrapper.vm.custFixedRows.map(r => r.role).sort()
+    expect(roles).toEqual(['专家1', '项目最高决策人'])
+    const expert = wrapper.vm.custFixedRows.find(r => r.role === '专家1')
+    expect(expert.name).toBe('王专家')
+    expect(expert.contactInfo).toBe('wang@test.com')
+    const dm = wrapper.vm.custFixedRows.find(r => r.role === '项目最高决策人')
+    expect(dm.name).toBe('张总')
+    expect(dm.preference).toBe('1')
   })
 })

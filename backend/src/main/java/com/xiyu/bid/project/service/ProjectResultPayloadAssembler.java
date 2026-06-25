@@ -70,7 +70,7 @@ public class ProjectResultPayloadAssembler {
             return null;
         }
         User user = userRepository.findById(event.operatorUserId()).orElse(null);
-        String operatorName = user != null ? safe(user.getFullName()) : "";
+        String operatorName = event.operatorName() != null ? event.operatorName() : "";
         String operatorEmployeeId = user != null ? safe(user.getEmployeeNumber()) : "";
         String operatedAt = event.occurredAt().atZone(ZONE_SHANGHAI).format(OPERATED_AT_FORMAT);
 

@@ -15,7 +15,8 @@ import { ROLE_AUTHORITIES } from '@/constants/roleCodes'
  * Usage:
  *   const { tenderEvaluation, requiresReview, ... } = useEvaluationReview(tender)
  */
-export function useEvaluationReview(tenderRef) {
+export function useEvaluationReview(tenderRef, options = {}) {
+  const { onSubmitted } = options
   const userStore = useUserStore()
   const currentUserRole = computed(() => userStore?.userRole || ROLE_AUTHORITIES.BID_SPECIALIST)
 
@@ -106,6 +107,7 @@ export function useEvaluationReview(tenderRef) {
         tenderEvaluation.value = result?.data || { ...payload, evaluationStatus: 'SUBMITTED' }
         hasUnsavedChanges.value = false
         ElMessage.success('评估已提交')
+        onSubmitted?.()
       } else {
         ElMessage.error(result?.msg || '评估提交失败')
       }

@@ -75,7 +75,7 @@ class ProjectResultPayloadAssemblerTest {
         assertThat(payload.sourceId()).isEqualTo("CRM-OPP-2026-0510-003");
         assertThat(payload.bidResult()).isEqualTo("WON");
         assertThat(payload.systemName()).isEqualTo("投标管理系统");
-        assertThat(payload.operatorName()).isEqualTo("张三");
+        assertThat(payload.operatorName()).isEqualTo("张三（EMP001）");
         assertThat(payload.operatorEmployeeId()).isEqualTo("EMP001");
         assertThat(payload.operatedAt()).matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\+08:00");
         assertThat(payload.evidenceFiles()).hasSize(1);
@@ -290,6 +290,7 @@ class ProjectResultPayloadAssemblerTest {
                                                     List<ProjectResultConfirmedEvent.CompetitorSnapshot> competitors,
                                                     String reason) {
         return ProjectResultConfirmedEvent.of(
-                PROJECT_ID, TENDER_ID, resultType, reason, evidenceFileIds, competitors, USER_ID, "", RESULT_ID);
+                PROJECT_ID, TENDER_ID, resultType, reason, evidenceFileIds, competitors,
+                USER_ID, "张三（EMP001）", RESULT_ID);
     }
 }
