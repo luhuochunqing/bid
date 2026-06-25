@@ -82,6 +82,17 @@ public class QualificationController {
                 qualificationWebService.uploadAttachment(id, file)));
     }
 
+    @PutMapping("/{id}/attachments/{attachmentId}/replace")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_ADMINISTRATION', 'BIDADMIN', 'BID_TEAMLEADER')")
+    @Auditable(action = "UPDATE", entityType = "Qualification", description = "替换资质附件")
+    public ResponseEntity<ApiResponse<QualificationDTO>> replaceAttachment(
+            @PathVariable Long id,
+            @PathVariable Long attachmentId,
+            @RequestParam("file") MultipartFile file) throws IOException {
+        return ResponseEntity.ok(ApiResponse.success("附件替换成功",
+                qualificationWebService.replaceAttachment(id, attachmentId, file)));
+    }
+
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'BID_ADMINISTRATION', 'BIDADMIN', 'BID_TEAMLEADER', 'BID_TEAM')")
     @Auditable(action = "READ", entityType = "Qualification", description = "获取资质列表")

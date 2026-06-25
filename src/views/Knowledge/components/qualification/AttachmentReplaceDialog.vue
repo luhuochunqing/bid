@@ -74,6 +74,7 @@ import http from '@/api/client'
 const props = defineProps({
   modelValue: Boolean,
   qualificationId: { type: [String, Number], default: null },
+  attachmentId: { type: [String, Number], default: null },
   currentFileName: { type: String, default: '' }
 })
 const emit = defineEmits(['update:modelValue', 'success'])
@@ -111,10 +112,20 @@ const handleConfirm = async () => {
   try {
     const fd = new FormData()
     fd.append('file', selectedFile.value)
-    await http.post(`/api/knowledge/qualifications/${props.qualificationId}/upload`, fd, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
-    ElMessage.success('附件替换成功')
+    const config = { headers: { 'Content-Type': 'multipart/form-data' } }
+
+    if (props.attachmentId) {
+      await http.put(
+        `/api/knowledge/qualifications/${props.qualificationId}/attachments/${props.attachmentId}/replace`,
+        fd, config
+      )
+    } else {
+      await http.post(
+        `/api/knowledge/qualifications/${props.qualificationId}/upload`,
+        fd, config
+      )
+    }
+    ElMessage.success(props.attachmentId ? '附件替换成功' : '附件上传成功')
     emit('success')
     handleClose()
   } catch {

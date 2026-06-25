@@ -109,6 +109,7 @@
     <AttachmentReplaceDialog
       v-model="replaceDialogVisible"
       :qualification-id="replaceQualificationId"
+      :attachment-id="replaceAttachmentId"
       :current-file-name="replaceCurrentFileName"
       @success="handleAttachmentActionSuccess"
     />
@@ -278,6 +279,7 @@ const handleRowClick = (row) => { if (row) openDetailDrawer(row) }
 // 4.2.1.3 编辑资质 - 附件管理
 const replaceDialogVisible = ref(false)
 const replaceQualificationId = ref(null)
+const replaceAttachmentId = ref(null)
 const replaceCurrentFileName = ref('')
 
 const handleFormSaved = () => {
@@ -307,6 +309,7 @@ const handleAttachmentActionSuccess = () => {
 
 const handleAttachmentReplace = (att) => {
   replaceQualificationId.value = detailQualification.value?.id
+  replaceAttachmentId.value = att?.id || null
   replaceCurrentFileName.value = att?.fileName || att?.name || ''
   replaceDialogVisible.value = true
 }
@@ -329,6 +332,7 @@ const handleAttachmentDelete = async (att) => {
 
 const handleAttachmentUpload = () => {
   replaceQualificationId.value = detailQualification.value?.id
+  replaceAttachmentId.value = null
   replaceCurrentFileName.value = ''
   replaceDialogVisible.value = true
 }

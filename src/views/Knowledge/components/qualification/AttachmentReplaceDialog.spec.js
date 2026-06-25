@@ -6,7 +6,8 @@ import AttachmentReplaceDialog from './AttachmentReplaceDialog.vue'
 // Mock API client
 vi.mock('@/api/client', () => ({
   default: {
-    post: vi.fn().mockResolvedValue({ code: 200 })
+    post: vi.fn().mockResolvedValue({ code: 200 }),
+    put: vi.fn().mockResolvedValue({ code: 200 })
   }
 }))
 
@@ -92,15 +93,16 @@ describe('AttachmentReplaceDialog - §4.2.1.3 附件替换', () => {
     })
   })
 
-  describe('确认替换', () => {
+  describe('确认上传（无 attachmentId 时）', () => {
     it('未选择文件时不应提交', async () => {
       const http = (await import('@/api/client')).default
       wrapper.vm.handleConfirm()
       await nextTick()
       expect(http.post).not.toHaveBeenCalled()
+      expect(http.put).not.toHaveBeenCalled()
     })
 
-    it('选择文件后应调用上传接口', async () => {
+    it('选择文件后应调用上传接口 POST', async () => {
       const http = (await import('@/api/client')).default
       const file = new File(['content'], 'new-cert.pdf', { type: 'application/pdf' })
       await wrapper.vm.handleFileChange({ raw: file })
@@ -110,6 +112,64 @@ describe('AttachmentReplaceDialog - §4.2.1.3 附件替换', () => {
         expect.any(FormData),
         expect.objectContaining({ headers: { 'Content-Type': 'multipart/form-data' } })
       )
+      expect(http.put).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('确认替换（有 attachmentId 时）', () => {
+    let replaceWrapper
+
+    beforeEach(async () => {
+      const http = (await import('@/api/client')).default
+      http.post.mockClear()
+      http.put.mockClear()
+
+      replaceWrapper = mount(AttachmentReplaceDialog, {
+        props: {
+          modelValue: true,
+          qualificationId: 123,
+          attachmentId: 456,
+          currentFileName: 'old-cert.pdf'
+        },
+        global: {
+          stubs: {
+            'el-dialog': {
+              template: '<div class="el-dialog" :data-title="title"><slot /><slot name="footer" /></div>',
+              props: ['title']
+            },
+            'el-upload': {
+              template: '<div class="el-upload" :data-accept="accept"><slot /></div>',
+              props: ['accept', 'drag'],
+              methods: { clearFiles: vi.fn() }
+            },
+            'el-button': { template: '<button class="el-button" :disabled="disabled"><slot /></button>', props: ['disabled', 'type', 'loading'] },
+            'el-icon': { template: '<span class="el-icon"><slot /></span>' },
+            'el-alert': { template: '<div class="el-alert" :data-type="type"><slot /></div>', props: ['type', 'title'] }
+          }
+        }
+      })
+    })
+
+    it('应调用替换接口 PUT', async () => {
+      const http = (await import('@/api/client')).default
+      const file = new File(['content'], 'new-cert.pdf', { type: 'application/pdf' })
+      await replaceWrapper.vm.handleFileChange({ raw: file })
+      await replaceWrapper.vm.handleConfirm()
+      expect(http.put).toHaveBeenCalledWith(
+        '/api/knowledge/qualifications/123/attachments/456/replace',
+        expect.any(FormData),
+        expect.objectContaining({ headers: { 'Content-Type': 'multipart/form-data' } })
+      )
+      expect(http.post).not.toHaveBeenCalled()
+    })
+
+    it('替换接口 URL 应包含正确的附件 ID', async () => {
+      const http = (await import('@/api/client')).default
+      const file = new File(['content'], 'replaced.pdf', { type: 'application/pdf' })
+      await replaceWrapper.vm.handleFileChange({ raw: file })
+      await replaceWrapper.vm.handleConfirm()
+      const calledUrl = http.put.mock.calls[0][0]
+      expect(calledUrl).toContain('/456/replace')
     })
   })
 })

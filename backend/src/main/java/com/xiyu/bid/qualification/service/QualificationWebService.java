@@ -55,6 +55,9 @@ public class QualificationWebService {
 
     public record AttachmentFile(Path path, String fileName, String contentType) {}
 
+    /** 保存文件到磁盘的结果 */
+    private record SavedFile(String originalFilename, String uniqueFilename, Path storagePath) {}
+
     public ImportQualificationAppService.ImportSummary importFromExcel(MultipartFile file, String operatorName) throws IOException {
         if (file == null || file.isEmpty()) {
             throw new InvalidArgumentException("上传文件不能为空");
@@ -68,29 +71,16 @@ public class QualificationWebService {
         }
 
         validateFileType(file);
-
-        // 1. 清洗文件名，防止路径遍历
-        String originalFilename = file.getOriginalFilename();
-        String safeFilename = InputSanitizer.sanitizeFilename(originalFilename != null ? originalFilename : "attachment");
-        String uniqueFilename = System.currentTimeMillis() + "_" + safeFilename;
-        Path storagePath = resolveAttachmentPath(id, uniqueFilename);
-
-        // 2. 先写文件再更新 DB，DB 失败时清理已保存的孤立文件
-        try {
-            Files.createDirectories(storagePath.getParent());
-            Files.write(storagePath, file.getBytes());
-        } catch (IOException e) {
-            throw new RuntimeException("附件保存失败: " + e.getMessage(), e);
-        }
+        SavedFile saved = saveFileToDisk(id, file);
 
         try {
-            // 3. 获取当前 DTO，追加附件到已有列表（防止覆盖已有附件）
+            // 获取当前 DTO，追加附件到已有列表（防止覆盖已有附件）
             QualificationDTO dto = qualificationQueryService.getQualificationById(id);
-            dto.setFileUrl(uniqueFilename);
+            dto.setFileUrl(saved.uniqueFilename());
 
             QualificationAttachmentDTO attachmentDTO = QualificationAttachmentDTO.builder()
-                    .fileName(originalFilename)
-                    .fileUrl(uniqueFilename)
+                    .fileName(saved.originalFilename())
+                    .fileUrl(saved.uniqueFilename())
                     .uploadedAt(LocalDateTime.now().toString())
                     .build();
 
@@ -103,15 +93,47 @@ public class QualificationWebService {
                 dto.setAttachments(merged);
             }
 
-            // 4. 持久化 DB 记录
             return qualificationService.updateQualification(id, dto);
         } catch (RuntimeException e) {
-            // 清理因 DB 写入失败产生的孤立文件
-            try {
-                Files.deleteIfExists(storagePath);
-            } catch (IOException cleanupEx) {
-                log.warn("清理孤立附件文件失败: {}", storagePath, cleanupEx);
-            }
+            cleanupOrphanFile(saved.storagePath());
+            throw e;
+        }
+    }
+
+    public QualificationDTO replaceAttachment(Long id, Long attachmentId, MultipartFile file) throws IOException {
+        if (file == null || file.isEmpty()) {
+            throw new InvalidArgumentException("上传文件不能为空");
+        }
+
+        // 1. 校验附件归属该资质
+        var existing = qualificationAttachmentJpaRepository.findById(attachmentId)
+                .filter(a -> a.getQualificationId().equals(id))
+                .orElseThrow(() -> new InvalidArgumentException("附件不存在或不属于该资质"));
+
+        validateFileType(file);
+
+        // 2. 缓存旧文件路径用于后续清理
+        String oldFileUrl = existing.getFileUrl();
+
+        // 3. 保存新文件
+        SavedFile saved = saveFileToDisk(id, file);
+
+        // 4. 更新 DB 记录（替换原附件的文件名和 URL，而非新增记录）
+        try {
+            existing.setFileName(saved.originalFilename());
+            existing.setFileUrl(saved.uniqueFilename());
+            existing.setUploadedAt(LocalDateTime.now());
+            qualificationAttachmentJpaRepository.save(existing);
+
+            // 5. 同步主实体 fileUrl
+            syncFileUrlToMainEntity(id, saved.uniqueFilename());
+
+            // 6. 清理旧物理文件
+            cleanupOldFile(id, oldFileUrl);
+
+            return qualificationQueryService.getQualificationById(id);
+        } catch (RuntimeException e) {
+            cleanupOrphanFile(saved.storagePath());
             throw e;
         }
     }
@@ -148,6 +170,51 @@ public class QualificationWebService {
         String contentType = file.getContentType();
         if (contentType != null && !ALLOWED_MIME_TYPES.contains(contentType)) {
             throw new InvalidArgumentException("不支持的文件 MIME 类型: " + contentType);
+        }
+    }
+
+    /** 保存上传文件到磁盘，返回文件名信息和存储路径 */
+    private SavedFile saveFileToDisk(Long qualificationId, MultipartFile file) throws IOException {
+        String originalFilename = file.getOriginalFilename();
+        String safeFilename = InputSanitizer.sanitizeFilename(originalFilename != null ? originalFilename : "attachment");
+        String uniqueFilename = System.currentTimeMillis() + "_" + safeFilename;
+        Path storagePath = resolveAttachmentPath(qualificationId, uniqueFilename);
+
+        try {
+            Files.createDirectories(storagePath.getParent());
+            Files.write(storagePath, file.getBytes());
+        } catch (IOException e) {
+            throw new RuntimeException("附件保存失败: " + e.getMessage(), e);
+        }
+
+        return new SavedFile(originalFilename, uniqueFilename, storagePath);
+    }
+
+    /** 同步最新附件 URL 到主实体 fileUrl 字段 */
+    private void syncFileUrlToMainEntity(Long qualificationId, String uniqueFilename) {
+        QualificationDTO dto = qualificationQueryService.getQualificationById(qualificationId);
+        dto.setFileUrl(uniqueFilename);
+        qualificationService.updateQualification(qualificationId, dto);
+    }
+
+    /** 清理旧物理文件 */
+    private void cleanupOldFile(Long qualificationId, String oldFileUrl) {
+        if (oldFileUrl != null) {
+            try {
+                Path oldPath = resolveAttachmentPath(qualificationId, oldFileUrl);
+                Files.deleteIfExists(oldPath);
+            } catch (IOException e) {
+                log.warn("清理旧附件文件失败: {}", oldFileUrl, e);
+            }
+        }
+    }
+
+    /** 清理因 DB 写入失败产生的孤立文件 */
+    private void cleanupOrphanFile(Path storagePath) {
+        try {
+            Files.deleteIfExists(storagePath);
+        } catch (IOException e) {
+            log.warn("清理孤立附件文件失败: {}", storagePath, e);
         }
     }
 
