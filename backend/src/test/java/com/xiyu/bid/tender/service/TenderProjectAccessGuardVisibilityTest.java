@@ -70,7 +70,7 @@ class TenderProjectAccessGuardVisibilityTest {
 
         when(userRepository.findByUsername("bidteam")).thenReturn(java.util.Optional.of(bidTeamUser));
 
-        DataScopeAccessProfile profile = new DataScopeAccessProfile("self", null, null);
+        DataScopeAccessProfile profile = DataScopeAccessProfile.builder().dataScope("self").build();
         when(dataScopeConfigService.getAccessProfile(any(User.class))).thenReturn(profile);
 
         when(projectAccessScopeService.currentUserHasAdminAccess()).thenReturn(false);

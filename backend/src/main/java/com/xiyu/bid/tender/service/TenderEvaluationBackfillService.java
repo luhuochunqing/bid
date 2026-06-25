@@ -57,6 +57,7 @@ public class TenderEvaluationBackfillService {
     private final ApplicationEventPublisher eventPublisher;
     private final TenderEvaluationGapFilesSync gapFilesSync;
     private final TenderEvaluationDocumentService documentService;
+    private final TenderEvaluationCustomerInfoDeleteService customerInfoDeleteService;
     private final TenderEvaluationSubmissionMapper mapper = new TenderEvaluationSubmissionMapper();
     private final Clock clock;
 
@@ -69,6 +70,7 @@ public class TenderEvaluationBackfillService {
             ApplicationEventPublisher eventPublisher,
             com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository projectDocumentRepository,
             TenderEvaluationDocumentService documentService,
+            TenderEvaluationCustomerInfoDeleteService customerInfoDeleteService,
             Clock clock) {
         this.evaluationRepository = evaluationRepository;
         this.tenderRepository = tenderRepository;
@@ -78,6 +80,7 @@ public class TenderEvaluationBackfillService {
         this.eventPublisher = eventPublisher;
         this.gapFilesSync = new TenderEvaluationGapFilesSync(projectDocumentRepository);
         this.documentService = documentService;
+        this.customerInfoDeleteService = customerInfoDeleteService;
         this.clock = clock;
     }
 
@@ -157,22 +160,20 @@ public class TenderEvaluationBackfillService {
     // ---------- helpers ----------
 
     /**
-     * CO-266 修复：应用客户信息段，确保 DELETE SQL 先于 INSERT 落库。
-     * 与 {@link TenderEvaluationSubmissionService#applyCustomerInfosWithFlush} 逻辑一致。
+     * 应用客户信息段：使用 REQUIRES_NEW 事务先删后加。
+     * <p>DELETE 在独立事务中立即提交，即使后续 BusinessException 导致主事务回滚，
+     * 删除仍然生效（CO-310 修复）。
      */
     private void applyCustomerInfosWithFlush(TenderEvaluation entity,
                                              List<com.xiyu.bid.tender.dto.EvaluationCustomerInfoDTO> infos) {
         if (infos == null) {
             return;
         }
+        Long evaluationId = entity.getId();
         List<TenderEvaluationCustomerInfo> newRows = mapper.buildCustomerInfoRows(entity, infos);
-        if (entity.getCustomerInfos() == null) {
-            entity.setCustomerInfos(new ArrayList<>());
-        }
-        if (!entity.getCustomerInfos().isEmpty()) {
-            entity.getCustomerInfos().clear();
-            evaluationRepository.saveAndFlush(entity);
-        }
+        // REQUIRES_NEW：删除在独立事务中立即提交，不受主事务 rollback 影响
+        customerInfoDeleteService.deleteAllByEvaluationId(evaluationId);
+        entity.getCustomerInfos().clear();
         entity.getCustomerInfos().addAll(newRows);
     }
 

@@ -102,7 +102,6 @@
       :preview="distribution.distributionPreview.value"
       v-model:form="distribution.distributeForm.value"
       :loading="distribution.distributeLoading.value"
-      :loading-candidates="distribution.loadingCandidates.value"
       @reset="distribution.resetDistributeForm"
       @submit="distribution.handleDistribute"
     />
