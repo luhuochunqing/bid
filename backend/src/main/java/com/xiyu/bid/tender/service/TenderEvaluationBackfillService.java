@@ -32,6 +32,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * CO-310 修复：CRM 商机关联回填评估表专用服务。
@@ -93,12 +95,18 @@ public class TenderEvaluationBackfillService {
      * latest assignee 限制。此方法直接保存评估表数据并提交，一步完成回填。
      * <p>逻辑等价于 {@link TenderEvaluationSubmissionService#saveDraft} +
      * {@link TenderEvaluationSubmissionService#submit}，但跳过 canFill 检查。
+     * <p>CO-325 修复：使用 {@link Propagation#REQUIRES_NEW} 在独立事务中执行。
+     * 评估表校验失败时（如"计划入围供应商数量不能小于 1"），独立事务回滚，
+     * 不影响主事务（CRM 商机关联）。否则 Spring 默认会将主事务标记 rollback-only，
+     * 即使 {@code linkCrmOpportunity} catch 了异常，事务提交时仍会抛
+     * {@link org.springframework.transaction.UnexpectedRollbackException}。
      *
      * @param tenderId 标讯 ID
      * @param req 评估表三段式数据
      * @param evaluatorId 操作人 ID（sales 等）
      * @return 保存后的评估表 DTO
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public TenderEvaluationDTO backfillFromCrmLink(Long tenderId,
                                                     TenderEvaluationSubmitRequest req,
                                                     Long evaluatorId) {
