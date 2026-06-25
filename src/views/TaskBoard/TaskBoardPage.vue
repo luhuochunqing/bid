@@ -74,13 +74,13 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import TaskBoardCard from './components/TaskBoardCard.vue'
 import TaskForm from '@/components/project/TaskForm.vue'
-import { projectsApi } from '@/api/modules/projects.js'
 import { useTaskBoard } from './composables/useTaskBoard.js'
+import { useTaskSubmitReview } from './composables/useTaskSubmitReview.js'
 
 const {
   items,
@@ -94,6 +94,8 @@ const {
   loadTasks
 } = useTaskBoard()
 
+const { submitForReview } = useTaskSubmitReview()
+
 // 抽屉状态
 const drawerVisible = ref(false)
 const selectedTask = ref(null)
@@ -106,23 +108,14 @@ const canSubmitForReview = computed(() => {
 })
 
 function handleTaskClick(item) {
-  const taskData = {
-    name: item.title,
+  // 只覆盖映射字段，其余保留 API 原始数据（#3 P1 展开 item）
+  selectedTask.value = {
+    ...item,
+    name: item.title,           // API → Form 模型映射
     deadline: item.dueDate || '',
-    content: item.content || '',
     completionNote: item.completionNotes || '',
-    projectId: item.projectId,
-    assigneeId: item.assigneeId,
-    id: item.id,
-    status: item.status || 'TODO',
-    extendedFields: {},
-    attachments: [],
   }
-  selectedTask.value = taskData
-  // 等待 nextTick 让 TaskForm 渲染完成
-  nextTick(() => {
-    drawerVisible.value = true
-  })
+  drawerVisible.value = true    // 无需 nextTick（#4 P1 闪烁修复）
 }
 
 async function handleSubmitForReview() {
@@ -138,27 +131,12 @@ async function handleSubmitForReview() {
     if (!result || result.valid === false) return
 
     const data = result.data
-    const projectId = data.projectId
-    const taskId = data.id
-
-    // 上传新增交付物
-    const files = data.deliverableFiles || []
-    for (const file of files) {
-      if (file?.raw) {
-        const formData = new FormData()
-        formData.append('file', file.raw)
-        formData.append('taskId', taskId)
-        await projectsApi.createTaskDeliverable(projectId, taskId, formData)
-      }
-    }
-
-    // 保存完成情况说明
-    if (data.completionNote) {
-      await projectsApi.updateTask(taskId, { completionNotes: data.completionNote })
-    }
-
-    // 更新状态为 REVIEW
-    await projectsApi.updateTaskStatus(projectId, taskId, 'REVIEW')
+    await submitForReview({
+      projectId: data.projectId,
+      taskId: data.id,
+      deliverableFiles: data.deliverableFiles || [],
+      completionNote: data.completionNote,
+    })
 
     ElMessage.success('已提交审核')
     drawerVisible.value = false

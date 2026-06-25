@@ -82,7 +82,13 @@ const stubs = {
 
 function createWrapper() {
   return mount(TaskBoardPage, {
-    global: { stubs, plugins: [createPinia()] },
+    global: {
+      stubs,
+      plugins: [createPinia()],
+      directives: {  // #8 P2 mock v-loading 避免 warn 噪音
+        loading: vi.fn(),
+      },
+    },
   })
 }
 
@@ -147,7 +153,10 @@ describe('TaskBoardPage', () => {
     await flushPromises()
 
     const { projectsApi } = await import('@/api/modules/projects.js')
-    // 应调用 updateTaskStatus 更新状态为 REVIEW
-    expect(projectsApi.updateTaskStatus).toHaveBeenCalled()
+    // #9 P2 参数级断言：应调用 updateTaskStatus 更新状态为 REVIEW
+    expect(projectsApi.updateTaskStatus).toHaveBeenCalledWith(10, 1, 'REVIEW')
+    // item 无 deliverableFiles，所以 updateTask 和 createTaskDeliverable 不会被调用
+    expect(projectsApi.updateTask).not.toHaveBeenCalled()
+    expect(projectsApi.createTaskDeliverable).not.toHaveBeenCalled()
   })
 })

@@ -753,3 +753,38 @@ handleSubmitForReview:
 | npx vitest run src/views/TaskBoard | ✅ 14 tests passed (3 files) |
 | npm run check:line-budgets | ✅ passed (guarded_changes=2) |
 | npm run build | ✅ success (no new warnings) |
+
+## 设计思维链 Review 修复（第二轮）
+
+2026-06-25 根据设计评估报告实施 10 项修复：
+
+### 修复清单
+
+| # | 严重度 | 问题 | 修复内容 | 变更文件 |
+|---|--------|------|---------|---------|
+| 1 | P0 | 提审逻辑重复（confirmSubmit vs handleSubmitForReview） | 抽取 `useTaskSubmitReview` composable，双方统一调用 `submitForReview()` | 新建 composable + 修改两个 vue 文件 |
+| 2 | P0 | status 固定 'TODO' 导致业务偏差 | 改为保留 API 原值 `item.status`，删除 `\|\| 'TODO'` | TaskBoardPage.vue |
+| 3 | P1 | 字段映射硬编码 + 快照转存 | 展开 `...item` 只覆盖映射字段，保留 API 原始响应式数据 | TaskBoardPage.vue |
+| 4 | P1 | nextTick 延迟打开 drawer 造成提审按钮闪烁 | 删除 nextTick，selectedTask 赋值后直接设 drawerVisible | TaskBoardPage.vue |
+| 5 | P1 | matchesCurrentUser 缺少类型注释 | 添加 jsdoc `@param`/`@returns` | TaskBoardCard.vue |
+| 6 | P1 | 模拟的 TaskFormStub 精度不足 | 改进断言：`toHaveBeenCalledWith` 参数级检查 | TaskBoardPage.spec.js |
+| 7 | P2 | PRIORITY_TYPE_MAP 在 setup 内重复创建 | 提升到模块级常量 | TaskBoardCard.vue |
+| 8 | P2 | v-loading 未 mock 导致测试 warn | 添加 `directives: { loading: vi.fn() }` | TaskBoardPage.spec.js |
+| 9 | P2 | submit-review 测试只断言 `toHaveBeenCalled` | 改为参数级断言 + 注释未调用路径 | TaskBoardPage.spec.js |
+| 10 | P2 | 注意到 `projectsApi` 在 TaskBoardCard 中不再直接引用 | 移除 `projectsApi` import，改为走 composable（确认 BID_REVIEW 操作仍保留 projectLifecycleApi） | TaskBoardCard.vue |
+
+### 新增 composable
+
+`src/views/TaskBoard/composables/useTaskSubmitReview.js` — 封装三条 API 调用：
+
+1. `createTaskDeliverable`（遍历 `deliverableFiles` 逐个上传）
+2. `updateTask`（保存 completionNote）
+3. `updateTaskStatus(projectId, taskId, 'REVIEW')`
+
+### 验证结果
+
+| 检查项 | 结果 |
+|--------|------|
+| npx vitest run src/views/TaskBoard | ✅ 14 tests passed (3 files, 0 warn) |
+| npm run check:line-budgets | ✅ passed (guarded_changes=3) |
+| npm run build | ✅ success (no new errors) |

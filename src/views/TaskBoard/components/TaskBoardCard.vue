@@ -87,10 +87,14 @@
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { User, Calendar, OfficeBuilding } from '@element-plus/icons-vue'
-import { projectsApi } from '@/api/modules/projects.js'
-import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
 import { useUserStore } from '@/stores/user.js'
+import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
 import ProjectDocumentTable from '@/views/Project/stages/components/ProjectDocumentTable.vue'
+import { useTaskSubmitReview } from '../composables/useTaskSubmitReview.js'
+
+// #7 P2 常量提升到模块级，避免每张卡片重复创建
+const PRIORITY_TYPE_MAP = { HIGH: 'danger', MEDIUM: 'warning', LOW: 'info' }
+const PRIORITY_TEXT_MAP = { HIGH: '高', MEDIUM: '中', LOW: '低' }
 
 const props = defineProps({
   item: { type: Object, required: true },
@@ -98,9 +102,8 @@ const props = defineProps({
 })
 const emit = defineEmits(['status-change', 'deliverable-changed', 'task-click'])
 const userStore = useUserStore()
+const { submitForReview } = useTaskSubmitReview()
 
-const PRIORITY_TYPE_MAP = { HIGH: 'danger', MEDIUM: 'warning', LOW: 'info' }
-const PRIORITY_TEXT_MAP = { HIGH: '高', MEDIUM: '中', LOW: '低' }
 const priorityType = computed(() => PRIORITY_TYPE_MAP[props.item.priority] || 'info')
 const priorityText = computed(() => PRIORITY_TEXT_MAP[props.item.priority] || props.item.priority)
 
@@ -116,6 +119,11 @@ const formattedDate = computed(() => {
 })
 
 // 复用 TaskKanban 的交付物逻辑
+/**
+ * 比较用户 ID，支持 number/string 混合类型（#5 P1 添加类型注释）
+ * @param {number|string|null|undefined} id
+ * @returns {boolean}
+ */
 function matchesCurrentUser(id) {
   const uid = userStore?.currentUser?.id
   return uid != null && id != null && String(uid) === String(id)
@@ -160,16 +168,16 @@ async function confirmSubmit() {
   if (!submittingTask.value) return
   submittingTaskLoading.value = true
   try {
-    if (deliverableUploadRef.value?.uploadFiles?.length > 0) {
-      const formData = new FormData()
-      formData.append('file', deliverableUploadRef.value.uploadFiles[0].raw)
-      formData.append('taskId', submittingTask.value.id)
-      await projectsApi.createTaskDeliverable(submittingTask.value.projectId, submittingTask.value.id, formData)
-    }
-    if (submitNotes.value) {
-      await projectsApi.updateTask(submittingTask.value.id, { completionNotes: submitNotes.value })
-    }
-    await projectsApi.updateTaskStatus(submittingTask.value.projectId, submittingTask.value.id, 'REVIEW')
+    // 通过共享 composable 统一提审（#1 P0 逻辑复用）
+    await submitForReview({
+      projectId: submittingTask.value.projectId,
+      taskId: submittingTask.value.id,
+      deliverableFiles: deliverableUploadRef.value?.uploadFiles?.length > 0
+        ? [{ raw: deliverableUploadRef.value.uploadFiles[0].raw }]
+        : [],
+      completionNote: submitNotes.value,
+    })
+
     ElMessage.success('已提交审核')
     showSubmitDialog.value = false
     emit('deliverable-changed', submittingTask.value)
