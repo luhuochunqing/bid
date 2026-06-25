@@ -1,0 +1,15 @@
+version: 1
+task: "co338-design-review-fixes"
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql/V1096__add_users_employee_number_pinyin.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/zcode/co338-comments-2-3"
+    expiresAt: "2026-06-27T19:00:00.000Z"
+    reason: "V1096 migration inherited from branch history (user-picker pinyin support)"
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1096__add_users_employee_number_pinyin.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/zcode/co338-comments-2-3"
+    expiresAt: "2026-06-27T19:00:00.000Z"
+    reason: "U1096 rollback inherited from branch history"
