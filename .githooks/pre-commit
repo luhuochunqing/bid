@@ -14,7 +14,8 @@ npm --prefix "$ROOT_DIR" run check:token-governance
 node "$ROOT_DIR/scripts/check-vue-test-boilerplate.mjs"
 # 前端硬编码枚举映射表检测：检查 staged Vue 文件中是否存在后端枚举硬编码映射（2026-06-05 skill-progression-map）
 node "$ROOT_DIR/scripts/check-vue-enum-mapping.mjs"
-
+# UserPicker mode 回归检测：确保 search-mode 调用点未被静默改成 candidates（2026-06-25 skill-progression-map）
+node "$ROOT_DIR/scripts/check-userpicker-mode.mjs"
 npm --prefix "$ROOT_DIR" run wiki:check || true
 # 当 staged 文件命中 hot-paths 时，强制要求在 .agent-locks/ 中已注册对应锁
 # 工程背景(2026-05-21): 改 .github/workflows 和 .githooks 忘记注册锁，CI 反复失败

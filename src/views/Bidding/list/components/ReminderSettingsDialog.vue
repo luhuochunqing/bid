@@ -23,43 +23,19 @@
       </el-form-item>
 
       <el-form-item label="通知对象" required>
-        <el-select
-          v-model="form.reminderTargets"
+        <UserPicker
+          v-model="selectedUserIds"
+          mode="search"
           multiple
-          placeholder="选择通知对象"
-          value-key="userId"
-          :loading="loadingUsers"
+          placeholder="搜索并选择通知对象（姓名/工号/拼音）"
           style="width: 100%"
-        >
-          <el-option
-            v-for="user in users"
-            :key="user.id"
-            :label="formatUserLabel(user)"
-            :value="{ userId: user.id, userName: user.name, wecomUserId: user.wecomUserId || '' }"
-          >
-            <div class="user-option">
-              <span>{{ formatUserLabel(user) }}</span>
-              <span class="user-role">{{ user.roleName || user.role || '' }}</span>
-            </div>
-          </el-option>
-        </el-select>
+          :initial-options="userPickerInitialOptions"
+          @select="handleUsersSelected"
+        />
       </el-form-item>
 
       <el-form-item label="启用状态">
         <el-switch v-model="form.enabled" />
-      </el-form-item>
-
-      <el-form-item v-if="form.reminderTargets.length > 0" label="已选通知对象">
-        <div class="selected-targets">
-          <el-tag
-            v-for="target in form.reminderTargets"
-            :key="target.userId"
-            closable
-            @close="removeTarget(target)"
-          >
-            {{ target.userName }}
-          </el-tag>
-        </div>
       </el-form-item>
     </el-form>
 
@@ -73,9 +49,10 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useReminderSettings } from './useReminderSettings.js'
-import { formatUserLabel } from '@/utils/formatUserLabel.js'
+import UserPicker from '@/components/common/UserPicker.vue'
+import { toReminderTargets, fromReminderTargets } from '@/utils/userPicker.js'
 
 const props = defineProps({
   modelValue: { type: Boolean, required: true },
@@ -88,8 +65,6 @@ const {
   form,
   editingReminder,
   saving,
-  users,
-  loadingUsers,
   openCreateDialog,
   openEditDialog,
   saveReminder
@@ -100,17 +75,34 @@ const modelValue = computed({
   set: (val) => emit('update:modelValue', val)
 })
 
+// UserPicker v-model: array of selected user IDs
+const selectedUserIds = ref([])
+
+// Convert existing reminderTargets to initial-options format so UserPicker
+// can display user names (not just IDs) when editing an existing reminder.
+const userPickerInitialOptions = ref([])
+
+// Sync selectedUserIds + initialOptions when form.reminderTargets changes
+// (e.g. from openEditDialog which populates the form with existing targets).
+watch(() => form.reminderTargets, (targets) => {
+  if (targets && targets.length > 0) {
+    selectedUserIds.value = targets.map(t => t.userId)
+    userPickerInitialOptions.value = fromReminderTargets(targets)
+  } else {
+    selectedUserIds.value = []
+    userPickerInitialOptions.value = []
+  }
+}, { immediate: true, deep: true })
+
+// Convert UserPicker selected users to reminder target format and update form.
+function handleUsersSelected(selectedUsers) {
+  form.reminderTargets = toReminderTargets(selectedUsers)
+}
+
 function handleSave() {
   saveReminder().then(() => {
     emit('saved')
   })
-}
-
-function removeTarget(target) {
-  const index = form.reminderTargets.findIndex(t => t.userId === target.userId)
-  if (index > -1) {
-    form.reminderTargets.splice(index, 1)
-  }
 }
 
 // 暴露方法供父组件调用
@@ -119,22 +111,3 @@ defineExpose({
   openEditDialog
 })
 </script>
-
-<style scoped>
-.user-option {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.user-role {
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-
-.selected-targets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-</style>
