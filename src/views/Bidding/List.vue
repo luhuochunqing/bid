@@ -193,12 +193,11 @@ import { useTenderListPage } from './list/useTenderListPage.js'
 import { tendersApi } from '@/api/modules/tenders'
 import { useBiddingStore } from '@/stores/bidding'
 import { ElMessage } from 'element-plus'
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive } from 'vue'
 import UserPicker from '@/components/common/UserPicker.vue'
 import './list/styles/list-page.css'
 import './list/styles/table.css'
 import './list/styles/mobile-page.css'
-import { formatUserLabel } from '@/utils/formatUserLabel.js'
 
 const {
   searchForm, viewMode, isMobile, loading, currentPage, pageSize,
@@ -210,7 +209,7 @@ const {
   batchActions, distribution,
   handleSearch, handleReset, handleExport,
   handleViewDetail, handleParticipate, handleViewAllRecommend,
-  handleOpenCustomerOpportunityCenter, openManualAdd, openSourceConfig,
+  handleOpenCustomerOpportunityCenter, openSourceConfig,
   handleAIAnalysis, isAdmin, handleEvaluate,
 } = useTenderListPage()
 
