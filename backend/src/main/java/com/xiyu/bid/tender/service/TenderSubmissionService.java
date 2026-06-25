@@ -1,15 +1,12 @@
 package com.xiyu.bid.tender.service;
 
 import com.xiyu.bid.annotation.Auditable;
-import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
-import com.xiyu.bid.task.dto.TaskDTO;
-import com.xiyu.bid.task.service.TaskService;
 import com.xiyu.bid.tender.dto.TenderAbandonRequest;
 import com.xiyu.bid.tender.dto.TenderBidResponse;
 import com.xiyu.bid.tender.entity.TenderEvaluation;
@@ -22,8 +19,6 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -33,7 +28,6 @@ public class TenderSubmissionService {
     private final TenderRepository tenderRepository;
     private final TenderEvaluationRepository tenderEvaluationRepository;
     private final UserRepository userRepository;
-    private final TaskService taskService;
     private final TenderAssignmentPermissions permissions;
     private final TenderProjectAccessGuard accessGuard;
     private final ObjectMapper objectMapper;
@@ -81,23 +75,12 @@ public class TenderSubmissionService {
                         null, userId, operatorName, recShouldBid, recReason));
         tenderRepository.save(tender);
 
-        TaskDTO createdTodo = taskService.createTask(
-                TaskDTO.builder()
-                        .projectId(tenderId)
-                        .title("【待立项】" + tender.getTitle())
-                        .description("标讯「" + tender.getTitle() + "」已投标，需进行项目立项。预算：" + tender.getBudget() + "万元。")
-                        .status(Task.Status.TODO)
-                        .priority(Task.Priority.HIGH)
-                        .assigneeId(userId)
-                        .dueDate(LocalDateTime.now().plusDays(7))
-                        .build());
-        log.info("Tender {} participated, created todo {} for user {}", tenderId, createdTodo.getId(), userId);
+        // CO-349: 删除投标时自动创建的待立项任务，避免提交投标时因任务未完成而报错
+        log.info("Tender {} participated by user {}", tenderId, userId);
         return TenderBidResponse.builder()
                 .accepted(true)
-                .message("投标成功，已生成项目立项待办")
+                .message("投标成功")
                 .projectId(tenderId)
-                .todoId(createdTodo.getId())
-                .todoTitle(createdTodo.getTitle())
                 .build();
     }
 
