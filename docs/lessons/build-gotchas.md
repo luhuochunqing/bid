@@ -4,6 +4,69 @@
 
 ---
 
+## 2. Maven `-DskipTests` 只跳过测试运行，不跳过测试编译
+
+### 问题
+
+执行 `mvn -DskipTests package` 时，以为测试代码有问题也能打包成功，结果测试代码编译错误仍然导致构建失败。
+
+```
+# 以为加了 -DskipTests 就能跳过测试相关的一切
+mvn -DskipTests package
+# 结果：测试代码编译错误照样构建失败
+[ERROR] Failed to execute goal maven-compiler-plugin:testCompile
+[ERROR] Compilation failure
+```
+
+### 根因
+
+Maven 的 `-DskipTests` 参数**只跳过 `surefire:test` 阶段（测试运行）**，不跳过 `compiler:testCompile` 阶段（测试代码编译）。
+
+Maven 构建生命周期：
+
+```
+mvn -DskipTests package
+  → validate
+  → compile          (生产代码编译)
+  → test-compile     (测试代码编译 ← 仍会执行！)
+  → test             (测试运行 ← 被跳过)
+  → package
+```
+
+### 容易混淆的三个参数
+
+| 参数 | 跳过编译 | 跳过运行 | 适用场景 |
+|------|---------|---------|----------|
+| `-DskipTests` | ❌ 不跳过 | ✅ 跳过 | 测试运行慢但代码没问题，想快速打包 |
+| `-Dmaven.test.skip=true` | ✅ 跳过 | ✅ 跳过 | 测试代码有问题需要紧急打包绕过 |
+| `-DskipTests=false` | ❌ 不跳过 | ❌ 不跳过 | 正常运行测试（默认） |
+
+### 经验教训
+
+1. **不要用 `-DskipTests` 来"绕过"测试代码问题**——它拦不住编译错误
+2. **打包失败时，如果报错是 `testCompile` 阶段，先看测试代码**，别盯着生产代码找
+3. **临时绕过测试编译用 `-Dmaven.test.skip=true`**，但这是应急手段，事后必须修复测试代码
+4. **测试代码是一等公民**，和生产代码同等重要，不同步就是 bug
+
+### 快速验证命令
+
+```bash
+# 只编译测试代码，快速验证测试代码是否能编译（不运行测试）
+mvn test-compile
+
+# 完全跳过测试（编译+运行都跳过）——应急用
+mvn -Dmaven.test.skip=true package
+
+# 只跳过测试运行（测试代码仍编译）——默认打包方式
+mvn -DskipTests package
+```
+
+### 相关文档
+
+- [root-cause-analysis-tender-test-out-of-sync.md](file:///Users/user/xiyu/xiyu-bid-poc/docs/lessons/root-cause-analysis-tender-test-out-of-sync.md) — 实际踩坑案例：测试代码与生产代码不同步导致打包失败
+
+---
+
 ## 1. git-commit-id-maven-plugin 在 worktree 中读取主仓库 HEAD，git.properties 元数据失真
 
 ### 问题

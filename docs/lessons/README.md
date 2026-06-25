@@ -7,6 +7,7 @@
 | 文件 | 类型 | 主题 | 日期 |
 |------|------|------|------|
 | `root-cause-analysis-co-301.md` | Bug 根因分析 | 标讯创建去重拦截报错文案改为"投标管理系统该标讯已存在"（错误消息缺少系统上下文） | 2026-06-22 |
+| `root-cause-analysis-tender-test-out-of-sync.md` | Bug 根因分析 | TenderSubmissionServiceTest 测试代码与生产代码不同步（CO-349 移除 TaskService 后测试未更新）导致打包失败 | 2026-06-25 |
 | `root-cause-analysis-co-259.md` | Bug 根因分析 | 标讯导入"总部所在地"字段值丢失 | 2026-06-18 |
 | `root-cause-analysis-co-264.md` | Bug 根因分析 | CRM更换商机双提示+props不同步 | 2026-06-18 |
 | `root-cause-analysis-co-266-co-267.md` | Bug 根因分析 | CRM推送客户信息字段名不一致导致前端不显示 | 2026-06-18 |
@@ -28,7 +29,7 @@
 | `root-cause-analysis-submit-bid-review-gate.md` | Bug 根因分析 | 提交投标误复用任务完成闸门导致审核通过后仍 409 | 2026-06-21 |
 | `root-cause-analysis-stage-notification-created-by.md` | Bug 根因分析 | 阶段变更通知 created_by 为空导致提交投标 500 | 2026-06-21 |
 | `shell-gotchas.md` | 技术陷阱 | Shell 转义导致 SQL 中 `$` 特殊字符截断，密码值被破坏 | 2026-06-20 |
-| `build-gotchas.md` | 技术陷阱 | git-commit-id-plugin 在 worktree 读取主仓库 HEAD，git.properties 失真 | 2026-06-19 |
+| `build-gotchas.md` | 技术陷阱 | git-commit-id-plugin 在 worktree 读取主仓库 HEAD，git.properties 失真；Maven `-DskipTests` 只跳过测试运行不跳过编译 | 2026-06-25 |
 
 ## 如何使用
 

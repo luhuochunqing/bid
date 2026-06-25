@@ -1,11 +1,8 @@
 package com.xiyu.bid.tender.service;
 
-import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
-import com.xiyu.bid.task.dto.TaskDTO;
-import com.xiyu.bid.task.service.TaskService;
 import com.xiyu.bid.tender.dto.TenderAbandonRequest;
 import com.xiyu.bid.tender.dto.TenderBidResponse;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
@@ -35,8 +32,6 @@ class TenderSubmissionServiceTest {
     @Mock
     private UserRepository userRepository;
     @Mock
-    private TaskService taskService;
-    @Mock
     private TenderAssignmentPermissions permissions;
     @Mock
     private TenderProjectAccessGuard accessGuard;
@@ -53,28 +48,26 @@ class TenderSubmissionServiceTest {
     void setUp() {
         submissionService = new TenderSubmissionService(
                 tenderRepository, tenderEvaluationRepository,
-                userRepository, taskService,
-                permissions, accessGuard, objectMapper, eventPublisher, notificationAppService);
+                userRepository, permissions, accessGuard,
+                objectMapper, eventPublisher, notificationAppService);
     }
 
     @Test
-    @DisplayName("投标 - 成功投标并创建待办")
+    @DisplayName("投标 - 成功投标")
     void participateBid_Success() {
         Tender pendingTender = Tender.builder()
                 .id(1L).title("测试标讯").budget(new BigDecimal("100.00")).status(Tender.Status.PENDING_ASSIGNMENT).build();
-        TaskDTO createdTask = TaskDTO.builder().id(100L).title("【待立项】测试标讯").status(Task.Status.TODO).build();
 
         when(tenderRepository.findById(1L)).thenReturn(Optional.of(pendingTender));
         doNothing().when(accessGuard).assertCanAccessTender(any());
         when(permissions.canDecide(1L, 10L)).thenReturn(true);
         when(tenderRepository.save(any(Tender.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(taskService.createTask(any(TaskDTO.class))).thenReturn(createdTask);
 
         TenderBidResponse response = submissionService.participateBid(1L, 10L);
 
         assertThat(response.isAccepted()).isTrue();
-        assertThat(response.getMessage()).isEqualTo("投标成功，已生成项目立项待办");
-        assertThat(response.getTodoId()).isEqualTo(100L);
+        assertThat(response.getMessage()).isEqualTo("投标成功");
+        assertThat(response.getTodoId()).isNull();
     }
 
     @Test
