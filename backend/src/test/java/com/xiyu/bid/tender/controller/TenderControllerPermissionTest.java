@@ -20,21 +20,21 @@ class TenderControllerPermissionTest {
     }
 
     @Test
-    void updateTender_allowsAdminManagerBidTeamleaderAndBidAdmin() throws NoSuchMethodException {
+    void updateTender_allowsAdminAndManagerOnly() throws NoSuchMethodException {
         PreAuthorize annotation = TenderController.class
                 .getMethod("updateTender", Long.class, TenderRequest.class, UserDetails.class)
                 .getAnnotation(PreAuthorize.class);
 
-        assertThat(annotation.value()).isEqualTo("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN')");
+        assertThat(annotation.value()).isEqualTo("hasAnyRole('ADMIN', 'MANAGER')");
     }
 
     @Test
-    void deleteTender_allowsAdminManagerBidTeamleaderAndBidAdmin() throws NoSuchMethodException {
+    void deleteTender_allowsAdminAndManagerOnly() throws NoSuchMethodException {
         PreAuthorize annotation = TenderController.class
                 .getMethod("deleteTender", Long.class, UserDetails.class)
                 .getAnnotation(PreAuthorize.class);
 
-        assertThat(annotation.value()).isEqualTo("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN')");
+        assertThat(annotation.value()).isEqualTo("hasAnyRole('ADMIN', 'MANAGER')");
     }
 
     @Test

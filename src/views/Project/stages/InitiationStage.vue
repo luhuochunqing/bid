@@ -58,7 +58,7 @@
 <el-card class="section-card" shadow="never">
 <template #header><span>客户信息</span></template>
 <div class="customer-table-wrapper">
-<el-table :data="custFixedRows" border style="min-width:3360px" height="500" empty-text="暂无客户信息（由标讯评估表带入）">
+<el-table :data="custFixedRows" border style="min-width:3360px" height="500">
 <!-- 列顺序、标签、控件类型对齐 customerInfoMatrixConfig.js -->
 <el-table-column label="姓名" width="120"><template #default="{row}"><el-input v-model="row.name" :disabled="fieldDisabled" size="small" placeholder="请输入姓名" /></template></el-table-column>
 <el-table-column label="联系方式" width="160"><template #default="{row}"><el-input v-model="row.contactInfo" :disabled="fieldDisabled" size="small" placeholder="手机号/电话/邮箱" /></template></el-table-column>
@@ -136,13 +136,9 @@
               <UserPicker v-model="approvalForm.biddingLeaderId" mode="search" placeholder="搜索人员" clearable style="width:100%" @select="onLeaderSelect" />
             </el-form-item>
             <el-form-item label="投标辅助人员">
-              <UserPicker
-                v-model="approvalForm.biddingAssistantId"
-                placeholder="搜索人员（姓名/工号/拼音）"
-                clearable
-                style="width:100%"
-                @select="onAssistantSelect"
-              />
+              <el-select v-model="approvalForm.biddingAssistantId" filterable remote :remote-method="searchAssistant" :loading="assistantSearching" placeholder="搜索人员" style="width:100%" value-key="id" clearable @change="(id) => { const o = assistantOptions.find(u => u.id === id); approvalForm.biddingAssistantLabel = o ? o._label : '' }">
+                <el-option v-for="u in assistantOptions" :key="u.id" :label="u._label" :value="u.id" />
+              </el-select>
             </el-form-item>
           </div>
         </el-form>
@@ -176,6 +172,7 @@ import { ElMessage } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
 import { getApiUrl } from '@/api/config.js'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
+import { usersApi } from '@/api/modules/users.js'
 import { tendersApi } from '@/api/modules/tenders.js'
 import { projectsApi } from '@/api/modules/projects.js'
 
@@ -183,7 +180,6 @@ import { useUserStore } from '@/stores/user.js'
 import { isBidManager } from '@/utils/permission'
 import AdaptiveFormPage from '@/components/common/AdaptiveFormPage.vue'
 import UserPicker from '@/components/common/UserPicker.vue'
-import { toUserName } from '@/utils/userPicker.js'
 import { useInitiationStageActions } from './useInitiationStageActions.js'
 import { POSITION_OPTIONS, CONTACT_METHOD_OPTIONS, TENDENCY_OPTIONS, IMPACT_OPTIONS } from '@/views/Bidding/detail/components/customerInfoMatrixConfig.js'
 
@@ -192,8 +188,12 @@ const emit = defineEmits(['updated'])
 const userStore = useUserStore()
 const adaptiveForm = shallowRef(null)
 const form = reactive({ projectName: '', ownerUnit: '', createTime: new Date().toISOString().slice(0, 16).replace('T', ' '), projectType: '', customerType: '', priorityLevel: 'B', headquartersLocation: '', projectLeaderName: '', projectLeaderUserId: null, leaderDepartment: '', contactName: '', contactPhone: '', contactTel: '', contactMail: '', contactName2: '', contactPhone2: '', contactTel2: '', contactMail2: '', tenderId: null, expectedBidders: 0, annualEcommerceAmount: 0, annualRevenue: 0, customerRevenue: 0, bidOpenTime: '', bidMonth: '', biddingPlatform: '', needDeposit: 'NO', depositAmount: 0, depositPaymentMethod: '', tenderAdverseItems: '', riskAssessment: '', riskMitigationPlan: '', pmUnderstandsProcess: '', supportNeeded: '', projectPlanGap: '', projectPlanGapFiles: [], tenderDocumentId: null, aiRiskLevel: null, aiRiskAssessmentNotes: '', biddingLeaderName: '', biddingAssistantName: '' })
-// CO-323: 客户信息矩阵改成 0 行 × 14 列，和标讯完全一致（动态行，由标讯评估表带入）
-const custFixedRows = ref([]); const bidDocFiles = ref([]); const planGapFiles = ref([]); const existing = ref(false);
+// 与 customerInfoMatrixConfig.js CUSTOMER_INFO_ROWS 对齐（14 行）
+const CUST_ROLES = ["项目最高决策人","物资公司董事长","物资公司分管电商领导","电商公司董事长","电商公司总经理","电商公司副总经理","电商公司运营负责人","招标文件制作人","其他关键决策人1","其他关键决策人2","其他关键决策人3","专家1","专家2","专家3"]
+function emptyCustRow(role) { return { role, name: '', contactInfo: '', position: '', xiyuContact: '', reached: '', reachMethod: '', preference: '', preferenceBasis: '', guideBid: '', canGetKeyInfo: '', canRemoveAdverse: '', canSyncEval: '', canConfirmWin: '', winRateImpact: '' } }
+// CO-323 fix: POSITION/CONTACT_METHOD/TENDENCY/IMPACT OPTIONS 复用评估表 customerInfoMatrixConfig.js，
+// 保证立项页客户信息矩阵与标讯评估表完全一致（值域对齐，mapper 原样透传即可正确显示）
+const custFixedRows = ref(CUST_ROLES.map(emptyCustRow)); const bidDocFiles = ref([]); const planGapFiles = ref([]); const existing = ref(false);
 const planGapUploadUrl = computed(() => getApiUrl(`/api/projects/${props.projectId}/documents`))
 const planGapUploadHeaders = computed(() => { const t = userStore?.token; return t ? { Authorization: 'Bearer ' + t } : {} })
 function beforePlanGapUpload(file) { const max = 10 * 1024 * 1024; if (file.size > max) { ElMessage.error('文件不能超过10MB'); return false } return true }
@@ -207,9 +207,13 @@ const fieldDisabled = computed(() => locked.value || evalPrefilled.value)
 // 审批模式：投标管理员/组长 查看 PENDING_REVIEW 的立项；改用 roleCode 以匹配 bidAdmin 等新角色值
 const userRole = computed(() => userStore.currentUser?.roleCode || userStore.currentUser?.role || '')
 const isApprovalMode = computed(() => isBidManager(userRole.value) && reviewStatus.value === 'PENDING_REVIEW')
+const BID_ASSISTANT_ROLE = 'bid-Team'
+function roleOptions(users, roleCode) { const list = Array.isArray(users) ? users : []; const filtered = roleCode ? list.filter(u => String(u?.roleCode || u?.role || '').trim() === roleCode) : list; return filtered.map(u => ({ ...u, _label: u.name + '（' + (u.employeeId || u.employeeNumber || '') + '）- ' + (u.departmentName || u.deptName || '') })) }
+const leaderOptions = ref([]); const leaderSearching = ref(false); const assistantOptions = ref([]); const assistantSearching = ref(false)
+async function searchLeader(q) { if (!q || q.length < 1) return; leaderSearching.value = true; try { const r = await usersApi.search(q, 15); leaderOptions.value = roleOptions(r) } catch { leaderOptions.value = [] } finally { leaderSearching.value = false } }
+async function searchAssistant(q) { if (!q || q.length < 1) return; assistantSearching.value = true; try { const r = await usersApi.search(q, 15); assistantOptions.value = roleOptions(r, BID_ASSISTANT_ROLE) } catch { assistantOptions.value = [] } finally { assistantSearching.value = false } }
 const approvalForm = reactive({ biddingLeaderId: null, biddingLeaderLabel: '', biddingAssistantId: null, biddingAssistantLabel: '' })
-function onLeaderSelect(user) { if (user) { approvalForm.biddingLeaderLabel = toUserName(user) } }
-function onAssistantSelect(user) { if (user) { approvalForm.biddingAssistantLabel = toUserName(user) } }
+function onLeaderSelect(user) { if (user) { approvalForm.biddingLeaderLabel = user.name || user.fullName || '' } }
 const uploadUrl = '/api/upload'
 const uploadHeaders = computed(() => { const t = userStore?.token; return t ? { Authorization: 'Bearer ' + t } : {} })
 const riskTagType = computed(() => form.aiRiskLevel === 'HIGH' ? 'danger' : form.aiRiskLevel === 'MEDIUM' ? 'warning' : form.aiRiskLevel === 'LOW' ? 'success' : 'info')
@@ -236,6 +240,9 @@ const { handleDocBeforeUpload, onDepositChange, handleApprove, handleReject, sav
   projectLifecycleApi,
   projectsApi,
   tendersApi,
+  usersApi,
+  leaderOptions,
+  assistantOptions,
   projectsState: {
     existing,
     saving,
@@ -272,7 +279,7 @@ function handleAmountBlur(field) { if (form[field] == null || form[field] === ''
 
 onMounted(load)
 
-defineExpose({ load, handleAmountFocus, handleAmountBlur })
+defineExpose({ load, handleAmountFocus, handleAmountBlur, searchLeader, searchAssistant, leaderOptions, assistantOptions })
 </script>
 <style scoped>
 .initiation-stage { display: flex; flex-direction: column; gap: 16px; }

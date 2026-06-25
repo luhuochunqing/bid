@@ -108,7 +108,7 @@ public class TenderEvaluationController {
      * <p>实例级权限：调用方必须是 latest assigned-by（service 层 canDecide 守）。
      */
     @PostMapping("/{tenderId}/review")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN')")
     public ResponseEntity<ApiResponse<TenderEvaluationDTO>> reviewTender(
             @PathVariable Long tenderId,
             @Valid @RequestBody TenderReviewRequest request,
@@ -124,7 +124,7 @@ public class TenderEvaluationController {
      * <p>实例级权限：调用方必须是 latest assigned-by（service 层 canDecide 守）。
      */
     @PostMapping("/{tenderId}/bid")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<TenderBidResult>> proceedToBid(
             @PathVariable Long tenderId,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -141,7 +141,7 @@ public class TenderEvaluationController {
      * <p>对应 FR-008 / AC5 审核确认流程。
      */
     @PostMapping("/{evaluationId}/evaluation/review")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<TenderEvaluationDTO>> reviewEvaluation(
             @PathVariable Long evaluationId,
             @AuthenticationPrincipal UserDetails userDetails) {

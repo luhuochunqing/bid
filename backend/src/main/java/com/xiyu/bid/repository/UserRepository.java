@@ -57,8 +57,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query(value = "SELECT * FROM users u WHERE u.enabled = TRUE "
         + "AND (LOWER(u.full_name) LIKE LOWER(CONCAT('%', :q, '%')) "
         + "OR LOWER(u.username) LIKE LOWER(CONCAT('%', :q, '%')) "
-        + "OR LOWER(u.employee_number) LIKE LOWER(CONCAT('%', :q, '%')) "
-        + "OR LOWER(u.full_name_pinyin) LIKE LOWER(CONCAT('%', :q, '%'))) "
+        + "OR LOWER(u.employee_number) LIKE LOWER(CONCAT('%', :q, '%'))) "
         + "ORDER BY u.full_name LIMIT :lim", nativeQuery = true)
     List<User> searchActiveUsers(@Param("q") String query, @Param("lim") int limit);
 }

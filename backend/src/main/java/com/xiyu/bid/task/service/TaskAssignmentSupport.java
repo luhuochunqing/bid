@@ -12,7 +12,6 @@ import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import com.xiyu.bid.service.RoleProfileService;
 import com.xiyu.bid.task.dto.TaskAssignmentRequest;
-import com.xiyu.bid.task.dto.TaskDTO;
 import com.xiyu.bid.task.dto.TeamTaskWorkloadDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
@@ -139,22 +138,6 @@ public class TaskAssignmentSupport {
             throw new IllegalArgumentException("目标责任人已停用，无法分配");
         }
         return user;
-    }
-
-    public static TaskAssignmentRequest assignmentRequestFrom(TaskDTO taskDTO) {
-        return TaskAssignmentRequest.builder()
-                .assigneeId(taskDTO.getAssigneeId())
-                .assigneeDeptCode(taskDTO.getAssigneeDeptCode())
-                .assigneeDeptName(taskDTO.getAssigneeDeptName())
-                .assigneeRoleCode(taskDTO.getAssigneeRoleCode())
-                .assigneeRoleName(taskDTO.getAssigneeRoleName())
-                .build();
-    }
-
-    public static boolean hasAssignmentChange(TaskDTO taskDTO) {
-        return taskDTO.getAssigneeId() != null
-                || hasText(taskDTO.getAssigneeDeptCode())
-                || hasText(taskDTO.getAssigneeRoleCode());
     }
 
     private List<String> normalizeAllowedDeptCodes(User user) {

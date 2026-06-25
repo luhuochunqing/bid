@@ -74,9 +74,21 @@
                 </div>
               </div>
             </el-dropdown-item>
+            <el-dropdown-item v-if="globalSearchEnabled" command="profile">
+              <el-icon><User /></el-icon>
+              个人中心
+            </el-dropdown-item>
+            <el-dropdown-item command="keyword-subscription">
+              <el-icon><Bell /></el-icon>
+              关键词订阅
+            </el-dropdown-item>
             <el-dropdown-item v-if="canAccessSettings" command="settings">
               <el-icon><Setting /></el-icon>
               系统设置
+            </el-dropdown-item>
+            <el-dropdown-item command="operation-log">
+              <el-icon><DocumentChecked /></el-icon>
+              操作日志
             </el-dropdown-item>
             <el-dropdown-item divided command="logout">
               <el-icon><SwitchButton /></el-icon>
@@ -115,8 +127,8 @@ import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
-  Search, Bell, ArrowDown, ArrowLeft, Setting,
-  SwitchButton, Expand, Fold, Menu
+  Search, Bell, ArrowDown, ArrowLeft, User, Setting,
+  SwitchButton, Expand, Fold, Menu, DocumentChecked
 } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useNotificationStore } from '@/stores/notifications'
@@ -202,12 +214,21 @@ const handleMobileSearch = () => {
 
 const handleCommand = async (command) => {
   switch (command) {
+    case 'profile':
+      router.push('/profile')
+      break
+    case 'keyword-subscription':
+      router.push('/bidding/keyword-subscription')
+      break
     case 'settings':
       if (canAccessSettings.value) {
         router.push('/settings')
       } else {
         ElMessage.warning('当前角色无权访问系统设置')
       }
+      break
+    case 'operation-log':
+      router.push('/operation-logs')
       break
     case 'logout':
       try {

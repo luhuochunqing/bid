@@ -8,7 +8,6 @@ import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.tender.entity.TenderEvaluation;
 import com.xiyu.bid.tender.entity.TenderEvaluationBasic;
-import com.xiyu.bid.tender.entity.TenderEvaluationCustomerInfo;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -18,7 +17,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -159,29 +157,6 @@ class InitiationPrefillServiceTest {
         // 即使无评估表，标讯基础字段仍应带入
         assertThat(saved.getOwnerUnit()).isEqualTo("无评估表的采购方");
         assertThat(saved.getCustomerType()).isEqualTo("PRIVATE");
-        assertThat(saved.getEvalPrefilled()).isTrue();
-    }
-
-    @Test
-    void shouldPrefillCustomerInfoEvenWhenBasicIsNull() throws JsonProcessingException {
-        // CO-323: basic 为空但 customerInfos 有数据时，客户信息矩阵仍应带入（解耦 basic 和 customerInfos）
-        when(repository.findByProjectId(1L)).thenReturn(Optional.empty());
-        when(objectMapper.writeValueAsString(any())).thenReturn("[{\"role\":\"专家1\"}]");
-        TenderEvaluation eval = new TenderEvaluation();
-        eval.setBasic(null);
-        eval.setCustomerInfos(List.of(
-                TenderEvaluationCustomerInfo.builder()
-                        .roleKey("EXPERT_1").infoKey("NAME").cellValue("王五").build()));
-        when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc(any(), any()))
-                .thenReturn(Collections.emptyList());
-
-        service.prefillFromEvaluation(1L, 1L, eval, null);
-
-        ArgumentCaptor<ProjectInitiationDetails> captor = ArgumentCaptor.forClass(ProjectInitiationDetails.class);
-        verify(repository).save(captor.capture());
-        ProjectInitiationDetails saved = captor.getValue();
-        assertThat(saved.getCustomerInfoJson()).isNotNull();
-        assertThat(saved.getCustomerInfoJson()).isEqualTo("[{\"role\":\"专家1\"}]");
         assertThat(saved.getEvalPrefilled()).isTrue();
     }
 }

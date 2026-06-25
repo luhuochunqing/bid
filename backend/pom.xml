@@ -143,13 +143,6 @@
             <version>1.17.2</version>
         </dependency>
 
-        <!-- Pinyin4j for Chinese pinyin conversion (user name search) -->
-        <dependency>
-            <groupId>com.belerweb</groupId>
-            <artifactId>pinyin4j</artifactId>
-            <version>2.5.1</version>
-        </dependency>
-
         <!-- Apache POI for Excel export -->
         <dependency>
             <groupId>org.apache.poi</groupId>

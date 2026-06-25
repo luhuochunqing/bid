@@ -85,10 +85,6 @@ class TenderEvaluationSubmissionServiceTest {
     private Clock fixedClock;
     private TenderEvaluationSubmissionService service;
 
-    // Mock 客户信息删除服务（REQUIRES_NEW 事务）
-    @Mock
-    private TenderEvaluationCustomerInfoDeleteService customerInfoDeleteService;
-
     @BeforeEach
     void setUp() {
         fixedClock = Clock.fixed(
@@ -103,7 +99,6 @@ class TenderEvaluationSubmissionServiceTest {
                 eventPublisher,
                 projectDocumentRepository,
                 tenderEvaluationDocumentService,
-                customerInfoDeleteService,
                 fixedClock
         );
         // Default permissive — individual tests override for forbidden cases.

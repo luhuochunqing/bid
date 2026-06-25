@@ -23,14 +23,24 @@
             <small class="option-desc">{{ rule.desc }}</small>
           </el-option>
         </el-select>
-        <UserPicker
+        <el-select
           v-else
           v-model="form.assignees"
           multiple
-          placeholder="搜索并选择指派人员（姓名/工号/拼音）"
+          filterable
+          placeholder="选择指派人员"
           class="full-width"
-          @select="handleUsersSelected"
-        />
+          :loading="loadingCandidates"
+        >
+          <el-option
+            v-for="candidate in candidates"
+            :key="candidate.id"
+            :label="formatAssignmentCandidateLabel(candidate)"
+            :value="candidate.id"
+          >
+            {{ formatAssignmentCandidateLabel(candidate) }} · {{ candidate.departmentName }}
+          </el-option>
+        </el-select>
         <el-input v-model="form.remark" type="textarea" :rows="3" placeholder="填写分发说明（选填）" />
       </section>
       <section>
@@ -58,21 +68,18 @@
 
 <script setup>
 import { ASSIGN_RULES } from '../constants.js'
-import UserPicker from '@/components/common/UserPicker.vue'
+import { formatAssignmentCandidateLabel } from '../helpers.js'
 
 const modelValue = defineModel({ type: Boolean, default: false })
 defineModel('form', { type: Object, required: true })
-const props = defineProps({
+defineProps({
   selectedTenders: { type: Array, default: () => [] },
+  candidates: { type: Array, default: () => [] },
   preview: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
+  loadingCandidates: { type: Boolean, default: false },
   assignRules: { type: Array, default: () => ASSIGN_RULES },
 })
 
-const emit = defineEmits(['reset', 'submit', 'users-selected'])
-
-// 存储选中的用户对象供预览使用
-function handleUsersSelected(users) {
-  emit('users-selected', users)
-}
+defineEmits(['reset', 'submit'])
 </script>

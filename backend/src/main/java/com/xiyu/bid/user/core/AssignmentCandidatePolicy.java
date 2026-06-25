@@ -81,7 +81,7 @@ public class AssignmentCandidatePolicy {
         return new AssignmentCandidateDTO(
                 user.getId(),
                 user.getFullName(),
-                user.getDisplayEmployeeNumber(),
+                user.getEmployeeNumber(),
                 user.getRoleCode(),
                 user.getRoleName(),
                 user.getDepartmentCode(),

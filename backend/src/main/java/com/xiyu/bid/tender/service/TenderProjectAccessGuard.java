@@ -6,8 +6,6 @@ package com.xiyu.bid.tender.service;
 
 import com.xiyu.bid.admin.service.DataScopeAccessProfile;
 import com.xiyu.bid.admin.service.DataScopeConfigService;
-import com.xiyu.bid.batch.entity.TenderAssignmentRecord;
-import com.xiyu.bid.batch.repository.TenderAssignmentRecordRepository;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
@@ -36,30 +34,22 @@ class TenderProjectAccessGuard {
     private final ProjectAccessScopeService projectAccessScopeService;
     private final DataScopeConfigService dataScopeConfigService;
     private final UserRepository userRepository;
-    private final TenderAssignmentRecordRepository tenderAssignmentRecordRepository;
 
     void assertCanAccessTender(Tender tender) {
         List<Project> projects = linkedProjects(tender);
         for (Project project : projects) {
             projectAccessScopeService.assertCurrentUserCanAccessProject(project.getId());
         }
+        // 未关联项目时，按 dataScope 判断
         if (projects.isEmpty()) {
             User user = resolveCurrentUser();
             String ds = resolveDataScope(user);
             if ("all".equals(ds)) return;
-            if (user == null || !isSelfVisibleTender(tender, user.getId())) {
+            // "self" 范围 → 仅自己创建/负责的标讯
+            if (user == null || !isSelfOwnedTender(tender, user.getId())) {
                 throw new org.springframework.security.access.AccessDeniedException("权限不足，无法访问该标讯");
             }
         }
-    }
-
-    private boolean isSelfVisibleTender(Tender tender, Long userId) {
-        if (isSelfOwnedTender(tender, userId)) {
-            return true;
-        }
-        return tenderAssignmentRecordRepository.findFirstByTenderIdOrderByAssignedAtDesc(tender.getId())
-                .map(record -> Objects.equals(record.getAssigneeId(), userId))
-                .orElse(false);
     }
 
     private static boolean isSelfOwnedTender(Tender tender, Long userId) {
@@ -74,13 +64,16 @@ class TenderProjectAccessGuard {
     List<Tender> filterVisibleTenders(List<Tender> tenders) {
         if (tenders.isEmpty()) return tenders;
 
+        // Admin 全可见
         if (projectAccessScopeService.currentUserHasAdminAccess()) {
             return tenders;
         }
 
+        // 1 次查询：预加载当前用户可见的项目ID
         Set<Long> allowedProjectIds = new HashSet<>(
                 projectAccessScopeService.getAllowedProjectIdsForCurrentUser());
 
+        // 1 次查询：批量加载所有关联项目
         Set<Long> tenderIds = tenders.stream()
                 .map(Tender::getId)
                 .filter(Objects::nonNull)
@@ -89,41 +82,35 @@ class TenderProjectAccessGuard {
                 .findByTenderIdIn(tenderIds).stream()
                 .collect(Collectors.groupingBy(Project::getTenderId));
 
-        Map<Long, TenderAssignmentRecord> latestAssignmentByTenderId = tenderAssignmentRecordRepository
-                .findLatestByTenderIds(tenderIds).stream()
-                .collect(Collectors.toMap(TenderAssignmentRecord::getTenderId, r -> r, (a, b) -> a));
-
+        // 获取当前用户信息（用于未分配标讯的自过滤）
         User currentUser = resolveCurrentUser();
         String dataScope = resolveDataScope(currentUser);
 
+        // 内存过滤
         return tenders.stream()
                 .filter(t -> canAccessViaProjects(
                         t, projectsByTenderId.getOrDefault(t.getId(), List.of()),
-                        allowedProjectIds, currentUser, dataScope,
-                        latestAssignmentByTenderId.get(t.getId())))
+                        allowedProjectIds, currentUser, dataScope))
                 .toList();
     }
 
     private boolean canAccessViaProjects(Tender tender, List<Project> projects,
                                          Set<Long> allowedProjectIds,
-                                         User currentUser, String dataScope,
-                                         TenderAssignmentRecord latestAssignment) {
+                                         User currentUser, String dataScope) {
+        // 有关联项目 → 走已有项目权限判断
         if (!projects.isEmpty()) {
             return projects.stream().anyMatch(p -> allowedProjectIds.contains(p.getId()));
         }
 
+        // 无关联 project = 未分配阶段，按 dataScope 过滤
         if ("all".equals(dataScope)) {
             return true;
         }
 
+        // "self" 范围或兜底 → 仅自己创建/负责的标讯可见
         if (currentUser == null) return false;
-        if (isSelfOwnedTender(tender, currentUser.getId())) {
-            return true;
-        }
-        if (latestAssignment != null) {
-            return Objects.equals(latestAssignment.getAssigneeId(), currentUser.getId());
-        }
-        return false;
+        return isSelfOwnedTender(tender, currentUser.getId());
+        // "dept"/"deptAndSub" — Tender 缺少 departmentCode 字段，暂无法按部门过滤
     }
 
     private boolean canAccessTender(Tender tender) {

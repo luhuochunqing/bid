@@ -57,13 +57,11 @@
         </el-col>
         <el-col :span="12">
           <el-form-item label="CA 保管人" :required="form.hasCa">
-            <UserPicker
-              v-model="form.caCustodian"
-              placeholder="搜索保管人（姓名/工号/拼音）"
+            <el-select v-model="form.caCustodian" placeholder="请选择投标部门人员"
               :disabled="!form.hasCa"
-              style="width:100%"
-              clearable
-            />
+              style="width:100%" filterable clearable>
+              <el-option v-for="u in biddingUsers" :key="u.id" :label="formatUserLabel(u)" :value="u.id" />
+            </el-select>
           </el-form-item>
         </el-col>
       </el-row>
@@ -82,8 +80,9 @@
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { authApi, resourcesApi } from '@/api'
+import httpClient from '@/api/client'
 import { useUserStore } from '@/stores/user'
-import UserPicker from '@/components/common/UserPicker.vue'
+import { formatUserLabel } from '@/utils/formatUserLabel.js'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -106,7 +105,23 @@ const emptyForm = () => ({
 })
 
 const form = ref(emptyForm())
+const biddingUsers = ref([])
 const accountNameDup = ref(false)
+
+const loadBiddingUsers = async () => {
+  try {
+    const res = await httpClient.get('/api/admin/users')
+    if (res?.data) {
+      biddingUsers.value = (Array.isArray(res.data) ? res.data : [])
+        .map(u => ({
+          id: u.id,
+          name: u.fullName || u.username,
+          username: u.username,
+          employeeNumber: u.employeeNumber,
+        }))
+    }
+  } catch { /* silent */ }
+}
 
 // IJTHPA 修复：自动带入当前登录员工的联系人/手机/邮箱
 const autofillFromCurrentUser = async () => {
@@ -162,6 +177,7 @@ const onOpen = () => {
     autofillFromCurrentUser()
   }
   accountNameDup.value = false
+  loadBiddingUsers()
 }
 
 const submit = async () => {

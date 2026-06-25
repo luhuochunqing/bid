@@ -16,7 +16,7 @@ export const notificationsApi = {
   },
 
   async getUnreadCount() {
-    const { data } = await httpClient.get('/api/notifications/unread-count', { silentError: true })
+    const { data } = await httpClient.get('/api/notifications/unread-count')
     return data
   },
 

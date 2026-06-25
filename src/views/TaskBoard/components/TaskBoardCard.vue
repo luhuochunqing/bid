@@ -2,7 +2,6 @@
   <div
     class="task-card"
     :class="{ 'task-high': item.priority === 'HIGH', 'task-review': item.type === 'BID_REVIEW' }"
-    @click="emit('task-click', item)"
   >
     <div class="task-header">
       <div class="header-tags">
@@ -34,24 +33,22 @@
     </div>
 
     <!-- BID_REVIEW：标书文件列表（只读下载） -->
-    <div v-if="item.type === 'BID_REVIEW' && item.projectId" class="bid-review-documents" @click.stop>
-      <ProjectDocumentTable :project-id="item.projectId" readonly />
-    </div>
+    <ProjectDocumentTable v-if="item.type === 'BID_REVIEW' && item.projectId" :project-id="item.projectId" readonly />
 
     <!-- TASK：交付物操作（复用 TaskKanban 逻辑） -->
-    <div v-if="item.type === 'TASK'" class="card-actions" @click.stop>
+    <div v-if="item.type === 'TASK'" class="card-actions">
       <el-button size="small" :disabled="!isTaskAssignee(item)" @click="openDeliverableUpload(item)">交付物上传</el-button>
       <el-button size="small" type="primary" :disabled="!isTaskAssignee(item) || !hasDeliverable(item)" @click="openSubmitDialog(item)">提交</el-button>
     </div>
 
     <!-- BID_REVIEW：审核操作（仅审核人可操作） -->
-    <div v-if="item.type === 'BID_REVIEW'" class="card-actions" @click.stop>
+    <div v-if="item.type === 'BID_REVIEW'" class="card-actions">
       <el-button size="small" type="danger" plain :disabled="!isBidReviewer(item)" @click="openRejectDialog(item)">驳回</el-button>
       <el-button size="small" type="success" :disabled="!isBidReviewer(item)" @click="handleApproveBid(item)">通过审核</el-button>
     </div>
 
     <!-- 交付物上传 + 提交对话框（TASK） -->
-    <el-dialog v-model="showSubmitDialog" :title="'提交任务 - ' + (submittingTask?.title || '')" width="480px" :close-on-click-modal="false" append-to-body @click.stop>
+    <el-dialog v-model="showSubmitDialog" :title="'提交任务 - ' + (submittingTask?.title || '')" width="480px" :close-on-click-modal="false" append-to-body>
       <el-form label-width="100px">
         <el-form-item label="交付物" required>
           <el-upload ref="deliverableUploadRef" :auto-upload="false" :file-list="deliverableFileList" :limit="1" accept=".pdf,.doc,.docx,.xlsx,.jpg,.png">
@@ -70,7 +67,7 @@
     </el-dialog>
 
     <!-- 驳回原因对话框（BID_REVIEW） -->
-    <el-dialog v-model="showRejectDialog" title="驳回标书审核" width="420px" :close-on-click-modal="false" append-to-body @click.stop>
+    <el-dialog v-model="showRejectDialog" title="驳回标书审核" width="420px" :close-on-click-modal="false" append-to-body>
       <el-form label-width="0">
         <el-form-item :label="'驳回：' + (rejectingItem?.title || '')" />
         <el-input v-model="rejectReason" type="textarea" :rows="3" placeholder="请填写驳回原因" />
@@ -87,23 +84,20 @@
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { User, Calendar, OfficeBuilding } from '@element-plus/icons-vue'
-import { useUserStore } from '@/stores/user.js'
+import { projectsApi } from '@/api/modules/projects.js'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
+import { useUserStore } from '@/stores/user.js'
 import ProjectDocumentTable from '@/views/Project/stages/components/ProjectDocumentTable.vue'
-import { useTaskSubmitReview } from '../composables/useTaskSubmitReview.js'
-
-// #7 P2 常量提升到模块级，避免每张卡片重复创建
-const PRIORITY_TYPE_MAP = { HIGH: 'danger', MEDIUM: 'warning', LOW: 'info' }
-const PRIORITY_TEXT_MAP = { HIGH: '高', MEDIUM: '中', LOW: '低' }
 
 const props = defineProps({
   item: { type: Object, required: true },
   availableStatuses: { type: Array, required: true }
 })
-const emit = defineEmits(['status-change', 'deliverable-changed', 'task-click'])
+const emit = defineEmits(['status-change', 'deliverable-changed'])
 const userStore = useUserStore()
-const { submitForReview } = useTaskSubmitReview()
 
+const PRIORITY_TYPE_MAP = { HIGH: 'danger', MEDIUM: 'warning', LOW: 'info' }
+const PRIORITY_TEXT_MAP = { HIGH: '高', MEDIUM: '中', LOW: '低' }
 const priorityType = computed(() => PRIORITY_TYPE_MAP[props.item.priority] || 'info')
 const priorityText = computed(() => PRIORITY_TEXT_MAP[props.item.priority] || props.item.priority)
 
@@ -119,11 +113,6 @@ const formattedDate = computed(() => {
 })
 
 // 复用 TaskKanban 的交付物逻辑
-/**
- * 比较用户 ID，支持 number/string 混合类型（#5 P1 添加类型注释）
- * @param {number|string|null|undefined} id
- * @returns {boolean}
- */
 function matchesCurrentUser(id) {
   const uid = userStore?.currentUser?.id
   return uid != null && id != null && String(uid) === String(id)
@@ -168,16 +157,16 @@ async function confirmSubmit() {
   if (!submittingTask.value) return
   submittingTaskLoading.value = true
   try {
-    // 通过共享 composable 统一提审（#1 P0 逻辑复用）
-    await submitForReview({
-      projectId: submittingTask.value.projectId,
-      taskId: submittingTask.value.id,
-      deliverableFiles: deliverableUploadRef.value?.uploadFiles?.length > 0
-        ? [{ raw: deliverableUploadRef.value.uploadFiles[0].raw }]
-        : [],
-      completionNote: submitNotes.value,
-    })
-
+    if (deliverableUploadRef.value?.uploadFiles?.length > 0) {
+      const formData = new FormData()
+      formData.append('file', deliverableUploadRef.value.uploadFiles[0].raw)
+      formData.append('taskId', submittingTask.value.id)
+      await projectsApi.createTaskDeliverable(submittingTask.value.projectId, submittingTask.value.id, formData)
+    }
+    if (submitNotes.value) {
+      await projectsApi.updateTask(submittingTask.value.id, { completionNotes: submitNotes.value })
+    }
+    await projectsApi.updateTaskStatus(submittingTask.value.projectId, submittingTask.value.id, 'REVIEW')
     ElMessage.success('已提交审核')
     showSubmitDialog.value = false
     emit('deliverable-changed', submittingTask.value)
@@ -236,8 +225,6 @@ async function confirmReject() {
   padding: 12px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
   transition: box-shadow 0.2s ease;
-  min-width: 0;
-  cursor: pointer;
   &:hover { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12); }
   &.task-high { border-left: 3px solid #f56c6c; }
   &.task-review { border-left: 3px solid #e6a23c; }
@@ -252,7 +239,7 @@ async function confirmReject() {
   .type-tag { flex-shrink: 0; }
 }
 
-.task-name { font-size: 14px; font-weight: 500; margin-bottom: 6px; color: #303133; word-break: break-all; }
+.task-name { font-size: 14px; font-weight: 500; margin-bottom: 6px; color: #303133; }
 .task-desc { font-size: 12px; color: #909399; margin-bottom: 8px; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task-meta {
   display: flex;
@@ -263,8 +250,7 @@ async function confirmReject() {
   .deadline-urgent { color: #f56c6c; }
 }
 
-.task-project { display: flex; align-items: center; gap: 4px; margin-top: 8px; font-size: 12px; color: #909399; word-break: break-all; .el-icon { flex-shrink: 0; } }
+.task-project { display: flex; align-items: center; gap: 4px; margin-top: 8px; font-size: 12px; color: #909399; .el-icon { flex-shrink: 0; } }
 .card-actions { margin-top: 8px; display: flex; gap: 6px; justify-content: flex-end; }
-.bid-review-documents { overflow-x: auto; margin-top: 8px; }
 :deep(.project-documents) { margin-top: 8px; .el-card__header { padding: 8px 12px; } .el-card__body { padding: 8px; } }
 </style>

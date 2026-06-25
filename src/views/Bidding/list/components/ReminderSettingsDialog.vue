@@ -23,14 +23,26 @@
       </el-form-item>
 
       <el-form-item label="通知对象" required>
-        <UserPicker
-          v-model="selectedUserIds"
+        <el-select
+          v-model="form.reminderTargets"
           multiple
-          placeholder="搜索并选择通知对象（姓名/工号/拼音）"
+          placeholder="选择通知对象"
+          value-key="userId"
+          :loading="loadingUsers"
           style="width: 100%"
-          :initial-options="userPickerInitialOptions"
-          @select="handleUsersSelected"
-        />
+        >
+          <el-option
+            v-for="user in users"
+            :key="user.id"
+            :label="formatUserLabel(user)"
+            :value="{ userId: user.id, userName: user.name, wecomUserId: user.wecomUserId || '' }"
+          >
+            <div class="user-option">
+              <span>{{ formatUserLabel(user) }}</span>
+              <span class="user-role">{{ user.roleName || user.role || '' }}</span>
+            </div>
+          </el-option>
+        </el-select>
       </el-form-item>
 
       <el-form-item label="启用状态">
@@ -61,10 +73,9 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { computed } from 'vue'
 import { useReminderSettings } from './useReminderSettings.js'
-import UserPicker from '@/components/common/UserPicker.vue'
-import { toReminderTargets, fromReminderTargets, toUserIds } from '@/utils/userPicker.js'
+import { formatUserLabel } from '@/utils/formatUserLabel.js'
 
 const props = defineProps({
   modelValue: { type: Boolean, required: true },
@@ -77,6 +88,8 @@ const {
   form,
   editingReminder,
   saving,
+  users,
+  loadingUsers,
   openCreateDialog,
   openEditDialog,
   saveReminder
@@ -86,26 +99,6 @@ const modelValue = computed({
   get: () => props.modelValue,
   set: (val) => emit('update:modelValue', val)
 })
-
-// UserPicker 使用 userId 数组，转换为 API 需要的格式
-const selectedUserIds = ref([])
-
-// 编辑时从 reminderTargets 恢复 userId 列表，并构造 initialOptions 用于标签显示
-const userPickerInitialOptions = ref([])
-
-watch(editingReminder, (reminder) => {
-  if (reminder && reminder.reminderTargets) {
-    selectedUserIds.value = toUserIds(fromReminderTargets(reminder.reminderTargets))
-    userPickerInitialOptions.value = fromReminderTargets(reminder.reminderTargets)
-  } else {
-    selectedUserIds.value = []
-    userPickerInitialOptions.value = []
-  }
-})
-
-function handleUsersSelected(users) {
-  form.reminderTargets = toReminderTargets(users)
-}
 
 function handleSave() {
   saveReminder().then(() => {
@@ -117,8 +110,6 @@ function removeTarget(target) {
   const index = form.reminderTargets.findIndex(t => t.userId === target.userId)
   if (index > -1) {
     form.reminderTargets.splice(index, 1)
-    selectedUserIds.value = selectedUserIds.value.filter(id => id !== target.userId)
-    userPickerInitialOptions.value = fromReminderTargets(form.reminderTargets)
   }
 }
 
@@ -130,6 +121,17 @@ defineExpose({
 </script>
 
 <style scoped>
+.user-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.user-role {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
 .selected-targets {
   display: flex;
   flex-wrap: wrap;

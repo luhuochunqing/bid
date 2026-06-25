@@ -103,14 +103,6 @@ beforeEach(() => {
     expect(wrapper.text()).not.toContain(forbiddenGuestText)
   })
 
-  it('hides the removed user-menu entries (profile / keyword-subscription / operation-log)', () => {
-    const wrapper = mountHeader()
-
-    expect(wrapper.text()).not.toContain('个人中心')
-    expect(wrapper.text()).not.toContain('关键词订阅')
-    expect(wrapper.text()).not.toContain('操作日志')
-  })
-
   it('shows loading state while restoring session', async () => {
     const wrapper = mountHeader()
     const userStore = useUserStore()

@@ -1,30 +1,26 @@
 package com.xiyu.bid.task.service;
 
+import com.xiyu.bid.common.domain.AuthorizationDecision;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
-import com.xiyu.bid.repository.UserRepository;
-import com.xiyu.bid.task.core.TaskOperationDecision;
+import com.xiyu.bid.security.CurrentUserResolver;
 import com.xiyu.bid.task.core.TaskOperationPolicy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
 class TaskPermissionGuard {
 
-    private final UserRepository userRepository;
+    private final CurrentUserResolver currentUserResolver;
     private final ProjectLeadAssignmentRepository projectLeadAssignmentRepository;
 
     void assertCanManageTask(Long projectId) {
-        User currentUser = resolveCurrentUser();
-        if (currentUser == null) {
-            throw new AccessDeniedException("无法识别当前用户");
-        }
+        User currentUser = currentUserResolver.requireCurrentUser();
         Long[] leadIds = resolveProjectLeadIds(projectId);
-        TaskOperationDecision decision = TaskOperationPolicy.canManageTask(
+        AuthorizationDecision decision = TaskOperationPolicy.canManageTask(
                 currentUser.getRoleCode(),
                 currentUser.getId(),
                 leadIds[0],
@@ -36,12 +32,9 @@ class TaskPermissionGuard {
     }
 
     void assertCanManageOrSubmitTask(Task task) {
-        User currentUser = resolveCurrentUser();
-        if (currentUser == null) {
-            throw new AccessDeniedException("无法识别当前用户");
-        }
+        User currentUser = currentUserResolver.requireCurrentUser();
         Long[] leadIds = resolveProjectLeadIds(task.getProjectId());
-        TaskOperationDecision manageDecision = TaskOperationPolicy.canManageTask(
+        AuthorizationDecision manageDecision = TaskOperationPolicy.canManageTask(
                 currentUser.getRoleCode(),
                 currentUser.getId(),
                 leadIds[0],
@@ -50,7 +43,7 @@ class TaskPermissionGuard {
         if (manageDecision.allowed()) {
             return;
         }
-        TaskOperationDecision submitDecision = TaskOperationPolicy.canActAsAssignee(
+        AuthorizationDecision submitDecision = TaskOperationPolicy.canActAsAssignee(
                 task.getAssigneeId(),
                 currentUser.getId()
         );
@@ -60,13 +53,10 @@ class TaskPermissionGuard {
     }
 
     void assertCanTransitionTaskStatus(Task task, Task.Status targetStatus) {
-        User currentUser = resolveCurrentUser();
-        if (currentUser == null) {
-            throw new AccessDeniedException("无法识别当前用户");
-        }
+        User currentUser = currentUserResolver.requireCurrentUser();
         Long[] leadIds = resolveProjectLeadIds(task.getProjectId());
         if (targetStatus == Task.Status.REVIEW) {
-            TaskOperationDecision decision = TaskOperationPolicy.canActAsAssignee(
+            AuthorizationDecision decision = TaskOperationPolicy.canActAsAssignee(
                     task.getAssigneeId(),
                     currentUser.getId()
             );
@@ -74,7 +64,7 @@ class TaskPermissionGuard {
                 throw new AccessDeniedException(decision.reason());
             }
         } else if (targetStatus == Task.Status.COMPLETED || targetStatus == Task.Status.TODO) {
-            TaskOperationDecision decision = TaskOperationPolicy.canReviewTask(
+            AuthorizationDecision decision = TaskOperationPolicy.canReviewTask(
                     currentUser.getRoleCode(),
                     currentUser.getId(),
                     leadIds[0],
@@ -89,13 +79,5 @@ class TaskPermissionGuard {
 
     private Long[] resolveProjectLeadIds(Long projectId) {
         return projectLeadAssignmentRepository.resolveLeadIdsByProjectId(projectId);
-    }
-
-    private User resolveCurrentUser() {
-        var auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) {
-            return null;
-        }
-        return userRepository.findByUsername(auth.getName()).orElse(null);
     }
 }

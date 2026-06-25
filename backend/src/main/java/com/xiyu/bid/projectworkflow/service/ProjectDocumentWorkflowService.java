@@ -1,5 +1,6 @@
 package com.xiyu.bid.projectworkflow.service;
 
+import com.xiyu.bid.common.domain.AuthorizationDecision;
 import com.xiyu.bid.projectworkflow.core.ProjectDocumentWorkflowPolicy;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentCreateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
@@ -7,6 +8,7 @@ import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -22,6 +24,7 @@ class ProjectDocumentWorkflowService {
     private final ProjectLeadAssignmentRepository projectLeadAssignmentRepository;
     private final ProjectDocumentViewAssembler projectDocumentViewAssembler;
     private final ProjectDocumentBindingGateway projectDocumentBindingGateway;
+    private final CurrentUserResolver currentUserResolver;
 
     List<ProjectDocumentDTO> getProjectDocuments(Long projectId) {
         return getProjectDocuments(projectId, null, null, null);
@@ -51,7 +54,7 @@ class ProjectDocumentWorkflowService {
         Long uploaderId = request.getUploaderId();
         String uploaderName = request.getUploaderName();
         if (uploaderId == null && (uploaderName == null || uploaderName.isBlank())) {
-            var currentUser = getCurrentUser();
+            var currentUser = currentUserResolver.getCurrentUser();
             if (currentUser != null) {
                 uploaderId = currentUser.getId();
                 uploaderName = currentUser.getFullName();
@@ -79,8 +82,8 @@ class ProjectDocumentWorkflowService {
     void deleteProjectDocument(Long projectId, Long documentId) {
         guardService.requireWorkflowMutationProject(projectId);
 
-        String roleCode = resolveCurrentRoleCode();
-        ProjectDocumentWorkflowPolicy.Decision decision = ProjectDocumentWorkflowPolicy.canDeleteProjectDocument(roleCode);
+        String roleCode = currentUserResolver.getCurrentRoleCode();
+        AuthorizationDecision decision = ProjectDocumentWorkflowPolicy.canDeleteProjectDocument(roleCode);
         if (!decision.allowed()) {
             throw new org.springframework.security.access.AccessDeniedException(decision.reason());
         }
@@ -90,29 +93,14 @@ class ProjectDocumentWorkflowService {
         projectDocumentBindingGateway.onDocumentDeleted(document);
     }
 
-    private String resolveCurrentRoleCode() {
-        com.xiyu.bid.entity.User user = getCurrentUser();
-        return user != null ? user.getRoleCode() : null;
-    }
-
-    private com.xiyu.bid.entity.User getCurrentUser() {
-        org.springframework.security.core.Authentication auth =
-                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) return null;
-        return userRepository.findByUsername(auth.getName()).orElse(null);
-    }
-
     private Long[] resolveProjectLeadIds(Long projectId) {
         return projectLeadAssignmentRepository.resolveLeadIdsByProjectId(projectId);
     }
 
     private void assertCanViewProjectDocuments(Long projectId) {
-        com.xiyu.bid.entity.User currentUser = getCurrentUser();
-        if (currentUser == null) {
-            throw new org.springframework.security.access.AccessDeniedException("无法识别当前用户");
-        }
+        var currentUser = currentUserResolver.requireCurrentUser();
         Long[] leadIds = resolveProjectLeadIds(projectId);
-        ProjectDocumentWorkflowPolicy.Decision decision = ProjectDocumentWorkflowPolicy.canViewProjectDocuments(
+        AuthorizationDecision decision = ProjectDocumentWorkflowPolicy.canViewProjectDocuments(
                 currentUser.getRoleCode(),
                 currentUser.getId(),
                 leadIds[0],
@@ -124,8 +112,8 @@ class ProjectDocumentWorkflowService {
     }
 
     private void assertCanUploadProjectDocument() {
-        String roleCode = resolveCurrentRoleCode();
-        ProjectDocumentWorkflowPolicy.Decision decision = ProjectDocumentWorkflowPolicy.canUploadProjectDocument(roleCode);
+        String roleCode = currentUserResolver.getCurrentRoleCode();
+        AuthorizationDecision decision = ProjectDocumentWorkflowPolicy.canUploadProjectDocument(roleCode);
         if (!decision.allowed()) {
             throw new org.springframework.security.access.AccessDeniedException(decision.reason());
         }

@@ -112,10 +112,8 @@ public final class EvaluationToInitiationMapper {
             Map.entry("EXPERT_3", "专家3"));
 
     /**
-     * CO-323: 评估表客户信息 EAV → 立项动态行 CustomerInfoRow。
-     * <p>与标讯 CustomerInfoMatrix.vue 的 .filter(hasCustomerInfoValue) 逻辑对齐：
-     * 只返回有 EAV 数据的角色行（0 行 × 14 列），无数据返回空列表。
-     * 按 ROW_ROLES 顺序排序，保证行顺序稳定。
+     * 评估表客户信息 EAV → 立项 14 行 CustomerInfoRow（按 ROW_ROLES 顺序）。
+     * <p>按 roleKey 分组 EAV，每组填入对应 CustomerInfoRow 字段；无 EAV 数据的角色留空行。
      */
     public static List<CustomerInfoRow> toCustomerInfoRows(List<TenderEvaluationCustomerInfo> infos) {
         Map<String, Map<String, String>> byRole = new HashMap<>();
@@ -127,14 +125,9 @@ public final class EvaluationToInitiationMapper {
                         .put(field, ci.getCellValue());
             }
         }
-        if (byRole.isEmpty()) {
-            return new ArrayList<>();
-        }
-        // CO-323: 动态行——只返回有 EAV 数据的角色行，按 ROW_ROLES 顺序排序
-        List<CustomerInfoRow> rows = new ArrayList<>();
+        List<CustomerInfoRow> rows = new ArrayList<>(ROW_ROLES.size());
         for (Map.Entry<String, String> role : ROW_ROLES) {
-            Map<String, String> f = byRole.get(role.getKey());
-            if (f == null) continue;
+            Map<String, String> f = byRole.getOrDefault(role.getKey(), Collections.emptyMap());
             rows.add(CustomerInfoRow.builder()
                     .role(role.getValue())
                     .name(f.getOrDefault("name", ""))

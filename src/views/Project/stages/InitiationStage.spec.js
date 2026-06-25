@@ -33,8 +33,6 @@ vi.mock('element-plus', () => ({
 
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
 import { usersApi } from '@/api/modules/users.js'
-import { tendersApi } from '@/api/modules/tenders.js'
-import { projectsApi } from '@/api/modules/projects.js'
 import InitiationStage from './InitiationStage.vue'
 
 const stubs = {
@@ -52,7 +50,6 @@ const stubs = {
   'el-button': { props: ['disabled', 'loading', 'type', 'text'], template: '<button :disabled="disabled"><slot /></button>' },
   'el-cascader': { template: '<div><slot /></div>' },
   'el-divider': { template: '<div><slot /></div>' },
-  'UserPicker': { name: 'UserPicker', template: '<div class="user-picker-stub"></div>' },
 }
 
 function createWrapper() {
@@ -149,52 +146,32 @@ describe('InitiationStage — PRD §4.3 4-section layout', () => {
     expect(wrapper.vm.form.depositAmount).toBe(123.45)
   })
 
-  it('uses UserPicker for user selection without local search methods', async () => {
+  it('does not hard-limit bidding leader candidates to sales role', async () => {
     projectLifecycleApi.getInitiation.mockRejectedValue({ response: { status: 404 } })
+    usersApi.search.mockResolvedValue([
+      { id: 1, name: '销售负责人', employeeNumber: 'S001', roleCode: 'bid-projectLeader' },
+      { id: 2, name: '投标专员', employeeNumber: 'B001', roleCode: 'bid-Team' },
+    ])
     const wrapper = createWrapper()
     await flushPromises()
 
-    // 不再有本地 searchLeader/searchAssistant 方法，所有用户搜索走 UserPicker 组件
-    // 支持按姓名、工号、拼音远程搜索，不再预加载100人候选列表
-    expect(typeof wrapper.vm.searchLeader).toBe('undefined')
-    expect(typeof wrapper.vm.searchAssistant).toBe('undefined')
-    expect(typeof wrapper.vm.leaderOptions).toBe('undefined')
-    expect(typeof wrapper.vm.assistantOptions).toBe('undefined')
+    await wrapper.vm.searchLeader('张')
+
+    expect(wrapper.vm.leaderOptions.map(u => u.id)).toEqual([1, 2])
   })
 
-  it('CO-323: 客户信息矩阵初始为 0 行（非 14 行固定空行）', async () => {
-    // CO-323: 立项页客户信息矩阵改成 0 行 × 14 列，和标讯完全一致
+  it('filters bidding assistant candidates to bid specialist role', async () => {
     projectLifecycleApi.getInitiation.mockRejectedValue({ response: { status: 404 } })
-    projectsApi.getDetail.mockResolvedValue({ data: { tenderId: null } })
+    usersApi.search.mockResolvedValue([
+      { id: 1, name: '销售负责人', employeeNumber: 'S001', roleCode: 'bid-projectLeader' },
+      { id: 2, name: '投标专员', employeeNumber: 'B001', roleCode: 'bid-Team' },
+    ])
     const wrapper = createWrapper()
     await flushPromises()
-    // 无标讯评估数据时，客户信息矩阵应为 0 行
-    expect(wrapper.vm.custFixedRows).toHaveLength(0)
-  })
 
-  it('CO-323: autoFillFromTender 客户信息矩阵只生成有数据的行', async () => {
-    // CO-323: 标讯转项目后，客户信息矩阵完全由标讯带过来，只展示有数据的行
-    projectLifecycleApi.getInitiation.mockRejectedValue({ response: { status: 404 } })
-    projectsApi.getDetail.mockResolvedValue({ data: { tenderId: 100 } })
-    tendersApi.getDetail.mockResolvedValue({ data: { purchaserName: '测试采购方' } })
-    tendersApi.getEvaluation.mockResolvedValue({
-      data: {
-        evaluationCustomerInfos: [
-          { roleKey: 'EXPERT_1', infoKey: 'NAME', value: '王五' },
-          { roleKey: 'EXPERT_1', infoKey: 'CONTACT_INFO', value: 'wangwu@test.com' },
-          { roleKey: 'PROJECT_HIGHEST_DECISION_MAKER', infoKey: 'NAME', value: '张三' },
-        ],
-      },
-    })
-    const wrapper = createWrapper()
-    await flushPromises()
-    // CO-323: 只有 2 个角色有数据，应该只有 2 行（不是 14 行）
-    expect(wrapper.vm.custFixedRows).toHaveLength(2)
-    // 按 ROW_ROLE_MAP 顺序，PROJECT_HIGHEST_DECISION_MAKER 在 EXPERT_1 前面
-    expect(wrapper.vm.custFixedRows[0].role).toBe('项目最高决策人')
-    expect(wrapper.vm.custFixedRows[0].name).toBe('张三')
-    expect(wrapper.vm.custFixedRows[1].role).toBe('专家1')
-    expect(wrapper.vm.custFixedRows[1].name).toBe('王五')
-    expect(wrapper.vm.custFixedRows[1].contactInfo).toBe('wangwu@test.com')
+    await wrapper.vm.searchAssistant('李')
+
+    expect(wrapper.vm.assistantOptions).toHaveLength(1)
+    expect(wrapper.vm.assistantOptions[0].id).toBe(2)
   })
 })

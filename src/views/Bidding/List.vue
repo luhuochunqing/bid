@@ -102,6 +102,7 @@
       :preview="distribution.distributionPreview.value"
       v-model:form="distribution.distributeForm.value"
       :loading="distribution.distributeLoading.value"
+      :loading-candidates="distribution.loadingCandidates.value"
       @reset="distribution.resetDistributeForm"
       @submit="distribution.handleDistribute"
     />
@@ -160,7 +161,7 @@
       <el-form label-width="100px">
         <el-form-item label="标讯"><span>{{ transferDialog.tender?.title }}</span></el-form-item>
         <el-form-item label="目标负责人">
-          <UserPicker v-model="transferDialog.newOwnerId" mode="search" placeholder="搜索人员（姓名/工号/拼音）" style="width:100%" />
+          <UserPicker v-model="transferDialog.newOwnerId" mode="candidates" context="tender" placeholder="请选择负责人" style="width:100%" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -193,11 +194,12 @@ import { useTenderListPage } from './list/useTenderListPage.js'
 import { tendersApi } from '@/api/modules/tenders'
 import { useBiddingStore } from '@/stores/bidding'
 import { ElMessage } from 'element-plus'
-import { computed, reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import UserPicker from '@/components/common/UserPicker.vue'
 import './list/styles/list-page.css'
 import './list/styles/table.css'
 import './list/styles/mobile-page.css'
+import { formatUserLabel } from '@/utils/formatUserLabel.js'
 
 const {
   searchForm, viewMode, isMobile, loading, currentPage, pageSize,
@@ -209,7 +211,7 @@ const {
   batchActions, distribution,
   handleSearch, handleReset, handleExport,
   handleViewDetail, handleParticipate, handleViewAllRecommend,
-  handleOpenCustomerOpportunityCenter, openSourceConfig,
+  handleOpenCustomerOpportunityCenter, openManualAdd, openSourceConfig,
   handleAIAnalysis, isAdmin, handleEvaluate,
 } = useTenderListPage()
 

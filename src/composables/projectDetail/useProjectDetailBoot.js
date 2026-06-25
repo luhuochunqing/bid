@@ -68,8 +68,6 @@ export function useProjectDetailBoot(context) {
         action: (log.detail && String(log.detail).trim()) || log.actionType || '操作',
         time: log.time || '',
       }))
-      // CO-324: 按时间倒序排列（最新在前）
-      mapped.sort((a, b) => (b.time || '').localeCompare(a.time || ''))
       // CO-324: 接口数据无"创建了项目"时 prepend 基线，保证首条可见
       state.activities.value = (mapped.some(a => a.action === '创建了项目'))
         ? mapped : [...baseline, ...mapped]

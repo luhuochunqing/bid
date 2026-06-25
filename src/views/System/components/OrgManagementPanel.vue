@@ -75,12 +75,14 @@
                 />
               </el-form-item>
               <el-form-item label="部门负责人">
-                <UserPicker
-                  v-model="editForm.managerId"
-                  placeholder="搜索负责人（姓名/工号/拼音）"
-                  style="width: 100%"
-                  clearable
-                />
+                <el-select v-model="editForm.managerId" placeholder="请选择负责人" style="width: 100%" clearable>
+                  <el-option 
+                    v-for="user in userOptions" 
+                    :key="user.id" 
+                    :label="formatUserLabel(user)" 
+                    :value="user.id" 
+                  />
+                </el-select>
               </el-form-item>
               <el-form-item>
                 <el-button type="primary" @click="handleSave">更新详情</el-button>
@@ -120,7 +122,7 @@
 import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, OfficeBuilding, Folder } from '@element-plus/icons-vue'
-import UserPicker from '@/components/common/UserPicker.vue'
+import { formatUserLabel } from '@/utils/formatUserLabel.js'
 
 const props = defineProps({
   depts: { type: Array, required: true },
@@ -156,6 +158,7 @@ const deptTree = computed(() => {
   return roots
 })
 
+const userOptions = computed(() => props.users)
 
 const deptUsers = computed(() => {
   if (!selectedDept.value) return []

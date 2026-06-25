@@ -1,10 +1,13 @@
 import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import remindersApi from '@/api/modules/reminders.js'
+import { usersApi } from '@/api/modules/users.js'
 
 export function useReminderSettings(tenderId) {
   const loading = ref(false)
   const reminders = ref([])
+  const users = ref([])
+  const loadingUsers = ref(false)
 
   const form = reactive({
     reminderType: 'REGISTRATION_DEADLINE',
@@ -35,6 +38,22 @@ export function useReminderSettings(tenderId) {
   }
 
   /**
+   * 加载可选通知用户列表
+   */
+  async function loadUsers() {
+    loadingUsers.value = true
+    try {
+      const list = await usersApi.search('', 100)
+      users.value = Array.isArray(list) ? list : []
+    } catch (error) {
+      console.error('加载用户列表失败:', error)
+      users.value = []
+    } finally {
+      loadingUsers.value = false
+    }
+  }
+
+  /**
    * 打开创建对话框
    */
   function openCreateDialog() {
@@ -44,6 +63,7 @@ export function useReminderSettings(tenderId) {
     form.reminderTargets = []
     form.enabled = true
     dialogVisible.value = true
+    loadUsers()
   }
 
   /**
@@ -56,6 +76,7 @@ export function useReminderSettings(tenderId) {
     form.reminderTargets = reminder.reminderTargets || []
     form.enabled = reminder.enabled
     dialogVisible.value = true
+    loadUsers()
   }
 
   /**
@@ -135,6 +156,8 @@ export function useReminderSettings(tenderId) {
   return {
     loading,
     reminders,
+    users,
+    loadingUsers,
     form,
     dialogVisible,
     editingReminder,

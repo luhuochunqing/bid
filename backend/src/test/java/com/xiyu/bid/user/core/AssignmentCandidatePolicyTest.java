@@ -159,44 +159,6 @@ class AssignmentCandidatePolicyTest {
         assertThat(result.get(0).roleCode()).isEqualTo("bid_admin");
     }
 
-    @Test
-    @DisplayName("employeeNumber 有值时出现在 DTO 中")
-    void filter_PreservesEmployeeNumber() {
-        User user = User.builder()
-                .id(1L)
-                .fullName("张三")
-                .username("zhangsan")
-                .employeeNumber("E001")
-                .role(User.Role.MANAGER)
-                .enabled(true)
-                .build();
-
-        List<AssignmentCandidateDTO> result = policy.filter(
-                List.of(user), true, List.of(), AssignmentContext.of("task", null, null), null, null);
-
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).employeeNumber()).isEqualTo("E001");
-    }
-
-    @Test
-    @DisplayName("employeeNumber 为 null 时降级为 username")
-    void filter_EmployeeNumberFallbackToUsername() {
-        User user = User.builder()
-                .id(1L)
-                .fullName("张三")
-                .username("03645")
-                .employeeNumber(null)
-                .role(User.Role.MANAGER)
-                .enabled(true)
-                .build();
-
-        List<AssignmentCandidateDTO> result = policy.filter(
-                List.of(user), true, List.of(), AssignmentContext.of("task", null, null), null, null);
-
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).employeeNumber()).isEqualTo("03645");
-    }
-
     private User user(Long id, String fullName, String deptCode, String deptName,
                       String roleCode, String roleName) {
         RoleProfile roleProfile = RoleProfile.builder().code(roleCode).name(roleName).build();

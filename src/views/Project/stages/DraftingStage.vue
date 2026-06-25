@@ -43,14 +43,9 @@
       <template v-if="reviewState === 'reviewing' || reviewState === 'approved'">
         <span style="font-size:14px;color:#303133;font-weight:500;">{{ reviewerName || bidReviewerId || '未指定' }}</span>
       </template>
-      <UserPicker
-        v-else-if="perm.canSelectReviewer"
-        v-model="bidReviewerId"
-        placeholder="搜索审核人（姓名/工号/拼音）"
-        style="width:280px"
-        clearable
-        @select="handleReviewerSelected"
-      />
+      <el-select v-else-if="perm.canSelectReviewer" v-model="bidReviewerId" filterable remote placeholder="模糊搜索选择审核人" :remote-method="searchReviewer" :loading="reviewerSearching" style="width:280px" clearable>
+        <el-option v-for="u in reviewerOptions" :key="u.id" :label="formatUserLabel(u)" :value="u.id" />
+      </el-select>
     </div>
 
     <!-- 驳回理由 -->
@@ -110,6 +105,7 @@ import { ElMessage } from 'element-plus'
 import { getApiUrl } from '@/api/config.js'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
 import { STAGE_TRANSITION_MAP } from '@/constants/projectStages.js'
+import { usersApi } from '@/api/modules/users.js'
 import { useUserStore } from '@/stores/user'
 import ProjectDocumentTable from './components/ProjectDocumentTable.vue'
 import AiRecommendDrawer from './components/AiRecommendDrawer.vue'
@@ -117,8 +113,7 @@ import PerformanceRecommendDrawer from './components/PerformanceRecommendDrawer.
 import QualityCheckDialog from './components/QualityCheckDialog.vue'
 import { useProjectDetailContext } from '@/composables/projectDetail/context.js'
 import { useProjectDraftingPermissions } from '@/composables/projectDetail/useProjectDraftingPermissions.js'
-import UserPicker from '@/components/common/UserPicker.vue'
-import { toUserName } from '@/utils/userPicker.js'
+import { formatUserLabel } from '@/utils/formatUserLabel.js'
 const userStore = useUserStore()
 const ctx = useProjectDetailContext()
 const { bidAgent } = ctx
@@ -148,8 +143,9 @@ const showReviewDialog = ref(false)
 const reviewComment = ref('')
 const reviewApproving = ref(false)
 const reviewRejecting = ref(false)
+const reviewerOptions = ref([])
+const reviewerSearching = ref(false)
 const reviewerName = ref('')
-const selectedReviewer = ref(null)
 const reviewState = ref(null)        // null | 'reviewing' | 'rejected' | 'approved'
 const rejectReasonText = ref('')
 
@@ -191,6 +187,13 @@ async function load() {
       reviewerName.value = d.reviewerName || ''
       primaryLeadId.value = d.primaryLeadUserId || null
       secondaryLeadId.value = d.secondaryLeadUserId || null
+      // 预置审核人姓名到下拉选项，使 el-select 能展示姓名而非 ID
+      if (d.reviewerId && d.reviewerName) {
+        const existing = reviewerOptions.value.find(u => u.id === Number(d.reviewerId))
+        if (!existing) {
+          reviewerOptions.value.unshift({ id: Number(d.reviewerId), name: d.reviewerName })
+        }
+      }
       // 恢复投标提交状态
       if (d.bidSubmitted) bidDone.value = true
     }
@@ -199,24 +202,25 @@ async function load() {
   }
 }
 
-function handleReviewerSelected(user) {
-  selectedReviewer.value = user
-  reviewerName.value = toUserName(user)
+async function searchReviewer(query) {
+  if (!query) return
+  reviewerSearching.value = true
+  try {
+    const list = await usersApi.search(query)
+    const project = ctx.project?.value || {}
+    const managerId = project.managerId ? Number(project.managerId) : null
+    const teamMembers = Array.isArray(project.teamMembers) ? project.teamMembers.map(Number) : []
+    const primaryLeadId = project.primaryLeadUserId ? Number(project.primaryLeadUserId) : null
+    const secondaryLeadId = project.secondaryLeadUserId ? Number(project.secondaryLeadUserId) : null
+    const excludedIds = [managerId, primaryLeadId, secondaryLeadId, ...teamMembers].filter(Boolean)
 
-  // 验证：不能选择项目经理或团队成员
-  const project = ctx.project?.value || {}
-  const managerId = project.managerId ? Number(project.managerId) : null
-  const teamMembers = Array.isArray(project.teamMembers) ? project.teamMembers.map(Number) : []
-  const primaryLeadIdVal = project.primaryLeadUserId ? Number(project.primaryLeadUserId) : null
-  const secondaryLeadIdVal = project.secondaryLeadUserId ? Number(project.secondaryLeadUserId) : null
-  const excludedIds = [managerId, primaryLeadIdVal, secondaryLeadIdVal, ...teamMembers].filter(Boolean)
-
-  if (excludedIds.includes(Number(user.id))) {
-    ElMessage.warning('不能选择项目经理或团队成员作为审核人')
-    bidReviewerId.value = null
-    selectedReviewer.value = null
-    reviewerName.value = ''
-  }
+    reviewerOptions.value = Array.isArray(list)
+      ? list
+          .map(u => ({ id: Number(u.id), name: u.fullName || u.name, employeeNumber: u.employeeNumber, employeeId: u.employeeId }))
+          .filter(u => !excludedIds.includes(u.id))
+      : []
+  } catch { reviewerOptions.value = [] }
+  finally { reviewerSearching.value = false }
 }
 
 async function submitBidForReview() {

@@ -160,7 +160,7 @@
     <el-form label-width="100px">
       <el-form-item label="项目名称"><el-text>{{ tender?.title }}</el-text></el-form-item>
       <el-form-item label="新负责人" required>
-        <UserPicker v-model="transferTarget" mode="search" placeholder="搜索人员（姓名/工号/拼音）" style="width:100%" />
+        <UserPicker v-model="transferTarget" mode="candidates" context="tender" placeholder="选择新的项目负责人" style="width:100%" />
       </el-form-item>
     </el-form>
     <template #footer>

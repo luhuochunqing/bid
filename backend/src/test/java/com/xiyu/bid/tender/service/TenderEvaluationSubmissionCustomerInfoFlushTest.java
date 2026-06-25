@@ -19,7 +19,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Clock;
@@ -45,7 +44,6 @@ import static org.mockito.Mockito.when;
  */
 @DataJpaTest
 @ActiveProfiles("test")
-@Import(TenderEvaluationCustomerInfoDeleteService.class)
 class TenderEvaluationSubmissionCustomerInfoFlushTest {
 
     @Autowired private TenderRepository tenderRepository;
@@ -53,8 +51,6 @@ class TenderEvaluationSubmissionCustomerInfoFlushTest {
     @Autowired private TenderEvaluationCustomerInfoRepository customerInfoRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private ProjectDocumentRepository projectDocumentRepository;
-    // 真实注入删除服务（主事务删除）
-    @Autowired private TenderEvaluationCustomerInfoDeleteService customerInfoDeleteService;
 
     private static final Clock FIXED_CLOCK = Clock.fixed(
             java.time.LocalDateTime.of(2026, 6, 18, 10, 0)
@@ -104,7 +100,6 @@ class TenderEvaluationSubmissionCustomerInfoFlushTest {
                 eventPublisher,
                 projectDocumentRepository,
                 documentService,
-                customerInfoDeleteService,
                 FIXED_CLOCK);
     }
 

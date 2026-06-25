@@ -88,24 +88,4 @@ describe('useNotifications', () => {
     stopPolling()
     vi.useRealTimers()
   })
-
-  it('stops polling on 403 from initial fetch', async () => {
-    vi.useFakeTimers()
-    const err403 = { response: { status: 403 } }
-    notificationsApi.getUnreadCount.mockRejectedValue(err403)
-
-    const { startPolling, stopPolling } = useNotifications({ pollingInterval: 30000, autoStart: false })
-    startPolling()
-
-    // Initial fetch hits 403
-    await vi.advanceTimersByTimeAsync(0)
-    expect(notificationsApi.getUnreadCount).toHaveBeenCalledTimes(1)
-
-    // Advance past multiple intervals — no more calls because polling was stopped
-    await vi.advanceTimersByTimeAsync(120000)
-    expect(notificationsApi.getUnreadCount).toHaveBeenCalledTimes(1)
-
-    stopPolling()
-    vi.useRealTimers()
-  })
 })

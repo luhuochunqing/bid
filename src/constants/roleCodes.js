@@ -20,8 +20,7 @@ export const ROLE_CODES = {
   BID_OTHER_DEPT: 'bid-otherDept',
 }
 
-// 全局管理/审核角色（与后端 RoleProfileCatalog.GLOBAL_ACCESS_ROLES 对齐，大小写不敏感）
-// OSS 同步的角色码可能大小写不一致（如 "/bidadmin" vs "/bidAdmin"），因此使用 toLowerCase 比对
+// 全局管理/审核角色（与后端 RoleProfileCatalog.GLOBAL_ACCESS_ROLES 对齐）
 export const GLOBAL_MANAGE_ROLES = [
   ROLE_CODES.ADMIN,
   ROLE_CODES.BID_ADMIN,

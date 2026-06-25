@@ -163,20 +163,4 @@ class UserSearchServiceTest {
         assertThat(results.get(0).role()).isNull();
         assertThat(results.get(0).roleCode()).isEqualTo("manager");
     }
-
-    @Test
-    @DisplayName("search by pinyin matches results (query delegates to repository with full_name_pinyin column)")
-    void searchByPinyin() {
-        User user = User.builder()
-            .id(8L).username("zhangsan").email("z@x.com").password("p")
-            .fullName("张三").employeeNumber("E008").role(User.Role.MANAGER).build();
-        // fullNamePinyin would be "zhang san" — the LIKE query on the DB column handles matching.
-        // This test verifies the service plumbing: the repository receives the query and maps results.
-        when(userRepository.searchActiveUsers("zhang", 10)).thenReturn(List.of(user));
-
-        List<UserSearchResult> results = service.search("zhang", 10);
-
-        assertThat(results).hasSize(1);
-        assertThat(results.get(0).employeeNumber()).isEqualTo("E008");
-    }
 }

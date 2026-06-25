@@ -67,7 +67,7 @@ public class TaskService {
         assertCanAccessProject(taskDTO.getProjectId());
         taskPermissionGuard.assertCanManageTask(taskDTO.getProjectId());
         TaskAssignmentSupport.AssignmentSnapshot assignment = assignmentSupport.resolveAssignmentSnapshot(
-                TaskAssignmentSupport.assignmentRequestFrom(taskDTO),
+                assignmentRequestFrom(taskDTO),
                 null
         );
         Task savedTask = taskRepository.save(Task.builder()
@@ -124,8 +124,8 @@ public class TaskService {
         if (taskDTO.getContent() != null) {
             task.setContent(taskDTO.getContent());
         }
-        if (TaskAssignmentSupport.hasAssignmentChange(taskDTO)) {
-            assignmentSupport.applyAssignment(task, assignmentSupport.resolveAssignmentSnapshot(TaskAssignmentSupport.assignmentRequestFrom(taskDTO), null));
+        if (hasAssignmentChange(taskDTO)) {
+            assignmentSupport.applyAssignment(task, assignmentSupport.resolveAssignmentSnapshot(assignmentRequestFrom(taskDTO), null));
         }
         if (taskDTO.getStatus() != null) {
             task.setStatus(taskDTO.getStatus());
@@ -269,6 +269,26 @@ public class TaskService {
         )) {
             throw new AccessDeniedException("权限不足，无法访问该项目任务");
         }
+    }
+
+    private static TaskAssignmentRequest assignmentRequestFrom(TaskDTO taskDTO) {
+        return TaskAssignmentRequest.builder()
+                .assigneeId(taskDTO.getAssigneeId())
+                .assigneeDeptCode(taskDTO.getAssigneeDeptCode())
+                .assigneeDeptName(taskDTO.getAssigneeDeptName())
+                .assigneeRoleCode(taskDTO.getAssigneeRoleCode())
+                .assigneeRoleName(taskDTO.getAssigneeRoleName())
+                .build();
+    }
+
+    private static boolean hasAssignmentChange(TaskDTO taskDTO) {
+        return taskDTO.getAssigneeId() != null
+                || hasText(taskDTO.getAssigneeDeptCode())
+                || hasText(taskDTO.getAssigneeRoleCode());
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
     private List<TaskDTO> toDTOsWithNames(List<Task> tasks) {
         var names = userRepository.findAllById(tasks.stream().map(Task::getAssigneeId).filter(Objects::nonNull).collect(Collectors.toSet()))

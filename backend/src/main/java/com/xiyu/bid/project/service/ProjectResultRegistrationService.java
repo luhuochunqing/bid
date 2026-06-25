@@ -220,10 +220,6 @@ public class ProjectResultRegistrationService {
         }
         String fullName = user.getFullName();
         String employeeId = user.getEmployeeNumber();
-        // employeeNumber 为空时回退到 username（与 AuditLogItemMapper 保持一致）
-        if (employeeId == null || employeeId.isBlank()) {
-            employeeId = user.getUsername();
-        }
         if (isStrBlank(fullName)) {
             return employeeId != null && !employeeId.isBlank() ? employeeId : "unknown";
         }

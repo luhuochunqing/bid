@@ -600,7 +600,8 @@ public class ArchitectureTest {
                 "com.xiyu.bid.businessqualification.application.service..",
                 "com.xiyu.bid.personnel.application.service..",
                 "com.xiyu.bid.tendersource.service..",
-                "com.xiyu.bid.versionhistory.service.."
+                "com.xiyu.bid.versionhistory.service..",
+                "com.xiyu.bid.project.service.."
             )
             .and().resideInAnyPackage("..service..")
             .should()

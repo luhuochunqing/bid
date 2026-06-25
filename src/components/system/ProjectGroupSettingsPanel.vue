@@ -6,15 +6,11 @@
           <el-input v-model="row.groupName" size="small" placeholder="请输入项目组名称" />
         </template>
       </el-table-column>
-      <el-table-column prop="managerUserId" label="负责人" width="220">
+      <el-table-column prop="managerUserId" label="负责人" width="160">
         <template #default="{ row }">
-          <UserPicker
-            v-model="row.managerUserId"
-            placeholder="搜索负责人"
-            size="small"
-            style="width: 100%"
-            @select="(user) => handleManagerSelect(row, user)"
-          />
+          <el-select v-model="row.managerUserId" size="small" style="width: 100%" @change="syncMeta(row)">
+            <el-option v-for="user in userOptions" :key="user.id" :label="formatUserLabel(user)" :value="user.id" />
+          </el-select>
         </template>
       </el-table-column>
       <el-table-column prop="memberCount" label="成员数" width="80" align="center" />
@@ -32,16 +28,11 @@
           </el-select>
         </template>
       </el-table-column>
-      <el-table-column prop="memberUserIds" label="组成员" min-width="280">
+      <el-table-column prop="memberUserIds" label="组成员" min-width="220">
         <template #default="{ row }">
-          <UserPicker
-            v-model="row.memberUserIds"
-            multiple
-            placeholder="搜索成员"
-            size="small"
-            style="width: 100%"
-            @select="() => syncMeta(row)"
-          />
+          <el-select v-model="row.memberUserIds" multiple size="small" style="width: 100%" @change="syncMeta(row)">
+            <el-option v-for="user in userOptions" :key="user.id" :label="formatUserLabel(user)" :value="user.id" />
+          </el-select>
         </template>
       </el-table-column>
       <el-table-column prop="projectIds" label="绑定项目" min-width="260">
@@ -65,11 +56,9 @@
 </template>
 
 <script setup>
-import UserPicker from '@/components/common/UserPicker.vue'
-import { toUserName } from '@/utils/userPicker.js'
-
 const props = defineProps({
   projectGroups: { type: Array, required: true },
+  userOptions: { type: Array, required: true },
   projectScopeOptions: { type: Array, required: true }
 })
 
@@ -88,13 +77,14 @@ const roleOptions = [
   { label: '投标专员', value: 'bid-Team' },
 ]
 
-const syncMeta = (row) => {
-  row.memberCount = Array.isArray(row.memberUserIds) ? row.memberUserIds.length : 0
+const resolveUserName = (userId) => {
+  const match = props.userOptions.find((user) => String(user.id) === String(userId))
+  return match?.name || ''
 }
 
-const handleManagerSelect = (row, user) => {
-  row.manager = toUserName(user)
-  syncMeta(row)
+const syncMeta = (row) => {
+  row.manager = resolveUserName(row.managerUserId)
+  row.memberCount = Array.isArray(row.memberUserIds) ? row.memberUserIds.length : 0
 }
 
 const handleVisibilityChange = (row) => {

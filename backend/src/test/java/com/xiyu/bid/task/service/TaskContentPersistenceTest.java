@@ -64,9 +64,6 @@ class TaskContentPersistenceTest {
     @Mock
     private ProjectDocumentRepository projectDocumentRepository;
 
-    @Mock
-    private TaskPermissionGuard taskPermissionGuard;
-
     private TaskService taskService;
 
     @BeforeEach
@@ -86,8 +83,7 @@ class TaskContentPersistenceTest {
                 new TaskDtoMapper(new ObjectMapper(), projectDocumentRepository),
                 taskHistoryRecorder,
                 notificationService,
-                userRepository,
-                taskPermissionGuard
+                userRepository
         );
     }
 

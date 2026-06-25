@@ -5,7 +5,6 @@
 package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.annotation.Auditable;
-import com.xiyu.bid.audit.service.AuditLogService;
 import com.xiyu.bid.casework.application.ProjectClosedEvent;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.project.core.ProjectStatusPolicy;
@@ -46,7 +45,6 @@ public class ProjectStageService {
     private final ProjectRepository projectRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final ProjectNotificationService notificationService;
-    private final AuditLogService auditLogService;
 
     @Transactional(readOnly = true)
     public ProjectStage currentStage(Long projectId) {
@@ -70,6 +68,8 @@ public class ProjectStageService {
     /**
      * 推进阶段：校验 + 持久化 + 审计。非法跳转 / CLOSED 终态 / 同态 → 409。
      */
+    @Auditable(action = "PROJECT_STAGE_TRANSITIONED", entityType = "Project",
+            description = "推进项目阶段")
     public ProjectStage requestTransition(Long projectId, ProjectStage target, GateInputs gateInputs) {
         return requestTransition(projectId, target, gateInputs, null);
     }
@@ -99,18 +99,6 @@ public class ProjectStageService {
         }
         projectRepository.save(p);
         log.info("Project stage transitioned project={} {}→{}", projectId, current, target);
-
-        // CO-324: 手动记录审计日志，描述包含具体阶段信息
-        auditLogService.log(AuditLogService.AuditLogEntry.builder()
-                .userId(String.valueOf(p.getManagerId()))
-                .username(p.getName())
-                .action("PROJECT_STAGE_TRANSITIONED")
-                .entityType("Project")
-                .entityId(String.valueOf(projectId))
-                .projectId(projectId)
-                .description("从 " + current.getDisplayName() + " 推进至 " + target.getDisplayName())
-                .success(true)
-                .build());
 
         // 通知 #18: 阶段推进(任意→下一阶段) → 团队成员
         notificationService.notifyStageTransition(projectId, current, target);

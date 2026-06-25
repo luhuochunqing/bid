@@ -6,6 +6,7 @@
 import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { buildDistributionPreview, normalizeAssignmentCandidate } from './helpers.js'
+import { useUserPicker } from '@/composables/useUserPicker.js'
 
 function createDistributeForm() {
   return { type: 'auto', rule: 'average', assignees: [], deadline: null, remark: '' }
@@ -31,11 +32,13 @@ export function useTenderDistribution({
   const distributeForm = ref(createDistributeForm())
   const activeTender = ref(createActiveTender())
 
-  // 存储通过 UserPicker 选择的用户对象供预览使用
-  const selectedUserObjects = ref([])
+  const { options: userOptions, loading: loadingCandidates, loadCandidates } = useUserPicker({
+    mode: 'candidates',
+    context: 'tender',
+  })
 
   const candidates = computed(() =>
-    (selectedUserObjects.value || [])
+    (userOptions.value || [])
       .map(normalizeAssignmentCandidate)
       .filter((item) => Number.isFinite(item.id))
   )
@@ -46,25 +49,28 @@ export function useTenderDistribution({
     form: distributeForm.value,
   }))
 
-  const handleDistributeUsersSelected = (users) => {
-    selectedUserObjects.value = users || []
+  const ensureCandidatesLoaded = async () => {
+    if (candidates.value.length > 0 || loadingCandidates.value) return
+    await loadCandidates()
   }
 
-  const openDistributeDialog = () => {
+  const openDistributeDialog = async () => {
     if (!canManageTenders.value) return ElMessage.error('当前账号无权分发标讯')
     if (selectedTenders.value.length === 0) return ElMessage.warning('请先选择要分发的标讯')
     showDistributeDialog.value = true
+    await ensureCandidatesLoaded()
   }
 
-  const openSingleDistribute = (row) => {
+  const openSingleDistribute = async (row) => {
     selectSingleTender(row)
-    openDistributeDialog()
+    await openDistributeDialog()
   }
 
-  const openAssignDialog = (row) => {
+  const openAssignDialog = async (row) => {
     if (!canManageTenders.value) return ElMessage.error('当前账号无权指派标讯')
     activeTender.value = { id: row.id, title: row.title }
     showAssignDialog.value = true
+    await ensureCandidatesLoaded()
   }
 
   const resetDistributeForm = () => {
@@ -126,11 +132,11 @@ export function useTenderDistribution({
     showAssignDialog,
     distributeLoading,
     assignLoading,
+    loadingCandidates,
     candidates,
     distributeForm,
     activeTender,
     distributionPreview,
-    handleDistributeUsersSelected,
     openDistributeDialog,
     openSingleDistribute,
     openAssignDialog,
