@@ -811,6 +811,231 @@ diff <(unzip -p local.jar BOOT-INF/classes/.../Foo.class | xxd) \
 
 ---
 
+## 13. @RequestScope Bean 与第三方 SDK 的 CacheBeanComponent.initCacheBean() 冲突导致应用启动失败
+
+### 问题背景
+
+2026-06-25 部署 `ffc1d09f-api8080` 时，后端服务启动失败。`systemctl restart` 后健康检查始终无法通过，Nginx 返回 502。最终回滚到上一稳定版本 `51b1c88c-api8080`。
+
+错误日志：
+
+```
+ScopeNotActiveException: Error creating bean with name 'scopedTarget.currentUserResolver':
+Scope 'request' is not active for the current thread; consider defining a scoped proxy
+for this bean if you intend to refer to it from a singleton
+
+Caused by: java.lang.IllegalStateException: No thread-bound request found
+  at org.springframework.web.context.request.RequestContextHolder.currentRequestAttributes
+  at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean
+  at org.springframework.beans.factory.support.DefaultListableBeanFactory.getBeansOfType
+  at com.ehsy.eventlibrary.clientsdk.service.component.CacheBeanComponent.initCacheBean
+  at com.ehsy.eventlibrary.clientsdk.service.callback.StartCallback.onApplicationEvent
+```
+
+### 根因分析
+
+**直接原因**：`CurrentUserResolver` 使用了 `@RequestScope` 注解，在 HTTP 请求线程外无法实例化。
+
+**触发链路**：
+1. 组织事件 SDK 的 `StartCallback` 监听 `ApplicationReadyEvent`
+2. `StartCallback.onApplicationEvent()` 调用 `CacheBeanComponent.initCacheBean()`
+3. `initCacheBean()` 内部调用 `applicationContext.getBeansOfType()` 扫描所有 bean
+4. Spring 尝试实例化 `@RequestScope` 的 `CurrentUserResolver`，但此时没有 request 上下文
+5. 抛出 `ScopeNotActiveException`，应用启动失败
+
+**引入时间**：commit `1404387b1` 新增 `CurrentUserResolver` 并标注 `@RequestScope`，之前服务器上 `XIYU_ORG_EVENT_SDK_ENABLED=true` 的环境中从未测试过该代码路径。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| `@RequestScope` Bean 在非 HTTP 线程中被扫描 | 第三方 SDK 可能在启动时通过 `getBeansOfType()` 扫描所有 bean | **生产环境启用 SDK 时必须测试完整启动流程**，不能只在本地 dev 环境验证 |
+| `CacheBeanComponent.initCacheBean()` 不区分 bean scope | SDK 内部实现无法控制，必须从自身代码防御 | **避免使用 `@RequestScope`**，改用单例 + 直接查询或 ThreadLocal |
+| 本地 dev 环境 `XIYU_ORG_EVENT_SDK_ENABLED=false` | SDK 功能被关闭时不会触发此问题 | **部署前必须确认服务器环境变量与本地测试环境一致**，特别是功能开关 |
+| 只看代码无法发现启动时 scope 冲突 | 代码审查不覆盖"启动时 bean 扫描顺序" | **新增 `@RequestScope`/`@SessionScope` Bean 时，必须在 CI 中增加生产 profile 启动测试** |
+
+### 修复方案
+
+将 `CurrentUserResolver` 从 `@RequestScope` 改为普通单例 `@Component`：
+
+```java
+// 修复前：@RequestScope 在非 HTTP 线程中无法实例化
+@Component
+@RequestScope
+@RequiredArgsConstructor
+public class CurrentUserResolver {
+    private User cachedUser;       // 请求级缓存由 Spring scope 管理
+    private boolean resolved;
+    // ...
+}
+
+// 修复后：单例，每次调用直接查询数据库
+@Component
+@RequiredArgsConstructor
+public class CurrentUserResolver {
+    private final UserRepository userRepository;
+    // 无缓存，避免 ThreadLocal 泄漏风险
+    public User getCurrentUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return null;
+        }
+        return userRepository.findByUsername(auth.getName()).orElse(null);
+    }
+}
+```
+
+**为什么不使用 ThreadLocal 缓存**：Tomcat 线程池会复用线程，如果不在请求结束时清理 ThreadLocal，下一个请求可能拿到上一个用户的缓存数据，造成安全隐患。添加 `Filter` 来清理 ThreadLocal 又增加了复杂度和循环依赖风险。用户查询是走索引的简单查询，性能影响可忽略。
+
+### 防复发检查清单
+
+- [ ] 新增 Bean 时检查是否使用了 `@RequestScope` / `@SessionScope` 等非 singleton scope
+- [ ] 如果必须使用非 singleton scope，评估是否与 SDK 的 `getBeansOfType()` 扫描冲突
+- [ ] 本地测试时启用生产环境的功能开关（如 `XIYU_ORG_EVENT_SDK_ENABLED=true`）
+- [ ] 部署失败时第一时间检查 `journalctl` 中的 `ScopeNotActiveException` 关键字
+
+### 验证命令
+
+```bash
+# 检查项目中是否有 @RequestScope Bean
+grep -rn "@RequestScope\|@Scope.*request" backend/src/main/java
+
+# 本地模拟生产环境启动（启用事件 SDK）
+JWT_SECRET="test" DB_PASSWORD="XiyuDB!2026" \
+XIYU_ORG_EVENT_SDK_ENABLED=true \
+mvn spring-boot:run -Dspring-boot.run.profiles=dev
+
+# 服务器日志检查
+ssh jetty@172.16.38.78 'sudo journalctl -u xiyu-bid-backend --since "10 min ago" | grep -i "ScopeNotActive\|request.*scope"'
+```
+
+### 相关文档
+
+- `backend/src/main/java/com/xiyu/bid/security/CurrentUserResolver.java` — 修复后的单例实现
+- `backend/src/main/java/com/xiyu/bid/integration/organization/infrastructure/sdk/OrganizationEventSdkKafkaStarter.java` — 自定义 SDK 启动器
+- `docs/lessons/lessons-learned.md` §12 — 服务器部署 jar 验证四原则
+- `CLAUDE.md §环境坑点` — 后端启动与环境变量
+
+---
+
+## 14. 部署失败后回滚的标准化操作流程
+
+### 问题背景
+
+2026-06-25 部署 `ffc1d09f-api8080` 失败后，需要回滚到上一稳定版本 `51b1c88c-api8080`。回滚操作涉及恢复后端 JAR、前端资源、部署记录和服务重启，但缺少标准化流程，容易遗漏步骤。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 回滚操作分散在不同地方 | 缺少一键回滚脚本 | 每次部署前确认回滚锚点（上一版本 release 目录、部署记录、数据库备份） |
+| 回滚后忘记更新部署记录 | `/opt/xiyu-bid/deployed-release.json` 未更新 | 回滚必须更新部署记录，添加 `rolledBackFrom` 字段 |
+| 不确认回滚后服务是否真正恢复 | 只检查了服务 active 但未验证健康检查 | 回滚后必须验证健康检查 + API 可用性 |
+
+### 正确做法
+
+```bash
+# 1. 确认回滚目标版本
+PREV_RELEASE="51b1c88c-api8080"
+FAILED_RELEASE="ffc1d09f-api8080"
+
+# 2. 恢复后端 JAR
+cp /opt/xiyu-bid/releases/${PREV_RELEASE}/backend/app.jar /opt/xiyu-bid/shared/backend/app.jar
+
+# 3. 恢复前端资源
+rm -rf /srv/www/xiyu-bid
+cp -a /opt/xiyu-bid/releases/${PREV_RELEASE}/frontend /srv/www/xiyu-bid
+
+# 4. 更新部署记录（含回滚来源）
+cat > /opt/xiyu-bid/deployed-release.json <<EOF
+{
+  "releaseId": "${PREV_RELEASE}",
+  "rolledBackFrom": "${FAILED_RELEASE}",
+  "rolledBackAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "releaseDir": "/opt/xiyu-bid/releases/${PREV_RELEASE}",
+  "frontendPublicDir": "/srv/www/xiyu-bid",
+  "backendJarPath": "/opt/xiyu-bid/shared/backend/app.jar",
+  "backendServiceName": "xiyu-bid-backend",
+  "healthcheckUrl": "http://127.0.0.1:8080/actuator/health"
+}
+EOF
+
+# 5. 重启服务
+sudo systemctl restart xiyu-bid-backend
+
+# 6. 等待并验证健康检查
+for i in $(seq 1 60); do
+  if curl -fsS http://127.0.0.1:8080/actuator/health 2>/dev/null | grep -q UP; then
+    echo "Rollback successful"
+    break
+  fi
+  sleep 2
+done
+
+# 7. 验证 API 可用性
+curl -fsS http://127.0.0.1:8080/actuator/health
+```
+
+### 防复发检查清单
+
+- [ ] 部署前确认上一版本的 release 目录存在：`ls /opt/xiyu-bid/releases/<prev-version>`
+- [ ] 部署前确认数据库备份已完成：`ls -lh /opt/xiyu-bid/db-backups/`
+- [ ] 回滚后更新 `deployed-release.json`，含 `rolledBackFrom` 字段
+- [ ] 回滚后验证健康检查 + API 可用性，不只是 `systemctl is-active`
+
+### 相关文档
+
+- `docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md` §12 — 回滚流程
+- `docs/release/ROLLBACK.md` — 回滚手册
+
+---
+
+## 15. 前端同源部署模式：VITE_API_BASE_URL 设为空字符串
+
+### 问题背景
+
+2026-06-25 部署时，前端打包使用的 `VITE_API_BASE_URL` 值影响了前端与后端的通信模式。之前部署曾出现前端包指向 `127.0.0.1:18080`（本地开发地址），导致 CORS 错误。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 前端包中 API 地址指向 `127.0.0.1:18080` | 本地开发默认值不应进入生产包 | 前后端同源部署时，`VITE_API_BASE_URL` 必须设为空字符串 |
+| 不理解同源模式 vs 跨域模式的区别 | 同源模式下前端走相对路径 `/api/`，Nginx 代理到后端 | 明确区分两种部署模式，按模式设置打包参数 |
+| `package-release.sh` 的 fallback 逻辑容易踩坑 | 未设 `VITE_API_BASE_URL` 时 fallback 到 `127.0.0.1:18080` | 用 `${VITE_API_BASE_URL+x}` 区分"未设"与"显式设为空" |
+
+### 两种部署模式
+
+| 模式 | `VITE_API_BASE_URL` | 适用场景 | 前端请求路径 |
+|------|------|------|------|
+| **同源**（推荐） | `""`（空字符串） | 前后端同一 Nginx 入口 | `/api/...` → Nginx 代理到 18080 |
+| **跨域** | `http://172.16.38.78:8080` | 前后端分离部署 | 完整 URL → 直接请求后端 |
+
+### 正确做法
+
+```bash
+# 同源部署（推荐）：VITE_API_BASE_URL 设为空
+export VITE_API_BASE_URL=""
+bash scripts/release/package-release.sh
+
+# 跨域部署：VITE_API_BASE_URL 设为后端公网地址
+export VITE_API_BASE_URL="http://172.16.38.78:8080"
+bash scripts/release/package-release.sh
+
+# 验证前端包中的 API 地址
+# 同源模式：不应包含 127.0.0.1 或具体 IP
+rg "127\.0\.0\.1|172\.16\.38\.78" .release/*/frontend/assets/*.js
+# 期望输出：无匹配
+```
+
+### 相关文档
+
+- `scripts/release/package-release.sh` — 打包脚本，含 `VITE_API_BASE_URL` 解析逻辑
+- `src/api/config.js` — 前端 API 配置，生产环境强制同源模式
+- `docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md` §4 — 本地打包规范
+
+---
+
 ## 16. Bug 修复前必须先验证实际行为，避免"推测式修复"
 
 ### 问题背景
