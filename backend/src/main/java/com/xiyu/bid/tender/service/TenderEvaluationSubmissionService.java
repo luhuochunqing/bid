@@ -66,6 +66,7 @@ public class TenderEvaluationSubmissionService {
     private final ApplicationEventPublisher eventPublisher;
     private final TenderEvaluationGapFilesSync gapFilesSync;
     private final TenderEvaluationDocumentService documentService;
+    private final TenderEvaluationCustomerInfoDeleteService customerInfoDeleteService;
     private final TenderEvaluationSubmissionMapper mapper = new TenderEvaluationSubmissionMapper();
     private final Clock clock;
 
@@ -78,6 +79,7 @@ public class TenderEvaluationSubmissionService {
             ApplicationEventPublisher eventPublisher,
             ProjectDocumentRepository projectDocumentRepository,
             TenderEvaluationDocumentService documentService,
+            TenderEvaluationCustomerInfoDeleteService customerInfoDeleteService,
             Clock clock) {
         this.evaluationRepository = evaluationRepository;
         this.tenderRepository = tenderRepository;
@@ -87,6 +89,7 @@ public class TenderEvaluationSubmissionService {
         this.eventPublisher = eventPublisher;
         this.gapFilesSync = new TenderEvaluationGapFilesSync(projectDocumentRepository);
         this.documentService = documentService;
+        this.customerInfoDeleteService = customerInfoDeleteService;
         this.clock = clock;
     }
 
@@ -239,26 +242,21 @@ public class TenderEvaluationSubmissionService {
     // ---------- helpers ----------
 
     /**
-     * CO-266 修复：应用客户信息段，确保 DELETE SQL 先于 INSERT 落库。
-     * <p>原 {@link TenderEvaluationSubmissionMapper#applyRequest} 中的
-     * {@code clear() + addAll()} 在同一事务内会触发 Hibernate INSERT-before-DELETE
-     * flush 顺序，撞 uk_eval_role_info (evaluation_id, role_key, info_key) 唯一约束。
-     * <p>修复方案：clear() 触发 orphanRemoval 后立即 saveAndFlush 执行 DELETE SQL，
-     * 然后再 addAll 新行并 save 执行 INSERT SQL。
+     * 应用客户信息段：先删后加，确保 flush 顺序正确。
+     * <p>原生 SQL DELETE 在主事务中执行，随后 clear() + addAll() 触发 Hibernate orphanRemoval，
+     * 两者在同一事务中确保 DELETE 先于 INSERT 落库，避免 INSERT-before-DELETE flush 顺序
+     * 撞 uk_eval_role_info 唯一约束（CO-266 修复）。
      */
     private void applyCustomerInfosWithFlush(TenderEvaluation entity,
                                              List<com.xiyu.bid.tender.dto.EvaluationCustomerInfoDTO> infos) {
         if (infos == null) {
             return;
         }
+        Long evaluationId = entity.getId();
         List<TenderEvaluationCustomerInfo> newRows = mapper.buildCustomerInfoRows(entity, infos);
-        if (entity.getCustomerInfos() == null) {
-            entity.setCustomerInfos(new ArrayList<>());
-        }
-        if (!entity.getCustomerInfos().isEmpty()) {
-            entity.getCustomerInfos().clear();
-            evaluationRepository.saveAndFlush(entity);
-        }
+        // 主事务中删除：与 orphanRemoval 的 DELETE 在同一事务中，Hibernate 保证顺序
+        customerInfoDeleteService.deleteAllByEvaluationIdInTransaction(evaluationId);
+        entity.getCustomerInfos().clear();
         entity.getCustomerInfos().addAll(newRows);
     }
 

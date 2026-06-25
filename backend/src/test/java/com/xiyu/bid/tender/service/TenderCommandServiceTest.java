@@ -80,7 +80,7 @@ class TenderCommandServiceTest {
     @BeforeEach
     void setUp() {
         tenderMapper = new TenderMapper();
-        accessGuard = new TenderProjectAccessGuard(projectRepository, projectAccessScopeService, dataScopeConfigService, userRepository);
+        accessGuard = new TenderProjectAccessGuard(projectRepository, projectAccessScopeService, dataScopeConfigService, userRepository, tenderAssignmentRecordRepository);
         statusTransitionPolicy = new TenderStatusTransitionPolicy();
         tenderCommandService = new TenderCommandService(
                 tenderDeduplicationService, tenderRepository, projectRepository,
