@@ -52,7 +52,7 @@ import java.util.List;
 @RequestMapping("/api/knowledge/personnel")
 @RequiredArgsConstructor
 @Slf4j
-@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+@PreAuthorize("isAuthenticated()")
 public class PersonnelController {
 
     private final CreatePersonnelAppService createService;
@@ -80,7 +80,8 @@ public class PersonnelController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    // 按蓝图 4.3「人员证书」：投标管理员、投标组长、投标专员均可访问列表
+    @PreAuthorize("hasAnyAuthority('/bidAdmin', 'bid-TeamLeader', 'bid-Team')")
     @Auditable(action = "READ", entityType = "Personnel", description = "获取人员列表")
     public ResponseEntity<ApiResponse<List<PersonnelDTO>>> list(
             @RequestParam(required = false) String keyword,
@@ -109,7 +110,8 @@ public class PersonnelController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    // 按蓝图 4.3「人员证书」：投标管理员、投标组长、投标专员均可访问详情
+    @PreAuthorize("hasAnyAuthority('/bidAdmin', 'bid-TeamLeader', 'bid-Team')")
     @Auditable(action = "READ", entityType = "Personnel", description = "获取人员详情")
     public ResponseEntity<ApiResponse<PersonnelDTO>> get(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("人员详情获取成功", listService.get(id)));
