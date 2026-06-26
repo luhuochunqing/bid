@@ -119,6 +119,19 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
                 .toList();
     }
 
+    @Override
+    public BusinessQualification updateRetiredStatus(Long id, boolean retired, String retireReason) {
+        QualificationStatus targetStatus = retired ? QualificationStatus.RETIRED : computeStatusById(id);
+        qualificationJpaRepository.updateRetiredStatus(id, retired, retireReason, targetStatus);
+        return findById(id).orElseThrow();
+    }
+
+    private QualificationStatus computeStatusById(Long id) {
+        return findById(id)
+                .map(BusinessQualification::status)
+                .orElseThrow();
+    }
+
     /**
      * Push down filterable criteria to SQL via Specification.
      * Derived status (valid/expiring/expired from validity period) is left to matchesDerived.

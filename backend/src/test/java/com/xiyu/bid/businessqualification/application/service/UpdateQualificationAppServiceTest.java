@@ -25,6 +25,9 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -39,40 +42,35 @@ class UpdateQualificationAppServiceTest {
     private UpdateQualificationAppService appService;
 
     @Test
-    @DisplayName("下架资质 - 应直接设置 retired=true 和 retireReason，保留原附件不经序列化往返")
-    void retire_ShouldSetRetiredAndReason_PreservingOriginalAttachments() {
-        // Given: 一个有效资质（带附件，附件 uploadedAt 是原始 LocalDateTime）
+    @DisplayName("下架资质 - 应调用 updateRetiredStatus 部分更新，不触发全量 save 和附件删除重插")
+    void retire_ShouldCallUpdateRetiredStatus_NotFullSave() {
+        // Given: 一个有效资质（带附件）
         QualificationAttachment attachment = new QualificationAttachment(
                 100L, "cert.pdf", "/files/cert.pdf", LocalDateTime.of(2026, 6, 25, 15, 30, 0));
         BusinessQualification existing = sampleQualification(1L, false, null, List.of(attachment));
         when(repository.findById(1L)).thenReturn(Optional.of(existing));
-        when(repository.save(any(BusinessQualification.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(repository.updateRetiredStatus(1L, true, "证书过期不再使用"))
+                .thenReturn(sampleQualification(1L, true, "证书过期不再使用", List.of(attachment)));
 
         // When
         BusinessQualification result = appService.retire(1L, "证书过期不再使用");
 
-        // Then: retired=true + reason 设置正确
+        // Then: 调用了部分更新方法，而非全量 save
         assertThat(result.retired()).isTrue();
         assertThat(result.retireReason()).isEqualTo("证书过期不再使用");
-        // 关键: 附件原样保留，未经 DTO 序列化往返（uploadedAt 仍是原始 LocalDateTime）
-        assertThat(result.attachments()).isEqualTo(existing.attachments());
-        assertThat(result.attachments().get(0).getUploadedAt())
-                .isEqualTo(LocalDateTime.of(2026, 6, 25, 15, 30, 0));
-        // 其他字段保持不变
-        assertThat(result.name()).isEqualTo(existing.name());
-        assertThat(result.certificateNo()).isEqualTo(existing.certificateNo());
-        verify(repository).save(any(BusinessQualification.class));
+        verify(repository).updateRetiredStatus(1L, true, "证书过期不再使用");
+        verify(repository, never()).save(any(BusinessQualification.class));
     }
 
     @Test
-    @DisplayName("下架资质 - 资质不存在时抛 ResourceNotFoundException，不调用 save")
-    void retire_WhenNotFound_ShouldThrowResourceNotFoundExceptionAndNeverSave() {
+    @DisplayName("下架资质 - 资质不存在时抛 ResourceNotFoundException，不调用 updateRetiredStatus")
+    void retire_WhenNotFound_ShouldThrowResourceNotFoundExceptionAndNeverUpdateRetired() {
         when(repository.findById(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> appService.retire(999L, "测试原因"))
                 .isInstanceOf(ResourceNotFoundException.class);
 
-        verify(repository, never()).save(any());
+        verify(repository, never()).updateRetiredStatus(anyLong(), anyBoolean(), anyString());
     }
 
     @Test
@@ -80,7 +78,8 @@ class UpdateQualificationAppServiceTest {
     void retire_ShouldNotCheckCertificateNoDuplication() {
         BusinessQualification existing = sampleQualification(1L, false, null, List.of());
         when(repository.findById(1L)).thenReturn(Optional.of(existing));
-        when(repository.save(any(BusinessQualification.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(repository.updateRetiredStatus(1L, true, "下架原因"))
+                .thenReturn(sampleQualification(1L, true, "下架原因", List.of()));
 
         appService.retire(1L, "下架原因");
 

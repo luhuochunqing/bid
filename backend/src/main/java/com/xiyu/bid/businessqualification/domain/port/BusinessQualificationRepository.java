@@ -33,4 +33,6 @@ public interface BusinessQualificationRepository {
     boolean existsByCertificateNo(String certificateNo);
 
     List<String> findAllLevels();
+
+    BusinessQualification updateRetiredStatus(Long id, boolean retired, String retireReason);
 }

@@ -4,6 +4,9 @@ import com.xiyu.bid.businessqualification.domain.valueobject.QualificationStatus
 import com.xiyu.bid.businessqualification.infrastructure.persistence.entity.BusinessQualificationEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -40,4 +43,15 @@ public interface BusinessQualificationJpaRepository
      * Blueprint §4.2.1.4: find by certificate no (batch attachment matching).
      */
     Optional<BusinessQualificationEntity> findByCertificateNo(String certificateNo);
+
+    /**
+     * CO-358 fix: 部分更新下架状态，仅修改 retired / retire_reason / status / updated_at。
+     * 不走全量 save，避免触发附件 delete+saveAll 导致的序列化异常或 NOT NULL 约束违反。
+     */
+    @Modifying
+    @Query("UPDATE BusinessQualificationEntity q SET q.retired = :retired, q.retireReason = :retireReason, q.status = :status, q.updatedAt = CURRENT_TIMESTAMP WHERE q.id = :id")
+    int updateRetiredStatus(@Param("id") Long id,
+                            @Param("retired") boolean retired,
+                            @Param("retireReason") String retireReason,
+                            @Param("status") QualificationStatus status);
 }

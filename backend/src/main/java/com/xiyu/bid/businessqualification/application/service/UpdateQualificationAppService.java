@@ -33,31 +33,8 @@ public class UpdateQualificationAppService {
      */
     @Transactional
     public BusinessQualification retire(Long id, String reason) {
-        BusinessQualification existing = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("BusinessQualification", String.valueOf(id)));
-
-        BusinessQualification retired = BusinessQualification.createWithRetired(
-                existing.id(),
-                existing.name(),
-                existing.level(),
-                existing.subject(),
-                existing.category(),
-                existing.certificateNo(),
-                existing.issuer(),
-                existing.agency(),
-                existing.agencyContact(),
-                existing.certScope(),
-                existing.certReviewNote(),
-                existing.holderName(),
-                existing.validityPeriod(),
-                existing.reminderPolicy(),
-                existing.fileUrl(),
-                reason,
-                true,
-                existing.attachments()
-        );
-
-        return repository.save(retired);
+        repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("资质证书不存在: " + id));
+        return repository.updateRetiredStatus(id, true, reason);
     }
 
     @Transactional
