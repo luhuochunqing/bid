@@ -133,7 +133,7 @@ resolve_commits() {
     return 0
   fi
 
-  die "无法解析: $target（既不是 GitHub 分支名，也不是有效 commit）"
+  die "无法解析: ${target}（既不是 GitHub 分支名，也不是有效 commit）"
 }
 
 # 收集所有要 cherry-pick 的 commit
@@ -164,7 +164,7 @@ if [[ -z "$BRANCH_NAME" ]]; then
   BRANCH_NAME="agent/${WORKTREE_NAME}/github-sync-${BRANCH_NUM}"
 fi
 
-info "创建同步分支: $BRANCH_NAME（基于 origin/main）"
+info "创建同步分支: ${BRANCH_NAME}（基于 origin/main）"
 git checkout -b "$BRANCH_NAME" origin/main
 echo ""
 
