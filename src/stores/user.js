@@ -109,6 +109,18 @@ export const useUserStore = defineStore('user', {
       return this.currentUser
     },
 
+    async loginByHomeSso(ssoToken) {
+      const result = await authApi.homeSso(ssoToken)
+
+      if (!result?.success || !result?.data?.user) {
+        throw new Error(result?.msg || 'Home SSO 登录失败')
+      }
+
+      this.applyAuthSession(result.data, true)
+      this.hasRestoredSession = true
+      return this.currentUser
+    },
+
     async restoreSession() {
       if (this.isRestoringSession) {
         return this.currentUser

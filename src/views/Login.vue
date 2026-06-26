@@ -46,15 +46,30 @@ const loading = ref(false)
 
 onMounted(async () => {
   const urlParams = new URLSearchParams(window.location.search)
+  const ssoToken = urlParams.get('ssoToken')
   const code = urlParams.get('code')
   const state = urlParams.get('state')
+  const redirect = urlParams.get('redirect') || '/dashboard'
 
-  if (code && state) {
+  if (ssoToken) {
+    loading.value = true
+    try {
+      await userStore.loginByHomeSso(ssoToken)
+      ElMessage.success('登录成功')
+      router.push(redirect)
+    } catch (error) {
+      const msg = error?.response?.data?.msg || error?.message || 'SSO 登录失败'
+      ElMessage.error(msg)
+      router.replace('/login')
+    } finally {
+      loading.value = false
+    }
+  } else if (code && state) {
     loading.value = true
     try {
       await userStore.loginByWeCom(code, state)
       ElMessage.success('企业微信登录成功')
-      router.push('/dashboard')
+      router.push(redirect)
     } catch (error) {
       if (error?.response?.data?.code === 40101) {
         ElMessage.warning('您的企业微信账号尚未绑定系统账号，请先手动登录一次进行绑定')
@@ -62,7 +77,6 @@ onMounted(async () => {
         const msg = error?.response?.data?.msg || error?.message || '企业微信登录失败'
         ElMessage.error(msg)
       }
-      // Clean URL params
       router.replace('/login')
     } finally {
       loading.value = false
