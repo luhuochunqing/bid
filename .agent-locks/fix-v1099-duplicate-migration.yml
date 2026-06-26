@@ -1,0 +1,6 @@
+- path: "backend/src/main/resources/db/migration-mysql/"
+  scope: "directory"
+  owner: "trae"
+  branch: "fix/v1099-duplicate-migration"
+  expiresAt: "2026-07-01T00:00:00Z"
+  reason: "修复 Flyway V1099 版本号冲突：删除重复的 V1099__add_task_completion_notes.sql（内容已在 DB 以 V1100 执行）"
