@@ -14,7 +14,6 @@ import com.xiyu.bid.dto.PasswordResetResponse;
 import com.xiyu.bid.dto.RegisterRequest;
 import com.xiyu.bid.dto.ResetPasswordRequest;
 import com.xiyu.bid.dto.SessionDTO;
-import com.xiyu.bid.crm.application.HomeSsoService;
 import com.xiyu.bid.service.AuthService;
 import com.xiyu.bid.service.EmailVerificationService;
 import com.xiyu.bid.service.PasswordResetService;
@@ -22,7 +21,6 @@ import com.xiyu.bid.service.SessionService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import com.xiyu.bid.util.InputSanitizer;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,7 +54,6 @@ public class AuthController {
     private final PasswordResetService passwordResetService;
     private final SessionService sessionService;
     private final EmailVerificationService emailVerificationService;
-    private final HomeSsoService homeSsoService;
 
     @Value("${app.auth.refresh-cookie-name:refresh_token}")
     private String refreshCookieName;
@@ -110,25 +107,6 @@ public class AuthController {
             throw ex;
         }
     }
-
-    @PostMapping("/home-sso")
-    @PreAuthorize(PERMIT_ALL_EXPR)
-    public ResponseEntity<ApiResponse<AuthResponse>> homeSsoLogin(@Valid @RequestBody HomeSsoRequest request) {
-        String sanitizedToken = InputSanitizer.sanitizeString(request.ssoToken(), 512);
-        try {
-            AuthSessionResult sessionResult = homeSsoService.ssoLogin(sanitizedToken);
-            log.info("Auth home-sso success");
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.SET_COOKIE, buildRefreshCookie(sessionResult.getRefreshToken(), true).toString())
-                    .header(HttpHeaders.SET_COOKIE, buildAccessCookie(sessionResult.getAccessToken()).toString())
-                    .body(ApiResponse.success("SSO login successful", sessionResult.getAuthResponse()));
-        } catch (RuntimeException ex) {
-            log.warn("Auth home-sso failed: reason={}", ex.getMessage());
-            throw ex;
-        }
-    }
-
-    record HomeSsoRequest(@NotBlank String ssoToken) {}
 
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<AuthResponse>> getCurrentUser(Authentication authentication) {
