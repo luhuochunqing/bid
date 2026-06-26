@@ -1,11 +1,14 @@
 package com.xiyu.bid.integration.external;
 
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.TenderRepository;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import com.xiyu.bid.tender.entity.TenderAttachment;
 import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
 import com.xiyu.bid.util.InputSanitizer;
+import com.xiyu.bid.webhook.domain.OperatorDisplayName;
 import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +37,7 @@ public class TenderIntegrationCommandService {
     private final TenderIntegrationCommandSupport support;
     private final ApplicationEventPublisher eventPublisher;
     private final com.xiyu.bid.tender.service.TenderAuditService tenderAuditService;
+    private final UserRepository userRepository;
 
     /**
      * 幂等推送标讯。
@@ -59,7 +63,7 @@ public class TenderIntegrationCommandService {
      * 按 externalId 或 tenderId 更新标讯字段。
      */
     @Transactional
-    public TenderDTO updateByExternalId(String sourceSystem, String sourceId, TenderUpdateRequest request) {
+    public TenderDTO updateByExternalId(String sourceSystem, String sourceId, TenderUpdateRequest request, Long userId) {
         Tender tender = helper.resolveTender(sourceSystem, sourceId, request.getTenderId());
         String externalId = tender.getExternalId();
 
@@ -74,9 +78,11 @@ public class TenderIntegrationCommandService {
         Tender saved = tenderRepository.save(tender);
         // CO-305: 更新后状态变为 EVALUATED 时发布 TenderStatusChangedEvent
         if (saved.getStatus() == Tender.Status.EVALUATED && previousStatus != Tender.Status.EVALUATED) {
+            String operatorName = resolveOperatorName(userId);
             eventPublisher.publishEvent(TenderStatusChangedEvent.of(
                     saved.getId(), saved.getExternalId(),
-                    previousStatus, Tender.Status.EVALUATED, saved.getTitle()));
+                    previousStatus, Tender.Status.EVALUATED, saved.getTitle(),
+                    null, userId, operatorName, null, null));
         }
         log.info("Updated tender id={} externalId={} crmId={} crmOpportunityId={}",
                 saved.getId(), externalId, crmId, saved.getCrmOpportunityId());
@@ -129,9 +135,11 @@ public class TenderIntegrationCommandService {
             Tender saved = tenderRepository.save(existing);
             // CO-305: 强制更新后状态变为 EVALUATED 时发布 TenderStatusChangedEvent
             if (saved.getStatus() == Tender.Status.EVALUATED && previousStatus != Tender.Status.EVALUATED) {
+                String operatorName = resolveOperatorName(userId);
                 eventPublisher.publishEvent(TenderStatusChangedEvent.of(
                         saved.getId(), saved.getExternalId(),
-                        previousStatus, Tender.Status.EVALUATED, saved.getTitle()));
+                        previousStatus, Tender.Status.EVALUATED, saved.getTitle(),
+                        null, userId, operatorName, null, null));
             }
             if (request.getEvaluation() != null) {
                 var eval = request.getEvaluation();
@@ -167,9 +175,11 @@ public class TenderIntegrationCommandService {
         Tender saved = tenderRepository.save(tender);
         // CO-305: CRM 推送创建的标讯状态变为 EVALUATED 时发布 TenderStatusChangedEvent
         if (saved.getStatus() == Tender.Status.EVALUATED && initialStatus != Tender.Status.EVALUATED) {
+            String operatorName = resolveOperatorName(userId);
             eventPublisher.publishEvent(TenderStatusChangedEvent.of(
                     saved.getId(), saved.getExternalId(),
-                    initialStatus, Tender.Status.EVALUATED, saved.getTitle()));
+                    initialStatus, Tender.Status.EVALUATED, saved.getTitle(),
+                    null, userId, operatorName, null, null));
         }
         if (request.getEvaluation() != null) {
             var eval = request.getEvaluation();
@@ -242,5 +252,14 @@ public class TenderIntegrationCommandService {
     private TenderDTO buildResponseDTO(Tender saved) {
         List<TenderAttachment> attachments = attachmentRepository.findByTenderId(saved.getId());
         return mapper.toDTO(saved, attachments);
+    }
+
+    private String resolveOperatorName(Long userId) {
+        if (userId == null) {
+            return "";
+        }
+        return userRepository.findById(userId)
+                .map(OperatorDisplayName::format)
+                .orElse("");
     }
 }

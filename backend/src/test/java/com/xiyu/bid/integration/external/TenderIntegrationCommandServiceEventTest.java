@@ -1,7 +1,9 @@
 package com.xiyu.bid.integration.external;
 
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.TenderRepository;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
@@ -56,6 +58,7 @@ import static org.mockito.Mockito.when;
 class TenderIntegrationCommandServiceEventTest {
 
     @Mock private TenderRepository tenderRepository;
+    @Mock private UserRepository userRepository;
     @Mock private TenderMapper tenderMapper;
     @Mock private TenderAttachmentRepository attachmentRepository;
     @Mock private TenderEvaluationRepository tenderEvaluationRepository;
@@ -86,7 +89,7 @@ class TenderIntegrationCommandServiceEventTest {
                 tenderRepository);
         commandService = new TenderIntegrationCommandService(
                 tenderRepository, attachmentRepository, crmTenderLinkService, mapper, evaluationService, helper, support, eventPublisher,
-                tenderAuditService);
+                tenderAuditService, userRepository);
         when(tenderRepository.save(any(Tender.class))).thenAnswer(inv -> inv.getArgument(0));
         TenderDTO stubDto = TenderDTO.builder().build();
         when(tenderMapper.toDTO(any(Tender.class))).thenReturn(stubDto);
@@ -110,12 +113,18 @@ class TenderIntegrationCommandServiceEventTest {
         Tender tender = createExistingTender(Tender.Status.TRACKING);
         when(tenderRepository.findByExternalId("crm:test-001")).thenReturn(Optional.of(tender));
 
+        User operator = new User();
+        operator.setId(100L);
+        operator.setFullName("张三");
+        operator.setEmployeeNumber("12345");
+        when(userRepository.findById(100L)).thenReturn(Optional.of(operator));
+
         TenderUpdateRequest request = TenderUpdateRequest.builder()
                 .evaluation(new TenderUpdateRequest.EvaluationUpdate(
                         null, null, null))
                 .build();
 
-        commandService.updateByExternalId("crm", "test-001", request);
+        commandService.updateByExternalId("crm", "test-001", request, 100L);
 
         ArgumentCaptor<TenderStatusChangedEvent> eventCaptor = ArgumentCaptor.forClass(TenderStatusChangedEvent.class);
         verify(eventPublisher).publishEvent(eventCaptor.capture());
@@ -126,6 +135,8 @@ class TenderIntegrationCommandServiceEventTest {
         assertThat(event.oldStatus()).isEqualTo(Tender.Status.TRACKING);
         assertThat(event.newStatus()).isEqualTo(Tender.Status.EVALUATED);
         assertThat(event.title()).isEqualTo("测试标讯");
+        assertThat(event.operatorId()).isEqualTo(100L);
+        assertThat(event.operatorName()).isEqualTo("张三（12345）");
     }
 
     @Test
@@ -139,7 +150,7 @@ class TenderIntegrationCommandServiceEventTest {
                         null, null, null))
                 .build();
 
-        commandService.updateByExternalId("crm", "test-001", request);
+        commandService.updateByExternalId("crm", "test-001", request, null);
 
         verify(eventPublisher, never()).publishEvent(any());
     }
@@ -155,7 +166,7 @@ class TenderIntegrationCommandServiceEventTest {
                         null, null, null))
                 .build();
 
-        commandService.updateByExternalId("crm", "test-001", request);
+        commandService.updateByExternalId("crm", "test-001", request, null);
 
         ArgumentCaptor<TenderStatusChangedEvent> eventCaptor = ArgumentCaptor.forClass(TenderStatusChangedEvent.class);
         verify(eventPublisher).publishEvent(eventCaptor.capture());

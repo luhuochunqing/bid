@@ -58,7 +58,7 @@ public class TenderIntegrationService {
      * 按 externalId 或 tenderId 更新标讯字段（二选一必传）。
      */
     @Transactional
-    public TenderDTO updateByExternalId(String sourceSystem, String sourceId, TenderUpdateRequest request) {
-        return commandService.updateByExternalId(sourceSystem, sourceId, request);
+    public TenderDTO updateByExternalId(String sourceSystem, String sourceId, TenderUpdateRequest request, Long userId) {
+        return commandService.updateByExternalId(sourceSystem, sourceId, request, userId);
     }
 }

@@ -2,6 +2,7 @@ package com.xiyu.bid.integration.external;
 
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.repository.TenderRepository;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.tender.entity.TenderEvaluation;
 import com.xiyu.bid.tender.entity.TenderEvaluationCustomerInfo;
 import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
@@ -76,7 +77,8 @@ class TenderIntegrationServicePushEvaluationTest {
                 helper,
                 support,
                 mock(ApplicationEventPublisher.class),
-                mock(TenderAuditService.class));
+                mock(TenderAuditService.class),
+                mock(UserRepository.class));
     }
 
     private TenderPushRequest.EvaluationUpdate buildEval(String roleKey, String infoKey, String value) {

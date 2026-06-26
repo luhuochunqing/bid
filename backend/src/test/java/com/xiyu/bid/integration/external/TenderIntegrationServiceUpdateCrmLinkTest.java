@@ -2,6 +2,7 @@ package com.xiyu.bid.integration.external;
 
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.repository.TenderRepository;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
@@ -37,6 +38,7 @@ import static org.mockito.Mockito.when;
 class TenderIntegrationServiceUpdateCrmLinkTest {
 
     @Mock private TenderRepository tenderRepository;
+    @Mock private UserRepository userRepository;
     @Mock private TenderMapper tenderMapper;
     @Mock private TenderAttachmentRepository attachmentRepository;
     @Mock private TenderEvaluationRepository tenderEvaluationRepository;
@@ -67,7 +69,7 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
                 tenderRepository);
         commandService = new TenderIntegrationCommandService(
                 tenderRepository, attachmentRepository, crmTenderLinkService, mapper, evaluationService, helper, support, eventPublisher,
-                tenderAuditService);
+                tenderAuditService, userRepository);
         when(tenderRepository.save(any(Tender.class))).thenAnswer(inv -> inv.getArgument(0));
         TenderDTO stubDto = TenderDTO.builder().build();
         when(tenderMapper.toDTO(any(Tender.class))).thenReturn(stubDto);
@@ -101,7 +103,7 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
                 .crmId("CHANCE_001")
                 .build();
 
-        commandService.updateByExternalId("crm", "test-001", request);
+        commandService.updateByExternalId("crm", "test-001", request, null);
 
         assertThat(tender.getEvaluationSource()).isEqualTo(Tender.EvaluationSource.CRM_PUSH);
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
@@ -121,7 +123,7 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
                 .crmId("CHANCE_002")
                 .build();
 
-        commandService.updateByExternalId("crm", "test-001", request);
+        commandService.updateByExternalId("crm", "test-001", request, null);
 
         assertThat(tender.getCrmOpportunityId()).isEqualTo("CHANCE_002");
         assertThat(tender.getEvaluationSource()).isEqualTo(Tender.EvaluationSource.CRM_PUSH);
@@ -138,7 +140,7 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
                 .title("更新标题")
                 .build();
 
-        commandService.updateByExternalId("crm", "test-001", request);
+        commandService.updateByExternalId("crm", "test-001", request, null);
 
         assertThat(tender.getEvaluationSource()).isNull();
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.PENDING_ASSIGNMENT);
@@ -164,7 +166,7 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
                 .crmOpportunityName("测试商机")
                 .build();
 
-        commandService.updateByExternalId("crm", "test-001", request);
+        commandService.updateByExternalId("crm", "test-001", request, null);
 
         org.mockito.Mockito.verify(crmTenderLinkService)
                 .linkIfPresent(any(Tender.class), org.mockito.ArgumentMatchers.eq("CC20260619283"));
@@ -191,7 +193,7 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
                 .crmOpportunityId("CC-PUBLIC")
                 .build();
 
-        commandService.updateByExternalId("crm", "test-001", request);
+        commandService.updateByExternalId("crm", "test-001", request, null);
 
         org.mockito.Mockito.verify(crmTenderLinkService)
                 .linkIfPresent(any(Tender.class), org.mockito.ArgumentMatchers.eq("CC-PUBLIC"));
@@ -213,7 +215,7 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
                 .crmOpportunityName("测试商机")
                 .build();
 
-        commandService.updateByExternalId("crm", "test-001", request);
+        commandService.updateByExternalId("crm", "test-001", request, null);
 
         assertThat(tender.getCrmOpportunityId()).isEqualTo("CC20260619283");
         assertThat(tender.getCrmOpportunityName()).isEqualTo("测试商机");
@@ -238,7 +240,7 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
                 .crmOpportunityName("cye测试21对接人")
                 .build();
 
-        commandService.updateByExternalId("crm", "test-001", request);
+        commandService.updateByExternalId("crm", "test-001", request, null);
 
         // 关键断言：纯数字 id 不应被存入 crm_opportunity_id
         assertThat(tender.getCrmOpportunityId())
@@ -265,7 +267,7 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
                 .crmOpportunityName("cye弃标111")
                 .build();
 
-        commandService.updateByExternalId("crm", "test-001", request);
+        commandService.updateByExternalId("crm", "test-001", request, null);
 
         assertThat(tender.getCrmOpportunityId()).isEqualTo("CC20260621323");
         assertThat(tender.getCrmOpportunityName()).isEqualTo("cye弃标111");

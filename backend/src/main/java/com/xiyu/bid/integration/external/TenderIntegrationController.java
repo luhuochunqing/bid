@@ -150,8 +150,9 @@ public class TenderIntegrationController {
             @Valid @RequestBody TenderUpdateRequest request) {
         log.info("INTEGRATION PUT /api/integration/tenders/{}/{} - fields present",
                 sourceSystem, sourceId);
+        Long userId = resolveApiKeyUserId();
         TenderDTO updated = tenderIntegrationService.updateByExternalId(
-                sourceSystem, sourceId, request);
+                sourceSystem, sourceId, request, userId);
         return ResponseEntity.ok(ApiResponse.success("标讯更新成功", updated));
     }
 
