@@ -50,6 +50,9 @@ const ACTION_LABELS = {
   delete: '删除',
   link_crm: '关联商机',
   ai_analyze: 'AI分析',
+  review: '评估决策',
+  proceed_to_bid: '投标立项',
+  evaluation_review: '评估审核',
 }
 
 const ACTION_TAG_TYPES = {
@@ -65,6 +68,9 @@ const ACTION_TAG_TYPES = {
   delete: 'danger',
   link_crm: 'primary',
   ai_analyze: 'info',
+  review: 'primary',
+  proceed_to_bid: 'success',
+  evaluation_review: 'primary',
 }
 
 const ACTION_TIMELINE_TYPES = {
@@ -80,9 +86,12 @@ const ACTION_TIMELINE_TYPES = {
   delete: 'danger',
   link_crm: 'primary',
   ai_analyze: 'info',
+  review: 'primary',
+  proceed_to_bid: 'success',
+  evaluation_review: 'primary',
 }
 
-const getActionText = (action) => ACTION_LABELS[action] || action
+const getActionText = (action) => ACTION_LABELS[action] || '操作'
 const getActionTagType = (action) => ACTION_TAG_TYPES[action] || 'info'
 const getTimelineType = (action) => ACTION_TIMELINE_TYPES[action] || 'info'
 

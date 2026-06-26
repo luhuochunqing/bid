@@ -52,7 +52,21 @@ public class TenderAuditService {
     public void logAssign(Long tenderId, String oldManager, String newManager,
                           String username, String userId, String ipAddress) {
         AuditLog log = buildAuditLog("ASSIGN", "TENDER", String.valueOf(tenderId),
-                "标讯分配", oldManager, newManager, username, userId, ipAddress);
+                "标讯分配给 " + (newManager == null || newManager.isBlank() ? "未指定" : newManager),
+                oldManager, newManager, username, userId, ipAddress);
+        auditLogRepository.save(log);
+    }
+
+    /**
+     * CO-332: 关联 CRM 商机（用商机名，避免显示 UUID/英文 ID）。
+     */
+    @Transactional
+    public void logLinkCrm(Long tenderId, String crmOpportunityName,
+                           String username, String userId, String ipAddress) {
+        AuditLog log = buildAuditLog("LINK_CRM", "TENDER", String.valueOf(tenderId),
+                "关联CRM商机: " + (crmOpportunityName == null || crmOpportunityName.isBlank()
+                        ? "未指定" : crmOpportunityName),
+                null, crmOpportunityName, username, userId, ipAddress);
         auditLogRepository.save(log);
     }
 
@@ -89,7 +103,8 @@ public class TenderAuditService {
     public void logStatusChange(Long tenderId, String oldStatus, String newStatus,
                                 String username, String userId, String ipAddress) {
         AuditLog log = buildAuditLog("STATUS_CHANGE", "TENDER", String.valueOf(tenderId),
-                "状态变更", oldStatus, newStatus, username, userId, ipAddress);
+                "状态变更: " + statusZh(oldStatus) + " → " + statusZh(newStatus),
+                statusZh(oldStatus), statusZh(newStatus), username, userId, ipAddress);
         auditLogRepository.save(log);
     }
 
@@ -104,7 +119,9 @@ public class TenderAuditService {
     public void logTransfer(Long tenderId, String oldManager, String newManager,
                             String username, String userId, String ipAddress) {
         AuditLog log = buildAuditLog("TRANSFER", "TENDER", String.valueOf(tenderId),
-                "标讯转派", oldManager, newManager, username, userId, ipAddress);
+                "标讯转派: " + (oldManager == null || oldManager.isBlank() ? "空缺" : oldManager)
+                        + " → " + (newManager == null || newManager.isBlank() ? "未指定" : newManager),
+                oldManager, newManager, username, userId, ipAddress);
         auditLogRepository.save(log);
     }
 
@@ -115,7 +132,8 @@ public class TenderAuditService {
     public void logReview(Long tenderId, String decision, String oldStatus, String newStatus,
                           String username, String userId, String ipAddress) {
         AuditLog log = buildAuditLog("REVIEW", "TENDER", String.valueOf(tenderId),
-                "评估决策: " + decision, oldStatus, newStatus, username, userId, ipAddress);
+                "评估决策: " + decision + "（" + statusZh(oldStatus) + " → " + statusZh(newStatus) + "）",
+                statusZh(oldStatus), statusZh(newStatus), username, userId, ipAddress);
         auditLogRepository.save(log);
     }
 
@@ -138,7 +156,7 @@ public class TenderAuditService {
     @Transactional
     public void logEvaluationReview(Long tenderId, String username, String userId, String ipAddress) {
         AuditLog log = buildAuditLog("EVALUATION_REVIEW", "TENDER", String.valueOf(tenderId),
-                "评估审核确认", "requires_review=true", "requires_review=false",
+                "评估审核确认", "待审核", "已确认",
                 username, userId, ipAddress);
         auditLogRepository.save(log);
     }
@@ -203,6 +221,21 @@ public class TenderAuditService {
 
     private boolean isNumeric(String value) {
         return value != null && !value.isBlank() && value.chars().allMatch(Character::isDigit);
+    }
+
+    /** 标讯状态枚举 → 中文（审计日志可读性，避免出现 EVALUATED 等英文）。 */
+    private String statusZh(String status) {
+        if (status == null || status.isBlank()) return "";
+        return switch (status) {
+            case "PENDING_ASSIGNMENT" -> "待分配";
+            case "TRACKING" -> "跟踪中";
+            case "EVALUATED" -> "已评估";
+            case "BIDDING" -> "投标中";
+            case "WON" -> "已中标";
+            case "LOST" -> "未中标";
+            case "ABANDONED" -> "已放弃";
+            default -> status;
+        };
     }
 
     private AuditLog buildAuditLog(String action, String entityType, String entityId,

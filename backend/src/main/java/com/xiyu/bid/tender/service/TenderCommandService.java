@@ -286,10 +286,10 @@ public class TenderCommandService {
             }
         }
 
-        // CO-332: 记录关联CRM商机操作日志
+        // CO-332: 记录关联CRM商机操作日志（用商机名，避免显示 UUID/英文 ID）
         String linkUsername = userId != null ? userRepository.findById(userId).map(User::getUsername).orElse("system") : "system";
         String linkUserId = userId != null ? String.valueOf(userId) : "system";
-        tenderAuditService.logEdit(id, "CRM商机", null, crmOpportunityId, linkUsername, linkUserId, null);
+        tenderAuditService.logLinkCrm(id, crmOpportunityName, linkUsername, linkUserId, null);
 
         return tenderMapper.toDTO(updatedTender);
     }
