@@ -1,0 +1,15 @@
+version: 1
+task: "zcode-co358-qualification-status-enum-to-varchar"
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql/"
+    scope: "directory"
+    owner: "agent"
+    branch: "agent/zcode/qualification-status-enum-to-varchar"
+    expiresAt: "2026-07-10T00:00:00Z"
+    reason: "CO-358 修复：V1102 ALTER business_qualifications.status enum→varchar(32)"
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/"
+    scope: "directory"
+    owner: "agent"
+    branch: "agent/zcode/qualification-status-enum-to-varchar"
+    expiresAt: "2026-07-10T00:00:00Z"
+    reason: "CO-358 修复：U1102 回退脚本（varchar→enum + 数据映射）"
