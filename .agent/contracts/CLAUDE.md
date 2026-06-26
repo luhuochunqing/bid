@@ -67,9 +67,10 @@ git checkout main && git merge review/ai-xxx && git push origin main
   - 基线版本：`B{version}_*.sql`（如 `B73__full_schema_baseline.sql`）
   - 增量版本：`V{version}_*.sql`（如 `V1081__remove_task_executor_role.sql`）
 - **版本号**：必须大于已有最大版本号
-  - ⚠️ **严禁手动猜测或 `ls | tail` 决定版本号**，必须使用 `scripts/next-migration-version.sh` 获取
+  - ⚠️ **严禁手动猜测或 `ls | tail` 决定版本号**，必须使用 `bash scripts/new-migration.sh <描述>` 创建迁移（内部自动调用 `next-migration-version.sh`，fetch remote + 本地取 max+1）
   - ⚠️ **创建前先运行 `scripts/next-migration-version.sh --reserve`** 预约版本并打印创建命令
-  - ⚠️ `sync-env.sh` 早操和 `pre-push-gate.sh` 推送前会自动检测版本冲突
+  - ⚠️ `sync-env.sh` 早操和 `pre-push-gate.sh` 推送前会自动检测版本冲突；冲突在 pre-push 阶段会**强制 auto-fix**，禁止以任何方式绕过
+  - ⚠️ **并行开发防冲突**：两个 agent 同时开迁移时，`new-migration.sh` 会各自从 remote 最新取版本号，不会撞号；如果因 rebase 时序导致撞号，pre-push gate 会自动重编号（V+1 递增），无需人工介入
 - **回滚脚本**：放在 `backend/src/main/resources/db/rollback/migration-mysql/` 目录，与迁移脚本版本对应（回滚文件实际位于 `migration-mysql/` 子目录下，而非直接放在 `db/rollback/`）
 
 ## 推荐命令

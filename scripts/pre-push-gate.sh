@@ -132,14 +132,17 @@ else
 fi
 
 # ── 3. Flyway 版本号冲突检查 ─────────────────────────────
+# pre-push 模式下 check-flyway-versions.sh 会强制 auto-fix（无用户选择）
 echo "── Flyway 版本号 ──"
-if bash "$ROOT_DIR/scripts/check-flyway-versions.sh" --source=push 2>/dev/null; then
+if bash "$ROOT_DIR/scripts/check-flyway-versions.sh" --source=push --fix 2>/dev/null; then
   pass "Flyway 迁移版本号无冲突"
-elif bash "$ROOT_DIR/scripts/check-flyway-versions.sh" --source=push --fix 2>/dev/null; then
-  fail "Flyway 版本冲突已自动修复，请重新 git add && git commit"
 else
-  fail "Flyway 迁移版本号冲突 — 建议 git rebase origin/main 解决"
+  fail "Flyway 版本冲突已自动修复，请执行：
+    git add backend/src/main/resources/db/migration-mysql/ backend/src/main/resources/db/rollback/migration-mysql/
+    git commit --amend --no-edit
+    git push ..."
 fi
+
 
 
 # ── 3.5 Schema 语义冲突检测 ───────────────────────────
