@@ -19,7 +19,7 @@
 
 **问题**：ehsy 组织事件 SDK (`ClientSDK`) 的 `StartCallback.onApplicationEvent()` 在 `ApplicationReadyEvent` 时调用 `getBeansOfType()` 扫描所有 bean。若 `CurrentUserResolver` 标注了 `@RequestScope`，Spring 尝试在非 HTTP 线程实例化它时抛出 `ScopeNotActiveException`，导致应用启动失败。
 
-**决策**：参照 docs/lessons/lessons-learned.md §13 的修复方案：
+**决策**：参照 docs/lessons/lessons-learned.md §14 的修复方案：
 - 移除 `@RequestScope` 注解
 - 移除请求级缓存（`cachedUser`/`resolved` 字段）
 - 每次调用直接查询数据库（走 username 索引，性能可忽略）

@@ -93,4 +93,4 @@ CO-262 修复 CRM 商机关联回填的 GAP 附件未持久化问题时，最初
 ### 相关文档
 
 - `docs/lessons/root-cause-analysis-stage-notification-created-by.md` — 完整根因分析
-- `docs/lessons/lessons-learned.md` §9 — 同一接口错误形态变化时的日志排查教训
+- `docs/lessons/lessons-learned.md` §10 — 同一接口错误形态变化时的日志排查教训

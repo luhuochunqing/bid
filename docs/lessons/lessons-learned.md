@@ -551,7 +551,7 @@ me=True:200:系统管理员
 
 ---
 
-## 7. sync-env.sh stash pop 失败导致修改丢失，用 git fsck 找回
+## 9. sync-env.sh stash pop 失败导致修改丢失，用 git fsck 找回
 
 ### 问题背景
 
@@ -600,7 +600,7 @@ git diff --stat
 
 ---
 
-## 9. 同一接口错误形态变化时，必须重新看真实服务器日志
+## 10. 同一接口错误形态变化时，必须重新看真实服务器日志
 
 ### 问题背景
 
@@ -634,7 +634,7 @@ ssh jetty@172.16.38.78 'journalctl -u xiyu-bid-backend --since "10 minutes ago" 
 
 ---
 
-## 10. PR 已合入后追加修复，要先确认 merge-base 再判断是更新旧 PR 还是开新 PR
+## 11. PR 已合入后追加修复，要先确认 merge-base 再判断是更新旧 PR 还是开新 PR
 
 ### 问题背景
 
@@ -674,7 +674,7 @@ git log --graph --oneline --decorate --boundary --max-count=25 --all
 
 ---
 
-## 11. 业务异常消息应包含系统上下文（CO-301）
+## 12. 业务异常消息应包含系统上下文（CO-301）
 
 ### 问题背景
 
@@ -749,7 +749,7 @@ mvn test -Dtest=TenderDeduplicationServiceTest,TenderCommandServiceTest,TenderIn
 
 ---
 
-## 12. 服务器部署 jar 验证四原则（CO-301 部署经验）
+## 13. 服务器部署 jar 验证四原则（CO-301 部署经验）
 
 > 来源：CO-301 部署排查（2026-06-22）
 
@@ -811,7 +811,7 @@ diff <(unzip -p local.jar BOOT-INF/classes/.../Foo.class | xxd) \
 
 ---
 
-## 13. @RequestScope Bean 与第三方 SDK 的 CacheBeanComponent.initCacheBean() 冲突导致应用启动失败
+## 14. @RequestScope Bean 与第三方 SDK 的 CacheBeanComponent.initCacheBean() 冲突导致应用启动失败
 
 ### 问题背景
 
@@ -913,12 +913,12 @@ ssh jetty@172.16.38.78 'sudo journalctl -u xiyu-bid-backend --since "10 min ago"
 
 - `backend/src/main/java/com/xiyu/bid/security/CurrentUserResolver.java` — 修复后的单例实现
 - `backend/src/main/java/com/xiyu/bid/integration/organization/infrastructure/sdk/OrganizationEventSdkKafkaStarter.java` — 自定义 SDK 启动器
-- `docs/lessons/lessons-learned.md` §12 — 服务器部署 jar 验证四原则
+- `docs/lessons/lessons-learned.md` §13 — 服务器部署 jar 验证四原则
 - `CLAUDE.md §环境坑点` — 后端启动与环境变量
 
 ---
 
-## 14. 部署失败后回滚的标准化操作流程
+## 15. 部署失败后回滚的标准化操作流程
 
 ### 问题背景
 
@@ -990,7 +990,7 @@ curl -fsS http://127.0.0.1:8080/actuator/health
 
 ---
 
-## 15. 前端同源部署模式：VITE_API_BASE_URL 设为空字符串
+## 16. 前端同源部署模式：VITE_API_BASE_URL 设为空字符串
 
 ### 问题背景
 
@@ -1036,7 +1036,7 @@ rg "127\.0\.0\.1|172\.16\.38\.78" .release/*/frontend/assets/*.js
 
 ---
 
-## 16. Bug 修复前必须先验证实际行为，避免"推测式修复"
+## 17. Bug 修复前必须先验证实际行为，避免"推测式修复"
 
 ### 问题背景
 
@@ -1080,7 +1080,7 @@ curl -s -D- -o /dev/null -X OPTIONS "http://172.16.38.78:8080/api/doc-insight/do
 
 ---
 
-## 17. 部署前必须验证 jar 中 Flyway 迁移脚本无重复版本
+## 18. 部署前必须验证 jar 中 Flyway 迁移脚本无重复版本
 
 ### 问题背景
 
@@ -1185,7 +1185,7 @@ echo "✅ Flyway migration versions: no duplicates"
 
 ---
 
-## 18. 简单 bug 多轮修不对：先定位"空值从哪来"，再改格式化逻辑
+## 19. 简单 bug 多轮修不对：先定位"空值从哪来"，再改格式化逻辑
 
 ### 问题背景
 
@@ -1251,7 +1251,7 @@ grep -E "empty|null|blank|fallback" backend/src/test/java/com/xiyu/bid/webhook/d
 - `backend/src/main/java/com/xiyu/bid/webhook/domain/OperatorDisplayName.java` — 格式化函数
 - PR #1174 — 第 1 轮修复（修了调用方，没解决根因）
 - PR #1176 — 第 2 轮修复（修了格式化函数本身，正确）
-- 本节 §16 — 同类教训："Bug 修复前必须先验证实际行为，避免推测式修复"
+- 本节 §17 — 同类教训："Bug 修复前必须先验证实际行为，避免推测式修复"
 
 ---
 
