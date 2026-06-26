@@ -1,6 +1,5 @@
 package com.xiyu.bid.batch.service;
 
-import com.xiyu.bid.audit.service.IAuditLogService;
 import com.xiyu.bid.batch.core.TenderStatusTransitionPolicy;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.batch.dto.BatchTenderAssignRequest;
@@ -45,7 +44,6 @@ class BatchTenderAssignAppServiceTest {
         userRepository = mock(UserRepository.class);
         assignmentRecordRepository = mock(TenderAssignmentRecordRepository.class);
         projectAccessScopeService = mock(ProjectAccessScopeService.class);
-        IAuditLogService auditLogService = mock(IAuditLogService.class);
         BatchProjectAccessGuard projectAccessGuard = new BatchProjectAccessGuard(projectAccessScopeService, projectRepository);
         BatchTenderAssignmentSupport assignmentSupport =
                 new BatchTenderAssignmentSupport(userRepository, assignmentRecordRepository);
@@ -54,7 +52,6 @@ class BatchTenderAssignAppServiceTest {
                 tenderRepository,
                 projectAccessGuard,
                 assignmentSupport,
-                new BatchOperationLogService(auditLogService),
                 notificationAppService,
                 mock(com.xiyu.bid.tender.service.TenderAuditService.class)
         );

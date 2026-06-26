@@ -26,7 +26,6 @@ public class BatchTenderAssignAppService {
     private final TenderRepository tenderRepository;
     private final BatchProjectAccessGuard projectAccessGuard;
     private final BatchTenderAssignmentSupport assignmentSupport;
-    private final BatchOperationLogService batchOperationLogService;
     private final NotificationApplicationService notificationAppService;
     private final com.xiyu.bid.tender.service.TenderAuditService tenderAuditService;
 
@@ -56,7 +55,8 @@ public class BatchTenderAssignAppService {
         }
         assignmentSupport.saveRecords(records);
         response.setSuccess(response.getFailureCount() == 0);
-        batchOperationLogService.record(response, "TENDER", "ASSIGN", currentUser == null ? null : currentUser.getId());
+        // CO-332: 不再写 batchOperationLogService 汇总日志——collectAssignment 已为每条分配
+        // 写 TenderAuditService.logAssign("标讯分配给 XX")，汇总日志与之重复。
 
         // 分配成功后发送站内通知给被分配人（独立 try-catch，不影响事务提交）
         if (!changedTenders.isEmpty()) {
