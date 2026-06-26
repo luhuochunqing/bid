@@ -128,10 +128,7 @@ public class TaskService {
             assignmentSupport.applyAssignment(task, assignmentSupport.resolveAssignmentSnapshot(assignmentRequestFrom(taskDTO), null));
         }
         if (taskDTO.getStatus() != null) {
-            // CO-361 三态模型收口：IN_PROGRESS 已废弃，归一为 TODO
-            Task.Status normalized = (taskDTO.getStatus() == Task.Status.IN_PROGRESS)
-                    ? Task.Status.TODO : taskDTO.getStatus();
-            task.setStatus(normalized);
+            task.setStatus(taskDTO.getStatus() == Task.Status.IN_PROGRESS ? Task.Status.TODO : taskDTO.getStatus());
         }
         if (taskDTO.getPriority() != null) {
             task.setPriority(taskDTO.getPriority());
@@ -201,11 +198,8 @@ public class TaskService {
         Task task = findTask(id);
         assertCanAccessProject(task.getProjectId());
         taskPermissionGuard.assertCanTransitionTaskStatus(task, status);
-        // CO-361 三态模型收口：IN_PROGRESS 已废弃，归一为 TODO
-        Task.Status normalized = (status == Task.Status.IN_PROGRESS)
-                ? Task.Status.TODO : status;
         Task before = TaskSnapshots.copy(task);
-        task.setStatus(normalized);
+        task.setStatus(status == Task.Status.IN_PROGRESS ? Task.Status.TODO : status);
         Task saved = taskRepository.save(task);
         taskHistoryRecorder.recordUpdate(before, saved, actorUsername);
         return taskDtoMapper.toDTO(saved, resolveAssigneeName(saved.getAssigneeId()));
@@ -293,9 +287,7 @@ public class TaskService {
                 || hasText(taskDTO.getAssigneeRoleCode());
     }
 
-    private static boolean hasText(String value) {
-        return value != null && !value.isBlank();
-    }
+    private static boolean hasText(String v) { return v != null && !v.isBlank(); }
     private List<TaskDTO> toDTOsWithNames(List<Task> tasks) {
         var names = userRepository.findAllById(tasks.stream().map(Task::getAssigneeId).filter(Objects::nonNull).collect(Collectors.toSet()))
                 .stream().filter(u -> u.getFullName() != null && !u.getFullName().isBlank()).collect(Collectors.toMap(User::getId, User::getFullName, (a, b) -> a));
@@ -303,6 +295,6 @@ public class TaskService {
     }
     private String resolveAssigneeName(Long userId) {
         if (userId == null) return null;
-        return userRepository.findById(userId).map(User::getFullName).filter(n -> n != null && !n.isBlank()).orElse(null);
+        return userRepository.findById(userId).map(User::getFullName).filter(n -> !n.isBlank()).orElse(null);
     }
 }
