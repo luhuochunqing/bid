@@ -125,6 +125,25 @@ public class CrmHttpClient {
     }
 
     /**
+     * GET with Bearer token in Authorization header (for /oauth/getCheckToken).
+     */
+    public CrmResponseHandler.CrmApiResponse getWithBearerToken(String baseUrl, String path, String token) {
+        String url = baseUrl + path;
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        TraceHeaderInjector.inject(headers);
+        HttpEntity<Void> request = new HttpEntity<>(headers);
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, request, String.class);
+            log.info("CRM GET with bearer {} -> {}", url, response.getStatusCode());
+            return CrmResponseHandler.parse(response.getBody());
+        } catch (RuntimeException e) {
+            log.error("CRM GET with bearer failed: {}", e.getMessage());
+            return CrmResponseHandler.CrmApiResponse.parseError(e.getMessage());
+        }
+    }
+
+    /**
      * GET with query params (no Bearer token), for endpoints that take token as query param.
      */
     public CrmResponseHandler.CrmApiResponse getWithQueryParams(String baseUrl, String path,

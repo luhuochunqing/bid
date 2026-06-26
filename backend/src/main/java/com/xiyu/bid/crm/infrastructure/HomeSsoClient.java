@@ -5,8 +5,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 
 import java.util.Optional;
 
@@ -25,13 +23,10 @@ public class HomeSsoClient {
 
     public Optional<String> validateTokenAndGetUsername(String token) {
         try {
-            MultiValueMap<String, String> queryParams = new LinkedMultiValueMap<>();
-            queryParams.add("token", token);
-
-            CrmResponseHandler.CrmApiResponse response = crmHttpClient.getWithQueryParams(
+            CrmResponseHandler.CrmApiResponse response = crmHttpClient.getWithBearerToken(
                     properties.getEffectiveAuthBaseUrl(),
                     "/oauth/getCheckToken",
-                    queryParams
+                    token
             );
 
             if (!response.success() || response.code() != 0) {

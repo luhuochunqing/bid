@@ -65,7 +65,7 @@ app:
     # CRM integration under app.crm (merged from second app: block)
     # 向后兼容：如未配置以下拆分项，自动使用 baseUrl
     base-url: ${XIYU_CRM_BASE_URL:}
-    auth-base-url: ${XIYU_CRM_AUTH_BASE_URL:}
+    auth-base-url: ${XIYU_CRM_AUTH_BASE_URL:https://base-oss-test.ehsy.com}
     customer-base-url: ${XIYU_CRM_CUSTOMER_BASE_URL:}
     message-base-url: ${XIYU_CRM_MESSAGE_BASE_URL:}
     chance-base-url: ${XIYU_CRM_CHANCE_BASE_URL:https://winbid-test.ehsy.com}
