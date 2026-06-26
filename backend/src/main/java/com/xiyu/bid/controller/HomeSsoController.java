@@ -64,17 +64,12 @@ public class HomeSsoController {
     @PreAuthorize(PERMIT_ALL_EXPR)
     public ResponseEntity<ApiResponse<AuthResponse>> homeSsoLogin(@Valid @RequestBody HomeSsoRequest request) {
         String sanitizedToken = InputSanitizer.sanitizeString(request.ssoToken(), 512);
-        try {
-            AuthSessionResult sessionResult = homeSsoService.ssoLogin(sanitizedToken);
-            log.info("Auth home-sso success");
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.SET_COOKIE, buildRefreshCookie(sessionResult.getRefreshToken(), true).toString())
-                    .header(HttpHeaders.SET_COOKIE, buildAccessCookie(sessionResult.getAccessToken()).toString())
-                    .body(ApiResponse.success("SSO login successful", sessionResult.getAuthResponse()));
-        } catch (RuntimeException ex) {
-            log.warn("Auth home-sso failed: reason={}", ex.getMessage());
-            throw ex;
-        }
+        AuthSessionResult sessionResult = homeSsoService.ssoLogin(sanitizedToken);
+        log.info("Auth home-sso success");
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, buildRefreshCookie(sessionResult.getRefreshToken(), true).toString())
+                .header(HttpHeaders.SET_COOKIE, buildAccessCookie(sessionResult.getAccessToken()).toString())
+                .body(ApiResponse.success("SSO login successful", sessionResult.getAuthResponse()));
     }
 
     record HomeSsoRequest(@NotBlank String ssoToken) {}

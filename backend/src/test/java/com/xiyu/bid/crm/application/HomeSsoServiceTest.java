@@ -12,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.BadCredentialsException;
 
 import java.util.Optional;
 
@@ -94,7 +95,7 @@ class HomeSsoServiceTest {
         when(homeSsoClient.validateTokenAndGetUsername(INVALID_TOKEN)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> homeSsoService.ssoLogin(INVALID_TOKEN))
-                .isInstanceOf(RuntimeException.class)
+                .isInstanceOf(BadCredentialsException.class)
                 .hasMessageContaining("SSO token 无效或已过期");
 
         verify(homeSsoClient).validateTokenAndGetUsername(INVALID_TOKEN);
@@ -109,7 +110,7 @@ class HomeSsoServiceTest {
         when(userRepository.findByUsername(USERNAME)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> homeSsoService.ssoLogin(VALID_TOKEN))
-                .isInstanceOf(RuntimeException.class)
+                .isInstanceOf(BadCredentialsException.class)
                 .hasMessageContaining("用户不存在或已禁用，请联系管理员");
 
         verify(homeSsoClient).validateTokenAndGetUsername(VALID_TOKEN);
@@ -124,7 +125,7 @@ class HomeSsoServiceTest {
         when(userRepository.findByUsername(USERNAME)).thenReturn(Optional.of(disabledUser));
 
         assertThatThrownBy(() -> homeSsoService.ssoLogin(VALID_TOKEN))
-                .isInstanceOf(RuntimeException.class)
+                .isInstanceOf(BadCredentialsException.class)
                 .hasMessageContaining("用户不存在或已禁用，请联系管理员");
 
         verify(homeSsoClient).validateTokenAndGetUsername(VALID_TOKEN);
