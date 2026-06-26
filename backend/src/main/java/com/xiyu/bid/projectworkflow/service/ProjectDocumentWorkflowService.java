@@ -1,6 +1,7 @@
 package com.xiyu.bid.projectworkflow.service;
 
 import com.xiyu.bid.common.domain.AuthorizationDecision;
+import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
 import com.xiyu.bid.projectworkflow.core.ProjectDocumentWorkflowPolicy;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentCreateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
@@ -13,6 +14,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +25,7 @@ class ProjectDocumentWorkflowService {
     private final ProjectDocumentRepository projectDocumentRepository;
     private final UserRepository userRepository;
     private final ProjectLeadAssignmentRepository projectLeadAssignmentRepository;
+    private final ProjectMemberRepository projectMemberRepository;
     private final ProjectDocumentViewAssembler projectDocumentViewAssembler;
     private final ProjectDocumentBindingGateway projectDocumentBindingGateway;
     private final CurrentUserResolver currentUserResolver;
@@ -97,14 +101,23 @@ class ProjectDocumentWorkflowService {
         return projectLeadAssignmentRepository.resolveLeadIdsByProjectId(projectId);
     }
 
+    private Set<Long> resolveProjectMemberIds(Long projectId) {
+        return projectMemberRepository.findByProjectId(projectId)
+                .stream()
+                .map(member -> member.getUserId())
+                .collect(Collectors.toSet());
+    }
+
     private void assertCanViewProjectDocuments(Long projectId) {
         var currentUser = currentUserResolver.requireCurrentUser();
         Long[] leadIds = resolveProjectLeadIds(projectId);
+        Set<Long> projectMemberIds = resolveProjectMemberIds(projectId);
         AuthorizationDecision decision = ProjectDocumentWorkflowPolicy.canViewProjectDocuments(
                 currentUser.getRoleCode(),
                 currentUser.getId(),
                 leadIds[0],
-                leadIds[1]
+                leadIds[1],
+                projectMemberIds
         );
         if (!decision.allowed()) {
             throw new org.springframework.security.access.AccessDeniedException(decision.reason());
