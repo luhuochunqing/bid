@@ -1,0 +1,4 @@
+-- CO-361 回滚：将归一的 TODO 任务改回 IN_PROGRESS（仅作回滚用，生产不应触发）
+-- UPDATE tasks SET status = 'IN_PROGRESS' WHERE status = 'TODO' AND id IN (
+--     -- 如需精确回滚，需在原始迁移中记录受影响 ID
+-- );

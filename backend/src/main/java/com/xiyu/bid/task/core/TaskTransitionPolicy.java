@@ -18,17 +18,20 @@ public final class TaskTransitionPolicy {
         EnumMap<TaskStatus, Set<TaskStatus>> map =
                 new EnumMap<>(TaskStatus.class);
         // 业务规则：TODO→REVIEW→COMPLETED，驳回回 TODO
-        // IN_PROGRESS 不再是必经中间态，上传交付物不改变任务状态
+        // IN_PROGRESS 已废弃（三态模型收口 CO-361），业务层不再允许进入该状态
+        // TODO 只能转 REVIEW 或 CANCELLED
         map.put(TaskStatus.TODO,
-                Set.of(TaskStatus.REVIEW, TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED));
+                Set.of(TaskStatus.REVIEW, TaskStatus.CANCELLED));
+        // IN_PROGRESS 仅作数据库兼容，策略层已不允许任何转换进入该状态
         map.put(TaskStatus.IN_PROGRESS,
-                Set.of(TaskStatus.REVIEW, TaskStatus.TODO, TaskStatus.CANCELLED));
-        // PRD §3.2.2: REVIEW 可以前进到 COMPLETED，回退到 TODO（驳回；要求 reviewComment）。
+                Set.of());
+        // REVIEW 可以前进到 COMPLETED，回退到 TODO（驳回；要求 reviewComment）
         map.put(TaskStatus.REVIEW,
                 Set.of(TaskStatus.COMPLETED, TaskStatus.TODO));
         map.put(TaskStatus.COMPLETED, Set.of());
+        // CANCELLED 只能转回 TODO，不允许直接转为 IN_PROGRESS
         map.put(TaskStatus.CANCELLED,
-                Set.of(TaskStatus.TODO, TaskStatus.IN_PROGRESS));
+                Set.of(TaskStatus.TODO));
         ALLOWED_TRANSITIONS = Map.copyOf(map);
     }
 

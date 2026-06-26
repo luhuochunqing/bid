@@ -41,8 +41,8 @@
             <div v-if="task.completionNotes" class="card-info" style="margin-top:4px;">
               <span>完成情况：{{ task.completionNotes }}</span>
             </div>
-            <!-- TODO / IN_PROGRESS 列：交付物上传 + 提交（仅任务执行人本人可操作） -->
-            <div v-if="col.status === 'TODO' || col.status === 'IN_PROGRESS'" class="card-actions">
+            <!-- TODO 列：交付物上传 + 提交（仅任务执行人本人可操作） -->
+            <div v-if="col.status === 'TODO'" class="card-actions">
               <el-button size="small" :disabled="!isTaskAssignee(task)" @click="openDeliverableUpload(task)">交付物上传</el-button>
               <el-button size="small" type="primary" :disabled="!isTaskAssignee(task) || !hasDeliverable(task)" @click="openSubmitDialog(task)">提交</el-button>
             </div>
@@ -139,7 +139,6 @@ const userStore = useUserStore()
 
 const columns = [
   { status: TASK_STATUS.TODO, label: '待办', tag: '' },
-  { status: TASK_STATUS.IN_PROGRESS, label: '进行中', tag: 'primary' },
   { status: TASK_STATUS.REVIEW, label: '待审核', tag: 'warning' },
   { status: TASK_STATUS.COMPLETED, label: '已完成', tag: 'success' },
 ]

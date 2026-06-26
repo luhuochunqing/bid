@@ -1,0 +1,15 @@
+version: 1
+task: "task-three-state-model-close"
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql/V1101__normalize_in_progress_tasks.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/codex/task-three-state-model-close"
+    expiresAt: "2026-06-27T07:00:51.772Z"
+    reason: "CO-361 V1101 三态模型收口，IN_PROGRESS 归一为 TODO"
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1101__normalize_in_progress_tasks.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/codex/task-three-state-model-close"
+    expiresAt: "2026-06-27T07:00:59.793Z"
+    reason: "CO-361 V1101 回滚脚本"
