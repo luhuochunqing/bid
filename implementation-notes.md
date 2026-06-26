@@ -935,3 +935,74 @@ handleSubmitForReview:
 | `npx vitest run` (full suite) | ✅ 1526 passed, 2 skipped, 5 pre-existing failures (TaskForm/line-budgets/sidecar/env-detection — 与本次改动无关) |
 | `npm run check:line-budgets` | ✅ passed |
 | Commit hooks (TDD coverage / token-governance / wiki) | ✅ 全部通过 |
+
+---
+
+## 3dcc30097 回退恢复 (2026-06-26)
+
+### 根因
+`3dcc30097`「同步 GitHub main 重构」（2026-06-25 16:15）声称"同步"，实际 GitHub main 当时滞后于 Gitee，把当天早些时候的 9 个 Gitee 修复 commit 整体覆盖（净删 1236 行 / 74 文件改 / 18 文件删）。
+
+### 系统排查结论
+
+- ❌ **完全未恢复（本次修复）**：CO-338 前端（抽屉 + CSS + 冒泡隔离，9 项）+ 投标专员标讯可见性后端（1 项）
+- 🔄 **已被后续 commit 自愈**：CO-329（1272fb095）、CO-333（ba415fe1c）、User 拼音字段链（2b14e0eb5 等）、CO-324 审计（45a5a0144）
+- ⚠️ **设计性重构（非回退）**：tender permission 类删除改 @PreAuthorize、CO-266/310 客户信息段内联化
+
+### PR-A: CO-338 前端恢复
+
+**手法**：从 `90563f6a1` (CO-338 原修复) 反向取 diff，手工合并到当前重构后的代码结构（后续 commit 把卡片操作按钮拆到了 `TaskBoardTaskActions.vue` / `TaskBoardBidReviewActions.vue` 子组件，所以无法直接 cherry-pick，必须手工合并）。
+
+| 文件 | 恢复内容 |
+|------|----------|
+| `TaskBoardPage.vue` | `el-drawer` 任务详情抽屉 + `handleTaskClick` 字段映射 + `handleSubmitForReview`（上传交付物→保存说明→更新状态）+ `canSubmitForReview` computed + CSS `grid-template-columns: minmax(0, 1fr)` 三列等宽 |
+| `TaskBoardCard.vue` | 根元素 `@click="emit('task-click', item)"` + `defineEmits` 补 `task-click` + BID_REVIEW 表格恢复 `bid-review-documents` 外层 + `overflow-x: auto` + 操作子组件加 `@click.stop` 隔离冒泡 + `.task-card` 加 `cursor:pointer`+`min-width:0` + `task-name`/`task-project` 加 `word-break:break-all` |
+| `TaskBoardPage.spec.js` | 从 90563f6a1 恢复（5 条：抽屉渲染/打开/提审按钮显隐/API 交互） |
+| `TaskBoardCard.spec.js` | 新增 3 条测试（点击根元素 emit / 按钮冒泡隔离 / bid-review-documents wrapper 存在） |
+
+**验证**：18 tests passed (3 files) / build OK / line-budgets OK
+
+### PR-B: 投标专员标讯可见性后端恢复
+
+**手法**：基于 `a048a0cfd` 的 diff 应用到当前 `TenderProjectAccessGuard`（Repository 还在，方法签名兼容）。
+
+| 文件 | 恢复内容 |
+|------|----------|
+| `TenderProjectAccessGuard.java` | 注入 `TenderAssignmentRecordRepository`；`isSelfOwnedTender` 扩展为 `isSelfVisibleTender`（单条路径 `findFirstByTenderIdOrderByAssignedAtDesc`）；批量路径用 `findLatestByTenderIds` 预加载（无 N+1），`canAccessViaProjects` 加 `latestAssignment` 参数 |
+| `TenderProjectAccessGuardVisibilityTest.java` | 从 a048a0cfd 恢复 4 场景（分配给自己可见 / 分配给他人不可见 / 自己创建可见 / 完全无关不可见） |
+| `TenderCommandServiceTest.java` | 构造 accessGuard 时补传 `tenderAssignmentRecordRepository`（新增依赖） |
+
+**适配当前代码的偏离**：
+- `DataScopeAccessProfile` 已改为 `@Builder`（非 public 构造）→ 测试用 `builder().dataScope("self").build()`
+- Mockito strict 模式下 `findByTenderIdIn(List)` 实参是 `Set` → 改用 `any()` 匹配
+
+**业务影响**：投标专员（BID_TEAM）被分配标讯后，即使不是 owner，在 `dataScope=self` 下也能看到该标讯。3dcc30097 把这个判断压回了只认 owner，导致投标专员看不到分配给自己的标讯。
+
+**验证**：`mvn -Dtest=TenderProjectAccessGuardVisibilityTest,TenderCommandServiceTest,ArchitectureTest,MaintainabilityArchitectureTest` → 45 tests, 0 failures, 2 skipped
+
+### 关键决策与权衡
+
+#### 为什么不直接 cherry-pick 90563f6a1？
+后续 commit（`e06af5c06` "refactor(CO-339): 修复待审核任务显示提交按钮 + 架构优化"）把 TaskBoardCard 的内联操作按钮拆到了 `TaskBoardTaskActions.vue` / `TaskBoardBidReviewActions.vue` 子组件。90563f6a1 时的 `@click.stop` 加在 `<div class="card-actions">` 上，现在那些 div 已经是独立组件了——cherry-pick 会冲突且语义错误。所以手工把 `@click.stop` 加到子组件的引用上（`<TaskBoardTaskActions @click.stop>`），效果等价。
+
+#### 为什么冒泡隔离是必须的？
+如果不加 `@click.stop`，点"上传交付物""提交""驳回""通过审核"按钮会冒泡到卡片根，触发 `task-click` → 弹出详情抽屉——这是 90563f6a1 commit message 里写明的回归点。
+
+#### PR-B 的 a048a0cfd 与产品需求确认
+排查阶段已建议"先确认投标专员按 assignee 看标讯这条路径是否仍在产品需求里"。本次实施恢复 = 默认该需求仍然有效，因为：a048a0cfd 标题就是"投标专员标讯列表可见性 - 增加被分配标讯的判断"，是显式产品需求；没有任何后续 commit 反转这个决策（只是被回退掉，不是被否定）。
+
+### 未纳入本次范围
+
+- 不重构 `3dcc30097` 的"tender permission 类删除改 @PreAuthorize"（设计性变更，已与原方案功能等价）
+- 不恢复 `TenderEvaluationCustomerInfoDeleteService`（CO-266/310 已被内联 `clear()+saveAndFlush()+addAll()` 替代）
+- 不改 `ProjectStageService` 审计日志（CO-324 已通过事件解耦重构实现，功能达成）
+
+### 验证结果
+
+| 检查项 | 结果 |
+|--------|------|
+| `npx vitest run src/views/TaskBoard/` | ✅ 18 passed (3 files) |
+| `npx vite build` | ✅ 8.37s |
+| `npm run check:line-budgets` | ✅ passed |
+| `mvn -Dtest=TenderProjectAccessGuardVisibilityTest,...` | ✅ 45 passed, 2 skipped |
+| Commit hooks | ✅ 全部通过 |
