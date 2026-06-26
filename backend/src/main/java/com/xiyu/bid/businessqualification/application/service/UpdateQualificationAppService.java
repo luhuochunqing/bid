@@ -24,6 +24,42 @@ public class UpdateQualificationAppService {
     private final BusinessQualificationRepository repository;
     private final IAuditLogService auditLogService;
 
+    /**
+     * CO-358 fix: 轻量级下架接口，仅修改 retired/retireReason 字段。
+     *
+     * 绕过全量 DTO→Command 序列化往返，避免附件 uploadedAt 字符串解析失败
+     * 和附件 delete+saveAll 导致的 NOT NULL 约束违反。
+     * 附件引用直接透传，不经字符串序列化。
+     */
+    @Transactional
+    public BusinessQualification retire(Long id, String reason) {
+        BusinessQualification existing = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("BusinessQualification", String.valueOf(id)));
+
+        BusinessQualification retired = BusinessQualification.createWithRetired(
+                existing.id(),
+                existing.name(),
+                existing.level(),
+                existing.subject(),
+                existing.category(),
+                existing.certificateNo(),
+                existing.issuer(),
+                existing.agency(),
+                existing.agencyContact(),
+                existing.certScope(),
+                existing.certReviewNote(),
+                existing.holderName(),
+                existing.validityPeriod(),
+                existing.reminderPolicy(),
+                existing.fileUrl(),
+                reason,
+                true,
+                existing.attachments()
+        );
+
+        return repository.save(retired);
+    }
+
     @Transactional
     public BusinessQualification update(Long id, QualificationUpsertCommand command) {
         BusinessQualification existing = repository.findById(id)
