@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -75,7 +76,7 @@ class BatchAttachmentServiceTest {
         var file = mock(MultipartFile.class);
         when(file.isEmpty()).thenReturn(false);
         when(file.getOriginalFilename()).thenReturn("QUAL_UNKNOWN_01_test.pdf");
-        when(repository.findByCertificateNo("UNKNOWN")).thenReturn(Optional.empty());
+        when(repository.findAllByCertificateNo("UNKNOWN")).thenReturn(List.of());
 
         var result = service.process(List.of(file));
 
@@ -93,7 +94,7 @@ class BatchAttachmentServiceTest {
         var entity = new BusinessQualificationEntity();
         entity.setId(1L);
         entity.setName("ISO认证");
-        when(repository.findByCertificateNo("QC-001")).thenReturn(Optional.of(entity));
+        when(repository.findAllByCertificateNo("QC-001")).thenReturn(List.of(entity));
         when(fileStorage.storeAttachmentWithNaming(eq(1L), any(byte[].class), eq("QC-001"),
                 eq(1), eq("ISO认证"), eq("QUAL_QC-001_01_doc.pdf"), isNull()))
                 .thenReturn("/api/knowledge/qualifications/1/attachments/QUAL_QC-001_01_doc.pdf");
@@ -125,8 +126,8 @@ class BatchAttachmentServiceTest {
         var entity = new BusinessQualificationEntity();
         entity.setId(10L);
         entity.setName("有效证书");
-        when(repository.findByCertificateNo("VALID")).thenReturn(Optional.of(entity));
-        when(repository.findByCertificateNo("INVALID")).thenReturn(Optional.empty());
+        when(repository.findAllByCertificateNo("VALID")).thenReturn(List.of(entity));
+        when(repository.findAllByCertificateNo("INVALID")).thenReturn(List.of());
         when(fileStorage.storeAttachmentWithNaming(eq(10L), any(byte[].class), eq("VALID"),
                 eq(1), eq("有效证书"), eq("QUAL_VALID_01_ok.pdf"), isNull()))
                 .thenReturn("/api/knowledge/qualifications/10/attachments/QUAL_VALID_01_ok.pdf");
@@ -138,5 +139,72 @@ class BatchAttachmentServiceTest {
         assertThat(result.getFailed()).isEqualTo(2);
         assertThat(result.getMatched()).hasSize(1);
         assertThat(result.getUnmatched()).hasSize(2);
+    }
+
+    @Test
+    void process_MultipleRecordsWithSameCertificateNo_ShouldUseLatest() throws IOException {
+        var file = mock(MultipartFile.class);
+        when(file.isEmpty()).thenReturn(false);
+        when(file.getOriginalFilename()).thenReturn("QUAL_QC-001_01_doc.pdf");
+        when(file.getBytes()).thenReturn(new byte[]{1, 2, 3});
+
+        var oldEntity = new BusinessQualificationEntity();
+        oldEntity.setId(10L);
+        oldEntity.setName("旧版ISO认证");
+
+        var latestEntity = new BusinessQualificationEntity();
+        latestEntity.setId(20L);
+        latestEntity.setName("新版ISO认证");
+
+        when(repository.findAllByCertificateNo("QC-001"))
+                .thenReturn(List.of(oldEntity, latestEntity));
+        when(fileStorage.storeAttachmentWithNaming(eq(20L), any(byte[].class), eq("QC-001"),
+                eq(1), eq("新版ISO认证"), eq("QUAL_QC-001_01_doc.pdf"), isNull()))
+                .thenReturn("/api/knowledge/qualifications/20/attachments/QUAL_QC-001_01_doc.pdf");
+
+        var result = service.process(List.of(file));
+
+        assertThat(result.getTotal()).isEqualTo(1);
+        assertThat(result.getSuccess()).isEqualTo(1);
+        assertThat(result.getFailed()).isZero();
+        assertThat(result.getMatched().get(0).getQualificationId()).isEqualTo(20L);
+        assertThat(result.getMatched().get(0).getQualificationName()).isEqualTo("新版ISO认证");
+        verify(repository).save(latestEntity);
+    }
+
+    @Test
+    void process_SingleRecordWithCertificateNo_ShouldMatchNormally() throws IOException {
+        var file = mock(MultipartFile.class);
+        when(file.isEmpty()).thenReturn(false);
+        when(file.getOriginalFilename()).thenReturn("QUAL_SINGLE_01_test.pdf");
+        when(file.getBytes()).thenReturn(new byte[]{1, 2, 3});
+
+        var entity = new BusinessQualificationEntity();
+        entity.setId(5L);
+        entity.setName("单条证书");
+
+        when(repository.findAllByCertificateNo("SINGLE")).thenReturn(List.of(entity));
+        when(fileStorage.storeAttachmentWithNaming(eq(5L), any(byte[].class), eq("SINGLE"),
+                eq(1), eq("单条证书"), eq("QUAL_SINGLE_01_test.pdf"), isNull()))
+                .thenReturn("/api/knowledge/qualifications/5/attachments/QUAL_SINGLE_01_test.pdf");
+
+        var result = service.process(List.of(file));
+
+        assertThat(result.getSuccess()).isEqualTo(1);
+        assertThat(result.getMatched().get(0).getQualificationId()).isEqualTo(5L);
+    }
+
+    @Test
+    void process_NoRecordWithCertificateNo_ShouldUnmatched() {
+        var file = mock(MultipartFile.class);
+        when(file.isEmpty()).thenReturn(false);
+        when(file.getOriginalFilename()).thenReturn("QUAL_NOEXIST_01_test.pdf");
+
+        when(repository.findAllByCertificateNo("NOEXIST")).thenReturn(List.of());
+
+        var result = service.process(List.of(file));
+
+        assertThat(result.getFailed()).isEqualTo(1);
+        assertThat(result.getUnmatched().get(0).getReason()).isEqualTo("证书编号不存在");
     }
 }

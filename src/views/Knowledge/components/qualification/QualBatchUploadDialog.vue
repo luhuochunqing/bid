@@ -48,7 +48,10 @@
       <div v-if="result.unmatched && result.unmatched.length" class="unmatched-list">
         <p class="section-title">未匹配文件</p>
         <ul>
-          <li v-for="(item, i) in result.unmatched" :key="i">{{ item.fileName || item }}</li>
+          <li v-for="(item, i) in result.unmatched" :key="i">
+            {{ item.fileName || item }}
+            <span v-if="item.reason" class="unmatched-reason">（{{ item.reason }}）</span>
+          </li>
         </ul>
       </div>
     </template>
@@ -136,4 +139,5 @@ const handleClosed = () => { fileList.value = []; result.value = null; emit('clo
 .section-title { font-weight: 600; margin: 0 0 8px; color: var(--el-color-danger); }
 .unmatched-list ul { margin: 0; padding-left: 18px; }
 .unmatched-list li { font-size: 13px; color: var(--gray-650); line-height: 1.8; }
+.unmatched-reason { color: var(--el-color-danger); margin-left: 4px; }
 </style>
