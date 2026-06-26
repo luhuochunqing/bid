@@ -4,18 +4,16 @@ import com.xiyu.bid.crm.config.CrmProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 @DisplayName("HomeSsoClient - Home 平台 SSO token 校验客户端")
@@ -34,13 +32,18 @@ class HomeSsoClientTest {
         properties.setAuthBaseUrl(BASE_URL);
     }
 
+    private String buildUrlWithToken(String token) {
+        return UriComponentsBuilder.fromHttpUrl(BASE_URL + "/oauth/getCheckToken")
+                .queryParam("token", token)
+                .toUriString();
+    }
+
     @Test
     @DisplayName("token 有效时返回用户名")
     void validateTokenAndGetUsername_validToken_returnsUsername() {
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
-        server.expect(requestTo(BASE_URL + "/oauth/getCheckToken"))
-                .andExpect(header("Authorization", "Bearer " + VALID_TOKEN))
+        server.expect(requestTo(buildUrlWithToken(VALID_TOKEN)))
                 .andRespond(withSuccess("""
                         {
                           "code": 0,
@@ -65,8 +68,7 @@ class HomeSsoClientTest {
     void validateTokenAndGetUsername_invalidToken_returnsEmpty() {
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
-        server.expect(requestTo(BASE_URL + "/oauth/getCheckToken"))
-                .andExpect(header("Authorization", "Bearer " + INVALID_TOKEN))
+        server.expect(requestTo(buildUrlWithToken(INVALID_TOKEN)))
                 .andRespond(withSuccess("""
                         {
                           "code": 401,
@@ -87,7 +89,7 @@ class HomeSsoClientTest {
     void validateTokenAndGetUsername_networkError_returnsEmpty() {
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
-        server.expect(requestTo(BASE_URL + "/oauth/getCheckToken"))
+        server.expect(requestTo(buildUrlWithToken(VALID_TOKEN)))
                 .andRespond(withServerError());
 
         HomeSsoClient client = new HomeSsoClient(new TestCrmHttpClient(restTemplate, properties), properties);
@@ -102,7 +104,7 @@ class HomeSsoClientTest {
     void validateTokenAndGetUsername_missingUsername_returnsEmpty() {
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
-        server.expect(requestTo(BASE_URL + "/oauth/getCheckToken"))
+        server.expect(requestTo(buildUrlWithToken(VALID_TOKEN)))
                 .andRespond(withSuccess("""
                         {
                           "code": 0,
@@ -126,7 +128,7 @@ class HomeSsoClientTest {
     void validateTokenAndGetUsername_nullData_returnsEmpty() {
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
-        server.expect(requestTo(BASE_URL + "/oauth/getCheckToken"))
+        server.expect(requestTo(buildUrlWithToken(VALID_TOKEN)))
                 .andRespond(withSuccess("""
                         {
                           "code": 0,
@@ -144,19 +146,21 @@ class HomeSsoClientTest {
 
     private static class TestCrmHttpClient extends CrmHttpClient {
         private final RestTemplate restTemplate;
-        private final CrmProperties properties;
 
         TestCrmHttpClient(RestTemplate restTemplate, CrmProperties properties) {
             super(properties);
             this.restTemplate = restTemplate;
-            this.properties = properties;
         }
 
         @Override
-        public CrmResponseHandler.CrmApiResponse get(String baseUrl, String path, String accessToken) {
-            String url = baseUrl + path;
+        public CrmResponseHandler.CrmApiResponse getWithQueryParams(String baseUrl, String path,
+                org.springframework.util.MultiValueMap<String, String> queryParams) {
+            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl + path);
+            if (queryParams != null && !queryParams.isEmpty()) {
+                builder.queryParams(queryParams);
+            }
+            String url = builder.toUriString();
             org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-            headers.setBearerAuth(accessToken);
             org.springframework.http.HttpEntity<Void> request = new org.springframework.http.HttpEntity<>(headers);
             try {
                 org.springframework.http.ResponseEntity<String> response = restTemplate.exchange(

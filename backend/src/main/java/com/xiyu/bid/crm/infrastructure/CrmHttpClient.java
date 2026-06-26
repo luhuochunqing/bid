@@ -12,6 +12,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 
 @Component
@@ -119,6 +120,29 @@ public class CrmHttpClient {
             return CrmResponseHandler.parse(response.getBody());
         } catch (RuntimeException e) {
             log.error("CRM GET failed: {}", e.getMessage());
+            return CrmResponseHandler.CrmApiResponse.parseError(e.getMessage());
+        }
+    }
+
+    /**
+     * GET with query params (no Bearer token), for endpoints that take token as query param.
+     */
+    public CrmResponseHandler.CrmApiResponse getWithQueryParams(String baseUrl, String path,
+            org.springframework.util.MultiValueMap<String, String> queryParams) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl + path);
+        if (queryParams != null && !queryParams.isEmpty()) {
+            builder.queryParams(queryParams);
+        }
+        String url = builder.toUriString();
+        HttpHeaders headers = new HttpHeaders();
+        TraceHeaderInjector.inject(headers);
+        HttpEntity<Void> request = new HttpEntity<>(headers);
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, request, String.class);
+            log.info("CRM GET with query params {} -> {}", url, response.getStatusCode());
+            return CrmResponseHandler.parse(response.getBody());
+        } catch (RuntimeException e) {
+            log.error("CRM GET with query params failed: {}", e.getMessage());
             return CrmResponseHandler.CrmApiResponse.parseError(e.getMessage());
         }
     }
