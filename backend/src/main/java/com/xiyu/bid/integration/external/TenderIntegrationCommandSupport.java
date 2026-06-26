@@ -32,8 +32,15 @@ class TenderIntegrationCommandSupport {
      * CO-302: 尝试自动分配标讯负责人.
      * <p>匹配策略：先查本地 CrmProjectMapping 映射表，失败后调 CRM 商机接口实时查询。
      * <p>降级策略：匹配失败保持 PENDING_ASSIGNMENT 状态，不影响标讯入库。
+     * <p>优先级：如果标讯已有 CRM 商机负责人（projectManagerId 或 projectManagerName），
+     * 不再自动分配，避免覆盖商机负责人。
      */
     void tryAutoAssign(Tender tender) {
+        if (tender.getProjectManagerId() != null || hasText(tender.getProjectManagerName())) {
+            log.info("Tender {} already has project manager (id={}, name={}), skip auto-assignment",
+                    tender.getId(), tender.getProjectManagerId(), tender.getProjectManagerName());
+            return;
+        }
         try {
             AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
             if (result.isMatched()) {
@@ -105,5 +112,9 @@ class TenderIntegrationCommandSupport {
                 && (tender.getCrmOpportunityName() == null || tender.getCrmOpportunityName().isBlank())) {
             tender.setCrmOpportunityName(crmOpportunityName);
         }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 }

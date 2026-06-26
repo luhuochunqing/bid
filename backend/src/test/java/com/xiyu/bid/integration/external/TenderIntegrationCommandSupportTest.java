@@ -173,4 +173,40 @@ class TenderIntegrationCommandSupportTest {
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.PENDING_ASSIGNMENT);
         verify(tenderRepository, never()).save(any());
     }
+
+    @Test
+    @DisplayName("tryAutoAssign: 已有 CRM 商机负责人时跳过自动分配，不覆盖")
+    void tryAutoAssign_alreadyHasManager_skipAutoAssignment() {
+        Tender tender = new Tender();
+        tender.setId(581L);
+        tender.setStatus(Tender.Status.EVALUATED);
+        tender.setTitle("测试商机");
+        tender.setProjectManagerId(5052L);
+        tender.setProjectManagerName("王凯毅");
+
+        // 即使自动分配能匹配到另一个负责人，也不应该覆盖
+        support.tryAutoAssign(tender);
+
+        assertThat(tender.getProjectManagerId()).isEqualTo(5052L);
+        assertThat(tender.getProjectManagerName()).isEqualTo("王凯毅");
+        assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
+        verify(autoAssignmentService, never()).autoAssignIfPossible(any());
+        verify(tenderRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("tryAutoAssign: 只有 projectManagerName 没 id 时也跳过自动分配")
+    void tryAutoAssign_hasNameOnly_skipAutoAssignment() {
+        Tender tender = new Tender();
+        tender.setId(582L);
+        tender.setStatus(Tender.Status.EVALUATED);
+        tender.setTitle("测试商机2");
+        tender.setProjectManagerName("王凯毅");
+
+        support.tryAutoAssign(tender);
+
+        assertThat(tender.getProjectManagerName()).isEqualTo("王凯毅");
+        assertThat(tender.getProjectManagerId()).isNull();
+        verify(autoAssignmentService, never()).autoAssignIfPossible(any());
+    }
 }
