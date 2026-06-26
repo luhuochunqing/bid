@@ -10,6 +10,7 @@
 3. **严禁在 main 基准区修改代码 & 严禁删除多 Agent 持久 Worktree（含目录删除）** → 详见 `PLANS.md §多 Agent 协作`
 4. **FP-Java：纯核心可单测、不依赖框架** → 详见 `ARCHITECTURE.md §Agent Contract`
 5. **原子提交 + 测试证据，每变必测** → 详见 `RELIABILITY.md §关键硬约束`
+6. **恢复被回退的代码默认走 cherry-pick，禁止手工重写** → 详见 `RELIABILITY.md §回退恢复纪律`（git blame 可追溯性是团队资产）
 
 ## 按任务找信息
 
@@ -21,6 +22,7 @@
 | 安全/权限/Mock | `SECURITY.md` | Mock 政策、Final Class Mock、权限守卫 |
 | 发起复杂任务 | `PLANS.md` | Spec Kit 门禁、exec-plans 落点 |
 | 收尾任务/清理分支 | `scripts/agent-finish-task.sh` | 三重合入检查、锁清理、锚点切换、远端分支删除 |
+| 恢复被回退的代码 | `docs/references/rollback-recovery-playbook.md` | cherry-pick 优先纪律、三种例外、CO-338 真实案例（**禁止手工重写**） |
 | 启动服务/跑测试 | `CLAUDE.md` | 启动命令、环境变量、验证清单 |
 | 提交 PR/查门禁 | `RELIABILITY.md` | 14 道门禁、文件锁、回滚手册、PR 创建 |
 | 查产品需求 | `PRODUCT_SENSE.md` | 产品蓝图、PRD |

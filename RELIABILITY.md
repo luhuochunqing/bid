@@ -83,9 +83,62 @@ npm run gitee:auto-merge                   # 自动合并已批准 PR
 - 推送前必过本地门禁：`npm run ci:pre-pr`。
 - 所有新 Flyway 迁移必附 U 回滚脚本。
 - 涉及 UI 变更必带 Playwright 证据。
-- 原子提交：每次提交应包含功能实现、对应的 Flyway 迁移脚本（如涉及库表）、以及至少一个验证成功的测试用例证据。
+- 原子提交：每次提交应包括功能实现、对应的 Flyway 迁移脚本（如涉及库表）、以及至少一个验证成功的测试用例证据。
 - JPA 优先：后端存储必须通过 JPA 实体映射到 MySQL，禁止使用内存 Map 模拟。
 - 事务传播自检：涉及 `@Transactional` 的 PR 必须确认事务边界（见 ARCHITECTURE.md §事务边界三原则）。
+- **恢复被回退的代码，默认走 `git cherry-pick`，禁止手工重写**（详见下方「回退恢复纪律」）。
+
+## 回退恢复纪律（cherry-pick 优先）
+
+> 背景：2026-06-26 CO-338 恢复时，agent 跳过 `git cherry-pick` 直接手工重写，导致原 commit 的 author / 原始改动意图在 `git blame` / `git log` 中丢失。半年后无人能追溯"这段代码最初是谁写的、为什么"。本节是防再犯的硬约束。详细 playbook 见 `docs/references/rollback-recovery-playbook.md`。
+
+### 硬规则
+
+1. **默认 cherry-pick**：发现某 commit `X` 被后续 commit 误回退，恢复时**必须先尝试 `git cherry-pick X`**。
+2. **冲突不豁免**：cherry-pick 冲突 → `git status` 看冲突文件 → 手工解决（保留双方语义）→ `git cherry-pick --continue`。**冲突不是绕过 cherry-pick 的理由**。
+3. **只有三种情况允许手工重写**，且必须在 commit message + implementation-notes.md 双重记录原因：
+   - 原 commit 改动的文件已**完全不存在**（如组件被删除）
+   - 原 commit 的改动**语义已被重组**（如内联代码被拆到子组件，cherry-pick 后代码位置无意义）
+   - 原 commit 跨越**多个不相关改动**（违反原子提交，cherry-pick 会带回无关变更）
+4. **即便手工重写，也必须在**：
+   - commit message 引用原 commit hash（`Restore <hash> ...`）
+   - implementation-notes.md 记录原 commit hash + 手工重写原因
+   - 让未来 `git log --grep` 能从 hash 反查到原作者
+
+### 恢复工作流（强制顺序）
+
+```bash
+# 1. 识别被回退的 commit（用 git log -S / git blame 找）
+git log -S "isSelfVisibleTender" --oneline   # 例：找符号消失点
+
+# 2. 先试 cherry-pick（默认路径）
+git cherry-pick <原 commit>
+
+# 3. 冲突 → 解决（不是放弃）
+git status
+# 编辑冲突文件，保留双方语义
+git add <文件>
+git cherry-pick --continue
+
+# 4. 仅当命中"三种允许手工重写的情况" → 放弃 cherry-pick，手工写
+git cherry-pick --abort
+# 但 commit message 必须写: "Restore <hash>: ..." + 在 notes 记原因
+```
+
+### 为什么不能手工重写
+
+| 价值 | cherry-pick | 手工重写 |
+|------|------------|---------|
+| `git blame` 追溯原作者 | ✅ 保留 | ❌ 丢失 |
+| `git log` 原始 commit 上下文 | ✅ 保留 | ❌ 丢失 |
+| 回滚单元（git revert） | ✅ 单 commit | ⚠️ 揉进新 commit |
+| review 上下文（一改一逻辑） | ✅ 隔离 | ⚠️ 易混杂 |
+
+### 反模式（禁止）
+
+- ❌ "冲突看起来麻烦，我直接重写吧" → 冲突是正常工程成本，不是绕过理由
+- ❌ "反正功能等价就行" → 功能等价 ≠ 历史等价，git 历史是团队资产
+- ❌ 静默手工重写不记录原 commit → 半年后无人能考古
 
 ### PR 事务传播自检 Checklist
 
