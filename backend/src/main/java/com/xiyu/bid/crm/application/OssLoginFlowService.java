@@ -4,21 +4,12 @@ import com.xiyu.bid.security.domain.LoginRoleWhitelist;
 import com.xiyu.bid.crm.config.CrmProperties;
 import com.xiyu.bid.crm.infrastructure.CrmHttpClient;
 import com.xiyu.bid.crm.infrastructure.CrmResponseHandler;
-import com.xiyu.bid.entity.User;
-import com.xiyu.bid.integration.organization.application.OrganizationIntegrationProperties;
-import com.xiyu.bid.integration.organization.domain.policy.JobRoleLookupResolver;
-import com.xiyu.bid.integration.organization.domain.policy.OssMenuPermissionMapper;
-import com.xiyu.bid.integration.organization.infrastructure.mapper.PositionToRoleMapper;
-import com.xiyu.bid.repository.UserRepository;
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 /**
  * OSS 登录流程服务。
@@ -32,8 +23,8 @@ import java.util.Set;
  *   <li>解析角色+权限写入内存缓存（不写本地 DB）</li>
  * </ol>
  * <p>
+ * 角色/权限解析已拆分到 {@link OssRoleResolver}。
  * 缓存策略：登录时写入 {@link OssPermissionCache}，登出时由 AuthService 调用 invalidate 删除。
- * 不再读取本地 DB 的 RoleProfile.menu_permissions，所有鉴权读取均来自内存缓存。
  */
 @Slf4j
 @Service
@@ -44,10 +35,8 @@ public class OssLoginFlowService {
     private final CrmProperties crmProperties;
     private final CrmPermissionService permissionService;
     private final CrmRoleService roleService;
-    private final UserRepository userRepository;
-    private final OrganizationIntegrationProperties organizationProperties;
     private final OssPermissionCache ossPermissionCache;
-    private final PositionToRoleMapper positionToRoleMapper;
+    private final OssRoleResolver ossRoleResolver;
 
     /**
      * 直接使用用户名和密码进行 OSS 认证（不依赖 User entity）。
@@ -58,7 +47,6 @@ public class OssLoginFlowService {
     public OssLoginResult authenticateDirect(String username, String password) {
         String baseUrl = crmProperties.getEffectiveAuthBaseUrl();
         String userLoginSystem = crmProperties.getAuth().getUserLoginSystem();
-        String permissionSystemName = crmProperties.getAuth().getUserPermissionSystemName();
 
         OssLoginResult.Builder result = OssLoginResult.builder();
         result.username(username);
@@ -90,21 +78,65 @@ public class OssLoginFlowService {
             return result.build();
         }
 
-        // Step 2: GET /oauth/getUserInfo - 获取员工信息
-        // 注意：OSS返回的employeeInfo中，username字段就是工号(jobNumber)
+        // Step 2-5: 用 token 走后续 OSS 流程（getUserInfo → getUserPermission → getUserJobList → 写缓存）
+        return executePostLoginFlow(accessToken, username, result);
+    }
+
+    /**
+     * SSO 场景：用 Home 平台已有的 token 走完整 OSS 流程，不调用 /oauth/login。
+     * <p>
+     * 按接口文档 oss-integration-api.md §单点登录（SSO）实现方案：方式 B（直接获取用户信息）。
+     * 调用 OSS 实时接口获取用户信息、权限、角色，写入内存缓存，不依赖本地 DB 判断用户有效性。
+     *
+     * @param token Home 平台跳转携带的 access_token
+     * @return 登录结果（包含员工信息、权限等）
+     */
+    public OssLoginResult authenticateWithExistingToken(String token) {
+        OssLoginResult.Builder result = OssLoginResult.builder();
+        result.ossAccessToken(token);
+        result.authenticated(true);
+
+        // 直接走 step 2-5（username 在 getUserInfo 返回后填充）
+        return executePostLoginFlow(token, null, result);
+    }
+
+    /**
+     * 执行 OSS 登录后续流程：getUserInfo → getUserPermission → getUserJobList → 写缓存。
+     * <p>
+     * 供两个场景复用：
+     * - 普通登录：authenticateDirect 在 step 1 拿到 token 后调用
+     * - SSO 登录：authenticateWithExistingToken 直接用现有 token 调用
+     */
+    private OssLoginResult executePostLoginFlow(String accessToken, String fallbackUsername,
+                                                 OssLoginResult.Builder result) {
+        String baseUrl = crmProperties.getEffectiveAuthBaseUrl();
+        String permissionSystemName = crmProperties.getAuth().getUserPermissionSystemName();
+        String username = fallbackUsername;
         String jobNumber = null;
+
+        // Step 2: GET /oauth/getUserInfo - 获取员工信息
+        // OSS 返回的 employeeInfo 中，username 字段就是工号(jobNumber)
         try {
             String employeePath = crmProperties.getAuth().getEmployeePath();
             CrmResponseHandler.CrmApiResponse employeeResponse = crmHttpClient.get(
                     baseUrl, employeePath, accessToken);
             if (employeeResponse != null && employeeResponse.data() != null) {
                 result.employeeInfo(employeeResponse.data());
-                // OSS接口返回的username字段就是工号
                 jobNumber = employeeResponse.data().path("username").asText(null);
+                if (jobNumber != null && !jobNumber.isBlank()) {
+                    username = jobNumber;
+                    result.username(username);
+                }
                 log.info("OSS user info retrieved for user={}, jobNumber={}", username, jobNumber);
+            } else {
+                log.warn("OSS getUserInfo returned empty data, token may be invalid");
+                result.authenticated(false);
+                return result.build();
             }
         } catch (RuntimeException e) {
-            log.warn("OSS getUserInfo failed (non-fatal): {}", e.getMessage());
+            log.warn("OSS getUserInfo failed: {}", e.getMessage());
+            result.authenticated(false);
+            return result.build();
         }
 
         // Step 3: GET /oauth/getUserPermission - 获取系统权限
@@ -141,9 +173,6 @@ public class OssLoginFlowService {
     /**
      * 解析 OSS 返回的角色+权限，写入内存缓存。
      * <p>
-     * 替代原 syncOssPermissionsToRole 方法：不再写本地 DB RoleProfile.menu_permissions，
-     * 改为写入 OssPermissionCache，供 UserDetailsServiceImpl 和 DataScopeConfigService 读取。
-     * <p>
      * 若解析到的角色不在登录白名单（staff/未映射角色），则清空缓存并拒绝写入，
      * 确保这些用户无法通过缓存角色登录。
      */
@@ -152,11 +181,13 @@ public class OssLoginFlowService {
         try {
             CrmUserPermission permission = loginResult.getPermission();
             if (permission == null || permission.isEmpty()) {
-                log.info("OSS login: no permission to cache for user={}", username);
-                return;
+                log.info("OSS login: no permission to cache for user={}, will try role-only caching", username);
+                permission = new CrmUserPermission(java.util.Collections.emptyMap());
             }
 
-            String resolvedRoleCode = resolveRoleCodeFromJobList(loginResult.getJobList(), jobNumber, username);
+            // 即使 permission 为空，也尝试从 jobList 解析角色并缓存（SSO 场景用户可能未配置系统权限）
+            String resolvedRoleCode = ossRoleResolver.resolveRoleCodeFromJobList(
+                    loginResult.getJobList(), jobNumber, username);
             if (!LoginRoleWhitelist.isAllowed(resolvedRoleCode)) {
                 log.warn("OSS login: role not allowed for user={}, roleCode={}, clearing cache",
                         username, resolvedRoleCode);
@@ -164,109 +195,12 @@ public class OssLoginFlowService {
                 return;
             }
 
-            List<String> menuPermissions = mapOssPermissionsToInternal(permission, permissionSystemName);
+            List<String> menuPermissions = ossRoleResolver.mapOssPermissionsToInternal(permission, permissionSystemName);
             ossPermissionCache.put(username, resolvedRoleCode, menuPermissions, permission);
             log.info("OSS login: permission cached (not written to DB): username={}, roleCode={}, menuPermissions={}",
                     username, resolvedRoleCode, menuPermissions);
         } catch (RuntimeException e) {
             log.warn("OSS login: permission caching failed (non-fatal) for user={}: {}", username, e.getMessage());
         }
-    }
-
-    /**
-     * 从 OSS jobList 解析内部角色码。
-     * <p>
-     * 优先级：
-     * 1. sysRoleList 中 status=1 的角色（先用 PositionToRoleMapper 正则匹配，再用 OSS 角色码硬编码映射）
-     * 2. jobName（先用 PositionToRoleMapper 正则匹配，再用 OSS 角色码硬编码映射）
-     * 3. fallback 到本地 User.roleCode
-     */
-    private String resolveRoleCodeFromJobList(CrmJobListResponse jobList, String jobNumber, String fallbackUsername) {
-        if (jobList == null || jobList.getData() == null || jobNumber == null) {
-            log.warn("OSS login: jobList or jobNumber is null, denying role resolution for user={}", fallbackUsername);
-            return null;
-        }
-        CrmJobListResponse.JobInfo jobInfo = jobList.getData().get(jobNumber);
-        if (jobInfo == null) {
-            log.warn("OSS login: jobInfo not found for jobNumber={}, denying role resolution for user={}", jobNumber, fallbackUsername);
-            return null;
-        }
-
-        // 1. 优先从 sysRoleList 解析
-        if (jobInfo.getSysRoleList() != null) {
-            for (CrmJobListResponse.SysRole sysRole : jobInfo.getSysRoleList()) {
-                if ("1".equals(sysRole.getStatus()) && !Boolean.TRUE.equals(sysRole.getDel())) {
-                    String roleName = sysRole.getRoleName();
-                    if (roleName != null && !roleName.isBlank()) {
-                        // 先用综合映射（OSS 角色码 + 中文角色名称精确匹配）
-                        String roleCode = JobRoleLookupResolver.mapOssRoleTextToInternal(roleName);
-                        // 再用 PositionToRoleMapper 正则匹配岗位名（如"主管"等宽泛匹配）
-                        if (roleCode == null || roleCode.isBlank()) {
-                            roleCode = positionToRoleMapper.map(roleName);
-                        }
-                        if (roleCode != null && !roleCode.isBlank()) {
-                            log.info("OSS login: role resolved from sysRoleList: {} -> {}", roleName, roleCode);
-                            return roleCode;
-                        }
-                    }
-                }
-            }
-        }
-
-        // 2. 从 jobName 解析
-        String jobName = jobInfo.getJobName();
-        if (jobName != null && !jobName.isBlank()) {
-            // 先用综合映射（OSS 角色码 + 中文角色名称精确匹配）
-            String roleCode = JobRoleLookupResolver.mapOssRoleTextToInternal(jobName);
-            // 再用 PositionToRoleMapper 正则匹配岗位名
-            if (roleCode == null || roleCode.isBlank()) {
-                roleCode = positionToRoleMapper.map(jobName);
-            }
-            if (roleCode != null && !roleCode.isBlank()) {
-                log.info("OSS login: role resolved from jobName: {} -> {}", jobName, roleCode);
-                return roleCode;
-            }
-        }
-
-        // 3. fallback 到本地 User.roleCode
-        return resolveLocalRoleCode(fallbackUsername);
-    }
-
-    /**
-     * 从本地 DB 读取 User.roleCode 作为兜底。
-     */
-    private String resolveLocalRoleCode(String username) {
-        try {
-            return userRepository.findByUsername(username)
-                    .map(User::getRoleCode)
-                    .orElse(null);
-        } catch (RuntimeException e) {
-            log.warn("OSS login: failed to resolve local role code for user={}: {}", username, e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * 将 OSS 权限码列表映射为内部菜单权限码列表。
-     */
-    private List<String> mapOssPermissionsToInternal(CrmUserPermission permission, String systemName) {
-        OrganizationIntegrationProperties.Directory directory = organizationProperties.getDirectory();
-        if (directory == null) {
-            log.warn("OSS login: Directory config not available, skip permission mapping");
-            return List.of();
-        }
-        List<String> ossMenuCodes = permission.getMenusForSystem(systemName);
-        if (ossMenuCodes.isEmpty()) {
-            log.info("OSS login: no menu codes for system={}", systemName);
-            return List.of();
-        }
-        log.info("OSS login: raw menu codes for user, system={}, codes={}", systemName, ossMenuCodes);
-        OssMenuPermissionMapper mapper = new OssMenuPermissionMapper(
-                directory.getMenuCodeToPermissionKeyMappings(),
-                directory.getUnmappedMenuCodeBehavior()
-        );
-        Set<String> internalPermissions = mapper.mapCodes(ossMenuCodes);
-        log.info("OSS login: mapped internal permissions={}", internalPermissions);
-        return new ArrayList<>(internalPermissions);
     }
 }

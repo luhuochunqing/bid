@@ -144,60 +144,6 @@ public class CrmHttpClient {
     }
 
     /**
-     * GET with query params (no Bearer token), for endpoints that take token as query param.
-     */
-    public CrmResponseHandler.CrmApiResponse getWithQueryParams(String baseUrl, String path,
-            org.springframework.util.MultiValueMap<String, String> queryParams) {
-        // 用字符串拼接 URL（与 curl 行为一致，避免 UriComponentsBuilder 潜在的编码行为）
-        StringBuilder urlBuilder = new StringBuilder(baseUrl).append(path);
-        if (queryParams != null && !queryParams.isEmpty()) {
-            urlBuilder.append("?");
-            queryParams.forEach((key, values) -> {
-                for (String v : values) {
-                    if (urlBuilder.length() > 0 && urlBuilder.charAt(urlBuilder.length() - 1) != '?') {
-                        urlBuilder.append("&");
-                    }
-                    urlBuilder.append(key).append("=").append(v);
-                }
-            });
-        }
-        String url = urlBuilder.toString();
-        HttpHeaders headers = new HttpHeaders();
-        TraceHeaderInjector.inject(headers);
-        HttpEntity<Void> request = new HttpEntity<>(headers);
-        try {
-            // 诊断日志：打印脱敏 URL + 请求 header
-            String maskedUrl = maskTokenInUrl(url);
-            log.info("CRM GET with query params url={}, headers={}", maskedUrl, headers);
-            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, request, String.class);
-            String body = response.getBody();
-            log.info("CRM GET with query params {} -> {} body={}",
-                    maskedUrl, response.getStatusCode(),
-                    body != null ? body.substring(0, Math.min(300, body.length())) : "null");
-            return CrmResponseHandler.parse(body);
-        } catch (RuntimeException e) {
-            log.error("CRM GET with query params failed: url={}, error={}", maskTokenInUrl(url), e.getMessage());
-            return CrmResponseHandler.CrmApiResponse.parseError(e.getMessage());
-        }
-    }
-
-    /**
-     * 脱敏 URL 中的 token 参数（保留前 30 和后 10 字符）。
-     */
-    private static String maskTokenInUrl(String url) {
-        if (url == null) return "null";
-        int idx = url.indexOf("token=");
-        if (idx < 0) return url;
-        int valueStart = idx + 6;
-        int valueEnd = url.indexOf("&", valueStart);
-        if (valueEnd < 0) valueEnd = url.length();
-        String token = url.substring(valueStart, valueEnd);
-        if (token.length() <= 40) return url;
-        return url.substring(0, valueStart) + token.substring(0, 30)
-                + "..." + token.substring(token.length() - 10) + url.substring(valueEnd);
-    }
-
-    /**
      * POST JSON without Bearer token (for /oss/admin-web/... getUserJobList).
      */
     public CrmResponseHandler.CrmApiResponse postJson(String baseUrl, String path, Object body) {

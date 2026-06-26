@@ -45,6 +45,8 @@ public class CrmJobListResponse {
         private String id;
         /** 角色名称. */
         private String roleName;
+        /** OSS 系统角色码（如 admin、HomeReadonly 等），可能与内部 RoleProfile code 重合. */
+        private String roleCode;
         /** 状态 0无效 1有效. */
         private String status;
         /** 是否默认角色. */
