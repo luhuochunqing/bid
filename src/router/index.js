@@ -213,7 +213,7 @@ const routes = [
         path: 'resource/margin',
         name: 'MarginManagement',
         component: () => import('@/views/Resource/MarginManagement.vue'),
-        meta: { title: '保证金管理' }
+        meta: { title: '保证金管理', permissionKeys: ['resource', 'resource-margin'] }
       },
       {
         path: 'resource/expense',
@@ -225,13 +225,13 @@ const routes = [
         path: 'resource/account',
         name: 'Account',
         component: () => import('@/views/Resource/Account.vue'),
-        meta: { title: '账户管理' }
+        meta: { title: '账户管理', permissionKeys: ['resource', 'resource-account'] }
       },
       {
         path: 'resource/ca-management',
         name: 'CAManagement',
         component: () => import('@/views/Resource/CAManagement.vue'),
-        meta: { title: 'CA信息管理', requiresAuth: true }
+        meta: { title: 'CA信息管理', requiresAuth: true, permissionKeys: ['resource', 'resource-ca'] }
       },
       {
         path: 'resource/contract-borrow',

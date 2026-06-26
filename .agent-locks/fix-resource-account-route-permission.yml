@@ -1,0 +1,9 @@
+version: 1
+task: "fix-resource-account-route-permission"
+locks:
+  - path: "src/router/index.js"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/zcode/fix-resource-account-route-permission"
+    expiresAt: "2026-06-27T15:00:00.000Z"
+    reason: "Add permissionKeys to resource module routes (account/margin/ca-management) to fix unauthorized URL access"
