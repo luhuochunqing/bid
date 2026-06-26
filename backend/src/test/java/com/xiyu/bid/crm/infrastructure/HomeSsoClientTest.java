@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.Optional;
 
@@ -32,10 +31,32 @@ class HomeSsoClientTest {
         properties.setAuthBaseUrl(BASE_URL);
     }
 
-    private String buildUrlWithToken(String token) {
-        return UriComponentsBuilder.fromHttpUrl(BASE_URL + "/oauth/getCheckToken")
-                .queryParam("token", token)
-                .toUriString();
+    private String buildUrl() {
+        return BASE_URL + "/oauth/getCheckToken";
+    }
+
+    private String validTokenResponse(String username) {
+        return """
+                {
+                  "code": 0,
+                  "msg": "success",
+                  "data": {
+                    "user_name": "%s",
+                    "user_id": 123,
+                    "active": true
+                  }
+                }
+                """.formatted(username);
+    }
+
+    private String invalidTokenResponse() {
+        return """
+                {
+                  "code": 401,
+                  "msg": "token invalid or expired",
+                  "data": null
+                }
+                """;
     }
 
     @Test
@@ -43,18 +64,8 @@ class HomeSsoClientTest {
     void validateTokenAndGetUsername_validToken_returnsUsername() {
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
-        server.expect(requestTo(buildUrlWithToken(VALID_TOKEN)))
-                .andRespond(withSuccess("""
-                        {
-                          "code": 0,
-                          "msg": "success",
-                          "data": {
-                            "user_name": "%s",
-                            "user_id": 123,
-                            "active": true
-                          }
-                        }
-                        """.formatted(USERNAME), MediaType.APPLICATION_JSON));
+        server.expect(requestTo(buildUrl()))
+                .andRespond(withSuccess(validTokenResponse(USERNAME), MediaType.APPLICATION_JSON));
 
         HomeSsoClient client = new HomeSsoClient(new TestCrmHttpClient(restTemplate, properties), properties);
         Optional<String> result = client.validateTokenAndGetUsername(VALID_TOKEN);
@@ -68,14 +79,8 @@ class HomeSsoClientTest {
     void validateTokenAndGetUsername_invalidToken_returnsEmpty() {
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
-        server.expect(requestTo(buildUrlWithToken(INVALID_TOKEN)))
-                .andRespond(withSuccess("""
-                        {
-                          "code": 401,
-                          "msg": "token invalid or expired",
-                          "data": null
-                        }
-                        """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(buildUrl()))
+                .andRespond(withSuccess(invalidTokenResponse(), MediaType.APPLICATION_JSON));
 
         HomeSsoClient client = new HomeSsoClient(new TestCrmHttpClient(restTemplate, properties), properties);
         Optional<String> result = client.validateTokenAndGetUsername(INVALID_TOKEN);
@@ -89,7 +94,7 @@ class HomeSsoClientTest {
     void validateTokenAndGetUsername_networkError_returnsEmpty() {
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
-        server.expect(requestTo(buildUrlWithToken(VALID_TOKEN)))
+        server.expect(requestTo(buildUrl()))
                 .andRespond(withServerError());
 
         HomeSsoClient client = new HomeSsoClient(new TestCrmHttpClient(restTemplate, properties), properties);
@@ -104,7 +109,7 @@ class HomeSsoClientTest {
     void validateTokenAndGetUsername_missingUsername_returnsEmpty() {
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
-        server.expect(requestTo(buildUrlWithToken(VALID_TOKEN)))
+        server.expect(requestTo(buildUrl()))
                 .andRespond(withSuccess("""
                         {
                           "code": 0,
@@ -128,7 +133,7 @@ class HomeSsoClientTest {
     void validateTokenAndGetUsername_nullData_returnsEmpty() {
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
-        server.expect(requestTo(buildUrlWithToken(VALID_TOKEN)))
+        server.expect(requestTo(buildUrl()))
                 .andRespond(withSuccess("""
                         {
                           "code": 0,
@@ -153,13 +158,8 @@ class HomeSsoClientTest {
         }
 
         @Override
-        public CrmResponseHandler.CrmApiResponse getWithQueryParams(String baseUrl, String path,
-                org.springframework.util.MultiValueMap<String, String> queryParams) {
-            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl + path);
-            if (queryParams != null && !queryParams.isEmpty()) {
-                builder.queryParams(queryParams);
-            }
-            String url = builder.toUriString();
+        public CrmResponseHandler.CrmApiResponse getWithBearerToken(String baseUrl, String path, String token) {
+            String url = baseUrl + path;
             org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
             org.springframework.http.HttpEntity<Void> request = new org.springframework.http.HttpEntity<>(headers);
             try {
