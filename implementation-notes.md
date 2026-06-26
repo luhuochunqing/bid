@@ -1020,3 +1020,42 @@ handleSubmitForReview:
 
 ### 核心验证结论
 validate 预检在重复部署（`e51a673bc` 相对服务器 `b77fc9170` 代码零 diff、schema 无变化）下**仍无条件执行并通过**（165 migrations），证明其为不可短路的门禁，不依赖"是否有变化"启发式判断。CO-346 systemName 字段经 webhook_delivery_tasks 表对比（id=129 无 vs id=130/131 有）精确验证生效。
+
+---
+
+## CO-355 任务执行人搜索结果被固定人员淹没（根因修复）
+
+### 问题口径
+- 任务执行人选择框（`TaskForm.vue` 的 UserPicker）按姓名/拼音/工号搜索时，结果"混在固定人员里"，搜 `zrr` 命中郑蓉蓉但被预加载的 37 个候选人淹没。
+- 用户反复反馈："其他搜索框都没问题，就这个有问题；后台数据库能搜到不代表前台能展现。"
+- 此前多个 PR（!1130 enabled 过滤、#1139 ORDER BY 相关度、#1148 拼音首字母缩写）都是正确的后端增强，但**都没解决用户实际看到的问题**——因为根因不在后端，而在前端。
+
+### 真正根因（剥洋葱结论）
+1. `TaskForm.vue:50` 是唯一在 `mode="search"` 下传 `:initial-options="assigneeOptions"` 的任务执行人入口。
+2. `useTaskAssigneePicker` 在 `onMounted` 调 `loadAssignees()` → `/api/users/assignable-candidates?context=task` 返回 37 个启用用户 → 注入 `assigneeOptions`。
+3. `UserPicker.vue` 的 `mergedOptions` 把 `initialOptions` 与搜索结果按 id 合并进一个 Map → 37 个固定人员**始终在场**。
+4. el-select-v2 在 `remote` 模式下（`useSelect.mjs` `isRemoteMethodValid = filterable && remote && isFunction(remoteMethod)`），`isValidOption` 对**所有**选项返回 `true` → 预加载的 37 人不会被前端过滤掉，永远展示。
+5. 结果：搜索命中郑蓉蓉后，下拉里 37 个固定人员 + 郑蓉蓉 一起出现，用户感觉"搜出来的人混在固定人员里"。
+
+**为什么只有这个入口有问题**：其他搜索框（TaskKanban、Bidding/List、AssignDialog 等）都用 `mode="search"` 但**不传 `initialOptions`**，`mergedOptions` 只含搜索结果，所以表现正常。零号病人就是 `:initial-options="assigneeOptions"`。
+
+### 修复
+`UserPicker.vue` 的 `selectOptions` computed：搜索态（`mode==='search'` 且 `options.value.length>0`）时只用搜索结果，无搜索结果时回落到 `mergedOptions`（含 `initialOptions`），保证未搜索/关闭态下已选值标签仍能渲染。
+
+```js
+const searching = props.mode === 'search' && options.value.length > 0
+const source = searching ? options.value : mergedOptions.value
+```
+
+### 关键决策与权衡
+- **不动 `mergedOptions`，只动 `selectOptions`**：`mergedOptions` 仍被 `handleChange` 用于回查已选用户对象，保留它避免改 `handleChange`。展示和回查分离更清晰。
+- **不额外保留"已选值"在搜索态列表里**：考虑过搜索时把已选 id 从 `initialOptions` 里补回列表以防标签消失，但分析了 el-select-v2 行为——搜索时输入框显示的是查询词（非已选标签），关闭态/清空查询时 `options.value=[]` 自动回落到 `mergedOptions`（含已选）。且"已选值不在候选人里"的标签消失问题在**修复前就已存在**（选一个不在 37 人里的搜索结果后清空查询，同样会消失），本次不引入新回归，不过度设计。
+- **受益面**：所有 4 个传 `initialOptions` 的入口（TaskForm / ReminderSettingsDialog / DraftingStage / InitiationStage）都获得正确行为——搜索时只看搜索结果，不搜索时看预加载列表。无 `initialOptions` 的入口行为不变（`mergedOptions` 退化为只有 `options.value`，`searching` 分支和回落分支结果一致）。
+- **防复发测试**：新增 2 条 `UserPicker.spec.js` 用例——"搜索态不混入 initialOptions"和"无搜索时回落到 initialOptions"。已用 `git checkout -- UserPicker.vue` 还原组件验证：新测试在未修复组件上失败（固定人员甲/乙混入），修复后通过。
+
+### 验证
+- `npx vitest run src/components/common/UserPicker.spec.js`：12 passed（含 2 条新增防复发用例）。
+- `npx vitest run src/composables/useUserPicker.spec.js src/composables/projectDetail/taskAssigneePayload.spec.js`：21 passed。
+- RED 证明：还原 `UserPicker.vue` 后新测试失败，输出显示 `固定人员乙（00002）` 与 `郑蓉蓉（06234）` 同时出现——正是用户描述的"混在固定人员里"。
+
+

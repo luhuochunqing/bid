@@ -72,8 +72,16 @@ const mergedOptions = computed(() => {
 // el-select-v2 is data-driven and correctly handles remote search results
 // (el-select + slot el-option has a bug where optionsArray is not recomputed
 //  after remote results arrive while the dropdown is open)
+//
+// 搜索态只展示搜索结果，不混入 initialOptions：
+// el-select-v2 在 remote 模式下 isValidOption 对所有选项返回 true（见
+// useSelect.mjs isRemoteMethodValid），导致预加载的"固定人员"始终和搜索结果
+// 一起展示，搜索命中被淹没。仅当无搜索结果时回落到 mergedOptions（含
+// initialOptions），保证未搜索/关闭态下已选值的标签仍能渲染。
 const selectOptions = computed(() => {
-  return mergedOptions.value
+  const searching = props.mode === 'search' && options.value.length > 0
+  const source = searching ? options.value : mergedOptions.value
+  return source
     .filter((user) => !isExcluded(user))
     .filter((user) => matchesRoleFilter(user))
     .map((user) => ({

@@ -170,4 +170,42 @@ describe('UserPicker', () => {
     expect(select.props('options')).toHaveLength(1)
     expect(select.props('options')[0].value).toBe(4)
   })
+
+  // 回归防护：搜索态下 initialOptions（预加载的固定人员）不得混入搜索结果。
+  // 根因：el-select-v2 remote 模式 isValidOption 对所有选项返回 true，
+  // 预加载候选人会始终展示，把搜索命中淹没。详见 CO-355 根因报告。
+  it('does NOT mix initialOptions into options while a search is active', () => {
+    const preloaded = [
+      { ...mockUser, id: 10, name: '固定人员甲', employeeNumber: '00001' },
+      { ...mockUser, id: 11, name: '固定人员乙', employeeNumber: '00002' },
+    ]
+    const hit = { ...mockUser, id: 2556, name: '郑蓉蓉', employeeNumber: '06234' }
+    // 搜索已返回结果
+    mockComposable({ options: ref([hit]) })
+    const wrapper = mount(UserPicker, {
+      props: { mode: 'search', initialOptions: preloaded },
+      global: { stubs: elementStubs },
+    })
+    const select = wrapper.findComponent({ name: 'ElSelectV2' })
+    // 只应出现搜索命中，固定人员不应在场
+    expect(select.props('options')).toEqual([
+      { value: 2556, label: '郑蓉蓉（06234）' },
+    ])
+  })
+
+  // 无搜索时回落到 initialOptions，保证未搜索/关闭态已选值标签可渲染。
+  it('falls back to initialOptions when no search results are present', () => {
+    const preloaded = [
+      { ...mockUser, id: 10, name: '固定人员甲', employeeNumber: '00001' },
+    ]
+    mockComposable({ options: ref([]) })
+    const wrapper = mount(UserPicker, {
+      props: { mode: 'search', initialOptions: preloaded },
+      global: { stubs: elementStubs },
+    })
+    const select = wrapper.findComponent({ name: 'ElSelectV2' })
+    expect(select.props('options')).toEqual([
+      { value: 10, label: '固定人员甲（00001）' },
+    ])
+  })
 })
