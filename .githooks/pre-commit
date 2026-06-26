@@ -26,6 +26,9 @@ node "$ROOT_DIR/scripts/check-hot-path-locks.mjs"
 "$ROOT_DIR/scripts/check-system-scope-jar.sh" --staged
 # Flyway 迁移版本冲突预检：确保 staged 迁移不与 origin/main 版本号冲突（2026-05-29 skill-progression-map）
 "$ROOT_DIR/scripts/check-flyway-versions.sh" --staged
+# Flyway 已发布迁移不可变门禁：拦截修改/重命名 origin/main 已存在的 V*.sql（2026-06-26 V1096 checksum 事故）
+# 与 check-flyway-versions.sh 互补：versions 管"新增撞号"，immutable 管"改已发布"
+"$ROOT_DIR/scripts/check-flyway-immutable.sh"
 # Flyway 迁移头部质量检查：版本行、描述、蓝图追溯（2026-06-04 oversized+header gate）
 "$ROOT_DIR/scripts/check-migration-headers.sh"
 # E2E 选择器质量检查：检测 fragile locator 模式避免 CI strict-mode 失败（2026-05-29 skill-progression-map）

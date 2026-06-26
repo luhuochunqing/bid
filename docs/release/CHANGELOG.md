@@ -12,6 +12,13 @@
   - **修复 markitdown 安装**：`requirements.txt` 注释说"NOT on PyPI"是历史误判，`Dockerfile.cn` 显式 `pip install markitdown[all]`。
   - **验证**：`GET /health` 返回 `{"status":"up"}`，`POST /convert` 成功转换测试文档返回完整 markdown + sections + contentHash，容器内存占用 122MB。
   - **详见**：`docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md §14`
+- **Flyway checksum mismatch 事故修复 + 部署门禁加固**（2026-06-26）：部署 `53bbf8a34-api8080` 时发现并修复 9 个已发布迁移的 checksum mismatch（含 V1096 被重命名改语义），随后沉淀为门禁 + 预检 + 工具三重加固。
+  - **背景**：commit `407587394` 把已发布的 `V1096__add_users_full_name_pinyin.sql` 重命名为 `V1096__add_users_employee_number_pinyin.sql` 并改内容。生产 `flyway_schema_history` 仍记录旧 checksum（-1142450772），仓库文件新 checksum（-1670359032）。新 jar 启动时 Flyway `validateOnMigrate=true` 检测到 V76/V100/V102/V1063/V1040/V1081/V1088/V1092/V1096 共 9 个版本 mismatch，拒绝启动，health check 4 分钟超时。
+  - **修复**：备份 `flyway_schema_history` → 用服务器 jar 自带的 Flyway 9.22.3 跑 `repair` 对齐 9 个 checksum + 删除 2 个孤儿记录（V1027/V1039）→ 新 jar 启动时 V1099 自动 migrate 成功 → smoke 15 项全绿。
+  - **加固一（pre-commit 门禁）**：新增 `scripts/check-flyway-immutable.sh`，拦截"修改/重命名 origin/main 已存在的 V*.sql"（M/R/C/T 状态），与既有 `check-flyway-versions.sh`（管新增撞号）职责零重叠。逃生阀 `FLYWAY_ALLOW_IMMUTABLE_EDIT=1`。
+  - **加固二（部署预检）**：`scripts/release/remote-deploy.sh` 在覆盖后端 jar 之前插入 Flyway `validate` 预检，失败则停止 rollout（旧 jar 仍在运行，服务不中断）。
+  - **加固三（修复工具）**：新增 `scripts/release/flyway-repair-runner.sh`，把手动 repair 流程沉淀为 `validate|repair|info` 三动作可重复工具，repair 自动前置备份 + 后置 validate。
+  - **详见**：`docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md §13.5`
 
 ### Added
 - **西域组织架构 SDK 接入 Phase 1**（分支 `agent/cursor/organization-sdk-integration`）：实现 SDK 直连接入框架、Bearer token 动态换取、HTTP fallback 路径清理。

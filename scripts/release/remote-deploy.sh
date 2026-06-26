@@ -106,6 +106,34 @@ cp -R "$RELEASE_DIR/frontend/." "$PENDING_FRONTEND_DIR/"
 rm -rf "$FRONTEND_PUBLIC_DIR"
 mv "$PENDING_FRONTEND_DIR" "$FRONTEND_PUBLIC_DIR"
 
+# ── Flyway validate 预检（restart 前置，避免 checksum mismatch 导致启动失败）──
+# 工程背景（2026-06-26）：新 jar 启动时若生产 flyway_schema_history 与代码迁移文件 checksum 不一致，
+# Spring Boot validateOnMigrate 会让后端拒绝启动，remote-deploy 会卡满 4 分钟 health 超时才失败。
+# 本预检在"覆盖 jar"之前用当前运行中的 jar 自带 Flyway 跑 validate，失败则停止 rollout，
+# 此时旧 jar 仍在运行（服务不中断），操作者可安全用 flyway-repair-runner.sh 处置。
+# 依赖：flyway-repair-runner.sh 需与 remote-deploy.sh 一同部署到服务器（如 /tmp/ 或 $APP_ROOT/bin/）。
+# 跳过：SKIP_FLYWAY_VALIDATE=1（紧急/离线场景）
+FLYWAY_REPAIR_RUNNER="${FLYWAY_REPAIR_RUNNER:-$(dirname "$0")/flyway-repair-runner.sh}"
+if [[ "${SKIP_FLYWAY_VALIDATE:-0}" != "1" && -x "$FLYWAY_REPAIR_RUNNER" ]]; then
+  printf '==> Flyway validate pre-check (before jar activation)\n'
+  # validate 失败时阻止 rollout；此时旧 jar 未被覆盖，服务仍在线
+  if ! bash "$FLYWAY_REPAIR_RUNNER" validate; then
+    printf '\n❌ Flyway validate 失败 — 检测到 checksum mismatch 或配置问题。\n' >&2
+    printf '   旧 jar 仍在运行，服务未中断。处置方案：\n' >&2
+    printf '   1. 查看失败详情（上面输出），确认哪些版本 mismatch\n' >&2
+    printf '   2. 确认 mismatch 是良性的（仅历史迁移被改），执行 repair：\n' >&2
+    printf '        bash %s repair\n' "$FLYWAY_REPAIR_RUNNER" >&2
+    printf '   3. repair 后重跑 remote-deploy.sh\n' >&2
+    printf '   4. 紧急跳过本预检（不推荐，会让后端启动失败）：SKIP_FLYWAY_VALIDATE=1\n' >&2
+    printf '   详见 docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md §13.5\n\n' >&2
+    exit 1
+  fi
+  printf '✅ Flyway validate 通过（仅 pending 新迁移为预期状态）\n\n'
+elif [[ "${SKIP_FLYWAY_VALIDATE:-0}" != "1" ]]; then
+  printf '⚠️  Flyway validate 预检跳过：flyway-repair-runner.sh 不可用 (%s)\n' "$FLYWAY_REPAIR_RUNNER"
+  printf '   建议将其与 remote-deploy.sh 一起上传，获得 checksum mismatch 前置拦截能力。\n\n'
+fi
+
 printf '==> Updating backend artifact\n'
 cp "$RELEASE_DIR/backend/app.jar" "$BACKEND_JAR_PATH"
 

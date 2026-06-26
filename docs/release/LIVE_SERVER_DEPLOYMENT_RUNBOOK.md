@@ -273,11 +273,14 @@ ssh -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" jetty@172.16.38.78 "
 脚本会完成：
 
 - 解压发布包到 `/opt/xiyu-bid/releases/<release-id>`
+- **Flyway validate 预检**（自 2026-06-26）：覆盖后端 jar 之前，用当前运行 jar 的 Flyway 对生产 DB 跑 validate，失败则停止 rollout。详见 §13.5
 - 切换 `/srv/www/xiyu-bid`
 - 更新 `/opt/xiyu-bid/shared/backend/app.jar`
 - 写入 `/opt/xiyu-bid/deployed-release.json`
 - 重启 `xiyu-bid-backend`
 - 等待健康检查通过
+
+> **预检依赖**：validate 预检需要 `flyway-repair-runner.sh` 与 `remote-deploy.sh` 一同上传到服务器。`SKIP_FLYWAY_VALIDATE=1` 可跳过（紧急/离线），但会让 checksum mismatch 拖到后端启动阶段才暴露。
 
 ## 10. 发布后验证
 
@@ -432,6 +435,63 @@ systemctl is-active xiyu-bid-backend
 curl -fsS http://127.0.0.1:8080/actuator/health
 sudo journalctl -u xiyu-bid-backend --since "10 min ago" --no-pager
 ```
+
+### 13.5 Flyway checksum mismatch / 后端启动失败
+
+**症状**：部署后 `remote-deploy.sh` 卡在 `Waiting for health check`，4 分钟后超时退出；服务器日志报：
+
+```text
+Migration checksum mismatch for migration version 1096
+Apply Byte DESC: ... // 或 Description 不匹配
+=> Found more than one migration with version XXXX（重复版本号场景）
+```
+
+**根因**：origin/main 上已发布的迁移文件（`V*.sql`）被修改了字节或重命名。Flyway 在后端启动时 `validateOnMigrate=true` 会比对生产 `flyway_schema_history` 里记录的 checksum 与当前 jar 内迁移文件的 checksum，不一致就拒绝启动。常见触发动作：
+- `git mv V1096__old.sql V1096__new.sql`（同版本号改描述）
+- 直接编辑已发布 `V*.sql` 的内容（哪怕只改注释）
+- 历史事故：commit `407587394` 把 `V1096__add_users_full_name_pinyin.sql` 重命名为 `V1096__add_users_employee_number_pinyin.sql`，导致 9 个版本 checksum mismatch。
+
+**诊断（只读，安全）**：
+
+```bash
+# 在服务器上跑（用当前运行 jar 自带的 Flyway，与启动时算法一致）
+bash scripts/release/flyway-repair-runner.sh validate
+# 输出会列出所有 mismatch 的版本号 + pending 的新迁移
+```
+
+**修复（repair）**：
+
+```bash
+# 1. repair 会自动前置备份 flyway_schema_history（无需手动备份）
+bash scripts/release/flyway-repair-runner.sh repair
+#    repair 只改 flyway_schema_history 的元数据（checksum/description），
+#    不动任何业务表。repair 后会自动跑 validate 确认。
+
+# 2. validate 应只剩 "Detected resolved migration not applied to database: <新版本>"
+#    这是预期状态——新迁移会由新 jar 启动时自动 migrate 执行。
+
+# 3. 重新跑 remote-deploy.sh 激活新 jar（这次 validate 预检会通过）
+```
+
+**回滚（如 repair 误操作）**：
+
+repair 前自动备份在 `/opt/xiyu-bid/backups/flyway-history/flyway_schema_history-<timestamp>.sql`，整表恢复：
+
+```bash
+# 恢复 flyway_schema_history 到 repair 前状态
+mysql -h <DB_HOST> -u <DB_USER> -p <DB_NAME> < /opt/xiyu-bid/backups/flyway-history/flyway_schema_history-<timestamp>.sql
+```
+
+如需回滚 jar 到上一版本（因为新 jar 已被 restart 过）：
+
+```bash
+cp /opt/xiyu-bid/releases/<旧release-id>/backend/app.jar /opt/xiyu-bid/shared/backend/app.jar
+sudo systemctl restart xiyu-bid-backend
+```
+
+**预防**：本地提交时 `check-flyway-immutable.sh` pre-commit 门禁会拦截"修改 origin/main 已存在的 V*.sql"。如果确实需要紧急修复已发布迁移（极少见），用 `FLYWAY_ALLOW_IMMUTABLE_EDIT=1 git commit`，但必须在部署前跑 repair，并在 PR 描述里说明理由。
+
+**注意**：自 2026-06-26 起，`remote-deploy.sh` 在覆盖后端 jar 之前会自动跑 validate 预检，失败则停止 rollout（旧 jar 仍在运行，服务不中断）。所以 checksum mismatch 通常在部署阶段就被拦下，不会进入"health check 4 分钟超时"的现场。本章节描述的是预检被 `SKIP_FLYWAY_VALIDATE=1` 跳过、或首次启用预检前已部署的存量场景。
 
 ## 附录：慢链路应急小包路径
 
