@@ -19,6 +19,11 @@
   - **加固二（部署预检）**：`scripts/release/remote-deploy.sh` 在覆盖后端 jar 之前插入 Flyway `validate` 预检，失败则停止 rollout（旧 jar 仍在运行，服务不中断）。
   - **加固三（修复工具）**：新增 `scripts/release/flyway-repair-runner.sh`，把手动 repair 流程沉淀为 `validate|repair|info` 三动作可重复工具，repair 自动前置备份 + 后置 validate。
   - **详见**：`docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md §13.5`
+- **新流程首次实战验证通过**（2026-06-26）：部署 `3468efd59-api8080` 时，`remote-deploy.sh` 在覆盖后端 jar 之前自动跑 `flyway-repair-runner.sh validate`（163 migrations 全过），通过后才 restart。这是上一条加固落地后的首次真实部署，三重防御全部按设计生效。
+  - **业务交付**：本次含真实差量（CO-329 ContactPersonInfoVO 忽略未知字段、CO-332 标讯全流程审计日志），非纯流程演练；无新 Flyway 迁移，schema 不变。
+  - **新旧流程对比**：旧流程需"后端启动失败 4 分钟超时"才发现 checksum mismatch，且 repair 靠手动写一次性 Runner；新流程在 restart 前 ~2 秒内完成 validate，失败时旧 jar 仍在线（服务不中断），repair 一键调用。
+  - **验证**：pre-commit 门禁（构造测试 5/5）+ 部署预检（实战自动生效）+ repair 工具（实战被 deploy 调用）。生产 smoke 15/15 P0 通过。
+  - **结论**：同类事故在源头（pre-commit）、部署阶段（validate 预检）、处置阶段（repair-runner）三层都被收敛，达到加固设计目标。
 
 ### Added
 - **西域组织架构 SDK 接入 Phase 1**（分支 `agent/cursor/organization-sdk-integration`）：实现 SDK 直连接入框架、Bearer token 动态换取、HTTP fallback 路径清理。
