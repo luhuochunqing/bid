@@ -67,7 +67,8 @@ class TenderIntegrationServicePushEvaluationTest {
                 mock(TenderAutoAssignmentService.class),
                 mock(TenderAssignmentNotifier.class),
                 mock(ApplicationEventPublisher.class),
-                tenderRepository);
+                tenderRepository,
+                mock(ProjectManagerIdResolver.class));
         commandService = new TenderIntegrationCommandService(
                 tenderRepository,
                 mock(TenderAttachmentRepository.class),

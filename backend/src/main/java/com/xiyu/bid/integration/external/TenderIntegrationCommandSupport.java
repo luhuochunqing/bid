@@ -26,6 +26,7 @@ class TenderIntegrationCommandSupport {
     private final TenderAssignmentNotifier assignmentNotifier;
     private final ApplicationEventPublisher eventPublisher;
     private final TenderRepository tenderRepository;
+    private final ProjectManagerIdResolver projectManagerIdResolver;
 
     /**
      * CO-302: 尝试自动分配标讯负责人.
@@ -37,15 +38,20 @@ class TenderIntegrationCommandSupport {
             AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
             if (result.isMatched()) {
                 applyAssignmentResult(tender, result);
-                TenderStatusTransitionPolicy.assertTransition(tender.getStatus(), Tender.Status.TRACKING);
-                tender.setStatus(Tender.Status.TRACKING);
-                eventPublisher.publishEvent(TenderStatusChangedEvent.of(
-                        tender.getId(), tender.getExternalId(),
-                        Tender.Status.PENDING_ASSIGNMENT, Tender.Status.TRACKING,
-                        tender.getTitle()));
+                try {
+                    TenderStatusTransitionPolicy.assertTransition(tender.getStatus(), Tender.Status.TRACKING);
+                    tender.setStatus(Tender.Status.TRACKING);
+                    eventPublisher.publishEvent(TenderStatusChangedEvent.of(
+                            tender.getId(), tender.getExternalId(),
+                            Tender.Status.PENDING_ASSIGNMENT, Tender.Status.TRACKING,
+                            tender.getTitle()));
+                    log.info("Tender {} auto-assigned from external platform, status changed to TRACKING", tender.getId());
+                    assignmentNotifier.notifyAutoAssigned(tender);
+                } catch (RuntimeException e) {
+                    log.warn("Tender {} status transition failed (current status={}), but project manager is still updated: {}",
+                            tender.getId(), tender.getStatus(), e.getMessage());
+                }
                 tenderRepository.save(tender);
-                log.info("Tender {} auto-assigned from external platform, status changed to TRACKING", tender.getId());
-                assignmentNotifier.notifyAutoAssigned(tender);
             }
         } catch (RuntimeException e) {
             log.warn("Auto-assignment failed for external tender {}, keeping PENDING_ASSIGNMENT: {}",
@@ -54,15 +60,17 @@ class TenderIntegrationCommandSupport {
     }
 
     void applyAssignmentResult(Tender tender, AssignmentResult result) {
-        if (result.projectManagerId() != null) {
-            try {
-                tender.setProjectManagerId(Long.valueOf(result.projectManagerId()));
-            } catch (NumberFormatException e) {
-                log.warn("Cannot convert projectManagerId '{}' to Long for tender {}",
-                        result.projectManagerId(), tender.getId());
+        tender.setProjectManagerName(result.projectManagerName());
+        if (result.projectManagerName() != null) {
+            Long resolvedId = projectManagerIdResolver.resolveByFullName(result.projectManagerName());
+            if (resolvedId != null) {
+                tender.setProjectManagerId(resolvedId);
+            } else {
+                log.warn("External assignment: projectManagerName '{}' cannot be resolved to a user id, "
+                                + "projectManagerId remains null for tender {}",
+                        result.projectManagerName(), tender.getId());
             }
         }
-        tender.setProjectManagerName(result.projectManagerName());
         tender.setDepartment(result.departmentName());
     }
 

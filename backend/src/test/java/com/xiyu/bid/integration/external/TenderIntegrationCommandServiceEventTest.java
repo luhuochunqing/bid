@@ -69,6 +69,7 @@ class TenderIntegrationCommandServiceEventTest {
     @Mock private TenderAssignmentNotifier assignmentNotifier;
     @Mock private TenderAuditService tenderAuditService;
     @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private ProjectManagerIdResolver projectManagerIdResolver;
 
     private TenderIntegrationCommandService commandService;
 
@@ -77,7 +78,7 @@ class TenderIntegrationCommandServiceEventTest {
         TenderEvaluationIntegrationMapper evaluationMapper = new TenderEvaluationIntegrationMapper(
                 tenderEvaluationRepository, submissionMapper);
         TenderIntegrationMapper mapper = new TenderIntegrationMapper(
-                tenderMapper, evaluationMapper, mock(ProjectManagerIdResolver.class));
+                tenderMapper, evaluationMapper, projectManagerIdResolver);
         TenderEvaluationIntegrationService evaluationService = new TenderEvaluationIntegrationService(
                 tenderEvaluationRepository, evaluationMapper, projectDocumentRepository);
         TenderIntegrationResolver helper = new TenderIntegrationResolver(tenderRepository);
@@ -86,7 +87,8 @@ class TenderIntegrationCommandServiceEventTest {
                 autoAssignmentService,
                 assignmentNotifier,
                 eventPublisher,
-                tenderRepository);
+                tenderRepository,
+                projectManagerIdResolver);
         commandService = new TenderIntegrationCommandService(
                 tenderRepository, attachmentRepository, crmTenderLinkService, mapper, evaluationService, helper, support, eventPublisher,
                 tenderAuditService, userRepository);
