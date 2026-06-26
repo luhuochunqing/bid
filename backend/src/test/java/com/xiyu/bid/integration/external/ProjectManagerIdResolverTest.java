@@ -97,12 +97,12 @@ class ProjectManagerIdResolverTest {
     }
 
     @Test
-    @DisplayName("CO-333: 姓名含半角中间点，库中存全角点 → 标准化后唯一匹配成功")
-    void resolveByFullName_halfWidthMiddleDot_matchesFullWidth() {
-        when(userRepository.findByFullName("王·凯毅"))
-                .thenReturn(List.of(User.builder().id(101L).fullName("王·凯毅").build()));
+    @DisplayName("CO-333: 姓名含全角空格，库中存半角无空格 → 标准化后唯一匹配成功")
+    void resolveByFullName_fullWidthSpaces_normalizedMatches() {
+        when(userRepository.findByFullName("李雷"))
+                .thenReturn(List.of(User.builder().id(101L).fullName("李雷").build()));
 
-        assertThat(resolver.resolveByFullName("王.凯毅")).isEqualTo(101L);
+        assertThat(resolver.resolveByFullName("李　雷")).isEqualTo(101L);
     }
 
     @Test
@@ -118,11 +118,11 @@ class ProjectManagerIdResolverTest {
     @Test
     @DisplayName("CO-333: 全角字母/数字混在半角姓名中 → 标准化后唯一匹配成功")
     void resolveByFullName_fullWidthChars_normalizedMatches() {
-        when(userRepository.findByFullName("TOM"))
-                .thenReturn(List.of(User.builder().id(103L).fullName("TOM").build()));
+        when(userRepository.findByFullName("TOM01"))
+                .thenReturn(List.of(User.builder().id(103L).fullName("TOM01").build()));
 
-        assertThat(resolver.resolveByFullName("TOM")).isEqualTo(103L);
-        assertThat(resolver.resolveByFullName("TOM")).isEqualTo(103L);
+        assertThat(resolver.resolveByFullName("TOM01")).isEqualTo(103L);
+        assertThat(resolver.resolveByFullName("ＴＯＭ０１")).isEqualTo(103L);
     }
 
     @Test

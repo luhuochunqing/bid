@@ -29,6 +29,8 @@ public class ProjectManagerIdResolver {
     private static final char FULLWIDTH_MIDDLE_DOT = '·';
     /** 半角中间点 */
     private static final char HALFWIDTH_MIDDLE_DOT = '.';
+    /** 全角空格 */
+    private static final char FULLWIDTH_SPACE = '\u3000';
 
     private final UserRepository userRepository;
 
@@ -75,6 +77,8 @@ public class ProjectManagerIdResolver {
             return null;
         }
         String normalized = name;
+        // 全角空格 → 半角空格
+        normalized = normalized.replace(FULLWIDTH_SPACE, ' ');
         // 去除所有空白字符（前后 + 中间）
         normalized = normalized.replaceAll("\\s+", "");
         // 统一中间点：全角· → 半角.
