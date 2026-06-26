@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.xiyu.bid.webhook.domain.OperatorDisplayName;
 import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -225,12 +226,19 @@ public class TenderEvaluationSubmissionService {
         TenderEvaluation saved = evaluationRepository.save(entity);
 
         // CO-305: 推进 tender.status 到 EVALUATED，统一走 TenderStatusChangedEvent 事件流
+        // CO-346: 关联商机提交评估表时带上操作人信息（operatorId/operatorName），
+        //         让 §4.1 CRM 回调的 statusEditor / feedback.operator 能正确展示提交人；
+        //         status 字段在 WebhookEventListener.mapToCrmStatus() 中置 null。
+        //         operatorName 格式为"姓名（工号）"，由 OperatorDisplayName.format() 统一格式化。
         if (tender.getStatus() == Tender.Status.TRACKING) {
             Tender.Status previousStatus = tender.getStatus();
             tender.setStatus(Tender.Status.EVALUATED);
             eventPublisher.publishEvent(TenderStatusChangedEvent.of(
                     tender.getId(), tender.getExternalId(),
-                    previousStatus, Tender.Status.EVALUATED, tender.getTitle()));
+                    previousStatus, Tender.Status.EVALUATED, tender.getTitle(),
+                    null,
+                    evaluator.getId(), OperatorDisplayName.format(evaluator),
+                    null, null));
         }
 
         // CO-262: 持久化 CRM 回填的 GAP 附件引用（外部 URL）到 project_documents 表

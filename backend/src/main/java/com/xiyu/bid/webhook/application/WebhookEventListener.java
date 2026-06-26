@@ -47,6 +47,8 @@ public class WebhookEventListener {
 
     private static final DateTimeFormatter STATUS_EDIT_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final String EVENT_TYPE = "tender.status_changed";
+    /** CO-346: 与 §4.2 ProjectResultPayloadAssembler 对齐，标识回调来源系统。 */
+    private static final String SYSTEM_NAME = "投标管理系统";
 
     private final WebhookDeliveryTaskRepository taskRepository;
     private final TenderRepository tenderRepository;
@@ -135,6 +137,12 @@ public class WebhookEventListener {
         }
     }
 
+    /**
+     * 组装 CRM feedback JSON 字符串。
+     * <p>包含：reason / vendor / paymentTerm / remark / operator / operateTime / systemName。
+     * <p>CO-346: 增加 systemName="投标管理系统"，与 §4.2 ProjectResultPayloadAssembler.buildFeedbackString 对齐，
+     * 让 CRM 侧能识别回调来源系统。
+     */
     private String buildFeedback(TenderStatusChangedEvent event) {
         Map<String, Object> fb = new LinkedHashMap<>();
         fb.put("reason", event.newStatus().name());
@@ -143,6 +151,7 @@ public class WebhookEventListener {
         fb.put("remark", event.abandonReason() != null ? event.abandonReason() : "");
         fb.put("operator", event.operatorName() != null ? event.operatorName() : "");
         fb.put("operateTime", event.occurredAt().format(STATUS_EDIT_TIME_FORMAT));
+        fb.put("systemName", SYSTEM_NAME);
         try {
             return objectMapper.writeValueAsString(fb);
         } catch (JsonProcessingException ex) {

@@ -22,6 +22,7 @@ import com.xiyu.bid.tender.entity.TenderEvaluation;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.task.service.TaskService;
+import com.xiyu.bid.webhook.domain.OperatorDisplayName;
 import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -201,7 +202,7 @@ public class TenderEvaluationService {
                 tender.getId(), tender.getExternalId(),
                 Tender.Status.EVALUATED, tender.getStatus(), tender.getTitle(),
                 request.abandonmentReason(),
-                reviewerId, reviewer.getUsername(),
+                reviewerId, OperatorDisplayName.format(reviewer),
                 recShouldBid, recReason));
 
         log.info("Tender {} reviewed, status changed to {}", tenderId, tender.getStatus());

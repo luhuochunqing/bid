@@ -11,6 +11,7 @@ import com.xiyu.bid.tender.dto.TenderAbandonRequest;
 import com.xiyu.bid.tender.dto.TenderBidResponse;
 import com.xiyu.bid.tender.entity.TenderEvaluation;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
+import com.xiyu.bid.webhook.domain.OperatorDisplayName;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -111,7 +112,10 @@ public class TenderSubmissionService {
         tender.setStatus(Tender.Status.ABANDONED);
         tender.setAbandonmentReason(req.getReason());
 
-        String operatorName = userRepository.findById(userId).map(User::getFullName).orElse("未知");
+        // CO-346: operatorName 格式为"姓名（工号）"，由 OperatorDisplayName.format() 统一格式化
+        String operatorName = userRepository.findById(userId)
+                .map(OperatorDisplayName::format)
+                .orElse("未知");
         Boolean recShouldBid = null;
         String recReason = null;
         var evalOpt = tenderEvaluationRepository.findByTenderId(tenderId);

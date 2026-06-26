@@ -104,38 +104,48 @@ class WebhookEventListenerTest {
     }
 
     @Test
-    @DisplayName("ABANDONED -> 入队，bidInfoList 格式，crmStatus=6，feedback 含 remark")
+    @DisplayName("ABANDONED -> 入队，bidInfoList 格式，crmStatus=6，feedback 含 remark + systemName")
     void abandoned_enqueuesWithBidInfoSync() throws Exception {
         WebhookEventListener l = listener();
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(mockTender()));
 
-        l.onTenderStatusChanged(event(Tender.Status.ABANDONED, "客户预算过低，放弃投标", "李四"));
+        // CO-346: operatorName 现在是"姓名（工号）"格式（由 TenderEvaluationSubmissionService.formatOperatorDisplay 构造）
+        l.onTenderStatusChanged(event(Tender.Status.ABANDONED, "客户预算过低，放弃投标", "李四（06100）"));
 
         WebhookDeliveryTask saved = captureSingleSaved();
         JsonNode root = objectMapper.readTree(saved.getPayload());
         JsonNode bidInfo = root.path("bidInfoList").get(0);
         assertThat(bidInfo.path("status").asInt()).isEqualTo(6);
-        assertThat(bidInfo.path("statusEditor").asText()).isEqualTo("李四");
+        assertThat(bidInfo.path("statusEditor").asText()).isEqualTo("李四（06100）");
 
         JsonNode feedback = objectMapper.readTree(bidInfo.path("feedback").asText());
         assertThat(feedback.path("reason").asText()).isEqualTo("ABANDONED");
         assertThat(feedback.path("remark").asText()).isEqualTo("客户预算过低，放弃投标");
+        assertThat(feedback.path("operator").asText()).isEqualTo("李四（06100）");
+        // CO-346: 与 §4.2 对齐，feedback 带 systemName 标识来源系统
+        assertThat(feedback.path("systemName").asText()).isEqualTo("投标管理系统");
     }
 
     @Test
-    @DisplayName("EVALUATED -> 入队，bidInfoList 格式，crmStatus=1，tenderId 存在（CO-298）")
-    void evaluated_enqueuesWithBidInfoSync_crmStatus1() throws Exception {
+    @DisplayName("EVALUATED -> 入队，status=null（CO-346），statusEditor + systemName 正常回传")
+    void evaluated_enqueuesWithBidInfoSync_statusNull() throws Exception {
         WebhookEventListener l = listener();
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(mockTender()));
 
-        l.onTenderStatusChanged(event(Tender.Status.EVALUATED, null, "王五"));
+        l.onTenderStatusChanged(event(Tender.Status.EVALUATED, null, "王五（06234）"));
 
         WebhookDeliveryTask saved = captureSingleSaved();
         JsonNode root = objectMapper.readTree(saved.getPayload());
         JsonNode bidInfo = root.path("bidInfoList").get(0);
-        assertThat(bidInfo.path("status").asInt()).isEqualTo(1);  // CRM status: 1=跟进中
-        assertThat(bidInfo.path("statusEditor").asText()).isEqualTo("王五");
+        // CO-346: EVALUATED 状态不再回调 status（null），避免 CRM 侧产生"跟进中"记录
+        assertThat(bidInfo.path("status").isNull()).isTrue();
+        // 操作人/操作时间/systemName 仍正常回传
+        assertThat(bidInfo.path("statusEditor").asText()).isEqualTo("王五（06234）");
         assertThat(bidInfo.path("tenderId").asLong()).isEqualTo(TENDER_ID);  // CO-298: tenderId 字段
+
+        JsonNode feedback = objectMapper.readTree(bidInfo.path("feedback").asText());
+        assertThat(feedback.path("operator").asText()).isEqualTo("王五（06234）");
+        assertThat(feedback.path("systemName").asText()).isEqualTo("投标管理系统");
     }
 
     @Test
