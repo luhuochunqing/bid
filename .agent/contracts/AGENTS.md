@@ -29,6 +29,7 @@
 | 查设计规范 | `DESIGN.md` | 设计系统令牌 |
 | 追踪质量 | `QUALITY_SCORE.md` | 模块质量评分、技术债追踪 |
 | 查数据库结构 | `docs/generated/db-schema.md` | 自动生成（`npm run db:generate-schema`） |
+| 修 bug 前 | `docs/lessons/lessons-learned.md` | 先搜索同类问题，避免重复踩坑 |
 
 ## 协作暗号
 
