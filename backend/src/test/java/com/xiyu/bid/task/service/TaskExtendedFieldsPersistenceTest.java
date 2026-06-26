@@ -10,6 +10,7 @@ import com.xiyu.bid.service.RoleProfileService;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.task.dto.TaskDTO;
+import com.xiyu.bid.task.repository.TaskDeliverableRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -65,6 +66,9 @@ class TaskExtendedFieldsPersistenceTest {
     private ProjectDocumentRepository projectDocumentRepository;
 
     @Mock
+    private TaskDeliverableRepository taskDeliverableRepository;
+
+    @Mock
     private TaskPermissionGuard taskPermissionGuard;
 
     private TaskService taskService;
@@ -85,7 +89,7 @@ class TaskExtendedFieldsPersistenceTest {
                 projectAccessScopeService,
                 projectRepository,
                 assignmentSupport,
-                new TaskDtoMapper(objectMapper, projectDocumentRepository),
+                new TaskDtoMapper(objectMapper, projectDocumentRepository, taskDeliverableRepository),
                 taskHistoryRecorder,
                 notificationService,
                 userRepository,

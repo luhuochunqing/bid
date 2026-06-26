@@ -10,6 +10,7 @@ import com.xiyu.bid.service.RoleProfileService;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.task.dto.TaskDTO;
+import com.xiyu.bid.task.repository.TaskDeliverableRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -55,6 +56,9 @@ class TaskServiceProjectAccessTest {
     private ProjectDocumentRepository projectDocumentRepository;
 
     @Mock
+    private TaskDeliverableRepository taskDeliverableRepository;
+
+    @Mock
     private TaskPermissionGuard taskPermissionGuard;
 
     private TaskService taskService;
@@ -72,7 +76,7 @@ class TaskServiceProjectAccessTest {
                 projectAccessScopeService,
                 projectRepository,
                 assignmentSupport,
-                new TaskDtoMapper(new ObjectMapper(), projectDocumentRepository),
+                new TaskDtoMapper(new ObjectMapper(), projectDocumentRepository, taskDeliverableRepository),
                 taskHistoryRecorder,
                 notificationService,
                 userRepository,

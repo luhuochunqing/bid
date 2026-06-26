@@ -110,6 +110,10 @@ public class Task {
     @Column(name = "due_date")
     private LocalDateTime dueDate;
 
+    /** Completion notes filled by assignee when submitting for review. */
+    @Column(name = "completion_notes", columnDefinition = "TEXT")
+    private String completionNotes;
+
     /** Creation timestamp. */
     @Column(name = "created_at", nullable = false,
             updatable = false)

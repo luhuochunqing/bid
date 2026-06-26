@@ -4,7 +4,11 @@ import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.project.entity.BidDocumentReviewEntity;
 import com.xiyu.bid.task.dto.TaskBoardItemDTO;
+import com.xiyu.bid.task.dto.TaskDeliverableDTO;
+import com.xiyu.bid.task.dto.TaskDeliverableAssembler;
+import com.xiyu.bid.task.entity.TaskDeliverable;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -32,7 +36,11 @@ final class TaskBoardItemMapper {
     /**
      * 将任务记录映射为看板条目。
      */
-    static TaskBoardItemDTO fromTask(Task task, Map<Long, String> projectNames, String assigneeName) {
+    static TaskBoardItemDTO fromTask(Task task, Map<Long, String> projectNames, String assigneeName,
+                                      List<TaskDeliverable> deliverables) {
+        List<TaskDeliverableDTO> deliverableDTOs = deliverables == null
+                ? List.of()
+                : deliverables.stream().map(TaskDeliverableAssembler::toDTO).toList();
         return TaskBoardItemDTO.builder()
                 .id(task.getId())
                 .type(TYPE_TASK)
@@ -46,6 +54,8 @@ final class TaskBoardItemMapper {
                 .targetUrl(null)
                 .assigneeName(assigneeName)
                 .assigneeId(task.getAssigneeId())
+                .completionNotes(task.getCompletionNotes())
+                .deliverables(deliverableDTOs)
                 .build();
     }
 

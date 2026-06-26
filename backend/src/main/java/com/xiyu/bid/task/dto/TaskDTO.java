@@ -48,6 +48,12 @@ public class TaskDTO {
      */
     private Map<String, Object> extendedFields;
 
+    /** Completion notes filled by assignee when submitting for review. */
+    private String completionNotes;
+
+    /** Task deliverables uploaded by assignee. */
+    private List<TaskDeliverableDTO> deliverables;
+
     /**
      * 任务附件列表，来自 {@code project_documents} 表中
      * {@code linkedEntityType='TASK'} 且 {@code linkedEntityId=task.id} 的记录。

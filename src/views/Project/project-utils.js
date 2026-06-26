@@ -194,7 +194,7 @@ export function taskFormDtoToBackend(form = {}) {
   if (form.assigneeDeptName !== undefined) dto.assigneeDeptName = form.assigneeDeptName
   if (form.assigneeRoleCode !== undefined) dto.assigneeRoleCode = form.assigneeRoleCode
   if (form.assigneeRoleName !== undefined) dto.assigneeRoleName = form.assigneeRoleName
-  if (form.completionNote !== undefined) dto.completionNote = form.completionNote
+  if (form.completionNotes !== undefined) dto.completionNotes = form.completionNotes
   if (form.createdById !== undefined) dto.createdById = form.createdById
   if (form.attachments !== undefined) dto.attachments = form.attachments
   if (form.extendedFields !== undefined) dto.extendedFields = form.extendedFields
@@ -210,6 +210,7 @@ export function taskBackendToCard(dto = {}) {
   const assigneeName = dto.assigneeName ?? dto.owner ?? dto.assignee ?? ''
   return {
     id: dto.id,
+    projectId: dto.projectId ?? null,
     name: dto.title ?? dto.name ?? '',
     content: dto.content ?? '',
     status: normalizeTaskStatusFromApi(dto.status),
@@ -226,7 +227,7 @@ export function taskBackendToCard(dto = {}) {
     assigneeRoleName: dto.assigneeRoleName ?? dto.roleName ?? '',
     createdById: dto.createdById ?? null,
     createdByName: dto.createdByName ?? dto.createdBy ?? '',
-    completionNote: dto.completionNote ?? '',
+    completionNotes: dto.completionNotes ?? '',
     deliverableFiles: dto.deliverableFiles ?? [],
     extendedFields: dto.extendedFields || {},
     attachments,

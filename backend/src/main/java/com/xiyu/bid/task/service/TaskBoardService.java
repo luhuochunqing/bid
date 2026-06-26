@@ -10,6 +10,8 @@ import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import com.xiyu.bid.task.dto.TaskBoardItemDTO;
+import com.xiyu.bid.task.entity.TaskDeliverable;
+import com.xiyu.bid.task.repository.TaskDeliverableRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +41,7 @@ public class TaskBoardService {
     private final UserRepository userRepository;
     private final ProjectAccessScopeService projectAccessScopeService;
     private final TaskAssignmentSupport assignmentSupport;
+    private final TaskDeliverableRepository taskDeliverableRepository;
 
     /**
      * 获取当前登录用户的任务看板条目。
@@ -69,10 +72,14 @@ public class TaskBoardService {
         Map<Long, String> projectNames = fetchProjectNames(projectIds);
         Map<Long, String> submitterNames = fetchSubmitterNames(reviews);
 
+        // Batch-load deliverables for all tasks
+        Map<Long, List<TaskDeliverable>> deliverablesByTaskId = batchLoadDeliverables(tasks);
+
         List<TaskBoardItemDTO> items = new ArrayList<>(tasks.size() + reviews.size());
         String assigneeName = TaskBoardItemMapper.fullNameOf(currentUser);
         for (Task task : tasks) {
-            items.add(TaskBoardItemMapper.fromTask(task, projectNames, assigneeName));
+            List<TaskDeliverable> deliverables = deliverablesByTaskId.getOrDefault(task.getId(), List.of());
+            items.add(TaskBoardItemMapper.fromTask(task, projectNames, assigneeName, deliverables));
         }
         for (BidDocumentReviewEntity review : reviews) {
             items.add(TaskBoardItemMapper.fromBidReview(review, projectNames, submitterNames));
@@ -113,5 +120,14 @@ public class TaskBoardService {
         return items.stream()
                 .filter(item -> item.getProjectId() != null && allowed.contains(item.getProjectId()))
                 .toList();
+    }
+
+    private Map<Long, List<TaskDeliverable>> batchLoadDeliverables(List<Task> tasks) {
+        List<Long> taskIds = tasks.stream().map(Task::getId).filter(Objects::nonNull).toList();
+        if (taskIds.isEmpty()) {
+            return Map.of();
+        }
+        return taskDeliverableRepository.findByTaskIdIn(taskIds).stream()
+                .collect(Collectors.groupingBy(TaskDeliverable::getTaskId));
     }
 }

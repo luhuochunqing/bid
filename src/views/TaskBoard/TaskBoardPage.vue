@@ -81,6 +81,7 @@ import TaskBoardCard from './components/TaskBoardCard.vue'
 import TaskForm from '@/components/project/TaskForm.vue'
 import { projectsApi } from '@/api/modules/projects.js'
 import { useTaskBoard } from './composables/useTaskBoard.js'
+import { taskBackendToCard } from '@/views/Project/project-utils.js'
 
 const {
   items,
@@ -106,20 +107,8 @@ const canSubmitForReview = computed(() => {
 })
 
 function handleTaskClick(item) {
-  const taskData = {
-    name: item.title,
-    deadline: item.dueDate || '',
-    content: item.content || '',
-    completionNote: item.completionNotes || '',
-    projectId: item.projectId,
-    assigneeId: item.assigneeId,
-    id: item.id,
-    status: item.status || 'TODO',
-    extendedFields: {},
-    attachments: [],
-  }
-  selectedTask.value = taskData
-  // 等待 nextTick 让 TaskForm 渲染完成
+  if (item.type !== 'TASK') return
+  selectedTask.value = { ...taskBackendToCard(item), deliverableFiles: [] }
   nextTick(() => {
     drawerVisible.value = true
   })
@@ -132,7 +121,6 @@ async function handleSubmitForReview() {
   }
   submitting.value = true
   try {
-    // 通过 TaskForm 校验 + 获取带交付物文件的完整数据
     const form = taskFormRef.value
     const result = form?.submitForReview?.()
     if (!result || result.valid === false) return
@@ -153,8 +141,8 @@ async function handleSubmitForReview() {
     }
 
     // 保存完成情况说明
-    if (data.completionNote) {
-      await projectsApi.updateTask(taskId, { completionNotes: data.completionNote })
+    if (data.completionNotes) {
+      await projectsApi.updateTask(taskId, { completionNotes: data.completionNotes })
     }
 
     // 更新状态为 REVIEW

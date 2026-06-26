@@ -136,6 +136,9 @@ public class TaskService {
         if (taskDTO.getDueDate() != null) {
             task.setDueDate(taskDTO.getDueDate());
         }
+        if (taskDTO.getCompletionNotes() != null) {
+            task.setCompletionNotes(taskDTO.getCompletionNotes());
+        }
         if (taskDTO.getExtendedFields() != null) {
             task.setExtendedFieldsJson(taskDtoMapper.serializeExtendedFields(taskDTO.getExtendedFields()));
         }

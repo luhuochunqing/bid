@@ -10,7 +10,11 @@ import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
+import com.xiyu.bid.task.dto.TaskDeliverableAssembler;
+import com.xiyu.bid.task.dto.TaskDeliverableDTO;
 import com.xiyu.bid.task.dto.TaskDTO;
+import com.xiyu.bid.task.entity.TaskDeliverable;
+import com.xiyu.bid.task.repository.TaskDeliverableRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -28,10 +32,13 @@ public class TaskDtoMapper {
 
     private final ObjectMapper objectMapper;
     private final ProjectDocumentRepository projectDocumentRepository;
+    private final TaskDeliverableRepository taskDeliverableRepository;
 
-    public TaskDtoMapper(ObjectMapper objectMapper, ProjectDocumentRepository projectDocumentRepository) {
+    public TaskDtoMapper(ObjectMapper objectMapper, ProjectDocumentRepository projectDocumentRepository,
+                         TaskDeliverableRepository taskDeliverableRepository) {
         this.objectMapper = objectMapper;
         this.projectDocumentRepository = projectDocumentRepository;
+        this.taskDeliverableRepository = taskDeliverableRepository;
     }
 
     public List<TaskDTO> toDTOs(List<Task> tasks) {
@@ -64,8 +71,10 @@ public class TaskDtoMapper {
                 .dueDate(task.getDueDate())
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
+                .completionNotes(task.getCompletionNotes())
                 .extendedFields(deserializeExtendedFields(task))
                 .attachments(loadTaskAttachments(task.getId()))
+                .deliverables(loadTaskDeliverables(task.getId()))
                 .build();
     }
 
@@ -123,5 +132,19 @@ public class TaskDtoMapper {
                 .uploader(doc.getUploaderName())
                 .createdAt(doc.getCreatedAt())
                 .build();
+    }
+
+    private List<TaskDeliverableDTO> loadTaskDeliverables(Long taskId) {
+        if (taskId == null || taskDeliverableRepository == null) {
+            return Collections.emptyList();
+        }
+        List<TaskDeliverable> deliverables = taskDeliverableRepository
+                .findByTaskIdOrderByCreatedAtDesc(taskId);
+        if (deliverables == null || deliverables.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return deliverables.stream()
+                .map(TaskDeliverableAssembler::toDTO)
+                .toList();
     }
 }

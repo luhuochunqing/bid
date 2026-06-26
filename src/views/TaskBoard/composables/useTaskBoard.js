@@ -1,7 +1,6 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { tasksApi } from '@/api/modules/dashboard'
-import { projectsApi } from '@/api/modules/projects'
 import { TASK_STATUS, getTaskStatusDisplayName } from '@/constants/taskStatus.js'
 
 const COLUMNS = [
@@ -19,26 +18,12 @@ export function useTaskBoard() {
 
   const getTasksByStatus = (status) => items.value.filter((t) => t.status === status)
 
-  const loadTaskDeliverables = async (item) => {
-    if (item.type !== 'TASK' || !item.projectId || !item.id) {
-      item.deliverables = []
-      return
-    }
-    try {
-      const res = await projectsApi.getTaskDeliverables(item.projectId, item.id)
-      item.deliverables = Array.isArray(res?.data) ? res.data : []
-    } catch {
-      item.deliverables = []
-    }
-  }
-
   const loadTasks = async () => {
     loading.value = true
     error.value = ''
     try {
       const res = await tasksApi.getBoardItems()
       items.value = Array.isArray(res?.data) ? res.data : []
-      await Promise.all(items.value.map(loadTaskDeliverables))
     } catch (e) {
       error.value = e?.message || '加载任务失败'
       items.value = []

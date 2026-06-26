@@ -10,6 +10,7 @@ import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import com.xiyu.bid.task.dto.TaskBoardItemDTO;
+import com.xiyu.bid.task.repository.TaskDeliverableRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,6 +44,9 @@ class TaskBoardServiceTest {
     @Mock
     private TaskAssignmentSupport assignmentSupport;
 
+    @Mock
+    private TaskDeliverableRepository taskDeliverableRepository;
+
     private TaskBoardService taskBoardService;
 
     @BeforeEach
@@ -53,7 +57,8 @@ class TaskBoardServiceTest {
                 projectRepository,
                 userRepository,
                 projectAccessScopeService,
-                assignmentSupport
+                assignmentSupport,
+                taskDeliverableRepository
         );
     }
 

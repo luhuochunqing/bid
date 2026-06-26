@@ -1,5 +1,5 @@
 <template>
-  <div v-if="canSubmitDeliverable" class="card-actions">
+  <div v-if="canSubmitDeliverable" class="card-actions" @click.stop>
     <el-button
       size="small"
       data-testid="deliverable-upload-btn"

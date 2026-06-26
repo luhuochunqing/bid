@@ -1,5 +1,5 @@
 <template>
-  <div class="card-actions">
+  <div class="card-actions" @click.stop>
     <el-button
       size="small"
       type="danger"

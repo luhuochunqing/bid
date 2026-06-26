@@ -60,4 +60,10 @@ public class TaskBoardItemDTO {
 
     /** 标书审核人用户 ID（BID_REVIEW 时有值，前端用于判断审核权限）。 */
     private Long reviewerId;
+
+    /** Completion notes filled by assignee when submitting for review (TASK 时有值)。 */
+    private String completionNotes;
+
+    /** Task deliverables uploaded by assignee (TASK 时有值)。 */
+    private java.util.List<TaskDeliverableDTO> deliverables;
 }

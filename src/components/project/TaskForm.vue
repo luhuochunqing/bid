@@ -58,6 +58,7 @@
 
           <el-form-item label="交付物上传">
             <el-upload
+              v-if="!readonly || canDeliver"
               data-test="task-deliverable-upload"
               :auto-upload="false"
               :file-list="deliverableFileList"
@@ -68,11 +69,14 @@
             >
               <el-button :icon="Upload" :disabled="readonly && !canDeliver">上传交付物</el-button>
             </el-upload>
+            <div v-if="readonly && localValue.deliverables?.length" class="deliverable-list">
+              <a v-for="d in localValue.deliverables" :key="d.id" :href="d.url" target="_blank" class="deliverable-link">{{ d.name }}</a>
+            </div>
           </el-form-item>
 
           <el-form-item label="完成情况说明">
             <el-input
-              v-model="localValue.completionNote"
+              v-model="localValue.completionNotes"
               type="textarea"
               :rows="4"
               placeholder="请填写完成情况说明（可选）"
@@ -135,19 +139,15 @@ const emit = defineEmits(['submit', 'submit-review', 'update:modelValue', 'attac
 const projectStore = useProjectStore()
 const userStore = useUserStore()
 const localValue = reactive({ ...props.modelValue })
-if (!localValue.extendedFields) {
-  localValue.extendedFields = {}
-}
-if (!Array.isArray(localValue.attachments)) {
-  localValue.attachments = []
-}
+if (!localValue.extendedFields) localValue.extendedFields = {}
+if (!Array.isArray(localValue.attachments)) localValue.attachments = []
 const statuses = ref([])
 const loadingStatuses = ref(false)
 const validationMessage = ref('')
 const extFormRef = ref(null)
 const activeTab = ref('detail')
 const readonly = computed(() => props.mode === 'view')
-// 状态仅分配人可改（创建=分配人，编辑≠执行人，查看=只读）
+// 状态仅分配人可改
 const canManageStatus = computed(() => {
   if (props.mode === 'create') return true
   if (props.mode === 'view') return false
@@ -160,7 +160,7 @@ const canManageStatus = computed(() => {
 const availableStatuses = computed(() =>
   statuses.value.filter(s => s.code !== 'IN_PROGRESS')
 )
-/** 执行人可在任务 TODO 状态下填写交付物和完成情况说明。computed 用于交付物上传、完成情况说明字段的 disabled 覆盖，以及抽屉底部「提交审核」按钮的显隐控制。 */
+/** 执行人可在任务TODO状态下填写交付物和完成情况说明，并提交审核。 */
 const canDeliver = computed(() => {
   if (props.mode !== 'view') return false
   const currentUserId = userStore.currentUser?.id
@@ -170,8 +170,8 @@ const canDeliver = computed(() => {
   const taskStatus = String(localValue.status || '').toLowerCase()
   return String(taskAssigneeId) === String(currentUserId) && taskStatus === 'todo'
 })
-const attachmentFileList = computed(() => localValue.attachments.map((file, index) => ({ ...file,
-  name: file?.name || `附件${index + 1}`, raw: file instanceof File ? file : file?.raw,
+const attachmentFileList = computed(() => localValue.attachments.map((file, i) => ({ ...file,
+  name: file?.name || `附件${i + 1}`, raw: file instanceof File ? file : file?.raw,
   url: (file?.projectId || localValue.projectId) && file?.id ? `/api/projects/${file.projectId || localValue.projectId}/documents/${file.id}/download` : file?.url,
 })))
 
@@ -198,12 +198,8 @@ watch(() => props.modelValue, (v) => {
   syncingFromModel = true
   Object.keys(localValue).forEach((k) => delete localValue[k])
   Object.assign(localValue, v || {})
-  if (!localValue.extendedFields) {
-    localValue.extendedFields = {}
-  }
-  if (!Array.isArray(localValue.attachments)) {
-    localValue.attachments = []
-  }
+  if (!localValue.extendedFields) localValue.extendedFields = {}
+  if (!Array.isArray(localValue.attachments)) localValue.attachments = []
   ensureSelectedAssignee()
   nextTick(() => {
     syncingFromModel = false
@@ -296,4 +292,7 @@ defineExpose({ submit, submitForReview, validate, canDeliver })
 
 <style scoped>
 .task-form { width: 100%; }
+.deliverable-list { margin-top: 8px; }
+.deliverable-link { display: block; color: #409eff; text-decoration: none; margin-bottom: 4px; }
+.deliverable-link:hover { text-decoration: underline; }
 </style>

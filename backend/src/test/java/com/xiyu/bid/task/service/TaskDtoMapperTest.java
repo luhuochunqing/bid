@@ -5,6 +5,9 @@ import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
+import com.xiyu.bid.task.dto.TaskDeliverableDTO;
+import com.xiyu.bid.task.entity.TaskDeliverable;
+import com.xiyu.bid.task.repository.TaskDeliverableRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,21 +23,29 @@ import static org.mockito.Mockito.when;
 
 /**
  * Verifies that TaskDtoMapper correctly maps task attachments from project_documents
- * into TaskDTO.attachments when linkedEntityType='TASK'.
+ * into TaskDTO.attachments when linkedEntityType='TASK', and maps completionNotes
+ * and deliverables from task_deliverables table.
  */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("TaskDtoMapper 任务附件映射测试")
+@DisplayName("TaskDtoMapper 任务附件/交付物映射测试")
 class TaskDtoMapperTest {
 
     @Mock
     private ProjectDocumentRepository projectDocumentRepository;
 
+    @Mock
+    private TaskDeliverableRepository taskDeliverableRepository;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private TaskDtoMapper createMapper() {
+        return new TaskDtoMapper(objectMapper, projectDocumentRepository, taskDeliverableRepository);
+    }
 
     @Test
     @DisplayName("toDTO 将 linkedEntityType='TASK' 的 project_documents 映射为 attachments")
     void toDTO_mapsTaskAttachments() {
-        TaskDtoMapper mapper = new TaskDtoMapper(objectMapper, projectDocumentRepository);
+        TaskDtoMapper mapper = createMapper();
 
         Task task = Task.builder()
                 .id(1L)
@@ -61,6 +72,8 @@ class TaskDtoMapperTest {
 
         when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc("TASK", 1L))
                 .thenReturn(List.of(doc));
+        when(taskDeliverableRepository.findByTaskIdOrderByCreatedAtDesc(1L))
+                .thenReturn(Collections.emptyList());
 
         var dto = mapper.toDTO(task);
 
@@ -79,7 +92,7 @@ class TaskDtoMapperTest {
     @Test
     @DisplayName("toDTO 不把 TASK_DELIVERABLE 项目文档混入任务附件")
     void toDTO_excludesTaskDeliverableDocumentsFromAttachments() {
-        TaskDtoMapper mapper = new TaskDtoMapper(objectMapper, projectDocumentRepository);
+        TaskDtoMapper mapper = createMapper();
 
         Task task = Task.builder()
                 .id(5L)
@@ -108,6 +121,8 @@ class TaskDtoMapperTest {
 
         when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc("TASK", 5L))
                 .thenReturn(List.of(deliverable, attachment));
+        when(taskDeliverableRepository.findByTaskIdOrderByCreatedAtDesc(5L))
+                .thenReturn(Collections.emptyList());
 
         var dto = mapper.toDTO(task);
 
@@ -119,7 +134,7 @@ class TaskDtoMapperTest {
     @Test
     @DisplayName("toDTO 当 task 无附件时返回空列表")
     void toDTO_returnsEmptyListWhenNoAttachments() {
-        TaskDtoMapper mapper = new TaskDtoMapper(objectMapper, projectDocumentRepository);
+        TaskDtoMapper mapper = createMapper();
 
         Task task = Task.builder()
                 .id(2L)
@@ -130,6 +145,8 @@ class TaskDtoMapperTest {
                 .build();
 
         when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc("TASK", 2L))
+                .thenReturn(Collections.emptyList());
+        when(taskDeliverableRepository.findByTaskIdOrderByCreatedAtDesc(2L))
                 .thenReturn(Collections.emptyList());
 
         var dto = mapper.toDTO(task);
@@ -143,7 +160,7 @@ class TaskDtoMapperTest {
     @Test
     @DisplayName("toDTO 只返回 TASK_ATTACHMENT 分类文档")
     void toDTO_onlyReturnsTaskAttachmentDocuments() {
-        TaskDtoMapper mapper = new TaskDtoMapper(objectMapper, projectDocumentRepository);
+        TaskDtoMapper mapper = createMapper();
 
         Task task = Task.builder()
                 .id(3L)
@@ -179,6 +196,8 @@ class TaskDtoMapperTest {
 
         when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc("TASK", 3L))
                 .thenReturn(List.of(otherCategoryDoc, uncategorizedDoc, taskDoc));
+        when(taskDeliverableRepository.findByTaskIdOrderByCreatedAtDesc(3L))
+                .thenReturn(Collections.emptyList());
 
         var dto = mapper.toDTO(task);
 
@@ -190,7 +209,7 @@ class TaskDtoMapperTest {
     @Test
     @DisplayName("toDTO(task, assigneeName) 也映射 attachments")
     void toDTO_withAssigneeName_mapsAttachments() {
-        TaskDtoMapper mapper = new TaskDtoMapper(objectMapper, projectDocumentRepository);
+        TaskDtoMapper mapper = createMapper();
 
         Task task = Task.builder()
                 .id(4L)
@@ -210,6 +229,8 @@ class TaskDtoMapperTest {
 
         when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc("TASK", 4L))
                 .thenReturn(List.of(doc));
+        when(taskDeliverableRepository.findByTaskIdOrderByCreatedAtDesc(4L))
+                .thenReturn(Collections.emptyList());
 
         var dto = mapper.toDTO(task, "李四");
 
@@ -220,7 +241,7 @@ class TaskDtoMapperTest {
     @Test
     @DisplayName("toDTOs 批量映射时每个 task 都加载自己的 attachments")
     void toDTOs_mapsAttachmentsForEachTask() {
-        TaskDtoMapper mapper = new TaskDtoMapper(objectMapper, projectDocumentRepository);
+        TaskDtoMapper mapper = createMapper();
 
         Task task1 = Task.builder().id(1L).projectId(10L).title("任务1").status(Task.Status.TODO).priority(Task.Priority.MEDIUM).build();
         Task task2 = Task.builder().id(2L).projectId(10L).title("任务2").status(Task.Status.TODO).priority(Task.Priority.MEDIUM).build();
@@ -232,6 +253,10 @@ class TaskDtoMapperTest {
                 .thenReturn(List.of(doc1));
         when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc("TASK", 2L))
                 .thenReturn(List.of(doc2));
+        when(taskDeliverableRepository.findByTaskIdOrderByCreatedAtDesc(1L))
+                .thenReturn(Collections.emptyList());
+        when(taskDeliverableRepository.findByTaskIdOrderByCreatedAtDesc(2L))
+                .thenReturn(Collections.emptyList());
 
         var dtos = mapper.toDTOs(List.of(task1, task2));
 
@@ -240,5 +265,102 @@ class TaskDtoMapperTest {
         assertThat(dtos.get(0).getAttachments().get(0).getName()).isEqualTo("附件1.pdf");
         assertThat(dtos.get(1).getAttachments()).hasSize(1);
         assertThat(dtos.get(1).getAttachments().get(0).getName()).isEqualTo("附件2.pdf");
+    }
+
+    @Test
+    @DisplayName("toDTO 映射 completionNotes 字段")
+    void toDTO_mapsCompletionNotes() {
+        TaskDtoMapper mapper = createMapper();
+
+        Task task = Task.builder()
+                .id(10L)
+                .projectId(10L)
+                .title("有完成说明的任务")
+                .status(Task.Status.REVIEW)
+                .priority(Task.Priority.MEDIUM)
+                .completionNotes("已完成所有交付物，请审核")
+                .build();
+
+        when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc("TASK", 10L))
+                .thenReturn(Collections.emptyList());
+        when(taskDeliverableRepository.findByTaskIdOrderByCreatedAtDesc(10L))
+                .thenReturn(Collections.emptyList());
+
+        var dto = mapper.toDTO(task);
+
+        assertThat(dto.getCompletionNotes()).isEqualTo("已完成所有交付物，请审核");
+    }
+
+    @Test
+    @DisplayName("toDTO 映射 task_deliverables 为 deliverables DTO")
+    void toDTO_mapsDeliverables() {
+        TaskDtoMapper mapper = createMapper();
+
+        Task task = Task.builder()
+                .id(20L)
+                .projectId(10L)
+                .title("有交付物的任务")
+                .status(Task.Status.REVIEW)
+                .priority(Task.Priority.HIGH)
+                .build();
+
+        TaskDeliverable deliverable = TaskDeliverable.builder()
+                .id(300L)
+                .taskId(20L)
+                .name("投标文件.pdf")
+                .deliverableType(TaskDeliverable.DeliverableType.DOCUMENT)
+                .size("3.2MB")
+                .fileType("application/pdf")
+                .storagePath("/files/deliverable-300")
+                .version(1)
+                .uploaderId(5L)
+                .uploaderName("张三")
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc("TASK", 20L))
+                .thenReturn(Collections.emptyList());
+        when(taskDeliverableRepository.findByTaskIdOrderByCreatedAtDesc(20L))
+                .thenReturn(List.of(deliverable));
+
+        var dto = mapper.toDTO(task);
+
+        assertThat(dto.getDeliverables())
+                .as("TaskDTO.deliverables 应包含 task_deliverables 记录")
+                .isNotNull()
+                .hasSize(1);
+
+        TaskDeliverableDTO delDTO = dto.getDeliverables().get(0);
+        assertThat(delDTO.getId()).isEqualTo(300L);
+        assertThat(delDTO.getName()).isEqualTo("投标文件.pdf");
+        assertThat(delDTO.getUploaderName()).isEqualTo("张三");
+    }
+
+    @Test
+    @DisplayName("toDTO 无交付物时返回空列表")
+    void toDTO_returnsEmptyDeliverablesWhenNone() {
+        TaskDtoMapper mapper = createMapper();
+
+        Task task = Task.builder()
+                .id(30L)
+                .projectId(10L)
+                .title("无交付物任务")
+                .status(Task.Status.TODO)
+                .priority(Task.Priority.LOW)
+                .completionNotes(null)
+                .build();
+
+        when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc("TASK", 30L))
+                .thenReturn(Collections.emptyList());
+        when(taskDeliverableRepository.findByTaskIdOrderByCreatedAtDesc(30L))
+                .thenReturn(Collections.emptyList());
+
+        var dto = mapper.toDTO(task);
+
+        assertThat(dto.getCompletionNotes()).isNull();
+        assertThat(dto.getDeliverables())
+                .as("TaskDTO.deliverables 无交付物时应为空列表")
+                .isNotNull()
+                .isEmpty();
     }
 }

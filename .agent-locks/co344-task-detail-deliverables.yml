@@ -1,0 +1,15 @@
+version: 1
+task: "co344-task-detail-deliverables"
+locks:
+  - path: "backend/src/main/java/com/xiyu/bid/entity/Task.java"
+    scope: "file"
+    owner: "fix"
+    branch: "fix/CO-344-task-detail-deliverables"
+    expiresAt: "2026-06-28T12:00:00.000Z"
+    reason: "Task entity: add completionNotes field for CO-344"
+  - path: "backend/src/main/resources/db/migration-mysql/V1099__add_task_completion_notes.sql"
+    scope: "file"
+    owner: "fix"
+    branch: "fix/CO-344-task-detail-deliverables"
+    expiresAt: "2026-06-28T12:00:00.000Z"
+    reason: "Flyway migration V1099 for tasks.completion_notes column (CO-344)"
