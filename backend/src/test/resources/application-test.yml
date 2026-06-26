@@ -40,6 +40,9 @@ jwt:
   expiration: 3600000
   refresh-expiration: 7200000
 
+cors:
+  allowed-origins: http://localhost:1314,http://127.0.0.1:1314,http://localhost:1323,http://127.0.0.1:1323
+
 platform:
   account:
     encryption-key: test-platform-encryption-key-2026

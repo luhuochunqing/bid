@@ -132,15 +132,12 @@ class TaskTransitionPolicyFuzzTest {
     }
 
     @Test
-    void computeAutoStatusOnlySuggestsInProgressForTodoFirstUpload() {
+    void computeAutoStatusAlwaysReturnsCurrentStatus() {
+        // CO-361：三态模型收口，上传交付物不改变任务状态
         for (TaskStatus current : TaskStatus.values()) {
             for (int count : new int[]{0, 1, 5, 100}) {
                 TaskStatus suggested = TaskTransitionPolicy.computeAutoStatusOnDeliverable(current, count);
-                if (current == TaskStatus.TODO && count == 0) {
-                    assertThat(suggested).isEqualTo(TaskStatus.IN_PROGRESS);
-                } else {
-                    assertThat(suggested).isEqualTo(current);
-                }
+                assertThat(suggested).isEqualTo(current);
             }
         }
     }
@@ -161,14 +158,12 @@ class TaskTransitionPolicyFuzzTest {
             return true;
         }
         return switch (from) {
-            case TODO -> to == TaskStatus.IN_PROGRESS || to == TaskStatus.CANCELLED;
-            case IN_PROGRESS -> to == TaskStatus.REVIEW || to == TaskStatus.CANCELLED;
-            // PRD §3.2.2 (WS-B): REVIEW 可以前进到 COMPLETED，回退到 IN_PROGRESS，
-            // 或退回到 TODO（驳回，validateTransition(c,t,reviewComment) 强制要求 reviewComment）。
-            case REVIEW -> to == TaskStatus.COMPLETED || to == TaskStatus.IN_PROGRESS
-                    || to == TaskStatus.TODO;
+            // CO-361：三态模型收口，IN_PROGRESS 已废弃
+            case TODO -> to == TaskStatus.REVIEW || to == TaskStatus.CANCELLED;
+            case IN_PROGRESS -> false;
+            case REVIEW -> to == TaskStatus.COMPLETED || to == TaskStatus.TODO;
             case COMPLETED -> false;
-            case CANCELLED -> to == TaskStatus.TODO || to == TaskStatus.IN_PROGRESS;
+            case CANCELLED -> to == TaskStatus.TODO;
         };
     }
 }

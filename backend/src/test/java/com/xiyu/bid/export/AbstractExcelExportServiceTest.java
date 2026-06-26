@@ -25,7 +25,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
@@ -83,6 +85,8 @@ abstract class AbstractExcelExportServiceTest {
                 tenderProjectAccessGuard
         );
         lenient().when(projectAccessScopeService.currentUserHasAdminAccess()).thenReturn(true);
+        // admin 用户可见所有 tender（filterVisibleTenders 返回传入列表）
+        lenient().when(tenderProjectAccessGuard.filterVisibleTenders(any())).thenAnswer(inv -> inv.getArgument(0));
 
         testTender = Tender.builder()
                 .id(1L)

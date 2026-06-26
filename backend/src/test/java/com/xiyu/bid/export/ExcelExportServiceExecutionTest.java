@@ -120,6 +120,10 @@ class ExcelExportServiceExecutionTest extends AbstractExcelExportServiceTest {
         when(projectAccessScopeService.filterAccessibleProjects(List.of(testProject, hiddenProject)))
                 .thenReturn(List.of(testProject));
         when(projectRepository.findAll()).thenReturn(List.of(testProject, hiddenProject));
+        when(tenderProjectAccessGuard.filterVisibleTenders(any())).thenAnswer(inv -> {
+            List<Tender> input = inv.getArgument(0);
+            return input.stream().filter(t -> t.getId() != null && t.getId().equals(testTender.getId())).toList();
+        });
         when(tenderRepository.findAll(any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(page)
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(1, 1000), 2));
@@ -147,6 +151,10 @@ class ExcelExportServiceExecutionTest extends AbstractExcelExportServiceTest {
         when(projectAccessScopeService.filterAccessibleProjects(List.of(testProject)))
                 .thenReturn(List.of(testProject));
         when(projectRepository.findAll()).thenReturn(List.of(testProject));
+        when(tenderProjectAccessGuard.filterVisibleTenders(any())).thenAnswer(inv -> {
+            List<Tender> input = inv.getArgument(0);
+            return input.stream().filter(t -> t.getId() != null && t.getId().equals(testTender.getId())).toList();
+        });
         when(tenderRepository.findAll(any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(page)
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(1, 1000), 2));

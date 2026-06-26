@@ -74,16 +74,15 @@ class InitiationFieldPolicyTest {
     }
 
     @Test
-    void missingExpectedBidders_denied() {
+    void missingExpectedBidders_allowed_after_CO347() {
+        // CO-347: expectedBidders 改为可选
         var in = new InitiationFieldPolicy.InitiationInput("国网", 0, 12,
                 InitiationFieldPolicy.ProjectType.OFFICE,
                 InitiationFieldPolicy.CustomerType.CENTRAL_SOE,
                 new BigDecimal("1"), null, LocalDateTime.now(), 1L, "部门",
                 new BigDecimal("1"), "汇票", "NO", null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null);
-        var deny = assertInstanceOf(InitiationFieldPolicy.Decision.Deny.class,
-                InitiationFieldPolicy.validate(in));
-        assertTrue(deny.missingFields().contains("expectedBidders"));
+        assertTrue(InitiationFieldPolicy.validate(in).allowed());
     }
 
     @Test
@@ -97,26 +96,26 @@ class InitiationFieldPolicyTest {
     }
 
     @Test
-    void missingCustomerType_denied() {
+    void missingCustomerType_allowed_after_CO347() {
+        // CO-347: customerType 改为可选
         var in = new InitiationFieldPolicy.InitiationInput("国网", 3, 12,
                 InitiationFieldPolicy.ProjectType.OFFICE,
                 null, new BigDecimal("1"), null, LocalDateTime.now(), 1L, "部门",
                 new BigDecimal("1"), "汇票", "NO", null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null);
-        assertTrue(((InitiationFieldPolicy.Decision.Deny)
-                InitiationFieldPolicy.validate(in)).missingFields().contains("customerType"));
+        assertTrue(InitiationFieldPolicy.validate(in).allowed());
     }
 
     @Test
-    void missingAnnualRevenue_denied() {
+    void missingAnnualRevenue_allowed_after_CO347() {
+        // CO-347: annualRevenue 改为可选
         var in = new InitiationFieldPolicy.InitiationInput("国网", 3, 12,
                 InitiationFieldPolicy.ProjectType.OFFICE,
                 InitiationFieldPolicy.CustomerType.CENTRAL_SOE,
                 BigDecimal.ZERO, null, LocalDateTime.now(), 1L, "部门",
                 new BigDecimal("1"), "汇票", "NO", null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null);
-        assertTrue(((InitiationFieldPolicy.Decision.Deny)
-                InitiationFieldPolicy.validate(in)).missingFields().contains("annualRevenue"));
+        assertTrue(InitiationFieldPolicy.validate(in).allowed());
     }
 
     @Test

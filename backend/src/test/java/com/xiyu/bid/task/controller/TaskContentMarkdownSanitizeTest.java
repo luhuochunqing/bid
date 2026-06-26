@@ -7,6 +7,7 @@ import com.xiyu.bid.config.SecurityConfig;
 import com.xiyu.bid.task.dto.TaskDTO;
 import com.xiyu.bid.task.service.TaskActivityService;
 import com.xiyu.bid.task.service.TaskService;
+import com.xiyu.bid.user.service.AssignmentCandidateAppService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,6 +52,9 @@ class TaskContentMarkdownSanitizeTest {
 
     @MockBean
     private TaskActivityService taskActivityService;
+
+    @MockBean
+    private AssignmentCandidateAppService assignmentCandidateAppService;
 
     @Test
     @WithMockUser(roles = "MANAGER")

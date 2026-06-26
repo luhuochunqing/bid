@@ -26,7 +26,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class ProjectStageTransitionedAuditListener {
 
-    private final AuditLogService auditLogService;
+    private final IAuditLogService auditLogService;
 
     @EventListener
     public void onStageTransitioned(ProjectStageTransitionedEvent event) {
