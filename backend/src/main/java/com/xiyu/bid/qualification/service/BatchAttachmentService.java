@@ -14,6 +14,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -141,7 +142,10 @@ public class BatchAttachmentService {
             sequence = 1;
         }
 
-        BusinessQualificationEntity entity = repository.findByCertificateNo(certificateNo).orElse(null);
+        List<BusinessQualificationEntity> entities = repository.findAllByCertificateNo(certificateNo);
+        BusinessQualificationEntity entity = entities.stream()
+                .max(Comparator.comparingLong(BusinessQualificationEntity::getId))
+                .orElse(null);
         if (entity == null) {
             unmatched.add(BatchAttachResultDTO.UnmatchedItem.builder()
                     .fileName(originalName).reason("证书编号不存在").build());
