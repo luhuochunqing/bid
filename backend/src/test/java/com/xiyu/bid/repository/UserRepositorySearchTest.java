@@ -43,7 +43,10 @@ class UserRepositorySearchTest {
     }
 
     @Test
-    void searchActiveUsers_ExcludesDisabledUsers() {
+    void searchActiveUsers_IncludesDisabledUsersWithFullName() {
+        // 选人场景：组织同步进来的真实员工即使 enabled=false（不确定登录权限）
+        // 也应能被搜到选中——enabled 只管登录，不该过滤选人。
+        // 详见 docs/implementation-notes/user-picker-unify-pinyin.md 的 enabled 语义决策。
         User user = User.builder()
             .username("lisi")
             .email("lisi@example.com")
@@ -57,6 +60,59 @@ class UserRepositorySearchTest {
         entityManager.flush();
 
         List<User> results = userRepository.searchActiveUsers("E010", 10);
+
+        assertThat(results)
+            .extracting(User::getFullName)
+            .contains("李四");
+    }
+
+    @Test
+    void searchActiveUsers_RanksEnabledUsersBeforeDisabled() {
+        // enabled 用户排在前面（优先选可登录的），disabled 排后面
+        User disabled = User.builder()
+            .username("wangwu")
+            .email("wangwu@example.com")
+            .password("p")
+            .fullName("王五")
+            .employeeNumber("E011")
+            .role(User.Role.MANAGER)
+            .enabled(false)
+            .build();
+        User enabled = User.builder()
+            .username("wangliu")
+            .email("wangliu@example.com")
+            .password("p")
+            .fullName("王六")
+            .employeeNumber("E012")
+            .role(User.Role.MANAGER)
+            .enabled(true)
+            .build();
+        entityManager.persist(disabled);
+        entityManager.persist(enabled);
+        entityManager.flush();
+
+        List<User> results = userRepository.searchActiveUsers("王", 10);
+
+        assertThat(results).extracting(User::getFullName).containsExactly("王六", "王五");
+    }
+
+    @Test
+    void searchActiveUsers_ExcludesUsersWithoutFullName() {
+        // 空姓名的脏数据/测试账号不应出现在选人结果（full_name 列有 NOT NULL 约束，
+        // 但同步数据可能写入空串，SQL 用 <> '' 排除）
+        User noName = User.builder()
+            .username("probe_123")
+            .email("probe@example.com")
+            .password("p")
+            .fullName("")
+            .employeeNumber("E013")
+            .role(User.Role.MANAGER)
+            .enabled(true)
+            .build();
+        entityManager.persist(noName);
+        entityManager.flush();
+
+        List<User> results = userRepository.searchActiveUsers("E013", 10);
 
         assertThat(results).isEmpty();
     }
