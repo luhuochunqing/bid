@@ -1,0 +1,9 @@
+version: 1
+task: "co362-personnel-missing-columns"
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql/V1103__repair_personnel_missing_columns.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/zcode/fix-co362-personnel-missing-columns"
+    expiresAt: "2026-06-27T13:00:00.000Z"
+    reason: "V1103 migration to repair personnel_certificate/personnel_education missing columns (CO-362)"
