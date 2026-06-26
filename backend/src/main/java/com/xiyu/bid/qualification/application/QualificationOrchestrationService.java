@@ -50,13 +50,7 @@ public class QualificationOrchestrationService {
     }
 
     public QualificationDTO retireQualification(Long id, String reason) {
-        var domainObj = listQualificationsAppService.get(id);
-        var dto = mapper.toDto(domainObj);
-        dto.setRetireReason(reason);
-        var command = mapper.toUpsertCommand(dto);
-        var retiredCommand = command.toBuilder().retired(true).build();
-        updateQualificationAppService.update(id, retiredCommand);
-        return mapper.toDto(listQualificationsAppService.get(id));
+        return mapper.toDto(updateQualificationAppService.retire(id, reason));
     }
 
     public QualificationDTO restoreQualification(Long id) {
