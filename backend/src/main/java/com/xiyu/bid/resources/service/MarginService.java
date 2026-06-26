@@ -26,9 +26,13 @@ public class MarginService {
      * @return map with totalPaid, totalPending, etc.
      */
     public Map<String, Object> getSummary(final Long uid, final String role) {
+        MarginQueryRole policy = MarginQueryRole.from(role);
         StringBuilder sql = MarginQuerySupport.summaryBase();
-        MarginQuerySupport.appendRole(sql, uid, role, "p", "pid");
+        sql.append(policy.apply("p", "pid"));
         Query query = em.createNativeQuery(sql.toString());
+        if (policy.needsUidParam() && uid != null) {
+            query.setParameter("muid", uid);
+        }
         Object[] row = (Object[]) query.getSingleResult();
         return Map.of(
                 "totalPaid", toDecimal(row[0]),
@@ -44,11 +48,15 @@ public class MarginService {
             final Long uid, final String role,
             final Map<String, String> f,
             final int page, final int size) {
+        MarginQueryRole policy = MarginQueryRole.from(role);
         StringBuilder sql = MarginQuerySupport.listBase();
-        MarginQuerySupport.appendRole(sql, uid, role, "p", "pid");
+        sql.append(policy.apply("p", "pid"));
         MarginQuerySupport.appendFilters(sql, f);
         sql.append(" ORDER BY f.created_at DESC");
         Query query = em.createNativeQuery(sql.toString());
+        if (policy.needsUidParam() && uid != null) {
+            query.setParameter("muid", uid);
+        }
         MarginQuerySupport.setParams(query, f);
         query.setFirstResult((page - 1) * size);
         query.setMaxResults(size);
@@ -61,10 +69,14 @@ public class MarginService {
     public long getCount(
             final Long uid, final String role,
             final Map<String, String> f) {
+        MarginQueryRole policy = MarginQueryRole.from(role);
         StringBuilder sql = MarginQuerySupport.countBase();
-        MarginQuerySupport.appendRole(sql, uid, role, "p", "pid");
+        sql.append(policy.apply("p", "pid"));
         MarginQuerySupport.appendFilters(sql, f);
         Query query = em.createNativeQuery(sql.toString());
+        if (policy.needsUidParam() && uid != null) {
+            query.setParameter("muid", uid);
+        }
         MarginQuerySupport.setParams(query, f);
         return ((Number) query.getSingleResult()).longValue();
     }

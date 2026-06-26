@@ -24,13 +24,14 @@ enum MarginQueryRole {
 
     ADMIN((pa, pi) -> ""),
     MANAGER((pa, pi) -> ""),
-    STAFF(MarginQueryRole::staffFragment),
-    BID_TEAM(MarginQueryRole::staffFragment),
-    BID_PROJECTLEADER(MarginQueryRole::ownerFragment),
-    BID_TEAMLEADER(MarginQueryRole::ownerFragment),
-    UNKNOWN(MarginQueryRole::staffFragment);
+    STAFF(MarginQueryRole::staffFragment, true),
+    BID_TEAM(MarginQueryRole::staffFragment, true),
+    BID_PROJECTLEADER(MarginQueryRole::ownerFragment, true),
+    BID_TEAMLEADER(MarginQueryRole::ownerFragment, true),
+    UNKNOWN(MarginQueryRole::staffFragment, true);
 
     private final BiFunction<String, String, String> fragment;
+    private final boolean uidParam;
 
     /** Case-insensitive lookup mapping role strings to policies.
      *  从 {@link RoleProfileCatalog} 派生，避免硬编码角色码。 */
@@ -58,6 +59,13 @@ enum MarginQueryRole {
 
     MarginQueryRole(final BiFunction<String, String, String> fragment) {
         this.fragment = fragment;
+        this.uidParam = false;
+    }
+
+    MarginQueryRole(final BiFunction<String, String, String> fragment,
+                    final boolean uidParam) {
+        this.fragment = fragment;
+        this.uidParam = uidParam;
     }
 
     /** Resolve a runtime role string to a typed policy, defaulting to UNKNOWN. */
@@ -71,6 +79,14 @@ enum MarginQueryRole {
     /** SQL fragment ({@code AND (...)} or empty) for this role. */
     String apply(final String pa, final String pi) {
         return fragment.apply(pa, pi);
+    }
+
+    /**
+     * Whether this role's SQL fragment references {@code :muid}, requiring
+     * the caller to bind the parameter before executing the query.
+     */
+    boolean needsUidParam() {
+        return uidParam;
     }
 
     private static String staffFragment(final String pa, final String pi) {
