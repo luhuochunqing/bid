@@ -1,3 +1,12 @@
+-- Input: V1101__normalize_in_progress_tasks.sql
+-- Output: 将 V1101 归一为 TODO 的任务恢复为 IN_PROGRESS
+-- Pos: db/rollback/migration-mysql/U1101__normalize_in_progress_tasks.sql
+-- 维护声明: 回滚 V1101 三态模型收口迁移；仅用于紧急回滚，生产不应触发
+-- Backout strategy: V1101 未记录受影响 ID，无法精确回滚；如需还原 IN_PROGRESS，
+--   需从 V1101 执行前备份恢复。默认 no-op（注释保留占位）。
+-- Idempotency: 默认 no-op，幂等。
+-- Forward: db/migration-mysql/V1101__normalize_in_progress_tasks.sql
+
 -- CO-361 回滚：将归一的 TODO 任务改回 IN_PROGRESS（仅作回滚用，生产不应触发）
 -- UPDATE tasks SET status = 'IN_PROGRESS' WHERE status = 'TODO' AND id IN (
 --     -- 如需精确回滚，需在原始迁移中记录受影响 ID

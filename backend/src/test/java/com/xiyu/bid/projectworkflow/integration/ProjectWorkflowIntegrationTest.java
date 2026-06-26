@@ -67,14 +67,14 @@ class ProjectWorkflowIntegrationTest extends AbstractProjectWorkflowIntegrationT
         Long taskId = objectMapper.readTree(taskResponse).path("data").path("id").asLong();
 
         ProjectTaskStatusUpdateRequest statusRequest = ProjectTaskStatusUpdateRequest.builder()
-                .status(ProjectTaskStatusUpdateRequest.Status.IN_PROGRESS)
+                .status(ProjectTaskStatusUpdateRequest.Status.REVIEW)
                 .build();
 
         mockMvc.perform(patch("/api/projects/{projectId}/tasks/{taskId}/status", project.getId(), taskId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(statusRequest)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("doing"));
+                .andExpect(jsonPath("$.data.status").value("review"));
 
         mockMvc.perform(get("/api/projects/{projectId}/tasks", project.getId()))
                 .andExpect(status().isOk())
@@ -136,7 +136,7 @@ class ProjectWorkflowIntegrationTest extends AbstractProjectWorkflowIntegrationT
                 .andExpect(jsonPath("$.success").value(true));
 
         assertThat(taskRepository.findByProjectId(project.getId())).hasSize(1);
-        assertThat(taskRepository.findByProjectId(project.getId()).get(0).getStatus()).isEqualTo(Task.Status.IN_PROGRESS);
+        assertThat(taskRepository.findByProjectId(project.getId()).get(0).getStatus()).isEqualTo(Task.Status.REVIEW);
         assertThat(projectDocumentRepository.findByProjectIdOrderByCreatedAtDesc(project.getId())).isEmpty();
         assertThat(projectReminderRepository.findByProjectIdOrderByRemindAtDesc(project.getId())).hasSize(1);
         assertThat(projectShareLinkRepository.findByProjectIdOrderByCreatedAtDesc(project.getId())).hasSize(1);
