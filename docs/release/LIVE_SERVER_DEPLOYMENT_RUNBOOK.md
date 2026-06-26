@@ -2,6 +2,8 @@
 
 本文记录西域数智化投标管理平台当前客户测试服务器的完整部署流程。该流程基于 2026-05-27 实际部署复盘整理，适用于 `172.16.38.78` 这台 `winbid-01.test` 服务器。
 
+> **2026-06-26 更新（第 3 次部署）**：补充 6 处实战经验——(1) §4 前端生产构建强制同源 baseURL=""（`rg` 检查会误判）；(2) §5 一次性 key 缺失时复用既有部署密钥的应急路径；(3) §7 MariaDB 客户端不认 `--set-gtid-purged`、DB 密码引号须 source 解析；(4) §8 必须同步上传 `flyway-repair-runner.sh`；(5) §9 显式传入 `FLYWAY_REPAIR_RUNNER` 环境变量；(6) §10 smoke 检测位置局限 + webhook 类改动验证方法；(7) §13.4 shutdown 异常根因（jar 被 cp 覆盖后旧 class loader 失效）。
+
 > 不要把 Jumpserver、数据库、smoke 账号密码写入本文或提交到仓库。密码只允许从安全渠道获取，并通过交互输入或临时环境变量使用。
 
 ## 1. 环境事实
@@ -86,6 +88,9 @@ rg "172\\.16\\.38\\.78:8080" ".release/${RELEASE_ID}/frontend/assets"/*.js
 
 注意：当前前端配置代码中可能仍包含 `127.0.0.1` 作为兜底常量。判断是否可发的关键是构建产物中必须出现实际注入值 `VITE_API_BASE_URL:"http://172.16.38.78:8080"` 或等价内容。
 
+> **生产构建同源强约束（自 2026-06-26 确认）**：`src/api/config.js` 在 `import.meta.env.PROD` 为真（即生产构建）时**强制 `baseURL=""`（同源）**，会忽略 `VITE_API_BASE_URL`。这是跨域 bug 复发 3 次后在代码层强制的不可绕过约束。因此生产构建产物中 `rg "172.16.38.78:8080"` **不会命中**是预期行为——前端通过浏览器当前 origin + nginx 反代访问后端，无跨域风险。`release-metadata.json` 里记录的 `apiBaseUrl` 是构建时传入的环境变量值，**非前端运行时实际取值**。
+> 判断可发性的正确方式：看 `package-release.sh` 内的 `check:frontend-api-base` 步骤是否通过，而非 grep 产物中的 IP。
+
 ## 5. 进入服务器
 
 优先走 Jumpserver 菜单：
@@ -126,6 +131,14 @@ ssh -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" \
   -o StrictHostKeyChecking=accept-new \
   jetty@172.16.38.78 'hostname; date; whoami'
 ```
+
+> **密钥缺失应急路径**：若一次性 key `/tmp/xiyu-prod-deploy-${RELEASE_ID}` 未生成或已过期，且服务器上仍残留可用的部署公钥，可复用既有密钥（如 `~/.ssh/xiyu_cursor_deploy`）应急：
+> ```bash
+> ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+>   -i ~/.ssh/xiyu_cursor_deploy jetty@172.16.38.78 \
+>   'echo SSH_OK; sudo -n true && echo SUDO_NOPASS_OK'
+> ```
+> 需同时验证连通性与 sudo 免密。这是第 3 次部署（2026-06-26）采用的方案。正式发布仍推荐一次性 key，复用既有 key 前应确认其未泄露。
 
 ## 6. 服务器预检
 
@@ -222,6 +235,9 @@ ssh -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" jetty@172.16.38.78 '
 
 备份完成后，把路径、大小、SHA256 和 Flyway 行数记录到发布记录中。
 
+> **mysqldump 客户端兼容性（2026-06-26 踩坑）**：服务器上 `mysqldump` 可能是 MariaDB 客户端（实测 `mysqldump 10.19 (MariaDB)` 连 MySQL `8.0.43` 服务端）。MariaDB 客户端**不认 `--set-gtid-purged=OFF`**（这是 MySQL 原生客户端选项），会报 `unknown variable`。上面命令未包含该选项，保持兼容。若改用 MySQL 原生客户端可加回该选项。同理 `--hex-blob`/`--no-tablespaces` 两者都兼容。
+> **DB 密码引号处理**：`/etc/xiyu-bid/backend.env` 里 `DB_PASSWORD='xxx'` 带单引号，**必须用 `set -a; . /etc/xiyu-bid/backend.env; set +a` source 解析**，不能 `grep | cut -d=`（会把引号当密码一部分，导致 `Access denied`）。上面命令的 `source` 方式已正确处理。
+
 ## 8. 上传发布包
 
 主路径：上传全量 release archive。
@@ -234,6 +250,12 @@ scp -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" \
 scp -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" \
   scripts/release/remote-deploy.sh \
   jetty@172.16.38.78:"/opt/xiyu-bid/incoming/remote-deploy-${RELEASE_ID}.sh"
+
+# validate 预检依赖（自 2026-06-26）：必须同步上传 repair-runner，否则 remote-deploy.sh 的 FLYWAY_REPAIR_RUNNER 路径找不到
+scp -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" \
+  scripts/release/flyway-repair-runner.sh \
+  jetty@172.16.38.78:"/tmp/flyway-repair-runner.sh"
+ssh -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" jetty@172.16.38.78 'chmod +x /tmp/flyway-repair-runner.sh'
 ```
 
 如果直连网络抖动，优先尝试：
@@ -266,6 +288,7 @@ ssh -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" jetty@172.16.38.78 "
   DEPLOYED_RELEASE_RECORD=/opt/xiyu-bid/deployed-release.json \
   HEALTHCHECK_URL=http://127.0.0.1:8080/actuator/health \
   SYSTEMCTL_SUDO=true \
+  FLYWAY_REPAIR_RUNNER=/tmp/flyway-repair-runner.sh \
   bash /opt/xiyu-bid/incoming/remote-deploy-${RELEASE_ID}.sh
 "
 ```
@@ -334,6 +357,18 @@ Go / No-Go：
 - 登录可拿到 token
 - CRM page-list smoke 通过；客户测试服务器应使用 `CRM_SMOKE_MODE=required`，空商机或 409 都是 NO-GO
 - `nginx` 和 `xiyu-bid-backend` 都是 `active`
+
+> **smoke "检测位置局限"（2026-06-26 踩坑）**：`run-prod-smoke.mjs` 的"生产前端首页可访问"检查项从**执行机本地**发起 HTTP 请求到 `PRODUCTION_WEB_BASE_URL`。若执行机（如开发机）到客户网段只有 `:8080` 端口可达、`:80` 端口被路由/防火墙拦截，该项会报 `fetch failed`（P0 失败），但这**不代表服务器前端有问题**。处置：在服务器侧 `curl -sSI http://127.0.0.1/` 验证 nginx 200 + 检查 `index-*.js` 是否与 release 包一致。若服务器侧正常，该项可判为"检测位置局限"豁免，其余 14 项全绿即可 Go。
+>
+> **webhook 类业务改动验证方法**：当本次部署含 CRM 回调字段变更（如 CO-346 的 `systemName`、`OperatorDisplayName`），smoke 工具不直接测 webhook 投递。验证方式是查 `webhook_delivery_tasks` 表，对比**部署前后**的 `payload` 字段是否含新增字段：
+> ```bash
+> ssh -i /tmp/xiyu-prod-deploy-${RELEASE_ID} jetty@172.16.38.78 '
+>   set -a; . /etc/xiyu-bid/backend.env; set +a
+>   MYSQL_PWD="$DB_PASSWORD" mysql -h "$DB_HOST" -u "${DB_USERNAME:-$DB_USER}" "$DB_NAME" -e \
+>     "SELECT id, status, LEFT(payload,400) as payload, created_at FROM webhook_delivery_tasks ORDER BY id DESC LIMIT 5\G"
+> '
+> ```
+> 部署前记录一次、部署后触发一次状态变更再记录一次，对比 payload 字段差异即可确认改动是否生效。注意终端可能中文乱码（MySQL client charset），看字段**结构**而非值。
 
 ## 11. 清理
 
@@ -435,6 +470,10 @@ systemctl is-active xiyu-bid-backend
 curl -fsS http://127.0.0.1:8080/actuator/health
 sudo journalctl -u xiyu-bid-backend --since "10 min ago" --no-pager
 ```
+
+**根因（2026-06-26 第 3 次部署确认）**：`remote-deploy.sh` 用 `cp` 覆盖 `/opt/xiyu-bid/shared/backend/app.jar` **后才** `systemctl restart`。旧进程收到 SIGTERM 后执行 Spring Boot 的 GracefulShutdown 回调，此时 jar 已被新文件覆盖，旧 class loader 尝试加载 `GracefulShutdownCallback`/`Lifecycle$SingleUse`/netty 类时找不到（`NoClassDefFoundError`/`ClassNotFoundException`）。这是 **stop 阶段的非致命异常**——旧进程本就要退出，shutdown 回调失败不影响新进程启动。新进程用全新 class loader 加载新 jar，正常。
+常见异常类名（无需处置，仅供识别）：`org.springframework.boot.web.servlet.context.GracefulShutdownLifecycleHandler`、`reactor.netty` 相关。
+若需消除该 WARN，需将 `remote-deploy.sh` 改为"先 stop → 再 cp jar → 再 start"序列（会引入服务中断窗口，当前为权衡后保持"先 cp → 再 restart"以缩短停机）。
 
 ### 13.5 Flyway checksum mismatch / 后端启动失败
 
