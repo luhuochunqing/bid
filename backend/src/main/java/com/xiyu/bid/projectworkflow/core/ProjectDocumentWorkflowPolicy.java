@@ -82,7 +82,7 @@ public final class ProjectDocumentWorkflowPolicy {
         if (viewDecision.allowed()) {
             return AuthorizationDecision.permit();
         }
-        return AuthorizationDecision.deny("权限不足，无权下载项目文档");
+        return AuthorizationDecision.deny(viewDecision.reason());
     }
 
     /**

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.projectworkflow.dto.ProjectScoreDraftGenerateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectScoreDraftUpdateRequest;
@@ -74,6 +75,7 @@ class ProjectWorkflowServiceTest {
                 projectDocumentRepository,
                 userRepository,
                 mock(ProjectLeadAssignmentRepository.class),
+                mock(ProjectMemberRepository.class),
                 new ProjectDocumentViewAssembler(),
                 mock(ProjectDocumentBindingGateway.class),
                 mock(CurrentUserResolver.class)
