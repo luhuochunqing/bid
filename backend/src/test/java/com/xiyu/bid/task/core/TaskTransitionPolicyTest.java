@@ -15,11 +15,12 @@ class TaskTransitionPolicyTest {
     }
 
     @Test
-    void validateTransition_ShouldAllowTodoToInProgress() {
+    void validateTransition_ShouldRejectTodoToInProgress() {
+        // CO-361：三态模型收口，IN_PROGRESS 已废弃，TODO 不能转为 IN_PROGRESS
         var result = TaskTransitionPolicy.validateTransition(
                 TaskTransitionPolicy.TaskStatus.TODO,
                 TaskTransitionPolicy.TaskStatus.IN_PROGRESS);
-        assertThat(result.allowed()).isTrue();
+        assertThat(result.allowed()).isFalse();
     }
 
     @Test
@@ -31,19 +32,25 @@ class TaskTransitionPolicyTest {
     }
 
     @Test
-    void validateTransition_ShouldAllowInProgressToReview() {
+    void validateTransition_ShouldRejectInProgressToReview() {
+        // CO-361：三态模型收口，IN_PROGRESS 已废弃，不能转为 REVIEW
         var result = TaskTransitionPolicy.validateTransition(
                 TaskTransitionPolicy.TaskStatus.IN_PROGRESS,
                 TaskTransitionPolicy.TaskStatus.REVIEW);
-        assertThat(result.allowed()).isTrue();
+        assertThat(result.allowed()).isFalse();
     }
 
     @Test
-    void validateTransition_ShouldAllowInProgressBackToTodo() {
-        var result = TaskTransitionPolicy.validateTransition(
-                TaskTransitionPolicy.TaskStatus.IN_PROGRESS,
-                TaskTransitionPolicy.TaskStatus.TODO);
-        assertThat(result.allowed()).isTrue();
+    void validateTransition_ShouldRejectInProgressToAny() {
+        // CO-361：IN_PROGRESS 状态不允许转换到任何状态（只能通过数据迁移归一为 TODO）
+        for (TaskTransitionPolicy.TaskStatus target : TaskTransitionPolicy.TaskStatus.values()) {
+            if (target == TaskTransitionPolicy.TaskStatus.IN_PROGRESS) continue;
+            var result = TaskTransitionPolicy.validateTransition(
+                    TaskTransitionPolicy.TaskStatus.IN_PROGRESS, target);
+            assertThat(result.allowed())
+                    .as("IN_PROGRESS -> %s should be denied", target)
+                    .isFalse();
+        }
     }
 
     @Test
@@ -71,15 +78,21 @@ class TaskTransitionPolicyTest {
     }
 
     @Test
-    void validateTransition_ShouldAllowCancelledReactivation() {
-        var r1 = TaskTransitionPolicy.validateTransition(
-                TaskTransitionPolicy.TaskStatus.CANCELLED,
-                TaskTransitionPolicy.TaskStatus.TODO);
-        var r2 = TaskTransitionPolicy.validateTransition(
+    void validateTransition_ShouldRejectCancelledToInProgress() {
+        // CO-361：三态模型收口，CANCELLED 只能转回 TODO，不允许转 IN_PROGRESS
+        var result = TaskTransitionPolicy.validateTransition(
                 TaskTransitionPolicy.TaskStatus.CANCELLED,
                 TaskTransitionPolicy.TaskStatus.IN_PROGRESS);
-        assertThat(r1.allowed()).isTrue();
-        assertThat(r2.allowed()).isTrue();
+        assertThat(result.allowed()).isFalse();
+    }
+
+    @Test
+    void validateTransition_ShouldAllowCancelledToTodo() {
+        // CANCELLED 可以转回 TODO（重新激活任务）
+        var result = TaskTransitionPolicy.validateTransition(
+                TaskTransitionPolicy.TaskStatus.CANCELLED,
+                TaskTransitionPolicy.TaskStatus.TODO);
+        assertThat(result.allowed()).isTrue();
     }
 
     @Test

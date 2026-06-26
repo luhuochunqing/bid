@@ -80,7 +80,7 @@ public class TaskService {
                 .assigneeDeptName(assignment.assigneeDeptName())
                 .assigneeRoleCode(assignment.assigneeRoleCode())
                 .assigneeRoleName(assignment.assigneeRoleName())
-                .status(taskDTO.getStatus() != null ? taskDTO.getStatus() : Task.Status.TODO)
+                .status(Task.Status.TODO)
                 .priority(taskDTO.getPriority() != null ? taskDTO.getPriority() : Task.Priority.MEDIUM)
                 .dueDate(taskDTO.getDueDate())
                 .extendedFieldsJson(taskDtoMapper.serializeExtendedFields(taskDTO.getExtendedFields()))
@@ -128,7 +128,10 @@ public class TaskService {
             assignmentSupport.applyAssignment(task, assignmentSupport.resolveAssignmentSnapshot(assignmentRequestFrom(taskDTO), null));
         }
         if (taskDTO.getStatus() != null) {
-            task.setStatus(taskDTO.getStatus());
+            // CO-361 三态模型收口：IN_PROGRESS 已废弃，归一为 TODO
+            Task.Status normalized = (taskDTO.getStatus() == Task.Status.IN_PROGRESS)
+                    ? Task.Status.TODO : taskDTO.getStatus();
+            task.setStatus(normalized);
         }
         if (taskDTO.getPriority() != null) {
             task.setPriority(taskDTO.getPriority());
@@ -198,8 +201,11 @@ public class TaskService {
         Task task = findTask(id);
         assertCanAccessProject(task.getProjectId());
         taskPermissionGuard.assertCanTransitionTaskStatus(task, status);
+        // CO-361 三态模型收口：IN_PROGRESS 已废弃，归一为 TODO
+        Task.Status normalized = (status == Task.Status.IN_PROGRESS)
+                ? Task.Status.TODO : status;
         Task before = TaskSnapshots.copy(task);
-        task.setStatus(status);
+        task.setStatus(normalized);
         Task saved = taskRepository.save(task);
         taskHistoryRecorder.recordUpdate(before, saved, actorUsername);
         return taskDtoMapper.toDTO(saved, resolveAssigneeName(saved.getAssigneeId()));
