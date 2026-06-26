@@ -7,6 +7,7 @@ import com.xiyu.bid.crm.domain.AssignmentResult;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.RoleProfileCatalog;
+import com.xiyu.bid.integration.external.ProjectManagerIdResolver;
 import com.xiyu.bid.tender.entity.TenderAttachment;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
@@ -58,6 +59,7 @@ public class TenderCommandService {
     private final TenderAttachmentRepository attachmentRepository;
     private final TenderCrmOccupancyChecker crmOccupancyChecker;
     private final TenderEvaluationBackfillService evaluationBackfillService;
+    private final ProjectManagerIdResolver projectManagerIdResolver;
     private final TenderAssignmentRecordRepository assignmentRecordRepository;
     private final TenderAuditService tenderAuditService;
 
@@ -165,16 +167,18 @@ public class TenderCommandService {
         return false;
     }
 
-    private void applyAssignmentResult(Tender tender, AssignmentResult result) {
-        if (result.projectManagerId() != null) {
-            try {
-                tender.setProjectManagerId(Long.valueOf(result.projectManagerId()));
-            } catch (NumberFormatException e) {
-                log.warn("Cannot convert projectManagerId '{}' to Long for tender {}",
-                        result.projectManagerId(), tender.getId());
+    void applyAssignmentResult(Tender tender, AssignmentResult result) {
+        tender.setProjectManagerName(result.projectManagerName());
+        if (result.projectManagerName() != null) {
+            Long resolvedId = projectManagerIdResolver.resolveByFullName(result.projectManagerName());
+            if (resolvedId != null) {
+                tender.setProjectManagerId(resolvedId);
+            } else {
+                log.warn("Auto-assignment: projectManagerName '{}' cannot be resolved to a user id, "
+                        + "projectManagerId remains null for tender {}",
+                        result.projectManagerName(), tender.getId());
             }
         }
-        tender.setProjectManagerName(result.projectManagerName());
         tender.setDepartment(result.departmentName());
     }
 

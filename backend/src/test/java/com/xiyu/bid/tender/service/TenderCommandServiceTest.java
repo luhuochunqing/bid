@@ -15,6 +15,7 @@ import com.xiyu.bid.service.ProjectAccessScopeService;
 import com.xiyu.bid.task.service.TaskService;
 import com.xiyu.bid.tender.dto.TenderAttachmentDTO;
 import com.xiyu.bid.tender.dto.TenderDTO;
+import com.xiyu.bid.integration.external.ProjectManagerIdResolver;
 import com.xiyu.bid.tender.entity.TenderAttachment;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -71,6 +72,8 @@ class TenderCommandServiceTest {
     private TenderCrmOccupancyChecker crmOccupancyChecker;
     @Mock
     private TenderAuditService tenderAuditService;
+    @Mock
+    private ProjectManagerIdResolver projectManagerIdResolver;
 
     private TenderCommandService tenderCommandService;
     private TenderMapper tenderMapper;
@@ -90,6 +93,7 @@ class TenderCommandServiceTest {
                 autoAssignmentService, eventPublisher, userRepository, notificationAppService,
                 assignmentNotifier, tenderAttachmentRepository, crmOccupancyChecker,
                 null, // CO-310: TenderEvaluationBackfillService（本测试不涉及回填）
+                projectManagerIdResolver,
                 tenderAssignmentRecordRepository,
                 tenderAuditService);
 
@@ -172,11 +176,12 @@ class TenderCommandServiceTest {
         });
         when(autoAssignmentService.autoAssignIfPossible(any(Tender.class))).thenReturn(
                 AssignmentResult.success("CRM-001", "1001", "张三", "DEPT-001", "销售部"));
+        when(projectManagerIdResolver.resolveByFullName("张三")).thenReturn(100L);
 
         TenderDTO savedDto = tenderCommandService.createTender(tenderDTO);
 
         assertThat(savedDto.getStatus()).isEqualTo(Tender.Status.TRACKING);
-        assertThat(savedDto.getProjectManagerId()).isEqualTo(1001L);
+        assertThat(savedDto.getProjectManagerId()).isEqualTo(100L);
         assertThat(savedDto.getProjectManagerName()).isEqualTo("张三");
         assertThat(savedDto.getDepartment()).isEqualTo("销售部");
         verify(tenderRepository, times(2)).save(any(Tender.class));
@@ -360,5 +365,67 @@ class TenderCommandServiceTest {
         assertThat(ex.getCode()).isEqualTo(409);
         assertThat(ex.getHttpStatus().value()).isEqualTo(409);
         verify(tenderRepository, never()).save(any(Tender.class));
+    }
+
+    // ── CO-333: applyAssignmentResult 用姓名解析 User.id（而非工号强转） ──────────
+
+    @Test
+    @DisplayName("CO-333: applyAssignmentResult_姓名唯一匹配_设置正确的 projectManagerId")
+    void applyAssignmentResult_uniqueNameMatch_setsCorrectUserId() {
+        AssignmentResult result = AssignmentResult.success(
+                "crm-1", "08687", "王凯毅", "dept-1", "销售一部");
+
+        when(projectManagerIdResolver.resolveByFullName("王凯毅")).thenReturn(42L);
+
+        tenderCommandService.applyAssignmentResult(tender, result);
+
+        assertThat(tender.getProjectManagerName()).isEqualTo("王凯毅");
+        assertThat(tender.getProjectManagerId()).isEqualTo(42L);
+        assertThat(tender.getDepartment()).isEqualTo("销售一部");
+        verify(projectManagerIdResolver).resolveByFullName("王凯毅");
+    }
+
+    @Test
+    @DisplayName("CO-333: applyAssignmentResult_姓名无匹配_projectManagerId 保持 null")
+    void applyAssignmentResult_noNameMatch_managerIdRemainsNull() {
+        AssignmentResult result = AssignmentResult.success(
+                "crm-1", "08687", "不存在的人", "dept-1", "销售一部");
+
+        when(projectManagerIdResolver.resolveByFullName("不存在的人")).thenReturn(null);
+
+        tenderCommandService.applyAssignmentResult(tender, result);
+
+        assertThat(tender.getProjectManagerName()).isEqualTo("不存在的人");
+        assertThat(tender.getProjectManagerId()).isNull();
+        assertThat(tender.getDepartment()).isEqualTo("销售一部");
+    }
+
+    @Test
+    @DisplayName("CO-333: applyAssignmentResult_projectManagerName 为 null_不调用 resolver")
+    void applyAssignmentResult_nullName_doesNotCallResolver() {
+        AssignmentResult result = AssignmentResult.success(
+                "crm-1", "08687", null, "dept-1", "销售一部");
+
+        tenderCommandService.applyAssignmentResult(tender, result);
+
+        assertThat(tender.getProjectManagerName()).isNull();
+        assertThat(tender.getProjectManagerId()).isNull();
+        verify(projectManagerIdResolver, never()).resolveByFullName(anyString());
+    }
+
+    @Test
+    @DisplayName("CO-333: applyAssignmentResult_本地映射工号不再被直接当 User.id 使用")
+    void applyAssignmentResult_employeeIdNotUsedAsUserId() {
+        // 本地映射表存的 projectManagerId 是工号（如 "10086"），不应再被 Long.valueOf 当 User.id
+        AssignmentResult result = AssignmentResult.success(
+                "crm-1", "10086", "张三", "dept-1", "销售部");
+
+        when(projectManagerIdResolver.resolveByFullName("张三")).thenReturn(10L);
+
+        tenderCommandService.applyAssignmentResult(tender, result);
+
+        // 验证用的是 resolver 返回的 10L，而不是工号 10086
+        assertThat(tender.getProjectManagerId()).isEqualTo(10L);
+        assertThat(tender.getProjectManagerId()).isNotEqualTo(10086L);
     }
 }
