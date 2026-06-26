@@ -1,9 +1,0 @@
-version: 1
-task: "home-sso-login"
-locks:
-  - path: "src/views/Login.vue"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/kimi/home-sso-login"
-    expiresAt: "2026-06-27T06:14:32.593Z"
-    reason: "Home SSO 免登: Login.vue 读取 ssoToken 自动登录"
