@@ -207,4 +207,28 @@ class BatchAttachmentServiceTest {
         assertThat(result.getFailed()).isEqualTo(1);
         assertThat(result.getUnmatched().get(0).getReason()).isEqualTo("证书编号不存在");
     }
+
+    @Test
+    void process_CertificateNoWithLeadingSpaces_ShouldTrimAndMatch() throws IOException {
+        var file = mock(MultipartFile.class);
+        when(file.isEmpty()).thenReturn(false);
+        when(file.getOriginalFilename()).thenReturn("QUAL_ 5201267890_02_文件的名.docx");
+        when(file.getBytes()).thenReturn(new byte[]{1, 2, 3});
+
+        var entity = new BusinessQualificationEntity();
+        entity.setId(7L);
+        entity.setName("测试证书");
+
+        when(repository.findAllByCertificateNo("5201267890")).thenReturn(List.of(entity));
+        when(fileStorage.storeAttachmentWithNaming(eq(7L), any(byte[].class), eq("5201267890"),
+                eq(2), eq("测试证书"), eq("QUAL_ 5201267890_02_文件的名.docx"), isNull()))
+                .thenReturn("/api/knowledge/qualifications/7/attachments/QUAL_5201267890_02_test.docx");
+
+        var result = service.process(List.of(file));
+
+        assertThat(result.getSuccess()).isEqualTo(1);
+        assertThat(result.getMatched().get(0).getQualificationId()).isEqualTo(7L);
+        assertThat(result.getMatched().get(0).getCertificateNo()).isEqualTo("5201267890");
+        verify(repository).findAllByCertificateNo("5201267890");
+    }
 }

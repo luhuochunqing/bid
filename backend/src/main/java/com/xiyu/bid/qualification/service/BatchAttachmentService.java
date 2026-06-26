@@ -134,7 +134,7 @@ public class BatchAttachmentService {
             return;
         }
 
-        String certificateNo = matcher.group(1);
+        String certificateNo = matcher.group(1).trim();
         int sequence;
         try {
             sequence = Integer.parseInt(matcher.group(2));
