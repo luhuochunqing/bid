@@ -258,11 +258,11 @@ watch(() => props.projectId, (newId, oldId) => { if (newId && newId !== oldId) l
 .kanban-title { font-size: 15px; font-weight: 600; }
 .kanban-actions { display: flex; gap: 8px; }
 .kanban-container { display: flex; gap: 16px; min-height: 300px; }
-.kanban-col { flex: 1; background: #f5f7fa; border-radius: 8px; padding: 12px; min-width: 0; }
-.col-header { font-size: 13px; font-weight: 600; color: #333; padding: 6px 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+.kanban-col { flex: 1; background: var(--bg-subtle); border-radius: 8px; padding: 12px; min-width: 0; }
+.col-header { font-size: 13px; font-weight: 600; color: var(--gray-700); padding: 6px 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
 .col-body { display: flex; flex-direction: column; gap: 8px; }
-.task-card { background: #fff; border: 1px solid #e4e7ed; border-radius: 6px; padding: 12px; }
-.card-title { font-size: 13px; font-weight: 600; color: #303133; margin-bottom: 6px; }
-.card-info { font-size: 11px; color: #909399; margin-bottom: 2px; display: flex; justify-content: space-between; }
+.task-card { background: var(--bg-card); border: 1px solid var(--gray-250); border-radius: 6px; padding: 12px; }
+.card-title { font-size: 13px; font-weight: 600; color: var(--text-primary-ui); margin-bottom: 6px; }
+.card-info { font-size: 11px; color: var(--text-muted); margin-bottom: 2px; display: flex; justify-content: space-between; }
 .card-actions { margin-top: 8px; display: flex; gap: 6px; justify-content: flex-end; }
 </style>
