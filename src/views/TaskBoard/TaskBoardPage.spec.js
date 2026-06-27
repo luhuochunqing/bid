@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
-import { ref, computed, defineComponent } from 'vue'
+import { computed, defineComponent } from 'vue'
 
 // Mock composable
 const mockItems = [

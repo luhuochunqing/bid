@@ -57,19 +57,11 @@ describe('CO-370 场景5 QualBatchUploadDialog 防复发：res.data 正确解包
   it('上传成功后正确显示 total/success/failed 统计（不能多解一层 .data）', async () => {
     mockBatchAttachResponse({ total: 3, success: 2, failed: 1, unmatched: [{ fileName: 'bad.pdf', reason: '证书编号不存在' }] })
     const wrapper = createWrapper()
-
-    // 模拟选择文件 + 点击上传
-    const { handleUpload } = wrapper.vm.$options.__scope || {}
-    // 直接通过组件实例调用 handleUpload（组件内 fileList 为空会提前 return，需先注入文件）
-    // 改为通过 vm 调用组件内方法
-    // eslint-disable-next-line no-undef
     const vm = wrapper.vm
-    // 注入文件
     vm.fileList = [{ raw: new File([''], 'test.pdf') }]
     await vm.handleUpload?.()
     await flushPromises()
 
-    // 验证结果区域显示正确的统计数字
     const result = vm.result
     expect(result).not.toBeNull()
     expect(result.total).toBe(3)
