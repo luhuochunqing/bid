@@ -32,6 +32,7 @@
             <el-col :span="12">
               <el-form-item label="总部所在地" prop="region">
                 <el-cascader
+                  ref="regionCascaderRef"
                   v-model="regionCascaderValue"
                   :options="chinaRegionOptions"
                   :props="REGION_CASCADER_PROPS"
@@ -39,6 +40,7 @@
                   clearable
                   filterable
                   class="full-width"
+                  @change="onRegionCascaderChange"
                 />
               </el-form-item>
             </el-col>
@@ -169,7 +171,7 @@
 </template>
 
 <script setup>
-import { computed, ref, shallowRef } from 'vue'
+import { computed, nextTick, ref, shallowRef } from 'vue'
 import { DocumentCopy, Upload } from '@element-plus/icons-vue'
 import AdaptiveFormPage from '@/components/common/AdaptiveFormPage.vue'
 import { chinaRegionOptions } from '@/components/common/chinaRegionData.js'
@@ -208,6 +210,14 @@ const regionCascaderValue = useRegionCascaderValue(
   (v) => { form.value.region = v },
   { emptyValue: '' },
 )
+
+// CO-381: 选中市级（路径长度 >= 2）后自动关闭下拉框
+const regionCascaderRef = ref(null)
+function onRegionCascaderChange(val) {
+  if (Array.isArray(val) && val.length >= 2) {
+    nextTick(() => regionCascaderRef.value?.togglePopperVisible?.(false))
+  }
+}
 
 const acceptFileTypes = ACCEPT_FILE_TYPES
 
