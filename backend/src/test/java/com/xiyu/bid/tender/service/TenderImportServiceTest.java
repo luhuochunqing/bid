@@ -19,7 +19,9 @@ import org.springframework.mock.web.MockMultipartFile;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -293,8 +295,8 @@ class TenderImportServiceTest {
             Sheet dict = workbook.getSheet("字典参考");
             assertThat(dict).isNotNull();
 
-            java.util.List<String> customerTypes = readColumn(dict, 1);
-            java.util.List<String> projectTypes = readColumn(dict, 3);
+            List<String> customerTypes = readColumn(dict, 1);
+            List<String> projectTypes = readColumn(dict, 3);
 
             // 客户类型对齐前端 constants.js CUSTOMER_TYPE_OPTIONS
             assertThat(customerTypes).contains(
@@ -307,8 +309,8 @@ class TenderImportServiceTest {
         }
     }
 
-    private java.util.List<String> readColumn(Sheet sheet, int colIndex) {
-        java.util.List<String> values = new java.util.ArrayList<>();
+    private List<String> readColumn(Sheet sheet, int colIndex) {
+        List<String> values = new ArrayList<>();
         int last = sheet.getLastRowNum();
         for (int r = 1; r <= last; r++) {
             Row row = sheet.getRow(r);

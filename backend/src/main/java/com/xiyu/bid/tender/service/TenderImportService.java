@@ -233,7 +233,8 @@ public class TenderImportService {
             }
         }
         if (request.getRegion() != null && !TenderRegionCatalog.isValid(request.getRegion())) {
-            errors.add(new RowError(displayRow, "region", "总部所在地须为省+市格式（直辖市仅市，如\"北京市\"、\"广东省深圳市\"）"));
+            errors.add(new RowError(displayRow, "region",
+                    "总部所在地须为省+市格式（直辖市为\"市-市\"格式，如\"北京市-北京市\"；普通省为\"广东省深圳市\"）"));
         }
         if (request.getCustomerType() != null && !CUSTOMER_TYPES.contains(request.getCustomerType())) {
             errors.add(new RowError(displayRow, "customerType",
