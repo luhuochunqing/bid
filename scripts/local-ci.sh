@@ -21,9 +21,9 @@ Modes:
 
 Environment:
   LOCAL_CI_BASE        Override line-budget base revision. Defaults to merge-base of HEAD and origin/main.
-  VITE_API_BASE_URL    API base URL for API-mode frontend builds. Defaults to http://127.0.0.1:18080.
-  BACKEND_PORT         Local E2E backend port. Defaults to 18080.
-  FRONTEND_PORT        Local E2E frontend port. Defaults to 1314.
+  VITE_API_BASE_URL    API base URL for API-mode frontend builds. Defaults to http://127.0.0.1:18089.
+  BACKEND_PORT         Local E2E backend port. Defaults to 18089.
+  FRONTEND_PORT        Local E2E frontend port. Defaults to 1323.
 EOF
 }
 
@@ -49,12 +49,12 @@ esac
 
 export CI=true
 export VITE_API_MODE=api
-export VITE_API_BASE_URL="${VITE_API_BASE_URL:-http://127.0.0.1:18080}"
+export VITE_API_BASE_URL="${VITE_API_BASE_URL:-http://127.0.0.1:18089}"
 export PLATFORM_ENCRYPTION_KEY="${PLATFORM_ENCRYPTION_KEY:-ci-test-key-2026}"
 export PLATFORM_ACCOUNT_ENCRYPTION_KEY="${PLATFORM_ACCOUNT_ENCRYPTION_KEY:-test-platform-encryption-key-2026}"
 export JWT_SECRET="${JWT_SECRET:-ci-e2e-jwt-secret-key-with-32-chars-min}"
-export BACKEND_PORT="${BACKEND_PORT:-18080}"
-export FRONTEND_PORT="${FRONTEND_PORT:-1314}"
+export BACKEND_PORT="${BACKEND_PORT:-18089}"
+export FRONTEND_PORT="${FRONTEND_PORT:-1323}"
 export DB_PASSWORD="${DB_PASSWORD:-unused}"
 
 log_step() {

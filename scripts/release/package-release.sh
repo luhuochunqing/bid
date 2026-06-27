@@ -13,12 +13,12 @@ ARCHIVE_PATH="${ARCHIVE_PATH:-$ROOT_DIR/.release/xiyu-bid-release-${RELEASE_ID}.
 # VITE_API_BASE_URL 解析：
 #   - 显式设为空（VITE_API_BASE_URL=）→ 同源构建（API_BASE_URL=''，前端走相对路径，
 #     与后端同 origin）。用于 172.16.x 内网直连 / Spring Boot 一体部署（前后端同源）。
-#   - 完全未设 → fallback 到 PRODUCTION_API_BASE_URL / 默认 dev 地址（127.0.0.1:18080）。
+#   - 完全未设 → fallback 到 PRODUCTION_API_BASE_URL / 默认 dev 地址（127.0.0.1:18089）。
 #   - 显式设为 URL（含域名）→ 用该 URL（公网/WAF 入口，如 winbid-test.ehsy.com）。
 # 关键：用 ${VITE_API_BASE_URL+x} 区分"未设"与"显式空"，否则 :- 会对显式空也 fallback，
 # 导致同源部署永远拿不到空 baseURL（IP:8080 前端被迫调域名 API → 跨域 403）。
 if [[ -z "${VITE_API_BASE_URL+x}" ]]; then
-  API_BASE_URL="${PRODUCTION_API_BASE_URL:-http://127.0.0.1:18080}"
+  API_BASE_URL="${PRODUCTION_API_BASE_URL:-http://127.0.0.1:18089}"
 else
   API_BASE_URL="$VITE_API_BASE_URL"
 fi

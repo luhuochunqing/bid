@@ -5,7 +5,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-const apiBaseUrl = process.env.UAT_API_BASE_URL || 'http://127.0.0.1:18080'
+const apiBaseUrl = process.env.UAT_API_BASE_URL || 'http://127.0.0.1:18089'
 const reportDir = process.env.REPORT_DIR || path.resolve(process.cwd(), 'docs/reports')
 const stateDir = process.env.STATE_DIR || path.resolve(process.cwd(), '.rehearsal')
 const uatReportPath = process.argv[2]

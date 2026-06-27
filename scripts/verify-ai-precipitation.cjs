@@ -25,7 +25,7 @@ const fs = require('fs');
 
   // ====== 1. login as bid_admin (看 AI 按钮需要的 role) ======
   console.log('=== 1. login bid_admin ===');
-  await page.goto('http://127.0.0.1:1314/login', { waitUntil: 'networkidle' });
+  await page.goto('http://127.0.0.1:1323/login', { waitUntil: 'networkidle' });
   await page.locator('input[placeholder*="请输入用户名"]').first().fill('bid_admin');
   await page.locator('input[placeholder*="请输入密码"]').first().fill('Test@123');
   // 等按钮 disabled 状态稳定

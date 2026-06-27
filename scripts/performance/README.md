@@ -12,7 +12,7 @@
 ## 运行示例
 
 ```bash
-API_BASE_URL=http://127.0.0.1:18080 \
+API_BASE_URL=http://127.0.0.1:18089 \
 K6_USERNAME=staff \
 K6_PASSWORD='Test@123' \
 k6 run scripts/performance/sales-200.k6.js
@@ -40,7 +40,7 @@ K6_COMPLETE_UPLOAD=true k6 run scripts/performance/sales-200.k6.js
 本机如果后端仍使用默认 `/data/shared/tenders` 且 `/data` 不可写，可以先跳过上传入队链路调试其他接口：
 
 ```bash
-API_BASE_URL=http://127.0.0.1:18080 \
+API_BASE_URL=http://127.0.0.1:18089 \
 K6_USERNAME=staff \
 K6_PASSWORD='Test@123' \
 K6_SKIP_EXPORT=true \

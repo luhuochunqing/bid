@@ -73,7 +73,7 @@ try {
    Adjust ROUTES to cover the pages affected by token migration.
    ===================================================================== */
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:1314';
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:1323';
 
 const ROUTES = [
   { path: '/',                          label: 'dashboard'       },

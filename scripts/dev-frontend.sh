@@ -6,7 +6,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BACKEND_PORT="${BACKEND_PORT:-18080}"
+BACKEND_PORT="${BACKEND_PORT:-18089}"
 
 export VITE_API_MODE="api"
 export VITE_ENABLE_MOCK_LOGIN="false"
