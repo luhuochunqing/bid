@@ -769,3 +769,97 @@ CRM 商机关联回填标讯评估表时，`projectPlanGapFiles`（GAP 附件引
 - `backend/src/main/java/com/xiyu/bid/webhook/application/ProjectResultConfirmedWebhookListener.java` — §4.2 监听器
 - `docs/integration/标讯集成接口文档-v3.8.md` — §4.1 格式修正
 - `docs/lessons/external-integration-lessons.md` — 外部系统集成检查清单
+
+---
+
+## 11. projectManagerId 必须存 User.id 不能存工号；createNewTender 调用链覆盖风险
+
+> 来源：2026-06-26 标讯 569/581 项目负责人分错事故复盘（PR #1162/#1163/#1167/#1173/#1179 系列）
+> 代码修复已通过 PR #1173 + #1179 合入 main，本节沉淀教训
+
+### 事故一句话总结
+
+CRM 推送标讯后，`Tender.projectManagerId` 字段在不同代码路径下分别存储了"CRM 工号"（如 8687）和"系统 User.id"（如 5052），但权限校验 `TenderProjectAccessGuard` 始终用 `User.id` 比对。存了工号的标讯在权限校验时必然失败，导致 CRM 商机负责人（王凯毅）看不到自己负责的标讯和项目。即使 #1173 修了"工号直接存入"问题，#1179 又发现 `tryAutoAssign` 会用本地映射表覆盖 CRM 商机负责人——同一字段被三轮独立 bug 影响。
+
+### 根因一：工号直接 Long.valueOf 存入（PR #1163/#1173 修复）
+
+`TenderIntegrationCommandSupport.applyAssignmentResult` 和 `TenderCommandService.applyAssignmentResult` 都曾直接 `Long.valueOf(employeeNo)` 把 CRM 工号（"08687" → 8687）存入 `projectManagerId`：
+
+```java
+// 修复前（错误）
+tender.setProjectManagerId(Long.valueOf(result.projectLeaderNo()));  // 存了工号 8687
+
+// 修复后（正确）
+Long resolvedId = projectManagerIdResolver.resolveByFullName(result.projectManagerName());
+if (resolvedId != null) {
+    tender.setProjectManagerId(resolvedId);  // 存 User.id 5052
+}
+```
+
+**铁律**：`projectManagerId` / `managerId` 字段语义是"系统 `User.id`"，不是 CRM 工号。任何写入此字段的地方都必须通过 `UserRepository.findByEmployeeNumber` 或 `ProjectManagerIdResolver.resolveByFullName` 转换。
+
+### 根因二：调用链覆盖（PR #1179 修复）
+
+`createNewTender` 调用链存在多步设置 manager 的逻辑，后置步骤会覆盖前置步骤：
+
+```
+mapper.toEntity(request)
+  → crmTenderLinkService.linkIfPresent(tender, crmId)   ← 设 CRM 商机负责人（王凯毅 5052）
+  → support.applyCrmFallback(tender, crmId, null)
+  → tenderRepository.save(tender)
+  → support.tryAutoAssign(saved)                         ← 按 purchaserName 匹配本地映射，覆盖成郑蓉蓉
+```
+
+`tryAutoAssign` 不检查"是否已有 manager"，无条件执行 `applyAssignmentResult` 覆盖。
+
+### 决定性证据：标讯 581 DB 直查
+
+```
+tender 581: project_manager_id=2556（郑蓉蓉 User.id）
+CRM 商机接口返回: projectLeaderNo=08687, projectLeaderName=王凯毅
+本地 CrmProjectMapping: 海德鲁铝型材 → 郑蓉蓉（06234）
+```
+
+`linkIfPresent` 已正确设为 5052（王凯毅），但 `tryAutoAssign` 覆盖成 2556（郑蓉蓉）。
+
+### 修复内容
+
+**PR #1173**：`applyAssignmentResult` 用 `ProjectManagerIdResolver.resolveByFullName` 替代 `Long.valueOf(employeeNo)`
+
+**PR #1179**：`tryAutoAssign` 入口加 guard clause，已有 manager 时跳过：
+
+```java
+void tryAutoAssign(Tender tender) {
+    if (tender.getProjectManagerId() != null || hasText(tender.getProjectManagerName())) {
+        log.info("Tender {} already has project manager, skip auto-assignment", ...);
+        return;
+    }
+    // ... 原有自动分配逻辑
+}
+```
+
+### 通用规则
+
+1. **`projectManagerId` / `managerId` 字段必须存 User.id**：任何写入此字段的地方都必须通过 `UserRepository` 或 `ProjectManagerIdResolver` 转换，禁止 `Long.valueOf(employeeNo)`
+2. **调用链中设置同一字段的多个步骤必须有覆盖保护**：后置步骤要么检查原值是否为空，要么明确语义是"覆盖"（如用户手动改派）
+3. **CRM 商机负责人是 source of truth**：本地 `CrmProjectMapping` 映射表只是兜底（针对未关联商机的标讯），不能覆盖 CRM 商机接口返回的负责人
+4. **guard clause 必须同时检查 id 和 name**：CRM 工号未匹配本地用户时，`linkIfPresent` 只设 `projectManagerName` 不设 id，仅检查 id 会漏过这种情况
+
+### 三轮 bug 的演进
+
+| PR | 修复内容 | 暴露的下一层问题 |
+|---|---|---|
+| #1163/#1167 | `TenderCommandService.applyAssignmentResult` 用 Resolver 替代 Long.valueOf | `TenderIntegrationCommandSupport.applyAssignmentResult` 仍有同样问题 |
+| #1173 | `TenderIntegrationCommandSupport.applyAssignmentResult` 同上修复 + 解耦状态转换 | `tryAutoAssign` 仍会覆盖 CRM 商机负责人 |
+| **#1179** | **`tryAutoAssign` guard clause** | （暂无） |
+
+三轮 bug 症状相似（"CRM 商机负责人看不到标讯"），但根因独立。排查此类问题必须**逐段取证**：DB 看 `project_manager_id` 是 User.id 还是工号 → 日志看 `linkIfPresent` 设了谁 → 日志看 `tryAutoAssign` 是否覆盖。
+
+### 相关文档
+
+- [root-cause-analysis-crm-leader-priority.md](./root-cause-analysis-crm-leader-priority.md) — 完整根因分析
+- [decisions.md §3](./decisions.md) — CRM 商机负责人优先于本地映射的架构决策
+- [CrmTenderLinkService.java](../../backend/src/main/java/com/xiyu/bid/integration/external/CrmTenderLinkService.java) — `applyLeaderAndStatus` 设置 CRM 商机负责人
+- [TenderIntegrationCommandSupport.java](../../backend/src/main/java/com/xiyu/bid/integration/external/TenderIntegrationCommandSupport.java) — `tryAutoAssign` guard clause
+- [ProjectManagerIdResolver.java](../../backend/src/main/java/com/xiyu/bid/integration/external/ProjectManagerIdResolver.java) — 姓名解析 User.id
+- [TenderProjectAccessGuard.java](../../backend/src/main/java/com/xiyu/bid/tender/service/TenderProjectAccessGuard.java) — 权限校验用 User.id 比对

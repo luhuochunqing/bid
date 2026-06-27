@@ -1255,3 +1255,69 @@ grep -E "empty|null|blank|fallback" backend/src/test/java/com/xiyu/bid/webhook/d
 
 ---
 
+## 20. 分阶段修复的存量数据策略 + agent-finish-task.sh 锚点分支占用处理
+
+### 问题背景
+
+2026-06-26 修复"CRM 商机负责人被自动分配覆盖"问题时，bug 涉及三轮独立根因，分三个 PR（#1163/#1167/#1173/#1179）分阶段部署。每个 PR 部署后到下一 PR 部署前创建的数据，仍按旧逻辑落库，需要单独跑数据修复脚本。
+
+同时在收尾时执行 `agent-finish-task.sh --include-remote --yes`，报错 `fatal: 'agent/mimo-init' is already used by worktree at '/Users/user/xiyu/worktrees/gemini'`——`agent/mimo-init` 锚点分支被 gemini worktree 错误占用（历史遗留问题），脚本 Step 6 切换锚点分支失败。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 分阶段修复部署后，期间新建数据仍按旧逻辑落库 | **每个 PR 部署后必须立即跑数据修复脚本**，覆盖"上一 PR 部署后到本 PR 部署前"的时间窗口 | 分阶段修复的每个 PR 都要在 PR 描述中列出"本 PR 部署后需跑的存量数据修复 SQL" |
+| 存量数据修复 SQL 直接在服务器执行 | **存量数据修复脚本不进 PR**，直接在服务器 DB 执行；PR 只负责修复代码逻辑 | 在 PR 描述中单独列出"存量数据修复"章节，附 SQL 脚本，部署后在服务器执行 |
+| agent-finish-task.sh 锚点分支被其他 worktree 占用 | **脚本切换锚点失败时 fallback 到 detached HEAD**，手动删除任务分支即可 | 遇到 `is already used by worktree` 报错时：`git checkout origin/main && git branch -D <任务分支>` |
+| 锚点分支被其他 worktree 错误占用是历史遗留问题 | **不在收尾任务中擅自处理其他 worktree 的问题**，单独开任务协调 | 发现 `agent/{name}-init` 被错误占用时，记录到 issues 但不擅自 checkout/branch -D |
+
+### 操作规范
+
+1. **分阶段修复的存量数据策略**：
+   - PR 部署后立即在服务器跑数据修复 SQL（覆盖"上一 PR 部署后到本 PR 部署前"窗口）
+   - 修复 SQL 不进 PR（PR 只改代码逻辑），但要在 PR 描述中列出
+   - 验证修复效果：DB 直查 `project_manager_id` 是否为正确的 User.id
+   - 同时验证"新建数据"是否按新逻辑落库（防止"修了代码但部署不到位"）
+
+2. **agent-finish-task.sh 锚点分支占用的 fallback**：
+   ```bash
+   # 报错：fatal: 'agent/mimo-init' is already used by worktree at '...'
+   # Fallback：
+   git checkout origin/main
+   git branch -D agent/<agent-name>/<task-name>
+   git push origin --delete agent/<agent-name>/<task-name>  # 远端分支（如还存在）
+   git fetch --prune origin
+   ```
+   不要试图 `git worktree remove` 其他 worktree，那是其他 agent 的工作区。
+
+3. **锚点分支被错误占用的根因排查**（单独开任务）：
+   ```bash
+   # 查看哪个 worktree 占用了哪个锚点分支
+   git worktree list
+   # 正确状态：每个 worktree 用自己的 agent/<name>-init 锚点
+   # 错误状态：gemini worktree 占用了 agent/mimo-init
+   # 修复方式：在占用的 worktree 内切回自己的锚点分支
+   ```
+
+### 验证命令
+
+```bash
+# 检查锚点分支占用情况
+git worktree list | grep -E "init"
+
+# 期望输出：每个 worktree 用自己的 init 分支
+# /Users/user/xiyu/worktrees/mimo  xxx [agent/mimo-init]
+# /Users/user/xiyu/worktrees/gemini xxx [agent/gemini-init]
+# ...
+
+# 异常输出：worktree 名与 init 分支名不匹配
+# /Users/user/xiyu/worktrees/gemini xxx [agent/mimo-init]  ← 错误
+```
+
+### 相关文档
+
+- `docs/lessons/root-cause-analysis-crm-leader-priority.md` — 完整根因分析
+- `scripts/agent-finish-task.sh` — 收尾脚本（Step 6 切换锚点分支）
+- PR #1179 — 本次修复的 PR
+

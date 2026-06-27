@@ -94,3 +94,58 @@ CO-262 修复 CRM 商机关联回填的 GAP 附件未持久化问题时，最初
 
 - `docs/lessons/root-cause-analysis-stage-notification-created-by.md` — 完整根因分析
 - `docs/lessons/lessons-learned.md` §10 — 同一接口错误形态变化时的日志排查教训
+
+---
+
+## 3. CRM 商机负责人优先于本地采购人映射，自动分配不得覆盖
+
+> 决策日期：2026-06-26
+> 决策者：mimo
+> 状态：已采纳
+
+### 背景
+
+CRM 推送标讯 581 后，王凯毅（工号 08687，User.id 5052）作为 CRM 商机负责人本应担任项目负责人，但实际落库 `project_manager_id=2556`（郑蓉蓉）。根因是 `createNewTender` 调用链中，`CrmTenderLinkService.linkIfPresent` 已通过 CRM 商机接口设置了正确的负责人，但随后 `TenderIntegrationCommandSupport.tryAutoAssign` 又按 `purchaserName` 匹配本地 `CrmProjectMapping` 映射表（海德鲁铝型材 → 郑蓉蓉），无条件覆盖了 CRM 商机负责人。
+
+### 决策
+
+在 `tryAutoAssign` 入口加 guard clause，标讯已有 `projectManagerId` 或 `projectManagerName`（由 CRM 商机负责人设置）时，跳过自动分配：
+
+```java
+void tryAutoAssign(Tender tender) {
+    if (tender.getProjectManagerId() != null || hasText(tender.getProjectManagerName())) {
+        log.info("Tender {} already has project manager (id={}, name={}), skip auto-assignment", ...);
+        return;
+    }
+    // ... 原有自动分配逻辑
+}
+```
+
+### 备选方案（及否决理由）
+
+| 方案 | 优点 | 缺点 | 是否采纳 |
+|------|------|------|---------|
+| tryAutoAssign 入口 guard clause | 影响面最小，保留自动分配兜底能力 | guard clause 散落在调用方 | ✅ |
+| 修改 applyAssignmentResult 仅在原值为空时才设 | 覆盖所有调用方 | 改动核心逻辑，影响其他调用路径 | ❌ 影响面大 |
+| 删除 tryAutoAssign，全部由 CRM 商机接口决定 | 逻辑最清晰 | 失去未关联商机标讯的兜底分配能力 | ❌ 业务降级 |
+| 让本地映射表优先于 CRM 商机接口 | 本地配置可控 | 业务上 CRM 商机负责人是 source of truth，本地映射只是兜底 | ❌ 业务语义错误 |
+
+### 权衡与约束
+
+- **业务优先级**：CRM 商机负责人是 source of truth，本地 `CrmProjectMapping` 映射表只是兜底（针对未关联商机的标讯）
+- **guard clause 仅检查 `projectManagerId` 不够**：CRM 商机接口返回的工号未匹配本地用户时，只会设 `projectManagerName`（无 id），因此必须同时检查 name 字段
+- **自动分配逻辑保留**：未关联商机的标讯仍走自动分配，guard clause 不影响兜底能力
+
+### 影响范围
+
+- `backend/src/main/java/com/xiyu/bid/integration/external/TenderIntegrationCommandSupport.java`
+- `backend/src/test/java/com/xiyu/bid/integration/external/TenderIntegrationCommandSupportTest.java`
+
+### 存量数据
+
+PR #1173 部署后到本 PR 部署前创建的标讯（如 581，郑蓉蓉被错误分配），需在服务器上跑数据修复脚本把 `project_manager_id` 改回王凯毅（5052）。这部分不在本 PR 范围内，部署后单独处理。
+
+### 相关文档
+
+- `docs/lessons/root-cause-analysis-crm-leader-priority.md` — 完整根因分析
+- `docs/lessons/crm-integration-lessons.md` §11 — projectManagerId 存储与调用链覆盖经验
