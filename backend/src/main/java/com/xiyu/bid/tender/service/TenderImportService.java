@@ -48,11 +48,12 @@ public class TenderImportService {
             "客户类型", "优先级", "项目类型", "来源平台", "标讯描述"
     };
 
-    static final List<String> CUSTOMER_TYPES = List.of("央企集团", "国有集团", "KA 客户");
+    static final List<String> CUSTOMER_TYPES = List.of(
+            "政府机关/事业单位/高校", "央企", "地方国企", "民企", "港澳台及外企");
     static final List<String> PRIORITIES = List.of("S", "A", "B", "C");
     static final List<String> REGIONS = TenderRegionCatalog.REGIONS;
 
-    static final List<String> PROJECT_TYPES = List.of("货物类", "工程类", "服务类");
+    static final List<String> PROJECT_TYPES = List.of("工业品", "办公", "综合", "集采", "其他");
 
     private static final int MAX_ROWS = 500;
     private static final long MAX_FILE_BYTES = 5L * 1024 * 1024;

@@ -33,7 +33,7 @@ public class TenderImportTemplateBuilder {
     private static final String[] EXAMPLE_ROW = {
             "示例：XX数据中心机房改造项目",
             "XX集团有限公司",
-            "北京市",
+            "北京市-北京市",
             "2026-12-31 17:00",
             "2026-12-25 09:30",
             "张三",
@@ -44,9 +44,9 @@ public class TenderImportTemplateBuilder {
             "13900139000",
             "021-87654321",
             "lisi@example.com",
-            "央企集团",
+            "央企",
             "A",
-            "货物类",
+            "工业品",
             "政府采购网",
             "含场地改造、综合布线、机柜安装"
     };
