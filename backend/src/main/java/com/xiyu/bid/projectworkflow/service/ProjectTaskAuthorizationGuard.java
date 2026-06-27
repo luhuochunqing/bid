@@ -52,6 +52,14 @@ public class ProjectTaskAuthorizationGuard {
         }
     }
 
+    /** 断言当前用户有权查看任务。只需项目访问权限。 */
+    public void assertCanViewTask(Long projectId, Long taskId, String username) {
+        if (isInternalCall(username)) {
+            return;
+        }
+        projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
+    }
+
     /** 断言当前用户有权发起指定状态流转（提交任务/上传交付物=执行人本人；审核=管理员/组长/负责人/辅助）。 */
     public void assertStatusTransition(Long projectId, Long taskId, String toStatus, String username) {
         if (isInternalCall(username)) {

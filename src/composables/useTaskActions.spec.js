@@ -3,10 +3,12 @@ import { setActivePinia, createPinia } from 'pinia'
 
 vi.mock('@/api/modules/projects.js', () => ({
   projectsApi: {
-    createTaskDeliverable: vi.fn(),
     updateTask: vi.fn(),
     updateTaskStatus: vi.fn(),
   }
+}))
+vi.mock('@/api/modules/taskDeliverables.js', () => ({
+  createTaskDeliverable: vi.fn(),
 }))
 
 const mockUserState = { currentUser: { id: 1, name: '当前用户' } }

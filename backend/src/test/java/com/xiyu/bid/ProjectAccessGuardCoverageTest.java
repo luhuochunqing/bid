@@ -48,7 +48,8 @@ class ProjectAccessGuardCoverageTest {
             "requireProjectAccess",
             "TaskProjectVisibilityPolicy",
             "ExpenseAccessGuard",
-            "accessGuard"
+            "accessGuard",
+            "assertCanViewTask"
     );
 
     private static final List<String> PROJECT_LINKED_TYPE_PATH_MARKERS = List.of(

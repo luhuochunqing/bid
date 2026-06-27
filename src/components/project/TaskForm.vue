@@ -70,7 +70,12 @@
               <el-button :icon="Upload" :disabled="readonly && !canDeliver">上传交付物</el-button>
             </el-upload>
             <div v-if="readonly && localValue.deliverables?.length" class="deliverable-list">
-              <a v-for="d in localValue.deliverables" :key="d.id" :href="d.url" target="_blank" class="deliverable-link">{{ d.name }}</a>
+              <a
+                v-for="d in localValue.deliverables"
+                :key="d.id"
+                :href="getDeliverableDownloadUrl(d)"
+                class="deliverable-link"
+              >{{ d.name }}</a>
             </div>
           </el-form-item>
 
@@ -123,6 +128,7 @@
 import { computed, nextTick, reactive, ref, watch, onMounted } from 'vue'
 import { Upload } from '@element-plus/icons-vue'
 import { taskStatusDictApi } from '@/api/modules/taskStatusDict.js'
+import { projectsApi } from '@/api/modules/projects.js'
 import { useProjectStore } from '@/stores/project'
 import { useUserStore } from '@/stores/user'
 import DynamicFormRenderer from '@/components/common/DynamicFormRenderer.vue'
@@ -130,6 +136,7 @@ import UserPicker from '@/components/common/UserPicker.vue'
 import TaskActivityPanel from '@/components/project/TaskActivityPanel.vue'
 import { useTaskAssigneePicker } from './useTaskAssigneePicker.js'
 import { useTaskDeliveryForm } from './useTaskDeliveryForm.js'
+import { useTaskDeliverableDownload } from './useTaskDeliverableDownload.js'
 
 const props = defineProps({
   modelValue: { type: Object, default: () => ({}) },
@@ -171,7 +178,7 @@ const attachmentFileList = computed(() => localValue.attachments.map((file, i) =
   name: file?.name || `附件${i + 1}`, raw: file instanceof File ? file : file?.raw,
   url: (file?.projectId || localValue.projectId) && file?.id ? `/api/projects/${file.projectId || localValue.projectId}/documents/${file.id}/download` : file?.url,
 })))
-
+const { getDeliverableDownloadUrl } = useTaskDeliverableDownload(localValue)
 const { deliverableFileList, handleDeliverableChange, handleDeliverableRemove } =
   useTaskDeliveryForm(localValue, readonly)
 
@@ -237,7 +244,6 @@ async function loadStatuses() {
     loadingStatuses.value = false
   }
 }
-
 function validate() {
   if (!localValue.name || !String(localValue.name).trim()) {
     validationMessage.value = '请填写任务名称'
@@ -246,17 +252,14 @@ function validate() {
   validationMessage.value = ''
   return ''
 }
-
 function normalizeUploadFiles(fileList = []) {
   return (Array.isArray(fileList) ? fileList : [fileList])
     .map((item) => item?.raw || item)
     .filter(Boolean)
 }
-
 function handleAttachmentChange(file, fileList = []) {
   localValue.attachments = normalizeUploadFiles(fileList.length ? fileList : [file])
 }
-
 function handleAttachmentRemove(_file, fileList = []) {
   localValue.attachments = normalizeUploadFiles(fileList)
 }

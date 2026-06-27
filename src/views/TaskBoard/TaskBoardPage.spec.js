@@ -50,10 +50,12 @@ vi.mock('@/api/modules/tasks.js', () => ({
 }))
 vi.mock('@/api/modules/projects.js', () => ({
   projectsApi: {
-    createTaskDeliverable: vi.fn().mockResolvedValue({}),
     updateTask: vi.fn().mockResolvedValue({}),
     updateTaskStatus: vi.fn().mockResolvedValue({}),
   }
+}))
+vi.mock('@/api/modules/taskDeliverables.js', () => ({
+  createTaskDeliverable: vi.fn().mockResolvedValue({}),
 }))
 
 vi.mock('element-plus', () => ({
@@ -224,8 +226,8 @@ describe('CO-370 TaskBoardPage handleSubmitForReview', () => {
     }))
 
     // 不应再调用旧的 FormData 直传 createTaskDeliverable
-    const { projectsApi } = await import('@/api/modules/projects.js')
-    expect(projectsApi.createTaskDeliverable).not.toHaveBeenCalled()
+    const { createTaskDeliverable } = await import('@/api/modules/taskDeliverables.js')
+    expect(createTaskDeliverable).not.toHaveBeenCalled()
   })
 
   it('场景2+3: uploadTaskFilesWithFallback 返回 false 时不继续更新状态', async () => {

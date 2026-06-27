@@ -1,13 +1,10 @@
 package com.xiyu.bid.task.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.xiyu.bid.projectworkflow.controller.ProjectWorkflowController;
-import com.xiyu.bid.task.core.BidSubmissionPolicy;
-import com.xiyu.bid.task.dto.BidSubmissionResponse;
+import com.xiyu.bid.projectworkflow.service.ProjectTaskAuthorizationGuard;
 import com.xiyu.bid.task.dto.DeliverableCoverageDTO;
 import com.xiyu.bid.task.dto.TaskDeliverableCreateRequest;
 import com.xiyu.bid.task.dto.TaskDeliverableDTO;
-import com.xiyu.bid.task.service.BidProcessService;
 import com.xiyu.bid.task.service.TaskDeliverableService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,18 +31,15 @@ class TaskDeliverableContractTest {
     private TaskDeliverableService taskDeliverableService;
 
     @Mock
-    private BidProcessService bidProcessService;
+    private ProjectTaskAuthorizationGuard taskAuthzGuard;
 
-    @Mock
-    private ProjectWorkflowController projectWorkflowController; // we'll use standalone setup
-
-    private MockMvc mockMvc;
+    private MockMvc deliverableMvc;
     private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new ProjectWorkflowController(
-                null, null, taskDeliverableService, bidProcessService, null))
+        deliverableMvc = MockMvcBuilders.standaloneSetup(
+                        new TaskDeliverableController(taskDeliverableService, taskAuthzGuard))
                 .setCustomArgumentResolvers(new org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver())
                 .setControllerAdvice(new com.xiyu.bid.exception.GlobalExceptionHandler())
                 .build();
@@ -57,7 +51,7 @@ class TaskDeliverableContractTest {
         var dto = TaskDeliverableDTO.builder().id(1L).taskId(10L).name("资质证书").deliverableType("QUALIFICATION").build();
         when(taskDeliverableService.getDeliverablesByTaskId(1L, 10L)).thenReturn(List.of(dto));
 
-        mockMvc.perform(get("/api/projects/1/tasks/10/deliverables"))
+        deliverableMvc.perform(get("/api/projects/1/tasks/10/deliverables"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data[0].id").value(1))
@@ -69,7 +63,7 @@ class TaskDeliverableContractTest {
         var dto = TaskDeliverableDTO.builder().id(1L).taskId(10L).name("技术方案").version(1).build();
         when(taskDeliverableService.createDeliverable(any(), any(), any(), any())).thenReturn(dto);
 
-        mockMvc.perform(post("/api/projects/1/tasks/10/deliverables")
+        deliverableMvc.perform(post("/api/projects/1/tasks/10/deliverables")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
                                 new TaskDeliverableCreateRequest("技术方案", "TECHNICAL", null, null, null))))
@@ -89,7 +83,7 @@ class TaskDeliverableContractTest {
                 .build();
         when(taskDeliverableService.createDeliverable(any(), any(), any(), any())).thenReturn(dto);
 
-        mockMvc.perform(post("/api/projects/1/tasks/10/deliverables")
+        deliverableMvc.perform(post("/api/projects/1/tasks/10/deliverables")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -109,7 +103,7 @@ class TaskDeliverableContractTest {
 
     @Test
     void deleteTaskDeliverable_ShouldReturnSuccess() throws Exception {
-        mockMvc.perform(delete("/api/projects/1/tasks/10/deliverables/5"))
+        deliverableMvc.perform(delete("/api/projects/1/tasks/10/deliverables/5"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
     }
@@ -120,35 +114,9 @@ class TaskDeliverableContractTest {
                 .taskId(10L).requiredCount(2).coveredCount(1).percentage(50.0).build();
         when(taskDeliverableService.getDeliverableCoverage(10L, null)).thenReturn(coverage);
 
-        mockMvc.perform(get("/api/projects/1/tasks/10/deliverables/coverage"))
+        deliverableMvc.perform(get("/api/projects/1/tasks/10/deliverables/coverage"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.requiredCount").value(2));
-    }
-
-    @Test
-    void submitToBidDocument_Accepted() throws Exception {
-        var response = BidSubmissionResponse.builder()
-                .accepted(true).message("已提交至标书编写流程")
-                .totalTasks(3).completedTasks(3).tasksWithDeliverables(2).build();
-        when(bidProcessService.submitToBidDocument(1L)).thenReturn(response);
-
-        mockMvc.perform(post("/api/projects/1/submit-to-bid-document"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.accepted").value(true));
-    }
-
-    @Test
-    void submitToBidDocument_Rejected() throws Exception {
-        var response = BidSubmissionResponse.builder()
-                .accepted(false).message("提交校验未通过")
-                .totalTasks(3).completedTasks(2).tasksWithDeliverables(0)
-                .gaps(List.of(new BidSubmissionPolicy.TaskGap(null, null, "有 1 个任务未完成"))).build();
-        when(bidProcessService.submitToBidDocument(1L)).thenReturn(response);
-
-        mockMvc.perform(post("/api/projects/1/submit-to-bid-document"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.accepted").value(false));
     }
 }
