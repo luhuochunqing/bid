@@ -1321,3 +1321,122 @@ git worktree list | grep -E "init"
 - `scripts/agent-finish-task.sh` — 收尾脚本（Step 6 切换锚点分支）
 - PR #1179 — 本次修复的 PR
 
+
+---
+
+## 21. @EventListener(ApplicationReadyEvent) 阻塞主线程导致 readiness 延迟恢复 UP
+
+### 问题背景
+
+2026-06-27 第 8 次部署（`3bb444139`）后端重启后，`/actuator/health/readiness` 持续返回 **503 OUT_OF_SERVICE** 约 4 分钟（18:20 → 18:24），nginx 代理层报 502/503，前端无法访问 API。后端进程存活（liveness UP），所有基础设施健康检查 UP（db/redis/jwt/diskSpace），但 `readinessState` 迟迟不切换到 `ACCEPTING_TRAFFIC`。
+
+排查期间曾临时添加 `MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always` 到 `/etc/xiyu-bid/backend.env` 获取详情，确认所有组件 UP，唯独 `readinessState` OUT_OF_SERVICE。
+
+### 事故时间线
+
+| 时间 (CST) | 事件 | 影响 |
+|------------|------|------|
+| 18:17:41 | 后端进程启动（PID 5151） | 启动中 |
+| 18:20:16 | `/actuator/health/readiness` 返回 503 | readinessState 未切换 |
+| 18:22:03.419 | `OrganizationEventSdkKafkaStarter.onApplicationReady()` 开始执行 | 说明 `ApplicationReadyEvent` 已发布 |
+| 18:22:03.617 | Kafka consumer 启动成功（仅用 200ms） | SDK 初始化完成 |
+| 18:24:08 | `/actuator/health/readiness` 恢复 200 UP | readinessState 切换到 ACCEPTING_TRAFFIC |
+
+### 根因分析
+
+**直接原因**：`OrganizationEventSdkKafkaStarter` 使用 `@EventListener(ApplicationReadyEvent.class)` 监听 `ApplicationReadyEvent`，在主线程同步执行 SDK 初始化（`register()` + `initCacheBean()` + `KafkaProcessor.start()`）。Spring Boot 的 `ApplicationAvailabilityBean` 也通过 `@EventListener` 接收 `ApplicationReadyEvent` 来切换 `ReadinessState` 从 `REFUSING_TRAFFIC` 到 `ACCEPTING_TRAFFIC`。两者都在主线程同步执行，存在时序竞争。
+
+**触发链路**：
+1. Spring Boot 发布 `ApplicationReadyEvent`
+2. `OrganizationEventSdkKafkaStarter.onApplicationReady()` 在主线程开始执行（`@Order(Ordered.LOWEST_PRECEDENCE)`）
+3. 如果 `register()` / `initCacheBean()` / `KafkaProcessor.start()` 中任一步骤阻塞（如网络超时、Kafka broker 不可达），主线程被占用
+4. `ApplicationAvailabilityBean` 的 `@EventListener` 处理被延迟（即使其 order 优先级更高，但同步事件按顺序处理）
+5. `AvailabilityChangeEvent` 发布延迟 → `ReadinessState` 切换延迟 → readiness 持续 503
+
+**历史对照**：前一次启动（排查阶段）Kafka starter 阻塞了 2.5 分钟（18:10:48 → 18:13:23），导致 readiness 长时间 OUT_OF_SERVICE。本次启动 Kafka broker 已可达，SDK 初始化仅 200ms 完成，readiness 在 2 分钟内恢复。
+
+**关键矛盾点**：`@EventListener` 是同步的，即使 `OrganizationEventSdkKafkaStarter` 标注了 `@Order(Ordered.LOWEST_PRECEDENCE)`，它仍然在主线程执行。Spring Boot 的 `ApplicationAvailabilityBean` 的 order 是 `Ordered.LOWEST_PRECEDENCE - 1`（优先级更高），但同步事件的执行顺序是按 order 顺序处理，不是抢占式。如果 Kafka starter 在 `ApplicationAvailabilityBean` 之前执行，不会影响；但如果在之后执行，会阻塞后续事件。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| `@EventListener(ApplicationReadyEvent)` 在主线程同步执行 | **`@EventListener` 默认同步**，长时间任务会阻塞主线程 | 启动期耗时操作（SDK 初始化、网络调用）必须用 `@Async` 或独立线程池 |
+| readiness 持续 OUT_OF_SERVICE 但 liveness UP | **readiness 和 liveness 是独立状态机**，readiness 由 `ApplicationReadyEvent` 触发切换 | 排查 readiness 问题时，检查 `ApplicationReadyEvent` 是否被延迟发布 |
+| Kafka SDK 初始化阻塞 2.5 分钟 | **第三方 SDK 的网络调用不可控**，必须假设会超时 | 包装第三方 SDK 启动逻辑时，加超时 + 异步执行 |
+| 临时修改生产配置排查问题 | **排查完必须清理临时配置** | 修改 `/etc/xiyu-bid/backend.env` 后记录到部署报告，部署完恢复 |
+| `@Order(Ordered.LOWEST_PRECEDENCE)` 不能解决阻塞 | **`@Order` 只决定顺序，不改变同步性** | 需要异步用 `@Async`，不是 `@Order` |
+
+### 正确做法
+
+```java
+// 修复前：同步执行，阻塞主线程
+@Component
+@ConditionalOnClass(name = "com.ehsy.eventlibrary.clientsdk.common.anno.AcceptEvent")
+@ConditionalOnProperty(prefix = "xiyu.integrations.organization.event-sdk", name = "enabled", havingValue = "true")
+public class OrganizationEventSdkKafkaStarter {
+
+    @EventListener(ApplicationReadyEvent.class)
+    @Order(Ordered.LOWEST_PRECEDENCE)
+    public void onApplicationReady() {
+        // 同步执行，阻塞主线程 → readiness 延迟切换
+        registerComponent.register();
+        cacheBean.initCacheBean();
+        kafkaProcessor.start();
+    }
+}
+
+// 修复后：异步执行，不阻塞主线程
+@Component
+@ConditionalOnClass(name = "com.ehsy.eventlibrary.clientsdk.common.anno.AcceptEvent")
+@ConditionalOnProperty(prefix = "xiyu.integrations.organization.event-sdk", name = "enabled", havingValue = "true")
+public class OrganizationEventSdkKafkaStarter {
+
+    @Autowired
+    private TaskExecutor taskExecutor;  // 或自定义线程池
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void onApplicationReady() {
+        // 异步执行，不阻塞 ApplicationReadyEvent 发布链
+        taskExecutor.execute(() -> {
+            registerComponent.register();
+            cacheBean.initCacheBean();
+            kafkaProcessor.start();
+        });
+    }
+}
+```
+
+### 排查命令
+
+```bash
+# 1. 检查 readiness 状态（show-details 临时开启）
+curl -s http://127.0.0.1:8080/actuator/health/readiness | python3 -m json.tool
+
+# 2. 检查启动日志中 ApplicationReadyEvent 相关事件
+sudo journalctl -u xiyu-bid-backend --since "10 minutes ago" --no-pager | grep -E "ApplicationReadyEvent|AvailabilityChangeEvent|readiness|org-event-sdk-kafka"
+
+# 3. 确认是否是 @EventListener 阻塞
+# 如果日志显示 onApplicationReady() 执行时间 > 10秒，且 readiness 在其后恢复 UP，则确认是阻塞问题
+sudo journalctl -u xiyu-bid-backend --since "10 minutes ago" --no-pager | grep "org-event-sdk-kafka"
+
+# 4. 临时开启 show-details 排查（排查完必须恢复）
+# 编辑 /etc/xiyu-bid/backend.env，添加：
+# MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
+# sudo systemctl restart xiyu-bid-backend
+# 排查完后删除该行，重启恢复
+```
+
+### 防范措施
+
+1. **代码审查**：新增 `@EventListener(ApplicationReadyEvent.class)` 时，必须确认执行时长 < 1 秒，否则用 `@Async`
+2. **启动日志监控**：`OrganizationEventSdkKafkaStarter` 的 bootstrap 日志如果 > 5 秒，告警
+3. **部署后健康检查**：部署脚本必须等待 readiness UP（不是 liveness UP），超时则告警
+4. **第三方 SDK 包装**：第三方 SDK 的启动初始化必须包装在独立线程池中，不阻塞主线程
+
+### 相关文档
+
+- `docs/release/deploy-report-2026-06-27-8th.md` — 第 8 次部署报告（本次经验来源）
+- `backend/src/main/java/com/xiyu/bid/integration/organization/infrastructure/sdk/OrganizationEventSdkKafkaStarter.java` — 问题代码
+- `backend/src/main/resources/application-prod.yml` — readiness 组配置（`include: readinessState,db`）
+- Spring Boot 文档：[Application Availability](https://docs.spring.io/spring-boot/docs/3.2.0/reference/htmlsingle/#features.spring-application.application-availability)
