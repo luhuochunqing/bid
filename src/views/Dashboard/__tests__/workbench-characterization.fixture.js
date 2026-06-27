@@ -106,9 +106,8 @@ vi.mock('@/stores/user', () => ({
 }))
 vi.mock('@/stores/bidding', () => ({ useBiddingStore: () => ({ setCalendar: mockState.setCalendar }) }))
 vi.mock('@/api', () => ({
-  dashboardApi: { 
+  dashboardApi: {
     getSummary: mockState.dashboardGetSummary,
-    getRuntimeMode: vi.fn().mockResolvedValue({ data: { modeCode: 'mock', demoFusionEnabled: false } }),
     getLayout: vi.fn().mockResolvedValue({ success: true, data: { layoutJson: '[]' } })
   },
   approvalApi: {
