@@ -53,6 +53,17 @@ async function seedPersonnel(session) {
       phone: '13800000000',
       education: '本科',
       technicalTitle: '高级工程师',
+      educations: [
+        {
+          schoolName: 'E2E 测试大学',
+          startDate: '2016-09-01',
+          endDate: '2020-06-30',
+          highestEducation: '本科',
+          studyForm: '全日制',
+          major: '土木工程',
+          isHighestEducationSchool: true,
+        },
+      ],
       certificates: [
         {
           name: '一级建造师',
