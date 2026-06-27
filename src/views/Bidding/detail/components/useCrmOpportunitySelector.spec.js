@@ -251,6 +251,7 @@ describe('useCrmOpportunitySelector', () => {
     getContactPersons.mockResolvedValue({
       data: [
         {
+          position: '1',
           name: '张三',
           phone: '18888888888',
           email: 'zhangsan@example.com',
