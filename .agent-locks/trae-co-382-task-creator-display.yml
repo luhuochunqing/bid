@@ -1,0 +1,9 @@
+version: 1
+task: "trae-co-382-task-creator-display"
+locks:
+  - path: "backend/src/main/java/com/xiyu/bid/entity/Task.java"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/trae/co-382-task-creator-display"
+    expiresAt: "2026-06-28T15:57:08.472Z"
+    reason: "CO-382 任务创建人字段新增"
