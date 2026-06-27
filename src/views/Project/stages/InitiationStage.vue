@@ -143,7 +143,6 @@
               <UserPicker
                 v-model="approvalForm.biddingAssistantId"
                 mode="search"
-                role-filter="bid-Team"
                 :initial-options="assistantOptions"
                 placeholder="搜索人员"
                 clearable
