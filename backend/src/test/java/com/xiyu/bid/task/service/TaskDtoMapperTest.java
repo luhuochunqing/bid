@@ -363,4 +363,60 @@ class TaskDtoMapperTest {
                 .isNotNull()
                 .isEmpty();
     }
+
+    // CO-361: 两入口任务看板展示逻辑保持一致
+    // 独立看板 TaskBoardItemMapper.mapTaskStatus 把 IN_PROGRESS → "TODO"，
+    // 项目详情看板走 TaskDtoMapper.toDTO，必须做同样的归一，否则 TaskBoard.vue
+    // 列定义过滤掉 IN_PROGRESS，任务在项目详情页看板消失。
+    @Test
+    @DisplayName("toDTO 把 IN_PROGRESS 归一为 TODO，与独立看板 TaskBoardItemMapper 行为一致")
+    void toDTO_normalizesInProgressToTodo() {
+        TaskDtoMapper mapper = createMapper();
+
+        Task task = Task.builder()
+                .id(40L)
+                .projectId(10L)
+                .title("历史进行中任务")
+                .status(Task.Status.IN_PROGRESS)
+                .priority(Task.Priority.MEDIUM)
+                .build();
+
+        when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc("TASK", 40L))
+                .thenReturn(Collections.emptyList());
+        when(taskDeliverableRepository.findByTaskIdOrderByCreatedAtDesc(40L))
+                .thenReturn(Collections.emptyList());
+
+        var dto = mapper.toDTO(task);
+
+        assertThat(dto.getStatus())
+                .as("项目详情看板应与独立看板一致：IN_PROGRESS 归一为 TODO，避免任务被列过滤后消失")
+                .isEqualTo(Task.Status.TODO);
+    }
+
+    @Test
+    @DisplayName("toDTO 对 TODO/REVIEW/COMPLETED 状态原样保留，不误伤正常状态")
+    void toDTO_keepsCanonicalStatusesUntouched() {
+        TaskDtoMapper mapper = createMapper();
+
+        for (Task.Status status : new Task.Status[]{Task.Status.TODO, Task.Status.REVIEW, Task.Status.COMPLETED}) {
+            Task task = Task.builder()
+                    .id(41L)
+                    .projectId(10L)
+                    .title("任务-" + status)
+                    .status(status)
+                    .priority(Task.Priority.MEDIUM)
+                    .build();
+
+            when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc("TASK", 41L))
+                    .thenReturn(Collections.emptyList());
+            when(taskDeliverableRepository.findByTaskIdOrderByCreatedAtDesc(41L))
+                    .thenReturn(Collections.emptyList());
+
+            var dto = mapper.toDTO(task);
+
+            assertThat(dto.getStatus())
+                    .as("三态模型中的正常状态 %s 应原样保留", status)
+                    .isEqualTo(status);
+        }
+    }
 }

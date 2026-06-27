@@ -66,7 +66,9 @@ public class TaskDtoMapper {
                 .assigneeDeptName(task.getAssigneeDeptName())
                 .assigneeRoleCode(task.getAssigneeRoleCode())
                 .assigneeRoleName(task.getAssigneeRoleName())
-                .status(task.getStatus())
+                // CO-361: 与独立看板 TaskBoardItemMapper.mapTaskStatus 一致，把废弃的 IN_PROGRESS 归一为 TODO，
+                // 避免项目详情看板 TaskBoard.vue 列定义过滤掉 IN_PROGRESS 后任务消失
+                .status(task.getStatus() == Task.Status.IN_PROGRESS ? Task.Status.TODO : task.getStatus())
                 .priority(task.getPriority())
                 .dueDate(task.getDueDate())
                 .createdAt(task.getCreatedAt())
