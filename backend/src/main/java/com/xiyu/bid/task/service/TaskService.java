@@ -7,11 +7,13 @@ package com.xiyu.bid.task.service;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
+import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import com.xiyu.bid.task.core.TaskProjectVisibilityPolicy;
+import com.xiyu.bid.task.core.TaskVisibilityPolicy;
 import com.xiyu.bid.task.dto.TaskAssignmentRequest;
 import com.xiyu.bid.task.dto.TaskDTO;
 import com.xiyu.bid.task.dto.TeamTaskWorkloadDTO;
@@ -40,6 +42,7 @@ public class TaskService {
     private final ProjectNotificationService notificationService;
     private final UserRepository userRepository;
     private final TaskPermissionGuard taskPermissionGuard;
+    private final ProjectLeadAssignmentRepository leadAssignmentRepository;
 
     public TaskService(TaskRepository taskRepository,
                        ProjectAccessScopeService projectAccessScopeService,
@@ -49,7 +52,8 @@ public class TaskService {
                        TaskHistoryRecorder taskHistoryRecorder,
                        ProjectNotificationService notificationService,
                        UserRepository userRepository,
-                       TaskPermissionGuard taskPermissionGuard) {
+                       TaskPermissionGuard taskPermissionGuard,
+                       ProjectLeadAssignmentRepository leadAssignmentRepository) {
         this.taskRepository = taskRepository;
         this.projectAccessScopeService = projectAccessScopeService;
         this.projectRepository = projectRepository;
@@ -59,6 +63,7 @@ public class TaskService {
         this.notificationService = notificationService;
         this.userRepository = userRepository;
         this.taskPermissionGuard = taskPermissionGuard;
+        this.leadAssignmentRepository = leadAssignmentRepository;
     }
 
     @Transactional
@@ -158,10 +163,16 @@ public class TaskService {
     }
 
     @Transactional(readOnly = true)
-    public List<TaskDTO> getTasksByProjectId(Long projectId) {
+    public List<TaskDTO> getTasksByProjectId(Long projectId, String username) {
         log.debug("Fetching tasks for project: {}", projectId);
         assertCanAccessProject(projectId);
-        return toDTOsWithNames(taskRepository.findByProjectId(projectId));
+        User currentUser = assignmentSupport.resolveEnabledUserByUsername(username);
+        Long[] leadIds = leadAssignmentRepository.resolveLeadIdsByProjectId(projectId);
+        if (TaskVisibilityPolicy.canViewAllProjectTasks(
+                currentUser.getRoleCode(), currentUser.getId(), leadIds[0], leadIds[1])) {
+            return toDTOsWithNames(taskRepository.findByProjectId(projectId));
+        }
+        return toDTOsWithNames(taskRepository.findByProjectIdAndAssigneeId(projectId, currentUser.getId()));
     }
 
     @Transactional(readOnly = true)
@@ -256,35 +267,23 @@ public class TaskService {
     }
 
     private List<Task> visibleTasks(List<Task> tasks) {
-        return TaskProjectVisibilityPolicy.filterVisibleTasks(
-                tasks,
-                projectAccessScopeService.getAllowedProjectIdsForCurrentUser()
-        );
+        return TaskProjectVisibilityPolicy.filterVisibleTasks(tasks, projectAccessScopeService.getAllowedProjectIdsForCurrentUser());
     }
 
     private void assertCanAccessProject(Long projectId) {
-        if (projectId == null || !projectRepository.existsById(projectId)) {
-            return;
-        }
-        if (!TaskProjectVisibilityPolicy.canAccessProject(projectId, projectAccessScopeService.getAllowedProjectIdsForCurrentUser())) {
+        if (projectId == null || !projectRepository.existsById(projectId)) return;
+        if (!TaskProjectVisibilityPolicy.canAccessProject(projectId, projectAccessScopeService.getAllowedProjectIdsForCurrentUser()))
             throw new AccessDeniedException("权限不足，无法访问该项目任务");
-        }
     }
 
     private static TaskAssignmentRequest assignmentRequestFrom(TaskDTO taskDTO) {
-        return TaskAssignmentRequest.builder()
-                .assigneeId(taskDTO.getAssigneeId())
-                .assigneeDeptCode(taskDTO.getAssigneeDeptCode())
-                .assigneeDeptName(taskDTO.getAssigneeDeptName())
-                .assigneeRoleCode(taskDTO.getAssigneeRoleCode())
-                .assigneeRoleName(taskDTO.getAssigneeRoleName())
-                .build();
+        return TaskAssignmentRequest.builder().assigneeId(taskDTO.getAssigneeId())
+                .assigneeDeptCode(taskDTO.getAssigneeDeptCode()).assigneeDeptName(taskDTO.getAssigneeDeptName())
+                .assigneeRoleCode(taskDTO.getAssigneeRoleCode()).assigneeRoleName(taskDTO.getAssigneeRoleName()).build();
     }
 
     private static boolean hasAssignmentChange(TaskDTO taskDTO) {
-        return taskDTO.getAssigneeId() != null
-                || hasText(taskDTO.getAssigneeDeptCode())
-                || hasText(taskDTO.getAssigneeRoleCode());
+        return taskDTO.getAssigneeId() != null || hasText(taskDTO.getAssigneeDeptCode()) || hasText(taskDTO.getAssigneeRoleCode());
     }
 
     private static boolean hasText(String v) { return v != null && !v.isBlank(); }

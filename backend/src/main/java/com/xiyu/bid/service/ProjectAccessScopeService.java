@@ -13,6 +13,7 @@ import com.xiyu.bid.matrixcollaboration.repository.CrmCustomerPermissionReposito
 import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
 import com.xiyu.bid.project.entity.BidDocumentReviewEntity;
 import com.xiyu.bid.project.repository.BidDocumentReviewRepository;
+import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.admin.service.DataScopeAccessProfile;
@@ -48,6 +49,7 @@ public class ProjectAccessScopeService {
     private final ProjectMemberRepository projectMemberRepository;
     private final CrmCustomerPermissionRepository crmCustomerPermissionRepository;
     private final ProjectLeadAssignmentRepository leadAssignmentRepository;
+    private final ProjectInitiationDetailsRepository initiationDetailsRepository;
     private final TaskRepository taskRepository;
     private final BidDocumentReviewRepository bidDocumentReviewRepository;
 
@@ -75,6 +77,16 @@ public class ProjectAccessScopeService {
         // Add projects where user is assigned as primary bidding lead
         allowedIds.addAll(leadAssignmentRepository.findByPrimaryLeadUserId(user.getId()).stream()
                 .map(a -> a.getProjectId())
+                .collect(Collectors.toList()));
+
+        // CO-361: Add projects where user is assigned as secondary bidding lead (副投标负责人)
+        allowedIds.addAll(leadAssignmentRepository.findBySecondaryLeadUserId(user.getId()).stream()
+                .map(a -> a.getProjectId())
+                .collect(Collectors.toList()));
+
+        // CO-361: Add projects where user is the project leader (项目负责人, owner_user_id in initiation details)
+        allowedIds.addAll(initiationDetailsRepository.findByOwnerUserId(user.getId()).stream()
+                .map(com.xiyu.bid.project.entity.ProjectInitiationDetails::getProjectId)
                 .collect(Collectors.toList()));
 
         // Add projects where current user owns assigned project tasks

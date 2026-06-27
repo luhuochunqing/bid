@@ -9,6 +9,7 @@ import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
+import com.xiyu.bid.task.core.TaskVisibilityPolicy;
 import com.xiyu.bid.task.dto.TaskBoardItemDTO;
 import com.xiyu.bid.task.entity.TaskDeliverable;
 import com.xiyu.bid.task.repository.TaskDeliverableRepository;
@@ -56,9 +57,21 @@ public class TaskBoardService {
         User currentUser = assignmentSupport.resolveEnabledUserByUsername(username);
         Long userId = currentUser.getId();
 
-        List<Task> tasks = taskRepository.findByAssigneeId(userId).stream()
-                .filter(TaskBoardItemMapper::isVisibleTask)
-                .toList();
+        // CO-361: 投标管理角色（admin/ bidAdmin/ bid-TeamLeader）+ 投标专员（bid-Team）
+        // 都按项目维度查询（投标专员会通过 filterByProjectVisibility 二次过滤可见项目）
+        boolean queryByProject = TaskVisibilityPolicy.shouldQueryByProjectScope(currentUser.getRoleCode());
+
+        List<Task> tasks;
+        if (queryByProject) {
+            // 投标管理角色/投标专员：查询其可访问项目下的所有任务 + 自己作为 assignee 的任务，合并去重
+            List<Long> allowedProjectIds = projectAccessScopeService.getAllowedProjectIds(currentUser);
+            tasks = collectTasksByProjectScope(userId, allowedProjectIds);
+        } else {
+            // 其他角色（项目负责人、跨部门协同、行政人员等）：只查 assignee=自己
+            tasks = taskRepository.findByAssigneeId(userId).stream()
+                    .filter(TaskBoardItemMapper::isVisibleTask)
+                    .toList();
+        }
 
         List<BidDocumentReviewEntity> reviews = bidDocumentReviewRepository.findByReviewerId(userId).stream()
                 .filter(TaskBoardItemMapper::isActiveBidReview)
@@ -86,6 +99,31 @@ public class TaskBoardService {
         }
 
         return filterByProjectVisibility(items, currentUser);
+    }
+
+    /**
+     * CO-361: 合并“assignee=自己”与“可访问项目下所有任务”，按 taskId 去重。
+     *
+     * <p>投标管理角色（admin/ bidAdmin/ bid-TeamLeader）dataScope=all，allowedProjectIds 为空列表表示不限制；
+     * 投标专员（bid-Team）allowedProjectIds 返回其负责项目 ID 列表。
+     */
+    private List<Task> collectTasksByProjectScope(Long userId, List<Long> allowedProjectIds) {
+        List<Task> ownTasks = taskRepository.findByAssigneeId(userId).stream()
+                .filter(TaskBoardItemMapper::isVisibleTask)
+                .toList();
+        if (allowedProjectIds == null || allowedProjectIds.isEmpty()) {
+            // dataScope=all（admin/ bidAdmin/ bid-TeamLeader）：无项目限制，无法用 findByProjectIdIn 拉全量
+            // 性能考虑：仍只返回自己作为 assignee 的任务（与管理员后台其他模块一致）
+            return ownTasks;
+        }
+        List<Task> projectTasks = taskRepository.findByProjectIdIn(allowedProjectIds).stream()
+                .filter(TaskBoardItemMapper::isVisibleTask)
+                .toList();
+        // 合并去重（按 taskId）
+        Map<Long, Task> dedup = new java.util.LinkedHashMap<>();
+        ownTasks.forEach(t -> dedup.put(t.getId(), t));
+        projectTasks.forEach(t -> dedup.putIfAbsent(t.getId(), t));
+        return List.copyOf(dedup.values());
     }
 
     private Map<Long, String> fetchProjectNames(Set<Long> projectIds) {

@@ -10,6 +10,7 @@ import com.xiyu.bid.matrixcollaboration.repository.CrmCustomerPermissionReposito
 import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
 import com.xiyu.bid.project.entity.BidDocumentReviewEntity;
 import com.xiyu.bid.project.repository.BidDocumentReviewRepository;
+import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TaskRepository;
@@ -61,11 +62,14 @@ class ProjectAccessScopeServiceTest {
     @Mock
     private BidDocumentReviewRepository bidDocumentReviewRepository;
 
+    @Mock
+    private ProjectInitiationDetailsRepository initiationDetailsRepository;
+
     private ProjectAccessScopeService projectAccessScopeService;
 
     @BeforeEach
     void setUp() {
-        projectAccessScopeService = new ProjectAccessScopeService(userRepository, projectRepository, dataScopeConfigService, projectGroupService, projectMemberRepository, crmCustomerPermissionRepository, leadAssignmentRepository, taskRepository, bidDocumentReviewRepository);
+        projectAccessScopeService = new ProjectAccessScopeService(userRepository, projectRepository, dataScopeConfigService, projectGroupService, projectMemberRepository, crmCustomerPermissionRepository, leadAssignmentRepository, initiationDetailsRepository, taskRepository, bidDocumentReviewRepository);
         SecurityContextHolder.clearContext();
     }
 

@@ -49,6 +49,11 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     List<Task> findByProjectIdAndStatus(Long projectId, Task.Status status);
 
     /**
+     * CO-361: 根据项目ID和受托人ID查找任务（项目负责人/执行人只看自己的任务）
+     */
+    List<Task> findByProjectIdAndAssigneeId(Long projectId, Long assigneeId);
+
+    /**
      * 根据受托人ID和状态查找任务
      */
     List<Task> findByAssigneeIdAndStatus(Long assigneeId, Task.Status status);

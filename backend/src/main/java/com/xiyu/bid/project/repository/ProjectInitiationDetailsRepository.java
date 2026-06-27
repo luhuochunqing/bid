@@ -17,4 +17,7 @@ public interface ProjectInitiationDetailsRepository extends JpaRepository<Projec
     Optional<ProjectInitiationDetails> findByProjectId(Long projectId);
 
     List<ProjectInitiationDetails> findByProjectIdIn(Collection<Long> projectIds);
+
+    /** CO-361: 按项目负责人 userId 查询其发起立项的项目详情（owner_user_id）。 */
+    List<ProjectInitiationDetails> findByOwnerUserId(Long ownerUserId);
 }

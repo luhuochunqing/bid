@@ -99,8 +99,10 @@ public class TaskController {
     @GetMapping("/project/{projectId}")
     @PreAuthorize("isAuthenticated()")
     @Auditable(action = "READ", entityType = "Task", description = "根据项目ID获取任务")
-    public ResponseEntity<ApiResponse<List<TaskDTO>>> getTasksByProjectId(@PathVariable Long projectId) {
-        List<TaskDTO> tasks = taskService.getTasksByProjectId(projectId);
+    public ResponseEntity<ApiResponse<List<TaskDTO>>> getTasksByProjectId(
+            @PathVariable Long projectId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        List<TaskDTO> tasks = taskService.getTasksByProjectId(projectId, currentUsername(userDetails));
         return ResponseEntity.ok(ApiResponse.success("Tasks retrieved successfully", tasks));
     }
 
