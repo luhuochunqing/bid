@@ -70,6 +70,22 @@ class TaskDeliverableContractTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.name").value("技术方案"));
+
+        verify(taskDeliverableService).createDeliverable(eq(1L), eq(10L), any(), any());
+    }
+
+    @Test
+    void createTaskDeliverable_ShouldNotCallAssertCanManageTask_BecauseServiceLayerValidatesAssignee() throws Exception {
+        var dto = TaskDeliverableDTO.builder().id(1L).taskId(10L).name("技术方案").version(1).build();
+        when(taskDeliverableService.createDeliverable(any(), any(), any(), any())).thenReturn(dto);
+
+        deliverableMvc.perform(post("/api/projects/1/tasks/10/deliverables")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new TaskDeliverableCreateRequest("技术方案", "TECHNICAL", null, null, null))))
+                .andExpect(status().isCreated());
+
+        verify(taskAuthzGuard, org.mockito.Mockito.never()).assertCanManageTask(any(), any());
     }
 
     @Test

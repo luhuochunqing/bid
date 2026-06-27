@@ -65,7 +65,6 @@ public class TaskDeliverableController {
             @PathVariable Long taskId,
             @Valid @RequestBody TaskDeliverableCreateRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
-        taskAuthzGuard.assertCanManageTask(projectId, currentUsername(userDetails));
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("交付物已上传",
                         taskDeliverableService.createDeliverable(projectId, taskId, request,
