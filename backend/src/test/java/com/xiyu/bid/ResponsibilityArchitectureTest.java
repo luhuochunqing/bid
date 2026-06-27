@@ -73,6 +73,7 @@ class ResponsibilityArchitectureTest {
         "com.xiyu.bid.platform.service.PlatformAccountService",
         "com.xiyu.bid.project.service.ProjectService",
         "com.xiyu.bid.project.service.ProjectClosureService",
+        "com.xiyu.bid.project.service.ProjectDraftingService",
         "com.xiyu.bid.settings.service.SettingsService",
         "com.xiyu.bid.tender.controller.TenderController",
         "com.xiyu.bid.tender.service.TenderCommandService",

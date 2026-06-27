@@ -33,6 +33,7 @@
         "backend/src/main/java/com/xiyu/bid/formengine/application/FormDefinitionAdminService.java",
         "backend/src/main/java/com/xiyu/bid/integration/organization/infrastructure/client/OrganizationDirectoryHttpGateway.java",
         "backend/src/main/java/com/xiyu/bid/project/service/ProjectClosureService.java",
+        "backend/src/main/java/com/xiyu/bid/project/service/ProjectDraftingService.java",
         "backend/src/main/java/com/xiyu/bid/project/service/ProjectService.java",
         "backend/src/main/java/com/xiyu/bid/qualification/controller/QualificationController.java",
         "backend/src/main/java/com/xiyu/bid/qualification/service/QualificationService.java",

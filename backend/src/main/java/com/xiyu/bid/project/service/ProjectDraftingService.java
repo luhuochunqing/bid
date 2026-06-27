@@ -5,6 +5,7 @@
 package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.annotation.Auditable;
+import com.xiyu.bid.crm.application.OssPermissionCache;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
@@ -61,6 +62,7 @@ public class ProjectDraftingService {
     private final ProjectEvaluationRepository projectEvaluationRepository;
     private final ProjectNotificationService notificationService;
     private final ProjectDocumentRepository projectDocumentRepository;
+    private final OssPermissionCache ossPermissionCache;
 
     @Auditable(action = "ASSIGN_PROJECT_LEADS", entityType = "ProjectLeadAssignment",
             description = "分配主/副投标负责人")
@@ -109,7 +111,7 @@ public class ProjectDraftingService {
     // ── 标书审核流程（委托给 BidReviewAppService）────────────────────────
 
     public ProjectDraftingViewDto submitForReview(Long projectId, Long reviewerId, Long currentUserId) {
-        // 服务层角色 + 项目级负责人校验（与 submitBid 对齐；防止 OSS legacy fallback 误授权）
+        // 服务层角色 + 项目级负责人校验（与 submitBid 对齐；优先从 OSS 缓存读取角色，避免 DB role_id 为空导致误拒绝）
         ProjectLeadAssignment lead = assertCanSubmit(projectId, currentUserId);
 
         // 闸门校验：所有任务已完成 + 标书文件已上传（与 submitBid 一致）
@@ -145,7 +147,7 @@ public class ProjectDraftingService {
     public ProjectDraftingViewDto submitBid(Long projectId, Long currentUserId) {
 
         // 业务角色校验：仅投标系统管理员/投标管理员/投标组长/投标项目负责人/投标专员可以提交投标
-        // （通过 roleProfile.code 判断，不回退到 User.role 枚举）
+        // （优先从 OSS 权限缓存读取角色，本地账户兜底到 DB roleProfile；OSS 用户缓存未命中则 fail-closed）
         ProjectLeadAssignment lead = assertCanSubmit(projectId, currentUserId);
 
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
@@ -207,8 +209,7 @@ public class ProjectDraftingService {
     private ProjectLeadAssignment assertCanSubmit(Long projectId, Long currentUserId) {
         User currentUser = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "用户不存在"));
-        String effectiveRoleCode = currentUser.getRoleProfile() != null
-                ? currentUser.getRoleProfile().getCode() : null;
+        String effectiveRoleCode = resolveEffectiveRoleCode(currentUser);
         ProjectLeadAssignment lead = leadRepo.findByProjectId(projectId).orElse(null);
         BidSubmissionAuthorizationPolicy.Decision d =
                 BidSubmissionAuthorizationPolicy.canSubmitBid(effectiveRoleCode, currentUserId, lead);
@@ -216,6 +217,24 @@ public class ProjectDraftingService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, d.reason());
         }
         return lead;
+    }
+
+    private String resolveEffectiveRoleCode(User user) {
+        if (user == null) {
+            return null;
+        }
+        var cachedRole = ossPermissionCache.getRoleCode(user.getUsername());
+        if (cachedRole.isPresent()) {
+            return cachedRole.get();
+        }
+        boolean isOssUser = user.getExternalOrgSourceApp() != null
+                && !user.getExternalOrgSourceApp().isBlank();
+        if (!isOssUser) {
+            return user.getRoleCode();
+        }
+        log.warn("OSS user={} role cache miss, submit authorization will use null roleCode",
+                user.getUsername());
+        return null;
     }
 
     /**

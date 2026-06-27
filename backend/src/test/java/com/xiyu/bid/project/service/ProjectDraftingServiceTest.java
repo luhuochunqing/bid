@@ -6,6 +6,7 @@ package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Task;
+import com.xiyu.bid.crm.application.OssPermissionCache;
 import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.dto.ProjectLeadAssignmentRequest;
 import com.xiyu.bid.project.entity.ProjectLeadAssignment;
@@ -51,12 +52,13 @@ class ProjectDraftingServiceTest {
     @Mock ProjectEvaluationRepository projectEvaluationRepository;
     @Mock ProjectNotificationService notificationService;
     @Mock ProjectDocumentRepository projectDocumentRepository;
+    @Mock OssPermissionCache ossPermissionCache;
 
     ProjectDraftingService service;
 
     @BeforeEach
     void setUp() {
-        service = new ProjectDraftingService(leadRepo, projectRepository, taskRepository, projectStageService, projectAccessScopeService, userRepository, bidReviewAppService, projectEvaluationRepository, notificationService, projectDocumentRepository);
+        service = new ProjectDraftingService(leadRepo, projectRepository, taskRepository, projectStageService, projectAccessScopeService, userRepository, bidReviewAppService, projectEvaluationRepository, notificationService, projectDocumentRepository, ossPermissionCache);
         lenient().when(projectRepository.findById(1L))
                 .thenReturn(Optional.of(Project.builder().id(1L).build()));
         lenient().when(leadRepo.save(any(ProjectLeadAssignment.class)))
@@ -183,6 +185,16 @@ class ProjectDraftingServiceTest {
                 .build();
     }
 
+    private com.xiyu.bid.entity.User mockOssUser(Long id, String roleProfileCode) {
+        return com.xiyu.bid.entity.User.builder()
+                .id(id)
+                .username("test-" + id)
+                .role(com.xiyu.bid.entity.User.Role.MANAGER)
+                .roleProfile(roleProfileCode != null ? roleProfile(roleProfileCode) : null)
+                .externalOrgSourceApp("oss")
+                .build();
+    }
+
     private void prepareSubmitBidHappyPath() {
         lenient().when(taskRepository.findByProjectId(1L)).thenReturn(List.of());
         // 默认 mock：lead 未分配（admin/bid_admin/bid_lead 路径不依赖 lead；sales/bid_specialist 测试按需覆盖）
@@ -218,13 +230,17 @@ class ProjectDraftingServiceTest {
     }
 
     @Test
-    void submitBid_sales_asPrimaryLead_denied_403() {
+    void submitBid_sales_asPrimaryLead_allowed() {
+        // sales（bid-projectLeader）作为 primaryLead 可以提交投标（蓝图 §3.3.1.2）
         prepareSubmitBidHappyPath();
         when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid-projectLeader")));
+        when(ossPermissionCache.getRoleCode("test-1"))
+                .thenReturn(java.util.Optional.empty()); // 本地用户无缓存，fallback 到 DB
         prepareLeadAssignment(1L, 2L);  // sales 用户=1 是 primaryLead
-        assertThatThrownBy(() -> service.submitBid(1L, 1L))
-                .isInstanceOf(ResponseStatusException.class)
-                .extracting("statusCode").isEqualTo(HttpStatus.FORBIDDEN);
+
+        var view = service.submitBid(1L, 1L);
+
+        assertThat(view).isNotNull();
     }
 
     @Test
@@ -232,6 +248,8 @@ class ProjectDraftingServiceTest {
         // sales 只能匹配 primaryLead，不能匹配 secondaryLead
         prepareSubmitBidHappyPath();
         when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid-projectLeader")));
+        when(ossPermissionCache.getRoleCode("test-1"))
+                .thenReturn(java.util.Optional.empty()); // 本地用户无缓存，fallback 到 DB
         prepareLeadAssignment(2L, 1L);  // sales 用户=1 是 secondaryLead，不是 primaryLead
         assertThatThrownBy(() -> service.submitBid(1L, 1L))
                 .isInstanceOf(ResponseStatusException.class)
@@ -499,5 +517,77 @@ class ProjectDraftingServiceTest {
 
         verify(bidReviewAppService, never())
                 .submitForReview(any(Long.class), any(Long.class), any(Long.class));
+    }
+
+    // ── CO-373：OSS 缓存角色优先于 DB roleProfile ─────────────────────────
+
+    @Test
+    void co373_ossUser_cacheHasSalesRole_dbRoleNull_asPrimaryLead_allowed() {
+        prepareSubmitBidHappyPath();
+        var user = mockOssUser(1L, null);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(ossPermissionCache.getRoleCode("test-1"))
+                .thenReturn(java.util.Optional.of("bid-projectLeader"));
+        prepareLeadAssignment(1L, 2L);
+
+        var view = service.submitBid(1L, 1L);
+
+        assertThat(view).isNotNull();
+    }
+
+    @Test
+    void co373_ossUser_cacheHasBidSpecialistRole_dbRoleNull_asSecondaryLead_allowed() {
+        prepareSubmitBidHappyPath();
+        var user = mockOssUser(1L, null);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(ossPermissionCache.getRoleCode("test-1"))
+                .thenReturn(java.util.Optional.of("bid-Team"));
+        prepareLeadAssignment(2L, 1L);
+
+        var view = service.submitBid(1L, 1L);
+
+        assertThat(view).isNotNull();
+    }
+
+    @Test
+    void co373_ossUser_cacheMiss_dbRoleNull_denied_403() {
+        prepareSubmitBidHappyPath();
+        var user = mockOssUser(1L, null);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(ossPermissionCache.getRoleCode("test-1"))
+                .thenReturn(java.util.Optional.empty());
+        prepareLeadAssignment(1L, 2L);
+
+        assertThatThrownBy(() -> service.submitBid(1L, 1L))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting("statusCode").isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void co373_localUser_dbHasSalesRole_cacheMiss_asPrimaryLead_allowed() {
+        prepareSubmitBidHappyPath();
+        var user = mockUser(1L, "bid-projectLeader");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(ossPermissionCache.getRoleCode("test-1"))
+                .thenReturn(java.util.Optional.empty());
+        prepareLeadAssignment(1L, 2L);
+
+        var view = service.submitBid(1L, 1L);
+
+        assertThat(view).isNotNull();
+    }
+
+    @Test
+    void co373_ossUser_cacheRoleTakesPrecedenceOverDbRole() {
+        prepareSubmitBidHappyPath();
+        var user = mockOssUser(1L, "bid-administration");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(ossPermissionCache.getRoleCode("test-1"))
+                .thenReturn(java.util.Optional.of("bid-projectLeader"));
+        prepareLeadAssignment(1L, 2L);
+
+        var view = service.submitBid(1L, 1L);
+
+        assertThat(view).isNotNull();
     }
 }
