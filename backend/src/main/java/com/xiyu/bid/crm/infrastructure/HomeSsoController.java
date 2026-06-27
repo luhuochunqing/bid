@@ -63,7 +63,7 @@ public class HomeSsoController {
     @PostMapping("/home-sso")
     @PreAuthorize(PERMIT_ALL_EXPR)
     public ResponseEntity<ApiResponse<AuthResponse>> homeSsoLogin(@Valid @RequestBody HomeSsoRequest request) {
-        String sanitizedToken = InputSanitizer.sanitizeString(request.ssoToken(), 512);
+        String sanitizedToken = InputSanitizer.sanitizeString(request.ssoToken(), 2048);
         AuthSessionResult sessionResult = homeSsoService.ssoLogin(sanitizedToken);
         log.info("Auth home-sso success");
         return ResponseEntity.ok()

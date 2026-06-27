@@ -6,8 +6,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.Optional;
@@ -33,19 +31,19 @@ class HomeSsoClientTest {
         properties.setAuthBaseUrl(BASE_URL);
     }
 
-    private String buildUrl(String token) {
-        return BASE_URL + "/oauth/getCheckToken?token=" + token;
+    private String buildUrl() {
+        return BASE_URL + "/oauth/getUserInfo";
     }
 
     private String validTokenResponse(String username) {
         return """
                 {
                   "code": 0,
-                  "msg": "success",
+                  "message": "success",
                   "data": {
-                    "user_name": "%s",
-                    "user_id": 123,
-                    "active": true
+                    "username": "%s",
+                    "nickName": "测试用户",
+                    "status": 1
                   }
                 }
                 """.formatted(username);
@@ -55,7 +53,7 @@ class HomeSsoClientTest {
         return """
                 {
                   "code": 401,
-                  "msg": "token invalid or expired",
+                  "message": "token invalid or expired",
                   "data": null
                 }
                 """;
@@ -66,7 +64,7 @@ class HomeSsoClientTest {
     void validateTokenAndGetUsername_validToken_returnsUsername() {
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
-        server.expect(requestTo(buildUrl(VALID_TOKEN)))
+        server.expect(requestTo(buildUrl()))
                 .andRespond(withSuccess(validTokenResponse(USERNAME), MediaType.APPLICATION_JSON));
 
         HomeSsoClient client = new HomeSsoClient(new TestCrmHttpClient(restTemplate, properties), properties);
@@ -81,7 +79,7 @@ class HomeSsoClientTest {
     void validateTokenAndGetUsername_invalidToken_returnsEmpty() {
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
-        server.expect(requestTo(buildUrl(INVALID_TOKEN)))
+        server.expect(requestTo(buildUrl()))
                 .andRespond(withSuccess(invalidTokenResponse(), MediaType.APPLICATION_JSON));
 
         HomeSsoClient client = new HomeSsoClient(new TestCrmHttpClient(restTemplate, properties), properties);
@@ -96,7 +94,7 @@ class HomeSsoClientTest {
     void validateTokenAndGetUsername_networkError_returnsEmpty() {
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
-        server.expect(requestTo(buildUrl(VALID_TOKEN)))
+        server.expect(requestTo(buildUrl()))
                 .andRespond(withServerError());
 
         HomeSsoClient client = new HomeSsoClient(new TestCrmHttpClient(restTemplate, properties), properties);
@@ -107,18 +105,18 @@ class HomeSsoClientTest {
     }
 
     @Test
-    @DisplayName("响应中缺少 user_name 时返回空")
+    @DisplayName("响应中缺少 username 时返回空")
     void validateTokenAndGetUsername_missingUsername_returnsEmpty() {
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
-        server.expect(requestTo(buildUrl(VALID_TOKEN)))
+        server.expect(requestTo(buildUrl()))
                 .andRespond(withSuccess("""
                         {
                           "code": 0,
-                          "msg": "success",
+                          "message": "success",
                           "data": {
-                            "user_id": 123,
-                            "active": true
+                            "nickName": "测试用户",
+                            "status": 1
                           }
                         }
                         """, MediaType.APPLICATION_JSON));
@@ -135,11 +133,11 @@ class HomeSsoClientTest {
     void validateTokenAndGetUsername_nullData_returnsEmpty() {
         RestTemplate restTemplate = new RestTemplate();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
-        server.expect(requestTo(buildUrl(VALID_TOKEN)))
+        server.expect(requestTo(buildUrl()))
                 .andRespond(withSuccess("""
                         {
                           "code": 0,
-                          "msg": "success",
+                          "message": "success",
                           "data": null
                         }
                         """, MediaType.APPLICATION_JSON));
@@ -160,18 +158,14 @@ class HomeSsoClientTest {
         }
 
         @Override
-        public CrmResponseHandler.CrmApiResponse getWithQueryParams(String baseUrl, String path,
-                MultiValueMap<String, String> queryParams) {
-            StringBuilder url = new StringBuilder(baseUrl + path);
-            if (queryParams != null && !queryParams.isEmpty()) {
-                url.append("?");
-                queryParams.forEach((key, values) -> values.forEach(v -> url.append(key).append("=").append(v)));
-            }
+        public CrmResponseHandler.CrmApiResponse get(String baseUrl, String path, String accessToken) {
+            String url = baseUrl + path;
             org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.setBearerAuth(accessToken);
             org.springframework.http.HttpEntity<Void> request = new org.springframework.http.HttpEntity<>(headers);
             try {
                 org.springframework.http.ResponseEntity<String> response = restTemplate.exchange(
-                        url.toString(), org.springframework.http.HttpMethod.GET, request, String.class);
+                        url, org.springframework.http.HttpMethod.GET, request, String.class);
                 return CrmResponseHandler.parse(response.getBody());
             } catch (RuntimeException e) {
                 return CrmResponseHandler.CrmApiResponse.parseError(e.getMessage());
