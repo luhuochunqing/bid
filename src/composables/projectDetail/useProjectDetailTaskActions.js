@@ -294,8 +294,7 @@ export function useProjectDetailTaskActions(context) {
     try {
       const result = await projectsApi.updateTaskStatus(route.params.id, task?.id, normalizeTaskStatusForApi(newStatus))
       if (!result?.success || !result?.data) throw new Error(result?.msg || '任务状态更新失败')
-      Object.assign(task, taskBackendToCard(result.data))
-      message.success('任务状态已更新')
+      const keep = task.deliverables; Object.assign(task, taskBackendToCard(result.data)); task.deliverables = keep || task.deliverables; message.success('任务状态已更新')
     } catch (error) {
       message.error(error.message || '任务状态更新失败')
     }
@@ -336,9 +335,10 @@ export function useProjectDetailTaskActions(context) {
       return
     }
     try {
+      if (!await uploadTaskFilesWithFallback(task, data, { projectStore, projectId: route.params.id, userStore }, { attachments: '任务已提交审核，但附件上传失败，请重试', deliverables: '任务已提交审核，但交付物上传失败，请重试' }, message)) return
       const result = await projectsApi.updateTaskStatus(route.params.id, task.id, normalizeTaskStatusForApi(newStatus))
       if (!result?.success) throw new Error(result?.msg || '提交审核失败')
-      Object.assign(task, taskBackendToCard(result.data))
+      const keep = task.deliverables; Object.assign(task, taskBackendToCard(result.data)); task.deliverables = keep || task.deliverables
       message.success('任务已提交审核')
     } catch (error) {
       message.error(resolveErrorMessage(error, '提交审核失败'))

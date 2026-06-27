@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
-import { ref, computed, defineComponent } from 'vue'
+import { computed, defineComponent } from 'vue'
 
 // Mock composable
 const mockItems = [
@@ -58,6 +58,12 @@ vi.mock('@/api/modules/projects.js', () => ({
 
 vi.mock('element-plus', () => ({
   ElMessage: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
+}))
+
+// CO-370: mock uploadTaskFilesWithFallback 以便测试 handleSubmitForReview 的调用契约
+const mockUploadTaskFilesWithFallback = vi.fn().mockResolvedValue(true)
+vi.mock('@/composables/projectDetail/taskAssigneePayload', () => ({
+  uploadTaskFilesWithFallback: (...args) => mockUploadTaskFilesWithFallback(...args),
 }))
 
 import TaskBoardPage from './TaskBoardPage.vue'
@@ -170,5 +176,65 @@ describe('TaskBoardPage', () => {
     const { projectsApi } = await import('@/api/modules/projects.js')
     // 应调用 updateTaskStatus 更新状态为 REVIEW
     expect(projectsApi.updateTaskStatus).toHaveBeenCalled()
+  })
+})
+
+// CO-370 场景2+3: TaskBoardPage handleSubmitForReview 必须走 uploadTaskFilesWithFallback
+// （而不是旧的 FormData + createTaskDeliverable 直传）
+describe('CO-370 TaskBoardPage handleSubmitForReview', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    mockUploadTaskFilesWithFallback.mockResolvedValue(true)
+  })
+
+  it('场景2+3: 提交审核时调用 uploadTaskFilesWithFallback（而非直接 FormData createTaskDeliverable）', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+    const card = wrapper.find('.task-card-stub')
+    await card.trigger('click')
+    await flushPromises()
+
+    const footerBtns = wrapper.findAll('.el-drawer-stub button')
+    const submitBtn = footerBtns.find(b => b.text().includes('提交审核'))
+    await submitBtn.trigger('click')
+    await flushPromises()
+
+    // 必须调用 uploadTaskFilesWithFallback
+    expect(mockUploadTaskFilesWithFallback).toHaveBeenCalledTimes(1)
+    // 第3个参数是 ctx，必须包含 projectStore / projectId / userStore
+    const ctxArg = mockUploadTaskFilesWithFallback.mock.calls[0][2]
+    expect(ctxArg).toEqual(expect.objectContaining({
+      projectId: 10,
+      projectStore: expect.anything(),
+      userStore: expect.anything(),
+    }))
+    // 第4个参数是错误提示 map，必须包含 deliverables 错误文案
+    const errMsgArg = mockUploadTaskFilesWithFallback.mock.calls[0][3]
+    expect(errMsgArg).toEqual(expect.objectContaining({
+      deliverables: expect.any(String),
+      attachments: expect.any(String),
+    }))
+
+    // 不应再调用旧的 FormData 直传 createTaskDeliverable
+    const { projectsApi } = await import('@/api/modules/projects.js')
+    expect(projectsApi.createTaskDeliverable).not.toHaveBeenCalled()
+  })
+
+  it('场景2+3: uploadTaskFilesWithFallback 返回 false 时不继续更新状态', async () => {
+    mockUploadTaskFilesWithFallback.mockResolvedValue(false)
+    const wrapper = createWrapper()
+    await flushPromises()
+    const card = wrapper.find('.task-card-stub')
+    await card.trigger('click')
+    await flushPromises()
+
+    const footerBtns = wrapper.findAll('.el-drawer-stub button')
+    const submitBtn = footerBtns.find(b => b.text().includes('提交审核'))
+    await submitBtn.trigger('click')
+    await flushPromises()
+
+    const { projectsApi } = await import('@/api/modules/projects.js')
+    expect(projectsApi.updateTaskStatus).not.toHaveBeenCalled()
   })
 })

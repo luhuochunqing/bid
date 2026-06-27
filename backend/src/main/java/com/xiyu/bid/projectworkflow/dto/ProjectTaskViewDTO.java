@@ -44,4 +44,9 @@ public class ProjectTaskViewDTO {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private Integer deliverableCount;
+    /**
+     * CO-370 fix: 完成情况说明（Task 实体 completion_notes 字段）。
+     * 前端在状态流转后用后端返回覆盖内存中的 task 对象，缺失此字段会导致已填写的说明被空值覆盖。
+     */
+    private String completionNotes;
 }

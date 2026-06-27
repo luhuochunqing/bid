@@ -162,6 +162,7 @@ class ProjectTaskWorkflowService {
                 .dueDate(task.getDueDate() != null ? task.getDueDate().format(DISPLAY_DATE) : "")
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
+                .completionNotes(task.getCompletionNotes())
                 .build();
     }
 

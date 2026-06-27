@@ -85,6 +85,9 @@ import { projectsApi } from '@/api/modules/projects.js'
 import { tasksApi } from '@/api/modules/tasks.js'
 import { useTaskBoard } from './composables/useTaskBoard.js'
 import { taskBackendToCard } from '@/views/Project/project-utils.js'
+import { useProjectStore } from '@/stores/project'
+import { useUserStore } from '@/stores/user'
+import { uploadTaskFilesWithFallback } from '@/composables/projectDetail/taskAssigneePayload'
 
 const {
   items,
@@ -141,16 +144,19 @@ async function handleSubmitForReview() {
     const projectId = data.projectId
     const taskId = data.id
 
-    // 上传新增交付物
-    const files = data.deliverableFiles || []
-    for (const file of files) {
-      if (file?.raw) {
-        const formData = new FormData()
-        formData.append('file', file.raw)
-        formData.append('taskId', taskId)
-        await projectsApi.createTaskDeliverable(projectId, taskId, formData)
-      }
-    }
+    const projectStore = useProjectStore()
+    const userStore = useUserStore()
+    const uploadOk = await uploadTaskFilesWithFallback(
+      { id: taskId, projectId },
+      { attachments: [], deliverableFiles: data.deliverableFiles || [] },
+      { projectStore, projectId, userStore },
+      {
+        attachments: '已提交审核，但附件上传失败，请重试',
+        deliverables: '已提交审核，但交付物上传失败，请重试',
+      },
+      ElMessage,
+    )
+    if (!uploadOk) return
 
     // 保存完成情况说明
     if (data.completionNotes) {

@@ -933,3 +933,104 @@ describe('handleSaveTask edit branch', () => {
     expect(message.error).toHaveBeenCalled()
   })
 })
+
+// CO-370: 任务交付物和完成情况说明在状态流转后丢失
+describe('CO-370 useProjectDetailTaskActions', () => {
+  const buildCo370Ctx = ({ updateTaskStatus, projectTasks, projectStore = {} }) => {
+    const state = {
+      project: ref({ id: 1, name: '测试项目', tasks: projectTasks }),
+      activities: ref([]),
+      scoreDraftDialogVisible: ref(false),
+      currentTask: ref(null),
+      taskDialogVisible: ref(false),
+    }
+    const message = { success: vi.fn(), error: vi.fn(), warning: vi.fn() }
+    return {
+      ctx: {
+        route: { params: { id: '1' } },
+        userStore: { userName: '测试用户', currentUser: { id: 9 } },
+        projectStore,
+        projectsApi: { updateTaskStatus },
+        isApiProject: ref(true),
+        message,
+        state,
+        workflow: {},
+      },
+      state,
+      message,
+    }
+  }
+
+  // 场景1: handleSubmitReview 必须在 updateTaskStatus 之前调用 uploadTaskFilesWithFallback 上传交付物
+  it('场景1: handleSubmitReview 在 API 模式下提交审核时先上传交付物再更新状态', async () => {
+    const file = new File(['交付物内容'], '交付物.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
+    const updateTaskStatus = vi.fn().mockResolvedValue({
+      success: true,
+      data: { id: 42, name: '提交审核任务', status: 'REVIEW' },
+    })
+    const addDeliverable = vi.fn().mockResolvedValue({ id: 901, name: '交付物.docx', url: '/files/901' })
+    const tasks = [{ id: 42, name: '提交审核任务', status: 'TODO', assigneeId: 9, deliverables: [] }]
+    const { ctx } = buildCo370Ctx({
+      updateTaskStatus,
+      projectTasks: tasks,
+      projectStore: { addDeliverable },
+    })
+
+    const { handleSubmitReview } = useProjectDetailTaskActions(ctx)
+    await handleSubmitReview({
+      id: 42,
+      status: 'REVIEW',
+      deliverableFiles: [file],
+    })
+
+    expect(addDeliverable).toHaveBeenCalledWith('1', 42, expect.objectContaining({
+      name: '交付物.docx',
+      file,
+    }))
+    expect(updateTaskStatus).toHaveBeenCalledWith('1', 42, 'REVIEW')
+  })
+
+  // 场景4: handleTaskStatusChange 后端返回不含 deliverables 时，前端内存中的 deliverables 不被清空
+  it('场景4: handleTaskStatusChange 状态流转后 deliverables 不被后端返回的空值覆盖', async () => {
+    const updateTaskStatus = vi.fn().mockResolvedValue({
+      success: true,
+      // 后端返回不含 deliverables 字段（模拟旧后端或字段缺失场景）
+      data: { id: 42, name: '已审核任务', status: 'REVIEW' },
+    })
+    const existingDeliverables = [{ id: 901, name: '已有交付物.docx', url: '/files/901' }]
+    const tasks = [{ id: 42, name: '已审核任务', status: 'TODO', deliverables: existingDeliverables.slice() }]
+    const { ctx, state } = buildCo370Ctx({
+      updateTaskStatus,
+      projectTasks: tasks,
+    })
+
+    const { handleTaskStatusChange } = useProjectDetailTaskActions(ctx)
+    await handleTaskStatusChange(state.project.value.tasks[0], 'REVIEW')
+
+    expect(state.project.value.tasks[0].deliverables).toEqual(existingDeliverables)
+  })
+
+  // 场景4: handleSubmitReview 后端返回不含 deliverables 时，前端内存中的 deliverables 不被清空
+  it('场景4: handleSubmitReview 提交审核后 deliverables 不被后端返回的空值覆盖', async () => {
+    const updateTaskStatus = vi.fn().mockResolvedValue({
+      success: true,
+      data: { id: 42, name: '已提交审核任务', status: 'REVIEW' },
+    })
+    const existingDeliverables = [{ id: 902, name: '审核前交付物.docx', url: '/files/902' }]
+    const tasks = [{ id: 42, name: '已提交审核任务', status: 'TODO', assigneeId: 9, deliverables: existingDeliverables.slice() }]
+    const { ctx, state } = buildCo370Ctx({
+      updateTaskStatus,
+      projectTasks: tasks,
+      projectStore: {},
+    })
+
+    const { handleSubmitReview } = useProjectDetailTaskActions(ctx)
+    await handleSubmitReview({
+      id: 42,
+      status: 'REVIEW',
+      deliverableFiles: [],
+    })
+
+    expect(state.project.value.tasks[0].deliverables).toEqual(existingDeliverables)
+  })
+})
