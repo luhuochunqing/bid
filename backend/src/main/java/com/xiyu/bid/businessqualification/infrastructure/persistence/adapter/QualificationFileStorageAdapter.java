@@ -89,7 +89,7 @@ public class QualificationFileStorageAdapter implements QualificationFileStorage
                     java.nio.file.StandardOpenOption.CREATE,
                     java.nio.file.StandardOpenOption.TRUNCATE_EXISTING);
 
-            return "/api/knowledge/qualifications/" + qualificationId + "/attachments/" + fileName;
+            return fileName;
 
         } catch (IOException e) {
             throw new RuntimeException("存储资质证书附件失败: " + e.getMessage(), e);

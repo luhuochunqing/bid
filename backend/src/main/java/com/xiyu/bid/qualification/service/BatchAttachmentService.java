@@ -2,7 +2,9 @@ package com.xiyu.bid.qualification.service;
 
 import com.xiyu.bid.businessqualification.domain.port.QualificationFileStorage;
 import com.xiyu.bid.businessqualification.infrastructure.persistence.entity.BusinessQualificationEntity;
+import com.xiyu.bid.businessqualification.infrastructure.persistence.entity.QualificationAttachmentEntity;
 import com.xiyu.bid.businessqualification.infrastructure.persistence.repository.BusinessQualificationJpaRepository;
+import com.xiyu.bid.businessqualification.infrastructure.persistence.repository.QualificationAttachmentJpaRepository;
 import com.xiyu.bid.qualification.dto.BatchAttachResultDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,6 +15,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -40,6 +43,7 @@ public class BatchAttachmentService {
 
     private final BusinessQualificationJpaRepository repository;
     private final QualificationFileStorage fileStorage;
+    private final QualificationAttachmentJpaRepository attachmentRepository;
 
     @Transactional
     public BatchAttachResultDTO process(List<MultipartFile> files) {
@@ -167,7 +171,7 @@ public class BatchAttachmentService {
             return;
         }
 
-        String url = fileStorage.storeAttachmentWithNaming(
+        String storedFileName = fileStorage.storeAttachmentWithNaming(
                 entity.getId(),
                 content,
                 certificateNo,
@@ -177,8 +181,16 @@ public class BatchAttachmentService {
                 file.getContentType()
         );
 
-        entity.setFileUrl(url);
+        entity.setFileUrl(storedFileName);
         repository.save(entity);
+
+        QualificationAttachmentEntity attachment = QualificationAttachmentEntity.builder()
+                .qualificationId(entity.getId())
+                .fileName(originalName)
+                .fileUrl(storedFileName)
+                .uploadedAt(LocalDateTime.now())
+                .build();
+        attachmentRepository.save(attachment);
 
         matched.add(BatchAttachResultDTO.MatchedItem.builder()
                 .fileName(originalName).certificateNo(certificateNo)

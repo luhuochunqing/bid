@@ -2,7 +2,7 @@ package com.xiyu.bid.businessqualification.domain.port;
 
 /**
  * 资质证书文件存储端口。
- * 职责：将附件字节存储到持久化位置，并返回可下载的 URL。
+ * 职责：将附件字节存储到持久化位置，并返回存储的文件名（用于后续附件表记录和磁盘路径解析）。
  */
 public interface QualificationFileStorage {
 

@@ -96,7 +96,7 @@ const handleUpload = async () => {
     const res = await http.post('/api/knowledge/qualifications/batch-attach', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
-    const data = res?.data?.data || {}
+    const data = res?.data || {}
     result.value = {
       total: data.total || fileList.value.length,
       success: data.success || 0,
