@@ -186,14 +186,14 @@ export function useCrmOpportunitySelector(props, emit) {
       try {
         const contactRes = await crmApi.getContactPersons(chance.id)
         const contacts = Array.isArray(contactRes) ? contactRes : (contactRes?.data || [])
-        customerInfos = contacts.map(c => {
-          const roleKey = CRM_POSITION_TO_ROLE[c.position]
+        customerInfos = contacts.map((c, idx) => {
+          const roleKey = CUSTOMER_INFO_ROWS[idx % 14].roleKey
           if (!roleKey) return null
           return {
             roleKey,
             NAME: c.name || '',
             CONTACT_INFO: c.phone || c.email || '',
-            POSITION: c.position || '',
+            POSITION: String((idx % 14) + 1),
           XIYU_CONTACT: c.ehsyProjectManager || '',
           CONTACT_METHOD: c.contactMethod || '',
           INFO_TENDENCY_BASIS: c.preferenceBasis || '',
