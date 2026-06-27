@@ -1,9 +1,0 @@
-version: 1
-task: "github-sync-round-4"
-locks:
-  - path: "backend/src/main/java/com/xiyu/bid/entity/RoleProfileCatalog.java"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/mimo/github-sync-round-4"
-    expiresAt: "2026-06-26T00:00:00.000Z"
-    reason: "cherry-pick github/main 2ced574a9: RoleProfileCatalog PROJECT_LEADER_CODE"

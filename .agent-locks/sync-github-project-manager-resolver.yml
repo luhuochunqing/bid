@@ -1,9 +1,0 @@
-version: 1
-task: "sync-github-project-manager-resolver"
-locks:
-  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1099__add_task_completion_notes.sql"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/trae/sync-github-project-manager-resolver"
-    expiresAt: "2026-06-27T09:27:08.872Z"
-    reason: "补充 V1099 add_task_completion_notes 回滚脚本"
