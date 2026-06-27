@@ -500,6 +500,85 @@ class TaskOperationPolicyTest {
     }
 
     @Nested
+    @DisplayName("canForceReassign - 强行干预（重分配）权限")
+    class CanForceReassignTests {
+
+        @Test
+        @DisplayName("admin 角色可强行重分配")
+        void adminRole_ShouldBeAllowed() {
+            var result = TaskOperationPolicy.canForceReassign(
+                    RoleProfileCatalog.ADMIN_CODE,
+                    CURRENT_USER_ID,
+                    PRIMARY_LEAD_ID,
+                    SECONDARY_LEAD_ID
+            );
+            assertThat(result.allowed()).isTrue();
+        }
+
+        @Test
+        @DisplayName("bidAdmin 角色可强行重分配")
+        void bidAdminRole_ShouldBeAllowed() {
+            var result = TaskOperationPolicy.canForceReassign(
+                    RoleProfileCatalog.BID_ADMIN_CODE,
+                    CURRENT_USER_ID,
+                    PRIMARY_LEAD_ID,
+                    SECONDARY_LEAD_ID
+            );
+            assertThat(result.allowed()).isTrue();
+        }
+
+        @Test
+        @DisplayName("bid-TeamLeader 角色可强行重分配")
+        void bidTeamLeaderRole_ShouldBeAllowed() {
+            var result = TaskOperationPolicy.canForceReassign(
+                    RoleProfileCatalog.BID_LEAD_CODE,
+                    CURRENT_USER_ID,
+                    PRIMARY_LEAD_ID,
+                    SECONDARY_LEAD_ID
+            );
+            assertThat(result.allowed()).isTrue();
+        }
+
+        @Test
+        @DisplayName("bid-projectLeader 不可强行重分配")
+        void bidProjectLeaderRole_ShouldBeDenied() {
+            var result = TaskOperationPolicy.canForceReassign(
+                    RoleProfileCatalog.SALES_CODE,
+                    PRIMARY_LEAD_ID,
+                    PRIMARY_LEAD_ID,
+                    SECONDARY_LEAD_ID
+            );
+            assertThat(result.allowed()).isFalse();
+            assertThat(result.reason()).contains("管理员/组长");
+        }
+
+        @Test
+        @DisplayName("bid-Team 不可强行重分配")
+        void bidTeamRole_ShouldBeDenied() {
+            var result = TaskOperationPolicy.canForceReassign(
+                    RoleProfileCatalog.BID_SPECIALIST_CODE,
+                    PRIMARY_LEAD_ID,
+                    PRIMARY_LEAD_ID,
+                    SECONDARY_LEAD_ID
+            );
+            assertThat(result.allowed()).isFalse();
+            assertThat(result.reason()).contains("管理员/组长");
+        }
+
+        @Test
+        @DisplayName("null 角色拒绝")
+        void nullRole_ShouldBeDenied() {
+            var result = TaskOperationPolicy.canForceReassign(
+                    null,
+                    CURRENT_USER_ID,
+                    PRIMARY_LEAD_ID,
+                    SECONDARY_LEAD_ID
+            );
+            assertThat(result.allowed()).isFalse();
+        }
+    }
+
+    @Nested
     @DisplayName("canReviewTask - 任务审核权限")
     class CanReviewTaskTests {
 

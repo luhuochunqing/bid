@@ -7,6 +7,7 @@ import { defineStore } from 'pinia'
 import { httpClient, projectsApi, resourcesApi } from '@/api'
 import { taskStatusDictApi } from '@/api/modules/taskStatusDict.js'
 import { taskExtendedFieldApi } from '@/api/modules/taskExtendedField.js'
+import { createTaskDeliverable, deleteTaskDeliverable } from '@/api/modules/taskDeliverables.js'
 
 function normalizeExpenseDate(value) {
   if (!value) return ''
@@ -365,7 +366,7 @@ export const useProjectStore = defineStore('project', {
         fileType: uploadedDocument?.fileType || data.fileType || file?.type || null,
         url: uploadedDocument?.fileUrl || data.url || null,
       }
-      const result = await projectsApi.createTaskDeliverable(projectId, taskId, payload)
+      const result = await createTaskDeliverable(projectId, taskId, payload)
       if (!result?.success || !result?.data) {
         throw new Error(result?.msg || '保存任务交付物失败')
       }
@@ -384,7 +385,7 @@ export const useProjectStore = defineStore('project', {
     },
 
     async removeDeliverable(projectId, taskId, deliverableId) {
-      const result = await projectsApi.deleteTaskDeliverable(projectId, taskId, deliverableId)
+      const result = await deleteTaskDeliverable(projectId, taskId, deliverableId)
       if (!result?.success) {
         throw new Error(result?.msg || '删除任务交付物失败')
       }

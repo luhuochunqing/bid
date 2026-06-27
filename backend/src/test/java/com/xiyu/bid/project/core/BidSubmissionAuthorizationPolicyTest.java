@@ -80,31 +80,31 @@ class BidSubmissionAuthorizationPolicyTest {
     // ── sales：仅匹配 primaryLeadUserId ──────────────────────────────────────
 
     @Test
-    void canSubmitBid_sales_denied_asSalesAreNotAllowed() {
+    void canSubmitBid_sales_asPrimaryLead_allowed() {
         var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid-projectLeader", 1L, lead(1L, 2L));
-        assertThat(d.allowed()).isFalse();
-        assertThat(d.reason()).contains("当前角色无权限提交投标");
+        assertThat(d.allowed()).isTrue();
     }
 
     @Test
     void canSubmitBid_sales_asSecondaryLead_denied() {
+        // 投标项目负责人只能担任主负责人，不能作为辅助人员
         var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid-projectLeader", 1L, lead(2L, 1L));
         assertThat(d.allowed()).isFalse();
-        assertThat(d.reason()).contains("当前角色无权限提交投标");
+        assertThat(d.reason()).contains("您不是该项目的投标负责人");
     }
 
     @Test
     void canSubmitBid_sales_notLead_denied() {
         var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid-projectLeader", 1L, lead(2L, 3L));
         assertThat(d.allowed()).isFalse();
-        assertThat(d.reason()).contains("当前角色无权限提交投标");
+        assertThat(d.reason()).contains("您不是该项目的投标负责人");
     }
 
     @Test
     void canSubmitBid_sales_nullCurrentUserId_denied() {
         var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid-projectLeader", null, lead(1L, 2L));
         assertThat(d.allowed()).isFalse();
-        assertThat(d.reason()).contains("当前角色无权限提交投标");
+        assertThat(d.reason()).contains("您不是该项目的投标负责人");
     }
 
     // ── bid_specialist：匹配 primaryLeadUserId 或 secondaryLeadUserId ──────────
@@ -130,10 +130,10 @@ class BidSubmissionAuthorizationPolicyTest {
     // ── lead 为 null / 字段为 null ───────────────────────────────────────────
 
     @Test
-    void canSubmitBid_sales_leadNull_denied_withNoPermissionMessage() {
+    void canSubmitBid_sales_leadNull_denied_withNoLeadMessage() {
         var d = BidSubmissionAuthorizationPolicy.canSubmitBid("bid-projectLeader", 1L, null);
         assertThat(d.allowed()).isFalse();
-        assertThat(d.reason()).contains("当前角色无权限提交投标");
+        assertThat(d.reason()).contains("尚未分配投标负责人");
     }
 
     @Test

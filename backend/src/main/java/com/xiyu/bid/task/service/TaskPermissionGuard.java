@@ -31,6 +31,28 @@ class TaskPermissionGuard {
         }
     }
 
+    void assertCanForceReassign(Long projectId) {
+        User currentUser = currentUserResolver.requireCurrentUser();
+        Long[] leadIds = resolveProjectLeadIds(projectId);
+        AuthorizationDecision decision = TaskOperationPolicy.canForceReassign(
+                currentUser.getRoleCode(),
+                currentUser.getId(),
+                leadIds[0],
+                leadIds[1]
+        );
+        if (!decision.allowed()) {
+            throw new AccessDeniedException(decision.reason());
+        }
+    }
+
+    void assertCanAssignTask(Long projectId, boolean forceReassign) {
+        if (forceReassign) {
+            assertCanForceReassign(projectId);
+        } else {
+            assertCanManageTask(projectId);
+        }
+    }
+
     void assertCanManageOrSubmitTask(Task task) {
         User currentUser = currentUserResolver.requireCurrentUser();
         Long[] leadIds = resolveProjectLeadIds(task.getProjectId());

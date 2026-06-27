@@ -42,7 +42,6 @@ class ProjectDocumentWorkflowServiceTest {
     private ProjectDocumentDownloadService downloadService;
     private CurrentUserResolver currentUserResolver;
     private ProjectLeadAssignmentRepository projectLeadAssignmentRepository;
-    private ProjectMemberRepository projectMemberRepository;
 
     @BeforeEach
     void setUp() {
@@ -55,7 +54,6 @@ class ProjectDocumentWorkflowServiceTest {
         bindingGateway = mock(ProjectDocumentBindingGateway.class);
         fileStorage = mock(ProjectDocumentFileStorage.class);
         projectLeadAssignmentRepository = mock(ProjectLeadAssignmentRepository.class);
-        projectMemberRepository = mock(ProjectMemberRepository.class);
         currentUserResolver = mock(CurrentUserResolver.class);
 
         ProjectWorkflowGuardService guardService = new ProjectWorkflowGuardService(
@@ -72,7 +70,6 @@ class ProjectDocumentWorkflowServiceTest {
                 projectDocumentRepository,
                 userRepository,
                 projectLeadAssignmentRepository,
-                projectMemberRepository,
                 viewAssembler,
                 bindingGateway,
                 currentUserResolver
@@ -89,7 +86,6 @@ class ProjectDocumentWorkflowServiceTest {
         doReturn(new Long[]{null, null})
                 .when(projectLeadAssignmentRepository)
                 .resolveLeadIdsByProjectId(1001L);
-        when(projectMemberRepository.findByProjectId(1001L)).thenReturn(List.of());
     }
 
     @Test
@@ -267,44 +263,4 @@ class ProjectDocumentWorkflowServiceTest {
         org.springframework.security.core.context.SecurityContextHolder.clearContext();
     }
 
-    @Test
-    void getProjectDocuments_asProjectMember_shouldSucceed() {
-        Long reviewerId = 500L;
-        when(currentUserResolver.requireCurrentUser()).thenReturn(
-                com.xiyu.bid.entity.User.builder()
-                        .id(reviewerId)
-                        .roleProfile(com.xiyu.bid.entity.RoleProfile.builder().code("bid_other_dept").build())
-                        .build());
-        when(projectMemberRepository.findByProjectId(1001L)).thenReturn(List.of(
-                com.xiyu.bid.matrixcollaboration.entity.ProjectMember.builder()
-                        .projectId(1001L)
-                        .userId(reviewerId)
-                        .permissionLevel("VIEWER")
-                        .build()
-        ));
-        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
-                1001L, null, null, null
-        )).thenReturn(List.of());
-
-        List<ProjectDocumentDTO> documents = service.getProjectDocuments(1001L);
-
-        assertThat(documents).isEmpty();
-        verify(projectDocumentRepository).findByProjectIdAndFiltersOrderByCreatedAtDesc(
-                1001L, null, null, null);
-    }
-
-    @Test
-    void getProjectDocuments_asNonMember_shouldThrowAccessDeniedException() {
-        Long outsiderId = 999L;
-        when(currentUserResolver.requireCurrentUser()).thenReturn(
-                com.xiyu.bid.entity.User.builder()
-                        .id(outsiderId)
-                        .roleProfile(com.xiyu.bid.entity.RoleProfile.builder().code("bid_other_dept").build())
-                        .build());
-        when(projectMemberRepository.findByProjectId(1001L)).thenReturn(List.of());
-
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.getProjectDocuments(1001L))
-                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
-                .hasMessageContaining("权限不足");
-    }
 }

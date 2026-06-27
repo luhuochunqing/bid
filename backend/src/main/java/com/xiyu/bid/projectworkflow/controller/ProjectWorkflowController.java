@@ -20,11 +20,7 @@ import com.xiyu.bid.projectworkflow.service.ProjectTaskAuthorizationGuard;
 import com.xiyu.bid.projectworkflow.service.ProjectTaskBreakdownService;
 import com.xiyu.bid.projectworkflow.service.ProjectWorkflowService;
 import com.xiyu.bid.task.dto.BidSubmissionResponse;
-import com.xiyu.bid.task.dto.DeliverableCoverageDTO;
-import com.xiyu.bid.task.dto.TaskDeliverableCreateRequest;
-import com.xiyu.bid.task.dto.TaskDeliverableDTO;
 import com.xiyu.bid.task.service.BidProcessService;
-import com.xiyu.bid.task.service.TaskDeliverableService;
 import com.xiyu.bid.util.InputSanitizer;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -56,7 +52,6 @@ public class ProjectWorkflowController {
 
     private final ProjectWorkflowService projectWorkflowService;
     private final ProjectTaskBreakdownService projectTaskBreakdownService;
-    private final TaskDeliverableService taskDeliverableService;
     private final BidProcessService bidProcessService;
     private final ProjectTaskAuthorizationGuard taskAuthzGuard;
 
@@ -179,48 +174,6 @@ public class ProjectWorkflowController {
     public ResponseEntity<ApiResponse<Void>> clearProjectScoreDrafts(@PathVariable Long projectId) {
         projectWorkflowService.clearNonGeneratedDrafts(projectId);
         return ResponseEntity.ok(ApiResponse.success("Project score drafts cleared successfully", null));
-    }
-
-    // --- Deliverable endpoints ---
-
-    @GetMapping("/tasks/{taskId}/deliverables")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<List<TaskDeliverableDTO>>> getTaskDeliverables(
-            @PathVariable Long projectId,
-            @PathVariable Long taskId) {
-        return ResponseEntity.ok(ApiResponse.success(
-                taskDeliverableService.getDeliverablesByTaskId(projectId, taskId)));
-    }
-
-    @PostMapping("/tasks/{taskId}/deliverables")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<TaskDeliverableDTO>> createTaskDeliverable(
-            @PathVariable Long projectId,
-            @PathVariable Long taskId,
-            @Valid @RequestBody TaskDeliverableCreateRequest request,
-            @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("交付物已上传",
-                        taskDeliverableService.createDeliverable(projectId, taskId, request, currentUsername(userDetails))));
-    }
-
-    @DeleteMapping("/tasks/{taskId}/deliverables/{deliverableId}")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<Void>> deleteTaskDeliverable(
-            @PathVariable Long projectId,
-            @PathVariable Long taskId,
-            @PathVariable Long deliverableId) {
-        taskDeliverableService.deleteDeliverable(projectId, taskId, deliverableId);
-        return ResponseEntity.ok(ApiResponse.success("交付物已删除", null));
-    }
-
-    @GetMapping("/tasks/{taskId}/deliverables/coverage")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<DeliverableCoverageDTO>> getDeliverableCoverage(
-            @PathVariable Long projectId,
-            @PathVariable Long taskId) {
-        return ResponseEntity.ok(ApiResponse.success(
-                taskDeliverableService.getDeliverableCoverage(taskId, null)));
     }
 
     // --- Bid submission endpoints ---

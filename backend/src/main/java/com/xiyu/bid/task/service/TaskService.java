@@ -93,13 +93,11 @@ public class TaskService {
         log.info("Task created successfully with id: {}", savedTask.getId());
         return taskDtoMapper.toDTO(savedTask, resolveAssigneeName(savedTask.getAssigneeId()));
     }
-
     @Transactional(readOnly = true)
     public List<TaskDTO> getAllTasks() {
         log.debug("Fetching all tasks");
         return toDTOsWithNames(visibleTasks(taskRepository.findAll()));
     }
-
     @Transactional(readOnly = true)
     public TaskDTO getTaskById(Long id) {
         log.debug("Fetching task by id: {}", id);
@@ -222,7 +220,9 @@ public class TaskService {
         log.info("Assigning task {} to user: {}", id, request == null ? null : request.getAssigneeId());
         Task task = findTask(id);
         assertCanAccessProject(task.getProjectId());
-        taskPermissionGuard.assertCanManageTask(task.getProjectId());
+        boolean isReassignment = task.getAssigneeId() != null
+                && !Objects.equals(task.getAssigneeId(), request == null ? null : request.getAssigneeId());
+        taskPermissionGuard.assertCanAssignTask(task.getProjectId(), isReassignment);
         User currentUser = assignmentSupport.resolveEnabledUserByUsername(username);
         Task before = TaskSnapshots.copy(task);
         assignmentSupport.applyAssignment(task, assignmentSupport.resolveAssignmentSnapshot(request, currentUser));

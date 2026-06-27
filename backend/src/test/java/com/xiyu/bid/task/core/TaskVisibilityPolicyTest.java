@@ -11,8 +11,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>验证基于角色 + 项目身份的任务可见性判断：
  * <ul>
  *   <li>投标管理角色（admin/ bidAdmin/ bid-TeamLeader）→ 看项目所有任务</li>
+ *   <li>投标项目负责人（bid-projectLeader）且匹配 primaryLeadUserId → 看该项目所有任务</li>
  *   <li>投标专员（bid-Team）且是项目投标负责人/辅助 → 看该项目所有任务</li>
- *   <li>其他角色（项目负责人 bid-projectLeader、跨部门 bid-otherDept 等）→ 只看自己的任务</li>
+ *   <li>其他角色（跨部门 bid-otherDept、行政人员等）→ 只看自己的任务</li>
  * </ul>
  */
 class TaskVisibilityPolicyTest {
@@ -84,10 +85,21 @@ class TaskVisibilityPolicyTest {
     }
 
     @Test
-    void shouldViewOnlyOwnTasks_whenUserIsProjectLeader() {
+    void shouldViewAllTasks_whenUserIsProjectLeaderMatchingPrimary() {
         boolean result = TaskVisibilityPolicy.canViewAllProjectTasks(
                 RoleProfileCatalog.SALES_CODE,
                 100L,
+                100L,
+                200L
+        );
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void shouldViewOnlyOwnTasks_whenUserIsProjectLeaderNotMatching() {
+        boolean result = TaskVisibilityPolicy.canViewAllProjectTasks(
+                RoleProfileCatalog.SALES_CODE,
+                999L,
                 100L,
                 200L
         );
@@ -163,11 +175,11 @@ class TaskVisibilityPolicyTest {
     }
 
     @Test
-    void shouldQueryByAssigneeOnly_whenUserIsProjectLeader() {
+    void shouldQueryByProject_whenUserIsProjectLeader() {
         boolean result = TaskVisibilityPolicy.shouldQueryByProjectScope(
                 RoleProfileCatalog.SALES_CODE
         );
-        assertThat(result).isFalse();
+        assertThat(result).isTrue();
     }
 
     @Test

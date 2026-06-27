@@ -3,7 +3,10 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
 vi.mock('@/api/modules/projects.js', () => ({
-  projectsApi: { createTaskDeliverable: vi.fn(), updateTask: vi.fn(), updateTaskStatus: vi.fn() }
+  projectsApi: { updateTask: vi.fn(), updateTaskStatus: vi.fn() }
+}))
+vi.mock('@/api/modules/taskDeliverables.js', () => ({
+  createTaskDeliverable: vi.fn(),
 }))
 vi.mock('@/api/modules/projectLifecycle.js', () => ({
   projectLifecycleApi: { approveBid: vi.fn(), rejectBid: vi.fn() }

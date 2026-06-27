@@ -311,40 +311,6 @@ export const projectsApi = {
     return httpClient.delete(`/api/projects/${projectId}/score-drafts`)
   },
 
-  // --- Deliverable endpoints ---
-
-  async getTaskDeliverables(projectId, taskId) {
-    if (!isNumericId(projectId) || !isNumericId(taskId)) {
-      return apiModeFailure('task')
-    }
-
-    return httpClient.get(`/api/projects/${projectId}/tasks/${taskId}/deliverables`)
-  },
-
-  async createTaskDeliverable(projectId, taskId, data) {
-    if (!isNumericId(projectId) || !isNumericId(taskId)) {
-      return apiModeFailure('task')
-    }
-
-    return httpClient.post(`/api/projects/${projectId}/tasks/${taskId}/deliverables`, data)
-  },
-
-  async deleteTaskDeliverable(projectId, taskId, deliverableId) {
-    if (!isNumericId(projectId) || !isNumericId(taskId) || !isNumericId(deliverableId)) {
-      return apiModeFailure('deliverable')
-    }
-
-    return httpClient.delete(`/api/projects/${projectId}/tasks/${taskId}/deliverables/${deliverableId}`)
-  },
-
-  async getDeliverableCoverage(projectId, taskId) {
-    if (!isNumericId(projectId) || !isNumericId(taskId)) {
-      return apiModeFailure('task')
-    }
-
-    return httpClient.get(`/api/projects/${projectId}/tasks/${taskId}/deliverables/coverage`)
-  },
-
   // --- Bid submission endpoints ---
 
   async submitToBidDocument(projectId) {

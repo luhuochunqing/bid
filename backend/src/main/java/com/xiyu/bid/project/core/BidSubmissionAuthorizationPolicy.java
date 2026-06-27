@@ -7,12 +7,16 @@ package com.xiyu.bid.project.core;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.project.entity.ProjectLeadAssignment;
 
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 /**
  * 提交投标授权策略（蓝图 §3.3.1.2 权限矩阵 + CO-290 角色差异化）。
  * <p>纯核心：不依赖数据库、I/O、Spring 或日志。所有方法返回 {@link Decision} 值，
  * 编排层按 {@link Decision.Cause} 映射 HTTP 状态码（IDENTITY→403, STATE→409）。</p>
  *
- * <p>角色权限分层（对齐 {@link RoleProfileCatalog#SUBMIT_BID_ALLOWED_ROLES}）：</p>
+ * <p>角色权限分层：</p>
  * <ul>
  *   <li>直接放行：{@code admin}/{@code bid_admin}/{@code bid_lead}</li>
  *   <li>需项目级负责人分配：
@@ -23,8 +27,31 @@ import com.xiyu.bid.project.entity.ProjectLeadAssignment;
  *   </li>
  *   <li>其他角色：直接拒绝</li>
  * </ul>
+ *
+ * <p>注意：本策略使用本地常量定义允许提交的角色，以保持与 {@code @PreAuthorize} 白名单一致。
+ * {@link RoleProfileCatalog#SUBMIT_BID_ALLOWED_ROLES} 仅作为历史常量保留。</p>
  */
 public final class BidSubmissionAuthorizationPolicy {
+
+    /**
+     * 直接放行角色：不依赖项目级负责人分配。
+     * 须与 Controller {@code @PreAuthorize} 白名单保持一致。
+     */
+    private static final Set<String> DIRECT_ROLES = RoleProfileCatalog.SUBMIT_BID_DIRECT_ROLES;
+
+    /**
+     * 需项目级负责人匹配后才能提交投标的角色。
+     * 须与 Controller {@code @PreAuthorize} 白名单保持一致。
+     */
+    private static final Set<String> LEAD_REQUIRED_ROLES = Set.of(
+            RoleProfileCatalog.BID_SPECIALIST_CODE,
+            RoleProfileCatalog.SALES_CODE
+    );
+
+    private static final Set<String> ALLOWED_ROLES = Stream.concat(
+            DIRECT_ROLES.stream(),
+            LEAD_REQUIRED_ROLES.stream()
+    ).collect(Collectors.toUnmodifiableSet());
 
     private BidSubmissionAuthorizationPolicy() {
     }
@@ -38,24 +65,28 @@ public final class BidSubmissionAuthorizationPolicy {
      * @return 允许或拒绝决定
      */
     public static Decision canSubmitBid(String roleCode, Long currentUserId, ProjectLeadAssignment lead) {
-        if (roleCode == null || !RoleProfileCatalog.SUBMIT_BID_ALLOWED_ROLES.contains(roleCode)) {
+        if (roleCode == null || !ALLOWED_ROLES.contains(roleCode)) {
             return Decision.deny(Decision.Cause.IDENTITY, "当前角色无权限提交投标");
         }
-        if (RoleProfileCatalog.SUBMIT_BID_DIRECT_ROLES.contains(roleCode)) {
+        if (DIRECT_ROLES.contains(roleCode)) {
             return Decision.permit();
         }
         if (lead == null) {
             return Decision.deny(Decision.Cause.IDENTITY, "项目尚未分配投标负责人，请联系管理员");
         }
         boolean matched;
-        if (RoleProfileCatalog.BID_SPECIALIST_CODE.equals(roleCode)) {
-            // bid_specialist 投标专员：可作为投标负责人(primary)或投标辅助人员(secondary)
+        if (RoleProfileCatalog.SALES_CODE.equals(roleCode)) {
+            // 销售负责人（sales）作为项目主投标负责人时可提交
+            matched = lead.getPrimaryLeadUserId() != null
+                    && lead.getPrimaryLeadUserId().equals(currentUserId);
+        } else if (RoleProfileCatalog.BID_SPECIALIST_CODE.equals(roleCode)) {
+            // 投标专员（bid-Team）：可作为投标负责人(primary)或投标辅助人员(secondary)
             matched = (lead.getPrimaryLeadUserId() != null
                     && lead.getPrimaryLeadUserId().equals(currentUserId))
                     || (lead.getSecondaryLeadUserId() != null
                     && lead.getSecondaryLeadUserId().equals(currentUserId));
         } else {
-            // 防御性兜底：SUBMIT_BID_LEAD_REQUIRED_ROLES 未来新增角色时未在此处补分支会显式拒绝
+            // 防御性兜底：LEAD_REQUIRED_ROLES 未来新增角色时未在此处补分支会显式拒绝
             return Decision.deny(Decision.Cause.IDENTITY, "当前角色无项目级负责人匹配规则");
         }
         return matched ? Decision.permit()

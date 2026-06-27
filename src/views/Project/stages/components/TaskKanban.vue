@@ -9,7 +9,7 @@
             <sup v-if="scoreRiskCount > 0" style="display:inline-block;background:#dc2626;color:#fff;border-radius:10px;font-size:10px;padding:1px 5px;margin-left:3px;line-height:1.3;">{{ scoreRiskCount > 99 ? '99+' : scoreRiskCount }}</sup>
           </el-button>
           <el-button v-if="canUseAI" size="small" @click="emit('openDecompose')">AI 自动拆解任务</el-button>
-          <el-button type="primary" size="small" @click="showCreateDialog = true">新建任务</el-button>
+          <el-button v-if="canManageTasks" type="primary" size="small" @click="showCreateDialog = true">新建任务</el-button>
         </div>
       </div>
     </template>
@@ -173,6 +173,20 @@ const {
 })
 
 const canReviewTasks = computed(() => {
+  const roleCode = userStore?.currentUser?.roleCode || userStore?.currentUser?.role || ''
+  if (GLOBAL_MANAGE_ROLES.some(r => r.toLowerCase() === roleCode.toLowerCase())) {
+    return true
+  }
+  const currentUserId = userStore?.currentUser?.id
+  if (currentUserId == null) return false
+  const pid = props.primaryLeadId
+  const sid = props.secondaryLeadId
+  if (pid != null && String(currentUserId) === String(pid)) return true
+  if (sid != null && String(currentUserId) === String(sid)) return true
+  return false
+})
+
+const canManageTasks = computed(() => {
   const roleCode = userStore?.currentUser?.roleCode || userStore?.currentUser?.role || ''
   if (GLOBAL_MANAGE_ROLES.some(r => r.toLowerCase() === roleCode.toLowerCase())) {
     return true

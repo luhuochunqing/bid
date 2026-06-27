@@ -10,8 +10,9 @@ import com.xiyu.bid.entity.RoleProfileCatalog;
  * <p>权限矩阵（对齐 docs/permission-matrix/投标项目-权限矩阵.md §2.3.1）：
  * <ul>
  *   <li>投标管理角色（admin/ bidAdmin/ bid-TeamLeader）→ 看项目所有任务</li>
+ *   <li>投标项目负责人（bid-projectLeader）且匹配 primaryLeadUserId → 看该项目所有任务</li>
  *   <li>投标专员（bid-Team）且是项目投标负责人/辅助 → 看该项目所有任务</li>
- *   <li>其他角色（项目负责人 bid-projectLeader、跨部门 bid-otherDept 等）→ 只看 assignee=自己 的任务</li>
+ *   <li>其他角色（跨部门 bid-otherDept、行政人员等）→ 只看 assignee=自己 的任务</li>
  * </ul>
  *
  * <p>使用 {@link RoleProfileCatalog} 常量判断角色，不硬编码 roleCode 字符串。
@@ -27,6 +28,8 @@ public final class TaskVisibilityPolicy {
      * <p>判定规则：
      * <ol>
      *   <li>角色属于 {@link RoleProfileCatalog#GLOBAL_ACCESS_ROLES}（admin/ bidAdmin/ bid-TeamLeader）→ true</li>
+     *   <li>角色为 {@link RoleProfileCatalog#SALES_CODE}（投标项目负责人），
+     *       且 userId 匹配该项目的 primaryLeadUserId → true</li>
      *   <li>角色为 {@link RoleProfileCatalog#BID_SPECIALIST_CODE}（投标专员），
      *       且 userId 匹配该项目的 primaryLeadUserId 或 secondaryLeadUserId → true</li>
      *   <li>其他情况 → false（只看 assignee=自己 的任务）</li>
@@ -50,11 +53,15 @@ public final class TaskVisibilityPolicy {
         if (RoleProfileCatalog.GLOBAL_ACCESS_ROLES.contains(roleCode)) {
             return true;
         }
+        // 投标项目负责人（bid-projectLeader）→ 需匹配主负责人
+        if (RoleProfileCatalog.SALES_CODE.equalsIgnoreCase(roleCode)) {
+            return userId != null && userId.equals(primaryLeadUserId);
+        }
         // 投标专员（bid-Team）→ 需是项目投标负责人/辅助才看所有任务
         if (RoleProfileCatalog.BID_SPECIALIST_CODE.equalsIgnoreCase(roleCode)) {
             return matchesAnyLead(userId, primaryLeadUserId, secondaryLeadUserId);
         }
-        // 其他角色（项目负责人、跨部门协同、行政人员等）→ 只看自己的任务
+        // 其他角色（跨部门协同、行政人员等）→ 只看自己的任务
         return false;
     }
 
@@ -77,8 +84,9 @@ public final class TaskVisibilityPolicy {
         if (roleCode == null || roleCode.isBlank()) {
             return false;
         }
-        // 投标管理角色 + 投标专员都按项目维度查（投标专员会通过 ProjectLeadAssignment 过滤）
+        // 投标管理角色 + 投标项目负责人 + 投标专员都按项目维度查
         return RoleProfileCatalog.GLOBAL_ACCESS_ROLES.contains(roleCode)
+                || RoleProfileCatalog.SALES_CODE.equalsIgnoreCase(roleCode)
                 || RoleProfileCatalog.BID_SPECIALIST_CODE.equalsIgnoreCase(roleCode);
     }
 

@@ -61,6 +61,29 @@ public final class TaskOperationPolicy {
     }
 
     /**
+     * 校验强行干预（重分配）权限 — 仅全局管理角色可操作。
+     * <p>与常规任务分配区分：管理员/组长可在任何情况下重新分配任务，
+     * 投标负责人/辅助人员只能做初始分配。</p>
+     *
+     * @param roleCode      当前操作者角色 code
+     * @param currentUserId 当前用户 ID
+     * @param primaryLeadId 项目主负责人 ID
+     * @param secondaryLeadId 项目副负责人 ID
+     * @return 授权决策
+     */
+    public static AuthorizationDecision canForceReassign(
+            String roleCode,
+            Long currentUserId,
+            Long primaryLeadId,
+            Long secondaryLeadId
+    ) {
+        if (roleCode != null && DIRECT_MANAGE_ROLES.contains(roleCode)) {
+            return AuthorizationDecision.permit();
+        }
+        return AuthorizationDecision.deny("仅管理员/组长可强行干预任务分配");
+    }
+
+    /**
      * 校验审核权限 — 管理权限持有者可审核，但不能审核自己提交的任务。
      * <p>职责分离原则：提交者不应审核自己提交的工作。</p>
      *

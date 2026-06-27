@@ -75,7 +75,6 @@ class ProjectWorkflowServiceTest {
                 projectDocumentRepository,
                 userRepository,
                 mock(ProjectLeadAssignmentRepository.class),
-                mock(ProjectMemberRepository.class),
                 new ProjectDocumentViewAssembler(),
                 mock(ProjectDocumentBindingGateway.class),
                 mock(CurrentUserResolver.class)

@@ -15,6 +15,7 @@
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { projectsApi } from '@/api/modules/projects.js'
+import { createTaskDeliverable as apiCreateTaskDeliverable } from '@/api/modules/taskDeliverables.js'
 import { useUserStore } from '@/stores/user.js'
 import { TASK_STATUS } from '@/constants/taskStatus.js'
 
@@ -100,7 +101,7 @@ export function useTaskActions(options = {}) {
         const formData = new FormData()
         formData.append('file', deliverableUploadRef.value.uploadFiles[0].raw)
         formData.append('taskId', task.id)
-        await api.createTaskDeliverable(projectId, task.id, formData)
+        await apiCreateTaskDeliverable(projectId, task.id, formData)
       }
       if (submitNotes.value) {
         await api.updateTask(task.id, { completionNotes: submitNotes.value })

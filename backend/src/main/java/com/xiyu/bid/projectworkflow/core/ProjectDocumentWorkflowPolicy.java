@@ -7,7 +7,7 @@ package com.xiyu.bid.projectworkflow.core;
 import com.xiyu.bid.common.domain.AuthorizationDecision;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 
-import java.util.Set;
+
 
 /**
  * 项目文档工作流授权策略。
@@ -24,7 +24,6 @@ public final class ProjectDocumentWorkflowPolicy {
      *   <li>admin / bidAdmin / bid-TeamLeader：直接放行</li>
      *   <li>bid-projectLeader：需匹配 primaryLeadId</li>
      *   <li>bid-Team：需匹配 primaryLeadId 或 secondaryLeadId</li>
-     *   <li>项目成员（projectMemberIds 中）：允许查看</li>
      *   <li>其他角色：拒绝</li>
      * </ul>
      *
@@ -32,12 +31,10 @@ public final class ProjectDocumentWorkflowPolicy {
      * @param currentUserId  当前用户 ID
      * @param primaryLeadId  项目主负责人 ID
      * @param secondaryLeadId 项目副负责人 ID
-     * @param projectMemberIds 项目成员用户 ID 集合（可为 null 或空）
      * @return 授权决策结果
      */
     public static AuthorizationDecision canViewProjectDocuments(String roleCode, Long currentUserId,
-                                                                Long primaryLeadId, Long secondaryLeadId,
-                                                                Set<Long> projectMemberIds) {
+                                                                Long primaryLeadId, Long secondaryLeadId) {
         if (roleCode == null) {
             return AuthorizationDecision.deny("当前用户未分配角色，无权查看项目文档");
         }
@@ -58,27 +55,22 @@ public final class ProjectDocumentWorkflowPolicy {
             }
             return AuthorizationDecision.deny("权限不足，仅项目负责人可查看项目文档");
         }
-        if (isProjectMember(currentUserId, projectMemberIds)) {
-            return AuthorizationDecision.permit();
-        }
         return AuthorizationDecision.deny("权限不足，无权查看项目文档");
     }
 
     /**
      * 校验指定角色是否有权下载项目文档。
-     * <p>权限规则与 {@link #canViewProjectDocuments(String, Long, Long, Long, Set)} 完全一致。</p>
+     * <p>权限规则与 {@link #canViewProjectDocuments(String, Long, Long, Long)} 完全一致。</p>
      *
      * @param roleCode        当前操作者角色 code（可为 null）
      * @param currentUserId   当前用户 ID
      * @param primaryLeadId   项目主负责人 ID
      * @param secondaryLeadId 项目副负责人 ID
-     * @param projectMemberIds 项目成员用户 ID 集合（可为 null 或空）
      * @return 授权决策结果
      */
     public static AuthorizationDecision canDownloadProjectDocument(String roleCode, Long currentUserId,
-                                                                   Long primaryLeadId, Long secondaryLeadId,
-                                                                   Set<Long> projectMemberIds) {
-        AuthorizationDecision viewDecision = canViewProjectDocuments(roleCode, currentUserId, primaryLeadId, secondaryLeadId, projectMemberIds);
+                                                                   Long primaryLeadId, Long secondaryLeadId) {
+        AuthorizationDecision viewDecision = canViewProjectDocuments(roleCode, currentUserId, primaryLeadId, secondaryLeadId);
         if (viewDecision.allowed()) {
             return AuthorizationDecision.permit();
         }
@@ -139,10 +131,4 @@ public final class ProjectDocumentWorkflowPolicy {
         return false;
     }
 
-    private static boolean isProjectMember(Long currentUserId, Set<Long> projectMemberIds) {
-        if (currentUserId == null || projectMemberIds == null || projectMemberIds.isEmpty()) {
-            return false;
-        }
-        return projectMemberIds.contains(currentUserId);
-    }
 }

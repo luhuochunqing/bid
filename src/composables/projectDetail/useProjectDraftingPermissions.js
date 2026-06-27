@@ -59,6 +59,14 @@ export function useProjectDraftingPermissions(opts = {}) {
   const isLeadAssist = computed(() => roleGroup.value === 'lead_assist')
   const isExecutor = computed(() => roleGroup.value === 'executor')
 
+  const isProjectLeader = computed(() => {
+    if (role.value !== 'bid-projectLeader') return false
+    const currentUserId = resolveOpt(opts.currentUserId)
+    if (!currentUserId) return false
+    const primaryLeadId = resolveOpt(opts.primaryLeadId)
+    return primaryLeadId != null && String(currentUserId) === String(primaryLeadId)
+  })
+
   // ── AI 能力 ────────────────────────────────────────────────────────────────
 
   /** AI评分标准解析（任务看板→评分标准拆解） */
@@ -129,9 +137,9 @@ export function useProjectDraftingPermissions(opts = {}) {
     roleGroup.value === 'admin_lead' || roleGroup.value === 'lead_assist'
   )
 
-  /** 选择标书审核人（与上传投标文件权限一致） */
+  /** 选择标书审核人：仅管理员/组长 + 当前项目投标负责人 */
   const canSelectReviewer = computed(() =>
-    roleGroup.value === 'admin_lead' || roleGroup.value === 'lead_assist'
+    isAdminLead.value || isProjectLeader.value
   )
 
   /** 审核投标（通过/驳回）— 仅指派的审核人本人可操作，与角色无关（对齐后端 BidReviewPolicy.canApprove/canReject） */
@@ -189,6 +197,7 @@ export function useProjectDraftingPermissions(opts = {}) {
     isAdminLead,
     isLeadAssist,
     isExecutor,
+    isProjectLeader,
     // AI
     canAIScoreDraftDecompose,
     canAITenderBreakdown,

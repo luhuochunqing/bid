@@ -63,7 +63,7 @@ public class ProjectDraftingController {
 
     /** 提交投标（审核通过 + 闸门通过后推进到评标中阶段）。 */
     @PostMapping("/submit-bid")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM', 'SALES')")
     public ResponseEntity<ApiResponse<ProjectDraftingViewDto>> submitBid(
             @PathVariable Long projectId,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -74,7 +74,7 @@ public class ProjectDraftingController {
 
     /** 提交标书审核 */
     @PostMapping("/submit-review")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM', 'SALES')")
     public ResponseEntity<ApiResponse<ProjectDraftingViewDto>> submitForReview(
             @PathVariable Long projectId,
             @RequestBody Map<String, Object> payload,

@@ -39,7 +39,7 @@ public class ProjectResultController {
     private final AuthService authService;
 
     /**
-     * 登记结果：管理员/组长/投标负责人/投标辅助（项目负责人不可登记）。
+     * 登记结果：管理员/组长/投标负责人/投标辅助。
      *
      * @param projectId 项目 ID
      * @param req       登记请求体
@@ -47,7 +47,7 @@ public class ProjectResultController {
      * @return 登记后的结果 DTO
      */
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_TEAM')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM')")
     public ResponseEntity<ApiResponse<ResultDTO>> register(
             @PathVariable final Long projectId,
             @Valid @RequestBody final ResultRegistrationRequest req,

@@ -1,6 +1,7 @@
 package com.xiyu.bid.task.service;
 
 import com.xiyu.bid.common.domain.AuthorizationDecision;
+import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.task.core.DeliverableAssociationPolicy;
 import com.xiyu.bid.task.core.TaskOperationPolicy;
 import com.xiyu.bid.task.core.TaskTransitionPolicy;
@@ -17,11 +18,18 @@ import com.xiyu.bid.task.repository.TaskDeliverableRepository;
 import com.xiyu.bid.util.InputSanitizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -37,6 +45,9 @@ public class TaskDeliverableService {
     private final TaskRepository taskRepository;
     private final TaskDeliverableRepository taskDeliverableRepository;
     private final UserRepository userRepository;
+
+    @Value("${app.doc-insight.upload-dir:}")
+    private String docInsightUploadDir;
 
     @Transactional
     public TaskDeliverableDTO createDeliverable(
@@ -168,6 +179,83 @@ public class TaskDeliverableService {
             return TaskDeliverable.DeliverableType.DOCUMENT;
         }
     }
+
+    /**
+     * Load deliverable file for download.
+     * Validates project-task-deliverable ownership and resolves the doc-insight:// storage path.
+     *
+     * @param projectId     owning project id
+     * @param taskId        owning task id
+     * @param deliverableId deliverable id
+     * @return file info for download response
+     */
+    @Transactional(readOnly = true)
+    public DeliverableDownloadFile getDeliverableFile(Long projectId, Long taskId, Long deliverableId) {
+        var task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("任务不存在: " + taskId));
+        if (!task.getProjectId().equals(projectId)) {
+            throw new IllegalArgumentException("任务不属于该项目");
+        }
+        var deliverable = taskDeliverableRepository.findById(deliverableId)
+                .orElseThrow(() -> ResourceNotFoundException.withMessage("交付物不存在: " + deliverableId));
+        if (!deliverable.getTaskId().equals(taskId)) {
+            throw new IllegalArgumentException("交付物不属于该任务");
+        }
+        String storagePath = deliverable.getStoragePath();
+        if (storagePath == null || storagePath.isBlank()) {
+            throw ResourceNotFoundException.withMessage("交付物文件不存在: " + deliverableId);
+        }
+        Path filePath = resolveDocInsightPath(storagePath);
+        if (!Files.exists(filePath)) {
+            throw ResourceNotFoundException.withMessage("交付物文件不存在: " + deliverableId);
+        }
+        long fileSize;
+        try {
+            fileSize = Files.size(filePath);
+        } catch (IOException e) {
+            throw new IllegalStateException("无法读取文件大小", e);
+        }
+        String contentType = deliverable.getFileType() != null && !deliverable.getFileType().isBlank()
+                ? deliverable.getFileType()
+                : MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        return new DeliverableDownloadFile(
+                deliverable.getName(),
+                contentType,
+                fileSize,
+                new FileSystemResource(filePath)
+        );
+    }
+
+    private Path resolveDocInsightPath(String fileUrl) {
+        if (fileUrl.startsWith("http://") || fileUrl.startsWith("https://")) {
+            throw new IllegalArgumentException("外部 URL 交付物暂不支持直接下载");
+        }
+        if (!fileUrl.startsWith("doc-insight://")) {
+            throw new IllegalArgumentException("无效的文件 URL 格式: " + fileUrl);
+        }
+        String relativePath = fileUrl.substring("doc-insight://".length());
+        if (relativePath.isBlank() || relativePath.contains("..")) {
+            throw new IllegalArgumentException("无效的文件路径");
+        }
+        Path uploadRoot = (docInsightUploadDir == null || docInsightUploadDir.isBlank())
+                ? Path.of(System.getProperty("java.io.tmpdir"), "xiyu-doc-insight-uploads")
+                : Path.of(docInsightUploadDir);
+        Path targetPath = uploadRoot.resolve(relativePath).normalize();
+        if (!targetPath.startsWith(uploadRoot.toAbsolutePath().normalize())) {
+            throw new IllegalArgumentException("文件路径越界");
+        }
+        return targetPath;
+    }
+
+    /**
+     * File info record for deliverable download response.
+     */
+    public record DeliverableDownloadFile(
+            String fileName,
+            String contentType,
+            long contentLength,
+            Resource resource
+    ) {}
 
     /** Convert entity DeliverableType to core policy enum. */
     private static DeliverableAssociationPolicy.DeliverableType toCoreType(

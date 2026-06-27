@@ -13,11 +13,7 @@ const deleteTaskDeliverableMock = vi.hoisted(() => vi.fn())
 vi.mock('@/api', () => ({
   httpClient: { get: vi.fn() },
   resourcesApi: { expenses: { getList: vi.fn() } },
-  projectsApi: {
-    uploadDocument: uploadDocumentMock,
-    createTaskDeliverable: createTaskDeliverableMock,
-    deleteTaskDeliverable: deleteTaskDeliverableMock,
-  },
+  projectsApi: { uploadDocument: uploadDocumentMock },
 }))
 
 vi.mock('@/api/modules/taskStatusDict.js', () => ({
@@ -26,6 +22,11 @@ vi.mock('@/api/modules/taskStatusDict.js', () => ({
 
 vi.mock('@/api/modules/taskExtendedField.js', () => ({
   taskExtendedFieldApi: { list: vi.fn() },
+}))
+
+vi.mock('@/api/modules/taskDeliverables.js', () => ({
+  createTaskDeliverable: createTaskDeliverableMock,
+  deleteTaskDeliverable: deleteTaskDeliverableMock,
 }))
 
 import { useProjectStore } from './project.js'
