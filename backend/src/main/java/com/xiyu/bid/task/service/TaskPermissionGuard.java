@@ -21,7 +21,7 @@ class TaskPermissionGuard {
         User currentUser = currentUserResolver.requireCurrentUser();
         Long[] leadIds = resolveProjectLeadIds(projectId);
         AuthorizationDecision decision = TaskOperationPolicy.canManageTask(
-                currentUser.getRoleCode(),
+                currentUserResolver.resolveEffectiveRoleCode(currentUser),
                 currentUser.getId(),
                 leadIds[0],
                 leadIds[1]
@@ -35,7 +35,7 @@ class TaskPermissionGuard {
         User currentUser = currentUserResolver.requireCurrentUser();
         Long[] leadIds = resolveProjectLeadIds(projectId);
         AuthorizationDecision decision = TaskOperationPolicy.canForceReassign(
-                currentUser.getRoleCode(),
+                currentUserResolver.resolveEffectiveRoleCode(currentUser),
                 currentUser.getId(),
                 leadIds[0],
                 leadIds[1]
@@ -57,7 +57,7 @@ class TaskPermissionGuard {
         User currentUser = currentUserResolver.requireCurrentUser();
         Long[] leadIds = resolveProjectLeadIds(task.getProjectId());
         AuthorizationDecision manageDecision = TaskOperationPolicy.canManageTask(
-                currentUser.getRoleCode(),
+                currentUserResolver.resolveEffectiveRoleCode(currentUser),
                 currentUser.getId(),
                 leadIds[0],
                 leadIds[1]
@@ -87,7 +87,7 @@ class TaskPermissionGuard {
             }
         } else if (targetStatus == Task.Status.COMPLETED || targetStatus == Task.Status.TODO) {
             AuthorizationDecision decision = TaskOperationPolicy.canReviewTask(
-                    currentUser.getRoleCode(),
+                    currentUserResolver.resolveEffectiveRoleCode(currentUser),
                     currentUser.getId(),
                     leadIds[0],
                     leadIds[1],
