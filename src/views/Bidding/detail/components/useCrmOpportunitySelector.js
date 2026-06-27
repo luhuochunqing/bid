@@ -6,7 +6,7 @@
 import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { crmApi } from '@/api/modules/crm.js'
-import { CUSTOMER_INFO_ROWS } from './customerInfoMatrixConfig.js'
+import { CUSTOMER_INFO_ROWS, CRM_POSITION_TO_ROLE } from './customerInfoMatrixConfig.js'
 
 /**
  * 解析 CRM 商机 gapFile 字段为评估表 projectPlanGapFiles。
@@ -186,10 +186,9 @@ export function useCrmOpportunitySelector(props, emit) {
       try {
         const contactRes = await crmApi.getContactPersons(chance.id)
         const contacts = Array.isArray(contactRes) ? contactRes : (contactRes?.data || [])
-        const roleKeys = CUSTOMER_INFO_ROWS.map(r => r.roleKey)
-        customerInfos = contacts.map((c, idx) => {
-          const posIdx = parseInt(c.position, 10) - 1
-          const roleKey = (!isNaN(posIdx) && posIdx >= 0 && posIdx < roleKeys.length) ? roleKeys[posIdx] : roleKeys[idx % roleKeys.length]
+        customerInfos = contacts.map(c => {
+          const roleKey = CRM_POSITION_TO_ROLE[c.position]
+          if (!roleKey) return null
           return {
             roleKey,
             NAME: c.name || '',
@@ -207,7 +206,7 @@ export function useCrmOpportunitySelector(props, emit) {
           INFO_CLEAR_WINNER_BID: c.guaranteeWin || false,
           INFO_WIN_RATE_IMPACT: c.impactRate || null,
         }
-      })
+      }).filter(Boolean)
       } catch {
         ElMessage.warning('CRM对接人查询失败，已继续关联商机，客户信息未自动带入')
       }
