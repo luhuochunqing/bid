@@ -290,10 +290,13 @@ const exporting = ref(false)
 async function handleExportDocs() {
   exporting.value = true
   try {
-    const response = await projectLifecycleApi.exportProjectArchive(props.projectId)
-    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const response = await projectLifecycleApi.exportClosureDocuments(props.projectId)
+    const docData = response.data?.data || response.data // Handle ApiResponse wrapper if present
+    const content = docData.content || JSON.stringify(docData, null, 2)
+    const contentBlob = new Blob([content], { type: 'application/json' })
+    const url = window.URL.createObjectURL(contentBlob)
     const link = document.createElement('a'); link.href = url
-    link.setAttribute('download', '项目资料_' + props.projectId + '.zip')
+    link.setAttribute('download', `项目资料_${props.projectId}_${docData.id || ''}.json`)
     document.body.appendChild(link); link.click(); document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
     ElMessage.success('项目资料导出成功')

@@ -114,9 +114,14 @@ export const projectLifecycleApi = {
     return httpClient.post(`${base(id)}/closure/reject`, payload)
   },
 
-  // WS-F project archive export
+  // WS-F project archive export (旧的返回 ZIP 的接口)
   exportProjectArchive(id) {
     return httpClient.get(`/api/archive/export-zip/${id}`, { responseType: 'blob' })
+  },
+
+  // 一键导出项目文档 (返回 JSON 结构)
+  exportClosureDocuments(id) {
+    return httpClient.post(`/api/projects/${id}/closure/export-documents`)
   },
 
   // WS-F rebid (二次招标)
