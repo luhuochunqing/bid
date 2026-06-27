@@ -17,6 +17,7 @@ public record ContactPersonInfoVO(
     @JsonProperty("name") String name,
     @JsonProperty("phone") String phone,
     @JsonProperty("email") String email,
+    @JsonProperty("position") String position,
     @JsonProperty("ehsyProjectManager") String ehsyProjectManager,
     @JsonProperty("contacted") Boolean contacted,
     @JsonProperty("contactMethod") String contactMethod,

@@ -185,13 +185,16 @@ export function useCrmOpportunitySelector(props, emit) {
     if (chance?.id) {
       try {
         const contactRes = await crmApi.getContactPersons(chance.id)
-        const contacts = contactRes?.data || []
+        const contacts = Array.isArray(contactRes) ? contactRes : (contactRes?.data || [])
         const roleKeys = CUSTOMER_INFO_ROWS.map(r => r.roleKey)
-        customerInfos = contacts.map((c, idx) => ({
-          roleKey: roleKeys[idx % roleKeys.length],
-          NAME: c.name || '',
-          CONTACT_INFO: c.phone || c.email || '',
-          POSITION: '',
+        customerInfos = contacts.map((c, idx) => {
+          const posIdx = parseInt(c.position, 10) - 1
+          const roleKey = (!isNaN(posIdx) && posIdx >= 0 && posIdx < roleKeys.length) ? roleKeys[posIdx] : roleKeys[idx % roleKeys.length]
+          return {
+            roleKey,
+            NAME: c.name || '',
+            CONTACT_INFO: c.phone || c.email || '',
+            POSITION: c.position || '',
           XIYU_CONTACT: c.ehsyProjectManager || '',
           CONTACT_METHOD: c.contactMethod || '',
           INFO_TENDENCY_BASIS: c.preferenceBasis || '',
@@ -203,7 +206,8 @@ export function useCrmOpportunitySelector(props, emit) {
           TENDENCY: c.preferenceLevel || null,
           INFO_CLEAR_WINNER_BID: c.guaranteeWin || false,
           INFO_WIN_RATE_IMPACT: c.impactRate || null,
-        }))
+        }
+      })
       } catch {
         ElMessage.warning('CRM对接人查询失败，已继续关联商机，客户信息未自动带入')
       }
