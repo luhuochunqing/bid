@@ -1,6 +1,8 @@
 package com.xiyu.bid.task.service;
 
+import com.xiyu.bid.admin.service.DataScopeConfigService;
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.project.entity.BidDocumentReviewEntity;
@@ -21,6 +23,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -47,6 +51,9 @@ class TaskBoardServiceTest {
     @Mock
     private TaskDeliverableRepository taskDeliverableRepository;
 
+    @Mock
+    private DataScopeConfigService dataScopeConfigService;
+
     private TaskBoardService taskBoardService;
 
     @BeforeEach
@@ -58,7 +65,8 @@ class TaskBoardServiceTest {
                 userRepository,
                 projectAccessScopeService,
                 assignmentSupport,
-                taskDeliverableRepository
+                taskDeliverableRepository,
+                dataScopeConfigService
         );
     }
 
@@ -169,5 +177,55 @@ class TaskBoardServiceTest {
 
         assertThat(items).hasSize(1);
         assertThat(items.get(0).getTitle()).isEqualTo("可见任务");
+    }
+
+    /**
+     * CO-361: OSS 同步用户（role_id=NULL）在独立任务看板应按项目维度查询。
+     *
+     * <p>根因：{@code TaskBoardService.getBoardItems} 直调 {@link User#getRoleCode()}
+     * 返回 "manager"（实体 fallback），{@link com.xiyu.bid.task.core.TaskVisibilityPolicy#shouldQueryByProjectScope}
+     * 对 "manager" 返回 false → 只查 assignee=自己，投标专员看不到负责项目的其他任务。
+     *
+     * <p>修复：改用 {@link DataScopeConfigService#getRoleCode(User)} 拿到 OSS 缓存的 "bid-Team"，
+     * shouldQueryByProjectScope 返回 true → 走 collectTasksByProjectScope 分支。
+     */
+    @Test
+    void getBoardItemsQueriesByProjectScopeForOssBidTeam() {
+        User ossBidTeamUser = User.builder()
+                .id(7220L)
+                .username("wangzhanjun")
+                .fullName("王占俊")
+                .build();
+        when(assignmentSupport.resolveEnabledUserByUsername("wangzhanjun")).thenReturn(ossBidTeamUser);
+        // OSS 缓存返回 bid-Team（而非实体的 "manager"）
+        when(dataScopeConfigService.getRoleCode(ossBidTeamUser))
+                .thenReturn(RoleProfileCatalog.BID_SPECIALIST_CODE);
+
+        // 王占俊可访问项目 101
+        when(projectAccessScopeService.getAllowedProjectIds(ossBidTeamUser)).thenReturn(List.of(101L));
+
+        // collectTasksByProjectScope 会查 101 项目所有任务 + assignee=自己，去重
+        Task projectTask = Task.builder()
+                .id(2368L)
+                .projectId(101L)
+                .title("负责项目的任务")
+                .status(Task.Status.TODO)
+                .assigneeId(9999L) // assignee 不是王占俊，但作为负责人应可见
+                .build();
+        when(taskRepository.findByProjectIdIn(List.of(101L))).thenReturn(List.of(projectTask));
+        when(taskRepository.findByAssigneeId(7220L)).thenReturn(List.of());
+
+        when(bidDocumentReviewRepository.findByReviewerId(7220L)).thenReturn(List.of());
+        when(projectRepository.findAllById(any())).thenReturn(List.of());
+        when(taskDeliverableRepository.findByTaskIdIn(any())).thenReturn(List.of());
+        // filterByProjectVisibility 二次过滤
+        when(projectAccessScopeService.getAllowedProjectIds(ossBidTeamUser)).thenReturn(List.of(101L));
+
+        List<TaskBoardItemDTO> items = taskBoardService.getBoardItems("wangzhanjun");
+
+        assertThat(items).hasSize(1);
+        assertThat(items.get(0).getTitle()).isEqualTo("负责项目的任务");
+        // 验证走的是项目维度查询，而非仅 assignee=自己
+        verify(taskRepository).findByProjectIdIn(List.of(101L));
     }
 }

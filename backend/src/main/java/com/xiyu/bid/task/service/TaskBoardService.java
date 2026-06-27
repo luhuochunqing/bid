@@ -1,5 +1,6 @@
 package com.xiyu.bid.task.service;
 
+import com.xiyu.bid.admin.service.DataScopeConfigService;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
@@ -43,6 +44,7 @@ public class TaskBoardService {
     private final ProjectAccessScopeService projectAccessScopeService;
     private final TaskAssignmentSupport assignmentSupport;
     private final TaskDeliverableRepository taskDeliverableRepository;
+    private final DataScopeConfigService dataScopeConfigService;
 
     /**
      * 获取当前登录用户的任务看板条目。
@@ -59,7 +61,10 @@ public class TaskBoardService {
 
         // CO-361: 投标管理角色（admin/ bidAdmin/ bid-TeamLeader）+ 投标专员（bid-Team）
         // 都按项目维度查询（投标专员会通过 filterByProjectVisibility 二次过滤可见项目）
-        boolean queryByProject = TaskVisibilityPolicy.shouldQueryByProjectScope(currentUser.getRoleCode());
+        // 使用 OSS-cache-aware 的 roleCode（DataScopeConfigService.getRoleCode），而非实体 fallback：
+        // OSS 同步用户 DB role_id=NULL 时实体返回 "manager"，会导致投标专员误走"只查 assignee=自己"分支。
+        boolean queryByProject = TaskVisibilityPolicy.shouldQueryByProjectScope(
+                dataScopeConfigService.getRoleCode(currentUser));
 
         List<Task> tasks;
         if (queryByProject) {

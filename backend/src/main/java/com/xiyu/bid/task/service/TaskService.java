@@ -11,6 +11,7 @@ import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.admin.service.DataScopeConfigService;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import com.xiyu.bid.task.core.TaskProjectVisibilityPolicy;
 import com.xiyu.bid.task.core.TaskVisibilityPolicy;
@@ -18,6 +19,7 @@ import com.xiyu.bid.task.dto.TaskAssignmentRequest;
 import com.xiyu.bid.task.dto.TaskDTO;
 import com.xiyu.bid.task.dto.TeamTaskWorkloadDTO;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -31,6 +33,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class TaskService {
 
     private final TaskRepository taskRepository;
@@ -43,28 +46,7 @@ public class TaskService {
     private final UserRepository userRepository;
     private final TaskPermissionGuard taskPermissionGuard;
     private final ProjectLeadAssignmentRepository leadAssignmentRepository;
-
-    public TaskService(TaskRepository taskRepository,
-                       ProjectAccessScopeService projectAccessScopeService,
-                       ProjectRepository projectRepository,
-                       TaskAssignmentSupport assignmentSupport,
-                       TaskDtoMapper taskDtoMapper,
-                       TaskHistoryRecorder taskHistoryRecorder,
-                       ProjectNotificationService notificationService,
-                       UserRepository userRepository,
-                       TaskPermissionGuard taskPermissionGuard,
-                       ProjectLeadAssignmentRepository leadAssignmentRepository) {
-        this.taskRepository = taskRepository;
-        this.projectAccessScopeService = projectAccessScopeService;
-        this.projectRepository = projectRepository;
-        this.assignmentSupport = assignmentSupport;
-        this.taskDtoMapper = taskDtoMapper;
-        this.taskHistoryRecorder = taskHistoryRecorder;
-        this.notificationService = notificationService;
-        this.userRepository = userRepository;
-        this.taskPermissionGuard = taskPermissionGuard;
-        this.leadAssignmentRepository = leadAssignmentRepository;
-    }
+    private final DataScopeConfigService dataScopeConfigService;
 
     @Transactional
     public TaskDTO createTask(TaskDTO taskDTO) {
@@ -166,8 +148,11 @@ public class TaskService {
         assertCanAccessProject(projectId);
         User currentUser = assignmentSupport.resolveEnabledUserByUsername(username);
         Long[] leadIds = leadAssignmentRepository.resolveLeadIdsByProjectId(projectId);
+        // CO-361: 使用 OSS-cache-aware 的 roleCode（DataScopeConfigService.getRoleCode），
+        // 而非 User.getRoleCode() 实体 fallback。OSS 同步用户 DB role_id=NULL 时实体返回 "manager"，
+        // 会导致投标专员（OSS bid-Team）+ 项目负责人误走"只看 assignee=自己"分支，看不到项目任务。
         List<Task> tasks = TaskVisibilityPolicy.canViewAllProjectTasks(
-                currentUser.getRoleCode(), currentUser.getId(), leadIds[0], leadIds[1])
+                dataScopeConfigService.getRoleCode(currentUser), currentUser.getId(), leadIds[0], leadIds[1])
                 ? taskRepository.findByProjectId(projectId)
                 : taskRepository.findByProjectIdAndAssigneeId(projectId, currentUser.getId());
         // CO-361: 三态模型下 isVisibleTask 仅做 null 过滤，与独立看板展示语义一致
