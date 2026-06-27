@@ -83,13 +83,13 @@ nohup bash -c '
   export JWT_SECRET="${JWT_SECRET:-xiyu-bid-poc-local-dev-secret-key-please-change-in-prod-32bytes-min}"
   export DB_USERNAME="${DB_USERNAME:-xiyu_user}"
   export DB_PASSWORD="${DB_PASSWORD:-XiyuDB!2026}"
-  export CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-http://localhost:1314,http://127.0.0.1:1314}"
-  SPRING_PROFILES_ACTIVE=dev,mysql mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=18080 --spring.flyway.enabled=false" --no-transfer-progress
+  export CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-http://localhost:1323,http://127.0.0.1:1323}"
+  SPRING_PROFILES_ACTIVE=dev,mysql mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=18089 --spring.flyway.enabled=false" --no-transfer-progress
 ' > /tmp/dev-flyway-repair-backend.log 2>&1 &
 BACKEND_PID=$!
 echo "Backend auto-launched in background with disable (PID: $BACKEND_PID), log: /tmp/dev-flyway-repair-backend.log"
 echo "Monitor: tail -f /tmp/dev-flyway-repair-backend.log"
-echo "Status: curl http://127.0.0.1:18080/actuator/health"
+echo "Status: curl http://127.0.0.1:18089/actuator/health"
 echo "Stop: kill $BACKEND_PID"
 echo ""
 echo "Alternative (if you want full dev stack managed): XIYU_DEV_CONFIRMED=1 npm run dev:stable:start (will auto-run repair via dev-services)"

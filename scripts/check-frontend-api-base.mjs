@@ -5,7 +5,7 @@
 // 维护声明: 与 src/api/config.js 的 normalizeApiBaseUrl + .env.api / scripts/release/package-release.sh 的 fallback 同步。
 //
 // 背景：前端 axios baseURL 完全由构建时 VITE_API_BASE_URL 决定。若构建用了 dev 地址
-// （localhost:18086 / 127.0.0.1:18080），部署到任何服务器后前端都会去调本地 dev 后端 → 全 API 失败。
+// （localhost:18086 / 127.0.0.1:18089），部署到任何服务器后前端都会去调本地 dev 后端 → 全 API 失败。
 // 历史上曾因此导致 IP:8080 部署的前端调错后端 + 跨域 403，排查链路极长。本 check 在构建期就拦住。
 
 import { readdirSync, readFileSync, existsSync } from 'fs'

@@ -6,7 +6,7 @@ import http from 'k6/http'
 import { check, sleep } from 'k6'
 import { Counter, Rate, Trend } from 'k6/metrics'
 
-const apiBaseUrl = (__ENV.API_BASE_URL || 'http://127.0.0.1:18080').replace(/\/$/, '')
+const apiBaseUrl = (__ENV.API_BASE_URL || 'http://127.0.0.1:18089').replace(/\/$/, '')
 const defaultUsername = __ENV.K6_USERNAME || '小王'
 const defaultPassword = __ENV.K6_PASSWORD || 'XiyuDemo!2026'
 const skipExport = String(__ENV.K6_SKIP_EXPORT || 'false').toLowerCase() === 'true'

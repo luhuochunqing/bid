@@ -11,7 +11,7 @@
  * （招标主体 + 报名截止时间 + 开标时间）从真实 CRM 查到匹配商机。
  *
  * 必要环境变量：
- *   PROBE_API_BASE_URL    后端地址，例如 http://127.0.0.1:18080
+ *   PROBE_API_BASE_URL    后端地址，例如 http://127.0.0.1:18089
  *   PROBE_USERNAME        登录用户名
  *   PROBE_PASSWORD        登录密码
  *   PROBE_GROUP_NAME      招标主体/CRM groupName，例如 "山东海化集团有限公司"

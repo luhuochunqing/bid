@@ -6,7 +6,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:18080}"
+API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:18089}"
 
 echo "[dev-mode] service status"
 bash "$ROOT_DIR/scripts/dev-services.sh" status || true
