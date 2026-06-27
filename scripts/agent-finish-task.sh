@@ -210,14 +210,15 @@ if git ls-remote --exit-code origin "refs/heads/$TASK_BRANCH" >/dev/null 2>&1; t
 fi
 
 # agent-locks 文件
+# 锁文件命名约定：manage-agent-locks.mjs 用 <taskSlug>.yml（如 co361-three-state-model.yml），
+# 早期约定用 agent-<agent>-<task>.yml。两种都要匹配，避免 stale lock 残留。
 LOCK_FILES=()
-if [[ -n "$AGENT_NAME" && -n "$TASK_NAME" ]]; then
-  LOCK_NAMESPACE="agent-${AGENT_NAME}-${TASK_NAME}"
+if [[ -n "$TASK_NAME" ]]; then
   if [[ -d ".agent-locks" ]]; then
     while IFS= read -r -d '' lf; do
       LOCK_FILES+=("$lf")
       CLEANUP_LIST+=("锁文件: ${lf#.agent-locks/}")
-    done < <(find .agent-locks -name "${LOCK_NAMESPACE}*.yml" -type f -print0 2>/dev/null || true)
+    done < <(find .agent-locks \( -name "${TASK_NAME}.yml" -o -name "agent-${AGENT_NAME}-${TASK_NAME}*.yml" \) -type f -print0 2>/dev/null || true)
   fi
 fi
 
