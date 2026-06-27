@@ -14,7 +14,7 @@ async function loginAsRole(page, role) {
 
 test.describe('§4.3 人员证书 - 新增证书 (3 Tab 表单 + 附件上传)', () => {
   test('bid_specialist 可以看到新增人员按钮并打开 3 Tab 表单', async ({ page }) => {
-    await loginAsRole(page, 'bid-Team')
+    await loginAsRole(page, 'bid_specialist')
     await page.goto('http://127.0.0.1:1314/knowledge/personnel')
     await page.waitForSelector('.personnel-container, .el-table', { timeout: 15000 })
 
@@ -35,7 +35,7 @@ test.describe('§4.3 人员证书 - 新增证书 (3 Tab 表单 + 附件上传)',
     const empNo = `E2E${suffix}`
     const personName = `测试专员${suffix}`
 
-    await loginAsRole(page, 'bid-Team')
+    await loginAsRole(page, 'bid_specialist')
     await page.goto('http://127.0.0.1:1314/knowledge/personnel')
     await page.waitForSelector('.personnel-container', { timeout: 10000 })
 
@@ -85,7 +85,7 @@ test.describe('§4.3 人员证书 - 新增证书 (3 Tab 表单 + 附件上传)',
 
   test('bid_admin / bid_lead / bid_specialist 均可访问，project负责人 无权限（按钮或页面受控）', async ({ page }) => {
     // 允许角色有新增按钮
-    for (const role of ['/bidAdmin', 'bid-TeamLeader', 'bid-Team']) {
+    for (const role of ['bid_admin', 'bid_lead', 'bid_specialist']) {
       await loginAsRole(page, role)
       await page.goto('http://127.0.0.1:1314/knowledge/personnel')
       await page.waitForSelector('.personnel-container', { timeout: 10000 })
@@ -94,7 +94,7 @@ test.describe('§4.3 人员证书 - 新增证书 (3 Tab 表单 + 附件上传)',
     }
 
     // 无权限角色不应看到或受 guard
-    await loginAsRole(page, 'bid-projectLeader')
+    await loginAsRole(page, 'sales')
     await page.goto('http://127.0.0.1:1314/knowledge/personnel')
   await page.waitForSelector('.personnel-container, .el-table', { timeout: 15000 })
     const addBtn = page.getByRole('button', { name: /新增人员/ })
@@ -104,7 +104,7 @@ test.describe('§4.3 人员证书 - 新增证书 (3 Tab 表单 + 附件上传)',
   })
 
   test('表单 Tab3 支持证书附件上传（类型/大小校验）', async ({ page }) => {
-    await loginAsRole(page, 'bid-Team')
+    await loginAsRole(page, 'bid_specialist')
     await page.goto('http://127.0.0.1:1314/knowledge/personnel')
     await page.waitForSelector('.personnel-container', { timeout: 10000 })
 

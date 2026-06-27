@@ -37,7 +37,7 @@ export async function createAuthenticatedSession() {
         password,
         email: `${username}@example.com`,
         fullName: 'ERI-92 E2E',
-        role: '/bidAdmin',
+        role: 'bid_admin',
       }),
     }).catch(() => {})
     ;({ response, loginPayload } = await doLogin())

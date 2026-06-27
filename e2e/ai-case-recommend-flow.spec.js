@@ -34,7 +34,7 @@ async function gotoFirstProjectDraftingStage(page) {
 
 test.describe('AI智能案例推荐', () => {
   test('标书编制阶段可见 AI 智能推荐按钮', async ({ page }) => {
-    await loginAsRole(page, '/bidAdmin')
+    await loginAsRole(page, 'bid_admin')
     const reached = await gotoFirstProjectDraftingStage(page)
     if (!reached) {
       test.skip(true, '演示数据无项目可进入 DRAFTING stage')
@@ -46,7 +46,7 @@ test.describe('AI智能案例推荐', () => {
   })
 
   test('bid_specialist 可见 AI 智能推荐按钮', async ({ page }) => {
-    await loginAsRole(page, 'bid-Team')
+    await loginAsRole(page, 'bid_specialist')
     const reached = await gotoFirstProjectDraftingStage(page)
     if (!reached) {
       test.skip(true, '演示数据无项目可进入 DRAFTING stage')
@@ -57,7 +57,7 @@ test.describe('AI智能案例推荐', () => {
   })
 
   test('打开 AI 推荐抽屉并验证基础结构', async ({ page }) => {
-    await loginAsRole(page, '/bidAdmin')
+    await loginAsRole(page, 'bid_admin')
     const reached = await gotoFirstProjectDraftingStage(page)
     if (!reached) {
       test.skip(true, '演示数据无项目可进入 DRAFTING stage')
@@ -89,7 +89,7 @@ test.describe('AI智能案例推荐', () => {
   })
 
   test('案例库页面案例卡片展示正常', async ({ page }) => {
-    await loginAsRole(page, '/bidAdmin')
+    await loginAsRole(page, 'bid_admin')
     await page.goto('/knowledge/case')
     await page.waitForSelector('.case-card, .el-empty', { timeout: 10000 })
 

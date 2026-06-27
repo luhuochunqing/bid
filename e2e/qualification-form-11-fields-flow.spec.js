@@ -24,7 +24,7 @@ async function loginAsBidAdmin(page) {
   const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
   const session = await ensureApiSession({
     username: `e2e_qf_${suffix}`,
-    role: '/bidAdmin',
+    role: 'bid_admin',
     fullName: 'E2E 资质表单'
   })
   await injectSession(page, session)

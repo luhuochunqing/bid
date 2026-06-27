@@ -7,7 +7,7 @@ test.describe('AI solution reuse flow', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_sol_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E Solution Admin'
     })
 

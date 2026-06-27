@@ -6,7 +6,7 @@ test.describe('case grid', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_casegrid_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E CaseGrid Admin'
     })
 
@@ -27,7 +27,7 @@ test.describe('case grid', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_casegrid_filter_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E CaseGrid Filter'
     })
 
@@ -51,7 +51,7 @@ test.describe('case grid', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_casegrid_ctype_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E CaseGrid CType'
     })
 
@@ -74,7 +74,7 @@ test.describe('case grid', () => {
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
     const session = await ensureApiSession({
       username: `e2e_casegrid_date_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E CaseGrid Date'
     })
     await injectSession(page, session)

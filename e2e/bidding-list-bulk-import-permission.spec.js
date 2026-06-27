@@ -8,14 +8,14 @@ import { ensureApiSession, injectSession } from './auth-helpers.js'
  *
  * Relevant UI change: BiddingPageHeader.vue switched batch import button gate
  * from `canCreateTender` to `canBulkImport`, where
- *   canBulkImport = canCreateTender && userRole !== 'bid-projectLeader'
+ *   canBulkImport = canCreateTender && userRole !== 'sales'
  */
 
 async function loginAsRoleProfile(page, roleProfile) {
   const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
   const session = await ensureApiSession({
     username: `bulk_${roleProfile}_${suffix}`,
-    role: '/bidAdmin',
+    role: 'bid_admin',
     fullName: `Bulk ${roleProfile}`
   })
 
@@ -25,7 +25,7 @@ async function loginAsRoleProfile(page, roleProfile) {
 
 test.describe('bidding list bulk import button visibility', () => {
   test('bid_admin sees the batch import button', async ({ page }) => {
-    await loginAsRoleProfile(page, '/bidAdmin')
+    await loginAsRoleProfile(page, 'bid_admin')
 
     await page.goto('/bidding')
     await page.waitForSelector('.el-table', { timeout: 10000 })
@@ -36,7 +36,7 @@ test.describe('bidding list bulk import button visibility', () => {
   })
 
   test('bid_lead sees the batch import button', async ({ page }) => {
-    await loginAsRoleProfile(page, 'bid-TeamLeader')
+    await loginAsRoleProfile(page, 'bid_lead')
 
     await page.goto('/bidding')
     await page.waitForSelector('.el-table', { timeout: 10000 })
@@ -47,7 +47,7 @@ test.describe('bidding list bulk import button visibility', () => {
   })
 
   test('bid_specialist sees the batch import button', async ({ page }) => {
-    await loginAsRoleProfile(page, 'bid-Team')
+    await loginAsRoleProfile(page, 'bid_specialist')
 
     await page.goto('/bidding')
     await page.waitForSelector('.el-table', { timeout: 10000 })
@@ -58,7 +58,7 @@ test.describe('bidding list bulk import button visibility', () => {
   })
 
   test('sales (项目负责人) does NOT see the batch import button', async ({ page }) => {
-    await loginAsRoleProfile(page, 'bid-projectLeader')
+    await loginAsRoleProfile(page, 'sales')
 
     await page.goto('/bidding')
     await page.waitForSelector('.el-table', { timeout: 10000 })

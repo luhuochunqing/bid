@@ -93,7 +93,7 @@ test.describe('§2.4.1.2 标讯手动分配 — 详情页【分配】按钮（PE
   })
 
   test('bid_admin 角色在未匹配 PENDING_ASSIGNMENT 标讯详情页可见【分配】按钮', async ({ page }) => {
-    const session = await loginAsRole(page, '/bidAdmin')
+    const session = await loginAsRole(page, 'bid_admin')
     const tenderId = await seedUnmatchedPendingTender(session)
     expect(tenderId).toBeTruthy()
 
@@ -104,7 +104,7 @@ test.describe('§2.4.1.2 标讯手动分配 — 详情页【分配】按钮（PE
   })
 
   test('bid_lead 角色在未匹配 PENDING_ASSIGNMENT 标讯详情页可见【分配】按钮', async ({ page }) => {
-    const session = await loginAsRole(page, 'bid-TeamLeader')
+    const session = await loginAsRole(page, 'bid_lead')
     const tenderId = await seedUnmatchedPendingTender(session)
     expect(tenderId).toBeTruthy()
 
@@ -115,7 +115,7 @@ test.describe('§2.4.1.2 标讯手动分配 — 详情页【分配】按钮（PE
   })
 
   test('sales 角色在未匹配 PENDING_ASSIGNMENT 标讯详情页不可见【分配】按钮', async ({ page }) => {
-    const session = await loginAsRole(page, 'bid-projectLeader')
+    const session = await loginAsRole(page, 'sales')
     const tenderId = await seedUnmatchedPendingTender(session)
     expect(tenderId).toBeTruthy()
 
@@ -126,7 +126,7 @@ test.describe('§2.4.1.2 标讯手动分配 — 详情页【分配】按钮（PE
   })
 
   test('点击【分配】按钮可打开弹窗并完成分配（状态推进 TRACKING）', async ({ page }) => {
-    const session = await loginAsRole(page, '/bidAdmin')
+    const session = await loginAsRole(page, 'bid_admin')
     const tenderId = await seedUnmatchedPendingTender(session)
     expect(tenderId).toBeTruthy()
 

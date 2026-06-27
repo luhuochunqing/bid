@@ -42,7 +42,7 @@ async function loginAsRole(page, roleProfile) {
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
     const session = await ensureApiSession({
       username: `e2e_${roleProfile}_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: `E2E ${roleProfile}`,
     })
     await injectSession(page, session)
@@ -123,7 +123,7 @@ async function injectBiddingSalesSession(page) {
       name: 'E2E 项目负责人',
       username: 'xiaozhang',
       email: 'xiaozhang@example.com',
-      role: 'bid-projectLeader',
+      role: 'sales',
       menuPermissions: []
     }
   }
@@ -217,7 +217,7 @@ async function fillTenderDateSmart(page, labelPatterns, value) {
 test.describe('§标讯中心-创建 — 创建入口权限矩阵', () => {
 
   test('bid_admin 可以看到所有创建入口（人工 + 批量导入 + 源配置）', async ({ page }) => {
-    await loginAsRole(page, '/bidAdmin')
+    await loginAsRole(page, 'bid_admin')
     await page.goto('/bidding')
     await page.waitForSelector('.el-table', { timeout: 10000 })
 
@@ -228,7 +228,7 @@ test.describe('§标讯中心-创建 — 创建入口权限矩阵', () => {
   })
 
   test('project负责人 / 投标专员 只能看到有限创建入口', async ({ page }) => {
-    await loginAsRole(page, 'bid-projectLeader')
+    await loginAsRole(page, 'sales')
     await page.goto('/bidding')
     await page.waitForSelector('.el-table', { timeout: 10000 })
 
@@ -350,7 +350,7 @@ test.describe('§标讯中心-创建 — 第三方平台自动拉取与源配置
   // 参考：可能存在的 source-config 相关测试或页面
 
   test('bid_admin 可以配置第三方标讯源', async ({ page }) => {
-    await loginAsRole(page, '/bidAdmin')
+    await loginAsRole(page, 'bid_admin')
     // TODO: 进入标讯源配置页面，新增/编辑配置
     // 验证：配置保存成功 + 列表刷新
   })
@@ -361,7 +361,7 @@ test.describe('§标讯中心-创建 — 第三方平台自动拉取与源配置
   })
 
   test('标讯源配置权限隔离（非管理员不可见）', async ({ page }) => {
-    await loginAsRole(page, 'bid-projectLeader')
+    await loginAsRole(page, 'sales')
     // TODO: 尝试直接访问或通过 UI 寻找源配置入口
     // 验证：无权限入口 + 直接访问被拦截
   })

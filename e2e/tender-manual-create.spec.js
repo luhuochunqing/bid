@@ -20,7 +20,7 @@ async function loginAsBidAdmin(page) {
   const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
   const session = await ensureApiSession({
     username: `e2e_manual_${suffix}`,
-    role: '/bidAdmin',   // → RoleProfile 'bid_admin' 含 bidding.create
+    role: 'bid_admin',   // → RoleProfile 'bid_admin' 含 bidding.create
     fullName: 'E2E 人工录入测试'
   })
   await injectSession(page, session)
@@ -44,7 +44,7 @@ test.describe('§4.2.3 人工录入', () => {
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
     const session = await ensureApiSession({
       username: `e2e_manual_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E bid_admin'
     })
     await injectSession(page, session)

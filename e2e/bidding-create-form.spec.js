@@ -7,7 +7,7 @@ test.describe('标讯创建表单', () => {
   test.beforeAll(async () => {
     session = await ensureApiSession({
       username: `e2e_bid_create_${Date.now()}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E Bid Create'
     })
   })

@@ -6,7 +6,7 @@ test.describe('knowledge case review', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_case_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E Case Admin'
     })
 

@@ -6,7 +6,7 @@ test.describe('resource certificate expiry', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_cert_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E Cert Admin'
     })
 

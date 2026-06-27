@@ -7,7 +7,7 @@ test.describe('AI market timing flow', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_mkt_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E Market Admin'
     })
 

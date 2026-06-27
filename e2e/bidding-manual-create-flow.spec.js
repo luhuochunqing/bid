@@ -85,7 +85,7 @@ test.describe('人工录入标讯全流程 — 按钮状态机', () => {
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
     const session = await ensureApiSession({
       username: `e2e_flow_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E 流程测试 Admin'
     })
     await injectSession(page, session)

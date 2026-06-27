@@ -51,7 +51,7 @@ test.describe('知识库 - 人员新增（教育经历支持）- E2E 验证', ()
 
     const session = await ensureApiSession({
       username,
-      role: 'bid-Team',
+      role: 'bid_specialist',
       fullName: `E2E 人员专员 ${suffix}`
     })
 
@@ -103,8 +103,8 @@ test.describe('知识库 - 人员新增（教育经历支持）- E2E 验证', ()
 
   // ==================== 权限矩阵验证（Step 6 重点） ====================
 
-  const allowedRoles = ['/bidAdmin', 'bid-TeamLeader', 'bid-Team']
-  const disallowedRoles = ['bid-projectLeader', 'staff', 'bid-administration'] // 根据蓝图 4.3 权限矩阵
+  const allowedRoles = ['bid_admin', 'bid_lead', 'bid_specialist']
+  const disallowedRoles = ['sales', 'staff', 'bid-administration'] // 根据蓝图 4.3 权限矩阵
 
   for (const role of allowedRoles) {
     test(`${role} 角色可以新增人员`, async ({ page }) => {
@@ -186,7 +186,7 @@ test.describe('知识库 - 人员编辑（编辑证书子节）', () => {
 
     const session = await ensureApiSession({
       username,
-      role: 'bid-Team',
+      role: 'bid_specialist',
       fullName: `E2E 编辑本人 ${suffix}`
     })
 
@@ -256,14 +256,14 @@ test.describe('知识库 - 人员编辑（编辑证书子节）', () => {
 
     const session = await ensureApiSession({
       username,
-      role: 'bid-projectLeader', // 不允许编辑人员
+      role: 'sales', // 不允许编辑人员
       fullName: `E2E 无编辑权限 ${suffix}`
     })
 
     // 先让有权限的人创建一个测试记录
     const adminSession = await ensureApiSession({
       username: `e2e_admin_for_edit_${suffix}`,
-      role: '/bidAdmin'
+      role: 'bid_admin'
     })
 
     const createRes = await fetch(`${apiBaseUrl}/api/knowledge/personnel`, {
@@ -310,7 +310,7 @@ test.describe('知识库 - 人员编辑（编辑证书子节）', () => {
 
     const session = await ensureApiSession({
       username,
-      role: 'bid-Team',
+      role: 'bid_specialist',
       fullName: `E2E 完整编辑 ${suffix}`
     })
 

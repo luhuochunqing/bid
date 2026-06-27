@@ -7,7 +7,7 @@ test.describe('system settings CRUD', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_set_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E Settings Admin'
     })
 
@@ -22,7 +22,7 @@ test.describe('system settings CRUD', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_sys_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E System Info Admin'
     })
 

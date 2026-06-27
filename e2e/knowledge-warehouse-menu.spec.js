@@ -17,7 +17,7 @@ test.describe('仓库信息 §4.4 — KbLayout 入口', () => {
   test('KbLayout Tab 栏存在仓库信息 Tab', async ({ page }) => {
     const session = await ensureApiSession({
       username: `e2e_wh_menu_${Date.now()}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E WH Menu'
     })
     await injectSession(page, session)
@@ -34,7 +34,7 @@ test.describe('仓库信息 §4.4 — KbLayout 入口', () => {
   test('直接访问 /knowledge/warehouse 时仓库信息 Tab 高亮', async ({ page }) => {
     const session = await ensureApiSession({
       username: `e2e_wh_nav_${Date.now()}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E WH Nav'
     })
     await injectSession(page, session)
@@ -52,7 +52,7 @@ test.describe('仓库信息 §4.4 — KbLayout 入口', () => {
   test('点击 KbLayout 仓库信息 Tab 可切换到仓库页面', async ({ page }) => {
     const session = await ensureApiSession({
       username: `e2e_wh_tab_click_${Date.now()}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E WH Tab Click'
     })
     await injectSession(page, session)
@@ -72,7 +72,7 @@ test.describe('仓库信息 §4.4 — KbLayout 入口', () => {
   test('侧边栏「知识库 → 仓库信息」菜单可导航到仓库页面', async ({ page }) => {
     const session = await ensureApiSession({
       username: `e2e_wh_sidebar_${Date.now()}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E WH Sidebar'
     })
     await injectSession(page, session)

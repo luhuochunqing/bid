@@ -6,7 +6,7 @@ test.describe('§44.1.1.2 案例库 — 复用与下架流程', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_casereuse_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E 案例复用 Admin'
     })
 
@@ -29,7 +29,7 @@ test.describe('§44.1.1.2 案例库 — 复用与下架流程', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_casereuse_btn_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E 复用按钮 Admin'
     })
 
@@ -50,7 +50,7 @@ test.describe('§44.1.1.2 案例库 — 复用与下架流程', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_offshelf_admin_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E 下架 Admin'
     })
 
@@ -73,7 +73,7 @@ test.describe('§44.1.1.2 案例库 — 复用与下架流程', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_drawer_detail_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E 抽屉详情 Admin'
     })
 

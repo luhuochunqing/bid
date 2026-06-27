@@ -97,7 +97,7 @@ async function goToTenderDetail(page, tenderId) {
 test.describe('BUI-1: 标讯UI操作按钮一致性', () => {
   test.describe('actionMatrix 创建人感知', () => {
     test('BUI-1.1: sales 作为创建人在 PENDING_ASSIGNMENT 下看到编辑和删除按钮', async ({ page }) => {
-      const session = await loginAsRole(page, 'bid-projectLeader')
+      const session = await loginAsRole(page, 'sales')
       const tender = await apiCreateTender(session, { creatorId: session.user.id })
       expect(tender?.id).toBeTruthy()
 
@@ -115,14 +115,14 @@ test.describe('BUI-1: 标讯UI操作按钮一致性', () => {
       const adminSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
       const adminSession = await ensureApiSession({
         username: `e2e_bui_admin_${adminSuffix}`,
-        role: '/bidAdmin',
+        role: 'bid_admin',
         fullName: 'E2E BUI Admin',
       })
       const tender = await apiCreateTender(adminSession)
       expect(tender?.id).toBeTruthy()
 
       // 再以 sales 登录查看该标讯
-      const session = await loginAsRole(page, 'bid-projectLeader')
+      const session = await loginAsRole(page, 'sales')
       await goToTenderDetail(page, tender.id)
 
       // 验证头部没有编辑和删除按钮
@@ -137,14 +137,14 @@ test.describe('BUI-1: 标讯UI操作按钮一致性', () => {
       const salesSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
       const salesSession = await ensureApiSession({
         username: `e2e_bui_sales_${salesSuffix}`,
-        role: 'bid-projectLeader',
+        role: 'sales',
         fullName: 'E2E BUI Sales',
       })
       const tender = await apiCreateTender(salesSession)
       expect(tender?.id).toBeTruthy()
 
       // 再以 bid_admin 登录查看该标讯
-      const session = await loginAsRole(page, '/bidAdmin')
+      const session = await loginAsRole(page, 'bid_admin')
       await goToTenderDetail(page, tender.id)
 
       // admin 始终有分配/删除
@@ -157,7 +157,7 @@ test.describe('BUI-1: 标讯UI操作按钮一致性', () => {
 
   test.describe('创建页底部按钮', () => {
     test('BUI-1.4: admin 创建标讯分配后创建页底部无下一步/提交按钮', async ({ page }) => {
-      const session = await loginAsRole(page, '/bidAdmin')
+      const session = await loginAsRole(page, 'bid_admin')
       // 创建 TRACKING 状态标讯（模拟已分配）
       const tender = await apiCreateTender(session, { status: 'TRACKING', projectManagerId: 88888 })
       expect(tender?.id).toBeTruthy()
@@ -179,7 +179,7 @@ test.describe('BUI-1: 标讯UI操作按钮一致性', () => {
 // =========================================================================
 test.describe('BUI-2: 交付物上传闪烁 — deliverableFileList 引用稳定性', () => {
   test('BUI-2.1: 任务交付物列表在文件上传后引用稳定、不闪烁', async ({ page }) => {
-    const session = await loginAsRole(page, '/bidAdmin')
+    const session = await loginAsRole(page, 'bid_admin')
 
     // 创建标讯和项目
     const tender = await apiCreateTender(session, { status: 'TRACKING' })
@@ -248,7 +248,7 @@ test.describe('BUI-2: 交付物上传闪烁 — deliverableFileList 引用稳定
 // =========================================================================
 test.describe('BUI-3: 任务提交审核', () => {
   test('BUI-3.1: 提交审核后状态变更、内容保存', async ({ page }) => {
-    const session = await loginAsRole(page, '/bidAdmin')
+    const session = await loginAsRole(page, 'bid_admin')
 
     // 创建标讯和项目
     const tender = await apiCreateTender(session, { status: 'TRACKING' })
@@ -327,7 +327,7 @@ test.describe('BUI-3: 任务提交审核', () => {
 // =========================================================================
 test.describe('BUI-4: 完成投标权限', () => {
   test('BUI-4.1: bid_admin 标书制作页渲染正常', async ({ page }) => {
-    const session = await loginAsRole(page, '/bidAdmin')
+    const session = await loginAsRole(page, 'bid_admin')
 
     // 创建标讯和项目
     const tender = await apiCreateTender(session, { status: 'TRACKING' })
@@ -367,7 +367,7 @@ test.describe('BUI-4: 完成投标权限', () => {
   })
 
   test('BUI-4.2: bid_specialist 角色看不到完成投标按钮', async ({ page }) => {
-    const session = await loginAsRole(page, 'bid-Team')
+    const session = await loginAsRole(page, 'bid_specialist')
 
     // 创建标讯和项目
     const tender = await apiCreateTender(session, { status: 'TRACKING' })
@@ -458,7 +458,7 @@ test.describe('BUI-5: 标书审核权限', () => {
   let adminSession, auditorSession, projectId
 
   test.beforeEach(async ({ page }) => {
-    adminSession = await loginAsRole(page, '/bidAdmin')
+    adminSession = await loginAsRole(page, 'bid_admin')
     auditorSession = await loginAsRole(page, 'auditor')
 
     const tender = await apiCreateTender(adminSession, { status: 'TRACKING' })

@@ -22,7 +22,7 @@ import { ensureApiSession, injectSession } from './auth-helpers.js'
 async function loginAsAdmin(page) {
   const session = await ensureApiSession({
     username: `form_e2e_admin_${Date.now()}`,
-    role: '/bidAdmin',
+    role: 'bid_admin',
     fullName: '动态表单测试管理员',
   })
   await injectSession(page, session)
@@ -314,7 +314,7 @@ test.describe('冒烟测试', () => {
     // 登录获取 token
     const session = await ensureApiSession({
       username: `smoke_${Date.now()}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'Smoke Test User',
     })
 

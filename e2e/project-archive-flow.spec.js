@@ -24,7 +24,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_archive_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E Archive Tester'
     })
 
@@ -222,7 +222,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_archive_api_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E Archive API Tester'
     })
 
@@ -241,7 +241,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_archive_list_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E Archive List Tester'
     })
 
@@ -336,7 +336,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_archive_pm_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E Archive PM Tester'
     })
 
@@ -351,7 +351,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_archive_bm_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E Archive BM Tester'
     })
 
@@ -366,7 +366,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_archive_preview_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E Archive Preview Tester'
     })
 
@@ -387,7 +387,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_archive_download_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E Archive Download Tester'
     })
 

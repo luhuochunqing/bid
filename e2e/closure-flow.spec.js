@@ -33,7 +33,7 @@ test.describe('项目结页 §3.3.1.6', () => {
   let depositEvidenceId
 
   test('1. 项目负责人创建项目并推进到结项审核状态', async ({ page }) => {
-    const session = await ensureApiSession({ username: 'sales_e2e_closure', role: 'bid-projectLeader', fullName: '销售经理' })
+    const session = await ensureApiSession({ username: 'sales_e2e_closure', role: 'sales', fullName: '销售经理' })
     await injectSession(page, session)
 
     // 创建标讯

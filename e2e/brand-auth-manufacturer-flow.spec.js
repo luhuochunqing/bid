@@ -7,7 +7,7 @@ async function loginAsRole(page, role) {
   const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
   const session = await ensureApiSession({
     username: `e2e_brandauth_${role}_${suffix}`,
-    role: '/bidAdmin',
+    role: 'bid_admin',
     fullName: `E2E BrandAuth ${role}`,
     password: E2E_PASSWORD
   })
@@ -20,28 +20,28 @@ test.describe('品牌授权 §4.6a — 原厂授权', () => {
   test.describe('页面访问权限', () => {
 
     test('bid_admin 可以访问品牌授权页面', async ({ page }) => {
-      await loginAsRole(page, '/bidAdmin')
+      await loginAsRole(page, 'bid_admin')
       await page.goto('/knowledge/brand-auth')
       await page.waitForSelector('.brandauth-container', { timeout: 10000 })
       await expect(page.getByRole('button', { name: '新增原厂授权' })).toBeVisible()
     })
 
     test('bid_lead 可以访问品牌授权页面', async ({ page }) => {
-      await loginAsRole(page, 'bid-TeamLeader')
+      await loginAsRole(page, 'bid_lead')
       await page.goto('/knowledge/brand-auth')
       await page.waitForSelector('.brandauth-container', { timeout: 10000 })
       await expect(page.getByRole('button', { name: '新增原厂授权' })).toBeVisible()
     })
 
     test('bid_specialist 可以访问品牌授权页面', async ({ page }) => {
-      await loginAsRole(page, 'bid-Team')
+      await loginAsRole(page, 'bid_specialist')
       await page.goto('/knowledge/brand-auth')
       await page.waitForSelector('.brandauth-container', { timeout: 10000 })
       await expect(page.getByRole('button', { name: '新增原厂授权' })).toBeVisible()
     })
 
     test('sales (项目负责人) 菜单中无品牌授权入口', async ({ page }) => {
-      await loginAsRole(page, 'bid-projectLeader')
+      await loginAsRole(page, 'sales')
       await page.goto('/knowledge/brand-auth')
       await page.waitForSelector('.brandauth-container', { timeout: 10000 })
       const btn = page.getByRole('button', { name: '新增原厂授权' })
@@ -51,7 +51,7 @@ test.describe('品牌授权 §4.6a — 原厂授权', () => {
 
   test.describe('原厂授权创建流程', () => {
     test('bid_admin 创建原厂授权 — 基础字段', async ({ page }) => {
-      await loginAsRole(page, '/bidAdmin')
+      await loginAsRole(page, 'bid_admin')
       await page.goto('/knowledge/brand-auth')
       await page.waitForSelector('.brandauth-container', { timeout: 10000 })
 
@@ -76,7 +76,7 @@ test.describe('品牌授权 §4.6a — 原厂授权', () => {
     })
 
     test('必填验证：空字段提交被阻断', async ({ page }) => {
-      await loginAsRole(page, '/bidAdmin')
+      await loginAsRole(page, 'bid_admin')
       await page.goto('/knowledge/brand-auth')
       await page.waitForSelector('.brandauth-container', { timeout: 10000 })
 
@@ -88,7 +88,7 @@ test.describe('品牌授权 §4.6a — 原厂授权', () => {
     })
 
     test('时间校验：结束时间早于开始时间被阻断', async ({ page }) => {
-      await loginAsRole(page, '/bidAdmin')
+      await loginAsRole(page, 'bid_admin')
       await page.goto('/knowledge/brand-auth')
       await page.waitForSelector('.brandauth-container', { timeout: 10000 })
 
@@ -114,7 +114,7 @@ test.describe('品牌授权 §4.6a — 原厂授权', () => {
 
   test.describe('列表与详情', () => {
     test('表格加载并显示列头', async ({ page }) => {
-      await loginAsRole(page, '/bidAdmin')
+      await loginAsRole(page, 'bid_admin')
       await page.goto('/knowledge/brand-auth')
       await page.waitForSelector('.brandauth-container', { timeout: 10000 })
       await page.waitForSelector('.el-table', { timeout: 10000 })
@@ -125,7 +125,7 @@ test.describe('品牌授权 §4.6a — 原厂授权', () => {
     })
 
     test('筛选项可见', async ({ page }) => {
-      await loginAsRole(page, '/bidAdmin')
+      await loginAsRole(page, 'bid_admin')
       await page.goto('/knowledge/brand-auth')
       await page.waitForSelector('.brandauth-container', { timeout: 10000 })
 
@@ -135,7 +135,7 @@ test.describe('品牌授权 §4.6a — 原厂授权', () => {
     })
 
     test('代理商授权 Tab 显示新增按钮', async ({ page }) => {
-      await loginAsRole(page, '/bidAdmin')
+      await loginAsRole(page, 'bid_admin')
       await page.goto('/knowledge/brand-auth')
       await page.waitForSelector('.brandauth-container', { timeout: 10000 })
 
@@ -146,7 +146,7 @@ test.describe('品牌授权 §4.6a — 原厂授权', () => {
 
   test.describe('作废权限', () => {
     test('bid_admin 可以看到作废按钮', async ({ page }) => {
-      await loginAsRole(page, '/bidAdmin')
+      await loginAsRole(page, 'bid_admin')
       await page.goto('/knowledge/brand-auth')
       await page.waitForSelector('.brandauth-container', { timeout: 10000 })
       await page.waitForSelector('.el-table', { timeout: 10000 })
@@ -157,7 +157,7 @@ test.describe('品牌授权 §4.6a — 原厂授权', () => {
 
   test.describe('代理商授权创建流程', () => {
     test('bid_admin 创建代理商授权 — 双时间段链', async ({ page }) => {
-      await loginAsRole(page, '/bidAdmin')
+      await loginAsRole(page, 'bid_admin')
       await page.goto('/knowledge/brand-auth')
       await page.waitForSelector('.brandauth-container', { timeout: 10000 })
 

@@ -84,7 +84,7 @@ test.describe('知识库 - 人员筛选与搜索（h5）E2E 验证', () => {
   test.beforeAll(async () => {
     adminSession = await ensureApiSession({
       username: `e2e_screen_admin_${Date.now()}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E 筛选管理员'
     })
 

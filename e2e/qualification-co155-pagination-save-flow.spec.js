@@ -40,7 +40,7 @@ test.describe('CO-155 资质证书三连故障修复', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_co155_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E CO-155 测试'
     })
 
@@ -114,7 +114,7 @@ test.describe('CO-155 资质证书三连故障修复', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_co155_cat_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E CO-155 category 测试'
     })
 
@@ -192,7 +192,7 @@ test.describe('CO-155 资质证书三连故障修复', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_co155_pg_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E CO-155 pagination'
     })
 
@@ -217,7 +217,7 @@ test.describe('CO-155 资质证书三连故障修复', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_co155_dlg_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E CO-155 dialog'
     })
     await injectSession(page, session)

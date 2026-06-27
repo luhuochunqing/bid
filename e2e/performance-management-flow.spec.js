@@ -6,7 +6,7 @@ const PWD = process.env.COMMERCIAL_E2E_PASSWORD || 'XiyuDemo!2026'
 async function loginAs(page, role) {
   const s = await ensureApiSession({
     username: `e2e_perf_${role}_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
-    role: '/bidAdmin', fullName: `E2E PERF ${role}`, password: PWD
+    role: 'bid_admin', fullName: `E2E PERF ${role}`, password: PWD
   })
   await injectSession(page, s); return s
 }
@@ -14,7 +14,7 @@ async function loginAs(page, role) {
 test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
 
   test('全生命周期流程：新增(带联动校验) -> 列表 -> 详情(5-Tab) -> 编辑 -> 删除', async ({ page }) => {
-    await loginAs(page, '/bidAdmin')
+    await loginAs(page, 'bid_admin')
     await page.goto('/knowledge/performance')
 
     // 1. 验证列表页面核心列是否渲染
@@ -162,7 +162,7 @@ test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
     await expect(page.locator(`.el-table__body tr:has-text("${newName}")`)).toHaveCount(0, { timeout: 3000 })
   })
   test('筛选器扩展：多选维度与范围筛选可见且可交互', async ({ page }) => {
-    await loginAs(page, '/bidAdmin')
+    await loginAs(page, 'bid_admin')
     await page.goto('/knowledge/performance')
 
     // 验证多选筛选器均已渲染
@@ -205,7 +205,7 @@ test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
   })
 
   test('批量导入导出：按钮渲染与模板下载', async ({ page }) => {
-    await loginAs(page, '/bidAdmin')
+    await loginAs(page, 'bid_admin')
     await page.goto('/knowledge/performance')
 
     // 等待页面核心元素加载
@@ -254,7 +254,7 @@ test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
   })
 
   test('详情抽屉：自定义 header 与操作日志 Tab', async ({ page }) => {
-    await loginAs(page, '/bidAdmin')
+    await loginAs(page, 'bid_admin')
     await page.goto('/knowledge/performance')
 
     // 先创建一条记录确保表格有数据
@@ -322,7 +322,7 @@ test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
     await expect(page.locator('.el-message-box')).toBeHidden({ timeout: 5000 })
   })
   test('操作日志 Tab：真实审计数据渲染验证', async ({ page }) => {
-    await loginAs(page, '/bidAdmin')
+    await loginAs(page, 'bid_admin')
     await page.goto('/knowledge/performance')
 
     // 1. 创建一条业绩记录（产生 CREATE 日志）
@@ -410,7 +410,7 @@ test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
   })
 
   test('编辑敏感字段警告提示与校验拦截', async ({ page }) => {
-    await loginAs(page, '/bidAdmin')
+    await loginAs(page, 'bid_admin')
     await page.goto('/knowledge/performance')
 
     // 1. 创建一条临时业绩以供编辑测试
@@ -501,7 +501,7 @@ test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
   })
 
   test('相似业绩搜索：按当前筛选条件智能匹配并展示排序结果', async ({ page }) => {
-    await loginAs(page, '/bidAdmin')
+    await loginAs(page, 'bid_admin')
     await page.goto('/knowledge/performance')
 
     await expect(page.locator('.el-table__header:has-text("合同名称")')).toBeVisible({ timeout: 10000 })

@@ -18,7 +18,7 @@ async function loginAsRole(page, role) {
 test.describe('§4.4 仓库台账导出', () => {
 
   test('正向流程: bid_admin 导出台账', async ({ page }) => {
-    await loginAsRole(page, '/bidAdmin')
+    await loginAsRole(page, 'bid_admin')
     await page.goto('/knowledge/warehouse')
     await page.waitForSelector('.el-table, .data-card', { timeout: 10000 })
 
@@ -39,7 +39,7 @@ test.describe('§4.4 仓库台账导出', () => {
   })
 
   test('权限验证: bid_specialist 可以导出', async ({ page }) => {
-    await loginAsRole(page, 'bid-Team')
+    await loginAsRole(page, 'bid_specialist')
     await page.goto('/knowledge/warehouse')
     await page.waitForSelector('.el-table, .data-card', { timeout: 10000 })
 
@@ -48,7 +48,7 @@ test.describe('§4.4 仓库台账导出', () => {
   })
 
   test('权限验证: sales 不应看到仓库入口', async ({ page }) => {
-    await loginAsRole(page, 'bid-projectLeader')
+    await loginAsRole(page, 'sales')
     await page.goto('/')
   await page.waitForSelector('.el-table, .data-card, .sidebar-container', { timeout: 15000 })
 

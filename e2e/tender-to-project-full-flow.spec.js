@@ -12,7 +12,7 @@ test.describe('full tender-to-project flow', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_flow_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E Flow Admin'
     })
 

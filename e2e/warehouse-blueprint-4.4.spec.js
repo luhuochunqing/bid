@@ -6,7 +6,7 @@ const PWD = process.env.COMMERCIAL_E2E_PASSWORD || 'XiyuDemo!2026'
 async function loginAs(page, role) {
   const s = await ensureApiSession({
     username: `e2e_wh_${role}_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
-    role: '/bidAdmin', fullName: `E2E WH ${role}`, password: PWD
+    role: 'bid_admin', fullName: `E2E WH ${role}`, password: PWD
   })
   await injectSession(page, s); return s
 }
@@ -16,7 +16,7 @@ test.describe('§4.4 仓库信息 — 蓝图全功能验证', () => {
   test.describe('新增仓库 — 3-Tab 表单', () => {
 
     test('创建仓库：3个Tab填写完整字段', async ({ page }) => {
-      await loginAs(page, '/bidAdmin')
+      await loginAs(page, 'bid_admin')
       await page.goto('/knowledge/warehouse')
 
       await page.getByRole('button', { name: '新增仓库' }).click()
@@ -52,7 +52,7 @@ test.describe('§4.4 仓库信息 — 蓝图全功能验证', () => {
     })
 
     test('必填校验：空字段提交被阻断', async ({ page }) => {
-      await loginAs(page, '/bidAdmin')
+      await loginAs(page, 'bid_admin')
       await page.goto('/knowledge/warehouse')
 
       await page.getByRole('button', { name: '新增仓库' }).click()
@@ -66,7 +66,7 @@ test.describe('§4.4 仓库信息 — 蓝图全功能验证', () => {
     })
 
     test('时间校验：结束时间早于开始时间被阻断', async ({ page }) => {
-      await loginAs(page, '/bidAdmin')
+      await loginAs(page, 'bid_admin')
       await page.goto('/knowledge/warehouse')
 
       await page.getByRole('button', { name: '新增仓库' }).click()
@@ -97,7 +97,7 @@ test.describe('§4.4 仓库信息 — 蓝图全功能验证', () => {
   test.describe('列表展示 — 11 列 + 状态', () => {
 
     test('表格加载并显示核心列', async ({ page }) => {
-      await loginAs(page, '/bidAdmin')
+      await loginAs(page, 'bid_admin')
       await page.goto('/knowledge/warehouse')
       await page.waitForSelector('.el-table', { timeout: 10000 })
 
@@ -110,7 +110,7 @@ test.describe('§4.4 仓库信息 — 蓝图全功能验证', () => {
     })
 
     test('分页组件可见', async ({ page }) => {
-      await loginAs(page, '/bidAdmin')
+      await loginAs(page, 'bid_admin')
       await page.goto('/knowledge/warehouse')
       await page.waitForSelector('.el-pagination', { timeout: 10000 })
       await expect(page.locator('.el-pagination')).toBeVisible()
@@ -120,7 +120,7 @@ test.describe('§4.4 仓库信息 — 蓝图全功能验证', () => {
   test.describe('编辑仓库', () => {
 
     test('编辑仓库名称并保存', async ({ page }) => {
-      await loginAs(page, '/bidAdmin')
+      await loginAs(page, 'bid_admin')
       await page.goto('/knowledge/warehouse')
       await page.waitForSelector('.el-table', { timeout: 10000 })
 
@@ -145,7 +145,7 @@ test.describe('§4.4 仓库信息 — 蓝图全功能验证', () => {
   test.describe('关仓与恢复', () => {
 
     test('关仓确认弹窗可见', async ({ page }) => {
-      await loginAs(page, '/bidAdmin')
+      await loginAs(page, 'bid_admin')
       await page.goto('/knowledge/warehouse')
       await page.waitForSelector('.el-table', { timeout: 10000 })
 

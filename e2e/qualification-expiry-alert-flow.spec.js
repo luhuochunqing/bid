@@ -122,7 +122,7 @@ async function listNotifications(token) {
 
 test.describe('§4.1.3.8 消息提醒 - 告警配置 + 扫描 + 站内信', () => {
   test('正向流程：告警配置保存（天数/开关） + 扫描按钮存在 + 真实保存后端', async ({ page }) => {
-    const session = await loginAsRole(page, '/bidAdmin', 'E2E alert admin')
+    const session = await loginAsRole(page, 'bid_admin', 'E2E alert admin')
     // 直接验证后端：先 PUT 30 天 + 启用
     const putRes = await putAlertConfig(session.token, 30, true)
     expect(putRes?.success).toBe(true)
@@ -149,7 +149,7 @@ test.describe('§4.1.3.8 消息提醒 - 告警配置 + 扫描 + 站内信', () =
   })
 
   test('正向流程：手动扫描 → 命中即将到期证书 → 接收人收到 DEADLINE 站内信', async ({ page }) => {
-    const adminSession = await loginAsRoleNoPage('/bidAdmin', 'E2E alert admin')
+    const adminSession = await loginAsRoleNoPage('bid_admin', 'E2E alert admin')
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
     // 创建 1 张 20 天到期的证书（在 30 天阈值内）
     const newId = await createQualificationExpiringSoon(adminSession.token, suffix, 20)
@@ -182,11 +182,11 @@ test.describe('§4.1.3.8 消息提醒 - 告警配置 + 扫描 + 站内信', () =
 
   test('权限：bid_specialist 触发手动扫描应被拒绝（403 / 业务 500）', async ({ page }) => {
     // 用 bid_admin 创建证书，再用 bid_specialist 触发扫描
-    const adminSession = await loginAsRoleNoPage('/bidAdmin', 'E2E alert admin')
+    const adminSession = await loginAsRoleNoPage('bid_admin', 'E2E alert admin')
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
     await createQualificationExpiringSoon(adminSession.token, suffix, 25)
 
-    const specSession = await loginAsRoleNoPage('bid-Team', 'E2E alert specialist')
+    const specSession = await loginAsRoleNoPage('bid_specialist', 'E2E alert specialist')
     const res = await fetch(`${apiBaseUrl}/api/knowledge/qualifications/scan-expiring`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${specSession.token}` }
@@ -196,7 +196,7 @@ test.describe('§4.1.3.8 消息提醒 - 告警配置 + 扫描 + 站内信', () =
   })
 
   test('边界：续期后剩余天数 > 阈值，下次扫描不提醒', async ({ page }) => {
-    const adminSession = await loginAsRoleNoPage('/bidAdmin', 'E2E alert admin')
+    const adminSession = await loginAsRoleNoPage('bid_admin', 'E2E alert admin')
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
     // 创建 10 天到期的证书（在 30 天阈值内）
     const certId = await createQualificationExpiringSoon(adminSession.token, suffix, 10)
@@ -227,7 +227,7 @@ test.describe('§4.1.3.8 消息提醒 - 告警配置 + 扫描 + 站内信', () =
   })
 
   test('边界：下架证书（RETIRED）不参与扫描', async ({ page }) => {
-    const adminSession = await loginAsRoleNoPage('/bidAdmin', 'E2E alert admin')
+    const adminSession = await loginAsRoleNoPage('bid_admin', 'E2E alert admin')
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
     const certId = await createQualificationExpiringSoon(adminSession.token, suffix, 15)
 
@@ -264,7 +264,7 @@ test.describe('§4.1.3.8 消息提醒 - 告警配置 + 扫描 + 站内信', () =
   })
 
   test('边界：当日二次扫描同证书不重复发（24h 去重）', async ({ page }) => {
-    const adminSession = await loginAsRoleNoPage('/bidAdmin', 'E2E alert admin')
+    const adminSession = await loginAsRoleNoPage('bid_admin', 'E2E alert admin')
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
     const certId = await createQualificationExpiringSoon(adminSession.token, suffix, 12)
 
@@ -285,7 +285,7 @@ test.describe('§4.1.3.8 消息提醒 - 告警配置 + 扫描 + 站内信', () =
   })
 
   test('数据完整性：扫描响应中跳过数 = scanned - notified', async ({ page }) => {
-    const adminSession = await loginAsRoleNoPage('/bidAdmin', 'E2E alert admin')
+    const adminSession = await loginAsRoleNoPage('bid_admin', 'E2E alert admin')
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
     // 创建 2 张：1 张到期（提醒）、1 张很远（不应命中）
     const nearId = await createQualificationExpiringSoon(adminSession.token, `${suffix}_a`, 10)

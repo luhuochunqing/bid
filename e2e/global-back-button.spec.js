@@ -8,7 +8,7 @@ test.describe('全局返回按钮', () => {
     const suffix = Date.now()
     session = await ensureApiSession({
       username: `e2e_back_btn_${suffix}`,
-      role: '/bidAdmin',
+      role: 'bid_admin',
       fullName: 'E2E Back Button Admin'
     })
   })

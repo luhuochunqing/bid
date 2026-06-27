@@ -28,7 +28,7 @@ async function loginAs(page, role) {
 
 test.describe('业绩一键插入标书编辑器', () => {
   test('通过 sessionStorage 模拟业绩自动插入文档编辑器的案例展示章节', async ({ page }) => {
-    const session = await loginAs(page, '/bidAdmin')
+    const session = await loginAs(page, 'bid_admin')
     const projectId = 980100 + Date.now() % 10000
 
     // 1. 创建文档结构（带案例展示章节）

@@ -67,14 +67,14 @@ test.beforeEach(({ page }) => {
 // ---------------------------------------------------------------------------
 test.describe('§4.2.1 — bidding list bulk import button visibility', () => {
   test('bid_admin sees the batch import button', async ({ page }) => {
-    await loginAsRole(page, '/bidAdmin')
+    await loginAsRole(page, 'bid_admin')
     await page.goto('/bidding')
     await page.waitForSelector('.el-table', { timeout: 10000 })
     await expect(page.getByRole('button', { name: '批量导入', exact: true })).toBeVisible()
   })
 
   test('sales does NOT see the batch import button', async ({ page }) => {
-    await loginAsRole(page, 'bid-projectLeader')
+    await loginAsRole(page, 'sales')
     await page.goto('/bidding')
     await page.waitForSelector('.el-table', { timeout: 10000 })
     await expect(page.getByRole('button', { name: '批量导入', exact: true })).not.toBeVisible()
@@ -88,7 +88,7 @@ test.describe('§4.2.1 — bidding list bulk import button visibility', () => {
 // ---------------------------------------------------------------------------
 test.describe('§4.2.4 — tender detail page assign/transfer button visibility', () => {
   test('bid_admin sees 分配 button on PENDING_ASSIGNMENT tender detail', async ({ page }) => {
-    const session = await loginAsRole(page, '/bidAdmin')
+    const session = await loginAsRole(page, 'bid_admin')
     const tenderId = await seedTenderForDetail(session, 'PENDING_ASSIGNMENT')
     expect(tenderId).toBeTruthy()
 
@@ -100,7 +100,7 @@ test.describe('§4.2.4 — tender detail page assign/transfer button visibility'
   })
 
   test('bid_admin sees 转派 button on TRACKING tender detail', async ({ page }) => {
-    const session = await loginAsRole(page, '/bidAdmin')
+    const session = await loginAsRole(page, 'bid_admin')
     const tenderId = await seedTenderForDetail(session, 'TRACKING')
     expect(tenderId).toBeTruthy()
 
@@ -112,7 +112,7 @@ test.describe('§4.2.4 — tender detail page assign/transfer button visibility'
   })
 
   test('sales does NOT see 分配 or 转派 buttons on detail page', async ({ page }) => {
-    const session = await loginAsRole(page, 'bid-projectLeader')
+    const session = await loginAsRole(page, 'sales')
     const tenderId = await seedTenderForDetail(session, 'PENDING_ASSIGNMENT')
     expect(tenderId).toBeTruthy()
 
@@ -124,7 +124,7 @@ test.describe('§4.2.4 — tender detail page assign/transfer button visibility'
   })
 
   test('bid_admin sees 删除 button on detail page, but sales and bid_lead do not', async ({ page }) => {
-    const sessionAdmin = await loginAsRole(page, '/bidAdmin')
+    const sessionAdmin = await loginAsRole(page, 'bid_admin')
     const tenderId = await seedTenderForDetail(sessionAdmin, 'PENDING_ASSIGNMENT')
     expect(tenderId).toBeTruthy()
 
@@ -134,13 +134,13 @@ test.describe('§4.2.4 — tender detail page assign/transfer button visibility'
     await expect(page.getByRole('button', { name: '删除' })).toBeVisible()
 
     // 2. sales does not see it
-    await loginAsRole(page, 'bid-projectLeader')
+    await loginAsRole(page, 'sales')
     await page.goto(`/bidding/${tenderId}`)
     await page.waitForSelector('.el-descriptions', { timeout: 10000 })
     await expect(page.getByRole('button', { name: '删除' })).not.toBeVisible()
 
     // 3. bid_lead does not see it
-    await loginAsRole(page, 'bid-TeamLeader')
+    await loginAsRole(page, 'bid_lead')
     await page.goto(`/bidding/${tenderId}`)
     await page.waitForSelector('.el-descriptions', { timeout: 10000 })
     await expect(page.getByRole('button', { name: '删除' })).not.toBeVisible()
@@ -153,7 +153,7 @@ test.describe('§4.2.4 — tender detail page assign/transfer button visibility'
 // ---------------------------------------------------------------------------
 test.describe('§V1026 — TRACKING sales evaluation flow buttons', () => {
   test('sales sees 下一步 button on TRACKING tender detail', async ({ page }) => {
-    const session = await loginAsRole(page, 'bid-projectLeader')
+    const session = await loginAsRole(page, 'sales')
     const tenderId = await seedTenderForDetail(session, 'TRACKING')
     expect(tenderId).toBeTruthy()
 

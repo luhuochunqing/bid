@@ -14,7 +14,7 @@ async function loginAsRole(page, role) {
 
 test.describe('§4.1.3.5 下架确认弹窗', () => {
   test('正向下架流程：弹窗含证书信息+必填原因+勾选确认+调接口', async ({ page }) => {
-    await loginAsRole(page, '/bidAdmin')
+    await loginAsRole(page, 'bid_admin')
     await page.goto('/knowledge/qualification')
     await page.waitForSelector('.el-table__row, .el-empty', { timeout: 15000 })
 
@@ -64,7 +64,7 @@ test.describe('§4.1.3.5 下架确认弹窗', () => {
   })
 
   test('边界：textarea maxlength=200', async ({ page }) => {
-    await loginAsRole(page, '/bidAdmin')
+    await loginAsRole(page, 'bid_admin')
     await page.goto('/knowledge/qualification')
     await page.waitForSelector('.el-table__row, .el-empty', { timeout: 15000 })
     const retireBtn = page.locator('.el-table__row button:has-text("下架")').first()
@@ -78,7 +78,7 @@ test.describe('§4.1.3.5 下架确认弹窗', () => {
   })
 
   test('边界：取消按钮关闭弹窗且不调接口', async ({ page }) => {
-    await loginAsRole(page, '/bidAdmin')
+    await loginAsRole(page, 'bid_admin')
     await page.goto('/knowledge/qualification')
     await page.waitForSelector('.el-table__row, .el-empty', { timeout: 15000 })
     const retireBtn = page.locator('.el-table__row button:has-text("下架")').first()
@@ -99,7 +99,7 @@ test.describe('§4.1.3.5 下架确认弹窗', () => {
   })
 
   test('权限：bid_specialist 看不到下架按钮', async ({ page }) => {
-    await loginAsRole(page, 'bid-Team')
+    await loginAsRole(page, 'bid_specialist')
     await page.goto('/knowledge/qualification')
     await page.waitForSelector('.el-table__row, .el-empty', { timeout: 15000 })
     const retireBtn = page.locator('.el-table__row button:has-text("下架")')
