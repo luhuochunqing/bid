@@ -112,13 +112,14 @@ public class TenderEvaluationBackfillService {
         User evaluator = requireUser(evaluatorId);
 
         // CO-310: 不检查 canFill，因为 linkCrmOpportunity 已有 assertCanUpdateTender 守卫
-        // 三段式完整性校验仍保留（业务数据正确性）
+        // CO-329 修复：CRM 数据通常不完整，不应在预填草稿（DRAFT）时抛出异常导致整个事务回滚，
+        // 只需记录日志，严格校验留待用户点击“提交评估表”时进行。
         var validationResult = TenderEvaluationSubmissionValidator.validate(req);
         if (!validationResult.isValid()) {
             String aggregated = validationResult.errors().stream()
                     .map(FieldError::message)
                     .collect(Collectors.joining("; "));
-            throw new BusinessException(400, "CRM backfill validation failed: " + aggregated);
+            log.warn("CO-329: CRM backfill contains incomplete data (will be saved as DRAFT): {}", aggregated);
         }
 
         TenderEvaluation entity = evaluationRepository.findByTenderId(tenderId)
