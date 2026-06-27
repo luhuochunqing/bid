@@ -2,14 +2,6 @@
   <div class="workbench">
     <div class="page-identity">
       <span class="page-kicker">工作台</span>
-      <el-tag
-        v-if="runtimeModeLabel"
-        class="runtime-mode-tag"
-        :type="runtimeModeTagType"
-        size="small"
-      >
-        {{ runtimeModeLabel }}
-      </el-tag>
     </div>
     <WelcomeBanner
       v-if="permissions.WelcomeBanner"
@@ -146,7 +138,6 @@ const currentUserId = computed(() => userStore.currentUser?.id || null)
 const currentDate = computed(() => formatCurrentDate())
 const workbenchProjects = ref([])
 const hotTenders = ref([])
-const runtimeMode = ref(null)
 const dynamicLayout = ref(null)
 const collabDialogVisible = ref(false)
 const selectedProjectForCollab = ref(null)
@@ -184,8 +175,6 @@ const bannerSubtitle = computed(() => getBannerSubtitle(currentUserRole.value, {
   pendingCount: pendingCount.value,
 }))
 const bannerActions = computed(() => getBannerActionConfig(currentUserRole.value).map(iconizeAction))
-const runtimeModeLabel = computed(() => runtimeMode.value?.modeLabel || '')
-const runtimeModeTagType = computed(() => (runtimeMode.value?.demoFusionEnabled ? 'warning' : 'success'))
 const permissions = computed(() => {
   const perms = userStore.menuPermissions
   return {
@@ -379,11 +368,6 @@ async function reloadSchedule() {
   syncSelectedDate()
 }
 
-async function loadRuntimeMode() {
-  const res = await dashboardApi.getRuntimeMode().catch(() => null)
-  runtimeMode.value = res?.success ? res.data : null
-}
-
 async function loadDynamicLayout() {
   const res = await dashboardApi.getLayout().catch(() => null)
   const layoutJson = res?.data?.layoutJson
@@ -393,7 +377,6 @@ async function loadDynamicLayout() {
 onMounted(async () => {
   metricsLoading.value = true
   await Promise.allSettled([
-    loadRuntimeMode(),
     loadDynamicLayout(),
     loadWorkbenchProjects(),
     loadWorkbenchTenders(),

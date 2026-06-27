@@ -20,10 +20,6 @@
   letter-spacing: 0.08em;
 }
 
-.runtime-mode-tag {
-  border-radius: 999px;
-}
-
 /* ==================== 欢迎横幅 ==================== */
 .welcome-banner {
   position: relative;
