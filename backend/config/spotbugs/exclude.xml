@@ -19,7 +19,10 @@
     </Match>
     <Match>
         <!-- Spring DI facade stores framework-managed collaborator references. -->
-        <Class name="com.xiyu.bid.projectworkflow.service.ProjectWorkflowService"/>
+        <Or>
+            <Class name="com.xiyu.bid.projectworkflow.service.ProjectWorkflowService"/>
+            <Class name="com.xiyu.bid.projectworkflow.service.ProjectTaskAuthorizationGuard"/>
+        </Or>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
 </FindBugsFilter>
