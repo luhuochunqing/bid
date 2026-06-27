@@ -249,6 +249,7 @@ import '@wangeditor/editor/dist/css/style.css'
 import { useRouter } from 'vue-router'
 import { readinessToTooltip } from './readinessTooltip.js'
 import { downloadWithFilename } from '@/utils/download.js'
+import { useProjectDocumentsExport } from '@/composables/projectDetail/useProjectDocumentsExport.js'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
 const emit = defineEmits(['closed'])
@@ -285,23 +286,10 @@ onBeforeUnmount(async () => {
   editorInstance = null
 })
 
-// 文档导出
-const exporting = ref(false)
+// CO-378: 文档导出 — 统一为项目文档打包 zip（与 DraftingStage 的 ProjectDocumentTable 导出按钮一致）
+const { exporting, exportDocumentsAsZip } = useProjectDocumentsExport(() => props.projectId)
 async function handleExportDocs() {
-  exporting.value = true
-  try {
-    const response = await projectLifecycleApi.exportClosureDocuments(props.projectId)
-    const docData = response.data?.data || response.data // Handle ApiResponse wrapper if present
-    const content = docData.content || JSON.stringify(docData, null, 2)
-    const contentBlob = new Blob([content], { type: 'application/json' })
-    const url = window.URL.createObjectURL(contentBlob)
-    const link = document.createElement('a'); link.href = url
-    link.setAttribute('download', `项目资料_${props.projectId}_${docData.id || ''}.json`)
-    document.body.appendChild(link); link.click(); document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
-    ElMessage.success('项目资料导出成功')
-  } catch (e) { ElMessage.error(e?.response?.data?.msg || '导出失败') }
-  finally { exporting.value = false }
+  await exportDocumentsAsZip()
 }
 
 // 文件上传配置

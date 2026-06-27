@@ -1,5 +1,5 @@
 <template>
-  <ProjectDocumentTable :project-id="projectId" />
+  <ProjectDocumentTable :project-id="projectId" @export="exportDocumentsAsZip" />
 
   <el-card class="stage-view" shadow="never">
     <template #header>
@@ -116,6 +116,7 @@ import AiRecommendDrawer from './components/AiRecommendDrawer.vue'
 import QualityCheckDialog from './components/QualityCheckDialog.vue'
 import { useProjectDetailContext } from '@/composables/projectDetail/context.js'
 import { useProjectDraftingPermissions } from '@/composables/projectDetail/useProjectDraftingPermissions.js'
+import { useProjectDocumentsExport } from '@/composables/projectDetail/useProjectDocumentsExport.js'
 import UserPicker from '@/components/common/UserPicker.vue'
 import { downloadWithFilename } from '@/utils/download.js'; const userStore = useUserStore()
 const ctx = useProjectDetailContext()
@@ -133,6 +134,8 @@ const perm = reactive(useProjectDraftingPermissions({
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
 const emit = defineEmits(['advanced', 'switch-tab'])
+// CO-378: 项目文档打包导出（ProjectDocumentTable 的「导出」按钮 @export 事件）
+const { exportDocumentsAsZip } = useProjectDocumentsExport(props.projectId)
 const view = ref(null)
 const aiDrawerVisible = ref(false)
 const advancing = ref(false)

@@ -118,6 +118,7 @@
     "dompurify": "^3.4.1",
     "echarts": "^5.4.0",
     "element-plus": "^2.5.0",
+    "jszip": "^3.10.1",
     "marked": "^18.0.2",
     "pinia": "^2.1.0",
     "qrcode": "^1.5.4",
