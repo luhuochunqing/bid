@@ -285,11 +285,47 @@ class TenderImportServiceTest {
         verify(tenderCommandService, times(2)).createTender(any(), any());
     }
 
+    @Test
+    @DisplayName("模板字典 sheet 使用与前端 constants.js 对齐的最新字典值")
+    void templateDictionarySheetUsesLatestOptions() throws Exception {
+        byte[] bytes = service.generateTemplate();
+        try (Workbook workbook = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
+            Sheet dict = workbook.getSheet("字典参考");
+            assertThat(dict).isNotNull();
+
+            java.util.List<String> customerTypes = readColumn(dict, 1);
+            java.util.List<String> projectTypes = readColumn(dict, 3);
+
+            // 客户类型对齐前端 constants.js CUSTOMER_TYPE_OPTIONS
+            assertThat(customerTypes).contains(
+                    "政府机关/事业单位/高校", "央企", "地方国企", "民企", "港澳台及外企");
+            assertThat(customerTypes).doesNotContain("央企集团", "国有集团", "KA 客户");
+
+            // 项目类型对齐前端 constants.js PROJECT_TYPE_OPTIONS
+            assertThat(projectTypes).contains("工业品", "办公", "综合", "集采", "其他");
+            assertThat(projectTypes).doesNotContain("货物类", "工程类", "服务类");
+        }
+    }
+
+    private java.util.List<String> readColumn(Sheet sheet, int colIndex) {
+        java.util.List<String> values = new java.util.ArrayList<>();
+        int last = sheet.getLastRowNum();
+        for (int r = 1; r <= last; r++) {
+            Row row = sheet.getRow(r);
+            if (row == null) continue;
+            Cell cell = row.getCell(colIndex);
+            if (cell != null) {
+                values.add(cell.getStringCellValue());
+            }
+        }
+        return values;
+    }
+
     private String[] exampleRow() {
         return new String[]{
                 "测试项目名称",
                 "测试招标主体",
-                "北京市",
+                "北京市-北京市",
                 "2026-12-31 17:00",
                 "2026-12-25 09:30",
                 "张三",
@@ -300,9 +336,9 @@ class TenderImportServiceTest {
                 "13900139000",
                 "021-87654321",
                 "lisi@example.com",
-                "央企集团",
+                "央企",
                 "A",
-                "货物类",
+                "工业品",
                 "政府采购网",
                 "示例标讯描述"
         };
