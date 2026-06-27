@@ -8,7 +8,9 @@
     <springProperty scope="context" name="LOG_PATH" source="LOG_PATH" defaultValue="/var/log/xiyu-bid"/>
 
     <!-- ==================== 开发/测试环境：人类可读 ==================== -->
-    <springProfile name="dev | test | mysql">
+    <!-- 注意：mysql 是数据库引擎 profile，不要与日志格式 profile 混用；
+         生产环境使用 prod,mysql，因此这里只匹配 dev|test。 -->
+    <springProfile name="dev | test">
         <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
             <encoder>
                 <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId:-no-trace}] [user=%X{userId:-anon}, role=%X{roleCode:-anon}] %logger{36} - %msg%n</pattern>

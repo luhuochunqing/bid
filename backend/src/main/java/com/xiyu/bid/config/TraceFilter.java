@@ -10,6 +10,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.MDC;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -20,8 +22,10 @@ import java.util.UUID;
  * 每个 HTTP 请求注入唯一的 traceId 与当前用户上下文到 MDC，供 logback 结构化日志使用。
  * <p>traceId 也会通过响应头 X-Trace-Id 返回客户端，便于前后端问题串联。</p>
  * <p>用户上下文（userId、roleCode）从 Spring Security 解析，未认证时写入 anonymous。</p>
+ * <p>通过最高优先级确保在 AccessLogFilter 之前执行，使访问日志也能拿到 traceId。</p>
  */
 @Component
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public class TraceFilter extends OncePerRequestFilter {
 
     private static final String TRACE_ID_HEADER = "X-Trace-Id";
