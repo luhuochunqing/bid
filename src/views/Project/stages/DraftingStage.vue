@@ -6,11 +6,8 @@
       <div class="bid-header">
         <span class="bid-title">投标文件</span>
         <div class="bid-header-actions">
-          <el-button v-if="perm.canAIRecommendCase" type="primary" link :icon="Search" @click="aiDrawerVisible = true">
+          <el-button v-if="perm.canAIRecommendCase" type="danger" link :icon="Search" @click="aiDrawerVisible = true">
             AI智能推荐案例
-          </el-button>
-          <el-button type="primary" link :icon="Trophy" @click="perfDrawerVisible = true">
-            推荐业绩
           </el-button>
           <el-button v-if="perm.canAIBidDocumentQualityCheck" type="danger" link :icon="DocumentChecked" @click="ctx.runBidDocumentQualityCheck?.()">
             AI标书质量核查
@@ -102,12 +99,11 @@
   </el-dialog>
 
   <AiRecommendDrawer v-model="aiDrawerVisible" :project-id="projectId" />
-  <PerformanceRecommendDrawer v-model="perfDrawerVisible" :project-id="projectId" />
   <QualityCheckDialog ref="qualityCheckRef" :project-id="projectId" />
 </template>
 
 <script setup>
-import { DocumentChecked, MagicStick, Search, Trophy, UploadFilled } from '@element-plus/icons-vue'
+import { DocumentChecked, MagicStick, Search, UploadFilled } from '@element-plus/icons-vue'
 import { ref, computed, reactive, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getApiUrl } from '@/api/config.js'
@@ -116,7 +112,6 @@ import { STAGE_TRANSITION_MAP } from '@/constants/projectStages.js'
 import { useUserStore } from '@/stores/user'
 import ProjectDocumentTable from './components/ProjectDocumentTable.vue'
 import AiRecommendDrawer from './components/AiRecommendDrawer.vue'
-import PerformanceRecommendDrawer from './components/PerformanceRecommendDrawer.vue'
 import QualityCheckDialog from './components/QualityCheckDialog.vue'
 import { useProjectDetailContext } from '@/composables/projectDetail/context.js'
 import { useProjectDraftingPermissions } from '@/composables/projectDetail/useProjectDraftingPermissions.js'
@@ -139,7 +134,6 @@ const props = defineProps({ projectId: { type: [String, Number], required: true 
 const emit = defineEmits(['advanced', 'switch-tab'])
 const view = ref(null)
 const aiDrawerVisible = ref(false)
-const perfDrawerVisible = ref(false)
 const advancing = ref(false)
 const advanceError = ref('')
 const bidFiles = ref([])

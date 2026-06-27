@@ -47,11 +47,9 @@
     <TaskBoard
       :tasks="tasks"
       :project-id="normalizedProjectId"
-      :can-generate="!tasks || tasks.length === 0"
       :show-submit-button="props.showSubmitButton"
       @task-click="handleTaskClick"
       @status-change="(...args) => $emit('status-change', ...args)"
-      @generate-tasks="$emit('generate-tasks')"
       @add-deliverable="(...args) => $emit('add-deliverable', ...args)"
       @remove-deliverable="(...args) => $emit('remove-deliverable', ...args)"
       @submit-to-document="$emit('submit-to-document', $event)"
@@ -103,7 +101,6 @@ const emit = defineEmits([
   'open-decompose',
   'tender-breakdown',
   'score-draft-decompose',
-  'generate-tasks',
   'add-deliverable',
   'remove-deliverable',
   'submit-to-document',

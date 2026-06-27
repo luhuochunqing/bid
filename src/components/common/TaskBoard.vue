@@ -5,10 +5,6 @@
         <span class="board-title">任务看板</span>
         <el-tag type="info" size="small">总进度: {{ progress }}%</el-tag>
       </div>
-      <el-button type="primary" size="small" @click="$emit('generate-tasks')" v-if="canGenerate">
-        <el-icon><MagicStick /></el-icon>
-        拆解任务
-      </el-button>
     </div>
     <div class="board-columns-container">
       <div class="board-column" v-for="column in columns" :key="column.key">
@@ -146,7 +142,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { MoreFilled, User, Calendar, Document, MagicStick, Upload, DocumentAdd, UploadFilled } from '@element-plus/icons-vue'
+import { MoreFilled, User, Calendar, Document, Upload, DocumentAdd, UploadFilled } from '@element-plus/icons-vue'
 import draggable from 'vuedraggable'
 import { useProjectStore } from '@/stores/project'
 import { useUserStore } from '@/stores/user'
@@ -162,17 +158,13 @@ const props = defineProps({
     default: () => []
   },
   projectId: String,
-  canGenerate: {
-    type: Boolean,
-    default: true
-  },
   showSubmitButton: {
     type: Boolean,
     default: true
   }
 })
 
-const emit = defineEmits(['task-click', 'status-change', 'generate-tasks', 'submit-to-document', 'add-deliverable', 'remove-deliverable'])
+const emit = defineEmits(['task-click', 'status-change', 'submit-to-document', 'add-deliverable', 'remove-deliverable'])
 
 const projectStore = useProjectStore()
 const userStore = useUserStore()
