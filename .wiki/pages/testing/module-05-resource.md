@@ -10,7 +10,7 @@ backlinks:
   - _index
 created: 2026-05-28
 updated: 2026-06-21
-health_checked: 2026-06-21
+health_checked: 2026-06-27
 ---
 > 蓝图章节：§4.5 资源管理
 > 对应飞书蓝图：https://my.feishu.cn/docx/FgLAdRmFho4QhwxncgAcfxKJn0d

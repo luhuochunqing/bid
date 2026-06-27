@@ -3,7 +3,7 @@
 - source_path: .wiki/sources/technical/西域投标系统对接技术规格书.md
 - source_type: markdown
 - topic: technical
-- generated_at: 2026-06-21T13:44:57.664Z
+- generated_at: 2026-06-27T13:34:19.653Z
 - status: extracted
 - confidence: 1
 # 西域投标系统对接技术规格书

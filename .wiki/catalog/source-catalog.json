@@ -8,7 +8,7 @@
     "status": "extracted",
     "extract_path": ".wiki/extracts/bidding__西域数智化投标管理平台-产品蓝图-初稿-V1.1.md.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.386Z"
+    "ingested_at": "2026-06-27T13:34:19.298Z"
   },
   {
     "id": "c127c5d192a8b9ff",
@@ -19,7 +19,7 @@
     "status": "extracted",
     "extract_path": ".wiki/extracts/bidding__附件5：西域数智化投标管理平台建设项目需求任务书.docx.md",
     "confidence": 0.85,
-    "ingested_at": "2026-06-21T13:44:57.388Z"
+    "ingested_at": "2026-06-27T13:34:19.300Z"
   },
   {
     "id": "bf1294d092f63579",
@@ -30,7 +30,7 @@
     "status": "extracted",
     "extract_path": ".wiki/extracts/bidding__附件6：需求功能清单.md.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.402Z"
+    "ingested_at": "2026-06-27T13:34:19.312Z"
   },
   {
     "id": "ae594bd338028a36",
@@ -41,7 +41,7 @@
     "status": "extracted",
     "extract_path": ".wiki/extracts/bidding__附件6：需求功能清单.xlsx.md",
     "confidence": 0.75,
-    "ingested_at": "2026-06-21T13:44:57.402Z"
+    "ingested_at": "2026-06-27T13:34:19.313Z"
   },
   {
     "id": "adbce912402924c6",
@@ -52,7 +52,7 @@
     "status": "extracted",
     "extract_path": ".wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md",
     "confidence": 0.85,
-    "ingested_at": "2026-06-21T13:44:57.426Z"
+    "ingested_at": "2026-06-27T13:34:19.330Z"
   },
   {
     "id": "3dd8dee6dce7f5a0",
@@ -63,7 +63,7 @@
     "status": "extracted",
     "extract_path": ".wiki/extracts/contract__附件3-合同报价清单人工摘录.md.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.443Z"
+    "ingested_at": "2026-06-27T13:34:19.342Z"
   },
   {
     "id": "f05a34b855849f3c",
@@ -74,7 +74,7 @@
     "status": "manual_review",
     "extract_path": ".wiki/extracts/contract__附件3：西域数智化投标管理平台建设项目合同报价清单.pdf.md",
     "confidence": 0.2,
-    "ingested_at": "2026-06-21T13:44:57.444Z"
+    "ingested_at": "2026-06-27T13:34:19.343Z"
   },
   {
     "id": "bd76b85a21b0568f",
@@ -85,7 +85,7 @@
     "status": "extracted",
     "extract_path": ".wiki/extracts/contract__附件4：西域数智化投标管理平台建设项目需求任务书.docx.md",
     "confidence": 0.85,
-    "ingested_at": "2026-06-21T13:44:57.493Z"
+    "ingested_at": "2026-06-27T13:34:19.519Z"
   },
   {
     "id": "1e5b16eee2fe328f",
@@ -96,7 +96,7 @@
     "status": "error",
     "extract_path": ".wiki/extracts/customer__事件库SDK接入说明方案.doc.md",
     "confidence": 0,
-    "ingested_at": "2026-06-21T13:44:57.507Z"
+    "ingested_at": "2026-06-27T13:34:19.529Z"
   },
   {
     "id": "bba526b11c648de2",
@@ -107,7 +107,7 @@
     "status": "extracted",
     "extract_path": ".wiki/extracts/implementation__西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx.md",
     "confidence": 0.85,
-    "ingested_at": "2026-06-21T13:44:57.512Z"
+    "ingested_at": "2026-06-27T13:34:19.533Z"
   },
   {
     "id": "6736674416a351c1",
@@ -118,7 +118,7 @@
     "status": "extracted",
     "extract_path": ".wiki/extracts/technical__泊冉投标系统与西域对接技术相关内容.md.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.527Z"
+    "ingested_at": "2026-06-27T13:34:19.545Z"
   },
   {
     "id": "288905f7556629ca",
@@ -129,7 +129,7 @@
     "status": "extracted",
     "extract_path": ".wiki/extracts/technical__泊冉投标系统与西域对接技术相关内容.pdf.md",
     "confidence": 0.6,
-    "ingested_at": "2026-06-21T13:44:57.529Z"
+    "ingested_at": "2026-06-27T13:34:19.546Z"
   },
   {
     "id": "a66e83a0ca7edc6c",
@@ -140,7 +140,7 @@
     "status": "extracted",
     "extract_path": ".wiki/extracts/technical__西域投标系统对接技术规格书.md.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.664Z"
+    "ingested_at": "2026-06-27T13:34:19.653Z"
   },
   {
     "id": "2114f62310d27d50",
@@ -151,7 +151,7 @@
     "status": "extracted",
     "extract_path": ".wiki/extracts/testing__module-01-workbench-test.md.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.665Z"
+    "ingested_at": "2026-06-27T13:34:19.653Z"
   },
   {
     "id": "269c684728981db9",
@@ -162,7 +162,7 @@
     "status": "extracted",
     "extract_path": ".wiki/extracts/testing__module-02-bidding-test.md.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.666Z"
+    "ingested_at": "2026-06-27T13:34:19.654Z"
   },
   {
     "id": "73894ad07040625d",
@@ -173,7 +173,7 @@
     "status": "extracted",
     "extract_path": ".wiki/extracts/testing__module-03-project-test.md.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.667Z"
+    "ingested_at": "2026-06-27T13:34:19.654Z"
   },
   {
     "id": "2fe8fc62830e57d4",
@@ -184,7 +184,7 @@
     "status": "extracted",
     "extract_path": ".wiki/extracts/testing__module-04-knowledge-test.md.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.667Z"
+    "ingested_at": "2026-06-27T13:34:19.654Z"
   },
   {
     "id": "395658846456f7e2",
@@ -195,7 +195,7 @@
     "status": "extracted",
     "extract_path": ".wiki/extracts/testing__module-05-resource-test.md.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.668Z"
+    "ingested_at": "2026-06-27T13:34:19.655Z"
   },
   {
     "id": "71e7664b8704ce12",
@@ -206,7 +206,7 @@
     "status": "extracted",
     "extract_path": ".wiki/extracts/testing__module-06-analytics-test.md.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.668Z"
+    "ingested_at": "2026-06-27T13:34:19.655Z"
   },
   {
     "id": "ee8a870fb1996703",
@@ -217,7 +217,7 @@
     "status": "extracted",
     "extract_path": ".wiki/extracts/testing__module-07-settings-test.md.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.669Z"
+    "ingested_at": "2026-06-27T13:34:19.655Z"
   },
   {
     "id": "fc05f7338256b91c",
@@ -228,7 +228,7 @@
     "status": "extracted",
     "extract_path": ".wiki/extracts/testing__module-08-ai-test.md.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.669Z"
+    "ingested_at": "2026-06-27T13:34:19.655Z"
   },
   {
     "id": "883cc41b84a0ef5e",
@@ -239,7 +239,7 @@
     "status": "extracted",
     "extract_path": ".wiki/extracts/testing__module-09-integration-test.md.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.669Z"
+    "ingested_at": "2026-06-27T13:34:19.656Z"
   },
   {
     "id": "1dea3b62495a39c5",
@@ -250,7 +250,7 @@
     "status": "extracted",
     "extract_path": ".wiki/extracts/testing__testing-overview.md.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.670Z"
+    "ingested_at": "2026-06-27T13:34:19.656Z"
   },
   {
     "id": "235107b907f6d749",
@@ -261,7 +261,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/architecture/8-modules-completion-report.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.676Z"
+    "ingested_at": "2026-06-27T13:34:19.659Z"
   },
   {
     "id": "5defda09d66182ef",
@@ -272,7 +272,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/architecture/8-modules-implementation-plan.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.677Z"
+    "ingested_at": "2026-06-27T13:34:19.659Z"
   },
   {
     "id": "3ebbea5b45e1be57",
@@ -283,7 +283,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/architecture/architecture-ratchet-candidates.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.677Z"
+    "ingested_at": "2026-06-27T13:34:19.659Z"
   },
   {
     "id": "0ccace1a3e6533a2",
@@ -294,7 +294,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/architecture/doc-consistency-report.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.677Z"
+    "ingested_at": "2026-06-27T13:34:19.659Z"
   },
   {
     "id": "93f1222c7e38f4ae",
@@ -305,7 +305,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/architecture/document-self-consistency.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.677Z"
+    "ingested_at": "2026-06-27T13:34:19.659Z"
   },
   {
     "id": "29d76fa7b174d16b",
@@ -316,7 +316,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/architecture/frontend-backend-comparison.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.677Z"
+    "ingested_at": "2026-06-27T13:34:19.660Z"
   },
   {
     "id": "e7c12faba6cb2f18",
@@ -327,7 +327,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/architecture/production-readiness-report.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.678Z"
+    "ingested_at": "2026-06-27T13:34:19.660Z"
   },
   {
     "id": "caa53c7c68ab5b72",
@@ -338,7 +338,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/architecture/security/security-audit-report-2026-03-19.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.678Z"
+    "ingested_at": "2026-06-27T13:34:19.660Z"
   },
   {
     "id": "877b9938674b91df",
@@ -349,7 +349,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/architecture/security/security-review-report.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.678Z"
+    "ingested_at": "2026-06-27T13:34:19.660Z"
   },
   {
     "id": "7900d0720a6f89e7",
@@ -360,7 +360,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/architecture/testing/self-verifying-tests.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.678Z"
+    "ingested_at": "2026-06-27T13:34:19.660Z"
   },
   {
     "id": "14487826afd879b8",
@@ -371,7 +371,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/architecture/后端架构设计-SpringBoot.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.678Z"
+    "ingested_at": "2026-06-27T13:34:19.661Z"
   },
   {
     "id": "93505560b580d250",
@@ -382,7 +382,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/architecture/后端架构设计.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.679Z"
+    "ingested_at": "2026-06-27T13:34:19.661Z"
   },
   {
     "id": "a8003e530232f1e4",
@@ -393,7 +393,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/architecture/技术架构方案.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.679Z"
+    "ingested_at": "2026-06-27T13:34:19.661Z"
   },
   {
     "id": "76cd7d4847e96452",
@@ -404,7 +404,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/architecture/西域数智化投标管理平台 - 产品蓝图-V1.0.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.679Z"
+    "ingested_at": "2026-06-27T13:34:19.661Z"
   },
   {
     "id": "5786b5eec301e2c0",
@@ -415,7 +415,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/audit-投标项目权限矩阵对照-2026-06-17.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.680Z"
+    "ingested_at": "2026-06-27T13:34:19.661Z"
   },
   {
     "id": "511c9be81b82a161",
@@ -426,7 +426,18 @@
     "status": "docs_tracked",
     "extract_path": "docs/bugfix/readonly-textarea-scrollbar-fix.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.680Z"
+    "ingested_at": "2026-06-27T13:34:19.662Z"
+  },
+  {
+    "id": "d2d44b6b2f38e7ec",
+    "path": "docs/exec-plans/active/p0-permission-fix-20260625-plan.md",
+    "type": "markdown",
+    "topic": "docs/exec-plans",
+    "hash": "d2d44b6b2f38e7ec6f90270bfa24bed264b36dfc5b038e5b6a5a10c7d98f0cd8",
+    "status": "docs_tracked",
+    "extract_path": "docs/exec-plans/active/p0-permission-fix-20260625-plan.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.662Z"
   },
   {
     "id": "535eade7e449df94",
@@ -437,7 +448,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/exec-plans/active/tender-permission-matrix-audit-20260617.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.680Z"
+    "ingested_at": "2026-06-27T13:34:19.662Z"
   },
   {
     "id": "54c31b6b437a498f",
@@ -448,7 +459,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/exec-plans/tech-debt-tracker.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.680Z"
+    "ingested_at": "2026-06-27T13:34:19.662Z"
   },
   {
     "id": "d715580a637aec34",
@@ -459,7 +470,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/fix-bid-review-self-approval-2026-06-07.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.680Z"
+    "ingested_at": "2026-06-27T13:34:19.662Z"
   },
   {
     "id": "5beffe494da6a434",
@@ -470,7 +481,18 @@
     "status": "docs_tracked",
     "extract_path": "docs/governance/async-governance.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.681Z"
+    "ingested_at": "2026-06-27T13:34:19.663Z"
+  },
+  {
+    "id": "a5461f5afddfa054",
+    "path": "docs/implementation-notes-2026-06-25.md",
+    "type": "markdown",
+    "topic": "docs/root",
+    "hash": "a5461f5afddfa0548b22d3b82a6757defc0fa75fcbc6c52ba2d91869134ad754",
+    "status": "docs_tracked",
+    "extract_path": "docs/implementation-notes-2026-06-25.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.664Z"
   },
   {
     "id": "548cd6f7a9f3e6e9",
@@ -481,7 +503,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/implementation-notes/CO-212.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.681Z"
+    "ingested_at": "2026-06-27T13:34:19.663Z"
   },
   {
     "id": "195da24a629e1971",
@@ -492,7 +514,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/implementation-notes/CO-261.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.681Z"
+    "ingested_at": "2026-06-27T13:34:19.663Z"
   },
   {
     "id": "4567a40f9283b91a",
@@ -503,7 +525,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/implementation-notes/project-permission-audit.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.681Z"
+    "ingested_at": "2026-06-27T13:34:19.663Z"
   },
   {
     "id": "a6e81cb16ac6df44",
@@ -514,7 +536,29 @@
     "status": "docs_tracked",
     "extract_path": "docs/implementation-notes/role-permission-audit.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.681Z"
+    "ingested_at": "2026-06-27T13:34:19.663Z"
+  },
+  {
+    "id": "a505e6b7d6d57036",
+    "path": "docs/implementation-notes/user-picker-unify-pinyin.md",
+    "type": "markdown",
+    "topic": "docs/implementation-notes",
+    "hash": "a505e6b7d6d570367f485ccb64293f5d36ea507cad4b7f4a1c879b9eaa12b593",
+    "status": "docs_tracked",
+    "extract_path": "docs/implementation-notes/user-picker-unify-pinyin.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.663Z"
+  },
+  {
+    "id": "db4127f80cdfb2ab",
+    "path": "docs/implementation-notes/UserPicker-remote-search-fix.md",
+    "type": "markdown",
+    "topic": "docs/implementation-notes",
+    "hash": "db4127f80cdfb2ab4c6ed0fece3f875d4ab1379d5750ebd8c8c01fc4d5ef2edb",
+    "status": "docs_tracked",
+    "extract_path": "docs/implementation-notes/UserPicker-remote-search-fix.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.663Z"
   },
   {
     "id": "fe8212511e8eebd3",
@@ -525,7 +569,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/integration/CO-262-crm-chance-fields-spec.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.682Z"
+    "ingested_at": "2026-06-27T13:34:19.664Z"
   },
   {
     "id": "533cc34fe3d1b1d2",
@@ -536,7 +580,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/integration/crm-migration-guide.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.682Z"
+    "ingested_at": "2026-06-27T13:34:19.664Z"
   },
   {
     "id": "a49800a073528544",
@@ -547,7 +591,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/integration/organization-directory-runbook.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.682Z"
+    "ingested_at": "2026-06-27T13:34:19.664Z"
   },
   {
     "id": "c1bdba01b1400d9c",
@@ -558,7 +602,18 @@
     "status": "docs_tracked",
     "extract_path": "docs/integration/organization-directory-yapi-mapping.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.683Z"
+    "ingested_at": "2026-06-27T13:34:19.665Z"
+  },
+  {
+    "id": "86d8fab22cfb8a7e",
+    "path": "docs/integration/oss-integration-api.md",
+    "type": "markdown",
+    "topic": "docs/integration",
+    "hash": "86d8fab22cfb8a7e68c13fe2aa8d6cae878b399b2d69e0bdb98303bf7b545e49",
+    "status": "docs_tracked",
+    "extract_path": "docs/integration/oss-integration-api.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.665Z"
   },
   {
     "id": "52cd079095dd526c",
@@ -569,29 +624,29 @@
     "status": "docs_tracked",
     "extract_path": "docs/integration/外部业务系统对接技术设计与接口规范说明.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.683Z"
+    "ingested_at": "2026-06-27T13:34:19.665Z"
   },
   {
-    "id": "d1e046b532d56312",
+    "id": "9e2309d267c5fc20",
     "path": "docs/integration/标讯集成接口文档-v3.8.md",
     "type": "markdown",
     "topic": "docs/integration",
-    "hash": "d1e046b532d56312262b8bc52ca07952da6fbff340d4298e15d1a5b6f31f5b4c",
+    "hash": "9e2309d267c5fc208f8aeb81e064f4a694502ce8695efc6cd6109cc3ef146e4e",
     "status": "docs_tracked",
     "extract_path": "docs/integration/标讯集成接口文档-v3.8.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.683Z"
+    "ingested_at": "2026-06-27T13:34:19.665Z"
   },
   {
-    "id": "656945f6d0ab7340",
+    "id": "c991b33abb5dc9c3",
     "path": "docs/integration/西域CRM商机对接接口.md",
     "type": "markdown",
     "topic": "docs/integration",
-    "hash": "656945f6d0ab734002f36c48c95f6f171905332c8ed952fe79e65fb3a02fc81f",
+    "hash": "c991b33abb5dc9c3071fd69b63c7dc0623048f7273abff19fdbfba137e50d9fd",
     "status": "docs_tracked",
     "extract_path": "docs/integration/西域CRM商机对接接口.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.684Z"
+    "ingested_at": "2026-06-27T13:34:19.666Z"
   },
   {
     "id": "b063c7f8d2ebb88c",
@@ -602,7 +657,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/issues/01-creatorId-fix.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.684Z"
+    "ingested_at": "2026-06-27T13:34:19.666Z"
   },
   {
     "id": "05e4138ce926c06a",
@@ -613,7 +668,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/issues/02-test-compilation.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.684Z"
+    "ingested_at": "2026-06-27T13:34:19.666Z"
   },
   {
     "id": "6920fb5c55f6f377",
@@ -624,7 +679,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/issues/03-broad-catch.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.684Z"
+    "ingested_at": "2026-06-27T13:34:19.666Z"
   },
   {
     "id": "6a8b5c108c32a5a4",
@@ -635,40 +690,40 @@
     "status": "docs_tracked",
     "extract_path": "docs/issues/creatorId-fix.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.685Z"
+    "ingested_at": "2026-06-27T13:34:19.666Z"
   },
   {
-    "id": "972b91f7dc1f01a6",
+    "id": "36f927836f8bb135",
     "path": "docs/lessons/build-gotchas.md",
     "type": "markdown",
     "topic": "docs/lessons",
-    "hash": "972b91f7dc1f01a6a0b652e205e42a8a18d4023821010f7e5aa32e04ee00b81f",
+    "hash": "36f927836f8bb135d2fea4634955997c00586ba28ed06cd4fc8e6a6884d3150a",
     "status": "docs_tracked",
     "extract_path": "docs/lessons/build-gotchas.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.685Z"
+    "ingested_at": "2026-06-27T13:34:19.666Z"
   },
   {
-    "id": "c49ea97af1b33c6c",
+    "id": "52aa7a498e10bb5b",
     "path": "docs/lessons/crm-integration-lessons.md",
     "type": "markdown",
     "topic": "docs/lessons",
-    "hash": "c49ea97af1b33c6cd3ca5a7b9402893ff862206b6dec2ba2a79e4af1bcdb37ba",
+    "hash": "52aa7a498e10bb5bfa2ed13dc12a3d0df00309cb39b1bbea7eb8a0d1e68fe98b",
     "status": "docs_tracked",
     "extract_path": "docs/lessons/crm-integration-lessons.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.685Z"
+    "ingested_at": "2026-06-27T13:34:19.666Z"
   },
   {
-    "id": "8aa8f2d77cc5132f",
+    "id": "ea42b0fa1e6651cc",
     "path": "docs/lessons/decisions.md",
     "type": "markdown",
     "topic": "docs/lessons",
-    "hash": "8aa8f2d77cc5132f6e1250c6a25928f506d13bdbf0ec3268b7cfb972b6e9c57b",
+    "hash": "ea42b0fa1e6651ccc24e005fa663922a3d197f66d1f2596ed695e24e16fc48ad",
     "status": "docs_tracked",
     "extract_path": "docs/lessons/decisions.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.686Z"
+    "ingested_at": "2026-06-27T13:34:19.667Z"
   },
   {
     "id": "977ca7e2654f326e",
@@ -679,18 +734,29 @@
     "status": "docs_tracked",
     "extract_path": "docs/lessons/element-plus-gotchas.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.686Z"
+    "ingested_at": "2026-06-27T13:34:19.667Z"
   },
   {
-    "id": "cc2d469b1c8acd16",
+    "id": "eae9d4db096d7add",
+    "path": "docs/lessons/external-integration-lessons.md",
+    "type": "markdown",
+    "topic": "docs/lessons",
+    "hash": "eae9d4db096d7add41dea72d5d582d78763f9d300e1fb3fc11e9b35379605eaa",
+    "status": "docs_tracked",
+    "extract_path": "docs/lessons/external-integration-lessons.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.667Z"
+  },
+  {
+    "id": "11a0bbd8cfa01d3c",
     "path": "docs/lessons/lessons-learned.md",
     "type": "markdown",
     "topic": "docs/lessons",
-    "hash": "cc2d469b1c8acd16fe1e45f47f2e07091118aac53ae002a252a716213e6574ef",
+    "hash": "11a0bbd8cfa01d3c8373a1d46297ef1e0e1f513cb2b8552441fb7fda9473a4fc",
     "status": "docs_tracked",
     "extract_path": "docs/lessons/lessons-learned.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.686Z"
+    "ingested_at": "2026-06-27T13:34:19.667Z"
   },
   {
     "id": "89aa928177faec77",
@@ -701,7 +767,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/lessons/root-cause-analysis-bcrypt-invalid-hash.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.686Z"
+    "ingested_at": "2026-06-27T13:34:19.667Z"
   },
   {
     "id": "1e1d339ee906369a",
@@ -712,7 +778,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/lessons/root-cause-analysis-co-259.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.686Z"
+    "ingested_at": "2026-06-27T13:34:19.668Z"
   },
   {
     "id": "ed75e81be2199971",
@@ -723,7 +789,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/lessons/root-cause-analysis-co-264.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.687Z"
+    "ingested_at": "2026-06-27T13:34:19.668Z"
   },
   {
     "id": "7ce5140d1d68fa34",
@@ -734,7 +800,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/lessons/root-cause-analysis-co-266-co-267.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.687Z"
+    "ingested_at": "2026-06-27T13:34:19.668Z"
   },
   {
     "id": "e4310f25ad686abf",
@@ -745,7 +811,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/lessons/root-cause-analysis-co-274.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.687Z"
+    "ingested_at": "2026-06-27T13:34:19.668Z"
   },
   {
     "id": "b35fce03756d4bb3",
@@ -756,7 +822,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/lessons/root-cause-analysis-co-279.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.687Z"
+    "ingested_at": "2026-06-27T13:34:19.668Z"
   },
   {
     "id": "8bed66a020357098",
@@ -767,7 +833,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/lessons/root-cause-analysis-co-280.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.687Z"
+    "ingested_at": "2026-06-27T13:34:19.668Z"
   },
   {
     "id": "df50d4c9f659c6c3",
@@ -778,7 +844,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/lessons/root-cause-analysis-co-282.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.688Z"
+    "ingested_at": "2026-06-27T13:34:19.669Z"
   },
   {
     "id": "c0d80d5958822a0c",
@@ -789,7 +855,29 @@
     "status": "docs_tracked",
     "extract_path": "docs/lessons/root-cause-analysis-co-283.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.688Z"
+    "ingested_at": "2026-06-27T13:34:19.669Z"
+  },
+  {
+    "id": "69f877ce1a47e831",
+    "path": "docs/lessons/root-cause-analysis-co-285.md",
+    "type": "markdown",
+    "topic": "docs/lessons",
+    "hash": "69f877ce1a47e8318b0b08ce5a3f6e9974622244756b8fb523aa3fb20a0759fb",
+    "status": "docs_tracked",
+    "extract_path": "docs/lessons/root-cause-analysis-co-285.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.669Z"
+  },
+  {
+    "id": "641d37a3ebdc42bc",
+    "path": "docs/lessons/root-cause-analysis-co-301.md",
+    "type": "markdown",
+    "topic": "docs/lessons",
+    "hash": "641d37a3ebdc42bc1c271965db130dbf6f70ab9feed10d23fce7d357062b52ff",
+    "status": "docs_tracked",
+    "extract_path": "docs/lessons/root-cause-analysis-co-301.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.669Z"
   },
   {
     "id": "234587d31e4a9033",
@@ -800,7 +888,18 @@
     "status": "docs_tracked",
     "extract_path": "docs/lessons/root-cause-analysis-co262-crm-eval-gap-files.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.688Z"
+    "ingested_at": "2026-06-27T13:34:19.669Z"
+  },
+  {
+    "id": "1b5fd8c4b094d755",
+    "path": "docs/lessons/root-cause-analysis-crm-leader-priority.md",
+    "type": "markdown",
+    "topic": "docs/lessons",
+    "hash": "1b5fd8c4b094d75589da9d4016186827318da3ed79132775177b1ee8c9ed4286",
+    "status": "docs_tracked",
+    "extract_path": "docs/lessons/root-cause-analysis-crm-leader-priority.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.670Z"
   },
   {
     "id": "cdc25b84d8f9cf61",
@@ -811,7 +910,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/lessons/root-cause-analysis-frontend-404.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.688Z"
+    "ingested_at": "2026-06-27T13:34:19.670Z"
   },
   {
     "id": "15787a5d68e48ab8",
@@ -822,7 +921,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/lessons/root-cause-analysis-h13-e2e-fix.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.688Z"
+    "ingested_at": "2026-06-27T13:34:19.670Z"
   },
   {
     "id": "7be24a5f19c4fec6",
@@ -833,7 +932,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/lessons/root-cause-analysis-stage-notification-created-by.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.688Z"
+    "ingested_at": "2026-06-27T13:34:19.670Z"
   },
   {
     "id": "14386e24b1734bc1",
@@ -844,7 +943,18 @@
     "status": "docs_tracked",
     "extract_path": "docs/lessons/root-cause-analysis-submit-bid-review-gate.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.688Z"
+    "ingested_at": "2026-06-27T13:34:19.670Z"
+  },
+  {
+    "id": "b699fafb84af39a1",
+    "path": "docs/lessons/root-cause-analysis-tender-test-out-of-sync.md",
+    "type": "markdown",
+    "topic": "docs/lessons",
+    "hash": "b699fafb84af39a135d96e50443ac2b272f19952115c7a6d6ce5e07cfabef9f7",
+    "status": "docs_tracked",
+    "extract_path": "docs/lessons/root-cause-analysis-tender-test-out-of-sync.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.671Z"
   },
   {
     "id": "df083dd6f1f501c5",
@@ -855,7 +965,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/lessons/shell-gotchas.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.689Z"
+    "ingested_at": "2026-06-27T13:34:19.671Z"
   },
   {
     "id": "92fed4ecea696b71",
@@ -866,7 +976,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/lessons/spring-boot-actuator-gotchas.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.689Z"
+    "ingested_at": "2026-06-27T13:34:19.671Z"
   },
   {
     "id": "550aad1999e1063b",
@@ -877,7 +987,18 @@
     "status": "docs_tracked",
     "extract_path": "docs/lessons/vue-gotchas.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.689Z"
+    "ingested_at": "2026-06-27T13:34:19.671Z"
+  },
+  {
+    "id": "0be2d9a007669473",
+    "path": "docs/operations/logging-bug-investigation-guide.md",
+    "type": "markdown",
+    "topic": "docs/operations",
+    "hash": "0be2d9a007669473b78a627ea9baa98f2947fe295d0a7d2818fa51f932d30fa4",
+    "status": "docs_tracked",
+    "extract_path": "docs/operations/logging-bug-investigation-guide.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.671Z"
   },
   {
     "id": "c470e8710ba58f06",
@@ -888,7 +1009,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/operations/WORKFLOW.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.689Z"
+    "ingested_at": "2026-06-27T13:34:19.671Z"
   },
   {
     "id": "50da48a8ee27d158",
@@ -899,7 +1020,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/permission-matrix/投标项目-权限矩阵.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.689Z"
+    "ingested_at": "2026-06-27T13:34:19.672Z"
   },
   {
     "id": "b657857ea20ed95f",
@@ -910,7 +1031,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/plans/2025-02-27-ui-b2b-improvements.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.689Z"
+    "ingested_at": "2026-06-27T13:34:19.672Z"
   },
   {
     "id": "7185642dec635fad",
@@ -921,7 +1042,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/plans/2025-03-03-BAR-design.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.690Z"
+    "ingested_at": "2026-06-27T13:34:19.672Z"
   },
   {
     "id": "f3a39b9dda9541ff",
@@ -932,7 +1053,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/plans/2026-06-17-remove-task-executor-role.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.690Z"
+    "ingested_at": "2026-06-27T13:34:19.672Z"
   },
   {
     "id": "84950fc5b2700039",
@@ -943,7 +1064,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/plans/tender-create-4.2.3-plan.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.690Z"
+    "ingested_at": "2026-06-27T13:34:19.672Z"
   },
   {
     "id": "1804b557d702035c",
@@ -954,7 +1075,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/plans/tender-detail-4.2.7-plan.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.690Z"
+    "ingested_at": "2026-06-27T13:34:19.672Z"
   },
   {
     "id": "f00df9ec49af9656",
@@ -965,7 +1086,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/plans/投标管理系统 PRD 文档.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.690Z"
+    "ingested_at": "2026-06-27T13:34:19.672Z"
   },
   {
     "id": "79b922b395830a78",
@@ -976,7 +1097,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/prd-简报-投标项目-2026-05-19.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.690Z"
+    "ingested_at": "2026-06-27T13:34:19.673Z"
   },
   {
     "id": "b59605dc12ea6987",
@@ -987,7 +1108,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/prd-简报-投标项目权限矩阵-2026-06-17.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.690Z"
+    "ingested_at": "2026-06-27T13:34:19.673Z"
   },
   {
     "id": "41a94188a344dffd",
@@ -998,7 +1119,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/prd-简报-标讯中心-2026-05-18.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.691Z"
+    "ingested_at": "2026-06-27T13:34:19.673Z"
   },
   {
     "id": "d93b6519ff2c0bd9",
@@ -1009,7 +1130,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/prd-简报-知识库-2026-05-20.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.691Z"
+    "ingested_at": "2026-06-27T13:34:19.673Z"
   },
   {
     "id": "0714497430229382",
@@ -1020,7 +1141,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/references/crm-field-mapping.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.691Z"
+    "ingested_at": "2026-06-27T13:34:19.673Z"
   },
   {
     "id": "ac01d3a0d73e9028",
@@ -1031,7 +1152,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/references/crm-integration-lessons.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.691Z"
+    "ingested_at": "2026-06-27T13:34:19.674Z"
   },
   {
     "id": "a6eace3624d9012b",
@@ -1042,7 +1163,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/references/ehsy-client-sdk.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.691Z"
+    "ingested_at": "2026-06-27T13:34:19.674Z"
   },
   {
     "id": "7e6f1f6e11d234f2",
@@ -1053,7 +1174,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/references/jpa-hibernate-lessons.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.691Z"
+    "ingested_at": "2026-06-27T13:34:19.674Z"
   },
   {
     "id": "d7d8ad531bbf971f",
@@ -1064,7 +1185,18 @@
     "status": "docs_tracked",
     "extract_path": "docs/references/markitdown-sidecar-notes.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.692Z"
+    "ingested_at": "2026-06-27T13:34:19.674Z"
+  },
+  {
+    "id": "7babe304c4500558",
+    "path": "docs/references/rollback-recovery-playbook.md",
+    "type": "markdown",
+    "topic": "docs/references",
+    "hash": "7babe304c45005587aabd77656310f9a8b45b6f67a8dbdde3cf578c7e73b0112",
+    "status": "docs_tracked",
+    "extract_path": "docs/references/rollback-recovery-playbook.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.674Z"
   },
   {
     "id": "8c02c47726f2b0c3",
@@ -1075,18 +1207,18 @@
     "status": "docs_tracked",
     "extract_path": "docs/references/spring-boot-gotchas.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.692Z"
+    "ingested_at": "2026-06-27T13:34:19.674Z"
   },
   {
-    "id": "755bbe857ed66d22",
+    "id": "d9b3b4170e1ad880",
     "path": "docs/references/vue-gotchas.md",
     "type": "markdown",
     "topic": "docs/references",
-    "hash": "755bbe857ed66d2294d1054b5a986a836bc9940c50ecc02510f788c161466c3b",
+    "hash": "d9b3b4170e1ad880956351dd88f2a809d4ec0e9aa8ad3ea7400c7e851e38fe9e",
     "status": "docs_tracked",
     "extract_path": "docs/references/vue-gotchas.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.692Z"
+    "ingested_at": "2026-06-27T13:34:19.674Z"
   },
   {
     "id": "3c3dd98aeb30676a",
@@ -1097,7 +1229,117 @@
     "status": "docs_tracked",
     "extract_path": "docs/references/wangeditor-notes.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.692Z"
+    "ingested_at": "2026-06-27T13:34:19.675Z"
+  },
+  {
+    "id": "a792d3238a4bce9f",
+    "path": "docs/references/xiyu-to-boran-permission-api-23353-login.md",
+    "type": "markdown",
+    "topic": "docs/references",
+    "hash": "a792d3238a4bce9fb47f8af8d1b051b5abc5515c6048e53ff0348d31a8bb803f",
+    "status": "docs_tracked",
+    "extract_path": "docs/references/xiyu-to-boran-permission-api-23353-login.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.675Z"
+  },
+  {
+    "id": "b945852dba5b3acb",
+    "path": "docs/references/xiyu-to-boran-permission-api-23358-getUserInfo.md",
+    "type": "markdown",
+    "topic": "docs/references",
+    "hash": "b945852dba5b3acbe4c4e11090f89508994331efedb1621dfdd7f121043911c4",
+    "status": "docs_tracked",
+    "extract_path": "docs/references/xiyu-to-boran-permission-api-23358-getUserInfo.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.675Z"
+  },
+  {
+    "id": "b4a3fbee7c5cf6ab",
+    "path": "docs/references/xiyu-to-boran-permission-api-23370-logout.md",
+    "type": "markdown",
+    "topic": "docs/references",
+    "hash": "b4a3fbee7c5cf6ab984c545d7a5338e7c37ae28ecebc4621f999077e9f145ab5",
+    "status": "docs_tracked",
+    "extract_path": "docs/references/xiyu-to-boran-permission-api-23370-logout.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.675Z"
+  },
+  {
+    "id": "3e0feea0ad8f3dad",
+    "path": "docs/references/xiyu-to-boran-permission-api-23484-getUserPermission.md",
+    "type": "markdown",
+    "topic": "docs/references",
+    "hash": "3e0feea0ad8f3dadf1b13d1c4e825418465c88084b5e0c2ac8275e5b70eae18f",
+    "status": "docs_tracked",
+    "extract_path": "docs/references/xiyu-to-boran-permission-api-23484-getUserPermission.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.675Z"
+  },
+  {
+    "id": "914e05ef3bb2e0ae",
+    "path": "docs/references/xiyu-to-boran-permission-api-26325-getUserJobListByJobNumberList.md",
+    "type": "markdown",
+    "topic": "docs/references",
+    "hash": "914e05ef3bb2e0aefec04bbb2a3b0bed747bab7f3b0178f33c8b53a11a976e23",
+    "status": "docs_tracked",
+    "extract_path": "docs/references/xiyu-to-boran-permission-api-26325-getUserJobListByJobNumberList.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.676Z"
+  },
+  {
+    "id": "6b599f277eab6dac",
+    "path": "docs/references/xiyu-to-boran-permission-api-development-plan.md",
+    "type": "markdown",
+    "topic": "docs/references",
+    "hash": "6b599f277eab6dacf23bba44050e72b332890079f205bafea9ab30bba34278de",
+    "status": "docs_tracked",
+    "extract_path": "docs/references/xiyu-to-boran-permission-api-development-plan.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.676Z"
+  },
+  {
+    "id": "18a48cd34029f4ed",
+    "path": "docs/references/xiyu-to-boran-permission-api-gap-analysis.md",
+    "type": "markdown",
+    "topic": "docs/references",
+    "hash": "18a48cd34029f4ed2fe82c933d265b813b4a84f263ec2f1a8cfec1d32d86b960",
+    "status": "docs_tracked",
+    "extract_path": "docs/references/xiyu-to-boran-permission-api-gap-analysis.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.676Z"
+  },
+  {
+    "id": "eeb544f32077217d",
+    "path": "docs/references/xiyu-to-boran-permission-api-getCheckToken.md",
+    "type": "markdown",
+    "topic": "docs/references",
+    "hash": "eeb544f32077217d7d65e0592c39775d29f9547cb85c3e10f2dca8837bbd64e2",
+    "status": "docs_tracked",
+    "extract_path": "docs/references/xiyu-to-boran-permission-api-getCheckToken.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.676Z"
+  },
+  {
+    "id": "f87018521c9918fe",
+    "path": "docs/references/xiyu-to-boran-permission-api-implementation-plan.md",
+    "type": "markdown",
+    "topic": "docs/references",
+    "hash": "f87018521c9918fe908e92dd1e20180d3ba99410831cbae201c4bc0d902a94de",
+    "status": "docs_tracked",
+    "extract_path": "docs/references/xiyu-to-boran-permission-api-implementation-plan.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.676Z"
+  },
+  {
+    "id": "8701d39b510b5a5c",
+    "path": "docs/references/xiyu-to-boran-permission-api-sequence.md",
+    "type": "markdown",
+    "topic": "docs/references",
+    "hash": "8701d39b510b5a5c63dd6d6db7215d9cfcc26a972ce6f39481acd5c402af8eb7",
+    "status": "docs_tracked",
+    "extract_path": "docs/references/xiyu-to-boran-permission-api-sequence.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.676Z"
   },
   {
     "id": "e3c45cdc0ce04a38",
@@ -1108,18 +1350,84 @@
     "status": "docs_tracked",
     "extract_path": "docs/release/ACCEPTANCE-2026-05-05.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.692Z"
+    "ingested_at": "2026-06-27T13:34:19.676Z"
   },
   {
-    "id": "717a9ecf17cb05fd",
+    "id": "2417dc437d35d888",
     "path": "docs/release/CHANGELOG.md",
     "type": "markdown",
     "topic": "docs/release",
-    "hash": "717a9ecf17cb05fd7096b74f2e4a2e43d40c326064eb9d8b88bb1322c4afd9b2",
+    "hash": "2417dc437d35d888a0469c8dd6bf55b850c93107a1a20bae61b438ee1c2fe8d2",
     "status": "docs_tracked",
     "extract_path": "docs/release/CHANGELOG.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.692Z"
+    "ingested_at": "2026-06-27T13:34:19.676Z"
+  },
+  {
+    "id": "d762f785a3f35ab1",
+    "path": "docs/release/deploy-report-2026-06-26-3rd.md",
+    "type": "markdown",
+    "topic": "docs/release",
+    "hash": "d762f785a3f35ab1240b35c609632fd62f3a3de0aaff17f7bfe0fc76cb1fda2e",
+    "status": "docs_tracked",
+    "extract_path": "docs/release/deploy-report-2026-06-26-3rd.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.677Z"
+  },
+  {
+    "id": "731904e5908677c4",
+    "path": "docs/release/deploy-report-2026-06-26-4th.md",
+    "type": "markdown",
+    "topic": "docs/release",
+    "hash": "731904e5908677c4fb5375927559b476df002afab63b80a5306285bc6d708113",
+    "status": "docs_tracked",
+    "extract_path": "docs/release/deploy-report-2026-06-26-4th.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.678Z"
+  },
+  {
+    "id": "86b30c03cc713315",
+    "path": "docs/release/deploy-report-2026-06-26-5th.md",
+    "type": "markdown",
+    "topic": "docs/release",
+    "hash": "86b30c03cc713315cc5d3c5c9e8221cbb6968c939bde069c0fdc4f0a157ed245",
+    "status": "docs_tracked",
+    "extract_path": "docs/release/deploy-report-2026-06-26-5th.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.678Z"
+  },
+  {
+    "id": "01bc75dcdddcfbad",
+    "path": "docs/release/deploy-report-2026-06-26-6th.md",
+    "type": "markdown",
+    "topic": "docs/release",
+    "hash": "01bc75dcdddcfbada2335a0b55f4c7e0b030245ea37fcb394ace8c88e162a27b",
+    "status": "docs_tracked",
+    "extract_path": "docs/release/deploy-report-2026-06-26-6th.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.678Z"
+  },
+  {
+    "id": "f904273fd7e92ba2",
+    "path": "docs/release/deploy-report-2026-06-27-7th.md",
+    "type": "markdown",
+    "topic": "docs/release",
+    "hash": "f904273fd7e92ba2171f9e5a6348715637590262c28cc117391341491068edf4",
+    "status": "docs_tracked",
+    "extract_path": "docs/release/deploy-report-2026-06-27-7th.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.678Z"
+  },
+  {
+    "id": "d41bb0aa7f6e9449",
+    "path": "docs/release/deploy-report-2026-06-27-8th.md",
+    "type": "markdown",
+    "topic": "docs/release",
+    "hash": "d41bb0aa7f6e9449fc9b3d26ed8f62962dd387e7d800a8ee46734e35e55c394c",
+    "status": "docs_tracked",
+    "extract_path": "docs/release/deploy-report-2026-06-27-8th.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.679Z"
   },
   {
     "id": "ad91ea873c35a2f0",
@@ -1130,18 +1438,18 @@
     "status": "docs_tracked",
     "extract_path": "docs/release/GO_LIVE_CHECKLIST.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.692Z"
+    "ingested_at": "2026-06-27T13:34:19.677Z"
   },
   {
-    "id": "4e77d79441967147",
+    "id": "3633429832b8a76b",
     "path": "docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md",
     "type": "markdown",
     "topic": "docs/release",
-    "hash": "4e77d79441967147a1caff4eaa2f8bc3445104ec0915a3dc1d4a76babbcf8ace",
+    "hash": "3633429832b8a76b0b9639ba9795408800a9784135c39edf94d275fa90fb013e",
     "status": "docs_tracked",
     "extract_path": "docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.692Z"
+    "ingested_at": "2026-06-27T13:34:19.677Z"
   },
   {
     "id": "1d51bc3cba678366",
@@ -1152,7 +1460,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/release/PERFORMANCE_SECURITY_BACKUP_MONITORING_DELIVERY.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.693Z"
+    "ingested_at": "2026-06-27T13:34:19.677Z"
   },
   {
     "id": "461a88bf54965612",
@@ -1163,7 +1471,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/release/PRODUCTION_RELEASE_PIPELINE.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.693Z"
+    "ingested_at": "2026-06-27T13:34:19.677Z"
   },
   {
     "id": "ec29e17e54b9cc3c",
@@ -1174,7 +1482,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/release/ROLLBACK_RUNBOOK.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.693Z"
+    "ingested_at": "2026-06-27T13:34:19.677Z"
   },
   {
     "id": "cdb706f1264dc08e",
@@ -1185,7 +1493,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/release/ROLLBACK.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.693Z"
+    "ingested_at": "2026-06-27T13:34:19.677Z"
   },
   {
     "id": "a97839da73477084",
@@ -1196,7 +1504,18 @@
     "status": "docs_tracked",
     "extract_path": "docs/reports/2026-04-21-sandbox-dns-instability-note.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.693Z"
+    "ingested_at": "2026-06-27T13:34:19.679Z"
+  },
+  {
+    "id": "45a30ceaaed13f9a",
+    "path": "docs/reports/2026-06-27-user-picker-unification-impact-report.md",
+    "type": "markdown",
+    "topic": "docs/reports",
+    "hash": "45a30ceaaed13f9a04fc83b0c9cad8edd5399e9c6592c4059a0219e2eb5de4bc",
+    "status": "docs_tracked",
+    "extract_path": "docs/reports/2026-06-27-user-picker-unification-impact-report.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.679Z"
   },
   {
     "id": "8cb09b346a5979cb",
@@ -1207,7 +1526,29 @@
     "status": "docs_tracked",
     "extract_path": "docs/reports/data-permission-coverage-audit.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.693Z"
+    "ingested_at": "2026-06-27T13:34:19.679Z"
+  },
+  {
+    "id": "112a00409765842e",
+    "path": "docs/reports/prod-smoke-report-2026-06-20T02-50-51.md",
+    "type": "markdown",
+    "topic": "docs/reports",
+    "hash": "112a00409765842eeabd5f71df91ac9606d520fa9689bc66abe512c5f249f825",
+    "status": "docs_tracked",
+    "extract_path": "docs/reports/prod-smoke-report-2026-06-20T02-50-51.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.679Z"
+  },
+  {
+    "id": "1ab909881828a19a",
+    "path": "docs/reports/prod-smoke-report-2026-06-20T03-37-45.md",
+    "type": "markdown",
+    "topic": "docs/reports",
+    "hash": "1ab909881828a19a405a0e1498c3c11cbc428a49e8ef22979005b5bbf26c36ab",
+    "status": "docs_tracked",
+    "extract_path": "docs/reports/prod-smoke-report-2026-06-20T03-37-45.md",
+    "confidence": 1,
+    "ingested_at": "2026-06-27T13:34:19.680Z"
   },
   {
     "id": "ef45d1507edfcd03",
@@ -1218,7 +1559,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/research/API_INTEGRATION.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.693Z"
+    "ingested_at": "2026-06-27T13:34:19.680Z"
   },
   {
     "id": "b0be09ff338e655d",
@@ -1229,7 +1570,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/research/API_MATCH_ANALYSIS.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.693Z"
+    "ingested_at": "2026-06-27T13:34:19.680Z"
   },
   {
     "id": "23431307edb55c03",
@@ -1240,7 +1581,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/research/COMMERCIAL_SCOPE.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.694Z"
+    "ingested_at": "2026-06-27T13:34:19.680Z"
   },
   {
     "id": "a30fd476f480094f",
@@ -1251,7 +1592,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/research/WORKFLOW_FORM_CENTER.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.694Z"
+    "ingested_at": "2026-06-27T13:34:19.680Z"
   },
   {
     "id": "8863f5943c521e76",
@@ -1262,7 +1603,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/reviews/tender-create-4.2.3-code-review.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.694Z"
+    "ingested_at": "2026-06-27T13:34:19.680Z"
   },
   {
     "id": "8df929913a124f85",
@@ -1273,7 +1614,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/security/api-security-audit-2026-06-13.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.694Z"
+    "ingested_at": "2026-06-27T13:34:19.680Z"
   },
   {
     "id": "8262b59328af07d7",
@@ -1284,7 +1625,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/security/api-security-fix-2026-06-13.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.694Z"
+    "ingested_at": "2026-06-27T13:34:19.680Z"
   },
   {
     "id": "98ac26439b5430dd",
@@ -1295,7 +1636,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/security/git-bypass-violation-2026-06-17.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.694Z"
+    "ingested_at": "2026-06-27T13:34:19.680Z"
   },
   {
     "id": "0a2dc4447583b28f",
@@ -1306,7 +1647,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/specs/DESIGN.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.694Z"
+    "ingested_at": "2026-06-27T13:34:19.680Z"
   },
   {
     "id": "0e615a2c47d36714",
@@ -1317,7 +1658,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/specs/DOCUMENTATION_GOVERNANCE.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.695Z"
+    "ingested_at": "2026-06-27T13:34:19.681Z"
   },
   {
     "id": "ff15f36921bf4af9",
@@ -1328,7 +1669,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/specs/FRONTEND_REAL_DATA_GOVERNANCE.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.695Z"
+    "ingested_at": "2026-06-27T13:34:19.681Z"
   },
   {
     "id": "e2b5e996d47b9fe0",
@@ -1339,7 +1680,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/specs/github-safe-delivery.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.695Z"
+    "ingested_at": "2026-06-27T13:34:19.681Z"
   },
   {
     "id": "04cde217b4379700",
@@ -1350,7 +1691,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/specs/MYSQL_8_DEPLOYMENT.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.695Z"
+    "ingested_at": "2026-06-27T13:34:19.681Z"
   },
   {
     "id": "7e63c53b350ae3f3",
@@ -1361,7 +1702,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/specs/production-task-breakdown.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.695Z"
+    "ingested_at": "2026-06-27T13:34:19.681Z"
   },
   {
     "id": "63d25d9a07f520fb",
@@ -1372,7 +1713,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/specs/PROJECT_TENDER_BREAKDOWN_WORKFLOW.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.695Z"
+    "ingested_at": "2026-06-27T13:34:19.681Z"
   },
   {
     "id": "19219c9d8f9c00c8",
@@ -1383,7 +1724,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/specs/UAT_PLAN.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.695Z"
+    "ingested_at": "2026-06-27T13:34:19.681Z"
   },
   {
     "id": "e7cafde603d1006c",
@@ -1394,7 +1735,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/specs/UAT_SIGNOFF_TEMPLATE.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.695Z"
+    "ingested_at": "2026-06-27T13:34:19.681Z"
   },
   {
     "id": "387f5489bf54a04e",
@@ -1405,7 +1746,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/specs/WIKI.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.695Z"
+    "ingested_at": "2026-06-27T13:34:19.681Z"
   },
   {
     "id": "ea51fadd449ff526",
@@ -1416,7 +1757,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/specs/业务流程图.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.695Z"
+    "ingested_at": "2026-06-27T13:34:19.682Z"
   },
   {
     "id": "80ea6b66a8c78580",
@@ -1427,7 +1768,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/specs/启动会项目组织架构与沟通矩阵.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.695Z"
+    "ingested_at": "2026-06-27T13:34:19.682Z"
   },
   {
     "id": "f4c33bbdfa9dbbcf",
@@ -1438,7 +1779,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/specs/本周开发总结-2026-05-29.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.695Z"
+    "ingested_at": "2026-06-27T13:34:19.682Z"
   },
   {
     "id": "9188784b7ec35232",
@@ -1449,7 +1790,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/specs/西域数智化投标管理平台-实施计划书-7月10日上线版.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.696Z"
+    "ingested_at": "2026-06-27T13:34:19.682Z"
   },
   {
     "id": "3fa7acfd1b275d49",
@@ -1460,7 +1801,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/specs/调研流程清单-DD-BP-01.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.696Z"
+    "ingested_at": "2026-06-27T13:34:19.682Z"
   },
   {
     "id": "36e37984fb40b2a4",
@@ -1471,7 +1812,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/specs/需求闭环完成说明-2026-04-21.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.696Z"
+    "ingested_at": "2026-06-27T13:34:19.682Z"
   },
   {
     "id": "651c1f09d3979066",
@@ -1482,7 +1823,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/specs/项目启动会PPT大纲与核心内容.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.696Z"
+    "ingested_at": "2026-06-27T13:34:19.682Z"
   },
   {
     "id": "0a197f769fd67476",
@@ -1493,7 +1834,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/superpowers/plans/2026-06-16-wecom-standalone-sender.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.696Z"
+    "ingested_at": "2026-06-27T13:34:19.682Z"
   },
   {
     "id": "cca0c2b6af3ab2ef",
@@ -1504,7 +1845,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/superpowers/specs/2026-06-16-wecom-standalone-sender-design.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.696Z"
+    "ingested_at": "2026-06-27T13:34:19.683Z"
   },
   {
     "id": "b36a1571d066ce27",
@@ -1515,7 +1856,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/symphony-smoke.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.697Z"
+    "ingested_at": "2026-06-27T13:34:19.683Z"
   },
   {
     "id": "7e63c53b350ae3f3",
@@ -1526,7 +1867,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/tasks/production-task-breakdown.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.697Z"
+    "ingested_at": "2026-06-27T13:34:19.683Z"
   },
   {
     "id": "0f1439cfe8e5d899",
@@ -1537,7 +1878,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/testing/form-engine-uat.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.697Z"
+    "ingested_at": "2026-06-27T13:34:19.683Z"
   },
   {
     "id": "2647d368bcfe2853",
@@ -1548,7 +1889,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/testing/manual-cases/01-workbench.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.697Z"
+    "ingested_at": "2026-06-27T13:34:19.683Z"
   },
   {
     "id": "f5073b7c78b6d3c7",
@@ -1559,7 +1900,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/testing/manual-cases/02-bidding.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.697Z"
+    "ingested_at": "2026-06-27T13:34:19.683Z"
   },
   {
     "id": "8568682e15d9665a",
@@ -1570,7 +1911,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/testing/manual-cases/03-project.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.697Z"
+    "ingested_at": "2026-06-27T13:34:19.683Z"
   },
   {
     "id": "0a480158b8441212",
@@ -1581,7 +1922,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/testing/manual-cases/04-knowledge.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.697Z"
+    "ingested_at": "2026-06-27T13:34:19.683Z"
   },
   {
     "id": "5f36040eed26325c",
@@ -1592,7 +1933,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/testing/manual-cases/05-resource.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.697Z"
+    "ingested_at": "2026-06-27T13:34:19.684Z"
   },
   {
     "id": "16354dd898ef5e29",
@@ -1603,7 +1944,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/testing/manual-cases/06-analytics.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.697Z"
+    "ingested_at": "2026-06-27T13:34:19.684Z"
   },
   {
     "id": "1d101d57b87cd75d",
@@ -1614,7 +1955,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/testing/manual-cases/07-settings.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.697Z"
+    "ingested_at": "2026-06-27T13:34:19.684Z"
   },
   {
     "id": "24fede30674bd412",
@@ -1625,7 +1966,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/testing/manual-cases/08-ai.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.697Z"
+    "ingested_at": "2026-06-27T13:34:19.684Z"
   },
   {
     "id": "a3ff56847b2c0fa1",
@@ -1636,7 +1977,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/testing/manual-cases/09-integration.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.697Z"
+    "ingested_at": "2026-06-27T13:34:19.684Z"
   },
   {
     "id": "5a96baa0dd1d96a7",
@@ -1647,7 +1988,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/testing/test-data-coverage.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.697Z"
+    "ingested_at": "2026-06-27T13:34:19.684Z"
   },
   {
     "id": "a523320271b1e563",
@@ -1658,7 +1999,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/testing/testing-gaps-plan.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.697Z"
+    "ingested_at": "2026-06-27T13:34:19.684Z"
   },
   {
     "id": "37f7dad2c1728505",
@@ -1669,7 +2010,7 @@
     "status": "docs_tracked",
     "extract_path": "docs/testing/UAT_SIGN_OFF.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.697Z"
+    "ingested_at": "2026-06-27T13:34:19.683Z"
   },
   {
     "id": "bebc8f99a2ab99e0",
@@ -1680,6 +2021,6 @@
     "status": "docs_tracked",
     "extract_path": "docs/产品蓝图-第四部分-核心功能详解.md",
     "confidence": 1,
-    "ingested_at": "2026-06-21T13:44:57.698Z"
+    "ingested_at": "2026-06-27T13:34:19.684Z"
   }
 ]

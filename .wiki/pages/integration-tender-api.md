@@ -14,8 +14,8 @@ backlinks:
   - api-openapi
   - integration-oa-crm
 created: 2026-06-21
-updated: 2026-06-21
-health_checked: 2026-06-21
+updated: 2026-06-27
+health_checked: 2026-06-27
 ---
 # 标讯集成接口（外部系统对接）
 

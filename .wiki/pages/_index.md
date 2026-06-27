@@ -8,9 +8,9 @@ sources:
   - .wiki/INDEX.md
   - .wiki/PAGE_INDEX.md
 backlinks:
-created: 2026-06-21
-updated: 2026-06-21
-health_checked: 2026-06-21
+created: 2026-06-27
+updated: 2026-06-27
+health_checked: 2026-06-27
 ---
 # 西域投标管理平台知识库
 
@@ -40,15 +40,16 @@ health_checked: 2026-06-21
 - [[docinsight-engine]] — DocInsight 文档智能引擎
 - [[dynamic-form-engine]] — 动态表单自定义引擎
 - [[glossary]] — 术语表
+- [[integration-boran-permission-api]] — 西域给泊冉权限接口
 - [[integration-oa-crm]] — CRM 对接规范
 - [[integration-organization-event-sdk]] — 组织架构对接 - 客户事件库 SDK 方案
 - [[integration-tender-api]] — 标讯集成接口（外部系统对接）
 - [[integration-wecom]] — 系统集成中心 - 企业微信
-- [[integration-boran-permission-api]] — 泊冉系统获取用户权限接口顺序
 - [[knowledge-base]] — 4.4 知识库 PRD (产品需求文档)
 - [[lessons-learned]] — 工程经验总结
 - [[modules]] — 模块目录
 - [[multi-agent-defense-playbook]] — 多 Agent 并行开发防御工程化手册
+- [[operations/logging-bug-investigation-guide]] — 日志系统查 Bug 手册
 - [[overview]] — 项目综述
 - [[requirements]] — 需求追溯
 - [[roles-and-permissions]] — 角色与权限

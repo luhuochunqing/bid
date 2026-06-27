@@ -3,7 +3,7 @@
 - source_path: .wiki/sources/bidding/西域数智化投标管理平台-产品蓝图-初稿-V1.1.md
 - source_type: markdown
 - topic: bidding
-- generated_at: 2026-06-21T13:44:57.387Z
+- generated_at: 2026-06-27T13:34:19.299Z
 - status: extracted
 - confidence: 1
 # 西域数智化投标管理平台 - 产品蓝图-初稿-V1.1

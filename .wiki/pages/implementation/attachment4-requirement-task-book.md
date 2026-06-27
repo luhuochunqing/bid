@@ -12,8 +12,8 @@ backlinks:
   - implementation/xiyu-pending-confirmations
   - requirements
 created: 2026-04-25
-updated: 2026-05-27
-health_checked: 2026-06-21
+updated: 2026-06-27
+health_checked: 2026-06-27
 ---
 # 附件4需求任务书交付基线
 

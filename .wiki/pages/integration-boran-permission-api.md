@@ -12,12 +12,10 @@ sources:
 backlinks:
   - _index
   - roles-and-permissions
-  - integration-oa-crm
 created: 2026-06-22
-updated: 2026-06-23
-health_checked: 2026-06-23
+updated: 2026-06-27
+health_checked: 2026-06-27
 ---
-
 # 西域给泊冉权限接口
 
 > 暗号：**角色和权限**

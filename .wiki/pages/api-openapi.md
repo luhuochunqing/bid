@@ -16,8 +16,8 @@ backlinks:
   - integration-wecom
   - workflow-form-center
 created: 2026-04-25
-updated: 2026-05-27
-health_checked: 2026-06-21
+updated: 2026-06-27
+health_checked: 2026-06-27
 ---
 # OpenAPI/Swagger 接口规范
 

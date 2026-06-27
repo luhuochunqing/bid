@@ -9,7 +9,7 @@ backlinks:
   - _index
 created: 2026-05-20
 updated: 2026-06-21
-health_checked: 2026-06-21
+health_checked: 2026-06-27
 ---
 # 4.4 知识库产品需求文档 (PRD)
 

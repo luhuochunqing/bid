@@ -7,10 +7,11 @@
 
 ```
 docs/operations/
-├── README.md           ← 你在这里（目录说明）
-├── HANDOFF.md          ← 工作交接文档
-├── WORKFLOW.md         ← 工作流说明
-└── MULTI_AGENT_SOP.md  ← 多 Agent 协作 SOP
+├── README.md                          ← 你在这里（目录说明）
+├── HANDOFF.md                         ← 工作交接文档
+├── WORKFLOW.md                        ← 工作流说明
+├── MULTI_AGENT_SOP.md                 ← 多 Agent 协作 SOP
+└── logging-bug-investigation-guide.md ← 日志系统查 Bug 手册
 ```
 
 ## 各文件职责
@@ -20,6 +21,7 @@ docs/operations/
 | `HANDOFF.md` | 工作交接规范与模板 | 低 |
 | `WORKFLOW.md` | 项目工作流与流程说明 | 中 |
 | `MULTI_AGENT_SOP.md` | 多 Agent 协作 SOP | 中 |
+| `logging-bug-investigation-guide.md` | 日志系统查 Bug 手册 | 中 |
 
 ## 维护声明
 
