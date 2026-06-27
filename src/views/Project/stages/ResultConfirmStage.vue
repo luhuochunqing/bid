@@ -45,6 +45,9 @@
         <template #tip>
           <div class="el-upload__tip">{{ evidenceTip }}</div>
         </template>
+        <template #file="{ file }">
+          <a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadFile(file)">{{ file.name }}</a>
+        </template>
       </el-upload>
     </el-card>
 
@@ -98,6 +101,7 @@ import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
 import { getResultConfirmNextTab } from '@/constants/projectStages.js'
 import { getApiUrl } from '@/api/config.js'
 import { useUserStore } from '@/stores/user.js'
+import { downloadWithFilename } from '@/utils/download.js'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
 const emit = defineEmits(['registered', 'switch-tab'])
@@ -181,6 +185,14 @@ function handleUploadRemove(uploadFile) {
   if (idx > -1) form.evidenceFileIds.splice(idx, 1)
 }
 
+// CO-375: 凭证文件下载
+function handleDownloadFile(file) {
+  const documentId = file.response?.data?.id
+  if (!documentId) { ElMessage.warning('文件信息缺失，无法下载'); return }
+  const url = `/api/projects/${props.projectId}/documents/${documentId}/download`
+  downloadWithFilename(url, file.name || '凭证文件')
+}
+
 function addCompetitor() { form.competitors.push(DEFAULT_COMPETITOR()) }
 function removeCompetitor(index) {
   if (form.competitors.length <= 1) { ElMessage.info('至少保留一行'); return }
@@ -233,6 +245,8 @@ defineExpose({ load })
 <style scoped>
 .result-stage { display: flex; flex-direction: column; gap: 16px; }
 .section-title { font-size: 15px; font-weight: 600; color: #2E7659; }
+.upload-file-link { color: var(--el-color-primary); text-decoration: none; }
+.upload-file-link:hover { text-decoration: underline; }
 
 /* 结果类型卡片 */
 .result-cards { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 4px; }

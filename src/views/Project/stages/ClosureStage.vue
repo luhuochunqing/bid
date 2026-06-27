@@ -73,6 +73,9 @@
                 >
                   <el-button type="primary" size="small">上传银行回单</el-button>
                   <template #tip><div class="el-upload__tip">支持 PDF/JPG/PNG，不超过 10MB</div></template>
+                  <template #file="{ file }">
+                    <a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadEvidenceFile(file)">{{ file.name }}</a>
+                  </template>
                 </el-upload>
                 <div v-if="form.depositReturnEvidenceId" class="uploaded-hint">已上传</div>
               </div>
@@ -101,6 +104,9 @@
                 >
                   <el-button type="primary" size="small">上传证明文件</el-button>
                   <template #tip><div class="el-upload__tip">支持 PDF/JPG/PNG，不超过 10MB</div></template>
+                  <template #file="{ file }">
+                    <a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadEvidenceFile(file)">{{ file.name }}</a>
+                  </template>
                 </el-upload>
                 <div v-if="form.depositReturnEvidenceId" class="uploaded-hint">已上传</div>
               </div>
@@ -135,6 +141,9 @@
                 >
                   <el-button type="primary" size="small">上传证明文件</el-button>
                   <template #tip><div class="el-upload__tip">支持 PDF/JPG/PNG，不超过 10MB</div></template>
+                  <template #file="{ file }">
+                    <a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadEvidenceFile(file)">{{ file.name }}</a>
+                  </template>
                 </el-upload>
                 <div v-if="form.depositReturnEvidenceId" class="uploaded-hint">已上传</div>
               </div>
@@ -239,6 +248,7 @@ import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import '@wangeditor/editor/dist/css/style.css'
 import { useRouter } from 'vue-router'
 import { readinessToTooltip } from './readinessTooltip.js'
+import { downloadWithFilename } from '@/utils/download.js'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
 const emit = defineEmits(['closed'])
@@ -370,6 +380,14 @@ function handleEvidenceUploadSuccess(r) {
 
 function handleEvidenceRemove() { form.depositReturnEvidenceId = null; depositEvidenceFiles.value = [] }
 
+// CO-375: 退回凭证/证明文件下载（3 处 el-upload 共用 form.depositReturnEvidenceId）
+function handleDownloadEvidenceFile(file) {
+  const documentId = file.response?.data?.id || form.depositReturnEvidenceId
+  if (!documentId) { ElMessage.warning('文件信息缺失，无法下载'); return }
+  const url = `/api/projects/${props.projectId}/documents/${documentId}/download`
+  downloadWithFilename(url, file.name || '退回凭证')
+}
+
 async function loadPreview() {
   try {
     const r = await projectLifecycleApi.getClosurePreview(props.projectId)
@@ -466,6 +484,8 @@ async function triggerPrecipitation() {
 
 <style scoped>
 .closure-stage { display: flex; flex-direction: column; gap: 16px; }
+.upload-file-link { color: var(--el-color-primary); text-decoration: none; }
+.upload-file-link:hover { text-decoration: underline; }
 
 /* 区块容器 — 对齐 MVP form-section 样式 */
 .form-section {

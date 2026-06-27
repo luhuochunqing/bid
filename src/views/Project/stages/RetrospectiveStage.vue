@@ -88,6 +88,9 @@
           <template #tip>
             <div class="el-upload__tip">支持 Word/PDF 格式，单文件≤20MB，最多3个</div>
           </template>
+          <template #file="{ file }">
+            <a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadFile(file)">{{ file.name }}</a>
+          </template>
         </el-upload>
       </el-card>
       <!-- 提交按钮 -->
@@ -108,6 +111,7 @@ import { useUserStore } from '@/stores/user'
 import { isBidManager } from '@/utils/permission'
 import { lossReasonOptions } from './retrospectiveLossReasons.js'
 import { getApiUrl } from '@/api/config.js'
+import { downloadWithFilename } from '@/utils/download.js'
 const props = defineProps({
   projectId: { type: [String, Number], required: true },
   resultType: { type: String, default: '' },
@@ -154,6 +158,14 @@ function handleUploadError(err) {
 function handleUploadRemove(f) {
   const idx = form.reportFileIds.indexOf(f.response?.data?.id)
   if (idx > -1) form.reportFileIds.splice(idx, 1)
+}
+
+// CO-375: 复盘报告下载
+function handleDownloadFile(file) {
+  const documentId = file.response?.data?.id
+  if (!documentId) { ElMessage.warning('文件信息缺失，无法下载'); return }
+  const url = `/api/projects/${props.projectId}/documents/${documentId}/download`
+  downloadWithFilename(url, file.name || '复盘报告')
 }
 async function load() {
   try {
@@ -222,6 +234,8 @@ defineExpose({ load })
 <style scoped>
 .retrospective-stage { display: flex; flex-direction: column; gap: 16px; }
 .section-title { font-size: 15px; font-weight: 600; color: #2E7659; }
+.upload-file-link { color: var(--el-color-primary); text-decoration: none; }
+.upload-file-link:hover { text-decoration: underline; }
 .loss-reason-group {
   display: flex;
   flex-direction: column;

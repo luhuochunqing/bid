@@ -19,6 +19,9 @@
       <template #tip>
         <div class="el-upload__tip">开标一览表，支持 Word/PDF/Excel/图片等格式，单文件不超过 10MB，最多 5 个</div>
       </template>
+      <template #file="{ file }">
+        <a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadFile(file)">{{ file.name }}</a>
+      </template>
     </el-upload>
   </div>
 </template>
@@ -30,6 +33,7 @@ import { UploadFilled } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user.js'
 import { getApiUrl } from '@/api/config.js'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
+import { downloadWithFilename } from '@/utils/download.js'
 
 const props = defineProps({
   projectId: { type: [String, Number], required: true },
@@ -97,6 +101,14 @@ function handleUploadError(err) {
   ElMessage.error('开标一览表上传失败: ' + msg)
 }
 
+// CO-375: 开标一览表文件下载
+function handleDownloadFile(file) {
+  const documentId = file.response?.data?.id
+  if (!documentId) { ElMessage.warning('文件信息缺失，无法下载'); return }
+  const url = `/api/projects/${props.projectId}/documents/${documentId}/download`
+  downloadWithFilename(url, file.name || '开标一览表')
+}
+
 function getPendingFileIds() {
   return fileIds.value
 }
@@ -111,4 +123,6 @@ defineExpose({ getPendingFileIds, clearPendingFileIds })
 <style scoped>
 .evidence-upload { text-align: center; }
 .evidence-upload :deep(.el-upload__tip) { text-align: left; }
+.upload-file-link { color: var(--el-color-primary); text-decoration: none; }
+.upload-file-link:hover { text-decoration: underline; }
 </style>

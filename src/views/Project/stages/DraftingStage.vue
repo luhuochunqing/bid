@@ -35,6 +35,7 @@
         <el-icon class="upload-icon"><UploadFilled /></el-icon>
         <div class="upload-text">将投标文件拖到此处，或<em>点击上传</em></div>
         <div class="upload-tip">支持 PDF、Word、Excel、图片等格式</div>
+        <template #file="{ file }"><a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadBidFile(file)">{{ file.name }}</a></template>
       </el-upload>
     </div>
 
@@ -121,7 +122,7 @@ import QualityCheckDialog from './components/QualityCheckDialog.vue'
 import { useProjectDetailContext } from '@/composables/projectDetail/context.js'
 import { useProjectDraftingPermissions } from '@/composables/projectDetail/useProjectDraftingPermissions.js'
 import UserPicker from '@/components/common/UserPicker.vue'
-const userStore = useUserStore()
+import { downloadWithFilename } from '@/utils/download.js'; const userStore = useUserStore()
 const ctx = useProjectDetailContext()
 const { bidAgent } = ctx
 
@@ -174,7 +175,7 @@ const isCurrentUserReviewer = computed(() => {
 })
 const uploadUrl = computed(() => getApiUrl(`/api/projects/${props.projectId}/documents`))
 const uploadHeaders = computed(() => { const t = userStore?.token; return t ? { Authorization: 'Bearer ' + t } : {} })
-
+function handleDownloadBidFile(file) { const id = file.response?.data?.id; if (!id) return ElMessage.warning('文件信息缺失，无法下载'); downloadWithFilename(`/api/projects/${props.projectId}/documents/${id}/download`, file.name || '投标文件') }
 const qualityCheckRef = ref(null)
 
 watch(() => ctx.bidDocQualityResult?.value, (val) => {
@@ -286,6 +287,7 @@ defineExpose({ load })
 
 <style scoped>
 .bid-header { display: flex; align-items: center; justify-content: space-between; }
+.upload-file-link { color: var(--el-color-primary); text-decoration: none; } .upload-file-link:hover { text-decoration: underline; }
 .bid-title { font-weight: 600; font-size: 15px; }
 .bid-header-actions { display: flex; align-items: center; gap: 4px; }
 .required-mark { color: #e65100; margin-left: 2px; font-weight: normal; font-size: 13px; }

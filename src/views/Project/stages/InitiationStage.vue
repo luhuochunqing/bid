@@ -107,6 +107,9 @@
           已上传：{{ bidDocFiles[0].name }}（上传人：{{ bidDocFiles[0].uploader }}）
         </div>
       </template>
+      <template #file="{ file }">
+        <a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadBidDoc(file)">{{ file.name }}</a>
+      </template>
     </el-upload>
   </div>
   <el-alert v-if="form.aiRiskAssessmentNotes" :title="form.aiRiskAssessmentNotes" :type="aiAlertType" :closable="false" show-icon class="ai-result-alert" />
@@ -189,6 +192,7 @@ import { isBidManager } from '@/utils/permission'
 import AdaptiveFormPage from '@/components/common/AdaptiveFormPage.vue'
 import UserPicker from '@/components/common/UserPicker.vue'
 import { useInitiationStageActions } from './useInitiationStageActions.js'
+import { downloadWithFilename } from '@/utils/download.js'
 import { POSITION_OPTIONS, CONTACT_METHOD_OPTIONS, TENDENCY_OPTIONS, IMPACT_OPTIONS } from '@/views/Bidding/detail/components/customerInfoMatrixConfig.js'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
@@ -221,6 +225,14 @@ const approvalForm = reactive({ biddingLeaderId: null, biddingLeaderLabel: '', b
 function onLeaderSelect(user) { if (user) { approvalForm.biddingLeaderLabel = user.name || user.fullName || '' } }
 const uploadUrl = '/api/upload'
 const uploadHeaders = computed(() => { const t = userStore?.token; return t ? { Authorization: 'Bearer ' + t } : {} })
+
+// CO-375: 招标文件下载（用 form.tenderDocumentId 构造下载 URL，handleDocBeforeUpload 自定义上传无 file.response）
+function handleDownloadBidDoc(file) {
+  const documentId = form.tenderDocumentId
+  if (!documentId) { ElMessage.warning('文件信息缺失，无法下载'); return }
+  const url = `/api/projects/${props.projectId}/documents/${documentId}/download`
+  downloadWithFilename(url, file.name || '招标文件')
+}
 const riskTagType = computed(() => form.aiRiskLevel === 'HIGH' ? 'danger' : form.aiRiskLevel === 'MEDIUM' ? 'warning' : form.aiRiskLevel === 'LOW' ? 'success' : 'info')
 const riskTagText = computed(() => form.aiRiskLevel === 'HIGH' ? '高风险' : form.aiRiskLevel === 'MEDIUM' ? '中风险' : form.aiRiskLevel === 'LOW' ? '低风险' : '')
 const aiAlertType = computed(() => form.aiRiskLevel === 'HIGH' ? 'error' : form.aiRiskLevel === 'MEDIUM' ? 'warning' : 'success')
@@ -288,6 +300,8 @@ defineExpose({ load, handleAmountFocus, handleAmountBlur, searchLeader, searchAs
 </script>
 <style scoped>
 .initiation-stage { display: flex; flex-direction: column; gap: 16px; }
+.upload-file-link { color: var(--el-color-primary); text-decoration: none; }
+.upload-file-link:hover { text-decoration: underline; }
 .section-card { border: 1px solid var(--el-border-color-light); }
 .section-header { display: flex; justify-content: space-between; align-items: center; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 24px; }
