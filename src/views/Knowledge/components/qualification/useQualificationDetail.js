@@ -56,19 +56,28 @@ export function useQualificationDetail({ qualifications, fetchQualifications }) 
 
   const handleAttachmentDelete = async (att) => {
     const fileName = att?.fileName || att?.name || '该附件'
+    // CO-368 fix: 文案区分是否最后一个附件，避免误导用户
+    const isLastAttachment = detailAttachments.value.length <= 1
+    const warningText = isLastAttachment
+      ? `确认删除附件 ${fileName}？\n\n删除后证书将处于"无附件"状态，可能影响后续投标资质佐证。建议尽快上传新附件。\n\n该操作将被记录在操作日志中。`
+      : `确认删除附件 ${fileName}？\n\n删除后无法恢复，请谨慎操作。\n\n该操作将被记录在操作日志中。`
     try {
       await ElMessageBox.confirm(
-        `确认删除附件 ${fileName}？\n\n删除后证书将处于"无附件"状态，可能影响后续投标资质佐证。建议尽快上传新附件。\n\n该操作将被记录在操作日志中。`,
+        warningText,
         '删除附件',
         { confirmButtonText: '确认删除', confirmButtonClass: 'el-button--danger', type: 'warning' }
       )
       const id = detailQualification.value?.id
-      if (!id) return
-      await http.put(`/api/knowledge/qualifications/${id}`, { fileUrl: null })
+      const attId = att?.id
+      if (!id || !attId) {
+        ElMessage.warning('附件信息不完整，请刷新后重试')
+        return
+      }
+      await http.delete(`/api/knowledge/qualifications/${id}/attachments/${attId}`)
       ElMessage.success('附件已删除')
       handleAttachmentActionSuccess()
-    } catch {
-      /* cancelled */
+    } catch (e) {
+      if (e !== 'cancel') ElMessage.error('删除失败')
     }
   }
 
@@ -93,6 +102,19 @@ export function useQualificationDetail({ qualifications, fetchQualifications }) 
     } catch {
       ElMessage.error('下载失败')
     }
+  }
+
+  // 附件预览（来自详情抽屉）- 在新窗口打开
+  // CO-368 fix: 加 ?inline=true 让浏览器内显示 PDF/图片，而非下载
+  const handleDetailPreview = (att) => {
+    const qId = detailQualification.value?.id
+    const attId = att?.id
+    if (!qId || !attId) {
+      ElMessage.warning('附件信息不完整，请刷新后重试')
+      return
+    }
+    const url = `/api/knowledge/qualifications/${qId}/attachments/${attId}?inline=true`
+    window.open(url, '_blank')
   }
 
   // 行下载：优先走 attachments[0] 的 attachment-id 接口，兜底走旧 fileUrl
@@ -150,6 +172,7 @@ export function useQualificationDetail({ qualifications, fetchQualifications }) 
     handleAttachmentReplace,
     handleAttachmentUpload,
     handleAttachmentDelete,
+    handleDetailPreview,
     handleDetailDownload,
     handleDownloadFile
   }

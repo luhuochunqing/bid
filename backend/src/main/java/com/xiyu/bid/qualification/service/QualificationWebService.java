@@ -106,9 +106,7 @@ public class QualificationWebService {
         }
 
         // 1. 校验附件归属该资质
-        var existing = qualificationAttachmentJpaRepository.findById(attachmentId)
-                .filter(a -> a.getQualificationId().equals(id))
-                .orElseThrow(() -> new InvalidArgumentException("附件不存在或不属于该资质"));
+        var existing = findAttachmentOrThrow(id, attachmentId);
 
         validateFileType(file);
 
@@ -139,15 +137,39 @@ public class QualificationWebService {
     }
 
     /**
+     * CO-368 fix: 删除单个资质附件记录并清理物理文件。
+     * 若被删附件是主附件（qualification.fileUrl == attachment.fileUrl），同步清空主实体 fileUrl
+     * （走 clearFileUrl 轻量级 UPDATE，对称 retire 模式，避免全量 DTO 重建和意外审计日志）。
+     */
+    public QualificationDTO deleteAttachment(Long qualificationId, Long attachmentId) {
+        var existing = findAttachmentOrThrow(qualificationId, attachmentId);
+
+        String deletedFileUrl = existing.getFileUrl();
+
+        qualificationAttachmentJpaRepository.delete(existing);
+        // CO-368 fix: 强制 flush 避免 delete + 后续 query 同事务走 JPA 一级缓存返回旧数据
+        qualificationAttachmentJpaRepository.flush();
+
+        // 查询一次 dto，用于判断是否需要同步主实体 fileUrl
+        QualificationDTO dto = qualificationQueryService.getQualificationById(qualificationId);
+        if (deletedFileUrl != null && deletedFileUrl.equals(dto.getFileUrl())) {
+            // CO-368 fix: 走轻量级 clearFileUrl，避免全量 updateQualification 触发附件比较审计
+            qualificationService.clearFileUrl(qualificationId);
+            // 重新查询以反映 fileUrl=null 的最新状态
+            dto = qualificationQueryService.getQualificationById(qualificationId);
+        }
+
+        cleanupOldFile(qualificationId, deletedFileUrl);
+
+        return dto;
+    }
+
+    /**
      * 获取附件文件信息，用于下载。
      * 包含路径遍历防护和文件存在性检查。
      */
     public AttachmentFile getAttachmentFile(Long id, Long attachmentId) {
-        var attachmentOpt = qualificationAttachmentJpaRepository.findById(attachmentId);
-        if (attachmentOpt.isEmpty() || !attachmentOpt.get().getQualificationId().equals(id)) {
-            throw new InvalidArgumentException("附件不存在");
-        }
-        var attachment = attachmentOpt.get();
+        var attachment = findAttachmentOrThrow(id, attachmentId);
         String fileUrl = attachment.getFileUrl();
         if (fileUrl == null || InputSanitizer.detectPathTraversal(fileUrl)) {
             throw new InvalidArgumentException("非法的文件路径");
@@ -157,6 +179,16 @@ public class QualificationWebService {
             throw new InvalidArgumentException("附件文件不存在");
         }
         return new AttachmentFile(path, attachment.getFileName(), probeContentType(path));
+    }
+
+    /**
+     * CO-368 refactor: 抽取附件归属校验，统一错误文案。
+     * 用于 replaceAttachment / deleteAttachment / getAttachmentFile 三处复用。
+     */
+    private com.xiyu.bid.businessqualification.infrastructure.persistence.entity.QualificationAttachmentEntity findAttachmentOrThrow(Long qualificationId, Long attachmentId) {
+        return qualificationAttachmentJpaRepository.findById(attachmentId)
+                .filter(a -> a.getQualificationId().equals(qualificationId))
+                .orElseThrow(() -> new InvalidArgumentException("附件不存在或不属于该资质"));
     }
 
     private void validateFileType(MultipartFile file) {

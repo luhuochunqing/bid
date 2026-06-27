@@ -35,4 +35,10 @@ public interface BusinessQualificationRepository {
     List<String> findAllLevels();
 
     BusinessQualification updateRetiredStatus(Long id, boolean retired, String retireReason);
+
+    /**
+     * CO-368 fix: 轻量级清空 fileUrl 字段，避免全量 DTO 重建和意外的附件审计日志。
+     * 对称 updateRetiredStatus 模式，仅修改 fileUrl + updatedAt。
+     */
+    void clearFileUrl(Long id);
 }

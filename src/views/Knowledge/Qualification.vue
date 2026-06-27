@@ -101,6 +101,7 @@
       @edit="handleDetailEdit"
       @retire="handleDetailRetire"
       @restore="handleDetailRestore"
+      @preview="handleDetailPreview"
       @download="handleDetailDownload"
       @replace="handleAttachmentReplace"
       @delete="handleAttachmentDelete"
@@ -167,7 +168,7 @@ const {
   replaceDialogVisible, replaceQualificationId, replaceAttachmentId, replaceCurrentFileName,
   openDetailDrawer, refreshDetailFromList,
   handleAttachmentActionSuccess, handleAttachmentReplace, handleAttachmentUpload,
-  handleAttachmentDelete, handleDetailDownload, handleDownloadFile
+  handleAttachmentDelete, handleDetailPreview, handleDetailDownload, handleDownloadFile
 } = useQualificationDetail({ qualifications, fetchQualifications })
 
 // 批量导出 / 下载

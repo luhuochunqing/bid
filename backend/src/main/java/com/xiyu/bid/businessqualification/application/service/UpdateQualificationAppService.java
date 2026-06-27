@@ -37,6 +37,16 @@ public class UpdateQualificationAppService {
         return repository.updateRetiredStatus(id, true, reason);
     }
 
+    /**
+     * CO-368 fix: 轻量级清空 fileUrl，避免全量 DTO 重建和意外的附件审计日志。
+     * 用于 deleteAttachment 同步主实体 fileUrl 场景，对称 retire 模式。
+     */
+    @Transactional
+    public void clearFileUrl(Long id) {
+        repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("资质证书不存在: " + id));
+        repository.clearFileUrl(id);
+    }
+
     @Transactional
     public BusinessQualification update(Long id, QualificationUpsertCommand command) {
         BusinessQualification existing = repository.findById(id)

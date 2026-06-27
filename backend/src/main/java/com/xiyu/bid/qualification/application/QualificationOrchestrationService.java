@@ -53,6 +53,14 @@ public class QualificationOrchestrationService {
         return mapper.toDto(updateQualificationAppService.retire(id, reason));
     }
 
+    /**
+     * CO-368 fix: 轻量级清空 fileUrl，对称 retireQualification 模式。
+     * 用于 deleteAttachment 同步主实体 fileUrl 场景。
+     */
+    public void clearFileUrl(Long id) {
+        updateQualificationAppService.clearFileUrl(id);
+    }
+
     public QualificationDTO restoreQualification(Long id) {
         var domainObj = listQualificationsAppService.get(id);
         var dto = mapper.toDto(domainObj);

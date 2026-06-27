@@ -126,6 +126,15 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
         return findById(id).orElseThrow();
     }
 
+    /**
+     * CO-368 fix: 轻量级清空 fileUrl，仅修改 fileUrl + updatedAt。
+     * 对称 updateRetiredStatus 模式，避免触发全量 save + 附件 delete/saveAll。
+     */
+    @Override
+    public void clearFileUrl(Long id) {
+        qualificationJpaRepository.clearFileUrl(id);
+    }
+
     private QualificationStatus computeStatusById(Long id) {
         return findById(id)
                 .map(BusinessQualification::status)

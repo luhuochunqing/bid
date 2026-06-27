@@ -93,6 +93,16 @@ public class QualificationController {
                 qualificationWebService.replaceAttachment(id, attachmentId, file)));
     }
 
+    @DeleteMapping("/{id}/attachments/{attachmentId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_ADMINISTRATION', 'BIDADMIN', 'BID_TEAMLEADER')")
+    @Auditable(action = "DELETE", entityType = "Qualification", description = "删除资质附件")
+    public ResponseEntity<ApiResponse<QualificationDTO>> deleteAttachment(
+            @PathVariable Long id,
+            @PathVariable Long attachmentId) {
+        return ResponseEntity.ok(ApiResponse.success("附件删除成功",
+                qualificationWebService.deleteAttachment(id, attachmentId)));
+    }
+
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'BID_ADMINISTRATION', 'BIDADMIN', 'BID_TEAMLEADER', 'BID_TEAM')")
     @Auditable(action = "READ", entityType = "Qualification", description = "获取资质列表")
@@ -228,13 +238,15 @@ public class QualificationController {
     @PreAuthorize("hasAnyRole('ADMIN', 'BID_ADMINISTRATION', 'BIDADMIN', 'BID_TEAMLEADER', 'BID_TEAM')")
     public ResponseEntity<Resource> downloadAttachment(
             @PathVariable Long id,
-            @PathVariable Long attachmentId) {
+            @PathVariable Long attachmentId,
+            @RequestParam(required = false, defaultValue = "false") boolean inline) {
         try {
             var file = qualificationWebService.getAttachmentFile(id, attachmentId);
             Resource resource = new FileSystemResource(file.path());
-            ContentDisposition disposition = ContentDisposition.attachment()
-                    .filename(file.fileName(), StandardCharsets.UTF_8)
-                    .build();
+            // CO-368 fix: 支持 ?inline=true 浏览器内预览（PDF/图片），默认 attachment 下载
+            ContentDisposition disposition = Boolean.TRUE.equals(inline)
+                    ? ContentDisposition.inline().build()
+                    : ContentDisposition.attachment().filename(file.fileName(), StandardCharsets.UTF_8).build();
             return ResponseEntity.ok()
                     .contentType(MediaType.parseMediaType(file.contentType()))
                     .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())

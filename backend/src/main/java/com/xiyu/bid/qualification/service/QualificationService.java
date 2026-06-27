@@ -37,6 +37,13 @@ public class QualificationService {
         return orchestrationService.retireQualification(id, reason);
     }
 
+    /**
+     * CO-368 fix: 轻量级清空 fileUrl，对称 retireQualification facade。
+     */
+    public void clearFileUrl(Long id) {
+        orchestrationService.clearFileUrl(id);
+    }
+
     public QualificationDTO restoreQualification(Long id) {
         return orchestrationService.restoreQualification(id);
     }

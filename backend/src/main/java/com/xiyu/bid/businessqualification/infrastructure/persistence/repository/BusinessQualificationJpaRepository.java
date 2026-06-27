@@ -54,4 +54,11 @@ public interface BusinessQualificationJpaRepository
                             @Param("retired") boolean retired,
                             @Param("retireReason") String retireReason,
                             @Param("status") QualificationStatus status);
+
+    /**
+     * CO-368 fix: 轻量级清空 fileUrl，避免全量 DTO 重建。
+     */
+    @Modifying
+    @Query("UPDATE BusinessQualificationEntity q SET q.fileUrl = NULL, q.updatedAt = CURRENT_TIMESTAMP WHERE q.id = :id")
+    int clearFileUrl(@Param("id") Long id);
 }
