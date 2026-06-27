@@ -94,7 +94,7 @@
 
           <el-form-item label="状态">
             <el-select v-model="localValue.status" style="width: 100%" :loading="loadingStatuses" :disabled="!canManageStatus">
-              <el-option v-for="s in availableStatuses" :key="s.code" :label="s.name" :value="s.code" />
+              <el-option v-for="s in statuses" :key="s.code" :label="s.name" :value="s.code" />
             </el-select>
           </el-form-item>
 
@@ -157,9 +157,6 @@ const canManageStatus = computed(() => {
   if (taskAssigneeId == null) return true
   return String(currentUserId) !== String(taskAssigneeId)
 })
-// CO-361: 三态模型收口——IN_PROGRESS 字典行已由 V1105 禁用，
-// 此处直接透传后端返回的启用状态。
-const availableStatuses = computed(() => statuses.value)
 /** 执行人可在任务TODO状态下填写交付物和完成情况说明，并提交审核。 */
 const canDeliver = computed(() => {
   if (props.mode !== 'view') return false

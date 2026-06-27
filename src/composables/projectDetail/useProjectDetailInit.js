@@ -11,8 +11,8 @@ export function useProjectDetailInit(context) {
     // Regression for IJSVX7 问题二：必须经 taskBackendToCard 走 normalizeTaskStatusFromApi，
     // 把后端 mapStatus 输出的小写字符串（'todo' / 'done' / 'review'）
     // 规范到 TODO / COMPLETED / REVIEW 大写。
-    // CO-361 三态模型收口后 IN_PROGRESS 已废弃，小写 'doing' 不再产生，
-    // 但保留 normalize 层以兼容历史小写返回值。
+    // CO-361 三态模型收口后 IN_PROGRESS 已废弃，后端 mapStatus 不再输出 'doing'。
+    // normalize 映射表已同步移除 doing→IN_PROGRESS；历史遗留 doing 值（如有）将走 fallback 原样返回。
     context.project.value.tasks = taskResult?.success && Array.isArray(taskResult.data)
       ? taskResult.data
           .filter((task) => !task.title?.startsWith('【待立项】'))

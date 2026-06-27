@@ -303,8 +303,8 @@ describe('TaskBoard (drag to change status)', () => {
     const wrapper = mountBoard({ projectId: '12', tasks: [task] })
     await flushPromises()
 
-    wrapper.vm.onDragChange({ moved: { element: task } }, 'IN_PROGRESS')
-    wrapper.vm.onDragChange({ removed: { element: task } }, 'IN_PROGRESS')
+    wrapper.vm.onDragChange({ moved: { element: task } }, 'REVIEW')
+    wrapper.vm.onDragChange({ removed: { element: task } }, 'REVIEW')
     await flushPromises()
 
     expect(wrapper.emitted('status-change')).toBeFalsy()

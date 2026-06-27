@@ -44,7 +44,7 @@
                 <el-icon class="more-icon"><MoreFilled /></el-icon>
                 <template #dropdown>
                   <el-dropdown-item
-                    v-for="s in availableStatuses"
+                    v-for="s in statuses"
                     :key="s.code"
                     :disabled="normalizeStatus(task.status) === s.code || !canChangeStatus(task)"
                     @click="handleStatusChange(task, s.code)"
@@ -198,8 +198,6 @@ const {
 })
 
 const statuses = computed(() => projectStore.taskStatuses)
-// CO-361: 三态收口，直接透传后端启用状态
-const availableStatuses = computed(() => statuses.value)
 
 onMounted(() => {
   if (!projectStore.taskStatusesLoaded) {
@@ -220,7 +218,7 @@ const canChangeStatus = (task) => {
   )
 }
 
-const columns = computed(() => availableStatuses.value
+const columns = computed(() => statuses.value
   .map((s) => ({
     key: s.code,
     title: s.name,

@@ -149,7 +149,7 @@ const formRef = ref(null)
 
 const CATEGORY_OPTIONS = [
   { label: '开放（OPEN）', value: 'OPEN' },
-  { label: '进行中（IN_PROGRESS）', value: 'IN_PROGRESS' },
+  { label: '进行中（IN_PROGRESS，已废弃）', value: 'IN_PROGRESS' },
   { label: '审核（REVIEW）', value: 'REVIEW' },
   { label: '终态（CLOSED）', value: 'CLOSED' },
 ]

@@ -16,6 +16,6 @@ public enum TaskStatusCategory {
     IN_PROGRESS,
     /** 等待审核大类。 */
     REVIEW,
-    /** 已关闭（终态）大类，包含"已完成"、"已取消"等。 */
+    /** 已关闭（终态）大类，包含"已完成"等终态状态。 */
     CLOSED
 }
