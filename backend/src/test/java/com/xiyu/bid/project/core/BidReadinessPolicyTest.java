@@ -16,7 +16,7 @@ class BidReadinessPolicyTest {
     void permits_whenAllTasksCompleted_andHasBidDocument() {
         var decision = BidReadinessPolicy.check(
                 List.of(AllTasksCompletedPolicy.TaskState.COMPLETED,
-                        AllTasksCompletedPolicy.TaskState.CANCELLED),
+                        AllTasksCompletedPolicy.TaskState.COMPLETED),
                 true);
         assertThat(decision.allowed()).isTrue();
     }
@@ -25,7 +25,7 @@ class BidReadinessPolicyTest {
     void denies_whenTasksIncomplete_evenIfHasDocument() {
         var decision = BidReadinessPolicy.check(
                 List.of(AllTasksCompletedPolicy.TaskState.COMPLETED,
-                        AllTasksCompletedPolicy.TaskState.IN_PROGRESS),
+                        AllTasksCompletedPolicy.TaskState.TODO),
                 true);
         assertThat(decision.allowed()).isFalse();
         assertThat(decision.reason()).contains("1 个任务未完成");

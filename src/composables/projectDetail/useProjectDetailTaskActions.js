@@ -296,7 +296,7 @@ export function useProjectDetailTaskActions(context) {
   const handleTaskStatusChange = async (task, newStatus) => {
     if (task) {
       task.status = newStatus
-      pushActivity(`将任务"${task.name}"状态更新为${({ todo: '待办', doing: '进行中', review: '待审核', done: '已完成' }[newStatus] || newStatus)}`)
+      pushActivity(`将任务"${task.name}"状态更新为${({ todo: '待办', review: '待审核', done: '已完成' }[newStatus] || newStatus)}`)
     }
     if (!isApiProject.value) {
       await projectStore.updateTaskStatus(route.params.id, task?.id, newStatus)

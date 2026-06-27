@@ -35,7 +35,7 @@ public final class ProjectTaskAuthorizationPolicy {
     }
 
     /**
-     * 是否允许提交任务 / 上传交付物（推进 TODO→IN_PROGRESS→REVIEW）。
+     * 是否允许提交任务 / 上传交付物（推进 TODO→REVIEW）。
      *
      * <p>身份约束：仅任务指派人本人可提交，与角色无关。</p>
      *
@@ -51,7 +51,7 @@ public final class ProjectTaskAuthorizationPolicy {
     }
 
     /**
-     * 是否允许审核任务（REVIEW→COMPLETED 通过 / REVIEW→IN_PROGRESS|TODO 驳回）。
+     * 是否允许审核任务（REVIEW→COMPLETED 通过 / REVIEW→TODO 驳回）。
      *
      * @param roleCode 当前操作者角色 code
      * @return 允许或拒绝决定
@@ -69,7 +69,7 @@ public final class ProjectTaskAuthorizationPolicy {
      * <p>纯核心路由：</p>
      * <ul>
      *   <li>from=REVIEW → {@link #canReviewTask}（审核通过/驳回，限管理员/组长/负责人/辅助）</li>
-     *   <li>from∈{TODO,IN_PROGRESS} 且 to∈{IN_PROGRESS,REVIEW} → {@link #canSubmitTask}（执行人本人提交）</li>
+     *   <li>from=TODO 且 to=REVIEW → {@link #canSubmitTask}（执行人本人提交）</li>
      *   <li>其余转换 → {@link #canManageTask}（管理类操作）</li>
      * </ul>
      *
@@ -88,8 +88,7 @@ public final class ProjectTaskAuthorizationPolicy {
         if ("REVIEW".equals(fromStatus)) {
             return canReviewTask(roleCode);
         }
-        if (("TODO".equals(fromStatus) || "IN_PROGRESS".equals(fromStatus))
-                && ("IN_PROGRESS".equals(toStatus) || "REVIEW".equals(toStatus))) {
+        if ("TODO".equals(fromStatus) && "REVIEW".equals(toStatus)) {
             return canSubmitTask(roleCode, isAssignee);
         }
         return canManageTask(roleCode);

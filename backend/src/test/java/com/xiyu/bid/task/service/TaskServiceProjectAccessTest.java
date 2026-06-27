@@ -158,44 +158,8 @@ class TaskServiceProjectAccessTest {
         assertThat(tasks).extracting(TaskDTO::getId).containsExactly(1L);
     }
 
-    // CO-361 Review 发现A：CANCELLED 任务在项目详情看板应与独立看板 isVisibleTask 一致——不展示。
-    // 前端 task_status_dict 无 CANCELLED 列，不过滤会致任务消失。
-    @Test
-    void getTasksByProjectId_filtersOutCancelledTasks_forGlobalAccessRole() {
-        User admin = User.builder().id(1L).enabled(true)
-                .roleProfile(RoleProfile.builder().code("admin").build()).build();
-        when(userRepository.findByUsername("admin")).thenReturn(Optional.of(admin));
-        when(projectRepository.existsById(10L)).thenReturn(true);
-        when(leadAssignmentRepository.resolveLeadIdsByProjectId(10L)).thenReturn(new Long[]{null, null});
-        when(taskRepository.findByProjectId(10L)).thenReturn(List.of(
-                task(1L, 10L, "待办任务", Task.Status.TODO),
-                task(2L, 10L, "已取消任务", Task.Status.CANCELLED),
-                task(3L, 10L, "待审核任务", Task.Status.REVIEW)
-        ));
-
-        List<TaskDTO> tasks = taskService.getTasksByProjectId(10L, "admin");
-
-        assertThat(tasks).extracting(TaskDTO::getId).containsExactlyInAnyOrder(1L, 3L);
-        assertThat(tasks).noneMatch(t -> t.getStatus() == Task.Status.CANCELLED);
-    }
-
-    @Test
-    void getTasksByProjectId_filtersOutCancelledTasks_forAssigneeScopedRole() {
-        User leader = User.builder().id(7L).enabled(true)
-                .roleProfile(RoleProfile.builder().code("bid-projectLeader").build()).build();
-        when(userRepository.findByUsername("leader")).thenReturn(Optional.of(leader));
-        when(projectRepository.existsById(10L)).thenReturn(true);
-        when(leadAssignmentRepository.resolveLeadIdsByProjectId(10L)).thenReturn(new Long[]{null, null});
-        when(taskRepository.findByProjectIdAndAssigneeId(10L, 7L)).thenReturn(List.of(
-                task(1L, 10L, "我的待审核", Task.Status.REVIEW),
-                task(2L, 10L, "我取消的任务", Task.Status.CANCELLED)
-        ));
-
-        List<TaskDTO> tasks = taskService.getTasksByProjectId(10L, "leader");
-
-        assertThat(tasks).extracting(TaskDTO::getId).containsExactly(1L);
-        assertThat(tasks).noneMatch(t -> t.getStatus() == Task.Status.CANCELLED);
-    }
+    // CO-361: 三态模型已彻底收口，CANCELLED 已从枚举移除，
+    // isVisibleTask 仅做 null 过滤，不再有"过滤 CANCELLED"语义。
 
     private Task task(Long id, Long projectId, String title) {
         return task(id, projectId, title, Task.Status.TODO);

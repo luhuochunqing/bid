@@ -40,8 +40,7 @@ class DashboardAnalyticsTeamComputationService {
 
             if (task.dueDate() != null
                     && task.dueDate().isBefore(now)
-                    && task.status() != com.xiyu.bid.entity.Task.Status.COMPLETED
-                    && task.status() != com.xiyu.bid.entity.Task.Status.CANCELLED) {
+                    && task.status() != com.xiyu.bid.entity.Task.Status.COMPLETED) {
                 aggregate.setOverdueTaskCount(aggregate.overdueTaskCount() + 1);
             }
         }

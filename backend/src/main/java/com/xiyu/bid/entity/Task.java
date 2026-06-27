@@ -137,30 +137,15 @@ public class Task {
     }
 
     /**
-     * 任务状态枚举.
+     * 任务状态枚举（CO-361 三态模型：TODO → REVIEW → COMPLETED）.
      */
     public enum Status {
         /** Not started yet. */
         TODO,
-        /** Work in progress. */
-        IN_PROGRESS,
         /** Pending review. */
         REVIEW,
         /** Fully completed. */
-        COMPLETED,
-        /** Cancelled. */
-        CANCELLED;
-
-        /**
-         * 归一废弃的 IN_PROGRESS 为展示态 TODO，与 TaskBoardItemMapper.mapTaskStatus 语义对齐。
-         *
-         * <p>CO-361：IN_PROGRESS 已在三态模型中废弃，读出/展示侧统一归一为 TODO，
-         * 避免前端按字典列（无 IN_PROGRESS 列）过滤后任务消失。CANCELLED 不在此归一，
-         * 由展示层按 isVisibleTask 语义过滤。</p>
-         */
-        public Status normalizedForDisplay() {
-            return this == IN_PROGRESS ? TODO : this;
-        }
+        COMPLETED
     }
 
     /**

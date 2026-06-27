@@ -9,10 +9,10 @@ export function useProjectDetailInit(context) {
     if (!context.project.value || !context.isApiProject.value) return
     const [taskResult, documentResult] = await Promise.all([projectsApi.getTasks(projectId), projectsApi.getDocuments(projectId)])
     // Regression for IJSVX7 问题二：必须经 taskBackendToCard 走 normalizeTaskStatusFromApi，
-    // 把后端 mapStatus 输出的小写字符串（'todo' / 'doing' / 'done' / 'review'）
-    // 规范到 TODO / IN_PROGRESS / COMPLETED / REVIEW 大写。
-    // 否则 TaskBoard.columns.filter((s) => s.code !== 'IN_PROGRESS') 会把小写 'doing'
-    // upcase 后的 IN_PROGRESS 任务全部过滤掉，造成"任务消失"。
+    // 把后端 mapStatus 输出的小写字符串（'todo' / 'done' / 'review'）
+    // 规范到 TODO / COMPLETED / REVIEW 大写。
+    // CO-361 三态模型收口后 IN_PROGRESS 已废弃，小写 'doing' 不再产生，
+    // 但保留 normalize 层以兼容历史小写返回值。
     context.project.value.tasks = taskResult?.success && Array.isArray(taskResult.data)
       ? taskResult.data
           .filter((task) => !task.title?.startsWith('【待立项】'))

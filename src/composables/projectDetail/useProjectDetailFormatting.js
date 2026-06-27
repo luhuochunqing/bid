@@ -9,8 +9,8 @@ export function useProjectDetailFormatting({ project }) {
   const getStatusType = (status) => getProjectStatusType(status)
   const getStatusText = (status) => getProjectStatusText(status)
 
-  const getTaskStatusType = (status) => ({ todo: 'info', doing: 'warning', done: 'success' }[status] || 'info')
-  const getTaskStatusText = (status) => ({ todo: '待办', doing: '进行中', done: '已完成' }[status] || status)
+  const getTaskStatusType = (status) => ({ todo: 'info', review: 'warning', done: 'success' }[status] || 'info')
+  const getTaskStatusText = (status) => ({ todo: '待办', review: '待审核', done: '已完成' }[status] || status)
   const getBadgeType = (score) => (score >= 90 ? 'success' : score >= 75 ? 'warning' : 'danger')
   const getProgressColor = (score) => (score >= 90 ? '#67c23a' : score >= 75 ? '#e6a23c' : score >= 60 ? '#f56c6c' : '#909399')
   const getScoreLevel = (score) => (score >= 90 ? '优秀' : score >= 80 ? '良好' : score >= 70 ? '合格' : '不合格')

@@ -17,7 +17,7 @@ final class TaskWorkloadAssembler {
     }
 
     static TeamTaskWorkloadDTO.TeamMemberWorkloadDTO buildTeamMemberWorkload(User user, List<Task> tasks) {
-        long todoCount = tasks.stream().filter(task -> task.getStatus() == Task.Status.TODO || task.getStatus() == Task.Status.IN_PROGRESS).count();
+        long todoCount = tasks.stream().filter(task -> task.getStatus() == Task.Status.TODO).count();
         long overdueCount = tasks.stream().filter(TaskWorkloadAssembler::isOverdue).count();
         LocalDateTime weekStart = LocalDateTime.now().minusDays(7);
         long completedThisWeekCount = tasks.stream()

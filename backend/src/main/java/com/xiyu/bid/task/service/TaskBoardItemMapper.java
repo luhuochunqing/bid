@@ -87,11 +87,11 @@ final class TaskBoardItemMapper {
         if (status == null) {
             return STATUS_TODO;
         }
-        if (status == Task.Status.CANCELLED) {
-            return STATUS_COMPLETED;
-        }
-        // CO-361: 复用 Task.Status.normalizedForDisplay()，与 TaskDtoMapper.toDTO 共用归一逻辑
-        return status.normalizedForDisplay().name();
+        return switch (status) {
+            case TODO -> STATUS_TODO;
+            case REVIEW -> STATUS_REVIEW;
+            case COMPLETED -> STATUS_COMPLETED;
+        };
     }
 
     private static String mapBidReviewStatus(String status) {
@@ -127,10 +127,10 @@ final class TaskBoardItemMapper {
     }
 
     /**
-     * 判断任务是否应出现在看板里（CANCELLED 不展示）。
+     * 判断任务是否应出现在看板里（三态模型下所有任务均展示）.
      */
     static boolean isVisibleTask(Task task) {
-        return task != null && task.getStatus() != Task.Status.CANCELLED;
+        return task != null;
     }
 
     static String fullNameOf(User user) {

@@ -15,8 +15,7 @@ public class ProjectTaskStatusUpdateRequest {
     public enum Status {
         TODO,
         REVIEW,
-        COMPLETED,
-        CANCELLED
+        COMPLETED
     }
 
     @NotNull(message = "任务状态不能为空")

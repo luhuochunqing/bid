@@ -130,7 +130,7 @@ abstract class AbstractAuditOperationalAnalyticsIntegrationTest {
                 .title("准备商务应答")
                 .description("汇总商务偏离表")
                 .assigneeId(adminUser.getId())
-                .status(Task.Status.IN_PROGRESS)
+                .status(Task.Status.TODO)
                 .priority(Task.Priority.HIGH)
                 .dueDate(LocalDateTime.now().plusDays(2))
                 .build());

@@ -8,8 +8,8 @@ export function useProjectDetailCore(context) {
   const canRecordResult = () => project.value?.status === 'bidding'
   const getStatusType = (status) => getProjectStatusType(status)
   const getStatusText = (status) => getProjectStatusText(status)
-  const getTaskStatusType = (status) => ({ todo: 'info', doing: 'warning', done: 'success' }[status] || 'info')
-  const getTaskStatusText = (status) => ({ todo: '待办', doing: '进行中', done: '已完成' }[status] || status)
+  const getTaskStatusType = (status) => ({ todo: 'info', review: 'warning', done: 'success' }[status] || 'info')
+  const getTaskStatusText = (status) => ({ todo: '待办', review: '待审核', done: '已完成' }[status] || status)
 
   const toggleAssistantPanel = () => { context.assistantPanelVisible.value = !context.assistantPanelVisible.value }
   const handleOpenCompetitionIntel = () => { context.showCompetitionIntel.value = true }

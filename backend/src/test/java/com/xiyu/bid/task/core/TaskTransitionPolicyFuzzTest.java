@@ -158,12 +158,10 @@ class TaskTransitionPolicyFuzzTest {
             return true;
         }
         return switch (from) {
-            // CO-361：三态模型收口，IN_PROGRESS 已废弃
-            case TODO -> to == TaskStatus.REVIEW || to == TaskStatus.CANCELLED;
-            case IN_PROGRESS -> false;
+            // CO-361 三态模型：TODO → REVIEW → COMPLETED（审核驳回回 TODO）
+            case TODO -> to == TaskStatus.REVIEW;
             case REVIEW -> to == TaskStatus.COMPLETED || to == TaskStatus.TODO;
             case COMPLETED -> false;
-            case CANCELLED -> to == TaskStatus.TODO;
         };
     }
 }

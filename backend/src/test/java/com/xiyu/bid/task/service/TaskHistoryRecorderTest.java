@@ -47,7 +47,7 @@ class TaskHistoryRecorderTest {
                 .id(99L)
                 .projectId(10L)
                 .title("准备商务标 V2")
-                .status(Task.Status.IN_PROGRESS)
+                .status(Task.Status.REVIEW)
                 .priority(Task.Priority.HIGH)
                 .build();
         User actor = User.builder().id(7L).username("alice").fullName("Alice").role(User.Role.MANAGER).build();

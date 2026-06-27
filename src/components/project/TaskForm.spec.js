@@ -17,7 +17,7 @@ vi.mock('@/api/modules/taskStatusDict.js', () => ({
   taskStatusDictApi: {
     list: vi.fn().mockResolvedValue({ success: true, data: [
       { code: 'TODO', name: '待办', category: 'OPEN', color: '#909399', sortOrder: 10, initial: true, terminal: false },
-      { code: 'IN_PROGRESS', name: '进行中', category: 'IN_PROGRESS', color: '#409eff', sortOrder: 20, initial: false, terminal: false },
+      { code: 'REVIEW', name: '待审核', category: 'REVIEW', color: '#e6a23c', sortOrder: 30, initial: false, terminal: false },
       { code: 'COMPLETED', name: '已完成', category: 'CLOSED', color: '#67c23a', sortOrder: 40, initial: false, terminal: true },
     ]})
   }
@@ -310,12 +310,12 @@ describe('TaskForm', () => {
 
   it('preserves modelValue.status when provided (edit mode)', async () => {
     const wrapper = mount(TaskForm, {
-      props: { mode: 'edit', modelValue: { name: 'X', status: 'IN_PROGRESS' } },
+      props: { mode: 'edit', modelValue: { name: 'X', status: 'REVIEW' } },
       global: { stubs: globalStubs },
     })
     await flushPromises()
     const r = wrapper.vm.submit()
-    expect(r.data.status).toBe('IN_PROGRESS')
+    expect(r.data.status).toBe('REVIEW')
   })
 
   it('seeds edit owner from task data before async candidates finish', async () => {

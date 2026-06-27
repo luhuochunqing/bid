@@ -36,11 +36,10 @@ public final class DeliverableAssociationPolicy {
             return AssociationResult.denied("任务状态未知");
         }
 
-        // Cannot associate to terminal or cancelled tasks
-        if ("COMPLETED".equals(taskStatus)
-                || "CANCELLED".equals(taskStatus)) {
+        // Cannot associate to completed tasks
+        if ("COMPLETED".equals(taskStatus)) {
             return AssociationResult.denied(
-                    "已完成或已取消的任务不可关联交付物");
+                    "已完成的任务不可关联交付物");
         }
 
         if (type == null) {

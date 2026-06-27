@@ -19,13 +19,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TaskBoardItemMapperTest {
 
     @Test
-    void mapTaskStatus_inProgress_mapsToTodo() {
-        Task task = Task.builder().id(1L).projectId(10L).status(Task.Status.IN_PROGRESS).assigneeId(100L).build();
-        TaskBoardItemDTO dto = TaskBoardItemMapper.fromTask(task, Map.of(10L, "项目"), "执行人", null);
-        assertThat(dto.getStatus()).isEqualTo("TODO");
-    }
-
-    @Test
     void mapTaskStatus_todo_mapsToTodo() {
         Task task = Task.builder().id(1L).projectId(10L).status(Task.Status.TODO).assigneeId(100L).build();
         TaskBoardItemDTO dto = TaskBoardItemMapper.fromTask(task, Map.of(10L, "项目"), "执行人", null);
@@ -93,12 +86,6 @@ class TaskBoardItemMapperTest {
                 .id(20L).projectId(10L).reviewerId(99L).submittedBy(2L).status("REVIEWING").build();
         TaskBoardItemDTO dto = TaskBoardItemMapper.fromBidReview(review, Map.of(10L, "项目"), Map.of(2L, "提交人"));
         assertThat(dto.getReviewerId()).isEqualTo(99L);
-    }
-
-    @Test
-    void isVisibleTask_cancelled_returnsFalse() {
-        Task cancelled = Task.builder().id(1L).status(Task.Status.CANCELLED).build();
-        assertThat(TaskBoardItemMapper.isVisibleTask(cancelled)).isFalse();
     }
 
     @Test

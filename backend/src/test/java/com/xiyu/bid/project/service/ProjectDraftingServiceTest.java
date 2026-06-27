@@ -119,21 +119,21 @@ class ProjectDraftingServiceTest {
     void gate_deniesWhenIncomplete_409() {
         when(taskRepository.findByProjectId(1L)).thenReturn(List.of(
                 Task.builder().id(1L).projectId(1L).title("a").status(Task.Status.COMPLETED).build(),
-                Task.builder().id(2L).projectId(1L).title("b").status(Task.Status.IN_PROGRESS).build()));
+                Task.builder().id(2L).projectId(1L).title("b").status(Task.Status.TODO).build()));
         assertThatThrownBy(() -> service.gateAdvanceToEvaluation(1L, 99L))
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting("statusCode").isEqualTo(HttpStatus.CONFLICT);
     }
 
     @Test
-    void gate_ignoresCancelled() {
+    void gate_deniesWhenReviewTaskIncomplete() {
+        // CO-361: 三态模型收口，REVIEW 不是终态，闸门应拒绝
         when(taskRepository.findByProjectId(1L)).thenReturn(List.of(
                 Task.builder().id(1L).projectId(1L).title("a").status(Task.Status.COMPLETED).build(),
-                Task.builder().id(2L).projectId(1L).title("b").status(Task.Status.CANCELLED).build()));
-        when(leadRepo.findByProjectId(1L)).thenReturn(Optional.empty());
-        prepareBidDocument();
-        var view = service.gateAdvanceToEvaluation(1L, 99L);
-        assertThat(view.getGateReady()).isTrue();
+                Task.builder().id(2L).projectId(1L).title("b").status(Task.Status.REVIEW).build()));
+        assertThatThrownBy(() -> service.gateAdvanceToEvaluation(1L, 99L))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting("statusCode").isEqualTo(HttpStatus.CONFLICT);
     }
 
     @Test
@@ -254,7 +254,7 @@ class ProjectDraftingServiceTest {
     void submitBid_approvedReview_incompleteTasks_denied_409() {
         prepareSubmitBidHappyPath();
         when(taskRepository.findByProjectId(1L)).thenReturn(List.of(
-                Task.builder().id(1L).projectId(1L).title("a").status(Task.Status.IN_PROGRESS).build()));
+                Task.builder().id(1L).projectId(1L).title("a").status(Task.Status.TODO).build()));
         when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid-projectLeader")));
         prepareLeadAssignment(1L, 2L);
 
@@ -321,7 +321,7 @@ class ProjectDraftingServiceTest {
     void submitBid_afterDraftingStage_isIdempotent() {
         prepareSubmitBidHappyPath();
         when(taskRepository.findByProjectId(1L)).thenReturn(List.of(
-                Task.builder().id(1L).projectId(1L).title("a").status(Task.Status.IN_PROGRESS).build()));
+                Task.builder().id(1L).projectId(1L).title("a").status(Task.Status.TODO).build()));
         when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid-projectLeader")));
         prepareLeadAssignment(1L, 2L);
         when(projectStageService.currentStage(1L)).thenReturn(ProjectStage.EVALUATING);
@@ -337,7 +337,7 @@ class ProjectDraftingServiceTest {
         prepareSubmitBidHappyPath();
         when(taskRepository.findByProjectId(1L)).thenReturn(List.of(
                 Task.builder().id(1L).projectId(1L).title("a").status(Task.Status.COMPLETED).build(),
-                Task.builder().id(2L).projectId(1L).title("b").status(Task.Status.CANCELLED).build()));
+                Task.builder().id(2L).projectId(1L).title("b").status(Task.Status.COMPLETED).build()));
         when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid-projectLeader")));
         prepareLeadAssignment(1L, 2L);
 
@@ -466,7 +466,7 @@ class ProjectDraftingServiceTest {
     void submitForReview_incompleteTasks_denied_409() {
         when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "admin")));
         when(taskRepository.findByProjectId(1L)).thenReturn(List.of(
-                Task.builder().id(1L).projectId(1L).title("a").status(Task.Status.IN_PROGRESS).build(),
+                Task.builder().id(1L).projectId(1L).title("a").status(Task.Status.TODO).build(),
                 Task.builder().id(2L).projectId(1L).title("b").status(Task.Status.REVIEW).build()));
 
         assertThatThrownBy(() -> service.submitForReview(1L, 99L, 1L))

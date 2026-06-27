@@ -758,39 +758,6 @@ describe('useProjectDetailTaskActions', () => {
     expect(success).not.toHaveBeenCalled()
   })
 
-  it('API 项目切换任务状态为已取消时向后端传递 CANCELLED 枚举', async () => {
-    const success = vi.fn()
-    const error = vi.fn()
-    const updateTaskStatus = vi.fn().mockResolvedValue({
-      success: true,
-      data: { id: 42, name: '资格审查', status: 'cancelled' },
-    })
-    const state = {
-      project: ref({ id: 12, name: '测试项目', tasks: [{ id: 42, name: '资格审查', status: 'TODO' }] }),
-      activities: ref([]),
-      scoreDraftDialogVisible: ref(false),
-      currentTask: ref(null),
-      taskDialogVisible: ref(false),
-    }
-
-    const { handleTaskStatusChange } = useProjectDetailTaskActions({
-      route: { params: { id: '12' } },
-      userStore: { userName: '测试用户', currentUser: { id: 9 } },
-      projectStore: {},
-      projectsApi: { updateTaskStatus },
-      isApiProject: ref(true),
-      message: { success, error, warning: vi.fn() },
-      state,
-      workflow: {},
-    })
-
-    await handleTaskStatusChange(state.project.value.tasks[0], 'cancelled')
-
-    expect(updateTaskStatus).toHaveBeenCalledWith('12', 42, 'CANCELLED')
-    expect(state.project.value.tasks[0].status).toBe('CANCELLED')
-    expect(error).not.toHaveBeenCalled()
-  })
-
   it('legacy detail task composable reuses real API task decomposition', async () => {
     const success = vi.fn()
     const error = vi.fn()

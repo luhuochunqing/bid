@@ -198,8 +198,8 @@ const {
 })
 
 const statuses = computed(() => projectStore.taskStatuses)
-
-const availableStatuses = computed(() => statuses.value.filter((s) => s.code !== 'IN_PROGRESS'))
+// CO-361: 三态收口，直接透传后端启用状态
+const availableStatuses = computed(() => statuses.value)
 
 onMounted(() => {
   if (!projectStore.taskStatusesLoaded) {

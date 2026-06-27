@@ -52,7 +52,7 @@ const taskBoardCardStub = {
   name: 'ProjectTaskBoardCard',
   props: ['tasks'],
   emits: ['status-change'],
-  template: '<button data-test="status-change" @click="$emit(\'status-change\', tasks[0], \'doing\')">change</button>',
+  template: '<button data-test="status-change" @click="$emit(\'status-change\', tasks[0], \'review\')">change</button>',
 }
 
 const shallowStubs = {
@@ -99,7 +99,7 @@ describe('ProjectDetail task status event wiring', () => {
 
     expect(mainColumnContext.handleTaskStatusChange).toHaveBeenCalledWith(
       mainColumnContext.project.tasks[0],
-      'doing',
+      'review',
     )
   })
 
@@ -143,7 +143,7 @@ describe('ProjectDetail task status event wiring', () => {
 
     expect(detail.handleTaskStatusChange).toHaveBeenCalledWith(
       detail.project.value.tasks[0],
-      'doing',
+      'review',
     )
   })
 })

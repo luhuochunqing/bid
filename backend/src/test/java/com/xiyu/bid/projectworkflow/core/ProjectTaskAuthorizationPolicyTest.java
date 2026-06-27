@@ -122,23 +122,8 @@ class ProjectTaskAuthorizationPolicyTest {
     }
 
     @Test
-    void decideStatusTransition_fromInProgressToReview_shouldRouteToCanSubmitTask() {
-        var allowed = ProjectTaskAuthorizationPolicy.decideStatusTransition(
-                "IN_PROGRESS", "REVIEW", "bid-otherDept", true);
-        assertThat(allowed.allowed()).isTrue();
-    }
-
-    @Test
-    void decideStatusTransition_fromTodoToInProgress_shouldRouteToCanSubmitTask() {
-        // TODO→IN_PROGRESS：执行人开始执行
-        var allowed = ProjectTaskAuthorizationPolicy.decideStatusTransition(
-                "TODO", "IN_PROGRESS", "bid-projectLeader", true);
-        assertThat(allowed.allowed()).isTrue();
-    }
-
-    @Test
     void decideStatusTransition_otherTransitions_shouldRouteToCanManageTask() {
-        // 其余转换（如直接置 COMPLETED/CANCELLED）走管理权限
+        // 其余转换（如直接置 COMPLETED）走管理权限
         var allowed = ProjectTaskAuthorizationPolicy.decideStatusTransition(
                 "TODO", "COMPLETED", "/bidAdmin", false);
         assertThat(allowed.allowed()).isTrue();

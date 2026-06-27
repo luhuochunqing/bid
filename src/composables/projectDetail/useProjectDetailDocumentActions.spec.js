@@ -15,7 +15,7 @@ describe('useProjectDetailDocumentActions', () => {
       data: [
         { id: 1, title: '【待立项】某标讯', status: 'TODO' },
         { id: 2, title: '正常任务', status: 'TODO' },
-        { id: 3, title: '【待立项】另一标讯', status: 'IN_PROGRESS' },
+        { id: 3, title: '【待立项】另一标讯', status: 'TODO' },
       ],
     })
     const getDocuments = vi.fn().mockResolvedValue({ success: true, data: [] })

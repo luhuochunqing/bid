@@ -133,7 +133,7 @@ public class TaskService {
             assignmentSupport.applyAssignment(task, assignmentSupport.resolveAssignmentSnapshot(assignmentRequestFrom(taskDTO), null));
         }
         if (taskDTO.getStatus() != null) {
-            task.setStatus(taskDTO.getStatus() == Task.Status.IN_PROGRESS ? Task.Status.TODO : taskDTO.getStatus());
+            task.setStatus(taskDTO.getStatus());
         }
         if (taskDTO.getPriority() != null) {
             task.setPriority(taskDTO.getPriority());
@@ -172,7 +172,7 @@ public class TaskService {
                 currentUser.getRoleCode(), currentUser.getId(), leadIds[0], leadIds[1])
                 ? taskRepository.findByProjectId(projectId)
                 : taskRepository.findByProjectIdAndAssigneeId(projectId, currentUser.getId());
-        // CO-361: 复用 TaskBoardItemMapper.isVisibleTask 过滤 CANCELLED，与独立看板展示语义一致
+        // CO-361: 三态模型下 isVisibleTask 仅做 null 过滤，与独立看板展示语义一致
         return toDTOsWithNames(tasks.stream().filter(TaskBoardItemMapper::isVisibleTask).toList());
     }
 
@@ -211,7 +211,7 @@ public class TaskService {
         assertCanAccessProject(task.getProjectId());
         taskPermissionGuard.assertCanTransitionTaskStatus(task, status);
         Task before = TaskSnapshots.copy(task);
-        task.setStatus(status == Task.Status.IN_PROGRESS ? Task.Status.TODO : status);
+        task.setStatus(status);
         Task saved = taskRepository.save(task);
         taskHistoryRecorder.recordUpdate(before, saved, actorUsername);
         return taskDtoMapper.toDTO(saved, resolveAssigneeName(saved.getAssigneeId()));

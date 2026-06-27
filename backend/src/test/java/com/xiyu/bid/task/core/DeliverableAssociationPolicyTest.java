@@ -11,9 +11,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 class DeliverableAssociationPolicyTest {
 
     @Test
-    void validateAssociation_ShouldAccept_InProgressWithValidType() {
+    void validateAssociation_ShouldAccept_TodoWithValidType() {
         var result = DeliverableAssociationPolicy.validateAssociation(
-                "IN_PROGRESS", DeliverableAssociationPolicy.DeliverableType.DOCUMENT, 5);
+                "TODO", DeliverableAssociationPolicy.DeliverableType.DOCUMENT, 5);
         assertThat(result.valid()).isTrue();
     }
 
@@ -26,17 +26,9 @@ class DeliverableAssociationPolicyTest {
     }
 
     @Test
-    void validateAssociation_ShouldReject_CancelledTask() {
-        var result = DeliverableAssociationPolicy.validateAssociation(
-                "CANCELLED", DeliverableAssociationPolicy.DeliverableType.TECHNICAL, 0);
-        assertThat(result.valid()).isFalse();
-        assertThat(result.rejectionReason()).contains("已取消");
-    }
-
-    @Test
     void validateAssociation_ShouldReject_NullType() {
         var result = DeliverableAssociationPolicy.validateAssociation(
-                "IN_PROGRESS", null, 3);
+                "TODO", null, 3);
         assertThat(result.valid()).isFalse();
         assertThat(result.rejectionReason()).contains("类型不能为空");
     }
@@ -44,7 +36,7 @@ class DeliverableAssociationPolicyTest {
     @Test
     void validateAssociation_ShouldReject_ExceedsMaxPerTask() {
         var result = DeliverableAssociationPolicy.validateAssociation(
-                "IN_PROGRESS", DeliverableAssociationPolicy.DeliverableType.OTHER, 20);
+                "TODO", DeliverableAssociationPolicy.DeliverableType.OTHER, 20);
         assertThat(result.valid()).isFalse();
         assertThat(result.rejectionReason()).contains("上限");
     }

@@ -69,10 +69,10 @@ class E2eDemoDataInitializerTest {
         initializer.seedTaskStatuses();
 
         ArgumentCaptor<TaskStatusDict> statusCaptor = ArgumentCaptor.forClass(TaskStatusDict.class);
-        verify(taskStatusDictRepository, times(4)).save(statusCaptor.capture());
+        verify(taskStatusDictRepository, times(3)).save(statusCaptor.capture());
         assertThat(statusCaptor.getAllValues())
                 .extracting(TaskStatusDict::getCode)
-                .containsExactly("TODO", "IN_PROGRESS", "REVIEW", "COMPLETED");
+                .containsExactly("TODO", "REVIEW", "COMPLETED");
         assertThat(statusCaptor.getAllValues())
                 .extracting(TaskStatusDict::getEnabled)
                 .containsOnly(true);

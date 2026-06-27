@@ -2,12 +2,12 @@
 // Output: project.value.tasks normalized for kanban rendering
 // Pos: src/composables/projectDetail/ - Regression for IJSVX7 问题二
 //   真实场景：投标管理员创建任务后，切到其他页面再回来，看板"待办"列任务消失。
-//   控制台 DIAGNOSTIC 输出：[TaskBoard] props.tasks.length: 20 statuses: ['268:doing', '269:doing', ...]
+//   控制台 DIAGNOSTIC 输出：[TaskBoard] props.tasks.length: 20 statuses: ['268:todo', '269:review', ...]
 //   根因：useProjectDetailInit.loadProjectWorkflowData 整体替换 project.value.tasks，
 //        跳过 taskBackendToCard + normalizeTaskStatusFromApi，
-//        导致后端 mapStatus 输出的小写字符串原样塞进前端，
-//        TaskBoard.columns.filter((s) => s.code !== 'IN_PROGRESS') 过滤后
-//        把 'doing' (upcase 后变 IN_PROGRESS) 任务全部丢掉。
+//        导致后端 mapStatus 输出的小写字符串原样塞进前端。
+//   CO-361 三态模型收口后后端只输出 'todo' / 'review' / 'done'，
+//   normalize 层仍需把小写归一为大写规范码。
 
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
@@ -37,7 +37,7 @@ const mountInit = async (getTasksResponse) => {
   projectStore.taskStatusesLoaded = true
   projectStore.taskStatuses = [
     { code: 'TODO', name: '待办', category: 'OPEN', color: '#909399', sortOrder: 10, initial: true, terminal: false },
-    { code: 'IN_PROGRESS', name: '进行中', category: 'IN_PROGRESS', color: '#409eff', sortOrder: 20, initial: false, terminal: false },
+    { code: 'REVIEW', name: '待审核', category: 'REVIEW', color: '#e6a23c', sortOrder: 30, initial: false, terminal: false },
     { code: 'COMPLETED', name: '已完成', category: 'CLOSED', color: '#67c23a', sortOrder: 40, initial: false, terminal: true },
   ]
   // Mock getProjectById 让它直接给 currentProject 赋目标对象 + 返回
@@ -98,35 +98,30 @@ describe('useProjectDetailInit (IJSVX7 问题二 regression)', () => {
   })
 
   it('loadProjectWorkflowData normalizes backend lowercase status to canonical uppercase', async () => {
-    // 后端 mapStatus 输出小写字符串：'todo' / 'doing' / 'done' / 'review'
-    // 复现控制台 DIAGNOSTIC 输出 ['268:doing', '269:doing', ...]
+    // 后端 mapStatus 输出小写字符串：'todo' / 'review' / 'done'
     const tasks = [
       buildTask(1, 'todo'),
-      buildTask(2, 'doing'),
+      buildTask(2, 'review'),
       buildTask(3, 'done'),
-      buildTask(4, 'review'),
     ]
     const { project } = await mountInit(tasks)
     // **关键 assertion**：每个 task.status 必须是大写规范码
     // 这是修复的合同：loadProjectWorkflowData 必须走 normalizeTaskStatusFromApi
-    expect(project.value.tasks.map((t) => t.status)).toEqual(['TODO', 'IN_PROGRESS', 'COMPLETED', 'REVIEW'])
+    expect(project.value.tasks.map((t) => t.status)).toEqual(['TODO', 'REVIEW', 'COMPLETED'])
   }, 10000)
 
   it('loadProjectWorkflowData 后的 tasks 在 TaskBoard 按 status 归类时不丢失', async () => {
-    // 复现：所有 task status='doing'，TaskBoard.columns 过滤 IN_PROGRESS，
-    // 修复前 → 19 个 task 都不在 TODO/REVIEW/COMPLETED 列（"消失"）
-    // 修复后 → status='IN_PROGRESS' 的 task 也得在 IN_PROGRESS 列显示
-    // (或被 availableStatuses 兜底映射)
+    // 复现：task status 为小写，需经 normalize 后才能正确归类到看板列
     const tasks = [
-      buildTask(101, 'doing'),
-      buildTask(102, 'doing'),
-      buildTask(103, 'todo'),
+      buildTask(101, 'todo'),
+      buildTask(102, 'todo'),
+      buildTask(103, 'review'),
     ]
     const { project } = await mountInit(tasks)
     // 模拟 TaskBoard.getTasksByStatus('TODO')：找 status='TODO' 的
     const normalize = (s) => String(s || '').toUpperCase()
     const todoTasks = project.value.tasks.filter((t) => normalize(t.status) === 'TODO')
-    expect(todoTasks).toHaveLength(1)
-    expect(todoTasks[0].id).toBe(103)
+    expect(todoTasks).toHaveLength(2)
+    expect(todoTasks[0].id).toBe(101)
   }, 10000)
 })

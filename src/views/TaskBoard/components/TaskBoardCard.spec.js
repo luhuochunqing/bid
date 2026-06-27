@@ -45,7 +45,7 @@ const stubs = {
     computed: {
       shouldShow() {
         return this.item.type === 'TASK'
-          && (this.item.status === 'TODO' || this.item.status === 'IN_PROGRESS')
+          && this.item.status === 'TODO'
       },
       isAssignee() {
         return this.item.assigneeId === 1
@@ -174,8 +174,8 @@ describe('TaskBoardCard', () => {
     expect(submitBtn.exists()).toBe(false)
   })
 
-  it('TASK in IN_PROGRESS status should show upload/submit buttons for assignee', async () => {
-    const item = createMockTask({ status: 'IN_PROGRESS', assigneeId: 1, deliverables: [{ name: 'file.pdf' }] })
+  it('TASK in TODO status should show upload/submit buttons for assignee', async () => {
+    const item = createMockTask({ status: 'TODO', assigneeId: 1, deliverables: [{ name: 'file.pdf' }] })
     const wrapper = createWrapper(item)
     await flushPromises()
     const uploadBtn = wrapper.find('[data-testid="deliverable-upload-btn"]')

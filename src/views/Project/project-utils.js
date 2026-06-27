@@ -22,32 +22,24 @@ const FEE_STATUS_MAP = {
 const TASK_STATUS_TO_API = {
   // legacy lowercase bridge (for any call site still sending lowercase)
   todo: 'TODO',
-  doing: 'IN_PROGRESS',
   review: 'REVIEW',
   done: 'COMPLETED',
-  cancelled: 'CANCELLED',
   // identity for uppercase codes (backend canonical form)
   TODO: 'TODO',
-  IN_PROGRESS: 'IN_PROGRESS',
   REVIEW: 'REVIEW',
-  COMPLETED: 'COMPLETED',
-  CANCELLED: 'CANCELLED'
+  COMPLETED: 'COMPLETED'
 }
 
 const TASK_STATUS_FROM_API = {
   // identity for uppercase codes (canonical)
   TODO: 'TODO',
-  IN_PROGRESS: 'IN_PROGRESS',
   REVIEW: 'REVIEW',
   COMPLETED: 'COMPLETED',
-  CANCELLED: 'CANCELLED',
   // legacy lowercase compatibility — backend should no longer return these,
   // but keeps old data paths deterministic during migration.
   todo: 'TODO',
-  doing: 'IN_PROGRESS',
   review: 'REVIEW',
-  done: 'COMPLETED',
-  cancelled: 'CANCELLED'
+  done: 'COMPLETED'
 }
 
 const TASK_PRIORITY_TO_API = {

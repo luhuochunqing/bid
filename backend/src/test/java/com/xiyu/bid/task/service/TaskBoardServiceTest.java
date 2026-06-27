@@ -72,7 +72,7 @@ class TaskBoardServiceTest {
                 .projectId(100L)
                 .title("普通任务")
                 .description("任务描述")
-                .status(Task.Status.IN_PROGRESS)
+                .status(Task.Status.TODO)
                 .priority(Task.Priority.HIGH)
                 .assigneeId(1L)
                 .build();
@@ -116,18 +116,10 @@ class TaskBoardServiceTest {
     }
 
     @Test
-    void getBoardItemsFiltersCancelledTasksAndCompletedReviews() {
+    void getBoardItemsFiltersCompletedReviews() {
+        // CO-361: 三态模型收口后所有任务均展示，本测试仅验证已完成的标书审核不展示
         User currentUser = User.builder().id(1L).username("u1").fullName("User One").build();
         when(assignmentSupport.resolveEnabledUserByUsername("u1")).thenReturn(currentUser);
-
-        Task cancelledTask = Task.builder()
-                .id(10L)
-                .projectId(100L)
-                .title("已取消任务")
-                .status(Task.Status.CANCELLED)
-                .assigneeId(1L)
-                .build();
-        when(taskRepository.findByAssigneeId(1L)).thenReturn(List.of(cancelledTask));
 
         BidDocumentReviewEntity approvedReview = BidDocumentReviewEntity.builder()
                 .id(20L)
@@ -137,6 +129,7 @@ class TaskBoardServiceTest {
                 .status("APPROVED")
                 .build();
         when(bidDocumentReviewRepository.findByReviewerId(1L)).thenReturn(List.of(approvedReview));
+        when(taskRepository.findByAssigneeId(1L)).thenReturn(List.of());
 
         when(projectAccessScopeService.getAllowedProjectIds(currentUser)).thenReturn(List.of());
 

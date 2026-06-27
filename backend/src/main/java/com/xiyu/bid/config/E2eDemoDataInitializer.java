@@ -43,9 +43,9 @@ public class E2eDemoDataInitializer implements ApplicationRunner {
     }
 
     void seedTaskStatuses() {
+        // CO-361: 三态模型收口——不再种入 IN_PROGRESS 字典行
         List<TaskStatusSeed> seeds = List.of(
                 new TaskStatusSeed("TODO", "待办", TaskStatusCategory.OPEN, "#909399", 10, true, false),
-                new TaskStatusSeed("IN_PROGRESS", "进行中", TaskStatusCategory.IN_PROGRESS, "#409eff", 20, false, false),
                 new TaskStatusSeed("REVIEW", "待审核", TaskStatusCategory.REVIEW, "#e6a23c", 30, false, false),
                 new TaskStatusSeed("COMPLETED", "已完成", TaskStatusCategory.CLOSED, "#67c23a", 40, false, true)
         );

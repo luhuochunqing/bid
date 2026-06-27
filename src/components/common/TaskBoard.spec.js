@@ -9,7 +9,6 @@ import { createPinia, setActivePinia } from 'pinia'
 
 const mockStatuses = [
   { code: 'TODO', name: '待办', category: 'OPEN', color: '#909399', sortOrder: 10, initial: true, terminal: false },
-  { code: 'IN_PROGRESS', name: '进行中', category: 'IN_PROGRESS', color: '#409eff', sortOrder: 20, initial: false, terminal: false },
   { code: 'REVIEW', name: '待审核', category: 'REVIEW', color: '#e6a23c', sortOrder: 30, initial: false, terminal: false },
   { code: 'COMPLETED', name: '已完成', category: 'CLOSED', color: '#67c23a', sortOrder: 40, initial: false, terminal: true },
   { code: 'ARCHIVED', name: '已归档', category: 'CLOSED', color: '#c0c4cc', sortOrder: 50, initial: false, terminal: true },
@@ -105,7 +104,7 @@ describe('TaskBoard (dynamic columns)', () => {
       tasks: [
         { id: 1, status: 'COMPLETED' },
         { id: 2, status: 'ARCHIVED' },
-        { id: 3, status: 'IN_PROGRESS' },
+        { id: 3, status: 'REVIEW' },
         { id: 4, status: 'TODO' }
       ]
     })
@@ -166,7 +165,7 @@ describe('TaskBoard (dynamic columns)', () => {
     mockProjectStore.currentProject = { primaryLeadUserId: 9, secondaryLeadUserId: null }
     const wrapper = mountBoard({ tasks: [{ id: 2, name: 'T2', status: 'TODO', assigneeId: 999 }] })
     await flushPromises()
-    // availableStatuses = 5 mock minus IN_PROGRESS = 4 items; upload hidden for non-assignee
+    // availableStatuses = 4 mock items (三态 + ARCHIVED); upload hidden for non-assignee
     const items = wrapper.findAllComponents({ name: 'ElDropdownItem' })
     expect(items.length).toBe(4)
     expect(items.at(0).props('disabled')).toBe(true) // TODO matches current status
@@ -236,7 +235,7 @@ describe('TaskBoard (dynamic columns)', () => {
     const wrapper = mountBoard({ tasks: [backendTask] })
     await flushPromises()
 
-    // TODO 列在第 0 列（mockStatuses 排序 10,30,40,50；IN_PROGRESS 20 被过滤）
+    // TODO 列在第 0 列（mockStatuses 排序 10,30,40,50）
     const todoColumn = wrapper.findAll('.board-column')[0]
     const todoBadge = todoColumn.find('.el-badge-stub')
     expect(todoBadge.text()).toContain('1')
@@ -254,12 +253,12 @@ describe('TaskBoard (drag to change status)', () => {
     const wrapper = mountBoard({ projectId: '12', tasks: [task] })
     await flushPromises()
 
-    wrapper.vm.onDragChange({ added: { element: task, newIndex: 0 } }, 'IN_PROGRESS')
+    wrapper.vm.onDragChange({ added: { element: task, newIndex: 0 } }, 'REVIEW')
     await flushPromises()
 
     const emitted = wrapper.emitted('status-change')
     expect(emitted).toBeTruthy()
-    expect(emitted[0]).toEqual([task, 'IN_PROGRESS'])
+    expect(emitted[0]).toEqual([task, 'REVIEW'])
   })
 
   it('emits status-change through mouse drag fallback after movement threshold', async () => {
