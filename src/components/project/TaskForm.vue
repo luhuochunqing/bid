@@ -28,6 +28,7 @@
               @preview="file => emit('attachment-preview', file)"
             >
               <el-button :icon="Upload" :disabled="readonly">添加附件</el-button>
+              <template #file="{ file }"><a href="javascript:void(0)" class="upload-file-link" data-test="task-attachment-file-link" @click.prevent="handleDownloadAttachment(file)">{{ file.name }}</a></template>
             </el-upload>
           </el-form-item>
 
@@ -179,7 +180,7 @@ const attachmentFileList = computed(() => localValue.attachments.map((file, i) =
   name: file?.name || `附件${i + 1}`, raw: file instanceof File ? file : file?.raw,
   url: (file?.projectId || localValue.projectId) && file?.id ? `/api/projects/${file.projectId || localValue.projectId}/documents/${file.id}/download` : file?.url,
 })))
-const { downloadDeliverable } = useTaskDeliverableDownload(localValue)
+const { downloadDeliverable, downloadAttachment: handleDownloadAttachment } = useTaskDeliverableDownload(localValue)
 const { deliverableFileList, handleDeliverableChange, handleDeliverableRemove } =
   useTaskDeliveryForm(localValue, readonly)
 

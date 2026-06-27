@@ -2,6 +2,8 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { afterEach, describe, it, expect, vi } from 'vitest'
 import { defineComponent, nextTick, reactive, ref } from 'vue'
 import TaskForm from './TaskForm.vue'
+import { downloadWithFilename } from '@/utils/download.js'
+import { ElMessage } from 'element-plus'
 
 const getAssignableCandidatesMock = vi.hoisted(() => vi.fn().mockResolvedValue([
   { id: 9, name: '测试用户', deptCode: 'BID', deptName: '投标管理部', roleCode: 'bid-Team', roleName: '销售' },
@@ -54,6 +56,18 @@ const mockStoreState = reactive({
 vi.mock('@/stores/project', () => ({
   useProjectStore: () => mockStoreState,
 }))
+
+vi.mock('@/utils/download.js', () => ({
+  downloadWithFilename: vi.fn(),
+}))
+
+vi.mock('element-plus', async () => {
+  const actual = await vi.importActual('element-plus')
+  return {
+    ...actual,
+    ElMessage: { warning: vi.fn() },
+  }
+})
 
 function setExtendedFields(list) {
   mockStoreState.taskExtendedFields = list
@@ -123,7 +137,7 @@ const globalStubs = {
     name: 'ElUpload',
     props: ['fileList', 'autoUpload', 'disabled', 'accept'],
     emits: ['change', 'remove', 'preview'],
-    template: '<div class="el-upload-stub" data-test="task-attachment-upload"><slot /><slot name="tip" /></div>',
+    template: '<div class="el-upload-stub" data-test="task-attachment-upload"><slot /><slot name="tip" /><div class="el-upload-list" v-for="f in fileList" :key="f.name"><slot name="file" :file="f">{{ f.name }}</slot></div></div>',
   },
   TaskActivityPanel: {
     name: 'TaskActivityPanel',
@@ -141,6 +155,8 @@ describe('TaskForm', () => {
     mockStoreState.loadTaskExtendedFields.mockClear()
     getAssignableCandidatesMock.mockReset()
     getAssignableCandidatesMock.mockResolvedValue(defaultAssignmentCandidates)
+    vi.mocked(downloadWithFilename).mockClear()
+    vi.mocked(ElMessage.warning).mockClear()
   })
 
   afterEach(() => {
@@ -233,6 +249,72 @@ describe('TaskForm', () => {
     })
     expect(openSpy).not.toHaveBeenCalled()
     openSpy.mockRestore()
+  })
+
+  it('renders task attachment filenames as clickable download links', async () => {
+    const wrapper = mount(TaskForm, {
+      props: {
+        mode: 'view',
+        modelValue: {
+          id: 31,
+          projectId: 12,
+          name: 'X',
+          attachments: [{ id: 801, projectId: 12, name: '任务附件.docx' }],
+        },
+      },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+
+    const link = wrapper.find('[data-test="task-attachment-file-link"]')
+    expect(link.exists()).toBe(true)
+    expect(link.text()).toBe('任务附件.docx')
+  })
+
+  it('calls downloadWithFilename when clicking task attachment link', async () => {
+    const wrapper = mount(TaskForm, {
+      props: {
+        mode: 'view',
+        modelValue: {
+          id: 31,
+          projectId: 12,
+          name: 'X',
+          attachments: [{ id: 801, projectId: 12, name: '任务附件.docx' }],
+        },
+      },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+
+    const link = wrapper.find('[data-test="task-attachment-file-link"]')
+    await link.trigger('click')
+
+    expect(downloadWithFilename).toHaveBeenCalledWith(
+      '/api/projects/12/documents/801/download',
+      '任务附件.docx'
+    )
+  })
+
+  it('shows warning when downloading attachment without id', async () => {
+    const wrapper = mount(TaskForm, {
+      props: {
+        mode: 'view',
+        modelValue: {
+          id: 31,
+          projectId: 12,
+          name: 'X',
+          attachments: [{ name: '未保存附件.docx' }],
+        },
+      },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+
+    const link = wrapper.find('[data-test="task-attachment-file-link"]')
+    await link.trigger('click')
+
+    expect(ElMessage.warning).toHaveBeenCalledWith('文件信息缺失，无法下载')
+    expect(downloadWithFilename).not.toHaveBeenCalled()
   })
 
   it('defaults status to dict.initial code on mount when empty', async () => {
