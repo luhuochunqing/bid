@@ -70,7 +70,7 @@
         <h4 style="margin: 0 0 8px">失败详情</h4>
         <el-table :data="allErrors" size="small" max-height="240" stripe>
           <el-table-column prop="sheet" label="工作表" width="100" />
-          <el-table-column prop="message" label="错误信息" show-overflow-tooltip />
+          <el-table-column prop="message" label="错误信息" />
         </el-table>
       </template>
 

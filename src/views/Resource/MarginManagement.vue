@@ -102,24 +102,24 @@
     <!-- 数据表格 -->
     <el-card shadow="never" class="table-card">
       <el-table :data="tableData" v-loading="loading" stripe style="width: 100%; table-layout: fixed;" class="margin-table">
-        <el-table-column type="index" label="序号" width="50" align="center" />
-        <el-table-column prop="projectName" label="项目名称" min-width="200" show-overflow-tooltip>
+        <el-table-column type="index" label="序号" width="65" align="center" />
+        <el-table-column prop="projectName" label="项目名称" min-width="200">
           <template #default="{ row }">
             <el-link type="primary" @click="goToProject(row.projectId)">{{ row.projectName }}</el-link>
           </template>
         </el-table-column>
-        <el-table-column prop="ownerUnit" label="业主单位" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="projectLeaderName" label="项目负责人" width="100" />
+        <el-table-column prop="ownerUnit" label="业主单位" min-width="160" />
+        <el-table-column prop="projectLeaderName" label="项目负责人" width="120" />
         <el-table-column prop="depositAmount" label="保证金金额" width="160" align="right">
           <template #default="{ row }">¥{{ fmtMoney(row.depositAmount) }}</template>
         </el-table-column>
-        <el-table-column prop="paymentDate" label="缴纳日期" width="95">
+        <el-table-column prop="paymentDate" label="缴纳日期" width="115">
           <template #default="{ row }">{{ fmtDate(row.paymentDate) }}</template>
         </el-table-column>
-        <el-table-column prop="depositPaymentMethod" label="缴纳方式" width="80" />
-        <el-table-column prop="payeeName" label="收款方" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="payeeAccount" label="收款账号" width="150" show-overflow-tooltip />
-        <el-table-column prop="expectedReturnDate" label="应退日期" width="95">
+        <el-table-column prop="depositPaymentMethod" label="缴纳方式" width="110" />
+        <el-table-column prop="payeeName" label="收款方" min-width="140" />
+        <el-table-column prop="payeeAccount" label="收款账号" width="150" />
+        <el-table-column prop="expectedReturnDate" label="应退日期" width="110">
           <template #default="{ row }">{{ fmtDate(row.expectedReturnDate) }}</template>
         </el-table-column>
         <el-table-column prop="returnedAmount" label="退回金额" width="150" align="right">
@@ -128,10 +128,10 @@
         <el-table-column prop="serviceFeeAmount" label="服务费" width="130" align="right">
           <template #default="{ row }">{{ row.serviceFeeAmount != null ? '¥' + fmtMoney(row.serviceFeeAmount) : '—' }}</template>
         </el-table-column>
-        <el-table-column prop="actualReturnDate" label="退回日期" width="95">
+        <el-table-column prop="actualReturnDate" label="退回日期" width="110">
           <template #default="{ row }">{{ fmtDate(row.actualReturnDate) }}</template>
         </el-table-column>
-        <el-table-column prop="statusLabel" label="状态" width="70" align="center">
+        <el-table-column prop="statusLabel" label="状态" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="statusTagType(row.statusLabel)" effect="dark" size="small">
               {{ row.statusLabel }}

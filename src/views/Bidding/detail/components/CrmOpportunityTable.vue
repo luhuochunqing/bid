@@ -36,10 +36,10 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="name" label="商机名称" min-width="160" show-overflow-tooltip />
-      <el-table-column prop="code" label="商机编号" width="120" show-overflow-tooltip />
-      <el-table-column prop="groupName" label="集团" width="100" show-overflow-tooltip />
-      <el-table-column prop="projectLeaderName" label="项目负责人" width="100" show-overflow-tooltip />
+      <el-table-column prop="name" label="商机名称" min-width="160" />
+      <el-table-column prop="code" label="商机编号" width="120" />
+      <el-table-column prop="groupName" label="集团" width="100" />
+      <el-table-column prop="projectLeaderName" label="项目负责人" width="100" />
       <el-table-column prop="projectStatusText" label="项目状态" width="80" />
       <el-table-column label="操作" width="80" align="center" fixed="right">
         <template #default="{ row }">

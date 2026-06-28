@@ -43,7 +43,7 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="payee" label="收款方" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="payee" label="收款方" min-width="160" />
         <el-table-column prop="amount" label="金额 (元)" width="150" align="right">
           <template #default="scope">
             <span class="amount-text">¥ {{ scope.row.amount.toLocaleString() }}</span>

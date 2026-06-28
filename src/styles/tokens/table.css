@@ -8,7 +8,7 @@
 
 :root {
   /* --- 列宽默认值 --- */
-  --tk-table-col-index:      60px;   /* 序号列 */
+  --tk-table-col-index:      70px;   /* 序号列 */
   --tk-table-col-checkbox:   50px;   /* 多选列 */
   --tk-table-col-action:     120px;  /* 操作按钮列 */
   --tk-table-col-status:     100px;  /* 状态列 */
@@ -18,4 +18,29 @@
 
   /* --- 冻结列 --- */
   --tk-table-frozen-shadow:  2px 0 4px rgba(0, 0, 0, 0.06);
+}
+
+/* --- 表头不换行、不省略 --- */
+.el-table__header .cell {
+  white-space: nowrap;
+  text-overflow: clip;
+  overflow: visible;
+}
+
+/* --- 表格内容：允许换行，长内容自动换行 --- */
+.el-table__body .cell,
+.el-table__body td {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* --- el-tag 在表格中自适应宽度，不被固定宽度截断 --- */
+.el-table .el-tag {
+  width: auto !important;
+  white-space: nowrap;
+}
+
+.el-table .el-tag__content {
+  width: auto !important;
 }

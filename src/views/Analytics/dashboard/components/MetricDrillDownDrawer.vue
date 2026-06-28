@@ -83,7 +83,7 @@
             :label="column.label"
             :min-width="column.minWidth || 120"
             :width="column.width"
-            :show-overflow-tooltip="column.overflow !== false"
+            :show-overflow-tooltip="column.overflow === true"
           >
             <template #default="{ row }">
               <el-tag

@@ -75,8 +75,8 @@
         <div v-if="result.import.errors && result.import.errors.length" class="error-table-wrapper">
           <el-table :data="result.import.errors" size="small" max-height="200">
             <el-table-column prop="row" label="行号" width="60" />
-            <el-table-column prop="certificateNo" label="证书编号" width="140" show-overflow-tooltip />
-            <el-table-column prop="reason" label="失败原因" show-overflow-tooltip />
+            <el-table-column prop="certificateNo" label="证书编号" width="140" />
+            <el-table-column prop="reason" label="失败原因" />
           </el-table>
         </div>
         <div v-if="result.import.success === result.import.total" class="all-success">

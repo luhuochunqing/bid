@@ -43,7 +43,7 @@
 
     <el-table v-loading="loading" :data="filteredRows" stripe border class="matrix-table">
       <el-table-column prop="method" label="方法" width="88" />
-      <el-table-column prop="path" label="接口路径" min-width="260" show-overflow-tooltip />
+      <el-table-column prop="path" label="接口路径" min-width="260" />
       <el-table-column prop="module" label="模块" width="110" />
       <el-table-column label="允许角色" min-width="160">
         <template #default="{ row }">
@@ -61,8 +61,8 @@
       <el-table-column label="来源" width="130">
         <template #default="{ row }">{{ sourceLabel(row.source) }}</template>
       </el-table-column>
-      <el-table-column prop="expression" label="后端表达式" min-width="230" show-overflow-tooltip />
-      <el-table-column label="处理器" min-width="220" show-overflow-tooltip>
+      <el-table-column prop="expression" label="后端表达式" min-width="230" />
+      <el-table-column label="处理器" min-width="220">
         <template #default="{ row }">{{ row.controller }}.{{ row.handler }}</template>
       </el-table-column>
     </el-table>

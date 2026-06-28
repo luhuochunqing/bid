@@ -9,7 +9,7 @@
     </div>
     <el-table :data="displayFiles" border stripe class="mt-2">
       <el-table-column type="index" label="序号" width="110" align="center" />
-      <el-table-column prop="fileName" label="文件名" min-width="220" show-overflow-tooltip>
+      <el-table-column prop="fileName" label="文件名" min-width="220">
         <template #default="{ row }">
           <div class="file-name-cell">
             <el-icon class="file-icon" :class="getFileIconClass(row.fileName)">

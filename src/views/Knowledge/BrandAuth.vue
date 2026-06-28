@@ -38,7 +38,7 @@
             <el-table-column prop="productLine" label="一级产线" width="120" />
             <el-table-column prop="brandName" label="品牌" width="100" />
             <el-table-column prop="importDomestic" label="进口/国产" width="120" align="center" />
-            <el-table-column prop="manufacturerName" label="品牌原厂名称" min-width="140" show-overflow-tooltip />
+            <el-table-column prop="manufacturerName" label="品牌原厂名称" min-width="140" />
             <el-table-column prop="authStartDate" label="授始" width="100" />
             <el-table-column prop="authEndDate" label="授止" width="100" />
             <el-table-column label="状态" width="100" align="center">
@@ -91,8 +91,8 @@
             <el-table-column prop="productLine" label="一级产线" width="120" />
             <el-table-column prop="brandName" label="品牌" width="100" />
             <el-table-column prop="importDomestic" label="进口/国产" width="120" align="center" />
-            <el-table-column prop="manufacturerName" label="品牌原厂名称" min-width="140" show-overflow-tooltip />
-            <el-table-column prop="agentName" label="代理商名称" min-width="140" show-overflow-tooltip />
+            <el-table-column prop="manufacturerName" label="品牌原厂名称" min-width="140" />
+            <el-table-column prop="agentName" label="代理商名称" min-width="140" />
             <el-table-column label="有效期较早值" width="120" align="center">
               <template #default="{row}">
                 {{ row.authEndDate }}

@@ -22,7 +22,7 @@ Pos: src/views/System/settings/ - System settings panels
           <el-tag size="small" type="info">{{ row.code }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="description" label="角色描述" show-overflow-tooltip />
+      <el-table-column prop="description" label="角色描述" />
       <el-table-column label="菜单权限" min-width="300">
         <template #default="{ row }">
           <div class="permission-tags">

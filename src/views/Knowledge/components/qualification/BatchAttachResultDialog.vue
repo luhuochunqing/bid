@@ -27,9 +27,9 @@
       <div v-if="data.matched?.length" class="matched-section">
         <div class="section-title">成功关联</div>
         <el-table :data="data.matched" size="small" border style="width: 100%">
-          <el-table-column prop="fileName" label="文件名" min-width="180" show-overflow-tooltip />
-          <el-table-column prop="certificateNo" label="证书编号" width="140" show-overflow-tooltip />
-          <el-table-column prop="qualificationName" label="证书名称" min-width="140" show-overflow-tooltip />
+          <el-table-column prop="fileName" label="文件名" min-width="180" />
+          <el-table-column prop="certificateNo" label="证书编号" width="140" />
+          <el-table-column prop="qualificationName" label="证书名称" min-width="140" />
         </el-table>
       </div>
 
@@ -37,8 +37,8 @@
       <div v-if="data.unmatched?.length" class="unmatched-section">
         <div class="section-title">未匹配文件</div>
         <el-table :data="data.unmatched" size="small" border style="width: 100%">
-          <el-table-column prop="fileName" label="文件名" min-width="240" show-overflow-tooltip />
-          <el-table-column prop="reason" label="原因" min-width="160" show-overflow-tooltip />
+          <el-table-column prop="fileName" label="文件名" min-width="240" />
+          <el-table-column prop="reason" label="原因" min-width="160" />
         </el-table>
       </div>
 

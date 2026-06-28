@@ -76,9 +76,9 @@
           >
             <el-table-column prop="fullName" label="姓名" width="120" fixed />
             <el-table-column prop="username" label="用户名" width="120" />
-            <el-table-column prop="email" label="邮箱" min-width="200" show-overflow-tooltip />
+            <el-table-column prop="email" label="邮箱" min-width="200" />
             <el-table-column prop="phone" label="手机号" width="130" />
-            <el-table-column label="部门" width="160" show-overflow-tooltip>
+            <el-table-column label="部门" width="160">
               <template #default="{ row }">
                 <el-select
                   v-if="editingDeptId === row.id"

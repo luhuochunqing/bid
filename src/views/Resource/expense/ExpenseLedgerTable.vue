@@ -12,10 +12,10 @@
 
     <el-table :data="items" stripe v-loading="loading">
       <el-table-column type="index" label="序号" width="80" />
-      <el-table-column label="项目" min-width="180" show-overflow-tooltip>
+      <el-table-column label="项目" min-width="180">
         <template #default="{ row }">{{ row.project || row.projectName || '-' }}</template>
       </el-table-column>
-      <el-table-column label="部门" width="140" show-overflow-tooltip>
+      <el-table-column label="部门" width="140">
         <template #default="{ row }">{{ row.department || row.departmentName || '-' }}</template>
       </el-table-column>
       <el-table-column prop="type" label="费用类型" width="120" />
@@ -33,7 +33,7 @@
           <el-tag v-else type="success">待支付</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="approvalComment" label="审批意见" min-width="180" show-overflow-tooltip />
+      <el-table-column prop="approvalComment" label="审批意见" min-width="180" />
       <el-table-column label="操作" width="180" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" size="small" @click="$emit('detail', row)">详情</el-button>

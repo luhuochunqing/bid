@@ -19,7 +19,7 @@
         @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" :selectable="r => r.status !== 'CLOSED'" />
         <el-table-column type="index" label="序号" width="110" />
-        <el-table-column prop="name" label="仓库名称" min-width="160" show-overflow-tooltip>
+        <el-table-column prop="name" label="仓库名称" min-width="160">
           <template #default="s"><span class="warehouse-name">{{ s.row.name }}</span></template>
         </el-table-column>
         <el-table-column label="仓库类型" width="120" align="center">
@@ -32,7 +32,7 @@
           <template #default="s"><el-tag size="small">{{ s.row.region }}</el-tag></template>
         </el-table-column>
         <el-table-column prop="province" label="所在省份" width="120" />
-        <el-table-column prop="address" label="具体地址" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="address" label="具体地址" min-width="160" />
         <el-table-column prop="area" label="面积(㎡)" width="120" align="right" />
         <el-table-column label="到期天数" width="110" align="center">
           <template #default="s"><el-tag :type="getDaysTag(s.row)">{{ computeDays(s.row) }}</el-tag></template>

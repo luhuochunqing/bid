@@ -74,10 +74,6 @@
                 </div>
               </div>
             </el-dropdown-item>
-            <el-dropdown-item command="keyword-subscription">
-              <el-icon><Bell /></el-icon>
-              关键词订阅
-            </el-dropdown-item>
             <el-dropdown-item v-if="canAccessSettings" command="settings">
               <el-icon><Setting /></el-icon>
               系统设置
@@ -210,9 +206,6 @@ const handleMobileSearch = () => {
 
 const handleCommand = async (command) => {
   switch (command) {
-    case 'keyword-subscription':
-      router.push('/bidding/keyword-subscription')
-      break
     case 'settings':
       if (canAccessSettings.value) {
         router.push('/settings')

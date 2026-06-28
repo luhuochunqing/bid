@@ -76,8 +76,8 @@
       destroy-on-close
     >
       <el-table v-loading="drillDownLoading" :data="drillDownRows" stripe>
-        <el-table-column prop="projectName" label="项目名称" min-width="220" show-overflow-tooltip />
-        <el-table-column prop="customer" label="客户" min-width="140" show-overflow-tooltip />
+        <el-table-column prop="projectName" label="项目名称" min-width="220" />
+        <el-table-column prop="customer" label="客户" min-width="140" />
         <el-table-column prop="customerType" label="客户类型" width="120" />
         <el-table-column prop="status" label="状态" width="110">
           <template #default="{ row }">

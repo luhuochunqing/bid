@@ -36,7 +36,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="purpose" label="用途" show-overflow-tooltip />
+          <el-table-column prop="purpose" label="用途" />
         </el-table>
         <el-empty v-if="!borrowRecords.length" description="暂无借用记录" :image-size="60" />
       </el-tab-pane>

@@ -70,7 +70,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="url" label="网址" min-width="200" show-overflow-tooltip>
+        <el-table-column prop="url" label="网址" min-width="200">
           <template #default="{ row }">
             <el-link v-if="row.url" :href="row.url" target="_blank" type="primary" :underline="false">
               {{ row.url }}
@@ -98,7 +98,7 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="是否有 CA" width="100" align="center">
+          <el-table-column label="是否有 CA" width="120" align="center">
             <template #default="{ row }">
               <el-tag :type="row.hasCa ? 'success' : 'info'" size="small">{{ row.hasCa ? '是' : '否' }}</el-tag>
             </template>
@@ -108,7 +108,7 @@
 
         </template>
         <template v-else>
-          <el-table-column label="是否有 CA" width="100" align="center">
+          <el-table-column label="是否有 CA" width="120" align="center">
             <template #default="{ row }">
               <el-tag :type="row.hasCa ? 'success' : 'info'" size="small">{{ row.hasCa ? '是' : '否' }}</el-tag>
             </template>

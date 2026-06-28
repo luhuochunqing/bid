@@ -36,7 +36,7 @@
       <el-table-column prop="contractName" label="合同名称" min-width="220" />
       <el-table-column prop="borrowerName" label="申请人" width="110" />
       <el-table-column prop="borrowerDept" label="部门" width="130" />
-      <el-table-column prop="purpose" label="用途" min-width="180" show-overflow-tooltip />
+      <el-table-column prop="purpose" label="用途" min-width="180" />
       <el-table-column prop="expectedReturnDate" label="预计归还" width="130" />
       <el-table-column label="状态" width="110">
         <template #default="{ row }">

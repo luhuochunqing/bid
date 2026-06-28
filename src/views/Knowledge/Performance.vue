@@ -94,14 +94,14 @@
       <el-table :data="records" stripe style="width: 100%" @row-click="openDetail" class="custom-table">
         <el-table-column type="selection" width="55" />
         <el-table-column type="index" label="序号" width="110" align="center" />
-        <el-table-column prop="contractName" label="合同名称" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="signingEntity" label="签约单位" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="contractName" label="合同名称" min-width="180" />
+        <el-table-column prop="signingEntity" label="签约单位" min-width="160" />
         <el-table-column prop="customerType" label="客户类型" width="120">
           <template #default="{ row }">
             <el-tag :type="getCustomerTypeTagType(row.customerType)" effect="light">{{ row.customerTypeLabel }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="groupCompany" label="集团公司" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="groupCompany" label="集团公司" min-width="150" />
         <el-table-column prop="projectType" label="项目类型" width="120" align="center">
           <template #default="{ row }"><el-tag type="info" size="small">{{ row.projectTypeLabel }}</el-tag></template>
         </el-table-column>

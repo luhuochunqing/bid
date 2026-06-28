@@ -28,8 +28,8 @@
         <div class="section-title">失败明细</div>
         <el-table :data="data.errors" size="small" border style="width: 100%">
           <el-table-column prop="row" label="行号" width="70" align="center" />
-          <el-table-column prop="certificateNo" label="证书编号" min-width="140" show-overflow-tooltip />
-          <el-table-column prop="reason" label="失败原因" min-width="200" show-overflow-tooltip />
+          <el-table-column prop="certificateNo" label="证书编号" min-width="140" />
+          <el-table-column prop="reason" label="失败原因" min-width="200" />
         </el-table>
       </div>
 

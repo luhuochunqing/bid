@@ -21,7 +21,7 @@
           stripe
           :empty-text="data.projects.length === 0 ? '暂无相关项目' : ''"
         >
-          <el-table-column prop="name" label="项目名称" min-width="180" show-overflow-tooltip />
+          <el-table-column prop="name" label="项目名称" min-width="180" />
           <el-table-column prop="customer" label="客户" width="120" />
           <el-table-column prop="budget" label="预算(万元)" width="100" align="right" />
           <el-table-column prop="status" label="状态" width="100">
@@ -130,8 +130,8 @@
           stripe
           :empty-text="data.files.length === 0 ? '暂无文件' : ''"
         >
-          <el-table-column prop="name" label="文件名" min-width="200" show-overflow-tooltip />
-          <el-table-column prop="project" label="所属项目" width="150" show-overflow-tooltip />
+          <el-table-column prop="name" label="文件名" min-width="200" />
+          <el-table-column prop="project" label="所属项目" width="150" />
           <el-table-column prop="type" label="类型" width="100">
             <template #default="{ row }">
               <el-tag size="small" :type="getFileTypeColor(row.name)">

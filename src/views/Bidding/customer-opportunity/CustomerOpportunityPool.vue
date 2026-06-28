@@ -55,16 +55,16 @@
         <template #empty>
           <el-empty :description="demoEnabled ? '暂无符合条件的客户' : '客户商机数据源未接入'" />
         </template>
-        <el-table-column prop="customerName" label="客户名称" min-width="220" show-overflow-tooltip>
+        <el-table-column prop="customerName" label="客户名称" min-width="220">
           <template #default="{ row }">
             <div class="customer-name-cell">
               <strong>{{ row.customerName }}</strong>
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="region" label="地区" width="100" show-overflow-tooltip />
-        <el-table-column prop="industry" label="行业" width="100" show-overflow-tooltip />
-        <el-table-column prop="salesRep" label="销售负责人" width="140" show-overflow-tooltip />
+        <el-table-column prop="region" label="地区" width="100" />
+        <el-table-column prop="industry" label="行业" width="100" />
+        <el-table-column prop="salesRep" label="销售负责人" width="140" />
         <el-table-column prop="opportunityScore" label="机会评分" width="110" align="center">
           <template #default="{ row }">
             <div class="score-container">

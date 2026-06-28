@@ -105,7 +105,7 @@
             max-height="400"
           >
             <el-table-column prop="applicantName" label="申请人" min-width="80" />
-            <el-table-column prop="purpose" label="用途" min-width="120" show-overflow-tooltip />
+            <el-table-column prop="purpose" label="用途" min-width="120" />
             <el-table-column prop="borrowDate" label="借用日期" width="105" />
             <el-table-column prop="expectedReturnDate" label="预计归还" width="105" />
             <el-table-column prop="actualReturnDate" label="实际归还" width="105">

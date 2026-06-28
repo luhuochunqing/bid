@@ -86,7 +86,7 @@
           <template #default="{row}"><span class="emp-no">{{ row.employeeNumber }}</span></template>
         </el-table-column>
         <el-table-column prop="name" label="姓名" width="100" />
-        <el-table-column label="性别" width="70" align="center">
+        <el-table-column label="性别" width="80" align="center">
           <template #default="{row}">
             <el-tag v-if="row.gender" :type="row.gender==='男'?'primary':'danger'" size="small">{{ row.gender }}</el-tag>
             <span v-else>-</span>
