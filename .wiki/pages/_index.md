@@ -31,6 +31,7 @@ health_checked: 2026-06-27
 - [[ai-capabilities]] — AI 能力
 - [[api-openapi]] — OpenAPI/Swagger 接口规范
 - [[architecture]] — 架构合成
+- [[architecture/effective-role-resolution]] — 有效角色解析规范（Effective Role Resolution）
 - [[business-process]] — 业务流程
 - [[dashboard-gap-analysis]] — 工作台卡片 vs 标书要求对照
 - [[data-model]] — 数据模型
@@ -47,6 +48,7 @@ health_checked: 2026-06-27
 - [[integration-wecom]] — 系统集成中心 - 企业微信
 - [[knowledge-base]] — 4.4 知识库 PRD (产品需求文档)
 - [[lessons-learned]] — 工程经验总结
+- [[lessons-learned/CO-361-five-rounds-no-fix]] — CO-361 五次修复不彻底的教训（反复追症状不追根因的代价）
 - [[modules]] — 模块目录
 - [[multi-agent-defense-playbook]] — 多 Agent 并行开发防御工程化手册
 - [[operations/logging-bug-investigation-guide]] — 日志系统查 Bug 手册

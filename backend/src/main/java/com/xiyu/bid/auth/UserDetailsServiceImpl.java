@@ -74,7 +74,10 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             throw new UsernameNotFoundException(
                     "OSS 用户缓存未命中，禁止 DB 兜底: " + user.getUsername());
         } else {
-            // 本地系统账号（admin 等）：cache miss 时用本地 DB 兜底
+            // SAFE: 本地系统账号（admin 等）在 OSS 缓存未命中时登录。此场景下 OSS 缓存没有，
+            // 必须使用本地 DB roleCode 才能让管理员登录。上方分支已显式拒绝 OSS 用户的 DB 兜底，
+            // 此分支只对 admin 本地账号生效（与 DataScopeConfigService.isLocalSystemAccount 一致）。
+            // 本地账号由用户表 unique key + 密码哈希独立验证，不会触发 CO-373 的 OSS fallback 问题。
             roleCode = user.getRoleCode();
             menuPermissions = user.getRoleProfile() != null ? user.getRoleProfile().getMenuPermissions() : null;
             skipLegacyCompat = RoleProfileCatalog.shouldSkipLegacyRoleCompat(roleCode);

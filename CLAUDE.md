@@ -302,6 +302,13 @@ npm run test:e2e
 - 文档要反映“当前事实 + 待清理事项”，不要再把目标状态写成现状。
 - 发现架构测试、Mock 遗留或安全配置与文档不一致时，应优先修正文档口径，或在同次任务中同步收口代码，而不是继续掩盖。 
 
+### 角色码解析强约束（CO-373 治理）
+
+- **服务层禁止直调 `User.getRoleCode()`**，统一走 `EffectiveRoleResolver.resolveRoleCode(user)` 或 `DataScopeConfigService.getRoleCode(user)`。
+- `User.getRoleCode()` 实体方法已标 `@Deprecated`（OSS 用户 `role_id=NULL` 时 fallback 返回 `"manager"`，是 CO-361 / CO-373 五次反复修复的根因）。
+- pre-push gate 已加 `check-rolecode-direct-calls` 拦截（`scripts/check-rolecode-direct-calls.mjs`）；新增直调必须先迁到统一入口，或在调用点上方加 `// SAFE: <具体豁免理由>` 注释（仅限已记录豁免场景）。
+- 完整教训：`[[lessons-learned/CO-361-five-rounds-no-fix]]`。
+
 ---
 
 ## 多 Agent 执行手册 (SOP 落地)

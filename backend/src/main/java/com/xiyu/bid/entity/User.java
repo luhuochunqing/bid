@@ -142,6 +142,39 @@ public class User {
         }
     }
 
+    /**
+     * 返回用户的角色码。
+     *
+     * <p><b>⚠️ DEPRECATED — 业务权限判定请勿直接调用本方法。</b>
+     * <p>本方法在 OSS 同步用户（{@code role_id=NULL}）时 fallback 返回
+     * {@code "manager"}，会导致业务权限判定误判。这是 CO-361 / CO-373 的根因之一。
+     *
+     * <p>业务权限判定（出现在 {@code if} / 白名单 / 黑名单 / {@code equals} 的场景）
+     * <b>必须</b>走下列统一入口之一：
+     * <ul>
+     *   <li>{@link com.xiyu.bid.security.EffectiveRoleResolver#resolveRoleCode(User)}
+     *       — 服务层权限校验首选入口，OSS-cache-aware + fail-closed</li>
+     *   <li>{@link com.xiyu.bid.admin.service.DataScopeConfigService#getRoleCode(User)}
+     *       — 数据范围配置场景（与 {@code getAccessProfile} 配套使用）</li>
+     * </ul>
+     *
+     * <p>保留直调的合法场景（需在调用点加 {@code // SAFE: <理由>} 注释）：
+     * <ol>
+     *   <li>登录响应装配（{@code AuthResponse}）— 仅作为 SSO/登录契约字段</li>
+     *   <li>MDC 日志上下文（{@code TraceFilter}）— 仅用于链路追踪</li>
+     *   <li>{@code DataScopeConfigService.isLocalSystemAccount} 内部判定 —
+     *       通过 {@code externalOrgSourceApp} + {@code ADMIN_CODE} 双重条件确认本地账户</li>
+     *   <li>{@code DataScopeConfigService.getRoleCode} 自身实现 — admin 本地账户 cache miss 时回退</li>
+     *   <li>{@code EffectiveRoleResolver} 内部读取 entityRoleCode 用于缓存对比决策</li>
+     * </ol>
+     *
+     * <p>新增直调会被 {@code scripts/check-rolecode-direct-calls.mjs} pre-push 检查拦截。
+     *
+     * @see com.xiyu.bid.security.EffectiveRoleResolver
+     * @see com.xiyu.bid.admin.service.DataScopeConfigService#getRoleCode(User)
+     * @see <a href="https://linear.app/ericforai/issue/CO-373">CO-373</a>
+     */
+    @Deprecated
     public String getRoleCode() {
         if (roleProfile != null && roleProfile.getCode() != null && !roleProfile.getCode().isBlank()) {
             // 保留 roleCode 原始大小写：OSS 角色码大小写敏感（如 bidAdmin、bid-TeamLeader）

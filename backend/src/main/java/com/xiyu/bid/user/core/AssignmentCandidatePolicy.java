@@ -63,8 +63,16 @@ public class AssignmentCandidatePolicy {
                 .filter(user -> normalizedDeptCode == null
                         || normalizedDeptCode.equalsIgnoreCase(user.getDepartmentCode()))
                 .filter(user -> normalizedRoleCode == null
+                        // SAFE: FP-Java 纯核心 — 不持有 EffectiveRoleResolver 引用。
+                        // 这里的 user.getRoleCode() 用于候选人角色码过滤（非鉴权判定），
+                        // 过滤结果会再由 caller（外壳）的 EffectiveRoleResolver 做权限判定。
+                        // OSS fallback 不会引发越权，只会让"按角色码过滤候选人"产生偏差
+                        // （OSS 用户的 DB roleCode=NULL→manager 可能被错过滤），是降级而非越权。
+                        // TODO(CO-373 follow-up): 重构为 caller 传入 List<AssignmentCandidate>（已解析字段），
+                        // 让纯核心不再依赖 User.getRoleCode()。CO-373 治理范围。
                         || normalizedRoleCode.equalsIgnoreCase(user.getRoleCode()))
-                // P1.2: 场景化角色排除——task 排除 staff，tender 排除 staff + admin_staff
+                // SAFE: 同上，场景化角色排除（task 排除 staff，tender 排除 staff + admin_staff），
+                // 是候选人过滤而非鉴权判定。OSS fallback 影响同上（降级而非越权）。
                 .filter(user -> context == null || !context.isExcludedRole(user.getRoleCode()))
                 .sorted(Comparator
                         .comparing(User::getDepartmentCode,
@@ -82,6 +90,7 @@ public class AssignmentCandidatePolicy {
                 user.getId(),
                 user.getFullName(),
                 user.getEmployeeNumber(),
+                // SAFE: 候选人 DTO 装配展示字段，不参与鉴权判定。CO-373 治理范围外。
                 user.getRoleCode(),
                 user.getRoleName(),
                 user.getDepartmentCode(),

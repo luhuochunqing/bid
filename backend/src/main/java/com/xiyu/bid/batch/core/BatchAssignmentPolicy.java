@@ -96,6 +96,8 @@ public final class BatchAssignmentPolicy {
     }
 
     private static boolean isAdmin(User user) {
+        // SAFE: admin 本地系统账户判定。admin 是系统内置账号不走 OSS 认证，
+        // 其 DB roleCode 始终是 "admin"（不存在 fallback 雷），是 CO-373 治理明确豁免场景。
         return user != null && "admin".equalsIgnoreCase(user.getRoleCode());
     }
 

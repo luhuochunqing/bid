@@ -49,6 +49,8 @@ final class TaskWorkloadAssembler {
         return TeamTaskWorkloadDTO.TeamMemberWorkloadDTO.builder()
                 .userId(user.getId())
                 .name(user.getFullName())
+                // SAFE: 团队工作量视图的展示字段，列出成员的当前 DB roleCode 用于工作分配；
+                // 此视图鉴权在 controller 层（仅投标管理角色可见），不在此处判定。CO-373 治理范围外。
                 .roleCode(user.getRoleCode())
                 .roleName(user.getRoleName())
                 .deptCode(defaultText(user.getDepartmentCode(), "UNASSIGNED"))

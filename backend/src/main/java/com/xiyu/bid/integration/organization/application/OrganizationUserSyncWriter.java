@@ -73,6 +73,9 @@ public class OrganizationUserSyncWriter {
         boolean allowAdminElevation = resolvedRole.source() == RoleMappingSource.PERSON;
         OrganizationUserSyncPlan plan = OrganizationSyncPolicy.planUserSync(
                 snapshot,
+                // SAFE: OSS 同步场景特有 — 同步时新用户的 DB roleCode 是上一次同步的快照值，
+                // 不存在"OSS 缓存未命中"的场景（同步本身就是要更新 DB）。这里读取的是"待同步 DB 当前值"
+                // 用于对比决策，不是权限判定。CO-373 治理范围外。
                 user.getRoleCode(),
                 normalizeSet(properties.getAdminRoleCodes()),
                 normalizeSet(properties.getManagerRoleCodes()),

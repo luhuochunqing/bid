@@ -28,6 +28,7 @@ public class TenderAssignmentViewAssembler {
                 .name(user.getFullName())
                 .username(user.getUsername())
                 .departmentName(user.getDepartmentName())
+                // SAFE: 标书分配候选人下拉展示用字段，由前端做权限过滤展示；后端不做业务权限判定。CO-373 治理范围外。
                 .roleCode(user.getRoleCode())
                 .build();
     }

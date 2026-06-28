@@ -86,6 +86,7 @@ class DashboardAnalyticsDrillDownContentAssemblerService {
                     double winRate = participation > 0 ? (completedWins * 100.0) / participation : 0.0;
                     return AnalyticsDrillDownTeamDTO.builder()
                             .name(contentSupport.resolveDisplayName(user, null, userId))
+                            // SAFE: 分析下钻面板的展示字段，仅用于前端展示分组，不参与权限判定。CO-373 治理范围外。
                             .role(user != null ? user.getRoleCode().toLowerCase(java.util.Locale.ROOT) : "member")
                             .dept("-")
                             .participation(participation)
@@ -203,6 +204,7 @@ class DashboardAnalyticsDrillDownContentAssemblerService {
                             .id(userId)
                             .title(contentSupport.resolveDisplayName(user, null, userId))
                             .subtitle(user != null ? user.getEmail() : "-")
+                            // SAFE: 分析下钻面板的人员角色展示字段，仅用于前端展示，不参与权限判定。CO-373 治理范围外。
                             .role(user != null ? user.getRoleCode().toUpperCase(java.util.Locale.ROOT) : "UNKNOWN")
                             .count(aggregate.projectCount())
                             .wonCount(aggregate.wonCount())

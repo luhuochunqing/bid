@@ -86,6 +86,8 @@ public class AuditLogItemMapper {
         if (user == null || user.getRole() == null) {
             return "unknown";
         }
+        // SAFE: 审计日志落库展示字段。审计日志要求"操作发生时"的角色快照，与 OSS 缓存当下值无关。
+        // 故有意读取 DB 当前 roleCode 反映日志时刻的真实角色（与行为追溯场景一致）。CO-373 治理范围外。
         return user.getRoleCode().toLowerCase(Locale.ROOT);
     }
 

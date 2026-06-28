@@ -132,6 +132,8 @@ public class AdminUserQueryService {
                 .departmentName(user.getDepartmentName())
                 .employeeNumber(user.getEmployeeNumber())
                 .roleId(user.getRoleProfile() == null ? null : user.getRoleProfile().getId())
+                // SAFE: 管理员后台用户列表展示字段，列出所有用户的 DB 当前 roleCode 用于审计/管理；
+                // 调用此 API 的已是 admin 管理员，鉴权在 controller 层完成。CO-373 治理范围外。
                 .roleCode(user.getRoleCode())
                 .roleName(user.getRoleName())
                 .enabled(Boolean.TRUE.equals(user.getEnabled()))

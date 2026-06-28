@@ -79,6 +79,9 @@ public class TraceFilter extends OncePerRequestFilter {
         User user = currentUserResolver.getCurrentUser();
         if (user != null) {
             MDC.put(TraceConstants.MDC_USER_ID_KEY, String.valueOf(user.getId()));
+            // SAFE: MDC 链路追踪日志上下文，仅用于日志聚合与检索，不参与权限判定。
+            // 此处读取的 roleCode 会出现在 traceId 关联的所有日志中，便于事后审计"当时角色"。
+            // CO-373 治理范围外。
             MDC.put(TraceConstants.MDC_ROLE_CODE_KEY, user.getRoleCode());
         } else {
             MDC.put(TraceConstants.MDC_USER_ID_KEY, "anonymous");

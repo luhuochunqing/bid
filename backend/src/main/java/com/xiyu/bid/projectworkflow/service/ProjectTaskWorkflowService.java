@@ -68,7 +68,10 @@ class ProjectTaskWorkflowService {
                 .assigneeId(assigneeUser != null ? assigneeUser.getId() : request.getAssigneeId())
                 .assigneeDeptCode(assigneeUser != null ? assigneeUser.getDepartmentCode() : trimToNull(request.getAssigneeDeptCode()))
                 .assigneeDeptName(assigneeUser != null ? assigneeUser.getDepartmentName() : defaultString(trimToNull(request.getAssigneeDeptName()), "未配置部门"))
-                .assigneeRoleCode(assigneeUser != null ? assigneeUser.getRoleCode() : trimToNull(request.getAssigneeRoleCode()))
+                // SAFE: 任务指派时将"被指派人"的 roleCode 快照写入 task 表（assignee_role_code 字段）。
+// 该字段是任务的"创建时点角色快照"，用于后续审计与展示（如"指派给张三（投标专员）"），
+// 不参与任何运行时权限判定；运行时权限判定走 TaskVisibilityPolicy + EffectiveRoleResolver。CO-373 治理范围外。
+.assigneeRoleCode(assigneeUser != null ? assigneeUser.getRoleCode() : trimToNull(request.getAssigneeRoleCode()))
                 .assigneeRoleName(assigneeUser != null ? assigneeUser.getRoleName() : trimToNull(request.getAssigneeRoleName()))
                 .priority(toEntityPriority(request.getPriority()))
                 .status(Task.Status.TODO)

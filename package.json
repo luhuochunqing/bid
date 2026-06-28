@@ -57,6 +57,7 @@
     "check:line-budgets": "node scripts/check-line-budgets.mjs",
     "check:line-budgets:staged": "node scripts/check-line-budgets.mjs --staged",
     "check:task-status-literal": "node scripts/check-task-status-literal.mjs",
+    "check:rolecode-direct-calls": "node scripts/check-rolecode-direct-calls.mjs",
     "check:vue-template-balance": "node scripts/check-vue-template-balance.mjs",
     "check:vue-template-balance:staged": "node scripts/check-vue-template-balance.mjs --staged",
     "check:dead-roles": "node scripts/check-dead-roles.mjs",

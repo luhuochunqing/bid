@@ -224,6 +224,23 @@ else
   fi
 fi
 
+# ── 9.5. CO-373 直调拦截（User.getRoleCode） ──────────────
+# CO-373 根因：OSS 同步用户 role_id=NULL 时，User.getRoleCode() 实体 fallback 返回
+# "manager"，导致下游业务权限误判。新增直调必须改为 EffectiveRoleResolver / DataScopeConfigService，
+# 或在上方加 // SAFE: 注释（仅限已记录豁免场景）。
+echo "── CO-373 直调拦截 ──"
+if [ ! -d "$ROOT_DIR/backend/src/main" ]; then
+  skip "无 Java 源码"
+elif [ "${BACKEND_CHANGED:-0}" -eq 0 ]; then
+  skip "RoleCode 直调拦截（无 backend/ 变更）"
+else
+  if node "$ROOT_DIR/scripts/check-rolecode-direct-calls.mjs" 2>&1; then
+    pass "RoleCode 直调拦截"
+  else
+    fail "RoleCode 直调拦截 — 新增 User.getRoleCode() 直调。迁移到 EffectiveRoleResolver.resolveRoleCode(user) 或加 // SAFE: 注释。详见 scripts/check-rolecode-direct-calls.mjs"
+  fi
+fi
+
 # ── 10. 路由-E2E 兼容性检查 ────────────────────────────
 echo "── 路由-E2E 兼容 ──"
 STAGED_ROUTES=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -cE '^src/(router|views)/' || true)

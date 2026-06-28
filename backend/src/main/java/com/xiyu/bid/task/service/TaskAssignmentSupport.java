@@ -206,6 +206,9 @@ public class TaskAssignmentSupport {
                     user.getId(),
                     user.getDepartmentCode(),
                     user.getDepartmentName(),
+                    // SAFE: AssignmentSnapshot 是任务指派操作的字段快照，与 Task.assignee_role_code 同性质：
+                    // 保存"指派时点"的角色码，用于后续审计与展示，运行时权限判定走 TaskVisibilityPolicy。
+                    // CO-373 治理范围外。
                     user.getRoleCode(),
                     user.getRoleName()
             );

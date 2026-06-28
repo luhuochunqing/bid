@@ -104,6 +104,8 @@ public class DataScopeConfigAssembler {
                 .userId(user.getId()).userName(user.getFullName())
                 .deptCode(DepartmentGraphPolicy.normalizeCode(user.getDepartmentCode()))
                 .dept(DepartmentGraphPolicy.normalizeName(user.getDepartmentName()))
+                // SAFE: 数据范围配置页的展示字段。配置页面需要展示当前 DB 存储的角色码（用于和 OSS 缓存对比审计），
+                // 这里是有意读取本地 DB 值的展示场景，不参与任何权限判定。CO-373 治理范围。
                 .role(user.getRoleCode())
                 .dataScope(DataScopePolicy.normalizeScope(rule == null ? null : rule.getDataScope()))
                 .allowedProjects(rule == null ? List.of() : DataScopePolicy.normalizeProjectIds(rule.getAllowedProjectIds()))
@@ -150,6 +152,7 @@ public class DataScopeConfigAssembler {
                 .id(user.getId())
                 .name(user.getFullName())
                 .roleId(roleId)
+                // SAFE: 数据范围配置页的下拉选项展示用，CO-373 治理范围外的展示字段。
                 .role(user.getRoleCode())
                 .roleName(user.getRoleName())
                 .deptCode(DepartmentGraphPolicy.normalizeCode(user.getDepartmentCode()))
@@ -158,7 +161,11 @@ public class DataScopeConfigAssembler {
     }
 
     private DataScopeConfigResponse.UserItem toUserItem(User user) {
-        return DataScopeConfigResponse.UserItem.builder().id(user.getId()).username(user.getUsername()).fullName(user.getFullName()).email(user.getEmail()).phone(user.getPhone()).departmentCode(DepartmentGraphPolicy.normalizeCode(user.getDepartmentCode())).departmentName(DepartmentGraphPolicy.normalizeName(user.getDepartmentName())).roleId(user.getRoleProfile() == null ? null : user.getRoleProfile().getId()).role(user.getRoleCode()).roleName(user.getRoleName()).enabled(Boolean.TRUE.equals(user.getEnabled())).build();
+        return DataScopeConfigResponse.UserItem.builder().id(user.getId()).username(user.getUsername()).fullName(user.getFullName()).email(user.getEmail()).phone(user.getPhone()).departmentCode(DepartmentGraphPolicy.normalizeCode(user.getDepartmentCode())).departmentName(DepartmentGraphPolicy.normalizeName(user.getDepartmentName())).roleId(user.getRoleProfile() == null ? null : user.getRoleProfile().getId())
+                // SAFE: 数据范围配置页用户清单展示字段。配置页面需要展示 DB 当前角色码供管理员审计 OSS 同步是否一致，
+                // 这里是有意的 DB 直读展示场景。CO-373 治理范围。
+                .role(user.getRoleCode())
+                .roleName(user.getRoleName()).enabled(Boolean.TRUE.equals(user.getEnabled())).build();
     }
 
     private List<DataScopeConfigPayload.DepartmentNode> toPayloadDepartments(List<DataScopeConfigResponse.DepartmentTreeItem> items) {
