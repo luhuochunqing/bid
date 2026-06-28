@@ -18,6 +18,7 @@ import com.xiyu.bid.project.repository.ProjectResultRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.tender.service.TenderStatusSyncService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -53,6 +54,7 @@ class ProjectResultRegistrationServiceTest {
     private com.xiyu.bid.service.ProjectAccessScopeService accessScopeService;
     private ProjectNotificationService notificationService;
     private ApplicationEventPublisher eventPublisher;
+    private TenderStatusSyncService tenderStatusSyncService;
     private ProjectResultRegistrationService service;
 
     @BeforeEach
@@ -66,7 +68,8 @@ class ProjectResultRegistrationServiceTest {
         competitorRepo = mock(ProjectResultCompetitorRepository.class);
         notificationService = mock(ProjectNotificationService.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
-        service = new ProjectResultRegistrationService(repo, competitorRepo, projectRepo, tenderRepo, userRepo, stageService, accessScopeService, notificationService, eventPublisher);
+        tenderStatusSyncService = mock(TenderStatusSyncService.class);
+        service = new ProjectResultRegistrationService(repo, competitorRepo, projectRepo, tenderRepo, userRepo, stageService, accessScopeService, notificationService, eventPublisher, tenderStatusSyncService);
         Project p = new Project();
         p.setId(1L);
         when(projectRepo.findById(1L)).thenReturn(Optional.of(p));

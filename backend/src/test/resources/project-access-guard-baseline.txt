@@ -165,3 +165,4 @@ src/main/java/com/xiyu/bid/qualification/controller/QualificationAuditController
 src/main/java/com/xiyu/bid/tender/service/TenderAuditService.java | 标讯审计服务，审计日志非项目数据边界。
 src/main/java/com/xiyu/bid/task/service/TaskPermissionGuard.java | 任务权限守卫，编排 TaskOperationPolicy（角色+负责人匹配）；项目访问边界由 ProjectAccessScopeService 在 TaskService 层守卫，本类仅做任务级操作授权。
 src/main/java/com/xiyu/bid/qualification/controller/DepositTrackingController.java | Uses custom strict check for primary/secondary leads instead of generic project access guard
+src/main/java/com/xiyu/bid/tender/service/TenderStatusSyncService.java | 标讯状态同步服务，由 ProjectResultRegistrationService 在项目结果登记后调用（已通过项目权限校验），不独立处理用户请求，只通过 tenderId 查 Tender 实体做状态同步。

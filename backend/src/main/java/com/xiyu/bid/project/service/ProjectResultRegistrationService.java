@@ -26,6 +26,7 @@ import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
+import com.xiyu.bid.tender.service.TenderStatusSyncService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -65,6 +66,7 @@ public class ProjectResultRegistrationService {
     private final ProjectAccessScopeService projectAccessScopeService;
     private final ProjectNotificationService notificationService;
     private final ApplicationEventPublisher eventPublisher;
+    private final TenderStatusSyncService tenderStatusSyncService;
 
     @Auditable(action = "REGISTER_PROJECT_RESULT", entityType = "ProjectResult", description = "登记项目结果")
     public ResultDTO register(Long projectId, ResultRegistrationRequest req, Long currentUserId) {
@@ -136,6 +138,15 @@ public class ProjectResultRegistrationService {
 
         // 通知 #13: 登记中标/未中标/流标 → 团队成员+管理员
         notificationService.notifyResultRegistered(projectId, req.getResultType().name(), currentUserId);
+
+        // 项目结果登记后同步标讯状态到与项目结果一致的终态（修复标讯转项目后状态断链）
+        // 同步失败不阻塞项目结果登记（项目侧已成功，标讯同步是副作用，失败只 log warn）
+        try {
+            tenderStatusSyncService.syncFromProjectResult(project.getTenderId(), req.getResultType());
+        } catch (RuntimeException ex) {
+            log.warn("Failed to sync tender status from project result: project={}, tenderId={}, result={}",
+                    projectId, project.getTenderId(), req.getResultType(), ex);
+        }
 
         return toDto(saved, currentUserId);
     }
