@@ -171,11 +171,11 @@
 </template>
 
 <script setup>
-import { computed, nextTick, ref, shallowRef } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 import { DocumentCopy, Upload } from '@element-plus/icons-vue'
 import AdaptiveFormPage from '@/components/common/AdaptiveFormPage.vue'
 import { chinaRegionOptions } from '@/components/common/chinaRegionData.js'
-import { useRegionCascaderValue, REGION_CASCADER_PROPS } from '@/composables/useRegionCascaderValue.js'
+import { useRegionCascaderValue, REGION_CASCADER_PROPS, createRegionCascaderAutoClose } from '@/composables/useRegionCascaderValue.js'
 import {
   CUSTOMER_TYPE_OPTIONS,
   MANUAL_FORM_RULES,
@@ -211,13 +211,9 @@ const regionCascaderValue = useRegionCascaderValue(
   { emptyValue: '' },
 )
 
-// CO-381: 选中市级（路径长度 >= 2）后自动关闭下拉框
+// CO-381: 选中市级后自动关闭下拉框（setTimeout(0) 绕过 doExpand 同步重开）
 const regionCascaderRef = ref(null)
-function onRegionCascaderChange(val) {
-  if (Array.isArray(val) && val.length >= 2) {
-    nextTick(() => regionCascaderRef.value?.togglePopperVisible?.(false))
-  }
-}
+const onRegionCascaderChange = createRegionCascaderAutoClose(regionCascaderRef)
 
 const acceptFileTypes = ACCEPT_FILE_TYPES
 

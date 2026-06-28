@@ -8,6 +8,7 @@
       </el-form-item>
       <el-form-item label="总部所在地" class="search-field">
         <el-cascader
+          ref="regionCascaderRef"
           v-model="regionValue"
           :options="chinaRegionOptions"
           :props="REGION_CASCADER_PROPS"
@@ -16,6 +17,7 @@
           filterable
           class="filter-select"
           style="width:100%"
+          @change="onRegionCascaderChange"
         />
       </el-form-item>
       <el-form-item label="状态" class="search-field">
@@ -83,9 +85,9 @@
 import { RefreshLeft, Search } from '@element-plus/icons-vue'
 import { SOURCE_FILTER_OPTIONS, PROJECT_TYPE_OPTIONS, CUSTOMER_TYPE_OPTIONS, PRIORITY_OPTIONS } from '../constants.js'
 import { chinaRegionOptions } from '@/components/common/chinaRegionData.js'
-import { useRegionCascaderValue, REGION_CASCADER_PROPS } from '@/composables/useRegionCascaderValue.js'
+import { useRegionCascaderValue, REGION_CASCADER_PROPS, createRegionCascaderAutoClose } from '@/composables/useRegionCascaderValue.js'
 import UserPicker from '@/components/common/UserPicker.vue'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 const modelValue = defineModel({ type: Object, required: true })
 defineEmits(['search', 'reset'])
@@ -103,6 +105,10 @@ const regionValue = useRegionCascaderValue(
   (v) => { modelValue.value.region = v },
   { emptyValue: null },
 )
+
+// CO-381: 选中市级后自动关闭下拉框
+const regionCascaderRef = ref(null)
+const onRegionCascaderChange = createRegionCascaderAutoClose(regionCascaderRef)
 
 const registrationDeadlineRange = computed({
   get: () => {

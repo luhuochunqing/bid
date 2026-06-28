@@ -3,7 +3,7 @@
 // Pos: src/composables/ - 总部所在地 cascader 通用绑定（被 ManualTenderDialog / TenderBasicInfoTab / TenderSearchCard 共 3 处复用）
 // 维护声明: 若 cascader 组件或 chinaRegionData.js 工具函数接口变化，需同步更新本文件。
 
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import {
   normalizeHeadquartersRegionPath,
   regionValueToCascaderPath,
@@ -54,6 +54,32 @@ export function useRegionCascaderValue(getter, setter, options = {}) {
       }
     },
   })
+}
+
+/**
+ * CO-381: el-cascader 在 checkStrictly: true 下选中市级后自动关闭下拉框。
+ *
+ * 根因：checkStrictly 模式下，选中节点后 Element Plus 会同步调用 doExpand()
+ * 展开下一级菜单（node.vue2.mjs handleSelectCheck），并触发 expandChange →
+ * updatePopperPosition，导致 popper 保持可见。用 nextTick（微任务）关闭会被
+ * 同步的 doExpand 覆盖；改用 setTimeout(0)（宏任务）确保在 doExpand 之后执行。
+ *
+ * 用法：
+ *   const cascaderRef = ref(null)
+ *   const onRegionChange = createRegionCascaderAutoClose(cascaderRef)
+ *   <el-cascader ref="cascaderRef" @change="onRegionChange" />
+ *
+ * @param {import('vue').Ref} cascaderRef - el-cascader 组件实例的 ref
+ * @returns {(val: any) => void} 绑定到 @change 的回调
+ */
+export function createRegionCascaderAutoClose(cascaderRef) {
+  return (val) => {
+    // 选中市级（路径长度 >= 2）或直辖市区级（路径长度 3）后关闭
+    if (!Array.isArray(val) || val.length < 2) return
+    setTimeout(() => {
+      cascaderRef.value?.togglePopperVisible?.(false)
+    }, 0)
+  }
 }
 
 function readValue(getter) {

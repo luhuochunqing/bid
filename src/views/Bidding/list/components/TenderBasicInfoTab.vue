@@ -11,6 +11,7 @@
           <el-col :span="12">
             <el-form-item label="总部所在地" prop="region">
               <el-cascader
+                ref="regionCascaderRef"
                 v-model="regionCascaderValue"
                 :options="chinaRegionOptions"
                 :props="REGION_CASCADER_PROPS"
@@ -18,6 +19,7 @@
                 clearable
                 filterable
                 class="full-width"
+                @change="onRegionCascaderChange"
               />
             </el-form-item>
           </el-col>
@@ -102,7 +104,7 @@
 import { ref } from 'vue'
 import { DocumentCopy, Upload } from '@element-plus/icons-vue'
 import { chinaRegionOptions } from '@/components/common/chinaRegionData.js'
-import { useRegionCascaderValue, REGION_CASCADER_PROPS } from '@/composables/useRegionCascaderValue.js'
+import { useRegionCascaderValue, REGION_CASCADER_PROPS, createRegionCascaderAutoClose } from '@/composables/useRegionCascaderValue.js'
 
 const innerFormRef = ref(null)
 
@@ -132,6 +134,10 @@ const regionCascaderValue = useRegionCascaderValue(
   (v) => { props.form.region = v },
   { emptyValue: '' },
 )
+
+// CO-381: 选中市级后自动关闭下拉框
+const regionCascaderRef = ref(null)
+const onRegionCascaderChange = createRegionCascaderAutoClose(regionCascaderRef)
 </script>
 
 <style scoped>
