@@ -473,6 +473,50 @@ describe('TaskForm', () => {
     expect(form.props('disabled')).toBe(true)
   })
 
+  it('view mode renders saved deliverables as downloadable links, not as disabled upload items', async () => {
+    const wrapper = mount(TaskForm, {
+      props: {
+        mode: 'view',
+        modelValue: {
+          id: 31,
+          projectId: 12,
+          name: 'X',
+          deliverables: [{ id: 5, name: '附件3-商铺平面图.pdf', url: 'doc-insight://tender-file/12/x.pdf' }],
+        },
+      },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+
+    // 已保存交付物应渲染为可下载链接（deliverable-link）
+    const links = wrapper.findAll('.deliverable-link')
+    expect(links).toHaveLength(1)
+    expect(links[0].text()).toBe('附件3-商铺平面图.pdf')
+
+    // 不应把已保存交付物塞进 el-upload 的 file-list（导致灰色禁用重复条目）
+    const upload = wrapper.findComponent({ name: 'ElUpload' })
+    expect(upload.props('fileList')).toEqual([])
+  })
+
+  it('clicking a deliverable link triggers downloadDeliverable', async () => {
+    const wrapper = mount(TaskForm, {
+      props: {
+        mode: 'view',
+        modelValue: {
+          id: 31,
+          projectId: 12,
+          name: 'X',
+          deliverables: [{ id: 5, name: '附件3-商铺平面图.pdf', url: 'doc-insight://tender-file/12/x.pdf' }],
+        },
+      },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+
+    await wrapper.find('.deliverable-link').trigger('click')
+    expect(downloadWithFilename).toHaveBeenCalled()
+  })
+
   it('renders activity tab for existing tasks', async () => {
     const wrapper = mount(TaskForm, {
       props: { mode: 'edit', modelValue: { id: 99, name: 'X' } },
