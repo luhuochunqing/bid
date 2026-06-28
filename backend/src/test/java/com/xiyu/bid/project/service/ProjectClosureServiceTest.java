@@ -243,4 +243,73 @@ class ProjectClosureServiceTest {
         assertTrue(ex.getReason() != null && ex.getReason().contains("保证金未退回"));
         verify(closureRepo, never()).save(any());
     }
+
+    // ---------- exportDocuments（一键导出文档）----------
+
+    @Test
+    void exportDocuments_closureNotFound_throws404() {
+        when(closureRepo.findByProjectId(PID)).thenReturn(Optional.empty());
+        var ex = assertThrows(ResponseStatusException.class,
+                () -> service.exportDocuments(PID, UID));
+        assertEquals(404, ex.getStatusCode().value());
+        assertTrue(ex.getReason() != null && ex.getReason().contains("未找到项目结项申请"));
+    }
+
+    @Test
+    void exportDocuments_closureNotApproved_throws409() {
+        ProjectClosure closure = new ProjectClosure();
+        closure.setProjectId(PID);
+        closure.setReviewStatus("PENDING");
+        closure.setStageLocked(false);
+        when(closureRepo.findByProjectId(PID)).thenReturn(Optional.of(closure));
+
+        var ex = assertThrows(ResponseStatusException.class,
+                () -> service.exportDocuments(PID, UID));
+        assertEquals(409, ex.getStatusCode().value());
+        assertTrue(ex.getReason() != null && ex.getReason().contains("结项审批通过后才能进行结项归档导出"));
+    }
+
+    @Test
+    void exportDocuments_approved_callsDocumentExportService() {
+        ProjectClosure closure = new ProjectClosure();
+        closure.setProjectId(PID);
+        closure.setReviewStatus("APPROVED");
+        closure.setStageLocked(true);
+        when(closureRepo.findByProjectId(PID)).thenReturn(Optional.of(closure));
+
+        com.xiyu.bid.entity.User user = new com.xiyu.bid.entity.User();
+        user.setId(UID);
+        user.setFullName("测试用户");
+        when(userRepository.findById(UID)).thenReturn(Optional.of(user));
+
+        var exportDto = com.xiyu.bid.documentexport.dto.DocumentExportDTO.builder()
+                .id(999L).projectId(PID).format("json").build();
+        when(documentExportService.createExport(eq(PID), any())).thenReturn(exportDto);
+
+        var result = service.exportDocuments(PID, UID);
+
+        assertNotNull(result);
+        assertEquals(999L, result.getId());
+        assertEquals("json", result.getFormat());
+        verify(documentExportService).createExport(eq(PID), any(com.xiyu.bid.documentexport.dto.DocumentExportCreateRequest.class));
+    }
+
+    @Test
+    void exportDocuments_stageLockedButNotApproved_callsDocumentExportService() {
+        // stageLocked=true 但 reviewStatus 非 APPROVED（如已结项但审批记录丢失）也能导出
+        ProjectClosure closure = new ProjectClosure();
+        closure.setProjectId(PID);
+        closure.setReviewStatus("DRAFT");
+        closure.setStageLocked(true);
+        when(closureRepo.findByProjectId(PID)).thenReturn(Optional.of(closure));
+
+        var exportDto = com.xiyu.bid.documentexport.dto.DocumentExportDTO.builder()
+                .id(888L).projectId(PID).format("json").build();
+        when(documentExportService.createExport(eq(PID), any())).thenReturn(exportDto);
+
+        var result = service.exportDocuments(PID, UID);
+
+        assertNotNull(result);
+        assertEquals(888L, result.getId());
+    }
 }

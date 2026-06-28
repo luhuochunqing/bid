@@ -43,6 +43,8 @@ export const iconMap = {
   'project-timeline': 'Clock',
   'project-member': 'User',
   'project-task': 'Tickets',
+  'task': 'Tickets',
+  'task-board': 'Tickets',
 
   // ========== 知识库 ==========
   'knowledge': 'Reading',
