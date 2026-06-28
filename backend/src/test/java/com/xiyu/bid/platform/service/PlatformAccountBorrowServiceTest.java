@@ -261,4 +261,51 @@ class PlatformAccountBorrowServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("保管员信息不匹配");
     }
+
+    @Test
+    @DisplayName("提交申请时预计归还时间格式非法抛出异常")
+    void submitApplication_invalidExpectedReturnAt_throws() {
+        PlatformAccount account = PlatformAccount.builder().id(1L).status(AccountStatus.AVAILABLE).custodian(20L).build();
+        BorrowApplicationRequest req = BorrowApplicationRequest.builder()
+                .accountId(1L).custodianId(20L).purpose("投标使用")
+                .expectedReturnAt("2026/07/10 18:00").build();
+
+        when(accountRepository.findById(1L)).thenReturn(Optional.of(account));
+
+        assertThatThrownBy(() -> service.submitApplication(req, USER))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("预计归还时间格式不正确");
+    }
+
+    @Test
+    @DisplayName("按非法状态查询申请列表抛出异常")
+    void getApplications_invalidStatus_throws() {
+        assertThatThrownBy(() -> service.getApplications(null, null, "UNKNOWN_STATUS"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("非法的申请状态");
+    }
+
+    @Test
+    @DisplayName("审批非待审批状态申请抛出异常")
+    void approveApplication_invalidState_throws() {
+        AccountBorrowApplication app = AccountBorrowApplication.builder()
+                .id(100L).accountId(1L).custodianId(10L).status(BorrowStatus.BORROWED).build();
+        when(applicationRepository.findById(100L)).thenReturn(Optional.of(app));
+
+        assertThatThrownBy(() -> service.approveApplication(100L, "同意", USER))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("只能在待审批状态下通过申请");
+    }
+
+    @Test
+    @DisplayName("归还未借出状态申请抛出异常")
+    void returnAccount_invalidState_throws() {
+        AccountBorrowApplication app = AccountBorrowApplication.builder()
+                .id(100L).accountId(1L).custodianId(10L).status(BorrowStatus.PENDING_APPROVAL).build();
+        when(applicationRepository.findById(100L)).thenReturn(Optional.of(app));
+
+        assertThatThrownBy(() -> service.returnAccount(100L, "newSecret", LocalDateTime.now(), USER))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("只能在已借出状态下归还账号");
+    }
 }

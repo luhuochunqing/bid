@@ -155,6 +155,18 @@ class PlatformAccountBorrowControllerTest {
                 .andExpect(jsonPath("$.data.status").value("RETURNED"));
     }
 
+    @Test
+    @DisplayName("归还账号时实际归还时间格式非法返回业务错误")
+    void returnAccount_invalidDateFormat_returnsBusinessError() throws Exception {
+        mockMvc.perform(post("/api/borrow-applications/100/return")
+                        .principal(authToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newPassword\":\"newSecret\",\"actualReturnedAt\":\"2026/07/05 18:00\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.msg").value(org.hamcrest.Matchers.containsString("实际归还时间格式不正确")));
+    }
+
     private TestingAuthenticationToken authToken() {
         org.springframework.security.core.userdetails.UserDetails userDetails =
                 org.springframework.security.core.userdetails.User
