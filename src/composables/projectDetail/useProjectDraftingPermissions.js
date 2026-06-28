@@ -59,12 +59,27 @@ export function useProjectDraftingPermissions(opts = {}) {
   const isLeadAssist = computed(() => roleGroup.value === 'lead_assist')
   const isExecutor = computed(() => roleGroup.value === 'executor')
 
-  const isProjectLeader = computed(() => {
-    if (role.value !== 'bid-projectLeader') return false
+  /**
+   * 当前用户是否为该项目分配的投标负责人/辅助人员。
+   * 与后端 {@link BidSubmissionAuthorizationPolicy} 对齐：
+   * - bid-projectLeader 匹配 primaryLeadId
+   * - bid-Team 匹配 primaryLeadId 或 secondaryLeadId
+   */
+  const isProjectLeadMatch = computed(() => {
+    if (roleGroup.value !== 'lead_assist') return false
     const currentUserId = resolveOpt(opts.currentUserId)
     if (!currentUserId) return false
+    const uid = String(currentUserId)
     const primaryLeadId = resolveOpt(opts.primaryLeadId)
-    return primaryLeadId != null && String(currentUserId) === String(primaryLeadId)
+    const secondaryLeadId = resolveOpt(opts.secondaryLeadId)
+    if (role.value === 'bid-projectLeader') {
+      return !!(primaryLeadId != null && String(primaryLeadId) === uid)
+    }
+    if (role.value === 'bid-Team') {
+      return !!((primaryLeadId != null && String(primaryLeadId) === uid)
+        || (secondaryLeadId != null && String(secondaryLeadId) === uid))
+    }
+    return false
   })
 
   // ── AI 能力 ────────────────────────────────────────────────────────────────
@@ -137,9 +152,9 @@ export function useProjectDraftingPermissions(opts = {}) {
     roleGroup.value === 'admin_lead' || roleGroup.value === 'lead_assist'
   )
 
-  /** 选择标书审核人：仅管理员/组长 + 当前项目投标负责人 */
+  /** 选择标书审核人：管理员/组长 + 当前项目投标负责人/辅助人员 */
   const canSelectReviewer = computed(() =>
-    isAdminLead.value || isProjectLeader.value
+    isAdminLead.value || isProjectLeadMatch.value
   )
 
   /** 审核投标（通过/驳回）— 仅指派的审核人本人可操作，与角色无关（对齐后端 BidReviewPolicy.canApprove/canReject） */
@@ -151,24 +166,9 @@ export function useProjectDraftingPermissions(opts = {}) {
   })
 
   /** 提交投标（投标管理员/组长 + 该项目分配的投标负责人/辅助人员） */
-  const canSubmitBid = computed(() => {
-    if (roleGroup.value === 'admin_lead') return true
-    const currentUserId = resolveOpt(opts.currentUserId)
-    if (roleGroup.value !== 'lead_assist' || !currentUserId) return false
-    const uid = String(currentUserId)
-    const primaryLeadId = resolveOpt(opts.primaryLeadId)
-    const secondaryLeadId = resolveOpt(opts.secondaryLeadId)
-    // bid-projectLeader（投标项目负责人）仅匹配 primaryLeadId
-    // bid-Team（投标专员）可作为投标负责人或辅助人员
-    if (role.value === 'bid-projectLeader') {
-      return !!(primaryLeadId && String(primaryLeadId) === uid)
-    }
-    if (role.value === 'bid-Team') {
-      return !!((primaryLeadId && String(primaryLeadId) === uid)
-        || (secondaryLeadId && String(secondaryLeadId) === uid))
-    }
-    return false
-  })
+  const canSubmitBid = computed(() =>
+    isAdminLead.value || isProjectLeadMatch.value
+  )
 
   /** 提交投标审核。
    *  当前与 {@link #canSubmitBid} 同口径（admin_lead 直通，lead_assist 需匹配项目级 lead），
@@ -197,7 +197,6 @@ export function useProjectDraftingPermissions(opts = {}) {
     isAdminLead,
     isLeadAssist,
     isExecutor,
-    isProjectLeader,
     // AI
     canAIScoreDraftDecompose,
     canAITenderBreakdown,
