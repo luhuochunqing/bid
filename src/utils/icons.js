@@ -15,7 +15,6 @@ import {
   Refresh,
 
   // 状态图标
-  Success,
   Warning,
   InfoFilled,
   CircleCheck,
@@ -28,7 +27,6 @@ import {
   Checked,
   TrendCharts,
   PieChart,
-  Shield,
   Timer,
   Clock,
 
@@ -74,7 +72,6 @@ import {
   Link,
   Star,
   StarFilled,
-  Thumb,
   Position,
   Coordinate,
   Grid,
@@ -95,7 +92,6 @@ export const icons = {
   Refresh,
 
   // 状态图标
-  Success,
   Warning,
   InfoFilled,
   CircleCheck,
@@ -108,7 +104,6 @@ export const icons = {
   Checked,
   TrendCharts,
   PieChart,
-  Shield,
   Timer,
   Clock,
 
@@ -154,7 +149,6 @@ export const icons = {
   Link,
   Star,
   StarFilled,
-  Thumb,
   Position,
   Coordinate,
   Grid,
@@ -171,11 +165,11 @@ export const basicIcons = {
 }
 
 export const statusIcons = {
-  Success, Warning, InfoFilled, CircleCheck, CircleClose
+  Warning, InfoFilled, CircleCheck, CircleClose
 }
 
 export const aiIcons = {
-  Magic, Opportunity, EditPen, Checked, TrendCharts, PieChart, Shield, Timer, Clock
+  Magic, Opportunity, EditPen, Checked, TrendCharts, PieChart, Timer, Clock
 }
 
 export const navIcons = {
