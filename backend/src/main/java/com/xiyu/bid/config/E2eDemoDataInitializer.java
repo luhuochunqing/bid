@@ -23,7 +23,10 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 @Component
-@Profile("e2e")
+// dev profile 也启用：V101 字典种子迁移因低于 Flyway baseline V1047 从未执行，
+// task_status_dict 表无种子数据，导致 TaskBoard.vue columns 为空、看板空白（CO-361 排查发现）。
+// seedTaskStatuses()/ensureSystemRoles() 幂等，dev 重复启动无副作用。
+@Profile({"e2e", "dev"})
 @RequiredArgsConstructor
 @Slf4j
 public class E2eDemoDataInitializer implements ApplicationRunner {
