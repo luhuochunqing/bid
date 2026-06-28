@@ -14,6 +14,15 @@
       </div>
     </template>
 
+    <el-alert
+      v-if="loadError"
+      :title="loadError"
+      type="error"
+      show-icon
+      :closable="false"
+      class="load-error-alert"
+    />
+
     <div class="kanban-container">
       <div v-for="col in columns" :key="col.status" class="kanban-col">
         <div class="col-header">
@@ -143,6 +152,7 @@ const columns = [
   { status: TASK_STATUS.COMPLETED, label: '已完成', tag: 'success' },
 ]
 const tasks = ref([])
+const loadError = ref('')
 const grouped = computed(() => {
   const g = {}
   for (const t of tasks.value) {
@@ -201,10 +211,16 @@ const canManageTasks = computed(() => {
 })
 
 async function loadTasks() {
+  loadError.value = ''
   try {
     const r = await projectsApi.getTasks(props.projectId)
     tasks.value = Array.isArray(r?.data) ? r.data : []
-  } catch { tasks.value = [] }
+  } catch (e) {
+    // 不静默吞错：保留错误态供 UI 展示，避免把"加载失败"误展示为"暂无任务"。
+    // 401 已被全局拦截器处理（弹"登录已过期"并清 session），这里不重复弹消息。
+    loadError.value = e?.response?.data?.msg || e?.message || '任务加载失败'
+    tasks.value = []
+  }
 }
 // Create task dialog
 const showCreateDialog = ref(false)
@@ -270,6 +286,7 @@ watch(() => props.projectId, (newId, oldId) => { if (newId && newId !== oldId) l
 .kanban-header { display: flex; justify-content: space-between; align-items: center; }
 .kanban-title { font-size: 15px; font-weight: 600; }
 .kanban-actions { display: flex; gap: 8px; }
+.load-error-alert { margin-bottom: 12px; }
 .kanban-container { display: flex; gap: 16px; min-height: 300px; }
 .kanban-col { flex: 1; background: var(--bg-subtle); border-radius: 8px; padding: 12px; min-width: 0; }
 .col-header { font-size: 13px; font-weight: 600; color: var(--gray-700); padding: 6px 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
