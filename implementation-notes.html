@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>实现笔记 — 任务附件只读模式下载修复</title>
+<style>
+body { font-family: -apple-system, "PingFang SC", sans-serif; max-width: 880px; margin: 40px auto; padding: 0 20px; color: #1f2329; line-height: 1.7; }
+h1 { border-bottom: 2px solid #409eff; padding-bottom: 8px; }
+h2 { margin-top: 32px; color: #2b5cb8; }
+code, pre { background: #f5f7fa; padding: 2px 6px; border-radius: 4px; font-family: "SF Mono", Menlo, monospace; }
+pre { padding: 12px; overflow-x: auto; }
+.note { background: #ecf5ff; border-left: 4px solid #409eff; padding: 12px 16px; margin: 16px 0; }
+.warn { background: #fef0f0; border-left: 4px solid #f56c6c; padding: 12px 16px; margin: 16px 0; }
+.ok { background: #f0f9eb; border-left: 4px solid #67c23a; padding: 12px 16px; margin: 16px 0; }
+ul li { margin: 4px 0; }
+</style>
+</head>
+<body>
+
+<h1>实现笔记 — 任务附件只读模式下载修复</h1>
+
+<div class="note">
+<strong>分支：</strong> <code>agent/zcode/fix-task-attachment-download</code>（基于最新 main）<br>
+<strong>主文件：</strong> <code>src/components/project/TaskForm.vue</code>（main 上为内联结构，353 行，已在 line-budget 豁免列表）<br>
+<strong>测试：</strong> <code>src/components/project/TaskForm.spec.js</code><br>
+<strong>日期：</strong> 2026-06-28<br>
+<strong>相关历史 commit：</strong> <code>e9e073688</code>（交付物同款修复，已合入 main）
+</div>
+
+<h2>1. 背景与根因</h2>
+<p>用户反馈：任务详情只读（view）模式下，附件链接点击无反应。HTML 片段显示 <code>&lt;a href="javascript:void(0)"&gt;</code> 外层 <code>el-upload</code> 带有 <code>aria-disabled="true"</code>。</p>
+
+<p><strong>根因：</strong> Element Plus 的 <code>el-upload</code> 在 <code>:disabled="true"</code> 时，会把整个组件（含 <code>#file</code> 插槽内的 <code>&lt;a&gt;</code> 链接）置为 <code>aria-disabled</code>，点击事件被组件吞掉，<code>@click.prevent</code> 不触发，下载链路断裂。</p>
+
+<div class="warn"><strong>关键教训：</strong> 单测里用的是 <code>ElUpload</code> 的 <strong>stub</strong>，stub 没有实现 disabled 锁逻辑，所以这个 bug 在单测里完全不可见。真实 EP 验证（用真 Element Plus 挂载）才暴露问题。已沉淀到 <code>docs/lessons/lessons-learned.md</code>。</div>
+
+<h2>2. 修复方案</h2>
+<p>沿用已合入 main 的交付物修复（commit <code>e9e073688</code>）的同一思路：把已保存的附件从 <code>el-upload</code> 的 file-list 里移出，单独渲染为独立的 <code>&lt;a class="attachment-link"&gt;</code>，与 <code>.deliverable-link</code> 风格一致。</p>
+
+<h3>模板改动</h3>
+<pre>el-upload 上加 v-if="!readonly"，移除 :disabled="readonly"
+只读模式下新增 .attachment-list 容器，遍历 savedAttachments 渲染 .attachment-link</pre>
+
+<h3>脚本改动（内联，与 main 结构一致）</h3>
+<pre>拆分原 attachmentFileList 为两个 computed：
+- savedAttachments: 已保存（含 id）附件，构造 /api/projects/{pid}/documents/{id}/download URL
+- attachmentFileList: 仅保留待上传的 raw File，避免禁用态把已保存附件一起锁死</pre>
+
+<h3>样式改动</h3>
+<pre>新增 .attachment-list / .attachment-link，复用 .deliverable-link 的视觉</pre>
+
+<h2>3. 规范外的决策与权衡</h2>
+
+<h3>决策 A：手工重写而非 cherry-pick（命中豁免条款）</h3>
+<p>本修复最初在已合入 main 的旧分支 <code>agent/zcode/fix-task-deliverable-dup</code> 上完成（commit <code>cea1ddebc</code>），当时采用了提取 composable <code>useTaskAttachmentList.js</code> 的方案。但 main 随后合入了 <code>0c2ee52f2 refactor(frontend): inline 12 single-use composables</code>，把 <code>useTaskDeliverableDownload</code> 等 12 个 composable <strong>内联</strong>回了 TaskForm.vue，与我提取 composable 的方向相反。</p>
+<p>cherry-pick <code>cea1ddebc</code> 时在 TaskForm.vue 产生内容冲突（import 区与脚本区）。按 <code>RELIABILITY.md §回退恢复纪律</code>，命中「三种允许手工重写的情况」之第二条——<strong>原 commit 的改动语义已被重组</strong>（composable 被内联，cherry-pick 后代码位置无意义），故放弃 cherry-pick，手工把修复逻辑应用到 main 的新内联结构上。原 commit hash <code>cea1ddebc</code> 已在此记录，便于未来追溯。</p>
+
+<h3>决策 B：只读模式不再 emit <code>attachment-preview</code> 事件</h3>
+<p>原实现：<code>el-upload @preview</code> → <code>emit('attachment-preview', file)</code> → <code>ProjectTaskBoardCard.handleAttachmentPreview</code> → <code>window.open(url)</code>。</p>
+<p>新实现：只读模式 <code>el-upload</code> 不渲染，<code>@preview</code> 不会触发；附件下载改为直接走 <code>handleDownloadAttachment</code>（main 内联的下载函数，axios 带认证下载），与交付物下载保持一致。</p>
+<div class="ok"><strong>收益：</strong> 会话过期时不会跳空白页（<code>window.open</code> 拿不到 cookie 会显示 401 空白），更健壮。这是与交付物下载一致的、有意的设计选择。</div>
+<div class="warn"><strong>契约影响：</strong> <code>attachment-preview</code> 事件在只读模式不再触发。<code>defineEmits</code> 仍保留该事件（edit 模式 <code>el-upload</code> 仍渲染并挂 <code>@preview</code>），未删 emit 声明，避免破坏 <code>ProjectTaskBoardCard.spec.js</code> 的契约测试（该测试仍通过）。edit 模式附件下载仍走 <code>handleDownloadAttachment</code>（<code>#file</code> 插槽里的 <code>&lt;a&gt;</code> 直接绑 click）。</div>
+
+<h3>决策 C：无 id 附件在只读模式不渲染</h3>
+<p><code>savedAttachments</code> 过滤 <code>file?.id != null</code>，所以只读模式无 id 的附件不会显示。原行为是渲染但点击提示"文件信息缺失"。新行为是不渲染。这是合理的：只读模式打开的是已落库任务，附件理论上都有 id；无 id 附件属于编辑态未保存的，本就不该在只读模式展示。</p>
+
+<h2>4. 测试更新</h2>
+<ul>
+<li>删除 <code>emits attachment-preview ...</code> 测试（只读模式不再走该路径），替换为 <code>view mode does not render el-upload ... uses independent links</code>。</li>
+<li>删除 <code>shows warning when downloading attachment without id</code> 测试（只读模式无 id 不渲染），替换为 <code>does not render link for unsaved (no id) attachments in view mode</code>。</li>
+<li>修改交付物测试 <code>expect(upload.props('fileList')).toEqual([])</code> → <code>expect(wrapper.find('[data-test="task-deliverable-upload"]').exists()).toBe(false)</code>（只读模式 el-upload 整体不渲染）。</li>
+</ul>
+<div class="ok"><strong>验证：</strong> TaskForm.spec.js 21/21 通过；project 目录 72/72 通过，无回归。</div>
+
+<h2>5. 待办与风险</h2>
+<ul>
+<li><strong>edit 模式已保存附件下载</strong>：edit 模式下已保存附件（含 id）不在 <code>attachmentFileList</code> 里，用户在 edit 模式看不到已保存附件的下载链接。这是潜在的功能缺口，但不在本次 bug 修复 scope 内（用户报告的是只读模式）。建议后续补一个 edit 模式已保存附件渲染条目。</li>
+<li><strong>attachment-preview 事件清理</strong>：如确认只读模式不再需要该事件，可在后续 PR 清理 <code>defineEmits</code> 和 <code>ProjectTaskBoardCard.handleAttachmentPreview</code>。本次保留以最小化改动面。</li>
+</ul>
+
+</body>
+</html>

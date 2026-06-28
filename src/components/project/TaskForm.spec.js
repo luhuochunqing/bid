@@ -219,7 +219,7 @@ describe('TaskForm', () => {
     expect(r.data.attachments).toEqual([file])
   })
 
-  it('emits attachment-preview with document download url for saved task attachments', async () => {
+  it('view mode does not render el-upload for task attachments, uses independent links', async () => {
     const wrapper = mount(TaskForm, {
       props: {
         mode: 'view',
@@ -233,22 +233,12 @@ describe('TaskForm', () => {
     })
     await flushPromises()
 
-    const upload = wrapper.findComponent({ name: 'ElUpload' })
-    expect(upload.props('fileList')[0]).toMatchObject({
-      name: '任务附件.docx',
-      url: '/api/projects/12/documents/801/download',
-    })
-
-    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
-    upload.vm.$emit('preview', upload.props('fileList')[0])
-
-    expect(wrapper.emitted('attachment-preview')?.[0]?.[0]).toMatchObject({
-      id: 801,
-      projectId: 12,
-      url: '/api/projects/12/documents/801/download',
-    })
-    expect(openSpy).not.toHaveBeenCalled()
-    openSpy.mockRestore()
+    // 只读模式不再渲染 el-upload（避免 :disabled 把 #file 插槽里的 <a> 链接锁死），
+    // 已保存附件改由独立 .attachment-link 渲染，点击直达下载。
+    expect(wrapper.find('[data-test="task-attachment-upload"]').exists()).toBe(false)
+    const list = wrapper.find('[data-test="task-attachment-list"]')
+    expect(list.exists()).toBe(true)
+    expect(list.find('[data-test="task-attachment-file-link"]').text()).toBe('任务附件.docx')
   })
 
   it('renders task attachment filenames as clickable download links', async () => {
@@ -295,7 +285,7 @@ describe('TaskForm', () => {
     )
   })
 
-  it('shows warning when downloading attachment without id', async () => {
+  it('does not render link for unsaved (no id) attachments in view mode', async () => {
     const wrapper = mount(TaskForm, {
       props: {
         mode: 'view',
@@ -310,10 +300,10 @@ describe('TaskForm', () => {
     })
     await flushPromises()
 
-    const link = wrapper.find('[data-test="task-attachment-file-link"]')
-    await link.trigger('click')
-
-    expect(ElMessage.warning).toHaveBeenCalledWith('文件信息缺失，无法下载')
+    // 未保存附件（无 id）在只读模式既不进 el-upload（被 v-if 隐），也不进 savedAttachments，
+    // 因此页面不应出现任何附件链接，也不会触发下载。
+    expect(wrapper.find('[data-test="task-attachment-list"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="task-attachment-file-link"]').exists()).toBe(false)
     expect(downloadWithFilename).not.toHaveBeenCalled()
   })
 
@@ -493,9 +483,8 @@ describe('TaskForm', () => {
     expect(links).toHaveLength(1)
     expect(links[0].text()).toBe('附件3-商铺平面图.pdf')
 
-    // 不应把已保存交付物塞进 el-upload 的 file-list（导致灰色禁用重复条目）
-    const upload = wrapper.findComponent({ name: 'ElUpload' })
-    expect(upload.props('fileList')).toEqual([])
+    // 只读模式不渲染 el-upload（v-if 隐），避免灰色禁用重复条目
+    expect(wrapper.find('[data-test="task-deliverable-upload"]').exists()).toBe(false)
   })
 
   it('clicking a deliverable link triggers downloadDeliverable', async () => {

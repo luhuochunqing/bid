@@ -18,18 +18,28 @@
 
           <el-form-item label="任务附件">
             <el-upload
+              v-if="!readonly"
               data-test="task-attachment-upload"
               :auto-upload="false"
               :file-list="attachmentFileList"
-              :disabled="readonly"
               accept=".doc,.docx,.pdf,.xls,.xlsx"
               multiple
               @change="handleAttachmentChange" @remove="handleAttachmentRemove"
               @preview="file => emit('attachment-preview', file)"
             >
-              <el-button :icon="Upload" :disabled="readonly">添加附件</el-button>
+              <el-button :icon="Upload">添加附件</el-button>
               <template #file="{ file }"><a href="javascript:void(0)" class="upload-file-link" data-test="task-attachment-file-link" @click.prevent="handleDownloadAttachment(file)">{{ file.name }}</a></template>
             </el-upload>
+            <div v-if="readonly && savedAttachments.length" class="attachment-list" data-test="task-attachment-list">
+              <a
+                v-for="file in savedAttachments"
+                :key="file.id"
+                href="javascript:void(0)"
+                class="attachment-link"
+                data-test="task-attachment-file-link"
+                @click.prevent="handleDownloadAttachment(file)"
+              >{{ file.name }}</a>
+            </div>
           </el-form-item>
 
           <el-form-item label="任务创建人">
@@ -177,10 +187,28 @@ const canDeliver = computed(() => {
   const taskStatus = String(localValue.status || '').toLowerCase()
   return String(taskAssigneeId) === String(currentUserId) && taskStatus === 'todo'
 })
-const attachmentFileList = computed(() => localValue.attachments.map((file, i) => ({ ...file,
-  name: file?.name || `附件${i + 1}`, raw: file instanceof File ? file : file?.raw,
-  url: (file?.projectId || localValue.projectId) && file?.id ? `/api/projects/${file.projectId || localValue.projectId}/documents/${file.id}/download` : file?.url,
-})))
+// 只读模式下已保存的附件（含 id），交给模板渲染为独立可下载链接。
+// 历史问题：把已保存附件塞进 el-upload 的 file-list 后，el-upload 的 :disabled 会
+// 把整个 #file 插槽（含 <a> 链接）置为 aria-disabled，点击不触发下载。
+// 与交付物（.deliverable-link）保持同一思路：已保存的移出 el-upload，独立渲染。
+const savedAttachments = computed(() =>
+  (localValue.attachments || []).filter((file) => file?.id != null).map((file, i) => ({
+    ...file,
+    name: file?.name || `附件${i + 1}`,
+    url: (file?.projectId || localValue.projectId) && file?.id
+      ? `/api/projects/${file.projectId || localValue.projectId}/documents/${file.id}/download`
+      : file?.url,
+  }))
+)
+// el-upload 的 file-list 仅保留待上传的新文件（raw File），避免禁用态把已保存附件一起锁死。
+const attachmentFileList = computed(() =>
+  (localValue.attachments || [])
+    .filter((file) => file instanceof File || file?.raw)
+    .map((file, i) => ({
+      name: file?.name || `附件${i + 1}`,
+      raw: file instanceof File ? file : file?.raw,
+    }))
+)
 // === 交付物下载 ===
 function getDeliverableDownloadUrl(deliverable) {
   if (!deliverable?.id) return ''
@@ -350,4 +378,7 @@ defineExpose({ submit, submitForReview, validate, canDeliver })
 .deliverable-list { margin-top: 8px; }
 .deliverable-link { display: block; color: #409eff; text-decoration: none; margin-bottom: 4px; }
 .deliverable-link:hover { text-decoration: underline; }
+.attachment-list { margin-top: 8px; }
+.attachment-link { display: block; color: #409eff; text-decoration: none; margin-bottom: 4px; }
+.attachment-link:hover { text-decoration: underline; }
 </style>
