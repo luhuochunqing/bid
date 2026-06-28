@@ -31,6 +31,7 @@ health_checked: 2026-06-27
 - [[ai-capabilities]] — AI 能力
 - [[api-openapi]] — OpenAPI/Swagger 接口规范
 - [[architecture]] — 架构合成
+- [[architecture/effective-role-resolution]] — 有效角色解析规范（Effective Role Resolution）
 - [[business-process]] — 业务流程
 - [[dashboard-gap-analysis]] — 工作台卡片 vs 标书要求对照
 - [[data-model]] — 数据模型
