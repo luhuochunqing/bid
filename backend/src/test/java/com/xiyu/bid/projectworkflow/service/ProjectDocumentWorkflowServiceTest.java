@@ -47,12 +47,13 @@ class ProjectDocumentWorkflowServiceTest {
     private ProjectLeadAssignmentRepository projectLeadAssignmentRepository;
     private com.xiyu.bid.project.repository.BidDocumentReviewRepository bidDocumentReviewRepository;
     private ProjectStageService projectStageService;
+    private TaskRepository taskRepository;
 
     @BeforeEach
     void setUp() {
         projectRepository = mock(ProjectRepository.class);
         ProjectAccessScopeService projectAccessScopeService = mock(ProjectAccessScopeService.class);
-        TaskRepository taskRepository = mock(TaskRepository.class);
+        taskRepository = mock(TaskRepository.class);
         projectDocumentRepository = mock(ProjectDocumentRepository.class);
         ProjectScoreDraftRepository projectScoreDraftRepository = mock(ProjectScoreDraftRepository.class);
         userRepository = mock(UserRepository.class);
@@ -80,7 +81,8 @@ class ProjectDocumentWorkflowServiceTest {
                 viewAssembler,
                 bindingGateway,
                 currentUserResolver,
-                bidDocumentReviewRepository
+                bidDocumentReviewRepository,
+                taskRepository
         );
         downloadService = new ProjectDocumentDownloadService(guardService, fileStorage, projectStageService);
 
@@ -271,6 +273,57 @@ class ProjectDocumentWorkflowServiceTest {
 
         assertThat(documents).hasSize(1);
         assertThat(documents.getFirst().getName()).isEqualTo("投标文件.pdf");
+    }
+
+    @Test
+    void getProjectDocuments_asProjectTaskAssignee_shouldBeAllowed() {
+        // CO-361: 项目的任务执行人（非主负责人、非审核人）也需要查看投标文件以完成任务交付。
+        // 镜像 getProjectDocuments_asAssignedReviewer_shouldBeAllowed 的写法。
+        Long assigneeUserId = 55L;
+        when(currentUserResolver.requireCurrentUser()).thenReturn(
+                com.xiyu.bid.entity.User.builder()
+                        .id(assigneeUserId)
+                        .roleProfile(com.xiyu.bid.entity.RoleProfile.builder().code("bid-projectLeader").build())
+                        .build());
+        doReturn(new Long[]{null, null})
+                .when(projectLeadAssignmentRepository)
+                .resolveLeadIdsByProjectId(1001L);
+        // 策略 deny（bid-projectLeader 非主负责人），审核人也不命中 → 走 isProjectTaskAssignee 放行
+        when(bidDocumentReviewRepository.findByProjectId(1001L)).thenReturn(Optional.empty());
+        when(taskRepository.existsByProjectIdAndAssigneeId(1001L, assigneeUserId)).thenReturn(true);
+        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
+                1001L, null, null, null))
+                .thenReturn(List.of(ProjectDocument.builder()
+                        .id(3007L)
+                        .projectId(1001L)
+                        .name("任务交付物.pdf")
+                        .build()));
+
+        List<ProjectDocumentDTO> documents = service.getProjectDocuments(1001L);
+
+        assertThat(documents).hasSize(1);
+        assertThat(documents.getFirst().getName()).isEqualTo("任务交付物.pdf");
+        verify(taskRepository).existsByProjectIdAndAssigneeId(1001L, assigneeUserId);
+    }
+
+    @Test
+    void getProjectDocuments_asNonAssigneeNonReviewerNonLead_shouldThrow() {
+        // CO-361: 既非主/副负责人、也非审核人、也非任务执行人 → 仍 403，确保放行不越权。
+        Long otherUserId = 66L;
+        when(currentUserResolver.requireCurrentUser()).thenReturn(
+                com.xiyu.bid.entity.User.builder()
+                        .id(otherUserId)
+                        .roleProfile(com.xiyu.bid.entity.RoleProfile.builder().code("bid-projectLeader").build())
+                        .build());
+        doReturn(new Long[]{null, null})
+                .when(projectLeadAssignmentRepository)
+                .resolveLeadIdsByProjectId(1001L);
+        when(bidDocumentReviewRepository.findByProjectId(1001L)).thenReturn(Optional.empty());
+        when(taskRepository.existsByProjectIdAndAssigneeId(1001L, otherUserId)).thenReturn(false);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.getProjectDocuments(1001L))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+                .hasMessageContaining("仅项目主负责人可查看项目文档");
     }
 
     @Test

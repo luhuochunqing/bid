@@ -8,6 +8,7 @@ import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
+import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ class ProjectDocumentWorkflowService {
     private final ProjectDocumentBindingGateway projectDocumentBindingGateway;
     private final CurrentUserResolver currentUserResolver;
     private final BidDocumentReviewRepository bidDocumentReviewRepository;
+    private final TaskRepository taskRepository;
 
     List<ProjectDocumentDTO> getProjectDocuments(Long projectId) {
         return getProjectDocuments(projectId, null, null, null);
@@ -115,6 +117,12 @@ class ProjectDocumentWorkflowService {
         if (isAssignedReviewer(projectId, currentUser.getId())) {
             return;
         }
+        // CO-361: 项目的任务执行人也需要查看投标文件以完成任务交付。
+        // 语义对齐：任务执行人已能通过 ProjectAccessScopeService 看到项目、通过 TaskService 看到任务，
+        // 文档是完成任务的必要输入；任务分配需经 TaskPermissionGuard.assertCanAssignTask 授权，用户无法自助获取权限。
+        if (isProjectTaskAssignee(projectId, currentUser.getId())) {
+            return;
+        }
         throw new org.springframework.security.access.AccessDeniedException(decision.reason());
     }
 
@@ -125,6 +133,13 @@ class ProjectDocumentWorkflowService {
         return bidDocumentReviewRepository.findByProjectId(projectId)
                 .map(review -> currentUserId.equals(review.getReviewerId()))
                 .orElse(false);
+    }
+
+    private boolean isProjectTaskAssignee(Long projectId, Long currentUserId) {
+        if (currentUserId == null) {
+            return false;
+        }
+        return taskRepository.existsByProjectIdAndAssigneeId(projectId, currentUserId);
     }
 
     private void assertCanUploadProjectDocument() {

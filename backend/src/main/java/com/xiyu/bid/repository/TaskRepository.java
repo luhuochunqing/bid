@@ -54,6 +54,12 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     List<Task> findByProjectIdAndAssigneeId(Long projectId, Long assigneeId);
 
     /**
+     * CO-361: 判断当前用户是否为该项目的任务执行人（用于文档查看放行）。
+     * 派生查询，仅返回 boolean，避免加载完整 Task 实体。
+     */
+    boolean existsByProjectIdAndAssigneeId(Long projectId, Long assigneeId);
+
+    /**
      * 根据受托人ID和状态查找任务
      */
     List<Task> findByAssigneeIdAndStatus(Long assigneeId, Task.Status status);
