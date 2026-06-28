@@ -20,21 +20,31 @@ const mockProjectStore = vi.hoisted(() => ({
   loadTaskStatuses: vi.fn(),
   addDeliverable: vi.fn(),
   removeDeliverable: vi.fn(),
+  removeTask: vi.fn(),
   submitToBidDocument: vi.fn(),
   currentProject: null,
 }))
+
+const mockUserStore = vi.hoisted(() => ({
+  userName: '测试用户',
+  currentUser: { id: 9 },
+  isBidManager: false,
+}))
+
+const mockConfirm = vi.hoisted(() => vi.fn())
 
 vi.mock('@/stores/project', () => ({
   useProjectStore: () => mockProjectStore,
 }))
 
 vi.mock('@/stores/user', () => ({
-  useUserStore: () => ({
-    userName: '测试用户',
-    currentUser: { id: 9 },
-    isBidManager: false,
-  }),
+  useUserStore: () => mockUserStore,
 }))
+
+vi.mock('element-plus', async (importOriginal) => {
+  const actual = await importOriginal()
+  return { ...actual, ElMessageBox: { confirm: mockConfirm } }
+})
 
 import TaskBoard from './TaskBoard.vue'
 
@@ -90,7 +100,9 @@ describe('TaskBoard (dynamic columns)', () => {
     mockProjectStore.loadTaskStatuses = vi.fn()
     mockProjectStore.addDeliverable = vi.fn()
     mockProjectStore.removeDeliverable = vi.fn()
+    mockProjectStore.removeTask = vi.fn()
     mockProjectStore.currentProject = null
+    mockUserStore.isBidManager = false
   })
 
   it('renders one column per enabled status from the dict except the merged in-progress lane', async () => {
@@ -165,13 +177,15 @@ describe('TaskBoard (dynamic columns)', () => {
     mockProjectStore.currentProject = { primaryLeadUserId: 9, secondaryLeadUserId: null }
     const wrapper = mountBoard({ tasks: [{ id: 2, name: 'T2', status: 'TODO', assigneeId: 999 }] })
     await flushPromises()
-    // availableStatuses = 4 mock items (三态 + ARCHIVED); upload hidden for non-assignee
+    // availableStatuses = 4 mock items (三态 + ARCHIVED); upload hidden for non-assignee;
+    // CO-387: 项目主负责人可删除 TODO 任务，故多一项"删除任务"
     const items = wrapper.findAllComponents({ name: 'ElDropdownItem' })
-    expect(items.length).toBe(4)
+    expect(items.length).toBe(5)
     expect(items.at(0).props('disabled')).toBe(true) // TODO matches current status
-    for (let i = 1; i < items.length; i++) {
+    for (let i = 1; i < 4; i++) {
       expect(items.at(i).props('disabled')).toBe(false) // project lead allows changes
     }
+    expect(wrapper.text()).toContain('删除任务')
   })
 
   it('secondary project lead can change status', async () => {
@@ -179,11 +193,12 @@ describe('TaskBoard (dynamic columns)', () => {
     const wrapper = mountBoard({ tasks: [{ id: 2, name: 'T2', status: 'TODO', assigneeId: 999 }] })
     await flushPromises()
     const items = wrapper.findAllComponents({ name: 'ElDropdownItem' })
-    expect(items.length).toBe(4)
+    expect(items.length).toBe(5)
     expect(items.at(0).props('disabled')).toBe(true)
-    for (let i = 1; i < items.length; i++) {
+    for (let i = 1; i < 4; i++) {
       expect(items.at(i).props('disabled')).toBe(false)
     }
+    expect(wrapper.text()).toContain('删除任务')
   })
 
   it('uploads the selected file through projectStore and emits the saved deliverable', async () => {
@@ -320,6 +335,79 @@ describe('TaskBoard (drag to change status)', () => {
     await flushPromises()
 
     expect(wrapper.emitted('status-change')).toBeFalsy()
+  })
+})
+
+describe('TaskBoard (CO-387 delete task)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    mockProjectStore.taskStatuses = mockStatuses
+    mockProjectStore.removeTask = vi.fn()
+    mockProjectStore.currentProject = null
+    mockUserStore.isBidManager = false
+    mockConfirm.mockReset()
+  })
+
+  it('bid manager sees delete option for TODO task', async () => {
+    mockUserStore.isBidManager = true
+    const wrapper = mountBoard({ tasks: [{ id: 1, name: 'T1', status: 'TODO', assigneeId: 999 }] })
+    await flushPromises()
+    expect(wrapper.text()).toContain('删除任务')
+  })
+
+  it('primary project lead sees delete option for TODO task', async () => {
+    mockProjectStore.currentProject = { primaryLeadUserId: 9, secondaryLeadUserId: null }
+    const wrapper = mountBoard({ tasks: [{ id: 1, name: 'T1', status: 'TODO', assigneeId: 999 }] })
+    await flushPromises()
+    expect(wrapper.text()).toContain('删除任务')
+  })
+
+  it('secondary project lead sees delete option for TODO task', async () => {
+    mockProjectStore.currentProject = { primaryLeadUserId: null, secondaryLeadUserId: 9 }
+    const wrapper = mountBoard({ tasks: [{ id: 1, name: 'T1', status: 'TODO', assigneeId: 999 }] })
+    await flushPromises()
+    expect(wrapper.text()).toContain('删除任务')
+  })
+
+  it('non-manager non-lead does not see delete option', async () => {
+    // isBidManager=false, currentProject=null → canDeleteTask=false
+    const wrapper = mountBoard({ tasks: [{ id: 1, name: 'T1', status: 'TODO', assigneeId: 999 }] })
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('删除任务')
+  })
+
+  it('delete option hidden for non-TODO status even if manager', async () => {
+    mockUserStore.isBidManager = true
+    const wrapper = mountBoard({ tasks: [{ id: 1, name: 'T1', status: 'REVIEW', assigneeId: 999 }] })
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('删除任务')
+  })
+
+  it('confirming delete calls removeTask and emits remove-task', async () => {
+    mockUserStore.isBidManager = true
+    mockConfirm.mockResolvedValue(undefined) // 用户确认
+    mockProjectStore.removeTask.mockResolvedValue(undefined)
+    const task = { id: 42, name: '要删除的任务', status: 'TODO', assigneeId: 999 }
+    const wrapper = mountBoard({ projectId: '12', tasks: [task] })
+    await flushPromises()
+
+    await wrapper.vm.handleDeleteTask(task)
+
+    expect(mockProjectStore.removeTask).toHaveBeenCalledWith(42)
+    expect(wrapper.emitted('remove-task')?.[0]).toEqual([42])
+  })
+
+  it('cancelling delete does not call removeTask', async () => {
+    mockUserStore.isBidManager = true
+    mockConfirm.mockRejectedValue('cancel') // 用户取消
+    const task = { id: 43, name: '不删除的任务', status: 'TODO', assigneeId: 999 }
+    const wrapper = mountBoard({ projectId: '12', tasks: [task] })
+    await flushPromises()
+
+    await wrapper.vm.handleDeleteTask(task)
+
+    expect(mockProjectStore.removeTask).not.toHaveBeenCalled()
+    expect(wrapper.emitted('remove-task')).toBeFalsy()
   })
 })
 

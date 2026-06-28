@@ -1,5 +1,5 @@
 // Input: projectsApi, resourcesApi, httpClient (from @/api)
-// Output: useProjectStore - project detail, workflow, and expense aggregation state
+// Output: useProjectStore - project detail, workflow, task deletion, and expense aggregation state
 // Pos: src/stores/ - State management layer
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -8,6 +8,7 @@ import { httpClient, projectsApi, resourcesApi } from '@/api'
 import { taskStatusDictApi } from '@/api/modules/taskStatusDict.js'
 import { taskExtendedFieldApi } from '@/api/modules/taskExtendedField.js'
 import { createTaskDeliverable, deleteTaskDeliverable } from '@/api/modules/taskDeliverables.js'
+import { tasksApi } from '@/api/modules/tasks.js'
 
 function normalizeExpenseDate(value) {
   if (!value) return ''
@@ -395,6 +396,20 @@ export const useProjectStore = defineStore('project', {
         task.hasDeliverable = task.deliverables.length > 0
       }
       return result
+    },
+
+    // CO-387: 删除任务。后端 DELETE /api/tasks/{id} 返回 204 无 body，
+    // 权限由 TaskService.assertCanManageTask 校验（管理员/组长/项目负责人/辅助负责人）。
+    // 失败时 httpClient 错误拦截器会抛错，调用方 catch 即可。
+    async removeTask(taskId) {
+      if (!taskId) {
+        throw new Error('任务ID不能为空')
+      }
+      await tasksApi.deleteTask(taskId)
+      const project = this.currentProject
+      if (project && Array.isArray(project.tasks)) {
+        project.tasks = project.tasks.filter((t) => String(t.id) !== String(taskId))
+      }
     }
   }
 })

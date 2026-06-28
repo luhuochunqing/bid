@@ -55,6 +55,10 @@
                     <el-icon><Upload /></el-icon>
                     上传交付物
                   </el-dropdown-item>
+                  <el-dropdown-item divided @click="handleDeleteTask(task)" v-if="canDeleteTask(task)">
+                    <el-icon><Delete /></el-icon>
+                    <span class="delete-task-label">删除任务</span>
+                  </el-dropdown-item>
                 </template>
               </el-dropdown>
             </div>
@@ -141,8 +145,8 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { MoreFilled, User, Calendar, Document, Upload, DocumentAdd, UploadFilled } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { MoreFilled, User, Calendar, Document, Upload, DocumentAdd, UploadFilled, Delete } from '@element-plus/icons-vue'
 import draggable from 'vuedraggable'
 import { useProjectStore } from '@/stores/project'
 import { useUserStore } from '@/stores/user'
@@ -164,7 +168,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['task-click', 'status-change', 'submit-to-document', 'add-deliverable', 'remove-deliverable'])
+const emit = defineEmits(['task-click', 'status-change', 'submit-to-document', 'add-deliverable', 'remove-deliverable', 'remove-task'])
 
 const projectStore = useProjectStore()
 const userStore = useUserStore()
@@ -209,6 +213,20 @@ const normalizeStatus = (status) => String(status || '').toUpperCase()
 
 const canChangeStatus = (task) => {
   if (isTaskAssignee(task) || userStore.isBidManager) return true
+  const project = projectStore.currentProject
+  if (!project) return false
+  const uid = userStore?.currentUser?.id
+  return uid != null && (
+    (project.primaryLeadUserId != null && String(uid) === String(project.primaryLeadUserId)) ||
+    (project.secondaryLeadUserId != null && String(uid) === String(project.secondaryLeadUserId))
+  )
+}
+
+// CO-387: 删除任务权限 — 仅 TODO 状态 + (管理员/组长 或 项目主/副负责人)
+// 注意：与 canChangeStatus 不同，任务执行人本身无权删除（避免执行人误删分配给自己的任务）
+const canDeleteTask = (task) => {
+  if (normalizeStatus(task.status) !== 'TODO') return false
+  if (userStore.isBidManager) return true
   const project = projectStore.currentProject
   if (!project) return false
   const uid = userStore?.currentUser?.id
@@ -336,6 +354,26 @@ const handleRemoveDeliverable = async (task, deliverable) => {
   }
 }
 
+const handleDeleteTask = async (task) => {
+  const taskLabel = task.name || task.title || `#${task.id}`
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除任务「${taskLabel}」吗？此操作不可恢复。`,
+      '删除任务',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+    )
+  } catch {
+    return // 用户取消
+  }
+  try {
+    await projectStore.removeTask(task.id)
+    emit('remove-task', task.id)
+    ElMessage.success('任务已删除')
+  } catch (error) {
+    ElMessage.error(error?.message || '删除任务失败')
+  }
+}
+
 const handleSubmitToDocument = async () => {
   try {
     const result = await projectStore.submitToBidDocument(props.projectId)
@@ -381,4 +419,5 @@ const handleSubmitToDocument = async () => {
 .submit-section { margin-top: 16px; padding: 16px; background: #f0f9ff; border: 1px solid #b3e8ff; border-radius: 8px; text-align: center; }
 .submit-tip { margin-top: 8px; font-size: 12px; color: #409eff; }
 .badge :deep(.el-badge__content) { background-color: transparent; color: inherit; border: none; }
+.delete-task-label { color: var(--el-color-danger); }
 </style>

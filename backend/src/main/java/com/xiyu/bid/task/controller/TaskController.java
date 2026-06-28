@@ -92,7 +92,7 @@ public class TaskController {
     }
 
     @DeleteMapping("/{id:\\d+}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     @Auditable(action = "DELETE", entityType = "Task", description = "删除任务")
     public ResponseEntity<Void> deleteTask(@PathVariable Long id) {
         taskService.deleteTask(id);
