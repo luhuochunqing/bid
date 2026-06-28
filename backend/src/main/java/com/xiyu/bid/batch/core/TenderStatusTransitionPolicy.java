@@ -39,6 +39,17 @@ public final class TenderStatusTransitionPolicy {
         return java.util.Optional.empty();
     }
 
+    /**
+     * 判断是否为终态（WON/LOST/ABANDONED）。终态不允许流转到其他状态。
+     * 与 {@link #allowedTargets} 返回空集的语义一致，作为单一真相源避免重复列举。
+     */
+    public static boolean isTerminal(Tender.Status status) {
+        if (status == null) {
+            return false;
+        }
+        return allowedTargets(status).isEmpty();
+    }
+
     private static Set<Tender.Status> allowedTargets(Tender.Status currentStatus) {
         return switch (currentStatus) {
             case PENDING_ASSIGNMENT -> EnumSet.of(Tender.Status.TRACKING, Tender.Status.ABANDONED);

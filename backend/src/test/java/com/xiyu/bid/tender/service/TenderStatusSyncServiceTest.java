@@ -16,7 +16,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -161,15 +160,16 @@ class TenderStatusSyncServiceTest {
     }
 
     @Test
-    @DisplayName("TRACKING 状态尝试同步 WON → 抛异常（流转校验失败）")
-    void sync_invalidTransition_throws() {
+    @DisplayName("TRACKING 状态尝试同步 WON → 强制同步（系统内部绕过状态机）")
+    void sync_invalidTransition_forcesSync() {
         Tender tender = Tender.builder().id(1L).status(Tender.Status.TRACKING).title("测试").build();
         when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
 
-        assertThatThrownBy(() -> service.syncFromProjectResult(1L, BidResultType.WON))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("TRACKING")
-                .hasMessageContaining("WON");
-        verify(tenderRepository, never()).save(any());
+        service.syncFromProjectResult(1L, BidResultType.WON);
+
+        // 系统内部同步：非终态标讯直接 setStatus 到目标终态，不抛异常
+        assertThat(tender.getStatus()).isEqualTo(Tender.Status.WON);
+        verify(tenderRepository).save(tender);
+        verify(eventPublisher).publishEvent(any(TenderStatusChangedEvent.class));
     }
 }
