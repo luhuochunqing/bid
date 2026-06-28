@@ -38,6 +38,9 @@ node "$ROOT_DIR/scripts/check-e2e-selectors.mjs"
 # Flyway 迁移目录守卫：拒绝 V*.sql/B*.sql 放在历史遗留目录 db/migration/（2026-06-28 V1106 事故）
 # application.yml 配置 locations: classpath:db/migration-mysql，放错目录会导致迁移静默不执行
 "$ROOT_DIR/scripts/check-flyway-migration-dir.sh"
+# Flyway 配置守卫：拦截 application*.yml 中 locations/baseline-version/baseline-on-migrate/validateOnMigrate 修改
+# 历史事故：V101 因 baseline-version=1050 静默跳过导致看板空白（2026-06-28 CO-361）
+"$ROOT_DIR/scripts/check-flyway-config-guard.sh"
 
 # TDD 测试先行门禁：检测到 staged 业务代码变更但没有对应的测试文件时，直接阻断提交，以确保 fix/test 比例（2026-06-12 gemini/enforce-tdd-precommit）
 "$ROOT_DIR/scripts/check-tdd-coverage.sh" --ci

@@ -143,6 +143,34 @@ else
     git push ..."
 fi
 
+# ── 3.6. Flyway DB vs 源码一致性检查（可选，需 DB 凭据）───
+# 工程背景（2026-06-26 第5/6次部署事故）：
+#   V1100 源码缺失 + V1039 failed migration 都是因为历史手动操作未同步源码，
+#   部署时才发现。本检查在 pre-push 阶段提前发现"DB 已执行但源码缺失"。
+# 可选原因：pre-push 阶段无法保证有 DB 凭据（CI 环境才有）。
+# 行为：
+#   - DB 可用 + 发现不一致 → fail（阻断推送）
+#   - DB 不可用 → skip（不阻塞）
+#   - 仅当 backend/ 有变更时执行（无 backend 变更时跳过）
+# 环境变量：
+#   FLYWAY_CHECK_ENV=dev|prod（默认 dev，使用 .env.mysql）
+#   FLYWAY_DB_SYNC_SKIP=1 强制跳过
+echo "── Flyway DB 同步 ──"
+if [ "${BACKEND_CHANGED:-0}" -eq 0 ]; then
+  skip "Flyway DB 同步检查（无 backend/ 变更）"
+elif [ "${FLYWAY_DB_SYNC_SKIP:-0}" = "1" ]; then
+  skip "Flyway DB 同步检查（FLYWAY_DB_SYNC_SKIP=1）"
+elif [ ! -f "$ROOT_DIR/.env.mysql" ] && [ ! -f "/etc/xiyu-bid/backend.env" ]; then
+  skip "Flyway DB 同步检查（无 DB 凭据文件）"
+else
+  # 使用 fail 模式：DB 已执行但源码缺失则阻断推送
+  if FLYWAY_CHECK_FAIL=1 bash "$ROOT_DIR/scripts/check-flyway-db-source-sync.sh" 2>&1 | tail -20; then
+    pass "Flyway DB 同步检查通过"
+  else
+    fail "Flyway DB 同步检查失败 — DB 已执行的迁移在源码中缺失。修复：补全对应迁移文件。参考: docs/release/deploy-report-2026-06-26-5th.md（V1100 案例）"
+  fi
+fi
+
 
 
 # ── 3.5 Schema 语义冲突检测 ───────────────────────────
