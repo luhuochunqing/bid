@@ -93,10 +93,27 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { Monitor, Cpu, Document } from '@element-plus/icons-vue'
-import { useSystemInfo } from './useSystemInfo'
-const { loading, error, systemInfo, loadSystemInfo } = useSystemInfo()
+import { settingsApi } from '@/api'
+
+const loading = ref(false)
+const error = ref(null)
+const systemInfo = ref(null)
+
+const loadSystemInfo = async () => {
+  loading.value = true
+  error.value = null
+  try {
+    const response = await settingsApi.getSystemInfo()
+    systemInfo.value = response?.data || null
+  } catch (e) {
+    console.error('Failed to load system info:', e)
+    error.value = e.message || '加载系统信息失败'
+  } finally {
+    loading.value = false
+  }
+}
 const changelogMap = {
   '当前版本': '重构系统信息面板并完善开发诊断数据；修复 Agent 协作文件锁冲突与 E2E 自动化测试门禁，提升多智能体协作及部署稳定性。',
   '初始版本发布': '西域数智化投标管理平台初始版本发布，支持标讯录入、智能评估及团队匹配看板。'

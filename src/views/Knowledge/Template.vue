@@ -147,7 +147,11 @@ import TemplateUpsertDialog from './components/template/TemplateUpsertDialog.vue
 import TemplateUseDialog from './components/template/TemplateUseDialog.vue'
 import TemplateVersionDialog from './components/template/TemplateVersionDialog.vue'
 import TemplateWorkspaceState from './components/template/TemplateWorkspaceState.vue'
-import { useTemplateLibraryPage } from './components/template/useTemplateLibraryPage.js'
+import { computed, onMounted } from 'vue'
+import { useProjectStore } from '@/stores/project'
+import { useUserStore } from '@/stores/user'
+import { useTemplateLibraryActions } from './components/template/useTemplateLibraryActions.js'
+import { useTemplateLibraryCollection } from './components/template/useTemplateLibraryCollection.js'
 
 const categoryTabs = [
   { name: 'all', label: '全部', icon: Grid },
@@ -160,6 +164,20 @@ const categoryTabs = [
 ]
 
 const categoryOptions = TEMPLATE_CATEGORY_OPTIONS
+
+const projectStore = useProjectStore()
+const userStore = useUserStore()
+
+const collection = useTemplateLibraryCollection()
+const inProgressProjects = computed(() => projectStore.inProgressProjects)
+const actions = useTemplateLibraryActions({
+  activeCategory: collection.activeCategory,
+  templates: collection.templates,
+  userStore,
+  loadTemplates: collection.loadTemplates
+})
+
+onMounted(collection.loadTemplates)
 
 const {
   activeCategory,
@@ -182,7 +200,6 @@ const {
   templateFormErrors,
   submitError,
   upsertSubmitting,
-  inProgressProjects,
   allTags,
   filterSummaryItems,
   workspaceEmptyState,
@@ -198,7 +215,7 @@ const {
   confirmUseTemplate,
   handleMoreAction,
   handleDownload
-} = useTemplateLibraryPage()
+} = { ...collection, ...actions }
 </script>
 
 <style scoped lang="scss">

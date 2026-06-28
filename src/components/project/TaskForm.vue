@@ -137,8 +137,9 @@ import DynamicFormRenderer from '@/components/common/DynamicFormRenderer.vue'
 import UserPicker from '@/components/common/UserPicker.vue'
 import TaskActivityPanel from '@/components/project/TaskActivityPanel.vue'
 import { useTaskAssigneePicker } from './useTaskAssigneePicker.js'
-import { useTaskDeliveryForm } from './useTaskDeliveryForm.js'
-import { useTaskDeliverableDownload } from './useTaskDeliverableDownload.js'
+import { ElMessage } from 'element-plus'
+import { getTaskDeliverableDownloadUrl } from '@/api/modules/taskDeliverables.js'
+import { downloadWithFilename } from '@/utils/download.js'
 
 const props = defineProps({
   modelValue: { type: Object, default: () => ({}) },
@@ -180,9 +181,61 @@ const attachmentFileList = computed(() => localValue.attachments.map((file, i) =
   name: file?.name || `附件${i + 1}`, raw: file instanceof File ? file : file?.raw,
   url: (file?.projectId || localValue.projectId) && file?.id ? `/api/projects/${file.projectId || localValue.projectId}/documents/${file.id}/download` : file?.url,
 })))
-const { downloadDeliverable, downloadAttachment: handleDownloadAttachment } = useTaskDeliverableDownload(localValue)
-const { deliverableFileList, handleDeliverableChange, handleDeliverableRemove } =
-  useTaskDeliveryForm(localValue, readonly)
+// === 交付物下载 ===
+function getDeliverableDownloadUrl(deliverable) {
+  if (!deliverable?.id) return ''
+  const projectId = deliverable.projectId || localValue.projectId
+  const taskId = deliverable.taskId || localValue.id
+  return getTaskDeliverableDownloadUrl(projectId, taskId, deliverable.id)
+}
+
+async function downloadDeliverable(deliverable) {
+  const url = getDeliverableDownloadUrl(deliverable)
+  if (!url) {
+    ElMessage.info('文件地址不可用')
+    return
+  }
+  await downloadWithFilename(url, deliverable?.name || 'download')
+}
+
+function handleDownloadAttachment(file) {
+  if (!file?.id) {
+    ElMessage.warning('文件信息缺失，无法下载')
+    return
+  }
+  const projectId = file?.projectId || localValue.projectId
+  downloadWithFilename(`/api/projects/${projectId}/documents/${file.id}/download`, file?.name || '附件')
+}
+
+// === 交付物表单 ===
+const deliverableFileList = ref([])
+
+function rebuildFileList() {
+  const files = localValue.deliverableFiles
+  if (files?.length) {
+    const list = files.map((file, i) => ({ name: file?.name || `交付物${i + 1}`, raw: file }))
+    const oldJson = JSON.stringify(deliverableFileList.value)
+    const newJson = JSON.stringify(list)
+    if (oldJson !== newJson) deliverableFileList.value = list
+    return
+  }
+  if (deliverableFileList.value.length) deliverableFileList.value = []
+}
+
+rebuildFileList()
+watch(() => localValue.deliverableFiles, rebuildFileList, { deep: true })
+
+function handleDeliverableChange(file, fileList = []) {
+  localValue.deliverableFiles = (Array.isArray(fileList) ? fileList : [fileList])
+    .map((item) => item?.raw || item)
+    .filter(Boolean)
+}
+
+function handleDeliverableRemove(_file, fileList = []) {
+  localValue.deliverableFiles = (Array.isArray(fileList) ? fileList : [])
+    .map((item) => item?.raw || item)
+    .filter(Boolean)
+}
 
 let syncingFromModel = false
 

@@ -134,18 +134,17 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Upload, Document, Download } from '@element-plus/icons-vue'
 import http from '@/api/client'
-import { useQualificationBatch } from './components/qualification/useQualificationBatch.js'
+import { isBidManager, isBidAdminOrSenior } from '@/utils/permission'
 import { useUserStore } from '@/stores/user.js'
 import QualFormDialog from './components/qualification/QualFormDialog.vue'
 import AlertConfigDialog from './components/qualification/AlertConfigDialog.vue'
 import AttachmentReplaceDialog from './components/qualification/AttachmentReplaceDialog.vue'
 import QualImportCombinedDialog from './components/qualification/QualImportCombinedDialog.vue'
 import QualBatchUploadDialog from "./components/qualification/QualBatchUploadDialog.vue"
-import { useQualificationPermissionMatrix, useQualificationBorrowSection } from './components/qualification/useQualificationBorrowSection.js'
 import QualDetailDrawer from './components/qualification/QualDetailDrawer.vue'
 import RetireConfirmDialog from './components/qualification/RetireConfirmDialog.vue'
 import { useQualificationList } from './components/qualification/useQualificationList.js'
@@ -153,7 +152,10 @@ import { useQualificationDetail } from './components/qualification/useQualificat
 import { useRetireDialog } from '@/composables/useRetireDialog.js'
 
 const userStore = useUserStore()
-const { canManageQualification, canAdminQualificationAlert } = useQualificationPermissionMatrix(userStore)
+const currentRoleCode = computed(() => userStore?.currentUser?.roleCode || userStore?.currentUser?.role || userStore?.userRole || '')
+const canManageQualification = computed(() => isBidManager(currentRoleCode.value) || currentRoleCode.value === 'bid-administration')
+const canViewQualification = computed(() => isBidManager(currentRoleCode.value) || ['bid-administration', 'bid-Team'].includes(currentRoleCode.value))
+const canAdminQualificationAlert = computed(() => isBidAdminOrSenior(currentRoleCode.value))
 
 // 列表 / 筛选 / 分页 / fetch / 状态辅助
 const {
@@ -172,13 +174,59 @@ const {
 } = useQualificationDetail({ qualifications, fetchQualifications })
 
 // 批量导出 / 下载
-const {
-  tableRef, hasSelection, selectedCount,
-  handleSelectionChange, handleBatchExport, handleBatchDownload
-} = useQualificationBatch()
+const tableRef = ref(null)
+const selectedRows = ref([])
+const selectedCount = computed(() => selectedRows.value.length)
+const hasSelection = computed(() => selectedCount.value > 0)
+const handleSelectionChange = (rows) => { selectedRows.value = rows || [] }
+const handleBatchExport = () => {
+  const ids = selectedRows.value.map(r => r.id)
+  http.post('/api/knowledge/qualifications/batch-export', { ids }, { responseType: 'blob' })
+    .then(res => {
+      const url = window.URL.createObjectURL(new Blob([res.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `资质证书台账批量导出_${new Date().toISOString().slice(0, 10)}.xlsx`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    })
+    .catch(() => ElMessage.error('批量导出失败'))
+}
+const handleBatchDownload = () => {
+  const ids = selectedRows.value.map(r => r.id)
+  http.post('/api/knowledge/qualifications/batch-download', { ids }, { responseType: 'blob' })
+    .then(res => {
+      const url = window.URL.createObjectURL(new Blob([res.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `资质附件批量下载_${new Date().toISOString().slice(0, 10)}.zip`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    })
+    .catch(() => ElMessage.error('批量下载失败'))
+}
 
 // 告警配置 / 扫描到期
-const { alertConfigVisible, scanningExpiring, handleScanExpiring } = useQualificationBorrowSection({ httpClient: http })
+const alertConfigVisible = ref(false)
+const scanningExpiring = ref(false)
+async function handleScanExpiring() {
+  scanningExpiring.value = true
+  try {
+    const { data } = await http.post('/api/knowledge/qualifications/scan-expiring')
+    const count = data?.data ?? 0
+    ElMessage.success(`扫描完成，命中 ${count} 条即将到期资质`)
+    await fetchQualifications()
+  } catch (error) {
+    if (error.response?.status === 403) return
+    else ElMessage.error(error.response?.data?.msg || '扫描失败')
+  } finally {
+    scanningExpiring.value = false
+  }
+}
 
 // 下架确认弹窗
 const { retireDialogVisible, retireTarget, openRetireDialog, submitRetire } = useRetireDialog({

@@ -76,30 +76,68 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, onMounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import TaskBoardCard from './components/TaskBoardCard.vue'
 import TaskForm from '@/components/project/TaskForm.vue'
 import { projectsApi } from '@/api/modules/projects.js'
 import { tasksApi } from '@/api/modules/tasks.js'
-import { useTaskBoard } from './composables/useTaskBoard.js'
+import { tasksApi as dashboardTasksApi } from '@/api/modules/dashboard'
+import { TASK_STATUS, getTaskStatusDisplayName } from '@/constants/taskStatus.js'
 import { taskBackendToCard } from '@/views/Project/project-utils.js'
 import { useProjectStore } from '@/stores/project'
 import { useUserStore } from '@/stores/user'
 import { uploadTaskFilesWithFallback } from '@/composables/projectDetail/taskAssigneePayload'
 
-const {
-  items,
-  loading,
-  error,
-  columns,
-  availableStatuses,
-  getTasksByStatus,
-  handleStatusChange,
-  handleDeliverableChanged,
-  loadTasks
-} = useTaskBoard()
+const COLUMNS = [
+  { key: TASK_STATUS.TODO, title: '待开始', color: '#909399' },
+  { key: TASK_STATUS.REVIEW, title: '待审核', color: '#e6a23c' },
+  { key: TASK_STATUS.COMPLETED, title: '已完成', color: '#67c23a' }
+]
+
+const AVAILABLE_STATUSES = COLUMNS.map(({ key, title }) => ({ code: key, name: title }))
+
+const items = ref([])
+const loading = ref(false)
+const error = ref('')
+
+const getTasksByStatus = (status) => items.value.filter((t) => t.status === status)
+
+const loadTasks = async () => {
+  loading.value = true
+  error.value = ''
+  try {
+    const res = await dashboardTasksApi.getBoardItems()
+    items.value = Array.isArray(res?.data) ? res.data : []
+  } catch (e) {
+    error.value = e?.message || '加载任务失败'
+    items.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleStatusChange = async (item, newStatus) => {
+  if (item.type !== 'TASK') return
+  const oldStatus = item.status
+  item.status = newStatus
+  try {
+    await dashboardTasksApi.updateStatus(item.id, newStatus)
+    const name = getTaskStatusDisplayName(newStatus)
+    ElMessage.success(`任务状态已更新为：${name}`)
+  } catch (e) {
+    item.status = oldStatus
+    ElMessage.error(e?.message || '更新任务状态失败')
+  }
+}
+
+const handleDeliverableChanged = async () => { await loadTasks() }
+
+onMounted(loadTasks)
+
+const columns = COLUMNS
+const availableStatuses = AVAILABLE_STATUSES
 
 // 抽屉状态
 const drawerVisible = ref(false)

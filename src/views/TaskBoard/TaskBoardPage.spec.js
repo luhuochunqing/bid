@@ -3,30 +3,20 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { computed, defineComponent } from 'vue'
 
-// Mock composable
-const mockItems = [
-  { type: 'TASK', id: 1, title: '任务1', status: 'TODO', assigneeId: 1, projectId: 10, priority: 'HIGH' },
-]
-const mockLoadTasks = vi.fn()
-vi.mock('@/views/TaskBoard/composables/useTaskBoard.js', () => ({
-  useTaskBoard: () => ({
-    items: mockItems,
-    loading: false,
-    error: '',
-    columns: [
-      { key: 'TODO', title: '待开始', color: '#909399' },
-      { key: 'REVIEW', title: '待审核', color: '#e6a23c' },
-      { key: 'COMPLETED', title: '已完成', color: '#67c23a' },
-    ],
-    availableStatuses: [{ code: 'TODO', name: '待开始' }],
-    getTasksByStatus: (key) => key === 'TODO' ? mockItems : [],
-    handleStatusChange: vi.fn(),
-    handleDeliverableChanged: vi.fn(),
-    loadTasks: mockLoadTasks,
-  })
+// Mock API: dashboard for board items
+const { mockDashboardItems } = vi.hoisted(() => ({
+  mockDashboardItems: [
+    { type: 'TASK', id: 1, title: '任务1', status: 'TODO', assigneeId: 1, projectId: 10, priority: 'HIGH' },
+  ]
+}))
+vi.mock('@/api/modules/dashboard', () => ({
+  tasksApi: {
+    getBoardItems: vi.fn().mockResolvedValue({ data: mockDashboardItems }),
+    updateStatus: vi.fn().mockResolvedValue({}),
+  }
 }))
 
-// Mock API modules
+// Mock API: tasks for detail
 vi.mock('@/api/modules/tasks.js', () => ({
   tasksApi: {
     getTaskById: vi.fn().mockResolvedValue({
@@ -119,8 +109,8 @@ describe('TaskBoardPage', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
-    mockItems.length = 1
-    Object.assign(mockItems[0], {
+    mockDashboardItems.length = 1
+    Object.assign(mockDashboardItems[0], {
       type: 'TASK', id: 1, title: '任务1', status: 'TODO', assigneeId: 1, projectId: 10,
     })
   })

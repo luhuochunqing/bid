@@ -169,7 +169,7 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, ref } from 'vue'
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
@@ -180,7 +180,7 @@ import { useBiddingDetailPage } from './useBiddingDetailPage.js'
 import { tendersApi } from '@/api'
 import httpClient from '@/api/client.js'
 import { useEvaluationReview } from './useEvaluationReview.js'
-import { useDetailTabs } from './useDetailTabs.js'
+
 import { useDetailActions } from './useDetailActions.js'
 import { useUserStore } from '@/stores/user'
 import { isBidManager } from '@/utils/permission'
@@ -315,7 +315,32 @@ function transformCrmCustomerInfos(customerInfos) {
   return result
 }
 
-const { activeTab, visibleTabs } = useDetailTabs(tender)
+// Tab 配置
+const TABS = [
+  { name: 'basic', label: '基本信息' },
+  { name: 'evaluation', label: '项目评估表' },
+  { name: 'logs', label: '操作日志' },
+]
+
+const activeTab = ref('basic')
+
+// 可见的 Tab 列表
+const visibleTabs = computed(() => {
+  return TABS
+})
+
+// activeTab 随着 visibleTabs 变化自动修正
+watch(visibleTabs, (tabs) => {
+  const isActiveTabVisible = tabs.some(t => t.name === activeTab.value)
+  if (!isActiveTabVisible && tabs.length > 0) {
+    activeTab.value = tabs[0].name
+  }
+}, { immediate: true })
+
+// Tab 切换方法
+function switchTab(name) {
+  activeTab.value = name
+}
 
 async function onCrmOpportunityLinked({ opportunityId, opportunityName, evaluationData }) {
   if (!tender.value?.id) return

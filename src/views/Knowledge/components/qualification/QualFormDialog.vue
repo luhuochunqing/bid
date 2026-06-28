@@ -127,9 +127,7 @@ import { ref, reactive, watch, computed } from 'vue'
 import { ElMessage, ElNotification } from 'element-plus'
 import { UploadFilled, Document } from '@element-plus/icons-vue'
 import http from '@/api/client'
-import { useQualFormRules } from './useQualFormRules'
 import { qualificationStatusTagTypes, qualificationStatusLabels } from './qualificationMeta.js'
-import { useCertAiParser } from './useCertAiParser.js'
 
 const CONTACT_REGEX = /^(1[3-9]\d{9}|(0\d{2,3})[-]?\d{7,8}|[^\s@]+@[^\s@]+\.[^\s@]+)$/
 // CO-155 fix: 52428800 = 50MB，与 PR 680122945 对齐
@@ -167,16 +165,88 @@ const form = reactive({
   certScope: '', certReviewNote: ''
 })
 
-const { rules: formRules } = useQualFormRules(form, certFile, editingId)
-
-// CO-155 refactor: AI 解析逻辑独立为 composable
-const submitting = ref(false)
-const { parsingAi, onCertFileSelect } = useCertAiParser(MAX_ATTACHMENT_BYTES, certFile, (parsed) => {
-  if (parsed.name) form.name = parsed.name
-  if (parsed.certificateNo) form.certificateNo = parsed.certificateNo
-  if (parsed.issuer) form.issuer = parsed.issuer
-  if (parsed.expiryDate) form.expiryDate = parsed.expiryDate
+// §4.2.1.1 必填规则：10 个字段必填（基础5 + 补充4 + 附件1）
+const formRules = reactive({
+  name: [{ required: true, message: '请输入证书名称', trigger: 'blur' }],
+  level: [{ required: true, message: '请输入等级', trigger: 'blur' }],
+  issuer: [{ required: true, message: '请输入认证机构', trigger: 'blur' }],
+  certificateNo: [{ required: true, message: '请输入证书编号', trigger: 'blur' }],
+  issueDate: [{ required: true, message: '请选择发证日期', trigger: 'change' }],
+  expiryDate: [
+    { required: true, message: '请选择证书有效期', trigger: 'change' },
+    {
+      validator: (rule, value, callback) => {
+        if (value && form.issueDate && value <= form.issueDate) {
+          callback(new Error('证书有效期必须晚于发证日期'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'change'
+    }
+  ],
+  agency: [{ required: true, message: '请输入代理机构', trigger: 'blur' }],
+  agencyContact: [
+    { required: true, message: '请输入代理联系方式', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        if (value && !CONTACT_REGEX.test(value)) {
+          callback(new Error('请输入有效的手机号、固话或邮箱'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
+  ],
+  certScope: [{ required: true, message: '请输入认证范围', trigger: 'blur' }],
+  category: [{ required: true, message: '请选择领域', trigger: 'change' }],
+  subjectType: [{ required: true, message: '请选择主体类型', trigger: 'change' }],
+  subjectName: [{ required: true, message: '请输入主体名称', trigger: 'blur' }],
+  attachment: [{
+    validator: (rule, value, callback) => {
+      if (!certFile.value && !editingId.value) {
+        callback(new Error('请上传证书附件'))
+      } else {
+        callback()
+      }
+    },
+    trigger: 'change'
+  }]
 })
+
+const submitting = ref(false)
+const parsingAi = ref(false)
+
+async function onCertFileSelect(uploadFile) {
+  if (!uploadFile?.raw) return
+  if (uploadFile.raw.size > MAX_ATTACHMENT_BYTES.value) {
+    ElMessage.error(`附件不能超过${Math.round(MAX_ATTACHMENT_BYTES.value / 1024 / 1024)}MB`)
+    return
+  }
+  certFile.value = uploadFile.raw
+  parsingAi.value = true
+  ElMessage.info('AI 正在全息解析证书内容...')
+  const fd = new FormData()
+  fd.append('file', uploadFile.raw)
+  try {
+    const resp = await http.post('/api/knowledge/qualifications/upload-parse', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    if (resp?.code === 200 && resp.data) {
+      const parsed = resp.data
+      if (parsed.name) form.name = parsed.name
+      if (parsed.certificateNo) form.certificateNo = parsed.certificateNo
+      if (parsed.issuer) form.issuer = parsed.issuer
+      if (parsed.expiryDate) form.expiryDate = parsed.expiryDate
+      ElNotification({ title: 'AI 提取成功', message: '已自动填入证书特征与有效期等字段', type: 'success' })
+    }
+  } catch {
+    ElMessage.warning('AI解析失败，您可以手动填写')
+  } finally {
+    parsingAi.value = false
+  }
+}
 
 watch(() => props.modelValue, (v) => {
   visible.value = v
