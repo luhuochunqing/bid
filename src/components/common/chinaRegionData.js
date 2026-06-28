@@ -13,17 +13,22 @@ export function isMunicipalityName(name) {
 
 /**
  * 将 cascader 选中路径归一为总部所在地存储字符串。
- * - 直辖市：存为 市-市 格式（如 "北京市-北京市"），与普通省的 省-市 格式保持一致。
- * - 港澳台：仅存本级行政区名（如 "香港特别行政区"、"台湾省"），丢弃下级。
- * - 普通省/自治区：存 省+市（如 "广东省深圳市"）。
+ *
+ * CO-381: 统一规则——选到二级（含直辖市/港澳台的下级）时，一律存 `一级+二级`
+ * （如 "广东省深圳市"、"北京市北京市"、"台湾省台北市"、"香港特别行政区中西区"），
+ * 确保回填时能反解出两级路径，cascader 正常显示 "一级/二级"。
+ * 选到一级（仅省/直辖市/特别行政区本身）时，存本级行政区名（如 "广东省"）。
+ *
+ * 历史值兼容（regionValueToCascaderPath 负责回填）：
+ * - 旧直辖市 "北京市-北京市" / "北京市" 仍可回填
+ * - 旧港澳台单名 "香港特别行政区" 仍可回填
  */
 export function normalizeHeadquartersRegionPath(path) {
   if (!Array.isArray(path) || path.length === 0) return ''
-  if (isMunicipalityName(path[0])) {
-    return `${path[0]}-${path[0]}`
+  if (path.length >= 2) {
+    return `${path[0]}${path[1]}`
   }
-  if (isProvinceOnlyName(path[0])) return path[0]
-  return path.join('')
+  return path[0]
 }
 
 // 中国省市区三级联动数据（完整版，用于 Address 字段类型）
@@ -619,19 +624,29 @@ export const chinaRegionOptions = [
 ]
 
 /**
- * 校验存储值是否符合"省市格式 / 直辖市市-市格式"。
- * 通过：4 个直辖市的 市-市 格式（如 "北京市-北京市"）或旧单名（兼容历史数据），
- *       港澳台单名，或 普通省/自治区 的 省+市 组合。
+ * 校验存储值是否符合总部所在地格式。
+ *
+ * CO-381: 新增对统一 `一级+二级` 格式的支持（含直辖市/港澳台）：
+ * - 普通省/自治区：广东省深圳市
+ * - 直辖市（新）：北京市北京市
+ * - 台湾省（新）：台湾省台北市
+ * - 港澳（新）：香港特别行政区中西区
+ *
+ * 兼容旧格式：
+ * - 直辖市旧 市-市 格式：北京市-北京市
+ * - 直辖市/港澳台旧单名：北京市、香港特别行政区
+ *
  * 不通过：普通省仅选省级（如 "广东省"）、直辖市带区（如 "北京市东城区"）、空值。
  */
 export function isValidHeadquartersRegion(value) {
   if (!value) return false
   if (isProvinceOnlyName(value)) return true
   for (const province of chinaRegionOptions) {
+    // 直辖市旧 市-市 格式兼容
     if (isMunicipalityName(province.name) && value === `${province.name}-${province.name}`) return true
-    if (isProvinceOnlyName(province.name)) continue
     if (province.children) {
       for (const city of province.children) {
+        // CO-381: 统一 `一级+二级` 格式（覆盖普通省/直辖市/台湾省/港澳台）
         if (value === province.name + city.name) return true
       }
     }
@@ -641,38 +656,51 @@ export function isValidHeadquartersRegion(value) {
 
 /**
  * 将总部所在地存储值反向解析为 cascader 选中路径，用于编辑回显。
+ *
+ * CO-381: 统一 `一级+二级` 格式优先匹配，确保直辖市/港澳台选二级后能回填两级路径。
+ *
  * 兼容：
- * - 直辖市市-市格式（如 "北京市-北京市"）→ [市名]
- * - 直辖市/港澳台旧单名（如 "北京市"）→ [本级行政区名]
- * - 省+市（如 "广东省深圳市"）→ [省名, 市名]
- * - 直辖市带区历史值（如 "北京市东城区"）→ 回退到 [直辖市名]，避免回显空白
- * - 省+市+区历史值（如 "广东省深圳市福田区"）→ 回退到 [省名, 市名]（cascader 仅两级）
- * - 纯省名历史值（如 "北京"、"广东"）→ 补全为本级行政区名，避免回显空白
+ * - 统一 `一级+二级` 格式（CO-381，含直辖市/港澳台）：广东省深圳市 / 北京市北京市 / 台湾省台北市 / 香港特别行政区中西区 → [一级, 二级]
+ * - 直辖市旧 市-市 格式：北京市-北京市 → [市名]（兼容历史数据）
+ * - 直辖市/港澳台旧单名：北京市 / 香港特别行政区 → [本级行政区名]
+ * - 省+市+区历史值：广东省深圳市福田区 → [省名, 市名]（cascader 仅两级）
+ * - 纯省名历史值：北京 / 广东 → 补全为本级行政区名，避免回显空白
  * 无法匹配时原样返回字符串（保留值不丢）。
  */
 export function regionValueToCascaderPath(value) {
   if (!value) return null
+  // 优先匹配统一 `一级+二级` 格式（CO-381，覆盖所有省/直辖市/港澳台）
   for (const province of chinaRegionOptions) {
-    if (isMunicipalityName(province.name) && value === `${province.name}-${province.name}`) {
-      return [province.name]
-    }
-    if (province.name === value) return [value]
-    if (isProvinceOnlyName(province.name) && value.startsWith(province.name)) {
-      return [province.name]
-    }
     if (province.children) {
       for (const city of province.children) {
         if (value === province.name + city.name) return [province.name, city.name]
       }
     }
   }
+  for (const province of chinaRegionOptions) {
+    // 直辖市旧 市-市 格式兼容
+    if (isMunicipalityName(province.name) && value === `${province.name}-${province.name}`) {
+      return [province.name]
+    }
+    if (province.name === value) return [value]
+    // 港澳台旧单名兼容（value 就是本级行政区名）
+    if (isProvinceOnlyName(province.name) && value === province.name) {
+      return [province.name]
+    }
+  }
   // 省+市+区历史值（如 "广东省深圳市福田区"）：cascader 仅两级，回退到 [省, 市]
   for (const province of chinaRegionOptions) {
-    if (isProvinceOnlyName(province.name) || !province.children) continue
+    if (!province.children) continue
     for (const city of province.children) {
       if (value.startsWith(province.name + city.name)) {
         return [province.name, city.name]
       }
+    }
+  }
+  // 直辖市带区历史值（如 "北京市东城区"，东城区不在 cascader 二级数据里）：回退到 [直辖市名]
+  for (const province of chinaRegionOptions) {
+    if (isMunicipalityName(province.name) && value.startsWith(province.name)) {
+      return [province.name]
     }
   }
   // 纯省名历史值（如 "北京"、"广东"）：补全为本级行政区名
