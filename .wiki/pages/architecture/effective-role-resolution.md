@@ -4,11 +4,6 @@ space: engineering
 category: spec
 tags: [CO-373, 角色解析, EffectiveRoleResolver, DataScopeConfigService, FP-Java, fail-closed, OSS cache]
 sources:
-  - PR #1241 (drafting 服务层角色判断优先 OSS cache)
-  - PR #1245 (OSS 用户 roleCode 解析修正)
-  - PR #1259 (统一服务层角色码解析入口)
-  - CLAUDE.md §角色码解析强约束
-  - .wiki/pages/lessons-learned/CO-361-five-rounds-no-fix
 backlinks:
   - _index
   - architecture

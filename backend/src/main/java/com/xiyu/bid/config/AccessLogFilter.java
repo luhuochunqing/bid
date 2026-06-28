@@ -16,10 +16,12 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingResponseWrapper;
 
 import java.io.IOException;
+import org.springframework.web.util.ContentCachingRequestWrapper;
 
 /**
  * 统一请求访问日志过滤器。
  * <p>记录每个 HTTP 请求的方法、URI、耗时、状态码和客户端 IP，与 MDC traceId 关联。</p>
+ * <p>同时将请求和响应包装为 CachingWrapper，供后续异常处理或审计读取 Body。</p>
  * <p>注册在 Filter 链最外层，确保所有请求（含被拦截的）都被记录。</p>
  */
 @Component
@@ -40,9 +42,13 @@ public class AccessLogFilter extends OncePerRequestFilter {
         String clientIp = getClientIp(request);
         String userAgent = request.getHeader("User-Agent");
 
+        // 如果是文件上传等 multipart 请求，可能不适合用 caching wrapper，这里简单统一包装，生产中可加判断
+        ContentCachingRequestWrapper wrappedRequest = request instanceof ContentCachingRequestWrapper ? 
+                (ContentCachingRequestWrapper) request : new ContentCachingRequestWrapper(request);
         ContentCachingResponseWrapper wrappedResponse = new ContentCachingResponseWrapper(response);
+        
         try {
-            chain.doFilter(request, wrappedResponse);
+            chain.doFilter(wrappedRequest, wrappedResponse);
         } finally {
             long elapsed = System.currentTimeMillis() - start;
             int status = wrappedResponse.getStatus();

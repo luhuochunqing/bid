@@ -233,8 +233,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(
             BusinessException ex,
             HttpServletRequest request) {
-        log.warn("业务异常 - URI: {}, Code: {}, Message: {}",
-            request.getRequestURI(), ex.getCode(), ex.getMessage());
+        String payload = getRequestPayload(request);
+        log.warn("业务异常 - URI: {}, Code: {}, Message: {} \nPayload: {}",
+            request.getRequestURI(), ex.getCode(), ex.getMessage(), payload);
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
@@ -435,8 +436,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleGlobalException(
             Exception ex,
             HttpServletRequest request) {
-        log.error("系统异常 - URI: {}, IP: {}, Message: {}",
-            request.getRequestURI(), getClientIp(request), ex.getMessage(), ex);
+        String payload = getRequestPayload(request);
+        log.error("系统异常 - URI: {}, IP: {}, Message: {} \nPayload: {}",
+            request.getRequestURI(), getClientIp(request), ex.getMessage(), payload, ex);
 
         // 不暴露敏感信息给前端
         return ResponseEntity
@@ -458,6 +460,40 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         // 当配置了 forward-headers-strategy=NATIVE 时
         // 会自动返回正确的客户端 IP
         return request.getRemoteAddr();
+    }
+
+    /**
+     * 获取请求的 Payload（参数和 Body）用于异常日志排查
+     */
+    private String getRequestPayload(HttpServletRequest request) {
+        StringBuilder payload = new StringBuilder();
+        
+        // 1. 获取 URL Query 参数
+        String queryString = request.getQueryString();
+        if (queryString != null && !queryString.isEmpty()) {
+            payload.append("Query: ").append(queryString).append(" | ");
+        }
+        
+        // 2. 获取 Body (依赖 AccessLogFilter 中包装的 ContentCachingRequestWrapper)
+        if (request instanceof org.springframework.web.util.ContentCachingRequestWrapper) {
+            org.springframework.web.util.ContentCachingRequestWrapper wrapper = (org.springframework.web.util.ContentCachingRequestWrapper) request;
+            byte[] buf = wrapper.getContentAsByteArray();
+            if (buf.length > 0) {
+                try {
+                    int length = Math.min(buf.length, 2048); // 最多打印 2KB 避免日志过长
+                    String body = new String(buf, 0, length, wrapper.getCharacterEncoding());
+                    payload.append("Body: ").append(body).append(buf.length > 2048 ? "..." : "");
+                } catch (java.io.UnsupportedEncodingException e) {
+                    payload.append("Body: [Error reading payload: ").append(e.getMessage()).append("]");
+                }
+            } else {
+                payload.append("Body: [Empty]");
+            }
+        } else {
+            payload.append("Body: [Request not wrapped in ContentCachingRequestWrapper]");
+        }
+        
+        return payload.toString();
     }
 
     @Override

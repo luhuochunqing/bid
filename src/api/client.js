@@ -107,7 +107,22 @@ const handleAuthFailure = async () => {
 // H13 根治 (2026-06-14): access token 走 HttpOnly cookie (httpClient withCredentials 自动带),
 // 不再手动注入 Authorization header.
 httpClient.interceptors.request.use(
-  (config) => config,
+  (config) => {
+    if (!config.headers['X-Trace-Id']) {
+      // 兼容不支持 crypto.randomUUID 的环境（老版本浏览器）
+      const generateUUID = () => {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+          return crypto.randomUUID().replace(/-/g, '')
+        }
+        return 'xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8)
+          return v.toString(16)
+        })
+      }
+      config.headers['X-Trace-Id'] = generateUUID()
+    }
+    return config
+  },
   (error) => Promise.reject(error)
 )
 

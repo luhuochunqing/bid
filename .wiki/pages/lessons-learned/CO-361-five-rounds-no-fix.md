@@ -4,16 +4,6 @@ space: engineering
 category: lesson
 tags: [教训, CO-361, CO-373, 角色解析, 工程治理, 多Agent协作, pre-existing-error, 接口一致性]
 sources:
-  - Linear CO-361
-  - Linear CO-373
-  - PR #1153 (三态模型收口)
-  - PR #1156 (跟进修复)
-  - PR #1197 (任务可见性 + 项目访问权限)
-  - PR #1218 (CANCELLED 同形缺口 + 状态归一)
-  - PR #1223 (三态模型彻底收口)
-  - PR #1245 (OSS 用户 roleCode 解析修正)
-  - PR #1259 (统一服务层角色码解析入口)
-  - CLAUDE.md §双远程仓库配置
 backlinks:
   - _index
   - lessons-learned
