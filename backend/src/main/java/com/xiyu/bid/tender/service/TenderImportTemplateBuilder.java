@@ -16,6 +16,8 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Component;
 
+import com.xiyu.bid.tender.core.TenderRegionCatalog;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.List;
@@ -87,7 +89,7 @@ public class TenderImportTemplateBuilder {
         Sheet dict = workbook.createSheet("字典参考");
         CellStyle headerStyle = headerStyle(workbook, IndexedColors.GREY_25_PERCENT.getIndex());
 
-        String[] columns = {"地区（总部所在地：省+市，直辖市为市-市）", "客户类型", "优先级", "项目类型"};
+        String[] columns = {"地区（总部所在地：一级+二级，如广东省深圳市、北京市北京市）", "客户类型", "优先级", "项目类型"};
         Row header = dict.createRow(0);
         for (int i = 0; i < columns.length; i++) {
             Cell cell = header.createCell(i);
@@ -97,9 +99,10 @@ public class TenderImportTemplateBuilder {
         }
 
         List<String> regions = TenderImportService.REGIONS.stream()
-                // 字典 sheet 只展示推荐格式（直辖市市-市），不展示兼容的"仅市"格式
-                // 避免用户看字典 sheet 困惑该填哪种；TenderRegionCatalog.isValid 仍接受两种
-                .filter(r -> !java.util.Set.of("北京市", "天津市", "上海市", "重庆市").contains(r))
+                // 字典 sheet 只展示推荐的一级+二级格式，过滤掉旧兼容格式（单名、市-市）
+                // 避免 Excel 导入用户困惑该填哪种；TenderRegionCatalog.isValid 仍接受所有格式
+                .filter(r -> !TenderRegionCatalog.PROVINCE_ONLY.contains(r))
+                .filter(r -> !r.matches(".*-.*"))
                 .toList();
         List<String> customerTypes = TenderImportService.CUSTOMER_TYPES;
         List<String> priorities = TenderImportService.PRIORITIES;

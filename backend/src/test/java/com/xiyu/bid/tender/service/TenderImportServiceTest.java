@@ -197,7 +197,7 @@ class TenderImportServiceTest {
                 .satisfies(ex -> {
                     TenderImportResultDTO result = ((TenderImportRollbackException) ex).getResult();
                     assertThat(result.getErrors().get(0).field()).isEqualTo("region");
-                    assertThat(result.getErrors().get(0).message()).contains("省+市");
+                    assertThat(result.getErrors().get(0).message()).contains("一级+二级");
                 });
 
         verify(tenderCommandService, never()).createTender(any(), any());
@@ -310,21 +310,21 @@ class TenderImportServiceTest {
     }
 
     @Test
-    @DisplayName("字典 sheet 地区列表头描述与示例和校验提示口径一致（市-市格式）")
+    @DisplayName("字典 sheet 地区列表头描述与示例和校验提示口径一致（一级+二级格式）")
     void dictionarySheetRegionHeaderMatchesExampleAndValidationHint() throws Exception {
         byte[] bytes = service.generateTemplate();
         try (Workbook workbook = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
             Sheet dict = workbook.getSheet("字典参考");
             assertThat(dict).isNotNull();
             String regionHeader = dict.getRow(0).getCell(0).getStringCellValue();
-            // 表头应明确直辖市为"市-市"格式，与模板示例"北京市-北京市"和校验提示口径一致
-            assertThat(regionHeader).contains("市-市");
-            assertThat(regionHeader).doesNotContain("直辖市仅市");
+            // 表头应明确一级+二级格式，与校验提示口径一致
+            assertThat(regionHeader).contains("一级+二级");
+            assertThat(regionHeader).doesNotContain("市-市");
         }
     }
 
     @Test
-    @DisplayName("字典 sheet 地区列只列推荐格式（直辖市市-市），不列兼容的仅市格式")
+    @DisplayName("字典 sheet 地区列只列推荐的一级+二级格式，不列兼容的旧格式")
     void dictionarySheetRegionColumnExcludesMunicipalityOnlyName() throws Exception {
         byte[] bytes = service.generateTemplate();
         try (Workbook workbook = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
@@ -332,12 +332,14 @@ class TenderImportServiceTest {
             assertThat(dict).isNotNull();
             List<String> regions = readColumn(dict, 0);
 
-            // 直辖市推荐格式"市-市"应存在
-            assertThat(regions).contains("北京市-北京市", "天津市-天津市", "上海市-上海市", "重庆市-重庆市");
-            // 直辖市兼容的"仅市"格式不应在字典 sheet 展示（避免用户困惑该填哪种）
+            // 直辖市推荐格式"一级+二级拼接"应存在
+            assertThat(regions).contains("北京市北京市", "天津市天津市", "上海市上海市", "重庆市重庆市");
+            // 直辖市兼容的旧格式（仅市、市-市）不应在字典 sheet 展示
             assertThat(regions).doesNotContain("北京市", "天津市", "上海市", "重庆市");
-            // 港澳台仍保留本级行政区名
-            assertThat(regions).contains("台湾省", "香港特别行政区", "澳门特别行政区");
+            assertThat(regions).doesNotContain("北京市-北京市", "天津市-天津市", "上海市-上海市", "重庆市-重庆市");
+            // 港澳台推荐格式"一级+二级拼接"应存在，旧单名不展示
+            assertThat(regions).contains("台湾省台北市", "香港特别行政区中西区", "澳门特别行政区花地玛堂区");
+            assertThat(regions).doesNotContain("台湾省", "香港特别行政区", "澳门特别行政区");
             // 普通省+市格式仍保留
             assertThat(regions).contains("广东省深圳市");
         }

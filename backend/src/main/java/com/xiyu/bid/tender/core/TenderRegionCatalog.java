@@ -1,5 +1,5 @@
 // Input: 无
-// Output: 标讯总部所在地合法行政区目录（省+市 / 直辖市仅市 / 港澳台仅本级行政区名）与校验
+// Output: 标讯总部所在地合法行政区目录（省+市 / 直辖市 / 港澳台）与校验
 // Pos: tender/core - 总部所在地格式统一目录（纯核心，无框架依赖）
 // 维护声明: 与前端 src/components/common/chinaRegionData.js 同源；新增省市区县需两侧同步。
 
@@ -10,20 +10,31 @@ import java.util.Set;
 
 /**
  * 标讯「总部所在地」全局统一目录。
- * <p>格式口径（与前端 chinaRegionData.js 一致）：
+ * <p>格式口径（与前端 chinaRegionData.js 一致，CO-381 第四次修复统一规则）：
  * <ul>
- *   <li>直辖市：市-市格式（如 北京市-北京市），兼容历史单名（北京市）</li>
- *   <li>港澳台：仅本级行政区名（台湾省 / 香港特别行政区 / 澳门特别行政区）</li>
  *   <li>普通省/自治区：省+市（如 广东省深圳市）</li>
+ *   <li>直辖市：一级+二级拼接（如 北京市北京市），兼容旧市-市格式（北京市-北京市）与旧单名（北京市）</li>
+ *   <li>港澳台：一级+二级拼接（如 台湾省台北市、香港特别行政区中西区），兼容旧单名（台湾省）</li>
  * </ul>
  * 用于批量导入白名单校验与 API 格式校验，避免人工录入、导入与编辑回显之间格式不一致。
  */
 public final class TenderRegionCatalog {
 
-    /** 仅存本级行政区名、不带下级的省级单位（直辖市 + 港澳台）。 */
+    /** 直辖市 + 港澳台（本级即终态，但前端允许选二级，存一级+二级拼接）。 */
     public static final List<String> PROVINCE_ONLY = List.of(
             "北京市", "天津市", "上海市", "重庆市",
             "台湾省", "香港特别行政区", "澳门特别行政区"
+    );
+
+    /** 直辖市 + 港澳台的下级列表（与前端 chinaRegionData.js children 同源），用于拼「一级+二级」白名单。 */
+    private static final List<ProvinceEntry> PROVINCE_ONLY_ENTRIES = List.of(
+            entry("北京市", "北京市"),
+            entry("天津市", "天津市"),
+            entry("上海市", "上海市"),
+            entry("重庆市", "重庆市"),
+            entry("台湾省", "台北市", "新北市", "桃园市", "台中市", "台南市", "高雄市"),
+            entry("香港特别行政区", "中西区", "东区", "南区", "湾仔区", "九龙城区", "观塘区", "深水埗区", "黄大仙区", "油尖旺区", "离岛区", "葵青区", "荃湾区", "屯门区", "元朗区", "北区", "大埔区", "沙田区", "西贡区", "水路区"),
+            entry("澳门特别行政区", "花地玛堂区", "圣安多尼堂区", "望德堂区", "大堂区", "风顺堂区", "嘉模堂区", "路凼填海区", "圣方济各堂区")
     );
 
     /** 普通省/自治区 → 下辖市/州/盟/地区/林区 列表，用于拼「省+市」白名单。 */
@@ -57,7 +68,7 @@ public final class TenderRegionCatalog {
             entry("新疆维吾尔自治区", "乌鲁木齐市", "克拉玛依市", "吐鲁番市", "哈密市", "昌吉回族自治州", "博尔塔拉蒙古自治州", "巴音郭楞蒙古自治州", "阿克苏地区", "克孜勒苏柯尔克孜自治州", "喀什地区", "和田地区", "伊犁哈萨克自治州", "塔城地区", "阿勒泰地区")
     );
 
-    /** 全量合法总部所在地白名单（直辖市单名/市-市格式 + 港澳台单名 + 省+市）。 */
+    /** 全量合法总部所在地白名单（一级+二级拼接 + 旧格式兼容）。 */
     public static final List<String> REGIONS = buildRegions();
 
     private static final Set<String> REGION_SET = Set.copyOf(REGIONS);
@@ -72,12 +83,17 @@ public final class TenderRegionCatalog {
 
     private static List<String> buildRegions() {
         java.util.ArrayList<String> all = new java.util.ArrayList<>();
-        for (String name : PROVINCE_ONLY) {
-            all.add(name);
-            if (name.endsWith("市")) {
-                all.add(name + "-" + name);
+        // 直辖市 + 港澳台：一级+二级拼接（CO-381 统一格式）+ 旧格式兼容（单名、市-市）
+        for (ProvinceEntry p : PROVINCE_ONLY_ENTRIES) {
+            all.add(p.province); // 旧单名（如 北京市、台湾省）
+            for (String city : p.cities) {
+                all.add(p.province + city); // 一级+二级拼接（如 北京市北京市、台湾省台北市）
+            }
+            if (p.province.endsWith("市")) {
+                all.add(p.province + "-" + p.province); // 旧市-市格式（如 北京市-北京市）
             }
         }
+        // 普通省/自治区：省+市拼接
         for (ProvinceEntry p : PROVINCES) {
             for (String city : p.cities) {
                 all.add(p.province + city);

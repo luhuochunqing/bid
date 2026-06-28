@@ -17,7 +17,13 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 校验标讯「总部所在地」为全局统一的省+市格式（直辖市仅市、港澳台仅本级行政区名）。
+ * 校验标讯「总部所在地」为全局统一的一级+二级格式（与前端 chinaRegionData.js 一致）。
+ * <p>格式口径：
+ * <ul>
+ *   <li>普通省/自治区：省+市（如 广东省深圳市）</li>
+ *   <li>直辖市：一级+二级拼接（如 北京市北京市），兼容旧市-市格式与单名</li>
+ *   <li>港澳台：一级+二级拼接（如 台湾省台北市、香港特别行政区中西区），兼容旧单名</li>
+ * </ul>
  * <p>null 值不校验（与其他字段一致，由 @NotBlank 等控制必填）。
  */
 @Target({ElementType.FIELD, ElementType.PARAMETER})
@@ -26,7 +32,7 @@ import java.lang.annotation.Target;
 @Documented
 public @interface HeadquartersRegion {
 
-    String message() default "总部所在地须为省+市格式（直辖市仅市，如\"北京市\"、\"广东省深圳市\"）";
+    String message() default "总部所在地须为一级+二级格式（如\"广东省深圳市\"、\"北京市北京市\"、\"台湾省台北市\"）";
 
     Class<?>[] groups() default {};
 
