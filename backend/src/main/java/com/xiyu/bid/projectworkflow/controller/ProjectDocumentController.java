@@ -115,7 +115,10 @@ public class ProjectDocumentController {
     }
 
     @DeleteMapping("/{documentId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    // CO-382: 早过滤层——对齐蓝图 §3.3.1.2「删除文档」权限矩阵。
+    // 旧 hasAnyRole('ADMIN','MANAGER') 用了已废弃的 MANAGER 角色名，新角色体系下 bid-TeamLeader/bidAdmin 无法命中。
+    // 真权限闸门在 Service 层 ProjectDocumentWorkflowPolicy.canDeleteProjectDocument，本注解只是早过滤减少无效调用。
+    @PreAuthorize("hasAnyRole('ADMIN', 'BIDADMIN', 'BID_TEAMLEADER')")
     public ResponseEntity<ApiResponse<Void>> deleteProjectDocument(
             @PathVariable Long projectId,
             @PathVariable Long documentId

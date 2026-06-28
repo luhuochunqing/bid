@@ -322,11 +322,55 @@ class ProjectDocumentWorkflowServiceTest {
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.deleteProjectDocument(1001L, 9001L))
                 .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
-                .hasMessageContaining("权限不足，仅管理员允许删除文档");
+                .hasMessageContaining("权限不足，仅投标管理员/组长允许删除文档");
 
         verify(projectDocumentRepository, org.mockito.Mockito.never()).delete(any());
 
         org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    }
+
+    // ============ CO-382: 删除文档权限策略对齐蓝图 §3.3.1.2 ============
+    // 蓝图：删除文档权限属于「投标管理员/组长」列，即 admin / /bidAdmin / bid-TeamLeader
+    // 投标负责人/辅助人（bid-projectLeader, bid-Team）不应删除文档
+    // Service 层 Policy 是真权限闸门；Controller @PreAuthorize 只是早过滤，不能取代 Service Policy
+
+    @Test
+    void deleteProjectDocument_asBidTeamLeader_shouldSucceed() {
+        // 蓝图：投标组长属于「投标管理员/组长」列，允许删除文档
+        when(currentUserResolver.getCurrentRoleCode()).thenReturn("bid-TeamLeader");
+
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(9101L)
+                .projectId(1001L)
+                .name("投标文件.pdf")
+                .documentCategory("BID_DOCUMENT")
+                .build();
+        when(projectDocumentRepository.findById(9101L)).thenReturn(Optional.of(doc));
+
+        service.deleteProjectDocument(1001L, 9101L);
+
+        verify(projectDocumentRepository).delete(doc);
+        verify(bindingGateway).onDocumentDeleted(doc);
+    }
+
+    @Test
+    void deleteProjectDocument_asBidProjectLeader_shouldThrowAccessDeniedException() {
+        // 蓝图：投标项目负责人属于「投标负责人/辅助人」列，不允许删除文档
+        when(currentUserResolver.getCurrentRoleCode()).thenReturn("bid-projectLeader");
+
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(9102L)
+                .projectId(1001L)
+                .name("投标文件.pdf")
+                .documentCategory("BID_DOCUMENT")
+                .build();
+        when(projectDocumentRepository.findById(9102L)).thenReturn(Optional.of(doc));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.deleteProjectDocument(1001L, 9102L))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+                .hasMessageContaining("权限不足");
+
+        verify(projectDocumentRepository, org.mockito.Mockito.never()).delete(any());
     }
 
     // ============ CO-381: 投标文件阶段只读守卫 ============

@@ -116,10 +116,13 @@ public final class ProjectDocumentWorkflowPolicy {
             return AuthorizationDecision.deny("当前用户未分配角色，无权删除文档");
         }
         String normalized = roleCode.trim();
-        if (RoleProfileCatalog.ADMIN_CODE.equalsIgnoreCase(normalized) || RoleProfileCatalog.BID_ADMIN_CODE.equalsIgnoreCase(normalized)) {
+        // CO-382: 对齐蓝图 §3.3.1.2「删除文档」权限矩阵——投标管理员/组长列
+        if (RoleProfileCatalog.ADMIN_CODE.equalsIgnoreCase(normalized)
+                || RoleProfileCatalog.BID_ADMIN_CODE.equalsIgnoreCase(normalized)
+                || RoleProfileCatalog.BID_LEAD_CODE.equalsIgnoreCase(normalized)) {
             return AuthorizationDecision.permit();
         }
-        return AuthorizationDecision.deny("权限不足，仅管理员允许删除文档");
+        return AuthorizationDecision.deny("权限不足，仅投标管理员/组长允许删除文档");
     }
 
     private static boolean isGlobalDocumentAccessRole(String roleCode) {

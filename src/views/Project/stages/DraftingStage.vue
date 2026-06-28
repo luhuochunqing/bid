@@ -36,7 +36,7 @@
           <div class="bid-file-row">
             <a href="javascript:void(0)" class="upload-file-link" :class="{ 'is-readonly': !canDownloadBidFile }" @click.prevent="handleDownloadBidFile(file)">{{ file.name }}</a>
             <el-button
-              v-if="!bidDone && perm.canManageBidFiles"
+              v-if="!bidDone && perm.canManageBidFiles && canDeleteBidFile"
               link
               type="danger"
               size="small"
@@ -192,6 +192,11 @@ const uploadHeaders = computed(() => { const t = userStore?.token; return t ? { 
 // CO-381: 投标文件下载守卫——仅当项目仍处于 DRAFTING 阶段（含 submit-review 的 REVIEWING 子状态）
 // 且当前用户有下载权限时允许下载。推进到 EVALUATING/CLOSED 等后续阶段后，文件名可见但下载禁用。
 const canDownloadBidFile = computed(() => perm.canDownloadDocument && props.currentStage === 'DRAFTING')
+// CO-382: 删除按钮守卫——仅"上传后、提交前"允许删除。
+// 允许删除：reviewState === null（未提交审核）或 'rejected'（被驳回，可修改后重提）。
+// 禁止删除：'reviewing'（审核中）/ 'approved'（已通过，bidDone 会接管）/ bidDone（已投标）。
+// 前端守卫是体验层，后端 ProjectDocumentWorkflowPolicy.canDeleteProjectDocument 是真权限闸门。
+const canDeleteBidFile = computed(() => reviewState.value === null || reviewState.value === 'rejected')
 function handleDownloadBidFile(file) {
   // CO-381: 阶段守卫 + 权限守卫。前端守卫是体验层，后端 ProjectDocumentDownloadService 还有深度防御。
   if (!canDownloadBidFile.value) return

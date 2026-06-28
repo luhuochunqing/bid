@@ -237,3 +237,71 @@ describe('DraftingStage bidFiles 持久化与下载阶段守卫 - CO-381', () =>
     expect(deleteBtn.exists()).toBe(true)
   })
 })
+
+// CO-382: 删除按钮守卫——仅"上传后、提交前"允许删除
+// 业务规则：reviewState === null（未提交审核）或 'rejected'（被驳回，可修改后重提）时显示删除按钮；
+//          'reviewing'（审核中）/ 'approved'（已通过）/ bidDone（已投标）时隐藏
+describe('DraftingStage 删除按钮提交前守卫 - CO-382', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getDraftingMock.mockReset()
+    getDocumentsMock.mockReset()
+    downloadWithFilenameMock.mockReset()
+    getDocumentsMock.mockImplementation(() => Promise.resolve({
+      data: [{ id: 3001, name: '投标文件.pdf', documentCategory: 'BID_DOCUMENT' }],
+    }))
+    mockCurrentUser.role = '/bidAdmin'
+  })
+
+  it('reviewState=null（未提交审核）：删除按钮可见', async () => {
+    getDraftingMock.mockImplementation(() => Promise.resolve({
+      data: { reviewStatus: null }
+    }))
+
+    const wrapper = await mountDraftingStage({ currentStage: 'DRAFTING' })
+    await flushPromises()
+
+    const deleteBtns = wrapper.findAll('button')
+    const deleteBtn = deleteBtns.find(b => b.text() === '删除')
+    expect(deleteBtn?.exists()).toBe(true)
+  })
+
+  it('reviewState=reviewing（审核中）：删除按钮隐藏', async () => {
+    getDraftingMock.mockImplementation(() => Promise.resolve({
+      data: { reviewStatus: 'reviewing' }
+    }))
+
+    const wrapper = await mountDraftingStage({ currentStage: 'DRAFTING' })
+    await flushPromises()
+
+    const deleteBtns = wrapper.findAll('button')
+    const deleteBtn = deleteBtns.find(b => b.text() === '删除')
+    expect(deleteBtn).toBeUndefined()
+  })
+
+  it('reviewState=approved（已通过审核）：删除按钮隐藏', async () => {
+    getDraftingMock.mockImplementation(() => Promise.resolve({
+      data: { reviewStatus: 'approved' }
+    }))
+
+    const wrapper = await mountDraftingStage({ currentStage: 'DRAFTING' })
+    await flushPromises()
+
+    const deleteBtns = wrapper.findAll('button')
+    const deleteBtn = deleteBtns.find(b => b.text() === '删除')
+    expect(deleteBtn).toBeUndefined()
+  })
+
+  it('reviewState=rejected（被驳回）：删除按钮可见（允许修改后重提）', async () => {
+    getDraftingMock.mockImplementation(() => Promise.resolve({
+      data: { reviewStatus: 'rejected' }
+    }))
+
+    const wrapper = await mountDraftingStage({ currentStage: 'DRAFTING' })
+    await flushPromises()
+
+    const deleteBtns = wrapper.findAll('button')
+    const deleteBtn = deleteBtns.find(b => b.text() === '删除')
+    expect(deleteBtn?.exists()).toBe(true)
+  })
+})

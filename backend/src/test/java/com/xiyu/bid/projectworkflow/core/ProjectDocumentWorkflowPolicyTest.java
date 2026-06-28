@@ -212,8 +212,13 @@ class ProjectDocumentWorkflowPolicyTest {
     // ==================== canDeleteProjectDocument ====================
 
     @ParameterizedTest
-    @ValueSource(strings = {RoleProfileCatalog.ADMIN_CODE, RoleProfileCatalog.BID_ADMIN_CODE})
-    void canDeleteProjectDocument_whenAdminOrBidAdmin_shouldPermit(String roleCode) {
+    @ValueSource(strings = {
+            RoleProfileCatalog.ADMIN_CODE,
+            RoleProfileCatalog.BID_ADMIN_CODE,
+            RoleProfileCatalog.BID_LEAD_CODE
+    })
+    void canDeleteProjectDocument_whenAdminBidAdminOrBidLead_shouldPermit(String roleCode) {
+        // CO-382: 对齐蓝图 §3.3.1.2「删除文档」权限矩阵——admin/bidAdmin/bid-TeamLeader 允许
         var result = ProjectDocumentWorkflowPolicy.canDeleteProjectDocument(roleCode);
         assertThat(result.allowed()).isTrue();
         assertThat(result.reason()).isNull();
@@ -221,7 +226,6 @@ class ProjectDocumentWorkflowPolicyTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
-            RoleProfileCatalog.BID_LEAD_CODE,
             RoleProfileCatalog.SALES_CODE,
             RoleProfileCatalog.BID_SPECIALIST_CODE,
             RoleProfileCatalog.BID_OTHER_DEPT_CODE,
@@ -231,7 +235,7 @@ class ProjectDocumentWorkflowPolicyTest {
     void canDeleteProjectDocument_whenNonAdminRole_shouldDeny(String roleCode) {
         var result = ProjectDocumentWorkflowPolicy.canDeleteProjectDocument(roleCode);
         assertThat(result.allowed()).isFalse();
-        assertThat(result.reason()).contains("仅管理员允许删除文档");
+        assertThat(result.reason()).contains("仅投标管理员/组长允许删除文档");
     }
 
     @Test
@@ -245,6 +249,6 @@ class ProjectDocumentWorkflowPolicyTest {
     void canDeleteProjectDocument_whenBlankRole_shouldDeny() {
         var result = ProjectDocumentWorkflowPolicy.canDeleteProjectDocument("   ");
         assertThat(result.allowed()).isFalse();
-        assertThat(result.reason()).contains("仅管理员允许删除文档");
+        assertThat(result.reason()).contains("仅投标管理员/组长允许删除文档");
     }
 }
