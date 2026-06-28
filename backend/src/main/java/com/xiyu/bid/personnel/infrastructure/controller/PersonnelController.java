@@ -277,7 +277,11 @@ public class PersonnelController {
             @PathVariable Long personnelId,
             @PathVariable String filename) {
         try {
-            Path path = Paths.get("data/personnel-attachments", personnelId.toString(), filename);
+            if (!com.xiyu.bid.shared.security.FilePathGuard.isSafeFileName(filename)) {
+                return ResponseEntity.badRequest().build();
+            }
+            Path path = com.xiyu.bid.shared.security.FilePathGuard.resolveWithin(
+                    personnelId + "/" + filename, "data/personnel-attachments");
             if (!Files.exists(path)) {
                 return ResponseEntity.notFound().build();
             }

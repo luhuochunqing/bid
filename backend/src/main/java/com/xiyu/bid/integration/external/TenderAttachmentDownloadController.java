@@ -39,7 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @Tag(name = "CRM 附件下载（外部API v2.0）", description = "CRM 跨系统附件下载端点，公开访问无需认证")
 @RequestMapping("/api/integration/tenders/attachments")
-@PreAuthorize("permitAll")
+@PreAuthorize("permitAll()")
 @RequiredArgsConstructor
 @Slf4j
 public class TenderAttachmentDownloadController {

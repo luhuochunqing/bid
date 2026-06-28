@@ -94,10 +94,7 @@ public class ProjectArchiveController {
         String opName = getCurrentOperatorName();
         workflowService.recordLog(archive.getId(), 0L, opName, "预览", "预览人" + opName + "、预览时间" + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) + "、预览文件名" + file.getFileName());
 
-        Path filePath = Paths.get(file.getFilePath());
-        if (!Files.exists(filePath)) {
-            throw new IllegalArgumentException("文件物理路径不存在: " + file.getFilePath());
-        }
+        Path filePath = resolveAndValidateFilePath(file.getFilePath());
 
         String fileName = file.getFileName();
         String contentType = inferContentType(fileName);
@@ -130,10 +127,7 @@ public class ProjectArchiveController {
         String opName = getCurrentOperatorName();
         workflowService.recordLog(archive.getId(), 0L, opName, "下载", "下载人" + opName + "、下载时间" + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) + "、下载文件名" + file.getFileName());
 
-        Path filePath = Paths.get(file.getFilePath());
-        if (!Files.exists(filePath)) {
-            throw new IllegalArgumentException("文件物理路径不存在: " + file.getFilePath());
-        }
+        Path filePath = resolveAndValidateFilePath(file.getFilePath());
 
         String fileName = file.getFileName();
 
@@ -149,6 +143,16 @@ public class ProjectArchiveController {
 
         Resource resource = new FileSystemResource(filePath);
         return new ResponseEntity<>(resource, headers, HttpStatus.OK);
+    }
+
+    /** 档案文件允许存储的基础目录。 */
+    private static final String ARCHIVE_FILE_BASE_DIR = "data";
+
+    /** 解析并验证文件路径，防止路径遍历攻击。 */
+    private Path resolveAndValidateFilePath(String rawPath) {
+        return com.xiyu.bid.shared.security.FilePathGuard.ensureExists(
+                com.xiyu.bid.shared.security.FilePathGuard.resolveAbsoluteWithin(rawPath, ARCHIVE_FILE_BASE_DIR),
+                rawPath);
     }
 
     @PostMapping("/export-excel")
@@ -269,22 +273,20 @@ public class ProjectArchiveController {
 
     private String inferContentType(String filename) {
         if (filename == null) return "application/octet-stream";
-        String lower = filename.toLowerCase();
-        if (lower.endsWith(".pdf")) return "application/pdf";
-        if (lower.endsWith(".doc")) return "application/msword";
-        if (lower.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-        if (lower.endsWith(".xls")) return "application/vnd.ms-excel";
-        if (lower.endsWith(".xlsx")) return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-        if (lower.endsWith(".png")) return "image/png";
-        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
-        if (lower.endsWith(".gif")) return "image/gif";
-        if (lower.endsWith(".txt")) return "text/plain";
-        return "application/octet-stream";
+        String l = filename.toLowerCase();
+        if (l.endsWith(".pdf")) return "application/pdf";
+        if (l.endsWith(".doc")) return "application/msword";
+        if (l.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        if (l.endsWith(".xls")) return "application/vnd.ms-excel";
+        if (l.endsWith(".xlsx")) return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        if (l.endsWith(".png")) return "image/png";
+        if (l.endsWith(".jpg") || l.endsWith(".jpeg")) return "image/jpeg";
+        if (l.endsWith(".gif")) return "image/gif";
+        return l.endsWith(".txt") ? "text/plain" : "application/octet-stream";
     }
 
-    private String sanitizeFilename(String filename) {
-        if (filename == null) return "unnamed";
-        return filename.replaceAll("[^\\w\\u4e00-\\u9fa5.\\-]", "_");
+    private String sanitizeFilename(String f) {
+        return f == null ? "unnamed" : f.replaceAll("[^\\w\\u4e00-\\u9fa5.\\-]", "_");
     }
 
     private String getCurrentOperatorName() {
@@ -292,7 +294,6 @@ public class ProjectArchiveController {
             var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.getName() != null) return auth.getName();
         } catch (IllegalStateException | NullPointerException ignored) {
-            // 无 SecurityContext 时（导出端点被未来异步化时也可能），安全降级到 "系统"
         }
         return "系统";
     }

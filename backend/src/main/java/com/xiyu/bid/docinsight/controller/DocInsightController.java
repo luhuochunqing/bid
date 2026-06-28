@@ -8,6 +8,7 @@ import com.xiyu.bid.docinsight.application.DocumentAnalysisResult;
 import com.xiyu.bid.docinsight.application.DocumentIntelligenceService;
 import com.xiyu.bid.docinsight.application.StoredDocument;
 import com.xiyu.bid.docinsight.domain.DocInsightProfiles;
+import com.xiyu.bid.shared.security.ExternalUrlGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
@@ -41,13 +42,15 @@ import java.util.regex.Pattern;
 @PreAuthorize("isAuthenticated()")
 public class DocInsightController {
 
-    /** 上传文件大小上限（MB），通过 app.docinsight.max-upload-mb 配置，默认 50 MB。 */
     @Value("${app.docinsight.max-upload-mb:50}")
     private int maxUploadMb;
 
-    /** 文件存储目录，与 LocalDocumentStorage 共享同一配置。 */
     @Value("${app.doc-insight.upload-dir:}")
     private String configuredUploadDir;
+
+    /** 外部下载域名白名单（逗号分隔），为空时仅阻止私有地址。 */
+    @Value("${app.doc-insight.external-download-allowed-hosts:}")
+    private String allowedExternalHosts;
 
     private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
             "application/pdf",
@@ -60,62 +63,39 @@ public class DocInsightController {
     );
 
     private static final String TEXT_PLAIN = "text/plain";
-
-    /** profileCode: 字母、数字、下划线、短横线，1-64 字符。 */
     private static final Pattern PROFILE_CODE_PATTERN = Pattern.compile("[A-Za-z0-9_\\-]{1,64}");
-
-    /** entityId: 字母、数字、下划线、短横线，1-128 字符。 */
     private static final Pattern ENTITY_ID_PATTERN = Pattern.compile("[A-Za-z0-9_\\-]{1,128}");
 
     private final DocumentIntelligenceService docInsightService;
 
-    /**
-     * 上传 + 解析一站式端点（向后兼容）。
-     * 内部先存储再解析，等价于 /store → /parse-existing 两步调用。
-     */
     @PostMapping("/parse")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<DocumentAnalysisResult>> parse(
             @RequestParam("profile") String profileCode,
             @RequestParam("entityId") String entityId,
             @RequestParam("file") MultipartFile file) {
-
         validateUploadFile(file);
         validateProfileCode(profileCode);
         validateContentType(profileCode, file.getContentType());
         validateEntityId(entityId);
-
-        // Access scope + analysis (service layer guards project access)
         DocumentAnalysisResult result = docInsightService.process(profileCode, entityId, file);
         return ResponseEntity.ok(ApiResponse.success("文档解析完成", result));
     }
 
-    /**
-     * 仅存储文件，不执行 AI 解析。
-     * 用于"上传即保存"流程 Step 1：文件选择后立即保存，获取 fileUrl / storagePath；
-     * AI 解析作为独立增强步骤通过 /parse-existing 完成。
-     */
     @PostMapping("/store")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<StoredDocument>> store(
             @RequestParam("profile") String profileCode,
             @RequestParam("entityId") String entityId,
             @RequestParam("file") MultipartFile file) {
-
         validateUploadFile(file);
         validateProfileCode(profileCode);
         validateContentType(profileCode, file.getContentType());
         validateEntityId(entityId);
-
         StoredDocument stored = docInsightService.storeOnly(profileCode, entityId, file);
         return ResponseEntity.ok(ApiResponse.success("文件存储成功", stored));
     }
 
-    /**
-     * 对已存储的文件执行 AI 解析（无需重新上传）。
-     * 用于"上传即保存"流程 Step 2：先 /store 保存文件，再用此接口基于
-     * storagePath 触发解析，避免重复上传。
-     */
     @PostMapping("/parse-existing")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<DocumentAnalysisResult>> parseExisting(
@@ -124,18 +104,16 @@ public class DocInsightController {
             @RequestParam("storagePath") String storagePath,
             @RequestParam("fileName") String fileName,
             @RequestParam(value = "contentType", required = false) String contentType) {
-
         validateProfileCode(profileCode);
         validateEntityId(entityId);
         validateStoragePath(storagePath);
         validateFileName(fileName);
-
         DocumentAnalysisResult result = docInsightService.processExisting(
                 profileCode, entityId, storagePath, fileName, contentType);
         return ResponseEntity.ok(ApiResponse.success("文档解析完成", result));
     }
 
-    /** 下载已存储的文件。支持 doc-insight://（本地）和 http(s)://（CRM 推送附件代理下载，CO-280）。 */
+    /** 下载已存储的文件。支持 doc-insight://（本地）和 http(s)://（外部代理下载）。 */
     @GetMapping("/download")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Resource> download(@RequestParam("fileUrl") String fileUrl) {
@@ -168,11 +146,7 @@ public class DocInsightController {
         } catch (IOException e) {
             throw new IllegalStateException("无法读取文件大小", e);
         }
-        HttpHeaders headers = new HttpHeaders();
-        headers.add(HttpHeaders.CONTENT_DISPOSITION,
-                "attachment; filename=\"" + sanitizeFilename(displayName) + "\"; "
-                + "filename*=UTF-8''" + URLEncoder.encode(sanitizeFilename(displayName), StandardCharsets.UTF_8));
-        headers.setContentType(MediaType.parseMediaType(inferContentType(displayName)));
+        HttpHeaders headers = buildDownloadHeaders(displayName, false);
         headers.setContentLength(fileSize);
         return new ResponseEntity<>(new FileSystemResource(targetPath), headers, HttpStatus.OK);
     }
@@ -184,6 +158,7 @@ public class DocInsightController {
         long fileSize;
         try {
             URI uri = URI.create(fileUrl);
+            ExternalUrlGuard.validate(uri, allowedExternalHosts);
             displayName = extractFileNameFromPath(uri.getPath());
             resource = new UrlResource(uri);
             if (!resource.exists()) {
@@ -196,24 +171,29 @@ public class DocInsightController {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                     "无法下载外部文件: " + e.getMessage(), e);
         }
-        HttpHeaders headers = new HttpHeaders();
-        headers.add(HttpHeaders.CONTENT_DISPOSITION,
-                "attachment; filename=\"" + sanitizeFilename(displayName) + "\"; "
-                + "filename*=UTF-8''" + URLEncoder.encode(sanitizeFilename(displayName), StandardCharsets.UTF_8));
-        headers.setContentType(MediaType.parseMediaType(inferContentType(displayName)));
+        HttpHeaders headers = buildDownloadHeaders(displayName, false);
         if (fileSize > 0) {
             headers.setContentLength(fileSize);
         }
         return new ResponseEntity<>(resource, headers, HttpStatus.OK);
     }
 
-    /** 从 URL 路径提取文件名（URL 解码），失败回退为 "attachment"。 */
+    private HttpHeaders buildDownloadHeaders(String displayName, boolean inline) {
+        String safeName = sanitizeFilename(displayName);
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.CONTENT_DISPOSITION,
+                (inline ? "inline" : "attachment") + "; filename=\"" + safeName + "\"; "
+                + "filename*=UTF-8''" + URLEncoder.encode(safeName, StandardCharsets.UTF_8));
+        headers.setContentType(MediaType.parseMediaType(inferContentType(displayName)));
+        return headers;
+    }
+
     private String extractFileNameFromPath(String path) {
         if (path == null || path.isBlank()) return "attachment";
         String name = path.substring(path.lastIndexOf('/') + 1);
         if (name.isBlank()) return "attachment";
         try {
-            return java.net.URLDecoder.decode(name, java.nio.charset.StandardCharsets.UTF_8);
+            return java.net.URLDecoder.decode(name, StandardCharsets.UTF_8);
         } catch (IllegalArgumentException e) {
             return name;
         }
@@ -242,8 +222,6 @@ public class DocInsightController {
     private String sanitizeFilename(String fileName) {
         return fileName.replaceAll("[\\\\/:*?\"<>|]+", "_");
     }
-
-    // ── Shared validation helpers ──────────────────────────────────────────────
 
     private void validateUploadFile(MultipartFile file) {
         if (file == null || file.isEmpty() || file.getSize() == 0) {
@@ -275,7 +253,6 @@ public class DocInsightController {
         }
     }
 
-    /** storagePath 必须非空且不包含路径遍历字符（.. ），防止目录穿越攻击。 */
     private void validateStoragePath(String storagePath) {
         if (storagePath == null || storagePath.isBlank()) {
             throw new IllegalArgumentException("存储路径不能为空");
@@ -285,7 +262,6 @@ public class DocInsightController {
         }
     }
 
-    /** fileName 必须非空，防止后端解析时无法确定文件类型。 */
     private void validateFileName(String fileName) {
         if (fileName == null || fileName.isBlank()) {
             throw new IllegalArgumentException("文件名不能为空");

@@ -276,27 +276,17 @@ public class TaskService {
             throw new AccessDeniedException("权限不足，无法访问该项目任务");
     }
 
-    private static TaskAssignmentRequest assignmentRequestFrom(TaskDTO taskDTO) {
-        return TaskAssignmentRequest.builder().assigneeId(taskDTO.getAssigneeId())
-                .assigneeDeptCode(taskDTO.getAssigneeDeptCode()).assigneeDeptName(taskDTO.getAssigneeDeptName())
-                .assigneeRoleCode(taskDTO.getAssigneeRoleCode()).assigneeRoleName(taskDTO.getAssigneeRoleName()).build();
+    private static TaskAssignmentRequest assignmentRequestFrom(TaskDTO dto) {
+        return TaskAssignmentRequest.builder().assigneeId(dto.getAssigneeId())
+                .assigneeDeptCode(dto.getAssigneeDeptCode()).assigneeDeptName(dto.getAssigneeDeptName())
+                .assigneeRoleCode(dto.getAssigneeRoleCode()).assigneeRoleName(dto.getAssigneeRoleName()).build();
     }
 
-    private static boolean hasAssignmentChange(TaskDTO taskDTO) {
-        return taskDTO.getAssigneeId() != null || hasText(taskDTO.getAssigneeDeptCode()) || hasText(taskDTO.getAssigneeRoleCode());
-    }
-
+    private static boolean hasAssignmentChange(TaskDTO d) { return d.getAssigneeId() != null || hasText(d.getAssigneeDeptCode()) || hasText(d.getAssigneeRoleCode()); }
     private static boolean hasText(String v) { return v != null && !v.isBlank(); }
-
-    private boolean isAssignedReviewer(Long projectId, Long currentUserId) {
-        if (currentUserId == null) {
-            return false;
-        }
-        return bidDocumentReviewRepository.findByProjectId(projectId)
-                .map(review -> currentUserId.equals(review.getReviewerId()))
-                .orElse(false);
+    private boolean isAssignedReviewer(Long projectId, Long uid) {
+        return uid != null && bidDocumentReviewRepository.findByProjectId(projectId).map(r -> uid.equals(r.getReviewerId())).orElse(false);
     }
-
     private List<TaskDTO> toDTOsWithNames(List<Task> tasks) {
         var assigneeNames = userRepository.findAllById(tasks.stream().map(Task::getAssigneeId).filter(Objects::nonNull).collect(Collectors.toSet()))
                 .stream().filter(u -> u.getFullName() != null && !u.getFullName().isBlank()).collect(Collectors.toMap(User::getId, User::getFullName, (a, b) -> a));
@@ -304,9 +294,7 @@ public class TaskService {
                 .stream().filter(u -> u.getFullName() != null && !u.getFullName().isBlank()).collect(Collectors.toMap(User::getUsername, User::getFullName, (a, b) -> a));
         return taskDtoMapper.toDTOs(tasks, assigneeNames, creatorNames);
     }
-    private TaskDTO toDTOWithNames(Task task) {
-        return taskDtoMapper.toDTO(task, resolveAssigneeName(task.getAssigneeId()), resolveCreatorName(task.getCreatedBy()));
-    }
-    private String resolveAssigneeName(Long userId) { return userId == null ? null : userRepository.findById(userId).map(User::getFullName).filter(n -> !n.isBlank()).orElse(null); }
-    private String resolveCreatorName(String username) { return username == null || username.isBlank() ? null : userRepository.findByUsername(username).map(User::getFullName).filter(n -> n != null && !n.isBlank()).orElse(null); }
+    private TaskDTO toDTOWithNames(Task task) { return taskDtoMapper.toDTO(task, resolveAssigneeName(task.getAssigneeId()), resolveCreatorName(task.getCreatedBy())); }
+    private String resolveAssigneeName(Long id) { return id == null ? null : userRepository.findById(id).map(User::getFullName).filter(n -> !n.isBlank()).orElse(null); }
+    private String resolveCreatorName(String u) { return u == null || u.isBlank() ? null : userRepository.findByUsername(u).map(User::getFullName).filter(n -> n != null && !n.isBlank()).orElse(null); }
 }

@@ -359,7 +359,8 @@ class DocInsightControllerTest {
     @Test
     @DisplayName("GET /download https:// URL 返回 502 BAD_GATEWAY 当外部服务器不可达")
     void download_externalUrlUnreachable_returns502() throws Exception {
-        String fileUrl = "https://localhost:12345/nonexistent/file.pdf";
+        // 使用非私有地址的不可达端口（SSRF 防护会放行公网 IP，但连接会失败 → 502）
+        String fileUrl = "https://192.0.2.1:12345/nonexistent/file.pdf";
 
         mockMvc.perform(get("/api/doc-insight/download").param("fileUrl", fileUrl))
                 .andExpect(result -> {
@@ -368,6 +369,20 @@ class DocInsightControllerTest {
                         throw new AssertionError("外部 URL 应返回 404 或 502，实际: " + status);
                     }
                 });
+    }
+
+    @Test
+    @DisplayName("GET /download 外部 URL 指向 localhost 时返回 400（SSRF 防护）")
+    void download_externalUrlLocalhost_returns400() throws Exception {
+        mockMvc.perform(get("/api/doc-insight/download").param("fileUrl", "http://localhost:8080/admin"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("GET /download 外部 URL 指向私有 IP 时返回 400（SSRF 防护）")
+    void download_externalUrlPrivateIp_returns400() throws Exception {
+        mockMvc.perform(get("/api/doc-insight/download").param("fileUrl", "http://10.0.0.1/admin"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

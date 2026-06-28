@@ -128,7 +128,7 @@ public class CrmAuthService {
             consecutiveFailures = 0;
             coolDownUntil = null;
             CrmToken token = new CrmToken(accessToken, expiresIn, Instant.now());
-            log.info("OSS token acquired: {}", token);
+            log.info("OSS token acquired: expiresIn={}s", expiresIn);
             return token;
         }
 
@@ -177,7 +177,7 @@ public class CrmAuthService {
             consecutiveFailures = 0;
             coolDownUntil = null;
             CrmToken token = new CrmToken(crmToken, expiresIn, Instant.now());
-            log.info("CRM JWT token acquired: {}", token);
+            log.info("CRM JWT token acquired: expiresIn={}s", expiresIn);
             return token;
         }
 
