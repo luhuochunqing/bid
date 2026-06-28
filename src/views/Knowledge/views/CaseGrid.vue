@@ -40,8 +40,8 @@
         </el-form-item>
         <el-form-item label="排序方式">
           <el-radio-group v-model="filters.sortBy" @change="handleSearch">
-            <el-radio-button label="created">最新发布</el-radio-button>
-            <el-radio-button label="reuse">最热复用</el-radio-button>
+            <el-radio-button value="created">最新发布</el-radio-button>
+            <el-radio-button value="reuse">最热复用</el-radio-button>
           </el-radio-group>
         </el-form-item>
         <el-form-item>

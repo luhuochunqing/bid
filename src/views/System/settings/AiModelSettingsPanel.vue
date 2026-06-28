@@ -33,7 +33,7 @@
         <el-radio-button
           v-for="provider in aiModelConfig.providers"
           :key="provider.providerCode"
-          :label="provider.providerCode"
+          :value="provider.providerCode"
         >
           {{ provider.providerName }}
         </el-radio-button>
