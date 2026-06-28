@@ -56,7 +56,12 @@ public class OssPermissionCache implements RoleCodeCachePort {
      * <p>
      * 当 {@code StringRedisTemplate} Bean 存在（非 test profile）时走 Redis；
      * 缺席时降级为进程内 Map。
+     * <p>
+     * 必须显式标注 {@code @Autowired}：本类存在无参构造（供单测），若不标注，
+     * Spring 在多构造方法时会默认选择无参构造，导致 {@code redisTemplate} 恒为
+     * {@code Optional.empty()}，Redis 持久化分支永不执行（CO-362 回归根因）。
      */
+    @org.springframework.beans.factory.annotation.Autowired
     public OssPermissionCache(Optional<StringRedisTemplate> redisTemplate, ObjectMapper objectMapper) {
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
@@ -154,6 +159,14 @@ public class OssPermissionCache implements RoleCodeCachePort {
      */
     public Optional<String> getRoleCode(String username) {
         return getEntry(username).map(CacheEntry::roleCode);
+    }
+
+    /**
+     * 测试探针：暴露注入的 Redis template 状态，供 Spring 注入回归测试验证
+     * 容器选择了主构造（非无参构造）。生产代码不应调用。
+     */
+    Optional<StringRedisTemplate> getRedisTemplate() {
+        return redisTemplate;
     }
 
     /**
