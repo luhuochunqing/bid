@@ -1507,17 +1507,6 @@
     "ingested_at": "2026-06-27T13:34:19.679Z"
   },
   {
-    "id": "45a30ceaaed13f9a",
-    "path": "docs/reports/2026-06-27-user-picker-unification-impact-report.md",
-    "type": "markdown",
-    "topic": "docs/reports",
-    "hash": "45a30ceaaed13f9a04fc83b0c9cad8edd5399e9c6592c4059a0219e2eb5de4bc",
-    "status": "docs_tracked",
-    "extract_path": "docs/reports/2026-06-27-user-picker-unification-impact-report.md",
-    "confidence": 1,
-    "ingested_at": "2026-06-27T13:34:19.679Z"
-  },
-  {
     "id": "8cb09b346a5979cb",
     "path": "docs/reports/data-permission-coverage-audit.md",
     "type": "markdown",
@@ -1527,28 +1516,6 @@
     "extract_path": "docs/reports/data-permission-coverage-audit.md",
     "confidence": 1,
     "ingested_at": "2026-06-27T13:34:19.679Z"
-  },
-  {
-    "id": "112a00409765842e",
-    "path": "docs/reports/prod-smoke-report-2026-06-20T02-50-51.md",
-    "type": "markdown",
-    "topic": "docs/reports",
-    "hash": "112a00409765842eeabd5f71df91ac9606d520fa9689bc66abe512c5f249f825",
-    "status": "docs_tracked",
-    "extract_path": "docs/reports/prod-smoke-report-2026-06-20T02-50-51.md",
-    "confidence": 1,
-    "ingested_at": "2026-06-27T13:34:19.679Z"
-  },
-  {
-    "id": "1ab909881828a19a",
-    "path": "docs/reports/prod-smoke-report-2026-06-20T03-37-45.md",
-    "type": "markdown",
-    "topic": "docs/reports",
-    "hash": "1ab909881828a19a405a0e1498c3c11cbc428a49e8ef22979005b5bbf26c36ab",
-    "status": "docs_tracked",
-    "extract_path": "docs/reports/prod-smoke-report-2026-06-20T03-37-45.md",
-    "confidence": 1,
-    "ingested_at": "2026-06-27T13:34:19.680Z"
   },
   {
     "id": "ef45d1507edfcd03",

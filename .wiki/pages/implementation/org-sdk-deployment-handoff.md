@@ -8,7 +8,7 @@ sources:
 backlinks:
   - _index
 created: 2026-05-28
-updated: 2026-05-28
+updated: 2026-06-28
 health_checked: 2026-06-27
 ---
 # 组织架构 SDK 集成 — 部署 Handoff
