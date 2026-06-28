@@ -88,7 +88,7 @@
           <el-col :span="24">
             <el-form-item label="标讯文件">
               <div class="upload-hint">支持 PDF/Word 文件上传（≤50MB），上传即保存，自动 AI 解析回填表单字段</div>
-              <el-upload class="manual-tender-upload" :auto-upload="false" @change="(file, fileList) => $emit('file-change', file, fileList)" :file-list="form.attachments" :limit="10" :accept="acceptFileTypes" multiple drag>
+              <el-upload class="manual-tender-upload" :auto-upload="false" @change="(file, fileList) => $emit('file-change', file, fileList)" @remove="(file, fileList) => $emit('file-remove', file, fileList)" :file-list="form.attachments" :limit="10" :accept="acceptFileTypes" multiple drag>
                 <el-icon class="el-icon--upload"><Upload /></el-icon>
                 <div class="el-upload__text">{{ parsingDocument ? 'DeepSeek/AI 解析中...' : '将文件拖到此处，或点击选择附件（PDF/Word ≤50MB）' }}</div>
               </el-upload>
@@ -124,7 +124,7 @@ const props = defineProps({
   acceptFileTypes: String,
 })
 
-defineEmits(['parse-paste', 'file-change'])
+defineEmits(['parse-paste', 'file-change', 'file-remove'])
 
 /**
  * 双向绑定 cascader path ↔ props.form.region（省+市 / 直辖市仅市 / 港澳台仅本级）。

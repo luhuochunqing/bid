@@ -89,7 +89,16 @@
             <div class="el-upload__tip">支持 Word/PDF 格式，单文件≤20MB，最多3个</div>
           </template>
           <template #file="{ file }">
-            <a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadFile(file)">{{ file.name }}</a>
+            <div class="report-file-row">
+              <a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadFile(file)">{{ file.name }}</a>
+              <el-button
+                v-if="!locked"
+                link
+                type="danger"
+                size="small"
+                @click.prevent="handleReportFileRemove(file)"
+              >删除</el-button>
+            </div>
           </template>
         </el-upload>
       </el-card>
@@ -159,6 +168,8 @@ function handleUploadRemove(f) {
   const idx = form.reportFileIds.indexOf(f.response?.data?.id)
   if (idx > -1) form.reportFileIds.splice(idx, 1)
 }
+
+function handleReportFileRemove(file) { handleUploadRemove(file); reportFiles.value = reportFiles.value.filter((item) => item !== file) }
 
 // CO-375: 复盘报告下载
 function handleDownloadFile(file) {
@@ -236,6 +247,7 @@ defineExpose({ load })
 .section-title { font-size: 15px; font-weight: 600; color: #2E7659; }
 .upload-file-link { color: var(--el-color-primary); text-decoration: none; }
 .upload-file-link:hover { text-decoration: underline; }
+.report-file-row { display: flex; align-items: center; gap: 8px; }
 .loss-reason-group {
   display: flex;
   flex-direction: column;

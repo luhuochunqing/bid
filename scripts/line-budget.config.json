@@ -61,6 +61,7 @@
         "src/views/Knowledge/components/qualification/useQualificationPage.js",
         "src/views/Project/List.vue",
         "src/views/Project/stages/ClosureStage.vue",
+        "src/views/Project/stages/DraftingStage.vue",
         "src/views/Project/stages/EvaluationStage.vue",
         "src/views/Project/stages/InitiationStage.vue",
         "src/views/Project/stages/useInitiationStageActions.js",

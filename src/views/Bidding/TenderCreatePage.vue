@@ -24,6 +24,7 @@
       :accept-file-types="ACCEPT_FILE_TYPES"
       @parse-paste="handlePastedTextParse"
       @file-change="handleFileChange"
+      @file-remove="handleFileRemove"
     />
 
     <div v-show="activeTab === 'evaluation'" class="tab-content">
@@ -80,7 +81,7 @@ const route = useRoute()
 const userStore = useUserStore()
 
 const { form, rules, regions, customerTypes, projectTypes, priorities, canSave, populateForm, validateBeforeSave } = useTenderCreateForm()
-const { parsingDocument, handleFileChange, handlePastedTextParse } = useTenderAiParse(form)
+const { parsingDocument, handleFileChange, handleFileRemove, handlePastedTextParse } = useTenderAiParse(form)
 
 const editTenderId = computed(() => { const id = route.query.edit; return id ? Number(id) : null })
 const isEditMode = computed(() => !!editTenderId.value)

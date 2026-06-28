@@ -385,4 +385,14 @@ describe('useManualTenderCreate', () => {
     expect(tendersApi.parseTenderIntakeDocument).toHaveBeenCalled()
     expect(workflow.manualForm.value.title).toBe('Word文档项目')
   })
+
+  it('removes attachment from manual form before save via handleFileRemove', () => {
+    const { workflow } = createWorkflow()
+    const file = new File(['tender'], '招标文件.pdf', { type: 'application/pdf' })
+    workflow.manualForm.value.attachments = [{ name: file.name, raw: file }]
+
+    workflow.handleFileRemove({ name: file.name, raw: file }, [])
+
+    expect(workflow.manualForm.value.attachments).toEqual([])
+  })
 })

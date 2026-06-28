@@ -167,4 +167,14 @@ describe('useTenderAiParse', () => {
     expect(form.value.attachments[1].url).toBe('doc-insight://TENDER_INTAKE/create-tender/hash-second.pdf')
     expect(form.value.attachments[1].fileUrl).toBe('doc-insight://TENDER_INTAKE/create-tender/hash-second.pdf')
   })
+
+  it('removes attachment from form before save via handleFileRemove', () => {
+    const form = ref({ attachments: [], pastedText: '' })
+    const { handleFileRemove } = useTenderAiParse(form)
+    const file = makeUploadFile('tender.pdf', 'application/pdf', 1)
+
+    handleFileRemove(file, [])
+
+    expect(form.value.attachments).toEqual([])
+  })
 })

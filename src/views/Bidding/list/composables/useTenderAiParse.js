@@ -26,6 +26,8 @@ export function useTenderAiParse(form) {
     return name.endsWith('.pdf') || name.endsWith('.doc') || name.endsWith('.docx')
   }
 
+  function handleFileRemove(file, fileList) { form.value.attachments = fileList }
+
   async function handleFileChange(file, fileList) {
     form.value.attachments = fileList
     const uploadFile = resolveUploadFile(file)
@@ -197,7 +199,7 @@ export function useTenderAiParse(form) {
   }
 
   return {
-    parsingDocument, handleFileChange, handlePastedTextParse,
+    parsingDocument, handleFileChange, handleFileRemove, handlePastedTextParse,
     ACCEPT_FILE_TYPES,
   }
 }

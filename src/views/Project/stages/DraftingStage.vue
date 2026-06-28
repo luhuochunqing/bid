@@ -32,7 +32,18 @@
         <el-icon class="upload-icon"><UploadFilled /></el-icon>
         <div class="upload-text">将投标文件拖到此处，或<em>点击上传</em></div>
         <div class="upload-tip">支持 PDF、Word、Excel、图片等格式</div>
-        <template #file="{ file }"><a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadBidFile(file)">{{ file.name }}</a></template>
+        <template #file="{ file }">
+          <div class="bid-file-row">
+            <a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadBidFile(file)">{{ file.name }}</a>
+            <el-button
+              v-if="!bidDone && perm.canManageBidFiles"
+              link
+              type="danger"
+              size="small"
+              @click.prevent="handleRemoveBidFile(file)"
+            >删除</el-button>
+          </div>
+        </template>
       </el-upload>
     </div>
 
@@ -109,6 +120,7 @@ import { ref, computed, reactive, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getApiUrl } from '@/api/config.js'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
+import { projectDocumentsApi } from '@/api/modules/projectDocuments.js'
 import { STAGE_TRANSITION_MAP } from '@/constants/projectStages.js'
 import { useUserStore } from '@/stores/user'
 import ProjectDocumentTable from './components/ProjectDocumentTable.vue'
@@ -183,6 +195,16 @@ function beforeBidUpload(file) {
   const valid = ['.pdf', '.doc', '.docx', '.xlsx', '.jpg', '.png'].some(e => file.name.toLowerCase().endsWith(e))
   if (!valid) { ElMessage.error('仅支持 PDF/Word/Excel/图片格式'); return false }
   return true
+}
+
+async function handleRemoveBidFile(file) {
+  const documentId = file.response?.data?.id
+  if (documentId) {
+    try { await projectDocumentsApi.deleteDocument(props.projectId, documentId) }
+    catch (error) { ElMessage.error(error?.message || '删除投标文件失败'); return }
+  }
+  bidFiles.value = bidFiles.value.filter((item) => item !== file)
+  ElMessage.success('投标文件已删除')
 }
 
 async function load() {
@@ -297,6 +319,7 @@ defineExpose({ load })
 .header-action--tender.el-button.is-link:focus-visible { box-shadow: 0 0 0 3px rgba(35, 120, 93, 0.16); outline: none; }
 .required-mark { color: #e65100; margin-left: 2px; font-weight: normal; font-size: 13px; }
 .upload-tip { margin-top: 8px; font-size: 12px; color: #909399; text-align: center; }
+.bid-file-row { display: flex; align-items: center; gap: 8px; }
 .bid-reviewer-row { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
 .bid-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .complete-bid-row { display: flex; align-items: center; justify-content: space-between; }

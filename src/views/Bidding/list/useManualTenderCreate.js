@@ -113,6 +113,8 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
     manualForm.value = createManualTenderForm()
   }
 
+  const handleFileRemove = (file, fileList) => { manualForm.value.attachments = fileList }
+
   const handleFileChange = async (file, fileList) => {
     manualForm.value.attachments = fileList
     const uploadFile = resolveUploadFile(file)
@@ -288,6 +290,7 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
     parsingManualDocument,
     resetManualForm,
     handleFileChange,
+    handleFileRemove,
     handlePastedTextParse,
     saveManualTender,
   }

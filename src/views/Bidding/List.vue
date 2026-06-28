@@ -140,6 +140,7 @@
       :parsing-document="manualCreate.parsingManualDocument.value"
       @reset="manualCreate.resetManualForm"
       @file-change="manualCreate.handleFileChange"
+      @file-remove="manualCreate.handleFileRemove"
       @parse-pasted-text="manualCreate.handlePastedTextParse"
       @submit="manualCreate.saveManualTender"
     />

@@ -108,7 +108,16 @@
         </div>
       </template>
       <template #file="{ file }">
-        <a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadBidDoc(file)">{{ file.name }}</a>
+        <div class="bid-doc-file-row">
+          <a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadBidDoc(file)">{{ file.name }}</a>
+          <el-button
+            v-if="!(locked && !isApprovalMode)"
+            link
+            type="danger"
+            size="small"
+            @click.prevent="handleBidDocRemove"
+          >删除</el-button>
+        </div>
       </template>
     </el-upload>
   </div>
@@ -245,6 +254,11 @@ function handleBeforeRemove() {
   return true
 }
 
+function handleBidDocRemove() {
+  if (handleBeforeRemove() === false) return
+  bidDocFiles.value = []
+}
+
 const { handleDocBeforeUpload, onDepositChange, handleApprove, handleReject, saveDraft, submit, load } = useInitiationStageActions({
   props,
   emit,
@@ -301,6 +315,7 @@ defineExpose({ load, handleAmountFocus, handleAmountBlur, searchLeader, searchAs
 .initiation-stage { display: flex; flex-direction: column; gap: 16px; }
 .upload-file-link { color: var(--el-color-primary); text-decoration: none; }
 .upload-file-link:hover { text-decoration: underline; }
+.bid-doc-file-row { display: flex; align-items: center; gap: 8px; }
 .section-card { border: 1px solid var(--el-border-color-light); }
 .section-header { display: flex; justify-content: space-between; align-items: center; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 24px; }

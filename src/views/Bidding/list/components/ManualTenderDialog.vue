@@ -144,6 +144,7 @@
                   class="manual-tender-upload"
                   :auto-upload="false"
                   :on-change="onFileChange"
+                  :on-remove="onFileRemove"
                   :file-list="form.attachments"
                   :limit="5"
                   :accept="acceptFileTypes"
@@ -197,7 +198,7 @@ defineProps({
   projectTypes: { type: Array, default: () => PROJECT_TYPE_OPTIONS },
 })
 
-const emit = defineEmits(['reset', 'submit', 'file-change', 'parse-pasted-text'])
+const emit = defineEmits(['reset', 'submit', 'file-change', 'file-remove', 'parse-pasted-text'])
 
 const innerFormRef = ref(null)
 const adaptiveFormRef = shallowRef(null)
@@ -218,6 +219,7 @@ const onRegionCascaderChange = createRegionCascaderAutoClose(regionCascaderRef)
 const acceptFileTypes = ACCEPT_FILE_TYPES
 
 const onFileChange = (file, fileList) => emit('file-change', file, fileList)
+const onFileRemove = (file, fileList) => emit('file-remove', file, fileList)
 
 const onFileExceed = () => {
   // 已在 useManualTenderCreate 中处理，此处为兼容 el-upload 的 on-exceed 事件

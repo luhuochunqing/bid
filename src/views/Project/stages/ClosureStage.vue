@@ -74,7 +74,10 @@
                   <el-button type="primary" size="small">上传银行回单</el-button>
                   <template #tip><div class="el-upload__tip">支持 PDF/JPG/PNG，不超过 10MB</div></template>
                   <template #file="{ file }">
-                    <a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadEvidenceFile(file)">{{ file.name }}</a>
+                    <div class="evidence-file-row">
+                      <a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadEvidenceFile(file)">{{ file.name }}</a>
+                      <el-button link type="danger" size="small" @click.prevent="handleEvidenceRemove">删除</el-button>
+                    </div>
                   </template>
                 </el-upload>
                 <div v-if="form.depositReturnEvidenceId" class="uploaded-hint">已上传</div>
@@ -105,7 +108,10 @@
                   <el-button type="primary" size="small">上传证明文件</el-button>
                   <template #tip><div class="el-upload__tip">支持 PDF/JPG/PNG，不超过 10MB</div></template>
                   <template #file="{ file }">
-                    <a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadEvidenceFile(file)">{{ file.name }}</a>
+                    <div class="evidence-file-row">
+                      <a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadEvidenceFile(file)">{{ file.name }}</a>
+                      <el-button link type="danger" size="small" @click.prevent="handleEvidenceRemove">删除</el-button>
+                    </div>
                   </template>
                 </el-upload>
                 <div v-if="form.depositReturnEvidenceId" class="uploaded-hint">已上传</div>
@@ -142,7 +148,10 @@
                   <el-button type="primary" size="small">上传证明文件</el-button>
                   <template #tip><div class="el-upload__tip">支持 PDF/JPG/PNG，不超过 10MB</div></template>
                   <template #file="{ file }">
-                    <a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadEvidenceFile(file)">{{ file.name }}</a>
+                    <div class="evidence-file-row">
+                      <a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadEvidenceFile(file)">{{ file.name }}</a>
+                      <el-button link type="danger" size="small" @click.prevent="handleEvidenceRemove">删除</el-button>
+                    </div>
                   </template>
                 </el-upload>
                 <div v-if="form.depositReturnEvidenceId" class="uploaded-hint">已上传</div>
@@ -558,6 +567,7 @@ async function triggerPrecipitation() {
 .summary-readonly { padding: 12px 0; min-height: 60px; line-height: 1.8; }
 .text-gray { color: var(--el-text-color-secondary); }
 .uploaded-hint { color: var(--el-color-success); font-size: 12px; margin-top: 4px; }
+.evidence-file-row { display: flex; align-items: center; gap: 8px; }
 
 /* 富文本只读样式 — wangEditor HTML 在 v-html 中正确渲染 */
 .rich-text-content { line-height: 1.8; color: #333; }

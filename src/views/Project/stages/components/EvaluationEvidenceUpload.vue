@@ -20,7 +20,16 @@
         <div class="el-upload__tip">开标一览表，支持 Word/PDF/Excel/图片等格式，单文件不超过 10MB，最多 5 个</div>
       </template>
       <template #file="{ file }">
-        <a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadFile(file)">{{ file.name }}</a>
+        <div class="evaluation-file-row">
+          <a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadFile(file)">{{ file.name }}</a>
+          <el-button
+            v-if="editable"
+            link
+            type="danger"
+            size="small"
+            @click.prevent="handleEvaluationFileRemove(file)"
+          >删除</el-button>
+        </div>
       </template>
     </el-upload>
   </div>
@@ -96,6 +105,8 @@ function handleUploadRemove(uploadFile) {
   if (idx > -1) fileIds.value.splice(idx, 1)
 }
 
+function handleEvaluationFileRemove(file) { handleUploadRemove(file); fileList.value = fileList.value.filter((item) => item !== file) }
+
 function handleUploadError(err) {
   const msg = err?.response?.data?.msg || err?.message || '上传失败'
   ElMessage.error('开标一览表上传失败: ' + msg)
@@ -125,4 +136,5 @@ defineExpose({ getPendingFileIds, clearPendingFileIds })
 .evidence-upload :deep(.el-upload__tip) { text-align: left; }
 .upload-file-link { color: var(--el-color-primary); text-decoration: none; }
 .upload-file-link:hover { text-decoration: underline; }
+.evaluation-file-row { display: flex; align-items: center; gap: 8px; }
 </style>

@@ -46,7 +46,16 @@
           <div class="el-upload__tip">{{ evidenceTip }}</div>
         </template>
         <template #file="{ file }">
-          <a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadFile(file)">{{ file.name }}</a>
+          <div class="evidence-file-row">
+            <a href="javascript:void(0)" class="upload-file-link" @click.prevent="handleDownloadFile(file)">{{ file.name }}</a>
+            <el-button
+              v-if="canOperate"
+              link
+              type="danger"
+              size="small"
+              @click.prevent="handleEvidenceFileRemove(file)"
+            >删除</el-button>
+          </div>
         </template>
       </el-upload>
     </el-card>
@@ -185,6 +194,8 @@ function handleUploadRemove(uploadFile) {
   if (idx > -1) form.evidenceFileIds.splice(idx, 1)
 }
 
+function handleEvidenceFileRemove(file) { handleUploadRemove(file); evidenceFiles.value = evidenceFiles.value.filter((item) => item !== file) }
+
 // CO-375: 凭证文件下载
 function handleDownloadFile(file) {
   const documentId = file.response?.data?.id
@@ -247,6 +258,7 @@ defineExpose({ load })
 .section-title { font-size: 15px; font-weight: 600; color: #2E7659; }
 .upload-file-link { color: var(--el-color-primary); text-decoration: none; }
 .upload-file-link:hover { text-decoration: underline; }
+.evidence-file-row { display: flex; align-items: center; gap: 8px; }
 
 /* 结果类型卡片 */
 .result-cards { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 4px; }
