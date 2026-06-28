@@ -92,7 +92,7 @@ public class TenderController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM', 'SALES')")
     @Idempotent
     @Operation(summary = "创建标讯")
     public ResponseEntity<ApiResponse<TenderDTO>> createTender(@Valid @RequestBody TenderRequest req, @AuthenticationPrincipal UserDetails user) {
@@ -102,7 +102,7 @@ public class TenderController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'SALES')")
     @Operation(summary = "修改标讯")
     public ResponseEntity<ApiResponse<TenderDTO>> updateTender(@PathVariable Long id, @Valid @RequestBody TenderRequest req, @AuthenticationPrincipal UserDetails user) {
         log.info("PUT /api/tenders/{}", id);
@@ -112,7 +112,7 @@ public class TenderController {
     }
 
     @PatchMapping("/{id}/crm-opportunity")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM', 'SALES')")
     @Operation(summary = "标讯关联CRM商机")
     public ResponseEntity<ApiResponse<TenderDTO>> linkCrmOpportunity(@PathVariable Long id, @Valid @RequestBody TenderCrmLinkRequest req, @AuthenticationPrincipal UserDetails user) {
         rejectDemoMutation(id);
@@ -120,7 +120,7 @@ public class TenderController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'SALES')")
     @Operation(summary = "删除标讯")
     public ResponseEntity<ApiResponse<Void>> deleteTender(@PathVariable Long id, @AuthenticationPrincipal UserDetails user) {
         rejectDemoMutation(id);
