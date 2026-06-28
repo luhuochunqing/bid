@@ -41,5 +41,20 @@ export const usersApi = {
     })
     const candidates = Array.isArray(response?.data) ? response.data : []
     return candidates.map(normalizeUserOption)
+  },
+
+  /**
+   * CO-384: 批量按 ID 查询用户，用于补查已分配人员姓名（如投标辅助人员回显）。
+   * 返回结构与 search/getAssignableCandidates 一致，已过 normalizeUserOption。
+   * @param {Array<number>} ids - 用户 ID 数组
+   * @returns {Promise<Array>} 用户列表
+   */
+  async getByIds(ids = []) {
+    if (!Array.isArray(ids) || ids.length === 0) return []
+    const response = await httpClient.get('/api/users/batch', {
+      params: { ids: ids.join(',') },
+    })
+    const users = Array.isArray(response?.data) ? response.data : []
+    return users.map(normalizeUserOption)
   }
 }

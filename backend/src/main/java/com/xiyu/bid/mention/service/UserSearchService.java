@@ -9,6 +9,7 @@ import com.xiyu.bid.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
 
 @Service
@@ -18,6 +19,8 @@ public class UserSearchService {
     private static final int DEFAULT_LIMIT = 10;
     private static final int MAX_LIMIT = 50;
     private static final int MAX_QUERY_LENGTH = 100;
+    /** CO-384: 批量按 ID 查询用户上限，防止滥用。 */
+    private static final int MAX_BATCH_SIZE = 100;
 
     private final UserRepository userRepository;
 
@@ -56,6 +59,29 @@ public class UserSearchService {
             return user.getEmployeeNumber();
         }
         return user.getUsername();
+    }
+
+    /**
+     * CO-384: 批量按 ID 查询用户，返回与 search 相同的 UserSearchResult 投影。
+     * 用于前端补查已分配人员姓名（如立项审批后的投标辅助人员回显）。
+     */
+    public List<UserSearchResult> findByIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        List<Long> safeIds = ids.stream().filter(java.util.Objects::nonNull).limit(MAX_BATCH_SIZE).toList();
+        if (safeIds.isEmpty()) {
+            return List.of();
+        }
+        return userRepository.findByIdIn(safeIds).stream()
+            .map(u -> new UserSearchResult(
+                u.getId(),
+                u.getFullName(),
+                employeeNumberOrUsername(u),
+                u.getRole() == null ? null : u.getRole().name(),
+                u.getDepartmentName(),
+                u.getRoleCode()))
+            .toList();
     }
 
     private static String escapeLike(String raw) {

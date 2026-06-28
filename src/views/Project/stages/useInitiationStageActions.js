@@ -436,9 +436,13 @@ export function useInitiationStageActions({
         // CO-373: 后端 InitiationViewDto 只返回 biddingLeaderName，不返回 biddingAssistantName。
         // APPROVED 卡片读 form.biddingAssistantName 显示；此处把异步加载到的姓名同步过去，
         // 否则已分配的投标辅助人员会显示"（未分配）"。
+        // CO-384: 修复 usersApi.getByIds 方法不存在导致此处永远到不了的问题。
         if (!form.biddingAssistantName) form.biddingAssistantName = u.name
       }
-    } catch { /* ignore */ }
+    } catch (e) {
+      // CO-384: 不再静默吞异常，避免类似问题再次被掩盖
+      console.warn('[InitiationStage] loadUserLabel failed', userId, target, e)
+    }
   }
 
   return {

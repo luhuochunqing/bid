@@ -13,8 +13,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/users")
@@ -38,5 +40,38 @@ public class UserSearchController {
             "success", true,
             "data", data
         ));
+    }
+
+    /**
+     * CO-384: 批量按 ID 查询用户，用于前端补查已分配人员姓名。
+     * 返回结构与 /api/users/search 一致，前端可复用 normalizeUserOption。
+     */
+    @GetMapping("/batch")
+    public ResponseEntity<Map<String, Object>> batch(
+        @RequestParam(name = "ids") String ids) {
+        List<Long> idList = parseIds(ids);
+        List<UserSearchResult> data = searchService.findByIds(idList);
+        return ResponseEntity.ok(Map.of(
+            "success", true,
+            "data", data
+        ));
+    }
+
+    private static List<Long> parseIds(String ids) {
+        if (ids == null || ids.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(ids.split(","))
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .map(s -> {
+                try {
+                    return Long.parseLong(s);
+                } catch (NumberFormatException ex) {
+                    return null;
+                }
+            })
+            .filter(java.util.Objects::nonNull)
+            .collect(Collectors.toList());
     }
 }
