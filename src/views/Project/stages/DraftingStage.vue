@@ -36,7 +36,7 @@
           <div class="bid-file-row">
             <a href="javascript:void(0)" class="upload-file-link" :class="{ 'is-readonly': !canDownloadBidFile }" @click.prevent="handleDownloadBidFile(file)">{{ file.name }}</a>
             <el-button
-              v-if="!bidDone && perm.canManageBidFiles && canDeleteBidFile"
+              v-if="!bidDone && perm.canDeleteDocument && canDeleteBidFile"
               link
               type="danger"
               size="small"

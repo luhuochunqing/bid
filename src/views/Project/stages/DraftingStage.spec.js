@@ -304,4 +304,22 @@ describe('DraftingStage 删除按钮提交前守卫 - CO-382', () => {
     const deleteBtn = deleteBtns.find(b => b.text() === '删除')
     expect(deleteBtn?.exists()).toBe(true)
   })
+
+  it('lead_assist 角色（bid-projectLeader）：删除按钮隐藏（无删除权限，防止 403 UX 不一致）', async () => {
+    // CO-382 review: canManageBidFiles 范围比 canDeleteDocument 宽，删除按钮应使用 canDeleteDocument
+    mockCurrentUser.role = 'bid-projectLeader'
+    getDraftingMock.mockImplementation(() => Promise.resolve({
+      data: { reviewStatus: null }
+    }))
+
+    const wrapper = await mountDraftingStage({ currentStage: 'DRAFTING' })
+    await flushPromises()
+
+    const deleteBtns = wrapper.findAll('button')
+    const deleteBtn = deleteBtns.find(b => b.text() === '删除')
+    expect(deleteBtn).toBeUndefined()
+
+    // 还原角色
+    mockCurrentUser.role = '/bidAdmin'
+  })
 })
