@@ -192,13 +192,21 @@ export function useProjectDetailDocumentActions(context) {
 
   const loadProjectWorkflowData = async (projectId) => {
     if (!project.value || !isApiProject.value) return
-    const [taskResult, documentResult] = await Promise.all([projectsApi.getTasks(projectId), projectsApi.getDocuments(projectId)])
-    project.value.tasks = taskResult?.success && Array.isArray(taskResult.data)
-      ? taskResult.data
+    // CO-361: 用 allSettled 替代 Promise.all，避免任一请求失败（如文档 403）拖垮另一个请求的渲染。
+    // 与 useProjectDetailInit.js 同源修复：bid-projectLeader 非主负责人时 getDocuments 403，
+    // 原 fail-fast 会丢弃已成功的 getTasks 数据，任务看板整页空白。
+    const [taskResult, documentResult] = await Promise.allSettled([
+      projectsApi.getTasks(projectId),
+      projectsApi.getDocuments(projectId),
+    ])
+    const taskData = taskResult.status === 'fulfilled' ? taskResult.value : null
+    const documentData = documentResult.status === 'fulfilled' ? documentResult.value : null
+    project.value.tasks = taskData?.success && Array.isArray(taskData.data)
+      ? taskData.data
           .filter((task) => !task.title?.startsWith('【待立项】'))
           .map((task) => taskBackendToCard({ ...task, deliverables: task.deliverables || [] }))
       : []
-    project.value.documents = documentResult?.success && Array.isArray(documentResult.data) ? documentResult.data : []
+    project.value.documents = documentData?.success && Array.isArray(documentData.data) ? documentData.data : []
   }
 
   return { handleUpload, handleDownload, handleDeleteDoc, handleAddDocument, handleShare, handleExport, handleArchiveDocuments, handleSetReminder, loadProjectWorkflowData }

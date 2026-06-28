@@ -96,6 +96,34 @@ describe('useProjectDetailDocumentActions', () => {
     expect(getDocuments).not.toHaveBeenCalled()
     expect(project.value.tasks).toEqual([])
   })
+
+  it('loadProjectWorkflowData 在 getDocuments reject 时仍渲染 tasks（allSettled 容错）', async () => {
+    // CO-361 根因场景：bid-projectLeader 非主负责人时 getDocuments 返回 403，
+    // 原 Promise.all fail-fast 会丢弃已成功的 getTasks 数据，看板整页空白。
+    const project = ref({ id: 14, name: '项目106', tasks: [] })
+    const getTasks = vi.fn().mockResolvedValue({
+      success: true,
+      data: [{ id: 301, title: '编制投标书', status: 'todo' }],
+    })
+    const getDocuments = vi.fn().mockRejectedValue(new Error('Request failed with status code 403'))
+
+    const { loadProjectWorkflowData } = useProjectDetailDocumentActions({
+      route: { params: { id: '14' } },
+      project,
+      projectExpenses: ref([]),
+      userStore: {},
+      projectsApi: { getTasks, getDocuments },
+      isApiProject: ref(true),
+      message: { success: vi.fn(), error: vi.fn() },
+      state: {},
+    })
+
+    await loadProjectWorkflowData('14')
+
+    expect(project.value.tasks).toHaveLength(1)
+    expect(project.value.tasks[0].status).toBe('TODO')
+    expect(project.value.documents).toEqual([])
+  })
 })
 
 

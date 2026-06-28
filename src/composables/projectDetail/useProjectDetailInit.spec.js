@@ -30,7 +30,7 @@ const buildTask = (id, status) => ({
   hasDeliverable: false,
 })
 
-const mountInit = async (getTasksResponse) => {
+const mountInit = async (getTasksResponse, overrides = {}) => {
   setActivePinia(createPinia())
   const { useProjectStore } = await import('@/stores/project.js')
   const projectStore = useProjectStore()
@@ -47,8 +47,8 @@ const mountInit = async (getTasksResponse) => {
   })
   projectStore.loadTaskStatuses = vi.fn().mockResolvedValue(undefined)
   const projectsApi = {
-    getTasks: vi.fn().mockResolvedValue({ success: true, data: getTasksResponse }),
-    getDocuments: vi.fn().mockResolvedValue({ success: true, data: [] }),
+    getTasks: overrides.getTasks ?? vi.fn().mockResolvedValue({ success: true, data: getTasksResponse }),
+    getDocuments: overrides.getDocuments ?? vi.fn().mockResolvedValue({ success: true, data: [] }),
     getDetail: vi.fn().mockResolvedValue({ success: true, data: { id: 12, name: 'P' } }),
   }
   const knowledgeApi = { templates: { getList: vi.fn().mockResolvedValue({ success: true, data: [] }) } }
@@ -123,5 +123,29 @@ describe('useProjectDetailInit (IJSVX7 问题二 regression)', () => {
     const todoTasks = project.value.tasks.filter((t) => normalize(t.status) === 'TODO')
     expect(todoTasks).toHaveLength(2)
     expect(todoTasks[0].id).toBe(101)
+  }, 10000)
+
+  it('getDocuments reject 时 tasks 仍正常渲染（allSettled 容错）', async () => {
+    // CO-361 根因场景：bid-projectLeader 非主负责人时 getDocuments 返回 403，
+    // 原 Promise.all fail-fast 会丢弃已成功的 getTasks 数据，看板整页空白。
+    // 改用 allSettled 后，文档失败只让 documents 为空，任务不受影响。
+    const tasks = [buildTask(201, 'todo'), buildTask(202, 'review')]
+    const { project } = await mountInit(tasks, {
+      getDocuments: vi.fn().mockRejectedValue(new Error('Request failed with status code 403')),
+    })
+    expect(project.value.tasks).toHaveLength(2)
+    expect(project.value.tasks.map((t) => t.status)).toEqual(['TODO', 'REVIEW'])
+    expect(project.value.documents).toEqual([])
+  }, 10000)
+
+  it('getTasks reject 时 documents 仍正常渲染（allSettled 容错）', async () => {
+    // 对称场景：getTasks 失败不应拖垮 getDocuments 的渲染
+    const docs = [{ id: 1, name: '投标文件.pdf' }]
+    const { project } = await mountInit([], {
+      getTasks: vi.fn().mockRejectedValue(new Error('Request failed with status code 500')),
+      getDocuments: vi.fn().mockResolvedValue({ success: true, data: docs }),
+    })
+    expect(project.value.tasks).toEqual([])
+    expect(project.value.documents).toEqual(docs)
   }, 10000)
 })
