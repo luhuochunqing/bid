@@ -77,6 +77,8 @@ class ProjectDocumentWorkflowServiceTest {
         downloadService = new ProjectDocumentDownloadService(guardService, fileStorage);
 
         when(projectRepository.findById(1001L)).thenReturn(Optional.of(Project.builder().id(1001L).status(Project.Status.BIDDING).build()));
+        // CO-375：终态项目（WON）也允许上传/创建文档（复盘阶段需要）
+        when(projectRepository.findById(1002L)).thenReturn(Optional.of(Project.builder().id(1002L).status(Project.Status.WON).build()));
         when(currentUserResolver.getCurrentRoleCode()).thenReturn("admin");
         when(currentUserResolver.requireCurrentUser()).thenReturn(
                 com.xiyu.bid.entity.User.builder()
@@ -116,6 +118,29 @@ class ProjectDocumentWorkflowServiceTest {
         assertThat(dto.getLinkedEntityType()).isEqualTo("BID_RESULT");
         assertThat(dto.getLinkedEntityId()).isEqualTo(2001L);
         assertThat(dto.getFileUrl()).isEqualTo("https://files.example.com/notice.pdf");
+        verify(bindingGateway).onDocumentCreated(any(ProjectDocument.class));
+    }
+
+    @Test
+    void createProjectDocument_ShouldAllowOnTerminalProject_WON() {
+        // CO-375：复盘阶段在项目中标（WON）后进行，需要上传复盘报告
+        when(projectDocumentRepository.save(any(ProjectDocument.class))).thenAnswer(invocation -> {
+            ProjectDocument document = invocation.getArgument(0);
+            document.setId(3005L);
+            document.setCreatedAt(LocalDateTime.of(2026, 6, 28, 10, 0));
+            return document;
+        });
+
+        ProjectDocumentDTO dto = service.createProjectDocument(1002L, ProjectDocumentCreateRequest.builder()
+                .name("复盘报告.pdf")
+                .fileType("pdf")
+                .uploaderName("李总")
+                .documentCategory("RETROSPECTIVE_REPORT")
+                .fileUrl("bid-agent://retrospective/1002/report.pdf")
+                .build());
+
+        assertThat(dto.getName()).isEqualTo("复盘报告.pdf");
+        assertThat(dto.getDocumentCategory()).isEqualTo("RETROSPECTIVE_REPORT");
         verify(bindingGateway).onDocumentCreated(any(ProjectDocument.class));
     }
 

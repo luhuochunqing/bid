@@ -49,7 +49,7 @@ class ProjectDocumentWorkflowService {
     }
 
     ProjectDocumentDTO createProjectDocument(Long projectId, ProjectDocumentCreateRequest request) {
-        guardService.requireWorkflowMutationProject(projectId);
+        guardService.requireProject(projectId);
         assertCanUploadProjectDocument();
         Long uploaderId = request.getUploaderId();
         String uploaderName = request.getUploaderName();

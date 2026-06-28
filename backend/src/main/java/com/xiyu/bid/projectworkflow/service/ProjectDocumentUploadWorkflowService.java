@@ -25,7 +25,7 @@ class ProjectDocumentUploadWorkflowService {
             ProjectDocumentCreateRequest request,
             MultipartFile file
     ) {
-        accessGuard.requireWorkflowMutationProject(projectId);
+        accessGuard.requireProject(projectId);
         validateUpload(file);
         String fileName = defaultString(request.getName(), originalFileName(file));
         byte[] content = fileBytes(file);

@@ -51,6 +51,6 @@ class ProjectDocumentUploadWorkflowServiceTest {
         assertThat(dto.getName()).isEqualTo("招标文件.docx");
         assertThat(dto.getFileUrl()).isEqualTo("bid-agent://tender-documents/1001/stored.docx");
         assertThat(dto.getFileType()).isEqualTo("docx");
-        verify(accessGuard).requireWorkflowMutationProject(1001L);
+        verify(accessGuard).requireProject(1001L);
     }
 }
