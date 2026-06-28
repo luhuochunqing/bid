@@ -120,7 +120,7 @@ import { ref, computed, reactive, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getApiUrl } from '@/api/config.js'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
-import { projectDocumentsApi } from '@/api/modules/projectDocuments.js'
+import { deleteDocument } from '@/api/modules/projectDocuments.js'
 import { STAGE_TRANSITION_MAP } from '@/constants/projectStages.js'
 import { useUserStore } from '@/stores/user'
 import ProjectDocumentTable from './components/ProjectDocumentTable.vue'
@@ -200,7 +200,7 @@ function beforeBidUpload(file) {
 async function handleRemoveBidFile(file) {
   const documentId = file.response?.data?.id
   if (documentId) {
-    try { await projectDocumentsApi.deleteDocument(props.projectId, documentId) }
+    try { await deleteDocument(props.projectId, documentId) }
     catch (error) { ElMessage.error(error?.message || '删除投标文件失败'); return }
   }
   bidFiles.value = bidFiles.value.filter((item) => item !== file)
