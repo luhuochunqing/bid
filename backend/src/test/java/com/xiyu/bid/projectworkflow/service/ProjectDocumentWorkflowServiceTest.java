@@ -83,6 +83,9 @@ class ProjectDocumentWorkflowServiceTest {
                         .id(1L)
                         .roleProfile(com.xiyu.bid.entity.RoleProfile.builder().code("admin").build())
                         .build());
+        // CO-373：resolveEffectiveRoleCode 委托 EffectiveRoleResolver，非 OSS 用户回退到实体 roleCode
+        org.mockito.Mockito.lenient().when(currentUserResolver.resolveEffectiveRoleCode(any(com.xiyu.bid.entity.User.class)))
+                .thenAnswer(inv -> inv.<com.xiyu.bid.entity.User>getArgument(0).getRoleCode());
         doReturn(new Long[]{null, null})
                 .when(projectLeadAssignmentRepository)
                 .resolveLeadIdsByProjectId(1001L);

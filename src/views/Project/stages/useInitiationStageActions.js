@@ -172,7 +172,10 @@ export function useInitiationStageActions({
         url: f.fileUrl || '',
         status: 'success',
       }))
-      // 修复：确保已分配人员姓名字段在 APPROVED 状态可读（后端可能以 biddingLeaderName / biddingAssistantName 返回）
+      // 修复：确保已分配人员姓名字段在 APPROVED 状态可读。
+      // biddingLeaderName 后端会返回（ProjectInitiationApprovalService 审批时 setBiddingLeaderName）。
+      // biddingAssistantName 后端目前不返回（InitiationViewDto 无此字段），此行为前向兼容保留；
+      // 实际回显靠上方 loadUserLabel(secondaryLeadUserId,'assistant') 异步加载后同步到 form.biddingAssistantName。
       if (data.biddingLeaderName) form.biddingLeaderName = data.biddingLeaderName
       if (data.biddingAssistantName) form.biddingAssistantName = data.biddingAssistantName
       existing.value = true
@@ -430,6 +433,10 @@ export function useInitiationStageActions({
       } else {
         approvalForm.biddingAssistantLabel = label
         assistantOptions.value = [option]
+        // CO-373: 后端 InitiationViewDto 只返回 biddingLeaderName，不返回 biddingAssistantName。
+        // APPROVED 卡片读 form.biddingAssistantName 显示；此处把异步加载到的姓名同步过去，
+        // 否则已分配的投标辅助人员会显示"（未分配）"。
+        if (!form.biddingAssistantName) form.biddingAssistantName = u.name
       }
     } catch { /* ignore */ }
   }

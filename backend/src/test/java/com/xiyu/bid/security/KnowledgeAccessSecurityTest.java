@@ -152,6 +152,12 @@ class KnowledgeAccessSecurityTest {
     @MockBean
     private UserRepository userRepository;
 
+    // CO-373 回归修复：CurrentUserResolver 现依赖 EffectiveRoleResolver→RoleCodeCachePort，
+    // @WebMvcTest 切片不实例化该链；TraceFilter(@Component) 又强依赖 CurrentUserResolver。
+    // 此处 mock 整个 CurrentUserResolver 以满足 TraceFilter 注入，避免上下文加载失败。
+    @MockBean
+    private CurrentUserResolver currentUserResolver;
+
     @EnableWebSecurity
     @EnableMethodSecurity(prePostEnabled = true)
     static class TestSecurityConfig {

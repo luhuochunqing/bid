@@ -4,6 +4,7 @@ import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,6 +17,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -27,12 +30,17 @@ class TenderCommandAccessGuardTest {
 
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private EffectiveRoleResolver effectiveRoleResolver;
 
     private TenderCommandAccessGuard guard;
 
     @BeforeEach
     void setUp() {
-        guard = new TenderCommandAccessGuard(userRepository);
+        guard = new TenderCommandAccessGuard(userRepository, effectiveRoleResolver);
+        // CO-373：默认模拟 LOCAL_USER 解析路径——非 OSS 用户回退到实体 roleCode
+        lenient().when(effectiveRoleResolver.resolveRoleCode(any(User.class)))
+                .thenAnswer(inv -> inv.<User>getArgument(0).getRoleCode());
     }
 
     @Test

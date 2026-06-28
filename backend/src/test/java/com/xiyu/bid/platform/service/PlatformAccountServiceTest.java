@@ -14,6 +14,7 @@ import com.xiyu.bid.platform.entity.PlatformAccount.AccountStatus;
 import com.xiyu.bid.platform.entity.PlatformAccount.PlatformType;
 import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,9 @@ class PlatformAccountServiceTest {
     @Mock
     private PasswordEncryptionUtil passwordEncryptionUtil;
 
+    @Mock
+    private EffectiveRoleResolver effectiveRoleResolver;
+
     private PlatformAccountService service;
 
     private static final String ENCRYPTED_PWD = "encrypted:secret123";
@@ -47,7 +51,10 @@ class PlatformAccountServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new PlatformAccountService(repository, passwordEncryptionUtil);
+        service = new PlatformAccountService(repository, passwordEncryptionUtil, effectiveRoleResolver);
+        // CO-373：默认模拟 LOCAL_USER 解析路径——回退到实体 roleCode
+        lenient().when(effectiveRoleResolver.resolveRoleCode(any(User.class)))
+                .thenAnswer(inv -> inv.<User>getArgument(0).getRoleCode());
     }
 
     // ── 创建 ──

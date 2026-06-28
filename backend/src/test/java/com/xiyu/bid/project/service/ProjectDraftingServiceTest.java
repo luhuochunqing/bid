@@ -6,7 +6,7 @@ package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Task;
-import com.xiyu.bid.crm.application.OssPermissionCache;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.dto.ProjectLeadAssignmentRequest;
 import com.xiyu.bid.project.entity.ProjectLeadAssignment;
@@ -52,13 +52,13 @@ class ProjectDraftingServiceTest {
     @Mock ProjectEvaluationRepository projectEvaluationRepository;
     @Mock ProjectNotificationService notificationService;
     @Mock ProjectDocumentRepository projectDocumentRepository;
-    @Mock OssPermissionCache ossPermissionCache;
+    @Mock EffectiveRoleResolver effectiveRoleResolver;
 
     ProjectDraftingService service;
 
     @BeforeEach
     void setUp() {
-        service = new ProjectDraftingService(leadRepo, projectRepository, taskRepository, projectStageService, projectAccessScopeService, userRepository, bidReviewAppService, projectEvaluationRepository, notificationService, projectDocumentRepository, ossPermissionCache);
+        service = new ProjectDraftingService(leadRepo, projectRepository, taskRepository, projectStageService, projectAccessScopeService, userRepository, bidReviewAppService, projectEvaluationRepository, notificationService, projectDocumentRepository, effectiveRoleResolver);
         lenient().when(projectRepository.findById(1L))
                 .thenReturn(Optional.of(Project.builder().id(1L).build()));
         lenient().when(leadRepo.save(any(ProjectLeadAssignment.class)))
@@ -66,6 +66,19 @@ class ProjectDraftingServiceTest {
         lenient().when(projectStageService.currentStage(1L)).thenReturn(ProjectStage.DRAFTING);
         lenient().when(bidReviewAppService.getReviewState(1L))
                 .thenReturn(new BidReviewAppService.ReviewState("DRAFT", null, null, null));
+        // CO-373 默认 mock：模拟"缓存未命中"语义，与旧 OssPermissionCache.getRoleCode()
+        // 返回 Optional.empty() 的行为对齐——非 OSS 用户回退到 DB roleCode，OSS 用户 fail-closed。
+        // 单个测试可按需用 when() 覆盖为缓存命中场景。
+        lenient().when(effectiveRoleResolver.resolveRoleCode(any(com.xiyu.bid.entity.User.class)))
+                .thenAnswer(inv -> {
+                    com.xiyu.bid.entity.User u = inv.getArgument(0);
+                    if (u == null) {
+                        return null;
+                    }
+                    boolean isOss = u.getExternalOrgSourceApp() != null
+                            && !u.getExternalOrgSourceApp().isBlank();
+                    return isOss ? null : u.getRoleCode();
+                });
     }
 
     @Test
@@ -234,8 +247,8 @@ class ProjectDraftingServiceTest {
         // sales（bid-projectLeader）作为 primaryLead 可以提交投标（蓝图 §3.3.1.2）
         prepareSubmitBidHappyPath();
         when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid-projectLeader")));
-        when(ossPermissionCache.getRoleCode("test-1"))
-                .thenReturn(java.util.Optional.empty()); // 本地用户无缓存，fallback 到 DB
+        when(effectiveRoleResolver.resolveRoleCode(any(com.xiyu.bid.entity.User.class)))
+                .thenReturn("bid-projectLeader"); // 本地用户回退到 DB 角色码
         prepareLeadAssignment(1L, 2L);  // sales 用户=1 是 primaryLead
 
         var view = service.submitBid(1L, 1L);
@@ -248,8 +261,8 @@ class ProjectDraftingServiceTest {
         // sales 只能匹配 primaryLead，不能匹配 secondaryLead
         prepareSubmitBidHappyPath();
         when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid-projectLeader")));
-        when(ossPermissionCache.getRoleCode("test-1"))
-                .thenReturn(java.util.Optional.empty()); // 本地用户无缓存，fallback 到 DB
+        when(effectiveRoleResolver.resolveRoleCode(any(com.xiyu.bid.entity.User.class)))
+                .thenReturn("bid-projectLeader"); // 本地用户回退到 DB 角色码
         prepareLeadAssignment(2L, 1L);  // sales 用户=1 是 secondaryLead，不是 primaryLead
         assertThatThrownBy(() -> service.submitBid(1L, 1L))
                 .isInstanceOf(ResponseStatusException.class)
@@ -526,8 +539,8 @@ class ProjectDraftingServiceTest {
         prepareSubmitBidHappyPath();
         var user = mockOssUser(1L, null);
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(ossPermissionCache.getRoleCode("test-1"))
-                .thenReturn(java.util.Optional.of("bid-projectLeader"));
+        when(effectiveRoleResolver.resolveRoleCode(any(com.xiyu.bid.entity.User.class)))
+                .thenReturn("bid-projectLeader");
         prepareLeadAssignment(1L, 2L);
 
         var view = service.submitBid(1L, 1L);
@@ -540,8 +553,8 @@ class ProjectDraftingServiceTest {
         prepareSubmitBidHappyPath();
         var user = mockOssUser(1L, null);
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(ossPermissionCache.getRoleCode("test-1"))
-                .thenReturn(java.util.Optional.of("bid-Team"));
+        when(effectiveRoleResolver.resolveRoleCode(any(com.xiyu.bid.entity.User.class)))
+                .thenReturn("bid-Team");
         prepareLeadAssignment(2L, 1L);
 
         var view = service.submitBid(1L, 1L);
@@ -554,8 +567,9 @@ class ProjectDraftingServiceTest {
         prepareSubmitBidHappyPath();
         var user = mockOssUser(1L, null);
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(ossPermissionCache.getRoleCode("test-1"))
-                .thenReturn(java.util.Optional.empty());
+        // OSS 用户缓存未命中 → fail-closed 返回 null → 权限拒绝
+        when(effectiveRoleResolver.resolveRoleCode(any(com.xiyu.bid.entity.User.class)))
+                .thenReturn(null);
         prepareLeadAssignment(1L, 2L);
 
         assertThatThrownBy(() -> service.submitBid(1L, 1L))
@@ -568,8 +582,9 @@ class ProjectDraftingServiceTest {
         prepareSubmitBidHappyPath();
         var user = mockUser(1L, "bid-projectLeader");
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(ossPermissionCache.getRoleCode("test-1"))
-                .thenReturn(java.util.Optional.empty());
+        // 本地用户缓存未命中 → 回退到 DB roleCode=bid-projectLeader → 作为 primaryLead 允许提交
+        when(effectiveRoleResolver.resolveRoleCode(any(com.xiyu.bid.entity.User.class)))
+                .thenReturn("bid-projectLeader");
         prepareLeadAssignment(1L, 2L);
 
         var view = service.submitBid(1L, 1L);
@@ -582,8 +597,8 @@ class ProjectDraftingServiceTest {
         prepareSubmitBidHappyPath();
         var user = mockOssUser(1L, "bid-administration");
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(ossPermissionCache.getRoleCode("test-1"))
-                .thenReturn(java.util.Optional.of("bid-projectLeader"));
+        when(effectiveRoleResolver.resolveRoleCode(any(com.xiyu.bid.entity.User.class)))
+                .thenReturn("bid-projectLeader");
         prepareLeadAssignment(1L, 2L);
 
         var view = service.submitBid(1L, 1L);

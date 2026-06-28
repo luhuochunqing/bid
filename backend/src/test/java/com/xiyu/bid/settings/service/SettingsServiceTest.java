@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import com.xiyu.bid.settings.dto.SettingsResponse;
 import com.xiyu.bid.settings.dto.SettingsUpdateRequest;
 import com.xiyu.bid.settings.repository.SystemSettingRepository;
@@ -21,6 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
 @DataJpaTest
@@ -39,19 +42,25 @@ class SettingsServiceTest {
     private SettingsPayloadMapper payloadMapper;
     private SettingsService settingsService;
     private AiProviderCatalog aiProviderCatalog;
+    private EffectiveRoleResolver effectiveRoleResolver;
 
     @BeforeEach
     void setUp() {
         userRepository = mock(UserRepository.class);
+        effectiveRoleResolver = mock(EffectiveRoleResolver.class);
         objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
         payloadMapper = new SettingsPayloadMapper(new SettingsDefaultPayloadFactory());
+        // CO-373：默认模拟 LOCAL_USER 解析路径——回退到实体 roleCode
+        lenient().when(effectiveRoleResolver.resolveRoleCode(any(com.xiyu.bid.entity.User.class)))
+                .thenAnswer(inv -> inv.<com.xiyu.bid.entity.User>getArgument(0).getRoleCode());
         settingsService = new SettingsService(
                 systemSettingRepository,
                 userRepository,
                 objectMapper,
                 payloadMapper,
-                aiConfigService
+                aiConfigService,
+                effectiveRoleResolver
         );
     }
 
@@ -100,7 +109,8 @@ class SettingsServiceTest {
                 userRepository,
                 objectMapper,
                 payloadMapper,
-                aiConfigService  // 使用同一个真实实例
+                aiConfigService,  // 使用同一个真实实例
+                effectiveRoleResolver
         );
         SettingsResponse reloaded = reloadedService.getSettings();
 

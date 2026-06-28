@@ -7,6 +7,7 @@ import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.repository.RoleProfileRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.roleprofile.RoleProfileBootstrap;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,6 +36,9 @@ class RoleProfileServicePersistenceContractTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private EffectiveRoleResolver effectiveRoleResolver;
+
     private final Map<Long, RoleProfile> rolesById = new LinkedHashMap<>();
     private final Map<String, RoleProfile> rolesByCode = new LinkedHashMap<>();
     private final AtomicLong nextId = new AtomicLong(1);
@@ -45,7 +49,7 @@ class RoleProfileServicePersistenceContractTest {
     void setUp() {
         RoleProfileCatalog.seedDefinitions().forEach(this::seedRole);
         RoleProfileBootstrap bootstrap = new RoleProfileBootstrap(roleProfileRepository);
-        roleProfileService = new RoleProfileService(roleProfileRepository, userRepository, bootstrap);
+        roleProfileService = new RoleProfileService(roleProfileRepository, userRepository, bootstrap, effectiveRoleResolver);
 
         lenient().when(roleProfileRepository.findById(anyLong()))
                 .thenAnswer(invocation -> Optional.ofNullable(rolesById.get(invocation.getArgument(0))));

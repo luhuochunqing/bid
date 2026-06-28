@@ -15,6 +15,7 @@ import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,7 +30,9 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -65,11 +68,17 @@ class ProjectAccessScopeServiceTest {
     @Mock
     private ProjectInitiationDetailsRepository initiationDetailsRepository;
 
+    @Mock
+    private EffectiveRoleResolver effectiveRoleResolver;
+
     private ProjectAccessScopeService projectAccessScopeService;
 
     @BeforeEach
     void setUp() {
-        projectAccessScopeService = new ProjectAccessScopeService(userRepository, projectRepository, dataScopeConfigService, projectGroupService, projectMemberRepository, crmCustomerPermissionRepository, leadAssignmentRepository, initiationDetailsRepository, taskRepository, bidDocumentReviewRepository);
+        projectAccessScopeService = new ProjectAccessScopeService(userRepository, projectRepository, dataScopeConfigService, projectGroupService, projectMemberRepository, crmCustomerPermissionRepository, leadAssignmentRepository, initiationDetailsRepository, taskRepository, bidDocumentReviewRepository, effectiveRoleResolver);
+        // CO-373：默认模拟 LOCAL_USER 解析路径——回退到实体 roleCode
+        lenient().when(effectiveRoleResolver.resolveRoleCode(any(User.class)))
+                .thenAnswer(inv -> inv.<User>getArgument(0).getRoleCode());
         SecurityContextHolder.clearContext();
     }
 

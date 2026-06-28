@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import com.xiyu.bid.settings.dto.SettingsResponse;
 import com.xiyu.bid.settings.dto.SettingsUpdateRequest;
 import com.xiyu.bid.settings.entity.SystemSetting;
@@ -25,13 +26,15 @@ public class SettingsService {
     private final ObjectReader settingsReader;
     private final ObjectWriter settingsWriter;
     private final AiConfigService aiConfigService;
+    private final EffectiveRoleResolver effectiveRoleResolver;
 
     public SettingsService(
             SystemSettingRepository pSystemSettingRepository,
             UserRepository pUserRepository,
             ObjectMapper objectMapper,
             SettingsPayloadMapper pPayloadMapper,
-            AiConfigService aiConfigService
+            AiConfigService aiConfigService,
+            EffectiveRoleResolver pEffectiveRoleResolver
     ) {
         this.systemSettingRepository = pSystemSettingRepository;
         this.userRepository = pUserRepository;
@@ -39,6 +42,7 @@ public class SettingsService {
         this.settingsReader = objectMapper.readerFor(SettingsResponse.class);
         this.settingsWriter = objectMapper.writerFor(SettingsResponse.class);
         this.aiConfigService = aiConfigService;
+        this.effectiveRoleResolver = pEffectiveRoleResolver;
     }
 
     @Transactional
@@ -62,9 +66,10 @@ public class SettingsService {
     @Transactional(readOnly = true)
     public SettingsResponse.RuntimePermissionProfile getRuntimePermissionProfile(String username) {
         User user = userRepository.findByUsername(username).orElseThrow(() -> new IllegalArgumentException("User not found"));
-        String roleCode = user.getRoleCode();
+        // CO-373：统一走 EffectiveRoleResolver，OSS 用户以缓存角色码为准
+        String roleCode = effectiveRoleResolver.resolveRoleCode(user);
         SettingsResponse.RoleSetting roleSetting = readSettings().getRoles().stream()
-                .filter(role -> roleCode.equalsIgnoreCase(role.getCode())).findFirst()
+                .filter(role -> roleCode != null && roleCode.equalsIgnoreCase(role.getCode())).findFirst()
                 .orElse(SettingsResponse.RoleSetting.builder().code(roleCode).menuPermissions(List.of()).dataScope("self").allowedProjects(List.of()).allowedDepts(List.of()).build());
         return SettingsResponse.RuntimePermissionProfile.builder()
                 .code(roleSetting.getCode()).menuPermissions(payloadMapper.copyStringList(roleSetting.getMenuPermissions()))

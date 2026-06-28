@@ -10,6 +10,7 @@ import com.xiyu.bid.entity.User;
 import com.xiyu.bid.projectworkflow.core.ProjectTaskAuthorizationPolicy;
 import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,10 @@ import java.util.Objects;
  * 触发 MaintainabilityArchitectureTest 的 Split-First 协作者预算（≤5）。</p>
  *
  * <p>内部调用路径（username 为 null 或 "system"）跳过身份校验，保持向后兼容。</p>
+ *
+ * <p>CO-373：角色码统一经 {@link EffectiveRoleResolver} 解析（OSS 缓存优先），再由
+ * {@link RoleProfileCatalog#definitionForCode} 规范化，杜绝直调 {@code User.getRoleCode()}
+ * 在 OSS 用户 {@code role_id=NULL} 时回退 "manager" 的根因。</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -36,6 +41,7 @@ public class ProjectTaskAuthorizationGuard {
     private final UserRepository userRepository;
     private final TaskRepository taskRepository;
     private final ProjectAccessScopeService projectAccessScopeService;
+    private final EffectiveRoleResolver effectiveRoleResolver;
 
     /** 断言当前用户有权管理任务（手动添加/AI 拆解）。蓝图 §2.3.1：管理员/组长/负责人/辅助。 */
     public void assertCanManageTask(Long projectId, String username) {
@@ -89,6 +95,13 @@ public class ProjectTaskAuthorizationGuard {
     }
 
     private String effectiveRoleCode(User user) {
-        return RoleProfileCatalog.definitionForCode(user.getRoleCode()).code();
+        String resolved = effectiveRoleResolver.resolveRoleCode(user);
+        // CO-373 安全：resolved 为 null（OSS 缓存未命中 fail-closed）时直接返回 null，
+        // 让 ProjectTaskAuthorizationPolicy 显式拒绝。不可走 definitionForCode(null)——
+        // 该方法对 null 返回 ADMIN 定义，会导致缓存失效时误放行为管理员。
+        if (resolved == null) {
+            return null;
+        }
+        return RoleProfileCatalog.definitionForCode(resolved).code();
     }
 }

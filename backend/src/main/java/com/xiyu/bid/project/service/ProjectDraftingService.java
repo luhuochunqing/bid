@@ -5,7 +5,6 @@
 package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.annotation.Auditable;
-import com.xiyu.bid.crm.application.OssPermissionCache;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
@@ -30,6 +29,7 @@ import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.repository.TaskRepository;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -62,7 +62,7 @@ public class ProjectDraftingService {
     private final ProjectEvaluationRepository projectEvaluationRepository;
     private final ProjectNotificationService notificationService;
     private final ProjectDocumentRepository projectDocumentRepository;
-    private final OssPermissionCache ossPermissionCache;
+    private final EffectiveRoleResolver effectiveRoleResolver;
 
     @Auditable(action = "ASSIGN_PROJECT_LEADS", entityType = "ProjectLeadAssignment",
             description = "分配主/副投标负责人")
@@ -209,7 +209,7 @@ public class ProjectDraftingService {
     private ProjectLeadAssignment assertCanSubmit(Long projectId, Long currentUserId) {
         User currentUser = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "用户不存在"));
-        String effectiveRoleCode = resolveEffectiveRoleCode(currentUser);
+        String effectiveRoleCode = effectiveRoleResolver.resolveRoleCode(currentUser);
         ProjectLeadAssignment lead = leadRepo.findByProjectId(projectId).orElse(null);
         BidSubmissionAuthorizationPolicy.Decision d =
                 BidSubmissionAuthorizationPolicy.canSubmitBid(effectiveRoleCode, currentUserId, lead);
@@ -217,24 +217,6 @@ public class ProjectDraftingService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, d.reason());
         }
         return lead;
-    }
-
-    private String resolveEffectiveRoleCode(User user) {
-        if (user == null) {
-            return null;
-        }
-        var cachedRole = ossPermissionCache.getRoleCode(user.getUsername());
-        if (cachedRole.isPresent()) {
-            return cachedRole.get();
-        }
-        boolean isOssUser = user.getExternalOrgSourceApp() != null
-                && !user.getExternalOrgSourceApp().isBlank();
-        if (!isOssUser) {
-            return user.getRoleCode();
-        }
-        log.warn("OSS user={} role cache miss, submit authorization will use null roleCode",
-                user.getUsername());
-        return null;
     }
 
     /**

@@ -3,6 +3,7 @@ package com.xiyu.bid.tender.service;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import com.xiyu.bid.tender.core.TenderEditPermissionPolicy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Component;
 public class TenderCommandAccessGuard {
 
     private final UserRepository userRepository;
+    private final EffectiveRoleResolver effectiveRoleResolver;
 
     /**
      * 校验用户是否有权更新该标讯。
@@ -23,7 +25,7 @@ public class TenderCommandAccessGuard {
     public void assertCanUpdateTender(Tender tender, Long userId) {
         User user = resolveUser(userId);
         if (!TenderEditPermissionPolicy.canEdit(
-                user.getRoleCode(),
+                effectiveRoleResolver.resolveRoleCode(user),
                 user.getRole(),
                 userId,
                 tender.getCreatorId(),
@@ -40,7 +42,7 @@ public class TenderCommandAccessGuard {
     public void assertCanDeleteTender(Tender tender, Long userId) {
         User user = resolveUser(userId);
         if (!TenderEditPermissionPolicy.canDelete(
-                user.getRoleCode(),
+                effectiveRoleResolver.resolveRoleCode(user),
                 user.getRole(),
                 userId,
                 tender.getCreatorId(),

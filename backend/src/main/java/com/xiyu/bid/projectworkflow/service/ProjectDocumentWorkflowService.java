@@ -101,7 +101,7 @@ class ProjectDocumentWorkflowService {
         var currentUser = currentUserResolver.requireCurrentUser();
         Long[] leadIds = resolveProjectLeadIds(projectId);
         AuthorizationDecision decision = ProjectDocumentWorkflowPolicy.canViewProjectDocuments(
-                currentUser.getRoleCode(),
+                currentUserResolver.resolveEffectiveRoleCode(currentUser),
                 currentUser.getId(),
                 leadIds[0],
                 leadIds[1]

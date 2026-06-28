@@ -16,6 +16,7 @@ import com.xiyu.bid.platform.entity.PlatformAccount;
 import com.xiyu.bid.platform.entity.PlatformAccount.AccountStatus;
 import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,6 +36,8 @@ public class PlatformAccountService {
     private final PlatformAccountRepository repository;
     /** Password encryption utility. */
     private final PasswordEncryptionUtil passwordEncryptionUtil;
+    /** CO-373 统一角色码解析入口。 */
+    private final EffectiveRoleResolver effectiveRoleResolver;
 
     /** Create a new platform account. */
     @Transactional
@@ -124,7 +127,8 @@ public class PlatformAccountService {
 
     private boolean isPrivilegedViewer(User viewer) {
         if (viewer == null) return false;
-        String code = viewer.getRoleCode();
+        // CO-373：统一走 EffectiveRoleResolver，OSS 用户以缓存角色码为准
+        String code = effectiveRoleResolver.resolveRoleCode(viewer);
         if (code == null || code.isBlank()) return false;
         String lower = code.toLowerCase(java.util.Locale.ROOT);
         return switch (lower) {

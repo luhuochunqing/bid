@@ -4,9 +4,11 @@ import com.xiyu.bid.dto.RoleDTO;
 import com.xiyu.bid.dto.UpdateRoleRequest;
 import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.RoleProfileCatalog;
+import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.RoleProfileRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.roleprofile.RoleProfileBootstrap;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,6 +37,9 @@ class RoleProfileServicePersistenceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private EffectiveRoleResolver effectiveRoleResolver;
+
     private final Map<Long, RoleProfile> rolesById = new LinkedHashMap<>();
     private final Map<String, RoleProfile> rolesByCode = new LinkedHashMap<>();
     private final AtomicLong nextId = new AtomicLong(1);
@@ -45,7 +50,10 @@ class RoleProfileServicePersistenceTest {
     void setUp() {
         RoleProfileCatalog.seedDefinitions().forEach(this::seedRole);
         RoleProfileBootstrap bootstrap = new RoleProfileBootstrap(roleProfileRepository);
-        roleProfileService = new RoleProfileService(roleProfileRepository, userRepository, bootstrap);
+        roleProfileService = new RoleProfileService(roleProfileRepository, userRepository, bootstrap, effectiveRoleResolver);
+        // CO-373：默认模拟 LOCAL_USER 解析路径——回退到实体 roleCode
+        lenient().when(effectiveRoleResolver.resolveRoleCode(any(User.class)))
+                .thenAnswer(inv -> inv.<User>getArgument(0).getRoleCode());
 
         lenient().when(roleProfileRepository.findById(anyLong()))
                 .thenAnswer(invocation -> Optional.ofNullable(rolesById.get(invocation.getArgument(0))));

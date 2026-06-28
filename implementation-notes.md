@@ -1354,3 +1354,141 @@ OSS 同步用户（陈梦瑶 id=7246、王占俊 id=7220）的 `users.role_id = 
 - 陈梦瑶（sys_project_member of 101，非 lead）case：`canViewAllProjectTasks` 对她返回 false 是符合策略的（非 lead 只看自己的任务）。如果她被分配了 101 的任务但仍看不到，需进一步确认 `findByProjectIdAndAssigneeId` 的查询结果——可能需 DB 核实她是否真的是 101 任务的 assignee。
 - `User.getRoleCode()` 实体方法对 role_id=NULL 返回 "manager" 是历史遗留，全量收口需评估其他调用点。
 
+---
+
+## 2026-06-27 CO-373 统一服务层角色码解析入口（T002-T015）
+
+### 问题口径
+CO-361 的单点修复暴露了系统性根因：`User.getRoleCode()`（`User.java:145-152`）在 `roleProfile==null`（OSS 用户 `role_id=NULL`）时回退返回 `"manager"`。服务层各处直调 `user.getRoleCode()` 做权限判定，绕过了登录时写入的 OSS 权限缓存（`OssPermissionCache`，Redis 8h TTL，key 前缀 `oss:perm:`），导致 OSS 用户被误判为 manager 角色码，权限判定失真。
+
+### 根因与决策
+- **根因**：服务层权限校验直接调用 `User.getRoleCode()`，未走 OSS 缓存；OSS 用户 `role_id=NULL` 时实体方法回退 `"manager"` 是历史遗留（不修改实体方法，见 FR-010）。
+- **统一入口**：新增纯核心 `EffectiveRolePolicy` + 外壳 `EffectiveRoleResolver`，三条解析路径：
+  1. `CACHE_HIT` — OSS 缓存命中（非空白）→ 返回缓存角色码
+  2. `LOCAL_USER` — 非 OSS 用户 → 返回实体 `getRoleCode()`
+  3. `CACHE_MISS_FAIL_CLOSED` — OSS 用户缓存未命中 → 返回 `null`（**绝不**回退 `"manager"`）
+- **FP-Java Profile 落实**：纯核心 `EffectiveRolePolicy`/`EffectiveRoleResult` 在 `security/domain` 包，受 `FPJavaArchitectureTest` 门禁（无 Spring/Redis/JPA 依赖）；外壳 `EffectiveRoleResolver` 负责读缓存 I/O、取实体属性、调纯核心、记日志。
+
+### 关键决策与权衡
+
+1. **Port/Adapter 打破 security ↔ crm 循环依赖**
+   - 初版 `EffectiveRoleResolver`（security）直接依赖 `OssPermissionCache`（crm），而 crm 已反向依赖 security（`LoginRoleWhitelist`）→ 触发 `ArchitectureTest.no_circular_dependencies` 失败。
+   - 解法：在 security 包新建端口接口 `RoleCodeCachePort`（单方法 `Optional<String> getRoleCode(String username)`），`OssPermissionCache implements RoleCodeCachePort` 作为适配器，`EffectiveRoleResolver` 仅依赖端口接口。依赖方向反转，循环打破，`ArchitectureTest` 25 项全绿。
+
+2. **`RoleProfileCatalog.definitionForCode(null)` 越权漏洞防护**
+   - 发现：`definitionForCode(null)`（`RoleProfileCatalog.java:182-187`）对 null 入参返回 **ADMIN 定义**。若 OSS 用户缓存未命中 → roleCode=null → 直接调 `definitionForCode(null)` 会误放行为 admin（**提权风险**）。
+   - 修复：`ProjectTaskAuthorizationGuard.effectiveRoleCode(User)` 增加 null 守卫——resolved 为 null 时直接返回 null，让 `ProjectTaskAuthorizationPolicy` 显式拒绝，**绝不**进入 `definitionForCode(null)` 路径。
+
+3. **@WebMvcTest 回归修复（T007 引入）**
+   - T007 让 `CurrentUserResolver` 注入 `EffectiveRoleResolver`，导致 `@WebMvcTest` 切片的 `TraceFilter`（`@Component` filter，构造依赖 `CurrentUserResolver`）bean 链断裂：`TraceFilter → CurrentUserResolver → EffectiveRoleResolver → RoleCodeCachePort` 全部不在切片内。
+   - 影响：`KnowledgeAccessSecurityTest`（15 errors）+ `KnowledgeResourceAccessSecurityTest`（8 errors）上下文加载失败。
+   - 修复：两测试各加 `@MockBean CurrentUserResolver currentUserResolver`，mock 整个 bean 满足 TraceFilter 注入（TraceFilter 内有 null 检查，`getCurrentUser()` 返回 null 安全）。
+   - **既有技术债（不在本次范围）**：`TenderControllerBidOtherDeptAccessTest`、`AssignmentCandidateControllerTest`、`TaskStatusDictControllerTest`/`TaskStatusDictAdminControllerTest` 在 origin/main 上即因同一 TraceFilter 依赖链失败，CI 未覆盖（CI 只跑架构/集成/质量门测试）。留独立任务处理。
+
+4. **LocalUser vs isLocalSystemAccount 语义差异（T016 待评估）**
+   - `DataScopeConfigService.getRoleCode(User)`（`admin/service`，line 158-172）有更收紧的语义：仅 `isLocalSystemAccount`（本地管理员账户）才回退 DB roleCode，其他非 OSS 用户返回 null（fail-closed）。
+   - `EffectiveRolePolicy.decide()` 当前对**所有**非 OSS 用户走 LOCAL_USER + 实体 roleCode。
+   - 差异：非 OSS、非本地管理员的用户，DataScopeConfigService 返回 null（更收紧），EffectiveRoleResolver 返回实体 roleCode（可能为 "manager"）。
+   - 未决：是否将 resolver 改得更收紧，或保持现状并在 T016 评估收敛。记录在案。
+
+5. **纯核心 BatchAssignmentPolicy.isAdmin 签名（T014 调整）**
+   - `BatchAssignmentPolicy`、`AssignmentCandidatePolicy` 是纯核心（不能注入 Spring bean）。`isAdmin(User)` 直调 `user.getRoleCode()`。
+   - 决策：保持不变。`isAdmin` 判定走实体 roleCode 对非 OSS 用户是安全的（纯核心无法访问缓存）；且 `isAdmin` 是 over-deny（更安全）方向——OSS 用户缓存命中时 roleCode 由调用方外壳已解析，纯核心只做规则判定。`AssignmentCandidatePolicy` 使用的是候选人 roleCode（非操作者），与本次 operator 角色码收敛无关。
+
+### 涉及文件
+
+**新建**（4 文件）：
+- `backend/src/main/java/com/xiyu/bid/security/domain/EffectiveRoleResult.java` — record（roleCode + source 枚举 CACHE_HIT/LOCAL_USER/CACHE_MISS_FAIL_CLOSED）
+- `backend/src/main/java/com/xiyu/bid/security/domain/EffectiveRolePolicy.java` — 纯核心 `decide(cachedRoleCode, entityRoleCode, isOssUser)`
+- `backend/src/main/java/com/xiyu/bid/security/RoleCodeCachePort.java` — 端口接口（打破循环）
+- `backend/src/test/java/com/xiyu/bid/security/domain/EffectiveRolePolicyTest.java` — 12 测试
+
+**修改·主代码**（10 文件）：
+- `security/EffectiveRoleResolver.java` — 外壳，依赖 RoleCodeCachePort（非 OssPermissionCache）
+- `security/CurrentUserResolver.java` — T007，`getCurrentRoleCode`/`resolveEffectiveRoleCode` 委托 resolver
+- `task/service/TaskPermissionGuard.java` — T007，4 处改调 `resolveRoleCode`
+- `project/service/ProjectDraftingService.java` — T008-T009，删除私有 `resolveEffectiveRoleCode`，改调 resolver
+- `tender/service/TenderCommandAccessGuard.java` — T011，2 处改调 resolver
+- `projectworkflow/service/ProjectTaskAuthorizationGuard.java` — T012，`effectiveRoleCode` 改调 resolver + null 守卫（防越权）
+- `service/ProjectAccessScopeService.java` — T013，3 处改调 resolver
+- `settings/service/SettingsService.java` — T015，`getRuntimePermissionProfile` 改调 resolver + null-safe filter
+- `platform/service/PlatformAccountService.java` — T015，`isPrivilegedViewer` 改调 resolver
+- `service/RoleProfileService.java` — T015，`hasGlobalAccess` 改调 resolver
+- `projectworkflow/service/ProjectDocumentWorkflowService.java` — T015，改调 `CurrentUserResolver.resolveEffectiveRoleCode`
+- `crm/application/OssPermissionCache.java` — `implements RoleCodeCachePort`
+
+**修改·测试**（10 文件）：
+- `EffectiveRoleResolverTest.java` — mock 改为 `RoleCodeCachePort`
+- `TaskPermissionGuardTest.java` — 9 测试
+- `ProjectDraftingServiceTest.java` — mock + 构造更新
+- `TenderCommandAccessGuardTest.java`、`ProjectAccessScopeServiceTest.java`、`SettingsServiceTest.java`、`PlatformAccountServiceTest.java`、`RoleProfileServicePersistenceTest.java`、`RoleProfileServicePersistenceContractTest.java`、`ProjectDocumentWorkflowServiceTest.java` — 各加 `@MockBean EffectiveRoleResolver` + lenient 默认 mock（模拟缓存 miss 行为）+ 构造签名同步
+- `KnowledgeAccessSecurityTest.java`、`KnowledgeResourceAccessSecurityTest.java` — @WebMvcTest 回归修复，加 `@MockBean CurrentUserResolver`
+
+### 验证证据
+- `mvn test -Dtest='EffectiveRolePolicyTest,EffectiveRoleResolverTest,KnowledgeAccessSecurityTest,KnowledgeResourceAccessSecurityTest,TaskPermissionGuardTest,ProjectDraftingServiceTest,TenderCommandAccessGuardTest,ProjectAccessScopeServiceTest,SettingsServiceTest,PlatformAccountServiceTest,RoleProfileServicePersistenceTest,RoleProfileServicePersistenceContractTest,ProjectDocumentWorkflowServiceTest,ArchitectureTest,FPJavaArchitectureTest,MaintainabilityArchitectureTest'` → **184 tests GREEN**（含 25 ArchitectureTest 循环依赖打破 + 8 FPJavaArchitectureTest 纯核心门禁 + 23 Knowledge @WebMvcTest 回归修复）
+
+### 不在本次范围（记录在案）
+- T016：`DataScopeConfigService`/`UserDetailsServiceImpl`/`AuthService` 收敛 + 纯核心 `BatchAssignmentPolicy.isAdmin` 签名——待评估 LocalUser vs isLocalSystemAccount 语义差异后处理。
+- 既有 @WebMvcTest 技术债（3 个 controller 测试 origin/main 即失败，CI 未覆盖）——留独立任务。
+- 前端 `biddingAssistantName` 回显兜底（T017-T018）——Phase 6 独立处理。
+
+### T016 评估结论（2026-06-27）——保持现状不收敛
+对「非 OSS、非 admin 的本地用户 cache miss」场景，`DataScopeConfigService.getRoleCode()` 返回 null（fail-closed，防 DB roleCode 越权），`EffectiveRolePolicy.decide()` 返回实体 roleCode（LOCAL_USER，可能为 "manager"）。`DataScopeConfigService` 注释明确指出「OSS 用户 DB roleCode 可能是 /bidAdmin 等历史同步值，fallback 会越权」，故对非 admin 一律 fail-closed。
+
+**决策（用户确认方向 C）**：`DataScopeConfigService` 保持独立的收紧实现，不并入 `EffectiveRoleResolver`。理由：
+1. `DataScopeConfigService` 语义更安全（非 admin 非 OSS 也 fail-closed），收敛需先收紧 `EffectiveRolePolicy`，会动已改的 7 个 Guard/Service 引入回归风险。
+2. 最小侵入、不破坏已验证的安全边界。
+3. `EffectiveRoleResolver` 用于新场景（服务层权限校验），`DataScopeConfigService` 继续用于数据范围配置，两者职责清晰、语义各自正确。
+
+T016 标记为「评估完成-不改动」。纯核心 `BatchAssignmentPolicy.isAdmin` 签名（T014 调整）保持不变（纯核心无法访问缓存，`isAdmin` 走实体 roleCode 对非 OSS 用户是安全的 over-deny）。
+
+### 2026-06-27 T017-T018 前端 biddingAssistantName 回显兜底
+
+**问题**：APPROVED 状态下"标书制作人员（已分配）"卡片中，投标辅助人员始终显示"（未分配）"，即使已分配。
+
+**根因**（数据流断裂）：
+- APPROVED 卡片（`InitiationStage.vue:169`）读 `form.biddingAssistantName` 显示
+- 后端 `InitiationViewDto` 只返回 `biddingLeaderName`（V133 新增），**不返回** `biddingAssistantName`（无此字段）
+- `ProjectInitiationApprovalService:100-103` 审批时**只**为 `primaryLeadUserId` 查 user 设 `setBiddingLeaderName`，`secondaryLeadUserId` 仅存 ID 到 `ProjectLeadAssignment`，不查名字
+- 前端 `useInitiationStageActions.js:177` 的 `if (data.biddingAssistantName) form.biddingAssistantName = ...` 是死代码（`data.biddingAssistantName` 永远 undefined）
+- `loadUserLabel(secondaryLeadUserId, 'assistant')` 异步加载了名字到 `approvalForm.biddingAssistantLabel`，但 APPROVED 卡片读的是 `form.biddingAssistantName`——两个不同 reactive 对象，未同步
+
+**修复**（前端兜底，CO-373 范围）：
+- `useInitiationStageActions.js` `loadUserLabel` 的 assistant 分支：加载到 user 后，把 `u.name` 同步到 `form.biddingAssistantName`（与 `biddingLeaderName` 存纯姓名的格式对齐），APPROVED 卡片即可正确显示
+- line 177 的前向兼容兜底保留（后端未来若补 `biddingAssistantName` 字段会自动生效），注释更新说明当前实际回显靠 `loadUserLabel`
+
+**未做**（超出 CO-373 范围）：后端 `InitiationViewDto` + `ProjectInitiationDetails` entity 补 `biddingAssistantName` 字段 + DB 迁移——留独立任务。
+
+**验证**：`InitiationStage.spec.js` 11 tests passed（未破坏现有测试）。
+
+
+### 2026-06-28 Review 后 F4+F6 修复（CO-373 收尾）
+
+**背景**：CO-373 PR #1259 创建后，启动思维链设计 Review 识别 6 处可改进点。用户确认修复 F4 + F6。
+
+**F4：ProjectAccessScopeService 重复 resolveRoleCode 调用**（LOW，性能）
+- `getAllowedProjectIds(User)` 同方法内对同一 user 调用了 2 次 `effectiveRoleResolver.resolveRoleCode(user)`（line 59 判断 admin + line 85 判断 bid-Team），每次触发一次 Redis 读 + debug 日志。
+- 修复：提取局部变量 `effectiveRoleCode`，复用一次解析结果。
+- 逻辑等价，不改任何判断分支，仅省一次冗余 OSS 缓存读取。
+
+**F5：EffectiveRolePolicy.decide() null 检查**（LOW，设计偏好）
+- Review 建议移除 `cachedRoleCode != null` 冗余检查（Optional 永不 null）。
+- 复核后疑虑：decide() 是 public static，移除后传 null Optional 会从「静默走 fail-closed」变为「NPE」。
+- 用户决策：保持现状不动——防御性 null 检查保留，与 public API 边界防御风格一致。
+
+**F6：OSS 缓存 TTL 8h → 25h**（消除 fail-closed 403 窗口期）
+- 根因：JWT 有效期 24h（`JWT_EXPIRATION:86400000`），OSS 缓存 TTL 8h（`DEFAULT_TTL_SECONDS:28800`）。
+- 窗口期：用户登录后第 9~24 小时，缓存已过期但 JWT 仍有效 → `EffectiveRolePolicy.decide()` 走 `CACHE_MISS_FAIL_CLOSED` 返回 null → 权限校验 fail-closed → 403。
+- 修复：`DEFAULT_TTL_SECONDS` 从 28800（8h）提到 90000（25h），对齐 JWT 24h + 1h 余量。
+- 效果：JWT 有效期内 OSS 缓存始终命中，403 窗口期消除。角色变更通过登出 invalidate 触发。
+- 风险：角色变更生效延迟（最长 25h）。但 OSS 角色变更本就低频，且登出会主动 invalidate 缓存，可接受。
+
+**验证**：
+- `OssPermissionCacheTest` 5 tests GREEN（断言只检查 `expiresAt().isAfter(now)`，不检查具体 TTL 值）
+- `ProjectAccessScopeServiceTest` + `EffectiveRolePolicyTest` + `EffectiveRoleResolverTest` + `ProjectAccessGuardCoverageTest` 32 tests GREEN
+- 全量测试：347 测试类 / 1982 tests，除 2 个 origin/main 预存在 @WebMvcTest 失败外零回归（经 origin/main worktree 实测确认）
+
+**未做**（Review 识别但保持现状）：
+- F1：调用入口不统一（CurrentUserResolver 转发 vs EffectiveRoleResolver 直调）——两个 Guard 用户解析策略不同，统一收益有限
+- F2：EffectiveRoleResult.Source 枚举 YAGNI——仅日志消费，已实现且测试通过，重构成本 > 收益
+- F3：DataScopeConfigService 逻辑重复——用户已确认方向 C 保持独立

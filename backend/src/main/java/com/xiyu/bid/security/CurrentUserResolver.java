@@ -28,6 +28,7 @@ import org.springframework.stereotype.Component;
 public class CurrentUserResolver {
 
     private final UserRepository userRepository;
+    private final EffectiveRoleResolver effectiveRoleResolver;
 
     /**
      * 获取当前认证用户。
@@ -57,11 +58,28 @@ public class CurrentUserResolver {
     /**
      * 获取当前用户角色 code。
      *
-     * @return 当前用户角色 code，未认证或不存在时返回 null
+     * <p>走统一入口 {@link EffectiveRoleResolver}，OSS 用户优先读缓存角色码，
+     * 缓存未命中时 fail-closed 返回 null。取代直调 {@link User#getRoleCode()}，
+     * 修复 CO-373：OSS 用户 role_id=NULL 时实体回退 "manager" 导致权限误拒。
+     *
+     * @return 当前用户有效角色 code，未认证或 fail-closed 时返回 null
      */
     public String getCurrentRoleCode() {
         User user = getCurrentUser();
-        return user != null ? user.getRoleCode() : null;
+        return user != null ? resolveEffectiveRoleCode(user) : null;
+    }
+
+    /**
+     * 解析指定用户的有效角色 code（统一入口）。
+     *
+     * <p>委托 {@link EffectiveRoleResolver#resolveRoleCode}，OSS 缓存优先、本地用户回退、
+     * OSS 缓存未命中 fail-closed。供各 Guard/Service 调用，取代直调 {@link User#getRoleCode()}。
+     *
+     * @param user 用户，可为 null
+     * @return 有效角色 code；user 为 null 或 fail-closed 时为 null
+     */
+    public String resolveEffectiveRoleCode(User user) {
+        return effectiveRoleResolver.resolveRoleCode(user);
     }
 
     /**

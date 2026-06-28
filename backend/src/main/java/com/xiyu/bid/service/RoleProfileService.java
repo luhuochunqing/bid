@@ -12,6 +12,7 @@ import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.RoleProfileRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.roleprofile.RoleProfileBootstrap;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import com.xiyu.bid.util.InputSanitizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +35,7 @@ public class RoleProfileService {
     private final RoleProfileRepository roleProfileRepository;
     private final UserRepository userRepository;
     private final RoleProfileBootstrap roleProfileBootstrap;
+    private final EffectiveRoleResolver effectiveRoleResolver;
 
     public List<RoleDTO> listRoles() {
         ensureSystemRoles();
@@ -169,7 +171,8 @@ public class RoleProfileService {
      */
     public boolean hasGlobalAccess(User user) {
         if (user == null) return false;
-        String code = user.getRoleCode();
+        // CO-373：统一走 EffectiveRoleResolver，OSS 用户以缓存角色码为准
+        String code = effectiveRoleResolver.resolveRoleCode(user);
         return code != null && RoleProfileCatalog.GLOBAL_ACCESS_ROLES.stream()
                 .anyMatch(code::equalsIgnoreCase);
     }
