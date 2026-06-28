@@ -3,7 +3,6 @@
 // Pos: Service/业务编排层
 // 维护声明: 仅维护任务 CRUD 与项目数据权限编排；人员分配和团队工作量留在 TaskAssignmentSupport。
 package com.xiyu.bid.task.service;
-
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
@@ -25,18 +24,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TaskService {
-
     private final TaskRepository taskRepository;
     private final ProjectAccessScopeService projectAccessScopeService;
     private final ProjectRepository projectRepository;
@@ -49,12 +45,10 @@ public class TaskService {
     private final ProjectLeadAssignmentRepository leadAssignmentRepository;
     private final BidDocumentReviewRepository bidDocumentReviewRepository;
     private final DataScopeConfigService dataScopeConfigService;
-
     @Transactional
     public TaskDTO createTask(TaskDTO taskDTO) {
         return createTask(taskDTO, null);
     }
-
     /**
      * CO-382: 创建任务时记录创建人用户名（来自 Controller 的认证上下文），
      * 用于看板展示"创建人"。权限仍走 {@link TaskPermissionGuard}，不依赖此字段。
@@ -64,28 +58,25 @@ public class TaskService {
         log.info("Creating task: {}", taskDTO.getTitle());
         assertCanAccessProject(taskDTO.getProjectId());
         taskPermissionGuard.assertCanManageTask(taskDTO.getProjectId());
-        TaskAssignmentSupport.AssignmentSnapshot assignment = assignmentSupport.resolveAssignmentSnapshot(
-                assignmentRequestFrom(taskDTO),
-                null
-        );
-        Task savedTask = taskRepository.save(Task.builder()
-                .projectId(taskDTO.getProjectId())
-                .title(taskDTO.getTitle())
-                .description(taskDTO.getDescription())
-                .content(taskDTO.getContent())
-                .assigneeId(assignment.assigneeId())
-                .assigneeDeptCode(assignment.assigneeDeptCode())
-                .assigneeDeptName(assignment.assigneeDeptName())
-                .assigneeRoleCode(assignment.assigneeRoleCode())
-                .assigneeRoleName(assignment.assigneeRoleName())
-                .status(Task.Status.TODO)
-                .priority(taskDTO.getPriority() != null ? taskDTO.getPriority() : Task.Priority.MEDIUM)
-                .dueDate(taskDTO.getDueDate())
-                .extendedFieldsJson(taskDtoMapper.serializeExtendedFields(taskDTO.getExtendedFields()))
-                .createdBy(creatorUsername)
-                .build());
-        log.info("Task created successfully with id: {}", savedTask.getId());
-        return toDTOWithNames(savedTask);
+        return doCreateTask(taskDTO, creatorUsername);
+    }
+    @Transactional
+    public TaskDTO createSystemTask(TaskDTO taskDTO) {
+        log.info("Creating system task: {}", taskDTO.getTitle());
+        return doCreateTask(taskDTO, "system");
+    }
+    private TaskDTO doCreateTask(TaskDTO dto, String creator) {
+        var a = assignmentSupport.resolveAssignmentSnapshot(assignmentRequestFrom(dto), null);
+        Task saved = taskRepository.save(Task.builder()
+                .projectId(dto.getProjectId()).title(dto.getTitle())
+                .description(dto.getDescription()).content(dto.getContent())
+                .assigneeId(a.assigneeId()).assigneeDeptCode(a.assigneeDeptCode()).assigneeDeptName(a.assigneeDeptName())
+                .assigneeRoleCode(a.assigneeRoleCode()).assigneeRoleName(a.assigneeRoleName())
+                .status(Task.Status.TODO).priority(dto.getPriority() != null ? dto.getPriority() : Task.Priority.MEDIUM)
+                .dueDate(dto.getDueDate()).extendedFieldsJson(taskDtoMapper.serializeExtendedFields(dto.getExtendedFields()))
+                .createdBy(creator).build());
+        log.info("Task created successfully with id: {}", saved.getId());
+        return toDTOWithNames(saved);
     }
     @Transactional(readOnly = true)
     public List<TaskDTO> getAllTasks() {
@@ -99,12 +90,10 @@ public class TaskService {
         assertCanAccessProject(task.getProjectId());
         return toDTOWithNames(task);
     }
-
     @Transactional
     public TaskDTO updateTask(Long id, TaskDTO taskDTO) {
         return updateTask(id, taskDTO, null);
     }
-
     @Transactional
     public TaskDTO updateTask(Long id, TaskDTO taskDTO, String actorUsername) {
         log.info("Updating task: {}", id);
@@ -143,7 +132,6 @@ public class TaskService {
         taskHistoryRecorder.recordUpdate(before, saved, actorUsername);
         return toDTOWithNames(saved);
     }
-
     @Transactional
     public void deleteTask(Long id) {
         log.info("Deleting task: {}", id);
@@ -153,7 +141,6 @@ public class TaskService {
         taskRepository.deleteById(id);
         log.info("Task deleted successfully: {}", id);
     }
-
     @Transactional(readOnly = true)
     public List<TaskDTO> getTasksByProjectId(Long projectId, String username) {
         log.debug("Fetching tasks for project: {}", projectId);
@@ -172,13 +159,11 @@ public class TaskService {
         // CO-361: 三态模型下 isVisibleTask 仅做 null 过滤，与独立看板展示语义一致
         return toDTOsWithNames(tasks.stream().filter(TaskBoardItemMapper::isVisibleTask).toList());
     }
-
     @Transactional(readOnly = true)
     public List<TaskDTO> getTasksByAssigneeId(Long assigneeId) {
         log.debug("Fetching tasks for assignee: {}", assigneeId);
         return toDTOsWithNames(visibleTasks(taskRepository.findByAssigneeId(assigneeId)));
     }
-
     @Transactional(readOnly = true)
     public List<TaskDTO> getAccessibleTasksByAssigneeId(Long assigneeId, String username) {
         User currentUser = assignmentSupport.resolveEnabledUserByUsername(username);
@@ -189,18 +174,15 @@ public class TaskService {
         assignmentSupport.assertCanAccessTargetUser(currentUser, targetUser, false);
         return getTasksByAssigneeId(assigneeId);
     }
-
     @Transactional(readOnly = true)
     public List<TaskDTO> getTasksByStatus(Task.Status status) {
         log.debug("Fetching tasks with status: {}", status);
         return toDTOsWithNames(visibleTasks(taskRepository.findByStatus(status)));
     }
-
     @Transactional
     public TaskDTO updateTaskStatus(Long id, Task.Status status) {
         return updateTaskStatus(id, status, null);
     }
-
     @Transactional
     public TaskDTO updateTaskStatus(Long id, Task.Status status, String actorUsername) {
         log.info("Updating task {} status to: {}", id, status);
@@ -213,7 +195,6 @@ public class TaskService {
         taskHistoryRecorder.recordUpdate(before, saved, actorUsername);
         return toDTOWithNames(saved);
     }
-
     @Transactional
     public TaskDTO assignTask(Long id, TaskAssignmentRequest request, String username) {
         log.info("Assigning task {} to user: {}", id, request == null ? null : request.getAssigneeId());
@@ -227,61 +208,49 @@ public class TaskService {
         assignmentSupport.applyAssignment(task, assignmentSupport.resolveAssignmentSnapshot(request, currentUser));
         Task saved = taskRepository.save(task);
         taskHistoryRecorder.recordUpdate(before, saved, username);
-
         // 通知 #4: 分配投标负责人 → 被分配人
         if (request != null && request.getAssigneeId() != null) {
             notificationService.notifyTaskAssigned(task.getProjectId(), request.getAssigneeId(), currentUser.getId());
         }
-
         return toDTOWithNames(saved);
     }
-
     @Transactional(readOnly = true)
     public TeamTaskWorkloadDTO getTeamTaskWorkload(String username) {
         return assignmentSupport.getTeamTaskWorkload(username);
     }
-
     @Transactional(readOnly = true)
     public List<TaskDTO> getUpcomingTasks(LocalDateTime beforeDate) {
         log.debug("Fetching tasks due before: {}", beforeDate);
         return toDTOsWithNames(visibleTasks(taskRepository.findByDueDateBefore(beforeDate)));
     }
-
     @Transactional(readOnly = true)
     public List<TaskDTO> getOverdueTasks() {
         log.debug("Fetching overdue tasks");
         return toDTOsWithNames(visibleTasks(taskRepository.findByDueDateBeforeAndStatusNot(LocalDateTime.now(), Task.Status.COMPLETED)));
     }
-
     public Long countProjectTasks(Long projectId) {
         assertCanAccessProject(projectId);
         return taskRepository.countByProjectId(projectId);
     }
-
     public Long countUserTasks(Long assigneeId) {
         return (long) visibleTasks(taskRepository.findByAssigneeId(assigneeId)).size();
     }
-
     private Task findTask(Long id) {
         return taskRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Task", id.toString()));
     }
-
     private List<Task> visibleTasks(List<Task> tasks) {
         return TaskProjectVisibilityPolicy.filterVisibleTasks(tasks, projectAccessScopeService.getAllowedProjectIdsForCurrentUser());
     }
-
     private void assertCanAccessProject(Long projectId) {
         if (projectId == null || !projectRepository.existsById(projectId)) return;
         if (!TaskProjectVisibilityPolicy.canAccessProject(projectId, projectAccessScopeService.getAllowedProjectIdsForCurrentUser()))
             throw new AccessDeniedException("权限不足，无法访问该项目任务");
     }
-
     private static TaskAssignmentRequest assignmentRequestFrom(TaskDTO dto) {
         return TaskAssignmentRequest.builder().assigneeId(dto.getAssigneeId())
                 .assigneeDeptCode(dto.getAssigneeDeptCode()).assigneeDeptName(dto.getAssigneeDeptName())
                 .assigneeRoleCode(dto.getAssigneeRoleCode()).assigneeRoleName(dto.getAssigneeRoleName()).build();
     }
-
     private static boolean hasAssignmentChange(TaskDTO d) { return d.getAssigneeId() != null || hasText(d.getAssigneeDeptCode()) || hasText(d.getAssigneeRoleCode()); }
     private static boolean hasText(String v) { return v != null && !v.isBlank(); }
     private boolean isAssignedReviewer(Long projectId, Long uid) {

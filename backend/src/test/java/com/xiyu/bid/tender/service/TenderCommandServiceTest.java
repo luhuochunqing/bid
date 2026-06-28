@@ -15,6 +15,8 @@ import com.xiyu.bid.service.ProjectAccessScopeService;
 import com.xiyu.bid.task.service.TaskService;
 import com.xiyu.bid.tender.dto.TenderAttachmentDTO;
 import com.xiyu.bid.tender.dto.TenderDTO;
+import com.xiyu.bid.task.dto.TaskDTO;
+import com.xiyu.bid.entity.User;
 import com.xiyu.bid.integration.external.ProjectManagerIdResolver;
 import com.xiyu.bid.tender.entity.TenderAttachment;
 import org.junit.jupiter.api.BeforeEach;
@@ -135,6 +137,33 @@ class TenderCommandServiceTest {
 
         assertThat(savedDto.getTitle()).isEqualTo(tenderDTO.getTitle());
         verify(tenderRepository).save(any(Tender.class));
+    }
+
+    @Test
+    @DisplayName("创建标讯 - 兜底分配时调用 createSystemTask，防止权限异常污染事务")
+    void createTender_ShouldNotRollback_WhenAutoAssignFails_WithSalesRole() {
+        when(tenderRepository.save(any(Tender.class))).thenAnswer(invocation -> {
+            Tender saved = invocation.getArgument(0);
+            saved.setId(1L);
+            return saved;
+        });
+        when(autoAssignmentService.autoAssignIfPossible(any(Tender.class))).thenReturn(AssignmentResult.noMatch());
+
+        User adminUser = User.builder().id(2L).username("admin").build();
+        when(userRepository.findEnabledByRoleProfileCodes(any())).thenReturn(List.of(adminUser));
+        when(taskService.createSystemTask(any())).thenReturn(TaskDTO.builder().id(100L).build());
+        
+        doAnswer(invocation -> {
+            java.util.function.Consumer<org.springframework.transaction.TransactionStatus> action = invocation.getArgument(0);
+            action.accept(null);
+            return null;
+        }).when(transactionTemplate).executeWithoutResult(any());
+
+        TenderDTO savedDto = tenderCommandService.createTender(tenderDTO);
+
+        assertThat(savedDto).isNotNull();
+        verify(taskService).createSystemTask(any());
+        verify(taskService, never()).createTask(any());
     }
 
     @Test

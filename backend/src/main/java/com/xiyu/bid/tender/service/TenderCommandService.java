@@ -146,7 +146,7 @@ public class TenderCommandService {
         }
         for (User manager : managers) {
             try {
-                TaskDTO task = taskService.createTask(
+                TaskDTO task = taskService.createSystemTask(
                         TaskDTO.builder()
                                 .projectId(savedTender.getId())
                                 .title(taskTitle)
