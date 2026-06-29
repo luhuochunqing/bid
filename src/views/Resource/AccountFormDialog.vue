@@ -25,10 +25,9 @@
           <el-form-item label="绑定联系人" required>
             <UserPicker
               v-model="form.contactPerson"
-              mode="candidates"
-              placeholder="请选择投标部门人员"
-              :load-on-mount="false"
-              :initial-options="biddingUsers"
+              mode="search"
+              placeholder="模糊搜索选择联系人"
+              :initial-options="contactPersonInitialOptions"
               style="width: 100%"
               @select="onContactPersonSelected"
             />
@@ -80,7 +79,6 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { resourcesApi } from '@/api'
 import UserPicker from '@/components/common/UserPicker.vue'
-import httpClient from '@/api/client'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -101,25 +99,17 @@ const emptyForm = () => ({
 })
 
 const form = ref(emptyForm())
-const biddingUsers = ref([])
 const accountNameDup = ref(false)
 
-const loadBiddingUsers = async () => {
-  try {
-    const res = await httpClient.get('/api/admin/users')
-    if (res?.data) {
-      biddingUsers.value = (Array.isArray(res.data) ? res.data : [])
-        .map(u => ({
-          id: u.id,
-          name: u.fullName || u.username,
-          username: u.username,
-          employeeNumber: u.employeeNumber,
-          phone: u.phone || '',
-          email: u.email || '',
-        }))
-    }
-  } catch { /* silent */ }
-}
+// 编辑态回显已选联系人：从 editRow.contactPersonLabel 构造 initialOptions，
+// 让 UserPicker 在未搜索时也能正确展示已选联系人的"姓名（工号）"标签。
+const contactPersonInitialOptions = computed(() => {
+  const r = props.editRow?.raw || props.editRow || {}
+  if (r.contactPerson && r.contactPersonLabel) {
+    return [{ id: r.contactPerson, name: r.contactPersonLabel }]
+  }
+  return []
+})
 
 // CO-390: 选择联系人后联动回填 phone/email（保持与联系人资料一致）
 const onContactPersonSelected = (user) => {
@@ -157,7 +147,6 @@ const onOpen = () => {
     form.value = emptyForm()
   }
   accountNameDup.value = false
-  loadBiddingUsers()
 }
 
 const submit = async () => {

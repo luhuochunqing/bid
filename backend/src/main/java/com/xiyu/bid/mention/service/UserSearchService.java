@@ -45,7 +45,9 @@ public class UserSearchService {
                 employeeNumberOrUsername(u),
                 u.getRole() == null ? null : u.getRole().name(),
                 u.getDepartmentName(),
-                u.getRoleCode()))
+                u.getRoleCode(),
+                u.getPhone(),
+                u.getEmail()))
             .toList();
     }
 
@@ -80,7 +82,9 @@ public class UserSearchService {
                 employeeNumberOrUsername(u),
                 u.getRole() == null ? null : u.getRole().name(),
                 u.getDepartmentName(),
-                u.getRoleCode()))
+                u.getRoleCode(),
+                u.getPhone(),
+                u.getEmail()))
             .toList();
     }
 

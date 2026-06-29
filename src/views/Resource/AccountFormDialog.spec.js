@@ -3,18 +3,11 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import AccountFormDialog from './AccountFormDialog.vue'
-import httpClient from '@/api/client.js'
 import { resourcesApi } from '@/api'
 
 beforeEach(() => {
   setActivePinia(createPinia())
 })
-
-vi.mock('@/api/client.js', () => ({
-  default: {
-    get: vi.fn(),
-  },
-}))
 
 function mountDialog(props = {}) {
   return mount(AccountFormDialog, {
@@ -50,7 +43,7 @@ function mountDialog(props = {}) {
         'el-button': { template: '<button><slot /></button>' },
         UserPicker: {
           name: 'UserPicker',
-          props: ['modelValue', 'mode', 'placeholder', 'disabled', 'initialOptions', 'loadOnMount'],
+          props: ['modelValue', 'mode', 'placeholder', 'disabled', 'initialOptions'],
           emits: ['update:modelValue', 'select'],
           template: '<div class="user-picker-stub" />',
         },
@@ -60,22 +53,19 @@ function mountDialog(props = {}) {
 }
 
 describe('AccountFormDialog', () => {
-  it('renders UserPicker for contact person selection (CO-390 userId 升级)', async () => {
-    httpClient.get.mockResolvedValue({ data: [] })
+  it('renders UserPicker with mode=search for contact person selection (统一选人控件)', async () => {
     const wrapper = mountDialog()
     await flushPromises()
 
     const picker = wrapper.findComponent({ name: 'UserPicker' })
     expect(picker.exists()).toBe(true)
-    expect(picker.props('mode')).toBe('candidates')
-    expect(picker.props('loadOnMount')).toBe(false)
-    expect(picker.props('placeholder')).toBe('请选择投标部门人员')
+    expect(picker.props('mode')).toBe('search')
+    expect(picker.props('placeholder')).toBe('模糊搜索选择联系人')
   })
 
   it('binds contactPerson userId to UserPicker v-model (CO-390)', async () => {
-    httpClient.get.mockResolvedValue({ data: [] })
     const wrapper = mountDialog({
-      editRow: { id: 42, accountName: '测试平台', contactPerson: 99 }
+      editRow: { id: 42, accountName: '测试平台', contactPerson: 99, contactPersonLabel: '王五（20260509）' }
     })
     await flushPromises()
 
@@ -84,25 +74,27 @@ describe('AccountFormDialog', () => {
     expect(picker.props('modelValue')).toBe(99)
   })
 
-  it('passes bidding users from admin API as initial options (CO-390 含 phone/email)', async () => {
-    httpClient.get.mockResolvedValue({
-      data: [
-        { id: 1, fullName: '张三', username: 'zhangsan', employeeNumber: '20260509', phone: '138', email: 'a@b.com' },
-        { id: 2, fullName: '李四', username: 'lisi', employeeNumber: '20260510', phone: '139', email: 'c@d.com' },
-      ],
+  it('编辑态回显已选联系人 initialOptions (CO-390 contactPersonLabel)', async () => {
+    const wrapper = mountDialog({
+      editRow: { id: 42, accountName: '测试平台', contactPerson: 99, contactPersonLabel: '王五（20260509）' }
     })
-    const wrapper = mountDialog()
     await flushPromises()
 
     const picker = wrapper.findComponent({ name: 'UserPicker' })
     expect(picker.props('initialOptions')).toEqual([
-      { id: 1, name: '张三', username: 'zhangsan', employeeNumber: '20260509', phone: '138', email: 'a@b.com' },
-      { id: 2, name: '李四', username: 'lisi', employeeNumber: '20260510', phone: '139', email: 'c@d.com' },
+      { id: 99, name: '王五（20260509）' }
     ])
   })
 
+  it('新建态 initialOptions 为空数组', async () => {
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    const picker = wrapper.findComponent({ name: 'UserPicker' })
+    expect(picker.props('initialOptions')).toEqual([])
+  })
+
   it('CO-390: selecting a contact person auto-fills phone/email', async () => {
-    httpClient.get.mockResolvedValue({ data: [] })
     const wrapper = mountDialog()
     await flushPromises()
 
@@ -118,8 +110,8 @@ describe('AccountFormDialog', () => {
   })
 
   it('CO-390: submit 提交时 contactPerson 为 Long userId（不是字符串）', async () => {
-    httpClient.get.mockResolvedValue({ data: [] })
     const createSpy = vi.spyOn(resourcesApi.accounts, 'create').mockResolvedValue({ success: true, data: {} })
+    vi.spyOn(resourcesApi.accounts, 'getList').mockResolvedValue({ data: { list: [] } })
     const wrapper = mountDialog()
     await flushPromises()
 

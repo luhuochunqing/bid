@@ -70,8 +70,8 @@ class UserSearchServiceTest {
         List<UserSearchResult> results = service.search("ali", 5);
 
         assertThat(results).hasSize(2);
-        assertThat(results.get(0)).isEqualTo(new UserSearchResult(3L, "Alice Smith", "alice", "MANAGER", null, "manager"));
-        assertThat(results.get(1)).isEqualTo(new UserSearchResult(4L, "Bob Lee", "bob", "MANAGER", null, "manager"));
+        assertThat(results.get(0)).isEqualTo(new UserSearchResult(3L, "Alice Smith", "alice", "MANAGER", null, "manager", null, "a@x.com"));
+        assertThat(results.get(1)).isEqualTo(new UserSearchResult(4L, "Bob Lee", "bob", "MANAGER", null, "manager", null, "b@x.com"));
     }
 
     @Test
@@ -114,12 +114,13 @@ class UserSearchServiceTest {
         assertThat(r.name()).isEqualTo("Alice");
         assertThat(r.role()).isEqualTo("ADMIN");
         assertThat(r.roleCode()).isEqualTo("admin");
-        // Record exposes only search-list display fields; no email/password accessor exists.
-        assertThat(UserSearchResult.class.getRecordComponents()).hasSize(6);
+        // Record exposes search-list display fields + phone/email (CO-392 联系人联动回填).
+        // password 绝不能出现在 record 字段中。
+        assertThat(UserSearchResult.class.getRecordComponents()).hasSize(8);
         long leaky = IntStream.range(0, UserSearchResult.class.getRecordComponents().length)
             .filter(i -> {
                 String n = UserSearchResult.class.getRecordComponents()[i].getName();
-                return n.equalsIgnoreCase("email") || n.equalsIgnoreCase("password");
+                return n.equalsIgnoreCase("password");
             }).count();
         assertThat(leaky).isZero();
     }

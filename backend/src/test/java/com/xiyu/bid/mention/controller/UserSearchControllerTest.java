@@ -71,7 +71,7 @@ class UserSearchControllerTest {
     @DisplayName("GET /api/users/search returns wrapped data envelope")
     void search_ReturnsWrapped() throws Exception {
         when(searchService.search(eq("ali"), any())).thenReturn(List.of(
-            new UserSearchResult(3L, "Alice", "E003", "MANAGER", null, "bid-projectLeader")));
+            new UserSearchResult(3L, "Alice", "E003", "MANAGER", null, "bid-projectLeader", null, null)));
 
         mockMvc.perform(get("/api/users/search").param("q", "ali"))
             .andExpect(status().isOk())
