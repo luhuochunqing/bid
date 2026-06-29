@@ -103,7 +103,7 @@ describe('useProjectDetailDocumentActions', () => {
     const project = ref({ id: 14, name: '项目106', tasks: [] })
     const getTasks = vi.fn().mockResolvedValue({
       success: true,
-      data: [{ id: 301, title: '编制投标书', status: 'todo' }],
+      data: [{ id: 301, title: '编制投标书', status: 'TODO' }],
     })
     const getDocuments = vi.fn().mockRejectedValue(new Error('Request failed with status code 403'))
 
