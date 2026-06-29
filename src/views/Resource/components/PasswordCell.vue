@@ -4,6 +4,7 @@
       <span class="password-text">{{ password.displayText(row.id) }}</span>
     </div>
     <button
+      v-if="canReveal"
       class="password-toggle-btn"
       :disabled="password.isLoading(row.id)"
       @click.stop="password.toggle(row.id)">
@@ -19,7 +20,8 @@ import { Hide, View } from '@element-plus/icons-vue'
 
 defineProps({
   row: { type: Object, required: true },
-  password: { type: Object, required: true }
+  password: { type: Object, required: true },
+  canReveal: { type: Boolean, default: true }
 })
 </script>
 

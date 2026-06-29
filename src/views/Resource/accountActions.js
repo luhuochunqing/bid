@@ -53,3 +53,21 @@ export function isCurrentUserContactPerson(row, user) {
   if (contactPerson === null || contactPerson === undefined || contactPerson === '') return false
   return String(contactPerson) === String(user.id || '')
 }
+
+/**
+ * 判断当前用户是否可以查看账户密码（CO-400 round5）。
+ *
+ * 业务规则：
+ * - 管理员（admin/bidAdmin/bid-TeamLeader）→ 可查看所有账户密码
+ * - 投标专员（bid-Team）且为该账户绑定联系人 → 可查看该账户密码
+ * - 投标专员非绑定联系人 → 不可查看
+ * - 其他角色 → 不可查看
+ *
+ * @param {boolean} isManager 当前用户是否为管理员
+ * @param {boolean} isBidTeam 当前用户是否为投标专员
+ * @param {boolean} isContactPerson 当前用户是否为该账户绑定联系人
+ * @returns {boolean}
+ */
+export function canRevealPassword({ isManager, isBidTeam, isContactPerson }) {
+  return isManager || (isBidTeam && isContactPerson)
+}

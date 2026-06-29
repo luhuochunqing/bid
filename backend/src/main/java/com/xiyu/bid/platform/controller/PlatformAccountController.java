@@ -141,11 +141,12 @@ public class PlatformAccountController {
      *   <li>the response carries {@code Cache-Control: no-store} so
      *   browsers / proxies do not persist the secret in shared caches.</li>
      * </ul>
-     * The endpoint is restricted to admin / bidAdmin / bid-TeamLeader, or
-     * bid-Team as the account's bound contact person (CO-400 四轮).
+     * CO-400 round5: Controller 层仅做 isAuthenticated() 过滤，真权限交给
+     * Service 层（管理员 OR 账户绑定联系人 custodianId）。投标专员作为
+     * 绑定联系人时可查看密码，非绑定联系人由 Service 抛 403。
      */
     @GetMapping("/{id}/password")
-    @PreAuthorize("hasAnyAuthority('admin', '/bidAdmin', 'bid-TeamLeader', 'bid-Team', 'ROLE_ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<PasswordRevealResponse>> getPassword(
             @PathVariable Long id,
             @AuthenticationPrincipal UserDetails currentUser) {
