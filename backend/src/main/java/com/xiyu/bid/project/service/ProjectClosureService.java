@@ -19,6 +19,7 @@ import com.xiyu.bid.project.entity.ProjectDepositSnapshot;
 import com.xiyu.bid.project.repository.ProjectClosureRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.service.ProjectAccessScopeService;
 import com.xiyu.bid.notification.core.NotificationType;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
@@ -51,9 +52,13 @@ public class ProjectClosureService {
     private final NotificationApplicationService notificationService;
     private final DocumentExportService documentExportService;
     private final com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository projectDocumentRepository;
+    private final ProjectAccessScopeService projectAccessScopeService;
 
     @Transactional(readOnly = true)
     public ClosurePreviewDTO preview(Long projectId) {
+        // CO-392: 补齐项目级访问守卫，与 ProjectDraftingService.get() 对齐，
+        // 防止放开 @PreAuthorize 角色白名单后越权查看任意项目结项预览。
+        projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         mustGetProject(projectId);
         Optional<ProjectClosure> existingClosure = closureRepository.findByProjectId(projectId);
         ProjectDepositSnapshot snap = depositAssembler.buildSnapshot(projectId, existingClosure);

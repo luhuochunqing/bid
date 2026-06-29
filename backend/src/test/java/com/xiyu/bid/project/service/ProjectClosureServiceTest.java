@@ -18,6 +18,7 @@ import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.project.service.ProjectClosureDepositAssembler;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.service.ProjectAccessScopeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
@@ -49,6 +50,7 @@ class ProjectClosureServiceTest {
     private UserRepository userRepository;
     private NotificationApplicationService notificationService;
     private com.xiyu.bid.documentexport.service.DocumentExportService documentExportService;
+    private ProjectAccessScopeService projectAccessScopeService;
     private ProjectClosureService service;
 
     private static final Long PID = 1L;
@@ -67,8 +69,9 @@ class ProjectClosureServiceTest {
         userRepository = mock(UserRepository.class);
         notificationService = mock(NotificationApplicationService.class);
         documentExportService = mock(com.xiyu.bid.documentexport.service.DocumentExportService.class);
+        projectAccessScopeService = mock(ProjectAccessScopeService.class);
         var projectDocumentRepo = mock(com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository.class);
-        service = new ProjectClosureService(closureRepo, projectRepo, stageService, depositAssembler, userRepository, notificationService, documentExportService, projectDocumentRepo);
+        service = new ProjectClosureService(closureRepo, projectRepo, stageService, depositAssembler, userRepository, notificationService, documentExportService, projectDocumentRepo, projectAccessScopeService);
         Project p = new Project();
         p.setId(PID);
         when(projectRepo.findById(PID)).thenReturn(Optional.of(p));
@@ -96,6 +99,16 @@ class ProjectClosureServiceTest {
         assertTrue(dto.isCanClose());
         assertEquals("NA", dto.getDepositReturnStatus());
         assertTrue(dto.getBlockingReasons().isEmpty());
+    }
+
+    /** CO-392: preview 必须先做项目级访问守卫 assertCurrentUserCanAccessProject，
+     *  与 ProjectDraftingService.get() 对齐，防止越权查看任意项目结项预览。 */
+    @Test
+    void co392_preview_invokes_project_access_guard() {
+        when(feeRepo.findByProjectIdAndStatus(eq(PID), eq(Fee.Status.RETURNED))).thenReturn(List.of());
+        when(feeRepo.findByProjectId(PID)).thenReturn(List.of());
+        service.preview(PID);
+        verify(projectAccessScopeService).assertCurrentUserCanAccessProject(PID);
     }
 
     @Test

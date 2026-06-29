@@ -1492,3 +1492,54 @@ T016 标记为「评估完成-不改动」。纯核心 `BatchAssignmentPolicy.is
 - F1：调用入口不统一（CurrentUserResolver 转发 vs EffectiveRoleResolver 直调）——两个 Guard 用户解析策略不同，统一收益有限
 - F2：EffectiveRoleResult.Source 枚举 YAGNI——仅日志消费，已实现且测试通过，重构成本 > 收益
 - F3：DataScopeConfigService 逻辑重复——用户已确认方向 C 保持独立
+
+---
+
+## CO-392 复发修复 (2026-06-29)
+
+### 问题口径
+- CO-392 首次修复（PR #1316，仅改前端 `ClosureStage.vue` 的 `isProjectLeader` 认 leads 匹配）后复发。
+- 现场数据：project/112，投标负责人/投标辅助人员进入结项阶段，显示与投标管理员/投标组长不一致。
+- 按 lessons-learned.md §23【全链路日志排查 SOP】定位根因。
+
+### 根因（代码证据，非猜测）
+前端 `ClosureStage.vue` 的 `loadPreview()` 串行调用两个后端端点：
+1. `getClosurePreview` → `ProjectClosureController.preview` — `@PreAuthorize("hasAnyRole('ADMIN','MANAGER')")`
+2. `getDrafting` → `ProjectDraftingController.get` — 类级 `isAuthenticated()`
+
+`bid-Team`（投标辅助/专员）在 `RoleProfileCatalog.ROLES_WITHOUT_LEGACY_ROLE_COMPAT` 中，`UserDetailsServiceImpl` 不为其颁发 `ROLE_MANAGER`，故 preview 端点对 bid-Team 直接 403 → 前端 `preview.value` 保持 null → 整页空白。
+
+preview 端点 `@PreAuthorize` 与同 Controller 其他结项端点（submit/approve/reject/rebid/export 均含 `BID_TEAM`/`BID_PROJECTLEADER`/`BID_TEAMLEADER`/`BIDADMIN`）不一致，且与 line 43 注释"所有人可查看"矛盾——首次修复未触达后端权限层，是复发根因。
+
+### 决策与取舍
+
+#### 决策 1：阻塞点 2（secondaryLead 门禁）— 用户先选 B 后改 A
+- 发现 `ProjectAccessScopeService.java:90-94` 的 `findBySecondaryLeadUserId` 门控（仅 `BID_SPECIALIST_CODE`）是 CO-361（commit `6d3418b51`）刻意建立的权限矩阵策略，且有测试 `getAllowedProjectIds_SecondaryLeadShouldNotGetProjectVisibility` 断言"非 bid-Team 副负责人不可见"。
+- 移除该门禁会破坏既有权限矩阵 → 向用户 surface 冲突 → 用户改为选 A（不修阻塞点 2）。
+- **取舍**：仅修主因（preview `@PreAuthorize`），issue 主诉的 bid-Team 症状即解决；边缘场景（非 bid-Team 角色作为 secondaryLead）维持 CO-361 既有策略。
+
+#### 决策 2：preview 补项目级守卫 — 无冲突，执行
+- `ProjectClosureService.preview` 原仅 `mustGetProject`，无 `assertCurrentUserCanAccessProject`。
+- 放开 `@PreAuthorize` 角色白名单后，补项目守卫与 `ProjectDraftingService.get()` 对齐，防止越权查看任意项目结项预览。
+
+### 修改文件范围（4 个文件）
+
+| 文件 | 改动 |
+|---|---|
+| `backend/.../project/controller/ProjectClosureController.java` | line 45 `@PreAuthorize` 补齐 `BID_TEAMLEADER`/`BIDADMIN`/`BID_PROJECTLEADER`/`BID_TEAM`（对齐同 Controller 其他结项端点） |
+| `backend/.../project/service/ProjectClosureService.java` | 新增 `ProjectAccessScopeService` 依赖；`preview()` 首行补 `assertCurrentUserCanAccessProject` |
+| `backend/.../project/controller/ProjectClosureControllerTest.java` | 新增反射测试断言 `@PreAuthorize` 包含各角色（CO-392 回归门禁） |
+| `backend/.../project/service/ProjectClosureServiceTest.java` | 构造函数补 `projectAccessScopeService` mock；新增测试验证 `preview` 调用项目守卫 |
+
+### 验证证据
+- `ProjectClosureControllerTest`: 8/8 ✅（含新增 CO-392 反射测试）
+- `ProjectClosureServiceTest`: 18/18 ✅（含新增项目守卫验证）
+- `MaintainabilityArchitectureTest`: 3/3 ✅（project 模块不在 PROTECTED_MODULES，新增依赖不触发门禁）
+- `ResponsibilityArchitectureTest`: 4/4 ✅
+- `ArchitectureTest`: 25/25 ✅
+- 前端 `ClosureStage.spec.js`: 13/13 ✅（首次修复已在 main，本次未改前端）
+
+### 未做的事（避免越界）
+- 未改 `ProjectAccessScopeService` secondaryLead 门禁（决策 1 选 A）
+- 未改前端 `ClosureStage.vue`（首次修复已足够，根因在后端）
+- 未顺手重构、改格式、改命名

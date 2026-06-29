@@ -42,7 +42,7 @@ public class ProjectClosureController {
 
     /** 结项预览：所有人可查看。 */
     @GetMapping("/preview")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM')")
     public ResponseEntity<ApiResponse<ClosurePreviewDTO>> preview(@PathVariable Long projectId) {
         ClosurePreviewDTO dto = service.preview(projectId);
         return ResponseEntity.ok(ApiResponse.success("ok", dto));

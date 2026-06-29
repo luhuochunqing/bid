@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.User;
@@ -28,6 +29,8 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -134,5 +137,26 @@ class ProjectClosureControllerTest {
         mockMvc.perform(post("/api/projects/1/closure/export-documents"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.format").value("json"));
+    }
+
+    /** CO-392: 结项预览端点 @PreAuthorize 必须对齐同 Controller 其他结项端点的角色白名单，
+     *  允许投标辅助(bid-Team)/投标负责人(BID_PROJECTLEADER)/投标组长(BID_TEAMLEADER)/投标管理员(BIDADMIN)。
+     *  bid-Team 在 ROLES_WITHOUT_LEGACY_ROLE_COMPAT 中，不发 ROLE_MANAGER，故仅靠 'ADMIN','MANAGER' 会被 403 拦截，
+     *  导致前端 preview.value 为 null、整页内容空白（与投标管理员/组长显示不一致）。 */
+    @Test
+    void co392_preview_preauthorize_allows_bid_team_and_project_leader() throws Exception {
+        PreAuthorize preview = ProjectClosureController.class
+                .getMethod("preview", Long.class)
+                .getAnnotation(PreAuthorize.class);
+        assertNotNull(preview, "preview 端点必须保留 @PreAuthorize");
+        String expr = preview.value();
+        assertTrue(expr.contains("BID_TEAM"),
+                "preview @PreAuthorize 必须包含 BID_TEAM（投标辅助），当前: " + expr);
+        assertTrue(expr.contains("BID_PROJECTLEADER"),
+                "preview @PreAuthorize 必须包含 BID_PROJECTLEADER（投标负责人），当前: " + expr);
+        assertTrue(expr.contains("BID_TEAMLEADER"),
+                "preview @PreAuthorize 必须包含 BID_TEAMLEADER（投标组长），当前: " + expr);
+        assertTrue(expr.contains("BIDADMIN"),
+                "preview @PreAuthorize 必须包含 BIDADMIN（投标管理员），当前: " + expr);
     }
 }
