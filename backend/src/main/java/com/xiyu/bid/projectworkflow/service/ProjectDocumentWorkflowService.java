@@ -86,13 +86,16 @@ class ProjectDocumentWorkflowService {
     void deleteProjectDocument(Long projectId, Long documentId) {
         guardService.requireWorkflowMutationProject(projectId);
 
-        String roleCode = currentUserResolver.getCurrentRoleCode();
-        AuthorizationDecision decision = ProjectDocumentWorkflowPolicy.canDeleteProjectDocument(roleCode);
+        ProjectDocument document = guardService.requireDocument(projectId, documentId);
+        var currentUser = currentUserResolver.requireCurrentUser();
+        String roleCode = currentUserResolver.resolveEffectiveRoleCode(currentUser);
+        // CO-383: 上传者本人可删除自己上传的文件（未提交前可重传）
+        AuthorizationDecision decision = ProjectDocumentWorkflowPolicy.canDeleteProjectDocument(
+                roleCode, currentUser.getId(), document.getUploaderId());
         if (!decision.allowed()) {
             throw new org.springframework.security.access.AccessDeniedException(decision.reason());
         }
 
-        ProjectDocument document = guardService.requireDocument(projectId, documentId);
         projectDocumentRepository.delete(document);
         projectDocumentBindingGateway.onDocumentDeleted(document);
     }

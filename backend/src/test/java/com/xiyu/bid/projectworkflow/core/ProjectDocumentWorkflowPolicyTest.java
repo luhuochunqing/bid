@@ -219,7 +219,8 @@ class ProjectDocumentWorkflowPolicyTest {
     })
     void canDeleteProjectDocument_whenAdminBidAdminOrBidLead_shouldPermit(String roleCode) {
         // CO-382: 对齐蓝图 §3.3.1.2「删除文档」权限矩阵——admin/bidAdmin/bid-TeamLeader 允许
-        var result = ProjectDocumentWorkflowPolicy.canDeleteProjectDocument(roleCode);
+        // CO-383: 管理员角色无需匹配 uploaderId
+        var result = ProjectDocumentWorkflowPolicy.canDeleteProjectDocument(roleCode, CURRENT_USER_ID, OTHER_USER_ID);
         assertThat(result.allowed()).isTrue();
         assertThat(result.reason()).isNull();
     }
@@ -232,23 +233,54 @@ class ProjectDocumentWorkflowPolicyTest {
             RoleProfileCatalog.ADMIN_STAFF_CODE,
             "unknown"
     })
-    void canDeleteProjectDocument_whenNonAdminRole_shouldDeny(String roleCode) {
-        var result = ProjectDocumentWorkflowPolicy.canDeleteProjectDocument(roleCode);
+    void canDeleteProjectDocument_whenNonAdminRoleAndNotUploader_shouldDeny(String roleCode) {
+        var result = ProjectDocumentWorkflowPolicy.canDeleteProjectDocument(roleCode, CURRENT_USER_ID, OTHER_USER_ID);
         assertThat(result.allowed()).isFalse();
-        assertThat(result.reason()).contains("仅投标管理员/组长允许删除文档");
+        assertThat(result.reason()).contains("仅投标管理员/组长或上传者本人允许删除文档");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            RoleProfileCatalog.SALES_CODE,
+            RoleProfileCatalog.BID_SPECIALIST_CODE,
+            RoleProfileCatalog.BID_OTHER_DEPT_CODE
+    })
+    void canDeleteProjectDocument_whenUploaderSelf_shouldPermit(String roleCode) {
+        // CO-383: 上传者本人在未提交前可删除自己上传的文件（可能传错需要重传）
+        var result = ProjectDocumentWorkflowPolicy.canDeleteProjectDocument(roleCode, CURRENT_USER_ID, CURRENT_USER_ID);
+        assertThat(result.allowed()).isTrue();
+        assertThat(result.reason()).isNull();
     }
 
     @Test
     void canDeleteProjectDocument_whenNullRole_shouldDeny() {
-        var result = ProjectDocumentWorkflowPolicy.canDeleteProjectDocument(null);
+        var result = ProjectDocumentWorkflowPolicy.canDeleteProjectDocument(null, CURRENT_USER_ID, OTHER_USER_ID);
         assertThat(result.allowed()).isFalse();
         assertThat(result.reason()).contains("未分配角色");
     }
 
     @Test
     void canDeleteProjectDocument_whenBlankRole_shouldDeny() {
-        var result = ProjectDocumentWorkflowPolicy.canDeleteProjectDocument("   ");
+        var result = ProjectDocumentWorkflowPolicy.canDeleteProjectDocument("   ", CURRENT_USER_ID, OTHER_USER_ID);
         assertThat(result.allowed()).isFalse();
-        assertThat(result.reason()).contains("仅投标管理员/组长允许删除文档");
+        assertThat(result.reason()).contains("仅投标管理员/组长或上传者本人允许删除文档");
+    }
+
+    @Test
+    void canDeleteProjectDocument_whenUploaderIdNull_shouldDeny() {
+        // 上传者 ID 为 null（历史数据）时，非管理员不能删除
+        var result = ProjectDocumentWorkflowPolicy.canDeleteProjectDocument(
+                RoleProfileCatalog.SALES_CODE, CURRENT_USER_ID, null);
+        assertThat(result.allowed()).isFalse();
+        assertThat(result.reason()).contains("仅投标管理员/组长或上传者本人允许删除文档");
+    }
+
+    @Test
+    void canDeleteProjectDocument_whenCurrentUserIdNull_shouldDeny() {
+        // 当前用户 ID 为 null 时，非管理员不能删除
+        var result = ProjectDocumentWorkflowPolicy.canDeleteProjectDocument(
+                RoleProfileCatalog.SALES_CODE, null, CURRENT_USER_ID);
+        assertThat(result.allowed()).isFalse();
+        assertThat(result.reason()).contains("仅投标管理员/组长或上传者本人允许删除文档");
     }
 }

@@ -106,12 +106,18 @@ public final class ProjectDocumentWorkflowPolicy {
 
     /**
      * 校验指定角色是否有权删除项目文档。
-     * <p>系统管理员（admin）、投标部门管理员（bidAdmin）和投标组长（bid-TeamLeader）允许删除。</p>
+     * <p>允许删除的主体：</p>
+     * <ul>
+     *   <li>系统管理员（admin）/ 投标部门管理员（bidAdmin）/ 投标组长（bid-TeamLeader）— 对齐蓝图 §3.3.1.2</li>
+     *   <li>上传者本人（uploaderId == currentUserId）— CO-383：未提交前可删除自己上传的文件</li>
+     * </ul>
      *
-     * @param roleCode 当前操作者角色 code（可为 null）
+     * @param roleCode      当前操作者角色 code（可为 null）
+     * @param currentUserId 当前用户 ID（可为 null）
+     * @param uploaderId    文档上传者 ID（可为 null，历史数据）
      * @return 授权决策结果
      */
-    public static AuthorizationDecision canDeleteProjectDocument(String roleCode) {
+    public static AuthorizationDecision canDeleteProjectDocument(String roleCode, Long currentUserId, Long uploaderId) {
         if (roleCode == null) {
             return AuthorizationDecision.deny("当前用户未分配角色，无权删除文档");
         }
@@ -122,7 +128,11 @@ public final class ProjectDocumentWorkflowPolicy {
                 || RoleProfileCatalog.BID_LEAD_CODE.equalsIgnoreCase(normalized)) {
             return AuthorizationDecision.permit();
         }
-        return AuthorizationDecision.deny("权限不足，仅投标管理员/组长允许删除文档");
+        // CO-383: 上传者本人在未提交前可删除自己上传的文件（可能传错需要重传）
+        if (currentUserId != null && currentUserId.equals(uploaderId)) {
+            return AuthorizationDecision.permit();
+        }
+        return AuthorizationDecision.deny("权限不足，仅投标管理员/组长或上传者本人允许删除文档");
     }
 
     private static boolean isGlobalDocumentAccessRole(String roleCode) {

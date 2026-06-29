@@ -359,27 +359,51 @@ class ProjectDocumentWorkflowServiceTest {
 
     @Test
     void deleteProjectDocument_asNonAdmin_shouldThrowAccessDeniedException() {
-        when(currentUserResolver.getCurrentRoleCode()).thenReturn("bid-Team");
-
-        org.springframework.security.core.Authentication auth = mock(org.springframework.security.core.Authentication.class);
-        when(auth.isAuthenticated()).thenReturn(true);
-        when(auth.getName()).thenReturn("regularuser");
-        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
+        // CO-383: 非管理员且非上传者本人 → 拒绝
+        when(currentUserResolver.requireCurrentUser()).thenReturn(
+                com.xiyu.bid.entity.User.builder()
+                        .id(888L)
+                        .roleProfile(com.xiyu.bid.entity.RoleProfile.builder().code("bid-Team").build())
+                        .build());
 
         ProjectDocument doc = ProjectDocument.builder()
                 .id(9001L)
                 .projectId(1001L)
                 .name("test.pdf")
+                .uploaderId(1L)
                 .build();
         when(projectDocumentRepository.findById(9001L)).thenReturn(Optional.of(doc));
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.deleteProjectDocument(1001L, 9001L))
                 .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
-                .hasMessageContaining("权限不足，仅投标管理员/组长允许删除文档");
+                .hasMessageContaining("权限不足，仅投标管理员/组长或上传者本人允许删除文档");
 
         verify(projectDocumentRepository, org.mockito.Mockito.never()).delete(any());
+    }
 
-        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    @Test
+    void deleteProjectDocument_asUploaderSelf_shouldSucceed() {
+        // CO-383: 上传者本人可删除自己上传的文件（未提交前可重传）
+        Long uploaderId = 500L;
+        when(currentUserResolver.requireCurrentUser()).thenReturn(
+                com.xiyu.bid.entity.User.builder()
+                        .id(uploaderId)
+                        .roleProfile(com.xiyu.bid.entity.RoleProfile.builder().code("bid-projectLeader").build())
+                        .build());
+
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(9200L)
+                .projectId(1001L)
+                .name("招标文件.pdf")
+                .documentCategory("TENDER_DOCUMENT")
+                .uploaderId(uploaderId)
+                .build();
+        when(projectDocumentRepository.findById(9200L)).thenReturn(Optional.of(doc));
+
+        service.deleteProjectDocument(1001L, 9200L);
+
+        verify(projectDocumentRepository).delete(doc);
+        verify(bindingGateway).onDocumentDeleted(doc);
     }
 
     // ============ CO-382: 删除文档权限策略对齐蓝图 §3.3.1.2 ============
@@ -408,14 +432,19 @@ class ProjectDocumentWorkflowServiceTest {
 
     @Test
     void deleteProjectDocument_asBidProjectLeader_shouldThrowAccessDeniedException() {
-        // 蓝图：投标项目负责人属于「投标负责人/辅助人」列，不允许删除文档
-        when(currentUserResolver.getCurrentRoleCode()).thenReturn("bid-projectLeader");
+        // CO-383: bid-projectLeader 非上传者本人 → 拒绝
+        when(currentUserResolver.requireCurrentUser()).thenReturn(
+                com.xiyu.bid.entity.User.builder()
+                        .id(777L)
+                        .roleProfile(com.xiyu.bid.entity.RoleProfile.builder().code("bid-projectLeader").build())
+                        .build());
 
         ProjectDocument doc = ProjectDocument.builder()
                 .id(9102L)
                 .projectId(1001L)
                 .name("投标文件.pdf")
                 .documentCategory("BID_DOCUMENT")
+                .uploaderId(1L)
                 .build();
         when(projectDocumentRepository.findById(9102L)).thenReturn(Optional.of(doc));
 
