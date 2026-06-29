@@ -1,7 +1,11 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextTick } from 'vue'
+import ElementPlus from 'element-plus'
 
 // CO-408: 复盘阶段 load 时根据 reportFileIds 回填 reportFiles
+// 用真实 el-upload（plugins:[ElementPlus]），不能用 stub——
+// v-model:file-list 在自定义 stub 下 prop 传递异常。
 const mockCurrentUser = { id: 42, role: '/bidAdmin' }
 
 vi.mock('@/stores/user', () => ({
@@ -32,43 +36,11 @@ vi.mock('@/api/modules/projectLifecycle.js', () => ({
 }))
 
 vi.mock('./retrospectiveLossReasons.js', () => ({ lossReasonOptions: [] }))
-vi.mock('element-plus', () => ({ ElMessage: { info: vi.fn(), warning: vi.fn(), error: vi.fn(), success: vi.fn() } }))
-vi.mock('@element-plus/icons-vue', () => ({ UploadFilled: {} }))
 
-const stubs = {
-  ElCard: { template: '<section><slot name="header" /><slot /></section>' },
-  ElUpload: {
-    name: 'ElUpload',
-    props: { fileList: { type: Array, default: () => [] }, disabled: Boolean },
-    template: `<div class="mock-upload">
-      <div v-for="(file, idx) in fileList" :key="file.uid || file.name || idx" class="mock-upload-row">
-        <span class="mock-file-name">{{ file.name }}</span>
-      </div>
-    </div>`,
-  },
-  ElIcon: { template: '<span />' },
-  ElButton: { props: ['loading', 'disabled'], template: '<button><slot /></button>' },
-  ElForm: { template: '<div><slot /></div>' },
-  ElFormItem: { template: '<div><slot /></div>' },
-  ElInput: { props: ['modelValue', 'disabled'], template: '<input />' },
-  ElDatePicker: { template: '<input />' },
-  ElSelect: { template: '<div />' },
-  ElOption: { template: '<div />' },
-  ElTag: { template: '<span />' },
-  ElCheckboxGroup: { template: '<div><slot /></div>' },
-  ElCheckbox: { template: '<label />' },
-  ElEmpty: { template: '<div />' },
-}
-
-async function mountRetrospectiveStage(props = {}) {
-  const { default: RetrospectiveStage } = await import('./RetrospectiveStage.vue')
-  const wrapper = mount(RetrospectiveStage, {
-    props: { projectId: 1, resultType: 'WON', ...props },
-    global: { stubs },
-  })
-  await flushPromises()
-  return wrapper
-}
+vi.mock('element-plus', async (importOriginal) => {
+  const actual = await importOriginal()
+  return { ...actual, ElMessage: { info: vi.fn(), warning: vi.fn(), error: vi.fn(), success: vi.fn() } }
+})
 
 describe('RetrospectiveStage CO-408 回填复盘报告文件名', () => {
   beforeEach(() => {
@@ -90,24 +62,37 @@ describe('RetrospectiveStage CO-408 回填复盘报告文件名', () => {
       ],
     }))
 
-    const wrapper = await mountRetrospectiveStage()
+    const { default: RetrospectiveStage } = await import('./RetrospectiveStage.vue')
+    const wrapper = mount(RetrospectiveStage, {
+      props: { projectId: 1, resultType: 'WON' },
+      global: { plugins: [ElementPlus] },
+    })
+    await flushPromises()
+    await nextTick()
+    await flushPromises()
 
     expect(getRetrospectiveMock).toHaveBeenCalledWith(1)
     expect(getDocumentsMock).toHaveBeenCalledWith(1)
-    const upload = wrapper.findComponent({ name: 'ElUpload' })
-    expect(upload.props('fileList')).toHaveLength(2)
-    expect(upload.props('fileList')[0].name).toBe('复盘报告.docx')
-    expect(upload.props('fileList')[0].response.data.id).toBe(3001)
-    expect(upload.props('fileList')[1].name).toBe('改进措施.pdf')
-    const names = wrapper.findAll('.mock-file-name').map(n => n.text())
-    expect(names).toEqual(['复盘报告.docx', '改进措施.pdf'])
+    const fileList = wrapper.findComponent({ name: 'ElUpload' }).props('fileList')
+    expect(fileList).toHaveLength(2)
+    expect(fileList[0].name).toBe('复盘报告.docx')
+    expect(fileList[0].response.data.id).toBe(3001)
+    expect(fileList[1].name).toBe('改进措施.pdf')
+    // DOM 渲染层文件名可见
+    expect(wrapper.text()).toContain('复盘报告.docx')
+    expect(wrapper.text()).toContain('改进措施.pdf')
   })
 
   it('reportFileIds 为空时不回填 reportFiles', async () => {
     getRetrospectiveMock.mockImplementation(() => Promise.resolve({
       success: true, data: { meetingTime: '', reportFileIds: [] },
     }))
-    const wrapper = await mountRetrospectiveStage()
+    const { default: RetrospectiveStage } = await import('./RetrospectiveStage.vue')
+    const wrapper = mount(RetrospectiveStage, {
+      props: { projectId: 1, resultType: 'WON' },
+      global: { plugins: [ElementPlus] },
+    })
+    await flushPromises()
     expect(wrapper.findComponent({ name: 'ElUpload' }).props('fileList')).toHaveLength(0)
     expect(getDocumentsMock).not.toHaveBeenCalled()
   })

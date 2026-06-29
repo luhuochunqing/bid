@@ -242,7 +242,12 @@ async function backfillEvidenceFiles(ids) {
     evidenceFiles.value = ids
       .map(id => docMap.get(Number(id)))
       .filter(Boolean)
-      .map(doc => ({ name: doc.name, response: { data: { id: doc.id } } }))
+      .map(doc => ({
+        name: doc.name || '凭证文件',
+        url: doc.fileUrl || '',
+        response: { data: doc },
+        status: 'success',
+      }))
   } catch (e) { console.error('回填凭证文件失败:', e) }
 }
 
