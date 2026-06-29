@@ -25,10 +25,17 @@ const normalizeMenuPermissions = (menuPermissions) => {
   }
 
   const normalized = new Set(menuPermissions.filter((permission) => permission))
-  const hasKnowledgeChild = [...normalized].some((permission) => String(permission).startsWith('knowledge-'))
 
+  // 父权限自动补齐：OSS 同步用户只返回子权限码，路由守卫要求父子权限同时存在（AND 逻辑）
+  // 与 knowledge-* 补齐 knowledge 父权限的逻辑对称
+  const hasKnowledgeChild = [...normalized].some((permission) => String(permission).startsWith('knowledge-'))
   if (hasKnowledgeChild) {
     normalized.add('knowledge')
+  }
+
+  const hasResourceChild = [...normalized].some((permission) => String(permission).startsWith('resource-'))
+  if (hasResourceChild) {
+    normalized.add('resource')
   }
 
   return [...normalized]

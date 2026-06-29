@@ -56,4 +56,47 @@ describe('normalizeUser menuPermissions', () => {
 
     expect(user.menuPermissions).toEqual(['all'])
   })
+
+  // CO-393 修复：OSS 同步用户只返回子权限码（resource-account/resource-ca/resource-margin），
+  // 路由守卫要求 ['resource', 'resource-account'] 父子权限同时存在（AND 逻辑），
+  // 因此对 resource-* 子权限需自动补齐 resource 父权限（与 knowledge-* 逻辑对称）。
+  it('adds resource parent permission when resource-account child exists', () => {
+    const user = normalizeUser({ menuPermissions: ['dashboard', 'resource-account'] })
+
+    expect(user.menuPermissions).toContain('dashboard')
+    expect(user.menuPermissions).toContain('resource-account')
+    expect(user.menuPermissions).toContain('resource')
+  })
+
+  it('adds resource parent permission when resource-ca child exists', () => {
+    const user = normalizeUser({ menuPermissions: ['resource-ca'] })
+
+    expect(user.menuPermissions).toContain('resource-ca')
+    expect(user.menuPermissions).toContain('resource')
+  })
+
+  it('adds resource parent permission when resource-margin child exists', () => {
+    const user = normalizeUser({ menuPermissions: ['resource-margin'] })
+
+    expect(user.menuPermissions).toContain('resource-margin')
+    expect(user.menuPermissions).toContain('resource')
+  })
+
+  it('does not add resource parent permission for unrelated permissions', () => {
+    const user = normalizeUser({ menuPermissions: ['dashboard'] })
+
+    expect(user.menuPermissions).toEqual(['dashboard'])
+  })
+
+  it('does not duplicate resource parent permission when already present', () => {
+    const user = normalizeUser({ menuPermissions: ['resource', 'resource-account'] })
+
+    expect(user.menuPermissions.filter((p) => p === 'resource')).toHaveLength(1)
+  })
+
+  it('preserves all permission without adding resource parent permission', () => {
+    const user = normalizeUser({ menuPermissions: ['all'] })
+
+    expect(user.menuPermissions).toEqual(['all'])
+  })
 })
