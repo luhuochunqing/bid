@@ -328,14 +328,19 @@ const isProjectLeader = computed(() => {
 })
 const isBidManager = computed(() => userRole.value === '/bidAdmin' || userRole.value === 'bid-TeamLeader' || userRole.value === 'bid-Team')
 
+// CO-403: 保证金退回情况/退回日期/凭证文件/项目总结 四字段仅投标管理员/组长可编辑。
+// 投标负责人(bid-projectLeader)/投标辅助(bid-Team)即使被项目级分配为负责人/辅助人员也只读。
+// 不复用 isBidManager（其历史遗留误含 bid-Team）也不复用 isProjectLeader（CO-392 扩展后含投标辅助）。
+const isClosureEditor = computed(() => userRole.value === '/bidAdmin' || userRole.value === 'bid-TeamLeader')
+
 const canEditDeposit = computed(() => {
-  if (!isProjectLeader.value && !isBidManager.value) return false
+  if (!isClosureEditor.value) return false
   if (preview.value?.alreadyClosed) return false
   return preview.value?.reviewStatus !== 'APPROVED'
 })
 
 const canEditSummary = computed(() => {
-  if (!isProjectLeader.value && !isBidManager.value) return false
+  if (!isClosureEditor.value) return false
   if (preview.value?.alreadyClosed) return false
   return preview.value?.reviewStatus !== 'APPROVED'
 })
