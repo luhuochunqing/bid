@@ -21,4 +21,7 @@ public interface AccountBorrowApplicationRepository
     List<AccountBorrowApplication> findByCustodianId(Long custodianId);
 
     List<AccountBorrowApplication> findByStatus(BorrowStatus status);
+
+    /** CO-403: 修复管理员归还账号后申请表状态不同步问题。 */
+    List<AccountBorrowApplication> findByAccountIdAndStatus(Long accountId, BorrowStatus status);
 }

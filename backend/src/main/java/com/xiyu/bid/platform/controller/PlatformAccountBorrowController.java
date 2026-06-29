@@ -14,7 +14,9 @@ import com.xiyu.bid.platform.dto.RejectRequest;
 import com.xiyu.bid.platform.dto.ReturnBorrowApplicationRequest;
 import com.xiyu.bid.platform.notification.PlatformAccountBorrowNotificationService;
 import com.xiyu.bid.platform.service.PlatformAccountBorrowService;
+import com.xiyu.bid.platform.service.PlatformAccountViewerPolicy;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +45,8 @@ public class PlatformAccountBorrowController {
     private final PlatformAccountBorrowService borrowService;
     private final UserRepository userRepository;
     private final PlatformAccountBorrowNotificationService notificationService;
+    /** CO-373/CO-403: 统一角色码解析入口。 */
+    private final EffectiveRoleResolver effectiveRoleResolver;
 
     /** Submit a new borrow application for a platform account. */
     @PostMapping("/platform/accounts/{accountId}/borrow-applications")
@@ -66,12 +70,22 @@ public class PlatformAccountBorrowController {
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
-    /** List borrow applications waiting for the current user's approval (as custodian). */
+    /**
+     * List borrow applications waiting for the current user's approval.
+     * CO-403: 管理员角色可查看所有待审批申请，普通用户只看自己为绑定联系人的申请。
+     */
     @GetMapping("/borrow-applications/my-approvals")
     public ResponseEntity<ApiResponse<List<BorrowApplicationDTO>>> myApprovals(
             Principal principal) {
         User user = resolveUser(principal);
-        List<BorrowApplicationDTO> result = borrowService.getApplications(null, user.getId(), null);
+        boolean privileged = isPrivileged(user);
+        if (privileged) {
+            // CO-403: 管理员查看全部待审批申请
+            List<BorrowApplicationDTO> result = borrowService.findPendingApprovals();
+            return ResponseEntity.ok(ApiResponse.success(result));
+        }
+        // 普通用户只看自己为绑定联系人的待审批申请
+        List<BorrowApplicationDTO> result = borrowService.getApplications(null, user.getId(), "PENDING_APPROVAL");
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
@@ -82,8 +96,9 @@ public class PlatformAccountBorrowController {
             @Valid @RequestBody(required = false) ApproveRequest request,
             Principal principal) {
         User user = resolveUser(principal);
+        boolean privileged = isPrivileged(user);
         String comment = request != null ? request.getComment() : null;
-        BorrowApplicationDTO result = borrowService.approveApplication(id, comment, user);
+        BorrowApplicationDTO result = borrowService.approveApplication(id, comment, user, privileged);
         notificationService.notifyApproved(result);
         return ResponseEntity.ok(ApiResponse.success("申请已通过", result));
     }
@@ -95,7 +110,8 @@ public class PlatformAccountBorrowController {
             @Valid @RequestBody RejectRequest request,
             Principal principal) {
         User user = resolveUser(principal);
-        BorrowApplicationDTO result = borrowService.rejectApplication(id, request.getReason(), user);
+        boolean privileged = isPrivileged(user);
+        BorrowApplicationDTO result = borrowService.rejectApplication(id, request.getReason(), user, privileged);
         notificationService.notifyRejected(result, request.getReason());
         return ResponseEntity.ok(ApiResponse.success("申请已拒绝", result));
     }
@@ -118,9 +134,10 @@ public class PlatformAccountBorrowController {
             @Valid @RequestBody ReturnBorrowApplicationRequest request,
             Principal principal) {
         User user = resolveUser(principal);
+        boolean privileged = isPrivileged(user);
         LocalDateTime actualReturnedAt = parseReturnedAt(request.getActualReturnedAt());
         BorrowApplicationDTO result = borrowService.returnAccount(
-                id, request.getNewPassword(), actualReturnedAt, user);
+                id, request.getNewPassword(), actualReturnedAt, user, privileged);
         notificationService.notifyReturned(result);
         return ResponseEntity.ok(ApiResponse.success("账号已归还，密码已更新", result));
     }
@@ -132,6 +149,12 @@ public class PlatformAccountBorrowController {
         }
         return userRepository.findByUsername(principal.getName())
                 .orElseThrow(() -> new BusinessException("当前用户不存在: " + principal.getName()));
+    }
+
+    /** CO-403: 判断当前用户是否为管理员角色（admin / bidAdmin / bid-TeamLeader）。 */
+    private boolean isPrivileged(User user) {
+        String roleCode = effectiveRoleResolver.resolveRoleCode(user);
+        return PlatformAccountViewerPolicy.isPrivilegedRole(roleCode);
     }
 
     private LocalDateTime parseReturnedAt(String value) {

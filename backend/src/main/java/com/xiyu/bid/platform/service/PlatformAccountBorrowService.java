@@ -36,6 +36,7 @@ public class PlatformAccountBorrowService {
     private final AccountBorrowApplicationRepository applicationRepository;
     private final PlatformAccountRepository accountRepository;
     private final PasswordEncryptionUtil passwordEncryptionUtil;
+    private final AccountBorrowApplicationMapper applicationMapper;
 
     /** Submit a new borrow application. */
     @Transactional
@@ -77,18 +78,19 @@ public class PlatformAccountBorrowService {
         AccountBorrowApplication saved = applicationRepository.save(app);
         log.info("Borrow application {} submitted by user {} for account {}",
                 saved.getId(), currentUser.getId(), request.getAccountId());
-        return toDTO(saved);
+        return applicationMapper.toDTO(saved);
     }
 
-    /** Approve a pending borrow application. */
+    /** Approve a pending borrow application.
+     * CO-403: 管理员角色可审批任意申请。 */
     @Transactional
     @Auditable(action = "APPROVE_BORROW", entityType = "AccountBorrowApplication",
               description = "Approved borrow application")
-    public BorrowApplicationDTO approveApplication(Long applicationId, String comment, User currentUser) {
+    public BorrowApplicationDTO approveApplication(Long applicationId, String comment, User currentUser, boolean isPrivileged) {
         AccountBorrowApplication app = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new BusinessException("申请不存在: " + applicationId));
 
-        requireCustodian(app, currentUser);
+        requireCustodianOrPrivilegedRole(app, currentUser, isPrivileged);
         app.approve(comment);
         AccountBorrowApplication saved = applicationRepository.save(app);
 
@@ -99,7 +101,7 @@ public class PlatformAccountBorrowService {
         accountRepository.save(account);
 
         log.info("Borrow application {} approved by user {}", applicationId, currentUser.getId());
-        return toDTO(saved);
+        return applicationMapper.toDTO(saved);
     }
 
     /** Reject a pending borrow application. */
@@ -107,7 +109,7 @@ public class PlatformAccountBorrowService {
     @Auditable(action = "REJECT_BORROW", entityType = "AccountBorrowApplication",
               description = "Rejected borrow application")
     public BorrowApplicationDTO rejectApplication(
-            Long applicationId, String reason, User currentUser) {
+            Long applicationId, String reason, User currentUser, boolean isPrivileged) {
         if (reason == null || reason.trim().isEmpty()) {
             throw new BusinessException("拒绝时必须填写原因");
         }
@@ -115,7 +117,7 @@ public class PlatformAccountBorrowService {
         AccountBorrowApplication app = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new BusinessException("申请不存在: " + applicationId));
 
-        requireCustodian(app, currentUser);
+        requireCustodianOrPrivilegedRole(app, currentUser, isPrivileged);
         app.reject(reason);
         AccountBorrowApplication saved = applicationRepository.save(app);
 
@@ -124,7 +126,7 @@ public class PlatformAccountBorrowService {
 
         log.info("Borrow application {} rejected by user {} reason: {}",
                 applicationId, currentUser.getId(), reason);
-        return toDTO(saved);
+        return applicationMapper.toDTO(saved);
     }
 
     /** Cancel a pending borrow application (by applicant). */
@@ -143,7 +145,7 @@ public class PlatformAccountBorrowService {
         releaseAccount(saved.getAccountId());
 
         log.info("Borrow application {} cancelled by user {}", applicationId, currentUser.getId());
-        return toDTO(saved);
+        return applicationMapper.toDTO(saved);
     }
 
     /** Return account and update password. */
@@ -151,7 +153,7 @@ public class PlatformAccountBorrowService {
     @Auditable(action = "RETURN_BORROW", entityType = "AccountBorrowApplication",
               description = "Returned borrowed account")
     public BorrowApplicationDTO returnAccount(
-            Long applicationId, String newPassword, LocalDateTime actualReturnedAt, User currentUser) {
+            Long applicationId, String newPassword, LocalDateTime actualReturnedAt, User currentUser, boolean isPrivileged) {
         if (newPassword == null || newPassword.length() < 6) {
             throw new BusinessException("新密码长度不能少于6位");
         }
@@ -159,7 +161,7 @@ public class PlatformAccountBorrowService {
         AccountBorrowApplication app = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new BusinessException("申请不存在: " + applicationId));
 
-        requireCustodian(app, currentUser);
+        requireCustodianOrPrivilegedRole(app, currentUser, isPrivileged);
         app.markReturned(actualReturnedAt);
         AccountBorrowApplication saved = applicationRepository.save(app);
 
@@ -170,7 +172,7 @@ public class PlatformAccountBorrowService {
         accountRepository.save(account);
 
         log.info("Borrow application {} returned by user {} (password updated)", applicationId, currentUser.getId());
-        return toDTO(saved);
+        return applicationMapper.toDTO(saved);
     }
 
     /** Get applications with optional status filter. */
@@ -186,58 +188,41 @@ public class PlatformAccountBorrowService {
         } else {
             apps = applicationRepository.findAll();
         }
-        java.util.Set<Long> accountIds = apps.stream()
-                .map(AccountBorrowApplication::getAccountId)
-                .filter(java.util.Objects::nonNull)
-                .collect(Collectors.toSet());
-        java.util.Map<Long, String> accountNameMap = accountIds.isEmpty()
-                ? java.util.Collections.emptyMap()
-                : accountRepository.findAllById(accountIds).stream()
-                        .collect(Collectors.toMap(PlatformAccount::getId, PlatformAccount::getAccountName));
-        return apps.stream()
-                .map(app -> toDTO(app, accountNameMap::get))
-                .collect(Collectors.toList());
+        return applicationMapper.toDTOList(apps);
+    }
+
+    /**
+     * CO-403: 管理员查看全部待审批申请。
+     * 仅返回 PENDING_APPROVAL 状态的申请。
+     */
+    public List<BorrowApplicationDTO> findPendingApprovals() {
+        return applicationMapper.toDTOList(applicationRepository.findByStatus(BorrowStatus.PENDING_APPROVAL));
+    }
+
+    /**
+     * CO-403: 同步更新账号对应的借用申请状态为 RETURNED。
+     * 供 PlatformAccountService.returnAccount 委托调用，避免跨边界直接操作 Repository。
+     */
+    @Transactional
+    public void syncReturnedApplication(Long accountId) {
+        applicationRepository.findByAccountIdAndStatus(accountId, BorrowStatus.BORROWED)
+                .stream()
+                .findFirst()
+                .ifPresent(app -> {
+                    app.markReturned(LocalDateTime.now());
+                    applicationRepository.save(app);
+                    log.info("同步更新借用申请 {} 状态为 RETURNED", app.getId());
+                });
     }
 
     /** Get a single application by ID. */
     public BorrowApplicationDTO getApplication(Long applicationId) {
         AccountBorrowApplication app = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new BusinessException("申请不存在: " + applicationId));
-        return toDTO(app);
+        return applicationMapper.toDTO(app);
     }
 
     // ── helpers ──
-
-    private BorrowApplicationDTO toDTO(AccountBorrowApplication app) {
-        return toDTO(app, id -> null);
-    }
-
-    private BorrowApplicationDTO toDTO(AccountBorrowApplication app, java.util.function.Function<Long, String> accountNameResolver) {
-        String accountName = app.getAccountId() != null ? accountNameResolver.apply(app.getAccountId()) : null;
-        if (accountName == null && app.getAccountId() != null) {
-            accountName = accountRepository.findById(app.getAccountId())
-                    .map(PlatformAccount::getAccountName)
-                    .orElse(null);
-        }
-        return BorrowApplicationDTO.builder()
-                .id(app.getId())
-                .accountId(app.getAccountId())
-                .accountName(accountName)
-                .applicantId(app.getApplicantId())
-                .custodianId(app.getCustodianId())
-                .purpose(app.getPurpose())
-                .projectName(app.getProjectName())
-                .projectId(app.getProjectId())
-                .expectedReturnAt(app.getExpectedReturnAt())
-                .status(app.getStatus().name())
-                .rejectReason(app.getRejectReason())
-                .approvalComment(app.getApprovalComment())
-                .approvedAt(app.getApprovedAt())
-                .returnedAt(app.getReturnedAt())
-                .createdAt(app.getCreatedAt())
-                .updatedAt(app.getUpdatedAt())
-                .build();
-    }
 
     private void releaseAccount(Long accountId) {
         accountRepository.findById(accountId).ifPresent(account -> {
@@ -246,8 +231,24 @@ public class PlatformAccountBorrowService {
         });
     }
 
-    private void requireCustodian(AccountBorrowApplication app, User currentUser) {
-        if (currentUser == null || !currentUser.getId().equals(app.getCustodianId())) {
+    /**
+     * CO-403: 校验当前用户是否有权操作借用申请。
+     * 规则：
+     * - 管理员角色（admin / bidAdmin / bid-TeamLeader）可操作任意申请
+     * - 绑定联系人（custodianId）可操作对应申请
+     * - 其他用户无权操作
+     */
+    private void requireCustodianOrPrivilegedRole(AccountBorrowApplication app, User currentUser, boolean isPrivileged) {
+        if (currentUser == null) {
+            throw new BusinessException("用户未登录");
+        }
+        // 管理员角色豁免
+        if (isPrivileged) {
+            log.info("管理员 {} 跨权限操作借用申请 {}", currentUser.getId(), app.getId());
+            return;
+        }
+        // 绑定联系人校验
+        if (!currentUser.getId().equals(app.getCustodianId())) {
             throw new BusinessException("只有账号绑定联系人可以操作该申请");
         }
     }

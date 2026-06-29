@@ -39,6 +39,8 @@ class PlatformAccountBorrowServiceTest {
     private PlatformAccountRepository accountRepository;
     @Mock
     private PasswordEncryptionUtil passwordEncryptionUtil;
+    @Mock
+    private AccountBorrowApplicationMapper applicationMapper;
 
     private PlatformAccountBorrowService service;
 
@@ -47,7 +49,39 @@ class PlatformAccountBorrowServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new PlatformAccountBorrowService(applicationRepository, accountRepository, passwordEncryptionUtil);
+        service = new PlatformAccountBorrowService(applicationRepository, accountRepository, passwordEncryptionUtil, applicationMapper);
+        // mapper 默认返回完整 DTO 透传
+        lenient().when(applicationMapper.toDTO(any())).thenAnswer(inv -> {
+            AccountBorrowApplication app = inv.getArgument(0);
+            return BorrowApplicationDTO.builder()
+                    .id(app.getId())
+                    .accountId(app.getAccountId())
+                    .applicantId(app.getApplicantId())
+                    .custodianId(app.getCustodianId())
+                    .purpose(app.getPurpose())
+                    .projectId(app.getProjectId())
+                    .status(app.getStatus().name())
+                    .rejectReason(app.getRejectReason())
+                    .approvalComment(app.getApprovalComment())
+                    .approvedAt(app.getApprovedAt())
+                    .returnedAt(app.getReturnedAt())
+                    .expectedReturnAt(app.getExpectedReturnAt())
+                    .createdAt(app.getCreatedAt())
+                    .updatedAt(app.getUpdatedAt())
+                    .build();
+        });
+        lenient().when(applicationMapper.toDTOList(any())).thenAnswer(inv -> {
+            @SuppressWarnings("unchecked")
+            List<AccountBorrowApplication> apps = inv.getArgument(0);
+            return apps.stream().map(app -> BorrowApplicationDTO.builder()
+                    .id(app.getId())
+                    .accountId(app.getAccountId())
+                    .applicantId(app.getApplicantId())
+                    .custodianId(app.getCustodianId())
+                    .purpose(app.getPurpose())
+                    .status(app.getStatus().name())
+                    .build()).toList();
+        });
     }
 
     @Test
@@ -98,7 +132,7 @@ class PlatformAccountBorrowServiceTest {
         when(accountRepository.findById(1L)).thenReturn(Optional.of(account));
         when(accountRepository.save(any())).thenReturn(account);
 
-        BorrowApplicationDTO result = service.approveApplication(100L, "同意", USER);
+        BorrowApplicationDTO result = service.approveApplication(100L, "同意", USER, false);
 
         assertThat(result.getStatus()).isEqualTo("BORROWED");
         assertThat(result.getApprovedAt()).isNotNull();
@@ -113,7 +147,7 @@ class PlatformAccountBorrowServiceTest {
     @DisplayName("审批不存在的申请抛出异常")
     void approveApplication_notFound_throws() {
         when(applicationRepository.findById(99L)).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> service.approveApplication(99L, null, USER))
+        assertThatThrownBy(() -> service.approveApplication(99L, null, USER, false))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("申请不存在");
     }
@@ -130,7 +164,7 @@ class PlatformAccountBorrowServiceTest {
         when(accountRepository.save(any())).thenReturn(account);
         when(applicationRepository.save(any())).thenReturn(app);
 
-        BorrowApplicationDTO result = service.rejectApplication(100L, "信息不完整", USER);
+        BorrowApplicationDTO result = service.rejectApplication(100L, "信息不完整", USER, false);
 
         assertThat(result.getStatus()).isEqualTo("REJECTED");
         verify(accountRepository).save(any());
@@ -139,7 +173,7 @@ class PlatformAccountBorrowServiceTest {
     @Test
     @DisplayName("拒绝申请时拒绝原因为空抛出异常")
     void rejectApplication_emptyReason_throws() {
-        assertThatThrownBy(() -> service.rejectApplication(100L, "", USER))
+        assertThatThrownBy(() -> service.rejectApplication(100L, "", USER, false))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("拒绝时必须填写原因");
     }
@@ -175,7 +209,7 @@ class PlatformAccountBorrowServiceTest {
         when(accountRepository.save(any())).thenReturn(account);
         when(applicationRepository.save(any())).thenReturn(app);
 
-        BorrowApplicationDTO result = service.returnAccount(100L, "newSecret", LocalDateTime.of(2026, 7, 5, 18, 0), USER);
+        BorrowApplicationDTO result = service.returnAccount(100L, "newSecret", LocalDateTime.of(2026, 7, 5, 18, 0), USER, false);
 
         assertThat(result.getStatus()).isEqualTo("RETURNED");
         assertThat(result.getReturnedAt()).isEqualTo(LocalDateTime.of(2026, 7, 5, 18, 0));
@@ -231,7 +265,7 @@ class PlatformAccountBorrowServiceTest {
                 .id(100L).custodianId(20L).status(BorrowStatus.PENDING_APPROVAL).build();
         when(applicationRepository.findById(100L)).thenReturn(Optional.of(app));
 
-        assertThatThrownBy(() -> service.approveApplication(100L, null, USER))
+        assertThatThrownBy(() -> service.approveApplication(100L, null, USER, false))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("只有账号绑定联系人可以操作该申请");
     }
@@ -330,7 +364,7 @@ class PlatformAccountBorrowServiceTest {
                 .id(100L).accountId(1L).custodianId(10L).status(BorrowStatus.BORROWED).build();
         when(applicationRepository.findById(100L)).thenReturn(Optional.of(app));
 
-        assertThatThrownBy(() -> service.approveApplication(100L, "同意", USER))
+        assertThatThrownBy(() -> service.approveApplication(100L, "同意", USER, false))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("只能在待审批状态下通过申请");
     }
@@ -342,8 +376,47 @@ class PlatformAccountBorrowServiceTest {
                 .id(100L).accountId(1L).custodianId(10L).status(BorrowStatus.PENDING_APPROVAL).build();
         when(applicationRepository.findById(100L)).thenReturn(Optional.of(app));
 
-        assertThatThrownBy(() -> service.returnAccount(100L, "newSecret", LocalDateTime.now(), USER))
+        assertThatThrownBy(() -> service.returnAccount(100L, "newSecret", LocalDateTime.now(), USER, false))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("只能在已借出状态下归还账号");
+    }
+
+    // ── CO-403: 管理员角色豁免测试 ─────────────────────────────────────────────
+
+    @Test
+    @DisplayName("CO-403: 管理员审批任意申请成功（非绑定联系人）")
+    void approveApplication_privilegedRole_succeeds() {
+        AccountBorrowApplication app = AccountBorrowApplication.builder()
+                .id(100L).accountId(1L).applicantId(10L).custodianId(99L) // 管理员不是绑定联系人
+                .status(BorrowStatus.PENDING_APPROVAL)
+                .expectedReturnAt(LocalDateTime.of(2026, 7, 10, 18, 0))
+                .build();
+        PlatformAccount account = PlatformAccount.builder().id(1L).status(AccountStatus.PENDING_APPROVAL).build();
+
+        when(applicationRepository.findById(100L)).thenReturn(Optional.of(app));
+        when(applicationRepository.save(any())).thenReturn(app);
+        when(accountRepository.findById(1L)).thenReturn(Optional.of(account));
+        when(accountRepository.save(any())).thenReturn(account);
+
+        // 管理员（isPrivileged=true）审批其他人的申请
+        BorrowApplicationDTO result = service.approveApplication(100L, "同意", USER, true);
+
+        assertThat(result.getStatus()).isEqualTo("BORROWED");
+        verify(accountRepository).save(account);
+    }
+
+    @Test
+    @DisplayName("CO-403: 管理员查看全部待审批申请")
+    void findPendingApprovals_returnsAllPending() {
+        when(applicationRepository.findByStatus(BorrowStatus.PENDING_APPROVAL))
+                .thenReturn(List.of(
+                        AccountBorrowApplication.builder().id(1L).custodianId(20L).status(BorrowStatus.PENDING_APPROVAL).build(),
+                        AccountBorrowApplication.builder().id(2L).custodianId(30L).status(BorrowStatus.PENDING_APPROVAL).build()
+                ));
+
+        List<BorrowApplicationDTO> result = service.findPendingApprovals();
+
+        assertThat(result).hasSize(2);
+        verify(applicationRepository).findByStatus(BorrowStatus.PENDING_APPROVAL);
     }
 }

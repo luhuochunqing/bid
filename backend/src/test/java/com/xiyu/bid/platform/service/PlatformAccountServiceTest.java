@@ -40,6 +40,9 @@ class PlatformAccountServiceTest {
     private PlatformAccountRepository repository;
 
     @Mock
+    private PlatformAccountBorrowService borrowService;
+
+    @Mock
     private PasswordEncryptionUtil passwordEncryptionUtil;
 
     @Mock
@@ -61,8 +64,9 @@ class PlatformAccountServiceTest {
     void setUp() {
         // CO-390: service 不再直接依赖 UserRepository，改委托给 PlatformAccountContactLabelEnricher。
         // 测试中用真实 enricher + mock UserRepository，覆盖 service → enricher 协作链路。
+        // CO-403: 改为委托 BorrowService 同步申请表状态，不再直接操作 AccountBorrowApplicationRepository
         service = new PlatformAccountService(
-                repository, passwordEncryptionUtil, effectiveRoleResolver,
+                repository, borrowService, passwordEncryptionUtil, effectiveRoleResolver,
                 new PlatformAccountContactLabelEnricher(userRepository));
         // CO-373：默认模拟 LOCAL_USER 解析路径——回退到实体 roleCode
         lenient().when(effectiveRoleResolver.resolveRoleCode(any(User.class)))

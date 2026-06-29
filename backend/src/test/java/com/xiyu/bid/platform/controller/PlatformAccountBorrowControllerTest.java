@@ -13,6 +13,7 @@ import com.xiyu.bid.platform.dto.BorrowApplicationRequest;
 import com.xiyu.bid.platform.notification.PlatformAccountBorrowNotificationService;
 import com.xiyu.bid.platform.service.PlatformAccountBorrowService;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
@@ -41,6 +43,8 @@ class PlatformAccountBorrowControllerTest {
     private final PlatformAccountBorrowService borrowService = mock(PlatformAccountBorrowService.class);
     private final UserRepository userRepository = mock(UserRepository.class);
     private final PlatformAccountBorrowNotificationService notificationService = mock(PlatformAccountBorrowNotificationService.class);
+    // CO-403: 新增 EffectiveRoleResolver mock
+    private final EffectiveRoleResolver effectiveRoleResolver = mock(EffectiveRoleResolver.class);
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private MockMvc mockMvc;
 
@@ -49,10 +53,12 @@ class PlatformAccountBorrowControllerTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(
-                        new PlatformAccountBorrowController(borrowService, userRepository, notificationService))
+                        new PlatformAccountBorrowController(borrowService, userRepository, notificationService, effectiveRoleResolver))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
         when(userRepository.findByUsername("sales")).thenReturn(Optional.of(CURRENT_USER));
+        // CO-403: 默认模拟非管理员角色
+        when(effectiveRoleResolver.resolveRoleCode(any(User.class))).thenReturn("bid-Team");
     }
 
     @Test
@@ -80,7 +86,7 @@ class PlatformAccountBorrowControllerTest {
     @Test
     @DisplayName("查询我的申请列表")
     void myApplications_success() throws Exception {
-        when(borrowService.getApplications(10L, null, null))
+        when(borrowService.getApplications(eq(10L), isNull(), isNull()))
                 .thenReturn(List.of(sampleDto(1L, "PENDING_APPROVAL")));
 
         mockMvc.perform(get("/api/borrow-applications/my-applications")
@@ -90,9 +96,9 @@ class PlatformAccountBorrowControllerTest {
     }
 
     @Test
-    @DisplayName("查询我的审批列表")
-    void myApprovals_success() throws Exception {
-        when(borrowService.getApplications(isNull(), eq(10L), isNull()))
+    @DisplayName("查询我的审批列表 — 普通用户按 custodianId 查询")
+    void myApprovals_normalUser_success() throws Exception {
+        when(borrowService.getApplications(isNull(), eq(10L), eq("PENDING_APPROVAL")))
                 .thenReturn(List.of(sampleDto(2L, "PENDING_APPROVAL")));
 
         mockMvc.perform(get("/api/borrow-applications/my-approvals")
@@ -102,9 +108,24 @@ class PlatformAccountBorrowControllerTest {
     }
 
     @Test
+    @DisplayName("CO-403: 查询我的审批列表 — 管理员查看全部待审批")
+    void myApprovals_privilegedUser_returnsAllPending() throws Exception {
+        // 模拟管理员角色
+        when(effectiveRoleResolver.resolveRoleCode(any(User.class))).thenReturn("/bidAdmin");
+        when(borrowService.findPendingApprovals())
+                .thenReturn(List.of(sampleDto(1L, "PENDING_APPROVAL"), sampleDto(2L, "PENDING_APPROVAL")));
+
+        mockMvc.perform(get("/api/borrow-applications/my-approvals")
+                        .principal(authToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data.length()").value(2));
+    }
+
+    @Test
     @DisplayName("审批通过申请")
     void approveApplication_success() throws Exception {
-        when(borrowService.approveApplication(eq(100L), eq("同意"), eq(CURRENT_USER)))
+        when(borrowService.approveApplication(eq(100L), eq("同意"), eq(CURRENT_USER), anyBoolean()))
                 .thenReturn(sampleDto(100L, "BORROWED"));
 
         mockMvc.perform(post("/api/borrow-applications/100/approve")
@@ -118,7 +139,7 @@ class PlatformAccountBorrowControllerTest {
     @Test
     @DisplayName("拒绝申请")
     void rejectApplication_success() throws Exception {
-        when(borrowService.rejectApplication(eq(100L), eq("信息不完整"), eq(CURRENT_USER)))
+        when(borrowService.rejectApplication(eq(100L), eq("信息不完整"), eq(CURRENT_USER), anyBoolean()))
                 .thenReturn(sampleDto(100L, "REJECTED"));
 
         mockMvc.perform(post("/api/borrow-applications/100/reject")
@@ -144,7 +165,7 @@ class PlatformAccountBorrowControllerTest {
     @Test
     @DisplayName("归还账号并改密")
     void returnAccount_success() throws Exception {
-        when(borrowService.returnAccount(eq(100L), eq("newSecret"), any(LocalDateTime.class), eq(CURRENT_USER)))
+        when(borrowService.returnAccount(eq(100L), eq("newSecret"), any(LocalDateTime.class), eq(CURRENT_USER), anyBoolean()))
                 .thenReturn(sampleDto(100L, "RETURNED"));
 
         mockMvc.perform(post("/api/borrow-applications/100/return")
