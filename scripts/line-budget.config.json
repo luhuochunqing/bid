@@ -68,6 +68,7 @@
         "src/views/Project/stages/InitiationStage.vue",
         "src/views/Project/stages/ResultConfirmStage.vue",
         "src/views/Project/stages/useInitiationStageActions.js",
+        "src/composables/projectDetail/useProjectDetailTaskActions.js",
         "backend/src/main/java/com/xiyu/bid/tender/service/TenderEvaluationService.java",
         "backend/src/main/java/com/xiyu/bid/task/service/TaskService.java",
         "src/views/Project/stages/EvaluationStage.vue",

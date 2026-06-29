@@ -1001,3 +1001,81 @@ describe('CO-370 useProjectDetailTaskActions', () => {
     expect(state.project.value.tasks[0].deliverables).toEqual(existingDeliverables)
   })
 })
+
+// CO-411: 任务状态变更后看板自动刷新
+// 根因：CO-397 抽屉审核按钮传入的 task 是 editingTask 浅拷贝，handleTaskStatusChange
+// 直接修改拷贝的 status 不会触发 store 中原 task 引用的响应式更新，看板不刷新。
+// 修复：根据 task.id 从 state.project.tasks 查找原引用，对原引用做更新。
+describe('CO-411: handleTaskStatusChange 看板自动刷新', () => {
+  function buildCtx({ projectTasks, updateTaskStatusData }) {
+    const state = {
+      project: ref({ id: 1, name: '测试项目', tasks: projectTasks }),
+      activities: ref([]),
+      scoreDraftDialogVisible: ref(false),
+      currentTask: ref(null),
+      taskDialogVisible: ref(false),
+    }
+    return {
+      ctx: {
+        route: { params: { id: '1' } },
+        userStore: { userName: '测试用户', currentUser: { id: 9 } },
+        projectStore: {},
+        projectsApi: { updateTaskStatus: vi.fn().mockResolvedValue({ success: true, data: updateTaskStatusData }) },
+        isApiProject: ref(true),
+        message: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
+        state,
+        workflow: {},
+      },
+      state,
+    }
+  }
+
+  it('传入浅拷贝时，根据 id 定位原 task 引用并更新 status（看板自动刷新）', async () => {
+    const originalTask = { id: 42, name: '任务A', status: 'TODO', deliverables: [] }
+    const { ctx, state } = buildCtx({
+      projectTasks: [originalTask],
+      updateTaskStatusData: { id: 42, name: '任务A', status: 'REVIEW' },
+    })
+    const { handleTaskStatusChange } = useProjectDetailTaskActions(ctx)
+
+    // 模拟 CO-397 抽屉审核按钮传入的浅拷贝
+    const shallowCopy = { ...originalTask }
+    await handleTaskStatusChange(shallowCopy, 'REVIEW')
+
+    // 原 task 引用的 status 应被更新为 REVIEW
+    expect(state.project.value.tasks[0].status).toBe('REVIEW')
+    // 浅拷贝本身的 status 不应影响断言（验证修复点是原引用）
+    expect(originalTask.status).toBe('REVIEW')
+  })
+
+  it('传入原引用时同样正确更新 status', async () => {
+    const originalTask = { id: 42, name: '任务B', status: 'TODO', deliverables: [] }
+    const { ctx, state } = buildCtx({
+      projectTasks: [originalTask],
+      updateTaskStatusData: { id: 42, name: '任务B', status: 'COMPLETED' },
+    })
+    const { handleTaskStatusChange } = useProjectDetailTaskActions(ctx)
+
+    await handleTaskStatusChange(originalTask, 'COMPLETED')
+
+    expect(state.project.value.tasks[0].status).toBe('COMPLETED')
+  })
+
+  it('后端返回数据后用原引用 Object.assign，保留 deliverables 不被覆盖', async () => {
+    const existingDeliverables = [{ id: 901, name: '交付物.docx', url: '/files/901' }]
+    const originalTask = { id: 42, name: '任务C', status: 'REVIEW', deliverables: existingDeliverables.slice() }
+    const { ctx, state } = buildCtx({
+      projectTasks: [originalTask],
+      // 后端返回不含 deliverables
+      updateTaskStatusData: { id: 42, name: '任务C', status: 'COMPLETED' },
+    })
+    const { handleTaskStatusChange } = useProjectDetailTaskActions(ctx)
+
+    const shallowCopy = { ...originalTask }
+    await handleTaskStatusChange(shallowCopy, 'COMPLETED')
+
+    // 原 task 引用的 deliverables 应保留
+    expect(state.project.value.tasks[0].deliverables).toEqual(existingDeliverables)
+    expect(state.project.value.tasks[0].status).toBe('COMPLETED')
+  })
+})
