@@ -200,16 +200,23 @@ httpClient.interceptors.response.use(
         case 409:
           ElMessage.error(serverMsg || '操作冲突，请刷新后重试')
           break
+        case 402:
+          ElMessage.error(serverMsg || '服务余额不足，请联系管理员充值')
+          break
         case 429:
-          ElMessage.warning(serverMsg || '操作过于频繁，请稍后再试')
+          ElMessage.warning(serverMsg || '请求过于频繁，请稍后再试')
           break
         case 500:
           ElMessage.error(serverMsg || '服务器出现问题，请稍后重试')
           break
         case 502:
+          ElMessage.error(serverMsg || '服务配置异常，请联系管理员检查配置')
+          break
         case 503:
+          ElMessage.warning(serverMsg || '服务暂时不可用，请稍后重试')
+          break
         case 504:
-          ElMessage.error(serverMsg || '服务暂时不可用，请稍后重试')
+          ElMessage.error(serverMsg || '服务响应超时，请稍后重试')
           break
         default:
           ElMessage.error(serverMsg || '请求失败，请稍后重试')

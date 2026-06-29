@@ -116,7 +116,6 @@ export function useTenderAiParse(form) {
     try {
       const msg = await parseFn()
       if (msg) {
-        // AI 分析失败但文件保存成功时提示 warning，成功时提示 success
         if (msg.includes('暂不可用') || msg.includes('无法提取')) {
           ElMessage.warning(msg)
         } else {
@@ -124,8 +123,23 @@ export function useTenderAiParse(form) {
         }
       }
     } catch (error) {
+      const status = error?.response?.status
       const timedOut = error?.code === 'ECONNABORTED'
-      ElMessage.warning(timedOut ? 'AI 解析超时，可继续手动填写' : '自动识别失败，可继续手动填写')
+      let message = '自动识别失败，可继续手动填写'
+
+      if (timedOut) {
+        message = 'AI 解析超时，可继续手动填写'
+      } else if (status === 402) {
+        message = 'AI 服务余额不足，请联系管理员充值，当前可手动填写'
+      } else if (status === 502) {
+        message = 'AI 服务配置异常，请联系管理员检查，当前可手动填写'
+      } else if (status === 503) {
+        message = 'AI 服务暂时不可用，请稍后重试，当前可手动填写'
+      } else if (status === 429) {
+        message = 'AI 服务请求过于频繁，请稍后再试，当前可手动填写'
+      }
+
+      ElMessage.warning(message)
     } finally {
       parsingDocument.value = false
     }

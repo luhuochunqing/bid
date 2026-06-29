@@ -44,8 +44,8 @@ public class MarkItDownSidecarTextExtractor implements TenderDocumentTextExtract
     public MarkItDownSidecarTextExtractor(
             @Qualifier("markItDownSidecarRestTemplate") RestTemplate restTemplate,
             ObjectMapper objectMapper,
-            @Value("${app.converter.sidecar-url:http://localhost:8000}") String sidecarUrl,
-            @Value("${app.converter.sidecar-shared-key:${APP_CONVERTER_SIDECAR_SHARED_KEY:${SIDECAR_SHARED_KEY:}}}") String sidecarSharedKey) {
+            @Value("${app.doc-insight.sidecar-url:http://localhost:8000}") String sidecarUrl,
+            @Value("${app.doc-insight.sidecar-shared-key:${APP_DOC_INSIGHT_SIDECAR_SHARED_KEY:${SIDECAR_SHARED_KEY:}}}") String sidecarSharedKey) {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
         this.sidecarUrl = sidecarUrl;
@@ -56,6 +56,11 @@ public class MarkItDownSidecarTextExtractor implements TenderDocumentTextExtract
     public ExtractedTenderDocument extract(String fileName, String contentType, byte[] content) {
         try {
             log.info("Sending document {} to MarkItDown sidecar...", fileName);
+
+            if (!checkSidecarHealth()) {
+                return fallbackOnFailure(fileName, contentType, content, "sidecar health check failed");
+            }
+
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
             if (!sidecarSharedKey.isBlank()) {
@@ -95,6 +100,17 @@ public class MarkItDownSidecarTextExtractor implements TenderDocumentTextExtract
             return fallbackOnFailure(fileName, contentType, content, "sidecar HTTP failure: " + httpFailure.getMessage());
         } catch (JsonProcessingException parseFailure) {
             return fallbackOnFailure(fileName, contentType, content, "sidecar response not parseable: " + parseFailure.getMessage());
+        }
+    }
+
+    private boolean checkSidecarHealth() {
+        try {
+            restTemplate.getForObject(sidecarUrl + "/health", String.class);
+            return true;
+        } catch (Exception e) {
+            log.warn("Sidecar health check failed at {} ({}): {}",
+                    sidecarUrl, e.getClass().getSimpleName(), e.getMessage());
+            return false;
         }
     }
 

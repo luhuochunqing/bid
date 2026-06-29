@@ -19,7 +19,12 @@ class OpenAiCompatibleClientTest {
 
     @Test
     void testConnection_WhenDeepSeekReturnsInsufficientBalance_ShouldExposeActionableMessage() {
-        OpenAiCompatibleClient client = new OpenAiCompatibleClient(new RestTemplateBuilder(), new ObjectMapper());
+        ObjectMapper objectMapper = new ObjectMapper();
+        OpenAiCompatibleClient client = new OpenAiCompatibleClient(
+                new RestTemplateBuilder(),
+                objectMapper,
+                new AiPromptBuilder(),
+                new AiResponseParser(objectMapper));
         RestTemplate restTemplate = (RestTemplate) ReflectionTestUtils.getField(client, "restTemplate");
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
         String responseBody = """
@@ -48,7 +53,12 @@ class OpenAiCompatibleClientTest {
 
     @Test
     void testConnection_WhenArkReturns401WithModelNotFound_ShouldExposeProviderMessage() {
-        OpenAiCompatibleClient client = new OpenAiCompatibleClient(new RestTemplateBuilder(), new ObjectMapper());
+        ObjectMapper objectMapper = new ObjectMapper();
+        OpenAiCompatibleClient client = new OpenAiCompatibleClient(
+                new RestTemplateBuilder(),
+                objectMapper,
+                new AiPromptBuilder(),
+                new AiResponseParser(objectMapper));
         RestTemplate restTemplate = (RestTemplate) ReflectionTestUtils.getField(client, "restTemplate");
         MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
         String responseBody = """
