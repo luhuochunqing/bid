@@ -8,6 +8,7 @@ import com.xiyu.bid.platform.dto.BorrowAccountRequest;
 import com.xiyu.bid.platform.dto.PlatformAccountCreateRequest;
 import com.xiyu.bid.platform.dto.PlatformAccountDTO;
 import com.xiyu.bid.platform.dto.PlatformAccountStatisticsDTO;
+import com.xiyu.bid.platform.dto.PlatformAccountSummaryDTO;
 import com.xiyu.bid.platform.dto.ReturnAccountRequest;
 import com.xiyu.bid.platform.entity.PlatformAccount;
 import com.xiyu.bid.platform.entity.PlatformAccount.AccountStatus;
@@ -54,7 +55,7 @@ class PlatformAccountServiceTest {
     private static final User STAFF_USER = User.builder().id(2L).role(User.Role.MANAGER).build();
     private static final User BID_ADMIN_USER = User.builder().id(3L).role(User.Role.MANAGER).build();
     private static final User BID_LEADER_USER = User.builder().id(4L).role(User.Role.MANAGER).build();
-    private static final User BID_TEAM_USER = User.builder().id(5L).role(User.Role.MANAGER).build();
+    private static final User BID_TEAM_USER = User.builder().id(5L).fullName("投标专员").employeeNumber("E005").role(User.Role.MANAGER).build();
 
     @BeforeEach
     void setUp() {
@@ -190,6 +191,43 @@ class PlatformAccountServiceTest {
         when(repository.findAll()).thenReturn(List.of(accountWithId(1L), accountWithId(2L)));
         List<PlatformAccountDTO> result = service.getAllAccounts();
         assertThat(result).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("CO-388：投标专员作为绑定联系人时可查看完整账号信息")
+    void getAccountsForViewer_bidTeamContactPerson_receivesFullDto() {
+        PlatformAccount ownAccount = accountWithId(1L);
+        ownAccount.setContactPerson(BID_TEAM_USER.getId());
+        ownAccount.setStatus(AccountStatus.IN_USE);
+        PlatformAccount otherAccount = accountWithId(2L);
+        otherAccount.setContactPerson(99L);
+        when(repository.findAll()).thenReturn(List.of(ownAccount, otherAccount));
+
+        List<?> result = service.getAccountsForViewer(BID_TEAM_USER);
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0)).isInstanceOf(PlatformAccountDTO.class);
+        assertThat(result.get(1)).isInstanceOf(PlatformAccountSummaryDTO.class);
+        PlatformAccountDTO own = (PlatformAccountDTO) result.get(0);
+        assertThat(own.getUsername()).isEqualTo("testuser");
+        assertThat(own.getContactPerson()).isEqualTo(BID_TEAM_USER.getId());
+        assertThat(own.getStatus()).isEqualTo(AccountStatus.IN_USE);
+    }
+
+    @Test
+    @DisplayName("CO-388：投标专员非绑定联系人时收到脱敏摘要")
+    void getAccountsForViewer_bidTeamNotContactPerson_receivesSummaryDto() {
+        PlatformAccount account = accountWithId(1L);
+        account.setContactPerson(99L);
+        account.setStatus(AccountStatus.AVAILABLE);
+        when(repository.findAll()).thenReturn(List.of(account));
+
+        List<?> result = service.getAccountsForViewer(BID_TEAM_USER);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0)).isInstanceOf(PlatformAccountSummaryDTO.class);
+        PlatformAccountSummaryDTO summary = (PlatformAccountSummaryDTO) result.get(0);
+        assertThat(summary.getStatus()).isEqualTo(AccountStatus.AVAILABLE);
     }
 
     // ── 更新 ──

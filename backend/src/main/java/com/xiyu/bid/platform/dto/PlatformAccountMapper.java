@@ -43,6 +43,7 @@ public final class PlatformAccountMapper {
             .url(account.getUrl())
             .platformType(account.getPlatformType())
             .hasCa(account.getHasCa())
+            .status(account.getStatus())
             .updatedAt(account.getUpdatedAt())
             .build();
     }

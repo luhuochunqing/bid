@@ -16,6 +16,7 @@ import com.xiyu.bid.platform.entity.PlatformAccount;
 import com.xiyu.bid.platform.entity.PlatformAccount.AccountStatus;
 import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
+import com.xiyu.bid.platform.util.PlatformAccountContactMatcher;
 import com.xiyu.bid.security.EffectiveRoleResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -109,31 +110,18 @@ public class PlatformAccountService {
     /**
      * Get accounts projected for the given viewer.
      *
-     * <p>Roles that may see the full record (admin / manager / bid_lead /
-     * bid_admin / auditor) receive the standard DTO. The "project leader"
-     * role (sales / 项目负责人) receives a sanitized summary that omits
-     * username, contact details, remarks, borrow bookkeeping
-     * and any other field the blueprint restricts to that role.
+     * <p>管理员 / 投标管理员 / 投标组长看到完整 DTO；投标专员对自己为绑定联系人的行
+     * 看到完整 DTO，其余行看到脱敏摘要；项目负责人等看到脱敏摘要。</p>
      */
     public List<?> getAccountsForViewer(User viewer) {
-        if (isPrivilegedViewer(viewer)) {
-            return getAllAccounts();
-        }
+        String code = viewer == null ? null : effectiveRoleResolver.resolveRoleCode(viewer);
+        boolean privileged = PlatformAccountViewerPolicy.isPrivilegedRole(code);
+        boolean bidTeam = PlatformAccountViewerPolicy.isBidTeamRole(code);
         return repository.findAll().stream()
-            .map(PlatformAccountMapper::toSummaryDTO)
+            .map(account -> (privileged || (bidTeam && PlatformAccountContactMatcher.isContactPerson(account, viewer)))
+                ? PlatformAccountMapper.toDTO(account)
+                : PlatformAccountMapper.toSummaryDTO(account))
             .collect(Collectors.toList());
-    }
-
-    private boolean isPrivilegedViewer(User viewer) {
-        if (viewer == null) return false;
-        // CO-373：统一走 EffectiveRoleResolver，OSS 用户以缓存角色码为准
-        String code = effectiveRoleResolver.resolveRoleCode(viewer);
-        if (code == null || code.isBlank()) return false;
-        String lower = code.toLowerCase(java.util.Locale.ROOT);
-        return switch (lower) {
-            case "admin", "bid-teamleader", "/bidadmin" -> true;
-            default -> false;
-        };
     }
 
     /** Update an existing account. */
@@ -241,7 +229,8 @@ public class PlatformAccountService {
     @Auditable(action = "VIEW_PASSWORD", entityType = "PlatformAccount",
               description = "Viewed password for platform account")
     public String getPassword(Long id, User currentUser) {
-        if (!isPrivilegedViewer(currentUser)) {
+        String code = currentUser == null ? null : effectiveRoleResolver.resolveRoleCode(currentUser);
+        if (!PlatformAccountViewerPolicy.isPrivilegedRole(code)) {
             throw new IllegalStateException("Only administrators can view account passwords");
         }
 

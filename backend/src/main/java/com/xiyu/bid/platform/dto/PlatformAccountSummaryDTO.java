@@ -1,5 +1,6 @@
 package com.xiyu.bid.platform.dto;
 
+import com.xiyu.bid.platform.entity.PlatformAccount.AccountStatus;
 import com.xiyu.bid.platform.entity.PlatformAccount.PlatformType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -27,5 +28,6 @@ public class PlatformAccountSummaryDTO {
     private String url;
     private PlatformType platformType;
     private Boolean hasCa;
+    private AccountStatus status;
     private LocalDateTime updatedAt;
 }

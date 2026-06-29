@@ -9,7 +9,7 @@
     <el-button :icon="Delete" circle size="small" type="danger" @click.stop="$emit('take-down', row)" />
   </el-tooltip>
   <el-tooltip v-if="actions.borrow || actions.apply" :content="actions.apply ? '申请使用' : '借用'" placement="top">
-    <el-button :icon="Key" circle size="small" type="primary" :disabled="row.status !== 'available'" @click.stop="$emit('borrow', row)" />
+    <el-button :icon="Key" circle size="small" type="primary" :disabled="String(row.status).toUpperCase() !== 'AVAILABLE'" @click.stop="$emit('borrow', row)" />
   </el-tooltip>
 </template>
 

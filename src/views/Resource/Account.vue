@@ -129,7 +129,7 @@ import { resourcesApi } from '@/api'
 import { useUserStore } from '@/stores/user'
 import { usePasswordReveal } from './composables/usePasswordReveal.js'
 import { useAccountBatchActions } from './composables/useAccountBatchActions.js'
-import { resolveAccountActions } from './accountActions.js'
+import { resolveAccountActions, isCurrentUserContactPerson } from './accountActions.js'
 import AccountFormDialog from './AccountFormDialog.vue'
 import AccountDetailDialog from './AccountDetailDialog.vue'
 import AccountBorrowDialog from './AccountBorrowDialog.vue'
@@ -151,7 +151,6 @@ const handleSelectionChange = (rows) => {
 
 const userStore = useUserStore()
 const userRoleCode = computed(() => userStore.currentUser?.roleCode || userStore.currentUser?.role || '')
-const currentUserId = computed(() => userStore.currentUser?.id)
 const isProjectLeader = computed(() => userRoleCode.value === 'bid-projectLeader')
 // CO-400 二轮：与后端 PlatformAccountService.isPrivilegedViewer 对齐，
 // 只有 admin//bidAdmin/bid-TeamLeader 能看到 username/contactPersonLabel/password 等敏感列。
@@ -163,8 +162,9 @@ const accounts = ref([])
 const rowActionsFor = (row) => resolveAccountActions({
   isManager: userStore.isBidManager,
   isBidTeam: userRoleCode.value === 'bid-Team',
-  isContactPerson: String(row.contactPerson || '') === String(currentUserId.value || ''),
-  isApplicant: userRoleCode.value === 'bid-projectLeader' || userRoleCode.value === 'sales'
+  isContactPerson: isCurrentUserContactPerson(row, userStore.currentUser),
+  isApplicant: userRoleCode.value === 'bid-projectLeader' || userRoleCode.value === 'sales',
+  status: row.status
 })
 const rowActionsMap = computed(() => {
   const map = new Map()
