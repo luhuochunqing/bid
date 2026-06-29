@@ -67,20 +67,17 @@ class TenderCommandServiceLinkCrmOpportunityDedupTest {
                 null,                  // ProjectRepository
                 tenderMapper,
                 null,                  // TenderProjectAccessGuard
-                null,                  // TaskService
                 commandAccessGuard,
                 null,                  // TenderAutoAssignmentService
                 eventPublisher,
                 userRepository,        // CO-310: assignOnCrmLink 查 user
-                null,                  // NotificationApplicationService
                 null,                  // TenderAssignmentNotifier
                 null,                  // TenderAttachmentRepository
                 crmOccupancyChecker,   // CO-297: CRM 商机占用校验器
                 null,                  // CO-310: TenderEvaluationBackfillService（本测试不涉及回填）
                 null,                  // ProjectManagerIdResolver
                 assignmentRecordRepository, // CO-310: 写 assignee record
-                tenderAuditService,    // TenderAuditService
-                null);                 // TransactionTemplate（本测试不涉及 createTender）
+                tenderAuditService);   // TenderAuditService
     }
 
     @Test

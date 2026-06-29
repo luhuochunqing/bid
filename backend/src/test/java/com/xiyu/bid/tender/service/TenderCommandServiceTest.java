@@ -12,10 +12,8 @@ import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
-import com.xiyu.bid.task.service.TaskService;
 import com.xiyu.bid.tender.dto.TenderAttachmentDTO;
 import com.xiyu.bid.tender.dto.TenderDTO;
-import com.xiyu.bid.task.dto.TaskDTO;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.integration.external.ProjectManagerIdResolver;
 import com.xiyu.bid.tender.entity.TenderAttachment;
@@ -34,7 +32,6 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -55,8 +52,6 @@ class TenderCommandServiceTest {
     @Mock
     private DataScopeConfigService dataScopeConfigService;
     @Mock
-    private TaskService taskService;
-    @Mock
     private TenderAssignmentPermissions tenderAssignmentPermissions;
     @Mock
     private TenderAutoAssignmentService autoAssignmentService;
@@ -67,8 +62,6 @@ class TenderCommandServiceTest {
     @Mock
     private TenderDeduplicationService tenderDeduplicationService;
     @Mock
-    private com.xiyu.bid.notification.service.NotificationApplicationService notificationAppService;
-    @Mock
     private TenderAssignmentNotifier assignmentNotifier;
     @Mock
     private TenderAttachmentRepository tenderAttachmentRepository;
@@ -78,8 +71,6 @@ class TenderCommandServiceTest {
     private TenderAuditService tenderAuditService;
     @Mock
     private ProjectManagerIdResolver projectManagerIdResolver;
-    @Mock
-    private TransactionTemplate transactionTemplate;
 
     private TenderCommandService tenderCommandService;
     private TenderMapper tenderMapper;
@@ -95,14 +86,13 @@ class TenderCommandServiceTest {
         statusTransitionPolicy = new TenderStatusTransitionPolicy();
         tenderCommandService = new TenderCommandService(
                 tenderDeduplicationService, tenderRepository, projectRepository,
-                tenderMapper, accessGuard, taskService, commandAccessGuard,
-                autoAssignmentService, eventPublisher, userRepository, notificationAppService,
+                tenderMapper, accessGuard, commandAccessGuard,
+                autoAssignmentService, eventPublisher, userRepository,
                 assignmentNotifier, tenderAttachmentRepository, crmOccupancyChecker,
                 null, // CO-310: TenderEvaluationBackfillService（本测试不涉及回填）
                 projectManagerIdResolver,
                 tenderAssignmentRecordRepository,
-                tenderAuditService,
-                transactionTemplate);
+                tenderAuditService);
 
         tender = Tender.builder()
                 .id(1L)
@@ -137,33 +127,6 @@ class TenderCommandServiceTest {
 
         assertThat(savedDto.getTitle()).isEqualTo(tenderDTO.getTitle());
         verify(tenderRepository).save(any(Tender.class));
-    }
-
-    @Test
-    @DisplayName("创建标讯 - 兜底分配时调用 createSystemTask，防止权限异常污染事务")
-    void createTender_ShouldNotRollback_WhenAutoAssignFails_WithSalesRole() {
-        when(tenderRepository.save(any(Tender.class))).thenAnswer(invocation -> {
-            Tender saved = invocation.getArgument(0);
-            saved.setId(1L);
-            return saved;
-        });
-        when(autoAssignmentService.autoAssignIfPossible(any(Tender.class))).thenReturn(AssignmentResult.noMatch());
-
-        User adminUser = User.builder().id(2L).username("admin").build();
-        when(userRepository.findEnabledByRoleProfileCodes(any())).thenReturn(List.of(adminUser));
-        when(taskService.createSystemTask(any())).thenReturn(TaskDTO.builder().id(100L).build());
-        
-        doAnswer(invocation -> {
-            java.util.function.Consumer<org.springframework.transaction.TransactionStatus> action = invocation.getArgument(0);
-            action.accept(null);
-            return null;
-        }).when(transactionTemplate).executeWithoutResult(any());
-
-        TenderDTO savedDto = tenderCommandService.createTender(tenderDTO);
-
-        assertThat(savedDto).isNotNull();
-        verify(taskService).createSystemTask(any());
-        verify(taskService, never()).createTask(any());
     }
 
     @Test

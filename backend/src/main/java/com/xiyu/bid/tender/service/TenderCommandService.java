@@ -4,9 +4,7 @@ import com.xiyu.bid.annotation.Auditable;
 import com.xiyu.bid.batch.entity.TenderAssignmentRecord;
 import com.xiyu.bid.batch.repository.TenderAssignmentRecordRepository;
 import com.xiyu.bid.crm.domain.AssignmentResult;
-import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.Tender;
-import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.integration.external.ProjectManagerIdResolver;
 import com.xiyu.bid.tender.entity.TenderAttachment;
 import com.xiyu.bid.entity.User;
@@ -15,14 +13,10 @@ import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.repository.TenderRepository;
-import com.xiyu.bid.notification.dto.CreateNotificationRequest;
-import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.tender.core.TenderBasicInfoValidator;
 import com.xiyu.bid.exception.TenderDuplicateException;
 import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
 import com.xiyu.bid.tender.dto.TenderDTO;
-import com.xiyu.bid.task.dto.TaskDTO;
-import com.xiyu.bid.task.service.TaskService;
 import com.xiyu.bid.repository.ProjectRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +24,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -50,12 +43,10 @@ public class TenderCommandService {
     private final ProjectRepository projectRepository;
     private final TenderMapper tenderMapper;
     private final TenderProjectAccessGuard accessGuard;
-    private final TaskService taskService;
     private final TenderCommandAccessGuard commandAccessGuard;
     private final TenderAutoAssignmentService autoAssignmentService;
     private final ApplicationEventPublisher eventPublisher;
     private final UserRepository userRepository;
-    private final NotificationApplicationService notificationAppService;
     private final TenderAssignmentNotifier assignmentNotifier;
     private final TenderAttachmentRepository attachmentRepository;
     private final TenderCrmOccupancyChecker crmOccupancyChecker;
@@ -63,7 +54,6 @@ public class TenderCommandService {
     private final ProjectManagerIdResolver projectManagerIdResolver;
     private final TenderAssignmentRecordRepository assignmentRecordRepository;
     private final TenderAuditService tenderAuditService;
-    private final TransactionTemplate transactionTemplate;
 
     public TenderDTO createTender(TenderDTO tenderDTO) {
         return createTender(tenderDTO, null);
@@ -89,18 +79,7 @@ public class TenderCommandService {
         Tender savedTender = tenderRepository.save(tender);
         log.info("Created tender with id: {}", savedTender.getId());
         saveAttachments(savedTender.getId(), tenderDTO.getAttachments());
-        boolean assigned = tryAutoAssign(savedTender);
-        if (!assigned) {
-            try {
-                final Long finalUserId = userId;
-                final Tender finalSavedTender = savedTender;
-                transactionTemplate.executeWithoutResult(status ->
-                    createPendingAssignmentTasks(finalSavedTender, finalUserId));
-            } catch (RuntimeException e) {
-                log.warn("Failed to create pending assignment tasks for tender {}: {}",
-                        savedTender.getId(), e.getMessage());
-            }
-        }
+        tryAutoAssign(savedTender);
 
         // CO-332: 记录创建标讯操作日志
         String createUsername = userId != null ? userRepository.findById(userId).map(User::getUsername).orElse("system") : "system";
@@ -130,55 +109,6 @@ public class TenderCommandService {
             log.warn("Auto-assignment failed for tender {}, keeping PENDING_ASSIGNMENT: {}", tender.getId(), e.getMessage());
         }
         return false;
-    }
-
-    private void createPendingAssignmentTasks(Tender savedTender, Long userId) {
-        String taskTitle = "【待分配】" + savedTender.getTitle();
-        String taskDesc = "标讯「" + savedTender.getTitle()
-                + "」待分配负责人，请尽快处理。创建人："
-                + (savedTender.getCreatorName() != null
-                    ? savedTender.getCreatorName() : "系统");
-        List<User> managers = userRepository.findEnabledByRoleProfileCodes(
-                List.of(RoleProfileCatalog.BID_ADMIN_CODE, RoleProfileCatalog.BID_LEAD_CODE));
-        if (managers.isEmpty()) {
-            log.warn("No bidAdmin or bid-TeamLeader users found for tender {} pending assignment",
-                    savedTender.getId());
-        }
-        for (User manager : managers) {
-            try {
-                TaskDTO task = taskService.createSystemTask(
-                        TaskDTO.builder()
-                                .projectId(savedTender.getId())
-                                .title(taskTitle)
-                                .description(taskDesc)
-                                .status(Task.Status.TODO)
-                                .priority(Task.Priority.HIGH)
-                                .assigneeId(manager.getId())
-                                .build());
-                log.info("Tender {} pending assignment, created task {} for {}",
-                        savedTender.getId(), task.getId(), manager.getUsername());
-                try {
-                    var result = notificationAppService.createNotification(
-                            new CreateNotificationRequest(
-                                    "APPROVAL", "TENDER",
-                                    savedTender.getId(),
-                                    taskTitle, taskDesc,
-                                    null,
-                                    List.of(manager.getId())),
-                            userId != null ? userId : 1L);
-                    if (!result.isValid()) {
-                        log.warn("Notification validation failed for tender {} to user {}: {}",
-                                savedTender.getId(), manager.getUsername(), result.errorMessage());
-                    }
-                } catch (RuntimeException e) {
-                    log.warn("Failed to send notification for tender {} to user {}: {}",
-                            savedTender.getId(), manager.getUsername(), e.getMessage());
-                }
-            } catch (RuntimeException e) {
-                log.warn("Failed to create task for tender {} for user {}: {}",
-                        savedTender.getId(), manager.getUsername(), e.getMessage());
-            }
-        }
     }
 
     void applyAssignmentResult(Tender tender, AssignmentResult result) {
