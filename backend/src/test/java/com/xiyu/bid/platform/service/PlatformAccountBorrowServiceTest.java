@@ -263,6 +263,44 @@ class PlatformAccountBorrowServiceTest {
     }
 
     @Test
+    @DisplayName("CO-386: 提交申请未传 custodianId 时自动从 account.contactPerson 取值")
+    void submitApplication_withoutCustodianId_usesAccountContactPerson() {
+        PlatformAccount account = PlatformAccount.builder()
+                .id(1L).status(AccountStatus.AVAILABLE).contactPerson(20L).build();
+        BorrowApplicationRequest req = BorrowApplicationRequest.builder()
+                .accountId(1L).purpose("投标使用")
+                .expectedReturnAt("2026-07-10T18:00:00").build();
+        AccountBorrowApplication savedApp = AccountBorrowApplication.builder()
+                .id(100L).accountId(1L).applicantId(10L).custodianId(20L)
+                .purpose("投标使用").status(BorrowStatus.PENDING_APPROVAL).build();
+
+        when(accountRepository.findById(1L)).thenReturn(Optional.of(account));
+        when(accountRepository.save(any())).thenReturn(account);
+        when(applicationRepository.save(any())).thenReturn(savedApp);
+
+        BorrowApplicationDTO result = service.submitApplication(req, USER);
+
+        assertThat(result.getCustodianId()).isEqualTo(20L);
+        verify(applicationRepository).save(org.mockito.ArgumentMatchers.argThat(
+                app -> app != null && app.getCustodianId() != null && app.getCustodianId().equals(20L)));
+    }
+
+    @Test
+    @DisplayName("CO-386: 提交申请未传 custodianId 且账号未绑定联系人时抛出异常")
+    void submitApplication_accountWithoutContactPerson_throws() {
+        PlatformAccount account = PlatformAccount.builder()
+                .id(1L).status(AccountStatus.AVAILABLE).contactPerson(null).build();
+        BorrowApplicationRequest req = BorrowApplicationRequest.builder()
+                .accountId(1L).purpose("投标使用").build();
+
+        when(accountRepository.findById(1L)).thenReturn(Optional.of(account));
+
+        assertThatThrownBy(() -> service.submitApplication(req, USER))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("该账户未绑定联系人");
+    }
+
+    @Test
     @DisplayName("提交申请时预计归还时间格式非法抛出异常")
     void submitApplication_invalidExpectedReturnAt_throws() {
         PlatformAccount account = PlatformAccount.builder().id(1L).status(AccountStatus.AVAILABLE).contactPerson(20L).build();
