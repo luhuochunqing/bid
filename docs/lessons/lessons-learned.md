@@ -1585,3 +1585,68 @@ grep -A 15 "LoggingClientHttpRequestInterceptor" backend/logs/app.log
 - `docs/lessons/root-cause-analysis-co-375-uploader-delete-permission.md` — 完整根因分析
 - `docs/lessons/decisions.md` §3 — Controller @PreAuthorize 放宽为 isAuthenticated() 决策
 - `backend/src/main/java/com/xiyu/bid/projectworkflow/core/ProjectDocumentWorkflowPolicy.java` — Policy 实现
+
+## 25. submitBid / submitForReview 闸门不可共用，业务语义不同（CO-400 复发）
+
+### 问题背景
+
+`BidReadinessPolicy.java` 在 2026-06-21 → 2026-06-25 → 2026-06-29 经历了三次反复，根因是设计时没有从「submitBid 和 submitForReview 是两个业务语义不同的入口」这个视角审视闸门：
+
+| 时间 | 事件 | 决策视角 | 遗留的问题 |
+|---|---|---|---|
+| 2026-06-21 | zcode 发现 `submitBid` 同类 Bug，PR !923 移除任务闸门 | 仅看 submitBid | submitForReview 未审视 |
+| 2026-06-25 | zhoufan 在 CO-346 修复中（commit `95da4695b`）同时给 `submitBid` 和 `submitForReview` 加回任务闸门，标题"补齐任务闸门" | 仅看"闸门对称" | 业务语义错配，submitForReview 不应要求任务全完成 |
+| 2026-06-29 | 用户在项目 113 触发同类 Bug，traceId=`a2f9262d77d842029712a4595481d242` | （本次修复） | 拆分 BidReadinessPolicy 为两个语义清晰的方法 |
+
+每一轮修复都解决了真实问题，但都没从「两个入口的业务语义不同」这个视角审视整个闸门设计。
+
+### 教训
+
+1. **submitBid 和 submitForReview 是业务语义不同的两个入口，不可共用闸门**：
+   - `submitForReview`（提交标书给审核人审核）：发起审核时标书可能仍在编制，任务完成与否是审核人的判断，不是闸门
+   - `submitBid`（推进到评标阶段）：推进阶段是重大阶段流转，要求所有任务终态完成
+   - 两个入口应使用语义清晰的独立方法，不得混淆
+
+2. **修改 `BidReadinessPolicy` 时必须检查 submitBid / submitForReview 两个调用点是否对称**：不能只改一个方法，必须审视两个调用点是否按对应业务语义调用对应方法。检查清单：
+   - `submitForReview` 是否调用 `checkBidDocumentUploaded`（仅标书文件）？
+   - `submitBid` 是否调用 `checkBidSubmissionReady`（任务全完成 + 标书文件）？
+   - `gateAdvanceToEvaluation` 是否调用 `checkBidSubmissionReady`（与 submitBid 语义一致）？
+
+3. **`BidReadinessPolicy` 的类注释必须明确两个方法的业务语义分工**：旧注释"两处业务入口复用闸门避免规则漂移"是误导性的，正确表述应明确两个方法各自对应的业务入口和语义。
+
+4. **修改 Policy 时必须用日志证据验证业务语义**（ lessons §23 SOP 第 4 步「禁止乱猜」）：CO-346 修复时未先用日志证据验证 submitForReview 的业务语义，仅凭"对称"直觉加回闸门，导致复发。
+
+5. **防复发测试必须覆盖两个入口的正反例**：
+   - `submitForReview_incompleteTasks_withBidDocument_delegatesToBidReview`（任务未完成 + 标书文件已上传 → 200 委托，CO-400 修复正例）
+   - `submitForReview_missingBidDocument_denied_409`（无标书文件 → 409，反例）
+   - `submitBid_approvedReview_incompleteTasks_denied_409`（审核通过 + 任务未完成 → 409，zcode 防复发反例，保留 zhoufan 修复语义不回退）
+
+6. **历史教训文档必须实际被读**：zcode 2026-06-21 留下的 `docs/lessons/root-cause-analysis-submit-bid-review-gate.md` 在 CO-346 修复时未被参考，导致同类问题复发。修改 Policy 前必须 Grep 历史根因分析文档。
+
+### 检查清单（修改 BidReadinessPolicy 时必跑）
+
+```markdown
+- [ ] submitForReview 调用的是 checkBidDocumentUploaded（仅标书文件）？___________
+- [ ] submitBid 调用的是 checkBidSubmissionReady（任务全完成 + 标书文件）？___________
+- [ ] gateAdvanceToEvaluation 调用的是 checkBidSubmissionReady（与 submitBid 一致）？___________
+- [ ] BidReadinessPolicy 类注释是否明确两个方法的业务语义分工？___________
+- [ ] 测试是否覆盖 submitForReview_incompleteTasks_withBidDocument_delegatesToBidReview 正例？___________
+- [ ] 测试是否覆盖 submitForReview_missingBidDocument_denied_409 反例？___________
+- [ ] 是否 Grep 历史根因分析文档（docs/lessons/root-cause-analysis-*.md）？___________
+```
+
+### 已识别但本次不处理的后续优化项
+
+1. **`AllTasksCompletedPolicy.TaskState` 缺 CANCELLED 枚举值**：本次临时止血时发现，将 task status 改为 `CANCELLED` 会导致 `TaskState.valueOf("CANCELLED")` 抛 IllegalArgumentException → 500。当前枚举只有 `TODO/REVIEW/COMPLETED` 三态。如果未来业务需要 CANCELLED 终态，应作为独立任务处理。
+
+2. **立项阶段种子任务残留问题**：项目 113 流转到 DRAFTING 阶段后，立项阶段自动生成的种子任务 id=5「【待立项】」残留为 TODO 未自动关闭，是本次 Bug 的直接触发原因。应作为独立任务在 `ProjectInitiationService` 中修复阶段流转时的任务自动关闭逻辑。
+
+3. **submitBid 是否也应移除任务闸门**：zcode 2026-06-21 PR !923 曾移除 `submitBid` 任务闸门，但 zhoufan 2026-06-25 commit `95da4695b` 又加回来。本次修复保留 zhoufan 修复语义不回退（避免重蹈"反复回退"覆辙）。如果产品决定 `submitBid` 也应移除任务闸门，应作为独立 PR 讨论。
+
+### 相关文档
+
+- `docs/lessons/root-cause-analysis-co-400-submit-review-gate-regression.md` — 完整根因分析（本次）
+- `docs/lessons/root-cause-analysis-submit-bid-review-gate.md` — zcode 2026-06-21 历史根因分析（同类问题）
+- `backend/src/main/java/com/xiyu/bid/project/core/BidReadinessPolicy.java` — Policy 实现（已拆分）
+- `backend/src/main/java/com/xiyu/bid/project/service/ProjectDraftingService.java` — 调用方（已修正）
+- 生产日志 traceId：`a2f9262d77d842029712a4595481d242`（2026-06-29 15:38:05）
