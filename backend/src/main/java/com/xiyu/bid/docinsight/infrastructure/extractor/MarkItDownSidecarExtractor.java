@@ -144,21 +144,15 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
 
     /**
      * Check sidecar health before attempting document conversion.
+     * 防御性编程：任何异常都视为不健康，绝不允许健康检查本身抛出异常导致 500。
      */
     private boolean checkSidecarHealth() {
         try {
             restTemplate.getForObject(sidecarUrl + "/health", String.class);
             return true;
-        } catch (ResourceAccessException e) {
-            log.warn("Sidecar connection refused at {}: {}", sidecarUrl, e.getMessage());
-            return false;
-        } catch (IllegalArgumentException e) {
-            // LoggingClientHttpRequestInterceptor + BufferingClientHttpRequestFactory 组合时，
-            // GET 请求 body 行为异常（OkHttp 校验失败）。不影响 fallback 流程。
-            log.warn("Sidecar health check rejected at {} (OkHttp body validation): {}", sidecarUrl, e.getMessage());
-            return false;
-        } catch (RestClientException e) {
-            log.warn("Sidecar health check failed at {}: {}", sidecarUrl, e.getMessage());
+        } catch (Exception e) {
+            log.warn("Sidecar health check failed at {} ({}) : {}",
+                    sidecarUrl, e.getClass().getSimpleName(), e.getMessage());
             return false;
         }
     }

@@ -7,8 +7,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.ai.dto.AiAnalysisResponse;
 import com.xiyu.bid.ai.dto.BidDocumentQualityAiPreviewDTO;
-import com.xiyu.bid.ai.dto.DimensionScore;
-import com.xiyu.bid.entity.Tender;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.HttpEntity;
@@ -17,14 +15,14 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.retry.support.RetryTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @Service
@@ -35,29 +33,45 @@ public class OpenAiCompatibleClient {
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
+    private final RetryTemplate retryTemplate;
+    private final AiPromptBuilder promptBuilder;
+    private final AiResponseParser responseParser;
 
-    public OpenAiCompatibleClient(RestTemplateBuilder restTemplateBuilder, ObjectMapper pObjectMapper) {
+    public OpenAiCompatibleClient(
+            RestTemplateBuilder restTemplateBuilder,
+            ObjectMapper pObjectMapper,
+            AiPromptBuilder promptBuilder,
+            AiResponseParser responseParser) {
         this.restTemplate = restTemplateBuilder
                 .setConnectTimeout(TIMEOUT)
                 .setReadTimeout(TIMEOUT)
                 .build();
         this.objectMapper = pObjectMapper;
+        this.promptBuilder = promptBuilder;
+        this.responseParser = responseParser;
+        this.retryTemplate = RetryTemplate.builder()
+                .maxAttempts(3)
+                .exponentialBackoff(1000, 2.0, 10000)
+                .retryOn(ResourceAccessException.class)
+                .retryOn(RetryableAiProviderException.class)
+                .traversingCauses()
+                .build();
     }
 
     public AiAnalysisResponse analyzeTender(
             AiProviderRuntimeConfig config,
             String content,
             Map<String, Object> context) {
-        String prompt = buildTenderAnalysisPrompt(content, context);
-        return parseAnalysisResponse(callChatCompletion(config, prompt, 2000));
+        String prompt = promptBuilder.buildTenderAnalysisPrompt(content, context);
+        return responseParser.parseAnalysisResponse(callChatCompletion(config, prompt, 2000));
     }
 
     public AiAnalysisResponse analyzeProject(
             AiProviderRuntimeConfig config,
             Long projectId,
             Map<String, Object> context) {
-        String prompt = buildProjectAnalysisPrompt(projectId, context);
-        return parseAnalysisResponse(callChatCompletion(config, prompt, 2000));
+        String prompt = promptBuilder.buildProjectAnalysisPrompt(projectId, context);
+        return responseParser.parseAnalysisResponse(callChatCompletion(config, prompt, 2000));
     }
 
     public void testConnection(AiProviderRuntimeConfig config) {
@@ -73,25 +87,13 @@ public class OpenAiCompatibleClient {
         String prompt = AiPromptTemplates.BID_PREVIEW_SYSTEM_INSTRUCTION
                 + "\n投标文件：" + doc + "\n招标要求：" + tender + "\n"
                 + AiPromptTemplates.BID_PREVIEW_OUTPUT_FORMAT;
-        return parseBidPreview(callChatCompletion(config, prompt, 1500));
+        return responseParser.parseBidPreview(callChatCompletion(config, prompt, 1500));
     }
 
     private String truncate(String value, int maxLength) {
         if (value == null) return "";
         return value.length() <= maxLength ? value
                 : value.substring(0, maxLength) + "...(已截断)";
-    }
-
-    private BidDocumentQualityAiPreviewDTO parseBidPreview(String response) {
-        try {
-            JsonNode root = objectMapper.readTree(extractJson(response));
-            return BidDocumentQualityAiPreviewDTO.builder()
-                    .overallAssessment(root.path("overallAssessment").asText(null))
-                    .keyRisks(parseStringList(root.path("keyRisks")))
-                    .build();
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("Failed to parse bid preview", e);
-        }
     }
 
     private String callChatCompletion(AiProviderRuntimeConfig config, String prompt, int maxTokens) {
@@ -102,9 +104,23 @@ public class OpenAiCompatibleClient {
         if (config.model() == null || config.model().isBlank())
             throw new IllegalStateException("AI model is not configured");
 
+        try {
+            return retryTemplate.execute(context -> {
+                if (context.getRetryCount() > 0) {
+                    log.info("AI provider {} retry attempt {}/{}",
+                            config.providerCode(), context.getRetryCount(), 3);
+                }
+                return doCallChatCompletion(config, prompt, maxTokens);
+            });
+        } catch (RetryableAiProviderException e) {
+            throw e.getWrapped();
+        }
+    }
+
+    private String doCallChatCompletion(AiProviderRuntimeConfig config, String prompt, int maxTokens) {
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("model", config.model());
-        requestBody.put("messages", List.of(
+        requestBody.put("messages", java.util.List.of(
                 Map.of("role", "system", "content", "You are an expert bidding consultant analyzing tender opportunities and projects."),
                 Map.of("role", "user", "content", prompt)
         ));
@@ -121,22 +137,42 @@ public class OpenAiCompatibleClient {
                     config.baseUrl(), HttpMethod.POST,
                     new HttpEntity<>(requestBody, headers), String.class);
             if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null)
-                return extractContentFromResponse(response.getBody());
+                return responseParser.extractContentFromResponse(response.getBody());
             throw new RuntimeException("AI API request failed with status: " + response.getStatusCode());
         } catch (HttpStatusCodeException exception) {
+            int status = exception.getStatusCode().value();
             String message = buildProviderErrorMessage(config.providerCode(), exception);
             log.warn("AI provider {} request failed: status={}, message={}",
                     config.providerCode(), exception.getStatusCode(), message);
-            throw ExternalServiceException.forService(
+
+            ExternalServiceException wrapped = ExternalServiceException.forService(
                     providerDisplayName(config.providerCode()) + " API",
-                    exception.getStatusCode().value(), message,
+                    status, message,
                     exception.getResponseBodyAsString(), exception);
+
+            if (status == 429 || status >= 500) {
+                throw new RetryableAiProviderException(wrapped);
+            }
+            throw wrapped;
         } catch (RuntimeException exception) {
             String providerName = providerDisplayName(config.providerCode());
             String message = "调用 " + providerName + " 失败："
                     + (exception.getMessage() == null || exception.getMessage().isBlank() ? "未知错误" : exception.getMessage());
             log.warn("AI provider {} request failed: {}", config.providerCode(), exception.getMessage());
             throw ExternalServiceException.networkError(providerName + " API", message, exception);
+        }
+    }
+
+    static class RetryableAiProviderException extends RuntimeException {
+        private final ExternalServiceException cause;
+
+        RetryableAiProviderException(ExternalServiceException cause) {
+            super(cause.getMessage(), cause);
+            this.cause = cause;
+        }
+
+        public ExternalServiceException getWrapped() {
+            return cause;
         }
     }
 
@@ -185,115 +221,5 @@ public class OpenAiCompatibleClient {
             case "doubao" -> "豆包";
             default -> providerCode == null || providerCode.isBlank() ? "AI" : providerCode;
         };
-    }
-
-    private String buildTenderAnalysisPrompt(String content, Map<String, Object> context) {
-        StringBuilder prompt = new StringBuilder();
-        prompt.append("Analyze the following tender opportunity and provide a comprehensive assessment.\n\n");
-        if (content != null && !content.isEmpty())
-            prompt.append("TENDER CONTENT:\n").append(content).append("\n\n");
-        if (context != null && !context.isEmpty()) {
-            prompt.append("ADDITIONAL CONTEXT:\n");
-            context.forEach((k, v) -> prompt.append("- ").append(k).append(": ").append(v).append("\n"));
-            prompt.append("\n");
-        }
-        prompt.append("""
-                Please provide your analysis in JSON format with the following structure:
-                {
-                  "score": <integer 0-100>,
-                  "riskLevel": <"LOW", "MEDIUM", or "HIGH">,
-                  "strengths": ["<strength 1>", "<strength 2>", ...],
-                  "weaknesses": ["<weakness 1>", "<weakness 2>", ...],
-                  "recommendations": ["<recommendation 1>", "<recommendation 2>", ...],
-                  "dimensionScores": [
-                    {"dimension": "Technical", "score": <0-100>, "details": "<explanation>"},
-                    {"dimension": "Financial", "score": <0-100>, "details": "<explanation>"},
-                    {"dimension": "Timing", "score": <0-100>, "details": "<explanation>"}
-                  ]
-                }
-                """);
-        return prompt.toString();
-    }
-
-    private String buildProjectAnalysisPrompt(Long projectId, Map<String, Object> context) {
-        StringBuilder prompt = new StringBuilder();
-        prompt.append("Analyze the following project and provide a comprehensive assessment.\n\n");
-        prompt.append("PROJECT ID: ").append(projectId).append("\n\n");
-        if (context != null && !context.isEmpty()) {
-            prompt.append("PROJECT CONTEXT:\n");
-            context.forEach((k, v) -> prompt.append("- ").append(k).append(": ").append(v).append("\n"));
-            prompt.append("\n");
-        }
-        prompt.append("""
-                Please provide your analysis in JSON format with the following structure:
-                {
-                  "score": <integer 0-100>,
-                  "riskLevel": <"LOW", "MEDIUM", or "HIGH">,
-                  "strengths": ["<strength 1>", "<strength 2>", ...],
-                  "weaknesses": ["<weakness 1>", "<weakness 2>", ...],
-                  "recommendations": ["<recommendation 1>", "<recommendation 2>", ...],
-                  "dimensionScores": [
-                    {"dimension": "Team", "score": <0-100>, "details": "<explanation>"},
-                    {"dimension": "Resources", "score": <0-100>, "details": "<explanation>"},
-                    {"dimension": "Risk", "score": <0-100>, "details": "<explanation>"}
-                  ]
-                }
-                """);
-        return prompt.toString();
-    }
-
-    private String extractContentFromResponse(String responseBody) {
-        try {
-            JsonNode root = objectMapper.readTree(responseBody);
-            JsonNode choices = root.path("choices");
-            if (choices.isArray() && choices.size() > 0)
-                return choices.get(0).path("message").path("content").asText();
-            throw new RuntimeException("Invalid AI response format");
-        } catch (JsonProcessingException exception) {
-            throw new RuntimeException("Failed to parse AI response", exception);
-        }
-    }
-
-    private AiAnalysisResponse parseAnalysisResponse(String response) {
-        try {
-            JsonNode root = objectMapper.readTree(extractJson(response));
-            int score = Math.max(0, Math.min(100, root.path("score").asInt()));
-            Tender.RiskLevel riskLevel = Tender.RiskLevel.valueOf(root.path("riskLevel").asText("MEDIUM"));
-            return AiAnalysisResponse.builder()
-                    .score(score)
-                    .riskLevel(riskLevel)
-                    .strengths(parseStringList(root.path("strengths")))
-                    .weaknesses(parseStringList(root.path("weaknesses")))
-                    .recommendations(parseStringList(root.path("recommendations")))
-                    .dimensionScores(parseDimensionScores(root.path("dimensionScores")))
-                    .build();
-        } catch (JsonProcessingException | IllegalArgumentException exception) {
-            throw new RuntimeException("Failed to parse AI analysis response", exception);
-        }
-    }
-
-    private String extractJson(String response) {
-        int start = response.indexOf("{");
-        int end = response.lastIndexOf("}");
-        if (start >= 0 && end > start) return response.substring(start, end + 1);
-        return response;
-    }
-
-    private List<String> parseStringList(JsonNode node) {
-        List<String> result = new ArrayList<>();
-        if (node.isArray()) for (JsonNode item : node) result.add(item.asText());
-        return result;
-    }
-
-    private List<DimensionScore> parseDimensionScores(JsonNode node) {
-        List<DimensionScore> result = new ArrayList<>();
-        if (node.isArray()) for (JsonNode item : node) {
-            result.add(DimensionScore.builder()
-                    .dimension(item.path("dimension").asText())
-                    .score(Math.max(0, Math.min(100, item.path("score").asInt())))
-                    .details(item.path("details").asText())
-                    .build());
-        }
-        return result;
     }
 }
