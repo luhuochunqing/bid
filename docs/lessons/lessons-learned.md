@@ -1714,3 +1714,56 @@ CO-390 修复 AccountFormDialog 绑定联系人后，需要 UserPicker 选中联
 - `src/api/modules/userNormalizers.js` — normalizeUserOption `...user` 展开最佳实践
 - `src/components/common/UserPicker.vue` — @select 回传完整对象
 - `docs/lessons/vue-gotchas.md` §3 — UserPicker 统一控件规范
+
+---
+
+## 25. 迁移脚本之间不能互相覆盖（V1098 vs V1105 迁移漂移）
+
+### 问题背景
+
+CO-349 修复后遗留的"【待立项】"占位任务问题：
+
+| 时间 | 迁移 | 操作 | 结果 |
+|------|------|------|------|
+| 2026-06-25 22:55 | V1098 | "【待立项】"TODO → CANCELLED | ✅ 清理了 62 个占位任务 |
+| 2026-06-27 18:10 | V1105 | 所有 CANCELLED → TODO（三态收口） | ❌ 把占位任务又改回 TODO |
+
+两个迁移脚本互相抵消，导致 62 个"【待立项】"任务复活，前端看不见但 `AllTasksCompletedPolicy` 计入，`submit-bid` 报"仍有 N 个任务未完成"。
+
+### 根因
+
+V1105（CO-361 三态模型收口）执行 `UPDATE tasks SET status = 'TODO' WHERE status = 'CANCELLED'` 时，未排除 V1098 刚处理的"【待立项】"占位任务。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 新迁移覆盖了旧迁移的处理结果 | 迁移脚本之间必须有依赖关系分析 | 执行迁移前检查是否有其他迁移涉及相同数据 |
+| 占位任务用 CANCELLED 作终态，与三态模型冲突 | 废弃状态值不应与新引入的三态冲突 | 迁移脚本使用新状态值前，确认下游迁移不会改回旧值 |
+| 前端过滤 vs 后端计数不一致 | 前端不展示的数据，后端也不应计入业务校验 | 业务校验层不应计入前端主动过滤的数据 |
+
+### 操作规范
+
+1. **新增迁移脚本涉及状态值变更时，必须检查历史迁移是否有冲突场景**：
+   ```bash
+   grep -l "tasks\|status" backend/src/main/resources/db/migration-mysql/V*.sql
+   ```
+
+2. **废弃状态值迁移前，确认下游迁移是否会覆盖**：
+   - 如果下游迁移可能把所有非标准状态归一，需要在 WHERE 条件中排除
+   - 或者改用直接删除（如 V1112）
+
+3. **前端主动过滤的数据，后端业务校验层不应计入**：
+   - "【待立项】"任务前端过滤不展示，后端 AllTasksCompletedPolicy 不应计入
+   - 如果不能从源头删除，应在后端查询时过滤
+
+### 根治方案
+
+V1112 直接删除"【待立项】"TODO 占位任务，从源头解决问题。代码层 CO-349 已移除创建逻辑，存量数据清理后不会再复发。
+
+### 相关文档
+
+- `V1112__cleanup_legacy_pending_initiation_tasks.sql` — 根治迁移
+- `V1098__cancel_legacy_pending_initiation_tasks.sql` — V1105 前的清理尝试
+- `V1105__drop_in_progress_cancelled_status.sql` — 导致迁移漂移的脚本
+- `TenderEvaluationService.java:274` — CO-349 移除占位任务创建逻辑

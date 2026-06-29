@@ -1,0 +1,15 @@
+version: 1
+task: "fix-v1112-pending-initiation-tasks"
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql"
+    scope: "directory"
+    owner: "agent"
+    branch: "agent/codex/fix-v1112-pending-initiation-tasks"
+    expiresAt: "2026-06-30T13:48:53.900Z"
+    reason: "V1112 清理历史待立项任务 CO-400 根治"
+  - path: "backend/src/main/resources/db/rollback/migration-mysql"
+    scope: "directory"
+    owner: "agent"
+    branch: "agent/codex/fix-v1112-pending-initiation-tasks"
+    expiresAt: "2026-06-30T13:49:08.245Z"
+    reason: "V1112 回滚脚本"
