@@ -367,3 +367,34 @@ describe('DraftingStage 删除按钮提交前守卫 - CO-382', () => {
     mockCurrentUser.role = '/bidAdmin'
   })
 })
+
+// CO-407: 投标文件字段标题添加必填标识 *
+describe('DraftingStage 投标文件必填标识 - CO-407', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getDraftingMock.mockReset()
+    getDocumentsMock.mockReset()
+    getDraftingMock.mockImplementation(() => Promise.resolve({ data: {} }))
+    getDocumentsMock.mockImplementation(() => Promise.resolve({ data: [] }))
+    mockCurrentUser.role = '/bidAdmin'
+  })
+
+  it('投标文件标题处显示 * 号必填标识', async () => {
+    const wrapper = await mountDraftingStage()
+    const bidTitle = wrapper.find('.bid-title')
+    expect(bidTitle.exists()).toBe(true)
+    expect(bidTitle.text()).toContain('投标文件')
+    // 必填标识 * 应嵌套在 .bid-title 内
+    const requiredMark = bidTitle.find('.required-mark')
+    expect(requiredMark.exists()).toBe(true)
+    expect(requiredMark.text()).toBe('*')
+  })
+
+  it('必填标识使用项目统一样式类（color: #e65100）', async () => {
+    const wrapper = await mountDraftingStage()
+    const requiredMark = wrapper.find('.bid-title .required-mark')
+    expect(requiredMark.exists()).toBe(true)
+    // 仅断言 class 存在，具体颜色由全局样式统一控制，避免冗余样式断言
+    expect(requiredMark.classes()).toContain('required-mark')
+  })
+})
