@@ -228,18 +228,7 @@ watch(() => form.caType, (val) => {
   }
 })
 
-const validatePlatformIds = (_rule, _value, callback) => {
-  if (!Array.isArray(form.platformIds) || form.platformIds.length === 0) {
-    callback(new Error('请至少选择一个关联平台'))
-  } else {
-    callback()
-  }
-}
-
 const rules = {
-  platformIds: [
-    { required: true, validator: validatePlatformIds, trigger: 'change' }
-  ],
   caType: [
     { required: true, message: '请选择 CA 类型', trigger: 'change' }
   ],
