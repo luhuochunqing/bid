@@ -4,7 +4,8 @@
 
 import { mount, flushPromises } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-import { createPinia } from 'pinia'
+import { createPinia, setActivePinia } from 'pinia'
+import { useUserStore } from '@/stores/user'
 
 // Use vi.hoisted() so mock factories can reference the data at hoist time
 const { mockCertificates, mockOverview } = vi.hoisted(() => ({
@@ -230,5 +231,71 @@ describe('CAManagement', () => {
     expect(wrapper.vm.appliedFilters.caType).toBe('')
     expect(wrapper.vm.appliedFilters.borrowStatus).toBe('')
     expect(wrapper.vm.appliedFilters.keyword).toBe('')
+  })
+})
+
+// ── CO-393：bid-projectLeader 视角应进入简化视图，不应因 resource-ca 权限进入管理员视图 ──
+
+describe('CAManagement — bid-projectLeader 视角', () => {
+  const adminStoreMock = {
+    userRole: 'admin',
+    hasPermission: vi.fn((key) => key === 'resource-ca')
+  }
+  const projectLeaderStoreMock = {
+    userRole: 'bid-projectLeader',
+    hasPermission: vi.fn(() => true)
+  }
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.mocked(useUserStore).mockImplementation(() => projectLeaderStoreMock)
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(useUserStore).mockImplementation(() => adminStoreMock)
+  })
+
+  it('isManagerView 为 false（不应因有 resource-ca 权限而进入管理员视图）', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    expect(wrapper.vm.isManagerView).toBe(false)
+  })
+
+  it('项目负责人视角不渲染统计卡片', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    const html = wrapper.html()
+    expect(html).not.toContain('stat-row')
+  })
+
+  it('项目负责人视角不渲染高级筛选项（CA类型/印章类型/借用状态/关键词）', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    const searchCardHtml = wrapper.find('.search-card').html()
+    expect(searchCardHtml).not.toContain('CA类型')
+    expect(searchCardHtml).not.toContain('印章类型')
+    expect(searchCardHtml).not.toContain('借用状态')
+    expect(searchCardHtml).not.toContain('关键词')
+  })
+
+  it('项目负责人视角保留关联平台搜索框', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    const searchCardHtml = wrapper.find('.search-card').html()
+    expect(searchCardHtml).toContain('关联平台')
+  })
+
+  it('项目负责人视角不渲染「新增」「批量导入」按钮', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    const headerActionsHtml = wrapper.find('.header-actions').html()
+    expect(headerActionsHtml).not.toContain('新增')
+    expect(headerActionsHtml).not.toContain('批量导入')
   })
 })

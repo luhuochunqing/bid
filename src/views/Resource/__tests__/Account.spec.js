@@ -6,6 +6,7 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { useUserStore } from '@/stores/user'
 
 const { mockAccountsList, mockPasswordResponse } = vi.hoisted(() => ({
   mockAccountsList: [
@@ -251,5 +252,55 @@ describe('Account.vue — password column security (contract tests)', () => {
     const html = wrapper.html()
     expect(html).not.toContain('CA 保管员')
     expect(html).not.toContain('caCustodianName')
+  })
+})
+
+// ── CO-393：bid-projectLeader 视角工具栏按钮应隐藏 ──────────────────────────
+
+describe('Account.vue — bid-projectLeader 视角工具栏隐藏管理操作', () => {
+  const adminStoreMock = {
+    userRole: 'admin',
+    hasPermission: vi.fn((key) => key === 'resource-account'),
+    userInfo: { id: 1, username: 'admin', role: 'admin', fullName: 'Test Admin' },
+    displayName: 'Test Admin',
+    isProjectLeader: false
+  }
+  const projectLeaderStoreMock = {
+    currentUser: { id: 999, roleCode: 'bid-projectLeader' },
+    userRole: 'bid-projectLeader',
+    hasPermission: vi.fn(() => true),
+    isBidManager: false
+  }
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    resourcesApiMock.accounts.getList.mockReset()
+    resourcesApiMock.accounts.getPassword.mockReset()
+    resourcesApiMock.accounts.getList.mockResolvedValue({ success: true, data: mockAccountsList })
+    vi.mocked(useUserStore).mockImplementation(() => projectLeaderStoreMock)
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(useUserStore).mockImplementation(() => adminStoreMock)
+  })
+
+  const HIDDEN_BUTTON_LABELS = ['添加账户', '批量借阅', '批量归还', '批量编辑', '批量删除', '导出', '批量导入']
+
+  it.each(HIDDEN_BUTTON_LABELS)('项目负责人视角工具栏不渲染「%s」按钮', async (label) => {
+    const wrapper = mountAccount()
+    await flushPromises()
+
+    const toolbarHtml = wrapper.find('.toolbar').html()
+    expect(toolbarHtml).not.toContain(label)
+  })
+
+  it('项目负责人视角仍渲染搜索表单与平台名称筛选项', async () => {
+    const wrapper = mountAccount()
+    await flushPromises()
+
+    const html = wrapper.html()
+    expect(html).toContain('平台名称')
+    expect(html).toContain('是否有 CA')
   })
 })

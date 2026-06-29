@@ -1,7 +1,7 @@
 <template>
   <div class="ca-management-page">
     <!-- Statistics Cards -->
-    <div class="stat-row">
+    <div v-if="isManagerView" class="stat-row">
       <el-card v-for="s in statCards" :key="s.key" class="stat-card" shadow="never">
         <div class="stat-body">
           <span class="stat-value" :style="{ color: s.color }">{{ loading ? '-' : s.value }}</span>
@@ -16,30 +16,32 @@
         <el-form-item label="关联平台">
           <el-input v-model="filters.platform" placeholder="平台名称" clearable style="width: 160px" @keyup.enter="applyFilters" />
         </el-form-item>
-        <el-form-item label="CA类型">
-          <el-select v-model="filters.caType" placeholder="全部" clearable style="width: 130px">
-            <el-option label="实体CA" value="ENTITY_CA" />
-            <el-option label="电子CA" value="ELECTRONIC_CA" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="印章类型">
-          <el-select v-model="filters.sealType" placeholder="全部" clearable style="width: 130px">
-            <el-option label="公章" value="OFFICIAL_SEAL" />
-            <el-option label="法人章" value="LEGAL_PERSON_SEAL" />
-            <el-option label="法人签字" value="LEGAL_SIGN" />
-            <el-option label="联系人签字" value="CONTACT_SIGN" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="借用状态">
-          <el-select v-model="filters.borrowStatus" placeholder="全部" clearable style="width: 130px">
-            <el-option label="在库" value="IN_STOCK" />
-            <el-option label="已借出" value="BORROWED" />
-            <el-option label="已逾期" value="OVERDUE" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="关键词">
-          <el-input v-model="filters.keyword" placeholder="平台/保管员/借用人" clearable style="width: 200px" @keyup.enter="applyFilters" />
-        </el-form-item>
+        <template v-if="isManagerView">
+          <el-form-item label="CA类型">
+            <el-select v-model="filters.caType" placeholder="全部" clearable style="width: 130px">
+              <el-option label="实体CA" value="ENTITY_CA" />
+              <el-option label="电子CA" value="ELECTRONIC_CA" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="印章类型">
+            <el-select v-model="filters.sealType" placeholder="全部" clearable style="width: 130px">
+              <el-option label="公章" value="OFFICIAL_SEAL" />
+              <el-option label="法人章" value="LEGAL_PERSON_SEAL" />
+              <el-option label="法人签字" value="LEGAL_SIGN" />
+              <el-option label="联系人签字" value="CONTACT_SIGN" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="借用状态">
+            <el-select v-model="filters.borrowStatus" placeholder="全部" clearable style="width: 130px">
+              <el-option label="在库" value="IN_STOCK" />
+              <el-option label="已借出" value="BORROWED" />
+              <el-option label="已逾期" value="OVERDUE" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="关键词">
+            <el-input v-model="filters.keyword" placeholder="平台/保管员/借用人" clearable style="width: 200px" @keyup.enter="applyFilters" />
+          </el-form-item>
+        </template>
         <el-form-item>
           <el-button type="primary" @click="applyFilters"><el-icon><Search /></el-icon>搜索</el-button>
           <el-button @click="resetFilters">重置</el-button>
@@ -238,10 +240,9 @@ const userStore = useUserStore()
 const caStore = useCaStore()
 
 // Role-based view determination
-const isManagerView = computed(() => {
-  const role = userStore.userRole
-  return isBidManager(role) || userStore.hasPermission('resource-ca')
-})
+// CO-393: 管理员视图仅由角色判定，不应因有 resource-ca 权限而进入管理员视图
+// （bid-projectLeader 现在持有 resource-ca 权限用于访问路由，但应进入简化视图）
+const isManagerView = computed(() => isBidManager(userStore.userRole))
 
 // Loading states
 const loading = ref(false)

@@ -22,29 +22,29 @@
     <!-- 操作工具栏 -->
     <div class="toolbar">
       <div class="toolbar-left">
-        <button class="toolbar-btn toolbar-btn--primary" @click="handleCreate">
+        <button v-if="!isProjectLeader" class="toolbar-btn toolbar-btn--primary" @click="handleCreate">
           <el-icon><Plus /></el-icon>
           <span>添加账户</span>
         </button>
         <button v-if="!isProjectLeader" class="toolbar-btn" @click="showImportDialog = true"><el-icon><Upload /></el-icon><span>批量导入</span></button>
-        <button class="toolbar-btn" :disabled="selectedRows.length === 0" @click="handleBatchBorrow">
+        <button v-if="!isProjectLeader" class="toolbar-btn" :disabled="selectedRows.length === 0" @click="handleBatchBorrow">
           <el-icon><Key /></el-icon>
           <span>批量借阅</span>
         </button>
-        <button class="toolbar-btn" :disabled="selectedRows.length === 0" @click="handleBatchReturn">
+        <button v-if="!isProjectLeader" class="toolbar-btn" :disabled="selectedRows.length === 0" @click="handleBatchReturn">
           <el-icon><CircleCheck /></el-icon>
           <span>批量归还</span>
         </button>
-        <button class="toolbar-btn" :disabled="selectedRows.length === 0" @click="handleBatchEdit">
+        <button v-if="!isProjectLeader" class="toolbar-btn" :disabled="selectedRows.length === 0" @click="handleBatchEdit">
           <el-icon><Edit /></el-icon>
           <span>批量编辑</span>
         </button>
-        <button class="toolbar-btn" :disabled="selectedRows.length === 0" @click="handleBatchDelete">
+        <button v-if="!isProjectLeader" class="toolbar-btn" :disabled="selectedRows.length === 0" @click="handleBatchDelete">
           <el-icon><Delete /></el-icon>
           <span>批量删除</span>
         </button>
       </div>
-      <div class="toolbar-right">
+      <div v-if="!isProjectLeader" class="toolbar-right">
         <button class="toolbar-btn" @click="handleExport">
           <el-icon><Download /></el-icon>
           <span>导出</span>

@@ -110,6 +110,8 @@ public final class RoleProfileCatalog {
                 List.of("dashboard", "bidding", "project",
                         "project.create", "project.view", "deposit.return.fill",
                         BIDDING_CREATE_PERMISSION,
+                        // CO-393: 项目负责人需访问账户管理/CA信息管理（只读简化视图），需追加 resource 父权限及两个子权限
+                        "resource", "resource-account", "resource-ca",
                         "dashboard:view_welcome_banner", "dashboard:view_metric_cards", "dashboard:view_calendar",
                         "dashboard:view_tender_list", "dashboard:view_project_list", "dashboard:view_active_projects",
                         "dashboard:view_activity_list", "dashboard:view_priority_todos")));
