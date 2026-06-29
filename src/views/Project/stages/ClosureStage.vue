@@ -268,6 +268,8 @@ const userStore = useUserStore()
 const userRole = computed(() => userStore.userRole)
 
 const preview = ref(null)
+// CO-392: 项目级投标负责人/辅助人员 ID，从 drafting 视图取（与 DraftingStage 同源，真相为 project_lead_assignment 表）
+const leads = ref({ primaryLeadUserId: null, secondaryLeadUserId: null })
 const submitting = ref(false)
 const approving = ref(false)
 const rejecting = ref(false)
@@ -314,7 +316,16 @@ const form = reactive({
   transferAmount: null, returnedAmount: null, projectSummary: '', notes: '', archiveLocation: '',
 })
 
-const isProjectLeader = computed(() => userRole.value === 'bid-projectLeader')
+// CO-392: 除角色 code 外，被项目级指定为投标负责人/辅助人员的用户也视为 isProjectLeader，
+// 以保证其在结项阶段看到与投标管理员/投标组长一致的内容（数据来源对齐 DraftingStage）
+const isProjectLeader = computed(() => {
+  if (userRole.value === 'bid-projectLeader') return true
+  const uid = userStore.currentUser?.id
+  if (uid == null) return false
+  const uidStr = String(uid)
+  return String(leads.value.primaryLeadUserId ?? '') === uidStr
+    || String(leads.value.secondaryLeadUserId ?? '') === uidStr
+})
 const isBidManager = computed(() => userRole.value === '/bidAdmin' || userRole.value === 'bid-TeamLeader' || userRole.value === 'bid-Team')
 
 const canEditDeposit = computed(() => {
@@ -400,6 +411,15 @@ async function loadPreview() {
     }
     if (p?.projectSummary) form.projectSummary = p.projectSummary
   } catch (e) { if (e?.response?.status !== 404) console.warn('loadPreview error:', e) }
+  // CO-392: 取项目级投标负责人/辅助人员（getDrafting 为 readOnly 查询，结项阶段可调用，无阶段守卫）
+  try {
+    const d = await projectLifecycleApi.getDrafting(props.projectId)
+    const dv = d?.data || d
+    leads.value = {
+      primaryLeadUserId: dv?.primaryLeadUserId ?? null,
+      secondaryLeadUserId: dv?.secondaryLeadUserId ?? null,
+    }
+  } catch (e) { leads.value = { primaryLeadUserId: null, secondaryLeadUserId: null } }
 }
 
 async function submitClosure() {
