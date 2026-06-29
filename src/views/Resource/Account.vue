@@ -136,6 +136,7 @@ import { Search, Plus, Platform, View, Hide, Download, Upload } from '@element-p
 import { resourcesApi } from '@/api'
 import { useUserStore } from '@/stores/user'
 import { usePasswordReveal } from './composables/usePasswordReveal.js'
+import { useAccountBatchActions } from './composables/useAccountBatchActions.js'
 import { resolveAccountActions } from './accountActions.js'
 import AccountFormDialog from './AccountFormDialog.vue'
 import AccountDetailDialog from './AccountDetailDialog.vue'
@@ -160,16 +161,25 @@ const userStore = useUserStore()
 const userRoleCode = computed(() => userStore.currentUser?.roleCode || userStore.currentUser?.role || '')
 const currentUserId = computed(() => userStore.currentUser?.id)
 const isProjectLeader = computed(() => userRoleCode.value === 'bid-projectLeader')
-const rowActions = (row) => resolveAccountActions({
+const accounts = ref([])
+
+const rowActionsFor = (row) => resolveAccountActions({
   isManager: userStore.isBidManager,
   isBidTeam: userRoleCode.value === 'bid-Team',
   isContactPerson: String(row.contactPerson || '') === String(currentUserId.value || ''),
   isApplicant: userRoleCode.value === 'bid-projectLeader' || userRoleCode.value === 'sales'
 })
+const rowActionsMap = computed(() => {
+  const map = new Map()
+  for (const row of accounts.value) {
+    map.set(row.id, rowActionsFor(row))
+  }
+  return map
+})
+const rowActions = (row) => rowActionsMap.value.get(row.id) || {}
 
 const password = usePasswordReveal((id) => resourcesApi.accounts.getPassword(id))
 
-const accounts = ref([])
 const showBorrowDialog = ref(false)
 const showReturnDialog = ref(false)
 const showDetailDialog = ref(false)
@@ -177,7 +187,8 @@ const showCreateDialog = ref(false)
 const currentAccount = ref(null)
 const currentReturnAccount = ref(null)
 const currentAccountDetail = ref(null)
-const editRow = ref(null); const showImportDialog = ref(false)
+const editRow = ref(null)
+const showImportDialog = ref(false)
 
 const loadAccounts = async () => {
   try {
@@ -224,13 +235,23 @@ const handleBorrow = (row) => { currentAccount.value = row; showBorrowDialog.val
 const handleEdit = (row) => { editRow.value = row.raw || row; showCreateDialog.value = true }
 const handleReturn = (row) => { currentReturnAccount.value = row; showReturnDialog.value = true }
 const handleTakeDown = async (row) => {
-  try { await ElMessageBox.confirm(`确定下架平台「${row.platform}」吗？`, '确认下架', { type: 'warning' }) } catch { return }
+  try {
+    await ElMessageBox.confirm(`确定下架平台「${row.platform}」吗？`, '确认下架', { type: 'warning' })
+  } catch {
+    return
+  }
   try {
     const res = await resourcesApi.accounts.delete(row.id)
-    if (!res?.success) { ElMessage.error(res?.msg || '下架失败'); return }
+    if (!res?.success) {
+      ElMessage.error(res?.msg || '下架失败')
+      return
+    }
     ElMessage.success('下架成功')
     loadAccounts()
-  } catch (e) { console.error('Failed to take down account:', e); ElMessage.error('下架失败') }
+  } catch (e) {
+    console.error('Failed to take down account:', e)
+    ElMessage.error('下架失败')
+  }
 }
 
 const onAccountReturned = () => {
@@ -239,53 +260,12 @@ const onAccountReturned = () => {
   loadAccounts()
 }
 
-// 批量操作
-const handleBatchBorrow = () => {
-  if (selectedRows.value.length === 0) {
-    ElMessage.warning('请先选择要借阅的账户')
-    return
-  }
-  // TODO: 实现批量借阅
-  ElMessage.info(`批量借阅 ${selectedRows.value.length} 个账户`)
-}
-
-const handleBatchReturn = () => {
-  if (selectedRows.value.length === 0) {
-    ElMessage.warning('请先选择要归还的账户')
-    return
-  }
-  // TODO: 实现批量归还
-  ElMessage.info(`批量归还 ${selectedRows.value.length} 个账户`)
-}
-
-const handleBatchEdit = () => {
-  if (selectedRows.value.length === 0) {
-    ElMessage.warning('请先选择要编辑的账户')
-    return
-  }
-  // TODO: 实现批量编辑
-  ElMessage.info(`批量编辑 ${selectedRows.value.length} 个账户`)
-}
-
-const handleBatchDelete = async () => {
-  if (selectedRows.value.length === 0) {
-    ElMessage.warning('请先选择要删除的账户')
-    return
-  }
-  try {
-    await ElMessageBox.confirm(`确定要删除选中的 ${selectedRows.value.length} 个账户吗？`, '确认删除', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-    // TODO: 实现批量删除
-    ElMessage.success(`已删除 ${selectedRows.value.length} 个账户`)
-    selectedRows.value = []
-    loadAccounts()
-  } catch {
-    // 用户取消
-  }
-}
+const {
+  handleBatchBorrow,
+  handleBatchReturn,
+  handleBatchEdit,
+  handleBatchDelete
+} = useAccountBatchActions({ selectedRows, loadAccounts })
 
 const handleExport = () => {
   ElMessage.info('导出功能开发中')
