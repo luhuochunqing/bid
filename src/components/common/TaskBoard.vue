@@ -71,7 +71,7 @@
               </div>
               <div class="task-deadline" :class="{ 'deadline-urgent': isUrgent(task.deadline) }">
                 <el-icon><Calendar /></el-icon>
-                <span>{{ task.deadline }}</span>
+                <span>{{ task.deadline ? task.deadline.slice(0, 10) : '-' }}</span>
               </div>
             </div>
             <div v-if="task.deliverables && task.deliverables.length > 0" class="deliverables">

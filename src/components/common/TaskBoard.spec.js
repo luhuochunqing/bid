@@ -255,6 +255,21 @@ describe('TaskBoard (dynamic columns)', () => {
     const todoBadge = todoColumn.find('.el-badge-stub')
     expect(todoBadge.text()).toContain('1')
   })
+
+  // CO-398: 截止时间显示为 YYYY-MM-DD（截断 ISO 时间），与 TaskKanban.vue line 40 格式一致
+  it('deadline is rendered as YYYY-MM-DD (sliced from ISO), with "-" fallback', async () => {
+    const wrapper = mountBoard({
+      tasks: [
+        { id: 1, name: 'T1', status: 'TODO', deadline: '2026-06-30T00:00:00' },
+        { id: 2, name: 'T2', status: 'TODO', deadline: null },
+      ]
+    })
+    await flushPromises()
+    const deadlineSpans = wrapper.findAll('.task-deadline span')
+    expect(deadlineSpans).toHaveLength(2)
+    expect(deadlineSpans[0].text()).toBe('2026-06-30')
+    expect(deadlineSpans[1].text()).toBe('-')
+  })
 })
 
 describe('TaskBoard (drag to change status)', () => {
