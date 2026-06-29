@@ -26,7 +26,7 @@
             <el-tag v-else-if="data.status === 'in_use'" type="warning">使用中</el-tag>
             <el-tag v-else type="info">禁用</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="绑定联系人">{{ data.contactPerson || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="绑定联系人">{{ data.contactPersonLabel || '-' }}</el-descriptions-item>
           <el-descriptions-item label="绑定手机">{{ data.contactPhone || '-' }}</el-descriptions-item>
           <el-descriptions-item label="绑定邮箱">{{ data.contactEmail || '-' }}</el-descriptions-item>
           <el-descriptions-item label="是否有 CA">{{ data.hasCa ? '是' : '否' }}</el-descriptions-item>

@@ -23,8 +23,10 @@ public class PlatformAccountDTO {
     private String username;
     /** Platform account name. */
     private String accountName;
-    /** Contact person name. */
-    private String contactPerson;
+    /** Contact person userId (FK to users.id). */
+    private Long contactPerson;
+    /** Contact person display label: "姓名（工号）", derived from userId. */
+    private String contactPersonLabel;
     /** Contact phone number. */
     private String contactPhone;
     /** Contact email address. */
@@ -35,17 +37,6 @@ public class PlatformAccountDTO {
     private String url;
     /** Whether CA certificate is associated. */
     private Boolean hasCa;
-    /** CA custodian user ID. */
-
-    /** Account custodian user ID. */
-    @JsonIgnore
-    private Long custodian;
-
-    /** Account custodian name (read-only). */
-    @JsonIgnore
-    private String custodianName;
-    @JsonIgnore
-    private Long caCustodian;
     /** Remarks. */
     private String remarks;
     /** Account status. */

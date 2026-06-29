@@ -53,7 +53,7 @@ class PlatformAccountBorrowServiceTest {
     @Test
     @DisplayName("提交借用申请成功 — 账号标记审批中并记录 projectId")
     void submitApplication_success() {
-        PlatformAccount account = PlatformAccount.builder().id(1L).status(AccountStatus.AVAILABLE).custodian(20L).build();
+        PlatformAccount account = PlatformAccount.builder().id(1L).status(AccountStatus.AVAILABLE).contactPerson(20L).build();
         BorrowApplicationRequest req = BorrowApplicationRequest.builder()
                 .accountId(1L).custodianId(20L).purpose("投标使用").projectId(5L).expectedReturnAt("2026-07-10T18:00:00").build();
         AccountBorrowApplication savedApp = AccountBorrowApplication.builder()
@@ -251,7 +251,7 @@ class PlatformAccountBorrowServiceTest {
     @Test
     @DisplayName("提交申请时保管员与账号不匹配抛出异常")
     void submitApplication_custodianMismatch_throws() {
-        PlatformAccount account = PlatformAccount.builder().id(1L).status(AccountStatus.AVAILABLE).custodian(99L).build();
+        PlatformAccount account = PlatformAccount.builder().id(1L).status(AccountStatus.AVAILABLE).contactPerson(99L).build();
         BorrowApplicationRequest req = BorrowApplicationRequest.builder()
                 .accountId(1L).custodianId(20L).purpose("投标使用").build();
 
@@ -265,7 +265,7 @@ class PlatformAccountBorrowServiceTest {
     @Test
     @DisplayName("提交申请时预计归还时间格式非法抛出异常")
     void submitApplication_invalidExpectedReturnAt_throws() {
-        PlatformAccount account = PlatformAccount.builder().id(1L).status(AccountStatus.AVAILABLE).custodian(20L).build();
+        PlatformAccount account = PlatformAccount.builder().id(1L).status(AccountStatus.AVAILABLE).contactPerson(20L).build();
         BorrowApplicationRequest req = BorrowApplicationRequest.builder()
                 .accountId(1L).custodianId(20L).purpose("投标使用")
                 .expectedReturnAt("2026/07/10 18:00").build();

@@ -14,6 +14,7 @@ import com.xiyu.bid.platform.entity.PlatformAccount.AccountStatus;
 import com.xiyu.bid.platform.entity.PlatformAccount.PlatformType;
 import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.security.EffectiveRoleResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -43,6 +44,9 @@ class PlatformAccountServiceTest {
     @Mock
     private EffectiveRoleResolver effectiveRoleResolver;
 
+    @Mock
+    private UserRepository userRepository;
+
     private PlatformAccountService service;
 
     private static final String ENCRYPTED_PWD = "encrypted:secret123";
@@ -54,7 +58,11 @@ class PlatformAccountServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new PlatformAccountService(repository, passwordEncryptionUtil, effectiveRoleResolver);
+        // CO-390: service 不再直接依赖 UserRepository，改委托给 PlatformAccountContactLabelEnricher。
+        // 测试中用真实 enricher + mock UserRepository，覆盖 service → enricher 协作链路。
+        service = new PlatformAccountService(
+                repository, passwordEncryptionUtil, effectiveRoleResolver,
+                new PlatformAccountContactLabelEnricher(userRepository));
         // CO-373：默认模拟 LOCAL_USER 解析路径——回退到实体 roleCode
         lenient().when(effectiveRoleResolver.resolveRoleCode(any(User.class)))
                 .thenAnswer(inv -> inv.<User>getArgument(0).getRoleCode());
@@ -64,6 +72,8 @@ class PlatformAccountServiceTest {
         lenient().when(effectiveRoleResolver.resolveRoleCode(BID_LEADER_USER)).thenReturn("bid-TeamLeader");
         lenient().when(effectiveRoleResolver.resolveRoleCode(BID_TEAM_USER)).thenReturn("bid-Team");
         lenient().when(effectiveRoleResolver.resolveRoleCode(STAFF_USER)).thenReturn("manager");
+        // CO-390：默认模拟 UserRepository.findAllById 返回空（contactPerson 无 userId 时不会调用）
+        lenient().when(userRepository.findAllById(any())).thenReturn(List.of());
     }
 
     // ── 创建 ──
@@ -84,6 +94,35 @@ class PlatformAccountServiceTest {
         assertThat(result.getAccountName()).isEqualTo("测试平台");
         assertThat(result.getPlatformType()).isEqualTo(PlatformType.GOV_PROCUREMENT);
         verify(passwordEncryptionUtil).encrypt("secret123");
+    }
+
+    @Test
+    @DisplayName("创建平台账号成功 — contactPerson 接收 Long userId（CO-390 升级）")
+    void createAccount_withContactPersonUserId_shouldSucceed() throws Exception {
+        PlatformAccountCreateRequest req = validRequest();
+        req.setContactPerson(99L);
+        when(passwordEncryptionUtil.encrypt("secret123")).thenReturn(ENCRYPTED_PWD);
+        when(repository.findByUsername("testuser")).thenReturn(Optional.empty());
+        when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        PlatformAccountDTO result = service.createAccount(req, ADMIN_USER);
+
+        assertThat(result.getContactPerson()).isEqualTo(99L);
+        // CO-390: custodian / caCustodian / custodianName 字段已物理删除，DTO 不应再声明这些字段
+        assertThat(PlatformAccountDTO.class.getDeclaredField("contactPerson").getType())
+                .isEqualTo(Long.class);
+        assertThat(fieldExists(PlatformAccountDTO.class, "custodian")).isFalse();
+        assertThat(fieldExists(PlatformAccountDTO.class, "caCustodian")).isFalse();
+        assertThat(fieldExists(PlatformAccountDTO.class, "custodianName")).isFalse();
+    }
+
+    private static boolean fieldExists(Class<?> type, String name) {
+        try {
+            type.getDeclaredField(name);
+            return true;
+        } catch (NoSuchFieldException e) {
+            return false;
+        }
     }
 
     @Test
@@ -169,6 +208,55 @@ class PlatformAccountServiceTest {
         PlatformAccountDTO result = service.updateAccount(1L, req, ADMIN_USER);
         assertThat(result.getId()).isEqualTo(1L);
         verify(repository).save(any());
+    }
+
+    @Test
+    @DisplayName("更新账号成功 — contactPerson userId 可更新（CO-390）")
+    void updateAccount_withContactPersonUserId_shouldUpdate() {
+        PlatformAccount existing = accountWithId(1L);
+        PlatformAccountCreateRequest req = validRequest();
+        req.setContactPerson(88L);
+        req.setPassword(null);
+
+        when(repository.findById(1L)).thenReturn(Optional.of(existing));
+        when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        PlatformAccountDTO result = service.updateAccount(1L, req, ADMIN_USER);
+        assertThat(result.getContactPerson()).isEqualTo(88L);
+    }
+
+    @Test
+    @DisplayName("CO-390: getAllAccounts 批量填充 contactPersonLabel 为 姓名(工号) 格式")
+    void getAllAccounts_shouldEnrichContactPersonLabel() {
+        PlatformAccount a1 = accountWithId(1L);
+        a1.setContactPerson(99L);
+        PlatformAccount a2 = accountWithId(2L);
+        a2.setContactPerson(100L);
+        when(repository.findAll()).thenReturn(List.of(a1, a2));
+        User u99 = User.builder().id(99L).fullName("张三").employeeNumber("0088").build();
+        User u100 = User.builder().id(100L).fullName("李四").employeeNumber("0099").build();
+        when(userRepository.findAllById(any())).thenReturn(List.of(u99, u100));
+
+        List<PlatformAccountDTO> result = service.getAllAccounts();
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getContactPersonLabel()).isEqualTo("张三（0088）");
+        assertThat(result.get(1).getContactPersonLabel()).isEqualTo("李四（0099）");
+    }
+
+    @Test
+    @DisplayName("CO-390: contactPerson 为 null 时 contactPersonLabel 也为 null")
+    void getAllAccounts_withNullContactPerson_shouldKeepLabelNull() {
+        PlatformAccount a1 = accountWithId(1L); // contactPerson = null
+        when(repository.findAll()).thenReturn(List.of(a1));
+
+        List<PlatformAccountDTO> result = service.getAllAccounts();
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getContactPerson()).isNull();
+        assertThat(result.get(0).getContactPersonLabel()).isNull();
+        // 不应调用 userRepository
+        verify(userRepository, never()).findAllById(any());
     }
 
     // ── 删除 ──

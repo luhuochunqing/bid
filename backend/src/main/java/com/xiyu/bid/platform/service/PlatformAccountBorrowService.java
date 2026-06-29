@@ -47,7 +47,7 @@ public class PlatformAccountBorrowService {
                 .orElseThrow(() -> new BusinessException("账号不存在: " + request.getAccountId()));
 
         if (request.getCustodianId() == null
-                || !request.getCustodianId().equals(account.getCustodian())) {
+                || !request.getCustodianId().equals(account.getContactPerson())) {
             throw new BusinessException("保管员信息不匹配");
         }
 

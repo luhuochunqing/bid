@@ -15,8 +15,8 @@ public class PlatformAccountImportPolicy {
 
     public static final String[] HEADERS = {
             "平台名称*", "平台网址*", "登录账号*", "登录密码*",
-            "平台类型", "联系人", "联系电话", "联系邮箱",
-            "是否有CA", "CA保管员ID", "账号保管员ID", "备注"
+            "平台类型", "联系人userId", "联系电话", "联系邮箱",
+            "是否有CA", "备注"
     };
 
     public static final int COL_ACCOUNT_NAME = 0;
@@ -28,9 +28,7 @@ public class PlatformAccountImportPolicy {
     public static final int COL_CONTACT_PHONE = 6;
     public static final int COL_CONTACT_EMAIL = 7;
     public static final int COL_HAS_CA = 8;
-    public static final int COL_CA_CUSTODIAN = 9;
-    public static final int COL_CUSTODIAN = 10;
-    public static final int COL_REMARKS = 11;
+    public static final int COL_REMARKS = 9;
 
     private PlatformAccountImportPolicy() {}
 
@@ -67,12 +65,10 @@ public class PlatformAccountImportPolicy {
         String username = cellAt(cells, COL_USERNAME).trim();
         String password = cellAt(cells, COL_PASSWORD).trim();
         String platformTypeStr = cellAt(cells, COL_PLATFORM_TYPE).trim();
-        String contactPerson = cellAt(cells, COL_CONTACT_PERSON).trim();
+        String contactPersonStr = cellAt(cells, COL_CONTACT_PERSON).trim();
         String contactPhone = cellAt(cells, COL_CONTACT_PHONE).trim();
         String contactEmail = cellAt(cells, COL_CONTACT_EMAIL).trim();
         String hasCaStr = cellAt(cells, COL_HAS_CA).trim();
-        String caCustodianStr = cellAt(cells, COL_CA_CUSTODIAN).trim();
-        String custodianStr = cellAt(cells, COL_CUSTODIAN).trim();
         String remarks = cellAt(cells, COL_REMARKS).trim();
 
         // Required field validation
@@ -90,19 +86,15 @@ public class PlatformAccountImportPolicy {
         // hasCa parsing
         Boolean hasCa = parseBoolean(hasCaStr);
 
-        // Custodian ID parsing
-        Long caCustodian = parseLongOrNull(caCustodianStr);
-        if (!caCustodianStr.isEmpty() && caCustodian == null) {
-            errors.add("CA保管员ID格式错误，需为数字");
-        }
-        Long custodian = parseLongOrNull(custodianStr);
-        if (!custodianStr.isEmpty() && custodian == null) {
-            errors.add("账号保管员ID格式错误，需为数字");
+        // Contact person userId parsing
+        Long contactPerson = parseLongOrNull(contactPersonStr);
+        if (!contactPersonStr.isEmpty() && contactPerson == null) {
+            errors.add("联系人userId格式错误，需为数字");
         }
 
         return new ParsedAccountRow(rowIndex, accountName, url, username, password,
                 platformType, contactPerson, contactPhone, contactEmail,
-                hasCa, caCustodian, custodian, remarks, errors);
+                hasCa, remarks, errors);
     }
 
     private static PlatformType parsePlatformType(String value, List<String> errors) {
@@ -141,9 +133,8 @@ public class PlatformAccountImportPolicy {
     public record ParsedAccountRow(
             int rowIndex,
             String accountName, String url, String username, String password,
-            PlatformType platformType, String contactPerson, String contactPhone,
-            String contactEmail, Boolean hasCa, Long caCustodian,
-            Long custodian, String remarks,
+            PlatformType platformType, Long contactPerson, String contactPhone,
+            String contactEmail, Boolean hasCa, String remarks,
             List<String> errors
     ) {
         public boolean valid() { return errors == null || errors.isEmpty(); }

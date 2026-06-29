@@ -35,7 +35,6 @@ public class PlatformAccount {
     /** Field length constants. */
     private static final int LEN_USERNAME = 100;
     private static final int LEN_ACCT_NAME = 200;
-    private static final int LEN_CONTACT = 200;
     private static final int LEN_PHONE = 20;
     private static final int LEN_EMAIL = 200;
     private static final int LEN_URL = 500;
@@ -60,9 +59,9 @@ public class PlatformAccount {
     @Column(name = "account_name", nullable = false, length = LEN_ACCT_NAME, unique = true)
     private String accountName;
 
-    /** Contact person name. */
-    @Column(name = "contact_person", length = LEN_CONTACT)
-    private String contactPerson;
+    /** Contact person userId (FK to users.id). */
+    @Column(name = "contact_person")
+    private Long contactPerson;
 
     /** Contact phone number. */
     @Column(name = "contact_phone", length = LEN_PHONE)
@@ -85,14 +84,6 @@ public class PlatformAccount {
     @Column(name = "has_ca", nullable = false)
     @Builder.Default
     private Boolean hasCa = false;
-
-    /** CA custodian user ID. */
-    @Column(name = "ca_custodian")
-    private Long caCustodian;
-
-    /** Account custodian user ID. */
-    @Column(name = "custodian")
-    private Long custodian;
 
     /** Optional remarks. */
     @Column(length = LEN_REMARKS)
@@ -148,9 +139,9 @@ public class PlatformAccount {
 
     /** Update profile fields from a request DTO. */
     public void updateProfile(String pUsername, String pPassword, String pAccountName,
-            PlatformType pPlatformType, String pUrl, String pContactPerson,
+            PlatformType pPlatformType, String pUrl, Long pContactPerson,
             String pContactPhone, String pContactEmail,
-            Boolean pHasCa, Long pCaCustodian, Long pCustodian, String pRemarks) {
+            Boolean pHasCa, String pRemarks) {
         if (pUsername != null && !pUsername.trim().isEmpty()) {
             this.username = pUsername;
         }
@@ -177,12 +168,6 @@ public class PlatformAccount {
         }
         if (pHasCa != null) {
             this.hasCa = pHasCa;
-        }
-        if (pCaCustodian != null) {
-            this.caCustodian = pCaCustodian;
-        }
-        if (pCustodian != null) {
-            this.custodian = pCustodian;
         }
         if (pRemarks != null) {
             this.remarks = pRemarks;
