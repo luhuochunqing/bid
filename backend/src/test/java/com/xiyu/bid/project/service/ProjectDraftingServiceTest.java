@@ -530,6 +530,24 @@ class ProjectDraftingServiceTest {
                 .submitForReview(any(Long.class), any(Long.class), any(Long.class));
     }
 
+    @Test
+    void submitForReview_projectNotFound_returns404_not409() {
+        // CO-400 Review 修复：projectId 不存在时应返回 404（ResourceNotFoundException），
+        // 不能误报"尚未上传标书文件"导致 409（校验顺序：mustGetProject 必须在闸门校验之前）
+        when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "admin")));
+        when(projectRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.submitForReview(999L, 99L, 1L))
+                .isInstanceOf(com.xiyu.bid.exception.ResourceNotFoundException.class);
+
+        // 闸门校验不应被触发（projectId 不存在时不应进入 hasBidDocument 查询）
+        verify(projectDocumentRepository, never())
+                .findByProjectIdAndFiltersOrderByCreatedAtDesc(
+                        any(Long.class), any(), any(), any());
+        verify(bidReviewAppService, never())
+                .submitForReview(any(Long.class), any(Long.class), any(Long.class));
+    }
+
     // ── CO-373：OSS 缓存角色优先于 DB roleProfile ─────────────────────────
 
     @Test

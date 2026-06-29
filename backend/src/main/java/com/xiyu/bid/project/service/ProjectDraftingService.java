@@ -114,12 +114,15 @@ public class ProjectDraftingService {
         // 服务层角色 + 项目级负责人校验（与 submitBid 对齐；优先从 OSS 缓存读取角色，避免 DB role_id 为空导致误拒绝）
         ProjectLeadAssignment lead = assertCanSubmit(projectId, currentUserId);
 
+        // 校验顺序与 submitBid 对齐：项目访问 → 项目存在 → 闸门校验
+        // 避免 projectId 不存在时误报"尚未上传标书文件"（应为 404 而非 409）
+        projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
+        mustGetProject(projectId);
+
         // 闸门校验：仅校验标书文件已上传（CO-400 修复：提交审核时不要求任务全完成，
         // 任务完成与否是审核人的判断，不是闸门。详见 docs/lessons/lessons-learned.md §25）
         assertBidDocumentUploaded(projectId, "无法提交标书审核");
 
-        projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
-        mustGetProject(projectId);
         bidReviewAppService.submitForReview(projectId, reviewerId, currentUserId);
         return toView(projectId, lead);
     }
@@ -193,14 +196,20 @@ public class ProjectDraftingService {
 
     // ── 辅助方法 ──────────────────────────────────────────────────────────
 
-    private AllTasksCompletedPolicy.Decision gateDecision(Long projectId) {
-        List<Task> tasks = taskRepository.findByProjectId(projectId);
-        List<AllTasksCompletedPolicy.TaskState> states = tasks.stream()
+    /**
+     * 加载项目下所有任务的状态快照（供闸门决策与视图渲染复用）。
+     * CO-400 Review 修复：消除 gateDecision 与 assertBidSubmissionReady 之间的逻辑重复。
+     */
+    private List<AllTasksCompletedPolicy.TaskState> loadTaskStates(Long projectId) {
+        return taskRepository.findByProjectId(projectId).stream()
                 .map(t -> t.getStatus() == null
                         ? AllTasksCompletedPolicy.TaskState.TODO
                         : AllTasksCompletedPolicy.TaskState.valueOf(t.getStatus().name()))
                 .toList();
-        return AllTasksCompletedPolicy.decide(states);
+    }
+
+    private AllTasksCompletedPolicy.Decision gateDecision(Long projectId) {
+        return AllTasksCompletedPolicy.decide(loadTaskStates(projectId));
     }
 
     /**
@@ -225,13 +234,8 @@ public class ProjectDraftingService {
      * 失败时映射 {@link BidReadinessPolicy.Decision.Cause#STATE} → 409。
      */
     private void assertBidSubmissionReady(Long projectId, String action) {
-        List<AllTasksCompletedPolicy.TaskState> taskStates = taskRepository.findByProjectId(projectId).stream()
-                .map(t -> t.getStatus() == null
-                        ? AllTasksCompletedPolicy.TaskState.TODO
-                        : AllTasksCompletedPolicy.TaskState.valueOf(t.getStatus().name()))
-                .toList();
-        boolean hasBidDocument = hasBidDocument(projectId);
-        BidReadinessPolicy.Decision d = BidReadinessPolicy.checkBidSubmissionReady(taskStates, hasBidDocument);
+        BidReadinessPolicy.Decision d = BidReadinessPolicy.checkBidSubmissionReady(
+                loadTaskStates(projectId), hasBidDocument(projectId));
         if (!d.allowed()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, d.reason() + "，" + action);
         }
