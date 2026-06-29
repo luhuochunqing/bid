@@ -6,6 +6,7 @@ import com.xiyu.bid.ai.client.AiProviderRuntimeConfig;
 import com.xiyu.bid.ai.client.RoutingAiProvider;
 import com.xiyu.bid.docinsight.application.DocumentTextExtractor;
 import com.xiyu.bid.docinsight.application.ExtractedDocument;
+import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.qualification.dto.QualificationDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -45,28 +46,23 @@ public class QualificationAiParserService {
     }
 
     public QualificationDTO extractFromPdf(MultipartFile file) {
+        ExtractedDocument doc;
         try {
-            ExtractedDocument doc = documentTextExtractor.extract(file.getOriginalFilename(), file.getContentType(), file.getBytes());
-            if (doc != null && doc.text() != null && !doc.text().isBlank()) {
-                return callAiToParse(doc.text());
-            }
+            doc = documentTextExtractor.extract(file.getOriginalFilename(), file.getContentType(), file.getBytes());
         } catch (Exception e) {
             log.error("Failed to extract markdown from uploaded qualification", e);
+            throw new BusinessException("无法读取资质证书文件内容，请确认文件未损坏且非空");
         }
-        return getMockFallback();
+        if (doc == null || doc.text() == null || doc.text().isBlank()) {
+            throw new BusinessException("资质证书文件内容为空，请确认上传文件正确");
+        }
+        return callAiToParse(doc.text());
     }
 
     private QualificationDTO callAiToParse(String markdown) {
-        AiProviderRuntimeConfig config = null;
-        try {
-            config = routingAiProvider.resolveActiveConfig();
-        } catch (Exception ignored) {
-            log.debug("{}: caught {} ({})", "QualificationAiParserService", ignored.getClass().getSimpleName(), ignored.getMessage());
-        }
-
-        if (config == null) {
-            return getMockFallback();
-        }
+        // AI 未启用或未配置时，RoutingAiProvider.resolveActiveConfig() 会抛 IllegalStateException，
+        // 由 GlobalExceptionHandler 转成 409 响应提示用户去系统设置启用 AI；这里不再吞异常返回 Mock。
+        AiProviderRuntimeConfig config = routingAiProvider.resolveActiveConfig();
 
         try {
             String prompt = "你是一个专业的投标资质证书提取助手。请从以下资质证书的文本内容中提取证书的关键元数据。\n" +
@@ -97,36 +93,29 @@ public class QualificationAiParserService {
                     String.class
             );
 
-            if (response.getBody() != null) {
-                String jsonStr = extractJson(response.getBody());
-                JsonNode root = objectMapper.readTree(jsonStr);
-                QualificationDTO dto = new QualificationDTO();
-                dto.setName(root.path("name").asText(""));
-                dto.setCertificateNo(root.path("certificateNo").asText(""));
-                dto.setIssuer(root.path("issuer").asText(""));
-                dto.setHolderName(root.path("holderName").asText(""));
-                String expiryStr = root.path("expiryDate").asText("");
-                if (!expiryStr.isBlank()) {
-                    try {
-                        dto.setExpiryDate(LocalDate.parse(expiryStr));
-                    } catch (DateTimeParseException ignored) { log.debug("Invalid date parse", ignored); }
-                }
-                return dto;
+            if (response.getBody() == null) {
+                throw new BusinessException("AI 返回结果为空，请稍后重试或人工填写字段");
             }
+            String jsonStr = extractJson(response.getBody());
+            JsonNode root = objectMapper.readTree(jsonStr);
+            QualificationDTO dto = new QualificationDTO();
+            dto.setName(root.path("name").asText(""));
+            dto.setCertificateNo(root.path("certificateNo").asText(""));
+            dto.setIssuer(root.path("issuer").asText(""));
+            dto.setHolderName(root.path("holderName").asText(""));
+            String expiryStr = root.path("expiryDate").asText("");
+            if (!expiryStr.isBlank()) {
+                try {
+                    dto.setExpiryDate(LocalDate.parse(expiryStr));
+                } catch (DateTimeParseException ignored) { log.debug("Invalid date parse", ignored); }
+            }
+            return dto;
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
-            log.error("AI Qualification Extraction failed, falling back to mock", e);
+            log.error("AI Qualification Extraction failed", e);
+            throw new BusinessException("AI 解析资质证书失败，请稍后重试或人工填写字段");
         }
-        return getMockFallback();
-    }
-
-    private QualificationDTO getMockFallback() {
-        QualificationDTO mock = new QualificationDTO();
-        mock.setName("软件著作权证书(AI Fallback)");
-        mock.setCertificateNo("2026SR052012");
-        mock.setIssuer("国家版权局");
-        mock.setHolderName("西域数智科创有限公司");
-        mock.setExpiryDate(LocalDate.of(2029, 5, 20));
-        return mock;
     }
 
     private String extractJson(String response) {
