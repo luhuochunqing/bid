@@ -235,15 +235,16 @@ describe('ClosureStage — CO-392 项目级负责人识别', () => {
     mockUserStore.currentUser = { id: 42 }
   })
 
-  it('T1: 投标专员角色但被指定为项目投标负责人(primaryLeadUserId 匹配) → 可编辑/可提交', async () => {
+  it('T1: 投标专员角色但被指定为项目投标负责人(primaryLeadUserId 匹配) → 可提交但保证金/总结只读(CO-403)', async () => {
     mockUserStore.userRole = 'bid-Team'
     projectLifecycleApi.getClosurePreview.mockResolvedValue({ data: basePreview })
     projectLifecycleApi.getDrafting.mockResolvedValue({ data: { projectId: 1, primaryLeadUserId: 42 } })
     const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
     await flushPromises()
     expect(wrapper.vm.isProjectLeader).toBe(true)
-    expect(wrapper.vm.canEditDeposit).toBe(true)
-    expect(wrapper.vm.canEditSummary).toBe(true)
+    // CO-403: 投标辅助即使作为项目级负责人，保证金退回与项目总结仍只读
+    expect(wrapper.vm.canEditDeposit).toBe(false)
+    expect(wrapper.vm.canEditSummary).toBe(false)
     expect(wrapper.vm.canSubmitClosure).toBe(true)
   })
 
@@ -287,5 +288,91 @@ describe('ClosureStage — CO-392 项目级负责人识别', () => {
     const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
     await flushPromises()
     expect(wrapper.vm.isProjectLeader).toBe(true)
+  })
+})
+
+// CO-403: 保证金退回情况/退回日期/凭证文件/项目总结 四字段仅投标管理员/组长可编辑，
+// 投标负责人/投标辅助只读（即使被项目级分配为负责人/辅助人员）。
+// 根因：canEditDeposit/canEditSummary 原用 isProjectLeader || isBidManager 判定，
+// 而 isBidManager 误含 bid-Team（历史遗留）、isProjectLeader 对 bid-projectLeader 直接 true
+// 且 CO-392 扩展 leads 匹配后投标辅助也 true → 四字段对投标负责人/辅助可编辑。
+// 修复：新增 isClosureEditor（仅 /bidAdmin、bid-TeamLeader），canEditDeposit/canEditSummary
+// 改用 isClosureEditor 判定，与后端 submit 端点 @PreAuthorize(ADMIN,BID_PROJECTLEADER) 的
+// 不对称点经用户确认选 A（不修提交按钮，后端会挡 bid-Team）。
+describe('ClosureStage — CO-403 保证金/总结编辑权仅限管理员/组长', () => {
+  const basePreview = { projectId: 1, hasDeposit: true, canClose: true, reviewStatus: 'DRAFT', blockingReasons: [] }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockUserStore.currentUser = { id: 42 }
+    projectLifecycleApi.getDrafting.mockResolvedValue({ data: { projectId: 1 } })
+  })
+
+  it('C1: 投标管理员 /bidAdmin → 可编辑保证金/总结', async () => {
+    mockUserStore.userRole = '/bidAdmin'
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({ data: basePreview })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    expect(wrapper.vm.isClosureEditor).toBe(true)
+    expect(wrapper.vm.canEditDeposit).toBe(true)
+    expect(wrapper.vm.canEditSummary).toBe(true)
+  })
+
+  it('C2: 投标组长 bid-TeamLeader → 可编辑保证金/总结', async () => {
+    mockUserStore.userRole = 'bid-TeamLeader'
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({ data: basePreview })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    expect(wrapper.vm.isClosureEditor).toBe(true)
+    expect(wrapper.vm.canEditDeposit).toBe(true)
+    expect(wrapper.vm.canEditSummary).toBe(true)
+  })
+
+  it('C3: 投标负责人 bid-projectLeader → 保证金/总结只读', async () => {
+    mockUserStore.userRole = 'bid-projectLeader'
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({ data: basePreview })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    expect(wrapper.vm.isProjectLeader).toBe(true)
+    expect(wrapper.vm.isClosureEditor).toBe(false)
+    expect(wrapper.vm.canEditDeposit).toBe(false)
+    expect(wrapper.vm.canEditSummary).toBe(false)
+  })
+
+  it('C4: 投标辅助 bid-Team（非项目级负责人）→ 保证金/总结只读', async () => {
+    mockUserStore.userRole = 'bid-Team'
+    mockUserStore.currentUser = { id: 42 }
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({ data: basePreview })
+    projectLifecycleApi.getDrafting.mockResolvedValue({ data: { projectId: 1, primaryLeadUserId: 999 } })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    expect(wrapper.vm.isClosureEditor).toBe(false)
+    expect(wrapper.vm.canEditDeposit).toBe(false)
+    expect(wrapper.vm.canEditSummary).toBe(false)
+  })
+
+  it('C5: 投标辅助 bid-Team（被项目级指定为 secondaryLead）→ 保证金/总结仍只读', async () => {
+    mockUserStore.userRole = 'bid-Team'
+    mockUserStore.currentUser = { id: 42 }
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({ data: basePreview })
+    projectLifecycleApi.getDrafting.mockResolvedValue({ data: { projectId: 1, secondaryLeadUserId: 42 } })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    // CO-392: 作为项目级辅助人员 isProjectLeader=true（可提交结项）
+    expect(wrapper.vm.isProjectLeader).toBe(true)
+    // CO-403: 但保证金退回/项目总结字段仍只读
+    expect(wrapper.vm.isClosureEditor).toBe(false)
+    expect(wrapper.vm.canEditDeposit).toBe(false)
+    expect(wrapper.vm.canEditSummary).toBe(false)
+  })
+
+  it('C6: 管理员/组长在已结项(APPROVED)后 → 保证金/总结只读', async () => {
+    mockUserStore.userRole = 'bid-TeamLeader'
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({ data: { ...basePreview, reviewStatus: 'APPROVED' } })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    expect(wrapper.vm.isClosureEditor).toBe(true)
+    expect(wrapper.vm.canEditDeposit).toBe(false)
+    expect(wrapper.vm.canEditSummary).toBe(false)
   })
 })

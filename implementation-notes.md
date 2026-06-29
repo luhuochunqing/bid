@@ -1543,3 +1543,48 @@ preview 端点 `@PreAuthorize` 与同 Controller 其他结项端点（submit/app
 - 未改 `ProjectAccessScopeService` secondaryLead 门禁（决策 1 选 A）
 - 未改前端 `ClosureStage.vue`（首次修复已足够，根因在后端）
 - 未顺手重构、改格式、改命名
+
+---
+
+## CO-403 结项四字段编辑权收窄 (2026-06-29)
+
+### 问题口径
+- CO-392 复发修复（PR #1329）后，投标负责人/辅助已能正常查看结项页面，但出现新问题：
+  "保证金退回情况/退回日期/凭证文件/项目总结"四字段应只读，投标负责人和投标辅助人员可编辑。
+- 项目 http://172.16.38.78:8080/project/112
+
+### 根因（代码证据，非猜测）
+`ClosureStage.vue` 的 `canEditDeposit`/`canEditSummary`（控制四字段可编辑性）原用 `isProjectLeader || isBidManager` 判定，两个条件都错误放行：
+1. **`isBidManager` 误含 `bid-Team`**（line 329，`5df8d16c2` 历史遗留，非 CO-392 引入）——投标辅助被算作"投标管理员"。
+2. **`isProjectLeader`** 对 `bid-projectLeader` 直接 true；CO-392 扩展 leads 匹配后，投标辅助作为 secondaryLead 也 true。
+
+CO-392 修复前 bid-Team 在 preview 端点被 403 看不到页面，此 bug 隐藏而不显；修复后端 `@PreAuthorize` 放行 bid-Team 后，前端历史遗留 bug 暴露。
+
+### 决策与取舍
+
+#### 决策：前后端 submit 端点权限不对称点 — 用户选 A
+- 后端 `submit`（提交结项申请）端点 `@PreAuthorize(ADMIN, BID_PROJECTLEADER)` 不含 bid-Team。
+- 前端 `canSubmitClosure` 用 `isProjectLeader || isBidManager`（含 bid-Team）→ 投标辅助前端能看到"提交结项"按钮，点了后端 403。
+- **选 A**：只修四字段只读，不动提交按钮权限。后端 submit 不放行 bid-Team 是 CO-392 既定策略，前端按钮虽显示但后端会挡，不造成数据问题。
+
+### 修改文件范围（2 个文件）
+
+| 文件 | 改动 |
+|---|---|
+| `src/views/Project/stages/ClosureStage.vue` | 新增 `isClosureEditor` computed（仅 `/bidAdmin`、`bid-TeamLeader`）；`canEditDeposit`/`canEditSummary` 改用 `isClosureEditor` 判定 |
+| `src/views/Project/stages/ClosureStage.spec.js` | 改 T1 断言（bid-Team+primaryLead → 编辑权由 true 改 false）；新增 C1-C6 覆盖四角色编辑权矩阵 + APPROVED 只读 |
+
+### 设计取舍：为什么不复用 isBidManager / isProjectLeader
+- `isBidManager` 历史遗留误含 `bid-Team`，直接改会影响 `canApprove`/导出按钮等复用点，扩大影响面。
+- `isProjectLeader` CO-392 扩展后含投标辅助（leads 匹配），直接改会回退 CO-392 修复。
+- 故新增独立的 `isClosureEditor`，只精准收窄"四字段编辑权"，其他按钮权限不动。
+
+### 验证证据
+- `ClosureStage.spec.js`: 19/19 ✅（含新增 6 个 CO-403 用例 C1-C6 + 修正的 T1）
+- `npm run build`: ✅ (built in 8.57s)
+- pre-push 门禁：9 通过 10 跳过 0 失败 ✅
+
+### 未做的事（避免越界）
+- 未改 `canSubmitClosure` 提交按钮权限（用户选 A，后端会挡 bid-Team）
+- 未改后端（根因在前端 computed 判定逻辑）
+- 未改 `isBidManager`/`isProjectLeader`（被其他按钮复用，改了扩大影响面）
