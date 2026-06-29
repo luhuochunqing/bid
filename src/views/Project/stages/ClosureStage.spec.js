@@ -8,11 +8,13 @@ import { mount, flushPromises } from '@vue/test-utils'
 
 const mockUserStore = {
   userRole: 'bid-projectLeader',
+  currentUser: { id: 42 },
 }
 
 vi.mock('@/api/modules/projectLifecycle.js', () => ({
   projectLifecycleApi: {
     getClosurePreview: vi.fn(),
+    getDrafting: vi.fn(),
     submitClosure: vi.fn(),
     approveClosure: vi.fn(),
     rejectClosure: vi.fn(),
@@ -69,6 +71,9 @@ describe('ClosureStage — 蓝图 §3.3.1.6 deposit-return gate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockUserStore.userRole = 'bid-projectLeader'
+    mockUserStore.currentUser = { id: 42 }
+    // 默认 drafting 视图无 leads；CO-392 用例会覆盖为指定负责人
+    projectLifecycleApi.getDrafting.mockResolvedValue({ data: { projectId: 1 } })
   })
 
   it('submit disabled when hasDeposit && status NOT_RETURNED', async () => {
@@ -216,5 +221,71 @@ describe('ClosureStage — 蓝图 §3.3.1.6 deposit-return gate', () => {
     expect(wrapper.vm.beforeUpload(badFile)).toBe(false)
     const goodFile = new File([''], 'test.pdf', { type: 'application/pdf' })
     expect(wrapper.vm.beforeUpload(goodFile)).toBe(true)
+  })
+})
+
+// CO-392: 结项阶段投标负责人/辅助人员内容显示与管理员一致
+// 根因：isProjectLeader 仅按角色 code 判断，未认项目级 primaryLeadUserId/secondaryLeadUserId。
+// 数据来源对齐 DraftingStage —— 从 getDrafting() 取 leads（ProjectLeadAssignment 表）。
+describe('ClosureStage — CO-392 项目级负责人识别', () => {
+  const basePreview = { projectId: 1, hasDeposit: false, canClose: true, reviewStatus: 'DRAFT', blockingReasons: [] }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockUserStore.currentUser = { id: 42 }
+  })
+
+  it('T1: 投标专员角色但被指定为项目投标负责人(primaryLeadUserId 匹配) → 可编辑/可提交', async () => {
+    mockUserStore.userRole = 'bid-Team'
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({ data: basePreview })
+    projectLifecycleApi.getDrafting.mockResolvedValue({ data: { projectId: 1, primaryLeadUserId: 42 } })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    expect(wrapper.vm.isProjectLeader).toBe(true)
+    expect(wrapper.vm.canEditDeposit).toBe(true)
+    expect(wrapper.vm.canEditSummary).toBe(true)
+    expect(wrapper.vm.canSubmitClosure).toBe(true)
+  })
+
+  it('T2: 投标专员角色但被指定为投标辅助人员(secondaryLeadUserId 匹配) → 可编辑/可提交', async () => {
+    mockUserStore.userRole = 'bid-Team'
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({ data: basePreview })
+    projectLifecycleApi.getDrafting.mockResolvedValue({ data: { projectId: 1, secondaryLeadUserId: 42 } })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    expect(wrapper.vm.isProjectLeader).toBe(true)
+    expect(wrapper.vm.canSubmitClosure).toBe(true)
+  })
+
+  it('T3: 非管理/非负责人角色且不是该项目负责人/辅助人员 → 无编辑/提交权限', async () => {
+    // bid-administration 既不在 isBidManager 也不在 isProjectLeader，可隔离验证 leads 逻辑
+    mockUserStore.userRole = 'bid-administration'
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({ data: basePreview })
+    projectLifecycleApi.getDrafting.mockResolvedValue({ data: { projectId: 1, primaryLeadUserId: 999, secondaryLeadUserId: 888 } })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    expect(wrapper.vm.isProjectLeader).toBe(false)
+    expect(wrapper.vm.canEditDeposit).toBe(false)
+    expect(wrapper.vm.canSubmitClosure).toBe(false)
+  })
+
+  it('T4: 角色 bid-projectLeader 仍直接视为负责人(保持角色判断兼容，不回退)', async () => {
+    mockUserStore.userRole = 'bid-projectLeader'
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({ data: basePreview })
+    projectLifecycleApi.getDrafting.mockResolvedValue({ data: { projectId: 1 } })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    expect(wrapper.vm.isProjectLeader).toBe(true)
+  })
+
+  it('T5: ID 类型安全 —— 后端 Long 与前端 string 比较不误判', async () => {
+    mockUserStore.userRole = 'bid-Team'
+    mockUserStore.currentUser = { id: 42 }
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({ data: basePreview })
+    // 后端字段可能是 number 也可能是 string（HTTP 传输），统一按 String 比较
+    projectLifecycleApi.getDrafting.mockResolvedValue({ data: { projectId: 1, primaryLeadUserId: '42' } })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    expect(wrapper.vm.isProjectLeader).toBe(true)
   })
 })
