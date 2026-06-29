@@ -153,10 +153,10 @@ const userStore = useUserStore()
 const userRoleCode = computed(() => userStore.currentUser?.roleCode || userStore.currentUser?.role || '')
 const isProjectLeader = computed(() => userRoleCode.value === 'bid-projectLeader')
 // CO-400 二轮：与后端 PlatformAccountService.isPrivilegedViewer 对齐，
-// 只有 admin//bidAdmin/bid-TeamLeader 能看到 username/contactPersonLabel/password 等敏感列。
-// 其他非特权角色（bid-Team/bid-administration/bid-otherDept）列表数据是脱敏 SummaryDTO，
-// 这些列字段不存在，强行渲染会显示为空，看起来像 bug。
-const isPrivilegedViewer = computed(() => userStore.isBidManager)
+// 管理员 / 投标管理员 / 投标组长 始终能看到敏感列。
+// 投标专员对自身为绑定联系人的账户，后端会返回完整 DTO，因此也需要渲染这些列；
+// 非绑定联系人的行后端返回脱敏 SummaryDTO，字段不存在，自然显示为空。
+const isPrivilegedViewer = computed(() => userStore.isBidManager || userRoleCode.value === 'bid-Team')
 const accounts = ref([])
 
 const rowActionsFor = (row) => resolveAccountActions({
