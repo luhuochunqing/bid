@@ -79,6 +79,7 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { resourcesApi } from '@/api'
 import { useUserStore } from '@/stores/user'
+import { canRevealPassword, isCurrentUserContactPerson } from './accountActions.js'
 import UserPicker from '@/components/common/UserPicker.vue'
 
 const props = defineProps({
@@ -148,13 +149,14 @@ const onOpen = async () => {
       contactPhone: r.contactPhone || '', contactEmail: r.contactEmail || '',
       hasCa: r.hasCa || false,
       remarks: r.remarks || '' }
-    // CO-400 四轮（问题1根因）：后端 DTO 故意不含 password（PlatformAccountDTO 行 13 注释 "password excluded"）。
-    // 密码加载条件：特权角色（admin//bidAdmin/bid-TeamLeader）OR
-    // 投标专员作为该账户绑定联系人（bidTeam && 当前用户 === row.contactPerson）。
-    // 对齐后端 getAccountsForViewer 逻辑（bidTeam 作为绑定联系人返回完整 DTO）。
-    const currentUserId = userStore.currentUser?.id || ''
-    const isContactPerson = String(r.contactPerson || '') === String(currentUserId)
-    const shouldLoadPassword = userStore.isBidManager || (isBidTeam.value && isContactPerson)
+    // CO-400 round5 review: 改用 isCurrentUserContactPerson helper 统一判断逻辑
+    // （helper 已处理 null/undefined/空字符串边界，避免本组件重复造轮子）
+    const isContactPerson = isCurrentUserContactPerson(r, userStore.currentUser)
+    const shouldLoadPassword = canRevealPassword({
+      isManager: userStore.isBidManager,
+      isBidTeam: isBidTeam.value,
+      isContactPerson
+    })
     if (shouldLoadPassword) {
       try {
         const pwdRes = await resourcesApi.accounts.getPassword(r.id)

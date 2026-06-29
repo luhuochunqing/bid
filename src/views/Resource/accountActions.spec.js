@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveAccountActions, isCurrentUserContactPerson } from './accountActions.js'
+import { resolveAccountActions, isCurrentUserContactPerson, canRevealPassword } from './accountActions.js'
 
 describe('resolveAccountActions', () => {
   it('returns edit/return/takeDown for manager when account is in use', () => {
@@ -51,5 +51,25 @@ describe('isCurrentUserContactPerson', () => {
   it('returns false for missing data', () => {
     expect(isCurrentUserContactPerson({}, { id: 1, name: '张三' })).toBe(false)
     expect(isCurrentUserContactPerson({ contactPerson: 1 }, null)).toBe(false)
+  })
+})
+
+describe('canRevealPassword', () => {
+  it('returns true for manager regardless of contact person status', () => {
+    expect(canRevealPassword({ isManager: true, isBidTeam: false, isContactPerson: false })).toBe(true)
+    expect(canRevealPassword({ isManager: true, isBidTeam: true, isContactPerson: false })).toBe(true)
+  })
+
+  it('returns true for bid-Team when they are the contact person', () => {
+    expect(canRevealPassword({ isManager: false, isBidTeam: true, isContactPerson: true })).toBe(true)
+  })
+
+  it('returns false for bid-Team when they are NOT the contact person', () => {
+    expect(canRevealPassword({ isManager: false, isBidTeam: true, isContactPerson: false })).toBe(false)
+  })
+
+  it('returns false for non-manager non-bid-Team roles', () => {
+    expect(canRevealPassword({ isManager: false, isBidTeam: false, isContactPerson: true })).toBe(false)
+    expect(canRevealPassword({ isManager: false, isBidTeam: false, isContactPerson: false })).toBe(false)
   })
 })

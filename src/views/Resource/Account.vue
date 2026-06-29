@@ -81,7 +81,7 @@
         <el-table-column prop="username" label="账号" width="150" />
         <el-table-column label="密码" width="100">
           <template #default="{ row }">
-            <PasswordCell :row="row" :password="password" />
+            <PasswordCell :row="row" :password="password" :can-reveal="canRevealPasswordFor(row)" />
           </template>
         </el-table-column>
         <el-table-column prop="contactPersonLabel" label="联系人" width="140" />
@@ -120,7 +120,7 @@ import { resourcesApi } from '@/api'
 import { useUserStore } from '@/stores/user'
 import { usePasswordReveal } from './composables/usePasswordReveal.js'
 import { useAccountBatchActions } from './composables/useAccountBatchActions.js'
-import { resolveAccountActions, isCurrentUserContactPerson } from './accountActions.js'
+import { resolveAccountActions, isCurrentUserContactPerson, canRevealPassword } from './accountActions.js'
 import AccountFormDialog from './AccountFormDialog.vue'
 import AccountDetailDialog from './AccountDetailDialog.vue'
 import AccountBorrowDialog from './AccountBorrowDialog.vue'
@@ -170,6 +170,13 @@ const rowActionsMap = computed(() => {
   return map
 })
 const rowActions = (row) => rowActionsMap.value.get(row.id) || {}
+
+// CO-400 round5: 小眼睛可见 = 管理员 OR (投标专员且为绑定联系人)，避免非联系人点击后 403
+const canRevealPasswordFor = (row) => canRevealPassword({
+  isManager: userStore.isBidManager,
+  isBidTeam: userRoleCode.value === 'bid-Team',
+  isContactPerson: isCurrentUserContactPerson(row, userStore.currentUser)
+})
 
 const password = usePasswordReveal((id) => resourcesApi.accounts.getPassword(id))
 

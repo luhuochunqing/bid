@@ -4,6 +4,7 @@
       <span class="password-text">{{ password.displayText(row.id) }}</span>
     </div>
     <button
+      v-if="canReveal"
       class="password-toggle-btn"
       :disabled="password.isLoading(row.id)"
       @click.stop="password.toggle(row.id)">
@@ -19,7 +20,9 @@ import { Hide, View } from '@element-plus/icons-vue'
 
 defineProps({
   row: { type: Object, required: true },
-  password: { type: Object, required: true }
+  password: { type: Object, required: true },
+  // CO-400 round5 review: fail-closed 设计，调用方必须显式 :can-reveal="true" 才显示小眼睛
+  canReveal: { type: Boolean, default: false }
 })
 </script>
 
