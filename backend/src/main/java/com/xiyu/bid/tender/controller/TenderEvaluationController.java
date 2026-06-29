@@ -9,6 +9,10 @@ import com.xiyu.bid.entity.User;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.service.AuthService;
+import com.xiyu.bid.tender.core.BidRiskLevelPolicy;
+import com.xiyu.bid.tender.core.BidRiskLevelPolicy.RiskLevel;
+import com.xiyu.bid.tender.core.BidRiskLevelPolicy.RiskLevelInput;
+import com.xiyu.bid.tender.dto.EvaluationCustomerInfoDTO;
 import com.xiyu.bid.tender.dto.TenderEvaluationDTO;
 import com.xiyu.bid.tender.dto.TenderEvaluationSubmitRequest;
 import com.xiyu.bid.tender.dto.TenderReviewRequest;
@@ -39,6 +43,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -71,6 +76,48 @@ public class TenderEvaluationController {
         Long userId = currentUserId(userDetails);
         TenderEvaluationDTO evaluation = tenderEvaluationService.loadOrInitDraft(tenderId, userId);
         return ResponseEntity.ok(ApiResponse.success("ok", evaluation));
+    }
+
+    /** AI 风险等级评估（只读 / 实时 / 不入库 / 失败降级 MEDIUM）：读 EAV 行按蓝图规则判定 HIGH/MEDIUM/LOW。 */
+    @GetMapping("/{tenderId}/evaluation/ai-risk")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<AiRiskAssessmentResult>> getAiRiskAssessment(
+            @PathVariable Long tenderId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        log.info("GET /api/tenders/{}/evaluation/ai-risk", tenderId);
+        Long userId = currentUserId(userDetails);
+        RiskLevel riskLevel = RiskLevel.MEDIUM;
+        try {
+            TenderEvaluationDTO evaluation = tenderEvaluationService.loadOrInitDraft(tenderId, userId);
+            riskLevel = BidRiskLevelPolicy.evaluate(extractRiskLevelInput(evaluation.evaluationCustomerInfos()));
+        } catch (RuntimeException ex) {
+            log.warn("AI 风险评估失败，降级 MEDIUM：tenderId={}, msg={}", tenderId, ex.getMessage());
+        }
+        return ResponseEntity.ok(ApiResponse.success("ok",
+                new AiRiskAssessmentResult(riskLevel.name(), riskLevel.getDisplay())));
+    }
+
+    /** AI 风险评估响应 DTO。 */
+    public record AiRiskAssessmentResult(String riskLevel, String riskLevelDisplay) {}
+
+    /** 提取风险判定输入：最高决策人 + 3 个其他关键决策人的 TENDENCY 值。 */
+    private static RiskLevelInput extractRiskLevelInput(List<EvaluationCustomerInfoDTO> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return new RiskLevelInput(null, List.of());
+        }
+        String highest = null;
+        List<String> others = new ArrayList<>(3);
+        for (EvaluationCustomerInfoDTO row : rows) {
+            if (!"TENDENCY".equals(row.infoKey())) {
+                continue;
+            }
+            if ("PROJECT_HIGHEST_DECISION_MAKER".equals(row.roleKey())) {
+                highest = row.value();
+            } else if (row.roleKey() != null && row.roleKey().startsWith("OTHER_KEY_DECISION_MAKER_")) {
+                others.add(row.value());
+            }
+        }
+        return new RiskLevelInput(highest, others);
     }
 
     /**

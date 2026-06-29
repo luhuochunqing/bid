@@ -1,5 +1,7 @@
 package com.xiyu.bid.marketprediction;
 
+import com.xiyu.bid.crm.application.CrmMessageService;
+import com.xiyu.bid.crm.infrastructure.CrmResponseHandler;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.marketprediction.domain.MarketPredictionPolicy;
 import com.xiyu.bid.marketprediction.domain.MarketPredictionResult;
@@ -31,6 +33,7 @@ public class MarketPredictionService {
 
     private final TenderRepository tenderRepository;
     private final MarketPredictionPolicy predictionPolicy;
+    private final CrmMessageService crmMessageService;
 
     /**
      * 根据业主哈希获取商机预测
@@ -87,5 +90,63 @@ public class MarketPredictionService {
                             : MarketPredictionDTO.noData(hash);
                 })
                 .toList();
+    }
+
+    /**
+     * 将商机预测结果推送到 CRM 事件库（企微+站内信），让用户感知 AI 在工作。
+     *
+     * 降级策略：推送失败不影响主流程，仅记录日志并返回 false。
+     *
+     * @param purchaserHash 业主单位哈希
+     * @param recipientNos  接收人工号列表
+     * @return true 推送成功；false 推送失败或无可推送预测
+     */
+    public boolean pushPredictionToCrm(String purchaserHash, List<String> recipientNos) {
+        if (purchaserHash == null || purchaserHash.isBlank()) {
+            log.debug("Purchaser hash is empty, skipping CRM push");
+            return false;
+        }
+
+        Optional<MarketPredictionResult> opt = predictByPurchaserHash(purchaserHash);
+        if (opt.isEmpty()) {
+            log.info("No prediction available for purchaser hash: {}, skipping CRM push", purchaserHash);
+            return false;
+        }
+
+        MarketPredictionResult result = opt.get();
+        if (result.nextTenderDate() == null) {
+            log.info("Prediction has no next tender date for purchaser hash: {}, skipping CRM push",
+                    purchaserHash);
+            return false;
+        }
+
+        String title = "AI 商机预测提醒 - " + purchaserHash;
+        String content = buildPushContent(result);
+
+        try {
+            CrmResponseHandler.CrmApiResponse response = crmMessageService.sendMessage(
+                    recipientNos, title, content, 1);
+            if (response.success()) {
+                log.info("CRM push succeeded for purchaser hash: {}", purchaserHash);
+                return true;
+            }
+            log.warn("CRM push failed for purchaser hash: {}, code={}, msg={}",
+                    purchaserHash, response.code(), response.msg());
+            return false;
+        } catch (RuntimeException e) {
+            log.warn("CRM push degraded for purchaser hash: {}, error: {}",
+                    purchaserHash, e.getMessage());
+            return false;
+        }
+    }
+
+    private String buildPushContent(MarketPredictionResult result) {
+        return String.format(
+                "AI 预测到下次招标时间: %s, 置信度: %.2f, 历史数据: %d 条, 平均间隔: %.0f 天, 说明: %s",
+                result.nextTenderDate(),
+                result.confidence(),
+                result.historicalCount(),
+                result.averageIntervalDays(),
+                result.note());
     }
 }
