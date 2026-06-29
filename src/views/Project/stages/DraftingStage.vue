@@ -4,7 +4,7 @@
   <el-card class="stage-view" shadow="never">
     <template #header>
       <div class="bid-header">
-        <span class="bid-title">投标文件</span>
+        <span class="bid-title">投标文件<span class="required-mark">*</span></span>
         <div class="bid-header-actions">
           <el-button v-if="perm.canAIRecommendCase" type="success" link class="header-action header-action--orange" :icon="Search" @click="aiDrawerVisible = true">
             AI智能推荐案例
