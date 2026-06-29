@@ -293,12 +293,16 @@ export function useProjectDetailTaskActions(context) {
       message.error(resolveErrorMessage(error, '新增任务失败'))
     }
   }
-  const handleTaskStatusChange = async (task, newStatus) => {
+  const handleTaskStatusChange = async (task, newStatus, reviewComment) => {
     // CO-411: 传入的 task 可能是浅拷贝（CO-397 抽屉），按 id 查原引用再改，确保看板刷新
     const tasks = ensureTaskList()
     const taskRef = (task?.id != null && tasks.find((t) => String(t.id) === String(task.id))) || task
     if (taskRef) {
       taskRef.status = newStatus
+      // CO-413: 驳回原因乐观写入 extendedFields，供任务详情即时展示
+      if (reviewComment) {
+        taskRef.extendedFields = { ...(taskRef.extendedFields || {}), lastRejectReason: reviewComment }
+      }
       pushActivity(`将任务"${taskRef.name}"状态更新为${({ todo: '待办', review: '待审核', done: '已完成' }[newStatus] || newStatus)}`)
     }
     if (!isApiProject.value) {
@@ -307,7 +311,7 @@ export function useProjectDetailTaskActions(context) {
       return
     }
     try {
-      const result = await projectsApi.updateTaskStatus(route.params.id, taskRef?.id, normalizeTaskStatusForApi(newStatus))
+      const result = await projectsApi.updateTaskStatus(route.params.id, taskRef?.id, normalizeTaskStatusForApi(newStatus), reviewComment)
       if (!result?.success || !result?.data) throw new Error(result?.msg || '任务状态更新失败')
       const keep = taskRef.deliverables; Object.assign(taskRef, taskBackendToCard(result.data)); taskRef.deliverables = keep || taskRef.deliverables; message.success('任务状态已更新')
     } catch (error) {

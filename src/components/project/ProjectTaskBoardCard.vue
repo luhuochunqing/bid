@@ -49,7 +49,7 @@
       :project-id="normalizedProjectId"
       :show-submit-button="props.showSubmitButton"
       @task-click="handleTaskClick"
-      @status-change="(...args) => $emit('status-change', ...args)"
+      @status-change="(task, newStatus, reviewComment) => $emit('status-change', task, newStatus, reviewComment)"
       @add-deliverable="(...args) => $emit('add-deliverable', ...args)"
       @remove-deliverable="(...args) => $emit('remove-deliverable', ...args)"
       @submit-to-document="$emit('submit-to-document', $event)"
@@ -92,6 +92,7 @@
 
 <script setup>
 import { computed, getCurrentInstance, ref, reactive } from 'vue'
+import { ElMessageBox } from 'element-plus'
 import { DocumentChecked, List, Plus } from '@element-plus/icons-vue'
 import TaskBoard from '@/components/common/TaskBoard.vue'
 import TaskForm from '@/components/project/TaskForm.vue'
@@ -217,15 +218,27 @@ async function handleSaveTask() {
 
 // CO-397: 抽屉内提交审核/驳回/通过 —— 复用 status-change 事件链，
 // 父组件 handleTaskStatusChange 负责调 API + 刷新列表；此处乐观关闭抽屉
-function emitStatusChange(newStatus) {
+// CO-413: 驳回（REVIEW→TODO）必须填写驳回原因，用 ElMessageBox.prompt 收集
+async function emitStatusChange(newStatus, reviewComment) {
   const task = editingTask.value
   if (!task?.id) return
-  emit('status-change', task, newStatus)
+  emit('status-change', task, newStatus, reviewComment)
   drawerVisible.value = false
 }
 const handleSubmitForReview = () => emitStatusChange('REVIEW')
-const handleRejectTask = () => emitStatusChange('TODO')
 const handleApproveTask = () => emitStatusChange('COMPLETED')
+async function handleRejectTask() {
+  try {
+    const { value } = await ElMessageBox.prompt('请填写驳回原因（执行人将看到此说明）', '驳回任务', {
+      confirmButtonText: '确认驳回',
+      cancelButtonText: '取消',
+      inputType: 'textarea',
+      inputPlaceholder: '请填写驳回原因',
+      inputValidator: (v) => (v && v.trim() ? true : '请填写驳回原因'),
+    })
+    await emitStatusChange('TODO', value)
+  } catch { /* 用户取消 */ }
+}
 
 defineExpose({
   drawerVisible, drawerMode, editingTask, taskFormRef,

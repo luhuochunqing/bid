@@ -47,7 +47,7 @@
                     v-for="s in statuses"
                     :key="s.code"
                     :disabled="normalizeStatus(task.status) === s.code || !canTransitionToStatus(task, s.code)"
-                    @click="handleStatusChange(task, s.code)"
+                    @click="onStatusMenuClick(task, s.code)"
                   >
                     设为{{ s.name }}
                   </el-dropdown-item>
@@ -107,6 +107,28 @@
       :task="currentTask"
       @save="handleSaveDeliverable"
     />
+
+    <!-- CO-413: 驳回原因弹窗（REVIEW → TODO 必填） -->
+    <el-dialog v-model="rejectDialogVisible" title="驳回任务" width="480px" :close-on-click-modal="false">
+      <div v-if="rejectingTask" class="reject-task-name">任务：{{ rejectingTask.name }}</div>
+      <el-form ref="rejectFormRef" :model="rejectForm" :rules="rejectRules" label-position="top">
+        <el-form-item label="驳回原因（必填）" prop="reason">
+          <el-input
+            v-model="rejectForm.reason"
+            type="textarea"
+            :rows="4"
+            placeholder="请填写驳回原因，执行人将看到此说明"
+            maxlength="500"
+            show-word-limit
+            data-test="reject-reason-input"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="cancelReject" data-test="reject-cancel">取消</el-button>
+        <el-button type="danger" :loading="rejectSubmitting" @click="confirmReject" data-test="reject-confirm">确认驳回</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -274,7 +296,57 @@ const isUrgent = (deadline) => {
 
 const handleTaskClick = (task) => emit('task-click', task)
 
-const handleStatusChange = (task, newStatus) => emit('status-change', task, newStatus)
+const handleStatusChange = (task, newStatus, reviewComment) => emit('status-change', task, newStatus, reviewComment)
+
+// CO-413: REVIEW → TODO（驳回）时弹出驳回原因弹窗，其他状态走原直接 emit
+const rejectDialogVisible = ref(false)
+const rejectingTask = ref(null)
+const rejectFormRef = ref(null)
+const rejectForm = ref({ reason: '' })
+const rejectSubmitting = ref(false)
+const rejectRules = { reason: [{ required: true, message: '请填写驳回原因', trigger: 'blur' }] }
+
+function onStatusMenuClick(task, newStatus) {
+  if (normalizeStatus(task.status) === 'REVIEW' && normalizeStatus(newStatus) === 'TODO') {
+    openRejectDialog(task)
+    return
+  }
+  handleStatusChange(task, newStatus)
+}
+
+function openRejectDialog(task) {
+  rejectingTask.value = task
+  rejectForm.value = { reason: '' }
+  rejectDialogVisible.value = true
+}
+
+function cancelReject() {
+  rejectDialogVisible.value = false
+  rejectingTask.value = null
+}
+
+async function confirmReject() {
+  if (!rejectingTask.value) return
+  // formRef 未挂载时（如 stub 环境）退化为手动校验非空
+  if (rejectFormRef.value) {
+    try {
+      await rejectFormRef.value.validate()
+    } catch {
+      return
+    }
+  } else if (!rejectForm.value.reason?.trim()) {
+    ElMessage.warning('请填写驳回原因')
+    return
+  }
+  rejectSubmitting.value = true
+  try {
+    handleStatusChange(rejectingTask.value, 'TODO', rejectForm.value.reason)
+    rejectDialogVisible.value = false
+    rejectingTask.value = null
+  } finally {
+    rejectSubmitting.value = false
+  }
+}
 
 const isStatusTransitionInFlight = ref(false)
 const draggingTask = ref(null)
@@ -414,4 +486,5 @@ const handleSubmitToDocument = async () => {
 .submit-tip { margin-top: 8px; font-size: 12px; color: var(--el-color-primary); }
 .badge :deep(.el-badge__content) { background-color: transparent; color: inherit; border: none; }
 .delete-task-label { color: var(--el-color-danger); }
+.reject-task-name { margin-bottom: 12px; padding: 8px 12px; background: var(--bg-subtle, #f5f7fa); border-radius: 4px; font-size: 14px; color: var(--gray-750, #303133); font-weight: 500; }
 </style>

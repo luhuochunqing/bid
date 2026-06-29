@@ -44,6 +44,8 @@
         "src/api/modules/knowledge.js",
         "src/api/modules/settings.js",
         "src/api/modules/tenders.js",
+        "src/api/modules/projects.js",
+        "src/composables/projectDetail/useProjectDetailTaskActions.js",
         "src/components/ai/CollaborationCenter.vue",
         "src/components/common/DynamicFormRenderer.vue",
         "src/components/common/TaskBoard.vue",

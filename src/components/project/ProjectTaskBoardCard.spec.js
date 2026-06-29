@@ -17,6 +17,12 @@ vi.mock('@/api/modules/taskStatusDict.js', () => ({
   },
 }))
 
+// CO-413: 抽屉驳回按钮用 ElMessageBox.prompt 收集驳回原因
+const promptMock = vi.hoisted(() => vi.fn())
+vi.mock('element-plus', () => ({
+  ElMessageBox: { prompt: promptMock, confirm: vi.fn() },
+}))
+
 const baseStubs = {
   ElCard: {
     template: '<section><slot name="header" /><slot /></section>',
@@ -305,7 +311,10 @@ describe('CO-345: 任务看板顶部按钮按角色预过滤', () => {
 
 // CO-397: 任务详情抽屉增加提交审核/驳回/通过按钮
 describe('CO-397: task drawer review buttons', () => {
-  beforeEach(() => setActivePinia(createPinia()))
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    promptMock.mockReset()
+  })
 
   function mountWithUser({ role, userId, project = null, task }) {
     const userStore = useUserStore()
@@ -432,12 +441,14 @@ describe('CO-397: task drawer review buttons', () => {
     expect(emitted[0]).toEqual([
       { id: 1, name: 'T1', status: 'TODO', assigneeId: 9 },
       'REVIEW',
+      undefined,
     ])
     expect(wrapper.vm.drawerVisible).toBe(false)
   })
 
-  // 测试要点 9: 点击驳回 → emit status-change with TODO + 关闭抽屉
+  // 测试要点 9: 点击驳回 → 弹 prompt 收集原因 → emit status-change with TODO + reviewComment + 关闭抽屉
   it('clicking 驳回 emits status-change TODO and closes drawer', async () => {
+    promptMock.mockResolvedValue({ value: '内容不完整' })
     const wrapper = mountWithUser({
       role: '/bidAdmin', userId: 100,
       task: { id: 2, name: 'T2', status: 'REVIEW', assigneeId: 999 },
@@ -445,11 +456,13 @@ describe('CO-397: task drawer review buttons', () => {
     openDrawer(wrapper, { id: 2, name: 'T2', status: 'REVIEW', assigneeId: 999 })
     await flushPromises()
     await wrapper.find('[data-test="task-drawer-reject"]').trigger('click')
+    await flushPromises()
     const emitted = wrapper.emitted('status-change')
     expect(emitted).toBeTruthy()
     expect(emitted[0]).toEqual([
       { id: 2, name: 'T2', status: 'REVIEW', assigneeId: 999 },
       'TODO',
+      '内容不完整',
     ])
     expect(wrapper.vm.drawerVisible).toBe(false)
   })
@@ -468,6 +481,7 @@ describe('CO-397: task drawer review buttons', () => {
     expect(emitted[0]).toEqual([
       { id: 2, name: 'T2', status: 'REVIEW', assigneeId: 999 },
       'COMPLETED',
+      undefined,
     ])
     expect(wrapper.vm.drawerVisible).toBe(false)
   })

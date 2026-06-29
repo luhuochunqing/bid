@@ -115,6 +115,13 @@ class ProjectTaskWorkflowService {
 
         Task before = TaskSnapshots.copy(task);
         task.setStatus(targetStatus);
+        // CO-413: 驳回原因持久化到 extendedFields.lastRejectReason，供执行人查看
+        if (targetStatus == Task.Status.TODO && hasText(request.getReviewComment())) {
+            Map<String, Object> extendedFields = new java.util.LinkedHashMap<>(deserializeExtendedFields(task));
+            extendedFields.put("lastRejectReason", request.getReviewComment());
+            extendedFields.put("lastRejectedAt", java.time.Instant.now().toString());
+            task.setExtendedFieldsJson(serializeExtendedFields(extendedFields));
+        }
         Task saved = taskRepository.save(task);
         taskHistoryRecorder.recordUpdate(before, saved, actorUsername);
 

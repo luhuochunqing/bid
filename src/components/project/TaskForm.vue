@@ -3,6 +3,17 @@
     <el-tabs v-model="activeTab" class="task-form-tabs">
       <el-tab-pane label="详情" name="detail">
         <el-form :model="localValue" label-width="110px" :disabled="readonly">
+          <!-- CO-413: 驳回原因展示（只读，仅当存在 lastRejectReason 时显示） -->
+          <el-alert
+            v-if="localValue.extendedFields?.lastRejectReason"
+            class="reject-reason-alert"
+            type="warning"
+            :closable="false"
+            show-icon
+            title="驳回原因"
+            :description="localValue.extendedFields.lastRejectReason"
+            data-test="reject-reason-alert"
+          />
           <el-form-item label="任务名称" required>
             <el-input v-model="localValue.name" placeholder="请输入任务名称" />
           </el-form-item>
@@ -407,4 +418,5 @@ defineExpose({ submit, submitForReview, validate, canDeliver })
 .attachment-list { margin-top: 8px; }
 .attachment-link { display: block; color: #409eff; text-decoration: none; margin-bottom: 4px; }
 .attachment-link:hover { text-decoration: underline; }
+.reject-reason-alert { margin-bottom: 16px; }
 </style>
