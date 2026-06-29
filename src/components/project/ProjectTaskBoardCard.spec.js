@@ -2,6 +2,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useUserStore } from '@/stores/user'
+import { useProjectStore } from '@/stores/project'
 import ProjectTaskBoardCard from './ProjectTaskBoardCard.vue'
 
 vi.mock('@/api/modules/taskStatusDict.js', () => ({
@@ -299,5 +300,200 @@ describe('CO-345: 任务看板顶部按钮按角色预过滤', () => {
     // 重置任务按钮没有 data-test，通过文本匹配
     const resetButtons = adminWrapper.findAll('button').filter(b => b.text().includes('重置任务'))
     expect(resetButtons).toHaveLength(0)
+  })
+})
+
+// CO-397: 任务详情抽屉增加提交审核/驳回/通过按钮
+describe('CO-397: task drawer review buttons', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  function mountWithUser({ role, userId, project = null, task }) {
+    const userStore = useUserStore()
+    userStore.currentUser = { id: userId, role }
+    const wrapper = mount(ProjectTaskBoardCard, {
+      props: {
+        tasks: task ? [task] : [],
+        projectId: 12,
+        canManageProjectTasks: true,
+      },
+      global: { stubs: baseStubs },
+    })
+    if (project) {
+      // 通过 store 注入 currentProject（CO-387 primaryLeadUserId/secondaryLeadUserId）
+      const projectStore = useProjectStore()
+      projectStore.currentProject = project
+    }
+    return wrapper
+  }
+
+  function openDrawer(wrapper, task) {
+    wrapper.vm.openView(task)
+  }
+
+  // 测试要点 1: TODO 状态 + 执行人登录 → 显示「提交审核」按钮
+  it('TODO task + assignee: shows 提交审核 button', async () => {
+    const wrapper = mountWithUser({
+      role: 'bid-Team', userId: 9,
+      task: { id: 1, name: 'T1', status: 'TODO', assigneeId: 9 },
+    })
+    openDrawer(wrapper, { id: 1, name: 'T1', status: 'TODO', assigneeId: 9 })
+    await flushPromises()
+    expect(wrapper.find('[data-test="task-drawer-submit-review"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="task-drawer-reject"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="task-drawer-approve"]').exists()).toBe(false)
+  })
+
+  // 测试要点 2: TODO 状态 + 非执行人登录 → 不显示「提交审核」
+  it('TODO task + non-assignee: hides 提交审核 button', async () => {
+    const wrapper = mountWithUser({
+      role: 'bid-Team', userId: 9,
+      task: { id: 1, name: 'T1', status: 'TODO', assigneeId: 999 },
+    })
+    openDrawer(wrapper, { id: 1, name: 'T1', status: 'TODO', assigneeId: 999 })
+    await flushPromises()
+    expect(wrapper.find('[data-test="task-drawer-submit-review"]').exists()).toBe(false)
+  })
+
+  // 测试要点 3: REVIEW 状态 + 投标管理员 → 显示「驳回」「通过」
+  it('REVIEW task + bidAdmin: shows 驳回 and 通过', async () => {
+    const wrapper = mountWithUser({
+      role: '/bidAdmin', userId: 100,
+      task: { id: 2, name: 'T2', status: 'REVIEW', assigneeId: 999 },
+    })
+    openDrawer(wrapper, { id: 2, name: 'T2', status: 'REVIEW', assigneeId: 999 })
+    await flushPromises()
+    expect(wrapper.find('[data-test="task-drawer-reject"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="task-drawer-approve"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="task-drawer-submit-review"]').exists()).toBe(false)
+  })
+
+  // 测试要点 4: REVIEW 状态 + 投标组长 → 显示「驳回」「通过」
+  it('REVIEW task + bid-TeamLeader: shows 驳回 and 通过', async () => {
+    const wrapper = mountWithUser({
+      role: 'bid-TeamLeader', userId: 101,
+      task: { id: 2, name: 'T2', status: 'REVIEW', assigneeId: 999 },
+    })
+    openDrawer(wrapper, { id: 2, name: 'T2', status: 'REVIEW', assigneeId: 999 })
+    await flushPromises()
+    expect(wrapper.find('[data-test="task-drawer-reject"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="task-drawer-approve"]').exists()).toBe(true)
+  })
+
+  // 测试要点 5: REVIEW 状态 + 项目投标负责人 → 显示「驳回」「通过」
+  it('REVIEW task + primary lead: shows 驳回 and 通过', async () => {
+    const wrapper = mountWithUser({
+      role: 'bid-projectLeader', userId: 50,
+      project: { id: 12, primaryLeadUserId: 50, secondaryLeadUserId: null },
+      task: { id: 2, name: 'T2', status: 'REVIEW', assigneeId: 999 },
+    })
+    openDrawer(wrapper, { id: 2, name: 'T2', status: 'REVIEW', assigneeId: 999 })
+    await flushPromises()
+    expect(wrapper.find('[data-test="task-drawer-reject"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="task-drawer-approve"]').exists()).toBe(true)
+  })
+
+  // 测试要点 6: REVIEW 状态 + 项目投标辅助人员 → 显示「驳回」「通过」
+  it('REVIEW task + secondary lead: shows 驳回 and 通过', async () => {
+    const wrapper = mountWithUser({
+      role: 'bid-Team', userId: 51,
+      project: { id: 12, primaryLeadUserId: null, secondaryLeadUserId: 51 },
+      task: { id: 2, name: 'T2', status: 'REVIEW', assigneeId: 999 },
+    })
+    openDrawer(wrapper, { id: 2, name: 'T2', status: 'REVIEW', assigneeId: 999 })
+    await flushPromises()
+    expect(wrapper.find('[data-test="task-drawer-reject"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="task-drawer-approve"]').exists()).toBe(true)
+  })
+
+  // 测试要点 7: REVIEW 状态 + 其他角色 → 不显示「驳回」「通过」
+  it('REVIEW task + non-reviewer: hides 驳回 and 通过', async () => {
+    const wrapper = mountWithUser({
+      role: 'bid-Team', userId: 80,
+      project: { id: 12, primaryLeadUserId: 50, secondaryLeadUserId: 51 },
+      task: { id: 2, name: 'T2', status: 'REVIEW', assigneeId: 999 },
+    })
+    openDrawer(wrapper, { id: 2, name: 'T2', status: 'REVIEW', assigneeId: 999 })
+    await flushPromises()
+    expect(wrapper.find('[data-test="task-drawer-reject"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="task-drawer-approve"]').exists()).toBe(false)
+  })
+
+  // 测试要点 8: 点击提交审核 → emit status-change with REVIEW + 关闭抽屉
+  it('clicking 提交审核 emits status-change REVIEW and closes drawer', async () => {
+    const wrapper = mountWithUser({
+      role: 'bid-Team', userId: 9,
+      task: { id: 1, name: 'T1', status: 'TODO', assigneeId: 9 },
+    })
+    openDrawer(wrapper, { id: 1, name: 'T1', status: 'TODO', assigneeId: 9 })
+    await flushPromises()
+    await wrapper.find('[data-test="task-drawer-submit-review"]').trigger('click')
+    const emitted = wrapper.emitted('status-change')
+    expect(emitted).toBeTruthy()
+    expect(emitted[0]).toEqual([
+      { id: 1, name: 'T1', status: 'TODO', assigneeId: 9 },
+      'REVIEW',
+    ])
+    expect(wrapper.vm.drawerVisible).toBe(false)
+  })
+
+  // 测试要点 9: 点击驳回 → emit status-change with TODO + 关闭抽屉
+  it('clicking 驳回 emits status-change TODO and closes drawer', async () => {
+    const wrapper = mountWithUser({
+      role: '/bidAdmin', userId: 100,
+      task: { id: 2, name: 'T2', status: 'REVIEW', assigneeId: 999 },
+    })
+    openDrawer(wrapper, { id: 2, name: 'T2', status: 'REVIEW', assigneeId: 999 })
+    await flushPromises()
+    await wrapper.find('[data-test="task-drawer-reject"]').trigger('click')
+    const emitted = wrapper.emitted('status-change')
+    expect(emitted).toBeTruthy()
+    expect(emitted[0]).toEqual([
+      { id: 2, name: 'T2', status: 'REVIEW', assigneeId: 999 },
+      'TODO',
+    ])
+    expect(wrapper.vm.drawerVisible).toBe(false)
+  })
+
+  // 测试要点 10: 点击通过 → emit status-change with COMPLETED + 关闭抽屉
+  it('clicking 通过 emits status-change COMPLETED and closes drawer', async () => {
+    const wrapper = mountWithUser({
+      role: '/bidAdmin', userId: 100,
+      task: { id: 2, name: 'T2', status: 'REVIEW', assigneeId: 999 },
+    })
+    openDrawer(wrapper, { id: 2, name: 'T2', status: 'REVIEW', assigneeId: 999 })
+    await flushPromises()
+    await wrapper.find('[data-test="task-drawer-approve"]').trigger('click')
+    const emitted = wrapper.emitted('status-change')
+    expect(emitted).toBeTruthy()
+    expect(emitted[0]).toEqual([
+      { id: 2, name: 'T2', status: 'REVIEW', assigneeId: 999 },
+      'COMPLETED',
+    ])
+    expect(wrapper.vm.drawerVisible).toBe(false)
+  })
+
+  // 补充：view 模式下不显示提交审核/驳回/通过（非 TODO/REVIEW 状态）
+  it('COMPLETED task: hides all review buttons', async () => {
+    const wrapper = mountWithUser({
+      role: '/bidAdmin', userId: 100,
+      task: { id: 3, name: 'T3', status: 'COMPLETED', assigneeId: 999 },
+    })
+    openDrawer(wrapper, { id: 3, name: 'T3', status: 'COMPLETED', assigneeId: 999 })
+    await flushPromises()
+    expect(wrapper.find('[data-test="task-drawer-submit-review"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="task-drawer-reject"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="task-drawer-approve"]').exists()).toBe(false)
+  })
+
+  // 补充：create 模式下不显示审核按钮
+  it('create mode: hides all review buttons', async () => {
+    const wrapper = mountWithUser({
+      role: '/bidAdmin', userId: 100, task: null,
+    })
+    wrapper.vm.openCreate()
+    await flushPromises()
+    expect(wrapper.find('[data-test="task-drawer-submit-review"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="task-drawer-reject"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="task-drawer-approve"]').exists()).toBe(false)
   })
 })

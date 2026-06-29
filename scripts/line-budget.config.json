@@ -47,6 +47,7 @@
         "src/components/common/DynamicFormRenderer.vue",
         "src/components/common/TaskBoard.vue",
         "src/components/project/TaskForm.vue",
+        "src/components/project/ProjectTaskBoardCard.vue",
         "src/components/common/chinaRegionData.js",
         "src/components/project/detail/ProjectDetailBidAgentDrawer.vue",
         "src/views/Bidding/TenderCreatePage.vue",

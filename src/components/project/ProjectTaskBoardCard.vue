@@ -80,6 +80,10 @@
           >
             保存
           </el-button>
+          <!-- CO-397: 抽屉审核按钮 -->
+          <el-button v-if="canSubmitForReview" type="primary" data-test="task-drawer-submit-review" @click="handleSubmitForReview">提交审核</el-button>
+          <el-button v-if="canReviewCurrentTask" type="danger" data-test="task-drawer-reject" @click="handleRejectTask">驳回</el-button>
+          <el-button v-if="canReviewCurrentTask" type="success" data-test="task-drawer-approve" @click="handleApproveTask">通过</el-button>
         </div>
       </template>
     </el-drawer>
@@ -92,6 +96,9 @@ import { DocumentChecked, List, Plus } from '@element-plus/icons-vue'
 import TaskBoard from '@/components/common/TaskBoard.vue'
 import TaskForm from '@/components/project/TaskForm.vue'
 import { useProjectDraftingPermissions } from '@/composables/projectDetail/useProjectDraftingPermissions'
+import { useProjectStore } from '@/stores/project'
+import { useUserStore } from '@/stores/user'
+import { isTaskAssignee } from '@/utils/permission.js'
 
 const emit = defineEmits([
   'add-task',
@@ -127,6 +134,8 @@ const props = defineProps({
 })
 
 const perm = reactive(useProjectDraftingPermissions())
+const projectStore = useProjectStore()
+const userStore = useUserStore()
 
 const normalizedProjectId = computed(() => String(props.projectId ?? ''))
 
@@ -135,6 +144,24 @@ const drawerMode = ref('create')
 const editingTask = ref({})
 const taskFormRef = ref(null)
 const instance = getCurrentInstance()
+
+// CO-397: 抽屉审核按钮权限
+// 提交审核：TODO + 任务执行人；驳回/通过：REVIEW + admin_lead 或 项目主/副负责人
+const canSubmitForReview = computed(() =>
+  drawerMode.value === 'view'
+  && String(editingTask.value?.status || '').toUpperCase() === 'TODO'
+  && isTaskAssignee(editingTask.value),
+)
+const canReviewCurrentTask = computed(() => {
+  if (drawerMode.value !== 'view') return false
+  if (String(editingTask.value?.status || '').toUpperCase() !== 'REVIEW') return false
+  if (perm.roleGroup === 'admin_lead') return true
+  const project = projectStore.currentProject
+  const uid = userStore.currentUser?.id
+  if (!project || uid == null) return false
+  return (project.primaryLeadUserId != null && String(uid) === String(project.primaryLeadUserId))
+    || (project.secondaryLeadUserId != null && String(uid) === String(project.secondaryLeadUserId))
+})
 
 const drawerTitle = computed(() => {
   if (drawerMode.value === 'edit') return '编辑任务'
@@ -188,15 +215,23 @@ async function handleSaveTask() {
   if (!instance?.vnode.props?.onSaveTask) done()
 }
 
+// CO-397: 抽屉内提交审核/驳回/通过 —— 复用 status-change 事件链，
+// 父组件 handleTaskStatusChange 负责调 API + 刷新列表；此处乐观关闭抽屉
+function emitStatusChange(newStatus) {
+  const task = editingTask.value
+  if (!task?.id) return
+  emit('status-change', task, newStatus)
+  drawerVisible.value = false
+}
+const handleSubmitForReview = () => emitStatusChange('REVIEW')
+const handleRejectTask = () => emitStatusChange('TODO')
+const handleApproveTask = () => emitStatusChange('COMPLETED')
+
 defineExpose({
-  drawerVisible,
-  drawerMode,
-  editingTask,
-  taskFormRef,
-  openCreate,
-  openView,
-  handleSaveTask,
-  handleCancelTask,
+  drawerVisible, drawerMode, editingTask, taskFormRef,
+  openCreate, openView, handleSaveTask, handleCancelTask,
+  canSubmitForReview, canReviewCurrentTask,
+  handleSubmitForReview, handleRejectTask, handleApproveTask,
 })
 </script>
 
