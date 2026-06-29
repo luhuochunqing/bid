@@ -10,7 +10,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.env.Environment;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -41,8 +40,8 @@ class RoutingAiProviderTest {
     private final AiProviderCatalog aiProviderCatalog = new AiProviderCatalog();
 
     @Test
-    void analyzeTender_ShouldRouteToActiveProviderFromSettings() {
-        RoutingAiProvider provider = providerWithLegacyMode("openai");
+    void analyzeTender_WhenAiConfigured_ShouldRouteToRealProviderNotMock() {
+        RoutingAiProvider provider = createProvider();
         AiAnalysisResponse expected = response(88);
         when(aiConfigService.isAiEnabled()).thenReturn(true);
         when(aiConfigService.getInternalAiModelConfig()).thenReturn(config("deepseek"));
@@ -54,11 +53,12 @@ class RoutingAiProviderTest {
 
         assertThat(actual).isEqualTo(expected);
         verify(openAiCompatibleClient).analyzeTender(any(AiProviderRuntimeConfig.class), eq("content"), eq(Map.of()));
+        verify(mockAiProvider, never()).analyzeTender(any(), any());
     }
 
     @Test
     void analyzeProject_ShouldUseEnvironmentFallbackWhenSettingsKeyMissing() {
-        RoutingAiProvider provider = providerWithLegacyMode("openai");
+        RoutingAiProvider provider = createProvider();
         AiAnalysisResponse expected = response(77);
         when(aiConfigService.isAiEnabled()).thenReturn(true);
         when(aiConfigService.getInternalAiModelConfig()).thenReturn(config("qwen"));
@@ -74,22 +74,8 @@ class RoutingAiProviderTest {
     }
 
     @Test
-    void analyzeTender_WhenLegacyModeMockAndNoRealKey_ShouldUseMockProvider() {
-        RoutingAiProvider provider = providerWithLegacyMode("mock");
-        AiAnalysisResponse expected = response(66);
-        when(aiConfigService.isAiEnabled()).thenReturn(true);
-        when(mockAiProvider.analyzeTender("content", Map.of())).thenReturn(expected);
-
-        AiAnalysisResponse actual = provider.analyzeTender("content", Map.of());
-
-        assertThat(actual).isEqualTo(expected);
-        verify(mockAiProvider).analyzeTender("content", Map.of());
-        verify(openAiCompatibleClient, never()).analyzeTender(any(), any(), any());
-    }
-
-    @Test
     void analyzeTender_WhenAiDisabled_ShouldRejectWithoutCallingRealOrMockProvider() {
-        RoutingAiProvider provider = providerWithLegacyMode("mock");
+        RoutingAiProvider provider = createProvider();
         when(aiConfigService.isAiEnabled()).thenReturn(false);
 
         assertThatThrownBy(() -> provider.analyzeTender("content", Map.of()))
@@ -102,7 +88,7 @@ class RoutingAiProviderTest {
 
     @Test
     void analyzeTender_WhenActiveProviderDisabled_ShouldRejectWithoutCallingProvider() {
-        RoutingAiProvider provider = providerWithLegacyMode("openai");
+        RoutingAiProvider provider = createProvider();
         when(aiConfigService.isAiEnabled()).thenReturn(true);
         when(aiConfigService.getInternalAiModelConfig()).thenReturn(configWithProviderEnabled("openai", false));
 
@@ -114,16 +100,14 @@ class RoutingAiProviderTest {
         verify(mockAiProvider, never()).analyzeTender(any(), any());
     }
 
-    private RoutingAiProvider providerWithLegacyMode(String legacyMode) {
-        RoutingAiProvider provider = new RoutingAiProvider(
+    private RoutingAiProvider createProvider() {
+        return new RoutingAiProvider(
                 aiConfigService,
                 openAiCompatibleClient,
                 mockAiProvider,
                 environment,
                 aiProviderCatalog
         );
-        ReflectionTestUtils.setField(provider, "legacyProviderMode", legacyMode);
-        return provider;
     }
 
     private SettingsResponse.AiModelConfig config(String activeProvider) {
