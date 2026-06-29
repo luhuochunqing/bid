@@ -209,9 +209,22 @@ const loadAccounts = async () => {
   }
 }
 
-const onRowClick = (row) => {
+const onRowClick = async (row) => {
   if (isProjectLeader.value) return
-  currentAccountDetail.value = row
+  // CO-400: 列表接口对非特权角色返回 PlatformAccountSummaryDTO（脱敏 6 字段），
+  // 直接用列表 row 会让详情 dialog 中 username/contactPerson/contactPhone/contactEmail/remarks 5 字段为空。
+  // 改为调用详情接口拉取完整 PlatformAccountDTO，失败时 fallback 到列表 row。
+  try {
+    const res = await resourcesApi.accounts.getDetail(row.id)
+    if (res?.data) {
+      currentAccountDetail.value = res.data
+    } else {
+      currentAccountDetail.value = row
+    }
+  } catch (e) {
+    console.error('Failed to load account detail:', e)
+    currentAccountDetail.value = row
+  }
   showDetailDialog.value = true
 }
 
