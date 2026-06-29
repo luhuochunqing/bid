@@ -52,16 +52,6 @@
         </el-table>
         <el-empty v-if="!borrowRecords.length" description="暂无借用记录" :image-size="60" />
       </el-tab-pane>
-      <el-tab-pane label="操作日志" name="logs">
-        <el-timeline v-if="logs.length">
-          <el-timeline-item v-for="(l, i) in logs" :key="i"
-            :timestamp="l.timestamp" placement="top">
-            <p class="log-desc">{{ l.description }}</p>
-            <p class="log-meta">{{ l.operator }}</p>
-          </el-timeline-item>
-        </el-timeline>
-        <el-empty v-else description="暂无操作记录" :image-size="60" />
-      </el-tab-pane>
     </el-tabs>
     <template #footer>
       <el-button @click="visible = false">关闭</el-button>
@@ -74,7 +64,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { Hide, View } from '@element-plus/icons-vue'
-import httpClient from '@/api/client'
 import { resourcesApi } from '@/api'
 import { usePasswordReveal } from './composables/usePasswordReveal.js'
 
@@ -90,7 +79,6 @@ const visible = computed({
 })
 
 const activeTab = ref('info')
-const logs = ref([])
 const borrowRecords = ref([])
 
 // CO-389：详情新增"平台密码"行，沿用列表的 usePasswordReveal composable
@@ -118,31 +106,13 @@ const platformTypeLabel = computed(() => {
   return PLATFORM_TYPE_MAP[raw] || raw
 })
 
-watch(() => props.data, async (d) => {
+watch(() => props.data, () => {
   activeTab.value = 'info'
-  logs.value = []
   borrowRecords.value = []
-  if (d?.id) {
-    try {
-      const res = await httpClient.get(`/api/platform/accounts/${d.id}/logs`)
-      if (res?.data?.data) {
-        logs.value = (Array.isArray(res.data.data) ? res.data.data : [])
-          .map(l => ({
-            timestamp: l.timestamp || l.createdAt,
-            description: l.description || l.action,
-            operator: l.username || l.userId
-          }))
-      }
-    } catch { /* no logs yet */ }
-  }
 })
-
-const fmtTimestamp = (ts) => ts ? new Date(ts).toLocaleString('zh-CN') : '-'
 </script>
 
 <style scoped>
-.log-desc { margin: 0; font-size: 13px; color: #303133; }
-.log-meta { margin: 2px 0 0; font-size: 12px; color: #909399; }
 .password-cell { display: inline-flex; align-items: center; gap: 8px; }
 .password-text { font-family: monospace; }
 </style>

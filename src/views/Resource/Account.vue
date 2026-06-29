@@ -78,7 +78,7 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <template v-if="!isProjectLeader">
+        <template v-if="isPrivilegedViewer">
           <el-table-column prop="username" label="账号" width="150" />
           <el-table-column prop="contactPersonLabel" label="联系人" width="140" />
           <el-table-column label="密码" width="100">
@@ -98,20 +98,12 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="是否有 CA" width="120" align="center">
-            <template #default="{ row }">
-              <el-tag :type="row.hasCa ? 'success' : 'info'" size="small">{{ row.hasCa ? '是' : '否' }}</el-tag>
-            </template>
-          </el-table-column>
-
         </template>
-        <template v-else>
-          <el-table-column label="是否有 CA" width="120" align="center">
-            <template #default="{ row }">
-              <el-tag :type="row.hasCa ? 'success' : 'info'" size="small">{{ row.hasCa ? '是' : '否' }}</el-tag>
-            </template>
-          </el-table-column>
-        </template>
+        <el-table-column label="是否有 CA" width="120" align="center">
+          <template #default="{ row }">
+            <el-tag :type="row.hasCa ? 'success' : 'info'" size="small">{{ row.hasCa ? '是' : '否' }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="160" fixed="right" align="center">
           <template #default="{ row }">
             <AccountRowActions :row="row" :actions="rowActions(row)" @edit="handleEdit" @return="handleReturn" @borrow="handleBorrow" @take-down="handleTakeDown" />
@@ -161,6 +153,11 @@ const userStore = useUserStore()
 const userRoleCode = computed(() => userStore.currentUser?.roleCode || userStore.currentUser?.role || '')
 const currentUserId = computed(() => userStore.currentUser?.id)
 const isProjectLeader = computed(() => userRoleCode.value === 'bid-projectLeader')
+// CO-400 二轮：与后端 PlatformAccountService.isPrivilegedViewer 对齐，
+// 只有 admin//bidAdmin/bid-TeamLeader 能看到 username/contactPersonLabel/password 等敏感列。
+// 其他非特权角色（bid-Team/bid-administration/bid-otherDept）列表数据是脱敏 SummaryDTO，
+// 这些列字段不存在，强行渲染会显示为空，看起来像 bug。
+const isPrivilegedViewer = computed(() => userStore.isBidManager)
 const accounts = ref([])
 
 const rowActionsFor = (row) => resolveAccountActions({
@@ -209,22 +206,23 @@ const loadAccounts = async () => {
   }
 }
 
+// CO-400 二轮：列表 row 对非特权角色是脱敏 SummaryDTO，
+// 详情/编辑前都需调详情接口拉完整 PlatformAccountDTO，失败时 fallback 到列表 row。
+const loadAccountDetail = async (row) => {
+  try {
+    const res = await resourcesApi.accounts.getDetail(row.id)
+    if (res?.data) return res.data
+  } catch (e) {
+    console.error('Failed to load account detail:', e)
+  }
+  return row
+}
+
 const onRowClick = async (row) => {
   if (isProjectLeader.value) return
   // CO-400: 列表接口对非特权角色返回 PlatformAccountSummaryDTO（脱敏 6 字段），
-  // 直接用列表 row 会让详情 dialog 中 username/contactPerson/contactPhone/contactEmail/remarks 5 字段为空。
-  // 改为调用详情接口拉取完整 PlatformAccountDTO，失败时 fallback 到列表 row。
-  try {
-    const res = await resourcesApi.accounts.getDetail(row.id)
-    if (res?.data) {
-      currentAccountDetail.value = res.data
-    } else {
-      currentAccountDetail.value = row
-    }
-  } catch (e) {
-    console.error('Failed to load account detail:', e)
-    currentAccountDetail.value = row
-  }
+  // 直接用列表 row 会让详情 dialog 中 5 字段为空。改为调详情接口拉完整 DTO。
+  currentAccountDetail.value = await loadAccountDetail(row)
   showDetailDialog.value = true
 }
 
@@ -245,7 +243,10 @@ const handleReturnFromDetail = () => {
 }
 
 const handleBorrow = (row) => { currentAccount.value = row; showBorrowDialog.value = true }
-const handleEdit = (row) => { editRow.value = row.raw || row; showCreateDialog.value = true }
+const handleEdit = async (row) => {
+  editRow.value = await loadAccountDetail(row.raw || row)
+  showCreateDialog.value = true
+}
 const handleReturn = (row) => { currentReturnAccount.value = row; showReturnDialog.value = true }
 const handleTakeDown = async (row) => {
   try {
