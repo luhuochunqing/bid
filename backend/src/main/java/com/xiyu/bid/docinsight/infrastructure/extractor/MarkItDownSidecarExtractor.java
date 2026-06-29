@@ -152,6 +152,11 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
         } catch (ResourceAccessException e) {
             log.warn("Sidecar connection refused at {}: {}", sidecarUrl, e.getMessage());
             return false;
+        } catch (IllegalArgumentException e) {
+            // LoggingClientHttpRequestInterceptor + BufferingClientHttpRequestFactory 组合时，
+            // GET 请求 body 行为异常（OkHttp 校验失败）。不影响 fallback 流程。
+            log.warn("Sidecar health check rejected at {} (OkHttp body validation): {}", sidecarUrl, e.getMessage());
+            return false;
         } catch (RestClientException e) {
             log.warn("Sidecar health check failed at {}: {}", sidecarUrl, e.getMessage());
             return false;
