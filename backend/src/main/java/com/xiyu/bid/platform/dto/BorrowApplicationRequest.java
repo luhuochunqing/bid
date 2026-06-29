@@ -1,7 +1,6 @@
 package com.xiyu.bid.platform.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -17,7 +16,7 @@ public class BorrowApplicationRequest {
 
     private Long accountId;
 
-    @NotNull(message = "保管员ID不能为空")
+    // CO-386: custodianId 可选；未传时由 Service 从 account.contactPerson 自动取值
     private Long custodianId;
 
     @NotBlank(message = "使用目的不能为空")

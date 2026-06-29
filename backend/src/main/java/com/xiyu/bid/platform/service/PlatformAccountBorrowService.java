@@ -46,8 +46,14 @@ public class PlatformAccountBorrowService {
         PlatformAccount account = accountRepository.findById(request.getAccountId())
                 .orElseThrow(() -> new BusinessException("账号不存在: " + request.getAccountId()));
 
-        if (request.getCustodianId() == null
-                || !request.getCustodianId().equals(account.getContactPerson())) {
+        // CO-386: custodianId 可由前端省略；未传时从 account.contactPerson 自动取值。
+        Long custodianId = request.getCustodianId() != null
+                ? request.getCustodianId()
+                : account.getContactPerson();
+        if (custodianId == null) {
+            throw new BusinessException("该账户未绑定联系人，无法发起借用申请");
+        }
+        if (!custodianId.equals(account.getContactPerson())) {
             throw new BusinessException("保管员信息不匹配");
         }
 
@@ -60,7 +66,7 @@ public class PlatformAccountBorrowService {
         AccountBorrowApplication app = AccountBorrowApplication.builder()
                 .accountId(request.getAccountId())
                 .applicantId(currentUser.getId())
-                .custodianId(request.getCustodianId())
+                .custodianId(custodianId)
                 .purpose(request.getPurpose())
                 .projectName(request.getProjectName())
                 .projectId(request.getProjectId())
