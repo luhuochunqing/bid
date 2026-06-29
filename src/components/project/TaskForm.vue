@@ -74,8 +74,8 @@
             />
           </el-form-item>
 
-          <el-form-item label="截止日期">
-            <el-date-picker v-model="localValue.deadline" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+          <el-form-item label="截止日期" required>
+            <el-date-picker v-model="localValue.deadline" type="date" value-format="YYYY-MM-DD" style="width: 100%" placeholder="请选择截止日期" />
           </el-form-item>
 
           <el-form-item label="交付物上传">
@@ -341,6 +341,14 @@ async function loadStatuses() {
 function validate() {
   if (!localValue.name || !String(localValue.name).trim()) {
     validationMessage.value = '请填写任务名称'
+    return validationMessage.value
+  }
+  if (!localValue.assigneeId) {
+    validationMessage.value = '请选择任务执行人'
+    return validationMessage.value
+  }
+  if (!localValue.deadline) {
+    validationMessage.value = '请选择截止日期'
     return validationMessage.value
   }
   validationMessage.value = ''

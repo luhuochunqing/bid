@@ -19,6 +19,7 @@ import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
+import com.xiyu.bid.task.service.TaskService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,6 +48,7 @@ class ProjectInitiationApprovalServiceTest {
     @Mock private ProjectRepository projectRepository;
     @Mock private ProjectArchiveWorkflowService projectArchiveWorkflowService;
     @Mock private ProjectNotificationService notificationService;
+    @Mock private TaskService taskService;
 
     private ProjectInitiationApprovalService service;
 
@@ -60,7 +62,8 @@ class ProjectInitiationApprovalServiceTest {
                 userRepository,
                 projectRepository,
                 projectArchiveWorkflowService,
-                notificationService);
+                notificationService,
+                taskService);
 
         lenient().doNothing().when(projectAccessScopeService).assertCurrentUserCanAccessProject(100L);
         lenient().when(leadRepo.findByProjectId(100L))

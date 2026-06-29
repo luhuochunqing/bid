@@ -5,6 +5,7 @@
 
 package com.xiyu.bid.tender.service;
 
+import com.xiyu.bid.exception.TenderDuplicateException;
 import com.xiyu.bid.tender.dto.TenderImportResultDTO;
 import com.xiyu.bid.tender.dto.TenderImportResultDTO.RowError;
 import com.xiyu.bid.tender.dto.TenderRequest;
@@ -95,7 +96,31 @@ public class TenderImportService {
                     .build());
         }
 
-        rows.forEach(req -> tenderCommandService.createTender(tenderMapper.toDTO(req), userId));
+        List<RowError> importErrors = new ArrayList<>();
+        for (int i = 0; i < rows.size(); i++) {
+            TenderRequest req = rows.get(i);
+            int displayRow = i + 2;
+            try {
+                tenderCommandService.createTender(tenderMapper.toDTO(req), userId);
+            } catch (TenderDuplicateException e) {
+                importErrors.add(new RowError(displayRow, "duplicate", e.getMessage()));
+            } catch (IllegalArgumentException e) {
+                importErrors.add(new RowError(displayRow, "row", e.getMessage()));
+            } catch (RuntimeException e) {
+                importErrors.add(new RowError(displayRow, "row", "导入失败：" + e.getMessage()));
+            }
+        }
+
+        if (!importErrors.isEmpty()) {
+            log.info("标讯批量导入执行失败 totalRows={} failureCount={}", totalRows, importErrors.size());
+            throw new TenderImportRollbackException(TenderImportResultDTO.builder()
+                    .totalRows(totalRows)
+                    .successCount(0)
+                    .failureCount(importErrors.size())
+                    .errors(List.copyOf(importErrors))
+                    .build());
+        }
+
         log.info("标讯批量导入完成 totalRows={}", totalRows);
         return TenderImportResultDTO.builder()
                 .totalRows(totalRows)

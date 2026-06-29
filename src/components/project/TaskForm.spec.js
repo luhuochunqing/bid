@@ -194,7 +194,7 @@ describe('TaskForm', () => {
 
   it('submit() returns {valid:true, data} when name provided', async () => {
     const wrapper = mount(TaskForm, {
-      props: { mode: 'create', modelValue: { name: 'X' } },
+      props: { mode: 'create', modelValue: { name: 'X', assigneeId: 9, deadline: '2026-12-31' } },
       global: { stubs: globalStubs },
     })
     await flushPromises()
@@ -205,7 +205,7 @@ describe('TaskForm', () => {
 
   it('includes selected task attachments in submit payload', async () => {
     const wrapper = mount(TaskForm, {
-      props: { mode: 'create', modelValue: { name: 'X' } },
+      props: { mode: 'create', modelValue: { name: 'X', assigneeId: 9, deadline: '2026-12-31' } },
       global: { stubs: globalStubs },
     })
     await flushPromises()
@@ -221,7 +221,7 @@ describe('TaskForm', () => {
 
   it('allows removing unsaved task attachments before save', async () => {
     const wrapper = mount(TaskForm, {
-      props: { mode: 'create', modelValue: { name: 'X' } },
+      props: { mode: 'create', modelValue: { name: 'X', assigneeId: 9, deadline: '2026-12-31' } },
       global: { stubs: globalStubs },
     })
     await flushPromises()
@@ -340,7 +340,7 @@ describe('TaskForm', () => {
 
   it('defaults owner to the current creator and keeps organization fields on create', async () => {
     const wrapper = mount(TaskForm, {
-      props: { mode: 'create', modelValue: { name: 'X' } },
+      props: { mode: 'create', modelValue: { name: 'X', deadline: '2026-12-31' } },
       global: { stubs: { ...globalStubs, UserPicker: false } },
     })
     await flushAssigneeLoad()
@@ -372,7 +372,7 @@ describe('TaskForm', () => {
 
   it('changing the owner selects a real colleague instead of free text', async () => {
     const wrapper = mount(TaskForm, {
-      props: { mode: 'create', modelValue: { name: 'X' } },
+      props: { mode: 'create', modelValue: { name: 'X', deadline: '2026-12-31' } },
       global: { stubs: { ...globalStubs, UserPicker: false } },
     })
     await flushAssigneeLoad()
@@ -402,7 +402,7 @@ describe('TaskForm', () => {
 
   it('preserves modelValue.status when provided (edit mode)', async () => {
     const wrapper = mount(TaskForm, {
-      props: { mode: 'edit', modelValue: { name: 'X', status: 'REVIEW' } },
+      props: { mode: 'edit', modelValue: { name: 'X', assigneeId: 9, deadline: '2026-12-31', status: 'REVIEW' } },
       global: { stubs: globalStubs },
     })
     await flushPromises()
@@ -417,6 +417,7 @@ describe('TaskForm', () => {
         mode: 'edit',
         modelValue: {
           name: 'X',
+          deadline: '2026-12-31',
           assigneeId: 28,
           owner: 'ERI-92 E2E',
           assignee: 'ERI-92 E2E',
@@ -447,6 +448,7 @@ describe('TaskForm', () => {
       setup() {
         const model = ref({
           name: 'X',
+          deadline: '2026-12-31',
           assigneeId: 28,
           owner: 'ERI-92 E2E',
           assignee: 'ERI-92 E2E',
@@ -556,7 +558,7 @@ describe('TaskForm', () => {
       { key: 'priority_level', label: '优先级别', fieldType: 'select', required: false, placeholder: '', options: [{ label: '高', value: 'high' }] },
     ])
     const wrapper = mount(TaskForm, {
-      props: { mode: 'edit', modelValue: { name: 'X', status: 'TODO', extendedFields: { tender_chapter: 'Ch.3' } } },
+      props: { mode: 'edit', modelValue: { name: 'X', assigneeId: 9, deadline: '2026-12-31', status: 'TODO', extendedFields: { tender_chapter: 'Ch.3' } } },
       global: { stubs: globalStubs },
     })
     await flushPromises()
@@ -572,7 +574,7 @@ describe('TaskForm', () => {
       { key: 'tender_chapter', label: '招标章节号', fieldType: 'text', required: true, placeholder: '', options: null },
     ])
     const wrapper = mount(TaskForm, {
-      props: { mode: 'create', modelValue: { name: 'X', extendedFields: {} } },
+      props: { mode: 'create', modelValue: { name: 'X', assigneeId: 9, deadline: '2026-12-31', extendedFields: {} } },
       global: { stubs: globalStubs },
     })
     await flushPromises()

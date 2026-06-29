@@ -25,7 +25,7 @@
         :headers="uploadHeaders"
         :data="{ documentCategory: 'BID_DOCUMENT' }"
         :before-upload="beforeBidUpload"
-        :disabled="bidDone || !perm.canManageBidFiles"
+        :disabled="bidDone || !perm.canManageBidFiles || reviewState === 'reviewing' || reviewState === 'approved'"
         drag
         multiple
       >
@@ -50,7 +50,7 @@
     <!-- 标书审核人选择 -->
     <div class="bid-reviewer-row">
       <span style="font-size:13px;color:#606266;">标书审核人：</span>
-      <template v-if="reviewState === 'reviewing' || reviewState === 'approved'">
+      <template v-if="reviewState === 'reviewing' || reviewState === 'approved' || reviewState === 'rejected'">
         <span style="font-size:14px;color:#303133;font-weight:500;">{{ reviewerName || bidReviewerId || '未指定' }}</span>
       </template>
       <UserPicker

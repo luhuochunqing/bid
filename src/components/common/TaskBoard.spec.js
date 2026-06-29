@@ -173,32 +173,30 @@ describe('TaskBoard (dynamic columns)', () => {
     })
   })
 
-  it('project lead can change status (primaryLeadUserId matches)', async () => {
+  it('project lead can review tasks (primaryLeadUserId matches)', async () => {
     mockProjectStore.currentProject = { primaryLeadUserId: 9, secondaryLeadUserId: null }
-    const wrapper = mountBoard({ tasks: [{ id: 2, name: 'T2', status: 'TODO', assigneeId: 999 }] })
+    const wrapper = mountBoard({ tasks: [{ id: 2, name: 'T2', status: 'REVIEW', assigneeId: 999 }] })
     await flushPromises()
-    // availableStatuses = 4 mock items (三态 + ARCHIVED); upload hidden for non-assignee;
-    // CO-387: 项目主负责人可删除 TODO 任务，故多一项"删除任务"
     const items = wrapper.findAllComponents({ name: 'ElDropdownItem' })
-    expect(items.length).toBe(5)
-    expect(items.at(0).props('disabled')).toBe(true) // TODO matches current status
-    for (let i = 1; i < 4; i++) {
-      expect(items.at(i).props('disabled')).toBe(false) // project lead allows changes
-    }
-    expect(wrapper.text()).toContain('删除任务')
+    // REVIEW 状态下：4 个状态选项（TODO/REVIEW/COMPLETED/ARCHIVED），无上传交付物（非执行人），无删除（非TODO）
+    expect(items.length).toBe(4)
+    // 索引：0=TODO, 1=REVIEW, 2=COMPLETED, 3=ARCHIVED
+    expect(items.at(0).props('disabled')).toBe(false) // REVIEW → TODO (驳回)
+    expect(items.at(1).props('disabled')).toBe(true) // 当前状态 REVIEW
+    expect(items.at(2).props('disabled')).toBe(false) // REVIEW → COMPLETED (通过)
+    expect(items.at(3).props('disabled')).toBe(true) // 不能直接到ARCHIVED
   })
 
-  it('secondary project lead can change status', async () => {
+  it('secondary project lead can review tasks', async () => {
     mockProjectStore.currentProject = { primaryLeadUserId: null, secondaryLeadUserId: 9 }
-    const wrapper = mountBoard({ tasks: [{ id: 2, name: 'T2', status: 'TODO', assigneeId: 999 }] })
+    const wrapper = mountBoard({ tasks: [{ id: 2, name: 'T2', status: 'REVIEW', assigneeId: 999 }] })
     await flushPromises()
     const items = wrapper.findAllComponents({ name: 'ElDropdownItem' })
-    expect(items.length).toBe(5)
-    expect(items.at(0).props('disabled')).toBe(true)
-    for (let i = 1; i < 4; i++) {
-      expect(items.at(i).props('disabled')).toBe(false)
-    }
-    expect(wrapper.text()).toContain('删除任务')
+    expect(items.length).toBe(4)
+    expect(items.at(0).props('disabled')).toBe(false) // REVIEW → TODO (驳回)
+    expect(items.at(1).props('disabled')).toBe(true) // 当前状态 REVIEW
+    expect(items.at(2).props('disabled')).toBe(false) // REVIEW → COMPLETED (通过)
+    expect(items.at(3).props('disabled')).toBe(true)
   })
 
   it('uploads the selected file through projectStore and emits the saved deliverable', async () => {
@@ -212,15 +210,17 @@ describe('TaskBoard (dynamic columns)', () => {
       url: 'project-documents://12/技术方案.docx',
     }
     mockProjectStore.addDeliverable.mockResolvedValue(saved)
-    const task = { id: 31, name: '编写技术方案', status: 'TODO' }
+    const task = { id: 31, name: '编写技术方案', status: 'TODO', assigneeId: 9 }
     const wrapper = mountBoard({ projectId: '12', tasks: [task] })
     await flushPromises()
 
+    // 直接调用 handleSaveDeliverable 的等价逻辑来测试
+    // 由于上传对话框拆分为子组件，这里测试组件的 add-deliverable 事件触发逻辑
     wrapper.vm.handleUploadDeliverable(task)
-    wrapper.vm.deliverableForm.name = '技术方案.docx'
-    wrapper.vm.deliverableForm.type = 'technical'
-    wrapper.vm.handleFileChange({ raw: file })
-    await wrapper.vm.handleSaveDeliverable()
+    await flushPromises()
+    // 模拟子组件 emit save 事件，触发 handleSaveDeliverable
+    const payload = { name: '技术方案.docx', type: 'technical', file }
+    await wrapper.vm.handleSaveDeliverable(payload)
 
     expect(mockProjectStore.addDeliverable).toHaveBeenCalledWith('12', 31, expect.objectContaining({
       name: '技术方案.docx',
@@ -279,7 +279,7 @@ describe('TaskBoard (drag to change status)', () => {
   })
 
   it('emits status-change with target column code when task is dropped in another column', async () => {
-    const task = { id: 31, name: 'T', status: 'TODO', priority: 'medium' }
+    const task = { id: 31, name: 'T', status: 'TODO', priority: 'medium', assigneeId: 9 }
     const wrapper = mountBoard({ projectId: '12', tasks: [task] })
     await flushPromises()
 
@@ -291,8 +291,8 @@ describe('TaskBoard (drag to change status)', () => {
     expect(emitted[0]).toEqual([task, 'REVIEW'])
   })
 
-  it('emits status-change through mouse drag fallback after movement threshold', async () => {
-    const task = { id: 37, name: 'T', status: 'TODO', priority: 'medium' }
+  it('blocks direct TODO → COMPLETED transition (must go through REVIEW)', async () => {
+    const task = { id: 37, name: 'T', status: 'TODO', priority: 'medium', assigneeId: 9 }
     const wrapper = mountBoard({ projectId: '12', tasks: [task] })
     await flushPromises()
 
@@ -301,7 +301,8 @@ describe('TaskBoard (drag to change status)', () => {
     wrapper.vm.handleMouseDrop('COMPLETED')
     await flushPromises()
 
-    expect(wrapper.emitted('status-change')?.[0]).toEqual([task, 'COMPLETED'])
+    // TODO → COMPLETED 被禁止，不触发 status-change 事件
+    expect(wrapper.emitted('status-change')).toBeFalsy()
   })
 
   it('ignores mouse drop when pointer movement stays under drag threshold', async () => {
