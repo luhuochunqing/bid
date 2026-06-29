@@ -225,18 +225,27 @@ public class PlatformAccountService {
         return contactLabelEnricher.enrich(PlatformAccountMapper.toDTO(savedAccount));
     }
 
-    /** Get decrypted password for an account (admin / bidAdmin / bid-TeamLeader). */
+    /**
+     * Get decrypted password for an account (CO-400 四轮).
+     * Allowed for: admin / bidAdmin / bid-TeamLeader OR bid-Team as the account's contact person.
+     */
     @Auditable(action = "VIEW_PASSWORD", entityType = "PlatformAccount",
               description = "Viewed password for platform account")
     public String getPassword(Long id, User currentUser) {
-        String code = currentUser == null ? null : effectiveRoleResolver.resolveRoleCode(currentUser);
-        if (!PlatformAccountViewerPolicy.isPrivilegedRole(code)) {
-            throw new IllegalStateException("Only administrators can view account passwords");
+        if (currentUser == null) throw new IllegalStateException("Authentication required");
+        String code = effectiveRoleResolver.resolveRoleCode(currentUser);
+        boolean privileged = PlatformAccountViewerPolicy.isPrivilegedRole(code);
+        if (!privileged && PlatformAccountViewerPolicy.isBidTeamRole(code)) {
+            PlatformAccount account = repository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found with id: " + id));
+            if (!PlatformAccountContactMatcher.isContactPerson(account, currentUser))
+                throw new IllegalStateException(
+                    "Only administrators or the account's contact person can view the password");
+            return passwordEncryptionUtil.decrypt(account.getPassword());
         }
-
+        if (!privileged) throw new IllegalStateException("Only administrators can view account passwords");
         PlatformAccount account = repository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Account not found with id: " + id));
-
         return passwordEncryptionUtil.decrypt(account.getPassword());
     }
 

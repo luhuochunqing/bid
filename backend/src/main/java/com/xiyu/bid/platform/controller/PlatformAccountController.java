@@ -141,10 +141,11 @@ public class PlatformAccountController {
      *   <li>the response carries {@code Cache-Control: no-store} so
      *   browsers / proxies do not persist the secret in shared caches.</li>
      * </ul>
-     * The endpoint is restricted to admin / bidAdmin / bid-TeamLeader via {@code @PreAuthorize}.
+     * The endpoint is restricted to admin / bidAdmin / bid-TeamLeader, or
+     * bid-Team as the account's bound contact person (CO-400 四轮).
      */
     @GetMapping("/{id}/password")
-    @PreAuthorize("hasAnyAuthority('admin', '/bidAdmin', 'bid-TeamLeader', 'ROLE_ADMIN')")
+    @PreAuthorize("hasAnyAuthority('admin', '/bidAdmin', 'bid-TeamLeader', 'bid-Team', 'ROLE_ADMIN')")
     public ResponseEntity<ApiResponse<PasswordRevealResponse>> getPassword(
             @PathVariable Long id,
             @AuthenticationPrincipal UserDetails currentUser) {

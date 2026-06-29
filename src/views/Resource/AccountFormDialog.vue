@@ -88,6 +88,8 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'saved'])
 
 const userStore = useUserStore()
+const userRoleCode = computed(() => userStore.currentUser?.roleCode || userStore.currentUser?.role || '')
+const isBidTeam = computed(() => userRoleCode.value === 'bid-Team')
 
 const visible = computed({
   get: () => props.modelValue,
@@ -146,9 +148,14 @@ const onOpen = async () => {
       contactPhone: r.contactPhone || '', contactEmail: r.contactEmail || '',
       hasCa: r.hasCa || false,
       remarks: r.remarks || '' }
-    // CO-400 三轮：后端 DTO 故意不含 password（PlatformAccountDTO 行 13 注释 "password excluded"），
-    // 特权角色编辑时调 getPassword 拉明文填入输入框；非特权角色保持空（按"留空则不修改"逻辑）。
-    if (userStore.isBidManager) {
+    // CO-400 四轮（问题1根因）：后端 DTO 故意不含 password（PlatformAccountDTO 行 13 注释 "password excluded"）。
+    // 密码加载条件：特权角色（admin//bidAdmin/bid-TeamLeader）OR
+    // 投标专员作为该账户绑定联系人（bidTeam && 当前用户 === row.contactPerson）。
+    // 对齐后端 getAccountsForViewer 逻辑（bidTeam 作为绑定联系人返回完整 DTO）。
+    const currentUserId = userStore.currentUser?.id || ''
+    const isContactPerson = String(r.contactPerson || '') === String(currentUserId)
+    const shouldLoadPassword = userStore.isBidManager || (isBidTeam.value && isContactPerson)
+    if (shouldLoadPassword) {
       try {
         const pwdRes = await resourcesApi.accounts.getPassword(r.id)
         if (pwdRes?.success && pwdRes?.data?.password) {

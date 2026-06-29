@@ -398,11 +398,37 @@ class PlatformAccountServiceTest {
     }
 
     @Test
-    @DisplayName("CO-389：bid-Team（投标专员）查看密码抛出异常")
+    @DisplayName("CO-389：bid-Team（投标专员）非绑定联系人查看密码抛出异常（CO-400 四轮修）")
     void getPassword_whenBidTeam_throwsIllegalStateException() {
+        // Mock account whose contactPerson is NOT the bidTeam user.
+        PlatformAccount accountNotOwn = PlatformAccount.builder()
+                .id(1L).username("testuser").password(ENCRYPTED_PWD)
+                .accountName("其他平台").platformType(PlatformType.BIDDING_PLATFORM)
+                .status(AccountStatus.AVAILABLE)
+                .contactPerson(999L)  // NOT BID_TEAM_USER.id (5)
+                .build();
+        when(repository.findById(1L)).thenReturn(Optional.of(accountNotOwn));
+
         assertThatThrownBy(() -> service.getPassword(1L, BID_TEAM_USER))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Only administrators");
+                .hasMessageContaining("Only administrators or the account's contact person");
+    }
+
+    @Test
+    @DisplayName("CO-400 四轮：bid-Team 作为绑定联系人查看密码成功")
+    void getPassword_whenBidTeamAsContactPerson_succeeds() {
+        // Mock account whose contactPerson IS the bidTeam user.
+        when(passwordEncryptionUtil.decrypt(ENCRYPTED_PWD)).thenReturn("secret123");
+        PlatformAccount ownAccount = PlatformAccount.builder()
+                .id(1L).username("testuser").password(ENCRYPTED_PWD)
+                .accountName("我的平台").platformType(PlatformType.BIDDING_PLATFORM)
+                .status(AccountStatus.AVAILABLE)
+                .contactPerson(BID_TEAM_USER.getId())  // 绑定联系人 = bidTeam 用户
+                .build();
+        when(repository.findById(1L)).thenReturn(Optional.of(ownAccount));
+
+        String result = service.getPassword(1L, BID_TEAM_USER);
+        assertThat(result).isEqualTo("secret123");
     }
 
     @Test
