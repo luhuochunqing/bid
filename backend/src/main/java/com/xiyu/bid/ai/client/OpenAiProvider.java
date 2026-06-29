@@ -6,6 +6,7 @@ import com.openai.models.responses.ResponseCreateParams;
 import com.openai.models.responses.StructuredResponse;
 import com.openai.models.responses.StructuredResponseCreateParams;
 import com.xiyu.bid.ai.dto.AiAnalysisResponse;
+import com.xiyu.bid.ai.dto.BidDocumentQualityAiPreviewDTO;
 import com.xiyu.bid.ai.dto.DimensionScore;
 import com.xiyu.bid.entity.Tender;
 import lombok.extern.slf4j.Slf4j;
@@ -56,7 +57,32 @@ public class OpenAiProvider implements AiProvider {
         return toResponse(requestAnalysis(buildProjectPrompt(projectId, context), AnalysisOutput.class));
     }
 
-    private <T extends AnalysisOutput> T requestAnalysis(String prompt, Class<T> responseType) {
+    private static final int MAX_BID_PREVIEW_CONTENT = 3000;
+
+    @Override
+    public BidDocumentQualityAiPreviewDTO previewBidDocumentQuality(
+            String documentContent, String tenderText) {
+        String truncatedDoc = truncate(documentContent, MAX_BID_PREVIEW_CONTENT);
+        String truncatedTender = truncate(tenderText, MAX_BID_PREVIEW_CONTENT);
+        String prompt = AiPromptTemplates.BID_PREVIEW_SYSTEM_INSTRUCTION + "\n"
+                + "投标文件：" + truncatedDoc + "\n"
+                + "招标要求：" + truncatedTender + "\n"
+                + AiPromptTemplates.BID_PREVIEW_OUTPUT_FORMAT;
+        BidPreviewOutput output = requestAnalysis(prompt, BidPreviewOutput.class);
+        return BidDocumentQualityAiPreviewDTO.builder()
+                .overallAssessment(output.overallAssessment)
+                .keyRisks(output.keyRisks == null ? List.of() : output.keyRisks)
+                .build();
+    }
+
+    private String truncate(String value, int maxLength) {
+        if (value == null) return "";
+        return value.length() <= maxLength
+                ? value
+                : value.substring(0, maxLength) + "...(已截断)";
+    }
+
+    private <T> T requestAnalysis(String prompt, Class<T> responseType) {
         StructuredResponseCreateParams<T> params = ResponseCreateParams.builder()
             .input(prompt)
             .model(model)
@@ -158,5 +184,10 @@ public class OpenAiProvider implements AiProvider {
         public String dimension;
         public Integer score;
         public String details;
+    }
+
+    private static final class BidPreviewOutput {
+        String overallAssessment;
+        List<String> keyRisks;
     }
 }

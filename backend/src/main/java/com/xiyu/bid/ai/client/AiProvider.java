@@ -1,6 +1,7 @@
 package com.xiyu.bid.ai.client;
 
 import com.xiyu.bid.ai.dto.AiAnalysisResponse;
+import com.xiyu.bid.ai.dto.BidDocumentQualityAiPreviewDTO;
 
 import java.util.Map;
 
@@ -27,4 +28,7 @@ public interface AiProvider {
      * @return analysis results
      */
     AiAnalysisResponse analyzeProject(Long projectId, Map<String, Object> context);
+
+    BidDocumentQualityAiPreviewDTO previewBidDocumentQuality(
+            String documentContent, String tenderText);
 }

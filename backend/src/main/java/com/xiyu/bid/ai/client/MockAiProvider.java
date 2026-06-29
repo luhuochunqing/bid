@@ -1,6 +1,7 @@
 package com.xiyu.bid.ai.client;
 
 import com.xiyu.bid.ai.dto.AiAnalysisResponse;
+import com.xiyu.bid.ai.dto.BidDocumentQualityAiPreviewDTO;
 import com.xiyu.bid.ai.dto.DimensionScore;
 import com.xiyu.bid.entity.Tender;
 import lombok.extern.slf4j.Slf4j;
@@ -269,5 +270,24 @@ public class MockAiProvider implements AiProvider {
             Thread.currentThread().interrupt();
             log.warn("Mock AI processing delay interrupted", e);
         }
+    }
+
+    @Override
+    public BidDocumentQualityAiPreviewDTO previewBidDocumentQuality(
+            String documentContent, String tenderText) {
+        log.info("Mock AI provider: previewBidDocumentQuality called - "
+                + "returning mock data (AI not configured)");
+        simulateProcessingDelay();
+        boolean ok = documentContent != null && !documentContent.isBlank();
+        String prefix = "【开发模式-模拟数据】";
+        return BidDocumentQualityAiPreviewDTO.builder()
+                .overallAssessment(prefix + (ok
+                        ? "标书整体质量良好，核心要素齐全，建议关注格式一致性和细节完整性。"
+                        : "标书内容严重缺失，基本信息不完整，建议重新梳理后再提交。"))
+                .keyRisks(ok ? List.of("注意核对签字盖章页完整性",
+                        "建议检查页码与目录对应关系", "关注特殊条款点对点响应")
+                        : List.of("标书内容为空无法评估", "缺少基本项目信息",
+                                "无资质证明材料"))
+                .build();
     }
 }

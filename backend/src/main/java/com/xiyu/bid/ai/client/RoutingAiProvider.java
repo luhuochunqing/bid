@@ -1,6 +1,7 @@
 package com.xiyu.bid.ai.client;
 
 import com.xiyu.bid.ai.dto.AiAnalysisResponse;
+import com.xiyu.bid.ai.dto.BidDocumentQualityAiPreviewDTO;
 import com.xiyu.bid.settings.dto.SettingsResponse;
 import com.xiyu.bid.settings.service.AiProviderCatalog;
 import com.xiyu.bid.settings.service.AiConfigService;
@@ -39,6 +40,16 @@ public class RoutingAiProvider implements AiProvider {
             return mockAiProvider.analyzeProject(projectId, context);
         }
         return openAiCompatibleClient.analyzeProject(config, projectId, context);
+    }
+
+    @Override
+    public BidDocumentQualityAiPreviewDTO previewBidDocumentQuality(
+            String documentContent, String tenderText) {
+        AiProviderRuntimeConfig config = resolveActiveConfig();
+        if (config == null) {
+            return mockAiProvider.previewBidDocumentQuality(documentContent, tenderText);
+        }
+        return openAiCompatibleClient.previewBidDocumentQuality(config, documentContent, tenderText);
     }
 
     public AiProviderRuntimeConfig resolveActiveConfig() {
