@@ -1,0 +1,15 @@
+version: 1
+task: "co401-cleanup-legacy-pending-tasks"
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql/V1110__cleanup_legacy_pending_assignment_tasks.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/trae/co-401-cleanup-legacy-pending-tasks"
+    expiresAt: "2026-07-06T15:00:00.000Z"
+    reason: "CO-401 遗留清理：删除遗留待分配任务（V1110）"
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1110__cleanup_legacy_pending_assignment_tasks.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/trae/co-401-cleanup-legacy-pending-tasks"
+    expiresAt: "2026-07-06T15:00:00.000Z"
+    reason: "CO-401 遗留清理：V1110 回滚脚本（no-op，删除不可逆）"

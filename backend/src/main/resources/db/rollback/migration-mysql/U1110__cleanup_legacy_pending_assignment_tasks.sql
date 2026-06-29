@@ -1,0 +1,11 @@
+-- Input: V1110__cleanup_legacy_pending_assignment_tasks.sql
+-- Output: No-op rollback（删除操作无法回滚，遗留任务已物理删除）
+-- Pos: Flyway rollback documentation for 西域数智化投标管理平台.
+-- 维护声明: source migration changes must update this rollback script in the same branch.
+-- Backout strategy: V1110 物理删除了 title LIKE '【待分配】%' 的遗留任务，
+--   已删除的数据无法恢复。如需还原，需从 V1110 执行前备份恢复。
+-- Idempotency: 默认 no-op，幂等。
+-- Forward: db/migration-mysql/V1110__cleanup_legacy_pending_assignment_tasks.sql
+
+-- V1110 回滚：删除操作不可逆，No-op rollback
+-- 如需还原遗留任务，需从 V1110 执行前的数据库备份恢复
