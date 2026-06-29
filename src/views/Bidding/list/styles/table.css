@@ -19,6 +19,10 @@
 .tender-main-column .cell {
   padding: 5px 8px;
   text-align: left;
+  /* CO-412: 覆盖 el-table body cell 默认 nowrap，长项目名称自动换行 */
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.5;
 }
 
 .title-cell {
@@ -53,11 +57,10 @@
 }
 
 .tender-title-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  word-break: break-all;
-  line-height: 1.4;
+  /* CO-412: 项目名称自动换行，不再 nowrap 截断 */
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.5;
 }
 
 .link-icon {

@@ -65,3 +65,28 @@ describe('TenderTable 行内操作契约', () => {
     expect(source).toContain('scrollbar-always-on')
   })
 })
+
+// CO-412: 项目名称列自动换行适配
+describe('TenderTable 项目名称列自动换行 - CO-412', () => {
+  it('项目名称列保留 tender-main-column class-name 用于样式覆盖', () => {
+    expect(source).toContain('class-name="tender-main-column"')
+  })
+
+  it('table.css 项目名称列 cell 不再 nowrap，支持自动换行', () => {
+    // .tender-main-column .cell 应设置 white-space: normal + word-break
+    expect(tableStyles).toContain('.tender-main-column .cell')
+    const mainColumnBlock = tableStyles.split('.tender-main-column .cell')[1].split('}')[0]
+    expect(mainColumnBlock).toContain('white-space: normal')
+    expect(mainColumnBlock).toContain('word-break: break-word')
+  })
+
+  it('table.css .tender-title-text 不再 nowrap 截断', () => {
+    // .tender-title-text 选择器出现两次（共用块 + 独立块），取最后一次出现的独立块
+    const matches = tableStyles.match(/\.tender-title-text\s*\{[^}]*\}/g)
+    expect(matches).not.toBeNull()
+    const lastBlock = matches[matches.length - 1]
+    expect(lastBlock).toContain('white-space: normal')
+    expect(lastBlock).not.toContain('white-space: nowrap')
+    expect(lastBlock).not.toContain('text-overflow: ellipsis')
+  })
+})
