@@ -46,7 +46,7 @@
                   <el-dropdown-item
                     v-for="s in statuses"
                     :key="s.code"
-                    :disabled="normalizeStatus(task.status) === s.code || !canChangeStatus(task)"
+                    :disabled="normalizeStatus(task.status) === s.code || !canTransitionToStatus(task, s.code)"
                     @click="handleStatusChange(task, s.code)"
                   >
                     设为{{ s.name }}
@@ -102,59 +102,26 @@
       <div class="submit-tip">所有任务已完成并审核通过，可开始标书编写</div>
     </div>
 
-    <el-dialog v-model="showUploadDialog" title="上传交付物" width="500px">
-      <el-form :model="deliverableForm" label-width="80px">
-        <el-form-item label="交付物名称">
-          <el-input v-model="deliverableForm.name" placeholder="请输入交付物名称" />
-        </el-form-item>
-        <el-form-item label="交付物类型">
-          <el-select v-model="deliverableForm.type" placeholder="请选择类型">
-            <el-option label="文档" value="document" />
-            <el-option label="资质文件" value="qualification" />
-            <el-option label="技术方案" value="technical" />
-            <el-option label="报价单" value="quotation" />
-            <el-option label="其他" value="other" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="上传文件">
-          <el-upload
-            class="upload-demo"
-            drag
-            action="#"
-            :auto-upload="false"
-            :on-change="handleFileChange"
-            :file-list="fileList"
-          >
-            <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-            <div class="el-upload__text">拖拽文件到此处或<em>点击上传</em></div>
-            <template #tip>
-              <div class="el-upload__tip">支持 doc/docx/pdf/xls/xlsx 格式</div>
-            </template>
-          </el-upload>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showUploadDialog = false">取消</el-button>
-        <el-button type="primary" @click="handleSaveDeliverable" :disabled="!deliverableForm.name || !deliverableForm.file">
-          保存
-        </el-button>
-      </template>
-    </el-dialog>
+    <TaskDeliverableUploadDialog
+      v-model="showUploadDialog"
+      :task="currentTask"
+      @save="handleSaveDeliverable"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { MoreFilled, User, Calendar, Document, Upload, DocumentAdd, UploadFilled, Delete } from '@element-plus/icons-vue'
+import { MoreFilled, User, Calendar, Document, Upload, DocumentAdd, Delete } from '@element-plus/icons-vue'
 import draggable from 'vuedraggable'
 import { useProjectStore } from '@/stores/project'
 import { useUserStore } from '@/stores/user'
 
-import { useDeliverableUpload } from '@/composables/useDeliverableUpload.js'
 import { getPriorityType, getPriorityLabel as getPriorityText } from '@/views/Dashboard/workbench-formatters.js'
 import { isTaskAssignee } from '@/utils/permission.js'
 import { hexToSoftBackground } from '@/utils/color.js'
+import TaskDeliverableUploadDialog from './TaskDeliverableUploadDialog.vue'
 
 const props = defineProps({
   tasks: {
@@ -173,22 +140,23 @@ const emit = defineEmits(['task-click', 'status-change', 'submit-to-document', '
 const projectStore = useProjectStore()
 const userStore = useUserStore()
 
-const {
-  dialogVisible: showUploadDialog,
-  currentTask,
-  fileList,
-  form: deliverableForm,
-  saving: uploadSaving,
-  openDialog: handleUploadDeliverable,
-  handleFileChange,
-  save: handleSaveDeliverable,
-} = useDeliverableUpload({
-  onSave: async (task, payload) => {
-    const typeMap = {
-      document: 'DOCUMENT', qualification: 'QUALIFICATION',
-      technical: 'TECHNICAL', quotation: 'QUOTATION', other: 'OTHER',
-    }
-    const saved = await projectStore.addDeliverable(props.projectId, task.id, {
+// 交付物上传对话框
+const showUploadDialog = ref(false)
+const currentTask = ref(null)
+
+const handleUploadDeliverable = (task) => {
+  currentTask.value = task
+  showUploadDialog.value = true
+}
+
+const handleSaveDeliverable = async (payload) => {
+  if (!currentTask.value) return
+  const typeMap = {
+    document: 'DOCUMENT', qualification: 'QUALIFICATION',
+    technical: 'TECHNICAL', quotation: 'QUOTATION', other: 'OTHER',
+  }
+  try {
+    const saved = await projectStore.addDeliverable(props.projectId, currentTask.value.id, {
       name: payload.name,
       deliverableType: typeMap[payload.type] || 'DOCUMENT',
       size: payload.file ? `${(payload.file.size / 1024).toFixed(1)}KB` : null,
@@ -197,9 +165,12 @@ const {
       uploaderId: userStore.currentUser?.id ?? null,
       uploaderName: userStore.userName,
     })
-    emit('add-deliverable', task.id, saved)
-  },
-})
+    emit('add-deliverable', currentTask.value.id, saved)
+    ElMessage.success('交付物已保存')
+  } catch (error) {
+    ElMessage.error(error?.message || '保存交付物失败')
+  }
+}
 
 const statuses = computed(() => projectStore.taskStatuses)
 
@@ -220,6 +191,36 @@ const canChangeStatus = (task) => {
     (project.primaryLeadUserId != null && String(uid) === String(project.primaryLeadUserId)) ||
     (project.secondaryLeadUserId != null && String(uid) === String(project.secondaryLeadUserId))
   )
+}
+
+const canTransitionToStatus = (task, targetStatus) => {
+  const currentStatus = normalizeStatus(task.status)
+  const target = normalizeStatus(targetStatus)
+  if (currentStatus === target) return false
+  if (target === 'TODO') {
+    if (currentStatus === 'REVIEW') return canReviewTask(task)
+    return false
+  }
+  if (target === 'REVIEW') {
+    if (currentStatus === 'TODO') return isTaskAssignee(task)
+    return false
+  }
+  if (target === 'COMPLETED') {
+    if (currentStatus === 'REVIEW') return canReviewTask(task)
+    return false
+  }
+  return false
+}
+
+const canReviewTask = (task) => {
+  if (userStore.isBidManager) return true
+  const project = projectStore.currentProject
+  if (!project) return false
+  const uid = userStore?.currentUser?.id
+  if (uid == null) return false
+  if (task.assigneeId != null && String(uid) === String(task.assigneeId)) return false
+  return (project.primaryLeadUserId != null && String(uid) === String(project.primaryLeadUserId)) ||
+    (project.secondaryLeadUserId != null && String(uid) === String(project.secondaryLeadUserId))
 }
 
 // CO-387: 删除任务权限 — 仅 TODO 状态 + (管理员/组长 或 项目主/副负责人)
@@ -303,6 +304,10 @@ const emitDragStatusChange = (task, targetColumnKey) => {
   if (!task) return
   if (dragTransitionEmitted.value) return
   if (normalizeStatus(task.status) === targetColumnKey) return
+  if (!canTransitionToStatus(task, targetColumnKey)) {
+    ElMessage.warning('不允许直接将任务设为该状态，请按流程操作')
+    return
+  }
   dragTransitionEmitted.value = true
   handleStatusChange(task, targetColumnKey)
 }
@@ -401,23 +406,23 @@ const handleSubmitToDocument = async () => {
 .column-content { flex: 1; padding: 12px; overflow-y: auto; max-height: 500px; }
 .task-card { background: white; border-radius: 6px; padding: 12px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
 .task-card:hover { box-shadow: 0 6px 16px rgba(0,0,0,0.15); }
-.task-card-ghost { opacity: 0.5; background: #eef5ff !important; border: 1px dashed #409eff !important; }
+.task-card-ghost { opacity: 0.5; background: var(--el-color-info-light-9) !important; border: 1px dashed var(--el-color-primary) !important; }
 .task-card-dragging { opacity: 0.9; transform: rotate(2deg); box-shadow: 0 12px 24px rgba(0,0,0,0.2) !important; cursor: grabbing; }
-.task-high { border-left: 3px solid #f56c6c; }
-.task-review { border-left: 3px solid #e6a23c; }
+.task-high { border-left: 3px solid var(--el-color-danger); }
+.task-review { border-left: 3px solid var(--el-color-warning); }
 .task-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 8px; }
 .more-icon { color: var(--text-muted); cursor: pointer; font-size: 16px; }
-.more-icon:hover { color: #409eff; }
+.more-icon:hover { color: var(--el-color-primary); }
 .task-name { font-size: 14px; color: var(--gray-750); margin-bottom: 8px; font-weight: 500; line-height: 1.4; }
 .task-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.4; }
 .task-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); }
 .task-owner, .task-deadline { display: flex; align-items: center; gap: 4px; }
-.task-deadline.deadline-urgent { color: #f56c6c; }
-.deliverables { margin-top: 12px; padding-top: 12px; border-top: 1px dashed #dcdfe6; }
+.task-deadline.deadline-urgent { color: var(--el-color-danger); }
+.deliverables { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--el-border-color); }
 .deliverable-title { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
 .deliverable-item { display: inline-flex; align-items: center; gap: 4px; margin: 0 8px 8px 0; }
-.submit-section { margin-top: 16px; padding: 16px; background: #f0f9ff; border: 1px solid #b3e8ff; border-radius: 8px; text-align: center; }
-.submit-tip { margin-top: 8px; font-size: 12px; color: #409eff; }
+.submit-section { margin-top: 16px; padding: 16px; background: var(--el-color-info-light-9); border: 1px solid var(--el-color-primary-light-8); border-radius: 8px; text-align: center; }
+.submit-tip { margin-top: 8px; font-size: 12px; color: var(--el-color-primary); }
 .badge :deep(.el-badge__content) { background-color: transparent; color: inherit; border: none; }
 .delete-task-label { color: var(--el-color-danger); }
 </style>

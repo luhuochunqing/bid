@@ -21,7 +21,7 @@
           :tasks="ctx.project?.tasks || []"
           :project-id="ctx.project?.id"
           :show-submit-button="false"
-          :can-manage-project-tasks="ctx.canManageProjectTasks && currentProjectStage === 'DRAFTING'"
+          :can-manage-project-tasks="ctx.canManageProjectTasks && canManageTasksInDrafting()"
           :is-demo-mode="ctx.isDemoMode"
           @add-task="ctx.handleAddTask"
           @reset-tasks="ctx.handleResetTasks"
@@ -151,6 +151,32 @@ const timelineRef = ref(null)
 const scoreParseRef = ref(null)
 const taskDecomposeRef = ref(null)
 const resultType = ref('')
+const bidReviewState = ref(null)
+
+async function loadBidReviewState() {
+  if (!ctx.project?.id || currentProjectStage.value !== 'DRAFTING') {
+    bidReviewState.value = null
+    return
+  }
+  try {
+    const res = await projectLifecycleApi.getDrafting(ctx.project.id)
+    const d = res?.data || res
+    if (d?.reviewStatus) {
+      bidReviewState.value = d.reviewStatus.toLowerCase()
+    } else {
+      bidReviewState.value = null
+    }
+  } catch (e) {
+    console.warn('[ProjectDetailMainColumn] loadBidReviewState failed', e)
+    bidReviewState.value = null
+  }
+}
+
+const canManageTasksInDrafting = () => {
+  if (currentProjectStage.value !== 'DRAFTING') return false
+  if (bidReviewState.value === 'approved' || bidReviewState.value === 'reviewing') return false
+  return true
+}
 
 async function loadResultType() {
   if (!ctx.project?.id) return
@@ -168,8 +194,13 @@ watch(() => ctx.project?.id, (newId) => {
   resultType.value = ''
   if (newId) {
     loadResultType()
+    loadBidReviewState()
   }
 }, { immediate: true })
+
+watch(currentProjectStage, () => {
+  loadBidReviewState()
+})
 
 // Sync with timeline click events and snapshot events
 function handleStageClick(stage) {
@@ -203,6 +234,7 @@ async function handleStageUpdated() {
     ? timelineRef.value.reload()
     : Promise.resolve()
   const resultTypePromise = loadResultType()
+  const bidReviewPromise = loadBidReviewState()
 
   await timelinePromise
 
@@ -214,7 +246,7 @@ async function handleStageUpdated() {
     ? projectStore.getProjectById(ctx.project.id)
     : Promise.resolve()
 
-  await Promise.all([projectPromise, resultTypePromise])
+  await Promise.all([projectPromise, resultTypePromise, bidReviewPromise])
 }
 
 async function onRetrospectiveSubmitted() {

@@ -96,6 +96,10 @@ public class TenderAutoAssignmentService {
 
         if (mapping.isPresent()) {
             CrmProjectMapping m = mapping.get();
+            if (!hasText(m.getProjectManagerName())) {
+                LOG.warn("Local mapping has no projectManagerName for purchaser={}, skipping", purchaserName);
+                return AssignmentResult.noMatch();
+            }
             LOG.info("Auto-assignment matched: tender={}, purchaser={}, "
                     + "manager={}, dept={}",
                     tender.getId(), purchaserName,
@@ -205,11 +209,19 @@ public class TenderAutoAssignmentService {
             }
 
             String saleNo = manager.get().saleNo();
+            if (!hasText(saleNo)) {
+                LOG.debug("CRM step2 manager has no saleNo for companyId={}", company.get().id());
+                return AssignmentResult.noMatch();
+            }
             LOG.info("CRM auto-assignment matched: tender={}, purchaser={}, companyId={}, saleNo={}",
                     tender.getId(), purchaserName, company.get().id(), saleNo);
 
             // 接口 25259 只返回工号，按工号查本地 User 表补齐姓名
             String managerName = resolveManagerNameByEmployeeNumber(saleNo);
+            if (!hasText(managerName)) {
+                LOG.debug("CRM auto-assignment: no local user found for saleNo={}, keeping PENDING", saleNo);
+                return AssignmentResult.noMatch();
+            }
 
             return AssignmentResult.success(
                     null, // crmProjectId 不需要

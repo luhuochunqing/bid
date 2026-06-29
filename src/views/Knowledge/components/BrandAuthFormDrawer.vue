@@ -132,14 +132,33 @@ watch(() => props.modelValue, (v) => { visible.value = v; if (v) initForm() })
 const editingId = ref(null)
 const submitting = ref(false)
 
+const formRef = ref(null)
 const form = ref(getEmptyForm())
-const formRules = {
-  productLine: [{ required: true, message: '请选择一级产线' }],
-  brandId: [{ required: true, message: '请输入品牌ID' }],
-  brandName: [{ required: true, message: '请输入品牌' }],
-  importDomestic: [{ required: true, message: '请选择进口/国产' }],
-  manufacturerName: [{ required: true, message: '请输入品牌原厂名称' }]
-}
+const formRules = computed(() => {
+  const baseRules = {
+    productLine: [{ required: true, message: '请选择一级产线', trigger: 'change' }],
+    brandId: [{ required: true, message: '请输入品牌ID', trigger: 'blur' }],
+    brandName: [{ required: true, message: '请输入品牌', trigger: 'blur' }],
+    importDomestic: [{ required: true, message: '请选择进口/国产', trigger: 'change' }],
+    manufacturerName: [{ required: true, message: '请输入品牌原厂名称', trigger: 'blur' }]
+  }
+  if (props.mode === 'agent') {
+    return {
+      ...baseRules,
+      agentName: [{ required: true, message: '请输入代理商名称', trigger: 'blur' }],
+      auth1StartDate: [{ required: true, message: '请选择授权1开始时间', trigger: 'change' }],
+      auth1EndDate: [{ required: true, message: '请选择授权1结束时间', trigger: 'change' }],
+      auth2StartDate: [{ required: true, message: '请选择授权2开始时间', trigger: 'change' }],
+      auth2EndDate: [{ required: true, message: '请选择授权2结束时间', trigger: 'change' }]
+    }
+  } else {
+    return {
+      ...baseRules,
+      authStartDate: [{ required: true, message: '请选择授权开始时间', trigger: 'change' }],
+      authEndDate: [{ required: true, message: '请选择授权结束时间', trigger: 'change' }]
+    }
+  }
+})
 
 function getEmptyForm() {
   return {
@@ -175,15 +194,16 @@ function initForm() {
 const onFileChange = (file, fileList, field) => { form.value[field] = fileList }
 const onFileRemove = (file, field) => { form.value[field] = form.value[field].filter(f => f.uid !== file.uid) }
 
-const handleSubmit = () => {
-  const f = form.value
-  if (!f.productLine || !f.brandId || !f.brandName || !f.manufacturerName) {
-    ElMessage.warning('请填写所有必填项'); return
+const handleSubmit = async () => {
+  if (!formRef.value) return
+  try {
+    await formRef.value.validate()
+  } catch {
+    ElMessage.warning('请填写所有必填项')
+    return
   }
+  const f = form.value
   if (props.mode === 'agent') {
-    if (!f.agentName || !f.auth1StartDate || !f.auth1EndDate || !f.auth2StartDate || !f.auth2EndDate) {
-      ElMessage.warning('代理商授权所有时间段为必填项'); return
-    }
     if (f.auth1EndDate <= f.auth1StartDate) { ElMessage.error('授权1结束时间须晚于开始时间'); return }
     if (f.auth2EndDate <= f.auth2StartDate) { ElMessage.error('授权2结束时间须晚于开始时间'); return }
     if (f.auth2StartDate < f.auth1StartDate) { ElMessage.error('授权2开始时间不能早于授权1开始时间'); return }
@@ -191,9 +211,6 @@ const handleSubmit = () => {
     f.authStartDate = f.auth2StartDate
     f.authEndDate = f.auth2EndDate
   } else {
-    if (!f.authStartDate || !f.authEndDate) {
-      ElMessage.warning('请选择开始和结束时间'); return
-    }
     if (f.authEndDate <= f.authStartDate) { ElMessage.error('结束时间须晚于开始时间'); return }
   }
   emit('save', { isEdit: isEdit.value, id: editingId.value, form: { ...f } })

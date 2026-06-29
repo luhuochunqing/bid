@@ -169,10 +169,27 @@ public class TenderController {
     @Operation(summary = "批量导入标讯")
     public ResponseEntity<ApiResponse<com.xiyu.bid.tender.dto.TenderImportResultDTO>> importTenders(@RequestParam("file") MultipartFile file, @AuthenticationPrincipal UserDetails user) {
         try {
+            if (file == null || file.isEmpty()) {
+                var errorResult = com.xiyu.bid.tender.dto.TenderImportResultDTO.builder()
+                        .totalRows(0)
+                        .successCount(0)
+                        .failureCount(1)
+                        .errors(List.of(new com.xiyu.bid.tender.dto.TenderImportResultDTO.RowError(0, "file", "请上传导入文件")))
+                        .build();
+                return ResponseEntity.ok(ApiResponse.success("导入未通过校验", errorResult));
+            }
             var result = tenderImportService.importFromExcel(file, resolveUserId(user));
             return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("成功导入 " + result.getSuccessCount() + " 条标讯", result));
         } catch (com.xiyu.bid.tender.service.TenderImportRollbackException ex) {
             return ResponseEntity.ok(ApiResponse.success("导入未通过校验", ex.getResult()));
+        } catch (IllegalArgumentException ex) {
+            var errorResult = com.xiyu.bid.tender.dto.TenderImportResultDTO.builder()
+                    .totalRows(0)
+                    .successCount(0)
+                    .failureCount(1)
+                    .errors(List.of(new com.xiyu.bid.tender.dto.TenderImportResultDTO.RowError(0, "file", ex.getMessage())))
+                    .build();
+            return ResponseEntity.ok(ApiResponse.success("导入未通过校验", errorResult));
         }
     }
 

@@ -134,7 +134,6 @@ export function useTenderAiParse(form) {
   function applyParsedFields(data) {
     if (!data) return
 
-    // 扫描件检测：后端返回警告时提示用户
     const warnings = data?.warnings || []
     const scannedWarning = warnings.find(w => w.includes('SCANNED_DOCUMENT'))
     if (scannedWarning) {
@@ -143,10 +142,6 @@ export function useTenderAiParse(form) {
     }
 
     const extracted = data?.extractedData && typeof data.extractedData === 'object' ? data.extractedData : null
-    // Two mapping sets cover different AI field naming conventions:
-    //   [0] AI returns form-style names (landline, phone, …)
-    //   [1] AI returns API-style names (contactTel, contactName, …)
-    // First non-empty value wins for each target field.
     const mappings = [
       {
         title: 'title', region: 'region', tenderAgency: 'purchaser',
@@ -173,9 +168,7 @@ export function useTenderAiParse(form) {
         for (const [from, to] of Object.entries(mapping)) {
           const value = src[from]
           if (value === undefined || value === null || value === '') continue
-          if (form.value[to] === undefined || form.value[to] === null || form.value[to] === '') {
-            form.value[to] = value
-          }
+          form.value[to] = value
         }
       }
     }

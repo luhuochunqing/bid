@@ -6,6 +6,7 @@ package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.annotation.Auditable;
 import com.xiyu.bid.casework.application.ProjectArchiveWorkflowService;
+import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.project.core.InitiationReviewPolicy;
@@ -22,8 +23,11 @@ import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
+import com.xiyu.bid.task.dto.TaskDTO;
+import com.xiyu.bid.task.service.TaskService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,6 +59,7 @@ public class ProjectInitiationApprovalService {
     private final ProjectRepository projectRepository;
     private final ProjectArchiveWorkflowService projectArchiveWorkflowService;
     private final ProjectNotificationService notificationService;
+    private final TaskService taskService;
 
     /**
      * 审核通过立项申请，原子完成：状态变更 + 团队分配 + 阶段推进 + 字段锁定。
@@ -110,6 +115,11 @@ public class ProjectInitiationApprovalService {
                     ProjectStageTransitionPolicy.GateInputs.EMPTY);
         }
 
+        // 3a. 如果需要缴纳保证金，自动创建"缴纳保证金"任务
+        if (entity.getNeedDeposit() != null && "YES".equalsIgnoreCase(entity.getNeedDeposit())) {
+            createDepositTask(projectId, req.getPrimaryLeadUserId());
+        }
+
         // 4. 创建项目档案（幂等：UNIQUE constraint 防止重复创建）
         projectRepository.findById(projectId)
                 .ifPresent(project -> projectArchiveWorkflowService
@@ -155,6 +165,43 @@ public class ProjectInitiationApprovalService {
 
         log.info("Initiation rejected project={} reviewer={} reason={}",
                 projectId, currentUserId, req.getRejectionReason());
+    }
+
+    /**
+     * 为项目自动创建"缴纳保证金"系统任务。
+     * <p>任务分配给项目主负责人，优先级为高，截止时间默认7天后。</p>
+     *
+     * @param projectId 项目ID
+     * @param assigneeId 任务执行人ID（项目主负责人）
+     */
+    private void createDepositTask(Long projectId, Long assigneeId) {
+        if (assigneeId == null) {
+            log.warn("Cannot create deposit task: primaryLeadUserId is null for project={}", projectId);
+            return;
+        }
+        try {
+            TaskDTO depositTask = TaskDTO.builder()
+                    .projectId(projectId)
+                    .title("缴纳投标保证金")
+                    .description("请按照招标文件要求缴纳投标保证金，确保投标有效性。")
+                    .assigneeId(assigneeId)
+                    .priority(Task.Priority.HIGH)
+                    .dueDate(LocalDateTime.now().plusDays(7))
+                    .build();
+            taskService.createSystemTask(depositTask);
+            log.info("Auto-created deposit task for project={}, assignee={}", projectId, assigneeId);
+        } catch (ResourceNotFoundException e) {
+            // 分配的执行人不存在，记录错误但不影响主流程
+            log.error("Cannot auto-create deposit task: assignee {} not found for project={}",
+                    assigneeId, projectId);
+        } catch (DataAccessException e) {
+            // 数据库异常，记录错误但不影响主流程
+            log.error("Database error while creating deposit task for project={}", projectId, e);
+        } catch (Exception e) {
+            // 其他未知异常，记录错误但不影响主流程
+            log.error("Unexpected error while creating deposit task for project={}: {}",
+                    projectId, e.getMessage(), e);
+        }
     }
 
     private ProjectInitiationDetails mustGet(Long projectId) {

@@ -23,7 +23,7 @@
           <div class="blueprint-item"><span class="blueprint-label">开标时间</span><span class="blueprint-value">{{ bidOpeningTime || '-' }}</span></div>
         </div>
         <div class="filter-row">
-          <el-input v-model="searchForm.name" placeholder="商机名称（精确匹配）" clearable size="small" class="filter-input" />
+          <el-input v-model="searchForm.name" placeholder="商机名称（模糊查询）" clearable size="small" class="filter-input" />
           <el-input v-model="searchForm.code" placeholder="商机编号（CRM暂不支持按编号搜索）" clearable size="small" class="filter-input" />
           <el-select v-model="searchForm.projectStatus" multiple placeholder="项目状态" clearable size="small" class="filter-input">
             <el-option label="跟踪中" :value="1" /><el-option label="已投标" :value="2" />
