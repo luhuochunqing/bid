@@ -2,6 +2,8 @@ package com.xiyu.bid.compliance.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.ai.client.AiProvider;
+import com.xiyu.bid.ai.dto.BidDocumentQualityAiPreviewDTO;
 import com.xiyu.bid.compliance.domain.BidDocumentQualityCheckPolicy;
 import com.xiyu.bid.compliance.domain.BidDocumentQualityCheckPolicy.QualityCheckResult;
 import com.xiyu.bid.compliance.domain.BidDocumentQualityCheckPolicy.QualityIssue;
@@ -40,6 +42,7 @@ public class BidDocumentQualityCheckAppService {
     private final ComplianceCheckResultRepository resultRepository;
     /** 目标加载器. */
     private final ComplianceTargetLoader targetLoader;
+    private final AiProvider aiProvider;
 
     /**
      * 对指定项目执行标书文档质量核查.
@@ -80,7 +83,20 @@ public class BidDocumentQualityCheckAppService {
                 projectId, qualityResult.overallStatus(),
                 qualityResult.totalIssues());
 
-        return toDTO(result, issues);
+        BidDocumentQualityAiPreviewDTO aiPreview = tryAiPreview(documentContent, tenderText);
+        return toDTO(result, issues, aiPreview);
+    }
+
+    private BidDocumentQualityAiPreviewDTO tryAiPreview(
+            final String documentContent,
+            final String tenderText) {
+        try {
+            return aiProvider.previewBidDocumentQuality(documentContent, tenderText);
+        } catch (RuntimeException exception) {
+            log.warn("AI bid document quality preview failed, falling back: {}",
+                    exception.getMessage());
+            return null;
+        }
     }
 
     /**
@@ -175,23 +191,29 @@ public class BidDocumentQualityCheckAppService {
 
     private ComplianceCheckResultDTO toDTO(
             final ComplianceCheckResult result,
-            final List<ComplianceIssue> issues) {
-        return ComplianceCheckResultDTO.builder()
-                .id(result.getId())
-                .projectId(result.getProjectId())
-                .tenderId(result.getTenderId())
-                .overallStatus(result.getOverallStatus())
-                .issues(issues)
-                .riskScore(result.getRiskScore())
-                .checkedAt(result.getCheckedAt())
-                .checkedBy(result.getCheckedBy())
-                .build();
+            final List<ComplianceIssue> issues,
+            final BidDocumentQualityAiPreviewDTO aiPreview) {
+        ComplianceCheckResultDTO.ComplianceCheckResultDTOBuilder builder =
+                ComplianceCheckResultDTO.builder()
+                        .id(result.getId())
+                        .projectId(result.getProjectId())
+                        .tenderId(result.getTenderId())
+                        .overallStatus(result.getOverallStatus())
+                        .issues(issues)
+                        .riskScore(result.getRiskScore())
+                        .checkedAt(result.getCheckedAt())
+                        .checkedBy(result.getCheckedBy());
+        if (aiPreview != null) {
+            builder.aiOverallAssessment(aiPreview.getOverallAssessment());
+            builder.aiKeyRisks(aiPreview.getKeyRisks());
+        }
+        return builder.build();
     }
 
     private ComplianceCheckResultDTO toDTOWithParsedIssues(
             final ComplianceCheckResult result) {
         List<ComplianceIssue> issues = parseIssues(result.getCheckDetails());
-        return toDTO(result, issues);
+        return toDTO(result, issues, null);
     }
 
     @SuppressWarnings("unchecked")

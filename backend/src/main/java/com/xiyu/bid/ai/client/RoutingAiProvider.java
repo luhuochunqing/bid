@@ -1,11 +1,11 @@
 package com.xiyu.bid.ai.client;
 
 import com.xiyu.bid.ai.dto.AiAnalysisResponse;
+import com.xiyu.bid.ai.dto.BidDocumentQualityAiPreviewDTO;
 import com.xiyu.bid.settings.dto.SettingsResponse;
 import com.xiyu.bid.settings.service.AiProviderCatalog;
 import com.xiyu.bid.settings.service.AiConfigService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
@@ -23,8 +23,6 @@ public class RoutingAiProvider implements AiProvider {
     private final Environment environment;
     private final AiProviderCatalog aiProviderCatalog;
 
-    @Value("${ai.provider:mock}")
-    private String legacyProviderMode;
 
     @Override
     public AiAnalysisResponse analyzeTender(String content, Map<String, Object> context) {
@@ -44,12 +42,19 @@ public class RoutingAiProvider implements AiProvider {
         return openAiCompatibleClient.analyzeProject(config, projectId, context);
     }
 
+    @Override
+    public BidDocumentQualityAiPreviewDTO previewBidDocumentQuality(
+            String documentContent, String tenderText) {
+        AiProviderRuntimeConfig config = resolveActiveConfig();
+        if (config == null) {
+            return mockAiProvider.previewBidDocumentQuality(documentContent, tenderText);
+        }
+        return openAiCompatibleClient.previewBidDocumentQuality(config, documentContent, tenderText);
+    }
+
     public AiProviderRuntimeConfig resolveActiveConfig() {
         if (!aiConfigService.isAiEnabled()) {
             throw new IllegalStateException("AI 功能已在系统设置中关闭");
-        }
-        if ("mock".equalsIgnoreCase(legacyProviderMode)) {
-            return null;
         }
 
         SettingsResponse.AiModelConfig aiModelConfig = aiConfigService.getInternalAiModelConfig();

@@ -26,4 +26,7 @@ public class ComplianceCheckResultDTO {
     private Integer riskScore;
     private LocalDateTime checkedAt;
     private String checkedBy;
+
+    private String aiOverallAssessment;
+    private List<String> aiKeyRisks;
 }

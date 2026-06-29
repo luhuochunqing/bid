@@ -6,6 +6,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.ai.dto.AiAnalysisResponse;
+import com.xiyu.bid.ai.dto.BidDocumentQualityAiPreviewDTO;
 import com.xiyu.bid.ai.dto.DimensionScore;
 import com.xiyu.bid.entity.Tender;
 import lombok.extern.slf4j.Slf4j;
@@ -61,6 +62,36 @@ public class OpenAiCompatibleClient {
 
     public void testConnection(AiProviderRuntimeConfig config) {
         callChatCompletion(config, "Return only the word OK.", 16);
+    }
+
+    private static final int MAX_BID_PREVIEW_CONTENT = 3000;
+
+    public BidDocumentQualityAiPreviewDTO previewBidDocumentQuality(
+            AiProviderRuntimeConfig config, String documentContent, String tenderText) {
+        String doc = truncate(documentContent, MAX_BID_PREVIEW_CONTENT);
+        String tender = truncate(tenderText, MAX_BID_PREVIEW_CONTENT);
+        String prompt = AiPromptTemplates.BID_PREVIEW_SYSTEM_INSTRUCTION
+                + "\n投标文件：" + doc + "\n招标要求：" + tender + "\n"
+                + AiPromptTemplates.BID_PREVIEW_OUTPUT_FORMAT;
+        return parseBidPreview(callChatCompletion(config, prompt, 1500));
+    }
+
+    private String truncate(String value, int maxLength) {
+        if (value == null) return "";
+        return value.length() <= maxLength ? value
+                : value.substring(0, maxLength) + "...(已截断)";
+    }
+
+    private BidDocumentQualityAiPreviewDTO parseBidPreview(String response) {
+        try {
+            JsonNode root = objectMapper.readTree(extractJson(response));
+            return BidDocumentQualityAiPreviewDTO.builder()
+                    .overallAssessment(root.path("overallAssessment").asText(null))
+                    .keyRisks(parseStringList(root.path("keyRisks")))
+                    .build();
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to parse bid preview", e);
+        }
     }
 
     private String callChatCompletion(AiProviderRuntimeConfig config, String prompt, int maxTokens) {
