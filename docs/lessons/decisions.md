@@ -149,3 +149,89 @@ PR #1173 部署后到本 PR 部署前创建的标讯（如 581，郑蓉蓉被错
 
 - `docs/lessons/root-cause-analysis-crm-leader-priority.md` — 完整根因分析
 - `docs/lessons/crm-integration-lessons.md` §11 — projectManagerId 存储与调用链覆盖经验
+
+---
+
+## 3. Controller @PreAuthorize 放宽为 isAuthenticated()，真权限交给 Service 层 Policy
+
+**日期**: 2026-06-29
+**决策者**: cursor
+**相关 Issue**: CO-375（Linear）/ 内部任务编号 CO-383
+**状态**: 已采纳
+
+### 背景
+
+`ProjectDocumentController.deleteProjectDocument` 的 `@PreAuthorize` 在 CO-382 修复时收紧为 `hasAnyRole("ADMIN","BIDADMIN","BID_TEAMLEADER")`，意图做"早过滤"挡住非管理员。但实际业务规则中，**上传者本人在未提交前也应能删除自己上传的文件**（可能传错需要重传）。
+
+Controller 层 `hasAnyRole` 早过滤直接挡住了 bid-projectLeader 用户 08687，导致他无法删除自己上传的文件，根本到不了 Service 层 Policy。
+
+### 问题
+
+- **Controller 早过滤过度收紧**：`hasAnyRole` 是基于角色的过滤，无法表达"上传者本人"这种基于身份的授权规则
+- **隐藏 Policy 问题**：Controller 直接 403 挡住，Policy 内部的 `canDelete` 即使想放行上传者本人也接收不到请求
+- **测试盲区**：测试环境主要用 admin 账号测试，Controller 早过滤在 admin 路径下不暴露问题
+- **业务规则错配**：业务需要"上传者本人可删除自己未提交的文件"，但 Controller 角色过滤无法表达这个规则
+
+### 决策
+
+Controller 层 `@PreAuthorize` 放宽为 `isAuthenticated()`，真权限交给 Service 层 `ProjectDocumentWorkflowPolicy.canDeleteProjectDocument`：
+
+```java
+@DeleteMapping("/{documentId}")
+@PreAuthorize("isAuthenticated()")  // 只做"是否登录"级别的过滤
+public ResponseEntity<ApiResponse<Void>> deleteProjectDocument(
+        @PathVariable Long projectId,
+        @PathVariable Long documentId
+) {
+    projectWorkflowService.deleteProjectDocument(projectId, documentId);
+    return ResponseEntity.ok(ApiResponse.success("Project document deleted successfully", null));
+}
+```
+
+Service 层 Policy 承担真权限闸门：
+
+```java
+public static AuthorizationDecision canDeleteProjectDocument(
+        String roleCode, Long currentUserId, Long uploaderId) {
+    // 管理员组：admin/bidAdmin/bid-TeamLeader → permit
+    // 上传者本人：currentUserId.equals(uploaderId) → permit
+    // 其他：deny
+}
+```
+
+### 取舍
+
+| 方案 | 优点 | 缺点 | 是否采纳 |
+|------|------|------|---------|
+| Controller `isAuthenticated()` + Service Policy 真权限 | 可表达身份维度授权（上传者本人）；权限集中管理 | Controller 层不再做角色过滤，依赖 Service 层正确性 | ✅ 采纳 |
+| Controller `hasAnyRole` + Service Policy 双层过滤 | 双层防御 | 无法表达身份维度授权；上传者本人永远被 Controller 挡住 | ❌ 业务规则无法实现 |
+| Controller SpEL 表达式 `@PreAuthorize("@documentAuth.canDelete(authentication, #documentId)") | 单层过滤 | SpEL 表达式复杂；权限规则分散在多个 Bean 中；测试困难 | ❌ 维护成本高 |
+| 全部放 Controller 层（在 Controller 内手写 if 判断） | 直观 | Controller 承担业务逻辑，违反分层；无法单测 | ❌ 违反架构边界 |
+
+### 权衡与约束
+
+1. **Controller 只做"是否登录"过滤**：`isAuthenticated()` 是最低级别的过滤，确保用户已登录。任何基于角色或身份的授权规则都交给 Service 层 Policy。
+2. **Service 层 Policy 是真权限闸门**：所有权限决策集中在 Policy 类中，便于单测和维护。
+3. **Policy 必须包含所有决策维度**：方法签名必须显式传入 `roleCode`、`currentUserId`、`uploaderId` 等所有决策维度，不能依赖隐式上下文。
+4. **风险：Controller 层不再做角色过滤**：如果 Service 层 Policy 有 bug，Controller 层无法兜底。通过严格的单测覆盖（PolicyTest 46 个测试）来降低风险。
+
+### 验证
+
+- Controller `@PreAuthorize` 改为 `isAuthenticated()`
+- Service 层 Policy 承担真权限闸门
+- `ProjectDocumentWorkflowPolicyTest`：46 个测试全 Green（覆盖管理员组、上传者本人、非上传者、null 维度等场景）
+- `ProjectDocumentWorkflowServiceTest`：18 个测试全 Green
+- `ArchitectureTest`：26 条规则全 Green
+
+### 适用范围
+
+本决策适用于所有需要"身份维度授权"的接口（如：上传者本人可删除自己上传的文件、任务 assignee 可修改自己任务、审核人可查看自己审核的文档等）。
+
+对于纯角色维度的接口（如：只有管理员能查看系统日志），仍可使用 `hasAnyRole`。但建议统一用 `isAuthenticated()` + Service Policy，保持架构一致性。
+
+### 相关文档
+
+- `docs/lessons/root-cause-analysis-co-375-uploader-delete-permission.md` — 完整根因分析
+- `docs/lessons/lessons-learned.md` §24 — Policy canUpload/canDelete 权限矩阵必须对称设计
+- `backend/src/main/java/com/xiyu/bid/projectworkflow/controller/ProjectDocumentController.java` — Controller 实现
+- `backend/src/main/java/com/xiyu/bid/projectworkflow/core/ProjectDocumentWorkflowPolicy.java` — Policy 实现

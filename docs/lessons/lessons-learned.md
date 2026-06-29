@@ -1535,3 +1535,53 @@ grep "你的X-Trace-Id" backend/logs/app.log
 # 3. 排查外部调用的出入参
 grep -A 15 "LoggingClientHttpRequestInterceptor" backend/logs/app.log
 ```
+
+## 24. Policy canUpload/canDelete 权限矩阵必须对称设计（CO-375/CO-383 多轮修复归纳）
+
+### 问题背景
+
+`ProjectDocumentWorkflowPolicy.java` 在 CO-361 → CO-373 → CO-382 → CO-375 的多轮修复中反复返工，根因是设计时没有从「同一资源的 upload/delete 权限矩阵必须对称」这个视角审视整个 Policy：
+
+| 轮次 | 修复视角 | 解决的问题 | 遗留的问题 |
+|---|---|---|---|
+| CO-361 | 查看权限 | 项目任务执行人可查看 | 上传/删除未审视 |
+| CO-373 | 提交权限 | 投标负责人可提交审核 | 删除未审视 |
+| CO-382 | 删除权限（管理员组） | 管理员组可删除 | 上传者本人未考虑 |
+| CO-375 | 删除权限（上传者） | 上传者本人可删除 | 终于对齐 |
+
+每一轮修复都解决了真实问题，但都只看一个维度的权限，没有审视整个权限矩阵。
+
+### 教训
+
+1. **同一资源的 upload/delete 权限矩阵必须对称设计**：`canUpload` 放行的角色，`canDelete` 必须有明确的对应策略（要么放行，要么明确拒绝并说明原因）。如果 `canUpload` 放行 `bid-projectLeader`，`canDelete` 必须明确说明 `bid-projectLeader` 在什么条件下可以删除（如：上传者本人）。
+
+2. **修改 Policy 时必须审视整个权限矩阵**：不能只改一个方法，必须审视 canView / canDownload / canUpload / canDelete 四类操作的权限矩阵是否一致。一个简单的检查清单：
+   - canView 放行的角色，canDownload 是否覆盖？
+   - canUpload 放行的角色，canDelete 是否有对应策略？
+   - 管理员组在四个操作中是否一致？
+   - 身份维度（uploaderId、assigneeId、reviewerId）是否在所有相关操作中考虑？
+
+3. **权限策略必须考虑"身份维度"**：除了角色维度（roleCode），还要考虑身份维度（uploaderId、assigneeId、reviewerId 等）。同一角色在不同身份下权限可能不同。例如 bid-projectLeader 上传的文档，bid-projectLeader（作为上传者本人）应能删除，但 bid-projectLeader（作为非上传者）应被拒绝。
+
+4. **Policy 方法签名必须包含所有决策维度**：`canDelete(roleCode)` 不够，必须是 `canDelete(roleCode, currentUserId, uploaderId)`，把所有决策维度显式传入。如果签名维度不足，Policy 内部无法做出正确决策。
+
+5. **Controller `@PreAuthorize` 不能过度收紧**：早过滤层只做"是否登录"级别的过滤（`isAuthenticated()`），真权限交给 Service 层 Policy。如果 Controller 用 `hasAnyRole` 收紧，会挡住 Policy 内部想放行的特殊场景（如上传者本人）。详见 `docs/lessons/decisions.md` §3。
+
+### 检查清单（修改 Policy 时必跑）
+
+```markdown
+- [ ] canView 放行的角色清单：___________
+- [ ] canDownload 放行的角色清单：___________
+- [ ] canUpload 放行的角色清单：___________
+- [ ] canDelete 放行的角色清单：___________
+- [ ] canUpload 和 canDelete 是否对称？___________
+- [ ] 身份维度（uploaderId/assigneeId/reviewerId）是否在所有相关操作中考虑？___________
+- [ ] Controller @PreAuthorize 是否过度收紧（应使用 isAuthenticated()）？___________
+- [ ] 测试是否覆盖非管理员角色（bid-projectLeader/bid-Team）？___________
+```
+
+### 相关文档
+
+- `docs/lessons/root-cause-analysis-co-375-uploader-delete-permission.md` — 完整根因分析
+- `docs/lessons/decisions.md` §3 — Controller @PreAuthorize 放宽为 isAuthenticated() 决策
+- `backend/src/main/java/com/xiyu/bid/projectworkflow/core/ProjectDocumentWorkflowPolicy.java` — Policy 实现
