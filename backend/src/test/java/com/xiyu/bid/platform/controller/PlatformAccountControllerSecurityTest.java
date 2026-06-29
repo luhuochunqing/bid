@@ -35,12 +35,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * CO-400 round5: 平台账户密码查看接口的权限放开回归门禁。
+ * CO-400 round5: 平台账户密码查看接口的权限边界回归门禁。
  *
- * <p>验证 {@code GET /api/platform/accounts/{id}/password} 的方法级
- * {@code @PreAuthorize} 表达式：Controller 层仅做 {@code isAuthenticated()}
- * 过滤，所有已登录用户通过；真权限（管理员 OR 账户绑定联系人）交给
- * Service 层 Policy。
+ * <p>验证 {@code GET /api/platform/accounts/{id}/password} 的权限策略：
+ * Controller 类级 {@code @PreAuthorize("hasAuthority('resource')")} 统一边界，
+ * 所有带 resource 权限的已登录用户通过 Controller 层；真权限（管理员 OR
+ * 账户绑定联系人 custodian）交给 Service 层 Policy。无 resource 权限的
+ * 用户被类级 @PreAuthorize 拦截返回 403。
  *
  * <p>本测试只覆盖 controller 层 {@code @PreAuthorize} 行为，
  * 不验证 service 层角色校验（由 {@code PlatformAccountServiceTest} 覆盖），
@@ -127,11 +128,13 @@ class PlatformAccountControllerSecurityTest {
                 .andExpect(status().isOk());
     }
 
-    // ── CO-400 round5: Controller 层放宽到 isAuthenticated()，所有已登录用户通过 ──
-    // 真权限（管理员 OR 账户绑定联系人 custodian）由 Service 层 Policy 决定。
+    // ── CO-400 round5 review: 删除方法级 @PreAuthorize 覆盖，让类级
+    // hasAuthority('resource') 生效。所有带 resource 权限的已登录用户通过
+    // Controller 层，真权限（管理员 OR 账户绑定联系人 custodian）由 Service
+    // 层 Policy 决定。无 resource 权限的用户被类级 @PreAuthorize 拦截（403）。
 
     @Test
-    @DisplayName("bid-Team 通过 Controller 层（Service 层决定是否放行）")
+    @DisplayName("bid-Team（带 resource 权限）通过 Controller 层（Service 层决定是否放行）")
     @WithMockUser(authorities = {"bid-Team", "ROLE_BID_TEAM", "resource"})
     void bidTeam_GET_password_shouldPassControllerLayer() throws Exception {
         when(userRepository.findByUsername(any())).thenReturn(Optional.of(
@@ -144,7 +147,7 @@ class PlatformAccountControllerSecurityTest {
     }
 
     @Test
-    @DisplayName("sales（bid-projectLeader）通过 Controller 层（Service 层决定是否放行）")
+    @DisplayName("sales（bid-projectLeader，带 resource 权限）通过 Controller 层（Service 层决定是否放行）")
     @WithMockUser(authorities = {"bid-projectLeader", "ROLE_BID_PROJECTLEADER", "resource"})
     void sales_GET_password_shouldPassControllerLayer() throws Exception {
         when(userRepository.findByUsername(any())).thenReturn(Optional.of(
@@ -157,9 +160,10 @@ class PlatformAccountControllerSecurityTest {
     }
 
     @Test
-    @DisplayName("未登录用户不可查看密码（isAuthenticated() 拦截）")
-    void anonymous_GET_password_shouldReturn401() throws Exception {
+    @DisplayName("已登录但无 resource 权限的用户被类级 @PreAuthorize 拦截（403）")
+    @WithMockUser(authorities = {"bid-Team", "ROLE_BID_TEAM"})
+    void noResourceAuthority_GET_password_shouldReturn403() throws Exception {
         mockMvc.perform(get("/api/platform/accounts/1/password"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
     }
 }

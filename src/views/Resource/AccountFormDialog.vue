@@ -79,7 +79,7 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { resourcesApi } from '@/api'
 import { useUserStore } from '@/stores/user'
-import { canRevealPassword } from './accountActions.js'
+import { canRevealPassword, isCurrentUserContactPerson } from './accountActions.js'
 import UserPicker from '@/components/common/UserPicker.vue'
 
 const props = defineProps({
@@ -149,10 +149,9 @@ const onOpen = async () => {
       contactPhone: r.contactPhone || '', contactEmail: r.contactEmail || '',
       hasCa: r.hasCa || false,
       remarks: r.remarks || '' }
-    // CO-400 round5: 密码加载条件 = 管理员 OR (投标专员 且为该账户绑定联系人)
-    // 对齐后端 getPassword 权限策略和 Account.vue 的小眼睛按钮可见条件
-    const currentUserId = userStore.currentUser?.id || ''
-    const isContactPerson = String(r.contactPerson || '') === String(currentUserId)
+    // CO-400 round5 review: 改用 isCurrentUserContactPerson helper 统一判断逻辑
+    // （helper 已处理 null/undefined/空字符串边界，避免本组件重复造轮子）
+    const isContactPerson = isCurrentUserContactPerson(r, userStore.currentUser)
     const shouldLoadPassword = canRevealPassword({
       isManager: userStore.isBidManager,
       isBidTeam: isBidTeam.value,
