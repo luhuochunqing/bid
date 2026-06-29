@@ -222,4 +222,34 @@ describe('Account.vue — password column security (contract tests)', () => {
 
     expect(wrapper.exists()).toBe(true)
   })
+
+  // ── CO-389 v2：custodian / caCustodian 列移除回归 ──────────────────────────
+
+  it('render_doesNotShowCustodianColumn — v2 列已移除', async () => {
+    resourcesApiMock.accounts.getList.mockResolvedValue({
+      success: true,
+      data: mockAccountsList
+    })
+
+    const wrapper = mountAccount()
+    await flushPromises()
+
+    const html = wrapper.html()
+    expect(html).not.toContain('账号保管员')
+    expect(html).not.toContain('custodianName')
+  })
+
+  it('render_doesNotShowCaCustodianColumn — v2 列已移除', async () => {
+    resourcesApiMock.accounts.getList.mockResolvedValue({
+      success: true,
+      data: mockAccountsList
+    })
+
+    const wrapper = mountAccount()
+    await flushPromises()
+
+    const html = wrapper.html()
+    expect(html).not.toContain('CA 保管员')
+    expect(html).not.toContain('caCustodianName')
+  })
 })

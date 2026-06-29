@@ -3,10 +3,24 @@
     <el-tabs v-model="activeTab" v-if="data">
       <el-tab-pane label="基本信息" name="info">
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="平台名称" :span="2">{{ data.platform }}</el-descriptions-item>
+          <el-descriptions-item label="平台名称" :span="2">{{ data.accountName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="网址">{{ data.url || '-' }}</el-descriptions-item>
           <el-descriptions-item label="平台类型">{{ platformTypeLabel || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="用户名">{{ data.username || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="平台账号">{{ data.username || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="平台密码">
+            <div class="password-cell">
+              <span class="password-text">{{ password.displayText(data.id) }}</span>
+              <el-button
+                size="small"
+                link
+                :disabled="password.isLoading(data.id)"
+                @click="password.toggle(data.id)">
+                <el-icon>
+                  <component :is="password.isVisible(data.id) ? Hide : View" />
+                </el-icon>
+              </el-button>
+            </div>
+          </el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag v-if="data.status === 'available'" type="success">可用</el-tag>
             <el-tag v-else-if="data.status === 'in_use'" type="warning">使用中</el-tag>
@@ -16,8 +30,6 @@
           <el-descriptions-item label="绑定手机">{{ data.contactPhone || '-' }}</el-descriptions-item>
           <el-descriptions-item label="绑定邮箱">{{ data.contactEmail || '-' }}</el-descriptions-item>
           <el-descriptions-item label="是否有 CA">{{ data.hasCa ? '是' : '否' }}</el-descriptions-item>
-          <el-descriptions-item label="CA 保管人">{{ data.caCustodianName || data.caCustodian || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="账号保管员">{{ data.custodianName || data.custodian || '-' }}</el-descriptions-item>
           <el-descriptions-item label="使用人">{{ data.borrower || '-' }}</el-descriptions-item>
           <el-descriptions-item label="备注">{{ data.remarks || '-' }}</el-descriptions-item>
           <el-descriptions-item label="最近使用">{{ data.lastUsed || '-' }}</el-descriptions-item>
@@ -61,7 +73,10 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { Hide, View } from '@element-plus/icons-vue'
 import httpClient from '@/api/client'
+import { resourcesApi } from '@/api'
+import { usePasswordReveal } from './composables/usePasswordReveal.js'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -77,6 +92,18 @@ const visible = computed({
 const activeTab = ref('info')
 const logs = ref([])
 const borrowRecords = ref([])
+
+// CO-389：详情新增"平台密码"行，沿用列表的 usePasswordReveal composable
+const password = usePasswordReveal((id) => resourcesApi.accounts.getPassword(id))
+
+// P1 安全：dialog 关闭时清理密码揭示状态，防止明文驻留内存 + 避免下次打开误显示
+watch(() => props.modelValue, (open) => {
+  if (!open) {
+    password.visible.value = {}
+    password.revealed.value = {}
+    password.loading.value = {}
+  }
+})
 
 const PLATFORM_TYPE_MAP = {
   GOV_PROCUREMENT: '政府采购',
@@ -116,4 +143,6 @@ const fmtTimestamp = (ts) => ts ? new Date(ts).toLocaleString('zh-CN') : '-'
 <style scoped>
 .log-desc { margin: 0; font-size: 13px; color: #303133; }
 .log-meta { margin: 2px 0 0; font-size: 12px; color: #909399; }
+.password-cell { display: inline-flex; align-items: center; gap: 8px; }
+.password-text { font-family: monospace; }
 </style>

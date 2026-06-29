@@ -1,5 +1,6 @@
 package com.xiyu.bid.platform.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.xiyu.bid.platform.entity.PlatformAccount.PlatformType;
 import com.xiyu.bid.platform.entity.PlatformAccount.AccountStatus;
 import lombok.AllArgsConstructor;
@@ -37,10 +38,13 @@ public class PlatformAccountDTO {
     /** CA custodian user ID. */
 
     /** Account custodian user ID. */
+    @JsonIgnore
     private Long custodian;
 
     /** Account custodian name (read-only). */
+    @JsonIgnore
     private String custodianName;
+    @JsonIgnore
     private Long caCustodian;
     /** Remarks. */
     private String remarks;

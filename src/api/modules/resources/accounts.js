@@ -28,6 +28,7 @@ function normalizeAccount(item = {}) {
   return {
     id: item.id,
     platform: item.platform || normalizePlatformLabel(item.platformType, item.accountName),
+    accountName: item.accountName || '',
     username: item.username || '',
     password: item.password || '',
     url: item.url || '',

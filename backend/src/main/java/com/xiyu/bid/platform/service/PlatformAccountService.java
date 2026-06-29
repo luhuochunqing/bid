@@ -240,11 +240,11 @@ public class PlatformAccountService {
         return PlatformAccountMapper.toDTO(savedAccount);
     }
 
-    /** Get decrypted password for an account (ADMIN only). */
+    /** Get decrypted password for an account (admin / bidAdmin / bid-TeamLeader). */
     @Auditable(action = "VIEW_PASSWORD", entityType = "PlatformAccount",
               description = "Viewed password for platform account")
     public String getPassword(Long id, User currentUser) {
-        if (currentUser == null || currentUser.getRole() != User.Role.ADMIN) {
+        if (!isPrivilegedViewer(currentUser)) {
             throw new IllegalStateException("Only administrators can view account passwords");
         }
 

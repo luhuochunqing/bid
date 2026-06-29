@@ -48,6 +48,9 @@ class PlatformAccountServiceTest {
     private static final String ENCRYPTED_PWD = "encrypted:secret123";
     private static final User ADMIN_USER = User.builder().id(1L).role(User.Role.ADMIN).build();
     private static final User STAFF_USER = User.builder().id(2L).role(User.Role.MANAGER).build();
+    private static final User BID_ADMIN_USER = User.builder().id(3L).role(User.Role.MANAGER).build();
+    private static final User BID_LEADER_USER = User.builder().id(4L).role(User.Role.MANAGER).build();
+    private static final User BID_TEAM_USER = User.builder().id(5L).role(User.Role.MANAGER).build();
 
     @BeforeEach
     void setUp() {
@@ -55,6 +58,12 @@ class PlatformAccountServiceTest {
         // CO-373：默认模拟 LOCAL_USER 解析路径——回退到实体 roleCode
         lenient().when(effectiveRoleResolver.resolveRoleCode(any(User.class)))
                 .thenAnswer(inv -> inv.<User>getArgument(0).getRoleCode());
+        // CO-389：模拟 OSS 用户角色码解析（覆盖 getPassword 放开后的角色判断）
+        lenient().when(effectiveRoleResolver.resolveRoleCode(ADMIN_USER)).thenReturn("admin");
+        lenient().when(effectiveRoleResolver.resolveRoleCode(BID_ADMIN_USER)).thenReturn("/bidAdmin");
+        lenient().when(effectiveRoleResolver.resolveRoleCode(BID_LEADER_USER)).thenReturn("bid-TeamLeader");
+        lenient().when(effectiveRoleResolver.resolveRoleCode(BID_TEAM_USER)).thenReturn("bid-Team");
+        lenient().when(effectiveRoleResolver.resolveRoleCode(STAFF_USER)).thenReturn("manager");
     }
 
     // ── 创建 ──
@@ -241,7 +250,37 @@ class PlatformAccountServiceTest {
     }
 
     @Test
-    @DisplayName("非 ADMIN 查看密码抛出异常")
+    @DisplayName("CO-389：bidAdmin 可以查看密码（service 层 isPrivilegedViewer 放开）")
+    void getPassword_whenBidAdmin_callsucceeds() {
+        PlatformAccount account = accountWithId(1L);
+        when(repository.findById(1L)).thenReturn(Optional.of(account));
+        when(passwordEncryptionUtil.decrypt(ENCRYPTED_PWD)).thenReturn("secret123");
+
+        String pwd = service.getPassword(1L, BID_ADMIN_USER);
+        assertThat(pwd).isEqualTo("secret123");
+    }
+
+    @Test
+    @DisplayName("CO-389：bid-TeamLeader 可以查看密码（service 层 isPrivilegedViewer 放开）")
+    void getPassword_whenBidTeamLeader_callsucceeds() {
+        PlatformAccount account = accountWithId(1L);
+        when(repository.findById(1L)).thenReturn(Optional.of(account));
+        when(passwordEncryptionUtil.decrypt(ENCRYPTED_PWD)).thenReturn("secret123");
+
+        String pwd = service.getPassword(1L, BID_LEADER_USER);
+        assertThat(pwd).isEqualTo("secret123");
+    }
+
+    @Test
+    @DisplayName("CO-389：bid-Team（投标专员）查看密码抛出异常")
+    void getPassword_whenBidTeam_throwsIllegalStateException() {
+        assertThatThrownBy(() -> service.getPassword(1L, BID_TEAM_USER))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Only administrators");
+    }
+
+    @Test
+    @DisplayName("非管理员查看密码抛出异常")
     void getPassword_nonAdmin_throws() {
         assertThatThrownBy(() -> service.getPassword(1L, STAFF_USER))
                 .isInstanceOf(IllegalStateException.class)

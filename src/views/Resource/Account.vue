@@ -103,8 +103,6 @@
               <el-tag :type="row.hasCa ? 'success' : 'info'" size="small">{{ row.hasCa ? '是' : '否' }}</el-tag>
             </template>
           </el-table-column>
-                    <el-table-column prop="custodianName" label="账号保管员" width="120" />
-          <el-table-column prop="caCustodianName" label="CA 保管员" width="120" />
 
         </template>
         <template v-else>
