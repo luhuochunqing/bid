@@ -171,6 +171,12 @@ public class ProjectQueryService {
                         leadAssignment.getPrimaryLeadUserId());
                 dto.setSecondaryBiddingLeaderId(
                         leadAssignment.getSecondaryLeadUserId());
+                // CO-387 fix: 同步填充 primaryLeadUserId / secondaryLeadUserId，
+                // 供前端 currentProject 权限判断（详情接口可能从列表缓存返回）
+                dto.setPrimaryLeadUserId(
+                        leadAssignment.getPrimaryLeadUserId());
+                dto.setSecondaryLeadUserId(
+                        leadAssignment.getSecondaryLeadUserId());
             }
 
             ProjectListEnrichmentSupport.populateFromTender(dto, tenderMap);

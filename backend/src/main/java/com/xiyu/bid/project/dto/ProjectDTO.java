@@ -27,6 +27,10 @@ public class ProjectDTO {
     private Project.Status status;
     private Long managerId;
     private List<Long> teamMembers;
+    /** 主投标负责人用户 ID（来自 project_lead_assignment 表，详情接口 enrich 填充） */
+    private Long primaryLeadUserId;
+    /** 副投标负责人用户 ID（来自 project_lead_assignment 表，详情接口 enrich 填充） */
+    private Long secondaryLeadUserId;
     private LocalDateTime startDate;
     private LocalDateTime endDate;
     private String sourceModule;

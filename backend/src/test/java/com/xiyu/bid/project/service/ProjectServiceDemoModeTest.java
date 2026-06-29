@@ -44,6 +44,7 @@ class ProjectServiceDemoModeTest {
                 new DemoDataProvider(),
                 new DemoFusionService(),
                 null,
+                null,
                 null
         );
     }

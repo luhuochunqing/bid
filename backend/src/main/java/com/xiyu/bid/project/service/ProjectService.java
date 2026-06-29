@@ -8,6 +8,7 @@ import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.project.dto.ProjectDTO;
 import com.xiyu.bid.project.dto.ProjectImportRequest;
+import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,7 @@ public class ProjectService {
     private final DemoFusionService demoFusionService;
     private final ProjectImportService projectImportService;
     private final ProjectQueryService projectQueryService;
+    private final ProjectLeadAssignmentRepository projectLeadAssignmentRepository;
 
     @Transactional(readOnly = true)
     public List<ProjectDTO> getAllProjects() {
@@ -48,7 +50,13 @@ public class ProjectService {
         projectAccessScopeService.assertCurrentUserCanAccessProject(id);
         Project project = projectRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Project", id.toString()));
-        return ProjectMapper.toDTO(project);
+        ProjectDTO dto = ProjectMapper.toDTO(project);
+        // CO-387 fix: 详情接口 enrich 主/副投标负责人 ID，供前端权限判断（canDeleteTask/canChangeStatus）
+        projectLeadAssignmentRepository.findByProjectId(id).ifPresent(lead -> {
+            dto.setPrimaryLeadUserId(lead.getPrimaryLeadUserId());
+            dto.setSecondaryLeadUserId(lead.getSecondaryLeadUserId());
+        });
+        return dto;
     }
 
     @Auditable(action = "CREATE_PROJECT", entityType = "Project", description = "创建项目")
