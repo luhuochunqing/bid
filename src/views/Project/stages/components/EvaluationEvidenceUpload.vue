@@ -67,7 +67,12 @@ watch(() => props.existingDocIds, async (ids) => {
     fileList.value = ids
       .map(id => docMap.get(Number(id)))
       .filter(Boolean)
-      .map(doc => ({ name: doc.name, response: { data: { id: doc.id } } }))
+      .map(doc => ({
+        name: doc.name || '评标文件',
+        url: doc.fileUrl || '',
+        response: { data: doc },
+        status: 'success',
+      }))
   } catch (e) { console.error('回填评标文件失败:', e) }
 }, { immediate: true })
 const uploadUrl = computed(() => getApiUrl(`/api/projects/${props.projectId}/documents`))

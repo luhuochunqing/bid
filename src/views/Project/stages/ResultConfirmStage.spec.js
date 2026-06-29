@@ -1,7 +1,11 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextTick } from 'vue'
+import ElementPlus from 'element-plus'
 
 // CO-408: 结果确认阶段 load 时根据 evidenceFileIds 回填 evidenceFiles
+// 用真实 el-upload（plugins:[ElementPlus]），不能用 stub——
+// v-model:file-list 在自定义 stub 下 prop 传递异常。
 const mockCurrentUser = { id: 42, role: '/bidAdmin' }
 
 vi.mock('@/stores/user.js', () => ({
@@ -31,33 +35,11 @@ vi.mock('@/api/modules/projectLifecycle.js', () => ({
 }))
 
 vi.mock('@/constants/projectStages.js', () => ({ getResultConfirmNextTab: () => 'RETROSPECTIVE' }))
-vi.mock('element-plus', () => ({ ElMessage: { info: vi.fn(), warning: vi.fn(), error: vi.fn(), success: vi.fn() } }))
-vi.mock('@element-plus/icons-vue', () => ({ Delete: {}, Plus: {}, UploadFilled: {} }))
 
-const stubs = {
-  ElCard: { template: '<section><slot name="header" /><slot /></section>' },
-  ElUpload: {
-    name: 'ElUpload',
-    props: { fileList: { type: Array, default: () => [] }, disabled: Boolean },
-    template: `<div class="mock-upload">
-      <div v-for="(file, idx) in fileList" :key="file.uid || file.name || idx" class="mock-upload-row">
-        <span class="mock-file-name">{{ file.name }}</span>
-      </div>
-    </div>`,
-  },
-  ElIcon: { template: '<span />' },
-  ElButton: { props: ['loading', 'disabled'], template: '<button><slot /></button>' },
-  ElInput: { props: ['modelValue', 'disabled'], template: '<input />' },
-  ElTable: { template: '<div />' },
-  ElTableColumn: { template: '<div />' },
-}
-
-async function mountResultStage(props = {}) {
-  const { default: ResultConfirmStage } = await import('./ResultConfirmStage.vue')
-  const wrapper = mount(ResultConfirmStage, { props: { projectId: 1, ...props }, global: { stubs } })
-  await flushPromises()
-  return wrapper
-}
+vi.mock('element-plus', async (importOriginal) => {
+  const actual = await importOriginal()
+  return { ...actual, ElMessage: { info: vi.fn(), warning: vi.fn(), error: vi.fn(), success: vi.fn() } }
+})
 
 describe('ResultConfirmStage CO-408 回填凭证文件名', () => {
   beforeEach(() => {
@@ -78,22 +60,35 @@ describe('ResultConfirmStage CO-408 回填凭证文件名', () => {
       ],
     }))
 
-    const wrapper = await mountResultStage()
+    const { default: ResultConfirmStage } = await import('./ResultConfirmStage.vue')
+    const wrapper = mount(ResultConfirmStage, {
+      props: { projectId: 1 },
+      global: { plugins: [ElementPlus] },
+    })
+    await flushPromises()
+    await nextTick()
+    await flushPromises()
 
     expect(getResultMock).toHaveBeenCalledWith(1)
     expect(getDocumentsMock).toHaveBeenCalledWith(1)
-    const upload = wrapper.findComponent({ name: 'ElUpload' })
-    expect(upload.props('fileList')).toHaveLength(2)
-    expect(upload.props('fileList')[0].name).toBe('中标通知书.pdf')
-    expect(upload.props('fileList')[0].response.data.id).toBe(3001)
-    expect(upload.props('fileList')[1].name).toBe('合同副本.pdf')
-    const names = wrapper.findAll('.mock-file-name').map(n => n.text())
-    expect(names).toEqual(['中标通知书.pdf', '合同副本.pdf'])
+    const fileList = wrapper.findComponent({ name: 'ElUpload' }).props('fileList')
+    expect(fileList).toHaveLength(2)
+    expect(fileList[0].name).toBe('中标通知书.pdf')
+    expect(fileList[0].response.data.id).toBe(3001)
+    expect(fileList[1].name).toBe('合同副本.pdf')
+    // DOM 渲染层文件名可见
+    expect(wrapper.text()).toContain('中标通知书.pdf')
+    expect(wrapper.text()).toContain('合同副本.pdf')
   })
 
   it('evidenceFileIds 为空时不回填 evidenceFiles', async () => {
     getResultMock.mockImplementation(() => Promise.resolve({ data: { resultType: 'WON', evidenceFileIds: [] } }))
-    const wrapper = await mountResultStage()
+    const { default: ResultConfirmStage } = await import('./ResultConfirmStage.vue')
+    const wrapper = mount(ResultConfirmStage, {
+      props: { projectId: 1 },
+      global: { plugins: [ElementPlus] },
+    })
+    await flushPromises()
     expect(wrapper.findComponent({ name: 'ElUpload' }).props('fileList')).toHaveLength(0)
     expect(getDocumentsMock).not.toHaveBeenCalled()
   })
