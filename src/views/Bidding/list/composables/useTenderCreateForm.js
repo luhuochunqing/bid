@@ -37,12 +37,11 @@ export function useTenderCreateForm() {
   }
 
   async function validateBeforeSave(formElRef) {
-    try {
-      await formElRef.value?.validate()
-    } catch {
-      ElMessage.warning('请填写必填项后再保存')
-      return false
-    }
+  try {
+    await formElRef.value?.validate()
+  } catch {
+    return false
+  }
     if (!validateContacts()) return false
     if (form.value.deadline) {
       if (new Date(form.value.deadline) <= new Date()) {

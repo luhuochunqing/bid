@@ -180,22 +180,39 @@ httpClient.interceptors.response.use(
     }
 
     if (response) {
-      // 服务器返回错误状态码
+      const serverMsg = response.data?.msg
       switch (response.status) {
         case 401:
           await handleAuthFailure()
           break
         case 403:
-          console.warn('403 无权限:', config?.url)
+          ElMessage.error(serverMsg || '没有操作权限，请联系管理员')
+          break
+        case 400:
+          ElMessage.error(serverMsg || '请求参数有误，请检查输入')
+          break
+        case 404:
+          ElMessage.error(serverMsg || '请求的资源不存在')
+          break
+        case 407:
+          ElMessage.error(serverMsg || '身份验证失败，请重新登录')
+          break
+        case 409:
+          ElMessage.error(serverMsg || '操作冲突，请刷新后重试')
           break
         case 429:
-          console.warn('API 限流(429)，请求已跳过:', config?.url)
+          ElMessage.warning(serverMsg || '操作过于频繁，请稍后再试')
           break
         case 500:
-          ElMessage.error(response.data?.msg || '服务器内部错误，请稍后重试')
+          ElMessage.error(serverMsg || '服务器出现问题，请稍后重试')
+          break
+        case 502:
+        case 503:
+        case 504:
+          ElMessage.error(serverMsg || '服务暂时不可用，请稍后重试')
           break
         default:
-          ElMessage.error(response.data?.msg || '请求失败')
+          ElMessage.error(serverMsg || '请求失败，请稍后重试')
       }
     } else if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
       ElMessage.error('请求超时，请检查网络后重试')

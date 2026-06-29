@@ -280,10 +280,7 @@ const handleSubmit = async () => {
   // 4.1.3.1 必填校验：5 个核心字段（用 formRef.validate 自动校验）
   if (!formRef.value) return
   const valid = await formRef.value.validate().catch(() => false)
-  if (!valid) {
-    ElMessage.warning('请完整填写必填项')
-    return
-  }
+  if (!valid) return
 
   // 二次校验：有效期 > 发证日期（rules 也会校验，但兜底）
   if (form.expiryDate && form.issueDate && form.expiryDate <= form.issueDate) {

@@ -317,3 +317,92 @@
   color: #303133 !important;
   opacity: 1 !important;
 }
+
+/* ========== ElMessage 顶部提示样式优化 ==========
+ * Element Plus 默认 Message 背景太浅、文字颜色太淡，可读性差。
+ * 统一加深背景色、边框色和文字颜色，提升可读性。
+ */
+.el-message {
+  --el-message-bg-color: #ffffff;
+  --el-message-border-color: #e4e7ed;
+  --el-message-text-color: #303133;
+  min-width: 380px;
+  padding: 14px 18px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12) !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+}
+
+.el-message .el-message__content {
+  color: #303133 !important;
+  font-weight: 500;
+}
+
+.el-message .el-icon {
+  font-size: 18px !important;
+}
+
+/* error 类型：深红色背景 + 深红文字 + 红边框 */
+.el-message--error {
+  --el-message-bg-color: #fef2f2;
+  --el-message-border-color: #fecaca;
+  background-color: #fef2f2 !important;
+  border: 1px solid #fecaca !important;
+}
+
+.el-message--error .el-message__content {
+  color: #991b1b !important;
+}
+
+.el-message--error .el-icon {
+  color: #dc2626 !important;
+}
+
+/* warning 类型：深黄色背景 + 深黄文字 + 黄边框 */
+.el-message--warning {
+  --el-message-bg-color: #fffbeb;
+  --el-message-border-color: #fde68a;
+  background-color: #fffbeb !important;
+  border: 1px solid #fde68a !important;
+}
+
+.el-message--warning .el-message__content {
+  color: #92400e !important;
+}
+
+.el-message--warning .el-icon {
+  color: #f59e0b !important;
+}
+
+/* success 类型：深绿色背景 + 深绿文字 + 绿边框 */
+.el-message--success {
+  --el-message-bg-color: #f0fdf4;
+  --el-message-border-color: #bbf7d0;
+  background-color: #f0fdf4 !important;
+  border: 1px solid #bbf7d0 !important;
+}
+
+.el-message--success .el-message__content {
+  color: #166534 !important;
+}
+
+.el-message--success .el-icon {
+  color: #16a34a !important;
+}
+
+/* info 类型：深蓝色背景 + 深蓝文字 + 蓝边框 */
+.el-message--info {
+  --el-message-bg-color: #eff6ff;
+  --el-message-border-color: #bfdbfe;
+  background-color: #eff6ff !important;
+  border: 1px solid #bfdbfe !important;
+}
+
+.el-message--info .el-message__content {
+  color: #1e40af !important;
+}
+
+.el-message--info .el-icon {
+  color: #2563eb !important;
+}
