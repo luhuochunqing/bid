@@ -5,7 +5,6 @@
         <el-descriptions :column="1" size="small" border>
           <el-descriptions-item label="平台名称">{{ account?.platform || '-' }}</el-descriptions-item>
           <el-descriptions-item label="网址">{{ account?.url || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="账号保管员">{{ account?.custodian || account?.caCustodianName || '-' }}</el-descriptions-item>
         </el-descriptions>
       </el-form-item>
       <el-form-item label="使用目的" required>

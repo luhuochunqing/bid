@@ -20,8 +20,6 @@ public final class PlatformAccountMapper {
             .platformType(account.getPlatformType())
             .url(account.getUrl())
             .hasCa(account.getHasCa())
-            .caCustodian(account.getCaCustodian())
-            .custodian(account.getCustodian())
             .remarks(account.getRemarks())
             .status(account.getStatus())
             .borrowedBy(account.getBorrowedBy())
@@ -35,7 +33,7 @@ public final class PlatformAccountMapper {
 
     /**
      * Convert entity to a sanitized summary DTO.
-     * Omits sensitive fields (username, password, contact details, custodian,
+     * Omits sensitive fields (username, password, contact details,
      * remarks, borrow bookkeeping) per the blueprint's project-leader view.
      */
     public static PlatformAccountSummaryDTO toSummaryDTO(PlatformAccount account) {

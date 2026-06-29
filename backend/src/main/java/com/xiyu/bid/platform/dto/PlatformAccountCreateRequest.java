@@ -45,8 +45,8 @@ public class PlatformAccountCreateRequest {
     @Size(max = MAX_URL)
     private String url;
 
-    /** Contact person name (suggest format: name(employee ID)). */
-    private String contactPerson;
+    /** Contact person userId (FK to users.id). */
+    private Long contactPerson;
 
     /** Contact phone number. */
     @Size(max = MAX_PHONE)
@@ -58,12 +58,6 @@ public class PlatformAccountCreateRequest {
 
     /** Whether a CA certificate is associated. */
     private Boolean hasCa;
-
-    /** CA custodian user ID. */
-
-    /** Account custodian user ID (borrow approval approver). */
-    private Long custodian;
-    private Long caCustodian;
 
     /** Optional remarks. */
     @Size(max = MAX_REMARKS)

@@ -38,6 +38,8 @@ public class PlatformAccountService {
     private final PasswordEncryptionUtil passwordEncryptionUtil;
     /** CO-373 统一角色码解析入口。 */
     private final EffectiveRoleResolver effectiveRoleResolver;
+    /** CO-390: contactPerson userId → "姓名（工号）" 展示标签派生（独立类避免行数超 300）。 */
+    private final PlatformAccountContactLabelEnricher contactLabelEnricher;
 
     /** Create a new platform account. */
     @Transactional
@@ -65,15 +67,13 @@ public class PlatformAccountService {
             .contactPhone(request.getContactPhone())
             .contactEmail(request.getContactEmail())
             .hasCa(request.getHasCa() != null ? request.getHasCa() : false)
-            .caCustodian(request.getCaCustodian())
-            .custodian(request.getCustodian())
             .remarks(request.getRemarks())
             .status(AccountStatus.AVAILABLE)
             .returnCount(0)
             .build();
 
         PlatformAccount savedAccount = repository.save(account);
-        return PlatformAccountMapper.toDTO(savedAccount);
+        return contactLabelEnricher.enrich(PlatformAccountMapper.toDTO(savedAccount));
     }
 
     /** Return a borrowed account with mandatory password change. */
@@ -88,23 +88,22 @@ public class PlatformAccountService {
         account.returnWithPassword(encryptedPassword);
 
         PlatformAccount savedAccount = repository.save(account);
-        return PlatformAccountMapper.toDTO(savedAccount);
+        return contactLabelEnricher.enrich(PlatformAccountMapper.toDTO(savedAccount));
     }
-
-
 
     /** Get account by ID. */
     public PlatformAccountDTO getAccountById(Long id) {
         PlatformAccount account = repository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Account not found with id: " + id));
-        return PlatformAccountMapper.toDTO(account);
+        return contactLabelEnricher.enrich(PlatformAccountMapper.toDTO(account));
     }
 
     /** Get all accounts. */
     public List<PlatformAccountDTO> getAllAccounts() {
-        return repository.findAll().stream()
+        List<PlatformAccountDTO> dtos = repository.findAll().stream()
             .map(PlatformAccountMapper::toDTO)
             .collect(Collectors.toList());
+        return contactLabelEnricher.enrich(dtos);
     }
 
     /**
@@ -113,7 +112,7 @@ public class PlatformAccountService {
      * <p>Roles that may see the full record (admin / manager / bid_lead /
      * bid_admin / auditor) receive the standard DTO. The "project leader"
      * role (sales / 项目负责人) receives a sanitized summary that omits
-     * username, contact details, custodian, remarks, borrow bookkeeping
+     * username, contact details, remarks, borrow bookkeeping
      * and any other field the blueprint restricts to that role.
      */
     public List<?> getAccountsForViewer(User viewer) {
@@ -171,12 +170,10 @@ public class PlatformAccountService {
         account.setContactPhone(request.getContactPhone() != null ? request.getContactPhone() : account.getContactPhone());
         account.setContactEmail(request.getContactEmail() != null ? request.getContactEmail() : account.getContactEmail());
         account.setHasCa(request.getHasCa() != null ? request.getHasCa() : account.getHasCa());
-        account.setCaCustodian(request.getCaCustodian() != null ? request.getCaCustodian() : account.getCaCustodian());
-        account.setCustodian(request.getCustodian() != null ? request.getCustodian() : account.getCustodian());
         account.setRemarks(request.getRemarks() != null ? request.getRemarks() : account.getRemarks());
 
         PlatformAccount savedAccount = repository.save(account);
-        return PlatformAccountMapper.toDTO(savedAccount);
+        return contactLabelEnricher.enrich(PlatformAccountMapper.toDTO(savedAccount));
     }
 
     /** Delete a platform account. */
@@ -203,7 +200,7 @@ public class PlatformAccountService {
         account.borrow(request.getBorrowedBy(), borrowedAt, dueAt);
 
         PlatformAccount savedAccount = repository.save(account);
-        return PlatformAccountMapper.toDTO(savedAccount);
+        return contactLabelEnricher.enrich(PlatformAccountMapper.toDTO(savedAccount));
     }
 
     /**
@@ -237,7 +234,7 @@ public class PlatformAccountService {
         account.returnToPool();
 
         PlatformAccount savedAccount = repository.save(account);
-        return PlatformAccountMapper.toDTO(savedAccount);
+        return contactLabelEnricher.enrich(PlatformAccountMapper.toDTO(savedAccount));
     }
 
     /** Get decrypted password for an account (admin / bidAdmin / bid-TeamLeader). */
@@ -275,9 +272,10 @@ public class PlatformAccountService {
     public List<PlatformAccountDTO> findOverdueAccounts() {
         List<PlatformAccount> overdueAccounts =
             repository.findOverdueAccounts(AccountStatus.IN_USE, LocalDateTime.now());
-        return overdueAccounts.stream()
+        List<PlatformAccountDTO> dtos = overdueAccounts.stream()
             .map(PlatformAccountMapper::toDTO)
             .collect(Collectors.toList());
+        return contactLabelEnricher.enrich(dtos);
     }
 
     private void validateRequest(PlatformAccountCreateRequest request) {

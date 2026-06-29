@@ -33,8 +33,6 @@ public class PlatformAccountImportRowPersister {
                 .contactPhone(row.contactPhone())
                 .contactEmail(row.contactEmail())
                 .hasCa(row.hasCa() != null ? row.hasCa() : false)
-                .caCustodian(row.caCustodian())
-                .custodian(row.custodian())
                 .remarks(row.remarks())
                 .build();
 

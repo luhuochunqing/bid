@@ -23,19 +23,27 @@
       <el-row :gutter="16">
         <el-col :span="12">
           <el-form-item label="绑定联系人" required>
-            <el-input v-model="form.contactPerson" placeholder="建议格式：姓名（工号）" maxlength="200" />
+            <UserPicker
+              v-model="form.contactPerson"
+              mode="candidates"
+              placeholder="请选择投标部门人员"
+              :load-on-mount="false"
+              :initial-options="biddingUsers"
+              style="width: 100%"
+              @select="onContactPersonSelected"
+            />
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item label="绑定手机" required>
-            <el-input v-model="form.contactPhone" placeholder="自动带入员工资料" maxlength="20" />
+            <el-input v-model="form.contactPhone" placeholder="选择联系人后自动带入" maxlength="20" />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="16">
         <el-col :span="12">
           <el-form-item label="绑定邮箱" required>
-            <el-input v-model="form.contactEmail" placeholder="自动带入员工资料" maxlength="200" />
+            <el-input v-model="form.contactEmail" placeholder="选择联系人后自动带入" maxlength="200" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -55,19 +63,6 @@
             <el-switch v-model="form.hasCa" active-text="是" inactive-text="否" />
           </el-form-item>
         </el-col>
-        <el-col :span="12">
-          <el-form-item label="CA 保管人" :required="form.hasCa">
-            <UserPicker
-              v-model="form.caCustodian"
-              mode="candidates"
-              placeholder="请选择投标部门人员"
-              :disabled="!form.hasCa"
-              :load-on-mount="false"
-              :initial-options="biddingUsers"
-              style="width: 100%"
-            />
-          </el-form-item>
-        </el-col>
       </el-row>
       <el-form-item label="备注">
         <el-input v-model="form.remarks" type="textarea" :rows="2" placeholder="自由备注" maxlength="500" />
@@ -83,10 +78,9 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { authApi, resourcesApi } from '@/api'
+import { resourcesApi } from '@/api'
 import UserPicker from '@/components/common/UserPicker.vue'
 import httpClient from '@/api/client'
-import { useUserStore } from '@/stores/user'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -100,12 +94,10 @@ const visible = computed({
 })
 const isEdit = computed(() => !!props.editRow?.id)
 
-const userStore = useUserStore()
-
 const emptyForm = () => ({
   accountName: '', platformType: 'BIDDING_PLATFORM', username: '', password: '',
-  url: '', contactPerson: '', contactPhone: '', contactEmail: '',
-  hasCa: false, caCustodian: null, remarks: ''
+  url: '', contactPerson: null, contactPhone: '', contactEmail: '',
+  hasCa: false, remarks: ''
 })
 
 const form = ref(emptyForm())
@@ -122,33 +114,18 @@ const loadBiddingUsers = async () => {
           name: u.fullName || u.username,
           username: u.username,
           employeeNumber: u.employeeNumber,
+          phone: u.phone || '',
+          email: u.email || '',
         }))
     }
   } catch { /* silent */ }
 }
 
-// IJTHPA 修复：自动带入当前登录员工的联系人/手机/邮箱
-const autofillFromCurrentUser = async () => {
-  let profile = userStore.currentUser || {}
-  if (!profile.phone) {
-    try {
-      const res = await authApi.getCurrentUser()
-      if (res?.data) userStore.applyAuthSession(res.data, true)
-      profile = userStore.currentUser || profile
-    } catch { /* silent */ }
-  }
-  if (!form.value.contactPerson) {
-    const person = profile.name || profile.fullName || profile.username || ''
-    if (person) form.value.contactPerson = person
-  }
-  if (!form.value.contactPhone) {
-    const phone = profile.phone || profile.mobile || ''
-    if (phone) form.value.contactPhone = phone
-  }
-  if (!form.value.contactEmail) {
-    const email = profile.email || ''
-    if (email) form.value.contactEmail = email
-  }
+// CO-390: 选择联系人后联动回填 phone/email（保持与联系人资料一致）
+const onContactPersonSelected = (user) => {
+  if (!user) return
+  if (user.phone) form.value.contactPhone = user.phone
+  if (user.email) form.value.contactEmail = user.email
 }
 
 // IJTHNN 修复：accountName 失焦去重校验
@@ -172,13 +149,12 @@ const onOpen = () => {
       accountName: r.accountName || r.platform || '',
       platformType: r.platformType || 'BIDDING_PLATFORM',
       username: r.username || '', password: '',
-      url: r.url || '', contactPerson: r.contactPerson || '',
+      url: r.url || '', contactPerson: r.contactPerson || null,
       contactPhone: r.contactPhone || '', contactEmail: r.contactEmail || '',
-      hasCa: r.hasCa || false, caCustodian: r.caCustodian || null,
+      hasCa: r.hasCa || false,
       remarks: r.remarks || '' }
   } else {
     form.value = emptyForm()
-    autofillFromCurrentUser()
   }
   accountNameDup.value = false
   loadBiddingUsers()
@@ -186,10 +162,6 @@ const onOpen = () => {
 
 const submit = async () => {
   const f = form.value
-  if (f.hasCa && !f.caCustodian) {
-    ElMessage.warning('已开启 CA，请选择 CA 保管人')
-    return
-  }
   if (!isEdit.value) {
     await checkAccountNameUnique()
     if (accountNameDup.value) {
@@ -200,9 +172,9 @@ const submit = async () => {
   const payload = {
     accountName: f.accountName.trim(), platformType: f.platformType,
     username: f.username.trim(), url: f.url.trim(),
-    contactPerson: f.contactPerson.trim(), contactPhone: f.contactPhone.trim(),
+    contactPerson: f.contactPerson, contactPhone: f.contactPhone.trim(),
     contactEmail: f.contactEmail.trim(), hasCa: f.hasCa,
-    caCustodian: f.hasCa ? f.caCustodian : null, remarks: f.remarks?.trim() || '' }
+    remarks: f.remarks?.trim() || '' }
   if (f.password) payload.password = f.password
 
   if (!payload.accountName || !payload.username || !payload.url
