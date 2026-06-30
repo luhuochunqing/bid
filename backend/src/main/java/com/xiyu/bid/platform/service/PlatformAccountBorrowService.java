@@ -192,14 +192,6 @@ public class PlatformAccountBorrowService {
     }
 
     /**
-     * CO-403: 管理员查看全部待审批申请。
-     * 仅返回 PENDING_APPROVAL 状态的申请。
-     */
-    public List<BorrowApplicationDTO> findPendingApprovals() {
-        return applicationMapper.toDTOList(applicationRepository.findByStatus(BorrowStatus.PENDING_APPROVAL));
-    }
-
-    /**
      * CO-403: 我的审批 Tab —— 返回当前用户有权限审批的全部申请（不限状态）。
      * 管理员：返回全部申请；绑定联系人：返回自己作为 custodian 的全部申请。
      * 按 createdAt 倒序排列。
