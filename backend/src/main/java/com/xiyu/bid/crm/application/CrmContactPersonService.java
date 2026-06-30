@@ -83,6 +83,16 @@ public class CrmContactPersonService {
                 return Collections.emptyList();
             }
             log.info("CRM contact-person parsed {} entries from field '{}'", resolved.node().size(), resolved.path());
+            // CO-431 诊断日志：打印每条对接人的 position 原始值（从 JsonNode 取，绕过 non_null 序列化）。
+            // 用于确诊 CRM 返回的 position 到底是数字 '1'~'14' 还是中文职位名 / 缺失。
+            // 不改业务逻辑，仅诊断；部署后关联一次有问题的商机即可从日志确诊 position 真实格式。
+            for (JsonNode c : resolved.node()) {
+                String id = c.path("id").asText("");
+                String name = c.path("name").asText("");
+                JsonNode posNode = c.get("position");
+                String position = posNode != null && !posNode.isNull() ? posNode.asText("") : "<missing>";
+                log.info("CRM contact-person raw position: id={}, name={}, position={}", id, name, position);
+            }
             String jsonArray = MAPPER.writeValueAsString(resolved.node());
             CollectionType collectionType = MAPPER.getTypeFactory()
                     .constructCollectionType(List.class, ContactPersonInfoVO.class);

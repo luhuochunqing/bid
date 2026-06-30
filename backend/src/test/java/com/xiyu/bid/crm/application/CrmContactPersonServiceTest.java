@@ -1,14 +1,21 @@
 package com.xiyu.bid.crm.application;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.xiyu.bid.crm.config.CrmProperties;
 import com.xiyu.bid.crm.infrastructure.CrmHttpClient;
 import com.xiyu.bid.crm.infrastructure.CrmResponseHandler;
 import com.xiyu.bid.crm.infrastructure.CrmResponseHandler.CrmApiResponse;
 import com.xiyu.bid.crm.infrastructure.dto.ContactPersonInfoVO;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
@@ -29,6 +36,28 @@ class CrmContactPersonServiceTest {
     @Mock CrmAuthService authService;
     @Mock CrmProperties properties;
     @Mock CrmProperties.CrmContactPersonPaths contactPersonPaths;
+
+    private ListAppender<ILoggingEvent> appender;
+    private Logger serviceLogger;
+
+    @BeforeEach
+    void attachLogAppender() {
+        serviceLogger = (Logger) LoggerFactory.getLogger(CrmContactPersonService.class);
+        serviceLogger.setLevel(Level.INFO);
+        appender = new ListAppender<>();
+        appender.start();
+        serviceLogger.addAppender(appender);
+    }
+
+    @AfterEach
+    void detachLogAppender() {
+        serviceLogger.detachAppender(appender);
+        appender.stop();
+    }
+
+    private List<String> logMessages() {
+        return appender.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+    }
 
     private CrmContactPersonService serviceWith(String crmBody) {
         when(authService.getValidToken()).thenReturn("token");
@@ -135,5 +164,34 @@ class CrmContactPersonServiceTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).name()).isEqualTo("郑十");
+    }
+
+    // ---- CO-431 诊断日志：确认 CRM 返回的 position 原始值格式 ----
+    // 根因调查发现 CO-329 回滚 c.position 映射的依据是"接口不返回 position 字段"，但历史日志
+    // 又显示返回过 position:"1"。矛盾源于 non_null 序列化丢弃了 null position。
+    // 本测试验证诊断日志会打印每条对接人的 position 原始值（从 JsonNode 取，绕过 non_null），
+    // 部署后关联一次有问题的商机即可确诊 position 真实格式。
+
+    @Test
+    void pageList_logsRawPositionValueForEachContact() {
+        // 含 position 的对接人：日志应打印 position 原始值。
+        String body = "{\"code\":0,\"data\":[{\"id\":1,\"name\":\"张三\",\"position\":\"8\"}]}";
+
+        serviceWith(body).pageList(21045L);
+
+        assertThat(logMessages())
+                .anyMatch(m -> m.contains("position=8") && m.contains("name=张三"));
+    }
+
+    @Test
+    void pageList_logsMissingPositionAsMissingMarker() {
+        // position 缺失的对接人：日志应打印 <missing> 标记，而非空值或崩溃。
+        // 这是 dom.chuya F12 抓包看到过的形态（CRM 后台没填职位时 position 字段不返回）。
+        String body = "{\"code\":0,\"data\":[{\"id\":2,\"name\":\"李四\"}]}";
+
+        serviceWith(body).pageList(21045L);
+
+        assertThat(logMessages())
+                .anyMatch(m -> m.contains("position=<missing>") && m.contains("name=李四"));
     }
 }
