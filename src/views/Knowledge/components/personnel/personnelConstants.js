@@ -73,6 +73,38 @@ export const STATUS_OPTIONS = [
 
 // ============ 操作日志格式化（CO-417） ============
 
+export const CHANGE_FIELD_LABELS = {
+  employeeNumber: '工号',
+  name: '姓名',
+  departmentName: '部门',
+  gender: '性别',
+  entryDate: '入职日期',
+  birthDate: '出生日期',
+  phone: '手机号',
+  education: '教育经历',
+  technicalTitle: '职称',
+  remark: '备注',
+  status: '状态',
+  certificate: '证书',
+  certificateNumber: '证书编号',
+  type: '证书类型',
+  issueDate: '发证日期',
+  expiryDate: '到期日期',
+  attachmentUrl: '附件',
+  title: '职称',
+  isPermanent: '永久有效',
+  educationEntry: '教育经历',
+  schoolName: '学校',
+  startDate: '开始日期',
+  endDate: '结束日期',
+  highestEducation: '最高学历',
+  studyForm: '学习形式',
+  major: '专业',
+  isHighestEducationSchool: '最高学历学校',
+  attachment: '附件',
+  count: '数量'
+}
+
 export const OPERATION_TYPE_LABELS = {
   CREATE: '新建',
   UPDATE: '编辑',
@@ -111,14 +143,20 @@ export const formatOperationType = (type) => {
   return OPERATION_TYPE_LABELS[type] || type
 }
 
-/** 格式化变更摘要：按操作类型差异化渲染 */
+/** 格式化字段名为中文 */
+const formatFieldName = (field) => {
+  if (!field) return ''
+  return CHANGE_FIELD_LABELS[field] || field
+}
+
+/** 格式化变更摘要：按操作类型差异化渲染，字段名展示为中文 */
 export const formatChangeSummary = (operationType, changeDetails) => {
   if (!changeDetails || !changeDetails.length) return ''
   const isAddOnly = ADD_TYPE_OPERATIONS.has(operationType)
   const isRemoveOnly = REMOVE_TYPE_OPERATIONS.has(operationType)
   return changeDetails
     .map(d => {
-      const field = d.field || ''
+      const field = formatFieldName(d.field)
       const oldVal = d.oldValue || '-'
       const newVal = d.newValue || '-'
       if (isAddOnly) return `${field}: ${newVal}`

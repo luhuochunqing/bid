@@ -66,57 +66,62 @@ describe('formatOperationType', () => {
 })
 
 describe('formatChangeSummary', () => {
-  it('UPDATE 类型渲染为 field: oldValue → newValue', () => {
+  it('UPDATE 类型渲染为中文字段名: 旧值 → 新值', () => {
     const details = [{ field: 'name', oldValue: '张三', newValue: '李四' }]
-    expect(formatChangeSummary('UPDATE', details)).toBe('name: 张三 → 李四')
+    expect(formatChangeSummary('UPDATE', details)).toBe('姓名: 张三 → 李四')
   })
 
-  it('DELETE 类型渲染为 field: oldValue → newValue', () => {
+  it('DELETE 类型渲染为中文字段名: 旧值 → 新值', () => {
     const details = [{ field: 'status', oldValue: 'ACTIVE', newValue: 'INACTIVE' }]
-    expect(formatChangeSummary('DELETE', details)).toBe('status: ACTIVE → INACTIVE')
+    expect(formatChangeSummary('DELETE', details)).toBe('状态: ACTIVE → INACTIVE')
   })
 
-  it('CERTIFICATE_ADD 类型渲染为 field: newValue（无 oldValue）', () => {
+  it('CERTIFICATE_ADD 类型渲染为中文字段名: 新值（无旧值）', () => {
     const details = [{ field: 'certificate', oldValue: '', newValue: 'PMP' }]
-    expect(formatChangeSummary('CERTIFICATE_ADD', details)).toBe('certificate: PMP')
+    expect(formatChangeSummary('CERTIFICATE_ADD', details)).toBe('证书: PMP')
   })
 
-  it('CERTIFICATE_REMOVE 类型渲染为 field: oldValue（无 newValue）', () => {
+  it('CERTIFICATE_REMOVE 类型渲染为中文字段名: 旧值（无新值）', () => {
     const details = [{ field: 'certificate', oldValue: 'PMP', newValue: '' }]
-    expect(formatChangeSummary('CERTIFICATE_REMOVE', details)).toBe('certificate: PMP')
+    expect(formatChangeSummary('CERTIFICATE_REMOVE', details)).toBe('证书: PMP')
   })
 
-  it('CERTIFICATE_UPDATE 类型渲染为 field: oldValue → newValue', () => {
+  it('CERTIFICATE_UPDATE 类型渲染为中文字段名: 旧值 → 新值', () => {
     const details = [{ field: 'certificateNumber', oldValue: 'C001', newValue: 'C002' }]
-    expect(formatChangeSummary('CERTIFICATE_UPDATE', details)).toBe('certificateNumber: C001 → C002')
+    expect(formatChangeSummary('CERTIFICATE_UPDATE', details)).toBe('证书编号: C001 → C002')
   })
 
-  it('EDUCATION_ADD 类型渲染为 field: newValue', () => {
+  it('EDUCATION_ADD 类型渲染为中文字段名: 新值', () => {
     const details = [{ field: 'education', oldValue: '', newValue: '北大' }]
-    expect(formatChangeSummary('EDUCATION_ADD', details)).toBe('education: 北大')
+    expect(formatChangeSummary('EDUCATION_ADD', details)).toBe('教育经历: 北大')
   })
 
-  it('EDUCATION_REMOVE 类型渲染为 field: oldValue', () => {
+  it('EDUCATION_REMOVE 类型渲染为中文字段名: 旧值', () => {
     const details = [{ field: 'education', oldValue: '北大', newValue: '' }]
-    expect(formatChangeSummary('EDUCATION_REMOVE', details)).toBe('education: 北大')
+    expect(formatChangeSummary('EDUCATION_REMOVE', details)).toBe('教育经历: 北大')
   })
 
-  it('BATCH_IMPORT_PERSONNEL 类型渲染为 field: newValue', () => {
+  it('BATCH_IMPORT_PERSONNEL 类型渲染为中文字段名: 新值', () => {
     const details = [{ field: 'count', oldValue: '', newValue: '50' }]
-    expect(formatChangeSummary('BATCH_IMPORT_PERSONNEL', details)).toBe('count: 50')
+    expect(formatChangeSummary('BATCH_IMPORT_PERSONNEL', details)).toBe('数量: 50')
   })
 
-  it('ATTACHMENT_REPLACE 类型渲染为 field: oldValue → newValue', () => {
+  it('ATTACHMENT_REPLACE 类型渲染为中文字段名: 旧值 → 新值', () => {
     const details = [{ field: 'attachment', oldValue: 'old.pdf', newValue: 'new.pdf' }]
-    expect(formatChangeSummary('ATTACHMENT_REPLACE', details)).toBe('attachment: old.pdf → new.pdf')
+    expect(formatChangeSummary('ATTACHMENT_REPLACE', details)).toBe('附件: old.pdf → new.pdf')
   })
 
-  it('多条变更用分号连接', () => {
+  it('多条变更用分号连接，字段名均为中文', () => {
     const details = [
       { field: 'name', oldValue: '张三', newValue: '李四' },
       { field: 'departmentName', oldValue: '技术部', newValue: '市场部' }
     ]
-    expect(formatChangeSummary('UPDATE', details)).toBe('name: 张三 → 李四; departmentName: 技术部 → 市场部')
+    expect(formatChangeSummary('UPDATE', details)).toBe('姓名: 张三 → 李四; 部门: 技术部 → 市场部')
+  })
+
+  it('未知字段名原样返回英文', () => {
+    const details = [{ field: 'unknownField', oldValue: 'a', newValue: 'b' }]
+    expect(formatChangeSummary('UPDATE', details)).toBe('unknownField: a → b')
   })
 
   it('空变更列表返回空字符串', () => {
