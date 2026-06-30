@@ -226,8 +226,9 @@ describe('TaskForm', () => {
     expect(errors).toContain('请填写详细描述')
   })
 
-  // CO-419: 用户输入纯空格也算"已经操作过"，错误应清除；具体 trim 校验在 submit 时处理
-  it('clears field error even when user inputs only whitespace', async () => {
+  // CO-419: 输入纯空格不清错——避免错误消失→submit 又复活的认知错位。
+  // 只有 trim 后非空才清错，纯空格输入保留错误让用户知道要填真实内容。
+  it('keeps field error when user inputs only whitespace', async () => {
     const wrapper = mount(TaskForm, {
       props: { mode: 'create', modelValue: {} },
       global: { stubs: globalStubs },
@@ -237,17 +238,16 @@ describe('TaskForm', () => {
     await flushPromises()
     expect(wrapper.findAll('.form-item-error').map((el) => el.text())).toContain('请填写任务名称')
 
-    // 输入纯空格：错误应立即清除（避免用户困惑"我明明输入了为什么错误还在"）
+    // 输入纯空格：错误应保留（trim 后仍为空，不算有效输入）
     const nameInput = wrapper.find('input.el-input-stub')
     await nameInput.setValue('   ')
     await flushPromises()
-    const errors = wrapper.findAll('.form-item-error').map((el) => el.text())
-    expect(errors).not.toContain('请填写任务名称')
-
-    // 但 submit 时仍应判定为空（trim 后为空），错误重新出现
-    wrapper.vm.submit()
-    await flushPromises()
     expect(wrapper.findAll('.form-item-error').map((el) => el.text())).toContain('请填写任务名称')
+
+    // 输入真实内容后：错误应清除
+    await nameInput.setValue('新任务')
+    await flushPromises()
+    expect(wrapper.findAll('.form-item-error').map((el) => el.text())).not.toContain('请填写任务名称')
   })
 
   it('removes all field errors when switching to a different task', async () => {

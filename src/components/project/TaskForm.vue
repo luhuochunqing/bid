@@ -196,10 +196,12 @@ const errors = reactive(Object.fromEntries(REQUIRED_FIELDS.map((k) => [k, ''])))
 function clearAllErrors() {
   REQUIRED_FIELDS.forEach((k) => { errors[k] = '' })
 }
-// 用户修改字段后，只要值有变化就清掉该字段错误（不要求 trim 后非空——
-// 用户填了空格也算"已经操作过"，具体校验交给 submit）
-function clearFieldErrorIfHasValue(field, value) {
-  if (errors[field] && value != null && value !== '') errors[field] = ''
+// 用户修改字段后，只有值 trim 后非空才清掉对应错误。
+// 不清"纯空格输入"——避免错误消失→submit 又复活的认知错位。
+// 调用方只需传字段名，值由函数内部从 localValue 取，新增必填字段零改动。
+function clearFieldErrorIfDirty(field) {
+  const v = localValue[field]
+  if (errors[field] && v != null && String(v).trim() !== '') errors[field] = ''
 }
 const extFormRef = ref(null)
 const activeTab = ref('detail')
@@ -333,15 +335,12 @@ watch(() => props.modelValue, (v) => {
 })
 
 // CO-419: 合并字段变化监听到 watch(localValue)
-// - 用户修改必填字段后立即清掉对应字段错误（不要求 trim 后非空，已操作即清）
+// - 用户修改必填字段后立即清掉对应字段错误（trim 后非空才清，纯空格不清）
 // - 同时触发 update:modelValue 事件
 // 不再用派生数组 watcher（与 watch(localValue) 功能重叠且每次都生成新数组）
 watch(localValue, () => {
   if (syncingFromModel) return
-  clearFieldErrorIfHasValue('name', localValue.name)
-  clearFieldErrorIfHasValue('content', localValue.content)
-  clearFieldErrorIfHasValue('assigneeId', localValue.assigneeId)
-  clearFieldErrorIfHasValue('deadline', localValue.deadline)
+  REQUIRED_FIELDS.forEach(clearFieldErrorIfDirty)
   emit('update:modelValue', { ...localValue })
 }, { deep: true })
 
@@ -381,7 +380,11 @@ function validate() {
   if (!localValue.assigneeId) errors.assigneeId = FIELD_ERROR_MESSAGES.assigneeId
   if (!localValue.deadline) errors.deadline = FIELD_ERROR_MESSAGES.deadline
   // 返回第一条错误信息（空串代表通过）；父组件 handleSaveTask 只看返回值的 valid 字段
-  return REQUIRED_FIELDS.map((k) => errors[k]).find(Boolean) || ''
+  let firstError = ''
+  for (const k of REQUIRED_FIELDS) {
+    if (errors[k]) { firstError = errors[k]; break }
+  }
+  return firstError
 }
 function normalizeUploadFiles(fileList = []) {
   return (Array.isArray(fileList) ? fileList : [fileList])
