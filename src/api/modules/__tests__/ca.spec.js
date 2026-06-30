@@ -1,7 +1,7 @@
 // Input: src/api/modules/ca.js — normalizeCaCertificate
 // Output: CO-435 编辑页面字段丢失的回归测试
 // Pos: src/api/modules/__tests__/ — API 层单元测试
-// 一旦我被更新，务必更新我的开头注释。
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 import { describe, expect, it } from 'vitest'
 import {
