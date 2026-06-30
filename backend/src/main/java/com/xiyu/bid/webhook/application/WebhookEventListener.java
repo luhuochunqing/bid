@@ -139,9 +139,11 @@ public class WebhookEventListener {
 
     /**
      * 组装 CRM feedback JSON 字符串。
-     * <p>包含：reason / vendor / paymentTerm / remark / operator / operateTime / systemName。
+     * <p>包含：reason / vendor / paymentTerm / remark / abandonmentReason / operator / operateTime / systemName。
      * <p>CO-346: 增加 systemName="投标管理系统"，与 §4.2 ProjectResultPayloadAssembler.buildFeedbackString 对齐，
      * 让 CRM 侧能识别回调来源系统。
+     * <p>CO-414: 增加 abandonmentReason 独立字段（弃标原因），便于 CRM 侧结构化消费，
+     * 与 remark 并存（remark 兼容历史消费方）。
      */
     private String buildFeedback(TenderStatusChangedEvent event) {
         Map<String, Object> fb = new LinkedHashMap<>();
@@ -149,6 +151,8 @@ public class WebhookEventListener {
         fb.put("vendor", "");
         fb.put("paymentTerm", "");
         fb.put("remark", event.abandonReason() != null ? event.abandonReason() : "");
+        // CO-414: 弃标原因独立字段，便于 CRM 结构化消费
+        fb.put("abandonmentReason", event.abandonReason() != null ? event.abandonReason() : "");
         fb.put("operator", event.operatorName() != null ? event.operatorName() : "");
         fb.put("operateTime", event.occurredAt().format(STATUS_EDIT_TIME_FORMAT));
         fb.put("systemName", SYSTEM_NAME);

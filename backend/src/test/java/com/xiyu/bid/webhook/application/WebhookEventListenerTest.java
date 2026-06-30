@@ -121,6 +121,8 @@ class WebhookEventListenerTest {
         JsonNode feedback = objectMapper.readTree(bidInfo.path("feedback").asText());
         assertThat(feedback.path("reason").asText()).isEqualTo("ABANDONED");
         assertThat(feedback.path("remark").asText()).isEqualTo("客户预算过低，放弃投标");
+        // CO-414: abandonmentReason 独立字段，值为用户填写的弃标原因
+        assertThat(feedback.path("abandonmentReason").asText()).isEqualTo("客户预算过低，放弃投标");
         assertThat(feedback.path("operator").asText()).isEqualTo("李四（06100）");
         // CO-346: 与 §4.2 对齐，feedback 带 systemName 标识来源系统
         assertThat(feedback.path("systemName").asText()).isEqualTo("投标管理系统");
@@ -146,6 +148,8 @@ class WebhookEventListenerTest {
         JsonNode feedback = objectMapper.readTree(bidInfo.path("feedback").asText());
         assertThat(feedback.path("operator").asText()).isEqualTo("王五（06234）");
         assertThat(feedback.path("systemName").asText()).isEqualTo("投标管理系统");
+        // CO-414: 非 弃标场景 abandonmentReason 为空字符串
+        assertThat(feedback.path("abandonmentReason").asText()).isEmpty();
     }
 
     @Test
