@@ -114,15 +114,6 @@ class PlatformAccountBorrowServiceMysqlIntegrationTest extends AbstractMysqlInte
                 .build();
     }
 
-    /**
-     * 清理一级缓存，让后续 findById 走 DB 而非缓存。
-     * 不需要 flush()：Service 的 @Transactional 已独立 commit + flush，
-     * 测试方法本身不加 @Transactional（让 Service 真实提交/回滚，验证事务边界）。
-     */
-    private void flushAndClear() {
-        entityManager.clear();
-    }
-
     // ════════════════════════════════════════════════════════════════════
     //  A. CO-386: custodianId fallback（MySQL round-trip + 事务回滚）
     // ════════════════════════════════════════════════════════════════════

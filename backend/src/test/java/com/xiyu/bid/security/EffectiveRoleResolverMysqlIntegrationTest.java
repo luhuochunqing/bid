@@ -4,11 +4,11 @@ import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.RoleProfileRepository;
 import com.xiyu.bid.repository.UserRepository;
-import com.xiyu.bid.security.EffectiveRoleResolverMysqlIntegrationTestConfig.InMemoryRoleCodeCachePort;
 import com.xiyu.bid.security.domain.EffectiveRoleResult;
 import com.xiyu.bid.support.AbstractMysqlIntegrationTest;
+import com.xiyu.bid.support.InMemoryRoleCodeCachePortConfig;
+import com.xiyu.bid.support.InMemoryRoleCodeCachePortConfig.InMemoryRoleCodeCachePort;
 import com.xiyu.bid.support.NoOpPasswordEncryptionTestConfig;
-import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -46,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 @ActiveProfiles("flyway-mysql")
 @Import({
         NoOpPasswordEncryptionTestConfig.class,
-        EffectiveRoleResolverMysqlIntegrationTestConfig.class
+        InMemoryRoleCodeCachePortConfig.class
 })
 class EffectiveRoleResolverMysqlIntegrationTest extends AbstractMysqlIntegrationTest {
 
@@ -59,14 +59,12 @@ class EffectiveRoleResolverMysqlIntegrationTest extends AbstractMysqlIntegration
     @Autowired
     private RoleProfileRepository roleProfileRepository;
 
+    /** 注入共享的 InMemory stub，直接调用 clear()/put() 无需类型转换。 */
     @Autowired
-    private RoleCodeCachePort roleCodeCachePort;  // 注入的是 InMemory stub
+    private InMemoryRoleCodeCachePort roleCodeCachePort;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
-
-    @Autowired
-    private EntityManager entityManager;
 
     @BeforeEach
     void cleanTestData() {
@@ -74,17 +72,13 @@ class EffectiveRoleResolverMysqlIntegrationTest extends AbstractMysqlIntegration
         jdbcTemplate.update("DELETE FROM users WHERE username LIKE 'test-int-%'");
         jdbcTemplate.update("DELETE FROM roles WHERE code LIKE 'test-int-%'");
         // 清空缓存 stub，避免上一个测试的缓存污染
-        asInMemory(roleCodeCachePort).clear();
+        roleCodeCachePort.clear();
     }
 
     // ── 辅助方法 ──
 
-    private InMemoryRoleCodeCachePort asInMemory(RoleCodeCachePort port) {
-        return (InMemoryRoleCodeCachePort) port;
-    }
-
     private void putCache(String username, String roleCode) {
-        asInMemory(roleCodeCachePort).put(username, roleCode);
+        roleCodeCachePort.put(username, roleCode);
     }
 
     /**
@@ -124,13 +118,6 @@ class EffectiveRoleResolverMysqlIntegrationTest extends AbstractMysqlIntegration
                 .emailVerified(true)
                 .build();
         return userRepository.saveAndFlush(user);
-    }
-
-    /**
-     * 清一级缓存，让后续 findById 走 DB。
-     */
-    private void flushAndClear() {
-        entityManager.clear();
     }
 
     // ════════════════════════════════════════════════════════════════════

@@ -5,6 +5,8 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+import jakarta.persistence.EntityManager;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.MySQLContainer;
@@ -28,6 +30,18 @@ import org.testcontainers.containers.MySQLContainer;
  * 注意：不用 @Testcontainers(disabledWithoutDocker=true)，Docker 不可用时必须 fail-fast。
  */
 public abstract class AbstractMysqlIntegrationTest {
+
+    @Autowired
+    protected EntityManager entityManager;
+
+    /**
+     * 清一级缓存，让后续 findById 走 DB 而非缓存。
+     * 不需要 flush()：Service 的 @Transactional 已独立 commit + flush，
+     * 测试方法本身不加 @Transactional（让 Service 真实提交/回滚，验证事务边界）。
+     */
+    protected void flushAndClear() {
+        entityManager.clear();
+    }
 
     /**
      * 测试环境 sql_mode：去掉 NO_ZERO_DATE 和 NO_ZERO_IN_DATE，
