@@ -15,6 +15,7 @@ import com.xiyu.bid.brandauth.manufacturer.application.service.UpdateManufacture
 import com.xiyu.bid.brandauth.manufacturer.domain.valueobject.AuthStatus;
 import com.xiyu.bid.brandauth.manufacturer.domain.valueobject.ProductLine;
 import com.xiyu.bid.dto.ApiResponse;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.repository.UserRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -45,8 +46,14 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/knowledge/brand-auth")
 @RequiredArgsConstructor
-@PreAuthorize("hasAuthority('brand-auth.view')")
+@PreAuthorize("isAuthenticated()")
 public class ManufacturerAuthorizationController {
+
+    // CO-394: 权限点统一为 RoleProfileCatalog 常量，对齐 Warehouse 模板风格
+    private static final String VIEW_PERM = RoleProfileCatalog.BRAND_AUTH_VIEW_PERMISSION;
+    private static final String CREATE_PERM = RoleProfileCatalog.BRAND_AUTH_CREATE_PERMISSION;
+    private static final String EDIT_PERM = RoleProfileCatalog.BRAND_AUTH_EDIT_PERMISSION;
+    private static final String REVOKE_PERM = RoleProfileCatalog.BRAND_AUTH_REVOKE_PERMISSION;
 
     /** Create service. */
     private final CreateManufacturerAuthAppService createService;
@@ -69,7 +76,7 @@ public class ManufacturerAuthorizationController {
 
     /** List authorizations with pagination and filters. */
     @GetMapping
-    @PreAuthorize("hasAuthority('brand-auth.view')")
+    @PreAuthorize("hasAuthority('" + VIEW_PERM + "')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> list(
             @RequestParam(required = false) final List<String> productLines,
             @RequestParam(required = false) final String brandId,
@@ -108,7 +115,7 @@ public class ManufacturerAuthorizationController {
 
     /** Get single authorization by ID. */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('brand-auth.view')")
+    @PreAuthorize("hasAuthority('" + VIEW_PERM + "')")
     public ResponseEntity<ApiResponse<ManufacturerAuthorizationDTO>> detail(
             @PathVariable final Long id) {
         return listService.getDetail(id)
@@ -118,7 +125,7 @@ public class ManufacturerAuthorizationController {
 
     /** Create a new authorization. */
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + CREATE_PERM + "')")
     public ResponseEntity<ApiResponse<ManufacturerAuthorizationDTO>> create(
             @Valid @RequestBody final CreateManufacturerAuthCommand cmd) {
         Long userId = getCurrentUserId();
@@ -132,7 +139,7 @@ public class ManufacturerAuthorizationController {
     /** Upload attachments for an authorization. */
     @PostMapping(value = "/attachments/upload",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + CREATE_PERM + "')")
     public ResponseEntity<ApiResponse<List<ManufacturerAuthorizationDTO.AttachmentDTO>>>
     uploadAttachments(
             @RequestParam final Long authorizationId,
@@ -147,7 +154,7 @@ public class ManufacturerAuthorizationController {
 
     /** Update an existing authorization. */
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + EDIT_PERM + "')")
     public ResponseEntity<ApiResponse<ManufacturerAuthorizationDTO>> update(
             @PathVariable final Long id,
             @Valid @RequestBody final UpdateManufacturerAuthCommand cmd) {
@@ -158,7 +165,7 @@ public class ManufacturerAuthorizationController {
 
     /** Revoke an authorization. */
     @PostMapping("/{id}/revoke")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + REVOKE_PERM + "')")
     public ResponseEntity<ApiResponse<ManufacturerAuthorizationDTO>> revoke(
             @PathVariable final Long id,
             @Valid @RequestBody final RevokeManufacturerAuthCommand cmd) {
@@ -169,7 +176,7 @@ public class ManufacturerAuthorizationController {
 
     /** Get operation logs for an authorization. */
     @GetMapping("/{id}/logs")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + VIEW_PERM + "')")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> logs(
             @PathVariable final Long id) {
         List<com.xiyu.bid.brandauth.manufacturer.infrastructure.persistence.entity.BrandAuthOperationLogEntity> logs =
@@ -190,7 +197,7 @@ public class ManufacturerAuthorizationController {
 
     /** Export all authorizations as Excel. */
     @GetMapping("/export")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + VIEW_PERM + "')")
     public ResponseEntity<byte[]> exportAll() throws IOException {
         byte[] data = exportService.exportAll();
         return ResponseEntity.ok()
@@ -205,7 +212,7 @@ public class ManufacturerAuthorizationController {
 
     /** Download import template. */
     @GetMapping("/template")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + VIEW_PERM + "')")
     public ResponseEntity<byte[]> downloadTemplate() throws IOException {
         byte[] data = exportService.downloadTemplate();
         return ResponseEntity.ok()
@@ -220,7 +227,7 @@ public class ManufacturerAuthorizationController {
 
     /** Batch import brand authorizations from an uploaded Excel file. */
     @PostMapping("/import")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('" + CREATE_PERM + "')")
     public ResponseEntity<ApiResponse<BrandAuthImportService.ImportResult>> importExcel(
             @RequestParam("file") final MultipartFile file) throws IOException {
         Long userId = getCurrentUserId();

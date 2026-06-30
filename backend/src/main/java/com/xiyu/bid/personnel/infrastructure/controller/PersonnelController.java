@@ -17,6 +17,7 @@ import com.xiyu.bid.personnel.application.service.UpdatePersonnelAppService;
 import com.xiyu.bid.personnel.domain.port.PersonnelFileStorage;
 import com.xiyu.bid.personnel.domain.valueobject.PersonnelStatus;
 import com.xiyu.bid.personnel.infrastructure.persistence.repository.PersonnelCertificateJpaRepository;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.repository.UserRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -55,6 +56,10 @@ import java.util.List;
 @PreAuthorize("isAuthenticated()")
 public class PersonnelController {
 
+    // CO-394: 权限点统一为 RoleProfileCatalog 常量，对齐 Warehouse 模板风格
+    private static final String VIEW_PERM = RoleProfileCatalog.PERSONNEL_VIEW_PERMISSION;
+    private static final String MANAGE_PERM = RoleProfileCatalog.PERSONNEL_MANAGE_PERMISSION;
+
     private final CreatePersonnelAppService createService;
     private final UpdatePersonnelAppService updateService;
     private final DeletePersonnelAppService deleteService;
@@ -67,9 +72,7 @@ public class PersonnelController {
     private final UserRepository userRepository;
 
     @PostMapping
-    // 严格按照蓝图 4.3「人员证书」权限矩阵：仅投标部门三个角色可新增
-    // 其他角色（项目负责人、行政人员、跨部门协同人员等）均无权限
-    @PreAuthorize("hasAnyAuthority('admin', '/bidAdmin', 'bid-TeamLeader', 'bid-Team')")
+    @PreAuthorize("hasAuthority('" + MANAGE_PERM + "')")
     @Auditable(action = "CREATE", entityType = "Personnel", description = "创建人员")
     public ResponseEntity<ApiResponse<PersonnelDTO>> create(@Valid @RequestBody PersonnelUpsertCommand command,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -80,8 +83,7 @@ public class PersonnelController {
     }
 
     @GetMapping
-    // CO-403: 基于权限点鉴权，持有 personnel.view 的角色均可只读访问人员库
-    @PreAuthorize("hasAuthority('personnel.view')")
+    @PreAuthorize("hasAuthority('" + VIEW_PERM + "')")
     @Auditable(action = "READ", entityType = "Personnel", description = "获取人员列表")
     public ResponseEntity<ApiResponse<List<PersonnelDTO>>> list(
             @RequestParam(required = false) String keyword,
@@ -110,17 +112,14 @@ public class PersonnelController {
     }
 
     @GetMapping("/{id}")
-    // CO-403: 基于权限点鉴权，持有 personnel.view 的角色均可只读访问人员库
-    @PreAuthorize("hasAuthority('personnel.view')")
+    @PreAuthorize("hasAuthority('" + VIEW_PERM + "')")
     @Auditable(action = "READ", entityType = "Personnel", description = "获取人员详情")
     public ResponseEntity<ApiResponse<PersonnelDTO>> get(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("人员详情获取成功", listService.get(id)));
     }
 
     @PutMapping("/{id}")
-    // 按蓝图 4.3「编辑证书」要求：仅 本人(bid-Team) + 投标组长(bid-TeamLeader) + 投标管理员(bidAdmin) 可编辑
-    // 移除引发 SpEL 异常的 authentication.principal.id 校验，后续需在 Service 层基于 employeeNumber 实现精确本人校验
-    @PreAuthorize("hasAnyAuthority('admin', '/bidAdmin', 'bid-TeamLeader', 'bid-Team')")
+    @PreAuthorize("hasAuthority('" + MANAGE_PERM + "')")
     @Auditable(action = "UPDATE", entityType = "Personnel", description = "更新人员")
     public ResponseEntity<ApiResponse<PersonnelEditResponse>> update(@PathVariable Long id,
             @Valid @RequestBody PersonnelUpsertCommand command,
@@ -143,7 +142,7 @@ public class PersonnelController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('admin', '/bidAdmin', 'bid-TeamLeader')")
+    @PreAuthorize("hasAuthority('" + MANAGE_PERM + "')")
     @Auditable(action = "DELETE", entityType = "Personnel", description = "删除人员")
     public ResponseEntity<Void> delete(@PathVariable Long id,
                                        @RequestBody(required = false) DeletePersonnelRequest request,
@@ -173,7 +172,7 @@ public class PersonnelController {
     }
 
     @PostMapping("/{id}/restore")
-    @PreAuthorize("hasAnyAuthority('admin', '/bidAdmin', 'bid-TeamLeader')")
+    @PreAuthorize("hasAuthority('" + MANAGE_PERM + "')")
     @Auditable(action = "RESTORE", entityType = "Personnel", description = "恢复已停用人员")
     public ResponseEntity<Void> restore(@PathVariable Long id, @AuthenticationPrincipal UserDetails userDetails) {
         Long currentUserId = extractUserId(userDetails);
@@ -188,7 +187,7 @@ public class PersonnelController {
      * 保存后返回可下载的 attachmentUrl，详情页 "下载" 链接可直接使用。
      */
     @PostMapping("/{personnelId}/certificates/{certId}/attachment")
-    @PreAuthorize("hasAnyAuthority('admin', '/bidAdmin', 'bid-TeamLeader', 'bid-Team')")
+    @PreAuthorize("hasAuthority('" + MANAGE_PERM + "')")
     @Auditable(action = "UPDATE", entityType = "PersonnelCertificate", description = "上传/替换证书附件")
     public ResponseEntity<ApiResponse<String>> uploadCertAttachment(
             @PathVariable Long personnelId,
@@ -258,7 +257,7 @@ public class PersonnelController {
      * 查询人员操作日志（4.3.1.3 详情抽屉 Tab 4）。
      */
     @GetMapping("/{id}/operation-logs")
-    @PreAuthorize("hasAnyAuthority('admin', '/bidAdmin', 'bid-TeamLeader', 'bid-Team')")
+    @PreAuthorize("hasAuthority('" + VIEW_PERM + "')")
     @Auditable(action = "READ", entityType = "PersonnelOperationLog", description = "查询人员操作日志")
     public ResponseEntity<ApiResponse<List<PersonnelOperationLogDTO>>> getOperationLogs(@PathVariable Long id) {
         var logs = operationLogService.findByPersonnelId(id);
@@ -272,7 +271,7 @@ public class PersonnelController {
      * 提供证书附件下载，使详情页 "下载" 链接可用。
      */
     @GetMapping("/attachments/{personnelId}/{filename:.+}")
-    @PreAuthorize("hasAnyAuthority('admin', '/bidAdmin', 'bid-TeamLeader', 'bid-Team')")
+    @PreAuthorize("hasAuthority('" + VIEW_PERM + "')")
     public ResponseEntity<Resource> downloadCertAttachment(
             @PathVariable Long personnelId,
             @PathVariable String filename) {

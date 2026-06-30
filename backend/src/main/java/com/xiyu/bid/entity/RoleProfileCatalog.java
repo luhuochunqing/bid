@@ -48,15 +48,15 @@ public final class RoleProfileCatalog {
     public static final String BRAND_AUTH_CREATE_PERMISSION = "brand-auth.create";
     public static final String BRAND_AUTH_EDIT_PERMISSION = "brand-auth.edit";
     public static final String BRAND_AUTH_REVOKE_PERMISSION = "brand-auth.revoke";
-    /** CO-403: 标讯查看权限点（审计日志等只读端点） */
     public static final String TENDER_VIEW_PERMISSION = "tender.view";
-    /** CO-403: 人员库查看权限点（列表/详情只读） */
     public static final String PERSONNEL_VIEW_PERMISSION = "personnel.view";
+    public static final String PERSONNEL_MANAGE_PERMISSION = "personnel.manage";
+    public static final String PERFORMANCE_MANAGE_PERMISSION = "performance.manage";
+    public static final String QUALIFICATION_MANAGE_PERMISSION = "qualification.manage";
 
     // PRD §2 角色：销售/业务负责人、投标负责人、投标部门管理员、任务执行人
     public static final String SALES_CODE = "bid-projectLeader";
-    /** 语义别名：投标项目负责人（即 SALES_CODE），用于业务代码中更清晰地表达意图 */
-    public static final String PROJECT_LEADER_CODE = SALES_CODE;
+    public static final String PROJECT_LEADER_CODE = SALES_CODE; // 语义别名：投标项目负责人
     public static final String BID_LEAD_CODE = "bid-TeamLeader";
     public static final String BID_ADMIN_CODE = "/bidAdmin";
     public static final String BID_SPECIALIST_CODE = "bid-Team";
@@ -130,8 +130,8 @@ public final class RoleProfileCatalog {
                         BRAND_AUTH_VIEW_PERMISSION, BRAND_AUTH_CREATE_PERMISSION,
                         BRAND_AUTH_EDIT_PERMISSION, BRAND_AUTH_REVOKE_PERMISSION,
                         "knowledge-brand-auth",
-                        TENDER_VIEW_PERMISSION, PERSONNEL_VIEW_PERMISSION,
-                        "dashboard:view_welcome_banner", "dashboard:view_metric_cards", "dashboard:view_calendar",
+                        TENDER_VIEW_PERMISSION, PERSONNEL_VIEW_PERMISSION, PERSONNEL_MANAGE_PERMISSION,
+                        PERFORMANCE_MANAGE_PERMISSION, QUALIFICATION_MANAGE_PERMISSION, "dashboard:view_welcome_banner", "dashboard:view_metric_cards", "dashboard:view_calendar",
                         "dashboard:view_tender_list", "dashboard:view_technical_task", "dashboard:view_review_list",
                         "dashboard:view_project_list", "dashboard:view_active_projects",
                         "dashboard:view_activity_list", "dashboard:view_priority_todos",
@@ -145,8 +145,8 @@ public final class RoleProfileCatalog {
                         BRAND_AUTH_VIEW_PERMISSION, BRAND_AUTH_CREATE_PERMISSION,
                         BRAND_AUTH_EDIT_PERMISSION, BRAND_AUTH_REVOKE_PERMISSION,
                         "knowledge-brand-auth",
-                        TENDER_VIEW_PERMISSION, PERSONNEL_VIEW_PERMISSION,
-                        "dashboard:view_welcome_banner", "dashboard:view_metric_cards", "dashboard:view_calendar",
+                        TENDER_VIEW_PERMISSION, PERSONNEL_VIEW_PERMISSION, PERSONNEL_MANAGE_PERMISSION,
+                        PERFORMANCE_MANAGE_PERMISSION, QUALIFICATION_MANAGE_PERMISSION, "dashboard:view_welcome_banner", "dashboard:view_metric_cards", "dashboard:view_calendar",
                         "dashboard:view_tender_list", "dashboard:view_project_list", "dashboard:view_team_task",
                         "dashboard:view_global_projects", "dashboard:view_active_projects", "dashboard:view_team_performance",
                         "dashboard:view_approval_list", "dashboard:view_process_timeline", "dashboard:view_activity_list",
@@ -160,8 +160,8 @@ public final class RoleProfileCatalog {
                         BIDDING_CREATE_PERMISSION,
                         BRAND_AUTH_VIEW_PERMISSION, BRAND_AUTH_CREATE_PERMISSION,
                         BRAND_AUTH_EDIT_PERMISSION, "knowledge-brand-auth",
-                        TENDER_VIEW_PERMISSION, PERSONNEL_VIEW_PERMISSION,
-                        QUICK_START_PERMISSION, AI_CENTER_PERMISSION, "operation-logs",
+                        TENDER_VIEW_PERMISSION, PERSONNEL_VIEW_PERMISSION, PERSONNEL_MANAGE_PERMISSION,
+                        PERFORMANCE_MANAGE_PERMISSION, QUALIFICATION_MANAGE_PERMISSION, QUICK_START_PERMISSION, AI_CENTER_PERMISSION, "operation-logs",
                         "dashboard:view_welcome_banner", "dashboard:view_metric_cards", "dashboard:view_calendar",
                         "dashboard:view_tender_list", "dashboard:view_technical_task", "dashboard:view_active_projects",
                         "dashboard:view_activity_list", "dashboard:view_priority_todos",

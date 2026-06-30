@@ -5,6 +5,7 @@ import com.xiyu.bid.personnel.application.service.ImportPersonnelAppService;
 import com.xiyu.bid.personnel.application.service.ImportPersonnelAppService.ImportProgressInfo;
 import com.xiyu.bid.personnel.domain.model.importtask.PersonnelImportTask;
 import com.xiyu.bid.personnel.infrastructure.excel.PersonnelImportTemplateGenerator;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ByteArrayResource;
@@ -32,13 +33,16 @@ import java.io.IOException;
 @PreAuthorize("isAuthenticated()")
 public class PersonnelImportController {
 
+    // CO-394: 权限点统一为 RoleProfileCatalog 常量，对齐 Warehouse 模板风格
+    private static final String MANAGE_PERM = RoleProfileCatalog.PERSONNEL_MANAGE_PERMISSION;
+
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
 
     private final ImportPersonnelAppService importAppService;
     private final PersonnelImportTemplateGenerator templateGenerator;
 
     @PostMapping("/import")
-    @PreAuthorize("hasAnyAuthority('admin', '/bidAdmin', 'bid-TeamLeader', 'ROLE_BIDADMIN', 'ROLE_BID_TEAMLEADER')")
+    @PreAuthorize("hasAuthority('" + MANAGE_PERM + "')")
     public ResponseEntity<ApiResponse<ImportTaskResponse>> startImport(
             @RequestParam("file") MultipartFile file,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -63,14 +67,14 @@ public class PersonnelImportController {
     }
 
     @GetMapping("/import/{taskId}")
-    @PreAuthorize("hasAnyAuthority('admin', '/bidAdmin', 'bid-TeamLeader', 'ROLE_BIDADMIN', 'ROLE_BID_TEAMLEADER')")
+    @PreAuthorize("hasAuthority('" + MANAGE_PERM + "')")
     public ResponseEntity<ApiResponse<ImportProgressInfo>> getImportProgress(@PathVariable Long taskId) {
         ImportProgressInfo progress = importAppService.getProgress(taskId);
         return ResponseEntity.ok(ApiResponse.success("获取进度成功", progress));
     }
 
     @GetMapping("/import/{taskId}/report")
-    @PreAuthorize("hasAnyAuthority('admin', '/bidAdmin', 'bid-TeamLeader', 'ROLE_BIDADMIN', 'ROLE_BID_TEAMLEADER')")
+    @PreAuthorize("hasAuthority('" + MANAGE_PERM + "')")
     public ResponseEntity<Resource> downloadErrorReport(@PathVariable Long taskId) {
         try {
             byte[] reportBytes = importAppService.getErrorReport(taskId);
@@ -91,7 +95,7 @@ public class PersonnelImportController {
     }
 
     @GetMapping("/import/template")
-    @PreAuthorize("hasAnyAuthority('admin', '/bidAdmin', 'bid-TeamLeader', 'bid-Team', 'ROLE_BIDADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BID_TEAM')")
+    @PreAuthorize("hasAuthority('" + MANAGE_PERM + "')")
     public ResponseEntity<Resource> downloadTemplate() {
         try {
             byte[] templateBytes = templateGenerator.generate();
