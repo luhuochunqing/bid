@@ -160,9 +160,16 @@
       <el-button
         v-if="ca.borrowStatus === 'IN_STOCK' && ca.caType === 'ENTITY_CA' && ca.status !== 'EXPIRED' && ca.status !== 'INACTIVE'"
         type="primary"
-        @click="$emit('return', ca)"
+        @click="$emit('borrow', ca)"
       >
         <el-icon><Share /></el-icon>借用
+      </el-button>
+      <el-button
+        v-if="ca.borrowStatus === 'BORROWED'"
+        type="warning"
+        @click="$emit('return', ca)"
+      >
+        <el-icon><Share /></el-icon>归还
       </el-button>
       <el-button
         v-if="isManager"
@@ -186,7 +193,7 @@ const props = defineProps({
   isManager: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['update:modelValue', 'edit', 'return'])
+const emit = defineEmits(['update:modelValue', 'edit', 'borrow', 'return'])
 
 const visible = computed({
   get: () => props.modelValue,

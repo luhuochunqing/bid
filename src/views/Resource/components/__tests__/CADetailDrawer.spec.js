@@ -159,7 +159,7 @@ describe('CADetailDrawer.vue — CO-406 详情形态对齐 AccountDetailDialog�
   })
 
   // 借用按钮 emit（IN_STOCK + ENTITY_CA + ACTIVE 才显示）
-  it('emit_returnWhenBorrowableClicksBorrow — 可借用时 emit return 事件', async () => {
+  it('emit_borrowWhenInStockClicksBorrow — 在库状态点击借用 emit borrow 事件', async () => {
     const wrapper = await mountComponent({ isManager: true })
     await flushPromises()
 
@@ -168,7 +168,54 @@ describe('CADetailDrawer.vue — CO-406 详情形态对齐 AccountDetailDialog�
     expect(borrowBtn).toBeDefined()
 
     await borrowBtn.trigger('click')
+    expect(wrapper.emitted('borrow')).toBeTruthy()
+    expect(wrapper.emitted('borrow')[0][0]).toEqual(mockCa)
+  })
+
+  // CO-433：在库（IN_STOCK）状态不应显示归还按钮
+  it('render_noReturnButtonWhenInStock — 在库状态不显示归还按钮', async () => {
+    const wrapper = await mountComponent({ isManager: true })
+    await flushPromises()
+
+    const actions = wrapper.find('.detail-actions')
+    const returnBtn = actions.findAll('button.el-button-stub').find((b) => b.text().includes('归还'))
+    expect(returnBtn).toBeUndefined()
+  })
+
+  // CO-433：已借出（BORROWED）状态显示归还按钮
+  it('render_returnButtonWhenBorrowed — 已借出状态显示归还按钮', async () => {
+    const borrowedCa = { ...mockCa, borrowStatus: 'BORROWED', borrowStatusLabel: '已借出', currentBorrowerName: '王五' }
+    const wrapper = await mountComponent({ isManager: true, ca: borrowedCa })
+    await flushPromises()
+
+    const actions = wrapper.find('.detail-actions')
+    const returnBtn = actions.findAll('button.el-button-stub').find((b) => b.text().includes('归还'))
+    expect(returnBtn).toBeDefined()
+  })
+
+  // CO-433：已借出状态点击归还按钮 emit return 事件
+  it('emit_returnWhenBorrowedClicksReturn — 已借出状态点击归还 emit return 事件', async () => {
+    const borrowedCa = { ...mockCa, borrowStatus: 'BORROWED', borrowStatusLabel: '已借出', currentBorrowerName: '王五' }
+    const wrapper = await mountComponent({ isManager: true, ca: borrowedCa })
+    await flushPromises()
+
+    const actions = wrapper.find('.detail-actions')
+    const returnBtn = actions.findAll('button.el-button-stub').find((b) => b.text().includes('归还'))
+    expect(returnBtn).toBeDefined()
+
+    await returnBtn.trigger('click')
     expect(wrapper.emitted('return')).toBeTruthy()
-    expect(wrapper.emitted('return')[0][0]).toEqual(mockCa)
+    expect(wrapper.emitted('return')[0][0]).toEqual(borrowedCa)
+  })
+
+  // CO-433：已借出状态不应显示借用按钮
+  it('render_noBorrowButtonWhenBorrowed — 已借出状态不显示借用按钮', async () => {
+    const borrowedCa = { ...mockCa, borrowStatus: 'BORROWED', borrowStatusLabel: '已借出', currentBorrowerName: '王五' }
+    const wrapper = await mountComponent({ isManager: true, ca: borrowedCa })
+    await flushPromises()
+
+    const actions = wrapper.find('.detail-actions')
+    const borrowBtn = actions.findAll('button.el-button-stub').find((b) => b.text().includes('借用'))
+    expect(borrowBtn).toBeUndefined()
   })
 })

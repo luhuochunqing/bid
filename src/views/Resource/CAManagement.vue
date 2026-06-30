@@ -191,6 +191,7 @@
       :operation-events="operationEvents"
       :is-manager="isManagerView"
       @edit="handleEdit"
+      @borrow="handleOpenBorrow"
       @return="handleOpenReturn"
     />
 
