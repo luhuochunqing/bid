@@ -96,30 +96,34 @@ class PlatformAccountBorrowControllerTest {
     }
 
     @Test
-    @DisplayName("查询我的审批列表 — 普通用户按 custodianId 查询")
+    @DisplayName("查询我的审批列表 — 普通用户按 custodianId 查询全部状态")
     void myApprovals_normalUser_success() throws Exception {
-        when(borrowService.getApplications(isNull(), eq(10L), eq("PENDING_APPROVAL")))
-                .thenReturn(List.of(sampleDto(2L, "PENDING_APPROVAL")));
+        when(borrowService.findAllApprovals(eq(10L)))
+                .thenReturn(List.of(sampleDto(2L, "BORROWED"), sampleDto(3L, "RETURNED")));
 
         mockMvc.perform(get("/api/borrow-applications/my-approvals")
                         .principal(authToken()))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
                 .andExpect(jsonPath("$.data[0].id").value(2));
     }
 
     @Test
-    @DisplayName("CO-403: 查询我的审批列表 — 管理员查看全部待审批")
-    void myApprovals_privilegedUser_returnsAllPending() throws Exception {
-        // 模拟管理员角色
+    @DisplayName("CO-403: 查询我的审批列表 — 管理员查看全部申请（不限状态）")
+    void myApprovals_privilegedUser_returnsAll() throws Exception {
         when(effectiveRoleResolver.resolveRoleCode(any(User.class))).thenReturn("/bidAdmin");
-        when(borrowService.findPendingApprovals())
-                .thenReturn(List.of(sampleDto(1L, "PENDING_APPROVAL"), sampleDto(2L, "PENDING_APPROVAL")));
+        when(borrowService.findAllApprovals(isNull()))
+                .thenReturn(List.of(
+                        sampleDto(1L, "PENDING_APPROVAL"),
+                        sampleDto(2L, "BORROWED"),
+                        sampleDto(3L, "RETURNED")
+                ));
 
         mockMvc.perform(get("/api/borrow-applications/my-approvals")
                         .principal(authToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data.length()").value(2));
+                .andExpect(jsonPath("$.data.length()").value(3));
     }
 
     @Test

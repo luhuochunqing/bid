@@ -80,12 +80,10 @@ public class PlatformAccountBorrowController {
         User user = resolveUser(principal);
         boolean privileged = isPrivileged(user);
         if (privileged) {
-            // CO-403: 管理员查看全部待审批申请
-            List<BorrowApplicationDTO> result = borrowService.findPendingApprovals();
+            List<BorrowApplicationDTO> result = borrowService.findAllApprovals(null);
             return ResponseEntity.ok(ApiResponse.success(result));
         }
-        // 普通用户只看自己为绑定联系人的待审批申请
-        List<BorrowApplicationDTO> result = borrowService.getApplications(null, user.getId(), "PENDING_APPROVAL");
+        List<BorrowApplicationDTO> result = borrowService.findAllApprovals(user.getId());
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 

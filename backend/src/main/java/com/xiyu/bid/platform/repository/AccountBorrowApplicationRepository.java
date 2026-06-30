@@ -24,4 +24,10 @@ public interface AccountBorrowApplicationRepository
 
     /** CO-403: 修复管理员归还账号后申请表状态不同步问题。 */
     List<AccountBorrowApplication> findByAccountIdAndStatus(Long accountId, BorrowStatus status);
+
+    /** CO-403: 我的审批 Tab —— 管理员查看全部申请，按创建时间倒序。 */
+    List<AccountBorrowApplication> findAllByOrderByCreatedAtDesc();
+
+    /** CO-403: 我的审批 Tab —— 绑定联系人查看自己负责的全部申请，按创建时间倒序。 */
+    List<AccountBorrowApplication> findByCustodianIdOrderByCreatedAtDesc(Long custodianId);
 }

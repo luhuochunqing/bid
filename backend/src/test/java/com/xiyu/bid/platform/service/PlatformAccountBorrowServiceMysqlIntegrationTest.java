@@ -365,21 +365,6 @@ class PlatformAccountBorrowServiceMysqlIntegrationTest extends AbstractMysqlInte
             assertEquals(AccountStatus.PENDING_APPROVAL, unchangedAccount.getStatus(),
                     "账号状态应保持 PENDING_APPROVAL");
         }
-
-        @Test
-        @DisplayName("B5: findPendingApprovals 返回所有 PENDING_APPROVAL 申请")
-        void findPendingApprovals_returnsAllPending() {
-            PlatformAccount acct1 = createAvailableAccount("b5-1");
-            PlatformAccount acct2 = createAvailableAccount("b5-2");
-            borrowService.submitApplication(buildRequest(acct1.getId(), CUSTODIAN_ID), buildUser(APPLICANT_ID));
-            borrowService.submitApplication(buildRequest(acct2.getId(), CUSTODIAN_ID), buildUser(OTHER_USER_ID));
-
-            flushAndClear();
-
-            List<BorrowApplicationDTO> pending = borrowService.findPendingApprovals();
-            assertTrue(pending.size() >= 2,
-                    "应返回至少 2 条待审批申请，实际: " + pending.size());
-        }
     }
 
     // ════════════════════════════════════════════════════════════════════

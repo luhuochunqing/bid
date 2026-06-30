@@ -406,17 +406,35 @@ class PlatformAccountBorrowServiceTest {
     }
 
     @Test
-    @DisplayName("CO-403: 管理员查看全部待审批申请")
-    void findPendingApprovals_returnsAllPending() {
-        when(applicationRepository.findByStatus(BorrowStatus.PENDING_APPROVAL))
+    @DisplayName("CO-403: 我的审批 — 管理员查看全部申请（不限状态，按 createdAt 倒序）")
+    void findAllApprovals_admin_returnsAllOrdered() {
+        when(applicationRepository.findAllByOrderByCreatedAtDesc())
                 .thenReturn(List.of(
-                        AccountBorrowApplication.builder().id(1L).custodianId(20L).status(BorrowStatus.PENDING_APPROVAL).build(),
-                        AccountBorrowApplication.builder().id(2L).custodianId(30L).status(BorrowStatus.PENDING_APPROVAL).build()
+                        AccountBorrowApplication.builder().id(1L).status(BorrowStatus.BORROWED).build(),
+                        AccountBorrowApplication.builder().id(2L).status(BorrowStatus.PENDING_APPROVAL).build(),
+                        AccountBorrowApplication.builder().id(3L).status(BorrowStatus.RETURNED).build(),
+                        AccountBorrowApplication.builder().id(4L).status(BorrowStatus.REJECTED).build(),
+                        AccountBorrowApplication.builder().id(5L).status(BorrowStatus.CANCELLED).build()
                 ));
 
-        List<BorrowApplicationDTO> result = service.findPendingApprovals();
+        List<BorrowApplicationDTO> result = service.findAllApprovals(null);
+
+        assertThat(result).hasSize(5);
+        verify(applicationRepository).findAllByOrderByCreatedAtDesc();
+    }
+
+    @Test
+    @DisplayName("CO-403: 我的审批 — 绑定联系人只看自己的全部申请（不限状态，按 createdAt 倒序）")
+    void findAllApprovals_custodian_returnsOwnOrdered() {
+        when(applicationRepository.findByCustodianIdOrderByCreatedAtDesc(20L))
+                .thenReturn(List.of(
+                        AccountBorrowApplication.builder().id(1L).custodianId(20L).status(BorrowStatus.BORROWED).build(),
+                        AccountBorrowApplication.builder().id(2L).custodianId(20L).status(BorrowStatus.RETURNED).build()
+                ));
+
+        List<BorrowApplicationDTO> result = service.findAllApprovals(20L);
 
         assertThat(result).hasSize(2);
-        verify(applicationRepository).findByStatus(BorrowStatus.PENDING_APPROVAL);
+        verify(applicationRepository).findByCustodianIdOrderByCreatedAtDesc(20L);
     }
 }

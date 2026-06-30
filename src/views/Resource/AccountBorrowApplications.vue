@@ -47,6 +47,7 @@
                 <el-button link type="danger" size="small" @click="reject(row)">拒绝</el-button>
               </template>
               <el-button v-else-if="row.status === 'BORROWED'" link type="primary" size="small" @click="openReturn(row)">登记归还</el-button>
+              <span v-else class="op-placeholder">--</span>
             </template>
           </el-table-column>
         </el-table>
@@ -207,5 +208,9 @@ onMounted(() => {
 <style scoped lang="scss">
 .borrow-applications-card {
   margin-top: var(--spacing-md);
+}
+.op-placeholder {
+  color: var(--text-color-placeholder, #c0c4cc);
+  font-size: 12px;
 }
 </style>
