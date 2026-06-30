@@ -1,5 +1,6 @@
 package com.xiyu.bid.export.service;
 
+import com.xiyu.bid.common.util.ExcelAutoSizeHelper;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
@@ -41,7 +42,7 @@ public class PagedEntityExporter<T> {
             Sheet sheet = workbook.createSheet(sheetName);
             writeHeader(sheet, workbook);
             int recordCount = paginateAndWrite(sheet);
-            autoSizeColumns(sheet);
+            ExcelAutoSizeHelper.autoSizeColumns(sheet, headers.length, 2000, 8000);
             workbook.write(out);
             return new ExportResult(out.toByteArray(), recordCount);
         }
@@ -89,13 +90,5 @@ public class PagedEntityExporter<T> {
             pageNumber++;
         }
         return recordCount;
-    }
-
-    private void autoSizeColumns(Sheet sheet) {
-        for (int i = 0; i < headers.length; i++) {
-            sheet.autoSizeColumn(i);
-            if (sheet.getColumnWidth(i) < 2000) sheet.setColumnWidth(i, 2000);
-            if (sheet.getColumnWidth(i) > 8000) sheet.setColumnWidth(i, 8000);
-        }
     }
 }

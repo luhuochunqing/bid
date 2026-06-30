@@ -1,6 +1,7 @@
 package com.xiyu.bid.resources.service;
 
 import com.xiyu.bid.resources.dto.MarginDTO;
+import com.xiyu.bid.common.util.ExcelAutoSizeHelper;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -56,7 +57,7 @@ public class MarginExportService {
 
             writeHeader(sheet, headerStyle);
             writeDataRows(sheet, data, moneyStyle);
-            autoSizeColumns(sheet);
+            ExcelAutoSizeHelper.autoSizeColumns(sheet, HEADERS.length);
 
             return toBytes(wb);
         } catch (IOException e) {
@@ -134,12 +135,6 @@ public class MarginExportService {
 
     private String nullSafe(String s) {
         return s != null ? s : "";
-    }
-
-    private void autoSizeColumns(Sheet sheet) {
-        for (int i = 0; i < HEADERS.length; i++) {
-            sheet.autoSizeColumn(i);
-        }
     }
 
     private byte[] toBytes(Workbook wb) throws IOException {

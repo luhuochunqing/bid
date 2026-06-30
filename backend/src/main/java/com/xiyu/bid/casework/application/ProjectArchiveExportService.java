@@ -5,6 +5,7 @@ import com.xiyu.bid.casework.infrastructure.ArchiveFile;
 import com.xiyu.bid.casework.infrastructure.ArchiveFileRepository;
 import com.xiyu.bid.casework.infrastructure.ProjectArchive;
 import com.xiyu.bid.casework.infrastructure.ProjectArchiveRepository;
+import com.xiyu.bid.common.util.ExcelAutoSizeHelper;
 import com.xiyu.bid.config.ExportConfig;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
@@ -150,8 +151,8 @@ public class ProjectArchiveExportService {
                 pageNumber++;
             }
 
-            autoSizeColumns(mainSheet, mainHeaders.length);
-            autoSizeColumns(detailSheet, detailHeaders.length);
+            ExcelAutoSizeHelper.autoSizeColumns(mainSheet, mainHeaders.length);
+            ExcelAutoSizeHelper.autoSizeColumns(detailSheet, detailHeaders.length);
             workbook.write(out);
             return new ArchiveExportResult(out.toByteArray(), recordCount);
         }
@@ -264,18 +265,6 @@ public class ProjectArchiveExportService {
         style.setBorderLeft(BorderStyle.THIN);
         style.setBorderRight(BorderStyle.THIN);
         return style;
-    }
-
-    private void autoSizeColumns(Sheet sheet, int columnCount) {
-        for (int i = 0; i < columnCount; i++) {
-            sheet.autoSizeColumn(i);
-            if (sheet.getColumnWidth(i) < 2000) {
-                sheet.setColumnWidth(i, 2000);
-            }
-            if (sheet.getColumnWidth(i) > 8000) {
-                sheet.setColumnWidth(i, 8000);
-            }
-        }
     }
 
     private String safeString(String value) {

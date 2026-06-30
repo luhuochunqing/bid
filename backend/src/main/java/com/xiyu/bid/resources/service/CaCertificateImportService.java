@@ -1,6 +1,7 @@
 package com.xiyu.bid.resources.service;
 
 import com.xiyu.bid.resources.dto.CaCertificateRequest;
+import com.xiyu.bid.common.util.ExcelAutoSizeHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.Cell;
@@ -61,8 +62,8 @@ public class CaCertificateImportService {
                 Cell cell = header.createCell(i);
                 cell.setCellValue(TEMPLATE_HEADERS[i]);
                 cell.setCellStyle(headerStyle);
-                sheet.autoSizeColumn(i);
             }
+            ExcelAutoSizeHelper.autoSizeColumns(sheet, TEMPLATE_HEADERS.length);
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             wb.write(out);

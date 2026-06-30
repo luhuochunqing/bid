@@ -1,6 +1,7 @@
 package com.xiyu.bid.casework.application;
 
 import com.xiyu.bid.casework.domain.model.CaseExportRecord;
+import com.xiyu.bid.common.util.ExcelAutoSizeHelper;
 import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -60,7 +61,7 @@ public final class CaseExcelGenerator {
                 }
             }
 
-            autoSizeColumns(sheet, headers.length);
+            ExcelAutoSizeHelper.autoSizeColumns(sheet, headers.length, MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH);
             workbook.write(out);
             return new ExportResult(out.toByteArray(), limitedRecords.size());
         }
@@ -78,17 +79,5 @@ public final class CaseExcelGenerator {
         style.setBorderLeft(BorderStyle.THIN);
         style.setBorderRight(BorderStyle.THIN);
         return style;
-    }
-
-    private void autoSizeColumns(final Sheet sheet, final int columnCount) {
-        for (int i = 0; i < columnCount; i++) {
-            sheet.autoSizeColumn(i);
-            int width = sheet.getColumnWidth(i);
-            if (width < MIN_COLUMN_WIDTH) {
-                sheet.setColumnWidth(i, MIN_COLUMN_WIDTH);
-            } else if (width > MAX_COLUMN_WIDTH) {
-                sheet.setColumnWidth(i, MAX_COLUMN_WIDTH);
-            }
-        }
     }
 }

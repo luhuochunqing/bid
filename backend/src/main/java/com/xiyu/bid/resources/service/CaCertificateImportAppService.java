@@ -8,6 +8,7 @@ import com.xiyu.bid.resources.domain.CaCertificateImportPolicy;
 import com.xiyu.bid.resources.domain.CaCertificateImportPolicy.ParsedCaRow;
 import com.xiyu.bid.resources.infrastructure.persistence.entity.CaCertificateImportTaskEntity;
 import com.xiyu.bid.resources.infrastructure.persistence.repository.CaCertificateImportTaskJpaRepository;
+import com.xiyu.bid.common.util.ExcelAutoSizeHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.Cell;
@@ -184,9 +185,7 @@ public class CaCertificateImportAppService {
                 cell.setCellStyle(headerStyle);
             }
 
-            for (int i = 0; i < CaCertificateImportPolicy.HEADERS.length; i++) {
-                sheet.autoSizeColumn(i);
-            }
+            ExcelAutoSizeHelper.autoSizeColumns(sheet, CaCertificateImportPolicy.HEADERS.length);
 
             var baos = new ByteArrayOutputStream();
             wb.write(baos);

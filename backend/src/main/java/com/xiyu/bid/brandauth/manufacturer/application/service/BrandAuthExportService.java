@@ -4,6 +4,7 @@ import com.xiyu.bid.brandauth.manufacturer.domain.model.ManufacturerAuthorizatio
 import com.xiyu.bid.brandauth.manufacturer.domain.port.ManufacturerAuthorizationRepository;
 import com.xiyu.bid.brandauth.manufacturer.infrastructure.persistence.entity.BrandAuthAttachmentEntity;
 import com.xiyu.bid.brandauth.manufacturer.infrastructure.persistence.repository.BrandAuthAttachmentJpaRepository;
+import com.xiyu.bid.common.util.ExcelAutoSizeHelper;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
@@ -133,9 +134,7 @@ public final class BrandAuthExportService {
                         emptyIfNull(a.auth2Remarks()));
             }
         }
-        for (int i = 0; i < headers.length; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        ExcelAutoSizeHelper.autoSizeColumns(sheet, headers.length);
     }
 
     private void writeTemplateSheet(final Workbook wb, final String name,
@@ -150,8 +149,8 @@ public final class BrandAuthExportService {
             Cell cell = headerRow.createCell(i);
             cell.setCellValue(headers[i]);
             cell.setCellStyle(style);
-            sheet.autoSizeColumn(i);
         }
+        ExcelAutoSizeHelper.autoSizeColumns(sheet, headers.length);
     }
 
     private static String fmt(final LocalDate d) {

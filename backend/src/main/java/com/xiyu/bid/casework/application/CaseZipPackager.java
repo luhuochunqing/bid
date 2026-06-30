@@ -1,6 +1,7 @@
 package com.xiyu.bid.casework.application;
 
 import com.xiyu.bid.casework.domain.model.CaseExportZipEntry;
+import com.xiyu.bid.common.util.ExcelAutoSizeHelper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -71,9 +72,7 @@ public final class CaseZipPackager {
                 fillDataRow(dataRow, row, dataStyle);
             }
 
-            for (int i = 0; i < 11; i++) {
-                sheet.autoSizeColumn(i);
-            }
+            ExcelAutoSizeHelper.autoSizeColumns(sheet, 11);
 
             workbook.write(out);
             return out.toByteArray();

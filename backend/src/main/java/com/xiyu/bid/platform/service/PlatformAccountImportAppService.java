@@ -8,6 +8,7 @@ import com.xiyu.bid.platform.domain.PlatformAccountImportPolicy.ParsedAccountRow
 import com.xiyu.bid.platform.infrastructure.persistence.entity.PlatformAccountImportTaskEntity;
 import com.xiyu.bid.platform.infrastructure.persistence.repository.PlatformAccountImportTaskJpaRepository;
 import com.xiyu.bid.platform.repository.PlatformAccountRepository;
+import com.xiyu.bid.common.util.ExcelAutoSizeHelper;
 import com.xiyu.bid.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -175,9 +176,7 @@ public class PlatformAccountImportAppService {
                 cell.setCellStyle(headerStyle);
             }
 
-            for (int i = 0; i < PlatformAccountImportPolicy.HEADERS.length; i++) {
-                sheet.autoSizeColumn(i);
-            }
+            ExcelAutoSizeHelper.autoSizeColumns(sheet, PlatformAccountImportPolicy.HEADERS.length);
 
             var baos = new ByteArrayOutputStream();
             wb.write(baos);

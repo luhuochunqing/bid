@@ -11,6 +11,7 @@ import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
+import com.xiyu.bid.common.util.ExcelAutoSizeHelper;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
@@ -114,7 +115,7 @@ public class ProjectExportService {
             row.createCell(13).setCellValue(det != null ? coalesce(det.getBidResultStatus()) : "");
             row.createCell(14).setCellValue(det != null ? coalesce(det.getBiddingPlatform()) : "");
         }
-        for (int i = 0; i < cols.length; i++) sheet.autoSizeColumn(i);
+        ExcelAutoSizeHelper.autoSizeColumns(wb.getSheetAt(0), cols.length);
         try (var out = new ByteArrayOutputStream()) {
             wb.write(out);
             wb.close();
