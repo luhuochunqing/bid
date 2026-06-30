@@ -78,6 +78,10 @@ app:
       password: ${ADMIN_PASSWORD}
       email: ${ADMIN_EMAIL:admin@xiyu-local}
       full-name: ${ADMIN_FULL_NAME:系统管理员}
+  upload:
+    # 生产/测试环境绝对路径，避免 MultipartFile.transferTo 相对路径陷阱
+    # systemd WorkingDirectory=/opt/xiyu-bid/shared/backend
+    brand-auth-dir: ${APP_UPLOAD_BRAND_AUTH_DIR:/opt/xiyu-bid/shared/backend/uploads/brand-auth}
 
 rate:
   limit:

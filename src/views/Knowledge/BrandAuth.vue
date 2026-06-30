@@ -212,7 +212,7 @@ const handleSave = async ({ isEdit, id, form }) => {
       }
     }
     formVisible.value = false; editData.value = null; loadData()
-  } catch (e) { ElMessage.error(e.response?.data?.message || e.message || '保存失败') }
+  } catch (e) { ElMessage.error(e.response?.data?.msg || e.message || '保存失败') }
 }
 
 const filterSummary = computed(() => {
