@@ -68,7 +68,20 @@ CO-394 评论 1 提议 6 个子 ticket（含前端 P2）。本次仅后端，拆
 
 ### CO-394-B 人员证书
 
-（待实施）
+**改动文件**：
+- `RoleProfileCatalog.java`：新增 `PERSONNEL_MANAGE_PERMISSION = "personnel.manage"` 常量，3 角色（bid-TeamLeader/bidAdmin/bid-Team）menuPermissions 追加 `personnel.manage`
+- `PersonnelController.java`：写端点（create/update/delete/restore/uploadCertAttachment）从 `hasAnyAuthority(...)` 角色码白名单切换为 `hasAuthority('personnel.manage')`；只读端点（getOperationLogs/downloadCertAttachment）收敛为 `hasAuthority('personnel.view')`
+- `PersonnelImportController.java`：4 个端点从混合 `hasAnyAuthority(...,'ROLE_BIDADMIN',...)` 切换为 `hasAuthority('personnel.manage')`
+- `RoleProfileCatalogTest.java`：新增 2 个断言（3 角色含 personnel.manage；3 角色保留 personnel.view）
+- `PersonnelImportControllerSecurityTest.java`：重写测试，从验证角色码白名单改为验证 `personnel.manage` 权限点
+- `KnowledgeAccessSecurityTest.java`：更新 revoke 端点测试的 DisplayName 和注释（鉴权机制从 ADMIN/MANAGER 变为 brand-auth.revoke 权限点）
+
+**Flyway 脚本**：`V1121__add_personnel_manage_permission.sql`，3 角色 menuPermissions 追加 `personnel.manage`
+
+**关键决策：delete/restore 权限收窄 vs 三角色一致性**
+CO-394 明确要求"三角色 CRUD 端点完全相同"。原 delete/restore 端点不含 bid-Team（投标专员不能删除/恢复人员）。按 CO-394 目标，统一为 `personnel.manage`，投标专员获得 delete/restore 权限——这是**业务权限变更**，不是纯技术对齐。如果业务上投标专员确实不应删除，需在 CO-394 评审时提出，本次按"三角色一致性"目标实施。
+
+**验证**：`mvn -f backend/pom.xml test -Dtest=RoleProfileCatalogTest,PersonnelImportControllerSecurityTest,KnowledgeAccessSecurityTest` → 39 tests passed, BUILD SUCCESS
 
 ### CO-394-C 业绩管理
 

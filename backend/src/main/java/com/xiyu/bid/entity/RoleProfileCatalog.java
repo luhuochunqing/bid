@@ -48,10 +48,10 @@ public final class RoleProfileCatalog {
     public static final String BRAND_AUTH_CREATE_PERMISSION = "brand-auth.create";
     public static final String BRAND_AUTH_EDIT_PERMISSION = "brand-auth.edit";
     public static final String BRAND_AUTH_REVOKE_PERMISSION = "brand-auth.revoke";
-    /** CO-403: 标讯查看权限点（审计日志等只读端点） */
     public static final String TENDER_VIEW_PERMISSION = "tender.view";
-    /** CO-403: 人员库查看权限点（列表/详情只读） */
+    /** CO-403/CO-394: 人员库权限点 view（只读）/ manage（写：新增/编辑/删除/导入） */
     public static final String PERSONNEL_VIEW_PERMISSION = "personnel.view";
+    public static final String PERSONNEL_MANAGE_PERMISSION = "personnel.manage";
 
     // PRD §2 角色：销售/业务负责人、投标负责人、投标部门管理员、任务执行人
     public static final String SALES_CODE = "bid-projectLeader";
@@ -130,7 +130,7 @@ public final class RoleProfileCatalog {
                         BRAND_AUTH_VIEW_PERMISSION, BRAND_AUTH_CREATE_PERMISSION,
                         BRAND_AUTH_EDIT_PERMISSION, BRAND_AUTH_REVOKE_PERMISSION,
                         "knowledge-brand-auth",
-                        TENDER_VIEW_PERMISSION, PERSONNEL_VIEW_PERMISSION,
+                        TENDER_VIEW_PERMISSION, PERSONNEL_VIEW_PERMISSION, PERSONNEL_MANAGE_PERMISSION,
                         "dashboard:view_welcome_banner", "dashboard:view_metric_cards", "dashboard:view_calendar",
                         "dashboard:view_tender_list", "dashboard:view_technical_task", "dashboard:view_review_list",
                         "dashboard:view_project_list", "dashboard:view_active_projects",
@@ -145,7 +145,7 @@ public final class RoleProfileCatalog {
                         BRAND_AUTH_VIEW_PERMISSION, BRAND_AUTH_CREATE_PERMISSION,
                         BRAND_AUTH_EDIT_PERMISSION, BRAND_AUTH_REVOKE_PERMISSION,
                         "knowledge-brand-auth",
-                        TENDER_VIEW_PERMISSION, PERSONNEL_VIEW_PERMISSION,
+                        TENDER_VIEW_PERMISSION, PERSONNEL_VIEW_PERMISSION, PERSONNEL_MANAGE_PERMISSION,
                         "dashboard:view_welcome_banner", "dashboard:view_metric_cards", "dashboard:view_calendar",
                         "dashboard:view_tender_list", "dashboard:view_project_list", "dashboard:view_team_task",
                         "dashboard:view_global_projects", "dashboard:view_active_projects", "dashboard:view_team_performance",
@@ -160,7 +160,7 @@ public final class RoleProfileCatalog {
                         BIDDING_CREATE_PERMISSION,
                         BRAND_AUTH_VIEW_PERMISSION, BRAND_AUTH_CREATE_PERMISSION,
                         BRAND_AUTH_EDIT_PERMISSION, "knowledge-brand-auth",
-                        TENDER_VIEW_PERMISSION, PERSONNEL_VIEW_PERMISSION,
+                        TENDER_VIEW_PERMISSION, PERSONNEL_VIEW_PERMISSION, PERSONNEL_MANAGE_PERMISSION,
                         QUICK_START_PERMISSION, AI_CENTER_PERMISSION, "operation-logs",
                         "dashboard:view_welcome_banner", "dashboard:view_metric_cards", "dashboard:view_calendar",
                         "dashboard:view_tender_list", "dashboard:view_technical_task", "dashboard:view_active_projects",

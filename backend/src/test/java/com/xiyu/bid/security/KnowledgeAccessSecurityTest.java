@@ -350,11 +350,11 @@ class KnowledgeAccessSecurityTest {
     // ==================== 写操作回归保护：投标专员不应越权敏感写操作 ====================
 
     @Test
-    @DisplayName("投标专员(authorities含brand-auth.view) POST /api/knowledge/brand-auth/{id}/revoke → 仍 403（revoke 方法级保持 ADMIN/MANAGER）")
+    @DisplayName("CO-394: 投标专员(authorities含brand-auth.view,无brand-auth.revoke) POST /api/knowledge/brand-auth/{id}/revoke → 403")
     @WithMockUser(authorities = {"brand-auth.view"})
     void revokeBrandAuth_shouldReturn403_forBidSpecialist() throws Exception {
-        // revoke 方法级 @PreAuthorize("hasAnyRole('ADMIN','MANAGER')") 不在本次修改范围，
-        // 投标专员仅有 brand-auth.view 权限点 → 应被方法级注解挡住返回 403。
+        // CO-394 后 revoke 方法级 @PreAuthorize("hasAuthority('brand-auth.revoke')")
+        // 投标专员仅有 brand-auth.view 权限点，不含 brand-auth.revoke → 应返回 403。
         mockMvc.perform(post("/api/knowledge/brand-auth/1/revoke")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"测试作废原因至少十个字符\"}"))

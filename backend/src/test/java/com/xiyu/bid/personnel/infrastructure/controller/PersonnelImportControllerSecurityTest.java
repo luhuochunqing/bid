@@ -34,24 +34,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * CO-391 regression gate：bid_admin 06234 郑蓉蓉 人员证书批量导入模板下载 403 修复回归。
+ * CO-391 / CO-394-B 回归门禁：人员证书批量导入权限鉴权测试。
  *
- * <p>根因：{@link PersonnelImportController} 4 处方法级 {@code @PreAuthorize} 漏写 {@code 'admin'}
- * 字面字符串兜底，且未覆盖 OSS roleCode 漂移（如 {@code bidAdmin} 无斜杠）导致的 authority
- * 形式 {@code ROLE_BIDADMIN} 兜底。CO-363/CO-369 修了 {@code PersonnelController} 但漏掉 ImportController。
+ * <p>历史：CO-391 修复 bid_admin 06234 郑蓉蓉模板下载 403（漏写 'admin' 兜底 + roleCode 漂移）。
+ * CO-394-B 将 PersonnelImportController 4 处方法级 {@code @PreAuthorize} 从
+ * {@code hasAnyAuthority('admin','/bidAdmin','bid-TeamLeader','ROLE_BIDADMIN',...)}
+ * 角色码白名单统一为 {@code hasAuthority('personnel.manage')} 权限点，对齐 Warehouse 模板。
  *
- * <p>修复后注解放宽为：
- * <ul>
- *   <li>POST /import、GET /import/{taskId}、GET /import/{taskId}/report：
- *       {@code hasAnyAuthority('admin', '/bidAdmin', 'bid-TeamLeader',
- *       'ROLE_BIDADMIN', 'ROLE_BID_TEAMLEADER')}</li>
- *   <li>GET /import/template：
- *       {@code hasAnyAuthority('admin', '/bidAdmin', 'bid-TeamLeader', 'bid-Team',
- *       'ROLE_BIDADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BID_TEAM')}</li>
- * </ul>
- *
- * <p>测试以 {@code @WithMockUser(authorities=...)} 模拟不同 authority 组合，
- * 断言 4 个端点在规范 roleCode、漂移 roleCode、无权限 3 种场景下的鉴权结果。
+ * <p>测试以 {@code @WithMockUser(authorities=...)} 模拟不同 authority 组合，断言 4 个端点在
+ * 持有 personnel.manage 权限点、仅持有旧角色码（无权限点）、无权限 3 种场景下的鉴权结果。
  */
 @WebMvcTest(controllers = PersonnelImportController.class, excludeFilters = @ComponentScan.Filter(
         type = FilterType.ASSIGNABLE_TYPE,
@@ -90,39 +81,20 @@ class PersonnelImportControllerSecurityTest {
     // ==================== GET /api/knowledge/personnel/import/template ====================
 
     @Test
-    @DisplayName("规范roleCode(/bidAdmin) GET /import/template → 200")
+    @DisplayName("持有 personnel.manage 权限点 GET /import/template → 200")
+    @WithMockUser(authorities = {"personnel.manage"})
+    void downloadTemplate_shouldSucceed_forPersonnelManagePermission() throws Exception {
+        when(templateGenerator.generate()).thenReturn(new byte[]{0x50, 0x4B});
+        mockMvc.perform(get("/api/knowledge/personnel/import/template"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("仅持有旧角色码(/bidAdmin)无 personnel.manage → 403（CO-394 后角色码不再直接鉴权）")
     @WithMockUser(authorities = {"/bidAdmin"})
-    void downloadTemplate_shouldSucceed_forCanonicalBidAdmin() throws Exception {
-        when(templateGenerator.generate()).thenReturn(new byte[]{0x50, 0x4B});
+    void downloadTemplate_shouldReturn403_forLegacyRoleCodeWithoutPermission() throws Exception {
         mockMvc.perform(get("/api/knowledge/personnel/import/template"))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    @DisplayName("漂移roleCode(ROLE_BIDADMIN) GET /import/template → 200（CO-391 修复后通过，修复前 403）")
-    @WithMockUser(authorities = {"ROLE_BIDADMIN"})
-    void downloadTemplate_shouldSucceed_forDriftedBidAdminAuthority() throws Exception {
-        when(templateGenerator.generate()).thenReturn(new byte[]{0x50, 0x4B});
-        mockMvc.perform(get("/api/knowledge/personnel/import/template"))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    @DisplayName("admin字面字符串 GET /import/template → 200")
-    @WithMockUser(authorities = {"admin"})
-    void downloadTemplate_shouldSucceed_forAdminLiteral() throws Exception {
-        when(templateGenerator.generate()).thenReturn(new byte[]{0x50, 0x4B});
-        mockMvc.perform(get("/api/knowledge/personnel/import/template"))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    @DisplayName("投标专员(bid-Team) GET /import/template → 200")
-    @WithMockUser(authorities = {"bid-Team"})
-    void downloadTemplate_shouldSucceed_forBidTeam() throws Exception {
-        when(templateGenerator.generate()).thenReturn(new byte[]{0x50, 0x4B});
-        mockMvc.perform(get("/api/knowledge/personnel/import/template"))
-                .andExpect(status().isOk());
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -136,9 +108,9 @@ class PersonnelImportControllerSecurityTest {
     // ==================== POST /api/knowledge/personnel/import ====================
 
     @Test
-    @DisplayName("规范roleCode(/bidAdmin) POST /import → 202")
-    @WithMockUser(authorities = {"/bidAdmin"})
-    void startImport_shouldSucceed_forCanonicalBidAdmin() throws Exception {
+    @DisplayName("持有 personnel.manage 权限点 POST /import → 202")
+    @WithMockUser(authorities = {"personnel.manage"})
+    void startImport_shouldSucceed_forPersonnelManagePermission() throws Exception {
         MockMultipartFile file = new MockMultipartFile("file", "test.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 new byte[]{0x50, 0x4B});
@@ -149,16 +121,14 @@ class PersonnelImportControllerSecurityTest {
     }
 
     @Test
-    @DisplayName("漂移roleCode(ROLE_BIDADMIN) POST /import → 202（CO-391 修复后通过）")
+    @DisplayName("仅持有旧漂移角色码(ROLE_BIDADMIN)无 personnel.manage → 403（CO-394 后不再兜底）")
     @WithMockUser(authorities = {"ROLE_BIDADMIN"})
-    void startImport_shouldSucceed_forDriftedBidAdminAuthority() throws Exception {
+    void startImport_shouldReturn403_forDriftedRoleCodeWithoutPermission() throws Exception {
         MockMultipartFile file = new MockMultipartFile("file", "test.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 new byte[]{0x50, 0x4B});
-        PersonnelImportTask task = PersonnelImportTask.createNew("IMP-PER-TEST", 1L);
-        when(importAppService.initiateImportTask(anyLong(), anyString())).thenReturn(task);
         mockMvc.perform(multipart("/api/knowledge/personnel/import").file(file))
-                .andExpect(status().isAccepted());
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -175,19 +145,9 @@ class PersonnelImportControllerSecurityTest {
     // ==================== GET /api/knowledge/personnel/import/{taskId} ====================
 
     @Test
-    @DisplayName("规范roleCode(/bidAdmin) GET /import/{taskId} → 200")
-    @WithMockUser(authorities = {"/bidAdmin"})
-    void getImportProgress_shouldSucceed_forCanonicalBidAdmin() throws Exception {
-        when(importAppService.getProgress(anyLong())).thenReturn(
-                new ImportProgressInfo("PROCESSING", 0, "处理中", 0, 0, 0));
-        mockMvc.perform(get("/api/knowledge/personnel/import/1"))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    @DisplayName("漂移roleCode(ROLE_BIDADMIN) GET /import/{taskId} → 200（CO-391 修复后通过）")
-    @WithMockUser(authorities = {"ROLE_BIDADMIN"})
-    void getImportProgress_shouldSucceed_forDriftedBidAdminAuthority() throws Exception {
+    @DisplayName("持有 personnel.manage 权限点 GET /import/{taskId} → 200")
+    @WithMockUser(authorities = {"personnel.manage"})
+    void getImportProgress_shouldSucceed_forPersonnelManagePermission() throws Exception {
         when(importAppService.getProgress(anyLong())).thenReturn(
                 new ImportProgressInfo("PROCESSING", 0, "处理中", 0, 0, 0));
         mockMvc.perform(get("/api/knowledge/personnel/import/1"))
@@ -205,18 +165,9 @@ class PersonnelImportControllerSecurityTest {
     // ==================== GET /api/knowledge/personnel/import/{taskId}/report ====================
 
     @Test
-    @DisplayName("规范roleCode(/bidAdmin) GET /import/{taskId}/report → 200")
-    @WithMockUser(authorities = {"/bidAdmin"})
-    void downloadErrorReport_shouldSucceed_forCanonicalBidAdmin() throws Exception {
-        when(importAppService.getErrorReport(anyLong())).thenReturn(new byte[]{0x50, 0x4B});
-        mockMvc.perform(get("/api/knowledge/personnel/import/1/report"))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    @DisplayName("漂移roleCode(ROLE_BIDADMIN) GET /import/{taskId}/report → 200（CO-391 修复后通过）")
-    @WithMockUser(authorities = {"ROLE_BIDADMIN"})
-    void downloadErrorReport_shouldSucceed_forDriftedBidAdminAuthority() throws Exception {
+    @DisplayName("持有 personnel.manage 权限点 GET /import/{taskId}/report → 200")
+    @WithMockUser(authorities = {"personnel.manage"})
+    void downloadErrorReport_shouldSucceed_forPersonnelManagePermission() throws Exception {
         when(importAppService.getErrorReport(anyLong())).thenReturn(new byte[]{0x50, 0x4B});
         mockMvc.perform(get("/api/knowledge/personnel/import/1/report"))
                 .andExpect(status().isOk());
