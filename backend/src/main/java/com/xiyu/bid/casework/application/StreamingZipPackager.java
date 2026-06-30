@@ -3,6 +3,7 @@ package com.xiyu.bid.casework.application;
 import com.xiyu.bid.casework.infrastructure.ArchiveFile;
 import com.xiyu.bid.casework.infrastructure.ArchiveFileRepository;
 import com.xiyu.bid.casework.infrastructure.ProjectArchive;
+import com.xiyu.bid.common.util.ZipEntryDeduplicator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -13,9 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -71,19 +70,16 @@ public class StreamingZipPackager {
 
             // 2. 遍历归档，打包其关联的文件
             // CO-428: 同一 archive 下可能存在同名同分类文件，需要去重避免 ZipException: duplicate entry
-            Set<String> usedZipPaths = new HashSet<>();
+            ZipEntryDeduplicator dedup = new ZipEntryDeduplicator();
             for (ProjectArchive archive : archives) {
                 List<ArchiveFile> files = archiveFileRepository.findByArchiveId(archive.getId());
-                String projectFolder = safeFileName(archive.getProjectName());
+                String projectFolder = safeFolderName(archive.getProjectName());
 
                 for (ArchiveFile file : files) {
                     String category = getCategoryDirLabel(file.getDocumentCategory());
                     String fileName = safeFileName(file.getFileName());
-                    String zipPath = projectFolder + "/" + category + "/" + fileName;
-                    // 路径冲突时追加文件 ID 保证唯一性，保留原文件名作为主路径
-                    if (!usedZipPaths.add(zipPath)) {
-                        zipPath = projectFolder + "/" + category + "/" + file.getId() + "-" + fileName;
-                    }
+                    String basePath = projectFolder + "/" + category + "/" + fileName;
+                    String zipPath = dedup.deduplicate(basePath);
 
                     ZipEntry fileEntry = new ZipEntry(zipPath);
                     zipOut.putNextEntry(fileEntry);
@@ -110,10 +106,13 @@ public class StreamingZipPackager {
     }
 
     private String safeFileName(String name) {
-        if (name == null) {
-            return "unknown";
-        }
-        return name.replaceAll("[\\\\/:*?\"<>|]", "_");
+        String safe = ZipEntryDeduplicator.safeFileName(name);
+        return safe.isEmpty() ? "unnamed_file" : safe;
+    }
+
+    private String safeFolderName(String name) {
+        String safe = ZipEntryDeduplicator.safeFileName(name);
+        return safe.isEmpty() ? "未知项目" : safe;
     }
 
     private String getCategoryDirLabel(String cat) {

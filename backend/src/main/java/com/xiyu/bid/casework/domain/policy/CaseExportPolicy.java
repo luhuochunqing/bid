@@ -3,6 +3,7 @@ package com.xiyu.bid.casework.domain.policy;
 import com.xiyu.bid.casework.domain.model.CaseExportContext;
 import com.xiyu.bid.casework.domain.model.CaseExportZipEntry;
 import com.xiyu.bid.casework.domain.model.KnowledgeCaseReadModel;
+import com.xiyu.bid.common.util.ZipEntryDeduplicator;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -55,8 +56,8 @@ public class CaseExportPolicy {
         List<CaseExportZipEntry> entries = new ArrayList<>();
 
         for (KnowledgeCaseReadModel kc : cases) {
-            String projectFolder = safeFileName(kc.getSourceProjectName());
-            String scoringTitleFolder = safeFileName(kc.getScoringPointTitle());
+            String projectFolder = safeFolderName(kc.getSourceProjectName(), "未知项目");
+            String scoringTitleFolder = safeFolderName(kc.getScoringPointTitle(), "未命名评分项");
 
             String txtEntryPath = String.format("%s/%s/应答全文.txt", projectFolder, scoringTitleFolder);
             String txtContent = buildResponseTextContent(kc);
@@ -69,6 +70,11 @@ public class CaseExportPolicy {
         }
 
         return entries;
+    }
+
+    private String safeFolderName(String name, String fallback) {
+        String safe = ZipEntryDeduplicator.safeFileName(name);
+        return safe.isEmpty() ? fallback : safe;
     }
 
     public String generateZipFileName() {
@@ -99,8 +105,8 @@ public class CaseExportPolicy {
     }
 
     public String buildIndexEntryPath(KnowledgeCaseReadModel kc) {
-        String projectFolder = safeFileName(kc.getSourceProjectName());
-        String scoringTitleFolder = safeFileName(kc.getScoringPointTitle());
+        String projectFolder = safeFolderName(kc.getSourceProjectName(), "未知项目");
+        String scoringTitleFolder = safeFolderName(kc.getScoringPointTitle(), "未命名评分项");
         return String.format("%s/%s/案例索引信息.txt", projectFolder, scoringTitleFolder);
     }
 
@@ -138,13 +144,6 @@ public class CaseExportPolicy {
         return entries.stream()
                 .mapToLong(CaseExportZipEntry::contentLength)
                 .sum();
-    }
-
-    private String safeFileName(String name) {
-        if (name == null || name.isBlank()) {
-            return "未知项目";
-        }
-        return name.replaceAll("[\\\\/:*?\"<>|]", "_");
     }
 
     private String nullSafe(String value) {

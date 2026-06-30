@@ -1,5 +1,6 @@
 package com.xiyu.bid.performance.application.service;
 
+import com.xiyu.bid.common.util.ZipEntryDeduplicator;
 import com.xiyu.bid.performance.application.command.PerformanceSearchCriteria;
 import com.xiyu.bid.performance.application.dto.PerformanceDTO;
 import com.xiyu.bid.performance.application.mapper.PerformanceMapper;
@@ -90,10 +91,11 @@ public final class PerformanceZipExporter {
             zipOut.closeEntry();
 
             // 2. 遍历记录，按合同名称分文件夹打包附件
+            ZipEntryDeduplicator dedup = new ZipEntryDeduplicator();
             for (int i = 0; i < records.size(); i++) {
                 PerformanceDTO record = records.get(i);
-                String folderName = safeFileName(
-                        record.contractName()) + "_" + (i + 1);
+                String folderName = safeFolderName(record.contractName())
+                        + "_" + (i + 1);
                 List<PerformanceDTO.AttachmentDTO> attachments =
                         record.attachments();
                 if (attachments == null || attachments.isEmpty()) {
@@ -104,11 +106,11 @@ public final class PerformanceZipExporter {
                             || att.fileUrl().isBlank()) {
                         continue;
                     }
-                    String fileName = safeFileName(att.fileName());
+                    String fileName = ZipEntryDeduplicator.safeFileName(att.fileName());
                     if (fileName.isEmpty()) {
                         fileName = "attachment_" + att.id();
                     }
-                    String zipPath = folderName + "/" + fileName;
+                    String zipPath = dedup.deduplicate(folderName + "/" + fileName);
 
                     ZipEntry entry = new ZipEntry(zipPath);
                     zipOut.putNextEntry(entry);
@@ -138,6 +140,11 @@ public final class PerformanceZipExporter {
      * @throws IOException          IO 异常
      * @throws InterruptedException 中断异常
      */
+    private static String safeFolderName(String name) {
+        String safe = ZipEntryDeduplicator.safeFileName(name);
+        return safe.isEmpty() ? "unnamed_contract" : safe;
+    }
+
     private byte[] downloadFile(final String url)
             throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder()
@@ -155,16 +162,4 @@ public final class PerformanceZipExporter {
                 + " for " + url);
     }
 
-    /**
-     * 清理文件名中的非法字符.
-     *
-     * @param name 原始文件名
-     * @return 安全文件名
-     */
-    private static String safeFileName(final String name) {
-        if (name == null || name.isBlank()) {
-            return "unknown";
-        }
-        return name.replaceAll("[\\\\/:*?\"<>|]", "_").trim();
-    }
 }

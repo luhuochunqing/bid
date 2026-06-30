@@ -158,9 +158,19 @@ public class CaCertificateService {
         return CaCertificateDTO.from(entity, loadPlatformIds(id), true, decrypted);
     }
 
+    /**
+     * 持久化 CA 证书与平台账号的关联关系.
+     *
+     * <p>采用"全删全插"模式：先删除旧关联，再批量插入新关联.
+     *
+     * <p>CO-427: 删除后必须调用 {@code flush()} 强制立即执行 DELETE SQL，
+     * 否则 Hibernate 可能因 SQL 执行顺序优化导致 INSERT 在 DELETE 之前执行，
+     * 触发 {@code uk_cap_ca_platform} 唯一键约束异常.
+     */
     private List<Long> persistPlatformLinks(Long caId, List<Long> platformIds) {
         if (platformIds == null) return loadPlatformIds(caId);
         platformLinkRepository.deleteByCaCertificateId(caId);
+        platformLinkRepository.flush();
         List<Long> normalized = platformIds.stream()
                 .filter(Objects::nonNull)
                 .distinct()
