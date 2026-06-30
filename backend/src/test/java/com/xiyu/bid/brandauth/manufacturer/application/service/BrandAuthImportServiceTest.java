@@ -3,6 +3,7 @@ package com.xiyu.bid.brandauth.manufacturer.application.service;
 import com.xiyu.bid.brandauth.manufacturer.domain.model.ManufacturerAuthorization;
 import com.xiyu.bid.brandauth.manufacturer.domain.port.ManufacturerAuthorizationRepository;
 import com.xiyu.bid.brandauth.manufacturer.domain.valueobject.ProductLine;
+import com.xiyu.bid.brandauth.manufacturer.infrastructure.persistence.entity.BrandAuthOperationLogEntity;
 import com.xiyu.bid.brandauth.manufacturer.infrastructure.persistence.repository.BrandAuthOperationLogJpaRepository;
 import com.xiyu.bid.repository.UserRepository;
 import org.apache.poi.ss.usermodel.*;
@@ -84,6 +85,49 @@ class BrandAuthImportServiceTest {
         assertEquals("原厂授权", result.getSheets().get(0).getSheetName());
 
         verify(repository, times(2)).save(any());
+    }
+
+    @Test
+    void importManufacturer_operationLogDetailsShouldBeChineseReadable() {
+        importService.importExcel(manufacturerExcelBytes, 1L);
+
+        ArgumentCaptor<BrandAuthOperationLogEntity> captor =
+                ArgumentCaptor.forClass(BrandAuthOperationLogEntity.class);
+        verify(logRepository, times(2)).save(captor.capture());
+
+        for (BrandAuthOperationLogEntity log : captor.getAllValues()) {
+            assertEquals("IMPORT", log.getActionType());
+            String details = log.getDetails();
+            assertNotNull(details);
+            // details 不应是 JSON 代码格式
+            assertFalse(details.startsWith("{"),
+                    "导入操作日志 details 不应是 JSON 代码格式: " + details);
+            assertTrue(details.contains("授权类型：原厂授权"),
+                    "details 应包含中文授权类型标签: " + details);
+            assertTrue(details.contains("产线："),
+                    "details 应包含中文产线标签: " + details);
+            assertTrue(details.contains("品牌ID："),
+                    "details 应包含中文品牌ID标签: " + details);
+            assertFalse(details.contains("代理商："),
+                    "原厂授权导入日志不应包含代理商字段: " + details);
+        }
+    }
+
+    @Test
+    void importAgent_operationLogDetailsShouldIncludeAgentName() {
+        importService.importExcel(agentExcelBytes, 1L);
+
+        ArgumentCaptor<BrandAuthOperationLogEntity> captor =
+                ArgumentCaptor.forClass(BrandAuthOperationLogEntity.class);
+        verify(logRepository, times(2)).save(captor.capture());
+
+        for (BrandAuthOperationLogEntity log : captor.getAllValues()) {
+            String details = log.getDetails();
+            assertTrue(details.contains("授权类型：代理商授权"),
+                    "代理商导入日志应标注代理商授权: " + details);
+            assertTrue(details.contains("代理商："),
+                    "代理商导入日志应包含代理商名: " + details);
+        }
     }
 
     @Test

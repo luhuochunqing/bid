@@ -23,8 +23,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -32,7 +30,6 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class BrandAuthImportService {
-    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private final ManufacturerAuthorizationRepository repository;
     private final BrandAuthOperationLogJpaRepository logRepository;
     private final UserRepository userRepository;
@@ -84,30 +81,30 @@ public class BrandAuthImportService {
 
     private void importManufacturerRow(final Row row, final Long userId) {
         int col = 0;
-        String productLineStr = getCellString(row, col++);
-        String brandId = getCellString(row, col++);
-        String brandName = getCellString(row, col++);
-        String importDomestic = getCellString(row, col++);
-        String manufacturerName = getCellString(row, col++);
+        String productLineStr = BrandAuthImportParser.getCellString(row, col++);
+        String brandId = BrandAuthImportParser.getCellString(row, col++);
+        String brandName = BrandAuthImportParser.getCellString(row, col++);
+        String importDomestic = BrandAuthImportParser.getCellString(row, col++);
+        String manufacturerName = BrandAuthImportParser.getCellString(row, col++);
         // col 5: 原厂授权附件文件名 (skip for import - handled separately)
         col++;
-        String authStartDateStr = getCellString(row, col++);
-        String authEndDateStr = getCellString(row, col++);
-        String remarks = getCellString(row, col++);
+        String authStartDateStr = BrandAuthImportParser.getCellString(row, col++);
+        String authEndDateStr = BrandAuthImportParser.getCellString(row, col++);
+        String remarks = BrandAuthImportParser.getCellString(row, col++);
         // col 9: 补充材料附件文件名 (skip)
         // col++
 
-        ProductLine productLine = parseProductLine(productLineStr);
-        LocalDate authStartDate = parseDate(authStartDateStr);
-        LocalDate authEndDate = parseDate(authEndDateStr);
+        ProductLine productLine = BrandAuthImportParser.parseProductLine(productLineStr);
+        LocalDate authStartDate = BrandAuthImportParser.parseDate(authStartDateStr);
+        LocalDate authEndDate = BrandAuthImportParser.parseDate(authEndDateStr);
 
-        validateRequired(productLineStr, "一级产线");
-        validateRequired(brandId, "品牌ID");
-        validateRequired(brandName, "品牌");
-        validateRequired(importDomestic, "进口/国产");
-        validateRequired(manufacturerName, "品牌原厂名称");
-        validateRequired(authStartDateStr, "授权开始时间");
-        validateRequired(authEndDateStr, "授权结束时间");
+        BrandAuthImportParser.validateRequired(productLineStr, "一级产线");
+        BrandAuthImportParser.validateRequired(brandId, "品牌ID");
+        BrandAuthImportParser.validateRequired(brandName, "品牌");
+        BrandAuthImportParser.validateRequired(importDomestic, "进口/国产");
+        BrandAuthImportParser.validateRequired(manufacturerName, "品牌原厂名称");
+        BrandAuthImportParser.validateRequired(authStartDateStr, "授权开始时间");
+        BrandAuthImportParser.validateRequired(authEndDateStr, "授权结束时间");
 
         if (!authEndDate.isAfter(authStartDate)) {
             throw new BusinessException("结束时间须晚于开始时间");
@@ -123,39 +120,39 @@ public class BrandAuthImportService {
 
     private void importAgentRow(final Row row, final Long userId) {
         int col = 0;
-        String productLineStr = getCellString(row, col++);
-        String brandId = getCellString(row, col++);
-        String brandName = getCellString(row, col++);
-        String importDomestic = getCellString(row, col++);
-        String manufacturerName = getCellString(row, col++);
+        String productLineStr = BrandAuthImportParser.getCellString(row, col++);
+        String brandId = BrandAuthImportParser.getCellString(row, col++);
+        String brandName = BrandAuthImportParser.getCellString(row, col++);
+        String importDomestic = BrandAuthImportParser.getCellString(row, col++);
+        String manufacturerName = BrandAuthImportParser.getCellString(row, col++);
         // col 5: 授权1附件文件名 (skip)
         col++;
-        String auth1StartDateStr = getCellString(row, col++);
-        String auth1EndDateStr = getCellString(row, col++);
-        String auth1Remarks = getCellString(row, col++);
-        String agentName = getCellString(row, col++);
+        String auth1StartDateStr = BrandAuthImportParser.getCellString(row, col++);
+        String auth1EndDateStr = BrandAuthImportParser.getCellString(row, col++);
+        String auth1Remarks = BrandAuthImportParser.getCellString(row, col++);
+        String agentName = BrandAuthImportParser.getCellString(row, col++);
         // col 10: 授权2附件文件名 (skip)
         col++;
-        String auth2StartDateStr = getCellString(row, col++);
-        String auth2EndDateStr = getCellString(row, col++);
-        String auth2Remarks = getCellString(row, col++);
+        String auth2StartDateStr = BrandAuthImportParser.getCellString(row, col++);
+        String auth2EndDateStr = BrandAuthImportParser.getCellString(row, col++);
+        String auth2Remarks = BrandAuthImportParser.getCellString(row, col++);
 
-        ProductLine productLine = parseProductLine(productLineStr);
-        LocalDate auth1StartDate = parseDate(auth1StartDateStr);
-        LocalDate auth1EndDate = parseDate(auth1EndDateStr);
-        LocalDate auth2StartDate = parseDate(auth2StartDateStr);
-        LocalDate auth2EndDate = parseDate(auth2EndDateStr);
+        ProductLine productLine = BrandAuthImportParser.parseProductLine(productLineStr);
+        LocalDate auth1StartDate = BrandAuthImportParser.parseDate(auth1StartDateStr);
+        LocalDate auth1EndDate = BrandAuthImportParser.parseDate(auth1EndDateStr);
+        LocalDate auth2StartDate = BrandAuthImportParser.parseDate(auth2StartDateStr);
+        LocalDate auth2EndDate = BrandAuthImportParser.parseDate(auth2EndDateStr);
 
-        validateRequired(productLineStr, "一级产线");
-        validateRequired(brandId, "品牌ID");
-        validateRequired(brandName, "品牌");
-        validateRequired(importDomestic, "进口/国产");
-        validateRequired(manufacturerName, "品牌原厂名称");
-        validateRequired(agentName, "代理商名称");
-        validateRequired(auth1StartDateStr, "授权1开始时间");
-        validateRequired(auth1EndDateStr, "授权1结束时间");
-        validateRequired(auth2StartDateStr, "授权2开始时间");
-        validateRequired(auth2EndDateStr, "授权2结束时间");
+        BrandAuthImportParser.validateRequired(productLineStr, "一级产线");
+        BrandAuthImportParser.validateRequired(brandId, "品牌ID");
+        BrandAuthImportParser.validateRequired(brandName, "品牌");
+        BrandAuthImportParser.validateRequired(importDomestic, "进口/国产");
+        BrandAuthImportParser.validateRequired(manufacturerName, "品牌原厂名称");
+        BrandAuthImportParser.validateRequired(agentName, "代理商名称");
+        BrandAuthImportParser.validateRequired(auth1StartDateStr, "授权1开始时间");
+        BrandAuthImportParser.validateRequired(auth1EndDateStr, "授权1结束时间");
+        BrandAuthImportParser.validateRequired(auth2StartDateStr, "授权2开始时间");
+        BrandAuthImportParser.validateRequired(auth2EndDateStr, "授权2结束时间");
 
         if (!auth1EndDate.isAfter(auth1StartDate)) {
             throw new BusinessException("授权1结束时间须晚于开始时间");
@@ -188,10 +185,18 @@ public class BrandAuthImportService {
                     .map(u -> u.getFullName() + "(" + u.getUsername() + ")")
                     .orElse("system");
         }
-        String detailsJson = String.format(
-                "{\"authorizationType\":\"%s\",\"productLine\":\"%s\",\"brandId\":\"%s\",\"brandName\":\"%s\",\"importDomestic\":\"%s\",\"manufacturerName\":\"%s\"}",
-                auth.authorizationType(), auth.productLine().getDisplayName(),
-                auth.brandId(), auth.brandName(), auth.importDomestic(), auth.manufacturerName());
+        // 操作日志详情：中文可读格式（与 Create/Update 操作日志风格统一）
+        StringBuilder details = new StringBuilder();
+        boolean isAgent = "AGENT".equals(auth.authorizationType());
+        details.append("授权类型：").append(isAgent ? "代理商授权" : "原厂授权");
+        details.append("; 产线：").append(auth.productLine().getDisplayName());
+        details.append("; 品牌ID：").append(auth.brandId());
+        details.append("; 品牌名：").append(auth.brandName());
+        details.append("; 进口/国产：").append(auth.importDomestic());
+        details.append("; 原厂：").append(auth.manufacturerName());
+        if (isAgent && auth.agentName() != null && !auth.agentName().isBlank()) {
+            details.append("; 代理商：").append(auth.agentName());
+        }
 
         BrandAuthOperationLogEntity opLog = BrandAuthOperationLogEntity.builder()
                 .authorizationId(auth.id())
@@ -199,55 +204,10 @@ public class BrandAuthImportService {
                 .operatorUsername(operatorUsername)
                 .actionType("IMPORT")
                 .summary(summary)
-                .details(detailsJson)
+                .details(details.toString())
                 .remarks("批量导入")
                 .build();
         logRepository.save(opLog);
-    }
-
-    // --- Utility methods ---
-
-    private static String getCellString(final Row row, final int col) {
-        Cell cell = row.getCell(col);
-        if (cell == null) return "";
-        return switch (cell.getCellType()) {
-            case STRING -> cell.getStringCellValue().trim();
-            case NUMERIC -> {
-                double val = cell.getNumericCellValue();
-                yield val == Math.floor(val) && !Double.isInfinite(val)
-                        ? String.valueOf((long) val) : String.valueOf(val);
-            }
-            case BOOLEAN -> String.valueOf(cell.getBooleanCellValue());
-            case FORMULA -> {
-                try { yield String.valueOf((int) cell.getNumericCellValue()); }
-                catch (RuntimeException e) {
-                    try { yield cell.getStringCellValue().trim(); }
-                    catch (RuntimeException e2) { yield ""; }
-                }
-            }
-            default -> "";
-        };
-    }
-
-    private static LocalDate parseDate(final String str) {
-        if (str == null || str.isBlank()) return null;
-        try {
-            return LocalDate.parse(str.trim(), DATE_FMT);
-        } catch (DateTimeParseException e) {
-            throw new BusinessException("日期格式错误 (" + str + ")，应为 yyyy-MM-dd");
-        }
-    }
-
-    private static ProductLine parseProductLine(final String str) {
-        if (str == null || str.isBlank()) return null;
-        return ProductLine.fromStringOptional(str)
-                .orElseThrow(() -> new BusinessException("无效的一级产线: " + str));
-    }
-
-    private static void validateRequired(final String value, final String fieldName) {
-        if (value == null || value.isBlank()) {
-            throw new BusinessException(fieldName + "不能为空");
-        }
     }
 
     /** Result with per-sheet details. */
