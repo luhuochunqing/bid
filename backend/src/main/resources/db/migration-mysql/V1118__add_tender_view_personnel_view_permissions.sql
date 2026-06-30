@@ -3,14 +3,14 @@
 -- 替代之前硬编码 roleCode 白名单的写法
 
 -- 1. bid-projectLeader
-UPDATE role_profile
+UPDATE roles
 SET menu_permissions = CASE
     WHEN menu_permissions LIKE '%tender.view%' THEN menu_permissions
     ELSE CONCAT(menu_permissions, ',"tender.view"')
 END
 WHERE code = 'bid-projectLeader';
 
-UPDATE role_profile
+UPDATE roles
 SET menu_permissions = CASE
     WHEN menu_permissions LIKE '%personnel.view%' THEN menu_permissions
     ELSE CONCAT(menu_permissions, ',"personnel.view"')
@@ -18,14 +18,14 @@ END
 WHERE code = 'bid-projectLeader';
 
 -- 2. bid-TeamLeader
-UPDATE role_profile
+UPDATE roles
 SET menu_permissions = CASE
     WHEN menu_permissions LIKE '%tender.view%' THEN menu_permissions
     ELSE CONCAT(menu_permissions, ',"tender.view"')
 END
 WHERE code = 'bid-TeamLeader';
 
-UPDATE role_profile
+UPDATE roles
 SET menu_permissions = CASE
     WHEN menu_permissions LIKE '%personnel.view%' THEN menu_permissions
     ELSE CONCAT(menu_permissions, ',"personnel.view"')
@@ -33,14 +33,14 @@ END
 WHERE code = 'bid-TeamLeader';
 
 -- 3. /bidAdmin
-UPDATE role_profile
+UPDATE roles
 SET menu_permissions = CASE
     WHEN menu_permissions LIKE '%tender.view%' THEN menu_permissions
     ELSE CONCAT(menu_permissions, ',"tender.view"')
 END
 WHERE code = '/bidAdmin';
 
-UPDATE role_profile
+UPDATE roles
 SET menu_permissions = CASE
     WHEN menu_permissions LIKE '%personnel.view%' THEN menu_permissions
     ELSE CONCAT(menu_permissions, ',"personnel.view"')
@@ -48,14 +48,14 @@ END
 WHERE code = '/bidAdmin';
 
 -- 4. bid-Team
-UPDATE role_profile
+UPDATE roles
 SET menu_permissions = CASE
     WHEN menu_permissions LIKE '%tender.view%' THEN menu_permissions
     ELSE CONCAT(menu_permissions, ',"tender.view"')
 END
 WHERE code = 'bid-Team';
 
-UPDATE role_profile
+UPDATE roles
 SET menu_permissions = CASE
     WHEN menu_permissions LIKE '%personnel.view%' THEN menu_permissions
     ELSE CONCAT(menu_permissions, ',"personnel.view"')

@@ -84,7 +84,10 @@ if [[ "$MODE" == "pre-commit" ]]; then
 
   bash "$ROOT_DIR/scripts/assign-flyway-version.sh"
 
-  STAGED_MIGRATIONS=$(git diff --cached --name-only --diff-filter=ACMR | \
+  # 只检查新增(A)/复制(C)/重命名(R)的迁移，不检查修改(M)
+  # 修改 main 上已有的 V*.sql 由 check-flyway-immutable.sh 管理（有 FLYWAY_ALLOW_IMMUTABLE_EDIT=1 逃生阀）
+  # 对 Modified 文件检查"版本号与 main 冲突"是误判——它就是 main 上的那个文件
+  STAGED_MIGRATIONS=$(git diff --cached --name-only --diff-filter=ACR | \
     grep "^${MIGRATION_DIR}/V" || true)
 
   if [[ -z "$STAGED_MIGRATIONS" ]]; then
