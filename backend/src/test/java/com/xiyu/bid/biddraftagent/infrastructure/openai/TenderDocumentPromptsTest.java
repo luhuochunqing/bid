@@ -73,7 +73,7 @@ class TenderDocumentPromptsTest {
     }
 
     @Test
-    void buildTenderIntakePrompt_shouldIncludeTenderInfoFieldInstruction() {
+    void buildTenderIntakePrompt_shouldExcludeTenderInfoFieldInstruction() {
         DocumentAnalysisInput input = new DocumentAnalysisInput(
                 "doc-insight://intake",
                 "tender-notice.docx",
@@ -87,13 +87,13 @@ class TenderDocumentPromptsTest {
 
         String prompt = TenderDocumentPrompts.buildTenderIntakePrompt(input, chunk);
 
-        // tenderInfo 字段指令存在
-        assertThat(prompt).contains("tenderInfo");
-        // 明确要求 AI 输出完整原文，不摘要不改写
-        assertThat(prompt).contains("完整原文");
-        assertThat(prompt).contains("不要摘要");
-        assertThat(prompt).contains("不要改写");
-        // 与 tenderScope（≤120 字摘要）有明确语义区分
+        // tenderInfo 由代码直接从 fullText 截断填充，AI 不再输出此字段
+        // prompt 不应包含 tenderInfo 字段抽取指令
+        assertThat(prompt).doesNotContain("tenderInfo：");
+        assertThat(prompt).doesNotContain("完整原文");
+        assertThat(prompt).doesNotContain("不要摘要");
+        assertThat(prompt).doesNotContain("不要改写");
+        // tenderScope（≤120 字摘要）指令保留
         assertThat(prompt).contains("tenderScope");
         assertThat(prompt).contains("120 字");
     }

@@ -28,7 +28,7 @@ public class OpenAiBidAgentConfigurationResolver {
             AiProviderCatalog pAiProviderCatalog,
             Environment pEnvironment,
             @Value("${ai.openai.timeout:PT30S}") Duration pTimeout,
-            @Value("${ai.deepseek.tender-intake-timeout:PT45S}") Duration pTenderIntakeTimeout
+            @Value("${ai.deepseek.tender-intake-timeout:PT90S}") Duration pTenderIntakeTimeout
     ) {
         this.aiConfigService = pAiConfigService;
         this.aiProviderCatalog = pAiProviderCatalog;

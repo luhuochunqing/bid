@@ -214,7 +214,15 @@ public class OpenAiTenderDocumentAnalyzer
         data.put("requiredMaterials", merged.requiredMaterials());
         data.put("riskPoints", merged.riskPoints());
         data.put("tags", merged.tags());
-        if (DocInsightProfiles.isTenderIntake(input.profileCode())) putTenderIntakeFields(data, results);
+        if (DocInsightProfiles.isTenderIntake(input.profileCode())) {
+            putTenderIntakeFields(data, results);
+            // tenderInfo 是"完整招标公告原文"，AI 只能看到关键词片段，无法输出完整原文。
+            // 因此 tenderInfo 由代码直接从 fullText 截断 20000 字填充，强制覆盖任何 AI 残留输出。
+            String truncatedFullText = truncateForTenderInfo(input.fullText());
+            if (truncatedFullText != null) {
+                data.put("tenderInfo", truncatedFullText);
+            }
+        }
         return new DocumentAnalysisResult(
                 input.documentId(), data,
                 merged.items().stream().map(TenderRequirementProfileMapper::toAnalysisItem).toList(),
@@ -231,9 +239,18 @@ public class OpenAiTenderDocumentAnalyzer
             putIfBlank(data, "contactName2", item.contactName2); putIfBlank(data, "contactPhone2", item.contactPhone2);
             putIfBlank(data, "contactLandline2", item.contactLandline2); putIfBlank(data, "contactEmail2", item.contactEmail2);
             putIfBlank(data, "customerType", item.customerType); putIfBlank(data, "priority", item.priority);
-            putIfBlank(data, "tenderInfo", item.tenderInfo);
         }
         TenderContactSplitter.splitMultiContactNamesIfNeeded(data);
+    }
+
+    /** tenderInfo 容量上限：与 TenderRequest @Size(max=20000) 和 DB TEXT 列保持一致。 */
+    private static final int TENDER_INFO_MAX_LENGTH = 20_000;
+
+    private static String truncateForTenderInfo(String fullText) {
+        if (fullText == null || fullText.isBlank()) return null;
+        return fullText.length() <= TENDER_INFO_MAX_LENGTH
+                ? fullText
+                : fullText.substring(0, TENDER_INFO_MAX_LENGTH);
     }
 
     private void putIfBlank(Map<String, Object> data, String key, String value) {

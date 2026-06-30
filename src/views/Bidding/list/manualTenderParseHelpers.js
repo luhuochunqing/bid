@@ -79,7 +79,7 @@ function normalizeDeadline(value) {
  * - phone2      <- contactPhone2 / phone2 / secondaryPhone
  * - landline2   <- contactTel2 / contactLandline2 / secondaryLandline
  * - mail2       <- contactEmail2 / email2 / secondaryEmail
- * - tenderInfo  <- tenderScope（与 description 区分，description 为手填标讯描述）
+ * - tenderInfo  <- tenderInfo（完整原文）/ tenderScope（摘要，兼容旧 AI 响应）
  * - tags        <- tags
  *
  * 不映射：budget（已从表单删除）、tenderScope（不回填 description）
@@ -102,7 +102,7 @@ export function normalizeManualTenderParseResult(result = {}) {
     phone2: firstText(data.contactPhone2, data.phone2, data.secondaryPhone),
     landline2: firstText(data.contactTel2, data.contactLandline2, data.secondaryLandline),
     mail2: firstText(data.contactEmail2, data.email2, data.secondaryEmail),
-    tenderInfo: firstText(data.tenderScope),
+    tenderInfo: firstText(data.tenderInfo, data.tenderScope),
     tags: normalizeTags(data.tags),
   }
 }

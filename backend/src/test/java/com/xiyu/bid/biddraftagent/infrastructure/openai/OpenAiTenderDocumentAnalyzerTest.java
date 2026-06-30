@@ -276,7 +276,6 @@ class OpenAiTenderDocumentAnalyzerTest {
         output.contactLandline = "010-87654321";
         output.customerType = "KA 客户";
         output.priority = "A";
-        output.tenderInfo = "第一章 招标公告\n项目名称：西域MRO测试项目\n最高限价：1200000元\n采购单位：西域采购中心\n资格要求：供应商须具备资质";
         when(structuredOutputService.request(anyString(), eq(TenderRequirementOutput.class), any(), anyString()))
                 .thenReturn(output);
 
@@ -295,12 +294,50 @@ class OpenAiTenderDocumentAnalyzerTest {
                 .containsEntry("contactPhone", "13800138000")
                 .containsEntry("contactLandline", "010-87654321")
                 .containsEntry("customerType", "KA 客户")
-                .containsEntry("priority", "A")
-                .containsEntry("tenderInfo", "第一章 招标公告\n项目名称：西域MRO测试项目\n最高限价：1200000元\n采购单位：西域采购中心\n资格要求：供应商须具备资质");
+                .containsEntry("priority", "A");
+        // tenderInfo 由代码直接从 fullText 截断填充，不依赖 AI 输出
+        // fullText 不超过 20000 字，应完整返回
+        assertThat(result.extractedData()).containsEntry("tenderInfo", text);
+        // prompt 不应包含 tenderInfo 字段抽取指令
+        assertThat(prompt).doesNotContain("tenderInfo：");
         assertThat(prompt).doesNotContain("requirementItems 必须逐条列出");
         // With expanded context radius, "评分办法" may be included if near a keyword line;
         // the assertion is relaxed to verify the prompt is intake-focused, not chunk-indexed.
         assertThat(prompt).contains("<candidate_text>");
         verify(configurationResolver).resolveTenderIntake();
+    }
+
+    @Test
+    void analyzeTenderIntake_shouldTruncateTenderInfoWhenFullTextExceedsMaxLength() {
+        // 构造超过 20000 字的 fullText
+        StringBuilder hugeText = new StringBuilder();
+        hugeText.append("项目名称：超长招标公告测试\n");
+        for (int i = 0; i < 1000; i++) {
+            hugeText.append("这是第").append(i).append("行填充内容用于测试 tenderInfo 截断逻辑。\n");
+        }
+        String fullText = hugeText.toString();
+        assertThat(fullText.length()).isGreaterThan(20_000);
+
+        DocumentAnalysisInput input = new DocumentAnalysisInput(
+                "doc-insight://huge",
+                "huge.docx",
+                fullText,
+                "",
+                List.of(new DocumentChunk(fullText, List.of())),
+                DocInsightProfiles.TENDER_INTAKE,
+                java.util.Map.of()
+        );
+        TenderRequirementOutput output = new TenderRequirementOutput();
+        output.tenderTitle = "超长招标公告";
+        when(structuredOutputService.request(anyString(), eq(TenderRequirementOutput.class), any(), anyString()))
+                .thenReturn(output);
+
+        var result = analyzer.analyze(input);
+
+        // tenderInfo 应被截断为 20000 字
+        String tenderInfo = (String) result.extractedData().get("tenderInfo");
+        assertThat(tenderInfo).hasSize(20_000);
+        // 截断内容应是 fullText 的前 20000 字
+        assertThat(tenderInfo).isEqualTo(fullText.substring(0, 20_000));
     }
 }
