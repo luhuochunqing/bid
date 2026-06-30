@@ -16,6 +16,7 @@ import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -58,8 +59,8 @@ public class ProjectArchiveController {
             ProjectArchiveQuery query,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        Page<ProjectArchiveResponse> result = workflowService.queryProjectArchives(query, PageRequest.of(page, size));
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(workflowService.queryProjectArchives(query,
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")))); // CO-418: 按归档日期倒序
     }
 
     @GetMapping("/stats")
@@ -229,7 +230,6 @@ public class ProjectArchiveController {
         headers.setContentLength(zipBytes.length);
         return new ResponseEntity<>(zipBytes, headers, HttpStatus.OK);
     }
-
 
     @PostMapping("/export-zip")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
