@@ -20,6 +20,10 @@ public class TenderRequirementOutput {
     public String contactPhone;
     public String contactLandline;
     public String contactEmail;
+    public String contactName2;
+    public String contactPhone2;
+    public String contactLandline2;
+    public String contactEmail2;
     public String customerType;
     public String priority;
     public String publishDate;
