@@ -1,0 +1,9 @@
+version: 1
+task: "co-409-ca-permission-matrix"
+locks:
+  - path: "backend/src/main/java/com/xiyu/bid/entity/RoleProfileCatalog.java"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/zcode/ca-permission-matrix-co409"
+    expiresAt: "2026-07-07T00:00:00.000Z"
+    reason: "CO-409 CA模块投标专员操作项权限矩阵对齐：bid-Team menuPermissions 补 resource-ca 权限点"

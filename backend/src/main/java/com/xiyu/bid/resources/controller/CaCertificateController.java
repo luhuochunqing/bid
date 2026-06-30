@@ -36,7 +36,9 @@ import java.util.*;
 @RestController
 @RequestMapping("/api/ca-certificates")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+// CO-409: 类级放宽为 hasAuthority('resource') 兜底，让 bid-Team（持有 resource 权限点）能访问读操作和借用流程。
+// 写操作方法级显式声明 ADMIN/MANAGER/ROLE_BID_TEAM；下架在 Service 层按 custodianId 二次校验。
+@PreAuthorize("hasAuthority('resource')")
 public class CaCertificateController {
 
     private final CaCertificateService caService;
@@ -70,24 +72,25 @@ public class CaCertificateController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or hasAuthority('ROLE_BID_TEAM')")
     @Auditable(action = "CREATE", entityType = "CaCertificate", description = "新增CA证书")
     public ResponseEntity<CaCertificateDTO> create(@Valid @RequestBody CaCertificateRequest request) {
         return ResponseEntity.ok(caService.create(request));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or hasAuthority('ROLE_BID_TEAM')")
     @Auditable(action = "UPDATE", entityType = "CaCertificate", description = "编辑CA证书")
     public ResponseEntity<CaCertificateDTO> update(@PathVariable Long id, @Valid @RequestBody CaCertificateRequest request) {
         return ResponseEntity.ok(caService.update(id, request));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or hasAuthority('ROLE_BID_TEAM')")
     @Auditable(action = "DEACTIVATE", entityType = "CaCertificate", description = "下架CA证书")
-    public ResponseEntity<Void> deactivate(@PathVariable Long id) {
-        caService.deactivate(id);
+    public ResponseEntity<Void> deactivate(@PathVariable Long id,
+                                           @AuthenticationPrincipal UserDetails currentUser) {
+        caService.deactivate(id, currentUser);
         return ResponseEntity.ok().build();
     }
 
@@ -160,7 +163,7 @@ public class CaCertificateController {
 
     /** 下载批量导入模板 */
     @GetMapping("/template")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or hasAuthority('ROLE_BID_TEAM')")
     public ResponseEntity<byte[]> downloadTemplate() throws IOException {
         byte[] template = importAppService.generateTemplate();
         String filename = URLEncoder.encode("CA证书导入模板.xlsx", StandardCharsets.UTF_8);
@@ -173,7 +176,7 @@ public class CaCertificateController {
 
     /** 触发批量导入，返回 taskId */
     @PostMapping("/import")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or hasAuthority('ROLE_BID_TEAM')")
     public ResponseEntity<ApiResponse<?>> importCertificates(
             @RequestParam("file") MultipartFile file,
             @AuthenticationPrincipal UserDetails currentUser) throws IOException {
@@ -185,7 +188,7 @@ public class CaCertificateController {
 
     /** 查询导入任务状态 */
     @GetMapping("/import/tasks/{taskId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or hasAuthority('ROLE_BID_TEAM')")
     public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> getImportTask(
             @PathVariable Long taskId) {
         java.util.Map<String, Object> task = importAppService.getTaskAsMap(taskId);
@@ -195,7 +198,7 @@ public class CaCertificateController {
 
     /** 查询导入任务历史 */
     @GetMapping("/import/tasks")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER') or hasAuthority('ROLE_BID_TEAM')")
     public ResponseEntity<ApiResponse<java.util.List<java.util.Map<String, Object>>>> listImportTasks(
             @AuthenticationPrincipal UserDetails currentUser) {
         java.util.List<java.util.Map<String, Object>> tasks =

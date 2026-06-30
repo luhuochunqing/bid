@@ -1,16 +1,22 @@
 package com.xiyu.bid.resources.service;
 
+import com.xiyu.bid.entity.RoleProfileCatalog;
+import com.xiyu.bid.entity.User;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.resources.dto.CaCertificateDTO;
 import com.xiyu.bid.resources.dto.CaCertificateRequest;
 import com.xiyu.bid.resources.entity.CaCertificateEntity;
 import com.xiyu.bid.resources.entity.CaCertificatePlatformEntity;
 import com.xiyu.bid.resources.repository.CaCertificatePlatformRepository;
 import com.xiyu.bid.resources.repository.CaCertificateRepository;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +35,8 @@ public class CaCertificateService {
     private final CaCertificateRepository certificateRepository;
     private final CaCertificatePlatformRepository platformLinkRepository;
     private final PasswordEncryptionUtil passwordEncryptionUtil;
+    private final EffectiveRoleResolver effectiveRoleResolver;
+    private final UserRepository userRepository;
 
     // ========== CA 证书 CRUD ==========
 
@@ -79,12 +87,58 @@ public class CaCertificateService {
         return CaCertificateDTO.from(saved, platformIds);
     }
 
+    /**
+     * CO-409: 下架 CA 证书，按保管员差异化校验.
+     *
+     * <p>授权矩阵（与前端操作项对齐）：
+     * <ul>
+     *   <li>管理员（admin/bidAdmin/bid-TeamLeader）→ 可下架任意 CA</li>
+     *   <li>投标专员（bid-Team）→ 仅可下架自己保管的 CA（custodianId == currentUser.id）</li>
+     *   <li>其他角色 → 拒绝</li>
+     * </ul>
+     *
+     * <p>复刻 {@code PlatformAccountService.returnAccount} 的 Policy 范式（lessons §28）：
+     * Controller 类级 @PreAuthorize 放宽后，细粒度校验下沉到 Service 层。
+     * roleCode 统一走 EffectiveRoleResolver，不直调 User.getRoleCode()（CO-373）。
+     */
     @Transactional
-    public void deactivate(Long id) {
+    public void deactivate(Long id, UserDetails userDetails) {
+        User currentUser = resolveUser(userDetails);
         CaCertificateEntity entity = certificateRepository.findById(id)
                 .orElseThrow(() -> new CaBusinessException("CA证书不存在: " + id));
+        String roleCode = effectiveRoleResolver.resolveRoleCode(currentUser);
+        if (!canDeactivate(roleCode, entity, currentUser)) {
+            throw new AccessDeniedException("仅管理员或该 CA 保管员可下架");
+        }
         entity.setStatus("INACTIVE");
         certificateRepository.save(entity);
+    }
+
+    /**
+     * CO-409: 下架权限判定（纯函数，便于单测）.
+     *
+     * <p>特权角色放行；投标专员要求为该 CA 的保管员；其他角色不放行。
+     * 对称于 {@code PlatformAccountViewerPolicy.canReturnAccount} 的授权语义。
+     */
+    private static boolean canDeactivate(String roleCode, CaCertificateEntity entity, User currentUser) {
+        if (RoleProfileCatalog.GLOBAL_ACCESS_ROLES.contains(roleCode)) {
+            return true;
+        }
+        if (RoleProfileCatalog.BID_SPECIALIST_CODE.equalsIgnoreCase(roleCode)) {
+            return entity.getCustodianId() != null
+                    && entity.getCustodianId().equals(currentUser.getId());
+        }
+        return false;
+    }
+
+    // CO-409: 复刻 CaBorrowService#resolveUser，Controller 传 UserDetails、Service 解析成 User 实体做 custodian 校验
+    // （strict-module Controller 不能直接依赖 ..entity../..repository..，下沉到 Service 层合规）。
+    private User resolveUser(UserDetails userDetails) {
+        if (userDetails == null) {
+            throw new AccessDeniedException("下架 CA 证书需要登录");
+        }
+        return userRepository.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new AccessDeniedException("当前用户不存在: " + userDetails.getUsername()));
     }
 
     public CaCertificateDTO getById(Long id) {

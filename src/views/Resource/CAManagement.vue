@@ -56,8 +56,8 @@
           <span>CA 证书列表</span>
           <div class="header-actions">
             <el-button @click="loadData"><el-icon><Refresh /></el-icon>刷新</el-button>
-            <el-button v-if="isManagerView" type="primary" @click="handleCreate"><el-icon><Plus /></el-icon>新增</el-button>
-            <el-button v-if="isManagerView" @click="showImportDialog = true"><el-icon><Upload /></el-icon>批量导入</el-button>
+            <el-button v-if="canCreate" type="primary" @click="handleCreate"><el-icon><Plus /></el-icon>新增</el-button>
+            <el-button v-if="canCreate" @click="showImportDialog = true"><el-icon><Upload /></el-icon>批量导入</el-button>
           </div>
         </div>
       </template>
@@ -122,18 +122,18 @@
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click.stop="handleView(row)">查看</el-button>
-            <el-button link type="primary" size="small" @click.stop="handleEdit(row)">编辑</el-button>
+            <el-button v-if="canManageRow(row)" link type="primary" size="small" @click.stop="handleEdit(row)">编辑</el-button>
             <el-button
-              v-if="row.borrowStatus === 'IN_STOCK' && row.caType === 'ENTITY_CA' && row.status !== 'EXPIRED' && row.status !== 'INACTIVE'"
+              v-if="canBorrowRow(row) && row.borrowStatus === 'IN_STOCK' && row.caType === 'ENTITY_CA' && row.status !== 'EXPIRED' && row.status !== 'INACTIVE'"
               link type="success" size="small"
               @click.stop="handleOpenBorrow(row)"
             >借用</el-button>
             <el-button
-              v-if="row.borrowStatus === 'BORROWED'"
+              v-if="canManageRow(row) && row.borrowStatus === 'BORROWED'"
               link type="warning" size="small"
               @click.stop="handleOpenReturn(row)"
             >归还</el-button>
-            <el-button link type="danger" size="small" @click.stop="handleDelete(row)">下架</el-button>
+            <el-button v-if="canManageRow(row)" link type="danger" size="small" @click.stop="handleDelete(row)">下架</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -240,9 +240,36 @@ const userStore = useUserStore()
 const caStore = useCaStore()
 
 // Role-based view determination
-// CO-393: 管理员视图仅由角色判定，不应因有 resource-ca 权限而进入管理员视图
-// （bid-projectLeader 现在持有 resource-ca 权限用于访问路由，但应进入简化视图）
-const isManagerView = computed(() => isBidManager(userStore.userRole))
+// CO-409: 投标专员（bid-Team）进入完整管理员视图（10 列 + 统计 + 高级筛选），
+// 操作项按保管员差异化（canManageRow/canBorrowRow），对齐 CO-409 权限矩阵。
+// CO-393 注：bid-projectLeader 虽持 resource-ca 路由权限，但不在 isBidManager 内，仍走简化视图。
+const isManagerView = computed(() => isBidManager(userStore.userRole) || userStore.userRole === 'bid-Team')
+
+// CO-409: 新增/批量导入操作项对投标专员（bid-Team）放开，与管理员一致。
+const canCreate = computed(() => isBidManager(userStore.userRole) || userStore.userRole === 'bid-Team')
+
+// CO-409: 当前用户 userId，用于按保管员差异化判定行级操作项。
+const currentUserId = computed(() => userStore.currentUser?.id ?? null)
+
+// CO-409: 管理员（isBidManager）可编辑/下架/归还任意 CA；投标专员仅可操作自己保管的 CA。
+// 对称于后端 CaCertificateService.canDeactivate + PlatformAccountViewerPolicy.canManageAccount。
+function canManageRow(row) {
+  if (isBidManager(userStore.userRole)) return true
+  if (userStore.userRole === 'bid-Team') {
+    return row.custodianId != null && row.custodianId === currentUserId.value
+  }
+  return false
+}
+
+// CO-409: 管理员可借用任意 CA；投标专员不可借用自己保管的 CA（保管员不向自己借用）。
+// 对称于 CO-409 权限矩阵「借用：保管员❌ 非保管员✅」。
+function canBorrowRow(row) {
+  if (isBidManager(userStore.userRole)) return true
+  if (userStore.userRole === 'bid-Team') {
+    return row.custodianId == null || row.custodianId !== currentUserId.value
+  }
+  return false
+}
 
 // Loading states
 const loading = ref(false)

@@ -299,3 +299,80 @@ describe('CAManagement — bid-projectLeader 视角', () => {
     expect(headerActionsHtml).not.toContain('批量导入')
   })
 })
+
+// ── CO-409：投标专员(bid-Team)视角 —— 完整管理员视图 + 按保管员差异化操作项 ──
+
+describe('CAManagement — bid-Team 视角', () => {
+  const adminStoreMock = {
+    userRole: 'admin',
+    currentUser: { id: 'admin001' },
+    hasPermission: vi.fn((key) => key === 'resource-ca')
+  }
+  // 投标专员「李四」本人是 user002，对应 mockCertificates[1] 的 custodianId='user002'
+  const bidTeamStoreMock = {
+    userRole: 'bid-Team',
+    currentUser: { id: 'user002' },
+    hasPermission: vi.fn((key) => key === 'resource-ca')
+  }
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.mocked(useUserStore).mockImplementation(() => bidTeamStoreMock)
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(useUserStore).mockImplementation(() => adminStoreMock)
+  })
+
+  it('canCreate 为 true（投标专员可新增/批量导入，与管理员一致）', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    expect(wrapper.vm.canCreate).toBe(true)
+  })
+
+  it('isManagerView 为 true（CO-409: 投标专员进入完整管理员视图）', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    expect(wrapper.vm.isManagerView).toBe(true)
+  })
+
+  it('投标专员视角渲染「新增」「批量导入」按钮', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    const headerActionsHtml = wrapper.find('.header-actions').html()
+    expect(headerActionsHtml).toContain('新增')
+    expect(headerActionsHtml).toContain('批量导入')
+  })
+
+  it('投标专员视角渲染统计卡片（完整管理员视图）', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    const html = wrapper.html()
+    expect(html).toContain('stat-row')
+  })
+
+  it('canManageRow: 投标专员仅对自己保管的 CA 返回 true', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    // mockCertificates[1].custodianId='user002' === 当前用户 user002 → 可管理
+    expect(wrapper.vm.canManageRow(mockCertificates[1])).toBe(true)
+    // mockCertificates[0].custodianId='user001' !== user002 → 不可管理
+    expect(wrapper.vm.canManageRow(mockCertificates[0])).toBe(false)
+  })
+
+  it('canBorrowRow: 投标专员不可借用自己保管的 CA，可借用他人的', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    // 自己保管的 CA（custodianId='user002'）→ 不可借用
+    expect(wrapper.vm.canBorrowRow(mockCertificates[1])).toBe(false)
+    // 他人保管的 CA（custodianId='user001'）→ 可借用
+    expect(wrapper.vm.canBorrowRow(mockCertificates[0])).toBe(true)
+  })
+})

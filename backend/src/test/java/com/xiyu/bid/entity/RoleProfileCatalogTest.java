@@ -82,4 +82,17 @@ class RoleProfileCatalogTest {
                     .isTrue();
         }
     }
+
+    // ── CO-409：CA 信息管理模块投标专员操作项权限矩阵对齐 ──
+
+    @Test
+    @DisplayName("CO-409: 投标专员 menuPermissions 含 resource-ca，对齐 CA 模块侧边栏与路由访问")
+    void bidTeamShouldIncludeResourceCaPermission() {
+        RoleProfileCatalog.SeedDefinition def =
+                RoleProfileCatalog.definitionForCode(RoleProfileCatalog.BID_SPECIALIST_CODE);
+
+        assertThat(def.menuPermissions())
+                .as("bid-Team 必须持有 resource-ca 才能访问 CA 信息管理菜单与路由")
+                .contains("resource-ca");
+    }
 }
