@@ -12,6 +12,7 @@ import com.xiyu.bid.casework.infrastructure.ArchiveFile;
 import com.xiyu.bid.casework.infrastructure.ArchiveFileRepository;
 import com.xiyu.bid.casework.infrastructure.ProjectArchive;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
@@ -33,7 +34,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
@@ -146,16 +146,16 @@ public class ProjectArchiveController {
         return new ResponseEntity<>(resource, headers, HttpStatus.OK);
     }
 
-    /** 档案文件允许存储的基础目录。 */
-    private static final String ARCHIVE_FILE_BASE_DIR = "data";
-
+    @Value("${app.doc-insight.upload-dir:}")
+    private String configuredUploadDir;
+    /** CO-430: 获取 upload 根目录绝对路径。 */
+    private String getArchiveFileBaseDir() {
+        String d = (configuredUploadDir == null || configuredUploadDir.isBlank()) ? System.getProperty("java.io.tmpdir") + "/xiyu-doc-insight-uploads" : configuredUploadDir;
+        return Path.of(d).toAbsolutePath().normalize().toString(); }
     /** 解析并验证文件路径，防止路径遍历攻击。 */
     private Path resolveAndValidateFilePath(String rawPath) {
         return com.xiyu.bid.shared.security.FilePathGuard.ensureExists(
-                com.xiyu.bid.shared.security.FilePathGuard.resolveAbsoluteWithin(rawPath, ARCHIVE_FILE_BASE_DIR),
-                rawPath);
-    }
-
+                com.xiyu.bid.shared.security.FilePathGuard.resolveAbsoluteWithin(rawPath, getArchiveFileBaseDir()), rawPath); }
     @PostMapping("/export-excel")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<byte[]> exportExcel(
