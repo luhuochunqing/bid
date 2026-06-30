@@ -24,9 +24,8 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClientException;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
-
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -56,16 +55,32 @@ public class OrganizationDirectoryHttpGateway implements OrganizationDirectoryGa
             ObjectMapper objectMapper,
             OrganizationIntegrationProperties properties) {
         this(
-                restTemplateBuilder
-                        .setConnectTimeout(Duration.ofMillis(properties.getDirectory().getConnectTimeoutMs()))
-                        .setReadTimeout(Duration.ofMillis(properties.getDirectory().getReadTimeoutMs()))
-                        .build(),
-                restTemplateBuilder
-                        .setConnectTimeout(Duration.ofMillis(properties.getDirectory().getBatchConnectTimeoutMs()))
-                        .setReadTimeout(Duration.ofMillis(properties.getDirectory().getBatchReadTimeoutMs()))
-                        .build(),
+                buildRestTemplate(restTemplateBuilder,
+                        properties.getDirectory().getConnectTimeoutMs(),
+                        properties.getDirectory().getReadTimeoutMs()),
+                buildRestTemplate(restTemplateBuilder,
+                        properties.getDirectory().getBatchConnectTimeoutMs(),
+                        properties.getDirectory().getBatchReadTimeoutMs()),
                 objectMapper,
                 properties);
+    }
+
+    /**
+     * 显式使用 {@link SimpleClientHttpRequestFactory}，避开 OkHttp3 限制.
+     *
+     * <p>背景：项目通过 openai-java-client-okhttp 传递依赖引入了 okhttp3,
+     * RestTemplateBuilder 默认会自动检测到 OkHttp3 并使用 OkHttp3ClientHttpRequestFactory.
+     * 但 OkHttp3 对 GET/HEAD 严格要求 body 为 null，而 LoggingClientHttpRequestInterceptor
+     * 传空 byte[] 会抛 IllegalArgumentException。本类通过 OrganizationDirectoryRestClient
+     * 使用 GET 请求，必须显式指定 SimpleClientHttpRequestFactory。</p>
+     */
+    private static RestTemplate buildRestTemplate(RestTemplateBuilder builder, long connectTimeoutMs, long readTimeoutMs) {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout((int) connectTimeoutMs);
+        factory.setReadTimeout((int) readTimeoutMs);
+        return builder
+                .requestFactory(() -> factory)
+                .build();
     }
 
     OrganizationDirectoryHttpGateway(
