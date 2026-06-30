@@ -9,6 +9,7 @@ import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.project.core.InitiationFieldPolicy;
+import com.xiyu.bid.project.core.InitiationRiskAssessmentPolicy;
 import com.xiyu.bid.project.core.ProjectFieldLockPolicy;
 import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.dto.InitiationDto;
@@ -167,6 +168,28 @@ public class ProjectInitiationService {
                     .toList());
             return dto;
         });
+    }
+
+    /**
+     * AI 风险评估：基于立项客户信息表的倾向性判定风险等级（HIGH/MEDIUM/LOW）。
+     * <p>规则见 {@link InitiationRiskAssessmentPolicy}，结果写入 aiRiskLevel + aiRiskAssessmentNotes。
+     * <p>不依赖招标文件，仅依据客户信息表中最高决策人和其他关键决策人的倾向性。
+     */
+    @Auditable(action = "ASSESS_INITIATION_RISK", entityType = "ProjectInitiationDetails", description = "立项 AI 风险评估")
+    public InitiationViewDto assessRisk(Long projectId, Long currentUserId) {
+        projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
+        ProjectInitiationDetails entity = repository.findByProjectId(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("ProjectInitiationDetails", String.valueOf(projectId)));
+        InitiationViewDto dto = mapper.toView(entity);
+        InitiationRiskAssessmentPolicy.Result result =
+                InitiationRiskAssessmentPolicy.evaluate(dto.getCustomerInfoRows());
+        entity.setAiRiskLevel(result.riskLevel().name());
+        entity.setAiRiskAssessmentNotes(result.notes());
+        entity.setUpdatedBy(currentUserId);
+        ProjectInitiationDetails saved = repository.save(entity);
+        log.info("Initiation risk assessed: projectId={}, userId={}, riskLevel={}",
+                projectId, currentUserId, saved.getAiRiskLevel());
+        return mapper.toView(saved);
     }
 
     private Project mustGetProject(Long projectId) {

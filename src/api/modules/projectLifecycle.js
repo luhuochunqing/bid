@@ -37,6 +37,10 @@ export const projectLifecycleApi = {
   rejectInitiation(id, payload) {
     return httpClient.post(`${base(id)}/initiation/reject`, payload)
   },
+  // AI 风险评估：基于客户信息表倾向性判定风险等级
+  assessInitiationRisk(id) {
+    return httpClient.post(`${base(id)}/initiation/ai-risk-assessment`)
+  },
 
   // WS-B drafting
   getDrafting(id) {

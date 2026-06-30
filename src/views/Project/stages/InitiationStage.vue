@@ -84,10 +84,10 @@
   <div class="section-header">
     <span>招标文件与 AI 风险评估</span>
     <div class="ai-risk-corner">
-      <el-button type="primary" size="small" :loading="aiAssessing" :disabled="!form.tenderDocumentId || locked || uploadingDoc" @click="runAIAssessment">
+      <el-button type="primary" :loading="aiAssessing" :disabled="locked || uploadingDoc" @click="runAIAssessment">
         {{ aiAssessing ? '评估中...' : 'AI 风险评估' }}
       </el-button>
-      <el-tag :type="riskTagType" class="risk-tag">{{ riskTagText || '中风险' }}</el-tag>
+      <el-tag :type="riskTagType" class="risk-tag">{{ riskTagText || '未评估' }}</el-tag>
     </div>
   </div>
 </template>
@@ -302,7 +302,21 @@ const { handleDocBeforeUpload, onDepositChange, handleApprove, handleReject, sav
   },
 })
 
-async function runAIAssessment() { if (!form.tenderDocumentId) return ElMessage.warning('请先上传招标文件'); aiAssessing.value = true; try { const { scoreAnalysisApi } = await import('@/api/modules/ai.js'); const r = await scoreAnalysisApi.generatePreview({ documentId: form.tenderDocumentId }); form.aiRiskLevel = r?.data?.riskLevel || 'MEDIUM'; form.aiRiskAssessmentNotes = r?.data?.summary || 'AI 评估已完成'; ElMessage.success('AI 风险评估完成') } catch (e) { if (e?.response?.status === 503 || e?.response?.status === 502) { ElMessage.warning('AI 服务暂不可用，请稍后重试') } else if (e?.response?.status === 401 || e?.response?.status === 403) { return } else { ElMessage.error('AI 评估失败：' + (e?.message || '未知错误')) } } finally { aiAssessing.value = false } }
+async function runAIAssessment() {
+  aiAssessing.value = true;
+  try {
+    const r = await projectLifecycleApi.assessInitiationRisk(props.projectId);
+    const data = r?.data || {};
+    form.aiRiskLevel = data.aiRiskLevel || 'MEDIUM';
+    form.aiRiskAssessmentNotes = data.aiRiskAssessmentNotes || '';
+    ElMessage.success('AI 风险评估完成');
+  } catch (e) {
+    if (e?.response?.status === 401 || e?.response?.status === 403) return;
+    ElMessage.error('AI 评估失败：' + (e?.message || '未知错误'));
+  } finally {
+    aiAssessing.value = false;
+  }
+}
 
 /**
  * Sync updates from DynamicFormRenderer back into the reactive form.

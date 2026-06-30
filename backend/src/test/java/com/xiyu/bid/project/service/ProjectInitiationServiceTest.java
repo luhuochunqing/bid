@@ -9,6 +9,7 @@ import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.project.core.InitiationFieldPolicy;
+import com.xiyu.bid.project.dto.CustomerInfoRow;
 import com.xiyu.bid.project.dto.InitiationDto;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
@@ -29,6 +30,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -164,6 +166,49 @@ class ProjectInitiationServiceTest {
     void update_unknownInitiation_throws404() {
         when(repo.findByProjectId(1L)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.update(1L, fullDto(), 99L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void assessRisk_opposedTendency_setsHighRiskLevel() throws Exception {
+        // 客户信息表：最高决策人反对 → HIGH
+        List<CustomerInfoRow> rows = List.of(
+                CustomerInfoRow.builder().position("1").preference("3").build(),
+                CustomerInfoRow.builder().position("9").preference("1").build());
+        String customerInfoJson = new ObjectMapper().writeValueAsString(rows);
+        ProjectInitiationDetails existing = ProjectInitiationDetails.builder()
+                .id(10L).projectId(1L)
+                .customerInfoJson(customerInfoJson)
+                .build();
+        when(repo.findByProjectId(1L)).thenReturn(Optional.of(existing));
+
+        var view = service.assessRisk(1L, 99L);
+
+        assertThat(view.getAiRiskLevel()).isEqualTo("HIGH");
+        assertThat(view.getAiRiskAssessmentNotes()).contains("最高决策人反对");
+        var captor = ArgumentCaptor.forClass(ProjectInitiationDetails.class);
+        verify(repo).save(captor.capture());
+        assertThat(captor.getValue().getAiRiskLevel()).isEqualTo("HIGH");
+        assertThat(captor.getValue().getUpdatedBy()).isEqualTo(99L);
+    }
+
+    @Test
+    void assessRisk_emptyCustomerInfo_degradesToMedium() {
+        // 无客户信息 → 降级 MEDIUM，不报错
+        ProjectInitiationDetails existing = ProjectInitiationDetails.builder()
+                .id(10L).projectId(1L).build();
+        when(repo.findByProjectId(1L)).thenReturn(Optional.of(existing));
+
+        var view = service.assessRisk(1L, 99L);
+
+        assertThat(view.getAiRiskLevel()).isEqualTo("MEDIUM");
+        assertThat(view.getAiRiskAssessmentNotes()).isNotBlank();
+    }
+
+    @Test
+    void assessRisk_unknownInitiation_throws404() {
+        when(repo.findByProjectId(1L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.assessRisk(1L, 99L))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 }
