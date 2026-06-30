@@ -1820,3 +1820,95 @@ curl -s http://127.0.0.1:18089/actuator/health | python3 -m json.tool
 - `docs/lessons/root-cause-analysis-okhttp3-get-body-resttemplate.md` — 完整根因分析
 - `docs/lessons/spring-boot-actuator-gotchas.md` — 同类健康检查陷阱
 - PR #1362（work workaround）→ #1369（根因修复 sidecar）→ #1373（根因修复 organization）
+
+---
+
+## 28. 权限 Bug 必须审视同一业务动作的所有 UI 入口 + 前后端对称修复（CO-400 五轮 + CO-415 归纳）
+
+### 问题背景
+
+CO-400 围绕"账户管理"权限经历了 **5 轮修复**，每一轮都解决了真实问题却总留尾巴，直到第 5 轮才找到真正的根因视角。CO-415 是 round5 Review 时发现的同系列对称 bug，进一步暴露了"只改前端、漏掉后端一刀切"的盲区。
+
+| 轮次 | 修复视角 | 解决的问题 | 遗留的问题 |
+|---|---|---|---|
+| round1-3 | 列表页字段 / 编辑页密码回显 | 列表脱敏字段补齐 + getPassword 回显 | 操作按钮入口未审视 |
+| round4 | getPassword 联系人豁免 | 投标专员作为绑定联系人可看密码 | 编辑/归还按钮未审视 + returnAccount 端点仍一刀切 |
+| round5 | **详情页"编辑"按钮 v-if 守卫** | 详情页编辑按钮无条件渲染 | 同 footer 的"登记归还"按钮漏改 |
+| CO-415 | **详情页"登记归还"按钮 + 后端 returnAccount 端点对称修复** | 前端守卫不对称 + 后端 @PreAuthorize 一刀切 + Service 层无校验 | 终于对齐 |
+
+**反复返工的根因**：每轮修复都只看一个 UI 入口（列表页行操作）或一个后端端点（getPassword），没有从"同一业务动作的所有触发点 + 前后端对称"这个视角做全局审视。
+
+### 三层根因（CO-415 完整链路，最值得沉淀）
+
+**根因 1：前端守卫不对称（UX 层）**
+
+同一业务动作（如"归还账户"）有两个 UI 入口，守卫不一致：
+- 列表页 `AccountRowActions.vue:5`：`v-if="actions.return"` ✅ 走 `resolveAccountActions` 授权
+- 详情页 `AccountDetailDialog.vue:58`：`v-if="data?.status === 'in_use'"` ❌ 仅判状态、不走 `actions.return`
+
+非联系人投标专员在详情页能看到归还按钮，点击后撞后端 403。
+
+**根因 2：后端 `@PreAuthorize` 一刀切拦截 bid-Team（真实拦截点，比前端更深）**
+
+完整权限链路追踪（这是本次最关键的发现，必须沉淀）：
+1. `RoleProfileCatalog.java:76` 的 `ROLES_WITHOUT_LEGACY_ROLE_COMPAT` 列表包含 `bid-team`
+2. `UserDetailsServiceImpl` 检测到 bid-Team 在该列表，设 `skipLegacyCompat=true`
+3. 因此 Spring Security 的 `Authentication` 中**不发 `ROLE_MANAGER` authority**
+4. `PlatformAccountController` 的 `/return` 与 `/return-with-password` 方法级 `@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")` 直接 403，**包括绑定联系人**
+5. 与前端 `resolveAccountActions` 给绑定联系人放行 `return:isInUse` 的语义冲突——前后端授权语义不一致
+
+**根因 3：Service 层完全无权限校验（最危险，TDD Red 证实的漏洞）**
+
+`PlatformAccountService.returnAccount` 收到 `currentUser` 参数但**完全未做权限校验**，唯一的防线是 Controller 的 `@PreAuthorize`，而它正好误拦联系人。
+
+**TDD Red 阶段精确证实了这点**：写测试 `returnAccount_bidTeamNotContactPerson_throws` 期望抛 `IllegalStateException`，实际得到 **NPE**（非联系人一路执行到 `account.returnToPool()` 后 mapper 才崩）。这个 NPE 不是测试写错，而是**真实漏洞的证据**——若有人绕过 Controller（如内部调用），Service 层形同裸奔。
+
+### 教训
+
+1. **同一业务动作必须审视所有 UI 入口**：编辑/归还/删除等动作常有多个触发点（列表页行操作 + 详情页 footer 按钮 + 可能的右键菜单）。修复权限 Bug 前，先全局搜索该动作的所有触发点（`@click="$emit('edit')"`、`handleEdit`、`rowActionsFor`、`$emit('return')` 等），逐一核对权限守卫是否一致。只改一个入口 = 用户从另一个未修入口绕过权限撞 403。
+
+2. **前端 `v-if` 守卫只是 UX 层，后端 `@PreAuthorize` 一刀切才是真实拦截点**：修前端不修后端 = 联系人看到按钮点了仍 403；修后端不修前端 = 联系人没按钮但 API 可达（不一致）。权限 Bug 必须**前后端对称审查**。
+
+3. **`hasAnyRole('ADMIN','MANAGER')` 对 bid-Team 是陷阱**：bid-Team 在 `ROLES_WITHOUT_LEGACY_ROLE_COMPAT` 中，`skipLegacyCompat=true` 导致不发 `ROLE_MANAGER`，所以 `hasAnyRole('ADMIN','MANAGER')` 会一刀切拦截**所有 bid-Team（包括绑定联系人）**。涉及 bid-Team 的端点应改用类级 `hasAuthority('resource')` + Service 层细粒度校验。
+
+4. **Service 层收到 `currentUser` 就必须做权限校验**：不能把 Controller `@PreAuthorize` 当唯一防线。Controller 是"是否登录 + 是否有模块权限"的早过滤层，Service 层才是"是否对该具体资源有操作权限"的细粒度决策层。若 Service 层不做校验，Controller 一旦被绕过（内部调用、未来新增入口）就形同裸奔。
+
+5. **已有验证过的范式应作为模板复用**：CO-400 round4 已为 `getPassword` 建立正确范式（Controller 去方法级 `@PreAuthorize` + Service 加联系人豁免 + 复用 `PlatformAccountContactMatcher`）。CO-415 的 `returnAccount` 应**对称复刻**此范式，而不是重新设计引入新风险。审查权限 Bug 时，用 `git log -S "@PreAuthorize" -- <Controller>` 找出同类端点，逐一对照 Service 层是否做了细粒度校验。
+
+6. **TDD Red 阶段的"非预期异常"是漏洞证据，不是测试写错**：当 Red 测试期望抛业务异常却得到 NPE/其他异常时，往往说明被测代码根本没做该校验——这是真实漏洞的信号，应深挖而不是改测试期望去迎合现状。
+
+### 操作规范（权限 Bug 修复清单）
+
+```markdown
+- [ ] 全局搜索该业务动作的所有 UI 入口（列表页/详情页/弹窗/右键菜单），逐一核对 v-if 守卫
+- [ ] 后端对应端点的 @PreAuthorize 是否用 hasAnyRole('ADMIN','MANAGER') 一刀切？
+      （bid-Team 在 ROLES_WITHOUT_LEGACY_ROLE_COMPAT，会被误拦）
+- [ ] Service 层是否收到 currentUser 却未做权限校验？（Controller 是唯一防线 = 危险）
+- [ ] 是否已有同类端点（如 getPassword）建立过正确范式？对称复刻，不要重新设计
+- [ ] 前后端授权语义是否一致？（前端 resolveAccountActions 放行的角色，后端必须也放行）
+- [ ] 测试是否覆盖：管理员 / bid-Team 联系人 / bid-Team 非联系人 / 无模块权限 四类调用方？
+```
+
+### 验证命令
+
+```bash
+# 1. 找出 Controller 中所有方法级 @PreAuthorize（可能一刀切的端点）
+git log -S "@PreAuthorize" -- backend/src/main/java/com/xiyu/bid/platform/controller/PlatformAccountController.java
+
+# 2. 确认 bid-Team 在 ROLES_WITHOUT_LEGACY_ROLE_COMPAT（会被 skipLegacyCompat 跳过）
+grep -n "bid-team" backend/src/main/java/com/xiyu/bid/security/RoleProfileCatalog.java
+
+# 3. 全局搜索某业务动作的所有 UI 入口（以"归还"为例）
+grep -rn "\$emit('return')\|handleReturn\|登记归还" src/views/Resource/
+
+# 4. TDD 验证 Service 层是否有校验（Red 期望 IllegalStateException 实际得 NPE = 漏洞）
+cd backend && mvn -o test -Dtest='PlatformAccountServiceTest#returnAccount_bidTeamNotContactPerson_throws'
+```
+
+### 相关文档
+
+- `implementation-notes.md` — CO-400 round5 + CO-415 完整决策记录（根因、范式复用、行预算棘轮迭代）
+- §24 — Policy 权限矩阵对称设计（canUpload/canDelete 对称，同类思想）
+- §23 — 全链路日志排查 SOP（本次 Step 4 用代码证据链替代乱猜）
+- PR #1381（round5 + CO-415 对称修复，已合并）
+- `backend/src/main/java/com/xiyu/bid/platform/service/PlatformAccountViewerPolicy.java` — canReturnAccount/checkCanReturnAccount 纯静态 Policy
