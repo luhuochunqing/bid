@@ -71,9 +71,6 @@
         <el-table-column prop="projectStatus" label="项目状态" width="120" align="center">
           <template #default="{ row }"><el-tag :type="getStatusTagType(row.projectStatus)">{{ getStatusLabel(row.projectStatus) }}</el-tag></template>
         </el-table-column>
-        <el-table-column prop="bidResult" label="中标结果" width="120" align="center">
-          <template #default="{ row }"><el-tag :type="getBidResultTagType(row.bidResult)">{{ getBidResultLabel(row.bidResult) }}</el-tag></template>
-        </el-table-column>
         <el-table-column label="归档文件数" width="160" align="center">
           <template #default="{ row }">
             <FileCategoryPopover :category-details="row.fileCategoryDetails" :file-count="row.fileCount" @click.stop>
@@ -143,18 +140,6 @@ const bidManagerOptions = ref([])
 const getProjectTypeLabel = (type) => {
   const map = { OFFICE: '办公', COMPREHENSIVE: '综合', CENTRALIZED: '集采', INDUSTRIAL: '工业品', OTHER: '其他' }
   return map[type] || type || '-'
-}
-
-const getBidResultLabel = (result) => {
-  const map = { WON: '已中标', LOST: '未中标', FAILED: '流标', ABANDONED: '弃标', IN_PROGRESS: '进行中', OTHER: '其他' }
-  return map[result] || result || '-'
-}
-
-const getBidResultTagType = (result) => {
-  if (result === 'WON') return 'success'
-  if (result === 'LOST') return 'danger'
-  if (result === 'FAILED') return 'warning'
-  return 'info'
 }
 
 const buildQueryParams = () => {
