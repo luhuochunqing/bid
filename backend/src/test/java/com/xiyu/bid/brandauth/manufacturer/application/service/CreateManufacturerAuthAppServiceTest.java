@@ -164,6 +164,39 @@ class CreateManufacturerAuthAppServiceTest {
                 ArgumentCaptor.forClass(com.xiyu.bid.brandauth.manufacturer.infrastructure.persistence.entity.BrandAuthOperationLogEntity.class);
         verify(logRepository).save(captor.capture());
         assertEquals("CREATE", captor.getValue().getActionType());
+        assertEquals("新增原厂授权", captor.getValue().getSummary());
+        // details 应为中文可读格式，不再是原始 JSON
+        String details = captor.getValue().getDetails();
+        assertNotNull(details);
+        assertFalse(details.startsWith("{"), "details 不应是 JSON 代码格式: " + details);
+        assertTrue(details.contains("授权类型：原厂授权"), "details 应包含中文标签: " + details);
+        assertTrue(details.contains("产线：工具"), "details 应包含中文产线名: " + details);
+        assertTrue(details.contains("品牌ID：BR-005"), "details 应包含品牌ID: " + details);
+    }
+
+    @Test
+    void createAgent_shouldLogOperation_withAgentName() {
+        LocalDate start = LocalDate.now();
+        LocalDate end = start.plusDays(365);
+        LocalDate auth1End = end.minusDays(60);
+        var cmd = new CreateManufacturerAuthCommand(
+                "AGENT", ProductLine.CUTTING_TOOLS, "BR-006", "代理品牌",
+                "进口", "原厂A", "代理商X",
+                start, end,
+                start, auth1End, "一级",
+                start.plusDays(30), auth1End.minusDays(1), "二级",
+                "备注");
+
+        service.create(cmd, 1L);
+
+        ArgumentCaptor<com.xiyu.bid.brandauth.manufacturer.infrastructure.persistence.entity.BrandAuthOperationLogEntity> captor =
+                ArgumentCaptor.forClass(com.xiyu.bid.brandauth.manufacturer.infrastructure.persistence.entity.BrandAuthOperationLogEntity.class);
+        verify(logRepository).save(captor.capture());
+        assertEquals("新增代理商授权", captor.getValue().getSummary());
+        String details = captor.getValue().getDetails();
+        assertTrue(details.contains("授权类型：代理商授权"), "details 应包含代理商授权标签: " + details);
+        assertTrue(details.contains("产线：刀具"), "details 应转中文产线名: " + details);
+        assertTrue(details.contains("代理商：代理商X"), "代理商类型应包含代理商名: " + details);
     }
 
     private static User newUser(Long id, String username) {

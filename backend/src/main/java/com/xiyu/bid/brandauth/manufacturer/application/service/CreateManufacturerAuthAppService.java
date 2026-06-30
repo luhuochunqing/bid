@@ -85,21 +85,29 @@ public class CreateManufacturerAuthAppService {
                     .orElse("system");
         }
         
-        String detailsJson = String.format(
-            "{\"authorizationType\":\"%s\",\"productLine\":\"%s\",\"brandId\":\"%s\",\"brandName\":\"%s\",\"importDomestic\":\"%s\",\"manufacturerName\":\"%s\",\"agentName\":\"%s\",\"authStartDate\":\"%s\",\"authEndDate\":\"%s\"}",
-            cmd.authorizationType(), cmd.productLine(), cmd.brandId(), cmd.brandName(),
-            cmd.importDomestic(), cmd.manufacturerName(), cmd.agentName() != null ? cmd.agentName() : "",
-            cmd.authStartDate(), cmd.authEndDate()
-        );
+        // 操作日志详情：中文可读格式（与 UpdateManufacturerAuthAppService 风格统一）
+        // 不再用原始 JSON 代码格式，方便运营人员直接阅读
+        StringBuilder details = new StringBuilder();
+        details.append("授权类型：").append(isAgent ? "代理商授权" : "原厂授权");
+        details.append("; 产线：").append(cmd.productLine().getDisplayName());
+        details.append("; 品牌ID：").append(cmd.brandId());
+        details.append("; 品牌名：").append(cmd.brandName());
+        details.append("; 进口/国产：").append(cmd.importDomestic());
+        details.append("; 原厂：").append(cmd.manufacturerName());
+        if (isAgent && cmd.agentName() != null && !cmd.agentName().isBlank()) {
+            details.append("; 代理商：").append(cmd.agentName());
+        }
+        details.append("; 授权开始：").append(cmd.authStartDate());
+        details.append("; 授权结束：").append(cmd.authEndDate());
 
-        com.xiyu.bid.brandauth.manufacturer.infrastructure.persistence.entity.BrandAuthOperationLogEntity opLog = 
+        com.xiyu.bid.brandauth.manufacturer.infrastructure.persistence.entity.BrandAuthOperationLogEntity opLog =
             com.xiyu.bid.brandauth.manufacturer.infrastructure.persistence.entity.BrandAuthOperationLogEntity.builder()
                 .authorizationId(saved.id())
                 .operatorId(userId)
                 .operatorUsername(operatorUsername)
                 .actionType("CREATE")
                 .summary("新增" + (isAgent ? "代理商授权" : "原厂授权"))
-                .details(detailsJson)
+                .details(details.toString())
                 .remarks(cmd.remarks())
                 .build();
         logRepository.save(opLog);
