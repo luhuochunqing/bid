@@ -607,5 +607,5 @@ sync-env.sh .
 保护分支（`main`、`agent/*-init` 等）跳过 rebase。
 
 <!-- SPECKIT START -->
-当前活跃 feature：`specs/004-unify-rolecode-resolution/plan.md`
+当前活跃 feature：`specs/005-mysql-integration-test-rollout/plan.md`
 <!-- SPECKIT END -->
