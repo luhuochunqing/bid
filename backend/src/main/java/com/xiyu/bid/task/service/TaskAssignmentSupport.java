@@ -32,6 +32,7 @@ public class TaskAssignmentSupport {
     private final TaskRepository taskRepository;
     private final ProjectAccessScopeService projectAccessScopeService;
     private final RoleProfileService roleProfileService;
+    private final UserEnabledStatusService userEnabledStatusService;
 
     public AssignmentSnapshot resolveAssignmentSnapshot(TaskAssignmentRequest request, User currentUser) {
         if (request == null || !request.hasAssignmentTarget()) {
@@ -79,7 +80,8 @@ public class TaskAssignmentSupport {
             return emptyWorkload(scopeOf(currentUser), false, "未配置组织关系");
         }
 
-        List<User> visibleUsers = userRepository.findByEnabledTrue().stream()
+        List<User> visibleUsers = userRepository.findAllByDepartmentCodeIn(allowedDeptCodes).stream()
+                .filter(user -> userEnabledStatusService.isEnabled(user))
                 .filter(user -> allowedDeptCodes.contains(defaultText(user.getDepartmentCode(), "")))
                 .sorted(Comparator.comparing(User::getDepartmentCode, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
                         .thenComparing(User::getRoleName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
@@ -108,7 +110,7 @@ public class TaskAssignmentSupport {
         if (roleProfileService.hasGlobalAccess(currentUser)) {
             return;
         }
-        if (!Boolean.TRUE.equals(targetUser.getEnabled())) {
+        if (!userEnabledStatusService.isEnabled(targetUser)) {
             throw new IllegalArgumentException("目标责任人已停用，无法分配");
         }
 
@@ -125,7 +127,7 @@ public class TaskAssignmentSupport {
     public User resolveEnabledUserByUsername(String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new AccessDeniedException("当前用户不存在"));
-        if (!Boolean.TRUE.equals(user.getEnabled())) {
+        if (!userEnabledStatusService.isEnabled(user)) {
             throw new AccessDeniedException("当前用户已停用");
         }
         return user;
@@ -134,7 +136,7 @@ public class TaskAssignmentSupport {
     public User resolveEnabledUserById(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", String.valueOf(userId)));
-        if (!Boolean.TRUE.equals(user.getEnabled())) {
+        if (!userEnabledStatusService.isEnabled(user)) {
             throw new IllegalArgumentException("目标责任人已停用，无法分配");
         }
         return user;
@@ -149,7 +151,7 @@ public class TaskAssignmentSupport {
     }
 
     private boolean canSeeCandidate(User currentUser, User candidate, List<String> allowedDeptCodes) {
-        if (!Boolean.TRUE.equals(candidate.getEnabled())) {
+        if (!userEnabledStatusService.isEnabled(candidate)) {
             return false;
         }
         if (roleProfileService.hasGlobalAccess(currentUser)) {
