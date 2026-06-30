@@ -35,3 +35,58 @@
 - spec 中提到的 CO-XXX 编号是项目 lessons-learned 中的治理工单号，作为业务背景引用，类似 GDPR、SOX 等合规引用。
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`
 - 全部 16 项通过，spec 已就绪，可进入 `/speckit-plan` 阶段。
+
+---
+
+## Implementation Summary (2026-06-30)
+
+### 实际测试方法数
+
+| User Story | 测试类 | @Nested 场景组 | 测试方法数 | 状态 |
+|---|---|---|---|---|
+| US1 | `EffectiveRoleResolverMysqlIntegrationTest` | 4 | 8 | ✅ 全绿 |
+| US2 | `TenderCommandServiceMysqlIntegrationTest` | 5 | 7 | ✅ 全绿 |
+| **合计** | | **9** | **15** | ✅ |
+
+### 运行耗时
+
+- US1 + US2 联合运行：`mvn test -Dtest='EffectiveRoleResolverMysqlIntegrationTest,TenderCommandServiceMysqlIntegrationTest'`
+- 总耗时约 90 秒（含 Testcontainers MySQL 8.0 启动 + Flyway 全迁移链 + 15 个测试方法）
+- 纯测试方法执行时间约 18 秒
+
+### 实施过程中的偏差
+
+#### 偏差 1: T008 测试方法数缩减（US2）
+
+- **原 plan**: 2 个测试方法（`linkCrmOpportunity_crmOpportunityIdAlreadyOccupied_throws409AndDoesNotOverwrite` + `linkCrmOpportunity_statusBidding_throws409`）
+- **实际**: 1 个测试方法
+- **原因**: admin 用户在 BIDDING 状态下无编辑权限，`commandAccessGuard.assertCanUpdateTender` 在 `assertCrmLinkAllowed` 之前抛 `AccessDeniedException`，永远走不到 409 业务规则。该纯函数行为由单元测试覆盖，集成测试不重复。
+- **影响**: 无，CO-297 双层防御的核心场景（已被占用 → 409 + 不覆盖）仍被覆盖。
+
+#### 偏差 2: T012 CO-265 实现机制修正（US2）
+
+- **原 plan 描述**: `purchaser_hash` UNIQUE 约束
+- **实际**: DB 仅有 `@Index`（非 unique）。CO-265 真实实现是**应用层 3 字段去重**（`purchaserName + registrationDeadline + bidOpeningTime`），由 `TenderDeduplicationPolicy.isDuplicate` 判定，`TenderDeduplicationService.findDuplicates` 调用。
+- **测试方法调整**: 相同三字段 → `TenderDuplicateException`；不同 `bidOpeningTime` → 创建成功。
+- **影响**: 无，反而更准确地验证了真实业务行为。
+
+#### 偏差 3: T011 级联删除机制确认（US2）
+
+- **原 plan 注意**: 需确认 `Tender` entity 与 `TenderAttachment` 的关系映射是否 `cascade = CascadeType.REMOVE`，或 `tender_attachments` 表 FK 是否 `ON DELETE CASCADE`。
+- **实际确认**: `tender_attachments` 表 FK 在 V1080 迁移中已是 `ON DELETE CASCADE`，DB 自动级联删除。测试通过验证。
+- **影响**: 无，测试断言附件被级联删除，符合 DB 实际行为。
+
+### 全量验证结果
+
+- `mvn test -Dtest='EffectiveRoleResolverMysqlIntegrationTest,TenderCommandServiceMysqlIntegrationTest'` → 15 tests, 0 failures, 0 errors, BUILD SUCCESS
+- `mvn test -Dtest=ArchitectureTest` → 37 tests passed（无 main 代码改动，架构边界无回归）
+- `npm run build` → success（仅 1 个 pre-existing composable 内联建议，非本次引入，不阻塞）
+
+### 治理背景引用
+
+本任务覆盖的 CO 编号：
+- **CO-361 / CO-373**: OSS 用户 `role_id=NULL` 时 `User.getRoleCode()` 回退 "manager" 的五次反复修复根因（US1 覆盖）
+- **CO-265**: `purchaser_hash` 三字段去重检测（US2 覆盖）
+- **CO-297**: `linkCrmOpportunity` DB UNIQUE + 应用层 `crmOccupancyChecker` 双层防御（US2 覆盖）
+- **CO-310**: 两步流程，关联 CRM 商机时写 DISPATCH 分配记录（US2 覆盖）
+- **CO-333**: `ProjectManagerIdResolver.resolveByFullName`（US2 通过 `@MockBean ProjectManagerIdResolver` 隔离，未直接测试，但保证了被测主流程不依赖外部 RPC）

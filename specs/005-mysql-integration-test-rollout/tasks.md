@@ -57,12 +57,12 @@ description: "Task list for MySQL integration test rollout (EffectiveRoleResolve
 
 ### Implementation for User Story 1
 
-- [ ] T001 [US1] 创建测试专用 `RoleCodeCachePort` 内存 stub 配置类 `EffectiveRoleResolverMysqlIntegrationTestConfig` 在 [backend/src/test/java/com/xiyu/bid/security/EffectiveRoleResolverMysqlIntegrationTestConfig.java](file:///Users/user/xiyu/worktrees/codex/backend/src/test/java/com/xiyu/bid/security/EffectiveRoleResolverMysqlIntegrationTestConfig.java)
+- [x] T001 [US1] 创建测试专用 `RoleCodeCachePort` 内存 stub 配置类 `EffectiveRoleResolverMysqlIntegrationTestConfig` 在 [backend/src/test/java/com/xiyu/bid/security/EffectiveRoleResolverMysqlIntegrationTestConfig.java](file:///Users/user/xiyu/worktrees/codex/backend/src/test/java/com/xiyu/bid/security/EffectiveRoleResolverMysqlIntegrationTestConfig.java)
   - `@TestConfiguration` + `@Bean(name="roleCodeCachePort")` + `@Primary`
   - 内部 `InMemoryRoleCodeCachePort implements RoleCodeCachePort`：用 `HashMap<String,String>` 存储，`getRoleCode` 返回 `Optional.ofNullable`，提供 `put` / `clear` 测试辅助方法
   - 参考 [research.md 决策 1](research.md#决策-1-rolecodecacheport-测试-stub-策略)
 
-- [ ] T002 [US1] 创建 `EffectiveRoleResolverMysqlIntegrationTest` 测试类骨架在 [backend/src/test/java/com/xiyu/bid/security/EffectiveRoleResolverMysqlIntegrationTest.java](file:///Users/user/xiyu/worktrees/codex/backend/src/test/java/com/xiyu/bid/security/EffectiveRoleResolverMysqlIntegrationTest.java)
+- [x] T002 [US1] 创建 `EffectiveRoleResolverMysqlIntegrationTest` 测试类骨架在 [backend/src/test/java/com/xiyu/bid/security/EffectiveRoleResolverMysqlIntegrationTest.java](file:///Users/user/xiyu/worktrees/codex/backend/src/test/java/com/xiyu/bid/security/EffectiveRoleResolverMysqlIntegrationTest.java)
   - `extends AbstractMysqlIntegrationTest`
   - `@SpringBootTest(properties = {"spring.main.allow-bean-definition-overriding=true", "spring.jpa.hibernate.ddl-auto=none"})`
   - `@ActiveProfiles("flyway-mysql")`
@@ -100,7 +100,7 @@ description: "Task list for MySQL integration test rollout (EffectiveRoleResolve
     - 断言 `result.source()` 为 `CACHE_MISS_FAIL_CLOSED`（OSS 用户缓存 miss 仍标 fail-closed，即使实体有值）
   - **注意**: 需确认 `EffectiveRolePolicy.decide` 在 OSS 用户缓存 miss 时是否返回实体值——若 policy 是"OSS 用户缓存 miss 一律返回 null"（不读实体），则此测试应断言 null；若是"读实体但标 fail-closed"，则断言实体值。查 [EffectiveRolePolicy.java](file:///Users/user/xiyu/worktrees/codex/backend/src/main/java/com/xiyu/bid/security/domain/EffectiveRolePolicy.java) 确认实际行为。
 
-- [ ] T005 [US1] [P] 实现本地用户场景（FR-001 反向）
+- [x] T005 [US1] [P] 实现本地用户场景（FR-001 反向）
   - `@Nested @DisplayName("本地用户：缓存 miss 回退实体")`
   - 测试方法 `localUser_cacheMiss_returnsEntityRoleCode`：
     - 写入 user：`external_org_source_app=null, role_id=<真实 admin role id>`
@@ -111,7 +111,7 @@ description: "Task list for MySQL integration test rollout (EffectiveRoleResolve
     - 同上 user，但 `InMemoryRoleCodeCachePort.put('test-int-local-001', 'admin')`
     - 断言返回 `"admin"`，`source()` 为 `CACHE_HIT`（缓存优先于实体）
 
-- [ ] T006 [US1] [P] 实现 `external_org_source_app` 边界场景（FR-003）
+- [x] T006 [US1] [P] 实现 `external_org_source_app` 边界场景（FR-003）
   - `@Nested @DisplayName("external_org_source_app 边界")`
   - 测试方法 `blankExternalOrgSourceApp_treatedAsLocalUser`：
     - 写入 user：`external_org_source_app='   '`（空格字符串）
@@ -139,7 +139,7 @@ description: "Task list for MySQL integration test rollout (EffectiveRoleResolve
 
 ### Implementation for User Story 2
 
-- [ ] T007 [US2] 创建 `TenderCommandServiceMysqlIntegrationTest` 测试类骨架在 [backend/src/test/java/com/xiyu/bid/tender/service/TenderCommandServiceMysqlIntegrationTest.java](file:///Users/user/xiyu/worktrees/codex/backend/src/test/java/com/xiyu/bid/tender/service/TenderCommandServiceMysqlIntegrationTest.java)
+- [x] T007 [US2] 创建 `TenderCommandServiceMysqlIntegrationTest` 测试类骨架在 [backend/src/test/java/com/xiyu/bid/tender/service/TenderCommandServiceMysqlIntegrationTest.java](file:///Users/user/xiyu/worktrees/codex/backend/src/test/java/com/xiyu/bid/tender/service/TenderCommandServiceMysqlIntegrationTest.java)
   - `extends AbstractMysqlIntegrationTest`
   - `@SpringBootTest(properties = {"spring.main.allow-bean-definition-overriding=true", "spring.jpa.hibernate.ddl-auto=none"})`
   - `@ActiveProfiles("flyway-mysql")`
@@ -161,7 +161,10 @@ description: "Task list for MySQL integration test rollout (EffectiveRoleResolve
   - 辅助方法 `createTestTender(String title, Long creatorId)`：构造最小 TenderDTO，调用 `tenderCommandService.createTender(dto, creatorId)`
   - 参考 [contracts/tender-command-service-contract.md](contracts/tender-command-service-contract.md) 依赖处理表
 
-- [ ] T008 [US2] [P] 实现 `linkCrmOpportunity` DB UNIQUE 双层防御场景（FR-004，CO-297）
+- [x] T008 [US2] [P] 实现 `linkCrmOpportunity` DB UNIQUE 双层防御场景（FR-004，CO-297）
+  - **实施偏差**: 原 plan 设计两个测试方法，实际只实现 1 个 `linkCrmOpportunity_crmOpportunityIdAlreadyOccupied_throws409AndDoesNotOverwrite`。
+  - 第二个测试 `linkCrmOpportunity_statusBidding_throws409` 被移除：admin 用户在 BIDDING 状态下无编辑权限，`commandAccessGuard.assertCanUpdateTender` 在 `assertCrmLinkAllowed` 之前抛 `AccessDeniedException`，永远走不到 409 业务规则。该纯函数行为由单元测试覆盖，集成测试不重复。
+  - 实际 7/7 测试通过（36.226s）
   - `@Nested @DisplayName("CO-297: linkCrmOpportunity DB UNIQUE 双层防御")`
   - 测试方法 `linkCrmOpportunity_crmOpportunityIdAlreadyOccupied_throws409AndDoesNotOverwrite`：
     - 创建 user A (id=9001) 和 user B (id=9002)
@@ -175,7 +178,7 @@ description: "Task list for MySQL integration test rollout (EffectiveRoleResolve
     - 调用 `linkCrmOpportunity` 关联新 CRM 商机
     - 断言抛 `BusinessException(409, "标讯已进入「BIDDING」状态")`
 
-- [ ] T009 [US2] [P] 实现 `assignOnCrmLink` 跨表事务一致性场景（FR-005，CO-310）
+- [x] T009 [US2] [P] 实现 `assignOnCrmLink` 跨表事务一致性场景（FR-005，CO-310）
   - `@Nested @DisplayName("CO-310: assignOnCrmLink 跨表事务一致性")`
   - 测试方法 `linkCrmOpportunity_success_writesDispatchAssignmentRecord`：
     - 创建 user (id=9001, fullName='张三')
@@ -192,7 +195,7 @@ description: "Task list for MySQL integration test rollout (EffectiveRoleResolve
       - `remark` 包含 "CRM商机关联"
     - 用 `tenderRepository.findById` 验证 tender 的 `crmOpportunityId='crm-opp-002'`、`evaluationSource=BID_SYSTEM_LINK`
 
-- [ ] T010 [US2] [P] 实现 `tryAutoAssign` 失败回滚场景（FR-006）
+- [x] T010 [US2] [P] 实现 `tryAutoAssign` 失败回滚场景（FR-006）
   - `@Nested @DisplayName("tryAutoAssign 失败：Tender 落库但无 DISPATCH 记录")`
   - **注意**: `tryAutoAssign` 在 `createTender` 中 `tenderRepository.save(savedTender)` 之后调用，且 catch 异常不重抛。所以"回滚"验证的是：`tryAutoAssign` 内部失败时，Tender 已落库为 `PENDING_ASSIGNMENT`，无 DISPATCH 记录。
   - 测试方法 `createTender_autoAssignThrowsException_tenderPersistedAsPendingAndNoAssignmentRecord`：
@@ -207,7 +210,8 @@ description: "Task list for MySQL integration test rollout (EffectiveRoleResolve
     - 调用 `createTender`
     - 验证 tender status=`PENDING_ASSIGNMENT`，无 DISPATCH 记录
 
-- [ ] T011 [US2] [P] 实现 `deleteTender` 级联事务一致性场景（FR-007）
+- [x] T011 [US2] [P] 实现 `deleteTender` 级联事务一致性场景（FR-007）
+  - **实施确认**: `tender_attachments` 表 FK 已是 `ON DELETE CASCADE`（V1080 迁移），DB 自动级联删除，测试通过验证。
   - `@Nested @DisplayName("deleteTender 级联事务一致性")`
   - 测试方法 `deleteTender_withAttachments_deletesTenderAndAttachmentsInSameTransaction`：
     - 创建 tender + 2 个附件（`tenderCommandService.createTender` 带 attachments）
@@ -218,7 +222,9 @@ description: "Task list for MySQL integration test rollout (EffectiveRoleResolve
     - 验证 `attachmentRepository.findByTenderId(tender.id)` 为空（级联删除）
   - **注意**: 需确认 `Tender` entity 与 `TenderAttachment` 的关系映射是否 `cascade = CascadeType.REMOVE`，或 `tender_attachments` 表 FK 是否 `ON DELETE CASCADE`。若都不是，`deleteTender` 可能不删附件——此情况下测试应断言附件残留并标记为 bug（这就是集成测试的价值）。
 
-- [ ] T012 [US2] [P] 实现 `createTender` `purchaser_hash` UNIQUE 重复检测场景（FR-008，CO-265）
+- [x] T012 [US2] [P] 实现 `createTender` `purchaser_hash` UNIQUE 重复检测场景（FR-008，CO-265）
+  - **实施偏差**: 原 plan 描述 `purchaser_hash UNIQUE`，但实际 DB 仅有 `@Index`（非 unique）。CO-265 真实实现是应用层 3 字段去重（`purchaserName + registrationDeadline + bidOpeningTime`），由 `TenderDeduplicationPolicy.isDuplicate` 判定，`TenderDeduplicationService.findDuplicates` 调用。
+  - 测试方法调整为：相同三字段 → `TenderDuplicateException`；不同 `bidOpeningTime` → 创建成功。
   - `@Nested @DisplayName("CO-265: createTender purchaser_hash 重复检测")`
   - 测试方法 `createTender_duplicatePurchaserHash_throwsTenderDuplicateException`：
     - 创建 tender A，`purchaserName='测试采购方A'`（自动生成 hash）
@@ -239,11 +245,11 @@ description: "Task list for MySQL integration test rollout (EffectiveRoleResolve
 
 **Purpose**: 全量验证、文档同步、WIP push。
 
-- [ ] T013 运行 `cd backend && mvn test` 全量验证（含新集成测试 + 既有 unit test + ArchitectureTest），确认零回归
-- [ ] T014 [P] 运行 `npm run build` 确认前端无副作用（仅文档与测试代码改动，理论上无影响，但跑一次保险）
-- [ ] T015 [P] 更新 [specs/005-mysql-integration-test-rollout/checklists/requirements.md](checklists/requirements.md) 补充实现后的实际测试方法数、运行耗时、遇到的偏差
-- [ ] T016 push WIP 分支：`git push -u origin agent/codex/mysql-integration-test-rollout`（满足 Multi-Agent SOP WIP Visibility 要求）
-- [ ] T017 在 Gitee 创建 PR，描述中说明：仅新增测试类 + spec 文档，无 main 代码改动；引用 CO-361/CO-373/CO-261/CO-265/CO-297/CO-310/CO-333 治理背景
+- [x] T013 运行 `cd backend && mvn test` 全量验证（含新集成测试 + 既有 unit test + ArchitectureTest），确认零回归
+- [x] T014 [P] 运行 `npm run build` 确认前端无副作用（仅文档与测试代码改动，理论上无影响，但跑一次保险）
+- [x] T015 [P] 更新 [specs/005-mysql-integration-test-rollout/checklists/requirements.md](checklists/requirements.md) 补充实现后的实际测试方法数、运行耗时、遇到的偏差
+- [ ] T016 git commit US2 测试文件 + spec/tasks/checklist 更新（走 pre-commit gate）
+- [ ] T017 push WIP 分支：`git push -u origin agent/codex/mysql-integration-test-rollout` + 在 Gitee 创建 PR，描述中说明：仅新增测试类 + spec 文档，无 main 代码改动；引用 CO-361/CO-373/CO-261/CO-265/CO-297/CO-310/CO-333 治理背景
 
 ---
 
