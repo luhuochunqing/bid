@@ -5,6 +5,7 @@ import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.security.CurrentUserResolver;
+import com.xiyu.bid.service.ProjectAccessScopeService;
 import com.xiyu.bid.task.core.TaskOperationPolicy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
@@ -16,15 +17,18 @@ class TaskPermissionGuard {
 
     private final CurrentUserResolver currentUserResolver;
     private final ProjectLeadAssignmentRepository projectLeadAssignmentRepository;
+    private final ProjectAccessScopeService projectAccessScopeService;
 
     void assertCanManageTask(Long projectId) {
         User currentUser = currentUserResolver.requireCurrentUser();
+        boolean isProjectOwner = projectAccessScopeService.isProjectOwner(projectId, currentUser.getId());
         Long[] leadIds = resolveProjectLeadIds(projectId);
         AuthorizationDecision decision = TaskOperationPolicy.canManageTask(
                 currentUserResolver.resolveEffectiveRoleCode(currentUser),
                 currentUser.getId(),
                 leadIds[0],
-                leadIds[1]
+                leadIds[1],
+                isProjectOwner
         );
         if (!decision.allowed()) {
             throw new AccessDeniedException(decision.reason());
@@ -55,12 +59,14 @@ class TaskPermissionGuard {
 
     void assertCanManageOrSubmitTask(Task task) {
         User currentUser = currentUserResolver.requireCurrentUser();
+        boolean isProjectOwner = projectAccessScopeService.isProjectOwner(task.getProjectId(), currentUser.getId());
         Long[] leadIds = resolveProjectLeadIds(task.getProjectId());
         AuthorizationDecision manageDecision = TaskOperationPolicy.canManageTask(
                 currentUserResolver.resolveEffectiveRoleCode(currentUser),
                 currentUser.getId(),
                 leadIds[0],
-                leadIds[1]
+                leadIds[1],
+                isProjectOwner
         );
         if (manageDecision.allowed()) {
             return;
@@ -76,7 +82,6 @@ class TaskPermissionGuard {
 
     void assertCanTransitionTaskStatus(Task task, Task.Status targetStatus) {
         User currentUser = currentUserResolver.requireCurrentUser();
-        Long[] leadIds = resolveProjectLeadIds(task.getProjectId());
         if (targetStatus == Task.Status.REVIEW) {
             AuthorizationDecision decision = TaskOperationPolicy.canActAsAssignee(
                     task.getAssigneeId(),
@@ -86,12 +91,20 @@ class TaskPermissionGuard {
                 throw new AccessDeniedException(decision.reason());
             }
         } else if (targetStatus == Task.Status.COMPLETED || targetStatus == Task.Status.TODO) {
+            // 职责分离：不能审核自己提交的任务
+            if (currentUser.getId().equals(task.getAssigneeId())) {
+                throw new AccessDeniedException("不能审核自己提交的任务");
+            }
+
+            boolean isProjectOwner = projectAccessScopeService.isProjectOwner(task.getProjectId(), currentUser.getId());
+            Long[] leadIds = resolveProjectLeadIds(task.getProjectId());
             AuthorizationDecision decision = TaskOperationPolicy.canReviewTask(
                     currentUserResolver.resolveEffectiveRoleCode(currentUser),
                     currentUser.getId(),
                     leadIds[0],
                     leadIds[1],
-                    task.getAssigneeId()
+                    task.getAssigneeId(),
+                    isProjectOwner
             );
             if (!decision.allowed()) {
                 throw new AccessDeniedException(decision.reason());

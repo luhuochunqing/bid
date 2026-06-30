@@ -729,4 +729,139 @@ class TaskOperationPolicyTest {
             assertThat(result.allowed()).isFalse();
         }
     }
+
+    @Nested
+    @DisplayName("CO-361: canManageTask - 项目立项负责人（isProjectOwner）")
+    class CanManageTaskWithProjectOwnerTests {
+
+        @Test
+        @DisplayName("bid-projectLeader 作为 isProjectOwner=true 放行（即使不匹配 primaryLeadId）")
+        void bidProjectLeader_AsProjectOwner_ShouldBeAllowed() {
+            var result = TaskOperationPolicy.canManageTask(
+                    RoleProfileCatalog.SALES_CODE,
+                    OTHER_USER_ID,
+                    PRIMARY_LEAD_ID,
+                    SECONDARY_LEAD_ID,
+                    true
+            );
+            assertThat(result.allowed()).isTrue();
+        }
+
+        @Test
+        @DisplayName("bid-projectLeader 作为 isProjectOwner=false 且不匹配 primaryLeadId 拒绝")
+        void bidProjectLeader_NotOwnerNotLead_ShouldBeDenied() {
+            var result = TaskOperationPolicy.canManageTask(
+                    RoleProfileCatalog.SALES_CODE,
+                    OTHER_USER_ID,
+                    PRIMARY_LEAD_ID,
+                    SECONDARY_LEAD_ID,
+                    false
+            );
+            assertThat(result.allowed()).isFalse();
+            assertThat(result.reason()).contains("投标项目负责人");
+        }
+
+        @Test
+        @DisplayName("isProjectOwner=true 不影响 admin 直接放行")
+        void admin_AsProjectOwner_ShouldBeAllowed() {
+            var result = TaskOperationPolicy.canManageTask(
+                    RoleProfileCatalog.ADMIN_CODE,
+                    OTHER_USER_ID,
+                    PRIMARY_LEAD_ID,
+                    SECONDARY_LEAD_ID,
+                    true
+            );
+            assertThat(result.allowed()).isTrue();
+        }
+
+        @Test
+        @DisplayName("isProjectOwner=true 不影响 bid-Team（仍需匹配 lead）")
+        void bidTeam_AsProjectOwner_ShouldStillRequireLeadMatch() {
+            var result = TaskOperationPolicy.canManageTask(
+                    RoleProfileCatalog.BID_SPECIALIST_CODE,
+                    OTHER_USER_ID,
+                    PRIMARY_LEAD_ID,
+                    SECONDARY_LEAD_ID,
+                    true
+            );
+            assertThat(result.allowed()).isFalse();
+            assertThat(result.reason()).contains("投标专员");
+        }
+
+        @Test
+        @DisplayName("向后兼容：4 参数重载等价于 isProjectOwner=false")
+        void backwardCompat_FourArgEquivalentToFalse() {
+            var four = TaskOperationPolicy.canManageTask(
+                    RoleProfileCatalog.SALES_CODE,
+                    OTHER_USER_ID,
+                    PRIMARY_LEAD_ID,
+                    SECONDARY_LEAD_ID
+            );
+            var five = TaskOperationPolicy.canManageTask(
+                    RoleProfileCatalog.SALES_CODE,
+                    OTHER_USER_ID,
+                    PRIMARY_LEAD_ID,
+                    SECONDARY_LEAD_ID,
+                    false
+            );
+            assertThat(five.allowed()).isEqualTo(four.allowed());
+            assertThat(five.reason()).isEqualTo(four.reason());
+        }
+    }
+
+    @Nested
+    @DisplayName("CO-361: canReviewTask - 项目立项负责人（isProjectOwner）")
+    class CanReviewTaskWithProjectOwnerTests {
+
+        @Test
+        @DisplayName("bid-projectLeader 作为 isProjectOwner=true 可审核（非自审）")
+        void bidProjectLeader_AsProjectOwner_CanReview() {
+            var result = TaskOperationPolicy.canReviewTask(
+                    RoleProfileCatalog.SALES_CODE,
+                    OTHER_USER_ID,
+                    PRIMARY_LEAD_ID,
+                    SECONDARY_LEAD_ID,
+                    999L,
+                    true
+            );
+            assertThat(result.allowed()).isTrue();
+        }
+
+        @Test
+        @DisplayName("bid-projectLeader 作为 isProjectOwner=true 仍不能审核自己提交的任务（职责分离）")
+        void bidProjectLeader_AsProjectOwner_CannotSelfReview() {
+            var result = TaskOperationPolicy.canReviewTask(
+                    RoleProfileCatalog.SALES_CODE,
+                    OTHER_USER_ID,
+                    PRIMARY_LEAD_ID,
+                    SECONDARY_LEAD_ID,
+                    OTHER_USER_ID,
+                    true
+            );
+            assertThat(result.allowed()).isFalse();
+            assertThat(result.reason()).contains("不能审核自己提交的任务");
+        }
+
+        @Test
+        @DisplayName("向后兼容：5 参数重载等价于 isProjectOwner=false")
+        void backwardCompat_FiveargEquivalentToFalse() {
+            var five = TaskOperationPolicy.canReviewTask(
+                    RoleProfileCatalog.SALES_CODE,
+                    OTHER_USER_ID,
+                    PRIMARY_LEAD_ID,
+                    SECONDARY_LEAD_ID,
+                    999L
+            );
+            var six = TaskOperationPolicy.canReviewTask(
+                    RoleProfileCatalog.SALES_CODE,
+                    OTHER_USER_ID,
+                    PRIMARY_LEAD_ID,
+                    SECONDARY_LEAD_ID,
+                    999L,
+                    false
+            );
+            assertThat(six.allowed()).isEqualTo(five.allowed());
+            assertThat(six.reason()).isEqualTo(five.reason());
+        }
+    }
 }

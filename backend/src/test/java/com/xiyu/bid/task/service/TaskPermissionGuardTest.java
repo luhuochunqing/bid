@@ -4,6 +4,7 @@ import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.security.CurrentUserResolver;
+import com.xiyu.bid.service.ProjectAccessScopeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -15,7 +16,6 @@ import org.springframework.security.access.AccessDeniedException;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 /**
@@ -36,11 +36,14 @@ class TaskPermissionGuardTest {
     @Mock
     private ProjectLeadAssignmentRepository projectLeadAssignmentRepository;
 
+    @Mock
+    private ProjectAccessScopeService projectAccessScopeService;
+
     private TaskPermissionGuard guard;
 
     @BeforeEach
     void setUp() {
-        guard = new TaskPermissionGuard(currentUserResolver, projectLeadAssignmentRepository);
+        guard = new TaskPermissionGuard(currentUserResolver, projectLeadAssignmentRepository, projectAccessScopeService);
     }
 
     private User userWithId(Long id) {
@@ -63,7 +66,6 @@ class TaskPermissionGuardTest {
             Long projectId = 100L;
             User currentUser = userWithId(501L);
             when(currentUserResolver.requireCurrentUser()).thenReturn(currentUser);
-            // 统一入口返回 OSS 缓存角色 bid-Team（此前直调 getRoleCode() 返回 "manager" 被拒）
             when(currentUserResolver.resolveEffectiveRoleCode(currentUser)).thenReturn("bid-Team");
             stubLeads(projectId, 501L, null);
 
@@ -188,6 +190,98 @@ class TaskPermissionGuardTest {
             stubLeads(projectId, 501L, 502L);
 
             assertThatThrownBy(() -> guard.assertCanManageOrSubmitTask(task))
+                .isInstanceOf(AccessDeniedException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("CO-361: 项目立项负责人（owner_user_id）任务管理权限")
+
+    class ProjectOwnerPermission {
+
+        @Test
+        @DisplayName("项目立项负责人（bid-projectLeader）作为 owner_user_id 可管理任务（即使非 primaryLead）")
+        void projectOwnerCanManageTask() {
+            Long projectId = 100L;
+            User currentUser = userWithId(600L);
+            when(currentUserResolver.requireCurrentUser()).thenReturn(currentUser);
+            when(currentUserResolver.resolveEffectiveRoleCode(currentUser)).thenReturn("bid-projectLeader");
+            when(projectAccessScopeService.isProjectOwner(projectId, 600L)).thenReturn(true);
+            stubLeads(projectId, 501L, null);
+
+            assertThatCode(() -> guard.assertCanManageTask(projectId))
+                .as("项目立项负责人应可管理任务，不应 403")
+                .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("项目立项负责人（bid-projectLeader）作为 owner_user_id 可管理或提交任务")
+        void projectOwnerCanManageOrSubmit() {
+            Long projectId = 100L;
+            User currentUser = userWithId(600L);
+            Task task = Task.builder().id(10L).projectId(projectId).assigneeId(999L).build();
+            when(currentUserResolver.requireCurrentUser()).thenReturn(currentUser);
+            when(currentUserResolver.resolveEffectiveRoleCode(currentUser)).thenReturn("bid-projectLeader");
+            when(projectAccessScopeService.isProjectOwner(projectId, 600L)).thenReturn(true);
+            stubLeads(projectId, 501L, 502L);
+
+            assertThatCode(() -> guard.assertCanManageOrSubmitTask(task))
+                .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("项目立项负责人可审核任务（但不能审核自己提交的）")
+        void projectOwnerCanReviewButNotSelfReview() {
+            Long projectId = 100L;
+            User currentUser = userWithId(600L);
+            Task task = Task.builder().id(10L).projectId(projectId).assigneeId(999L).build();
+            when(currentUserResolver.requireCurrentUser()).thenReturn(currentUser);
+            when(currentUserResolver.resolveEffectiveRoleCode(currentUser)).thenReturn("bid-projectLeader");
+            when(projectAccessScopeService.isProjectOwner(projectId, 600L)).thenReturn(true);
+            stubLeads(projectId, 501L, 502L);
+
+            assertThatCode(() -> guard.assertCanTransitionTaskStatus(task, Task.Status.COMPLETED))
+                .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("项目立项负责人不能审核自己提交的任务（职责分离）")
+        void projectOwnerCannotSelfReview() {
+            Long projectId = 100L;
+            User currentUser = userWithId(600L);
+            Task task = Task.builder().id(10L).projectId(projectId).assigneeId(600L).build();
+            when(currentUserResolver.requireCurrentUser()).thenReturn(currentUser);
+
+            assertThatThrownBy(() -> guard.assertCanTransitionTaskStatus(task, Task.Status.COMPLETED))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("不能审核自己提交的任务");
+        }
+
+        @Test
+        @DisplayName("项目立项负责人不可强制重派任务（仅管理员/组长可）")
+        void projectOwnerCannotForceReassign() {
+            Long projectId = 100L;
+            User currentUser = userWithId(600L);
+            when(currentUserResolver.requireCurrentUser()).thenReturn(currentUser);
+            when(currentUserResolver.resolveEffectiveRoleCode(currentUser)).thenReturn("bid-projectLeader");
+            stubLeads(projectId, 501L, null);
+
+            assertThatThrownBy(() -> guard.assertCanForceReassign(projectId))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("仅管理员/组长可强行干预任务分配");
+        }
+
+        @Test
+        @DisplayName("非项目立项负责人且非 primaryLead 的 bid-projectLeader 仍被拒")
+        void nonOwnerNonLeadBidProjectLeaderDenied() {
+            Long projectId = 100L;
+            User currentUser = userWithId(999L);
+            when(currentUserResolver.requireCurrentUser()).thenReturn(currentUser);
+            when(currentUserResolver.resolveEffectiveRoleCode(currentUser)).thenReturn("bid-projectLeader");
+            when(projectAccessScopeService.isProjectOwner(projectId, 999L)).thenReturn(false);
+            stubLeads(projectId, 501L, 502L);
+
+            assertThatThrownBy(() -> guard.assertCanManageTask(projectId))
                 .isInstanceOf(AccessDeniedException.class);
         }
     }

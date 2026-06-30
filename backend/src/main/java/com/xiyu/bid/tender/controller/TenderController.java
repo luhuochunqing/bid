@@ -129,7 +129,7 @@ public class TenderController {
     }
 
     @GetMapping("/{id}/audit-logs")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN')")
+    @PreAuthorize("hasAuthority('tender.view')")
     @Operation(summary = "标讯审计日志")
     public ResponseEntity<ApiResponse<List<com.xiyu.bid.audit.dto.AuditLogItemDTO>>> getAuditLogs(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("查询成功", tenderAuditService.getAuditLogs(id)));
