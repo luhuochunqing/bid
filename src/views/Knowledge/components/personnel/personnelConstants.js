@@ -70,3 +70,60 @@ export const STATUS_OPTIONS = [
   { label: '停用', value: 'INACTIVE' },
   { label: '离职', value: 'TERMINATED' }
 ]
+
+// ============ 操作日志格式化（CO-417） ============
+
+export const OPERATION_TYPE_LABELS = {
+  CREATE: '新建',
+  UPDATE: '编辑',
+  DELETE: '删除',
+  RESTORE: '恢复',
+  CERTIFICATE_ADD: '新增证书',
+  CERTIFICATE_REMOVE: '删除证书',
+  CERTIFICATE_UPDATE: '修改证书',
+  ATTACHMENT_REPLACE: '替换附件',
+  EDUCATION_ADD: '新增教育经历',
+  EDUCATION_REMOVE: '删除教育经历',
+  EDUCATION_UPDATE: '修改教育经历',
+  BATCH_IMPORT_PERSONNEL: '批量导入人员',
+  BATCH_IMPORT_CERTIFICATE: '批量导入证书',
+  BATCH_EXPORT_PERSONNEL: '批量导出人员',
+  BATCH_EXPORT_CERTIFICATE: '批量导出证书'
+}
+
+// 新增类操作：只展示 newValue（如 CERTIFICATE_ADD / EDUCATION_ADD / BATCH_IMPORT_*）
+const ADD_TYPE_OPERATIONS = new Set([
+  'CERTIFICATE_ADD',
+  'EDUCATION_ADD',
+  'BATCH_IMPORT_PERSONNEL',
+  'BATCH_IMPORT_CERTIFICATE'
+])
+
+// 删除类操作：只展示 oldValue（如 CERTIFICATE_REMOVE / EDUCATION_REMOVE）
+const REMOVE_TYPE_OPERATIONS = new Set([
+  'CERTIFICATE_REMOVE',
+  'EDUCATION_REMOVE'
+])
+
+/** 格式化操作类型为中文标签 */
+export const formatOperationType = (type) => {
+  if (!type) return '-'
+  return OPERATION_TYPE_LABELS[type] || type
+}
+
+/** 格式化变更摘要：按操作类型差异化渲染 */
+export const formatChangeSummary = (operationType, changeDetails) => {
+  if (!changeDetails || !changeDetails.length) return ''
+  const isAddOnly = ADD_TYPE_OPERATIONS.has(operationType)
+  const isRemoveOnly = REMOVE_TYPE_OPERATIONS.has(operationType)
+  return changeDetails
+    .map(d => {
+      const field = d.field || ''
+      const oldVal = d.oldValue || '-'
+      const newVal = d.newValue || '-'
+      if (isAddOnly) return `${field}: ${newVal}`
+      if (isRemoveOnly) return `${field}: ${oldVal}`
+      return `${field}: ${oldVal} → ${newVal}`
+    })
+    .join('; ')
+}

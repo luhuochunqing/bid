@@ -84,11 +84,13 @@
           <el-table-column label="操作人" width="180">
             <template #default="{row}">{{ row.operatorName || '-' }}</template>
           </el-table-column>
-          <el-table-column prop="operationType" label="类型" width="120" />
+          <el-table-column prop="operationType" label="类型" width="120">
+            <template #default="{row}">{{ formatOperationType(row.operationType) }}</template>
+          </el-table-column>
           <el-table-column label="变更摘要" min-width="200">
             <template #default="{row}">
               <span v-if="row.changeDetails && row.changeDetails.length">
-                {{ row.changeDetails.map(d => `${d.field || ''}: ${d.oldValue || '-'} → ${d.newValue || '-'}`).join('; ') }}
+                {{ formatChangeSummary(row.operationType, row.changeDetails) }}
               </span>
               <span v-else class="text-muted">—</span>
             </template>
@@ -103,7 +105,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { Warning } from '@element-plus/icons-vue'
-import { certStatusLabel, certStatusTagType } from './personnelConstants.js'
+import { certStatusLabel, certStatusTagType, formatOperationType, formatChangeSummary } from './personnelConstants.js'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },

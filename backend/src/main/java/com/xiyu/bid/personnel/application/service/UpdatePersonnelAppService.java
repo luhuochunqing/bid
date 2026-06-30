@@ -6,7 +6,9 @@ import com.xiyu.bid.personnel.application.mapper.PersonnelMapper;
 import com.xiyu.bid.personnel.application.result.PersonnelUpdateResult;
 import com.xiyu.bid.personnel.domain.model.Personnel;
 import com.xiyu.bid.personnel.domain.model.PersonnelOperationLog;
+import com.xiyu.bid.personnel.domain.model.PersonnelOperationLog.ChangeDetail;
 import com.xiyu.bid.personnel.domain.port.PersonnelRepository;
+import com.xiyu.bid.personnel.domain.service.PersonnelChangeDetector;
 import com.xiyu.bid.personnel.domain.service.PersonnelValidator;
 import com.xiyu.bid.personnel.domain.valueobject.Certificate;
 import com.xiyu.bid.personnel.domain.valueobject.Education;
@@ -29,6 +31,7 @@ public class UpdatePersonnelAppService {
     private final PersonnelMapper mapper;
     private final PersonnelValidator validator;
     private final PersonnelOperationLogService logService;
+    private final PersonnelChangeDetector changeDetector;
 
     @Transactional
     public PersonnelUpdateResult update(Long id, PersonnelUpsertCommand command, Long operatorId, String operatorName) {
@@ -40,7 +43,6 @@ public class UpdatePersonnelAppService {
         }
 
         List<String> warnings = new ArrayList<>();
-        List<String> changes = new ArrayList<>();
 
         // 1. 处理工号变更（领域层返回状态 + 警示）
         Personnel.EmployeeNumberChangeResult employeeNumberResult =
@@ -48,7 +50,6 @@ public class UpdatePersonnelAppService {
 
         if (employeeNumberResult.warningMessage() != null) {
             warnings.add(employeeNumberResult.warningMessage());
-            changes.add("修改了工号: " + existing.employeeNumber() + " → " + command.employeeNumber());
         }
 
         // 2. 映射新的教育经历和证书
@@ -77,45 +78,140 @@ public class UpdatePersonnelAppService {
             throw new IllegalArgumentException(validationResult.errors().get(0).message());
         }
 
-        // 4. 检测证书变更（删除 / 替换）并软删除旧记录，同时收集变更明细（为操作日志准备）
-        List<String> certificateChanges = handleCertificateChanges(existing, newCertificates);
-        changes.addAll(certificateChanges);
+        // 4. 检测证书变更（删除 / 替换）并软删除旧记录（副作用保留）
+        handleCertificateSideEffects(existing, newCertificates);
 
-        // 5. 收集教育经历变更（为操作日志准备）
-        List<String> educationChanges = detectEducationChanges(existing.educations(), newEducations);
-        changes.addAll(educationChanges);
-
+        // 5. 持久化
         Personnel saved = repository.save(updated);
 
-        // 6. 持久化操作日志
-        if (!changes.isEmpty()) {
-            PersonnelOperationLog log = PersonnelOperationLog.create(
-                    saved.id(),
-                    operatorId != null ? operatorId : 0L,
-                    operatorName != null && !operatorName.isBlank() ? operatorName : "system",
-                    PersonnelOperationLog.OperationType.UPDATE,
-                    changes.stream()
-                            .map(c -> new PersonnelOperationLog.ChangeDetail("field", "", c))
-                            .toList()
-            );
-            logService.save(log);
-        }
+        // 6. 用 ChangeDetector 生成结构化 diff，按变更类型记录多条日志
+        List<PersonnelOperationLog> logs = buildOperationLogs(
+                existing, saved, employeeNumberResult, operatorId, operatorName);
+        logs.forEach(logService::save);
 
         PersonnelDTO dto = mapper.toDTO(saved);
         return new PersonnelUpdateResult(dto, warnings);
     }
 
     /**
-     * 改进后的证书变更处理：
-     * - ID 不在新列表中 → 删除（软删除）
-     * - ID 相同但附件不同 → 替换（软删除旧记录）
-     * 同时收集人类可读的变更描述，为后续操作日志做准备。
+     * 根据变更类型生成多条操作日志：
+     * - 工号变更 → UPDATE 日志（含工号 diff）
+     * - 基础字段变更 → UPDATE 日志
+     * - 证书新增 → CERTIFICATE_ADD 日志
+     * - 证书删除 → CERTIFICATE_REMOVE 日志
+     * - 证书字段修改 → CERTIFICATE_UPDATE 日志
+     * - 教育经历新增 → EDUCATION_ADD 日志
+     * - 教育经历删除 → EDUCATION_REMOVE 日志
+     * - 教育经历字段修改 → EDUCATION_UPDATE 日志
      */
-    private List<String> handleCertificateChanges(
+    private List<PersonnelOperationLog> buildOperationLogs(
+            Personnel existing, Personnel saved,
+            Personnel.EmployeeNumberChangeResult employeeNumberResult,
+            Long operatorId, String operatorName) {
+
+        List<PersonnelOperationLog> logs = new ArrayList<>();
+        Long personnelId = saved.id();
+        Long opId = operatorId != null ? operatorId : 0L;
+        String opName = operatorName != null && !operatorName.isBlank() ? operatorName : "system";
+
+        // 6.1 工号变更 + 基础字段变更 → 合并到一条 UPDATE 日志
+        List<ChangeDetail> basicChanges = new ArrayList<>();
+        if (employeeNumberResult.warningMessage() != null) {
+            basicChanges.add(new ChangeDetail("employeeNumber",
+                    existing.employeeNumber(), saved.employeeNumber()));
+        }
+        basicChanges.addAll(changeDetector.detectBasicFieldChanges(existing, saved));
+        if (!basicChanges.isEmpty()) {
+            logs.add(PersonnelOperationLog.create(
+                    personnelId, opId, opName,
+                    PersonnelOperationLog.OperationType.UPDATE,
+                    basicChanges));
+        }
+
+        // 6.2 证书变更 → 拆分为 CERTIFICATE_ADD / CERTIFICATE_REMOVE / CERTIFICATE_UPDATE
+        List<ChangeDetail> certAddChanges = new ArrayList<>();
+        List<ChangeDetail> certRemoveChanges = new ArrayList<>();
+        List<ChangeDetail> certUpdateChanges = new ArrayList<>();
+
+        for (ChangeDetail cd : changeDetector.detectCertificateChanges(
+                existing.certificates(), saved.certificates())) {
+            if (cd.field().equals("certificate")) {
+                if (cd.oldValue().isEmpty() && !cd.newValue().isEmpty()) {
+                    certAddChanges.add(cd);
+                } else if (!cd.oldValue().isEmpty() && cd.newValue().isEmpty()) {
+                    certRemoveChanges.add(cd);
+                }
+            } else {
+                certUpdateChanges.add(cd);
+            }
+        }
+
+        if (!certAddChanges.isEmpty()) {
+            logs.add(PersonnelOperationLog.create(
+                    personnelId, opId, opName,
+                    PersonnelOperationLog.OperationType.CERTIFICATE_ADD,
+                    certAddChanges));
+        }
+        if (!certRemoveChanges.isEmpty()) {
+            logs.add(PersonnelOperationLog.create(
+                    personnelId, opId, opName,
+                    PersonnelOperationLog.OperationType.CERTIFICATE_REMOVE,
+                    certRemoveChanges));
+        }
+        if (!certUpdateChanges.isEmpty()) {
+            logs.add(PersonnelOperationLog.create(
+                    personnelId, opId, opName,
+                    PersonnelOperationLog.OperationType.CERTIFICATE_UPDATE,
+                    certUpdateChanges));
+        }
+
+        // 6.3 教育经历变更 → 拆分为 EDUCATION_ADD / EDUCATION_REMOVE / EDUCATION_UPDATE
+        List<ChangeDetail> eduAddChanges = new ArrayList<>();
+        List<ChangeDetail> eduRemoveChanges = new ArrayList<>();
+        List<ChangeDetail> eduUpdateChanges = new ArrayList<>();
+
+        for (ChangeDetail cd : changeDetector.detectEducationChanges(
+                existing.educations(), saved.educations())) {
+            if (cd.field().equals("education")) {
+                if (cd.oldValue().isEmpty() && !cd.newValue().isEmpty()) {
+                    eduAddChanges.add(cd);
+                } else if (!cd.oldValue().isEmpty() && cd.newValue().isEmpty()) {
+                    eduRemoveChanges.add(cd);
+                }
+            } else {
+                eduUpdateChanges.add(cd);
+            }
+        }
+
+        if (!eduAddChanges.isEmpty()) {
+            logs.add(PersonnelOperationLog.create(
+                    personnelId, opId, opName,
+                    PersonnelOperationLog.OperationType.EDUCATION_ADD,
+                    eduAddChanges));
+        }
+        if (!eduRemoveChanges.isEmpty()) {
+            logs.add(PersonnelOperationLog.create(
+                    personnelId, opId, opName,
+                    PersonnelOperationLog.OperationType.EDUCATION_REMOVE,
+                    eduRemoveChanges));
+        }
+        if (!eduUpdateChanges.isEmpty()) {
+            logs.add(PersonnelOperationLog.create(
+                    personnelId, opId, opName,
+                    PersonnelOperationLog.OperationType.EDUCATION_UPDATE,
+                    eduUpdateChanges));
+        }
+
+        return logs;
+    }
+
+    /**
+     * 证书变更副作用处理：仅负责软删除旧记录（删除/替换场景）。
+     * 变更检测由 ChangeDetector 负责，这里只保留持久化副作用。
+     */
+    private void handleCertificateSideEffects(
             Personnel existing,
             List<Certificate> newCertificates) {
-
-        List<String> changes = new ArrayList<>();
 
         for (Certificate oldCert : existing.certificates()) {
             if (oldCert.id() == null) continue;
@@ -128,43 +224,10 @@ public class UpdatePersonnelAppService {
             if (matchingNew == null) {
                 // 彻底删除
                 repository.removeCertificate(existing.id(), oldCert.id());
-                changes.add("删除了证书: " + oldCert.name());
             } else if (!Objects.equals(oldCert.attachmentUrl(), matchingNew.attachmentUrl())) {
                 // 附件被替换
                 repository.removeCertificate(existing.id(), oldCert.id());
-                changes.add("替换了证书附件: " + oldCert.name());
-            }
-            // 同 ID 且附件没变 → 可能是其他字段修改，暂不记录为“替换”
-        }
-
-        // 检测新增的证书
-        for (Certificate newCert : newCertificates) {
-            if (newCert.id() == null) {
-                changes.add("新增了证书: " + newCert.name());
             }
         }
-
-        return changes;
-    }
-
-    /**
-     * 简单检测教育经历变更，用于操作日志收集。
-     * 当前版本只做粗粒度统计（新增/删除数量）。
-     */
-    private List<String> detectEducationChanges(List<Education> oldList, List<Education> newList) {
-        List<String> changes = new ArrayList<>();
-
-        int added = Math.max(0, newList.size() - oldList.size());
-        int removed = Math.max(0, oldList.size() - newList.size());
-
-        if (added > 0) {
-            changes.add("新增了 " + added + " 条教育经历");
-        }
-        if (removed > 0) {
-            changes.add("删除了 " + removed + " 条教育经历");
-        }
-
-        // 可以进一步细化对比学校名称等，这里先做基础版本
-        return changes;
     }
 }
