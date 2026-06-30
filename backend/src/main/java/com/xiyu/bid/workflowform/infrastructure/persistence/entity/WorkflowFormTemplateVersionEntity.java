@@ -33,7 +33,7 @@ public class WorkflowFormTemplateVersionEntity {
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
-    @Column(name = "business_type", nullable = false, length = 64)
+    @Column(name = "business_type", nullable = false, length = 64, columnDefinition = "varchar(64)")
     private FormBusinessType businessType;
 
     @Column(nullable = false)

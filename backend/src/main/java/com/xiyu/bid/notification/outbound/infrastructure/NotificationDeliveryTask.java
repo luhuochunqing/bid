@@ -47,7 +47,7 @@ public class NotificationDeliveryTask {
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
-    @Column(name = "status", nullable = false, length = 32)
+    @Column(name = "status", nullable = false, length = 32, columnDefinition = "varchar(32)")
     private NotificationDeliveryTaskStatus status;
 
     @Column(name = "attempt_count", nullable = false)

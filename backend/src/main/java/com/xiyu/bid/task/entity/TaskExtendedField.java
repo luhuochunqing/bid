@@ -69,7 +69,7 @@ public class TaskExtendedField {
     @NotNull
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
-    @Column(name = "field_type", nullable = false, length = LEN_FIELD_TYPE)
+    @Column(name = "field_type", nullable = false, length = LEN_FIELD_TYPE, columnDefinition = "varchar(32)")
     private TaskExtendedFieldType fieldType;
 
     /** 是否必填。 */

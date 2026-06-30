@@ -78,7 +78,7 @@ public class BusinessQualificationEntity {
     private LocalDate expiryDate;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 32)
+    @Column(nullable = false, length = 32, columnDefinition = "varchar(32)")
     private QualificationStatus status;
 
     @Column(name = "retire_reason", length = 500)

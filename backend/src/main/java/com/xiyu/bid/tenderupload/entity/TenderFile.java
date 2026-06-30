@@ -60,7 +60,7 @@ public class TenderFile {
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
-    @Column(name = "upload_status", nullable = false, length = 20)
+    @Column(name = "upload_status", nullable = false, length = 20, columnDefinition = "varchar(20)")
     @Builder.Default
     private TenderFileUploadStatus uploadStatus = TenderFileUploadStatus.INITIATED;
 

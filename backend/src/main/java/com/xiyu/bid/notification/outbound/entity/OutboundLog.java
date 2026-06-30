@@ -41,17 +41,17 @@ public class OutboundLog {
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
-    @Column(name = "channel", nullable = false, length = 16)
+    @Column(name = "channel", nullable = false, length = 16, columnDefinition = "varchar(16)")
     private OutboundChannel channel;
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
-    @Column(name = "status", nullable = false, length = 16)
+    @Column(name = "status", nullable = false, length = 16, columnDefinition = "varchar(16)")
     private OutboundStatus status;
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
-    @Column(name = "skip_reason", length = 50)
+    @Column(name = "skip_reason", length = 50, columnDefinition = "varchar(50)")
     private SkipReason skipReason;
 
     @Column(name = "wecom_errcode")

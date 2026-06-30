@@ -100,8 +100,9 @@ public class PerformanceRecordEntity {
     private String remarks;
 
     // ── 系统字段 ──
-    @Column(name = "created_by")
-    private Long createdBy;
+    // V1054 将列改为 VARCHAR(100) 存用户名（与 updated_by 一致），实体对齐为 String。
+    @Column(name = "created_by", length = 100)
+    private String createdBy;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

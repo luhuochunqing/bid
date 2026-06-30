@@ -50,7 +50,7 @@ public class TenderTask {
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
-    @Column(name = "status", nullable = false, length = 20)
+    @Column(name = "status", nullable = false, length = 20, columnDefinition = "varchar(20)")
     private TenderTaskStatus status;
 
     @Column(name = "priority", nullable = false)

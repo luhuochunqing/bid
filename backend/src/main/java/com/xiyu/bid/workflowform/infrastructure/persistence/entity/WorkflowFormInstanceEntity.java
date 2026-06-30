@@ -31,7 +31,7 @@ public class WorkflowFormInstanceEntity {
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
-    @Column(name = "business_type", nullable = false, length = 64)
+    @Column(name = "business_type", nullable = false, length = 64, columnDefinition = "varchar(64)")
     private FormBusinessType businessType;
 
     @Column(name = "template_code", nullable = false, length = 80)
@@ -48,7 +48,7 @@ public class WorkflowFormInstanceEntity {
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
-    @Column(nullable = false, length = 32)
+    @Column(nullable = false, length = 32, columnDefinition = "varchar(32)")
     private WorkflowFormStatus status;
 
     @Column(name = "form_data_json", nullable = false, columnDefinition = "TEXT")

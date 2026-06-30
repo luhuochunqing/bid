@@ -52,7 +52,7 @@ public class WebhookDeliveryTask {
     private String payload;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 32)
+    @Column(name = "status", nullable = false, length = 32, columnDefinition = "varchar(32)")
     @Builder.Default
     private WebhookDeliveryTaskStatus status = WebhookDeliveryTaskStatus.PENDING;
 

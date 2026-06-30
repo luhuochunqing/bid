@@ -65,7 +65,7 @@ public class PersonnelEntity {
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 20, columnDefinition = "varchar(20)")
     private PersonnelStatus status;
 
     @Column(name = "attachment_url", length = 500)

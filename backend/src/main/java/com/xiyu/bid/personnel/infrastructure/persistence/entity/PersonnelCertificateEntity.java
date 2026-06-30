@@ -44,7 +44,7 @@ public class PersonnelCertificateEntity {
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
-    @Column(name = "certificate_type", nullable = false, length = 50)
+    @Column(name = "certificate_type", nullable = false, length = 50, columnDefinition = "varchar(50)")
     private CertificateType certificateType;
 
     @Column(name = "issue_date")

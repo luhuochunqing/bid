@@ -35,7 +35,7 @@ public class WorkflowFormTemplateDraftEntity {
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
-    @Column(name = "business_type", nullable = false, length = 64)
+    @Column(name = "business_type", nullable = false, length = 64, columnDefinition = "varchar(64)")
     private FormBusinessType businessType;
 
     @Column(name = "draft_schema_json", nullable = false, columnDefinition = "TEXT")

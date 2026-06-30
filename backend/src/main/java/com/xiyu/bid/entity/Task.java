@@ -14,8 +14,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -95,8 +93,7 @@ public class Task {
 
     /** Current task status. */
     @Enumerated(EnumType.STRING)
-    @JdbcTypeCode(SqlTypes.VARCHAR)
-    @Column(nullable = false, length = LEN_STATUS)
+    @Column(nullable = false, length = LEN_STATUS, columnDefinition = "varchar(32)")
     @Builder.Default
     private Status status = Status.TODO;
 

@@ -58,7 +58,7 @@ public class TaskStatusDict {
     /** 状态大类，持久化为字符串以匹配 CHECK 约束。 */
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
-    @Column(name = "category", nullable = false, length = LEN_CATEGORY)
+    @Column(name = "category", nullable = false, length = LEN_CATEGORY, columnDefinition = "varchar(16)")
     private TaskStatusCategory category;
 
     /** UI 展示色（十六进制色值或其他 CSS 色字面量）。 */

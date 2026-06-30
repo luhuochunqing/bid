@@ -44,15 +44,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * 不使用 disabledWithoutDocker=true，Docker 不可用时 fail-fast。
  *
- * ddl-auto: 本测试覆盖为 none（profile 默认是 validate）。
- * 原因：本测试聚焦 PlatformAccountBorrowService 的业务逻辑 + JPA round-trip，
- * 不负责全库 schema 漂移审计。profile 级 validate 由 FlywayMysqlContainerTest 承担。
- * 本 PR 已修复被测表的 schema 漂移：V1113 (account_borrow_applications.status VARCHAR→ENUM)。
- * 其他无关表漂移（bid_document_review 等）留单独 PR 修复后，可移除此覆盖。
+ * ddl-auto: 不再覆盖，使用 profile 默认值（application-flyway-mysql.yml: validate）。
+ * 历史：此前为绕过无关表 schema 漂移覆盖为 none，本 PR 已通过 V1114-V1117 迁移 +
+ * 17 个实体 columnDefinition 对齐修复全部漂移，现移除覆盖让 validate 在本测试也生效，
+ * 防止未来再次出现 schema 漂移。
+ * 漂移修复清单：
+ * - V1113: account_borrow_applications.status VARCHAR→ENUM（被测表，前置 PR）
+ * - V1114: bid_document_review 建表（补入 Flyway 链）
+ * - V1115: business_qualifications.retired / tenders.crm_opportunity_name / tenders.project_id 补列
+ * - V1116: qualifications.level ENUM→VARCHAR + tenders.crm_opportunity_id BIGINT→VARCHAR(64)
+ * - V1117: tenders.evaluation_source VARCHAR→ENUM
+ * - 17 个实体 @Enumerated(STRING) 字段补 columnDefinition="varchar(N)" 对齐 DB VARCHAR
  */
 @SpringBootTest(properties = {
-        "spring.main.allow-bean-definition-overriding=true",
-        "spring.jpa.hibernate.ddl-auto=none"
+        "spring.main.allow-bean-definition-overriding=true"
 })
 @ActiveProfiles("flyway-mysql")
 @Import(NoOpPasswordEncryptionTestConfig.class)
