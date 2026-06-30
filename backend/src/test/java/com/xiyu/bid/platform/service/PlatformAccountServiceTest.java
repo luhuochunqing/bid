@@ -268,6 +268,53 @@ class PlatformAccountServiceTest {
     }
 
     @Test
+    @DisplayName("CO-416: 投标专员作为绑定联系人可编辑账户")
+    void updateAccount_bidTeamAsContactPerson_shouldSucceed() {
+        PlatformAccount existing = accountWithId(1L);
+        existing.setContactPerson(BID_TEAM_USER.getId());
+        PlatformAccountCreateRequest req = validRequest();
+        req.setAccountName("投标专员更新的平台");
+        req.setPassword(null);
+
+        when(repository.findById(1L)).thenReturn(Optional.of(existing));
+        when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        PlatformAccountDTO result = service.updateAccount(1L, req, BID_TEAM_USER);
+        assertThat(result.getAccountName()).isEqualTo("投标专员更新的平台");
+    }
+
+    @Test
+    @DisplayName("CO-416: 投标专员非绑定联系人被拒绝（403）")
+    void updateAccount_bidTeamNotContactPerson_shouldBeDenied() {
+        PlatformAccount existing = accountWithId(1L);
+        existing.setContactPerson(999L); // 不是当前用户
+        PlatformAccountCreateRequest req = validRequest();
+        req.setPassword(null);
+
+        when(repository.findById(1L)).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> service.updateAccount(1L, req, BID_TEAM_USER))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+                .hasMessageContaining("仅管理员或账户绑定联系人可编辑账户");
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("CO-416: 投标管理员可编辑任意账户（特权角色放行）")
+    void updateAccount_bidAdmin_shouldSucceed() {
+        PlatformAccount existing = accountWithId(1L);
+        PlatformAccountCreateRequest req = validRequest();
+        req.setAccountName("管理员更新的平台");
+        req.setPassword(null);
+
+        when(repository.findById(1L)).thenReturn(Optional.of(existing));
+        when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        PlatformAccountDTO result = service.updateAccount(1L, req, BID_ADMIN_USER);
+        assertThat(result.getAccountName()).isEqualTo("管理员更新的平台");
+    }
+
+    @Test
     @DisplayName("CO-390: getAllAccounts 批量填充 contactPersonLabel 为 姓名(工号) 格式")
     void getAllAccounts_shouldEnrichContactPersonLabel() {
         PlatformAccount a1 = accountWithId(1L);

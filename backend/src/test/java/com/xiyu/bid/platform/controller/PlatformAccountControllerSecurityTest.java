@@ -34,6 +34,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -206,6 +207,53 @@ class PlatformAccountControllerSecurityTest {
     @WithMockUser(authorities = {"bid-Team", "ROLE_BID_TEAM"})
     void noResourceAuthority_POST_return_shouldReturn403() throws Exception {
         mockMvc.perform(post("/api/platform/accounts/1/return"))
+                .andExpect(status().isForbidden());
+    }
+
+    // ── CO-416: update 端点 Controller 层权限边界（对称于 password/return 端点） ──
+    // 移除方法级 @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")，让类级
+    // @PreAuthorize("hasAuthority('resource')") 生效。投标专员带 resource 权限
+    // 通过 Controller 层，真权限（管理员 OR 账户绑定联系人）交给 Service 层
+    // PlatformAccountViewerPolicy.checkCanManageAccount 决定。
+
+    @Test
+    @DisplayName("CO-416：admin 可以通过 Controller 层调用 update（Service 层放行）")
+    @WithMockUser(authorities = {"admin", "ROLE_ADMIN", "resource"})
+    void admin_PUT_update_shouldReturn200() throws Exception {
+        when(userRepository.findByUsername(any())).thenReturn(Optional.of(
+                User.builder().id(1L).username("admin").role(User.Role.ADMIN).build()));
+        when(platformAccountService.updateAccount(eq(1L), any(), any()))
+                .thenReturn(PlatformAccountDTO.builder().id(1L).build());
+
+        mockMvc.perform(put("/api/platform/accounts/1")
+                        .contentType("application/json")
+                        .content("{\"username\":\"u\",\"password\":\"p\",\"accountName\":\"n\",\"platformType\":\"GOV_PROCUREMENT\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("CO-416：bid-Team（带 resource 权限）通过 Controller 层（Service 层决定是否放行）")
+    @WithMockUser(authorities = {"bid-Team", "ROLE_BID_TEAM", "resource"})
+    void bidTeam_PUT_update_shouldPassControllerLayer() throws Exception {
+        when(userRepository.findByUsername(any())).thenReturn(Optional.of(
+                User.builder().id(5L).username("bid_specialist").role(User.Role.MANAGER).build()));
+        // Service 层会做联系人校验；此处 mock 放行，只验证 Controller 层不拦截 bid-Team
+        when(platformAccountService.updateAccount(eq(1L), any(), any()))
+                .thenReturn(PlatformAccountDTO.builder().id(1L).build());
+
+        mockMvc.perform(put("/api/platform/accounts/1")
+                        .contentType("application/json")
+                        .content("{\"username\":\"u\",\"password\":\"p\",\"accountName\":\"n\",\"platformType\":\"GOV_PROCUREMENT\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("CO-416：已登录但无 resource 权限的用户调用 update 被类级 @PreAuthorize 拦截（403）")
+    @WithMockUser(authorities = {"bid-Team", "ROLE_BID_TEAM"})
+    void noResourceAuthority_PUT_update_shouldReturn403() throws Exception {
+        mockMvc.perform(put("/api/platform/accounts/1")
+                        .contentType("application/json")
+                        .content("{\"username\":\"u\",\"password\":\"p\",\"accountName\":\"n\",\"platformType\":\"GOV_PROCUREMENT\"}"))
                 .andExpect(status().isForbidden());
     }
 }

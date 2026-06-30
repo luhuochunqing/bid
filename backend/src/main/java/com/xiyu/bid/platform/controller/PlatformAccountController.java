@@ -87,7 +87,6 @@ public class PlatformAccountController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<PlatformAccountDTO>> updateAccount(
             @PathVariable Long id,
             @Valid @RequestBody PlatformAccountCreateRequest request,

@@ -136,26 +136,27 @@ public class PlatformAccountService {
     public PlatformAccountDTO updateAccount(Long id, PlatformAccountCreateRequest request, User currentUser) {
         PlatformAccount account = repository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Account not found with id: " + id));
+        PlatformAccountViewerPolicy.checkCanManageAccount(
+            effectiveRoleResolver.resolveRoleCode(currentUser), account, currentUser);
+        validateUpdateUniqueness(request, account);
+        applyUpdateFields(account, request);
+        PlatformAccount savedAccount = repository.save(account);
+        return contactLabelEnricher.enrich(PlatformAccountMapper.toDTO(savedAccount));
+    }
 
-        if (request.getUsername() != null
-                && !request.getUsername().trim().isEmpty()
-                && !request.getUsername().equals(account.getUsername())
-                && repository.findByUsername(request.getUsername()).isPresent()) {
+    private void validateUpdateUniqueness(PlatformAccountCreateRequest request, PlatformAccount account) {
+        if (request.getUsername() != null && !request.getUsername().trim().isEmpty() && !request.getUsername().equals(account.getUsername()) && repository.findByUsername(request.getUsername()).isPresent()) {
             throw new IllegalArgumentException("Username already exists: " + request.getUsername());
         }
-        if (request.getAccountName() != null
-                && !request.getAccountName().trim().isEmpty()
-                && !request.getAccountName().equals(account.getAccountName())
-                && repository.findByAccountName(request.getAccountName()).isPresent()) {
+        if (request.getAccountName() != null && !request.getAccountName().trim().isEmpty() && !request.getAccountName().equals(account.getAccountName()) && repository.findByAccountName(request.getAccountName()).isPresent()) {
             throw new IllegalArgumentException("Account name already exists: " + request.getAccountName());
         }
+    }
 
-        String encryptedPassword = request.getPassword() != null && !request.getPassword().trim().isEmpty()
-                ? passwordEncryptionUtil.encrypt(request.getPassword())
-                : account.getPassword();
-
+    private void applyUpdateFields(PlatformAccount account, PlatformAccountCreateRequest request) {
+        if (request.getPassword() != null && !request.getPassword().trim().isEmpty())
+            account.setPassword(passwordEncryptionUtil.encrypt(request.getPassword()));
         account.setUsername(request.getUsername() != null ? request.getUsername() : account.getUsername());
-        account.setPassword(encryptedPassword);
         account.setAccountName(request.getAccountName() != null ? request.getAccountName() : account.getAccountName());
         account.setPlatformType(request.getPlatformType() != null ? request.getPlatformType() : account.getPlatformType());
         account.setUrl(request.getUrl() != null ? request.getUrl() : account.getUrl());
@@ -164,9 +165,6 @@ public class PlatformAccountService {
         account.setContactEmail(request.getContactEmail() != null ? request.getContactEmail() : account.getContactEmail());
         account.setHasCa(request.getHasCa() != null ? request.getHasCa() : account.getHasCa());
         account.setRemarks(request.getRemarks() != null ? request.getRemarks() : account.getRemarks());
-
-        PlatformAccount savedAccount = repository.save(account);
-        return contactLabelEnricher.enrich(PlatformAccountMapper.toDTO(savedAccount));
     }
 
     /** Delete a platform account. */
