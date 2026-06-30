@@ -1,5 +1,6 @@
 package com.xiyu.bid.personnel.infrastructure.excel;
 
+import com.xiyu.bid.common.util.ZipEntryDeduplicator;
 import com.xiyu.bid.personnel.application.dto.CertificateDTO;
 import com.xiyu.bid.personnel.application.dto.PersonnelDTO;
 import lombok.RequiredArgsConstructor;
@@ -95,9 +96,8 @@ public class PersonnelZipExporter {
     public String generateAttachmentFileName(PersonnelDTO personnel, CertificateDTO cert, int sequence) {
         String name = personnel.name() != null ? personnel.name() : "未知";
         String empNo = personnel.employeeNumber() != null ? personnel.employeeNumber() : "EMP";
-        String certName = cert.name() != null
-                ? cert.name().replaceAll("[\\\\/:*?\"<>|]", "_")
-                : "未知证书";
+        String safeCertName = ZipEntryDeduplicator.safeFileName(cert.name());
+        String certName = safeCertName.isEmpty() ? "未知证书" : safeCertName;
         String ext = extractExtension(cert.attachmentUrl());
 
         return String.format("PER_%s_%s_%02d_%s.%s",
