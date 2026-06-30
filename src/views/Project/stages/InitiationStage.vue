@@ -32,6 +32,9 @@
       </el-select>
     </el-form-item>
   </div>
+  <el-form-item label="保证金缴纳截止日期">
+    <el-date-picker v-model="form.depositDueDate" type="datetime" placeholder="选择截止日期时间（选填，将作为自动创建任务的截止时间）" value-format="YYYY-MM-DDTHH:mm:ss" format="YYYY-MM-DD HH:mm:ss" style="width: 100%" />
+  </el-form-item>
 </template>
 <!-- 以下字段与标讯评估表「一、基础信息」完全对齐 -->
 <el-divider />
@@ -207,7 +210,7 @@ const props = defineProps({ projectId: { type: [String, Number], required: true 
 const emit = defineEmits(['updated'])
 const userStore = useUserStore()
 const adaptiveForm = shallowRef(null)
-const form = reactive({ projectName: '', ownerUnit: '', createTime: new Date().toISOString().slice(0, 16).replace('T', ' '), projectType: '', customerType: '', priorityLevel: 'B', headquartersLocation: '', projectLeaderName: '', projectLeaderUserId: null, leaderDepartment: '', contactName: '', contactPhone: '', contactTel: '', contactMail: '', contactName2: '', contactPhone2: '', contactTel2: '', contactMail2: '', tenderId: null, expectedBidders: 0, annualEcommerceAmount: 0, annualRevenue: 0, customerRevenue: 0, bidOpenTime: '', bidMonth: '', biddingPlatform: '', needDeposit: 'NO', depositAmount: 0, depositPaymentMethod: '', tenderAdverseItems: '', riskAssessment: '', riskMitigationPlan: '', pmUnderstandsProcess: '', supportNeeded: '', projectPlanGap: '', projectPlanGapFiles: [], tenderDocumentId: null, aiRiskLevel: null, aiRiskAssessmentNotes: '', biddingLeaderName: '', biddingAssistantName: '' })
+const form = reactive({ projectName: '', ownerUnit: '', createTime: new Date().toISOString().slice(0, 16).replace('T', ' '), projectType: '', customerType: '', priorityLevel: 'B', headquartersLocation: '', projectLeaderName: '', projectLeaderUserId: null, leaderDepartment: '', contactName: '', contactPhone: '', contactTel: '', contactMail: '', contactName2: '', contactPhone2: '', contactTel2: '', contactMail2: '', tenderId: null, expectedBidders: 0, annualEcommerceAmount: 0, annualRevenue: 0, customerRevenue: 0, bidOpenTime: '', bidMonth: '', biddingPlatform: '', needDeposit: 'NO', depositAmount: 0, depositPaymentMethod: '', depositDueDate: null, tenderAdverseItems: '', riskAssessment: '', riskMitigationPlan: '', pmUnderstandsProcess: '', supportNeeded: '', projectPlanGap: '', projectPlanGapFiles: [], tenderDocumentId: null, aiRiskLevel: null, aiRiskAssessmentNotes: '', biddingLeaderName: '', biddingAssistantName: '' })
 // CO-323: 客户信息矩阵由标讯评估表带入，初始 0 行（有数据才显示）
 // 值域 OPTIONS 复用评估表 customerInfoMatrixConfig.js，保证映射一致
 const custFixedRows = ref([]); const bidDocFiles = ref([]); const planGapFiles = ref([]); const existing = ref(false);

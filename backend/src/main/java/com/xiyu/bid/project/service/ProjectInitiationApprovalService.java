@@ -123,7 +123,8 @@ public class ProjectInitiationApprovalService {
             Long projectManagerId = projectRepository.findById(projectId)
                     .map(Project::getManagerId)
                     .orElse(null);
-            createDepositTask(projectId, projectManagerId, entity.getDepositAmount(), entity.getDepositPaymentMethod());
+            createDepositTask(projectId, projectManagerId, entity.getDepositAmount(),
+                    entity.getDepositPaymentMethod(), entity.getDepositDueDate());
         }
 
         // 4. 创建项目档案（幂等：UNIQUE constraint 防止重复创建）
@@ -175,14 +176,18 @@ public class ProjectInitiationApprovalService {
 
     /**
      * 为项目自动创建"缴纳保证金"系统任务。
-     * <p>任务分配给项目负责人（投标项目负责人），优先级为高，截止时间默认7天后。</p>
+     * <p>任务分配给项目负责人（投标项目负责人），优先级为高。
+     * 截止时间取自立项时录入的 {@code depositDueDate}（来自招标文件中的保证金缴纳截止日期），
+     * 若用户未录入则 dueDate 为 null（任务无截止日期，由用户后续手动补充）。</p>
      *
      * @param projectId 项目ID
      * @param assigneeId 任务执行人ID（项目负责人）
      * @param depositAmount 保证金金额（万元）
      * @param depositPaymentMethod 保证金缴纳方式（WIRE=电汇, GUARANTEE=保险/保函）
+     * @param depositDueDate 保证金缴纳截止日期（可空；为空时任务无截止日期）
      */
-    private void createDepositTask(Long projectId, Long assigneeId, BigDecimal depositAmount, String depositPaymentMethod) {
+    private void createDepositTask(Long projectId, Long assigneeId, BigDecimal depositAmount,
+                                   String depositPaymentMethod, LocalDateTime depositDueDate) {
         if (assigneeId == null) {
             log.warn("Cannot create deposit task: project manager is null for project={}", projectId);
             return;
@@ -196,10 +201,11 @@ public class ProjectInitiationApprovalService {
                     .description(description)
                     .assigneeId(assigneeId)
                     .priority(Task.Priority.HIGH)
-                    .dueDate(LocalDateTime.now().plusDays(7))
+                    .dueDate(depositDueDate)
                     .build();
             taskService.createSystemTask(depositTask);
-            log.info("Auto-created deposit task for project={}, assignee={}", projectId, assigneeId);
+            log.info("Auto-created deposit task for project={}, assignee={}, dueDate={}",
+                    projectId, assigneeId, depositDueDate);
         } catch (ResourceNotFoundException e) {
             // 分配的执行人不存在，记录错误但不影响主流程
             log.error("Cannot auto-create deposit task: assignee {} not found for project={}",

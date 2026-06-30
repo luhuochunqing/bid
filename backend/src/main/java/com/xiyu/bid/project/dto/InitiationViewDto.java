@@ -37,6 +37,8 @@ public class InitiationViewDto {
     private String departmentSnapshot;
     private BigDecimal depositAmount;
     private String depositPaymentMethod;
+    /** 保证金缴纳截止日期（用于自动创建缴纳保证金任务的 dueDate；可空）。 */
+    private LocalDateTime depositDueDate;
     /** 是否需要保证金(YES/NO)。蓝图 §3.3.1.1 新增。 */
     private String needDeposit;
     private String competitors;

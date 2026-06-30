@@ -19,16 +19,21 @@ import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
+import com.xiyu.bid.task.dto.TaskDTO;
 import com.xiyu.bid.task.service.TaskService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -173,5 +178,81 @@ class ProjectInitiationApprovalServiceTest {
 
         verify(projectArchiveWorkflowService, times(1))
                 .createArchive(100L, "测试项目", "ACTIVE");
+    }
+
+    /**
+     * TDD：needDeposit=YES 且用户填了 depositDueDate 时，自动创建任务的 dueDate 应取自该字段，
+     * 而不是回退到 LocalDateTime.now().plusDays(7)。
+     */
+    @Test
+    void approve_whenNeedDepositYesAndDepositDueDateSet_createsTaskWithProvidedDueDate() {
+        LocalDateTime expectedDueDate = LocalDateTime.of(2026, 8, 15, 10, 0);
+        ProjectInitiationDetails details = ProjectInitiationDetails.builder()
+                .id(1L)
+                .projectId(100L)
+                .reviewStatus(InitiationReviewStatus.PENDING_REVIEW.name())
+                .locked(Boolean.FALSE)
+                .needDeposit("YES")
+                .depositAmount(new BigDecimal("50"))
+                .depositPaymentMethod("WIRE")
+                .depositDueDate(expectedDueDate)
+                .build();
+        when(initiationRepo.findByProjectId(100L)).thenReturn(Optional.of(details));
+        when(projectStageService.currentStage(100L)).thenReturn(ProjectStage.INITIATED);
+        when(initiationRepo.save(any(ProjectInitiationDetails.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        // 项目负责人（managerId）非空才会创建任务
+        when(projectRepository.findById(100L))
+                .thenReturn(Optional.of(Project.builder().id(100L).managerId(55L).build()));
+        when(leadRepo.save(any(ProjectLeadAssignment.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        InitiationApprovalRequest req = InitiationApprovalRequest.builder()
+                .primaryLeadUserId(3L)
+                .build();
+
+        service.approve(100L, req, 5L);
+
+        ArgumentCaptor<TaskDTO> taskCaptor = ArgumentCaptor.forClass(TaskDTO.class);
+        verify(taskService).createSystemTask(taskCaptor.capture());
+        TaskDTO captured = taskCaptor.getValue();
+        assertThat(captured.getDueDate()).isEqualTo(expectedDueDate);
+    }
+
+    /**
+     * TDD：needDeposit=YES 但用户未填 depositDueDate 时，自动创建任务的 dueDate 应为 null
+     * （允许 dueDate 为空，由用户后续手动补充）。
+     */
+    @Test
+    void approve_whenNeedDepositYesAndDepositDueDateNull_createsTaskWithNullDueDate() {
+        ProjectInitiationDetails details = ProjectInitiationDetails.builder()
+                .id(1L)
+                .projectId(100L)
+                .reviewStatus(InitiationReviewStatus.PENDING_REVIEW.name())
+                .locked(Boolean.FALSE)
+                .needDeposit("YES")
+                .depositAmount(new BigDecimal("50"))
+                .depositPaymentMethod("WIRE")
+                .depositDueDate(null)
+                .build();
+        when(initiationRepo.findByProjectId(100L)).thenReturn(Optional.of(details));
+        when(projectStageService.currentStage(100L)).thenReturn(ProjectStage.INITIATED);
+        when(initiationRepo.save(any(ProjectInitiationDetails.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(projectRepository.findById(100L))
+                .thenReturn(Optional.of(Project.builder().id(100L).managerId(55L).build()));
+        when(leadRepo.save(any(ProjectLeadAssignment.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        InitiationApprovalRequest req = InitiationApprovalRequest.builder()
+                .primaryLeadUserId(3L)
+                .build();
+
+        service.approve(100L, req, 5L);
+
+        ArgumentCaptor<TaskDTO> taskCaptor = ArgumentCaptor.forClass(TaskDTO.class);
+        verify(taskService).createSystemTask(taskCaptor.capture());
+        TaskDTO captured = taskCaptor.getValue();
+        assertThat(captured.getDueDate()).isNull();
     }
 }

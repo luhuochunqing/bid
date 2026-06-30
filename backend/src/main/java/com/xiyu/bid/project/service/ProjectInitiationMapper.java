@@ -134,6 +134,7 @@ public class ProjectInitiationMapper {
         if (d.getDepartmentSnapshot() != null) e.setDepartmentSnapshot(d.getDepartmentSnapshot());
         if (d.getDepositAmount() != null) e.setDepositAmount(d.getDepositAmount());
         if (d.getDepositPaymentMethod() != null) e.setDepositPaymentMethod(d.getDepositPaymentMethod());
+        if (d.getDepositDueDate() != null) e.setDepositDueDate(d.getDepositDueDate());
         if (d.getNeedDeposit() != null) e.setNeedDeposit(d.getNeedDeposit());
         if (d.getCompetitors() != null) e.setCompetitors(d.getCompetitors());
         if (d.getTenderAdverseItems() != null) e.setTenderAdverseItems(d.getTenderAdverseItems());
@@ -174,6 +175,7 @@ public class ProjectInitiationMapper {
                 .bidOpenTime(e.getBidOpenTime()).bidMonth(e.getBidMonth())
                 .ownerUserId(e.getOwnerUserId()).departmentSnapshot(e.getDepartmentSnapshot())
                 .depositAmount(e.getDepositAmount()).depositPaymentMethod(e.getDepositPaymentMethod())
+                .depositDueDate(e.getDepositDueDate())
                 .needDeposit(e.getNeedDeposit()).competitors(e.getCompetitors())
                 .tenderAdverseItems(e.getTenderAdverseItems()).riskAssessment(e.getRiskAssessment())
                 .riskMitigationPlan(e.getRiskMitigationPlan()).pmUnderstandsProcess(e.getPmUnderstandsProcess())

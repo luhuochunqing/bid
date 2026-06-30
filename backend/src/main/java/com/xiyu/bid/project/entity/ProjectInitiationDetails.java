@@ -88,6 +88,10 @@ public class ProjectInitiationDetails {
     @Column(name = "deposit_payment_method", length = 64)
     private String depositPaymentMethod;
 
+    /** 保证金缴纳截止日期（用于自动创建"缴纳投标保证金"任务的 dueDate；可空，为空时任务无截止日期） */
+    @Column(name = "deposit_due_date")
+    private LocalDateTime depositDueDate;
+
     /** 是否需要保证金(YES/NO) */
     @Column(name = "need_deposit", length = 16)
     @Builder.Default

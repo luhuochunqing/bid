@@ -101,6 +101,7 @@ export function useInitiationStageActions({
     if (val === 'NO') {
       form.depositAmount = 0
       form.depositPaymentMethod = ''
+      form.depositDueDate = null
     }
   }
 
