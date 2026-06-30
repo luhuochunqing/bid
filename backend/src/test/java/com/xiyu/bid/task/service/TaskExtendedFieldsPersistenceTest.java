@@ -84,6 +84,9 @@ class TaskExtendedFieldsPersistenceTest {
     @Mock
     private DataScopeConfigService dataScopeConfigService;
 
+    @Mock
+    private UserEnabledStatusService userEnabledStatusService;
+
     private TaskService taskService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -95,7 +98,8 @@ class TaskExtendedFieldsPersistenceTest {
                 userRepository,
                 taskRepository,
                 projectAccessScopeService,
-                roleProfileService
+                roleProfileService,
+                userEnabledStatusService
         );
         taskService = new TaskService(
                 taskRepository,

@@ -148,8 +148,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleAccessDeniedException(
             AccessDeniedException ex,
             HttpServletRequest request) {
-        log.warn("权限不足 - URI: {}, User: {}", request.getRequestURI(),
-                request.getUserPrincipal() != null ? request.getUserPrincipal().getName() : "anonymous");
+        log.warn("权限不足 - URI: {}, User: {}, Message: {}", request.getRequestURI(),
+                request.getUserPrincipal() != null ? request.getUserPrincipal().getName() : "anonymous",
+                ex.getMessage());
 
         return ResponseEntity
                 .status(HttpStatus.FORBIDDEN)

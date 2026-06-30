@@ -83,6 +83,9 @@ class TaskContentPersistenceTest {
     @Mock
     private DataScopeConfigService dataScopeConfigService;
 
+    @Mock
+    private UserEnabledStatusService userEnabledStatusService;
+
     private TaskService taskService;
 
     @BeforeEach
@@ -92,7 +95,8 @@ class TaskContentPersistenceTest {
                 userRepository,
                 taskRepository,
                 projectAccessScopeService,
-                roleProfileService
+                roleProfileService,
+                userEnabledStatusService
         );
         taskService = new TaskService(
                 taskRepository,

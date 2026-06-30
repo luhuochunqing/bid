@@ -47,6 +47,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
     /** 查询所有启用用户。 */
     List<User> findByEnabledTrue();
 
+    /** 查询所有用户（包括 OSS 用户），按部门编码过滤。用于团队工作量统计。 */
+    @Query("SELECT u FROM User u WHERE u.departmentCode IN :deptCodes OR u.departmentCode IS NULL")
+    List<User> findAllByDepartmentCodeIn(@Param("deptCodes") Collection<String> deptCodes);
+
     /** 查找需要（重新）回填 full_name_pinyin 的用户：null 行 + 旧格式行（不含空格=未升级首字母缩写）。 */
     @Query("SELECT u FROM User u WHERE u.fullName IS NOT NULL AND u.fullName <> '' "
         + "AND (u.fullNamePinyin IS NULL "
