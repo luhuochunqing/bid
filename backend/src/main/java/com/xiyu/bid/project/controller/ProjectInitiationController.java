@@ -97,6 +97,21 @@ public class ProjectInitiationController {
         return ResponseEntity.ok(ApiResponse.success("Initiation rejected", null));
     }
 
+    /**
+     * AI 风险评估：基于客户信息表倾向性判定风险等级（HIGH/MEDIUM/LOW）。
+     * <p>规则：有人反对→HIGH；最高决策人+3个其他关键人支持→LOW；其他→MEDIUM。
+     * <p>结果写入 aiRiskLevel + aiRiskAssessmentNotes 并返回最新立项详情。
+     */
+    @PostMapping("/ai-risk-assessment")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_PROJECTLEADER')")
+    public ResponseEntity<ApiResponse<InitiationViewDto>> assessRisk(
+            @PathVariable Long projectId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        Long userId = currentUserId(userDetails);
+        InitiationViewDto dto = service.assessRisk(projectId, userId);
+        return ResponseEntity.ok(ApiResponse.success("AI 风险评估完成", dto));
+    }
+
     private Long currentUserId(UserDetails userDetails) {
         if (userDetails == null || userDetails.getUsername() == null || userDetails.getUsername().isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "无法识别当前用户");

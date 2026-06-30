@@ -119,4 +119,26 @@ class ProjectInitiationControllerTest {
                 LocalDateTime.of(2026, 6, 19, 14, 38, 0),
                 captor.getValue().getBidOpenTime());
     }
+
+    @Test
+    void assessRisk_UsesResolvedCurrentUserId() throws Exception {
+        InitiationViewDto dto = new InitiationViewDto();
+        dto.setProjectId(100L);
+        dto.setAiRiskLevel("HIGH");
+        dto.setAiRiskAssessmentNotes("最高决策人反对，项目风险较高");
+        when(service.assessRisk(eq(100L), eq(42L))).thenReturn(dto);
+
+        UserDetails principal = User.withUsername("sales").password("x").roles("MANAGER").build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(principal, "x", principal.getAuthorities()));
+
+        mockMvc.perform(post("/api/projects/100/initiation/ai-risk-assessment")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.projectId").value(100L))
+                .andExpect(jsonPath("$.data.aiRiskLevel").value("HIGH"))
+                .andExpect(jsonPath("$.data.aiRiskAssessmentNotes").value("最高决策人反对，项目风险较高"));
+
+        verify(service).assessRisk(eq(100L), eq(42L));
+    }
 }
