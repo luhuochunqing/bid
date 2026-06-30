@@ -363,7 +363,8 @@ class ResponsibilityArchitectureTest {
             || name.contains(".aspect.")
             || name.contains(".bootstrap.")
             || name.contains(".enums.")
-            || name.equals("com.xiyu.bid.casework.controller.KnowledgeCaseController");
+            || name.equals("com.xiyu.bid.casework.controller.KnowledgeCaseController")
+            || name.equals("com.xiyu.bid.casework.controller.ProjectArchiveController"); // CO-430: 控制器固有三层职责(web+data-access+infrastructure)，豁免
     }
 
     private static int countLines(Path path) {
