@@ -44,11 +44,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * CO-362 regression gate：投标专员（bid-Team）应能读取知识库模块列表接口。
  *
- * <p>投标专员登录后 authority 集含 catalog 授予的 {@code project}、{@code brand-auth.view}
- * 权限点。原 controller 类级 {@code hasAnyRole('ADMIN','MANAGER')} 把它挡住返回 403。
- * 修复后 GET /api/archive、/api/cases 用 {@code hasAuthority('project')} 放行，
- * GET /api/knowledge/brand-auth 用 {@code hasAuthority('brand-auth.view')} 放行，
- * GET /api/knowledge/personnel 对齐该 Controller 既有写法 {@code hasAnyAuthority('/bidAdmin','bid-TeamLeader','bid-Team')}。
+ * <p>投标专员登录后 authority 集含 catalog 授予的 {@code project}、{@code brand-auth.view}、
+ * {@code personnel.view} 权限点。原 controller 类级 {@code hasAnyRole('ADMIN','MANAGER')} 把它挡住返回 403。
+ * 修复后：
+ * <ul>
+ *   <li>GET /api/archive、/api/cases 用 {@code hasAuthority('project')} 放行</li>
+ *   <li>GET /api/knowledge/brand-auth 用 {@code hasAuthority('brand-auth.view')} 放行</li>
+ *   <li>CO-403: GET /api/knowledge/personnel 改用 {@code hasAuthority('personnel.view')} 放行，
+ *       持有该权限点的角色（bid-projectLeader/bid-TeamLeader/bidAdmin/bid-Team）均可只读访问</li>
+ * </ul>
  *
  * <p>本测试以 {@code @WithMockUser(authorities=...)} 模拟投标专员已拥有的权限点，
  * 断言知识库列表接口返回 200；同时以无权限用户断言仍 403，以 MANAGER 断言回归不破。
@@ -59,7 +63,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 路径级兜底需在 SecurityConfig 改动时一并回归（见本次 SecurityConfig L173 改动）。
  *
  * <p>MANAGER 回归说明：生产中 MANAGER 走 {@code RoleProfileCatalog} 映射到 ADMIN（"all" 权限），
- * 故其 authority 集含 {@code project/brand-auth.view//bidAdmin} 等；测试中用
+ * 故其 authority 集含 {@code project/brand-auth.view/personnel.view} 等；测试中用
  * {@code @WithMockUser(authorities={"ROLE_MANAGER","xxx"})} 显式带 ROLE_MANAGER + 对应 catalog 权限点，
  * 既回归"角色白名单仍在"（ROLE_MANAGER 保留），也回归"catalog 权限点放行仍在"。
  */
@@ -262,8 +266,8 @@ class KnowledgeAccessSecurityTest {
     // ==================== GET /api/knowledge/personnel ====================
 
     @Test
-    @DisplayName("投标专员(authorities含bid-Team) GET /api/knowledge/personnel → 200")
-    @WithMockUser(authorities = {"bid-Team"})
+    @DisplayName("投标专员(authorities含personnel.view) GET /api/knowledge/personnel → 200")
+    @WithMockUser(authorities = {"personnel.view"})
     void listPersonnel_shouldSucceed_forBidSpecialist() throws Exception {
         when(listService.list(any())).thenReturn(List.<PersonnelDTO>of());
         mockMvc.perform(get("/api/knowledge/personnel"))
@@ -279,8 +283,8 @@ class KnowledgeAccessSecurityTest {
     }
 
     @Test
-    @DisplayName("回归：MANAGER(GET含/bidAdmin) GET /api/knowledge/personnel → 200")
-    @WithMockUser(authorities = {"ROLE_MANAGER", "/bidAdmin"})
+    @DisplayName("回归：MANAGER(GET含personnel.view) GET /api/knowledge/personnel → 200")
+    @WithMockUser(authorities = {"ROLE_MANAGER", "personnel.view"})
     void listPersonnel_shouldSucceed_forManager() throws Exception {
         when(listService.list(any())).thenReturn(List.<PersonnelDTO>of());
         mockMvc.perform(get("/api/knowledge/personnel"))
@@ -288,8 +292,8 @@ class KnowledgeAccessSecurityTest {
     }
 
     @Test
-    @DisplayName("CO-403: 投标项目负责人(bid-projectLeader) GET /api/knowledge/personnel → 200")
-    @WithMockUser(authorities = {"bid-projectLeader"})
+    @DisplayName("CO-403: 投标项目负责人(持有personnel.view) GET /api/knowledge/personnel → 200")
+    @WithMockUser(authorities = {"personnel.view"})
     void listPersonnel_shouldSucceed_forBidProjectLeader() throws Exception {
         when(listService.list(any())).thenReturn(List.<PersonnelDTO>of());
         mockMvc.perform(get("/api/knowledge/personnel"))
@@ -297,12 +301,20 @@ class KnowledgeAccessSecurityTest {
     }
 
     @Test
-    @DisplayName("CO-403: 投标项目负责人(bid-projectLeader) GET /api/knowledge/personnel/{id} → 200")
-    @WithMockUser(authorities = {"bid-projectLeader"})
+    @DisplayName("CO-403: 投标项目负责人(持有personnel.view) GET /api/knowledge/personnel/{id} → 200")
+    @WithMockUser(authorities = {"personnel.view"})
     void getPersonnel_shouldSucceed_forBidProjectLeader() throws Exception {
         when(listService.get(any())).thenReturn(null);
         mockMvc.perform(get("/api/knowledge/personnel/1"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("CO-403: 仅持有 bid-projectLeader 角色（无 personnel.view 权限点） GET /api/knowledge/personnel → 403")
+    @WithMockUser(authorities = {"bid-projectLeader"})
+    void listPersonnel_shouldReturn403_forRoleWithoutPermissionPoint() throws Exception {
+        mockMvc.perform(get("/api/knowledge/personnel"))
+                .andExpect(status().isForbidden());
     }
 
     // ==================== GET /api/knowledge/brand-auth ====================

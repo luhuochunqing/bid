@@ -189,4 +189,85 @@ class TaskVisibilityPolicyTest {
         );
         assertThat(result).isFalse();
     }
+
+    // ==================== CO-361: isProjectOwner 重载测试 ====================
+
+    @Test
+    void shouldViewAllTasks_whenBidProjectLeaderIsProjectOwner() {
+        boolean result = TaskVisibilityPolicy.canViewAllProjectTasks(
+                RoleProfileCatalog.SALES_CODE,
+                999L,
+                100L,
+                200L,
+                true
+        );
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void shouldViewOnlyOwnTasks_whenBidProjectLeaderNotOwnerAndNotLead() {
+        boolean result = TaskVisibilityPolicy.canViewAllProjectTasks(
+                RoleProfileCatalog.SALES_CODE,
+                999L,
+                100L,
+                200L,
+                false
+        );
+        assertThat(result).isFalse();
+    }
+
+    @Test
+    void shouldViewAllTasks_whenBidProjectLeaderIsOwnerAndMatchesPrimaryLead() {
+        boolean result = TaskVisibilityPolicy.canViewAllProjectTasks(
+                RoleProfileCatalog.SALES_CODE,
+                100L,
+                100L,
+                200L,
+                true
+        );
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void shouldViewAllTasks_whenAdminIsProjectOwner() {
+        boolean result = TaskVisibilityPolicy.canViewAllProjectTasks(
+                RoleProfileCatalog.ADMIN_CODE,
+                999L,
+                100L,
+                200L,
+                true
+        );
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void shouldViewOnlyOwnTasks_whenBidTeamIsProjectOwnerButNotLead() {
+        // isProjectOwner=true 不应影响 bid-Team 分支：仍需匹配 lead
+        boolean result = TaskVisibilityPolicy.canViewAllProjectTasks(
+                RoleProfileCatalog.BID_SPECIALIST_CODE,
+                999L,
+                100L,
+                200L,
+                true
+        );
+        assertThat(result).isFalse();
+    }
+
+    @Test
+    void backwardCompat_FourArgEquivalentToIsProjectOwnerFalse() {
+        boolean four = TaskVisibilityPolicy.canViewAllProjectTasks(
+                RoleProfileCatalog.SALES_CODE,
+                999L,
+                100L,
+                200L
+        );
+        boolean five = TaskVisibilityPolicy.canViewAllProjectTasks(
+                RoleProfileCatalog.SALES_CODE,
+                999L,
+                100L,
+                200L,
+                false
+        );
+        assertThat(five).isEqualTo(four);
+    }
 }

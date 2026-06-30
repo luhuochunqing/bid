@@ -169,6 +169,20 @@ public class ProjectAccessScopeService {
         }
     }
 
+    /**
+     * CO-361: 检查用户是否为项目立项负责人（owner_user_id）。
+     * 统一入口，避免多个 Guard/Service 各自查询 ProjectInitiationDetailsRepository。
+     */
+    @Transactional(readOnly = true)
+    public boolean isProjectOwner(Long projectId, Long userId) {
+        if (projectId == null || userId == null) {
+            return false;
+        }
+        return initiationDetailsRepository.findByProjectId(projectId)
+                .map(details -> userId.equals(details.getOwnerUserId()))
+                .orElse(false);
+    }
+
     private boolean hasAdminAccess(Authentication authentication) {
         return authentication != null
                 && authentication.isAuthenticated()

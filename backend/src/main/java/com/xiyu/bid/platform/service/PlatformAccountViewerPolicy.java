@@ -21,7 +21,7 @@ public final class PlatformAccountViewerPolicy {
             return false;
         }
         return switch (roleCode.toLowerCase(Locale.ROOT)) {
-            case "admin", "bid-teamleader", "/bidadmin", "bid-projectleader" -> true;
+            case "admin", "bid-teamleader", "/bidadmin" -> true;
             default -> false;
         };
     }

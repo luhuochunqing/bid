@@ -150,8 +150,9 @@ public class TaskService {
         // CO-361: 使用 OSS-cache-aware 的 roleCode（DataScopeConfigService.getRoleCode），
         // 而非 User.getRoleCode() 实体 fallback。OSS 同步用户 DB role_id=NULL 时实体返回 "manager"，
         // 会导致投标专员（OSS bid-Team）+ 项目负责人误走"只看 assignee=自己"分支，看不到项目任务。
+        boolean isProjectOwner = projectAccessScopeService.isProjectOwner(projectId, currentUser.getId());
         boolean canViewAll = TaskVisibilityPolicy.canViewAllProjectTasks(
-                dataScopeConfigService.getRoleCode(currentUser), currentUser.getId(), leadIds[0], leadIds[1])
+                dataScopeConfigService.getRoleCode(currentUser), currentUser.getId(), leadIds[0], leadIds[1], isProjectOwner)
                 || isAssignedReviewer(projectId, currentUser.getId());
         List<Task> tasks = canViewAll
                 ? taskRepository.findByProjectId(projectId)

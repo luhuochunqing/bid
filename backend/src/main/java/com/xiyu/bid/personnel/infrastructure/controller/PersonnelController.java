@@ -80,8 +80,8 @@ public class PersonnelController {
     }
 
     @GetMapping
-    // 蓝图 4.3 + CO-403: 投标项目负责人(bid-projectLeader)需只读访问人员库用于投标编制
-    @PreAuthorize("hasAnyAuthority('admin', '/bidAdmin', 'bid-TeamLeader', 'bid-Team', 'bid-projectLeader')")
+    // CO-403: 基于权限点鉴权，持有 personnel.view 的角色均可只读访问人员库
+    @PreAuthorize("hasAuthority('personnel.view')")
     @Auditable(action = "READ", entityType = "Personnel", description = "获取人员列表")
     public ResponseEntity<ApiResponse<List<PersonnelDTO>>> list(
             @RequestParam(required = false) String keyword,
@@ -110,8 +110,8 @@ public class PersonnelController {
     }
 
     @GetMapping("/{id}")
-    // 蓝图 4.3 + CO-403: 投标项目负责人(bid-projectLeader)需只读访问人员库
-    @PreAuthorize("hasAnyAuthority('admin', '/bidAdmin', 'bid-TeamLeader', 'bid-Team', 'bid-projectLeader')")
+    // CO-403: 基于权限点鉴权，持有 personnel.view 的角色均可只读访问人员库
+    @PreAuthorize("hasAuthority('personnel.view')")
     @Auditable(action = "READ", entityType = "Personnel", description = "获取人员详情")
     public ResponseEntity<ApiResponse<PersonnelDTO>> get(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("人员详情获取成功", listService.get(id)));

@@ -23,12 +23,27 @@ public final class TaskOperationPolicy {
             Long primaryLeadId,
             Long secondaryLeadId
     ) {
+        return canManageTask(roleCode, currentUserId, primaryLeadId, secondaryLeadId, false);
+    }
+
+    /**
+     * CO-361: 任务管理权限判定（含项目立项负责人）。
+     *
+     * @param isProjectOwner 当前用户是否为项目立项负责人（owner_user_id）
+     */
+    public static AuthorizationDecision canManageTask(
+            String roleCode,
+            Long currentUserId,
+            Long primaryLeadId,
+            Long secondaryLeadId,
+            boolean isProjectOwner
+    ) {
         if (roleCode != null && DIRECT_MANAGE_ROLES.contains(roleCode)) {
             return AuthorizationDecision.permit();
         }
 
         if (RoleProfileCatalog.SALES_CODE.equalsIgnoreCase(roleCode)) {
-            if (currentUserId != null && currentUserId.equals(primaryLeadId)) {
+            if (isProjectOwner || (currentUserId != null && currentUserId.equals(primaryLeadId))) {
                 return AuthorizationDecision.permit();
             }
             return AuthorizationDecision.deny("投标项目负责人仅可管理自己作为负责人的项目任务");
@@ -101,10 +116,26 @@ public final class TaskOperationPolicy {
             Long secondaryLeadId,
             Long assigneeId
     ) {
+        return canReviewTask(roleCode, currentUserId, primaryLeadId, secondaryLeadId, assigneeId, false);
+    }
+
+    /**
+     * CO-361: 任务审核权限判定（含项目立项负责人）。
+     *
+     * @param isProjectOwner 当前用户是否为项目立项负责人（owner_user_id）
+     */
+    public static AuthorizationDecision canReviewTask(
+            String roleCode,
+            Long currentUserId,
+            Long primaryLeadId,
+            Long secondaryLeadId,
+            Long assigneeId,
+            boolean isProjectOwner
+    ) {
         // 职责分离：不能审核自己提交的任务
         if (currentUserId != null && currentUserId.equals(assigneeId)) {
             return AuthorizationDecision.deny("不能审核自己提交的任务");
         }
-        return canManageTask(roleCode, currentUserId, primaryLeadId, secondaryLeadId);
+        return canManageTask(roleCode, currentUserId, primaryLeadId, secondaryLeadId, isProjectOwner);
     }
 }

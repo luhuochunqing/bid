@@ -45,7 +45,23 @@ public final class TaskVisibilityPolicy {
             final String roleCode,
             final Long userId,
             final Long primaryLeadUserId,
-            final Long secondaryLeadUserId) {
+            final Long secondaryLeadUserId
+    ) {
+        return canViewAllProjectTasks(roleCode, userId, primaryLeadUserId, secondaryLeadUserId, false);
+    }
+
+    /**
+     * CO-361: 判断用户是否可以查看指定项目的所有任务（含项目立项负责人）。
+     *
+     * @param isProjectOwner 当前用户是否为项目立项负责人（owner_user_id）
+     */
+    public static boolean canViewAllProjectTasks(
+            final String roleCode,
+            final Long userId,
+            final Long primaryLeadUserId,
+            final Long secondaryLeadUserId,
+            final boolean isProjectOwner
+    ) {
         if (roleCode == null || roleCode.isBlank()) {
             return false;
         }
@@ -53,9 +69,9 @@ public final class TaskVisibilityPolicy {
         if (RoleProfileCatalog.GLOBAL_ACCESS_ROLES.contains(roleCode)) {
             return true;
         }
-        // 投标项目负责人（bid-projectLeader）→ 需匹配主负责人
+        // 投标项目负责人（bid-projectLeader）→ 匹配主负责人或为项目立项负责人
         if (RoleProfileCatalog.SALES_CODE.equalsIgnoreCase(roleCode)) {
-            return userId != null && userId.equals(primaryLeadUserId);
+            return isProjectOwner || (userId != null && userId.equals(primaryLeadUserId));
         }
         // 投标专员（bid-Team）→ 需是项目投标负责人/辅助才看所有任务
         if (RoleProfileCatalog.BID_SPECIALIST_CODE.equalsIgnoreCase(roleCode)) {
