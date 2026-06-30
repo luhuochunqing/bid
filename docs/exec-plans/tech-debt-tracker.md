@@ -121,6 +121,15 @@
   source: CO-277 深挖（CRM 实推商机主键 id，非编号 code）
   note: 推标讯接口仅定义 `crmOpportunityId` 字段，CRM 据此推送**主键 id**（如 20916）；但 `bidInfoSync` 回传契约要求商机**编号 code**（CC... 格式）。CO-277 的"识别纯数字 id → 反查 code"本质是补偿这个设计缺陷，而非弯路。演进路径：接口规范新增 `crmOpportunityCode` 字段让 CRM 显式推 code，代码优先用 code（`firstNonBlank(crmOpportunityCode, crmOpportunityId)`），保留 id 反查作为兜底；需 CRM 团队配合改推送代码。当前不改动——CO-277 已生效，改接口需外部协调，且向后兼容仍需保留 id 反查。
 
+### 测试与生产环境对齐类
+
+- area: 生产 MySQL sql_mode 配置
+  type: out-of-sync-doc
+  severity: medium
+  status: open
+  source: PR !1372 后续确认（2026-06-30，通过 SSH jetty@172.16.38.78 直连 RDS 查询）
+  note: 生产 RDS（`winbid-01.test.rds.ehsy.com`，MySQL 8.0.43-251200）`@@sql_mode = ''`（空字符串，所有 strict mode 关闭）。测试侧 `AbstractMysqlIntegrationTest.TEST_SQL_MODE` 保留 `ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION`，比生产严格。已知影响：V1077 的 `'0000-00-00 00:00:00'` 字面量在生产合法（sql_mode 空不阻止零日期），在 MySQL 8.0 默认 strict mode 下会触发 Error 1292（测试侧已通过去掉 `NO_ZERO_DATE`/`NO_ZERO_IN_DATE` 对齐）。潜在风险：生产能跑过的某些"不严格"SQL（如截断字符串、零日期、非完全 GROUP BY）在测试会被拒绝，存在漏测可能。完整对齐需要先审计生产数据中是否存在零日期/截断字符串等问题，再决定是在生产开启严格模式还是在测试进一步放宽 sql_mode。属于运维侧独立任务，不在本 PR 范围内。确认结果与决策已记录在 `backend/src/test/java/com/xiyu/bid/support/FlywayMysqlContainerTest.java:47-62`。
+
 ### 待登记
 
 > 后续发现的技术债请追加到对应分类下，不要新建文件。

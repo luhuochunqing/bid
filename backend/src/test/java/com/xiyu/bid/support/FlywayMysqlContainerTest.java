@@ -44,11 +44,22 @@ class FlywayMysqlContainerTest {
     @Autowired
     private EntityManager entityManager;
 
-    // TODO(sql-mode-alignment): 待确认生产 SELECT @@sql_mode 后再对齐。
-    // V1077 已部署且生产成功执行，说明生产 sql_mode 当前不含 NO_ZERO_DATE；
-    // 若测试侧强制 strict mode，V1077 的 '0000-00-00 00:00:00' 字面量会触发
-    // Error 1292，但 V1077 已合入不能改（Flyway checksum 保护）。
-    // 独立任务：确认生产 sql_mode → 决定测试对齐策略 → 必要时新增 V1113+ 修正迁移。
+    // 生产 sql_mode 已确认（2026-06-30，通过 SSH jetty@172.16.38.78 直连 RDS 查询）：
+    //   @@sql_mode = ''（空字符串，所有 strict mode 关闭）
+    //   @@version  = 8.0.43-251200 (MySQL Community Server - GPL)
+    // 结论：
+    //   1. V1077 的 '0000-00-00 00:00:00' 字面量在生产合法（sql_mode 空不阻止零日期）
+    //   2. 不需要新增 V1114+ 修正迁移（V1077 在生产运行正常）
+    //   3. V1077 已合入受 Flyway checksum 保护，不可修改
+    //
+    // 已知债务（TODO(test-prod-sql-mode-alignment)）：
+    //   生产 sql_mode 为空，比测试侧宽松。AbstractMysqlIntegrationTest 保留
+    //   ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION。
+    //   这意味着测试能跑过的 SQL 在生产更宽松环境下也能跑（无问题），
+    //   但反过来生产能跑的某些"不严格"SQL 在测试会被拒绝（潜在漏测）。
+    //   完整对齐需要先审计生产数据中是否存在零日期/截断字符串等问题，
+    //   再决定是在生产开启严格模式还是在测试进一步放宽 sql_mode。
+    //   独立运维任务，不在本 PR 范围内。
     @Container
     static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0")
             .withDatabaseName("xiyu_bid_test")
