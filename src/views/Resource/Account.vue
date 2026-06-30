@@ -105,7 +105,7 @@
 
    <AccountBorrowDialog v-model="showBorrowDialog" :account="currentAccount" @submitted="loadAccounts" />
     <AccountReturnDialog v-model="showReturnDialog" :account="currentReturnAccount" @submitted="onAccountReturned" />
-    <AccountDetailDialog v-model="showDetailDialog" :data="currentAccountDetail" @edit="editFromDetail" @return="handleReturnFromDetail" />
+    <AccountDetailDialog v-model="showDetailDialog" :data="currentAccountDetail" :actions="rowActionsFor(currentAccountDetail || {})" @edit="editFromDetail" @return="handleReturnFromDetail" />
     <AccountFormDialog v-model="showCreateDialog" :edit-row="editRow" @saved="loadAccounts" />
     <AccountImportDialog v-model="showImportDialog" @imported="loadAccounts" />
     <AccountBorrowApplications :accounts="accounts" />

@@ -56,7 +56,7 @@
     <template #footer>
       <el-button @click="visible = false">关闭</el-button>
       <el-button v-if="data?.status === 'in_use'" type="success" @click="$emit('return')">登记归还</el-button>
-     <el-button type="primary" @click="$emit('edit')">编辑</el-button>
+     <el-button v-if="actions.edit" type="primary" @click="$emit('edit')">编辑</el-button>
     </template>
   </el-dialog>
 </template>
@@ -69,7 +69,10 @@ import { usePasswordReveal } from './composables/usePasswordReveal.js'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
-  data: { type: Object, default: null }
+  data: { type: Object, default: null },
+  // CO-400 round5：详情页编辑按钮受权限控制，与列表页 rowActions 对称。
+  // 父组件传入由 resolveAccountActions 计算出的 actions 对象。
+  actions: { type: Object, default: () => ({}) }
 })
 const emit = defineEmits(['update:modelValue', 'edit', 'return'])
 
