@@ -79,16 +79,17 @@ export const brandAuthApi = {
     if (params.authorizationType) q.set('authorizationType', params.authorizationType)
     q.set('page', params.page || 0)
     q.set('size', params.size || 20)
-    // 后端 list 直接返回扁平结构 { content, totalElements, totalPages, number, size }（无 ApiResponse 包装）
+    // 后端统一返回 ApiResponse: { success, code, msg, data: { content, totalElements, totalPages, number, size } }
     const res = await httpClient.get(`/api/knowledge/brand-auth?${q.toString()}`)
-    const content = (res?.content || []).map(normalizeAuth)
-    return { data: { ...res, content } }
+    const page = res?.data || {}
+    const content = (page.content || []).map(normalizeAuth)
+    return { data: { ...page, content } }
   },
 
   async getDetail(id) {
-    // 后端 detail 直接返回 DTO 本身（无 ApiResponse 包装）
+    // 后端统一返回 ApiResponse: { success, code, msg, data: DTO }
     const res = await httpClient.get(`/api/knowledge/brand-auth/${id}`)
-    return { data: normalizeAuth(res) }
+    return { data: normalizeAuth(res?.data) }
   },
 
   async create(data) {
@@ -110,9 +111,9 @@ export const brandAuthApi = {
       auth2Remarks: data.auth2Remarks || '',
       remarks: data.remarks || ''
     }
-    // 后端 create 返回扁平结构 { data: DTO, warning?: string }（无 ApiResponse 包装）
+    // 后端统一返回 ApiResponse: { success, code, msg, data: DTO }；warning 已合并到 msg
     const res = await httpClient.post('/api/knowledge/brand-auth', payload)
-    return { ...res, data: res?.data ? normalizeAuth(res.data) : null, warning: res?.warning }
+    return { data: res?.data ? normalizeAuth(res.data) : null, warning: res?.msg }
   },
 
   async update(id, data) {
@@ -134,8 +135,8 @@ export const brandAuthApi = {
       remarks: data.remarks !== undefined ? data.remarks : undefined
     }
     const res = await httpClient.put(`/api/knowledge/brand-auth/${id}`, payload)
-    // 后端 update 直接返回 DTO 本身（无 ApiResponse 包装）
-    return { data: normalizeAuth(res) }
+    // 后端统一返回 ApiResponse: { success, code, msg, data: DTO }
+    return { data: normalizeAuth(res?.data) }
   },
 
   async uploadAttachments(authorizationId, attachmentType, files) {
@@ -150,13 +151,15 @@ export const brandAuthApi = {
   },
 
   async revoke(id, reason) {
-    // 后端 revoke 直接返回 DTO 本身（无 ApiResponse 包装）
+    // 后端统一返回 ApiResponse: { success, code, msg, data: DTO }
     const res = await httpClient.post(`/api/knowledge/brand-auth/${id}/revoke`, { reason })
-    return { data: normalizeAuth(res) }
+    return { data: normalizeAuth(res?.data) }
   },
 
   async getLogs(id) {
-    return httpClient.get(`/api/knowledge/brand-auth/${id}/logs`)
+    // 后端统一返回 ApiResponse: { success, code, msg, data: List<Log> }
+    const res = await httpClient.get(`/api/knowledge/brand-auth/${id}/logs`)
+    return { data: res?.data || [] }
   },
 
   /** Download import template Excel file. */

@@ -14,6 +14,7 @@ import com.xiyu.bid.brandauth.manufacturer.application.service.RevokeManufacture
 import com.xiyu.bid.brandauth.manufacturer.application.service.UpdateManufacturerAuthAppService;
 import com.xiyu.bid.brandauth.manufacturer.domain.valueobject.AuthStatus;
 import com.xiyu.bid.brandauth.manufacturer.domain.valueobject.ProductLine;
+import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.repository.UserRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -69,7 +70,7 @@ public class ManufacturerAuthorizationController {
     /** List authorizations with pagination and filters. */
     @GetMapping
     @PreAuthorize("hasAuthority('brand-auth.view')")
-    public ResponseEntity<Map<String, Object>> list(
+    public ResponseEntity<ApiResponse<Map<String, Object>>> list(
             @RequestParam(required = false) final List<String> productLines,
             @RequestParam(required = false) final String brandId,
             @RequestParam(required = false) final String brandName,
@@ -96,45 +97,43 @@ public class ManufacturerAuthorizationController {
 
         Page<ManufacturerAuthorizationDTO> result =
                 listService.list(filter, page, size);
-        return ResponseEntity.ok(Map.of(
+        Map<String, Object> pageData = Map.of(
                 "content", result.getContent(),
                 "totalElements", result.getTotalElements(),
                 "totalPages", result.getTotalPages(),
                 "number", result.getNumber(),
-                "size", result.getSize()));
+                "size", result.getSize());
+        return ResponseEntity.ok(ApiResponse.success(pageData));
     }
 
     /** Get single authorization by ID. */
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('brand-auth.view')")
-    public ResponseEntity<ManufacturerAuthorizationDTO> detail(
+    public ResponseEntity<ApiResponse<ManufacturerAuthorizationDTO>> detail(
             @PathVariable final Long id) {
         return listService.getDetail(id)
-                .map(ResponseEntity::ok)
+                .map(dto -> ResponseEntity.ok(ApiResponse.success(dto)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
     /** Create a new authorization. */
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
-    public ResponseEntity<Map<String, Object>> create(
+    public ResponseEntity<ApiResponse<ManufacturerAuthorizationDTO>> create(
             @Valid @RequestBody final CreateManufacturerAuthCommand cmd) {
         Long userId = getCurrentUserId();
         var result = createService.create(cmd, userId);
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("data", result.dto());
-        if (result.warning() != null) {
-            response.put("warning", result.warning());
-        }
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        // warning 作为 message 返回（方案 A）：前端 res.msg 有值则提示，无值则默认"创建成功"
+        String message = result.warning() != null ? result.warning() : "创建成功";
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created(message, result.dto()));
     }
 
     /** Upload attachments for an authorization. */
     @PostMapping(value = "/attachments/upload",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
-    public ResponseEntity<List<ManufacturerAuthorizationDTO.AttachmentDTO>>
+    public ResponseEntity<ApiResponse<List<ManufacturerAuthorizationDTO.AttachmentDTO>>>
     uploadAttachments(
             @RequestParam final Long authorizationId,
             @RequestParam final String attachmentType,
@@ -143,38 +142,40 @@ public class ManufacturerAuthorizationController {
         List<ManufacturerAuthorizationDTO.AttachmentDTO> result =
                 attachmentService.upload(
                         authorizationId, attachmentType, files);
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.success(result));
     }
 
     /** Update an existing authorization. */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
-    public ResponseEntity<ManufacturerAuthorizationDTO> update(
+    public ResponseEntity<ApiResponse<ManufacturerAuthorizationDTO>> update(
             @PathVariable final Long id,
             @Valid @RequestBody final UpdateManufacturerAuthCommand cmd) {
         Long userId = getCurrentUserId();
-        return ResponseEntity.ok(updateService.update(id, cmd, userId));
+        return ResponseEntity.ok(
+                ApiResponse.success(updateService.update(id, cmd, userId)));
     }
 
     /** Revoke an authorization. */
     @PostMapping("/{id}/revoke")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
-    public ResponseEntity<ManufacturerAuthorizationDTO> revoke(
+    public ResponseEntity<ApiResponse<ManufacturerAuthorizationDTO>> revoke(
             @PathVariable final Long id,
             @Valid @RequestBody final RevokeManufacturerAuthCommand cmd) {
         Long userId = getCurrentUserId();
-        return ResponseEntity.ok(revokeService.revoke(id, cmd.reason(), userId));
+        return ResponseEntity.ok(
+                ApiResponse.success(revokeService.revoke(id, cmd.reason(), userId)));
     }
 
     /** Get operation logs for an authorization. */
     @GetMapping("/{id}/logs")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
-    public ResponseEntity<List<Map<String, Object>>> logs(
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> logs(
             @PathVariable final Long id) {
         List<com.xiyu.bid.brandauth.manufacturer.infrastructure.persistence.entity.BrandAuthOperationLogEntity> logs =
                 logRepository.findByAuthorizationIdOrderByCreatedAtDesc(id);
-        
-        List<Map<String, Object>> response = logs.stream().map(log -> {
+
+        List<Map<String, Object>> data = logs.stream().map(log -> {
             Map<String, Object> map = new HashMap<>();
             map.put("id", log.getId());
             map.put("timestamp", log.getCreatedAt().toString());
@@ -183,8 +184,8 @@ public class ManufacturerAuthorizationController {
             map.put("description", log.getDetails() != null ? log.getDetails() : log.getRemarks());
             return map;
         }).toList();
-        
-        return ResponseEntity.ok(response);
+
+        return ResponseEntity.ok(ApiResponse.success(data));
     }
 
     /** Export all authorizations as Excel. */
@@ -220,12 +221,12 @@ public class ManufacturerAuthorizationController {
     /** Batch import brand authorizations from an uploaded Excel file. */
     @PostMapping("/import")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
-    public ResponseEntity<BrandAuthImportService.ImportResult> importExcel(
+    public ResponseEntity<ApiResponse<BrandAuthImportService.ImportResult>> importExcel(
             @RequestParam("file") final MultipartFile file) throws IOException {
         Long userId = getCurrentUserId();
         BrandAuthImportService.ImportResult result =
                 importService.importExcel(file.getBytes(), userId);
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(ApiResponse.success(result));
     }
 
     private Long getCurrentUserId() {
