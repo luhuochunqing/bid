@@ -102,8 +102,12 @@ export function normalizeCaCertificate(item) {
     // 证书状态
     status: item.status || 'ACTIVE',
     statusLabel: STATUS_MAP[item.status] || item.status || '有效',
-    // 备注
-    remark: item.remark || '',
+    // 颁发机构（CO-435 修复）
+    issuer: item.issuer || '',
+    // 持有人（CO-435 修复）
+    holderName: item.holderName || '',
+    // 备注：优先读取后端 remarks（复数），兼容前端 remark（单数）
+    remark: item.remarks || item.remark || '',
     // 时间戳
     createdAt: item.createdAt || '',
     updatedAt: item.updatedAt || '',
