@@ -3,6 +3,7 @@
 // Pos: biddraftagent/infrastructure/e2e - test-profile adapter, no production activation
 package com.xiyu.bid.biddraftagent.infrastructure.e2e;
 
+import com.xiyu.bid.biddraftagent.infrastructure.openai.TenderContactSplitter;
 import com.xiyu.bid.docinsight.application.DocumentAnalysisInput;
 import com.xiyu.bid.docinsight.application.DocumentAnalysisResult;
 import com.xiyu.bid.docinsight.application.DocumentAnalyzer;
@@ -25,10 +26,14 @@ public class E2eTenderIntakeDocumentAnalyzer implements DocumentAnalyzer {
             Map.entry("region", List.of("总部所在地", "地区")),
             Map.entry("deadline", List.of("报名截止时间", "截止时间", "投标截止时间", "响应截止时间")),
             Map.entry("bidOpeningTime", List.of("开标时间")),
-            Map.entry("contactName", List.of("联系人")),
-            Map.entry("contactPhone", List.of("手机号", "手机", "移动电话")),
-            Map.entry("contactLandline", List.of("座机", "座机号", "固定电话", "联系电话")),
-            Map.entry("contactEmail", List.of("邮箱", "电子邮箱")),
+            Map.entry("contactName", List.of("联系人", "联系人1", "第一联系人")),
+            Map.entry("contactPhone", List.of("手机号", "手机", "移动电话", "联系人手机", "联系人1手机")),
+            Map.entry("contactLandline", List.of("座机", "座机号", "固定电话", "联系电话", "联系人座机", "联系人1座机")),
+            Map.entry("contactEmail", List.of("邮箱", "电子邮箱", "联系人邮箱", "联系人1邮箱")),
+            Map.entry("contactName2", List.of("联系人2", "第二联系人")),
+            Map.entry("contactPhone2", List.of("联系人2手机", "联系人2手机号", "第二联系人手机")),
+            Map.entry("contactLandline2", List.of("联系人2座机", "联系人2座机号", "第二联系人座机")),
+            Map.entry("contactEmail2", List.of("联系人2邮箱", "第二联系人邮箱")),
             Map.entry("customerType", List.of("客户类型")),
             Map.entry("priority", List.of("优先级"))
     );
@@ -64,6 +69,7 @@ public class E2eTenderIntakeDocumentAnalyzer implements DocumentAnalyzer {
             String value = normalized.substring(separator + 1).trim();
             putMappedField(data, key, value);
         }
+        TenderContactSplitter.splitMultiContactNamesIfNeeded(data);
         return data;
     }
 

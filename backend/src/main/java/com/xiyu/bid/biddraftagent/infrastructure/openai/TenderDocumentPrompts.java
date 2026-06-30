@@ -55,7 +55,9 @@ final class TenderDocumentPrompts {
                 - purchaserName：业主单位，即招标人/采购人名称。
                 - deadline：报名截止/投标截止/响应截止日期时间，格式 yyyy-MM-dd'T'HH:mm:ss；只有日期时输出 yyyy-MM-dd。
                 - bidOpeningTime：开标时间，格式 yyyy-MM-dd'T'HH:mm:ss；只有日期时输出 yyyy-MM-dd。
-                - contactName/contactPhone/contactLandline/contactEmail：联系人、手机号、座机、邮箱；手机号必须是11位数字（1开头），座机格式为区号-号码（如 010-12345678）；无法确认留空，不得把座机填入手机号字段或反之。
+                - contactName/contactPhone/contactLandline/contactEmail：联系人1的姓名、手机号、座机、邮箱；手机号必须是11位数字（1开头），座机格式为区号-号码（如 010-12345678）；无法确认留空，不得把座机填入手机号字段或反之。
+                - contactName2/contactPhone2/contactLandline2/contactEmail2：联系人2的姓名、手机号、座机、邮箱；正文中出现第二个联系人时填入；只有一个联系人时留空。
+                - 注意：如果联系人姓名包含顿号、逗号或"、"分隔的多个人名（如"姜经理、段经理"），必须拆分为联系人1和联系人2分别填入，不得合并在一个字段中。
                 - customerType：客户类型，只能是 政府机关/事业单位/高校、央企、地方国企、民企、港澳台及外企 之一；无法确认留空，不得推断。
                 - priority：优先级，只能是 S、A、B、C；S=预算>=5000万或央企总部，A=预算>=1000万或央企子公司，B=预算>=200万或地方国企，C=其他；无法确认留空，不得推断。
                 - tenderScope：项目概况/采购内容的简短摘要，不超过 120 字。

@@ -162,7 +162,9 @@ export function useTenderAiParse(form) {
         deadline: 'deadline', bidOpeningTime: 'bidOpeningTime',
         customerType: 'customerType', priority: 'priority',
         contact: 'contact', phone: 'phone', landline: 'landline',
-        mail: 'mail', description: 'description', tenderInfo: 'tenderInfo',
+        mail: 'mail', contact2: 'contact2', phone2: 'phone2',
+        landline2: 'landline2', mail2: 'mail2',
+        description: 'description', tenderInfo: 'tenderInfo',
         projectType: 'projectType',
       },
       {
@@ -171,9 +173,12 @@ export function useTenderAiParse(form) {
         deadline: 'deadline', bidOpeningTime: 'bidOpeningTime',
         region: 'region', customerType: 'customerType', priority: 'priority',
         contactName: 'contact', contactPhone: 'phone',
-        contactTel: 'landline', contactLandline: 'landline',
-        contactTel2: 'landline2', contactLandline2: 'landline2',
-        contactEmail: 'mail', tenderScope: 'description',
+        contactLandline: 'landline',
+        contactEmail: 'mail',
+        contactName2: 'contact2', contactPhone2: 'phone2',
+        contactLandline2: 'landline2',
+        contactEmail2: 'mail2',
+        tenderScope: 'description',
       },
     ]
     const sources = [data, extracted].filter(Boolean)
