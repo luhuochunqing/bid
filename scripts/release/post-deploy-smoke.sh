@@ -147,6 +147,49 @@ else
   warn "journalctl 不可用，跳过日志扫描"
 fi
 
+# ── P0: Headless 模式验证（CO-438 防复发）──
+section "P0: Headless Mode (CO-438)"
+if [[ -z "$BACKEND_SERVICE_NAME" ]]; then
+  warn "BACKEND_SERVICE_NAME 未设置，跳过 headless 验证"
+else
+  # 检查 systemd ExecStart 是否包含 -Djava.awt.headless=true
+  SERVICE_FILE="/etc/systemd/system/${BACKEND_SERVICE_NAME}.service"
+  if [[ -f "$SERVICE_FILE" ]]; then
+    if grep -q 'java\.awt\.headless=true' "$SERVICE_FILE" 2>/dev/null; then
+      pass "systemd ExecStart 包含 -Djava.awt.headless=true"
+    else
+      fail "systemd ExecStart 缺少 -Djava.awt.headless=true（CO-438 根因）"
+      echo "     → 参考模板: docs/release/systemd/xiyu-bid-backend.service"
+    fi
+  else
+    warn "service 文件不存在 ($SERVICE_FILE)，跳过检查"
+  fi
+
+  # 检查运行中 JVM 进程是否实际带 headless 参数
+  JVM_PID=$(systemctl show "$BACKEND_SERVICE_NAME" -p MainPID 2>/dev/null | cut -d= -f2)
+  if [[ -n "$JVM_PID" && "$JVM_PID" -gt 0 ]]; then
+    if tr '\0' ' ' < "/proc/$JVM_PID/cmdline" 2>/dev/null | grep -q 'java\.awt\.headless=true'; then
+      pass "运行中 JVM 进程 (PID=$JVM_PID) 已启用 headless 模式"
+    else
+      fail "运行中 JVM 进程 (PID=$JVM_PID) 未启用 headless 模式"
+      echo "     → 需要在 systemd ExecStart 添加 -Djava.awt.headless=true 并 restart"
+    fi
+  else
+    warn "无法获取后端服务 PID，跳过运行时 headless 检查"
+  fi
+
+  # 检查 fontconfig 错误是否出现在日志中
+  if command -v journalctl &>/dev/null; then
+    FONTCONFIG_ERR=$(journalctl -u "$BACKEND_SERVICE_NAME" --no-pager -n 500 2>/dev/null \
+      | grep -ci 'Fontconfig.*head.*null\|fontmanager.*null\|X11FontManager' || true)
+    if [[ "$FONTCONFIG_ERR" -eq 0 ]]; then
+      pass "日志中无 fontconfig head null 错误"
+    else
+      fail "日志中发现 fontconfig 错误（$FONTCONFIG_ERR 条），headless 未生效"
+    fi
+  fi
+fi
+
 # ── Summary ──
 section "Summary"
 TOTAL=$((PASS + FAIL + WARN))

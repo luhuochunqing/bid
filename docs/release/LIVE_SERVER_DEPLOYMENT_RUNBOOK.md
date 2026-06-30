@@ -155,6 +155,31 @@ ssh -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" jetty@172.16.38.78 '
 '
 ```
 
+### 6.1 Headless 模式验证（CO-438 防复发，必检）
+
+> **背景**：CO-438 — 生产环境 POI `autoSizeColumn` 因缺少 `-Djava.awt.headless=true` 触发 `Fontconfig head is null` NPE。
+> 代码层已有 `XiyuBidApplication.java` 兜底 + `ExcelAutoSizeHelper` 降级 + 架构测试防复发，但 **systemd 配置是第一道防线，必须在部署时确认**。
+
+```bash
+# 检查 systemd ExecStart 是否包含 headless 参数
+ssh -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" jetty@172.16.38.78 '
+  grep "java\.awt\.headless=true" /etc/systemd/system/xiyu-bid-backend.service \
+    && echo "✅ headless OK" \
+    || echo "❌ headless MISSING — 参考 docs/release/systemd/xiyu-bid-backend.service"
+'
+```
+
+如果检查失败，使用仓库中的模板修复：
+
+```bash
+# 从发布包复制模板（或在服务器上手动编辑）
+sudo cp docs/release/systemd/xiyu-bid-backend.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl restart xiyu-bid-backend
+```
+
+> **生产环境首次部署时**：必须使用 `docs/release/systemd/xiyu-bid-backend.service` 模板，不要从空白配置开始编写。
+
 确认服务器环境变量，输出时不要显示密码：
 
 ```bash

@@ -1,0 +1,39 @@
+# ──────────────────────────────────────────────────────────────────
+# systemd unit template — 西域数智化投标管理平台后端服务
+# ──────────────────────────────────────────────────────────────────
+# 部署步骤：
+#   1. sudo cp xiyu-bid-backend.service /etc/systemd/system/
+#   2. sudo systemctl daemon-reload
+#   3. sudo systemctl restart xiyu-bid-backend
+#
+# 注意：
+#   - -Djava.awt.headless=true 必须保留，否则 POI autoSizeColumn 在无显示器
+#     环境下会触发 fontconfig NPE（CO-438 根因）。
+#   - 代码层 XiyuBidApplication.java 也有 System.setProperty 兜底，但 systemd
+#     层必须先设置，确保 JVM 启动时即进入 headless 模式。
+#   - EnvironmentFile 指向 /etc/xiyu-bid/backend.env，其中包含 DB_PASSWORD、
+#     JWT_SECRET 等敏感信息，不要提交到仓库。
+# ──────────────────────────────────────────────────────────────────
+
+[Unit]
+Description=XiYu Smart Bidding Backend
+After=network.target
+
+[Service]
+User=jetty
+WorkingDirectory=/opt/xiyu-bid/shared/backend
+EnvironmentFile=/etc/xiyu-bid/backend.env
+ExecStart=/opt/xiyu-tools/jdk-21/bin/java \
+    -Djava.awt.headless=true \
+    -Dfile.encoding=UTF-8 \
+    -Dsun.jnu.encoding=UTF-8 \
+    -Dserver.servlet.encoding.charset=UTF-8 \
+    -Dserver.servlet.encoding.enabled=true \
+    -Dserver.servlet.encoding.force=true \
+    -jar /opt/xiyu-bid/shared/backend/app.jar
+Restart=always
+RestartSec=5
+SuccessExitStatus=143
+
+[Install]
+WantedBy=multi-user.target
