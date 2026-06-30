@@ -6,6 +6,7 @@ package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.annotation.Auditable;
 import com.xiyu.bid.casework.application.ProjectArchiveWorkflowService;
+import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
@@ -33,6 +34,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -117,7 +119,11 @@ public class ProjectInitiationApprovalService {
 
         // 3a. 如果需要缴纳保证金，自动创建"缴纳保证金"任务
         if (entity.getNeedDeposit() != null && "YES".equalsIgnoreCase(entity.getNeedDeposit())) {
-            createDepositTask(projectId, req.getPrimaryLeadUserId());
+            // 执行人应该是项目负责人（投标项目负责人），不是投标负责人
+            Long projectManagerId = projectRepository.findById(projectId)
+                    .map(Project::getManagerId)
+                    .orElse(null);
+            createDepositTask(projectId, projectManagerId, entity.getDepositAmount(), entity.getDepositPaymentMethod());
         }
 
         // 4. 创建项目档案（幂等：UNIQUE constraint 防止重复创建）
@@ -169,21 +175,25 @@ public class ProjectInitiationApprovalService {
 
     /**
      * 为项目自动创建"缴纳保证金"系统任务。
-     * <p>任务分配给项目主负责人，优先级为高，截止时间默认7天后。</p>
+     * <p>任务分配给项目负责人（投标项目负责人），优先级为高，截止时间默认7天后。</p>
      *
      * @param projectId 项目ID
-     * @param assigneeId 任务执行人ID（项目主负责人）
+     * @param assigneeId 任务执行人ID（项目负责人）
+     * @param depositAmount 保证金金额（万元）
+     * @param depositPaymentMethod 保证金缴纳方式（WIRE=电汇, GUARANTEE=保险/保函）
      */
-    private void createDepositTask(Long projectId, Long assigneeId) {
+    private void createDepositTask(Long projectId, Long assigneeId, BigDecimal depositAmount, String depositPaymentMethod) {
         if (assigneeId == null) {
-            log.warn("Cannot create deposit task: primaryLeadUserId is null for project={}", projectId);
+            log.warn("Cannot create deposit task: project manager is null for project={}", projectId);
             return;
         }
         try {
+            String paymentMethodText = "GUARANTEE".equalsIgnoreCase(depositPaymentMethod) ? "保险/保函" : "电汇";
+            String description = buildDepositDescription(depositAmount, paymentMethodText);
             TaskDTO depositTask = TaskDTO.builder()
                     .projectId(projectId)
                     .title("缴纳投标保证金")
-                    .description("请按照招标文件要求缴纳投标保证金，确保投标有效性。")
+                    .description(description)
                     .assigneeId(assigneeId)
                     .priority(Task.Priority.HIGH)
                     .dueDate(LocalDateTime.now().plusDays(7))
@@ -202,6 +212,16 @@ public class ProjectInitiationApprovalService {
             log.error("Unexpected error while creating deposit task for project={}: {}",
                     projectId, e.getMessage(), e);
         }
+    }
+
+    private String buildDepositDescription(BigDecimal depositAmount, String paymentMethodText) {
+        StringBuilder sb = new StringBuilder();
+        if (depositAmount != null) {
+            sb.append("保证金金额：").append(depositAmount).append("万元\n");
+        }
+        sb.append("保证金缴纳方式：").append(paymentMethodText).append("\n");
+        sb.append("请按照招标文件要求缴纳投标保证金，确保投标有效性。");
+        return sb.toString();
     }
 
     private ProjectInitiationDetails mustGet(Long projectId) {

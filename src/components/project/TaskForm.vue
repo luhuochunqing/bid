@@ -18,12 +18,12 @@
             <el-input v-model="localValue.name" placeholder="请输入任务名称" />
           </el-form-item>
 
-          <el-form-item label="详细描述">
+          <el-form-item label="详细描述" required>
             <el-input
               v-model="localValue.content"
               type="textarea"
               :rows="6"
-              placeholder="支持 Markdown：# 标题、- 列表、**加粗** 等"
+              placeholder="保证金金额和保证金缴纳方式"
             />
           </el-form-item>
 
@@ -352,6 +352,10 @@ async function loadStatuses() {
 function validate() {
   if (!localValue.name || !String(localValue.name).trim()) {
     validationMessage.value = '请填写任务名称'
+    return validationMessage.value
+  }
+  if (!localValue.content || !String(localValue.content).trim()) {
+    validationMessage.value = '请填写详细描述'
     return validationMessage.value
   }
   if (!localValue.assigneeId) {
