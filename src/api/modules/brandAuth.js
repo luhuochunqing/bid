@@ -79,9 +79,10 @@ export const brandAuthApi = {
     if (params.authorizationType) q.set('authorizationType', params.authorizationType)
     q.set('page', params.page || 0)
     q.set('size', params.size || 20)
+    // 后端 list 直接返回扁平结构 { content, totalElements, totalPages, number, size }（无 ApiResponse 包装）
     const res = await httpClient.get(`/api/knowledge/brand-auth?${q.toString()}`)
-    const content = (res?.data?.content || []).map(normalizeAuth)
-    return { ...res, data: { ...res?.data, content } }
+    const content = (res?.content || []).map(normalizeAuth)
+    return { data: { ...res, content } }
   },
 
   async getDetail(id) {
@@ -108,8 +109,9 @@ export const brandAuthApi = {
       auth2Remarks: data.auth2Remarks || '',
       remarks: data.remarks || ''
     }
+    // 后端 create 返回扁平结构 { data: DTO, warning?: string }（无 ApiResponse 包装）
     const res = await httpClient.post('/api/knowledge/brand-auth', payload)
-    return { ...res, data: res?.data?.data ? normalizeAuth(res.data.data) : null, warning: res?.data?.warning }
+    return { ...res, data: res?.data ? normalizeAuth(res.data) : null, warning: res?.warning }
   },
 
   async update(id, data) {
