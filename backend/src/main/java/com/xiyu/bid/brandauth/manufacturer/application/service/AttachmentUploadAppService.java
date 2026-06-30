@@ -43,7 +43,11 @@ public class AttachmentUploadAppService {
         ManufacturerAuthorization auth = authorizationRepository.findById(authorizationId)
                 .orElseThrow(() -> new NoSuchElementException("授权记录不存在: " + authorizationId));
 
-        Path uploadPath = Paths.get(uploadDir, String.valueOf(authorizationId));
+        // 关键修复：必须把 uploadDir 归一化为绝对路径，否则会触发 Spring 的相对路径陷阱
+        // - Files.createDirectories(Path) 相对路径按 JVM 工作目录解析（systemd WorkingDirectory）
+        // - MultipartFile.transferTo(File) 相对路径按 Tomcat 临时工作目录解析
+        // 两者基准不一致会导致 FileNotFoundException
+        Path uploadPath = resolveAbsoluteUploadPath().resolve(String.valueOf(authorizationId));
         Files.createDirectories(uploadPath);
 
         List<BrandAuthAttachmentEntity> saved = new ArrayList<>();
@@ -51,8 +55,9 @@ public class AttachmentUploadAppService {
             validateFile(file);
 
             String storedName = UUID.randomUUID() + "_" + sanitizeFilename(file.getOriginalFilename());
-            Path dest = uploadPath.resolve(storedName);
-            file.transferTo(dest.toFile());
+            Path dest = uploadPath.resolve(storedName).toAbsolutePath().normalize();
+            // 使用 Path 重载 + 绝对路径，绕开 Tomcat 临时目录陷阱
+            file.transferTo(dest);
 
             BrandAuthAttachmentEntity entity = BrandAuthAttachmentEntity.builder()
                     .authorizationId(authorizationId)
@@ -81,6 +86,19 @@ public class AttachmentUploadAppService {
 
     private static String sanitizeFilename(String name) {
         return name == null ? "file" : name.replaceAll("[^a-zA-Z0-9._\\-\\u4e00-\\u9fff]", "_");
+    }
+
+    /**
+     * 将 uploadDir 归一化为绝对路径。
+     * 相对路径按 JVM 工作目录（systemd WorkingDirectory）解析，确保
+     * Files.createDirectories 与 MultipartFile.transferTo 使用同一基准。
+     */
+    private Path resolveAbsoluteUploadPath() {
+        Path p = Paths.get(uploadDir);
+        if (!p.isAbsolute()) {
+            p = Paths.get(System.getProperty("user.dir")).resolve(p).normalize();
+        }
+        return p;
     }
 
     public List<BrandAuthAttachmentEntity> getAttachments(Long authorizationId) {
