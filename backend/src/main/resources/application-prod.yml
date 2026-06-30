@@ -92,3 +92,11 @@ logging:
     org.hibernate.SQL: WARN
   # 日志文件路径在 logback-spring.xml 中通过 LOG_PATH 环境变量统一控制，
   # 避免 Spring Boot 默认 file appender 与自定义 logback 配置冲突。
+
+# Sentry 生产环境配置
+# DSN 必须通过 SENTRY_DSN 环境变量注入（无 DSN 时 Sentry 自动禁用）
+sentry:
+  dsn: ${SENTRY_DSN:}
+  environment: ${SENTRY_ENVIRONMENT:production}
+  traces-sample-rate: ${SENTRY_TRACES_SAMPLE_RATE:0.1}
+  send-default-pii: false

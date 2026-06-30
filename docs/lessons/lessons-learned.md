@@ -1500,9 +1500,58 @@ grep -rn "@Profile" backend/src/main/java/com/xiyu/bid/config/ | grep -i "seed\|
 
 ## 23. 全链路日志排查 SOP（Agent 必读）
 
+### 三层诊断体系
+
+```
+┌─────────────────────────────────────────────────┐
+│  Layer 1: Sentry 自动诊断（P0，首选）              │
+│  自动聚合异常 → 直接定位根因代码行 → 显示触发用户   │
+│  适用：NPE、SQL异常、外部服务失败等系统缺陷         │
+├─────────────────────────────────────────────────┤
+│  Layer 2: 结构化日志 + TraceId 手动溯源（P1）      │
+│  grep traceId → 全链路还原 → 请求参数/Body 回放    │
+│  适用：业务逻辑错误、性能问题、Sentry 未覆盖场景     │
+├─────────────────────────────────────────────────┤
+│  Layer 3: git log + cherry-pick 追溯（P2）        │
+│  代码变更历史 → 哪次 commit 引入的回归             │
+│  适用：回归问题、merge 冲突导致的功能丢失            │
+└─────────────────────────────────────────────────┘
+```
+
 ### 问题背景
 
-为了解决定位线上缺陷难、Agent 缺少错误上下文（特别是崩溃时的入参丢失）、以及第三方系统报错盲区等问题，系统已引入全链路日志机制（PR #1295）。AI Agent 介入排查 Bug 时，必须严格遵循以下 SOP，大幅缩短定位时间。
+为了解决定位线上缺陷难、Agent 缺少错误上下文（特别是崩溃时的入参丢失）、以及第三方系统报错盲区等问题，系统已引入 **Sentry 自动错误诊断**（2026-06-30）和全链路日志机制（PR #1295）。AI Agent 介入排查 Bug 时，必须严格遵循以下 SOP，大幅缩短定位时间。
+
+### Layer 1：Sentry 自动诊断（首选，5 秒定位根因）
+
+**Sentry 是什么**：自动错误聚合 + 根因定位系统。捕获所有未处理的异常（NPE、SQL 异常、外部服务调用失败等），自动聚合相同错误，直接显示触发代码的**文件路径 + 行号 + 用户上下文**。
+
+**Sentry 上报哪些异常**：
+- 上报：NPE、SQL 异常、`ExternalServiceException`、`IllegalStateException`、`HttpMessageNotReadableException`、`OptimisticLockingFailureException`、`ConstraintViolationException` 等系统缺陷
+- 不上报（`SentryConfig.NON_CRITICAL_EXCEPTIONS` 过滤）：`AccessDeniedException`（403 正常权限控制）、`AuthenticationException`（401 正常认证）、`BusinessException`（400 正常业务校验）、`ResourceNotFoundException`（404 正常查询结果）
+
+**Agent 动作**：
+1. 打开 Sentry Dashboard（`https://sentry.io` 或自建实例）
+2. 查看 Issues 列表，按时间/频率排序
+3. 点击具体 Issue → 直接看到：
+   - 异常堆栈 + 触发代码的**文件路径 + 行号**
+   - 触发用户：userId、username、roleCode、fullName
+   - 请求上下文：URL、HTTP Method、Query 参数
+   - 发生频率：过去 24h/7d/30d 各多少次
+   - 首次出现时间 + 最近出现时间（判断是新引入还是历史遗留）
+   - Release 版本（git commit hash）：知道是哪个版本引入的 bug
+4. 直接定位到代码行，无需 grep 日志
+
+**Sentry 环境要求**：
+- DSN 通过 `SENTRY_DSN` 环境变量注入（无 DSN 时 Sentry 自动禁用，不影响业务）
+- 生产环境：`SENTRY_DSN` 必须配置，traces-sample-rate 默认 0.1
+- 开发环境：可选配置，用于本地调试
+
+**配置文件**：
+- `sentry.properties`：DSN、环境、采样率
+- `SentryConfig.java`：beforeSend 过滤 + 用户上下文注入 + release 自动读取
+
+### Layer 2：结构化日志 + TraceId 手动溯源（Sentry 未覆盖时使用）
 
 ### 操作规范（Agent 排查必读）
 

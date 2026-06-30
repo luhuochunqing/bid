@@ -48,6 +48,10 @@ export CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-http://localhost:1314,http:
 export WEBHOOK_CRM_TOKEN="${WEBHOOK_CRM_TOKEN:-xiyu-bid-poc-local-dev-crm-webhook-token-change-in-prod}"
 export LOCAL_DEV_PASSWORD="${LOCAL_DEV_PASSWORD:-Test@123}"
 
+# Sentry 错误追踪（可选：未设置 SENTRY_DSN 时 Sentry 自动禁用，不影响业务）
+export SENTRY_DSN="${SENTRY_DSN:-}"
+export SENTRY_ENVIRONMENT="${SENTRY_ENVIRONMENT:-development}"
+
 # 服务端口（默认 18080，与前端和文档保持一致）
 SERVER_PORT="${SERVER_PORT:-18080}"
 BACKEND_PROFILES="${SPRING_PROFILES_ACTIVE:-dev,mysql}"

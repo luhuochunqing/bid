@@ -1,0 +1,9 @@
+version: 1
+task: "integrate-sentry-error-tracking"
+locks:
+  - path: "backend/src/main/resources/application-prod.yml"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/codex/integrate-sentry-error-tracking"
+    expiresAt: "2026-07-01T05:30:51.553Z"
+    reason: "Sentry prod config integration"
