@@ -87,8 +87,8 @@ const globalStubs = {
     template: '<form><slot /></form>',
   },
   ElFormItem: {
-    props: ['label', 'required'],
-    template: '<div class="form-item"><label>{{ label }}</label><slot /></div>',
+    props: ['label', 'required', 'error'],
+    template: '<div class="form-item"><label>{{ label }}</label><slot /><div v-if="error" class="form-item-error">{{ error }}</div></div>',
   },
   ElInput: {
     props: ['modelValue', 'type', 'rows', 'placeholder'],
@@ -190,6 +190,80 @@ describe('TaskForm', () => {
     await flushPromises()
     const r = wrapper.vm.submit()
     expect(r.valid).toBe(false)
+  })
+
+  // CO-419: 字段级错误跟着字段走，一次性显示所有必填字段错误，不再堆在底部 alert
+  it('shows field-level errors for all required fields when submit with empty form', async () => {
+    const wrapper = mount(TaskForm, {
+      props: { mode: 'create', modelValue: {} },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+    wrapper.vm.submit()
+    await flushPromises()
+    const errors = wrapper.findAll('.form-item-error').map((el) => el.text())
+    expect(errors).toContain('请填写任务名称')
+    expect(errors).toContain('请填写详细描述')
+    expect(errors).toContain('请选择任务执行人')
+    expect(errors).toContain('请选择截止日期')
+  })
+
+  it('clears field error when user edits that field', async () => {
+    const wrapper = mount(TaskForm, {
+      props: { mode: 'create', modelValue: {} },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+    wrapper.vm.submit()
+    await flushPromises()
+
+    // 用户填写任务名称后，对应字段错误应立即清除（其他错误仍保留）
+    const nameInput = wrapper.find('input.el-input-stub')
+    await nameInput.setValue('新任务')
+    await flushPromises()
+    const errors = wrapper.findAll('.form-item-error').map((el) => el.text())
+    expect(errors).not.toContain('请填写任务名称')
+    expect(errors).toContain('请填写详细描述')
+  })
+
+  // CO-419: 输入纯空格不清错——避免错误消失→submit 又复活的认知错位。
+  // 只有 trim 后非空才清错，纯空格输入保留错误让用户知道要填真实内容。
+  it('keeps field error when user inputs only whitespace', async () => {
+    const wrapper = mount(TaskForm, {
+      props: { mode: 'create', modelValue: {} },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+    wrapper.vm.submit()
+    await flushPromises()
+    expect(wrapper.findAll('.form-item-error').map((el) => el.text())).toContain('请填写任务名称')
+
+    // 输入纯空格：错误应保留（trim 后仍为空，不算有效输入）
+    const nameInput = wrapper.find('input.el-input-stub')
+    await nameInput.setValue('   ')
+    await flushPromises()
+    expect(wrapper.findAll('.form-item-error').map((el) => el.text())).toContain('请填写任务名称')
+
+    // 输入真实内容后：错误应清除
+    await nameInput.setValue('新任务')
+    await flushPromises()
+    expect(wrapper.findAll('.form-item-error').map((el) => el.text())).not.toContain('请填写任务名称')
+  })
+
+  it('removes all field errors when switching to a different task', async () => {
+    const wrapper = mount(TaskForm, {
+      props: { mode: 'edit', modelValue: {} },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+    wrapper.vm.submit()
+    await flushPromises()
+    expect(wrapper.find('.form-item-error').exists()).toBe(true)
+
+    // 切换到另一条任务（外部更新 modelValue）
+    await wrapper.setProps({ modelValue: { name: 'A', content: 'B', assigneeId: 1, deadline: '2026-12-31' } })
+    await flushPromises()
+    expect(wrapper.find('.form-item-error').exists()).toBe(false)
   })
 
   it('submit() returns {valid:true, data} when name provided', async () => {

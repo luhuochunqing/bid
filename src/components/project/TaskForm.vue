@@ -14,11 +14,11 @@
             :description="localValue.extendedFields.lastRejectReason"
             data-test="reject-reason-alert"
           />
-          <el-form-item label="任务名称" required>
+          <el-form-item label="任务名称" required :error="errors.name">
             <el-input v-model="localValue.name" placeholder="请输入任务名称" />
           </el-form-item>
 
-          <el-form-item label="详细描述" required>
+          <el-form-item label="详细描述" required :error="errors.content">
             <el-input
               v-model="localValue.content"
               type="textarea"
@@ -73,7 +73,7 @@
             />
           </el-form-item>
 
-          <el-form-item label="任务执行人" required>
+          <el-form-item label="任务执行人" required :error="errors.assigneeId">
             <UserPicker
               v-model="localValue.assigneeId"
               data-test="task-owner-select"
@@ -85,7 +85,7 @@
             />
           </el-form-item>
 
-          <el-form-item label="截止日期" required>
+          <el-form-item label="截止日期" required :error="errors.deadline">
             <el-date-picker v-model="localValue.deadline" type="date" value-format="YYYY-MM-DD" style="width: 100%" placeholder="请选择截止日期" />
           </el-form-item>
 
@@ -136,8 +136,6 @@
               <el-option v-for="s in statuses" :key="s.code" :label="s.name" :value="s.code" />
             </el-select>
           </el-form-item>
-
-          <el-alert v-if="validationMessage" type="warning" :closable="false" :title="validationMessage" />
         </el-form>
 
         <template v-if="extendedFieldSchema.length > 0">
@@ -185,7 +183,26 @@ if (!localValue.extendedFields) localValue.extendedFields = {}
 if (!Array.isArray(localValue.attachments)) localValue.attachments = []
 const statuses = ref([])
 const loadingStatuses = ref(false)
-const validationMessage = ref('')
+// CO-419: 字段级错误，跟着字段走，而不是堆在底部单一 alert
+// 必填字段集中管理：所有错误操作走统一入口，避免 4 处硬编码同步
+const REQUIRED_FIELDS = ['name', 'content', 'assigneeId', 'deadline']
+const FIELD_ERROR_MESSAGES = {
+  name: '请填写任务名称',
+  content: '请填写详细描述',
+  assigneeId: '请选择任务执行人',
+  deadline: '请选择截止日期',
+}
+const errors = reactive(Object.fromEntries(REQUIRED_FIELDS.map((k) => [k, ''])))
+function clearAllErrors() {
+  REQUIRED_FIELDS.forEach((k) => { errors[k] = '' })
+}
+// 用户修改字段后，只有值 trim 后非空才清掉对应错误。
+// 不清"纯空格输入"——避免错误消失→submit 又复活的认知错位。
+// 调用方只需传字段名，值由函数内部从 localValue 取，新增必填字段零改动。
+function clearFieldErrorIfDirty(field) {
+  const v = localValue[field]
+  if (errors[field] && v != null && String(v).trim() !== '') errors[field] = ''
+}
 const extFormRef = ref(null)
 const activeTab = ref('detail')
 const readonly = computed(() => props.mode === 'view')
@@ -309,16 +326,22 @@ watch(() => props.modelValue, (v) => {
   Object.assign(localValue, v || {})
   if (!localValue.extendedFields) localValue.extendedFields = {}
   if (!Array.isArray(localValue.attachments)) localValue.attachments = []
+  // 切换任务时清空所有字段错误，避免上一条任务的错误残留
+  clearAllErrors()
   ensureSelectedAssignee()
   nextTick(() => {
     syncingFromModel = false
   })
 })
 
+// CO-419: 合并字段变化监听到 watch(localValue)
+// - 用户修改必填字段后立即清掉对应字段错误（trim 后非空才清，纯空格不清）
+// - 同时触发 update:modelValue 事件
+// 不再用派生数组 watcher（与 watch(localValue) 功能重叠且每次都生成新数组）
 watch(localValue, () => {
-  if (!syncingFromModel) {
-    emit('update:modelValue', { ...localValue })
-  }
+  if (syncingFromModel) return
+  REQUIRED_FIELDS.forEach(clearFieldErrorIfDirty)
+  emit('update:modelValue', { ...localValue })
 }, { deep: true })
 
 onMounted(() => {
@@ -350,24 +373,18 @@ async function loadStatuses() {
   }
 }
 function validate() {
-  if (!localValue.name || !String(localValue.name).trim()) {
-    validationMessage.value = '请填写任务名称'
-    return validationMessage.value
+  // CO-419: 一次性收集所有字段错误，跟着字段显示在对应 form-item 下
+  clearAllErrors()
+  if (!localValue.name || !String(localValue.name).trim()) errors.name = FIELD_ERROR_MESSAGES.name
+  if (!localValue.content || !String(localValue.content).trim()) errors.content = FIELD_ERROR_MESSAGES.content
+  if (!localValue.assigneeId) errors.assigneeId = FIELD_ERROR_MESSAGES.assigneeId
+  if (!localValue.deadline) errors.deadline = FIELD_ERROR_MESSAGES.deadline
+  // 返回第一条错误信息（空串代表通过）；父组件 handleSaveTask 只看返回值的 valid 字段
+  let firstError = ''
+  for (const k of REQUIRED_FIELDS) {
+    if (errors[k]) { firstError = errors[k]; break }
   }
-  if (!localValue.content || !String(localValue.content).trim()) {
-    validationMessage.value = '请填写详细描述'
-    return validationMessage.value
-  }
-  if (!localValue.assigneeId) {
-    validationMessage.value = '请选择任务执行人'
-    return validationMessage.value
-  }
-  if (!localValue.deadline) {
-    validationMessage.value = '请选择截止日期'
-    return validationMessage.value
-  }
-  validationMessage.value = ''
-  return ''
+  return firstError
 }
 function normalizeUploadFiles(fileList = []) {
   return (Array.isArray(fileList) ? fileList : [fileList])
