@@ -19,6 +19,7 @@
 | `root-cause-analysis-frontend-404.md` | Bug 根因分析 | 前端热更新部署时动态 import chunk 被误删导致 404 | 2026-06-19 |
 | `root-cause-analysis-co-279.md` | Bug 根因分析 | 提交立项 `bidOpenTime` 日期格式解析失败 | 2026-06-19 |
 | `root-cause-analysis-co-283.md` | Bug 根因分析 | CRM 标讯文件下载 URL 双重嵌套 | 2026-06-20 |
+| `root-cause-analysis-okhttp3-get-body-resttemplate.md` | Bug 根因分析 | OkHttp3 传递依赖导致 RestTemplate GET 请求带 body 抛异常（多轮修复：PR #1362 workaround → #1369 sidecar 根因 → #1373 organization 根因） | 2026-06-30 |
 | `root-cause-analysis-co-280.md` | Bug 根因分析 | CRM 附件下载 URL 跨域跳转主页（相对路径跨系统失效） | 2026-06-20 |
 | `spring-boot-actuator-gotchas.md` | 技术陷阱 | 业务 API 正常但 actuator health 返回 OUT_OF_SERVICE | 2026-06-19 |
 | `element-plus-gotchas.md` | 技术陷阱 | el-cascader 级联选择器与后端字符串字段转换、el-input 宽度不一致 | 2026-06-18 |
