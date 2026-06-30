@@ -10,6 +10,7 @@ import com.xiyu.bid.docinsight.application.exception.UnsupportedProfileException
 import com.openai.errors.UnauthorizedException;
 import com.openai.errors.BadRequestException;
 import com.xiyu.bid.integration.application.WeComApiException;
+import io.sentry.Sentry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -440,6 +441,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         String payload = getRequestPayload(request);
         log.error("系统异常 - URI: {}, IP: {}, Message: {} \nPayload: {}",
             request.getRequestURI(), getClientIp(request), ex.getMessage(), payload, ex);
+
+        // 上报到 Sentry（无 DSN 时 Sentry.captureException 为 no-op，不影响业务）
+        // 业务异常（BusinessException/AccessDeniedException 等）已被上方专门的 @ExceptionHandler 拦截，
+        // 走到这里的是真正的系统缺陷（NPE、SQL 异常、外部服务调用失败等），需要完整上报。
+        Sentry.captureException(ex);
 
         // 不暴露敏感信息给前端
         return ResponseEntity
