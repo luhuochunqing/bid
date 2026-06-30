@@ -1,9 +1,0 @@
-version: 1
-task: "co-403-borrow-permission-fix"
-locks:
-  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1112__cleanup_legacy_pending_initiation_tasks.sql"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/claude/co-403-borrow-permission-fix"
-    expiresAt: "2026-06-30T21:57:27.824Z"
-    reason: "CO-403: 补 U1112 回滚脚本 source header（pre-existing 修复）"
