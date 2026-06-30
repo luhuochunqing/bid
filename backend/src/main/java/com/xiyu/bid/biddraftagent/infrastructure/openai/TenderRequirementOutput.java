@@ -10,6 +10,8 @@ public class TenderRequirementOutput {
     public String projectName;
     public String tenderTitle;
     public String tenderScope;
+    /** 招标公告完整原文，包含项目概况、资格要求、技术要求、商务要求、评分办法、联系方式等全部章节 */
+    public String tenderInfo;
     public String purchaserName;
     public String budget;
     public String region;

@@ -61,6 +61,7 @@ final class TenderDocumentPrompts {
                 - customerType：客户类型，只能是 政府机关/事业单位/高校、央企、地方国企、民企、港澳台及外企 之一；无法确认留空，不得推断。
                 - priority：优先级，只能是 S、A、B、C；S=预算>=5000万或央企总部，A=预算>=1000万或央企子公司，B=预算>=200万或地方国企，C=其他；无法确认留空，不得推断。
                 - tenderScope：项目概况/采购内容的简短摘要，不超过 120 字。
+                - tenderInfo：招标公告完整原文，包含项目概况、资格要求、技术要求、商务要求、评分办法、联系方式等全部章节；直接复制候选文本中的公告正文，不要摘要、不要改写、不要拆解；候选文本不足时留空。
                 - projectType：项目类型，只能是 工业品、办公、综合、集采、其他 之一；根据采购内容推断，无法确认留空。
                 - tags：最多 5 个明确标签。
                 不需要 requirementItems；qualificationRequirements、technicalRequirements、commercialRequirements、scoringCriteriaItems 均返回空数组。

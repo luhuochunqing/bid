@@ -231,6 +231,7 @@ public class OpenAiTenderDocumentAnalyzer
             putIfBlank(data, "contactName2", item.contactName2); putIfBlank(data, "contactPhone2", item.contactPhone2);
             putIfBlank(data, "contactLandline2", item.contactLandline2); putIfBlank(data, "contactEmail2", item.contactEmail2);
             putIfBlank(data, "customerType", item.customerType); putIfBlank(data, "priority", item.priority);
+            putIfBlank(data, "tenderInfo", item.tenderInfo);
         }
         TenderContactSplitter.splitMultiContactNamesIfNeeded(data);
     }
