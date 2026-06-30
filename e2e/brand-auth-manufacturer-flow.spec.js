@@ -73,6 +73,9 @@ test.describe('品牌授权 §4.6a — 原厂授权', () => {
       await page.getByRole('button', { name: '保存' }).click()
       await page.waitForSelector('.el-drawer', { state: 'hidden', timeout: 5000 })
       await page.waitForSelector('.el-table', { timeout: 5000 })
+      // 回归断言：新增成功后列表必须展示新创建的记录（防止字段路径解析错误导致列表永远空数组）
+      await expect(page.locator('.el-table').getByText('E2E_BR001')).toBeVisible({ timeout: 5000 })
+      await expect(page.locator('.el-table').getByText('E2E测试品牌')).toBeVisible({ timeout: 5000 })
     })
 
     test('必填验证：空字段提交被阻断', async ({ page }) => {
@@ -184,6 +187,9 @@ test.describe('品牌授权 §4.6a — 原厂授权', () => {
       await page.getByRole('button', { name: '保存' }).click()
       await page.waitForSelector('.el-drawer', { state: 'hidden', timeout: 5000 })
       await page.waitForSelector('.el-table', { timeout: 5000 })
+      // 回归断言：新增成功后列表必须展示新创建的代理商授权记录
+      await expect(page.locator('.el-table').getByText('E2E_AG001')).toBeVisible({ timeout: 5000 })
+      await expect(page.locator('.el-table').getByText('E2E代理品牌')).toBeVisible({ timeout: 5000 })
     })
   })
 })

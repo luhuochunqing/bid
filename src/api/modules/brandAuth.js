@@ -86,8 +86,9 @@ export const brandAuthApi = {
   },
 
   async getDetail(id) {
+    // 后端 detail 直接返回 DTO 本身（无 ApiResponse 包装）
     const res = await httpClient.get(`/api/knowledge/brand-auth/${id}`)
-    return { ...res, data: normalizeAuth(res?.data) }
+    return { data: normalizeAuth(res) }
   },
 
   async create(data) {
@@ -133,7 +134,8 @@ export const brandAuthApi = {
       remarks: data.remarks !== undefined ? data.remarks : undefined
     }
     const res = await httpClient.put(`/api/knowledge/brand-auth/${id}`, payload)
-    return { ...res, data: normalizeAuth(res?.data) }
+    // 后端 update 直接返回 DTO 本身（无 ApiResponse 包装）
+    return { data: normalizeAuth(res) }
   },
 
   async uploadAttachments(authorizationId, attachmentType, files) {
@@ -148,8 +150,9 @@ export const brandAuthApi = {
   },
 
   async revoke(id, reason) {
+    // 后端 revoke 直接返回 DTO 本身（无 ApiResponse 包装）
     const res = await httpClient.post(`/api/knowledge/brand-auth/${id}/revoke`, { reason })
-    return { ...res, data: normalizeAuth(res?.data) }
+    return { data: normalizeAuth(res) }
   },
 
   async getLogs(id) {
