@@ -855,4 +855,25 @@ public class ArchitectureTest {
                 + "resulting in UnexpectedRollbackException → 500. "
                 + "New code must avoid class-level @Transactional + @Auditable combination. "
                 + "Use method-level @Transactional or REQUIRES_NEW for sub-calls.");
+
+    /**
+     * CO-438: 业务代码禁止直接调用 Sheet.autoSizeColumn()，必须走 ExcelAutoSizeHelper。
+     * 原因：服务器字体系统不可用时 autoSizeColumn 会抛 "Fontconfig head is null"，
+     * ExcelAutoSizeHelper 统一处理 try-catch + fallback 固定列宽。
+     */
+    @ArchTest
+    public static final ArchRule business_code_should_not_call_sheet_autoSizeColumn_directly =
+        noClasses()
+            .that().resideInAnyPackage(
+                "com.xiyu.bid.brandauth..",
+                "com.xiyu.bid.casework..",
+                "com.xiyu.bid.export..",
+                "com.xiyu.bid.project..",
+                "com.xiyu.bid.resources..",
+                "com.xiyu.bid.platform.."
+            )
+            .should().callMethod(org.apache.poi.ss.usermodel.Sheet.class, "autoSizeColumn", int.class)
+            .because("CO-438: 直接调用 Sheet.autoSizeColumn() 在服务器字体缺失时会抛 "
+                + "'Fontconfig head is null'。必须通过 ExcelAutoSizeHelper.autoSizeColumns() 统一处理，"
+                + "该方法在字体不可用时自动降级为固定列宽。");
 }

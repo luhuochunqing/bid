@@ -1961,3 +1961,43 @@ cd backend && mvn -o test -Dtest='PlatformAccountServiceTest#returnAccount_bidTe
 - §23 — 全链路日志排查 SOP（本次 Step 4 用代码证据链替代乱猜）
 - PR #1381（round5 + CO-415 对称修复，已合并）
 - `backend/src/main/java/com/xiyu/bid/platform/service/PlatformAccountViewerPolicy.java` — canReturnAccount/checkCanReturnAccount 纯静态 Policy
+
+## 29. 服务器字体缺失 + 多 Agent 并行修同一 bug 的协调教训（CO-438）
+
+### 问题背景
+
+Sentry 上报 `NullPointerException: Fontconfig head is null`，堆栈指向 POI `autoSizeColumn` → Java AWT 字体系统初始化失败。3 个 Agent 几乎同时提交了 PR，但策略各异，产生了重复劳动和危险改动。
+
+| PR | Agent | 策略 | 问题 |
+|---|---|---|---|
+| 1430 | Claude | 删 helper，全改固定列宽 | ① 丢失 autoSize 能力 ② 代码重复 ③ 混入 CO-430 无关改动 |
+| 1433 | Qoder | 删 helper，裸调 autoSizeColumn | **完全没有 try-catch**，比修之前更危险 |
+| 1432 | Cursor | 分支名/commit 写 excel-autosize | **实际改的是 Vue 导入对话框**，文不对题 |
+
+### 根因
+
+**systemd 启动 Java 时未设 `-Djava.awt.headless=true`**。Java AWT 在无显示器 Linux 上不加 headless 会走 `X11FontManager`，fontconfig 加载失败后 `autoSizeColumn` 抛 NPE。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| systemd 缺 headless 参数 | 无显示器 Linux 服务器上 Java AWT 必须设 headless | systemd ExecStart 必须包含 `-Djava.awt.headless=true`；启动类加 `System.setProperty("java.awt.headless", "true")` 兜底 |
+| 删防御代码 ≠ 修 bug | try-catch 是防御性编程，删除后比不修更糟 | 禁止删除已有的异常兜底代码，除非确认根因已消除且兜底不再需要 |
+| 每列独立 try-catch 导致 Sentry 重复上报 | 首列失败后应跳过剩余 autoSize，避免重复触发失败 | autoSize 失败后设 flag，剩余列直接走 fallback |
+| 多 Agent 同时修同一 bug | 3 个 PR 互相冲突，策略不一致 | 开工前跑 `who-touches.sh`，指定一个 Agent 统一修复 |
+| 分支名/commit 与实际改动不符 | PR 1432 名为 excel-autosize 实改 Vue 对话框 | commit message 必须准确描述实际改动 |
+| 一个 PR 混入无关改动 | CO-430 路径修复和 Excel autoSize 混在一起 | 一个 PR 只做一件事 |
+
+### 防复发措施
+
+1. **架构测试**：新增 `business_code_should_not_call_sheet_autoSizeColumn_directly` 规则，禁止业务代码直接调用 `Sheet.autoSizeColumn()`，必须走 `ExcelAutoSizeHelper`
+2. **三层防御**：systemd headless + 启动类 System.setProperty + ExcelAutoSizeHelper 降级
+3. **单元测试**：用 Mockito mock Sheet 模拟字体异常，验证首列失败后整批降级行为
+
+### 相关文档
+
+- `root-cause-analysis-co-438-fontconfig-head-null.md` — 完整根因分析
+- `backend/src/main/java/com/xiyu/bid/common/util/ExcelAutoSizeHelper.java` — 统一入口 + 降级逻辑
+- `backend/src/main/java/com/xiyu/bid/XiyuBidApplication.java` — 启动类 headless 兜底
+- `backend/src/test/java/com/xiyu/bid/ArchitectureTest.java` — autoSizeColumn 禁止直接调用规则
