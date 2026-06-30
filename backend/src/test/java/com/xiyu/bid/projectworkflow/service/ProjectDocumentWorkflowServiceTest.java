@@ -2,9 +2,7 @@ package com.xiyu.bid.projectworkflow.service;
 
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.exception.BusinessException;
-import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
 import com.xiyu.bid.project.core.ProjectStage;
-import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.project.service.ProjectStageService;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentCreateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
@@ -29,7 +27,6 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -44,24 +41,19 @@ class ProjectDocumentWorkflowServiceTest {
     private ProjectDocumentWorkflowService service;
     private ProjectDocumentDownloadService downloadService;
     private CurrentUserResolver currentUserResolver;
-    private ProjectLeadAssignmentRepository projectLeadAssignmentRepository;
-    private com.xiyu.bid.project.repository.BidDocumentReviewRepository bidDocumentReviewRepository;
     private ProjectStageService projectStageService;
-    private TaskRepository taskRepository;
 
     @BeforeEach
     void setUp() {
         projectRepository = mock(ProjectRepository.class);
         ProjectAccessScopeService projectAccessScopeService = mock(ProjectAccessScopeService.class);
-        taskRepository = mock(TaskRepository.class);
+        TaskRepository taskRepository = mock(TaskRepository.class);
         projectDocumentRepository = mock(ProjectDocumentRepository.class);
         ProjectScoreDraftRepository projectScoreDraftRepository = mock(ProjectScoreDraftRepository.class);
         userRepository = mock(UserRepository.class);
         bindingGateway = mock(ProjectDocumentBindingGateway.class);
         fileStorage = mock(ProjectDocumentFileStorage.class);
-        projectLeadAssignmentRepository = mock(ProjectLeadAssignmentRepository.class);
         currentUserResolver = mock(CurrentUserResolver.class);
-        bidDocumentReviewRepository = mock(com.xiyu.bid.project.repository.BidDocumentReviewRepository.class);
         projectStageService = mock(ProjectStageService.class);
 
         ProjectWorkflowGuardService guardService = new ProjectWorkflowGuardService(
@@ -77,17 +69,13 @@ class ProjectDocumentWorkflowServiceTest {
                 guardService,
                 projectDocumentRepository,
                 userRepository,
-                projectLeadAssignmentRepository,
                 viewAssembler,
                 bindingGateway,
-                currentUserResolver,
-                bidDocumentReviewRepository,
-                taskRepository
+                currentUserResolver
         );
         downloadService = new ProjectDocumentDownloadService(guardService, fileStorage, projectStageService);
 
         when(projectRepository.findById(1001L)).thenReturn(Optional.of(Project.builder().id(1001L).status(Project.Status.BIDDING).build()));
-        // CO-375：终态项目（WON）也允许上传/创建文档（复盘阶段需要）
         when(projectRepository.findById(1002L)).thenReturn(Optional.of(Project.builder().id(1002L).status(Project.Status.WON).build()));
         when(currentUserResolver.getCurrentRoleCode()).thenReturn("admin");
         when(currentUserResolver.requireCurrentUser()).thenReturn(
@@ -95,12 +83,8 @@ class ProjectDocumentWorkflowServiceTest {
                         .id(1L)
                         .roleProfile(com.xiyu.bid.entity.RoleProfile.builder().code("admin").build())
                         .build());
-        // CO-373：resolveEffectiveRoleCode 委托 EffectiveRoleResolver，非 OSS 用户回退到实体 roleCode
         org.mockito.Mockito.lenient().when(currentUserResolver.resolveEffectiveRoleCode(any(com.xiyu.bid.entity.User.class)))
                 .thenAnswer(inv -> inv.<com.xiyu.bid.entity.User>getArgument(0).getRoleCode());
-        doReturn(new Long[]{null, null})
-                .when(projectLeadAssignmentRepository)
-                .resolveLeadIdsByProjectId(1001L);
     }
 
     @Test
@@ -243,87 +227,6 @@ class ProjectDocumentWorkflowServiceTest {
                 "BID_RESULT",
                 2002L
         );
-    }
-
-    @Test
-    void getProjectDocuments_asAssignedReviewer_shouldBeAllowed() {
-        Long reviewerUserId = 42L;
-        when(currentUserResolver.requireCurrentUser()).thenReturn(
-                com.xiyu.bid.entity.User.builder()
-                        .id(reviewerUserId)
-                        .roleProfile(com.xiyu.bid.entity.RoleProfile.builder().code("bid-Team").build())
-                        .build());
-        doReturn(new Long[]{null, null})
-                .when(projectLeadAssignmentRepository)
-                .resolveLeadIdsByProjectId(1001L);
-        when(bidDocumentReviewRepository.findByProjectId(1001L))
-                .thenReturn(Optional.of(com.xiyu.bid.project.entity.BidDocumentReviewEntity.builder()
-                        .projectId(1001L)
-                        .reviewerId(reviewerUserId)
-                        .build()));
-        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
-                1001L, null, null, null))
-                .thenReturn(List.of(ProjectDocument.builder()
-                        .id(3006L)
-                        .projectId(1001L)
-                        .name("投标文件.pdf")
-                        .build()));
-
-        List<ProjectDocumentDTO> documents = service.getProjectDocuments(1001L);
-
-        assertThat(documents).hasSize(1);
-        assertThat(documents.getFirst().getName()).isEqualTo("投标文件.pdf");
-    }
-
-    @Test
-    void getProjectDocuments_asProjectTaskAssignee_shouldBeAllowed() {
-        // CO-361: 项目的任务执行人（非主负责人、非审核人）也需要查看投标文件以完成任务交付。
-        // 镜像 getProjectDocuments_asAssignedReviewer_shouldBeAllowed 的写法。
-        Long assigneeUserId = 55L;
-        when(currentUserResolver.requireCurrentUser()).thenReturn(
-                com.xiyu.bid.entity.User.builder()
-                        .id(assigneeUserId)
-                        .roleProfile(com.xiyu.bid.entity.RoleProfile.builder().code("bid-projectLeader").build())
-                        .build());
-        doReturn(new Long[]{null, null})
-                .when(projectLeadAssignmentRepository)
-                .resolveLeadIdsByProjectId(1001L);
-        // 策略 deny（bid-projectLeader 非主负责人），审核人也不命中 → 走 isProjectTaskAssignee 放行
-        when(bidDocumentReviewRepository.findByProjectId(1001L)).thenReturn(Optional.empty());
-        when(taskRepository.existsByProjectIdAndAssigneeId(1001L, assigneeUserId)).thenReturn(true);
-        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
-                1001L, null, null, null))
-                .thenReturn(List.of(ProjectDocument.builder()
-                        .id(3007L)
-                        .projectId(1001L)
-                        .name("任务交付物.pdf")
-                        .build()));
-
-        List<ProjectDocumentDTO> documents = service.getProjectDocuments(1001L);
-
-        assertThat(documents).hasSize(1);
-        assertThat(documents.getFirst().getName()).isEqualTo("任务交付物.pdf");
-        verify(taskRepository).existsByProjectIdAndAssigneeId(1001L, assigneeUserId);
-    }
-
-    @Test
-    void getProjectDocuments_asNonAssigneeNonReviewerNonLead_shouldThrow() {
-        // CO-361: 既非主/副负责人、也非审核人、也非任务执行人 → 仍 403，确保放行不越权。
-        Long otherUserId = 66L;
-        when(currentUserResolver.requireCurrentUser()).thenReturn(
-                com.xiyu.bid.entity.User.builder()
-                        .id(otherUserId)
-                        .roleProfile(com.xiyu.bid.entity.RoleProfile.builder().code("bid-projectLeader").build())
-                        .build());
-        doReturn(new Long[]{null, null})
-                .when(projectLeadAssignmentRepository)
-                .resolveLeadIdsByProjectId(1001L);
-        when(bidDocumentReviewRepository.findByProjectId(1001L)).thenReturn(Optional.empty());
-        when(taskRepository.existsByProjectIdAndAssigneeId(1001L, otherUserId)).thenReturn(false);
-
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.getProjectDocuments(1001L))
-                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
-                .hasMessageContaining("仅项目主负责人可查看项目文档");
     }
 
     @Test

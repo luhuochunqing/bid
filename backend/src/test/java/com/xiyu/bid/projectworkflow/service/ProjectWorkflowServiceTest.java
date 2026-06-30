@@ -74,12 +74,9 @@ class ProjectWorkflowServiceTest {
                 guardService,
                 projectDocumentRepository,
                 userRepository,
-                mock(ProjectLeadAssignmentRepository.class),
                 new ProjectDocumentViewAssembler(),
                 mock(ProjectDocumentBindingGateway.class),
-                mock(CurrentUserResolver.class),
-                mock(com.xiyu.bid.project.repository.BidDocumentReviewRepository.class),
-                taskRepository
+                mock(CurrentUserResolver.class)
         );
         ProjectDocumentUploadWorkflowService projectDocumentUploadWorkflowService =
                 mock(ProjectDocumentUploadWorkflowService.class);
