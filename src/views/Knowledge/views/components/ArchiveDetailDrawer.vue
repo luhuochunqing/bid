@@ -110,7 +110,7 @@ const handleDownloadPackage = async () => {
   try {
     const res = await httpClient.get(`/api/archive/export-zip/${props.archive.projectId}`, { responseType: 'blob' })
     const link = document.createElement('a')
-    link.href = window.URL.createObjectURL(new Blob([res], { type: 'application/zip' }))
+    link.href = window.URL.createObjectURL(new Blob([res.data], { type: 'application/zip' }))
     link.download = `项目档案文件包-${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12)}.zip`
     link.click()
     window.URL.revokeObjectURL(link.href)
