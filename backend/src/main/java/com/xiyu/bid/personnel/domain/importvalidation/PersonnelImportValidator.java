@@ -64,6 +64,12 @@ public final class PersonnelImportValidator {
             if (row.name() == null || row.name().isBlank()) {
                 errors.add(ImportValidationError.of("基础信息", excelRow, row.employeeNumber(), "姓名", "姓名不能为空"));
             }
+
+            // CO-419: 性别枚举强校验（非空时必须在合法值集合内）
+            if (isNonBlank(row.gender()) && !PersonnelImportEnumMapping.GENDER_VALUES.contains(row.gender())) {
+                errors.add(ImportValidationError.of("基础信息", excelRow, row.employeeNumber(), "性别",
+                        "性别只能填：" + String.join("/", PersonnelImportEnumMapping.GENDER_DROPDOWN)));
+            }
         }
 
         // 2. Sheet2 / Sheet3 工号存在性 + 交叉姓名校验
@@ -85,6 +91,27 @@ public final class PersonnelImportValidator {
                 errors.add(ImportValidationError.of("教育经历", row.excelRow(), row.employeeNumber(), "时间",
                         "入学时间不能晚于毕业时间"));
             }
+
+            // CO-419: 最高学历枚举强校验
+            if (isNonBlank(row.highestEducation())
+                    && !PersonnelImportEnumMapping.HIGHEST_EDUCATION_VALUES.contains(row.highestEducation())) {
+                errors.add(ImportValidationError.of("教育经历", row.excelRow(), row.employeeNumber(), "最高学历",
+                        "最高学历只能填：" + String.join("/", PersonnelImportEnumMapping.HIGHEST_EDUCATION_DROPDOWN)));
+            }
+
+            // CO-419: 学习形式枚举强校验
+            if (isNonBlank(row.studyForm())
+                    && !PersonnelImportEnumMapping.STUDY_FORM_VALUES.contains(row.studyForm())) {
+                errors.add(ImportValidationError.of("教育经历", row.excelRow(), row.employeeNumber(), "学习形式",
+                        "学习形式只能填：" + String.join("/", PersonnelImportEnumMapping.STUDY_FORM_DROPDOWN)));
+            }
+
+            // CO-419: 是否为最高学历学校枚举强校验（用 raw 字符串，避免 Boolean 归一化丢失非法值信号）
+            if (isNonBlank(row.rawIsHighestEducationSchool())
+                    && !PersonnelImportEnumMapping.YES_NO_VALUES.contains(row.rawIsHighestEducationSchool())) {
+                errors.add(ImportValidationError.of("教育经历", row.excelRow(), row.employeeNumber(), "是否为最高学历学校",
+                        "是否为最高学历学校只能填：" + String.join("/", PersonnelImportEnumMapping.YES_NO_DROPDOWN)));
+            }
         }
 
         for (ParsedCertificateRow row : sheet3Rows) {
@@ -105,6 +132,27 @@ public final class PersonnelImportValidator {
                 errors.add(ImportValidationError.of("证书与职称", row.excelRow(), row.employeeNumber(), "有效期",
                         "有效期不能早于发证日期"));
             }
+
+            // CO-419: 证书类型枚举强校验（导入器已把中文映射为英文，校验英文枚举值）
+            if (isNonBlank(row.type())
+                    && !PersonnelImportEnumMapping.CERT_TYPE_EN_VALUES.contains(row.type())) {
+                errors.add(ImportValidationError.of("证书与职称", row.excelRow(), row.employeeNumber(), "证书类型",
+                        "证书类型只能填：" + String.join("/", PersonnelImportEnumMapping.CERT_TYPE_DROPDOWN)));
+            }
+
+            // CO-419: 职称枚举强校验
+            if (isNonBlank(row.title())
+                    && !PersonnelImportEnumMapping.CERT_TITLE_VALUES.contains(row.title())) {
+                errors.add(ImportValidationError.of("证书与职称", row.excelRow(), row.employeeNumber(), "职称",
+                        "职称只能填：" + String.join("/", PersonnelImportEnumMapping.CERT_TITLE_DROPDOWN)));
+            }
+
+            // CO-419: 永久有效枚举强校验（用 raw 字符串，避免 Boolean 归一化丢失非法值信号）
+            if (isNonBlank(row.rawIsPermanent())
+                    && !PersonnelImportEnumMapping.YES_NO_VALUES.contains(row.rawIsPermanent())) {
+                errors.add(ImportValidationError.of("证书与职称", row.excelRow(), row.employeeNumber(), "永久有效",
+                        "永久有效只能填：" + String.join("/", PersonnelImportEnumMapping.YES_NO_DROPDOWN)));
+            }
         }
 
         // 3. 每人只能有一个“最高学历”（教育经历中）
@@ -112,5 +160,9 @@ public final class PersonnelImportValidator {
         // TODO: 后续增强
 
         return new ValidationResult(errors, warnings);
+    }
+
+    private static boolean isNonBlank(String val) {
+        return val != null && !val.isBlank();
     }
 }

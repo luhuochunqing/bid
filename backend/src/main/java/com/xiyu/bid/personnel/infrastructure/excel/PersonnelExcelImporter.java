@@ -3,6 +3,7 @@ package com.xiyu.bid.personnel.infrastructure.excel;
 import com.xiyu.bid.personnel.domain.importvalidation.ParsedCertificateRow;
 import com.xiyu.bid.personnel.domain.importvalidation.ParsedEducationRow;
 import com.xiyu.bid.personnel.domain.importvalidation.ParsedPersonnelRow;
+import com.xiyu.bid.personnel.domain.importvalidation.PersonnelImportEnumMapping;
 import com.xiyu.bid.personnel.domain.importvalidation.PersonnelImportValidator;
 import com.xiyu.bid.personnel.domain.importvalidation.ValidationResult;
 import org.apache.poi.ss.usermodel.Cell;
@@ -125,7 +126,9 @@ public class PersonnelExcelImporter {
                 getCellStringValue(row.getCell(5)),
                 getCellStringValue(row.getCell(6)),
                 getCellStringValue(row.getCell(7)),
-                parseBoolCell(row.getCell(8))
+                parseBoolCell(row.getCell(8)),
+                // CO-419: 保留原始字符串供校验器校验枚举合法性
+                getCellStringValue(row.getCell(8))
         );
     }
 
@@ -136,14 +139,29 @@ public class PersonnelExcelImporter {
                 getCellStringValue(row.getCell(1)),
                 getCellStringValue(row.getCell(2)),
                 getCellStringValue(row.getCell(3)),
-                getCellStringValue(row.getCell(4)),
+                // CO-419: 证书类型中文→英文映射（建造师→CONSTRUCTOR 等）
+                mapCertificateType(getCellStringValue(row.getCell(4))),
                 getCellDateValue(row.getCell(5)),
                 getCellDateValue(row.getCell(6)),
                 getCellStringValue(row.getCell(7)),
                 getCellStringValue(row.getCell(8)),
                 parseBoolCell(row.getCell(9)),
+                // CO-419: 保留原始字符串供校验器校验枚举合法性
+                getCellStringValue(row.getCell(9)),
                 getCellStringValue(row.getCell(10))
         );
+    }
+
+    /**
+     * CO-419: 证书类型中文→英文映射。
+     * - 中文值（建造师等）→ 英文枚举（CONSTRUCTOR 等）存储，与前端表单一致
+     * - 英文值（CONSTRUCTOR 等）→ 直接保留（向后兼容）
+     * - 未识别值 → 原样返回（由校验器报错）
+     */
+    private String mapCertificateType(String rawType) {
+        if (rawType == null || rawType.isBlank()) return rawType;
+        String mapped = PersonnelImportEnumMapping.CERT_TYPE_CN_TO_EN.get(rawType);
+        return mapped != null ? mapped : rawType;
     }
 
     private Boolean parseBoolCell(Cell cell) {
@@ -174,6 +192,14 @@ public class PersonnelExcelImporter {
         }
         String strVal = getCellStringValue(cell);
         if (strVal != null && !strVal.isBlank()) {
+            // CO-419: 兼容 YYYY-MM 月份精度（与表单 type="month" 一致），补日为 1 号
+            if (strVal.length() == 7 && strVal.charAt(4) == '-') {
+                try {
+                    return java.time.YearMonth.parse(strVal).atDay(1);
+                } catch (java.time.format.DateTimeParseException e) {
+                    return null;
+                }
+            }
             try {
                 return java.time.LocalDate.parse(strVal);
             } catch (java.time.format.DateTimeParseException e) {

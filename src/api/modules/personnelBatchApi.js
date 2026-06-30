@@ -9,13 +9,14 @@ import { triggerBlobDownload } from '@/utils/download.js'
 
 export const personnelBatchApi = {
   /**
-   * 下载批量导入模板（3 Sheet Excel）
+   * 下载批量导入模板（4 Sheet Excel）
    */
   async downloadImportTemplate() {
     const res = await httpClient.get('/api/knowledge/personnel/import/template', {
       responseType: 'blob'
     })
-    triggerBlobDownload(new Blob([res]), 'personnel_import_template.xlsx')
+    // CO-419: axios 拦截器对 blob 响应返回完整 response 对象，需取 res.data
+    triggerBlobDownload(res.data, 'personnel_import_template.xlsx')
   },
 
   /**
@@ -44,7 +45,8 @@ export const personnelBatchApi = {
     const res = await httpClient.get(`/api/knowledge/personnel/import/${taskId}/report`, {
       responseType: 'blob'
     })
-    triggerBlobDownload(new Blob([res]), `import_error_report_${taskId}.xlsx`)
+    // CO-419: axios 拦截器对 blob 响应返回完整 response 对象，需取 res.data
+    triggerBlobDownload(res.data, `import_error_report_${taskId}.xlsx`)
   },
 
   /**
