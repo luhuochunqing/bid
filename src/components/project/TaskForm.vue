@@ -183,9 +183,24 @@ if (!localValue.extendedFields) localValue.extendedFields = {}
 if (!Array.isArray(localValue.attachments)) localValue.attachments = []
 const statuses = ref([])
 const loadingStatuses = ref(false)
-const validationMessage = ref('')
 // CO-419: 字段级错误，跟着字段走，而不是堆在底部单一 alert
-const errors = reactive({ name: '', content: '', assigneeId: '', deadline: '' })
+// 必填字段集中管理：所有错误操作走统一入口，避免 4 处硬编码同步
+const REQUIRED_FIELDS = ['name', 'content', 'assigneeId', 'deadline']
+const FIELD_ERROR_MESSAGES = {
+  name: '请填写任务名称',
+  content: '请填写详细描述',
+  assigneeId: '请选择任务执行人',
+  deadline: '请选择截止日期',
+}
+const errors = reactive(Object.fromEntries(REQUIRED_FIELDS.map((k) => [k, ''])))
+function clearAllErrors() {
+  REQUIRED_FIELDS.forEach((k) => { errors[k] = '' })
+}
+// 用户修改字段后，只要值有变化就清掉该字段错误（不要求 trim 后非空——
+// 用户填了空格也算"已经操作过"，具体校验交给 submit）
+function clearFieldErrorIfHasValue(field, value) {
+  if (errors[field] && value != null && value !== '') errors[field] = ''
+}
 const extFormRef = ref(null)
 const activeTab = ref('detail')
 const readonly = computed(() => props.mode === 'view')
@@ -310,32 +325,24 @@ watch(() => props.modelValue, (v) => {
   if (!localValue.extendedFields) localValue.extendedFields = {}
   if (!Array.isArray(localValue.attachments)) localValue.attachments = []
   // 切换任务时清空所有字段错误，避免上一条任务的错误残留
-  errors.name = ''
-  errors.content = ''
-  errors.assigneeId = ''
-  errors.deadline = ''
-  validationMessage.value = ''
+  clearAllErrors()
   ensureSelectedAssignee()
   nextTick(() => {
     syncingFromModel = false
   })
 })
 
-// CO-419: 用户修改字段后立即清掉对应字段的错误提示，避免错误一直挂着
-watch(
-  () => [localValue.name, localValue.content, localValue.assigneeId, localValue.deadline],
-  ([name, content, assigneeId, deadline]) => {
-    if (errors.name && name && String(name).trim()) errors.name = ''
-    if (errors.content && content && String(content).trim()) errors.content = ''
-    if (errors.assigneeId && assigneeId) errors.assigneeId = ''
-    if (errors.deadline && deadline) errors.deadline = ''
-  }
-)
-
+// CO-419: 合并字段变化监听到 watch(localValue)
+// - 用户修改必填字段后立即清掉对应字段错误（不要求 trim 后非空，已操作即清）
+// - 同时触发 update:modelValue 事件
+// 不再用派生数组 watcher（与 watch(localValue) 功能重叠且每次都生成新数组）
 watch(localValue, () => {
-  if (!syncingFromModel) {
-    emit('update:modelValue', { ...localValue })
-  }
+  if (syncingFromModel) return
+  clearFieldErrorIfHasValue('name', localValue.name)
+  clearFieldErrorIfHasValue('content', localValue.content)
+  clearFieldErrorIfHasValue('assigneeId', localValue.assigneeId)
+  clearFieldErrorIfHasValue('deadline', localValue.deadline)
+  emit('update:modelValue', { ...localValue })
 }, { deep: true })
 
 onMounted(() => {
@@ -368,18 +375,13 @@ async function loadStatuses() {
 }
 function validate() {
   // CO-419: 一次性收集所有字段错误，跟着字段显示在对应 form-item 下
-  errors.name = ''
-  errors.content = ''
-  errors.assigneeId = ''
-  errors.deadline = ''
-  if (!localValue.name || !String(localValue.name).trim()) errors.name = '请填写任务名称'
-  if (!localValue.content || !String(localValue.content).trim()) errors.content = '请填写详细描述'
-  if (!localValue.assigneeId) errors.assigneeId = '请选择任务执行人'
-  if (!localValue.deadline) errors.deadline = '请选择截止日期'
-  // 兼容旧契约：返回第一条错误信息（空串代表通过）；父组件 handleSaveTask 只看返回值的 valid 字段
-  const firstMsg = errors.name || errors.content || errors.assigneeId || errors.deadline
-  validationMessage.value = firstMsg
-  return firstMsg
+  clearAllErrors()
+  if (!localValue.name || !String(localValue.name).trim()) errors.name = FIELD_ERROR_MESSAGES.name
+  if (!localValue.content || !String(localValue.content).trim()) errors.content = FIELD_ERROR_MESSAGES.content
+  if (!localValue.assigneeId) errors.assigneeId = FIELD_ERROR_MESSAGES.assigneeId
+  if (!localValue.deadline) errors.deadline = FIELD_ERROR_MESSAGES.deadline
+  // 返回第一条错误信息（空串代表通过）；父组件 handleSaveTask 只看返回值的 valid 字段
+  return REQUIRED_FIELDS.map((k) => errors[k]).find(Boolean) || ''
 }
 function normalizeUploadFiles(fileList = []) {
   return (Array.isArray(fileList) ? fileList : [fileList])
