@@ -136,10 +136,18 @@ YAPI 项目入口：`https://yapi.ehsy.com/project/406/`
     "email": "zhangsan@ehsy.com",
     "mobilePhone": "138****8888",
     "del": 0,
-    "activationState": 1
+    "activationState": 1,
+    "status": 1,
+    "employeeStatus": 3
   }
 }
 ```
+
+> **字段语义（2026-06-30 真实接口验证）**：
+> - `status=1`=在职（启用），`status=0`=离职（关闭）— 与 `/oauth/getUserInfo` 一致
+> - `employeeStatus=3`=在职，`8`=离职，`1`=待入职 — 与 status 一一对应，作为 status 缺失时 fallback
+> - `del=1`=已删除（最高优先级，覆盖 status）
+> - `UserEnabledDetector` 判定顺序：`del` > `status` > `employeeStatus` > `activationState` > 兜底启用
 
 **部门时间窗口** (`POST /subscription/msg/getDeptByTimeWindow`) — 响应结构：
 

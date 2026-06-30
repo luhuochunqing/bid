@@ -39,7 +39,7 @@
 | 能力 | 方法 | 路径 | 鉴权 | 请求 | 响应字段 | 本地映射 |
 |---|---|---|---|---|---|---|
 | 部门详情 | **POST** | `/subscription/msg/dept` | EHSY-TraceID + EHSY-SRCAPP | form: `deptId` | `deptId, code, name, parentId, status, del` | `deptId`→`externalDeptId`, `name`→`departmentName` |
-| 员工详情 | **POST** | `/subscription/msg/user` | EHSY-TraceID + EHSY-SRCAPP | form: `userId` | `userId, name, jobNumber, email, mobilePhone, del, activationState` | `userId`→`externalUserId`, `name`→`fullName` |
+| 员工详情 | **POST** | `/subscription/msg/user` | EHSY-TraceID + EHSY-SRCAPP | form: `userId` | `userId, name, jobNumber, email, mobilePhone, del, activationState, status, employeeStatus` | `userId`→`externalUserId`, `name`→`fullName` |
 | 部门时间窗 | **POST** | `/subscription/msg/getDeptByTimeWindow` | 同上 | JSON: `{ startTime, endTime, index }` | `{ index, list: [...] }` | 循环分页 |
 | 员工时间窗 | **POST** | `/subscription/msg/getUserByTimeWindow` | 同上 | JSON: `{ startTime, endTime, index }` | `{ index, list: [...] }` | 循环分页 |
 
@@ -57,7 +57,7 @@
 | 部门编码 | `data.code` | `departmentCode` | ✅ 冻结 | |
 | 部门名称 | `data.name` | `departmentName` | ✅ 冻结 | |
 | 父部门 ID | `data.parentId` / `administrativeSuperiors` | `parentExternalDeptId` | ⚠️ 待确认 | 哪个字段是父部门 ID？ |
-| 启用状态 | `status`(1=正常) + `del`(0=未删) | `enabled` | ⚠️ 待确认 | 组合语义待确认 |
+| 启用状态 | `status`(1=正常) + `del`(0=未删) | `enabled` | ✅ 已确认 | 组合语义：del=1 已删除（最高优先级），否则以 status 为准 |
 | 父部门编码 | — | `parentDepartmentCode` | ❌ 无来源 | YAPI 无此字段 |
 
 ### 员工
@@ -71,6 +71,8 @@
 | 手机号 | `data.mobilePhone` | — | ✅ 冻结 | 日志禁止完整值 |
 | 删除状态 | `data.del` | `disabled` | ✅ 冻结 | `del=1` 表示离职 |
 | 激活状态 | `data.activationState` | — | ✅ 冻结 | 1=激活 |
+| 在职状态 | `data.status` | `enabled` | ✅ 已确认 | `status=1`=在职（启用），`status=0`=离职（关闭）。2026-06-30 通过 `https://base-oss-test.ehsy.com/subscription/msg/user` 真实接口验证（样本：覃超颖 userId=185793021 status=1 在职；时间窗 1000 条样本中 status 与 employeeStatus 完全一致）。`UserEnabledDetector` 中 status 为最高优先级判定字段（仅次 del） |
+| HR 状态 | `data.employeeStatus` | — | ✅ 已确认 | `3`=在职，`8`=离职，`1`=待入职。与 status 语义一一对应，作为 status 缺失时的 fallback |
 
 ### 响应公共结构
 
@@ -91,7 +93,7 @@
 | 事件 JSON 格式与 `eventTrackInfo` 归一化 | 已实现 adapter 归一化逻辑 | SDK jar |
 | 生产 baseURL / broker / consumerGroup | 待客户交付 | 生产环境 |
 | `parentId` vs `administrativeSuperiors` | 待客户确认 | YAPI 冻结 |
-| `status + del` 组合语义 | 待客户确认 | YAPI 冻结 |
+| `status + del` 组合语义 | ✅ 已确认（2026-06-30 真实接口验证） | YAPI 冻结 |
 
 ## 对应代码位置
 
