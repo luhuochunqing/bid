@@ -108,7 +108,8 @@ class ProjectDocumentWorkflowServiceTest {
                 .build());
 
         assertThat(dto.getName()).isEqualTo("中标通知书.pdf");
-        assertThat(dto.getDocumentCategory()).isEqualTo("BID_RESULT_NOTICE");
+        // CO-420: BID_RESULT_NOTICE 非标准枚举名，归一化为 OTHER
+        assertThat(dto.getDocumentCategory()).isEqualTo("OTHER");
         assertThat(dto.getLinkedEntityType()).isEqualTo("BID_RESULT");
         assertThat(dto.getLinkedEntityId()).isEqualTo(2001L);
         assertThat(dto.getFileUrl()).isEqualTo("https://files.example.com/notice.pdf");
@@ -134,7 +135,8 @@ class ProjectDocumentWorkflowServiceTest {
                 .build());
 
         assertThat(dto.getName()).isEqualTo("复盘报告.pdf");
-        assertThat(dto.getDocumentCategory()).isEqualTo("RETROSPECTIVE_REPORT");
+        // CO-420: RETROSPECTIVE_REPORT 非标准枚举名，归一化为 OTHER
+        assertThat(dto.getDocumentCategory()).isEqualTo("OTHER");
         verify(bindingGateway).onDocumentCreated(any(ProjectDocument.class));
     }
 

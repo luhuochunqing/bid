@@ -78,7 +78,7 @@ export function useInitiationStageActions({
       formData.set('name', file.name)
       formData.set('size', `${Math.max(1, Math.round((file.size || 1024 * 1024) / 1024 / 1024))}MB`)
       formData.set('fileType', file.type || 'application/octet-stream')
-      formData.set('documentCategory', 'TENDER_DOCUMENT')
+      formData.set('documentCategory', 'TENDER')
       formData.set('linkedEntityType', 'PROJECT_INITIATION')
       formData.set('linkedEntityId', String(props.projectId))
       formData.set('uploaderId', String(userStore.currentUser?.id || ''))
@@ -126,7 +126,7 @@ export function useInitiationStageActions({
       if (data.tenderDocumentId) {
         try {
           const docResp = await projectsApi.getDocuments(props.projectId, {
-            documentCategory: 'TENDER_DOCUMENT',
+            documentCategory: 'TENDER',
             linkedEntityType: 'PROJECT_INITIATION',
             linkedEntityId: props.projectId,
           })

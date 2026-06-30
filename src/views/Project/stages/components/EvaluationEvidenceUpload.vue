@@ -4,6 +4,7 @@
       v-model:file-list="fileList"
       :action="uploadUrl"
       :headers="uploadHeaders"
+      :data="{ documentCategory: 'OPEN_LIST' }"
       :accept="acceptedTypes"
       :before-upload="beforeUpload"
       drag

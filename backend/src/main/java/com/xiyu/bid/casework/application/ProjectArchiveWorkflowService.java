@@ -13,6 +13,7 @@ import com.xiyu.bid.casework.infrastructure.ProjectArchiveRepository;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.projectworkflow.core.DocumentCategoryNormalizer;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
@@ -132,7 +133,9 @@ public class ProjectArchiveWorkflowService {
         ArchiveFile af = new ArchiveFile();
         af.setArchiveId(archive.getId());
         af.setFileName(fileName != null ? fileName : "未命名文件");
-        af.setDocumentCategory(category != null ? category : "OTHER");
+        // CO-420: 归一化 category 到标准枚举名，兼容前端历史值 TENDER_DOCUMENT / BID_DOCUMENT 等
+        String normalizedCategory = DocumentCategoryNormalizer.normalize(category);
+        af.setDocumentCategory(normalizedCategory != null ? normalizedCategory : "OTHER");
         af.setFilePath(physicalPath != null ? physicalPath : "");
         af.setFileSize(fileSize != null ? fileSize : 0L);
         af.setUploadUserId(uploaderId != null ? uploaderId : 0L);

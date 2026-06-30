@@ -143,19 +143,19 @@ describe('DraftingStage bidFiles 持久化与下载阶段守卫 - CO-381', () =>
     mockCurrentUser.role = '/bidAdmin'
   })
 
-  it('load() 应拉取 BID_DOCUMENT 列表并回填 bidFiles，刷新后文件名仍展示', async () => {
-    // 模拟后端返回 2 个 BID_DOCUMENT
+  it('load() 应拉取 BID 列表并回填 bidFiles，刷新后文件名仍展示', async () => {
+    // CO-420: documentCategory 改为标准枚举名 BID（原 BID_DOCUMENT）
     getDocumentsMock.mockImplementation(() => Promise.resolve({
       data: [
-        { id: 3001, name: '投标文件_v1.pdf', documentCategory: 'BID_DOCUMENT' },
-        { id: 3002, name: '技术方案.docx', documentCategory: 'BID_DOCUMENT' },
+        { id: 3001, name: '投标文件_v1.pdf', documentCategory: 'BID' },
+        { id: 3002, name: '技术方案.docx', documentCategory: 'BID' },
       ],
     }))
 
     const wrapper = await mountDraftingStage({ currentStage: 'DRAFTING' })
 
-    // 验证 getDocuments 被调用且传了 documentCategory=BID_DOCUMENT
-    expect(getDocumentsMock).toHaveBeenCalledWith(1, { documentCategory: 'BID_DOCUMENT' })
+    // 验证 getDocuments 被调用且传了 documentCategory=BID
+    expect(getDocumentsMock).toHaveBeenCalledWith(1, { documentCategory: 'BID' })
 
     // 验证 ElUpload 收到 fileList 长度为 2
     const upload = wrapper.findComponent({ name: 'ElUpload' })
@@ -171,7 +171,7 @@ describe('DraftingStage bidFiles 持久化与下载阶段守卫 - CO-381', () =>
 
   it('DRAFTING 阶段 + 有下载权限：点击文件名触发下载', async () => {
     getDocumentsMock.mockImplementation(() => Promise.resolve({
-      data: [{ id: 3001, name: '投标文件.pdf', documentCategory: 'BID_DOCUMENT' }],
+      data: [{ id: 3001, name: '投标文件.pdf', documentCategory: 'BID' }],
     }))
 
     const wrapper = await mountDraftingStage({ currentStage: 'DRAFTING' })
@@ -189,7 +189,7 @@ describe('DraftingStage bidFiles 持久化与下载阶段守卫 - CO-381', () =>
 
   it('EVALUATING 阶段：点击文件名不触发下载（文件只读）', async () => {
     getDocumentsMock.mockImplementation(() => Promise.resolve({
-      data: [{ id: 3001, name: '投标文件.pdf', documentCategory: 'BID_DOCUMENT' }],
+      data: [{ id: 3001, name: '投标文件.pdf', documentCategory: 'BID' }],
     }))
 
     const wrapper = await mountDraftingStage({ currentStage: 'EVALUATING' })
@@ -207,7 +207,7 @@ describe('DraftingStage bidFiles 持久化与下载阶段守卫 - CO-381', () =>
     // bid-administration（行政人员）的 roleGroup 为 null，canDownloadDocument = false
     mockCurrentUser.role = 'bid-administration'
     getDocumentsMock.mockImplementation(() => Promise.resolve({
-      data: [{ id: 3001, name: '投标文件.pdf', documentCategory: 'BID_DOCUMENT' }],
+      data: [{ id: 3001, name: '投标文件.pdf', documentCategory: 'BID' }],
     }))
 
     const wrapper = await mountDraftingStage({ currentStage: 'DRAFTING' })
@@ -223,7 +223,7 @@ describe('DraftingStage bidFiles 持久化与下载阶段守卫 - CO-381', () =>
 
   it('DRAFTING 阶段：上传和删除按钮在 bidDone=false 时仍可用（保护现有功能）', async () => {
     getDocumentsMock.mockImplementation(() => Promise.resolve({
-      data: [{ id: 3001, name: '投标文件.pdf', documentCategory: 'BID_DOCUMENT' }],
+      data: [{ id: 3001, name: '投标文件.pdf', documentCategory: 'BID' }],
     }))
 
     const wrapper = await mountDraftingStage({ currentStage: 'DRAFTING' })
@@ -248,7 +248,7 @@ describe('DraftingStage 删除按钮提交前守卫 - CO-382', () => {
     getDocumentsMock.mockReset()
     downloadWithFilenameMock.mockReset()
     getDocumentsMock.mockImplementation(() => Promise.resolve({
-      data: [{ id: 3001, name: '投标文件.pdf', documentCategory: 'BID_DOCUMENT' }],
+      data: [{ id: 3001, name: '投标文件.pdf', documentCategory: 'BID' }],
     }))
     mockCurrentUser.role = '/bidAdmin'
   })
@@ -330,7 +330,7 @@ describe('DraftingStage 删除按钮提交前守卫 - CO-382', () => {
     // bid-projectLeader 非 admin_lead，但 file.response.data.uploaderId == 当前用户 id (42) → 允许删除。
     mockCurrentUser.role = 'bid-projectLeader'
     getDocumentsMock.mockImplementation(() => Promise.resolve({
-      data: [{ id: 3001, name: '投标文件.pdf', documentCategory: 'BID_DOCUMENT', uploaderId: 42 }],
+      data: [{ id: 3001, name: '投标文件.pdf', documentCategory: 'BID', uploaderId: 42 }],
     }))
     getDraftingMock.mockImplementation(() => Promise.resolve({
       data: { reviewStatus: null }
@@ -350,7 +350,7 @@ describe('DraftingStage 删除按钮提交前守卫 - CO-382', () => {
   it('bid-projectLeader + file.uploaderId=99（非上传者）→ 删除按钮隐藏（CO-383：仅上传者本人可删）', async () => {
     mockCurrentUser.role = 'bid-projectLeader'
     getDocumentsMock.mockImplementation(() => Promise.resolve({
-      data: [{ id: 3001, name: '投标文件.pdf', documentCategory: 'BID_DOCUMENT', uploaderId: 99 }],
+      data: [{ id: 3001, name: '投标文件.pdf', documentCategory: 'BID', uploaderId: 99 }],
     }))
     getDraftingMock.mockImplementation(() => Promise.resolve({
       data: { reviewStatus: null }

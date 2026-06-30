@@ -23,7 +23,7 @@
         v-model:file-list="bidFiles"
         :action="uploadUrl"
         :headers="uploadHeaders"
-        :data="{ documentCategory: 'BID_DOCUMENT' }"
+        :data="{ documentCategory: 'BID' }"
         :before-upload="beforeBidUpload"
         :disabled="bidDone || !perm.canManageBidFiles || reviewState === 'reviewing' || reviewState === 'approved'"
         drag
@@ -269,7 +269,7 @@ async function load() {
 
 async function loadBidFiles() {
   try {
-    const res = await getDocuments(props.projectId, { documentCategory: 'BID_DOCUMENT' })
+    const res = await getDocuments(props.projectId, { documentCategory: 'BID' })
     const docs = res?.data || []
     bidFiles.value = docs.map(doc => ({
       name: doc.name || '投标文件',

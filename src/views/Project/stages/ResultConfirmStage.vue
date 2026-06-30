@@ -29,6 +29,7 @@
         v-model:file-list="evidenceFiles"
         :action="uploadUrl"
         :headers="uploadHeaders"
+        :data="{ documentCategory: 'WIN_NOTICE' }"
         :accept="acceptedTypes"
         :before-upload="beforeUpload"
         drag

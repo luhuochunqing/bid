@@ -1,6 +1,7 @@
 package com.xiyu.bid.projectworkflow.service;
 
 import com.xiyu.bid.common.domain.AuthorizationDecision;
+import com.xiyu.bid.projectworkflow.core.DocumentCategoryNormalizer;
 import com.xiyu.bid.projectworkflow.core.ProjectDocumentWorkflowPolicy;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentCreateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
@@ -64,7 +65,8 @@ class ProjectDocumentWorkflowService {
                 .name(request.getName().trim())
                 .size(defaultString(request.getSize(), "1MB"))
                 .fileType(trimToNull(request.getFileType()))
-                .documentCategory(trimToNull(request.getDocumentCategory()))
+                // CO-420: 归一化 documentCategory 到标准枚举名（TENDER/BID/OPEN_LIST/WIN_NOTICE/DEPOSIT_RECEIPT/OTHER）
+                .documentCategory(DocumentCategoryNormalizer.normalize(request.getDocumentCategory()))
                 .linkedEntityType(trimToNull(request.getLinkedEntityType()))
                 .linkedEntityId(request.getLinkedEntityId())
                 .fileUrl(trimToNull(request.getFileUrl()))

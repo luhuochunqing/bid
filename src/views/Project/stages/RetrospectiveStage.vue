@@ -73,6 +73,7 @@
           v-model:file-list="reportFiles"
           :action="uploadUrl"
           :headers="uploadHeaders"
+          :data="{ documentCategory: 'OTHER' }"
           :disabled="locked"
           accept=".doc,.docx,.pdf"
           :before-upload="beforeUpload"
