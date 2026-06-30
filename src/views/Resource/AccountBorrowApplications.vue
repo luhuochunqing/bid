@@ -28,8 +28,8 @@
           <el-table-column prop="accountId" label="平台" min-width="160">
             <template #default="{ row }">{{ accountName(row.accountId) }}</template>
           </el-table-column>
-          <el-table-column prop="applicantId" label="申请人" width="100">
-            <template #default="{ row }">用户#{{ row.applicantId }}</template>
+          <el-table-column prop="applicantName" label="申请人" width="120">
+            <template #default="{ row }">{{ row.applicantName || '未知' }}{{ row.applicantEmployeeNo ? `（${row.applicantEmployeeNo}）` : '' }}</template>
           </el-table-column>
           <el-table-column prop="purpose" label="使用目的" min-width="160" show-overflow-tooltip />
           <el-table-column prop="expectedReturnAt" label="预计归还" min-width="140">

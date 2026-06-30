@@ -18,6 +18,8 @@ public class BorrowApplicationDTO {
     private Long accountId;
     private String accountName;
     private Long applicantId;
+    private String applicantName;
+    private String applicantEmployeeNo;
     private Long custodianId;
     private String purpose;
     private String projectName;
