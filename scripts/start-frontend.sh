@@ -16,13 +16,16 @@ if [[ "${XIYU_IS_MAIN_WORKTREE:-0}" != "1" ]]; then
   exit 1
 fi
 
-# Pin VITE_API_BASE_URL to the worktree's own backend so non-main worktrees
-# don't fall back to .env.api's 18080 (其它 worktree 的后端，CORS 只放行 1314)。
-# 使用 localhost 而非 127.0.0.1，确保 SameSite=Lax cookie 能正常发送
-# （浏览器将 localhost 和 127.0.0.1 视为不同站点，SameSite=Lax 不跨站发送）
+# Pin VITE_API_BASE_URL to 127.0.0.1（与 dev-services.sh start_frontend 保持一致）.
+# 必须与前端 dev server 的 --host 127.0.0.1 同 host:
+#   1. vite --host 127.0.0.1 只监听 IPv4, 避免 localhost 解析到 IPv6 (::1)
+#   2. 浏览器访问 http://127.0.0.1:1323, axios 调用 http://127.0.0.1:18089,
+#      前端页面 host 与 API host 同为 127.0.0.1, HttpOnly cookie 可正常发送.
+#   3. 若用 localhost, 浏览器可能解析到 IPv6, 而后端返回的 Set-Cookie host=localhost
+#      在 IPv4 访问时不会被回传, 导致登录后所有 API 请求都是 anonymous -> 403.
 export VITE_API_MODE="${VITE_API_MODE:-api}"
-export VITE_API_BASE_URL="${VITE_API_BASE_URL:-http://localhost:${BACKEND_PORT}}"
+export VITE_API_BASE_URL="${VITE_API_BASE_URL:-http://127.0.0.1:${BACKEND_PORT}}"
 
 echo "Starting frontend on port $FRONTEND_PORT (API -> $VITE_API_BASE_URL)..."
-# vite respects --port
-npm run dev -- --port "$FRONTEND_PORT"
+# --host 127.0.0.1 与 dev-services.sh start_frontend 一致, 避免 IPv6 cookie 跨 host 问题
+npm run dev -- --host 127.0.0.1 --port "$FRONTEND_PORT"

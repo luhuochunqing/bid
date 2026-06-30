@@ -239,6 +239,12 @@
             <version>${archunit.version}</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>mockwebserver</artifactId>
+            <version>4.12.0</version>
+            <scope>test</scope>
+        </dependency>
 
         <!-- EHSY Organization Event SDK (system scope = no transitive deps, see runtime deps below) -->
         <dependency>
