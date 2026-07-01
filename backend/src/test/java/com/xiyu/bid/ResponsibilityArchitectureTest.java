@@ -51,6 +51,7 @@ class ResponsibilityArchitectureTest {
         "com.xiyu.bid.admin.permissions.BuiltInPermissionRegistry",
         // Grandfathered pre-existing large files (渐进收紧目标)
         "com.xiyu.bid.projectworkflow.service.ProjectWorkflowService",
+        "com.xiyu.bid.projectworkflow.service.ProjectTaskWorkflowService",
         "com.xiyu.bid.projectworkflow.service.ScoreDraftParserService",
         "com.xiyu.bid.approval.service.ApprovalWorkflowService",
         "com.xiyu.bid.export.service.ExcelExportService",

@@ -4,18 +4,27 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
+import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
 import com.xiyu.bid.projectworkflow.dto.ProjectTaskStatusUpdateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectTaskViewDTO;
+import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
+import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.task.dto.TaskDeliverableDTO;
+import com.xiyu.bid.task.entity.TaskDeliverable;
+import com.xiyu.bid.task.repository.TaskDeliverableRepository;
 import com.xiyu.bid.task.service.TaskHistoryRecorder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -32,6 +41,8 @@ class ProjectTaskWorkflowServiceTest {
     private ProjectTaskWorkflowService service;
     private TaskRepository taskRepository;
     private ProjectWorkflowGuardService guardService;
+    private TaskDeliverableRepository taskDeliverableRepository;
+    private ProjectDocumentRepository projectDocumentRepository;
 
     @BeforeEach
     void setUp() {
@@ -43,6 +54,8 @@ class ProjectTaskWorkflowServiceTest {
         NotificationApplicationService notificationService = mock(NotificationApplicationService.class);
         ProjectNotificationService projectNotificationService = mock(ProjectNotificationService.class);
         ObjectMapper objectMapper = new ObjectMapper();
+        taskDeliverableRepository = mock(TaskDeliverableRepository.class);
+        projectDocumentRepository = mock(ProjectDocumentRepository.class);
 
         service = new ProjectTaskWorkflowService(
                 guardService,
@@ -52,7 +65,9 @@ class ProjectTaskWorkflowServiceTest {
                 taskHistoryRecorder,
                 deliverableCollector,
                 notificationService,
-                projectNotificationService
+                projectNotificationService,
+                taskDeliverableRepository,
+                projectDocumentRepository
         );
     }
 
@@ -130,5 +145,59 @@ class ProjectTaskWorkflowServiceTest {
 
         assertThat(dto.getStatus()).isEqualTo("review");
         assertThat(dto.getExtendedFields()).doesNotContainKey("lastRejectReason");
+    }
+
+    // ---------- CO-460: toTaskView 必须返回 deliverables / attachments（治本，对齐独立任务）----------
+
+    @Test
+    void co460_toTaskView_returnsDeliverablesFromTaskDeliverableRepository() {
+        Task task = Task.builder().id(500L).projectId(1L).title("带交付物的任务").build();
+        TaskDeliverable d1 = TaskDeliverable.builder().id(9001L).taskId(500L).name("交付物.docx")
+                .deliverableType(TaskDeliverable.DeliverableType.DOCUMENT).storagePath("/files/9001").version(1).build();
+        when(taskDeliverableRepository.findByTaskIdOrderByCreatedAtDesc(500L)).thenReturn(List.of(d1));
+        ProjectTaskViewDTO dto = service.toTaskView(task);
+        assertThat(dto.getDeliverables()).hasSize(1);
+        assertThat(dto.getDeliverables().get(0).getName()).isEqualTo("交付物.docx");
+        assertThat(dto.getDeliverableCount()).isEqualTo(1);
+    }
+
+    @Test
+    void co460_toTaskView_returnsAttachmentsFromProjectDocumentRepository() {
+        Task task = Task.builder().id(501L).projectId(1L).title("带附件的任务").build();
+        ProjectDocument attach = ProjectDocument.builder().id(8001L).projectId(1L).name("附件.pdf")
+                .documentCategory("TASK_ATTACHMENT").linkedEntityType("TASK").linkedEntityId(501L).fileUrl("/files/8001").build();
+        ProjectDocument irrelevant = ProjectDocument.builder().id(8002L).projectId(1L).name("标书.pdf")
+                .documentCategory("BID_DOCUMENT").linkedEntityType("TASK").linkedEntityId(501L).build();
+        when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc(eq("TASK"), eq(501L)))
+                .thenReturn(List.of(attach, irrelevant));
+        ProjectTaskViewDTO dto = service.toTaskView(task);
+        assertThat(dto.getAttachments()).hasSize(1);
+        assertThat(dto.getAttachments().get(0).getName()).isEqualTo("附件.pdf");
+        assertThat(dto.getAttachments()).allSatisfy(d -> assertThat(d.getDocumentCategory()).isEqualTo("TASK_ATTACHMENT"));
+    }
+
+    @Test
+    void co460_toTaskView_emptyListsWhenNoDeliverablesOrAttachments() {
+        Task task = Task.builder().id(502L).projectId(1L).title("空任务").build();
+        when(taskDeliverableRepository.findByTaskIdOrderByCreatedAtDesc(502L)).thenReturn(List.of());
+        when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc(eq("TASK"), eq(502L))).thenReturn(List.of());
+        ProjectTaskViewDTO dto = service.toTaskView(task);
+        assertThat(dto.getDeliverables()).isEmpty();
+        assertThat(dto.getAttachments()).isEmpty();
+        assertThat(dto.getDeliverableCount()).isEqualTo(0);
+    }
+
+    @Test
+    void co460_approve_returnsDtoWithDeliverables() {
+        Task task = Task.builder().id(600L).projectId(10L).title("待审核任务").status(Task.Status.REVIEW).build();
+        when(guardService.requireTask(10L, 600L)).thenReturn(task);
+        when(taskRepository.save(any(Task.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(taskDeliverableRepository.findByTaskIdOrderByCreatedAtDesc(600L))
+                .thenReturn(List.of(TaskDeliverable.builder().id(9100L).taskId(600L).name("成果.docx").deliverableType(TaskDeliverable.DeliverableType.DOCUMENT).build()));
+        ProjectTaskStatusUpdateRequest req = ProjectTaskStatusUpdateRequest.builder().status(ProjectTaskStatusUpdateRequest.Status.COMPLETED).build();
+        ProjectTaskViewDTO dto = service.updateProjectTaskStatus(10L, 600L, req, "reviewer");
+        assertThat(dto.getStatus()).isEqualTo("done");
+        assertThat(dto.getDeliverables()).hasSize(1);
+        assertThat(dto.getDeliverables().get(0).getName()).isEqualTo("成果.docx");
     }
 }
