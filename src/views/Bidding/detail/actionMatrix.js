@@ -70,8 +70,9 @@ const HEADER_MATRIX = {
         : [],
   },
   TRACKING: {
-    admin_lead: ({ projectManagerId }) =>
-      projectManagerId != null ? ['transfer', 'delete'] : ['delete'],
+    // CO-441 回归修复：TRACKING 状态总是显示「转派」「删除」
+    // 无论 projectManagerId 是否为 null，都允许管理员手动分配/重新分配负责人
+    admin_lead: ['transfer', 'delete'],
     sales: [],
     bid_team: [],
   },

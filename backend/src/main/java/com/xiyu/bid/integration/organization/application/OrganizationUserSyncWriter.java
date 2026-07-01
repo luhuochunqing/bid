@@ -83,6 +83,10 @@ public class OrganizationUserSyncWriter {
                 allowAdminElevation
         );
         user.setUsername(plan.username());
+        // CO-441: OSS 同步用户的工号同时写入 employee_number，保持与 username 一致。
+        // 历史上只写 username，导致 TenderAutoAssignmentService.resolveManagerNameByEmployeeNumber
+        // 按 employee_number 查询时返回 null，CRM 自动分配失败。V1126 迁移脚本回填历史数据。
+        user.setEmployeeNumber(plan.username());
         user.setPassword(user.getPassword() == null ? DEFAULT_PASSWORD_HASH : user.getPassword());
         user.setEmail(plan.email());
         user.setFullName(plan.fullName());

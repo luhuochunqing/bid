@@ -10,6 +10,7 @@ import com.xiyu.bid.crm.domain.AssignmentResult;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.task.service.UserEnabledStatusService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -46,13 +47,17 @@ class TenderAutoAssignmentServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private UserEnabledStatusService userEnabledStatusService;
+
     private TenderAutoAssignmentService autoAssignmentService;
     private Tender tender;
 
     @BeforeEach
     void setUp() {
         autoAssignmentService = new TenderAutoAssignmentService(
-                mappingRepository, companySearchService, customerManagerLookupService, userRepository);
+                mappingRepository, companySearchService, customerManagerLookupService,
+                userRepository, userEnabledStatusService);
         tender = Tender.builder()
                 .id(1L)
                 .title("测试标讯")
@@ -180,6 +185,7 @@ class TenderAutoAssignmentServiceTest {
                 .build();
         when(userRepository.findByEmployeeNumber("01097"))
                 .thenReturn(Optional.of(manager));
+        when(userEnabledStatusService.isEnabled(manager)).thenReturn(true);
 
         AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
 
@@ -191,6 +197,8 @@ class TenderAutoAssignmentServiceTest {
         verify(companySearchService).searchByName("上海西域采购中心");
         verify(customerManagerLookupService).findByCompanyId(100L);
         verify(userRepository).findByEmployeeNumber("01097");
+        // CO-441: 不应 fallback 到 username（employee_number 已命中）
+        verify(userRepository, never()).findByUsername(anyString());
     }
 
     @Test
@@ -258,22 +266,88 @@ class TenderAutoAssignmentServiceTest {
     }
 
     @Test
-    @DisplayName("autoAssignIfPossible_25259命中但本地User表无此工号_仍匹配成功_name为null")
-    void autoAssignIfPossible_ManagerNotFoundInLocalUserTable_ShouldStillMatchWithNameNull() {
+    @DisplayName("CO-441 回归修复：本地 User 表无此工号 → managerName=null → 返回 noMatch")
+    void autoAssignIfPossible_ManagerNotFoundInLocalUserTable_ShouldReturnNoMatch() {
         when(mappingRepository.findByPurchaserName("上海西域采购中心"))
                 .thenReturn(Optional.empty());
         when(companySearchService.searchByName("上海西域采购中心"))
                 .thenReturn(Optional.of(new CompanySearchResult(100L, "上海西域采购中心", "西域集团")));
         when(customerManagerLookupService.findByCompanyId(100L))
                 .thenReturn(Optional.of(new CustomerManagerResult("99999", 16, "百大项目负责人")));
+        // CO-441: employee_number 未命中
         when(userRepository.findByEmployeeNumber("99999"))
+                .thenReturn(Optional.empty());
+        // CO-441: fallback 到 username 也未命中
+        when(userRepository.findByUsername("99999"))
                 .thenReturn(Optional.empty());
 
         AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
 
-        // 工号匹配成功，即使本地 User 表查不到姓名，仍视为匹配（工号是稳定标识）
+        // CO-441 回归修复：无法找到用户 → managerName=null → 返回 noMatch
+        // 状态保持 PENDING_ASSIGNMENT，等待人工分配
+        assertThat(result.isMatched()).isFalse();
+        assertThat(result.projectManagerId()).isNull();
+        assertThat(result.projectManagerName()).isNull();
+    }
+
+    @Test
+    @DisplayName("CO-441: employee_number 未命中时 fallback 到 username 查询（OSS 同步用户场景）")
+    void autoAssignIfPossible_EmployeeNumberMiss_FallbackToUsername_ShouldReturnManager() {
+        when(mappingRepository.findByPurchaserName("上海西域采购中心"))
+                .thenReturn(Optional.empty());
+        when(companySearchService.searchByName("上海西域采购中心"))
+                .thenReturn(Optional.of(new CompanySearchResult(100L, "上海西域采购中心", "西域集团")));
+        when(customerManagerLookupService.findByCompanyId(100L))
+                .thenReturn(Optional.of(new CustomerManagerResult("08687", 16, "百大项目负责人")));
+        // CO-441 场景：OSS 同步用户 employee_number=NULL，按 employee_number 查不到
+        when(userRepository.findByEmployeeNumber("08687"))
+                .thenReturn(Optional.empty());
+        // 但 username 字段存了工号
+        User manager = User.builder()
+                .id(5052L)
+                .username("08687")
+                .fullName("王凯毅")
+                .externalOrgSourceApp("oss")
+                .enabled(false)  // OSS 用户 enabled=false，但 UserEnabledStatusService 应返回 true
+                .build();
+        when(userRepository.findByUsername("08687"))
+                .thenReturn(Optional.of(manager));
+        when(userEnabledStatusService.isEnabled(manager)).thenReturn(true);
+
+        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
+
         assertThat(result.isMatched()).isTrue();
-        assertThat(result.projectManagerId()).isEqualTo("99999");
+        assertThat(result.projectManagerId()).isEqualTo("08687");
+        assertThat(result.projectManagerName()).isEqualTo("王凯毅");
+        verify(userRepository).findByEmployeeNumber("08687");
+        verify(userRepository).findByUsername("08687");
+    }
+
+    @Test
+    @DisplayName("CO-441 回归修复：已停用的本地用户不推进状态，返回 noMatch")
+    void autoAssignIfPossible_DisabledLocalUser_ShouldReturnNoMatch() {
+        when(mappingRepository.findByPurchaserName("上海西域采购中心"))
+                .thenReturn(Optional.empty());
+        when(companySearchService.searchByName("上海西域采购中心"))
+                .thenReturn(Optional.of(new CompanySearchResult(100L, "上海西域采购中心", "西域集团")));
+        when(customerManagerLookupService.findByCompanyId(100L))
+                .thenReturn(Optional.of(new CustomerManagerResult("01097", 16, "百大项目负责人")));
+        User manager = User.builder()
+                .id(2001L)
+                .fullName("李四")
+                .employeeNumber("01097")
+                .enabled(false)  // 本地用户已停用
+                .build();
+        when(userRepository.findByEmployeeNumber("01097"))
+                .thenReturn(Optional.of(manager));
+        when(userEnabledStatusService.isEnabled(manager)).thenReturn(false);
+
+        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
+
+        // CO-441 回归修复：用户已停用 → managerName=null → 返回 noMatch
+        // 状态保持 PENDING_ASSIGNMENT，等待人工分配
+        assertThat(result.isMatched()).isFalse();
+        assertThat(result.projectManagerId()).isNull();
         assertThat(result.projectManagerName()).isNull();
     }
 
@@ -302,6 +376,7 @@ class TenderAutoAssignmentServiceTest {
                 .build();
         when(userRepository.findByEmployeeNumber("01097"))
                 .thenReturn(Optional.of(manager));
+        when(userEnabledStatusService.isEnabled(manager)).thenReturn(true);
 
         AssignmentResult result = autoAssignmentService.tryAutoAssignFromCrm(tender);
 

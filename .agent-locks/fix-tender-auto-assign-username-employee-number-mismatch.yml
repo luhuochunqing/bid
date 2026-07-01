@@ -1,0 +1,15 @@
+version: 1
+task: "fix-tender-auto-assign-username-employee-number-mismatch"
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql/V1127__backfill_oss_user_employee_number.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/codex/fix-tender-auto-assign-username-employee-number-mismatch"
+    expiresAt: "2026-07-02T06:08:45.014Z"
+    reason: "CO-441: backfill OSS user employee_number"
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1127__backfill_oss_user_employee_number.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/codex/fix-tender-auto-assign-username-employee-number-mismatch"
+    expiresAt: "2026-07-02T06:08:45.271Z"
+    reason: "CO-441: rollback for V1127"
