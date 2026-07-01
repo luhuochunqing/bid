@@ -117,30 +117,32 @@ public class CrmAuthService {
 
     /**
      * 获取当前用户的 CRM JWT token（CO-152）。
-     * <p>规则：
-     * <ul>
-     *   <li>用户配置了 {@code crm_sales_no} → 使用专属 token（按 username 缓存，lazy load）</li>
-     *   <li>用户未配置或不存在 → 回退到 {@link #getValidToken()} 全局共享 token（兼容存量行为）</li>
-     * </ul>
-     *
-     * @param username 当前登录用户名
-     * @return CRM JWT token
+     * 配置了 crm_sales_no → 专属 token（按 username 缓存）；否则回退到全局共享 token。
      */
     public String getValidTokenForUser(String username) {
         if (username == null || username.isBlank()) {
             return getValidToken();
         }
+        // CO-152 Review D1-2: 拆为命名私有方法，避免 Optional 嵌套 lambda 副作用
         return userRepository.findByUsername(username)
                 .filter(u -> u.getCrmSalesNo() != null && !u.getCrmSalesNo().isBlank())
-                .map(user -> userTokenCache.get(username).orElseGet(() -> {
-                    String token = applyCrmTokenForUser(user.getFullName(), user.getCrmSalesNo());
-                    userTokenCache.put(username, token, 86400L);
-                    return token;
-                }))
-                .orElseGet(() -> {
-                    log.debug("User {} has no crm_sales_no or not found, falling back to shared token", username);
-                    return getValidToken();
-                });
+                .map(user -> resolveUserTokenFromCacheOrFetch(user, username))
+                .orElseGet(() -> fallbackSharedToken(username));
+    }
+
+    private String resolveUserTokenFromCacheOrFetch(User user, String username) {
+        return userTokenCache.get(username).orElseGet(() -> fetchAndCacheUserToken(user, username));
+    }
+
+    private String fetchAndCacheUserToken(User user, String username) {
+        String token = applyCrmTokenForUser(user.getFullName(), user.getCrmSalesNo());
+        userTokenCache.put(username, token, 86400L);
+        return token;
+    }
+
+    private String fallbackSharedToken(String username) {
+        log.debug("User {} has no crm_sales_no or not found, falling back to shared token", username);
+        return getValidToken();
     }
 
     /**
@@ -155,12 +157,13 @@ public class CrmAuthService {
     }
 
     /**
-     * 用户登出时，清除该用户的 CRM token 缓存（CO-152）。
+     * 主动使指定用户的 CRM token 缓存失效（CO-152）。
+     * <p>用于 crmSalesNo 变更等主动失效场景。登出时通常不调用（让 TTL 自然过期）。
      */
     public void logoutUser(String username) {
         if (username != null && !username.isBlank()) {
             userTokenCache.invalidate(username);
-            log.info("CRM JWT token cache cleared for user={} (logout)", username);
+            log.info("CRM JWT token cache invalidated for user={} (active invalidation)", username);
         }
     }
 

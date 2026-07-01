@@ -194,10 +194,7 @@ public class AuthService {
         // 下次登录时 OssLoginFlowService 会 put 覆盖刷新。登出的安全由 revokeAccessToken +
         // 撤销 refresh session 保证（旧 token 即时失效）。
         revokeAccessToken(accessToken);
-        if (accessToken != null && !accessToken.isBlank()) { // CO-152: 登出清 CRM token 缓存（non-fatal；logoutUser 已防御 null/blank）
-            try { crmAuthService.logoutUser(jwtUtil.extractUsername(accessToken)); }
-            catch (RuntimeException e) { log.warn("CRM logout cache clear failed: {}", e.getMessage()); }
-        }
+        // CO-152 Review D5-1: 登出不清 CRM token 缓存（对齐 OSS 登出策略 L190），让 TTL 自然过期避免重复 generateToken
         if (refreshToken == null || refreshToken.isBlank()) return;
         refreshSessionRepository.findByTokenHash(hashToken(refreshToken))
                 .filter(session -> session.getRevokedAt() == null)

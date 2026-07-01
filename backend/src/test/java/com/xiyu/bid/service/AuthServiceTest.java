@@ -232,6 +232,33 @@ class AuthServiceTest {
         verify(refreshSessionRepository).save(session);
     }
 
+    /**
+     * CO-152 Review D5-1 回归：logout 不应清 CRM token 缓存。
+     * <p>
+     * 理由与 CO-361 一致：登出后旧 access token 已被 revoke，CRM token 缓存不会被滥用；
+     * 用户重新登录时可直接复用未过期的 CRM token，避免每次登录都触发 generateToken。
+     */
+    @Test
+    void logout_ShouldNotInvalidateCrmUserTokenCache() {
+        RefreshSession session = RefreshSession.builder()
+                .user(buildUser())
+                .tokenHash("crm-co152-hash")
+                .expiresAt(LocalDateTime.now().plusHours(1))
+                .build();
+        when(refreshSessionRepository.findByTokenHash(any())).thenReturn(Optional.of(session));
+        when(jwtUtil.extractJti("access-jwt-crm")).thenReturn(Optional.of("jti-crm"));
+        when(jwtUtil.extractExpirationInstant("access-jwt-crm")).thenReturn(Optional.of(Instant.now().plusSeconds(3600)));
+
+        authService.logout("access-jwt-crm", "raw-refresh-token");
+
+        // 关键断言：logout 不得清 CRM 用户 token 缓存
+        verify(crmAuthService, never()).logoutUser(any());
+        verify(crmAuthService, never()).handleUnauthorizedForUser(any());
+        // 但仍应撤销 token 和 refresh session
+        verify(tokenRevocationService).revoke(eq("jti-crm"), any());
+        verify(refreshSessionRepository).save(session);
+    }
+
     @Test
     void login_ossUserWithLocalPassword_shouldFallbackToLocalAuthWhenOssFails() {
         User user = buildOssUser();

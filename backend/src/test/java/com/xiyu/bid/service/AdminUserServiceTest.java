@@ -22,6 +22,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -143,5 +145,71 @@ class AdminUserServiceTest {
 
         AdminUserDTO dto = service.updateStatus(7L, request, "admin");
         assertThat(dto.getEnabled()).isFalse();
+    }
+
+    /**
+     * CO-152 Review D5-2 回归：修改 crmSalesNo 后应调用 logoutUser（主动失效），而非 handleUnauthorizedForUser（401 专用）。
+     */
+    @Test
+    void updateUser_CrmSalesNoChanged_ShouldCallLogoutUserNotHandleUnauthorized() {
+        User user = User.builder()
+                .id(7L)
+                .username("alice")
+                .fullName("Alice")
+                .role(User.Role.MANAGER)
+                .enabled(true)
+                .crmSalesNo("old-sales-no")
+                .build();
+        RoleProfile role = RoleProfile.builder().id(3L).code("bid-Team").name("投标专员").enabled(true).build();
+        com.xiyu.bid.dto.AdminUserUpdateRequest request = new com.xiyu.bid.dto.AdminUserUpdateRequest();
+        request.setUsername("alice");
+        request.setEmail("alice@example.com");
+        request.setFullName("Alice");
+        request.setCrmSalesNo("new-sales-no");
+        request.setRoleId(3L);
+        request.setEnabled(true);
+
+        when(userRepository.findById(7L)).thenReturn(Optional.of(user));
+        when(roleProfileService.requireRoleProfile(3L)).thenReturn(role);
+        when(userRepository.save(user)).thenReturn(user);
+
+        service.updateUser(7L, request, "admin");
+
+        // 关键断言：crmSalesNo 变更 → 调用 logoutUser（主动失效），不调用 handleUnauthorizedForUser
+        verify(crmAuthService).logoutUser("alice");
+        verify(crmAuthService, never()).handleUnauthorizedForUser(any());
+    }
+
+    /**
+     * CO-152 Review D5-2 回归：crmSalesNo 未变更时不触发任何缓存失效。
+     */
+    @Test
+    void updateUser_CrmSalesNoUnchanged_ShouldNotInvalidateCache() {
+        User user = User.builder()
+                .id(7L)
+                .username("alice")
+                .fullName("Alice")
+                .role(User.Role.MANAGER)
+                .enabled(true)
+                .crmSalesNo("same-sales-no")
+                .build();
+        RoleProfile role = RoleProfile.builder().id(3L).code("bid-Team").name("投标专员").enabled(true).build();
+        com.xiyu.bid.dto.AdminUserUpdateRequest request = new com.xiyu.bid.dto.AdminUserUpdateRequest();
+        request.setUsername("alice");
+        request.setEmail("alice@example.com");
+        request.setFullName("Alice");
+        request.setCrmSalesNo("same-sales-no");
+        request.setRoleId(3L);
+        request.setEnabled(true);
+
+        when(userRepository.findById(7L)).thenReturn(Optional.of(user));
+        when(roleProfileService.requireRoleProfile(3L)).thenReturn(role);
+        when(userRepository.save(user)).thenReturn(user);
+
+        service.updateUser(7L, request, "admin");
+
+        // 关键断言：crmSalesNo 未变 → 不触发任何缓存失效
+        verify(crmAuthService, never()).logoutUser(any());
+        verify(crmAuthService, never()).handleUnauthorizedForUser(any());
     }
 }

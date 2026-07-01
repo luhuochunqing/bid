@@ -116,8 +116,10 @@ public class AdminUserService {
 
         User savedUser = userRepository.save(user);
         if (crmSalesNoChanged) {
-            crmAuthService.handleUnauthorizedForUser(savedUser.getUsername());
-            log.info("CRM token cache cleared for user {} due to crmSalesNo change", savedUser.getUsername());
+            // CO-152 Review D5-2: 修改 crmSalesNo 后主动失效旧 CRM token（语义：主动失效，非 401）。
+            // logoutUser 语义为"主动使用户 token 缓存失效"，比 handleUnauthorizedForUser（401 专用）更准确。
+            crmAuthService.logoutUser(savedUser.getUsername());
+            log.info("CRM token cache invalidated for user {} due to crmSalesNo change", savedUser.getUsername());
         }
         log.info("Admin updated user: {}", savedUser.getUsername());
         return adminUserQueryService.toDto(savedUser);
