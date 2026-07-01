@@ -151,7 +151,7 @@ public final class RoleProfileCatalog {
                         "dashboard:view_activity_list", "dashboard:view_priority_todos",
                         WAREHOUSE_MANAGE_PERMISSION)));
         map.put(ADMIN_STAFF_CODE, new SeedDefinition(ADMIN_STAFF_CODE, "行政人员", "资质证书管理与行政事务", true, "self",
-                List.of("certificate.manage", "qualification.view")));
+                List.of("certificate.manage", "qualification.view", "knowledge", "knowledge-qualification")));
         map.put(BID_OTHER_DEPT_CODE, new SeedDefinition(BID_OTHER_DEPT_CODE, "跨部门协同人员", "项目任务处理", true, "self",
                 List.of("task.view.own", "task.handle.own",
                         "dashboard:view_welcome_banner", "dashboard:view_technical_task",

@@ -217,5 +217,8 @@ class RoleProfileCatalogTest {
                 .as("行政人员仅有资质只读权限")
                 .contains("qualification.view")
                 .doesNotContain(RoleProfileCatalog.QUALIFICATION_MANAGE_PERMISSION);
+        assertThat(def.menuPermissions())
+                .as("行政人员需持有前端导航权限才能进入资质证书页面")
+                .contains("knowledge", "knowledge-qualification");
     }
 }
