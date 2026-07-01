@@ -1,11 +1,13 @@
 package com.xiyu.bid.projectworkflow.dto;
 
+import com.xiyu.bid.task.dto.TaskDeliverableDTO;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 @Data
@@ -49,4 +51,15 @@ public class ProjectTaskViewDTO {
      * 前端在状态流转后用后端返回覆盖内存中的 task 对象，缺失此字段会导致已填写的说明被空值覆盖。
      */
     private String completionNotes;
+    /**
+     * CO-460 治本：任务交付物列表（来自 task_deliverables 表），对齐独立任务 TaskDTO.deliverables。
+     * 此前 toTaskView 从不加载交付物，审核（REVIEW→通过/驳回）返回的 DTO 不含 deliverables，
+     * 前端 Object.assign 覆盖原引用导致交付物附件丢失。
+     */
+    private List<TaskDeliverableDTO> deliverables;
+    /**
+     * CO-460 治本：任务附件列表（来自 project_documents 表，documentCategory=TASK_ATTACHMENT），
+     * 对齐独立任务 TaskDTO.attachments。
+     */
+    private List<ProjectDocumentDTO> attachments;
 }

@@ -9,12 +9,19 @@ import com.xiyu.bid.notification.core.NotificationType;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
+import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
 import com.xiyu.bid.projectworkflow.dto.ProjectTaskCreateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectTaskStatusUpdateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectTaskViewDTO;
+import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.entity.ProjectScoreDraft;
+import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.task.dto.TaskDeliverableAssembler;
+import com.xiyu.bid.task.dto.TaskDeliverableDTO;
+import com.xiyu.bid.task.entity.TaskDeliverable;
+import com.xiyu.bid.task.repository.TaskDeliverableRepository;
 import com.xiyu.bid.task.service.TaskHistoryRecorder;
 import com.xiyu.bid.task.service.TaskSnapshots;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +53,9 @@ class ProjectTaskWorkflowService {
     private final ProjectTaskDeliverableCollector deliverableCollector;
     private final NotificationApplicationService notificationService;
     private final ProjectNotificationService projectNotificationService;
+    // CO-460 治本：加载任务交付物/附件，对齐独立任务 TaskDtoMapper
+    private final TaskDeliverableRepository taskDeliverableRepository;
+    private final ProjectDocumentRepository projectDocumentRepository;
 
     List<ProjectTaskViewDTO> getProjectTasks(Long projectId) {
         guardService.requireProject(projectId);
@@ -158,6 +168,7 @@ class ProjectTaskWorkflowService {
 
     private ProjectTaskViewDTO toTaskView(Task task, String fallbackAssigneeName) {
         String assigneeName = resolveDisplayName(task.getAssigneeId(), fallbackAssigneeName);
+        List<TaskDeliverableDTO> deliverables = loadTaskDeliverables(task.getId());
         return ProjectTaskViewDTO.builder()
                 .id(task.getId())
                 .projectId(task.getProjectId())
@@ -178,6 +189,64 @@ class ProjectTaskWorkflowService {
                 .createdAt(task.getCreatedAt())
                 .updatedAt(task.getUpdatedAt())
                 .completionNotes(task.getCompletionNotes())
+                // CO-460 治本：补返交付物/附件，对齐独立任务 TaskDtoMapper.toDTO。
+                // 此前审核（REVIEW→通过/驳回）返回的 DTO 不含这两项，前端 Object.assign 覆盖原引用导致附件丢失。
+                .deliverables(deliverables)
+                .deliverableCount(deliverables.size())
+                .attachments(loadTaskAttachments(task.getId()))
+                .build();
+    }
+
+    /**
+     * CO-460: 加载任务交付物（task_deliverables 表），对齐 TaskDtoMapper.loadTaskDeliverables。
+     */
+    private List<TaskDeliverableDTO> loadTaskDeliverables(Long taskId) {
+        if (taskId == null) {
+            return Collections.emptyList();
+        }
+        List<TaskDeliverable> deliverables = taskDeliverableRepository
+                .findByTaskIdOrderByCreatedAtDesc(taskId);
+        if (deliverables == null || deliverables.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return deliverables.stream()
+                .map(TaskDeliverableAssembler::toDTO)
+                .toList();
+    }
+
+    /**
+     * CO-460: 加载任务附件（project_documents 表，documentCategory=TASK_ATTACHMENT），
+     * 对齐 TaskDtoMapper.loadTaskAttachments。
+     */
+    private List<ProjectDocumentDTO> loadTaskAttachments(Long taskId) {
+        if (taskId == null) {
+            return Collections.emptyList();
+        }
+        List<ProjectDocument> documents = projectDocumentRepository
+                .findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc("TASK", taskId);
+        if (documents == null || documents.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return documents.stream()
+                .filter(doc -> "TASK_ATTACHMENT".equals(doc.getDocumentCategory()))
+                .map(this::toProjectDocumentDTO)
+                .toList();
+    }
+
+    private ProjectDocumentDTO toProjectDocumentDTO(ProjectDocument doc) {
+        return ProjectDocumentDTO.builder()
+                .id(doc.getId())
+                .projectId(doc.getProjectId())
+                .name(doc.getName())
+                .size(doc.getSize())
+                .fileType(doc.getFileType())
+                .documentCategory(doc.getDocumentCategory())
+                .linkedEntityType(doc.getLinkedEntityType())
+                .linkedEntityId(doc.getLinkedEntityId())
+                .fileUrl(doc.getFileUrl())
+                .uploaderId(doc.getUploaderId())
+                .uploader(doc.getUploaderName())
+                .createdAt(doc.getCreatedAt())
                 .build();
     }
 

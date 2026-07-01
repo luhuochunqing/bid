@@ -67,7 +67,7 @@ class ProjectTaskBreakdownServiceTest {
                 mock(ProjectDocumentRepository.class),
                 mock(ProjectScoreDraftRepository.class)
         );
-        ProjectTaskWorkflowService taskWorkflowService = new ProjectTaskWorkflowService(guardService, taskRepository, userRepository, new com.fasterxml.jackson.databind.ObjectMapper(), mock(TaskHistoryRecorder.class), mock(com.xiyu.bid.projectworkflow.service.ProjectTaskDeliverableCollector.class), mock(NotificationApplicationService.class), mock(ProjectNotificationService.class));
+        ProjectTaskWorkflowService taskWorkflowService = new ProjectTaskWorkflowService(guardService, taskRepository, userRepository, new com.fasterxml.jackson.databind.ObjectMapper(), mock(TaskHistoryRecorder.class), mock(com.xiyu.bid.projectworkflow.service.ProjectTaskDeliverableCollector.class), mock(NotificationApplicationService.class), mock(ProjectNotificationService.class), mock(com.xiyu.bid.task.repository.TaskDeliverableRepository.class), mock(com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository.class));
         ProjectTaskBreakdownSourceReader sourceReader = new ProjectTaskBreakdownSourceReader(
                 requirementSourceGateway,
                 documentStructureRepository,

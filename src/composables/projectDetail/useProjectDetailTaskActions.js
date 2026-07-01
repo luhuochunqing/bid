@@ -313,7 +313,13 @@ export function useProjectDetailTaskActions(context) {
     try {
       const result = await projectsApi.updateTaskStatus(route.params.id, taskRef?.id, normalizeTaskStatusForApi(newStatus), reviewComment)
       if (!result?.success || !result?.data) throw new Error(result?.msg || '任务状态更新失败')
-      const keep = taskRef.deliverables; Object.assign(taskRef, taskBackendToCard(result.data)); taskRef.deliverables = keep || taskRef.deliverables; message.success('任务状态已更新')
+      const keepDeliverables = taskRef.deliverables
+      const keepAttachments = taskRef.attachments
+      Object.assign(taskRef, taskBackendToCard(result.data))
+      taskRef.deliverables = keepDeliverables || taskRef.deliverables
+      taskRef.attachments = keepAttachments || taskRef.attachments
+      taskRef.hasDeliverable = (taskRef.deliverables || []).length > 0
+      message.success('任务状态已更新')
     } catch (error) {
       message.error(error.message || '任务状态更新失败')
     }
@@ -357,7 +363,12 @@ export function useProjectDetailTaskActions(context) {
       if (!await uploadTaskFilesWithFallback(task, data, { projectStore, projectId: route.params.id, userStore }, { attachments: '任务已提交审核，但附件上传失败，请重试', deliverables: '任务已提交审核，但交付物上传失败，请重试' }, message)) return
       const result = await projectsApi.updateTaskStatus(route.params.id, task.id, normalizeTaskStatusForApi(newStatus))
       if (!result?.success) throw new Error(result?.msg || '提交审核失败')
-      const keep = task.deliverables; Object.assign(task, taskBackendToCard(result.data)); task.deliverables = keep || task.deliverables
+      const keepDeliverables = task.deliverables
+      const keepAttachments = task.attachments
+      Object.assign(task, taskBackendToCard(result.data))
+      task.deliverables = keepDeliverables || task.deliverables
+      task.attachments = keepAttachments || task.attachments
+      task.hasDeliverable = (task.deliverables || []).length > 0
       message.success('任务已提交审核')
     } catch (error) {
       message.error(resolveErrorMessage(error, '提交审核失败'))
