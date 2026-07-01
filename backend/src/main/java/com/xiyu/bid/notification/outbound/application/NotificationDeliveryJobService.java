@@ -20,6 +20,7 @@ import com.xiyu.bid.platform.async.domain.AsyncHandlingDecision;
 import com.xiyu.bid.platform.async.domain.ExponentialBackoffRetrySchedule;
 import com.xiyu.bid.platform.async.infrastructure.AsyncObservabilityRecorder;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +30,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "notification.wecom.enabled", havingValue = "true", matchIfMissing = false)
 public class NotificationDeliveryJobService {
     private static final int MAX_ATTEMPTS = 3;
 
