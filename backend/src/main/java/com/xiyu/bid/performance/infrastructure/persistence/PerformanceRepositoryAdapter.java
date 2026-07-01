@@ -13,6 +13,7 @@ import com.xiyu.bid.performance.infrastructure.persistence.repository.Performanc
 import com.xiyu.bid.performance.infrastructure.persistence.spec.PerformanceRecordSpecification;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -62,7 +63,7 @@ public class PerformanceRepositoryAdapter implements PerformanceRepository {
     @Transactional(readOnly = true)
     public List<PerformanceRecord> findAll(PerformanceSearchCriteria criteria, PerformanceAlertConfig config) {
         var spec = PerformanceRecordSpecification.build(criteria, config);
-        return jpaRepository.findAll(spec).stream().map(this::toDomain).toList();
+        return jpaRepository.findAll(spec, Sort.by(Sort.Direction.DESC, "createdAt")).stream().map(this::toDomain).toList();
     }
 
     @Override
@@ -70,7 +71,7 @@ public class PerformanceRepositoryAdapter implements PerformanceRepository {
     public PagedResult<PerformanceRecord> findAllPageable(
             PerformanceSearchCriteria criteria, PerformanceAlertConfig config, int pageNumber, int pageSize) {
         var spec = PerformanceRecordSpecification.build(criteria, config);
-        var page = jpaRepository.findAll(spec, PageRequest.of(pageNumber, pageSize));
+        var page = jpaRepository.findAll(spec, PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.DESC, "createdAt")));
         List<PerformanceRecord> content = page.getContent().stream().map(this::toDomain).toList();
         return PagedResult.of(content, page.getTotalElements(), pageNumber, pageSize);
     }

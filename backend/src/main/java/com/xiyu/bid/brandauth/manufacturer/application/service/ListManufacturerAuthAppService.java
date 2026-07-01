@@ -107,7 +107,7 @@ public class ListManufacturerAuthAppService {
         };
 
         PageRequest pr = PageRequest.of(page, size,
-                Sort.by(Sort.Direction.ASC, "authEndDate"));
+                Sort.by(Sort.Direction.DESC, "createdAt"));
         return jpaRepository.findAll(spec, pr)
                 .map(entity -> {
                     var domain = toDomain(entity);

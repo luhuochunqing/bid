@@ -72,7 +72,7 @@ public class WarehouseController {
             @RequestParam(required = false) Boolean hasPhotos, @RequestParam(required = false) String contactPersonKeyword,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "15") int size) {
 
-        Pageable p = PageRequest.of(page, size, Sort.by("endDate"));
+        Pageable p = PageRequest.of(page, size, Sort.by("createdAt").descending());
         WarehouseFilterDTO filter = new WarehouseFilterDTO(
                 keyword,
                 parseEnums(types, WarehouseType.class),

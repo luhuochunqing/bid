@@ -57,7 +57,7 @@ public class CaCertificateController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String caType,
             @RequestParam(required = false) String sealType,
-            @PageableDefault(size = 20) Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ResponseEntity.ok(caService.list(status, borrowStatus, keyword, caType, sealType, pageable));
     }
 

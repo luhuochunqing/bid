@@ -59,8 +59,8 @@ public class AccountController {
     public ResponseEntity<ApiResponse<Page<AccountResponseDTO>>> getAllAccounts(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "name") String sortBy,
-            @RequestParam(defaultValue = "asc") String sortDir) {
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir) {
 
         if (size > PaginationConstants.MAX_PAGE_SIZE) {
             size = PaginationConstants.MAX_PAGE_SIZE;
