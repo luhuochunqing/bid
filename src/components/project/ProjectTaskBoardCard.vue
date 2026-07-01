@@ -92,7 +92,7 @@
 
 <script setup>
 import { computed, getCurrentInstance, ref, reactive } from 'vue'
-import { ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { DocumentChecked, List, Plus } from '@element-plus/icons-vue'
 import TaskBoard from '@/components/common/TaskBoard.vue'
 import TaskForm from '@/components/project/TaskForm.vue'
@@ -113,6 +113,7 @@ const emit = defineEmits([
   'remove-deliverable',
   'submit-to-document',
   'save-task',
+  'submit-review',
 ])
 
 const props = defineProps({
@@ -225,7 +226,15 @@ async function emitStatusChange(newStatus, reviewComment) {
   emit('status-change', task, newStatus, reviewComment)
   drawerVisible.value = false
 }
-const handleSubmitForReview = () => emitStatusChange('REVIEW')
+async function handleSubmitForReview() {
+  const result = taskFormRef.value?.submitForReview?.()
+  if (!result || result.valid === false) {
+    if (result?.message) ElMessage.warning(result.message)
+    return
+  }
+  emit('submit-review', result.data)
+  drawerVisible.value = false
+}
 const handleApproveTask = () => emitStatusChange('COMPLETED')
 async function handleRejectTask() {
   try {

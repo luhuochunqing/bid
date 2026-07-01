@@ -153,36 +153,39 @@ describe('useTaskActions', () => {
   })
 
   describe('confirmSubmit', () => {
-    it('submits task to REVIEW status', async () => {
-      const { confirmSubmit, openDeliverableUpload, submittingTaskLoading } = useTaskActions({
+    it('submits task to REVIEW status with completionNotes', async () => {
+      const { confirmSubmit, openDeliverableUpload, submitNotes, submittingTaskLoading } = useTaskActions({
         getProjectId: () => 42,
       })
       const task = createMockTask({ deliverables: [{ id: 1 }] })
       openDeliverableUpload(task)
+      submitNotes.value = '已完成'
       await confirmSubmit()
-      expect(projectsApi.updateTaskStatus).toHaveBeenCalledWith(42, 1, 'REVIEW')
+      expect(projectsApi.updateTaskStatus).toHaveBeenCalledWith(42, 1, 'REVIEW', null, '已完成')
       expect(submittingTaskLoading.value).toBe(false)
     })
 
-    it('updates completion notes when submitNotes is filled', async () => {
-      const { confirmSubmit, openDeliverableUpload, submitNotes } = useTaskActions({
+    it('shows warning when submitNotes is empty', async () => {
+      const { ElMessage } = await import('element-plus')
+      const { confirmSubmit, openDeliverableUpload } = useTaskActions({
         getProjectId: () => 42,
       })
       const task = createMockTask({ deliverables: [{ id: 1 }] })
       openDeliverableUpload(task)
-      submitNotes.value = '全部完成'
       await confirmSubmit()
-      expect(projectsApi.updateTask).toHaveBeenCalledWith(1, { completionNotes: '全部完成' })
+      expect(ElMessage.warning).toHaveBeenCalledWith('请填写完成情况说明')
+      expect(projectsApi.updateTaskStatus).not.toHaveBeenCalled()
     })
 
     it('calls onSubmitted callback after success', async () => {
       const onSubmitted = vi.fn()
-      const { confirmSubmit, openDeliverableUpload } = useTaskActions({
+      const { confirmSubmit, openDeliverableUpload, submitNotes } = useTaskActions({
         getProjectId: () => 42,
         onSubmitted,
       })
       const task = createMockTask({ deliverables: [{ id: 1 }] })
       openDeliverableUpload(task)
+      submitNotes.value = '完成了'
       await confirmSubmit()
       expect(onSubmitted).toHaveBeenCalledWith(task)
     })

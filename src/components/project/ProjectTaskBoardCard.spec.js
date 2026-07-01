@@ -47,11 +47,14 @@ const baseStubs = {
   TaskForm: {
     name: 'TaskForm',
     props: ['modelValue', 'mode'],
-    emits: ['update:modelValue', 'submit', 'attachment-preview'],
+    emits: ['update:modelValue', 'submit', 'submit-review', 'attachment-preview'],
     template: '<div class="task-form-stub" />',
     methods: {
       submit() {
         return { valid: true, data: { ...this.modelValue } }
+      },
+      submitForReview() {
+        return { valid: true, data: { ...this.modelValue, status: 'REVIEW' } }
       },
     },
   },
@@ -427,8 +430,8 @@ describe('CO-397: task drawer review buttons', () => {
     expect(wrapper.find('[data-test="task-drawer-approve"]').exists()).toBe(false)
   })
 
-  // 测试要点 8: 点击提交审核 → emit status-change with REVIEW + 关闭抽屉
-  it('clicking 提交审核 emits status-change REVIEW and closes drawer', async () => {
+  // 测试要点 8: 点击提交审核 → 调用 TaskForm.submitForReview → emit submit-review + 关闭抽屉
+  it('clicking 提交审核 calls submitForReview and emits submit-review', async () => {
     const wrapper = mountWithUser({
       role: 'bid-Team', userId: 9,
       task: { id: 1, name: 'T1', status: 'TODO', assigneeId: 9 },
@@ -436,13 +439,11 @@ describe('CO-397: task drawer review buttons', () => {
     openDrawer(wrapper, { id: 1, name: 'T1', status: 'TODO', assigneeId: 9 })
     await flushPromises()
     await wrapper.find('[data-test="task-drawer-submit-review"]').trigger('click')
-    const emitted = wrapper.emitted('status-change')
+    const emitted = wrapper.emitted('submit-review')
     expect(emitted).toBeTruthy()
-    expect(emitted[0]).toEqual([
-      { id: 1, name: 'T1', status: 'TODO', assigneeId: 9 },
-      'REVIEW',
-      undefined,
-    ])
+    expect(emitted[0][0]).toEqual(expect.objectContaining({
+      id: 1, name: 'T1', status: 'REVIEW', assigneeId: 9,
+    }))
     expect(wrapper.vm.drawerVisible).toBe(false)
   })
 

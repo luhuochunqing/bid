@@ -94,6 +94,10 @@ export function useTaskActions(options = {}) {
       ElMessage.error('缺少项目信息，无法提交')
       return
     }
+    if (!submitNotes.value?.trim()) {
+      ElMessage.warning('请填写完成情况说明')
+      return
+    }
 
     submittingTaskLoading.value = true
     try {
@@ -103,10 +107,7 @@ export function useTaskActions(options = {}) {
         formData.append('taskId', task.id)
         await apiCreateTaskDeliverable(projectId, task.id, formData)
       }
-      if (submitNotes.value) {
-        await api.updateTask(task.id, { completionNotes: submitNotes.value })
-      }
-      await api.updateTaskStatus(projectId, task.id, TASK_STATUS.REVIEW)
+      await api.updateTaskStatus(projectId, task.id, TASK_STATUS.REVIEW, null, submitNotes.value)
       ElMessage.success('已提交审核')
       closeSubmitDialog()
       if (onSubmitted) await onSubmitted(task)

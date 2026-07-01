@@ -224,7 +224,12 @@ const canTransitionToStatus = (task, targetStatus) => {
     return false
   }
   if (target === 'REVIEW') {
-    if (currentStatus === 'TODO') return isTaskAssignee(task)
+    if (currentStatus === 'TODO') {
+      if (!isTaskAssignee(task)) return false
+      const hasDeliverable = (task.deliverables?.length > 0) || task.hasDeliverable
+      const hasCompletionNotes = task.completionNotes?.trim() !== ''
+      return hasDeliverable && hasCompletionNotes
+    }
     return false
   }
   if (target === 'COMPLETED') {

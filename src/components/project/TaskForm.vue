@@ -113,12 +113,12 @@
             </div>
           </el-form-item>
 
-          <el-form-item label="完成情况说明">
+          <el-form-item label="完成情况说明" required>
             <el-input
               v-model="localValue.completionNotes"
               type="textarea"
               :rows="4"
-              placeholder="请填写完成情况说明（可选）"
+              placeholder="请填写完成情况说明"
               :disabled="readonly && !canDeliver"
             />
           </el-form-item>
@@ -421,7 +421,14 @@ function submit() {
 function submitForReview() {
   const msg = validate()
   if (msg) return { valid: false, message: msg }
-  // 提交审核时强制目标状态为 REVIEW
+  const hasDeliverable = (localValue.deliverables && localValue.deliverables.length > 0)
+    || (deliverableFileList.value && deliverableFileList.value.length > 0)
+  if (!hasDeliverable) {
+    return { valid: false, message: '提交审核时必须上传交付物' }
+  }
+  if (!localValue.completionNotes || !String(localValue.completionNotes).trim()) {
+    return { valid: false, message: '提交审核时必须填写完成情况' }
+  }
   const data = { ...localValue, status: 'REVIEW' }
   emit('submit-review', data)
   return { valid: true, data }

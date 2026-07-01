@@ -279,7 +279,7 @@ describe('TaskBoard (drag to change status)', () => {
   })
 
   it('emits status-change with target column code when task is dropped in another column', async () => {
-    const task = { id: 31, name: 'T', status: 'TODO', priority: 'medium', assigneeId: 9 }
+    const task = { id: 31, name: 'T', status: 'TODO', priority: 'medium', assigneeId: 9, deliverables: [{ id: 1 }], completionNotes: '已完成' }
     const wrapper = mountBoard({ projectId: '12', tasks: [task] })
     await flushPromises()
 
@@ -480,7 +480,7 @@ describe('TaskBoard (CO-413 reject reason dialog)', () => {
   })
 
   it('非 REVIEW→TODO 的状态切换不打开弹窗，直接 emit', async () => {
-    const task = { id: 2, name: '待办任务', status: 'TODO', assigneeId: 9 }
+    const task = { id: 2, name: '待办任务', status: 'TODO', assigneeId: 9, deliverables: [{ id: 1 }], completionNotes: '已完成' }
     const wrapper = mountBoard({ tasks: [task] })
     await flushPromises()
 
