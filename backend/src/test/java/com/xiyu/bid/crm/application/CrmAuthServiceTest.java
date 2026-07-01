@@ -89,29 +89,29 @@ class CrmAuthServiceTest {
     }
 
     @Test
-    @DisplayName("用户B没配crmSalesNo → 回退到全局共享token（当前行为）")
-    void getValidTokenForUser_userWithoutCrmSalesNo_fallsBackToSharedToken() {
-        // Arrange: 用户 B 没配工号
+    @DisplayName("用户B没配crmSalesNo → 用username作为salesNo生成专属token（OSS用户用户名即工号）")
+    void getValidTokenForUser_userWithoutCrmSalesNo_usesUsernameAsSalesNo() {
+        // Arrange: 用户 B 没配工号，但 username 就是工号
         User userB = User.builder()
                 .id(2L).username("userB").fullName("用户B").crmSalesNo(null).build();
         when(userRepository.findByUsername("userB")).thenReturn(Optional.of(userB));
-        // mock 全局共享 token 路径（OSS + generateToken）
+        // mock generateToken 返回用户 B 的专属 token
         mockOssLoginSuccess("oss-token-shared");
-        mockGenerateTokenSuccess("crm-jwt-shared-03595");
+        mockGenerateTokenSuccess("crm-jwt-userB");
 
         // Act
         String token = authService.getValidTokenForUser("userB");
 
         // Assert
-        assertThat(token).isEqualTo("crm-jwt-shared-03595");
-        // 验证 generateToken 调用时使用的是全局工号 03595
+        assertThat(token).isEqualTo("crm-jwt-userB");
+        // 验证 generateToken 调用时使用的是 username（userB）作为 salesNo
         verify(httpClient).postWithAuth(
                 anyString(), anyString(), eq("oss-token-shared"),
-                org.mockito.ArgumentMatchers.contains("03595"));
+                org.mockito.ArgumentMatchers.contains("\"salesNo\":\"userB\""));
     }
 
     @Test
-    @DisplayName("用户A配了工号、用户B没配 → A用专属token，B用共享token，互不影响")
+    @DisplayName("用户A配了工号、用户B没配 → A用crmSalesNo，B用username，各自专属token互不影响")
     void getValidTokenForUser_userAAndUserB_isolated() {
         User userA = User.builder()
                 .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
@@ -120,14 +120,14 @@ class CrmAuthServiceTest {
         when(userRepository.findByUsername("userA")).thenReturn(Optional.of(userA));
         when(userRepository.findByUsername("userB")).thenReturn(Optional.of(userB));
         mockOssLoginSuccess("oss-token");
-        // 按 body 内容区分返回不同 token：10001 → A 的专属，03595 → 全局共享
-        mockGenerateTokenByBody("crm-jwt-A-10001", "crm-jwt-shared-03595");
+        // 按调用顺序返回不同 token：第1次 → A 的专属，第2次 → B 的专属
+        mockGenerateTokenSequential("crm-jwt-A-10001", "crm-jwt-B-userB");
 
         String tokenA = authService.getValidTokenForUser("userA");
         String tokenB = authService.getValidTokenForUser("userB");
 
         assertThat(tokenA).isEqualTo("crm-jwt-A-10001");
-        assertThat(tokenB).isEqualTo("crm-jwt-shared-03595");
+        assertThat(tokenB).isEqualTo("crm-jwt-B-userB");
         assertThat(tokenA).isNotEqualTo(tokenB);
     }
 

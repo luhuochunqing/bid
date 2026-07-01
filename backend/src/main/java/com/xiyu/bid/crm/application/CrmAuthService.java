@@ -119,17 +119,23 @@ public class CrmAuthService {
 
     /**
      * 获取当前用户的 CRM JWT token（CO-152）。
-     * 配置了 crm_sales_no → 专属 token（按 username 缓存）；否则回退到全局共享 token。
+     * crm_sales_no 有值 → 用 crmSalesNo；否则用 username 作为 salesNo（OSS 用户名即工号）。
      */
     public String getValidTokenForUser(String username) {
         if (username == null || username.isBlank()) {
             return getValidToken();
         }
-        // CO-152 Review D4-1: 通过 userProfileCache 避免每次 CRM 接口调用都查 DB
-        return getCachedUserProfile(username)
-                .filter(p -> p.crmSalesNo() != null && !p.crmSalesNo().isBlank())
-                .map(p -> resolveUserTokenFromCacheOrFetch(p, username))
-                .orElseGet(() -> fallbackSharedToken(username));
+        CachedUserProfile p = getCachedUserProfile(username).orElse(null);
+        if (p == null) {
+            return getValidToken();
+        }
+        String salesNo = (p.crmSalesNo() != null && !p.crmSalesNo().isBlank()) ? p.crmSalesNo() : username;
+        if (salesNo.equals(username) && p.crmSalesNo() == null) {
+            String nickName = (p.fullName() != null && !p.fullName().isBlank()) ? p.fullName() : username;
+            p = new CachedUserProfile(nickName, salesNo, Instant.now().plusSeconds(USER_PROFILE_CACHE_TTL_SECONDS));
+            userProfileCache.put(username, p);
+        }
+        return resolveUserTokenFromCacheOrFetch(p, username);
     }
 
     private Optional<CachedUserProfile> getCachedUserProfile(String username) {
@@ -154,11 +160,6 @@ public class CrmAuthService {
         String token = applyCrmTokenForUser(profile.fullName(), profile.crmSalesNo());
         userTokenCache.put(username, token, 86400L);
         return token;
-    }
-
-    private String fallbackSharedToken(String username) {
-        log.debug("User {} has no crm_sales_no or not found, falling back to shared token", username);
-        return getValidToken();
     }
 
     /** 用户 CRM 接口 401 时清除该用户 token 缓存（只清当前用户，不影响其他用户）。 */
