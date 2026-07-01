@@ -207,6 +207,28 @@ describe('CAFormDialog.vue — CO-436 编辑时密码不应回填脱敏值', () 
     expect(submitEvents[0][0].caPassword).toBe('')
   })
 
+  // CO-435 回归：编辑模式空密码不应被前端 rules 拦截
+  it('编辑模式且 caType=ENTITY_CA 时，rules.caPassword 不应声明 required: true', async () => {
+    const wrapper = await mountDialog({
+      ca: {
+        id: 1,
+        caType: 'ENTITY_CA',
+        sealType: 'OFFICIAL_SEAL',
+        caPassword: '******',
+        expiryDate: '2027-01-01',
+        custodianId: 1,
+        custodianName: '张三',
+        platformIds: []
+      }
+    })
+    await flushPromises()
+
+    const caPasswordRules = wrapper.vm.rules?.caPassword
+    const arr = Array.isArray(caPasswordRules) ? caPasswordRules : [caPasswordRules]
+    const hasRequired = arr.some((r) => r?.required === true)
+    expect(hasRequired).toBe(false)
+  })
+
   it('编辑时修改了密码，提交数据中 caPassword 应为新值', async () => {
     const wrapper = await mountDialog({
       ca: {
