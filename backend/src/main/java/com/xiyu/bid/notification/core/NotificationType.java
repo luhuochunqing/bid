@@ -22,5 +22,7 @@ public enum NotificationType {
     /** A borrowed CA is approaching its expected return date. */
     CA_BORROW_DUE_SOON,
     /** A borrowed CA is past its expected return date. */
-    CA_BORROW_OVERDUE
+    CA_BORROW_OVERDUE,
+    /** A CA borrow application has been approved by custodian. */
+    CA_BORROW_APPROVED
 }

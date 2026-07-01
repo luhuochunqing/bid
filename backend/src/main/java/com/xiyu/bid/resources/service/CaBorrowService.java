@@ -122,6 +122,9 @@ public class CaBorrowService {
                 .statusAfter("APPROVED")
                 .build());
 
+        // 通知申请人审批通过
+        caNotificationDispatcher.onBorrowApproved(app);
+
         return CaBorrowApplicationDTO.from(app);
     }
 
