@@ -43,8 +43,15 @@ public class ProjectStageController {
     public ResponseEntity<ApiResponse<StageViewDto>> get(@PathVariable Long projectId,
                                                           @AuthenticationPrincipal UserDetails userDetails) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
-        ProjectStage current = service.currentStage(projectId);
-        List<ProjectStage> next = service.allowedNext(projectId);
+        ProjectStage actual = service.currentStage(projectId);
+        // CO-443: 已提交结项申请但审批未通过时，阶段尚未实际推进到 CLOSED，
+        // 但前端进度导航栏应显示 CLOSED 为「进行中」而非「待进入」。
+        ProjectStage current = (actual != ProjectStage.CLOSED && service.hasClosureSubmission(projectId))
+                ? ProjectStage.CLOSED
+                : actual;
+        List<ProjectStage> next = current.isTerminal()
+                ? List.of()
+                : service.allowedNext(projectId);
         List<String> completed = Arrays.stream(ProjectStage.values())
                 .filter(s -> s.ordinal() < current.ordinal())
                 .map(Enum::name).toList();
@@ -63,7 +70,8 @@ public class ProjectStageController {
                         .allowedNextStages(next.stream().map(Enum::name).toList())
                         .accessibleStages(accessible.stream().distinct().toList())
                         .defaultOpenStage(defaultOpenStage)
-                        .terminal(current.isTerminal())
+                        // CO-443: terminal 基于实际 stage 判断，只有审批通过后 stage=CLOSED �为终态
+                        .terminal(actual.isTerminal())
                         .build()));
     }
 

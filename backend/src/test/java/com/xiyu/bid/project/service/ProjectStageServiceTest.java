@@ -11,6 +11,7 @@ import com.xiyu.bid.project.core.ProjectStageTransitionPolicy;
 import com.xiyu.bid.project.domain.ProjectStageTransitionedEvent;
 import com.xiyu.bid.project.entity.ProjectResult;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
+import com.xiyu.bid.project.repository.ProjectClosureRepository;
 import com.xiyu.bid.project.repository.ProjectResultRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +39,7 @@ class ProjectStageServiceTest {
     private ProjectNotificationService notificationService;
     private ApplicationEventPublisher eventPublisher;
     private ProjectResultRepository projectResultRepository;
+    private ProjectClosureRepository closureRepository;
     private ProjectStageService service;
 
     private static final Long PID = 1L;
@@ -50,7 +52,8 @@ class ProjectStageServiceTest {
         eventPublisher = mock(ApplicationEventPublisher.class);
         notificationService = mock(ProjectNotificationService.class);
         projectResultRepository = mock(ProjectResultRepository.class);
-        service = new ProjectStageService(projectRepo, eventPublisher, notificationService, projectResultRepository);
+        closureRepository = mock(ProjectClosureRepository.class);
+        service = new ProjectStageService(projectRepo, eventPublisher, notificationService, projectResultRepository, closureRepository);
         when(projectRepo.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
         // 默认返回空 Optional，表示无已登记结果；个别测试按需覆写
         when(projectResultRepository.findByProjectId(PID)).thenReturn(Optional.empty());
@@ -310,5 +313,19 @@ class ProjectStageServiceTest {
 
         assertEquals(Project.Status.LOST, p.getStatus());
         verify(projectResultRepository, org.mockito.Mockito.never()).findByProjectId(any());
+    }
+
+    // ---------- CO-443: hasClosureSubmission ----------
+
+    @Test
+    void hasClosureSubmission_returnsTrue_whenClosureExists() {
+        when(closureRepository.findByProjectId(PID)).thenReturn(Optional.of(new com.xiyu.bid.project.entity.ProjectClosure()));
+        assertTrue(service.hasClosureSubmission(PID));
+    }
+
+    @Test
+    void hasClosureSubmission_returnsFalse_whenNoClosure() {
+        when(closureRepository.findByProjectId(PID)).thenReturn(Optional.empty());
+        assertTrue(!service.hasClosureSubmission(PID));
     }
 }

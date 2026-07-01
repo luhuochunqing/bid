@@ -59,6 +59,7 @@ class ProjectStageControllerTest {
         authenticate("09118");
         when(authService.resolveUserIdByUsername("09118")).thenReturn(5472L);
         when(stageService.currentStage(42L)).thenReturn(ProjectStage.INITIATED);
+        when(stageService.hasClosureSubmission(42L)).thenReturn(false);
         when(stageService.allowedNext(42L)).thenReturn(List.of(ProjectStage.DRAFTING));
         when(bidReviewAppService.getReviewState(42L)).thenReturn(
                 new BidReviewAppService.ReviewState("REVIEWING", 5472L, null, "覃超颖"));
@@ -78,6 +79,7 @@ class ProjectStageControllerTest {
         authenticate("06234");
         when(authService.resolveUserIdByUsername("06234")).thenReturn(100L);
         when(stageService.currentStage(42L)).thenReturn(ProjectStage.EVALUATING);
+        when(stageService.hasClosureSubmission(42L)).thenReturn(false);
         when(stageService.allowedNext(42L)).thenReturn(List.of(ProjectStage.RESULT_PENDING));
         when(bidReviewAppService.getReviewState(42L)).thenReturn(
                 new BidReviewAppService.ReviewState("REVIEWING", 5472L, null, "覃超颖"));
@@ -89,6 +91,39 @@ class ProjectStageControllerTest {
                 .andExpect(jsonPath("$.data.accessibleStages[1]").value("DRAFTING"))
                 .andExpect(jsonPath("$.data.accessibleStages[2]").value("EVALUATING"))
                 .andExpect(jsonPath("$.data.defaultOpenStage").value("EVALUATING"));
+    }
+
+    // CO-443: 提交结项申请后（审批中），currentStage 应覆盖为 CLOSED
+    @Test
+    void co443_closureSubmitted_showsClosedAsCurrentStage() throws Exception {
+        authenticate("09118");
+        when(authService.resolveUserIdByUsername("09118")).thenReturn(5472L);
+        when(stageService.currentStage(42L)).thenReturn(ProjectStage.RETROSPECTIVE);
+        when(stageService.hasClosureSubmission(42L)).thenReturn(true);
+        when(bidReviewAppService.getReviewState(42L)).thenReturn(
+                new BidReviewAppService.ReviewState("REVIEWING", 9999L, null, "其他人"));
+
+        mockMvc.perform(get("/api/projects/42/stage").accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.currentStage").value("CLOSED"))
+                .andExpect(jsonPath("$.data.terminal").value(false))
+                .andExpect(jsonPath("$.data.defaultOpenStage").value("CLOSED"));
+    }
+
+    // CO-443: 审批通过后 project.stage=CLOSED，terminal=true
+    @Test
+    void co443_closureApproved_showsClosedTerminal() throws Exception {
+        authenticate("09118");
+        when(authService.resolveUserIdByUsername("09118")).thenReturn(5472L);
+        when(stageService.currentStage(42L)).thenReturn(ProjectStage.CLOSED);
+        when(stageService.hasClosureSubmission(42L)).thenReturn(true);
+        when(bidReviewAppService.getReviewState(42L)).thenReturn(
+                new BidReviewAppService.ReviewState("REVIEWING", 9999L, null, "其他人"));
+
+        mockMvc.perform(get("/api/projects/42/stage").accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.currentStage").value("CLOSED"))
+                .andExpect(jsonPath("$.data.terminal").value(true));
     }
 
     private void authenticate(String username) {

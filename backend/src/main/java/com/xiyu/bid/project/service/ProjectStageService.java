@@ -15,6 +15,7 @@ import com.xiyu.bid.project.core.ProjectStageTransitionPolicy.GateInputs;
 import com.xiyu.bid.project.domain.ProjectStageTransitionedEvent;
 import com.xiyu.bid.project.entity.ProjectResult;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
+import com.xiyu.bid.project.repository.ProjectClosureRepository;
 import com.xiyu.bid.project.repository.ProjectResultRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import lombok.RequiredArgsConstructor;
@@ -49,11 +50,22 @@ public class ProjectStageService {
     private final ApplicationEventPublisher eventPublisher;
     private final ProjectNotificationService notificationService;
     private final ProjectResultRepository projectResultRepository;
+    private final ProjectClosureRepository closureRepository;
 
     @Transactional(readOnly = true)
     public ProjectStage currentStage(Long projectId) {
         Project p = mustGet(projectId);
         return parse(p.getStage());
+    }
+
+    /**
+     * CO-443: 是否已提交结项申请（closure 记录存在）。
+     * 用于 StageView 计算 effective stage：提交结项申请后阶段应显示为 CLOSED（进行中），
+     * 审批通过后 terminal=true 显示「已完成」。
+     */
+    @Transactional(readOnly = true)
+    public boolean hasClosureSubmission(Long projectId) {
+        return closureRepository.findByProjectId(projectId).isPresent();
     }
 
     @Transactional(readOnly = true)

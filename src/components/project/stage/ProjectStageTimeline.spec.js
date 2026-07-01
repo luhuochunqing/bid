@@ -129,4 +129,28 @@ describe('ProjectStageTimeline', () => {
     expect(steps[1].attributes('data-status')).toBe('process')
     expect(steps[1].text()).toContain('进行中')
   })
+
+  // CO-443: 结项申请审批中（terminal=false, currentStage=CLOSED）应显示"进行中"
+  it('shows CLOSED stage as in-progress when terminal flag is false', async () => {
+    projectLifecycleApi.getStage.mockResolvedValue({
+      data: {
+        currentStage: 'CLOSED',
+        completedStages: ['INITIATED', 'DRAFTING', 'EVALUATING', 'RESULT_PENDING', 'RETROSPECTIVE'],
+        accessibleStages: ['INITIATED', 'DRAFTING', 'EVALUATING', 'RESULT_PENDING', 'RETROSPECTIVE', 'CLOSED'],
+        terminal: false,
+      },
+    })
+    const wrapper = mount(ProjectStageTimeline, {
+      props: { projectId: 1 },
+      global: { stubs },
+    })
+    await flushPromises()
+
+    const steps = wrapper.findAll('.el-step')
+    const closedStep = steps[5]
+    expect(closedStep.attributes('data-title')).toBe('项目结项')
+    expect(closedStep.text()).toContain('进行中')
+    expect(closedStep.text()).not.toContain('已完成')
+    expect(closedStep.attributes('data-status')).toBe('process')
+  })
 })
