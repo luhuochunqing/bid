@@ -108,6 +108,41 @@ function buildPayload(data) {
   }
 }
 
+// 构造导出接口的 query string：支持 ids（勾选）+ 筛选条件（与 /list 一致）
+function buildExportQuery(params = {}) {
+  const qs = new URLSearchParams()
+  if (Array.isArray(params.ids) && params.ids.length > 0) {
+    params.ids.forEach(id => qs.append('ids', id))
+  }
+  if (params.keyword) qs.set('keyword', params.keyword)
+  if (Array.isArray(params.customerTypes) && params.customerTypes.length > 0) {
+    params.customerTypes.forEach(v => qs.append('customerTypes', v))
+  }
+  if (Array.isArray(params.projectTypes) && params.projectTypes.length > 0) {
+    params.projectTypes.forEach(v => qs.append('projectTypes', v))
+  }
+  if (Array.isArray(params.statuses) && params.statuses.length > 0) {
+    params.statuses.forEach(v => qs.append('statuses', v))
+  }
+  if (Array.isArray(params.customerLevels) && params.customerLevels.length > 0) {
+    params.customerLevels.forEach(v => qs.append('customerLevels', v))
+  }
+  if (params.territory) qs.set('territory', params.territory)
+  if (Array.isArray(params.signingDateRange) && params.signingDateRange[0])
+    qs.set('signingDateStart', params.signingDateRange[0])
+  if (Array.isArray(params.signingDateRange) && params.signingDateRange[1])
+    qs.set('signingDateEnd', params.signingDateRange[1])
+  if (Array.isArray(params.expiryDateRange) && params.expiryDateRange[0])
+    qs.set('expiryDateStart', params.expiryDateRange[0])
+  if (Array.isArray(params.expiryDateRange) && params.expiryDateRange[1])
+    qs.set('expiryDateEnd', params.expiryDateRange[1])
+  if (params.hasBidNotice !== null && params.hasBidNotice !== undefined && params.hasBidNotice !== '')
+    qs.set('hasBidNotice', String(params.hasBidNotice))
+  if (params.projectManagerKeyword) qs.set('projectManagerKeyword', params.projectManagerKeyword)
+  const s = qs.toString()
+  return s ? `?${s}` : ''
+}
+
 export const performanceApi = {
   async getList(params = {}) {
     const qs = new URLSearchParams()
@@ -187,12 +222,8 @@ export const performanceApi = {
     })
   },
 
-  async batchExport(ids) {
-    const qs = new URLSearchParams()
-    if (Array.isArray(ids) && ids.length > 0) {
-      ids.forEach(id => qs.append('ids', id))
-    }
-    const query = qs.toString() ? `?${qs.toString()}` : ''
+  async batchExport(params = {}) {
+    const query = buildExportQuery(params)
     const res = await httpClient.get(`/api/knowledge/performance/export${query}`, { responseType: 'blob' })
     const blob = res.data
     const url = window.URL.createObjectURL(blob)
@@ -206,12 +237,8 @@ export const performanceApi = {
     return res
   },
 
-  async batchExportZip(ids) {
-    const qs = new URLSearchParams()
-    if (Array.isArray(ids) && ids.length > 0) {
-      ids.forEach(id => qs.append('ids', id))
-    }
-    const query = qs.toString() ? `?${qs.toString()}` : ''
+  async batchExportZip(params = {}) {
+    const query = buildExportQuery(params)
     const res = await httpClient.get(`/api/knowledge/performance/export-zip${query}`, { responseType: 'blob' })
     const blob = res.data
     const url = window.URL.createObjectURL(blob)

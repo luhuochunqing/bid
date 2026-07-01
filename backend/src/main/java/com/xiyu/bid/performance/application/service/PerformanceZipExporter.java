@@ -58,11 +58,14 @@ public final class PerformanceZipExporter {
     /**
      * 导出 ZIP（含 Excel 台账 + 附件）.
      *
-     * @param ids 记录 ID 列表，null 或空表示全量导出
+     * @param ids 记录 ID 列表，null 或空表示按 criteria 全量导出
+     * @param criteria 搜索条件，null 时退化为 PerformanceSearchCriteria.empty()
      * @return ZIP 字节数组
      * @throws IOException IO 异常
      */
-    public byte[] exportZip(final List<Long> ids) throws IOException {
+    public byte[] exportZip(final List<Long> ids,
+                            final PerformanceSearchCriteria criteria)
+            throws IOException {
         List<PerformanceDTO> records;
         if (ids != null && !ids.isEmpty()) {
             records = ids.stream()
@@ -73,14 +76,17 @@ public final class PerformanceZipExporter {
         } else {
             var config = alertConfigRepository.findActive()
                     .orElse(DEFAULT_CONFIG);
+            var effectiveCriteria = criteria != null
+                    ? criteria
+                    : PerformanceSearchCriteria.empty();
             records = repository.findAll(
-                            PerformanceSearchCriteria.empty(), config)
+                            effectiveCriteria, config)
                     .stream()
                     .map(mapper::toDTO)
                     .toList();
         }
 
-        byte[] excelBytes = excelExporter.export(ids);
+        byte[] excelBytes = excelExporter.export(ids, criteria);
 
         var out = new ByteArrayOutputStream();
         try (var zipOut = new ZipOutputStream(out)) {

@@ -46,7 +46,7 @@ public class PerformanceExcelExporter {
             "是否有中标通知书", "中标通知书附件文件名", "备注"
     };
 
-    public byte[] export(List<Long> ids) throws IOException {
+    public byte[] export(List<Long> ids, PerformanceSearchCriteria criteria) throws IOException {
         List<PerformanceDTO> records;
         if (ids != null && !ids.isEmpty()) {
             records = ids.stream()
@@ -54,7 +54,8 @@ public class PerformanceExcelExporter {
                     .filter(r -> r != null).toList();
         } else {
             var config = alertConfigRepository.findActive().orElse(DEFAULT_CONFIG);
-            records = repository.findAll(PerformanceSearchCriteria.empty(), config)
+            var effectiveCriteria = criteria != null ? criteria : PerformanceSearchCriteria.empty();
+            records = repository.findAll(effectiveCriteria, config)
                     .stream().map(mapper::toDTO).toList();
         }
         if (records.size() > EXPORT_MAX_ROWS) {

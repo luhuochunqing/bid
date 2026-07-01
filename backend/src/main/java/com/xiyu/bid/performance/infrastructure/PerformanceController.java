@@ -150,8 +150,26 @@ public class PerformanceController {
     @PreAuthorize("hasAuthority('" + PERM + "')")
     @Auditable(action = "EXPORT", entityType = "Performance", description = "批量导出业绩")
     public ResponseEntity<byte[]> batchExport(
-            @RequestParam(required = false) List<Long> ids) throws IOException {
-        byte[] data = importExportService.batchExport(ids);
+            @RequestParam(required = false) List<Long> ids,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) List<String> customerTypes,
+            @RequestParam(required = false) List<String> projectTypes,
+            @RequestParam(required = false) List<String> statuses,
+            @RequestParam(required = false) List<String> customerLevels,
+            @RequestParam(required = false) String territory,
+            @RequestParam(required = false) String signingDateStart,
+            @RequestParam(required = false) String signingDateEnd,
+            @RequestParam(required = false) String expiryDateStart,
+            @RequestParam(required = false) String expiryDateEnd,
+            @RequestParam(required = false) Boolean hasBidNotice,
+            @RequestParam(required = false) String projectManagerKeyword
+    ) throws IOException {
+        var criteria = com.xiyu.bid.performance.application.command.PerformanceSearchCriteria.of(
+                keyword, customerTypes, projectTypes, statuses, customerLevels,
+                territory, parseDate(signingDateStart), parseDate(signingDateEnd),
+                parseDate(expiryDateStart), parseDate(expiryDateEnd),
+                hasBidNotice, projectManagerKeyword);
+        byte[] data = importExportService.batchExport(ids, criteria);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=performance_export.xlsx")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
@@ -162,8 +180,26 @@ public class PerformanceController {
     @PreAuthorize("hasAuthority('" + PERM + "')")
     @Auditable(action = "EXPORT", entityType = "Performance", description = "ZIP导出业绩含附件")
     public ResponseEntity<byte[]> batchExportZip(
-            @RequestParam(required = false) List<Long> ids) throws IOException {
-        byte[] data = importExportService.batchExportZip(ids);
+            @RequestParam(required = false) List<Long> ids,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) List<String> customerTypes,
+            @RequestParam(required = false) List<String> projectTypes,
+            @RequestParam(required = false) List<String> statuses,
+            @RequestParam(required = false) List<String> customerLevels,
+            @RequestParam(required = false) String territory,
+            @RequestParam(required = false) String signingDateStart,
+            @RequestParam(required = false) String signingDateEnd,
+            @RequestParam(required = false) String expiryDateStart,
+            @RequestParam(required = false) String expiryDateEnd,
+            @RequestParam(required = false) Boolean hasBidNotice,
+            @RequestParam(required = false) String projectManagerKeyword
+    ) throws IOException {
+        var criteria = com.xiyu.bid.performance.application.command.PerformanceSearchCriteria.of(
+                keyword, customerTypes, projectTypes, statuses, customerLevels,
+                territory, parseDate(signingDateStart), parseDate(signingDateEnd),
+                parseDate(expiryDateStart), parseDate(expiryDateEnd),
+                hasBidNotice, projectManagerKeyword);
+        byte[] data = importExportService.batchExportZip(ids, criteria);
         String timestamp = java.time.LocalDateTime.now()
                 .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
         return ResponseEntity.ok()

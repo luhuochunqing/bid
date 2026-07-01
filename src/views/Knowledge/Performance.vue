@@ -91,7 +91,7 @@
     </el-card>
 
     <el-card class="table-card border-glow" v-loading="loading">
-      <el-table :data="records" stripe style="width: 100%" @row-click="openDetail" class="custom-table">
+      <el-table :data="records" stripe style="width: 100%" @row-click="openDetail" @selection-change="handleSelectionChange" class="custom-table">
         <el-table-column type="selection" width="55" />
         <el-table-column type="index" label="序号" width="110" align="center" />
         <el-table-column prop="contractName" label="合同名称" min-width="180" />
@@ -161,6 +161,7 @@ const loading = ref(false); const records = ref([]); const current = ref(null)
 const detailVisible = ref(false); const editingRow = ref(null); const formVisible = ref(false)
 const alertConfigVisible = ref(false); const submitting = ref(false)
 const similarVisible = ref(false); const similarRecords = ref([]); const similarLoading = ref(false)
+const selectedIds = ref([]); const handleSelectionChange = (rows) => { selectedIds.value = rows.map(r => r.id) }
 const openSimilarSearch = async () => {
   similarLoading.value = true
   similarVisible.value = true
@@ -256,8 +257,7 @@ const handleDelete = async (row) => {
 
 const handleExport = async (command) => {
   try {
-    if (command === 'zip') { await performanceApi.batchExportZip(); ElMessage.success('ZIP 导出成功') }
-    else { await performanceApi.batchExport(); ElMessage.success('导出成功') }
+    const params = { ...searchForm, ids: selectedIds.value.length ? selectedIds.value : undefined }; if (command === 'zip') { await performanceApi.batchExportZip(params); ElMessage.success('ZIP 导出成功') } else { await performanceApi.batchExport(params); ElMessage.success('导出成功') }
   } catch (err) { console.error('Export failed:', err); ElMessage.error('导出失败: ' + (err?.message || '未知错误')) }
 }
 
