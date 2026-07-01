@@ -27,7 +27,14 @@ mkdir -p "$OUTPUT_DIR/frontend" "$OUTPUT_DIR/backend" "$(dirname "$ARCHIVE_PATH"
 
 printf '==> Building frontend release assets\n'
 cd "$ROOT_DIR"
-VITE_API_MODE=api VITE_API_BASE_URL="$API_BASE_URL" npm run build:api
+# Sentry 前端错误追踪：通过环境变量注入 DSN（未配置时前端自动禁用）
+# 部署时传入：VITE_SENTRY_DSN=https://xxx@sentry.io/xxx bash scripts/release/package-release.sh
+VITE_API_MODE=api \
+VITE_API_BASE_URL="$API_BASE_URL" \
+VITE_SENTRY_DSN="${VITE_SENTRY_DSN:-}" \
+VITE_SENTRY_ENVIRONMENT="${VITE_SENTRY_ENVIRONMENT:-production}" \
+VITE_SENTRY_TRACES_SAMPLE_RATE="${VITE_SENTRY_TRACES_SAMPLE_RATE:-0.1}" \
+npm run build:api
 
 printf '\n==> 验证前端产物不含 dev API 地址（localhost/127.0.0.1:port）\n'
 npm run --silent check:frontend-api-base
@@ -70,7 +77,8 @@ cat > "$OUTPUT_DIR/release-metadata.json" <<EOF
   "releaseId": "$RELEASE_ID",
   "apiBaseUrl": "$API_BASE_URL",
   "jarName": "$(basename "$JAR_PATH")",
-  "builtAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  "builtAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "sentryEnabled": $([ -n "${VITE_SENTRY_DSN:-}" ] && echo 'true' || echo 'false')
 }
 EOF
 
