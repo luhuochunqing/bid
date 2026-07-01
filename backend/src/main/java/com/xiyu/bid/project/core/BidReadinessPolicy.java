@@ -27,8 +27,8 @@ import java.util.List;
  */
 public final class BidReadinessPolicy {
 
-    /** 标书文件在项目文档表中的 documentCategory 取值。 */
-    public static final String BID_DOCUMENT_CATEGORY = "BID_DOCUMENT";
+    /** 标书文件在项目文档表中的 documentCategory 取值（CO-420 标准枚举名）。 */
+    public static final String BID_DOCUMENT_CATEGORY = "BID";
 
     private BidReadinessPolicy() {
     }
@@ -39,7 +39,7 @@ public final class BidReadinessPolicy {
      * <p>供 {@code ProjectDraftingService.submitForReview}（提交标书给审核人审核）使用。
      * 业务语义：发起审核时，标书可能仍在编制，任务完成与否是审核人的判断，不是闸门。</p>
      *
-     * @param hasBidDocument 是否存在标书文件（{@code documentCategory=BID_DOCUMENT}）
+     * @param hasBidDocument 是否存在标书文件（{@code documentCategory=BID}）
      * @return 允许或拒绝决定 + 拒绝原因
      */
     public static Decision checkBidDocumentUploaded(boolean hasBidDocument) {
@@ -58,7 +58,7 @@ public final class BidReadinessPolicy {
      * <p>任务问题优先级高：先报告"任务未完成"，再检查标书文件。</p>
      *
      * @param taskStates     项目下所有任务的状态快照（来自 shell 层）
-     * @param hasBidDocument 是否存在标书文件（{@code documentCategory=BID_DOCUMENT}）
+     * @param hasBidDocument 是否存在标书文件（{@code documentCategory=BID}）
      * @return 允许或拒绝决定 + 拒绝原因
      */
     public static Decision checkBidSubmissionReady(List<AllTasksCompletedPolicy.TaskState> taskStates,

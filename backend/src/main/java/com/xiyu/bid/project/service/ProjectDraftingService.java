@@ -254,7 +254,7 @@ public class ProjectDraftingService {
     }
 
     /**
-     * 查询项目是否已上传标书文件（{@code documentCategory=BID_DOCUMENT}）。
+     * 查询项目是否已上传标书文件（{@code documentCategory=BID}）。
      */
     private boolean hasBidDocument(Long projectId) {
         return !projectDocumentRepository
