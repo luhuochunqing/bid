@@ -8,6 +8,7 @@ import com.xiyu.bid.annotation.Auditable;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.project.entity.ProjectEvaluation;
 import com.xiyu.bid.exception.ResourceNotFoundException;
+import com.xiyu.bid.project.core.EvaluationEvidencePolicy;
 import com.xiyu.bid.project.core.EvaluationStateTransitionPolicy;
 import com.xiyu.bid.project.core.EvaluationSubStage;
 import com.xiyu.bid.project.core.ProjectFieldLockPolicy;
@@ -188,7 +189,20 @@ public class ProjectEvaluationService {
         return toDto(saved);
     }
 
+    // CO-461: 评标文件必填校验闸门
     public void advanceToResultPending(Long projectId) {
+        // 查询评标记录
+        ProjectEvaluation evaluation = repository.findByProjectId(projectId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                        "评标记录不存在"));
+        // 查询评标文件并校验（委托纯核心 EvaluationEvidencePolicy）
+        List<ProjectDocument> evidenceDocs = projectDocumentRepository
+                .findByProjectIdAndFiltersOrderByCreatedAtDesc(
+                        projectId, null, LINKED_ENTITY_TYPE, evaluation.getId());
+        var decision = EvaluationEvidencePolicy.checkEvidenceUploaded(!evidenceDocs.isEmpty());
+        if (!decision.allowed()) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, decision.reason());
+        }
         advanceProjectStageToResultPending(projectId);
     }
 

@@ -32,7 +32,13 @@ vi.mock('element-plus', () => ({
 }))
 
 const stubs = {
-  EvaluationEvidenceUpload: { template: '<div />' },
+  EvaluationEvidenceUpload: {
+    template: '<div />',
+    methods: {
+      getPendingFileIds: () => [],
+      clearPendingFileIds: () => {},
+    },
+  },
   ElCard: { template: '<section><slot name="header" /><slot /></section>' },
   ElInput: { props: ['disabled', 'modelValue'], template: '<input :disabled="disabled" />' },
   ElButton: { props: ['loading', 'disabled'], template: '<button :disabled="disabled"><slot /></button>' },
@@ -100,5 +106,38 @@ describe('EvaluationStage editable 权限', () => {
     mockUser.menuPermissions = []
     const wrapper = await mountEvaluationStage()
     expect(wrapper.find('.btn-container').exists()).toBe(true)
+  })
+})
+
+// CO-461: 评标文件必填校验
+describe('EvaluationStage handleSubmit 评标文件必填校验', () => {
+  beforeEach(() => {
+    mockUser.role = '/bidAdmin'
+    mockUser.menuPermissions = []
+  })
+
+  it('未上传评标文件时提交应提示用户', async () => {
+    const { ElMessage } = await import('element-plus')
+    const wrapper = await mountEvaluationStage()
+    // 模拟已选择评标状态和填写情况说明，但没有评标文件
+    wrapper.vm.targetSubStage = 'AWAITING_BOARD'
+    wrapper.vm.evaluationNotes = '评标情况说明'
+    wrapper.vm.evidenceDocIds = []
+    // stub 组件返回空数组
+    wrapper.vm.evidenceUploadRef = { getPendingFileIds: () => [], clearPendingFileIds: () => {} }
+    await wrapper.vm.handleSubmit()
+    expect(ElMessage.warning).toHaveBeenCalledWith('请上传评标文件')
+  })
+
+  it('有评标文件时提交应通过校验', async () => {
+    const { projectLifecycleApi } = await import('@/api/modules/projectLifecycle.js')
+    const wrapper = await mountEvaluationStage()
+    wrapper.vm.targetSubStage = 'AWAITING_BOARD'
+    wrapper.vm.evaluationNotes = '评标情况说明'
+    wrapper.vm.evidenceDocIds = [50] // 有已上传文件
+    wrapper.vm.evidenceUploadRef = { getPendingFileIds: () => [], clearPendingFileIds: () => {} }
+    await wrapper.vm.handleSubmit()
+    // 应调用推进接口
+    expect(projectLifecycleApi.advanceEvaluation).toHaveBeenCalled()
   })
 })

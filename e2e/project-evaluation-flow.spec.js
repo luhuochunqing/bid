@@ -141,4 +141,63 @@ test.describe('project evaluation flow §3.3.1.3', () => {
     await expect(page.getByRole('button', { name: '投标' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: '弃标' })).toHaveCount(0)
   })
+
+  // CO-461: 未上传评标文件时提交失败
+  test('submit evaluation without evidence file shows warning', async ({ page }) => {
+    const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    const session = await ensureApiSession({
+      username: `e2e_ev_nofile_${suffix}`,
+      role: '/bidAdmin',
+      fullName: 'E2E 评标管理员'
+    })
+
+    // Create a project via API
+    const projRes = await fetch(`${apiBaseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
+      body: JSON.stringify({
+        name: `E2E 评标文件必填测试 ${suffix}`,
+        description: '用于 E2E 测试评标文件必填校验'
+      })
+    })
+    const projData = await projRes.json()
+    expect(projData?.data?.id).toBeTruthy()
+    const projectId = projData.data.id
+
+    await injectSession(page, session)
+
+    await page.route('**/api/auth/me', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            id: session.user.id,
+            username: session.user.username,
+            fullName: session.user.name,
+            role: session.user.role,
+            token: session.token,
+            permissions: ['project:evaluate', 'task.review', 'lead.assign']
+          }
+        })
+      })
+    })
+
+    await page.goto(`/project/${projectId}/stages/evaluation`)
+    await page.waitForSelector('.evaluation-stage', { timeout: 10000 })
+
+    // 选择评标状态
+    await page.locator('.status-chip--clickable').filter({ hasText: '评标中' }).click()
+
+    // 填写评标情况说明（必填）
+    const notesTextarea = page.locator('.notes-section textarea')
+    await notesTextarea.fill('E2E 测试：评标情况说明')
+
+    // 不上传评标文件，直接点击提交
+    await page.getByRole('button', { name: '提交' }).click()
+
+    // 验证提示"请上传评标文件"
+    await expect(page.locator('.el-message--warning').filter({ hasText: '请上传评标文件' })).toBeVisible({ timeout: 5000 })
+  })
 })

@@ -28,7 +28,7 @@
 
     <!-- 评标文件 -->
     <el-card shadow="never" class="stage-section">
-      <template #header><span class="section-title">评标文件</span></template>
+      <template #header><span class="section-title">评标文件<span class="required-mark">*</span></span></template>
       <EvaluationEvidenceUpload
         ref="evidenceUploadRef"
         :project-id="projectId"
@@ -106,6 +106,12 @@ async function load() {
 async function handleSubmit() {
   if (!targetSubStage.value) return ElMessage.warning('请先选择评标状态')
   if (!(evaluationNotes.value || '').trim()) return ElMessage.warning('请填写评标情况说明')
+  // CO-461: 评标文件必填校验
+  const pendingIds = evidenceUploadRef.value?.getPendingFileIds() || []
+  const existingIds = evidenceDocIds.value || []
+  if (pendingIds.length === 0 && existingIds.length === 0) {
+    return ElMessage.warning('请上传评标文件')
+  }
 
   submitting.value = true
   try {
@@ -117,7 +123,6 @@ async function handleSubmit() {
     } else if (evaluationNotes.value !== (view.value?.notes || '')) {
       await projectLifecycleApi.updateEvaluationForm(props.projectId, { notes: evaluationNotes.value })
     }
-    const pendingIds = evidenceUploadRef.value?.getPendingFileIds() || []
     if (pendingIds.length > 0) {
       await projectLifecycleApi.attachEvaluationEvidence(props.projectId, { fileIds: pendingIds })
       evidenceUploadRef.value?.clearPendingFileIds()
