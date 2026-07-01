@@ -138,8 +138,8 @@ class OrganizationUserSyncWriterTest {
     }
 
     @Test
-    @DisplayName("skipUnmappedUsers: new user without any mapping is not created")
-    void skipUnmappedUsers_newUserWithoutMapping_notCreated() {
+    @DisplayName("未匹配角色 + 本地不存在的新用户：不创建（避免 users 表膨胀无角色记录）")
+    void unmatchedRole_newUser_notCreated() {
         OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();
         properties.setSkipUnmappedUsers(true);
         PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
@@ -159,8 +159,40 @@ class OrganizationUserSyncWriterTest {
     }
 
     @Test
-    @DisplayName("skipUnmappedUsers: existing user without any mapping is disabled")
-    void skipUnmappedUsers_existingUserWithoutMapping_disabled() {
+    @DisplayName("未匹配角色 + 本地已存在 + OSS 在职：保持 enabled=true（不再强制禁用），刷新基础信息")
+    void unmatchedRole_existingOssActiveUser_keepsEnabled_refreshesInfo() {
+        OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();
+        properties.setSkipUnmappedUsers(true);
+        PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
+        SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
+        JobRoleLookupResolver resolver = new JobRoleLookupResolver(properties, positionToRoleMapper, systemRoleListMapper);
+        OrganizationUserSyncWriter filteringWriter = new OrganizationUserSyncWriter(
+                userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver, null);
+
+        User existing = new User();
+        existing.setEnabled(false); // 历史脏数据：被旧逻辑禁用
+        existing.setFullName("旧名字");
+        existing.setExternalOrgUserId("999");
+        existing.setExternalOrgSourceApp("oss");
+        when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "999")).thenReturn(Optional.of(existing));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        filteringWriter.upsert("oss", "event-key", new OrganizationUserSnapshot(
+                "999", "unknown", "新名字", "unknown@example.com",
+                "13900000000", "9999", "投标部", "", "unknown", true
+        ));
+
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(saved.capture());
+        assertThat(saved.getValue().getEnabled()).isTrue();          // OSS 在职 → 启用
+        assertThat(saved.getValue().getFullName()).isEqualTo("新名字");  // 基础信息刷新
+        assertThat(saved.getValue().getPhone()).isEqualTo("13900000000");
+        assertThat(saved.getValue().getLastOrgEventKey()).isEqualTo("event-key");
+    }
+
+    @Test
+    @DisplayName("未匹配角色 + 本地已存在 + OSS 离职：enabled=false（离职仍正确禁用）")
+    void unmatchedRole_existingOssResignedUser_disabled() {
         OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();
         properties.setSkipUnmappedUsers(true);
         PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
@@ -177,13 +209,13 @@ class OrganizationUserSyncWriterTest {
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         filteringWriter.upsert("oss", "event-key", new OrganizationUserSnapshot(
-                "999", "unknown", "未知人员", "unknown@example.com",
-                "13800000000", "9999", "未知部", "", "unknown", true
+                "999", "unknown", "离职人员", "resigned@example.com",
+                "13800000000", "9999", "未知部", "", "unknown", false
         ));
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(saved.capture());
-        assertThat(saved.getValue().getEnabled()).isFalse();
+        assertThat(saved.getValue().getEnabled()).isFalse();  // OSS 离职 → 禁用
         assertThat(saved.getValue().getLastOrgEventKey()).isEqualTo("event-key");
     }
 

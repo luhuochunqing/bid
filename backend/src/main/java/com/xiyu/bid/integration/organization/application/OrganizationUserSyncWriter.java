@@ -66,7 +66,10 @@ public class OrganizationUserSyncWriter {
         String resolvedRoleCode = resolvedRole.roleCode();
 
         if (!LoginRoleWhitelist.isAllowed(resolvedRoleCode)) {
-            handleUnmappedUser(sourceApp, eventKey, snapshot, existingUser);
+            // 角色未匹配白名单：不分配角色、不创建新用户；已存在用户则按 OSS 在职状态
+            // 刷新 enabled 与基础信息（不再强制禁用——enabled 反映在职状态，登录由
+            // AuthService.requireOssRole + UserDetailsServiceImpl 白名单独立拦截）
+            handleUserWithoutResolvedRole(sourceApp, eventKey, snapshot, existingUser);
             return Optional.empty();
         }
 
@@ -177,11 +180,20 @@ public class OrganizationUserSyncWriter {
     }
 
     /**
-     * 白名单过滤：未命中任何映射的 OSS 用户，本地已存在则禁用，不存在则跳过。
+     * 角色未匹配白名单的 OSS 用户处理：本地已存在则按 OSS 在职状态刷新 enabled 与基础信息
+     * （不分配角色），不存在则跳过（不创建无角色记录）。
+     * <p>enabled 反映 OSS 在职状态（由 {@link com.xiyu.bid.integration.organization.infrastructure.client.UserEnabledDetector} 判定），
+     * 不再因"角色未匹配"强制禁用——登录由 {@code AuthService.requireOssRole} + {@code UserDetailsServiceImpl}
+     * 的白名单校验独立拦截，与 enabled 解耦。
      */
-    private void handleUnmappedUser(String sourceApp, String eventKey, OrganizationUserSnapshot snapshot, Optional<User> existingUser) {
+    private void handleUserWithoutResolvedRole(String sourceApp, String eventKey, OrganizationUserSnapshot snapshot, Optional<User> existingUser) {
         existingUser.ifPresent(user -> {
-            user.setEnabled(false);
+            user.setEnabled(snapshot.enabled());
+            user.setFullName(snapshot.fullName());
+            user.setEmail(snapshot.email());
+            user.setPhone(snapshot.phone());
+            user.setDepartmentCode(snapshot.departmentCode());
+            user.setDepartmentName(snapshot.departmentName());
             user.setLastOrgEventKey(eventKey);
             user.setLastOrgSyncedAt(LocalDateTime.now());
             userRepository.save(user);
