@@ -94,22 +94,12 @@
         </div>
       </el-tab-pane>
 
-      <!-- Tab 5: 操作日志 -->
+      <!-- Tab 5: 操作日志（CO-440: 改用业绩专属审计端点） -->
       <el-tab-pane label="操作日志" name="logs">
-        <div class="logs-pane" v-loading="logsLoading">
-          <el-timeline v-if="logs.length > 0">
-            <el-timeline-item
-              v-for="log in logs"
-              :key="log.id"
-              :timestamp="formatLogTime(log.createdAt)"
-              :type="logType(log.action)"
-            >
-              <h4>{{ log.description || log.action }}</h4>
-              <p>{{ log.operator || '系统' }} {{ log.detail || '' }}</p>
-            </el-timeline-item>
-          </el-timeline>
-          <el-empty v-else description="暂无操作记录" />
-        </div>
+        <PerformanceOperationLogTimeline
+          :performance-id="data.id"
+          :load-trigger="logsTrigger"
+        />
       </el-tab-pane>
     </el-tabs>
   </el-drawer>
@@ -117,8 +107,7 @@
 
 <script setup>
 import { ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
-import auditApi from '@/api/modules/audit.js'
+import PerformanceOperationLogTimeline from './PerformanceOperationLogTimeline.vue'
 
 const props = defineProps({
   visible: Boolean,
@@ -131,38 +120,18 @@ const props = defineProps({
 defineEmits(['update:visible'])
 
 const activeDetailTab = ref('base')
-const logs = ref([])
-const logsLoading = ref(false)
+// 用于触发子组件加载日志的信号（每次切到 logs tab 时切换）
+const logsTrigger = ref(false)
 
-const loadLogs = async () => {
-  logsLoading.value = true
-  try {
-    const res = await auditApi.getAuditLogs({ module: 'Performance', keyword: String(props.data.id) })
-    const list = res?.data?.logs || res?.data?.list || res?.data || []
-    logs.value = Array.isArray(list) ? list : []
-  } catch (e) {
-    ElMessage.warning('操作日志加载失败')
-    logs.value = []
-  } finally {
-    logsLoading.value = false
+const onTabChange = (tab) => {
+  if (tab === 'logs' && props.data.id) {
+    logsTrigger.value = !logsTrigger.value
   }
 }
 
-const onTabChange = (tab) => {
-  if (tab === 'logs' && props.data.id) loadLogs()
-}
-
 watch(() => props.visible, (v) => {
-  if (!v) { logs.value = []; activeDetailTab.value = 'base' }
+  if (!v) { activeDetailTab.value = 'base' }
 })
-
-const formatLogTime = (t) => t ? String(t).replace('T', ' ').slice(0, 19) : '-'
-const logType = (action) => {
-  if (action === 'CREATE') return 'success'
-  if (action === 'UPDATE') return 'primary'
-  if (action === 'DELETE') return 'danger'
-  return 'info'
-}
 
 const getCustomerTypeTagType = (t) => {
   if (t === 'CENTRAL_SOE') return 'danger'
@@ -250,9 +219,5 @@ const getFileTypeLabel = (type) => {
   &:hover {
     text-decoration: underline;
   }
-}
-
-.logs-pane {
-  padding: 12px 24px;
 }
 </style>
