@@ -57,11 +57,12 @@ public class CrmChanceService {
     /**
      * 查询 CRM 商机列表（分页）。
      *
-     * @param request 分页查询条件
+     * @param request  分页查询条件
+     * @param username 当前登录用户名（CO-152：用于按用户维度获取 CRM token，null 时回退全局共享）
      * @return 分页结果，含商机列表和分页信息；查询失败返回空列表
      */
-    public CrmChancePageResult pageList(CustomerChancePageRequest request) {
-        return doPageList(request);
+    public CrmChancePageResult pageList(CustomerChancePageRequest request, String username) {
+        return doPageList(request, username);
     }
 
     /**
@@ -74,27 +75,28 @@ public class CrmChanceService {
      *   <li>{@code ALL}：直接拉取全量商机。</li>
      * </ul>
      *
-     * @param request 标讯查询条件
+     * @param request  标讯查询条件
+     * @param username 当前登录用户名（CO-152）
      * @return 合并后的分页结果
      */
-    public CrmChancePageResult searchByTender(CustomerChanceSearchByTenderRequest request) {
+    public CrmChancePageResult searchByTender(CustomerChanceSearchByTenderRequest request, String username) {
         int pageSize = Math.max(1, request.pageSize());
         CrmProperties.MatchingStrategy strategy = properties.getMatchingStrategy();
         String tenderer = request.tenderer();
         log.info("CRM searchByTender: tenderer={}, strategy={}", tenderer, strategy);
 
         if (strategy == CrmProperties.MatchingStrategy.ALL || tenderer == null || tenderer.isBlank()) {
-            return doPageList(buildSelectAllRequest(request.pageIndex(), pageSize));
+            return doPageList(buildSelectAllRequest(request.pageIndex(), pageSize), username);
         }
 
         if (strategy == CrmProperties.MatchingStrategy.GROUP) {
             CrmChancePageResult groupResult = doPageList(
-                    buildGroupRequest(tenderer, request.pageIndex(), pageSize));
+                    buildGroupRequest(tenderer, request.pageIndex(), pageSize), username);
             if (!groupResult.list().isEmpty()) {
                 return groupResult;
             }
             log.info("GROUP strategy returned empty for tenderer={}, fallback to ALL", tenderer);
-            return doPageList(buildSelectAllRequest(request.pageIndex(), pageSize));
+            return doPageList(buildSelectAllRequest(request.pageIndex(), pageSize), username);
         }
 
         // EXACT：先按日期精确匹配，再兜底 GROUP，最后 ALL
@@ -103,7 +105,7 @@ public class CrmChanceService {
             Map<Long, CustomerChanceVO> merged = new LinkedHashMap<>();
             for (LocalDate targetDate : targetDates) {
                 CrmChancePageResult result = doPageList(
-                        buildExactDateRequest(tenderer, targetDate, request.pageIndex(), pageSize));
+                        buildExactDateRequest(tenderer, targetDate, request.pageIndex(), pageSize), username);
                 for (CustomerChanceVO vo : result.list()) {
                     merged.putIfAbsent(vo.id(), vo);
                 }
@@ -120,36 +122,36 @@ public class CrmChanceService {
         }
 
         CrmChancePageResult groupResult = doPageList(
-                buildGroupRequest(tenderer, request.pageIndex(), pageSize));
+                buildGroupRequest(tenderer, request.pageIndex(), pageSize), username);
         if (!groupResult.list().isEmpty()) {
             return groupResult;
         }
         log.info("GROUP fallback returned empty for tenderer={}, fallback to ALL", tenderer);
-        return doPageList(buildSelectAllRequest(request.pageIndex(), pageSize));
+        return doPageList(buildSelectAllRequest(request.pageIndex(), pageSize), username);
     }
 
-    private CrmChancePageResult doPageList(CustomerChancePageRequest request) {
+    private CrmChancePageResult doPageList(CustomerChancePageRequest request, String username) {
         String token;
         try {
-            token = authService.getValidToken();
+            token = authService.getValidTokenForUser(username);
         } catch (IllegalStateException e) {
             log.warn("CRM page-list skipped because token acquisition failed: {}", e.getMessage());
             return emptyPageResult();
         }
         String baseUrl = properties.getEffectiveChanceBaseUrl();
         String path = properties.getChance().getPageListPath();
-        return doPageList(token, baseUrl, path, request);
+        return doPageList(token, baseUrl, path, request, username);
     }
 
     private CrmChancePageResult doPageList(String token, String baseUrl, String path,
-                                           CustomerChancePageRequest request) {
+                                           CustomerChancePageRequest request, String username) {
         log.info("CRM page-list request: baseUrl={}, path={}, body={}", baseUrl, path, request);
         CrmResponseHandler.CrmApiResponse response = httpClient.post(baseUrl, path, token, request);
 
         if (response.isUnauthorized()) {
-            authService.handleUnauthorized();
+            authService.handleUnauthorizedForUser(username);
             try {
-                token = authService.getValidToken();
+                token = authService.getValidTokenForUser(username);
             } catch (IllegalStateException e) {
                 log.warn("CRM chance page-list skipped because token refresh failed after unauthorized: {}",
                         e.getMessage());
@@ -228,17 +230,18 @@ public class CrmChanceService {
      * 回传标讯状态到 CRM。
      *
      * @param bidInfoSync 标讯回传请求
+     * @param username    当前登录用户名（CO-152）
      * @return true 回传成功，false 回传失败
      */
-    public boolean bidInfoSync(BidInfoSyncDTO bidInfoSync) {
-        String token = authService.getValidToken();
+    public boolean bidInfoSync(BidInfoSyncDTO bidInfoSync, String username) {
+        String token = authService.getValidTokenForUser(username);
         String baseUrl = properties.getEffectiveChanceBaseUrl();
         String path = properties.getChance().getBidInfoSyncPath();
         CrmResponseHandler.CrmApiResponse response = httpClient.post(baseUrl, path, token, bidInfoSync);
 
         if (response.isUnauthorized()) {
-            authService.handleUnauthorized();
-            token = authService.getValidToken();
+            authService.handleUnauthorizedForUser(username);
+            token = authService.getValidTokenForUser(username);
             response = httpClient.post(baseUrl, path, token, bidInfoSync);
         }
 

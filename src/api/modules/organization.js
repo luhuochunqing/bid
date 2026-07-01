@@ -54,6 +54,17 @@ export const organizationApi = {
   async updateUserOrganization(id, departmentCode, departmentName) {
     return httpClient.put(`/api/admin/users/${id}/organization`, { departmentCode, departmentName })
   },
+
+  /**
+   * 更新用户完整信息（CO-152：用于编辑 CRM 工号等字段）。
+   * 后端 PUT /api/admin/users/{id} 为整体更新，调用方需传完整用户字段。
+   * @param {number} id
+   * @param {Object} payload - 完整 AdminUserUpdateRequest
+   * @returns {Promise<Object>}
+   */
+  async updateUser(id, payload) {
+    return httpClient.put(`/api/admin/users/${id}`, payload)
+  },
 }
 
 export default organizationApi

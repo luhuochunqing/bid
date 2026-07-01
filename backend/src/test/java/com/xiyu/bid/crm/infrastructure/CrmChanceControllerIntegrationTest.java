@@ -72,7 +72,7 @@ class CrmChanceControllerIntegrationTest {
     void pageList_shouldReturnEmptyResultWhenServiceReturnsEmptyPage() throws Exception {
         CrmChancePageResult result =
                 new CrmChancePageResult(List.of(), 0, 0, 0);
-        when(chanceService.pageList(any(CustomerChancePageRequest.class))).thenReturn(result);
+        when(chanceService.pageList(any(CustomerChancePageRequest.class), any())).thenReturn(result);
 
         mockMvc.perform(post("/api/xiyu/crm/chances/page-list")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -85,7 +85,7 @@ class CrmChanceControllerIntegrationTest {
                 .andExpect(jsonPath("$.data.list").isEmpty())
                 .andExpect(jsonPath("$.data.totalCount").value(0));
 
-        verify(chanceService).pageList(any(CustomerChancePageRequest.class));
+        verify(chanceService).pageList(any(CustomerChancePageRequest.class), any());
     }
 
     @Test
@@ -97,7 +97,7 @@ class CrmChanceControllerIntegrationTest {
                 """, CustomerChanceVO.class);
         CrmChancePageResult result =
                 new CrmChancePageResult(List.of(chance), 1, 10, 1);
-        when(chanceService.searchByTender(any(CustomerChanceSearchByTenderRequest.class))).thenReturn(result);
+        when(chanceService.searchByTender(any(CustomerChanceSearchByTenderRequest.class), any())).thenReturn(result);
 
         mockMvc.perform(post("/api/xiyu/crm/chances/search-by-tender")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -111,6 +111,6 @@ class CrmChanceControllerIntegrationTest {
                 .andExpect(jsonPath("$.data.list[0].name").value("海化集团MRO商机"))
                 .andExpect(jsonPath("$.data.totalCount").value(1));
 
-        verify(chanceService).searchByTender(any(CustomerChanceSearchByTenderRequest.class));
+        verify(chanceService).searchByTender(any(CustomerChanceSearchByTenderRequest.class), any());
     }
 }

@@ -32,14 +32,16 @@ public class CrmMessageService {
      * @param title        消息标题
      * @param content      消息内容
      * @param flag         推送方式：1 企微+站内信, 2 站内信, 3 企微
+     * @param username     当前登录用户名（CO-152：用于按用户维度获取 CRM token）
      * @return CRM API 响应
      */
     public CrmResponseHandler.CrmApiResponse sendMessage(
             java.util.List<String> recipientNos,
             String title,
             String content,
-            int flag) {
-        String token = authService.getValidToken();
+            int flag,
+            String username) {
+        String token = authService.getValidTokenForUser(username);
         String baseUrl = properties.getEffectiveMessageBaseUrl();
         String path = properties.getMessage().getSendPath();
 

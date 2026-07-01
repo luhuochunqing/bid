@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.security.Principal;
 import java.util.List;
 
 /**
@@ -42,8 +43,8 @@ public class CrmChanceController {
      */
     @PostMapping("/page-list")
     public ResponseEntity<ApiResponse<CrmChancePageResult>> pageList(
-            @RequestBody CustomerChancePageRequest request) {
-        CrmChancePageResult result = chanceService.pageList(request);
+            @RequestBody CustomerChancePageRequest request, Principal principal) {
+        CrmChancePageResult result = chanceService.pageList(request, principal.getName());
         return ResponseEntity.ok(ApiResponse.success("查询成功", result));
     }
 
@@ -53,8 +54,8 @@ public class CrmChanceController {
      */
     @PostMapping("/search-by-tender")
     public ResponseEntity<ApiResponse<CrmChancePageResult>> searchByTender(
-            @RequestBody CustomerChanceSearchByTenderRequest request) {
-        CrmChancePageResult result = chanceService.searchByTender(request);
+            @RequestBody CustomerChanceSearchByTenderRequest request, Principal principal) {
+        CrmChancePageResult result = chanceService.searchByTender(request, principal.getName());
         return ResponseEntity.ok(ApiResponse.success("查询成功", result));
     }
 
@@ -63,8 +64,9 @@ public class CrmChanceController {
      * 代理客户 POST /customer-chance/bidInfoSync。
      */
     @PostMapping("/bid-info-sync")
-    public ResponseEntity<ApiResponse<Void>> bidInfoSync(@RequestBody BidInfoSyncDTO request) {
-        boolean success = chanceService.bidInfoSync(request);
+    public ResponseEntity<ApiResponse<Void>> bidInfoSync(@RequestBody BidInfoSyncDTO request,
+                                                         Principal principal) {
+        boolean success = chanceService.bidInfoSync(request, principal.getName());
         if (success) {
             return ResponseEntity.ok(ApiResponse.success("回传成功", null));
         }
@@ -77,8 +79,8 @@ public class CrmChanceController {
      */
     @PostMapping("/contact-persons")
     public ResponseEntity<ApiResponse<List<ContactPersonInfoVO>>> contactPersons(
-            @RequestBody Long ccId) {
-        List<ContactPersonInfoVO> list = contactPersonService.pageList(ccId);
+            @RequestBody Long ccId, Principal principal) {
+        List<ContactPersonInfoVO> list = contactPersonService.pageList(ccId, principal.getName());
         return ResponseEntity.ok(ApiResponse.success("查询成功", list));
     }
 }

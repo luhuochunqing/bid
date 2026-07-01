@@ -41,19 +41,20 @@ public class CrmContactPersonService {
     /**
      * 按商机 ID 查询对接人列表。
      *
-     * @param ccId 商机 ID
+     * @param ccId     商机 ID
+     * @param username 当前登录用户名（CO-152：用于按用户维度获取 CRM token）
      * @return 对接人列表；查询失败返回空列表
      */
-    public List<ContactPersonInfoVO> pageList(Long ccId) {
-        String token = authService.getValidToken();
+    public List<ContactPersonInfoVO> pageList(Long ccId, String username) {
+        String token = authService.getValidTokenForUser(username);
         String baseUrl = properties.getEffectiveContactPersonBaseUrl();
         String path = properties.getContactPerson().getPageListPath();
         ContactPersonListDTO body = new ContactPersonListDTO(ccId);
         CrmResponseHandler.CrmApiResponse response = httpClient.post(baseUrl, path, token, body);
 
         if (response.isUnauthorized()) {
-            authService.handleUnauthorized();
-            token = authService.getValidToken();
+            authService.handleUnauthorizedForUser(username);
+            token = authService.getValidTokenForUser(username);
             response = httpClient.post(baseUrl, path, token, body);
         }
 

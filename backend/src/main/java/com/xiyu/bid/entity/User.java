@@ -76,6 +76,10 @@ public class User {
     @Column(name = "employee_number", length = 32)
     private String employeeNumber;
 
+    /** CRM 工号，用于按用户维度换取 CRM JWT token（CO-152）。null 时回退到全局共享 token。 */
+    @Column(name = "crm_sales_no", length = 64)
+    private String crmSalesNo;
+
     @Column(name = "full_name_pinyin", length = 255)
     private String fullNamePinyin;
 

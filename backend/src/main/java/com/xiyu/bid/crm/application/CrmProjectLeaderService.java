@@ -42,7 +42,8 @@ public class CrmProjectLeaderService {
                 null, null, null, null
         );
         CustomerChancePageRequest request = new CustomerChancePageRequest(1, 10, filter);
-        CrmChancePageResult result = crmChanceService.pageList(request);
+        // 后台任务无登录用户上下文，传 null 回退全局共享 token（CO-152 兼容行为）
+        CrmChancePageResult result = crmChanceService.pageList(request, null);
 
         if (result.list() == null || result.list().isEmpty()) {
             log.warn("findProjectLeaderByChanceCode: no opportunity found for code={}", code);

@@ -97,7 +97,8 @@ public class CrmController {
      * }
      */
     @PostMapping("/messages")
-    public ResponseEntity<ApiResponse<Void>> sendMessage(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<ApiResponse<Void>> sendMessage(@RequestBody Map<String, Object> body,
+                                                          java.security.Principal principal) {
         @SuppressWarnings("unchecked")
         var recipientNos = (List<String>) body.get("recipientNos");
         var title = (String) body.getOrDefault("title", "");
@@ -108,7 +109,7 @@ public class CrmController {
             return ResponseEntity.ok(ApiResponse.error("recipientNos is required"));
         }
 
-        var response = messageService.sendMessage(recipientNos, title, content, flag);
+        var response = messageService.sendMessage(recipientNos, title, content, flag, principal.getName());
         if (response.success()) {
             return ResponseEntity.ok(ApiResponse.success("消息发送成功", null));
         }

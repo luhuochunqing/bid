@@ -5,6 +5,7 @@ import com.xiyu.bid.admin.service.DataScopeConfigService;
 import com.xiyu.bid.admin.settings.core.DepartmentGraphPolicy;
 import com.xiyu.bid.admin.settings.core.OrganizationValidationPolicy;
 import com.xiyu.bid.admin.settings.core.OrganizationValidationResult;
+import com.xiyu.bid.crm.application.CrmAuthService;
 import com.xiyu.bid.dto.AdminUserCreateRequest;
 import com.xiyu.bid.dto.AdminUserDTO;
 import com.xiyu.bid.dto.AdminUserStatusUpdateRequest;
@@ -40,6 +41,7 @@ public class AdminUserService {
     private final RoleProfileService roleProfileService;
     private final DataScopeConfigService dataScopeConfigService;
     private final AdminUserQueryService adminUserQueryService;
+    private final CrmAuthService crmAuthService;
 
     public List<AdminUserDTO> listUsers() {
         return userRepository.findAll().stream()
@@ -91,11 +93,15 @@ public class AdminUserService {
         String departmentCode = sanitize(request.getDepartmentCode(), 100);
         String departmentName = sanitize(request.getDepartmentName(), 100);
         String employeeNumber = sanitize(request.getEmployeeNumber(), 32);
+        String crmSalesNo = sanitize(request.getCrmSalesNo(), 64);
         boolean enabled = Boolean.TRUE.equals(request.getEnabled());
         RoleProfile nextRoleProfile = roleProfileService.requireRoleProfile(request.getRoleId());
 
         validateExistingUser(userId, username, email, phone);
         ensureActiveAdminRetained(user, nextRoleProfile, enabled, operatorUsername);
+
+        // CO-152: crmSalesNo 变更时清除旧 CRM token 缓存（issue 测试要点 #3）
+        boolean crmSalesNoChanged = !java.util.Objects.equals(user.getCrmSalesNo(), crmSalesNo);
 
         user.setUsername(username);
         user.setEmail(email);
@@ -104,10 +110,17 @@ public class AdminUserService {
         user.setDepartmentCode(departmentCode);
         user.setDepartmentName(departmentName);
         user.setEmployeeNumber(employeeNumber);
+        user.setCrmSalesNo(crmSalesNo);
         user.setEnabled(enabled);
         applyRole(user, nextRoleProfile);
 
         User savedUser = userRepository.save(user);
+        if (crmSalesNoChanged) {
+            // CO-152 Review D5-2: 修改 crmSalesNo 后主动失效旧 CRM token（语义：主动失效，非 401）。
+            // logoutUser 语义为"主动使用户 token 缓存失效"，比 handleUnauthorizedForUser（401 专用）更准确。
+            crmAuthService.logoutUser(savedUser.getUsername());
+            log.info("CRM token cache invalidated for user {} due to crmSalesNo change", savedUser.getUsername());
+        }
         log.info("Admin updated user: {}", savedUser.getUsername());
         return adminUserQueryService.toDto(savedUser);
     }

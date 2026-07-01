@@ -33,6 +33,10 @@ public class AdminUserUpdateRequest {
     @Size(max = 32, message = "Employee number must not exceed 32 characters")
     private String employeeNumber;
 
+    /** CRM 工号（CO-152）：配置后该用户使用专属 CRM JWT token，null 时回退全局共享 */
+    @Size(max = 64, message = "CRM sales number must not exceed 64 characters")
+    private String crmSalesNo;
+
     @NotNull(message = "Role is required")
     private Long roleId;
 

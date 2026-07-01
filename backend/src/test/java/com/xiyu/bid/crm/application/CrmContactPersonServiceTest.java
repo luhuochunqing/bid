@@ -60,7 +60,7 @@ class CrmContactPersonServiceTest {
     }
 
     private CrmContactPersonService serviceWith(String crmBody) {
-        when(authService.getValidToken()).thenReturn("token");
+        when(authService.getValidTokenForUser(anyString())).thenReturn("token");
         when(properties.getEffectiveContactPersonBaseUrl()).thenReturn("http://crm");
         when(properties.getContactPerson()).thenReturn(contactPersonPaths);
         when(contactPersonPaths.getPageListPath()).thenReturn("/contact-person-info/page-list");
@@ -76,7 +76,7 @@ class CrmContactPersonServiceTest {
                 "{\"id\":1,\"name\":\"张三\",\"phone\":\"13800000000\",\"contactMethod\":\"电话\",\"preferenceLevel\":\"支持\"}," +
                 "{\"id\":2,\"name\":\"李四\",\"phone\":\"13900000000\"}]}";
 
-        List<ContactPersonInfoVO> result = serviceWith(body).pageList(21045L);
+        List<ContactPersonInfoVO> result = serviceWith(body).pageList(21045L, "testUser");
 
         assertThat(result).hasSize(2);
         assertThat(result.get(0).name()).isEqualTo("张三");
@@ -90,7 +90,7 @@ class CrmContactPersonServiceTest {
         // 兼容：若 CRM 某天返回 data 直接数组，仍可解析。
         String body = "{\"code\":0,\"data\":[{\"id\":3,\"name\":\"王五\"}]}";
 
-        List<ContactPersonInfoVO> result = serviceWith(body).pageList(21045L);
+        List<ContactPersonInfoVO> result = serviceWith(body).pageList(21045L, "testUser");
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).name()).isEqualTo("王五");
@@ -100,7 +100,7 @@ class CrmContactPersonServiceTest {
     void pageList_returnsEmptyWhenNoDataList() {
         String body = "{\"code\":0,\"totalCount\":0,\"dataList\":[]}";
 
-        List<ContactPersonInfoVO> result = serviceWith(body).pageList(21045L);
+        List<ContactPersonInfoVO> result = serviceWith(body).pageList(21045L, "testUser");
 
         assertThat(result).isEmpty();
     }
@@ -114,7 +114,7 @@ class CrmContactPersonServiceTest {
         // 数组在 list 字段（非 data/dataList），常见分页命名。
         String body = "{\"code\":0,\"list\":[{\"id\":4,\"name\":\"赵六\"}]}";
 
-        List<ContactPersonInfoVO> result = serviceWith(body).pageList(21045L);
+        List<ContactPersonInfoVO> result = serviceWith(body).pageList(21045L, "testUser");
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).name()).isEqualTo("赵六");
@@ -124,7 +124,7 @@ class CrmContactPersonServiceTest {
     void pageList_parsesRowsField() {
         String body = "{\"code\":0,\"rows\":[{\"id\":5,\"name\":\"孙七\"}]}";
 
-        List<ContactPersonInfoVO> result = serviceWith(body).pageList(21045L);
+        List<ContactPersonInfoVO> result = serviceWith(body).pageList(21045L, "testUser");
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).name()).isEqualTo("孙七");
@@ -135,7 +135,7 @@ class CrmContactPersonServiceTest {
         // 嵌套结构 {code, data:{list:[...]}}。
         String body = "{\"code\":0,\"data\":{\"list\":[{\"id\":6,\"name\":\"周八\"}]}}";
 
-        List<ContactPersonInfoVO> result = serviceWith(body).pageList(21045L);
+        List<ContactPersonInfoVO> result = serviceWith(body).pageList(21045L, "testUser");
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).name()).isEqualTo("周八");
@@ -147,7 +147,7 @@ class CrmContactPersonServiceTest {
         // 死卡 code==0 会把已返回的对接人误判失败 → 客户信息矩阵带不过来。
         String body = "{\"code\":200,\"msg\":\"ok\",\"data\":[{\"id\":7,\"name\":\"吴九\"}]}";
 
-        List<ContactPersonInfoVO> result = serviceWith(body).pageList(21045L);
+        List<ContactPersonInfoVO> result = serviceWith(body).pageList(21045L, "testUser");
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).name()).isEqualTo("吴九");
@@ -160,7 +160,7 @@ class CrmContactPersonServiceTest {
         // 导致客户信息矩阵对接人列带不过来。修复后应忽略未知字段并正常解析。
         String body = "{\"code\":0,\"data\":[{\"id\":8,\"name\":\"郑十\",\"position\":\"1\"}]}";
 
-        List<ContactPersonInfoVO> result = serviceWith(body).pageList(21045L);
+        List<ContactPersonInfoVO> result = serviceWith(body).pageList(21045L, "testUser");
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).name()).isEqualTo("郑十");
@@ -177,7 +177,7 @@ class CrmContactPersonServiceTest {
         // 含 position 的对接人：日志应打印 position 原始值。
         String body = "{\"code\":0,\"data\":[{\"id\":1,\"name\":\"张三\",\"position\":\"8\"}]}";
 
-        serviceWith(body).pageList(21045L);
+        serviceWith(body).pageList(21045L, "testUser");
 
         assertThat(logMessages())
                 .anyMatch(m -> m.contains("position=8") && m.contains("name=张三"));
@@ -189,7 +189,7 @@ class CrmContactPersonServiceTest {
         // 这是 dom.chuya F12 抓包看到过的形态（CRM 后台没填职位时 position 字段不返回）。
         String body = "{\"code\":0,\"data\":[{\"id\":2,\"name\":\"李四\"}]}";
 
-        serviceWith(body).pageList(21045L);
+        serviceWith(body).pageList(21045L, "testUser");
 
         assertThat(logMessages())
                 .anyMatch(m -> m.contains("position=<missing>") && m.contains("name=李四"));

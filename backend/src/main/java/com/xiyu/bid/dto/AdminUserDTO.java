@@ -21,6 +21,8 @@ public class AdminUserDTO {
     private String departmentCode;
     private String departmentName;
     private String employeeNumber;
+    /** CRM 工号（CO-152） */
+    private String crmSalesNo;
     private Long roleId;
     private String roleCode;
     private String roleName;
