@@ -182,16 +182,6 @@ const canViewPassword = computed(() => {
   return currentId != null && custodianId != null && String(currentId) === String(custodianId)
 })
 
-// 点击眼睛按钮：加载真实密码（再次点击隐藏）
-async function handleRevealPassword() {
-  if (passwordRevealed.value) { passwordRevealed.value = false; form.caPassword = ''; return }
-  passwordLoading.value = true
-  try {
-    const res = await caApi.getPassword(props.ca.id)
-    if (res?.success && res?.data?.caPassword) { form.caPassword = res.data.caPassword; passwordRevealed.value = true }
-  } finally { passwordLoading.value = false }
-}
-
 function createDefaultForm() {
   return {
     platformIds: [],
@@ -209,8 +199,17 @@ function createDefaultForm() {
     remarks: ''
   }
 }
-
 const form = reactive(createDefaultForm())
+
+// 点击眼睛按钮：加载真实密码（再次点击隐藏）
+async function handleRevealPassword() {
+  if (passwordRevealed.value) { passwordRevealed.value = false; form.caPassword = ''; return }
+  passwordLoading.value = true
+  try {
+    const res = await caApi.getPassword(props.ca.id)
+    if (res?.success && res?.data?.caPassword) { form.caPassword = res.data.caPassword; passwordRevealed.value = true }
+  } finally { passwordLoading.value = false }
+}
 
 function onCustodianSelect(user) {
   if (user) {
