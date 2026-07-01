@@ -146,12 +146,16 @@ public class NotificationDeliveryJobService {
             case FAIL_MAIN_TRANSACTION -> throw new IllegalStateException("Notification async side effect should not fail main transaction");
         }
 
+        // RETRY/DEAD_LETTER 是发送失败（错误），DROP/SUCCEED_WITH_LOG 是主动放弃（禁用语义）
+        // NOT_BOUND 仅用于 handleSuccess 中"用户未绑定工号"的 skip 分支，不能误标到这里
+        boolean sendFailed = decision.action() == AsyncAction.RETRY
+                || decision.action() == AsyncAction.DEAD_LETTER;
         outboundLogRepository.save(OutboundLog.builder()
                 .notificationId(command.notificationId())
                 .userId(command.recipientUserId())
                 .channel(OutboundChannel.WECOM)
-                .status(decision.action() == AsyncAction.RETRY ? OutboundStatus.FAILED : OutboundStatus.SKIPPED)
-                .skipReason(decision.action() == AsyncAction.RETRY ? SkipReason.ERROR : SkipReason.NOT_BOUND)
+                .status(sendFailed ? OutboundStatus.FAILED : OutboundStatus.SKIPPED)
+                .skipReason(sendFailed ? SkipReason.ERROR : SkipReason.DISABLED)
                 .wecomErrmsg(trim(errorMessage))
                 .attemptCount(nextAttempt)
                 .build());

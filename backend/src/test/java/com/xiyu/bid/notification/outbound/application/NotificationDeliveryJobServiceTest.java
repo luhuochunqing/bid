@@ -1,6 +1,9 @@
 package com.xiyu.bid.notification.outbound.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.notification.outbound.core.OutboundStatus;
+import com.xiyu.bid.notification.outbound.core.SkipReason;
+import com.xiyu.bid.notification.outbound.entity.OutboundLog;
 import com.xiyu.bid.notification.outbound.infrastructure.NotificationDeliveryTask;
 import com.xiyu.bid.notification.outbound.infrastructure.NotificationDeliveryTaskRepository;
 import com.xiyu.bid.notification.outbound.infrastructure.NotificationDeliveryTaskStatus;
@@ -10,6 +13,7 @@ import com.xiyu.bid.notification.outbound.service.NotificationDeliveryResult;
 import com.xiyu.bid.notification.outbound.service.WeComPushService;
 import com.xiyu.bid.platform.async.domain.AsyncDecisionResolver;
 import com.xiyu.bid.platform.async.domain.AsyncFailureKind;
+import com.xiyu.bid.platform.async.domain.AsyncHandlingDecision;
 import com.xiyu.bid.platform.async.infrastructure.AsyncObservabilityRecorder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -56,7 +60,7 @@ class NotificationDeliveryJobServiceTest {
     }
 
     @Test
-    @DisplayName("transient failure -> pending retry and retry metric")
+    @DisplayName("transient failure -> pending retry, outbound log FAILED + ERROR")
     void transientFailure_Retry() {
         NotificationDeliveryJobService jobService = jobService();
         NotificationDeliveryTask task = task();
@@ -64,18 +68,23 @@ class NotificationDeliveryJobServiceTest {
         when(pushService.push(any())).thenThrow(new RuntimeException("timeout"));
         when(failureClassifier.classify(any())).thenReturn(AsyncFailureKind.TRANSIENT_DEPENDENCY);
         when(decisionResolver.resolve(any(), eq(1), eq(3), any(), eq(true)))
-                .thenReturn(com.xiyu.bid.platform.async.domain.AsyncHandlingDecision.retry("TRANSIENT_DEPENDENCY", 60, false));
+                .thenReturn(AsyncHandlingDecision.retry("TRANSIENT_DEPENDENCY", 60, false));
 
         jobService.processTaskSafely(task);
 
-        ArgumentCaptor<NotificationDeliveryTask> captor = ArgumentCaptor.forClass(NotificationDeliveryTask.class);
-        verify(taskRepository).save(captor.capture());
-        assertThat(captor.getValue().getStatus()).isEqualTo(NotificationDeliveryTaskStatus.PENDING_RETRY);
+        ArgumentCaptor<NotificationDeliveryTask> taskCaptor = ArgumentCaptor.forClass(NotificationDeliveryTask.class);
+        verify(taskRepository).save(taskCaptor.capture());
+        assertThat(taskCaptor.getValue().getStatus()).isEqualTo(NotificationDeliveryTaskStatus.PENDING_RETRY);
         verify(observabilityRecorder).recordRetry(eq("notification"), eq("notification.wecom_push"), eq("1:7:MENTION"), eq(1), any());
+
+        ArgumentCaptor<OutboundLog> logCaptor = ArgumentCaptor.forClass(OutboundLog.class);
+        verify(outboundLogRepository).save(logCaptor.capture());
+        assertThat(logCaptor.getValue().getStatus()).isEqualTo(OutboundStatus.FAILED);
+        assertThat(logCaptor.getValue().getSkipReason()).isEqualTo(SkipReason.ERROR);
     }
 
     @Test
-    @DisplayName("contract failure -> dead letter and dlq record")
+    @DisplayName("contract failure -> dead letter, outbound log FAILED + ERROR (not SKIPPED + NOT_BOUND)")
     void contractFailure_Dlq() {
         NotificationDeliveryJobService jobService = jobService();
         NotificationDeliveryTask task = task();
@@ -83,16 +92,64 @@ class NotificationDeliveryJobServiceTest {
         when(pushService.push(any())).thenThrow(new RuntimeException("invalid template"));
         when(failureClassifier.classify(any())).thenReturn(AsyncFailureKind.CONTRACT_INVALID);
         when(decisionResolver.resolve(any(), eq(1), eq(3), any(), eq(true)))
-                .thenReturn(com.xiyu.bid.platform.async.domain.AsyncHandlingDecision.deadLetter("CONTRACT_INVALID", true));
+                .thenReturn(AsyncHandlingDecision.deadLetter("CONTRACT_INVALID", true));
 
         jobService.processTaskSafely(task);
 
-        ArgumentCaptor<NotificationDeliveryTask> captor = ArgumentCaptor.forClass(NotificationDeliveryTask.class);
-        verify(taskRepository).save(captor.capture());
-        assertThat(captor.getValue().getStatus()).isEqualTo(NotificationDeliveryTaskStatus.DEAD_LETTER);
+        ArgumentCaptor<NotificationDeliveryTask> taskCaptor = ArgumentCaptor.forClass(NotificationDeliveryTask.class);
+        verify(taskRepository).save(taskCaptor.capture());
+        assertThat(taskCaptor.getValue().getStatus()).isEqualTo(NotificationDeliveryTaskStatus.DEAD_LETTER);
         verify(dlqRepository).save(any());
         verify(observabilityRecorder).recordDeadLetter(eq("notification"), eq("notification.wecom_push"), eq("1:7:MENTION"), eq("CONTRACT_INVALID"));
         verify(observabilityRecorder, never()).recordRetry(eq("notification"), any(), any(), any(Integer.class), any());
+
+        // 关键回归：DEAD_LETTER 必须记为 FAILED + ERROR，不能误标为 SKIPPED + NOT_BOUND
+        ArgumentCaptor<OutboundLog> logCaptor = ArgumentCaptor.forClass(OutboundLog.class);
+        verify(outboundLogRepository).save(logCaptor.capture());
+        assertThat(logCaptor.getValue().getStatus()).isEqualTo(OutboundStatus.FAILED);
+        assertThat(logCaptor.getValue().getSkipReason()).isEqualTo(SkipReason.ERROR);
+    }
+
+    @Test
+    @DisplayName("drop decision -> task DELIVERED, outbound log SKIPPED + DISABLED (not NOT_BOUND)")
+    void dropDecision_SkippedDisabled() {
+        NotificationDeliveryJobService jobService = jobService();
+        NotificationDeliveryTask task = task();
+        when(taskRepository.findById(1L)).thenReturn(Optional.of(task));
+        when(pushService.push(any())).thenThrow(new RuntimeException("non-retriable"));
+        when(failureClassifier.classify(any())).thenReturn(AsyncFailureKind.SIDE_EFFECT_OPTIONAL);
+        when(decisionResolver.resolve(any(), eq(1), eq(3), any(), eq(true)))
+                .thenReturn(AsyncHandlingDecision.drop("SIDE_EFFECT_OPTIONAL", false));
+
+        jobService.processTaskSafely(task);
+
+        ArgumentCaptor<NotificationDeliveryTask> taskCaptor = ArgumentCaptor.forClass(NotificationDeliveryTask.class);
+        verify(taskRepository).save(taskCaptor.capture());
+        assertThat(taskCaptor.getValue().getStatus()).isEqualTo(NotificationDeliveryTaskStatus.DELIVERED);
+
+        ArgumentCaptor<OutboundLog> logCaptor = ArgumentCaptor.forClass(OutboundLog.class);
+        verify(outboundLogRepository).save(logCaptor.capture());
+        assertThat(logCaptor.getValue().getStatus()).isEqualTo(OutboundStatus.SKIPPED);
+        assertThat(logCaptor.getValue().getSkipReason()).isEqualTo(SkipReason.DISABLED);
+    }
+
+    @Test
+    @DisplayName("succeed-with-log decision -> task DELIVERED, outbound log SKIPPED + DISABLED")
+    void succeedWithLog_SkippedDisabled() {
+        NotificationDeliveryJobService jobService = jobService();
+        NotificationDeliveryTask task = task();
+        when(taskRepository.findById(1L)).thenReturn(Optional.of(task));
+        when(pushService.push(any())).thenThrow(new RuntimeException("idempotent duplicate"));
+        when(failureClassifier.classify(any())).thenReturn(AsyncFailureKind.IDEMPOTENT_DUPLICATE);
+        when(decisionResolver.resolve(any(), eq(1), eq(3), any(), eq(true)))
+                .thenReturn(AsyncHandlingDecision.succeedWithLog("IDEMPOTENT_DUPLICATE"));
+
+        jobService.processTaskSafely(task);
+
+        ArgumentCaptor<OutboundLog> logCaptor = ArgumentCaptor.forClass(OutboundLog.class);
+        verify(outboundLogRepository).save(logCaptor.capture());
+        assertThat(logCaptor.getValue().getStatus()).isEqualTo(OutboundStatus.SKIPPED);
+        assertThat(logCaptor.getValue().getSkipReason()).isEqualTo(SkipReason.DISABLED);
     }
 
     private NotificationDeliveryJobService jobService() {
