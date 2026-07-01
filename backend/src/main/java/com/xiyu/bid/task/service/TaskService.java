@@ -53,17 +53,23 @@ public class TaskService {
      * CO-382: 创建任务时记录创建人用户名（来自 Controller 的认证上下文），
      * 用于看板展示"创建人"。权限仍走 {@link TaskPermissionGuard}，不依赖此字段。
      */
+    private static final Long SYSTEM_USER_ID = 0L;
+
     @Transactional
     public TaskDTO createTask(TaskDTO taskDTO, String creatorUsername) {
         log.info("Creating task: {}", taskDTO.getTitle());
         assertCanAccessProject(taskDTO.getProjectId());
         taskPermissionGuard.assertCanManageTask(taskDTO.getProjectId());
-        return doCreateTask(taskDTO, creatorUsername);
+        TaskDTO created = doCreateTask(taskDTO, creatorUsername);
+        notifyAssigneeIfNeeded(created, resolveCreatorUserId(creatorUsername));
+        return created;
     }
     @Transactional
     public TaskDTO createSystemTask(TaskDTO taskDTO) {
         log.info("Creating system task: {}", taskDTO.getTitle());
-        return doCreateTask(taskDTO, "system");
+        TaskDTO created = doCreateTask(taskDTO, "system");
+        notifyAssigneeIfNeeded(created, SYSTEM_USER_ID);
+        return created;
     }
     private TaskDTO doCreateTask(TaskDTO dto, String creator) {
         var a = assignmentSupport.resolveAssignmentSnapshot(assignmentRequestFrom(dto), null);
@@ -77,6 +83,19 @@ public class TaskService {
                 .createdBy(creator).build());
         log.info("Task created successfully with id: {}", saved.getId());
         return toDTOWithNames(saved);
+    }
+    private Long resolveCreatorUserId(String creatorUsername) {
+        if (creatorUsername == null || creatorUsername.isBlank()) {
+            return SYSTEM_USER_ID;
+        }
+        return userRepository.findByUsername(creatorUsername)
+                .map(User::getId)
+                .orElse(SYSTEM_USER_ID);
+    }
+    private void notifyAssigneeIfNeeded(TaskDTO task, Long assignedBy) {
+        if (task.getAssigneeId() != null && task.getProjectId() != null) {
+            notificationService.notifyTaskAssigned(task.getProjectId(), task.getAssigneeId(), assignedBy);
+        }
     }
     @Transactional(readOnly = true)
     public List<TaskDTO> getAllTasks() {
@@ -101,6 +120,7 @@ public class TaskService {
         assertCanAccessProject(task.getProjectId());
         taskPermissionGuard.assertCanManageOrSubmitTask(task);
         Task before = TaskSnapshots.copy(task);
+        Long oldAssigneeId = task.getAssigneeId();
         if (taskDTO.getTitle() != null) {
             task.setTitle(taskDTO.getTitle());
         }
@@ -130,7 +150,15 @@ public class TaskService {
         }
         Task saved = taskRepository.save(task);
         taskHistoryRecorder.recordUpdate(before, saved, actorUsername);
-        return toDTOWithNames(saved);
+        TaskDTO result = toDTOWithNames(saved);
+        notifyAssigneeIfChanged(oldAssigneeId, result, resolveCreatorUserId(actorUsername));
+        return result;
+    }
+    private void notifyAssigneeIfChanged(Long oldAssigneeId, TaskDTO updated, Long updatedBy) {
+        Long newAssigneeId = updated.getAssigneeId();
+        if (newAssigneeId != null && !Objects.equals(oldAssigneeId, newAssigneeId) && updated.getProjectId() != null) {
+            notificationService.notifyTaskAssigned(updated.getProjectId(), newAssigneeId, updatedBy);
+        }
     }
     @Transactional
     public void deleteTask(Long id) {

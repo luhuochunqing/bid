@@ -1,5 +1,6 @@
 package com.xiyu.bid.batch.service;
 
+import com.xiyu.bid.audit.service.IAuditLogService;
 import com.xiyu.bid.batch.core.BatchAssignmentPolicy;
 import com.xiyu.bid.batch.core.BatchValidationPolicy;
 import com.xiyu.bid.batch.dto.BatchApproveFeesRequest;
@@ -9,6 +10,7 @@ import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.fees.entity.Fee;
+import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.TenderRepository;
@@ -58,6 +60,9 @@ class BatchOperationServiceTest {
     @Mock
     private ProjectAccessScopeService projectAccessScopeService;
 
+    @Mock
+    private ProjectNotificationService projectNotificationService;
+
     private Tender testTender1;
     private Tender testTender2;
     private Task testTask1;
@@ -78,7 +83,7 @@ class BatchOperationServiceTest {
                 tenderRepository, projectRepository, logService, projectAccessScopeService
         );
         BatchTaskCommandService taskCommandService = new BatchTaskCommandService(
-                taskRepository, taskAssignmentResolver, logService, projectAccessGuard
+                taskRepository, taskAssignmentResolver, logService, projectAccessGuard, projectNotificationService
         );
         BatchProjectCommandService projectCommandService = new BatchProjectCommandService(
                 projectRepository, logService, projectAccessScopeService

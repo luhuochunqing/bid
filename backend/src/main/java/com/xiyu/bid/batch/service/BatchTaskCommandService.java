@@ -10,6 +10,7 @@ import com.xiyu.bid.batch.dto.BatchAssignRequest;
 import com.xiyu.bid.batch.dto.BatchOperationResponse;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.repository.TaskRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +32,7 @@ public class BatchTaskCommandService {
     private final BatchTaskAssignmentResolver assignmentResolver;
     private final BatchOperationLogService logService;
     private final BatchProjectAccessGuard projectAccessGuard;
+    private final ProjectNotificationService projectNotificationService;
 
     public BatchOperationResponse batchAssignTasks(List<Long> taskIds, Long assigneeId) {
         BatchValidationPolicy.validateBatchInput(taskIds, "Task IDs");
@@ -57,6 +59,7 @@ public class BatchTaskCommandService {
         }
         if (!tasksToUpdate.isEmpty()) {
             taskRepository.saveAll(tasksToUpdate);
+            sendBatchAssignmentNotifications(tasksToUpdate, assigneeId, 0L);
         }
         complete(response, "TASK", "ASSIGN", assigneeId);
         return response;
@@ -91,9 +94,20 @@ public class BatchTaskCommandService {
         }
         if (!tasksToUpdate.isEmpty()) {
             taskRepository.saveAll(tasksToUpdate);
+            Long assignedBy = currentUser == null ? 0L : currentUser.getId();
+            sendBatchAssignmentNotifications(tasksToUpdate, assignment.assigneeId(), assignedBy);
         }
         complete(response, "TASK", "ASSIGN", currentUser == null ? assignment.assigneeId() : currentUser.getId());
         return response;
+    }
+
+    private void sendBatchAssignmentNotifications(List<Task> tasks, Long assigneeId, Long assignedBy) {
+        if (assigneeId == null) {
+            return;
+        }
+        tasks.stream()
+                .filter(task -> task.getProjectId() != null)
+                .forEach(task -> projectNotificationService.notifyTaskAssigned(task.getProjectId(), assigneeId, assignedBy));
     }
 
     public BatchOperationResponse batchDeleteTasks(List<Long> taskIds, Long userId) {
