@@ -252,7 +252,7 @@ const projectOptions = ref([])
 
 const borrowUploadUrl = computed(() => {
   const base = httpClient.defaults?.baseURL || ''
-  return `${base}/api/uploads/commitment-letter`
+  return `${base}/api/ca-certificates/commitment-letter/upload`
 })
 const borrowUploadHeaders = computed(() => ({
   Authorization: userStore.token ? `Bearer ${userStore.token}` : ''

@@ -6,6 +6,7 @@ import com.xiyu.bid.resources.dto.*;
 import com.xiyu.bid.resources.service.CaBorrowService;
 import com.xiyu.bid.resources.service.CaCertificateImportAppService;
 import com.xiyu.bid.resources.service.CaCertificateService;
+import com.xiyu.bid.resources.service.CaCommitmentLetterUploadService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
@@ -44,6 +45,7 @@ public class CaCertificateController {
     private final CaCertificateService caService;
     private final CaBorrowService caBorrowService;
     private final CaCertificateImportAppService importAppService;
+    private final CaCommitmentLetterUploadService uploadService;
 
     // ========== CA 证书 CRUD ==========
 
@@ -92,6 +94,36 @@ public class CaCertificateController {
                                            @AuthenticationPrincipal UserDetails currentUser) {
         caService.deactivate(id, currentUser);
         return ResponseEntity.ok().build();
+    }
+
+    // ========== 承诺书上传 ==========
+
+    @PostMapping(value = "/commitment-letter/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('resource')")
+    public ResponseEntity<ApiResponse<Map<String, String>>> uploadCommitmentLetter(
+            @RequestParam("file") MultipartFile file) throws IOException {
+        try {
+            Map<String, String> result = uploadService.upload(file);
+            return ResponseEntity.ok(ApiResponse.success("上传成功", result));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @GetMapping("/commitment-letter/files/{filename}")
+    @PreAuthorize("hasAuthority('resource')")
+    public ResponseEntity<byte[]> getCommitmentLetterFile(@PathVariable String filename) throws IOException {
+        try {
+            byte[] content = uploadService.getFile(filename);
+            String contentType = uploadService.getContentType(filename);
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(contentType))
+                    .body(content);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        } catch (IOException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     // ========== CA 借用流程 ==========
