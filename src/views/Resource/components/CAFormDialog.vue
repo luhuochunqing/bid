@@ -148,11 +148,9 @@
 <script setup>
 import { ref, reactive, computed, watch } from 'vue'
 import { usePlatformAccountSearch } from '@/composables/usePlatformAccountSearch.js'
-import { useUserStore } from '@/stores/user'
-import { isBidManager } from '@/utils/permission'
-import { caApi } from '@/api/modules/ca.js'
 import UserPicker from '@/components/common/UserPicker.vue'
 import { View, Hide } from '@element-plus/icons-vue'
+import { useCaPasswordReveal } from '../composables/useCaPasswordReveal'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -170,17 +168,6 @@ const visible = computed({
 const isEdit = computed(() => !!props.ca?.id)
 const formRef = ref(null)
 const { platformOptions, platformOptionsLoading, searchPlatforms } = usePlatformAccountSearch()
-
-const passwordRevealed = ref(false)
-const passwordLoading = ref(false)
-const userStore = useUserStore()
-const canViewPassword = computed(() => {
-  if (!isEdit.value) return false
-  if (isBidManager(userStore.userRole)) return true
-  const currentId = userStore.currentUser?.id
-  const custodianId = props.ca?.custodianId
-  return currentId != null && custodianId != null && String(currentId) === String(custodianId)
-})
 
 function createDefaultForm() {
   return {
@@ -201,15 +188,8 @@ function createDefaultForm() {
 }
 const form = reactive(createDefaultForm())
 
-// 点击眼睛按钮：加载真实密码（再次点击隐藏）
-async function handleRevealPassword() {
-  if (passwordRevealed.value) { passwordRevealed.value = false; form.caPassword = ''; return }
-  passwordLoading.value = true
-  try {
-    const res = await caApi.getPassword(props.ca.id)
-    if (res?.success && res?.data?.caPassword) { form.caPassword = res.data.caPassword; passwordRevealed.value = true }
-  } finally { passwordLoading.value = false }
-}
+const { passwordRevealed, passwordLoading, canViewPassword, resetPasswordState, handleRevealPassword } =
+  useCaPasswordReveal(isEdit, computed(() => props.ca), form)
 
 function onCustodianSelect(user) {
   if (user) {
@@ -219,7 +199,7 @@ function onCustodianSelect(user) {
 
 // Watch external data changes
 watch(() => props.ca, (ca) => {
-  passwordRevealed.value = false  // 重置密码显示状态
+  resetPasswordState()  // 重置密码显示状态
   if (ca) {
     form.id = ca.id
     form.platformIds = Array.isArray(ca.platformIds)
