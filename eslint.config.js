@@ -66,7 +66,7 @@ export default [
       // Error: bug classes that fail at runtime
       'no-undef': 'error',
       'import/no-unresolved': ['error', {
-        ignore: ['^virtual:', '^~', '^vitest', '^node:', '\\?raw$', '\\?url$']
+        ignore: ['^virtual:', '^~', '^vitest', '^node:', '^@sentry', '\\?raw$', '\\?url$']
       }],
       'import/named': 'error',
       'no-debugger': 'error',

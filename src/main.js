@@ -16,8 +16,14 @@ import './styles/micro-interactions.css'
 import './styles/attention-guidance.css'
 import './styles/form-controls.css'
 
+// Sentry 前端错误追踪
+import { initSentry } from './sentry.js'
+
 const app = createApp(App)
 const pinia = createPinia()
+
+// 初始化 Sentry（无 DSN 时自动禁用）
+initSentry(app)
 
 // 引入全局异常上报机制
 import httpClient from './api/client.js'
