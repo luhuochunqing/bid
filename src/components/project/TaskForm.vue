@@ -123,12 +123,12 @@
             </div>
           </el-form-item>
 
-          <el-form-item label="完成情况说明">
+          <el-form-item label="完成情况说明" required>
             <el-input
               v-model="localValue.completionNotes"
               type="textarea"
               :rows="4"
-              placeholder="请填写完成情况说明（可选）"
+              placeholder="请填写完成情况说明"
               :disabled="readonly && !canDeliver"
             />
           </el-form-item>
@@ -179,6 +179,7 @@ import TaskActivityPanel from '@/components/project/TaskActivityPanel.vue'
 import TaskDepositFields from '@/components/project/TaskDepositFields.vue'
 import { useTaskAssigneePicker } from './useTaskAssigneePicker.js'
 import { ElMessage } from 'element-plus'
+import { validateSubmitForReview } from '@/composables/useTaskSubmissionValidation.js'
 import { getTaskDeliverableDownloadUrl } from '@/api/modules/taskDeliverables.js'
 import { downloadWithFilename } from '@/utils/download.js'
 
@@ -447,7 +448,14 @@ function submit() {
 function submitForReview() {
   const msg = validate()
   if (msg) return { valid: false, message: msg }
-  // 提交审核时强制目标状态为 REVIEW
+  const validation = validateSubmitForReview({
+    deliverables: localValue.deliverables,
+    deliverableFiles: deliverableFileList.value,
+    completionNotes: localValue.completionNotes
+  })
+  if (!validation.valid) {
+    return { valid: false, message: validation.message }
+  }
   const data = { ...localValue, status: 'REVIEW' }
   emit('submit-review', data)
   return { valid: true, data }

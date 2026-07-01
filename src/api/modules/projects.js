@@ -187,7 +187,7 @@ export const projectsApi = {
     return httpClient.put(`/api/tasks/${taskId}`, dto)
   },
 
-  async updateTaskStatus(projectId, taskId, status, reviewComment) {
+  async updateTaskStatus(projectId, taskId, status, reviewComment, completionNotes) {
     if (!isNumericId(projectId) || !isNumericId(taskId)) {
       return apiModeFailure('task')
     }
@@ -196,7 +196,9 @@ export const projectsApi = {
       return demoReadonlyFailure()
     }
 
-    const payload = reviewComment ? { status, reviewComment } : { status }
+    const payload = { status }
+    if (reviewComment) payload.reviewComment = reviewComment
+    if (completionNotes) payload.completionNotes = completionNotes
     return httpClient.patch(`/api/projects/${projectId}/tasks/${taskId}/status`, payload)
   },
 

@@ -68,7 +68,16 @@ const TaskFormStub = defineComponent({
   setup(props, { expose }) {
     const canDeliver = computed(() => props.mode === 'view' && props.modelValue?.status === 'TODO')
     function submitForReview() {
-      return { valid: true, data: { ...(props.modelValue || {}), status: 'REVIEW' } }
+      return {
+        valid: true,
+        data: {
+          ...(props.modelValue || {}),
+          status: 'REVIEW',
+          deliverables: [{ id: 1, name: '交付物1.pdf' }],
+          deliverableFiles: [],
+          completionNotes: '已完成所有工作',
+        }
+      }
     }
     function submit() {
       return { valid: true, data: { ...(props.modelValue || {}) } }

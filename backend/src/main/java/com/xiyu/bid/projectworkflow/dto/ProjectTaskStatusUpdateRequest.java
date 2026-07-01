@@ -22,4 +22,6 @@ public class ProjectTaskStatusUpdateRequest {
     private Status status;
 
     private String reviewComment;
+
+    private String completionNotes;
 }

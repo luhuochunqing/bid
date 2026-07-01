@@ -954,7 +954,30 @@ describe('CO-370 useProjectDetailTaskActions', () => {
       name: '交付物.docx',
       file,
     }))
-    expect(updateTaskStatus).toHaveBeenCalledWith('1', 42, 'REVIEW')
+    expect(updateTaskStatus).toHaveBeenCalledWith('1', 42, 'REVIEW', undefined, undefined)
+  })
+
+  it('CO-458: handleSubmitReview 把 completionNotes 通过 updateTaskStatus 第5个参数传递', async () => {
+    const updateTaskStatus = vi.fn().mockResolvedValue({
+      success: true,
+      data: { id: 42, name: '提交审核任务', status: 'REVIEW', completionNotes: '已完成全部交付内容' },
+    })
+    const tasks = [{ id: 42, name: '提交审核任务', status: 'TODO', assigneeId: 9, deliverables: [] }]
+    const { ctx } = buildCo370Ctx({
+      updateTaskStatus,
+      projectTasks: tasks,
+      projectStore: {},
+    })
+
+    const { handleSubmitReview } = useProjectDetailTaskActions(ctx)
+    await handleSubmitReview({
+      id: 42,
+      status: 'REVIEW',
+      completionNotes: '已完成全部交付内容，请审核',
+      deliverableFiles: [],
+    })
+
+    expect(updateTaskStatus).toHaveBeenCalledWith('1', 42, 'REVIEW', undefined, '已完成全部交付内容，请审核')
   })
 
   // 场景4: handleTaskStatusChange 后端返回不含 deliverables 时，前端内存中的 deliverables 不被清空

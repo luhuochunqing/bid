@@ -89,6 +89,7 @@ import { TASK_STATUS, getTaskStatusDisplayName } from '@/constants/taskStatus.js
 import { taskBackendToCard } from '@/views/Project/project-utils.js'
 import { useProjectStore } from '@/stores/project'
 import { useUserStore } from '@/stores/user'
+import { validateSubmitForReview } from '@/composables/useTaskSubmissionValidation.js'
 import { uploadTaskFilesWithFallback } from '@/composables/projectDetail/taskAssigneePayload'
 
 const COLUMNS = [
@@ -183,11 +184,24 @@ async function handleSubmitForReview() {
   try {
     const form = taskFormRef.value
     const result = form?.submitForReview?.()
-    if (!result || result.valid === false) return
+    if (!result || result.valid === false) {
+      if (result?.message) ElMessage.warning(result.message)
+      return
+    }
 
     const data = result.data
     const projectId = data.projectId
     const taskId = data.id
+
+    const validation = validateSubmitForReview({
+      deliverables: data.deliverables,
+      deliverableFiles: data.deliverableFiles,
+      completionNotes: data.completionNotes
+    })
+    if (!validation.valid) {
+      ElMessage.warning(validation.message)
+      return
+    }
 
     const projectStore = useProjectStore()
     const userStore = useUserStore()
@@ -203,13 +217,7 @@ async function handleSubmitForReview() {
     )
     if (!uploadOk) return
 
-    // 保存完成情况说明
-    if (data.completionNotes) {
-      await projectsApi.updateTask(taskId, { completionNotes: data.completionNotes })
-    }
-
-    // 更新状态为 REVIEW
-    await projectsApi.updateTaskStatus(projectId, taskId, 'REVIEW')
+    await projectsApi.updateTaskStatus(projectId, taskId, 'REVIEW', null, data.completionNotes)
 
     ElMessage.success('已提交审核')
     drawerVisible.value = false

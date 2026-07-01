@@ -18,6 +18,7 @@ import com.xiyu.bid.projectworkflow.entity.ProjectScoreDraft;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.task.core.TaskTransitionPolicy;
 import com.xiyu.bid.task.dto.TaskDeliverableAssembler;
 import com.xiyu.bid.task.dto.TaskDeliverableDTO;
 import com.xiyu.bid.task.entity.TaskDeliverable;
@@ -117,16 +118,37 @@ class ProjectTaskWorkflowService {
         Task task = guardService.requireTask(projectId, taskId);
         Task.Status targetStatus = toEntityStatus(request.getStatus());
 
-        // REVIEW -> TODO (驳回) 时校验 reviewComment 非空
-        if (task.getStatus() == Task.Status.REVIEW && targetStatus == Task.Status.TODO) {
-            if (!hasText(request.getReviewComment())) {
-                throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
-                        "驳回任务时必须填写驳回原因");
+        TaskTransitionPolicy.TaskStatus currentPolicyStatus = toPolicyStatus(task.getStatus());
+        TaskTransitionPolicy.TaskStatus targetPolicyStatus = toPolicyStatus(targetStatus);
+
+        boolean isRejection = task.getStatus() == Task.Status.REVIEW && targetStatus == Task.Status.TODO;
+        TaskTransitionPolicy.TransitionResult transitionResult = isRejection
+                ? TaskTransitionPolicy.validateTransition(currentPolicyStatus, targetPolicyStatus, request.getReviewComment())
+                : TaskTransitionPolicy.validateTransition(currentPolicyStatus, targetPolicyStatus);
+        if (!transitionResult.allowed()) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, transitionResult.reason());
+        }
+
+        // CO-458: TODO -> REVIEW (提交审核) 时校验交付物和完成情况
+        if (task.getStatus() == Task.Status.TODO && targetStatus == Task.Status.REVIEW) {
+            long deliverableCount = taskDeliverableRepository.countByTaskId(taskId);
+            TaskTransitionPolicy.TransitionResult result = TaskTransitionPolicy.validateSubmission(
+                    currentPolicyStatus,
+                    targetPolicyStatus,
+                    (int) deliverableCount,
+                    request.getCompletionNotes());
+            if (!result.allowed()) {
+                throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, result.reason());
             }
         }
 
         Task before = TaskSnapshots.copy(task);
         task.setStatus(targetStatus);
+
+        // CO-458: 提交审核时持久化 completionNotes
+        if (targetStatus == Task.Status.REVIEW && hasText(request.getCompletionNotes())) {
+            task.setCompletionNotes(request.getCompletionNotes().trim());
+        }
         // CO-413: 驳回原因持久化到 extendedFields.lastRejectReason，供执行人查看
         if (targetStatus == Task.Status.TODO && hasText(request.getReviewComment())) {
             Map<String, Object> extendedFields = new java.util.LinkedHashMap<>(deserializeExtendedFields(task));
@@ -360,5 +382,12 @@ class ProjectTaskWorkflowService {
             return null;
         }
         return Task.Status.valueOf(status.name());
+    }
+
+    private TaskTransitionPolicy.TaskStatus toPolicyStatus(Task.Status status) {
+        if (status == null) {
+            return null;
+        }
+        return TaskTransitionPolicy.TaskStatus.valueOf(status.name());
     }
 }

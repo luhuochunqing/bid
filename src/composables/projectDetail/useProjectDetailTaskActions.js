@@ -361,7 +361,8 @@ export function useProjectDetailTaskActions(context) {
     }
     try {
       if (!await uploadTaskFilesWithFallback(task, data, { projectStore, projectId: route.params.id, userStore }, { attachments: '任务已提交审核，但附件上传失败，请重试', deliverables: '任务已提交审核，但交付物上传失败，请重试' }, message)) return
-      const result = await projectsApi.updateTaskStatus(route.params.id, task.id, normalizeTaskStatusForApi(newStatus))
+      const completionNotes = data.completionNotes
+      const result = await projectsApi.updateTaskStatus(route.params.id, task.id, normalizeTaskStatusForApi(newStatus), undefined, completionNotes)
       if (!result?.success) throw new Error(result?.msg || '提交审核失败')
       const keepDeliverables = task.deliverables
       const keepAttachments = task.attachments

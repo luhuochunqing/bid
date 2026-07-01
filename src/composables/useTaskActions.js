@@ -18,6 +18,7 @@ import { projectsApi } from '@/api/modules/projects.js'
 import { createTaskDeliverable as apiCreateTaskDeliverable } from '@/api/modules/taskDeliverables.js'
 import { useUserStore } from '@/stores/user.js'
 import { TASK_STATUS } from '@/constants/taskStatus.js'
+import { validateSubmitForReview } from './useTaskSubmissionValidation.js'
 
 export function useTaskActions(options = {}) {
   const { onSubmitted, api = projectsApi } = options
@@ -94,6 +95,16 @@ export function useTaskActions(options = {}) {
       ElMessage.error('缺少项目信息，无法提交')
       return
     }
+    const validation = validateSubmitForReview({
+      deliverables: task.deliverables,
+      deliverableFiles: deliverableUploadRef.value?.uploadFiles,
+      hasDeliverable: hasDeliverable(task),
+      completionNotes: submitNotes.value
+    })
+    if (!validation.valid) {
+      ElMessage.warning(validation.message)
+      return
+    }
 
     submittingTaskLoading.value = true
     try {
@@ -103,10 +114,7 @@ export function useTaskActions(options = {}) {
         formData.append('taskId', task.id)
         await apiCreateTaskDeliverable(projectId, task.id, formData)
       }
-      if (submitNotes.value) {
-        await api.updateTask(task.id, { completionNotes: submitNotes.value })
-      }
-      await api.updateTaskStatus(projectId, task.id, TASK_STATUS.REVIEW)
+      await api.updateTaskStatus(projectId, task.id, TASK_STATUS.REVIEW, null, submitNotes.value)
       ElMessage.success('已提交审核')
       closeSubmitDialog()
       if (onSubmitted) await onSubmitted(task)
