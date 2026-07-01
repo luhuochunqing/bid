@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 import java.util.List;
 import java.util.Map;
@@ -63,6 +64,7 @@ public class CaNotificationDispatcher {
                             "borrowDurationType", app.getBorrowDurationType()));
         } catch (RuntimeException ex) {
             log.warn("CA notification onBorrowSubmitted failed: {}", ex.getMessage());
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
         }
     }
 
@@ -86,6 +88,7 @@ public class CaNotificationDispatcher {
                             "daysLeft", daysLeft));
         } catch (RuntimeException ex) {
             log.warn("CA notification onExpiring failed: {}", ex.getMessage());
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
         }
     }
 
@@ -108,6 +111,7 @@ public class CaNotificationDispatcher {
                             "expiryDate", String.valueOf(cert.getExpiryDate())));
         } catch (RuntimeException ex) {
             log.warn("CA notification onExpired failed: {}", ex.getMessage());
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
         }
     }
 
@@ -128,6 +132,7 @@ public class CaNotificationDispatcher {
                             "applicationId", app.getId()));
         } catch (RuntimeException ex) {
             log.warn("CA notification onBorrowApproved failed: {}", ex.getMessage());
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
         }
     }
 

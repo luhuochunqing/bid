@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 import java.util.Collections;
 import java.util.List;
@@ -122,6 +123,7 @@ public class TenderEvaluationNotificationService {
         } catch (RuntimeException e) {
             log.error("Failed to send notification (type={}, recipients={}): {}",
                     type, recipientIds.size(), e.getMessage());
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
         }
     }
 }

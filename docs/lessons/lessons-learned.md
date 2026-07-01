@@ -2038,3 +2038,87 @@ Sentry 上报 `NullPointerException: Fontconfig head is null`，堆栈指向 POI
 - `sidebar-menu.js:47-49` — 侧边栏 permissionKeys
 - `authNormalizer.js:22-42` — 父权限自动补全逻辑
 - `V1124__fix_co_439_admin_staff_navigation_permissions.sql` — 修复迁移
+
+## 30. REQUIRES_NEW + try-catch 反模式导致 UnexpectedRollbackException（CO-440）
+
+### 问题背景
+
+Sentry 上报 `UnexpectedRollbackException: Transaction silently rolled back because it has been marked as rollback-only`，触发接口 `POST /api/ca-certificates/{id}/borrow`。用户提交 CA 借用申请时，业务数据已保存但最终返回 500 错误。
+
+### 根因
+
+`CaNotificationDispatcher.onBorrowSubmitted()` 使用 `@Transactional(propagation = Propagation.REQUIRES_NEW)` 开独立事务，方法内部用 try-catch 吞掉 `notificationService.createNotification()` 抛出的 RuntimeException，意图实现 "best-effort" 语义（通知失败不影响主业务）。
+
+**但这个模式是错误的**——Spring 事务拦截器的执行顺序导致了问题：
+
+```
+调用链（自顶向下）：
+┌─────────────────────────────────────────────────────┐
+│ CaBorrowService.borrow()                            │
+│   @Transactional(REQUIRED)  — 事务 A               │
+│                                                      │
+│   ┌──────────────────────────────────────────────┐  │
+│   │ CaNotificationDispatcher.onBorrowSubmitted() │  │
+│   │   @Transactional(REQUIRES_NEW)  — 事务 B    │  │
+│   │                                              │  │
+│   │   ┌──────────────────────────────────────┐   │  │
+│   │   │ createNotification()                 │   │  │
+│   │   │   @Transactional(REQUIRED)           │   │  │
+│   │   │   → 加入事务 B                        │   │  │
+│   │   └──────────────────────────────────────┘   │  │
+│   └──────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────┘
+```
+
+**异常发生时的执行顺序**：
+
+1. `createNotification()` 内部抛出 RuntimeException
+2. **`createNotification` 的事务拦截器先捕获异常** → 标记事务 B 为 `rollback-only` → 重抛异常
+3. 异常向上传播到 `onBorrowSubmitted()` 的 try-catch → 被捕获，记录日志
+4. `onBorrowSubmitted()` 方法**正常返回**
+5. **`onBorrowSubmitted` 的事务拦截器尝试提交事务 B**
+6. 发现事务 B 已被标记为 `rollback-only` → 抛出 `UnexpectedRollbackException`
+
+**核心认知误区**：认为 try-catch 在 catch 块里就能阻止事务回滚。实际上内层 `@Transactional` 方法的事务拦截器**先于**外层 catch 执行，等 catch 到异常时，事务已经被标记为 rollback-only 了。
+
+### 教训
+
+1. **「REQUIRES_NEW + try-catch」是反模式**：不能靠在外层方法加 try-catch 来实现 "best-effort 通知失败不影响主事务" 的语义，因为内层事务拦截器已经先把事务标记为回滚了。
+
+2. **正确修复方式**：在 catch 块中显式调用 `TransactionAspectSupport.currentTransactionStatus().setRollbackOnly()`，告诉 Spring "这个事务就是要回滚的"。Spring 看到是 rollback-only 就会正常执行回滚，而不是尝试提交失败。
+
+   ```java
+   @Transactional(propagation = Propagation.REQUIRES_NEW)
+   public void onSomethingHappened(...) {
+       try {
+           notificationService.createNotification(...);
+       } catch (RuntimeException ex) {
+           log.warn("Notification failed: {}", ex.getMessage());
+           // 必须显式标记回滚，否则 Spring 尝试提交时抛 UnexpectedRollbackException
+           TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+       }
+   }
+   ```
+
+3. **同类模式必须全仓排查**：所有使用 `@Transactional(REQUIRES_NEW) + 内部 try-catch 吞 RuntimeException` 模式的类都有此问题，不能只修报 Sentry 的那一个。
+
+   本次排查出 3 个同类问题类：
+   - `CaNotificationDispatcher`（4 个通知方法）
+   - `TenderEvaluationNotificationService`（`createNotificationSafely`）
+   - `TenderPendingAssignmentNotifier`（`createNotificationSafely`）
+
+### 防复发检查清单
+
+新增 "best-effort 通知" 类代码时，检查：
+
+- [ ] `@Transactional(REQUIRES_NEW)` 加在 public 方法上（Spring AOP 代理才能拦截）
+- [ ] catch 块中必须调用 `TransactionAspectSupport.currentTransactionStatus().setRollbackOnly()`
+- [ ] 同类内部调用不会绕过代理（必须是外部 bean 调用 public 方法）
+- [ ] 全仓搜索 `@Transactional.*REQUIRES_NEW` 排查是否有遗漏
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/resources/notification/CaNotificationDispatcher.java` — CA 通知派发器（修复后）
+- `backend/src/main/java/com/xiyu/bid/tender/service/TenderEvaluationNotificationService.java` — 标讯评估通知（修复后）
+- `backend/src/main/java/com/xiyu/bid/tender/service/TenderPendingAssignmentNotifier.java` — 待分配通知（修复后）
+- §23 — 全链路日志排查 SOP（本次排查使用）
