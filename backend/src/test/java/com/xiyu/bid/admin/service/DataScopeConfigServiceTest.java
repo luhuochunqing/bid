@@ -297,9 +297,10 @@ class DataScopeConfigServiceTest {
     }
 
     @Test
-    void getRoleMenuPermissions_ShouldReturnOssPermissionsDirectlyWithoutEnrichment() {
-        // OSS 缓存命中时，直接返回 OSS 权限，不追加本地 seed 权限
-        // 菜单权限必须完全根据 OSS 的 /oauth/getUserPermission 接口返回
+    void getRoleMenuPermissions_ShouldMergeOssPermissionsWithDbRoleProfile() {
+        // CO-438: OSS 缓存命中时，合并 DB RoleProfile 的管理权限点
+        // 原因：OSS menuCode→权限码映射表不含 performance.manage/warehouse.manage/personnel.manage
+        // 这些写操作权限点只存在于 DB RoleProfile，OSS 用户若不合并将看不到管理按钮
         User user = User.builder()
                 .id(9L).username("06234").fullName("郑蓉蓉")
                 .role(User.Role.MANAGER)
@@ -313,9 +314,12 @@ class DataScopeConfigServiceTest {
 
         List<String> perms = dataScopeConfigService.getRoleMenuPermissions(user);
 
-        // OSS 权限直达，不被本地 seed 污染
+        // OSS 权限 + DB RoleProfile 管理权限点合并
         assertThat(perms)
-                .containsExactlyInAnyOrder("project", "project-detail");
+                .contains("project", "project-detail")
+                .contains(RoleProfileCatalog.PERFORMANCE_MANAGE_PERMISSION,
+                        RoleProfileCatalog.WAREHOUSE_MANAGE_PERMISSION,
+                        RoleProfileCatalog.PERSONNEL_MANAGE_PERMISSION);
     }
 
     @Test
@@ -448,7 +452,7 @@ class DataScopeConfigServiceTest {
     }
 
     @Test
-    @DisplayName("OSS 用户 cache hit 时 getRoleMenuPermissions 返回缓存的菜单权限")
+    @DisplayName("OSS 用户 cache hit 时 getRoleMenuPermissions 合并缓存权限与 DB RoleProfile 权限点")
     void getRoleMenuPermissions_ShouldReturnCachedPermissionsWhenCacheHit() {
         User user = User.builder()
                 .id(14L).username("cached-user").fullName("Cached User")
@@ -464,7 +468,11 @@ class DataScopeConfigServiceTest {
 
         List<String> perms = serviceWithCache.getRoleMenuPermissions(user);
 
-        assertThat(perms).containsExactly("dashboard", "project-list");
+        // CO-438: 合并 OSS 缓存权限 + DB RoleProfile 管理权限点
+        assertThat(perms).contains("dashboard", "project-list");
+        assertThat(perms).contains(RoleProfileCatalog.PERFORMANCE_MANAGE_PERMISSION,
+                RoleProfileCatalog.WAREHOUSE_MANAGE_PERMISSION,
+                RoleProfileCatalog.PERSONNEL_MANAGE_PERMISSION);
     }
 
     @Test

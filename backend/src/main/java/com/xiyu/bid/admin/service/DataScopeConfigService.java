@@ -135,7 +135,20 @@ public class DataScopeConfigService {
         if (user == null) return List.of();
         Optional<List<String>> cachedPermissions = ossPermissionCache.getMenuPermissions(user.getUsername());
         if (cachedPermissions.isPresent()) {
-            return normalizeMenuPermissions(cachedPermissions.get());
+            List<String> ossPermissions = normalizeMenuPermissions(cachedPermissions.get());
+            // CO-438: 合并 DB RoleProfile 的管理权限点
+            // OSS menuCode→权限码映射表不含 performance.manage/warehouse.manage/personnel.manage
+            // 这些写操作权限点只存在于 DB RoleProfile，OSS 用户若不合并将看不到管理按钮
+            Optional<String> cachedRoleCode = ossPermissionCache.getRoleCode(user.getUsername());
+            if (cachedRoleCode.isPresent()) {
+                RoleProfileCatalog.SeedDefinition def = RoleProfileCatalog.definitionForCode(cachedRoleCode.get());
+                if (def != null && def.menuPermissions() != null && !def.menuPermissions().isEmpty()) {
+                    java.util.LinkedHashSet<String> merged = new java.util.LinkedHashSet<>(ossPermissions);
+                    merged.addAll(def.menuPermissions());
+                    return List.copyOf(merged);
+                }
+            }
+            return ossPermissions;
         }
         // admin 系统内置账户不走 OSS，fallback 到本地 DB RoleProfile
         if (isLocalSystemAccount(user)) {
