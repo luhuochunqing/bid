@@ -60,13 +60,48 @@ describe('useKnowledgePermission', () => {
     expect(canManagePersonnel.value).toBe(false)
   })
 
-  it('empty menuPermissions denies all', () => {
+  it('empty menuPermissions denies all (非管理员角色, 无 fallback)', () => {
+    // bid-administration 非管理员，fallback 不放行
     mockUserStore.menuPermissions = []
+    mockUserStore.userRole = 'bid-administration'
     const { canManage, canManagePerformance, canManageWarehouse, canManagePersonnel } =
       useKnowledgePermission()
     expect(canManage.value).toBe(false)
     expect(canManagePerformance.value).toBe(false)
     expect(canManageWarehouse.value).toBe(false)
     expect(canManagePersonnel.value).toBe(false)
+  })
+
+  // CO-438 Rework 回归保护：menuPermissions 为空时回退到角色白名单
+  // 原因：某些登录路径（session restore / OSS 用户 fallback）可能返回空 menuPermissions，
+  // 此时若仅按权限点判断会导致 bid-TeamLeader//bidAdmin 等管理员角色也看不到按钮（回归）。
+  describe('CO-438 Rework: menuPermissions 为空时回退到角色白名单', () => {
+    it('menuPermissions 为空 + roleCode=bid-TeamLeader → canManageWarehouse=true（不回归）', () => {
+      mockUserStore.menuPermissions = []
+      mockUserStore.userRole = 'bid-TeamLeader'
+      const { canManageWarehouse } = useKnowledgePermission()
+      expect(canManageWarehouse.value).toBe(true)
+    })
+
+    it('menuPermissions 为空 + roleCode=/bidAdmin → canManagePersonnel=true（不回归）', () => {
+      mockUserStore.menuPermissions = []
+      mockUserStore.userRole = '/bidAdmin'
+      const { canManagePersonnel } = useKnowledgePermission()
+      expect(canManagePersonnel.value).toBe(true)
+    })
+
+    it('menuPermissions 为空 + roleCode=admin → canManagePerformance=true（不回归）', () => {
+      mockUserStore.menuPermissions = []
+      mockUserStore.userRole = 'admin'
+      const { canManagePerformance } = useKnowledgePermission()
+      expect(canManagePerformance.value).toBe(true)
+    })
+
+    it('menuPermissions 正常 + roleCode=bid-Team → canManagePerformance=true（原始修复保留）', () => {
+      mockUserStore.menuPermissions = ['performance.manage']
+      mockUserStore.userRole = 'bid-Team'
+      const { canManagePerformance } = useKnowledgePermission()
+      expect(canManagePerformance.value).toBe(true)
+    })
   })
 })
