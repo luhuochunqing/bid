@@ -83,6 +83,47 @@ public class ProjectNotificationService {
         sendNotification(projectId, "标书审核" + action, NotificationType.INFO, reviewerId, List.of(recipientId), "drafting");
     }
 
+    public void notifyBidReviewSubmitted(Long projectId, Long reviewerId, Long submittedBy,
+                                         String tenderTitle, String bidOpeningTime,
+                                         String purchaserName, String submitterName) {
+        try {
+            if (reviewerId == null) return;
+            Project project = findProject(projectId);
+            if (project == null) return;
+
+            String projectName = project.getName();
+            String safeTenderTitle = tenderTitle != null ? tenderTitle : "";
+            String safeBidOpeningTime = bidOpeningTime != null ? bidOpeningTime : "";
+            String safePurchaserName = purchaserName != null ? purchaserName : "";
+            String safeSubmitterName = submitterName != null ? submitterName : "";
+
+            String body = String.format(
+                    "项目名称：%s\n招标主体：%s\n开标时间：%s\n提交人：%s\n\n请前往标书制作页面查看投标文件并完成审核。",
+                    projectName, safePurchaserName, safeBidOpeningTime, safeSubmitterName);
+
+            Map<String, Object> payload = Map.of(
+                    "projectId", String.valueOf(projectId),
+                    "projectName", projectName,
+                    "tenderTitle", safeTenderTitle,
+                    "bidOpeningTime", safeBidOpeningTime,
+                    "purchaserName", safePurchaserName,
+                    "submitterName", safeSubmitterName,
+                    "targetUrl", "/project/" + projectId + "/drafting");
+
+            notificationService.createNotification(new CreateNotificationRequest(
+                    NotificationType.BID_REVIEW.name(),
+                    "PROJECT",
+                    projectId,
+                    "标书审核：您有一个标书待审核 - " + projectName,
+                    body,
+                    payload,
+                    List.of(reviewerId)
+            ), submittedBy);
+        } catch (RuntimeException e) {
+            log.warn("notifyBidReviewSubmitted failed for project={}: {}", projectId, e.getMessage());
+        }
+    }
+
     public void notifyEvaluationSubStage(Long projectId, String subStage, Long userId) {
         List<Long> teamMemberIds = getProjectTeamMemberIds(projectId);
         if (teamMemberIds.isEmpty()) return;
@@ -142,7 +183,7 @@ public class ProjectNotificationService {
 
             notificationService.createNotification(new CreateNotificationRequest(
                     type.name(),
-                    "Project",
+                    "PROJECT",
                     projectId,
                     title + " - " + projectName,
                     body,

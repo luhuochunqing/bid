@@ -289,7 +289,7 @@ public class ProjectClosureService {
 
             notificationService.createNotification(new CreateNotificationRequest(
                     NotificationType.APPROVAL.name(),
-                    "Project",
+                    "PROJECT",
                     projectId,
                     "结项审核：项目提交结项申请 - " + projectName,
                     String.format("项目名称：%s\n提交人：%s\n\n请前往项目结项页面审核。", projectName, submitterName),
@@ -316,7 +316,7 @@ public class ProjectClosureService {
 
             notificationService.createNotification(new CreateNotificationRequest(
                     NotificationType.INFO.name(),
-                    "Project",
+                    "PROJECT",
                     projectId,
                     String.format("结项审核%s - %s", action, projectName),
                     String.format("项目名称：%s\n审核结果：%s\n审核人：%s\n%s",

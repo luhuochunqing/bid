@@ -148,6 +148,26 @@ class MentionApplicationServiceTest {
         verify(mentionRepository, never()).saveAll(anyIterable());
     }
 
+    @Test
+    @DisplayName("payload is forwarded to notification for TASK sourceEntityType (fix for CO-439)")
+    void payload_IsForwardedForTaskMention() {
+        java.util.Map<String, Object> payload = java.util.Map.of("projectId", "123");
+        CreateMentionRequest req = new CreateMentionRequest(
+            "@[a](7)", "TASK", 42L, "Task Comment", payload);
+        when(notificationService.createNotification(any(CreateNotificationRequest.class), anyLong()))
+            .thenReturn(DispatchResult.validWithId(100L));
+
+        service.createMention(req, 1L);
+
+        ArgumentCaptor<CreateNotificationRequest> captor =
+            ArgumentCaptor.forClass(CreateNotificationRequest.class);
+        verify(notificationService).createNotification(captor.capture(), anyLong());
+        CreateNotificationRequest captured = captor.getValue();
+
+        assertThat(captured.payload()).isNotNull();
+        assertThat(captured.payload()).containsEntry("projectId", "123");
+    }
+
     private static List<Mention> toList(Iterable<Mention> iter) {
         java.util.List<Mention> out = new java.util.ArrayList<>();
         iter.forEach(out::add);

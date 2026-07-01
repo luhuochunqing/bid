@@ -205,7 +205,7 @@ public class ProjectRetrospectiveService {
 
             notificationService.createNotification(new CreateNotificationRequest(
                     NotificationType.APPROVAL.name(),
-                    "Project",
+                    "PROJECT",
                     projectId,
                     "复盘审核：项目提交复盘 - " + projectName,
                     String.format("项目名称：%s\n提交人：%s\n\n请前往项目复盘页面审核。", projectName, submitterName),

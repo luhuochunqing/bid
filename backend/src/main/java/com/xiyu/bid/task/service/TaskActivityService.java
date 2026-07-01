@@ -77,7 +77,8 @@ public class TaskActivityService {
                 content,
                 "TASK",
                 task.getId(),
-                "任务评论提及：" + task.getTitle()
+                "任务评论提及：" + task.getTitle(),
+                Map.of("projectId", (Object) String.valueOf(task.getProjectId()))
         ), actor.getId());
         return commentToActivity(saved, actor.getFullName());
     }

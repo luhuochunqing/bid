@@ -114,6 +114,33 @@ describe('resolveNotificationRoute', () => {
     expect(resolveNotificationRoute({ sourceEntityType: 'PROJECT', sourceEntityId: -1 }))
       .toBeNull()
   })
+
+  it('prioritizes payload.targetUrl over computed route (fix for CO-439 sub-page navigation)', () => {
+    // payload 包含 targetUrl="/project/123/drafting"，应优先返回它而非 /project/123
+    expect(resolveNotificationRoute({
+      sourceEntityType: 'PROJECT',
+      sourceEntityId: 123,
+      payloadJson: '{"projectId":"123","targetUrl":"/project/123/drafting"}'
+    })).toBe('/project/123/drafting')
+  })
+
+  it('targetUrl takes precedence over TASK projectId+taskId', () => {
+    // TASK 类型如果 payload 有 targetUrl，也应该优先使用
+    expect(resolveNotificationRoute({
+      sourceEntityType: 'TASK',
+      sourceEntityId: 99,
+      payloadJson: '{"projectId":42,"targetUrl":"/project/42/drafting?taskId=99"}'
+    })).toBe('/project/42/drafting?taskId=99')
+  })
+
+  it('returns computed route when targetUrl is missing or empty', () => {
+    // 无 targetUrl 时，走原有逻辑
+    expect(resolveNotificationRoute({
+      sourceEntityType: 'PROJECT',
+      sourceEntityId: 123,
+      payloadJson: '{"projectId":"123"}'
+    })).toBe('/project/123')
+  })
 })
 
 describe('formatNotificationTime', () => {

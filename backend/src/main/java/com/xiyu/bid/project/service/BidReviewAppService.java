@@ -8,20 +8,17 @@ import com.xiyu.bid.annotation.Auditable;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
-import com.xiyu.bid.notification.core.NotificationType;
-import com.xiyu.bid.notification.dto.CreateNotificationRequest;
-import com.xiyu.bid.notification.service.NotificationApplicationService;
+import com.xiyu.bid.matrixcollaboration.entity.ProjectMember;
+import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
 import com.xiyu.bid.project.core.BidReviewPolicy;
 import com.xiyu.bid.project.core.BidReviewStatus;
 import com.xiyu.bid.project.entity.BidDocumentReviewEntity;
+import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.project.repository.BidDocumentReviewRepository;
 import com.xiyu.bid.repository.ProjectRepository;
-import com.xiyu.bid.matrixcollaboration.entity.ProjectMember;
-import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
-import com.xiyu.bid.project.notification.ProjectNotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -30,8 +27,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -46,7 +41,6 @@ import java.util.Optional;
 public class BidReviewAppService {
 
     private final BidDocumentReviewRepository reviewRepository;
-    private final NotificationApplicationService notificationService;
     private final UserRepository userRepository;
     private final TenderRepository tenderRepository;
     private final ProjectRepository projectRepository;
@@ -202,48 +196,20 @@ public class BidReviewAppService {
     }
 
     private void sendBidReviewNotification(Long projectId, Long reviewerId, Long submittedBy) {
-        // 通知失败不影响审核记录提交；日志记录异常但不抛出
-        try {
-            Project project = projectRepository.findById(projectId).orElse(null);
-            if (project == null) {
-                log.warn("Project {} not found, skip notification", projectId);
-                return;
-            }
-            Tender tender = tenderRepository.findById(project.getTenderId()).orElse(null);
+        Project project = projectRepository.findById(projectId).orElse(null);
+        if (project == null) return;
+        Tender tender = tenderRepository.findById(project.getTenderId()).orElse(null);
 
-            String projectName = project.getName();
-            String tenderTitle = tender != null ? tender.getTitle() : "";
-            String bidOpeningTime = tender != null && tender.getBidOpeningTime() != null
-                    ? tender.getBidOpeningTime().toString() : "";
-            String purchaserName = tender != null ? tender.getPurchaserName() : "";
+        String tenderTitle = tender != null ? tender.getTitle() : null;
+        String bidOpeningTime = tender != null && tender.getBidOpeningTime() != null
+                ? tender.getBidOpeningTime().toString() : null;
+        String purchaserName = tender != null ? tender.getPurchaserName() : null;
+        String submitterName = userRepository.findById(submittedBy)
+                .map(User::getFullName).orElse(null);
 
-            // 查提交人姓名
-            String submitterName = userRepository.findById(submittedBy)
-                    .map(User::getFullName).orElse("");
-
-            notificationService.createNotification(new CreateNotificationRequest(
-                    NotificationType.BID_REVIEW.name(),
-                    "Project",
-                    projectId,
-                    "标书审核：您有一个标书待审核 - " + projectName,
-                    String.format(
-                            "项目名称：%s\n招标主体：%s\n开标时间：%s\n提交人：%s\n\n请前往标书制作页面查看投标文件并完成审核。",
-                            projectName, purchaserName, bidOpeningTime, submitterName),
-                    Map.of(
-                            "projectId", String.valueOf(projectId),
-                            "projectName", projectName,
-                            "tenderTitle", tenderTitle,
-                            "bidOpeningTime", bidOpeningTime,
-                            "purchaserName", purchaserName,
-                            "submitterName", submitterName,
-                            "targetUrl", "/project/" + projectId + "/drafting"),
-                    List.of(reviewerId)
-            ), submittedBy);
-            log.info("Bid review notification sent to reviewer={} for project={}", reviewerId, projectId);
-        } catch (RuntimeException e) {
-            log.warn("Bid review notification failed for project={} reviewer={}: {}",
-                    projectId, reviewerId, e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
-        }
+        projectNotificationService.notifyBidReviewSubmitted(
+                projectId, reviewerId, submittedBy,
+                tenderTitle, bidOpeningTime, purchaserName, submitterName);
     }
 
     private static BidReviewStatus parseStatus(String raw) {

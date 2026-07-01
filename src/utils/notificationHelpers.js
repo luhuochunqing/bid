@@ -69,8 +69,13 @@ export const parseNotificationPayload = (payloadJson) => {
 }
 
 export const resolveNotificationRoute = (item) => {
+  // 优先读取 payload.targetUrl（直达子页面 Tab）
+  const payload = parseNotificationPayload(item.payloadJson)
+  if (payload.targetUrl && typeof payload.targetUrl === 'string' && payload.targetUrl.startsWith('/')) {
+    return payload.targetUrl
+  }
+  
   if (item?.sourceEntityType === 'TASK') {
-    const payload = parseNotificationPayload(item.payloadJson)
     const projectId = Number(payload.projectId)
     const taskId = Number(item.sourceEntityId)
     if (!Number.isFinite(projectId) || projectId <= 0) return null

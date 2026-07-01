@@ -99,6 +99,19 @@ class ProjectNotificationServiceTest {
         }
 
         @Test
+        @DisplayName("sourceEntityType must be uppercase PROJECT (fix for CO-439 notification jump failure)")
+        void sourceEntityType_IsUppercasePROJECT() {
+            when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
+            when(userRepository.findEnabledByRoleProfileCodes(List.of("admin", "/bidAdmin", "bid-TeamLeader")))
+                    .thenReturn(List.of(user(1L, "张三")));
+
+            svc.notifyInitiationSubmitted(PID, UID);
+
+            verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
+            assertThat(requestCaptor.getValue().sourceEntityType()).isEqualTo("PROJECT");
+        }
+
+        @Test
         @DisplayName("project not found → skipped in sendNotification → no createNotification")
         void skipsWhenProjectNotFound() {
             svc.notifyInitiationSubmitted(PID, UID);
@@ -273,6 +286,63 @@ class ProjectNotificationServiceTest {
             svc.notifyBidReviewResult(PID, null, true, UID);
 
             verify(notificationService, never()).createNotification(any(), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("notifyBidReviewSubmitted")
+    class BidReviewSubmitted {
+
+        @Test
+        @DisplayName("sends BID_REVIEW with PROJECT sourceEntityType and targetUrl in payload")
+        void sendsBidReviewNotification() {
+            when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
+
+            svc.notifyBidReviewSubmitted(PID, 77L, UID,
+                    "测试标讯", "2026-07-01 10:00", "采购方", "提交人");
+
+            verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
+            CreateNotificationRequest req = requestCaptor.getValue();
+            assertThat(req.type()).isEqualTo("BID_REVIEW");
+            assertThat(req.sourceEntityType()).isEqualTo("PROJECT");
+            assertThat(req.sourceEntityId()).isEqualTo(PID);
+            assertThat(req.recipientUserIds()).containsExactly(77L);
+            assertThat(req.payload()).isNotNull();
+            assertThat(req.payload()).containsKey("targetUrl");
+            assertThat(req.payload().get("targetUrl")).isEqualTo("/project/100/drafting");
+        }
+
+        @Test
+        @DisplayName("null reviewerId → skipped")
+        void skipsWhenReviewerIsNull() {
+            svc.notifyBidReviewSubmitted(PID, null, UID,
+                    "测试标讯", "2026-07-01 10:00", "采购方", "提交人");
+
+            verify(notificationService, never()).createNotification(any(), any());
+        }
+
+        @Test
+        @DisplayName("project not found → skipped")
+        void skipsWhenProjectNotFound() {
+            when(projectRepository.findById(PID)).thenReturn(Optional.empty());
+
+            svc.notifyBidReviewSubmitted(PID, 77L, UID,
+                    "测试标讯", "2026-07-01 10:00", "采购方", "提交人");
+
+            verify(notificationService, never()).createNotification(any(), any());
+        }
+
+        @Test
+        @DisplayName("handles null tender fields gracefully")
+        void handlesNullTenderFields() {
+            when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
+
+            svc.notifyBidReviewSubmitted(PID, 77L, UID,
+                    null, null, null, null);
+
+            verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
+            CreateNotificationRequest req = requestCaptor.getValue();
+            assertThat(req.body()).contains("项目名称");
         }
     }
 

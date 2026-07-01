@@ -67,7 +67,7 @@ public class MentionApplicationService {
             request.sourceEntityId(),
             resolveTitle(request.title()),
             parsed.plainText(),
-            null,
+            request.payload(),
             recipients
         );
         DispatchResult dispatch =

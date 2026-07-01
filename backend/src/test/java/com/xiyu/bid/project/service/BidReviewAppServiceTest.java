@@ -5,7 +5,6 @@
 package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
-import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.project.core.BidReviewStatus;
 import com.xiyu.bid.project.entity.BidDocumentReviewEntity;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
@@ -15,6 +14,7 @@ import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -27,6 +27,9 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -41,7 +44,6 @@ import static org.mockito.Mockito.when;
 class BidReviewAppServiceTest {
 
     @Mock BidDocumentReviewRepository reviewRepository;
-    @Mock NotificationApplicationService notificationService;
     @Mock UserRepository userRepository;
     @Mock TenderRepository tenderRepository;
     @Mock ProjectRepository projectRepository;
@@ -55,7 +57,6 @@ class BidReviewAppServiceTest {
     void setUp() {
         service = new BidReviewAppService(
                 reviewRepository,
-                notificationService,
                 userRepository,
                 tenderRepository,
                 projectRepository,
@@ -246,5 +247,27 @@ class BidReviewAppServiceTest {
         service.submitForReview(1L, 99L, 100L);
 
         verify(reviewRepository).save(any(BidDocumentReviewEntity.class));
+    }
+
+    @Test
+    @DisplayName("submitForReview delegates notification to ProjectNotificationService (CO-439 fix)")
+    void submitForReview_delegatesToProjectNotificationService() {
+        com.xiyu.bid.entity.Project project = com.xiyu.bid.entity.Project.builder()
+                .id(1L)
+                .managerId(10L)
+                .teamMembers(java.util.List.of(11L, 12L))
+                .tenderId(1L)
+                .name("测试项目")
+                .build();
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(reviewRepository.findByProjectId(1L)).thenReturn(Optional.empty());
+        lenient().when(tenderRepository.findById(any())).thenReturn(Optional.empty());
+        lenient().when(userRepository.findById(any())).thenReturn(Optional.empty());
+
+        service.submitForReview(1L, 99L, 100L);
+
+        verify(projectNotificationService).notifyBidReviewSubmitted(
+                eq(1L), eq(99L), eq(100L),
+                any(), any(), any(), any());
     }
 }

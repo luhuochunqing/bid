@@ -25,7 +25,10 @@
           v-for="item in store.notifications"
           :key="item.id"
           class="notification-item"
-          :class="{ 'notification-item--unread': !item.read }"
+          :class="{
+            'notification-item--unread': !item.read,
+            'notification-item--clickable': getItemRoute(item)
+          }"
           role="button"
           tabindex="0"
           :aria-label="`${item.read ? '' : '未读 '}通知：${item.title}`"
@@ -40,8 +43,12 @@
           </div>
           <div class="notification-item-content">
             <div class="notification-item-title">{{ item.title }}</div>
+            <div v-if="item.body" class="notification-item-desc">{{ item.body }}</div>
             <div class="notification-item-time">{{ formatNotificationTime(item.createdAt) }}</div>
           </div>
+          <el-icon v-if="getItemRoute(item)" class="notification-item-arrow" aria-hidden="true">
+            <ArrowRight />
+          </el-icon>
           <div v-if="!item.read" class="notification-item-dot" aria-label="未读" />
         </div>
       </div>
@@ -56,6 +63,8 @@
 <script setup>
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { ArrowRight } from '@element-plus/icons-vue'
 import { useNotificationStore } from '@/stores/notifications'
 import {
   getNotificationIcon,
@@ -67,15 +76,27 @@ const emit = defineEmits(['close'])
 const router = useRouter()
 const store = useNotificationStore()
 
-const handleClick = async (item) => {
+const routeCache = new WeakMap()
+
+const getItemRoute = (item) => {
+  if (!item) return null
+  if (routeCache.has(item)) return routeCache.get(item)
+  const route = resolveNotificationRoute(item)
+  routeCache.set(item, route)
+  return route
+}
+
+const handleClick = (item) => {
+  const target = getItemRoute(item)
+  if (!target) {
+    ElMessage.info('该通知暂不支持跳转')
+    return
+  }
   if (!item.read) {
-    await store.markAsRead({ userNotificationId: item.id, notificationId: item.notificationId })
+    store.markAsRead({ userNotificationId: item.id, notificationId: item.notificationId })
   }
-  const target = resolveNotificationRoute(item)
-  if (target) {
-    router.push(target)
-    emit('close')
-  }
+  router.push(target)
+  emit('close')
 }
 
 const handleMarkAllRead = async () => {
@@ -135,18 +156,22 @@ onMounted(() => {
   align-items: flex-start;
   gap: 12px;
   padding: 12px 16px;
-  cursor: pointer;
+  cursor: default;
   border-bottom: 1px solid var(--border-color, #f1f5f9);
   transition: background 150ms ease;
   position: relative;
 }
 
-.notification-item:last-child {
-  border-bottom: none;
+.notification-item--clickable {
+  cursor: pointer;
 }
 
-.notification-item:hover {
+.notification-item--clickable:hover {
   background: var(--surface-hover, #f8fafc);
+}
+
+.notification-item:last-child {
+  border-bottom: none;
 }
 
 .notification-item--unread {
@@ -181,9 +206,27 @@ onMounted(() => {
   word-break: break-word;
 }
 
+.notification-item-desc {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-secondary, #64748b);
+  line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+
 .notification-item-time {
   margin-top: 4px;
   font-size: 12px;
+  color: var(--text-tertiary, #94a3b8);
+}
+
+.notification-item-arrow {
+  flex-shrink: 0;
+  margin-left: 8px;
   color: var(--text-tertiary, #94a3b8);
 }
 
