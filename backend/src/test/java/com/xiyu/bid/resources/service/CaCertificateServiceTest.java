@@ -48,6 +48,8 @@ class CaCertificateServiceTest {
     private EffectiveRoleResolver effectiveRoleResolver;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private CustodianEmployeeNumberResolver custodianEmployeeNumberResolver;
 
     // ── deactivate 保管员差异化校验 ──
 
@@ -179,7 +181,8 @@ class CaCertificateServiceTest {
                 platformLinkRepository,
                 passwordEncryptionUtil,
                 effectiveRoleResolver,
-                userRepository
+                userRepository,
+                custodianEmployeeNumberResolver
         );
     }
 

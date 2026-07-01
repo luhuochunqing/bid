@@ -23,6 +23,8 @@ public class CaCertificateDTO {
     private String caPlatformUrl;
     private Long custodianId;
     private String custodianName;
+    /** CO-451: 保管员工号，用于前端显示"姓名（工号）"格式 */
+    private String custodianEmployeeNumber;
     private String borrowStatus;
     private String status;
     private String remarks;
@@ -33,9 +35,12 @@ public class CaCertificateDTO {
      * Build a DTO from an entity. {@code platformIds} must be supplied
      * by the caller (from the join table). {@code caPassword} is masked
      * by default; pass {@code revealPassword=true} for admin reveal flows.
+     * CO-451: {@code custodianEmployeeNumber} is supplied by the caller
+     * (from User entity lookup).
      */
     public static CaCertificateDTO from(CaCertificateEntity entity, List<Long> platformIds,
-                                        boolean revealPassword, String decryptedPassword) {
+                                        boolean revealPassword, String decryptedPassword,
+                                        String custodianEmployeeNumber) {
         return CaCertificateDTO.builder()
                 .id(entity.getId())
                 .platformIds(platformIds == null ? Collections.emptyList() : platformIds)
@@ -49,6 +54,7 @@ public class CaCertificateDTO {
                 .caPlatformUrl(entity.getCaPlatformUrl())
                 .custodianId(entity.getCustodianId())
                 .custodianName(entity.getCustodianName())
+                .custodianEmployeeNumber(custodianEmployeeNumber)
                 .borrowStatus(entity.getBorrowStatus())
                 .status(entity.getStatus())
                 .remarks(entity.getRemarks())
@@ -57,8 +63,14 @@ public class CaCertificateDTO {
                 .build();
     }
 
+    /** Legacy overload for backward compatibility (custodianEmployeeNumber = null) */
+    public static CaCertificateDTO from(CaCertificateEntity entity, List<Long> platformIds,
+                                        boolean revealPassword, String decryptedPassword) {
+        return from(entity, platformIds, revealPassword, decryptedPassword, null);
+    }
+
     public static CaCertificateDTO from(CaCertificateEntity entity, List<Long> platformIds) {
-        return from(entity, platformIds, false, null);
+        return from(entity, platformIds, false, null, null);
     }
 
     private static String maskPassword(String stored) {

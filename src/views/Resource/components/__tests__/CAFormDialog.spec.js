@@ -358,3 +358,87 @@ describe('CAFormDialog.vue — CA 密码 reveal 权限控制', () => {
     expect(getPasswordMock).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('CAFormDialog.vue — CO-451 编辑时保管员字段显示为"姓名（工号）"', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    validateMock.mockReset()
+    validateMock.mockResolvedValue(true)
+    searchPlatformsMock.mockReset()
+    searchPlatformsMock.mockResolvedValue()
+    getPasswordMock.mockReset()
+    getPasswordMock.mockResolvedValue({ success: true, data: { caPassword: '真实密码123' } })
+    setUserRole('bid-Team', null)
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  // 编辑模式下，custodianId 和 custodianName 应正确填充到 form
+  it('编辑时 form.custodianId 和 form.custodianName 应从 ca 对象填充', async () => {
+    const wrapper = await mountDialog({
+      ca: {
+        id: 1, caType: 'ENTITY_CA', sealType: 'OFFICIAL_SEAL',
+        caPassword: '******', expiryDate: '2027-01-01',
+        custodianId: 42, custodianName: '保管员A', custodianEmployeeNumber: '20260101',
+        platformIds: []
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.vm.form.custodianId).toBe(42)
+    expect(wrapper.vm.form.custodianName).toBe('保管员A')
+    expect(wrapper.vm.form.custodianEmployeeNumber).toBe('20260101')
+  })
+
+  // 编辑模式下，custodianEmployeeNumber 应从 ca 对象填充（用于构造 initialOptions）
+  it('编辑时 form.custodianEmployeeNumber 应从 ca 对象填充', async () => {
+    const wrapper = await mountDialog({
+      ca: {
+        id: 1, caType: 'ENTITY_CA', sealType: 'OFFICIAL_SEAL',
+        caPassword: '******', expiryDate: '2027-01-01',
+        custodianId: 42, custodianName: '保管员A', custodianEmployeeNumber: '20260101',
+        platformIds: []
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.vm.form.custodianEmployeeNumber).toBe('20260101')
+  })
+
+  // 新增模式下，custodianEmployeeNumber 应为空
+  it('新增时 form.custodianEmployeeNumber 应为空', async () => {
+    const wrapper = await mountDialog({ ca: null })
+    await flushPromises()
+
+    expect(wrapper.vm.form.custodianEmployeeNumber).toBe('')
+  })
+
+  // 编辑模式下，initialOptions 应包含当前保管员（用于 UserPicker 显示）
+  it('编辑时 custodianInitialOptions 应包含当前保管员信息', async () => {
+    const wrapper = await mountDialog({
+      ca: {
+        id: 1, caType: 'ENTITY_CA', sealType: 'OFFICIAL_SEAL',
+        caPassword: '******', expiryDate: '2027-01-01',
+        custodianId: 42, custodianName: '保管员A', custodianEmployeeNumber: '20260101',
+        platformIds: []
+      }
+    })
+    await flushPromises()
+
+    const options = wrapper.vm.custodianInitialOptions
+    expect(options).toHaveLength(1)
+    expect(options[0].id).toBe(42)
+    expect(options[0].name).toBe('保管员A')
+    expect(options[0].employeeNumber).toBe('20260101')
+  })
+
+  // 新增模式下，custodianInitialOptions 应为空数组
+  it('新增时 custodianInitialOptions 应为空数组', async () => {
+    const wrapper = await mountDialog({ ca: null })
+    await flushPromises()
+
+    expect(wrapper.vm.custodianInitialOptions).toEqual([])
+  })
+})

@@ -104,9 +104,11 @@
       </el-form-item>
 
       <el-form-item label="保管员" prop="custodianId">
+        <!-- CO-451: 编辑模式下传入 initialOptions 以显示"姓名（工号）"格式 -->
         <UserPicker
           v-model="form.custodianId"
           mode="search"
+          :initial-options="custodianInitialOptions"
           placeholder="搜索选择保管员"
           clearable
           style="width: 100%"
@@ -148,11 +150,9 @@
 <script setup>
 import { ref, reactive, computed, watch } from 'vue'
 import { usePlatformAccountSearch } from '@/composables/usePlatformAccountSearch.js'
-import { useUserStore } from '@/stores/user'
-import { isBidManager } from '@/utils/permission'
-import { caApi } from '@/api/modules/ca.js'
 import UserPicker from '@/components/common/UserPicker.vue'
 import { View, Hide } from '@element-plus/icons-vue'
+import { useCaPasswordReveal } from '../composables/useCaPasswordReveal'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -171,17 +171,6 @@ const isEdit = computed(() => !!props.ca?.id)
 const formRef = ref(null)
 const { platformOptions, platformOptionsLoading, searchPlatforms } = usePlatformAccountSearch()
 
-const passwordRevealed = ref(false)
-const passwordLoading = ref(false)
-const userStore = useUserStore()
-const canViewPassword = computed(() => {
-  if (!isEdit.value) return false
-  if (isBidManager(userStore.userRole)) return true
-  const currentId = userStore.currentUser?.id
-  const custodianId = props.ca?.custodianId
-  return currentId != null && custodianId != null && String(currentId) === String(custodianId)
-})
-
 function createDefaultForm() {
   return {
     platformIds: [],
@@ -195,21 +184,16 @@ function createDefaultForm() {
     caPlatformUrl: '',
     custodianName: '',
     custodianId: '',
+    // CO-451: 保管人工号，用于构造 initialOptions
+    custodianEmployeeNumber: '',
     status: 'ACTIVE',
     remarks: ''
   }
 }
 const form = reactive(createDefaultForm())
 
-// 点击眼睛按钮：加载真实密码（再次点击隐藏）
-async function handleRevealPassword() {
-  if (passwordRevealed.value) { passwordRevealed.value = false; form.caPassword = ''; return }
-  passwordLoading.value = true
-  try {
-    const res = await caApi.getPassword(props.ca.id)
-    if (res?.success && res?.data?.caPassword) { form.caPassword = res.data.caPassword; passwordRevealed.value = true }
-  } finally { passwordLoading.value = false }
-}
+const { passwordRevealed, passwordLoading, canViewPassword, resetPasswordState, handleRevealPassword } =
+  useCaPasswordReveal(isEdit, computed(() => props.ca), form)
 
 function onCustodianSelect(user) {
   if (user) {
@@ -219,7 +203,7 @@ function onCustodianSelect(user) {
 
 // Watch external data changes
 watch(() => props.ca, (ca) => {
-  passwordRevealed.value = false  // 重置密码显示状态
+  resetPasswordState()  // 重置密码显示状态
   if (ca) {
     form.id = ca.id
     form.platformIds = Array.isArray(ca.platformIds)
@@ -239,6 +223,8 @@ watch(() => props.ca, (ca) => {
     form.caPlatformUrl = ca.caPlatformUrl || ''
     form.custodianId = ca.custodianId || ''
     form.custodianName = ca.custodianName || ''
+    // CO-451: 填充保管人工号
+    form.custodianEmployeeNumber = ca.custodianEmployeeNumber || ''
     form.status = ca.status || 'ACTIVE'
     form.remarks = ca.remarks || ca.remark || ''
   } else {
@@ -251,6 +237,17 @@ watch(() => props.ca, (ca) => {
 
 watch(visible, (open) => {
   if (open) searchPlatforms('')
+})
+
+// CO-451: 编辑模式下为 UserPicker 提供 initialOptions（用于显示"姓名（工号）"格式）
+const custodianInitialOptions = computed(() => {
+  if (!props.ca?.custodianId) return []
+  return [{
+    id: props.ca.custodianId,
+    name: props.ca.custodianName,
+    fullName: props.ca.custodianName,
+    employeeNumber: props.ca.custodianEmployeeNumber || ''
+  }]
 })
 
 // When CA type changes to ENTITY_CA, clear electronic account

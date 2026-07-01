@@ -37,6 +37,7 @@ public class CaCertificateService {
     private final PasswordEncryptionUtil passwordEncryptionUtil;
     private final EffectiveRoleResolver effectiveRoleResolver;
     private final UserRepository userRepository;
+    private final CustodianEmployeeNumberResolver custodianEmployeeNumberResolver;
 
     // ========== CA 证书 CRUD ==========
 
@@ -50,6 +51,8 @@ public class CaCertificateService {
         String rawPassword = request.getCaPassword();
         String storedPassword = (rawPassword == null || rawPassword.isBlank())
                 ? null : passwordEncryptionUtil.encrypt(rawPassword);
+        // CO-451: 从 User 表获取保管员工号
+        String custodianEmployeeNumber = custodianEmployeeNumberResolver.fetchEmployeeNumber(request.getCustodianId());
         CaCertificateEntity entity = CaCertificateEntity.builder()
                 .caType(request.getCaType())
                 .sealType(request.getSealType())
@@ -67,7 +70,7 @@ public class CaCertificateService {
                 .build();
         CaCertificateEntity saved = certificateRepository.save(entity);
         List<Long> platformIds = persistPlatformLinks(saved.getId(), request.getPlatformIds());
-        return CaCertificateDTO.from(saved, platformIds);
+        return CaCertificateDTO.from(saved, platformIds, false, null, custodianEmployeeNumber);
     }
 
     @Transactional
@@ -91,7 +94,9 @@ public class CaCertificateService {
         entity.setRemarks(request.getRemarks());
         CaCertificateEntity saved = certificateRepository.save(entity);
         List<Long> platformIds = persistPlatformLinks(saved.getId(), request.getPlatformIds());
-        return CaCertificateDTO.from(saved, platformIds);
+        // CO-451: 从 User 表获取保管员工号
+        String custodianEmployeeNumber = custodianEmployeeNumberResolver.fetchEmployeeNumber(request.getCustodianId());
+        return CaCertificateDTO.from(saved, platformIds, false, null, custodianEmployeeNumber);
     }
 
     /**
@@ -151,7 +156,9 @@ public class CaCertificateService {
     public CaCertificateDTO getById(Long id) {
         CaCertificateEntity entity = certificateRepository.findById(id)
                 .orElseThrow(() -> new CaBusinessException("CA证书不存在: " + id));
-        return CaCertificateDTO.from(entity, loadPlatformIds(id));
+        // CO-451: 从 User 表获取保管员工号
+        String custodianEmployeeNumber = custodianEmployeeNumberResolver.fetchEmployeeNumber(entity.getCustodianId());
+        return CaCertificateDTO.from(entity, loadPlatformIds(id), false, null, custodianEmployeeNumber);
     }
 
     /**
@@ -171,7 +178,9 @@ public class CaCertificateService {
             throw new AccessDeniedException("无权查看此 CA 证书的密码");
         }
         String decrypted = passwordEncryptionUtil.decrypt(entity.getCaPassword());
-        return CaCertificateDTO.from(entity, loadPlatformIds(id), true, decrypted);
+        // CO-451: 从 User 表获取保管员工号
+        String custodianEmployeeNumber = custodianEmployeeNumberResolver.fetchEmployeeNumber(entity.getCustodianId());
+        return CaCertificateDTO.from(entity, loadPlatformIds(id), true, decrypted, custodianEmployeeNumber);
     }
 
     /**
@@ -233,8 +242,15 @@ public class CaCertificateService {
             }
             return cb.and(predicates.toArray(new Predicate[0]));
         };
-        return certificateRepository.findAll(spec, pageable)
-                .map(entity -> CaCertificateDTO.from(entity, loadPlatformIds(entity.getId())));
+        Page<CaCertificateEntity> entityPage = certificateRepository.findAll(spec, pageable);
+        // CO-451: 批量获取保管员工号
+        Map<Long, String> employeeNumberMap = custodianEmployeeNumberResolver.batchFetchEmployeeNumbers(
+                entityPage.stream().map(CaCertificateEntity::getCustodianId).toList()
+        );
+        return entityPage.map(entity -> CaCertificateDTO.from(
+                entity, loadPlatformIds(entity.getId()), false, null,
+                employeeNumberMap.get(entity.getCustodianId())
+        ));
     }
 
     public Map<String, Long> getOverview() {

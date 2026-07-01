@@ -93,6 +93,8 @@ export function normalizeCaCertificate(item) {
     // 保管人
     custodianId: item.custodianId || '',
     custodianName: item.custodianName || '-',
+    // CO-451: 保管人工号，用于显示"姓名（工号）"格式
+    custodianEmployeeNumber: item.custodianEmployeeNumber || '',
     // 借用状态
     borrowStatus: item.borrowStatus || 'IN_STOCK',
     borrowStatusLabel: BORROW_STATUS_MAP[item.borrowStatus] || item.borrowStatus || '在库',

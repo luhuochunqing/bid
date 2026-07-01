@@ -79,9 +79,8 @@
 
             <el-descriptions-item label="平台地址/APP">{{ ca.caPlatformUrl || '-' }}</el-descriptions-item>
 
-            <el-descriptions-item label="保管员">{{ ca.custodianName || '-' }}</el-descriptions-item>
-
-            <el-descriptions-item label="保管员ID">{{ ca.custodianId || '-' }}</el-descriptions-item>
+            <!-- CO-451: 保管员显示为"姓名（工号）"格式，删除保管员ID字段 -->
+            <el-descriptions-item label="保管员">{{ formatDisplayName(ca.custodianName, ca.custodianEmployeeNumber) }}</el-descriptions-item>
 
             <el-descriptions-item v-if="ca.remark" label="备注">{{ ca.remark }}</el-descriptions-item>
 
@@ -190,6 +189,7 @@ import {
   caApplicationStatusTagType,
   caEventTypeColor
 } from '../composables/useCaBorrowEligibility'
+import { formatDisplayName } from '@/utils/formatDisplayName'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },

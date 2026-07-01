@@ -117,7 +117,8 @@
           </template>
         </el-table-column>
         <el-table-column label="保管员" min-width="100">
-          <template #default="{ row }">{{ row.custodianName || '-' }}</template>
+          <!-- CO-451: 保管员显示为"姓名（工号）"格式 -->
+          <template #default="{ row }">{{ formatDisplayName(row.custodianName, row.custodianEmployeeNumber) || '-' }}</template>
         </el-table-column>
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
@@ -165,7 +166,8 @@
           <template #default="{ row }">{{ row.sealTypeLabel }}</template>
         </el-table-column>
         <el-table-column label="保管员" min-width="100">
-          <template #default="{ row }">{{ row.custodianName || '-' }}</template>
+          <!-- CO-451: 保管员显示为"姓名（工号）"格式 -->
+          <template #default="{ row }">{{ formatDisplayName(row.custodianName, row.custodianEmployeeNumber) || '-' }}</template>
         </el-table-column>
         <el-table-column label="操作" width="160" fixed="right">
           <template #default="{ row }">
@@ -237,6 +239,7 @@ import { projectsApi } from '@/api'
 import httpClient from '@/api/client'
 import { isBidManager } from '@/utils/permission'
 import { useCaBorrowEligibility, caStatusTagType, caBorrowStatusTagType } from './composables/useCaBorrowEligibility'
+import { formatDisplayName } from '@/utils/formatDisplayName'
 import CADetailDialog from './components/CADetailDialog.vue'
 import CAFormDialog from './components/CAFormDialog.vue'
 import CABorrowDialog from './components/CABorrowDialog.vue'
