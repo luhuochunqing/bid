@@ -1,9 +1,0 @@
-version: 1
-task: "co302-crm-customer-host-fix"
-locks:
-  - path: "backend/src/main/resources/application.yml"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/codex/co302-crm-customer-host-fix"
-    expiresAt: "2026-06-29T13:45:30.752Z"
-    reason: "CO-302: 新增 cac-base-url 配置项"

@@ -1,9 +1,0 @@
-version: 1
-task: "flyway-p2-syntax-guard"
-locks:
-  - path: ".githooks"
-    scope: "directory"
-    owner: "agent"
-    branch: "agent/trae/flyway-p2-syntax-guard"
-    expiresAt: "2026-06-29T08:51:05.470Z"
-    reason: "P2:加 Flyway 语法守卫和逃生阀追踪到 pre-commit"

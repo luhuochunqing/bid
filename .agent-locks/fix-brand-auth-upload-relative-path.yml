@@ -1,9 +1,0 @@
-version: 1
-task: "fix-brand-auth-upload-relative-path"
-locks:
-  - path: "backend/src/main/resources/application-prod.yml"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/kimi/fix-brand-auth-upload-relative-path"
-    expiresAt: "2026-07-01T13:12:52.517Z"
-    reason: "fix brand-auth upload relative path bug (traceId=1d5fa3c3c9e8459298b10d001aca6538)"

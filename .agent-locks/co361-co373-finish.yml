@@ -1,9 +1,0 @@
-version: 1
-task: "co361-co373-finish"
-locks:
-  - path: "backend/src/main/java/com/xiyu/bid/entity/User.java"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/minimax/co361-co373-finish"
-    expiresAt: "2026-06-29T03:46:33.523Z"
-    reason: "CO-373: User.getRoleCode() 标记 @Deprecated + javadoc 治理说明（不改字段/逻辑）"
