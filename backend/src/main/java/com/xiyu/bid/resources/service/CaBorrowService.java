@@ -7,13 +7,18 @@ import com.xiyu.bid.resources.dto.CaBorrowEventDTO;
 import com.xiyu.bid.resources.dto.CaBorrowRequest;
 import com.xiyu.bid.resources.dto.CaReturnRequest;
 import com.xiyu.bid.resources.entity.CaBorrowApplicationEntity;
+import com.xiyu.bid.resources.entity.CaBorrowApplicationEntity.BorrowStatus;
+import com.xiyu.bid.resources.entity.CaBorrowApplicationEntity.BorrowDurationType;
 import com.xiyu.bid.resources.entity.CaBorrowEventEntity;
 import com.xiyu.bid.resources.entity.CaCertificateEntity;
+import com.xiyu.bid.resources.entity.CaCertificateEntity.CaBorrowStatus;
 import com.xiyu.bid.resources.notification.CaNotificationDispatcher;
 import com.xiyu.bid.resources.repository.CaBorrowApplicationRepository;
 import com.xiyu.bid.resources.repository.CaBorrowEventRepository;
 import com.xiyu.bid.resources.repository.CaCertificateRepository;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +31,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CaBorrowService {
 
     private final CaCertificateRepository certificateRepository;
@@ -33,6 +39,7 @@ public class CaBorrowService {
     private final CaBorrowEventRepository eventRepository;
     private final UserRepository userRepository;
     private final CaNotificationDispatcher caNotificationDispatcher;
+    private final EffectiveRoleResolver effectiveRoleResolver;
 
     // ========== CA 借用申请 ==========
 
@@ -45,7 +52,7 @@ public class CaBorrowService {
         if (!"ENTITY_CA".equals(cert.getCaType())) {
             throw new CaBusinessException("电子CA无需借用");
         }
-        if (!"IN_STOCK".equals(cert.getBorrowStatus())) {
+        if (!CaBorrowStatus.IN_STOCK.name().equals(cert.getBorrowStatus())) {
             throw new CaBusinessException("CA当前不可借用，状态: " + cert.getBorrowStatus());
         }
         if ("EXPIRED".equals(cert.getStatus())) {
@@ -62,7 +69,7 @@ public class CaBorrowService {
                 .borrowDurationType(request.getBorrowDurationType())
                 .expectedReturnDate(request.getExpectedReturnDate())
                 .commitmentLetterUrl(request.getCommitmentLetterUrl())
-                .status("PENDING_APPROVAL")
+                .status(BorrowStatus.PENDING_APPROVAL.name())
                 .approverId(cert.getCustodianId())
                 .approverName(cert.getCustodianName())
                 .build();
@@ -73,10 +80,9 @@ public class CaBorrowService {
                 .eventType("SUBMITTED")
                 .actorId(user.getId())
                 .actorName(user.getUsername())
-                .statusAfter("PENDING_APPROVAL")
+                .statusAfter(BorrowStatus.PENDING_APPROVAL.name())
                 .build());
 
-        // IJTHTX 修复：提交借用申请后通知 CA 保管员
         caNotificationDispatcher.onBorrowSubmitted(cert, app);
 
         return CaBorrowApplicationDTO.from(app);
@@ -87,44 +93,41 @@ public class CaBorrowService {
         User user = resolveUser(userDetails);
         CaBorrowApplicationEntity app = borrowRepository.findById(applicationId)
                 .orElseThrow(() -> new CaBusinessException("借用申请不存在"));
-        if (!"PENDING_APPROVAL".equals(app.getStatus())) {
+        if (!BorrowStatus.PENDING_APPROVAL.name().equals(app.getStatus())) {
             throw new CaBusinessException("申请状态不允许审批: " + app.getStatus());
         }
-        if (!app.getApproverId().equals(user.getId())) {
-            throw new CaBusinessException("仅CA保管员可审批此申请");
-        }
+        CaBorrowPermissionChecker.requireCustodianOrPrivilegedRole(app, user, effectiveRoleResolver.resolveRoleCode(user));
 
         String statusBefore = app.getStatus();
-        app.setStatus("APPROVED");
+        app.setStatus(BorrowStatus.APPROVED.name());
         app.setApprovalComment(comment);
         app.setApprovedAt(LocalDateTime.now());
         borrowRepository.save(app);
 
         CaCertificateEntity cert = certificateRepository.findById(app.getCaCertificateId()).orElse(null);
         if (cert != null) {
-            if ("LONG_TERM".equals(app.getBorrowDurationType())) {
+            if (BorrowDurationType.LONG_TERM.name().equals(app.getBorrowDurationType())) {
                 cert.setCustodianId(app.getApplicantId());
                 cert.setCustodianName(app.getApplicantName());
-                cert.setBorrowStatus("IN_STOCK");
+                cert.setBorrowStatus(CaBorrowStatus.IN_STOCK.name());
             } else {
-                cert.setBorrowStatus("BORROWED");
+                cert.setBorrowStatus(CaBorrowStatus.BORROWED.name());
             }
             certificateRepository.save(cert);
         }
 
         eventRepository.save(CaBorrowEventEntity.builder()
                 .applicationId(app.getId())
-                .eventType("APPROVED")
+                .eventType(BorrowStatus.APPROVED.name())
                 .actorId(user.getId())
                 .actorName(user.getUsername())
                 .comment(comment)
                 .statusBefore(statusBefore)
-                .statusAfter("APPROVED")
+                .statusAfter(BorrowStatus.APPROVED.name())
                 .build());
 
-        // 通知申请人审批通过
         caNotificationDispatcher.onBorrowApproved(app);
-
+        log.info("CA借用申请 {} 由用户 {} 审批通过", applicationId, user.getId());
         return CaBorrowApplicationDTO.from(app);
     }
 
@@ -133,28 +136,27 @@ public class CaBorrowService {
         User user = resolveUser(userDetails);
         CaBorrowApplicationEntity app = borrowRepository.findById(applicationId)
                 .orElseThrow(() -> new CaBusinessException("借用申请不存在"));
-        if (!"PENDING_APPROVAL".equals(app.getStatus())) {
+        if (!BorrowStatus.PENDING_APPROVAL.name().equals(app.getStatus())) {
             throw new CaBusinessException("申请状态不允许审批: " + app.getStatus());
         }
-        if (!app.getApproverId().equals(user.getId())) {
-            throw new CaBusinessException("仅CA保管员可审批此申请");
-        }
+        CaBorrowPermissionChecker.requireCustodianOrPrivilegedRole(app, user, effectiveRoleResolver.resolveRoleCode(user));
 
         String statusBefore = app.getStatus();
-        app.setStatus("REJECTED");
+        app.setStatus(BorrowStatus.REJECTED.name());
         app.setApprovalComment(comment);
         borrowRepository.save(app);
 
         eventRepository.save(CaBorrowEventEntity.builder()
                 .applicationId(app.getId())
-                .eventType("REJECTED")
+                .eventType(BorrowStatus.REJECTED.name())
                 .actorId(user.getId())
                 .actorName(user.getUsername())
                 .comment(comment)
                 .statusBefore(statusBefore)
-                .statusAfter("REJECTED")
+                .statusAfter(BorrowStatus.REJECTED.name())
                 .build());
 
+        log.info("CA借用申请 {} 由用户 {} 拒绝，原因: {}", applicationId, user.getId(), comment);
         return CaBorrowApplicationDTO.from(app);
     }
 
@@ -163,36 +165,37 @@ public class CaBorrowService {
         User user = resolveUser(userDetails);
         CaBorrowApplicationEntity app = borrowRepository.findById(applicationId)
                 .orElseThrow(() -> new CaBusinessException("借用申请不存在"));
-        if (!"APPROVED".equals(app.getStatus())) {
+        if (!BorrowStatus.APPROVED.name().equals(app.getStatus())) {
             throw new CaBusinessException("仅已通过的申请可登记归还: " + app.getStatus());
         }
 
         CaCertificateEntity cert = certificateRepository.findById(app.getCaCertificateId()).orElse(null);
         if (cert == null) throw new CaBusinessException("CA证书不存在");
 
+        CaBorrowPermissionChecker.requireCustodianOrPrivilegedRole(app, user, effectiveRoleResolver.resolveRoleCode(user));
+
         String statusBefore = app.getStatus();
-        app.setStatus("RETURNED");
+        app.setStatus(BorrowStatus.RETURNED.name());
         app.setActualReturnDate(request.getActualReturnDate());
         app.setReturnNotes(request.getReturnNotes());
         app.setReturnedAt(LocalDateTime.now());
         borrowRepository.save(app);
 
-        if (!"LONG_TERM".equals(app.getBorrowDurationType())) {
-            cert.setBorrowStatus("IN_STOCK");
+        if (!BorrowDurationType.LONG_TERM.name().equals(app.getBorrowDurationType())) {
+            cert.setBorrowStatus(CaBorrowStatus.IN_STOCK.name());
         }
         certificateRepository.save(cert);
 
         eventRepository.save(CaBorrowEventEntity.builder()
                 .applicationId(app.getId())
-                .eventType("RETURNED")
+                .eventType(BorrowStatus.RETURNED.name())
                 .actorId(user.getId())
                 .actorName(user.getUsername())
                 .comment(request.getReturnNotes())
                 .statusBefore(statusBefore)
-                .statusAfter("RETURNED")
+                .statusAfter(BorrowStatus.RETURNED.name())
                 .build());
 
-        // IJTHTX 修复：归还后检查 CA 是否即将到期 / 已过期
         if (cert != null) {
             long daysLeft = ChronoUnit.DAYS.between(LocalDate.now(), cert.getExpiryDate());
             if (daysLeft < 0) {
@@ -202,6 +205,7 @@ public class CaBorrowService {
             }
         }
 
+        log.info("CA借用申请 {} 由用户 {} 登记归还", applicationId, user.getId());
         return CaBorrowApplicationDTO.from(app);
     }
 
@@ -210,7 +214,7 @@ public class CaBorrowService {
         User user = resolveUser(userDetails);
         CaBorrowApplicationEntity app = borrowRepository.findById(applicationId)
                 .orElseThrow(() -> new CaBusinessException("借用申请不存在"));
-        if (!"PENDING_APPROVAL".equals(app.getStatus())) {
+        if (!BorrowStatus.PENDING_APPROVAL.name().equals(app.getStatus())) {
             throw new CaBusinessException("仅待审批的申请可取消");
         }
         if (!app.getApplicantId().equals(user.getId())) {
@@ -218,16 +222,16 @@ public class CaBorrowService {
         }
 
         String statusBefore = app.getStatus();
-        app.setStatus("CANCELLED");
+        app.setStatus(BorrowStatus.CANCELLED.name());
         borrowRepository.save(app);
 
         eventRepository.save(CaBorrowEventEntity.builder()
                 .applicationId(app.getId())
-                .eventType("CANCELLED")
+                .eventType(BorrowStatus.CANCELLED.name())
                 .actorId(user.getId())
                 .actorName(user.getUsername())
                 .statusBefore(statusBefore)
-                .statusAfter("CANCELLED")
+                .statusAfter(BorrowStatus.CANCELLED.name())
                 .build());
 
         return CaBorrowApplicationDTO.from(app);
@@ -245,9 +249,40 @@ public class CaBorrowService {
                 .stream().map(CaBorrowEventDTO::from).collect(Collectors.toList());
     }
 
+    /**
+     * CO-459: 待审批列表 —— 数据库层面过滤，管理员返回全部待审批，保管员返回自己的。
+     */
     public List<CaBorrowApplicationDTO> getPendingApprovals(UserDetails userDetails) {
         User user = resolveUser(userDetails);
-        return borrowRepository.findByApproverIdAndStatus(user.getId(), "PENDING_APPROVAL")
+        String roleCode = effectiveRoleResolver.resolveRoleCode(user);
+        if (CaBorrowPermissionChecker.isPrivilegedRole(roleCode)) {
+            return borrowRepository.findByStatusOrderByCreatedAtDesc(BorrowStatus.PENDING_APPROVAL.name())
+                    .stream().map(CaBorrowApplicationDTO::from).collect(Collectors.toList());
+        }
+        return borrowRepository.findByApproverIdAndStatus(user.getId(), BorrowStatus.PENDING_APPROVAL.name())
+                .stream().map(CaBorrowApplicationDTO::from).collect(Collectors.toList());
+    }
+
+    /**
+     * CO-459: 我的借用申请 —— 返回当前用户作为申请人的全部申请。
+     */
+    public List<CaBorrowApplicationDTO> getMyBorrowApplications(UserDetails userDetails) {
+        User user = resolveUser(userDetails);
+        return borrowRepository.findByApplicantIdOrderByCreatedAtDesc(user.getId())
+                .stream().map(CaBorrowApplicationDTO::from).collect(Collectors.toList());
+    }
+
+    /**
+     * CO-459: 我的审批 Tab —— 管理员返回全部申请，保管员返回自己的。
+     */
+    public List<CaBorrowApplicationDTO> findAllApprovals(UserDetails userDetails) {
+        User user = resolveUser(userDetails);
+        String roleCode = effectiveRoleResolver.resolveRoleCode(user);
+        if (CaBorrowPermissionChecker.isPrivilegedRole(roleCode)) {
+            return borrowRepository.findAllByOrderByCreatedAtDesc()
+                    .stream().map(CaBorrowApplicationDTO::from).collect(Collectors.toList());
+        }
+        return borrowRepository.findByApproverIdOrderByCreatedAtDesc(user.getId())
                 .stream().map(CaBorrowApplicationDTO::from).collect(Collectors.toList());
     }
 

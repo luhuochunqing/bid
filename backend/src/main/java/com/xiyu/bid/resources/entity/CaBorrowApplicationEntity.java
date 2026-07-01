@@ -45,7 +45,22 @@ public class CaBorrowApplicationEntity {
 
     @Column(name = "status", length = 30, nullable = false)
     @Builder.Default
-    private String status = "PENDING_APPROVAL";
+    private String status = BorrowStatus.PENDING_APPROVAL.name();
+
+    /** CO-459: 借用申请状态枚举，消除魔法字符串。 */
+    public enum BorrowStatus {
+        PENDING_APPROVAL,
+        APPROVED,
+        REJECTED,
+        RETURNED,
+        CANCELLED
+    }
+
+    /** CO-459: 借用时长类型枚举。 */
+    public enum BorrowDurationType {
+        SHORT_TERM,
+        LONG_TERM
+    }
 
     @Column(name = "approver_id")
     private Long approverId;

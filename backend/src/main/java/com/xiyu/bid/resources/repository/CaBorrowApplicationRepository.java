@@ -16,4 +16,13 @@ public interface CaBorrowApplicationRepository extends JpaRepository<CaBorrowApp
     List<CaBorrowApplicationEntity> findByApproverIdAndStatus(Long approverId, String status);
 
     List<CaBorrowApplicationEntity> findByCaCertificateIdAndStatus(Long caCertificateId, String status);
+
+    // CO-459: 管理员查看全部借用申请（不限状态）
+    List<CaBorrowApplicationEntity> findAllByOrderByCreatedAtDesc();
+
+    // CO-459: 按审批人查询全部申请（不限状态）
+    List<CaBorrowApplicationEntity> findByApproverIdOrderByCreatedAtDesc(Long approverId);
+
+    // CO-459: 按状态查询（数据库层面过滤，避免内存过滤）
+    List<CaBorrowApplicationEntity> findByStatusOrderByCreatedAtDesc(String status);
 }

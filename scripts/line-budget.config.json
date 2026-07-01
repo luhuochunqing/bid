@@ -41,6 +41,7 @@
         "backend/src/main/java/com/xiyu/bid/tender/service/TenderCommandService.java",
         "backend/src/main/java/com/xiyu/bid/tender/service/TenderMapper.java",
         "backend/src/main/java/com/xiyu/bid/resources/service/CaCertificateService.java",
+        "src/api/modules/ca.js",
         "package.json",
         "src/api/modules/knowledge.js",
         "src/api/modules/settings.js",

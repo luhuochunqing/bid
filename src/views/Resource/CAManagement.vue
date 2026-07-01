@@ -49,18 +49,21 @@
       </el-form>
     </el-card>
 
-    <!-- Table -->
+    <!-- CO-459: Tabs 切换（CA证书列表 / 我的申请 / 我的审批） -->
     <el-card shadow="never">
-      <template #header>
-        <div class="card-header">
-          <span>CA 证书列表</span>
-          <div class="header-actions">
-            <el-button @click="loadData"><el-icon><Refresh /></el-icon>刷新</el-button>
-            <el-button v-if="canCreate" type="primary" @click="handleCreate"><el-icon><Plus /></el-icon>新增</el-button>
-            <el-button v-if="canCreate" @click="showImportDialog = true"><el-icon><Upload /></el-icon>批量导入</el-button>
+      <el-tabs v-model="activeTab" @tab-change="onTabChange">
+        <!-- Tab 1: CA 证书列表 -->
+        <el-tab-pane label="CA证书列表" name="certificates">
+          <template #label>
+            <span>CA证书列表</span>
+          </template>
+          <div class="tab-header">
+            <div class="header-actions">
+              <el-button @click="loadData"><el-icon><Refresh /></el-icon>刷新</el-button>
+              <el-button v-if="canCreate" type="primary" @click="handleCreate"><el-icon><Plus /></el-icon>新增</el-button>
+              <el-button v-if="canCreate" @click="showImportDialog = true"><el-icon><Upload /></el-icon>批量导入</el-button>
+            </div>
           </div>
-        </div>
-      </template>
 
       <!-- Admin/Manager View: 10-column full view -->
       <div v-if="isManagerView" class="ca-table-wrapper">
@@ -183,6 +186,79 @@
         </el-table-column>
       </el-table>
       </div>
+        </el-tab-pane>
+
+        <!-- CO-459: Tab 2: 我的申请 -->
+        <el-tab-pane label="我的申请" name="myApplications">
+          <el-table
+            v-loading="myApplicationsLoading"
+            :data="myApplications"
+            stripe
+            empty-text="暂无借用申请"
+          >
+            <el-table-column type="index" label="序号" width="70" />
+            <el-table-column label="关联CA" min-width="140">
+              <template #default="{ row }">{{ row.caName || `CA#${row.caCertificateId}` }}</template>
+            </el-table-column>
+            <el-table-column label="借用时间" min-width="120">
+              <template #default="{ row }">{{ row.borrowDate || '-' }}</template>
+            </el-table-column>
+            <el-table-column label="预计归还" min-width="120">
+              <template #default="{ row }">{{ row.expectedReturnDate || '-' }}</template>
+            </el-table-column>
+            <el-table-column label="状态" width="100">
+              <template #default="{ row }">
+                <el-tag :type="applicationStatusType(row.status)" size="small">{{ row.statusLabel }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="100" fixed="right">
+              <template #default="{ row }">
+                <el-button v-if="row.status === 'PENDING_APPROVAL'" link type="danger" size="small" @click="handleCancelApplication(row)">撤销</el-button>
+                <span v-else class="op-placeholder">--</span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+
+        <!-- CO-459: Tab 3: 我的审批 -->
+        <el-tab-pane label="我的审批" name="myApprovals">
+          <el-table
+            v-loading="myApprovalsLoading"
+            :data="myApprovals"
+            stripe
+            empty-text="暂无待审批申请"
+          >
+            <el-table-column type="index" label="序号" width="70" />
+            <el-table-column label="关联CA" min-width="140">
+              <template #default="{ row }">{{ row.caName || `CA#${row.caCertificateId}` }}</template>
+            </el-table-column>
+            <el-table-column label="申请人" min-width="100">
+              <template #default="{ row }">{{ row.applicantName || '-' }}</template>
+            </el-table-column>
+            <el-table-column label="借用时间" min-width="120">
+              <template #default="{ row }">{{ row.borrowDate || '-' }}</template>
+            </el-table-column>
+            <el-table-column label="预计归还" min-width="120">
+              <template #default="{ row }">{{ row.expectedReturnDate || '-' }}</template>
+            </el-table-column>
+            <el-table-column label="状态" width="100">
+              <template #default="{ row }">
+                <el-tag :type="applicationStatusType(row.status)" size="small">{{ row.statusLabel }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="200" fixed="right">
+              <template #default="{ row }">
+                <template v-if="row.status === 'PENDING_APPROVAL'">
+                  <el-button link type="primary" size="small" @click="handleApproveApplication(row)">通过</el-button>
+                  <el-button link type="danger" size="small" @click="handleRejectApplication(row)">拒绝</el-button>
+                </template>
+                <el-button v-else-if="row.status === 'APPROVED' && row.borrowDurationType !== 'LONG_TERM'" link type="warning" size="small" @click="handleOpenReturnFromApproval(row)">登记归还</el-button>
+                <span v-else class="op-placeholder">--</span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+      </el-tabs>
     </el-card>
 
     <!-- Detail Dialog -->
@@ -252,6 +328,13 @@ const caStore = useCaStore()
 const { canBorrow, canManage, canReturn } = useCaBorrowEligibility()
 
 const projectOptions = ref([])
+
+// CO-459: Tab 状态
+const activeTab = ref('certificates')
+const myApplications = ref([])
+const myApprovals = ref([])
+const myApplicationsLoading = ref(false)
+const myApprovalsLoading = ref(false)
 
 const borrowUploadUrl = computed(() => {
   const base = httpClient.defaults?.baseURL || ''
@@ -531,6 +614,110 @@ async function loadProjects() {
   } catch { projectOptions.value = [] }
 }
 
+// CO-459: Tab 切换处理
+async function onTabChange(tabName) {
+  if (tabName === 'myApplications') {
+    await loadMyApplications()
+  } else if (tabName === 'myApprovals') {
+    await loadMyApprovals()
+  }
+}
+
+async function loadMyApplications() {
+  myApplicationsLoading.value = true
+  try {
+    const res = await caApi.getMyBorrowApplications()
+    myApplications.value = res?.data || []
+  } catch {
+    ElMessage.error('加载我的借用申请失败')
+    myApplications.value = []
+  } finally {
+    myApplicationsLoading.value = false
+  }
+}
+
+async function loadMyApprovals() {
+  myApprovalsLoading.value = true
+  try {
+    const res = await caApi.getMyApprovals()
+    myApprovals.value = res?.data || []
+  } catch {
+    ElMessage.error('加载我的审批列表失败')
+    myApprovals.value = []
+  } finally {
+    myApprovalsLoading.value = false
+  }
+}
+
+// CO-459: 申请状态标签类型
+function applicationStatusType(status) {
+  switch (status) {
+    case 'PENDING_APPROVAL': return 'warning'
+    case 'APPROVED': return 'success'
+    case 'REJECTED': return 'danger'
+    case 'RETURNED': return 'info'
+    case 'CANCELLED': return 'info'
+    default: return ''
+  }
+}
+
+// CO-459: 撤销申请
+async function handleCancelApplication(row) {
+  try {
+    await ElMessageBox.confirm('确认撤销该借用申请？', '撤销确认', { type: 'warning' })
+  } catch {
+    return
+  }
+  try {
+    await caStore.cancelBorrow(row.id)
+    ElMessage.success('已撤销')
+    await loadMyApplications()
+  } catch {
+    ElMessage.error('撤销失败')
+  }
+}
+
+// CO-459: 审批通过
+async function handleApproveApplication(row) {
+  try {
+    await ElMessageBox.confirm('确认通过该借用申请？', '审批确认', { type: 'success' })
+  } catch {
+    return
+  }
+  try {
+    await caStore.approveApplication(row.id, '')
+    ElMessage.success('审批通过')
+    await loadMyApprovals()
+  } catch {
+    ElMessage.error('审批失败')
+  }
+}
+
+// CO-459: 审批拒绝
+async function handleRejectApplication(row) {
+  try {
+    const { value } = await ElMessageBox.prompt('请输入拒绝原因', '拒绝申请', {
+      inputPattern: /.+/,
+      inputErrorMessage: '拒绝原因不能为空',
+      inputType: 'textarea'
+    })
+    await caStore.rejectApplication(row.id, value)
+    ElMessage.success('已拒绝')
+    await loadMyApprovals()
+  } catch (e) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error('拒绝操作失败')
+    }
+  }
+}
+
+// CO-459: 从审批列表登记归还
+async function handleOpenReturnFromApproval(row) {
+  selectedCa.value = { id: row.caCertificateId, platformIds: row.caName ? [row.caName] : [] }
+  borrowApplicationsForReturn.value = [row]
+  returnVisible.value = true
+}
+
 onMounted(() => {
   loadData()
   loadProjects()
@@ -612,6 +799,18 @@ onMounted(() => {
 .header-actions {
   display: flex;
   gap: 8px;
+}
+
+/* CO-459: Tab header 样式 */
+.tab-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.op-placeholder {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
 }
 
 .status-tag {

@@ -51,7 +51,14 @@ public class CaCertificateEntity {
 
     @Column(name = "borrow_status", length = 30, nullable = false)
     @Builder.Default
-    private String borrowStatus = "IN_STOCK";
+    private String borrowStatus = CaBorrowStatus.IN_STOCK.name();
+
+    /** CO-459: CA 证书借用状态枚举。 */
+    public enum CaBorrowStatus {
+        IN_STOCK,
+        BORROWED,
+        OVERDUE
+    }
 
     @Column(length = 30, nullable = false)
     @Builder.Default

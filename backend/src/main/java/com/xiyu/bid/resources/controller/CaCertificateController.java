@@ -200,8 +200,35 @@ public class CaCertificateController {
         return ResponseEntity.ok(caBorrowService.getBorrowEvents(applicationId));
     }
 
+    /**
+     * CO-459: 我的借用申请 —— 返回当前用户发起的全部借用申请（不限状态）。
+     * 权限：有 resource 权限的用户均可访问（申请人查看自己的申请）。
+     */
+    @GetMapping("/my-borrow-applications")
+    public ResponseEntity<ApiResponse<List<CaBorrowApplicationDTO>>> getMyBorrowApplications(
+            @AuthenticationPrincipal UserDetails user) {
+        List<CaBorrowApplicationDTO> result = caBorrowService.getMyBorrowApplications(user);
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
+    /**
+     * CO-459: 我的审批 Tab —— 返回当前用户有权限审批的全部借用申请（不限状态）。
+     * 管理员角色：返回全部申请；CA保管员：返回自己的申请。
+     * 权限：有 resource 权限的用户均可访问（审批人查看自己的待审批/已审批记录）。
+     */
+    @GetMapping("/my-approvals")
+    public ResponseEntity<ApiResponse<List<CaBorrowApplicationDTO>>> getMyApprovals(
+            @AuthenticationPrincipal UserDetails user) {
+        List<CaBorrowApplicationDTO> result = caBorrowService.findAllApprovals(user);
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
+    /**
+     * CO-459: 待审批列表（兼容旧接口）。
+     * 权限放宽：从 hasAnyRole('ADMIN', 'MANAGER') 改为 hasAuthority('resource')，
+     * 因为 Service 层已做细粒度角色校验（GLOBAL_ACCESS_ROLES + custodian）。
+     */
     @GetMapping("/pending-approvals")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<List<CaBorrowApplicationDTO>> getPendingApprovals(@AuthenticationPrincipal UserDetails user) {
         return ResponseEntity.ok(caBorrowService.getPendingApprovals(user));
     }

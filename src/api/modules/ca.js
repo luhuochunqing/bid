@@ -132,8 +132,9 @@ export function normalizeBorrowApplication(item) {
     borrowDate: formatDate(item.borrowDate || item.createdAt),
     expectedReturnDate: formatDate(item.expectedReturnDate),
     actualReturnDate: formatDate(item.actualReturnDate || item.returnedAt),
-    status: item.status || 'PENDING',
-    statusLabel: { PENDING: '待审批', APPROVED: '已批准', REJECTED: '已拒绝', RETURNED: '已归还', CANCELLED: '已取消' }[item.status] || item.status,
+    borrowDurationType: item.borrowDurationType || '',
+    status: item.status || 'PENDING_APPROVAL',
+    statusLabel: { PENDING_APPROVAL: '待审批', APPROVED: '已批准', REJECTED: '已拒绝', RETURNED: '已归还', CANCELLED: '已取消' }[item.status] || item.status,
     remark: item.remark || '',
     approvedById: item.approvedById || '',
     approvedByName: item.approvedByName || '',
@@ -261,6 +262,24 @@ export const caApi = {
   // 待审批列表
   async getPendingApprovals() {
     const response = await httpClient.get(`${BASE}/pending-approvals`)
+    const data = Array.isArray(response?.data)
+      ? response.data.map(normalizeBorrowApplication)
+      : []
+    return { ...response, data }
+  },
+
+  // CO-459: 我的借用申请
+  async getMyBorrowApplications() {
+    const response = await httpClient.get(`${BASE}/my-borrow-applications`)
+    const data = Array.isArray(response?.data)
+      ? response.data.map(normalizeBorrowApplication)
+      : []
+    return { ...response, data }
+  },
+
+  // CO-459: 我的审批（全部申请，不限状态）
+  async getMyApprovals() {
+    const response = await httpClient.get(`${BASE}/my-approvals`)
     const data = Array.isArray(response?.data)
       ? response.data.map(normalizeBorrowApplication)
       : []
