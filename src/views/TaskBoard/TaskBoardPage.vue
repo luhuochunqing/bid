@@ -183,11 +183,25 @@ async function handleSubmitForReview() {
   try {
     const form = taskFormRef.value
     const result = form?.submitForReview?.()
-    if (!result || result.valid === false) return
+    if (!result || result.valid === false) {
+      if (result?.message) ElMessage.warning(result.message)
+      return
+    }
 
     const data = result.data
     const projectId = data.projectId
     const taskId = data.id
+
+    const hasDeliverable = (data.deliverables && data.deliverables.length > 0)
+      || (data.deliverableFiles && data.deliverableFiles.length > 0)
+    if (!hasDeliverable) {
+      ElMessage.warning('提交审核时必须上传交付物')
+      return
+    }
+    if (!data.completionNotes || !String(data.completionNotes).trim()) {
+      ElMessage.warning('提交审核时必须填写完成情况')
+      return
+    }
 
     const projectStore = useProjectStore()
     const userStore = useUserStore()
@@ -203,13 +217,7 @@ async function handleSubmitForReview() {
     )
     if (!uploadOk) return
 
-    // 保存完成情况说明
-    if (data.completionNotes) {
-      await projectsApi.updateTask(taskId, { completionNotes: data.completionNotes })
-    }
-
-    // 更新状态为 REVIEW
-    await projectsApi.updateTaskStatus(projectId, taskId, 'REVIEW')
+    await projectsApi.updateTaskStatus(projectId, taskId, 'REVIEW', null, data.completionNotes)
 
     ElMessage.success('已提交审核')
     drawerVisible.value = false
