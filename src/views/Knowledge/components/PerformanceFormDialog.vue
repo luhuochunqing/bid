@@ -74,19 +74,25 @@ const formRefContact = ref(null)
 
 const initForm = () => {
   if (props.data) {
+    // CO-442: attachmentMap 改为 Map<fileType, Array> 支持多文件
     const map = {
-      CONTRACT_AGREEMENT: { fileName: '', fileUrl: '' },
-      MALL_SCREENSHOT: { fileName: '', fileUrl: '' },
-      SOE_DIRECTORY: { fileName: '', fileUrl: '' },
-      CATEGORY_PAGE: { fileName: '', fileUrl: '' },
-      RELATIONSHIP_PROOF: { fileName: '', fileUrl: '' },
-      BID_NOTICE: { fileName: '', fileUrl: '' },
-      OTHER: { fileName: '', fileUrl: '' }
+      CONTRACT_AGREEMENT: [],
+      MALL_SCREENSHOT: [],
+      SOE_DIRECTORY: [],
+      CATEGORY_PAGE: [],
+      RELATIONSHIP_PROOF: [],
+      BID_NOTICE: [],
+      OTHER: []
     }
     if (props.data.attachments) {
       props.data.attachments.forEach(a => {
         if (map[a.fileType]) {
-          map[a.fileType] = { fileName: a.fileName, fileUrl: a.fileUrl, id: a.id }
+          map[a.fileType].push({
+            fileName: a.fileName,
+            fileUrl: a.fileUrl,
+            fileType: a.fileType,
+            id: a.id
+          })
         }
       })
     }
@@ -161,15 +167,16 @@ const validateForm = async () => {
     return false
   }
 
-  if (!form.value.attachmentMap.CONTRACT_AGREEMENT.fileUrl) {
+  // CO-442: 校验改为检查数组长度
+  if (!form.value.attachmentMap.CONTRACT_AGREEMENT || form.value.attachmentMap.CONTRACT_AGREEMENT.length === 0) {
     ElMessage.warning('请上传合同协议')
     activeFormTab.value = 'attachments'
     return false
   }
 
   if (form.value.customerType === 'CENTRAL_SOE') {
-    const hasSoeDir = !!form.value.attachmentMap.SOE_DIRECTORY.fileUrl
-    const hasRelProof = !!form.value.attachmentMap.RELATIONSHIP_PROOF.fileUrl
+    const hasSoeDir = form.value.attachmentMap.SOE_DIRECTORY && form.value.attachmentMap.SOE_DIRECTORY.length > 0
+    const hasRelProof = form.value.attachmentMap.RELATIONSHIP_PROOF && form.value.attachmentMap.RELATIONSHIP_PROOF.length > 0
     if (!hasSoeDir) {
       ElMessage.warning('央企客户必须上传央企名录截图')
       activeFormTab.value = 'attachments'
@@ -183,7 +190,7 @@ const validateForm = async () => {
   }
 
   if (form.value.hasBidNotice) {
-    if (!form.value.attachmentMap.BID_NOTICE.fileUrl) {
+    if (!form.value.attachmentMap.BID_NOTICE || form.value.attachmentMap.BID_NOTICE.length === 0) {
       ElMessage.warning('当中标通知书为是的时候，必传')
       activeFormTab.value = 'attachments'
       return false

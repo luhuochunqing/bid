@@ -220,6 +220,16 @@ export const performanceApi = {
     link.remove()
     window.URL.revokeObjectURL(url)
     return res
+  },
+
+  // CO-442: 上传业绩附件（不依赖 performanceId，新增业绩时先用此接口拿 fileUrl）
+  async uploadAttachment(file, fileType) {
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('fileType', fileType)
+    return httpClient.post('/api/knowledge/performance/attachments/upload', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
   }
 }
 

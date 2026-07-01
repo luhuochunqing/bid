@@ -51,13 +51,14 @@ export const createDefaultForm = () => ({
   mallWebsiteUrl: '',
   hasBidNotice: false,
   remarks: '',
+  // CO-442: attachmentMap 改为 Map<fileType, Array> 支持多文件
   attachmentMap: {
-    CONTRACT_AGREEMENT: { fileName: '', fileUrl: '' },
-    MALL_SCREENSHOT: { fileName: '', fileUrl: '' },
-    SOE_DIRECTORY: { fileName: '', fileUrl: '' },
-    CATEGORY_PAGE: { fileName: '', fileUrl: '' },
-    RELATIONSHIP_PROOF: { fileName: '', fileUrl: '' },
-    BID_NOTICE: { fileName: '', fileUrl: '' },
-    OTHER: { fileName: '', fileUrl: '' }
+    CONTRACT_AGREEMENT: [],
+    MALL_SCREENSHOT: [],
+    SOE_DIRECTORY: [],
+    CATEGORY_PAGE: [],
+    RELATIONSHIP_PROOF: [],
+    BID_NOTICE: [],
+    OTHER: []
   }
 })

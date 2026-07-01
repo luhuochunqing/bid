@@ -249,12 +249,12 @@ const openAlertConfig = () => { alertConfigVisible.value = true }
 
 const handleSubmit = async (formData) => {
   submitting.value = true
-  const ftNames = { CONTRACT_AGREEMENT: '合同协议件.pdf', MALL_SCREENSHOT: '商城上架截图.png', SOE_DIRECTORY: '央企名录页页截图.png', CATEGORY_PAGE: '品类授权证明.pdf', RELATIONSHIP_PROOF: '层级关系图.pdf', BID_NOTICE: '中标通知书.pdf', OTHER: '附加关联文件.zip' }
+  // CO-442: attachmentMap 改为 Map<fileType, Array>，展平时 flatMap 多文件
   const payload = {
     ...formData,
     attachments: Object.keys(formData.attachmentMap)
-      .filter(type => formData.attachmentMap[type].fileUrl)
-      .map(type => ({ fileName: formData.attachmentMap[type].fileName || ftNames[type] || '证明文件', fileUrl: formData.attachmentMap[type].fileUrl, fileType: type }))
+      .flatMap(type => (formData.attachmentMap[type] || [])
+        .map(f => ({ fileName: f.fileName, fileUrl: f.fileUrl, fileType: type })))
   }
   try {
     if (editingRow.value) {
