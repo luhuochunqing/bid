@@ -75,7 +75,7 @@ public class ProjectArchiveExportService {
             CellStyle headerStyle = createHeaderStyle(workbook);
 
             Row mainHeaderRow = mainSheet.createRow(0);
-            String[] mainHeaders = {"项目名称", "招标主体", "项目类型", "项目状态", "中标结果", "项目负责人", "投标负责人", "立项日期", "标书提交日期", "开标日期", "结项日期", "归档文件数"};
+            String[] mainHeaders = {"项目名称", "招标主体", "项目类型", "项目状态", "项目负责人", "投标负责人", "立项日期", "标书提交日期", "开标日期", "结项日期", "归档文件数"};
             for (int i = 0; i < mainHeaders.length; i++) {
                 Cell cell = mainHeaderRow.createCell(i);
                 cell.setCellValue(mainHeaders[i]);
@@ -124,14 +124,13 @@ public class ProjectArchiveExportService {
                     row.createCell(1).setCellValue(fields.tenderAgency);
                     row.createCell(2).setCellValue(fields.projectType);
                     row.createCell(3).setCellValue(safeString(fields.projectStatus));
-                    row.createCell(4).setCellValue(fields.bidResult);
-                    row.createCell(5).setCellValue(fields.projectManager);
-                    row.createCell(6).setCellValue(fields.bidManager);
-                    row.createCell(7).setCellValue(fields.initiatedAtStr);
-                    row.createCell(8).setCellValue(fields.bidSubmissionAtStr);
-                    row.createCell(9).setCellValue(fields.bidOpeningAtStr);
-                    row.createCell(10).setCellValue(fields.closedAtStr);
-                    row.createCell(11).setCellValue(fileCount);
+                    row.createCell(4).setCellValue(fields.projectManager);
+                    row.createCell(5).setCellValue(fields.bidManager);
+                    row.createCell(6).setCellValue(fields.initiatedAtStr);
+                    row.createCell(7).setCellValue(fields.bidSubmissionAtStr);
+                    row.createCell(8).setCellValue(fields.bidOpeningAtStr);
+                    row.createCell(9).setCellValue(fields.closedAtStr);
+                    row.createCell(10).setCellValue(fileCount);
 
                     for (ArchiveFile file : files) {
                         String catLabel = getCategoryLabelForExport(file.getDocumentCategory());
@@ -203,7 +202,7 @@ public class ProjectArchiveExportService {
             return f;
         }
         try {
-            f.projectStatus = p.getStatus().name();
+            f.projectStatus = p.getStatus().displayName();
             f.bidResult = switch (p.getStatus()) {
                 case WON -> "已中标";
                 case LOST -> "未中标";
