@@ -98,7 +98,10 @@ public class ProjectInitiationApprovalService {
                         .projectId(projectId)
                         .build());
         assignment.setPrimaryLeadUserId(req.getPrimaryLeadUserId());
-        assignment.setSecondaryLeadUserId(req.getSecondaryLeadUserId());
+        // CO-456: null 值不覆盖已有辅助人员，避免驳回后重新审批时字段丢失
+        if (req.getSecondaryLeadUserId() != null) {
+            assignment.setSecondaryLeadUserId(req.getSecondaryLeadUserId());
+        }
         assignment.setAssignedAt(LocalDateTime.now());
         assignment.setAssignedBy(currentUserId);
         leadRepo.save(assignment);

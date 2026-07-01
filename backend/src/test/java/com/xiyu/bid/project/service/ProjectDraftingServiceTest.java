@@ -122,6 +122,22 @@ class ProjectDraftingServiceTest {
     }
 
     @Test
+    void assignLeads_preservesExistingSecondary_whenRequestSecondaryIsNull() {
+        when(leadRepo.findByProjectId(1L)).thenReturn(Optional.of(
+                ProjectLeadAssignment.builder().id(5L).projectId(1L)
+                        .primaryLeadUserId(10L).secondaryLeadUserId(20L).build()));
+        when(taskRepository.findByProjectId(1L)).thenReturn(List.of());
+        var view = service.assignLeads(1L,
+                ProjectLeadAssignmentRequest.builder()
+                        .primaryLeadUserId(15L)
+                        .secondaryLeadUserId(null)
+                        .build(),
+                99L);
+        assertThat(view.getPrimaryLeadUserId()).isEqualTo(15L);
+        assertThat(view.getSecondaryLeadUserId()).isEqualTo(20L);
+    }
+
+    @Test
     void gate_allowsWhenNoTasks() {
         when(taskRepository.findByProjectId(1L)).thenReturn(List.of());
         when(leadRepo.findByProjectId(1L)).thenReturn(Optional.empty());

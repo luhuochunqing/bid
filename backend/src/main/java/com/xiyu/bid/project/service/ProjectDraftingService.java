@@ -87,7 +87,9 @@ public class ProjectDraftingService {
         ProjectLeadAssignment entity = leadRepo.findByProjectId(projectId)
                 .orElseGet(() -> ProjectLeadAssignment.builder().projectId(projectId).build());
         entity.setPrimaryLeadUserId(req.getPrimaryLeadUserId());
-        entity.setSecondaryLeadUserId(req.getSecondaryLeadUserId());
+        if (req.getSecondaryLeadUserId() != null) {
+            entity.setSecondaryLeadUserId(req.getSecondaryLeadUserId());
+        }
         entity.setAssignedAt(LocalDateTime.now());
         entity.setAssignedBy(currentUserId);
         ProjectLeadAssignment saved = leadRepo.save(entity);

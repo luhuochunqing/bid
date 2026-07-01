@@ -255,4 +255,48 @@ class ProjectInitiationApprovalServiceTest {
         TaskDTO captured = taskCaptor.getValue();
         assertThat(captured.getDueDate()).isNull();
     }
+
+    /**
+     * CO-456：驳回后重新审批时，secondaryLeadUserId=null 不应覆盖已有的辅助人员。
+     * 场景：首次审批设置了辅助人员（secondary=20）→ 驳回 → 重新审批只传 primary（secondary=null）
+     * 期望：辅助人员保持原有值 20，不被清空
+     */
+    @Test
+    void approve_reApprovalPreservesExistingSecondary_whenRequestSecondaryIsNull() {
+        ProjectInitiationDetails details = ProjectInitiationDetails.builder()
+                .id(1L)
+                .projectId(100L)
+                .reviewStatus(InitiationReviewStatus.PENDING_REVIEW.name())
+                .locked(Boolean.FALSE)
+                .build();
+        when(initiationRepo.findByProjectId(100L)).thenReturn(Optional.of(details));
+        when(projectStageService.currentStage(100L)).thenReturn(ProjectStage.INITIATED);
+        when(initiationRepo.save(any(ProjectInitiationDetails.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(projectRepository.findById(100L))
+                .thenReturn(Optional.of(Project.builder().id(100L).name("测试项目").build()));
+        // 首次审批已设置了辅助人员
+        when(leadRepo.findByProjectId(100L)).thenReturn(Optional.of(
+                ProjectLeadAssignment.builder()
+                        .id(5L)
+                        .projectId(100L)
+                        .primaryLeadUserId(10L)
+                        .secondaryLeadUserId(20L)  // 已有辅助人员
+                        .build()));
+        when(leadRepo.save(any(ProjectLeadAssignment.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        // 重新审批只传 primary，secondary 为 null
+        InitiationApprovalRequest req = InitiationApprovalRequest.builder()
+                .primaryLeadUserId(15L)   // 新主负责人
+                .secondaryLeadUserId(null) // 不传辅助人员
+                .build();
+
+        service.approve(100L, req, 5L);
+
+        // 验证辅助人员保持不变
+        verify(leadRepo).save(org.mockito.ArgumentMatchers.argThat(assignment ->
+                Long.valueOf(15L).equals(assignment.getPrimaryLeadUserId()) &&
+                Long.valueOf(20L).equals(assignment.getSecondaryLeadUserId())));
+    }
 }
