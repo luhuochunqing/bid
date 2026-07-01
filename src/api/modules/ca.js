@@ -190,6 +190,12 @@ export const caApi = {
     return { success: true, data: normalizeCaCertificate(response) }
   },
 
+  // 查看 CA 密码（解密后，需权限：投标管理员/投标组长/CA保管员）
+  async getPassword(id) {
+    const response = await httpClient.get(`${BASE}/${id}/password`)
+    return { success: true, data: normalizeCaCertificate(response) }
+  },
+
   // 新增
   async create(data) {
     const response = await httpClient.post(BASE, data)

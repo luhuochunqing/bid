@@ -61,13 +61,20 @@
       </el-form-item>
 
       <el-form-item label="CA 密码" prop="caPassword">
-        <el-input
-          v-model="form.caPassword"
-          placeholder="请输入 CA 密码（将加密存储）"
-          maxlength="100"
-          show-password
-          type="password"
-        />
+        <div class="password-input-wrapper">
+          <el-input
+            v-model="form.caPassword"
+            :type="passwordRevealed ? 'text' : 'password'"
+            placeholder="请输入 CA 密码（将加密存储）"
+            maxlength="100"
+            :show-password="!canViewPassword"
+            style="flex: 1"
+          />
+          <el-button v-if="canViewPassword" class="password-toggle-btn" link type="primary" :loading="passwordLoading" @click="handleRevealPassword">
+            <el-icon><View v-if="!passwordRevealed" /><Hide v-else /></el-icon>
+          </el-button>
+        </div>
+        <div class="form-help">{{ isEdit ? '留空则不修改密码；点击眼睛图标可查看当前密码' : '请输入 CA 密码（将加密存储）' }}</div>
       </el-form-item>
 
       <el-form-item label="有效期至" prop="expiryDate">
@@ -141,7 +148,11 @@
 <script setup>
 import { ref, reactive, computed, watch } from 'vue'
 import { usePlatformAccountSearch } from '@/composables/usePlatformAccountSearch.js'
+import { useUserStore } from '@/stores/user'
+import { isBidManager } from '@/utils/permission'
+import { caApi } from '@/api/modules/ca.js'
 import UserPicker from '@/components/common/UserPicker.vue'
+import { View, Hide } from '@element-plus/icons-vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -160,6 +171,17 @@ const isEdit = computed(() => !!props.ca?.id)
 const formRef = ref(null)
 const { platformOptions, platformOptionsLoading, searchPlatforms } = usePlatformAccountSearch()
 
+const passwordRevealed = ref(false)
+const passwordLoading = ref(false)
+const userStore = useUserStore()
+const canViewPassword = computed(() => {
+  if (!isEdit.value) return false
+  if (isBidManager(userStore.userRole)) return true
+  const currentId = userStore.currentUser?.id
+  const custodianId = props.ca?.custodianId
+  return currentId != null && custodianId != null && String(currentId) === String(custodianId)
+})
+
 function createDefaultForm() {
   return {
     platformIds: [],
@@ -177,8 +199,17 @@ function createDefaultForm() {
     remarks: ''
   }
 }
-
 const form = reactive(createDefaultForm())
+
+// 点击眼睛按钮：加载真实密码（再次点击隐藏）
+async function handleRevealPassword() {
+  if (passwordRevealed.value) { passwordRevealed.value = false; form.caPassword = ''; return }
+  passwordLoading.value = true
+  try {
+    const res = await caApi.getPassword(props.ca.id)
+    if (res?.success && res?.data?.caPassword) { form.caPassword = res.data.caPassword; passwordRevealed.value = true }
+  } finally { passwordLoading.value = false }
+}
 
 function onCustodianSelect(user) {
   if (user) {
@@ -188,6 +219,7 @@ function onCustodianSelect(user) {
 
 // Watch external data changes
 watch(() => props.ca, (ca) => {
+  passwordRevealed.value = false  // 重置密码显示状态
   if (ca) {
     form.id = ca.id
     form.platformIds = Array.isArray(ca.platformIds)
@@ -261,9 +293,7 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
-.form-help {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  margin-top: 4px;
-}
+.form-help { font-size: 12px; color: var(--el-text-color-secondary); margin-top: 4px; }
+.password-input-wrapper { display: flex; align-items: center; gap: 8px; width: 100%; }
+.password-toggle-btn { flex-shrink: 0; display: flex; align-items: center; }
 </style>

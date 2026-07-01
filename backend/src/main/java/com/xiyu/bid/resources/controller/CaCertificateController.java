@@ -141,6 +141,21 @@ public class CaCertificateController {
         return ResponseEntity.ok(caBorrowService.cancelBorrow(applicationId, user));
     }
 
+    // ========== CA 密码查看 ==========
+
+    /**
+     * 查看 CA 密码（解密后）。
+     * 权限：投标管理员（ADMIN/MANAGER）、投标组长（bid-TeamLeader），
+     * 或 CA 保管员（custodianId == 当前用户）。
+     */
+    @GetMapping("/{id}/password")
+    @PreAuthorize("hasAuthority('resource')")
+    public ResponseEntity<CaCertificateDTO> revealPassword(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails currentUser) {
+        return ResponseEntity.ok(caService.revealPassword(id, currentUser));
+    }
+
     // ========== 查询借用记录 ==========
 
     @GetMapping("/{id}/borrow-applications")

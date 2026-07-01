@@ -1,5 +1,6 @@
 // Input: src/views/Resource/components/CAFormDialog.vue — CA 证书新增/编辑表单
 // Output: CO-405 关联平台字段改为非必填的回归测试
+// Output: CO-436 编辑时密码不应回填脱敏值的回归测试
 // Pos: src/views/Resource/components/__tests__/ — 表单校验与提交行为
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -15,6 +16,12 @@ vi.mock('@/composables/usePlatformAccountSearch.js', () => ({
     platformOptionsLoading: { value: false },
     searchPlatforms: searchPlatformsMock
   })
+}))
+
+// Mock caApi.getPassword
+const getPasswordMock = vi.fn()
+vi.mock('@/api/modules/ca.js', () => ({
+  caApi: { getPassword: getPasswordMock }
 }))
 
 // el-form 的 validate 由测试控制返回值，便于覆盖校验通过/失败两条路径
@@ -43,13 +50,33 @@ async function importDialog() {
   return mod.default
 }
 
-function mountDialog(props = {}) {
+function mountDialog(props = {}, injectedPinia = null) {
+  const pinia = injectedPinia || createPinia()
+  if (injectedPinia) {
+    setActivePinia(pinia)
+  }
   return importDialog().then((component) =>
     mount(component, {
       props: { modelValue: true, ...props },
-      global: { plugins: [createPinia()], stubs }
+      global: { plugins: [pinia], stubs }
     })
   )
+}
+
+// Mock useUserStore —— 返回可配置的角色状态
+const userRoleState = { role: 'bid-Team', id: null }
+const mockUserStore = {
+  get userRole() { return userRoleState.role },
+  get currentUser() { return { role: userRoleState.role, id: userRoleState.id } }
+}
+vi.mock('@/stores/user', () => ({
+  useUserStore: () => mockUserStore
+}))
+
+// 设置模拟 store 的角色（同步更新模块级状态）
+function setUserRole(role, userId) {
+  userRoleState.role = role || 'bid-Team'
+  userRoleState.id = userId ?? null
 }
 
 describe('CAFormDialog.vue — CO-405 关联平台字段改为非必填', () => {
@@ -202,5 +229,132 @@ describe('CAFormDialog.vue — CO-436 编辑时密码不应回填脱敏值', () 
     const submitEvents = wrapper.emitted('submit')
     expect(submitEvents).toBeTruthy()
     expect(submitEvents[0][0].caPassword).toBe('newPassword123')
+  })
+})
+
+describe('CAFormDialog.vue — CA 密码 reveal 权限控制', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    validateMock.mockReset()
+    validateMock.mockResolvedValue(true)
+    searchPlatformsMock.mockReset()
+    searchPlatformsMock.mockResolvedValue()
+    getPasswordMock.mockReset()
+    getPasswordMock.mockResolvedValue({ success: true, data: { caPassword: '真实密码123' } })
+    // 重置模拟用户角色
+    setUserRole('bid-Team', null)
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  // 新增时：不得显示眼睛按钮
+  it('canViewPassword 在新增模式下返回 false', async () => {
+    const wrapper = await mountDialog({ ca: null })
+    await flushPromises()
+    expect(wrapper.vm.canViewPassword).toBe(false)
+  })
+
+  // 投标管理员：可查看
+  it('canViewPassword 对投标管理员返回 true', async () => {
+    setUserRole('admin', 999)
+    const wrapper = await mountDialog({
+      ca: {
+        id: 1, caType: 'ENTITY_CA', sealType: 'OFFICIAL_SEAL',
+        caPassword: '******', expiryDate: '2027-01-01',
+        custodianId: 1, custodianName: '张三', platformIds: []
+      }
+    })
+    await flushPromises()
+    expect(wrapper.vm.canViewPassword).toBe(true)
+  })
+
+  // 投标组长：可查看
+  it('canViewPassword 对投标组长返回 true', async () => {
+    setUserRole('bid-TeamLeader', 999)
+    const wrapper = await mountDialog({
+      ca: {
+        id: 1, caType: 'ENTITY_CA', sealType: 'OFFICIAL_SEAL',
+        caPassword: '******', expiryDate: '2027-01-01',
+        custodianId: 1, custodianName: '张三', platformIds: []
+      }
+    })
+    await flushPromises()
+    expect(wrapper.vm.canViewPassword).toBe(true)
+  })
+
+  // CA 保管员本人：可查看
+  it('canViewPassword 对 CA 保管员本人返回 true', async () => {
+    setUserRole('bid-Team', 42)
+    const wrapper = await mountDialog({
+      ca: {
+        id: 1, caType: 'ENTITY_CA', sealType: 'OFFICIAL_SEAL',
+        caPassword: '******', expiryDate: '2027-01-01',
+        custodianId: 42, custodianName: '保管员A', platformIds: []
+      }
+    })
+    await flushPromises()
+    expect(wrapper.vm.canViewPassword).toBe(true)
+  })
+
+  // 非管理员非保管员：不可查看
+  it('canViewPassword 对非管理员非保管员返回 false', async () => {
+    setUserRole('bid-Team', 99)
+    const wrapper = await mountDialog({
+      ca: {
+        id: 1, caType: 'ENTITY_CA', sealType: 'OFFICIAL_SEAL',
+        caPassword: '******', expiryDate: '2027-01-01',
+        custodianId: 42, custodianName: '保管员A', platformIds: []
+      }
+    })
+    await flushPromises()
+    expect(wrapper.vm.canViewPassword).toBe(false)
+  })
+
+  // 点击眼睛按钮：调用 getPassword 并显示密码
+  it('handleRevealPassword 调用 getPassword 并设置 passwordRevealed 为 true', async () => {
+    setUserRole('admin', 999)
+    const wrapper = await mountDialog({
+      ca: {
+        id: 1, caType: 'ENTITY_CA', sealType: 'OFFICIAL_SEAL',
+        caPassword: '******', expiryDate: '2027-01-01',
+        custodianId: 1, custodianName: '张三', platformIds: []
+      }
+    })
+    await flushPromises()
+
+    await wrapper.vm.handleRevealPassword()
+    await flushPromises()
+
+    expect(getPasswordMock).toHaveBeenCalledWith(1)
+    expect(wrapper.vm.passwordRevealed).toBe(true)
+    expect(wrapper.vm.form.caPassword).toBe('真实密码123')
+  })
+
+  // 再次点击：隐藏密码
+  it('handleRevealPassword 在已显示时再次点击隐藏密码', async () => {
+    setUserRole('admin', 999)
+    const wrapper = await mountDialog({
+      ca: {
+        id: 1, caType: 'ENTITY_CA', sealType: 'OFFICIAL_SEAL',
+        caPassword: '******', expiryDate: '2027-01-01',
+        custodianId: 1, custodianName: '张三', platformIds: []
+      }
+    })
+    await flushPromises()
+
+    // 先显示
+    await wrapper.vm.handleRevealPassword()
+    await flushPromises()
+    expect(wrapper.vm.passwordRevealed).toBe(true)
+
+    // 再隐藏
+    await wrapper.vm.handleRevealPassword()
+    await flushPromises()
+    expect(wrapper.vm.passwordRevealed).toBe(false)
+    expect(wrapper.vm.form.caPassword).toBe('')
+    // getPassword 不应再被调用
+    expect(getPasswordMock).toHaveBeenCalledTimes(1)
   })
 })

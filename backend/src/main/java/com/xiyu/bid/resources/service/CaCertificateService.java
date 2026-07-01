@@ -148,12 +148,21 @@ public class CaCertificateService {
     }
 
     /**
-     * Reveal the decrypted CA password. Intended for ADMIN / custodian flows
-     * where the secret value must be displayed.
+     * Reveal the decrypted CA password.
+     * 权限：投标管理员（ADMIN/MANAGER）、投标组长（bid-TeamLeader），
+     * 或 CA 保管员（custodianId == 当前用户）。
      */
-    public CaCertificateDTO revealPassword(Long id) {
+    public CaCertificateDTO revealPassword(Long id, UserDetails currentUser) {
         CaCertificateEntity entity = certificateRepository.findById(id)
                 .orElseThrow(() -> new CaBusinessException("CA证书不存在: " + id));
+        User user = resolveUser(currentUser);
+        String roleCode = effectiveRoleResolver.resolveRoleCode(user);
+        boolean isManager = RoleProfileCatalog.GLOBAL_ACCESS_ROLES.contains(roleCode);
+        boolean isCustodian = entity.getCustodianId() != null
+                && entity.getCustodianId().equals(user.getId());
+        if (!isManager && !isCustodian) {
+            throw new AccessDeniedException("无权查看此 CA 证书的密码");
+        }
         String decrypted = passwordEncryptionUtil.decrypt(entity.getCaPassword());
         return CaCertificateDTO.from(entity, loadPlatformIds(id), true, decrypted);
     }
