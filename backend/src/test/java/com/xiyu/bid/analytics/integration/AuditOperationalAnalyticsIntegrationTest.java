@@ -33,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AuditOperationalAnalyticsIntegrationTest extends AbstractAuditOperationalAnalyticsIntegrationTest {
 
     @Test
-    @WithMockUser(roles = {"ADMIN"})
+    @WithMockUser(username = "admin", authorities = {"ROLE_ADMIN", "dashboard", "all"})
     void auditEndpoint_ShouldReturnFilteredLogsAndSummary() throws Exception {
         mockMvc.perform(get("/api/audit")
                         .param("module", "project")
@@ -55,7 +55,7 @@ class AuditOperationalAnalyticsIntegrationTest extends AbstractAuditOperationalA
     }
 
     @Test
-    @WithMockUser(roles = {"ADMIN"})
+    @WithMockUser(username = "admin", authorities = {"ROLE_ADMIN", "dashboard", "all"})
     void analyticsEndpoints_ShouldReturnRealProductLinesAndDrillDownData() throws Exception {
         mockMvc.perform(get("/api/analytics/overview"))
                 .andExpect(status().isOk())
@@ -122,7 +122,7 @@ class AuditOperationalAnalyticsIntegrationTest extends AbstractAuditOperationalA
     }
 
     @Test
-    @WithMockUser(roles = {"ADMIN"})
+    @WithMockUser(username = "admin", authorities = {"ROLE_ADMIN", "dashboard", "all"})
     void analyticsEndpoints_ShouldReturnAccessibleProjectDataForAdmin() throws Exception {
         User adminAnalyticsUser = userRepository.save(User.builder()
                 .username("analytics-admin")
@@ -169,7 +169,7 @@ class AuditOperationalAnalyticsIntegrationTest extends AbstractAuditOperationalA
     }
 
     @Test
-    @WithMockUser(roles = {"ADMIN"})
+    @WithMockUser(username = "admin", authorities = {"ROLE_ADMIN", "dashboard", "all"})
     void analyticsEndpoints_ShouldReturnWinRateAndTeamDrillDownData() throws Exception {
         mockMvc.perform(get("/api/analytics/drilldown/win-rate")
                         .param("outcome", "WON"))
@@ -190,7 +190,7 @@ class AuditOperationalAnalyticsIntegrationTest extends AbstractAuditOperationalA
     }
 
     @Test
-    @WithMockUser(roles = {"ADMIN"})
+    @WithMockUser(username = "admin", authorities = {"ROLE_ADMIN", "dashboard", "all"})
     void customerTypeAnalytics_ShouldUseProjectCustomerTypeAndKeepEmptyValuesUncategorized() throws Exception {
         project.setCustomer("华东政务中心");
         project.setCustomerType("政府客户");
