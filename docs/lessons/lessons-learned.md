@@ -2001,3 +2001,40 @@ Sentry 上报 `NullPointerException: Fontconfig head is null`，堆栈指向 POI
 - `backend/src/main/java/com/xiyu/bid/common/util/ExcelAutoSizeHelper.java` — 统一入口 + 降级逻辑
 - `backend/src/main/java/com/xiyu/bid/XiyuBidApplication.java` — 启动类 headless 兜底
 - `backend/src/test/java/com/xiyu/bid/ArchitectureTest.java` — autoSizeColumn 禁止直接调用规则
+
+## 26. 角色权限定义必须同时覆盖前端导航权限和后端 API 权限（CO-439）
+
+### 问题背景
+
+行政人员（`bid-administration`）切换到资质证书菜单页报 403"权限不足"。后端 `QualificationController` 的 GET 端点已正确使用 `qualification.view` 权限（行政人员已有），但用户请求被**前端路由守卫**拦截，根本未到达后端。
+
+### 根因
+
+角色权限定义（`RoleProfileCatalog`）只配了后端 API 权限（`qualification.view`），忘了配前端导航权限（`knowledge` 父权限 + `knowledge-qualification` 子路由权限）。前端有**两套独立的权限检查机制**：
+
+| 机制 | 检查位置 | 作用 |
+|------|---------|------|
+| 前端路由守卫 | `router/index.js` → `hasAllPermissions(permissionKeys)` | 决定能否进入页面 |
+| 后端 `@PreAuthorize` | `QualificationController` → `hasAuthority(...)` | 决定能否调用 API |
+
+**两者使用不同的权限键**，新增角色权限时必须**同时覆盖**。
+
+### 教训
+
+1. **前端导航权限 ≠ 后端 API 权限**：`knowledge`/`knowledge-qualification`（前端导航）和 `qualification.view`/`qualification.manage`（后端 API）是两套独立键值
+2. **authNormalizer 的父权限自动补全有盲区**：只有当子权限以 `knowledge-` 前缀开头时才会自动补全 `knowledge`。`qualification.view` 不匹配此规则
+3. **新增角色权限的 Checklist**：
+   - [ ] 前端侧边栏可见性（父权限键）
+   - [ ] 前端路由守卫（子权限键，通常 2 个）
+   - [ ] 后端 GET 端点（`@PreAuthorize` 读权限）
+   - [ ] 后端写端点（`@PreAuthorize` 写权限，如需要）
+   - [ ] Flyway 迁移同步数据库 `roles` 表
+   - [ ] 单元测试断言同步更新
+
+### 相关文件
+
+- `RoleProfileCatalog.java:170` — 角色权限 seed 定义
+- `router/index.js:162-166` — 路由 permissionKeys
+- `sidebar-menu.js:47-49` — 侧边栏 permissionKeys
+- `authNormalizer.js:22-42` — 父权限自动补全逻辑
+- `V1124__fix_co_439_admin_staff_navigation_permissions.sql` — 修复迁移

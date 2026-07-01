@@ -255,8 +255,8 @@ class UserDetailsServiceImplTest {
 
         assertThat(details.getAuthorities())
                 .extracting("authority")
-                .contains("certificate.manage", "qualification.view")
-                .doesNotContain("bidding", "project", "knowledge", "resource", "settings");
+                .contains("certificate.manage", "qualification.view", "knowledge", "knowledge-qualification")
+                .doesNotContain("bidding", "project", "resource", "settings");
     }
 
     // ——— OSS fail-closed 单元测试 ———
