@@ -89,6 +89,14 @@ class TaskBoardItemMapperTest {
     }
 
     @Test
+    void fromBidReview_mapsTargetUrlToDraftingPage() {
+        BidDocumentReviewEntity review = BidDocumentReviewEntity.builder()
+                .id(20L).projectId(10L).reviewerId(99L).submittedBy(2L).status("REVIEWING").build();
+        TaskBoardItemDTO dto = TaskBoardItemMapper.fromBidReview(review, Map.of(10L, "项目"), Map.of(2L, "提交人"));
+        assertThat(dto.getTargetUrl()).isEqualTo("/project/10/drafting");
+    }
+
+    @Test
     void isVisibleTask_normal_returnsTrue() {
         Task normal = Task.builder().id(1L).status(Task.Status.TODO).build();
         assertThat(TaskBoardItemMapper.isVisibleTask(normal)).isTrue();

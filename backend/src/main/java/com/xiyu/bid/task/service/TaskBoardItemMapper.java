@@ -77,7 +77,7 @@ final class TaskBoardItemMapper {
                 .dueDate(review.getReviewedAt())
                 .projectId(review.getProjectId())
                 .projectName(projectName)
-                .targetUrl(null)
+                .targetUrl("/project/" + review.getProjectId() + "/drafting")
                 .submitterName(submitterName)
                 .reviewerId(review.getReviewerId())
                 .build();

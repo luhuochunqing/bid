@@ -77,6 +77,7 @@
 
 <script setup>
 import { ref, computed, nextTick, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import TaskBoardCard from './components/TaskBoardCard.vue'
@@ -101,6 +102,8 @@ const AVAILABLE_STATUSES = COLUMNS.map(({ key, title }) => ({ code: key, name: t
 const items = ref([])
 const loading = ref(false)
 const error = ref('')
+
+const router = useRouter()
 
 const getTasksByStatus = (status) => items.value.filter((t) => t.status === status)
 
@@ -152,6 +155,10 @@ const canSubmitForReview = computed(() => {
 })
 
 async function handleTaskClick(item) {
+  if (item.targetUrl) {
+    router.push(item.targetUrl)
+    return
+  }
   if (item.type !== 'TASK') return
   loadingTaskDetail.value = true
   try {
