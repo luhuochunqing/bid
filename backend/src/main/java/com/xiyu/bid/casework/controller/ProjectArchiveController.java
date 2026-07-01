@@ -71,7 +71,7 @@ public class ProjectArchiveController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('project')")
     public ResponseEntity<ProjectArchiveDetailResponse> getArchiveDetail(@PathVariable Long id) {
         // H5 fix 2026-06-13: 详情访问前对 archive 所属 project 做 owner check,
         // 避免非项目成员越权读取任意 projectId 的档案详情 (含附件路径/内部备注)。

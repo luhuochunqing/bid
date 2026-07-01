@@ -7,6 +7,7 @@ import com.xiyu.bid.config.SecurityConfig;
 import com.xiyu.bid.casework.application.ProjectArchiveWorkflowService;
 import com.xiyu.bid.casework.application.service.KnowledgeCaseQueryAppService;
 import com.xiyu.bid.casework.dto.ProjectArchiveStatsResponse;
+import com.xiyu.bid.casework.infrastructure.ProjectArchive;
 import com.xiyu.bid.brandauth.manufacturer.application.service.ListManufacturerAuthAppService;
 import com.xiyu.bid.brandauth.manufacturer.application.dto.ManufacturerAuthorizationDTO;
 import com.xiyu.bid.personnel.application.service.ListPersonnelAppService;
@@ -36,6 +37,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -201,6 +203,54 @@ class KnowledgeAccessSecurityTest {
     @WithMockUser(authorities = {})
     void listArchives_shouldReturn403_forNoPermission() throws Exception {
         mockMvc.perform(get("/api/archive"))
+                .andExpect(status().isForbidden());
+    }
+
+    // ==================== GET /api/archive/{id} (CO-452 regression) ====================
+
+    @Test
+    @DisplayName("CO-452: 投标专员(authorities含project) GET /api/archive/{id} → 200")
+    @WithMockUser(authorities = {"project"})
+    void getArchiveDetail_shouldSucceed_forBidSpecialist() throws Exception {
+        // Mock workflowService.findArchiveById 返回一个测试档案对象
+        ProjectArchive mockArchive = new ProjectArchive();
+        mockArchive.setId(1L);
+        mockArchive.setProjectId(100L);
+        when(workflowService.findArchiveById(1L)).thenReturn(mockArchive);
+
+        // Mock detailService.getArchiveDetail 返回详情响应（完整参数）
+        when(detailService.getArchiveDetail(1L))
+                .thenReturn(new com.xiyu.bid.casework.dto.ProjectArchiveDetailResponse(
+                        1L, 100L, "测试档案", null, null, null, null, null, null, null, null, null, null, List.of(), List.of()));
+
+        mockMvc.perform(get("/api/archive/1"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("CO-452回归验证：MANAGER(GET含project) GET /api/archive/{id} → 200")
+    @WithMockUser(authorities = {"ROLE_MANAGER", "project"})
+    void getArchiveDetail_shouldSucceed_forManager() throws Exception {
+        // Mock workflowService.findArchiveById 返回一个测试档案对象
+        ProjectArchive mockArchive = new ProjectArchive();
+        mockArchive.setId(1L);
+        mockArchive.setProjectId(100L);
+        when(workflowService.findArchiveById(1L)).thenReturn(mockArchive);
+
+        // Mock detailService.getArchiveDetail 返回详情响应（完整参数）
+        when(detailService.getArchiveDetail(1L))
+                .thenReturn(new com.xiyu.bid.casework.dto.ProjectArchiveDetailResponse(
+                        1L, 100L, "测试档案", null, null, null, null, null, null, null, null, null, null, List.of(), List.of()));
+
+        mockMvc.perform(get("/api/archive/1"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("CO-452: 无project权限用户 GET /api/archive/{id} → 403")
+    @WithMockUser(authorities = {"OTHER_PERMISSION"})
+    void getArchiveDetail_shouldReturn403_forNoPermission() throws Exception {
+        mockMvc.perform(get("/api/archive/1"))
                 .andExpect(status().isForbidden());
     }
 
