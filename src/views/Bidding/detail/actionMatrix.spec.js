@@ -112,20 +112,27 @@ describe('getHeaderActions', () => {
       ])
     })
 
-    it('bid_admin without projectManagerId sees delete only', () => {
+    it('CO-441 回归修复：bid_admin without projectManagerId sees transfer + delete', () => {
+      // TRACKING 状态总是显示「转派」「删除」（无论 projectManagerId 是否为 null）
       expectActions(getHeaderActions(TRACKING, '/bidAdmin', false, null, null, null), [
+        ACTIONS.TRANSFER,
         ACTIONS.DELETE,
       ])
     })
 
-    it('bid_lead with projectManagerId sees transfer only', () => {
+    it('CO-441 回归修复：bid_lead with projectManagerId sees transfer (delete filtered for bid-TeamLeader)', () => {
+      // bid-TeamLeader 不能有 delete 操作（line 169-172）
       expectActions(getHeaderActions(TRACKING, 'bid-TeamLeader', false, null, null, 1), [
         ACTIONS.TRANSFER,
       ])
     })
 
-    it('bid_lead without projectManagerId sees nothing (delete filtered for bid-TeamLeader)', () => {
-      expectActions(getHeaderActions(TRACKING, 'bid-TeamLeader', false, null, null, null), [])
+    it('CO-441 回归修复：bid_lead without projectManagerId sees transfer (delete filtered for bid-TeamLeader)', () => {
+      // TRACKING 状态总是显示「转派」（无论 projectManagerId 是否为 null）
+      // bid-TeamLeader 不能有 delete 操作（line 169-172）
+      expectActions(getHeaderActions(TRACKING, 'bid-TeamLeader', false, null, null, null), [
+        ACTIONS.TRANSFER,
+      ])
     })
 
     it('sales sees nothing', () => {

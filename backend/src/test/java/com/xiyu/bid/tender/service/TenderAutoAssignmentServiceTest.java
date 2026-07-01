@@ -266,25 +266,27 @@ class TenderAutoAssignmentServiceTest {
     }
 
     @Test
-    @DisplayName("autoAssignIfPossible_25259命中但本地User表无此工号_仍匹配成功_name为null")
-    void autoAssignIfPossible_ManagerNotFoundInLocalUserTable_ShouldStillMatchWithNameNull() {
+    @DisplayName("CO-441 回归修复：本地 User 表无此工号 → managerName=null → 返回 noMatch")
+    void autoAssignIfPossible_ManagerNotFoundInLocalUserTable_ShouldReturnNoMatch() {
         when(mappingRepository.findByPurchaserName("上海西域采购中心"))
                 .thenReturn(Optional.empty());
         when(companySearchService.searchByName("上海西域采购中心"))
                 .thenReturn(Optional.of(new CompanySearchResult(100L, "上海西域采购中心", "西域集团")));
         when(customerManagerLookupService.findByCompanyId(100L))
                 .thenReturn(Optional.of(new CustomerManagerResult("99999", 16, "百大项目负责人")));
+        // CO-441: employee_number 未命中
         when(userRepository.findByEmployeeNumber("99999"))
                 .thenReturn(Optional.empty());
-        // CO-441: fallback 到 username 查询也未命中
+        // CO-441: fallback 到 username 也未命中
         when(userRepository.findByUsername("99999"))
                 .thenReturn(Optional.empty());
 
         AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
 
-        // 工号匹配成功，即使本地 User 表查不到姓名，仍视为匹配（工号是稳定标识）
-        assertThat(result.isMatched()).isTrue();
-        assertThat(result.projectManagerId()).isEqualTo("99999");
+        // CO-441 回归修复：无法找到用户 → managerName=null → 返回 noMatch
+        // 状态保持 PENDING_ASSIGNMENT，等待人工分配
+        assertThat(result.isMatched()).isFalse();
+        assertThat(result.projectManagerId()).isNull();
         assertThat(result.projectManagerName()).isNull();
     }
 
@@ -322,8 +324,8 @@ class TenderAutoAssignmentServiceTest {
     }
 
     @Test
-    @DisplayName("CO-441: 已停用的本地用户不参与自动分配")
-    void autoAssignIfPossible_DisabledLocalUser_ShouldReturnNullName() {
+    @DisplayName("CO-441 回归修复：已停用的本地用户不推进状态，返回 noMatch")
+    void autoAssignIfPossible_DisabledLocalUser_ShouldReturnNoMatch() {
         when(mappingRepository.findByPurchaserName("上海西域采购中心"))
                 .thenReturn(Optional.empty());
         when(companySearchService.searchByName("上海西域采购中心"))
@@ -342,9 +344,10 @@ class TenderAutoAssignmentServiceTest {
 
         AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
 
-        // 匹配成功但用户已停用，managerName 为 null（工号仍是稳定标识）
-        assertThat(result.isMatched()).isTrue();
-        assertThat(result.projectManagerId()).isEqualTo("01097");
+        // CO-441 回归修复：用户已停用 → managerName=null → 返回 noMatch
+        // 状态保持 PENDING_ASSIGNMENT，等待人工分配
+        assertThat(result.isMatched()).isFalse();
+        assertThat(result.projectManagerId()).isNull();
         assertThat(result.projectManagerName()).isNull();
     }
 

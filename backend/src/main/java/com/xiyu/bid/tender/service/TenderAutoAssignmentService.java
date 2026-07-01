@@ -130,8 +130,11 @@ public class TenderAutoAssignmentService {
                     tender.getId(), purchaserName, company.get().id(), saleNo);
 
             String managerName = resolveManagerNameBySaleNo(saleNo);
+            // CO-441 回归修复：如果 managerName 为 null（用户已停用/未匹配），不推进状态
+            // 返回 noMatch() 保持 PENDING_ASSIGNMENT，等待人工分配
             if (!StringUtils.hasText(managerName)) {
-                log.warn("CRM 返回的工号 {} 在本地 User 表中无匹配（employee_number/username 均未命中），projectManagerName 为 null", saleNo);
+                log.warn("CRM 返回的工号 {} 在本地 User 表中无匹配或已停用，返回 noMatch 保持 PENDING_ASSIGNMENT", saleNo);
+                return AssignmentResult.noMatch();
             }
 
             return AssignmentResult.success(
