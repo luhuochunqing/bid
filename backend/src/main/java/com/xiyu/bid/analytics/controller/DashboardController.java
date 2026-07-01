@@ -32,9 +32,9 @@ import java.util.Map;
  * REST Controller for dashboard analytics
  * Provides endpoints for dashboard data aggregation
  *
- * <p>H8 fix 2026-06-13: 类级 {@code @PreAuthorize} 强制要求 ADMIN/MANAGER 角色;
- * {@code /cache/clear} 进一步收紧到 ADMIN/MANAGER,防止任意已登录用户制造
- * cache stampede。
+ * <p>CO-XXX fix 2026-07-01: 工作台指标接口改为细粒度 menuPermissions 鉴权，
+ * 允许所有拥有 {@code dashboard} 权限的角色访问（投标专员/组长/管理员/项目负责人）。
+ * {@code /cache/clear} 保持 ADMIN/MANAGER 限制，防止 cache stampede。
  */
 @RestController
 @RequestMapping("/api/analytics")
@@ -48,7 +48,7 @@ public class DashboardController {
      * Get complete dashboard overview
      */
     @GetMapping("/overview")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('dashboard')")
     public ResponseEntity<ApiResponse<DashboardOverviewDTO>> getOverview() {
         DashboardOverviewDTO overview = dashboardAnalyticsService.getOverview();
         return ResponseEntity.ok(ApiResponse.success(overview));
@@ -58,7 +58,7 @@ public class DashboardController {
      * Get summary statistics only
      */
     @GetMapping("/summary")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('dashboard')")
     public ResponseEntity<ApiResponse<SummaryStats>> getSummaryStats() {
         SummaryStats stats = dashboardAnalyticsService.getSummaryStats();
         return ResponseEntity.ok(ApiResponse.success(stats));
@@ -68,7 +68,7 @@ public class DashboardController {
      * Get trend analysis
      */
     @GetMapping("/trends")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('dashboard')")
     public ResponseEntity<ApiResponse<Map<String, List<TrendData>>>> getTrends() {
         List<TrendData> tenderTrends =
                 dashboardAnalyticsService.getTenderTrends();
@@ -87,7 +87,7 @@ public class DashboardController {
      * Get competitor analysis
      */
     @GetMapping("/competitors")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('dashboard')")
     public ResponseEntity<ApiResponse<List<CompetitorData>>> getTopCompetitors(
             @RequestParam(required = false, defaultValue = "5") Integer limit
     ) {
@@ -117,7 +117,7 @@ public class DashboardController {
     }
 
     @GetMapping("/drill-down")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('dashboard')")
     public ResponseEntity<ApiResponse<AnalyticsDrillDownResponse>>
             getDrillDown(
             @RequestParam String type,
@@ -161,7 +161,7 @@ public class DashboardController {
     }
 
     @GetMapping("/drilldown/team")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('dashboard')")
     public ResponseEntity<ApiResponse<AnalyticsDrillDownResponseDTO>>
             getTeamDrillDown(
             @RequestParam(required = false) String role,
@@ -196,7 +196,7 @@ public class DashboardController {
      * Get status distribution
      */
     @GetMapping("/status-distribution")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('dashboard')")
     public ResponseEntity<ApiResponse<Map<String, Long>>>
             getStatusDistribution() {
         Map<String, Long> distribution =
