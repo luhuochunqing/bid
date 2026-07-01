@@ -38,7 +38,7 @@ public class AlertRule {
     private AlertType type;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "`condition`", nullable = false)
     private ConditionType condition;
 
     @Column(nullable = false, precision = 19, scale = 2)
