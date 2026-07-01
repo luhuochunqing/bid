@@ -9,6 +9,7 @@ import com.xiyu.bid.resources.domain.CaCertificateImportPolicy.ParsedCaRow;
 import com.xiyu.bid.resources.infrastructure.persistence.entity.CaCertificateImportTaskEntity;
 import com.xiyu.bid.resources.infrastructure.persistence.repository.CaCertificateImportTaskJpaRepository;
 import com.xiyu.bid.common.util.ExcelAutoSizeHelper;
+import com.xiyu.bid.infrastructure.excel.ExcelDropDownHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.Cell;
@@ -185,6 +186,13 @@ public class CaCertificateImportAppService {
                 cell.setCellStyle(headerStyle);
             }
 
+            // CA类型（第1列）下拉
+            ExcelDropDownHelper.addDropdown(sheet, CaCertificateImportPolicy.COL_CA_TYPE,
+                    CaCertificateImportPolicy.CA_TYPE_OPTIONS);
+            // 印章类型（第2列）下拉
+            ExcelDropDownHelper.addDropdown(sheet, CaCertificateImportPolicy.COL_SEAL_TYPE,
+                    CaCertificateImportPolicy.SEAL_TYPE_OPTIONS);
+
             ExcelAutoSizeHelper.autoSizeColumns(sheet, CaCertificateImportPolicy.HEADERS.length);
 
             var baos = new ByteArrayOutputStream();
@@ -192,4 +200,5 @@ public class CaCertificateImportAppService {
             return baos.toByteArray();
         }
     }
+
 }

@@ -14,9 +14,9 @@ import java.util.Set;
 public class CaCertificateImportPolicy {
 
     public static final String[] HEADERS = {
-            "CA类型*", "印章类型*", "持有人*", "保管员姓名*", "有效期至*",
+            "CA类型*", "印章类型*", "持有人", "保管员*", "有效期至*",
             "颁发机构", "电子账号", "CA密码",
-            "平台URL", "关联平台", "备注"
+            "平台地址/APP", "关联平台", "备注"
     };
 
     public static final int COL_CA_TYPE = 0;
@@ -31,8 +31,11 @@ public class CaCertificateImportPolicy {
     public static final int COL_PLATFORM_NAMES = 9;
     public static final int COL_REMARKS = 10;
 
-    private static final Set<String> VALID_CA_TYPES = Set.of("实体CA", "电子CA");
-    private static final Set<String> VALID_SEAL_TYPES = Set.of("公章", "法人章", "法人签字", "联系人签字");
+    public static final String[] CA_TYPE_OPTIONS = {"实体CA", "电子CA"};
+    public static final String[] SEAL_TYPE_OPTIONS = {"公章", "法人章", "法人签字", "联系人签字"};
+
+    private static final Set<String> VALID_CA_TYPES = Set.of(CA_TYPE_OPTIONS);
+    private static final Set<String> VALID_SEAL_TYPES = Set.of(SEAL_TYPE_OPTIONS);
 
     private CaCertificateImportPolicy() {}
 
@@ -87,8 +90,7 @@ public class CaCertificateImportPolicy {
         } else if (!VALID_SEAL_TYPES.contains(sealType)) {
             errors.add("印章类型必须是：公章/法人章/法人签字/联系人签字");
         }
-        if (holderName.isEmpty()) errors.add("持有人不能为空");
-        if (custodianName.isEmpty()) errors.add("保管员姓名不能为空");
+        if (custodianName.isEmpty()) errors.add("保管员不能为空");
 
         LocalDate expiryDate = null;
         if (expiryDateStr.isEmpty()) {
@@ -113,6 +115,11 @@ public class CaCertificateImportPolicy {
             case "联系人签字" -> "CONTACT_SIGN";
             default -> sealType;
         };
+
+        // 电子CA必须填写电子账号（与新增表单一致）
+        if (caTypeCode.equals("ELECTRONIC_CA") && electronicAccount.isEmpty()) {
+            errors.add("电子CA必须填写电子账号");
+        }
 
         // Parse platform names
         List<String> platformNames = new ArrayList<>();

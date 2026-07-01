@@ -1,11 +1,10 @@
 package com.xiyu.bid.personnel.infrastructure.excel;
 
+import com.xiyu.bid.infrastructure.excel.ExcelDropDownHelper;
 import com.xiyu.bid.personnel.domain.importvalidation.PersonnelImportEnumMapping;
 import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
-import org.apache.poi.ss.usermodel.DataValidation;
-import org.apache.poi.ss.usermodel.DataValidationHelper;
 import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.HorizontalAlignment;
@@ -13,7 +12,6 @@ import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.ss.util.CellRangeAddressList;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Component;
 
@@ -172,50 +170,24 @@ public class PersonnelImportTemplateGenerator {
 
     private void addBasicInfoDropdowns(Sheet sheet) {
         // 性别（col 2）：男/女
-        addDropdown(sheet, 2, PersonnelImportEnumMapping.GENDER_DROPDOWN);
+        ExcelDropDownHelper.addDropdown(sheet, 2, PersonnelImportEnumMapping.GENDER_DROPDOWN);
     }
 
     private void addEducationDropdowns(Sheet sheet) {
         // 最高学历（col 5）：初中/高中/中专/大专/本科/硕士/博士
-        addDropdown(sheet, 5, PersonnelImportEnumMapping.HIGHEST_EDUCATION_DROPDOWN);
+        ExcelDropDownHelper.addDropdown(sheet, 5, PersonnelImportEnumMapping.HIGHEST_EDUCATION_DROPDOWN);
         // 学习形式（col 6）：全日制/非全日制/网络教育/自学考试/其他
-        addDropdown(sheet, 6, PersonnelImportEnumMapping.STUDY_FORM_DROPDOWN);
+        ExcelDropDownHelper.addDropdown(sheet, 6, PersonnelImportEnumMapping.STUDY_FORM_DROPDOWN);
         // 是否为最高学历学校（col 8）：是/否
-        addDropdown(sheet, 8, PersonnelImportEnumMapping.YES_NO_DROPDOWN);
+        ExcelDropDownHelper.addDropdown(sheet, 8, PersonnelImportEnumMapping.YES_NO_DROPDOWN);
     }
 
     private void addCertificateDropdowns(Sheet sheet) {
         // 证书类型（col 4）：建造师/PMP/工程师/会计师/律师/安全工程师/IT类证书/其他
-        addDropdown(sheet, 4, PersonnelImportEnumMapping.CERT_TYPE_DROPDOWN);
+        ExcelDropDownHelper.addDropdown(sheet, 4, PersonnelImportEnumMapping.CERT_TYPE_DROPDOWN);
         // 职称（col 8）：初级/中级/高级
-        addDropdown(sheet, 8, PersonnelImportEnumMapping.CERT_TITLE_DROPDOWN);
+        ExcelDropDownHelper.addDropdown(sheet, 8, PersonnelImportEnumMapping.CERT_TITLE_DROPDOWN);
         // 永久有效（col 9）：是/否
-        addDropdown(sheet, 9, PersonnelImportEnumMapping.YES_NO_DROPDOWN);
-    }
-
-    private void addDropdown(Sheet sheet, int columnIndex, String[] options) {
-        DataValidationHelper helper = sheet.getDataValidationHelper();
-        // 下拉应用到第 2 行到第 1000 行（第 1 行是表头）
-        CellRangeAddressList rangeList = new CellRangeAddressList(1, 999, columnIndex, columnIndex);
-        DataValidation validation = helper.createValidation(
-                helper.createFormulaListConstraint(createInlineFormula(options)),
-                rangeList);
-        validation.setShowErrorBox(true);
-        validation.setSuppressDropDownArrow(true);
-        sheet.addValidationData(validation);
-    }
-
-    /**
-     * POI 5.x DataValidationHelper 要求 formula 以引号包裹的逗号分隔列表形式提供。
-     * 例：'"男,女"'
-     */
-    private static String createInlineFormula(String[] options) {
-        StringBuilder sb = new StringBuilder("\"");
-        for (int i = 0; i < options.length; i++) {
-            if (i > 0) sb.append(',');
-            sb.append(options[i]);
-        }
-        sb.append('"');
-        return sb.toString();
+        ExcelDropDownHelper.addDropdown(sheet, 9, PersonnelImportEnumMapping.YES_NO_DROPDOWN);
     }
 }
