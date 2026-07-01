@@ -453,11 +453,16 @@ async function handleFormSubmit(formData) {
 }
 
 async function handleDelete(ca) {
-  await ElMessageBox.confirm(
-    `确认下架该 CA 证书？此操作不可恢复。`,
-    '下架确认',
-    { type: 'warning' }
-  )
+  try {
+    await ElMessageBox.confirm(
+      `确认下架该 CA 证书？此操作不可恢复。`,
+      '下架确认',
+      { type: 'warning' }
+    )
+  } catch {
+    // CO-441: 用户点击遮罩层/取消/关闭，静默退出，避免 reject('cancel') 未捕获触发 ErrorBoundary
+    return
+  }
   try {
     await caStore.deactivateCertificate(ca.id)
     ElMessage.success('已下架')

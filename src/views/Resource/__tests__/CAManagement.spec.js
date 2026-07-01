@@ -376,3 +376,68 @@ describe('CAManagement — bid-Team 视角', () => {
     expect(wrapper.vm.canBorrow(mockCertificates[0])).toBe(true)
   })
 })
+
+// ── CO-441：下架确认弹窗取消时不应触发 ErrorBoundary ──
+// 根因：handleDelete 中 ElMessageBox.confirm 在 try/catch 外面，用户取消时
+//       reject('cancel') 未被捕获，被 onErrorCaptured 捕获后渲染错误页。
+// 修复：把 confirm 移入 try/catch，取消时静默 return。
+
+describe('CAManagement — CO-441 handleDelete 取消确认容错', () => {
+  it('用户取消确认时：不调用 deactivateCertificate，不抛错，不显示错误提示', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    const { ElMessage, ElMessageBox } = await import('element-plus')
+    // 模拟用户点击遮罩层/关闭按钮 → confirm reject('cancel')
+    vi.mocked(ElMessageBox.confirm).mockRejectedValueOnce('cancel')
+    const errorSpy = vi.spyOn(ElMessage, 'error')
+
+    const ca = mockCertificates[0]
+    // 关键断言：不应抛出未捕获错误
+    await expect(wrapper.vm.handleDelete(ca)).resolves.toBeUndefined()
+
+    // 不应调用下架 API
+    const caStore = wrapper.vm.caStore
+    expect(caStore.deactivateCertificate).not.toHaveBeenCalled()
+    // 不应显示错误提示
+    expect(errorSpy).not.toHaveBeenCalled()
+  })
+
+  it('用户确认后下架成功：调用 deactivateCertificate，显示成功提示', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    const { ElMessage, ElMessageBox } = await import('element-plus')
+    vi.mocked(ElMessageBox.confirm).mockResolvedValueOnce('confirm')
+    const successSpy = vi.spyOn(ElMessage, 'success')
+
+    const ca = mockCertificates[0]
+    await wrapper.vm.handleDelete(ca)
+
+    // 应调用下架 API
+    const caStore = wrapper.vm.caStore
+    expect(caStore.deactivateCertificate).toHaveBeenCalledWith(ca.id)
+    // 应显示成功提示
+    expect(successSpy).toHaveBeenCalledWith('已下架')
+  })
+
+  it('下架接口失败时：显示错误提示，不抛出未捕获错误', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    const { ElMessage, ElMessageBox } = await import('element-plus')
+    vi.mocked(ElMessageBox.confirm).mockResolvedValueOnce('confirm')
+    const errorSpy = vi.spyOn(ElMessage, 'error')
+
+    // 模拟下架接口失败
+    const caStore = wrapper.vm.caStore
+    caStore.deactivateCertificate.mockRejectedValueOnce(new Error('server error'))
+
+    const ca = mockCertificates[0]
+    // 关键断言：不应抛出未捕获错误（否则会触发 ErrorBoundary）
+    await expect(wrapper.vm.handleDelete(ca)).resolves.toBeUndefined()
+
+    // 应显示错误提示
+    expect(errorSpy).toHaveBeenCalledWith('下架失败')
+  })
+})
