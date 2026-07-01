@@ -24,7 +24,7 @@ class ProjectDocumentDownloadService {
     ProjectDocumentDownloadFile getProjectDocumentFile(Long projectId, Long documentId) {
         accessGuard.requireProject(projectId);
         ProjectDocument document = accessGuard.requireDocument(projectId, documentId);
-        // CO-381: 投标文件（BID_DOCUMENT）在标书制作阶段结束后只读不可下载。
+        // CO-381: 投标文件（BID 类型）在标书制作阶段结束后只读不可下载。
     // 项目仍处于 DRAFTING 阶段（含已 submit-review 进入 REVIEWING 子状态）时，投标负责人/审核人可正常下载。
     // CO-442: 结项（CLOSED）后允许下载投标文件，作为知识库积累。
     assertBidDocumentDownloadable(projectId, document);

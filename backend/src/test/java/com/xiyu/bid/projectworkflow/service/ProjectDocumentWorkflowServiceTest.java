@@ -325,7 +325,7 @@ class ProjectDocumentWorkflowServiceTest {
                 .id(9101L)
                 .projectId(1001L)
                 .name("投标文件.pdf")
-                .documentCategory("BID_DOCUMENT")
+                .documentCategory("BID")
                 .build();
         when(projectDocumentRepository.findById(9101L)).thenReturn(Optional.of(doc));
 
@@ -348,7 +348,7 @@ class ProjectDocumentWorkflowServiceTest {
                 .id(9102L)
                 .projectId(1001L)
                 .name("投标文件.pdf")
-                .documentCategory("BID_DOCUMENT")
+                .documentCategory("BID")
                 .uploaderId(1L)
                 .build();
         when(projectDocumentRepository.findById(9102L)).thenReturn(Optional.of(doc));
@@ -361,7 +361,7 @@ class ProjectDocumentWorkflowServiceTest {
     }
 
     // ============ CO-381: 投标文件阶段只读守卫 ============
-    // 需求：BID_DOCUMENT 类型在 DRAFTING 阶段可下载；推进到 EVALUATING/CLOSED 等后续阶段后只读不可下载。
+    // 需求：BID 类型（投标文件）在 DRAFTING 阶段可下载；推进到 EVALUATING/CLOSED 等后续阶段后只读不可下载。
     // 非本任务影响的其他类型文档（如 BID_RESULT_NOTICE/RETROSPECTIVE_REPORT）不受阶段守卫影响。
 
     @Test
@@ -373,7 +373,7 @@ class ProjectDocumentWorkflowServiceTest {
                 .name("投标文件.pdf")
                 .fileType("pdf")
                 .fileUrl("doc-insight://bid/file.pdf")
-                .documentCategory("BID_DOCUMENT")
+                .documentCategory("BID")
                 .build();
         when(projectDocumentRepository.findById(3101L)).thenReturn(Optional.of(doc));
         when(projectStageService.currentStage(1001L)).thenReturn(ProjectStage.DRAFTING);
@@ -399,7 +399,7 @@ class ProjectDocumentWorkflowServiceTest {
                 .projectId(1001L)
                 .name("投标文件.pdf")
                 .fileUrl("doc-insight://bid/file.pdf")
-                .documentCategory("BID_DOCUMENT")
+                .documentCategory("BID")
                 .build();
         when(projectDocumentRepository.findById(3102L)).thenReturn(Optional.of(doc));
         when(projectStageService.currentStage(1001L)).thenReturn(ProjectStage.EVALUATING);
@@ -423,7 +423,7 @@ class ProjectDocumentWorkflowServiceTest {
                 .name("投标文件.pdf")
                 .fileType("pdf")
                 .fileUrl("doc-insight://bid/file.pdf")
-                .documentCategory("BID_DOCUMENT")
+                .documentCategory("BID")
                 .build();
         when(projectDocumentRepository.findById(3103L)).thenReturn(Optional.of(doc));
         when(projectStageService.currentStage(1001L)).thenReturn(ProjectStage.CLOSED);
@@ -443,7 +443,7 @@ class ProjectDocumentWorkflowServiceTest {
 
     @Test
     void getProjectDocumentFile_nonBidDocument_inEvaluatingStage_succeeds() throws Exception {
-        // 守卫只针对 BID_DOCUMENT，其他类型文档（如中标通知书/复盘报告）在任意阶段都能下载
+        // 守卫只针对 BID 类型（投标文件），其他类型文档（如中标通知书/复盘报告）在任意阶段都能下载
         ProjectDocument doc = ProjectDocument.builder()
                 .id(3104L)
                 .projectId(1001L)
@@ -453,7 +453,7 @@ class ProjectDocumentWorkflowServiceTest {
                 .documentCategory("BID_RESULT_NOTICE")
                 .build();
         when(projectDocumentRepository.findById(3104L)).thenReturn(Optional.of(doc));
-        // 不需要 stub projectStageService.currentStage，因为非 BID_DOCUMENT 不会调用
+        // 不需要 stub projectStageService.currentStage，因为非 BID 类型不会调用
         when(fileStorage.load("doc-insight://result/notice.pdf"))
                 .thenReturn(Optional.of(new LoadedProjectDocumentFile(
                         "doc-insight://result/notice.pdf",
@@ -478,7 +478,7 @@ class ProjectDocumentWorkflowServiceTest {
                 .name("投标文件.pdf")
                 .fileType("pdf")
                 .fileUrl("doc-insight://bid/file.pdf")
-                .documentCategory("BID_DOCUMENT")
+                .documentCategory("BID")
                 .build();
         when(projectDocumentRepository.findById(3105L)).thenReturn(Optional.of(doc));
         when(projectStageService.currentStage(1001L)).thenReturn(ProjectStage.DRAFTING);

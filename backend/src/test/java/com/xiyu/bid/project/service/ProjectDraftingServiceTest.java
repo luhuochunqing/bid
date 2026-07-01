@@ -7,6 +7,7 @@ package com.xiyu.bid.project.service;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.security.EffectiveRoleResolver;
+import com.xiyu.bid.project.core.BidReadinessPolicy;
 import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.dto.ProjectLeadAssignmentRequest;
 import com.xiyu.bid.project.entity.ProjectLeadAssignment;
@@ -223,13 +224,13 @@ class ProjectDraftingServiceTest {
 
     private void prepareBidDocument() {
         lenient().when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
-                        eq(1L), eq("BID_DOCUMENT"), eq(null), eq(null)))
+                        eq(1L), eq(BidReadinessPolicy.BID_DOCUMENT_CATEGORY), eq(null), eq(null)))
                 .thenReturn(List.of(ProjectDocument.builder().id(1L).projectId(1L).name("bid.pdf").build()));
     }
 
     private void prepareNoBidDocument() {
         lenient().when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
-                        eq(1L), eq("BID_DOCUMENT"), eq(null), eq(null)))
+                        eq(1L), eq(BidReadinessPolicy.BID_DOCUMENT_CATEGORY), eq(null), eq(null)))
                 .thenReturn(List.of());
     }
 
