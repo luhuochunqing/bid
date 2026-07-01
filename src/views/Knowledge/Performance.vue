@@ -15,9 +15,6 @@
         <el-button v-if="canManagePerformance" class="ghost-btn" @click="handleImport">
           <el-icon class="btn-icon"><Upload /></el-icon> 批量导入
         </el-button>
-        <el-button class="ghost-btn" @click="openSimilarSearch">
-          <el-icon class="btn-icon"><Search /></el-icon> 相似业绩
-        </el-button>
         <el-dropdown v-if="canManagePerformance" split-button class="ghost-btn export-dropdown" @click="handleExport()" @command="handleExport">
           <el-icon class="btn-icon"><Download /></el-icon> 导出
           <template #dropdown>
@@ -135,8 +132,6 @@
 
     <PerformanceAlertConfigDialog v-model="alertConfigVisible" />
 
-    <PerformanceSimilarDrawer v-model="similarVisible" :records="similarRecords" :loading="similarLoading" />
-
     <PerformanceImportDialog v-model="importVisible" @imported="loadData" />
   </div>
 </template>
@@ -145,12 +140,12 @@
 import { ref, reactive, onMounted } from 'vue'
 import { performanceApi } from '@/api/modules/performance.js'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Upload, Download, Bell, Search } from '@element-plus/icons-vue'
+import { Plus, Upload, Download, Bell } from '@element-plus/icons-vue'
+import { usePerformanceImport } from '@/composables/usePerformanceImport.js'
 import { useKnowledgePermission } from '@/composables/useKnowledgePermission'
 import PerformanceDetailDrawer from './components/PerformanceDetailDrawer.vue'
 import PerformanceFormDialog from './components/PerformanceFormDialog.vue'
 import PerformanceAlertConfigDialog from './components/performance/PerformanceAlertConfigDialog.vue'
-import PerformanceSimilarDrawer from './components/PerformanceSimilarDrawer.vue'
 import PerformanceImportDialog from './components/PerformanceImportDialog.vue'
 
 const { canManagePerformance, canAdminAlert: canAdminPerformanceAlert } = useKnowledgePermission()
@@ -160,29 +155,7 @@ const searchForm = reactive({ keyword: '', customerTypes: [], projectTypes: [], 
 const loading = ref(false); const records = ref([]); const current = ref(null)
 const detailVisible = ref(false); const editingRow = ref(null); const formVisible = ref(false)
 const alertConfigVisible = ref(false); const submitting = ref(false)
-const similarVisible = ref(false); const similarRecords = ref([]); const similarLoading = ref(false)
 const selectedIds = ref([]); const handleSelectionChange = (rows) => { selectedIds.value = rows.map(r => r.id) }
-const openSimilarSearch = async () => {
-  similarLoading.value = true
-  similarVisible.value = true
-  try {
-    const similarForm = { ...searchForm, keyword: '' }
-    const { data } = await performanceApi.getList(similarForm)
-    const scored = (data || []).map(r => {
-      let score = 0
-      if (searchForm.customerTypes?.length > 0 && searchForm.customerTypes.includes(r.customerType)) score += 3
-      if (searchForm.projectTypes?.length > 0 && searchForm.projectTypes.includes(r.projectType)) score += 2
-      if (searchForm.customerLevels?.length > 0 && searchForm.customerLevels.includes(r.customerLevel)) score += 1
-      if (searchForm.territory && r.territory?.includes(searchForm.territory)) score += 2
-      return { ...r, _similarScore: score }
-    })
-    similarRecords.value = scored.sort((a, b) => b._similarScore - a._similarScore).slice(0, 20)
-  } catch {
-    ElMessage.error('相似业绩搜索失败')
-  } finally {
-    similarLoading.value = false
-  }
-}
 
 const loadData = async () => {
   loading.value = true
