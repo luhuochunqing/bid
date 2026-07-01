@@ -70,12 +70,14 @@ const HEADER_MATRIX = {
         : [],
   },
   TRACKING: {
-    admin_lead: ['transfer', 'delete'],
+    admin_lead: ({ projectManagerId }) =>
+      projectManagerId != null ? ['transfer', 'delete'] : ['delete'],
     sales: [],
     bid_team: [],
   },
   EVALUATED: {
-    admin_lead: ['transfer'],
+    admin_lead: ({ projectManagerId }) =>
+      projectManagerId != null ? ['transfer'] : [],
     sales: [],
     bid_team: [],
   },
@@ -146,7 +148,7 @@ const BOTTOM_MATRIX = {
 // ---------------------------------------------------------------------------
 // getHeaderActions - 获取顶部操作按钮列表
 // ---------------------------------------------------------------------------
-export function getHeaderActions(status, role, hasOriginalUrl, currentUserId, creatorId) {
+export function getHeaderActions(status, role, hasOriginalUrl, currentUserId, creatorId, projectManagerId) {
   const group = resolveRoleGroup(role)
   if (!group) return []
 
@@ -158,7 +160,7 @@ export function getHeaderActions(status, role, hasOriginalUrl, currentUserId, cr
 
   // 动态权限判定：函数类型的 keys 根据当前用户身份计算
   if (typeof keys === 'function') {
-    keys = keys({ currentUserId, creatorId })
+    keys = keys({ currentUserId, creatorId, projectManagerId })
   }
 
   let result = keys.map((k) => ({ ...ACTION_DEFS[k] }))

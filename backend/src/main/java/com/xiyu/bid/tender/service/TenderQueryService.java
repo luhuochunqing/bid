@@ -43,9 +43,11 @@ public class TenderQueryService {
 
     public List<TenderDTO> searchTenders(TenderSearchCriteria criteria) {
         log.debug("Searching tenders with criteria: {}", criteria);
-        return accessGuard.filterVisibleTenders(tenderRepository.findAll(TenderSpecification.byCriteria(criteria))).stream()
+        List<TenderDTO> dtos = accessGuard.filterVisibleTenders(tenderRepository.findAll(TenderSpecification.byCriteria(criteria))).stream()
                 .map(tenderMapper::toDTO)
                 .toList();
+        enrichAssignmentInfoBatch(dtos);
+        return dtos;
     }
 
     public TenderDTO getTenderById(Long id) {
@@ -137,6 +139,7 @@ public class TenderQueryService {
         List<TenderDTO> dtos = visible.stream()
                 .map(tenderMapper::toDTO)
                 .toList();
+        enrichAssignmentInfoBatch(dtos);
         return new org.springframework.data.domain.PageImpl<>(dtos, pageable, visible.size());
     }
 

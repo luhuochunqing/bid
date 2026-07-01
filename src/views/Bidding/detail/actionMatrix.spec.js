@@ -105,19 +105,28 @@ describe('getHeaderActions', () => {
   })
 
   describe('TRACKING', () => {
-    it('bid_admin sees transfer + delete', () => {
-      expectActions(getHeaderActions(TRACKING, '/bidAdmin'), [
+    it('bid_admin with projectManagerId sees transfer + delete', () => {
+      expectActions(getHeaderActions(TRACKING, '/bidAdmin', false, null, null, 1), [
         ACTIONS.TRANSFER,
         ACTIONS.DELETE,
       ])
     })
 
-    it('bid_lead sees transfer only', () => {
-      expectActions(getHeaderActions(TRACKING, 'bid-TeamLeader'), [
+    it('bid_admin without projectManagerId sees delete only', () => {
+      expectActions(getHeaderActions(TRACKING, '/bidAdmin', false, null, null, null), [
+        ACTIONS.DELETE,
+      ])
+    })
+
+    it('bid_lead with projectManagerId sees transfer only', () => {
+      expectActions(getHeaderActions(TRACKING, 'bid-TeamLeader', false, null, null, 1), [
         ACTIONS.TRANSFER,
       ])
     })
 
+    it('bid_lead without projectManagerId sees nothing (delete filtered for bid-TeamLeader)', () => {
+      expectActions(getHeaderActions(TRACKING, 'bid-TeamLeader', false, null, null, null), [])
+    })
 
     it('sales sees nothing', () => {
       expect(getHeaderActions(TRACKING, 'bid-projectLeader')).toEqual([])
@@ -129,16 +138,24 @@ describe('getHeaderActions', () => {
   })
 
   describe('EVALUATED', () => {
-    it('bid_admin sees transfer only (delete not allowed per §4.2.8)', () => {
-      expectActions(getHeaderActions(EVALUATED, '/bidAdmin'), [
+    it('bid_admin with projectManagerId sees transfer only (delete not allowed per §4.2.8)', () => {
+      expectActions(getHeaderActions(EVALUATED, '/bidAdmin', false, null, null, 1), [
         ACTIONS.TRANSFER,
       ])
     })
 
-    it('bid_lead sees transfer only', () => {
-      expectActions(getHeaderActions(EVALUATED, 'bid-TeamLeader'), [
+    it('bid_admin without projectManagerId sees nothing', () => {
+      expect(getHeaderActions(EVALUATED, '/bidAdmin', false, null, null, null)).toEqual([])
+    })
+
+    it('bid_lead with projectManagerId sees transfer only', () => {
+      expectActions(getHeaderActions(EVALUATED, 'bid-TeamLeader', false, null, null, 1), [
         ACTIONS.TRANSFER,
       ])
+    })
+
+    it('bid_lead without projectManagerId sees nothing', () => {
+      expect(getHeaderActions(EVALUATED, 'bid-TeamLeader', false, null, null, null)).toEqual([])
     })
 
     it('sales sees nothing (delete not allowed per §4.2.8)', () => {

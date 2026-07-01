@@ -56,6 +56,7 @@ export function useDetailActions(tenderRef, roleRef, loadDetailFn, handlers = {}
       Boolean(tenderRef.value.originalUrl),
       currentUserId,
       creatorId,
+      tenderRef.value.projectManagerId,
     )
     // 当评估表 tab 激活且正在编辑（非管理员）时，隐藏删除按钮
     if (evaluationTabActiveRef.value) {
