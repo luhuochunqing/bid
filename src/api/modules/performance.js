@@ -261,6 +261,21 @@ export const performanceApi = {
     return httpClient.post('/api/knowledge/performance/attachments/upload', fd, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
+  },
+
+  // 下载业绩附件（通过附件 ID，后端根据 fileUrl 解析本地文件路径返回）
+  async downloadAttachment(id, fileName) {
+    const res = await httpClient.get(`/api/knowledge/performance/attachments/${id}/download`, { responseType: 'blob' })
+    const blob = res.data
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', fileName || 'attachment')
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+    return res
   }
 }
 

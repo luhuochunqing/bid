@@ -13,12 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -44,16 +39,12 @@ public final class PerformanceZipExporter {
     private final PerformanceAlertConfigRepository alertConfigRepository;
     /** Excel 导出器. */
     private final PerformanceExcelExporter excelExporter;
+    /** 附件文件读取服务. */
+    private final PerformanceAttachmentStorageAppService attachmentStorageService;
 
     /** 默认提醒配置. */
     private static final PerformanceAlertConfig DEFAULT_CONFIG =
             new PerformanceAlertConfig(null, 180, 90, true);
-    /** HTTP 客户端连接超时秒数. */
-    private static final int HTTP_TIMEOUT_SECONDS = 30;
-    /** HTTP 客户端. */
-    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
-            .build();
 
     /**
      * 导出 ZIP（含 Excel 台账 + 附件）.
@@ -122,12 +113,12 @@ public final class PerformanceZipExporter {
                     zipOut.putNextEntry(entry);
 
                     try {
-                        byte[] fileBytes = downloadFile(att.fileUrl());
+                        byte[] fileBytes = attachmentStorageService.readAttachmentFile(att.fileUrl());
                         zipOut.write(fileBytes);
-                    } catch (IOException | InterruptedException e) {
-                        log.warn("下载附件失败: {} - {}",
+                    } catch (IOException e) {
+                        log.warn("读取附件失败: {} - {}",
                                 att.fileUrl(), e.getMessage());
-                        zipOut.write(("下载失败: " + e.getMessage())
+                        zipOut.write(("读取失败: " + e.getMessage())
                                 .getBytes(StandardCharsets.UTF_8));
                     }
                     zipOut.closeEntry();
@@ -138,34 +129,9 @@ public final class PerformanceZipExporter {
         return out.toByteArray();
     }
 
-    /**
-     * 下载远程文件.
-     *
-     * @param url 文件 URL
-     * @return 文件字节数组
-     * @throws IOException          IO 异常
-     * @throws InterruptedException 中断异常
-     */
     private static String safeFolderName(String name) {
         String safe = ZipEntryDeduplicator.safeFileName(name);
         return safe.isEmpty() ? "unnamed_contract" : safe;
-    }
-
-    private byte[] downloadFile(final String url)
-            throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .timeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
-                .GET()
-                .build();
-        HttpResponse<byte[]> response = HTTP_CLIENT.send(
-                request, HttpResponse.BodyHandlers.ofByteArray());
-        if (response.statusCode() >= 200
-                && response.statusCode() < 300) {
-            return response.body();
-        }
-        throw new IOException("HTTP " + response.statusCode()
-                + " for " + url);
     }
 
 }

@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -38,12 +39,13 @@ class PerformanceZipExporterTest {
     private PerformanceMapper mapper;
     private PerformanceAlertConfigRepository alertConfigRepository;
     private PerformanceExcelExporter excelExporter;
+    private PerformanceAttachmentStorageAppService attachmentStorageService;
     private PerformanceZipExporter zipExporter;
 
     private PerformanceRecord sampleRecord(boolean withAttachment) {
         List<PerformanceRecord.AttachmentEntry> atts = withAttachment
                 ? List.of(new PerformanceRecord.AttachmentEntry(
-                        1L, "合同协议.pdf", "http://example.com/contract.pdf", "CONTRACT_AGREEMENT"))
+                        1L, "合同协议.pdf", "/1/PF_1_CONTRACT_AGREEMENT_20260101.pdf", "CONTRACT_AGREEMENT"))
                 : List.of();
         return new PerformanceRecord(
                 1L, "合同A", "签约单位A", "集团A",
@@ -79,7 +81,8 @@ class PerformanceZipExporterTest {
         mapper = mock(PerformanceMapper.class);
         alertConfigRepository = mock(PerformanceAlertConfigRepository.class);
         excelExporter = mock(PerformanceExcelExporter.class);
-        zipExporter = new PerformanceZipExporter(repository, mapper, alertConfigRepository, excelExporter);
+        attachmentStorageService = mock(PerformanceAttachmentStorageAppService.class);
+        zipExporter = new PerformanceZipExporter(repository, mapper, alertConfigRepository, excelExporter, attachmentStorageService);
     }
 
     @Test
@@ -160,7 +163,7 @@ class PerformanceZipExporterTest {
 
     @Test
     void exportZip_recordWithNullFileUrlAttachment_skipsAttachmentEntry() throws Exception {
-        // 附件 fileUrl 为 null，应跳过下载（避免真实 HTTP 请求）
+        // 附件 fileUrl 为 null，应跳过（不会调用 storageService）
         PerformanceRecord record = new PerformanceRecord(
                 1L, "合同A", "签约单位A", "集团A",
                 null, "行业A",
@@ -187,5 +190,49 @@ class PerformanceZipExporterTest {
             }
         }
         assertThat(entryCount).isEqualTo(1);
+    }
+
+    @Test
+    void exportZip_recordWithLocalAttachment_readsFromStorageService() throws Exception {
+        // 带本地附件的记录，应通过 storageService.readAttachmentFile 读取
+        PerformanceRecord record = sampleRecord(true);
+        when(repository.findById(1L)).thenReturn(Optional.of(record));
+        when(mapper.toDTO(record)).thenReturn(toDto(record));
+        when(excelExporter.export(anyList(), any())).thenReturn(new byte[]{1, 2, 3});
+        when(attachmentStorageService.readAttachmentFile("/1/PF_1_CONTRACT_AGREEMENT_20260101.pdf"))
+                .thenReturn(new byte[]{4, 5, 6});
+
+        byte[] data = zipExporter.exportZip(List.of(1L), null);
+
+        // 应有 2 个 entry：_台账.xlsx + 合同A_1/合同协议.pdf
+        int entryCount = 0;
+        try (var zis = new ZipInputStream(new ByteArrayInputStream(data))) {
+            while (zis.getNextEntry() != null) {
+                entryCount++;
+            }
+        }
+        assertThat(entryCount).isEqualTo(2);
+    }
+
+    @Test
+    void exportZip_attachmentReadFailure_writesErrorMessageInZip() throws Exception {
+        // 附件读取失败，应写入错误信息而非中断整个 ZIP
+        PerformanceRecord record = sampleRecord(true);
+        when(repository.findById(1L)).thenReturn(Optional.of(record));
+        when(mapper.toDTO(record)).thenReturn(toDto(record));
+        when(excelExporter.export(anyList(), any())).thenReturn(new byte[]{1, 2, 3});
+        when(attachmentStorageService.readAttachmentFile("/1/PF_1_CONTRACT_AGREEMENT_20260101.pdf"))
+                .thenThrow(new IOException("附件文件不存在"));
+
+        byte[] data = zipExporter.exportZip(List.of(1L), null);
+
+        // 仍有 2 个 entry（失败附件也占一个 entry，内容为错误信息）
+        int entryCount = 0;
+        try (var zis = new ZipInputStream(new ByteArrayInputStream(data))) {
+            while (zis.getNextEntry() != null) {
+                entryCount++;
+            }
+        }
+        assertThat(entryCount).isEqualTo(2);
     }
 }

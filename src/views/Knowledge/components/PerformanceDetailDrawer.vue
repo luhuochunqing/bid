@@ -87,7 +87,7 @@
             <el-table-column prop="fileName" label="附件文件名" min-width="200" />
             <el-table-column label="下载链接">
               <template #default="{ row }">
-                <a :href="row.fileUrl" target="_blank" class="link-url">查看/下载附件</a>
+                <a href="javascript:void(0)" @click.prevent="downloadAttachment(row)" class="link-url">查看/下载附件</a>
               </template>
             </el-table-column>
           </el-table>
@@ -107,7 +107,9 @@
 
 <script setup>
 import { ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
 import PerformanceOperationLogTimeline from './PerformanceOperationLogTimeline.vue'
+import { performanceApi } from '@/api/modules/performance'
 
 const props = defineProps({
   visible: Boolean,
@@ -175,6 +177,14 @@ const getFileTypeLabel = (type) => {
     OTHER: '其他关联证明'
   }
   return map[type] || type
+}
+
+const downloadAttachment = async (att) => {
+  try {
+    await performanceApi.downloadAttachment(att.id, att.fileName)
+  } catch {
+    ElMessage.error('附件下载失败')
+  }
 }
 </script>
 

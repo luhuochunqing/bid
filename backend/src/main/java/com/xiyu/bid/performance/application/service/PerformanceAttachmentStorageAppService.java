@@ -35,6 +35,10 @@ public class PerformanceAttachmentStorageAppService {
     @Value("${app.upload.performance-dir:uploads/performance-attachments}")
     private String uploadDir;
 
+    /** 批量导入附件的存储根目录（与 PerformanceImportAttachmentProcessor 共用同一配置） */
+    @Value("${performance.attachment.root:/data/attachments/performance}")
+    private String attachmentRoot;
+
     public PerformanceAttachmentUploadDTO upload(String fileType, MultipartFile file) throws IOException {
         validateFileType(fileType);
         validateFile(file);
@@ -83,5 +87,64 @@ public class PerformanceAttachmentStorageAppService {
             p = Paths.get(System.getProperty("user.dir")).resolve(p).normalize();
         }
         return p;
+    }
+
+    // ── 文件读取（供 ZIP 导出 + 附件下载端点使用） ──────────────
+
+    /**
+     * 根据 fileUrl 读取附件文件字节.
+     *
+     * <p>fileUrl 有两种来源格式：
+     * <ol>
+     *   <li>页面上传 → 本地磁盘绝对路径（如 /opt/xiyu-bid/.../uuid_file.pdf）</li>
+     *   <li>批量导入 → 相对路径（如 /123/PF_123_CONTRACT_AGREEMENT_xxx.pdf）</li>
+     * </ol>
+     * 两种格式都不是 HTTP URL，必须从本地磁盘读取。
+     *
+     * @param fileUrl 数据库中存储的附件路径
+     * @return 文件字节数组
+     * @throws IOException 文件不存在或读取失败
+     */
+    public byte[] readAttachmentFile(String fileUrl) throws IOException {
+        Path localPath = resolveLocalPath(fileUrl);
+        if (localPath != null && Files.exists(localPath)) {
+            return Files.readAllBytes(localPath);
+        }
+        throw new IOException("附件文件不存在: " + fileUrl);
+    }
+
+    /**
+     * 解析 fileUrl 到本地文件路径.
+     *
+     * <p>解析策略：
+     * 1. 优先尝试作为绝对路径（页面上传存储的格式）
+     * 2. 若绝对路径不存在，拼接 attachmentRoot（批量导入存储的格式）
+     *
+     * @param fileUrl 数据库中存储的附件路径
+     * @return 解析后的本地路径，null 表示 fileUrl 为空
+     */
+    Path resolveLocalPath(String fileUrl) {
+        if (fileUrl == null || fileUrl.isBlank()) return null;
+
+        // 1. 绝对路径（页面上传：dest.toAbsolutePath().normalize().toString()）
+        Path absolutePath = Path.of(fileUrl).normalize();
+        if (absolutePath.isAbsolute() && Files.exists(absolutePath)) {
+            return absolutePath;
+        }
+
+        // 2. 相对路径（批量导入："/" + performanceId + "/" + storedFilename）
+        String relativePart = fileUrl.startsWith("/") ? fileUrl.substring(1) : fileUrl;
+        Path importPath = Path.of(attachmentRoot).resolve(relativePart).normalize();
+
+        // 路径穿越防护
+        if (!importPath.startsWith(Path.of(attachmentRoot).normalize())) {
+            return null;
+        }
+        if (Files.exists(importPath)) {
+            return importPath;
+        }
+
+        // 3. 回退：返回最佳猜测用于错误信息
+        return absolutePath.isAbsolute() ? absolutePath : importPath;
     }
 }
