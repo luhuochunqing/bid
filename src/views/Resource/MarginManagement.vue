@@ -192,27 +192,26 @@ async function fetchSummary() {
   } catch (e) { /* no data */ }
 }
 
+function buildFilterParams() {
+  const p = {}
+  if (filters.projectName) p.projectName = filters.projectName
+  if (filters.ownerUnit) p.ownerUnit = filters.ownerUnit
+  if (filters.projectLeaderName) p.projectLeaderName = filters.projectLeaderName
+  if (filters.biddingLeaderName) p.biddingLeaderName = filters.biddingLeaderName
+  if (filters.paymentDateRange?.[0]) p.paymentDateStart = filters.paymentDateRange[0]
+  if (filters.paymentDateRange?.[1]) p.paymentDateEnd = filters.paymentDateRange[1]
+  if (filters.expectedReturnDateRange?.[0]) p.expectedReturnDateStart = filters.expectedReturnDateRange[0]
+  if (filters.expectedReturnDateRange?.[1]) p.expectedReturnDateEnd = filters.expectedReturnDateRange[1]
+  if (filters.status) p.status = filters.status
+  return p
+}
 async function fetchList() {
   loading.value = true
   try {
-    const params = { page: pagination.page, size: pagination.size }
-    if (filters.projectName) params.projectName = filters.projectName
-    if (filters.ownerUnit) params.ownerUnit = filters.ownerUnit
-    if (filters.projectLeaderName) params.projectLeaderName = filters.projectLeaderName
-    if (filters.biddingLeaderName) params.biddingLeaderName = filters.biddingLeaderName
-    if (filters.paymentDateRange?.[0]) params.paymentDateStart = filters.paymentDateRange[0]
-    if (filters.paymentDateRange?.[1]) params.paymentDateEnd = filters.paymentDateRange[1]
-    if (filters.expectedReturnDateRange?.[0]) params.expectedReturnDateStart = filters.expectedReturnDateRange[0]
-    if (filters.expectedReturnDateRange?.[1]) params.expectedReturnDateEnd = filters.expectedReturnDateRange[1]
-    if (filters.status) params.status = filters.status
+    const params = { page: pagination.page, size: pagination.size, ...buildFilterParams() }
     const res = await httpClient.get('/api/resource/margin/list', { params })
-    if (res?.data) {
-      tableData.value = res.data.data || []
-      pagination.total = res.data.total || 0
-    }
-  } finally {
-    loading.value = false
-  }
+    if (res?.data) { tableData.value = res.data.data || []; pagination.total = res.data.total || 0 }
+  } finally { loading.value = false }
 }
 
 function handleSearch() {
@@ -230,18 +229,18 @@ function handleReset() {
   fetchList()
 }
 
-function handleExport() {
-  const params = new URLSearchParams()
-  if (filters.projectName) params.append('projectName', filters.projectName)
-  if (filters.ownerUnit) params.append('ownerUnit', filters.ownerUnit)
-  if (filters.projectLeaderName) params.append('projectLeaderName', filters.projectLeaderName)
-  if (filters.biddingLeaderName) params.append('biddingLeaderName', filters.biddingLeaderName)
-  if (filters.paymentDateRange?.[0]) params.append('paymentDateStart', filters.paymentDateRange[0])
-  if (filters.paymentDateRange?.[1]) params.append('paymentDateEnd', filters.paymentDateRange[1])
-  if (filters.expectedReturnDateRange?.[0]) params.append('expectedReturnDateStart', filters.expectedReturnDateRange[0])
-  if (filters.expectedReturnDateRange?.[1]) params.append('expectedReturnDateEnd', filters.expectedReturnDateRange[1])
-  if (filters.status) params.append('status', filters.status)
-  window.open(`/api/resource/margin/list?${params.toString()}`, '_blank')
+async function handleExport() {
+  try {
+    const res = await httpClient.get('/api/resource/margin/export', { params: buildFilterParams(), responseType: 'blob' })
+    const url = window.URL.createObjectURL(res.data)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `保证金台账_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.xlsx`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (e) { console.error('Export failed:', e) }
 }
 
 function goToProject(id) { router.push(`/project/${id}`) }

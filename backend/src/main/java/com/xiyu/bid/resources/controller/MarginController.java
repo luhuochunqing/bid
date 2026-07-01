@@ -2,9 +2,12 @@ package com.xiyu.bid.resources.controller;
 
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.resources.dto.MarginDTO;
+import com.xiyu.bid.resources.service.MarginExportService;
 import com.xiyu.bid.resources.service.MarginService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -13,6 +16,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +39,9 @@ public class MarginController {
 
     /** Margin data service. */
     private final MarginService marginService;
+
+    /** Margin Excel export service. */
+    private final MarginExportService marginExportService;
 
     /**
      * Get margin summary statistics.
@@ -71,6 +81,32 @@ public class MarginController {
         Map<String, Object> result = Map.of(
                 "data", list, "total", total, "page", page, "size", size);
         return ResponseEntity.ok(ApiResponse.success("Success", result));
+    }
+
+    /**
+     * Export margin ledger as Excel file.
+     *
+     * @param auth   current authentication
+     * @param params query parameters (same filters as list endpoint)
+     * @return .xlsx file download
+     */
+    @GetMapping("/export")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<byte[]> export(
+            final Authentication auth,
+            @RequestParam final Map<String, String> params) {
+        Long uid = userId(auth);
+        String role = roleTag(auth);
+        Map<String, String> f = extractFilters(params);
+        byte[] excel = marginExportService.exportToExcel(uid, role, f);
+        String filename = URLEncoder.encode(
+                "保证金台账_" + LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) + ".xlsx",
+                StandardCharsets.UTF_8);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + filename)
+                .body(excel);
     }
 
     private Map<String, String> extractFilters(final Map<String, String> p) {
