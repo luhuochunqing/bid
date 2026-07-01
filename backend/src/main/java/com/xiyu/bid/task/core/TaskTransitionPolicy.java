@@ -99,6 +99,30 @@ public final class TaskTransitionPolicy {
     }
 
     /**
+     * Validate submission requirements when transitioning TODO -> REVIEW.
+     * CO-458: 提交审核时必须上传交付物并填写完成情况。
+     *
+     * @param current           current task status
+     * @param target            target task status
+     * @param deliverableCount  number of deliverables uploaded
+     * @param completionNotes   completion notes from the submitter
+     * @return TransitionResult with allowed flag and reason
+     */
+    public static TransitionResult validateSubmission(
+            final TaskStatus current, final TaskStatus target,
+            final int deliverableCount, final String completionNotes) {
+        if (current == TaskStatus.TODO && target == TaskStatus.REVIEW) {
+            if (deliverableCount <= 0) {
+                return TransitionResult.denied("提交审核时必须上传交付物");
+            }
+            if (completionNotes == null || completionNotes.isBlank()) {
+                return TransitionResult.denied("提交审核时必须填写完成情况");
+            }
+        }
+        return TransitionResult.ok();
+    }
+
+    /**
      * Result of a transition validation.
      *
      * @param allowed whether transition is legal
