@@ -415,24 +415,30 @@ class ProjectDocumentWorkflowServiceTest {
     }
 
     @Test
-    void getProjectDocumentFile_BidDocument_inClosedStage_throwsBusinessException() {
-        // 场景：项目已结项，回到 DRAFTING tab 想下载投标文件 → 拒绝
+    void getProjectDocumentFile_BidDocument_inClosedStage_succeeds() throws Exception {
+        // CO-442: 项目已结项，下载投标文件作为知识库积累 → 允许
         ProjectDocument doc = ProjectDocument.builder()
                 .id(3103L)
                 .projectId(1001L)
                 .name("投标文件.pdf")
+                .fileType("pdf")
                 .fileUrl("doc-insight://bid/file.pdf")
                 .documentCategory("BID_DOCUMENT")
                 .build();
         when(projectDocumentRepository.findById(3103L)).thenReturn(Optional.of(doc));
         when(projectStageService.currentStage(1001L)).thenReturn(ProjectStage.CLOSED);
+        when(fileStorage.load("doc-insight://bid/file.pdf"))
+                .thenReturn(Optional.of(new LoadedProjectDocumentFile(
+                        "doc-insight://bid/file.pdf",
+                        null,
+                        "application/pdf",
+                        "投标内容".getBytes(StandardCharsets.UTF_8)
+                )));
 
-        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
-                        downloadService.getProjectDocumentFile(1001L, 3103L))
-                .isInstanceOf(BusinessException.class)
-                .hasFieldOrPropertyWithValue("code", 409);
+        ProjectDocumentDownloadFile file = downloadService.getProjectDocumentFile(1001L, 3103L);
 
-        verify(fileStorage, org.mockito.Mockito.never()).load(any());
+        assertThat(file.fileName()).isEqualTo("投标文件.pdf");
+        assertThat(file.resource().getContentAsByteArray()).isEqualTo("投标内容".getBytes(StandardCharsets.UTF_8));
     }
 
     @Test

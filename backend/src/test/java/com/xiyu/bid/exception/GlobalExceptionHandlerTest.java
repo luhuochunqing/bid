@@ -135,4 +135,33 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().getMessage()).isEqualTo("投标管理系统该标讯已存在");
         assertThat(response.getBody().getData()).isNull();
     }
+
+    // ============ CO-442: BusinessException HttpStatus 透传 ============
+    // 修复前：handleBusinessException 硬编码 HttpStatus.BAD_REQUEST，忽略 ex.getHttpStatus()
+    // 修复后：使用 ex.getHttpStatus()，确保 409/403/423 等业务码返回正确的 HTTP 状态码
+
+    @Test
+    void handleBusinessException_shouldReturnHttpStatusFromException_409() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/projects/112/documents/401/download");
+        BusinessException exception = new BusinessException(409, "投标文件已进入「结项」阶段，文件只读不可下载");
+
+        ResponseEntity<ApiResponse<Void>> response = handler.handleBusinessException(exception, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getCode()).isEqualTo(409);
+        assertThat(response.getBody().getMessage()).contains("投标文件");
+    }
+
+    @Test
+    void handleBusinessException_shouldReturnHttpStatusFromException_400() {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/example");
+        BusinessException exception = new BusinessException("参数错误");
+
+        ResponseEntity<ApiResponse<Void>> response = handler.handleBusinessException(exception, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getCode()).isEqualTo(400);
+    }
 }

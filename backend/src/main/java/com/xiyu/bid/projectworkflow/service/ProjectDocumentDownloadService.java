@@ -25,8 +25,9 @@ class ProjectDocumentDownloadService {
         accessGuard.requireProject(projectId);
         ProjectDocument document = accessGuard.requireDocument(projectId, documentId);
         // CO-381: 投标文件（BID_DOCUMENT）在标书制作阶段结束后只读不可下载。
-        // 项目仍处于 DRAFTING 阶段（含已 submit-review 进入 REVIEWING 子状态）时，投标负责人/审核人可正常下载。
-        assertBidDocumentDownloadable(projectId, document);
+    // 项目仍处于 DRAFTING 阶段（含已 submit-review 进入 REVIEWING 子状态）时，投标负责人/审核人可正常下载。
+    // CO-442: 结项（CLOSED）后允许下载投标文件，作为知识库积累。
+    assertBidDocumentDownloadable(projectId, document);
         String fileUrl = trimToNull(document.getFileUrl());
         if (fileUrl == null) {
             throw ResourceNotFoundException.withMessage("Project document file not found: " + documentId);
@@ -49,7 +50,9 @@ class ProjectDocumentDownloadService {
             return;
         }
         ProjectStage stage = projectStageService.currentStage(projectId);
-        if (stage != ProjectStage.DRAFTING) {
+        // CO-442: DRAFTING（含 submit-review 子状态）和 CLOSED（结项后知识库积累）允许下载；
+        // 中间阶段（EVALUATING/RESULT_PENDING/RETROSPECTIVE）只读不可下载，防止标书扩散。
+        if (stage != ProjectStage.DRAFTING && stage != ProjectStage.CLOSED) {
             // 409 Conflict：与 ProjectStageService 阶段非法跳转的语义对齐——
             // 请求与项目当前阶段状态冲突。不用 423 LOCKED（WebDAV 语义不符）。
             throw new BusinessException(409,

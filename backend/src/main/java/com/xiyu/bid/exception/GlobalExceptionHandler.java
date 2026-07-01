@@ -233,14 +233,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      */
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(
-            BusinessException ex,
-            HttpServletRequest request) {
+        BusinessException ex,
+        HttpServletRequest request) {
         String payload = getRequestPayload(request);
-        log.warn("业务异常 - URI: {}, Code: {}, Message: {} \nPayload: {}",
-            request.getRequestURI(), ex.getCode(), ex.getMessage(), payload);
+        log.warn("业务异常 - URI: {}, Code: {}, HttpStatus: {}, Message: {} \nPayload: {}",
+            request.getRequestURI(), ex.getCode(), ex.getHttpStatus(), ex.getMessage(), payload);
 
         return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
+                .status(ex.getHttpStatus())
                 .body(ApiResponse.error(ex.getCode(), ex.getMessage()));
     }
 
