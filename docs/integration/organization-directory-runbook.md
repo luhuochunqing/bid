@@ -105,6 +105,66 @@ curl -X POST "$BACKEND_BASE_URL/api/integrations/organization/operations/dead-le
 - 死信事件原地重放如果 claim 后服务中断，stale `PROCESSING` 会回到 `DEAD_LETTER`，继续等待人工复核。
 - 失败后先查 sync item 和 event log，再判断是否需要原地重放事件、客户重新投递或补齐 YAPI 数据。
 
+## 批量时间窗重同步与脏数据修复
+
+批量重同步用于历史脏数据修复、判定逻辑变更后的全量重算，以及客户补数场景。入口为 `POST /api/integrations/organization/sync-runs`（`OrganizationSyncRunController`），内部走 `getUserByTimeWindow` / `getDeptByTimeWindow` 时间窗接口逐条 upsert，`enabled` 由当前 `UserEnabledDetector` 逻辑实时重算后落库。
+
+### 请求体
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `sourceApp` | string | 否 | 缺省 `oss`（与 `users.external_org_source_app` 一致） |
+| `runType` | string | 否 | 缺省 `RECONCILIATION`，可传 `INITIALIZATION` 等留痕类型 |
+| `startAt` | ISO-8601 | 否 | 缺省 `endAt - 3 天`；修复历史脏数据时需显式传一个足够早的起点 |
+| `endAt` | ISO-8601 | 否 | 缺省 `now` |
+
+权限：`@PreAuthorize("isAuthenticated()")`，仅需登录态，无 admin/角色限制。
+
+### 命令模板
+
+```bash
+# 小范围先验证（最近 30 天）
+curl -X POST "$BACKEND_BASE_URL/api/integrations/organization/sync-runs" \
+  -H "Authorization: Bearer $ORG_ADMIN_JWT" \
+  -H "Content-Type: application/json" \
+  -H "X-Request-Id: $REQUEST_ID" \
+  -d '{
+    "sourceApp": "oss",
+    "runType": "RECONCILIATION",
+    "startAt": "2026-06-01T00:00:00",
+    "endAt": "2026-07-01T00:00:00"
+  }'
+
+# 确认无误后拉大窗口修复历史脏数据
+curl -X POST "$BACKEND_BASE_URL/api/integrations/organization/sync-runs" \
+  -H "Authorization: Bearer $ORG_ADMIN_JWT" \
+  -H "Content-Type: application/json" \
+  -H "X-Request-Id: $REQUEST_ID" \
+  -d '{
+    "sourceApp": "oss",
+    "runType": "RECONCILIATION",
+    "startAt": "2020-01-01T00:00:00",
+    "endAt": "2026-07-01T00:00:00"
+  }'
+```
+
+### 关键限制（必读）
+
+- **只覆盖窗口内有 OSS 变动记录的用户**：时间窗接口仅返回该时间段内 OSS 侧有"变更事件"的用户。若某员工在 OSS 里 `status` 从未变过，即便把窗口开到 2020 年也触碰不到他——这类用户的 `enabled` 不会被重算。
+- **上述残留用户只能走单用户精准修复**：`POST /api/integrations/organization/resync/users/$USER_ID`，每次实时回查 `/subscription/msg/user` 单条重算。
+- **实时回查压力**：每个用户都会 HTTP 调用 `base-oss-test.ehsy.com`，量大时建议避开业务高峰，必要时分批（按部门或时间段切分多次调用）。
+- **不删除本地数据**：upsert 只更新字段，不删除用户；查无的 OSS 用户才会触发 `disableByExternalId`（置 `enabled=false`），按已冻结的禁用语义处理。
+
+### 修复效果验证
+
+- 重同步后刷新前端 `/settings/organization` 页面，确认目标用户状态由"停用"变为"启用"。
+- 也可直接查 DB：`SELECT username, enabled, external_org_source_app FROM users WHERE external_user_id = '$USER_ID'`，确认 `enabled=1`。
+- 数据源口径：前端员工列表（`GET /api/admin/users/page` → `AdminUserQueryService` → `userRepository.findAll()`）直接读本地 MySQL `users.enabled` 列，**不实时回查 OSS**。因此修复必须落库，前端不会感知 OSS 侧的实时变化。
+
+### 典型场景：判定逻辑变更后的脏数据修复
+
+当 `UserEnabledDetector` 的字段优先级调整（如 2026-06-30 PR !1397 把 `status` 提升为最高优先级，仅次 `del`）后，新代码上线只对"后续触发同步事件的用户"生效，**DB 里历史已落库的 `enabled` 值不会自动重算**。此时需按本节流程手工触发批量重同步 + 单用户补漏，才能让历史用户的状态与新判定逻辑对齐。
+
 ## 运维状态接口
 
 - `pendingRetryCount`: 当前等待自动重试的事件数。

@@ -83,6 +83,34 @@ class UserEnabledDetectorTest {
     }
 
     @Test
+    @DisplayName("status 字符串 \"1\" 应判定为在职（OSS 实测返回字符串形态）")
+    void isEnabled_statusString1_returnsTrue() {
+        JsonNode node = parseJson("{\"status\": \"1\"}");
+        assertThat(UserEnabledDetector.isEnabled(node)).isTrue();
+    }
+
+    @Test
+    @DisplayName("status 字符串 \"0\" 应判定为离职")
+    void isEnabled_statusString0_returnsFalse() {
+        JsonNode node = parseJson("{\"status\": \"0\"}");
+        assertThat(UserEnabledDetector.isEnabled(node)).isFalse();
+    }
+
+    @Test
+    @DisplayName("status 字符串 \"1\" 优先级高于 employeeStatus=8（字符串形态下 status 仍为最高优先级）")
+    void isEnabled_statusString1_overridesEmployeeStatus8() {
+        JsonNode node = parseJson("{\"employeeStatus\": 8, \"status\": \"1\"}");
+        assertThat(UserEnabledDetector.isEnabled(node)).isTrue();
+    }
+
+    @Test
+    @DisplayName("del 字符串 \"1\" 应判定为已删除（del 也兼容字符串形态）")
+    void isEnabled_delString1_returnsFalse() {
+        JsonNode node = parseJson("{\"del\": \"1\", \"status\": 1}");
+        assertThat(UserEnabledDetector.isEnabled(node)).isFalse();
+    }
+
+    @Test
     @DisplayName("enabled=true 应直接返回 true")
     void isEnabled_enabledTrue_returnsTrue() {
         JsonNode node = parseJson("{\"enabled\": true}");
