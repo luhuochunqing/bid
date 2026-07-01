@@ -8,6 +8,8 @@ import com.xiyu.bid.resources.entity.CaCertificateEntity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
@@ -107,9 +109,10 @@ public class CaNotificationDispatcher {
 
     // ===== 内部辅助 =====
 
-    private void dispatch(NotificationType type, List<Long> recipientUserIds, String title,
-                          String body, String sourceEntityType, Long sourceEntityId,
-                          Map<String, Object> payload) {
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void dispatch(NotificationType type, List<Long> recipientUserIds, String title,
+                         String body, String sourceEntityType, Long sourceEntityId,
+                         Map<String, Object> payload) {
         try {
             CreateNotificationRequest request = new CreateNotificationRequest(
                     type.name(), sourceEntityType, sourceEntityId,
