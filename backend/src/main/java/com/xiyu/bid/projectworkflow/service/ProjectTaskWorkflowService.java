@@ -8,6 +8,7 @@ import com.xiyu.bid.entity.User;
 import com.xiyu.bid.notification.core.NotificationType;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
+import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.projectworkflow.dto.ProjectTaskCreateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectTaskStatusUpdateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectTaskViewDTO;
@@ -44,6 +45,7 @@ class ProjectTaskWorkflowService {
     private final TaskHistoryRecorder taskHistoryRecorder;
     private final ProjectTaskDeliverableCollector deliverableCollector;
     private final NotificationApplicationService notificationService;
+    private final ProjectNotificationService projectNotificationService;
 
     List<ProjectTaskViewDTO> getProjectTasks(Long projectId) {
         guardService.requireProject(projectId);
@@ -144,6 +146,9 @@ class ProjectTaskWorkflowService {
                 .dueDate(draft.getDueDate())
                 .build();
         Task saved = taskRepository.save(task);
+        if (draft.getAssigneeId() != null && draft.getProjectId() != null) {
+            projectNotificationService.notifyTaskAssigned(draft.getProjectId(), draft.getAssigneeId(), 0L);
+        }
         return toTaskView(saved, draft.getAssigneeName());
     }
 

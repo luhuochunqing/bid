@@ -8,6 +8,7 @@ import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.fees.entity.Fee;
+import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.TenderRepository;
@@ -44,6 +45,9 @@ abstract class AbstractBatchOperationServiceTest {
     @Mock
     protected ProjectAccessScopeService projectAccessScopeService;
 
+    @Mock
+    protected ProjectNotificationService projectNotificationService;
+
     protected Tender testTender1;
     protected Tender testTender2;
     protected Task testTask1;
@@ -67,7 +71,8 @@ abstract class AbstractBatchOperationServiceTest {
                 taskRepository,
                 taskAssignmentResolver,
                 batchOperationLogService,
-                projectAccessGuard
+                projectAccessGuard,
+                projectNotificationService
         );
         BatchProjectCommandService projectCommandService =
                 new BatchProjectCommandService(projectRepository, batchOperationLogService, projectAccessScopeService);

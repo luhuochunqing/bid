@@ -15,6 +15,7 @@ import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
+import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.task.service.TaskHistoryRecorder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -66,7 +67,7 @@ class ProjectTaskBreakdownServiceTest {
                 mock(ProjectDocumentRepository.class),
                 mock(ProjectScoreDraftRepository.class)
         );
-        ProjectTaskWorkflowService taskWorkflowService = new ProjectTaskWorkflowService(guardService, taskRepository, userRepository, new com.fasterxml.jackson.databind.ObjectMapper(), mock(TaskHistoryRecorder.class), mock(com.xiyu.bid.projectworkflow.service.ProjectTaskDeliverableCollector.class), mock(NotificationApplicationService.class));
+        ProjectTaskWorkflowService taskWorkflowService = new ProjectTaskWorkflowService(guardService, taskRepository, userRepository, new com.fasterxml.jackson.databind.ObjectMapper(), mock(TaskHistoryRecorder.class), mock(com.xiyu.bid.projectworkflow.service.ProjectTaskDeliverableCollector.class), mock(NotificationApplicationService.class), mock(ProjectNotificationService.class));
         ProjectTaskBreakdownSourceReader sourceReader = new ProjectTaskBreakdownSourceReader(
                 requirementSourceGateway,
                 documentStructureRepository,

@@ -3,6 +3,7 @@ package com.xiyu.bid.projectworkflow.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
+import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.projectworkflow.dto.ProjectTaskStatusUpdateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectTaskViewDTO;
 import com.xiyu.bid.repository.TaskRepository;
@@ -40,6 +41,7 @@ class ProjectTaskWorkflowServiceTest {
         TaskHistoryRecorder taskHistoryRecorder = mock(TaskHistoryRecorder.class);
         ProjectTaskDeliverableCollector deliverableCollector = mock(ProjectTaskDeliverableCollector.class);
         NotificationApplicationService notificationService = mock(NotificationApplicationService.class);
+        ProjectNotificationService projectNotificationService = mock(ProjectNotificationService.class);
         ObjectMapper objectMapper = new ObjectMapper();
 
         service = new ProjectTaskWorkflowService(
@@ -49,7 +51,8 @@ class ProjectTaskWorkflowServiceTest {
                 objectMapper,
                 taskHistoryRecorder,
                 deliverableCollector,
-                notificationService
+                notificationService,
+                projectNotificationService
         );
     }
 

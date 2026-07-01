@@ -1,6 +1,8 @@
 package com.xiyu.bid.task.service;
 
 import com.xiyu.bid.entity.Task;
+import com.xiyu.bid.entity.User;
+import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.task.dto.TaskAssignmentRequest;
 import com.xiyu.bid.task.dto.TaskDTO;
@@ -32,6 +34,10 @@ class TaskServiceTest {
     private TaskPermissionGuard taskPermissionGuard;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private ProjectNotificationService notificationService;
+    @Mock
+    private TaskHistoryRecorder taskHistoryRecorder;
 
     @InjectMocks
     private TaskService taskService;
@@ -73,5 +79,65 @@ class TaskServiceTest {
         
         // Verify createdBy is set to "system"
         verify(taskRepository).save(argThat(task -> "system".equals(task.getCreatedBy())));
+    }
+
+    @Test
+    void createSystemTaskWithAssigneeSendsNotification() {
+        Long assigneeId = 5L;
+        Long projectId = 10L;
+        TaskDTO taskDTO = TaskDTO.builder()
+                .projectId(projectId)
+                .title("System Task with assignee")
+                .assigneeId(assigneeId)
+                .build();
+
+        TaskAssignmentSupport.AssignmentSnapshot snapshot = new TaskAssignmentSupport.AssignmentSnapshot(
+                assigneeId, "dept", "Dept Name", "role", "Role Name"
+        );
+
+        when(assignmentSupport.resolveAssignmentSnapshot(any(), isNull())).thenReturn(snapshot);
+        when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> {
+            Task t = invocation.getArgument(0);
+            t.setId(100L);
+            return t;
+        });
+
+        TaskDTO expectedDto = TaskDTO.builder().id(100L).projectId(projectId).assigneeId(assigneeId).build();
+        when(userRepository.findById(any())).thenReturn(Optional.empty());
+        when(userRepository.findByUsername(any())).thenReturn(Optional.empty());
+        when(taskDtoMapper.toDTO(any(Task.class), isNull(), isNull())).thenReturn(expectedDto);
+
+        TaskDTO result = taskService.createSystemTask(taskDTO);
+
+        assertThat(result).isNotNull();
+        verify(notificationService).notifyTaskAssigned(eq(projectId), eq(assigneeId), eq(0L));
+    }
+
+    @Test
+    void createTaskWithoutAssigneeDoesNotSendNotification() {
+        Long projectId = 10L;
+        TaskDTO taskDTO = TaskDTO.builder()
+                .projectId(projectId)
+                .title("System task without assignee")
+                .build();
+
+        TaskAssignmentSupport.AssignmentSnapshot snapshot = new TaskAssignmentSupport.AssignmentSnapshot(
+                null, null, null, null, null
+        );
+
+        when(assignmentSupport.resolveAssignmentSnapshot(any(), isNull())).thenReturn(snapshot);
+        when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> {
+            Task t = invocation.getArgument(0);
+            t.setId(100L);
+            return t;
+        });
+
+        TaskDTO expectedDto = TaskDTO.builder().id(100L).projectId(projectId).assigneeId(null).build();
+        when(taskDtoMapper.toDTO(any(Task.class), isNull(), isNull())).thenReturn(expectedDto);
+
+        TaskDTO result = taskService.createSystemTask(taskDTO);
+
+        assertThat(result).isNotNull();
+        verify(notificationService, never()).notifyTaskAssigned(any(), any(), any());
     }
 }
