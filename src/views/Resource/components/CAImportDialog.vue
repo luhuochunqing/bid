@@ -1,5 +1,5 @@
 <template>
-  <el-dialog v-model="visible" title="批量导入CA证书" width="560px" :close-on-click-modal="false" destroy-on-close>
+  <el-dialog v-model="visible" title="批量导入CA证书" width="560px" :close-on-click-modal="false" @close="resetAll">
     <!-- 初始态 -->
     <div v-if="!taskId" class="import-init">
       <el-alert title="请先下载模板，按格式填写后上传" type="info" :closable="false" show-icon style="margin-bottom:16px" />
@@ -108,6 +108,14 @@ const handleFileChange = (file) => {
 
 const stopPolling = () => {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+}
+
+const resetAll = () => {
+  stopPolling()
+  fileList.value = []
+  taskId.value = null
+  status.value = ''
+  task.value = {}
 }
 
 const startPolling = () => {
