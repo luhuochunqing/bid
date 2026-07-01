@@ -57,7 +57,7 @@
 
             <el-descriptions-item label="状态">
               <el-tag
-                :type="statusTagType(ca.status)"
+                :type="caStatusTagType(ca.status)"
                 size="small"
               >
                 {{ ca.statusLabel }}
@@ -66,7 +66,7 @@
 
             <el-descriptions-item label="借用状态">
               <el-tag
-                :type="borrowStatusTagType(ca.borrowStatus)"
+                :type="caBorrowStatusTagType(ca.borrowStatus)"
                 size="small"
               >
                 {{ ca.borrowStatusLabel }}
@@ -115,7 +115,7 @@
             <el-table-column label="状态" width="80">
               <template #default="{ row }">
                 <el-tag
-                  :type="applicationStatusTagType(row.status)"
+                  :type="caApplicationStatusTagType(row.status)"
                   size="small"
                 >
                   {{ row.statusLabel }}
@@ -136,10 +136,10 @@
               :key="event.id"
               :timestamp="event.createdAt"
               placement="top"
-              :type="eventTypeColor(event.eventType)"
+              :type="caEventTypeColor(event.eventType)"
             >
               <div class="timeline-content">
-                <el-tag size="small" :type="eventTypeColor(event.eventType)" class="event-tag">
+                <el-tag size="small" :type="caEventTypeColor(event.eventType)" class="event-tag">
                   {{ event.eventTypeLabel }}
                 </el-tag>
                 <span class="event-detail">{{ event.detail || '' }}</span>
@@ -155,24 +155,24 @@
       <el-empty description="暂无数据" />
     </template>
 
-    <!-- Bottom actions (admin/manager only) -->
+    <!-- Bottom actions -->
     <div v-if="ca" class="detail-actions">
       <el-button
-        v-if="ca.borrowStatus === 'IN_STOCK' && ca.caType === 'ENTITY_CA' && ca.status !== 'EXPIRED' && ca.status !== 'INACTIVE'"
+        v-if="actions.canBorrow"
         type="primary"
         @click="$emit('borrow', ca)"
       >
         <el-icon><Share /></el-icon>借用
       </el-button>
       <el-button
-        v-if="ca.borrowStatus === 'BORROWED'"
+        v-if="actions.canReturn"
         type="warning"
         @click="$emit('return', ca)"
       >
-        <el-icon><Share /></el-icon>归还
+        <el-icon><Share /></el-icon>登记归还
       </el-button>
       <el-button
-        v-if="isManager"
+        v-if="actions.canEdit"
         @click="$emit('edit', ca)"
       >
         <el-icon><Edit /></el-icon>编辑
@@ -184,13 +184,22 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { Share, Edit } from '@element-plus/icons-vue'
+import {
+  caStatusTagType,
+  caBorrowStatusTagType,
+  caApplicationStatusTagType,
+  caEventTypeColor
+} from '../composables/useCaBorrowEligibility'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   ca: { type: Object, default: null },
   borrowApplications: { type: Array, default: () => [] },
   operationEvents: { type: Array, default: () => [] },
-  isManager: { type: Boolean, default: false }
+  actions: {
+    type: Object,
+    default: () => ({ canEdit: false, canBorrow: false, canReturn: false })
+  }
 })
 
 const emit = defineEmits(['update:modelValue', 'edit', 'borrow', 'return'])
@@ -202,42 +211,10 @@ const visible = computed({
 
 const activeTab = ref('info')
 
-// Reset tab when drawer opens
+// Reset tab when dialog opens
 watch(() => props.modelValue, (v) => {
   if (v) activeTab.value = 'info'
 })
-
-function statusTagType(status) {
-  return { ACTIVE: 'success', EXPIRING: 'warning', EXPIRED: 'danger', INACTIVE: 'info' }[status] || 'info'
-}
-
-function borrowStatusTagType(borrowStatus) {
-  return { IN_STOCK: 'info', BORROWED: 'primary', OVERDUE: 'danger' }[borrowStatus] || 'info'
-}
-
-function applicationStatusTagType(status) {
-  return {
-    PENDING: 'warning',
-    APPROVED: 'success',
-    REJECTED: 'danger',
-    RETURNED: 'info',
-    CANCELLED: 'info'
-  }[status] || 'info'
-}
-
-function eventTypeColor(eventType) {
-  return {
-    CREATED: 'success',
-    UPDATED: 'primary',
-    BORROWED: 'primary',
-    RETURNED: 'info',
-    APPROVED: 'success',
-    REJECTED: 'danger',
-    CANCELLED: 'warning',
-    DEACTIVATED: 'danger',
-    ACTIVATED: 'success'
-  }[eventType] || 'info'
-}
 </script>
 
 <style scoped>

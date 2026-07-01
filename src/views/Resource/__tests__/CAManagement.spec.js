@@ -127,7 +127,7 @@ const stubs = {
   'el-timeline': { template: '<div><slot /></div>' },
   'el-timeline-item': { template: '<div><slot /></div>' },
   'el-alert': { template: '<div><slot /></div>' },
-  CADetailDrawer: { template: '<div />' },
+  CADetailDialog: { template: '<div />' },
   CAFormDialog: { template: '<div />' },
   CABorrowDialog: { template: '<div />' },
   CAReturnDialog: { template: '<div />' },
@@ -356,23 +356,23 @@ describe('CAManagement — bid-Team 视角', () => {
     expect(html).toContain('stat-row')
   })
 
-  it('canManageRow: 投标专员仅对自己保管的 CA 返回 true', async () => {
+  it('canManage: 投标专员仅对自己保管的 CA 返回 true', async () => {
     const wrapper = createWrapper()
     await flushPromises()
 
     // mockCertificates[1].custodianId='user002' === 当前用户 user002 → 可管理
-    expect(wrapper.vm.canManageRow(mockCertificates[1])).toBe(true)
+    expect(wrapper.vm.canManage(mockCertificates[1])).toBe(true)
     // mockCertificates[0].custodianId='user001' !== user002 → 不可管理
-    expect(wrapper.vm.canManageRow(mockCertificates[0])).toBe(false)
+    expect(wrapper.vm.canManage(mockCertificates[0])).toBe(false)
   })
 
-  it('canBorrowRow: 投标专员不可借用自己保管的 CA，可借用他人的', async () => {
+  it('canBorrow: 投标专员不可借用自己保管的 CA，可借用他人的', async () => {
     const wrapper = createWrapper()
     await flushPromises()
 
     // 自己保管的 CA（custodianId='user002'）→ 不可借用
-    expect(wrapper.vm.canBorrowRow(mockCertificates[1])).toBe(false)
+    expect(wrapper.vm.canBorrow(mockCertificates[1])).toBe(false)
     // 他人保管的 CA（custodianId='user001'）→ 可借用
-    expect(wrapper.vm.canBorrowRow(mockCertificates[0])).toBe(true)
+    expect(wrapper.vm.canBorrow(mockCertificates[0])).toBe(true)
   })
 })

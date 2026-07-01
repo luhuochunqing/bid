@@ -102,10 +102,10 @@
         </el-table-column>
         <el-table-column label="状态" width="150">
           <template #default="{ row }">
-            <el-tag :type="statusTagType(row.status)" size="small" class="status-tag">
+            <el-tag :type="caStatusTagType(row.status)" size="small" class="status-tag">
               {{ row.statusLabel }}
             </el-tag>
-            <el-tag :type="borrowStatusTagType(row.borrowStatus)" size="small" class="status-tag">
+            <el-tag :type="caBorrowStatusTagType(row.borrowStatus)" size="small" class="status-tag">
               {{ row.borrowStatusLabel }}
             </el-tag>
           </template>
@@ -122,18 +122,18 @@
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click.stop="handleView(row)">查看</el-button>
-            <el-button v-if="canManageRow(row)" link type="primary" size="small" @click.stop="handleEdit(row)">编辑</el-button>
+            <el-button v-if="canManage(row)" link type="primary" size="small" @click.stop="handleEdit(row)">编辑</el-button>
             <el-button
-              v-if="canBorrowRow(row) && row.borrowStatus === 'IN_STOCK' && row.caType === 'ENTITY_CA' && row.status !== 'EXPIRED' && row.status !== 'INACTIVE'"
+              v-if="canBorrow(row)"
               link type="success" size="small"
               @click.stop="handleOpenBorrow(row)"
             >借用</el-button>
             <el-button
-              v-if="canManageRow(row) && row.borrowStatus === 'BORROWED'"
+              v-if="canReturn(row)"
               link type="warning" size="small"
               @click.stop="handleOpenReturn(row)"
-            >归还</el-button>
-            <el-button v-if="canManageRow(row)" link type="danger" size="small" @click.stop="handleDelete(row)">下架</el-button>
+            >登记归还</el-button>
+            <el-button v-if="canManage(row)" link type="danger" size="small" @click.stop="handleDelete(row)">下架</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -183,13 +183,13 @@
       </div>
     </el-card>
 
-    <!-- Detail Drawer -->
-    <CADetailDrawer
+    <!-- Detail Dialog -->
+    <CADetailDialog
       v-model="drawerVisible"
       :ca="selectedCa"
       :borrow-applications="borrowApplications"
       :operation-events="operationEvents"
-      :is-manager="isManagerView"
+      :actions="detailActions"
       @edit="handleEdit"
       @borrow="handleOpenBorrow"
       @return="handleOpenReturn"
@@ -208,6 +208,9 @@
       v-model="borrowVisible"
       :ca="selectedCa"
       :submitting="borrowSubmitting"
+      :projects="projectOptions"
+      :upload-url="borrowUploadUrl"
+      :upload-headers="borrowUploadHeaders"
       @submit="handleBorrowSubmit"
     />
 
@@ -230,8 +233,11 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { useCaStore } from '@/stores/ca'
 import { caApi } from '@/api/modules/ca'
+import { projectsApi } from '@/api'
+import httpClient from '@/api/client'
 import { isBidManager } from '@/utils/permission'
-import CADetailDrawer from './components/CADetailDrawer.vue'
+import { useCaBorrowEligibility, caStatusTagType, caBorrowStatusTagType } from './composables/useCaBorrowEligibility'
+import CADetailDialog from './components/CADetailDialog.vue'
 import CAFormDialog from './components/CAFormDialog.vue'
 import CABorrowDialog from './components/CABorrowDialog.vue'
 import CAReturnDialog from './components/CAReturnDialog.vue'
@@ -239,6 +245,18 @@ import CAImportDialog from './components/CAImportDialog.vue'
 
 const userStore = useUserStore()
 const caStore = useCaStore()
+
+const { canBorrow, canManage, canReturn } = useCaBorrowEligibility()
+
+const projectOptions = ref([])
+
+const borrowUploadUrl = computed(() => {
+  const base = httpClient.defaults?.baseURL || ''
+  return `${base}/api/uploads/commitment-letter`
+})
+const borrowUploadHeaders = computed(() => ({
+  Authorization: userStore.token ? `Bearer ${userStore.token}` : ''
+}))
 
 // Role-based view determination
 // CO-409: 投标专员（bid-Team）进入完整管理员视图（10 列 + 统计 + 高级筛选），
@@ -248,29 +266,6 @@ const isManagerView = computed(() => isBidManager(userStore.userRole) || userSto
 
 // CO-409: 新增/批量导入操作项对投标专员（bid-Team）放开，与管理员一致。
 const canCreate = computed(() => isBidManager(userStore.userRole) || userStore.userRole === 'bid-Team')
-
-// CO-409: 当前用户 userId，用于按保管员差异化判定行级操作项。
-const currentUserId = computed(() => userStore.currentUser?.id ?? null)
-
-// CO-409: 管理员（isBidManager）可编辑/下架/归还任意 CA；投标专员仅可操作自己保管的 CA。
-// 对称于后端 CaCertificateService.canDeactivate + PlatformAccountViewerPolicy.canManageAccount。
-function canManageRow(row) {
-  if (isBidManager(userStore.userRole)) return true
-  if (userStore.userRole === 'bid-Team') {
-    return row.custodianId != null && row.custodianId === currentUserId.value
-  }
-  return false
-}
-
-// CO-409: 管理员可借用任意 CA；投标专员不可借用自己保管的 CA（保管员不向自己借用）。
-// 对称于 CO-409 权限矩阵「借用：保管员❌ 非保管员✅」。
-function canBorrowRow(row) {
-  if (isBidManager(userStore.userRole)) return true
-  if (userStore.userRole === 'bid-Team') {
-    return row.custodianId == null || row.custodianId !== currentUserId.value
-  }
-  return false
-}
 
 // Loading states
 const loading = ref(false)
@@ -311,6 +306,16 @@ const borrowApplications = ref([])
 const borrowApplicationsForReturn = ref([])
 const operationEvents = ref([])
 
+const detailActions = computed(() => {
+  const ca = selectedCa.value
+  if (!ca) return { canEdit: false, canBorrow: false, canReturn: false }
+  return {
+    canEdit: canManage(ca),
+    canBorrow: canBorrow(ca),
+    canReturn: canReturn(ca)
+  }
+})
+
 // Stat cards config
 const statCards = computed(() => [
   { key: 'total', label: '总数', value: overview.total, color: 'var(--el-color-primary)' },
@@ -349,15 +354,6 @@ const filteredData = computed(() => {
 
   return list
 })
-
-// Tag type helpers
-function statusTagType(status) {
-  return { ACTIVE: 'success', EXPIRING: 'warning', EXPIRED: 'danger', INACTIVE: 'info' }[status] || 'info'
-}
-
-function borrowStatusTagType(borrowStatus) {
-  return { IN_STOCK: 'info', BORROWED: 'primary', OVERDUE: 'danger' }[borrowStatus] || 'info'
-}
 
 // Data loading
 async function loadData() {
@@ -519,7 +515,18 @@ async function handleReturnSubmit(returnData) {
   }
 }
 
-onMounted(loadData)
+async function loadProjects() {
+  try {
+    const res = await projectsApi.getList({})
+    const list = Array.isArray(res?.data) ? res.data : []
+    projectOptions.value = list
+  } catch { projectOptions.value = [] }
+}
+
+onMounted(() => {
+  loadData()
+  loadProjects()
+})
 </script>
 
 <style scoped>

@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="visible"
-    title="归还 CA 证书"
+    title="登记归还"
     width="500px"
     destroy-on-close
     top="10vh"
@@ -109,11 +109,9 @@ const caLabel = computed(() => {
   return [platforms, seal].filter(Boolean).join(' - ')
 })
 
-// Only show active (APPROVED / borrowed) applications
+// Only show APPROVED borrow applications (PENDING/RETURNED excluded)
 const activeApplications = computed(() => {
-  return props.borrowApplications.filter(
-    a => a.status === 'APPROVED' || a.status === 'PENDING'
-  )
+  return props.borrowApplications.filter(a => a.status === 'APPROVED')
 })
 
 function createDefaultForm() {

@@ -100,19 +100,19 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { projectsApi } from '@/api'
-import httpClient from '@/api/client'
-import { useUserStore } from '@/stores/user'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   ca: { type: Object, default: null },
-  submitting: { type: Boolean, default: false }
+  submitting: { type: Boolean, default: false },
+  projects: { type: Array, default: () => [] },
+  uploadUrl: { type: String, default: '' },
+  uploadHeaders: { type: Object, default: () => ({}) }
 })
 
-const emit = defineEmits(['update:modelValue', 'submit'])
+const emit = defineEmits(['update:modelValue', 'submit', 'upload-success', 'upload-error'])
 
 const visible = computed({
   get: () => props.modelValue,
@@ -120,8 +120,12 @@ const visible = computed({
 })
 
 const formRef = ref(null)
-const projectOptions = ref([])
-const userStore = useUserStore()
+
+const projectOptions = computed(() => {
+  return props.projects
+    .map(p => ({ id: p.id, name: p.name || p.projectName || `项目#${p.id}` }))
+    .filter(p => p.id != null)
+})
 
 const caLabel = computed(() => {
   const ca = props.ca
@@ -133,14 +137,6 @@ const caLabel = computed(() => {
   const holder = ca.holderName || ''
   return [holder, platforms, seal].filter(Boolean).join(' / ')
 })
-
-const uploadUrl = computed(() => {
-  const base = httpClient.defaults?.baseURL || ''
-  return `${base}/api/uploads/commitment-letter`
-})
-const uploadHeaders = computed(() => ({
-  Authorization: userStore.token ? `Bearer ${userStore.token}` : ''
-}))
 
 function createDefaultForm() {
   return {
@@ -154,18 +150,6 @@ function createDefaultForm() {
 }
 
 const form = reactive(createDefaultForm())
-
-async function loadProjects() {
-  try {
-    const res = await projectsApi.getList({})
-    const list = Array.isArray(res?.data) ? res.data : []
-    projectOptions.value = list
-      .map(p => ({ id: p.id, name: p.name || p.projectName || `项目#${p.id}` }))
-      .filter(p => p.id != null)
-  } catch { projectOptions.value = [] }
-}
-
-onMounted(loadProjects)
 
 watch(() => props.modelValue, (v) => {
   if (v) {
