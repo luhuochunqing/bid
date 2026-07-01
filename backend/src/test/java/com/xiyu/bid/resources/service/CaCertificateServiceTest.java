@@ -105,18 +105,43 @@ class CaCertificateServiceTest {
         verify(certificateRepository, never()).save(any());
     }
 
-    // ── create/update 密码校验（CO-435 修复） ──
+    // ── create/update 密码校验（CO-435 修复 + CO-454 电子CA非必填） ──
 
     @Test
-    void create_emptyPassword_throwsBusinessException() {
+    void create_entityCa_emptyPassword_throwsBusinessException() {
         CaCertificateService service = newService();
-        CaCertificateRequest req = buildRequest("");
+        CaCertificateRequest req = buildRequest("ENTITY_CA", "");
 
         assertThatThrownBy(() -> service.create(req))
                 .isInstanceOf(CaBusinessException.class)
-                .hasMessageContaining("密码");
+                .hasMessageContaining("实体CA必须填写密码");
 
         verify(certificateRepository, never()).save(any());
+    }
+
+    @Test
+    void create_electronicCa_emptyPassword_shouldSucceed() {
+        CaCertificateService service = newService();
+        CaCertificateRequest req = buildRequest("ELECTRONIC_CA", "");
+        CaCertificateEntity saved = caCertificate(1L, 20L);
+        when(certificateRepository.save(any())).thenReturn(saved);
+
+        assertThatCode(() -> service.create(req)).doesNotThrowAnyException();
+
+        verify(passwordEncryptionUtil, never()).encrypt(anyString());
+    }
+
+    @Test
+    void create_electronicCa_withPassword_shouldEncrypt() {
+        CaCertificateService service = newService();
+        CaCertificateRequest req = buildRequest("ELECTRONIC_CA", "secret123");
+        CaCertificateEntity saved = caCertificate(1L, 20L);
+        when(passwordEncryptionUtil.encrypt("secret123")).thenReturn("encrypted");
+        when(certificateRepository.save(any())).thenReturn(saved);
+
+        assertThatCode(() -> service.create(req)).doesNotThrowAnyException();
+
+        verify(passwordEncryptionUtil).encrypt("secret123");
     }
 
     @Test
@@ -126,7 +151,7 @@ class CaCertificateServiceTest {
         when(certificateRepository.findById(1L)).thenReturn(Optional.of(ca));
         when(certificateRepository.save(any())).thenReturn(ca);
 
-        CaCertificateRequest req = buildRequest("");
+        CaCertificateRequest req = buildRequest("ENTITY_CA", "");
         req.setExpiryDate(LocalDate.now().plusDays(60));
 
         assertThatCode(() -> service.update(1L, req)).doesNotThrowAnyException();
@@ -134,9 +159,9 @@ class CaCertificateServiceTest {
         verify(passwordEncryptionUtil, never()).encrypt(anyString());
     }
 
-    private CaCertificateRequest buildRequest(String caPassword) {
+    private CaCertificateRequest buildRequest(String caType, String caPassword) {
         CaCertificateRequest req = new CaCertificateRequest();
-        req.setCaType("ENTITY_CA");
+        req.setCaType(caType);
         req.setSealType("OFFICIAL_SEAL");
         req.setCaPassword(caPassword);
         req.setExpiryDate(LocalDate.now().plusDays(30));

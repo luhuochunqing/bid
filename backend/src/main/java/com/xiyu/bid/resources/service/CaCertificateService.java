@@ -42,10 +42,14 @@ public class CaCertificateService {
 
     @Transactional
     public CaCertificateDTO create(CaCertificateRequest request) {
-        if (request.getCaPassword() == null || request.getCaPassword().isBlank()) {
-            throw new CaBusinessException("CA密码不能为空");
+        // CO-454: 实体CA必须填写密码，电子CA允许为空
+        if ("ENTITY_CA".equals(request.getCaType())
+                && (request.getCaPassword() == null || request.getCaPassword().isBlank())) {
+            throw new CaBusinessException("实体CA必须填写密码");
         }
-        String storedPassword = passwordEncryptionUtil.encrypt(request.getCaPassword());
+        String rawPassword = request.getCaPassword();
+        String storedPassword = (rawPassword == null || rawPassword.isBlank())
+                ? null : passwordEncryptionUtil.encrypt(rawPassword);
         CaCertificateEntity entity = CaCertificateEntity.builder()
                 .caType(request.getCaType())
                 .sealType(request.getSealType())

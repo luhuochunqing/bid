@@ -260,23 +260,16 @@ watch(() => form.caType, (val) => {
   }
 })
 
-const rules = {
-  caType: [
-    { required: true, message: '请选择 CA 类型', trigger: 'change' }
-  ],
-  sealType: [
-    { required: true, message: '请选择印章类型', trigger: 'change' }
-  ],
-  electronicAccount: [
-    { required: true, message: '电子CA必须填写账号', trigger: 'blur' }
-  ],
-  expiryDate: [
-    { required: true, message: '请选择有效期', trigger: 'change' }
-  ],
-  custodianId: [
-    { required: true, message: '请选择保管员', trigger: 'change' }
-  ]
-}
+const rules = computed(() => ({
+  caType: [{ required: true, message: '请选择 CA 类型', trigger: 'change' }],
+  sealType: [{ required: true, message: '请选择印章类型', trigger: 'change' }],
+  electronicAccount: [{ required: true, message: '电子CA必须填写账号', trigger: 'blur' }],
+  caPassword: form.caType === 'ENTITY_CA'
+    ? [{ required: true, message: '实体CA必须填写密码', trigger: 'blur' }]
+    : [],
+  expiryDate: [{ required: true, message: '请选择有效期', trigger: 'change' }],
+  custodianId: [{ required: true, message: '请选择保管员', trigger: 'change' }]
+}))
 
 async function handleSubmit() {
   const valid = await formRef.value?.validate().catch(() => false)
