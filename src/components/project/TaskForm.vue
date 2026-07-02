@@ -95,7 +95,6 @@
             ref="depositFieldsRef"
             :extended-fields="localValue.extendedFields"
             :is-assignee-submitting="isAssigneeSubmitting"
-            :readonly="readonly"
             @update:extended-fields="onDepositFieldsUpdate"
           />
 

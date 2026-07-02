@@ -24,7 +24,6 @@ function mountComponent(props = {}) {
     props: {
       extendedFields: { depositAmount: 100, depositDeadline: '2026-08-15', payee: '', payeeAccount: '', actualPaymentDate: '', expectedRefundDate: '' },
       isAssigneeSubmitting: false,
-      readonly: false,
       ...props,
     },
     global: { stubs: globalStubs },
@@ -49,23 +48,16 @@ describe('TaskDepositFields', () => {
 
   // 保证金金额和保证金缴纳截止日期始终只读（disabled），不论是否执行人提交
   it('always disables depositAmount and depositDeadline fields, even when assignee submitting', () => {
-    const wrapper = mountComponent({ isAssigneeSubmitting: true, readonly: false })
+    const wrapper = mountComponent({ isAssigneeSubmitting: true })
     const inputs = wrapper.findAll('input.el-input-stub, input.el-date-stub')
     // 第 1 个是保证金金额（el-input disabled），第 2 个是保证金缴纳截止日期（el-date-picker disabled）
     expect(inputs[0].attributes('disabled')).toBeDefined()
     expect(inputs[1].attributes('disabled')).toBeDefined()
   })
 
-  it('always disables depositAmount and depositDeadline in readonly mode too', () => {
-    const wrapper = mountComponent({ isAssigneeSubmitting: false, readonly: true })
-    const inputs = wrapper.findAll('input.el-input-stub, input.el-date-stub')
-    expect(inputs[0].attributes('disabled')).toBeDefined()
-    expect(inputs[1].attributes('disabled')).toBeDefined()
-  })
-
   // 4 个执行人填写字段：isAssigneeSubmitting=true 时可编辑
   it('enables 4 assignee-filled fields when isAssigneeSubmitting=true', () => {
-    const wrapper = mountComponent({ isAssigneeSubmitting: true, readonly: false })
+    const wrapper = mountComponent({ isAssigneeSubmitting: true })
     const inputs = wrapper.findAll('input.el-input-stub, input.el-date-stub')
     // inputs[0]=金额, [1]=截止日期, [2]=收款方, [3]=收款账号, [4]=实际缴纳日期, [5]=预计归还日期
     expect(inputs[2].attributes('disabled')).toBeUndefined()
@@ -76,7 +68,7 @@ describe('TaskDepositFields', () => {
 
   // 4 个执行人填写字段：非执行人提交时 disabled
   it('disables 4 assignee-filled fields when isAssigneeSubmitting=false (non-assignee viewing)', () => {
-    const wrapper = mountComponent({ isAssigneeSubmitting: false, readonly: false })
+    const wrapper = mountComponent({ isAssigneeSubmitting: false })
     const inputs = wrapper.findAll('input.el-input-stub, input.el-date-stub')
     expect(inputs[2].attributes('disabled')).toBeDefined()
     expect(inputs[3].attributes('disabled')).toBeDefined()
@@ -84,43 +76,35 @@ describe('TaskDepositFields', () => {
     expect(inputs[5].attributes('disabled')).toBeDefined()
   })
 
-  // 4 个执行人填写字段：readonly=true 时即使 isAssigneeSubmitting=true 也应 disabled
-  it('disables 4 assignee-filled fields when readonly=true even if isAssigneeSubmitting=true', () => {
-    const wrapper = mountComponent({ isAssigneeSubmitting: true, readonly: true })
+  // 回归测试（CO-448 bug fix）：任务详情页 mode='view' 但执行人提交时，4 字段必须可编辑。
+  // 之前的 bug 是 disabled 表达式误用 `readonly || !isAssigneeSubmitting`，导致 view 模式下永远 disabled。
+  // 修复后 disabled 仅取决于 isAssigneeSubmitting，与父组件 mode/readonly 无关。
+  it('regression: enables 4 assignee-filled fields when isAssigneeSubmitting=true (covers view-mode assignee submit)', () => {
+    // 仅传 isAssigneeSubmitting=true，不传任何 readonly 相关 prop（组件已不再接收）
+    const wrapper = mountComponent({ isAssigneeSubmitting: true })
     const inputs = wrapper.findAll('input.el-input-stub, input.el-date-stub')
-    expect(inputs[2].attributes('disabled')).toBeDefined()
-    expect(inputs[3].attributes('disabled')).toBeDefined()
-    expect(inputs[4].attributes('disabled')).toBeDefined()
-    expect(inputs[5].attributes('disabled')).toBeDefined()
-  })
-
-  // readonly 且 isAssigneeSubmitting=false 时 validate 仍返回 valid
-  it('validate() returns valid when readonly=true and isAssigneeSubmitting=false', () => {
-    const wrapper = mountComponent({
-      extendedFields: { depositAmount: 100, depositDeadline: '2026-08-15', payee: '', payeeAccount: '', actualPaymentDate: '', expectedRefundDate: '' },
-      isAssigneeSubmitting: false,
-      readonly: true,
-    })
-    const r = wrapper.vm.validate()
-    expect(r.valid).toBe(true)
+    expect(inputs[2].attributes('disabled')).toBeUndefined()
+    expect(inputs[3].attributes('disabled')).toBeUndefined()
+    expect(inputs[4].attributes('disabled')).toBeUndefined()
+    expect(inputs[5].attributes('disabled')).toBeUndefined()
   })
 
   // 4 字段必填标识：仅执行人提交时显示
   it('shows required flag on 4 assignee-filled fields when isAssigneeSubmitting=true', () => {
-    const wrapper = mountComponent({ isAssigneeSubmitting: true, readonly: false })
+    const wrapper = mountComponent({ isAssigneeSubmitting: true })
     const requiredFlags = wrapper.findAll('.required-flag')
     expect(requiredFlags).toHaveLength(4)
   })
 
   it('does not show required flag on 4 assignee-filled fields when isAssigneeSubmitting=false', () => {
-    const wrapper = mountComponent({ isAssigneeSubmitting: false, readonly: false })
+    const wrapper = mountComponent({ isAssigneeSubmitting: false })
     const requiredFlags = wrapper.findAll('.required-flag')
     expect(requiredFlags).toHaveLength(0)
   })
 
   // 必填标识也不应出现在保证金金额和截止日期上（它们只读，不要求用户填）
   it('never shows required flag on depositAmount and depositDeadline fields', () => {
-    const wrapper = mountComponent({ isAssigneeSubmitting: true, readonly: false })
+    const wrapper = mountComponent({ isAssigneeSubmitting: true })
     const formItems = wrapper.findAll('.form-item')
     // 第 1、2 个 form-item 是金额和截止日期，不应有 required-flag
     expect(formItems[0].find('.required-flag').exists()).toBe(false)
