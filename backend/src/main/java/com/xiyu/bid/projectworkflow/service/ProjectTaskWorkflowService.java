@@ -179,7 +179,7 @@ class ProjectTaskWorkflowService {
                 .build();
         Task saved = taskRepository.save(task);
         if (draft.getAssigneeId() != null && draft.getProjectId() != null) {
-            projectNotificationService.notifyTaskAssigned(draft.getProjectId(), draft.getAssigneeId(), 0L);
+            projectNotificationService.notifyTaskAssigned(draft.getProjectId(), saved.getId(), draft.getAssigneeId(), 0L);
         }
         return toTaskView(saved, draft.getAssigneeName());
     }

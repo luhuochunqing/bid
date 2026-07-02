@@ -110,7 +110,7 @@ class TaskServiceTest {
         TaskDTO result = taskService.createSystemTask(taskDTO);
 
         assertThat(result).isNotNull();
-        verify(notificationService).notifyTaskAssigned(eq(projectId), eq(assigneeId), eq(0L));
+        verify(notificationService).notifyTaskAssigned(eq(projectId), eq(100L), eq(assigneeId), eq(0L));
     }
 
     @Test
@@ -138,6 +138,6 @@ class TaskServiceTest {
         TaskDTO result = taskService.createSystemTask(taskDTO);
 
         assertThat(result).isNotNull();
-        verify(notificationService, never()).notifyTaskAssigned(any(), any(), any());
+        verify(notificationService, never()).notifyTaskAssigned(any(), any(), any(), any());
     }
 }

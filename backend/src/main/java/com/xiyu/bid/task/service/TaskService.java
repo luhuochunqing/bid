@@ -94,7 +94,7 @@ public class TaskService {
     }
     private void notifyAssigneeIfNeeded(TaskDTO task, Long assignedBy) {
         if (task.getAssigneeId() != null && task.getProjectId() != null) {
-            notificationService.notifyTaskAssigned(task.getProjectId(), task.getAssigneeId(), assignedBy);
+            notificationService.notifyTaskAssigned(task.getProjectId(), task.getId(), task.getAssigneeId(), assignedBy);
         }
     }
     @Transactional(readOnly = true)
@@ -157,7 +157,7 @@ public class TaskService {
     private void notifyAssigneeIfChanged(Long oldAssigneeId, TaskDTO updated, Long updatedBy) {
         Long newAssigneeId = updated.getAssigneeId();
         if (newAssigneeId != null && !Objects.equals(oldAssigneeId, newAssigneeId) && updated.getProjectId() != null) {
-            notificationService.notifyTaskAssigned(updated.getProjectId(), newAssigneeId, updatedBy);
+            notificationService.notifyTaskAssigned(updated.getProjectId(), updated.getId(), newAssigneeId, updatedBy);
         }
     }
     @Transactional
@@ -239,7 +239,7 @@ public class TaskService {
         taskHistoryRecorder.recordUpdate(before, saved, username);
         // 通知 #4: 分配投标负责人 → 被分配人
         if (request != null && request.getAssigneeId() != null) {
-            notificationService.notifyTaskAssigned(task.getProjectId(), request.getAssigneeId(), currentUser.getId());
+            notificationService.notifyTaskAssigned(task.getProjectId(), task.getId(), request.getAssigneeId(), currentUser.getId());
         }
         return toDTOWithNames(saved);
     }

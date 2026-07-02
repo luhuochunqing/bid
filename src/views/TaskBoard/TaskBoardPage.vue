@@ -43,54 +43,23 @@
     </div>
 
     <!-- 任务详情抽屉 -->
-    <el-drawer
+    <TaskBoardTaskDrawer
+      ref="drawerRef"
       v-model="drawerVisible"
-      title="任务详情"
-      size="520px"
-      direction="rtl"
-      :destroy-on-close="true"
-    >
-      <div v-loading="loadingTaskDetail">
-        <TaskForm
-          v-if="selectedTask"
-          ref="taskFormRef"
-          v-model="selectedTask"
-          mode="view"
-        />
-      </div>
-      <template #footer>
-        <div class="drawer-footer">
-          <el-button @click="drawerVisible = false">关闭</el-button>
-          <el-button
-            v-if="canSubmitForReview"
-            type="primary"
-            :loading="submitting"
-            @click="handleSubmitForReview"
-          >
-            提交审核
-          </el-button>
-        </div>
-      </template>
-    </el-drawer>
+      @submitted="loadTasks"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import TaskBoardCard from './components/TaskBoardCard.vue'
-import TaskForm from '@/components/project/TaskForm.vue'
-import { projectsApi } from '@/api/modules/projects.js'
-import { tasksApi } from '@/api/modules/tasks.js'
+import TaskBoardTaskDrawer from './components/TaskBoardTaskDrawer.vue'
 import { tasksApi as dashboardTasksApi } from '@/api/modules/dashboard'
 import { TASK_STATUS, getTaskStatusDisplayName } from '@/constants/taskStatus.js'
-import { taskBackendToCard } from '@/views/Project/project-utils.js'
-import { useProjectStore } from '@/stores/project'
-import { useUserStore } from '@/stores/user'
-import { validateSubmitForReview } from '@/composables/useTaskSubmissionValidation.js'
-import { uploadTaskFilesWithFallback } from '@/composables/projectDetail/taskAssigneePayload'
 
 const COLUMNS = [
   { key: TASK_STATUS.TODO, title: '待开始', color: '#909399' },
@@ -104,9 +73,26 @@ const items = ref([])
 const loading = ref(false)
 const error = ref('')
 
+const route = useRoute()
 const router = useRouter()
 
 const getTasksByStatus = (status) => items.value.filter((t) => t.status === status)
+
+// CO-474: 支持从 query 参数 taskId 自动打开任务详情抽屉。
+// 跨部门协助人员（bid-otherDept）的任务分配通知跳转到 /task-board?taskId=X&projectId=Y，
+// 页面加载完成后自动定位到对应任务并打开详情抽屉。
+const openTaskFromQuery = async () => {
+  const taskId = route?.query?.taskId
+  if (!taskId) return
+  const id = Number(taskId)
+  if (!Number.isFinite(id) || id <= 0) return
+  const target = items.value.find((item) => item.type === 'TASK' && Number(item.id) === id)
+  if (target) {
+    await handleTaskClick(target)
+    // 清理 query 参数，避免刷新后重复打开
+    router?.replace?.({ path: route.path, query: {} })
+  }
+}
 
 const loadTasks = async () => {
   loading.value = true
@@ -119,6 +105,13 @@ const loadTasks = async () => {
     items.value = []
   } finally {
     loading.value = false
+  }
+  // CO-474: 通知跳转 /task-board?taskId=X&projectId=Y 时自动定位任务。
+  // 单独 try-catch：查询参数处理失败不应影响任务列表正常展示。
+  try {
+    await openTaskFromQuery()
+  } catch {
+    // 忽略 query 参数处理错误
   }
 }
 
@@ -145,15 +138,7 @@ const availableStatuses = AVAILABLE_STATUSES
 
 // 抽屉状态
 const drawerVisible = ref(false)
-const selectedTask = ref(null)
-const taskFormRef = ref(null)
-const submitting = ref(false)
-const loadingTaskDetail = ref(false)
-
-// 提交审核按钮显隐：仅执行人+TODO状态时显示
-const canSubmitForReview = computed(() => {
-  return taskFormRef.value?.canDeliver === true
-})
+const drawerRef = ref(null)
 
 async function handleTaskClick(item) {
   if (item.targetUrl) {
@@ -161,73 +146,7 @@ async function handleTaskClick(item) {
     return
   }
   if (item.type !== 'TASK') return
-  loadingTaskDetail.value = true
-  try {
-    const res = await tasksApi.getTaskById(item.id)
-    const taskData = res?.data?.data || res?.data || {}
-    selectedTask.value = { ...taskBackendToCard(taskData), deliverableFiles: [] }
-    await nextTick()
-    drawerVisible.value = true
-  } catch (e) {
-    ElMessage.error(e?.response?.data?.msg || '加载任务详情失败')
-  } finally {
-    loadingTaskDetail.value = false
-  }
-}
-
-async function handleSubmitForReview() {
-  if (!selectedTask.value?.id || !selectedTask.value?.projectId) {
-    ElMessage.warning('任务数据不完整')
-    return
-  }
-  submitting.value = true
-  try {
-    const form = taskFormRef.value
-    const result = form?.submitForReview?.()
-    if (!result || result.valid === false) {
-      if (result?.message) ElMessage.warning(result.message)
-      return
-    }
-
-    const data = result.data
-    const projectId = data.projectId
-    const taskId = data.id
-
-    const validation = validateSubmitForReview({
-      deliverables: data.deliverables,
-      deliverableFiles: data.deliverableFiles,
-      completionNotes: data.completionNotes
-    })
-    if (!validation.valid) {
-      ElMessage.warning(validation.message)
-      return
-    }
-
-    const projectStore = useProjectStore()
-    const userStore = useUserStore()
-    const uploadOk = await uploadTaskFilesWithFallback(
-      selectedTask.value,
-      { attachments: [], deliverableFiles: data.deliverableFiles || [] },
-      { projectStore, projectId, userStore },
-      {
-        attachments: '已提交审核，但附件上传失败，请重试',
-        deliverables: '已提交审核，但交付物上传失败，请重试',
-      },
-      ElMessage,
-    )
-    if (!uploadOk) return
-
-    await projectsApi.updateTaskStatus(projectId, taskId, 'REVIEW', null, data.completionNotes)
-
-    ElMessage.success('已提交审核')
-    drawerVisible.value = false
-    selectedTask.value = null
-    await loadTasks()
-  } catch (e) {
-    ElMessage.error(e?.response?.data?.msg || '提交审核失败')
-  } finally {
-    submitting.value = false
-  }
+  await drawerRef.value?.loadTask(item.id)
 }
 </script>
 

@@ -3,6 +3,7 @@ package com.xiyu.bid.projectworkflow.service;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.project.core.ProjectStage;
+import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.project.service.ProjectStageService;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentCreateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
@@ -42,6 +43,7 @@ class ProjectDocumentWorkflowServiceTest {
     private ProjectDocumentDownloadService downloadService;
     private CurrentUserResolver currentUserResolver;
     private ProjectStageService projectStageService;
+    private ProjectLeadAssignmentRepository leadAssignmentRepository;
 
     @BeforeEach
     void setUp() {
@@ -55,6 +57,7 @@ class ProjectDocumentWorkflowServiceTest {
         fileStorage = mock(ProjectDocumentFileStorage.class);
         currentUserResolver = mock(CurrentUserResolver.class);
         projectStageService = mock(ProjectStageService.class);
+        leadAssignmentRepository = mock(ProjectLeadAssignmentRepository.class);
 
         ProjectWorkflowGuardService guardService = new ProjectWorkflowGuardService(
                 projectRepository,
@@ -71,9 +74,15 @@ class ProjectDocumentWorkflowServiceTest {
                 userRepository,
                 viewAssembler,
                 bindingGateway,
-                currentUserResolver
+                currentUserResolver,
+                leadAssignmentRepository
         );
-        downloadService = new ProjectDocumentDownloadService(guardService, fileStorage, projectStageService);
+        downloadService = new ProjectDocumentDownloadService(guardService, fileStorage, projectStageService,
+                currentUserResolver, leadAssignmentRepository);
+
+        // CO-474: 默认 stub——真实 default 方法返回 new Long[]{null, null}，但 mock 不调用 default 方法。
+        // admin 角色走 GLOBAL_ACCESS_ROLES 直通，不依赖 leadIds；但其他角色测试需要显式 stub。
+        when(leadAssignmentRepository.resolveLeadIdsByProjectId(any())).thenReturn(new Long[]{null, null});
 
         when(projectRepository.findById(1001L)).thenReturn(Optional.of(Project.builder().id(1001L).status(Project.Status.BIDDING).build()));
         when(projectRepository.findById(1002L)).thenReturn(Optional.of(Project.builder().id(1002L).status(Project.Status.WON).build()));
@@ -493,6 +502,54 @@ class ProjectDocumentWorkflowServiceTest {
         ProjectDocumentDownloadFile file = downloadService.getProjectDocumentFile(1001L, 3105L);
 
         assertThat(file.fileName()).isEqualTo("投标文件.pdf");
+    }
+
+    // ============ CO-474 Bug B: 跨部门协助人员（bid-otherDept）不得查看/下载项目文档 ============
+    // 蓝图权限矩阵：bid-otherDept 仅在任务看板操作，不能进入项目文档区。
+    // ProjectAccessScopeService 通过 findDistinctProjectIdsByAssigneeId 让 bid-otherDept 能通过项目访问闸门，
+    // 因此 Service 层必须额外调用 ProjectDocumentWorkflowPolicy.canView/canDownload 做二次授权。
+    // 对称设计：view 与 download 权限矩阵一致（§24）。
+
+    @Test
+    void getProjectDocuments_asBidOtherDept_shouldThrowAccessDeniedException() {
+        // CO-474: bid-otherDept 通过项目访问闸门（assignee 关联），但 Service 层 Policy 必须拒绝查看文档
+        when(currentUserResolver.requireCurrentUser()).thenReturn(
+                com.xiyu.bid.entity.User.builder()
+                        .id(900L)
+                        .roleProfile(com.xiyu.bid.entity.RoleProfile.builder().code("bid-otherDept").build())
+                        .build());
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.getProjectDocuments(1001L, null, null, null))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+                .hasMessageContaining("权限不足");
+
+        verify(projectDocumentRepository, org.mockito.Mockito.never())
+                .findByProjectIdAndFiltersOrderByCreatedAtDesc(any(), any(), any(), any());
+    }
+
+    @Test
+    void getProjectDocumentFile_asBidOtherDept_shouldThrowAccessDeniedException() {
+        // CO-474: bid-otherDept 下载项目文档也应被 Service 层 Policy 拒绝
+        // requireDocument 会先加载文档实体（供后续阶段守卫使用），但 Policy 闸门在 fileStorage.load 之前抛出
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(3003L)
+                .projectId(1001L)
+                .name("任务附件.docx")
+                .fileUrl("doc-insight://task/file.docx")
+                .build();
+        when(projectDocumentRepository.findById(3003L)).thenReturn(Optional.of(doc));
+        when(currentUserResolver.requireCurrentUser()).thenReturn(
+                com.xiyu.bid.entity.User.builder()
+                        .id(900L)
+                        .roleProfile(com.xiyu.bid.entity.RoleProfile.builder().code("bid-otherDept").build())
+                        .build());
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> downloadService.getProjectDocumentFile(1001L, 3003L))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+                .hasMessageContaining("权限不足");
+
+        // 关键安全保证：文件内容绝不被加载
+        verify(fileStorage, org.mockito.Mockito.never()).load(any());
     }
 
 }

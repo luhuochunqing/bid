@@ -58,6 +58,16 @@ vi.mock('@/composables/projectDetail/taskAssigneePayload', () => ({
   uploadTaskFilesWithFallback: (...args) => mockUploadTaskFilesWithFallback(...args),
 }))
 
+// CO-474: mock taskBackendToCard 让 TaskBoardTaskDrawer 能独立测试
+vi.mock('@/views/Project/project-utils.js', () => ({
+  taskBackendToCard: (task) => ({ ...task, deliverableFiles: [] }),
+}))
+
+// CO-474: mock validateSubmitForReview 让 TaskBoardTaskDrawer 提交审核能跑通
+vi.mock('@/composables/useTaskSubmissionValidation.js', () => ({
+  validateSubmitForReview: () => ({ valid: true }),
+}))
+
 import TaskBoardPage from './TaskBoardPage.vue'
 
 // 为 TaskForm 定义真实组件 stub，暴露 canDeliver computed 和 submitForReview 方法

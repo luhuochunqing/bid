@@ -3,6 +3,8 @@
 package com.xiyu.bid.project.notification;
 
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.entity.RoleProfile;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.matrixcollaboration.entity.ProjectMember;
 import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
@@ -11,6 +13,7 @@ import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -43,6 +46,8 @@ class ProjectNotificationServiceTest {
     private UserRepository userRepository;
     @Mock
     private ProjectMemberRepository projectMemberRepository;
+    @Mock
+    private EffectiveRoleResolver effectiveRoleResolver;
 
     @Captor
     private ArgumentCaptor<CreateNotificationRequest> requestCaptor;
@@ -52,10 +57,13 @@ class ProjectNotificationServiceTest {
     private static final Long PID = 100L;
     private static final Long UID = 42L;
     private static final Long MANAGER_ID = 88L;
+    private static final Long TASK_ID = 77L;
+    private static final Long ASSIGNEE_ID = 55L;
 
     @BeforeEach
     void setUp() {
-        svc = new ProjectNotificationService(notificationService, projectRepository, userRepository, projectMemberRepository);
+        svc = new ProjectNotificationService(notificationService, projectRepository,
+                userRepository, projectMemberRepository, effectiveRoleResolver);
     }
 
     private Project project(String name) {
@@ -70,6 +78,19 @@ class ProjectNotificationServiceTest {
         User u = new User();
         u.setId(id);
         u.setFullName(fullName);
+        return u;
+    }
+
+    private User userWithRole(String roleCode) {
+        User u = new User();
+        u.setId(ASSIGNEE_ID);
+        u.setUsername("assignee");
+        u.setPassword("dummy");
+        u.setEmail("assignee@test.local");
+        u.setFullName("被分配人");
+        u.setRole(User.Role.ADMIN);
+        RoleProfile profile = RoleProfile.builder().code(roleCode).name(roleCode).build();
+        u.setRoleProfile(profile);
         return u;
     }
 
@@ -233,22 +254,45 @@ class ProjectNotificationServiceTest {
     class TaskAssigned {
 
         @Test
-        @DisplayName("sends INFO to single assignee")
-        void sendsToAssignee() {
+        @DisplayName("non-bid-otherDept 角色 → targetUrl 指向 /project/{id}/drafting")
+        void sendsToAssigneeWithProjectDraftingUrl() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
+            when(userRepository.findById(ASSIGNEE_ID)).thenReturn(Optional.of(userWithRole("bid-Team")));
+            when(effectiveRoleResolver.resolveRoleCode(any(User.class))).thenReturn("bid-Team");
 
-            svc.notifyTaskAssigned(PID, 77L, UID);
+            svc.notifyTaskAssigned(PID, TASK_ID, ASSIGNEE_ID, UID);
 
             verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
-            assertThat(requestCaptor.getValue().recipientUserIds()).containsExactly(77L);
+            CreateNotificationRequest req = requestCaptor.getValue();
+            assertThat(req.recipientUserIds()).containsExactly(ASSIGNEE_ID);
+            assertThat(req.payload()).containsEntry("targetUrl", "/project/" + PID + "/drafting");
+            assertThat(req.payload()).containsEntry("taskId", String.valueOf(TASK_ID));
+        }
+
+        @Test
+        @DisplayName("bid-otherDept 角色 → targetUrl 指向 /task-board（CO-474 根因修复）")
+        void sendsToBidOtherDeptWithTaskBoardUrl() {
+            when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
+            when(userRepository.findById(ASSIGNEE_ID)).thenReturn(Optional.of(userWithRole(RoleProfileCatalog.BID_OTHER_DEPT_CODE)));
+            when(effectiveRoleResolver.resolveRoleCode(any(User.class))).thenReturn(RoleProfileCatalog.BID_OTHER_DEPT_CODE);
+
+            svc.notifyTaskAssigned(PID, TASK_ID, ASSIGNEE_ID, UID);
+
+            verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
+            CreateNotificationRequest req = requestCaptor.getValue();
+            assertThat(req.recipientUserIds()).containsExactly(ASSIGNEE_ID);
+            assertThat(req.payload()).containsEntry("targetUrl", "/task-board?taskId=" + TASK_ID + "&projectId=" + PID);
+            assertThat(req.payload()).containsEntry("taskId", String.valueOf(TASK_ID));
         }
 
         @Test
         @DisplayName("project not found → skip in sendNotification")
         void skipsWhenProjectNotFound() {
+            when(userRepository.findById(ASSIGNEE_ID)).thenReturn(Optional.of(userWithRole("bid-Team")));
+            when(effectiveRoleResolver.resolveRoleCode(any(User.class))).thenReturn("bid-Team");
             when(projectRepository.findById(PID)).thenReturn(Optional.empty());
 
-            svc.notifyTaskAssigned(PID, 77L, UID);
+            svc.notifyTaskAssigned(PID, TASK_ID, ASSIGNEE_ID, UID);
 
             verify(notificationService, never()).createNotification(any(), any());
         }

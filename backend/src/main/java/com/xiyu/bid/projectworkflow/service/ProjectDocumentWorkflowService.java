@@ -1,6 +1,7 @@
 package com.xiyu.bid.projectworkflow.service;
 
 import com.xiyu.bid.common.domain.AuthorizationDecision;
+import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.projectworkflow.core.DocumentCategoryNormalizer;
 import com.xiyu.bid.projectworkflow.core.ProjectDocumentWorkflowPolicy;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentCreateRequest;
@@ -10,6 +11,7 @@ import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -24,6 +26,7 @@ class ProjectDocumentWorkflowService {
     private final ProjectDocumentViewAssembler projectDocumentViewAssembler;
     private final ProjectDocumentBindingGateway projectDocumentBindingGateway;
     private final CurrentUserResolver currentUserResolver;
+    private final ProjectLeadAssignmentRepository leadAssignmentRepository;
 
     List<ProjectDocumentDTO> getProjectDocuments(Long projectId) {
         return getProjectDocuments(projectId, null, null, null);
@@ -36,6 +39,8 @@ class ProjectDocumentWorkflowService {
             Long linkedEntityId
     ) {
         guardService.requireProject(projectId);
+        // CO-474: 补齐 canViewProjectDocuments 闸门（原漏调导致 bid-otherDept 可查看全部项目文档）
+        assertCanViewProjectDocuments(projectId);
         return projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
                         projectId,
                         trimToNull(documentCategory),
@@ -44,6 +49,23 @@ class ProjectDocumentWorkflowService {
                 ).stream()
                 .map(projectDocumentViewAssembler::toDto)
                 .toList();
+    }
+
+    /**
+     * CO-474: 项目文档查看权限闸门。
+     * <p>原 getProjectDocuments 漏调 Policy，导致 bid-otherDept 跨部门协助人员
+     * 通过任务分配获得项目访问权后，能查看项目全部文档（违背 RoleProfileCatalog
+     * 中 bid-otherDept 的"项目任务处理"dataScope=self 定位）。</p>
+     */
+    private void assertCanViewProjectDocuments(Long projectId) {
+        var currentUser = currentUserResolver.requireCurrentUser();
+        String roleCode = currentUserResolver.resolveEffectiveRoleCode(currentUser);
+        Long[] leadIds = leadAssignmentRepository.resolveLeadIdsByProjectId(projectId);
+        AuthorizationDecision decision = ProjectDocumentWorkflowPolicy.canViewProjectDocuments(
+                roleCode, currentUser.getId(), leadIds[0], leadIds[1]);
+        if (!decision.allowed()) {
+            throw new AccessDeniedException(decision.reason());
+        }
     }
 
     ProjectDocumentDTO createProjectDocument(Long projectId, ProjectDocumentCreateRequest request) {

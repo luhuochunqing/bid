@@ -107,7 +107,7 @@ public class BatchTaskCommandService {
         }
         tasks.stream()
                 .filter(task -> task.getProjectId() != null)
-                .forEach(task -> projectNotificationService.notifyTaskAssigned(task.getProjectId(), assigneeId, assignedBy));
+                .forEach(task -> projectNotificationService.notifyTaskAssigned(task.getProjectId(), task.getId(), assigneeId, assignedBy));
     }
 
     public BatchOperationResponse batchDeleteTasks(List<Long> taskIds, Long userId) {

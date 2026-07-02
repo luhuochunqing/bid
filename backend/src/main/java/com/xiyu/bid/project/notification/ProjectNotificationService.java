@@ -1,6 +1,7 @@
 package com.xiyu.bid.project.notification;
 
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.matrixcollaboration.entity.ProjectMember;
 import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
@@ -10,11 +11,13 @@ import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -30,6 +33,7 @@ public class ProjectNotificationService {
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final EffectiveRoleResolver effectiveRoleResolver;
 
     public void notifyInitiationSubmitted(Long projectId, Long submittedBy) {
         sendToAdmins(projectId, "立项审核：项目提交立项审核",
@@ -73,8 +77,70 @@ public class ProjectNotificationService {
                 userId == null ? SYSTEM_USER_ID : userId, teamMemberIds, "");
     }
 
-    public void notifyTaskAssigned(Long projectId, Long assigneeId, Long assignedBy) {
-        sendNotification(projectId, "任务分配", NotificationType.INFO, assignedBy, List.of(assigneeId), "drafting");
+    /**
+     * 通知被分配人有新任务。
+     * <p>跨部门协同人员（bid-otherDept）的 targetUrl 跳转到任务看板
+     * （{@code /task-board?taskId=X&projectId=Y}），其他角色跳转到项目详情页
+     * drafting 阶段（{@code /project/{id}/drafting}）。</p>
+     *
+     * <p>根因（CO-474）：原实现对所有角色统一生成 {@code /project/{id}/drafting}，
+     * 但 bid-otherDept 角色定位是"项目任务处理"（dataScope=self，只能看 assignee=自己
+     * 的任务），不应该进项目详情页查看所有项目文档。前端 {@code /project/:id} 路由
+     * 无 permissionKeys 守卫，导致该角色能直接进入项目详情页并查看/下载文档
+     * （Bug B：Service 层漏调 ProjectDocumentWorkflowPolicy）。</p>
+     *
+     * @param projectId  项目 ID
+     * @param taskId     任务 ID（用于构造 task-board 跳转参数）
+     * @param assigneeId 被分配人 ID
+     * @param assignedBy 分配人 ID（用于审计，可为 0L 表示系统）
+     */
+    public void notifyTaskAssigned(Long projectId, Long taskId, Long assigneeId, Long assignedBy) {
+        if (assigneeId == null) return;
+        User assignee = userRepository.findById(assigneeId).orElse(null);
+        String roleCode = assignee != null ? effectiveRoleResolver.resolveRoleCode(assignee) : null;
+        String targetUrl = resolveTaskAssignedTargetUrl(projectId, taskId, roleCode);
+        sendTaskAssignedNotification(projectId, taskId, assigneeId, assignedBy, targetUrl);
+    }
+
+    /**
+     * 根据被分配人角色决定任务分配通知的 targetUrl。
+     * <p>bid-otherDept 跨部门协同人员 → {@code /task-board?taskId=X&projectId=Y}，
+     * 其他角色 → {@code /project/{projectId}/drafting}（保持历史行为）。</p>
+     */
+    private String resolveTaskAssignedTargetUrl(Long projectId, Long taskId, String roleCode) {
+        if (RoleProfileCatalog.BID_OTHER_DEPT_CODE.equals(roleCode)) {
+            return "/task-board?taskId=" + taskId + "&projectId=" + projectId;
+        }
+        return "/project/" + projectId + "/drafting";
+    }
+
+    private void sendTaskAssignedNotification(Long projectId, Long taskId, Long assigneeId,
+                                              Long assignedBy, String targetUrl) {
+        try {
+            Project project = findProject(projectId);
+            if (project == null) return;
+            String projectName = project.getName();
+            String body = String.format("项目名称：%s\n\n请关注项目进展。", projectName);
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("projectId", String.valueOf(projectId));
+            payload.put("projectName", projectName);
+            if (taskId != null) {
+                payload.put("taskId", String.valueOf(taskId));
+            }
+            payload.put("targetUrl", targetUrl);
+            notificationService.createNotification(new CreateNotificationRequest(
+                    NotificationType.INFO.name(),
+                    "PROJECT",
+                    projectId,
+                    "任务分配 - " + projectName,
+                    body,
+                    payload,
+                    List.of(assigneeId)
+            ), assignedBy == null ? SYSTEM_USER_ID : assignedBy);
+        } catch (RuntimeException e) {
+            log.warn("sendTaskAssignedNotification failed for project={}, task={}: {}",
+                    projectId, taskId, e.getMessage());
+        }
     }
 
     public void notifyBidReviewResult(Long projectId, Long recipientId, boolean approved, Long reviewerId) {

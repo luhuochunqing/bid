@@ -253,10 +253,7 @@ public class CaBorrowService {
                 .stream().map(CaBorrowEventDTO::from).collect(Collectors.toList());
     }
 
-    /**
-     * CO-459: 待审批列表 —— 数据库层面过滤，管理员返回全部待审批，保管员返回自己的。
-     * CO-466: 返回结果 enrich caName。
-     */
+    /** CO-459: 待审批列表 — 数据库层面过滤，管理员返回全部待审批，保管员返回自己的。 */
     public List<CaBorrowApplicationDTO> getPendingApprovals(UserDetails userDetails) {
         User user = resolveUser(userDetails);
         String roleCode = effectiveRoleResolver.resolveRoleCode(user);
@@ -269,19 +266,13 @@ public class CaBorrowService {
         return caNameEnricher.enrich(apps);
     }
 
-    /**
-     * CO-459: 我的借用申请 —— 返回当前用户作为申请人的全部申请。
-     * CO-466: 返回结果 enrich caName。
-     */
+    /** CO-459: 我的借用申请 — 返回当前用户作为申请人的全部申请。 */
     public List<CaBorrowApplicationDTO> getMyBorrowApplications(UserDetails userDetails) {
         User user = resolveUser(userDetails);
         return caNameEnricher.enrich(borrowRepository.findByApplicantIdOrderByCreatedAtDesc(user.getId()));
     }
 
-    /**
-     * CO-459: 我的审批 Tab —— 管理员返回全部申请，保管员返回自己的。
-     * CO-466: 返回结果 enrich caName。
-     */
+    /** CO-459: 我的审批 Tab — 管理员返回全部申请，保管员返回自己的。 */
     public List<CaBorrowApplicationDTO> findAllApprovals(UserDetails userDetails) {
         User user = resolveUser(userDetails);
         String roleCode = effectiveRoleResolver.resolveRoleCode(user);
