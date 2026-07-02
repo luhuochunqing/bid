@@ -6,6 +6,7 @@ package com.xiyu.bid.project.controller;
 
 import com.xiyu.bid.annotation.LogOperation;
 import com.xiyu.bid.dto.ApiResponse;
+import com.xiyu.bid.project.dto.ClosureApprovalRequest;
 import com.xiyu.bid.project.dto.ClosureDTO;
 import com.xiyu.bid.project.dto.ClosurePreviewDTO;
 import com.xiyu.bid.project.dto.ClosureReviewRequest;
@@ -71,6 +72,7 @@ public class ProjectClosureController {
     @LogOperation
     public ResponseEntity<ApiResponse<ClosureDTO>> approve(
             @PathVariable Long projectId,
+            @Valid @RequestBody ClosureApprovalRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
         Long userId = currentUserId(userDetails);
         ClosureDTO dto = service.approveClosure(projectId, userId);

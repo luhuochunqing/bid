@@ -111,8 +111,8 @@ export const projectLifecycleApi = {
   submitClosure(id, payload) {
     return httpClient.post(`${base(id)}/closure`, payload)
   },
-  approveClosure(id) {
-    return httpClient.post(`${base(id)}/closure/approve`)
+  approveClosure(id, data) {
+    return httpClient.post(`${base(id)}/closure/approve`, data)
   },
   rejectClosure(id, payload) {
     return httpClient.post(`${base(id)}/closure/reject`, payload)

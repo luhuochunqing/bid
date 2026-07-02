@@ -124,7 +124,9 @@ class ProjectClosureControllerTest {
         when(service.approveClosure(eq(1L), eq(1L)))
                 .thenReturn(ClosureDTO.builder().id(10L).projectId(1L).stageLocked(true)
                         .closedAt(LocalDateTime.now()).build());
-        mockMvc.perform(post("/api/projects/1/closure/approve"))
+        mockMvc.perform(post("/api/projects/1/closure/approve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"comment\":\"\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.stageLocked").value(true));
     }

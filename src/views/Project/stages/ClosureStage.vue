@@ -469,7 +469,7 @@ async function submitClosure() {
 
 async function doApprove() {
   approving.value = true
-  try { await projectLifecycleApi.approveClosure(props.projectId); ElMessage.success('项目结项审核通过'); emit('closed'); await loadPreview() }
+  try { await projectLifecycleApi.approveClosure(props.projectId, { comment: '' }); ElMessage.success('项目结项审核通过'); emit('closed'); await loadPreview() }
   catch (e) { ElMessage.error(e?.response?.data?.msg || '审核失败') }
   finally { approving.value = false }
 }
