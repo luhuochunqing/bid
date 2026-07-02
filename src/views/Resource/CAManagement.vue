@@ -736,8 +736,12 @@ async function handleRejectApplication(row) {
 }
 
 // CO-459: 从审批列表登记归还
+// CO-466: 从 caStore 查完整 ca 对象（含 holderName/sealTypeLabel 等），合并后端 enrich 的 caName
 async function handleOpenReturnFromApproval(row) {
-  selectedCa.value = { id: row.caCertificateId, platformIds: row.caName ? [row.caName] : [] }
+  const ca = caStore.certificates.find(c => c.id === row.caCertificateId)
+  selectedCa.value = ca
+    ? { ...ca, caName: row.caName }
+    : { id: row.caCertificateId, caName: row.caName }
   borrowApplicationsForReturn.value = [row]
   returnVisible.value = true
 }

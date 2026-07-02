@@ -102,11 +102,15 @@ const formRef = ref(null)
 const caLabel = computed(() => {
   const ca = props.ca
   if (!ca) return ''
+  // CO-466: 优先使用后端 enrich 的 caName（与审批/借用列表一致）
+  if (ca.caName) return ca.caName
+  // fallback 到拼装逻辑（与 CABorrowDialog caLabel 格式统一）
   const platforms = Array.isArray(ca.platformIds) && ca.platformIds.length
-    ? ca.platformIds.join(', ')
+    ? ca.platformIds.map(p => (typeof p === 'object' ? p.accountName : `#${p}`)).join(', ')
     : ''
-  const seal = ca.sealTypeLabel || ''
-  return [platforms, seal].filter(Boolean).join(' - ')
+  const seal = ca.sealTypeLabel || ca.sealType || ''
+  const holder = ca.holderName || ''
+  return [holder, platforms, seal].filter(Boolean).join(' / ')
 })
 
 // Only show APPROVED borrow applications (PENDING/RETURNED excluded)

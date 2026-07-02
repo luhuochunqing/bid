@@ -100,4 +100,24 @@ describe('CAReturnDialog', () => {
     expect(wrapper.vm.form.remark).toBe('')
     expect(wrapper.vm.form.actualReturnDate).toBeTruthy()
   })
+
+  // CO-466: caLabel 优先使用后端 enrich 的 caName
+  it('caName 存在时 caLabel 优先返回 caName', async () => {
+    const wrapper = mountDialog({
+      ca: { ...mockCa, caName: '张三 / 政采云, 国铁采购 / 公章' }
+    })
+    await flushPromises()
+
+    expect(wrapper.vm.caLabel).toBe('张三 / 政采云, 国铁采购 / 公章')
+  })
+
+  it('caName 缺失时 fallback 到拼装逻辑（统一 / 分隔，含 holder）', async () => {
+    // mockCa 有 platformIds: ['政采云'], sealTypeLabel: '公章'，但没有 holderName
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    // platformIds 是字符串数组，typeof 'string' !== 'object'，走 #${p} 分支
+    // 实际显示：'#政采云 / 公章'
+    expect(wrapper.vm.caLabel).toBe('#政采云 / 公章')
+  })
 })
