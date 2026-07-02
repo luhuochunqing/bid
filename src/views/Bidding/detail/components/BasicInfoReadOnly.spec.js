@@ -6,6 +6,7 @@ import BasicInfoReadOnly from './BasicInfoReadOnly.vue'
 import BasicFieldsSection from './BasicFieldsSection.vue'
 import ProjectPlanGapUpload from './ProjectPlanGapUpload.vue'
 import TenderEvaluationForm from '../TenderEvaluationForm.vue'
+import { vAutosize } from '@/directives/autosize.js'
 
 function mountWithElementPlus(component, options = {}) {
   return mount(component, {
@@ -13,6 +14,7 @@ function mountWithElementPlus(component, options = {}) {
     global: {
       ...(options.global || {}),
       plugins: [ElementPlus, ...(options.global?.plugins || [])],
+      directives: { autosize: vAutosize, ...(options.global?.directives || {}) },
     },
   })
 }
