@@ -60,6 +60,7 @@ class ProjectRetrospectiveServiceTest {
                 .resultType(BidResultType.WON)
                 .meetingTime("2025-06-01 10:00").meetingFormat("ONLINE").meetingParticipants("张三")
                 .winFactors("优势").processHighlights("亮点").postWinImprovements("建议")
+                .reportFileIds(java.util.List.of(1001L, 1002L))
                 .build();
         var dto = service.submit(1L, req, 99L);
         // §2.6: 复盘无需审核，提交即转 APPROVED
@@ -85,6 +86,7 @@ class ProjectRetrospectiveServiceTest {
                 .resultType(BidResultType.WON)
                 .meetingTime("2025-06-01 10:00").meetingFormat("ONLINE").meetingParticipants("张三")
                 .winFactors("优势").processHighlights("亮点").postWinImprovements("建议")
+                .reportFileIds(java.util.List.of(1001L, 1002L))
                 .build();
         var dto = service.submit(1L, req, 99L);
         assertEquals("APPROVED", dto.getReviewStatus());

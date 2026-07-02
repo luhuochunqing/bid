@@ -1,8 +1,8 @@
 package com.xiyu.bid.entity;
 
 import jakarta.persistence.Column;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -15,13 +15,13 @@ class TaskEntityMappingTest {
     @Test
     void status_shouldMapAsVarcharToMatchMysqlMigration() throws Exception {
         Field status = Task.class.getDeclaredField("status");
-
-        JdbcTypeCode jdbcTypeCode = status.getAnnotation(JdbcTypeCode.class);
+        // 00f033b0e 后统一用 columnDefinition 模式，不再用 @JdbcTypeCode
+        Enumerated enumerated = status.getAnnotation(Enumerated.class);
+        assertNotNull(enumerated);
+        assertEquals(EnumType.STRING, enumerated.value());
         Column column = status.getAnnotation(Column.class);
-
-        assertNotNull(jdbcTypeCode);
-        assertEquals(SqlTypes.VARCHAR, jdbcTypeCode.value());
         assertNotNull(column);
         assertEquals(32, column.length());
+        assertEquals("varchar(32)", column.columnDefinition());
     }
 }

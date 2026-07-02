@@ -132,11 +132,13 @@ class TenderCommandServiceTest {
     @Test
     @DisplayName("CO-265: 创建标讯时招标主体+报名截止+开标时间重复应抛 TenderDuplicateException")
     void createTender_DuplicatePurchaserDeadlineBidTime_ThrowsTenderDuplicateException() {
+        LocalDateTime futureDeadline = LocalDateTime.now().plusDays(30);
+        LocalDateTime futureBidOpen = futureDeadline.plusDays(14);
         TenderDTO duplicateDto = TenderDTO.builder()
                 .title("已有标讯")
                 .purchaserName("重复采购人")
-                .registrationDeadline(LocalDateTime.of(2026, 7, 1, 12, 0))
-                .bidOpeningTime(LocalDateTime.of(2026, 7, 15, 10, 0))
+                .registrationDeadline(futureDeadline)
+                .bidOpeningTime(futureBidOpen)
                 .status(Tender.Status.PENDING_ASSIGNMENT)
                 .build();
 
@@ -144,8 +146,8 @@ class TenderCommandServiceTest {
                 .id(99L)
                 .title("已有标讯")
                 .purchaserName("重复采购人")
-                .registrationDeadline(LocalDateTime.of(2026, 7, 1, 12, 0))
-                .bidOpeningTime(LocalDateTime.of(2026, 7, 15, 10, 0))
+                .registrationDeadline(futureDeadline)
+                .bidOpeningTime(futureBidOpen)
                 .status(Tender.Status.PENDING_ASSIGNMENT)
                 .build();
 

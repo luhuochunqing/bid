@@ -62,7 +62,7 @@ class ProjectArchiveControllerDownloadPathTest {
 
     @Test
     @DisplayName("filePath 在 upload-dir 根目录下时，可以正常下载（200）")
-    @WithMockUser(username = "admin", roles = {"ADMIN"})
+    @WithMockUser(username = "admin", authorities = {"ROLE_ADMIN", "project"})
     void downloadFile_withinUploadDir_shouldReturn200() throws Exception {
         // 创建临时文件，路径在 uploadRoot 下
         String uploadRoot = getUploadRoot();
@@ -102,7 +102,7 @@ class ProjectArchiveControllerDownloadPathTest {
 
     @Test
     @DisplayName("filePath 不在 upload-dir 根目录下时，应返回 400（文件路径越界）")
-    @WithMockUser(username = "admin", roles = {"ADMIN"})
+    @WithMockUser(username = "admin", authorities = {"ROLE_ADMIN", "project"})
     void downloadFile_outsideUploadDir_shouldReturn400() throws Exception {
         // 创建临时文件，路径不在 uploadRoot 下
         Path tempDir = Files.createTempDirectory("outside-upload-root");

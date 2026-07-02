@@ -40,6 +40,18 @@ public final class DocumentCategoryNormalizer {
             "CLOSURE", "DEPOSIT_RECEIPT"
     );
 
+    /**
+     * 业务模块耦合的标准分类集合。这些值被下游模块（bid-result / task）按字符串精确匹配，
+     * 必须原样保留，不能被归一化为 OTHER，否则绑定/过滤逻辑会失效。
+     * PROJECT_DELIVERABLE 虽无下游精确匹配，但作为业务语义分类应原样保留以便前端按分类过滤。
+     */
+    private static final java.util.Set<String> BUSINESS_CATEGORIES = java.util.Set.of(
+            "BID_RESULT_NOTICE",
+            "BID_RESULT_ANALYSIS",
+            "TASK_ATTACHMENT",
+            "PROJECT_DELIVERABLE"
+    );
+
     private DocumentCategoryNormalizer() {}
 
     /**
@@ -56,6 +68,8 @@ public final class DocumentCategoryNormalizer {
         String trimmed = raw.trim();
         String upper = trimmed.toUpperCase();
         if (isStandard(upper)) return upper;
+        // 业务耦合分类原样保留（下游模块按字符串精确匹配触发绑定/过滤）
+        if (BUSINESS_CATEGORIES.contains(upper)) return upper;
         String mapped = ALIAS.get(upper);
         return mapped != null ? mapped : "OTHER";
     }

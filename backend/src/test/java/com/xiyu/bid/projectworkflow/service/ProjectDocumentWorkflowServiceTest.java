@@ -117,8 +117,9 @@ class ProjectDocumentWorkflowServiceTest {
                 .build());
 
         assertThat(dto.getName()).isEqualTo("中标通知书.pdf");
-        // CO-420: BID_RESULT_NOTICE 非标准枚举名，归一化为 OTHER
-        assertThat(dto.getDocumentCategory()).isEqualTo("OTHER");
+        // BID_RESULT_NOTICE 是业务耦合分类（BidResultProjectDocumentBindingGateway 按此精确匹配触发绑定），
+        // 归一化策略原样保留，不归一化为 OTHER
+        assertThat(dto.getDocumentCategory()).isEqualTo("BID_RESULT_NOTICE");
         assertThat(dto.getLinkedEntityType()).isEqualTo("BID_RESULT");
         assertThat(dto.getLinkedEntityId()).isEqualTo(2001L);
         assertThat(dto.getFileUrl()).isEqualTo("https://files.example.com/notice.pdf");

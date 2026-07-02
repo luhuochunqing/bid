@@ -218,10 +218,13 @@ class BidMatchEvaluationIntegrationTest {
                 .holderName("西域")
                 .issueDate(LocalDate.now().minusYears(1))
                 .expiryDate(LocalDate.now().plusYears(1))
-                .status(QualificationStatus.VALID)
+                // CO-155 后 toSpecification() 在 SQL 层把 "VALID" 过滤映射为 IN_STOCK，
+                // entity 直存（绕过 adapter.save）必须用 IN_STOCK 才能被查到。
+                // QualificationStatus.VALID 已 @Deprecated，新语义下 IN_STOCK 才是"在库"。
+                .status(QualificationStatus.IN_STOCK)
                 .reminderEnabled(true)
                 .reminderDays(30)
-                
+
                 .build();
     }
 

@@ -66,8 +66,24 @@ class ProjectWorkflowIntegrationTest extends AbstractProjectWorkflowIntegrationT
 
         Long taskId = objectMapper.readTree(taskResponse).path("data").path("id").asLong();
 
+        // CO-458: TODO -> REVIEW 需要先上传交付物并填写完成情况
+        mockMvc.perform(post("/api/projects/{projectId}/tasks/{taskId}/deliverables", project.getId(), taskId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(java.util.Map.of(
+                        "name", "商务应答.docx",
+                        "deliverableType", "DOCUMENT",
+                        "size", "2MB",
+                        "fileType", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "storagePath", "/files/商务应答.docx",
+                        "storageKey", "bid/商务应答.docx",
+                        "uploaderId", ownerUser.getId(),
+                        "uploaderName", "李总"
+                ))))
+                .andExpect(status().isCreated());
+
         ProjectTaskStatusUpdateRequest statusRequest = ProjectTaskStatusUpdateRequest.builder()
                 .status(ProjectTaskStatusUpdateRequest.Status.REVIEW)
+                .completionNotes("商务应答已整理完成，提交审核")
                 .build();
 
         mockMvc.perform(patch("/api/projects/{projectId}/tasks/{taskId}/status", project.getId(), taskId)

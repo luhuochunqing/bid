@@ -373,8 +373,8 @@ class TenderCommandServiceMysqlIntegrationTest extends AbstractMysqlIntegrationT
         @DisplayName("相同 purchaserName + registrationDeadline + bidOpeningTime → 抛 TenderDuplicateException")
         void sameThreeFields_throwsTenderDuplicateException() {
             // given: 第一条标讯
-            LocalDateTime regDeadline = LocalDateTime.of(2026, 7, 1, 10, 0);
-            LocalDateTime bidOpenTime = LocalDateTime.of(2026, 7, 2, 14, 0);
+            LocalDateTime regDeadline = LocalDateTime.now().plusDays(30).truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+            LocalDateTime bidOpenTime = regDeadline.plusDays(14);
             TenderDTO dtoA = buildTenderDTO("t012-a", "test-int-purchaser-t012");
             dtoA.setRegistrationDeadline(regDeadline);
             dtoA.setBidOpeningTime(bidOpenTime);
@@ -393,15 +393,15 @@ class TenderCommandServiceMysqlIntegrationTest extends AbstractMysqlIntegrationT
         @DisplayName("不同 bidOpeningTime → 不视为重复，创建成功")
         void differentBidOpeningTime_notDuplicate() {
             // given: 第一条标讯
-            LocalDateTime regDeadline = LocalDateTime.of(2026, 7, 1, 10, 0);
-            LocalDateTime bidOpenTimeA = LocalDateTime.of(2026, 7, 2, 14, 0);
+            LocalDateTime regDeadline = LocalDateTime.now().plusDays(30).truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+            LocalDateTime bidOpenTimeA = regDeadline.plusDays(14);
             TenderDTO dtoA = buildTenderDTO("t012-c", "test-int-purchaser-t012-alt");
             dtoA.setRegistrationDeadline(regDeadline);
             dtoA.setBidOpeningTime(bidOpenTimeA);
             tenderCommandService.createTender(dtoA, adminUser.getId());
 
             // when: 第二条不同 bidOpeningTime
-            LocalDateTime bidOpenTimeB = LocalDateTime.of(2026, 7, 3, 14, 0);
+            LocalDateTime bidOpenTimeB = regDeadline.plusDays(15);
             TenderDTO dtoB = buildTenderDTO("t012-d", "test-int-purchaser-t012-alt");
             dtoB.setRegistrationDeadline(regDeadline);
             dtoB.setBidOpeningTime(bidOpenTimeB);
