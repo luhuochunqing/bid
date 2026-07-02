@@ -2122,3 +2122,133 @@ Sentry 上报 `UnexpectedRollbackException: Transaction silently rolled back bec
 - `backend/src/main/java/com/xiyu/bid/tender/service/TenderEvaluationNotificationService.java` — 标讯评估通知（修复后）
 - `backend/src/main/java/com/xiyu/bid/tender/service/TenderPendingAssignmentNotifier.java` — 待分配通知（修复后）
 - §23 — 全链路日志排查 SOP（本次排查使用）
+
+---
+
+## 31. 审批接口契约不统一 + JS 默认参数陷阱导致 `Required request body is missing`（CO-459）
+
+### 问题背景
+
+CO-459 实现「CA 信息管理 - 我的申请 / 我的审批」功能后，在生产环境（`172.16.38.78`）验收时，投标管理员审批 CA 借用申请返回 400：
+
+```
+请求体格式错误: Required request body is missing: public ResponseEntity<CaBorrowApplicationDTO>
+CaCertificateController.approve(Long, CaApprovalRequest, UserDetails)
+```
+
+服务器日志铁证（traceId `68e838cb89714d4e9f518f774d81effc`，2026-07-02 09:17:41.943，400 + 9ms 返回）证明请求到达后端但反序列化失败。
+
+### 多重根因（流程性，非孤立 bug）
+
+#### 根因 1：项目内审批接口存在四种契约风格，无统一规范
+
+| 模块 | Controller 签名 | 前端调用 |
+|---|---|---|
+| 项目立项 (InitiationController) | `@Valid @RequestBody InitiationApprovalRequest req` | `approveInitiation(id, {...})` |
+| 标书审核 (DraftingController) | `@RequestBody(required=false) Map<String,String>` | `approveBid(id, { comment: '' })` |
+| 结项审核 (ClosureController) | `@Valid @RequestBody ClosureReviewRequest req`（reject）/ 无 body（approve） | `approveClosure(id)` / `rejectClosure(id, {...})` |
+| CA 借用（CO-459 新写）⚠️ | `@Valid @RequestBody CaApprovalRequest req` + `@NotBlank` | `approveApplication(id, '')` ⚠️ |
+
+CO-459 写新代码时**没有参照已有审批接口契约风格**，独立设计了"更严格"的 DTO（`@Valid + @RequestBody + @NotBlank`），但前端没同步按新契约传参。
+
+#### 根因 2：JavaScript 默认参数陷阱——`data = {}` 的假安全感
+
+```javascript
+// ca.js:225
+async approve(applicationId, data = {}) {
+  return httpClient.post(`${BASE}/borrow-applications/${applicationId}/approve`, data)
+}
+
+// CAManagement.vue:688
+await caStore.approveApplication(row.id, '')  // 传空字符串
+```
+
+`data = {}` 只在参数为 `undefined` 时生效，传 `''`（空字符串）**不会触发默认值**。结果 `httpClient.post(url, '')` 发送空字符串作为 body，后端 `@RequestBody` 期望 JSON 对象，反序列化失败。
+
+这个陷阱在 code review 时肉眼很难发现——`data = {}` 看起来已经做了防御。
+
+#### 根因 3：单测覆盖的是 store 层，不是端到端契约
+
+CO-459 PR 验证清单：`npm run build` + `mvn test -Dtest=ArchitectureTest` + line-budget 全通过。但**没有**：
+- ❌ 后端 Controller 的 `@WebMvcTest`（验证 `@RequestBody` 反序列化）
+- ❌ 前端调用 store 的集成测试（验证传参格式）
+- ❌ E2E 测试（真实点击审批按钮→后端落库）
+
+每一层都"看起来对"，但**契约的接缝处没人测**。
+
+#### 根因 4（元根因）：没有"契约单一源"
+
+项目里审批接口有四种写法，**没有统一的契约规范文档**。开发者写第五个审批接口（CA 借用）时，面临四种参考样板，选哪种全凭个人偏好。选了严格契约但前端没同步升级——**契约脱节**。如果契约规范统一，新接口照葫芦画瓢即可，不会脱节。
+
+### 排查弯路（自我反思）
+
+| 轮次 | 动作 | 错误 | 用户纠偏 |
+|---|---|---|---|
+| 1 | 没看日志，直接改代码 | 盲目猜测 | "你有去服务器上看看日志，找出失败的根因吗？不要盲目地判断" |
+| 2 | 看本地日志找不到记录 | 找错环境 | "是在服务器上 你搞错了" |
+| 3 | 只回答"前端传字符串后端期望对象" | 只回答技术现象，没分析"为什么会写出这种代码" | "核心关键是 为什么会有这个bug 你分析了吗" |
+
+正确做法应该是：**先确认事故发生在哪个环境（本地/测试/生产），再去对应环境的日志里找铁证；代码分析只能作为辅助验证，不能作为根因判定依据**。**技术根因只是现象，流程根因才是 bug 的真正起源**。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| 审批接口四种契约风格 | 新写接口时没有统一规范可参照 | 制定全项目审批接口契约规范，新增审批接口必须照规范走 |
+| `data = {}` 默认参数假防御 | JS 默认参数只对 `undefined` 生效，对 `''`/`null` 不生效 | API 模块禁止用默认参数兜底契约；后端要求对象，前端必须显式传对象 |
+| 单测覆盖层不覆盖接缝 | 每层都"看起来对"但契约接缝处没人测 | 审批类 Controller 必须有 `@WebMvcTest` 覆盖空 body / 空字符串 / 缺字段三种场景 |
+| 只回答技术根因没回答流程根因 | 技术根因只是现象（前端传错字符串），流程根因才是 bug 起源（为什么写出这种代码） | 复盘 bug 时必须问"为什么会写出这种代码"，不只问"哪行代码错了" |
+
+### 操作规范（防复发）
+
+1. **统一审批接口契约**：全项目审批类 Controller 必须用 `@Valid @RequestBody XxxApprovalRequest` DTO，统一字段 `comment`，不混用 `Map<String,String>` 或 `required=false`。
+2. **前端 API 模块禁止默认参数兜底契约**：如果后端 `@RequestBody` 是必需的，前端必须显式传对象，不允许 `data = {}` 这种假防御。
+3. **审批类 Controller 必须有 `@WebMvcTest`**：覆盖三种反序列化场景——空 body、空字符串、缺字段。
+4. **审批操作必须有 E2E 烟雾测试**：真实点击→请求→后端 200 落库。
+5. **Code Review 审批接口 PR 时必填**："参照了哪个已有接口的契约？前后端契约是否一致？"
+6. **复盘 bug 必须问流程根因**：不只问"哪行代码错了"，要问"为什么会写出这种代码"。
+
+### 防复发检查清单
+
+新增审批类接口时，检查：
+
+- [ ] Controller 签名符合全项目统一契约规范（`@Valid @RequestBody XxxApprovalRequest`）
+- [ ] 前端 API 模块**显式传对象**，不依赖默认参数兜底
+- [ ] 后端 Controller 有 `@WebMvcTest` 覆盖空 body / 空字符串 / 缺字段
+- [ ] 审批操作有 E2E 烟雾测试
+- [ ] PR 描述中标注"参照了哪个已有接口的契约"
+- [ ] 复盘时回答了"为什么会写出这种代码"（不只是"哪行错了"）
+
+### 验证命令
+
+```bash
+# 1. 排查审批类接口契约不统一（后端）
+grep -rn "@RequestBody.*Map<String" backend/src/main/java --include="*Controller.java" | grep -i "approv\|reject"
+# 应该返回空——审批类不应该用 Map 接收 body
+
+# 2. 排查前端 API 模块的默认参数假防御
+grep -rn "approve.*data = {}\|reject.*data = {}" src/api/modules/
+# 应该返回空——审批类前端 API 不应该用默认参数
+
+# 3. 排查审批类 Controller 是否有 WebMvcTest
+find backend/src/test -name "*Controller*Test.java" | xargs grep -l "approve\|reject" 2>/dev/null
+# 应该覆盖所有审批类 Controller
+
+# 4. 服务器日志排查审批错误（生产）
+ssh jetty@172.16.38.78 'grep -E "请求体不可读|Required request body" /var/log/xiyu-bid/application.json.log | tail -10'
+```
+
+### 相关文件
+
+- `src/views/Resource/CAManagement.vue` — CA 审批前端入口（bug 修复后）
+- `src/api/modules/ca.js` — CA API 模块（含 `data = {}` 假防御）
+- `src/stores/ca.js` — CA Pinia Store
+- `backend/src/main/java/com/xiyu/bid/resources/controller/CaCertificateController.java` — CA 审批 Controller
+- `backend/src/main/java/com/xiyu/bid/resources/dto/CaApprovalRequest.java` — CA 审批 DTO
+- `backend/src/main/java/com/xiyu/bid/project/controller/ProjectDraftingController.java` — 标书审核 Controller（参照样本，宽松契约）
+- `backend/src/main/java/com/xiyu/bid/project/controller/ProjectInitiationController.java` — 立项审核 Controller（参照样本，严格契约）
+- `backend/src/main/java/com/xiyu/bid/project/controller/ProjectClosureController.java` — 结项审核 Controller（参照样本，混合契约）
+- PR #1516 — 本次 bug 修复
+- PR #1509 — CO-459 原始实现（引入 bug 的 PR）
+- §1 — 后端接口契约变更必须同步前端所有入口（同源教训）
+- §23 — 全链路日志排查 SOP（本次排查使用）
