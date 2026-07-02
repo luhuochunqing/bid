@@ -24,7 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AuditOperationalAnalyticsPerformanceIntegrationTest extends AbstractAuditOperationalAnalyticsIntegrationTest {
 
     @Test
-    @WithMockUser(roles = {"ADMIN"})
+    @WithMockUser(username = "admin", authorities = {"ROLE_ADMIN", "dashboard", "all"})
     void analyticsQueries_ShouldStayBelowNaiveBaselines() throws Exception {
         long productLineStatements = measureStatements(() -> mockMvc.perform(get("/api/analytics/product-lines"))
                 .andExpect(status().isOk()));

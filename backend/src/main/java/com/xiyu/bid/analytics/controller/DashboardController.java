@@ -100,7 +100,7 @@ public class DashboardController {
      * Get regional analysis
      */
     @GetMapping("/regions")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('dashboard')")
     public ResponseEntity<ApiResponse<List<RegionalData>>>
             getRegionalDistribution() {
         List<RegionalData> regions =
@@ -109,7 +109,7 @@ public class DashboardController {
     }
 
     @GetMapping("/product-lines")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('dashboard')")
     public ResponseEntity<ApiResponse<List<ProductLineData>>> getProductLines() {
         List<ProductLineData> productLines =
                 dashboardAnalyticsService.getProductLinePerformance();
@@ -129,7 +129,7 @@ public class DashboardController {
     }
 
     @GetMapping("/drilldown/revenue")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('dashboard')")
     public ResponseEntity<ApiResponse<AnalyticsDrillDownResponseDTO>>
             getRevenueDrillDown(
             @RequestParam(required = false) String status,
@@ -145,7 +145,7 @@ public class DashboardController {
     }
 
     @GetMapping("/drilldown/win-rate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('dashboard')")
     public ResponseEntity<ApiResponse<AnalyticsDrillDownResponseDTO>>
             getWinRateDrillDown(
             @RequestParam(required = false) String outcome,
@@ -177,7 +177,7 @@ public class DashboardController {
     }
 
     @GetMapping("/drilldown/projects")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('dashboard')")
     public ResponseEntity<ApiResponse<AnalyticsDrillDownResponseDTO>>
             getProjectDrillDown(
             @RequestParam(required = false) String status,
@@ -211,7 +211,7 @@ public class DashboardController {
      * 用户清空缓存造成 cache stampede。
      */
     @PostMapping("/cache/clear")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('dashboard')")
 
     public ResponseEntity<ApiResponse<String>> clearCache() {
         dashboardAnalyticsService.clearOverviewCache();
