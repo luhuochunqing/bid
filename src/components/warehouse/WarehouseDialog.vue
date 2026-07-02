@@ -20,7 +20,9 @@
             </el-select>
           </el-form-item>
           <el-form-item label="所在省份" prop="province" required>
-            <el-input v-model="localForm.province" maxlength="50" />
+            <el-select v-model="localForm.province" filterable clearable placeholder="请选择省份" style="width:100%">
+              <el-option v-for="p in PROVINCE_OPTIONS" :key="p" :label="p" :value="p" />
+            </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -60,7 +62,7 @@
             <el-date-picker v-model="localForm.endDate" type="date" value-format="YYYY-MM-DD" style="width:100%" />
           </el-form-item>
           <el-form-item label="发票租期">
-            <el-input v-model="localForm.invoicePeriod" maxlength="100" placeholder="如: 2025-01-01~2025-03-31" />
+            <el-date-picker v-model="invoicePeriodRange" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" value-format="YYYY-MM-DD" style="width:100%" />
           </el-form-item>
           <el-form-item label="关仓计划">
             <el-input v-model="localForm.closePlan" type="textarea" :rows="2" maxlength="500" />
@@ -127,6 +129,7 @@
 import { ref, reactive, watch, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import http from '@/api/client'
+import { PROVINCE_OPTIONS, parseInvoicePeriod, formatInvoicePeriod } from './provinceOptions.js'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -153,10 +156,15 @@ const defaultForm = () => ({
 })
 const localForm = reactive(defaultForm())
 
+const invoicePeriodRange = computed({
+  get: () => parseInvoicePeriod(localForm.invoicePeriod),
+  set: (val) => { localForm.invoicePeriod = formatInvoicePeriod(val) }
+})
+
 const reqRule = (msg, trg = 'blur') => [{ required: true, message: msg, trigger: trg }]
 const rules = {
   name: reqRule('请输入仓库名称'), type: reqRule('请选择仓库类型', 'change'), region: reqRule('请选择所属区域', 'change'),
-  province: reqRule('请输入所在省份'), address: reqRule('请输入具体地址'), area: reqRule('请输入仓库面积'),
+  province: reqRule('请选择所在省份', 'change'), address: reqRule('请输入具体地址'), area: reqRule('请输入仓库面积'),
   contactPerson: reqRule('请输入区域联系人'), startDate: reqRule('请选择开始时间', 'change'), endDate: reqRule('请选择结束时间', 'change'),
   lessor: reqRule('请输入出租方'), lessee: reqRule('请输入承租方')
 }
