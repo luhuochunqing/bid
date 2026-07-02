@@ -161,22 +161,23 @@ class KnowledgeResourceAccessSecurityTest {
     // ==================== 写操作回归保护：投标专员不应越权敏感写操作 ====================
 
     @Test
-    @DisplayName("投标专员(authorities含resource) DELETE /api/ca-certificates/{id}(下架) → 仍 403（deactivate 方法级保持 ADMIN/MANAGER）")
+    @DisplayName("投标专员(authorities含resource) DELETE /api/ca-certificates/{id}(下架) → 200（Controller 层 resource 权限放行；custodian 校验在 Service 层，本切片测试不覆盖）")
     @WithMockUser(authorities = {"resource"})
-    void deactivateCaCertificate_shouldReturn403_forBidSpecialist() throws Exception {
+    void deactivateCaCertificate_shouldReturn200_forBidSpecialist_atControllerLayer() throws Exception {
+        // P3 迁移（specs/024-preauthorize-unification）：方法级混合补丁统一为 hasAuthority('resource')。
+        // Controller 层只做粗粒度"有 resource 模块权限"校验；细粒度 custodianId == currentUser.id
+        // 校验在 Service 层（CaCertificateService.deactivate 按 custodian 差异化校验），不在 @WebMvcTest 范围。
         mockMvc.perform(delete("/api/ca-certificates/1"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("投标专员(authorities含resource) POST /api/ca-certificates/borrow-applications/{id}/approve(审批借用) → 仍 403（类级 hasAnyRole 兜底，未因放读而放写）")
+    @DisplayName("投标专员(authorities含resource) POST approve → 200（Controller 层 resource 放行；Service 层 custodian 校验另算）")
     @WithMockUser(authorities = {"resource"})
-    void approveCaBorrow_shouldReturn403_forBidSpecialist() throws Exception {
-        // approve 端点无方法级 @PreAuthorize，继承类级 hasAnyRole('ADMIN','MANAGER')；
-        // 放开 GET 列表读操作后，写操作仍由类级兜底，投标专员不应越权审批。
+    void approveCaBorrow_shouldReturn200_forBidSpecialist_atControllerLayer() throws Exception {
         mockMvc.perform(post("/api/ca-certificates/borrow-applications/1/approve")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"comment\":\"同意\"}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
     }
 }
