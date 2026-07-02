@@ -316,7 +316,7 @@ async function confirmReviewBid(action) {
       reviewState.value = 'approved'
       ElMessage.success('投标审核通过')
     } else {
-      await projectLifecycleApi.rejectBid(props.projectId, { reason: reviewComment.value })
+      await projectLifecycleApi.rejectBid(props.projectId, { comment: reviewComment.value })
       reviewState.value = 'rejected'
       rejectReasonText.value = reviewComment.value
       ElMessage.success('已驳回')

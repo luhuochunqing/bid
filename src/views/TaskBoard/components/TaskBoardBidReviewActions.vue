@@ -89,7 +89,7 @@ async function confirmReject() {
   if (!rejectingItem.value) return
   rejectingLoading.value = true
   try {
-    await projectLifecycleApi.rejectBid(rejectingItem.value.projectId, { reason: rejectReason.value.trim() })
+    await projectLifecycleApi.rejectBid(rejectingItem.value.projectId, { comment: rejectReason.value.trim() })
     ElMessage.success('已驳回')
     showRejectDialog.value = false
     emit('deliverable-changed', rejectingItem.value)

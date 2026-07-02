@@ -6,6 +6,8 @@ package com.xiyu.bid.project.controller;
 
 import com.xiyu.bid.annotation.LogOperation;
 import com.xiyu.bid.dto.ApiResponse;
+import com.xiyu.bid.project.dto.DraftingApprovalRequest;
+import com.xiyu.bid.project.dto.DraftingRejectionRequest;
 import com.xiyu.bid.project.dto.ProjectDraftingViewDto;
 import com.xiyu.bid.project.dto.ProjectLeadAssignmentRequest;
 import com.xiyu.bid.project.service.ProjectDraftingService;
@@ -13,6 +15,7 @@ import com.xiyu.bid.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,7 +27,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
@@ -95,10 +97,10 @@ public class ProjectDraftingController {
     @PostMapping("/approve")
     public ResponseEntity<ApiResponse<ProjectDraftingViewDto>> approve(
             @PathVariable Long projectId,
-            @RequestBody(required = false) Map<String, String> payload,
+            @Valid @RequestBody DraftingApprovalRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
         Long userId = currentUserId(userDetails);
-        String comment = payload != null ? payload.getOrDefault("comment", "") : "";
+        String comment = request.getComment() != null ? request.getComment() : "";
         return ResponseEntity.ok(ApiResponse.success("approved",
                 service.approveBid(projectId, userId, comment)));
     }
@@ -107,12 +109,11 @@ public class ProjectDraftingController {
     @PostMapping("/reject")
     public ResponseEntity<ApiResponse<ProjectDraftingViewDto>> reject(
             @PathVariable Long projectId,
-            @RequestBody Map<String, String> payload,
+            @Valid @RequestBody DraftingRejectionRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
         Long userId = currentUserId(userDetails);
-        String reason = payload != null ? payload.getOrDefault("reason", "") : "";
         return ResponseEntity.ok(ApiResponse.success("rejected",
-                service.rejectBid(projectId, userId, reason)));
+                service.rejectBid(projectId, userId, request.getComment())));
     }
 
     /** 获取标书制作视图（CO-315：鉴权下沉到项目访问权限，审核人可见） */

@@ -5,6 +5,8 @@
 package com.xiyu.bid.project.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.project.dto.DraftingApprovalRequest;
+import com.xiyu.bid.project.dto.DraftingRejectionRequest;
 import com.xiyu.bid.project.dto.ProjectDraftingViewDto;
 import com.xiyu.bid.project.dto.ProjectLeadAssignmentRequest;
 import com.xiyu.bid.project.service.ProjectDraftingService;
@@ -136,7 +138,7 @@ class ProjectDraftingControllerTest {
                 .projectId(1L).reviewStatus("approved").build());
         mockMvc.perform(post("/api/projects/1/drafting/approve")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                        .content("{\"comment\":\"\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.reviewStatus").value("approved"));
     }
@@ -153,7 +155,7 @@ class ProjectDraftingControllerTest {
                 .projectId(1L).reviewStatus("rejected").build());
         mockMvc.perform(post("/api/projects/1/drafting/reject")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"reason\":\"reason\"}"))
+                        .content("{\"comment\":\"reason\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.reviewStatus").value("rejected"));
     }
@@ -164,10 +166,10 @@ class ProjectDraftingControllerTest {
                 .getMethod("get", Long.class)
                 .getAnnotation(PreAuthorize.class));
         assertNull(ProjectDraftingController.class
-                .getMethod("approve", Long.class, Map.class, UserDetails.class)
+                .getMethod("approve", Long.class, DraftingApprovalRequest.class, UserDetails.class)
                 .getAnnotation(PreAuthorize.class));
         assertNull(ProjectDraftingController.class
-                .getMethod("reject", Long.class, Map.class, UserDetails.class)
+                .getMethod("reject", Long.class, DraftingRejectionRequest.class, UserDetails.class)
                 .getAnnotation(PreAuthorize.class));
     }
 
