@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -141,7 +142,7 @@ public class CaCertificateExportService {
                     predicates.add(cb.equal(root.get("caType"), f.caType()));
                 }
                 if (f.sealType() != null && !f.sealType().isEmpty()) {
-                    predicates.add(cb.equal(root.get("sealType"), f.sealType()));
+                    predicates.add(cb.like(root.get("sealType"), "%" + f.sealType() + "%"));
                 }
                 if (f.keyword() != null && !f.keyword().isEmpty()) {
                     String pattern = "%" + f.keyword() + "%";
@@ -185,7 +186,7 @@ public class CaCertificateExportService {
             Row row = sheet.createRow(i + 1);
             int col = 0;
             row.createCell(col++).setCellValue(label(CA_TYPE_LABEL, e.getCaType()));
-            row.createCell(col++).setCellValue(label(SEAL_TYPE_LABEL, e.getSealType()));
+            row.createCell(col++).setCellValue(labelMulti(SEAL_TYPE_LABEL, e.getSealType()));
             row.createCell(col++).setCellValue(nullSafe(e.getHolderName()));
             row.createCell(col++).setCellValue(nullSafe(e.getCustodianName()));
             row.createCell(col++).setCellValue(formatDate(e.getExpiryDate()));
@@ -233,6 +234,15 @@ public class CaCertificateExportService {
     private String label(Map<String, String> map, String key) {
         if (key == null) return "";
         return map.getOrDefault(key, key);
+    }
+
+    private String labelMulti(Map<String, String> map, String commaSeparated) {
+        if (commaSeparated == null || commaSeparated.isEmpty()) return "";
+        return Arrays.stream(commaSeparated.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .map(s -> map.getOrDefault(s, s))
+                .collect(Collectors.joining(","));
     }
 
     private String formatDate(LocalDate d) {

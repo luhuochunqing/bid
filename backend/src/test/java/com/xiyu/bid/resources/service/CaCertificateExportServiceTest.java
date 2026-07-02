@@ -180,6 +180,32 @@ class CaCertificateExportServiceTest {
     }
 
     @Test
+    @DisplayName("多印章类型导出 — 逗号分隔中文标签")
+    void exportToExcel_multipleSealTypes_joinedByComma() throws Exception {
+        CaCertificateEntity entity = CaCertificateEntity.builder()
+                .id(1L)
+                .caType("ENTITY_CA")
+                .sealType("OFFICIAL_SEAL,LEGAL_PERSON_SEAL,LEGAL_SIGN")
+                .holderName("张三")
+                .custodianId(10L)
+                .custodianName("李保管")
+                .expiryDate(LocalDate.of(2026, 12, 31))
+                .borrowStatus("IN_STOCK")
+                .status("ACTIVE")
+                .build();
+        when(certificateRepository.findAll(any(Specification.class))).thenReturn(List.of(entity));
+        when(platformLinkRepository.findByCaCertificateIdIn(anyCollection())).thenReturn(List.of());
+
+        byte[] result = exportService.exportToExcel(
+                new CaCertificateExportService.CaExportFilters(null, null, null, null, null), null);
+
+        try (XSSFWorkbook wb = new XSSFWorkbook(new ByteArrayInputStream(result))) {
+            var row = wb.getSheetAt(0).getRow(1);
+            assertThat(row.getCell(1).getStringCellValue()).isEqualTo("公章,法人章,法人签字");
+        }
+    }
+
+    @Test
     @DisplayName("密码为空 — 输出空字符串，不调用解密")
     void exportToExcel_emptyPassword_outputsEmptyString() throws Exception {
         CaCertificateEntity entity = CaCertificateEntity.builder()

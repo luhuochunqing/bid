@@ -22,7 +22,7 @@ public class CaCertificateEntity {
     @Column(name = "ca_type", length = 20, nullable = false)
     private String caType;
 
-    @Column(name = "seal_type", length = 30, nullable = false)
+    @Column(name = "seal_type", length = 100, nullable = false)
     private String sealType;
 
     @Column(name = "electronic_account", length = 100)

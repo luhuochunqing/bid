@@ -77,9 +77,10 @@ export function normalizeCaCertificate(item) {
     // CA类型
     caType: item.caType || 'ENTITY_CA',
     caTypeLabel: CA_TYPE_MAP[item.caType] || item.caType || '实体CA',
-    // 印章类型
     sealType: item.sealType || 'OFFICIAL_SEAL',
-    sealTypeLabel: SEAL_TYPE_MAP[item.sealType] || item.sealType || '公章',
+    sealTypeLabel: item.sealType
+      ? item.sealType.split(',').map(s => s.trim()).filter(s => s).map(s => SEAL_TYPE_MAP[s] || s).join(',')
+      : '公章',
     // 电子CA账号
     electronicAccount: item.electronicAccount || '',
     // CA密码（加密存储，脱敏展示）

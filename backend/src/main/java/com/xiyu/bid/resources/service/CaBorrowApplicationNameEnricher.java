@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -115,15 +116,20 @@ public class CaBorrowApplicationNameEnricher {
 
     /**
      * 印章类型 code → 中文标签，与前端 SEAL_TYPE_MAP 保持一致。
+     * 支持多值（英文逗号分隔），如 "OFFICIAL_SEAL,LEGAL_PERSON_SEAL" → "公章,法人章"。
      */
     private static String sealTypeLabel(String sealType) {
-        if (sealType == null) return "";
-        return switch (sealType) {
-            case "OFFICIAL_SEAL" -> "公章";
-            case "LEGAL_PERSON_SEAL" -> "法人章";
-            case "LEGAL_SIGN" -> "法人签字";
-            case "CONTACT_SIGN" -> "联系人签字";
-            default -> sealType;
-        };
+        if (sealType == null || sealType.isEmpty()) return "";
+        return Arrays.stream(sealType.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .map(s -> switch (s) {
+                    case "OFFICIAL_SEAL" -> "公章";
+                    case "LEGAL_PERSON_SEAL" -> "法人章";
+                    case "LEGAL_SIGN" -> "法人签字";
+                    case "CONTACT_SIGN" -> "联系人签字";
+                    default -> s;
+                })
+                .collect(Collectors.joining(","));
     }
 }
