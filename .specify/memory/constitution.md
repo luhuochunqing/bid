@@ -1,23 +1,32 @@
 <!--
   Sync Impact Report
   ==================
-  Version change: 1.1.1 → 1.2.0
-  Type: MINOR — added OSS Integration Core Principle codifying real-API,
-        batch-over-single-call, case-insensitive role mapping, and
-        person/department/job/sysRoleList priority order.
+  Version change: 1.2.0 → 1.3.0
+  Type: MINOR — added Authorization Unification Core Principle (VII) codifying
+        single-permission-model (isAuthenticated + hasAuthority), prohibiting
+        hasAnyRole/hasRole dual-track, and mandating migration of 177 legacy
+        whitelist sites. Strengthens Security & Access Control §API Authorization.
+
+  Root cause context: eb58f2817 (2026-06-16) cut legacy ROLE_STAFF/ROLE_MANAGER
+        compatibility for bid-otherDept/bid-administration/bid-Team, but did not
+        migrate the 177 @PreAuthorize sites depending on those authorities —
+        leaving a dual-track model responsible for 20+ recurring 403 PRs
+        (CO-362 → CO-466, CO-394 A/B/C/D, CO-415/416, etc.). This principle
+        makes the migration mandatory and prevent recurrence via ArchTest gate.
 
   Modified principles:
-    - V. Boring Proven Patterns → renumbered to VI.
-    - Added new V. OSS Integration (NON-NEGOTIABLE).
-  Added sections: none (new principle inserted within Core Principles).
+    - VI. Boring Proven Patterns → renumbered to VII.
+    - Added new VI. Authorization Unification (NON-NEGOTIABLE).
+  Added sections: new Core Principle VI (Authorization Unification);
+        Security & Access Control §API Authorization materially expanded
+        (single-source, dual-track prohibition, migration mandate).
   Removed sections: none.
 
   Templates requiring updates:
-    - .specify/templates/plan-template.md ✅ aligned (Constitution Check uses
-      constitution file dynamically)
+    - .specify/templates/plan-template.md ✅ aligned (Constitution Check
+      section reads constitution file dynamically — no change needed)
     - .specify/templates/spec-template.md ✅ aligned (no structural changes)
     - .specify/templates/tasks-template.md ✅ aligned (no structural changes)
-    - .specify/templates/checklist-template.md ✅ aligned (no changes needed)
 
   Deferred TODOs: none
 -->
@@ -84,7 +93,43 @@ YAGNI 原则避免过度工程化。
 依赖负载与同步耗时；大小写安全避免生产环境因地名大小写差异导致角色丢失；
 明确优先级防止多来源映射冲突。
 
-### VI. Boring Proven Patterns
+### VI. Authorization Unification (NON-NEGOTIABLE)
+
+全仓 MUST 维护**单一权限模型**。`@PreAuthorize` 表达式只允许两种形态：
+
+- `isAuthenticated()` — 早过滤层，仅校验"是否登录"。用于 Controller 类级注解，
+  以及无业务语义的只读 schema / 公开字典接口。
+- `hasAuthority('<permission-key>')` — 细粒度业务权限层。`<permission-key>`
+  MUST 在 `RoleProfileCatalog` 的 `SeedDefinition.menuPermissions` 中注册，
+  并通过 Flyway 迁移同步到各角色。
+
+**禁止形态（MUST NOT）**：
+
+- `hasAnyRole('ADMIN','MANAGER',...)` — 角色枚举式白名单。与 `RoleProfileCatalog`
+  的 `menuPermissions` 形成双轨制，每新增一个受限角色就在某个白名单漏一次。
+- `hasRole('ADMIN')` — 同上，例外仅限 `SecurityConfig` 的 `/api/admin/**`
+  路径级兜底（已有路径白名单约束），不得出现在业务 Controller 方法级。
+- 任何在 Controller 中手抄 `RoleProfileCatalog` 角色列表的行为。
+
+**Controller 职责边界**：Controller `@PreAuthorize` 只做"是否登录 + 是否有模块权限"
+的早过滤；"是否对该具体资源有操作权限" MUST 下沉到 Service 层 Policy
+（如 `ProjectDocumentWorkflowPolicy`、`PlatformAccountViewerPolicy`）。Controller
+不得用 `hasAnyRole` 一刀切收紧（详见 lessons-learned §24、§28）。
+
+**存量治理**：截至本 Constitution v1.3.0，全仓有 177 处 `hasAnyRole`/`hasRole`
+使用点（含 105 处 `hasAnyRole('ADMIN','MANAGER')`）作为技术债登记在
+`specs/<feature>/`，MUST 分批迁移到 `hasAuthority`。迁移期间 MUST 同步新增
+ArchitectureTest 守卫，确保债务不再增长；全部迁移完成后 ArchitectureTest
+从警告升级为硬失败门禁。
+
+**Rationale**: 2026-06-16 的 `eb58f2817` 切断了 `bid-otherDept`/`bid-administration`/
+`bid-Team` 三个角色的 `ROLE_STAFF`/`ROLE_MANAGER` legacy 兼容（堵越权），但未同步
+迁移依赖这些 authority 的 177 处 `@PreAuthorize` 白名单。从此系统分裂为"新模型给角色
+正确赋权 / 旧模型拒绝承认"的双轨制，导致 CO-362 → CO-466 等 20+ 个 403 反复返工
+PR。CO-394 A/B/C/D 已验证 `hasAnyRole → hasAuthority` 迁移范式可行，本原则将其
+从"单点修复"上升为"系统性治理"。
+
+### VII. Boring Proven Patterns
 
 优先使用经过验证的、可预测的技术模式。只在以下条件触发时才引入复杂度：
 - 性能数据证明当前方案过慢
@@ -129,7 +174,15 @@ YAGNI 原则避免过度工程化。
 - **CORS**: 允许的源 MUST 通过 `CORS_ALLOWED_ORIGINS` 环境变量配置，
   不得在代码中硬编码生产源。
 - **API Authorization**: Controller 方法 MUST 使用 `@PreAuthorize` 注解控制访问，
-  权限表达式与 RoleProfileCatalog 中的 `permissionKey` 保持一致。
+  且只允许 `isAuthenticated()` 或 `hasAuthority('<permissionKey>')` 两种形态
+  （详见 Core Principle VII）。禁止 `hasAnyRole`/`hasRole` 角色枚举式白名单。
+  权限键 MUST 与 `RoleProfileCatalog.SeedDefinition.menuPermissions` 中注册的
+  `permissionKey` 严格一致。新增模块 MUST 先在 `RoleProfileCatalog` 注册权限键 +
+  Flyway 迁移同步角色权限，再写 Controller `@PreAuthorize`。
+- **Authorization ArchTest Gate**: ArchitectureTest MUST 包含守卫规则，禁止
+  `@PreAuthorize` 表达式中出现 `hasAnyRole`/`hasRole`。迁移过渡期内已有的 177 处
+  使用点作为白名单豁免（逐 Controller 移除后从豁免清单删除）；新增使用点 MUST NOT
+  进入豁免清单。全部迁移完成后豁免清单清空，守卫升级为硬失败门禁。
 
 ## Development Workflow & Multi-Agent SOP
 
@@ -164,4 +217,4 @@ Constitution 对齐，而非反之。
 - 违反 MUST 在 `plan.md` 的 Complexity Tracking 表中记录并给出正当理由
 - 架构测试（`mvn test -Dtest=ArchitectureTest`）作为自动化合规门禁
 
-**Version**: 1.2.0 | **Ratified**: 2026-05-15 | **Last Amended**: 2026-06-18
+**Version**: 1.3.0 | **Ratified**: 2026-05-15 | **Last Amended**: 2026-07-02
