@@ -1,0 +1,15 @@
+version: 1
+task: "unify-env-vars-for-prod"
+locks:
+  - path: "backend/src/main/resources/application.yml"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/kimi/unify-env-vars-for-prod"
+    expiresAt: "2026-07-03T05:33:30.983Z"
+    reason: "unify-env-vars-for-prod: 添加 prod yml 配置占位符 + 修复 rate.limit 冲突 + WEBHOOK_CRM_URL 默认值"
+  - path: "backend/src/main/resources/application-prod.yml"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/kimi/unify-env-vars-for-prod"
+    expiresAt: "2026-07-03T05:33:42.695Z"
+    reason: "unify-env-vars-for-prod: 添加 prod yml 配置占位符"
