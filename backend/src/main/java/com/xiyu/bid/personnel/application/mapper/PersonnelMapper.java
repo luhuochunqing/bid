@@ -76,7 +76,7 @@ public class PersonnelMapper {
         return new CertificateDTO(
                 c.id(), c.name(), c.certificateNumber(), c.type(),
                 c.issueDate(), c.expiryDate(), c.attachmentUrl(),
-                c.title(), c.isPermanent(),
+                c.title(), c.isPermanent(), c.remark(),
                 c.isExpired(), c.remainingDays(),
                 status
         );

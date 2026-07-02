@@ -14,6 +14,7 @@ public record CertificateDTO(
         String attachmentUrl,
         String title,
         boolean isPermanent,
+        String remark,
         boolean expired,
         long remainingDays,
         String status

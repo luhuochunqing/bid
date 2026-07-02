@@ -64,7 +64,8 @@ function normalizeEducation(e) {
     endDate: formatDate(e.endDate),
     highestEducation: e.highestEducation || '-',
     studyForm: e.studyForm || '-',
-    major: e.major || ''
+    major: e.major || '',
+    isHighestEducationSchool: e.isHighestEducationSchool || false
   }
 }
 
@@ -83,7 +84,9 @@ function normalizeCert(c) {
     issueDate: formatDate(c.issueDate),
     expiryDate: formatDate(c.expiryDate),
     attachmentUrl: c.attachmentUrl || '',
+    title: c.title || '',
     isPermanent: c.isPermanent || false,
+    remark: c.remark || '',
     expired: c.expired || remainingDays === null ? false : remainingDays < 0,
     remainingDays: remainingDays ?? null,
     status
@@ -112,7 +115,10 @@ function buildPayload(data) {
           type: c.type || 'OTHER',
           issueDate: c.issueDate || null,
           expiryDate: c.expiryDate || null,
-          attachmentUrl: c.attachmentUrl || ''
+          attachmentUrl: c.attachmentUrl || '',
+          title: c.title || '',
+          isPermanent: c.isPermanent || false,
+          remark: c.remark || ''
         }))
       : [],
     // 新增：教育经历（支持蓝图 4.3 新增证书 Tab 2）
@@ -131,7 +137,8 @@ function buildPayload(data) {
             endDate: normDate(e.endDate),
             highestEducation: e.highestEducation || '',
             studyForm: e.studyForm || '',
-            major: e.major || ''
+            major: e.major || '',
+            isHighestEducationSchool: e.isHighestEducationSchool || false
           }
         })
       : []
