@@ -1,6 +1,7 @@
 package com.xiyu.bid.project.dto;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -27,5 +28,6 @@ public class InitiationApprovalRequest {
     private List<Long> auxiliaryUserIds;
 
     /** 审批意见（可选，通过操作允许不填）。 */
+    @Size(max = 500, message = "审批意见不能超过500字")
     private String comment;
 }

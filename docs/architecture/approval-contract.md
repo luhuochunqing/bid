@@ -115,6 +115,11 @@ public class XxxRejectionRequest {
 
 ### 4.3 通过+驳回共用 DTO（comment 必填）
 
+> **取舍说明**：当通过+驳回共用同一个 DTO 时，`comment` 字段必须加 `@NotBlank`，
+> 即通过操作也必须填写 comment。如果业务要求**通过操作 comment 可选**，
+> 则**必须**拆分为独立的 `XxxApprovalRequest`（comment 可选）+ `XxxRejectionRequest`（comment 必填），
+> 不得共用。参照 §4.1 + §4.2。
+
 ```java
 @Data
 public class XxxApprovalRequest {

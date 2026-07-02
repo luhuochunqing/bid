@@ -39,11 +39,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   <li>approve 空 body → 400（@RequestBody 必填）</li>
  *   <li>approve {@code {"comment":""}} → 200（通过操作允许空意见）</li>
  *   <li>approve {@code {"comment":"同意"}} → 200</li>
- *   <li>reject {@code {"comment":""}} → 400（ClosureReviewRequest.comment 非空校验由 Controller 手动抛 422）</li>
+ *   <li>reject {@code {"comment":""}} → 400（ClosureRejectionRequest.comment @NotBlank 校验）</li>
  *   <li>reject {@code {"comment":"不行"}} → 200</li>
  * </ul>
- * <p>注意：Closure 接口 reject 使用 ClosureReviewRequest（comment 可空），Controller 内手动校验非空并返回 422。
- * 本测试只覆盖 HTTP 反序列化层；422 业务校验在 ProjectClosureControllerTest 中验证。
+ * <p>注意：Closure 接口 reject 使用 ClosureRejectionRequest（@NotBlank comment），由 @Valid 自动触发 400。
  */
 @WebMvcTest(controllers = ProjectClosureController.class,
         excludeFilters = @ComponentScan.Filter(
@@ -119,15 +118,13 @@ class ProjectClosureControllerWebMvcTest {
 
     @Test
     @WithMockUser(roles = "ADMIN")
-    @DisplayName("reject comment 为空字符串返回 422（Controller 手动校验，非 @NotBlank 400）")
-    void reject_blankComment_returns422() throws Exception {
-        // Closure 接口 reject 用 ClosureReviewRequest（comment 可空），Controller 内手动校验非空并返回 422。
-        // 与 Drafting 接口 reject 用 @NotBlank 返回 400 不同——这是历史遗留，任务范围未要求统一。
-        when(authService.resolveUserIdByUsername("user")).thenReturn(1L);
+    @DisplayName("reject comment 为空字符串返回 400（@NotBlank 校验）")
+    void reject_blankComment_returns400() throws Exception {
+        // Closure 接口 reject 用 ClosureRejectionRequest（@NotBlank comment），由 @Valid 自动触发 400。
         mockMvc.perform(post("/api/projects/1/closure/reject")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"comment\":\"\"}"))
-                .andExpect(status().isUnprocessableEntity());
+                .andExpect(status().isBadRequest());
     }
 
     @Test

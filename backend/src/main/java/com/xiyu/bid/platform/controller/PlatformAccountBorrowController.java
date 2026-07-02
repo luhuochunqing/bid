@@ -7,10 +7,10 @@ package com.xiyu.bid.platform.controller;
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.BusinessException;
-import com.xiyu.bid.platform.dto.ApproveRequest;
+import com.xiyu.bid.platform.dto.PlatformAccountBorrowApprovalRequest;
 import com.xiyu.bid.platform.dto.BorrowApplicationDTO;
 import com.xiyu.bid.platform.dto.BorrowApplicationRequest;
-import com.xiyu.bid.platform.dto.RejectRequest;
+import com.xiyu.bid.platform.dto.PlatformAccountBorrowRejectionRequest;
 import com.xiyu.bid.platform.dto.ReturnBorrowApplicationRequest;
 import com.xiyu.bid.platform.notification.PlatformAccountBorrowNotificationService;
 import com.xiyu.bid.platform.service.PlatformAccountBorrowService;
@@ -91,7 +91,7 @@ public class PlatformAccountBorrowController {
     @PostMapping("/borrow-applications/{id}/approve")
     public ResponseEntity<ApiResponse<BorrowApplicationDTO>> approveApplication(
             @PathVariable Long id,
-            @Valid @RequestBody ApproveRequest request,
+            @Valid @RequestBody PlatformAccountBorrowApprovalRequest request,
             Principal principal) {
         User user = resolveUser(principal);
         boolean privileged = isPrivileged(user);
@@ -104,7 +104,7 @@ public class PlatformAccountBorrowController {
     @PostMapping("/borrow-applications/{id}/reject")
     public ResponseEntity<ApiResponse<BorrowApplicationDTO>> rejectApplication(
             @PathVariable Long id,
-            @Valid @RequestBody RejectRequest request,
+            @Valid @RequestBody PlatformAccountBorrowRejectionRequest request,
             Principal principal) {
         User user = resolveUser(principal);
         boolean privileged = isPrivileged(user);

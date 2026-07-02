@@ -9,7 +9,7 @@ import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.project.dto.ClosureApprovalRequest;
 import com.xiyu.bid.project.dto.ClosureDTO;
 import com.xiyu.bid.project.dto.ClosurePreviewDTO;
-import com.xiyu.bid.project.dto.ClosureReviewRequest;
+import com.xiyu.bid.project.dto.ClosureRejectionRequest;
 import com.xiyu.bid.project.dto.ClosureSubmitRequest;
 import com.xiyu.bid.project.service.ProjectClosureService;
 import com.xiyu.bid.service.AuthService;
@@ -85,14 +85,10 @@ public class ProjectClosureController {
     @LogOperation
     public ResponseEntity<ApiResponse<ClosureDTO>> reject(
             @PathVariable Long projectId,
-            @Valid @RequestBody ClosureReviewRequest req,
+            @Valid @RequestBody ClosureRejectionRequest req,
             @AuthenticationPrincipal UserDetails userDetails) {
         Long userId = currentUserId(userDetails);
-        String reason = req != null ? req.getComment() : null;
-        if (reason == null || reason.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "驳回时必须填写原因");
-        }
-        ClosureDTO dto = service.rejectClosure(projectId, reason, userId);
+        ClosureDTO dto = service.rejectClosure(projectId, req.getComment(), userId);
         return ResponseEntity.ok(ApiResponse.success("项目结项申请已驳回", dto));
     }
 
