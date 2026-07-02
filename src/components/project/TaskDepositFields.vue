@@ -22,7 +22,7 @@
     <el-form-item label="收款方" :required="isAssigneeSubmitting" :error="errors.payee">
       <el-input
         v-model="local.payee"
-        :disabled="readonly || !isAssigneeSubmitting"
+        :disabled="!isAssigneeSubmitting"
         placeholder="请填写收款方"
         data-test="deposit-payee-input"
         @update:model-value="emitUpdate('payee', $event)"
@@ -32,7 +32,7 @@
     <el-form-item label="收款账号" :required="isAssigneeSubmitting" :error="errors.payeeAccount">
       <el-input
         v-model="local.payeeAccount"
-        :disabled="readonly || !isAssigneeSubmitting"
+        :disabled="!isAssigneeSubmitting"
         placeholder="请填写收款账号"
         data-test="deposit-payee-account-input"
         @update:model-value="emitUpdate('payeeAccount', $event)"
@@ -44,7 +44,7 @@
         v-model="local.actualPaymentDate"
         type="date"
         value-format="YYYY-MM-DD"
-        :disabled="readonly || !isAssigneeSubmitting"
+        :disabled="!isAssigneeSubmitting"
         placeholder="请选择实际缴纳日期"
         data-test="deposit-actual-payment-date-picker"
         @update:model-value="emitUpdate('actualPaymentDate', $event)"
@@ -56,7 +56,7 @@
         v-model="local.expectedRefundDate"
         type="date"
         value-format="YYYY-MM-DD"
-        :disabled="readonly || !isAssigneeSubmitting"
+        :disabled="!isAssigneeSubmitting"
         placeholder="请选择预计归还日期"
         data-test="deposit-expected-refund-date-picker"
         @update:model-value="emitUpdate('expectedRefundDate', $event)"
@@ -71,7 +71,6 @@ import { reactive, watch } from 'vue'
 const props = defineProps({
   extendedFields: { type: Object, default: () => ({}) },
   isAssigneeSubmitting: { type: Boolean, default: false },
-  readonly: { type: Boolean, default: false },
 })
 const emit = defineEmits(['update:extendedFields'])
 
