@@ -107,14 +107,12 @@ describe('CAFormDialog.vue — CO-405 关联平台字段改为非必填', () => 
     // 若 rules.platformIds 为 undefined，视为已移除，同样通过
   })
 
-  // 行为：platformIds 为空时，校验通过后应正常 emit submit
   it('handleSubmit 在 platformIds 为空时仍 emit submit，payload.platformIds 为 []', async () => {
     const wrapper = await mountDialog()
     await flushPromises()
 
-    // 其他必填字段填入合法值，仅 platformIds 留空
     wrapper.vm.form.caType = 'ENTITY_CA'
-    wrapper.vm.form.sealType = 'OFFICIAL_SEAL'
+    wrapper.vm.form.sealType = ['OFFICIAL_SEAL']
     wrapper.vm.form.caPassword = 'pass123'
     wrapper.vm.form.expiryDate = '2027-01-01'
     wrapper.vm.form.custodianId = 1
@@ -187,6 +185,24 @@ describe('CAFormDialog.vue — CO-436 编辑时密码不应回填脱敏值', () 
     expect(wrapper.vm.form.caPassword).toBe('')
   })
 
+  it('编辑时 sealType 逗号分隔字符串应转为数组', async () => {
+    const wrapper = await mountDialog({
+      ca: {
+        id: 1,
+        caType: 'ENTITY_CA',
+        sealType: 'OFFICIAL_SEAL,LEGAL_PERSON_SEAL',
+        caPassword: '******',
+        expiryDate: '2027-01-01',
+        custodianId: 1,
+        custodianName: '张三',
+        platformIds: []
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.vm.form.sealType).toEqual(['OFFICIAL_SEAL', 'LEGAL_PERSON_SEAL'])
+  })
+
   it('编辑时未修改密码，提交数据中 caPassword 应为空字符串', async () => {
     const wrapper = await mountDialog({
       ca: {
@@ -232,9 +248,6 @@ describe('CAFormDialog.vue — CO-436 编辑时密码不应回填脱敏值', () 
     expect(hasRequired).toBe(false)
   })
 
-  // CO-435 回归：编辑模式 el-form-item :required 属性不应为 true
-  // 根因：:required="form.caType === 'ENTITY_CA'" 在编辑模式仍为 true，
-  // Element Plus 自动注入 required 规则（默认消息 "caPassword is required"）
   it('编辑模式且 caType=ENTITY_CA 时，CA密码 form-item 的 required prop 应为 false', async () => {
     const wrapper = await mountDialog({
       ca: {
@@ -254,6 +267,26 @@ describe('CAFormDialog.vue — CO-436 编辑时密码不应回填脱敏值', () 
     const caPasswordItem = formItems.find((fi) => fi.props('prop') === 'caPassword')
     expect(caPasswordItem).toBeTruthy()
     expect(caPasswordItem.props('required')).toBe(false)
+  })
+
+  it('多选印章类型提交时应转为逗号分隔字符串', async () => {
+    const wrapper = await mountDialog()
+    await flushPromises()
+
+    wrapper.vm.form.caType = 'ENTITY_CA'
+    wrapper.vm.form.sealType = ['OFFICIAL_SEAL', 'LEGAL_PERSON_SEAL']
+    wrapper.vm.form.caPassword = 'pass123'
+    wrapper.vm.form.expiryDate = '2027-01-01'
+    wrapper.vm.form.custodianId = 1
+    wrapper.vm.form.custodianName = '张三'
+    wrapper.vm.form.platformIds = []
+
+    await wrapper.vm.handleSubmit()
+    await flushPromises()
+
+    const submitEvents = wrapper.emitted('submit')
+    expect(submitEvents).toBeTruthy()
+    expect(submitEvents[0][0].sealType).toBe('OFFICIAL_SEAL,LEGAL_PERSON_SEAL')
   })
 
   it('编辑时修改了密码，提交数据中 caPassword 应为新值', async () => {

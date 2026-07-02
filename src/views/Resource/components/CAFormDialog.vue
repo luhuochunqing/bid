@@ -40,7 +40,14 @@
       </el-form-item>
 
       <el-form-item label="印章类型" prop="sealType">
-        <el-select v-model="form.sealType" placeholder="请选择印章类型" style="width: 100%">
+        <el-select
+          v-model="form.sealType"
+          multiple
+          collapse-tags
+          collapse-tags-tooltip
+          placeholder="请选择印章类型（可多选）"
+          style="width: 100%"
+        >
           <el-option label="公章" value="OFFICIAL_SEAL" />
           <el-option label="法人章" value="LEGAL_PERSON_SEAL" />
           <el-option label="法人签字" value="LEGAL_SIGN" />
@@ -175,7 +182,7 @@ function createDefaultForm() {
   return {
     platformIds: [],
     caType: 'ENTITY_CA',
-    sealType: 'OFFICIAL_SEAL',
+    sealType: ['OFFICIAL_SEAL'],
     electronicAccount: '',
     caPassword: '',
     expiryDate: '',
@@ -214,7 +221,7 @@ watch(() => props.ca, (ca) => {
       platformOptions.value = form.platformIds.map(id => ({ id, accountName: ca.platformNamesById?.[id] || `平台 #${id}` }))
     }
     form.caType = ca.caType || 'ENTITY_CA'
-    form.sealType = ca.sealType || 'OFFICIAL_SEAL'
+    form.sealType = ca.sealType ? ca.sealType.split(',').map(s => s.trim()).filter(s => s) : ['OFFICIAL_SEAL']
     form.electronicAccount = ca.electronicAccount || ''
     form.caPassword = ''
     form.expiryDate = ca.expiryDate || ''
@@ -272,10 +279,10 @@ async function handleSubmit() {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
 
-  // Send platformIds as a JSON array (backend List<Long>)
   const submitData = {
     ...form,
-    platformIds: form.platformIds.map(v => Number(v))
+    platformIds: form.platformIds.map(v => Number(v)),
+    sealType: Array.isArray(form.sealType) ? form.sealType.join(',') : form.sealType
   }
 
   emit('submit', submitData)

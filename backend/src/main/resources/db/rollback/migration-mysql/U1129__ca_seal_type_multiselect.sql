@@ -1,0 +1,3 @@
+ALTER TABLE ca_certificate
+  MODIFY COLUMN seal_type VARCHAR(30) NOT NULL
+  COMMENT '印章类型: OFFICIAL_SEAL(公章) / LEGAL_PERSON_SEAL(法人章) / LEGAL_SIGN(法人签字) / CONTACT_SIGN(联系人签字)';

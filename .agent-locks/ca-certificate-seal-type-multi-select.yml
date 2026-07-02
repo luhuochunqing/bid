@@ -1,0 +1,15 @@
+version: 1
+task: "ca-certificate-seal-type-multi-select"
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql/V1129__ca_seal_type_multiselect.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/gemini/ca-certificate-seal-type-multi-select"
+    expiresAt: "2026-07-03T15:44:00.324Z"
+    reason: "CA证书印章类型多选功能迁移"
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1129__ca_seal_type_multiselect.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/gemini/ca-certificate-seal-type-multi-select"
+    expiresAt: "2026-07-03T15:44:08.098Z"
+    reason: "CA证书印章类型多选功能迁移回滚"

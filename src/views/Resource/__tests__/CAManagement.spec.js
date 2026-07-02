@@ -58,8 +58,20 @@ const { mockCertificates, mockOverview } = vi.hoisted(() => ({
       status: 'ACTIVE', statusLabel: '有效',
       remark: ''
     },
+    {
+      id: 5, platformIds: ['全国平台'], caType: 'ENTITY_CA', caTypeLabel: '实体CA',
+      sealType: 'OFFICIAL_SEAL,LEGAL_PERSON_SEAL', sealTypeLabel: '公章,法人章',
+      electronicAccount: '', caPasswordMasked: '******',
+      expiryDate: '2027-06-01', remainingDays: 370,
+      caPlatformUrl: 'https://example.cn',
+      custodianName: '吴九', custodianId: 'user005',
+      borrowStatus: 'IN_STOCK', borrowStatusLabel: '在库',
+      currentBorrowerName: '',
+      status: 'ACTIVE', statusLabel: '有效',
+      remark: ''
+    },
   ],
-  mockOverview: { total: 4, expiring: 1, expired: 1, borrowed: 2 }
+  mockOverview: { total: 5, expiring: 1, expired: 1, borrowed: 2 }
 }))
 
 // Mock stores
@@ -164,13 +176,13 @@ describe('CAManagement', () => {
     await flushPromises()
 
     const vm = wrapper.vm
-    expect(vm.overview.total).toBe(4)
+    expect(vm.overview.total).toBe(5)
     expect(vm.overview.expiring).toBe(1)
     expect(vm.overview.expired).toBe(1)
     expect(vm.overview.borrowed).toBe(2)
 
     const cards = vm.statCards
-    expect(cards.find(c => c.key === 'total')?.value).toBe(4)
+    expect(cards.find(c => c.key === 'total')?.value).toBe(5)
     expect(cards.find(c => c.key === 'expiring')?.value).toBe(1)
     expect(cards.find(c => c.key === 'expired')?.value).toBe(1)
     expect(cards.find(c => c.key === 'borrowed')?.value).toBe(2)
@@ -207,6 +219,21 @@ describe('CAManagement', () => {
 
     expect(wrapper.vm.filteredData.length).toBe(1)
     expect(wrapper.vm.filteredData[0].sealTypeLabel).toBe('法人签字')
+  })
+
+  it('filters CA list by sealType with multi-select (contains match)', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    wrapper.vm.filters.sealType = 'OFFICIAL_SEAL'
+    wrapper.vm.applyFilters()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.vm.filteredData.length).toBe(3)
+    const ids = wrapper.vm.filteredData.map(c => c.id)
+    expect(ids).toContain(1)
+    expect(ids).toContain(3)
+    expect(ids).toContain(5)
   })
 
   it('filters CA list by borrow status', async () => {

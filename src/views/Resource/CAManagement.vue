@@ -453,7 +453,7 @@ const filteredData = computed(() => {
     list = list.filter(c => c.caType === f.caType)
   }
   if (f.sealType) {
-    list = list.filter(c => c.sealType === f.sealType)
+    list = list.filter(c => c.sealType?.split(',').includes(f.sealType))
   }
   if (f.borrowStatus) {
     list = list.filter(c => c.borrowStatus === f.borrowStatus)

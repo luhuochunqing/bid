@@ -167,6 +167,76 @@ class CaCertificateServiceTest {
         verify(passwordEncryptionUtil, never()).encrypt(anyString());
     }
 
+    // ── 印章类型多选（逗号分隔字符串） ──
+
+    @Test
+    void create_multiSealTypes_normalizedAndPersisted() {
+        CaCertificateService service = newService();
+        CaCertificateRequest req = buildRequest("ENTITY_CA", "secret");
+        req.setSealType("OFFICIAL_SEAL,LEGAL_PERSON_SEAL");
+        CaCertificateEntity saved = CaCertificateEntity.builder()
+                .id(1L)
+                .caType("ENTITY_CA")
+                .sealType("OFFICIAL_SEAL,LEGAL_PERSON_SEAL")
+                .expiryDate(LocalDate.now().plusDays(30))
+                .custodianId(20L)
+                .custodianName("保管员")
+                .borrowStatus("IN_STOCK")
+                .status("ACTIVE")
+                .build();
+        when(passwordEncryptionUtil.encrypt("secret")).thenReturn("encrypted");
+        when(certificateRepository.save(any())).thenReturn(saved);
+
+        CaCertificateDTO dto = service.create(req);
+
+        assertThat(dto.getSealType()).isEqualTo("OFFICIAL_SEAL,LEGAL_PERSON_SEAL");
+    }
+
+    @Test
+    void create_sealTypeWithDuplicates_duplicatesRemoved() {
+        CaCertificateService service = newService();
+        CaCertificateRequest req = buildRequest("ENTITY_CA", "secret");
+        req.setSealType("OFFICIAL_SEAL,OFFICIAL_SEAL,LEGAL_PERSON_SEAL");
+        CaCertificateEntity saved = CaCertificateEntity.builder()
+                .id(1L)
+                .caType("ENTITY_CA")
+                .sealType("OFFICIAL_SEAL,LEGAL_PERSON_SEAL")
+                .expiryDate(LocalDate.now().plusDays(30))
+                .custodianId(20L)
+                .custodianName("保管员")
+                .borrowStatus("IN_STOCK")
+                .status("ACTIVE")
+                .build();
+        when(passwordEncryptionUtil.encrypt("secret")).thenReturn("encrypted");
+        when(certificateRepository.save(any())).thenReturn(saved);
+
+        CaCertificateDTO dto = service.create(req);
+
+        assertThat(dto.getSealType()).isEqualTo("OFFICIAL_SEAL,LEGAL_PERSON_SEAL");
+    }
+
+    @Test
+    void create_sealTypeEmpty_throwsBusinessException() {
+        CaCertificateService service = newService();
+        CaCertificateRequest req = buildRequest("ENTITY_CA", "secret");
+        req.setSealType("");
+
+        assertThatThrownBy(() -> service.create(req))
+                .isInstanceOf(CaBusinessException.class)
+                .hasMessageContaining("印章类型不能为空");
+    }
+
+    @Test
+    void create_sealTypeAllInvalid_throwsBusinessException() {
+        CaCertificateService service = newService();
+        CaCertificateRequest req = buildRequest("ENTITY_CA", "secret");
+        req.setSealType("INVALID_TYPE");
+
+        assertThatThrownBy(() -> service.create(req))
+                .isInstanceOf(CaBusinessException.class)
+                .hasMessageContaining("印章类型必须包含有效选项");
+    }
+
     // ── CO-477: 读时刷新 status（避免持久化字段陈旧） ──
 
     @Test

@@ -4,22 +4,20 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 @Data
 public class CaCertificateRequest {
-    /**
-     * Associated platform account IDs.
-     * Replaces the legacy comma-separated string. Persisted to
-     * ca_certificate_platforms; the platform_ids column is kept
-     * for back-fill only and is no longer the source of truth.
-     */
+    private static final Set<String> VALID_SEAL_TYPES = Set.of(
+            "OFFICIAL_SEAL", "LEGAL_PERSON_SEAL", "LEGAL_SIGN", "CONTACT_SIGN");
+
     private List<Long> platformIds;
 
     @NotBlank(message = "CA类型不能为空")
     private String caType;
 
-    @NotBlank(message = "印章类型不能为空")
     private String sealType;
 
     private String electronicAccount;

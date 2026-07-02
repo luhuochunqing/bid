@@ -87,8 +87,19 @@ public class CaCertificateImportPolicy {
         }
         if (sealType.isEmpty()) {
             errors.add("印章类型不能为空");
-        } else if (!VALID_SEAL_TYPES.contains(sealType)) {
-            errors.add("印章类型必须是：公章/法人章/法人签字/联系人签字");
+        } else {
+            List<String> sealTypes = Arrays.stream(sealType.split("[,，;；]"))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .toList();
+            if (sealTypes.isEmpty()) {
+                errors.add("印章类型不能为空");
+            }
+            for (String t : sealTypes) {
+                if (!VALID_SEAL_TYPES.contains(t)) {
+                    errors.add("印章类型包含无效值：" + t + "，有效值为：公章/法人章/法人签字/联系人签字");
+                }
+            }
         }
         if (custodianName.isEmpty()) errors.add("保管员不能为空");
 
@@ -107,14 +118,18 @@ public class CaCertificateImportPolicy {
         String caTypeCode = caType.equals("实体CA") ? "ENTITY_CA" :
                 caType.equals("电子CA") ? "ELECTRONIC_CA" : caType;
 
-        // Map seal type
-        String sealTypeCode = switch (sealType) {
-            case "公章" -> "OFFICIAL_SEAL";
-            case "法人章" -> "LEGAL_PERSON_SEAL";
-            case "法人签字" -> "LEGAL_SIGN";
-            case "联系人签字" -> "CONTACT_SIGN";
-            default -> sealType;
-        };
+        String sealTypeCode = Arrays.stream(sealType.split("[,，;；]"))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .map(t -> switch (t) {
+                    case "公章" -> "OFFICIAL_SEAL";
+                    case "法人章" -> "LEGAL_PERSON_SEAL";
+                    case "法人签字" -> "LEGAL_SIGN";
+                    case "联系人签字" -> "CONTACT_SIGN";
+                    default -> t;
+                })
+                .distinct()
+                .collect(java.util.stream.Collectors.joining(","));
 
         // 电子CA必须填写电子账号（与新增表单一致）
         if (caTypeCode.equals("ELECTRONIC_CA") && electronicAccount.isEmpty()) {
