@@ -28,18 +28,20 @@ vi.mock('@/api/modules/projectDocuments.js', () => ({
 }))
 
 const getRetrospectiveMock = vi.fn()
+const submitRetrospectiveMock = vi.fn()
 vi.mock('@/api/modules/projectLifecycle.js', () => ({
   projectLifecycleApi: {
     getRetrospective: (...args) => getRetrospectiveMock(...args),
-    submitRetrospective: vi.fn(),
+    submitRetrospective: (...args) => submitRetrospectiveMock(...args),
   },
 }))
 
 vi.mock('./retrospectiveLossReasons.js', () => ({ lossReasonOptions: [] }))
 
+const { elMessageWarningMock } = vi.hoisted(() => ({ elMessageWarningMock: vi.fn() }))
 vi.mock('element-plus', async (importOriginal) => {
   const actual = await importOriginal()
-  return { ...actual, ElMessage: { info: vi.fn(), warning: vi.fn(), error: vi.fn(), success: vi.fn() } }
+  return { ...actual, ElMessage: { info: vi.fn(), warning: elMessageWarningMock, error: vi.fn(), success: vi.fn() } }
 })
 
 describe('RetrospectiveStage CO-408 回填复盘报告文件名', () => {
@@ -95,5 +97,77 @@ describe('RetrospectiveStage CO-408 回填复盘报告文件名', () => {
     await flushPromises()
     expect(wrapper.findComponent({ name: 'ElUpload' }).props('fileList')).toHaveLength(0)
     expect(getDocumentsMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('RetrospectiveStage CO-475 复盘报告必填', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getDocumentsMock.mockReset()
+    getRetrospectiveMock.mockReset()
+    submitRetrospectiveMock.mockReset()
+    elMessageWarningMock.mockReset()
+  })
+
+  it('WON 时未上传复盘报告应提示用户且不调用提交接口', async () => {
+    getRetrospectiveMock.mockImplementation(() => Promise.resolve({
+      success: true,
+      data: {
+        meetingTime: '2026-06-29 10:00:00',
+        meetingFormat: 'ONLINE',
+        meetingParticipants: '张三,李四',
+        winFactors: '优势',
+        processHighlights: '亮点',
+        postWinImprovements: '建议',
+        reportFileIds: [],
+        reviewStatus: null,
+      },
+    }))
+
+    const { default: RetrospectiveStage } = await import('./RetrospectiveStage.vue')
+    const wrapper = mount(RetrospectiveStage, {
+      props: { projectId: 1, resultType: 'WON' },
+      global: { plugins: [ElementPlus] },
+    })
+    await flushPromises()
+    await nextTick()
+    await flushPromises()
+
+    await wrapper.find('.btn-container button').trigger('click')
+    await flushPromises()
+
+    expect(elMessageWarningMock).toHaveBeenCalledWith('请上传复盘报告')
+    expect(submitRetrospectiveMock).not.toHaveBeenCalled()
+  })
+
+  it('LOST 时未上传复盘报告应提示用户且不调用提交接口', async () => {
+    getRetrospectiveMock.mockImplementation(() => Promise.resolve({
+      success: true,
+      data: {
+        meetingTime: '2026-06-29 10:00:00',
+        meetingFormat: 'ONLINE',
+        meetingParticipants: '张三,李四',
+        lossReasonFlags: ['NOT_IN_TARGET_LIST'],
+        processProblems: '问题',
+        postLossMeasures: '措施',
+        reportFileIds: [],
+        reviewStatus: null,
+      },
+    }))
+
+    const { default: RetrospectiveStage } = await import('./RetrospectiveStage.vue')
+    const wrapper = mount(RetrospectiveStage, {
+      props: { projectId: 1, resultType: 'LOST' },
+      global: { plugins: [ElementPlus] },
+    })
+    await flushPromises()
+    await nextTick()
+    await flushPromises()
+
+    await wrapper.find('.btn-container button').trigger('click')
+    await flushPromises()
+
+    expect(elMessageWarningMock).toHaveBeenCalledWith('请上传复盘报告')
+    expect(submitRetrospectiveMock).not.toHaveBeenCalled()
   })
 })

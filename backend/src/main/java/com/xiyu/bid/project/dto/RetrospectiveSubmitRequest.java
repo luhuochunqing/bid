@@ -35,7 +35,7 @@ public class RetrospectiveSubmitRequest {
     private String processProblems;       // 流程存在问题（富文本）
     private String postLossMeasures;      // 具体改进措施（富文本）
 
-    // 可选
+    // WON/LOST 均必填
     private List<Long> reportFileIds;     // 复盘报告附件ID
     private String summary;               // 摘要（补充）
 

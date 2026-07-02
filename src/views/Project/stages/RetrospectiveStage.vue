@@ -68,7 +68,7 @@
       </el-card>
       <!-- 复盘报告 -->
       <el-card v-if="canEdit" shadow="never" class="stage-section">
-        <template #header><span class="section-title">复盘报告</span></template>
+        <template #header><span class="section-title">复盘报告<span class="required-mark">*</span></span></template>
         <el-upload :with-credentials="true"
           v-model:file-list="reportFiles"
           :action="uploadUrl"
@@ -236,6 +236,7 @@ async function submit() {
     if (!form.processProblems?.trim()) return ElMessage.warning('请填写流程存在问题')
     if (!form.postLossMeasures?.trim()) return ElMessage.warning('请填写具体改进措施')
   }
+  if (!form.reportFileIds.length) return ElMessage.warning('请上传复盘报告')
   submitting.value = true
   try {
     await projectLifecycleApi.submitRetrospective(props.projectId, {
@@ -267,6 +268,7 @@ defineExpose({ load })
 <style scoped>
 .retrospective-stage { display: flex; flex-direction: column; gap: 16px; }
 .section-title { font-size: 15px; font-weight: 600; color: #2E7659; }
+.required-mark { color: #e65100; margin-left: 2px; }
 .upload-file-link { color: var(--el-color-primary); text-decoration: none; }
 .upload-file-link:hover { text-decoration: underline; }
 .report-file-row { display: flex; align-items: center; gap: 8px; }

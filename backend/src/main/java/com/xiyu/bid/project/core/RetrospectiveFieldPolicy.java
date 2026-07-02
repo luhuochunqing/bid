@@ -15,12 +15,12 @@ import java.util.Objects;
  * <p>必填映射：
  * <ul>
  *   <li>WON: meetingTime, meetingFormat, meetingParticipants, winFactors,
- *            processHighlights, postWinImprovements</li>
+ *            processHighlights, postWinImprovements, reportFileIds</li>
  *   <li>LOST: meetingTime, meetingFormat, meetingParticipants, lossReasonFlags,
- *             processProblems, postLossMeasures</li>
+ *             processProblems, postLossMeasures, reportFileIds</li>
  * </ul>
  *
- * <p>会议信息为中标/未中标共有必填；复盘报告始终可选。
+ * <p>会议信息为中标/未中标共有必填；复盘报告必填。
  * 流标/弃标不进入复盘流程，不在本策略覆盖范围内。
  */
 public final class RetrospectiveFieldPolicy {
@@ -45,11 +45,13 @@ public final class RetrospectiveFieldPolicy {
                 requireField("winFactors", input.winFactors(), missing);
                 requireField("processHighlights", input.processHighlights(), missing);
                 requireField("postWinImprovements", input.postWinImprovements(), missing);
+                requireField("reportFileIds", input.reportFileIds(), missing);
             }
             case LOST -> {
                 requireField("lossReasonFlags", input.lossReasonFlags(), missing);
                 requireField("processProblems", input.processProblems(), missing);
                 requireField("postLossMeasures", input.postLossMeasures(), missing);
+                requireField("reportFileIds", input.reportFileIds(), missing);
             }
             // FAILED / ABANDONED 不进入复盘
             default -> {
@@ -83,7 +85,7 @@ public final class RetrospectiveFieldPolicy {
      * @param postWinImprovements  中标后续改进建议（中标必填）
      * @param processProblems      流程存在问题（未中标必填）
      * @param postLossMeasures     具体改进措施（未中标必填）
-     * @param reportFileIds        复盘报告附件ID（始终可选）
+     * @param reportFileIds        复盘报告附件ID（WON/LOST 均必填）
      */
     public record RetrospectiveInput(
             String summary,

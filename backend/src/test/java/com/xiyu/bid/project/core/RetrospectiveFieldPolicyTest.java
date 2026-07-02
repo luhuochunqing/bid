@@ -26,6 +26,14 @@ class RetrospectiveFieldPolicyTest {
     }
 
     @Test
+    void won_missingReportFiles_denied() {
+        var d = RetrospectiveFieldPolicy.validate(BidResultType.WON,
+                input(winFactors("优势"), processHighlights("亮点"), postWin("建议"),
+                        T, reportFileIds(null)));
+        assertDenied(d, 1, "reportFileIds");
+    }
+
+    @Test
     void won_missingMeeting_denied() {
         var d = RetrospectiveFieldPolicy.validate(BidResultType.WON,
                 input(winFactors("优势"), processHighlights("亮点"), postWin("建议"),
@@ -65,6 +73,14 @@ class RetrospectiveFieldPolicyTest {
         var d = RetrospectiveFieldPolicy.validate(BidResultType.LOST,
                 inputLost(lossFlags("NOT_IN_TARGET_LIST"), processProblems("问题"), postLoss("措施")));
         assertTrue(d.allowed());
+    }
+
+    @Test
+    void lost_missingReportFiles_denied() {
+        var d = RetrospectiveFieldPolicy.validate(BidResultType.LOST,
+                inputLost(lossFlags("NOT_IN_TARGET_LIST"), processProblems("问题"), postLoss("措施"),
+                        reportFileIds("")));
+        assertDenied(d, 1, "reportFileIds");
     }
 
     @Test
@@ -110,9 +126,17 @@ class RetrospectiveFieldPolicyTest {
 
     // ===== helpers =====
 
+    private static final String DEFAULT_REPORT_FILE_IDS = "1001";
+
     private static RetrospectiveFieldPolicy.RetrospectiveInput input(
             String winFactors, String processHighlights, String postWin,
             String meetingTime) {
+        return input(winFactors, processHighlights, postWin, meetingTime, DEFAULT_REPORT_FILE_IDS);
+    }
+
+    private static RetrospectiveFieldPolicy.RetrospectiveInput input(
+            String winFactors, String processHighlights, String postWin,
+            String meetingTime, String reportFileIds) {
         return new RetrospectiveFieldPolicy.RetrospectiveInput(
                 null, // summary
                 winFactors != null ? winFactors : "优势",
@@ -122,24 +146,31 @@ class RetrospectiveFieldPolicyTest {
                 null, // lossReasonFlags
                 processHighlights != null ? processHighlights : "",
                 postWin != null ? postWin : "",
-                null, null, null // processProblems, postLossMeasures, reportFileIds
+                null, null, // processProblems, postLossMeasures
+                reportFileIds // reportFileIds
         );
     }
 
     private static RetrospectiveFieldPolicy.RetrospectiveInput input(
             String winFactors, String processHighlights, String postWin) {
-        return input(winFactors, processHighlights, postWin, T);
+        return input(winFactors, processHighlights, postWin, T, DEFAULT_REPORT_FILE_IDS);
     }
 
     private static RetrospectiveFieldPolicy.RetrospectiveInput inputLost(
             String lossReasonFlags, String processProblems, String postLossMeasures) {
+        return inputLost(lossReasonFlags, processProblems, postLossMeasures, DEFAULT_REPORT_FILE_IDS);
+    }
+
+    private static RetrospectiveFieldPolicy.RetrospectiveInput inputLost(
+            String lossReasonFlags, String processProblems, String postLossMeasures,
+            String reportFileIds) {
         return new RetrospectiveFieldPolicy.RetrospectiveInput(
                 null, null, null, null, null, // legacy
                 T, ONLINE, PPL,
                 lossReasonFlags,
                 null, null, // win-only
                 processProblems, postLossMeasures,
-                null // reportFileIds
+                reportFileIds
         );
     }
 
@@ -157,6 +188,7 @@ class RetrospectiveFieldPolicyTest {
     private static String processProblems(String v) { return v; }
     private static String postLoss(String v) { return v; }
     private static String meetingTime(String v) { return v; }
+    private static String reportFileIds(String v) { return v; }
 
     private static void assertDenied(RetrospectiveFieldPolicy.Decision d, int expectedCount, String expectedField) {
         assertFalse(d.allowed());
