@@ -27,20 +27,21 @@ public class ImportPersonnelAppService {
 
     private final PersonnelExcelImporter excelImporter;
     private final PersonnelImportExecutor importExecutor;
-    private final java.util.Optional<PersonnelImportProgressService> progressService;
+    // CO-469 第三轮：PersonnelImportProgressService 现在永远创建（去掉了 @ConditionalOnBean），
+    // 不再用 Optional 注入。Redis 不可用时在服务内部通过 Optional<StringRedisTemplate> 降级。
+    private final PersonnelImportProgressService progressService;
     private final PersonnelImportTaskRepository importTaskRepository;
     private final PersonnelImportErrorReportGenerator errorReportGenerator;
     private final PersonnelOperationLogService operationLogService;
 
     @Transactional
     public PersonnelImportTask initiateImportTask(Long currentUserId, String operatorName) {
-        String taskNo = progressService.map(PersonnelImportProgressService::generateTaskNo)
-                .orElse("IMP-PER-" + System.currentTimeMillis());
+        String taskNo = progressService.generateTaskNo();
         PersonnelImportTask task = PersonnelImportTask.createNew(taskNo, currentUserId);
         task = importTaskRepository.save(task);
 
         final Long taskId = task.id();
-        progressService.ifPresent(s -> s.storeOperatorInfo(taskId, operatorName, currentUserId));
+        progressService.storeOperatorInfo(taskId, operatorName, currentUserId);
 
         return task;
     }
@@ -48,11 +49,11 @@ public class ImportPersonnelAppService {
     @Async("importExportExecutor")
     public void executeImportAsync(Long taskId, MultipartFile file, Long currentUserId) {
         try {
-            progressService.ifPresent(s -> s.updateProgress(taskId, "正在解析Excel文件...", 5));
+            progressService.updateProgress(taskId, "正在解析Excel文件...", 5);
 
             PersonnelExcelImporter.ImportResult result = excelImporter.importFromStream(file.getInputStream());
 
-            progressService.ifPresent(s -> s.updateProgress(taskId, "正在校验数据...", 20));
+            progressService.updateProgress(taskId, "正在校验数据...", 20);
 
             ValidationResult validationResult = result.validationResult();
 
@@ -63,21 +64,24 @@ public class ImportPersonnelAppService {
 
             PersonnelImportExecutor.ImportResult importResult = importExecutor.executeImport(
                     result,
-                    (message, percent) -> progressService.ifPresent(s -> s.updateProgress(taskId, message, percent + 40))
+                    (message, percent) -> progressService.updateProgress(taskId, message, percent + 40)
             );
 
             completeImportTask(taskId, importResult, null);
 
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
+            // CO-469 第三轮：catch IOException + RuntimeException
+            // 原因：excelImporter/importExecutor 可能抛 NPE 等非 IOException，
+            //       原 catch (IOException) 接不住 → 异步线程静默终止 → 进度卡住
             log.error("导入任务执行失败: taskId={}", taskId, e);
-            failImportTask(taskId, e.getMessage());
+            failImportTask(taskId, e.getClass().getSimpleName() + ": " + e.getMessage());
         }
     }
 
     private void handleValidationErrors(Long taskId, ValidationResult validationResult) {
         try {
             byte[] errorReport = errorReportGenerator.generateErrorReport(validationResult);
-            String reportUrl = progressService.map(s -> s.saveErrorReport(taskId, errorReport)).orElse(null);
+            String reportUrl = progressService.saveErrorReport(taskId, errorReport);
 
             List<ImportErrorDetail> errorDetails = validationResult.errors().stream()
                     .map(e -> new ImportErrorDetail(
@@ -113,15 +117,13 @@ public class ImportPersonnelAppService {
                 task.createdAt(), LocalDateTime.now()
         );
         importTaskRepository.save(updated);
-        progressService.ifPresent(s -> s.clearProgress(taskId));
+        progressService.clearProgress(taskId);
 
         recordImportLog(task, result);
     }
 
     private void recordImportLog(PersonnelImportTask task, PersonnelImportExecutor.ImportResult result) {
-        PersonnelImportProgressService.OperatorInfo opInfo = progressService
-                .map(s -> s.getOperatorInfo(task.id()))
-                .orElse(null);
+        PersonnelImportProgressService.OperatorInfo opInfo = progressService.getOperatorInfo(task.id());
         String operatorName = opInfo != null ? opInfo.operatorName() : "system";
         Long operatorId = opInfo != null ? opInfo.operatorId() : 0L;
 
@@ -154,28 +156,25 @@ public class ImportPersonnelAppService {
                 task.createdAt(), LocalDateTime.now()
         );
         importTaskRepository.save(updated);
-        progressService.ifPresent(s -> s.clearProgress(taskId));
+        progressService.clearProgress(taskId);
     }
 
     public ImportProgressInfo getProgress(Long taskId) {
-        return progressService.map(s -> {
-            PersonnelImportProgressService.ImportProgress progress = s.getProgress(taskId);
-            return new ImportProgressInfo(
-                    progress.status(),
-                    progress.percent(),
-                    progress.message(),
-                    progress.totalCount(),
-                    progress.successCount(),
-                    progress.failureCount()
-            );
-        }).orElse(new ImportProgressInfo("UNKNOWN", 0, "Redis not available", 0, 0, 0));
+        // CO-469 第三轮：progressService 现在永远存在，
+        // Redis 不可用时由 PersonnelImportProgressService 内部 DB fallback 处理
+        PersonnelImportProgressService.ImportProgress progress = progressService.getProgress(taskId);
+        return new ImportProgressInfo(
+                progress.status(),
+                progress.percent(),
+                progress.message(),
+                progress.totalCount(),
+                progress.successCount(),
+                progress.failureCount()
+        );
     }
 
     public byte[] getErrorReport(Long taskId) throws IOException {
-        return progressService.map(s -> {
-            try { return s.getErrorReport(taskId); }
-            catch (IOException e) { throw new RuntimeException(e); }
-        }).orElseThrow(() -> new IOException("Redis not available"));
+        return progressService.getErrorReport(taskId);
     }
 
     public record ImportProgressInfo(
