@@ -103,8 +103,8 @@
             <template #tip><span style="font-size:11px;color:#909399">上传交付物（PDF/Word/Excel/图片）</span></template>
           </el-upload>
         </el-form-item>
-        <el-form-item label="完成情况说明">
-          <el-input v-model="submitNotes" type="textarea" :rows="3" placeholder="填写完成情况说明（可选）" />
+        <el-form-item label="完成情况说明" required>
+          <el-input v-model="submitNotes" type="textarea" :rows="3" placeholder="请填写完成情况说明" />
         </el-form-item>
       </el-form>
       <template #footer>

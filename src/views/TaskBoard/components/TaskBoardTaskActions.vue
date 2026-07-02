@@ -38,12 +38,12 @@
           </template>
         </el-upload>
       </el-form-item>
-      <el-form-item label="完成情况说明">
+      <el-form-item label="完成情况说明" required>
         <el-input
           v-model="submitNotes"
           type="textarea"
           :rows="3"
-          placeholder="填写完成情况说明（可选）"
+          placeholder="请填写完成情况说明"
         />
       </el-form-item>
     </el-form>

@@ -88,7 +88,7 @@ const globalStubs = {
   },
   ElFormItem: {
     props: ['label', 'required', 'error'],
-    template: '<div class="form-item"><label>{{ label }}</label><slot /><div v-if="error" class="form-item-error">{{ error }}</div></div>',
+    template: '<div class="form-item" :class="{ \'is-required\': required }"><label>{{ label }}</label><slot /><div v-if="error" class="form-item-error">{{ error }}</div></div>',
   },
   ElInput: {
     props: ['modelValue', 'type', 'rows', 'placeholder'],
@@ -804,5 +804,68 @@ describe('TaskForm', () => {
     await flushPromises()
     const r = wrapper.vm.submit()
     expect(r.valid).toBe(true)
+  })
+
+  // CO-458: 交付物上传和完成情况说明的 required 标识按场景区分
+  // 场景1: 创建任务时（投标管理员/组长/专员），两个字段非必填，无 * 星号
+  it('does not mark deliverable/completionNotes as required in create mode', async () => {
+    const wrapper = mount(TaskForm, {
+      props: { mode: 'create', modelValue: {} },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+    const formItems = wrapper.findAll('.form-item')
+    const deliverableItem = formItems.find((el) => el.text().includes('交付物上传'))
+    const completionItem = formItems.find((el) => el.text().includes('完成情况说明'))
+    expect(deliverableItem?.classes()).not.toContain('is-required')
+    expect(completionItem?.classes()).not.toContain('is-required')
+  })
+
+  // 场景2: 执行人提交审核时（view + assignee=currentUser + TODO），两个字段必填，有 * 星号
+  it('marks deliverable/completionNotes as required when assignee submitting for review', async () => {
+    const wrapper = mount(TaskForm, {
+      props: {
+        mode: 'view',
+        modelValue: {
+          id: 100,
+          name: '执行任务',
+          content: '描述',
+          assigneeId: 9, // 当前 mock 用户 id=9
+          deadline: '2026-12-31',
+          status: 'TODO',
+        },
+      },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+    const formItems = wrapper.findAll('.form-item')
+    const deliverableItem = formItems.find((el) => el.text().includes('交付物上传'))
+    const completionItem = formItems.find((el) => el.text().includes('完成情况说明'))
+    expect(deliverableItem?.classes()).toContain('is-required')
+    expect(completionItem?.classes()).toContain('is-required')
+  })
+
+  // 场景3: 非执行人查看时，两个字段也非必填
+  it('does not mark deliverable/completionNotes as required when non-assignee views', async () => {
+    const wrapper = mount(TaskForm, {
+      props: {
+        mode: 'view',
+        modelValue: {
+          id: 101,
+          name: '其他任务',
+          content: '描述',
+          assigneeId: 999, // 非当前用户
+          deadline: '2026-12-31',
+          status: 'TODO',
+        },
+      },
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+    const formItems = wrapper.findAll('.form-item')
+    const deliverableItem = formItems.find((el) => el.text().includes('交付物上传'))
+    const completionItem = formItems.find((el) => el.text().includes('完成情况说明'))
+    expect(deliverableItem?.classes()).not.toContain('is-required')
+    expect(completionItem?.classes()).not.toContain('is-required')
   })
 })

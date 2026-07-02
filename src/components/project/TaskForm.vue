@@ -99,7 +99,7 @@
             @update:extended-fields="onDepositFieldsUpdate"
           />
 
-          <el-form-item label="交付物上传">
+          <el-form-item label="交付物上传" :required="isAssigneeSubmitting">
             <el-upload
               v-if="!readonly || canDeliver"
               data-test="task-deliverable-upload"
@@ -123,7 +123,7 @@
             </div>
           </el-form-item>
 
-          <el-form-item label="完成情况说明" required>
+          <el-form-item label="完成情况说明" :required="isAssigneeSubmitting">
             <el-input
               v-model="localValue.completionNotes"
               type="textarea"
