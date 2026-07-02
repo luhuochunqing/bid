@@ -7,6 +7,7 @@ import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import router from './router/index.js'
 import App from './App.vue'
 import { installKeyboardNavMode } from './utils/keyboardNavMode.js'
+import { vAutosize } from './directives/autosize.js'
 
 // 导入设计系统 CSS 变量
 import './styles/variables.css'
@@ -95,4 +96,8 @@ app.use(router)
 app.use(ElementPlus, {
   locale: zhCn,
 })
+
+// 全局指令：readonly textarea 高度自适应内容
+app.directive('autosize', vAutosize)
+
 app.mount('#app')

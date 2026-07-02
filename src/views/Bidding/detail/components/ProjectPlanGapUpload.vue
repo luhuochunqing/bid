@@ -2,8 +2,8 @@
   <div class="gap-upload-wrapper">
     <textarea
       v-if="disabled"
+      v-autosize
       :value="localGap || '-'"
-      rows="10"
       readonly
       class="readonly-textarea"
     />
@@ -214,6 +214,6 @@ function beforeGapUpload(file) {
   color: var(--text-primary-ui, #303133);
   background: var(--bg-subtle, #F5F7FA);
   resize: vertical;
-  overflow-y: scroll;
+  overflow-y: auto;
 }
 </style>

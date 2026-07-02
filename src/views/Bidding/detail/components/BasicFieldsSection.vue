@@ -58,8 +58,8 @@
       >
         <textarea
           v-if="disabled"
+          v-autosize
           :value="localBasic.unfavorableItems || '-'"
-          rows="10"
           readonly
           class="readonly-textarea"
         />
@@ -80,8 +80,8 @@
       >
         <textarea
           v-if="disabled"
+          v-autosize
           :value="localBasic.riskAssessment || '-'"
-          rows="10"
           readonly
           class="readonly-textarea"
         />
@@ -112,8 +112,8 @@
       >
         <textarea
           v-if="disabled"
+          v-autosize
           :value="localBasic.processKnowledge || '-'"
-          rows="10"
           readonly
           class="readonly-textarea"
         />
@@ -133,8 +133,8 @@
       >
         <textarea
           v-if="disabled"
+          v-autosize
           :value="localBasic.supportNotes || '-'"
-          rows="10"
           readonly
           class="readonly-textarea"
         />
@@ -234,6 +234,6 @@ const localBasic = computed({
   color: var(--text-primary-ui, #303133);
   background: var(--bg-subtle, #F5F7FA);
   resize: vertical;
-  overflow-y: scroll;
+  overflow-y: auto;
 }
 </style>

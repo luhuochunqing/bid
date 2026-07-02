@@ -61,12 +61,12 @@
           </el-col>
           <el-col :span="24">
             <el-form-item label="标讯描述">
-              <textarea :value="tender.description || '-'" rows="10" readonly class="readonly-textarea" />
+              <textarea v-autosize :value="tender.description || '-'" readonly class="readonly-textarea" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
             <el-form-item label="标讯信息">
-              <textarea :value="tender.tenderInfo || '-'" rows="10" readonly class="readonly-textarea" />
+              <textarea v-autosize :value="tender.tenderInfo || '-'" readonly class="readonly-textarea" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -158,6 +158,6 @@ const sourceDocumentDownloadUrl = computed(() => normalizeDownloadUrl(props.tend
   color: var(--text-primary-ui, #303133);
   background: var(--bg-subtle, #F5F7FA);
   resize: vertical;
-  overflow-y: scroll;
+  overflow-y: auto;
 }
 </style>
