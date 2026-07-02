@@ -7,7 +7,8 @@ vi.mock('element-plus', () => ({
 }))
 
 const mockUserStore = {
-  isBidManager: true,
+  isBidAdmin: true,
+  isBidManager: true, // 保留以兼容其他可能引用的旧测试
   currentUser: { id: 999, name: '管理员' },
 }
 
@@ -49,14 +50,32 @@ describe('useProjectDetailTransfer', () => {
     expect(transfer.handleTransferConfirm).toBeTypeOf('function')
   })
 
-  it('canTransfer 在投标管理员登录且有项目时为 true', () => {
-    const transfer = useProjectDetailTransfer(createMockContext())
+  it('canTransfer 在投标管理员（/bidAdmin）登录且有项目时为 true', () => {
+    const transfer = useProjectDetailTransfer(createMockContext({
+      userStore: { isBidAdmin: true, currentUser: { id: 999, roleCode: '/bidAdmin' } },
+    }))
     expect(transfer.canTransfer.value).toBe(true)
   })
 
-  it('canTransfer 在非管理员时为 false', () => {
+  it('canTransfer 在系统管理员（admin，对应 OSS bid-SystemAdmin）登录时为 true', () => {
     const transfer = useProjectDetailTransfer(createMockContext({
-      userStore: { isBidManager: false, currentUser: { id: 1 } },
+      userStore: { isBidAdmin: true, currentUser: { id: 1, roleCode: 'admin' } },
+    }))
+    expect(transfer.canTransfer.value).toBe(true)
+  })
+
+  it('canTransfer 在投标组长（bid-TeamLeader）登录时为 false——组长不可操作项目转移', () => {
+    // 投标组长在 isBidAdmin 中为 false（不在 admin//bidAdmin 白名单），但在 isBidManager 中为 true
+    // 这个测试验证 canTransfer 用的是 isBidAdmin 而非 isBidManager
+    const transfer = useProjectDetailTransfer(createMockContext({
+      userStore: { isBidAdmin: false, isBidManager: true, currentUser: { id: 888, roleCode: 'bid-TeamLeader' } },
+    }))
+    expect(transfer.canTransfer.value).toBe(false)
+  })
+
+  it('canTransfer 在非管理员（如投标专员）时为 false', () => {
+    const transfer = useProjectDetailTransfer(createMockContext({
+      userStore: { isBidAdmin: false, isBidManager: false, currentUser: { id: 1, roleCode: 'bid-Team' } },
     }))
     expect(transfer.canTransfer.value).toBe(false)
   })

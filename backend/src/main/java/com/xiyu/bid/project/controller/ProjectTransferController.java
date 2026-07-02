@@ -26,9 +26,11 @@ import org.springframework.web.server.ResponseStatusException;
 
 /**
  * 项目转移控制器。
- * <p>处理项目负责人的转移操作。仅投标管理员/组长可操作。对应 FR-001 ~ FR-008。
+ * <p>处理项目负责人的转移操作。仅投标管理员（/bidAdmin）与系统管理员（admin，对应 OSS
+ * bid-SystemAdmin）可操作。对应 FR-001 ~ FR-008。
  * </p>
- * <p>对齐 TenderTransferController 的协议风格与角色白名单。
+ * <p>对齐 TenderTransferController 的协议风格；操作权限比 TenderTransfer 更严格——
+ * 投标组长（bid-TeamLeader）不可操作项目转移。
  * </p>
  */
 @RestController
@@ -42,7 +44,7 @@ public class ProjectTransferController {
     private final AuthService authService;
 
     /**
-     * 转移项目给新负责人。仅投标管理员/组长可操作。
+     * 转移项目给新负责人。仅投标管理员（/bidAdmin）与系统管理员（admin）可操作。
      * <p>FR-001 ~ FR-008：在任何项目状态下都可更改项目负责人，
      * 新负责人承接旧负责人的所有内容（权限/文档/状态不变），
      * 旧负责人立即失去所有权限（通过 ProjectAccessScopeService 实时计算）。
@@ -54,7 +56,7 @@ public class ProjectTransferController {
      * @return 转移结果
      */
     @PostMapping("/{projectId}/transfer")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BIDADMIN')")
     public ResponseEntity<ApiResponse<ProjectTransferResponse>> transferProject(
             @PathVariable Long projectId,
             @Valid @RequestBody ProjectTransferRequest request,

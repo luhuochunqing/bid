@@ -27,6 +27,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.LocalDateTime;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
@@ -214,21 +215,21 @@ class ProjectTransferControllerTest {
     // ── @PreAuthorize 注解校验 ───────────────────────────────────────────
 
     /**
-     * FR-003 / SC-002: 项目转移仅限投标管理员/组长/管理员操作。
-     * 对齐 TenderTransferController 的角色白名单。
+     * FR-003 / SC-002: 项目转移仅限投标管理员（/bidAdmin）与系统管理员（admin，对应 OSS
+     * bid-SystemAdmin）操作。投标组长（bid-TeamLeader）不可操作。
      */
     @Test
-    void transfer_preAuthorize_allows_admin_teamleader_bidadmin() throws Exception {
+    void transfer_preAuthorize_allows_only_admin_and_bidadmin() throws Exception {
         PreAuthorize annotation = ProjectTransferController.class
                 .getMethod("transferProject", Long.class, ProjectTransferRequest.class, UserDetails.class)
                 .getAnnotation(PreAuthorize.class);
         assertNotNull(annotation, "transferProject 端点必须保留 @PreAuthorize");
         String expr = annotation.value();
         assertTrue(expr.contains("ADMIN"),
-                "transferProject @PreAuthorize 必须包含 ADMIN，当前: " + expr);
-        assertTrue(expr.contains("BID_TEAMLEADER"),
-                "transferProject @PreAuthorize 必须包含 BID_TEAMLEADER（投标组长），当前: " + expr);
+                "transferProject @PreAuthorize 必须包含 ADMIN（含 bid-SystemAdmin 映射），当前: " + expr);
         assertTrue(expr.contains("BIDADMIN"),
                 "transferProject @PreAuthorize 必须包含 BIDADMIN（投标管理员），当前: " + expr);
+        assertFalse(expr.contains("BID_TEAMLEADER"),
+                "transferProject @PreAuthorize 不得包含 BID_TEAMLEADER——投标组长不可操作项目转移，当前: " + expr);
     }
 }

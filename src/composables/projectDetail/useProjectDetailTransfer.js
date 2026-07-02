@@ -1,7 +1,7 @@
 // Input: userStore, projectStore, projectsApi, project, message
 // Output: 转移 dialog 状态 + openTransfer/handleTransferConfirm 方法 + canTransfer 权限
 // Pos: src/composables/projectDetail/ - 项目详情专用 composable
-// 维护声明: 仅维护项目转移 dialog 状态与提交；权限对齐后端 @PreAuthorize（ADMIN/BID_TEAMLEADER/BIDADMIN）。
+// 维护声明: 仅维护项目转移 dialog 状态与提交；权限对齐后端 @PreAuthorize（ADMIN/BIDADMIN，不含 BID_TEAMLEADER）。
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 import { computed, reactive, ref } from 'vue'
@@ -10,7 +10,8 @@ import { ElMessage } from 'element-plus'
 /**
  * 项目转移 composable。
  * <p>对齐 useBiddingDetailPage.js 的 transfer 模式（dialog + transferring flag）。
- * 权限对齐后端 @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN')")。
+ * 权限对齐后端 @PreAuthorize("hasAnyRole('ADMIN', 'BIDADMIN')")——仅投标管理员（/bidAdmin）
+ * 与系统管理员（admin，对应 OSS bid-SystemAdmin）可操作；投标组长（bid-TeamLeader）不可操作。
  * </p>
  *
  * @param {{ userStore: object, projectStore: object, projectsApi: object, project: import('vue').Ref<object>, message: object }} context
@@ -26,10 +27,11 @@ export function useProjectDetailTransfer(context) {
   })
 
   /**
-   * 是否可执行项目转移：仅投标管理员/组长/管理员可见按钮。
-   * 对齐 userStore.isBidManager getter（admin/bidAdmin/bid-TeamLeader）。
+   * 是否可执行项目转移：仅投标管理员（/bidAdmin）与系统管理员（admin）可见按钮。
+   * 对齐 userStore.isBidAdmin getter（admin/bidAdmin，不含 bid-TeamLeader）。
+   * bid-SystemAdmin 是 OSS 临时岗位，在系统内部映射为 admin RoleProfile。
    */
-  const canTransfer = computed(() => Boolean(userStore?.isBidManager && project.value?.id))
+  const canTransfer = computed(() => Boolean(userStore?.isBidAdmin && project.value?.id))
 
   /** 排除当前负责人，避免"转给自己" */
   const excludeOwnerIds = computed(() => {
