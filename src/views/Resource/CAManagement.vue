@@ -685,7 +685,7 @@ async function handleApproveApplication(row) {
     return
   }
   try {
-    await caStore.approveApplication(row.id, '')
+    await caStore.approveApplication(row.id, { comment: '同意' })
     ElMessage.success('审批通过')
     await loadMyApprovals()
   } catch {
@@ -701,7 +701,7 @@ async function handleRejectApplication(row) {
       inputErrorMessage: '拒绝原因不能为空',
       inputType: 'textarea'
     })
-    await caStore.rejectApplication(row.id, value)
+    await caStore.rejectApplication(row.id, { comment: value })
     ElMessage.success('已拒绝')
     await loadMyApprovals()
   } catch (e) {
