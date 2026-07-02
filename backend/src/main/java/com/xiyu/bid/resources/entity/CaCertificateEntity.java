@@ -4,7 +4,6 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Entity
 @Table(name = "ca_certificates")
@@ -25,27 +24,6 @@ public class CaCertificateEntity {
 
     @Column(name = "seal_type", length = 100, nullable = false)
     private String sealType;
-
-    public List<String> getSealTypeList() {
-        if (sealType == null || sealType.isEmpty()) return List.of();
-        return java.util.Arrays.stream(sealType.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .distinct()
-                .toList();
-    }
-
-    public void setSealTypeList(List<String> types) {
-        if (types == null || types.isEmpty()) {
-            this.sealType = "";
-            return;
-        }
-        this.sealType = types.stream()
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .distinct()
-                .collect(java.util.stream.Collectors.joining(","));
-    }
 
     @Column(name = "electronic_account", length = 100)
     private String electronicAccount;

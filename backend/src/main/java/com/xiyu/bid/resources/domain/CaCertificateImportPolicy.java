@@ -118,18 +118,20 @@ public class CaCertificateImportPolicy {
         String caTypeCode = caType.equals("实体CA") ? "ENTITY_CA" :
                 caType.equals("电子CA") ? "ELECTRONIC_CA" : caType;
 
-        String sealTypeCode = Arrays.stream(sealType.split("[,，;；]"))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .map(t -> switch (t) {
-                    case "公章" -> "OFFICIAL_SEAL";
-                    case "法人章" -> "LEGAL_PERSON_SEAL";
-                    case "法人签字" -> "LEGAL_SIGN";
-                    case "联系人签字" -> "CONTACT_SIGN";
-                    default -> t;
-                })
-                .distinct()
-                .collect(java.util.stream.Collectors.joining(","));
+        // 印章类型：中文→英文 code 映射（与校验共用一次 split）
+        String sealTypeCode = sealType.isEmpty() ? "" :
+                Arrays.stream(sealType.split("[,，;；]"))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .map(t -> switch (t) {
+                            case "公章" -> "OFFICIAL_SEAL";
+                            case "法人章" -> "LEGAL_PERSON_SEAL";
+                            case "法人签字" -> "LEGAL_SIGN";
+                            case "联系人签字" -> "CONTACT_SIGN";
+                            default -> t;
+                        })
+                        .distinct()
+                        .collect(java.util.stream.Collectors.joining(","));
 
         // 电子CA必须填写电子账号（与新增表单一致）
         if (caTypeCode.equals("ELECTRONIC_CA") && electronicAccount.isEmpty()) {
