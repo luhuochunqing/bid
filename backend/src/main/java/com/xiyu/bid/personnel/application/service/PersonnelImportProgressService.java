@@ -7,26 +7,40 @@ import com.xiyu.bid.personnel.domain.port.PersonnelImportTaskRepository;
 import com.xiyu.bid.personnel.infrastructure.excel.PersonnelImportErrorReportGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
+/**
+ * 人员导入进度服务
+ *
+ * CO-469 第三轮修复：去掉 @ConditionalOnBean(StringRedisTemplate.class)
+ * 原因：@ConditionalOnBean 在 @Service 类（组件扫描）上不可靠，
+ *       Spring Boot 评估条件时 StringRedisTemplate 可能尚未注册，
+ *       导致 bean 不创建、Optional<PersonnelImportProgressService> 注入空值，
+ *       进而使 ImportPersonnelAppService.getProgress() 走 fallback 返回 "UNKNOWN"，
+ *       前端显示 "Redis not available"。
+ *
+ * 改用 Optional<StringRedisTemplate> 注入模式（与 ExportPersonnelAppService 一致），
+ * 在 Redis 不可用时通过 Optional.empty() 优雅降级。
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@ConditionalOnBean(StringRedisTemplate.class)
 class PersonnelImportProgressService {
 
     private static final String REDIS_KEY_PREFIX = "personnel:import:progress:";
     private static final Duration REDIS_TTL = Duration.ofDays(7);
 
-    private final StringRedisTemplate redisTemplate;
+    private final Optional<StringRedisTemplate> redisTemplate;
     private final ObjectMapper objectMapper;
     private final PersonnelImportTaskRepository importTaskRepository;
     private final PersonnelImportErrorReportGenerator errorReportGenerator;
@@ -43,7 +57,7 @@ class PersonnelImportProgressService {
             ImportProgress progress = new ImportProgress(
                     "PROCESSING", percent, message, 0, 0, 0
             );
-            redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(progress), REDIS_TTL);
+            setRedisValue(key, objectMapper.writeValueAsString(progress), REDIS_TTL);
         } catch (JsonProcessingException e) {
             log.warn("更新进度失败", e);
         }
@@ -51,15 +65,16 @@ class PersonnelImportProgressService {
 
     public ImportProgress getProgress(Long taskId) {
         String key = REDIS_KEY_PREFIX + taskId;
-        String progressJson = redisTemplate.opsForValue().get(key);
-        if (progressJson != null) {
+        Optional<String> progressJson = getRedisValue(key);
+        if (progressJson.isPresent()) {
             try {
-                return objectMapper.readValue(progressJson, ImportProgress.class);
+                return objectMapper.readValue(progressJson.orElseThrow(), ImportProgress.class);
             } catch (JsonProcessingException e) {
                 log.warn("解析进度JSON失败", e);
             }
         }
 
+        // DB fallback：Redis 未命中或不可用时，从数据库读取任务状态
         PersonnelImportTask task = importTaskRepository.findById(taskId).orElse(null);
         if (task != null) {
             return new ImportProgress(
@@ -77,16 +92,22 @@ class PersonnelImportProgressService {
 
     public void clearProgress(Long taskId) {
         String key = REDIS_KEY_PREFIX + taskId;
-        redisTemplate.delete(key);
+        redisTemplate.ifPresent(template -> {
+            try {
+                template.delete(key);
+            } catch (RuntimeException e) {
+                log.debug("Redis unavailable, skip deleting key={}: {}", key, e.getMessage());
+            }
+        });
     }
 
     public String saveErrorReport(Long taskId, byte[] reportBytes) {
         String fileName = "import_error_" + taskId + "_" + System.currentTimeMillis() + ".xlsx";
         String dir = "data/personnel-import-reports";
         try {
-            java.nio.file.Files.createDirectories(java.nio.file.Paths.get(dir));
-            java.nio.file.Path path = java.nio.file.Paths.get(dir, fileName);
-            java.nio.file.Files.write(path, reportBytes);
+            Files.createDirectories(Paths.get(dir));
+            java.nio.file.Path path = Paths.get(dir, fileName);
+            Files.write(path, reportBytes);
             return "/api/knowledge/personnel/import/" + taskId + "/report";
         } catch (IOException e) {
             log.error("保存错误报告失败", e);
@@ -121,7 +142,7 @@ class PersonnelImportProgressService {
         String key = "personnel:import:operator:" + taskId;
         try {
             OperatorInfo info = new OperatorInfo(operatorName, operatorId);
-            redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(info), REDIS_TTL);
+            setRedisValue(key, objectMapper.writeValueAsString(info), REDIS_TTL);
         } catch (JsonProcessingException e) {
             log.warn("存储操作人信息失败", e);
         }
@@ -130,15 +151,37 @@ class PersonnelImportProgressService {
     /** 获取操作人信息 */
     public OperatorInfo getOperatorInfo(Long taskId) {
         String key = "personnel:import:operator:" + taskId;
-        String json = redisTemplate.opsForValue().get(key);
-        if (json != null) {
+        Optional<String> json = getRedisValue(key);
+        if (json.isPresent()) {
             try {
-                return objectMapper.readValue(json, OperatorInfo.class);
+                return objectMapper.readValue(json.orElseThrow(), OperatorInfo.class);
             } catch (JsonProcessingException e) {
                 log.warn("解析操作人信息JSON失败", e);
             }
         }
         return null;
+    }
+
+    private Optional<String> getRedisValue(String key) {
+        return redisTemplate.flatMap(template -> {
+            try {
+                String value = template.opsForValue().get(key);
+                return value != null ? Optional.of(value) : Optional.empty();
+            } catch (RuntimeException e) {
+                log.debug("Redis unavailable, skip reading key={}: {}", key, e.getMessage());
+                return Optional.empty();
+            }
+        });
+    }
+
+    private void setRedisValue(String key, String value, Duration ttl) {
+        redisTemplate.ifPresent(template -> {
+            try {
+                template.opsForValue().set(key, value, ttl);
+            } catch (RuntimeException e) {
+                log.debug("Redis unavailable, skip writing key={}: {}", key, e.getMessage());
+            }
+        });
     }
 
     record ImportProgress(

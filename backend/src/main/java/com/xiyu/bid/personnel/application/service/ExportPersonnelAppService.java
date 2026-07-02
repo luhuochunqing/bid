@@ -77,9 +77,13 @@ public class ExportPersonnelAppService {
 
             completeExportTask(taskId, personnelList.size(), downloadPath);
 
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
+            // CO-469 第三轮：catch IOException + RuntimeException
+            // 原因：zipExporter.exportZip 可能抛 NPE（如 Collectors.toMap null key）、
+            //       IllegalStateException 等非 IOException，原 catch (IOException) 接不住
+            //       → 异步线程静默终止 → 进度永久卡在 70%
             log.error("导出任务执行失败: taskId={}", taskId, e);
-            failExportTask(taskId, e.getMessage());
+            failExportTask(taskId, e.getClass().getSimpleName() + ": " + e.getMessage());
         }
     }
 

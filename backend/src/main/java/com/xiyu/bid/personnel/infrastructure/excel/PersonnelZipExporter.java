@@ -38,8 +38,11 @@ public class PersonnelZipExporter {
     public byte[] exportZip(List<PersonnelDTO> personnelList) throws IOException {
         byte[] excelBytes = excelExporter.export(personnelList);
 
+        // CO-469 第三轮：跳过 employeeNumber=null 的员工，防止 Collectors.toMap 抛 NPE
+        // （Java 标准库 toMap 在 key 为 null 时抛 NPE，catch IOException 接不住 → 进度永久卡在 70%）
         Map<String, List<CertificateDTO>> certsByPersonnel = personnelList.stream()
                 .filter(p -> p.certificates() != null && !p.certificates().isEmpty())
+                .filter(p -> p.employeeNumber() != null)
                 .collect(Collectors.toMap(
                         PersonnelDTO::employeeNumber,
                         p -> p.certificates(),
