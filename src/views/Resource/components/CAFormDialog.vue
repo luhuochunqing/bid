@@ -60,7 +60,7 @@
         />
       </el-form-item>
 
-      <el-form-item label="CA 密码" prop="caPassword" :required="form.caType === 'ENTITY_CA'">
+      <el-form-item label="CA 密码" prop="caPassword" :required="form.caType === 'ENTITY_CA' && !isEdit">
         <div class="password-input-wrapper">
           <el-input
             v-model="form.caPassword"

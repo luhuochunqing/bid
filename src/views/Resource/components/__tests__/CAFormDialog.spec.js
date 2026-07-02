@@ -34,7 +34,10 @@ const elFormStub = {
 const stubs = {
   'el-dialog': { template: '<div class="el-dialog-stub"><slot /><slot name="footer" /></div>' },
   'el-form': elFormStub,
-  'el-form-item': { template: '<div class="el-form-item-stub"><slot /></div>' },
+  'el-form-item': {
+    props: ['required', 'prop', 'label'],
+    template: '<div class="el-form-item-stub"><slot /></div>'
+  },
   'el-select': { template: '<div class="el-select-stub"><slot /></div>' },
   'el-option': { template: '<div />' },
   'el-input': { template: '<input />' },
@@ -227,6 +230,30 @@ describe('CAFormDialog.vue — CO-436 编辑时密码不应回填脱敏值', () 
     const arr = Array.isArray(caPasswordRules) ? caPasswordRules : [caPasswordRules]
     const hasRequired = arr.some((r) => r?.required === true)
     expect(hasRequired).toBe(false)
+  })
+
+  // CO-435 回归：编辑模式 el-form-item :required 属性不应为 true
+  // 根因：:required="form.caType === 'ENTITY_CA'" 在编辑模式仍为 true，
+  // Element Plus 自动注入 required 规则（默认消息 "caPassword is required"）
+  it('编辑模式且 caType=ENTITY_CA 时，CA密码 form-item 的 required prop 应为 false', async () => {
+    const wrapper = await mountDialog({
+      ca: {
+        id: 1,
+        caType: 'ENTITY_CA',
+        sealType: 'OFFICIAL_SEAL',
+        caPassword: '******',
+        expiryDate: '2027-01-01',
+        custodianId: 1,
+        custodianName: '张三',
+        platformIds: []
+      }
+    })
+    await flushPromises()
+
+    const formItems = wrapper.findAllComponents('.el-form-item-stub')
+    const caPasswordItem = formItems.find((fi) => fi.props('prop') === 'caPassword')
+    expect(caPasswordItem).toBeTruthy()
+    expect(caPasswordItem.props('required')).toBe(false)
   })
 
   it('编辑时修改了密码，提交数据中 caPassword 应为新值', async () => {
