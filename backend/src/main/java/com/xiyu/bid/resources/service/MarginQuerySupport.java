@@ -163,7 +163,9 @@ final class MarginQuerySupport {
         if (has(f, "status")) {
             switch (f.get("status")) {
                 case "RETURNED":
-                    sql.append(" AND m.status = 'RETURNED'");
+                    // label() 把 'RETURNED' 和 'CANCELLED' 都标为"已退回"，
+                    // filter 语义必须与 label 对齐：两者都应被 RETURNED 筛选命中。
+                    sql.append(" AND m.status IN ('RETURNED','CANCELLED')");
                     break;
                 case "OVERDUE":
                     sql.append(" AND m.status"
@@ -171,9 +173,13 @@ final class MarginQuerySupport {
                             + " AND m.exp_return_date < NOW()");
                     break;
                 case "PENDING":
+                    // 派生表 init 分支（立项未缴占位行）的 exp_return_date 为 NULL，
+                    // MySQL 语义下 `NULL >= NOW()` 求值为 NULL（falsy）会漏掉这些行，
+                    // 因此显式加 `IS NULL` 把 init 分支行纳入 PENDING 筛选。
                     sql.append(" AND m.status"
                             + " NOT IN ('RETURNED','CANCELLED')"
-                            + " AND m.exp_return_date >= NOW()");
+                            + " AND (m.exp_return_date IS NULL"
+                            + " OR m.exp_return_date >= NOW())");
                     break;
                 default:
                     break;

@@ -607,5 +607,7 @@ sync-env.sh .
 保护分支（`main`、`agent/*-init` 等）跳过 rebase。
 
 <!-- SPECKIT START -->
-当前活跃 feature：`specs/024-preauthorize-unification/plan.md`（消除 @PreAuthorize hasAnyRole 双轨制技术债）
+当前活跃 feature：
+- `specs/024-preauthorize-unification/plan.md`（消除 @PreAuthorize hasAnyRole 双轨制技术债）
+- `specs/025-fix-margin-filter/plan.md`（保证金看板状态筛选修复 — 本次任务）
 <!-- SPECKIT END -->
