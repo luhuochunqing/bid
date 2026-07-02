@@ -48,7 +48,7 @@ public class TaskExtendedFieldAdminController {
 
     /** 列出全部扩展字段（含已停用），按 sortOrder 升序。 */
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     @Auditable(action = "READ", entityType = "TaskExtendedField",
             description = "列出全部任务扩展字段")
     public ResponseEntity<ApiResponse<List<TaskExtendedFieldAdminDTO>>> list() {
@@ -57,7 +57,7 @@ public class TaskExtendedFieldAdminController {
 
     /** 新建扩展字段。 */
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     @Auditable(action = "CREATE", entityType = "TaskExtendedField",
             description = "新增任务扩展字段")
     public ResponseEntity<ApiResponse<TaskExtendedFieldAdminDTO>> create(
@@ -68,7 +68,7 @@ public class TaskExtendedFieldAdminController {
 
     /** 更新扩展字段（PATCH 语义：null 字段保持原值；key 不可变）。 */
     @PutMapping("/{key}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     @Auditable(action = "UPDATE", entityType = "TaskExtendedField",
             description = "更新任务扩展字段")
     public ResponseEntity<ApiResponse<TaskExtendedFieldAdminDTO>> update(
@@ -80,7 +80,7 @@ public class TaskExtendedFieldAdminController {
 
     /** 停用扩展字段。 */
     @PatchMapping("/{key}/disable")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     @Auditable(action = "DISABLE", entityType = "TaskExtendedField",
             description = "停用任务扩展字段")
     public ResponseEntity<ApiResponse<TaskExtendedFieldAdminDTO>> disable(@PathVariable String key) {
@@ -89,7 +89,7 @@ public class TaskExtendedFieldAdminController {
 
     /** 启用扩展字段。 */
     @PatchMapping("/{key}/enable")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     @Auditable(action = "ENABLE", entityType = "TaskExtendedField",
             description = "启用任务扩展字段")
     public ResponseEntity<ApiResponse<TaskExtendedFieldAdminDTO>> enable(@PathVariable String key) {
@@ -98,7 +98,7 @@ public class TaskExtendedFieldAdminController {
 
     /** 批量重排（单事务）。 */
     @PatchMapping("/reorder")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     @Auditable(action = "REORDER", entityType = "TaskExtendedField",
             description = "批量重排任务扩展字段")
     public ResponseEntity<ApiResponse<List<TaskExtendedFieldAdminDTO>>> reorder(

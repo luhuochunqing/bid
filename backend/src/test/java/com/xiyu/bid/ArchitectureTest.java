@@ -961,7 +961,7 @@ public class ArchitectureTest {
      * <p>后续 P3 批次迁移每消除一处（方法级或类级），此常量递减 1；
      * 归零后删除规则 1，规则 2 升级为硬失败门禁。</p>
      */
-    private static final int EXPECTED_LEGACY_USE_COUNT = 201;
+    private static final int EXPECTED_LEGACY_USE_COUNT = 192;
 
     /**
      * 规则 1（主守卫，过渡期）：实际违规数（方法级 + 类级）必须等于 EXPECTED_LEGACY_USE_COUNT。
