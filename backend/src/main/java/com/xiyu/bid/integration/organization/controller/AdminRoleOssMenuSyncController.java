@@ -2,6 +2,7 @@ package com.xiyu.bid.integration.organization.controller;
 
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.dto.RoleDTO;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.integration.organization.application.OrganizationRoleMenuSyncAppService;
 import com.xiyu.bid.integration.organization.dto.SyncRoleMenuPermissionRequest;
 import jakarta.validation.Valid;
@@ -19,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/admin/roles")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
 public class AdminRoleOssMenuSyncController {
 
     private final OrganizationRoleMenuSyncAppService syncAppService;

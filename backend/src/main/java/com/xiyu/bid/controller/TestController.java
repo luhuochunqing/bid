@@ -5,6 +5,7 @@
 package com.xiyu.bid.controller;
 
 import com.xiyu.bid.dto.ApiResponse;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.context.annotation.Profile;
@@ -40,7 +41,7 @@ public class TestController {
     }
 
     @GetMapping("/admin/dashboard")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
     public ResponseEntity<ApiResponse<String>> adminDashboard() {
         return ResponseEntity.ok(
                 ApiResponse.success("Welcome to Admin Dashboard")

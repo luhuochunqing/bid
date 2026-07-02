@@ -5,6 +5,7 @@ import com.xiyu.bid.dto.CreateRoleRequest;
 import com.xiyu.bid.dto.RoleDTO;
 import com.xiyu.bid.dto.UpdateRoleRequest;
 import com.xiyu.bid.dto.UpdateRoleStatusRequest;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.service.RoleProfileService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +29,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/admin/roles")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
 public class AdminRoleController {
 
     private final RoleProfileService roleProfileService;

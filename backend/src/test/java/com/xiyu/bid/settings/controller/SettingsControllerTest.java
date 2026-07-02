@@ -53,7 +53,7 @@ class SettingsControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = {"ADMIN"})
+    @WithMockUser(username = "admin", authorities = {"ROLE_ADMIN", "system.admin"})
     void getSettings_AsAdmin_ShouldReturnCurrentSettings() throws Exception {
         mockMvc.perform(get("/api/settings"))
                 .andExpect(status().isOk())
@@ -68,7 +68,7 @@ class SettingsControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = {"ADMIN"})
+    @WithMockUser(username = "admin", authorities = {"ROLE_ADMIN", "system.admin"})
     void updateSettings_AsAdmin_ShouldPersistCriticalGovernanceSections() throws Exception {
         SettingsUpdateRequest request = SettingsUpdateRequest.builder()
                 .systemConfig(SettingsUpdateRequest.SystemConfigUpdate.builder()
@@ -143,7 +143,7 @@ class SettingsControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = {"MANAGER"})
+    @WithMockUser(username = "bidAdmin", authorities = {"ROLE_BIDADMIN", "dashboard", "settings"})
     void updateSettings_AsNonAdmin_ShouldReturnForbidden() throws Exception {
         SettingsUpdateRequest request = SettingsUpdateRequest.builder()
                 .systemConfig(SettingsUpdateRequest.SystemConfigUpdate.builder()
@@ -161,7 +161,7 @@ class SettingsControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = {"ADMIN"})
+    @WithMockUser(username = "admin", authorities = {"ROLE_ADMIN", "system.admin"})
     void testAiModel_AsAdmin_ShouldReturnConnectionStatus() throws Exception {
         AiModelTestRequest request = AiModelTestRequest.builder()
                 .providerCode("deepseek")
@@ -187,7 +187,7 @@ class SettingsControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = {"ADMIN"})
+    @WithMockUser(username = "admin", authorities = {"ROLE_ADMIN", "system.admin"})
     void testAiModel_WhenProviderFails_ShouldReturnFailedStatus() throws Exception {
         doThrow(new RuntimeException("invalid api key")).when(openAiCompatibleClient).testConnection(any(AiProviderRuntimeConfig.class));
 
@@ -208,7 +208,7 @@ class SettingsControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = {"ADMIN"})
+    @WithMockUser(username = "admin", authorities = {"ROLE_ADMIN", "system.admin"})
     void testAiModel_WhenDeepSeekBalanceInsufficient_ShouldKeepActionableMessage() throws Exception {
         String actionableMessage = "DeepSeek API 余额不足，请在 DeepSeek 控制台充值，或更换有余额的 API Key 后再测试。";
         doThrow(new RuntimeException(actionableMessage, new RuntimeException("402 Payment Required")))
@@ -232,7 +232,7 @@ class SettingsControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = {"ADMIN"})
+    @WithMockUser(username = "admin", authorities = {"ROLE_ADMIN", "system.admin"})
     void testAiModel_WithUntrustedHost_ShouldReturnFailedWithoutCallingProvider() throws Exception {
         AiModelTestRequest request = AiModelTestRequest.builder()
                 .providerCode("openai")
@@ -253,7 +253,7 @@ class SettingsControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = {"MANAGER"})
+    @WithMockUser(username = "bidAdmin", authorities = {"ROLE_BIDADMIN", "dashboard", "settings"})
     void testAiModel_AsNonAdmin_ShouldReturnForbidden() throws Exception {
         mockMvc.perform(post("/api/settings/ai-models/test")
                         .contentType("application/json")

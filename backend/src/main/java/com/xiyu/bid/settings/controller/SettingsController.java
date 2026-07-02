@@ -1,6 +1,7 @@
 package com.xiyu.bid.settings.controller;
 
 import com.xiyu.bid.dto.ApiResponse;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.settings.dto.AiModelTestRequest;
 import com.xiyu.bid.settings.dto.AiModelTestResponse;
 import com.xiyu.bid.settings.dto.SettingsResponse;
@@ -31,19 +32,19 @@ public class SettingsController {
     private final SystemInfoService systemInfoService;
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
     public ResponseEntity<ApiResponse<SettingsResponse>> getSettings() {
         return ResponseEntity.ok(ApiResponse.success(settingsService.getSettings()));
     }
 
     @PutMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
     public ResponseEntity<ApiResponse<SettingsResponse>> updateSettings(@RequestBody SettingsUpdateRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Settings updated successfully", settingsService.updateSettings(request)));
     }
 
     @PostMapping("/ai-models/test")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
     public ResponseEntity<ApiResponse<AiModelTestResponse>> testAiModel(@RequestBody AiModelTestRequest request) {
         return ResponseEntity.ok(ApiResponse.success("AI model connection tested", aiModelConnectionTestService.testConnection(request)));
     }
@@ -55,7 +56,7 @@ public class SettingsController {
     }
 
     @GetMapping("/system-info")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
     public ResponseEntity<ApiResponse<SystemInfoResponse>> getSystemInfo() {
         return ResponseEntity.ok(ApiResponse.success(systemInfoService.getSystemInfo()));
     }

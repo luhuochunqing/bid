@@ -1,6 +1,7 @@
 package com.xiyu.bid.integration.controller;
 
 import com.xiyu.bid.dto.ApiResponse;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.integration.application.WeComIntegrationAppService;
 import com.xiyu.bid.integration.dto.WeComConnectivityResponse;
 import com.xiyu.bid.integration.dto.WeComIntegrationRequest;
@@ -29,7 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/admin/integrations/wecom")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
 @RequiredArgsConstructor
 public class WeComIntegrationController {
 

@@ -5,6 +5,7 @@
 package com.xiyu.bid.fees.controller;
 
 import com.xiyu.bid.dto.ApiResponse;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.fees.dto.FeeCreateRequest;
 import com.xiyu.bid.fees.dto.FeeDTO;
 import com.xiyu.bid.fees.dto.FeeStatisticsDTO;
@@ -134,7 +135,7 @@ public class FeeController {
      * 删除费用
      */
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
     public ResponseEntity<ApiResponse<Void>> deleteFee(@PathVariable Long id) {
         log.info("DELETE /api/fees/{} - Deleting fee", id);
         feeService.deleteFee(id);

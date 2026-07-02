@@ -143,7 +143,7 @@ class FormDefinitionIntegrationTest {
 
         @Test
         @DisplayName("GET /api/form-definitions/{scope}/active → 200 返回 schema")
-        @WithMockUser(username = "form-admin", roles = {"ADMIN"})
+        @WithMockUser(username = "form-admin", authorities = {"ROLE_ADMIN", "system.admin"})
         void getActiveForm_returnsSchema() throws Exception {
             mockMvc.perform(get("/api/form-definitions/tender.entry/active"))
                     .andExpect(status().isOk())
@@ -157,7 +157,7 @@ class FormDefinitionIntegrationTest {
 
         @Test
         @DisplayName("GET /api/form-definitions/project.basic/active → 200")
-        @WithMockUser(username = "form-admin", roles = {"ADMIN"})
+        @WithMockUser(username = "form-admin", authorities = {"ROLE_ADMIN", "system.admin"})
         void getActiveForm_projectBasic() throws Exception {
             mockMvc.perform(get("/api/form-definitions/project.basic/active"))
                     .andExpect(status().isOk())
@@ -168,7 +168,7 @@ class FormDefinitionIntegrationTest {
 
         @Test
         @DisplayName("GET /api/form-definitions/nonexistent/active → 404")
-        @WithMockUser(username = "form-admin", roles = {"ADMIN"})
+        @WithMockUser(username = "form-admin", authorities = {"ROLE_ADMIN", "system.admin"})
         void getActiveForm_notFound() throws Exception {
             mockMvc.perform(get("/api/form-definitions/nonexistent.scope/active"))
                     .andExpect(status().isNotFound())
@@ -178,7 +178,7 @@ class FormDefinitionIntegrationTest {
 
         @Test
         @DisplayName("POST /api/form-definitions/{scope}/validate - valid data → 200 valid=true")
-        @WithMockUser(username = "form-admin", roles = {"ADMIN"})
+        @WithMockUser(username = "form-admin", authorities = {"ROLE_ADMIN", "system.admin"})
         void validateForm_validData() throws Exception {
             Map<String, Object> formData = Map.of(
                     "title", "测试标讯",
@@ -196,7 +196,7 @@ class FormDefinitionIntegrationTest {
 
         @Test
         @DisplayName("POST /api/form-definitions/{scope}/validate - missing required → 200 valid=false")
-        @WithMockUser(username = "form-admin", roles = {"ADMIN"})
+        @WithMockUser(username = "form-admin", authorities = {"ROLE_ADMIN", "system.admin"})
         void validateForm_missingRequired() throws Exception {
             Map<String, Object> formData = Map.of(
                     "source", "bidding"  // title and deadline missing (both required=true)
@@ -214,7 +214,7 @@ class FormDefinitionIntegrationTest {
 
         @Test
         @DisplayName("POST /api/form-definitions/{scope}/submit → 200")
-        @WithMockUser(username = "form-admin", roles = {"ADMIN"})
+        @WithMockUser(username = "form-admin", authorities = {"ROLE_ADMIN", "system.admin"})
         void submitForm_success() throws Exception {
             Map<String, Object> formData = Map.of(
                     "title", "测试标讯",
@@ -232,7 +232,7 @@ class FormDefinitionIntegrationTest {
 
         @Test
         @DisplayName("POST /api/form-definitions/{scope}/submit - validation failure → 400")
-        @WithMockUser(username = "form-admin", roles = {"ADMIN"})
+        @WithMockUser(username = "form-admin", authorities = {"ROLE_ADMIN", "system.admin"})
         void submitForm_validationFailure() throws Exception {
             Map<String, Object> formData = Map.of(
                     "source", "bidding"  // title missing (required=true), deadline also required
@@ -261,7 +261,7 @@ class FormDefinitionIntegrationTest {
 
         @Test
         @DisplayName("GET /api/admin/form-definitions → 200 paginated list")
-        @WithMockUser(username = "form-admin", roles = {"ADMIN"})
+        @WithMockUser(username = "form-admin", authorities = {"ROLE_ADMIN", "system.admin"})
         void listDefinitions_paginated() throws Exception {
             mockMvc.perform(get("/api/admin/form-definitions"))
                     .andExpect(status().isOk())
@@ -273,7 +273,7 @@ class FormDefinitionIntegrationTest {
 
         @Test
         @DisplayName("POST /api/admin/form-definitions → 201 creates definition")
-        @WithMockUser(username = "form-admin", roles = {"ADMIN"})
+        @WithMockUser(username = "form-admin", authorities = {"ROLE_ADMIN", "system.admin"})
         void createDefinition_201() throws Exception {
             String body = """
                 {
@@ -296,7 +296,7 @@ class FormDefinitionIntegrationTest {
 
         @Test
         @DisplayName("POST /api/admin/form-definitions → 400 duplicate scope")
-        @WithMockUser(username = "form-admin", roles = {"ADMIN"})
+        @WithMockUser(username = "form-admin", authorities = {"ROLE_ADMIN", "system.admin"})
         void createDefinition_duplicateScope() throws Exception {
             String body = """
                 {
@@ -316,7 +316,7 @@ class FormDefinitionIntegrationTest {
 
         @Test
         @DisplayName("POST /api/admin/form-definitions/{id}/publish → 200, version incremented")
-        @WithMockUser(username = "form-admin", roles = {"ADMIN"})
+        @WithMockUser(username = "form-admin", authorities = {"ROLE_ADMIN", "system.admin"})
         void publishDefinition_incrementsVersion() throws Exception {
             // Create first
             MvcResult createResult = mockMvc.perform(post("/api/admin/form-definitions")
@@ -345,7 +345,7 @@ class FormDefinitionIntegrationTest {
 
         @Test
         @DisplayName("DELETE /api/admin/form-definitions/{id} → 200")
-        @WithMockUser(username = "form-admin", roles = {"ADMIN"})
+        @WithMockUser(username = "form-admin", authorities = {"ROLE_ADMIN", "system.admin"})
         void deleteDefinition_200() throws Exception {
             // Create first
             MvcResult createResult = mockMvc.perform(post("/api/admin/form-definitions")
@@ -388,7 +388,7 @@ class FormDefinitionIntegrationTest {
 
         @Test
         @DisplayName("tender.entry 表单包含 title, source, budget 等字段")
-        @WithMockUser(username = "form-admin", roles = {"ADMIN"})
+        @WithMockUser(username = "form-admin", authorities = {"ROLE_ADMIN", "system.admin"})
         void tenderEntry_hasExpectedFields() throws Exception {
             MvcResult result = mockMvc.perform(get("/api/form-definitions/tender.entry/active"))
                     .andExpect(status().isOk())
@@ -401,7 +401,7 @@ class FormDefinitionIntegrationTest {
 
         @Test
         @DisplayName("4 个 scope 均可用")
-        @WithMockUser(username = "form-admin", roles = {"ADMIN"})
+        @WithMockUser(username = "form-admin", authorities = {"ROLE_ADMIN", "system.admin"})
         void allFourScopesAvailable() throws Exception {
             String[] scopes = {"tender.entry", "project.basic", "resource.expense", "knowledge.case"};
             for (String scope : scopes) {

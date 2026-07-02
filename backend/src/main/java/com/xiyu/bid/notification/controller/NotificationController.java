@@ -4,6 +4,7 @@
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.notification.controller;
 
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.notification.core.DispatchResult;
 import com.xiyu.bid.notification.core.ReadResult;
@@ -95,7 +96,7 @@ public class NotificationController {
     }
 
     @PostMapping("/admin/notifications")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
     public ResponseEntity<Map<String, Object>> createNotification(
         @Valid @RequestBody CreateNotificationRequest request,
         @AuthenticationPrincipal UserDetails userDetails) {

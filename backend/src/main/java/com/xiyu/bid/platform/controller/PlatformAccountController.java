@@ -7,6 +7,7 @@ package com.xiyu.bid.platform.controller;
 
 import com.xiyu.bid.dto.ApiResponse;
 import java.util.List;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.platform.dto.BorrowAccountRequest;
 import com.xiyu.bid.platform.dto.PasswordRevealResponse;
@@ -96,7 +97,7 @@ public class PlatformAccountController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
     public ResponseEntity<ApiResponse<Void>> deleteAccount(
             @PathVariable Long id,
             @AuthenticationPrincipal UserDetails currentUser) {
