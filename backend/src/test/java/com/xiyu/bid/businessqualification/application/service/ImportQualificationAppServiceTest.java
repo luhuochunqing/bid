@@ -43,14 +43,54 @@ class ImportQualificationAppServiceTest {
 
     /** 构造包含表头 + 数据行的最小 xlsx，返回 multipart file */
     private MultipartFile buildExcel(String[][] body) throws Exception {
+        return buildExcelInternal(body, null);
+    }
+
+    /**
+     * 构造 xlsx，支持指定某些列为数字类型。
+     * numericColumns 为列索引集合（0-based），对应单元格用 setCellValue(double) 写入数字。
+     */
+    private MultipartFile buildExcel(String[][] body, java.util.Set<Integer> numericColumns) throws Exception {
+        return buildExcelInternal(body, numericColumns);
+    }
+
+    private MultipartFile buildExcelInternal(String[][] body, java.util.Set<Integer> numericColumns) throws Exception {
+        return buildExcelInternal(body, numericColumns, null, null);
+    }
+
+    /**
+     * 构造 xlsx，支持指定某些列为数字类型并设置单元格格式。
+     */
+    private MultipartFile buildExcelInternal(
+            String[][] body,
+            java.util.Set<Integer> numericColumns,
+            Integer formatColumn,
+            String formatPattern
+    ) throws Exception {
         try (var wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sh = wb.createSheet("资质证书");
             Row hr = sh.createRow(0);
             for (int i = 0; i < HEADERS.length; i++) hr.createCell(i).setCellValue(HEADERS[i]);
+            var dataFormat = wb.createDataFormat();
             for (int r = 0; r < body.length; r++) {
                 Row row = sh.createRow(r + 1);
                 for (int c = 0; c < HEADERS.length; c++) {
-                    row.createCell(c).setCellValue(body[r][c] == null ? "" : body[r][c]);
+                    String value = body[r][c] == null ? "" : body[r][c];
+                    var cell = row.createCell(c);
+                    if (numericColumns != null && numericColumns.contains(c)) {
+                        try {
+                            cell.setCellValue(Double.parseDouble(value));
+                        } catch (NumberFormatException e) {
+                            cell.setCellValue(value);
+                        }
+                    } else {
+                        cell.setCellValue(value);
+                    }
+                    if (formatColumn != null && formatColumn == c && formatPattern != null) {
+                        var style = wb.createCellStyle();
+                        style.setDataFormat(dataFormat.getFormat(formatPattern));
+                        cell.setCellStyle(style);
+                    }
                 }
             }
             wb.write(out);
@@ -58,6 +98,10 @@ class ImportQualificationAppServiceTest {
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     out.toByteArray());
         }
+    }
+
+    private MultipartFile buildExcelWithNumericFormat(String[][] body, int column, String formatPattern) throws Exception {
+        return buildExcelInternal(body, java.util.Set.of(column), column, formatPattern);
     }
 
     @Test
@@ -211,5 +255,65 @@ class ImportQualificationAppServiceTest {
 
         assertThat(summary.failed()).isEqualTo(1);
         verify(createQualificationAppService, never()).create(any());
+    }
+
+    /**
+     * CO-470 后续：证书编号在 Excel 中被识别为数字时，DataFormatter 会格式化为 20260630.0，
+     * 导致文件名前缀 QUAL_20260630_ 与期望前缀 QUAL_20260630.0_ 不匹配。
+     */
+    @Test
+    void importFromExcel_NumericCertificateNo_ShouldStillMatchAttachmentName() throws Exception {
+        String certNo = "20260630";
+        MultipartFile file = buildExcel(new String[][]{{
+                "测试", "FIRST", "科技局", certNo, "2024-01-15", "2027-12-31",
+                "代理A", "13800138000", "范围", "提醒", "QUAL_" + certNo + "_03_文件 2.docx"
+        }}, java.util.Set.of(3));
+        when(qualificationJpaRepository.existsByCertificateNo(certNo)).thenReturn(false);
+
+        var summary = importService.importFromExcel(file, "tester");
+
+        assertThat(summary.success()).isEqualTo(1);
+        assertThat(summary.failed()).isZero();
+        verify(createQualificationAppService, times(1)).create(any(QualificationUpsertCommand.class));
+    }
+
+    /**
+     * CO-470 后续：证书编号单元格格式化为带两位小数时，DataFormatter 输出 20260630.00，
+     * 附件文件名前缀 QUAL_20260630_ 与期望前缀 QUAL_20260630.00_ 不匹配。
+     */
+    @Test
+    void importFromExcel_NumericCertificateNoWithTwoDecimals_ShouldImportSuccessfully() throws Exception {
+        String certNo = "20260630";
+        MultipartFile file = buildExcelWithNumericFormat(new String[][]{{
+                "测试", "FIRST", "科技局", certNo, "2024-01-15", "2027-12-31",
+                "代理A", "13800138000", "范围", "提醒", "QUAL_" + certNo + "_03_文件 2.docx"
+        }}, 3, "0.00");
+        when(qualificationJpaRepository.existsByCertificateNo(certNo)).thenReturn(false);
+
+        var summary = importService.importFromExcel(file, "tester");
+
+        assertThat(summary.success()).isEqualTo(1);
+        assertThat(summary.failed()).isZero();
+        verify(createQualificationAppService, times(1)).create(any(QualificationUpsertCommand.class));
+    }
+
+    /**
+     * CO-470 后续：证书编号单元格格式化为千分位时，DataFormatter 输出 20,260,630，
+     * 附件文件名前缀 QUAL_20260630_ 与期望前缀 QUAL_20,260,630_ 不匹配。
+     */
+    @Test
+    void importFromExcel_NumericCertificateNoWithThousandsSeparator_ShouldImportSuccessfully() throws Exception {
+        String certNo = "20260630";
+        MultipartFile file = buildExcelWithNumericFormat(new String[][]{{
+                "测试", "FIRST", "科技局", certNo, "2024-01-15", "2027-12-31",
+                "代理A", "13800138000", "范围", "提醒", "QUAL_" + certNo + "_03_文件 2.docx"
+        }}, 3, "#,##0");
+        when(qualificationJpaRepository.existsByCertificateNo(certNo)).thenReturn(false);
+
+        var summary = importService.importFromExcel(file, "tester");
+
+        assertThat(summary.success()).isEqualTo(1);
+        assertThat(summary.failed()).isZero();
+        verify(createQualificationAppService, times(1)).create(any(QualificationUpsertCommand.class));
     }
 }

@@ -200,7 +200,7 @@ if (rows.isEmpty()) {
             String name = readCell(row.getCell(0), formatter, evaluator);
             String level = readCell(row.getCell(1), formatter, evaluator);
             String issuer = readCell(row.getCell(2), formatter, evaluator);
-            String certNo = readCell(row.getCell(3), formatter, evaluator);
+            String certNo = readCertificateNo(row.getCell(3));
             String issueDate = readCell(row.getCell(4), formatter, evaluator);
             String expiryDate = readCell(row.getCell(5), formatter, evaluator);
             String agency = readCell(row.getCell(6), formatter, evaluator);
@@ -221,6 +221,24 @@ if (rows.isEmpty()) {
             return formatter.formatCellValue(cell, evaluator);
         }
         return formatter.formatCellValue(cell);
+    }
+
+    /**
+     * 读取证书编号原始值，避免 Excel 数字格式（如 0.00、#,##0）影响业务标识符。
+     * 数字类型按原始 double 值处理：整数值转为 long 字符串，小数值保留原样。
+     */
+    private static String readCertificateNo(Cell cell) {
+        if (cell == null) return null;
+        return switch (cell.getCellType()) {
+            case NUMERIC -> formatNumericCertificateNo(cell.getNumericCellValue());
+            case FORMULA -> formatNumericCertificateNo(cell.getNumericCellValue());
+            case STRING -> cell.getStringCellValue();
+            default -> null;
+        };
+    }
+
+    private static String formatNumericCertificateNo(double value) {
+        return value == Math.rint(value) ? String.valueOf((long) value) : String.valueOf(value);
     }
 
     /* ---------------- helpers ---------------- */
