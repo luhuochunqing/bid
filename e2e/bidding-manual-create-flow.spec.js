@@ -46,6 +46,9 @@ async function fillAndSave(page, namePrefix) {
   await page.locator('.el-select').first().click(); await clickDropdownItem(page)
   await page.locator('.el-select').nth(1).click(); await clickDropdownItem(page)
   await page.locator('.el-select').nth(2).click(); await clickDropdownItem(page)
+  // 选择项目类型（必填，通过 label 定位避免索引漂移）
+  const projectTypeItem = page.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label').filter({ hasText: '项目类型' }) })
+  await projectTypeItem.locator('.el-select').click(); await clickDropdownItem(page)
   await page.fill('input[placeholder="联系人姓名"]', '张测试')
   await page.fill('input[placeholder="手机号"]', '13800000000')
   const ok = await setFormDates(page, new Date(Date.now() + 10 * 86400000), new Date(Date.now() + 14 * 86400000))
@@ -57,7 +60,6 @@ async function fillAndSave(page, namePrefix) {
     (response) => response.url().includes('/api/tenders') && response.status() === 200,
     { timeout: 10000 }
   ).catch(() => {})
-  await page.waitForLoadState('networkidle')
   return bar
 }
 
@@ -77,7 +79,6 @@ async function assignTender(page, bar) {
     (response) => response.url().includes('/api/tenders') && response.status() === 200,
     { timeout: 10000 }
   ).catch(() => {})
-  await page.waitForLoadState('networkidle')
 }
 
 test.describe('人工录入标讯全流程 — 按钮状态机', () => {

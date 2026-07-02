@@ -92,6 +92,11 @@ test.describe('§4.2.3 人工录入', () => {
     await prioritySelect.click()
     await page.locator('.el-select-dropdown__item').filter({ hasText: 'A 级' }).first().click()
 
+    // 选择项目类型（必填，通过 label 定位避免索引漂移）
+    const projectTypeItem = page.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label').filter({ hasText: '项目类型' }) })
+    await projectTypeItem.locator('.el-select').click()
+    await page.locator('.el-select-dropdown__item').filter({ hasText: '工业品' }).first().click()
+
     // 填写日期字段
     const deadlineInput = page.locator('input[placeholder="报名截止时间"]')
     await deadlineInput.click()
@@ -163,6 +168,11 @@ test.describe('§4.2.3 人工录入', () => {
     const selects1 = page.locator('.el-select')
     await selects1.first().click()
     await page.locator('.el-select-dropdown__item').filter({ hasText: '北京' }).first().click()
+
+    // 选择项目类型（必填，通过 label 定位避免索引漂移）
+    const projectTypeItem = page.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label').filter({ hasText: '项目类型' }) })
+    await projectTypeItem.locator('.el-select').click()
+    await page.locator('.el-select-dropdown__item').filter({ hasText: '工业品' }).first().click()
 
     // 填写日期
     const deadlineInput = page.locator('input[placeholder="报名截止时间"]')
