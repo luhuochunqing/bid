@@ -34,6 +34,7 @@
           @add-deliverable="ctx.handleAddDeliverable"
           @remove-deliverable="ctx.handleRemoveDeliverable"
           @submit-to-document="ctx.handleSubmitToDocument"
+          @submit-review="ctx.handleSubmitReview"
         />
         <ScoreParseDrawer ref="scoreParseRef" :project-id="ctx.project?.id" />
         <TaskDecomposeDialog ref="taskDecomposeRef" :project-id="ctx.project?.id" />
