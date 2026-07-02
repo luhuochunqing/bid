@@ -19,10 +19,11 @@ public record Education(
         if (schoolName == null || schoolName.isBlank()) {
             throw new IllegalArgumentException("学校名称不能为空");
         }
-        if (startDate == null || endDate == null) {
-            throw new IllegalArgumentException("入学时间和毕业时间不能为空");
+        if (endDate == null) {
+            throw new IllegalArgumentException("毕业时间不能为空");
         }
-        if (endDate.isBefore(startDate)) {
+        // 入学时间为选填项；仅在两者都存在时校验先后顺序
+        if (startDate != null && endDate.isBefore(startDate)) {
             throw new IllegalArgumentException("毕业时间不能早于入学时间");
         }
     }

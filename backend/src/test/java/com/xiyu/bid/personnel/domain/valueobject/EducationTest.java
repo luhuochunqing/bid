@@ -46,18 +46,24 @@ class EducationTest {
     }
 
     @Test
-    void shouldRejectNullDates() {
-        assertThatThrownBy(() -> new Education(
-                "清华大学", null, LocalDate.of(2019, 6, 30),
-                "本科", "全日制", "计算机", false
-        )).isInstanceOf(IllegalArgumentException.class)
-          .hasMessage("入学时间和毕业时间不能为空");
-
+    void shouldRejectNullEndDate() {
+        // 毕业时间为必填项
         assertThatThrownBy(() -> new Education(
                 "清华大学", LocalDate.of(2015, 9, 1), null,
                 "本科", "全日制", "计算机", false
         )).isInstanceOf(IllegalArgumentException.class)
-          .hasMessage("入学时间和毕业时间不能为空");
+          .hasMessage("毕业时间不能为空");
+    }
+
+    @Test
+    void shouldAllowNullStartDate() {
+        // 入学时间为选填项，允许为空
+        var edu = new Education(
+                "清华大学", null, LocalDate.of(2019, 6, 30),
+                "本科", "全日制", "计算机科学与技术", false
+        );
+        assertThat(edu.startDate()).isNull();
+        assertThat(edu.endDate()).isEqualTo(LocalDate.of(2019, 6, 30));
     }
 
     @Test
