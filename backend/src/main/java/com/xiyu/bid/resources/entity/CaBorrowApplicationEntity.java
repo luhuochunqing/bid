@@ -25,6 +25,13 @@ public class CaBorrowApplicationEntity {
     @Column(name = "applicant_name", length = 100, nullable = false)
     private String applicantName;
 
+    /**
+     * CO-465: 申请人工号。新建申请时存 {@code user.getDisplayEmployeeNumber()}
+     * （employee_number 为空时回退到 username，与统一人员格式化器契约一致）。
+     */
+    @Column(name = "applicant_employee_number", length = 100)
+    private String applicantEmployeeNumber;
+
     @Column(length = 500, nullable = false)
     private String purpose;
 

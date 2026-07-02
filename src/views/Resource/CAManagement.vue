@@ -245,7 +245,7 @@
               <template #default="{ row }">{{ row.caName || `CA#${row.caCertificateId}` }}</template>
             </el-table-column>
             <el-table-column label="申请人" min-width="100">
-              <template #default="{ row }">{{ row.applicantName || '-' }}</template>
+              <template #default="{ row }">{{ formatDisplayName(row.applicantName, row.applicantEmployeeNumber) || '-' }}</template>
             </el-table-column>
             <el-table-column label="使用目的" min-width="160" show-overflow-tooltip>
               <template #default="{ row }">{{ row.purpose || '-' }}</template>

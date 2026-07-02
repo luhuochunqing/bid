@@ -92,7 +92,24 @@ vi.mock('@/api/modules/ca.js', () => ({
     getBorrowApplications: vi.fn().mockResolvedValue({ data: [] }),
     getOperationEvents: vi.fn().mockResolvedValue({ data: [] }),
     getMyBorrowApplications: vi.fn().mockResolvedValue({ data: [] }),
-    getMyApprovals: vi.fn().mockResolvedValue({ data: [] }),
+    // CO-465: 我的审批-申请人需渲染"姓名（工号）"
+    getMyApprovals: vi.fn().mockResolvedValue({
+      data: [
+        {
+          id: 901,
+          caCertificateId: 1,
+          caName: '政采云实体CA',
+          applicantId: 'user001',
+          applicantName: '王五',
+          applicantEmployeeNumber: 'EMP20260001',
+          purpose: '项目投标用章',
+          projectName: '测试项目',
+          borrowDurationType: 'SHORT_TERM',
+          status: 'PENDING_APPROVAL',
+          createdAt: '2026-07-02 10:00:00'
+        }
+      ]
+    }),
     borrow: vi.fn().mockResolvedValue({ success: true }),
     returnCa: vi.fn().mockResolvedValue({ success: true }),
     deactivate: vi.fn().mockResolvedValue({ success: true })
@@ -493,6 +510,21 @@ describe('CAManagement — CO-459 借用申请/审批列表字段', () => {
     expect(html).toContain('盖章承诺书')
     expect(html).toContain('创建时间')
     expect(html).not.toContain('借用时间')
+  })
+
+  // CO-465: "我的审批"列表加载后，申请人数据需带工号字段供 formatDisplayName 渲染"姓名（工号）"
+  it('"我的审批" 加载数据带 applicantEmployeeNumber 字段', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    // tab-change 事件触发 loadMyApprovals
+    await wrapper.vm.onTabChange('myApprovals')
+    await flushPromises()
+
+    const list = wrapper.vm.myApprovals
+    expect(list.length).toBeGreaterThan(0)
+    expect(list[0].applicantName).toBe('王五')
+    expect(list[0].applicantEmployeeNumber).toBe('EMP20260001')
   })
 })
 

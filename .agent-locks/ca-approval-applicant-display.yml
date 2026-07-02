@@ -1,0 +1,15 @@
+version: 1
+task: "ca-approval-applicant-display"
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql/V1128__add_applicant_employee_number_to_ca_borrow_applications.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/gemini/ca-approval-applicant-display"
+    expiresAt: "2026-07-03T08:19:52.386Z"
+    reason: "CO-465: 新增 V1128 迁移脚本，加 applicant_employee_number 列 + 回填"
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1128__add_applicant_employee_number_to_ca_borrow_applications.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/gemini/ca-approval-applicant-display"
+    expiresAt: "2026-07-03T08:19:52.632Z"
+    reason: "CO-465: V1128 回滚脚本"

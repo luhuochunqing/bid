@@ -136,6 +136,21 @@ describe('normalizeBorrowApplication — 基本形态回归', () => {
     const result = normalizeBorrowApplication(input)
     expect(result.caName).toBe('')
   })
+
+  // CO-465: 申请人字段必须同时输出 applicantName + applicantEmployeeNumber，
+  // 否则前端 formatDisplayName 渲染会缺少工号。
+  it('正确映射 applicantEmployeeNumber 字段（CO-465）', () => {
+    const input = { id: 1, applicantName: '王五', applicantEmployeeNumber: 'EMP20260001' }
+    const result = normalizeBorrowApplication(input)
+    expect(result.applicantName).toBe('王五')
+    expect(result.applicantEmployeeNumber).toBe('EMP20260001')
+  })
+
+  it('applicantEmployeeNumber 为空时返回空字符串（CO-465 兼容）', () => {
+    const input = { id: 1, applicantName: '李四' }
+    const result = normalizeBorrowApplication(input)
+    expect(result.applicantEmployeeNumber).toBe('')
+  })
 })
 
 describe('normalizeOperationEvent — 基本形态回归', () => {

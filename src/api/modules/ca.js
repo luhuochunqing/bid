@@ -126,6 +126,8 @@ export function normalizeBorrowApplication(item) {
     caName: item.caName || item.caCertificateName || '',
     applicantId: item.applicantId || '',
     applicantName: item.applicantName || '',
+    // CO-465: 后端已新增 applicant_employee_number 字段，配合 formatDisplayName 渲染"姓名（工号）"
+    applicantEmployeeNumber: item.applicantEmployeeNumber || '',
     purpose: item.purpose || '',
     projectId: item.projectId || '',
     projectName: item.projectName || '',

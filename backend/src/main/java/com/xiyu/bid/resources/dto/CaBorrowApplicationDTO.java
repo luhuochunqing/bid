@@ -19,6 +19,8 @@ public class CaBorrowApplicationDTO {
     private String caName;
     private Long applicantId;
     private String applicantName;
+    /** CO-465: 申请人工号，供前端 formatDisplayName 渲染"姓名（工号）"。 */
+    private String applicantEmployeeNumber;
     private String purpose;
     private Long projectId;
     private String projectName;
@@ -51,6 +53,7 @@ public class CaBorrowApplicationDTO {
                 .caName(caName)
                 .applicantId(entity.getApplicantId())
                 .applicantName(entity.getApplicantName())
+                .applicantEmployeeNumber(entity.getApplicantEmployeeNumber())
                 .purpose(entity.getPurpose())
                 .projectId(entity.getProjectId())
                 .projectName(entity.getProjectName())

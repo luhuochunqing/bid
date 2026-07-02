@@ -50,15 +50,7 @@ public class CaBorrowService {
         CaCertificateEntity cert = certificateRepository.findById(request.getCaCertificateId())
                 .orElseThrow(() -> new CaBusinessException("CA证书不存在"));
 
-        if (!"ENTITY_CA".equals(cert.getCaType())) {
-            throw new CaBusinessException("电子CA无需借用");
-        }
-        if (!CaBorrowStatus.IN_STOCK.name().equals(cert.getBorrowStatus())) {
-            throw new CaBusinessException("CA当前不可借用，状态: " + cert.getBorrowStatus());
-        }
-        if ("EXPIRED".equals(cert.getStatus())) {
-            throw new CaBusinessException("CA已过期，无法借用");
-        }
+        CaBorrowPermissionChecker.validateBorrowable(cert);
         // CO-476: 同一申请人对同一 CA 不允许重复发起待审批申请
         if (borrowRepository.existsByCaCertificateIdAndApplicantIdAndStatus(
                 request.getCaCertificateId(), user.getId(), BorrowStatus.PENDING_APPROVAL.name())) {
@@ -67,7 +59,10 @@ public class CaBorrowService {
         CaBorrowApplicationEntity app = CaBorrowApplicationEntity.builder()
                 .caCertificateId(request.getCaCertificateId())
                 .applicantId(user.getId())
-                .applicantName(user.getUsername())
+                // CO-465: applicant_name 必须存中文姓名（fullName），不是登录账号（username）。
+                // applicant_employee_number 同步存工号，供前端 formatDisplayName 渲染"姓名（工号）"。
+                .applicantName(user.getFullName())
+                .applicantEmployeeNumber(user.getDisplayEmployeeNumber())
                 .purpose(request.getPurpose())
                 .projectId(request.getProjectId())
                 .projectName(request.getProjectName())
@@ -84,7 +79,7 @@ public class CaBorrowService {
                 .applicationId(app.getId())
                 .eventType("SUBMITTED")
                 .actorId(user.getId())
-                .actorName(user.getUsername())
+                .actorName(user.getFullName())
                 .statusAfter(BorrowStatus.PENDING_APPROVAL.name())
                 .build());
 
