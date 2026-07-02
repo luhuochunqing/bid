@@ -71,6 +71,7 @@
 import { reactive, watch, onBeforeUnmount } from 'vue'
 import { Search, RefreshRight, Plus, Download, Upload, Document } from '@element-plus/icons-vue'
 import { useKnowledgePermission } from '@/composables/useKnowledgePermission'
+import { PROVINCE_OPTIONS } from './provinceOptions.js'
 
 const { canManageWarehouse: canManage } = useKnowledgePermission()
 
@@ -83,17 +84,6 @@ const emit = defineEmits(['update:filters', 'search', 'reset', 'create', 'export
 
 // 7 大区域
 const REGION_OPTIONS = ['华北', '东北', '华东', '华中', '华南', '西北', '西南']
-// 34 个省级行政区
-const PROVINCE_OPTIONS = [
-  '北京市', '天津市', '上海市', '重庆市',
-  '河北省', '山西省', '辽宁省', '吉林省', '黑龙江省',
-  '江苏省', '浙江省', '安徽省', '福建省', '江西省', '山东省',
-  '河南省', '湖北省', '湖南省', '广东省', '海南省',
-  '四川省', '贵州省', '云南省', '陕西省', '甘肃省', '青海省',
-  '台湾省',
-  '内蒙古自治区', '广西壮族自治区', '西藏自治区', '宁夏回族自治区', '新疆维吾尔自治区',
-  '香港特别行政区', '澳门特别行政区'
-]
 
 const localFilters = reactive({
   keyword: props.filters.keyword || '',
