@@ -2252,3 +2252,83 @@ ssh jetty@172.16.38.78 'grep -E "请求体不可读|Required request body" /var/
 - PR #1509 — CO-459 原始实现（引入 bug 的 PR）
 - §1 — 后端接口契约变更必须同步前端所有入口（同源教训）
 - §23 — 全链路日志排查 SOP（本次排查使用）
+
+---
+
+## 32. hasAnyRole 双轨制：用 ArchUnit 总数断言守卫技术债迁移（ Constitution VI 落地）
+
+> 日期: 2026-07-02
+> 来源: Spec Kit 024 消除 @PreAuthorize hasAnyRole 双轨制技术债
+> 沉淀者: zcode agent
+
+### 问题背景
+
+后端 201 处 `@PreAuthorize` 使用 `hasAnyRole`/`hasRole` 角色枚举式白名单（方法级 187 + 类级 14；方法级含 12 处 `static final String` 常量引用，Java 编译期内联后 ArchUnit 字节码扫描统一捕获），与 `RoleProfileCatalog` 的细粒度权限键形成双轨制。
+
+根因：`eb58f2817`（2026-06-16）切断 `bid-otherDept`/`bid-administration`/`bid-Team` 的 legacy `ROLE_STAFF`/`ROLE_MANAGER` 兼容（堵越权，正确），但未同步迁移依赖该 authority 的白名单 → 系统分裂为"新模型给角色赋权 / 旧模型拒绝承认"的矛盾状态 → CO-362→CO-466 共 20+ 个反复返工的 403 PR。最近症状：`bid-otherDept` 用户(09118) 2026-07-02 访问 `GET /api/task-extended-fields` 被 403。
+
+### 教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 外部审核（gemini）发现文档数据偏差（177 vs 实际 176 注解 + 编译期内联 12 处常量 = ArchUnit 实测 187） | 起草者也要对自己的数据断言做 grep 复核，不能只信初版统计 | 文档数据断言必须用精确 `grep -rEn` 正则，不能用未加 `-E` 的 BRE |
+| 规则 1（`@ArchTest ArchRule` 字段形式）会报告所有存量违规，阻塞 CI | 过渡期守卫不能直接用硬失败 ArchRule | 用"总数断言 + assumeTrue 跳过"双轨：规则 1（`void` 方法 + AssertJ 断言实际数 == EXPECTED）锁定存量，规则 2（ArchRule）在 EXPECTED 归零后才独立生效 |
+| `@Disabled` 注解不适用于 `static final ArchRule` 字段 | JUnit 5 的 `@Disabled` 只能加在方法/类上 | 要 disable ArchRule，改成 `void method(JavaClasses)` 形式，或用 `Assumptions.assumeTrue` 在方法内跳过 |
+| `static final String ADMIN_MANAGER_EXPR = "hasAnyRole(...)"` 常量会被编译期内联 | ArchUnit 读字节码，常量引用和字面量写法都被同等捕获 | 守卫基线数必须以 ArchUnit 实测为准，不能只用 grep 字面量统计 |
+| Controller 级豁免清单无法发现"Controller 内部分方法迁移"（gemini 改进建议） | 豁免粒度要用"使用点整数断言"而非"Controller 名单" | 总数断言 `actual == EXPECTED` 比名单更精确，且强制开发者迁移后递减 EXPECTED |
+
+### ArchUnit 双轨守卫范式（可复用）
+
+```java
+// 规则 1（主守卫，过渡期）：实际违规数 == EXPECTED 常量
+private static final int EXPECTED_LEGACY_USE_COUNT = 201;  // 方法级187+类级14，迁移递减
+
+@ArchTest
+public static final void legacy_count_must_match_baseline(JavaClasses classes) {
+    int actual = countViolations(classes);
+    Assertions.assertThat(actual)
+        .as("违规总数须与 EXPECTED 一致，不一致说明偷偷新增或忘改常量")
+        .isEqualTo(EXPECTED_LEGACY_USE_COUNT);
+}
+
+// 规则 2（硬失败门禁，最终态）：扫描每个注解，含违规即报
+@ArchTest
+public static final void should_not_use_violation(JavaClasses classes) {
+    int actual = countViolations(classes);
+    if (actual == EXPECTED_LEGACY_USE_COUNT) {
+        Assumptions.assumeTrue(true, "过渡期存量由规则 1 宽容");  // 跳过
+        return;
+    }
+    methods().that().areAnnotatedWith(PreAuthorize.class)
+        .should(NOT_USE_VIOLATION).check(classes);  // 最终态硬失败
+}
+```
+
+### 操作规范
+
+1. **过渡期守卫**：新增类似技术债迁移时，用规则 1（总数断言）锁定存量基线，禁止新增
+2. **迁移流程**：每消除一处违规，递减 `EXPECTED_LEGACY_USE_COUNT`，规则 1 强制对齐
+3. **最终态**：EXPECTED 归零后，删除规则 1 + 删除规则 2 的 `assumeTrue` 跳过逻辑，规则 2 升级为永久硬失败门禁
+4. **负向验证**：守卫上线时必须做负向验证（临时加违规注解 → 规则 1 失败 → 恢复 → 全绿），证明守卫有效
+
+### 验证命令
+
+```bash
+# 守卫当前状态（规则 1 锁定 187，规则 2 跳过）
+cd backend && mvn test -Dtest='ArchitectureTest#legacy_hasanyrole_count_must_match_baseline+preauthorize_should_not_use_role_enumeration'
+
+# 守卫负向验证（临时加违规 → 应失败）
+# 改某 Controller 注解为 hasAnyRole → 跑规则 1 → expected:187 but was:188
+
+# 迁移进度指标（ArchUnit 实测，含编译期内联的常量）
+cd backend && mvn test -Dtest='ArchitectureTest#legacy_hasanyrole_count_must_match_baseline' 2>&1 | grep "but was"
+```
+
+### 相关文档
+
+- `docs/architecture/preauthorize-unification-design.md` — 完整设计 RFC
+- `specs/024-preauthorize-unification/` — Spec Kit 产物（spec/plan/tasks/research）
+- `specs/024-preauthorize-unification/review-response.md` — gemini 审核回应（4 数据偏差复核）
+- `.specify/memory/constitution.md` §VI — Authorization Unification 原则
+- §23 — 全链路日志排查 SOP（本次根因定位使用）
+- §28 — CO-400/CO-415 hasAnyRole 陷阱（同类教训）

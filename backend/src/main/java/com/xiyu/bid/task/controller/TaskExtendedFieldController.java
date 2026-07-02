@@ -34,10 +34,19 @@ public class TaskExtendedFieldController {
     /**
      * 获取启用中的任务扩展字段 schema，按 {@code sort_order} 升序返回。
      *
+     * <p>权限：类级 {@link PreAuthorize @PreAuthorize("isAuthenticated()")} 已足够。
+     * 该接口语义为"公开读取全局字段 schema"（见类注释），供前端 TaskForm 动态渲染
+     * 扩展字段输入控件，Service {@code listEnabled()} 是无身份维度的纯查询。</p>
+     *
+     * <p>历史：原方法级 {@code @PreAuthorize("hasAnyRole('ADMIN','MANAGER',...)")} 白名单
+     * 不含 {@code BID_OTHERDEPT}/{@code BID_ADMINISTRATION}，导致 {@code bid-otherDept}/
+     * {@code bid-administration} 角色用户 403（生产故障 traceId 50f8ae0e...，2026-07-02），
+     * TaskForm 扩展字段无法渲染。按 Constitution VI「Authorization Unification」，
+     * 公开读取 schema 不应用角色白名单收紧，回退到类级 {@code isAuthenticated()}。</p>
+     *
      * @return 启用字段列表，封装在 {@link ApiResponse} 中
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','BID_TEAMLEADER','BIDADMIN','BID_PROJECTLEADER','BID_TEAM','SALES')")
     @Auditable(action = "READ", entityType = "TaskExtendedField",
         description = "列出已启用的任务扩展字段")
     public ResponseEntity<ApiResponse<List<TaskExtendedFieldDTO>>> list() {
