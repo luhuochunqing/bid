@@ -6,6 +6,8 @@ package com.xiyu.bid.project.controller;
 
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.project.core.ProjectStage;
+import com.xiyu.bid.project.entity.ProjectClosure;
+import com.xiyu.bid.project.repository.ProjectClosureRepository;
 import com.xiyu.bid.project.service.BidReviewAppService;
 import com.xiyu.bid.project.service.ProjectStageService;
 import com.xiyu.bid.service.AuthService;
@@ -38,6 +40,7 @@ public class ProjectStageController {
     private final BidReviewAppService bidReviewAppService;
     private final ProjectAccessScopeService projectAccessScopeService;
     private final AuthService authService;
+    private final ProjectClosureRepository closureRepository;
 
     @GetMapping
     public ResponseEntity<ApiResponse<StageViewDto>> get(@PathVariable Long projectId,
@@ -62,6 +65,12 @@ public class ProjectStageController {
             accessible.add(ProjectStage.DRAFTING.name());
             defaultOpenStage = ProjectStage.DRAFTING.name();
         }
+        // CO-443 修正: 导航条「结项」的「已完成」信号不能看 stage（复盘提交已把 stage 推到 CLOSED），
+        // 必须看结项审批状态 closure.reviewStatus==APPROVED。否则复盘提交后/结项审批中会误显示「已完成」。
+        boolean closureApproved = closureRepository.findByProjectId(projectId)
+                .map(ProjectClosure::getReviewStatus)
+                .map("APPROVED"::equals)
+                .orElse(false);
         return ResponseEntity.ok(ApiResponse.success("ok",
                 StageViewDto.builder()
                         .projectId(projectId)
@@ -70,8 +79,7 @@ public class ProjectStageController {
                         .allowedNextStages(next.stream().map(Enum::name).toList())
                         .accessibleStages(accessible.stream().distinct().toList())
                         .defaultOpenStage(defaultOpenStage)
-                        // CO-443: terminal 基于实际 stage 判断，只有审批通过后 stage=CLOSED �为终态
-                        .terminal(actual.isTerminal())
+                        .terminal(closureApproved)
                         .build()));
     }
 

@@ -5,6 +5,8 @@
 package com.xiyu.bid.project.controller;
 
 import com.xiyu.bid.project.core.ProjectStage;
+import com.xiyu.bid.project.entity.ProjectClosure;
+import com.xiyu.bid.project.repository.ProjectClosureRepository;
 import com.xiyu.bid.project.service.BidReviewAppService;
 import com.xiyu.bid.project.service.ProjectStageService;
 import com.xiyu.bid.service.AuthService;
@@ -35,6 +37,7 @@ class ProjectStageControllerTest {
     private BidReviewAppService bidReviewAppService;
     private ProjectAccessScopeService projectAccessScopeService;
     private AuthService authService;
+    private ProjectClosureRepository closureRepository;
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -43,11 +46,13 @@ class ProjectStageControllerTest {
         bidReviewAppService = mock(BidReviewAppService.class);
         projectAccessScopeService = mock(ProjectAccessScopeService.class);
         authService = mock(AuthService.class);
+        closureRepository = mock(ProjectClosureRepository.class);
         mockMvc = MockMvcBuilders.standaloneSetup(new ProjectStageController(
                         stageService,
                         bidReviewAppService,
                         projectAccessScopeService,
-                        authService
+                        authService,
+                        closureRepository
                 ))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
@@ -102,6 +107,9 @@ class ProjectStageControllerTest {
         when(stageService.hasClosureSubmission(42L)).thenReturn(true);
         when(bidReviewAppService.getReviewState(42L)).thenReturn(
                 new BidReviewAppService.ReviewState("REVIEWING", 9999L, null, "其他人"));
+        // CO-443 修正: 结项申请已提交但审批中(PENDING) → terminal=false（进行中）
+        ProjectClosure pendingClosure = ProjectClosure.builder().reviewStatus("PENDING").build();
+        when(closureRepository.findByProjectId(42L)).thenReturn(java.util.Optional.of(pendingClosure));
 
         mockMvc.perform(get("/api/projects/42/stage").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
@@ -119,11 +127,32 @@ class ProjectStageControllerTest {
         when(stageService.hasClosureSubmission(42L)).thenReturn(true);
         when(bidReviewAppService.getReviewState(42L)).thenReturn(
                 new BidReviewAppService.ReviewState("REVIEWING", 9999L, null, "其他人"));
+        // CO-443 修正: 结项审批通过(APPROVED) → terminal=true（已完成）
+        ProjectClosure approvedClosure = ProjectClosure.builder().reviewStatus("APPROVED").build();
+        when(closureRepository.findByProjectId(42L)).thenReturn(java.util.Optional.of(approvedClosure));
 
         mockMvc.perform(get("/api/projects/42/stage").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.currentStage").value("CLOSED"))
                 .andExpect(jsonPath("$.data.terminal").value(true));
+    }
+
+
+    // CO-443 修正: 复盘提交后 stage 已是 CLOSED，但未提交结项申请(无 closure) → terminal=false（进行中，非已完成）
+    @Test
+    void co443_retrospectiveDone_noClosure_showsInProgress() throws Exception {
+        authenticate("09118");
+        when(authService.resolveUserIdByUsername("09118")).thenReturn(5472L);
+        when(stageService.currentStage(42L)).thenReturn(ProjectStage.CLOSED);
+        when(stageService.hasClosureSubmission(42L)).thenReturn(false);
+        when(bidReviewAppService.getReviewState(42L)).thenReturn(
+                new BidReviewAppService.ReviewState("REVIEWING", 9999L, null, "其他人"));
+        when(closureRepository.findByProjectId(42L)).thenReturn(java.util.Optional.empty());
+
+        mockMvc.perform(get("/api/projects/42/stage").accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.currentStage").value("CLOSED"))
+                .andExpect(jsonPath("$.data.terminal").value(false));
     }
 
     private void authenticate(String username) {
