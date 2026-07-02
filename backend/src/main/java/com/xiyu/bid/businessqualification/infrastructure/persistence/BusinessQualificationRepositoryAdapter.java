@@ -161,6 +161,12 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
             if (criteria.getLevel() != null && !criteria.getLevel().isBlank()) {
                 predicates.add(cb.equal(cb.upper(root.get("level")), criteria.getLevel().toUpperCase(Locale.ROOT)));
             }
+            if (criteria.getStatus() != null && !criteria.getStatus().isEmpty()) {
+                List<QualificationStatus> statusValues = criteria.getStatus().stream()
+                        .map(s -> "VALID".equalsIgnoreCase(s) ? QualificationStatus.IN_STOCK : QualificationStatus.valueOf(s.toUpperCase(Locale.ROOT)))
+                        .collect(Collectors.toList());
+                predicates.add(root.get("status").in(statusValues));
+            }
             if (criteria.getExpiringFrom() != null) {
                 predicates.add(cb.greaterThanOrEqualTo(root.get("expiryDate"), criteria.getExpiringFrom()));
             }
