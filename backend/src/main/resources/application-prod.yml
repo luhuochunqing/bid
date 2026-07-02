@@ -72,6 +72,10 @@ xiyu:
   public-base-url: ${XIYU_PUBLIC_BASE_URL:}
 
 app:
+  # 平台基础 URL — 企微通知"查看详情"链接的前端地址
+  # 未配置时回退到 http://localhost:1314（仅本地可用，生产必须显式注入）
+  platform:
+    base-url: ${APP_PLATFORM_BASE_URL:http://localhost:1314}
   bootstrap:
     admin:
       username: ${ADMIN_USERNAME:admin}
@@ -82,6 +86,62 @@ app:
     # 生产/测试环境绝对路径，避免 MultipartFile.transferTo 相对路径陷阱
     # systemd WorkingDirectory=/opt/xiyu-bid/shared/backend
     brand-auth-dir: ${APP_UPLOAD_BRAND_AUTH_DIR:/opt/xiyu-bid/shared/backend/uploads/brand-auth}
+  crm:
+    # CRM 集成 — 生产环境必须显式注入，主 application.yml 的默认值为空
+    # 占位符在此重复声明是为了：(1) 让生产运维一目了然需要哪些变量
+    # (2) 避免依赖 Spring Boot 松散绑定（XIYU_ 前缀无法自动映射到 app. 属性）
+    base-url: ${XIYU_CRM_BASE_URL:}
+    auth-base-url: ${XIYU_CRM_AUTH_BASE_URL:}
+    customer-base-url: ${XIYU_CRM_CUSTOMER_BASE_URL:}
+    message-base-url: ${XIYU_CRM_MESSAGE_BASE_URL:}
+    chance-base-url: ${XIYU_CRM_CHANCE_BASE_URL:}
+    contact-person-base-url: ${XIYU_CRM_CONTACT_PERSON_BASE_URL:}
+    cac-base-url: ${XIYU_CRM_CAC_BASE_URL:}
+    client-id: ${XIYU_CRM_CLIENT_ID:}
+    client-secret: ${XIYU_CRM_CLIENT_SECRET:}
+    oauth-username: ${XIYU_CRM_OAUTH_USERNAME:}
+    oauth-password: ${XIYU_CRM_OAUTH_PASSWORD:}
+    generate-token-path: ${XIYU_CRM_GENERATE_TOKEN_PATH:/common/inner/generateToken}
+    generate-token-nick-name: ${XIYU_CRM_GENERATE_TOKEN_NICK_NAME:}
+    generate-token-sales-no: ${XIYU_CRM_GENERATE_TOKEN_SALES_NO:}
+    auth:
+      apply-token-path: ${XIYU_CRM_AUTH_APPLY_TOKEN_PATH:/auth/applyToken}
+      oauth-login-path: ${XIYU_CRM_AUTH_OAUTH_LOGIN_PATH:/oauth/login}
+      logout-path: ${XIYU_CRM_AUTH_LOGOUT_PATH:/oauth/logout}
+      menu-tree-path: ${XIYU_CRM_AUTH_MENU_TREE_PATH:/menu/tree}
+      employee-path: ${XIYU_CRM_AUTH_EMPLOYEE_PATH:/oauth/getUserInfo}
+      user-permission-path: ${XIYU_CRM_AUTH_USER_PERMISSION_PATH:/oauth/getUserPermission}
+      user-permission-system-name: ${XIYU_CRM_AUTH_USER_PERMISSION_SYSTEM_NAME:bid-platform}
+      user-login-system: ${XIYU_CRM_USER_LOGIN_SYSTEM:bid-platform}
+    customer:
+      search-path: ${XIYU_CRM_CUSTOMER_SEARCH_PATH:/customer/search}
+      contacts-path: ${XIYU_CRM_CUSTOMER_CONTACTS_PATH:/customer/contacts/batch}
+    message:
+      send-path: ${XIYU_CRM_MESSAGE_SEND_PATH:/common/sendMessage}
+    matching-strategy: ${APP_CRM_MATCHING_STRATEGY:GROUP}
+  wecom:
+    # 企微消息中心 — 生产环境必须显式注入 BASE_URL 和 APPLICATION_CODE
+    # 占位符在此声明是因为 XIYU_ 前缀无法通过松散绑定自动映射到 app.wecom. 属性
+    # 不依赖 yml 占位符会导致生产环境回退到代码默认值（YApi mock 地址）
+    message-center:
+      base-url: ${XIYU_WECOM_MESSAGE_CENTER_BASE_URL:}
+      send-path: ${XIYU_WECOM_MESSAGE_CENTER_SEND_PATH:/qywx/sendMSG}
+      application-code: ${XIYU_WECOM_MESSAGE_CENTER_CODE:}
+      connect-timeout-ms: 3000
+      read-timeout-ms: 10000
+
+# 企微通知开关 — 生产环境通过 NOTIFICATION_WECOM_ENABLED=true 启用
+# 未设置时默认关闭（@ConditionalOnProperty matchIfMissing=false）
+notification:
+  wecom:
+    enabled: ${NOTIFICATION_WECOM_ENABLED:false}
+    worker-fixed-delay-ms: ${NOTIFICATION_WECOM_WORKER_FIXED_DELAY_MS:5000}
+
+# CRM 回调 — 生产环境必须显式注入，默认值不应指向测试环境
+webhook:
+  crm:
+    url: ${WEBHOOK_CRM_URL:}
+    token: ${WEBHOOK_CRM_TOKEN:}
 
 rate:
   limit:
