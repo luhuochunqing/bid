@@ -105,28 +105,36 @@ export function initSentry(app) {
     maxBreadcrumbs: 50,
 
     // beforeSend 回调：附加用户上下文
+    // 注意：Event 对象只有普通字段 tags/extra/user，没有 setTag/setExtra/setUser 方法。
+    // setTag/setExtra/setUser 是 Scope 上的方法（见下方 captureError 用 scope.setXxx）。
+    // 在 beforeSend 里必须直接赋值，否则会抛 TypeError: event.setTag is not a function
+    // （历史 bug：CO-sentry-beforesend，2026-07-02 修复）
     beforeSend(event, hint) {
       // 附加用户信息（从 localStorage 读取）
       try {
         const userStr = localStorage.getItem('user')
         if (userStr) {
           const user = JSON.parse(userStr)
-          event.setUser({
+          event.user = {
             id: user.id?.toString(),
             username: user.username,
             email: undefined  // 不收集邮箱
-          })
+          }
           // 附加角色信息
-          event.setTag('roleCode', user.roleCode || 'unknown')
+          event.tags = { ...event.tags, roleCode: user.roleCode || 'unknown' }
         }
       } catch {
         // 用户信息解析失败不影响上报
       }
 
       // 附加路由信息
-      if (router.currentRoute?.value) {
-        event.setTag('route', router.currentRoute.value.path)
-        event.setExtra('routeQuery', router.currentRoute.value.query)
+      try {
+        if (router.currentRoute?.value) {
+          event.tags = { ...event.tags, route: router.currentRoute.value.path }
+          event.extra = { ...event.extra, routeQuery: router.currentRoute.value.query }
+        }
+      } catch {
+        // 路由信息读取失败不影响上报
       }
 
       return event
