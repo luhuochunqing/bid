@@ -44,7 +44,7 @@ import java.util.Set;
 @RestController
 @RequestMapping("/api/archive")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+@PreAuthorize("hasAuthority('project')")
 public class ProjectArchiveController {
 
     private final ProjectArchiveWorkflowService workflowService;
@@ -157,7 +157,7 @@ public class ProjectArchiveController {
         return com.xiyu.bid.shared.security.FilePathGuard.ensureExists(
                 com.xiyu.bid.shared.security.FilePathGuard.resolveAbsoluteWithin(rawPath, getArchiveFileBaseDir()), rawPath); }
     @PostMapping("/export-excel")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('project')")
     public ResponseEntity<byte[]> exportExcel(
             @RequestBody ProjectArchiveQuery query) throws IOException {
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
@@ -189,7 +189,7 @@ public class ProjectArchiveController {
 
     /** 导出单个项目全部资料（ZIP 压缩包）。 */
     @GetMapping("/export-zip/{projectId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('project')")
     public ResponseEntity<byte[]> exportSingleProjectArchive(
             @PathVariable Long projectId) throws IOException {
         // H5 fix 2026-06-13: 单项目导出前先做 project owner check,
@@ -232,7 +232,7 @@ public class ProjectArchiveController {
     }
 
     @PostMapping("/export-zip")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('project')")
     public ResponseEntity<byte[]> exportZip(
             @RequestBody ProjectArchiveQuery query,
             @RequestParam(required = false) Long userId) throws IOException {

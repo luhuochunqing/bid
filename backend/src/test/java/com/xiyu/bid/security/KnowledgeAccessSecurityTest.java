@@ -7,6 +7,7 @@ import com.xiyu.bid.config.SecurityConfig;
 import com.xiyu.bid.casework.application.ProjectArchiveWorkflowService;
 import com.xiyu.bid.casework.application.service.KnowledgeCaseQueryAppService;
 import com.xiyu.bid.casework.dto.ProjectArchiveStatsResponse;
+import com.xiyu.bid.casework.infrastructure.ArchiveFile;
 import com.xiyu.bid.casework.infrastructure.ProjectArchive;
 import com.xiyu.bid.brandauth.manufacturer.application.service.ListManufacturerAuthAppService;
 import com.xiyu.bid.brandauth.manufacturer.application.dto.ManufacturerAuthorizationDTO;
@@ -33,6 +34,8 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -408,6 +411,134 @@ class KnowledgeAccessSecurityTest {
         mockMvc.perform(post("/api/knowledge/brand-auth/1/revoke")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"测试作废原因至少十个字符\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    // ==================== CO-466: 项目档案下载/导出/预览接口权限注解回归 ====================
+    //
+    // 背景：CO-452 修复详情页 403 时，遗漏了 5 个下载/导出/预览接口的类级 + 方法级
+    // @PreAuthorize("hasAnyRole('ADMIN','MANAGER')") 注解。投标专员(bid-Team) 不继承
+    // ROLE_ADMIN/ROLE_MANAGER（见 RoleProfileCatalog.ROLES_WITHOUT_LEGACY_ROLE_COMPAT），
+    // 导致列表页/详情页的下载、导出台账、下载文件包全部 403。
+    // 修复：类级 + 3 个方法级注解放宽为 hasAuthority('project')，与 CO-452 详情接口对齐。
+    // 真权限（项目级 owner check）仍由 Service 层 ProjectAccessScopeService 兜底。
+
+    @Test
+    @DisplayName("CO-466: 投标专员(authorities含project) POST /api/archive/export-excel → 200")
+    @WithMockUser(authorities = {"project"})
+    void exportExcel_shouldSucceed_forBidSpecialist() throws Exception {
+        // admin 时 resolveExportableProjectIds 返回 null（全放行）；投标专员返回空 Set（无可见项目时）。
+        when(archiveExportService.resolveExportableProjectIds()).thenReturn(java.util.Set.of());
+        when(archiveExportService.exportProjectArchives(any())).thenReturn(
+                new com.xiyu.bid.casework.application.ProjectArchiveExportService.ArchiveExportResult(new byte[]{1, 2, 3}, 1));
+        mockMvc.perform(post("/api/archive/export-excel")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"page\":0,\"size\":10}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("CO-466: 投标专员(authorities含project) GET /api/archive/export-zip/{projectId} → 200")
+    @WithMockUser(authorities = {"project"})
+    void exportSingleProjectArchive_shouldSucceed_forBidSpecialist() throws Exception {
+        // Mock workflowService.getRawArchives 返回属于 projectId=128 的归档
+        ProjectArchive mockArchive = new ProjectArchive();
+        mockArchive.setId(98L);
+        mockArchive.setProjectId(128L);
+        when(workflowService.getRawArchives(any())).thenReturn(List.of(mockArchive));
+        // 投标专员对该项目有访问权（exportableProjectIds 包含 128）
+        when(archiveExportService.resolveExportableProjectIds()).thenReturn(java.util.Set.of(128L));
+        when(archiveExportService.exportProjectArchives(any())).thenReturn(
+                new com.xiyu.bid.casework.application.ProjectArchiveExportService.ArchiveExportResult(new byte[]{1, 2, 3}, 1));
+        when(streamingZipPackager.buildZipBytes(any(), any())).thenReturn(new byte[]{1, 2, 3});
+        mockMvc.perform(get("/api/archive/export-zip/128"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("CO-466: 投标专员(authorities含project) POST /api/archive/export-zip → 200")
+    @WithMockUser(authorities = {"project"})
+    void exportZip_shouldSucceed_forBidSpecialist() throws Exception {
+        when(archiveExportService.resolveExportableProjectIds()).thenReturn(java.util.Set.of());
+        when(archiveExportService.exportProjectArchives(any())).thenReturn(
+                new com.xiyu.bid.casework.application.ProjectArchiveExportService.ArchiveExportResult(new byte[]{1, 2, 3}, 1));
+        when(streamingZipPackager.buildZipBytes(any(), any())).thenReturn(new byte[]{1, 2, 3});
+        mockMvc.perform(post("/api/archive/export-zip")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"page\":0,\"size\":10}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("CO-466: 投标专员(authorities含project) GET /api/archive/files/{fileId}/download → 200")
+    @WithMockUser(authorities = {"project"})
+    void downloadFile_shouldSucceed_forBidSpecialist() throws Exception {
+        // 创建真实临时文件 + 通过反射注入 upload 根目录，绕过 FilePathGuard 路径越界校验
+        // （本测试关注权限注解放行，文件路径校验非本测试目的）
+        Path tempDir = Files.createTempDirectory("co466-download");
+        Path tempFile = tempDir.resolve("test.pdf");
+        Files.write(tempFile, new byte[]{1, 2, 3});
+
+        ArchiveFile mockFile = new ArchiveFile();
+        mockFile.setId(400L);
+        mockFile.setArchiveId(98L);
+        mockFile.setFileName("test.pdf");
+        mockFile.setDocumentCategory("OTHER");
+        mockFile.setFilePath(tempFile.toAbsolutePath().toString());
+        mockFile.setFileSize(3L);
+        when(archiveFileRepository.findById(400L)).thenReturn(java.util.Optional.of(mockFile));
+        ProjectArchive mockArchive = new ProjectArchive();
+        mockArchive.setId(98L);
+        mockArchive.setProjectId(128L);
+        when(workflowService.findArchiveById(98L)).thenReturn(mockArchive);
+
+        // 反射设置 controller 的 configuredUploadDir 字段
+        com.xiyu.bid.casework.controller.ProjectArchiveController controller =
+                mockMvc.getDispatcherServlet().getWebApplicationContext()
+                        .getBean(com.xiyu.bid.casework.controller.ProjectArchiveController.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "configuredUploadDir", tempDir.toString());
+
+        mockMvc.perform(get("/api/archive/files/400/download"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("CO-466: 投标专员(authorities含project) GET /api/archive/files/{fileId}/preview → 200")
+    @WithMockUser(authorities = {"project"})
+    void previewFile_shouldSucceed_forBidSpecialist() throws Exception {
+        Path tempDir = Files.createTempDirectory("co466-preview");
+        Path tempFile = tempDir.resolve("test.pdf");
+        Files.write(tempFile, new byte[]{1, 2, 3});
+
+        ArchiveFile mockFile = new ArchiveFile();
+        mockFile.setId(400L);
+        mockFile.setArchiveId(98L);
+        mockFile.setFileName("test.pdf");
+        mockFile.setDocumentCategory("OTHER");
+        mockFile.setFilePath(tempFile.toAbsolutePath().toString());
+        mockFile.setFileSize(3L);
+        when(archiveFileRepository.findById(400L)).thenReturn(java.util.Optional.of(mockFile));
+        ProjectArchive mockArchive = new ProjectArchive();
+        mockArchive.setId(98L);
+        mockArchive.setProjectId(128L);
+        when(workflowService.findArchiveById(98L)).thenReturn(mockArchive);
+
+        com.xiyu.bid.casework.controller.ProjectArchiveController controller =
+                mockMvc.getDispatcherServlet().getWebApplicationContext()
+                        .getBean(com.xiyu.bid.casework.controller.ProjectArchiveController.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(controller, "configuredUploadDir", tempDir.toString());
+
+        mockMvc.perform(get("/api/archive/files/400/preview"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("CO-466: 无project权限用户 POST /api/archive/export-excel → 403")
+    @WithMockUser(authorities = {"OTHER_PERMISSION"})
+    void exportExcel_shouldReturn403_forNoPermission() throws Exception {
+        mockMvc.perform(post("/api/archive/export-excel")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"page\":0,\"size\":10}"))
                 .andExpect(status().isForbidden());
     }
 }
