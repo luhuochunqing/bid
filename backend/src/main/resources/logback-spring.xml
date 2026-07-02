@@ -52,16 +52,12 @@
             </encoder>
         </appender>
 
-        <!-- Sentry: 所有 ERROR 日志自动上报（含 MDC 上下文：traceId/userId/roleCode） -->
-        <!-- 无 DSN 时 SentryAppender 自动 no-op，不影响业务 -->
-        <appender name="SENTRY" class="io.sentry.logback.SentryAppender">
-            <minimumLevel>ERROR</minimumLevel>
-        </appender>
-
+        <!-- Sentry: 不在此手动声明 SentryAppender。 -->
+        <!-- sentry-spring-boot-starter-jakarta 会自动捕获未处理异常并通过 SentryConfig.beforeSendCallback 上报。 -->
+        <!-- ERROR 日志自动上报需要 sentry-logback 依赖（暂未引入，后续评估）。 -->
         <root level="WARN">
             <appender-ref ref="JSON"/>
             <appender-ref ref="JSON-FILE"/>
-            <appender-ref ref="SENTRY"/>
         </root>
         <logger name="com.xiyu" level="INFO"/>
     </springProfile>
