@@ -2332,3 +2332,71 @@ cd backend && mvn test -Dtest='ArchitectureTest#legacy_hasanyrole_count_must_mat
 - `.specify/memory/constitution.md` §VI — Authorization Unification 原则
 - §23 — 全链路日志排查 SOP（本次根因定位使用）
 - §28 — CO-400/CO-415 hasAnyRole 陷阱（同类教训）
+
+---
+
+## 33. Spring Data JPA 派生查询方法传 null 不会变成"无过滤条件"（PR !1563）
+
+### 问题背景
+
+`https://winbid-test.ehsy.com/knowledge/brand-auth` 批量导出 Excel 文件内容为空，只有表头无数据行。列表查询正常有数据，仅导出空。
+
+按 `§23 全链路日志排查 SOP` 定位：
+
+- **Layer 1（Sentry）不适用**：此 bug 不触发任何异常 — `WHERE status = NULL` 是合法 SQL，MySQL 不报错，HTTP 200 OK 正常返回。属于 SOP 定义的"Layer 2 适用：业务逻辑错误、Sentry 未覆盖场景"。
+- **Layer 2（代码证据链溯源）**：通过代码证据链直接定位根因，无需 traceId。
+- **Layer 3（git log 追溯）**：`git log -S "findByStatus(null)"` 显示问题代码从 `c6c326341 initial snapshot` 就存在 → **从初始快照引入的历史 bug，非回归**。
+
+### 根因
+
+[BrandAuthExportService.exportAll()](file:///backend/src/main/java/com/xiyu/bid/brandauth/manufacturer/application/service/BrandAuthExportService.java) 调用 `repository.findByStatus(null)`，**期望"传 null 查全部"**，但这是 Spring Data JPA **派生查询方法**（derived query method），传 null 会生成 `WHERE status = ?` 绑 null 参数，**不会**自动跳过过滤条件。MySQL 中 `status = NULL` **永远返回 false**（NULL 三值逻辑）→ 结果集为空 → Excel 只有表头无数据行。
+
+### 完整证据链
+
+1. [ManufacturerAuthorizationJpaRepository.java:18](file:///backend/src/main/java/com/xiyu/bid/brandauth/manufacturer/infrastructure/persistence/repository/ManufacturerAuthorizationJpaRepository.java#L18) 定义派生方法：
+   ```java
+   List<ManufacturerAuthorizationEntity> findByStatus(AuthStatus status);
+   ```
+2. [BrandAuthExportService.java:50](file:///backend/src/main/java/com/xiyu/bid/brandauth/manufacturer/application/service/BrandAuthExportService.java#L50) 调用 `repository.findByStatus(null)` 期望"查全部"
+3. [ManufacturerAuthorizationEntity.java:118-120](file:///backend/src/main/java/com/xiyu/bid/brandauth/manufacturer/infrastructure/persistence/entity/ManufacturerAuthorizationEntity.java#L118-L120) status 列 `nullable = false` + `@PrePersist` 兜底设 `ACTIVE` → 数据库里 status **永远非 NULL** → `WHERE status = NULL` 必返回空集
+4. **对照证据**：[ListManufacturerAuthAppService.java:111](file:///backend/src/main/java/com/xiyu/bid/brandauth/manufacturer/application/service/ListManufacturerAuthAppService.java#L111) 列表查询走 `jpaRepository.findAll(spec, pr)`（动态 Specification，过滤条件按需拼接）→ 列表有数据，导出空 → 正好解释现象
+
+### 教训
+
+1. **Spring Data JPA 派生查询方法传 null 不会变成"无过滤条件"**：派生方法（`findByXxx`）对 null 参数的处理是直接生成 `WHERE xxx = ?` 绑 null，**不会**像 MyBatis 的 `<if test=` 那样自动跳过条件。MySQL 中 `= NULL` 永远返回 false（NULL 三值逻辑），结果集为空。
+
+2. **"查全部"必须用 `findAll()`，不能用 `findByXxx(null)`**：这是 Spring Data JPA 的标准坑。
+   - 查全部：`jpaRepository.findAll()`
+   - 可选条件查询：用 `Specification` 动态拼接（如本项目 `ListManufacturerAuthAppService` 的做法），或用 `@Query("... where (:status is null or status = :status)")`
+
+3. **Code Review 时看到 `findByXxx(null)` 必须质疑**：这是反模式信号。派生查询方法的参数应标注 `@NonNull` 或在 Javadoc 明确"不接受 null"。
+
+4. **对照判别法**：当出现"列表有数据，导出/报表空"时，优先检查导出查询是否走了与列表不同的查询路径，特别是 `findByXxx(null)` 这类派生方法调用。
+
+5. **导出与列表查询应共用 Specification**：本次修复采用方案 B — 让导出复用列表查询的 `Specification`，确保过滤语义一致。这样既修复了 bug，又让"导出当前筛选结果"成为原生能力（更符合用户预期）。
+
+### 验证命令
+
+```bash
+# 检查项目中是否有 findByXxx(null) 的误用
+grep -rn "findBy[A-Z][a-zA-Z]*(null)" backend/src/main/java --include="*.java"
+# 期望输出：无匹配，或匹配项是明确接受 null 的 @Query 方法
+
+# 检查派生查询方法是否被 null 调用
+grep -rn "repository\.findBy.*null" backend/src/main/java --include="*.java"
+```
+
+### 修复方案（方案 B：导出与列表共用 Specification）
+
+- `ListManufacturerAuthAppService`：抽取 `buildSpec(filter)` + 新增 `listAllForExport(filter)`
+- `BrandAuthExportService`：移除 `repository` 依赖（根因点），改注入 `listService`；`exportAll()` → `exportByFilter(filter)`
+- `ManufacturerAuthorizationController /export`：接收与 `/list` 一致的过滤参数
+- 前端 `doExport`：参数与后端对齐
+
+### 相关文档
+
+- PR !1563 — 本次修复
+- §23 — 全链路日志排查 SOP（本次排查使用）
+- §1 — 后端接口契约变更必须同步前端所有入口（同类：导出与列表参数对齐）
+- `backend/src/main/java/com/xiyu/bid/brandauth/manufacturer/application/service/ListManufacturerAuthAppService.java` — Specification 动态拼接的正确范例
+- `backend/src/main/java/com/xiyu/bid/brandauth/manufacturer/application/service/BrandAuthExportService.java` — 修复后的导出服务
