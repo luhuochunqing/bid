@@ -2,6 +2,7 @@ package com.xiyu.bid.resources.service;
 
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
+import com.xiyu.bid.resources.dto.CaCertificateDTO;
 import com.xiyu.bid.resources.dto.CaCertificateRequest;
 import com.xiyu.bid.resources.entity.CaCertificateEntity;
 import com.xiyu.bid.resources.repository.CaCertificatePlatformRepository;
@@ -13,13 +14,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDate;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -159,6 +165,73 @@ class CaCertificateServiceTest {
         assertThatCode(() -> service.update(1L, req)).doesNotThrowAnyException();
 
         verify(passwordEncryptionUtil, never()).encrypt(anyString());
+    }
+
+    // ── CO-477: 读时刷新 status（避免持久化字段陈旧） ──
+
+    @Test
+    void getById_staleExpiringStatus_refreshedToExpired() {
+        // 模拟 Bug 场景：数据库存的是 EXPIRING，但实际已过到期日 2 天
+        CaCertificateService service = newService();
+        CaCertificateEntity ca = CaCertificateEntity.builder()
+                .id(1L)
+                .caType("ENTITY_CA")
+                .expiryDate(LocalDate.now().minusDays(2)) // 已过期 2 天
+                .custodianId(20L)
+                .status("EXPIRING") // 数据库存的陈旧状态
+                .borrowStatus("IN_STOCK")
+                .build();
+        when(certificateRepository.findById(1L)).thenReturn(Optional.of(ca));
+        when(platformLinkRepository.findByCaCertificateId(1L)).thenReturn(Collections.emptyList());
+        when(custodianEmployeeNumberResolver.fetchEmployeeNumber(20L)).thenReturn("EMP001");
+
+        CaCertificateDTO dto = service.getById(1L);
+
+        assertThat(dto.getStatus()).isEqualTo("EXPIRED"); // 读时刷新为 EXPIRED
+    }
+
+    @Test
+    void getById_inactiveStatus_notOverwrittenByExpiry() {
+        // INACTIVE 是管理员显式下架，不应被到期计算覆盖
+        CaCertificateService service = newService();
+        CaCertificateEntity ca = CaCertificateEntity.builder()
+                .id(1L)
+                .caType("ENTITY_CA")
+                .expiryDate(LocalDate.now().minusDays(10)) // 已过期
+                .custodianId(20L)
+                .status("INACTIVE") // 下架状态
+                .borrowStatus("IN_STOCK")
+                .build();
+        when(certificateRepository.findById(1L)).thenReturn(Optional.of(ca));
+        when(platformLinkRepository.findByCaCertificateId(1L)).thenReturn(Collections.emptyList());
+        when(custodianEmployeeNumberResolver.fetchEmployeeNumber(20L)).thenReturn("EMP001");
+
+        CaCertificateDTO dto = service.getById(1L);
+
+        assertThat(dto.getStatus()).isEqualTo("INACTIVE"); // 保持 INACTIVE，不被刷新
+    }
+
+    @Test
+    void list_staleExpiringStatus_refreshedToExpired() {
+        CaCertificateService service = newService();
+        CaCertificateEntity staleCa = CaCertificateEntity.builder()
+                .id(1L)
+                .caType("ENTITY_CA")
+                .expiryDate(LocalDate.now().minusDays(2)) // 已过期
+                .custodianId(20L)
+                .status("EXPIRING") // 陈旧
+                .borrowStatus("IN_STOCK")
+                .build();
+        Page<CaCertificateEntity> page = new PageImpl<>(List.of(staleCa));
+        when(certificateRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(PageRequest.class)))
+                .thenReturn(page);
+        when(platformLinkRepository.findByCaCertificateId(1L)).thenReturn(Collections.emptyList());
+        when(custodianEmployeeNumberResolver.batchFetchEmployeeNumbers(any())).thenReturn(Collections.emptyMap());
+
+        Page<CaCertificateDTO> result = service.list(null, null, null, null, null, PageRequest.of(0, 10));
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getStatus()).isEqualTo("EXPIRED"); // 读时刷新
     }
 
     private CaCertificateRequest buildRequest(String caType, String caPassword) {

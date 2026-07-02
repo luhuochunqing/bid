@@ -44,7 +44,12 @@ public class CaExpiryScanService {
     private final AlertHistoryService alertHistoryService;
 
     /**
-     * 扫描即将到期或已过期的 CA 证书并生成告警。
+     * 扫描即将到期或已过期的 CA 证书并生成告警，同时回写陈旧的 status 字段.
+     *
+     * <p>CO-477: status 字段只在 create/update 时计算一次，时间流逝后会陈旧
+     * （例：EXPIRING → 已过到期日 → 仍为 EXPIRING）。本方法在扫描时按 expiryDate
+     * 实时重算并持久化 status（INACTIVE 下架状态不覆盖），保证 overview 聚合
+     * 查询和列表筛选的准确性。
      *
      * @return 生成的告警数量
      */
@@ -59,6 +64,13 @@ public class CaExpiryScanService {
 
             LocalDate expiryDate = cert.getExpiryDate();
             if (expiryDate == null) continue;
+
+            // CO-477: 实时重算 status 并回写（仅在变化时持久化，减少不必要的 UPDATE）
+            String freshStatus = computeFreshStatus(expiryDate);
+            if (!freshStatus.equals(cert.getStatus())) {
+                cert.setStatus(freshStatus);
+                certificateRepository.save(cert);
+            }
 
             long daysUntil = ChronoUnit.DAYS.between(LocalDate.now(), expiryDate);
             if (daysUntil < 0) {
@@ -82,6 +94,17 @@ public class CaExpiryScanService {
 
         log.info("CA certificate expiry scan completed. Created {} alerts.", created);
         return created;
+    }
+
+    /**
+     * CO-477: 按 expiryDate 实时计算 status（与 CaCertificateService.computeStatus 对齐）.
+     */
+    private String computeFreshStatus(LocalDate expiryDate) {
+        if (expiryDate == null) return "ACTIVE";
+        long daysUntil = ChronoUnit.DAYS.between(LocalDate.now(), expiryDate);
+        if (daysUntil < 0) return "EXPIRED";
+        if (daysUntil <= CA_EXPIRY_THRESHOLD_DAYS) return "EXPIRING";
+        return "ACTIVE";
     }
 
     /**

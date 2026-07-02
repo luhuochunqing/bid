@@ -156,6 +156,8 @@ public class CaCertificateService {
     public CaCertificateDTO getById(Long id) {
         CaCertificateEntity entity = certificateRepository.findById(id)
                 .orElseThrow(() -> new CaBusinessException("CA证书不存在: " + id));
+        // CO-477: 读时刷新 status（INACTIVE 下架状态不被覆盖），避免持久化 status 陈旧
+        refreshStatusInMemory(entity);
         // CO-451: 从 User 表获取保管员工号
         String custodianEmployeeNumber = custodianEmployeeNumberResolver.fetchEmployeeNumber(entity.getCustodianId());
         return CaCertificateDTO.from(entity, loadPlatformIds(id), false, null, custodianEmployeeNumber);
@@ -243,6 +245,8 @@ public class CaCertificateService {
             return cb.and(predicates.toArray(new Predicate[0]));
         };
         Page<CaCertificateEntity> entityPage = certificateRepository.findAll(spec, pageable);
+        // CO-477: 读时刷新 status（INACTIVE 下架状态不被覆盖），避免持久化 status 陈旧
+        entityPage.forEach(this::refreshStatusInMemory);
         // CO-451: 批量获取保管员工号
         Map<Long, String> employeeNumberMap = custodianEmployeeNumberResolver.batchFetchEmployeeNumbers(
                 entityPage.stream().map(CaCertificateEntity::getCustodianId).toList()
@@ -269,5 +273,18 @@ public class CaCertificateService {
         if (daysUntil < 0) return "EXPIRED";
         if (daysUntil <= 30) return "EXPIRING";
         return "ACTIVE";
+    }
+
+    /**
+     * CO-477: 读时按 expiryDate 实时刷新内存中的 status.
+     * <p>下架状态（INACTIVE）是管理员显式操作，不应被到期计算覆盖。
+     * 其他状态（ACTIVE/EXPIRING/EXPIRED）按到期日实时重算，避免持久化字段陈旧
+     * （例：创建时为 EXPIRING，过到期日后仍显示 EXPIRING）。
+     * <p>仅修改内存 entity，不持久化；持久化由 CaExpiryScanService 定时回写。
+     */
+    private void refreshStatusInMemory(CaCertificateEntity entity) {
+        if (entity == null) return;
+        if ("INACTIVE".equals(entity.getStatus())) return;
+        entity.setStatus(computeStatus(entity.getExpiryDate()));
     }
 }
