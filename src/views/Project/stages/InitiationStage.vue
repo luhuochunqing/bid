@@ -82,7 +82,7 @@
 <el-card class="section-card" shadow="never">
 <template #header>
   <div class="section-header">
-    <span>招标文件*</span>
+    <span>招标文件<span style="color: #f56c6c;">*</span></span>
     <div class="ai-risk-corner">
       <el-button type="primary" :loading="aiAssessing" :disabled="locked || uploadingDoc" @click="runAIAssessment">
         {{ aiAssessing ? '评估中...' : 'AI 风险评估' }}
