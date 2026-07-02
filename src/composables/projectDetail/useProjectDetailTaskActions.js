@@ -351,25 +351,28 @@ export function useProjectDetailTaskActions(context) {
       return
     }
     const newStatus = data.status || 'REVIEW'
-    task.status = newStatus
-    Object.assign(task, data)
-    pushActivity(`任务"${task.name}"已提交审核`)
-    message.success('任务已提交审核，等待审批')
     if (!isApiProject.value) {
+      task.status = newStatus
+      Object.assign(task, data)
+      pushActivity(`任务"${task.name}"已提交审核`)
+      message.success('任务已提交审核，等待审批')
       await projectStore.updateTaskStatus(route.params.id, task.id, newStatus)
       return
     }
     try {
+      // CO-465: 先上传交付物，成功后再调后端更新状态，避免乐观更新导致字段丢失
       if (!await uploadTaskFilesWithFallback(task, data, { projectStore, projectId: route.params.id, userStore }, { attachments: '任务已提交审核，但附件上传失败，请重试', deliverables: '任务已提交审核，但交付物上传失败，请重试' }, message)) return
       const completionNotes = data.completionNotes
       const result = await projectsApi.updateTaskStatus(route.params.id, task.id, normalizeTaskStatusForApi(newStatus), undefined, completionNotes)
       if (!result?.success) throw new Error(result?.msg || '提交审核失败')
+      // CO-465: 后端确认成功后再更新前端状态
       const keepDeliverables = task.deliverables
       const keepAttachments = task.attachments
       Object.assign(task, taskBackendToCard(result.data))
       task.deliverables = keepDeliverables || task.deliverables
       task.attachments = keepAttachments || task.attachments
       task.hasDeliverable = (task.deliverables || []).length > 0
+      pushActivity(`任务"${task.name}"已提交审核`)
       message.success('任务已提交审核')
     } catch (error) {
       message.error(resolveErrorMessage(error, '提交审核失败'))

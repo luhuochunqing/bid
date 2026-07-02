@@ -1023,6 +1023,64 @@ describe('CO-370 useProjectDetailTaskActions', () => {
 
     expect(state.project.value.tasks[0].deliverables).toEqual(existingDeliverables)
   })
+
+  // CO-465: 交付物上传失败时不得乐观更新 task 状态，且 updateTaskStatus 不应被调用
+  it('CO-465: 交付物上传失败时 task.status 保持 TODO 且 updateTaskStatus 不被调用', async () => {
+    const file = new File(['交付物'], '失败.docx', { type: 'application/octet-stream' })
+    const updateTaskStatus = vi.fn().mockResolvedValue({ success: true, data: { id: 42, status: 'REVIEW' } })
+    // addDeliverable 抛错 → uploadTaskFilesWithFallback 返回 false
+    const addDeliverable = vi.fn().mockRejectedValue(new Error('上传失败'))
+    const tasks = [{ id: 42, name: '任务', status: 'TODO', assigneeId: 9, deliverables: [] }]
+    const { ctx, state } = buildCo370Ctx({
+      updateTaskStatus,
+      projectTasks: tasks,
+      projectStore: { addDeliverable },
+    })
+
+    const { handleSubmitReview } = useProjectDetailTaskActions(ctx)
+    await handleSubmitReview({
+      id: 42,
+      status: 'REVIEW',
+      deliverableFiles: [file],
+      completionNotes: '完成情况说明',
+    })
+
+    // 关键断言：后端 updateTaskStatus 不应被调用
+    expect(updateTaskStatus).not.toHaveBeenCalled()
+    // 关键断言：task.status 不应被乐观更新为 REVIEW，保持原 TODO
+    expect(state.project.value.tasks[0].status).toBe('TODO')
+    // 关键断言：completionNotes 不应被乐观写入 task
+    expect(state.project.value.tasks[0].completionNotes).toBeUndefined()
+  })
+
+  // CO-465: 成功提交后 pushActivity 和 message.success 才被调用（验证时序）
+  it('CO-465: 成功提交后 task 状态更新为 REVIEW 且 pushActivity 被调用', async () => {
+    const updateTaskStatus = vi.fn().mockResolvedValue({
+      success: true,
+      data: { id: 42, name: '任务', status: 'REVIEW', completionNotes: '完成说明' },
+    })
+    const tasks = [{ id: 42, name: '任务', status: 'TODO', assigneeId: 9, deliverables: [] }]
+    const { ctx, state } = buildCo370Ctx({
+      updateTaskStatus,
+      projectTasks: tasks,
+      projectStore: {},
+    })
+
+    const { handleSubmitReview } = useProjectDetailTaskActions(ctx)
+    await handleSubmitReview({
+      id: 42,
+      status: 'REVIEW',
+      deliverableFiles: [],
+      completionNotes: '完成说明',
+    })
+
+    // 后端确认成功后 task 状态才更新
+    expect(state.project.value.tasks[0].status).toBe('REVIEW')
+    expect(state.project.value.tasks[0].completionNotes).toBe('完成说明')
+    // pushActivity 在成功后被调用
+    expect(state.activities.value.length).toBeGreaterThan(0)
+    expect(state.activities.value[0].action).toContain('已提交审核')
+  })
 })
 
 // CO-411: 任务状态变更后看板自动刷新
