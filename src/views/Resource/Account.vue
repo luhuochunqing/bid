@@ -103,12 +103,12 @@
       </el-table>
     </el-card>
 
-   <AccountBorrowDialog v-model="showBorrowDialog" :account="currentAccount" @submitted="loadAccounts" />
+   <AccountBorrowDialog v-model="showBorrowDialog" :account="currentAccount" @submitted="onBorrowSubmitted" />
     <AccountReturnDialog v-model="showReturnDialog" :account="currentReturnAccount" @submitted="onAccountReturned" />
     <AccountDetailDialog v-model="showDetailDialog" :data="currentAccountDetail" :actions="rowActionsFor(currentAccountDetail || {})" @edit="editFromDetail" @return="handleReturnFromDetail" />
     <AccountFormDialog v-model="showCreateDialog" :edit-row="editRow" @saved="loadAccounts" />
     <AccountImportDialog v-model="showImportDialog" @imported="loadAccounts" />
-    <AccountBorrowApplications :accounts="accounts" />
+    <AccountBorrowApplications ref="borrowApplicationsRef" :accounts="accounts" />
   </div>
 </template>
 
@@ -120,7 +120,7 @@ import { resourcesApi } from '@/api'
 import { useUserStore } from '@/stores/user'
 import { usePasswordReveal } from './composables/usePasswordReveal.js'
 import { useAccountBatchActions } from './composables/useAccountBatchActions.js'
-import { resolveAccountActions, isCurrentUserContactPerson, canRevealPassword } from './accountActions.js'
+import { resolveAccountActions, isCurrentUserContactPerson, canRevealPassword, formatPlatformType } from './accountActions.js'
 import AccountFormDialog from './AccountFormDialog.vue'
 import AccountDetailDialog from './AccountDetailDialog.vue'
 import AccountBorrowDialog from './AccountBorrowDialog.vue'
@@ -145,15 +145,6 @@ const userStore = useUserStore()
 const userRoleCode = computed(() => userStore.currentUser?.roleCode || userStore.currentUser?.role || '')
 const isProjectLeader = computed(() => userRoleCode.value === 'bid-projectLeader')
 const accounts = ref([])
-
-// CO-400 三轮：列表需显示编辑页所有字段（除备注），platformType 格式化为中文 label。
-const PLATFORM_TYPE_LABELS = {
-  BIDDING_PLATFORM: '投标平台',
-  CONSTRUCTION_PLATFORM: '采购平台',
-  GOV_PROCUREMENT: '政府平台',
-  OTHER: '其他平台'
-}
-const formatPlatformType = (type) => PLATFORM_TYPE_LABELS[type] || type || '-'
 
 const rowActionsFor = (row) => resolveAccountActions({
   isManager: userStore.isBidManager,
@@ -189,6 +180,7 @@ const currentReturnAccount = ref(null)
 const currentAccountDetail = ref(null)
 const editRow = ref(null)
 const showImportDialog = ref(false)
+const borrowApplicationsRef = ref(null)
 
 // CO-400 二轮：列表 row 对非特权角色是脱敏 SummaryDTO，
 // 详情/编辑前都需调详情接口拉完整 PlatformAccountDTO，失败时 fallback 到列表 row。
@@ -250,6 +242,11 @@ const handleReturnFromDetail = () => {
 }
 
 const handleBorrow = (row) => { currentAccount.value = row; showBorrowDialog.value = true }
+
+const onBorrowSubmitted = () => {
+  loadAccounts()
+  borrowApplicationsRef.value?.reloadApplications()
+}
 const handleEdit = async (row) => {
   editRow.value = await loadAccountDetail(row.raw || row)
   showCreateDialog.value = true

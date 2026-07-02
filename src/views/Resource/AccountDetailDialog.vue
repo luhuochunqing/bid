@@ -37,20 +37,34 @@
         </el-descriptions>
       </el-tab-pane>
       <el-tab-pane label="借用记录" name="borrows">
-        <el-table :data="borrowRecords" stripe size="small" max-height="300">
-          <el-table-column prop="borrower" label="借用人" width="100" />
-          <el-table-column prop="borrowedAt" label="借用时间" width="160" />
-          <el-table-column prop="returnDate" label="归还时间" width="160" />
-          <el-table-column prop="status" label="状态" width="80">
+        <el-table :data="borrowRecords" stripe size="small" max-height="360" v-loading="borrowLoading">
+          <el-table-column label="申请人" width="100">
             <template #default="{ row }">
-              <el-tag :type="row.status === 'returned' ? 'success' : 'warning'" size="small">
-                {{ row.status === 'returned' ? '已归还' : '使用中' }}
+              {{ row.applicantName || '未知' }}
+              <span v-if="row.applicantEmployeeNo" style="color: var(--el-text-color-secondary); font-size: 12px;">
+                （{{ row.applicantEmployeeNo }}）
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="purpose" label="用途" min-width="120" show-overflow-tooltip />
+          <el-table-column prop="createdAt" label="申请时间" width="150">
+            <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+          </el-table-column>
+          <el-table-column prop="expectedReturnAt" label="预计归还" width="150">
+            <template #default="{ row }">{{ formatDateTime(row.expectedReturnAt) }}</template>
+          </el-table-column>
+          <el-table-column prop="returnedAt" label="实际归还" width="150">
+            <template #default="{ row }">{{ row.returnedAt ? formatDateTime(row.returnedAt) : '-' }}</template>
+          </el-table-column>
+          <el-table-column label="状态" width="90">
+            <template #default="{ row }">
+              <el-tag :type="borrowStatusType(row.status)" size="small">
+                {{ borrowStatusLabel(row.status) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="purpose" label="用途" />
         </el-table>
-        <el-empty v-if="!borrowRecords.length" description="暂无借用记录" :image-size="60" />
+        <el-empty v-if="!borrowLoading && !borrowRecords.length" description="暂无借用记录" :image-size="60" />
       </el-tab-pane>
     </el-tabs>
     <template #footer>
@@ -70,8 +84,6 @@ import { usePasswordReveal } from './composables/usePasswordReveal.js'
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   data: { type: Object, default: null },
-  // CO-400 round5：详情页编辑按钮受权限控制，与列表页 rowActions 对称。
-  // 父组件传入由 resolveAccountActions 计算出的 actions 对象。
   actions: { type: Object, default: () => ({}) }
 })
 const emit = defineEmits(['update:modelValue', 'edit', 'return'])
@@ -83,11 +95,10 @@ const visible = computed({
 
 const activeTab = ref('info')
 const borrowRecords = ref([])
+const borrowLoading = ref(false)
 
-// CO-389：详情新增"平台密码"行，沿用列表的 usePasswordReveal composable
 const password = usePasswordReveal((id) => resourcesApi.accounts.getPassword(id))
 
-// P1 安全：dialog 关闭时清理密码揭示状态，防止明文驻留内存 + 避免下次打开误显示
 watch(() => props.modelValue, (open) => {
   if (!open) {
     password.visible.value = {}
@@ -109,9 +120,50 @@ const platformTypeLabel = computed(() => {
   return PLATFORM_TYPE_MAP[raw] || raw
 })
 
-watch(() => props.data, () => {
+const BORROW_STATUS_MAP = {
+  PENDING_APPROVAL: '待审批',
+  BORROWED: '已借出',
+  REJECTED: '已拒绝',
+  RETURNED: '已归还',
+  CANCELLED: '已撤销'
+}
+const borrowStatusLabel = (status) => BORROW_STATUS_MAP[status] || status
+
+const borrowStatusType = (status) => {
+  if (status === 'PENDING_APPROVAL') return 'warning'
+  if (status === 'BORROWED') return 'success'
+  if (status === 'REJECTED' || status === 'CANCELLED') return 'danger'
+  if (status === 'RETURNED') return 'info'
+  return ''
+}
+
+const formatDateTime = (value) => {
+  if (!value) return '-'
+  const d = new Date(value)
+  return isNaN(d.getTime()) ? value : d.toLocaleString('zh-CN', { hour12: false })
+}
+
+const loadBorrowRecords = async () => {
+  const id = props.data?.id ?? props.data?.raw?.id
+  if (!id) return
+  borrowLoading.value = true
+  try {
+    const res = await resourcesApi.accounts.getBorrowApplications(id)
+    borrowRecords.value = Array.isArray(res?.data) ? res.data : []
+  } catch (e) {
+    console.error('Failed to load borrow records:', e)
+    borrowRecords.value = []
+  } finally {
+    borrowLoading.value = false
+  }
+}
+
+watch(() => props.data, (newVal) => {
   activeTab.value = 'info'
   borrowRecords.value = []
+  if (newVal) {
+    loadBorrowRecords()
+  }
 })
 </script>
 

@@ -144,6 +144,12 @@ const reload = () => {
   loadApprovals()
 }
 
+const reloadApplications = () => {
+  loadApplications()
+}
+
+defineExpose({ reloadApplications, reloadApprovals: loadApprovals })
+
 const approve = async (row) => {
   try {
     const res = await resourcesApi.accounts.approveBorrowApplication(row.id, { comment: '' })

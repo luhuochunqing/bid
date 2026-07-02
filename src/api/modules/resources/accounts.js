@@ -120,6 +120,11 @@ export const accountsApi = {
     return httpClient.post(`/api/platform/accounts/${accountId}/borrow-applications`, payload)
   },
 
+  async getBorrowApplications(accountId) {
+    if (!isNumericId(accountId)) return Promise.resolve(invalidIdMessage('account'))
+    return httpClient.get(`/api/platform/accounts/${accountId}/borrow-applications`)
+  },
+
   async getMyBorrowApplications() {
     return httpClient.get('/api/borrow-applications/my-applications')
   },

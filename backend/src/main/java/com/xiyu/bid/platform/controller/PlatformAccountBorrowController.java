@@ -61,6 +61,14 @@ public class PlatformAccountBorrowController {
         return ResponseEntity.ok(ApiResponse.success("申请已提交", result));
     }
 
+    /** List all borrow applications for a specific platform account. */
+    @GetMapping("/platform/accounts/{accountId}/borrow-applications")
+    public ResponseEntity<ApiResponse<List<BorrowApplicationDTO>>> getBorrowApplicationsByAccount(
+            @PathVariable Long accountId) {
+        List<BorrowApplicationDTO> result = borrowService.getBorrowApplicationsByAccountId(accountId);
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
     /** List borrow applications submitted by the current user. */
     @GetMapping("/borrow-applications/my-applications")
     public ResponseEntity<ApiResponse<List<BorrowApplicationDTO>>> myApplications(

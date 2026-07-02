@@ -222,6 +222,13 @@ public class PlatformAccountBorrowService {
                 });
     }
 
+    /** Get borrow applications for a specific account, ordered by createdAt descending. */
+    public List<BorrowApplicationDTO> getBorrowApplicationsByAccountId(Long accountId) {
+        List<AccountBorrowApplication> apps = applicationRepository.findByAccountId(accountId);
+        apps.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
+        return applicationMapper.toDTOList(apps);
+    }
+
     /** Get a single application by ID. */
     public BorrowApplicationDTO getApplication(Long applicationId) {
         AccountBorrowApplication app = applicationRepository.findById(applicationId)

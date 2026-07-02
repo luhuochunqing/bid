@@ -72,3 +72,13 @@ export function isCurrentUserContactPerson(row, user) {
 export function canRevealPassword({ isManager, isBidTeam, isContactPerson }) {
   return isManager || (isBidTeam && isContactPerson)
 }
+
+const PLATFORM_TYPE_LABELS = {
+  BIDDING_PLATFORM: '投标平台',
+  CONSTRUCTION_PLATFORM: '采购平台',
+  GOV_PROCUREMENT: '政府平台',
+  OTHER: '其他平台'
+}
+export function formatPlatformType(type) {
+  return PLATFORM_TYPE_LABELS[type] || type || '-'
+}
