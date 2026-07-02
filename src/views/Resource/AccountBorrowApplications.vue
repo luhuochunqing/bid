@@ -163,7 +163,7 @@ const reject = async (row) => {
       inputValidator: (v) => v ? true : '拒绝原因不能为空',
       inputErrorMessage: '拒绝原因不能为空'
     })
-    const res = await resourcesApi.accounts.rejectBorrowApplication(row.id, { reason: value })
+    const res = await resourcesApi.accounts.rejectBorrowApplication(row.id, { comment: value })
     if (!res?.success) { ElMessage.error(res?.msg || '拒绝失败'); return }
     ElMessage.success('已拒绝')
     await loadApprovals()

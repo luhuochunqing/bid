@@ -91,12 +91,11 @@ public class PlatformAccountBorrowController {
     @PostMapping("/borrow-applications/{id}/approve")
     public ResponseEntity<ApiResponse<BorrowApplicationDTO>> approveApplication(
             @PathVariable Long id,
-            @Valid @RequestBody(required = false) ApproveRequest request,
+            @Valid @RequestBody ApproveRequest request,
             Principal principal) {
         User user = resolveUser(principal);
         boolean privileged = isPrivileged(user);
-        String comment = request != null ? request.getComment() : null;
-        BorrowApplicationDTO result = borrowService.approveApplication(id, comment, user, privileged);
+        BorrowApplicationDTO result = borrowService.approveApplication(id, request.getComment(), user, privileged);
         notificationService.notifyApproved(result);
         return ResponseEntity.ok(ApiResponse.success("申请已通过", result));
     }
@@ -109,8 +108,8 @@ public class PlatformAccountBorrowController {
             Principal principal) {
         User user = resolveUser(principal);
         boolean privileged = isPrivileged(user);
-        BorrowApplicationDTO result = borrowService.rejectApplication(id, request.getReason(), user, privileged);
-        notificationService.notifyRejected(result, request.getReason());
+        BorrowApplicationDTO result = borrowService.rejectApplication(id, request.getComment(), user, privileged);
+        notificationService.notifyRejected(result, request.getComment());
         return ResponseEntity.ok(ApiResponse.success("申请已拒绝", result));
     }
 

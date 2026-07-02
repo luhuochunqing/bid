@@ -149,9 +149,76 @@ class PlatformAccountBorrowControllerTest {
         mockMvc.perform(post("/api/borrow-applications/100/reject")
                         .principal(authToken())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"reason\":\"信息不完整\"}"))
+                        .content("{\"comment\":\"信息不完整\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("REJECTED"));
+    }
+
+    // ── FR-005 契约接缝反序列化测试（approve） ────────────────────────────────
+
+    @Test
+    @DisplayName("FR-005: approve 空body 返回 400")
+    void approveApplication_emptyBody_returns400() throws Exception {
+        mockMvc.perform(post("/api/borrow-applications/100/approve")
+                        .principal(authToken())
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("FR-005: approve 空字符串 body 返回 400")
+    void approveApplication_emptyStringBody_returns400() throws Exception {
+        mockMvc.perform(post("/api/borrow-applications/100/approve")
+                        .principal(authToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(""))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("FR-005: approve 缺 comment 字段（comment 可选）返回 200")
+    void approveApplication_missingCommentField_returns200() throws Exception {
+        when(borrowService.approveApplication(eq(100L), isNull(), eq(CURRENT_USER), anyBoolean()))
+                .thenReturn(sampleDto(100L, "BORROWED"));
+
+        mockMvc.perform(post("/api/borrow-applications/100/approve")
+                        .principal(authToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("BORROWED"));
+    }
+
+    // ── FR-005 契约接缝反序列化测试（reject） ────────────────────────────────
+
+    @Test
+    @DisplayName("FR-005: reject 空 body 返回 400")
+    void rejectApplication_emptyBody_returns400() throws Exception {
+        mockMvc.perform(post("/api/borrow-applications/100/reject")
+                        .principal(authToken())
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("FR-005: reject 空字符串 body 返回 400")
+    void rejectApplication_emptyStringBody_returns400() throws Exception {
+        mockMvc.perform(post("/api/borrow-applications/100/reject")
+                        .principal(authToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(""))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("FR-005: reject 缺 comment 字段（@NotBlank）返回 400")
+    void rejectApplication_missingCommentField_returns400() throws Exception {
+        mockMvc.perform(post("/api/borrow-applications/100/reject")
+                        .principal(authToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
     }
 
     @Test
