@@ -68,8 +68,8 @@
           >
             <textarea
               v-if="isRecommendationReadOnly"
+              v-autosize
               :value="form.recommendation.reason || '-'"
-              rows="10"
               readonly
               class="readonly-textarea"
             />
@@ -212,6 +212,6 @@ defineExpose({ handleSubmit, handleSaveDraft, handleBid, handleAbandon })
   color: var(--text-primary-ui, #303133);
   background: var(--bg-subtle, #F5F7FA);
   resize: vertical;
-  overflow-y: scroll;
+  overflow-y: auto;
 }
 </style>
