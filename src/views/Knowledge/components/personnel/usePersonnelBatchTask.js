@@ -47,8 +47,10 @@ export function usePersonnelBatchTask({ startApi, pollApi, pollInterval = 2000 }
         try {
           const progress = await pollApi(taskId.value)
           const info = progress?.data || {}
-          progressPercent.value = info.progressPercent ?? 0
-          progressText.value = info.progressText || '处理中...'
+          // CO-469: 字段名对齐后端 record（ImportProgressInfo / ExportProgress）
+          // 后端返回 percent/message/failureCount，不是 progressPercent/progressText/failCount/errorMessage
+          progressPercent.value = info.percent ?? 0
+          progressText.value = info.message || '处理中...'
 
           if (info.status === 'COMPLETED') {
             clearInterval(pollTimer)
@@ -56,12 +58,12 @@ export function usePersonnelBatchTask({ startApi, pollApi, pollInterval = 2000 }
             status.value = 'COMPLETED'
             totalCount.value = info.totalCount ?? 0
             successCount.value = info.successCount ?? 0
-            failCount.value = info.failCount ?? 0
+            failCount.value = info.failureCount ?? 0
           } else if (info.status === 'FAILED') {
             clearInterval(pollTimer)
             pollTimer = null
             status.value = 'FAILED'
-            errorMessage.value = info.errorMessage || '任务失败'
+            errorMessage.value = info.message || '任务失败'
           }
         } catch {
           // poll failure does not interrupt
