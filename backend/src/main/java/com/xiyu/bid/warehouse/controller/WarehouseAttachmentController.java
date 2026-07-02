@@ -15,7 +15,10 @@ import com.xiyu.bid.warehouse.infrastructure.WarehouseRepository;
 import com.xiyu.bid.warehouse.service.WarehouseLogService;
 import com.xiyu.bid.warehouse.service.WarehouseMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -27,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
@@ -104,6 +108,26 @@ public class WarehouseAttachmentController {
                                 "删除附件：" + fileName, operatorUsername, operatorId);
                     }
                     return ResponseEntity.ok(ApiResponse.<Void>success("删除成功", null));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{attachmentId}/download")
+    @PreAuthorize("hasAuthority('" + PERM + "')")
+    public ResponseEntity<org.springframework.core.io.Resource> download(
+            @PathVariable Long id, @PathVariable Long attachmentId) {
+        return attachmentRepo.findById(attachmentId)
+                .filter(a -> a.getWarehouse().getId().equals(id))
+                .map(a -> {
+                    var resource = fileService.download(a);
+                    ContentDisposition disposition = ContentDisposition.attachment()
+                            .filename(a.getOriginalFilename(), StandardCharsets.UTF_8)
+                            .build();
+                    return ResponseEntity.ok()
+                            .contentType(MediaType.parseMediaType(a.getContentType()))
+                            .contentLength(a.getFileSize())
+                            .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                            .body(resource);
                 })
                 .orElse(ResponseEntity.notFound().build());
     }
