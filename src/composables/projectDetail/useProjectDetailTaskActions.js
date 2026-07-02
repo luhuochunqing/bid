@@ -362,6 +362,11 @@ export function useProjectDetailTaskActions(context) {
     try {
       // CO-465: 先上传交付物，成功后再调后端更新状态，避免乐观更新导致字段丢失
       if (!await uploadTaskFilesWithFallback(task, data, { projectStore, projectId: route.params.id, userStore }, { attachments: '任务已提交审核，但附件上传失败，请重试', deliverables: '任务已提交审核，但交付物上传失败，请重试' }, message)) return
+      // CO-448: 保证金任务 4 个执行人填写字段需在提交审核时持久化到 extendedFields，
+      // updateTaskStatus 只更新 status，不保存 extendedFields，故需先调 updateTask
+      if (data.extendedFields) {
+        await projectsApi.updateTask(task.id, { extendedFields: data.extendedFields })
+      }
       const completionNotes = data.completionNotes
       const result = await projectsApi.updateTaskStatus(route.params.id, task.id, normalizeTaskStatusForApi(newStatus), undefined, completionNotes)
       if (!result?.success) throw new Error(result?.msg || '提交审核失败')

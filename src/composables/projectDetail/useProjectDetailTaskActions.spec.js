@@ -903,7 +903,7 @@ describe('handleSaveTask edit branch', () => {
 
 // CO-370: 任务交付物和完成情况说明在状态流转后丢失
 describe('CO-370 useProjectDetailTaskActions', () => {
-  const buildCo370Ctx = ({ updateTaskStatus, projectTasks, projectStore = {} }) => {
+  const buildCo370Ctx = ({ updateTaskStatus, updateTask, projectTasks, projectStore = {} }) => {
     const state = {
       project: ref({ id: 1, name: '测试项目', tasks: projectTasks }),
       activities: ref([]),
@@ -917,7 +917,7 @@ describe('CO-370 useProjectDetailTaskActions', () => {
         route: { params: { id: '1' } },
         userStore: { userName: '测试用户', currentUser: { id: 9 } },
         projectStore,
-        projectsApi: { updateTaskStatus },
+        projectsApi: { updateTaskStatus, updateTask },
         isApiProject: ref(true),
         message,
         state,
@@ -1080,6 +1080,99 @@ describe('CO-370 useProjectDetailTaskActions', () => {
     // pushActivity 在成功后被调用
     expect(state.activities.value.length).toBeGreaterThan(0)
     expect(state.activities.value[0].action).toContain('已提交审核')
+  })
+
+  // CO-448: 保证金任务 4 个执行人填写字段（收款方/收款账号/实际缴纳日期/预计归还日期）
+  // 在提交审核时必须通过 updateTask 持久化到后端 extendedFields，
+  // 不能只调 updateTaskStatus（它只更新 status，不保存 extendedFields）。
+  // 回归场景：用户报告"提交审核后 4 字段值丢失"，根因是此处漏调 updateTask。
+  it('CO-448: handleSubmitReview 提交审核时通过 updateTask 持久化 extendedFields', async () => {
+    const updateTask = vi.fn().mockResolvedValue({ id: 42, title: '缴纳投标保证金' })
+    const updateTaskStatus = vi.fn().mockResolvedValue({
+      success: true,
+      data: { id: 42, name: '缴纳投标保证金', status: 'REVIEW', completionNotes: '已完成' },
+    })
+    const extendedFields = {
+      _taskType: 'deposit-payment',
+      depositAmount: 100000,
+      depositDeadline: '2026-08-15',
+      payee: 'XX招标公司',
+      payeeAccount: '6228480000001234567',
+      actualPaymentDate: '2026-07-15',
+      expectedRefundDate: '2026-09-15',
+    }
+    const tasks = [{ id: 42, name: '缴纳投标保证金', status: 'TODO', assigneeId: 9, deliverables: [] }]
+    const { ctx } = buildCo370Ctx({
+      updateTask,
+      updateTaskStatus,
+      projectTasks: tasks,
+      projectStore: {},
+    })
+
+    const { handleSubmitReview } = useProjectDetailTaskActions(ctx)
+    await handleSubmitReview({
+      id: 42,
+      status: 'REVIEW',
+      completionNotes: '已完成',
+      deliverableFiles: [],
+      extendedFields,
+    })
+
+    // 关键断言：updateTask 必须被调用，且传入 { extendedFields }
+    expect(updateTask).toHaveBeenCalledWith(42, { extendedFields })
+    // updateTaskStatus 仍然被调用以更新状态
+    expect(updateTaskStatus).toHaveBeenCalledWith('1', 42, 'REVIEW', undefined, '已完成')
+  })
+
+  // CO-448: 没有 extendedFields 时不应调用 updateTask（避免无意义的 API 调用）
+  it('CO-448: handleSubmitReview 无 extendedFields 时不调用 updateTask', async () => {
+    const updateTask = vi.fn()
+    const updateTaskStatus = vi.fn().mockResolvedValue({
+      success: true,
+      data: { id: 42, name: '普通任务', status: 'REVIEW' },
+    })
+    const tasks = [{ id: 42, name: '普通任务', status: 'TODO', assigneeId: 9, deliverables: [] }]
+    const { ctx } = buildCo370Ctx({
+      updateTask,
+      updateTaskStatus,
+      projectTasks: tasks,
+      projectStore: {},
+    })
+
+    const { handleSubmitReview } = useProjectDetailTaskActions(ctx)
+    await handleSubmitReview({
+      id: 42,
+      status: 'REVIEW',
+      deliverableFiles: [],
+    })
+
+    expect(updateTask).not.toHaveBeenCalled()
+    expect(updateTaskStatus).toHaveBeenCalled()
+  })
+
+  // CO-448: updateTask 失败时不得继续更新状态（避免字段丢失但状态已变）
+  it('CO-448: handleSubmitReview 在 updateTask 失败时不更新状态', async () => {
+    const updateTask = vi.fn().mockRejectedValue(new Error('保存失败'))
+    const updateTaskStatus = vi.fn().mockResolvedValue({ success: true, data: { id: 42, status: 'REVIEW' } })
+    const tasks = [{ id: 42, name: '缴纳投标保证金', status: 'TODO', assigneeId: 9, deliverables: [] }]
+    const { ctx, state } = buildCo370Ctx({
+      updateTask,
+      updateTaskStatus,
+      projectTasks: tasks,
+      projectStore: {},
+    })
+
+    const { handleSubmitReview } = useProjectDetailTaskActions(ctx)
+    await handleSubmitReview({
+      id: 42,
+      status: 'REVIEW',
+      deliverableFiles: [],
+      extendedFields: { _taskType: 'deposit-payment', payee: 'XX公司' },
+    })
+
+    // 关键断言：updateTask 失败时状态不应被乐观更新
+    expect(updateTaskStatus).not.toHaveBeenCalled()
+    expect(state.project.value.tasks[0].status).toBe('TODO')
   })
 })
 

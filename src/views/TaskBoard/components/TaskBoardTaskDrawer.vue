@@ -117,6 +117,12 @@ async function handleSubmitForReview() {
     )
     if (!uploadOk) return
 
+    // CO-448: 保证金任务 4 个执行人填写字段需在提交审核时持久化到 extendedFields，
+    // updateTaskStatus 只更新 status，不保存 extendedFields，故需先调 updateTask
+    if (data.extendedFields) {
+      await projectsApi.updateTask(taskId, { extendedFields: data.extendedFields })
+    }
+
     await projectsApi.updateTaskStatus(projectId, taskId, 'REVIEW', null, data.completionNotes)
 
     ElMessage.success('已提交审核')
