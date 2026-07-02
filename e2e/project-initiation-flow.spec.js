@@ -41,7 +41,7 @@ test.describe('§3.3.1.1 项目立项', () => {
       await expect(page.getByText('关联标讯')).toBeVisible()
       await expect(page.getByText('投标信息')).toBeVisible()
       await expect(page.getByText('客户信息')).toBeVisible()
-      await expect(page.getByText('招标文件与 AI 风险评估')).toBeVisible()
+      await expect(page.getByText('招标文件*')).toBeVisible()
     }
   })
 
