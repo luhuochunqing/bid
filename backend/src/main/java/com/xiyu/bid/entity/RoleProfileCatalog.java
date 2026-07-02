@@ -35,6 +35,16 @@ public final class RoleProfileCatalog {
     public static final String QUALIFICATION_MANAGE_PERMISSION = "qualification.manage";
     public static final String QUALIFICATION_VIEW_PERMISSION = "qualification.view";
 
+    /**
+     * 系统管理员专属权限键（Constitution VI 落地，specs/024-preauthorize-unification）。
+     *
+     * <p>仅授予 admin 角色，是 {@code hasRole('ADMIN')} 在权限键模型中的等价替代。
+     * admin 通过 {@code UserDetailsServiceImpl} 的 admin fallback 显式获得（同
+     * WAREHOUSE_MANAGE_PERMISSION 范式）；其他角色不持有，确保"仅系统管理员"语义严格。
+     * 用法：{@code @PreAuthorize("hasAuthority('" + SYSTEM_ADMIN_PERMISSION + "')")}</p>
+     */
+    public static final String SYSTEM_ADMIN_PERMISSION = "system.admin";
+
     // PRD §2 角色：销售/业务负责人、投标负责人、投标部门管理员、任务执行人
     public static final String SALES_CODE = "bid-projectLeader";
     public static final String PROJECT_LEADER_CODE = SALES_CODE; // 语义别名：投标项目负责人

@@ -1,6 +1,7 @@
 package com.xiyu.bid.notification.outbound.controller;
 
 import com.xiyu.bid.dto.ApiResponse;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.notification.outbound.dto.WeComBindingRequest;
 import com.xiyu.bid.notification.outbound.service.WeComBindingService;
 import jakarta.validation.Valid;
@@ -18,7 +19,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin/users/{userId}/wecom-binding")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
 public class WeComBindingController {
 
     private final WeComBindingService bindingService;

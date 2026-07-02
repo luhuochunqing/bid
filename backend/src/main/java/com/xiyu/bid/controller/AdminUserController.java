@@ -5,6 +5,7 @@ import com.xiyu.bid.dto.AdminUserDTO;
 import com.xiyu.bid.dto.AdminUserStatusUpdateRequest;
 import com.xiyu.bid.dto.AdminUserUpdateRequest;
 import com.xiyu.bid.dto.ApiResponse;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.service.PaginatedResult;
 import com.xiyu.bid.dto.UserOrganizationUpdateRequest;
 import com.xiyu.bid.service.AdminUserQueryService;
@@ -33,7 +34,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/admin/users")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
 public class AdminUserController {
 
     private final AdminUserService adminUserService;

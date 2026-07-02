@@ -5,6 +5,7 @@
 package com.xiyu.bid.project.controller;
 
 import com.xiyu.bid.dto.ApiResponse;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.project.dto.ProjectRequest;
 import com.xiyu.bid.project.dto.ProjectDTO;
 import com.xiyu.bid.project.dto.ProjectImportRequest;
@@ -141,7 +142,7 @@ public class ProjectController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
     public ResponseEntity<ApiResponse<Void>> deleteProject(@PathVariable Long id) {
         log.info("DELETE /api/projects/{} - Deleting project", id);
         projectService.deleteProject(id);

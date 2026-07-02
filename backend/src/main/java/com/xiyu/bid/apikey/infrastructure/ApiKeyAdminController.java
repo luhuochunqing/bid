@@ -5,6 +5,7 @@ import com.xiyu.bid.apikey.dto.ApiKeyResponse;
 import com.xiyu.bid.apikey.dto.CreateApiKeyRequest;
 import com.xiyu.bid.apikey.dto.CreateApiKeyResponse;
 import com.xiyu.bid.dto.ApiResponse;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +28,7 @@ import java.util.List;
 @RequestMapping("/api/admin/api-keys")
 @RequiredArgsConstructor
 @Slf4j
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
 @Tag(name = "API Key 管理", description = "第三方接入 API Key 的创建与生命周期管理")
 public class ApiKeyAdminController {
 

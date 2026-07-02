@@ -5,6 +5,7 @@
 package com.xiyu.bid.formengine.infrastructure;
 
 import com.xiyu.bid.dto.ApiResponse;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.formengine.application.FormDefinitionAdminService;
 import com.xiyu.bid.formengine.application.FormDefinitionAdminService.ConditionRuleDto;
 import com.xiyu.bid.formengine.application.FormDefinitionAdminService.CreateFormDefinitionRequest;
@@ -46,7 +47,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/admin/form-definitions")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
 @Tag(name = "表单定义管理", description = "表单定义 CRUD 和规则管理 API（仅 ADMIN）")
 public class FormDefinitionAdminController {
 

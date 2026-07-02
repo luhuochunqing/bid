@@ -1,0 +1,9 @@
+version: 1
+locks:
+  - path: "backend/src/main/java/com/xiyu/bid/entity/RoleProfileCatalog.java"
+    owner: "zcode"
+    branch: "agent/zcode/preauthorize-p3-system-admin"
+    task: "preauthorize-unification"
+    scope: "file"
+    reason: "P3 迁移：新增 SYSTEM_ADMIN_PERMISSION 常量 + admin 专属模块权限键调整（specs/024-preauthorize-unification）"
+    expiresAt: "2026-07-10T00:00:00Z"

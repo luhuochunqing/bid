@@ -47,7 +47,7 @@ class NotificationControllerPermissionTest {
             .as("createNotification 必须保留方法级 @PreAuthorize")
             .isNotNull();
         assertThat(annotation.value())
-            .as("管理员推送通知入口仍限 ADMIN")
-            .isEqualTo("hasRole('ADMIN')");
+            .as("管理员推送通知入口仍限 admin（P3 迁移后用 system.admin 权限键表达）")
+            .isEqualTo("hasAuthority('" + com.xiyu.bid.entity.RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')");
     }
 }

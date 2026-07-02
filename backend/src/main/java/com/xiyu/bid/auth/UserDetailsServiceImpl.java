@@ -141,6 +141,8 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         // Fallback for Admin legacy role
         if (User.Role.ADMIN == legacyRole || "admin".equalsIgnoreCase(roleCode)) {
             authorities.add(RoleProfileCatalog.WAREHOUSE_MANAGE_PERMISSION);
+            // system.admin：仅 admin 持有的系统级权限键（Constitution VI，specs/024-preauthorize-unification）
+            authorities.add(RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION);
         }
 
         // CO-391 诊断日志：输出最终 roleCode 与 authorities 集合，便于排查 403 鉴权失败。
