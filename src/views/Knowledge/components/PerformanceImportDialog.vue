@@ -63,8 +63,25 @@
       style="margin-top:8px"
     />
     <div v-if="importResult.failures.length > 0" class="import-failures">
-      <div class="import-failures-title">失败明细（前 5 行）：</div>
-      <p v-for="f in importResult.failures.slice(0,5)" :key="f.rowNum">第 {{ f.rowNum }} 行: {{ f.reason }}</p>
+      <div class="import-failures-title">失败明细（共 {{ importResult.failures.length }} 条，前 10 条）：</div>
+      <div class="failure-table-wrapper">
+        <table class="failure-table">
+          <thead>
+            <tr>
+              <th style="width: 60px">行号</th>
+              <th style="width: 120px">合同名称</th>
+              <th>错误原因</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="f in importResult.failures.slice(0,10)" :key="f.rowNum">
+              <td class="row-num">{{ f.rowNum }}</td>
+              <td class="contract-name">{{ f.contractName || '-' }}</td>
+              <td class="reason">{{ f.reason }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
     <div v-if="importResult.attachedCount > 0 || importResult.unmatchedFiles.length > 0" class="import-attach-report">
       <span>附件关联：成功 {{ importResult.attachedCount }} 个</span>
@@ -97,8 +114,16 @@ const {
 </script>
 
 <style scoped>
-.import-failures { text-align: left; color: var(--el-color-danger); font-size: 13px; max-height: 120px; overflow-y: auto; }
-.import-failures-title { font-weight: 600; margin-bottom: 4px; }
+.import-failures { text-align: left; color: var(--el-color-danger); font-size: 13px; max-height: 260px; overflow-y: auto; margin-top: 8px; }
+.import-failures-title { font-weight: 600; margin-bottom: 8px; color: var(--el-color-danger); }
+.failure-table-wrapper { border: 1px solid var(--el-border-color-lighter); border-radius: 4px; overflow: hidden; }
+.failure-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.failure-table th { background: var(--el-color-danger-light-9); color: var(--el-color-danger); padding: 8px; text-align: left; font-weight: 600; border-bottom: 1px solid var(--el-border-color-lighter); }
+.failure-table td { padding: 6px 8px; border-bottom: 1px solid var(--el-border-color-lighter); vertical-align: top; color: var(--el-text-color-primary); }
+.failure-table tr:last-child td { border-bottom: none; }
+.failure-table .row-num { font-weight: 600; color: var(--el-color-danger); }
+.failure-table .contract-name { color: var(--el-text-color-regular); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.failure-table .reason { color: var(--el-text-color-primary); line-height: 1.5; }
 .import-attach-report { margin-top: 8px; font-size: 13px; color: var(--el-text-color-regular); }
 .upload-icon { font-size: 40px; color: var(--el-color-primary); opacity: 0.7; margin-bottom: 8px; }
 :deep(.el-upload__sub) { font-size: 12px; color: var(--el-text-color-secondary); margin-top: 4px; }

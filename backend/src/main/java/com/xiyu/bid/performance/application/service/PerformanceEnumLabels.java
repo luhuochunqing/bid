@@ -68,7 +68,7 @@ public final class PerformanceEnumLabels {
             case "港澳台及外企", "港澳台/外企" -> CustomerType.FOREIGN_HK_MACAO_TW;
             default -> {
                 try { yield CustomerType.valueOf(s); }
-                catch (IllegalArgumentException e) { throw new IllegalArgumentException("无效的客户类型: " + s); }
+                catch (IllegalArgumentException e) { throw new IllegalArgumentException("无效值 \"" + s + "\"，可选值：政府机关/事业单位、央企、地方国企、民企、港澳台及外企"); }
             }
         };
     }
@@ -83,7 +83,7 @@ public final class PerformanceEnumLabels {
             case "其他" -> ProjectType.OTHER;
             default -> {
                 try { yield ProjectType.valueOf(s); }
-                catch (IllegalArgumentException e) { throw new IllegalArgumentException("无效的项目类型: " + s); }
+                catch (IllegalArgumentException e) { throw new IllegalArgumentException("无效值 \"" + s + "\"，可选值：办公、综合、集采、工业品、其他"); }
             }
         };
     }
@@ -96,7 +96,7 @@ public final class PerformanceEnumLabels {
             case "API" -> DockingMethod.API;
             default -> {
                 try { yield DockingMethod.valueOf(s); }
-                catch (IllegalArgumentException e) { throw new IllegalArgumentException("无效的对接方式: " + s); }
+                catch (IllegalArgumentException e) { throw new IllegalArgumentException("无效值 \"" + s + "\"，可选值：Emall、Punch-out、API"); }
             }
         };
     }
@@ -108,7 +108,7 @@ public final class PerformanceEnumLabels {
             case "二级单位" -> CustomerLevel.SUBSIDIARY;
             default -> {
                 try { yield CustomerLevel.valueOf(s); }
-                catch (IllegalArgumentException e) { throw new IllegalArgumentException("无效的客户级别: " + s); }
+                catch (IllegalArgumentException e) { throw new IllegalArgumentException("无效值 \"" + s + "\"，可选值：集团、二级单位"); }
             }
         };
     }

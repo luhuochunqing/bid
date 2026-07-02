@@ -1,7 +1,11 @@
 package com.xiyu.bid.performance.application.service;
 
+import org.apache.poi.ss.usermodel.DataValidation;
+import org.apache.poi.ss.usermodel.DataValidationConstraint;
+import org.apache.poi.ss.usermodel.DataValidationHelper;
 import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.IndexedColors;
+import org.apache.poi.ss.util.CellRangeAddressList;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 
@@ -25,6 +29,26 @@ public class PerformanceExcelTemplateGenerator {
             "是否有中标通知书", "中标通知书附件文件名", "备注"
     };
 
+    private static final String[] CUSTOMER_TYPE_OPTIONS = {
+            "政府机关/事业单位", "央企", "地方国企", "民企", "港澳台及外企"
+    };
+
+    private static final String[] PROJECT_TYPE_OPTIONS = {
+            "办公", "综合", "集采", "工业品", "其他"
+    };
+
+    private static final String[] DOCKING_METHOD_OPTIONS = {
+            "Emall", "Punch-out", "API"
+    };
+
+    private static final String[] CUSTOMER_LEVEL_OPTIONS = {
+            "集团", "二级单位"
+    };
+
+    private static final String[] YES_NO_OPTIONS = {"是", "否"};
+
+    private static final int MAX_ROWS = 1000;
+
     public byte[] generate() throws IOException {
         try (var wb = new XSSFWorkbook()) {
             var sheet = wb.createSheet("业绩导入模板");
@@ -41,9 +65,30 @@ public class PerformanceExcelTemplateGenerator {
                 cell.setCellStyle(headerStyle);
                 sheet.setColumnWidth(i, 20 * 256);
             }
+
+            addDropdownValidation(sheet, 3, CUSTOMER_TYPE_OPTIONS);
+            addDropdownValidation(sheet, 5, PROJECT_TYPE_OPTIONS);
+            addDropdownValidation(sheet, 6, DOCKING_METHOD_OPTIONS);
+            addDropdownValidation(sheet, 7, CUSTOMER_LEVEL_OPTIONS);
+            addDropdownValidation(sheet, 8, YES_NO_OPTIONS);
+            addDropdownValidation(sheet, 25, YES_NO_OPTIONS);
+
             var out = new ByteArrayOutputStream();
             wb.write(out);
             return out.toByteArray();
         }
+    }
+
+    private void addDropdownValidation(org.apache.poi.xssf.usermodel.XSSFSheet sheet, int colIndex, String[] options) {
+        DataValidationHelper helper = sheet.getDataValidationHelper();
+        DataValidationConstraint constraint = helper.createExplicitListConstraint(options);
+        CellRangeAddressList range = new CellRangeAddressList(1, MAX_ROWS, colIndex, colIndex);
+        DataValidation validation = helper.createValidation(constraint, range);
+        validation.setEmptyCellAllowed(true);
+        validation.setShowErrorBox(true);
+        validation.setShowPromptBox(true);
+        validation.createPromptBox("输入提示", "请从下拉列表中选择");
+        validation.createErrorBox("输入错误", "请从下拉列表中选择有效值");
+        sheet.addValidationData(validation);
     }
 }
