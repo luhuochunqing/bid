@@ -58,7 +58,11 @@ public class CaBorrowService {
         if ("EXPIRED".equals(cert.getStatus())) {
             throw new CaBusinessException("CA已过期，无法借用");
         }
-
+        // CO-476: 同一申请人对同一 CA 不允许重复发起待审批申请
+        if (borrowRepository.existsByCaCertificateIdAndApplicantIdAndStatus(
+                request.getCaCertificateId(), user.getId(), BorrowStatus.PENDING_APPROVAL.name())) {
+            throw new CaBusinessException("该CA已有待审批的借用申请，请勿重复申请");
+        }
         CaBorrowApplicationEntity app = CaBorrowApplicationEntity.builder()
                 .caCertificateId(request.getCaCertificateId())
                 .applicantId(user.getId())

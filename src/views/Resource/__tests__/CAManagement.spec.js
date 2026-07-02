@@ -91,6 +91,8 @@ vi.mock('@/api/modules/ca.js', () => ({
     getOverview: vi.fn().mockResolvedValue({ data: { ...mockOverview } }),
     getBorrowApplications: vi.fn().mockResolvedValue({ data: [] }),
     getOperationEvents: vi.fn().mockResolvedValue({ data: [] }),
+    getMyBorrowApplications: vi.fn().mockResolvedValue({ data: [] }),
+    getMyApprovals: vi.fn().mockResolvedValue({ data: [] }),
     borrow: vi.fn().mockResolvedValue({ success: true }),
     returnCa: vi.fn().mockResolvedValue({ success: true }),
     deactivate: vi.fn().mockResolvedValue({ success: true })
@@ -491,5 +493,34 @@ describe('CAManagement — CO-459 借用申请/审批列表字段', () => {
     expect(html).toContain('盖章承诺书')
     expect(html).toContain('创建时间')
     expect(html).not.toContain('借用时间')
+  })
+})
+
+// ── CO-476: 申请人不得重复申请同一个 CA ──
+// 需求：当前用户对某 CA 有 PENDING_APPROVAL 申请时，CA 列表上该 CA 的借用按钮应隐藏
+
+describe('CAManagement — CO-476 重复申请按钮隐藏', () => {
+  it('当前用户对 CA #1 有 PENDING_APPROVAL 申请时，myPendingApplicationCaIds 包含 1', async () => {
+    const { caApi } = await import('@/api/modules/ca.js')
+    vi.mocked(caApi.getMyBorrowApplications).mockResolvedValueOnce({
+      data: [
+        { id: 100, caCertificateId: 1, status: 'PENDING_APPROVAL', applicantId: 'admin001' },
+        { id: 101, caCertificateId: 2, status: 'APPROVED', applicantId: 'admin001' }
+      ]
+    })
+
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    // PENDING_APPROVAL 的 CA #1 应在集合中；APPROVED 的 CA #2 不应
+    expect(wrapper.vm.myPendingApplicationCaIds.has(1)).toBe(true)
+    expect(wrapper.vm.myPendingApplicationCaIds.has(2)).toBe(false)
+  })
+
+  it('无待审批申请时，myPendingApplicationCaIds 为空集合', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    expect(wrapper.vm.myPendingApplicationCaIds.size).toBe(0)
   })
 })

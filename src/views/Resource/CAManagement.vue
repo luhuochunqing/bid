@@ -128,7 +128,7 @@
             <el-button link type="primary" size="small" @click.stop="handleView(row)">查看</el-button>
             <el-button v-if="canManage(row)" link type="primary" size="small" @click.stop="handleEdit(row)">编辑</el-button>
             <el-button
-              v-if="canBorrow(row)"
+              v-if="canBorrow(row) && !myPendingApplicationCaIds.has(row.id)"
               link type="success" size="small"
               @click.stop="handleOpenBorrow(row)"
             >借用</el-button>
@@ -175,7 +175,7 @@
         <el-table-column label="操作" width="160" fixed="right">
           <template #default="{ row }">
             <el-button
-              v-if="row.borrowStatus === 'IN_STOCK' && row.caType === 'ENTITY_CA' && row.status !== 'EXPIRED' && row.status !== 'INACTIVE'"
+              v-if="row.borrowStatus === 'IN_STOCK' && row.caType === 'ENTITY_CA' && row.status !== 'EXPIRED' && row.status !== 'INACTIVE' && !myPendingApplicationCaIds.has(row.id)"
               type="primary" size="small"
               @click="handleOpenBorrow(row)"
             >申请使用</el-button>
@@ -465,12 +465,25 @@ const filteredData = computed(() => {
   return list
 })
 
+// CO-476: 当前用户有待审批申请的 CA id 集合，用于在 CA 列表上隐藏重复申请按钮
+const myPendingApplicationCaIds = computed(() => {
+  const ids = new Set()
+  for (const app of myApplications.value) {
+    if (app.status === 'PENDING_APPROVAL' && app.caCertificateId) {
+      ids.add(app.caCertificateId)
+    }
+  }
+  return ids
+})
+
 // Data loading
 async function loadData() {
   loading.value = true
   try {
     await caStore.loadCertificates({ size: 500 })
     await loadOverview()
+    // CO-476: 加载当前用户的借用申请，用于在 CA 列表上隐藏重复申请的按钮
+    await loadMyApplications()
   } catch {
     ElMessage.error('加载 CA 证书数据失败')
   } finally {
