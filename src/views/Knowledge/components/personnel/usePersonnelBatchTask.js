@@ -12,9 +12,13 @@ export function usePersonnelBatchTask({ startApi, pollApi, pollInterval = 2000 }
   const active = ref(false)
   let pollTimer = null
 
-  const isProcessing = computed(() => status.value === 'PROCESSING')
-  const isCompleted = computed(() => status.value === 'COMPLETED')
-  const isFailed = computed(() => status.value === 'FAILED')
+  // CO-469 第二轮修复：状态机覆盖后端全部 5 种状态 + 2 种 fallback 状态
+  // 后端 ImportTaskStatus 枚举：PENDING / PROCESSING / COMPLETED / PARTIAL_SUCCESS / FAILED
+  // 后端 getProgress fallback：UNKNOWN（Redis 不可用）/ NOT_FOUND（任务不存在）
+  // 原仅处理 COMPLETED/FAILED → 部分失败场景必死循环
+  const isProcessing = computed(() => status.value === 'PROCESSING' || status.value === 'PENDING')
+  const isCompleted = computed(() => status.value === 'COMPLETED' || status.value === 'PARTIAL_SUCCESS')
+  const isFailed = computed(() => status.value === 'FAILED' || status.value === 'UNKNOWN' || status.value === 'NOT_FOUND')
 
   function reset() {
     if (pollTimer) {
@@ -52,17 +56,21 @@ export function usePersonnelBatchTask({ startApi, pollApi, pollInterval = 2000 }
           progressPercent.value = info.percent ?? 0
           progressText.value = info.message || '处理中...'
 
-          if (info.status === 'COMPLETED') {
+          // CO-469 第二轮：覆盖后端全部状态，避免 PARTIAL_SUCCESS/UNKNOWN/NOT_FOUND 死循环
+          // - COMPLETED / PARTIAL_SUCCESS：停止轮询，标记完成态（UI 显示失败行数 + 下载错误报告）
+          // - FAILED / UNKNOWN / NOT_FOUND：停止轮询，标记失败态
+          // - PENDING / PROCESSING：继续轮询
+          if (info.status === 'COMPLETED' || info.status === 'PARTIAL_SUCCESS') {
             clearInterval(pollTimer)
             pollTimer = null
-            status.value = 'COMPLETED'
+            status.value = info.status
             totalCount.value = info.totalCount ?? 0
             successCount.value = info.successCount ?? 0
             failCount.value = info.failureCount ?? 0
-          } else if (info.status === 'FAILED') {
+          } else if (info.status === 'FAILED' || info.status === 'UNKNOWN' || info.status === 'NOT_FOUND') {
             clearInterval(pollTimer)
             pollTimer = null
-            status.value = 'FAILED'
+            status.value = info.status
             errorMessage.value = info.message || '任务失败'
           }
         } catch {
