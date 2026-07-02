@@ -176,7 +176,7 @@ const handleSubmit = async () => {
     const res = await http.post('/api/knowledge/qualifications/import-combined', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
-    const data = res?.data?.data || {}
+    const data = res?.data || {}
     result.value = {
       import: {
         total: data.import?.total || 0,
