@@ -1,7 +1,6 @@
 package com.xiyu.bid.brandauth.manufacturer.application.service;
 
 import com.xiyu.bid.brandauth.manufacturer.domain.model.ManufacturerAuthorization;
-import com.xiyu.bid.brandauth.manufacturer.domain.port.ManufacturerAuthorizationRepository;
 import com.xiyu.bid.brandauth.manufacturer.infrastructure.persistence.entity.BrandAuthAttachmentEntity;
 import com.xiyu.bid.brandauth.manufacturer.infrastructure.persistence.repository.BrandAuthAttachmentJpaRepository;
 import com.xiyu.bid.common.util.ExcelAutoSizeHelper;
@@ -38,16 +37,20 @@ public final class BrandAuthExportService {
             "授权2备注"
     };
 
-    /** Repository for manufacturer authorizations. */
-    private final ManufacturerAuthorizationRepository repository;
+    /** List service for filtered queries (shared with list view). */
+    private final ListManufacturerAuthAppService listService;
     /** Repository for attachments. */
     private final BrandAuthAttachmentJpaRepository attachmentRepository;
 
-    /** Export all authorizations as a two-sheet Excel workbook. */
-    public byte[] exportAll() throws IOException {
+    /** Export authorizations matching the filter as a two-sheet Excel workbook.
+     *  Filter semantics are identical to the list view (shares the same
+     *  Specification). Pass an all-null filter to export everything. */
+    public byte[] exportByFilter(
+            final ListManufacturerAuthAppService.ListFilter filter)
+            throws IOException {
         try (var wb = new XSSFWorkbook()) {
             List<ManufacturerAuthorization> all =
-                    repository.findByStatus(null);
+                    listService.listAllForExport(filter);
             List<ManufacturerAuthorization> mfg = all.stream()
                     .filter(a -> !"AGENT".equals(a.authorizationType()))
                     .toList();

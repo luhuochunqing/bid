@@ -195,11 +195,30 @@ public class ManufacturerAuthorizationController {
         return ResponseEntity.ok(ApiResponse.success(data));
     }
 
-    /** Export all authorizations as Excel. */
+    /** Export authorizations as Excel, applying the same filters as list. */
     @GetMapping("/export")
     @PreAuthorize("hasAuthority('" + VIEW_PERM + "')")
-    public ResponseEntity<byte[]> exportAll() throws IOException {
-        byte[] data = exportService.exportAll();
+    public ResponseEntity<byte[]> export(
+            @RequestParam(required = false) final List<String> productLines,
+            @RequestParam(required = false) final String brandId,
+            @RequestParam(required = false) final String brandName,
+            @RequestParam(required = false) final String importDomestic,
+            @RequestParam(required = false) final String manufacturerName,
+            @RequestParam(required = false) final LocalDate authStartFrom,
+            @RequestParam(required = false) final LocalDate authStartTo,
+            @RequestParam(required = false) final LocalDate authEndFrom,
+            @RequestParam(required = false) final LocalDate authEndTo,
+            @RequestParam(required = false) final List<String> statuses,
+            @RequestParam(required = false) final String keyword)
+            throws IOException {
+        List<ProductLine> productLineEnums = parseProductLines(productLines);
+        List<AuthStatus> statusEnums = parseStatuses(statuses);
+        var filter = new ListManufacturerAuthAppService.ListFilter(
+                productLineEnums, brandId, brandName,
+                importDomestic, manufacturerName,
+                authStartFrom, authStartTo, authEndFrom, authEndTo,
+                statusEnums, keyword, null);
+        byte[] data = exportService.exportByFilter(filter);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(
                     "application/"

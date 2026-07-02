@@ -179,13 +179,13 @@ class KnowledgeAccessSecurityTest {
         }
 
         // BrandAuthExportService 是 final 类，subclass mock maker 无法 mock；
-        // 本测试不调用其方法，故直接 new 出真实实例（用 MockBean 注入的两个 repository）。
+        // 本测试不调用其方法，故直接 new 出真实实例（用 MockBean 注入的 listService + attachmentRepository）。
         @Bean
         com.xiyu.bid.brandauth.manufacturer.application.service.BrandAuthExportService brandAuthExportService(
-                com.xiyu.bid.brandauth.manufacturer.domain.port.ManufacturerAuthorizationRepository repository,
+                com.xiyu.bid.brandauth.manufacturer.application.service.ListManufacturerAuthAppService listService,
                 com.xiyu.bid.brandauth.manufacturer.infrastructure.persistence.repository.BrandAuthAttachmentJpaRepository attachmentRepository) {
             return new com.xiyu.bid.brandauth.manufacturer.application.service.BrandAuthExportService(
-                    repository, attachmentRepository);
+                    listService, attachmentRepository);
         }
     }
 

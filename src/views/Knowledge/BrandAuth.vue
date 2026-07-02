@@ -244,13 +244,12 @@ const doExport = async () => {
   if (total.value > 500) { ElMessage.warning('单次最多导出500条'); return }
   try {
     const p = new URLSearchParams()
-    if (filters.productLines?.length) p.append('productLines', filters.productLines.join(','))
+    if (filters.productLines?.length) filters.productLines.forEach(v => p.append('productLines', v))
     if (filters.brandId) p.append('brandId', filters.brandId)
     if (filters.brandName) p.append('brandName', filters.brandName)
     if (filters.importDomestic) p.append('importDomestic', filters.importDomestic)
     if (filters.manufacturerName) p.append('manufacturerName', filters.manufacturerName)
-    if (filters.agentName) p.append('agentName', filters.agentName)
-    if (filters.statuses?.length) p.append('statuses', filters.statuses.join(','))
+    if (filters.statuses?.length) filters.statuses.forEach(v => p.append('statuses', v))
     if (filters.keyword) p.append('keyword', filters.keyword)
     const resp = await http.get('/api/knowledge/brand-auth/export?' + p.toString(), { responseType: 'blob' })
     const url = window.URL.createObjectURL(new Blob([resp.data]))

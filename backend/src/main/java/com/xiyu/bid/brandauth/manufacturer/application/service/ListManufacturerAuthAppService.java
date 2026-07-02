@@ -44,7 +44,40 @@ public class ListManufacturerAuthAppService {
     public Page<ManufacturerAuthorizationDTO> list(
             final ListFilter filter, final int page, final int size) {
         Specification<ManufacturerAuthorizationEntity> spec =
-                (root, query, cb) -> {
+                buildSpec(filter);
+
+        PageRequest pr = PageRequest.of(page, size,
+                Sort.by(Sort.Direction.DESC, "createdAt"));
+        return jpaRepository.findAll(spec, pr)
+                .map(entity -> {
+                    var domain = toDomain(entity);
+                    var atts = attachmentRepository
+                            .findByAuthorizationId(entity.getId());
+                    return ManufacturerAuthMapper.toDTO(domain, atts);
+                });
+    }
+
+    /**
+     * List all authorizations matching the filter for export (no pagination).
+     * Reuses the same Specification as {@link #list} to keep filter
+     * semantics consistent between list view and export.
+     *
+     * @param filter the filter criteria (all fields nullable = no filter)
+     * @return list of domain authorizations
+     */
+    public List<ManufacturerAuthorization> listAllForExport(
+            final ListFilter filter) {
+        return jpaRepository.findAll(buildSpec(filter)).stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    /**
+     * Build JPA Specification from filter (shared by list and export).
+     */
+    private Specification<ManufacturerAuthorizationEntity> buildSpec(
+            final ListFilter filter) {
+        return (root, query, cb) -> {
             List<Predicate> p = new ArrayList<>();
             if (filter.productLines != null
                     && !filter.productLines.isEmpty()) {
@@ -105,16 +138,6 @@ public class ListManufacturerAuthAppService {
             }
             return cb.and(p.toArray(new Predicate[0]));
         };
-
-        PageRequest pr = PageRequest.of(page, size,
-                Sort.by(Sort.Direction.DESC, "createdAt"));
-        return jpaRepository.findAll(spec, pr)
-                .map(entity -> {
-                    var domain = toDomain(entity);
-                    var atts = attachmentRepository
-                            .findByAuthorizationId(entity.getId());
-                    return ManufacturerAuthMapper.toDTO(domain, atts);
-                });
     }
 
     /**
