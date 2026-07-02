@@ -124,9 +124,9 @@ final class MarginQuerySupport {
         String rf = policy.apply("p", "pid");
         return new StringBuilder(
                 "SELECT COUNT(*) FROM ("
-              + "   SELECT f.id" + FEES_JOIN + rf
+              + "   SELECT f.id as fee_id, pid.project_leader_name, pid.bidding_leader_name" + FEES_JOIN + rf
               + "   UNION ALL"
-              + "   SELECT pid.project_id" + initOnlyFragment(rf)
+              + "   SELECT pid.project_id as fee_id, pid.project_leader_name, pid.bidding_leader_name" + initOnlyFragment(rf)
               + " ) m WHERE 1=1");
     }
 

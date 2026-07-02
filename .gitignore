@@ -108,3 +108,6 @@ outputs/
 tmp/
 xiyu_bid_gemini/
 __pycache__/
+
+# 运行时附件存储目录
+backend/data/

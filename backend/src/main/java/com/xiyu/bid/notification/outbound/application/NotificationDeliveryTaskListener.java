@@ -22,6 +22,9 @@ public class NotificationDeliveryTaskListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onNotificationCreated(NotificationCreatedEvent event) {
+        if (event.notificationId() == null) {
+            return;
+        }
         for (Long recipientUserId : event.recipientUserIds()) {
             NotificationDeliveryCommand command = NotificationDeliveryCommand.fromEvent(event, recipientUserId);
             taskRepository.save(NotificationDeliveryTask.builder()

@@ -186,8 +186,10 @@ if ! curl -fsS "$HEALTHCHECK_URL" >/dev/null 2>&1; then
 fi
 
 # 检查 systemd 服务状态（必须 active，排除 activating/reloading/restarting/failed）
-SERVICE_ACTIVE_STATE="$(run_systemctl show -p ActiveState --value "$BACKEND_SERVICE_NAME" 2>/dev/null || echo unknown)"
-SERVICE_SUB_STATE="$(run_systemctl show -p SubState --value "$BACKEND_SERVICE_NAME" 2>/dev/null || echo unknown)"
+# 注意：systemd 219（CentOS 7）不支持 --value 参数（systemd 230+ 才引入），
+# 用 cut 提取值以兼容旧版 systemd。
+SERVICE_ACTIVE_STATE="$(run_systemctl show -p ActiveState "$BACKEND_SERVICE_NAME" 2>/dev/null | cut -d= -f2 || echo unknown)"
+SERVICE_SUB_STATE="$(run_systemctl show -p SubState "$BACKEND_SERVICE_NAME" 2>/dev/null | cut -d= -f2 || echo unknown)"
 if [[ "$SERVICE_ACTIVE_STATE" != "active" || "$SERVICE_SUB_STATE" == "reloading" || "$SERVICE_SUB_STATE" == "restarting" ]]; then
   printf '\n❌ Service not stable: ActiveState=%s, SubState=%s\n' \
     "$SERVICE_ACTIVE_STATE" "$SERVICE_SUB_STATE" >&2
