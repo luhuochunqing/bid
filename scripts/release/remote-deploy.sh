@@ -150,13 +150,54 @@ run_systemctl --no-pager --full status "$BACKEND_SERVICE_NAME" || true
 printf '==> Waiting for health check %s\n' "$HEALTHCHECK_URL"
 # 部分环境 ApplicationReadyEvent（如 OrganizationEvent SDK 注册/Kafka 启动）耗时超过 2 分钟，
 # 将 health check 等待上限延长至 4 分钟，避免后端已正常启动但脚本提前失败。
-for _ in {1..120}; do
+#
+# 防复发（第 34 次事故）：crash-loop 场景下 systemd 在后端崩溃后立即 restart，
+# restart 间隙后端可能短暂响应 /actuator/health 返回 200（Spring Boot 在 logback
+# 加载失败前可能短暂启动），单次 curl 成功不能证明服务稳定。
+# 修复：必须连续 N 次成功（每次间隔 2 秒）才算健康，避免"启动即崩溃"的误判。
+HEALTH_CHECK_CONSECUTIVE_REQUIRED="${HEALTH_CHECK_CONSECUTIVE_REQUIRED:-3}"
+HEALTH_CHECK_CONSECUTIVE_SUCCESSES=0
+HEALTH_CHECK_TOTAL_ATTEMPTS=0
+HEALTH_CHECK_MAX_ATTEMPTS="${HEALTH_CHECK_MAX_ATTEMPTS:-120}"
+
+while [[ $HEALTH_CHECK_TOTAL_ATTEMPTS -lt $HEALTH_CHECK_MAX_ATTEMPTS ]]; do
+  HEALTH_CHECK_TOTAL_ATTEMPTS=$((HEALTH_CHECK_TOTAL_ATTEMPTS + 1))
   if curl -fsS "$HEALTHCHECK_URL" >/dev/null 2>&1; then
-    break
+    HEALTH_CHECK_CONSECUTIVE_SUCCESSES=$((HEALTH_CHECK_CONSECUTIVE_SUCCESSES + 1))
+    if [[ $HEALTH_CHECK_CONSECUTIVE_SUCCESSES -ge $HEALTH_CHECK_CONSECUTIVE_REQUIRED ]]; then
+      break
+    fi
+  else
+    HEALTH_CHECK_CONSECUTIVE_SUCCESSES=0
   fi
   sleep 2
 done
-curl -fsS "$HEALTHCHECK_URL" >/dev/null
+
+# 循环结束后最终验证（连续成功后再次确认，防 break 后服务崩溃）
+if ! curl -fsS "$HEALTHCHECK_URL" >/dev/null 2>&1; then
+  printf '\n❌ Health check failed after %d attempts (consecutive successes: %d/%d)\n' \
+    "$HEALTH_CHECK_TOTAL_ATTEMPTS" "$HEALTH_CHECK_CONSECUTIVE_SUCCESSES" "$HEALTH_CHECK_CONSECUTIVE_REQUIRED" >&2
+  printf '   Service may be in crash-loop. Diagnostic commands:\n' >&2
+  printf '     sudo systemctl status %s\n' "$BACKEND_SERVICE_NAME" >&2
+  printf '     sudo journalctl -u %s --no-pager -n 50\n' "$BACKEND_SERVICE_NAME" >&2
+  printf '\n   Rollback: restore previous jar from %s/releases/<prev-release-id>/backend/app.jar\n' "$APP_ROOT" >&2
+  printf '   Then: sudo systemctl restart %s\n\n' "$BACKEND_SERVICE_NAME" >&2
+  exit 1
+fi
+
+# 检查 systemd 服务状态（必须 active，排除 activating/reloading/restarting/failed）
+SERVICE_ACTIVE_STATE="$(run_systemctl show -p ActiveState --value "$BACKEND_SERVICE_NAME" 2>/dev/null || echo unknown)"
+SERVICE_SUB_STATE="$(run_systemctl show -p SubState --value "$BACKEND_SERVICE_NAME" 2>/dev/null || echo unknown)"
+if [[ "$SERVICE_ACTIVE_STATE" != "active" || "$SERVICE_SUB_STATE" == "reloading" || "$SERVICE_SUB_STATE" == "restarting" ]]; then
+  printf '\n❌ Service not stable: ActiveState=%s, SubState=%s\n' \
+    "$SERVICE_ACTIVE_STATE" "$SERVICE_SUB_STATE" >&2
+  printf '   Service may be crash-looping. Check journalctl for details.\n' >&2
+  printf '   Rollback: restore previous jar from %s/releases/<prev-release-id>/backend/app.jar\n\n' "$APP_ROOT" >&2
+  exit 1
+fi
+printf '✅ Health check passed (consecutive %d/%d, total attempts: %d, service: %s/%s)\n' \
+  "$HEALTH_CHECK_CONSECUTIVE_SUCCESSES" "$HEALTH_CHECK_CONSECUTIVE_REQUIRED" \
+  "$HEALTH_CHECK_TOTAL_ATTEMPTS" "$SERVICE_ACTIVE_STATE" "$SERVICE_SUB_STATE"
 
 # ── 前端一致性校验：确保 nginx 根目录与发布包一致 ──
 printf '==> Verifying frontend consistency\n'
