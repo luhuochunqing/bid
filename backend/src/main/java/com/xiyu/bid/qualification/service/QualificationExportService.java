@@ -21,7 +21,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -88,8 +90,12 @@ public class QualificationExportService {
         if (ids == null || ids.isEmpty()) {
             throw new InvalidArgumentException("导出 ID 列表不能为空");
         }
+        // CO-471 fix: Spring MVC @RequestBody Map<String, List<Long>> 因 Jackson 类型擦除
+        // 实际反序列化为 List<Integer>。直接用 ids.stream() 会在 accept 时 cast 元素到
+        // Long 而 ClassCastException，因此用 raw type + Number.longValue() 统一转 long。
+        Set<Long> idSet = toLongSet(ids);
         List<QualificationDTO> items = flatQuery.listAll(null, null).stream()
-                .filter(q -> ids.contains(q.getId()))
+                .filter(q -> idSet.contains(q.getId()))
                 .toList();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         qualificationExcelSupport.writeLedger(items, null, out);
@@ -101,8 +107,10 @@ public class QualificationExportService {
         if (ids == null || ids.isEmpty()) {
             throw new InvalidArgumentException("下载 ID 列表不能为空");
         }
+        // CO-471 fix: 同 batchExportExcel，用 toLongSet 规避 Jackson 类型擦除。
+        Set<Long> idSet = toLongSet(ids);
         List<QualificationDTO> items = flatQuery.listAll(null, null).stream()
-                .filter(q -> ids.contains(q.getId()))
+                .filter(q -> idSet.contains(q.getId()))
                 .toList();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try (ZipOutputStream zos = new ZipOutputStream(out)) {
@@ -122,6 +130,24 @@ public class QualificationExportService {
             }
         }
         return out.toByteArray();
+    }
+
+    /**
+     * CO-471 fix: 将 ids 转为 Set<Long>。
+     * 用 raw type 遍历，避免 Stream 在 accept 时把 Integer cast 到 Long 抛 ClassCastException。
+     * Integer 和 Long 都是 Number，用 Number.longValue() 统一取 long 值。
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static Set<Long> toLongSet(List<Long> ids) {
+        Set<Long> idSet = new HashSet<>();
+        for (Object id : (List) ids) {
+            if (id instanceof Number n) {
+                idSet.add(n.longValue());
+            } else if (id != null) {
+                idSet.add(Long.parseLong(id.toString()));
+            }
+        }
+        return idSet;
     }
 
     private void writeAttachmentToZip(ZipOutputStream zos, Long qualificationId, String fileUrl, String entryName) throws IOException {
