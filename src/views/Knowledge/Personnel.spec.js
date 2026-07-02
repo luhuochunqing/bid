@@ -26,10 +26,10 @@ vi.mock('@/api/modules/personnelBatchApi.js', () => ({
   default: {
     downloadImportTemplate: vi.fn().mockResolvedValue({}),
     startImport: vi.fn().mockResolvedValue({ data: { taskId: '1' } }),
-    getImportProgress: vi.fn().mockResolvedValue({ data: { status: 'COMPLETED', progressPercent: 100 } }),
+    getImportProgress: vi.fn().mockResolvedValue({ data: { status: 'COMPLETED', percent: 100, message: '导入完成', totalCount: 0, successCount: 0, failureCount: 0 } }),
     downloadErrorReport: vi.fn().mockResolvedValue({}),
     startExport: vi.fn().mockResolvedValue({ data: { taskId: '1' } }),
-    getExportProgress: vi.fn().mockResolvedValue({ data: { status: 'COMPLETED', progressPercent: 100, totalCount: 0 } }),
+    getExportProgress: vi.fn().mockResolvedValue({ data: { status: 'COMPLETED', percent: 100, message: '导出完成', totalCount: 0 } }),
     downloadExportFile: vi.fn().mockResolvedValue({}),
     batchAttachAttachments: vi.fn().mockResolvedValue({ data: { successCount: 0, failedCount: 0, unmatchedFiles: [] } })
   }

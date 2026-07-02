@@ -6,6 +6,7 @@ import com.xiyu.bid.entity.User;
 import com.xiyu.bid.warehouse.application.WarehouseImportAppService;
 import com.xiyu.bid.warehouse.application.WarehouseImportAttachmentProcessor;
 import com.xiyu.bid.warehouse.application.WarehouseImportQueryService;
+import com.xiyu.bid.warehouse.application.WarehouseImportTaskStateService;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseImportTaskEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseImportTemplateWriter;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +49,7 @@ public class WarehouseImportController {
     private final WarehouseImportAppService importAppService;
     private final WarehouseImportQueryService importQueryService;
     private final WarehouseImportTemplateWriter templateWriter;
+    private final WarehouseImportTaskStateService taskStateService;
     private final UserResolver userResolver;
 
     @GetMapping("/template")
@@ -114,6 +116,21 @@ public class WarehouseImportController {
         }
     }
 
+    @GetMapping("/tasks/{taskId}/correction")
+    @PreAuthorize("hasAuthority('" + PERM + "')")
+    public ResponseEntity<byte[]> downloadCorrectionFile(@PathVariable Long taskId) throws IOException {
+        User user = userResolver.resolveCurrentUser();
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        byte[] bytes = taskStateService.getCorrectionFile(taskId, user.getId());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"warehouse_import_correction.xlsx\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .contentLength(bytes.length)
+                .body(bytes);
+    }
+
     private Map<String, Object> toTaskMap(WarehouseImportTaskEntity t) {
         Map<String, Object> map = new java.util.HashMap<>();
         map.put("id", t.getId());
@@ -128,7 +145,50 @@ public class WarehouseImportController {
         map.put("createdByUsername", t.getCreatedByUsername() != null ? t.getCreatedByUsername() : "");
         map.put("createdAt", formatDt(t.getCreatedAt()));
         map.put("completedAt", formatDt(t.getCompletedAt()));
+        parseAttachmentAndCorrectionInfo(t.getErrorDetails(), map);
         return map;
+    }
+
+    private void parseAttachmentAndCorrectionInfo(String errorDetails, Map<String, Object> map) {
+        if (errorDetails == null || errorDetails.isEmpty()) {
+            map.put("attachedCount", 0);
+            map.put("unmatchedFiles", List.of());
+            map.put("hasCorrectionFile", false);
+            map.put("correctionFileUrl", null);
+            return;
+        }
+        int attachedCount = 0;
+        List<Map<String, Object>> unmatchedFiles = new ArrayList<>();
+        boolean hasCorrectionFile = false;
+        String correctionFileUrl = null;
+        for (String line : errorDetails.split("\n")) {
+            if (line.startsWith("[ATTACH_RESULT]")) {
+                String content = line.substring("[ATTACH_RESULT]".length());
+                String[] parts = content.split(" ");
+                for (String part : parts) {
+                    if (part.startsWith("matched=")) {
+                        attachedCount = Integer.parseInt(part.substring("matched=".length()));
+                    }
+                }
+            } else if (line.startsWith("[UNMATCHED] ")) {
+                String content = line.substring("[UNMATCHED] ".length());
+                String[] parts = content.split(" \\| ", 2);
+                String filename = parts.length > 0 ? parts[0] : "";
+                String reason = parts.length > 1 ? parts[1] : "";
+                unmatchedFiles.add(Map.of("filename", filename, "reason", reason));
+            } else if (line.startsWith("[CORRECTION_FILE]")) {
+                hasCorrectionFile = true;
+                String path = line.substring("[CORRECTION_FILE]".length());
+                if (path.contains("/")) {
+                    String filename = path.substring(path.lastIndexOf("/") + 1);
+                    correctionFileUrl = "/api/knowledge/warehouses/import/tasks/" + map.get("id") + "/correction";
+                }
+            }
+        }
+        map.put("attachedCount", attachedCount);
+        map.put("unmatchedFiles", unmatchedFiles);
+        map.put("hasCorrectionFile", hasCorrectionFile);
+        map.put("correctionFileUrl", correctionFileUrl);
     }
 
     private String formatDt(LocalDateTime dt) {
