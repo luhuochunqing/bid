@@ -62,6 +62,7 @@
               <el-button @click="loadData"><el-icon><Refresh /></el-icon>刷新</el-button>
               <el-button v-if="canCreate" type="primary" @click="handleCreate"><el-icon><Plus /></el-icon>新增</el-button>
               <el-button v-if="canCreate" @click="showImportDialog = true"><el-icon><Upload /></el-icon>批量导入</el-button>
+              <el-button v-if="canCreate" :loading="exporting" @click="handleExport"><el-icon><Download /></el-icon>导出</el-button>
             </div>
           </div>
 
@@ -74,7 +75,9 @@
         empty-text="暂无 CA 证书数据"
         highlight-current-row
         @row-click="handleRowClick"
+        @selection-change="handleSelectionChange"
       >
+        <el-table-column type="selection" width="45" />
         <el-table-column type="index" label="序号" width="70" />
         <el-table-column label="关联平台" min-width="120">
           <template #default="{ row }">
@@ -330,7 +333,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { Search, Refresh, Plus, Upload } from '@element-plus/icons-vue'
+import { Search, Refresh, Plus, Upload, Download } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { useCaStore } from '@/stores/ca'
@@ -382,6 +385,7 @@ const loading = ref(false)
 const formSubmitting = ref(false)
 const borrowSubmitting = ref(false)
 const returnSubmitting = ref(false)
+const exporting = ref(false)
 
 // Data
 const overview = reactive({ total: 0, expiring: 0, expired: 0, borrowed: 0 })
@@ -415,6 +419,8 @@ const editingCa = ref(null)
 const borrowApplications = ref([])
 const borrowApplicationsForReturn = ref([])
 const operationEvents = ref([])
+// 批量导出：多选选中的 CA 行
+const selectedRows = ref([])
 
 const detailActions = computed(() => {
   const ca = selectedCa.value
@@ -757,6 +763,64 @@ async function handleOpenReturnFromApproval(row) {
     : { id: row.caCertificateId, caName: row.caName }
   borrowApplicationsForReturn.value = [row]
   returnVisible.value = true
+}
+
+// 批量导出：多选选中行变化
+function handleSelectionChange(rows) {
+  selectedRows.value = rows
+}
+
+// 批量导出：有选中导出选中，无选中按筛选导出全部
+async function handleExport() {
+  const hasSelected = selectedRows.value.length > 0
+  const params = {}
+  if (hasSelected) {
+    params.selectedIds = selectedRows.value.map(r => r.id).join(',')
+  } else {
+    // 按筛选条件导出全部（前端 platform 筛选为客户端过滤，后端不支持，不传）
+    if (appliedFilters.borrowStatus) params.borrowStatus = appliedFilters.borrowStatus
+    if (appliedFilters.caType) params.caType = appliedFilters.caType
+    if (appliedFilters.sealType) params.sealType = appliedFilters.sealType
+    if (appliedFilters.keyword) params.keyword = appliedFilters.keyword
+  }
+
+  exporting.value = true
+  try {
+    const response = await caApi.exportCertificates(params)
+    const blob = response?.data
+    if (!blob || !(blob instanceof Blob)) {
+      ElMessage.error('导出失败：未收到文件数据')
+      return
+    }
+    triggerBlobDownload(blob, `CA证书台账_${formatDateForFilename()}.xlsx`)
+    ElMessage.success(hasSelected
+      ? `已导出选中的 ${selectedRows.value.length} 条`
+      : '导出成功')
+  } catch (e) {
+    // httpClient 拦截器已处理错误提示，这里兜底
+    if (!e?.response) {
+      ElMessage.error('导出失败，请稍后重试')
+    }
+  } finally {
+    exporting.value = false
+  }
+}
+
+function triggerBlobDownload(blob, filename) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+function formatDateForFilename() {
+  const d = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}`
 }
 
 onMounted(() => {

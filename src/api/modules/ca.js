@@ -307,6 +307,16 @@ export const caApi = {
 
   async listImportTasks() {
     return httpClient.get(`${BASE}/import/tasks`)
+  },
+
+  // ── 批量导出 ────────────────────────────────────────────────────────────────
+
+  // 导出 CA 证书台账 Excel（按筛选/按选中 ID，返回完整 response，blob 在 response.data）
+  async exportCertificates(params = {}) {
+    return httpClient.get(`${BASE}/export`, {
+      params,
+      responseType: 'blob'
+    })
   }
 }
 
