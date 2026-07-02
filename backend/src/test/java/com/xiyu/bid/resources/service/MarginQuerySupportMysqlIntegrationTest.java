@@ -13,7 +13,10 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 import javax.sql.DataSource;
+import java.math.BigDecimal;
 import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -311,5 +314,180 @@ class MarginQuerySupportMysqlIntegrationTest {
             return sql;
         }
         return sql.substring(fromIdx, unionIdx).trim();
+    }
+
+    // ── 行为层测试：验证 status filter 返回正确的行（防 CO-XXX 复发）──
+    //
+    // 既有 46 个测试只验证 SQL 不抛异常，无法捕获语义错误。
+    // 以下 3 个测试验证 filter 返回的行数和内容，形成真正的回归保护。
+
+    @Test
+    @DisplayName("filterByStatusPending 应包含 init 分支行（exp_return_date IS NULL）")
+    void filterByStatusPending_shouldIncludeInitBranchRows_withNullExpReturnDate() {
+        // 造数据：1 条 need_deposit=YES 但无 fees 的立项记录（走 init 分支，exp_return_date IS NULL）
+        Long projectId = createTestProject("pending-init");
+        createInitiationDetails(projectId, "YES", new BigDecimal("5000"));
+        try {
+            // 构建 SQL：listBase(ADMIN) + status=PENDING filter
+            StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
+            MarginQuerySupport.appendFilters(sql, Map.of("status", "PENDING"));
+            sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
+
+            // 执行（status 是字面量拼接，无需 replaceParamsWithLiterals）
+            List<Map<String, Object>> rows =
+                    jdbcTemplate.queryForList(sql.toString(), Map.of());
+
+            // 断言：PENDING 筛选应包含 init 占位行
+            assertThat(rows)
+                    .as("PENDING 筛选应包含 init 分支行（exp_return_date IS NULL）"
+                      + "—— 修复前 NULL >= NOW() 为 NULL/falsy 导致漏掉")
+                    .anyMatch(row -> projectId.equals(extractProjectId(row)));
+        } finally {
+            cleanupTestData(projectId);
+        }
+    }
+
+    @Test
+    @DisplayName("filterByStatusReturned 应包含 CANCELLED 状态的 fee")
+    void filterByStatusReturned_shouldIncludeCancelledFees() {
+        // 造数据：1 条 fees.status=CANCELLED, fee_type=BID_BOND
+        // （CANCELLED 在 label() 中标为"已退回"，但修复前 RETURNED filter 只匹配 = 'RETURNED'）
+        Long projectId = createTestProject("returned-cancelled");
+        createInitiationDetails(projectId, "NO", BigDecimal.ZERO);
+        createFee(projectId, "BID_BOND", "CANCELLED",
+                  "DATE_SUB(NOW(), INTERVAL 1 DAY)", new BigDecimal("5000"));
+        try {
+            StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
+            MarginQuerySupport.appendFilters(sql, Map.of("status", "RETURNED"));
+            sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
+
+            List<Map<String, Object>> rows =
+                    jdbcTemplate.queryForList(sql.toString(), Map.of());
+
+            assertThat(rows)
+                    .as("RETURNED 筛选应包含 CANCELLED 状态的 fee"
+                      + "—— 修复前只匹配 = 'RETURNED'，漏掉 CANCELLED")
+                    .anyMatch(row -> projectId.equals(extractProjectId(row)));
+        } finally {
+            cleanupTestData(projectId);
+        }
+    }
+
+    @Test
+    @DisplayName("filterByStatusOverdue 应排除 init 分支行（exp_return_date IS NULL）")
+    void filterByStatusOverdue_shouldExcludeInitBranchRows_withNullExpReturnDate() {
+        // 造数据：
+        //   - 1 条 PAID fee 且 fee_date < NOW()（应被 OVERDUE 命中）
+        //   - 1 条 init 占位行（exp_return_date IS NULL，不应被 OVERDUE 命中）
+        Long projectIdFee = createTestProject("overdue-fee");
+        createInitiationDetails(projectIdFee, "NO", BigDecimal.ZERO);
+        createFee(projectIdFee, "BID_BOND", "PAID",
+                  "DATE_SUB(NOW(), INTERVAL 30 DAY)", new BigDecimal("5000"));
+
+        Long projectIdInit = createTestProject("overdue-init");
+        createInitiationDetails(projectIdInit, "YES", new BigDecimal("5000"));
+
+        try {
+            StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
+            MarginQuerySupport.appendFilters(sql, Map.of("status", "OVERDUE"));
+            sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
+
+            List<Map<String, Object>> rows =
+                    jdbcTemplate.queryForList(sql.toString(), Map.of());
+
+            // 应包含已超期的 fee 行
+            assertThat(rows)
+                    .as("OVERDUE 筛选应包含已超期的 fee 行")
+                    .anyMatch(row -> projectIdFee.equals(extractProjectId(row)));
+            // 不应包含 init 占位行（NULL < NOW() 为 NULL/falsy，自动排除）
+            assertThat(rows)
+                    .as("OVERDUE 筛选不应包含 init 占位行（exp_return_date IS NULL）"
+                      + "—— NULL < NOW() 为 NULL/falsy，应被排除")
+                    .noneMatch(row -> projectIdInit.equals(extractProjectId(row)));
+        } finally {
+            cleanupTestData(projectIdFee);
+            cleanupTestData(projectIdInit);
+        }
+    }
+
+    // ── 行为层测试 helper 方法 ──
+
+    /**
+     * 插入测试用 project，返回自增 id。
+     * manager_id=0, tender_id=0 满足 NOT NULL 约束（无外键约束）。
+     * <p>用 GeneratedKeyHolder 取自增 id（NamedParameterJdbcTemplate 的 update
+     * 跨连接调用，LAST_INSERT_ID() 不可靠会返回 0）。
+     */
+    private Long createTestProject(final String nameSuffix) {
+        String name = "test-margin-" + nameSuffix + "-" + System.nanoTime();
+        String sql = "INSERT INTO projects (name, manager_id, tender_id, status, created_at) "
+                   + "VALUES (:name, 0, 0, 'INITIATED', NOW())";
+        Map<String, Object> params = new HashMap<>();
+        params.put("name", name);
+        org.springframework.jdbc.support.GeneratedKeyHolder keyHolder =
+                new org.springframework.jdbc.support.GeneratedKeyHolder();
+        jdbcTemplate.update(sql, new org.springframework.jdbc.core.namedparam.MapSqlParameterSource(params),
+                keyHolder);
+        Number key = keyHolder.getKey();
+        if (key == null) {
+            throw new IllegalStateException(
+                    "Failed to retrieve generated project id for: " + name);
+        }
+        return key.longValue();
+    }
+
+    /**
+     * 插入 project_initiation_details。
+     * needDeposit='YES' 且 depositAmount>0 会触发 init 分支占位行。
+     */
+    private void createInitiationDetails(final Long projectId,
+                                          final String needDeposit,
+                                          final BigDecimal depositAmount) {
+        String sql = "INSERT INTO project_initiation_details"
+                   + " (project_id, need_deposit, deposit_amount, locked, created_at, updated_at) "
+                   + "VALUES (:pid, :nd, :da, FALSE, NOW(), NOW())";
+        Map<String, Object> params = new HashMap<>();
+        params.put("pid", projectId);
+        params.put("nd", needDeposit);
+        params.put("da", depositAmount);
+        jdbcTemplate.update(sql, params);
+    }
+
+    /**
+     * 插入 fee。feeDateExpr 是 SQL 表达式（如 'DATE_SUB(NOW(), INTERVAL 30 DAY)'），
+     * 直接拼接到 SQL 中以避免 Java/MySQL 时区不一致。
+     */
+    private void createFee(final Long projectId,
+                           final String feeType,
+                           final String status,
+                           final String feeDateExpr,
+                           final BigDecimal amount) {
+        // feeDateExpr 是受控的 SQL 表达式字面量（非用户输入），直接拼接
+        String sql = "INSERT INTO fees"
+                   + " (project_id, fee_type, status, fee_date, amount, created_at) "
+                   + "VALUES (" + projectId + ", '" + feeType + "', '" + status
+                   + "', " + feeDateExpr + ", " + amount + ", NOW())";
+        jdbcTemplate.update(sql, Map.of());
+    }
+
+    /** 从查询结果行中提取 project_id（处理 Number 类型转换）。 */
+    private Long extractProjectId(final Map<String, Object> row) {
+        Object pid = row.get("project_id");
+        if (pid instanceof Number) {
+            return ((Number) pid).longValue();
+        }
+        return null;
+    }
+
+    /** 清理测试数据：删除 fees、project_initiation_details、projects。 */
+    private void cleanupTestData(final Long projectId) {
+        if (projectId == null) {
+            return;
+        }
+        Map<String, Object> params = Map.of("pid", projectId);
+        jdbcTemplate.update("DELETE FROM fees WHERE project_id = :pid", params);
+        jdbcTemplate.update(
+                "DELETE FROM project_initiation_details WHERE project_id = :pid", params);
+        jdbcTemplate.update("DELETE FROM projects WHERE id = :pid", params);
     }
 }
