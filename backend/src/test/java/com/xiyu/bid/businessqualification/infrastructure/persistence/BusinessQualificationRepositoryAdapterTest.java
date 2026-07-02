@@ -225,4 +225,48 @@ class BusinessQualificationRepositoryAdapterTest {
         // 关键：paginated path 不能 fallback 到内存过滤
         verify(qualificationJpaRepository, org.mockito.Mockito.never()).findAll();
     }
+
+    @Test
+    @DisplayName("分页查询 - status 过滤通过 Specification 推到 SQL")
+    @SuppressWarnings("unchecked")
+    void findAllPageable_ShouldPushStatusFilterToJpaSpecification() {
+        BusinessQualificationRepositoryAdapter adapter = newAdapter();
+        Pageable springPageable = PageRequest.of(0, 10);
+        org.springframework.data.domain.Page<BusinessQualificationEntity> mockSpringPage = new PageImpl<>(List.of(), springPageable, 0);
+        when(qualificationJpaRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(mockSpringPage);
+
+        adapter.findAll(
+                QualificationListCriteria.builder()
+                        .status(List.of("EXPIRED", "RETIRED"))
+                        .build(),
+                0, 10
+        );
+
+        ArgumentCaptor<Specification<BusinessQualificationEntity>> specCaptor = ArgumentCaptor.forClass(Specification.class);
+        verify(qualificationJpaRepository).findAll(specCaptor.capture(), any(Pageable.class));
+
+        assertThat(specCaptor.getValue()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("分页查询 - VALID 状态映射为 IN_STOCK")
+    @SuppressWarnings("unchecked")
+    void findAllPageable_ShouldMapValidToInStock() {
+        BusinessQualificationRepositoryAdapter adapter = newAdapter();
+        Pageable springPageable = PageRequest.of(0, 10);
+        org.springframework.data.domain.Page<BusinessQualificationEntity> mockSpringPage = new PageImpl<>(List.of(), springPageable, 0);
+        when(qualificationJpaRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(mockSpringPage);
+
+        adapter.findAll(
+                QualificationListCriteria.builder()
+                        .status(List.of("VALID"))
+                        .build(),
+                0, 10
+        );
+
+        ArgumentCaptor<Specification<BusinessQualificationEntity>> specCaptor = ArgumentCaptor.forClass(Specification.class);
+        verify(qualificationJpaRepository).findAll(specCaptor.capture(), any(Pageable.class));
+
+        assertThat(specCaptor.getValue()).isNotNull();
+    }
 }
