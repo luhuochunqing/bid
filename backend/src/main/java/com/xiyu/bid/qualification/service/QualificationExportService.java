@@ -4,6 +4,7 @@
 // 维护声明: 仅维护资质导出与模板生成；CRUD 在 QualificationService。
 package com.xiyu.bid.qualification.service;
 
+import com.xiyu.bid.common.util.ZipEntryDeduplicator;
 import com.xiyu.bid.exception.InvalidArgumentException;
 import com.xiyu.bid.qualification.dto.QualificationDTO;
 import lombok.RequiredArgsConstructor;
@@ -119,23 +120,37 @@ public class QualificationExportService {
                 .filter(q -> idSet.contains(q.getId()))
                 .toList();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
+        // Sentry 7590982843: 多条资质的附件可能同名，需用 ZipEntryDeduplicator 去重避免
+        // ZipException: duplicate entry。同时用 safeFileName 清理文件名非法字符。
+        ZipEntryDeduplicator dedup = new ZipEntryDeduplicator();
         try (ZipOutputStream zos = new ZipOutputStream(out)) {
             for (QualificationDTO item : items) {
                 if (item.getAttachments() != null) {
                     for (var att : item.getAttachments()) {
                         if (att.getFileUrl() == null || att.getFileUrl().isBlank()) continue;
-                        String entryName = (item.getName() == null ? "资质" : item.getName()) + "_"
-                                + (att.getFileName() == null ? att.getFileUrl() : att.getFileName());
-                        writeAttachmentToZip(zos, item.getId(), att.getFileUrl(), entryName);
+                        String entryName = buildEntryName(item.getName(),
+                                att.getFileName() != null ? att.getFileName() : att.getFileUrl());
+                        writeAttachmentToZip(zos, item.getId(), att.getFileUrl(), entryName, dedup);
                     }
                 }
                 if (item.getFileUrl() != null && !item.getFileUrl().isBlank()) {
-                    String entryName = (item.getName() == null ? "资质" : item.getName()) + "_" + extractFileName(item.getFileUrl());
-                    writeAttachmentToZip(zos, item.getId(), item.getFileUrl(), entryName);
+                    String entryName = buildEntryName(item.getName(), extractFileName(item.getFileUrl()));
+                    writeAttachmentToZip(zos, item.getId(), item.getFileUrl(), entryName, dedup);
                 }
             }
         }
         return out.toByteArray();
+    }
+
+    /**
+     * 构建 ZIP entry 名称，并清理文件名中的非法字符。
+     */
+    private static String buildEntryName(String qualName, String fileName) {
+        String safeQual = ZipEntryDeduplicator.safeFileName(qualName);
+        if (safeQual.isEmpty()) safeQual = "资质";
+        String safeFile = ZipEntryDeduplicator.safeFileName(fileName);
+        if (safeFile.isEmpty()) safeFile = "attachment";
+        return safeQual + "_" + safeFile;
     }
 
     /**
@@ -156,22 +171,24 @@ public class QualificationExportService {
         return idSet;
     }
 
-    private void writeAttachmentToZip(ZipOutputStream zos, Long qualificationId, String fileUrl, String entryName) throws IOException {
+    private void writeAttachmentToZip(ZipOutputStream zos, Long qualificationId, String fileUrl,
+                                      String entryName, ZipEntryDeduplicator dedup) throws IOException {
         // 优先从本地文件系统读取（fileUrl 可能是 /api/knowledge/qualifications/{id}/attachments/{fileName}）
         Path localPath = resolveLocalPath(qualificationId, fileUrl);
         if (localPath != null && Files.exists(localPath) && !Files.isDirectory(localPath)) {
-            zos.putNextEntry(new ZipEntry(entryName));
+            zos.putNextEntry(new ZipEntry(dedup.deduplicate(entryName)));
             Files.copy(localPath, zos);
             zos.closeEntry();
             return;
         }
         // 回退：如果是完整 URL（http/https），尝试作为 URL 打开
         try (InputStream in = URI.create(fileUrl).toURL().openStream()) {
-            zos.putNextEntry(new ZipEntry(entryName));
+            zos.putNextEntry(new ZipEntry(dedup.deduplicate(entryName)));
             in.transferTo(zos);
             zos.closeEntry();
         } catch (MalformedURLException e) {
-            zos.putNextEntry(new ZipEntry(entryName + ".txt"));
+            // .txt 回退路径也需 deduplicate（可能与已存在的 .txt entry 冲突）
+            zos.putNextEntry(new ZipEntry(dedup.deduplicate(entryName + ".txt")));
             zos.write(("无法下载: " + fileUrl).getBytes(StandardCharsets.UTF_8));
             zos.closeEntry();
         }
