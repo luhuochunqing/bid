@@ -76,9 +76,9 @@
             </div>
             <div v-if="task.deliverables && task.deliverables.length > 0" class="deliverables">
               <div class="deliverable-title">交付物:</div>
-              <div v-for="del in task.deliverables" :key="del.id" class="deliverable-item">
+              <div v-for="del in task.deliverables" :key="del.id" class="deliverable-item" @click.stop>
                 <el-tag size="small" :closable="isTaskAssignee(task)" @close="handleRemoveDeliverable(task, del)">
-                  <el-link :href="del.url" target="_blank" type="primary">
+                  <el-link type="primary" @click.prevent="handleDownloadDeliverable(task, del)">
                     <el-icon><Document /></el-icon>
                     {{ del.name }}
                   </el-link>
@@ -144,6 +144,8 @@ import { getPriorityType, getPriorityLabel as getPriorityText } from '@/views/Da
 import { isTaskAssignee } from '@/utils/permission.js'
 import { hexToSoftBackground } from '@/utils/color.js'
 import { validateSubmitForReview } from '@/composables/useTaskSubmissionValidation.js'
+import { getTaskDeliverableDownloadUrl } from '@/api/modules/taskDeliverables.js'
+import { downloadWithFilename } from '@/utils/download.js'
 import TaskDeliverableUploadDialog from './TaskDeliverableUploadDialog.vue'
 
 const props = defineProps({
@@ -426,6 +428,16 @@ const handleRemoveDeliverable = async (task, deliverable) => {
   } catch (error) {
     ElMessage.error(error?.message || '交付物删除失败')
   }
+}
+
+// 与 TaskForm.vue downloadDeliverable 同范式：拼规范下载 URL → blob 下载，避免跳新 tab 空白页
+const handleDownloadDeliverable = async (task, del) => {
+  const url = getTaskDeliverableDownloadUrl(props.projectId, task?.id, del?.id)
+  if (!url) {
+    ElMessage.info('文件地址不可用')
+    return
+  }
+  await downloadWithFilename(url, del?.name || 'download')
 }
 
 const handleDeleteTask = async (task) => {
