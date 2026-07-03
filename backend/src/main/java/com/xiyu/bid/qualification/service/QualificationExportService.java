@@ -7,7 +7,9 @@ package com.xiyu.bid.qualification.service;
 import com.xiyu.bid.exception.InvalidArgumentException;
 import com.xiyu.bid.qualification.dto.QualificationDTO;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,12 +33,16 @@ import java.util.zip.ZipOutputStream;
  * 资质 Excel 导出 / 模板生成 / ZIP 附件打包。
  * 从 QualificationService 拆出以控行数。
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class QualificationExportService {
 
     private final QualificationFlatQuery flatQuery;
     private final QualificationExcelSupport qualificationExcelSupport;
+
+    @Value("${qualification.attachment.storage-path:data/qualification-attachments}")
+    private String storageRoot;
 
     private static final String[] EXPORT_COLS = {
             "证书名称", "等级", "认证机构", "证书编号", "发证日期", "有效期",
@@ -174,7 +180,6 @@ public class QualificationExportService {
     private Path resolveLocalPath(Long qualificationId, String fileUrl) {
         if (fileUrl == null || qualificationId == null) return null;
         String fileName;
-        // 格式: /api/knowledge/qualifications/{id}/attachments/{fileName}
         String apiPrefix = "/api/knowledge/qualifications/";
         if (fileUrl.startsWith(apiPrefix)) {
             String rest = fileUrl.substring(apiPrefix.length());
@@ -187,14 +192,17 @@ public class QualificationExportService {
         } else {
             fileName = fileUrl;
         }
-        // 路径遍历防护
         if (fileName.contains("/") || fileName.contains("\\") || fileName.contains("..")) {
             return null;
         }
-        Path baseDir = Paths.get("data/qualification-attachments").toAbsolutePath().normalize();
+        Path baseDir = getStorageRoot();
         Path resolved = baseDir.resolve(String.valueOf(qualificationId)).resolve(fileName).normalize();
         if (!resolved.startsWith(baseDir)) return null;
         return resolved;
+    }
+
+    private Path getStorageRoot() {
+        return Paths.get(storageRoot).toAbsolutePath().normalize();
     }
 
     private String extractFileName(String fileUrl) {
