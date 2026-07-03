@@ -25,7 +25,7 @@
           <el-option
             v-for="p in platformOptions"
             :key="p.id"
-            :label="`${p.accountName || p.platform}（#${p.id}）`"
+            :label="p.accountName || p.platform"
             :value="p.id"
           />
         </el-select>

@@ -74,6 +74,8 @@ export function normalizeCaCertificate(item) {
     // 关联平台
     platformIds: parsePlatformIds(item.platformIds),
     platformIdsRaw: item.platformIds,
+    // CO-479: 平台 ID→名称映射，用于展示平台名称而非数字 ID
+    platformNamesById: item.platformNamesById || {},
     // CA类型
     caType: item.caType || 'ENTITY_CA',
     caTypeLabel: CA_TYPE_MAP[item.caType] || item.caType || '实体CA',
