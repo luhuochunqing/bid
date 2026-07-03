@@ -220,4 +220,58 @@ class TenderPermissionIntegrationTest {
                 .andReturn().getResponse().getStatus();
         assertThat(status).isNotEqualTo(403);
     }
+
+    // ====================================================================
+    // 2.3 标讯评估契约测试（飞书《标讯中心·权限矩阵》2.3）
+    // 锁定"确认投标/放弃投标"的角色准入——4 个重叠端点的权限差异显性化
+    // ====================================================================
+
+    @Test
+    @DisplayName("2.3 确认投标 路径A POST /api/tenders/{id}/participate: 投标专员应 403（文档：仅管理员/组长）")
+    @WithMockUser(username = "bid-specialist", roles = {"BID_TEAM"})
+    void participateBid_byBidTeam_returnsForbidden() throws Exception {
+        mockMvc.perform(post("/api/tenders/1/participate"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("2.3 确认投标 路径A POST /api/tenders/{id}/participate: 投标项目负责人应 403（文档：仅管理员/组长）")
+    @WithMockUser(username = "projectLeader", roles = {"BID_PROJECTLEADER"})
+    void participateBid_byProjectLeader_returnsForbidden() throws Exception {
+        mockMvc.perform(post("/api/tenders/1/participate"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("2.3 放弃投标 路径A POST /api/tenders/{id}/abandon: 投标专员应 403")
+    @WithMockUser(username = "bid-specialist", roles = {"BID_TEAM"})
+    void abandonBid_byBidTeam_returnsForbidden() throws Exception {
+        mockMvc.perform(post("/api/tenders/1/abandon")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"测试\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("2.3 审核标讯 路径B POST /api/tenders/{id}/review: 投标组长应 403（⚠️ 注解仅 ADMIN，与文档'管理员/组长'不符）")
+    @WithMockUser(username = "bid-TeamLeader", roles = {"BID_TEAMLEADER"})
+    void reviewTender_byBidTeamLeader_returnsForbidden_currentImpl() throws Exception {
+        // ⚠️ 现状锁定：reviewTender 注解仅 hasAnyRole('ADMIN')，组长被拒。
+        // 文档"确认投标"要求管理员+组长，但此端点注解过严。待业务确认是否统一 4 端点。
+        mockMvc.perform(post("/api/tenders/1/review")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"approved\":true}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("2.3 确认投标 路径B POST /api/tenders/{id}/bid: 投标项目负责人（MANAGER）应放行（⚠️ 注解含 MANAGER，与文档'仅管理员/组长'不符）")
+    @WithMockUser(username = "projectLeader", roles = {"MANAGER"})
+    void proceedToBid_byManager_notForbidden_currentImpl() throws Exception {
+        // ⚠️ 现状锁定：proceedToBid 注解 hasAnyRole('ADMIN','MANAGER')，MANAGER（含项目负责人）被放行。
+        // 文档"确认投标"仅管理员/组长，但此端点放行了 MANAGER。待业务确认是否收紧。
+        int status = mockMvc.perform(post("/api/tenders/1/bid"))
+                .andReturn().getResponse().getStatus();
+        assertThat(status).isNotEqualTo(403);
+    }
 }

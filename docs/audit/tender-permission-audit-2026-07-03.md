@@ -354,3 +354,81 @@
 
 ✅ 标讯录入的权限实现**匹配文档**，核心约束（批量导入/下载模板排除项目负责人）已正确实现并锁定。SALES 幽灵项是冗余无害残留，可在未来清理 hasAnyRole 时顺带去除。
 
+
+---
+
+## 2.3 标讯评估（审计）
+
+### 文档要求（飞书 V1.0）
+
+| 功能 | 投标管理员 | 投标组长 | 投标项目负责人 | 投标专员 |
+|---|---|---|---|---|
+| 填写评估表 | — | — | ✅ 被分配的标讯 | — |
+| 提交评估（不可撤回） | — | — | ✅ 被分配的标讯 | — |
+| └ 确认投标 | ✅ | ✅ | — | — |
+| └ 放弃投标 | ✅ | ✅ | — | — |
+
+**核心约束**：评估表仅"被分配的项目负责人"可填/提交；确认/放弃投标仅管理员/组长。
+
+### 端点对照
+
+| 文档功能 | 端点 | Controller 注解 | 文档对照 |
+|---|---|---|---|
+| 填写评估表（读）| GET `/{tenderId}/evaluation` | `isAuthenticated()` | ⚠️ Controller 不限角色，Service 层 `canFill` 校验"被分配的" |
+| 填写评估表（存草稿）| PUT `/{tenderId}/evaluation` | `isAuthenticated()` | ⚠️ 同上；但文档第 1 条"不支持存草稿"——代码支持（V130 改动）|
+| 提交评估 | POST `/{tenderId}/evaluation/submit` | `isAuthenticated()` | ⚠️ Controller 不限角色，Service 层校验 |
+| **确认投标 路径A** | POST `/api/tenders/{id}/participate` | `ADMIN/BID_TEAMLEADER/BIDADMIN` | ✅ 匹配 |
+| **放弃投标 路径A** | POST `/api/tenders/{id}/abandon` | `ADMIN/BID_TEAMLEADER/BIDADMIN` | ✅ 匹配 |
+| **审核标讯 路径B** | POST `/{tenderId}/review` | `ADMIN`（仅）| ❌ **缺组长/bidAdmin** |
+| **确认投标 路径B** | POST `/{tenderId}/bid` | `ADMIN/MANAGER` | ❌ **含 MANAGER（含 sales 项目负责人），不符合"仅管理员/组长"** |
+
+### 关键发现：接口职责重叠（审计报告 §5.5）
+
+**同一个业务（确认/放弃投标）有 4 个端点入口**：
+
+```
+路径 A（TenderController）         路径 B（TenderEvaluationController）
+  participateBid  ──┐                reviewTender  ──┐
+                    ├─ 都调 canDecide                 ├─ 都调 canDecide
+  abandonBid      ──┘                proceedToBid  ──┘
+```
+
+**Service 层统一**：4 个端点都调 `TenderAssignmentPermissions.canDecide`（global access 或分配人）。
+
+**Controller 注解不一致**（真实 gap）：
+
+| 端点 | 注解 | 文档"确认投标" | 差异 |
+|---|---|---|---|
+| participateBid | ADMIN/BID_TEAMLEADER/BIDADMIN | 管理员/组长 | ✅ 匹配 |
+| abandonBid | ADMIN/BID_TEAMLEADER/BIDADMIN | 管理员/组长 | ✅ 匹配 |
+| reviewTender | **ADMIN（仅）** | 管理员/组长 | ❌ 缺组长 |
+| proceedToBid | **ADMIN/MANAGER** | 管理员/组长 | ❌ 多放 MANAGER（含 sales）|
+
+### 差距判断
+
+| 维度 | 结论 |
+|---|---|
+| 评估表填写/提交（Service 层 canFill）| ✅ 由实例级分配校验，匹配文档"被分配的标讯" |
+| 确认/放弃投标 Service 层（canDecide）| ✅ 统一逻辑（global access 或分配人）|
+| **Controller 注解不一致** | ❌ **4 个端点权限不一**——reviewTender 过严（缺组长），proceedToBid 过宽（含 MANAGER/sales）|
+| 存草稿 vs 文档"不支持草稿" | ⚠️ 代码支持草稿（V130 改动），文档第 1 条"不支持" |
+
+### 契约测试
+
+**Controller 层集成测试**（`TenderPermissionIntegrationTest`，+5 = 21/21）：
+- participateBid：投标专员/项目负责人 → 403（文档：仅管理员/组长）
+- abandonBid：投标专员 → 403
+- **reviewTender：组长 → 403（⚠️ 锁定现状"注解过严"，待业务确认是否放宽到组长）**
+- **proceedToBid：MANAGER（项目负责人）→ 非 403（⚠️ 锁定现状"注解过宽"，待业务确认是否收紧）**
+
+### ⚠️ 待业务确认（重要的真实 gap）
+
+1. **4 个端点是否应统一权限注解？** 路径 A（participateBid/abandonBid）注解匹配文档，路径 B（reviewTender/proceedToBid）注解不一致。前端实际调用哪些？是否应统一到路径 A 的注解（`ADMIN/BID_TEAMLEADER/BIDADMIN`）？
+2. **存草稿功能**：文档第 1 条"不支持存草稿、不可修改"，代码支持草稿且支持已评估后重新编辑（V130 改动）。是文档滞后还是代码越权？
+
+**本轮不擅自改注解**——这是接口契约问题，需业务方确认前端用哪条路径 + 是否统一。契约测试锁定现状，让权限差异显性化，未来任何调整都有据可查。
+
+### 2.3 小结
+
+评估表填写/提交的实例级权限（canFill）正确。确认/放弃投标的 Service 层（canDecide）统一正确。**主要问题是 Controller 注解不一致**（4 个重叠端点），已锁定现状待业务决策。
+
