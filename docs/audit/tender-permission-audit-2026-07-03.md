@@ -421,14 +421,22 @@
 - **reviewTender：组长 → 403（⚠️ 锁定现状"注解过严"，待业务确认是否放宽到组长）**
 - **proceedToBid：MANAGER（项目负责人）→ 非 403（⚠️ 锁定现状"注解过宽"，待业务确认是否收紧）**
 
-### ⚠️ 待业务确认（重要的真实 gap）
+### ✅ 业务确认结果（2026-07-03，答案：4=A，其余 B）
 
-1. **4 个端点是否应统一权限注解？** 路径 A（participateBid/abandonBid）注解匹配文档，路径 B（reviewTender/proceedToBid）注解不一致。前端实际调用哪些？是否应统一到路径 A 的注解（`ADMIN/BID_TEAMLEADER/BIDADMIN`）？
-2. **存草稿功能**：文档第 1 条"不支持存草稿、不可修改"，代码支持草稿且支持已评估后重新编辑（V130 改动）。是文档滞后还是代码越权？
+**Gap 4 已修复**：`reviewTender` 和 `proceedToBid` 注解统一为 `ADMIN/BID_TEAMLEADER/BIDADMIN`（与路径 A 一致）。
 
-**本轮不擅自改注解**——这是接口契约问题，需业务方确认前端用哪条路径 + 是否统一。契约测试锁定现状，让权限差异显性化，未来任何调整都有据可查。
+| 端点 | 修复前 | 修复后 |
+|---|---|---|
+| reviewTender | `ADMIN`（仅，缺组长）| `ADMIN/BID_TEAMLEADER/BIDADMIN` ✅ |
+| proceedToBid | `ADMIN/MANAGER`（含 sales）| `ADMIN/BID_TEAMLEADER/BIDADMIN` ✅ |
+
+契约测试同步更新（断言反转，锁定新行为）：
+- `reviewTender_byBidTeamLeader_notForbidden`（组长放行，原"403"→"非 403"）
+- `proceedToBid_byManager_returnsForbidden`（项目负责人拒绝，原"非 403"→"403"）
+
+**Gap 1/2/3 答案都是 B（代码正确）**：代码行为是业务期望的，文档滞后。契约测试已锁定正确行为，文档后续更新即可。详见 `docs/audit/tender-permission-gaps-handoff.md`。
 
 ### 2.3 小结
 
-评估表填写/提交的实例级权限（canFill）正确。确认/放弃投标的 Service 层（canDecide）统一正确。**主要问题是 Controller 注解不一致**（4 个重叠端点），已锁定现状待业务决策。
+评估表填写/提交的实例级权限（canFill）正确。确认/放弃投标的 Service 层（canDecide）统一正确。**Controller 注解不一致问题已按业务确认 A 修复**（4 端点统一为管理员+组长）。
 
