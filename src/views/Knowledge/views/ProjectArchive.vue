@@ -61,7 +61,7 @@
     </el-card>
 
     <el-card class="table-card" v-loading="loading">
-      <el-table :data="tableData" style="width: 100%" border stripe highlight-current-row @row-click="handleRowClick" class="custom-table">
+      <el-table :data="tableData" style="width: 100%" border stripe highlight-current-row max-height="calc(100vh - 220px)" scrollbar-always-on @row-click="handleRowClick" class="custom-table">
         <el-table-column type="selection" width="55" />
         <el-table-column type="index" label="序号" width="110" align="center" />
         <el-table-column prop="projectName" label="项目名称" min-width="250" />

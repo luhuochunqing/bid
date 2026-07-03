@@ -79,7 +79,7 @@
     </el-card>
 
     <el-card class="table-card" v-loading="loading">
-      <el-table :data="records" stripe style="width:100%" @row-click="openDetail">
+      <el-table :data="records" stripe style="width:100%" max-height="calc(100vh - 300px)" scrollbar-always-on @row-click="openDetail">
         <el-table-column type="selection" width="55" />
         <el-table-column type="index" label="序号" width="110" align="center" />
         <el-table-column prop="employeeNumber" label="工号" width="90" align="center">

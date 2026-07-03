@@ -5,7 +5,7 @@
       <el-button type="primary" @click="showDialog('create')">新建规则</el-button>
     </div>
 
-    <el-table :data="rules" v-loading="loading" stripe>
+    <el-table :data="rules" v-loading="loading" stripe max-height="calc(100vh - 220px)" scrollbar-always-on>
       <el-table-column prop="name" label="规则名称" />
       <el-table-column prop="type" label="类型" width="120">
         <template #default="{ row }">

@@ -88,7 +88,7 @@
     </el-card>
 
     <el-card class="table-card border-glow" v-loading="loading">
-      <el-table :data="records" stripe style="width: 100%" @row-click="openDetail" @selection-change="handleSelectionChange" class="custom-table">
+      <el-table :data="records" stripe style="width: 100%" max-height="calc(100vh - 300px)" scrollbar-always-on @row-click="openDetail" @selection-change="handleSelectionChange" class="custom-table">
         <el-table-column type="selection" width="55" />
         <el-table-column type="index" label="序号" width="110" align="center" />
         <el-table-column prop="contractName" label="合同名称" min-width="180" />

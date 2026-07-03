@@ -56,7 +56,7 @@
         </el-alert>
       </div>
       <div v-else class="table-wrapper">
-        <el-table :data="filteredProjects" stripe @sort-change="handleSortChange" @selection-change="handleSelectionChange">
+        <el-table :data="filteredProjects" stripe max-height="calc(100vh - 220px)" scrollbar-always-on @sort-change="handleSortChange" @selection-change="handleSelectionChange">
           <el-table-column type="selection" width="44" fixed="left" />
           <el-table-column type="index" label="序号" width="50" align="center" fixed="left" />
           <el-table-column label="项目名称" min-width="180" fixed="left">

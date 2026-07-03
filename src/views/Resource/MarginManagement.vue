@@ -101,7 +101,7 @@
 
     <!-- 数据表格 -->
     <el-card shadow="never" class="table-card">
-      <el-table :data="tableData" v-loading="loading" stripe style="width: 100%; table-layout: fixed;" class="margin-table">
+      <el-table :data="tableData" v-loading="loading" stripe style="width: 100%; table-layout: fixed;" max-height="calc(100vh - 300px)" scrollbar-always-on class="margin-table">
         <el-table-column type="index" label="序号" width="65" align="center" />
         <el-table-column prop="projectName" label="项目名称" min-width="200">
           <template #default="{ row }">

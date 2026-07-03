@@ -6,6 +6,7 @@
       :data="rows"
       v-loading="loading"
       stripe
+      max-height="calc(100vh - 280px)"
       scrollbar-always-on
       @selection-change="$emit('selection-change', $event)"
     >

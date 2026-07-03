@@ -31,7 +31,7 @@
           </el-form>
         </el-card>
         <el-card class="table-card" v-loading="loading">
-          <el-table :data="records" stripe @row-click="openDetail">
+          <el-table :data="records" stripe max-height="calc(100vh - 280px)" scrollbar-always-on @row-click="openDetail">
             <el-table-column type="selection" width="55" />
             <el-table-column type="index" label="序号" width="110" align="center" />
             <el-table-column prop="brandId" label="授权编号" width="120" />

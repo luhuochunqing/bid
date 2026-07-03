@@ -78,7 +78,7 @@
 
     <!-- 站点列表 -->
     <el-card class="table-card" shadow="never">
-      <el-table :data="filteredSites" stripe v-loading="loading">
+      <el-table :data="filteredSites" stripe v-loading="loading" max-height="calc(100vh - 300px)" scrollbar-always-on>
         <el-table-column type="index" label="序号" width="60" />
         <el-table-column label="平台名称" min-width="240">
           <template #default="{ row }">
