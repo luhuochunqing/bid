@@ -137,13 +137,12 @@
         </el-table-column>
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click.stop="handleView(row)">查看</el-button>
             <el-button v-if="canManage(row)" link type="primary" size="small" @click.stop="handleEdit(row)">编辑</el-button>
             <el-button
               v-if="canBorrow(row) && !myPendingApplicationCaIds.has(row.id)"
               link type="success" size="small"
               @click.stop="handleOpenBorrow(row)"
-            >借用</el-button>
+            >申请使用</el-button>
             <el-button
               v-if="canReturn(row)"
               link type="warning" size="small"

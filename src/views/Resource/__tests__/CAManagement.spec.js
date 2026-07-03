@@ -583,3 +583,46 @@ describe('CAManagement — CO-476 重复申请按钮隐藏', () => {
     expect(wrapper.vm.myPendingApplicationCaIds.size).toBe(0)
   })
 })
+
+// ── CO-489：CA 信息列表操作项优化 ──
+// 需求：
+//   1. 删除"查看"按钮（点击行任意位置已能打开详情页，按钮冗余）
+//   2. "借用"按钮统一改名为"申请使用"
+// 说明：默认 el-table-column stub 无 slot，操作列按钮不会渲染。
+//   这里用专用 stub 让 #default slot 渲染（传入 mockCertificates[0] 作为 row），
+//   以便断言操作列按钮文本。
+
+describe('CAManagement — CO-489 操作项优化', () => {
+  const co489Stubs = {
+    ...stubs,
+    'el-table-column': {
+      template: '<div class="co489-column"><slot :row="mockRow" /></div>',
+      data() {
+        return { mockRow: mockCertificates[0] }
+      }
+    }
+  }
+
+  function createCo489Wrapper() {
+    return mount(CAManagement, {
+      global: { stubs: co489Stubs, plugins: [createPinia()] }
+    })
+  }
+
+  it('管理员视图操作列不渲染"查看"按钮', async () => {
+    const wrapper = createCo489Wrapper()
+    await flushPromises()
+
+    const buttonTexts = wrapper.findAll('button').map((b) => b.text())
+    expect(buttonTexts).not.toContain('查看')
+  })
+
+  it('管理员视图"借用"按钮改名为"申请使用"', async () => {
+    const wrapper = createCo489Wrapper()
+    await flushPromises()
+
+    const buttonTexts = wrapper.findAll('button').map((b) => b.text())
+    expect(buttonTexts).toContain('申请使用')
+    expect(buttonTexts).not.toContain('借用')
+  })
+})
