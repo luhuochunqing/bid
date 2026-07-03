@@ -151,21 +151,27 @@ public class TenderQueryService {
     public void enrichAssignmentInfoBatch(List<TenderDTO> dtos) {
         if (dtos == null || dtos.isEmpty()) return;
 
-        Set<Long> tenderIds = dtos.stream().map(TenderDTO::getId).collect(Collectors.toSet());
+        try {
+            Set<Long> tenderIds = dtos.stream().map(TenderDTO::getId).collect(Collectors.toSet());
 
-        Map<Long, String> managerNames = fetchManagerNames(tenderIds);
-        Map<Long, String> assigneeNames = fetchAssigneeNames(tenderIds);
+            Map<Long, String> managerNames = fetchManagerNames(tenderIds);
+            Map<Long, String> assigneeNames = fetchAssigneeNames(tenderIds);
 
-        for (TenderDTO dto : dtos) {
-            // CO-333: 标讯自身已存项目负责人姓名时不被项目 managerId 反查覆盖，
-            // 避免管理员点击「立即投标」生成项目后，前端项目负责人显示值发生变化。
-            if (dto.getProjectManagerName() == null || dto.getProjectManagerName().isBlank()) {
-                String managerName = managerNames.get(dto.getId());
-                if (managerName != null) {
-                    dto.setProjectManagerName(managerName);
+            for (TenderDTO dto : dtos) {
+                // CO-333: 标讯自身已存项目负责人姓名时不被项目 managerId 反查覆盖，
+                // 避免管理员点击「立即投标」生成项目后，前端项目负责人显示值发生变化。
+                if (dto.getProjectManagerName() == null || dto.getProjectManagerName().isBlank()) {
+                    String managerName = managerNames.get(dto.getId());
+                    if (managerName != null) {
+                        dto.setProjectManagerName(managerName);
+                    }
                 }
+                dto.setAssigneeName(assigneeNames.get(dto.getId()));
             }
-            dto.setAssigneeName(assigneeNames.get(dto.getId()));
+        } catch (RuntimeException e) {
+            // CO-027: enrichment 降级——dtos 已是基础数据，enrichment 失败就保持原样
+            // 捕获 RuntimeException 覆盖 DB 超时、NPE、IllegalStateException 等运行时异常
+            log.warn("enrichment 降级 - tender enrichment failed, returning base data", e);
         }
     }
 

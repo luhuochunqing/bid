@@ -1,0 +1,167 @@
+{
+  "description": "Exemption list for Collectors.toMap 2-arg calls (Constitution v2.0.0 Principle VII). Each entry MUST be removed after adding merge function.",
+  "exemptions": [
+    {
+      "file": "com/xiyu/bid/service/AdminUserService.java",
+      "line": 151,
+      "key": "option -> option.code()",
+      "reason": "option code lookup, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/casework/application/ProjectArchiveResponseMapper.java",
+      "line": 47,
+      "key": "Project::getId",
+      "reason": "PK, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/casework/application/ProjectArchiveResponseMapper.java",
+      "line": 52,
+      "key": "Tender::getId",
+      "reason": "PK, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/admin/settings/core/DepartmentGraphPolicy.java",
+      "line": 89,
+      "key": "DepartmentNode::code",
+      "reason": "department code lookup, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/alerts/service/AlertHistoryQueryService.java",
+      "line": 94,
+      "key": "AlertRule::getId",
+      "reason": "PK, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/casework/application/ProjectArchiveExportService.java",
+      "line": 176,
+      "key": "Project::getId",
+      "reason": "PK, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/casework/application/ProjectArchiveExportService.java",
+      "line": 186,
+      "key": "Tender::getId",
+      "reason": "PK, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/platform/service/AccountBorrowApplicationMapper.java",
+      "line": 42,
+      "key": "PlatformAccount::getId",
+      "reason": "PK, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/platform/service/AccountBorrowApplicationMapper.java",
+      "line": 50,
+      "key": "User::getId",
+      "reason": "PK, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/project/service/ProjectExportService.java",
+      "line": 79,
+      "key": "Tender::getId",
+      "reason": "PK, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/resources/expenseledger/application/ExpenseLedgerApplicationService.java",
+      "line": 76,
+      "key": "Project::getId",
+      "reason": "PK, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/resources/expenseledger/application/ExpenseLedgerApplicationService.java",
+      "line": 85,
+      "key": "User::getId",
+      "reason": "PK, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/resources/service/CaBorrowApplicationNameEnricher.java",
+      "line": 66,
+      "key": "CaCertificateEntity::getId",
+      "reason": "PK, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/resources/service/CaBorrowApplicationNameEnricher.java",
+      "line": 76,
+      "key": "PlatformAccount::getId",
+      "reason": "PK, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/resources/service/CustodianEmployeeNumberResolver.java",
+      "line": 49,
+      "key": "User::getId",
+      "reason": "PK, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/task/service/TaskBoardService.java",
+      "line": 139,
+      "key": "Project::getId",
+      "reason": "PK, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/task/service/TaskBoardService.java",
+      "line": 154,
+      "key": "User::getId",
+      "reason": "PK, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/task/service/TaskExtendedFieldAdminService.java",
+      "line": 185,
+      "key": "TaskExtendedField::getFieldKey",
+      "reason": "field key, one-to-many risk"
+    },
+    {
+      "file": "com/xiyu/bid/task/service/TaskStatusDictAdminService.java",
+      "line": 161,
+      "key": "TaskStatusDict::getCode",
+      "reason": "code lookup, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/tender/service/TenderQueryService.java",
+      "line": 180,
+      "key": "Project::getTenderId",
+      "reason": "foreign key, one-to-many risk"
+    },
+    {
+      "file": "com/xiyu/bid/tender/service/TenderQueryService.java",
+      "line": 186,
+      "key": "User::getId",
+      "reason": "PK, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/tender/service/TenderQueryService.java",
+      "line": 200,
+      "key": "TenderAssignmentRecord::getTenderId",
+      "reason": "foreign key, one-to-many risk"
+    },
+    {
+      "file": "com/xiyu/bid/tender/service/TenderQueryService.java",
+      "line": 209,
+      "key": "User::getId",
+      "reason": "PK, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/tenderfavorite/service/TenderFavoriteService.java",
+      "line": 102,
+      "key": "Tender::getId",
+      "reason": "PK, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/warehouse/application/WarehouseExportAppService.java",
+      "line": 254,
+      "key": "User::getId",
+      "reason": "PK, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/warehouse/application/WarehouseLedgerExportAppService.java",
+      "line": 118,
+      "key": "User::getId",
+      "reason": "PK, low risk"
+    },
+    {
+      "file": "com/xiyu/bid/warehouse/domain/WarehouseAttachmentExportPolicy.java",
+      "line": 36,
+      "key": "Map.Entry::getKey",
+      "reason": "entry key from existing map, unique by construction"
+    }
+  ]
+}

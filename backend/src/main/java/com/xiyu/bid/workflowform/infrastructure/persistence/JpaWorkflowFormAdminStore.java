@@ -49,10 +49,12 @@ public class JpaWorkflowFormAdminStore implements WorkflowFormAdminStore {
         Map<String, Integer> versions = versionRepository.findMaxVersions(templateCodes).stream()
                 .collect(java.util.stream.Collectors.toMap(
                         WorkflowFormTemplateVersionMaxRow::getTemplateCode,
-                        WorkflowFormTemplateVersionMaxRow::getVersion));
+                        WorkflowFormTemplateVersionMaxRow::getVersion,
+                        (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
         Map<String, OaProcessBindingRecord> bindings = bindingRepository.findAllById(templateCodes).stream()
                 .map(this::toBindingRecord)
-                .collect(java.util.stream.Collectors.toMap(OaProcessBindingRecord::templateCode, binding -> binding));
+                .collect(java.util.stream.Collectors.toMap(OaProcessBindingRecord::templateCode, binding -> binding,
+                        (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
         return drafts.stream().map(entity -> toAdminRecord(
                 entity,
                 versions.getOrDefault(entity.getTemplateCode(), 0),

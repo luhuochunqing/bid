@@ -116,7 +116,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleOptimisticLockingFailureException(
             OptimisticLockingFailureException ex,
             HttpServletRequest request) {
-        log.warn("并发更新冲突 - URI: {}, Message: {}", request.getRequestURI(), ex.getMessage());
+        String payload = getRequestPayload(request);
+        log.error("并发更新冲突 - URI: {}, IP: {}, Message: {}\nPayload: {}",
+                request.getRequestURI(), getClientIp(request), ex.getMessage(), payload, ex);
+        Sentry.captureException(ex);
 
         String message = "数据已被其他用户更新，请刷新后重试";
         if (request.getRequestURI() != null && request.getRequestURI().contains("/evaluation")) {

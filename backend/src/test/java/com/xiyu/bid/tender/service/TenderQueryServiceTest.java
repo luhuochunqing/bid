@@ -26,6 +26,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -278,6 +279,33 @@ class TenderQueryServiceTest {
         TenderQueryService service = createService();
         service.enrichAssignmentInfoBatch(List.of(dto));
 
+        assertThat(dto.getAssigneeName()).isNull();
+    }
+
+    @Test
+    @DisplayName("CO-027: enrichment 阶段抛异常时降级返回基础数据，不中断主列表")
+    void shouldDegradeGracefullyWhenEnrichmentThrowsException() {
+        TenderDTO dto = new TenderDTO();
+        dto.setId(1L);
+        dto.setTitle("测试标讯");
+
+        // 模拟 fetchManagerNames 内部调用 projectRepository.findByTenderIdIn 抛 RuntimeException
+        //（如 DB 查询超时、连接异常等）
+        when(projectRepository.findByTenderIdIn(Set.of(1L)))
+                .thenThrow(new RuntimeException("模拟 DB 查询超时"));
+
+        TenderQueryService service = createService();
+
+        // 修复后：enrichment 降级，不抛异常
+        // enrichAssignmentInfoBatch 返回 void，dto 保持原样（基础数据完整，装饰性字段为空）
+        assertThatCode(() -> service.enrichAssignmentInfoBatch(List.of(dto)))
+                .doesNotThrowAnyException();
+
+        // dto 基础数据未被破坏
+        assertThat(dto.getId()).isEqualTo(1L);
+        assertThat(dto.getTitle()).isEqualTo("测试标讯");
+        // 装饰性字段为空（enrichment 降级）
+        assertThat(dto.getProjectManagerName()).isNull();
         assertThat(dto.getAssigneeName()).isNull();
     }
 }
