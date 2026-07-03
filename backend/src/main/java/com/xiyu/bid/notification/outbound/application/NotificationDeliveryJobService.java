@@ -22,6 +22,7 @@ import com.xiyu.bid.platform.async.infrastructure.AsyncObservabilityRecorder;
 import io.sentry.Sentry;
 import io.sentry.SentryLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -31,6 +32,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "notification.wecom.enabled", havingValue = "true", matchIfMissing = false)
 public class NotificationDeliveryJobService {
