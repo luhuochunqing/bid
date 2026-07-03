@@ -18,6 +18,14 @@
       <div class="drawer-footer">
         <el-button @click="drawerVisible = false">关闭</el-button>
         <el-button
+          v-if="canEditDepositTaskAssignee"
+          type="primary"
+          :loading="savingAssignee"
+          @click="handleSaveAssignee"
+        >
+          保存
+        </el-button>
+        <el-button
           v-if="canSubmitForReview"
           type="primary"
           :loading="submitting"
@@ -41,6 +49,7 @@ import { useProjectStore } from '@/stores/project'
 import { useUserStore } from '@/stores/user'
 import { validateSubmitForReview } from '@/composables/useTaskSubmissionValidation.js'
 import { uploadTaskFilesWithFallback } from '@/composables/projectDetail/taskAssigneePayload'
+import { isBidAdminOrSenior } from '@/utils/permission.js'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -56,9 +65,55 @@ const drawerVisible = computed({
 const selectedTask = ref(null)
 const taskFormRef = ref(null)
 const submitting = ref(false)
+const savingAssignee = ref(false)
 const loadingTaskDetail = ref(false)
+const projectStore = useProjectStore()
+const userStore = useUserStore()
 
 const canSubmitForReview = computed(() => taskFormRef.value?.canDeliver === true)
+
+// CO-481: 保证金缴纳任务 + TODO + 投标管理员/组长 → 可编辑执行人
+const canEditDepositTaskAssignee = computed(() => {
+  const task = selectedTask.value
+  if (!task) return false
+  if (task.extendedFields?._taskType !== 'deposit-payment') return false
+  if (String(task.status || '').toUpperCase() !== 'TODO') return false
+  return isBidAdminOrSenior(userStore.userRole)
+})
+
+async function handleSaveAssignee() {
+  const task = selectedTask.value
+  if (!task?.id || !task?.projectId) {
+    ElMessage.warning('任务数据不完整')
+    return
+  }
+  savingAssignee.value = true
+  try {
+    const result = taskFormRef.value?.submit?.()
+    if (!result || result.valid === false) {
+      if (result?.message) ElMessage.warning(result.message)
+      return
+    }
+    const data = result.data
+    const dto = {}
+    if (data.assigneeId != null) {
+      dto.assigneeId = data.assigneeId
+      dto.assigneeDeptCode = data.assigneeDeptCode
+      dto.assigneeDeptName = data.assigneeDeptName
+      dto.assigneeRoleCode = data.assigneeRoleCode
+      dto.assigneeRoleName = data.assigneeRoleName
+    }
+    await projectsApi.updateTask(task.id, dto)
+    ElMessage.success('执行人已更新')
+    drawerVisible.value = false
+    selectedTask.value = null
+    emit('submitted')
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.msg || '执行人更新失败')
+  } finally {
+    savingAssignee.value = false
+  }
+}
 
 async function loadTask(taskId) {
   loadingTaskDetail.value = true
@@ -103,8 +158,6 @@ async function handleSubmitForReview() {
       return
     }
 
-    const projectStore = useProjectStore()
-    const userStore = useUserStore()
     const uploadOk = await uploadTaskFilesWithFallback(
       selectedTask.value,
       { attachments: [], deliverableFiles: data.deliverableFiles || [] },
