@@ -8,8 +8,8 @@ import { getSourceTypeText } from '../bidding-utils.js'
 // Action definitions (canonical shapes)
 // ---------------------------------------------------------------------------
 const ACTION_DEFS = {
-  assign: { key: 'assign', label: '分配', type: 'primary', icon: null },
-  transfer: { key: 'transfer', label: '转派', type: 'warning', icon: null },
+  assign: { key: 'assign', label: '分配销售', type: 'primary', icon: null },
+  transfer: { key: 'transfer', label: '转派销售', type: 'warning', icon: null },
   delete: { key: 'delete', label: '删除', type: 'danger', icon: null },
   viewProject: {
     key: 'viewProject',
@@ -70,9 +70,9 @@ const HEADER_MATRIX = {
         : [],
   },
   TRACKING: {
-    // CO-441 回归修复 v2：根据 projectManagerId 区分「分配」与「转派」
-    // - projectManagerId != null（已有负责人）→ 显示「转派」「删除」
-    // - projectManagerId == null（遗留脏数据 / 自动分配失败）→ 显示「分配」「删除」
+    // CO-441 回归修复 v2：根据 projectManagerId 区分「分配销售」与「转派销售」
+    // - projectManagerId != null（已有负责人）→ 显示「转派销售」「删除」
+    // - projectManagerId == null（遗留脏数据 / 自动分配失败）→ 显示「分配销售」「删除」
     //   避免后端 TenderTransferService 因 projectManagerId=null 抛 400
     admin_lead: ({ projectManagerId }) =>
       projectManagerId != null ? ['transfer', 'delete'] : ['assign', 'delete'],

@@ -20,8 +20,8 @@ const ABANDONED = 'ABANDONED'
 // Expected action shapes (see spec in actionMatrix.js)
 // ---------------------------------------------------------------------------
 const ACTIONS = Object.freeze({
-  ASSIGN: { key: 'assign', label: '分配', type: 'primary', icon: null },
-  TRANSFER: { key: 'transfer', label: '转派', type: 'warning', icon: null },
+  ASSIGN: { key: 'assign', label: '分配销售', type: 'primary', icon: null },
+  TRANSFER: { key: 'transfer', label: '转派销售', type: 'warning', icon: null },
   DELETE: { key: 'delete', label: '删除', type: 'danger', icon: null },
   VIEW_PROJECT: {
     key: 'viewProject',
@@ -113,7 +113,7 @@ describe('getHeaderActions', () => {
     })
 
     it('CO-441 回归修复 v2：bid_admin without projectManagerId sees assign + delete', () => {
-      // TRACKING + projectManagerId=null → 显示「分配」「删除」
+      // TRACKING + projectManagerId=null → 显示「分配销售」「删除」
       // 避免后端 TenderTransferService 因 projectManagerId=null 抛 400
       expectActions(getHeaderActions(TRACKING, '/bidAdmin', false, null, null, null), [
         ACTIONS.ASSIGN,
@@ -129,7 +129,7 @@ describe('getHeaderActions', () => {
     })
 
     it('CO-441 回归修复 v2：bid_lead without projectManagerId sees assign (delete filtered for bid-TeamLeader)', () => {
-      // TRACKING + projectManagerId=null → 显示「分配」（bid-TeamLeader 过滤 delete）
+      // TRACKING + projectManagerId=null → 显示「分配销售」（bid-TeamLeader 过滤 delete）
       expectActions(getHeaderActions(TRACKING, 'bid-TeamLeader', false, null, null, null), [
         ACTIONS.ASSIGN,
       ])
