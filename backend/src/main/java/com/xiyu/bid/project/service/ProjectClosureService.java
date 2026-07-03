@@ -49,6 +49,7 @@ public class ProjectClosureService {
     private final ProjectRepository projectRepository;
     private final ProjectStageService projectStageService;
     private final ProjectClosureDepositAssembler depositAssembler;
+    private final ProjectClosureTaskAssembler taskAssembler;
     private final UserRepository userRepository;
     private final NotificationApplicationService notificationService;
     private final DocumentExportService documentExportService;
@@ -59,23 +60,25 @@ public class ProjectClosureService {
 
     @Transactional(readOnly = true)
     public ClosurePreviewDTO preview(Long projectId) {
-        // CO-392: 补齐项目级访问守卫，与 ProjectDraftingService.get() 对齐，
-        // 防止放开 @PreAuthorize 角色白名单后越权查看任意项目结项预览。
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         Project project = mustGetProject(projectId);
         Optional<ProjectClosure> existingClosure = closureRepository.findByProjectId(projectId);
         ProjectDepositSnapshot snap = depositAssembler.buildSnapshot(projectId, existingClosure);
         var gateSnap = depositAssembler.mapToGateSnapshot(snap, existingClosure.orElse(null));
+        ProjectClosureTaskAssembler.TaskSummary taskSummary = taskAssembler.loadTaskSummary(projectId);
+        var gateInputs = new ProjectClosureGatePolicy.ClosureGateInputs(
+                gateSnap,
+                ClosureInput.EMPTY,
+                taskSummary.taskStates());
         boolean alreadyClosed = closureRepository.existsByProjectIdAndStageLockedTrue(projectId)
                 || ProjectStage.CLOSED.name().equals(project.getStage());
-        var decision = ProjectClosureGatePolicy.decide(gateSnap, ClosureInput.EMPTY);
+        var decision = ProjectClosureGatePolicy.decide(gateInputs);
         List<String> blockingReasons = decision.allowed() ? List.of()
                 : ((ProjectClosureGatePolicy.Decision.Deny) decision).reasons();
         ProjectClosure closure = existingClosure.orElse(null);
         boolean canClose = decision.allowed() && !alreadyClosed
                 && (closure == null || !"PENDING".equals(closure.getReviewStatus()));
         String paymentMethod = depositAssembler.getPaymentMethod(projectId);
-        // CO-395: 查退回凭证文件名供前端只读展示
         String evidenceName = resolveDocumentName(snap.evidenceDocId());
         return ClosurePreviewDTO.builder()
                 .projectId(projectId).hasDeposit(snap.hasDeposit()).depositAmount(snap.depositAmount())
@@ -91,7 +94,11 @@ public class ProjectClosureService {
                 .projectSummary(closure != null ? closure.getProjectSummary() : null)
                 .rejectionReason(closure != null ? closure.getRejectionReason() : null)
                 .reviewedBy(closure != null ? closure.getReviewedBy() : null)
-                .reviewedAt(closure != null ? closure.getReviewedAt() : null).build();
+                .reviewedAt(closure != null ? closure.getReviewedAt() : null)
+                .totalTaskCount(taskSummary.totalTaskCount())
+                .completedTaskCount(taskSummary.completedTaskCount())
+                .incompleteTaskCount(taskSummary.incompleteTaskCount())
+                .build();
     }
 
     @Auditable(action = "PROJECT_CLOSURE_SUBMITTED", entityType = "ProjectClosure", description = "提交项目结项申请")
@@ -107,7 +114,11 @@ public class ProjectClosureService {
                 depositSnap.hasDeposit(), statusInfo.status(),
                 statusInfo.returnDate(), statusInfo.evidenceDocId(),
                 statusInfo.transferAmount(), statusInfo.returnedAmount());
-        var decision = ProjectClosureGatePolicy.decide(gateSnap, new ClosureInput(req.getArchiveLocation(), req.getNotes()));
+        var gateInputs = taskAssembler.buildGateInputs(
+                gateSnap,
+                new ClosureInput(req.getArchiveLocation(), req.getNotes()),
+                projectId);
+        var decision = ProjectClosureGatePolicy.decide(gateInputs);
         if (!decision.allowed()) {
             var deny = (ProjectClosureGatePolicy.Decision.Deny) decision;
             throw new ResponseStatusException(HttpStatus.CONFLICT, deny.reasonText());
@@ -143,6 +154,13 @@ public class ProjectClosureService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "未找到结项申请，请先提交结项"));
         if (!"PENDING".equals(closure.getReviewStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "结项申请状态不是待审核，无法通过");
+        }
+        ProjectClosureTaskAssembler.TaskSummary taskSummary = taskAssembler.loadTaskSummary(projectId);
+        var taskDecision = com.xiyu.bid.project.core.AllTasksCompletedPolicy.decide(taskSummary.taskStates());
+        if (!taskDecision.allowed()) {
+            int incomplete = ((com.xiyu.bid.project.core.AllTasksCompletedPolicy.Decision.Deny) taskDecision).incompleteCount();
+            String reason = incomplete < 0 ? "存在未完成的任务" : "存在 " + incomplete + " 项未完成的任务";
+            throw new ResponseStatusException(HttpStatus.CONFLICT, reason);
         }
         LocalDateTime now = LocalDateTime.now();
         closure.setReviewStatus("APPROVED");

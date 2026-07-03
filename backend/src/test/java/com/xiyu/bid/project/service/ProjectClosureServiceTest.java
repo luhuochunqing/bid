@@ -5,6 +5,7 @@
 package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.fees.entity.Fee;
 import com.xiyu.bid.fees.repository.FeeRepository;
 import com.xiyu.bid.project.core.ProjectStage;
@@ -17,6 +18,7 @@ import com.xiyu.bid.project.repository.ProjectClosureRepository;
 import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.project.service.ProjectClosureDepositAssembler;
 import com.xiyu.bid.repository.ProjectRepository;
+import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +31,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -44,9 +47,11 @@ class ProjectClosureServiceTest {
 
     private ProjectClosureRepository closureRepo;
     private FeeRepository feeRepo;
+    private TaskRepository taskRepo;
     private ProjectRepository projectRepo;
     private ProjectStageService stageService;
     private ProjectClosureDepositAssembler depositAssembler;
+    private ProjectClosureTaskAssembler taskAssembler;
     private UserRepository userRepository;
     private NotificationApplicationService notificationService;
     private com.xiyu.bid.documentexport.service.DocumentExportService documentExportService;
@@ -63,10 +68,12 @@ class ProjectClosureServiceTest {
     void setup() {
         closureRepo = mock(ProjectClosureRepository.class);
         feeRepo = mock(FeeRepository.class);
+        taskRepo = mock(TaskRepository.class);
         projectRepo = mock(ProjectRepository.class);
         stageService = mock(ProjectStageService.class);
         var initiationRepo = mock(ProjectInitiationDetailsRepository.class);
         depositAssembler = new ProjectClosureDepositAssembler(feeRepo, initiationRepo);
+        taskAssembler = new ProjectClosureTaskAssembler(taskRepo);
         userRepository = mock(UserRepository.class);
         notificationService = mock(NotificationApplicationService.class);
         documentExportService = mock(com.xiyu.bid.documentexport.service.DocumentExportService.class);
@@ -75,7 +82,9 @@ class ProjectClosureServiceTest {
         closurePermissionGuard = mock(ProjectClosurePermissionGuard.class);
         // Guard 默认放行（多数用例不关心审核权）；涉及审核权阻断的用例会单独 stub 抛异常
         lenient().doNothing().when(closurePermissionGuard).assertCanReviewClosure(eq(PID));
-        service = new ProjectClosureService(closureRepo, projectRepo, stageService, depositAssembler, userRepository, notificationService, documentExportService, projectDocumentRepo, projectAccessScopeService, closurePermissionGuard);
+        service = new ProjectClosureService(closureRepo, projectRepo, stageService, depositAssembler, taskAssembler, userRepository, notificationService, documentExportService, projectDocumentRepo, projectAccessScopeService, closurePermissionGuard);
+        // 默认：无任务（即零任务 = 可结项）
+        lenient().when(taskRepo.findByProjectId(PID)).thenReturn(List.of());
         Project p = new Project();
         p.setId(PID);
         when(projectRepo.findById(PID)).thenReturn(Optional.of(p));
@@ -430,5 +439,74 @@ class ProjectClosureServiceTest {
         when(stageService.currentStage(PID)).thenReturn(ProjectStage.CLOSED);
         var dto = service.preview(PID);
         assertTrue(dto.getAlreadyClosed());
+    }
+
+    // ---------- Task Completion Gate ----------
+
+    private Task task(Task.Status status) {
+        Task t = new Task();
+        t.setStatus(status);
+        return t;
+    }
+
+    @Test
+    void preview_noTasks_taskCountsZero() {
+        when(feeRepo.findByProjectId(PID)).thenReturn(List.of());
+        when(taskRepo.findByProjectId(PID)).thenReturn(List.of());
+        var dto = service.preview(PID);
+        assertEquals(0, dto.getTotalTaskCount());
+        assertEquals(0, dto.getCompletedTaskCount());
+        assertEquals(0, dto.getIncompleteTaskCount());
+    }
+
+    @Test
+    void preview_allTasksCompleted_canClose() {
+        when(feeRepo.findByProjectId(PID)).thenReturn(List.of());
+        when(taskRepo.findByProjectId(PID)).thenReturn(List.of(
+                task(Task.Status.COMPLETED), task(Task.Status.COMPLETED)));
+        var dto = service.preview(PID);
+        assertEquals(2, dto.getTotalTaskCount());
+        assertEquals(2, dto.getCompletedTaskCount());
+        assertEquals(0, dto.getIncompleteTaskCount());
+        assertTrue(dto.isCanClose());
+        assertTrue(dto.getBlockingReasons().isEmpty());
+    }
+
+    @Test
+    void preview_incompleteTasks_cannotClose_withReason() {
+        when(feeRepo.findByProjectId(PID)).thenReturn(List.of());
+        when(taskRepo.findByProjectId(PID)).thenReturn(List.of(
+                task(Task.Status.TODO), task(Task.Status.COMPLETED)));
+        var dto = service.preview(PID);
+        assertEquals(2, dto.getTotalTaskCount());
+        assertEquals(1, dto.getCompletedTaskCount());
+        assertEquals(1, dto.getIncompleteTaskCount());
+        assertFalse(dto.isCanClose());
+        assertTrue(dto.getBlockingReasons().stream()
+                .anyMatch(r -> r.contains("未完成的任务")));
+    }
+
+    @Test
+    void submit_incompleteTasks_throws409() {
+        when(feeRepo.findByProjectId(PID)).thenReturn(List.of());
+        when(taskRepo.findByProjectId(PID)).thenReturn(List.of(task(Task.Status.TODO)));
+        var req = ClosureSubmitRequest.builder()
+                .depositReturnStatus("NA").archiveLocation("/archive")
+                .projectSummary("summary").build();
+        var ex = assertThrows(ResponseStatusException.class,
+                () -> service.submitClosure(PID, req, UID));
+        assertEquals(409, ex.getStatusCode().value());
+    }
+
+    @Test
+    void approve_incompleteTasks_throws409() {
+        var closure = ProjectClosure.builder()
+                .projectId(PID).reviewStatus("PENDING")
+                .depositReturnStatus("NA").createdBy(UID).build();
+        when(closureRepo.findByProjectId(PID)).thenReturn(Optional.of(closure));
+        when(taskRepo.findByProjectId(PID)).thenReturn(List.of(task(Task.Status.TODO)));
+        var ex = assertThrows(ResponseStatusException.class,
+                () -> service.approveClosure(PID, UID));
+        assertEquals(409, ex.getStatusCode().value());
     }
 }
