@@ -128,10 +128,6 @@ export const projectLifecycleApi = {
     return httpClient.post(`/api/projects/${id}/closure/export-documents`)
   },
 
-  // WS-F rebid (二次招标)
-  rebidProject(id) {
-    return httpClient.post(`${base(id)}/closure/rebid`)
-  },
 }
 
 export default projectLifecycleApi

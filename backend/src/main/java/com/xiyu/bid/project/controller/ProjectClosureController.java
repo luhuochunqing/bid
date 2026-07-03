@@ -92,18 +92,6 @@ public class ProjectClosureController {
         return ResponseEntity.ok(ApiResponse.success("项目结项申请已驳回", dto));
     }
 
-    /** 二次招标：管理员/组长/项目负责人/投标负责人/投标辅助。 */
-    @PostMapping("/rebid")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM')")
-    public ResponseEntity<ApiResponse<Object>> rebid(
-            @PathVariable Long projectId,
-            @AuthenticationPrincipal UserDetails userDetails) {
-        Long userId = currentUserId(userDetails);
-        Long newProjectId = service.rebidProject(projectId, userId);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("二次招标项目创建成功", java.util.Map.of("newProjectId", newProjectId)));
-    }
-
     /** 一键导出项目文档：要求项目必须已结项通过 */
     @PostMapping("/export-documents")
     @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM')")

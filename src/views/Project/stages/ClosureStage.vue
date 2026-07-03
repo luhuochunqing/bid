@@ -252,7 +252,6 @@
 
       <template v-if="preview?.reviewStatus === 'APPROVED' || preview?.alreadyClosed">
         <el-button type="success" disabled style="opacity:0.6;cursor:not-allowed;">已结项</el-button>
-        <el-button v-if="isProjectLeader || isBidManager" :loading="rebidLoading" @click="handleRebid">二次招标</el-button>
       </template>
     </div>
 
@@ -279,17 +278,14 @@ import { getApiUrl } from '@/api/config.js'
 import { casesApi } from '@/api/modules/knowledge.js'
 import { useUserStore } from '@/stores/user'
 import { safeHtml } from '@/utils/safeHtml.js'
-import { navigateToProject } from '@/utils/projectNavigation.js'
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import '@wangeditor/editor/dist/css/style.css'
-import { useRouter } from 'vue-router'
 import { readinessToTooltip } from './readinessTooltip.js'
 import { downloadWithFilename } from '@/utils/download.js'
 import { useProjectDocumentsExport } from '@/composables/projectDetail/useProjectDocumentsExport.js'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
 const emit = defineEmits(['closed'])
-const router = useRouter()
 
 const userStore = useUserStore()
 const userRole = computed(() => userStore.userRole)
@@ -523,18 +519,6 @@ defineExpose({
     if (props.projectId) checkPrecipitationReadiness()
   },
 })
-
-const rebidLoading = ref(false)
-async function handleRebid() {
-  rebidLoading.value = true
-  try {
-    const res = await projectLifecycleApi.rebidProject(props.projectId)
-    const newProjectId = res?.data?.projectId || res?.projectId
-    if (newProjectId) { ElMessage.success('二次招标项目已创建，即将跳转'); navigateToProject(router, newProjectId) }
-    else ElMessage.success('二次招标项目已创建')
-  } catch (e) { ElMessage.error(e?.response?.data?.msg || '创建二次招标项目失败') }
-  finally { rebidLoading.value = false }
-}
 
 const precipitating = ref(false); const precipitateReady = ref(false); const precipitateTooltip = ref('')
 
