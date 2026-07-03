@@ -24,7 +24,9 @@
           <el-tag :type="getCategoryTagType(row.category)">{{ getCategoryLabel(row.category) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="uploadUser" label="上传人" width="120" align="center" />
+      <el-table-column prop="uploadUser" label="上传人" width="160" align="center" show-overflow-tooltip>
+        <template #default="{ row }">{{ row.uploadUser || '-' }}</template>
+      </el-table-column>
       <el-table-column prop="uploadedAt" label="上传时间" width="160" align="center">
         <template #default="{ row }">{{ formatDateTime(row.uploadedAt) }}</template>
       </el-table-column>

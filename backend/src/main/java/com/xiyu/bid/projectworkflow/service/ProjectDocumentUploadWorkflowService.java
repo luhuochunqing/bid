@@ -42,6 +42,7 @@ class ProjectDocumentUploadWorkflowService {
                 .uploaderName(request.getUploaderName())
                 .build());
         // 即时归档到项目档案（蓝图 §4.1.1.1 要求：上传时即时按分类归档）
+        // CO-488: 用 createProjectDocument 解析后的 uploaderName（含姓名），避免原始 request 为空时写入"系统"
         if (projectArchiveWorkflowService != null && storedFile.physicalPath() != null) {
             projectArchiveWorkflowService.attachFileToArchive(
                     projectId,
@@ -49,8 +50,8 @@ class ProjectDocumentUploadWorkflowService {
                     request.getDocumentCategory(),
                     storedFile.physicalPath(),
                     file.getSize(),
-                    request.getUploaderId(),
-                    request.getUploaderName()
+                    created.getUploaderId(),
+                    created.getUploaderName()
             );
         }
         return created;
