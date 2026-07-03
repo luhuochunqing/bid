@@ -159,12 +159,13 @@ describe('CADetailDialog.vue — CO-406 详情形态对齐 AccountDetailDialog�
   })
 
   // 借用按钮 emit（由 actions.canBorrow 控制）
-  it('emit_borrowWhenInStockClicksBorrow — actions.canBorrow 为 true 时显示借用按钮并 emit borrow 事件', async () => {
+  // CO-489: "借用"按钮文本统一改为"申请使用"
+  it('emit_borrowWhenInStockClicksBorrow — actions.canBorrow 为 true 时显示申请使用按钮并 emit borrow 事件', async () => {
     const wrapper = await mountComponent({ actions: { canEdit: false, canBorrow: true, canReturn: false } })
     await flushPromises()
 
     const actions = wrapper.find('.detail-actions')
-    const borrowBtn = actions.findAll('button.el-button-stub').find((b) => b.text().includes('借用'))
+    const borrowBtn = actions.findAll('button.el-button-stub').find((b) => b.text().includes('申请使用'))
     expect(borrowBtn).toBeDefined()
 
     await borrowBtn.trigger('click')
@@ -209,13 +210,14 @@ describe('CADetailDialog.vue — CO-406 详情形态对齐 AccountDetailDialog�
   })
 
   // actions.canBorrow 为 false 时不显示借用按钮
-  it('render_noBorrowButtonWhenBorrowed — actions.canBorrow 为 false 时不显示借用按钮', async () => {
+  // CO-489: "借用"按钮文本统一改为"申请使用"
+  it('render_noBorrowButtonWhenBorrowed — actions.canBorrow 为 false 时不显示申请使用按钮', async () => {
     const borrowedCa = { ...mockCa, borrowStatus: 'BORROWED', borrowStatusLabel: '已借出', currentBorrowerName: '王五' }
     const wrapper = await mountComponent({ ca: borrowedCa, actions: { canEdit: false, canBorrow: false, canReturn: true } })
     await flushPromises()
 
     const actions = wrapper.find('.detail-actions')
-    const borrowBtn = actions.findAll('button.el-button-stub').find((b) => b.text().includes('借用'))
+    const borrowBtn = actions.findAll('button.el-button-stub').find((b) => b.text().includes('申请使用'))
     expect(borrowBtn).toBeUndefined()
   })
 

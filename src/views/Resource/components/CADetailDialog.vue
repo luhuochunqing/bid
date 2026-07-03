@@ -163,7 +163,7 @@
         type="primary"
         @click="$emit('borrow', ca)"
       >
-        <el-icon><Share /></el-icon>借用
+        <el-icon><Share /></el-icon>申请使用
       </el-button>
       <el-button
         v-if="actions.canReturn"
