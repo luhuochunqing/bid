@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { sourceText } from './projectListFormatters.js'
+import { sourceText, customerTypeLabel } from './projectListFormatters.js'
 
 describe('sourceText (CO-286: 与标讯中心来源平台列显示一致)', () => {
   it.each([
@@ -49,5 +49,39 @@ describe('sourceText (CO-286: 与标讯中心来源平台列显示一致)', () =
     const here = dirname(fileURLToPath(import.meta.url))
     const source = readFileSync(resolve(here, 'projectListFormatters.js'), 'utf8')
     expect(source).not.toMatch(/[Ѐ-ӿ]/) // 任何西里尔字母
+  })
+})
+
+describe('customerTypeLabel (PR !1571 回归修复：后端归一化为枚举名后展示位需翻译回中文)', () => {
+  it.each([
+    ['GOVERNMENT', '政府机关/事业单位/高校'],
+    ['CENTRAL_SOE', '央企'],
+    ['LOCAL_SOE', '地方国企'],
+    ['PRIVATE', '民企'],
+    ['FOREIGN', '港澳台及外企'],
+    ['OTHER', '其他'],
+  ])('maps CustomerType enum "%s" to localized label "%s"', (input, expected) => {
+    expect(customerTypeLabel(input)).toBe(expected)
+  })
+
+  it('falls back to raw value for unknown enum (避免丢失数据)', () => {
+    expect(customerTypeLabel('UNKNOWN_TYPE')).toBe('UNKNOWN_TYPE')
+  })
+
+  it('falls back to historical Chinese raw value (历史数据兼容)', () => {
+    // PR !1571 之前数据库可能存中文，归一化未覆盖时仍能正常显示
+    expect(customerTypeLabel('央企')).toBe('央企')
+  })
+
+  it('returns "-" for null', () => {
+    expect(customerTypeLabel(null)).toBe('-')
+  })
+
+  it('returns "-" for undefined', () => {
+    expect(customerTypeLabel(undefined)).toBe('-')
+  })
+
+  it('returns "-" for empty string', () => {
+    expect(customerTypeLabel('')).toBe('-')
   })
 })

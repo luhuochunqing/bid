@@ -93,7 +93,7 @@
             <template #default="{ row }">{{ row.revenue != null ? Number(row.revenue).toFixed(2) : '-' }}</template>
           </el-table-column>
           <el-table-column label="客户类型" width="140" v-if="columnVisible.customerType" class-name="wrap-cell">
-            <template #default="{ row }"><div class="customer-type-cell">{{ row.customerType || '-' }}</div></template>
+            <template #default="{ row }"><div class="customer-type-cell">{{ customerTypeLabel(row.customerType) }}</div></template>
           </el-table-column>
           <el-table-column label="优先级" width="85" v-if="columnVisible.priority">
             <template #default="{ row }">
