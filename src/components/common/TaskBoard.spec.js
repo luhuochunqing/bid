@@ -33,8 +33,19 @@ const mockUserStore = vi.hoisted(() => ({
 
 const mockConfirm = vi.hoisted(() => vi.fn())
 
+const mockDownloadWithFilename = vi.hoisted(() => vi.fn())
+const mockGetDownloadUrl = vi.hoisted(() => vi.fn())
+
 vi.mock('@/stores/project', () => ({
   useProjectStore: () => mockProjectStore,
+}))
+
+vi.mock('@/utils/download.js', () => ({
+  downloadWithFilename: mockDownloadWithFilename,
+}))
+
+vi.mock('@/api/modules/taskDeliverables.js', () => ({
+  getTaskDeliverableDownloadUrl: mockGetDownloadUrl,
 }))
 
 vi.mock('@/stores/user', () => ({
@@ -56,7 +67,7 @@ const globalStubs = {
   ElButton: { props: ['type', 'size', 'disabled'], template: '<button class="el-button-stub" :disabled="disabled"><slot /></button>' },
   ElIcon: { template: '<i class="el-icon-stub"><slot /></i>' },
   ElEmpty: { props: ['description', 'imageSize'], template: '<div class="el-empty-stub">{{ description }}</div>' },
-  ElLink: { props: ['href', 'type'], template: '<a class="el-link-stub" :href="href"><slot /></a>' },
+  ElLink: { props: ['href', 'type'], emits: ['click'], template: '<a class="el-link-stub" :href="href" @click.prevent="$emit(\'click\')"><slot /></a>' },
   ElDropdown: { template: '<div class="el-dropdown-stub"><slot /><slot name="dropdown" /></div>' },
   ElDropdownItem: {
     name: 'ElDropdownItem',
@@ -531,5 +542,56 @@ describe('TaskBoard (CO-413 reject reason dialog)', () => {
     expect(wrapper.vm.rejectDialogVisible).toBe(false)
     expect(wrapper.vm.rejectingTask).toBeNull()
     expect(wrapper.emitted('status-change')).toBeFalsy()
+  })
+})
+
+// Bug fix: 任务卡片点击交付物文件跳空白页 — 改为 blob 下载，与任务详情页行为一致
+describe('TaskBoard (deliverable download)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    mockProjectStore.taskStatuses = mockStatuses
+    mockProjectStore.loadTaskStatuses = vi.fn()
+    mockProjectStore.currentProject = null
+    mockUserStore.isBidManager = false
+    mockDownloadWithFilename.mockReset()
+    mockGetDownloadUrl.mockReset()
+  })
+
+  it('clicking deliverable link triggers blob download via downloadWithFilename (not navigation)', async () => {
+    mockGetDownloadUrl.mockReturnValue('/api/projects/12/tasks/31/deliverables/501/download')
+    const task = {
+      id: 31,
+      name: '编写技术方案',
+      status: 'TODO',
+      assigneeId: 9,
+      deliverables: [{ id: 501, name: '技术方案.docx', url: 'project-documents://12/技术方案.docx' }],
+    }
+    const wrapper = mountBoard({ projectId: '12', tasks: [task] })
+    await flushPromises()
+
+    await wrapper.vm.handleDownloadDeliverable(task, task.deliverables[0])
+
+    expect(mockGetDownloadUrl).toHaveBeenCalledWith('12', 31, 501)
+    expect(mockDownloadWithFilename).toHaveBeenCalledWith(
+      '/api/projects/12/tasks/31/deliverables/501/download',
+      '技术方案.docx',
+    )
+  })
+
+  it('shows info message when download URL cannot be constructed (missing ids)', async () => {
+    mockGetDownloadUrl.mockReturnValue('')
+    const task = {
+      id: 31,
+      name: 'T',
+      status: 'TODO',
+      assigneeId: 9,
+      deliverables: [{ id: null, name: 'broken.docx' }],
+    }
+    const wrapper = mountBoard({ projectId: '12', tasks: [task] })
+    await flushPromises()
+
+    await wrapper.vm.handleDownloadDeliverable(task, task.deliverables[0])
+
+    expect(mockDownloadWithFilename).not.toHaveBeenCalled()
   })
 })
