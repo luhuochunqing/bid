@@ -31,6 +31,13 @@
               <el-option label="联系人签字" value="CONTACT_SIGN" />
             </el-select>
           </el-form-item>
+          <el-form-item label="证书状态">
+            <el-select v-model="filters.status" placeholder="全部" clearable style="width: 130px">
+              <el-option label="有效" value="ACTIVE" />
+              <el-option label="即将到期" value="EXPIRING" />
+              <el-option label="已过期" value="EXPIRED" />
+            </el-select>
+          </el-form-item>
           <el-form-item label="借用状态">
             <el-select v-model="filters.borrowStatus" placeholder="全部" clearable style="width: 130px">
               <el-option label="在库" value="IN_STOCK" />
@@ -403,6 +410,7 @@ const filters = reactive({
   platform: '',
   caType: '',
   sealType: '',
+  status: '',
   borrowStatus: '',
   keyword: ''
 })
@@ -410,6 +418,7 @@ const appliedFilters = reactive({
   platform: '',
   caType: '',
   sealType: '',
+  status: '',
   borrowStatus: '',
   keyword: ''
 })
@@ -462,6 +471,9 @@ const filteredData = computed(() => {
   }
   if (f.sealType) {
     list = list.filter(c => c.sealType?.split(',').includes(f.sealType))
+  }
+  if (f.status) {
+    list = list.filter(c => c.status === f.status)
   }
   if (f.borrowStatus) {
     list = list.filter(c => c.borrowStatus === f.borrowStatus)
@@ -525,8 +537,8 @@ function applyFilters() {
 }
 
 function resetFilters() {
-  Object.assign(filters, { platform: '', caType: '', sealType: '', borrowStatus: '', keyword: '' })
-  Object.assign(appliedFilters, { platform: '', caType: '', sealType: '', borrowStatus: '', keyword: '' })
+  Object.assign(filters, { platform: '', caType: '', sealType: '', status: '', borrowStatus: '', keyword: '' })
+  Object.assign(appliedFilters, { platform: '', caType: '', sealType: '', status: '', borrowStatus: '', keyword: '' })
 }
 
 // Row click opens detail (admin/manager only)
@@ -786,6 +798,7 @@ async function handleExport() {
     params.selectedIds = selectedRows.value.map(r => r.id).join(',')
   } else {
     // 按筛选条件导出全部（前端 platform 筛选为客户端过滤，后端不支持，不传）
+    if (appliedFilters.status) params.status = appliedFilters.status
     if (appliedFilters.borrowStatus) params.borrowStatus = appliedFilters.borrowStatus
     if (appliedFilters.caType) params.caType = appliedFilters.caType
     if (appliedFilters.sealType) params.sealType = appliedFilters.sealType
