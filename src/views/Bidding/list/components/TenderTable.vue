@@ -59,6 +59,7 @@
 
       <!-- 客户类型 -->
       <el-table-column prop="customerType" label="客户类型" width="110" align="center">
+        <!-- SAFE: Tender 表的 customerType 是外部抓取的原始中文字符串（未归一化），与 Project 模块的归一化枚举名不同源 -->
         <template #default="{ row = {} } = {}">{{ row.customerType || '-' }}</template>
       </el-table-column>
 

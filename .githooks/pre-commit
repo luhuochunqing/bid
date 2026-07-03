@@ -14,6 +14,8 @@ npm --prefix "$ROOT_DIR" run check:token-governance
 node "$ROOT_DIR/scripts/check-vue-test-boilerplate.mjs"
 # 前端硬编码枚举映射表检测：检查 staged Vue 文件中是否存在后端枚举硬编码映射（2026-06-05 skill-progression-map）
 node "$ROOT_DIR/scripts/check-vue-enum-mapping.mjs"
+# 前端枚举字段直接渲染检测：阻止 {{ row.customerType }} 等未经过 formatter 的直接渲染（2026-07-03 PR !1632 防复发）
+node "$ROOT_DIR/scripts/check-vue-enum-direct-render.mjs"
 # UserPicker mode 回归检测：确保 search-mode 调用点未被静默改成 candidates（2026-06-25 skill-progression-map）
 node "$ROOT_DIR/scripts/check-userpicker-mode.mjs"
 npm --prefix "$ROOT_DIR" run wiki:check || true

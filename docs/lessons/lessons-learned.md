@@ -2400,3 +2400,75 @@ grep -rn "repository\.findBy.*null" backend/src/main/java --include="*.java"
 - §1 — 后端接口契约变更必须同步前端所有入口（同类：导出与列表参数对齐）
 - `backend/src/main/java/com/xiyu/bid/brandauth/manufacturer/application/service/ListManufacturerAuthAppService.java` — Specification 动态拼接的正确范例
 - `backend/src/main/java/com/xiyu/bid/brandauth/manufacturer/application/service/BrandAuthExportService.java` — 修复后的导出服务
+
+## 34. 后端枚举归一化必须同步前端所有展示位 + 静态检查防复发（PR !1571 回归）
+
+### 问题背景
+
+2026-07-03 用户反馈：项目列表和项目详情页的「客户类型」字段值展示为英文（如 `CENTRAL_SOE`、`GOVERNMENT`），刚部署后出现。
+
+按 `§23 全链路日志排查 SOP` 定位：
+
+- **Layer 1（Sentry）不适用**：不是异常崩溃，是显示文本错误，Sentry 不捕获。
+- **Layer 2（结构化日志/TraceId）不适用**：没有报错日志，HTTP 200 OK 正常返回。
+- **Layer 3（git log + cherry-pick 追溯）✅ 适用**：典型回归问题，PR 修复 A bug 时引入 B bug。
+
+### 根因
+
+**触发 PR**：!1571 `fix(project): 修复投标项目列表筛选客户类型(央企)筛不出数据的问题`（commit `10037e445`，2026-07-02 第 37 次部署上线）
+
+PR !1571 为修复「筛选央企筛不出数据」问题，把后端 `customerType` 返回值统一归一化为 CustomerType 枚举名（`CENTRAL_SOE`/`GOVERNMENT`/...），同时把前端筛选项 `value` 从 `GOVERNMENT_INSTITUTION`/`PRIVATE_ENTERPRISE`/`FOREIGN_HK_MACAO_TW` 改为 `GOVERNMENT`/`PRIVATE`/`FOREIGN`（label 仍是中文）。
+
+**遗漏点**：PR !1571 只对齐了筛选项的 value，**遗漏了「展示位」的翻译层**：
+
+- `src/views/Project/List.vue:96` 列表列直接渲染 `{{ row.customerType }}`
+- `src/components/project/ProjectBasicInfoCard.vue:16` 详情页直接渲染 `{{ project?.customerType }}`
+- `src/views/Analytics/components/CustomerTypePanel.vue:40,53,81` Analytics 看板三处直接渲染（PR !1632 顺手修复）
+
+归一化前数据是中文（如「央企」），直接显示正常；归一化后变英文枚举名（`CENTRAL_SOE`），直接展示就是英文。
+
+### 经验教训
+
+1. **后端枚举字段归一化是高风险变更**：归一化会改变所有下游消费方的字段值语义，必须审视整个「字段消费矩阵」——筛选项 value、展示位、导出 Excel、API 返回值、E2E 断言等所有入口，不能只改一个入口。
+2. **展示位必须有翻译层**：枚举名 → 中文 label 的翻译必须经过统一 formatter 函数（如 `customerTypeLabel`），不能在 template 直接 `{{ row.xxx }}` 渲染。
+3. **缺乏静态检查是根因**：PR !1571 code-review 时人工遗漏了展示位，若有静态检查脚本扫描「直接渲染枚举字段」模式，可在 commit 阶段拦截。
+
+### 防复发机制（PR !1632 落地）
+
+新增静态检查脚本 `scripts/check-vue-enum-direct-render.mjs`，集成到 `.githooks/pre-commit`：
+
+- **检测模式**：`<template>` 中 `{{ row.customerType }}` / `{{ project.customerType }}` 等直接字段访问，未经过 formatter 函数
+- **字段清单**：`customerType`（后续可扩展 `priority`/`stage`/`source` 等，扩展前需先处理存量）
+- **豁免机制**：`<!-- SAFE: <具体豁免理由> -->` 上方注释，用于调试页/原始数据查看等合理场景
+- **阻断级别**：⛔ 强制（exit 1）
+
+### 操作规范（建议固化到 code-review skill）
+
+1. **后端枚举归一化 PR 必须扫描前端所有消费位**：用 `grep -r "fieldName" src/` 列出所有引用，逐一确认是否需要翻译层
+2. **新增 formatter 函数时，同步扩展 `check-vue-enum-direct-render.mjs` 的 `ENUM_FIELDS` 清单**
+3. **Tender 表的 customerType 是外部抓取的原始中文字符串（未归一化），与 Project 模块的归一化枚举名不同源**：TenderTable.vue:62 已用 SAFE 注释豁免
+
+### 验证命令
+
+```bash
+# 全量扫描（不依赖 git staged）
+node -e "
+import('fs').then(fs => {
+  const ENUM_FIELDS = { customerType: 'customerTypeLabel' };
+  // ... 见 scripts/check-vue-enum-direct-render.mjs
+})
+"
+
+# staged 文件检查（pre-commit 自动执行）
+node scripts/check-vue-enum-direct-render.mjs
+```
+
+### 相关文档
+
+- PR !1571 — 触发回归的 PR
+- PR !1632 — 本次修复 + 防复发脚本
+- §23 — 全链路日志排查 SOP（本次排查使用 Layer 3 git 追溯）
+- §1 — 后端接口契约变更必须同步前端所有入口（同类：归一化需同步所有展示位）
+- §28 — 权限 Bug 必须审视同一业务动作的所有 UI 入口（同类：审视整个字段矩阵）
+- `scripts/check-vue-enum-direct-render.mjs` — 防复发静态检查脚本
+- `src/views/Project/utils/projectListFormatters.js` — customerTypeLabel formatter 函数

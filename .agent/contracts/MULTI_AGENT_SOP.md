@@ -516,6 +516,7 @@ git config alias.commit '!bash .githooks/git-commit-wrapper.sh'
 | Token 治理 | `check:token-governance` | ⛔ 强制 |
 | Vue 测试脚手架规范 | `check-vue-test-boilerplate.mjs` | ⛔ 强制 |
 | 前端枚举硬编码检测 | `check-vue-enum-mapping.mjs` | ⚠ 警告 |
+| 前端枚举字段直接渲染检测 | `check-vue-enum-direct-render.mjs` | ⛔ 强制 |
 | 热路径锁检查（修改 hot-path 必须已有锁） | `check-hot-path-locks.mjs` | ⛔ 强制 |
 | System-scope jar 检查 | `check-system-scope-jar.sh` | ⛔ 强制 |
 | Flyway 版本冲突预检 | `check-flyway-versions.sh` | ⛔ 强制 |
