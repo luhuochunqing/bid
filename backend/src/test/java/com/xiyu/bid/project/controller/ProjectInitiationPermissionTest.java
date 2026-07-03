@@ -15,17 +15,29 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>文档核心约束：
  * <ul>
- *   <li>提交/更新/AI 评估：仅项目负责人（BID_PROJECTLEADER）+ 管理员</li>
+ *   <li>提交/更新：项目负责人（BID_PROJECTLEADER）+ 投标组长（BID_TEAMLEADER）+ 管理员</li>
+ *   <li>AI 评估（assessRisk）：仅项目负责人 + 管理员（投标组长不触发 AI 风险评估）</li>
  *   <li>审核（approve/reject）：仅管理员/组长（ADMIN/BID_TEAMLEADER/BIDADMIN）</li>
  * </ul>
+ *
+ * <p>修复回归（2026-07-03）：commit ca1250e6b 把 submit/update 收紧到 (ADMIN, BID_PROJECTLEADER)，
+ * 遗漏 BID_TEAMLEADER，导致投标组长点击「提交立项」返回 403「权限不足，无法访问该资源」。
+ * 现重申：投标组长是立项发起人之一，与 approve/reject 权限矩阵对称。
  */
 class ProjectInitiationPermissionTest {
 
     @Test
-    @DisplayName("2.2 提交立项 submit：ADMIN/BID_PROJECTLEADER（文档：仅项目负责人）")
-    void submit_preAuthorize_allowsProjectLeaderOnly() {
+    @DisplayName("2.2 提交立项 submit：ADMIN/BID_PROJECTLEADER/BID_TEAMLEADER（投标组长可提交立项）")
+    void submit_preAuthorize_allowsProjectLeaderAndTeamLeader() {
         PreAuthorize annotation = findMethod("submit").getAnnotation(PreAuthorize.class);
-        assertThat(annotation.value()).isEqualTo("hasAnyRole('ADMIN','BID_PROJECTLEADER')");
+        assertThat(annotation.value()).isEqualTo("hasAnyRole('ADMIN', 'BID_PROJECTLEADER', 'BID_TEAMLEADER')");
+    }
+
+    @Test
+    @DisplayName("2.2 更新立项 update：ADMIN/BID_PROJECTLEADER/BID_TEAMLEADER（与 submit 对称）")
+    void update_preAuthorize_allowsProjectLeaderAndTeamLeader() {
+        PreAuthorize annotation = findMethod("update").getAnnotation(PreAuthorize.class);
+        assertThat(annotation.value()).isEqualTo("hasAnyRole('ADMIN', 'BID_PROJECTLEADER', 'BID_TEAMLEADER')");
     }
 
     @Test
