@@ -2,6 +2,7 @@ package com.xiyu.bid.warehouse.application;
 
 import com.xiyu.bid.warehouse.domain.WarehouseAttachmentType;
 import com.xiyu.bid.warehouse.domain.WarehouseImportPolicy;
+import com.xiyu.bid.warehouse.domain.WarehouseImportRow;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseAttachmentEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseAttachmentRepository;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseEntity;
@@ -38,8 +39,8 @@ public class WarehouseImportAttachmentProcessor {
 
     private static final DateTimeFormatter TS_FMT = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
     private static final Pattern NAMING_PATTERN = Pattern.compile(
-            "^WH_(.+?)_(产权证|发票|内外照片)(_\\d+)?\\.[A-Za-z0-9]+$");
-    private static final Set<String> KNOWN_TYPE_LABELS = Set.of("产权证", "发票", "内外照片");
+            "^WH_(.+?)_(产权证|发票|内外照片|租赁合同)(_\\d+)?\\.[A-Za-z0-9]+$");
+    private static final Set<String> KNOWN_TYPE_LABELS = Set.of("产权证", "发票", "内外照片", "租赁合同");
 
     private final WarehouseAttachmentRepository attachmentRepo;
 
@@ -48,7 +49,7 @@ public class WarehouseImportAttachmentProcessor {
 
     @Transactional
     public AttachmentResult attachFiles(Map<String, WarehouseEntity> createdByName,
-                                        List<WarehouseImportPolicy.ParsedRow> rows,
+                                        List<WarehouseImportRow> rows,
                                         List<AttachmentInput> attachments,
                                         Long uploaderId) {
         if (attachments == null || attachments.isEmpty()) return new AttachmentResult(0, List.of());
@@ -86,18 +87,19 @@ public class WarehouseImportAttachmentProcessor {
         return new AttachmentResult(saved, unmatched);
     }
 
-    private Map<String, AttachmentBinding> buildBindingMap(List<WarehouseImportPolicy.ParsedRow> rows) {
+    private Map<String, AttachmentBinding> buildBindingMap(List<WarehouseImportRow> rows) {
         Map<String, AttachmentBinding> byName = new HashMap<>();
-        for (WarehouseImportPolicy.ParsedRow row : rows) {
+        for (WarehouseImportRow row : rows) {
             bind(byName, row.propertyCertExpectedName, row, WarehouseAttachmentType.PROPERTY_CERTIFICATE);
             bind(byName, row.invoiceExpectedName, row, WarehouseAttachmentType.INVOICE);
             bind(byName, row.photosExpectedName, row, WarehouseAttachmentType.PHOTOS);
+            bind(byName, row.leaseContractExpectedName, row, WarehouseAttachmentType.LEASE_CONTRACT);
         }
         return byName;
     }
 
     private void bind(Map<String, AttachmentBinding> byName, String expectedName,
-                      WarehouseImportPolicy.ParsedRow row, WarehouseAttachmentType type) {
+                      WarehouseImportRow row, WarehouseAttachmentType type) {
         if (expectedName == null || expectedName.isEmpty()) return;
         byName.put(expectedName, new AttachmentBinding(row, type));
     }
@@ -122,7 +124,7 @@ public class WarehouseImportAttachmentProcessor {
 
     private UnmatchedFile classifyUnmatched(String filename,
                                            Map<String, WarehouseEntity> createdByName,
-                                           List<WarehouseImportPolicy.ParsedRow> rows) {
+                                           List<WarehouseImportRow> rows) {
         Matcher m = NAMING_PATTERN.matcher(filename);
         if (!m.matches()) {
             return new UnmatchedFile(filename, "命名格式不符");
@@ -183,11 +185,11 @@ public class WarehouseImportAttachmentProcessor {
     }
 
     private static class AttachmentBinding {
-        final WarehouseImportPolicy.ParsedRow row;
+        final WarehouseImportRow row;
         final WarehouseAttachmentType type;
         boolean used = false;
 
-        AttachmentBinding(WarehouseImportPolicy.ParsedRow row, WarehouseAttachmentType type) {
+        AttachmentBinding(WarehouseImportRow row, WarehouseAttachmentType type) {
             this.row = row;
             this.type = type;
         }

@@ -100,6 +100,9 @@ public class WarehouseLogService {
         if (!Objects.equals(oldVal.getHasPhotos(), newVal.getHasPhotos())) {
             saveLog(newVal, WarehouseActionType.EDIT, "是否有内外照片", String.valueOf(oldVal.getHasPhotos()), String.valueOf(newVal.getHasPhotos()), "修改是否有内外照片：" + (oldVal.getHasPhotos() ? "是" : "否") + " -> " + (newVal.getHasPhotos() ? "是" : "否"), operatorUsername, operatorId);
         }
+        if (!Objects.equals(oldVal.getHasLeaseContract(), newVal.getHasLeaseContract())) {
+            saveLog(newVal, WarehouseActionType.EDIT, "是否有租赁合同", String.valueOf(oldVal.getHasLeaseContract()), String.valueOf(newVal.getHasLeaseContract()), "修改是否有租赁合同：" + (Boolean.TRUE.equals(oldVal.getHasLeaseContract()) ? "是" : "否") + " -> " + (Boolean.TRUE.equals(newVal.getHasLeaseContract()) ? "是" : "否"), operatorUsername, operatorId);
+        }
         if (!Objects.equals(oldVal.getCertRemarks(), newVal.getCertRemarks())) {
             saveLog(newVal, WarehouseActionType.EDIT, "核验备注", oldVal.getCertRemarks(), newVal.getCertRemarks(), "修改资料核验备注", operatorUsername, operatorId);
         }

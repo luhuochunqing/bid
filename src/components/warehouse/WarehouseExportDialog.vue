@@ -36,6 +36,7 @@
           <el-checkbox label="PROPERTY_CERTIFICATE">产权证</el-checkbox>
           <el-checkbox label="INVOICE">发票</el-checkbox>
           <el-checkbox label="PHOTOS">照片</el-checkbox>
+          <el-checkbox label="LEASE_CONTRACT">租赁合同</el-checkbox>
         </el-checkbox-group>
         <div v-if="validation.message" class="scope-hint">
           {{ validation.message }}
@@ -61,6 +62,7 @@
             <li v-if="summary.propertyCertCount" class="indent">产权证 {{ summary.propertyCertCount }} 份</li>
             <li v-if="summary.invoiceCount" class="indent">发票 {{ summary.invoiceCount }} 份</li>
             <li v-if="summary.photosCount" class="indent">照片 {{ summary.photosCount }} 张</li>
+            <li v-if="summary.leaseContractCount" class="indent">租赁合同 {{ summary.leaseContractCount }} 份</li>
           </ul>
           <div class="meta-row"><span class="meta-label">导出范围：</span><span>{{ summary.filterSummary || '—' }}</span></div>
           <div class="meta-row"><span class="meta-label">附件范围：</span><span>{{ summary.attachmentScope || '—' }}</span></div>
@@ -113,12 +115,12 @@ let pollTimer = null
 const hasFilters = computed(() => {
   const f = props.filters
   return !!(f.keyword || f.types?.length || f.statuses?.length || f.province ||
-    f.endDateFrom || f.endDateTo || f.hasPropertyCert || f.hasInvoice || f.hasPhotos || f.contactPersonKeyword)
+    f.endDateFrom || f.endDateTo || f.hasPropertyCert || f.hasInvoice || f.hasPhotos || f.hasLeaseContract || f.contactPersonKeyword)
 })
 
 const hasAttachments = computed(() => {
   const s = summary.value || {}
-  return (s.propertyCertCount || 0) + (s.invoiceCount || 0) + (s.photosCount || 0) > 0
+  return (s.propertyCertCount || 0) + (s.invoiceCount || 0) + (s.photosCount || 0) + (s.leaseContractCount || 0) > 0
 })
 
 const validation = computed(() => {
@@ -139,6 +141,7 @@ const filterTags = computed(() => {
   if (f.hasPropertyCert) tags.push('有产权证')
   if (f.hasInvoice) tags.push('有发票')
   if (f.hasPhotos) tags.push('有照片')
+  if (f.hasLeaseContract) tags.push('有租赁合同')
   if (f.contactPersonKeyword) tags.push(`联系人: ${f.contactPersonKeyword}`)
   return tags
 })

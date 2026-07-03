@@ -133,7 +133,10 @@ public class WarehouseAttachmentController {
     }
 
     private static String typeLabel(WarehouseAttachmentType type) {
-        return type == WarehouseAttachmentType.PROPERTY_CERTIFICATE ? "产权证"
-                : type == WarehouseAttachmentType.INVOICE ? "发票" : "内外照片";
+        if (type == WarehouseAttachmentType.PROPERTY_CERTIFICATE) return "产权证";
+        if (type == WarehouseAttachmentType.INVOICE) return "发票";
+        if (type == WarehouseAttachmentType.PHOTOS) return "内外照片";
+        if (type == WarehouseAttachmentType.LEASE_CONTRACT) return "租赁合同";
+        return type.name();
     }
 }

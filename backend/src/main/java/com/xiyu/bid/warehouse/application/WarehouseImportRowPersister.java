@@ -3,6 +3,7 @@ package com.xiyu.bid.warehouse.application;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.warehouse.domain.WarehouseActionType;
 import com.xiyu.bid.warehouse.domain.WarehouseImportPolicy;
+import com.xiyu.bid.warehouse.domain.WarehouseImportRow;
 import com.xiyu.bid.warehouse.domain.WarehouseStatus;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseRepository;
@@ -22,7 +23,7 @@ public class WarehouseImportRowPersister {
     private final WarehouseLogService warehouseLogService;
 
     @Transactional
-    public WarehouseEntity persist(WarehouseImportPolicy.ParsedRow row, User operator) {
+    public WarehouseEntity persist(WarehouseImportRow row, User operator) {
         WarehouseEntity entity = warehouseRepo.findByName(row.sanitizedName).orElse(null);
         boolean isCreate = (entity == null);
         if (isCreate) {
@@ -46,6 +47,7 @@ public class WarehouseImportRowPersister {
                     .hasPropertyCert(row.hasPropertyCert)
                     .hasInvoice(row.hasInvoice)
                     .hasPhotos(row.hasPhotos)
+                    .hasLeaseContract(row.hasLeaseContract)
                     .certRemarks(row.certRemarks)
                     .status(WarehouseStatus.IN_USE)
                     .createdBy(operator.getId())
@@ -69,6 +71,7 @@ public class WarehouseImportRowPersister {
             entity.setHasPropertyCert(row.hasPropertyCert);
             entity.setHasInvoice(row.hasInvoice);
             entity.setHasPhotos(row.hasPhotos);
+            entity.setHasLeaseContract(row.hasLeaseContract);
             entity.setCertRemarks(row.certRemarks);
             entity.setUpdatedBy(operator.getId());
         }

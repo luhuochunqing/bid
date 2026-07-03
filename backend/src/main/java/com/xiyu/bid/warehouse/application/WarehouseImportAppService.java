@@ -3,6 +3,7 @@ package com.xiyu.bid.warehouse.application;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.warehouse.domain.ImportTaskStatus;
 import com.xiyu.bid.warehouse.domain.WarehouseImportPolicy;
+import com.xiyu.bid.warehouse.domain.WarehouseImportRow;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseImportExcelReader;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseImportTaskEntity;
@@ -71,11 +72,11 @@ public class WarehouseImportAppService {
                 return;
             }
 
-            List<WarehouseImportPolicy.ParsedRow> rows = new ArrayList<>();
+            List<WarehouseImportRow> rows = new ArrayList<>();
             List<RowError> errors = new ArrayList<>();
             List<String[]> raw = sheet.dataRows();
             for (int i = 0; i < raw.size(); i++) {
-                WarehouseImportPolicy.ParsedRow parsed = WarehouseImportPolicy.parseRow(i + 2, raw.get(i));
+                WarehouseImportRow parsed = WarehouseImportPolicy.parseRow(i + 2, raw.get(i));
                 if (parsed.valid()) {
                     rows.add(parsed);
                 } else {
@@ -94,7 +95,7 @@ public class WarehouseImportAppService {
 
             Map<String, WarehouseEntity> createdBySanitizedName = new HashMap<>();
             int imported = 0;
-            for (WarehouseImportPolicy.ParsedRow row : rows) {
+            for (WarehouseImportRow row : rows) {
                 try {
                     WarehouseEntity saved = rowPersister.persist(row, operator);
                     createdBySanitizedName.put(row.sanitizedName, saved);

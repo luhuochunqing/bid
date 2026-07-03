@@ -98,12 +98,14 @@ public class WarehouseExportZipBuilder {
         if (type == WarehouseAttachmentType.PROPERTY_CERTIFICATE) stats.propertyCertCount++;
         else if (type == WarehouseAttachmentType.INVOICE) stats.invoiceCount++;
         else if (type == WarehouseAttachmentType.PHOTOS) stats.photosCount++;
+        else if (type == WarehouseAttachmentType.LEASE_CONTRACT) stats.leaseContractCount++;
     }
 
     private static String typeLabel(WarehouseAttachmentType type) {
         if (type == WarehouseAttachmentType.PROPERTY_CERTIFICATE) return "产权证";
         if (type == WarehouseAttachmentType.INVOICE) return "发票";
         if (type == WarehouseAttachmentType.PHOTOS) return "内外照片";
+        if (type == WarehouseAttachmentType.LEASE_CONTRACT) return "租赁合同";
         return null;
     }
 
@@ -120,6 +122,7 @@ public class WarehouseExportZipBuilder {
         public int propertyCertCount;
         public int invoiceCount;
         public int photosCount;
+        public int leaseContractCount;
         private final Map<Long, Map<WarehouseAttachmentType, Integer>> sequences = new java.util.HashMap<>();
 
         public synchronized int nextSequence(Long warehouseId, WarehouseAttachmentType type) {

@@ -16,6 +16,8 @@ import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_PROVINCE;
 import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_REGION;
 import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_START_DATE;
 import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_TYPE;
+import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_HAS_LEASE_CONTRACT;
+import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_LEASE_CONTRACT_FILE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class WarehouseImportPolicyTest {
@@ -84,7 +86,7 @@ class WarehouseImportPolicyTest {
     @Test
     @DisplayName("parseRow 对非法日期格式返回格式错误")
     void parseRowRejectsInvalidDateFormat() {
-        WarehouseImportPolicy.ParsedRow row = parseRowWithDate("not-a-date");
+        WarehouseImportRow row = parseRowWithDate("not-a-date");
         assertThat(row.startDate).isNull();
         assertThat(row.errors).anyMatch(e -> e.contains("开始时间")
                 && e.contains("格式错误")
@@ -95,13 +97,13 @@ class WarehouseImportPolicyTest {
     @Test
     @DisplayName("parseRow 对空日期返回不能为空错误")
     void parseRowRejectsEmptyDate() {
-        WarehouseImportPolicy.ParsedRow row = parseRowWithDate("");
+        WarehouseImportRow row = parseRowWithDate("");
         assertThat(row.startDate).isNull();
         assertThat(row.errors).anyMatch(e -> e.contains("开始时间") && e.contains("不能为空"));
     }
 
     private void assertDateParsed(String dateText, int year, int month, int day) {
-        WarehouseImportPolicy.ParsedRow row = parseRowWithDate(dateText);
+        WarehouseImportRow row = parseRowWithDate(dateText);
         assertThat(row.errors).as("row errors for date %s: %s", dateText, row.errors).isEmpty();
         assertThat(row.startDate).as("startDate for %s", dateText).isNotNull();
         assertThat(row.startDate.getYear()).isEqualTo(year);
@@ -109,7 +111,7 @@ class WarehouseImportPolicyTest {
         assertThat(row.startDate.getDayOfMonth()).isEqualTo(day);
     }
 
-    private WarehouseImportPolicy.ParsedRow parseRowWithDate(String startDateText) {
+    private WarehouseImportRow parseRowWithDate(String startDateText) {
         String[] cells = new String[WarehouseImportPolicy.EXPECTED_COL_COUNT];
         cells[COL_NAME] = "测试仓库";
         cells[COL_TYPE] = "自营";
@@ -122,6 +124,45 @@ class WarehouseImportPolicyTest {
         cells[COL_END_DATE] = "2026-12-31";
         cells[COL_LESSOR] = "出租方A";
         cells[COL_LESSEE] = "承租方B";
+        cells[COL_HAS_LEASE_CONTRACT] = "是";
+        cells[COL_LEASE_CONTRACT_FILE] = "合同.pdf";
         return WarehouseImportPolicy.parseRow(2, cells);
+    }
+
+    @Test
+    @DisplayName("parseRow 解析租赁合同字段并生成标准附件名")
+    void parseRowParsesLeaseContract() {
+        WarehouseImportRow row = parseRowWithDate("2026-07-03");
+        assertThat(row.hasLeaseContract).isTrue();
+        assertThat(row.leaseContractFile).isEqualTo("合同.pdf");
+        assertThat(row.leaseContractExpectedName).isEqualTo("WH_测试仓库_租赁合同.pdf");
+    }
+
+    @Test
+    @DisplayName("parseRow 租赁合同=是时文件为空返回错误")
+    void parseRowRejectsLeaseContractFileEmptyWhenYes() {
+        String[] cells = new String[WarehouseImportPolicy.EXPECTED_COL_COUNT];
+        cells[COL_NAME] = "测试仓库";
+        cells[COL_TYPE] = "自营";
+        cells[COL_PROVINCE] = "上海";
+        cells[COL_ADDRESS] = "测试地址";
+        cells[COL_AREA] = "100";
+        cells[COL_REGION] = "华东";
+        cells[COL_CONTACT] = "张三";
+        cells[COL_START_DATE] = "2026-07-03";
+        cells[COL_END_DATE] = "2026-12-31";
+        cells[COL_LESSOR] = "出租方A";
+        cells[COL_LESSEE] = "承租方B";
+        cells[COL_HAS_LEASE_CONTRACT] = "是";
+        cells[COL_LEASE_CONTRACT_FILE] = "";
+        WarehouseImportRow row = WarehouseImportPolicy.parseRow(2, cells);
+        assertThat(row.errors).anyMatch(e -> e.contains("租赁合同") && e.contains("附件不能为空"));
+    }
+
+    @Test
+    @DisplayName("TEMPLATE_HEADERS 包含租赁合同列")
+    void templateHeadersContainsLeaseContract() {
+        assertThat(WarehouseImportPolicy.TEMPLATE_HEADERS).contains("是否有租赁合同", "租赁合同附件");
+        assertThat(WarehouseImportPolicy.EXPECTED_COL_COUNT).isEqualTo(24);
     }
 }

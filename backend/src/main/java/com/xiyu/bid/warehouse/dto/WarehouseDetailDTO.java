@@ -27,6 +27,7 @@ public record WarehouseDetailDTO(
         Boolean hasPropertyCert,
         Boolean hasInvoice,
         Boolean hasPhotos,
+        Boolean hasLeaseContract,
         String certRemarks,
         WarehouseStatusEnum status,
         Long createdBy,

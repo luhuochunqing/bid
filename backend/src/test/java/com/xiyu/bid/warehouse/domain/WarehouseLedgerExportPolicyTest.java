@@ -35,6 +35,7 @@ class WarehouseLedgerExportPolicyTest {
         lenient().when(wh.getHasPropertyCert()).thenReturn(true);
         lenient().when(wh.getHasInvoice()).thenReturn(false);
         lenient().when(wh.getHasPhotos()).thenReturn(true);
+        lenient().when(wh.getHasLeaseContract()).thenReturn(true);
         lenient().when(wh.getClosePlan()).thenReturn("");
         lenient().when(wh.getStatus()).thenReturn(WarehouseStatus.IN_USE);
         lenient().when(wh.getInvoicePeriodStart()).thenReturn(LocalDate.of(2026, 1, 1));
@@ -84,6 +85,7 @@ class WarehouseLedgerExportPolicyTest {
         assertThat(row[WarehouseLedgerExportPolicy.COL_HAS_CERT]).isEqualTo("是");
         assertThat(row[WarehouseLedgerExportPolicy.COL_HAS_INVOICE]).isEqualTo("否");
         assertThat(row[WarehouseLedgerExportPolicy.COL_HAS_PHOTOS]).isEqualTo("是");
+        assertThat(row[WarehouseLedgerExportPolicy.COL_HAS_LEASE_CONTRACT]).isEqualTo("是");
         // STATUS column
         assertThat(row[WarehouseLedgerExportPolicy.COL_STATUS]).isEqualTo("使用中");
         // META columns
@@ -113,6 +115,7 @@ class WarehouseLedgerExportPolicyTest {
         assertThat(row[WarehouseLedgerExportPolicy.COL_HAS_CERT]).isEmpty();
         assertThat(row[WarehouseLedgerExportPolicy.COL_HAS_INVOICE]).isEmpty();
         assertThat(row[WarehouseLedgerExportPolicy.COL_HAS_PHOTOS]).isEmpty();
+        assertThat(row[WarehouseLedgerExportPolicy.COL_HAS_LEASE_CONTRACT]).isEmpty();
         assertThat(row[WarehouseLedgerExportPolicy.COL_STATUS]).isEmpty();
         // META should be empty
         assertThat(row[WarehouseLedgerExportPolicy.COL_CREATED_AT]).isEmpty();
@@ -196,6 +199,7 @@ class WarehouseLedgerExportPolicyTest {
         lenient().when(wh.getHasPropertyCert()).thenReturn(false);
         lenient().when(wh.getHasInvoice()).thenReturn(false);
         lenient().when(wh.getHasPhotos()).thenReturn(false);
+        lenient().when(wh.getHasLeaseContract()).thenReturn(false);
         lenient().when(wh.getStatus()).thenReturn(WarehouseStatus.IN_USE);
 
         String[] row = WarehouseLedgerExportPolicy.buildRows(

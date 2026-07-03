@@ -49,6 +49,9 @@
         <el-table-column label="照片" width="80" align="center">
           <template #default="s">{{ s.row.hasPhotos ? '是' : '否' }}</template>
         </el-table-column>
+        <el-table-column label="租赁合同" width="100" align="center">
+          <template #default="s">{{ s.row.hasLeaseContract ? '是' : '否' }}</template>
+        </el-table-column>
         <el-table-column label="操作" width="150" fixed="right" align="center">
           <template #default="s">
             <el-button v-if="canManage" link type="primary" size="small" @click.stop="openEdit(s.row)">编辑</el-button>
@@ -116,7 +119,7 @@ const filters = ref({})
 const form = reactive({
   name:'', type:'SELF_OPERATED', region:'华东', province:'', address:'', area:0, contactPerson:'', remarks:'',
   startDate:null, endDate:null, lessor:'', lessee:'西域', invoicePeriod:'', closePlan:'',
-  hasPropertyCert:false, hasInvoice:false, hasPhotos:false, certRemarks:''
+  hasPropertyCert:false, hasInvoice:false, hasPhotos:false, hasLeaseContract:false, certRemarks:''
 })
 
 const STATUS_MAP = { IN_USE:'使用中', EXPIRING:'即将到期', EXPIRED:'已过期', CLOSED:'已关仓' }
@@ -141,6 +144,7 @@ const buildParams = () => {
   if (f.hasPropertyCert) p.hasPropertyCert = true
   if (f.hasInvoice) p.hasInvoice = true
   if (f.hasPhotos) p.hasPhotos = true
+  if (f.hasLeaseContract) p.hasLeaseContract = true
   if (f.contactPersonKeyword) p.contactPersonKeyword = f.contactPersonKeyword
   return p
 }
@@ -164,7 +168,7 @@ const openCreate = () => {
   Object.assign(form, {
     name:'', type:'SELF_OPERATED', region:'华东', province:'', address:'', area:0, contactPerson:'', remarks:'',
     startDate:null, endDate:null, lessor:'', lessee:'西域', invoicePeriod:'', closePlan:'',
-    hasPropertyCert:false, hasInvoice:false, hasPhotos:false, certRemarks:''
+    hasPropertyCert:false, hasInvoice:false, hasPhotos:false, hasLeaseContract:false, certRemarks:''
   })
   editingId.value = null; dialogVisible.value = true
 }
@@ -176,6 +180,7 @@ const openEdit = (row) => {
     startDate: row.startDate, endDate: row.endDate, lessor: row.lessor || '', lessee: row.lessee || '',
     invoicePeriod: row.invoicePeriod || '', closePlan: row.closePlan || '',
     hasPropertyCert: row.hasPropertyCert || false, hasInvoice: row.hasInvoice || false, hasPhotos: row.hasPhotos || false,
+    hasLeaseContract: row.hasLeaseContract || false,
     certRemarks: row.certRemarks || ''
   })
   editingId.value = row.id; dialogVisible.value = true
@@ -191,6 +196,7 @@ const handleDrawerEdit = (row) => {
     startDate: row.startDate, endDate: row.endDate, lessor: row.lessor || '', lessee: row.lessee || '',
     invoicePeriod: row.invoicePeriod || '', closePlan: row.closePlan || '',
     hasPropertyCert: row.hasPropertyCert || false, hasInvoice: row.hasInvoice || false, hasPhotos: row.hasPhotos || false,
+    hasLeaseContract: row.hasLeaseContract || false,
     certRemarks: row.certRemarks || ''
   })
   editingId.value = row.id; dialogVisible.value = true
