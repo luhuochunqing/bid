@@ -17,5 +17,6 @@ public record WarehouseFilterDTO(
         Boolean hasPropertyCert,
         Boolean hasInvoice,
         Boolean hasPhotos,
+        Boolean hasLeaseContract,
         String contactPersonKeyword
 ) {}

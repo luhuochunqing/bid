@@ -37,6 +37,7 @@
           <el-checkbox v-model="localFilters.hasPropertyCert">产权证</el-checkbox>
           <el-checkbox v-model="localFilters.hasInvoice">发票</el-checkbox>
           <el-checkbox v-model="localFilters.hasPhotos">照片</el-checkbox>
+          <el-checkbox v-model="localFilters.hasLeaseContract">租赁合同</el-checkbox>
         </el-form-item>
         <el-form-item label="区域联系人">
           <el-input v-model="localFilters.contactPersonKeyword" placeholder="区域联系人" clearable style="width:110px" @keyup.enter="handleSearch" @input="onContactInput" />
@@ -95,6 +96,7 @@ const localFilters = reactive({
   hasPropertyCert: props.filters.hasPropertyCert || false,
   hasInvoice: props.filters.hasInvoice || false,
   hasPhotos: props.filters.hasPhotos || false,
+  hasLeaseContract: props.filters.hasLeaseContract || false,
   contactPersonKeyword: props.filters.contactPersonKeyword || ''
 })
 
@@ -108,6 +110,7 @@ watch(() => props.filters, (f) => {
   localFilters.hasPropertyCert = f.hasPropertyCert || false
   localFilters.hasInvoice = f.hasInvoice || false
   localFilters.hasPhotos = f.hasPhotos || false
+  localFilters.hasLeaseContract = f.hasLeaseContract || false
   localFilters.contactPersonKeyword = f.contactPersonKeyword || ''
 }, { deep: true })
 
@@ -122,6 +125,7 @@ const buildFilters = () => ({
   hasPropertyCert: localFilters.hasPropertyCert || undefined,
   hasInvoice: localFilters.hasInvoice || undefined,
   hasPhotos: localFilters.hasPhotos || undefined,
+  hasLeaseContract: localFilters.hasLeaseContract || undefined,
   contactPersonKeyword: localFilters.contactPersonKeyword || undefined
 })
 
@@ -144,7 +148,7 @@ const handleSearch = () => {
 }
 const handleReset = () => {
   Object.assign(localFilters, { keyword:'', types:[], statuses:[], regions:[], provinces:[],
-    endDateRange:null, hasPropertyCert:false, hasInvoice:false, hasPhotos:false, contactPersonKeyword:'' })
+    endDateRange:null, hasPropertyCert:false, hasInvoice:false, hasPhotos:false, hasLeaseContract:false, contactPersonKeyword:'' })
   if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null }
   emit('update:filters', buildFilters())
   emit('reset')

@@ -56,6 +56,7 @@ public class WarehouseFilterService {
                 dto.hasPropertyCert(),
                 dto.hasInvoice(),
                 dto.hasPhotos(),
+                dto.hasLeaseContract(),
                 dto.contactPersonKeyword()
         );
     }

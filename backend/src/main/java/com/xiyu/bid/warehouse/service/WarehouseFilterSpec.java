@@ -75,6 +75,9 @@ public class WarehouseFilterSpec {
             if (Boolean.TRUE.equals(c.hasPhotos())) {
                 predicates.add(hasAttachmentOfType(root, query, cb, "PHOTOS"));
             }
+            if (Boolean.TRUE.equals(c.hasLeaseContract())) {
+                predicates.add(hasAttachmentOfType(root, query, cb, "LEASE_CONTRACT"));
+            }
 
             return cb.and(predicates.toArray(new Predicate[0]));
         };
@@ -104,6 +107,7 @@ public class WarehouseFilterSpec {
                 && c.hasPropertyCert() == null
                 && c.hasInvoice() == null
                 && c.hasPhotos() == null
+                && c.hasLeaseContract() == null
                 && (c.contactPersonKeyword() == null || c.contactPersonKeyword().isBlank());
     }
 }

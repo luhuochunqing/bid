@@ -69,7 +69,8 @@ public class WarehouseController {
             @RequestParam(required = false) String provinces,
             @RequestParam(required = false) LocalDate endDateFrom, @RequestParam(required = false) LocalDate endDateTo,
             @RequestParam(required = false) Boolean hasPropertyCert, @RequestParam(required = false) Boolean hasInvoice,
-            @RequestParam(required = false) Boolean hasPhotos, @RequestParam(required = false) String contactPersonKeyword,
+            @RequestParam(required = false) Boolean hasPhotos, @RequestParam(required = false) Boolean hasLeaseContract,
+            @RequestParam(required = false) String contactPersonKeyword,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "15") int size) {
 
         Pageable p = PageRequest.of(page, size, Sort.by("createdAt").descending());
@@ -80,7 +81,7 @@ public class WarehouseController {
                 parseCsv(regions),
                 parseCsv(provinces),
                 endDateFrom, endDateTo,
-                hasPropertyCert, hasInvoice, hasPhotos,
+                hasPropertyCert, hasInvoice, hasPhotos, hasLeaseContract,
                 contactPersonKeyword
         );
         Page<WarehouseEntity> result = filterService.filter(filter, p);
@@ -159,6 +160,7 @@ public class WarehouseController {
                     .startDate(e.getStartDate()).endDate(e.getEndDate()).lessor(e.getLessor()).lessee(e.getLessee())
                     .invoicePeriod(e.getInvoicePeriod()).closePlan(e.getClosePlan())
                     .hasPropertyCert(e.getHasPropertyCert()).hasInvoice(e.getHasInvoice()).hasPhotos(e.getHasPhotos())
+                    .hasLeaseContract(e.getHasLeaseContract())
                     .certRemarks(e.getCertRemarks()).build();
 
             com.xiyu.bid.entity.User user = getCurrentUser();

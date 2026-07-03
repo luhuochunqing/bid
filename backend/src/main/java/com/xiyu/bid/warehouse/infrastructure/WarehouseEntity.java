@@ -83,6 +83,9 @@ public class WarehouseEntity implements WarehouseReadModel {
     @Column(name = "has_photos", nullable = false)
     private Boolean hasPhotos;
 
+    @Column(name = "has_lease_contract", nullable = false)
+    private Boolean hasLeaseContract;
+
     @Column(name = "cert_remarks", length = 500)
     private String certRemarks;
 

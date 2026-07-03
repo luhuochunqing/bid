@@ -28,6 +28,9 @@ class WarehouseExportPolicyTest {
     @Mock
     private WarehouseAttachmentReadModel photoAttach;
 
+    @Mock
+    private WarehouseAttachmentReadModel leaseAttach;
+
     private void stubBasicFields() {
         lenient().when(wh.getId()).thenReturn(1L);
         lenient().when(wh.getName()).thenReturn("上海仓");
@@ -45,6 +48,7 @@ class WarehouseExportPolicyTest {
         lenient().when(wh.getHasPropertyCert()).thenReturn(true);
         lenient().when(wh.getHasInvoice()).thenReturn(false);
         lenient().when(wh.getHasPhotos()).thenReturn(true);
+        lenient().when(wh.getHasLeaseContract()).thenReturn(true);
         lenient().when(wh.getClosePlan()).thenReturn("");
         lenient().when(wh.getCertRemarks()).thenReturn("证书备注");
         lenient().when(wh.getCreatedBy()).thenReturn(1L);
@@ -98,6 +102,7 @@ class WarehouseExportPolicyTest {
         assertThat(row[15]).isEqualTo("是");
         assertThat(row[17]).isEqualTo("否");
         assertThat(row[19]).isEqualTo("是");
+        assertThat(row[21]).isEqualTo("是");
     }
 
     @Test
@@ -109,16 +114,19 @@ class WarehouseExportPolicyTest {
         lenient().when(invoiceAttach.getOriginalFilename()).thenReturn("发票.pdf");
         lenient().when(photoAttach.getType()).thenReturn(WarehouseAttachmentType.PHOTOS);
         lenient().when(photoAttach.getOriginalFilename()).thenReturn("照片1.jpg");
+        lenient().when(leaseAttach.getType()).thenReturn(WarehouseAttachmentType.LEASE_CONTRACT);
+        lenient().when(leaseAttach.getOriginalFilename()).thenReturn("租赁合同.pdf");
 
         List<String[]> rows = WarehouseExportPolicy.buildRows(
                 List.of(wh),
-                Map.of(1L, List.of(certAttach, invoiceAttach, photoAttach)), usernameMap());
+                Map.of(1L, List.of(certAttach, invoiceAttach, photoAttach, leaseAttach)), usernameMap());
         String[] row = rows.get(0);
 
         assertThat(row[16]).isEqualTo("产权证.pdf");
         assertThat(row[18]).isEqualTo("发票.pdf");
         assertThat(row[20]).isEqualTo("照片1.jpg");
-        assertThat(row[26]).contains("产权证.pdf", "发票.pdf", "照片1.jpg");
+        assertThat(row[22]).isEqualTo("租赁合同.pdf");
+        assertThat(row[28]).contains("产权证.pdf", "发票.pdf", "照片1.jpg", "租赁合同.pdf");
     }
 
     @Test
@@ -134,6 +142,7 @@ class WarehouseExportPolicyTest {
         lenient().when(wh.getHasPropertyCert()).thenReturn(null);
         lenient().when(wh.getHasInvoice()).thenReturn(null);
         lenient().when(wh.getHasPhotos()).thenReturn(null);
+        lenient().when(wh.getHasLeaseContract()).thenReturn(null);
         lenient().when(wh.getEndDate()).thenReturn(null);
         lenient().when(wh.getStartDate()).thenReturn(null);
         lenient().when(wh.getClosePlan()).thenReturn(null);
@@ -154,6 +163,7 @@ class WarehouseExportPolicyTest {
         assertThat(row[15]).isEqualTo("否");
         assertThat(row[17]).isEqualTo("否");
         assertThat(row[19]).isEqualTo("否");
+        assertThat(row[21]).isEqualTo("否");
     }
 
     @Test
@@ -187,7 +197,7 @@ class WarehouseExportPolicyTest {
         List<String[]> rows = WarehouseExportPolicy.buildRows(List.of(wh), Map.of(1L, List.of()), usernameMap());
         String[] row = rows.get(0);
 
-        assertThat(row[24]).isEqualTo("管理员");
-        assertThat(row[25]).isEqualTo("管理员");
+        assertThat(row[26]).isEqualTo("管理员");
+        assertThat(row[27]).isEqualTo("管理员");
     }
 }

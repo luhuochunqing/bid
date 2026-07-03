@@ -58,11 +58,13 @@ public class WarehouseImportTemplateWriter {
             hints[WarehouseImportPolicy.COL_INVOICE_END] = "支持 YYYY-MM-DD、YYYY/M/D、YYYY.MM.DD、YYYY年M月D日";
             hints[WarehouseImportPolicy.COL_CLOSE_PLAN] = "关仓计划说明";
             hints[WarehouseImportPolicy.COL_HAS_PROPERTY_CERT] = "是 / 否";
-            hints[WarehouseImportPolicy.COL_PROPERTY_CERT_FILE] = "产权证=是时必填，对应文件名";
+            hints[WarehouseImportPolicy.COL_PROPERTY_CERT_FILE] = "产权证=是时必填，请输入文件名";
             hints[WarehouseImportPolicy.COL_HAS_INVOICE] = "是 / 否";
-            hints[WarehouseImportPolicy.COL_INVOICE_FILE] = "发票=是时必填，对应文件名";
+            hints[WarehouseImportPolicy.COL_INVOICE_FILE] = "发票=是时必填，请输入文件名";
             hints[WarehouseImportPolicy.COL_HAS_PHOTOS] = "是 / 否";
-            hints[WarehouseImportPolicy.COL_PHOTOS_FILE] = "照片=是时必填，对应文件名";
+            hints[WarehouseImportPolicy.COL_PHOTOS_FILE] = "照片=是时必填，请输入文件名";
+            hints[WarehouseImportPolicy.COL_HAS_LEASE_CONTRACT] = "是 / 否";
+            hints[WarehouseImportPolicy.COL_LEASE_CONTRACT_FILE] = "租赁合同=是时必填，请输入文件名";
             hints[WarehouseImportPolicy.COL_CERT_REMARKS] = "选填";
             for (int i = 0; i < hints.length; i++) {
                 Cell c = hint.createCell(i);

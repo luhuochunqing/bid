@@ -112,6 +112,18 @@
             </el-upload>
           </el-form-item>
 
+          <el-form-item label="有租赁合同">
+            <el-switch v-model="localForm.hasLeaseContract" />
+          </el-form-item>
+          <el-form-item v-if="localForm.hasLeaseContract" label="租赁合同附件">
+            <el-upload action="#" :auto-upload="false" :file-list="leaseContractFiles" accept=".pdf,.jpg,.jpeg,.png"
+              :on-change="(file, list) => handleFileChange(file, list, 'LEASE_CONTRACT')"
+              :on-remove="(file, list) => handleFileRemove(file, list, 'LEASE_CONTRACT')">
+              <el-button size="small" type="primary">选择文件</el-button>
+              <template #tip><div class="el-upload__tip">仅支持 PDF/JPG/PNG 格式，单文件 ≤ 10MB</div></template>
+            </el-upload>
+          </el-form-item>
+
           <el-form-item label="核验备注">
             <el-input v-model="localForm.certRemarks" type="textarea" :rows="2" maxlength="500" />
           </el-form-item>
@@ -146,13 +158,14 @@ const regions = ['华东','华北','华南','西南','西北','东北','华中']
 const certFiles = ref([])
 const invoiceFiles = ref([])
 const photoFiles = ref([])
-const fileLists = { PROPERTY_CERTIFICATE: certFiles, INVOICE: invoiceFiles, PHOTOS: photoFiles }
+const leaseContractFiles = ref([])
+const fileLists = { PROPERTY_CERTIFICATE: certFiles, INVOICE: invoiceFiles, PHOTOS: photoFiles, LEASE_CONTRACT: leaseContractFiles }
 const existingAttachments = ref([])
 
 const defaultForm = () => ({
   name:'', type:'SELF_OPERATED', region:'华东', province:'', address:'', area:0, contactPerson:'', remarks:'',
   startDate:null, endDate:null, lessor:'', lessee:'西域', invoicePeriod:'', closePlan:'',
-  hasPropertyCert:false, hasInvoice:false, hasPhotos:false, certRemarks:''
+  hasPropertyCert:false, hasInvoice:false, hasPhotos:false, hasLeaseContract:false, certRemarks:''
 })
 const localForm = reactive(defaultForm())
 
@@ -184,6 +197,7 @@ const loadExistingAttachments = async () => {
     certFiles.value = existingAttachments.value.filter(a => a.type === 'PROPERTY_CERTIFICATE').map(toUploadFile)
     invoiceFiles.value = existingAttachments.value.filter(a => a.type === 'INVOICE').map(toUploadFile)
     photoFiles.value = existingAttachments.value.filter(a => a.type === 'PHOTOS').map(toUploadFile)
+    leaseContractFiles.value = existingAttachments.value.filter(a => a.type === 'LEASE_CONTRACT').map(toUploadFile)
   } catch {}
 }
 
@@ -252,8 +266,9 @@ const uploadNewFiles = async (warehouseId) => {
   const newCerts = certFiles.value.filter(f => !f.id)
   const newInvoices = invoiceFiles.value.filter(f => !f.id)
   const newPhotos = photoFiles.value.filter(f => !f.id)
+  const newLeaseContracts = leaseContractFiles.value.filter(f => !f.id)
   const uploadPromises = []
-  for (const [type, list] of Object.entries({ PROPERTY_CERTIFICATE: newCerts, INVOICE: newInvoices, PHOTOS: newPhotos }))
+  for (const [type, list] of Object.entries({ PROPERTY_CERTIFICATE: newCerts, INVOICE: newInvoices, PHOTOS: newPhotos, LEASE_CONTRACT: newLeaseContracts }))
     for (const f of list) if (f.raw) uploadPromises.push(uploadSingleFile(warehouseId, type, f.raw))
   if (uploadPromises.length > 0) await Promise.all(uploadPromises)
 }
