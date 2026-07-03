@@ -7,7 +7,6 @@ import com.xiyu.bid.annotation.Auditable;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
-import com.xiyu.bid.project.core.RebidEligibilityPolicy;
 import com.xiyu.bid.project.core.ProjectClosureGatePolicy;
 import com.xiyu.bid.project.core.ProjectClosureGatePolicy.ClosureInput;
 import com.xiyu.bid.project.core.ProjectStage;
@@ -206,42 +205,6 @@ public class ProjectClosureService {
         sendClosureReviewNotification(projectId, closure.getCreatedBy(), false, reason, userId);
 
         return toDto(closureRepository.save(closure));
-    }
-
-    /**
-     * 二次招标：基于已结项项目创建新项目。
-     * 自动带入招标主体、客户信息等字段，重新走立项流程。
-     */
-    @Auditable(action = "PROJECT_REBID_CREATED", entityType = "Project", description = "二次招标创建新项目")
-    @Transactional
-    public Long rebidProject(Long projectId, Long userId) {
-        Project oldProject = mustGetProject(projectId);
-        ProjectStage currentStage = projectStageService.currentStage(projectId);
-        var eligibility = RebidEligibilityPolicy.decide(currentStage);
-        if (!eligibility.allowed()) {
-            var deny = (RebidEligibilityPolicy.Decision.Deny) eligibility;
-            throw new ResponseStatusException(HttpStatus.CONFLICT, deny.reason());
-        }
-
-        // 复制基础信息创建新项目
-        Project newProject = new Project();
-        newProject.setName(oldProject.getName() + "（二次招标）");
-        newProject.setTenderId(oldProject.getTenderId());
-        newProject.setStage("INITIATED");
-        newProject.setManagerId(userId);
-        newProject.setCustomer(oldProject.getCustomer());
-        newProject.setCustomerType(oldProject.getCustomerType());
-        newProject.setIndustry(oldProject.getIndustry());
-        newProject.setRegion(oldProject.getRegion());
-        newProject.setPlatform(oldProject.getPlatform());
-        newProject.setSourceModule("REBID");
-        newProject.setSourceCustomer(oldProject.getSourceCustomer());
-        newProject.setSourceCustomerId(oldProject.getSourceCustomerId());
-        newProject.setStartDate(java.time.LocalDateTime.now());
-
-        Project saved = projectRepository.save(newProject);
-        log.info("Rebid project created: oldProjectId={} newProjectId={} userId={}", projectId, saved.getId(), userId);
-        return saved.getId();
     }
 
     /**

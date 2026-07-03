@@ -392,40 +392,6 @@ class ProjectClosureServiceTest {
         assertEquals(403, ex.getStatusCode().value());
     }
 
-    // ---------- 二次招标：RebidEligibilityPolicy 集成 ----------
-
-    @Test
-    void rebid_projectClosed_allowed_createsNewProject() {
-        when(stageService.currentStage(PID)).thenReturn(ProjectStage.CLOSED);
-        // projectRepo.save 需要返回带 ID 的 Project
-        when(projectRepo.save(any(Project.class))).thenAnswer(inv -> {
-            Project p = inv.getArgument(0);
-            p.setId(42L);
-            return p;
-        });
-        var result = service.rebidProject(PID, UID);
-        assertNotNull(result);
-        verify(projectRepo).save(any(Project.class));
-    }
-
-    @Test
-    void rebid_projectNotClosed_throws409() {
-        when(stageService.currentStage(PID)).thenReturn(ProjectStage.RETROSPECTIVE);
-        var ex = assertThrows(ResponseStatusException.class,
-                () -> service.rebidProject(PID, UID));
-        assertEquals(409, ex.getStatusCode().value());
-        assertTrue(ex.getReason() != null && ex.getReason().contains("项目尚未结项"));
-        verify(projectRepo, never()).save(any(Project.class));
-    }
-
-    @Test
-    void rebid_projectInDrafting_throws409() {
-        when(stageService.currentStage(PID)).thenReturn(ProjectStage.DRAFTING);
-        var ex = assertThrows(ResponseStatusException.class,
-                () -> service.rebidProject(PID, UID));
-        assertEquals(409, ex.getStatusCode().value());
-    }
-
     @Test
     void preview_failedBidProject_stageClosed_alreadyClosedTrue() {
         // 流标项目：stage=CLOSED 但无 closure 审批记录

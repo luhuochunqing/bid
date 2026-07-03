@@ -68,14 +68,6 @@ class ProjectStagePermissionTest {
         assertThat(value).isEqualTo("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_TEAM')");
     }
 
-    @Test
-    @DisplayName("2.7 二次招标 rebid：含 BID_PROJECTLEADER/BID_TEAM（文档：管理员/组长/项目负责人/投标负责人/辅助）")
-    void closureRebid_preAuthorize_matchesDoc() {
-        String value = findMethod(ProjectClosureController.class, "rebid")
-                .getAnnotation(PreAuthorize.class).value();
-        assertThat(value).contains("'BID_PROJECTLEADER'", "'BID_TEAM'", "'BID_TEAMLEADER'");
-    }
-
     /** 按方法名查找（跨 Controller）。 */
     private Method findMethod(Class<?> controllerClass, String name) {
         for (Method m : controllerClass.getDeclaredMethods()) {
