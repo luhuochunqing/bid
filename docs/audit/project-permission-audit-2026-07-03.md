@@ -272,3 +272,37 @@
 
 项目权限实现**整体匹配文档**，且 2.3 标书制作的子身份模型是设计标杆（Controller 层 isAuthenticated + Service 层按项目身份实例级判断）。权限模型比标讯的角色白名单更精确。
 
+
+---
+
+## CO-481 项目导出权限修复（2026-07-03）
+
+### 问题
+
+两个项目导出端点权限模型不一致：
+
+| 导出端点 | 位置 | 原注解 | 问题 |
+|---|---|---|---|
+| 项目列表页导出 `GET /api/projects/export` | ProjectController | `hasAnyRole('ADMIN','MANAGER')` | ❌ 不含投标专员（文档要求各角色按可见范围导出）|
+| 项目档案导出 `/api/archive/export-*` | ProjectArchiveController | `hasAuthority('project')` | ✅ 含投标专员 |
+
+更严重：**列表页导出 Service 层（`ProjectExportService.exportProjectsAsExcel`）原用 `projectRepository.findAll()`——不按用户可见范围过滤**，即使注解放行也会导致越权导出全量数据。
+
+### 修复（CO-481）
+
+1. **Service 层数据范围过滤**：`ProjectExportService` 注入 `ProjectAccessScopeService`，按 `getAllowedProjectIdsForCurrentUser` 过滤（admin 全量；其他角色按可见范围）
+2. **Controller 注解放宽**：`GET /api/projects/export` 从 `hasAnyRole('ADMIN','MANAGER')` → `isAuthenticated()`（与列表端点一致，Service 层守数据范围）
+3. **顺带修 main 编译错误**：`NotificationDeliveryJobService` 缺 `@Slf4j` 注解（main 既有问题，阻塞编译）
+
+### 契约测试
+
+- 反射锁定 `exportProjects` 注解为 `isAuthenticated()`（防止未来误收紧）
+
+### 业务确认
+
+> 投标专员都可以导出自己的数据
+
+两个导出端点对齐到这个原则：
+- 列表页导出：放宽注解 + Service 层按可见范围过滤
+- 档案导出：已正确（`hasAuthority('project')` + Service 层过滤）
+

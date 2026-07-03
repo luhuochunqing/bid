@@ -12,6 +12,7 @@ import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.common.util.ExcelAutoSizeHelper;
+import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
@@ -31,11 +32,18 @@ public class ProjectExportService {
     private final ProjectInitiationDetailsRepository initiationDetailsRepository;
     private final ProjectLeadAssignmentRepository projectLeadAssignmentRepository;
     private final TenderRepository tenderRepository;
+    private final ProjectAccessScopeService projectAccessScopeService;
 
     private static final int MAX_EXPORT_ROWS = 5000;
 
     public ExportResult exportProjectsAsExcel(String status, String name, String ownerUnit, String projectType, String customerType, String priority, String sourceModule, String bidStatus, String stage, Long projectLeaderId, Long biddingLeaderId, String projectLeaderName, String biddingLeaderName, String leaderDepartment, String region, String biddingPlatform, String bidMonth) {
-        List<Project> all = projectRepository.findAll();
+        // CO-481 数据范围过滤：按当前用户可见项目过滤，避免越权导出全量数据
+        // admin（getAllowedProjectIdsForCurrentUser 返回空列表=全可见）→ 全量；
+        // 其他角色 → 仅可见范围（与列表页 GET /api/projects 一致）
+        List<Long> allowedProjectIds = projectAccessScopeService.getAllowedProjectIdsForCurrentUser();
+        List<Project> all = allowedProjectIds.isEmpty()
+                ? projectRepository.findAll()
+                : projectRepository.findAllById(allowedProjectIds);
         if (status != null && !status.isBlank()) {
             all = all.stream().filter(p -> status.equalsIgnoreCase(p.getStage())).collect(Collectors.toList());
         }

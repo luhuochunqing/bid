@@ -215,7 +215,7 @@ public class ProjectController {
     }
 
     @GetMapping("/export")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<InputStreamResource> exportProjects(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String name,
