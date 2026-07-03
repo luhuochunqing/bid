@@ -59,6 +59,7 @@ class ProjectNotificationServiceTest {
     private static final Long MANAGER_ID = 88L;
     private static final Long TASK_ID = 77L;
     private static final Long ASSIGNEE_ID = 55L;
+    private static final Long SYSTEM_USER_ID = 0L;
 
     @BeforeEach
     void setUp() {

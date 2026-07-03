@@ -53,6 +53,8 @@ class ProjectTaskWorkflowServiceTest {
         ProjectTaskDeliverableCollector deliverableCollector = mock(ProjectTaskDeliverableCollector.class);
         NotificationApplicationService notificationService = mock(NotificationApplicationService.class);
         ProjectNotificationService projectNotificationService = mock(ProjectNotificationService.class);
+        com.xiyu.bid.project.notification.TaskReviewNotificationService taskReviewNotificationService =
+                mock(com.xiyu.bid.project.notification.TaskReviewNotificationService.class);
         ObjectMapper objectMapper = new ObjectMapper();
         taskDeliverableRepository = mock(TaskDeliverableRepository.class);
         projectDocumentRepository = mock(ProjectDocumentRepository.class);
@@ -66,6 +68,7 @@ class ProjectTaskWorkflowServiceTest {
                 deliverableCollector,
                 notificationService,
                 projectNotificationService,
+                taskReviewNotificationService,
                 taskDeliverableRepository,
                 projectDocumentRepository
         );
