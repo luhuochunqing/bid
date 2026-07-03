@@ -72,13 +72,19 @@ const userStore = useUserStore()
 
 const canSubmitForReview = computed(() => taskFormRef.value?.canDeliver === true)
 
-// CO-481: 保证金缴纳任务 + TODO + 投标管理员/组长 → 可编辑执行人
+// CO-481: 保证金缴纳任务 + TODO + 管理角色/项目负责人 → 可编辑执行人
+// 权限范围：投标管理员、投标组长、该项目分配的投标负责人、投标辅助人员
 const canEditDepositTaskAssignee = computed(() => {
   const task = selectedTask.value
   if (!task) return false
   if (task.extendedFields?._taskType !== 'deposit-payment') return false
   if (String(task.status || '').toUpperCase() !== 'TODO') return false
-  return isBidAdminOrSenior(userStore.userRole)
+  if (isBidAdminOrSenior(userStore.userRole)) return true
+  const project = projectStore.currentProject
+  const uid = userStore.currentUser?.id
+  if (!project || uid == null) return false
+  return (project.primaryLeadUserId != null && String(uid) === String(project.primaryLeadUserId))
+    || (project.secondaryLeadUserId != null && String(uid) === String(project.secondaryLeadUserId))
 })
 
 async function handleSaveAssignee() {
