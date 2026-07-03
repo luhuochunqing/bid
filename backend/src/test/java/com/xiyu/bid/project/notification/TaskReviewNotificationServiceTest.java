@@ -1,12 +1,14 @@
 package com.xiyu.bid.project.notification;
 
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -37,6 +39,8 @@ class TaskReviewNotificationServiceTest {
     private ProjectRepository projectRepository;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private EffectiveRoleResolver effectiveRoleResolver;
 
     @Captor
     private ArgumentCaptor<CreateNotificationRequest> requestCaptor;
@@ -51,7 +55,8 @@ class TaskReviewNotificationServiceTest {
 
     @BeforeEach
     void setUp() {
-        svc = new TaskReviewNotificationService(notificationService, projectRepository, userRepository);
+        svc = new TaskReviewNotificationService(notificationService, projectRepository,
+                userRepository, effectiveRoleResolver);
     }
 
     private Project project(String name) {
@@ -65,6 +70,19 @@ class TaskReviewNotificationServiceTest {
         User u = new User();
         u.setId(id);
         u.setFullName(fullName);
+        return u;
+    }
+
+    private User userWithRole(String roleCode) {
+        User u = new User();
+        u.setId(ASSIGNEE_ID);
+        u.setUsername("assignee");
+        u.setPassword("dummy");
+        u.setEmail("assignee@test.local");
+        u.setFullName("被分配人");
+        u.setRole(User.Role.ADMIN);
+        RoleProfile profile = RoleProfile.builder().code(roleCode).name(roleCode).build();
+        u.setRoleProfile(profile);
         return u;
     }
 
@@ -145,6 +163,8 @@ class TaskReviewNotificationServiceTest {
         @DisplayName("approved → sends TASK_UPDATE to assignee")
         void approvedSendsToAssignee() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
+            when(userRepository.findById(ASSIGNEE_ID)).thenReturn(Optional.of(userWithRole("bid-Team")));
+            when(effectiveRoleResolver.resolveRoleCode(any(User.class))).thenReturn("bid-Team");
 
             svc.notifyTaskReviewResult(PID, TASK_ID, "任务标题", ASSIGNEE_ID, true, UID);
 
@@ -160,6 +180,8 @@ class TaskReviewNotificationServiceTest {
         @DisplayName("rejected → sends TASK_UPDATE to assignee with 驳回 label")
         void rejectedSendsToAssignee() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
+            when(userRepository.findById(ASSIGNEE_ID)).thenReturn(Optional.of(userWithRole("bid-Team")));
+            when(effectiveRoleResolver.resolveRoleCode(any(User.class))).thenReturn("bid-Team");
 
             svc.notifyTaskReviewResult(PID, TASK_ID, "任务标题", ASSIGNEE_ID, false, UID);
 
@@ -169,6 +191,40 @@ class TaskReviewNotificationServiceTest {
             assertThat(req.title()).contains("驳回");
             assertThat(req.body()).contains("审核结果：驳回");
             assertThat(req.recipientUserIds()).containsExactly(ASSIGNEE_ID);
+        }
+
+        @Test
+        @DisplayName("bid-otherDept 执行人 → targetUrl 指向 /task-board（CO-474 根因修复）")
+        void sendsToBidOtherDeptWithTaskBoardUrl() {
+            when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
+            when(userRepository.findById(ASSIGNEE_ID))
+                    .thenReturn(Optional.of(userWithRole(RoleProfileCatalog.BID_OTHER_DEPT_CODE)));
+            when(effectiveRoleResolver.resolveRoleCode(any(User.class)))
+                    .thenReturn(RoleProfileCatalog.BID_OTHER_DEPT_CODE);
+
+            svc.notifyTaskReviewResult(PID, TASK_ID, "任务标题", ASSIGNEE_ID, true, UID);
+
+            verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
+            CreateNotificationRequest req = requestCaptor.getValue();
+            assertThat(req.recipientUserIds()).containsExactly(ASSIGNEE_ID);
+            assertThat(req.payload()).containsEntry("targetUrl",
+                    "/task-board?taskId=" + TASK_ID + "&projectId=" + PID);
+            assertThat(req.payload()).containsEntry("taskId", String.valueOf(TASK_ID));
+        }
+
+        @Test
+        @DisplayName("bid-Team 执行人 → targetUrl 指向 /project/{id}/drafting（保持历史行为）")
+        void sendsToBidTeamWithProjectDraftingUrl() {
+            when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
+            when(userRepository.findById(ASSIGNEE_ID)).thenReturn(Optional.of(userWithRole("bid-Team")));
+            when(effectiveRoleResolver.resolveRoleCode(any(User.class))).thenReturn("bid-Team");
+
+            svc.notifyTaskReviewResult(PID, TASK_ID, "任务标题", ASSIGNEE_ID, true, UID);
+
+            verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
+            CreateNotificationRequest req = requestCaptor.getValue();
+            assertThat(req.recipientUserIds()).containsExactly(ASSIGNEE_ID);
+            assertThat(req.payload()).containsEntry("targetUrl", "/project/" + PID + "/drafting");
         }
 
         @Test
@@ -190,9 +246,27 @@ class TaskReviewNotificationServiceTest {
         }
 
         @Test
+        @DisplayName("assignee 用户不存在 → 仍发送通知但 targetUrl 走兜底 /project/{id}/drafting")
+        void sendsWithFallbackUrlWhenAssigneeNotFound() {
+            when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
+            when(userRepository.findById(ASSIGNEE_ID)).thenReturn(Optional.empty());
+
+            svc.notifyTaskReviewResult(PID, TASK_ID, "任务标题", ASSIGNEE_ID, true, UID);
+
+            verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
+            CreateNotificationRequest req = requestCaptor.getValue();
+            assertThat(req.recipientUserIds()).containsExactly(ASSIGNEE_ID);
+            assertThat(req.payload()).containsEntry("targetUrl", "/project/" + PID + "/drafting");
+            // assignee 为 null 时不应调用 role resolver
+            verify(effectiveRoleResolver, never()).resolveRoleCode(any(User.class));
+        }
+
+        @Test
         @DisplayName("notification service throws → does not propagate")
         void handlesNotificationServiceException() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
+            when(userRepository.findById(ASSIGNEE_ID)).thenReturn(Optional.of(userWithRole("bid-Team")));
+            when(effectiveRoleResolver.resolveRoleCode(any(User.class))).thenReturn("bid-Team");
             when(notificationService.createNotification(any(), any())).thenThrow(new RuntimeException("boom"));
 
             svc.notifyTaskReviewResult(PID, TASK_ID, "任务标题", ASSIGNEE_ID, true, UID);
