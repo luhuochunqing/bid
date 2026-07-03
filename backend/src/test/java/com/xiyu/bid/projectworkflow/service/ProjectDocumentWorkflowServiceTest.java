@@ -558,4 +558,68 @@ class ProjectDocumentWorkflowServiceTest {
         assertThat(file.resource().getContentAsByteArray()).isEqualTo("附件内容".getBytes(StandardCharsets.UTF_8));
     }
 
+    // ============ CO-481 防复发：投标专员（bid-Team）作为任务指派人应能查看/下载项目文档 ============
+    // 10208 真实场景：投标专员被分配了 task 2950（assignee_id=10208），收到"标书审核"通知后
+    // 点击进入项目 147，但 CO-474 引入的第二层 view 闸门（canViewProjectDocuments）拒绝了
+    // "仅项目负责人可查看项目文档"。CO-481 移除该闸门后，权限统一走 ProjectAccessScopeService，
+    // 该服务通过 taskRepository.findDistinctProjectIdsByAssigneeId 路径覆盖任务指派人场景。
+    // 此测试防止未来重新引入针对 bid-Team 的第二层角色白名单闸门。
+
+    @Test
+    void getProjectDocuments_asBidTeamAssignee_shouldSucceedWhenProjectAccessible() {
+        // CO-481 防复发：bid-Team 是任务指派人但不是项目负责人时，应能查看项目文档
+        when(currentUserResolver.requireCurrentUser()).thenReturn(
+                com.xiyu.bid.entity.User.builder()
+                        .id(7220L)
+                        .roleProfile(com.xiyu.bid.entity.RoleProfile.builder().code("bid-Team").build())
+                        .build());
+        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
+                1001L, null, null, null
+        )).thenReturn(List.of(ProjectDocument.builder()
+                .id(3002L)
+                .projectId(1001L)
+                .name("标书审核材料.docx")
+                .fileType("docx")
+                .fileUrl("doc-insight://task/file.docx")
+                .createdAt(LocalDateTime.of(2026, 7, 3, 18, 6))
+                .build()));
+
+        List<ProjectDocumentDTO> documents = service.getProjectDocuments(1001L, null, null, null);
+
+        assertThat(documents).hasSize(1);
+        assertThat(documents.getFirst().getName()).isEqualTo("标书审核材料.docx");
+        // 关键断言：不再有第二层角色白名单闸门拒绝 bid-Team
+        verify(projectDocumentRepository).findByProjectIdAndFiltersOrderByCreatedAtDesc(
+                1001L, null, null, null);
+    }
+
+    @Test
+    void getProjectDocumentFile_asBidTeamAssignee_shouldSucceedWhenProjectAccessible() throws Exception {
+        // CO-481 防复发：bid-Team 是任务指派人但不是项目负责人时，应能下载项目文档
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(3003L)
+                .projectId(1001L)
+                .name("标书审核材料.docx")
+                .fileUrl("doc-insight://task/file.docx")
+                .build();
+        when(projectDocumentRepository.findById(3003L)).thenReturn(Optional.of(doc));
+        when(currentUserResolver.requireCurrentUser()).thenReturn(
+                com.xiyu.bid.entity.User.builder()
+                        .id(7220L)
+                        .roleProfile(com.xiyu.bid.entity.RoleProfile.builder().code("bid-Team").build())
+                        .build());
+        when(fileStorage.load("doc-insight://task/file.docx"))
+                .thenReturn(Optional.of(new LoadedProjectDocumentFile(
+                        "doc-insight://task/file.docx",
+                        null,
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "审核内容".getBytes(StandardCharsets.UTF_8)
+                )));
+
+        ProjectDocumentDownloadFile file = downloadService.getProjectDocumentFile(1001L, 3003L);
+
+        assertThat(file.fileName()).isEqualTo("标书审核材料.docx");
+        assertThat(file.resource().getContentAsByteArray()).isEqualTo("审核内容".getBytes(StandardCharsets.UTF_8));
+    }
+
 }

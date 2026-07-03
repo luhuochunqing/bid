@@ -1,5 +1,5 @@
-// Input: 角色 code、用户 ID、项目负责人 ID
-// Output: 验证 ProjectDocumentWorkflowPolicy 各授权决策
+// Input: 角色 code、用户 ID、文档上传者 ID
+// Output: 验证 ProjectDocumentWorkflowPolicy 上传/删除授权决策
 // Pos: Test/核心策略测试
 package com.xiyu.bid.projectworkflow.core;
 
@@ -12,164 +12,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 项目文档工作流授权策略单元测试。
- * <p>覆盖查看、下载、上传、删除四类操作的 permit/deny 路径。</p>
+ * <p>覆盖上传、删除两类操作的 permit/deny 路径。</p>
+ *
+ * <p><b>CO-481 治理：查看/下载权限不再由 Policy 决定，统一走 {@code ProjectAccessScopeService}。</b>
+ * 投标专员（bid-Team）作为任务指派人即可访问项目文档，相关防复发测试见
+ * {@code ProjectDocumentWorkflowServiceTest}（getProjectDocuments_asBidTeamAssignee_*）。</p>
  */
 class ProjectDocumentWorkflowPolicyTest {
 
     private static final Long CURRENT_USER_ID = 100L;
-    private static final Long PRIMARY_LEAD_ID = 100L;
-    private static final Long SECONDARY_LEAD_ID = 200L;
     private static final Long OTHER_USER_ID = 999L;
-
-    // ==================== canViewProjectDocuments ====================
-
-    @ParameterizedTest
-    @ValueSource(strings = {RoleProfileCatalog.ADMIN_CODE, RoleProfileCatalog.BID_ADMIN_CODE, RoleProfileCatalog.BID_LEAD_CODE})
-    void canViewProjectDocuments_whenAdminOrBidAdminOrTeamLeader_shouldPermit(String roleCode) {
-        var result = ProjectDocumentWorkflowPolicy.canViewProjectDocuments(
-                roleCode, CURRENT_USER_ID, OTHER_USER_ID, OTHER_USER_ID);
-        assertThat(result.allowed()).isTrue();
-        assertThat(result.reason()).isNull();
-    }
-
-    @Test
-    void canViewProjectDocuments_whenProjectLeaderMatchingPrimary_shouldPermit() {
-        var result = ProjectDocumentWorkflowPolicy.canViewProjectDocuments(
-                RoleProfileCatalog.SALES_CODE, CURRENT_USER_ID, PRIMARY_LEAD_ID, SECONDARY_LEAD_ID);
-        assertThat(result.allowed()).isTrue();
-        assertThat(result.reason()).isNull();
-    }
-
-    @Test
-    void canViewProjectDocuments_whenProjectLeaderNotMatching_shouldDeny() {
-        var result = ProjectDocumentWorkflowPolicy.canViewProjectDocuments(
-                RoleProfileCatalog.SALES_CODE, CURRENT_USER_ID, OTHER_USER_ID, SECONDARY_LEAD_ID);
-        assertThat(result.allowed()).isFalse();
-        assertThat(result.reason()).isNotNull();
-    }
-
-    @Test
-    void canViewProjectDocuments_whenTeamMatchingPrimary_shouldPermit() {
-        var result = ProjectDocumentWorkflowPolicy.canViewProjectDocuments(
-                RoleProfileCatalog.BID_SPECIALIST_CODE, CURRENT_USER_ID, PRIMARY_LEAD_ID, SECONDARY_LEAD_ID);
-        assertThat(result.allowed()).isTrue();
-        assertThat(result.reason()).isNull();
-    }
-
-    @Test
-    void canViewProjectDocuments_whenTeamMatchingSecondary_shouldPermit() {
-        var result = ProjectDocumentWorkflowPolicy.canViewProjectDocuments(
-                RoleProfileCatalog.BID_SPECIALIST_CODE, SECONDARY_LEAD_ID, PRIMARY_LEAD_ID, SECONDARY_LEAD_ID);
-        assertThat(result.allowed()).isTrue();
-        assertThat(result.reason()).isNull();
-    }
-
-    @Test
-    void canViewProjectDocuments_whenTeamNotMatching_shouldDeny() {
-        var result = ProjectDocumentWorkflowPolicy.canViewProjectDocuments(
-                RoleProfileCatalog.BID_SPECIALIST_CODE, OTHER_USER_ID, PRIMARY_LEAD_ID, SECONDARY_LEAD_ID);
-        assertThat(result.allowed()).isFalse();
-        assertThat(result.reason()).isNotNull();
-    }
-
-    @Test
-    void canViewProjectDocuments_whenOtherDept_shouldDeny() {
-        var result = ProjectDocumentWorkflowPolicy.canViewProjectDocuments(
-                RoleProfileCatalog.BID_OTHER_DEPT_CODE, CURRENT_USER_ID, PRIMARY_LEAD_ID, SECONDARY_LEAD_ID);
-        assertThat(result.allowed()).isFalse();
-        assertThat(result.reason()).isNotNull();
-    }
-
-    @Test
-    void canViewProjectDocuments_whenAdministration_shouldDeny() {
-        var result = ProjectDocumentWorkflowPolicy.canViewProjectDocuments(
-                RoleProfileCatalog.ADMIN_STAFF_CODE, CURRENT_USER_ID, PRIMARY_LEAD_ID, SECONDARY_LEAD_ID);
-        assertThat(result.allowed()).isFalse();
-        assertThat(result.reason()).isNotNull();
-    }
-
-    @Test
-    void canViewProjectDocuments_whenNullRole_shouldDeny() {
-        var result = ProjectDocumentWorkflowPolicy.canViewProjectDocuments(
-                null, CURRENT_USER_ID, PRIMARY_LEAD_ID, SECONDARY_LEAD_ID);
-        assertThat(result.allowed()).isFalse();
-        assertThat(result.reason()).contains("未分配角色");
-    }
-
-    // ==================== canDownloadProjectDocument ====================
-
-    @ParameterizedTest
-    @ValueSource(strings = {RoleProfileCatalog.ADMIN_CODE, RoleProfileCatalog.BID_ADMIN_CODE, RoleProfileCatalog.BID_LEAD_CODE})
-    void canDownloadProjectDocument_whenAdminOrBidAdminOrTeamLeader_shouldPermit(String roleCode) {
-        var result = ProjectDocumentWorkflowPolicy.canDownloadProjectDocument(
-                roleCode, CURRENT_USER_ID, OTHER_USER_ID, OTHER_USER_ID);
-        assertThat(result.allowed()).isTrue();
-        assertThat(result.reason()).isNull();
-    }
-
-    @Test
-    void canDownloadProjectDocument_whenProjectLeaderMatchingPrimary_shouldPermit() {
-        var result = ProjectDocumentWorkflowPolicy.canDownloadProjectDocument(
-                RoleProfileCatalog.SALES_CODE, CURRENT_USER_ID, PRIMARY_LEAD_ID, SECONDARY_LEAD_ID);
-        assertThat(result.allowed()).isTrue();
-        assertThat(result.reason()).isNull();
-    }
-
-    @Test
-    void canDownloadProjectDocument_whenProjectLeaderNotMatching_shouldDeny() {
-        var result = ProjectDocumentWorkflowPolicy.canDownloadProjectDocument(
-                RoleProfileCatalog.SALES_CODE, CURRENT_USER_ID, OTHER_USER_ID, SECONDARY_LEAD_ID);
-        assertThat(result.allowed()).isFalse();
-        assertThat(result.reason()).isNotNull();
-    }
-
-    @Test
-    void canDownloadProjectDocument_whenTeamMatchingPrimary_shouldPermit() {
-        var result = ProjectDocumentWorkflowPolicy.canDownloadProjectDocument(
-                RoleProfileCatalog.BID_SPECIALIST_CODE, CURRENT_USER_ID, PRIMARY_LEAD_ID, SECONDARY_LEAD_ID);
-        assertThat(result.allowed()).isTrue();
-        assertThat(result.reason()).isNull();
-    }
-
-    @Test
-    void canDownloadProjectDocument_whenTeamMatchingSecondary_shouldPermit() {
-        var result = ProjectDocumentWorkflowPolicy.canDownloadProjectDocument(
-                RoleProfileCatalog.BID_SPECIALIST_CODE, SECONDARY_LEAD_ID, PRIMARY_LEAD_ID, SECONDARY_LEAD_ID);
-        assertThat(result.allowed()).isTrue();
-        assertThat(result.reason()).isNull();
-    }
-
-    @Test
-    void canDownloadProjectDocument_whenTeamNotMatching_shouldDeny() {
-        var result = ProjectDocumentWorkflowPolicy.canDownloadProjectDocument(
-                RoleProfileCatalog.BID_SPECIALIST_CODE, OTHER_USER_ID, PRIMARY_LEAD_ID, SECONDARY_LEAD_ID);
-        assertThat(result.allowed()).isFalse();
-        assertThat(result.reason()).isNotNull();
-    }
-
-    @Test
-    void canDownloadProjectDocument_whenOtherDept_shouldDeny() {
-        var result = ProjectDocumentWorkflowPolicy.canDownloadProjectDocument(
-                RoleProfileCatalog.BID_OTHER_DEPT_CODE, CURRENT_USER_ID, PRIMARY_LEAD_ID, SECONDARY_LEAD_ID);
-        assertThat(result.allowed()).isFalse();
-        assertThat(result.reason()).isNotNull();
-    }
-
-    @Test
-    void canDownloadProjectDocument_whenAdministration_shouldDeny() {
-        var result = ProjectDocumentWorkflowPolicy.canDownloadProjectDocument(
-                RoleProfileCatalog.ADMIN_STAFF_CODE, CURRENT_USER_ID, PRIMARY_LEAD_ID, SECONDARY_LEAD_ID);
-        assertThat(result.allowed()).isFalse();
-        assertThat(result.reason()).isNotNull();
-    }
-
-    @Test
-    void canDownloadProjectDocument_whenNullRole_shouldDeny() {
-        var result = ProjectDocumentWorkflowPolicy.canDownloadProjectDocument(
-                null, CURRENT_USER_ID, PRIMARY_LEAD_ID, SECONDARY_LEAD_ID);
-        assertThat(result.allowed()).isFalse();
-        assertThat(result.reason()).contains("未分配角色");
-    }
 
     // ==================== canUploadProjectDocument ====================
 
