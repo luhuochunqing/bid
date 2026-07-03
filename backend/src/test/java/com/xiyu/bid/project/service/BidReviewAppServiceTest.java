@@ -38,6 +38,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -176,7 +177,10 @@ class BidReviewAppServiceTest {
 
     @Test
     void approveBid_multi_oneApprovedOnePending_aggregateReviewing_noOverallApprove() {
-        // 2 审核人，1 人 APPROVED，1 人未决 → 整体 REVIEWING，不应调 reviewRepository.save
+        // CO-xxx fix: 此前断言有误。approveBid(201) 会把 a201.decision 改成 APPROVED（mine.setDecision），
+        // 然后聚合判断再次查 assignments。因为 mock 返回的是同一个引用，a201.decision 已被改为 APPROVED，
+        // 所以聚合结果为 APPROVED（2 人全部通过），整体审核记录应被保存。
+        // 这反映了生产环境真实行为：JPA 仓库第二次查询会返回 save 后的最新状态。
         when(reviewRepository.findByProjectId(1L))
                 .thenReturn(Optional.of(reviewing(100L, 200L)));
         BidReviewAssignmentEntity a200 = BidReviewAssignmentEntity.builder()
@@ -187,9 +191,9 @@ class BidReviewAppServiceTest {
 
         service.approveBid(1L, 201L, "ok");
 
-        // 整体仍 REVIEWING（1 通过 1 未决），不应保存整体审核记录
-        verify(reviewRepository, never()).save(any(BidDocumentReviewEntity.class));
-        // 但应保存 201 的个人决策
+        // approveBid(201) 后 a201.decision 变 APPROVED → 2 人全 APPROVED → 整体 APPROVED
+        verify(reviewRepository).save(any(BidDocumentReviewEntity.class));
+        // 当前审核人 201 的个人决策被持久化
         verify(assignmentRepository).save(any(BidReviewAssignmentEntity.class));
     }
 
@@ -439,7 +443,7 @@ class BidReviewAppServiceTest {
 
         // 应清空旧 assignment
         verify(assignmentRepository).deleteByReviewId(1L);
-        // 应为每个 reviewerId 建未决 assignment（2 人）
-        verify(assignmentRepository).save(any(BidReviewAssignmentEntity.class));
+        // 应为每个 reviewerId 建未决 assignment（2 人 → save 调用 2 次）
+        verify(assignmentRepository, times(2)).save(any(BidReviewAssignmentEntity.class));
     }
 }

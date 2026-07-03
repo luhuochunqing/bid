@@ -33,32 +33,20 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 /**
- * 标书审核流程编排服务。
- * <p>职责：提交审核 → 审核人收到通知 → 审核通过/驳回 → 状态持久化。</p>
- * <p>核心规则委托给 {@link BidReviewPolicy}。</p>
- *
- * <p>CO-483 + CO-484 多人审核（2026-07-03）：</p>
- * <ul>
- *   <li>submitForReview 接收 List<Long> reviewerIds（最多 2 人），为每人建未决 assignment</li>
- *   <li>approve/reject 记录当前审核人的个人决策 → 聚合判断整体状态</li>
- *   <li>CO-483：驳回重提时清空旧 assignment；reviewerIds 不得含 submittedBy/primaryLead/secondaryLead</li>
- * </ul>
+ * 标书审核流程编排服务。提交审核 → 审核人收到通知 → 审核通过/驳回 → 状态持久化。
+ * 核心规则委托给 {@link BidReviewPolicy}；入参校验委托给 {@link BidReviewReviewerValidator}。
+ * CO-483 + CO-484 多人审核：最多 2 人，任一驳回即终态，全通过才整体 APPROVED。
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 @Transactional
 public class BidReviewAppService {
-
-    /** CO-484 调整后需求：审核人最多 2 人。 */
-    private static final int MAX_REVIEWERS = 2;
 
     private final BidDocumentReviewRepository reviewRepository;
     private final BidReviewAssignmentRepository assignmentRepository;
@@ -72,20 +60,13 @@ public class BidReviewAppService {
 
     /**
      * 提交标书审核（CO-484 多人审核）。
-     * <p>创建/更新审核记录为 REVIEWING 状态，为每个 reviewerId 建未决 assignment，并发起代办通知给所有审核人。</p>
-     *
-     * <p>校验：</p>
-     * <ul>
-     *   <li>人数 1-2、去重</li>
-     *   <li>不含 submittedBy（CO-483 后端兜底）</li>
-     *   <li>不含项目经理 / 团队成员 / primaryLead / secondaryLead（CO-483 排除范围）</li>
-     * </ul>
+     * 校验：人数 1-2、去重、不含 submittedBy / 项目经理 / 团队成员 / primaryLead / secondaryLead。
      */
     @Auditable(action = "SUBMIT_BID_REVIEW", entityType = "BidDocumentReview",
             description = "提交标书审核")
     public void submitForReview(Long projectId, List<Long> reviewerIds, Long submittedBy) {
         // 入参校验
-        validateReviewerIds(reviewerIds, submittedBy, projectId);
+        BidReviewReviewerValidator.validateReviewerIds(reviewerIds, submittedBy);
 
         Optional<BidDocumentReviewEntity> existing = reviewRepository.findByProjectId(projectId);
         BidReviewStatus currentStatus = existing.map(e -> parseStatus(e.getStatus())).orElse(null);
@@ -97,7 +78,8 @@ public class BidReviewAppService {
         // 校验审核人是否参与了本项目（每个 reviewerId 都校验）
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "项目不存在"));
-        validateReviewersNotProjectParticipants(reviewerIds, project, projectId);
+        ProjectLeadAssignment lead = leadAssignmentRepository.findByProjectId(projectId).orElse(null);
+        BidReviewReviewerValidator.validateReviewersNotProjectParticipants(reviewerIds, project, lead);
 
         BidDocumentReviewEntity review = existing.orElseGet(() -> BidDocumentReviewEntity.builder()
                 .projectId(projectId).build());
@@ -225,9 +207,7 @@ public class BidReviewAppService {
         log.info("Bid rejected project={} by={} reason={}", projectId, currentUserId, reason);
     }
 
-    /**
-     * 读取审核状态（CO-484 多人审核）。
-     */
+    /** 读取审核状态（CO-484 多人审核）。 */
     public ReviewState getReviewState(Long projectId) {
         Optional<BidDocumentReviewEntity> reviewOpt = reviewRepository.findByProjectId(projectId);
         if (reviewOpt.isEmpty()) {
@@ -254,51 +234,6 @@ public class BidReviewAppService {
     }
 
     // -- 辅助方法 ----------------------------------------------------------
-
-    /**
-     * CO-484 入参校验：人数 1-2、去重、不含 submittedBy。
-     */
-    private void validateReviewerIds(List<Long> reviewerIds, Long submittedBy, Long projectId) {
-        if (reviewerIds == null || reviewerIds.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "标书审核人不能为空");
-        }
-        // 去重
-        Set<Long> deduped = new LinkedHashSet<>(reviewerIds);
-        if (deduped.size() != reviewerIds.size()) {
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "标书审核人不能重复");
-        }
-        if (deduped.size() > MAX_REVIEWERS) {
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
-                    "标书审核人最多 " + MAX_REVIEWERS + " 人");
-        }
-        // CO-483 后端兜底：不能选自己
-        if (submittedBy != null && deduped.contains(submittedBy)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "标书审核人不能选择自己");
-        }
-    }
-
-    /**
-     * CO-483 排除范围校验：审核人不得是项目经理 / 团队成员 / primaryLead / secondaryLead。
-     */
-    private void validateReviewersNotProjectParticipants(List<Long> reviewerIds, Project project, Long projectId) {
-        Set<Long> participantIds = new LinkedHashSet<>();
-        if (project.getManagerId() != null) participantIds.add(project.getManagerId());
-        if (project.getTeamMembers() != null) participantIds.addAll(project.getTeamMembers());
-
-        // CO-483 追加排除：primaryLead / secondaryLead
-        ProjectLeadAssignment lead = leadAssignmentRepository.findByProjectId(projectId).orElse(null);
-        if (lead != null) {
-            if (lead.getPrimaryLeadUserId() != null) participantIds.add(lead.getPrimaryLeadUserId());
-            if (lead.getSecondaryLeadUserId() != null) participantIds.add(lead.getSecondaryLeadUserId());
-        }
-
-        for (Long rid : reviewerIds) {
-            if (participantIds.contains(rid)) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "标书审核人必须是未参与本项目的人员（含投标负责人/辅助人员）");
-            }
-        }
-    }
 
     private String buildRejectReasonText(List<BidReviewAssignmentEntity> assignments) {
         List<String> parts = new ArrayList<>();
