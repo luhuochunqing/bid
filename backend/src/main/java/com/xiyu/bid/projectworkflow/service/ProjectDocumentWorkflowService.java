@@ -129,6 +129,11 @@ class ProjectDocumentWorkflowService {
         if (userId != null) {
             var user = userRepository.findById(userId).orElse(null);
             if (user != null && user.getFullName() != null && !user.getFullName().isBlank()) {
+                // CO-488: 返回"姓名（工号）"格式，工号取 employeeNumber
+                String empNo = user.getEmployeeNumber();
+                if (empNo != null && !empNo.isBlank()) {
+                    return user.getFullName() + "（" + empNo.trim() + "）";
+                }
                 return user.getFullName();
             }
         }
