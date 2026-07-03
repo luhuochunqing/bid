@@ -65,6 +65,22 @@ export function customerTypeLabel(value) {
   return CUSTOMER_TYPE_LABELS[value] || value
 }
 
+// 项目类型枚举名 → 中文 label 映射。
+// 与 useProjectSearch.js 的 projectTypeOptions 保持同源（后端归一化为枚举名，对齐 ProjectType 枚举）。
+// 未知值（如历史中文数据）fallback 显示原值，避免丢失数据。
+const PROJECT_TYPE_LABELS = {
+  OFFICE: '办公',
+  COMPREHENSIVE: '综合',
+  COLLECTIVE: '集采',
+  INDUSTRIAL: '工业品',
+  OTHER: '其他',
+}
+
+export function projectTypeLabel(value) {
+  if (!value) return '-'
+  return PROJECT_TYPE_LABELS[value] || value
+}
+
 export function sourceText(source) {
   const map = {
     // 历史数据兼容：旧版写入的英文枚举名仍按 Tender.SourceType 中文 label 显示

@@ -87,7 +87,7 @@
             <template #default="{ row }">{{ row.bidMonth || '-' }}</template>
           </el-table-column>
           <el-table-column label="项目类型" width="110" v-if="columnVisible.projectType">
-            <template #default="{ row }"><el-tag size="small">{{ row.projectType || '-' }}</el-tag></template>
+            <template #default="{ row }"><el-tag size="small">{{ projectTypeLabel(row.projectType) }}</el-tag></template>
           </el-table-column>
           <el-table-column label="客户营收（亿）" prop="revenue" width="150" sortable="custom" v-if="columnVisible.revenue">
             <template #default="{ row }">{{ row.revenue != null ? Number(row.revenue).toFixed(2) : '-' }}</template>
@@ -148,7 +148,7 @@ import { Download, ArrowDown, Check } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import ProjectSearchCard from './components/ProjectSearchCard.vue'
 import { getProjectStatusText, getProjectStatusType } from './project-utils.js'
-import { formatDate, priorityTag, priorityLabel, stageText, sourceText, customerTypeLabel } from './utils/projectListFormatters.js'
+import { formatDate, priorityTag, priorityLabel, stageText, sourceText, projectTypeLabel, customerTypeLabel } from './utils/projectListFormatters.js'
 import {
   CRM_SOURCE_LABEL,
   EXTERNAL_PLATFORM_SOURCE_LABEL,
