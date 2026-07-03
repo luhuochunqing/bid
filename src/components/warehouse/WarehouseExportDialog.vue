@@ -26,6 +26,21 @@
         <el-tag size="small">勾选模式</el-tag>
         <el-tag size="small" type="info">共 {{ selectedIds.length }} 条</el-tag>
       </div>
+      <div class="attachment-scope-section">
+        <div class="section-label">附件导出范围</div>
+        <el-radio-group v-model="attachmentScope" class="scope-radio-group">
+          <el-radio label="ALL">全部文件导出</el-radio>
+          <el-radio label="PARTIAL">部分文件导出</el-radio>
+        </el-radio-group>
+        <el-checkbox-group v-if="attachmentScope === 'PARTIAL'" v-model="attachmentTypes" class="type-checkbox-group">
+          <el-checkbox label="PROPERTY_CERTIFICATE">产权证</el-checkbox>
+          <el-checkbox label="INVOICE">发票</el-checkbox>
+          <el-checkbox label="PHOTOS">照片</el-checkbox>
+        </el-checkbox-group>
+        <div v-if="attachmentScope === 'PARTIAL' && attachmentTypes.length === 0" class="scope-hint">
+          请至少选择一种附件类型
+        </div>
+      </div>
     </div>
     <div v-else class="export-task">
       <div v-if="status === 'PENDING' || status === 'PROCESSING'" class="export-progress">
@@ -65,7 +80,7 @@
       <div class="dialog-footer">
         <span v-if="!taskId" class="footer-hint">点击"开始导出"以提交导出任务</span>
         <span v-else-if="status !== 'COMPLETED'" class="footer-hint">关闭后仍可稍后在导出记录中下载</span>
-        <el-button v-if="!taskId" type="primary" @click="startExport">开始导出</el-button>
+        <el-button v-if="!taskId" type="primary" :disabled="!canStartExport" @click="startExport">开始导出</el-button>
         <el-button @click="handleClose">{{ status === 'COMPLETED' ? '关闭' : '取消' }}</el-button>
       </div>
     </template>
@@ -90,6 +105,8 @@ const status = ref('')
 const totalCount = ref(0)
 const failureReason = ref('')
 const summary = ref({})
+const attachmentScope = ref('ALL')
+const attachmentTypes = ref([])
 let pollTimer = null
 
 const hasFilters = computed(() => {
@@ -101,6 +118,11 @@ const hasFilters = computed(() => {
 const hasAttachments = computed(() => {
   const s = summary.value || {}
   return (s.propertyCertCount || 0) + (s.invoiceCount || 0) + (s.photosCount || 0) > 0
+})
+
+const canStartExport = computed(() => {
+  if (attachmentScope.value !== 'PARTIAL') return true
+  return attachmentTypes.value.length > 0
 })
 
 const filterTags = computed(() => {
@@ -148,7 +170,11 @@ const startExport = async () => {
   try {
     const payload = props.mode === 'ids'
       ? { ids: props.selectedIds }
-      : props.filters
+      : { ...props.filters }
+    payload.attachmentScope = attachmentScope.value
+    if (attachmentScope.value === 'PARTIAL') {
+      payload.attachmentTypes = [...attachmentTypes.value]
+    }
     const { data } = await http.post('/api/knowledge/warehouses/export', payload)
     taskId.value = data.taskId
     status.value = 'PENDING'
@@ -221,7 +247,8 @@ watch(() => props.modelValue, (v) => {
     totalCount.value = 0
     failureReason.value = ''
     summary.value = {}
-
+    attachmentScope.value = 'ALL'
+    attachmentTypes.value = []
   } else {
     stopPolling()
   }
@@ -245,4 +272,9 @@ onUnmounted(stopPolling)
 .meta-label { display: inline-block; min-width: 88px; color: var(--el-text-color-secondary); }
 .dialog-footer { display: flex; justify-content: space-between; align-items: center; }
 .footer-hint { font-size: 12px; color: var(--el-text-color-placeholder); }
+.attachment-scope-section { margin-top: 20px; padding: 14px; background: #f5f7fa; border-radius: 6px; }
+.section-label { font-size: 13px; font-weight: 600; color: #303133; margin-bottom: 10px; }
+.scope-radio-group { display: flex; flex-direction: column; gap: 8px; }
+.type-checkbox-group { margin-top: 10px; padding-left: 8px; display: flex; flex-direction: column; gap: 6px; }
+.scope-hint { margin-top: 8px; font-size: 12px; color: var(--el-color-danger); }
 </style>

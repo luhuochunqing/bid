@@ -4,6 +4,7 @@ import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.warehouse.application.WarehouseExportAppService;
 import com.xiyu.bid.warehouse.application.WarehouseLedgerExportAppService;
+import com.xiyu.bid.warehouse.domain.WarehouseAttachmentExportScope;
 import com.xiyu.bid.warehouse.domain.WarehouseLedgerExportPolicy.Section;
 import com.xiyu.bid.warehouse.dto.WarehouseFilterDTO;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskEntity;
@@ -61,6 +62,12 @@ public class WarehouseExportController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("未登录"));
         }
         String operatorLabel = userResolver.resolveCurrentOperatorLabel();
+        final WarehouseAttachmentExportScope attachmentScope;
+        try {
+            attachmentScope = parseAttachmentScope(body);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
         WarehouseExportAppService.ExportTaskResult result;
         if (body != null && body.get("ids") instanceof List<?> rawIds) {
             List<Long> ids = rawIds.stream()
@@ -70,11 +77,11 @@ public class WarehouseExportController {
             if (ids.isEmpty()) {
                 return ResponseEntity.badRequest().body(ApiResponse.error("未选择任何仓库"));
             }
-            result = exportAppService.exportByIds(ids, operatorId, operatorLabel);
+            result = exportAppService.exportByIds(ids, operatorId, operatorLabel, attachmentScope);
         } else {
             WarehouseFilterDTO filterDTO = body == null ? null
                     : objectMapper.convertValue(body, WarehouseFilterDTO.class);
-            result = exportAppService.export(filterDTO, operatorId, operatorLabel);
+            result = exportAppService.export(filterDTO, operatorId, operatorLabel, attachmentScope);
         }
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(ApiResponse.success("导出任务已创建", Map.of("taskId", result.taskId())));
@@ -113,6 +120,25 @@ public class WarehouseExportController {
         WarehouseExportAppService.ExportTaskResult result = ledgerExportAppService.trigger(req, operatorId, operatorLabel);
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(ApiResponse.success("台账导出任务已创建", Map.of("taskId", result.taskId())));
+    }
+
+    private WarehouseAttachmentExportScope parseAttachmentScope(Map<String, Object> body) {
+        String scope = body != null && body.get("attachmentScope") instanceof String s ? s : "ALL";
+        Set<String> typeNames = parseAttachmentTypeNames(body);
+        return WarehouseAttachmentExportScope.from(scope, typeNames)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "附件导出范围非法: scope=" + scope + ", types=" + typeNames));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Set<String> parseAttachmentTypeNames(Map<String, Object> body) {
+        if (body == null) return Set.of();
+        Object v = body.get("attachmentTypes");
+        if (!(v instanceof List<?> rawList)) return Set.of();
+        return rawList.stream()
+                .filter(o -> o instanceof String)
+                .map(String.class::cast)
+                .collect(java.util.stream.Collectors.toSet());
     }
 
     @SuppressWarnings("unchecked")
