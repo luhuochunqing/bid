@@ -1,5 +1,5 @@
-// Input: BidReviewAppService.approveBid / rejectBid / submitForReview 行为
-// Output: Mockito 单元测试覆盖身份校验 + 多人审核 + CO-483 排除/清空
+// Input: BidReviewAppService.approveBid / rejectBid / submitForReview / getReviewState 行为
+// Output: Mockito 单元测试覆盖身份校验 + 状态机校验 + 多人审核聚合 + CO-483 排除/清空
 // Pos: backend test source — 防止 PR #281 类型的反复 bug 复活
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.project.service;
@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -34,7 +35,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -45,6 +45,13 @@ import static org.mockito.Mockito.when;
 /**
  * 标书审核 service 集成测试。
  * <p>CO-483 + CO-484：覆盖多人审核 + 驳回重提清空 + primaryLead/secondaryLead 排除。</p>
+ * <p>测试覆盖维度：</p>
+ * <ul>
+ *   <li>身份校验：自审/非指派人/无身份 → 403</li>
+ *   <li>状态机校验：REVIEWING/APPROVED/REJECTED → 各操作是否允许</li>
+ *   <li>多人审核聚合：1 通过 1 未决 → REVIEWING；2 通过 → APPROVED；任一驳回 → REJECTED</li>
+ *   <li>ArgumentCaptor 状态断言：save 的是 APPROVED/REJECTED 而非其他</li>
+ * </ul>
  */
 @ExtendWith(MockitoExtension.class)
 class BidReviewAppServiceTest {
@@ -135,7 +142,7 @@ class BidReviewAppServiceTest {
     }
 
     @Test
-    void approveBid_asAssignedReviewer_succeeds_singleReviewer() {
+    void approveBid_asAssignedReviewer_succeeds_singleReviewer_savesApprovedStatus() {
         when(reviewRepository.findByProjectId(1L))
                 .thenReturn(Optional.of(reviewing(100L, 200L)));
         when(assignmentRepository.findByReviewIdOrderByCreatedAtAsc(1L))
@@ -145,7 +152,10 @@ class BidReviewAppServiceTest {
         service.approveBid(1L, 200L, "ok");
 
         // 单审核人 APPROVED → 聚合 APPROVED → 状态被持久化
-        verify(reviewRepository).save(any(BidDocumentReviewEntity.class));
+        // ArgumentCaptor 加固：验证 save 的确实是 APPROVED 状态，而非其他
+        ArgumentCaptor<BidDocumentReviewEntity> captor = ArgumentCaptor.forClass(BidDocumentReviewEntity.class);
+        verify(reviewRepository).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo("APPROVED");
     }
 
     @Test
@@ -173,14 +183,57 @@ class BidReviewAppServiceTest {
                 .extracting("statusCode").isEqualTo(HttpStatus.CONFLICT);
     }
 
+    // ── approveBid 状态机校验（新增）──────────────────────────────────
+
+    @Test
+    void approveBid_whenRejectedStatus_throws409() {
+        // 状态机校验：REJECTED 状态下不能再 approveBid
+        BidDocumentReviewEntity rejected = BidDocumentReviewEntity.builder()
+                .id(1L).projectId(1L).reviewerId(200L).submittedBy(100L)
+                .status(BidReviewStatus.REJECTED.name())
+                .build();
+        when(reviewRepository.findByProjectId(1L)).thenReturn(Optional.of(rejected));
+
+        assertThatThrownBy(() -> service.approveBid(1L, 200L, "ok"))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting("statusCode").isEqualTo(HttpStatus.CONFLICT);
+
+        verify(reviewRepository, never()).save(any());
+    }
+
     // ── CO-484 多人审核 ───────────────────────────────────────────────
 
     @Test
-    void approveBid_multi_oneApprovedOnePending_aggregateReviewing_noOverallApprove() {
-        // CO-xxx fix: 此前断言有误。approveBid(201) 会把 a201.decision 改成 APPROVED（mine.setDecision），
-        // 然后聚合判断再次查 assignments。因为 mock 返回的是同一个引用，a201.decision 已被改为 APPROVED，
-        // 所以聚合结果为 APPROVED（2 人全部通过），整体审核记录应被保存。
-        // 这反映了生产环境真实行为：JPA 仓库第二次查询会返回 save 后的最新状态。
+    void approveBid_multi_oneApprovedOnePending_doesNotSaveReview() {
+        // 场景：a200 已 APPROVED，a201 未决
+        // approveBid(201) 会把 a201.decision 设为 APPROVED 并 save assignment
+        // 但聚合查询看到的是 a201.decision=null（模拟数据库未刷新/并发场景/聚合前未持久化）
+        // 聚合 [APPROVED, null] → REVIEWING → 不整体 APPROVE → reviewRepository.save 不被调用
+        // 此测试守护"聚合判断在 REVIEWING 时不 save review"的分支
+        when(reviewRepository.findByProjectId(1L))
+                .thenReturn(Optional.of(reviewing(100L, 200L)));
+        // 用 thenAnswer 每次返回新对象，避免 mock 副作用掩盖聚合分支
+        when(assignmentRepository.findByReviewIdOrderByCreatedAtAsc(1L))
+                .thenAnswer(inv -> List.of(
+                        BidReviewAssignmentEntity.builder()
+                                .id(11L).reviewId(1L).reviewerId(200L).decision("APPROVED").build(),
+                        BidReviewAssignmentEntity.builder()
+                                .id(12L).reviewId(1L).reviewerId(201L).build()  // decision=null
+                ));
+
+        service.approveBid(1L, 201L, "ok");
+
+        // 聚合 REVIEWING → 不整体 APPROVE → reviewRepository.save 不被调用
+        verify(reviewRepository, never()).save(any());
+        // 但当前审核人的决策被持久化
+        verify(assignmentRepository).save(any(BidReviewAssignmentEntity.class));
+    }
+
+    @Test
+    void approveBid_multi_secondApproveAggregatesToApproved_savesReviewWithApprovedStatus() {
+        // 场景：a200 已 APPROVED，a201 未决
+        // approveBid(201) 后 a201.decision 变 APPROVED → 聚合 [APPROVED, APPROVED] → APPROVED
+        // 模拟 JPA 第二次查询返回 save 后的最新状态（同一引用，setDecision 副作用可见）
         when(reviewRepository.findByProjectId(1L))
                 .thenReturn(Optional.of(reviewing(100L, 200L)));
         BidReviewAssignmentEntity a200 = BidReviewAssignmentEntity.builder()
@@ -192,25 +245,11 @@ class BidReviewAppServiceTest {
         service.approveBid(1L, 201L, "ok");
 
         // approveBid(201) 后 a201.decision 变 APPROVED → 2 人全 APPROVED → 整体 APPROVED
-        verify(reviewRepository).save(any(BidDocumentReviewEntity.class));
-        // 当前审核人 201 的个人决策被持久化
+        // ArgumentCaptor 加固：验证 save 的确实是 APPROVED 状态
+        ArgumentCaptor<BidDocumentReviewEntity> captor = ArgumentCaptor.forClass(BidDocumentReviewEntity.class);
+        verify(reviewRepository).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo("APPROVED");
         verify(assignmentRepository).save(any(BidReviewAssignmentEntity.class));
-    }
-
-    @Test
-    void approveBid_multi_allApproved_aggregateApproved_overallApprove() {
-        when(reviewRepository.findByProjectId(1L))
-                .thenReturn(Optional.of(reviewing(100L, 200L)));
-        BidReviewAssignmentEntity a200 = BidReviewAssignmentEntity.builder()
-                .id(11L).reviewId(1L).reviewerId(200L).decision("APPROVED").build();
-        BidReviewAssignmentEntity a201 = pendingAssignment(1L, 201L);
-        when(assignmentRepository.findByReviewIdOrderByCreatedAtAsc(1L))
-                .thenReturn(List.of(a200, a201));
-
-        service.approveBid(1L, 201L, "ok");
-
-        // 整体 APPROVED → 应保存整体审核记录
-        verify(reviewRepository).save(any(BidDocumentReviewEntity.class));
     }
 
     // ── rejectBid 身份校验 ───────────────────────────────────────────
@@ -230,7 +269,7 @@ class BidReviewAppServiceTest {
     }
 
     @Test
-    void rejectBid_asAssignedReviewer_succeeds() {
+    void rejectBid_asAssignedReviewer_succeeds_savesRejectedStatus() {
         when(reviewRepository.findByProjectId(1L))
                 .thenReturn(Optional.of(reviewing(100L, 200L)));
         when(assignmentRepository.findByReviewIdOrderByCreatedAtAsc(1L))
@@ -238,7 +277,10 @@ class BidReviewAppServiceTest {
 
         service.rejectBid(1L, 200L, "内容不符");
 
-        verify(reviewRepository).save(any(BidDocumentReviewEntity.class));
+        // ArgumentCaptor 加固：验证 save 的确实是 REJECTED 状态
+        ArgumentCaptor<BidDocumentReviewEntity> captor = ArgumentCaptor.forClass(BidDocumentReviewEntity.class);
+        verify(reviewRepository).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo("REJECTED");
     }
 
     @Test
@@ -251,6 +293,24 @@ class BidReviewAppServiceTest {
         assertThatThrownBy(() -> service.rejectBid(1L, 200L, ""))
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting("statusCode").isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    // ── rejectBid 状态机校验（新增）──────────────────────────────────
+
+    @Test
+    void rejectBid_whenApprovedStatus_throws409() {
+        // 状态机校验：APPROVED 状态下不能再 rejectBid
+        BidDocumentReviewEntity approved = BidDocumentReviewEntity.builder()
+                .id(1L).projectId(1L).reviewerId(200L).submittedBy(100L)
+                .status(BidReviewStatus.APPROVED.name())
+                .build();
+        when(reviewRepository.findByProjectId(1L)).thenReturn(Optional.of(approved));
+
+        assertThatThrownBy(() -> service.rejectBid(1L, 200L, "内容不符"))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting("statusCode").isEqualTo(HttpStatus.CONFLICT);
+
+        verify(reviewRepository, never()).save(any());
     }
 
     // ── getReviewState 行为 ──────────────────────────────────────────
@@ -267,6 +327,54 @@ class BidReviewAppServiceTest {
         assertThat(state.reviewerId()).isEqualTo(200L);
         assertThat(state.reviewers()).hasSize(1);
         assertThat(state.reviewers().get(0).getReviewerId()).isEqualTo(200L);
+    }
+
+    @Test
+    void getReviewState_whenNoReview_returnsEmptyState() {
+        // 覆盖 getReviewState 的空分支：无 review 记录时返回空 ReviewState
+        when(reviewRepository.findByProjectId(1L)).thenReturn(Optional.empty());
+
+        var state = service.getReviewState(1L);
+
+        assertThat(state.status()).isNull();
+        assertThat(state.reviewerId()).isNull();
+        assertThat(state.rejectReason()).isNull();
+        assertThat(state.reviewerName()).isNull();
+        assertThat(state.reviewers()).isEmpty();
+    }
+
+    // ── submitForReview 状态机校验（新增）────────────────────────────
+
+    @Test
+    void submitForReview_whenReviewing_throws409() {
+        // 状态机校验：REVIEWING 状态下不能重复提交
+        BidDocumentReviewEntity reviewing = BidDocumentReviewEntity.builder()
+                .id(1L).projectId(1L).reviewerId(200L).submittedBy(100L)
+                .status(BidReviewStatus.REVIEWING.name())
+                .build();
+        when(reviewRepository.findByProjectId(1L)).thenReturn(Optional.of(reviewing));
+
+        assertThatThrownBy(() -> service.submitForReview(1L, List.of(99L), 100L))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting("statusCode").isEqualTo(HttpStatus.CONFLICT);
+
+        verify(reviewRepository, never()).save(any());
+    }
+
+    @Test
+    void submitForReview_whenApproved_throws409() {
+        // 状态机校验：APPROVED 状态下不能再提交审核
+        BidDocumentReviewEntity approved = BidDocumentReviewEntity.builder()
+                .id(1L).projectId(1L).reviewerId(200L).submittedBy(100L)
+                .status(BidReviewStatus.APPROVED.name())
+                .build();
+        when(reviewRepository.findByProjectId(1L)).thenReturn(Optional.of(approved));
+
+        assertThatThrownBy(() -> service.submitForReview(1L, List.of(99L), 100L))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting("statusCode").isEqualTo(HttpStatus.CONFLICT);
+
+        verify(reviewRepository, never()).save(any());
     }
 
     // ── submitForReview 标书审核人校验 ──────────────────────────────────────
