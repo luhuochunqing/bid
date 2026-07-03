@@ -5,6 +5,17 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_ADDRESS;
+import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_AREA;
+import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_CONTACT;
+import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_END_DATE;
+import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_LESSOR;
+import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_LESSEE;
+import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_NAME;
+import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_PROVINCE;
+import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_REGION;
+import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_START_DATE;
+import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_TYPE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class WarehouseImportPolicyTest {
@@ -57,5 +68,59 @@ class WarehouseImportPolicyTest {
         assertThat(WarehouseImportPolicy.normalizeHeader("是否有产权证（是/否）"))
                 .isEqualTo("是否有产权证(是/否)");
         assertThat(WarehouseImportPolicy.normalizeHeader("AREA")).isEqualTo("area");
+    }
+
+    @Test
+    @DisplayName("parseRow 支持多种常见日期格式")
+    void parseRowSupportsVariousDateFormats() {
+        assertDateParsed("2026-07-03", 2026, 7, 3);
+        assertDateParsed("2026/07/03", 2026, 7, 3);
+        assertDateParsed("2026.07.03", 2026, 7, 3);
+        assertDateParsed("2026年7月3日", 2026, 7, 3);
+        assertDateParsed("03-07-2026", 2026, 7, 3);
+        assertDateParsed("03/07/2026", 2026, 7, 3);
+    }
+
+    @Test
+    @DisplayName("parseRow 对非法日期格式返回格式错误")
+    void parseRowRejectsInvalidDateFormat() {
+        WarehouseImportPolicy.ParsedRow row = parseRowWithDate("not-a-date");
+        assertThat(row.startDate).isNull();
+        assertThat(row.errors).anyMatch(e -> e.contains("开始时间")
+                && e.contains("格式错误（应为 YYYY-MM-DD）")
+                && e.contains("not-a-date"));
+    }
+
+    @Test
+    @DisplayName("parseRow 对空日期返回不能为空错误")
+    void parseRowRejectsEmptyDate() {
+        WarehouseImportPolicy.ParsedRow row = parseRowWithDate("");
+        assertThat(row.startDate).isNull();
+        assertThat(row.errors).anyMatch(e -> e.contains("开始时间") && e.contains("不能为空"));
+    }
+
+    private void assertDateParsed(String dateText, int year, int month, int day) {
+        WarehouseImportPolicy.ParsedRow row = parseRowWithDate(dateText);
+        assertThat(row.errors).as("row errors for date %s: %s", dateText, row.errors).isEmpty();
+        assertThat(row.startDate).as("startDate for %s", dateText).isNotNull();
+        assertThat(row.startDate.getYear()).isEqualTo(year);
+        assertThat(row.startDate.getMonthValue()).isEqualTo(month);
+        assertThat(row.startDate.getDayOfMonth()).isEqualTo(day);
+    }
+
+    private WarehouseImportPolicy.ParsedRow parseRowWithDate(String startDateText) {
+        String[] cells = new String[WarehouseImportPolicy.EXPECTED_COL_COUNT];
+        cells[COL_NAME] = "测试仓库";
+        cells[COL_TYPE] = "自营";
+        cells[COL_PROVINCE] = "上海";
+        cells[COL_ADDRESS] = "测试地址";
+        cells[COL_AREA] = "100";
+        cells[COL_REGION] = "华东";
+        cells[COL_CONTACT] = "张三";
+        cells[COL_START_DATE] = startDateText;
+        cells[COL_END_DATE] = "2026-12-31";
+        cells[COL_LESSOR] = "出租方A";
+        cells[COL_LESSEE] = "承租方B";
+        return WarehouseImportPolicy.parseRow(2, cells);
     }
 }
