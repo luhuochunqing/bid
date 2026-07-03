@@ -2,7 +2,6 @@ package com.xiyu.bid.warehouse.domain;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -239,17 +238,11 @@ public class WarehouseImportPolicy {
             errors.add(fieldName + "不能为空");
             return null;
         }
-        String trimmed = text.trim();
-        try {
-            return LocalDate.parse(trimmed);
-        } catch (DateTimeParseException e) {
-            try {
-                return LocalDate.parse(trimmed.replace("/", "-"));
-            } catch (DateTimeParseException ex) {
-                errors.add(fieldName + "格式错误（应为 YYYY-MM-DD）: " + text);
-                return null;
-            }
+        LocalDate date = WarehouseDateParser.parse(text);
+        if (date == null) {
+            errors.add(fieldName + "格式错误（支持 YYYY-MM-DD、YYYY/M/D、YYYY.MM.DD、YYYY年M月D日 等）: " + text);
         }
+        return date;
     }
 
     private static boolean parseYesNo(String text, String fieldName, List<String> errors, ParsedRow result) {

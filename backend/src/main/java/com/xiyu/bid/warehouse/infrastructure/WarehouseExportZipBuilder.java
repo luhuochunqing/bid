@@ -17,9 +17,10 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 /**
- * 仓库导出 ZIP 打包器：将 xlsx + 附件目录打包为 ZIP 文件。
+ * 仓库导出 ZIP 打包器：将 xlsx + 已过滤的附件目录打包为 ZIP 文件。
  *  - 顶层：仓库信息台账.xlsx
  *  - 附件：attachments/WH_{仓库名称}_{附件类型}[_{序号}].{扩展名}
+ * <p>attachmentsByWhId 已由调用方按导出范围过滤，本类不再做过滤。</p>
  */
 @Component
 @Slf4j

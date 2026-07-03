@@ -50,12 +50,12 @@ public class WarehouseImportTemplateWriter {
             hints[WarehouseImportPolicy.COL_REGION] = "如：华北/华东";
             hints[WarehouseImportPolicy.COL_CONTACT] = "联系人姓名";
             hints[WarehouseImportPolicy.COL_REMARKS] = "选填";
-            hints[WarehouseImportPolicy.COL_START_DATE] = "YYYY-MM-DD";
-            hints[WarehouseImportPolicy.COL_END_DATE] = "YYYY-MM-DD";
+            hints[WarehouseImportPolicy.COL_START_DATE] = "支持 YYYY-MM-DD、YYYY/M/D、YYYY.MM.DD、YYYY年M月D日";
+            hints[WarehouseImportPolicy.COL_END_DATE] = "支持 YYYY-MM-DD、YYYY/M/D、YYYY.MM.DD、YYYY年M月D日";
             hints[WarehouseImportPolicy.COL_LESSOR] = "出租方/服务方";
             hints[WarehouseImportPolicy.COL_LESSEE] = "承租方";
-            hints[WarehouseImportPolicy.COL_INVOICE_START] = "YYYY-MM-DD";
-            hints[WarehouseImportPolicy.COL_INVOICE_END] = "YYYY-MM-DD";
+            hints[WarehouseImportPolicy.COL_INVOICE_START] = "支持 YYYY-MM-DD、YYYY/M/D、YYYY.MM.DD、YYYY年M月D日";
+            hints[WarehouseImportPolicy.COL_INVOICE_END] = "支持 YYYY-MM-DD、YYYY/M/D、YYYY.MM.DD、YYYY年M月D日";
             hints[WarehouseImportPolicy.COL_CLOSE_PLAN] = "关仓计划说明";
             hints[WarehouseImportPolicy.COL_HAS_PROPERTY_CERT] = "是 / 否";
             hints[WarehouseImportPolicy.COL_PROPERTY_CERT_FILE] = "产权证=是时必填，对应文件名";
