@@ -1,5 +1,6 @@
 package com.xiyu.bid.tender.service;
 
+import com.xiyu.bid.batch.entity.TenderAssignmentRecord;
 import com.xiyu.bid.batch.repository.TenderAssignmentRecordRepository;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
@@ -237,5 +238,46 @@ class TenderQueryServiceTest {
         service.enrichAssignmentInfoBatch(List.of(dto));
 
         assertThat(dto.getProjectManagerName()).isEqualTo("韩超");
+    }
+
+    @Test
+    @DisplayName("CO-441: 项目 managerId 指向已删除用户时不应抛 NPE（孤儿外键兜底）")
+    void shouldNotThrowNpeWhenManagerUserDeleted() {
+        TenderDTO dto = new TenderDTO();
+        dto.setId(1L);
+
+        Project project = new Project();
+        project.setTenderId(1L);
+        project.setManagerId(99L);
+        when(projectRepository.findByTenderIdIn(Set.of(1L))).thenReturn(List.of(project));
+        // 模拟 user 99 已删除（孤儿外键）—— 修复前会抛 NPE
+        when(userRepository.findByIdIn(Set.of(99L))).thenReturn(List.of());
+        when(tenderAssignmentRecordRepository.findLatestByTenderIds(Set.of(1L))).thenReturn(List.of());
+
+        TenderQueryService service = createService();
+        service.enrichAssignmentInfoBatch(List.of(dto));
+
+        // 不抛 NPE，且 managerName 保持 null（前端容错显示）
+        assertThat(dto.getProjectManagerName()).isNull();
+    }
+
+    @Test
+    @DisplayName("CO-441: 标讯 assignee 指向已删除用户时不应抛 NPE（防御性兜底）")
+    void shouldNotThrowNpeWhenAssigneeUserDeleted() {
+        TenderDTO dto = new TenderDTO();
+        dto.setId(1L);
+
+        when(projectRepository.findByTenderIdIn(Set.of(1L))).thenReturn(List.of());
+        TenderAssignmentRecord record = new TenderAssignmentRecord();
+        record.setTenderId(1L);
+        record.setAssigneeId(88L);
+        when(tenderAssignmentRecordRepository.findLatestByTenderIds(Set.of(1L))).thenReturn(List.of(record));
+        // 模拟 user 88 已删除——修复前会抛 NPE
+        when(userRepository.findByIdIn(Set.of(88L))).thenReturn(List.of());
+
+        TenderQueryService service = createService();
+        service.enrichAssignmentInfoBatch(List.of(dto));
+
+        assertThat(dto.getAssigneeName()).isNull();
     }
 }

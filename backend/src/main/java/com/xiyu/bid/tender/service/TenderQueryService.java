@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -179,11 +180,13 @@ public class TenderQueryService {
         Map<Long, String> idToName = userRepository.findByIdIn(managerIds).stream()
                 .collect(Collectors.toMap(User::getId, User::getFullName));
 
-        return tenderToManager.entrySet().stream()
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        e -> idToName.getOrDefault(e.getValue(), null)
-                ));
+        // CO-441: Collectors.toMap 不允许 null value，孤儿 manager_id（指向已删除用户）会触发 NPE。
+        // 改用 HashMap 显式 put 允许 null value，保持 tenderId → null 映射，前端容错显示。
+        Map<Long, String> result = new HashMap<>(tenderToManager.size());
+        tenderToManager.forEach((tenderId, managerId) ->
+                result.put(tenderId, idToName.get(managerId))
+        );
+        return result;
     }
 
     private Map<Long, String> fetchAssigneeNames(Set<Long> tenderIds) {
@@ -200,10 +203,11 @@ public class TenderQueryService {
         Map<Long, String> idToName = userRepository.findByIdIn(assigneeIds).stream()
                 .collect(Collectors.toMap(User::getId, User::getFullName));
 
-        return tenderToAssignee.entrySet().stream()
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        e -> idToName.getOrDefault(e.getValue(), null)
-                ));
+        // CO-441: 同 fetchManagerNames，防御性兜底 assignee 孤儿外键。
+        Map<Long, String> result = new HashMap<>(tenderToAssignee.size());
+        tenderToAssignee.forEach((tenderId, assigneeId) ->
+                result.put(tenderId, idToName.get(assigneeId))
+        );
+        return result;
     }
 }
