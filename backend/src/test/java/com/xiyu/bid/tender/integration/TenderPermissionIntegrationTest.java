@@ -14,6 +14,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -135,5 +136,42 @@ class TenderPermissionIntegrationTest {
         mockMvc.perform(get("/api/tenders/1"))
                 // 权限放行后，测试库无该记录 → 业务层返回 404；若被 @PreAuthorize 拦截则是 403
                 .andExpect(status().isNotFound());
+    }
+
+    // ====================================================================
+    // 2.1 标讯列表契约测试补充（飞书《标讯中心·权限矩阵》V1.0）
+    // 锁定角色准入，防止 Controller 注解未来被改宽/改窄
+    // ====================================================================
+
+    @Test
+    @DisplayName("2.1.5 DELETE /api/tenders/{id}: bid_specialist 应返回 403（文档：投标专员不可删除）")
+    @WithMockUser(username = "bid-specialist", roles = {"BID_TEAM"})
+    void deleteTender_byBidSpecialist_returnsForbidden() throws Exception {
+        mockMvc.perform(delete("/api/tenders/1"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("2.1.1 GET /api/tenders: 跨部门协同人员（bid-otherDept）应返回 403（文档：不涉及标讯模块）")
+    @WithMockUser(username = "bid-otherDept", roles = {"BID_OTHERDEPT"})
+    void listTenders_byBidOtherDept_returnsForbidden() throws Exception {
+        mockMvc.perform(get("/api/tenders").param("page", "0").param("size", "20"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("2.1.1 GET /api/tenders: 行政人员（bid-administration）应返回 403（文档：不涉及标讯模块）")
+    @WithMockUser(username = "bid-administration", roles = {"BID_ADMINISTRATION"})
+    void listTenders_byBidAdministration_returnsForbidden() throws Exception {
+        mockMvc.perform(get("/api/tenders").param("page", "0").param("size", "20"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("2.1.1 GET /api/tenders: 投标项目负责人（bid-projectLeader）应返回 200（文档：仅自己的，由 Service 层过滤）")
+    @WithMockUser(username = "projectLeader", roles = {"BID_PROJECTLEADER"})
+    void listTenders_byProjectLeader_returnsOk() throws Exception {
+        mockMvc.perform(get("/api/tenders").param("page", "0").param("size", "20"))
+                .andExpect(status().isOk());
     }
 }
