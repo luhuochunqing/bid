@@ -20,6 +20,7 @@ public class WarehouseImportPolicy {
             "是否有产权证", "产权证附件",
             "是否有发票", "发票附件",
             "是否有仓库照片", "照片附件",
+            "是否有租赁合同", "租赁合同附件",
             "资料备注"
     };
 
@@ -44,9 +45,11 @@ public class WarehouseImportPolicy {
     public static final int COL_INVOICE_FILE = 18;
     public static final int COL_HAS_PHOTOS = 19;
     public static final int COL_PHOTOS_FILE = 20;
-    public static final int COL_CERT_REMARKS = 21;
+    public static final int COL_HAS_LEASE_CONTRACT = 21;
+    public static final int COL_LEASE_CONTRACT_FILE = 22;
+    public static final int COL_CERT_REMARKS = 23;
 
-    public static final int EXPECTED_COL_COUNT = 22;
+    public static final int EXPECTED_COL_COUNT = 24;
 
     private static final Pattern SPECIAL_CHARS = Pattern.compile("[/\\\\:*?\"<>|]");
     private static final Set<String> TYPE_VALUES = Set.of("自营", "云仓");
@@ -87,9 +90,9 @@ public class WarehouseImportPolicy {
     }
 
     /** 将 Excel 行解析为校验后的仓库草稿 + 校验错误列表（全部以值返回，不抛异常）。 */
-    public static ParsedRow parseRow(int rowIndex, String[] cells) {
+    public static WarehouseImportRow parseRow(int rowIndex, String[] cells) {
         List<String> errors = new ArrayList<>();
-        ParsedRow result = new ParsedRow();
+        WarehouseImportRow result = new WarehouseImportRow();
         result.rowIndex = rowIndex;
         result.rawCells = cells;
 
@@ -166,17 +169,21 @@ public class WarehouseImportPolicy {
         boolean hasPropertyCert = parseYesNo(stringAt(cells, COL_HAS_PROPERTY_CERT), "是否有产权证", errors, result);
         boolean hasInvoice = parseYesNo(stringAt(cells, COL_HAS_INVOICE), "是否有发票", errors, result);
         boolean hasPhotos = parseYesNo(stringAt(cells, COL_HAS_PHOTOS), "是否有仓库照片", errors, result);
+        boolean hasLeaseContract = parseYesNo(stringAt(cells, COL_HAS_LEASE_CONTRACT), "是否有租赁合同", errors, result);
 
         result.hasPropertyCert = hasPropertyCert;
         result.hasInvoice = hasInvoice;
         result.hasPhotos = hasPhotos;
+        result.hasLeaseContract = hasLeaseContract;
 
         String propertyCertFile = stringAt(cells, COL_PROPERTY_CERT_FILE).trim();
         String invoiceFile = stringAt(cells, COL_INVOICE_FILE).trim();
         String photosFile = stringAt(cells, COL_PHOTOS_FILE).trim();
+        String leaseContractFile = stringAt(cells, COL_LEASE_CONTRACT_FILE).trim();
         result.propertyCertFile = propertyCertFile;
         result.invoiceFile = invoiceFile;
         result.photosFile = photosFile;
+        result.leaseContractFile = leaseContractFile;
 
         if (hasPropertyCert && propertyCertFile.isEmpty()) {
             errors.add("产权证=是时，产权证附件不能为空");
@@ -186,6 +193,9 @@ public class WarehouseImportPolicy {
         }
         if (hasPhotos && photosFile.isEmpty()) {
             errors.add("仓库照片=是时，照片附件不能为空");
+        }
+        if (hasLeaseContract && leaseContractFile.isEmpty()) {
+            errors.add("租赁合同=是时，租赁合同附件不能为空");
         }
 
         result.certRemarks = stringAt(cells, COL_CERT_REMARKS).trim();
@@ -198,6 +208,9 @@ public class WarehouseImportPolicy {
         }
         if (!photosFile.isEmpty()) {
             result.photosExpectedName = buildAttachmentExpectedName(sanitizedName, "内外照片", photosFile);
+        }
+        if (!leaseContractFile.isEmpty()) {
+            result.leaseContractExpectedName = buildAttachmentExpectedName(sanitizedName, "租赁合同", leaseContractFile);
         }
 
         result.errors = errors;
@@ -245,44 +258,12 @@ public class WarehouseImportPolicy {
         return date;
     }
 
-    private static boolean parseYesNo(String text, String fieldName, List<String> errors, ParsedRow result) {
+    private static boolean parseYesNo(String text, String fieldName, List<String> errors, WarehouseImportRow result) {
         if (text == null) text = "";
         String trimmed = text.trim();
         if (YES_VALUES.contains(trimmed)) return true;
         if (NO_VALUES.contains(trimmed)) return false;
         errors.add(fieldName + "必须是「是」或「否」，实际: " + text);
         return false;
-    }
-
-    public static class ParsedRow {
-        public int rowIndex;
-        public String[] rawCells;
-        public String sanitizedName;
-        public WarehouseType type;
-        public String province;
-        public String address;
-        public BigDecimal area;
-        public String region;
-        public String contactPerson;
-        public String remarks;
-        public LocalDate startDate;
-        public LocalDate endDate;
-        public String lessor;
-        public String lessee;
-        public LocalDate invoicePeriodStart;
-        public LocalDate invoicePeriodEnd;
-        public String closePlan;
-        public boolean hasPropertyCert;
-        public boolean hasInvoice;
-        public boolean hasPhotos;
-        public String propertyCertFile;
-        public String invoiceFile;
-        public String photosFile;
-        public String propertyCertExpectedName;
-        public String invoiceExpectedName;
-        public String photosExpectedName;
-        public String certRemarks;
-        public List<String> errors;
-        public boolean valid() { return errors == null || errors.isEmpty(); }
     }
 }

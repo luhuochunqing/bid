@@ -20,6 +20,7 @@
 //
 // 字段清单来源：projectListFormatters.js 中已有 formatter 的字段
 //   - customerType → customerTypeLabel()
+//   - projectType → projectTypeLabel()
 //   - priority → priorityLabel()
 //   - stage → stageText()
 //   - source/sourceModule → sourceText()
@@ -41,6 +42,7 @@ const script_name = 'check-vue-enum-direct-render';
 // 后续可逐步扩展（如 priority/stage/source），扩展前需先处理存量。
 const ENUM_FIELDS = {
   customerType: 'customerTypeLabel',
+  projectType: 'projectTypeLabel',
 };
 
 // 已识别的 formatter 函数名（表达式包含这些函数调用时视为已翻译）

@@ -44,6 +44,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   <li>reject {@code {"comment":""}} → 400（@NotBlank）</li>
  *   <li>reject {@code {"comment":"不行"}} → 200</li>
  * </ul>
+ *
+ * <p>权限矩阵注解契约由 ProjectInitiationPermissionTest 锁定，不在本切片测试中重复。
  */
 @WebMvcTest(controllers = ProjectInitiationController.class,
         excludeFilters = @ComponentScan.Filter(

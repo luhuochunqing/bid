@@ -80,6 +80,7 @@ public class WarehouseExportNotificationPublisher {
         if (filterDTO.hasPropertyCert() != null && filterDTO.hasPropertyCert()) tags.add("有产权证");
         if (filterDTO.hasInvoice() != null && filterDTO.hasInvoice()) tags.add("有发票");
         if (filterDTO.hasPhotos() != null && filterDTO.hasPhotos()) tags.add("有照片");
+        if (filterDTO.hasLeaseContract() != null && filterDTO.hasLeaseContract()) tags.add("有租赁合同");
         if (filterDTO.contactPersonKeyword() != null) tags.add("联系人:" + filterDTO.contactPersonKeyword());
         return tags.isEmpty() ? "全部" : "全部（" + String.join("，", tags) + "）";
     }
@@ -92,10 +93,10 @@ public class WarehouseExportNotificationPublisher {
         try {
             String title = "📤 仓库信息导出包 — 完成";
             String body = String.format(
-                    "仓库信息导出包_%s.zip（%d 条，含 %d 份产权证 / %d 份发票 / %d 张照片；耗时 %d 秒；%s；附件范围：%s）",
+                    "仓库信息导出包_%s.zip（%d 条，含 %d 份产权证 / %d 份发票 / %d 张照片 / %d 份租赁合同；耗时 %d 秒；%s；附件范围：%s）",
                     task.getCompletedAt() != null ? task.getCompletedAt().format(tsFmt) : "",
                     totalCount,
-                    zip.stats().propertyCertCount, zip.stats().invoiceCount, zip.stats().photosCount,
+                    zip.stats().propertyCertCount, zip.stats().invoiceCount, zip.stats().photosCount, zip.stats().leaseContractCount,
                     elapsedMs / 1000,
                     buildFilterSummary(filterDTO),
                     formatAttachmentScope(attachmentScope));

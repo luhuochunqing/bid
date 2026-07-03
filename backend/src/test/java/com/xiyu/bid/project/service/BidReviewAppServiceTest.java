@@ -1,5 +1,5 @@
-// Input: BidReviewAppService.approveBid / rejectBid 行为
-// Output: Mockito 单元测试覆盖身份校验分支（自审/非指派/合法/null user）
+// Input: BidReviewAppService.approveBid / rejectBid / submitForReview 行为
+// Output: Mockito 单元测试覆盖身份校验 + 多人审核 + CO-483 排除/清空
 // Pos: backend test source — 防止 PR #281 类型的反复 bug 复活
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.project.service;
@@ -7,8 +7,12 @@ package com.xiyu.bid.project.service;
 import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
 import com.xiyu.bid.project.core.BidReviewStatus;
 import com.xiyu.bid.project.entity.BidDocumentReviewEntity;
+import com.xiyu.bid.project.entity.BidReviewAssignmentEntity;
+import com.xiyu.bid.project.entity.ProjectLeadAssignment;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.project.repository.BidDocumentReviewRepository;
+import com.xiyu.bid.project.repository.BidReviewAssignmentRepository;
+import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
@@ -22,6 +26,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,13 +43,14 @@ import static org.mockito.Mockito.when;
 
 /**
  * 标书审核 service 集成测试。
- * <p>覆盖 {@link BidReviewAppService#approveBid} / {@link BidReviewAppService#rejectBid}
- * 在身份校验分支下的行为：自审 403 / 非指派人 403 / 合法指派人 200 / null userId 403。</p>
+ * <p>CO-483 + CO-484：覆盖多人审核 + 驳回重提清空 + primaryLead/secondaryLead 排除。</p>
  */
 @ExtendWith(MockitoExtension.class)
 class BidReviewAppServiceTest {
 
     @Mock BidDocumentReviewRepository reviewRepository;
+    @Mock BidReviewAssignmentRepository assignmentRepository;
+    @Mock ProjectLeadAssignmentRepository leadAssignmentRepository;
     @Mock UserRepository userRepository;
     @Mock TenderRepository tenderRepository;
     @Mock ProjectRepository projectRepository;
@@ -57,6 +64,8 @@ class BidReviewAppServiceTest {
     void setUp() {
         service = new BidReviewAppService(
                 reviewRepository,
+                assignmentRepository,
+                leadAssignmentRepository,
                 userRepository,
                 tenderRepository,
                 projectRepository,
@@ -64,6 +73,8 @@ class BidReviewAppServiceTest {
                 projectAccessScopeService,
                 projectNotificationService);
         lenient().when(reviewRepository.save(any(BidDocumentReviewEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        lenient().when(assignmentRepository.save(any(BidReviewAssignmentEntity.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
         lenient().when(projectMemberRepository.findByProjectIdAndUserId(any(), any()))
                 .thenReturn(Optional.empty());
@@ -80,12 +91,23 @@ class BidReviewAppServiceTest {
                 .build();
     }
 
+    /** 构造未决 assignment */
+    private BidReviewAssignmentEntity pendingAssignment(long reviewId, long reviewerId) {
+        return BidReviewAssignmentEntity.builder()
+                .id(reviewId * 100 + reviewerId)
+                .reviewId(reviewId)
+                .reviewerId(reviewerId)
+                .build();
+    }
+
     // ── approveBid 身份校验（IJSTZG 根因修复 2026-06-07）──────────────
 
     @Test
     void approveBid_whenSelfSubmitted_throws403() {
         when(reviewRepository.findByProjectId(1L))
                 .thenReturn(Optional.of(reviewing(100L, 200L)));
+        when(assignmentRepository.findByReviewIdOrderByCreatedAtAsc(1L))
+                .thenReturn(List.of(pendingAssignment(1L, 200L)));
 
         // submittedBy (100) == currentUserId (100) → 自我审批 → 403
         assertThatThrownBy(() -> service.approveBid(1L, 100L, ""))
@@ -100,6 +122,8 @@ class BidReviewAppServiceTest {
     void approveBid_whenWrongReviewer_throws403() {
         when(reviewRepository.findByProjectId(1L))
                 .thenReturn(Optional.of(reviewing(100L, 200L)));
+        when(assignmentRepository.findByReviewIdOrderByCreatedAtAsc(1L))
+                .thenReturn(List.of(pendingAssignment(1L, 200L)));
 
         // currentUserId=999 既不是 submitter 也不是 reviewer → 403
         assertThatThrownBy(() -> service.approveBid(1L, 999L, ""))
@@ -110,14 +134,16 @@ class BidReviewAppServiceTest {
     }
 
     @Test
-    void approveBid_asAssignedReviewer_succeeds() {
+    void approveBid_asAssignedReviewer_succeeds_singleReviewer() {
         when(reviewRepository.findByProjectId(1L))
                 .thenReturn(Optional.of(reviewing(100L, 200L)));
+        when(assignmentRepository.findByReviewIdOrderByCreatedAtAsc(1L))
+                .thenReturn(List.of(pendingAssignment(1L, 200L)));
 
         // currentUserId=200 == reviewerId=200，且 != submittedBy=100 → 通过
         service.approveBid(1L, 200L, "ok");
 
-        // 验证状态被持久化为 APPROVED
+        // 单审核人 APPROVED → 聚合 APPROVED → 状态被持久化
         verify(reviewRepository).save(any(BidDocumentReviewEntity.class));
     }
 
@@ -125,6 +151,8 @@ class BidReviewAppServiceTest {
     void approveBid_whenNullCurrentUserId_throws403() {
         when(reviewRepository.findByProjectId(1L))
                 .thenReturn(Optional.of(reviewing(100L, 200L)));
+        when(assignmentRepository.findByReviewIdOrderByCreatedAtAsc(1L))
+                .thenReturn(List.of(pendingAssignment(1L, 200L)));
 
         assertThatThrownBy(() -> service.approveBid(1L, null, ""))
                 .isInstanceOf(ResponseStatusException.class)
@@ -133,7 +161,6 @@ class BidReviewAppServiceTest {
 
     @Test
     void approveBid_alreadyApproved_throws409_not403() {
-        // 已通过状态属于资源状态机违规，应当返回 409 Conflict（不是身份问题）
         BidDocumentReviewEntity approved = BidDocumentReviewEntity.builder()
                 .id(1L).projectId(1L).reviewerId(200L).submittedBy(100L)
                 .status(BidReviewStatus.APPROVED.name())
@@ -145,12 +172,51 @@ class BidReviewAppServiceTest {
                 .extracting("statusCode").isEqualTo(HttpStatus.CONFLICT);
     }
 
+    // ── CO-484 多人审核 ───────────────────────────────────────────────
+
+    @Test
+    void approveBid_multi_oneApprovedOnePending_aggregateReviewing_noOverallApprove() {
+        // 2 审核人，1 人 APPROVED，1 人未决 → 整体 REVIEWING，不应调 reviewRepository.save
+        when(reviewRepository.findByProjectId(1L))
+                .thenReturn(Optional.of(reviewing(100L, 200L)));
+        BidReviewAssignmentEntity a200 = BidReviewAssignmentEntity.builder()
+                .id(11L).reviewId(1L).reviewerId(200L).decision("APPROVED").build();
+        BidReviewAssignmentEntity a201 = pendingAssignment(1L, 201L);
+        when(assignmentRepository.findByReviewIdOrderByCreatedAtAsc(1L))
+                .thenReturn(List.of(a200, a201));
+
+        service.approveBid(1L, 201L, "ok");
+
+        // 整体仍 REVIEWING（1 通过 1 未决），不应保存整体审核记录
+        verify(reviewRepository, never()).save(any(BidDocumentReviewEntity.class));
+        // 但应保存 201 的个人决策
+        verify(assignmentRepository).save(any(BidReviewAssignmentEntity.class));
+    }
+
+    @Test
+    void approveBid_multi_allApproved_aggregateApproved_overallApprove() {
+        when(reviewRepository.findByProjectId(1L))
+                .thenReturn(Optional.of(reviewing(100L, 200L)));
+        BidReviewAssignmentEntity a200 = BidReviewAssignmentEntity.builder()
+                .id(11L).reviewId(1L).reviewerId(200L).decision("APPROVED").build();
+        BidReviewAssignmentEntity a201 = pendingAssignment(1L, 201L);
+        when(assignmentRepository.findByReviewIdOrderByCreatedAtAsc(1L))
+                .thenReturn(List.of(a200, a201));
+
+        service.approveBid(1L, 201L, "ok");
+
+        // 整体 APPROVED → 应保存整体审核记录
+        verify(reviewRepository).save(any(BidDocumentReviewEntity.class));
+    }
+
     // ── rejectBid 身份校验 ───────────────────────────────────────────
 
     @Test
     void rejectBid_whenSelfSubmitted_throws403() {
         when(reviewRepository.findByProjectId(1L))
                 .thenReturn(Optional.of(reviewing(100L, 200L)));
+        when(assignmentRepository.findByReviewIdOrderByCreatedAtAsc(1L))
+                .thenReturn(List.of(pendingAssignment(1L, 200L)));
 
         assertThatThrownBy(() -> service.rejectBid(1L, 100L, "内容不符"))
                 .isInstanceOf(ResponseStatusException.class)
@@ -163,6 +229,8 @@ class BidReviewAppServiceTest {
     void rejectBid_asAssignedReviewer_succeeds() {
         when(reviewRepository.findByProjectId(1L))
                 .thenReturn(Optional.of(reviewing(100L, 200L)));
+        when(assignmentRepository.findByReviewIdOrderByCreatedAtAsc(1L))
+                .thenReturn(List.of(pendingAssignment(1L, 200L)));
 
         service.rejectBid(1L, 200L, "内容不符");
 
@@ -171,9 +239,10 @@ class BidReviewAppServiceTest {
 
     @Test
     void rejectBid_emptyReason_throws409() {
-        // 状态合法 (REVIEWING) + 身份合法 + reason 为空 → 状态机违规 → 409
         when(reviewRepository.findByProjectId(1L))
                 .thenReturn(Optional.of(reviewing(100L, 200L)));
+        when(assignmentRepository.findByReviewIdOrderByCreatedAtAsc(1L))
+                .thenReturn(List.of(pendingAssignment(1L, 200L)));
 
         assertThatThrownBy(() -> service.rejectBid(1L, 200L, ""))
                 .isInstanceOf(ResponseStatusException.class)
@@ -186,10 +255,14 @@ class BidReviewAppServiceTest {
     void getReviewState_returnsPersistedFields() {
         when(reviewRepository.findByProjectId(1L))
                 .thenReturn(Optional.of(reviewing(100L, 200L)));
+        when(assignmentRepository.findByReviewIdOrderByCreatedAtAsc(1L))
+                .thenReturn(List.of(pendingAssignment(1L, 200L)));
 
         var state = service.getReviewState(1L);
         assertThat(state.status()).isEqualTo("REVIEWING");
         assertThat(state.reviewerId()).isEqualTo(200L);
+        assertThat(state.reviewers()).hasSize(1);
+        assertThat(state.reviewers().get(0).getReviewerId()).isEqualTo(200L);
     }
 
     // ── submitForReview 标书审核人校验 ──────────────────────────────────────
@@ -203,8 +276,9 @@ class BidReviewAppServiceTest {
                 .build();
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
         when(reviewRepository.findByProjectId(1L)).thenReturn(Optional.empty());
+        when(leadAssignmentRepository.findByProjectId(1L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.submitForReview(1L, 10L, 100L))
+        assertThatThrownBy(() -> service.submitForReview(1L, List.of(10L), 100L))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("标书审核人必须是未参与本项目的人员")
                 .extracting("statusCode").isEqualTo(HttpStatus.BAD_REQUEST);
@@ -221,8 +295,9 @@ class BidReviewAppServiceTest {
                 .build();
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
         when(reviewRepository.findByProjectId(1L)).thenReturn(Optional.empty());
+        when(leadAssignmentRepository.findByProjectId(1L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.submitForReview(1L, 11L, 100L))
+        assertThatThrownBy(() -> service.submitForReview(1L, List.of(11L), 100L))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("标书审核人必须是未参与本项目的人员")
                 .extracting("statusCode").isEqualTo(HttpStatus.BAD_REQUEST);
@@ -240,11 +315,12 @@ class BidReviewAppServiceTest {
                 .build();
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
         when(reviewRepository.findByProjectId(1L)).thenReturn(Optional.empty());
+        when(leadAssignmentRepository.findByProjectId(1L)).thenReturn(Optional.empty());
         lenient().when(tenderRepository.findById(any())).thenReturn(Optional.empty());
         lenient().when(userRepository.findById(any())).thenReturn(Optional.empty());
 
         // reviewerId=99 既不是 manager=10 也不是 teamMembers=[11, 12] → 允许
-        service.submitForReview(1L, 99L, 100L);
+        service.submitForReview(1L, List.of(99L), 100L);
 
         verify(reviewRepository).save(any(BidDocumentReviewEntity.class));
     }
@@ -261,13 +337,109 @@ class BidReviewAppServiceTest {
                 .build();
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
         when(reviewRepository.findByProjectId(1L)).thenReturn(Optional.empty());
+        when(leadAssignmentRepository.findByProjectId(1L)).thenReturn(Optional.empty());
         lenient().when(tenderRepository.findById(any())).thenReturn(Optional.empty());
         lenient().when(userRepository.findById(any())).thenReturn(Optional.empty());
 
-        service.submitForReview(1L, 99L, 100L);
+        service.submitForReview(1L, List.of(99L), 100L);
 
         verify(projectNotificationService).notifyBidReviewSubmitted(
                 eq(1L), eq(99L), eq(100L),
                 any(), any(), any(), any());
+    }
+
+    // ── CO-483 + CO-484 新增场景 ─────────────────────────────────────
+
+    @Test
+    void submitForReview_whenReviewerIsPrimaryLead_throws400() {
+        com.xiyu.bid.entity.Project project = com.xiyu.bid.entity.Project.builder()
+                .id(1L)
+                .managerId(10L)
+                .teamMembers(new ArrayList<>())
+                .tenderId(1L)
+                .build();
+        ProjectLeadAssignment lead = ProjectLeadAssignment.builder()
+                .projectId(1L).primaryLeadUserId(20L).secondaryLeadUserId(21L).build();
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(reviewRepository.findByProjectId(1L)).thenReturn(Optional.empty());
+        when(leadAssignmentRepository.findByProjectId(1L)).thenReturn(Optional.of(lead));
+
+        // reviewer=20 是 primaryLead → 400
+        assertThatThrownBy(() -> service.submitForReview(1L, List.of(20L), 100L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("标书审核人必须是未参与本项目的人员")
+                .extracting("statusCode").isEqualTo(HttpStatus.BAD_REQUEST);
+
+        verify(reviewRepository, never()).save(any());
+    }
+
+    @Test
+    void submitForReview_whenReviewerIsSecondaryLead_throws400() {
+        com.xiyu.bid.entity.Project project = com.xiyu.bid.entity.Project.builder()
+                .id(1L)
+                .managerId(10L)
+                .teamMembers(new ArrayList<>())
+                .tenderId(1L)
+                .build();
+        ProjectLeadAssignment lead = ProjectLeadAssignment.builder()
+                .projectId(1L).primaryLeadUserId(20L).secondaryLeadUserId(21L).build();
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(reviewRepository.findByProjectId(1L)).thenReturn(Optional.empty());
+        when(leadAssignmentRepository.findByProjectId(1L)).thenReturn(Optional.of(lead));
+
+        // reviewer=21 是 secondaryLead → 400
+        assertThatThrownBy(() -> service.submitForReview(1L, List.of(21L), 100L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("标书审核人必须是未参与本项目的人员")
+                .extracting("statusCode").isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void submitForReview_whenReviewerContainsSelf_throws400() {
+        // CO-483 后端兜底：reviewerIds 含 submittedBy → 400
+        assertThatThrownBy(() -> service.submitForReview(1L, List.of(100L, 99L), 100L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("标书审核人不能选择自己")
+                .extracting("statusCode").isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void submitForReview_whenMoreThan2Reviewers_throws422() {
+        // CO-484 调整：最多 2 人
+        assertThatThrownBy(() -> service.submitForReview(1L, List.of(99L, 100L, 101L), 1L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("最多")
+                .extracting("statusCode").isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    @Test
+    void submitForReview_whenDuplicateReviewers_throws422() {
+        assertThatThrownBy(() -> service.submitForReview(1L, List.of(99L, 99L), 100L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("不能重复")
+                .extracting("statusCode").isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    @Test
+    void submitForReview_whenRejectedResubmit_clearsOldAssignments() {
+        // CO-483：驳回重提场景清空旧 assignment
+        BidDocumentReviewEntity existing = BidDocumentReviewEntity.builder()
+                .id(1L).projectId(1L).reviewerId(200L).submittedBy(100L)
+                .status(BidReviewStatus.REJECTED.name())
+                .build();
+        com.xiyu.bid.entity.Project project = com.xiyu.bid.entity.Project.builder()
+                .id(1L).managerId(10L).teamMembers(new ArrayList<>()).tenderId(1L).build();
+        when(reviewRepository.findByProjectId(1L)).thenReturn(Optional.of(existing));
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(leadAssignmentRepository.findByProjectId(1L)).thenReturn(Optional.empty());
+        lenient().when(tenderRepository.findById(any())).thenReturn(Optional.empty());
+        lenient().when(userRepository.findById(any())).thenReturn(Optional.empty());
+
+        service.submitForReview(1L, List.of(99L, 101L), 100L);
+
+        // 应清空旧 assignment
+        verify(assignmentRepository).deleteByReviewId(1L);
+        // 应为每个 reviewerId 建未决 assignment（2 人）
+        verify(assignmentRepository).save(any(BidReviewAssignmentEntity.class));
     }
 }

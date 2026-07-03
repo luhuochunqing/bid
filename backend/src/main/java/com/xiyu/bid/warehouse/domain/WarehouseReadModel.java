@@ -26,6 +26,7 @@ public interface WarehouseReadModel {
     Boolean getHasPropertyCert();
     Boolean getHasInvoice();
     Boolean getHasPhotos();
+    Boolean getHasLeaseContract();
     String getCertRemarks();
     WarehouseStatus getStatus();
     Long getCreatedBy();

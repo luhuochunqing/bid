@@ -101,7 +101,7 @@ public class WarehouseLedgerExportAppService {
         if ("all_in_use".equals(req.scope())) {
             WarehouseFilterDTO f = new WarehouseFilterDTO(
                     null, null, List.of(WarehouseStatus.IN_USE), null, null, null, null,
-                    null, null, null, null);
+                    null, null, null, null, null);
             return filterService.filterAll(f);
         }
         // 默认: current filter

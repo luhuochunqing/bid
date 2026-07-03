@@ -41,7 +41,8 @@
             <el-descriptions-item label="产权证"><el-tag size="small" :type="detail.hasPropertyCert?'success':'info'">{{ detail.hasPropertyCert?'有':'无' }}</el-tag></el-descriptions-item>
             <el-descriptions-item label="发票"><el-tag size="small" :type="detail.hasInvoice?'success':'info'">{{ detail.hasInvoice?'有':'无' }}</el-tag></el-descriptions-item>
             <el-descriptions-item label="内外照片"><el-tag size="small" :type="detail.hasPhotos?'success':'info'">{{ detail.hasPhotos?'有':'无' }}</el-tag></el-descriptions-item>
-            <el-descriptions-item label="核验备注" :span="3">{{ detail.certRemarks || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="租赁合同"><el-tag size="small" :type="detail.hasLeaseContract?'success':'info'">{{ detail.hasLeaseContract?'有':'无' }}</el-tag></el-descriptions-item>
+            <el-descriptions-item label="核验备注" :span="2">{{ detail.certRemarks || '—' }}</el-descriptions-item>
           </el-descriptions>
         </el-tab-pane>
         <el-tab-pane label="附件管理" name="attachments">
@@ -51,6 +52,7 @@
               <el-option label="产权证" value="PROPERTY_CERTIFICATE" />
               <el-option label="发票" value="INVOICE" />
               <el-option label="内外照片" value="PHOTOS" />
+              <el-option label="租赁合同" value="LEASE_CONTRACT" />
             </el-select>
           </div>
           <input ref="fileInputRef" type="file" style="display:none" accept="*" @change="handleFileChange" />
@@ -120,7 +122,7 @@ const fileInputRef = ref(); const logPage = ref(1); const logTotal = ref(0)
 const pageSize = 10
 
 const STATUS_MAP = { IN_USE:'使用中', EXPIRING:'即将到期', EXPIRED:'已过期', CLOSED:'已关仓' }
-const ATTACH_TYPE_MAP = { PROPERTY_CERTIFICATE:'产权证', INVOICE:'发票', PHOTOS:'内外照片' }
+const ATTACH_TYPE_MAP = { PROPERTY_CERTIFICATE:'产权证', INVOICE:'发票', PHOTOS:'内外照片', LEASE_CONTRACT:'租赁合同' }
 const statusLabel = (s) => STATUS_MAP[s] || s
 const statusType = (s) => s==='IN_USE'?'success':s==='EXPIRING'?'warning':s==='EXPIRED'?'danger':'info'
 const typeLabel = (t) => ATTACH_TYPE_MAP[t] || t

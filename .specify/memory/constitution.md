@@ -123,11 +123,11 @@ YAGNI 原则避免过度工程化。
 （如 `ProjectDocumentWorkflowPolicy`、`PlatformAccountViewerPolicy`）。Controller
 不得用 `hasAnyRole` 一刀切收紧（详见 lessons-learned §24、§28）。
 
-**存量治理**：截至本 Constitution v1.3.0，全仓有 177 处 `hasAnyRole`/`hasRole`
-使用点（含 105 处 `hasAnyRole('ADMIN','MANAGER')`）作为技术债登记在
-`specs/<feature>/`，MUST 分批迁移到 `hasAuthority`。迁移期间 MUST 同步新增
-ArchitectureTest 守卫，确保债务不再增长；全部迁移完成后 ArchitectureTest
-从警告升级为硬失败门禁。
+**存量治理**：截至本 Constitution v1.3.0，全仓有 ~150 处 `hasAnyRole`/`hasRole`
+使用点作为历史存量。**不强制全部迁移**——优先用功能级权限审计（对照飞书权限矩阵
+文档，逐功能点验证角色/数据范围/状态收口）保障正确性，而非语法层面的统一。
+存量 `hasAnyRole` 在功能级契约测试已覆盖的场景下可保留；新增端点优先用
+`hasAuthority`/`isAuthenticated`。
 
 **Rationale**: 2026-06-16 的 `eb58f2817` 切断了 `bid-otherDept`/`bid-administration`/
 `bid-Team` 三个角色的 `ROLE_STAFF`/`ROLE_MANAGER` legacy 兼容（堵越权），但未同步
@@ -224,14 +224,14 @@ stream collection、装饰性 enrichment 和异常处理 MUST 满足以下规则
   不得在代码中硬编码生产源。
 - **API Authorization**: Controller 方法 MUST 使用 `@PreAuthorize` 注解控制访问，
   且只允许 `isAuthenticated()` 或 `hasAuthority('<permissionKey>')` 两种形态
-  （详见 Core Principle VII）。禁止 `hasAnyRole`/`hasRole` 角色枚举式白名单。
-  权限键 MUST 与 `RoleProfileCatalog.SeedDefinition.menuPermissions` 中注册的
-  `permissionKey` 严格一致。新增模块 MUST 先在 `RoleProfileCatalog` 注册权限键 +
+  （详见 Core Principle VII）。`hasAnyRole`/`hasRole` 角色枚举式白名单不推荐，
+  优先用 `hasAuthority('<permissionKey>')`。权限键 MUST 与 `RoleProfileCatalog.SeedDefinition.menuPermissions`
+  中注册的 `permissionKey` 严格一致。新增模块 MUST 先在 `RoleProfileCatalog` 注册权限键 +
   Flyway 迁移同步角色权限，再写 Controller `@PreAuthorize`。
-- **Authorization ArchTest Gate**: ArchitectureTest MUST 包含守卫规则，禁止
-  `@PreAuthorize` 表达式中出现 `hasAnyRole`/`hasRole`。迁移过渡期内已有的 177 处
-  使用点作为白名单豁免（逐 Controller 移除后从豁免清单删除）；新增使用点 MUST NOT
-  进入豁免清单。全部迁移完成后豁免清单清空，守卫升级为硬失败门禁。
+- **权限防漂移机制**: 权限语义的防漂移由**功能级契约测试**保障（锁定角色/数据范围/状态收口），
+  而非语法层面的 hasAnyRole 计数。见 `docs/audit/tender-permission-audit-2026-07-03.md`
+  与 `project-permission-audit-2026-07-03.md`。原 ArchitectureTest hasAnyRole 总数守卫
+  已于 2026-07-03 移除（P3 机械迁移方向废弃，转向功能级审计）。
 
 ## Development Workflow & Multi-Agent SOP
 
@@ -266,4 +266,4 @@ Constitution 对齐，而非反之。
 - 违反 MUST 在 `plan.md` 的 Complexity Tracking 表中记录并给出正当理由
 - 架构测试（`mvn test -Dtest=ArchitectureTest`）作为自动化合规门禁
 
-**Version**: 1.3.0 | **Ratified**: 2026-05-15 | **Last Amended**: 2026-07-02
+**Version**: 1.3.1 | **Ratified**: 2026-05-15 | **Last Amended**: 2026-07-03

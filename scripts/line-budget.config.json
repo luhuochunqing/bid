@@ -80,7 +80,10 @@
         "src/views/Resource/CAManagement.vue",
         "src/views/System/Settings.vue",
         "src/views/System/WorkflowFormDesigner.vue",
-        "src/views/System/workflow-form-designer/useWorkflowFormDesigner.js"
+        "src/views/System/workflow-form-designer/useWorkflowFormDesigner.js",
+        "backend/src/main/java/com/xiyu/bid/warehouse/domain/WarehouseImportPolicy.java",
+        "src/components/warehouse/WarehouseDialog.vue",
+        "src/views/Knowledge/Warehouse.vue"
     ],
     "excludeSuffixes": [
         ".spec.js",

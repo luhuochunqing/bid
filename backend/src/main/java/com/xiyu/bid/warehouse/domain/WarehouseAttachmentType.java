@@ -3,7 +3,8 @@ package com.xiyu.bid.warehouse.domain;
 public enum WarehouseAttachmentType {
     PROPERTY_CERTIFICATE("产权证"),
     INVOICE("发票"),
-    PHOTOS("内外照片");
+    PHOTOS("内外照片"),
+    LEASE_CONTRACT("租赁合同");
 
     private final String displayName;
     WarehouseAttachmentType(String displayName) { this.displayName = displayName; }

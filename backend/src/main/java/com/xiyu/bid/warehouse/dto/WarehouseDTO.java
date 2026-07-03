@@ -29,5 +29,6 @@ public class WarehouseDTO {
     private Boolean hasPropertyCert;
     private Boolean hasInvoice;
     private Boolean hasPhotos;
+    private Boolean hasLeaseContract;
     private String certRemarks;
 }

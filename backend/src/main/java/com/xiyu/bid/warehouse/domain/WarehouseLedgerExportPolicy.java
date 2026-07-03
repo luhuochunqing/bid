@@ -11,15 +11,15 @@ public class WarehouseLedgerExportPolicy {
     public static final int COL_INDEX = 0, COL_NAME = 1, COL_TYPE = 2, COL_REGION = 3, COL_PROVINCE = 4;
     public static final int COL_ADDRESS = 5, COL_AREA = 6, COL_CONTACT = 7, COL_START = 8, COL_END = 9;
     public static final int COL_LESSOR = 10, COL_LESSEE = 11, COL_INVOICE_PERIOD = 12;
-    public static final int COL_HAS_CERT = 13, COL_HAS_INVOICE = 14, COL_HAS_PHOTOS = 15;
-    public static final int COL_CLOSE_PLAN = 16, COL_STATUS = 17, COL_REMARKS = 18;
-    public static final int COL_CREATED_AT = 19, COL_CREATED_BY = 20;
-    public static final int HEADER_COUNT = 21;
+    public static final int COL_HAS_CERT = 13, COL_HAS_INVOICE = 14, COL_HAS_PHOTOS = 15, COL_HAS_LEASE_CONTRACT = 16;
+    public static final int COL_CLOSE_PLAN = 17, COL_STATUS = 18, COL_REMARKS = 19;
+    public static final int COL_CREATED_AT = 20, COL_CREATED_BY = 21;
+    public static final int HEADER_COUNT = 22;
     private static final Set<Integer> BASIC_INFO = Set.of(COL_NAME, COL_TYPE, COL_REGION, COL_PROVINCE, COL_ADDRESS, COL_AREA, COL_CONTACT, COL_REMARKS);
     private static final Set<Integer> LEASE_INFO = Set.of(COL_START, COL_END, COL_LESSOR, COL_LESSEE, COL_INVOICE_PERIOD, COL_CLOSE_PLAN);
-    private static final Set<Integer> DOC_STATUS = Set.of(COL_HAS_CERT, COL_HAS_INVOICE, COL_HAS_PHOTOS, COL_STATUS);
+    private static final Set<Integer> DOC_STATUS = Set.of(COL_HAS_CERT, COL_HAS_INVOICE, COL_HAS_PHOTOS, COL_HAS_LEASE_CONTRACT, COL_STATUS);
     private static final Set<Integer> META_INFO = Set.of(COL_CREATED_AT, COL_CREATED_BY);
-    public static final String[] HEADERS = {"序号", "仓库名称", "仓库类型", "所属区域", "所在省份", "具体地址", "面积", "区域联系人", "开始时间", "结束时间", "出租方", "承租方", "发票租期", "是否有产权证", "是否有发票", "是否有内外照片", "关仓计划", "状态", "备注", "创建时间", "创建人"};
+    public static final String[] HEADERS = {"序号", "仓库名称", "仓库类型", "所属区域", "所在省份", "具体地址", "面积", "区域联系人", "开始时间", "结束时间", "出租方", "承租方", "发票租期", "是否有产权证", "是否有发票", "是否有内外照片", "是否有租赁合同", "关仓计划", "状态", "备注", "创建时间", "创建人"};
     public enum Section { BASIC, LEASE, DOC, META }
     private WarehouseLedgerExportPolicy() {}
 
@@ -53,7 +53,7 @@ public class WarehouseLedgerExportPolicy {
     }
     private static String[] fullRow(WarehouseReadModel e, int seq, Map<Long, String> usernameById) {
         String createdByName = e.getCreatedBy() != null ? usernameById.getOrDefault(e.getCreatedBy(), "") : "";
-        return new String[]{String.valueOf(seq), nvl(e.getName()), displayName(e.getType()), nvl(e.getRegion()), nvl(e.getProvince()), nvl(e.getAddress()), e.getArea() != null ? e.getArea().toPlainString() : "", nvl(e.getContactPerson()), e.getStartDate() != null ? e.getStartDate().toString() : "", e.getEndDate() != null ? e.getEndDate().toString() : "", nvl(e.getLessor()), nvl(e.getLessee()), formatInvoicePeriod(e), boolLabel(e.getHasPropertyCert()), boolLabel(e.getHasInvoice()), boolLabel(e.getHasPhotos()), nvl(e.getClosePlan()), e.getStatus() != null ? e.getStatus().getDisplayName() : "", nvl(e.getRemarks()), e.getCreatedAt() != null ? e.getCreatedAt().toString() : "", createdByName};
+        return new String[]{String.valueOf(seq), nvl(e.getName()), displayName(e.getType()), nvl(e.getRegion()), nvl(e.getProvince()), nvl(e.getAddress()), e.getArea() != null ? e.getArea().toPlainString() : "", nvl(e.getContactPerson()), e.getStartDate() != null ? e.getStartDate().toString() : "", e.getEndDate() != null ? e.getEndDate().toString() : "", nvl(e.getLessor()), nvl(e.getLessee()), formatInvoicePeriod(e), boolLabel(e.getHasPropertyCert()), boolLabel(e.getHasInvoice()), boolLabel(e.getHasPhotos()), boolLabel(e.getHasLeaseContract()), nvl(e.getClosePlan()), e.getStatus() != null ? e.getStatus().getDisplayName() : "", nvl(e.getRemarks()), e.getCreatedAt() != null ? e.getCreatedAt().toString() : "", createdByName};
     }
     private static String formatInvoicePeriod(WarehouseReadModel e) {
         LocalDate s = e.getInvoicePeriodStart(), t = e.getInvoicePeriodEnd();

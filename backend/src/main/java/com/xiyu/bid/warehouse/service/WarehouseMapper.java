@@ -25,6 +25,7 @@ public class WarehouseMapper {
                 .invoicePeriodEnd(d.getInvoicePeriodEnd())
                 .closePlan(d.getClosePlan())
                 .hasPropertyCert(d.getHasPropertyCert()).hasInvoice(d.getHasInvoice()).hasPhotos(d.getHasPhotos())
+                .hasLeaseContract(d.getHasLeaseContract())
                 .certRemarks(d.getCertRemarks()).build();
     }
 
@@ -48,6 +49,7 @@ public class WarehouseMapper {
         if (d.getHasPropertyCert() != null) e.setHasPropertyCert(d.getHasPropertyCert());
         if (d.getHasInvoice() != null) e.setHasInvoice(d.getHasInvoice());
         if (d.getHasPhotos() != null) e.setHasPhotos(d.getHasPhotos());
+        if (d.getHasLeaseContract() != null) e.setHasLeaseContract(d.getHasLeaseContract());
         if (d.getCertRemarks() != null) e.setCertRemarks(d.getCertRemarks());
     }
 
@@ -63,7 +65,7 @@ public class WarehouseMapper {
                 e.getLessor(), e.getLessee(),
                 e.getInvoicePeriod(), e.getInvoicePeriodStart(), e.getInvoicePeriodEnd(),
                 e.getClosePlan(), e.getCloseReason(),
-                e.getHasPropertyCert(), e.getHasInvoice(), e.getHasPhotos(),
+                e.getHasPropertyCert(), e.getHasInvoice(), e.getHasPhotos(), e.getHasLeaseContract(),
                 e.getCertRemarks(),
                 WarehouseDetailDTO.WarehouseStatusEnum.valueOf(e.getStatus().name()),
                 e.getCreatedBy(), e.getCreatedAt(), e.getUpdatedAt(), e.getVersion(),

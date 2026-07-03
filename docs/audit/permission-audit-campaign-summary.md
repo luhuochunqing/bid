@@ -113,3 +113,36 @@ hasAnyRole → hasAuthority（语法换写）
 ---
 
 *本战役从 1 个 403 bug 开始，最终产出 50 个契约测试 + 2 个越权修复 + 全面的权限矩阵锁定。核心价值不在"消除 hasAnyRole"，而在"按文档锁定每个功能点的真实权限语义，防止未来漂移"。*
+
+---
+
+## 六、守卫移除（2026-07-03，PR 同 commit）
+
+### 背景
+
+PR #1557 建立的 ArchitectureTest hasAnyRole 总数守卫（`EXPECTED_LEGACY_USE_COUNT`）原为防止 P3 机械迁移期间新增 hasAnyRole。但方向纠偏后：
+1. P3 机械迁移已废弃（转向功能级审计）
+2. 50 个功能级契约测试已锁定真实权限语义（这是正确的防漂移手段）
+3. 守卫只锁语法（hasAnyRole 字面量），**阻塞所有改 @PreAuthorize 的 backend PR**
+4. 守卫不锁业务语义（新增合理 hasAnyRole 临时补丁也被拦）
+
+### 移除内容
+
+- `legacy_hasanyrole_count_must_match_baseline`（规则 1：总数断言）
+- `preauthorize_should_not_use_role_enumeration`（规则 2：注解扫描）
+- `EXPECTED_LEGACY_USE_COUNT` 常量 + `countPreAuthorizeWithRoleEnumeration` 辅助方法
+- `NOT_USE_ROLE_ENUMERATION_AUTH_METHOD/CLASS` ArchCondition
+
+### 宪法同步（v1.3.0 → v1.3.1）
+
+- §Authorization ArchTest Gate 条目移除强制要求，改为"由功能级契约测试防漂移"
+- §VI 存量治理：从"MUST 分批迁移"改为"不强制全部迁移，优先功能级审计"
+
+### 留下的防漂移手段
+
+**50 个功能级契约测试**——这才是正确的防漂移：
+- 锁定角色准入（哪个角色能进哪个端点）
+- 锁定数据范围（全量/自己的/参与的）
+- 锁定状态收口（编辑/删除/转派的状态递减）
+- 未来任何权限漂移立即变红
+

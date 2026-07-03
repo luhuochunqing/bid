@@ -7,6 +7,8 @@ package com.xiyu.bid.project.dto;
 import lombok.Builder;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 @Builder
 public class ProjectDraftingViewDto {
@@ -19,12 +21,14 @@ public class ProjectDraftingViewDto {
     // ── 标书审核字段 ──────────────────────────────────────────────────────
     /** 审核状态：null / REVIEWING / APPROVED / REJECTED */
     private String reviewStatus;
-    /** 审核人用户 ID */
+    /** 审核人用户 ID（CO-484 起保留作主审核人冗余，真正多人决策走 reviewers 列表） */
     private Long reviewerId;
-    /** 审核人名称 */
+    /** 审核人名称（CO-484 起保留作主审核人冗余） */
     private String reviewerName;
-    /** 驳回原因 */
+    /** 驳回原因（CO-484 多人场景下为"驳回人：原因"列表拼接） */
     private String rejectReason;
+    /** 审核人决策列表（CO-484 多人审核，每人 id/name/decision/comment） */
+    private List<ReviewerDecisionDto> reviewers;
 
     /** 是否已提交投标（推进到评标阶段） */
     private Boolean bidSubmitted;

@@ -29,6 +29,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -76,7 +78,7 @@ public class ProjectDraftingController {
                 service.submitBid(projectId, userId)));
     }
 
-    /** 提交标书审核 */
+    /** 提交标书审核（CO-484 多人审核：reviewerIds 数组，最多 2 人） */
     @PostMapping("/submit-review")
     @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM', 'SALES')")
     public ResponseEntity<ApiResponse<ProjectDraftingViewDto>> submitForReview(
@@ -84,13 +86,35 @@ public class ProjectDraftingController {
             @RequestBody Map<String, Object> payload,
             @AuthenticationPrincipal UserDetails userDetails) {
         Long userId = currentUserId(userDetails);
-        Long reviewerId = payload != null && payload.get("reviewerId") != null
-                ? Long.valueOf(payload.get("reviewerId").toString()) : null;
-        if (reviewerId == null) {
+        // CO-484：reviewerIds 数组（兼容旧 reviewerId 单值字段，前端迁移期可二选一）
+        List<Long> reviewerIds = parseReviewerIds(payload);
+        if (reviewerIds.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "标书审核人不能为空");
         }
         return ResponseEntity.ok(ApiResponse.success("review submitted",
-                service.submitForReview(projectId, reviewerId, userId)));
+                service.submitForReview(projectId, reviewerIds, userId)));
+    }
+
+    /**
+     * CO-484：从 payload 解析 reviewerIds 数组。
+     * <p>优先读 reviewerIds（数组），回退到旧 reviewerId（单值，向后兼容）。</p>
+     */
+    private List<Long> parseReviewerIds(Map<String, Object> payload) {
+        if (payload == null) return List.of();
+        Object raw = payload.get("reviewerIds");
+        if (raw instanceof List<?> list) {
+            List<Long> result = new ArrayList<>();
+            for (Object item : list) {
+                if (item != null) result.add(Long.valueOf(item.toString()));
+            }
+            return result;
+        }
+        // 兼容旧 reviewerId 单值
+        Object single = payload.get("reviewerId");
+        if (single != null) {
+            return List.of(Long.valueOf(single.toString()));
+        }
+        return List.of();
     }
 
     /** 审核通过（CO-315：鉴权下沉到项目访问权限 + BidReviewPolicy 校验审核人身份） */

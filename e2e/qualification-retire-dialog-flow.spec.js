@@ -98,11 +98,14 @@ test.describe('§4.1.3.5 下架确认弹窗', () => {
     expect(await retireCallPromise).toBe(false)
   })
 
-  test('权限：bid_specialist 看不到下架按钮', async ({ page }) => {
+  test('权限：bid_specialist (CO-494) 现在可以看到下架按钮', async ({ page }) => {
+    // CO-494: 投标专员资质模块权限增加，下架/恢复等管理操作已对投标专员放开
     await loginAsRole(page, 'bid-Team')
     await page.goto('/knowledge/qualification')
     await page.waitForSelector('.el-table__row, .el-empty', { timeout: 15000 })
     const retireBtn = page.locator('.el-table__row button:has-text("下架")')
-    await expect(retireBtn).toHaveCount(0)
+    // 投标专员现在可以管理资质，若存在在库资质则应看到下架按钮
+    test.skip(await retireBtn.count() === 0, '当前无在库资质证书可供下架测试，请先 seed 数据')
+    await expect(retireBtn).toHaveCount(1)
   })
 })

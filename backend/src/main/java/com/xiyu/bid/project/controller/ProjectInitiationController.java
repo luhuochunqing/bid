@@ -42,7 +42,7 @@ public class ProjectInitiationController {
 
     /** 提交立项：bid-projectLeader/bid-TeamLeader（映射到 MANAGER/ADMIN）。 */
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN','BID_PROJECTLEADER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_PROJECTLEADER', 'BID_TEAMLEADER')")
     public ResponseEntity<ApiResponse<InitiationViewDto>> submit(
             @PathVariable Long projectId,
             @Valid @RequestBody InitiationDto req,
@@ -55,7 +55,7 @@ public class ProjectInitiationController {
 
     /** 更新立项：触碰 lockedFields 返回 423。 */
     @PatchMapping
-    @PreAuthorize("hasAnyRole('ADMIN','BID_PROJECTLEADER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_PROJECTLEADER', 'BID_TEAMLEADER')")
     public ResponseEntity<ApiResponse<InitiationViewDto>> update(
             @PathVariable Long projectId,
             @Valid @RequestBody InitiationDto req,

@@ -2473,7 +2473,138 @@ node scripts/check-vue-enum-direct-render.mjs
 - `scripts/check-vue-enum-direct-render.mjs` — 防复发静态检查脚本
 - `src/views/Project/utils/projectListFormatters.js` — customerTypeLabel formatter 函数
 
-## 35. Collectors.toMap 无 merge function 三层失效 + 35 处全仓治理（PR !1640 + Spec Kit 027）
+## 35. 筛选语义必须与展示列对齐 + 「null 永真 fallback」是隐形 bug 放大器（PR !1642）
+
+### 问题背景
+
+用户在投标项目列表按投标负责人筛选"陈梦瑶"，张莉娜的项目也显示出来。用户反馈"PR1574 已经改了但是没生效"，要求看服务器数据库。
+
+排查后发现：**PR1574 实际上已部署生效**，"没生效"是错觉。真正的根因是 PR1574 修复后筛选真正工作，反而暴露了之前被掩盖的 OR 匹配语义设计问题。
+
+### 根因链路（双层 bug 叠加）
+
+**第一层（PR1574 修复前 — 筛选根本不工作，但伪装成正常）**：
+
+```javascript
+// UserPicker.vue（修复前）
+:value-key="valueField"  // valueField 默认 'id'
+
+// 但 selectOptions 生成的 option 格式是 { value, label }
+// option 对象中没有 id 字段 → 选中后值为 undefined
+```
+
+```javascript
+// useProjectFilter.js matchId 函数
+function matchId(filterVal, ...fieldVals) {
+  if (filterVal == null || filterVal === '') return true  // ← undefined == null 为 true
+  // ...
+}
+// → 筛选值 undefined → 永远返回 true → 等于不筛选 → 所有项目都显示
+```
+
+**第二层（PR1574 修复后 — 筛选生效，暴露 OR 语义问题）**：
+
+```javascript
+// useProjectFilter.js:68（修复前）
+if (!matchId(f.biddingLeaderId, p.biddingLeaderId, p.secondaryBiddingLeaderId)) return false
+//                                                                    ↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑
+// matchId 是 fieldVals.some(...) → 主负责人 OR 副负责人任一匹配即命中
+```
+
+而展示列 `biddingLeaderName` 只显示主负责人姓名（来自 `project_initiation_details.bidding_leader_name`，只存主负责人，没有副负责人字段）。
+
+**结果**：筛"陈梦瑶"时，主=张莉娜/副=陈梦瑶的项目（project 136）被命中（副匹配），但列表显示"张莉娜"，用户误以为筛错了。
+
+### 数据库证据（生产 winbid）
+
+| project_id | 展示列 `bidding_leader_name` | 主投标 ID | 副投标 ID | 筛"陈梦瑶"是否命中 | 用户看到 |
+|---|---|---|---|---|---|
+| 114 | 陈梦瑶 | 7246 陈梦瑶 | NULL | ✓ 主匹配 | 陈梦瑶 ✓ |
+| 136 | **张莉娜** | 7396 **张莉娜** | 7246 **陈梦瑶** | ✓ **副匹配** | **张莉娜** ✗ |
+| 146 | 陈梦瑶 | 7246 陈梦瑶 | 7396 张莉娜 | ✓ 主匹配 | 陈梦瑶 ✓ |
+
+### 教训
+
+1. **「筛选值==null 时永真」是隐形的 bug 放大器**：`if (filterVal == null) return true` 是合理的"空值不过滤"设计，但当上游组件因配置错误返回 `undefined` 时，`undefined == null` 为 true → 永远返回 true → 等于不筛选。**这个 fallback 把"筛选不工作"伪装成"筛选正常但所有项目都显示"，掩盖了真正的 bug**。设计 fallback 时要考虑上游传入 `undefined` 的场景，必要时用 `filterVal === undefined` 严格判断并报警。
+
+2. **修复一个 bug 可能暴露另一个隐藏 bug**：PR1574 修复 UserPicker value-key 后，筛选真正生效，反而暴露了 OR 匹配语义问题。排查时**不能因为"刚修过"就跳过验证**，必须确认修复是否真正生效，以及修复后是否暴露新的设计问题。用户反馈"修了没生效"时，第一步是验证修复是否真的部署，而非假设没部署。
+
+3. **筛选语义必须与展示列对齐**：筛选用「主 OR 副」匹配，但展示列只显示主负责人姓名 → 用户看到"筛 A 命中 B"的错觉。检查清单：
+   - 筛选匹配的字段范围 vs 展示列显示的字段范围是否对齐？
+   - 如果筛选匹配主+副，展示列是否也显示主+副？
+   - 如果展示列只显示主，筛选是否也只匹配主？
+
+4. **展示用姓名、筛选用 ID 的双数据源设计需要强同步**：
+   - 展示用 `project_initiation_details.bidding_leader_name`（VARCHAR，只存主负责人）
+   - 筛选用 `project_lead_assignment.primary_lead_user_id` + `secondary_lead_user_id`（BIGINT，主+副）
+   - 两表无外键约束、无强同步机制。转派/投标负责人分配时如果只改 ID 不回写姓名，就会出现"筛 A 命中但显示 B"的问题。
+
+5. **前端内存筛选 vs 后端筛选的契约必须一致**：前端 `useProjectFilter.js` 做内存筛选（不传参给后端），但后端 `ProjectController.java` 也有同样的筛选逻辑（dead code，前端不传参）。**虽然后端代码不执行，但契约必须保持一致**，否则未来改成后端筛选会踩坑。
+
+### 操作规范
+
+1. **设计筛选 fallback 时考虑 `undefined` 场景**：
+   ```javascript
+   // 危险：undefined == null 为 true，把 bug 伪装成正常
+   if (filterVal == null) return true
+
+   // 更安全：区分 null（明确不筛选）和 undefined（上游错误）
+   if (filterVal === null || filterVal === '') return true
+   if (filterVal === undefined) {
+     console.warn('[useProjectFilter] filterVal is undefined, possible upstream bug')
+     return true // 或 return false 视业务而定
+   }
+   ```
+
+2. **修复 bug 后必须验证「修复是否暴露新问题」**：
+   - 验证修复是否真的部署（grep 服务器产物，而非假设）
+   - 验证修复后功能是否符合用户预期（而非只验证"不报错"）
+   - 验证修复后是否暴露之前被掩盖的设计问题
+
+3. **筛选匹配范围必须与展示列对齐**：
+   - 筛选匹配主+副 → 展示列必须显示主+副
+   - 展示列只显示主 → 筛选只匹配主
+   - 在 PR review 时用表格列出「筛选匹配字段 vs 展示字段」对照
+
+4. **展示用姓名 + 筛选用 ID 的双数据源必须有同步机制**：
+   - 转派/分配时同步回写姓名列
+   - 或展示列也通过 ID 实时反查姓名（而非读存储的姓名字段）
+
+### 验证命令
+
+```bash
+# 1. 确认 PR1574 是否真的部署（服务器前端 chunk）
+ssh -i ~/.ssh/xiyu_cursor_deploy jetty@172.16.38.78 \
+  'grep -oE "value-key[^,}]{0,50}" /srv/www/xiyu-bid/assets/UserPicker-Co7JMLd0.js'
+# 期望：value-key":"value"
+
+# 2. 数据库验证姓名/ID 是否不同步
+mysql -h winbid-01.test.rds.ehsy.com -u ea_bid -p"***" winbid -e "
+SELECT d.project_id, d.bidding_leader_name AS 展示姓名,
+       a.primary_lead_user_id AS 主ID, u2.full_name AS 主姓名,
+       a.secondary_lead_user_id AS 副ID, u3.full_name AS 副姓名
+FROM project_initiation_details d
+LEFT JOIN project_lead_assignment a ON a.project_id = d.project_id
+LEFT JOIN users u2 ON u2.id = a.primary_lead_user_id
+LEFT JOIN users u3 ON u3.id = a.secondary_lead_user_id
+WHERE a.primary_lead_user_id IN (7246,7396)
+   OR a.secondary_lead_user_id IN (7246,7396);"
+
+# 3. 前端回归测试
+npx vitest run src/views/Project/composables/useProjectFilter.spec.js
+```
+
+### 相关文档
+
+- `docs/lessons/root-cause-analysis-bidding-leader-filter-or-semantics.md` — 完整根因分析
+- §23 — 全链路日志排查 SOP（本次排查使用）
+- §25 — 前端禁止 `catch { /* silent */ }` 吞掉 API 错误（同类：fallback 把 bug 伪装成正常）
+- PR !1574 — UserPicker value-key 修复（修复前掩盖了本次 bug）
+- PR !1642 — 本次修复（投标负责人筛选只匹配主负责人）
+- `src/views/Project/composables/useProjectFilter.js` — 前端筛选逻辑（修复后）
+- `backend/src/main/java/com/xiyu/bid/project/service/ProjectQueryService.java` — enrich 逻辑（姓名与 ID 来源分叉点）
+
+## 36. Collectors.toMap 无 merge function 三层失效 + 35 处全仓治理（PR !1640 + Spec Kit 027）
 
 **事故时间**: 2026-07-03
 **影响范围**: 标讯中心整个模块不可用（列表页 + 详情页均报"加载标讯列表失败"）

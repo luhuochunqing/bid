@@ -51,21 +51,35 @@
     <div class="bid-reviewer-row">
       <span style="font-size:13px;color:#606266;">标书审核人：</span>
       <template v-if="reviewState === 'reviewing' || reviewState === 'approved' || reviewState === 'rejected'">
-        <span style="font-size:14px;color:#303133;font-weight:500;">{{ reviewerName || bidReviewerId || '未指定' }}</span>
+        <span style="font-size:14px;color:#303133;font-weight:500;">{{ reviewerNamesText || '未指定' }}</span>
       </template>
       <UserPicker
         v-else-if="perm.canSelectReviewer"
-        v-model="bidReviewerId"
+        v-model="bidReviewerIds"
         mode="search"
+        :multiple="true"
         :initial-options="reviewerInitialOptions"
         :exclude-ids="reviewerExcludeIds"
-        placeholder="模糊搜索选择审核人"
-        style="width:280px"
+        placeholder="模糊搜索选择审核人（最多 2 人）"
+        style="width:340px"
         clearable
       />
+      <span v-if="perm.canSelectReviewer && reviewState !== 'reviewing' && reviewState !== 'approved'" class="bid-reviewer-tip">
+        标书审核人不能选择自己，支持最多不超过2人，用逗号隔开。
+      </span>
     </div>
 
-    <!-- 驳回理由 -->
+    <!-- CO-484 多人审核进度显示 -->
+    <el-alert
+      v-if="reviewState === 'reviewing' && reviewerProgressText"
+      :title="reviewerProgressText"
+      type="info"
+      :closable="false"
+      show-icon
+      style="margin-top:8px"
+    />
+
+    <!-- CO-484 驳回理由（多人场景下展示"驳回人：原因"列表） -->
     <el-alert v-if="reviewState === 'rejected' && rejectReasonText" :title="'驳回原因：' + rejectReasonText" type="warning" show-icon :closable="false" style="margin-bottom:12px" />
 
     <!-- 底部按钮区 -->
@@ -134,14 +148,18 @@ import { downloadWithFilename } from '@/utils/download.js'; const userStore = us
 const ctx = useProjectDetailContext()
 const { bidAgent } = ctx
 
-// bidReviewerId/primaryLeadId/secondaryLeadId 需在 perm 之前定义
-const bidReviewerId = ref(null), primaryLeadId = ref(null), secondaryLeadId = ref(null)
+// bidReviewerIds/primaryLeadId/secondaryLeadId 需在 perm 之前定义
+// CO-484：bidReviewerIds 为数组（多人审核，最多 2 人）
+const bidReviewerIds = ref([])
+const bidReviewerId = computed(() => bidReviewerIds.value[0] || null) // 兼容 perm 旧引用
+const primaryLeadId = ref(null), secondaryLeadId = ref(null)
 
 const perm = reactive(useProjectDraftingPermissions({
   primaryLeadId,
   secondaryLeadId,
   currentUserId: ctx.userStore?.currentUser?.id,
   reviewerId: bidReviewerId,
+  reviewerIds: bidReviewerIds,
 }))
 
 const props = defineProps({
@@ -166,9 +184,26 @@ const reviewComment = ref('')
 const reviewApproving = ref(false)
 const reviewRejecting = ref(false)
 const reviewerInitialOptions = ref([])
-const reviewerName = ref('')
+const reviewerName = ref('') // 兼容旧引用
+const reviewers = ref([]) // CO-484：[{reviewerId, reviewerName, decision, comment}]
 const reviewState = ref(null)        // null | 'reviewing' | 'rejected' | 'approved'
 const rejectReasonText = ref('')
+
+// CO-484：审核人姓名拼接文案（用于 reviewState 非选择态的展示）
+const reviewerNamesText = computed(() => {
+  if (reviewers.value.length > 0) {
+    return reviewers.value.map(r => r.reviewerName || r.reviewerId).join('、')
+  }
+  return reviewerName.value || ''
+})
+
+// CO-484：审核进度文案（"审核中（已通过 X/Y）"）
+const reviewerProgressText = computed(() => {
+  if (reviewers.value.length === 0) return ''
+  const total = reviewers.value.length
+  const approved = reviewers.value.filter(r => r.decision === 'APPROVED').length
+  return `审核中（已通过 ${approved}/${total}）`
+})
 
 // 审核人候选排除项：当前用户/项目负责人/辅助人员/项目经理/团队成员（审核人不能选这些人，避免自己审自己）
 const reviewerExcludeIds = computed(() => {
@@ -181,11 +216,11 @@ const reviewerExcludeIds = computed(() => {
   return [currentUid, managerId, primaryLeadId, secondaryLeadId, ...teamMembers].filter(Boolean)
 })
 
-// 当前用户是否为该项目指定的审核人（id 必须一致，类型安全比较）
+// CO-484：当前用户是否为该项目指定的审核人（多人场景下用 includes 判断）
 const isCurrentUserReviewer = computed(() => {
   const uid = ctx.userStore?.currentUser?.id
-  if (!uid || !bidReviewerId.value) return false
-  return String(uid) === String(bidReviewerId.value)
+  if (!uid || bidReviewerIds.value.length === 0) return false
+  return bidReviewerIds.value.some(rid => String(uid) === String(rid))
 })
 const uploadUrl = computed(() => getApiUrl(`/api/projects/${props.projectId}/documents`))
 const uploadHeaders = computed(() => { const t = userStore?.token; return t ? { Authorization: 'Bearer ' + t } : {} })
@@ -246,17 +281,27 @@ async function load() {
         reviewState.value = null
       }
       rejectReasonText.value = d.rejectReason || ""
-      bidReviewerId.value = d.reviewerId || null
+      // CO-483 修复：驳回后清空审核人选择 + reviewerInitialOptions，不再无条件预填旧审核人。
+      // 审核中/已通过时展示已选审核人（只读），不回填到选择控件。
+      if (reviewState.value === 'rejected') {
+        bidReviewerIds.value = []
+        reviewerInitialOptions.value = []
+      } else if (d.reviewers && Array.isArray(d.reviewers) && d.reviewers.length > 0) {
+        // CO-484：从后端 reviewers 列表回填（reviewing/approved 状态，只读展示）
+        bidReviewerIds.value = d.reviewers.map(r => Number(r.reviewerId)).filter(Boolean)
+        reviewerInitialOptions.value = d.reviewers
+          .filter(r => r.reviewerId && r.reviewerName)
+          .map(r => ({ id: Number(r.reviewerId), name: r.reviewerName }))
+        reviewers.value = d.reviewers
+      } else if (d.reviewerId) {
+        // 兼容旧数据（无 reviewers 列表但有 reviewerId 单值）
+        bidReviewerIds.value = [Number(d.reviewerId)]
+      } else {
+        bidReviewerIds.value = []
+      }
       reviewerName.value = d.reviewerName || ''
       primaryLeadId.value = d.primaryLeadUserId || null
       secondaryLeadId.value = d.secondaryLeadUserId || null
-      // 预置审核人姓名到下拉选项，使 UserPicker 能展示姓名而非 ID
-      if (d.reviewerId && d.reviewerName) {
-        const existing = reviewerInitialOptions.value.find(u => u.id === Number(d.reviewerId))
-        if (!existing) {
-          reviewerInitialOptions.value = [{ id: Number(d.reviewerId), name: d.reviewerName }]
-        }
-      }
       // 恢复投标提交状态
       if (d.bidSubmitted) bidDone.value = true
       // 恢复投标文件列表（BID_DOCUMENT），确保上传组件与后端一致
@@ -284,10 +329,16 @@ async function loadBidFiles() {
 }
 
 async function submitBidForReview() {
-  if (!bidReviewerId.value) return ElMessage.warning('请先选择标书审核人')
+  // CO-484：审核人校验——至少 1 人，最多 2 人
+  if (!bidReviewerIds.value || bidReviewerIds.value.length === 0) {
+    return ElMessage.warning('请先选择标书审核人')
+  }
+  if (bidReviewerIds.value.length > 2) {
+    return ElMessage.warning('标书审核人最多 2 人')
+  }
   submittingReview.value = true
   try {
-    const res = await projectLifecycleApi.submitBidForReview(props.projectId, { reviewerId: bidReviewerId.value })
+    const res = await projectLifecycleApi.submitBidForReview(props.projectId, { reviewerIds: bidReviewerIds.value })
     const d = res?.data || res
     reviewState.value = (d?.reviewStatus || 'reviewing').toLowerCase()
     reviewerName.value = d?.reviewerName || ''
@@ -364,7 +415,8 @@ defineExpose({ load })
 .required-mark { color: #e65100; margin-left: 2px; font-weight: normal; font-size: 13px; }
 .upload-tip { margin-top: 8px; font-size: 12px; color: #909399; text-align: center; }
 .bid-file-row { display: flex; align-items: center; gap: 8px; }
-.bid-reviewer-row { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+.bid-reviewer-row { display: flex; align-items: center; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+.bid-reviewer-tip { font-size: 12px; color: #909399; }
 .bid-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .complete-bid-row { display: flex; align-items: center; justify-content: space-between; }
 </style>

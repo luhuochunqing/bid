@@ -14,9 +14,10 @@ public record WarehouseFilterCriteria(
         Boolean hasPropertyCert,
         Boolean hasInvoice,
         Boolean hasPhotos,
+        Boolean hasLeaseContract,
         String contactPersonKeyword
 ) {
     public static WarehouseFilterCriteria empty() {
-        return new WarehouseFilterCriteria(null, List.of(), List.of(), List.of(), List.of(), null, null, null, null, null, null);
+        return new WarehouseFilterCriteria(null, List.of(), List.of(), List.of(), List.of(), null, null, null, null, null, null, null);
     }
 }
