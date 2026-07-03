@@ -84,7 +84,7 @@ final class MarginQuerySupport {
               + "    AND m.exp_return_date < NOW() THEN 1 END)"
               + " FROM ("
               + "   SELECT f.amount as amount, f.status as status,"
-              + "     COALESCE(CAST(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.expectedRefundDate')), 1, 10) AS DATETIME), f.fee_date) as exp_return_date"
+              + "     COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d'), f.fee_date) as exp_return_date"
               + FEES_JOIN + rf
               + "   UNION ALL"
               + "   SELECT pid.deposit_amount as amount, 'PENDING' as status,"
