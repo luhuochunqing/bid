@@ -91,4 +91,32 @@ class PersonnelZipExporterTest {
         assertThatCode(() -> zipExporter.exportZip(List.of(personWithoutCerts)))
                 .doesNotThrowAnyException();
     }
+
+    @Test
+    void exportZip_当证书附件Url非法_应跳过该附件不抛异常() {
+        CertificateDTO certWithBadUrl = buildCert(1L, "一级建造师", "CERT001", "not-a-valid-uri");
+        PersonnelDTO person = buildPersonnel(1L, "张三", "EMP001", List.of(certWithBadUrl));
+
+        assertThatCode(() -> zipExporter.exportZip(List.of(person)))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void exportZip_当证书附件Url为相对路径_应跳过不抛异常() {
+        CertificateDTO certWithRelativeUrl = buildCert(2L, "安全员B证", "CERT002", "/attachments/cert.pdf");
+        PersonnelDTO person = buildPersonnel(2L, "李四", "EMP002", List.of(certWithRelativeUrl));
+
+        assertThatCode(() -> zipExporter.exportZip(List.of(person)))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void exportZip_混合合法和非法附件Url_应正常导出() {
+        CertificateDTO validCert = buildCert(1L, "一级建造师", "CERT001", "https://example.com/cert.pdf");
+        CertificateDTO badCert = buildCert(2L, "安全员B证", "CERT002", "invalid-uri");
+        PersonnelDTO person = buildPersonnel(1L, "张三", "EMP001", List.of(validCert, badCert));
+
+        assertThatCode(() -> zipExporter.exportZip(List.of(person)))
+                .doesNotThrowAnyException();
+    }
 }
