@@ -52,7 +52,7 @@
         </el-button>
         <span class="batch-info">已选 {{ selectedCount }} 项</span>
       </div>
-      <el-table ref="tableRef" :data="qualifications" v-loading="loading" style="width:100%" @row-click="handleRowClick" @selection-change="handleSelectionChange">
+      <el-table ref="tableRef" :data="qualifications" v-loading="loading" style="width:100%" max-height="calc(100vh - 300px)" scrollbar-always-on @row-click="handleRowClick" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" fixed="left" />
         <el-table-column type="index" label="序号" width="110" align="center" fixed="left" />
         <el-table-column prop="name" label="证书名称" min-width="180" fixed="left">

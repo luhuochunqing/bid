@@ -72,6 +72,8 @@
         v-loading="loading"
         :data="filteredData"
         stripe
+        max-height="calc(100vh - 300px)"
+        scrollbar-always-on
         empty-text="暂无 CA 证书数据"
         highlight-current-row
         @row-click="handleRowClick"
@@ -152,6 +154,8 @@
         v-loading="loading"
         :data="filteredData"
         stripe
+        max-height="calc(100vh - 300px)"
+        scrollbar-always-on
         empty-text="暂无 CA 证书数据"
       >
         <el-table-column type="index" label="序号" width="70" />
@@ -197,6 +201,8 @@
             v-loading="myApplicationsLoading"
             :data="myApplications"
             stripe
+            max-height="calc(100vh - 300px)"
+            scrollbar-always-on
             empty-text="暂无借用申请"
           >
             <el-table-column type="index" label="序号" width="70" />
@@ -241,6 +247,8 @@
             v-loading="myApprovalsLoading"
             :data="myApprovals"
             stripe
+            max-height="calc(100vh - 300px)"
+            scrollbar-always-on
             empty-text="暂无待审批申请"
           >
             <el-table-column type="index" label="序号" width="70" />

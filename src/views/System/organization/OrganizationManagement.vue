@@ -71,8 +71,9 @@
             :data="userList"
             stripe
             border
-            style="width: 100%"
             max-height="560"
+            scrollbar-always-on
+            style="width: 100%"
           >
             <el-table-column prop="fullName" label="姓名" width="120" fixed />
             <el-table-column prop="username" label="用户名" width="120" />

@@ -4,7 +4,7 @@
       <h2>告警历史</h2>
     </div>
 
-    <el-table :data="history" v-loading="loading" stripe>
+    <el-table :data="history" v-loading="loading" stripe max-height="calc(100vh - 220px)" scrollbar-always-on>
       <el-table-column prop="ruleName" label="规则名称" />
       <el-table-column prop="alertType" label="类型" width="100">
         <template #default="{ row }">

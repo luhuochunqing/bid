@@ -14,7 +14,7 @@
       @ledger-export="ledgerExportVisible = true"
     />
     <el-card class="data-card" shadow="never">
-      <el-table :data="records" v-loading="loading" style="width:100%" @row-click="openDrawer"
+      <el-table :data="records" v-loading="loading" style="width:100%" max-height="calc(100vh - 220px)" scrollbar-always-on @row-click="openDrawer"
         :row-class-name="({row}) => newlyCreatedIds.has(row.id) ? 'row-newly-created' : ''"
         @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" :selectable="r => r.status !== 'CLOSED'" />

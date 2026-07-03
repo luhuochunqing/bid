@@ -60,7 +60,7 @@
         </div>
       </template>
 
-      <el-table :data="accounts" stripe @row-click="onRowClick" @selection-change="handleSelectionChange" ref="tableRef">
+      <el-table :data="accounts" stripe max-height="calc(100vh - 220px)" scrollbar-always-on @row-click="onRowClick" @selection-change="handleSelectionChange" ref="tableRef">
         <el-table-column type="selection" width="50" align="center" />
         <el-table-column prop="platform" label="平台名称" min-width="180">
           <template #default="{ row }">

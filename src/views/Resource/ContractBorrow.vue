@@ -31,7 +31,7 @@
       <el-button @click="resetFilters">重置</el-button>
     </div>
 
-    <el-table v-loading="loading" :data="records" border>
+    <el-table v-loading="loading" :data="records" border max-height="calc(100vh - 220px)" scrollbar-always-on>
       <el-table-column prop="contractNo" label="合同编号" min-width="130" />
       <el-table-column prop="contractName" label="合同名称" min-width="220" />
       <el-table-column prop="borrowerName" label="申请人" width="110" />

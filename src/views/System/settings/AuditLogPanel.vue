@@ -36,7 +36,7 @@
       <span>最近更新时间 {{ lastLoadedAt }}</span>
     </div>
 
-    <el-table v-loading="loading" :data="rows" stripe class="audit-table" style="width: 100%">
+    <el-table v-loading="loading" :data="rows" stripe max-height="calc(100vh - 280px)" scrollbar-always-on class="audit-table" style="width: 100%">
       <el-table-column prop="time" label="时间" min-width="170" />
       <el-table-column prop="operator" label="操作人" width="140" />
       <el-table-column prop="action" label="操作内容" min-width="220" />
