@@ -73,7 +73,7 @@
         <div class="drawer-footer">
           <el-button data-test="task-drawer-cancel" @click="handleCancelTask">取消</el-button>
           <el-button
-            v-if="drawerMode !== 'view'"
+            v-if="drawerMode !== 'view' || canEditDepositTaskAssignee"
             type="primary"
             data-test="task-drawer-save"
             @click="handleSaveTask"
@@ -100,6 +100,7 @@ import { useProjectDraftingPermissions } from '@/composables/projectDetail/usePr
 import { useProjectStore } from '@/stores/project'
 import { useUserStore } from '@/stores/user'
 import { isTaskAssignee } from '@/utils/permission.js'
+import { isBidAdminOrSenior } from '@/utils/permission.js'
 
 const emit = defineEmits([
   'add-task',
@@ -164,6 +165,21 @@ const canReviewCurrentTask = computed(() => {
   return (project.primaryLeadUserId != null && String(uid) === String(project.primaryLeadUserId))
     || (project.secondaryLeadUserId != null && String(uid) === String(project.secondaryLeadUserId))
 })
+// CO-481: 保证金缴纳任务 + TODO + 管理角色/项目负责人 → 可编辑执行人
+// 权限范围：投标管理员、投标组长、该项目分配的投标负责人、投标辅助人员
+const canEditDepositTaskAssignee = computed(() => {
+  if (drawerMode.value !== 'view') return false
+  const task = editingTask.value
+  if (!task) return false
+  if (task.extendedFields?._taskType !== 'deposit-payment') return false
+  if (String(task.status || '').toUpperCase() !== 'TODO') return false
+  if (isBidAdminOrSenior(userStore.userRole)) return true
+  const project = projectStore.currentProject
+  const uid = userStore.currentUser?.id
+  if (!project || uid == null) return false
+  return (project.primaryLeadUserId != null && String(uid) === String(project.primaryLeadUserId))
+    || (project.secondaryLeadUserId != null && String(uid) === String(project.secondaryLeadUserId))
+})
 
 const drawerTitle = computed(() => {
   if (drawerMode.value === 'edit') return '编辑任务'
@@ -201,9 +217,8 @@ function handleAttachmentPreview(file) {
 }
 
 async function handleSaveTask() {
-  // Regression for IJSVX7：view mode 下不应触发保存。分配人/执行人点开已有任务时
-  // drawer 为只读，不暴露"保存"按钮；即便外部残留调用直达 handleSaveTask，也要兜底退出。
-  if (drawerMode.value === 'view') {
+  // CO-481: view 模式下，保证金缴纳任务允许编辑执行人并保存
+  if (drawerMode.value === 'view' && !canEditDepositTaskAssignee.value) {
     drawerVisible.value = false
     return
   }
@@ -213,6 +228,7 @@ async function handleSaveTask() {
     : { valid: true, data: { ...editingTask.value } }
   if (!result || result.valid === false) return
   const done = () => { drawerVisible.value = false }
+  // CO-481: view 模式下保存仅更新执行人相关字段
   emit('save-task', { mode: drawerMode.value, data: result.data, done })
   if (!instance?.vnode.props?.onSaveTask) done()
 }

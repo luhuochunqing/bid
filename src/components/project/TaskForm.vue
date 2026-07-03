@@ -79,7 +79,7 @@
               data-test="task-owner-select"
               mode="search"
               placeholder="模糊搜索选择执行人"
-              :disabled="readonly"
+              :disabled="!canEditAssignee"
               :initial-options="assigneeOptions"
               @select="handleAssigneeSelect"
             />
@@ -181,6 +181,7 @@ import { ElMessage } from 'element-plus'
 import { validateSubmitForReview } from '@/composables/useTaskSubmissionValidation.js'
 import { getTaskDeliverableDownloadUrl } from '@/api/modules/taskDeliverables.js'
 import { downloadWithFilename } from '@/utils/download.js'
+import { isBidAdminOrSenior } from '@/utils/permission.js'
 
 const props = defineProps({
   modelValue: { type: Object, default: () => ({}) },
@@ -240,6 +241,20 @@ const canDeliver = computed(() => {
 })
 // CO-448: 通过 extendedFields._taskType 识别保证金缴纳任务（替代标题字符串匹配，避免标题改动导致字段消失）
 const isDepositTask = computed(() => localValue.extendedFields?._taskType === 'deposit-payment')
+// CO-481: 保证金缴纳任务 + TODO 状态 + 管理角色/项目负责人 → 执行人可编辑
+// 权限范围：投标管理员、投标组长、该项目分配的投标负责人、投标辅助人员
+const canEditAssignee = computed(() => {
+  if (!readonly.value) return true // create/edit 模式始终可编辑
+  if (!isDepositTask.value) return false
+  if (String(localValue.status || '').toUpperCase() !== 'TODO') return false
+  if (isBidAdminOrSenior(userStore.userRole)) return true
+  // 投标负责人/辅助人员：匹配项目的 primaryLeadUserId / secondaryLeadUserId
+  const project = projectStore.currentProject
+  const uid = userStore.currentUser?.id
+  if (!project || uid == null) return false
+  return (project.primaryLeadUserId != null && String(uid) === String(project.primaryLeadUserId))
+    || (project.secondaryLeadUserId != null && String(uid) === String(project.secondaryLeadUserId))
+})
 // 执行人提交场景：与 canDeliver 同口径（view 模式 + 当前用户是执行人 + TODO 状态），
 // 此场景下 4 个字段可编辑且必填；非此场景下 4 字段 disabled 且不显示必填
 const isAssigneeSubmitting = computed(() => canDeliver.value)

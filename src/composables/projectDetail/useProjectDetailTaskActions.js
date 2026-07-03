@@ -230,6 +230,24 @@ export function useProjectDetailTaskActions(context) {
     const { mode = 'create', data = {}, done } = payload
     if (!state.project.value) { message.warning('项目信息未加载'); return }
 
+    // CO-481: view 模式下保证金缴纳任务编辑执行人 → 仅更新执行人相关字段
+    if (mode === 'view' && data?.id != null && data.extendedFields?._taskType === 'deposit-payment') {
+      const tasks = ensureTaskList()
+      const target = tasks.find((t) => String(t.id) === String(data.id))
+      if (!target) return
+      try {
+        const dto = taskFormDtoToBackend(data)
+        const updated = await projectStore.updateTask(state.project.value.id, target.id, dto)
+        Object.assign(target, taskBackendToCard(updated))
+        pushActivity(`修改了任务「${target.name}」的执行人`)
+        message.success('执行人已更新')
+        done?.()
+      } catch (error) {
+        message.error(resolveErrorMessage(error, '执行人更新失败'))
+      }
+      return
+    }
+
     if (mode === 'edit' && data?.id != null) {
       const tasks = ensureTaskList()
       const target = tasks.find((t) => String(t.id) === String(data.id))
