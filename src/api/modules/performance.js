@@ -139,6 +139,9 @@ function buildExportQuery(params = {}) {
   if (params.hasBidNotice !== null && params.hasBidNotice !== undefined && params.hasBidNotice !== '')
     qs.set('hasBidNotice', String(params.hasBidNotice))
   if (params.projectManagerKeyword) qs.set('projectManagerKeyword', params.projectManagerKeyword)
+  if (Array.isArray(params.attachmentTypes) && params.attachmentTypes.length > 0) {
+    params.attachmentTypes.forEach(v => qs.append('attachmentTypes', v))
+  }
   const s = qs.toString()
   return s ? `?${s}` : ''
 }
@@ -239,7 +242,22 @@ export const performanceApi = {
 
   async batchExportZip(params = {}) {
     const query = buildExportQuery(params)
-    const res = await httpClient.get(`/api/knowledge/performance/export-zip${query}`, { responseType: 'blob' })
+    let res
+    try {
+      res = await httpClient.get(`/api/knowledge/performance/export-zip${query}`, { responseType: 'blob' })
+    } catch (err) {
+      // blob 模式下错误响应体也是 Blob，需读取文本解析后端业务错误消息（如附件超上限）
+      if (err.response && err.response.data instanceof Blob) {
+        const text = await err.response.data.text()
+        try {
+          const json = JSON.parse(text)
+          err.message = json.message || json.error || text
+        } catch {
+          err.message = text
+        }
+      }
+      throw err
+    }
     const blob = res.data
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
