@@ -1,4 +1,4 @@
 {
-  "description": "Exemption list for Collectors.toMap 2-arg calls (Constitution v2.0.0 Principle VII). All 35 sites have been fixed with merge function — this list is now EMPTY. The ArchUnit guard and pre-push gate will fail on ANY new 2-arg toMap call.",
+  "description": "Exemption list for Collectors.toMap 2-arg calls (Constitution v2.0.0 Principle VII). All 35 sites have been fixed with merge function — this list is now EMPTY. (Spec 原估 31 处基于初版扫描，实际修复 35 处，差异来自 subagent 修复阶段补充发现的 4 处。) The ArchUnit guard and pre-push gate will fail on ANY new 2-arg toMap call.",
   "exemptions": []
 }

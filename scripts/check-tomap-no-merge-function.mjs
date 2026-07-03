@@ -8,6 +8,12 @@
 // throws IllegalStateException on duplicate keys. New code must use the 3-arg
 // form toMap(k, v, (a, b) -> a). Existing 2-arg calls are tracked in
 // scripts/tomap-exemptions.json and must be removed as part of US2 migration.
+//
+// 已知局限：本脚本通过文本搜索 `Collectors.toMap(`，不检测静态导入
+// `import static java.util.stream.Collectors.toMap` 后裸调用的 `toMap(`。
+// 这种静态导入场景由 ArchUnit RULE 18 `toMapMustHaveMergeFunction`（基于
+// 字节码 JavaMethodCall API）兜底覆盖，见
+// backend/src/test/java/com/xiyu/bid/ArchitectureTest.java。
 
 import fs from 'node:fs'
 import path from 'node:path'

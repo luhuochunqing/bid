@@ -1139,7 +1139,11 @@ public class ArchitectureTest {
      *
      * 2 参数版本 toMap(k, v) 在遇到重复 key 时抛 IllegalStateException。
      * 必须使用 3 参数版本 toMap(k, v, (a, b) -> a) 优雅降级。
-     * 豁免清单：scripts/tomap-exemptions.json（US2 Phase 1-3 遗留 2-arg 调用）。
+     *
+     * 豁免清单说明：scripts/tomap-exemptions.json 当前为空（35 处已全部修复）。
+     * 本规则在编译期基于字节码 JavaMethodCall API 扫描，覆盖所有调用形式（含
+     * 静态导入 `import static ... toMap`）。pre-push gate 脚本
+     * check-tomap-no-merge-function.mjs 是文本扫描兜底，与本规则形成双重守卫。
      */
     @ArchTest
     public static final ArchRule toMapMustHaveMergeFunction =

@@ -11,9 +11,11 @@ import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.exception.BusinessUnavailableException;
 import com.xiyu.bid.exception.RetryableOperationException;
+import io.sentry.Sentry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -25,6 +27,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mockStatic;
 
 class GlobalExceptionHandlerTest {
 
@@ -229,9 +232,7 @@ class GlobalExceptionHandlerTest {
     //   1. log.error 打印完整堆栈（非 log.warn）
     //   2. 打印 Payload/Query（getRequestPayload）
     //   3. Sentry.captureException 上报
-    // Sentry 验证标记为 TODO：项目使用 mock-maker-subclass（见
-    // src/test/resources/mockito-extensions/org.mockito.plugins.MockMaker），
-    // 无法 mockStatic Sentry 静态方法，暂只验证日志级别。
+    // 项目已切换到 mock-maker-inline（Mockito 5.12 默认），支持 mockStatic Sentry。
 
     @Test
     void handleOptimisticLockingFailureException_shouldLogErrorLevelWithStackTrace() {
@@ -239,8 +240,12 @@ class GlobalExceptionHandlerTest {
         OptimisticLockingFailureException exception =
                 new OptimisticLockingFailureException("Row was updated or deleted by another transaction");
 
-        ResponseEntity<ApiResponse<Void>> response =
-                handler.handleOptimisticLockingFailureException(exception, request);
+        ResponseEntity<ApiResponse<Void>> response;
+        try (MockedStatic<Sentry> sentry = mockStatic(Sentry.class)) {
+            response = handler.handleOptimisticLockingFailureException(exception, request);
+            // 诊断标准 3：必须上报 Sentry
+            sentry.verify(() -> Sentry.captureException(exception));
+        }
 
         // API 契约不变：409 + 评估表消息
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
@@ -262,11 +267,6 @@ class GlobalExceptionHandlerTest {
         assertThat(logContainsPayload)
                 .as("handleOptimisticLockingFailureException 应打印 Payload")
                 .isTrue();
-
-        // TODO: 诊断标准 3 — Sentry.captureException 验证需要 mockStatic 支持，
-        // 当前项目 mock-maker-subclass 无法 mock 静态方法，暂不验证。
-        // 后续计划：考虑切换到 mockito-inline（支持 mockStatic）后补充 Sentry 验证，
-        // 或用 PowerMock / Sping AOP 在集成测试层验证 Sentry 上报。
     }
 
     @Test
@@ -275,8 +275,11 @@ class GlobalExceptionHandlerTest {
         OptimisticLockingFailureException exception =
                 new OptimisticLockingFailureException("并发冲突");
 
-        ResponseEntity<ApiResponse<Void>> response =
-                handler.handleOptimisticLockingFailureException(exception, request);
+        ResponseEntity<ApiResponse<Void>> response;
+        try (MockedStatic<Sentry> sentry = mockStatic(Sentry.class)) {
+            response = handler.handleOptimisticLockingFailureException(exception, request);
+            sentry.verify(() -> Sentry.captureException(exception));
+        }
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(response.getBody().getCode()).isEqualTo(409);
@@ -294,7 +297,12 @@ class GlobalExceptionHandlerTest {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/test");
         Exception exception = new RuntimeException("NPE 模拟");
 
-        ResponseEntity<ApiResponse<Void>> response = handler.handleGlobalException(exception, request);
+        ResponseEntity<ApiResponse<Void>> response;
+        try (MockedStatic<Sentry> sentry = mockStatic(Sentry.class)) {
+            response = handler.handleGlobalException(exception, request);
+            // 诊断标准 3：必须上报 Sentry
+            sentry.verify(() -> Sentry.captureException(exception));
+        }
 
         // API 契约不变：500 + 通用消息
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -316,10 +324,81 @@ class GlobalExceptionHandlerTest {
         assertThat(logContainsPayload)
                 .as("handleGlobalException 应打印 Payload")
                 .isTrue();
+    }
 
-        // TODO: 诊断标准 3 — Sentry.captureException 验证需要 mockStatic 支持，
-        // 当前项目 mock-maker-subclass 无法 mock 静态方法，暂不验证。
-        // 后续计划：考虑切换到 mockito-inline（支持 mockStatic）后补充 Sentry 验证，
-        // 或用 PowerMock / Sping AOP 在集成测试层验证 Sentry 上报。
+    // ============ C1 fix: handleIllegalStateException 诊断对齐 ============
+    // Constitution v2.0.0 Principle VII §3: IllegalStateException 是本次事件根因异常，
+    // 必须完整诊断 + Sentry 上报 + 通用错误信息（不暴露 Duplicate key 内部细节）。
+
+    @Test
+    void handleIllegalStateException_shouldLogErrorAndReportToSentryAndReturnGenericMessage() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/tenders");
+        IllegalStateException exception =
+                new IllegalStateException("Duplicate key 937 (attempted merging values 585 and 7246)");
+
+        ResponseEntity<ApiResponse<Void>> response;
+        try (MockedStatic<Sentry> sentry = mockStatic(Sentry.class)) {
+            response = handler.handleIllegalStateException(exception, request);
+            // 诊断标准 3：必须上报 Sentry
+            sentry.verify(() -> Sentry.captureException(exception));
+        }
+
+        // 409 状态码保留（contracts/no-new-contracts.md 契约）
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody().getCode()).isEqualTo(409);
+        // 通用错误信息，不暴露 "Duplicate key 937..." 内部细节
+        assertThat(response.getBody().getMessage()).isEqualTo("系统状态冲突，请刷新后重试");
+        assertThat(response.getBody().getMessage()).doesNotContain("Duplicate key");
+
+        // 诊断标准 1：必须使用 ERROR 级别日志（非 WARN）
+        boolean hasErrorLevelLog = appender.list.stream()
+                .anyMatch(event -> event.getLevel().equals(Level.ERROR));
+        assertThat(hasErrorLevelLog)
+                .as("handleIllegalStateException 应使用 log.error 而非 log.warn")
+                .isTrue();
+
+        // 诊断标准 2：日志应包含 Payload
+        boolean logContainsPayload = appender.list.stream()
+                .map(ILoggingEvent::getFormattedMessage)
+                .anyMatch(msg -> msg.contains("Payload:"));
+        assertThat(logContainsPayload)
+                .as("handleIllegalStateException 应打印 Payload")
+                .isTrue();
+    }
+
+    @Test
+    void handleBusinessException_5xx_shouldReportToSentry() {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/example");
+        BusinessException exception = new BusinessException(503, "服务不可用");
+
+        try (MockedStatic<Sentry> sentry = mockStatic(Sentry.class)) {
+            handler.handleBusinessException(exception, request);
+            // 5xx BusinessException 必须上报 Sentry
+            sentry.verify(() -> Sentry.captureException(exception));
+        }
+
+        boolean hasErrorLevelLog = appender.list.stream()
+                .anyMatch(event -> event.getLevel().equals(Level.ERROR));
+        assertThat(hasErrorLevelLog)
+                .as("5xx BusinessException 应使用 log.error")
+                .isTrue();
+    }
+
+    @Test
+    void handleBusinessException_4xx_shouldNotReportToSentry() {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/example");
+        BusinessException exception = new BusinessException(409, "业务冲突");
+
+        try (MockedStatic<Sentry> sentry = mockStatic(Sentry.class)) {
+            handler.handleBusinessException(exception, request);
+            // 4xx 业务错误不应上报 Sentry
+            sentry.verifyNoInteractions();
+        }
+
+        boolean hasWarnLevelLog = appender.list.stream()
+                .anyMatch(event -> event.getLevel().equals(Level.WARN));
+        assertThat(hasWarnLevelLog)
+                .as("4xx BusinessException 应使用 log.warn 而非 log.error")
+                .isTrue();
     }
 }
