@@ -11,6 +11,7 @@
 #      ratchet (see .github/workflows/branch-history-guard.yml).
 #   3. Gitee 远端 push 时未设置 GITEE_TOKEN（阻止 push）
 #   4. 所有 agent/* 分支 push 时检查是否通过 pr-create.sh 创建 PR（温和提醒）
+#   5. agent/* 分支已合入 main 后禁止推送新提交（delete 操作放行）
 #
 # Context: ericforai/bidding#224 documents the root-commit issue. This hook is
 # the developer-local mirror of the CI workflow — same check, earlier signal.
@@ -77,15 +78,21 @@ case "$remote_url" in
 esac
 
 # ==============================================================================
-# 前置门禁 C+D: agent/* 分支检查
-#   C: 首次 push 时提醒使用统一脚本创建 PR
-#   D: 禁止推送已合入 main 的分支，防止 PR 合并后继续推送导致代码丢失
+# 前置门禁 C+D+E: 分支推送检查（单次遍历 stdin）
+#   C: agent/* 首次 push 时提醒使用统一脚本创建 PR
+#   D: agent/* 禁止推送已合入 main 的分支（delete 操作除外）
+#   E: main/master/release/* 禁止 force push + root commit ratchet
 # ==============================================================================
+ZERO_SHA="0000000000000000000000000000000000000000"
+
 while IFS=' ' read -r local_ref local_sha remote_ref remote_sha; do
   branch="${local_ref#refs/heads/}"
+
+  # --- agent/* 分支检查 ---
   if [[ "$branch" == agent/* ]]; then
     # 门禁 C: 首次 push 时提醒使用统一脚本
-    if [[ "${remote_sha}" == "0000000000000000000000000000000000000000" ]]; then
+    #（remote_sha 为全零 = 远端尚不存在该 ref = 首次 push）
+    if [[ "${remote_sha}" == "${ZERO_SHA}" ]]; then
       echo ""
       echo "╔══════════════════════════════════════════════════════════════╗"
       echo "║  💡 提示: 创建 PR 请使用统一脚本                          ║"
@@ -106,7 +113,9 @@ while IFS=' ' read -r local_ref local_sha remote_ref remote_sha; do
 
     # 门禁 D: 禁止推送已合入 main 的分支
     # 防止 PR 合并后继续往同一分支推送新提交，导致代码未合入
-    if git branch -r --merged origin/main 2>/dev/null | grep -qwE "origin/${branch}$"; then
+    # 例外：删除分支操作（local_sha 为全零）应放行 —— 清理已合入的任务分支是正确行为
+    if [[ "${local_sha}" != "${ZERO_SHA}" ]] && \
+       git branch -r --merged origin/main 2>/dev/null | grep -qwE "origin/${branch}$"; then
       echo ""
       echo "╔══════════════════════════════════════════════════════════════╗"
       echo "║  ❌ 拒绝推送到已合入 main 的分支                           ║"
@@ -127,70 +136,65 @@ while IFS=' ' read -r local_ref local_sha remote_ref remote_sha; do
       exit 1
     fi
   fi
-done
 
-# 1) refuse force pushes to protected branches.
-#    差异化策略:
-#      - Gitee (origin) main: 绝对禁止 force push（Gitee 是唯一真值，只能通过 PR 合入）
-#      - GitHub (github) main: 允许 force-with-lease（单向镜像，Gitee → GitHub）
-#      - 其他远端 + 其他受保护分支: 默认禁止
-while IFS=' ' read -r local_ref local_sha remote_ref remote_sha; do
-    if [[ "${remote_ref}" =~ ${PROTECTED_BRANCHES_REGEX} ]]; then
-        # New ref creation (remote_sha is all zeros) is allowed.
-        if [ "${remote_sha}" = "0000000000000000000000000000000000000000" ]; then
-            continue
-        fi
-        # Non-fast-forward detection: remote_sha must be an ancestor of local_sha.
-        if ! git merge-base --is-ancestor "${remote_sha}" "${local_sha}" 2>/dev/null; then
-            # 判断是否为允许的特例：GitHub remote 的 main 分支（单向镜像）
-            is_github_mirror=0
-            case "$remote_url" in
-              *github.com*|*github-bid*)
-                # 只有 main 分支且是 Gitee→GitHub 镜像方向才允许
-                if [[ "${remote_ref}" == "refs/heads/main" ]]; then
-                    is_github_mirror=1
-                fi
-                ;;
-            esac
-
-            if [ "${FORCE_PUSH_OK:-0}" != "1" ] && [ "$is_github_mirror" != "1" ]; then
-                echo "" >&2
-                echo "╔══════════════════════════════════════════════════════════════╗" >&2
-                echo "║  ❌ 禁止非快进推送（force push）到 ${remote_ref} ║" >&2
-                echo "╠══════════════════════════════════════════════════════════════╣" >&2
-                echo "║  远端: $remote" >&2
-                echo "║  远端 SHA: ${remote_sha:0:12}" >&2
-                echo "║  本地 SHA: ${local_sha:0:12}" >&2
-                echo "║                                                          ║" >&2
-                if [[ "${remote_ref}" == "refs/heads/main" ]]; then
-                    echo "║  原因: 重写 main 分支历史会覆盖他人的提交。            ║" >&2
-                    echo "║  正确做法:                                              ║" >&2
-                    echo "║    1. git pull --rebase  （同步到最新）                 ║" >&2
-                    echo "║    2. 解决冲突                                          ║" >&2
-                    echo "║    3. git push          （正常推送）                    ║" >&2
-                else
-                    echo "║  原因: 重写受保护分支历史。                            ║" >&2
-                fi
-                echo "╚══════════════════════════════════════════════════════════════╝" >&2
-                echo "" >&2
-                exit 1
-            fi
-            if [ "$is_github_mirror" = "1" ]; then
-                echo "::pre-push:: GitHub main 单向镜像，允许 force-with-lease 推送。" >&2
-            else
-                echo "::pre-push:: FORCE_PUSH_OK=1 set, allowing non-fast-forward push to ${remote_ref}." >&2
-            fi
-        fi
-
-        # 2) root-commit ratchet: refuse pushes that would grow the root count.
-        root_count=$(git rev-list --max-parents=0 "${local_sha}" | wc -l | tr -d ' ')
-        if [ "${root_count}" -gt "${MAX_ROOTS}" ]; then
-            echo "::pre-push:: refusing push to ${remote_ref}: HEAD has ${root_count} root commits, ratchet allows ${MAX_ROOTS}." >&2
-            echo "  This usually means a history rewrite (filter-repo, checkout --orphan, replace --graft) added a new disconnected segment." >&2
-            echo "  See ericforai/bidding#224 before proceeding." >&2
-            exit 1
-        fi
+  # --- 受保护分支（main/master/release/*）force push 检查 ---
+  if [[ "${remote_ref}" =~ ${PROTECTED_BRANCHES_REGEX} ]]; then
+    # 新 ref 创建（remote_sha 为全零）允许
+    if [[ "${remote_sha}" == "${ZERO_SHA}" ]]; then
+      continue
     fi
+
+    # 非快进检测: remote_sha 必须是 local_sha 的祖先
+    if ! git merge-base --is-ancestor "${remote_sha}" "${local_sha}" 2>/dev/null; then
+      # 判断是否为允许的特例：GitHub remote 的 main 分支（单向镜像）
+      is_github_mirror=0
+      case "$remote_url" in
+        *github.com*|*github-bid*)
+          # 只有 main 分支且是 Gitee→GitHub 镜像方向才允许
+          if [[ "${remote_ref}" == "refs/heads/main" ]]; then
+            is_github_mirror=1
+          fi
+          ;;
+      esac
+
+      if [ "${FORCE_PUSH_OK:-0}" != "1" ] && [ "$is_github_mirror" != "1" ]; then
+        echo "" >&2
+        echo "╔══════════════════════════════════════════════════════════════╗" >&2
+        echo "║  ❌ 禁止非快进推送（force push）到 ${remote_ref} ║" >&2
+        echo "╠══════════════════════════════════════════════════════════════╣" >&2
+        echo "║  远端: $remote" >&2
+        echo "║  远端 SHA: ${remote_sha:0:12}" >&2
+        echo "║  本地 SHA: ${local_sha:0:12}" >&2
+        echo "║                                                          ║" >&2
+        if [[ "${remote_ref}" == "refs/heads/main" ]]; then
+          echo "║  原因: 重写 main 分支历史会覆盖他人的提交。            ║" >&2
+          echo "║  正确做法:                                              ║" >&2
+          echo "║    1. git pull --rebase  （同步到最新）                 ║" >&2
+          echo "║    2. 解决冲突                                          ║" >&2
+          echo "║    3. git push          （正常推送）                    ║" >&2
+        else
+          echo "║  原因: 重写受保护分支历史。                            ║" >&2
+        fi
+        echo "╚══════════════════════════════════════════════════════════════╝" >&2
+        echo "" >&2
+        exit 1
+      fi
+      if [ "$is_github_mirror" = "1" ]; then
+        echo "::pre-push:: GitHub main 单向镜像，允许 force-with-lease 推送。" >&2
+      else
+        echo "::pre-push:: FORCE_PUSH_OK=1 set, allowing non-fast-forward push to ${remote_ref}." >&2
+      fi
+    fi
+
+    # root-commit ratchet: refuse pushes that would grow the root count.
+    root_count=$(git rev-list --max-parents=0 "${local_sha}" | wc -l | tr -d ' ')
+    if [ "${root_count}" -gt "${MAX_ROOTS}" ]; then
+      echo "::pre-push:: refusing push to ${remote_ref}: HEAD has ${root_count} root commits, ratchet allows ${MAX_ROOTS}." >&2
+      echo "  This usually means a history rewrite (filter-repo, checkout --orphan, replace --graft) added a new disconnected segment." >&2
+      echo "  See ericforai/bidding#224 before proceeding." >&2
+      exit 1
+    fi
+  fi
 done
 
 # 3) Quality gate — runs before every push (skip with PRE_PUSH_GATE=0)
