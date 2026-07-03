@@ -148,7 +148,7 @@ import { Download, ArrowDown, Check } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import ProjectSearchCard from './components/ProjectSearchCard.vue'
 import { getProjectStatusText, getProjectStatusType } from './project-utils.js'
-import { formatDate, priorityTag, priorityLabel, stageText, sourceText } from './utils/projectListFormatters.js'
+import { formatDate, priorityTag, priorityLabel, stageText, sourceText, customerTypeLabel } from './utils/projectListFormatters.js'
 import {
   CRM_SOURCE_LABEL,
   EXTERNAL_PLATFORM_SOURCE_LABEL,
