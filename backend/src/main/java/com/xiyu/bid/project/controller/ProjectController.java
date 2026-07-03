@@ -84,7 +84,9 @@ public class ProjectController {
         if (bidStatus != null && !bidStatus.isBlank()) projects = projects.stream().filter(p -> bidStatus.equals(p.getBidStatus())).toList();
         if (stage != null && !stage.isBlank()) projects = projects.stream().filter(p -> stage.equals(p.getStage())).toList();
         if (projectLeaderId != null) projects = projects.stream().filter(p -> projectLeaderId.equals(p.getProjectLeaderId())).toList();
-        if (biddingLeaderId != null) projects = projects.stream().filter(p -> biddingLeaderId.equals(p.getBiddingLeaderId()) || biddingLeaderId.equals(p.getSecondaryBiddingLeaderId())).toList();
+        // 投标负责人筛选只匹配主负责人，与前端 useProjectFilter 契约保持一致。
+        // 副负责人不参与筛选（避免筛 A 时主=B/副=A 的项目混入，而列表只显示主负责人姓名）。
+        if (biddingLeaderId != null) projects = projects.stream().filter(p -> biddingLeaderId.equals(p.getBiddingLeaderId())).toList();
         if (projectLeaderName != null && !projectLeaderName.isBlank()) projects = projects.stream().filter(p -> containsIgnoreCase(p.getProjectLeaderName(), projectLeaderName)).toList();
         if (biddingLeaderName != null && !biddingLeaderName.isBlank()) projects = projects.stream().filter(p -> containsIgnoreCase(p.getBiddingLeaderName(), biddingLeaderName)).toList();
         if (leaderDepartment != null && !leaderDepartment.isBlank()) projects = projects.stream().filter(p -> leaderDepartment.equals(p.getLeaderDepartment())).toList();

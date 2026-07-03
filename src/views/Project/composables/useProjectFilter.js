@@ -65,7 +65,11 @@ export function useProjectFilter(searchForm) {
       if (!matchFilter(f.bidStatus, p.bidStatus)) return false
       if (!matchFilter(f.stage, p.stage)) return false
       if (!matchId(f.projectLeaderId, p.projectLeaderId)) return false
-      if (!matchId(f.biddingLeaderId, p.biddingLeaderId, p.secondaryBiddingLeaderId)) return false
+      // 投标负责人筛选只匹配主负责人（primaryLeadUserId）。
+      // 副负责人（secondaryLeadUserId）不参与筛选 — 否则用户筛"陈梦瑶"时，
+      // 主=张莉娜、副=陈梦瑶的项目也会出现，而列表只显示主负责人姓名，
+      // 用户会看到"张莉娜的项目"误以为筛错了。
+      if (!matchId(f.biddingLeaderId, p.biddingLeaderId)) return false
       if (f.leaderDepartment && p.leaderDepartment !== f.leaderDepartment) return false
       if (f.region && !(p.region || '').includes(f.region)) return false
       if (f.biddingPlatform && !(p.biddingPlatform || '').includes(f.biddingPlatform)) return false
