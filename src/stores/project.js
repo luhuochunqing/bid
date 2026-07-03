@@ -1,6 +1,7 @@
 // Input: projectsApi, resourcesApi, httpClient (from @/api), ProjectLoadError (from @/utils/projectErrors)
 // Output: useProjectStore - project detail, workflow, task deletion, expense aggregation state, and project load error propagation
 // Pos: src/stores/ - State management layer
+// CO-468: getProjectById 新增 forceRefresh 选项，用于阶段切换后强制刷新项目数据（含 tasks）。
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 import { defineStore } from 'pinia'
@@ -161,11 +162,17 @@ export const useProjectStore = defineStore('project', {
       return this.projects
     },
 
-    async getProjectById(id) {
-      const existingProject = this.projects.find(p => String(p.id) === String(id))
-      if (existingProject) {
-        this.currentProject = existingProject
-        return existingProject
+    // CO-468: 新增 forceRefresh 选项。阶段切换（如立项审批通过转入标书制作）
+    // 后端会同步创建保证金任务，但默认走缓存会返回 stale 的 tasks，
+    // 导致任务看板渲染不出新建任务。forceRefresh=true 时跳过缓存，
+    // 强制走 API 拉取最新数据，并回写 this.projects 缓存。
+    async getProjectById(id, { forceRefresh = false } = {}) {
+      if (!forceRefresh) {
+        const existingProject = this.projects.find(p => String(p.id) === String(id))
+        if (existingProject) {
+          this.currentProject = existingProject
+          return existingProject
+        }
       }
 
       try {
@@ -173,6 +180,16 @@ export const useProjectStore = defineStore('project', {
         const project = result?.success ? result.data : null
         if (project) {
           this.currentProject = project
+          // forceRefresh 路径下同步更新 this.projects 缓存，
+          // 避免下次普通调用再次拿到旧数据。
+          if (forceRefresh) {
+            const idx = this.projects.findIndex(p => String(p.id) === String(id))
+            if (idx >= 0) {
+              this.projects[idx] = project
+            } else {
+              this.projects.push(project)
+            }
+          }
           return project
         }
         // API 返回成功但无数据（success=false 或 data=null），视为项目不存在

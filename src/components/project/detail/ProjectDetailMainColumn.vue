@@ -270,9 +270,10 @@ async function handleStageUpdated() {
   // 阶段推进后必须同步到真实阶段（不受任何锁影响）
   syncTabToRealStage()
 
-  // 并行刷新项目数据和 resultType
+  // CO-468: 阶段切换后端会同步创建保证金等任务，必须 forceRefresh 强制走 API，
+  // 否则 getProjectById 命中 this.projects 缓存返回 stale tasks，任务看板渲染不出新任务。
   const projectPromise = ctx.project?.id
-    ? projectStore.getProjectById(ctx.project.id)
+    ? projectStore.getProjectById(ctx.project.id, { forceRefresh: true })
     : Promise.resolve()
 
   await Promise.all([projectPromise, resultTypePromise, bidReviewPromise])
