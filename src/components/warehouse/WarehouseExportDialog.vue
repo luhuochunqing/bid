@@ -272,8 +272,8 @@ onUnmounted(stopPolling)
 .meta-label { display: inline-block; min-width: 88px; color: var(--el-text-color-secondary); }
 .dialog-footer { display: flex; justify-content: space-between; align-items: center; }
 .footer-hint { font-size: 12px; color: var(--el-text-color-placeholder); }
-.attachment-scope-section { margin-top: 20px; padding: 14px; background: #f5f7fa; border-radius: 6px; }
-.section-label { font-size: 13px; font-weight: 600; color: #303133; margin-bottom: 10px; }
+.attachment-scope-section { margin-top: 20px; padding: 14px; background: var(--gray-50); border-radius: 6px; }
+.section-label { font-size: 13px; font-weight: 600; color: var(--text-primary-ui); margin-bottom: 10px; }
 .scope-radio-group { display: flex; flex-direction: column; gap: 8px; }
 .type-checkbox-group { margin-top: 10px; padding-left: 8px; display: flex; flex-direction: column; gap: 6px; }
 .scope-hint { margin-top: 8px; font-size: 12px; color: var(--el-color-danger); }
