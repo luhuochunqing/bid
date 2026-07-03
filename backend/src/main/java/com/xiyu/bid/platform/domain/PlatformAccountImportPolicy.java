@@ -15,8 +15,8 @@ public class PlatformAccountImportPolicy {
 
     public static final String[] HEADERS = {
             "平台名称*", "平台网址*", "登录账号*", "登录密码*",
-            "平台类型", "联系人userId", "联系电话", "联系邮箱",
-            "是否有CA", "备注"
+            "平台类型", "账号保管员userId", "是否有CA", "备注",
+            "注册人", "注册手机", "注册邮箱"
     };
 
     public static final int COL_ACCOUNT_NAME = 0;
@@ -25,10 +25,11 @@ public class PlatformAccountImportPolicy {
     public static final int COL_PASSWORD = 3;
     public static final int COL_PLATFORM_TYPE = 4;
     public static final int COL_CONTACT_PERSON = 5;
-    public static final int COL_CONTACT_PHONE = 6;
-    public static final int COL_CONTACT_EMAIL = 7;
-    public static final int COL_HAS_CA = 8;
-    public static final int COL_REMARKS = 9;
+    public static final int COL_HAS_CA = 6;
+    public static final int COL_REMARKS = 7;
+    public static final int COL_REGISTRANT = 8;
+    public static final int COL_REGISTER_PHONE = 9;
+    public static final int COL_REGISTER_EMAIL = 10;
 
     private PlatformAccountImportPolicy() {}
 
@@ -66,10 +67,11 @@ public class PlatformAccountImportPolicy {
         String password = cellAt(cells, COL_PASSWORD).trim();
         String platformTypeStr = cellAt(cells, COL_PLATFORM_TYPE).trim();
         String contactPersonStr = cellAt(cells, COL_CONTACT_PERSON).trim();
-        String contactPhone = cellAt(cells, COL_CONTACT_PHONE).trim();
-        String contactEmail = cellAt(cells, COL_CONTACT_EMAIL).trim();
         String hasCaStr = cellAt(cells, COL_HAS_CA).trim();
         String remarks = cellAt(cells, COL_REMARKS).trim();
+        String registrant = cellAt(cells, COL_REGISTRANT).trim();
+        String registerPhone = cellAt(cells, COL_REGISTER_PHONE).trim();
+        String registerEmail = cellAt(cells, COL_REGISTER_EMAIL).trim();
 
         // Required field validation
         if (accountName.isEmpty()) errors.add("平台名称不能为空");
@@ -89,11 +91,11 @@ public class PlatformAccountImportPolicy {
         // Contact person userId parsing
         Long contactPerson = parseLongOrNull(contactPersonStr);
         if (!contactPersonStr.isEmpty() && contactPerson == null) {
-            errors.add("联系人userId格式错误，需为数字");
+            errors.add("账号保管员userId格式错误，需为数字");
         }
 
         return new ParsedAccountRow(rowIndex, accountName, url, username, password,
-                platformType, contactPerson, contactPhone, contactEmail,
+                platformType, contactPerson, registrant, registerPhone, registerEmail,
                 hasCa, remarks, errors);
     }
 
@@ -133,8 +135,8 @@ public class PlatformAccountImportPolicy {
     public record ParsedAccountRow(
             int rowIndex,
             String accountName, String url, String username, String password,
-            PlatformType platformType, Long contactPerson, String contactPhone,
-            String contactEmail, Boolean hasCa, String remarks,
+            PlatformType platformType, Long contactPerson, String registrant,
+            String registerPhone, String registerEmail, Boolean hasCa, String remarks,
             List<String> errors
     ) {
         public boolean valid() { return errors == null || errors.isEmpty(); }

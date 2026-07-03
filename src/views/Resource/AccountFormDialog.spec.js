@@ -94,21 +94,6 @@ describe('AccountFormDialog', () => {
     expect(picker.props('initialOptions')).toEqual([])
   })
 
-  it('CO-390: selecting a contact person auto-fills phone/email', async () => {
-    const wrapper = mountDialog()
-    await flushPromises()
-
-    const picker = wrapper.findComponent({ name: 'UserPicker' })
-    picker.vm.$emit('select', { id: 99, name: '王五', phone: '13800138000', email: 'wangwu@test.com' })
-    await nextTick()
-
-    // 联动后 form 中的 phone/email 应被回填
-    const inputs = wrapper.findAll('input')
-    // 输入顺序：accountName, url, username, password, contactPhone, contactEmail
-    expect(inputs[4].element.value).toBe('13800138000')
-    expect(inputs[5].element.value).toBe('wangwu@test.com')
-  })
-
   it('CO-390: submit 提交时 contactPerson 为 Long userId（不是字符串）', async () => {
     const createSpy = vi.spyOn(resourcesApi.accounts, 'create').mockResolvedValue({ success: true, data: {} })
     vi.spyOn(resourcesApi.accounts, 'getList').mockResolvedValue({ data: { list: [] } })
@@ -118,11 +103,12 @@ describe('AccountFormDialog', () => {
     // 选择联系人（userId = 99）
     const picker = wrapper.findComponent({ name: 'UserPicker' })
     picker.vm.$emit('update:modelValue', 99)
-    picker.vm.$emit('select', { id: 99, name: '王五', phone: '13800138000', email: 'wangwu@test.com' })
     await nextTick()
 
     // 填写其他必填字段
     const inputs = wrapper.findAll('input')
+    // DOM 顺序：accountName[0], url[1], username[2], password[3],
+    //          hasCa(checkbox)[4], remarks[5], registrant[6], registerPhone[7], registerEmail[8]
     await inputs[0].setValue('测试平台')
     await inputs[1].setValue('http://test.com')
     await inputs[2].setValue('testuser')
@@ -141,5 +127,75 @@ describe('AccountFormDialog', () => {
     expect(payload.custodian).toBeUndefined()
     expect(payload.caCustodian).toBeUndefined()
     expect(payload.custodianName).toBeUndefined()
+    // CO-474: 不应再包含 contactPhone / contactEmail 字段
+    expect(payload.contactPhone).toBeUndefined()
+    expect(payload.contactEmail).toBeUndefined()
+  })
+
+  // ── CO-474：账号字段调整 — 移除 绑定手机/绑定邮箱，新增 注册人/注册手机/注册邮箱，绑定联系人 → 账号保管员 ──
+
+  it('CO-474: 表单包含 注册人/注册手机/注册邮箱 输入项', async () => {
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    const labels = wrapper.findAll('label')
+    const labelTexts = labels.map(l => l.text())
+    expect(labelTexts.some(t => t.includes('注册人'))).toBe(true)
+    expect(labelTexts.some(t => t.includes('注册手机'))).toBe(true)
+    expect(labelTexts.some(t => t.includes('注册邮箱'))).toBe(true)
+  })
+
+  it('CO-474: 表单不再包含 绑定手机/绑定邮箱 输入项', async () => {
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    const labels = wrapper.findAll('label')
+    const labelTexts = labels.map(l => l.text())
+    expect(labelTexts.some(t => t.includes('绑定手机'))).toBe(false)
+    expect(labelTexts.some(t => t.includes('绑定邮箱'))).toBe(false)
+  })
+
+  it('CO-474: "绑定联系人" label 已改为 "账号保管员"', async () => {
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    const labels = wrapper.findAll('label')
+    const labelTexts = labels.map(l => l.text())
+    expect(labelTexts.some(t => t.includes('账号保管员'))).toBe(true)
+    expect(labelTexts.some(t => t.includes('绑定联系人'))).toBe(false)
+  })
+
+  it('CO-474: submit 提交时 payload 包含 registrant/registerPhone/registerEmail', async () => {
+    const createSpy = vi.spyOn(resourcesApi.accounts, 'create').mockResolvedValue({ success: true, data: {} })
+    vi.spyOn(resourcesApi.accounts, 'getList').mockResolvedValue({ data: { list: [] } })
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    const inputs = wrapper.findAll('input')
+    // DOM 顺序：accountName[0], url[1], username[2], password[3],
+    //          hasCa(checkbox)[4], remarks[5], registrant[6], registerPhone[7], registerEmail[8]
+    await inputs[0].setValue('测试平台')
+    await inputs[1].setValue('http://test.com')
+    await inputs[2].setValue('testuser')
+    await inputs[3].setValue('pass123')
+    await inputs[6].setValue('张三')
+    await inputs[7].setValue('13800138000')
+    await inputs[8].setValue('zhangsan@test.com')
+
+    const picker = wrapper.findComponent({ name: 'UserPicker' })
+    picker.vm.$emit('update:modelValue', 99)
+    await nextTick()
+
+    const buttons = wrapper.findAll('button')
+    await buttons[1].trigger('click')
+    await flushPromises()
+
+    expect(createSpy).toHaveBeenCalledOnce()
+    const payload = createSpy.mock.calls[0][0]
+    expect(payload.registrant).toBe('张三')
+    expect(payload.registerPhone).toBe('13800138000')
+    expect(payload.registerEmail).toBe('zhangsan@test.com')
+    expect(payload.contactPhone).toBeUndefined()
+    expect(payload.contactEmail).toBeUndefined()
   })
 })

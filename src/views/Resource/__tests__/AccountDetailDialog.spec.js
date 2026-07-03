@@ -15,6 +15,7 @@ const mockAccountDetail = {
   password: '',
   url: 'https://gov.example.com',
   contactPerson: '张三（001）',
+  contactPersonLabel: '张三（001）',
   contactPhone: '13800000001',
   contactEmail: 'zhangsan@example.com',
   hasCa: true,
@@ -24,6 +25,9 @@ const mockAccountDetail = {
   caCustodianName: '王CA',
   platformType: 'GOV_PROCUREMENT',
   remarks: '主账号',
+  registrant: '李注册',
+  registerPhone: '13900000001',
+  registerEmail: 'lizhuce@example.com',
   status: 'available',
   lastUsed: '2026-06-20 10:00',
   borrower: '',
@@ -126,11 +130,15 @@ describe('AccountDetailDialog.vue — CO-389 详情字段漂移修复 + 密码�
     expect(oldLabelItem.exists()).toBe(false)
   })
 
-  // 问题 4 v2：详情不展示"账号保管员"
-  it('render_doesNotShowCustodianName — v2 字段移除', () => {
+  // 问题 4 v2：详情"账号保管员"展示 contactPersonLabel，不再使用旧 custodianName
+  // CO-474 将"绑定联系人"重命名为"账号保管员"，故 label 现在合法存在；
+  // 此处回归校验：label 展示的是 contactPersonLabel，而非已废弃的 custodianName。
+  it('render_账号保管员显示contactPersonLabel — v2 custodianName 不再使用', () => {
     const wrapper = mountDialog()
     const custodianItem = wrapper.find('.el-descriptions-item-stub[data-label="账号保管员"]')
-    expect(custodianItem.exists()).toBe(false)
+    expect(custodianItem.exists()).toBe(true)
+    expect(custodianItem.text()).toContain('张三（001）')
+    expect(custodianItem.text()).not.toContain('李保管')
   })
 
   // 问题 4 v2：详情不展示"CA 保管人"
@@ -138,6 +146,37 @@ describe('AccountDetailDialog.vue — CO-389 详情字段漂移修复 + 密码�
     const wrapper = mountDialog()
     const caCustodianItem = wrapper.find('.el-descriptions-item-stub[data-label="CA 保管人"]')
     expect(caCustodianItem.exists()).toBe(false)
+  })
+
+  // ── CO-474：详情字段调整 — 绑定联系人 → 账号保管员，移除 绑定手机/绑定邮箱，新增 注册人/注册手机/注册邮箱 ──
+
+  it('CO-474: 详情展示 注册人/注册手机/注册邮箱 字段', () => {
+    const wrapper = mountDialog()
+    const registrantItem = wrapper.find('.el-descriptions-item-stub[data-label="注册人"]')
+    const registerPhoneItem = wrapper.find('.el-descriptions-item-stub[data-label="注册手机"]')
+    const registerEmailItem = wrapper.find('.el-descriptions-item-stub[data-label="注册邮箱"]')
+    expect(registrantItem.exists()).toBe(true)
+    expect(registrantItem.text()).toContain('李注册')
+    expect(registerPhoneItem.exists()).toBe(true)
+    expect(registerPhoneItem.text()).toContain('13900000001')
+    expect(registerEmailItem.exists()).toBe(true)
+    expect(registerEmailItem.text()).toContain('lizhuce@example.com')
+  })
+
+  it('CO-474: "绑定联系人" label 已改为 "账号保管员"（label 存在，"绑定联系人" 不存在）', () => {
+    const wrapper = mountDialog()
+    const custodianItem = wrapper.find('.el-descriptions-item-stub[data-label="账号保管员"]')
+    const oldLabelItem = wrapper.find('.el-descriptions-item-stub[data-label="绑定联系人"]')
+    expect(custodianItem.exists()).toBe(true)
+    expect(oldLabelItem.exists()).toBe(false)
+  })
+
+  it('CO-474: 详情不再展示 绑定手机/绑定邮箱', () => {
+    const wrapper = mountDialog()
+    const phoneItem = wrapper.find('.el-descriptions-item-stub[data-label="绑定手机"]')
+    const emailItem = wrapper.find('.el-descriptions-item-stub[data-label="绑定邮箱"]')
+    expect(phoneItem.exists()).toBe(false)
+    expect(emailItem.exists()).toBe(false)
   })
 
   // 问题 1：详情新增"平台密码"行（默认占位）

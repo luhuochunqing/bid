@@ -70,8 +70,9 @@ public class PlatformAccountService {
             .platformType(request.getPlatformType())
             .url(request.getUrl())
             .contactPerson(request.getContactPerson())
-            .contactPhone(request.getContactPhone())
-            .contactEmail(request.getContactEmail())
+            .registrant(request.getRegistrant())
+            .registerPhone(request.getRegisterPhone())
+            .registerEmail(request.getRegisterEmail())
             .hasCa(request.getHasCa() != null ? request.getHasCa() : false)
             .remarks(request.getRemarks())
             .status(AccountStatus.AVAILABLE)
@@ -164,8 +165,9 @@ public class PlatformAccountService {
         account.setPlatformType(request.getPlatformType() != null ? request.getPlatformType() : account.getPlatformType());
         account.setUrl(request.getUrl() != null ? request.getUrl() : account.getUrl());
         account.setContactPerson(request.getContactPerson() != null ? request.getContactPerson() : account.getContactPerson());
-        account.setContactPhone(request.getContactPhone() != null ? request.getContactPhone() : account.getContactPhone());
-        account.setContactEmail(request.getContactEmail() != null ? request.getContactEmail() : account.getContactEmail());
+        account.setRegistrant(request.getRegistrant() != null ? request.getRegistrant() : account.getRegistrant());
+        account.setRegisterPhone(request.getRegisterPhone() != null ? request.getRegisterPhone() : account.getRegisterPhone());
+        account.setRegisterEmail(request.getRegisterEmail() != null ? request.getRegisterEmail() : account.getRegisterEmail());
         account.setHasCa(request.getHasCa() != null ? request.getHasCa() : account.getHasCa());
         account.setRemarks(request.getRemarks() != null ? request.getRemarks() : account.getRemarks());
     }
@@ -287,13 +289,9 @@ public class PlatformAccountService {
     }
 
     private void validateRequest(PlatformAccountCreateRequest request) {
-        if (request.getUsername() == null || request.getUsername().trim().isEmpty())
-            throw new IllegalArgumentException("Username cannot be null or empty");
-        if (request.getPassword() == null || request.getPassword().trim().isEmpty())
-            throw new IllegalArgumentException("Password cannot be null or empty");
-        if (request.getAccountName() == null || request.getAccountName().trim().isEmpty())
-            throw new IllegalArgumentException("Account name cannot be null or empty");
-        if (request.getPlatformType() == null)
-            throw new IllegalArgumentException("Platform type cannot be null");
+        if (request.getUsername() == null || request.getUsername().trim().isEmpty()) throw new IllegalArgumentException("Username cannot be null or empty");
+        if (request.getPassword() == null || request.getPassword().trim().isEmpty()) throw new IllegalArgumentException("Password cannot be null or empty");
+        if (request.getAccountName() == null || request.getAccountName().trim().isEmpty()) throw new IllegalArgumentException("Account name cannot be null or empty");
+        if (request.getPlatformType() == null) throw new IllegalArgumentException("Platform type cannot be null");
     }
 }

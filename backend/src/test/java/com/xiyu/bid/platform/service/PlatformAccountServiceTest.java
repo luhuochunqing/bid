@@ -635,6 +635,80 @@ class PlatformAccountServiceTest {
         assertThat(last.getId()).isEqualTo(1L);  // 最早创建的排最后
     }
 
+    // ── CO-474: 注册人/注册手机/注册邮箱字段持久化 ──
+
+    @Test
+    @DisplayName("CO-474: 创建账号持久化 registrant/registerPhone/registerEmail")
+    void CO474_createAccount_persistsRegistrantRegisterPhoneRegisterEmail() {
+        PlatformAccountCreateRequest req = validRequest();
+        req.setRegistrant("张三");
+        req.setRegisterPhone("13900000001");
+        req.setRegisterEmail("zhangsan@example.com");
+
+        when(passwordEncryptionUtil.encrypt("secret123")).thenReturn(ENCRYPTED_PWD);
+        when(repository.findByUsername("testuser")).thenReturn(Optional.empty());
+        when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        PlatformAccountDTO result = service.createAccount(req, ADMIN_USER);
+
+        assertThat(result.getRegistrant()).isEqualTo("张三");
+        assertThat(result.getRegisterPhone()).isEqualTo("13900000001");
+        assertThat(result.getRegisterEmail()).isEqualTo("zhangsan@example.com");
+    }
+
+    @Test
+    @DisplayName("CO-474: 新字段未提供时默认为 null")
+    void CO474_createAccount_newFieldsDefaultToNullWhenNotProvided() {
+        PlatformAccountCreateRequest req = validRequest();
+        req.setRegistrant(null);
+        req.setRegisterPhone(null);
+        req.setRegisterEmail(null);
+
+        when(passwordEncryptionUtil.encrypt("secret123")).thenReturn(ENCRYPTED_PWD);
+        when(repository.findByUsername("testuser")).thenReturn(Optional.empty());
+        when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        PlatformAccountDTO result = service.createAccount(req, ADMIN_USER);
+
+        assertThat(result.getRegistrant()).isNull();
+        assertThat(result.getRegisterPhone()).isNull();
+        assertThat(result.getRegisterEmail()).isNull();
+    }
+
+    @Test
+    @DisplayName("CO-474: 更新账号持久化新字段")
+    void CO474_updateAccount_persistsNewFields() {
+        PlatformAccount existing = accountWithId(1L);
+        PlatformAccountCreateRequest update = validRequest();
+        update.setPassword(null);
+        update.setRegistrant("李注册");
+        update.setRegisterPhone("13800138000");
+        update.setRegisterEmail("lizhuce@example.com");
+
+        when(repository.findById(1L)).thenReturn(Optional.of(existing));
+        when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        PlatformAccountDTO result = service.updateAccount(1L, update, ADMIN_USER);
+
+        assertThat(result.getRegistrant()).isEqualTo("李注册");
+        assertThat(result.getRegisterPhone()).isEqualTo("13800138000");
+        assertThat(result.getRegisterEmail()).isEqualTo("lizhuce@example.com");
+    }
+
+    @Test
+    @DisplayName("CO-474: DTO 不再包含 contactPhone/contactEmail 字段")
+    void CO474_dto_noLongerHasContactPhoneContactEmail() {
+        assertThat(fieldExists(PlatformAccountDTO.class, "contactPhone")).isFalse();
+        assertThat(fieldExists(PlatformAccountDTO.class, "contactEmail")).isFalse();
+        assertThat(fieldExists(PlatformAccountDTO.class, "registrant")).isTrue();
+        assertThat(fieldExists(PlatformAccountDTO.class, "registerPhone")).isTrue();
+        assertThat(fieldExists(PlatformAccountDTO.class, "registerEmail")).isTrue();
+        PlatformAccountDTO dto = PlatformAccountDTO.builder().build();
+        assertThat(dto.getRegistrant()).isNull();
+        assertThat(dto.getRegisterPhone()).isNull();
+        assertThat(dto.getRegisterEmail()).isNull();
+    }
+
     // ── helpers ──
 
     private static PlatformAccountCreateRequest validRequest() {

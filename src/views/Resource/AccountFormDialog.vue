@@ -22,27 +22,14 @@
       </el-row>
       <el-row :gutter="16">
         <el-col :span="12">
-          <el-form-item label="绑定联系人" required>
+          <el-form-item label="账号保管员" required>
             <UserPicker
               v-model="form.contactPerson"
               mode="search"
               placeholder="模糊搜索选择联系人"
               :initial-options="contactPersonInitialOptions"
               style="width: 100%"
-              @select="onContactPersonSelected"
             />
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item label="绑定手机" required>
-            <el-input v-model="form.contactPhone" placeholder="选择联系人后自动带入" maxlength="20" />
-          </el-form-item>
-        </el-col>
-      </el-row>
-      <el-row :gutter="16">
-        <el-col :span="12">
-          <el-form-item label="绑定邮箱" required>
-            <el-input v-model="form.contactEmail" placeholder="选择联系人后自动带入" maxlength="200" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -66,6 +53,23 @@
       <el-form-item label="备注">
         <el-input v-model="form.remarks" type="textarea" :rows="2" placeholder="自由备注" maxlength="500" />
       </el-form-item>
+      <el-row :gutter="16">
+        <el-col :span="8">
+          <el-form-item label="注册人">
+            <el-input v-model="form.registrant" placeholder="注册人姓名" maxlength="100" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="8">
+          <el-form-item label="注册手机">
+            <el-input v-model="form.registerPhone" placeholder="注册手机号" maxlength="20" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="8">
+          <el-form-item label="注册邮箱">
+            <el-input v-model="form.registerEmail" placeholder="注册邮箱" maxlength="200" />
+          </el-form-item>
+        </el-col>
+      </el-row>
     </el-form>
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
@@ -100,8 +104,9 @@ const isEdit = computed(() => !!props.editRow?.id)
 
 const emptyForm = () => ({
   accountName: '', platformType: 'BIDDING_PLATFORM', username: '', password: '',
-  url: '', contactPerson: null, contactPhone: '', contactEmail: '',
-  hasCa: false, remarks: ''
+  url: '', contactPerson: null,
+  hasCa: false, remarks: '',
+  registrant: '', registerPhone: '', registerEmail: ''
 })
 
 const form = ref(emptyForm())
@@ -116,13 +121,6 @@ const contactPersonInitialOptions = computed(() => {
   }
   return []
 })
-
-// CO-390: 选择联系人后联动回填 phone/email（保持与联系人资料一致）
-const onContactPersonSelected = (user) => {
-  if (!user) return
-  if (user.phone) form.value.contactPhone = user.phone
-  if (user.email) form.value.contactEmail = user.email
-}
 
 // IJTHNN 修复：accountName 失焦去重校验
 const checkAccountNameUnique = async () => {
@@ -146,9 +144,11 @@ const onOpen = async () => {
       platformType: r.platformType || 'BIDDING_PLATFORM',
       username: r.username || '', password: '',
       url: r.url || '', contactPerson: r.contactPerson || null,
-      contactPhone: r.contactPhone || '', contactEmail: r.contactEmail || '',
       hasCa: r.hasCa || false,
-      remarks: r.remarks || '' }
+      remarks: r.remarks || '',
+      registrant: r.registrant || '',
+      registerPhone: r.registerPhone || '',
+      registerEmail: r.registerEmail || '' }
     // CO-400 round5 review: 改用 isCurrentUserContactPerson helper 统一判断逻辑
     // （helper 已处理 null/undefined/空字符串边界，避免本组件重复造轮子）
     const isContactPerson = isCurrentUserContactPerson(r, userStore.currentUser)
@@ -185,13 +185,15 @@ const submit = async () => {
   const payload = {
     accountName: f.accountName.trim(), platformType: f.platformType,
     username: f.username.trim(), url: f.url.trim(),
-    contactPerson: f.contactPerson, contactPhone: f.contactPhone.trim(),
-    contactEmail: f.contactEmail.trim(), hasCa: f.hasCa,
-    remarks: f.remarks?.trim() || '' }
+    contactPerson: f.contactPerson, hasCa: f.hasCa,
+    remarks: f.remarks?.trim() || '',
+    registrant: f.registrant?.trim() || '',
+    registerPhone: f.registerPhone?.trim() || '',
+    registerEmail: f.registerEmail?.trim() || '' }
   if (f.password) payload.password = f.password
 
   if (!payload.accountName || !payload.username || !payload.url
-      || !payload.contactPerson || !payload.contactPhone || !payload.contactEmail) {
+      || !payload.contactPerson) {
     ElMessage.warning('请完整填写必填字段')
     return
   }

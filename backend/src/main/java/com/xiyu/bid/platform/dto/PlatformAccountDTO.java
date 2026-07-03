@@ -27,10 +27,6 @@ public class PlatformAccountDTO {
     private Long contactPerson;
     /** Contact person display label: "姓名（工号）", derived from userId. */
     private String contactPersonLabel;
-    /** Contact phone number. */
-    private String contactPhone;
-    /** Contact email address. */
-    private String contactEmail;
     /** Platform type. */
     private PlatformType platformType;
     /** Platform URL. */
@@ -39,6 +35,12 @@ public class PlatformAccountDTO {
     private Boolean hasCa;
     /** Remarks. */
     private String remarks;
+    /** Registrant name (CO-474). */
+    private String registrant;
+    /** Registration phone number (CO-474). */
+    private String registerPhone;
+    /** Registration email address (CO-474). */
+    private String registerEmail;
     /** Account status. */
     private AccountStatus status;
     /** ID of user who borrowed. */

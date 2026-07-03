@@ -30,8 +30,9 @@ public class PlatformAccountImportRowPersister {
                 .password(encryptedPassword)
                 .platformType(row.platformType())
                 .contactPerson(row.contactPerson())
-                .contactPhone(row.contactPhone())
-                .contactEmail(row.contactEmail())
+                .registrant(row.registrant())
+                .registerPhone(row.registerPhone())
+                .registerEmail(row.registerEmail())
                 .hasCa(row.hasCa() != null ? row.hasCa() : false)
                 .remarks(row.remarks())
                 .build();
