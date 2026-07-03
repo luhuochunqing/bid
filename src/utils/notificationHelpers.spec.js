@@ -141,6 +141,37 @@ describe('resolveNotificationRoute', () => {
       payloadJson: '{"projectId":"123"}'
     })).toBe('/project/123')
   })
+
+  // ---- CO-474: bid-otherDept 跨部门任务通知跳转 task-board ----
+  // 后端 ProjectNotificationService.notifyTaskAssigned 对 bid-otherDept 角色写入
+  // payload.targetUrl = /task-board?taskId=X&projectId=Y
+  // 前端必须原样返回该 targetUrl，不能回退到 /project/X?taskId=Y
+  it('CO-474 bid-otherDept 任务分配通知跳转 task-board (targetUrl=/task-board?taskId=X&projectId=Y)', () => {
+    expect(resolveNotificationRoute({
+      sourceEntityType: 'TASK',
+      sourceEntityId: 88,
+      payloadJson: '{"projectId":42,"targetUrl":"/task-board?taskId=88&projectId=42"}'
+    })).toBe('/task-board?taskId=88&projectId=42')
+  })
+
+  // 任务 C: TaskReviewNotificationService.notifyTaskReviewResult 对 bid-otherDept 执行人
+  // 写入 payload.targetUrl = /task-board?taskId=X&projectId=Y（审核结果通知跳转 task-board）
+  it('任务 C bid-otherDept 任务审核结果通知跳转 task-board (targetUrl=/task-board?taskId=X&projectId=Y)', () => {
+    expect(resolveNotificationRoute({
+      sourceEntityType: 'TASK',
+      sourceEntityId: 99,
+      payloadJson: '{"projectId":42,"targetUrl":"/task-board?taskId=99&projectId=42"}'
+    })).toBe('/task-board?taskId=99&projectId=42')
+  })
+
+  it('CO-474 targetUrl=/task-board?... 优先于 TASK 默认 /project/X?taskId=Y 兜底', () => {
+    // 验证 targetUrl 优先级：不会回退到 /project/42?taskId=88
+    expect(resolveNotificationRoute({
+      sourceEntityType: 'TASK',
+      sourceEntityId: 88,
+      payloadJson: '{"projectId":42,"targetUrl":"/task-board?taskId=88&projectId=42"}'
+    })).not.toBe('/project/42?taskId=88')
+  })
 })
 
 describe('formatNotificationTime', () => {
