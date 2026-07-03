@@ -37,7 +37,7 @@
           type="button"
           @click="openDrillDown(dimension.customerType)"
         >
-          <span class="dimension-name">{{ dimension.customerType }}</span>
+          <span class="dimension-name">{{ customerTypeLabel(dimension.customerType) }}</span>
           <span class="dimension-meta">
             {{ dimension.projectCount }} 个项目 · {{ formatRate(dimension.winRate) }}
           </span>
@@ -50,7 +50,9 @@
       </div>
 
       <el-table :data="dimensions" size="small" stripe>
-        <el-table-column prop="customerType" label="客户类型" min-width="140" />
+        <el-table-column prop="customerType" label="客户类型" min-width="140">
+          <template #default="{ row }">{{ customerTypeLabel(row.customerType) }}</template>
+        </el-table-column>
         <el-table-column prop="projectCount" label="项目数" width="90" align="right" />
         <el-table-column prop="activeProjectCount" label="进行中" width="90" align="right" />
         <el-table-column label="金额" width="120" align="right">
@@ -103,6 +105,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { dashboardApi } from '@/api'
+import { customerTypeLabel } from '@/views/Project/utils/projectListFormatters.js'
 import './customerTypePanel.css'
 
 const props = defineProps({
