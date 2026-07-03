@@ -1,5 +1,5 @@
-// Input: projectsApi, resourcesApi, httpClient (from @/api)
-// Output: useProjectStore - project detail, workflow, task deletion, and expense aggregation state
+// Input: projectsApi, resourcesApi, httpClient (from @/api), ProjectLoadError (from @/utils/projectErrors)
+// Output: useProjectStore - project detail, workflow, task deletion, expense aggregation state, and project load error propagation
 // Pos: src/stores/ - State management layer
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -9,6 +9,7 @@ import { taskStatusDictApi } from '@/api/modules/taskStatusDict.js'
 import { taskExtendedFieldApi } from '@/api/modules/taskExtendedField.js'
 import { createTaskDeliverable, deleteTaskDeliverable } from '@/api/modules/taskDeliverables.js'
 import { tasksApi } from '@/api/modules/tasks.js'
+import { ProjectLoadError, PROJECT_LOAD_ERROR_TYPE } from '@/utils/projectErrors.js'
 
 function normalizeExpenseDate(value) {
   if (!value) return ''
@@ -174,12 +175,25 @@ export const useProjectStore = defineStore('project', {
           this.currentProject = project
           return project
         }
+        // API 返回成功但无数据（success=false 或 data=null），视为项目不存在
+        this.currentProject = null
+        throw new ProjectLoadError(PROJECT_LOAD_ERROR_TYPE.NOT_FOUND, '项目不存在', null)
       } catch (error) {
-        console.warn('API 获取项目详情失败，返回空结果:', error.message)
+        // 已经是 ProjectLoadError 直接抛出（避免双重包装）
+        if (error instanceof ProjectLoadError) {
+          throw error
+        }
+        // 根据 HTTP 状态码分类抛出对应错误类型
+        const status = error?.response?.status
+        this.currentProject = null
+        if (status === 403) {
+          throw new ProjectLoadError(PROJECT_LOAD_ERROR_TYPE.NO_PERMISSION, '无权限访问该项目', error)
+        }
+        if (status === 404) {
+          throw new ProjectLoadError(PROJECT_LOAD_ERROR_TYPE.NOT_FOUND, '项目不存在', error)
+        }
+        throw new ProjectLoadError(PROJECT_LOAD_ERROR_TYPE.NETWORK_ERROR, '加载失败', error)
       }
-
-      this.currentProject = null
-      return null
     },
 
     async getProjectExpenses(projectId, options = {}) {

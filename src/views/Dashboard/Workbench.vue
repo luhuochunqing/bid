@@ -111,7 +111,7 @@ import { useWorkbenchTodos } from '@/views/Dashboard/useWorkbenchTodos.js'
 import { useWorkbenchApprovals } from '@/views/Dashboard/useWorkbenchApprovals.js'
 import { useWorkbenchDeadline } from '@/views/Dashboard/useWorkbenchDeadline.js'; import { useWorkbenchDerivedLists } from '@/views/Dashboard/useWorkbenchDerivedLists.js'
 import { useWorkbenchDynamicWidgets } from '@/views/Dashboard/useWorkbenchDynamicWidgets.js'
-import { hasAnyPermission } from '@/utils/permission'
+import { hasAnyPermission } from '@/utils/permission'; import { navigateToProject } from '@/utils/projectNavigation.js'
 import {
   formatCurrentDate, formatRelativeTime, getBannerActionConfig,
   getBannerSubtitle, getBannerTitle, getPriorityLabel, getPriorityType, getProgressColor,
@@ -315,7 +315,7 @@ function handleTenderClick(tender) {
 function handleProjectClick(project) {
   const projectId = String(project?.id || '')
   if (/^\d+$/.test(projectId)) {
-    router.push(`/project/${projectId}`)
+    navigateToProject(router, projectId)
     return
   }
   router.push({ path: '/project', query: { demoProjectId: projectId } })

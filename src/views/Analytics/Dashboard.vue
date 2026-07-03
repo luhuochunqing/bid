@@ -164,7 +164,7 @@ import {
   getTrendClass
 } from './dashboard/utils/dashboardFormatters.js'
 import { useExport } from '@/composables/useExport'
-import { ExportType } from '@/api'
+import { ExportType } from '@/api'; import { navigateToProject } from '@/utils/projectNavigation.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -240,7 +240,7 @@ function handleProductClick(params) {
 
 function goToProject(projectId) {
   chartDrillDown.dialogVisible.value = false
-  router.push({ name: 'ProjectDetail', params: { id: projectId } })
+  navigateToProject(router, projectId)
 }
 
 function handleDateChange() {

@@ -1,10 +1,12 @@
 import { ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ProjectLoadError, PROJECT_LOAD_ERROR_TYPE } from '@/utils/projectErrors.js'
 
 const onMountedCallbacks = []
 const apiMocks = vi.hoisted(() => ({
   getProjectApprovals: vi.fn(),
   getTemplateList: vi.fn(),
+  getProjectActivityLogs: vi.fn(),
 }))
 
 vi.mock('vue', async () => {
@@ -28,6 +30,12 @@ vi.mock('@/api', () => ({
   },
 }))
 
+vi.mock('@/api/modules/audit.js', () => ({
+  auditApi: {
+    getProjectActivityLogs: apiMocks.getProjectActivityLogs,
+  },
+}))
+
 import { useProjectDetailBoot } from './useProjectDetailBoot.js'
 
 function createContext(overrides = {}) {
@@ -48,6 +56,7 @@ function createContext(overrides = {}) {
     },
     state: {
       loading: ref(false),
+      loadError: ref(null),
       approvalHistory: ref([]),
       activities: ref([]),
       assetCheckResult: ref(null),
@@ -79,6 +88,8 @@ describe('useProjectDetailBoot', () => {
     apiMocks.getProjectApprovals.mockResolvedValue({ data: [] })
     apiMocks.getTemplateList.mockReset()
     apiMocks.getTemplateList.mockResolvedValue({ success: true, data: [] })
+    apiMocks.getProjectActivityLogs.mockReset()
+    apiMocks.getProjectActivityLogs.mockResolvedValue({ data: [] })
     context = createContext()
   })
 
@@ -102,5 +113,74 @@ describe('useProjectDetailBoot', () => {
         time: '',
       },
     ])
+  })
+})
+
+describe('useProjectDetailBoot ProjectLoadError 错误处理', () => {
+  beforeEach(() => {
+    onMountedCallbacks.length = 0
+    apiMocks.getProjectApprovals.mockReset()
+    apiMocks.getProjectApprovals.mockResolvedValue({ data: [] })
+    apiMocks.getTemplateList.mockReset()
+    apiMocks.getTemplateList.mockResolvedValue({ success: true, data: [] })
+    apiMocks.getProjectActivityLogs.mockReset()
+    apiMocks.getProjectActivityLogs.mockResolvedValue({ data: [] })
+    context = createContext()
+  })
+
+  it('getProjectById 抛出 no-permission 时，state.loadError 被设为 no-permission，loading 为 false', async () => {
+    context.projectStore.getProjectById = vi.fn().mockRejectedValue(
+      new ProjectLoadError(PROJECT_LOAD_ERROR_TYPE.NO_PERMISSION, '无权限访问该项目', null)
+    )
+
+    useProjectDetailBoot(context)
+    expect(onMountedCallbacks).toHaveLength(1)
+
+    await onMountedCallbacks[0]()
+    await flushPromises()
+
+    expect(context.projectStore.getProjectById).toHaveBeenCalledWith('12')
+    expect(context.state.loadError.value).toBe(PROJECT_LOAD_ERROR_TYPE.NO_PERMISSION)
+    expect(context.state.loading.value).toBe(false)
+    // initializeProjectActivities 不应被调用（activities 保持空数组）
+    expect(context.state.activities.value).toEqual([])
+    // loadTaskStatuses 不应被调用
+    expect(context.projectStore.loadTaskStatuses).not.toHaveBeenCalled()
+  })
+
+  it('getProjectById 抛出 not-found 时，state.loadError 被设为 not-found', async () => {
+    context.projectStore.getProjectById = vi.fn().mockRejectedValue(
+      new ProjectLoadError(PROJECT_LOAD_ERROR_TYPE.NOT_FOUND, '项目不存在', null)
+    )
+
+    useProjectDetailBoot(context)
+    await onMountedCallbacks[0]()
+    await flushPromises()
+
+    expect(context.state.loadError.value).toBe(PROJECT_LOAD_ERROR_TYPE.NOT_FOUND)
+    expect(context.state.loading.value).toBe(false)
+  })
+
+  it('getProjectById 抛出 network-error 时，state.loadError 被设为 network-error', async () => {
+    context.projectStore.getProjectById = vi.fn().mockRejectedValue(
+      new ProjectLoadError(PROJECT_LOAD_ERROR_TYPE.NETWORK_ERROR, '加载失败', null)
+    )
+
+    useProjectDetailBoot(context)
+    await onMountedCallbacks[0]()
+    await flushPromises()
+
+    expect(context.state.loadError.value).toBe(PROJECT_LOAD_ERROR_TYPE.NETWORK_ERROR)
+    expect(context.state.loading.value).toBe(false)
+  })
+
+  it('getProjectById 成功时，state.loadError 保持 null，正常执行后续流程', async () => {
+    useProjectDetailBoot(context)
+    await onMountedCallbacks[0]()
+    await flushPromises()
+
+    expect(context.state.loadError.value).toBeNull()
+    expect(context.state.loading.value).toBe(false)
+    expect(context.projectStore.loadTaskStatuses).toHaveBeenCalled()
   })
 })

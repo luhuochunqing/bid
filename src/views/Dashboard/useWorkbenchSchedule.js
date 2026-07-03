@@ -6,6 +6,7 @@
 import { computed, ref } from 'vue'
 import { workbenchApi } from '@/api/modules/workbench.js'
 import { normalizeCalendarEvent } from '@/views/Dashboard/workbench-utils.js'
+import { navigateToProject } from '@/utils/projectNavigation.js'
 import {
   calendarFilters,
   decorateCalendarEvent,
@@ -66,7 +67,7 @@ export function useWorkbenchSchedule({ router, assigneeIdRef, onEventsLoaded } =
 
   const handleCalendarAction = (event) => {
     if (event?.projectId) {
-      router.push(`/project/${event.projectId}`)
+      navigateToProject(router, event.projectId)
       return
     }
 
