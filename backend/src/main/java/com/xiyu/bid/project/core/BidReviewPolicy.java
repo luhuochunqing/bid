@@ -3,6 +3,9 @@
 // Pos: project/core/ - pure core policy, no Spring/JPA
 package com.xiyu.bid.project.core;
 
+import java.util.Collection;
+import java.util.List;
+
 /**
  * 标书审核状态流转校验策略。
  * <p>纯核心：不依赖数据库、I/O、Spring 或日志。</p>
@@ -11,14 +14,21 @@ package com.xiyu.bid.project.core;
  * <ul>
  *   <li>null → REVIEWING（首次提交审核）</li>
  *   <li>REJECTED → REVIEWING（驳回后重新提交）</li>
- *   <li>REVIEWING → APPROVED（审核通过）</li>
- *   <li>REVIEWING → REJECTED（审核驳回）</li>
+ *   <li>REVIEWING → APPROVED（审核通过，多人场景需全部通过）</li>
+ *   <li>REVIEWING → REJECTED（审核驳回，多人场景任一驳回即终态）</li>
  * </ul>
  *
  * <p>身份约束（2026-06-07 根因修复，IJSTZG）：</p>
  * <ul>
  *   <li>提交人不能审批/驳回自己提交的标书</li>
  *   <li>仅指派的审核人（{@code reviewerId == currentUserId}）可执行审批/驳回</li>
+ * </ul>
+ *
+ * <p>CO-483 + CO-484 多人审核（2026-07-03）：</p>
+ * <ul>
+ *   <li>canApprove/canReject 新增多人重载，身份校验改为 {@code currentUserId ∈ reviewerIds}</li>
+ *   <li>新增 {@link #computeAggregateStatus} 聚合判断整体状态</li>
+ *   <li>旧单值签名保留兼容历史数据（reviewer_id 字段冗余）</li>
  * </ul>
  */
 public final class BidReviewPolicy {
@@ -43,22 +53,19 @@ public final class BidReviewPolicy {
     }
 
     /**
-     * 校验审核是否可以通过。
+     * 校验审核是否可以通过（多人场景）。
      *
-     * <p>状态校验：仅 REVIEWING 状态可被审核通过。</p>
-     * <p>身份校验（IJSTZG 根因修复 2026-06-07）：
-     * 提交人不能审批自己提交的标书；
-     * 仅指派的审核人可以审批。</p>
+     * <p>身份校验：提交人不能审批自己提交的标书；仅指派的审核人（{@code currentUserId ∈ reviewerIds}）可审批。</p>
      *
      * @param current        当前状态
-     * @param submittedBy    提交审核的用户 ID（来自 {@code BidDocumentReviewEntity.submittedBy}）
-     * @param reviewerId     指派的审核人 ID（来自 {@code BidDocumentReviewEntity.reviewerId}）
-     * @param currentUserId  当前操作用户 ID（来自 {@code @AuthenticationPrincipal}）
+     * @param submittedBy    提交审核的用户 ID
+     * @param reviewerIds    指派的所有审核人 ID 集合
+     * @param currentUserId  当前操作用户 ID
      * @return 允许或拒绝决定
      */
     public static Decision canApprove(final BidReviewStatus current,
                                       final Long submittedBy,
-                                      final Long reviewerId,
+                                      final Collection<Long> reviewerIds,
                                       final Long currentUserId) {
         if (current == null) {
             return Decision.deny(Decision.Cause.STATE, "尚未提交审核，无法通过");
@@ -75,29 +82,44 @@ public final class BidReviewPolicy {
         if (submittedBy != null && submittedBy.equals(currentUserId)) {
             return Decision.deny(Decision.Cause.IDENTITY, "提交人不能审批自己提交的标书");
         }
-        if (reviewerId != null && !reviewerId.equals(currentUserId)) {
+        if (reviewerIds == null || !reviewerIds.contains(currentUserId)) {
             return Decision.deny(Decision.Cause.IDENTITY, "仅指派的审核人可以审批");
         }
         return Decision.permit();
     }
 
     /**
-     * 校验审核是否可以驳回。
+     * 校验审核是否可以通过（单审核人场景，向后兼容）。
+     *
+     * @deprecated CO-484 起推荐使用多人重载 {@link #canApprove(BidReviewStatus, Long, Collection, Long)}
+     */
+    @Deprecated
+    public static Decision canApprove(final BidReviewStatus current,
+                                      final Long submittedBy,
+                                      final Long reviewerId,
+                                      final Long currentUserId) {
+        return canApprove(current, submittedBy,
+                reviewerId == null ? null : List.of(reviewerId),
+                currentUserId);
+    }
+
+    /**
+     * 校验审核是否可以驳回（多人场景）。
      *
      * <p>状态校验：仅 REVIEWING 状态可被驳回，且必须填写驳回原因。</p>
-     * <p>身份校验：与 {@link #canApprove} 同等约束（防止自我审批与跨人审批）。</p>
+     * <p>身份校验：与 {@link #canApprove} 同等约束。</p>
      *
      * @param current        当前状态
      * @param reason         驳回原因
      * @param submittedBy    提交审核的用户 ID
-     * @param reviewerId     指派的审核人 ID
+     * @param reviewerIds    指派的所有审核人 ID 集合
      * @param currentUserId  当前操作用户 ID
      * @return 允许或拒绝决定
      */
     public static Decision canReject(final BidReviewStatus current,
                                      final String reason,
                                      final Long submittedBy,
-                                     final Long reviewerId,
+                                     final Collection<Long> reviewerIds,
                                      final Long currentUserId) {
         if (current == null) {
             return Decision.deny(Decision.Cause.STATE, "尚未提交审核，无法驳回");
@@ -117,10 +139,62 @@ public final class BidReviewPolicy {
         if (submittedBy != null && submittedBy.equals(currentUserId)) {
             return Decision.deny(Decision.Cause.IDENTITY, "提交人不能驳回自己提交的标书");
         }
-        if (reviewerId != null && !reviewerId.equals(currentUserId)) {
+        if (reviewerIds == null || !reviewerIds.contains(currentUserId)) {
             return Decision.deny(Decision.Cause.IDENTITY, "仅指派的审核人可以驳回");
         }
         return Decision.permit();
+    }
+
+    /**
+     * 校验审核是否可以驳回（单审核人场景，向后兼容）。
+     *
+     * @deprecated CO-484 起推荐使用多人重载 {@link #canReject(BidReviewStatus, String, Long, Collection, Long)}
+     */
+    @Deprecated
+    public static Decision canReject(final BidReviewStatus current,
+                                     final String reason,
+                                     final Long submittedBy,
+                                     final Long reviewerId,
+                                     final Long currentUserId) {
+        return canReject(current, reason, submittedBy,
+                reviewerId == null ? null : List.of(reviewerId),
+                currentUserId);
+    }
+
+    /**
+     * 聚合判断整体审核状态（CO-484 多人审核核心规则）。
+     *
+     * <p>规则：</p>
+     * <ul>
+     *   <li>任一 decision = REJECTED → 整体 REJECTED（任一驳回即终态）</li>
+     *   <li>否则若所有人 decision = APPROVED → 整体 APPROVED（全部通过才通过）</li>
+     *   <li>否则 → REVIEWING（仍有人未决策）</li>
+     * </ul>
+     *
+     * @param decisions 每个审核人的决策字符串集合（"APPROVED"/"REJECTED"/null）
+     * @return 聚合后的整体状态
+     */
+    public static BidReviewStatus computeAggregateStatus(final Collection<String> decisions) {
+        if (decisions == null || decisions.isEmpty()) {
+            return BidReviewStatus.REVIEWING;
+        }
+        boolean anyRejected = false;
+        boolean allApproved = true;
+        for (String d : decisions) {
+            if ("REJECTED".equals(d)) {
+                anyRejected = true;
+            } else if (!"APPROVED".equals(d)) {
+                // null 或未知值 → 未决策
+                allApproved = false;
+            }
+        }
+        if (anyRejected) {
+            return BidReviewStatus.REJECTED;
+        }
+        if (allApproved) {
+            return BidReviewStatus.APPROVED;
+        }
+        return BidReviewStatus.REVIEWING;
     }
 
     /**
