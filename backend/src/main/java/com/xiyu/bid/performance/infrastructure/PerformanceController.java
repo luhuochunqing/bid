@@ -192,14 +192,16 @@ public class PerformanceController {
             @RequestParam(required = false) String expiryDateStart,
             @RequestParam(required = false) String expiryDateEnd,
             @RequestParam(required = false) Boolean hasBidNotice,
-            @RequestParam(required = false) String projectManagerKeyword
+            @RequestParam(required = false) String projectManagerKeyword,
+            @RequestParam(required = false) List<String> attachmentTypes
     ) throws IOException {
         var criteria = com.xiyu.bid.performance.application.command.PerformanceSearchCriteria.of(
                 keyword, customerTypes, projectTypes, statuses, customerLevels,
                 territory, parseDate(signingDateStart), parseDate(signingDateEnd),
                 parseDate(expiryDateStart), parseDate(expiryDateEnd),
                 hasBidNotice, projectManagerKeyword);
-        byte[] data = importExportService.batchExportZip(ids, criteria);
+        var exportCriteria = buildExportCriteria(attachmentTypes);
+        byte[] data = importExportService.batchExportZip(ids, criteria, exportCriteria);
         String timestamp = java.time.LocalDateTime.now()
                 .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
         return ResponseEntity.ok()
@@ -207,6 +209,17 @@ public class PerformanceController {
                         "attachment; filename=\"业绩台账_" + timestamp + ".zip\"")
                 .contentType(MediaType.parseMediaType("application/zip"))
                 .body(data);
+    }
+
+    /** 将 attachmentTypes 请求参数解析为导出条件；null/空 = 全量（向后兼容）。 */
+    private static com.xiyu.bid.performance.application.dto.PerformanceExportCriteria buildExportCriteria(
+            List<String> attachmentTypes) {
+        if (attachmentTypes == null || attachmentTypes.isEmpty()) {
+            return com.xiyu.bid.performance.application.dto.PerformanceExportCriteria.allTypes();
+        }
+        java.util.Set<String> typeSet = new java.util.LinkedHashSet<>(attachmentTypes);
+        com.xiyu.bid.performance.domain.AttachmentFilter.validateTypes(typeSet);
+        return new com.xiyu.bid.performance.application.dto.PerformanceExportCriteria(typeSet);
     }
 
     private static LocalDate parseDate(String s) {

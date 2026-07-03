@@ -133,13 +133,20 @@
     <PerformanceAlertConfigDialog v-model="alertConfigVisible" />
 
     <PerformanceImportDialog v-model="importVisible" @imported="loadData" />
+
+    <PerformanceExportZipDialog
+      v-model:visible="exportZipDialogVisible"
+      :selected-count="selectedIds.length"
+      :total-count="records.length"
+      @confirm="handleExportZipConfirm"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { performanceApi } from '@/api/modules/performance.js'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import { Plus, Upload, Download, Bell } from '@element-plus/icons-vue'
 import { usePerformanceImport } from '@/composables/usePerformanceImport.js'
 import { useKnowledgePermission } from '@/composables/useKnowledgePermission'
@@ -147,6 +154,7 @@ import PerformanceDetailDrawer from './components/PerformanceDetailDrawer.vue'
 import PerformanceFormDialog from './components/PerformanceFormDialog.vue'
 import PerformanceAlertConfigDialog from './components/performance/PerformanceAlertConfigDialog.vue'
 import PerformanceImportDialog from './components/PerformanceImportDialog.vue'
+import PerformanceExportZipDialog from './components/PerformanceExportZipDialog.vue'
 
 const { canManagePerformance, canAdminAlert: canAdminPerformanceAlert } = useKnowledgePermission()
 
@@ -171,6 +179,8 @@ const loadData = async () => {
 
 const importVisible = ref(false)
 const handleImport = () => { importVisible.value = true }
+
+const exportZipDialogVisible = ref(false)
 
 const getCustomerTypeTagType = (t) => t === 'CENTRAL_SOE' ? 'danger' : t === 'LOCAL_SOE' ? 'warning' : t === 'GOVERNMENT_INSTITUTION' ? 'success' : 'primary'
 const getStatusTagType = (s) => s === 'EXPIRED' ? 'danger' : s === 'EXPIRING' ? 'warning' : 'success'
@@ -229,9 +239,30 @@ const handleDelete = async (row) => {
 }
 
 const handleExport = async (command) => {
+  if (command === 'zip') {
+    exportZipDialogVisible.value = true
+    return
+  }
   try {
-    const params = { ...searchForm, ids: selectedIds.value.length ? selectedIds.value : undefined }; if (command === 'zip') { await performanceApi.batchExportZip(params); ElMessage.success('ZIP 导出成功') } else { await performanceApi.batchExport(params); ElMessage.success('导出成功') }
+    const params = { ...searchForm, ids: selectedIds.value.length ? selectedIds.value : undefined }
+    await performanceApi.batchExport(params)
+    ElMessage.success('导出成功')
   } catch (err) { console.error('Export failed:', err); ElMessage.error('导出失败: ' + (err?.message || '未知错误')) }
+}
+
+const handleExportZipConfirm = async (checkedTypes) => {
+  exportZipDialogVisible.value = false
+  const loading = ElLoading.service({ lock: true, text: '正在打包，请稍候...', background: 'rgba(0, 0, 0, 0.7)' })
+  try {
+    const params = { ...searchForm, ids: selectedIds.value.length ? selectedIds.value : undefined, attachmentTypes: checkedTypes }
+    await performanceApi.batchExportZip(params)
+    ElMessage.success('ZIP 导出成功')
+  } catch (err) {
+    console.error('Export ZIP failed:', err)
+    ElMessage.error('导出失败: ' + (err?.message || '未知错误'))
+  } finally {
+    loading.close()
+  }
 }
 
 onMounted(loadData)

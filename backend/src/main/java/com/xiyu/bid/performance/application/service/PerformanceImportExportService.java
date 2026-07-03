@@ -1,6 +1,7 @@
 package com.xiyu.bid.performance.application.service;
 
 import com.xiyu.bid.performance.application.command.PerformanceSearchCriteria;
+import com.xiyu.bid.performance.application.dto.PerformanceExportCriteria;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -71,8 +72,9 @@ public class PerformanceImportExportService {
 
     /** ZIP 导出（含 Excel 台账 + 附件） */
     public byte[] batchExportZip(java.util.List<Long> ids,
-                                 PerformanceSearchCriteria criteria) throws IOException {
-        return zipExporter.exportZip(ids, criteria);
+                                 PerformanceSearchCriteria criteria,
+                                 PerformanceExportCriteria exportCriteria) throws IOException {
+        return zipExporter.exportZip(ids, criteria, exportCriteria);
     }
 
     private String getCellStr(org.apache.poi.ss.usermodel.Row row, int idx) {
