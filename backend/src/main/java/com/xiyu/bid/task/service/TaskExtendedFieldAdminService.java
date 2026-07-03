@@ -182,7 +182,7 @@ public class TaskExtendedFieldAdminService {
                 .map(TaskExtendedFieldReorderRequest.Item::key)
                 .toList();
         Map<String, TaskExtendedField> byKey = repository.findAllById(keys).stream()
-                .collect(Collectors.toMap(TaskExtendedField::getFieldKey, Function.identity()));
+                .collect(Collectors.toMap(TaskExtendedField::getFieldKey, Function.identity(), (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
 
         if (byKey.size() != new HashSet<>(keys).size()) {
             var missing = new HashSet<>(keys);

@@ -269,6 +269,22 @@ else
   fi
 fi
 
+# ── 9.6. toMap 无 merge function 拦截（Constitution v2.0.0 Principle VII） ──
+# 2-arg Collectors.toMap(k, v) 在重复 key 时抛 IllegalStateException。
+# 新代码必须用 3-arg toMap(k, v, (a, b) -> a)。遗留豁免见 scripts/tomap-exemptions.json。
+echo "── toMap merge function 拦截 ──"
+if [ ! -d "$ROOT_DIR/backend/src/main" ]; then
+  skip "无 Java 源码"
+elif [ "${BACKEND_CHANGED:-0}" -eq 0 ]; then
+  skip "toMap 拦截（无 backend/ 变更）"
+else
+  if node "$ROOT_DIR/scripts/check-tomap-no-merge-function.mjs" 2>&1; then
+    pass "toMap merge function 拦截"
+  else
+    fail "toMap 无 merge function — Collectors.toMap 2-arg 调用会抛 IllegalStateException。加 (a, b) -> a 第 3 参数。详见 scripts/check-tomap-no-merge-function.mjs"
+  fi
+fi
+
 # ── 10. 路由-E2E 兼容性检查 ────────────────────────────
 echo "── 路由-E2E 兼容 ──"
 STAGED_ROUTES=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -cE '^src/(router|views)/' || true)

@@ -173,7 +173,8 @@ public class ProjectArchiveExportService {
                 .distinct()
                 .toList();
         Map<Long, Project> projectMap = projectRepository.findAllById(projectIds).stream()
-                .collect(Collectors.toMap(Project::getId, p -> p));
+                .collect(Collectors.toMap(Project::getId, p -> p,
+                        (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
 
         List<Long> tenderIds = projectMap.values().stream()
                 .map(Project::getTenderId)
@@ -183,7 +184,8 @@ public class ProjectArchiveExportService {
         Map<Long, Tender> tenderMap = tenderIds.isEmpty()
                 ? Collections.emptyMap()
                 : tenderRepository.findAllById(tenderIds).stream()
-                        .collect(Collectors.toMap(Tender::getId, t -> t));
+                        .collect(Collectors.toMap(Tender::getId, t -> t,
+                                (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
 
         // CO-421: 投标负责人姓名读 ProjectInitiationDetails.biddingLeaderName（批量查询）
         Map<Long, String> bidManagerNameByProjectId = initiationDetailsRepository

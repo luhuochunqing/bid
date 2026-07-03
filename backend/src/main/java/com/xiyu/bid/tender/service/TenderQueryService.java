@@ -151,34 +151,40 @@ public class TenderQueryService {
     public void enrichAssignmentInfoBatch(List<TenderDTO> dtos) {
         if (dtos == null || dtos.isEmpty()) return;
 
-        Set<Long> tenderIds = dtos.stream().map(TenderDTO::getId).collect(Collectors.toSet());
+        try {
+            Set<Long> tenderIds = dtos.stream().map(TenderDTO::getId).collect(Collectors.toSet());
 
-        Map<Long, String> managerNames = fetchManagerNames(tenderIds);
-        Map<Long, String> assigneeNames = fetchAssigneeNames(tenderIds);
+            Map<Long, String> managerNames = fetchManagerNames(tenderIds);
+            Map<Long, String> assigneeNames = fetchAssigneeNames(tenderIds);
 
-        for (TenderDTO dto : dtos) {
-            // CO-333: 标讯自身已存项目负责人姓名时不被项目 managerId 反查覆盖，
-            // 避免管理员点击「立即投标」生成项目后，前端项目负责人显示值发生变化。
-            if (dto.getProjectManagerName() == null || dto.getProjectManagerName().isBlank()) {
-                String managerName = managerNames.get(dto.getId());
-                if (managerName != null) {
-                    dto.setProjectManagerName(managerName);
+            for (TenderDTO dto : dtos) {
+                // CO-333: 标讯自身已存项目负责人姓名时不被项目 managerId 反查覆盖，
+                // 避免管理员点击「立即投标」生成项目后，前端项目负责人显示值发生变化。
+                if (dto.getProjectManagerName() == null || dto.getProjectManagerName().isBlank()) {
+                    String managerName = managerNames.get(dto.getId());
+                    if (managerName != null) {
+                        dto.setProjectManagerName(managerName);
+                    }
                 }
+                dto.setAssigneeName(assigneeNames.get(dto.getId()));
             }
-            dto.setAssigneeName(assigneeNames.get(dto.getId()));
+        } catch (RuntimeException e) {
+            // CO-027: enrichment 降级——dtos 已是基础数据，enrichment 失败就保持原样
+            // 捕获 RuntimeException 覆盖 DB 超时、NPE、IllegalStateException 等运行时异常
+            log.warn("enrichment 降级 - tender enrichment failed, returning base data", e);
         }
     }
 
     private Map<Long, String> fetchManagerNames(Set<Long> tenderIds) {
         Map<Long, Long> tenderToManager = projectRepository.findByTenderIdIn(tenderIds).stream()
                 .filter(p -> p.getManagerId() != null)
-                .collect(Collectors.toMap(Project::getTenderId, Project::getManagerId));
+                .collect(Collectors.toMap(Project::getTenderId, Project::getManagerId, (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
 
         if (tenderToManager.isEmpty()) return Map.of();
 
         Set<Long> managerIds = Set.copyOf(tenderToManager.values());
         Map<Long, String> idToName = userRepository.findByIdIn(managerIds).stream()
-                .collect(Collectors.toMap(User::getId, User::getFullName));
+                .collect(Collectors.toMap(User::getId, User::getFullName, (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
 
         // CO-441: Collectors.toMap 不允许 null value，孤儿 manager_id（指向已删除用户）会触发 NPE。
         // 改用 HashMap 显式 put 允许 null value，保持 tenderId → null 映射，前端容错显示。
@@ -194,14 +200,15 @@ public class TenderQueryService {
                 .findLatestByTenderIds(tenderIds).stream()
                 .collect(Collectors.toMap(
                         TenderAssignmentRecord::getTenderId,
-                        TenderAssignmentRecord::getAssigneeId
+                        TenderAssignmentRecord::getAssigneeId,
+                        (a, b) -> a // CO-027: merge function 防止 Duplicate key 异常
                 ));
 
         if (tenderToAssignee.isEmpty()) return Map.of();
 
         Set<Long> assigneeIds = Set.copyOf(tenderToAssignee.values());
         Map<Long, String> idToName = userRepository.findByIdIn(assigneeIds).stream()
-                .collect(Collectors.toMap(User::getId, User::getFullName));
+                .collect(Collectors.toMap(User::getId, User::getFullName, (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
 
         // CO-441: 同 fetchManagerNames，防御性兜底 assignee 孤儿外键。
         Map<Long, String> result = new HashMap<>(tenderToAssignee.size());

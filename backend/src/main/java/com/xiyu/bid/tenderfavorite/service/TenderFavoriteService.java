@@ -99,7 +99,7 @@ public class TenderFavoriteService {
                 .collect(Collectors.toSet());
 
         Map<Long, Tender> tenderMap = tenderRepository.findAllById(tenderIds).stream()
-                .collect(Collectors.toMap(Tender::getId, t -> t));
+                .collect(Collectors.toMap(Tender::getId, t -> t, (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
 
         // 组装 DTO
         List<TenderFavoriteDTO> dtos = favoritePage.getContent().stream()

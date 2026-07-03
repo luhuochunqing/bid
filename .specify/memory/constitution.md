@@ -1,25 +1,32 @@
 <!--
   Sync Impact Report
   ==================
-  Version change: 1.2.0 → 1.3.0
-  Type: MINOR — added Authorization Unification Core Principle (VII) codifying
-        single-permission-model (isAuthenticated + hasAuthority), prohibiting
-        hasAnyRole/hasRole dual-track, and mandating migration of 177 legacy
-        whitelist sites. Strengthens Security & Access Control §API Authorization.
+  Version change: 1.3.0 → 2.0.0
+  Type: MAJOR — added Defensive Collection & Graceful Degradation Core Principle
+        (VIII) codifying three non-negotiable rules: (1) Collectors.toMap MUST
+        provide merge function when key is non-unique DB field, (2) decorative
+        enrichment MUST degrade gracefully, (3) 5xx exception handlers MUST
+        print stacktrace + payload + report to Sentry. Root cause: 2026-07-03
+        tender list crash (PR #1640) — 31 toMap calls without merge function +
+        enrichment failure without degradation + handler without stacktrace/Sentry
+        let a single edge-case row collapse the entire tender module.
 
-  Root cause context: eb58f2817 (2026-06-16) cut legacy ROLE_STAFF/ROLE_MANAGER
-        compatibility for bid-otherDept/bid-administration/bid-Team, but did not
-        migrate the 177 @PreAuthorize sites depending on those authorities —
-        leaving a dual-track model responsible for 20+ recurring 403 PRs
-        (CO-362 → CO-466, CO-394 A/B/C/D, CO-415/416, etc.). This principle
-        makes the migration mandatory and prevent recurrence via ArchTest gate.
+  Root cause context: PR #1640 (2026-07-03) — TenderQueryService.fetchManagerNames
+        used Collectors.toMap(Project::getTenderId, Project::getManagerId) without
+        merge function. When tenderId=937 associated with 2 Projects (managerId=585
+        and 7246, a legitimate rebid scenario per ProjectClosureService.rebidProject),
+        IllegalStateException was thrown, propagating through enrichment → service →
+        controller → frontend, ultimately showing "加载标讯列表失败" to users.
+        Investigation revealed 31 similar toMap calls without merge function across
+        the codebase, plus enrichment methods without try-catch degradation, plus
+        handleIllegalStateException logging only warn-level without stacktrace/payload/Sentry.
 
   Modified principles:
-    - VI. Boring Proven Patterns → renumbered to VII.
-    - Added new VI. Authorization Unification (NON-NEGOTIABLE).
-  Added sections: new Core Principle VI (Authorization Unification);
-        Security & Access Control §API Authorization materially expanded
-        (single-source, dual-track prohibition, migration mandate).
+    - VII. Boring Proven Patterns → renumbered to VIII.
+    - Added new VII. Defensive Collection & Graceful Degradation (NON-NEGOTIABLE).
+  Added sections: new Core Principle VII (Defensive Collection & Graceful
+        Degradation); Code Quality Gates §Stream Collection Gate added;
+        Code Quality Gates §Exception Handler Diagnostics added.
   Removed sections: none.
 
   Templates requiring updates:
@@ -129,7 +136,42 @@ YAGNI 原则避免过度工程化。
 PR。CO-394 A/B/C/D 已验证 `hasAnyRole → hasAuthority` 迁移范式可行，本原则将其
 从"单点修复"上升为"系统性治理"。
 
-### VII. Boring Proven Patterns
+### VII. Defensive Collection & Graceful Degradation (NON-NEGOTIABLE)
+
+stream collection、装饰性 enrichment 和异常处理 MUST 满足以下规则，确保单条
+边界数据不会让整个模块崩溃：
+
+1. **`Collectors.toMap` MUST 提供 merge function**：当 key 来自 DB 查询且非主键
+   唯一约束字段时（如外键、一对多关系、业务字段），MUST 使用 3 参数版本
+   `toMap(keyMapper, valueMapper, (a, b) -> a)`。仅当 key 是 DB 主键且有唯一约束
+   时方可使用 2 参数版本。新增 2 参数 `toMap` MUST 在 PR 描述中证明 key 唯一性。
+
+2. **装饰性 enrichment MUST 降级**：name resolution、display field 补充、批量
+   关联查询等装饰性 enrichment 操作失败时 MUST 降级为不补充信息（`log.warn` 后
+   返回原数据），不得抛异常导致主功能失败。主功能（CRUD、业务流程、权限校验）
+   的失败仍按正常异常处理。
+
+3. **全局异常 handler MUST 满足诊断标准**：所有 5xx 异常 handler MUST：
+   - `log.error` 打印完整堆栈（禁止只 `log.warn` 一行不打印堆栈）
+   - 打印 Payload/Query（通过 `getRequestPayload`）
+   - 调用 `Sentry.captureException` 上报（无 DSN 时为 no-op）
+   - 对外返回通用错误信息，不暴露内部实现细节
+
+**Rationale**: 2026-07-03 标讯列表崩溃事件（PR #1640）暴露三层失效：
+①31 处 `toMap` 无 merge function，一条边界数据（tenderId 关联多 Project，
+业务允许的二次招标场景）触发 `IllegalStateException`；②enrichment 失败无降级，
+装饰性操作让整个标讯模块不可用；③`handleIllegalStateException` 只 `log.warn`
+一行，不打印堆栈、不上报 Sentry，导致同类 bug 在 Sentry Dashboard 看不到，
+后端日志无堆栈，定位困难。fail-safe 优于 fail-fast；装饰性操作不得影响主功能；
+可观测性是根因定位的基础。
+
+**Automated Enforcement**:
+- ArchitectureTest MUST 包含守卫规则，扫描 `Collectors.toMap` 2 参数版本调用，
+  命中即失败。已有 31 处作为白名单豁免（逐处修复后从豁免清单删除）。
+- pre-push gate MUST 检查新增 2 参数 `Collectors.toMap`，命中即拒绝推送。
+- 全部 31 处修复完成后，ArchitectureTest 从白名单模式升级为硬失败门禁。
+
+### VIII. Boring Proven Patterns
 
 优先使用经过验证的、可预测的技术模式。只在以下条件触发时才引入复杂度：
 - 性能数据证明当前方案过慢
@@ -150,6 +192,13 @@ PR。CO-394 A/B/C/D 已验证 `hasAnyRole → hasAuthority` 迁移范式可行�
 - **Quality CI**: `mvn -Pjava-quality,java-quality-spotbugs,quality-strict checkstyle:check pmd:check spotbugs:check` MUST 在 PR 门禁中全绿。
 - **Frontend Gate**: `npm run check:front-data-boundaries`、`npm run check:doc-governance`、
   `npm run check:line-budgets` MUST 通过。
+- **Stream Collection Gate**: `Collectors.toMap` 2 参数版本（无 merge function）
+  MUST 被 ArchitectureTest 守卫拦截。已有 31 处作为白名单豁免（详见 Core Principle VII），
+  新增使用点 MUST NOT 进入豁免清单。pre-push gate 同步检查，命中即拒绝推送。
+- **Exception Handler Diagnostics**: 所有 5xx 异常 handler MUST 打印堆栈 + Payload +
+  上报 Sentry（详见 Core Principle VII §3）。ArchitectureTest SHOULD 扫描
+  `@ExceptionHandler` 方法，验证其包含 `log.error`（而非 `log.warn`）和
+  `Sentry.captureException` 调用。
 
 ## Performance Constraints
 

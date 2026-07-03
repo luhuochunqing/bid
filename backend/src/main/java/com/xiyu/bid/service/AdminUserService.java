@@ -148,7 +148,8 @@ public class AdminUserService {
         RoleProfile nextRoleProfile = roleProfileService.requireRoleProfile(request.getRoleId());
         boolean enabled = Boolean.TRUE.equals(request.getEnabled());
         Map<String, String> deptNameByCode = dataScopeConfigService.getDepartmentGraph().options().stream()
-                .collect(Collectors.toMap(option -> option.code(), option -> option.name()));
+                .collect(Collectors.toMap(option -> option.code(), option -> option.name(),
+                        (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
         String departmentCode = DepartmentGraphPolicy.normalizeCode(request.getDepartmentCode());
 
         OrganizationValidationResult validation = OrganizationValidationPolicy.validateUserOrganization(

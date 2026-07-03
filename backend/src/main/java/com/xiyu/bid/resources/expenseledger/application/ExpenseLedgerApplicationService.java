@@ -73,7 +73,8 @@ public class ExpenseLedgerApplicationService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
         return projectRepository.findAllById(projectIds).stream()
-                .collect(Collectors.toMap(Project::getId, Function.identity()));
+                .collect(Collectors.toMap(Project::getId, Function.identity(),
+                        (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
     }
 
     private Map<Long, User> loadManagers(Iterable<Project> projects) {
@@ -82,7 +83,8 @@ public class ExpenseLedgerApplicationService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
         return userRepository.findAllById(managerIds).stream()
-                .collect(Collectors.toMap(User::getId, Function.identity()));
+                .collect(Collectors.toMap(User::getId, Function.identity(),
+                        (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
     }
 
     private ExpenseLedgerItemDTO toLedgerItem(Expense expense, Project project, Map<Long, User> managersById) {

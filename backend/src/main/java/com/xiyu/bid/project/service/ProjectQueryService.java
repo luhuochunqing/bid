@@ -108,7 +108,8 @@ public class ProjectQueryService {
                         .stream()
                         .collect(Collectors.toMap(
                                 Tender::getId,
-                                Function.identity()));
+                                Function.identity(),
+                                (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
 
         Map<Long, ProjectInitiationDetails> detailsMap =
                 projectInitiationDetailsRepository
@@ -117,7 +118,8 @@ public class ProjectQueryService {
                         .collect(Collectors.toMap(
                                 ProjectInitiationDetails
                                         ::getProjectId,
-                                d -> d));
+                                d -> d,
+                                (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
 
         Map<Long, ProjectLeadAssignment> leadAssignmentMap =
                 projectLeadAssignmentRepository
@@ -132,13 +134,15 @@ public class ProjectQueryService {
         Map<Long, TenderEvaluation> evalMap = tenderIds.isEmpty()
                 ? java.util.Collections.emptyMap()
                 : tenderEvaluationRepository.findByTenderIdIn(tenderIds).stream()
-                        .collect(Collectors.toMap(TenderEvaluation::getTenderId, Function.identity()));
+                        .collect(Collectors.toMap(TenderEvaluation::getTenderId, Function.identity(),
+                                (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
 
         // Batch-fetch project results for bidStatus computation
         Map<Long, String> projectResultMap = projectResultRepository
                 .findByProjectIdIn(projects.stream().map(ProjectDTO::getId).collect(Collectors.toList()))
                 .stream()
-                .collect(Collectors.toMap(ProjectResult::getProjectId, ProjectResult::getResultType));
+                .collect(Collectors.toMap(ProjectResult::getProjectId, ProjectResult::getResultType,
+                        (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
 
         for (ProjectDTO dto : projects) {
             ProjectInitiationDetails det =

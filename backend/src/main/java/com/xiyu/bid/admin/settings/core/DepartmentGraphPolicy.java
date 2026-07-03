@@ -86,7 +86,8 @@ public final class DepartmentGraphPolicy {
     private static boolean hasCycle(List<DepartmentNode> nodes) {
         Map<String, String> parentByCode = nodes.stream()
                 .filter(node -> hasText(node.parentCode()))
-                .collect(java.util.stream.Collectors.toMap(DepartmentNode::code, DepartmentNode::parentCode));
+                .collect(java.util.stream.Collectors.toMap(DepartmentNode::code, DepartmentNode::parentCode,
+                        (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
         for (String code : parentByCode.keySet()) {
             java.util.HashSet<String> seen = new java.util.HashSet<>();
             String current = code;

@@ -5,9 +5,14 @@
 
 package com.xiyu.bid;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.domain.JavaMethod;
+import com.tngtech.archunit.core.domain.JavaMethodCall;
+import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
@@ -17,12 +22,18 @@ import com.tngtech.archunit.lang.ConditionEvent;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
 import com.tngtech.archunit.library.dependencies.Slice;
+import com.xiyu.bid.architecture.fixtures.TomapFixture2Arg;
+import com.xiyu.bid.architecture.fixtures.TomapFixture3Arg;
+import org.junit.jupiter.api.Test;
 
+import java.io.File;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.TreeSet;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.*;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Architecture Tests for XiYu Bid Platform
@@ -882,4 +893,116 @@ public class ArchitectureTest {
     // 且阻塞所有改 @PreAuthorize 的 backend PR。真实权限语义已由 50 个功能级契约测试锁定
     // （见 docs/audit/tender-permission-audit-2026-07-03.md + project-permission-audit-2026-07-03.md）。
     // 防漂移靠契约测试（锁定角色/数据范围/状态收口），而非语法层面的 hasAnyRole 计数。
+
+    // ========== T011/T014: Constitution v2.0.0 Principle VII — Collectors.toMap merge function 守卫 ==========
+
+    /** 豁免清单：US2 Phase 1-3 遗留 2-arg toMap 调用，从 scripts/tomap-exemptions.json 加载。 */
+    private static final Set<String> TOMAP_EXEMPTIONS = loadTomapExemptions();
+
+    /**
+     * 从 scripts/tomap-exemptions.json 加载豁免清单。
+     * 返回 Set&lt;"file:line"&gt;，file 为相对路径如 com/xiyu/bid/.../XxxService.java。
+     * 文件不存在或解析失败时返回空集（strict 模式：所有 2-arg 调用均被标记）。
+     */
+    private static Set<String> loadTomapExemptions() {
+        Set<String> exemptions = new HashSet<>();
+        String[] candidates = {
+            "scripts/tomap-exemptions.json",
+            "../scripts/tomap-exemptions.json"
+        };
+        File file = null;
+        for (String p : candidates) {
+            File f = new File(p);
+            if (f.exists()) { file = f; break; }
+        }
+        if (file == null) return exemptions;
+        try {
+            JsonNode root = new ObjectMapper().readTree(file);
+            JsonNode list = root.get("exemptions");
+            if (list != null) {
+                for (JsonNode e : list) {
+                    exemptions.add(e.get("file").asText() + ":" + e.get("line").asInt());
+                }
+            }
+        } catch (Exception ex) {
+            // 解析失败 → 空集（strict 模式）
+        }
+        return exemptions;
+    }
+
+    /**
+     * ArchCondition: 禁止 Collectors.toMap 2-arg 调用（无 merge function）。
+     * 2-arg toMap(k, v) 在遇到重复 key 时抛 IllegalStateException，
+     * 必须使用 3-arg toMap(k, v, (a, b) -> a) 优雅降级。
+     */
+    private static final ArchCondition<JavaClass> NO_TOMAP_WITHOUT_MERGE_FUNCTION =
+        new ArchCondition<JavaClass>(
+            "not call Collectors.toMap without merge function (Constitution v2.0.0 Principle VII)"
+        ) {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                for (JavaMethodCall call : item.getMethodCallsFromSelf()) {
+                    // Use var: call.getTarget() returns AccessTarget.MethodCallTarget
+                    // which may not be directly importable in all ArchUnit versions.
+                    // Use getRawParameterTypes() to inspect argument count without resolving overload.
+                    var target = call.getTarget();
+                    if (target == null) continue;
+                    if (!"java.util.stream.Collectors".equals(target.getOwner().getName())) continue;
+                    if (!"toMap".equals(target.getName())) continue;
+                    // 2-arg toMap has exactly 2 raw parameter types (Function, Function).
+                    // 3-arg has 3 (Function, Function, BinaryOperator); 4-arg has 4 (+ Supplier).
+                    if (target.getRawParameterTypes().size() != 2) continue;
+                    String className = item.getName();
+                    int dollarIdx = className.indexOf('$');
+                    if (dollarIdx > 0) className = className.substring(0, dollarIdx);
+                    String filePath = className.replace('.', '/') + ".java";
+                    int lineNum = call.getLineNumber();
+                    String key = filePath + ":" + lineNum;
+                    if (TOMAP_EXEMPTIONS.contains(key)) continue;
+                    events.add(SimpleConditionEvent.violated(call,
+                        "Collectors.toMap without merge function at " + item.getSimpleName()
+                        + ".java:" + lineNum
+                        + " — throws IllegalStateException on duplicate keys. "
+                        + "Add (a, b) -> a as third argument. "
+                        + "See Constitution v2.0.0 Principle VII."));
+                }
+            }
+        };
+
+    /**
+     * RULE 18: Collectors.toMap 必须带 merge function（Constitution v2.0.0 Principle VII）
+     *
+     * 2 参数版本 toMap(k, v) 在遇到重复 key 时抛 IllegalStateException。
+     * 必须使用 3 参数版本 toMap(k, v, (a, b) -> a) 优雅降级。
+     *
+     * 豁免清单说明：scripts/tomap-exemptions.json 当前为空（35 处已全部修复）。
+     * 本规则在编译期基于字节码 JavaMethodCall API 扫描，覆盖所有调用形式（含
+     * 静态导入 `import static ... toMap`）。pre-push gate 脚本
+     * check-tomap-no-merge-function.mjs 是文本扫描兜底，与本规则形成双重守卫。
+     */
+    @ArchTest
+    public static final ArchRule toMapMustHaveMergeFunction =
+        classes()
+            .should(NO_TOMAP_WITHOUT_MERGE_FUNCTION)
+            .because("Collectors.toMap without merge function throws IllegalStateException "
+                + "on duplicate keys. Add (a, b) -> a as third argument. "
+                + "See Constitution v2.0.0 Principle VII.");
+
+    /**
+     * T014: 验证 toMapMustHaveMergeFunction 规则对 fixture 类的行为。
+     * - 2-arg toMap → 应被标记（AssertionError）
+     * - 3-arg toMap → 应通过
+     */
+    @Test
+    public void tomapRule_shouldFlag2ArgAndPass3Arg() {
+        JavaClasses violating = new ClassFileImporter()
+            .importClasses(TomapFixture2Arg.class);
+        assertThrows(AssertionError.class,
+            () -> toMapMustHaveMergeFunction.check(violating),
+            "2-arg Collectors.toMap should be flagged by toMapMustHaveMergeFunction");
+
+        JavaClasses ok = new ClassFileImporter()
+            .importClasses(TomapFixture3Arg.class);
+        toMapMustHaveMergeFunction.check(ok);
+    }
 }

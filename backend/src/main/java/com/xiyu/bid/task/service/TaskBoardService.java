@@ -139,7 +139,7 @@ public class TaskBoardService {
                 .collect(Collectors.toMap(Project::getId, p -> {
                     String name = p.getName();
                     return name == null ? "" : name;
-                }));
+                }, (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
     }
 
     private Map<Long, String> fetchSubmitterNames(List<BidDocumentReviewEntity> reviews) {
@@ -151,7 +151,7 @@ public class TaskBoardService {
             return Map.of();
         }
         return userRepository.findByIdIn(submitterIds).stream()
-                .collect(Collectors.toMap(User::getId, TaskBoardItemMapper::fullNameOf));
+                .collect(Collectors.toMap(User::getId, TaskBoardItemMapper::fullNameOf, (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
     }
 
     private List<TaskBoardItemDTO> filterByProjectVisibility(List<TaskBoardItemDTO> items, User currentUser) {

@@ -67,7 +67,7 @@ class ProjectStageControllerTest {
         when(stageService.hasClosureSubmission(42L)).thenReturn(false);
         when(stageService.allowedNext(42L)).thenReturn(List.of(ProjectStage.DRAFTING));
         when(bidReviewAppService.getReviewState(42L)).thenReturn(
-                new BidReviewAppService.ReviewState("REVIEWING", 5472L, null, "覃超颖"));
+                new BidReviewAppService.ReviewState("REVIEWING", 5472L, null, "覃超颖", List.of()));
 
         mockMvc.perform(get("/api/projects/42/stage").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
@@ -87,7 +87,7 @@ class ProjectStageControllerTest {
         when(stageService.hasClosureSubmission(42L)).thenReturn(false);
         when(stageService.allowedNext(42L)).thenReturn(List.of(ProjectStage.RESULT_PENDING));
         when(bidReviewAppService.getReviewState(42L)).thenReturn(
-                new BidReviewAppService.ReviewState("REVIEWING", 5472L, null, "覃超颖"));
+                new BidReviewAppService.ReviewState("REVIEWING", 5472L, null, "覃超颖", List.of()));
 
         mockMvc.perform(get("/api/projects/42/stage").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
@@ -106,7 +106,7 @@ class ProjectStageControllerTest {
         when(stageService.currentStage(42L)).thenReturn(ProjectStage.RETROSPECTIVE);
         when(stageService.hasClosureSubmission(42L)).thenReturn(true);
         when(bidReviewAppService.getReviewState(42L)).thenReturn(
-                new BidReviewAppService.ReviewState("REVIEWING", 9999L, null, "其他人"));
+                new BidReviewAppService.ReviewState("REVIEWING", 9999L, null, "其他人", List.of()));
         // CO-443 修正: 结项申请已提交但审批中(PENDING) → terminal=false（进行中）
         ProjectClosure pendingClosure = ProjectClosure.builder().reviewStatus("PENDING").build();
         when(closureRepository.findByProjectId(42L)).thenReturn(java.util.Optional.of(pendingClosure));
@@ -126,7 +126,7 @@ class ProjectStageControllerTest {
         when(stageService.currentStage(42L)).thenReturn(ProjectStage.CLOSED);
         when(stageService.hasClosureSubmission(42L)).thenReturn(true);
         when(bidReviewAppService.getReviewState(42L)).thenReturn(
-                new BidReviewAppService.ReviewState("REVIEWING", 9999L, null, "其他人"));
+                new BidReviewAppService.ReviewState("REVIEWING", 9999L, null, "其他人", List.of()));
         // CO-443 修正: 结项审批通过(APPROVED) → terminal=true（已完成）
         ProjectClosure approvedClosure = ProjectClosure.builder().reviewStatus("APPROVED").build();
         when(closureRepository.findByProjectId(42L)).thenReturn(java.util.Optional.of(approvedClosure));
@@ -146,7 +146,7 @@ class ProjectStageControllerTest {
         when(stageService.currentStage(42L)).thenReturn(ProjectStage.CLOSED);
         when(stageService.hasClosureSubmission(42L)).thenReturn(false);
         when(bidReviewAppService.getReviewState(42L)).thenReturn(
-                new BidReviewAppService.ReviewState("REVIEWING", 9999L, null, "其他人"));
+                new BidReviewAppService.ReviewState("REVIEWING", 9999L, null, "其他人", List.of()));
         when(closureRepository.findByProjectId(42L)).thenReturn(java.util.Optional.empty());
 
         mockMvc.perform(get("/api/projects/42/stage").accept(MediaType.APPLICATION_JSON))

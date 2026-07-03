@@ -31,10 +31,12 @@ class DocumentSectionTreeService {
         List<Long> sectionIds = allSections.stream().map(DocumentSection::getId).toList();
         Map<Long, DocumentSectionAssignment> assignments = assignmentRepository.findBySectionIdIn(sectionIds)
                 .stream()
-                .collect(Collectors.toMap(DocumentSectionAssignment::getSectionId, Function.identity()));
+                .collect(Collectors.toMap(DocumentSectionAssignment::getSectionId, Function.identity(),
+                        (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
         Map<Long, DocumentSectionLock> locks = lockRepository.findBySectionIdIn(sectionIds)
                 .stream()
-                .collect(Collectors.toMap(DocumentSectionLock::getSectionId, Function.identity()));
+                .collect(Collectors.toMap(DocumentSectionLock::getSectionId, Function.identity(),
+                        (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
         return DocumentEditorMapper.buildTree(allSections, assignments, locks);
     }
 }

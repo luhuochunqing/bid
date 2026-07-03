@@ -66,7 +66,7 @@ class ProjectDraftingServiceTest {
                 .thenAnswer(inv -> inv.getArgument(0));
         lenient().when(projectStageService.currentStage(1L)).thenReturn(ProjectStage.DRAFTING);
         lenient().when(bidReviewAppService.getReviewState(1L))
-                .thenReturn(new BidReviewAppService.ReviewState("DRAFT", null, null, null));
+                .thenReturn(new BidReviewAppService.ReviewState("DRAFT", null, null, null, List.of()));
         // CO-373 默认 mock：模拟"缓存未命中"语义，与旧 OssPermissionCache.getRoleCode()
         // 返回 Optional.empty() 的行为对齐——非 OSS 用户回退到 DB roleCode，OSS 用户 fail-closed。
         // 单个测试可按需用 when() 覆盖为缓存命中场景。
@@ -231,7 +231,7 @@ class ProjectDraftingServiceTest {
         lenient().when(leadRepo.findByProjectId(1L)).thenReturn(Optional.empty());
         lenient().when(projectStageService.currentStage(1L)).thenReturn(ProjectStage.DRAFTING);
         lenient().when(bidReviewAppService.getReviewState(1L))
-                .thenReturn(new BidReviewAppService.ReviewState("APPROVED", null, null, null));
+                .thenReturn(new BidReviewAppService.ReviewState("APPROVED", null, null, null, List.of()));
         lenient().when(projectEvaluationRepository.findByProjectId(1L)).thenReturn(Optional.empty());
         lenient().when(projectEvaluationRepository.save(any(com.xiyu.bid.project.entity.ProjectEvaluation.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
@@ -489,12 +489,12 @@ class ProjectDraftingServiceTest {
     void submitForReview_unauthorizedRole_denied_403() {
         when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "bid-otherDept")));
 
-        assertThatThrownBy(() -> service.submitForReview(1L, 99L, 1L))
+        assertThatThrownBy(() -> service.submitForReview(1L, List.of(99L), 1L))
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting("statusCode").isEqualTo(HttpStatus.FORBIDDEN);
 
         verify(bidReviewAppService, never())
-                .submitForReview(any(Long.class), any(Long.class), any(Long.class));
+                .submitForReview(any(Long.class), any(List.class), any(Long.class));
     }
 
     @Test
@@ -504,11 +504,11 @@ class ProjectDraftingServiceTest {
         lenient().when(taskRepository.findByProjectId(1L)).thenReturn(List.of());
         prepareBidDocument();
         org.mockito.Mockito.lenient().doNothing().when(bidReviewAppService)
-                .submitForReview(any(Long.class), any(Long.class), any(Long.class));
+                .submitForReview(any(Long.class), any(List.class), any(Long.class));
 
-        service.submitForReview(1L, 99L, 1L);
+        service.submitForReview(1L, List.of(99L), 1L);
 
-        verify(bidReviewAppService).submitForReview(1L, 99L, 1L);
+        verify(bidReviewAppService).submitForReview(1L, List.of(99L), 1L);
     }
 
     @Test
@@ -521,11 +521,11 @@ class ProjectDraftingServiceTest {
                 Task.builder().id(2L).projectId(1L).title("b").status(Task.Status.REVIEW).build()));
         prepareBidDocument();
         org.mockito.Mockito.lenient().doNothing().when(bidReviewAppService)
-                .submitForReview(any(Long.class), any(Long.class), any(Long.class));
+                .submitForReview(any(Long.class), any(List.class), any(Long.class));
 
-        service.submitForReview(1L, 99L, 1L);
+        service.submitForReview(1L, List.of(99L), 1L);
 
-        verify(bidReviewAppService).submitForReview(1L, 99L, 1L);
+        verify(bidReviewAppService).submitForReview(1L, List.of(99L), 1L);
     }
 
     @Test
@@ -535,7 +535,7 @@ class ProjectDraftingServiceTest {
                 Task.builder().id(1L).projectId(1L).title("a").status(Task.Status.COMPLETED).build()));
         prepareNoBidDocument();
 
-        assertThatThrownBy(() -> service.submitForReview(1L, 99L, 1L))
+        assertThatThrownBy(() -> service.submitForReview(1L, List.of(99L), 1L))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(ex -> {
                     ResponseStatusException rse = (ResponseStatusException) ex;
@@ -544,7 +544,7 @@ class ProjectDraftingServiceTest {
                 });
 
         verify(bidReviewAppService, never())
-                .submitForReview(any(Long.class), any(Long.class), any(Long.class));
+                .submitForReview(any(Long.class), any(List.class), any(Long.class));
     }
 
     @Test
@@ -554,7 +554,7 @@ class ProjectDraftingServiceTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "admin")));
         when(projectRepository.findById(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.submitForReview(999L, 99L, 1L))
+        assertThatThrownBy(() -> service.submitForReview(999L, List.of(99L), 1L))
                 .isInstanceOf(com.xiyu.bid.exception.ResourceNotFoundException.class);
 
         // 闸门校验不应被触发（projectId 不存在时不应进入 hasBidDocument 查询）
@@ -562,7 +562,7 @@ class ProjectDraftingServiceTest {
                 .findByProjectIdAndFiltersOrderByCreatedAtDesc(
                         any(Long.class), any(), any(), any());
         verify(bidReviewAppService, never())
-                .submitForReview(any(Long.class), any(Long.class), any(Long.class));
+                .submitForReview(any(Long.class), any(List.class), any(Long.class));
     }
 
     // ── CO-373：OSS 缓存角色优先于 DB roleProfile ─────────────────────────

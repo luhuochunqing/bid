@@ -2603,3 +2603,88 @@ npx vitest run src/views/Project/composables/useProjectFilter.spec.js
 - PR !1642 — 本次修复（投标负责人筛选只匹配主负责人）
 - `src/views/Project/composables/useProjectFilter.js` — 前端筛选逻辑（修复后）
 - `backend/src/main/java/com/xiyu/bid/project/service/ProjectQueryService.java` — enrich 逻辑（姓名与 ID 来源分叉点）
+
+## 36. Collectors.toMap 无 merge function 三层失效 + 35 处全仓治理（PR !1640 + Spec Kit 027）
+
+**事故时间**: 2026-07-03
+**影响范围**: 标讯中心整个模块不可用（列表页 + 详情页均报"加载标讯列表失败"）
+**根因类别**: 防御性编程缺失 + 装饰性操作未降级 + 异常 handler 诊断缺失
+
+### 事故经过
+
+测试系统 `tenderId=937` 关联 2 个 Project（managerId=585 和 7246），这是业务允许的二次招标场景（`ProjectClosureService.rebidProject` 会基于已结项项目创建新项目，保留同一 tenderId）。
+
+`TenderQueryService.fetchManagerNames` 使用 `Collectors.toMap(Project::getTenderId, Project::getManagerId)` **无 merge function**，遇到重复 key 时抛 `IllegalStateException: Duplicate key 937 (attempted merging values 585 and 7246)`。
+
+异常传播链：`toMap` → `enrichAssignmentInfoBatch`（无降级）→ `searchTendersPaged`（无 try-catch）→ `GlobalExceptionHandler.handleIllegalStateException`（只 `log.warn` 一行，不打印堆栈/不上报 Sentry）→ 前端弹"加载标讯列表失败"。
+
+**三层失效**：
+1. **数据层**: `toMap` 无 merge function，fail-fast 抛异常（Java 标准库默认行为）
+2. **服务层**: enrichment 是装饰性操作（补充 manager name 显示），但失败时未降级，导致主列表功能崩溃
+3. **异常层**: handler 只 `log.warn` 一行，不打印堆栈、不上报 Sentry，导致 Sentry Dashboard 看不到，后端日志无堆栈，定位困难
+
+### 排查方法
+
+按 §23 全链路日志排查 SOP：
+1. **Layer 1 异常日志**: 后端日志只有 `Duplicate key 937 (attempted merging values 585 and 7246)`，无堆栈
+2. **Layer 3 git 追溯**: grep `Collectors.toMap` 找到 `TenderQueryService.fetchManagerNames`，确认无 merge function
+3. **错误特征匹配**: `937` = `Project::getTenderId`，`585/7246` = `Project::getManagerId`
+4. **全仓扫描**: 用 subagent 扫描全仓 62 处 `toMap` 调用，发现 31 处无 merge function（隐患）
+
+### 修复方案（三层防御体系）
+
+**L1 数据层**: 修复全仓 35 处 `toMap` 2 参数版本，添加 `(a, b) -> a` merge function
+- 取第一条与 `findByTenderId().findFirst()` 语义一致
+- 35 处分布：ProjectQueryService (4)、TenderQueryService (6)、DocumentSectionTreeService (2)、JpaWorkflowFormAdminStore (2) 等 20 个文件
+
+**L2 服务层**: 装饰性 enrichment 加 try-catch 降级
+- `TenderQueryService.enrichAssignmentInfoBatch` 外层加 `try { ... } catch (RuntimeException e) { log.warn(...); }`
+- 降级后 dtos 保持原样（基础数据完整，装饰性字段为空），不影响主列表返回
+- 注意：只对装饰性 enrichment 降级，不对核心方法降级（如 `DocumentSectionTreeService.getSectionTree` 是核心方法，失败应抛异常）
+
+**L3 异常层**: 5xx handler 对齐 SOP §23
+- `handleIllegalStateException` + `handleOptimisticLockingFailureException` 修复
+- `log.warn` → `log.error`（打印堆栈）+ `getRequestPayload`（打印 Payload）+ `Sentry.captureException`（上报）
+
+### 防复发机制
+
+1. **ArchUnit 守卫**: `ArchitectureTest.RULE 18 toMapMustHaveMergeFunction`
+   - 扫描 `Collectors.toMap` 2 参数版本调用，命中即失败
+   - 豁免清单 `scripts/tomap-exemptions.json`（现已清空，35 处全部修复）
+
+2. **pre-push gate**: `scripts/check-tomap-no-merge-function.mjs`
+   - Node.js 脚本，pre-push 阶段拦截新增 2 参数 toMap
+   - 已接入 `scripts/pre-push-gate.sh` 第 9.6 节
+
+3. **Constitution v2.0.0 Principle VII**: Defensive Collection & Graceful Degradation
+   - 新增 Core Principle VII（NON-NEGOTIABLE），三条规则：
+     - `toMap` MUST 提供 merge function（key 非主键唯一约束时）
+     - 装饰性 enrichment MUST 降级
+     - 5xx handler MUST 打印堆栈 + Payload + Sentry
+
+### 教训归纳
+
+1. **`Collectors.toMap` 无 merge function 是定时炸弹**: Java 标准库 fail-fast 设计，遇到重复 key 直接抛异常。**任何** key 非唯一约束的 toMap 调用都可能触发。新代码 MUST 用 3 参数版本。
+
+2. **装饰性操作不得影响主功能**: enrichment（name resolution、display field 补充）是装饰性的，失败时 MUST 降级。判断标准：方法名含 `enrich`/`fetchXxxNames`/`fetchXxxMap` 且返回值用于补充显示字段（非业务决策）。
+
+3. **异常 handler 必须满足诊断标准**: 5xx handler 只 `log.warn` 一行是灾难——Sentry 看不到、日志无堆栈、定位困难。MUST `log.error`（堆栈）+ Payload + Sentry。
+
+4. **fail-safe 优于 fail-fast**: 对于用户体验而言，"返回部分数据"优于"整个模块崩溃"。fail-fast 适用于编译期和启动期，运行期面对边界数据应 fail-safe。
+
+5. **ArchUnit 守卫是技术债治理的终极武器**: 31 处隐患手工修复后，用 ArchUnit 守卫防止新增。与 §32 hasAnyRole 双轨制治理（ArchUnit 总数断言）同模式。
+
+### 关键文件
+
+- `backend/src/main/java/com/xiyu/bid/tender/service/TenderQueryService.java` — 核心修复点 + enrichment 降级
+- `backend/src/test/java/com/xiyu/bid/ArchitectureTest.java` — RULE 18 toMap 守卫
+- `scripts/check-tomap-no-merge-function.mjs` — pre-push gate 脚本
+- `scripts/tomap-exemptions.json` — 豁免清单（已清空，35 处全部修复）
+- `.specify/memory/constitution.md` — Constitution v2.0.0 Principle VII
+- `specs/027-tomap-defensive-collection/` — Spec Kit 完整文档
+
+### 相关 SOP
+
+- §23 — 全链路日志排查 SOP（本次排查使用 Layer 1 + Layer 3）
+- §32 — hasAnyRole 双轨制 ArchUnit 总数断言守卫（同类：ArchUnit 治理模式）
+- §22 — 外部诊断根因必须复核（同类：全仓扫描发现 31 处隐患）

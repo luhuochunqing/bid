@@ -99,24 +99,34 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
-     * 处理非法状态异常
+     * 处理非法状态异常。
+     *
+     * Constitution v2.0.0 Principle VII §3: 5xx handler MUST 对齐诊断标准。
+     * IllegalStateException 通常由 Collectors.toMap 重复 key、并发状态变更等底层
+     * 问题触发，属于系统缺陷而非业务错误，必须完整诊断 + Sentry 上报 + 通用错误信息。
      */
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ApiResponse<Void>> handleIllegalStateException(
             IllegalStateException ex,
             HttpServletRequest request) {
-        log.warn("非法状态 - URI: {}, Message: {}", request.getRequestURI(), ex.getMessage());
+        String payload = getRequestPayload(request);
+        log.error("非法状态 - URI: {}, IP: {}, Message: {}\nPayload: {}",
+                request.getRequestURI(), getClientIp(request), ex.getMessage(), payload, ex);
+        Sentry.captureException(ex);
 
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
-                .body(ApiResponse.error(409, ex.getMessage()));
+                .body(ApiResponse.error(409, "系统状态冲突，请刷新后重试"));
     }
 
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ResponseEntity<ApiResponse<Void>> handleOptimisticLockingFailureException(
             OptimisticLockingFailureException ex,
             HttpServletRequest request) {
-        log.warn("并发更新冲突 - URI: {}, Message: {}", request.getRequestURI(), ex.getMessage());
+        String payload = getRequestPayload(request);
+        log.error("并发更新冲突 - URI: {}, IP: {}, Message: {}\nPayload: {}",
+                request.getRequestURI(), getClientIp(request), ex.getMessage(), payload, ex);
+        Sentry.captureException(ex);
 
         String message = "数据已被其他用户更新，请刷新后重试";
         if (request.getRequestURI() != null && request.getRequestURI().contains("/evaluation")) {
@@ -230,17 +240,28 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     /**
      * 处理业务异常
+     *
+     * Constitution v2.0.0 Principle VII §3: 当 BusinessException 返回 5xx 时视为系统级失败，
+     * MUST 上报 Sentry 以聚合观测。4xx 业务错误（参数校验、资源不存在等）保留 warn 级别。
      */
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(
         BusinessException ex,
         HttpServletRequest request) {
         String payload = getRequestPayload(request);
-        log.warn("业务异常 - URI: {}, Code: {}, HttpStatus: {}, Message: {} \nPayload: {}",
-            request.getRequestURI(), ex.getCode(), ex.getHttpStatus(), ex.getMessage(), payload);
+        HttpStatus httpStatus = ex.getHttpStatus();
+        boolean isServerError = httpStatus.is5xxServerError();
+        if (isServerError) {
+            log.error("业务异常(5xx) - URI: {}, IP: {}, Code: {}, HttpStatus: {}, Message: {}\nPayload: {}",
+                request.getRequestURI(), getClientIp(request), ex.getCode(), httpStatus.value(), ex.getMessage(), payload, ex);
+            Sentry.captureException(ex);
+        } else {
+            log.warn("业务异常 - URI: {}, Code: {}, HttpStatus: {}, Message: {} \nPayload: {}",
+                request.getRequestURI(), ex.getCode(), httpStatus.value(), ex.getMessage(), payload);
+        }
 
         return ResponseEntity
-                .status(ex.getHttpStatus())
+                .status(httpStatus)
                 .body(ApiResponse.error(ex.getCode(), ex.getMessage()));
     }
 
@@ -339,6 +360,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             UnauthorizedException ex,
             HttpServletRequest request) {
         log.warn("AI provider 认证失败 - URI: {}", request.getRequestURI());
+        // Constitution Principle VII §3: 502 为系统级失败，上报 Sentry 以聚合观测配置错误
+        Sentry.captureException(ex);
 
         return ResponseEntity
                 .status(HttpStatus.BAD_GATEWAY)
@@ -355,6 +378,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             HttpServletRequest request) {
         String message = ex.getMessage();
         log.warn("AI provider 返回 4xx 错误 - URI: {}, message: {}", request.getRequestURI(), message);
+        // Constitution Principle VII §3: AI provider 失败属于系统级依赖问题，上报 Sentry
+        Sentry.captureException(ex);
 
         String lower = message == null ? "" : message.toLowerCase();
         if (lower.contains("rate limit")) {
@@ -388,6 +413,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 ex.getUpstreamStatusCode(),
                 ex.getUserFriendlyMessage(),
                 ex.getUpstreamRawMessage());
+        // Constitution Principle VII §3: 外部服务失败属于系统级依赖问题，上报 Sentry
+        Sentry.captureException(ex);
 
         HttpStatus httpStatus = ex.resolveHttpStatus();
         return ResponseEntity
@@ -406,6 +433,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             HttpServletRequest request) {
         log.warn("企微 API 调用失败 - URI: {}, errcode: {}, message: {}",
                 request.getRequestURI(), ex.errcode(), ex.getMessage());
+        // Constitution Principle VII §3: 企微失败属于系统级依赖问题，上报 Sentry
+        Sentry.captureException(ex);
 
         HttpStatus status = HttpStatus.BAD_GATEWAY;
         int errcode = ex.errcode();
