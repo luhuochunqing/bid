@@ -10,13 +10,11 @@
       </div>
     </template>
     <el-table :data="documents" stripe size="small" v-loading="loading" empty-text="暂无文档">
+      <el-table-column type="index" label="序号" width="70" align="center" />
       <el-table-column label="文档名称" prop="name" min-width="200" />
       <el-table-column label="上传者" prop="uploader" width="120" />
       <el-table-column label="上传时间" width="160">
         <template #default="{ row }">{{ row.createdAt ? row.createdAt.slice(0, 16).replace('T', ' ') : '-' }}</template>
-      </el-table-column>
-      <el-table-column label="文档来源" width="120">
-        <template #default="{ row }">{{ row.source || '自定义上传' }}</template>
       </el-table-column>
       <el-table-column label="操作" width="140" fixed="right">
         <template #default="{ row }">
