@@ -253,25 +253,25 @@ class TenderPermissionIntegrationTest {
     }
 
     @Test
-    @DisplayName("2.3 审核标讯 路径B POST /api/tenders/{id}/review: 投标组长应 403（⚠️ 注解仅 ADMIN，与文档'管理员/组长'不符）")
+    @DisplayName("2.3 审核标讯 路径B POST /api/tenders/{id}/review: 投标组长应放行（业务确认 A：4 端点统一为管理员+组长）")
     @WithMockUser(username = "bid-TeamLeader", roles = {"BID_TEAMLEADER"})
-    void reviewTender_byBidTeamLeader_returnsForbidden_currentImpl() throws Exception {
-        // ⚠️ 现状锁定：reviewTender 注解仅 hasAnyRole('ADMIN')，组长被拒。
-        // 文档"确认投标"要求管理员+组长，但此端点注解过严。待业务确认是否统一 4 端点。
-        mockMvc.perform(post("/api/tenders/1/review")
+    void reviewTender_byBidTeamLeader_notForbidden() throws Exception {
+        // 业务确认 A（2026-07-03）：4 个确认/放弃投标端点统一为 ADMIN/BID_TEAMLEADER/BIDADMIN。
+        // reviewTender 注解已从 ADMIN 放宽为 ADMIN/BID_TEAMLEADER/BIDADMIN，组长放行。
+        int status = mockMvc.perform(post("/api/tenders/1/review")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"approved\":true}"))
-                .andExpect(status().isForbidden());
+                .andReturn().getResponse().getStatus();
+        assertThat(status).isNotEqualTo(403);
     }
 
     @Test
-    @DisplayName("2.3 确认投标 路径B POST /api/tenders/{id}/bid: 投标项目负责人（MANAGER）应放行（⚠️ 注解含 MANAGER，与文档'仅管理员/组长'不符）")
+    @DisplayName("2.3 确认投标 路径B POST /api/tenders/{id}/bid: 投标项目负责人（MANAGER）应 403（业务确认 A：收紧到管理员+组长）")
     @WithMockUser(username = "projectLeader", roles = {"MANAGER"})
-    void proceedToBid_byManager_notForbidden_currentImpl() throws Exception {
-        // ⚠️ 现状锁定：proceedToBid 注解 hasAnyRole('ADMIN','MANAGER')，MANAGER（含项目负责人）被放行。
-        // 文档"确认投标"仅管理员/组长，但此端点放行了 MANAGER。待业务确认是否收紧。
-        int status = mockMvc.perform(post("/api/tenders/1/bid"))
-                .andReturn().getResponse().getStatus();
-        assertThat(status).isNotEqualTo(403);
+    void proceedToBid_byManager_returnsForbidden() throws Exception {
+        // 业务确认 A（2026-07-03）：4 端点统一为 ADMIN/BID_TEAMLEADER/BIDADMIN。
+        // proceedToBid 注解已从 ADMIN/MANAGER 收紧（移除 MANAGER），项目负责人被拒。
+        mockMvc.perform(post("/api/tenders/1/bid"))
+                .andExpect(status().isForbidden());
     }
 }
