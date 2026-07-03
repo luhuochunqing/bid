@@ -191,6 +191,80 @@ class TenderCommandAccessGuardTest {
                 .hasMessage("当前用户无权删除该标讯");
     }
 
+    // ====================================================================
+    // 状态收口契约测试（飞书《标讯中心·权限矩阵》第三章 + 2.1）
+    // 锁定"操作权限随标讯状态递减"，防止未来重构放行已立项/已评估状态
+    // ====================================================================
+
+    @Test
+    @DisplayName("状态收口：admin 编辑 BIDDING（已立项）→ 拒绝（文档：仅未立项可编辑）")
+    void updateTender_adminBidding_denies() {
+        Tender tender = tender(Tender.Status.BIDDING, CREATOR_ID, null);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("admin")));
+
+        assertThatThrownBy(() -> guard.assertCanUpdateTender(tender, USER_ID))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    @DisplayName("状态收口：admin 编辑 WON（已中标）→ 拒绝")
+    void updateTender_adminWon_denies() {
+        Tender tender = tender(Tender.Status.WON, CREATOR_ID, null);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("admin")));
+
+        assertThatThrownBy(() -> guard.assertCanUpdateTender(tender, USER_ID))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    @DisplayName("状态收口：admin 删除 EVALUATED（已评估）→ 拒绝（文档第5条：已评估后不可删除）")
+    void deleteTender_adminEvaluated_denies() {
+        Tender tender = tender(Tender.Status.EVALUATED, CREATOR_ID, null);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("admin")));
+
+        assertThatThrownBy(() -> guard.assertCanDeleteTender(tender, USER_ID))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    @DisplayName("状态收口：admin 删除 BIDDING（已立项）→ 拒绝")
+    void deleteTender_adminBidding_denies() {
+        Tender tender = tender(Tender.Status.BIDDING, CREATOR_ID, null);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("admin")));
+
+        assertThatThrownBy(() -> guard.assertCanDeleteTender(tender, USER_ID))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    @DisplayName("状态收口：sales 编辑 EVALUATED（已评估，自己是 creator）→ 通过（文档第三章：已评估可编辑）")
+    void updateTender_salesCreatorEvaluated_allows() {
+        Tender tender = tender(Tender.Status.EVALUATED, USER_ID, null);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("bid-projectLeader")));
+
+        assertThatNoException().isThrownBy(() -> guard.assertCanUpdateTender(tender, USER_ID));
+    }
+
+    @Test
+    @DisplayName("状态收口：sales 删除 EVALUATED（已评估，自己是 creator）→ 拒绝（文档第三章：已评估不可删除）")
+    void deleteTender_salesCreatorEvaluated_denies() {
+        Tender tender = tender(Tender.Status.EVALUATED, USER_ID, null);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("bid-projectLeader")));
+
+        assertThatThrownBy(() -> guard.assertCanDeleteTender(tender, USER_ID))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    @DisplayName("状态收口：sales 编辑 BIDDING（已立项，自己是 creator）→ 拒绝（文档：已立项不可编辑）")
+    void updateTender_salesCreatorBidding_denies() {
+        Tender tender = tender(Tender.Status.BIDDING, USER_ID, null);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("bid-projectLeader")));
+
+        assertThatThrownBy(() -> guard.assertCanUpdateTender(tender, USER_ID))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
     private User user(String roleCode) {
         return User.builder()
                 .id(USER_ID)
