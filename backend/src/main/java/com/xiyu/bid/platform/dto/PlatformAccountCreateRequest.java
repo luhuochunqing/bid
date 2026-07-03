@@ -24,6 +24,8 @@ public class PlatformAccountCreateRequest {
     private static final int MAX_PHONE = 20;
     /** Max length for remarks. */
     private static final int MAX_REMARKS = 500;
+    /** Max length for registrant name (CO-474). */
+    private static final int MAX_REGISTRANT = 100;
 
     /** Platform login username. */
     @NotBlank(message = "平台账号不能为空")
@@ -48,18 +50,22 @@ public class PlatformAccountCreateRequest {
     /** Contact person userId (FK to users.id). */
     private Long contactPerson;
 
-    /** Contact phone number. */
-    @Size(max = MAX_PHONE)
-    private String contactPhone;
-
-    /** Contact email address. */
-    @Size(max = MAX_EMAIL)
-    private String contactEmail;
-
     /** Whether a CA certificate is associated. */
     private Boolean hasCa;
 
     /** Optional remarks. */
     @Size(max = MAX_REMARKS)
     private String remarks;
+
+    /** Registrant name (CO-474). */
+    @Size(max = MAX_REGISTRANT, message = "Registrant must not exceed {max} characters")
+    private String registrant;
+
+    /** Registration phone number (CO-474). */
+    @Size(max = MAX_PHONE, message = "Register phone must not exceed {max} characters")
+    private String registerPhone;
+
+    /** Registration email address (CO-474). */
+    @Size(max = MAX_EMAIL, message = "Register email must not exceed {max} characters")
+    private String registerEmail;
 }

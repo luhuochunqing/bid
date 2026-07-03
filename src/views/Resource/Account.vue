@@ -84,9 +84,7 @@
             <PasswordCell :row="row" :password="password" :can-reveal="canRevealPasswordFor(row)" />
           </template>
         </el-table-column>
-        <el-table-column prop="contactPersonLabel" label="联系人" width="140" />
-        <el-table-column prop="contactPhone" label="绑定手机" width="140" />
-        <el-table-column prop="contactEmail" label="绑定邮箱" width="180" />
+        <el-table-column prop="contactPersonLabel" label="账号保管员" width="140" />
         <el-table-column prop="platformType" label="平台类型" width="120">
           <template #default="{ row }">{{ formatPlatformType(row.platformType) }}</template>
         </el-table-column>
@@ -95,6 +93,9 @@
             <el-tag :type="row.hasCa ? 'success' : 'info'" size="small">{{ row.hasCa ? '是' : '否' }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="registrant" label="注册人" width="120" />
+        <el-table-column prop="registerPhone" label="注册手机" width="140" />
+        <el-table-column prop="registerEmail" label="注册邮箱" width="180" />
         <el-table-column label="操作" width="160" fixed="right" align="center">
           <template #default="{ row }">
             <AccountRowActions :row="row" :actions="rowActions(row)" @edit="handleEdit" @return="handleReturn" @borrow="handleBorrow" @take-down="handleTakeDown" />

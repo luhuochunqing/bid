@@ -40,6 +40,8 @@ public class PlatformAccount {
     private static final int LEN_URL = 500;
     private static final int LEN_TYPE = 50;
     private static final int LEN_REMARKS = 500;
+    /** Field length for registrant name (CO-474). */
+    public static final int LEN_REGISTRANT = 100;
     private static final int LEN_STATUS = 20;
 
     /** Primary key. */
@@ -63,14 +65,6 @@ public class PlatformAccount {
     @Column(name = "contact_person")
     private Long contactPerson;
 
-    /** Contact phone number. */
-    @Column(name = "contact_phone", length = LEN_PHONE)
-    private String contactPhone;
-
-    /** Contact email address. */
-    @Column(name = "contact_email", length = LEN_EMAIL)
-    private String contactEmail;
-
     /** Platform type category. */
     @Enumerated(EnumType.STRING)
     @Column(name = "platform_type", nullable = false, length = LEN_TYPE)
@@ -88,6 +82,18 @@ public class PlatformAccount {
     /** Optional remarks. */
     @Column(length = LEN_REMARKS)
     private String remarks;
+
+    /** Registrant name (CO-474). */
+    @Column(length = LEN_REGISTRANT)
+    private String registrant;
+
+    /** Registration phone number (CO-474). */
+    @Column(name = "register_phone", length = LEN_PHONE)
+    private String registerPhone;
+
+    /** Registration email address (CO-474). */
+    @Column(name = "register_email", length = LEN_EMAIL)
+    private String registerEmail;
 
     /** Account status. */
     @Enumerated(EnumType.STRING)
@@ -140,7 +146,7 @@ public class PlatformAccount {
     /** Update profile fields from a request DTO. */
     public void updateProfile(String pUsername, String pPassword, String pAccountName,
             PlatformType pPlatformType, String pUrl, Long pContactPerson,
-            String pContactPhone, String pContactEmail,
+            String pRegistrant, String pRegisterPhone, String pRegisterEmail,
             Boolean pHasCa, String pRemarks) {
         if (pUsername != null && !pUsername.trim().isEmpty()) {
             this.username = pUsername;
@@ -160,11 +166,14 @@ public class PlatformAccount {
         if (pContactPerson != null) {
             this.contactPerson = pContactPerson;
         }
-        if (pContactPhone != null) {
-            this.contactPhone = pContactPhone;
+        if (pRegistrant != null) {
+            this.registrant = pRegistrant;
         }
-        if (pContactEmail != null) {
-            this.contactEmail = pContactEmail;
+        if (pRegisterPhone != null) {
+            this.registerPhone = pRegisterPhone;
+        }
+        if (pRegisterEmail != null) {
+            this.registerEmail = pRegisterEmail;
         }
         if (pHasCa != null) {
             this.hasCa = pHasCa;

@@ -26,12 +26,13 @@
             <el-tag v-else-if="data.status === 'in_use'" type="warning">使用中</el-tag>
             <el-tag v-else type="info">禁用</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="绑定联系人">{{ data.contactPersonLabel || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="绑定手机">{{ data.contactPhone || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="绑定邮箱">{{ data.contactEmail || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="账号保管员">{{ data.contactPersonLabel || '-' }}</el-descriptions-item>
           <el-descriptions-item label="是否有 CA">{{ data.hasCa ? '是' : '否' }}</el-descriptions-item>
           <el-descriptions-item label="使用人">{{ data.borrower || '-' }}</el-descriptions-item>
           <el-descriptions-item label="备注">{{ data.remarks || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="注册人">{{ data.registrant || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="注册手机">{{ data.registerPhone || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="注册邮箱">{{ data.registerEmail || '-' }}</el-descriptions-item>
           <el-descriptions-item label="最近使用">{{ data.lastUsed || '-' }}</el-descriptions-item>
           <el-descriptions-item label="归还截止">{{ data.dueAt || '-' }}</el-descriptions-item>
         </el-descriptions>
