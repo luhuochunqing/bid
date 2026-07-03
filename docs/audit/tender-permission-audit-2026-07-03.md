@@ -227,3 +227,79 @@
 ---
 
 *下一步：基于本审计补缺失的契约测试（待补 5 类），先用已知正确的部分，状态收口待 Service 层确认后补。*
+
+---
+
+## 三、投标项目负责人操作权限随标讯状态递减（状态收口审计）
+
+> 文档第三章 + 第 2.1 编辑/删除/转派，结合代码 `TenderEditPermissionPolicy`（纯核心）+ `TenderTransferService`
+
+### 3.1 编辑权限的状态收口
+
+**文档要求**：
+- 投标管理员/组长：仅**未立项**状态可编辑（待分配/跟踪中/已评估）
+- 投标项目负责人：跟踪中 ✅ / 已评估 ✅ / 投标中及之后 ❌ / **待分配 ❌**
+
+**代码实现**（`TenderEditPermissionPolicy.canEdit`）：
+
+| 角色 | 代码允许编辑的状态 | 文档对照 |
+|---|---|---|
+| admin/bidAdmin/bid-TeamLeader | PENDING_ASSIGNMENT + TRACKING + EVALUATED | ✅ 匹配（"未立项"= 这三态）|
+| bid-projectLeader（sales）| TRACKING/EVALUATED（需 creator 或 pm）；**PENDING_ASSIGNMENT（需 creator）** | ⚠️ **gap**：文档"待分配 ❌"，代码允许创建人编辑 |
+
+**契约测试**（`TenderCommandAccessGuardTest`，新增 7 个锁定状态收口）：
+
+| 测试 | 断言 | 锁定行为 |
+|---|---|---|
+| admin 编辑 BIDDING → 拒绝 | ✅ | 已立项不可编辑 |
+| admin 编辑 WON → 拒绝 | ✅ | 已中标不可编辑 |
+| admin 删除 EVALUATED → 拒绝 | ✅ | 已评估不可删除（文档第 5 条）|
+| admin 删除 BIDDING → 拒绝 | ✅ | 已立项不可删除 |
+| sales 编辑 EVALUATED（creator）→ 通过 | ✅ | 已评估可编辑（文档第三章）|
+| sales 删除 EVALUATED（creator）→ 拒绝 | ✅ | 已评估不可删除 |
+| sales 编辑 BIDDING（creator）→ 拒绝 | ✅ | 已立项不可编辑 |
+
+**⚠️ 待业务确认 gap**：`updateTender_salesCreatorPendingAssignment_allows`（既有测试）锁定"sales 创建人在待分配状态可编辑"，与文档第三章"待分配 ❌"冲突。**不擅自改**——需业务方确认：项目负责人录入标讯后、分配前，能否修改？
+
+### 3.2 删除权限的状态收口
+
+**文档要求**：只有"未评估"状态可删除；已评估后不可删除（第 5 条业务规则）。
+
+**代码实现**（`canDelete`）：
+- admin/bidAdmin/bid-TeamLeader：DELETABLE = PENDING_ASSIGNMENT + TRACKING（**不含 EVALUATED**）
+- sales：上述状态 + creator==userId
+
+**判断**：✅ **匹配文档**。代码不含 EVALUATED 正确（文档第 5 条"已评估不可删除"）。06-17 旧审计报告说的"PENDING_ASSIGNMENT 限制过严"其实是对文档"未评估"的误读——文档明确"已评估不可删除"，代码正确。
+
+### 3.3 转派/分发状态收口
+
+**文档要求**（第 9 条）：投标管理员/组长**在任何状态**可强行干预转派。
+
+**代码实现**（`TenderTransferService`）：`TRANSFERABLE_STATUSES = [TRACKING, EVALUATED]`——仅跟踪中/已评估可转派，其他状态抛"标讯状态已变更，无法转派"。
+
+**判断**：⚠️ **代码比文档严格**。文档说"任何状态"，代码限制为 TRACKING/EVALUATED。
+
+**契约测试**（`TenderTransferServiceTest`，新增 4 个锁定当前实现）：
+
+| 测试 | 断言 |
+|---|---|
+| EVALUATED 可转派 | ✅ 通过 |
+| PENDING_ASSIGNMENT 不可转派 → 抛异常 | ✅ |
+| BIDDING 不可转派 → 抛异常 | ✅ |
+| WON 不可转派 → 抛异常 | ✅ |
+
+**⚠️ 待业务确认 gap**：文档"任何状态"vs 代码"TRACKING/EVALUATED"。**不擅自改**——需业务方确认：
+- 是否允许在 PENDING_ASSIGNMENT 转派（分配前就指定负责人）？
+- 是否允许在 BIDDING/WON/LOST 转派（已立项后换负责人）？
+- 代码当前的限制可能是有意设计（防止已立项项目混乱），也可能是未实现完整
+
+### 3.4 状态收口审计小结
+
+**核心结论**：代码的状态收口实现**整体正确**，文档第三章的主要规则都已实现并有测试锁定。
+
+**两类 gap（待业务确认，不擅自修改）**：
+1. **sales 创建人在 PENDING_ASSIGNMENT 可编辑/删除**（文档"待分配 ❌"）——既有测试已锁定代码行为，需确认是文档滞后还是代码 bug
+2. **转派限制为 TRACKING/EVALUATED**（文档"任何状态"）——需确认是文档理想化还是代码需放宽
+
+**契约测试价值**：本次新增 11 个测试（编辑/删除 7 + 转派 4），把状态收口的当前实现锁定。任何未来重构若误放行已立项/已评估状态的编辑/删除/转派，测试会立即红。
+
