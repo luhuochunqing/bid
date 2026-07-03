@@ -520,6 +520,185 @@ class MarginQuerySupportMysqlIntegrationTest {
         }
     }
 
+    // ── CO-490 回归测试：保证金 500 错误（空字符串日期触发 CAST/STR_TO_DATE 异常）──
+    //
+    // 背景：前端 TaskDepositFields.vue 把 actualPaymentDate/expectedRefundDate
+    // 初始化为空字符串 ""，存入 tasks.extended_fields_json。
+    // 旧 SQL 用 CAST(SUBSTRING(...) AS DATETIME)：MySQL 8.0 严格模式抛
+    // "Incorrect datetime value" → 500。
+    // 修复：STR_TO_DATE(NULLIF(SUBSTRING(...), ''), '%Y-%m-%d')。
+    // 陷阱：STR_TO_DATE('', '%Y-%m-%d') 返回 '0000-00-00'（非 NULL），
+    //       会触发 JDBC "Zero date value prohibited"，
+    //       因此必须先 NULLIF 把空字符串转 NULL。
+
+    @Test
+    @DisplayName("listBase 不应抛异常：deposit task 的 JSON 日期字段为空字符串（CO-490 核心场景）")
+    void listBase_executesWithoutError_whenDepositTaskHasEmptyStringDates() {
+        Long projectId = createTestProject("co490-empty-dates");
+        createInitiationDetails(projectId, "NO", BigDecimal.ZERO);
+        createFeeWithPaymentDate(projectId, "BID_BOND", "PAID",
+                "DATE_SUB(NOW(), INTERVAL 10 DAY)", "DATE_ADD(NOW(), INTERVAL 20 DAY)",
+                new BigDecimal("5000"));
+        createDepositTask(projectId,
+                "{\"_taskType\":\"deposit-payment\","
+              + "\"actualPaymentDate\":\"\",\"expectedRefundDate\":\"\"}");
+        try {
+            StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
+            sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
+
+            List<Map<String, Object>> rows =
+                    jdbcTemplate.queryForList(sql.toString(), Map.of());
+
+            assertThat(rows)
+                    .as("listBase 应正常返回结果，不应因空字符串日期抛 500")
+                    .anyMatch(row -> projectId.equals(extractProjectId(row)));
+
+            // 验证回退到 fees.payment_date / fees.fee_date
+            Map<String, Object> row = rows.stream()
+                    .filter(r -> projectId.equals(extractProjectId(r)))
+                    .findFirst()
+                    .orElse(null);
+            assertThat(row)
+                    .as("项目行应存在")
+                    .isNotNull();
+            assertThat(row.get("payment_date"))
+                    .as("空字符串 actualPaymentDate 应回退到 fees.payment_date")
+                    .isNotNull();
+            assertThat(row.get("exp_return_date"))
+                    .as("空字符串 expectedRefundDate 应回退到 fees.fee_date")
+                    .isNotNull();
+        } finally {
+            cleanupTestData(projectId);
+        }
+    }
+
+    @Test
+    @DisplayName("listBase 不应抛异常：deposit task 的 JSON 缺少日期字段")
+    void listBase_executesWithoutError_whenDepositTaskJsonMissesDateFields() {
+        Long projectId = createTestProject("co490-missing-fields");
+        createInitiationDetails(projectId, "NO", BigDecimal.ZERO);
+        createFeeWithPaymentDate(projectId, "BID_BOND", "PAID",
+                "DATE_SUB(NOW(), INTERVAL 10 DAY)", "DATE_ADD(NOW(), INTERVAL 20 DAY)",
+                new BigDecimal("5000"));
+        // JSON 只有 _taskType，没有日期字段
+        createDepositTask(projectId, "{\"_taskType\":\"deposit-payment\"}");
+        try {
+            StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
+            sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
+
+            List<Map<String, Object>> rows =
+                    jdbcTemplate.queryForList(sql.toString(), Map.of());
+
+            assertThat(rows)
+                    .as("listBase 应正常返回结果，JSON 缺字段时 JSON_EXTRACT 返回 NULL，"
+                      + "SUBSTRING(NULL,1,10)=NULL，NULLIF(NULL,'')=NULL，STR_TO_DATE(NULL,...)=NULL，"
+                      + "COALESCE 回退到 fees 列")
+                    .anyMatch(row -> projectId.equals(extractProjectId(row)));
+        } finally {
+            cleanupTestData(projectId);
+        }
+    }
+
+    @Test
+    @DisplayName("listBase 不应抛异常：deposit task 的日期字段格式错误（非日期字符串）")
+    void listBase_executesWithoutError_whenDepositTaskHasMalformedDate() {
+        Long projectId = createTestProject("co490-malformed");
+        createInitiationDetails(projectId, "NO", BigDecimal.ZERO);
+        createFeeWithPaymentDate(projectId, "BID_BOND", "PAID",
+                "DATE_SUB(NOW(), INTERVAL 10 DAY)", "DATE_ADD(NOW(), INTERVAL 20 DAY)",
+                new BigDecimal("5000"));
+        createDepositTask(projectId,
+                "{\"_taskType\":\"deposit-payment\","
+              + "\"actualPaymentDate\":\"not-a-date\","
+              + "\"expectedRefundDate\":\"also-bad\"}");
+        try {
+            StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
+            sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
+
+            List<Map<String, Object>> rows =
+                    jdbcTemplate.queryForList(sql.toString(), Map.of());
+
+            // STR_TO_DATE 对无法解析的字符串返回 NULL（带 warning），
+            // COALESCE 回退到 fees 列
+            assertThat(rows)
+                    .as("listBase 应正常返回结果，STR_TO_DATE 解析失败返回 NULL，"
+                      + "COALESCE 回退到 fees 列")
+                    .anyMatch(row -> projectId.equals(extractProjectId(row)));
+        } finally {
+            cleanupTestData(projectId);
+        }
+    }
+
+    @Test
+    @DisplayName("listBase 应优先使用 task JSON 的有效日期，而非 fees 列")
+    void listBase_prefersValidTaskJsonDate_overFeesColumns() {
+        Long projectId = createTestProject("co490-prefer-json");
+        createInitiationDetails(projectId, "NO", BigDecimal.ZERO);
+        // fees.payment_date = 10 天前，fees.fee_date = 20 天后
+        createFeeWithPaymentDate(projectId, "BID_BOND", "PAID",
+                "DATE_SUB(NOW(), INTERVAL 10 DAY)", "DATE_ADD(NOW(), INTERVAL 20 DAY)",
+                new BigDecimal("5000"));
+        // task JSON 用固定日期 2026-01-15 / 2026-03-20
+        createDepositTask(projectId,
+                "{\"_taskType\":\"deposit-payment\","
+              + "\"actualPaymentDate\":\"2026-01-15T00:00:00\","
+              + "\"expectedRefundDate\":\"2026-03-20T00:00:00\"}");
+        try {
+            StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
+            sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
+
+            List<Map<String, Object>> rows =
+                    jdbcTemplate.queryForList(sql.toString(), Map.of());
+
+            Map<String, Object> row = rows.stream()
+                    .filter(r -> projectId.equals(extractProjectId(r)))
+                    .findFirst()
+                    .orElse(null);
+            assertThat(row)
+                    .as("项目行应存在")
+                    .isNotNull();
+            // SUBSTRING(...,1,10) 取前 10 字符 = "2026-01-15"
+            assertThat(row.get("payment_date"))
+                    .as("应优先使用 task JSON 的 actualPaymentDate（2026-01-15），"
+                      + "而非 fees.payment_date（10 天前）")
+                    .asString()
+                    .startsWith("2026-01-15");
+            assertThat(row.get("exp_return_date"))
+                    .as("应优先使用 task JSON 的 expectedRefundDate（2026-03-20），"
+                      + "而非 fees.fee_date（20 天后）")
+                    .asString()
+                    .startsWith("2026-03-20");
+        } finally {
+            cleanupTestData(projectId);
+        }
+    }
+
+    @Test
+    @DisplayName("summaryBase 不应抛异常：deposit task 的 JSON 日期字段为空字符串（CO-490 summary 路径）")
+    void summaryBase_executesWithoutError_whenDepositTaskHasEmptyStringDates() {
+        Long projectId = createTestProject("co490-summary-empty");
+        createInitiationDetails(projectId, "NO", BigDecimal.ZERO);
+        createFeeWithPaymentDate(projectId, "BID_BOND", "PAID",
+                "DATE_SUB(NOW(), INTERVAL 10 DAY)", "DATE_ADD(NOW(), INTERVAL 20 DAY)",
+                new BigDecimal("5000"));
+        createDepositTask(projectId,
+                "{\"_taskType\":\"deposit-payment\","
+              + "\"actualPaymentDate\":\"\",\"expectedRefundDate\":\"\"}");
+        try {
+            StringBuilder sql = MarginQuerySupport.summaryBase(MarginQueryRole.ADMIN);
+
+            // summaryBase 返回单行聚合结果，不抛异常即通过
+            Map<String, Object> summary =
+                    jdbcTemplate.queryForMap(sql.toString(), Map.of());
+
+            assertThat(summary)
+                    .as("summaryBase 应正常返回聚合结果，不应因空字符串日期抛 500")
+                    .isNotNull();
+        } finally {
+            cleanupTestData(projectId);
+        }
+    }
+
     // ── 行为层测试 helper 方法 ──
 
     /**
@@ -613,6 +792,45 @@ class MarginQuerySupportMysqlIntegrationTest {
         jdbcTemplate.update(sql, Map.of());
     }
 
+    /**
+     * 插入 fee，同时设置 payment_date 和 fee_date（CO-490 测试用）。
+     * <p>createFee 不设置 payment_date（默认 NULL），但 CO-490 回归测试
+     * 需要验证 STR_TO_DATE 解析失败时 COALESCE 回退到 fees.payment_date，
+     * 因此需要显式设置 payment_date 让回退值可断言。
+     */
+    private void createFeeWithPaymentDate(final Long projectId,
+                                           final String feeType,
+                                           final String status,
+                                           final String paymentDateExpr,
+                                           final String feeDateExpr,
+                                           final BigDecimal amount) {
+        // 日期表达式是受控 SQL 字面量（非用户输入），直接拼接
+        String sql = "INSERT INTO fees"
+                   + " (project_id, fee_type, status, payment_date, fee_date, amount, created_at) "
+                   + "VALUES (" + projectId + ", '" + feeType + "', '" + status
+                   + "', " + paymentDateExpr + ", " + feeDateExpr
+                   + ", " + amount + ", NOW())";
+        jdbcTemplate.update(sql, Map.of());
+    }
+
+    /**
+     * 插入 deposit-payment 任务（CO-490 测试用）。
+     * <p>tasks.extended_fields_json 存储 actualPaymentDate / expectedRefundDate
+     * 等保证金字段。FEES_JOIN 通过 JSON_EXTRACT(dt.extended_fields_json, '$._taskType')
+     * = 'deposit-payment' 关联到此任务。
+     */
+    private void createDepositTask(final Long projectId,
+                                    final String extendedFieldsJson) {
+        String sql = "INSERT INTO tasks"
+                   + " (project_id, title, status, priority, extended_fields_json, created_at, updated_at) "
+                   + "VALUES (:pid, :title, 'TODO', 'MEDIUM', :json, NOW(), NOW())";
+        Map<String, Object> params = new HashMap<>();
+        params.put("pid", projectId);
+        params.put("title", "test-deposit-task-" + System.nanoTime());
+        params.put("json", extendedFieldsJson);
+        jdbcTemplate.update(sql, params);
+    }
+
     /** 从查询结果行中提取 project_id（处理 Number 类型转换）。 */
     private Long extractProjectId(final Map<String, Object> row) {
         Object pid = row.get("project_id");
@@ -622,12 +840,14 @@ class MarginQuerySupportMysqlIntegrationTest {
         return null;
     }
 
-    /** 清理测试数据：删除 fees、project_initiation_details、projects、tenders。 */
+    /** 清理测试数据：删除 tasks、fees、project_initiation_details、projects、tenders。 */
     private void cleanupTestData(final Long projectId) {
         if (projectId == null) {
             return;
         }
         Map<String, Object> params = Map.of("pid", projectId);
+        // CO-490 测试会创建 deposit-payment 任务，必须先清理（tasks 无外键约束但 project_id 引用 projects.id）
+        jdbcTemplate.update("DELETE FROM tasks WHERE project_id = :pid", params);
         jdbcTemplate.update("DELETE FROM fees WHERE project_id = :pid", params);
         jdbcTemplate.update(
                 "DELETE FROM project_initiation_details WHERE project_id = :pid", params);
