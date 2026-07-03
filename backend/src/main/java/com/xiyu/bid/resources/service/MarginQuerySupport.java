@@ -44,11 +44,13 @@ final class MarginQuerySupport {
           + " JOIN projects p ON p.id = f.project_id"
           + " LEFT JOIN project_initiation_details pid"
           + "   ON pid.project_id = f.project_id"
+          + " LEFT JOIN tenders t ON t.id = p.tender_id"
           + " WHERE f.fee_type = 'BID_BOND'";
 
     private static final String INIT_JOIN =
             " FROM project_initiation_details pid"
           + " JOIN projects p ON p.id = pid.project_id"
+          + " LEFT JOIN tenders t ON t.id = p.tender_id"
           + " WHERE ";
 
     private MarginQuerySupport() {

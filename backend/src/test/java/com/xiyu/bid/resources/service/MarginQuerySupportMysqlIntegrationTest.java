@@ -410,6 +410,116 @@ class MarginQuerySupportMysqlIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName("project_leader_name 应从 tenders.project_manager_name 继承（init 分支，pid 为空）")
+    void projectLeaderName_shouldInheritFromTender_whenPidIsNull_initBranch() {
+        Long tenderId = createTender("leader-inherit", "TenderProjectLeader", "TenderBiddingLeader");
+        Long projectId = createTestProject("leader-inherit-init", tenderId);
+        createInitiationDetails(projectId, "YES", new BigDecimal("5000"));
+        try {
+            StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
+            sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
+
+            List<Map<String, Object>> rows =
+                    jdbcTemplate.queryForList(sql.toString(), Map.of());
+
+            assertThat(rows)
+                    .as("查询结果应包含项目")
+                    .anyMatch(row -> projectId.equals(extractProjectId(row)));
+
+            Map<String, Object> row = rows.stream()
+                    .filter(r -> projectId.equals(extractProjectId(r)))
+                    .findFirst()
+                    .orElse(null);
+
+            assertThat(row)
+                    .as("项目行应存在")
+                    .isNotNull();
+            assertThat(row.get("project_leader_name"))
+                    .as("project_leader_name 应继承自 tenders.project_manager_name（pid 为空时）")
+                    .isEqualTo("TenderProjectLeader");
+            assertThat(row.get("bidding_leader_name"))
+                    .as("bidding_leader_name 应继承自 tenders.bidding_person_name（pid 为空时）")
+                    .isEqualTo("TenderBiddingLeader");
+        } finally {
+            cleanupTestData(projectId, tenderId);
+        }
+    }
+
+    @Test
+    @DisplayName("project_leader_name 应从 tenders.project_manager_name 继承（fees 分支，pid 为空）")
+    void projectLeaderName_shouldInheritFromTender_whenPidIsNull_feesBranch() {
+        Long tenderId = createTender("leader-inherit-fee", "FeeProjectLeader", "FeeBiddingLeader");
+        Long projectId = createTestProject("leader-inherit-fee", tenderId);
+        createInitiationDetails(projectId, "NO", BigDecimal.ZERO);
+        createFee(projectId, "BID_BOND", "PAID", "DATE_ADD(NOW(), INTERVAL 30 DAY)", new BigDecimal("5000"));
+        try {
+            StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
+            sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
+
+            List<Map<String, Object>> rows =
+                    jdbcTemplate.queryForList(sql.toString(), Map.of());
+
+            assertThat(rows)
+                    .as("查询结果应包含项目")
+                    .anyMatch(row -> projectId.equals(extractProjectId(row)));
+
+            Map<String, Object> row = rows.stream()
+                    .filter(r -> projectId.equals(extractProjectId(r)))
+                    .findFirst()
+                    .orElse(null);
+
+            assertThat(row)
+                    .as("项目行应存在")
+                    .isNotNull();
+            assertThat(row.get("project_leader_name"))
+                    .as("project_leader_name 应继承自 tenders.project_manager_name（fees 分支，pid 为空时）")
+                    .isEqualTo("FeeProjectLeader");
+            assertThat(row.get("bidding_leader_name"))
+                    .as("bidding_leader_name 应继承自 tenders.bidding_person_name（fees 分支，pid 为空时）")
+                    .isEqualTo("FeeBiddingLeader");
+        } finally {
+            cleanupTestData(projectId, tenderId);
+        }
+    }
+
+    @Test
+    @DisplayName("project_leader_name 应优先使用 pid 值（覆盖 tender）")
+    void projectLeaderName_shouldPreferPidValue_overTender() {
+        Long tenderId = createTender("leader-prefer-pid", "TenderLeader", "TenderBidding");
+        Long projectId = createTestProject("leader-prefer-pid", tenderId);
+        String sqlInsertPidWithLeader =
+                "INSERT INTO project_initiation_details"
+              + " (project_id, need_deposit, deposit_amount, project_leader_name, bidding_leader_name, locked, created_at, updated_at) "
+              + "VALUES (:pid, 'YES', 5000, 'PidLeader', 'PidBidding', FALSE, NOW(), NOW())";
+        jdbcTemplate.update(sqlInsertPidWithLeader,
+                Map.of("pid", projectId, "nd", "YES", "da", new BigDecimal("5000")));
+        try {
+            StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
+            sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
+
+            List<Map<String, Object>> rows =
+                    jdbcTemplate.queryForList(sql.toString(), Map.of());
+
+            Map<String, Object> row = rows.stream()
+                    .filter(r -> projectId.equals(extractProjectId(r)))
+                    .findFirst()
+                    .orElse(null);
+
+            assertThat(row)
+                    .as("项目行应存在")
+                    .isNotNull();
+            assertThat(row.get("project_leader_name"))
+                    .as("project_leader_name 应优先使用 pid 值，而非继承 tender")
+                    .isEqualTo("PidLeader");
+            assertThat(row.get("bidding_leader_name"))
+                    .as("bidding_leader_name 应优先使用 pid 值，而非继承 tender")
+                    .isEqualTo("PidBidding");
+        } finally {
+            cleanupTestData(projectId, tenderId);
+        }
+    }
+
     // ── 行为层测试 helper 方法 ──
 
     /**
@@ -419,11 +529,19 @@ class MarginQuerySupportMysqlIntegrationTest {
      * 跨连接调用，LAST_INSERT_ID() 不可靠会返回 0）。
      */
     private Long createTestProject(final String nameSuffix) {
+        return createTestProject(nameSuffix, 0L);
+    }
+
+    /**
+     * 插入测试用 project，关联到指定 tender。
+     */
+    private Long createTestProject(final String nameSuffix, final Long tenderId) {
         String name = "test-margin-" + nameSuffix + "-" + System.nanoTime();
         String sql = "INSERT INTO projects (name, manager_id, tender_id, status, created_at) "
-                   + "VALUES (:name, 0, 0, 'INITIATED', NOW())";
+                   + "VALUES (:name, 0, :tid, 'INITIATED', NOW())";
         Map<String, Object> params = new HashMap<>();
         params.put("name", name);
+        params.put("tid", tenderId);
         org.springframework.jdbc.support.GeneratedKeyHolder keyHolder =
                 new org.springframework.jdbc.support.GeneratedKeyHolder();
         jdbcTemplate.update(sql, new org.springframework.jdbc.core.namedparam.MapSqlParameterSource(params),
@@ -432,6 +550,31 @@ class MarginQuerySupportMysqlIntegrationTest {
         if (key == null) {
             throw new IllegalStateException(
                     "Failed to retrieve generated project id for: " + name);
+        }
+        return key.longValue();
+    }
+
+    /**
+     * 插入测试用 tender，返回自增 id。
+     */
+    private Long createTender(final String titleSuffix,
+                              final String projectManagerName,
+                              final String biddingPersonName) {
+        String title = "test-tender-" + titleSuffix + "-" + System.nanoTime();
+        String sql = "INSERT INTO tenders (title, project_manager_name, bidding_person_name, status, created_at) "
+                   + "VALUES (:title, :pmn, :bpn, 'TRACKING', NOW())";
+        Map<String, Object> params = new HashMap<>();
+        params.put("title", title);
+        params.put("pmn", projectManagerName);
+        params.put("bpn", biddingPersonName);
+        org.springframework.jdbc.support.GeneratedKeyHolder keyHolder =
+                new org.springframework.jdbc.support.GeneratedKeyHolder();
+        jdbcTemplate.update(sql, new org.springframework.jdbc.core.namedparam.MapSqlParameterSource(params),
+                keyHolder);
+        Number key = keyHolder.getKey();
+        if (key == null) {
+            throw new IllegalStateException(
+                    "Failed to retrieve generated tender id for: " + title);
         }
         return key.longValue();
     }
@@ -479,7 +622,7 @@ class MarginQuerySupportMysqlIntegrationTest {
         return null;
     }
 
-    /** 清理测试数据：删除 fees、project_initiation_details、projects。 */
+    /** 清理测试数据：删除 fees、project_initiation_details、projects、tenders。 */
     private void cleanupTestData(final Long projectId) {
         if (projectId == null) {
             return;
@@ -489,5 +632,13 @@ class MarginQuerySupportMysqlIntegrationTest {
         jdbcTemplate.update(
                 "DELETE FROM project_initiation_details WHERE project_id = :pid", params);
         jdbcTemplate.update("DELETE FROM projects WHERE id = :pid", params);
+    }
+
+    /** 清理测试数据：删除 fees、project_initiation_details、projects、tenders。 */
+    private void cleanupTestData(final Long projectId, final Long tenderId) {
+        cleanupTestData(projectId);
+        if (tenderId != null) {
+            jdbcTemplate.update("DELETE FROM tenders WHERE id = :tid", Map.of("tid", tenderId));
+        }
     }
 }

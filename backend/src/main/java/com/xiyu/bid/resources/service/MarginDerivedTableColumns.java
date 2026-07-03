@@ -30,8 +30,12 @@ final class MarginDerivedTableColumns {
     /** 派生表 fees 分支 SELECT 列（listBase + countBase 共用）。 */
     static final String DERIVED_SELECT_FEES =
             "   SELECT f.id as fee_id, f.project_id, p.name as project_name,"
-          + "     pid.owner_unit, pid.project_leader_name,"
-          + "     pid.bidding_leader_name, f.amount, f.payment_date,"
+          + "     pid.owner_unit,"
+          + "     COALESCE(pid.project_leader_name, t.project_manager_name)"
+          + "       as project_leader_name,"
+          + "     COALESCE(pid.bidding_leader_name, t.bidding_person_name)"
+          + "       as bidding_leader_name,"
+          + "     f.amount, f.payment_date,"
           + "     pid.deposit_payment_method, f.return_to as payee_name,"
           + "     NULL as payee_account, f.fee_date as exp_return_date,"
           + "     CASE WHEN f.status='RETURNED' THEN f.amount ELSE NULL END"
@@ -43,7 +47,10 @@ final class MarginDerivedTableColumns {
     static final String DERIVED_SELECT_INIT =
             "   SELECT -pid.project_id as fee_id, pid.project_id,"
           + "     p.name as project_name, pid.owner_unit,"
-          + "     pid.project_leader_name, pid.bidding_leader_name,"
+          + "     COALESCE(pid.project_leader_name, t.project_manager_name)"
+          + "       as project_leader_name,"
+          + "     COALESCE(pid.bidding_leader_name, t.bidding_person_name)"
+          + "       as bidding_leader_name,"
           + "     pid.deposit_amount, NULL as payment_date,"
           + "     pid.deposit_payment_method, NULL as payee_name,"
           + "     NULL as payee_account, NULL as exp_return_date,"
