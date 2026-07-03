@@ -1,11 +1,11 @@
 package com.xiyu.bid.project.notification;
 
 import com.xiyu.bid.entity.Project;
-import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.matrixcollaboration.entity.ProjectMember;
 import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
 import com.xiyu.bid.notification.core.NotificationType;
+import com.xiyu.bid.notification.core.TaskNotificationTargetUrlResolver;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.project.core.ProjectStage;
@@ -89,6 +89,10 @@ public class ProjectNotificationService {
      * 无 permissionKeys 守卫，导致该角色能直接进入项目详情页并查看/下载文档
      * （Bug B：Service 层漏调 ProjectDocumentWorkflowPolicy）。</p>
      *
+     * <p>targetUrl 角色判定逻辑已抽取到纯核心类
+     * {@link com.xiyu.bid.notification.core.TaskNotificationTargetUrlResolver}，
+     * 供本服务与 TaskReviewNotificationService 共用，避免逻辑复制。</p>
+     *
      * @param projectId  项目 ID
      * @param taskId     任务 ID（用于构造 task-board 跳转参数）
      * @param assigneeId 被分配人 ID
@@ -98,20 +102,8 @@ public class ProjectNotificationService {
         if (assigneeId == null) return;
         User assignee = userRepository.findById(assigneeId).orElse(null);
         String roleCode = assignee != null ? effectiveRoleResolver.resolveRoleCode(assignee) : null;
-        String targetUrl = resolveTaskAssignedTargetUrl(projectId, taskId, roleCode);
+        String targetUrl = TaskNotificationTargetUrlResolver.resolveTargetUrl(projectId, taskId, roleCode);
         sendTaskAssignedNotification(projectId, taskId, assigneeId, assignedBy, targetUrl);
-    }
-
-    /**
-     * 根据被分配人角色决定任务分配通知的 targetUrl。
-     * <p>bid-otherDept 跨部门协同人员 → {@code /task-board?taskId=X&projectId=Y}，
-     * 其他角色 → {@code /project/{projectId}/drafting}（保持历史行为）。</p>
-     */
-    private String resolveTaskAssignedTargetUrl(Long projectId, Long taskId, String roleCode) {
-        if (RoleProfileCatalog.BID_OTHER_DEPT_CODE.equals(roleCode)) {
-            return "/task-board?taskId=" + taskId + "&projectId=" + projectId;
-        }
-        return "/project/" + projectId + "/drafting";
     }
 
     private void sendTaskAssignedNotification(Long projectId, Long taskId, Long assigneeId,
