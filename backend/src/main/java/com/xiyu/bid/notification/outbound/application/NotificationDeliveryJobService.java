@@ -19,6 +19,8 @@ import com.xiyu.bid.platform.async.domain.AsyncAction;
 import com.xiyu.bid.platform.async.domain.AsyncHandlingDecision;
 import com.xiyu.bid.platform.async.domain.ExponentialBackoffRetrySchedule;
 import com.xiyu.bid.platform.async.infrastructure.AsyncObservabilityRecorder;
+import io.sentry.Sentry;
+import io.sentry.SentryLevel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -89,6 +91,14 @@ public class NotificationDeliveryJobService {
                 .wecomErrmsg(trim(result.message()))
                 .attemptCount(task.getAttemptCount())
                 .build());
+        if (result.skipped()) {
+            log.warn("WeCom notification skipped: user {} has no employee_number, notification={}",
+                    command.recipientUserId(), command.notificationId());
+            Sentry.captureMessage(
+                    "WeCom notification skipped: user has no employee_number",
+                    SentryLevel.WARNING
+            );
+        }
         observabilityRecorder.recordSuccess("notification", task.getEventType(), task.getBusinessKey());
     }
 
