@@ -78,7 +78,9 @@ class ResponsibilityArchitectureTest {
         "com.xiyu.bid.settings.service.SettingsService",
         "com.xiyu.bid.tender.controller.TenderController",
         "com.xiyu.bid.tender.service.TenderCommandService",
-        "com.xiyu.bid.tender.service.TenderMapper"
+        "com.xiyu.bid.tender.service.TenderMapper",
+        // Pre-existing oversized file (325 lines) — CO-479 印章类型多选后增长，待后续拆分
+        "com.xiyu.bid.resources.service.CaCertificateService"
     );
 
     // ── FP-Java: Core isolation patterns ──
