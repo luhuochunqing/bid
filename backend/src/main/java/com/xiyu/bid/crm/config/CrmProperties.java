@@ -223,6 +223,12 @@ public class CrmProperties {
         private String companySearchPath = "/company/getCompanyNameByLikeName";
         /** customerManagerListPath - 接口 25259: 根据公司 id 列表查询客户负责人列表 (CO-302 反查第二步). */
         private String customerManagerListPath = "/customerManager/getCustomerManagerListByCompanyId";
+        /**
+         * 集团项目经理 saleType（CRM 接口 25259 返回的负责人角色类型）.
+         * <p>标讯自动分配时，仅取该角色的负责人作为项目责任人；未命中则保持空，不再 fallback。
+         * <p>默认 19 = 集团项目经理（业务确认）。
+         */
+        private int groupProjectManagerSaleType = 19;
     }
 
     @Data

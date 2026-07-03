@@ -22,14 +22,15 @@ import java.util.Optional;
  * 不是 {@code customerBaseUrl}。详见 {@link CrmProperties#getEffectiveCacBaseUrl()}。
  *
  * <p>CO-302 issue 5.3 要求"取该客户负责人中的某个角色为标讯的项目负责人"。
- * 当前实现取返回列表中第一条有效（saleNo 非空）的负责人，issue 未强约束
- * 具体 saleType，未来业务明确后可加过滤。
+ * 业务已确认：仅取"集团项目经理"（saleType=19，可由
+ * {@code app.crm.customer.group-project-manager-sale-type} 配置）作为项目责任人；
+ * 未命中则返回 empty（保持空，不再 fallback 到第一条），等待人工分配。
  *
  * <p>注意：本接口返回的 {@code code} 是 <strong>string 类型 "0"</strong>，
  * 与 25338 的 integer 0 不同；{@code CrmResponseHandler.parse} 用
  * {@code asInt(-1)} 解析，Jackson 对 numeric string 可正确转换为 0。
  *
- * <p>降级策略：查询失败、未找到均返回 {@link Optional#empty()}，
+ * <p>降级策略：查询失败、未找到、无集团项目经理角色均返回 {@link Optional#empty()}，
  * 不抛异常，由调用方决定后续行为。
  */
 @Service
@@ -51,10 +52,10 @@ public class CrmCustomerManagerLookupService {
     }
 
     /**
-     * 按公司 ID 查询客户负责人列表，取第一条有效负责人.
+     * 按公司 ID 查询客户负责人列表，取"集团项目经理"角色（saleType 由配置决定，默认 19）.
      *
      * @param companyId 公司 ID（来自接口 25338 的返回值）
-     * @return 第一条有效负责人；empty 表示未查到
+     * @return 集团项目经理；empty 表示未查到或该公司无集团项目经理角色
      */
     public Optional<CustomerManagerResult> findByCompanyId(Long companyId) {
         if (companyId == null) {
@@ -78,9 +79,11 @@ public class CrmCustomerManagerLookupService {
                 return Optional.empty();
             }
 
-            JsonNode first = findFirstValidManager(response.data());
+            int expectedSaleType = properties.getCustomer().getGroupProjectManagerSaleType();
+            JsonNode first = findGroupProjectManager(response.data(), expectedSaleType);
             if (first == null) {
-                log.debug("findByCompanyId: no valid manager for companyId={}", companyId);
+                log.info("findByCompanyId: no group project manager (saleType={}) for companyId={}",
+                        expectedSaleType, companyId);
                 return Optional.empty();
             }
 
@@ -108,9 +111,10 @@ public class CrmCustomerManagerLookupService {
     }
 
     /**
-     * 在 dataList 中取第一条有效（saleNo 非空）的负责人.
+     * 在 dataList 中取"集团项目经理"（saleNo 非空且 saleType 匹配配置）.
+     * <p>不再 fallback 到其他角色；未命中返回 null。
      */
-    private JsonNode findFirstValidManager(JsonNode data) {
+    private JsonNode findGroupProjectManager(JsonNode data, int expectedSaleType) {
         if (data == null) {
             return null;
         }
@@ -119,6 +123,10 @@ public class CrmCustomerManagerLookupService {
             return null;
         }
         for (JsonNode node : dataList) {
+            int saleType = node.path("saleType").asInt(-1);
+            if (saleType != expectedSaleType) {
+                continue;
+            }
             String saleNo = node.path("saleNo").asText("");
             if (!saleNo.isBlank()) {
                 return node;

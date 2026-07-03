@@ -177,7 +177,7 @@ class TenderAutoAssignmentServiceTest {
         when(companySearchService.searchByName("上海西域采购中心"))
                 .thenReturn(Optional.of(new CompanySearchResult(100L, "上海西域采购中心", "西域集团")));
         when(customerManagerLookupService.findByCompanyId(100L))
-                .thenReturn(Optional.of(new CustomerManagerResult("01097", 16, "百大项目负责人")));
+                .thenReturn(Optional.of(new CustomerManagerResult("01097", 19, "集团项目经理")));
         User manager = User.builder()
                 .id(2001L)
                 .fullName("李四")
@@ -331,7 +331,7 @@ class TenderAutoAssignmentServiceTest {
         when(companySearchService.searchByName("上海西域采购中心"))
                 .thenReturn(Optional.of(new CompanySearchResult(100L, "上海西域采购中心", "西域集团")));
         when(customerManagerLookupService.findByCompanyId(100L))
-                .thenReturn(Optional.of(new CustomerManagerResult("01097", 16, "百大项目负责人")));
+                .thenReturn(Optional.of(new CustomerManagerResult("01097", 19, "集团项目经理")));
         User manager = User.builder()
                 .id(2001L)
                 .fullName("李四")
@@ -368,7 +368,7 @@ class TenderAutoAssignmentServiceTest {
         when(companySearchService.searchByName("上海西域采购中心"))
                 .thenReturn(Optional.of(new CompanySearchResult(100L, "上海西域采购中心", "西域集团")));
         when(customerManagerLookupService.findByCompanyId(100L))
-                .thenReturn(Optional.of(new CustomerManagerResult("01097", 16, "百大项目负责人")));
+                .thenReturn(Optional.of(new CustomerManagerResult("01097", 19, "集团项目经理")));
         User manager = User.builder()
                 .id(2001L)
                 .fullName("王五")
