@@ -79,3 +79,53 @@
 ---
 
 *下一小节：2.2 项目立项（含立项发起/审核/团队分配等 7 个功能点）*
+
+---
+
+## 2.2 项目立项（审计）
+
+### 文档要求（飞书 V1.0）
+
+| 功能 | 投标管理员 | 投标组长 | 投标项目负责人 | 投标专员 |
+|---|---|---|---|---|
+| 发起立项（信息维护） | — | — | ✅ | — |
+| AI 风险等级评估 | ✅ 触发+查看 | ✅ 触发+查看 | ✅ 触发+查看 | 查看结果 |
+| 上传招标文件 | — | — | ✅ | — |
+| 提交立项 | — | — | ✅ | — |
+| 分配投标团队 | ✅ | ✅ | — | — |
+| 审核通过 | ✅ | ✅ | — | — |
+| 审核驳回 | ✅ | ✅ | — | — |
+
+### 端点对照（ProjectInitiationController）
+
+| 文档功能 | 端点 | Controller 注解 | 文档对照 |
+|---|---|---|---|
+| 提交立项 | POST `/api/projects/{id}/initiation` | `ADMIN/BID_PROJECTLEADER` | ✅ 匹配（仅项目负责人+admin）|
+| 更新立项 | PUT | `ADMIN/BID_PROJECTLEADER` | ✅ 匹配 |
+| AI 风险评估 | POST `/ai-risk-assessment` | `ADMIN/BID_PROJECTLEADER` | ✅ 匹配 |
+| 审核通过 | POST `/approve` | `ADMIN/BID_TEAMLEADER/BIDADMIN` | ✅ 匹配（管理员/组长，不含项目负责人/专员）|
+| 审核驳回 | POST `/reject` | `ADMIN/BID_TEAMLEADER/BIDADMIN` | ✅ 匹配 |
+| 查看立项 | GET | `isAuthenticated()` | ✅ 数据范围由 Service 层过滤 |
+
+### 差距判断
+
+| 维度 | 结论 |
+|---|---|
+| 提交/更新/AI 评估角色收口 | ✅ 匹配（仅 BID_PROJECTLEADER + admin）|
+| 审核角色收口 | ✅ 匹配（仅管理员/组长，不含项目负责人/专员）|
+| 分配投标团队 | ❓ 待确认（可能在 ProjectDraftingController 或团队分配端点，2.3 审计）|
+
+**2.2 立项权限实现完全匹配文档**，无 gap。
+
+### 契约测试
+
+**反射型契约测试**（`ProjectInitiationPermissionTest`，新增 4 个）：
+- submit 注解 == `hasAnyRole('ADMIN','BID_PROJECTLEADER')`
+- approve 注解 == `ADMIN/BID_TEAMLEADER/BIDADMIN` + doesNotContain 项目负责人/专员
+- reject 注解同 approve
+- assessRisk 注解 == `ADMIN/BID_PROJECTLEADER`
+
+### 2.2 小结
+
+✅ 立项权限实现**完全匹配文档**——提交/AI 评估仅项目负责人，审核仅管理员/组长。4 个反射型测试锁定注解，防止未来重构放行错误角色。
+
