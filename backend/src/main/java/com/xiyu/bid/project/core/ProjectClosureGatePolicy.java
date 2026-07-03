@@ -1,5 +1,5 @@
-// Input: DepositSnapshot + ClosureInput
-// Output: Decision (Allow | Deny{reasons}) -- PRD §3.6 结项保证金强校验闸门
+// Input: DepositSnapshot + ClosureInput + task states
+// Output: Decision (Allow | Deny{reasons}) -- PRD §3.6 结项闸门策略（保证金 + 任务完成）
 // Pos: project/core/ - pure rule, no Spring/JPA
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.project.core;
@@ -21,6 +21,7 @@ import java.util.Objects;
  *   <li>TRANSFERRED_TO_FEE 需转服务费金额 + 证明文件。</li>
  *   <li>PARTIAL_RETURN_PARTIAL_TRANSFER 需退回金额 + 转服务费金额 + 证明文件。</li>
  *   <li>当无保证金（hasDeposit=false）时，NA 状态跳过所有校验。</li>
+ *   <li>所有未完成的任务（非 COMPLETED 状态）阻止结项。</li>
  *   <li>所有错误以 reasons 列表返回，便于前端整体提示。</li>
  * </ul>
  */
@@ -29,7 +30,35 @@ public final class ProjectClosureGatePolicy {
     private ProjectClosureGatePolicy() {
     }
 
+    /**
+     * @deprecated 请使用 {@link #decide(ClosureGateInputs)}，支持任务完成校验。
+     *             保留用于向后兼容（不含任务校验）。
+     */
+    @Deprecated
     public static Decision decide(DepositSnapshot snapshot, ClosureInput input) {
+        return decideDepositOnly(snapshot, input);
+    }
+
+    public static Decision decide(ClosureGateInputs inputs) {
+        Objects.requireNonNull(inputs, "inputs 不能为空");
+        List<String> reasons = new ArrayList<>();
+
+        Decision depositResult = decideDepositOnly(inputs.depositSnapshot(), inputs.closureInput());
+        if (!depositResult.allowed()) {
+            reasons.addAll(((Decision.Deny) depositResult).reasons());
+        }
+
+        Decision taskResult = decideTaskCompletion(inputs.taskStates());
+        if (!taskResult.allowed()) {
+            reasons.addAll(((Decision.Deny) taskResult).reasons());
+        }
+
+        return reasons.isEmpty()
+                ? Decision.ALLOW
+                : new Decision.Deny(Collections.unmodifiableList(reasons));
+    }
+
+    private static Decision decideDepositOnly(DepositSnapshot snapshot, ClosureInput input) {
         Objects.requireNonNull(snapshot, "snapshot 不能为空");
         Objects.requireNonNull(input, "input 不能为空");
         List<String> reasons = new ArrayList<>();
@@ -69,6 +98,18 @@ public final class ProjectClosureGatePolicy {
         return reasons.isEmpty()
                 ? Decision.ALLOW
                 : new Decision.Deny(Collections.unmodifiableList(reasons));
+    }
+
+    private static Decision decideTaskCompletion(List<AllTasksCompletedPolicy.TaskState> taskStates) {
+        AllTasksCompletedPolicy.Decision decision = AllTasksCompletedPolicy.decide(taskStates);
+        if (decision.allowed()) {
+            return Decision.ALLOW;
+        }
+        int incomplete = ((AllTasksCompletedPolicy.Decision.Deny) decision).incompleteCount();
+        String reason = incomplete < 0
+                ? "存在未完成的任务"
+                : "存在 " + incomplete + " 项未完成的任务";
+        return new Decision.Deny(Collections.singletonList(reason));
     }
 
     /** 保证金退回状态（蓝图 §3.3.1.6）。 */
@@ -113,6 +154,18 @@ public final class ProjectClosureGatePolicy {
     /** 结项提交输入（占位：未来扩展归档/备注校验）。 */
     public record ClosureInput(String archiveLocation, String notes) {
         public static final ClosureInput EMPTY = new ClosureInput(null, null);
+    }
+
+    /**
+     * 结项闸门完整输入。
+     * @param depositSnapshot  保证金快照
+     * @param closureInput     结项提交输入
+     * @param taskStates       任务状态列表（来自 AllTasksCompletedPolicy.TaskState）
+     */
+    public record ClosureGateInputs(
+            DepositSnapshot depositSnapshot,
+            ClosureInput closureInput,
+            List<AllTasksCompletedPolicy.TaskState> taskStates) {
     }
 
     /** Sealed Decision: Allow | Deny{reasons}. */

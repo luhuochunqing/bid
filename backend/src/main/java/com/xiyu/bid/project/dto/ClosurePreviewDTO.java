@@ -31,6 +31,9 @@ public class ClosurePreviewDTO {
     private BigDecimal returnedAmount;
     private boolean canClose;
     private List<String> blockingReasons;
+    private int totalTaskCount;
+    private int completedTaskCount;
+    private int incompleteTaskCount;
     private Boolean alreadyClosed;
     private Boolean stageLocked;
     private String reviewStatus;          // DRAFT | PENDING | APPROVED | REJECTED

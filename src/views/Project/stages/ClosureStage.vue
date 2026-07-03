@@ -189,7 +189,33 @@
       </template>
     </div>
 
-    <!-- 二、项目总结 -->
+    <!-- 二、任务完成情况 -->
+    <div class="form-section">
+      <div class="form-section-title">任务完成情况</div>
+      <div class="task-summary">
+        <div class="task-summary-item">
+          <span class="ts-label">任务总数</span>
+          <span class="ts-value">{{ preview?.totalTaskCount ?? 0 }}</span>
+        </div>
+        <div class="task-summary-item">
+          <span class="ts-label">已完成</span>
+          <span class="ts-value ts-success">{{ preview?.completedTaskCount ?? 0 }}</span>
+        </div>
+        <div class="task-summary-item">
+          <span class="ts-label">未完成</span>
+          <span class="ts-value" :class="{ 'ts-warning': (preview?.incompleteTaskCount ?? 0) > 0 }">
+            {{ preview?.incompleteTaskCount ?? 0 }}
+          </span>
+        </div>
+      </div>
+      <el-alert
+        v-if="(preview?.incompleteTaskCount ?? 0) > 0"
+        type="warning" :closable="false" show-icon
+        :title="`存在 ${preview.incompleteTaskCount} 项未完成的任务，所有任务完成后方可提交结项。`"
+      />
+    </div>
+
+    <!-- 三、项目总结 -->
     <div class="form-section">
       <div class="form-section-title">
         <span>项目总结</span>
@@ -218,7 +244,7 @@
       </div>
     </div>
 
-    <!-- 三、操作按钮 -->
+    <!-- 四、操作按钮 -->
     <div class="btn-container">
       <el-button v-if="canSubmitClosure" type="primary" :disabled="!canSubmit || preview?.alreadyClosed" :loading="submitting" @click="submitClosure">提交结项</el-button>
       <el-button v-if="canApprove" type="success" :loading="approving" @click="doApprove">通过</el-button>
@@ -376,6 +402,7 @@ const canApprove = computed(() => {
 })
 
 const canSubmit = computed(() => {
+  if ((preview.value?.incompleteTaskCount ?? 0) > 0) return false
   if (!preview.value?.hasDeposit) return true
   const s = form.depositReturnStatus
   if (!s) return false
@@ -594,6 +621,23 @@ async function triggerPrecipitation() {
 .deposit-info-item { display: flex; flex-direction: column; gap: 4px; }
 .di-label { font-size: 12px; color: #888; }
 .di-value { font-size: 14px; color: #333; font-weight: 500; }
+
+/* 任务摘要 3列网格 */
+.task-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 16px 20px;
+  margin-bottom: 12px;
+}
+.task-summary-item { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.ts-label { font-size: 12px; color: #888; }
+.ts-value { font-size: 20px; color: #333; font-weight: 600; }
+.ts-success { color: var(--el-color-success); }
+.ts-warning { color: var(--el-color-warning); }
 
 /* 动态子字段 */
 .dynamic-fields {

@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -220,5 +221,91 @@ class ProjectClosureGatePolicyTest {
         assertEquals(DepositReturnStatus.FULLY_RETURNED, s.returnStatus());
         assertEquals(DOC, s.evidenceDocId());
         assertEquals(WHEN, s.returnDate());
+    }
+
+    // ----- 任务完成校验 -----
+
+    @Test
+    void allTasksCompleted_noDeposit_allowed() {
+        var inputs = new ProjectClosureGatePolicy.ClosureGateInputs(
+                DepositSnapshot.none(),
+                ClosureInput.EMPTY,
+                List.of(
+                        AllTasksCompletedPolicy.TaskState.COMPLETED,
+                        AllTasksCompletedPolicy.TaskState.COMPLETED
+                ));
+        var d = ProjectClosureGatePolicy.decide(inputs);
+        assertTrue(d.allowed());
+    }
+
+    @Test
+    void allTasksCompleted_withDeposit_allowed() {
+        var inputs = new ProjectClosureGatePolicy.ClosureGateInputs(
+                DepositSnapshot.returned(WHEN, DOC),
+                ClosureInput.EMPTY,
+                List.of(AllTasksCompletedPolicy.TaskState.COMPLETED));
+        var d = ProjectClosureGatePolicy.decide(inputs);
+        assertTrue(d.allowed());
+    }
+
+    @Test
+    void hasIncompleteTasks_noDeposit_denied() {
+        var inputs = new ProjectClosureGatePolicy.ClosureGateInputs(
+                DepositSnapshot.none(),
+                ClosureInput.EMPTY,
+                List.of(
+                        AllTasksCompletedPolicy.TaskState.TODO,
+                        AllTasksCompletedPolicy.TaskState.COMPLETED
+                ));
+        var d = ProjectClosureGatePolicy.decide(inputs);
+        assertFalse(d.allowed());
+        var deny = assertInstanceOf(Decision.Deny.class, d);
+        assertTrue(deny.reasons().stream().anyMatch(r -> r.contains("未完成的任务")));
+    }
+
+    @Test
+    void hasIncompleteTasks_withDepositIssues_denied_multipleReasons() {
+        var inputs = new ProjectClosureGatePolicy.ClosureGateInputs(
+                DepositSnapshot.notReturned(),
+                ClosureInput.EMPTY,
+                List.of(
+                        AllTasksCompletedPolicy.TaskState.TODO,
+                        AllTasksCompletedPolicy.TaskState.REVIEW
+                ));
+        var d = ProjectClosureGatePolicy.decide(inputs);
+        assertFalse(d.allowed());
+        var deny = assertInstanceOf(Decision.Deny.class, d);
+        assertTrue(deny.reasons().contains("保证金未退回"));
+        assertTrue(deny.reasons().stream().anyMatch(r -> r.contains("未完成的任务")));
+        assertEquals(2, deny.reasons().size());
+    }
+
+    @Test
+    void emptyTaskList_allowed() {
+        var inputs = new ProjectClosureGatePolicy.ClosureGateInputs(
+                DepositSnapshot.none(),
+                ClosureInput.EMPTY,
+                List.of());
+        var d = ProjectClosureGatePolicy.decide(inputs);
+        assertTrue(d.allowed());
+    }
+
+    @Test
+    void nullTaskList_denied_withIncomplete() {
+        var inputs = new ProjectClosureGatePolicy.ClosureGateInputs(
+                DepositSnapshot.none(),
+                ClosureInput.EMPTY,
+                null);
+        var d = ProjectClosureGatePolicy.decide(inputs);
+        assertFalse(d.allowed());
+        var deny = assertInstanceOf(Decision.Deny.class, d);
+        assertTrue(deny.reasons().stream().anyMatch(r -> r.contains("未完成的任务")));
+    }
+
+    @Test
+    void decide_deprecatedMethod_stillWorks_forBackwardCompat() {
+        var d = ProjectClosureGatePolicy.decide(
+                DepositSnapshot.returned(WHEN, DOC), ClosureInput.EMPTY);
+        assertTrue(d.allowed());
     }
 }
