@@ -46,15 +46,15 @@ class CrmCustomerManagerLookupServiceTest {
     }
 
     @Test
-    @DisplayName("code='0'(string)_查到1个负责人_返回第一条")
-    void findByCompanyId_StringCodeOk_OneManager_ShouldReturnFirst() {
+    @DisplayName("code='0'(string)_查到1个集团项目经理(saleType=19)_返回该负责人")
+    void findByCompanyId_StringCodeOk_OneGroupProjectManager_ShouldReturn() {
         String responseJson = """
             {
               "code": "0",
               "msg": "查询成功",
               "totalCount": 1,
               "dataList": [
-                {"id": 63, "companyId": 81417644, "saleNo": "01097", "saleType": 16, "saleTypeText": "百大项目负责人"}
+                {"id": 63, "companyId": 81417644, "saleNo": "01097", "saleType": 19, "saleTypeText": "集团项目经理"}
               ]
             }
             """;
@@ -65,13 +65,13 @@ class CrmCustomerManagerLookupServiceTest {
 
         assertThat(result).isPresent();
         assertThat(result.get().saleNo()).isEqualTo("01097");
-        assertThat(result.get().saleType()).isEqualTo(16);
-        assertThat(result.get().saleTypeText()).isEqualTo("百大项目负责人");
+        assertThat(result.get().saleType()).isEqualTo(19);
+        assertThat(result.get().saleTypeText()).isEqualTo("集团项目经理");
     }
 
     @Test
-    @DisplayName("查到多个负责人_返回第一条（issue 5.3 未指定 saleType）")
-    void findByCompanyId_MultipleManagers_ShouldReturnFirst() {
+    @DisplayName("查到多个负责人_仅返回集团项目经理(saleType=19)_跳过其他角色")
+    void findByCompanyId_MultipleManagers_ShouldReturnOnlyGroupProjectManager() {
         String responseJson = """
             {
               "code": "0",
@@ -79,7 +79,7 @@ class CrmCustomerManagerLookupServiceTest {
               "totalCount": 3,
               "dataList": [
                 {"id": 63, "companyId": 81417644, "saleNo": "01097", "saleType": 2, "saleTypeText": "对账开票专员"},
-                {"id": 96, "companyId": 81417644, "saleNo": "01989", "saleType": 16, "saleTypeText": "百大项目负责人"},
+                {"id": 96, "companyId": 81417644, "saleNo": "01989", "saleType": 19, "saleTypeText": "集团项目经理"},
                 {"id": 98, "companyId": 81417644, "saleNo": "02180", "saleType": 20, "saleTypeText": null}
               ]
             }
@@ -90,7 +90,30 @@ class CrmCustomerManagerLookupServiceTest {
         Optional<CustomerManagerResult> result = service.findByCompanyId(81417644L);
 
         assertThat(result).isPresent();
-        assertThat(result.get().saleNo()).isEqualTo("01097");
+        assertThat(result.get().saleNo()).isEqualTo("01989");
+        assertThat(result.get().saleType()).isEqualTo(19);
+    }
+
+    @Test
+    @DisplayName("无集团项目经理(saleType=19)_返回empty_不fallback到其他角色")
+    void findByCompanyId_NoGroupProjectManager_ShouldReturnEmptyWithoutFallback() {
+        String responseJson = """
+            {
+              "code": "0",
+              "msg": "查询成功",
+              "totalCount": 2,
+              "dataList": [
+                {"id": 63, "companyId": 81417644, "saleNo": "01097", "saleType": 2, "saleTypeText": "对账开票专员"},
+                {"id": 96, "companyId": 81417644, "saleNo": "01989", "saleType": 16, "saleTypeText": "百大项目负责人"}
+              ]
+            }
+            """;
+        when(httpClient.post(anyString(), anyString(), anyString(), any()))
+                .thenReturn(CrmResponseHandler.parse(responseJson));
+
+        Optional<CustomerManagerResult> result = service.findByCompanyId(81417644L);
+
+        assertThat(result).isEmpty();
     }
 
     @Test
@@ -141,16 +164,16 @@ class CrmCustomerManagerLookupServiceTest {
     }
 
     @Test
-    @DisplayName("负责人无saleNo_跳过_取下一个有效的")
-    void findByCompanyId_FirstManagerNoSaleNo_ShouldSkipToNext() {
+    @DisplayName("集团项目经理(saleType=19)无saleNo_跳过_取下一个同角色的")
+    void findByCompanyId_GroupProjectManagerNoSaleNo_ShouldSkipToNext() {
         String responseJson = """
             {
               "code": "0",
               "msg": "查询成功",
               "totalCount": 2,
               "dataList": [
-                {"id": 63, "companyId": 81417644, "saleNo": null, "saleType": 2, "saleTypeText": "对账开票专员"},
-                {"id": 96, "companyId": 81417644, "saleNo": "01989", "saleType": 16, "saleTypeText": "百大项目负责人"}
+                {"id": 63, "companyId": 81417644, "saleNo": null, "saleType": 19, "saleTypeText": "集团项目经理"},
+                {"id": 96, "companyId": 81417644, "saleNo": "01989", "saleType": 19, "saleTypeText": "集团项目经理"}
               ]
             }
             """;
