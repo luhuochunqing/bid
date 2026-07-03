@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { projectsApi } from '@/api/modules/projects.js'
 import { customerOpportunityApi } from '@/api/modules/customerOpportunity.js'
+import { navigateToProject } from '@/utils/projectNavigation.js'
 import {
   buildBoardSummaries,
   buildCategoryStats,
@@ -193,7 +194,7 @@ export function useCustomerOpportunityCenter() {
     }
 
     if (selectedCustomer.value.prediction.convertedProjectId) {
-      router.push(`/project/${selectedCustomer.value.prediction.convertedProjectId}`)
+      navigateToProject(router, selectedCustomer.value.prediction.convertedProjectId)
       return
     }
 
@@ -222,7 +223,7 @@ export function useCustomerOpportunityCenter() {
         await loadCustomerDetail(activeCustomerId.value)
       }
       ElMessage.success('项目已创建并回写商机状态')
-      router.push(`/project/${projectId}`)
+      navigateToProject(router, projectId)
     } catch (error) {
       ElMessage.error(error?.message || '转项目失败')
     } finally {

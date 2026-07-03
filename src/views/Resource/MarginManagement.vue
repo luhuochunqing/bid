@@ -158,7 +158,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import httpClient from '@/api/client'
+import httpClient from '@/api/client'; import { navigateToProject } from '@/utils/projectNavigation.js'
 
 const router = useRouter()
 
@@ -243,7 +243,7 @@ async function handleExport() {
   } catch (e) { console.error('Export failed:', e) }
 }
 
-function goToProject(id) { router.push(`/project/${id}`) }
+function goToProject(id) { navigateToProject(router, id) }
 
 onMounted(() => { fetchSummary(); fetchList() })
 </script>

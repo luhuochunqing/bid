@@ -3,6 +3,12 @@
     <div v-if="loading" class="loading-container">
       <el-skeleton :rows="5" animated />
     </div>
+    <div v-else-if="loadError" class="empty-container">
+      <el-empty :description="loadErrorDescription">
+        <el-button type="primary" @click="navigateToProjectList(router)">返回项目列表</el-button>
+        <el-button v-if="loadError === 'network-error'" @click="reloadPage">重试</el-button>
+      </el-empty>
+    </div>
     <div v-else-if="!project" class="empty-container">
       <el-empty description="未找到项目信息">
         <el-button type="primary" @click="goBack">返回项目列表</el-button>
@@ -46,6 +52,7 @@ import { useProjectDetailState } from '@/composables/projectDetail/useProjectDet
 import { useProjectDetailTaskActions } from '@/composables/projectDetail/useProjectDetailTaskActions.js'
 import { useProjectDetailTransfer } from '@/composables/projectDetail/useProjectDetailTransfer.js'
 import { useProjectDetailWorkflow } from '@/composables/projectDetail/useProjectDetailWorkflow.js'
+import { navigateToProjectList } from '@/utils/projectNavigation.js'
 import ProjectDetailAssistantPanels from './ProjectDetailAssistantPanels.vue'
 import ProjectDetailBidAgentDrawer from './ProjectDetailBidAgentDrawer.vue'
 import ProjectDetailHeader from './ProjectDetailHeader.vue'
@@ -98,8 +105,24 @@ const transfer = useProjectDetailTransfer({
 })
 
 const loading = state.loading
+const loadError = state.loadError
 const project = state.project
 const goBack = navigation.goBack
+
+// 项目详情加载失败时的错误描述文案
+const loadErrorDescription = computed(() => {
+  switch (loadError.value) {
+    case 'no-permission': return '无权限访问该项目'
+    case 'not-found': return '项目不存在'
+    case 'network-error': return '加载失败，请重试'
+    default: return '加载失败'
+  }
+})
+
+// 网络错误时重试：reload 当前路由
+const reloadPage = () => {
+  router.go(0)
+}
 
 const projectDetailContext = reactive({
   route,

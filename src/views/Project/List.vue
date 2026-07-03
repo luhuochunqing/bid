@@ -159,6 +159,7 @@ import { useProjectSearch } from './composables/useProjectSearch.js'
 import { useProjectFilter } from './composables/useProjectFilter.js'
 import { useUserStore } from '@/stores/user'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
+import { navigateToProject } from '@/utils/projectNavigation.js'
 
 const router = useRouter()
 const projectStore = useProjectStore()
@@ -319,7 +320,7 @@ function sourceTagType(source) {
   return map[source] || ''
 }
 const goToDetail = async (id) => {
-  try { await router.push(`/project/${id}`) }
+  try { await navigateToProject(router, id) }
   catch (e) { ElMessage.error('跳转失败: ' + (e.message || '未知错误')) }
 }
 const goToCreate = () => router.push('/project/create')

@@ -2,6 +2,7 @@ import { onMounted } from 'vue'
 import { approvalApi, knowledgeApi } from '@/api'
 import { buildProjectCreatedActivity } from './useProjectDetailActivities.js'
 import { auditApi } from '@/api/modules/audit.js'
+import { ProjectLoadError } from '@/utils/projectErrors.js'
 
 export function useProjectDetailBoot(context) {
   const { route, projectStore, barStore, state, workflow, expenseAggregation, loadProjectWorkflowData } = context
@@ -58,6 +59,7 @@ export function useProjectDetailBoot(context) {
   // CO-324: 项目动态改读后端 audit_logs（按 projectId）；接口失败回退伪造基线
   const initializeProjectActivities = async () => {
     const currentProject = ensureProjectCollections()
+    if (!currentProject) return  // 防御性：currentProject 为 null 时不调用 currentProject.id
     const baseline = buildProjectCreatedActivity(currentProject)
     try {
       const resp = await auditApi.getProjectActivityLogs(currentProject.id)
@@ -81,7 +83,16 @@ export function useProjectDetailBoot(context) {
     state.loading.value = true
     const projectId = route.params.id
     try {
-      await projectStore.getProjectById(projectId)
+      try {
+        await projectStore.getProjectById(projectId)
+      } catch (error) {
+        // ProjectLoadError：设置 loadError，提前 return，不执行后续流程
+        if (error instanceof ProjectLoadError) {
+          state.loadError.value = error.errorType
+          return
+        }
+        throw error
+      }
       await projectStore.loadTaskStatuses()
       ensureProjectCollections()
       await initializeProjectActivities()

@@ -6,6 +6,7 @@
 import { ElMessage } from 'element-plus'
 import { projectsApi } from '@/api'
 import customerOpportunityApi from '@/api/modules/customerOpportunity'
+import { navigateToProject } from '@/utils/projectNavigation.js'
 
 export function useProjectCreateSubmit({
   projectStore,
@@ -51,7 +52,7 @@ export function useProjectCreateSubmit({
 
       const taskCount = await persistManualTasks(createdProject.id)
       ElMessage.success(taskCount > 0 ? `项目创建成功，已同步 ${taskCount} 个任务` : '项目创建成功')
-      router.push(`/project/${createdProject.id}`)
+      navigateToProject(router, createdProject.id)
     } catch (error) {
       if (!hasGlobalHttpErrorMessage(error)) ElMessage.error(error?.message || '项目创建失败')
     } finally {
@@ -71,7 +72,7 @@ export function useProjectCreateSubmit({
       if (!result?.success || !Array.isArray(tasks)) throw new Error(result?.msg || '自动拆解任务失败')
 
       ElMessage.success(`项目已创建，并自动拆解生成 ${tasks.length} 个任务`)
-      router.push(`/project/${createdProject.id}`)
+      navigateToProject(router, createdProject.id)
     } catch (error) {
       ElMessage.warning(
         error?.response?.data?.msg

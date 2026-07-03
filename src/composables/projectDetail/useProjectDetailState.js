@@ -5,6 +5,9 @@ export function useProjectDetailState(context) {
   const { route, userStore, projectStore, isDemoMode, isApiProject } = context
 
   const loading = ref(true)
+  // 项目详情加载失败时的错误类型（null | 'no-permission' | 'not-found' | 'network-error'）
+  // 由 useProjectDetailBoot 在捕获 ProjectLoadError 时设置，ProjectDetailShell 据此渲染错误界面
+  const loadError = ref(null)
   const approvalHistory = ref([])
   const assetCheckResult = ref(null)
 
@@ -81,6 +84,7 @@ export function useProjectDetailState(context) {
 
   return {
     loading,
+    loadError,
     approvalHistory,
     assetCheckResult,
     resultDialogVisible,

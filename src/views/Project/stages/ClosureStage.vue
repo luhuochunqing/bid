@@ -279,6 +279,7 @@ import { getApiUrl } from '@/api/config.js'
 import { casesApi } from '@/api/modules/knowledge.js'
 import { useUserStore } from '@/stores/user'
 import { safeHtml } from '@/utils/safeHtml.js'
+import { navigateToProject } from '@/utils/projectNavigation.js'
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import '@wangeditor/editor/dist/css/style.css'
 import { useRouter } from 'vue-router'
@@ -529,7 +530,7 @@ async function handleRebid() {
   try {
     const res = await projectLifecycleApi.rebidProject(props.projectId)
     const newProjectId = res?.data?.projectId || res?.projectId
-    if (newProjectId) { ElMessage.success('二次招标项目已创建，即将跳转'); router.push({ name: 'ProjectDetail', params: { id: String(newProjectId) } }) }
+    if (newProjectId) { ElMessage.success('二次招标项目已创建，即将跳转'); navigateToProject(router, newProjectId) }
     else ElMessage.success('二次招标项目已创建')
   } catch (e) { ElMessage.error(e?.response?.data?.msg || '创建二次招标项目失败') }
   finally { rebidLoading.value = false }

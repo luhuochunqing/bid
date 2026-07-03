@@ -184,6 +184,7 @@ import { useEvaluationReview } from './useEvaluationReview.js'
 import { useDetailActions } from './useDetailActions.js'
 import { useUserStore } from '@/stores/user'
 import { isBidManager } from '@/utils/permission'
+import { navigateToProject } from '@/utils/projectNavigation.js'
 import UserPicker from '@/components/common/UserPicker.vue'
 import { VT } from './useTenderEvaluationForm.js'
 const TenderEvaluationForm = defineAsyncComponent(() => import('./TenderEvaluationForm.vue'))
@@ -415,7 +416,7 @@ const { headerActions, bottomActions, handleAction } = useDetailActions(tender, 
   submit: () => evaluationFormRef.value?.handleSubmit(),
   viewProject: () => {
     if (tender.value?.projectId) {
-      router.push({ name: 'ProjectDetail', params: { id: tender.value.projectId } })
+      navigateToProject(router, tender.value.projectId)
     } else {
       ElMessage.info('该项目尚未创建投标项目')
     }

@@ -6,6 +6,7 @@ import {
   getFeaturePlaceholder
 } from '@/api'
 import { notifyFeatureUnavailable } from '@/utils/featureFeedback'
+import { navigateToProject } from '@/utils/projectNavigation.js'
 
 export const metricTypeByCardKey = {
   bids: 'projects',
@@ -217,12 +218,12 @@ export function useMetricDrillDown({ route, router, dateRange }) {
 
   function handleRowAction(row) {
     if (drawerType.value === 'projects') {
-      router.push({ name: 'ProjectDetail', params: { id: row.id } })
+      navigateToProject(router, row.id)
       return
     }
     const projectId = row.relatedId || row.id
     if (projectId) {
-      router.push({ name: 'ProjectDetail', params: { id: projectId } })
+      navigateToProject(router, projectId)
     }
   }
 

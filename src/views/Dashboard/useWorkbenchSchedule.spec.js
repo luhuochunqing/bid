@@ -58,7 +58,7 @@ describe('useWorkbenchSchedule', () => {
 
     schedule.handleCalendarAction({ projectId: 88 })
 
-    expect(router.push).toHaveBeenCalledWith('/project/88')
+    expect(router.push).toHaveBeenCalledWith({ name: 'ProjectDetail', params: { id: '88' } })
   })
 
   it('syncs selectedDateKey to the nearest upcoming event', async () => {
