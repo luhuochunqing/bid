@@ -18,6 +18,7 @@ vi.mock('@/api/modules/projectLifecycle.js', () => ({
     submitClosure: vi.fn(),
     approveClosure: vi.fn(),
     rejectClosure: vi.fn(),
+    rebidProject: vi.fn(),
   },
 }))
 vi.mock('@/api/modules/knowledge.js', () => ({
@@ -389,5 +390,49 @@ describe('ClosureStage — 结项编辑/提交/审核权矩阵', () => {
     expect(wrapper.vm.canEditDeposit).toBe(false)
     expect(wrapper.vm.canEditSummary).toBe(false)
     expect(wrapper.vm.canSubmitClosure).toBe(false)
+  })
+})
+
+// 二次招标按钮可见性：流标项目 alreadyClosed=true 但 reviewStatus 非 APPROVED 时也应显示
+describe('ClosureStage — 二次招标按钮可见性', () => {
+  const basePreview = { projectId: 1, hasDeposit: false, canClose: true, reviewStatus: 'DRAFT', blockingReasons: [] }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockUserStore.userRole = 'bid-projectLeader'
+    mockUserStore.currentUser = { id: 42 }
+    projectLifecycleApi.getDrafting.mockResolvedValue({ data: { projectId: 1 } })
+  })
+
+  it('流标项目 alreadyClosed=true 无 APPROVED 状态 → 二次招标按钮可见', async () => {
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({
+      data: { ...basePreview, alreadyClosed: true, reviewStatus: 'DRAFT' },
+    })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    // 模板中 v-if="preview?.reviewStatus === 'APPROVED' || preview?.alreadyClosed"
+    // alreadyClosed=true 应让按钮区域渲染
+    const rebidBtn = wrapper.findAll('button').find(b => b.text().includes('二次招标'))
+    expect(rebidBtn).toBeTruthy()
+  })
+
+  it('未结项项目 alreadyClosed=false 且 reviewStatus 非 APPROVED → 二次招标按钮不可见', async () => {
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({
+      data: { ...basePreview, alreadyClosed: false, reviewStatus: 'DRAFT' },
+    })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    const rebidBtn = wrapper.findAll('button').find(b => b.text().includes('二次招标'))
+    expect(rebidBtn).toBeFalsy()
+  })
+
+  it('结项审批通过 reviewStatus=APPROVED → 二次招标按钮可见', async () => {
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({
+      data: { ...basePreview, alreadyClosed: true, reviewStatus: 'APPROVED' },
+    })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    const rebidBtn = wrapper.findAll('button').find(b => b.text().includes('二次招标'))
+    expect(rebidBtn).toBeTruthy()
   })
 })

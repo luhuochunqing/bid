@@ -224,7 +224,7 @@
       <el-button v-if="canApprove" type="success" :loading="approving" @click="doApprove">通过</el-button>
       <el-button v-if="canApprove" type="danger" plain :loading="rejecting" @click="showRejectDialog = true">驳回</el-button>
 
-      <template v-if="preview?.reviewStatus === 'APPROVED'">
+      <template v-if="preview?.reviewStatus === 'APPROVED' || preview?.alreadyClosed">
         <el-button type="success" disabled style="opacity:0.6;cursor:not-allowed;">已结项</el-button>
         <el-button v-if="isProjectLeader || isBidManager" :loading="rebidLoading" @click="handleRebid">二次招标</el-button>
       </template>

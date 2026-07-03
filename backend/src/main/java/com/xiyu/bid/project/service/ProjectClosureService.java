@@ -7,6 +7,7 @@ import com.xiyu.bid.annotation.Auditable;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
+import com.xiyu.bid.project.core.RebidEligibilityPolicy;
 import com.xiyu.bid.project.core.ProjectClosureGatePolicy;
 import com.xiyu.bid.project.core.ProjectClosureGatePolicy.ClosureInput;
 import com.xiyu.bid.project.core.ProjectStage;
@@ -61,11 +62,12 @@ public class ProjectClosureService {
         // CO-392: 补齐项目级访问守卫，与 ProjectDraftingService.get() 对齐，
         // 防止放开 @PreAuthorize 角色白名单后越权查看任意项目结项预览。
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
-        mustGetProject(projectId);
+        Project project = mustGetProject(projectId);
         Optional<ProjectClosure> existingClosure = closureRepository.findByProjectId(projectId);
         ProjectDepositSnapshot snap = depositAssembler.buildSnapshot(projectId, existingClosure);
         var gateSnap = depositAssembler.mapToGateSnapshot(snap, existingClosure.orElse(null));
-        boolean alreadyClosed = closureRepository.existsByProjectIdAndStageLockedTrue(projectId);
+        boolean alreadyClosed = closureRepository.existsByProjectIdAndStageLockedTrue(projectId)
+                || ProjectStage.CLOSED.name().equals(project.getStage());
         var decision = ProjectClosureGatePolicy.decide(gateSnap, ClosureInput.EMPTY);
         List<String> blockingReasons = decision.allowed() ? List.of()
                 : ((ProjectClosureGatePolicy.Decision.Deny) decision).reasons();
@@ -196,10 +198,11 @@ public class ProjectClosureService {
     @Transactional
     public Long rebidProject(Long projectId, Long userId) {
         Project oldProject = mustGetProject(projectId);
-        ProjectClosure closure = closureRepository.findByProjectId(projectId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "未找到结项记录"));
-        if (!"APPROVED".equals(closure.getReviewStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "项目尚未结项，无法二次招标");
+        ProjectStage currentStage = projectStageService.currentStage(projectId);
+        var eligibility = RebidEligibilityPolicy.decide(currentStage);
+        if (!eligibility.allowed()) {
+            var deny = (RebidEligibilityPolicy.Decision.Deny) eligibility;
+            throw new ResponseStatusException(HttpStatus.CONFLICT, deny.reason());
         }
 
         // 复制基础信息创建新项目
