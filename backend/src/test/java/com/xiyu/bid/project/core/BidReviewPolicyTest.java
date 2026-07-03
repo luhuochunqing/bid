@@ -9,6 +9,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -248,15 +249,17 @@ class BidReviewPolicyTest {
     void aggregate_whenAnyRejected_returnsRejected() {
         assertThat(BidReviewPolicy.computeAggregateStatus(List.of("APPROVED", "REJECTED")))
                 .isEqualTo(BidReviewStatus.REJECTED);
-        assertThat(BidReviewPolicy.computeAggregateStatus(List.of("REJECTED", null)))
+        // CO-xxx fix: List.of 不允许 null 元素，改用 Arrays.asList 表达"未决策"语义
+        assertThat(BidReviewPolicy.computeAggregateStatus(Arrays.asList("REJECTED", null)))
                 .isEqualTo(BidReviewStatus.REJECTED);
     }
 
     @Test
     void aggregate_whenHasPending_returnsReviewing() {
-        assertThat(BidReviewPolicy.computeAggregateStatus(List.of("APPROVED", null)))
+        // CO-xxx fix: List.of 不允许 null 元素，改用 Arrays.asList 表达"未决策"语义
+        assertThat(BidReviewPolicy.computeAggregateStatus(Arrays.asList("APPROVED", null)))
                 .isEqualTo(BidReviewStatus.REVIEWING);
-        assertThat(BidReviewPolicy.computeAggregateStatus(List.of((String) null, null)))
+        assertThat(BidReviewPolicy.computeAggregateStatus(Arrays.asList((String) null, null)))
                 .isEqualTo(BidReviewStatus.REVIEWING);
     }
 

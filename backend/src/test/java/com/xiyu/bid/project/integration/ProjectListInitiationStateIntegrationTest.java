@@ -207,7 +207,10 @@ class ProjectListInitiationStateIntegrationTest {
 
     @Test
     @WithMockUser(username = "sales", roles = {"BID_PROJECTLEADER", "MANAGER"})
-    void getProjects_shouldFilterByPrimaryOrSecondaryBiddingLeaderId() throws Exception {
+    void getProjects_shouldFilterByPrimaryBiddingLeaderId_only() throws Exception {
+        // CO-xxx fix: 对齐 ProjectController.biddingLeaderId 过滤契约（与前端 useProjectFilter 一致）：
+        // 投标负责人筛选只匹配主负责人（primaryLeadUserId），不匹配副负责人（secondaryLeadUserId）。
+        // 设计原因：避免筛 A 时主=B/副=A 的项目混入，而列表只显示主负责人姓名。
         mockMvc.perform(get("/api/projects")
                         .param("biddingLeaderId", primaryLeadUser.getId().toString()))
                 .andExpect(status().isOk())
@@ -215,13 +218,14 @@ class ProjectListInitiationStateIntegrationTest {
                 .andExpect(jsonPath("$.data.length()").value(1))
                 .andExpect(jsonPath("$.data[0].name").value("测试待立项项目"));
 
+        // 副负责人不参与筛选，期望 0 条结果
         mockMvc.perform(get("/api/projects")
                         .param("biddingLeaderId", secondaryLeadUser.getId().toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.length()").value(1))
-                .andExpect(jsonPath("$.data[0].name").value("测试待立项项目"));
+                .andExpect(jsonPath("$.data.length()").value(0));
 
+        // 销售负责人也非投标负责人，期望 0 条结果
         mockMvc.perform(get("/api/projects")
                         .param("biddingLeaderId", salesUser.getId().toString()))
                 .andExpect(status().isOk())

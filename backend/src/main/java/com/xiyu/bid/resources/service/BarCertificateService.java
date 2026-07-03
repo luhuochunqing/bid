@@ -5,6 +5,7 @@
 package com.xiyu.bid.resources.service;
 
 import com.xiyu.bid.access.core.ProjectLinkedRecordVisibilityPolicy;
+import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.resources.dto.BarCertificateBorrowRecordDTO;
 import com.xiyu.bid.resources.dto.BarCertificateBorrowRequest;
@@ -121,7 +122,10 @@ public class BarCertificateService {
     public BarCertificateResponseDTO returnCertificate(Long assetId, Long certificateId, BarCertificateReturnRequest request) {
         BarCertificate certificate = getCertificate(assetId, certificateId);
         if (certificate.getStatus() != BarCertificate.CertificateStatus.BORROWED) {
-            throw new IllegalStateException("Only borrowed certificates can be returned");
+            // CO-xxx fix: 业务校验失败应透传业务错误信息给前端，而非被 GlobalExceptionHandler
+            // 当成系统缺陷吞掉成"系统状态冲突，请刷新后重试"。改用 BusinessException(409, ...)
+            // 保持 HTTP 409 状态码不变，同时让用户看到可操作的错误提示。
+            throw new BusinessException(409, "Only borrowed certificates can be returned");
         }
         List<BarCertificateBorrowRecord> records = borrowRecordRepository.findByCertificateIdOrderByBorrowedAtDesc(certificate.getId());
         BarCertificateBorrowRecord latestBorrow = records.stream()
