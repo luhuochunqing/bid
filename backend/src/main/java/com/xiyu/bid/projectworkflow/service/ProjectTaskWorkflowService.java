@@ -9,6 +9,7 @@ import com.xiyu.bid.notification.core.NotificationType;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
+import com.xiyu.bid.project.notification.TaskReviewNotificationService;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
 import com.xiyu.bid.projectworkflow.dto.ProjectTaskCreateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectTaskStatusUpdateRequest;
@@ -54,6 +55,7 @@ class ProjectTaskWorkflowService {
     private final ProjectTaskDeliverableCollector deliverableCollector;
     private final NotificationApplicationService notificationService;
     private final ProjectNotificationService projectNotificationService;
+    private final TaskReviewNotificationService taskReviewNotificationService;
     // CO-460 治本：加载任务交付物/附件，对齐独立任务 TaskDtoMapper
     private final TaskDeliverableRepository taskDeliverableRepository;
     private final ProjectDocumentRepository projectDocumentRepository;
@@ -118,6 +120,11 @@ class ProjectTaskWorkflowService {
         Task task = guardService.requireTask(projectId, taskId);
         Task.Status targetStatus = toEntityStatus(request.getStatus());
 
+        User actorUser = hasText(actorUsername)
+                ? userRepository.findByUsername(actorUsername).orElse(null)
+                : null;
+        Long actorUserId = actorUser != null ? actorUser.getId() : null;
+
         TaskTransitionPolicy.TaskStatus currentPolicyStatus = toPolicyStatus(task.getStatus());
         TaskTransitionPolicy.TaskStatus targetPolicyStatus = toPolicyStatus(targetStatus);
 
@@ -158,6 +165,21 @@ class ProjectTaskWorkflowService {
         }
         Task saved = taskRepository.save(task);
         taskHistoryRecorder.recordUpdate(before, saved, actorUsername);
+
+        // 通知：任务提交审核 → 通知有权限审核的人
+        if (before.getStatus() == Task.Status.TODO && saved.getStatus() == Task.Status.REVIEW) {
+            String actorName = actorUser != null ? actorUser.getFullName() : null;
+            taskReviewNotificationService.notifyTaskReviewSubmitted(
+                    projectId, taskId, saved.getTitle(), actorName, actorUserId);
+        }
+
+        // 通知：任务审核通过/驳回 → 通知任务执行人
+        if (before.getStatus() == Task.Status.REVIEW &&
+                (saved.getStatus() == Task.Status.COMPLETED || saved.getStatus() == Task.Status.TODO)) {
+            boolean approved = saved.getStatus() == Task.Status.COMPLETED;
+            taskReviewNotificationService.notifyTaskReviewResult(
+                    projectId, taskId, saved.getTitle(), saved.getAssigneeId(), approved, actorUserId);
+        }
 
         // COMPLETED 时：归集任务交付物到项目文档（幂等 + 批量）
         if (targetStatus == Task.Status.COMPLETED) {
