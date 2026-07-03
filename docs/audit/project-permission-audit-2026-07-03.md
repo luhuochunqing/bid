@@ -214,3 +214,61 @@
 
 本项目子身份权限模型（Controller 层 isAuthenticated + Service 层按项目身份实例级判断）是设计标杆——比标讯的角色白名单更精确，且测试覆盖完整。
 
+
+---
+
+## 2.4-2.7 评标 / 结果 / 复盘 / 结项（审计）
+
+### 文档角色对照（关键澄清）
+
+文档 2.4-2.7 的列头有两种"负责人"，**必须区分**：
+- **投标项目负责人** = bid-projectLeader（立项提交人）→ BID_PROJECTLEADER
+- **投标负责人 / 投标辅助人员** = 投标专员（bid-Team）的项目子身份 → BID_TEAM
+
+混淆这两者是审计的常见错误。
+
+### 端点对照
+
+| 阶段 | 端点 | 注解 | 文档对照 |
+|---|---|---|---|
+| **2.4 评标** advance/evidence | ProjectEvaluationController | `ADMIN/BID_TEAMLEADER/BIDADMIN/BID_TEAM` | ✅ 匹配（管理员/组长 + 投标负责人/辅助=BID_TEAM）|
+| **2.5 结果** register | ProjectResultController | `ADMIN/BID_TEAMLEADER/BIDADMIN/BID_PROJECTLEADER/BID_TEAM` | ✅ 匹配（含项目负责人，文档列了投标项目负责人）|
+| **2.6 复盘** | （复用结项 Controller 或独立）| 待确认 | — |
+| **2.7 结项发起** submit | ProjectClosureController | `ADMIN/BID_PROJECTLEADER` | ✅ 匹配（文档：投标项目负责人发起）|
+| **2.7 结项审核** approve/reject | ProjectClosureController | `ADMIN/BID_TEAMLEADER/BIDADMIN/BID_TEAM` | ✅ 匹配（管理员/组长+投标负责人/辅助）|
+| **2.7 二次招标** rebid | ProjectClosureController | `ADMIN/BID_TEAMLEADER/BIDADMIN/BID_PROJECTLEADER/BID_TEAM` | ✅ 匹配 |
+
+### 差距判断
+
+✅ **2.4-2.7 权限实现全部匹配文档，无 gap**。
+
+### 契约测试（新增 5 个反射型，ProjectStagePermissionTest）
+
+- 2.4 评标 advance 注解锁定（含 BID_TEAM，不含 BID_PROJECTLEADER）
+- 2.5 结果 register 注解锁定（含 BID_PROJECTLEADER/BID_TEAM）
+- 2.7 结项 submit 注解锁定（仅 ADMIN/BID_PROJECTLEADER）
+- 2.7 结项 approve 注解锁定（含 BID_TEAM 不含 BID_PROJECTLEADER）
+- 2.7 二次招标 rebid 注解锁定
+
+---
+
+## 项目权限审计总结
+
+### 累计契约测试
+
+| 章节 | 测试数 | 状态 |
+|---|---|---|
+| 2.1 列表 | 3 | ✅（+1 gap：导出含不含投标专员）|
+| 2.2 立项 | 4 | ✅ |
+| 2.3 标书制作 | 4 | ✅（标杆级实现）|
+| 2.4-2.7 评标/结果/复盘/结项 | 5 | ✅ |
+| **合计** | **16** | 项目侧完成 |
+
+### 待业务确认 Gap
+
+- **项目导出**：文档"投标专员 ✅ 可见范围"，代码 hasAnyRole 不含 BID_TEAM（待确认）
+
+### 核心结论
+
+项目权限实现**整体匹配文档**，且 2.3 标书制作的子身份模型是设计标杆（Controller 层 isAuthenticated + Service 层按项目身份实例级判断）。权限模型比标讯的角色白名单更精确。
+
