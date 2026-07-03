@@ -9,6 +9,8 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -203,5 +205,70 @@ class BidReviewPolicyTest {
     void canSubmitBid_whenApproved_shouldAllow() {
         var result = BidReviewPolicy.canSubmitBid(BidReviewStatus.APPROVED);
         assertThat(result.allowed()).isTrue();
+    }
+
+    // ── CO-483 + CO-484 多人审核 ───────────────────────────────────────
+
+    @Test
+    void canApprove_multi_whenCurrentUserInReviewerIds_shouldPermit() {
+        var result = BidReviewPolicy.canApprove(BidReviewStatus.REVIEWING, 100L, List.of(200L, 201L), 201L);
+        assertThat(result.allowed()).isTrue();
+    }
+
+    @Test
+    void canApprove_multi_whenCurrentUserNotInReviewerIds_shouldDeny() {
+        var result = BidReviewPolicy.canApprove(BidReviewStatus.REVIEWING, 100L, List.of(200L, 201L), 999L);
+        assertThat(result.allowed()).isFalse();
+        assertThat(result.cause()).isEqualTo(BidReviewPolicy.Decision.Cause.IDENTITY);
+        assertThat(result.reason()).contains("仅指派的审核人");
+    }
+
+    @Test
+    void canReject_multi_whenCurrentUserInReviewerIds_shouldPermit() {
+        var result = BidReviewPolicy.canReject(BidReviewStatus.REVIEWING, "原因", 100L, List.of(200L, 201L), 200L);
+        assertThat(result.allowed()).isTrue();
+    }
+
+    @Test
+    void canReject_multi_whenCurrentUserNotInReviewerIds_shouldDeny() {
+        var result = BidReviewPolicy.canReject(BidReviewStatus.REVIEWING, "原因", 100L, List.of(200L, 201L), 999L);
+        assertThat(result.allowed()).isFalse();
+        assertThat(result.cause()).isEqualTo(BidReviewPolicy.Decision.Cause.IDENTITY);
+    }
+
+    // ── computeAggregateStatus（CO-484 聚合规则）──────────────────────
+
+    @Test
+    void aggregate_whenAllApproved_returnsApproved() {
+        assertThat(BidReviewPolicy.computeAggregateStatus(List.of("APPROVED", "APPROVED")))
+                .isEqualTo(BidReviewStatus.APPROVED);
+    }
+
+    @Test
+    void aggregate_whenAnyRejected_returnsRejected() {
+        assertThat(BidReviewPolicy.computeAggregateStatus(List.of("APPROVED", "REJECTED")))
+                .isEqualTo(BidReviewStatus.REJECTED);
+        assertThat(BidReviewPolicy.computeAggregateStatus(List.of("REJECTED", null)))
+                .isEqualTo(BidReviewStatus.REJECTED);
+    }
+
+    @Test
+    void aggregate_whenHasPending_returnsReviewing() {
+        assertThat(BidReviewPolicy.computeAggregateStatus(List.of("APPROVED", null)))
+                .isEqualTo(BidReviewStatus.REVIEWING);
+        assertThat(BidReviewPolicy.computeAggregateStatus(List.of((String) null, null)))
+                .isEqualTo(BidReviewStatus.REVIEWING);
+    }
+
+    @Test
+    void aggregate_whenEmptyOrNull_returnsReviewing() {
+        assertThat(BidReviewPolicy.computeAggregateStatus(null)).isEqualTo(BidReviewStatus.REVIEWING);
+        assertThat(BidReviewPolicy.computeAggregateStatus(List.of())).isEqualTo(BidReviewStatus.REVIEWING);
+    }
+
+    @Test
+    void aggregate_singleApproved_returnsApproved() {
+        assertThat(BidReviewPolicy.computeAggregateStatus(List.of("APPROVED")))
+                .isEqualTo(BidReviewStatus.APPROVED);
     }
 }

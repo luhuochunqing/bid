@@ -112,7 +112,7 @@ public class ProjectDraftingService {
 
     // ── 标书审核流程（委托给 BidReviewAppService）────────────────────────
 
-    public ProjectDraftingViewDto submitForReview(Long projectId, Long reviewerId, Long currentUserId) {
+    public ProjectDraftingViewDto submitForReview(Long projectId, List<Long> reviewerIds, Long currentUserId) {
         // 服务层角色 + 项目级负责人校验（与 submitBid 对齐；优先从 OSS 缓存读取角色，避免 DB role_id 为空导致误拒绝）
         ProjectLeadAssignment lead = assertCanSubmit(projectId, currentUserId);
 
@@ -125,7 +125,7 @@ public class ProjectDraftingService {
         // 任务完成与否是审核人的判断，不是闸门。详见 docs/lessons/lessons-learned.md §25）
         assertBidDocumentUploaded(projectId, "无法提交标书审核");
 
-        bidReviewAppService.submitForReview(projectId, reviewerId, currentUserId);
+        bidReviewAppService.submitForReview(projectId, reviewerIds, currentUserId);
         return toView(projectId, lead);
     }
 
@@ -317,6 +317,7 @@ public class ProjectDraftingService {
                 .reviewerId(reviewState.reviewerId())
                 .reviewerName(reviewState.reviewerName())
                 .rejectReason(reviewState.rejectReason())
+                .reviewers(reviewState.reviewers())
                 .bidSubmitted(bidSubmitted)
                 .build();
     }

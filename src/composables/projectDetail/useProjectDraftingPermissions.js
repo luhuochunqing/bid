@@ -67,11 +67,12 @@ export function canDeleteDocumentAs({ role, currentUserId, uploaderId }) {
 }
 
 export function useProjectDraftingPermissions(opts = {}) {
-  // opts 支持传入 { primaryLeadId, secondaryLeadId, currentUserId, reviewerId }
+  // opts 支持传入 { primaryLeadId, secondaryLeadId, currentUserId, reviewerId, reviewerIds }
   // 用于在组件中二次约束：
   //   - 仅该项目分配的投标负责人/辅助人员 + 管理员/组长可提交投标
-  //   - 仅指派的审核人（reviewerId == currentUserId）可审核投标
+  //   - 仅指派的审核人（reviewerId == currentUserId 或 reviewerIds.includes(currentUserId)）可审核投标
   // 注意：opts 中的值可以是原始值或 ref/computed，内部统一通过 resolveOpt 解包
+  // CO-484：reviewerIds（数组）优先；若未传则回退到 reviewerId（单值，向后兼容）
   const userStore = useUserStore()
 
   const roleGroup = computed(() => resolveDraftingRoleGroup(userStore.userRole))
@@ -178,12 +179,20 @@ export function useProjectDraftingPermissions(opts = {}) {
     isAdminLead.value || isProjectLeadMatch.value
   )
 
-  /** 审核投标（通过/驳回）— 仅指派的审核人本人可操作，与角色无关（对齐后端 BidReviewPolicy.canApprove/canReject） */
+  /** 审核投标（通过/驳回）— 仅指派的审核人本人可操作，与角色无关（对齐后端 BidReviewPolicy.canApprove/canReject）
+   *  CO-484 多人审核：reviewerIds（数组）优先；若未传则回退到 reviewerId（单值，向后兼容） */
   const canReviewBid = computed(() => {
-    const reviewerId = resolveOpt(opts.reviewerId)
     const currentUserId = resolveOpt(opts.currentUserId)
-    return !!(reviewerId && currentUserId
-      && String(reviewerId) === String(currentUserId))
+    if (!currentUserId) return false
+    const uid = String(currentUserId)
+    // CO-484 优先用 reviewerIds 数组判断
+    const reviewerIds = resolveOpt(opts.reviewerIds)
+    if (Array.isArray(reviewerIds) && reviewerIds.length > 0) {
+      return reviewerIds.some((rid) => rid != null && String(rid) === uid)
+    }
+    // 回退到 reviewerId 单值
+    const reviewerId = resolveOpt(opts.reviewerId)
+    return !!(reviewerId && String(reviewerId) === uid)
   })
 
   /** 提交投标（投标管理员/组长 + 该项目分配的投标负责人/辅助人员） */
