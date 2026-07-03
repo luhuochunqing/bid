@@ -75,6 +75,10 @@ public class PersonnelValidator {
     }
 
     private java.util.Optional<ValidationError> validateEducationDates(Education education) {
+        // 入学时间为选填项；仅在两者都存在时校验先后顺序（与 Education 构造器不变式保持一致）
+        if (education.startDate() == null) {
+            return java.util.Optional.empty();
+        }
         if (education.endDate().isBefore(education.startDate())) {
             return java.util.Optional.of(
                     new ValidationError(
