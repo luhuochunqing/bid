@@ -48,6 +48,23 @@ export function stageText(stage) {
   return map[stage] || stage || '-'
 }
 
+// 客户类型枚举名 → 中文 label 映射。
+// 与 useProjectSearch.js 的 customerTypeOptions 保持同源（PR !1571 后端归一化为枚举名）。
+// 未知值（如历史中文数据）fallback 显示原值，避免丢失数据。
+const CUSTOMER_TYPE_LABELS = {
+  GOVERNMENT: '政府机关/事业单位/高校',
+  CENTRAL_SOE: '央企',
+  LOCAL_SOE: '地方国企',
+  PRIVATE: '民企',
+  FOREIGN: '港澳台及外企',
+  OTHER: '其他',
+}
+
+export function customerTypeLabel(value) {
+  if (!value) return '-'
+  return CUSTOMER_TYPE_LABELS[value] || value
+}
+
 export function sourceText(source) {
   const map = {
     // 历史数据兼容：旧版写入的英文枚举名仍按 Tender.SourceType 中文 label 显示
