@@ -90,7 +90,12 @@ async function handleDelete(row) {
     await projectsApi.deleteDocument(props.projectId, row.id)
     ElMessage.success('已删除')
     await loadDocuments()
-  } catch { /* cancelled */ }
+  } catch (error) {
+    // CO-487: 区分用户取消和后端错误，展示友好提示（如结项不可删除）
+    if (error === 'cancel' || error?.toString?.()?.includes('cancel')) return
+    const msg = error?.response?.data?.msg || error?.message
+    if (msg) ElMessage.error(msg)
+  }
 }
 
 function handleExport() { emit('export') }

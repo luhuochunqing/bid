@@ -78,8 +78,11 @@ export function useProjectDetailDocumentActions(context) {
       }
       project.value.documents = project.value.documents.filter((item) => String(item.id) !== String(doc.id))
       message.success('删除成功')
-    } catch {
-      return
+    } catch (error) {
+      // CO-487: 区分用户取消和后端错误，展示友好提示（如结项不可删除）
+      if (error === 'cancel' || error?.toString?.()?.includes('cancel')) return
+      const msg = error?.response?.data?.msg || error?.message
+      if (msg) message.error(msg)
     }
   }
 
