@@ -51,7 +51,7 @@ class ProjectDocumentUploadWorkflowService {
                     storedFile.physicalPath(),
                     file.getSize(),
                     created.getUploaderId(),
-                    created.getUploaderName()
+                    created.getUploader()
             );
         }
         return created;
