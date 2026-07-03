@@ -101,7 +101,12 @@ class ProjectDocumentWorkflowService {
     }
 
     void deleteProjectDocument(Long projectId, Long documentId) {
-        guardService.requireWorkflowMutationProject(projectId);
+        // CO-487: 结项状态下删除附件报错信息优化——先检查项目状态，给出更友好的提示
+        try {
+            guardService.requireWorkflowMutationProject(projectId);
+        } catch (IllegalStateException e) {
+            throw new IllegalStateException("项目已结项，不可删除文件");
+        }
 
         ProjectDocument document = guardService.requireDocument(projectId, documentId);
         var currentUser = currentUserResolver.requireCurrentUser();
