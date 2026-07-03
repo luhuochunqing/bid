@@ -863,3 +863,93 @@ void tryAutoAssign(Tender tender) {
 - [TenderIntegrationCommandSupport.java](../../backend/src/main/java/com/xiyu/bid/integration/external/TenderIntegrationCommandSupport.java) — `tryAutoAssign` guard clause
 - [ProjectManagerIdResolver.java](../../backend/src/main/java/com/xiyu/bid/integration/external/ProjectManagerIdResolver.java) — 姓名解析 User.id
 - [TenderProjectAccessGuard.java](../../backend/src/main/java/com/xiyu/bid/tender/service/TenderProjectAccessGuard.java) — 权限校验用 User.id 比对
+
+---
+
+## 12. XIYU_CONTACT（西域项目负责人）字段也需要 CRM 商机负责人优先保护
+
+> 来源：2026-07-03 /bidding/931 西域负责人取值错误复发 bug
+> 适用范围：CRM 推送 evaluation.customerInfo 中所有标榜"西域项目负责人"的字段
+> 排查 SOP：[lessons-learned.md §23](./lessons-learned.md) 全链路日志排查三层诊断
+
+### 事故一句话总结
+
+PR #1179 修了 `tenders.project_manager_id` 被自动分配覆盖的问题（§11），但**遗漏了 `tender_evaluation_customer_info.XIYU_CONTACT` 字段**。CRM 推送的 evaluation.customerInfo 里 XIYU_CONTACT="张頔"，与 CRM 商机接口返回的 leader="南自婷" 不一致，后端原样保存，导致客户信息矩阵"西域项目负责人"列显示错误的人。
+
+### 现场数据（tender 931）
+
+| 字段 | 值 | 来源 |
+|---|---|---|
+| `tenders.project_manager_id` | 899（南自婷 User.id）| CRM 商机接口 leader（正确）|
+| `tenders.project_manager_name` | 南自婷 | CRM 商机接口 leader（正确）|
+| `tender_evaluation_customer_info.cell_value` (info_key=XIYU_CONTACT) | 张頔 | CRM 推送 evaluation.customerInfo（错误）|
+
+CRM 推送请求体里 `evaluation.customerInfo` 包含 `XIYU_CONTACT="张頔"`，但 CRM 商机接口返回的 leader 是"南自婷"。两个字段语义都应该是"西域项目负责人"，但值不一致。
+
+### 根因：PR #1179 的盲区
+
+PR #1179（§11）的修复范围：
+
+| 修复点 | 修复内容 | 状态 |
+|---|---|---|
+| `TenderIntegrationCommandSupport.tryAutoAssign` | 加 guard clause，已有 projectManagerId 时跳过自动分配 | ✅ 已修复 |
+| `tenders.project_manager_id` | guard clause 保护，不被 `CrmProjectMapping` 覆盖 | ✅ 已修复 |
+| `tender_evaluation_customer_info.XIYU_CONTACT` | **无保护**，CRM 推送值原样保存 | ❌ 盲区 |
+
+`TenderEvaluationIntegrationService.applyFlatFormat` / `applyEavFormat` 遍历 CRM 推送的 customerInfo 字段，原样保存到 DB，没有"用 tender.projectManagerName 覆盖 XIYU_CONTACT"的保护逻辑。
+
+### 必然性解释
+
+1. CRM 推送请求体 `evaluation.customerInfo` 包含 `XIYU_CONTACT` 字段，值由 CRM 侧填充（可能是历史负责人、商机创建人等，不一定等于当前商机 leader）
+2. `TenderIntegrationCommandService.createNewTender` 调用 `crmTenderLinkService.linkIfPresent` 设置 `tender.projectManagerName` 为 CRM 商机 leader（南自婷）
+3. 同一方法后续调用 `evaluationService.saveEvaluation` 保存 evaluation，但**没有用 projectManagerName 覆盖 customerInfos 中的 XIYU_CONTACT**
+4. `TenderEvaluationIntegrationService.applyFlatFormat` 原样保存 → DB 中 XIYU_CONTACT="张頔"
+5. 前端客户信息矩阵读取 `tender_evaluation_customer_info` 显示"张頔"，与 `tenders.project_manager_name`="南自婷" 不一致
+
+### "刚刚改好了 又复发了"的真相
+
+- tender 925-927 的 XIYU_CONTACT = NULL（"改好了"——因为 CRM 没传 evaluation 数据）
+- tender 928-931 的 XIYU_CONTACT = "张頔"（"复发了"——因为 CRM 又传了 evaluation 数据）
+- **不是代码 fix 复发，而是 CRM 推送 evaluation 数据时又触发了既有盲区**
+
+### 修复：XiyuContactOverride 纯核心类
+
+新增 [XiyuContactOverride.java](../../backend/src/main/java/com/xiyu/bid/integration/external/XiyuContactOverride.java) 纯核心类，在 `TenderIntegrationCommandService` 三处调用 `saveEvaluation` 之前调用：
+
+```java
+// TenderIntegrationCommandService.java（三处调用点：createNewTender, handleExistingTender, updateByExternalId）
+if (request.getEvaluation() != null) {
+    var eval = request.getEvaluation();
+    // CRM 商机负责人优先，覆盖 CRM 推送的 XIYU_CONTACT 字段
+    XiyuContactOverride.apply(eval.getEvaluationCustomerInfos(), saved.getProjectManagerName());
+    evaluationService.saveEvaluation(saved.getId(), eval.getEvaluationBasic(),
+            eval.getEvaluationCustomerInfos(), eval.getEvaluationRecommendation());
+}
+```
+
+覆盖规则：
+- `customerInfos` 为 null 或空 → 不处理
+- `projectManagerName` 为 null 或空白 → 不处理（保留 CRM 原值，避免误清空）
+- 仅覆盖已存在的 XIYU_CONTACT key，不新增
+
+### 通用规则：CRM 商机负责人优先原则的完整覆盖范围
+
+PR #1179 修了 `tenders` 表的 projectManagerId/Name，但 `tender_evaluation_customer_info` 表的 XIYU_CONTACT 字段也是"西域项目负责人"语义，必须同步保护。
+
+**铁律**：任何存储"西域项目负责人"语义的字段（无论是 tenders 表还是 evaluation 表），都必须以 CRM 商机接口返回的 leader 为唯一 source of truth。CRM 推送的 evaluation.customerInfo 里的 XIYU_CONTACT 字段不可信，必须用 `tender.projectManagerName` 覆盖。
+
+### 排查 SOP（按 lessons-learned.md §23）
+
+本次排查三层诊断应用：
+- **Layer 1（Sentry）**：无系统异常，纯业务逻辑错误
+- **Layer 2（TraceId 溯源）**：traceId=d1276f35d3524fe08347dd6647710c04 完整链路证明 tryAutoAssign guard clause 生效，但 saveEvaluation 无覆盖逻辑
+- **Layer 3（git log 追溯）**：嫌疑 PR !1625 改的是 `findByCompanyId`（被 tryAutoAssign 调用，但 guard clause 跳过），与 bug 无关；!1625 也在部署后合入，不在生产代码中
+
+### 相关文档
+
+- [root-cause-analysis-crm-leader-priority.md](./root-cause-analysis-crm-leader-priority.md) — §11 PR #1179 根因分析
+- [lessons-learned.md §23](./lessons-learned.md) — 全链路日志排查 SOP
+- [XiyuContactOverride.java](../../backend/src/main/java/com/xiyu/bid/integration/external/XiyuContactOverride.java) — 纯核心覆盖逻辑
+- [XiyuContactOverrideTest.java](../../backend/src/test/java/com/xiyu/bid/integration/external/XiyuContactOverrideTest.java) — 9 个回归测试用例
+- [TenderIntegrationCommandService.java](../../backend/src/main/java/com/xiyu/bid/integration/external/TenderIntegrationCommandService.java) — 三处调用点
+- [customerInfoMatrixConfig.js](../../src/views/Bidding/detail/components/customerInfoMatrixConfig.js) — 前端矩阵配置（XIYU_CONTACT 列定义）

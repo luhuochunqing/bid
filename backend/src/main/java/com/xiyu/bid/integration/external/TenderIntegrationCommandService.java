@@ -92,6 +92,8 @@ public class TenderIntegrationCommandService {
         }
         if (request.getEvaluation() != null) {
             var eval = request.getEvaluation();
+            // CO-XXX: CRM 商机负责人优先，覆盖 CRM 推送的 XIYU_CONTACT 字段
+            XiyuContactOverride.apply(eval.getEvaluationCustomerInfos(), saved.getProjectManagerName());
             evaluationService.saveEvaluation(saved.getId(), eval.getEvaluationBasic(),
                     eval.getEvaluationCustomerInfos(), eval.getEvaluationRecommendation());
         }
@@ -143,6 +145,8 @@ public class TenderIntegrationCommandService {
             }
             if (request.getEvaluation() != null) {
                 var eval = request.getEvaluation();
+                // CO-XXX: CRM 商机负责人优先，覆盖 CRM 推送的 XIYU_CONTACT 字段
+                XiyuContactOverride.apply(eval.getEvaluationCustomerInfos(), saved.getProjectManagerName());
                 evaluationService.saveEvaluation(saved.getId(), eval.getEvaluationBasic(),
                         eval.getEvaluationCustomerInfos(), eval.getEvaluationRecommendation());
             }
@@ -183,6 +187,8 @@ public class TenderIntegrationCommandService {
         }
         if (request.getEvaluation() != null) {
             var eval = request.getEvaluation();
+            // CO-XXX: CRM 商机负责人优先，覆盖 CRM 推送的 XIYU_CONTACT 字段
+            XiyuContactOverride.apply(eval.getEvaluationCustomerInfos(), saved.getProjectManagerName());
             evaluationService.saveEvaluation(saved.getId(), eval.getEvaluationBasic(),
                     eval.getEvaluationCustomerInfos(), eval.getEvaluationRecommendation());
         }
