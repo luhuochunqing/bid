@@ -5,10 +5,10 @@ import org.junit.jupiter.api.Test;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class WarehouseAttachmentExportPolicyTest {
 
@@ -18,14 +18,6 @@ class WarehouseAttachmentExportPolicyTest {
         assertThat(WarehouseAttachmentExportPolicy.isIncluded(scope, WarehouseAttachmentType.PROPERTY_CERTIFICATE)).isTrue();
         assertThat(WarehouseAttachmentExportPolicy.isIncluded(scope, WarehouseAttachmentType.INVOICE)).isTrue();
         assertThat(WarehouseAttachmentExportPolicy.isIncluded(scope, WarehouseAttachmentType.PHOTOS)).isTrue();
-    }
-
-    @Test
-    void noneScopeExcludesEveryType() {
-        WarehouseAttachmentExportScope scope = new WarehouseAttachmentExportScope.None();
-        assertThat(WarehouseAttachmentExportPolicy.isIncluded(scope, WarehouseAttachmentType.PROPERTY_CERTIFICATE)).isFalse();
-        assertThat(WarehouseAttachmentExportPolicy.isIncluded(scope, WarehouseAttachmentType.INVOICE)).isFalse();
-        assertThat(WarehouseAttachmentExportPolicy.isIncluded(scope, WarehouseAttachmentType.PHOTOS)).isFalse();
     }
 
     @Test
@@ -68,17 +60,6 @@ class WarehouseAttachmentExportPolicyTest {
     }
 
     @Test
-    void filterNoneScopeEmptiesAllLists() {
-        WarehouseAttachmentReadModel cert = attachment(WarehouseAttachmentType.PROPERTY_CERTIFICATE);
-        Map<Long, List<WarehouseAttachmentReadModel>> input = Map.of(1L, List.of(cert));
-
-        Map<Long, List<WarehouseAttachmentReadModel>> result = WarehouseAttachmentExportPolicy.filter(
-                new WarehouseAttachmentExportScope.None(), input);
-
-        assertThat(result.get(1L)).isEmpty();
-    }
-
-    @Test
     void unknownTypeIsExcludedFromPartial() {
         WarehouseAttachmentExportScope scope = new WarehouseAttachmentExportScope.Partial(
                 Set.of(WarehouseAttachmentType.PROPERTY_CERTIFICATE));
@@ -86,31 +67,51 @@ class WarehouseAttachmentExportPolicyTest {
     }
 
     @Test
+    void isIncludedRejectsNullScope() {
+        assertThatThrownBy(() -> WarehouseAttachmentExportPolicy.isIncluded(null, WarehouseAttachmentType.INVOICE))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("attachmentScope must not be null");
+    }
+
+    @Test
+    void filterRejectsNullScope() {
+        assertThatThrownBy(() -> WarehouseAttachmentExportPolicy.filter(null, Map.of()))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("attachmentScope must not be null");
+    }
+
+    @Test
     void scopeFromStringDefaultsToAll() {
-        Optional<WarehouseAttachmentExportScope> scope = WarehouseAttachmentExportScope.from(null, Set.of());
-        assertThat(scope).isPresent().hasValue(new WarehouseAttachmentExportScope.All());
+        WarehouseAttachmentExportScope scope = WarehouseAttachmentExportScope.from(null, Set.of());
+        assertThat(scope).isEqualTo(new WarehouseAttachmentExportScope.All());
     }
 
     @Test
     void scopeFromStringIsCaseInsensitive() {
-        Optional<WarehouseAttachmentExportScope> scope = WarehouseAttachmentExportScope.from("partial", Set.of("INVOICE"));
-        assertThat(scope).isPresent();
-        assertThat(scope.get()).isInstanceOf(WarehouseAttachmentExportScope.Partial.class);
+        WarehouseAttachmentExportScope scope = WarehouseAttachmentExportScope.from("partial", Set.of("INVOICE"));
+        assertThat(scope).isInstanceOf(WarehouseAttachmentExportScope.Partial.class);
+        assertThat(((WarehouseAttachmentExportScope.Partial) scope).types()).containsExactly(WarehouseAttachmentType.INVOICE);
     }
 
     @Test
     void scopeFromStringRejectsInvalidScope() {
-        assertThat(WarehouseAttachmentExportScope.from("UNKNOWN", Set.of())).isEmpty();
+        assertThatThrownBy(() -> WarehouseAttachmentExportScope.from("UNKNOWN", Set.of()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("仅支持 ALL 或 PARTIAL");
     }
 
     @Test
     void scopeFromStringRejectsPartialWithoutTypes() {
-        assertThat(WarehouseAttachmentExportScope.from("PARTIAL", Set.of())).isEmpty();
+        assertThatThrownBy(() -> WarehouseAttachmentExportScope.from("PARTIAL", Set.of()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("至少指定一种附件类型");
     }
 
     @Test
     void scopeFromStringRejectsPartialWithInvalidType() {
-        assertThat(WarehouseAttachmentExportScope.from("PARTIAL", Set.of("PROPERTY_CERTIFICATE", "UNKNOWN"))).isEmpty();
+        assertThatThrownBy(() -> WarehouseAttachmentExportScope.from("PARTIAL", Set.of("PROPERTY_CERTIFICATE", "UNKNOWN")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("UNKNOWN");
     }
 
     private static WarehouseAttachmentReadModel attachment(WarehouseAttachmentType type) {

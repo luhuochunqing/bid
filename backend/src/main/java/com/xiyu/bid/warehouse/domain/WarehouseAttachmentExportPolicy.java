@@ -2,6 +2,7 @@ package com.xiyu.bid.warehouse.domain;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -13,11 +14,13 @@ public final class WarehouseAttachmentExportPolicy {
 
     /**
      * 判断某个附件类型在当前导出范围下是否应被包含。
+     *
+     * @throws NullPointerException 当 scope 为 null 时
      */
     public static boolean isIncluded(WarehouseAttachmentExportScope scope, WarehouseAttachmentType type) {
+        Objects.requireNonNull(scope, "attachmentScope must not be null");
         return switch (scope) {
             case WarehouseAttachmentExportScope.All all -> true;
-            case WarehouseAttachmentExportScope.None none -> false;
             case WarehouseAttachmentExportScope.Partial partial -> partial.types().contains(type);
         };
     }
@@ -28,6 +31,7 @@ public final class WarehouseAttachmentExportPolicy {
     public static <A extends WarehouseAttachmentReadModel> Map<Long, List<A>> filter(
             WarehouseAttachmentExportScope scope,
             Map<Long, List<A>> attachmentsByWhId) {
+        Objects.requireNonNull(scope, "attachmentScope must not be null");
         return attachmentsByWhId.entrySet().stream()
                 .collect(Collectors.toMap(
                         Map.Entry::getKey,

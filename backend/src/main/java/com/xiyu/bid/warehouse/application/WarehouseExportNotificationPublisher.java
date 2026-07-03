@@ -3,6 +3,8 @@ package com.xiyu.bid.warehouse.application;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.notification.outbound.event.NotificationCreatedEvent;
+import com.xiyu.bid.warehouse.domain.WarehouseAttachmentExportScope;
+import com.xiyu.bid.warehouse.domain.WarehouseAttachmentType;
 import com.xiyu.bid.warehouse.dto.WarehouseFilterDTO;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseExportZipBuilder;
@@ -16,6 +18,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 仓库 ZIP 导出包完成通知发布器：构建结果摘要 JSON、格式化筛选摘要、发布 NotificationCreatedEvent。
@@ -30,7 +33,8 @@ public class WarehouseExportNotificationPublisher {
     private final ApplicationEventPublisher eventPublisher;
 
     public String buildResultSummaryJson(int totalCount, WarehouseExportZipBuilder.ZipBuildResult zip,
-                                          WarehouseFilterDTO filterDTO, long elapsedMs) {
+                                          WarehouseFilterDTO filterDTO, long elapsedMs,
+                                          WarehouseAttachmentExportScope attachmentScope) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("totalCount", totalCount);
         map.put("xlsxBytes", zip.stats().xlsxBytes);
@@ -40,11 +44,26 @@ public class WarehouseExportNotificationPublisher {
         map.put("photosCount", zip.stats().photosCount);
         map.put("elapsedMs", elapsedMs);
         map.put("filterSummary", buildFilterSummary(filterDTO));
+        map.put("attachmentScope", formatAttachmentScope(attachmentScope));
         try {
             return objectMapper.writeValueAsString(map);
         } catch (JsonProcessingException e) {
             return null;
         }
+    }
+
+    private static String formatAttachmentScope(WarehouseAttachmentExportScope scope) {
+        if (scope instanceof WarehouseAttachmentExportScope.All) {
+            return "全部附件";
+        }
+        if (scope instanceof WarehouseAttachmentExportScope.Partial partial) {
+            String typeNames = partial.types().stream()
+                    .map(WarehouseAttachmentType::displayName)
+                    .sorted()
+                    .collect(Collectors.joining("、"));
+            return "部分附件（" + typeNames + "）";
+        }
+        return scope.toString();
     }
 
     public static String buildFilterSummary(WarehouseFilterDTO filterDTO) {
@@ -68,16 +87,18 @@ public class WarehouseExportNotificationPublisher {
     public void publish(WarehouseExportTaskEntity task, int totalCount,
                         WarehouseExportZipBuilder.ZipBuildResult zip,
                         WarehouseFilterDTO filterDTO, long elapsedMs,
-                        DateTimeFormatter tsFmt) {
+                        DateTimeFormatter tsFmt,
+                        WarehouseAttachmentExportScope attachmentScope) {
         try {
             String title = "📤 仓库信息导出包 — 完成";
             String body = String.format(
-                    "仓库信息导出包_%s.zip（%d 条，含 %d 份产权证 / %d 份发票 / %d 张照片；耗时 %d 秒；%s）",
+                    "仓库信息导出包_%s.zip（%d 条，含 %d 份产权证 / %d 份发票 / %d 张照片；耗时 %d 秒；%s；附件范围：%s）",
                     task.getCompletedAt() != null ? task.getCompletedAt().format(tsFmt) : "",
                     totalCount,
                     zip.stats().propertyCertCount, zip.stats().invoiceCount, zip.stats().photosCount,
                     elapsedMs / 1000,
-                    buildFilterSummary(filterDTO));
+                    buildFilterSummary(filterDTO),
+                    formatAttachmentScope(attachmentScope));
             eventPublisher.publishEvent(new NotificationCreatedEvent(
                     null,
                     List.of(task.getCreatedBy()),

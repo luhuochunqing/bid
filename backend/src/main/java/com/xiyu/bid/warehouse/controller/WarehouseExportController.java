@@ -125,9 +125,7 @@ public class WarehouseExportController {
     private WarehouseAttachmentExportScope parseAttachmentScope(Map<String, Object> body) {
         String scope = body != null && body.get("attachmentScope") instanceof String s ? s : "ALL";
         Set<String> typeNames = parseAttachmentTypeNames(body);
-        return WarehouseAttachmentExportScope.from(scope, typeNames)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "附件导出范围非法: scope=" + scope + ", types=" + typeNames));
+        return WarehouseAttachmentExportScope.from(scope, typeNames);
     }
 
     @SuppressWarnings("unchecked")

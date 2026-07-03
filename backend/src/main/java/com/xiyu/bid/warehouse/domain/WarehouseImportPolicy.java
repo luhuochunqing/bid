@@ -240,7 +240,7 @@ public class WarehouseImportPolicy {
         }
         LocalDate date = WarehouseDateParser.parse(text);
         if (date == null) {
-            errors.add(fieldName + "格式错误（应为 YYYY-MM-DD）: " + text);
+            errors.add(fieldName + "格式错误（支持 YYYY-MM-DD、YYYY/M/D、YYYY.MM.DD、YYYY年M月D日 等）: " + text);
         }
         return date;
     }

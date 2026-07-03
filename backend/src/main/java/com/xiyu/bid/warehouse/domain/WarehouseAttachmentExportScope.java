@@ -1,17 +1,16 @@
 package com.xiyu.bid.warehouse.domain;
 
-import java.util.Optional;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
  * 仓库附件导出范围：纯核心值对象。
+ * 仅支持 ALL（全部导出）与 PARTIAL（按指定类型导出）。
  */
 public sealed interface WarehouseAttachmentExportScope {
 
     record All() implements WarehouseAttachmentExportScope {}
-
-    record None() implements WarehouseAttachmentExportScope {}
 
     record Partial(Set<WarehouseAttachmentType> types) implements WarehouseAttachmentExportScope {
         public Partial {
@@ -22,44 +21,55 @@ public sealed interface WarehouseAttachmentExportScope {
     /**
      * 从协议层字符串构造导出范围。
      *
-     * @param scope     ALL | NONE | PARTIAL，大小写不敏感
+     * @param scope     ALL | PARTIAL，大小写不敏感
      * @param typeNames PARTIAL 时使用的类型名称集合
-     * @return 合法时返回对应的 scope，非法时返回 Optional.empty()
+     * @return 合法的导出范围
+     * @throws IllegalArgumentException 当 scope 非法、PARTIAL 未指定类型或包含未知类型时
      */
-    static Optional<WarehouseAttachmentExportScope> from(String scope, Set<String> typeNames) {
+    static WarehouseAttachmentExportScope from(String scope, Set<String> typeNames) {
         if (scope == null || scope.isBlank()) {
-            return Optional.of(new All());
+            return new All();
         }
         return switch (scope.trim().toUpperCase()) {
-            case "ALL" -> Optional.of(new All());
-            case "NONE" -> Optional.of(new None());
+            case "ALL" -> new All();
             case "PARTIAL" -> parsePartial(typeNames);
-            default -> Optional.empty();
+            default -> throw new IllegalArgumentException("附件导出范围非法，仅支持 ALL 或 PARTIAL: " + scope);
         };
     }
 
-    private static Optional<WarehouseAttachmentExportScope> parsePartial(Set<String> typeNames) {
+    private static WarehouseAttachmentExportScope parsePartial(Set<String> typeNames) {
         if (typeNames == null || typeNames.isEmpty()) {
-            return Optional.empty();
+            throw new IllegalArgumentException("部分导出时必须至少指定一种附件类型");
         }
-        Set<WarehouseAttachmentType> types = typeNames.stream()
+        Set<String> normalized = typeNames.stream()
+                .filter(n -> n != null && !n.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException("部分导出时必须至少指定一种附件类型");
+        }
+        Set<WarehouseAttachmentType> types = normalized.stream()
                 .map(WarehouseAttachmentExportScope::parseType)
-                .flatMap(Optional::stream)
-                .collect(Collectors.toSet());
-        if (types.size() != typeNames.size()) {
-            return Optional.empty();
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (types.size() != normalized.size()) {
+            Set<String> validNames = types.stream()
+                    .map(WarehouseAttachmentType::name)
+                    .collect(Collectors.toSet());
+            Set<String> invalid = normalized.stream()
+                    .filter(n -> !validNames.contains(n.toUpperCase()))
+                    .collect(Collectors.toSet());
+            throw new IllegalArgumentException("未知的附件类型: " + String.join(", ", invalid)
+                    + "，可选值: " + java.util.Arrays.stream(WarehouseAttachmentType.values())
+                            .map(WarehouseAttachmentType::name)
+                            .collect(Collectors.joining(", ")));
         }
-        return Optional.of(new Partial(types));
+        return new Partial(types);
     }
 
-    private static Optional<WarehouseAttachmentType> parseType(String name) {
-        if (name == null || name.isBlank()) {
-            return Optional.empty();
-        }
+    private static WarehouseAttachmentType parseType(String name) {
         try {
-            return Optional.of(WarehouseAttachmentType.valueOf(name.trim().toUpperCase()));
+            return WarehouseAttachmentType.valueOf(name.trim().toUpperCase());
         } catch (IllegalArgumentException e) {
-            return Optional.empty();
+            throw new IllegalArgumentException("未知的附件类型: " + name, e);
         }
     }
 }

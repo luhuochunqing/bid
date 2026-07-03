@@ -133,12 +133,12 @@ public class WarehouseExportAppService {
         Map<Long, List<WarehouseAttachmentEntity>> filteredAttachments = WarehouseAttachmentExportPolicy.filter(
                 attachmentScope, attachmentsByWhId);
         Map<Long, String> usernameById = loadUsernames(entities);
-        List<String[]> rows = WarehouseExportPolicy.buildRows(entities, attachmentsByWhId, usernameById);
+        List<String[]> rows = WarehouseExportPolicy.buildRows(entities, filteredAttachments, usernameById);
         byte[] xlsxBytes = excelWriter.write(WarehouseExportPolicy.HEADERS, rows);
         WarehouseExportZipBuilder.ZipBuildResult zip = zipBuilder.buildZip(xlsxBytes, entities, filteredAttachments);
         try {
             String filePath = saveZip(taskId, zip);
-            completeTask(taskId, operatorId, operatorUsername, entities, filePath, zip, filterDTO, scope, startMs);
+            completeTask(taskId, operatorId, operatorUsername, entities, filePath, zip, filterDTO, scope, attachmentScope, startMs);
         } finally {
             try { Files.deleteIfExists(zip.zipFile()); } catch (IOException ignored) { log.debug("Failed to delete zip file", ignored); }
         }
@@ -268,7 +268,8 @@ public class WarehouseExportAppService {
     private void completeTask(Long taskId, Long operatorId, String operatorUsername,
                               List<WarehouseEntity> entities, String filePath,
                               WarehouseExportZipBuilder.ZipBuildResult zip,
-                              WarehouseFilterDTO filterDTO, String scope, long startMs) {
+                              WarehouseFilterDTO filterDTO, String scope,
+                              WarehouseAttachmentExportScope attachmentScope, long startMs) {
         long elapsedMs = System.currentTimeMillis() - startMs;
         LocalDateTime now = LocalDateTime.now();
         WarehouseExportTaskEntity task = exportTaskRepo.findById(taskId).orElseThrow();
@@ -278,8 +279,8 @@ public class WarehouseExportAppService {
         task.setDownloadUrl("/api/knowledge/warehouses/export/tasks/" + taskId + "/download");
         task.setExpiresAt(now.plus(FILE_TTL));
         task.setCompletedAt(now);
-        task.setResultSummary(exportPublisher.buildResultSummaryJson(entities.size(), zip, filterDTO, elapsedMs));
+        task.setResultSummary(exportPublisher.buildResultSummaryJson(entities.size(), zip, filterDTO, elapsedMs, attachmentScope));
         exportTaskRepo.save(task);
-        exportPublisher.publish(task, entities.size(), zip, filterDTO, elapsedMs, TS_FMT);
+        exportPublisher.publish(task, entities.size(), zip, filterDTO, elapsedMs, TS_FMT, attachmentScope);
     }
 }

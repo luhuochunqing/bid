@@ -109,11 +109,13 @@ describe('WarehouseExportDialog', () => {
       props: { modelValue: true },
       global: { stubs: globalStubs }
     })
-    expect(wrapper.vm.canStartExport).toBe(true)
+    expect(wrapper.vm.validation.valid).toBe(true)
     wrapper.vm.attachmentScope = 'PARTIAL'
     await flushPromises()
-    expect(wrapper.vm.canStartExport).toBe(false)
+    expect(wrapper.vm.validation.valid).toBe(false)
+    expect(wrapper.vm.validation.message).toBe('请至少选择一种附件类型')
     wrapper.vm.attachmentTypes = ['INVOICE']
-    expect(wrapper.vm.canStartExport).toBe(true)
+    expect(wrapper.vm.validation.valid).toBe(true)
+    expect(wrapper.vm.validation.message).toBe('')
   })
 })

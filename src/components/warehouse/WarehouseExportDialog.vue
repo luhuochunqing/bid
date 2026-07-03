@@ -37,8 +37,8 @@
           <el-checkbox label="INVOICE">发票</el-checkbox>
           <el-checkbox label="PHOTOS">照片</el-checkbox>
         </el-checkbox-group>
-        <div v-if="attachmentScope === 'PARTIAL' && attachmentTypes.length === 0" class="scope-hint">
-          请至少选择一种附件类型
+        <div v-if="validation.message" class="scope-hint">
+          {{ validation.message }}
         </div>
       </div>
     </div>
@@ -63,6 +63,7 @@
             <li v-if="summary.photosCount" class="indent">照片 {{ summary.photosCount }} 张</li>
           </ul>
           <div class="meta-row"><span class="meta-label">导出范围：</span><span>{{ summary.filterSummary || '—' }}</span></div>
+          <div class="meta-row"><span class="meta-label">附件范围：</span><span>{{ summary.attachmentScope || '—' }}</span></div>
           <div class="meta-row"><span class="meta-label">处理耗时：</span><span>{{ formatElapsed(summary.elapsedMs) }}</span></div>
           <div class="meta-row"><span class="meta-label">包大小：</span><span>{{ formatBytes(summary.zipBytes) }}</span></div>
           <div class="meta-row"><span class="meta-label">链接有效期：</span><span>7 天</span></div>
@@ -80,7 +81,7 @@
       <div class="dialog-footer">
         <span v-if="!taskId" class="footer-hint">点击"开始导出"以提交导出任务</span>
         <span v-else-if="status !== 'COMPLETED'" class="footer-hint">关闭后仍可稍后在导出记录中下载</span>
-        <el-button v-if="!taskId" type="primary" :disabled="!canStartExport" @click="startExport">开始导出</el-button>
+        <el-button v-if="!taskId" type="primary" :disabled="!validation.valid" @click="startExport">开始导出</el-button>
         <el-button @click="handleClose">{{ status === 'COMPLETED' ? '关闭' : '取消' }}</el-button>
       </div>
     </template>
@@ -120,9 +121,11 @@ const hasAttachments = computed(() => {
   return (s.propertyCertCount || 0) + (s.invoiceCount || 0) + (s.photosCount || 0) > 0
 })
 
-const canStartExport = computed(() => {
-  if (attachmentScope.value !== 'PARTIAL') return true
-  return attachmentTypes.value.length > 0
+const validation = computed(() => {
+  if (attachmentScope.value === 'PARTIAL' && attachmentTypes.value.length === 0) {
+    return { valid: false, message: '请至少选择一种附件类型' }
+  }
+  return { valid: true, message: '' }
 })
 
 const filterTags = computed(() => {
@@ -264,8 +267,8 @@ onUnmounted(stopPolling)
 .export-progress { padding: 24px 0; text-align: center; }
 .status-text { margin-top: 12px; color: var(--el-text-color-secondary); font-size: 14px; }
 .export-done, .export-failed { padding: 8px 0; }
-.package-detail { margin-top: 12px; padding: 14px; background: #f5f7fa; border-radius: 6px; font-size: 13px; }
-.detail-title { font-weight: 600; color: #303133; margin-bottom: 8px; }
+.package-detail { margin-top: 12px; padding: 14px; background: var(--gray-50); border-radius: 6px; font-size: 13px; }
+.detail-title { font-weight: 600; color: var(--text-primary-ui); margin-bottom: 8px; }
 .detail-list { margin: 0 0 12px; padding-left: 18px; line-height: 1.9; }
 .detail-list .indent { list-style: none; margin-left: -12px; color: var(--el-text-color-secondary); }
 .meta-row { line-height: 1.9; color: var(--el-text-color-regular); }

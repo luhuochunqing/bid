@@ -87,7 +87,8 @@ class WarehouseImportPolicyTest {
         WarehouseImportPolicy.ParsedRow row = parseRowWithDate("not-a-date");
         assertThat(row.startDate).isNull();
         assertThat(row.errors).anyMatch(e -> e.contains("开始时间")
-                && e.contains("格式错误（应为 YYYY-MM-DD）")
+                && e.contains("格式错误")
+                && e.contains("YYYY-MM-DD")
                 && e.contains("not-a-date"));
     }
 
