@@ -16,6 +16,7 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Component;
 
+import com.xiyu.bid.infrastructure.excel.ExcelDropDownHelper;
 import com.xiyu.bid.tender.core.TenderRegionCatalog;
 
 import java.io.ByteArrayOutputStream;
@@ -83,6 +84,30 @@ public class TenderImportTemplateBuilder {
         for (int i = 0; i < EXAMPLE_ROW.length && i < headers.length; i++) {
             example.createCell(i).setCellValue(EXAMPLE_ROW[i]);
         }
+
+        // 与新增表单字段类型一致：含枚举值的列改用下拉框（客户类型/优先级/项目类型）
+        // 选项值来自 TenderImportService 常量，与前端 constants.js / ManualTenderDialog.vue 对齐
+        addEnumDropdown(sheet, "客户类型", TenderImportService.CUSTOMER_TYPES);
+        addEnumDropdown(sheet, "优先级", TenderImportService.PRIORITIES);
+        addEnumDropdown(sheet, "项目类型", TenderImportService.PROJECT_TYPES);
+    }
+
+    private void addEnumDropdown(Sheet sheet, String headerName, List<String> options) {
+        int columnIndex = findColumnIndex(headerName);
+        if (columnIndex < 0) {
+            throw new IllegalStateException("未在 HEADERS 中找到列: " + headerName);
+        }
+        ExcelDropDownHelper.addDropdown(sheet, columnIndex, options.toArray(new String[0]));
+    }
+
+    private int findColumnIndex(String headerName) {
+        String[] headers = TenderImportService.HEADERS;
+        for (int i = 0; i < headers.length; i++) {
+            if (headers[i].equals(headerName)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private void buildDictionarySheet(Workbook workbook) {

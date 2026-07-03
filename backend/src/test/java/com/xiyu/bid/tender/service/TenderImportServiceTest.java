@@ -8,6 +8,7 @@ import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.DataValidation;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -306,6 +307,27 @@ class TenderImportServiceTest {
             // 项目类型对齐前端 constants.js PROJECT_TYPE_OPTIONS
             assertThat(projectTypes).contains("工业品", "办公", "综合", "集采", "其他");
             assertThat(projectTypes).doesNotContain("货物类", "工程类", "服务类");
+        }
+    }
+
+    @Test
+    @DisplayName("导入模板为客户类型/优先级/项目类型三列添加下拉框，与新增表单字段类型一致")
+    void templateAddsDropdownsForEnumFields() throws Exception {
+        byte[] bytes = service.generateTemplate();
+        try (Workbook workbook = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
+            Sheet sheet = workbook.getSheet("标讯导入");
+            assertThat(sheet).isNotNull();
+
+            // 客户类型(13) / 优先级(14) / 项目类型(15) 三列各一个下拉框
+            List<? extends DataValidation> validations = sheet.getDataValidations();
+            assertThat(validations).hasSize(3);
+
+            // 验证下拉框覆盖的列索引：通过 CellRangeAddressList.getCellRangeAddresses 取列范围
+            List<Integer> columns = validations.stream()
+                    .map(v -> v.getRegions().getCellRangeAddresses()[0].getFirstColumn())
+                    .sorted()
+                    .toList();
+            assertThat(columns).containsExactly(13, 14, 15);
         }
     }
 
