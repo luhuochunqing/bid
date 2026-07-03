@@ -14,8 +14,10 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -173,5 +175,49 @@ class TenderPermissionIntegrationTest {
     void listTenders_byProjectLeader_returnsOk() throws Exception {
         mockMvc.perform(get("/api/tenders").param("page", "0").param("size", "20"))
                 .andExpect(status().isOk());
+    }
+
+    // ====================================================================
+    // 2.2 标讯录入契约测试（飞书《标讯中心·权限矩阵》2.2）
+    // 文档：手动录入含项目负责人；批量导入/下载模板不含项目负责人
+    // ====================================================================
+
+    @Test
+    @DisplayName("2.2 手动录入 POST /api/tenders: 投标项目负责人应放行（文档：允许录入，业务层返回非 403）")
+    @WithMockUser(username = "projectLeader", roles = {"BID_PROJECTLEADER"})
+    void createTender_byProjectLeader_notForbidden() throws Exception {
+        // 项目负责人应能进入录入端点；业务校验（如必填字段缺失）返回 4xx，但权限层不是 403
+        int status = mockMvc.perform(post("/api/tenders")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "title": "测试标讯", "deadline": "2026-12-31T18:00:00" }
+                                """))
+                .andReturn().getResponse().getStatus();
+        assertThat(status).isNotEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("2.2 批量导入 POST /api/tenders/import: 投标项目负责人应返回 403（文档：批量导入不含项目负责人）")
+    @WithMockUser(username = "projectLeader", roles = {"BID_PROJECTLEADER"})
+    void importTenders_byProjectLeader_returnsForbidden() throws Exception {
+        mockMvc.perform(multipart("/api/tenders/import").file("file", "test".getBytes()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("2.2 下载模板 GET /api/tenders/import-template: 投标项目负责人应返回 403（文档：不含项目负责人）")
+    @WithMockUser(username = "projectLeader", roles = {"BID_PROJECTLEADER"})
+    void downloadTemplate_byProjectLeader_returnsForbidden() throws Exception {
+        mockMvc.perform(get("/api/tenders/import-template"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("2.2 批量导入 POST /api/tenders/import: 投标专员应放行（文档：专员可批量导入，权限层非 403）")
+    @WithMockUser(username = "bid-specialist", roles = {"BID_TEAM"})
+    void importTenders_byBidTeam_notForbidden() throws Exception {
+        int status = mockMvc.perform(multipart("/api/tenders/import").file("file", "test".getBytes()))
+                .andReturn().getResponse().getStatus();
+        assertThat(status).isNotEqualTo(403);
     }
 }

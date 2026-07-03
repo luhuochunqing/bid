@@ -303,3 +303,54 @@
 
 **契约测试价值**：本次新增 11 个测试（编辑/删除 7 + 转派 4），把状态收口的当前实现锁定。任何未来重构若误放行已立项/已评估状态的编辑/删除/转派，测试会立即红。
 
+
+---
+
+## 2.2 标讯录入（审计）
+
+### 文档要求（飞书 V1.0）
+
+| 三级功能 | 投标管理员 | 投标组长 | 投标项目负责人 | 投标专员 | 投标系统管理员 |
+|---|---|---|---|---|---|
+| 手动录入 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 粘贴识别（AI） | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 批量导入（Excel） | ✅ | ✅ | **—** | ✅ | ✅ |
+| 下载模板 | ✅ 公开 | ✅ 公开 | **—** | ✅ 公开 | ✅ 公开 |
+
+**关键约束**：批量导入 + 下载模板**不含投标项目负责人**。
+
+### 端点对照
+
+| 功能 | 端点 | Controller 注解 | 文档对照 |
+|---|---|---|---|
+| 手动录入 | POST `/api/tenders` | `hasAnyRole('ADMIN','BID_TEAMLEADER','BIDADMIN','BID_PROJECTLEADER','BID_TEAM','SALES')` | ✅ 角色覆盖匹配；⚠️ 含冗余 `SALES`（幽灵项，无 ROLE_SALES，是 BID_PROJECTLEADER 的历史别名，无害）|
+| 批量导入 | POST `/api/tenders/import` | `hasAnyRole('ADMIN','BID_TEAMLEADER','BIDADMIN','BID_TEAM')` | ✅ **匹配**（正确排除项目负责人）|
+| 下载模板 | GET `/api/tenders/import-template` | `hasAnyRole('ADMIN','BID_TEAMLEADER','BIDADMIN','BID_TEAM')` | ✅ **匹配**（正确排除项目负责人）|
+| 粘贴识别（AI） | ❌ 无独立端点 | — | ❓ 前端直接调 AI 服务，后端未暴露（与 06-17 审计结论一致）|
+
+### 差距判断
+
+| 维度 | 结论 |
+|---|---|
+| 手动录入角色覆盖 | ✅ 匹配（项目负责人可录入，匹配文档）|
+| 批量导入排除项目负责人 | ✅ 匹配（文档明确"—"）|
+| 下载模板排除项目负责人 | ✅ 匹配 |
+| SALES 幽灵项 | ⚠️ 冗余但无害（系统无 ROLE_SALES，是历史角色改名残留。未来清理时可去掉，不影响权限）|
+| 粘贴识别 | ❓ 未实现为独立端点 |
+
+### 契约测试
+
+**Controller 层集成测试**（`TenderPermissionIntegrationTest`，+4 = 16/16）：
+- 项目负责人手动录入 → 非 403（放行）
+- 项目负责人批量导入 → 403（排除）
+- 项目负责人下载模板 → 403（排除）
+- 投标专员批量导入 → 非 403（放行）
+
+**反射型契约测试**（`TenderControllerPermissionTest`，+2 = 6/6）：
+- `importTenders` 注解 == `hasAnyRole('ADMIN','BID_TEAMLEADER','BIDADMIN','BID_TEAM')` + 显式不含 BID_PROJECTLEADER/SALES
+- `downloadImportTemplate` 同上
+
+### 2.2 小结
+
+✅ 标讯录入的权限实现**匹配文档**，核心约束（批量导入/下载模板排除项目负责人）已正确实现并锁定。SALES 幽灵项是冗余无害残留，可在未来清理 hasAnyRole 时顺带去除。
+
