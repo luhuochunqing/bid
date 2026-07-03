@@ -106,19 +106,19 @@ public class KnowledgeCaseController {
     }
 
     @PostMapping("/{id}/off-shelf")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('project')")
     public ResponseEntity<Map<String, Object>> offShelfCase(@PathVariable Long id) {
         return ResponseEntity.ok(commandAppService.offShelfCase(id));
     }
 
     @PostMapping("/{id}/pin")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('project')")
     public ResponseEntity<Map<String, Object>> pinCase(@PathVariable Long id) {
         return ResponseEntity.ok(commandAppService.pinCase(id));
     }
 
     @PostMapping("/{id}/unpin")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('project')")
     public ResponseEntity<Map<String, Object>> unpinCase(@PathVariable Long id) {
         return ResponseEntity.ok(commandAppService.unpinCase(id));
     }
@@ -132,7 +132,7 @@ public class KnowledgeCaseController {
     }
 
     @PostMapping("/precipitate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('project')")
     public ResponseEntity<Map<String, Object>> triggerPrecipitation(
             @RequestParam Long projectId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
