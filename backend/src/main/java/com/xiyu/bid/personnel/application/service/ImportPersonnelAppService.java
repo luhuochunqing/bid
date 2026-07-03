@@ -69,10 +69,11 @@ public class ImportPersonnelAppService {
 
             completeImportTask(taskId, importResult, null);
 
-        } catch (IOException | RuntimeException e) {
-            // CO-469 第三轮：catch IOException + RuntimeException
-            // 原因：excelImporter/importExecutor 可能抛 NPE 等非 IOException，
-            //       原 catch (IOException) 接不住 → 异步线程静默终止 → 进度卡住
+        } catch (IOException | RuntimeException | Error e) {
+            // CO-469 第四轮：catch 范围扩大到 Error
+            // 原因：异步任务只要漏掉一类异常，线程就会静默终止，进度永远卡住。
+            //       之前 catch (IOException | RuntimeException) 接不住 Error 等其他异常。
+            //       按 lessons-learned 纪律：异步任务必须全兜底防止静默失败。
             log.error("导入任务执行失败: taskId={}", taskId, e);
             failImportTask(taskId, e.getClass().getSimpleName() + ": " + e.getMessage());
         }

@@ -78,7 +78,7 @@ public class PersonnelZipExporter {
                         try {
                             byte[] fileBytes = downloadFile(cert.attachmentUrl());
                             zipOut.write(fileBytes);
-                        } catch (IOException | InterruptedException e) {
+                        } catch (IOException | RuntimeException | InterruptedException e) {
                             log.warn("下载附件失败: {} - {}", cert.attachmentUrl(), e.getMessage());
                             zipOut.write(("下载失败: " + e.getMessage()).getBytes(StandardCharsets.UTF_8));
                         }
