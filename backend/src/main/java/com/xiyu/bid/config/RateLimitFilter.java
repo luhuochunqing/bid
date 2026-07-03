@@ -1,8 +1,10 @@
 package com.xiyu.bid.config;
 
+import com.xiyu.bid.auth.JwtUtil;
 import com.xiyu.bid.util.DigestUtils;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -11,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
@@ -24,6 +27,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private final RateLimitConfig.RateLimiter rateLimiter;
+    private final JwtUtil jwtUtil;
 
     @Value("${rate.limit.login.max-attempts:5}")
     private int maxLoginAttempts;
@@ -49,8 +53,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Value("${rate.limit.auth-account.window-minutes:15}")
     private int authAccountWindowMinutes;
 
-    public RateLimitFilter(final RateLimitConfig.RateLimiter pRateLimiter) {
+    @Value("${app.auth.access-cookie-name:access_token}")
+    private String accessCookieName;
+
+    public RateLimitFilter(final RateLimitConfig.RateLimiter pRateLimiter, final JwtUtil pJwtUtil) {
         this.rateLimiter = pRateLimiter;
+        this.jwtUtil = pJwtUtil;
     }
 
     @Override
@@ -84,7 +92,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
                         apiKeyMaxRequests, Duration.ofSeconds(apiKeyWindowSeconds), true);
                 return;
             }
-            applyRateLimit(response, chain, request, "user:" + clientIp,
+            // CO-478: 优先按认证用户身份限流，避免反向代理/内网环境下所有用户共享 IP 配额
+            String rateLimitKey = resolveUserRateLimitKey(request, clientIp);
+            applyRateLimit(response, chain, request, rateLimitKey,
                     defaultMaxRequests, Duration.ofSeconds(defaultWindowSeconds), true);
             return;
         }
@@ -103,6 +113,47 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 || "/api/auth/register".equals(requestURI)
                 || "/api/auth/reset-password".equals(requestURI)
                 || "/api/auth/verify-email".equals(requestURI);
+    }
+
+    /**
+     * CO-478: 从请求中解析认证用户身份作为限流 key。
+     * 优先从 JWT token 提取用户名；无法提取时 fallback 到 client IP。
+     * 注意：RateLimitFilter 在 JwtAuthenticationFilter 之前执行，
+     * SecurityContext 中尚无认证信息，因此需要直接解析 token。
+     */
+    private String resolveUserRateLimitKey(final HttpServletRequest request, final String clientIp) {
+        try {
+            String jwt = extractJwtFromRequest(request);
+            if (StringUtils.hasText(jwt)) {
+                String username = jwtUtil.extractUsername(jwt);
+                if (StringUtils.hasText(username)) {
+                    return "user:" + username;
+                }
+            }
+        } catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
+            log.debug("Failed to extract user identity for rate limiting, falling back to IP: {}", e.getMessage());
+        }
+        return "user:" + clientIp;
+    }
+
+    /**
+     * 从请求中提取 JWT token（与 JwtAuthenticationFilter 逻辑一致）。
+     * 优先从 HttpOnly access cookie 读取，fallback 到 Authorization Bearer header。
+     */
+    private String extractJwtFromRequest(final HttpServletRequest request) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies != null) {
+            for (Cookie cookie : cookies) {
+                if (accessCookieName.equals(cookie.getName())) {
+                    return cookie.getValue();
+                }
+            }
+        }
+        String bearerToken = request.getHeader("Authorization");
+        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
+            return bearerToken.substring(7);
+        }
+        return null;
     }
 
     private void applyRateLimit(final HttpServletResponse response, final FilterChain chain,
