@@ -32,6 +32,7 @@
 | `decisions.md` | 架构决策记录 | GAP 附件加载统一通过 DocumentService.getDocuments() 入口、阶段变更通知必须携带明确 actor、CRM 商机负责人优先于本地采购人映射、Controller @PreAuthorize 放宽为 isAuthenticated() 真权限交给 Service 层 Policy | 2026-06-29 |
 | `root-cause-analysis-co-375-uploader-delete-permission.md` | Bug 根因分析 | 项目文档删除权限链路不一致导致上传者本人 403（Controller 早过滤 + Policy upload/delete 不对称 + 缺少 uploaderId 维度） | 2026-06-29 |
 | `root-cause-analysis-co-390-unified-picker.md` | Bug 根因分析 | 绑定联系人未用统一 UserPicker + /api/admin/users 权限 403 被吞导致投标组长/专员无法搜索 | 2026-06-29 |
+| `root-cause-analysis-bidding-leader-filter-or-semantics.md` | Bug 根因分析 + 工程规范 | 投标负责人筛选「主 OR 副」语义 + 展示列只显示主负责人姓名导致用户误以为筛错（PR1574 修复后暴露的隐藏 bug + null 永真 fallback 是隐形放大器 + 筛选语义必须与展示列对齐） | 2026-07-03 |
 | `root-cause-analysis-submit-bid-review-gate.md` | Bug 根因分析 | 提交投标误复用任务完成闸门导致审核通过后仍 409 | 2026-06-21 |
 | `root-cause-analysis-stage-notification-created-by.md` | Bug 根因分析 | 阶段变更通知 created_by 为空导致提交投标 500 | 2026-06-21 |
 | `shell-gotchas.md` | 技术陷阱 | Shell 转义导致 SQL 中 `$` 特殊字符截断，密码值被破坏 | 2026-06-20 |
