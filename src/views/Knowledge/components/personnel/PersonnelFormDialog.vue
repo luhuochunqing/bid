@@ -131,8 +131,8 @@ const validateTab = (tabName) => {
       return false
     }
     for (const e of form.value.educations) {
-      if (!e.schoolName || !e.highestEducation || !e.studyForm || !e.startDate || !e.endDate) {
-        ElMessage.error('教育经历每条都必须填写学校、最高学历、学习形式、入学/毕业时间')
+      if (!e.schoolName || !e.highestEducation || !e.studyForm || !e.endDate) {
+        ElMessage.error('教育经历每条都必须填写学校、最高学历、学习形式、毕业时间')
         return false
       }
     }
