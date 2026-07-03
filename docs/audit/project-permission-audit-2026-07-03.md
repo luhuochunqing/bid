@@ -129,3 +129,88 @@
 
 ✅ 立项权限实现**完全匹配文档**——提交/AI 评估仅项目负责人，审核仅管理员/组长。4 个反射型测试锁定注解，防止未来重构放行错误角色。
 
+
+---
+
+## 2.3 标书制作（审计）
+
+### 2.3.1 任务管理（13 功能点）
+
+#### 文档要求（核心约束）
+
+| 功能类别 | 角色/身份 |
+|---|---|
+| AI 拆解/手动添加/分配/保存 | 管理员/组长/投标负责人/辅助人员 |
+| 强行干预（重分配） | 仅管理员/组长 |
+| 提交任务/上传交付物 | 仅任务执行人本人（assignee==自己）|
+| 任务审核 | 管理权限持有者，但不能审核自己提交的（职责分离）|
+
+#### 代码实现特点（标杆级）
+
+**Controller 层**：`TaskController` 所有端点 `isAuthenticated()`——**完全不做角色区分**，所有权限在 Service 层按项目子身份判断。
+
+**Service 层**：`TaskPermissionGuard` 委托纯核心 `TaskOperationPolicy`，按 4 个维度做实例级判断：
+- roleCode（角色）
+- currentUserId（当前用户）
+- primaryLeadId/secondaryLeadId（投标负责人/辅助）
+- isProjectOwner（项目立项负责人）
+- assigneeId（任务执行人）
+
+**4 个 Policy 方法完美对应文档**：
+
+| Policy 方法 | 文档约束 | 实现验证 |
+|---|---|---|
+| `canManageTask` | 管理员/组长/投标负责人/辅助 | DIRECT_MANAGE_ROLES permit；sales 需 owner/primaryLead；bid-Team 需 primary/secondaryLead ✅ |
+| `canForceReassign` | 仅管理员/组长 | 仅 DIRECT_MANAGE_ROLES ✅ |
+| `canActAsAssignee` | 仅执行人本人 | assigneeId==currentUserId（纯身份，不看角色）✅ |
+| `canReviewTask` | 管理权限 + 职责分离 | canManageTask + assigneeId != currentUserId ✅ |
+
+#### 契约测试（已有，无需补）
+
+`TaskOperationPolicyTest`（143 行测试）+ `TaskPermissionGuardTest`——**覆盖极其完整**：
+- canManageTask：各角色 × leadIds 匹配/不匹配（含 bid-otherDept/bid-administration 拒绝）
+- canForceReassign：管理员/组长放行，其他角色拒绝
+- canActAsAssignee：执行人本人放行，非执行人拒绝
+- canReviewTask：含职责分离（不能审自己）
+
+#### 差距判断
+
+✅ **任务管理权限完全匹配文档，无 gap**。这是项目子身份模型的标杆实现——Controller 层不区分角色，全部在 Service 层按项目身份（leadIds/isProjectOwner/assigneeId）做实例级判断，测试覆盖完整。
+
+
+### 2.3.2 最终标书审核与投标提交（5 功能点）
+
+**端点对照**（ProjectDraftingController）：
+
+| 文档功能 | 端点 | 注解 | 文档对照 |
+|---|---|---|---|
+| 分配投标团队 | assignLeads | `ADMIN/BID_TEAMLEADER/BIDADMIN` | ✅ 匹配（仅管理员/组长）|
+| 最终投标提交 | submitBid | `ADMIN/BID_TEAMLEADER/BIDADMIN/BID_PROJECTLEADER/BID_TEAM/SALES` | ✅ 匹配（管理员/组长/投标负责人/辅助）|
+| 提交审核（选审核人）| submit-review | 同 submitBid | ✅ 匹配 |
+| **审核标书 approve/reject** | approve/reject | **无方法级注解**（CO-315 鉴权下沉）| ✅ 匹配（审核权限纯实例级，按 BidReviewPolicy 校验临时选定的审核人）|
+
+**契约测试**（`ProjectDraftingPermissionTest`，新增 4 个）：
+- assignLeads 注解锁定（仅管理员/组长）
+- submitBid 注解含 BID_TEAM/BID_PROJECTLEADER/BID_TEAMLEADER
+- **approve/reject 锁定"无方法级注解"**（防止未来误加角色白名单，破坏审核人实例级校验）
+
+✅ 标书审核权限匹配文档。审核（approve/reject）的实例级校验（BidReviewPolicy + BidReviewPolicyTest）已完整覆盖。
+
+### 2.3.3 项目文档（4 功能点）
+
+**实现**：`ProjectDocumentController` 所有端点 `isAuthenticated()`，权限在 Service 层 `ProjectDocumentWorkflowPolicy`：
+- `canViewProjectDocuments` / `canDownloadProjectDocument`（仅管理员/组长/负责人/辅助）
+- `canUploadProjectDocument`（全体参与人）
+- `canDeleteProjectDocument`（仅管理员 + 上传者本人，CO-375 对称设计）
+
+✅ 项目文档权限匹配文档，且由 §24 多轮修复建立的 `ProjectDocumentWorkflowPolicyTest` 完整覆盖（canUpload/canDelete 对称）。
+
+### 2.3 标书制作审计小结
+
+✅ **三个子节权限全部匹配文档**，且测试覆盖完整：
+- 2.3.1 任务管理：TaskOperationPolicy（143 行测试，标杆级）
+- 2.3.2 标书审核：BidReviewPolicy + 本轮新增 4 反射测试
+- 2.3.3 项目文档：ProjectDocumentWorkflowPolicy（§24 已建立对称测试）
+
+本项目子身份权限模型（Controller 层 isAuthenticated + Service 层按项目身份实例级判断）是设计标杆——比标讯的角色白名单更精确，且测试覆盖完整。
+
