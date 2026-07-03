@@ -274,4 +274,45 @@ class TenderPermissionIntegrationTest {
         mockMvc.perform(post("/api/tenders/1/bid"))
                 .andExpect(status().isForbidden());
     }
+
+    // ====================================================================
+    // 2.4 补充功能契约测试（飞书《标讯中心·权限矩阵》2.4）
+    // ====================================================================
+
+    @Test
+    @DisplayName("2.4 查看详情 GET /api/tenders/{id}: 投标项目负责人应放行（文档：仅自己的，Service 层过滤；权限层非 403）")
+    @WithMockUser(username = "projectLeader", roles = {"BID_PROJECTLEADER"})
+    void getTenderById_byProjectLeader_notForbidden() throws Exception {
+        // 项目负责人应能进入详情端点；具体资源可见性由 Service 层 assertCanAccessTender 校验
+        int status = mockMvc.perform(get("/api/tenders/1"))
+                .andReturn().getResponse().getStatus();
+        // 404（资源不存在）或 200 都可，但不应是 403
+        assertThat(status).isNotEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("2.4 审计日志 GET /api/tenders/{id}/audit-logs: 投标项目负责人应 403（文档：变更日志仅管理员/组长，tender.view 不含项目负责人）")
+    @WithMockUser(username = "projectLeader", roles = {"BID_PROJECTLEADER"})
+    void getAuditLogs_byProjectLeader_returnsForbidden() throws Exception {
+        mockMvc.perform(get("/api/tenders/1/audit-logs"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("2.4 审计日志 GET /api/tenders/{id}/audit-logs: 投标专员应 403（文档：变更日志仅管理员/组长）")
+    @WithMockUser(username = "bid-specialist", roles = {"BID_TEAM"})
+    void getAuditLogs_byBidTeam_returnsForbidden() throws Exception {
+        mockMvc.perform(get("/api/tenders/1/audit-logs"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("2.4 审计日志 GET /api/tenders/{id}/audit-logs: 投标组长应放行（文档：管理员/组长可看，持 tender.view）")
+    @WithMockUser(username = "bid-TeamLeader", authorities = {"tender.view"})
+    void getAuditLogs_byBidTeamLeader_notForbidden() throws Exception {
+        // 组长持 tender.view 权限点（hasAuthority('tender.view')）
+        int status = mockMvc.perform(get("/api/tenders/1/audit-logs"))
+                .andReturn().getResponse().getStatus();
+        assertThat(status).isNotEqualTo(403);
+    }
 }
