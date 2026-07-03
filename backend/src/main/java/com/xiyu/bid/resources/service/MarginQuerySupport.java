@@ -45,6 +45,11 @@ final class MarginQuerySupport {
           + " LEFT JOIN project_initiation_details pid"
           + "   ON pid.project_id = f.project_id"
           + " LEFT JOIN tenders t ON t.id = p.tender_id"
+          + " LEFT JOIN tasks dt"
+          + "   ON dt.project_id = f.project_id"
+          + "   AND JSON_EXTRACT(dt.extended_fields_json, '$._taskType') = 'deposit-payment'"
+          + " LEFT JOIN project_closure pc"
+          + "   ON pc.project_id = f.project_id"
           + " WHERE f.fee_type = 'BID_BOND'";
 
     private static final String INIT_JOIN =
@@ -79,7 +84,7 @@ final class MarginQuerySupport {
               + "    AND m.exp_return_date < NOW() THEN 1 END)"
               + " FROM ("
               + "   SELECT f.amount as amount, f.status as status,"
-              + "     f.fee_date as exp_return_date"
+              + "     COALESCE(CAST(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.expectedRefundDate')), 1, 10) AS DATETIME), f.fee_date) as exp_return_date"
               + FEES_JOIN + rf
               + "   UNION ALL"
               + "   SELECT pid.deposit_amount as amount, 'PENDING' as status,"
