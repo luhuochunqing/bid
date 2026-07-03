@@ -5,6 +5,11 @@
 #
 # 用法: bash scripts/audit-preauthorize-migration.sh
 # 输出: stdout（可直接重定向到文件归档）
+#
+# Input: repository backend source (RoleProfileCatalog.java + @PreAuthorize usages)
+# Output: stdout migration feasibility report for P3 preauthorize unification
+# Pos: scripts/ - P3 preauthorize migration audit tool
+# 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 set -euo pipefail
 

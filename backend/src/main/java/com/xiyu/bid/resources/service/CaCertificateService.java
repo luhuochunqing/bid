@@ -27,8 +27,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.Arrays;
 import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
@@ -52,7 +50,7 @@ public class CaCertificateService {
         String rawPassword = request.getCaPassword();
         String storedPassword = (rawPassword == null || rawPassword.isBlank())
                 ? null : passwordEncryptionUtil.encrypt(rawPassword);
-        String normalizedSealType = normalizeSealType(request.getSealType());
+        String normalizedSealType = SealTypeNormalizer.normalize(request.getSealType());
         String custodianEmployeeNumber = custodianEmployeeNumberResolver.fetchEmployeeNumber(request.getCustodianId());
         CaCertificateEntity entity = CaCertificateEntity.builder()
                 .caType(request.getCaType())
@@ -79,7 +77,7 @@ public class CaCertificateService {
         CaCertificateEntity entity = certificateRepository.findById(id)
                 .orElseThrow(() -> new CaBusinessException("CA证书不存在: " + id));
         entity.setCaType(request.getCaType());
-        entity.setSealType(normalizeSealType(request.getSealType()));
+        entity.setSealType(SealTypeNormalizer.normalize(request.getSealType()));
         entity.setElectronicAccount(request.getElectronicAccount());
         if (request.getCaPassword() != null && !request.getCaPassword().isEmpty()) {
             String storedPassword = passwordEncryptionUtil.encrypt(request.getCaPassword());
@@ -287,24 +285,5 @@ public class CaCertificateService {
         if (entity == null) return;
         if ("INACTIVE".equals(entity.getStatus())) return;
         entity.setStatus(computeStatus(entity.getExpiryDate()));
-    }
-
-    private static final Set<String> VALID_SEAL_TYPES = Set.of(
-            "OFFICIAL_SEAL", "LEGAL_PERSON_SEAL", "LEGAL_SIGN", "CONTACT_SIGN");
-
-    private String normalizeSealType(String raw) {
-        if (raw == null || raw.isBlank()) {
-            throw new CaBusinessException("印章类型不能为空");
-        }
-        String normalized = Arrays.stream(raw.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .filter(VALID_SEAL_TYPES::contains)
-                .distinct()
-                .collect(Collectors.joining(","));
-        if (normalized.isEmpty()) {
-            throw new CaBusinessException("印章类型必须包含有效选项：OFFICIAL_SEAL/LEGAL_PERSON_SEAL/LEGAL_SIGN/CONTACT_SIGN");
-        }
-        return normalized;
     }
 }
