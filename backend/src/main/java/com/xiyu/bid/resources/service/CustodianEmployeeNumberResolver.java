@@ -46,6 +46,7 @@ public class CustodianEmployeeNumberResolver {
         List<User> users = userRepository.findAllById(distinctIds);
         return users.stream()
                 .filter(u -> u.getEmployeeNumber() != null)
-                .collect(Collectors.toMap(User::getId, User::getEmployeeNumber));
+                .collect(Collectors.toMap(User::getId, User::getEmployeeNumber,
+                        (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
     }
 }

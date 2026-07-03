@@ -115,7 +115,8 @@ public class WarehouseLedgerExportAppService {
                 .collect(java.util.stream.Collectors.toSet());
         if (userIds.isEmpty()) return Map.of();
         return userRepository.findByIdIn(userIds).stream()
-                .collect(Collectors.toMap(User::getId, u -> u.getFullName() != null ? u.getFullName() : ""));
+                .collect(Collectors.toMap(User::getId, u -> u.getFullName() != null ? u.getFullName() : "",
+                        (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
     }
 
     private String saveXlsx(Long taskId, byte[] xlsx) throws IOException {

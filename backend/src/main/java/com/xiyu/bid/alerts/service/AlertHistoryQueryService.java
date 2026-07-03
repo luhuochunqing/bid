@@ -91,6 +91,6 @@ public class AlertHistoryQueryService {
     private Map<Long, AlertRule> loadRules(List<AlertHistory> all) {
         return alertRuleRepository.findAllById(
                 all.stream().map(AlertHistory::getRuleId).distinct().toList()
-        ).stream().collect(Collectors.toMap(AlertRule::getId, item -> item));
+        ).stream().collect(Collectors.toMap(AlertRule::getId, item -> item, (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
     }
 }

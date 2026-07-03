@@ -76,7 +76,8 @@ public class ProjectExportService {
         Map<Long, Tender> tenderMap = tenderIds.isEmpty()
                 ? java.util.Collections.emptyMap()
                 : tenderRepository.findAllById(tenderIds).stream()
-                        .collect(Collectors.toMap(Tender::getId, t -> t));
+                        .collect(Collectors.toMap(Tender::getId, t -> t,
+                                (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
         var wb = new XSSFWorkbook();
         var sheet = wb.createSheet("投标项目列表");
         String[] cols = {"项目名称", "业主单位", "入围家数", "创建时间", "开标时间", "投标月份", "项目类型", "客户类型", "客户等级", "投标状态", "项目负责人", "负责人部门", "投标负责人", "中标状态", "投标平台"};

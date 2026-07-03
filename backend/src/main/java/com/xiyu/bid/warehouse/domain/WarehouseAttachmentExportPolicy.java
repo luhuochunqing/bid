@@ -37,7 +37,7 @@ public final class WarehouseAttachmentExportPolicy {
                         Map.Entry::getKey,
                         e -> e.getValue().stream()
                                 .filter(a -> isIncluded(scope, a.getType()))
-                                .toList()
-                ));
+                                .toList(),
+                        (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
     }
 }

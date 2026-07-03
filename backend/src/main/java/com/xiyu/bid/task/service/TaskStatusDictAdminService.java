@@ -158,7 +158,7 @@ public class TaskStatusDictAdminService {
                 .map(TaskStatusDictReorderRequest.Item::code)
                 .toList();
         Map<String, TaskStatusDict> byCode = repo.findAllById(codes).stream()
-                .collect(Collectors.toMap(TaskStatusDict::getCode, Function.identity()));
+                .collect(Collectors.toMap(TaskStatusDict::getCode, Function.identity(), (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
         for (var item : items) {
             TaskStatusDict entity = byCode.get(item.code());
             if (entity == null) {

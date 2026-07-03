@@ -178,13 +178,13 @@ public class TenderQueryService {
     private Map<Long, String> fetchManagerNames(Set<Long> tenderIds) {
         Map<Long, Long> tenderToManager = projectRepository.findByTenderIdIn(tenderIds).stream()
                 .filter(p -> p.getManagerId() != null)
-                .collect(Collectors.toMap(Project::getTenderId, Project::getManagerId));
+                .collect(Collectors.toMap(Project::getTenderId, Project::getManagerId, (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
 
         if (tenderToManager.isEmpty()) return Map.of();
 
         Set<Long> managerIds = Set.copyOf(tenderToManager.values());
         Map<Long, String> idToName = userRepository.findByIdIn(managerIds).stream()
-                .collect(Collectors.toMap(User::getId, User::getFullName));
+                .collect(Collectors.toMap(User::getId, User::getFullName, (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
 
         // CO-441: Collectors.toMap 不允许 null value，孤儿 manager_id（指向已删除用户）会触发 NPE。
         // 改用 HashMap 显式 put 允许 null value，保持 tenderId → null 映射，前端容错显示。
@@ -200,14 +200,15 @@ public class TenderQueryService {
                 .findLatestByTenderIds(tenderIds).stream()
                 .collect(Collectors.toMap(
                         TenderAssignmentRecord::getTenderId,
-                        TenderAssignmentRecord::getAssigneeId
+                        TenderAssignmentRecord::getAssigneeId,
+                        (a, b) -> a // CO-027: merge function 防止 Duplicate key 异常
                 ));
 
         if (tenderToAssignee.isEmpty()) return Map.of();
 
         Set<Long> assigneeIds = Set.copyOf(tenderToAssignee.values());
         Map<Long, String> idToName = userRepository.findByIdIn(assigneeIds).stream()
-                .collect(Collectors.toMap(User::getId, User::getFullName));
+                .collect(Collectors.toMap(User::getId, User::getFullName, (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
 
         // CO-441: 同 fetchManagerNames，防御性兜底 assignee 孤儿外键。
         Map<Long, String> result = new HashMap<>(tenderToAssignee.size());

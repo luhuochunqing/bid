@@ -251,7 +251,8 @@ public class WarehouseExportAppService {
                 .toList());
         if (userIds.isEmpty()) return Map.of();
         return userRepository.findByIdIn(userIds).stream()
-                .collect(Collectors.toMap(User::getId, u -> nvl(u.getFullName())));
+                .collect(Collectors.toMap(User::getId, u -> nvl(u.getFullName()),
+                        (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
     }
 
     private static String nvl(String s) { return s != null ? s : ""; }

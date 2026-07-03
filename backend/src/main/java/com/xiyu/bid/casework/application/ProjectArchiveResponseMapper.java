@@ -44,12 +44,14 @@ class ProjectArchiveResponseMapper {
 
         List<Long> projectIds = archives.stream().map(ProjectArchive::getProjectId).distinct().toList();
         Map<Long, Project> projectMap = projectRepository.findAllById(projectIds).stream()
-                .collect(toMap(Project::getId, p -> p));
+                .collect(toMap(Project::getId, p -> p,
+                        (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
 
         List<Long> tenderIds = projectMap.values().stream()
                 .map(Project::getTenderId).filter(Objects::nonNull).distinct().toList();
         Map<Long, Tender> tenderMap = tenderRepository.findAllById(tenderIds).stream()
-                .collect(toMap(Tender::getId, t -> t));
+                .collect(toMap(Tender::getId, t -> t,
+                        (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
 
         // CO-421: 投标负责人姓名直接读 ProjectInitiationDetails.biddingLeaderName
         // （立项审核通过时已同步，详见 ProjectInitiationApprovalService.approve）

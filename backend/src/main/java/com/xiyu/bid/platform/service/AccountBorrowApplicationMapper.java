@@ -39,7 +39,8 @@ public class AccountBorrowApplicationMapper {
         Map<Long, String> accountNameMap = accountIds.isEmpty()
                 ? Collections.emptyMap()
                 : accountRepository.findAllById(accountIds).stream()
-                        .collect(Collectors.toMap(PlatformAccount::getId, PlatformAccount::getAccountName));
+                        .collect(Collectors.toMap(PlatformAccount::getId, PlatformAccount::getAccountName,
+                                (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
         Set<Long> applicantIds = apps.stream()
                 .map(AccountBorrowApplication::getApplicantId)
                 .filter(Objects::nonNull)
@@ -47,7 +48,8 @@ public class AccountBorrowApplicationMapper {
         Map<Long, User> userMap = applicantIds.isEmpty()
                 ? Collections.emptyMap()
                 : userRepository.findAllById(applicantIds).stream()
-                        .collect(Collectors.toMap(User::getId, u -> u));
+                        .collect(Collectors.toMap(User::getId, u -> u,
+                                (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
         return apps.stream()
                 .map(app -> toDTO(app, accountNameMap::get, userMap::get))
                 .collect(Collectors.toList());

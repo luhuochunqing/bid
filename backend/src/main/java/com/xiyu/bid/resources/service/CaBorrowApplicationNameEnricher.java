@@ -63,7 +63,8 @@ public class CaBorrowApplicationNameEnricher {
         }
 
         Map<Long, CaCertificateEntity> certMap = certificateRepository.findAllById(caIds).stream()
-                .collect(Collectors.toMap(CaCertificateEntity::getId, c -> c));
+                .collect(Collectors.toMap(CaCertificateEntity::getId, c -> c,
+                        (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
 
         List<CaCertificatePlatformEntity> links = platformLinkRepository.findByCaCertificateIdIn(caIds);
         Set<Long> platformIds = links.stream()
@@ -73,7 +74,8 @@ public class CaBorrowApplicationNameEnricher {
         Map<Long, String> accountNameById = platformIds.isEmpty()
                 ? Collections.emptyMap()
                 : platformAccountRepository.findAllById(platformIds).stream()
-                    .collect(Collectors.toMap(PlatformAccount::getId, PlatformAccount::getAccountName));
+                    .collect(Collectors.toMap(PlatformAccount::getId, PlatformAccount::getAccountName,
+                            (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
         Map<Long, List<Long>> platformIdsByCaId = links.stream().collect(Collectors.groupingBy(
                 CaCertificatePlatformEntity::getCaCertificateId,
                 LinkedHashMap::new,
