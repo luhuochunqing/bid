@@ -224,9 +224,12 @@ describe('Account.vue — password column security (contract tests)', () => {
     expect(wrapper.exists()).toBe(true)
   })
 
-  // ── CO-389 v2：custodian / caCustodian 列移除回归 ──────────────────────────
+  // ── CO-389 v2 + CO-474：custodian 列重命名为"账号保管员" ──────────────────────────
 
-  it('render_doesNotShowCustodianColumn — v2 列已移除', async () => {
+  it('render_showsCustodianColumnRenamedTo账号保管员 — CO-474 v3 契约', async () => {
+    // CO-474 PR 把"绑定联系人"重命名为"账号保管员"（label 合法存在），
+    // 旧的 CO-389 v2 断言（expect not.toContain '账号保管员'）已过期。
+    // 现契约：列表应显示"账号保管员"列（contactPersonLabel），不再使用旧 custodianName 字段。
     resourcesApiMock.accounts.getList.mockResolvedValue({
       success: true,
       data: mockAccountsList
@@ -236,7 +239,7 @@ describe('Account.vue — password column security (contract tests)', () => {
     await flushPromises()
 
     const html = wrapper.html()
-    expect(html).not.toContain('账号保管员')
+    expect(html).toContain('账号保管员')
     expect(html).not.toContain('custodianName')
   })
 
