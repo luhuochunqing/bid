@@ -83,7 +83,7 @@
         <el-table-column type="index" label="序号" width="70" />
         <el-table-column label="关联平台" min-width="120">
           <template #default="{ row }">
-            <span v-if="row.platformIds.length">{{ row.platformIds.join(', ') }}</span>
+            <span v-if="row.platformIds.length">{{ row.platformIds.map(id => row.platformNamesById?.[id] || id).join(', ') }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
@@ -161,7 +161,7 @@
         <el-table-column type="index" label="序号" width="70" />
         <el-table-column label="关联平台" min-width="140">
           <template #default="{ row }">
-            <span v-if="row.platformIds.length">{{ row.platformIds.join(', ') }}</span>
+            <span v-if="row.platformIds.length">{{ row.platformIds.map(id => row.platformNamesById?.[id] || id).join(', ') }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>

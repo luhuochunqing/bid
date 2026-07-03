@@ -7,12 +7,15 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Builder
 public class CaCertificateDTO {
     private Long id;
     private List<Long> platformIds;
+    /** CO-479: 平台 ID → 平台名称映射，用于前端展示平台名称而非数字 ID */
+    private Map<Long, String> platformNamesById;
     private String caType;
     private String sealType;
     private String electronicAccount;
@@ -71,6 +74,18 @@ public class CaCertificateDTO {
 
     public static CaCertificateDTO from(CaCertificateEntity entity, List<Long> platformIds) {
         return from(entity, platformIds, false, null, null);
+    }
+
+    /**
+     * CO-479: 带 platformNamesById 的重载，用于前端展示平台名称而非数字 ID.
+     */
+    public static CaCertificateDTO from(CaCertificateEntity entity, List<Long> platformIds,
+                                        boolean revealPassword, String decryptedPassword,
+                                        String custodianEmployeeNumber,
+                                        Map<Long, String> platformNamesById) {
+        CaCertificateDTO dto = from(entity, platformIds, revealPassword, decryptedPassword, custodianEmployeeNumber);
+        dto.setPlatformNamesById(platformNamesById);
+        return dto;
     }
 
     private static String maskPassword(String stored) {

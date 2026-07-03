@@ -2,6 +2,8 @@ package com.xiyu.bid.resources.service;
 
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.platform.entity.PlatformAccount;
+import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.resources.dto.CaCertificateDTO;
@@ -24,9 +26,11 @@ import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
@@ -38,6 +42,8 @@ public class CaCertificateService {
     private final EffectiveRoleResolver effectiveRoleResolver;
     private final UserRepository userRepository;
     private final CustodianEmployeeNumberResolver custodianEmployeeNumberResolver;
+    /** CO-479: 用于查询平台账户名称 */
+    private final PlatformAccountRepository platformAccountRepository;
 
     // ========== CA 证书 CRUD ==========
 
@@ -69,7 +75,8 @@ public class CaCertificateService {
                 .build();
         CaCertificateEntity saved = certificateRepository.save(entity);
         List<Long> platformIds = persistPlatformLinks(saved.getId(), request.getPlatformIds());
-        return CaCertificateDTO.from(saved, platformIds, false, null, custodianEmployeeNumber);
+        return CaCertificateDTO.from(saved, platformIds, false, null, custodianEmployeeNumber,
+                loadPlatformNamesById(platformIds));
     }
 
     @Transactional
@@ -95,7 +102,8 @@ public class CaCertificateService {
         List<Long> platformIds = persistPlatformLinks(saved.getId(), request.getPlatformIds());
         // CO-451: 从 User 表获取保管员工号
         String custodianEmployeeNumber = custodianEmployeeNumberResolver.fetchEmployeeNumber(request.getCustodianId());
-        return CaCertificateDTO.from(saved, platformIds, false, null, custodianEmployeeNumber);
+        return CaCertificateDTO.from(saved, platformIds, false, null, custodianEmployeeNumber,
+                loadPlatformNamesById(platformIds));
     }
 
     /**
@@ -159,7 +167,9 @@ public class CaCertificateService {
         refreshStatusInMemory(entity);
         // CO-451: 从 User 表获取保管员工号
         String custodianEmployeeNumber = custodianEmployeeNumberResolver.fetchEmployeeNumber(entity.getCustodianId());
-        return CaCertificateDTO.from(entity, loadPlatformIds(id), false, null, custodianEmployeeNumber);
+        List<Long> platformIds = loadPlatformIds(id);
+        return CaCertificateDTO.from(entity, platformIds, false, null, custodianEmployeeNumber,
+                loadPlatformNamesById(platformIds));
     }
 
     /**
@@ -181,7 +191,9 @@ public class CaCertificateService {
         String decrypted = passwordEncryptionUtil.decrypt(entity.getCaPassword());
         // CO-451: 从 User 表获取保管员工号
         String custodianEmployeeNumber = custodianEmployeeNumberResolver.fetchEmployeeNumber(entity.getCustodianId());
-        return CaCertificateDTO.from(entity, loadPlatformIds(id), true, decrypted, custodianEmployeeNumber);
+        List<Long> platformIds = loadPlatformIds(id);
+        return CaCertificateDTO.from(entity, platformIds, true, decrypted, custodianEmployeeNumber,
+                loadPlatformNamesById(platformIds));
     }
 
     /**
@@ -214,6 +226,26 @@ public class CaCertificateService {
         return platformLinkRepository.findByCaCertificateId(caId).stream()
                 .map(CaCertificatePlatformEntity::getPlatformAccountId)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * CO-479: 批量查询平台账户名称，构建 ID→名称映射.
+     * <p>用于前端展示平台名称而非数字 ID。
+     *
+     * @param platformIds 平台账户 ID 列表
+     * @return ID→accountName 映射；空列表返回空 Map
+     */
+    private Map<Long, String> loadPlatformNamesById(List<Long> platformIds) {
+        if (platformIds == null || platformIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<PlatformAccount> accounts = platformAccountRepository.findAllById(platformIds);
+        return accounts.stream()
+                .collect(Collectors.toMap(
+                        PlatformAccount::getId,
+                        a -> a.getAccountName() != null ? a.getAccountName() : "",
+                        (a, b) -> a
+                ));
     }
 
     public Page<CaCertificateDTO> list(String status, String borrowStatus, String keyword,
@@ -250,10 +282,14 @@ public class CaCertificateService {
         Map<Long, String> employeeNumberMap = custodianEmployeeNumberResolver.batchFetchEmployeeNumbers(
                 entityPage.stream().map(CaCertificateEntity::getCustodianId).toList()
         );
-        return entityPage.map(entity -> CaCertificateDTO.from(
-                entity, loadPlatformIds(entity.getId()), false, null,
-                employeeNumberMap.get(entity.getCustodianId())
-        ));
+        return entityPage.map(entity -> {
+            List<Long> platformIds = loadPlatformIds(entity.getId());
+            return CaCertificateDTO.from(
+                    entity, platformIds, false, null,
+                    employeeNumberMap.get(entity.getCustodianId()),
+                    loadPlatformNamesById(platformIds)
+            );
+        });
     }
 
     public Map<String, Long> getOverview() {

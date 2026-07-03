@@ -12,7 +12,7 @@
           <el-descriptions :column="1" border size="small" class="detail-section">
             <el-descriptions-item label="关联平台">
               <template v-if="ca.platformIds && ca.platformIds.length">
-                <el-tag v-for="p in ca.platformIds" :key="p" size="small" class="platform-tag">{{ p }}</el-tag>
+                <el-tag v-for="p in ca.platformIds" :key="p" size="small" class="platform-tag">{{ ca.platformNamesById?.[p] || p }}</el-tag>
               </template>
               <span v-else>-</span>
             </el-descriptions-item>

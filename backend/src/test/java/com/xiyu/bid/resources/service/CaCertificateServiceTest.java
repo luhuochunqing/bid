@@ -1,10 +1,13 @@
 package com.xiyu.bid.resources.service;
 
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.platform.entity.PlatformAccount;
+import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
 import com.xiyu.bid.resources.dto.CaCertificateDTO;
 import com.xiyu.bid.resources.dto.CaCertificateRequest;
 import com.xiyu.bid.resources.entity.CaCertificateEntity;
+import com.xiyu.bid.resources.entity.CaCertificatePlatformEntity;
 import com.xiyu.bid.resources.repository.CaCertificatePlatformRepository;
 import com.xiyu.bid.resources.repository.CaCertificateRepository;
 import com.xiyu.bid.repository.UserRepository;
@@ -23,6 +26,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -56,6 +60,8 @@ class CaCertificateServiceTest {
     private UserRepository userRepository;
     @Mock
     private CustodianEmployeeNumberResolver custodianEmployeeNumberResolver;
+    @Mock
+    private PlatformAccountRepository platformAccountRepository;
 
     // ── deactivate 保管员差异化校验 ──
 
@@ -237,6 +243,116 @@ class CaCertificateServiceTest {
                 .hasMessageContaining("印章类型必须包含有效选项");
     }
 
+    // ── CO-479: 列表/详情返回 platformNamesById（平台名称而非数字 ID） ──
+
+    @Test
+    void getById_withPlatformLinks_returnsPlatformNamesById() {
+        CaCertificateService service = newService();
+        CaCertificateEntity ca = CaCertificateEntity.builder()
+                .id(1L)
+                .caType("ENTITY_CA")
+                .expiryDate(LocalDate.now().plusDays(30))
+                .custodianId(20L)
+                .status("ACTIVE")
+                .borrowStatus("IN_STOCK")
+                .build();
+        when(certificateRepository.findById(1L)).thenReturn(Optional.of(ca));
+        when(platformLinkRepository.findByCaCertificateId(1L)).thenReturn(List.of(
+                CaCertificatePlatformEntity.builder().caCertificateId(1L).platformAccountId(10L).build(),
+                CaCertificatePlatformEntity.builder().caCertificateId(1L).platformAccountId(20L).build()
+        ));
+        when(custodianEmployeeNumberResolver.fetchEmployeeNumber(20L)).thenReturn("EMP001");
+        when(platformAccountRepository.findAllById(List.of(10L, 20L))).thenReturn(List.of(
+                PlatformAccount.builder().id(10L).accountName("新疆政采网").build(),
+                PlatformAccount.builder().id(20L).accountName("百度B2B").build()
+        ));
+
+        CaCertificateDTO dto = service.getById(1L);
+
+        assertThat(dto.getPlatformIds()).containsExactly(10L, 20L);
+        assertThat(dto.getPlatformNamesById())
+                .containsEntry(10L, "新疆政采网")
+                .containsEntry(20L, "百度B2B");
+    }
+
+    @Test
+    void getById_emptyPlatformLinks_returnsEmptyPlatformNamesById() {
+        CaCertificateService service = newService();
+        CaCertificateEntity ca = CaCertificateEntity.builder()
+                .id(1L)
+                .caType("ENTITY_CA")
+                .expiryDate(LocalDate.now().plusDays(30))
+                .custodianId(20L)
+                .status("ACTIVE")
+                .borrowStatus("IN_STOCK")
+                .build();
+        when(certificateRepository.findById(1L)).thenReturn(Optional.of(ca));
+        when(platformLinkRepository.findByCaCertificateId(1L)).thenReturn(Collections.emptyList());
+        when(custodianEmployeeNumberResolver.fetchEmployeeNumber(20L)).thenReturn("EMP001");
+
+        CaCertificateDTO dto = service.getById(1L);
+
+        assertThat(dto.getPlatformIds()).isEmpty();
+        assertThat(dto.getPlatformNamesById()).isEmpty();
+    }
+
+    @Test
+    void list_withPlatformLinks_returnsPlatformNamesById() {
+        CaCertificateService service = newService();
+        CaCertificateEntity ca = CaCertificateEntity.builder()
+                .id(1L)
+                .caType("ENTITY_CA")
+                .expiryDate(LocalDate.now().plusDays(30))
+                .custodianId(20L)
+                .status("ACTIVE")
+                .borrowStatus("IN_STOCK")
+                .build();
+        Page<CaCertificateEntity> page = new PageImpl<>(List.of(ca));
+        when(certificateRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(PageRequest.class)))
+                .thenReturn(page);
+        when(platformLinkRepository.findByCaCertificateId(1L)).thenReturn(List.of(
+                CaCertificatePlatformEntity.builder().caCertificateId(1L).platformAccountId(10L).build()
+        ));
+        when(custodianEmployeeNumberResolver.batchFetchEmployeeNumbers(any())).thenReturn(Collections.emptyMap());
+        when(platformAccountRepository.findAllById(List.of(10L))).thenReturn(List.of(
+                PlatformAccount.builder().id(10L).accountName("新疆政采网").build()
+        ));
+
+        Page<CaCertificateDTO> result = service.list(null, null, null, null, null, PageRequest.of(0, 10));
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getPlatformNamesById())
+                .containsEntry(10L, "新疆政采网");
+    }
+
+    @Test
+    void list_platformAccountNotFound_returnsEmptyName() {
+        CaCertificateService service = newService();
+        CaCertificateEntity ca = CaCertificateEntity.builder()
+                .id(1L)
+                .caType("ENTITY_CA")
+                .expiryDate(LocalDate.now().plusDays(30))
+                .custodianId(20L)
+                .status("ACTIVE")
+                .borrowStatus("IN_STOCK")
+                .build();
+        Page<CaCertificateEntity> page = new PageImpl<>(List.of(ca));
+        when(certificateRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(PageRequest.class)))
+                .thenReturn(page);
+        when(platformLinkRepository.findByCaCertificateId(1L)).thenReturn(List.of(
+                CaCertificatePlatformEntity.builder().caCertificateId(1L).platformAccountId(999L).build()
+        ));
+        when(custodianEmployeeNumberResolver.batchFetchEmployeeNumbers(any())).thenReturn(Collections.emptyMap());
+        // platformAccountRepository.findAllById returns empty (platform account deleted)
+        when(platformAccountRepository.findAllById(List.of(999L))).thenReturn(Collections.emptyList());
+
+        Page<CaCertificateDTO> result = service.list(null, null, null, null, null, PageRequest.of(0, 10));
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getPlatformIds()).containsExactly(999L);
+        assertThat(result.getContent().get(0).getPlatformNamesById()).isEmpty();
+    }
+
     // ── CO-477: 读时刷新 status（避免持久化字段陈旧） ──
 
     @Test
@@ -325,7 +441,8 @@ class CaCertificateServiceTest {
                 passwordEncryptionUtil,
                 effectiveRoleResolver,
                 userRepository,
-                custodianEmployeeNumberResolver
+                custodianEmployeeNumberResolver,
+                platformAccountRepository
         );
     }
 
