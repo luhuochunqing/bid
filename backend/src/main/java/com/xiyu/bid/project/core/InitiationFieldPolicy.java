@@ -33,6 +33,12 @@ public final class InitiationFieldPolicy {
     private static final Set<String> LOCKED_FIELDS = Set.of("bidOpenTime", "ownerUnit");
 
     /**
+     * 优先级归一化映射：把中文/小写/带"级"后缀的值统一为前端 option value（S/A/B/C）。
+     * Tender.priority 来自 Excel 导入和外部集成同步，值不固定，必须归一化后才能与前端筛选 value 匹配。
+     */
+    public static final Map<String, String> PRIORITY_MAPPING = buildPriorityMapping();
+
+    /**
      * 标讯项目类型文本/枚举 → 立项 ProjectType 枚举名的统一映射。
      * 覆盖中文文本、标讯系统枚举、历史数据。后端 EvaluationToInitiationMapper 和
      * TenderInitMappingController 统一引用此映射，前端通过 /api/project/tender-init-mapping 获取。
@@ -57,6 +63,35 @@ public final class InitiationFieldPolicy {
         m.put("GROUP_PURCHASE", "COLLECTIVE");
         m.put("综合", "COMPREHENSIVE");
         m.put("公开招标", "COMPREHENSIVE");
+        m.put("OFFICE", "OFFICE");
+        m.put("COMPREHENSIVE", "COMPREHENSIVE");
+        m.put("COLLECTIVE", "COLLECTIVE");
+        m.put("INDUSTRIAL", "INDUSTRIAL");
+        m.put("OTHER", "OTHER");
+        return Map.copyOf(m);
+    }
+
+    private static Map<String, String> buildPriorityMapping() {
+        Map<String, String> m = new LinkedHashMap<>();
+        // 标准枚举名（已规范）
+        m.put("S", "S");
+        m.put("A", "A");
+        m.put("B", "B");
+        m.put("C", "C");
+        // 带"级"后缀
+        m.put("S级", "S");
+        m.put("A级", "A");
+        m.put("B级", "B");
+        m.put("C级", "C");
+        // 小写
+        m.put("s", "S");
+        m.put("a", "A");
+        m.put("b", "B");
+        m.put("c", "C");
+        // 中文别名（兜底，避免数据丢失）
+        m.put("高", "S");
+        m.put("中", "A");
+        m.put("低", "B");
         return Map.copyOf(m);
     }
 
@@ -103,6 +138,26 @@ public final class InitiationFieldPolicy {
     public static String normalizeCustomerType(String raw) {
         if (raw == null || raw.isBlank()) return null;
         return CUSTOMER_TYPE_MAPPING.get(raw.trim());
+    }
+
+    /**
+     * 将原始 projectType 文本（中文/前端旧 value/标讯系统枚举/历史数据）归一化为
+     * 后端 ProjectType 枚举名。列表展示与筛选统一以此为准。
+     * 无法识别时返回 null（调用方可保留原值或置空）。
+     */
+    public static String normalizeProjectType(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        return PROJECT_TYPE_MAPPING.get(raw.trim());
+    }
+
+    /**
+     * 将原始 priority 文本（带"级"后缀/小写/中文别名）归一化为
+     * 前端 option value（S/A/B/C）。列表展示与筛选统一以此为准。
+     * 无法识别时返回 null（调用方可保留原值或置空）。
+     */
+    public static String normalizePriority(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        return PRIORITY_MAPPING.get(raw.trim());
     }
 
     /**

@@ -36,7 +36,8 @@ final class ProjectListEnrichmentSupport {
             dto.setBidOpenTime(t.getBidOpeningTime());
         }
         if (dto.getProjectType() == null && t.getProjectType() != null) {
-            dto.setProjectType(t.getProjectType());
+            String normalized = InitiationFieldPolicy.normalizeProjectType(t.getProjectType());
+            dto.setProjectType(normalized != null ? normalized : t.getProjectType());
         }
         if (dto.getCustomerType() == null && t.getCustomerType() != null) {
             String normalized = InitiationFieldPolicy.normalizeCustomerType(t.getCustomerType());
@@ -46,7 +47,8 @@ final class ProjectListEnrichmentSupport {
             dto.setRegion(t.getRegion());
         }
         if (dto.getPriority() == null && t.getPriority() != null) {
-            dto.setPriority(t.getPriority());
+            String normalized = InitiationFieldPolicy.normalizePriority(t.getPriority());
+            dto.setPriority(normalized != null ? normalized : t.getPriority());
         }
         if (dto.getBiddingPlatform() == null && t.getSourcePlatform() != null) {
             dto.setBiddingPlatform(t.getSourcePlatform());

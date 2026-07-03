@@ -15,8 +15,8 @@ export const statusOptions = [
 export const projectTypeOptions = [
   { value: 'OFFICE', label: '办公' },
   { value: 'COMPREHENSIVE', label: '综合' },
-  { value: 'GROUP_PURCHASE', label: '集采' },
-  { value: 'INDUSTRIAL_EC', label: '工业品' },
+  { value: 'COLLECTIVE', label: '集采' },
+  { value: 'INDUSTRIAL', label: '工业品' },
   { value: 'OTHER', label: '其他' },
 ]
 
@@ -40,6 +40,7 @@ export const sourceOptions = [
   { value: '人工录入', label: '人工录入' },
   { value: 'CRM创建', label: 'CRM创建' },
   { value: '第三方平台', label: '第三方平台' },
+  { value: '批量导入', label: '批量导入' },
 ]
 
 export const stageOptions = [
