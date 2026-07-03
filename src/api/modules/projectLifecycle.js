@@ -130,7 +130,7 @@ export const projectLifecycleApi = {
 
   // WS-F rebid (二次招标)
   rebidProject(id) {
-    return httpClient.post(`${base(id)}/rebid`)
+    return httpClient.post(`${base(id)}/closure/rebid`)
   },
 }
 
