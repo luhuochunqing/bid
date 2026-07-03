@@ -63,11 +63,6 @@ public final class InitiationFieldPolicy {
         m.put("GROUP_PURCHASE", "COLLECTIVE");
         m.put("综合", "COMPREHENSIVE");
         m.put("公开招标", "COMPREHENSIVE");
-        m.put("OFFICE", "OFFICE");
-        m.put("COMPREHENSIVE", "COMPREHENSIVE");
-        m.put("COLLECTIVE", "COLLECTIVE");
-        m.put("INDUSTRIAL", "INDUSTRIAL");
-        m.put("OTHER", "OTHER");
         return Map.copyOf(m);
     }
 
@@ -88,10 +83,6 @@ public final class InitiationFieldPolicy {
         m.put("a", "A");
         m.put("b", "B");
         m.put("c", "C");
-        // 中文别名（兜底，避免数据丢失）
-        m.put("高", "S");
-        m.put("中", "A");
-        m.put("低", "B");
         return Map.copyOf(m);
     }
 
