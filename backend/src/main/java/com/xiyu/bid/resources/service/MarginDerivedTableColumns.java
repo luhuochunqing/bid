@@ -27,7 +27,9 @@ package com.xiyu.bid.resources.service;
  */
 final class MarginDerivedTableColumns {
 
-    /** 派生表 fees 分支 SELECT 列（listBase + countBase 共用）。 */
+    /** 派生表 fees 分支 SELECT 列（listBase + countBase 共用）。
+     *  CO-490: 缴纳日期/收款方/收款账号/应退日期 → 保证金缴纳任务 JSON
+     *          退回金额/转服务费金额/退回日期 → project_closure 结项表 */
     static final String DERIVED_SELECT_FEES =
             "   SELECT f.id as fee_id, f.project_id, p.name as project_name,"
           + "     pid.owner_unit,"
@@ -35,12 +37,23 @@ final class MarginDerivedTableColumns {
           + "       as project_leader_name,"
           + "     COALESCE(pid.bidding_leader_name, t.bidding_person_name)"
           + "       as bidding_leader_name,"
-          + "     f.amount, f.payment_date,"
-          + "     pid.deposit_payment_method, f.return_to as payee_name,"
-          + "     NULL as payee_account, f.fee_date as exp_return_date,"
-          + "     CASE WHEN f.status='RETURNED' THEN f.amount ELSE NULL END"
-          + "       as returned_amount,"
-          + "     NULL as service_fee_amount, f.return_date as actual_return_date,"
+          + "     f.amount,"
+          + "     COALESCE(CAST(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.actualPaymentDate')), 1, 10) AS DATETIME), f.payment_date) as payment_date,"
+          + "     pid.deposit_payment_method,"
+          + "     COALESCE(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.payee')), f.return_to) as payee_name,"
+          + "     JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.payeeAccount')) as payee_account,"
+          + "     COALESCE(CAST(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.expectedRefundDate')), 1, 10) AS DATETIME), f.fee_date) as exp_return_date,"
+          + "     CASE"
+          + "       WHEN pc.deposit_return_status = 'FULLY_RETURNED' THEN f.amount"
+          + "       WHEN pc.deposit_return_status = 'PARTIAL_RETURN_PARTIAL_TRANSFER' THEN pc.returned_amount"
+          + "       ELSE NULL"
+          + "     END as returned_amount,"
+          + "     CASE"
+          + "       WHEN pc.deposit_return_status = 'FULLY_RETURNED' THEN NULL"
+          + "       WHEN pc.deposit_return_status IN ('TRANSFERRED_TO_FEE', 'PARTIAL_RETURN_PARTIAL_TRANSFER') THEN pc.transfer_amount"
+          + "       ELSE NULL"
+          + "     END as service_fee_amount,"
+          + "     pc.deposit_return_date as actual_return_date,"
           + "     f.status, f.created_at";
 
     /** 派生表 pid 分支 SELECT 列（listBase + countBase 共用）。 */
