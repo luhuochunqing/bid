@@ -19,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -400,6 +401,11 @@ class TenderEvaluationSubmissionServiceTest {
     @Test
     @DisplayName("CO-305 submit: 提交后将 tender.status 推进到 EVALUATED 并发布 TenderStatusChangedEvent")
     void submit_movesTenderStatusToEvaluated_andPublishesEvent() {
+        // CO-305: 验证 tender.status 被 service 推进到 EVALUATED + 事件被发布。
+        // 注意：service 实现依赖 JPA dirty check 自动落库，不显式调用 tenderRepository.save()，
+        // 所以无法用 ArgumentCaptor 捕获 save 入参。这里用 ArgumentCaptor 捕获事件，
+        // 验证事件中携带的 oldStatus / newStatus 是真正可信的"setStatus 发生了"证据，
+        // 而非依赖 mock 返回的同一 entity 引用 mutation。
         Tender pending = Tender.builder()
                 .id(TENDER_ID).title("测试标讯").status(Tender.Status.TRACKING).build();
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(pending));
@@ -409,9 +415,16 @@ class TenderEvaluationSubmissionServiceTest {
                 .thenAnswer(inv -> inv.getArgument(0));
         service.submit(TENDER_ID, fullValidRequest(), EVALUATOR_ID);
 
+        // 1. 验证 service 调用了 setStatus（mutation 副作用，这是 service 调用 setStatus 的证据）
         assertThat(pending.getStatus()).isEqualTo(Tender.Status.EVALUATED);
-        // CO-305: 验证 TenderStatusChangedEvent 被发布
-        verify(eventPublisher).publishEvent(any(TenderStatusChangedEvent.class));
+        // 2. ArgumentCaptor 加固：验证事件中 oldStatus=TRACKING / newStatus=EVALUATED
+        //    这是真正可信的"状态转换发生了"证据，不依赖 mock 引用 mutation
+        ArgumentCaptor<TenderStatusChangedEvent> evtCaptor =
+                ArgumentCaptor.forClass(TenderStatusChangedEvent.class);
+        verify(eventPublisher).publishEvent(evtCaptor.capture());
+        TenderStatusChangedEvent evt = evtCaptor.getValue();
+        assertThat(evt.oldStatus()).isEqualTo(Tender.Status.TRACKING);
+        assertThat(evt.newStatus()).isEqualTo(Tender.Status.EVALUATED);
     }
 
     @Test

@@ -151,13 +151,25 @@ class ProjectInitiationApprovalServiceTest {
 
     @Test
     void approve_shouldCreateArchiveExactlyOnce() {
-        ProjectInitiationDetails details = ProjectInitiationDetails.builder()
+        // 幂等性测试：第二次 approve 应被拒绝。
+        // 关键：第二次 findByProjectId 应返回"DB 已落库状态"（locked=true / APPROVED），
+        // 而非依赖 Mockito mock 返回同一引用的 mutation 副作用。
+        // 用 thenReturn(a).thenReturn(b) 链式 stub 显式区分两次返回，模拟 JPA 跨事务从 DB 重读最新状态。
+        ProjectInitiationDetails pendingDetails = ProjectInitiationDetails.builder()
                 .id(1L)
                 .projectId(100L)
                 .reviewStatus(InitiationReviewStatus.PENDING_REVIEW.name())
                 .locked(Boolean.FALSE)
                 .build();
-        when(initiationRepo.findByProjectId(100L)).thenReturn(Optional.of(details));
+        ProjectInitiationDetails approvedDetails = ProjectInitiationDetails.builder()
+                .id(1L)
+                .projectId(100L)
+                .reviewStatus(InitiationReviewStatus.APPROVED.name())
+                .locked(Boolean.TRUE)
+                .build();
+        when(initiationRepo.findByProjectId(100L))
+                .thenReturn(Optional.of(pendingDetails))
+                .thenReturn(Optional.of(approvedDetails));
         when(projectStageService.currentStage(100L)).thenReturn(ProjectStage.INITIATED);
         when(initiationRepo.save(any(ProjectInitiationDetails.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
