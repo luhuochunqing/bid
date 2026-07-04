@@ -65,8 +65,8 @@ const submitting = ref(false)
 const evaluationNotes = ref('')
 const evaluationDone = ref(false)
 
+// CO-495: 删除「评标中」选项——进入评标阶段即为评标中，无需作为可选状态
 const statusOptions = [
-  { label: '评标中', value: 'IN_PROGRESS' },
   { label: '评标结果已出，待上会', value: 'AWAITING_BOARD' },
   { label: '评标结果已出', value: 'RESULT_OUT' },
   { label: '评标结果公示', value: 'ANNOUNCED' }

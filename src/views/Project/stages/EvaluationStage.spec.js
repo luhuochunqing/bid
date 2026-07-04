@@ -199,3 +199,29 @@ describe('EvaluationStage 防复发：状态没变时不应调 /form 端点', ()
     expect(projectLifecycleApi.updateEvaluationForm).not.toHaveBeenCalled()
   })
 })
+
+// CO-495: 评标中阶段删除「评标中」选项
+describe('EvaluationStage 评标状态选项 - CO-495', () => {
+  beforeEach(() => {
+    mockUser.role = '/bidAdmin'
+    mockUser.menuPermissions = []
+  })
+
+  it('不渲染「评标中」选项', async () => {
+    const wrapper = await mountEvaluationStage()
+    const chips = wrapper.findAll('.status-chip')
+    const labels = chips.map(c => c.text())
+    expect(labels).not.toContain('评标中')
+  })
+
+  it('仍渲染其他 3 个评标状态选项', async () => {
+    const wrapper = await mountEvaluationStage()
+    const chips = wrapper.findAll('.status-chip')
+    const labels = chips.map(c => c.text())
+    expect(labels).toEqual([
+      '评标结果已出，待上会',
+      '评标结果已出',
+      '评标结果公示',
+    ])
+  })
+})
