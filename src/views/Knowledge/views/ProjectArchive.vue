@@ -90,7 +90,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { Files } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import httpClient from '@/api/client.js'
@@ -264,6 +264,7 @@ const handleDownloadFileByItem = async (row) => {
 }
 
 onMounted(() => { loadManagerOptions(); loadData() })
+watch(activeView, () => { loadData() })
 </script>
 
 <style scoped lang="scss">
