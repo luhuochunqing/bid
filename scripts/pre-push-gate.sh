@@ -56,12 +56,15 @@ GATE_BASE=$(git merge-base origin/main HEAD 2>/dev/null || echo origin/main)
 # 后端变更检测：无 backend/ 改动则跳过 3 个后端 mvn 架构测试（省 ~7 min JVM 启动+编译）。
 BACKEND_CHANGED=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -cE '^backend/' || true)
 
-# 合并 3 个后端架构测试为一次 mvn 调用（省 2 次 JVM 启动 + 重复编译），逐项结果从 surefire XML 读取以保留精度。
+# 合并 4 个后端架构测试为一次 mvn 调用（省 3 次 JVM 启动 + 重复编译），逐项结果从 surefire XML 读取以保留精度。
+# EntityTableMigrationCoverageTest（2026-07-04 CO-483/484 P0 事故 P2 守卫）：
+#   扫描所有 @Table 实体，验证有对应 CREATE TABLE 迁移且未误放 db/migration/。
+#   与 §3.7 互补：§3.7 拦 commit 范围内新增 V/B 文件误放，本测试全量扫描 @Table 实体。
 _BACKEND_MVN_RAN=""
 backend_mvn_run() {
   if [ -z "$_BACKEND_MVN_RAN" ]; then
     cd "$ROOT_DIR/backend"
-    mvn test -Dtest='ArchitectureTest,FlywayRollbackScriptCoverageTest,ResponsibilityArchitectureTest' -q >/dev/null 2>&1 || true
+    mvn test -Dtest='ArchitectureTest,FlywayRollbackScriptCoverageTest,EntityTableMigrationCoverageTest,ResponsibilityArchitectureTest' -q >/dev/null 2>&1 || true
     cd "$ROOT_DIR"
     _BACKEND_MVN_RAN=1
   fi
@@ -131,6 +134,25 @@ else
   fi
 fi
 
+# ── 2.5 @Table 实体建表迁移覆盖（CO-483/484 P0 事故 P2 守卫） ──
+# 工程背景（2026-07-04 第 40 次部署 P0 事故）：
+#   BidReviewAssignmentEntity 标了 @Table(name="bid_review_assignment")，
+#   但建表迁移 V123 被误放在 db/migration/（Flyway 不读），表从未创建，运行时 500。
+# 与 §3.7 互补：§3.7 拦 commit 范围内新增 V/B 文件误放目录；本测试全量扫描所有 @Table 实体。
+echo "── @Table 实体建表迁移覆盖 ──"
+if [ ! -d "$ROOT_DIR/backend" ]; then
+  skip "非 Java 项目"
+elif [ "${BACKEND_CHANGED:-0}" -eq 0 ]; then
+  skip "EntityTableMigrationCoverageTest（无 backend/ 变更）"
+else
+  backend_mvn_run
+  if surefire_failed EntityTableMigrationCoverageTest; then
+    fail "EntityTableMigrationCoverageTest — @Table 实体缺 CREATE TABLE 迁移，或迁移误放 db/migration/。修复：在 db/migration-mysql/ 创建 V<version>__create_<table>.sql，或将误放文件 git mv 到 migration-mysql/"
+  else
+    pass "EntityTableMigrationCoverageTest"
+  fi
+fi
+
 # ── 3. Flyway 版本号冲突检查 ─────────────────────────────
 # pre-push 模式下 check-flyway-versions.sh 会强制 auto-fix（无用户选择）
 echo "── Flyway 版本号 ──"
@@ -190,9 +212,12 @@ fi
 # 修复策略：在 pre-push-gate.sh 中也调用同一守卫，扫描 commit 范围（不仅是 staged）
 #   中的 V*.sql/B*.sql 是否误放在 db/migration/。
 # pre-push 通过 scripts/git 包装器在所有 worktree 都生效（不依赖 install-githooks.sh）。
+# 逃生阀：FLYWAY_ALLOW_LEGACY_DIR=1（仅限已记录豁免场景，需在 PR 描述说明理由）
 echo "── Flyway 迁移目录守卫 ──"
 LEGACY_DIR="$ROOT_DIR/backend/src/main/resources/db/migration"
-if [ ! -d "$LEGACY_DIR" ]; then
+if [ "${FLYWAY_ALLOW_LEGACY_DIR:-0}" = "1" ]; then
+  skip "Flyway 迁移目录守卫（FLYWAY_ALLOW_LEGACY_DIR=1 逃生阀）"
+elif [ ! -d "$LEGACY_DIR" ]; then
   skip "Flyway 迁移目录守卫（无 legacy 目录）"
 elif [ "${BACKEND_CHANGED:-0}" -eq 0 ]; then
   skip "Flyway 迁移目录守卫（无 backend/ 变更）"
