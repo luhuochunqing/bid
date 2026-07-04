@@ -87,6 +87,79 @@ npm run gitee:auto-merge                   # 自动合并已批准 PR
 - JPA 优先：后端存储必须通过 JPA 实体映射到 MySQL，禁止使用内存 Map 模拟。
 - 事务传播自检：涉及 `@Transactional` 的 PR 必须确认事务边界（见 ARCHITECTURE.md §事务边界三原则）。
 - **恢复被回退的代码，默认走 `git cherry-pick`，禁止手工重写**（详见下方「回退恢复纪律」）。
+- **P0 事故优先止血**：核心模块宕机时走「紧急修复通道（P0 Hotfix）」，30 分钟 SLA（详见下方章节）。
+
+## 紧急修复通道（P0 Hotfix）
+
+> 背景：2026-07-03 标讯中心宕机事故（lessons-learned §36），完整 14 道门禁 + Spec Kit 流程在 P0 场景下耗时过长。本章节定义 P0 事故的快速止血通道，**不替代正常流程**，只在 P0 判定通过时启用。
+
+### P0 判定标准
+
+| 级别 | 判定 | 示例 |
+|---|---|---|
+| **P0** | 核心模块不可用 / 数据丢失风险 / 安全漏洞 | 标讯中心列表打不开、审批流异常导致项目卡死 |
+| P1 | 单一功能不可用 / 性能严重退化 | 某个审批按钮报错、列表查询慢 |
+| P2 | 体验问题 / 非核心功能 | UI 错位、文案错误 |
+
+只有 **P0** 才走本通道。P1/P2 必须走正常 14 道门禁流程。
+
+### 30 分钟 SLA 流程
+
+```
+T0 ~ T+5min   止血决策
+  ├─ 能回滚？→ 走 ROLLBACK.md（dist/jar symlink，2-5 min）
+  └─ 不能回滚（新 bug 非回归）→ 启动 hotfix
+
+T+5 ~ T+15min  hotfix 分支
+  1. git checkout main && git pull
+  2. git checkout -b hotfix/<YYYYMMDD>-<issue-slug>
+  3. 改最小代码（只改触发 bug 的那行/那个方法）
+  4. 跑 npm run ci:local:quick（编译 + ArchUnit，~2min）
+  5. 写一个回归单测证明修复有效
+
+T+15 ~ T+20min 紧急合入
+  1. PRE_PUSH_GATE=0 git push -u origin hotfix/...
+  2. 创建 PR，标题前缀 [HOTFIX P0]
+  3. @reviewer 紧急 review（1 人即可）
+  4. 直接 merge to main（不等 auto-merge）
+
+T+20 ~ T+30min 紧急发布
+  1. 触发 .github/workflows/main-release.yml
+     或 ssh 到生产机跑 scripts/release/remote-deploy.sh
+  2. 跑 scripts/release/run-prod-smoke.mjs 验活
+  3. 确认 /actuator/health UP + 受影响模块可用
+```
+
+### 紧急通道合规边界
+
+`PRE_PUSH_GATE=0` 是**绕过门禁的唯一合规方式**，但有硬性边界：
+
+| 允许 | 禁止 |
+|---|---|
+| P0 判定通过的 hotfix/* 分支 | 非 P0 场景使用 |
+| 跳过 E2E / 前端 build / line-budget | 跳过 ArchUnit 架构守卫 |
+| 跳过 agent-locks 文件锁 | 跳过 Flyway 版本号检查 |
+| 1 人 review 即可合入 | 跳过 review 直接 push main |
+| 直接 merge to main | 跳过 prod-smoke 验活 |
+
+**ArchUnit 和 Flyway 检查必须在 ci:local:quick 阶段本地通过**——架构守卫和数据迁移安全不可妥协。
+
+### 事后补作业（7 工作日内）
+
+紧急通道不是"修完就走"，必须补完：
+
+- [ ] 补 RCA 文档（`docs/lessons/root-cause-analysis-<issue>.md`）
+- [ ] 补完整回归测试（不止 1 个紧急单测）
+- [ ] 补 ArchUnit 守卫（防止同类问题）
+- [ ] 更新 `docs/lessons/lessons-learned.md`
+- [ ] 复盘门禁为何漏过这个 bug（是测试覆盖盲区 / 架构守卫盲区 / 还是数据特征未预见）
+
+### 反模式（禁止）
+
+- ❌ "我赶时间，先 `PRE_PUSH_GATE=0` 推了再说" → 必须先做 P0 判定
+- ❌ "hotfix 分支跳过 ArchUnit 也行吧" → 架构守卫永远不可跳
+- ❌ "修完就完事" → 7 工作日内必须补作业
+- ❌ "P1 也走紧急通道吧" → 只有 P0 才能走
 
 ## 回退恢复纪律（cherry-pick 优先）
 
