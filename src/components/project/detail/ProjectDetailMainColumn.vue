@@ -1,6 +1,5 @@
 <template>
   <div class="main-content">
-    <ProjectBasicInfoCard :project="ctx.project" />
     <ProjectStageTimeline
       v-if="ctx.project?.id"
       ref="timelineRef"
@@ -8,6 +7,11 @@
       @stage-click="handleStageClick"
       @snapshot="handleSnapshot"
     />
+    <ProjectBasicInfoCard :project="ctx.project">
+      <template #actions>
+        <el-button v-if="ctx.canTransfer" :icon="Switch" @click="ctx.openTransfer">项目转移</el-button>
+      </template>
+    </ProjectBasicInfoCard>
 
     <div class="stage-tabs-container">
       <InitiationStage
@@ -121,7 +125,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { Clock } from '@element-plus/icons-vue'
+import { Clock, Switch } from '@element-plus/icons-vue'
 // import { Document, DocumentChecked, Folder, Upload } from '@element-plus/icons-vue' // 暂时隐藏项目文档
 import { useProjectDetailContext } from '@/composables/projectDetail/context.js'
 import { useProjectStore } from '@/stores/project'

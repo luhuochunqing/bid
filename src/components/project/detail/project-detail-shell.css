@@ -16,9 +16,9 @@
 }
 
 .page-header {
-  margin-bottom: var(--space-5, 20px);
+  margin-bottom: 12px;
   background: white;
-  padding: var(--space-4) var(--space-5, 20px);
+  padding: 10px var(--space-5, 20px);
   border-radius: var(--radius-md);
 }
 
