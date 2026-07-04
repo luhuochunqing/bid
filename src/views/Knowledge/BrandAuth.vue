@@ -1,10 +1,12 @@
 <template>
   <div class="brandauth-container">
-    <div class="page-header kb-page-header"><h2>品牌授权</h2></div>
-    <div class="tab-toolbar">
-      <el-button v-if="canManage" type="primary" @click="openCreate"><el-icon><Plus /></el-icon> {{ activeTab === 'agent' ? '新增代理商授权' : '新增原厂授权' }}</el-button>
-      <el-button v-if="canManage" @click="handleExport"><el-icon><Download /></el-icon> 导出 Excel</el-button>
-      <el-button v-if="canManage" type="success" @click="showImport"><el-icon><Upload /></el-icon> 批量导入</el-button>
+    <div class="page-header kb-page-header">
+      <h2>品牌授权</h2>
+      <div class="kb-header-actions">
+        <el-button v-if="canManage" type="primary" @click="openCreate"><el-icon><Plus /></el-icon> {{ activeTab === 'agent' ? '新增代理商授权' : '新增原厂授权' }}</el-button>
+        <el-button v-if="canManage" @click="handleExport"><el-icon><Download /></el-icon> 导出 Excel</el-button>
+        <el-button v-if="canManage" @click="showImport"><el-icon><Upload /></el-icon> 批量导入</el-button>
+      </div>
     </div>
     <el-tabs v-model="activeTab" @tab-change="onTabChange">
       <el-tab-pane label="原厂授权" name="manufacturer">
@@ -269,7 +271,6 @@ onMounted(loadData)
 
 <style scoped lang="scss">
 @use './_knowledge-utils' as *;
-.tab-toolbar { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin: 12px 0; }
 .pagination-wrap { display: flex; justify-content: flex-end; margin-top: 16px; }
 .revoked-tag { text-decoration: line-through; opacity: 0.6; }
 </style>
