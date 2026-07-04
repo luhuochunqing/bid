@@ -2,9 +2,12 @@
   <el-card class="info-card">
     <template #header>
       <div class="card-title">
-        <el-icon><InfoFilled /></el-icon>
-        <span>项目信息</span>
-        <el-tag v-if="tenderLoading" size="small" type="info" class="loading-tag">加载标讯...</el-tag>
+        <div class="title-left">
+          <el-icon><InfoFilled /></el-icon>
+          <span>项目信息</span>
+          <el-tag v-if="tenderLoading" size="small" type="info" class="loading-tag">加载标讯...</el-tag>
+        </div>
+        <slot name="actions"></slot>
       </div>
     </template>
 
@@ -109,10 +112,30 @@ watch(() => props.project?.tenderId, (tid) => {
 
 <style scoped>
 .info-card {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
+}
+
+.info-card :deep(.el-card__header) {
+  padding: 6px 12px;
+}
+
+.info-card :deep(.el-card__body) {
+  padding: 8px 12px;
+}
+
+.info-card :deep(.el-descriptions__cell) {
+  padding: 4px 10px;
+  font-size: 13px;
 }
 
 .card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.title-left {
   display: flex;
   align-items: center;
   gap: 8px;
