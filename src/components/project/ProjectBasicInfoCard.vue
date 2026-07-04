@@ -84,7 +84,6 @@ function priorityTagType(priority) {
 async function fetchTender(tenderId) {
   if (!tenderId) {
     tenderUnavailable.value = true
-    ElMessage.warning('该项目未关联标讯，联系人信息暂不可用')
     return
   }
   tenderLoading.value = true
@@ -95,7 +94,11 @@ async function fetchTender(tenderId) {
   } catch (e) {
     console.warn('[ProjectBasicInfoCard] fetch tender failed', e)
     tenderUnavailable.value = true
-    ElMessage.warning('标讯数据加载失败，联系人及标讯信息暂不可用')
+    if (e?.response?.status === 404) {
+      ElMessage.info(`关联标讯（ID: ${tenderId}）已被删除或不存在，标讯联系人信息暂不可用`)
+    } else {
+      ElMessage.warning('标讯数据加载失败，联系人及标讯信息暂不可用')
+    }
   } finally {
     tenderLoading.value = false
   }
@@ -105,7 +108,6 @@ watch(() => props.project?.tenderId, (tid) => {
   if (tid) fetchTender(tid)
   else {
     tenderUnavailable.value = true
-    ElMessage.warning('该项目未关联标讯，联系人信息暂不可用')
   }
 }, { immediate: true })
 </script>
