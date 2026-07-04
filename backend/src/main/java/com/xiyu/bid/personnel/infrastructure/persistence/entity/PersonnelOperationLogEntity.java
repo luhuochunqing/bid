@@ -26,7 +26,7 @@ public class PersonnelOperationLogEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "personnel_id", nullable = false)
+    @Column(name = "personnel_id", nullable = true)
     private Long personnelId;
 
     @Column(name = "operator_id", nullable = false)
