@@ -7,36 +7,38 @@
         <el-button type="success" @click="$emit('download-package')">下载文件包</el-button>
       </div>
     </div>
-    <el-table :data="displayFiles" border stripe class="mt-2">
-      <el-table-column type="index" label="序号" width="110" align="center" />
-      <el-table-column prop="fileName" label="文件名" min-width="220">
+    <el-table :data="displayFiles" border stripe class="mt-2 archive-file-table">
+      <el-table-column type="index" label="序号" width="60" align="center" />
+      <el-table-column prop="fileName" label="文件名" min-width="180">
         <template #default="{ row }">
           <div class="file-name-cell">
             <el-icon class="file-icon" :class="getFileIconClass(row.fileName)">
               <Document />
             </el-icon>
-            <span>{{ row.fileName || '未命名归档文件' }}</span>
+            <span class="file-name-text">{{ row.fileName || '未命名归档文件' }}</span>
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="category" label="文档分类" width="120" align="center">
+      <el-table-column prop="category" label="文档分类" width="90" align="center">
         <template #default="{ row }">
-          <el-tag :type="getDocumentCategoryTagType(row.category)">{{ getDocumentCategoryLabel(row.category) }}</el-tag>
+          <el-tag size="small" :type="getDocumentCategoryTagType(row.category)">{{ getDocumentCategoryLabel(row.category) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="uploadUser" label="上传人" width="160" align="center" show-overflow-tooltip>
+      <el-table-column prop="uploadUser" label="上传人" width="90" align="center" show-overflow-tooltip>
         <template #default="{ row }">{{ row.uploadUser || '-' }}</template>
       </el-table-column>
-      <el-table-column prop="uploadedAt" label="上传时间" width="160" align="center">
+      <el-table-column prop="uploadedAt" label="上传时间" width="150" align="center">
         <template #default="{ row }">{{ formatDateTime(row.uploadedAt) }}</template>
       </el-table-column>
-      <el-table-column prop="fileSize" label="文件大小" width="100" align="center">
+      <el-table-column prop="fileSize" label="大小" width="80" align="center">
         <template #default="{ row }">{{ formatFileSize(row.fileSize) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="140" align="center" fixed="right">
+      <el-table-column label="操作" width="120" align="center" fixed="right">
         <template #default="{ row }">
-          <el-button type="primary" link @click="$emit('preview', row)">预览</el-button>
-          <el-button type="success" link @click="$emit('download', row)">下载</el-button>
+          <div class="action-row">
+            <el-button type="primary" link size="small" @click="$emit('preview', row)">预览</el-button>
+            <el-button type="success" link size="small" @click="$emit('download', row)">下载</el-button>
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -74,11 +76,25 @@ const displayFiles = computed(() => {
   color: var(--el-text-color-secondary);
   margin-left: 8px;
 }
+.action-row { display: flex; justify-content: center; align-items: center; gap: 4px; flex-wrap: nowrap; }
 
 .file-name-cell {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.file-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.archive-file-table {
+  :deep(.el-table__cell) {
+    padding: 6px 8px;
+  }
+  :deep(.el-table th.el-table__cell) {
+    padding: 8px;
+  }
 }
 
 .file-icon {
