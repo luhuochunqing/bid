@@ -59,8 +59,8 @@ public class BidReviewAppService {
     private final ProjectNotificationService projectNotificationService;
 
     /**
-     * 提交标书审核（CO-484 多人审核）。
-     * 校验：人数 1-2、去重、不含 submittedBy / 项目经理 / 团队成员 / primaryLead / secondaryLead。
+     * 提交标书审核（CO-484 v2 多人审核）。
+     * 校验：人数 1-3、去重、不含 submittedBy；必须含项目经理；不得选 primaryLead / 团队成员；辅助人员解禁。
      */
     @Auditable(action = "SUBMIT_BID_REVIEW", entityType = "BidDocumentReview",
             description = "提交标书审核")
@@ -75,11 +75,11 @@ public class BidReviewAppService {
             throw toResponseStatus(decision);
         }
 
-        // 校验审核人是否参与了本项目（每个 reviewerId 都校验）
+        // CO-484 v2：审核人组成校验（含项目经理、排除 primaryLead/团队成员、辅助人员解禁）
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "项目不存在"));
         ProjectLeadAssignment lead = leadAssignmentRepository.findByProjectId(projectId).orElse(null);
-        BidReviewReviewerValidator.validateReviewersNotProjectParticipants(reviewerIds, project, lead);
+        BidReviewReviewerValidator.validateReviewerComposition(reviewerIds, project, lead, submittedBy);
 
         BidDocumentReviewEntity review = existing.orElseGet(() -> BidDocumentReviewEntity.builder()
                 .projectId(projectId).build());

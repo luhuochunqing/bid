@@ -60,12 +60,12 @@
         :multiple="true"
         :initial-options="reviewerInitialOptions"
         :exclude-ids="reviewerExcludeIds"
-        placeholder="模糊搜索选择审核人（最多 2 人）"
+        placeholder="模糊搜索选择审核人（最多 3 人）"
         style="width:340px"
         clearable
       />
       <span v-if="perm.canSelectReviewer && reviewState !== 'reviewing' && reviewState !== 'approved'" class="bid-reviewer-tip">
-        标书审核人不能选择自己，支持最多不超过2人，用逗号隔开。
+        标书审核人需包含项目负责人且不能选择自己，支持最多不超过3人。
       </span>
     </div>
 
@@ -149,7 +149,7 @@ const ctx = useProjectDetailContext()
 const { bidAgent } = ctx
 
 // bidReviewerIds/primaryLeadId/secondaryLeadId 需在 perm 之前定义
-// CO-484：bidReviewerIds 为数组（多人审核，最多 2 人）
+// CO-484 v2：bidReviewerIds 为数组（多人审核，最多 3 人）
 const bidReviewerIds = ref([])
 const bidReviewerId = computed(() => bidReviewerIds.value[0] || null) // 兼容 perm 旧引用
 const primaryLeadId = ref(null), secondaryLeadId = ref(null)
@@ -205,15 +205,14 @@ const reviewerProgressText = computed(() => {
   return `审核中（已通过 ${approved}/${total}）`
 })
 
-// 审核人候选排除项：当前用户/项目负责人/辅助人员/项目经理/团队成员（审核人不能选这些人，避免自己审自己）
+// CO-484 v2 审核人候选排除项：当前用户（不能选自己）/ 投标负责人 / 团队成员。
+// 项目经理（managerId）需包含在审核人中，不排除；投标辅助人员（secondaryLead）解禁可作审核人，不排除。
 const reviewerExcludeIds = computed(() => {
   const project = ctx.project?.value || {}
   const currentUid = ctx.userStore?.currentUser?.id
-  const managerId = project.managerId ? Number(project.managerId) : null
   const teamMembers = Array.isArray(project.teamMembers) ? project.teamMembers.map(Number) : []
   const primaryLeadId = project.primaryLeadUserId ? Number(project.primaryLeadUserId) : null
-  const secondaryLeadId = project.secondaryLeadUserId ? Number(project.secondaryLeadUserId) : null
-  return [currentUid, managerId, primaryLeadId, secondaryLeadId, ...teamMembers].filter(Boolean)
+  return [currentUid, primaryLeadId, ...teamMembers].filter(Boolean)
 })
 
 // CO-484：当前用户是否为该项目指定的审核人（多人场景下用 includes 判断）
@@ -329,12 +328,12 @@ async function loadBidFiles() {
 }
 
 async function submitBidForReview() {
-  // CO-484：审核人校验——至少 1 人，最多 2 人
+  // CO-484 v2：审核人校验——至少 1 人，最多 3 人（后端另校验需含项目经理）
   if (!bidReviewerIds.value || bidReviewerIds.value.length === 0) {
     return ElMessage.warning('请先选择标书审核人')
   }
-  if (bidReviewerIds.value.length > 2) {
-    return ElMessage.warning('标书审核人最多 2 人')
+  if (bidReviewerIds.value.length > 3) {
+    return ElMessage.warning('标书审核人最多 3 人')
   }
   submittingReview.value = true
   try {

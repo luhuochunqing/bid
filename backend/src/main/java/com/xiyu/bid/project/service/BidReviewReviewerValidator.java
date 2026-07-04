@@ -15,23 +15,25 @@ import java.util.Set;
 
 /**
  * 标书审核人入参校验工具。
- * <p>CO-483 + CO-484 多人审核校验规则：</p>
+ * <p>CO-484 v2（2026-07-04 评审中）多人审核校验规则：</p>
  * <ul>
- *   <li>人数 1-2、去重、不含 submittedBy</li>
- *   <li>不含项目经理 / 团队成员 / primaryLead / secondaryLead</li>
+ *   <li>人数 1-3、去重、不含 submittedBy</li>
+ *   <li>必须包含项目经理（project.managerId），且项目经理不能是提交人本人</li>
+ *   <li>不得选择投标负责人（primaryLead，与提交人同口径）或项目团队成员</li>
+ *   <li>投标辅助人员（secondaryLead）<b>可</b>作为审核人（v2 解禁）</li>
  * </ul>
  * <p>纯静态工具，无 Spring 依赖，便于单测与复用。</p>
  */
 final class BidReviewReviewerValidator {
 
-    /** CO-484 调整后需求：审核人最多 2 人。 */
-    static final int MAX_REVIEWERS = 2;
+    /** CO-484 v2：审核人最多 3 人。 */
+    static final int MAX_REVIEWERS = 3;
 
     private BidReviewReviewerValidator() {
     }
 
     /**
-     * 校验 reviewerIds 入参：人数 1-2、去重、不含 submittedBy。
+     * 校验 reviewerIds 入参：人数 1-3、去重、不含 submittedBy。
      */
     static void validateReviewerIds(Collection<Long> reviewerIds, Long submittedBy) {
         if (reviewerIds == null || reviewerIds.isEmpty()) {
@@ -51,24 +53,38 @@ final class BidReviewReviewerValidator {
     }
 
     /**
-     * CO-483 排除范围校验：审核人不得是项目经理 / 团队成员 / primaryLead / secondaryLead。
+     * CO-484 v2 审核人组成校验：
+     * <ul>
+     *   <li>必须包含项目经理（project.managerId），且项目经理不能是 submittedBy</li>
+     *   <li>不得选择投标负责人（primaryLead）或项目团队成员</li>
+     *   <li>投标辅助人员（secondaryLead）允许，不再排除</li>
+     * </ul>
      */
-    static void validateReviewersNotProjectParticipants(Collection<Long> reviewerIds,
-                                                         Project project,
-                                                         ProjectLeadAssignment lead) {
-        Set<Long> participantIds = new LinkedHashSet<>();
-        if (project.getManagerId() != null) participantIds.add(project.getManagerId());
-        if (project.getTeamMembers() != null) participantIds.addAll(project.getTeamMembers());
-
-        if (lead != null) {
-            if (lead.getPrimaryLeadUserId() != null) participantIds.add(lead.getPrimaryLeadUserId());
-            if (lead.getSecondaryLeadUserId() != null) participantIds.add(lead.getSecondaryLeadUserId());
+    static void validateReviewerComposition(Collection<Long> reviewerIds,
+                                             Project project,
+                                             ProjectLeadAssignment lead,
+                                             Long submittedBy) {
+        Long managerId = project.getManagerId();
+        if (managerId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "项目未指定项目经理，无法提交审核");
+        }
+        if (managerId.equals(submittedBy)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "项目经理为提交人本人，审核人需包含项目经理且不能选择自己，存在冲突");
+        }
+        if (!reviewerIds.contains(managerId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "标书审核人需包含项目负责人（项目经理）");
         }
 
+        Set<Long> excluded = new LinkedHashSet<>();
+        if (project.getTeamMembers() != null) excluded.addAll(project.getTeamMembers());
+        if (lead != null && lead.getPrimaryLeadUserId() != null) {
+            excluded.add(lead.getPrimaryLeadUserId());
+        }
         for (Long rid : reviewerIds) {
-            if (participantIds.contains(rid)) {
+            if (excluded.contains(rid)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "标书审核人必须是未参与本项目的人员（含投标负责人/辅助人员）");
+                        "标书审核人不能选择投标负责人或项目团队成员");
             }
         }
     }

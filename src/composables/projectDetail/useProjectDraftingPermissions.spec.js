@@ -51,10 +51,23 @@ function computeCanReviewBid(opts = {}) {
     && String(opts.reviewerId) === String(opts.currentUserId))
 }
 
+// 对齐 useProjectDraftingPermissions.js 中 isPrimaryLeadMatch 的完整逻辑
+// CO-499：仅匹配 primaryLeadId，不含 secondaryLeadId（投标辅助人员只读）
+function computeIsPrimaryLeadMatch(role, opts = {}) {
+  const group = resolveDraftingRoleGroup(role)
+  if (group !== 'lead_assist') return false
+  if (!opts.currentUserId) return false
+  const uid = String(opts.currentUserId)
+  const primaryLeadId = opts.primaryLeadId != null ? String(opts.primaryLeadId) : null
+  return !!(primaryLeadId && primaryLeadId === uid)
+}
+
 // 对齐 useProjectDraftingPermissions.js 中 canSubmitBidForReview 的完整逻辑
-// CO-355：与 canSubmitBid 同口径——admin_lead 直通，lead_assist 需匹配项目级 lead
+// CO-484 v2：取消投标辅助人员提交审核权限——admin_lead 直通，lead_assist 仅 primaryLead 匹配
 function computeCanSubmitBidForReview(role, opts = {}) {
-  return computeCanSubmitBid(role, opts)
+  const group = resolveDraftingRoleGroup(role)
+  if (group === 'admin_lead') return true
+  return computeIsPrimaryLeadMatch(role, opts)
 }
 
 // CO-383: canDeleteDocument 改为纯函数 canDeleteDocumentAs（从 composable import）
@@ -158,7 +171,7 @@ describe('canReviewBid — 审核投标权限（基于指派审核人，与角�
   })
 })
 
-describe('canSubmitBidForReview — 提交投标审核权限（CO-355：对齐 canSubmitBid 的 lead 匹配）', () => {
+describe('canSubmitBidForReview — 提交投标审核权限（CO-484 v2：取消辅助人员，仅 primaryLead 可提交）', () => {
   it.each([
     ['admin', true],
     ['/bidAdmin', true],
@@ -174,8 +187,11 @@ describe('canSubmitBidForReview — 提交投标审核权限（CO-355：对齐 c
   it('bid-projectLeader 非 primaryLead → false', () => {
     expect(computeCanSubmitBidForReview('bid-projectLeader', { currentUserId: 99, primaryLeadId: 10 })).toBe(false)
   })
-  it('bid-Team 匹配 secondaryLead → true', () => {
-    expect(computeCanSubmitBidForReview('bid-Team', { currentUserId: 20, primaryLeadId: 10, secondaryLeadId: 20 })).toBe(true)
+  it('bid-Team 匹配 primaryLead → true', () => {
+    expect(computeCanSubmitBidForReview('bid-Team', { currentUserId: 10, primaryLeadId: 10, secondaryLeadId: 20 })).toBe(true)
+  })
+  it('CO-484 v2：bid-Team 仅匹配 secondaryLead → false（辅助人员不可提交审核）', () => {
+    expect(computeCanSubmitBidForReview('bid-Team', { currentUserId: 20, primaryLeadId: 10, secondaryLeadId: 20 })).toBe(false)
   })
   it('bid-Team 都不匹配 → false', () => {
     expect(computeCanSubmitBidForReview('bid-Team', { currentUserId: 99, primaryLeadId: 10, secondaryLeadId: 20 })).toBe(false)
@@ -370,8 +386,11 @@ describe('CO-355: reactive(composable) 真实调用（解包 + 项目级 lead �
   it('匹配 primaryLead 的 bid-projectLeader：canSubmitBidForReview 为 true', () => {
     expect(permWith('bid-projectLeader', { primaryLeadId: 1, currentUserId: 1 }).canSubmitBidForReview).toBe(true)
   })
-  it('匹配 secondaryLead 的 bid-Team：canSubmitBidForReview 为 true', () => {
-    expect(permWith('bid-Team', { primaryLeadId: 999, secondaryLeadId: 1, currentUserId: 1 }).canSubmitBidForReview).toBe(true)
+  it('CO-484 v2：匹配 secondaryLead 的 bid-Team：canSubmitBidForReview 为 false（辅助人员不可提交审核）', () => {
+    expect(permWith('bid-Team', { primaryLeadId: 999, secondaryLeadId: 1, currentUserId: 1 }).canSubmitBidForReview).toBe(false)
+  })
+  it('CO-484 v2：匹配 primaryLead 的 bid-Team：canSubmitBidForReview 为 true', () => {
+    expect(permWith('bid-Team', { primaryLeadId: 1, secondaryLeadId: 999, currentUserId: 1 }).canSubmitBidForReview).toBe(true)
   })
   it('admin：canSubmitBidForReview 为 true（不依赖 lead 匹配）', () => {
     expect(permWith('admin', { primaryLeadId: 999, currentUserId: 1 }).canSubmitBidForReview).toBe(true)

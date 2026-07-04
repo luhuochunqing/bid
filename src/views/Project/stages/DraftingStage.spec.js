@@ -120,13 +120,15 @@ describe('DraftingStage reviewerExcludeIds - CO-367', () => {
     expect(excludeIds).toContain(42)
   })
 
-  it('同时排除项目参与者（项目经理/团队成员/主副负责人）', async () => {
+  it('CO-484 v2：排除当前用户/投标负责人/团队成员（项目经理与辅助人员不再排除）', async () => {
     const wrapper = await mountDraftingStage()
     const picker = wrapper.findComponent({ name: 'UserPicker' })
     const excludeIds = picker.props('excludeIds')
-    // 项目参与者：1, 2, 3, 4 + 当前用户 42
-    expect(excludeIds).toEqual(expect.arrayContaining([1, 2, 3, 4, 42]))
-    expect(excludeIds.length).toBe(5)
+    // 排除：当前用户 42、投标负责人 3、团队成员 2（项目经理 1 需包含不排除、辅助人员 4 解禁不排除）
+    expect(excludeIds).toEqual(expect.arrayContaining([42, 3, 2]))
+    expect(excludeIds.length).toBe(3)
+    expect(excludeIds).not.toContain(1)
+    expect(excludeIds).not.toContain(4)
   })
 })
 
@@ -460,7 +462,7 @@ describe('DraftingStage 多人审核 + CO-483 驳回后清空 - CO-483/CO-484', 
     expect(alerts.length).toBeGreaterThanOrEqual(1)
   })
 
-  it('CO-484：审核中状态展示提示文案"标书审核人不能选择自己..."', async () => {
+  it('CO-484 v2：未提交审核时展示提示文案"需包含项目负责人...3人"', async () => {
     // reviewState=null 时（未提交审核），UserPicker 可见且提示文案应展示
     getDraftingMock.mockImplementation(() => Promise.resolve({ data: {} }))
     const wrapper = await mountDraftingStage()
@@ -468,8 +470,9 @@ describe('DraftingStage 多人审核 + CO-483 驳回后清空 - CO-483/CO-484', 
 
     const tip = wrapper.find('.bid-reviewer-tip')
     expect(tip.exists()).toBe(true)
-    expect(tip.text()).toContain('标书审核人不能选择自己')
-    expect(tip.text()).toContain('2人')
+    expect(tip.text()).toContain('需包含项目负责人')
+    expect(tip.text()).toContain('不能选择自己')
+    expect(tip.text()).toContain('3人')
   })
 
   it('CO-484：approved 状态不展示提示文案', async () => {
