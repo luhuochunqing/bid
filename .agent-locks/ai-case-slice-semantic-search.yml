@@ -1,0 +1,15 @@
+version: 1
+task: "ai-case-slice-semantic-search"
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql/V1135__create_bid_case_slice.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/claude/ai-case-slice-semantic-search"
+    expiresAt: "2026-07-05T10:10:30.665Z"
+    reason: "V1135 bid_case_slice 表创建迁移"
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1135__create_bid_case_slice.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/claude/ai-case-slice-semantic-search"
+    expiresAt: "2026-07-05T10:10:31.109Z"
+    reason: "U1135 bid_case_slice 回滚脚本"

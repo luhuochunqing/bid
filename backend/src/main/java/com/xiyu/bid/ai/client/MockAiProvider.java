@@ -273,6 +273,12 @@ public class MockAiProvider implements AiProvider {
     }
 
     @Override
+    public float[] embed(String text) {
+        log.debug("Mock AI embedding text length: {}", text != null ? text.length() : 0);
+        return new float[1024];
+    }
+
+    @Override
     public BidDocumentQualityAiPreviewDTO previewBidDocumentQuality(
             String documentContent, String tenderText) {
         log.info("Mock AI provider: previewBidDocumentQuality called - "

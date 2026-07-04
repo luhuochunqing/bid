@@ -60,6 +60,11 @@ public class OpenAiProvider implements AiProvider {
     private static final int MAX_BID_PREVIEW_CONTENT = 3000;
 
     @Override
+    public float[] embed(String text) {
+        throw new UnsupportedOperationException("OpenAiProvider does not support embeddings yet");
+    }
+
+    @Override
     public BidDocumentQualityAiPreviewDTO previewBidDocumentQuality(
             String documentContent, String tenderText) {
         String truncatedDoc = truncate(documentContent, MAX_BID_PREVIEW_CONTENT);

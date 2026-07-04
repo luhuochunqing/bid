@@ -611,5 +611,6 @@ sync-env.sh .
 - `specs/024-preauthorize-unification/plan.md`（消除 @PreAuthorize hasAnyRole 双轨制技术债）
 - `specs/025-fix-margin-filter/plan.md`（保证金看板状态筛选修复）
 - `specs/026-fix-project-detail-403-frontend/plan.md`（项目详情页 403 错误修复 + 前端权限入口校验）
-- `specs/027-tomap-defensive-collection/plan.md`（防御性 Collection 与优雅降级治理 — 本次任务，Constitution v2.0.0 Principle VII）
+- `specs/027-tomap-defensive-collection/plan.md`（防御性 Collection 与优雅降级治理 — Constitution v2.0.0 Principle VII）
+- `specs/028-ai-case-slice-semantic-search/plan.md`（AI 案例切片语义检索 — 历史投标文件章节切片入库 + 向量召回 + 精排推荐）
 <!-- SPECKIT END -->

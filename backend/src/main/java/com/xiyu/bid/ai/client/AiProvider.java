@@ -31,4 +31,12 @@ public interface AiProvider {
 
     BidDocumentQualityAiPreviewDTO previewBidDocumentQuality(
             String documentContent, String tenderText);
+
+    /**
+     * Generate a dense embedding vector for the given text.
+     *
+     * @param text The text to embed
+     * @return embedding vector as float array
+     */
+    float[] embed(String text);
 }

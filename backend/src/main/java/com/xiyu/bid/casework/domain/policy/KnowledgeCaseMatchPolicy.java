@@ -5,11 +5,9 @@ import com.xiyu.bid.casework.domain.model.KnowledgeCaseMatchScore;
 import com.xiyu.bid.casework.domain.model.KnowledgeCaseReadModel;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * 纯核心：KnowledgeCase 智能匹配评分策略。
@@ -58,28 +56,28 @@ public class KnowledgeCaseMatchPolicy {
         }
 
         // 2. 评分项类别一致
-        if (hasText(criteria.scoringCategory())
+        if (TextSimilarityPolicy.hasText(criteria.scoringCategory())
                 && criteria.scoringCategory().equalsIgnoreCase(candidate.getScoringCategory())) {
             score += CATEGORY_MATCH_SCORE;
             reasons.add("类别一致");
         }
 
         // 3. 项目类型一致
-        if (hasText(criteria.projectType())
+        if (TextSimilarityPolicy.hasText(criteria.projectType())
                 && criteria.projectType().equalsIgnoreCase(candidate.getProjectType())) {
             score += PROJECT_TYPE_MATCH_SCORE;
             reasons.add("项目类型一致");
         }
 
         // 4. 客户类型一致
-        if (hasText(criteria.customerType())
+        if (TextSimilarityPolicy.hasText(criteria.customerType())
                 && criteria.customerType().equalsIgnoreCase(candidate.getCustomerType())) {
             score += CUSTOMER_TYPE_MATCH_SCORE;
             reasons.add("客户类型一致");
         }
 
         // 5. 关键词命中
-        if (hasText(criteria.keyword())) {
+        if (TextSimilarityPolicy.hasText(criteria.keyword())) {
             int keywordScore = calculateKeywordOverlap(criteria.keyword(), candidate);
             if (keywordScore > 0) {
                 score += keywordScore;
@@ -119,46 +117,28 @@ public class KnowledgeCaseMatchPolicy {
     // ------------------------------------------------------------------
 
     private int calculateTitleSimilarity(String criteriaTitle, String caseTitle) {
-        if (!hasText(criteriaTitle) || !hasText(caseTitle)) {
+        if (!TextSimilarityPolicy.hasText(criteriaTitle) || !TextSimilarityPolicy.hasText(caseTitle)) {
             return 0;
         }
-        Set<String> criteriaTokens = tokenSet(criteriaTitle);
-        Set<String> caseTokens = tokenSet(caseTitle);
-        if (criteriaTokens.isEmpty() || caseTokens.isEmpty()) {
-            return 0;
-        }
-
-        int intersection = 0;
-        for (String token : criteriaTokens) {
-            if (caseTokens.contains(token)) {
-                intersection++;
-            }
-        }
-
-        int union = criteriaTokens.size() + caseTokens.size() - intersection;
-        if (union == 0) {
-            return 0;
-        }
-
-        double jaccard = (double) intersection / union;
+        double jaccard = TextSimilarityPolicy.jaccardSimilarityOfText(criteriaTitle, caseTitle);
         return (int) Math.round(jaccard * MAX_TITLE_SCORE);
     }
 
     private int calculateKeywordOverlap(String keyword, KnowledgeCaseReadModel candidate) {
-        if (!hasText(keyword)) {
+        if (!TextSimilarityPolicy.hasText(keyword)) {
             return 0;
         }
         String kw = keyword.toLowerCase(Locale.ROOT);
         int score = 0;
-        if (hasText(candidate.getScoringPointTitle())
+        if (TextSimilarityPolicy.hasText(candidate.getScoringPointTitle())
                 && candidate.getScoringPointTitle().toLowerCase(Locale.ROOT).contains(kw)) {
             score += 10;
         }
-        if (hasText(candidate.getRequirementRaw())
+        if (TextSimilarityPolicy.hasText(candidate.getRequirementRaw())
                 && candidate.getRequirementRaw().toLowerCase(Locale.ROOT).contains(kw)) {
             score += 5;
         }
-        if (hasText(candidate.getResponseText())
+        if (TextSimilarityPolicy.hasText(candidate.getResponseText())
                 && candidate.getResponseText().toLowerCase(Locale.ROOT).contains(kw)) {
             score += 5;
         }
@@ -166,15 +146,15 @@ public class KnowledgeCaseMatchPolicy {
     }
 
     private String generateHighlightedText(String text, String keyword, String scoringTitle) {
-        if (!hasText(text)) {
+        if (!TextSimilarityPolicy.hasText(text)) {
             return text;
         }
         String result = text;
-        if (hasText(keyword)) {
+        if (TextSimilarityPolicy.hasText(keyword)) {
             result = highlightTerm(result, keyword, "<mark>");
         }
-        if (hasText(scoringTitle)) {
-            for (String token : tokenSet(scoringTitle)) {
+        if (TextSimilarityPolicy.hasText(scoringTitle)) {
+            for (String token : TextSimilarityPolicy.tokenize(scoringTitle)) {
                 if (token.length() >= 2) {
                     result = highlightTerm(result, token, "<mark class=\"match-scoring\">");
                 }
@@ -197,17 +177,5 @@ public class KnowledgeCaseMatchPolicy {
         }
         sb.append(text.substring(last));
         return sb.toString();
-    }
-
-    private Set<String> tokenSet(String text) {
-        return Arrays.stream(text.split("\\s+|[，。、；：！？\"'（）【】]"))
-                .map(String::trim)
-                .filter(s -> s.length() >= 2)
-                .map(s -> s.toLowerCase(Locale.ROOT))
-                .collect(Collectors.toSet());
-    }
-
-    private boolean hasText(String s) {
-        return s != null && !s.isBlank();
     }
 }
