@@ -1,6 +1,13 @@
 <template>
   <div class="project-archive-container">
-    <el-card class="filter-card">
+    <div class="kb-page-header">
+      <h2>项目档案</h2>
+      <div class="kb-header-actions">
+        <el-button type="success" @click="handleExportExcel">导出台账</el-button>
+        <el-button type="warning" @click="handleExportZip">导出文件包</el-button>
+      </div>
+    </div>
+    <el-card class="filter-card kb-filter-card">
       <template #header>
         <div class="card-header-title"><el-icon><Files /></el-icon><span>项目档案台账</span></div>
       </template>
@@ -52,10 +59,8 @@
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch"><el-icon class="mr-1"><Search /></el-icon>查询</el-button>
-          <el-button @click="handleReset"><el-icon class="mr-1"><Refresh /></el-icon>重置</el-button>
-          <el-button type="success" @click="handleExportExcel">📊 导出台账</el-button>
-          <el-button type="warning" @click="handleExportZip">📦 导出文件包</el-button>
+          <el-button type="primary" @click="handleSearch">查询</el-button>
+          <el-button @click="handleReset">重置</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -107,7 +112,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { Files, Search, Refresh } from '@element-plus/icons-vue'
+import { Files } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import httpClient from '@/api/client.js'
 import FileCategoryPopover from '../components/FileCategoryPopover.vue'
@@ -262,5 +267,4 @@ onMounted(() => { loadManagerOptions(); loadData() })
 .custom-table { border-radius: 6px; overflow: hidden; --el-table-header-bg-color: var(--el-fill-color-light); }
 .clickable-tag { cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s ease; &:hover { transform: scale(1.05); background-color: var(--el-color-info-light-7); } }
 .pagination-container { display: flex; justify-content: flex-end; margin-top: 16px; }
-.mr-1 { margin-right: 4px; }
 </style>
