@@ -261,4 +261,49 @@ describe('ProjectDetailMainColumn', () => {
     // 核心断言：loadProjectWorkflowData 被调用，重新拉取了 tasks
     expect(loadProjectWorkflowData).toHaveBeenCalledWith(42)
   })
+
+  // CO-497: 复盘提交后即使 handleStageUpdated 抛异常，也要确保 tab 切换到 CLOSED（结项阶段）
+  it('onRetrospectiveSubmitted 即使 handleStageUpdated 抛异常也切换到 CLOSED tab', async () => {
+    const router = createTestRouter()
+    // mock loadProjectWorkflowData 抛异常 → handleStageUpdated 抛异常
+    const loadProjectWorkflowData = vi.fn().mockRejectedValue(new Error('网络错误'))
+
+    const timelineStub = {
+      name: 'ProjectStageTimeline',
+      emits: ['snapshot'],
+      template: '<button class="timeline-stub" @click="$emit(\'snapshot\', { currentStage: \'RETROSPECTIVE\', defaultOpenStage: \'RETROSPECTIVE\' })" />',
+    }
+
+    const wrapper = mount(ProjectDetailMainColumn, {
+      global: {
+        plugins: [router],
+        stubs: {
+          ...stubs,
+          ProjectStageTimeline: timelineStub,
+          RetrospectiveStage: { name: 'RetrospectiveStage', template: '<div class="retro-stub" />' },
+        },
+        provide: {
+          [projectDetailKey]: {
+            ...baseProvide[projectDetailKey],
+            project: { id: 42, tasks: [] },
+            loadProjectWorkflowData,
+          },
+        },
+      },
+    })
+
+    // 触发 timeline snapshot → activeStageTab = 'RETROSPECTIVE'
+    await wrapper.find('.timeline-stub').trigger('click')
+    await flushPromises()
+
+    // 触发 RetrospectiveStage 的 submitted 事件 → onRetrospectiveSubmitted
+    const retro = wrapper.findComponent({ name: 'RetrospectiveStage' })
+    expect(retro.exists()).toBe(true)
+    retro.vm.$emit('submitted')
+    await flushPromises()
+
+    // 核心断言：即使 loadProjectWorkflowData 抛异常，tab 也切换到 CLOSED（结项阶段）
+    const closure = wrapper.findComponent({ name: 'ClosureStage' })
+    expect(closure.exists()).toBe(true)
+  })
 })
