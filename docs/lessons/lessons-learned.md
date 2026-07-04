@@ -42,109 +42,6 @@ grep -R "proceedToBid" src/api src/views
 
 ---
 
-## 2. 前端热更新部署时不能只保留 index.html 引用的文件
-
-### 问题背景
-
-2026-06-19 部署前端更新时，清理旧 assets 脚本只保留了 `index.html` 直接引用的 7 个文件，但 Vite 入口 JS 通过动态 import() 引用了大量 chunk 文件（如 `expensePageShared-*.js`、`MainLayout-*.js` 等）。这些 chunk 被误删后，用户访问页面时报 404，页面白屏。
-
-### 经验教训
-
-| 问题 | 教训 | 规范 |
-|------|------|------|
-| 清理脚本只检查 index.html 引用 | Vite 动态 import 的 chunk 不在 index.html 中 | 前端部署必须保留完整 dist 目录 |
-| 先清理旧文件再部署新文件 | 清理和部署顺序错误 | 先部署新文件 → 验证通过 → 再清理旧版本 |
-| 缺少部署后验证 | 未检查动态 chunk 是否完整 | 部署后检查 assets 目录文件数是否与本地 dist 一致 |
-
-### 正确做法
-
-```bash
-# 方式 1：直接覆盖整个 dist 目录（推荐热更新）
-rm -rf /srv/www/xiyu-bid/*
-cp -R dist/. /srv/www/xiyu-bid/
-
-# 方式 2：版本化目录切换（推荐正式发布）
-ln -sfn /opt/xiyu-bid/releases/<hash>/frontend /srv/www/xiyu-bid
-```
-
-### 验证命令
-
-```bash
-# 本地 dist 文件数
-ls dist/assets/ | wc -l
-
-# 服务器文件数（应一致）
-ssh jetty@172.16.38.78 'ls /srv/www/xiyu-bid/assets/ | wc -l'
-```
-
-### 相关文档
-
-- `docs/lessons/root-cause-analysis-frontend-404.md` — 完整根因分析
-
----
-
-## 3. 字段必填性变更必须同步前后端校验策略
-
-### 问题背景
-
-CO-281 要求「提交立项时项目类型字段改为非必填」。后端 `InitiationFieldPolicy` 中 `projectType` 原本通过 `requireNotNull` 强制校验：
-
-```java
-// backend/src/main/java/com/xiyu/bid/project/core/InitiationFieldPolicy.java（修复前）
-requireNotNull("projectType", input.projectType(), missing);
-```
-
-前端表单已允许留空，但后端拒绝，导致提交立项 422。
-
-### 经验教训
-
-| 问题 | 教训 | 规范 |
-|------|------|------|
-| 后端校验策略未随产品需求及时调整 | 字段必填性变更必须同时修改后端校验规则 | 任何字段必填/可选变更，需同步检查 DTO、FieldPolicy、数据库约束 |
-| 缺少针对可选字段的边界测试 | 仅测「必填缺失拒绝」不够，还要测「为空允许通过」 | 字段必填性变更时，同步调整正例/反例测试 |
-
-### 正确做法
-
-```java
-// 修复后：从必填列表中移除 projectType
-requireText("ownerUnit", input.ownerUnit(), missing);
-requirePositive("expectedBidders", input.expectedBidders(), missing);
-requireNotNull("customerType", input.customerType(), missing);
-requirePositiveAmount("annualRevenue", input.annualRevenue(), missing);
-requireNotNull("bidOpenTime", input.bidOpenTime(), missing);
-requirePositive("ownerUserId", input.ownerUserId(), missing);
-requireText("departmentSnapshot", input.departmentSnapshot(), missing);
-```
-
-对应测试从反例改为正例：
-
-```java
-@Test
-void projectType_optional() {
-    var in = new InitiationFieldPolicy.InitiationInput("国网", 3, 12, null,
-            InitiationFieldPolicy.CustomerType.CENTRAL_SOE,
-            new BigDecimal("1"), null, LocalDateTime.now(), 1L, "部门",
-            new BigDecimal("1"), "汇票", "NO", null, null, null, null, null, null, null,
-            null, null, null, null, null, null, null, null, null);
-    assertTrue(InitiationFieldPolicy.validate(in).allowed());
-}
-```
-
-### 验证命令
-
-```bash
-# 运行立项字段策略测试
-cd backend
-mvn test -Dtest=InitiationFieldPolicyTest
-```
-
-### 相关文档
-
-- `docs/lessons/root-cause-analysis-co-279.md` — 同期立项相关根因分析
-- Issue: CO-281
-
----
-
 ## 4. 回滚 PR 前必须确认根因，避免回滚正确修复
 
 ### 问题背景
@@ -201,23 +98,6 @@ mvn test -Dtest=InitiationFieldPolicyTest
 
 ## 5. 部署期间并发部署导致 502：ShutdownHook 卡住 + jar 替换导致 NoClassDefFoundError
 
-### 问题背景
-
-2026-06-20 CO-280 修复部署后，用户报告"服务器端测试系统无法登录"，报错 `502 Bad Gateway`。排查发现：我在 14:59 部署了 `e6ea9a0cb-co280-proxy`，有人在 15:24:57 从 `172.16.86.222` 部署了新版本 `df340211-api8080-co282`。部署过程中 `systemctl restart` 触发 SIGTERM，ShutdownHook 卡住 1 分钟（jar 被替换导致 `NoClassDefFoundError`），systemd 超时 SIGKILL，新进程启动期间 Nginx 返回 502，持续约 1 分 30 秒。
-
-### 事故时间线
-
-| 时间 (CST) | 事件 | 影响 |
-|------------|------|------|
-| 14:59:34 | 我部署 `e6ea9a0cb-co280-proxy` | 服务正常 |
-| 15:24:57 | 有人从 `172.16.86.222` 部署 `df340211-api8080-co282` | 开始替换 jar |
-| 15:25:27 | 后端收到 SIGTERM，开始 ShutdownHook | 服务开始关闭 |
-| 15:25:27-15:26:27 | ShutdownHook 执行缓慢（1 分钟），出现大量 `NoClassDefFoundError` | 服务不可用 |
-| 15:26:28 | systemd 超时 SIGKILL，进程被强制终止 | 服务完全中断 |
-| 15:26:29 | systemd 自动重启，新进程启动 | 服务恢复中 |
-| 15:26:48 | 应用启动完成（19.679 秒） | 服务恢复 |
-| 15:27+ | readiness 一度 OUT_OF_SERVICE，现已恢复 UP | 502 消失 |
-
 ### 根因分析
 
 **直接原因**：部署期间 `systemctl restart` 触发服务重启，重启期间 Nginx 无法连接后端导致 502。
@@ -226,10 +106,7 @@ mvn test -Dtest=InitiationFieldPolicyTest
 
 1. **jar 被替换后 ShutdownHook 失效**：部署脚本先替换 jar 文件，再执行 `systemctl restart`。Spring Boot 的 ShutdownHook 在执行时需要加载类（Tomcat/Redis/Kafka 等），但此时 jar 已被替换，classloader 引用的类已变化，导致 `NoClassDefFoundError`，ShutdownHook 卡住。
 
-2. **systemd 超时 SIGKILL**：`TimeoutStopSec` 默认 90 秒，ShutdownHook 卡住 1 分钟后 systemd 发送 SIGKILL 强制终止。这会导致：
-   - 正在处理的请求被中断
-   - 数据库连接未正常关闭
-   - 缓存数据可能丢失
+2. **systemd 超时 SIGKILL**：`TimeoutStopSec` 默认 90 秒，ShutdownHook 卡住后 systemd 发送 SIGKILL 强制终止，可能导致正在处理的请求被中断、数据库连接未正常关闭、缓存数据丢失。
 
 3. **并发部署无锁机制**：多个 agent/人可以同时执行部署脚本，没有部署锁或互斥机制。
 
@@ -239,11 +116,11 @@ mvn test -Dtest=InitiationFieldPolicyTest
 |------|------|------|
 | 并发部署导致 502 | 部署期间不能并发部署 | 部署前确认没有其他人在部署，或引入部署锁 |
 | jar 替换后 ShutdownHook 失效 | 先停服务再替换 jar，不能先替换再 restart | 部署顺序：stop → 替换 jar → start |
-| ShutdownHook 卡住 1 分钟 | NoClassDefFoundError 导致 ShutdownHook 无法正常执行 | 避免在 ShutdownHook 中加载新类 |
+| ShutdownHook 卡住 | NoClassDefFoundError 导致 ShutdownHook 无法正常执行 | 避免在 ShutdownHook 中加载新类 |
 | systemd SIGKILL | 强制终止可能导致数据丢失 | 配置合理的 `TimeoutStopSec`，监控 ShutdownHook 执行时间 |
-| 502 持续 1 分 30 秒 | 服务重启期间 Nginx 无健康检查兜底 | Nginx 配置 `proxy_next_upstream` 或维护页面 |
+| 502 持续较久 | 服务重启期间 Nginx 无健康检查兜底 | Nginx 配置 `proxy_next_upstream` 或维护页面 |
 
-### 正确做法
+### 部署顺序 SOP（防复发核心）
 
 ```bash
 # 1. 部署前检查是否有其他部署在进行
@@ -258,52 +135,16 @@ sudo systemctl start xiyu-bid-backend
 # 3. 等待健康检查恢复
 for i in $(seq 1 30); do
   if curl -s http://127.0.0.1:8080/actuator/health | grep -q '"status":"UP"'; then
-    echo "Service is UP"
-    break
+    echo "Service is UP"; break
   fi
-  echo "Waiting for service... ($i/30)"
   sleep 5
 done
 
-# 4. 验证服务完全恢复
-curl -s http://127.0.0.1:8080/actuator/health
+# 4. 验证 readiness 也恢复
 curl -s http://127.0.0.1:8080/actuator/health/readiness
 ```
 
-### systemd 配置优化建议
-
-```ini
-# /etc/systemd/system/xiyu-bid-backend.service
-[Service]
-# 给 ShutdownHook 足够时间优雅关闭
-TimeoutStopSec=120
-# 失败后自动重启，但避免频繁重启
-Restart=always
-RestartSec=10
-# 启动失败保护
-StartLimitIntervalSec=60
-StartLimitBurst=3
-```
-
-### Nginx 502 兜底配置
-
-```nginx
-# /etc/nginx/conf.d/xiyu-bid.conf
-location /api/ {
-    proxy_pass http://127.0.0.1:8080;
-    # 后端不可用时返回维护页面，而非 502
-    error_page 502 503 504 /maintenance.html;
-    # 健康检查（nginx-plus 或第三方模块）
-    # proxy_next_upstream off;  # 单实例部署，不要尝试下一个 upstream
-}
-
-location = /maintenance.html {
-    root /srv/www/xiyu-bid;
-    internal;
-}
-```
-
-### 部署协作规范（建议固化到 CLAUDE.md / RULES.md）
+### 部署协作规范
 
 1. **部署前确认无人正在部署**：检查 `systemctl status` 和最近部署日志，确认服务稳定运行后再开始部署。
 2. **部署顺序：stop → 替换 → start**：不能先替换 jar 再 `restart`，避免 ShutdownHook 因 jar 变化而失效。
@@ -311,41 +152,15 @@ location = /maintenance.html {
 4. **部署后通知团队**：在协作群通知"已部署版本 X，服务已恢复"，避免其他人误判 502 为故障。
 5. **502 排查第一步**：检查 `systemctl status` 和 `journalctl`，确认是否有人正在部署。
 
-### 502 排查命令
-
-```bash
-# 1. 检查服务状态（是否正在重启）
-sudo systemctl status xiyu-bid-backend
-
-# 2. 检查最近部署日志（是否有人刚部署）
-sudo journalctl -u xiyu-bid-backend --since "10 minutes ago" | grep -iE 'SIGTERM|SIGKILL|Started|Stopped|deploy'
-
-# 3. 检查部署历史（是否并发部署）
-ls -lt /opt/xiyu-bid/backups/ | head -5
-cat /opt/xiyu-bid/deployed-release.json
-
-# 4. 检查健康检查
-curl -s http://127.0.0.1:8080/actuator/health
-curl -s http://127.0.0.1:8080/actuator/health/readiness
-
-# 5. 检查 Nginx 错误日志
-sudo tail -20 /var/log/nginx/error.log
-```
-
 ### 相关文档
 
 - `scripts/release/remote-deploy.sh` — 远程部署脚本
 - `scripts/release/package-release.sh` — 打包脚本
 - `/etc/systemd/system/xiyu-bid-backend.service` — systemd 服务配置
-- `/etc/nginx/conf.d/xiyu-bid.conf` — Nginx 配置
 
 ---
 
 ## 6. 部署后配置未生效的排查方法论
-
-### 问题背景
-
-PR #888 修改了 OSS 同步员工的默认密码逻辑，直接更新数据库后测试人员仍无法登录。排查过程涉及多个层面，最终发现是代码中的 `DEFAULT_PASSWORD_HASH` 本身无效，同时数据库更新时遭遇 shell 转义截断。
 
 ### 经验教训
 
@@ -355,11 +170,9 @@ PR #888 修改了 OSS 同步员工的默认密码逻辑，直接更新数据库�
 | 数据库 UPDATE 含 `$` 被 shell 截断 | 命令行执行 SQL 要注意特殊字符转义 | 含特殊字符的 SQL 必须使用文件方式执行 |
 | 硬编码的 BCrypt 哈希未验证有效性 | "看起来像"不等于"真的是" | 任何密码哈希必须通过 `matches()` 验证后才能入库 |
 
-### 操作规范（部署后验证清单）
+### 操作规范（部署后验证四层模型）
 
 ```
-部署后验证四层模型：
-
 Layer 1 — 代码层
   └─ 检查 jar 是否包含预期修改（javap / strings / jar tf）
   └─ 验证 class 文件修改时间是否新于部署时间
@@ -378,126 +191,10 @@ Layer 4 — 运行时层
   └─ 验证日志中的关键路径是否按预期执行
 ```
 
-### 正确做法：验证 jar 内容
-
-```bash
-# 验证 jar 是否包含新代码
-unzip -p app.jar BOOT-INF/classes/com/xiyu/bid/integration/organization/application/OrganizationUserSyncWriter.class | strings | grep "DEFAULT_PASSWORD_HASH"
-
-# 验证 AuthService 是否包含本地密码回退逻辑
-unzip -p app.jar BOOT-INF/classes/com/xiyu/bid/service/AuthService.class | strings | grep "isLocalPasswordValid"
-```
-
-### 正确做法：验证数据库
-
-```bash
-# 检查更新记录数
-mysql -h ... -e "SELECT COUNT(*) FROM winbid.users WHERE source = 'OSS'"
-
-# 检查密码长度（BCrypt 应为 60 字符）
-mysql -h ... -e "SELECT LENGTH(password) FROM winbid.users WHERE source = 'OSS' LIMIT 1"
-
-# 抽样验证密码值（注意：生产环境谨慎操作）
-mysql -h ... -e "SELECT SUBSTRING(password, 1, 7) FROM winbid.users WHERE source = 'OSS' LIMIT 1"
-# 期望输出：$2a$10$
-```
-
-### 正确做法：验证日志
-
-```bash
-# 查看服务启动日志
-sudo journalctl -u xiyu-bid-backend --since "10 minutes ago" | grep -E "ERROR|WARN|Started"
-
-# 查看认证相关日志
-sudo journalctl -u xiyu-bid-backend --since "10 minutes ago" | grep -i "password\|auth\|login"
-```
-
-### 正确做法：端到端验证
-
-```bash
-# 直接调用登录 API 验证
-curl -s -X POST http://172.16.38.78:8080/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"00444","password":"123456"}' | jq '.success'
-# 期望输出：true
-```
-
-### 验证命令
-
-```bash
-# 一键检查四层状态
-#!/bin/bash
-echo "=== Layer 1: 代码层 ==="
-jar tf /opt/xiyu-bid/shared/backend/app.jar | grep -E "OrganizationUserSyncWriter|AuthService"
-
-echo "=== Layer 2: 配置层 ==="
-grep -E "DB_HOST|DB_NAME" /etc/xiyu-bid/backend.env
-
-echo "=== Layer 3: 数据层 ==="
-mysql -h winbid-01.test.rds.ehsy.com -P3306 -u ea_bid -p'ra(D7np+Z' winbid \
-  -e "SELECT COUNT(*) as total, LENGTH(password) as pwd_len FROM winbid.users WHERE source = 'OSS' LIMIT 1"
-
-echo "=== Layer 4: 运行时层 ==="
-systemctl is-active xiyu-bid-backend
-journalctl -u xiyu-bid-backend --since "5 minutes ago" | tail -5
-```
-
 ### 相关文档
 
 - `docs/lessons/root-cause-analysis-bcrypt-invalid-hash.md` — 完整根因分析
 - `docs/lessons/shell-gotchas.md` — Shell 转义陷阱
-
----
-
-## 7. 模板录入视图与真实数据回显视图必须分离
-
-### 问题背景
-
-CO-282 中，客户信息矩阵历史上来自「固定 15 列 × 14 行」的人工录入模板；但外部/API 创建标讯详情页需要的是「真实传入多少客户信息就展示多少」。多轮修复已经解决后端保存、字段映射、EAV/flat 转换、外部角色显示，但前端 `CustomerInfoMatrix.mergeData()` 仍先生成 `CUSTOMER_INFO_ROWS` 固定 14 行，再过滤空行，导致接口返回 0 行时 UI 仍可能显示预设角色行。
-
-### 经验教训
-
-| 问题 | 教训 | 规范 |
-|------|------|------|
-| 历史模板被当作回显数据源 | 模板行是录入辅助，不是接口真实数据 | 回显组件不得无条件生成模板数据 |
-| 「生成后过滤」替代了根治 | 只要模板行有默认值/残留值，就可能重新显示 | 回显场景应从源头不生成模板行 |
-| 多轮修复只看数据链路 | 后端返回正确不代表前端展示正确 | 同时验证 API payload 与组件渲染结果 |
-
-### 正确做法
-
-```js
-// ✅ 回显模式：只展示真实传入数据
-function mergeData(incoming) {
-  if (!Array.isArray(incoming)) return []
-
-  return incoming
-    .filter(item => item?.roleKey)
-    .map(item => normalizeIncomingRow(item))
-    .filter(hasCustomerInfoValue)
-}
-```
-
-如果后续需要保留「人工录入固定 14 行模板」，应显式拆分模式，例如：
-
-```js
-// create/edit template mode: 可以生成 CUSTOMER_INFO_ROWS
-// external readonly/detail mode: 只能展示 incoming rows
-```
-
-### 验证命令
-
-```bash
-pnpm vitest run src/views/Bidding/detail/components/CustomerInfoMatrix.spec.js
-
-# 服务器真实数据验证：后端返回 0 行时，前端不能补 14 行
-curl -s -b /tmp/xiyu-cookie.txt \
-  http://localhost:18080/api/tenders/324/evaluation
-```
-
-### 相关文档
-
-- `docs/lessons/root-cause-analysis-co-282.md` — 完整根因分析
-- `docs/lessons/root-cause-analysis-co-266-co-267.md` — 客户信息字段名不一致的前序根因
 
 ---
 
@@ -753,15 +450,7 @@ mvn test -Dtest=TenderDeduplicationServiceTest,TenderCommandServiceTest,TenderIn
 
 > 来源：CO-301 部署排查（2026-06-22）
 
-### 问题背景
-
-代码已合入 main 并打包 jar 部署到服务器，但运行时仍返回旧文案。排查发现：
-1. 打包时 Maven 缓存了旧 class 文件，jar 中实际内容未更新
-2. 仅检查 jar 大小无法发现内容差异
-3. SSH 终端中文编码导致 javap 输出乱码，误判为旧版本
-4. 最终通过 `jar uf` 局部更新 class 文件解决
-
-### 经验教训
+### 经验教训（四原则）
 
 | 问题 | 教训 | 规范 |
 |------|------|------|
@@ -769,32 +458,6 @@ mvn test -Dtest=TenderDeduplicationServiceTest,TenderCommandServiceTest,TenderIn
 | Maven 缓存旧 class | `mvn package` 不一定触发重新编译 | **`mvn clean` 后重新打包**：确保使用最新编译结果，不要依赖增量编译 |
 | SSH 终端中文乱码 | `javap` 通过 SSH 显示中文常量为 `???` | **用 `xxd` 或字节比较验证**：不依赖终端中文显示，用 `xxd \| grep` 或 `diff <(xxd) <(xxd)` 比较字节 |
 | 重新打包整个 jar 耗时长 | 全量打包 + 上传 + 重启耗时大 | **用 `jar uf` 局部更新**：只更新修改的 class 文件，无需重新打包整个 jar |
-
-### 正确做法
-
-```bash
-# 1. 打包前先 clean
-cd backend && mvn clean compile spring-boot:repackage -DskipTests
-
-# 2. 验证 jar 中关键 class 的常量池
-unzip -p target/bid-poc-1.0.3.jar BOOT-INF/classes/com/xiyu/bid/exception/TenderDuplicateException.class \
-  | javap -v - 2>/dev/null | grep -A5 "Constant pool"
-# 应显示: #1 = String #2 // 投标管理系统该标讯已存在
-
-# 3. 服务器上验证（用 xxd 避免中文乱码）
-ssh jetty@server 'unzip -p /opt/xiyu-bid/shared/backend/app.jar \
-  BOOT-INF/classes/com/xiyu/bid/exception/TenderDuplicateException.class \
-  | xxd | grep -A2 "e68a 95"'  # "投" 的 UTF-8 字节
-
-# 4. 局部更新 jar（无需重新打包）
-jar uf app.jar \
-  BOOT-INF/classes/com/xiyu/bid/exception/TenderDuplicateException.class \
-  BOOT-INF/classes/com/xiyu/bid/integration/external/TenderIntegrationCommandService.class
-
-# 5. 字节级比较本地与服务器 jar 中的 class
-diff <(unzip -p local.jar BOOT-INF/classes/.../Foo.class | xxd) \
-     <(ssh server 'unzip -p remote.jar BOOT-INF/classes/.../Foo.class | xxd')
-```
 
 ### 防复发检查清单
 
@@ -813,26 +476,7 @@ diff <(unzip -p local.jar BOOT-INF/classes/.../Foo.class | xxd) \
 
 ## 14. @RequestScope Bean 与第三方 SDK 的 CacheBeanComponent.initCacheBean() 冲突导致应用启动失败
 
-### 问题背景
-
-2026-06-25 部署 `ffc1d09f-api8080` 时，后端服务启动失败。`systemctl restart` 后健康检查始终无法通过，Nginx 返回 502。最终回滚到上一稳定版本 `51b1c88c-api8080`。
-
-错误日志：
-
-```
-ScopeNotActiveException: Error creating bean with name 'scopedTarget.currentUserResolver':
-Scope 'request' is not active for the current thread; consider defining a scoped proxy
-for this bean if you intend to refer to it from a singleton
-
-Caused by: java.lang.IllegalStateException: No thread-bound request found
-  at org.springframework.web.context.request.RequestContextHolder.currentRequestAttributes
-  at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean
-  at org.springframework.beans.factory.support.DefaultListableBeanFactory.getBeansOfType
-  at com.ehsy.eventlibrary.clientsdk.service.component.CacheBeanComponent.initCacheBean
-  at com.ehsy.eventlibrary.clientsdk.service.callback.StartCallback.onApplicationEvent
-```
-
-### 根因分析
+### 根因
 
 **直接原因**：`CurrentUserResolver` 使用了 `@RequestScope` 注解，在 HTTP 请求线程外无法实例化。
 
@@ -842,8 +486,6 @@ Caused by: java.lang.IllegalStateException: No thread-bound request found
 3. `initCacheBean()` 内部调用 `applicationContext.getBeansOfType()` 扫描所有 bean
 4. Spring 尝试实例化 `@RequestScope` 的 `CurrentUserResolver`，但此时没有 request 上下文
 5. 抛出 `ScopeNotActiveException`，应用启动失败
-
-**引入时间**：commit `1404387b1` 新增 `CurrentUserResolver` 并标注 `@RequestScope`，之前服务器上 `XIYU_ORG_EVENT_SDK_ENABLED=true` 的环境中从未测试过该代码路径。
 
 ### 经验教训
 
@@ -856,20 +498,9 @@ Caused by: java.lang.IllegalStateException: No thread-bound request found
 
 ### 修复方案
 
-将 `CurrentUserResolver` 从 `@RequestScope` 改为普通单例 `@Component`：
+将 `CurrentUserResolver` 从 `@RequestScope` 改为普通单例 `@Component`，每次调用直接查询数据库（无缓存，避免 ThreadLocal 泄漏风险）：
 
 ```java
-// 修复前：@RequestScope 在非 HTTP 线程中无法实例化
-@Component
-@RequestScope
-@RequiredArgsConstructor
-public class CurrentUserResolver {
-    private User cachedUser;       // 请求级缓存由 Spring scope 管理
-    private boolean resolved;
-    // ...
-}
-
-// 修复后：单例，每次调用直接查询数据库
 @Component
 @RequiredArgsConstructor
 public class CurrentUserResolver {
@@ -885,7 +516,7 @@ public class CurrentUserResolver {
 }
 ```
 
-**为什么不使用 ThreadLocal 缓存**：Tomcat 线程池会复用线程，如果不在请求结束时清理 ThreadLocal，下一个请求可能拿到上一个用户的缓存数据，造成安全隐患。添加 `Filter` 来清理 ThreadLocal 又增加了复杂度和循环依赖风险。用户查询是走索引的简单查询，性能影响可忽略。
+**为什么不使用 ThreadLocal 缓存**：Tomcat 线程池会复用线程，如果不在请求结束时清理 ThreadLocal，下一个请求可能拿到上一个用户的缓存数据，造成安全隐患。用户查询是走索引的简单查询，性能影响可忽略。
 
 ### 防复发检查清单
 
@@ -893,21 +524,6 @@ public class CurrentUserResolver {
 - [ ] 如果必须使用非 singleton scope，评估是否与 SDK 的 `getBeansOfType()` 扫描冲突
 - [ ] 本地测试时启用生产环境的功能开关（如 `XIYU_ORG_EVENT_SDK_ENABLED=true`）
 - [ ] 部署失败时第一时间检查 `journalctl` 中的 `ScopeNotActiveException` 关键字
-
-### 验证命令
-
-```bash
-# 检查项目中是否有 @RequestScope Bean
-grep -rn "@RequestScope\|@Scope.*request" backend/src/main/java
-
-# 本地模拟生产环境启动（启用事件 SDK）
-JWT_SECRET="test" DB_PASSWORD="XiyuDB!2026" \
-XIYU_ORG_EVENT_SDK_ENABLED=true \
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
-
-# 服务器日志检查
-ssh jetty@172.16.38.78 'sudo journalctl -u xiyu-bid-backend --since "10 min ago" | grep -i "ScopeNotActive\|request.*scope"'
-```
 
 ### 相关文档
 
@@ -987,52 +603,6 @@ curl -fsS http://127.0.0.1:8080/actuator/health
 
 - `docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md` §12 — 回滚流程
 - `docs/release/ROLLBACK.md` — 回滚手册
-
----
-
-## 16. 前端同源部署模式：VITE_API_BASE_URL 设为空字符串
-
-### 问题背景
-
-2026-06-25 部署时，前端打包使用的 `VITE_API_BASE_URL` 值影响了前端与后端的通信模式。之前部署曾出现前端包指向 `127.0.0.1:18080`（本地开发地址），导致 CORS 错误。
-
-### 经验教训
-
-| 问题 | 教训 | 规范 |
-|------|------|------|
-| 前端包中 API 地址指向 `127.0.0.1:18080` | 本地开发默认值不应进入生产包 | 前后端同源部署时，`VITE_API_BASE_URL` 必须设为空字符串 |
-| 不理解同源模式 vs 跨域模式的区别 | 同源模式下前端走相对路径 `/api/`，Nginx 代理到后端 | 明确区分两种部署模式，按模式设置打包参数 |
-| `package-release.sh` 的 fallback 逻辑容易踩坑 | 未设 `VITE_API_BASE_URL` 时 fallback 到 `127.0.0.1:18080` | 用 `${VITE_API_BASE_URL+x}` 区分"未设"与"显式设为空" |
-
-### 两种部署模式
-
-| 模式 | `VITE_API_BASE_URL` | 适用场景 | 前端请求路径 |
-|------|------|------|------|
-| **同源**（推荐） | `""`（空字符串） | 前后端同一 Nginx 入口 | `/api/...` → Nginx 代理到 18080 |
-| **跨域** | `http://172.16.38.78:8080` | 前后端分离部署 | 完整 URL → 直接请求后端 |
-
-### 正确做法
-
-```bash
-# 同源部署（推荐）：VITE_API_BASE_URL 设为空
-export VITE_API_BASE_URL=""
-bash scripts/release/package-release.sh
-
-# 跨域部署：VITE_API_BASE_URL 设为后端公网地址
-export VITE_API_BASE_URL="http://172.16.38.78:8080"
-bash scripts/release/package-release.sh
-
-# 验证前端包中的 API 地址
-# 同源模式：不应包含 127.0.0.1 或具体 IP
-rg "127\.0\.0\.1|172\.16\.38\.78" .release/*/frontend/assets/*.js
-# 期望输出：无匹配
-```
-
-### 相关文档
-
-- `scripts/release/package-release.sh` — 打包脚本，含 `VITE_API_BASE_URL` 解析逻辑
-- `src/api/config.js` — 前端 API 配置，生产环境强制同源模式
-- `docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md` §4 — 本地打包规范
 
 ---
 
@@ -1255,107 +825,13 @@ grep -E "empty|null|blank|fallback" backend/src/test/java/com/xiyu/bid/webhook/d
 
 ---
 
-## 20. 分阶段修复的存量数据策略 + agent-finish-task.sh 锚点分支占用处理
-
-### 问题背景
-
-2026-06-26 修复"CRM 商机负责人被自动分配覆盖"问题时，bug 涉及三轮独立根因，分三个 PR（#1163/#1167/#1173/#1179）分阶段部署。每个 PR 部署后到下一 PR 部署前创建的数据，仍按旧逻辑落库，需要单独跑数据修复脚本。
-
-同时在收尾时执行 `agent-finish-task.sh --include-remote --yes`，报错 `fatal: 'agent/mimo-init' is already used by worktree at '/Users/user/xiyu/worktrees/gemini'`——`agent/mimo-init` 锚点分支被 gemini worktree 错误占用（历史遗留问题），脚本 Step 6 切换锚点分支失败。
-
-### 经验教训
-
-| 问题 | 教训 | 规范 |
-|------|------|------|
-| 分阶段修复部署后，期间新建数据仍按旧逻辑落库 | **每个 PR 部署后必须立即跑数据修复脚本**，覆盖"上一 PR 部署后到本 PR 部署前"的时间窗口 | 分阶段修复的每个 PR 都要在 PR 描述中列出"本 PR 部署后需跑的存量数据修复 SQL" |
-| 存量数据修复 SQL 直接在服务器执行 | **存量数据修复脚本不进 PR**，直接在服务器 DB 执行；PR 只负责修复代码逻辑 | 在 PR 描述中单独列出"存量数据修复"章节，附 SQL 脚本，部署后在服务器执行 |
-| agent-finish-task.sh 锚点分支被其他 worktree 占用 | **脚本切换锚点失败时 fallback 到 detached HEAD**，手动删除任务分支即可 | 遇到 `is already used by worktree` 报错时：`git checkout origin/main && git branch -D <任务分支>` |
-| 锚点分支被其他 worktree 错误占用是历史遗留问题 | **不在收尾任务中擅自处理其他 worktree 的问题**，单独开任务协调 | 发现 `agent/{name}-init` 被错误占用时，记录到 issues 但不擅自 checkout/branch -D |
-
-### 操作规范
-
-1. **分阶段修复的存量数据策略**：
-   - PR 部署后立即在服务器跑数据修复 SQL（覆盖"上一 PR 部署后到本 PR 部署前"窗口）
-   - 修复 SQL 不进 PR（PR 只改代码逻辑），但要在 PR 描述中列出
-   - 验证修复效果：DB 直查 `project_manager_id` 是否为正确的 User.id
-   - 同时验证"新建数据"是否按新逻辑落库（防止"修了代码但部署不到位"）
-
-2. **agent-finish-task.sh 锚点分支占用的 fallback**：
-   ```bash
-   # 报错：fatal: 'agent/mimo-init' is already used by worktree at '...'
-   # Fallback：
-   git checkout origin/main
-   git branch -D agent/<agent-name>/<task-name>
-   git push origin --delete agent/<agent-name>/<task-name>  # 远端分支（如还存在）
-   git fetch --prune origin
-   ```
-   不要试图 `git worktree remove` 其他 worktree，那是其他 agent 的工作区。
-
-3. **锚点分支被错误占用的根因排查**（单独开任务）：
-   ```bash
-   # 查看哪个 worktree 占用了哪个锚点分支
-   git worktree list
-   # 正确状态：每个 worktree 用自己的 agent/<name>-init 锚点
-   # 错误状态：gemini worktree 占用了 agent/mimo-init
-   # 修复方式：在占用的 worktree 内切回自己的锚点分支
-   ```
-
-### 验证命令
-
-```bash
-# 检查锚点分支占用情况
-git worktree list | grep -E "init"
-
-# 期望输出：每个 worktree 用自己的 init 分支
-# /Users/user/xiyu/worktrees/mimo  xxx [agent/mimo-init]
-# /Users/user/xiyu/worktrees/gemini xxx [agent/gemini-init]
-# ...
-
-# 异常输出：worktree 名与 init 分支名不匹配
-# /Users/user/xiyu/worktrees/gemini xxx [agent/mimo-init]  ← 错误
-```
-
-### 相关文档
-
-- `docs/lessons/root-cause-analysis-crm-leader-priority.md` — 完整根因分析
-- `scripts/agent-finish-task.sh` — 收尾脚本（Step 6 切换锚点分支）
-- PR #1179 — 本次修复的 PR
-
-
----
-
 ## 21. @EventListener(ApplicationReadyEvent) 阻塞主线程导致 readiness 延迟恢复 UP
 
-### 问题背景
-
-2026-06-27 第 8 次部署（`3bb444139`）后端重启后，`/actuator/health/readiness` 持续返回 **503 OUT_OF_SERVICE** 约 4 分钟（18:20 → 18:24），nginx 代理层报 502/503，前端无法访问 API。后端进程存活（liveness UP），所有基础设施健康检查 UP（db/redis/jwt/diskSpace），但 `readinessState` 迟迟不切换到 `ACCEPTING_TRAFFIC`。
-
-排查期间曾临时添加 `MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always` 到 `/etc/xiyu-bid/backend.env` 获取详情，确认所有组件 UP，唯独 `readinessState` OUT_OF_SERVICE。
-
-### 事故时间线
-
-| 时间 (CST) | 事件 | 影响 |
-|------------|------|------|
-| 18:17:41 | 后端进程启动（PID 5151） | 启动中 |
-| 18:20:16 | `/actuator/health/readiness` 返回 503 | readinessState 未切换 |
-| 18:22:03.419 | `OrganizationEventSdkKafkaStarter.onApplicationReady()` 开始执行 | 说明 `ApplicationReadyEvent` 已发布 |
-| 18:22:03.617 | Kafka consumer 启动成功（仅用 200ms） | SDK 初始化完成 |
-| 18:24:08 | `/actuator/health/readiness` 恢复 200 UP | readinessState 切换到 ACCEPTING_TRAFFIC |
-
-### 根因分析
+### 根因
 
 **直接原因**：`OrganizationEventSdkKafkaStarter` 使用 `@EventListener(ApplicationReadyEvent.class)` 监听 `ApplicationReadyEvent`，在主线程同步执行 SDK 初始化（`register()` + `initCacheBean()` + `KafkaProcessor.start()`）。Spring Boot 的 `ApplicationAvailabilityBean` 也通过 `@EventListener` 接收 `ApplicationReadyEvent` 来切换 `ReadinessState` 从 `REFUSING_TRAFFIC` 到 `ACCEPTING_TRAFFIC`。两者都在主线程同步执行，存在时序竞争。
 
-**触发链路**：
-1. Spring Boot 发布 `ApplicationReadyEvent`
-2. `OrganizationEventSdkKafkaStarter.onApplicationReady()` 在主线程开始执行（`@Order(Ordered.LOWEST_PRECEDENCE)`）
-3. 如果 `register()` / `initCacheBean()` / `KafkaProcessor.start()` 中任一步骤阻塞（如网络超时、Kafka broker 不可达），主线程被占用
-4. `ApplicationAvailabilityBean` 的 `@EventListener` 处理被延迟（即使其 order 优先级更高，但同步事件按顺序处理）
-5. `AvailabilityChangeEvent` 发布延迟 → `ReadinessState` 切换延迟 → readiness 持续 503
-
-**历史对照**：前一次启动（排查阶段）Kafka starter 阻塞了 2.5 分钟（18:10:48 → 18:13:23），导致 readiness 长时间 OUT_OF_SERVICE。本次启动 Kafka broker 已可达，SDK 初始化仅 200ms 完成，readiness 在 2 分钟内恢复。
-
-**关键矛盾点**：`@EventListener` 是同步的，即使 `OrganizationEventSdkKafkaStarter` 标注了 `@Order(Ordered.LOWEST_PRECEDENCE)`，它仍然在主线程执行。Spring Boot 的 `ApplicationAvailabilityBean` 的 order 是 `Ordered.LOWEST_PRECEDENCE - 1`（优先级更高），但同步事件的执行顺序是按 order 顺序处理，不是抢占式。如果 Kafka starter 在 `ApplicationAvailabilityBean` 之前执行，不会影响；但如果在之后执行，会阻塞后续事件。
+**关键矛盾点**：`@EventListener` 是同步的，即使 `OrganizationEventSdkKafkaStarter` 标注了 `@Order(Ordered.LOWEST_PRECEDENCE)`，它仍然在主线程执行。如果 `register()` / `initCacheBean()` / `KafkaProcessor.start()` 中任一步骤阻塞（如网络超时、Kafka broker 不可达），主线程被占用，`AvailabilityChangeEvent` 发布延迟 → `ReadinessState` 切换延迟 → readiness 持续 503。
 
 ### 经验教训
 
@@ -1363,29 +839,13 @@ git worktree list | grep -E "init"
 |------|------|------|
 | `@EventListener(ApplicationReadyEvent)` 在主线程同步执行 | **`@EventListener` 默认同步**，长时间任务会阻塞主线程 | 启动期耗时操作（SDK 初始化、网络调用）必须用 `@Async` 或独立线程池 |
 | readiness 持续 OUT_OF_SERVICE 但 liveness UP | **readiness 和 liveness 是独立状态机**，readiness 由 `ApplicationReadyEvent` 触发切换 | 排查 readiness 问题时，检查 `ApplicationReadyEvent` 是否被延迟发布 |
-| Kafka SDK 初始化阻塞 2.5 分钟 | **第三方 SDK 的网络调用不可控**，必须假设会超时 | 包装第三方 SDK 启动逻辑时，加超时 + 异步执行 |
+| Kafka SDK 初始化阻塞较久 | **第三方 SDK 的网络调用不可控**，必须假设会超时 | 包装第三方 SDK 启动逻辑时，加超时 + 异步执行 |
 | 临时修改生产配置排查问题 | **排查完必须清理临时配置** | 修改 `/etc/xiyu-bid/backend.env` 后记录到部署报告，部署完恢复 |
 | `@Order(Ordered.LOWEST_PRECEDENCE)` 不能解决阻塞 | **`@Order` 只决定顺序，不改变同步性** | 需要异步用 `@Async`，不是 `@Order` |
 
 ### 正确做法
 
 ```java
-// 修复前：同步执行，阻塞主线程
-@Component
-@ConditionalOnClass(name = "com.ehsy.eventlibrary.clientsdk.common.anno.AcceptEvent")
-@ConditionalOnProperty(prefix = "xiyu.integrations.organization.event-sdk", name = "enabled", havingValue = "true")
-public class OrganizationEventSdkKafkaStarter {
-
-    @EventListener(ApplicationReadyEvent.class)
-    @Order(Ordered.LOWEST_PRECEDENCE)
-    public void onApplicationReady() {
-        // 同步执行，阻塞主线程 → readiness 延迟切换
-        registerComponent.register();
-        cacheBean.initCacheBean();
-        kafkaProcessor.start();
-    }
-}
-
 // 修复后：异步执行，不阻塞主线程
 @Component
 @ConditionalOnClass(name = "com.ehsy.eventlibrary.clientsdk.common.anno.AcceptEvent")
@@ -1405,26 +865,6 @@ public class OrganizationEventSdkKafkaStarter {
         });
     }
 }
-```
-
-### 排查命令
-
-```bash
-# 1. 检查 readiness 状态（show-details 临时开启）
-curl -s http://127.0.0.1:8080/actuator/health/readiness | python3 -m json.tool
-
-# 2. 检查启动日志中 ApplicationReadyEvent 相关事件
-sudo journalctl -u xiyu-bid-backend --since "10 minutes ago" --no-pager | grep -E "ApplicationReadyEvent|AvailabilityChangeEvent|readiness|org-event-sdk-kafka"
-
-# 3. 确认是否是 @EventListener 阻塞
-# 如果日志显示 onApplicationReady() 执行时间 > 10秒，且 readiness 在其后恢复 UP，则确认是阻塞问题
-sudo journalctl -u xiyu-bid-backend --since "10 minutes ago" --no-pager | grep "org-event-sdk-kafka"
-
-# 4. 临时开启 show-details 排查（排查完必须恢复）
-# 编辑 /etc/xiyu-bid/backend.env，添加：
-# MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
-# sudo systemctl restart xiyu-bid-backend
-# 排查完后删除该行，重启恢复
 ```
 
 ### 防范措施
@@ -1447,15 +887,6 @@ sudo journalctl -u xiyu-bid-backend --since "10 minutes ago" --no-pager | grep "
 
 > 日期: 2026-06-28
 > 来源: CO-361 看板空白（PR #1270）/ 交付物重复渲染（PR #1271）
-> 排查者: zcode agent
-
-### 问题背景
-
-本次会话连续修了两个独立 bug，共同暴露了三个工程盲区：
-
-**Bug A — Dev 环境任务看板空白**：dev profile 启动后看板无列无卡片。根因是 `V101__task_status_dict.sql` 因版本号 101 低于 Flyway `baseline-version: 1050`（`baseline-on-migrate: true` 模式下低于 baseline 的迁移静默跳过），从未在 dev/prod 执行；表结构由 JPA ddl-auto 建出但无种子数据；唯一 seed 来源 `E2eDemoDataInitializer.seedTaskStatuses()` 又被 `@Profile("e2e")` 锁死，dev 不跑 → `task_status_dict` 永远空 → `/api/task-status-dict` 返回 `[]` → `columns=[]` → 看板空白。
-
-**Bug B — 交付物重复渲染**：只读模式下同一份已保存交付物同时出现在 `el-upload` 禁用条目（不可下载）和 `.deliverable-list` 可下载链接里。根因是 `useTaskDeliveryForm.rebuildFileList()` 把已保存 `deliverables` 也塞进了 `el-upload` 的 `file-list`，导致同一数据被两个 UI 容器同时消费。
 
 ### 经验教训
 
@@ -1466,30 +897,12 @@ sudo journalctl -u xiyu-bid-backend --since "10 minutes ago" --no-pager | grep "
 | `@Profile("e2e")` 把唯一 seed 来源锁死，dev profile 无数据 | profile 限定 + 唯一数据源 = 隐形空表 | 一个数据源被 `@Profile` 限定时，必须问"其他 profile 从哪获取这份数据"，答案为"没有"即潜在空表 |
 | 已保存交付物同时被 `el-upload` file-list 和 `.deliverable-list` 渲染 | UI 容器的数据源必须互斥，一个数据只能有一个"渲染责任人" | 已保存数据走展示容器（可下载链接），待上传数据走上传容器（el-upload），不可混用 file-list |
 
-### 操作规范（建议固化到 ARCHITECTURE.md / FRONTEND.md）
+### 操作规范
 
 1. **拿到外部诊断报告先复核**：报告中引用的迁移版本号、文件名、行号，必须用 `grep`/`ls` 自己验证一遍再动手修。
 2. **Flyway baseline 排查清单**：依赖某迁移脚本种子的功能，启动后若数据为空，先查 `flyway_schema_history` 表确认该版本是否真的执行过，而不是假设"文件在就跑过"。
 3. **@Profile 数据源审查**：新增 `@Profile` 限定的 seed/初始化逻辑时，必须在 PR 描述中列出"其他 profile 如何获取这份数据"，缺失即技术债登记。
 4. **UI 数据源互斥原则**：同一份数据只能由一个容器负责渲染。已保存数据与待上传数据必须走不同容器，禁止共用 `file-list`。
-
-### 验证命令
-
-```bash
-# 1. 验证诊断报告引用的迁移版本号是否真实存在
-ls backend/src/main/resources/db/migration-mysql/ | grep -E "V1223|V101"
-# V1223 应无输出（不存在）；V101 应存在
-
-# 2. 查 Flyway baseline 配置
-grep -n "baseline" backend/src/main/resources/application-mysql.yml
-# 确认 baseline-version，判断哪些迁移会被静默跳过
-
-# 3. 查表是否真的有种子数据
-mysql -e "SELECT COUNT(*) FROM xiyu_bid_main.task_status_dict"
-
-# 4. 检查 @Profile 限定的 seed 是否有 dev/prod 兜底
-grep -rn "@Profile" backend/src/main/java/com/xiyu/bid/config/ | grep -i "seed\|init"
-```
 
 ### 相关文档
 
@@ -1766,7 +1179,7 @@ CO-390 修复 AccountFormDialog 绑定联系人后，需要 UserPicker 选中联
 
 ---
 
-## 25. 迁移脚本之间不能互相覆盖（V1098 vs V1105 迁移漂移）
+## 27. 迁移脚本之间不能互相覆盖（V1098 vs V1105 迁移漂移）
 
 ### 问题背景
 
@@ -1819,7 +1232,7 @@ V1112 直接删除"【待立项】"TODO 占位任务，从源头解决问题。�
 
 ---
 
-## 27. OkHttp3 传递依赖导致 RestTemplate GET 请求全面失败
+## 28. OkHttp3 传递依赖导致 RestTemplate GET 请求全面失败
 
 ### 问题背景
 
@@ -1872,7 +1285,7 @@ curl -s http://127.0.0.1:18089/actuator/health | python3 -m json.tool
 
 ---
 
-## 28. 权限 Bug 必须审视同一业务动作的所有 UI 入口 + 前后端对称修复（CO-400 五轮 + CO-415 归纳）
+## 29. 权限 Bug 必须审视同一业务动作的所有 UI 入口 + 前后端对称修复（CO-400 五轮 + CO-415 归纳）
 
 ### 问题背景
 
@@ -1962,21 +1375,11 @@ cd backend && mvn -o test -Dtest='PlatformAccountServiceTest#returnAccount_bidTe
 - PR #1381（round5 + CO-415 对称修复，已合并）
 - `backend/src/main/java/com/xiyu/bid/platform/service/PlatformAccountViewerPolicy.java` — canReturnAccount/checkCanReturnAccount 纯静态 Policy
 
-## 29. 服务器字体缺失 + 多 Agent 并行修同一 bug 的协调教训（CO-438）
-
-### 问题背景
-
-Sentry 上报 `NullPointerException: Fontconfig head is null`，堆栈指向 POI `autoSizeColumn` → Java AWT 字体系统初始化失败。3 个 Agent 几乎同时提交了 PR，但策略各异，产生了重复劳动和危险改动。
-
-| PR | Agent | 策略 | 问题 |
-|---|---|---|---|
-| 1430 | Claude | 删 helper，全改固定列宽 | ① 丢失 autoSize 能力 ② 代码重复 ③ 混入 CO-430 无关改动 |
-| 1433 | Qoder | 删 helper，裸调 autoSizeColumn | **完全没有 try-catch**，比修之前更危险 |
-| 1432 | Cursor | 分支名/commit 写 excel-autosize | **实际改的是 Vue 导入对话框**，文不对题 |
+## 30. 服务器字体缺失 + 多 Agent 并行修同一 bug 的协调教训（CO-438）
 
 ### 根因
 
-**systemd 启动 Java 时未设 `-Djava.awt.headless=true`**。Java AWT 在无显示器 Linux 上不加 headless 会走 `X11FontManager`，fontconfig 加载失败后 `autoSizeColumn` 抛 NPE。
+**systemd 启动 Java 时未设 `-Djava.awt.headless=true`**。Java AWT 在无显示器 Linux 上不加 headless 会走 `X11FontManager`，fontconfig 加载失败后 POI `autoSizeColumn` 抛 `NullPointerException: Fontconfig head is null`。
 
 ### 经验教训
 
@@ -1985,9 +1388,9 @@ Sentry 上报 `NullPointerException: Fontconfig head is null`，堆栈指向 POI
 | systemd 缺 headless 参数 | 无显示器 Linux 服务器上 Java AWT 必须设 headless | systemd ExecStart 必须包含 `-Djava.awt.headless=true`；启动类加 `System.setProperty("java.awt.headless", "true")` 兜底 |
 | 删防御代码 ≠ 修 bug | try-catch 是防御性编程，删除后比不修更糟 | 禁止删除已有的异常兜底代码，除非确认根因已消除且兜底不再需要 |
 | 每列独立 try-catch 导致 Sentry 重复上报 | 首列失败后应跳过剩余 autoSize，避免重复触发失败 | autoSize 失败后设 flag，剩余列直接走 fallback |
-| 多 Agent 同时修同一 bug | 3 个 PR 互相冲突，策略不一致 | 开工前跑 `who-touches.sh`，指定一个 Agent 统一修复 |
-| 分支名/commit 与实际改动不符 | PR 1432 名为 excel-autosize 实改 Vue 对话框 | commit message 必须准确描述实际改动 |
-| 一个 PR 混入无关改动 | CO-430 路径修复和 Excel autoSize 混在一起 | 一个 PR 只做一件事 |
+| 多 Agent 同时修同一 bug | 多个 PR 互相冲突，策略不一致 | 开工前跑 `who-touches.sh`，指定一个 Agent 统一修复 |
+| 分支名/commit 与实际改动不符 | commit message 文不对题 | commit message 必须准确描述实际改动 |
+| 一个 PR 混入无关改动 | 多个无关 bug 混在一起 | 一个 PR 只做一件事 |
 
 ### 防复发措施
 
@@ -2002,7 +1405,7 @@ Sentry 上报 `NullPointerException: Fontconfig head is null`，堆栈指向 POI
 - `backend/src/main/java/com/xiyu/bid/XiyuBidApplication.java` — 启动类 headless 兜底
 - `backend/src/test/java/com/xiyu/bid/ArchitectureTest.java` — autoSizeColumn 禁止直接调用规则
 
-## 26. 角色权限定义必须同时覆盖前端导航权限和后端 API 权限（CO-439）
+## 31. 角色权限定义必须同时覆盖前端导航权限和后端 API 权限（CO-439）
 
 ### 问题背景
 
@@ -2039,7 +1442,7 @@ Sentry 上报 `NullPointerException: Fontconfig head is null`，堆栈指向 POI
 - `authNormalizer.js:22-42` — 父权限自动补全逻辑
 - `V1124__fix_co_439_admin_staff_navigation_permissions.sql` — 修复迁移
 
-## 30. REQUIRES_NEW + try-catch 反模式导致 UnexpectedRollbackException（CO-440）
+## 32. REQUIRES_NEW + try-catch 反模式导致 UnexpectedRollbackException（CO-440）
 
 ### 问题背景
 
@@ -2125,11 +1528,11 @@ Sentry 上报 `UnexpectedRollbackException: Transaction silently rolled back bec
 
 ---
 
-## 31. 审批接口契约不统一 + JS 默认参数陷阱导致 `Required request body is missing`（CO-459）
+## 33. 审批接口契约不统一 + JS 默认参数陷阱导致 `Required request body is missing`（CO-459）
 
 ### 问题背景
 
-CO-459 实现「CA 信息管理 - 我的申请 / 我的审批」功能后，在生产环境（`172.16.38.78`）验收时，投标管理员审批 CA 借用申请返回 400：
+CO-459 实现「CA 信息管理 - 我的申请 / 我的审批」功能后，在生产环境验收时，投标管理员审批 CA 借用申请返回 400：
 
 ```
 请求体格式错误: Required request body is missing: public ResponseEntity<CaBorrowApplicationDTO>
@@ -2138,57 +1541,15 @@ CaCertificateController.approve(Long, CaApprovalRequest, UserDetails)
 
 服务器日志铁证（traceId `68e838cb89714d4e9f518f774d81effc`，2026-07-02 09:17:41.943，400 + 9ms 返回）证明请求到达后端但反序列化失败。
 
-### 多重根因（流程性，非孤立 bug）
+### 根因（流程性，非孤立 bug）
 
-#### 根因 1：项目内审批接口存在四种契约风格，无统一规范
+1. **项目内审批接口存在四种契约风格，无统一规范**：立项用 `@Valid @RequestBody XxxRequest`、标书审核用 `@RequestBody(required=false) Map<String,String>`、结项审核 reject 有 body / approve 无 body、CA 借用新写时 `@Valid + @RequestBody + @NotBlank`。CO-459 写新代码时**没有参照已有审批接口契约风格**，独立设计了"更严格"的 DTO，但前端没同步按新契约传参。
 
-| 模块 | Controller 签名 | 前端调用 |
-|---|---|---|
-| 项目立项 (InitiationController) | `@Valid @RequestBody InitiationApprovalRequest req` | `approveInitiation(id, {...})` |
-| 标书审核 (DraftingController) | `@RequestBody(required=false) Map<String,String>` | `approveBid(id, { comment: '' })` |
-| 结项审核 (ClosureController) | `@Valid @RequestBody ClosureReviewRequest req`（reject）/ 无 body（approve） | `approveClosure(id)` / `rejectClosure(id, {...})` |
-| CA 借用（CO-459 新写）⚠️ | `@Valid @RequestBody CaApprovalRequest req` + `@NotBlank` | `approveApplication(id, '')` ⚠️ |
+2. **JavaScript 默认参数陷阱**：`data = {}` 只在参数为 `undefined` 时生效，传 `''`（空字符串）**不会触发默认值**。结果 `httpClient.post(url, '')` 发送空字符串作为 body，后端 `@RequestBody` 期望 JSON 对象，反序列化失败。这个陷阱在 code review 时肉眼很难发现——`data = {}` 看起来已经做了防御。
 
-CO-459 写新代码时**没有参照已有审批接口契约风格**，独立设计了"更严格"的 DTO（`@Valid + @RequestBody + @NotBlank`），但前端没同步按新契约传参。
+3. **单测覆盖的是 store 层，不是端到端契约**：每一层都"看起来对"，但**契约的接缝处没人测**。
 
-#### 根因 2：JavaScript 默认参数陷阱——`data = {}` 的假安全感
-
-```javascript
-// ca.js:225
-async approve(applicationId, data = {}) {
-  return httpClient.post(`${BASE}/borrow-applications/${applicationId}/approve`, data)
-}
-
-// CAManagement.vue:688
-await caStore.approveApplication(row.id, '')  // 传空字符串
-```
-
-`data = {}` 只在参数为 `undefined` 时生效，传 `''`（空字符串）**不会触发默认值**。结果 `httpClient.post(url, '')` 发送空字符串作为 body，后端 `@RequestBody` 期望 JSON 对象，反序列化失败。
-
-这个陷阱在 code review 时肉眼很难发现——`data = {}` 看起来已经做了防御。
-
-#### 根因 3：单测覆盖的是 store 层，不是端到端契约
-
-CO-459 PR 验证清单：`npm run build` + `mvn test -Dtest=ArchitectureTest` + line-budget 全通过。但**没有**：
-- ❌ 后端 Controller 的 `@WebMvcTest`（验证 `@RequestBody` 反序列化）
-- ❌ 前端调用 store 的集成测试（验证传参格式）
-- ❌ E2E 测试（真实点击审批按钮→后端落库）
-
-每一层都"看起来对"，但**契约的接缝处没人测**。
-
-#### 根因 4（元根因）：没有"契约单一源"
-
-项目里审批接口有四种写法，**没有统一的契约规范文档**。开发者写第五个审批接口（CA 借用）时，面临四种参考样板，选哪种全凭个人偏好。选了严格契约但前端没同步升级——**契约脱节**。如果契约规范统一，新接口照葫芦画瓢即可，不会脱节。
-
-### 排查弯路（自我反思）
-
-| 轮次 | 动作 | 错误 | 用户纠偏 |
-|---|---|---|---|
-| 1 | 没看日志，直接改代码 | 盲目猜测 | "你有去服务器上看看日志，找出失败的根因吗？不要盲目地判断" |
-| 2 | 看本地日志找不到记录 | 找错环境 | "是在服务器上 你搞错了" |
-| 3 | 只回答"前端传字符串后端期望对象" | 只回答技术现象，没分析"为什么会写出这种代码" | "核心关键是 为什么会有这个bug 你分析了吗" |
-
-正确做法应该是：**先确认事故发生在哪个环境（本地/测试/生产），再去对应环境的日志里找铁证；代码分析只能作为辅助验证，不能作为根因判定依据**。**技术根因只是现象，流程根因才是 bug 的真正起源**。
+4. **元根因：没有"契约单一源"**：项目里审批接口有四种写法，**没有统一的契约规范文档**。开发者写第五个审批接口（CA 借用）时，面临四种参考样板，选哪种全凭个人偏好。选了严格契约但前端没同步升级——**契约脱节**。
 
 ### 经验教训
 
@@ -2219,25 +1580,6 @@ CO-459 PR 验证清单：`npm run build` + `mvn test -Dtest=ArchitectureTest` + 
 - [ ] PR 描述中标注"参照了哪个已有接口的契约"
 - [ ] 复盘时回答了"为什么会写出这种代码"（不只是"哪行错了"）
 
-### 验证命令
-
-```bash
-# 1. 排查审批类接口契约不统一（后端）
-grep -rn "@RequestBody.*Map<String" backend/src/main/java --include="*Controller.java" | grep -i "approv\|reject"
-# 应该返回空——审批类不应该用 Map 接收 body
-
-# 2. 排查前端 API 模块的默认参数假防御
-grep -rn "approve.*data = {}\|reject.*data = {}" src/api/modules/
-# 应该返回空——审批类前端 API 不应该用默认参数
-
-# 3. 排查审批类 Controller 是否有 WebMvcTest
-find backend/src/test -name "*Controller*Test.java" | xargs grep -l "approve\|reject" 2>/dev/null
-# 应该覆盖所有审批类 Controller
-
-# 4. 服务器日志排查审批错误（生产）
-ssh jetty@172.16.38.78 'grep -E "请求体不可读|Required request body" /var/log/xiyu-bid/application.json.log | tail -10'
-```
-
 ### 相关文件
 
 - `src/views/Resource/CAManagement.vue` — CA 审批前端入口（bug 修复后）
@@ -2255,7 +1597,7 @@ ssh jetty@172.16.38.78 'grep -E "请求体不可读|Required request body" /var/
 
 ---
 
-## 32. hasAnyRole 双轨制：用 ArchUnit 总数断言守卫技术债迁移（ Constitution VI 落地）
+## 34. hasAnyRole 双轨制：用 ArchUnit 总数断言守卫技术债迁移（ Constitution VI 落地）
 
 > 日期: 2026-07-02
 > 来源: Spec Kit 024 消除 @PreAuthorize hasAnyRole 双轨制技术债
@@ -2331,11 +1673,11 @@ cd backend && mvn test -Dtest='ArchitectureTest#legacy_hasanyrole_count_must_mat
 - `specs/024-preauthorize-unification/review-response.md` — gemini 审核回应（4 数据偏差复核）
 - `.specify/memory/constitution.md` §VI — Authorization Unification 原则
 - §23 — 全链路日志排查 SOP（本次根因定位使用）
-- §28 — CO-400/CO-415 hasAnyRole 陷阱（同类教训）
+- §29 — CO-400/CO-415 hasAnyRole 陷阱（同类教训）
 
 ---
 
-## 33. Spring Data JPA 派生查询方法传 null 不会变成"无过滤条件"（PR !1563）
+## 35. Spring Data JPA 派生查询方法传 null 不会变成"无过滤条件"（PR !1563）
 
 ### 问题背景
 
@@ -2401,7 +1743,7 @@ grep -rn "repository\.findBy.*null" backend/src/main/java --include="*.java"
 - `backend/src/main/java/com/xiyu/bid/brandauth/manufacturer/application/service/ListManufacturerAuthAppService.java` — Specification 动态拼接的正确范例
 - `backend/src/main/java/com/xiyu/bid/brandauth/manufacturer/application/service/BrandAuthExportService.java` — 修复后的导出服务
 
-## 34. 后端枚举归一化必须同步前端所有展示位 + 静态检查防复发（PR !1571 回归）
+## 36. 后端枚举归一化必须同步前端所有展示位 + 静态检查防复发（PR !1571 回归）
 
 ### 问题背景
 
@@ -2469,11 +1811,11 @@ node scripts/check-vue-enum-direct-render.mjs
 - PR !1632 — 本次修复 + 防复发脚本
 - §23 — 全链路日志排查 SOP（本次排查使用 Layer 3 git 追溯）
 - §1 — 后端接口契约变更必须同步前端所有入口（同类：归一化需同步所有展示位）
-- §28 — 权限 Bug 必须审视同一业务动作的所有 UI 入口（同类：审视整个字段矩阵）
+- §29 — 权限 Bug 必须审视同一业务动作的所有 UI 入口（同类：审视整个字段矩阵）
 - `scripts/check-vue-enum-direct-render.mjs` — 防复发静态检查脚本
 - `src/views/Project/utils/projectListFormatters.js` — customerTypeLabel formatter 函数
 
-## 35. 筛选语义必须与展示列对齐 + 「null 永真 fallback」是隐形 bug 放大器（PR !1642）
+## 37. 筛选语义必须与展示列对齐 + 「null 永真 fallback」是隐形 bug 放大器（PR !1642）
 
 ### 问题背景
 
@@ -2604,7 +1946,7 @@ npx vitest run src/views/Project/composables/useProjectFilter.spec.js
 - `src/views/Project/composables/useProjectFilter.js` — 前端筛选逻辑（修复后）
 - `backend/src/main/java/com/xiyu/bid/project/service/ProjectQueryService.java` — enrich 逻辑（姓名与 ID 来源分叉点）
 
-## 36. Collectors.toMap 无 merge function 三层失效 + 35 处全仓治理（PR !1640 + Spec Kit 027）
+## 38. Collectors.toMap 无 merge function 三层失效 + 35 处全仓治理（PR !1640 + Spec Kit 027）
 
 **事故时间**: 2026-07-03
 **影响范围**: 标讯中心整个模块不可用（列表页 + 详情页均报"加载标讯列表失败"）
@@ -2672,7 +2014,7 @@ npx vitest run src/views/Project/composables/useProjectFilter.spec.js
 
 4. **fail-safe 优于 fail-fast**: 对于用户体验而言，"返回部分数据"优于"整个模块崩溃"。fail-fast 适用于编译期和启动期，运行期面对边界数据应 fail-safe。
 
-5. **ArchUnit 守卫是技术债治理的终极武器**: 31 处隐患手工修复后，用 ArchUnit 守卫防止新增。与 §32 hasAnyRole 双轨制治理（ArchUnit 总数断言）同模式。
+5. **ArchUnit 守卫是技术债治理的终极武器**: 31 处隐患手工修复后，用 ArchUnit 守卫防止新增。与 §34 hasAnyRole 双轨制治理（ArchUnit 总数断言）同模式。
 
 ### 流程性教训：紧急修复通道缺失
 
@@ -2708,12 +2050,12 @@ npx vitest run src/views/Project/composables/useProjectFilter.spec.js
 ### 相关 SOP
 
 - §23 — 全链路日志排查 SOP（本次排查使用 Layer 1 + Layer 3）
-- §32 — hasAnyRole 双轨制 ArchUnit 总数断言守卫（同类：ArchUnit 治理模式）
+- §34 — hasAnyRole 双轨制 ArchUnit 总数断言守卫（同类：ArchUnit 治理模式）
 - §22 — 外部诊断根因必须复核（同类：全仓扫描发现 31 处隐患）
 
 ---
 
-## 37. Flyway 迁移目录混淆：db/migration/ vs db/migration-mysql/ 双轨制守卫缺失（CO-483/484 P0 事故）
+## 39. Flyway 迁移目录混淆：db/migration/ vs db/migration-mysql/ 双轨制守卫缺失（CO-483/484 P0 事故）
 
 **事故时间**: 2026-07-04（第 40 次生产部署）
 **影响范围**: 标书审核多人化功能上线后，`/api/projects/{id}/stage` 接口 500，前端"系统繁忙"，生产环境 1 小时内 P0 故障
@@ -2808,12 +2150,12 @@ CO-483/484 PR !1637（标书审核多人化 + 驳回后审核人清空）在 kim
 ### 相关 SOP
 
 - §23 — 全链路日志排查 SOP（本次排查使用 Layer 1-4）
-- §36 — Collectors.toMap 三层失效（同类：三层防御纵深模式）
+- §38 — Collectors.toMap 三层失效（同类：三层防御纵深模式）
 - §18 — 部署前必须验证 jar 中 Flyway 迁移脚本无重复版本（同类：Flyway 守卫）
 
 ---
 
-## 38. 修 bug 时删除代码必须审视隐式前后端字段契约（CO-498 修 CO-443 引入导航断层）
+## 40. 修 bug 时删除代码必须审视隐式前后端字段契约（CO-498 修 CO-443 引入导航断层）
 
 **事故时间**: 2026-07-04
 **影响范围**: 复盘提交后项目负责人无法进入结项阶段，整个结项审核流程死锁
@@ -2930,12 +2272,12 @@ GET /api → 后端字段计算 → 前端字段消费 → 用户交互 → 下�
 ### 相关 SOP
 
 - §23 — 全链路日志排查 SOP（本次排查使用 Layer 1-3）
-- §28 — 权限 Bug 必须审视同一业务动作的所有 UI 入口（同类：修 A bug 漏看 B 链路）
+- §29 — 权限 Bug 必须审视同一业务动作的所有 UI 入口（同类：修 A bug 漏看 B 链路）
 - §26 — 联动回填链路 4 层全链路验证 SOP（同类：前后端字段联动验证）
 
 ---
 
-## 39. CO-469 七轮修复全记录：多轮返工的系统性根因与防复发（2026-07-02 ~ 07-04）
+## 41. CO-469 七轮修复全记录：多轮返工的系统性根因与防复发（2026-07-02 ~ 07-04）
 
 ### 七轮修复时间线
 
@@ -2999,5 +2341,5 @@ GET /api → 后端字段计算 → 前端字段消费 → 用户交互 → 下�
 ### 相关 SOP
 
 - §23 — 全链路日志排查 SOP（Round 7 使用 Layer 3 git 追溯定位根因）
-- §36 — Collectors.toMap 三层失效（Round 4 同类问题）
+- §38 — Collectors.toMap 三层失效（Round 4 同类问题）
 - §17 — Bug 修复前必须先验证实际行为（Round 1 如果先验证全链路就不会只修表层）
