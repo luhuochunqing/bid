@@ -88,7 +88,8 @@ export const personnelBatchApi = {
     const res = await httpClient.get(`/api/knowledge/personnel/export/${taskId}/download`, {
       responseType: 'blob'
     })
-    triggerBlobDownload(new Blob([res]), `personnel_export_${taskId}.zip`)
+    // CO-469: axios 拦截器对 blob 响应返回完整 response 对象，需取 res.data
+    triggerBlobDownload(res.data, `personnel_export_${taskId}.zip`)
   },
 
   /**

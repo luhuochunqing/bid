@@ -40,7 +40,7 @@
     <div v-else-if="task.isCompleted.value" class="export-result">
       <el-result icon="success" title="导出完成" :sub-title="`共导出 ${task.totalCount.value} 条记录`">
         <template #extra>
-          <el-button type="primary" @click="downloadExportFile">下载导出文件</el-button>
+          <el-button v-if="task.totalCount.value > 0" type="primary" @click="downloadExportFile">下载导出文件</el-button>
           <el-button @click="$emit('update:modelValue', false)">关闭</el-button>
         </template>
       </el-result>
