@@ -1,5 +1,6 @@
 package com.xiyu.bid.resources.entity;
 
+import com.xiyu.bid.exception.BusinessException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -136,7 +137,10 @@ public class Expense {
 
     public void markApproved(String approver, String comment, ExpenseStatus nextStatus) {
         if (status != ExpenseStatus.PENDING_APPROVAL && status != ExpenseStatus.REJECTED) {
-            throw new IllegalStateException("Expense is not in an approvable state");
+            // CO-xxx fix: 业务校验失败应透传业务错误信息给前端，而非被 GlobalExceptionHandler
+            // 当成系统缺陷吞掉成"系统状态冲突，请刷新后重试"。改用 BusinessException(409, ...)
+            // 保持 HTTP 409 状态码不变，同时让用户看到可操作的错误提示。
+            throw new BusinessException(409, "Expense is not in an approvable state");
         }
 
         this.status = nextStatus;
@@ -147,10 +151,14 @@ public class Expense {
 
     public void requestReturn(String actor, String pComment) {
         if (!isReturnable()) {
-            throw new IllegalStateException("Only deposit-like expenses can enter return flow");
+            // CO-xxx fix: 业务校验失败应透传业务错误信息给前端，而非被 GlobalExceptionHandler
+            // 当成系统缺陷吞掉成"系统状态冲突，请刷新后重试"。改用 BusinessException(409, ...)
+            // 保持 HTTP 409 状态码不变，同时让用户看到可操作的错误提示。
+            throw new BusinessException(409, "Only deposit-like expenses can enter return flow");
         }
         if (status == ExpenseStatus.RETURNED) {
-            throw new IllegalStateException("Expense has already been returned");
+            // 同上：业务状态冲突应透传给前端。
+            throw new BusinessException(409, "Expense has already been returned");
         }
 
         this.status = ExpenseStatus.RETURN_REQUESTED;
@@ -161,12 +169,16 @@ public class Expense {
 
     public void confirmReturn(String actor, String pComment) {
         if (!isReturnable()) {
-            throw new IllegalStateException("Only deposit-like expenses can enter return flow");
+            // CO-xxx fix: 业务校验失败应透传业务错误信息给前端，而非被 GlobalExceptionHandler
+            // 当成系统缺陷吞掉成"系统状态冲突，请刷新后重试"。改用 BusinessException(409, ...)
+            // 保持 HTTP 409 状态码不变，同时让用户看到可操作的错误提示。
+            throw new BusinessException(409, "Only deposit-like expenses can enter return flow");
         }
         if (status != ExpenseStatus.RETURN_REQUESTED
                 && status != ExpenseStatus.PAID
                 && status != ExpenseStatus.APPROVED) {
-            throw new IllegalStateException("Expense is not awaiting return confirmation");
+            // 同上：业务状态冲突应透传给前端。
+            throw new BusinessException(409, "Expense is not awaiting return confirmation");
         }
 
         this.status = ExpenseStatus.RETURNED;
@@ -179,7 +191,10 @@ public class Expense {
 
     public void markPaid() {
         if (status != ExpenseStatus.APPROVED && status != ExpenseStatus.PAID) {
-            throw new IllegalStateException("Only approved or already-paid expenses can register payment records");
+            // CO-xxx fix: 业务校验失败应透传业务错误信息给前端，而非被 GlobalExceptionHandler
+            // 当成系统缺陷吞掉成"系统状态冲突，请刷新后重试"。改用 BusinessException(409, ...)
+            // 保持 HTTP 409 状态码不变，同时让用户看到可操作的错误提示。
+            throw new BusinessException(409, "Only approved or already-paid expenses can register payment records");
         }
         this.status = ExpenseStatus.PAID;
     }
