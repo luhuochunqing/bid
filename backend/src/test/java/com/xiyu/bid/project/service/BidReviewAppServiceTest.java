@@ -44,11 +44,12 @@ import static org.mockito.Mockito.when;
 
 /**
  * 标书审核 service 集成测试。
- * <p>CO-483 + CO-484：覆盖多人审核 + 驳回重提清空 + primaryLead/secondaryLead 排除。</p>
+ * <p>CO-484 v2（2026-07-04）：多人审核上限 3 人、必须含项目经理、辅助人员解禁、驳回重提清空。</p>
  * <p>测试覆盖维度：</p>
  * <ul>
  *   <li>身份校验：自审/非指派人/无身份 → 403</li>
  *   <li>状态机校验：REVIEWING/APPROVED/REJECTED → 各操作是否允许</li>
+ *   <li>审核人组成：缺项目经理 → 400；含 primaryLead/团队成员 → 400；含 secondaryLead → 允许</li>
  *   <li>多人审核聚合：1 通过 1 未决 → REVIEWING；2 通过 → APPROVED；任一驳回 → REJECTED</li>
  *   <li>ArgumentCaptor 状态断言：save 的是 APPROVED/REJECTED 而非其他</li>
  * </ul>
@@ -380,7 +381,8 @@ class BidReviewAppServiceTest {
     // ── submitForReview 标书审核人校验 ──────────────────────────────────────
 
     @Test
-    void submitForReview_whenReviewerIsProjectManager_throws400() {
+    void submitForReview_whenReviewersMissingManager_throws400() {
+        // CO-484 v2：审核人必须包含项目经理（managerId=10），reviewer=99 不含 → 400
         com.xiyu.bid.entity.Project project = com.xiyu.bid.entity.Project.builder()
                 .id(1L)
                 .managerId(10L)
@@ -390,9 +392,9 @@ class BidReviewAppServiceTest {
         when(reviewRepository.findByProjectId(1L)).thenReturn(Optional.empty());
         when(leadAssignmentRepository.findByProjectId(1L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.submitForReview(1L, List.of(10L), 100L))
+        assertThatThrownBy(() -> service.submitForReview(1L, List.of(99L), 100L))
                 .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("标书审核人必须是未参与本项目的人员")
+                .hasMessageContaining("需包含项目负责人")
                 .extracting("statusCode").isEqualTo(HttpStatus.BAD_REQUEST);
 
         verify(reviewRepository, never()).save(any());
@@ -400,6 +402,7 @@ class BidReviewAppServiceTest {
 
     @Test
     void submitForReview_whenReviewerIsTeamMember_throws400() {
+        // CO-484 v2：含项目经理 10 + 团队成员 11 → 仍因团队成员被排除
         com.xiyu.bid.entity.Project project = com.xiyu.bid.entity.Project.builder()
                 .id(1L)
                 .managerId(10L)
@@ -409,9 +412,9 @@ class BidReviewAppServiceTest {
         when(reviewRepository.findByProjectId(1L)).thenReturn(Optional.empty());
         when(leadAssignmentRepository.findByProjectId(1L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.submitForReview(1L, List.of(11L), 100L))
+        assertThatThrownBy(() -> service.submitForReview(1L, List.of(10L, 11L), 100L))
                 .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("标书审核人必须是未参与本项目的人员")
+                .hasMessageContaining("不能选择投标负责人或项目团队成员")
                 .extracting("statusCode").isEqualTo(HttpStatus.BAD_REQUEST);
 
         verify(reviewRepository, never()).save(any());
@@ -431,8 +434,8 @@ class BidReviewAppServiceTest {
         lenient().when(tenderRepository.findById(any())).thenReturn(Optional.empty());
         lenient().when(userRepository.findById(any())).thenReturn(Optional.empty());
 
-        // reviewerId=99 既不是 manager=10 也不是 teamMembers=[11, 12] → 允许
-        service.submitForReview(1L, List.of(99L), 100L);
+        // CO-484 v2：reviewer=[10(manager), 99(外部)] → 含 manager、99 非排除项 → 允许
+        service.submitForReview(1L, List.of(10L, 99L), 100L);
 
         verify(reviewRepository).save(any(BidDocumentReviewEntity.class));
     }
@@ -453,7 +456,7 @@ class BidReviewAppServiceTest {
         lenient().when(tenderRepository.findById(any())).thenReturn(Optional.empty());
         lenient().when(userRepository.findById(any())).thenReturn(Optional.empty());
 
-        service.submitForReview(1L, List.of(99L), 100L);
+        service.submitForReview(1L, List.of(10L, 99L), 100L);
 
         verify(projectNotificationService).notifyBidReviewSubmitted(
                 eq(1L), eq(99L), eq(100L),
@@ -464,6 +467,7 @@ class BidReviewAppServiceTest {
 
     @Test
     void submitForReview_whenReviewerIsPrimaryLead_throws400() {
+        // CO-484 v2：reviewer=[10(manager), 20(primaryLead)] → 含 manager 但 primaryLead 被排除
         com.xiyu.bid.entity.Project project = com.xiyu.bid.entity.Project.builder()
                 .id(1L)
                 .managerId(10L)
@@ -476,17 +480,18 @@ class BidReviewAppServiceTest {
         when(reviewRepository.findByProjectId(1L)).thenReturn(Optional.empty());
         when(leadAssignmentRepository.findByProjectId(1L)).thenReturn(Optional.of(lead));
 
-        // reviewer=20 是 primaryLead → 400
-        assertThatThrownBy(() -> service.submitForReview(1L, List.of(20L), 100L))
+        assertThatThrownBy(() -> service.submitForReview(1L, List.of(10L, 20L), 100L))
                 .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("标书审核人必须是未参与本项目的人员")
+                .hasMessageContaining("不能选择投标负责人或项目团队成员")
                 .extracting("statusCode").isEqualTo(HttpStatus.BAD_REQUEST);
 
         verify(reviewRepository, never()).save(any());
     }
 
     @Test
-    void submitForReview_whenReviewerIsSecondaryLead_throws400() {
+    void submitForReview_whenReviewerIsSecondaryLead_succeeds() {
+        // CO-484 v2：投标辅助人员（secondaryLead）解禁，可作审核人。
+        // reviewer=[10(manager), 21(secondaryLead)] → 含 manager、21 解禁 → 允许
         com.xiyu.bid.entity.Project project = com.xiyu.bid.entity.Project.builder()
                 .id(1L)
                 .managerId(10L)
@@ -498,12 +503,12 @@ class BidReviewAppServiceTest {
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
         when(reviewRepository.findByProjectId(1L)).thenReturn(Optional.empty());
         when(leadAssignmentRepository.findByProjectId(1L)).thenReturn(Optional.of(lead));
+        lenient().when(tenderRepository.findById(any())).thenReturn(Optional.empty());
+        lenient().when(userRepository.findById(any())).thenReturn(Optional.empty());
 
-        // reviewer=21 是 secondaryLead → 400
-        assertThatThrownBy(() -> service.submitForReview(1L, List.of(21L), 100L))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("标书审核人必须是未参与本项目的人员")
-                .extracting("statusCode").isEqualTo(HttpStatus.BAD_REQUEST);
+        service.submitForReview(1L, List.of(10L, 21L), 100L);
+
+        verify(reviewRepository).save(any(BidDocumentReviewEntity.class));
     }
 
     @Test
@@ -516,9 +521,9 @@ class BidReviewAppServiceTest {
     }
 
     @Test
-    void submitForReview_whenMoreThan2Reviewers_throws422() {
-        // CO-484 调整：最多 2 人
-        assertThatThrownBy(() -> service.submitForReview(1L, List.of(99L, 100L, 101L), 1L))
+    void submitForReview_whenMoreThan3Reviewers_throws422() {
+        // CO-484 v2：最多 3 人，4 人 → 422
+        assertThatThrownBy(() -> service.submitForReview(1L, List.of(10L, 99L, 100L, 101L), 1L))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("最多")
                 .extracting("statusCode").isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
@@ -547,7 +552,8 @@ class BidReviewAppServiceTest {
         lenient().when(tenderRepository.findById(any())).thenReturn(Optional.empty());
         lenient().when(userRepository.findById(any())).thenReturn(Optional.empty());
 
-        service.submitForReview(1L, List.of(99L, 101L), 100L);
+        // CO-484 v2：reviewer 需含 manager=10，[10, 99] 满足组成校验
+        service.submitForReview(1L, List.of(10L, 99L), 100L);
 
         // 应清空旧 assignment
         verify(assignmentRepository).deleteByReviewId(1L);

@@ -218,10 +218,12 @@ export function useProjectDraftingPermissions(opts = {}) {
     isAdminLead.value || isProjectLeadMatch.value
   )
 
-  /** 提交投标审核。
-   *  当前与 {@link #canSubmitBid} 同口径（admin_lead 直通，lead_assist 需匹配项目级 lead），
-   *  保留独立 computed 是为未来"提交审核"与"提交投标"语义可能分化预留扩展点。 */
-  const canSubmitBidForReview = computed(() => canSubmitBid.value)
+  /** 提交标书审核。
+   *  CO-484 v2：取消投标辅助人员（secondaryLead）提交审核权限，仅投标管理员/组长 + 投标负责人本人可提交。
+   *  与 {@link #canSubmitBid} 分化：提交投标仍允许辅助人员，提交审核不允许。 */
+  const canSubmitBidForReview = computed(() =>
+    isAdminLead.value || isPrimaryLeadMatch.value
+  )
 
   // ── 快捷操作（右侧边栏）─────────────────────────────────────────────────
 
