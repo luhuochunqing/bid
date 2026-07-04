@@ -223,10 +223,22 @@ function stageFromRoute() {
   return routeToStageCode(stageParam)
 }
 
+// CO-497: 复盘提交后的跳转窗口期标志位。
+// 防止 handleStageUpdated 内部 timeline.reload() 异步回声的 snapshot 事件
+// 把 tab 从 CLOSED 拽回 RETROSPECTIVE。
+const isRetrospectiveTransitioning = ref(false)
+
 function handleSnapshot(snapshot) {
   // currentProjectStage 始终记录项目真实阶段（用于阶段门禁）
   if (snapshot?.currentStage) {
     currentProjectStage.value = snapshot.currentStage
+  }
+  // CO-497: 复盘提交后的跳转窗口期内，禁止 snapshot 事件覆盖 tab。
+  // 时序：onRetrospectiveSubmitted 设 tab=CLOSED → handleStageUpdated 内部
+  //   timeline.reload() 异步 emit('snapshot') 回声 → handleSnapshot 把 tab 拽回 RETROSPECTIVE。
+  // 该标志位仅在 onRetrospectiveSubmitted 流程期间生效，正常浏览时 handleSnapshot 行为不变。
+  if (isRetrospectiveTransitioning.value) {
+    return
   }
   // URL stage 参数优先（用户从通知主动跳转表达明确意图）
   // 其次才用 timeline 推荐的 defaultOpenStage
@@ -256,8 +268,11 @@ function handleSwitchTab(v) {
 function syncTabToRealStage() {
   const realStage = timelineRef.value?.snapshot?.currentStage
   if (realStage) {
-    activeStageTab.value = realStage
     currentProjectStage.value = realStage
+    // CO-497: 复盘提交后的跳转窗口期内，不覆盖 tab（已在 onRetrospectiveSubmitted 设为 CLOSED）
+    if (!isRetrospectiveTransitioning.value) {
+      activeStageTab.value = realStage
+    }
   }
 }
 
@@ -291,18 +306,21 @@ async function handleStageUpdated() {
 }
 
 async function onRetrospectiveSubmitted() {
-  // CO-497: 复盘提交后 stage 停在 RETROSPECTIVE（PR #1667 修复直达 CLOSED bug），
-  // handleStageUpdated 内的 handleSnapshot + syncTabToRealStage 会把 tab 设为 RETROSPECTIVE。
-  // 但用户期望进入结项阶段（CLOSED tab），所以无论 handleStageUpdated 是否成功，
-  // 都要用 finally 确保 tab 切换到 CLOSED。
-  // 修复前（stage=CLOSED）syncTabToRealStage 自然设 tab=CLOSED，异常不影响跳转；
-  // 修复后（stage=RETROSPECTIVE）若 handleStageUpdated 抛异常，tab 停在 RETROSPECTIVE 不跳转。
+  // CO-497: 复盘提交后 stage 停在 RETROSPECTIVE（PR #1667 修复直达 CLOSED bug）。
+  // 用户期望进入结项阶段（CLOSED tab），但 handleStageUpdated 内部
+  //   timeline.reload() 异步 emit('snapshot') 回声 → handleSnapshot 把 tab 拽回 RETROSPECTIVE。
+  // PR #1673 的 try-finally 只堵住同步路径，堵不住异步回声。
+  // 方案 A: 用 isRetrospectiveTransitioning 标志位包裹跳转窗口期，
+  //   handleSnapshot 检测到该标志时跳过 tab 覆盖，保证 tab=CLOSED 不被拽回。
+  isRetrospectiveTransitioning.value = true
   try {
     await handleStageUpdated()
   } catch (e) {
     console.warn('[ProjectDetailMainColumn] onRetrospectiveSubmitted handleStageUpdated failed', e)
   } finally {
     activeStageTab.value = 'CLOSED'
+    // 延迟一拍清标志：让 handleStageUpdated 内部触发的异步 snapshot 回声也落在窗口期内
+    setTimeout(() => { isRetrospectiveTransitioning.value = false }, 0)
   }
 }
 </script>
