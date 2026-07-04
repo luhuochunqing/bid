@@ -102,8 +102,10 @@ public class TenderImportTemplateBuilder {
 
     private int findColumnIndex(String headerName) {
         String[] headers = TenderImportService.HEADERS;
+        // CO-502: HEADERS 必填列带 * 后缀，用 normalizeHeader 对比避免匹配失败
+        String normalized = TenderImportService.normalizeHeader(headerName);
         for (int i = 0; i < headers.length; i++) {
-            if (headers[i].equals(headerName)) {
+            if (TenderImportService.normalizeHeader(headers[i]).equals(normalized)) {
                 return i;
             }
         }
