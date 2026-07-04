@@ -49,6 +49,12 @@ node "$ROOT_DIR/scripts/check-e2e-selectors.mjs"
 # Flyway 逃生阀追踪：记录 FLYWAY_ALLOW_* 绕过事件到 .runtime/flyway-bypass.log（不阻断，仅记录）
 # 用途：PR 审查时检查该日志，未说明绕过原因则要求补充
 "$ROOT_DIR/scripts/check-flyway-bypass-tracker.sh" || true
+# 守卫一致性扫描：检测 scripts/*.sh 中"# 逃生阀：XXX=1"注释声明 vs 代码实现不一致（2026-07-04 PR !1657 防复发）
+# 贝叶斯似然比 ≈ 4.67，盲区见脚本头部注释
+"$ROOT_DIR/scripts/check-guard-consistency.sh"
+# 测试入口覆盖扫描：检测 pre-push-gate.sh 中 mvn test 列表与 backend/src/test 文件一致性（2026-07-04 PR !1657 防复发）
+# 贝叶斯似然比 ≈ 4.67，盲区见脚本头部注释
+"$ROOT_DIR/scripts/check-test-entry-coverage.sh"
 
 # TDD 测试先行门禁：检测到 staged 业务代码变更但没有对应的测试文件时，直接阻断提交，以确保 fix/test 比例（2026-06-12 gemini/enforce-tdd-precommit）
 "$ROOT_DIR/scripts/check-tdd-coverage.sh" --ci

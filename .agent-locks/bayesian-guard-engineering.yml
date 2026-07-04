@@ -1,0 +1,9 @@
+version: 1
+task: "bayesian-guard-engineering"
+locks:
+  - path: ".githooks/pre-commit"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/trae/bayesian-guard-engineering"
+    expiresAt: "2026-07-05T02:00:53.534Z"
+    reason: "贝叶斯工程化：新增 check-guard-consistency.sh 和 check-test-entry-coverage.sh 到 pre-commit"
