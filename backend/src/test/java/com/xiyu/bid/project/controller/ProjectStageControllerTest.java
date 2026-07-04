@@ -157,6 +157,90 @@ class ProjectStageControllerTest {
                 .andExpect(jsonPath("$.data.terminal").value(false));
     }
 
+    // CO-498: 复盘阶段(stage=RETROSPECTIVE) 且未提交结项申请(无 closure) 时，
+    // 必须把 CLOSED 加入 accessibleStages，让项目负责人能进入结项 tab 提交结项申请。
+    // 否则整个结项审核流程从源头死锁（5d1b36b53 暴露的下游导航断层）。
+    // 不按角色区分 — 角色矩阵下沉到 ClosureStage.canSubmitClosure/canApprove。
+    @Test
+    void co498_retrospectiveWithoutClosure_unlocksClosedTab() throws Exception {
+        authenticate("06234");
+        when(authService.resolveUserIdByUsername("06234")).thenReturn(100L);
+        when(stageService.currentStage(42L)).thenReturn(ProjectStage.RETROSPECTIVE);
+        when(stageService.hasClosureSubmission(42L)).thenReturn(false);
+        when(stageService.allowedNext(42L)).thenReturn(List.of(ProjectStage.CLOSED));
+        when(bidReviewAppService.getReviewState(42L)).thenReturn(
+                new BidReviewAppService.ReviewState("REVIEWING", 9999L, null, "其他人", List.of()));
+        when(closureRepository.findByProjectId(42L)).thenReturn(java.util.Optional.empty());
+
+        mockMvc.perform(get("/api/projects/42/stage").accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.currentStage").value("RETROSPECTIVE"))
+                .andExpect(jsonPath("$.data.terminal").value(false))
+                .andExpect(jsonPath("$.data.accessibleStages", org.hamcrest.Matchers.hasItem("CLOSED")));
+    }
+
+    // CO-498 边界守护: 非 RETROSPECTIVE 阶段(如 RESULT_PENDING) 不应解锁 CLOSED tab。
+    // 此测试在当前实现下应通过(回归保障)，主要防止后续 refactor 误把解锁逻辑泛化。
+    @Test
+    void co498_resultPendingStage_doesNotUnlockClosedTab() throws Exception {
+        authenticate("06234");
+        when(authService.resolveUserIdByUsername("06234")).thenReturn(100L);
+        when(stageService.currentStage(42L)).thenReturn(ProjectStage.RESULT_PENDING);
+        when(stageService.hasClosureSubmission(42L)).thenReturn(false);
+        when(stageService.allowedNext(42L)).thenReturn(List.of(ProjectStage.RETROSPECTIVE));
+        when(bidReviewAppService.getReviewState(42L)).thenReturn(
+                new BidReviewAppService.ReviewState("REVIEWING", 9999L, null, "其他人", List.of()));
+
+        mockMvc.perform(get("/api/projects/42/stage").accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.accessibleStages",
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem("CLOSED"))));
+    }
+
+    // CO-498 重复守护: stage=RETROSPECTIVE 但已提交 closure(DRAFT) 时，
+    // CO-443 假 CLOSED 机制把 current 改成 CLOSED → CLOSED 已在 completed 列表里。
+    // 解锁逻辑必须用 actual==RETROSPECTIVE 精确判定，避免 CLOSED 在 accessibleStages 出现两次。
+    @Test
+    void co498_retrospectiveWithClosureDraft_doesNotUnlockClosedTwice() throws Exception {
+        authenticate("06234");
+        when(authService.resolveUserIdByUsername("06234")).thenReturn(100L);
+        when(stageService.currentStage(42L)).thenReturn(ProjectStage.RETROSPECTIVE);
+        when(stageService.hasClosureSubmission(42L)).thenReturn(true);
+        when(bidReviewAppService.getReviewState(42L)).thenReturn(
+                new BidReviewAppService.ReviewState("REVIEWING", 9999L, null, "其他人", List.of()));
+        ProjectClosure draftClosure = ProjectClosure.builder().reviewStatus("DRAFT").build();
+        when(closureRepository.findByProjectId(42L)).thenReturn(java.util.Optional.of(draftClosure));
+
+        mockMvc.perform(get("/api/projects/42/stage").accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                // CO-443 假 CLOSED: current 改成 CLOSED（hasClosureSubmission=true）
+                .andExpect(jsonPath("$.data.currentStage").value("CLOSED"))
+                // CLOSED 已在 completed 列表里(出现一次)；不应重复出现导致 accessibleStages 有 7 项
+                .andExpect(jsonPath("$.data.accessibleStages", org.hamcrest.Matchers.hasItem("CLOSED")))
+                .andExpect(jsonPath("$.data.accessibleStages",
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasSize(7))));
+    }
+
+    // CO-498 角色一致性: 解锁对所有通过项目权限校验的成员一致，不按角色区分。
+    // 06234(admin) 和 09118(审核人) 在同一状态下看到的 accessibleStages 都应包含 CLOSED。
+    @Test
+    void co498_retrospectiveWithoutClosure_unlocksClosedForAllRoles() throws Exception {
+        for (String username : new String[]{"06234", "09118"}) {
+            authenticate(username);
+            when(authService.resolveUserIdByUsername(username)).thenReturn(100L);
+            when(stageService.currentStage(42L)).thenReturn(ProjectStage.RETROSPECTIVE);
+            when(stageService.hasClosureSubmission(42L)).thenReturn(false);
+            when(stageService.allowedNext(42L)).thenReturn(List.of(ProjectStage.CLOSED));
+            when(bidReviewAppService.getReviewState(42L)).thenReturn(
+                    new BidReviewAppService.ReviewState("REVIEWING", 9999L, null, "其他人", List.of()));
+            when(closureRepository.findByProjectId(42L)).thenReturn(java.util.Optional.empty());
+
+            mockMvc.perform(get("/api/projects/42/stage").accept(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.accessibleStages", org.hamcrest.Matchers.hasItem("CLOSED")));
+        }
+    }
+
     private void authenticate(String username) {
         UserDetails user = User.withUsername(username).password("x").authorities("bid-otherDept").build();
         SecurityContextHolder.getContext().setAuthentication(

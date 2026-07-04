@@ -95,18 +95,102 @@
 
 ---
 
-## 阶段 3：tasks.md（待办）
+## 阶段 3：tasks.md（2026-07-04 17:30 完成）
 
-<!-- /speckit-tasks 阶段会在这里追加任务清单 -->
+按 user story 分组，TDD 顺序明确（T001-T002 Red → T003 Green → T005-T006 守护 → T007-T008 回归）。
+
+### 决策 8：T002 是"非严格 Red"
+
+**偏离 TDD 严格定义**：tasks.md T002 (`co498_resultPendingStage_doesNotUnlockClosedTab`) 在当前实现下**直接通过**，没有经历 Red。
+
+**理由**：该测试是边界守护（防止后续 refactor 把解锁逻辑泛化到非 RETROSPECTIVE 阶段），不是"先 Red 后 Green"的主路径测试。spec.md 没要求严格 Red，plan.md 已在测试策略中标注"Red 阶段可仅验证测试编译通过"。
+
+**实际跑测验证 Red 时**：4 个新测试中，2 个解锁测试（`co498_retrospectiveWithoutClosure_unlocksClosedTab`、`co498_retrospectiveWithoutClosure_unlocksClosedForAllRoles`）严格 Red FAIL，2 个守护测试（边界、重复）直接 PASS。这与预期完全一致。
 
 ---
 
-## 阶段 4：实现（待办）
+## 阶段 4：实现（2026-07-04 17:53 完成）
 
-<!-- TDD: Red → Green → Refactor，每个 commit 在这里追加一行 -->
+### T001-T002-T005-T006：Red 阶段（17:50）
+
+4 个新测试一次性补全到 `ProjectStageControllerTest.java` 末尾。Red 跑测证据：
+
+```
+Tests run: 9, Failures: 2, Errors: 0, Skipped: 0
+[FAIL] co498_retrospectiveWithoutClosure_unlocksClosedTab
+       期望 accessibleStages 含 "CLOSED"，实际只有 [INITIATED, DRAFTING, EVALUATING, RESULT_PENDING, RETROSPECTIVE]
+[FAIL] co498_retrospectiveWithoutClosure_unlocksClosedForAllRoles
+       同上
+[PASS] co498_resultPendingStage_doesNotUnlockClosedTab (边界守护，本就通过)
+[PASS] co498_retrospectiveWithClosureDraft_doesNotUnlockClosedTwice (重复守护，本就通过)
+[PASS] 既有 5 个用例
+```
+
+### T003：Green 阶段（17:53）
+
+`ProjectStageController.get()` 修改要点（按 plan.md 决策 5+6）：
+
+1. 抽局部变量 `boolean hasClosureSubmission = service.hasClosureSubmission(projectId);` — 复用 CO-443 已有 DB 查询，零额外开销
+2. CO-443 假 CLOSED 判定改用局部变量（行为完全等价）
+3. 在 `accessible.add(current.name())` 之后追加解锁逻辑：
+
+```java
+// CO-498: 复盘阶段(stage=RETROSPECTIVE) 且未提交结项申请时，解锁 CLOSED tab。
+if (actual == ProjectStage.RETROSPECTIVE && !hasClosureSubmission) {
+    accessible.add(ProjectStage.CLOSED.name());
+}
+```
+
+**用 `actual` 而非 `current`**（决策 6）：closure 已存在时 current=CLOSED，CLOSED 已在 completed 中，此时不应再次追加。
+
+### Green 跑测证据（17:53）
+
+```
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0 — ProjectStageControllerTest
+[INFO] BUILD SUCCESS
+```
+
+9 个测试全绿（既有 5 + 新增 4）。
+
+### T007-T008：回归门禁（17:53）
+
+广泛回归（涵盖 stage / closure / retrospective / audit / policy / permission）：
+
+```
+[INFO] Tests run: 270, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+```
+
+具体测试类：
+- `ProjectStageControllerTest` — 9 ✅
+- `ProjectStagePermissionTest` — 4 ✅
+- `ProjectClosureControllerTest` — 8 ✅
+- `ProjectClosureControllerWebMvcTest` — 6 ✅
+- `ProjectRetrospectiveServiceTest` — 4 ✅（AC-6 复盘行为不变）
+- `ProjectClosureServiceTest` — 28 ✅
+- `ProjectStageServiceTest` — 24 ✅
+- `ProjectClosureTaskAssemblerTest` — 5 ✅
+- `ProjectStageTransitionedAuditListenerTest` — 3 ✅
+- `ProjectStageTransitionPolicyTest` — 41 ✅（FP-Java 纯规则未动）
+- `ProjectStageTransitionPolicyFuzzTest` — 138 ✅（含子套件）
 
 ---
 
-## 阶段 5：验证（待办）
+## 阶段 5：验证（待部署后端到端）
 
-<!-- 单测 + 项目 157 端到端验证记录 -->
+### 已完成的验证
+
+- ✅ AC-1：T001 测试通过
+- ✅ AC-2：T005 测试通过（DRAFT 状态）
+- ✅ AC-3：T002 测试通过（RESULT_PENDING 边界）
+- ✅ AC-4：T006 测试通过（admin/审核人 角色一致性）
+- ✅ AC-6：T008 回归通过（RetrospectiveServiceTest）
+- ✅ AC-7：T007 回归通过（CO-443 既有用例）
+
+### 待验证（需部署）
+
+- ⏳ AC-5：项目 157 端到端（生产环境灰度）
+- ⏳ T010：审核角色进入结项 tab 看到 `canApprove` 按钮
+- ⏳ T012：admin 进入结项 tab 不显示"提交结项"按钮
+
+部署需走 `xiyu-deploy` skill（按 AGENTS.md 约束，生产部署不得用本地脚本）。
