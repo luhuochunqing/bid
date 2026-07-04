@@ -70,18 +70,17 @@ class ProjectRetrospectiveServiceTest {
     }
 
     @Test
-    void submit_transitionsToClosedWhenAtRetrospectiveStage() {
-        // §2.6: 复盘提交即推进 RETROSPECTIVE → CLOSED（无需审核）
+    void submit_transitionsToRetrospectiveStage_onlyOnce_notToClosed() {
+        // 修复: 复盘提交只推进 RESULT_PENDING → RETROSPECTIVE，不直达 CLOSED。
+        // CLOSED 由结项审核流程驱动（ClosureService.approveClosure），避免绕过结项审核。
         when(repo.findByProjectId(1L)).thenReturn(Optional.empty());
         when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        // submit() 内 3 次 currentStage 读取：
+        // submit() 内 2 次 currentStage 读取：
         //   1) 锁校验（RESULT_PENDING 可写）
         //   2) afterSaveStage == RESULT_PENDING → 推进到 RETROSPECTIVE
-        //   3) afterRetroTransition == RETROSPECTIVE → 推进到 CLOSED
         when(stageService.currentStage(1L))
                 .thenReturn(ProjectStage.RESULT_PENDING)
-                .thenReturn(ProjectStage.RESULT_PENDING)
-                .thenReturn(ProjectStage.RETROSPECTIVE);
+                .thenReturn(ProjectStage.RESULT_PENDING);
         var req = RetrospectiveSubmitRequest.builder()
                 .resultType(BidResultType.WON)
                 .meetingTime("2025-06-01 10:00").meetingFormat("ONLINE").meetingParticipants("张三")
@@ -90,9 +89,9 @@ class ProjectRetrospectiveServiceTest {
                 .build();
         var dto = service.submit(1L, req, 99L);
         assertEquals("APPROVED", dto.getReviewStatus());
-        // 两次推进：RESULT_PENDING→RETROSPECTIVE，RETROSPECTIVE→CLOSED
+        // 只推进一次：RESULT_PENDING→RETROSPECTIVE，不再推进到 CLOSED
         verify(stageService).requestTransition(eq(1L), eq(ProjectStage.RETROSPECTIVE), any());
-        verify(stageService).requestTransition(eq(1L), eq(ProjectStage.CLOSED), any());
+        verify(stageService, never()).requestTransition(eq(1L), eq(ProjectStage.CLOSED), any());
     }
 
     @Test
