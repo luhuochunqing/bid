@@ -53,9 +53,45 @@
 
 ---
 
-## 阶段 2：plan.md（待办）
+## 阶段 2：plan.md（2026-07-04 17:25 完成）
 
-<!-- /speckit-plan 阶段会在这里追加技术方案、测试策略、风险评估 -->
+### 决策 5：复用 `service.hasClosureSubmission()` 而非新加 repository 调用
+
+**问题**：controller 已注入 `closureRepository`（CO-443 用），但 CO-443 实际调用的是 `service.hasClosureSubmission()`（service 层封装）。我们判断"是否解锁 CLOSED"也需要这个信息，应该用哪个？
+
+**选择**：用 `service.hasClosureSubmission()`，与 CO-443 完全一致。
+
+**理由**：
+- service 层封装若有缓存或聚合逻辑，直接调 repository 会绕过
+- 单一真相源：项目"是否有 closure 提交"由 `ProjectStageService` 统一定义
+- controller 已经调过一次 `service.hasClosureSubmission(projectId)`，可抽局部变量复用结果，**零额外 DB 查询**
+
+### 决策 6：用 `actual`（真实 stage）而非 `current`（CO-443 调整后的 stage）做解锁判定
+
+**问题**：controller 第 52 行把 `current` 在 closure 已提交时改成 CLOSED。我们判定"复盘未提交 closure"应该用哪个？
+
+**选择**：用 `actual == ProjectStage.RETROSPECTIVE`，不用 `current`。
+
+**理由**：
+- `current` 在 closure 已提交时 = CLOSED，此时 `current == RETROSPECTIVE` 为 false，会漏判（不会解锁，但语义错位）
+- 用 `actual == RETROSPECTIVE` 表达"真实仍在复盘阶段"，配合 `!hasClosureSubmission` 双重精确判定
+- 两者在功能上等价（hasClosureSubmission 已守门），但语义清晰度更高
+
+**Tradeoff**：引入 `actual` 与 `current` 两个变量的对比，读者需要理解 CO-443 才能看懂。已在代码注释中明确标注"用 actual 而非 current"的原因。
+
+### 决策 7：测试用例覆盖"重复 CLOSED"风险
+
+**新增的潜在风险**：closure 已存在（DRAFT）时，`current=CLOSED`，CLOSED 已在 `completed` 列表里。如果解锁逻辑误触发，CLOSED 会出现两次。
+
+**测试覆盖**：`co498_retrospectiveWithClosureDraft_doesNotUnlockClosedTwice` 用 `accessibleStages.not(hasSize(7))` 断言无重复（6 个阶段是正常上限）。
+
+**额外守护**：`actual == RETROSPECTIVE && !hasClosureSubmission` 在 closure 已存在时 `hasClosureSubmission=true`，整个条件为 false，不会触发重复追加。
+
+---
+
+## 阶段 3：tasks.md（待办）
+
+<!-- /speckit-tasks 阶段会在这里追加任务清单 -->
 
 ---
 
