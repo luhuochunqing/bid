@@ -2932,3 +2932,72 @@ GET /api → 后端字段计算 → 前端字段消费 → 用户交互 → 下�
 - §23 — 全链路日志排查 SOP（本次排查使用 Layer 1-3）
 - §28 — 权限 Bug 必须审视同一业务动作的所有 UI 入口（同类：修 A bug 漏看 B 链路）
 - §26 — 联动回填链路 4 层全链路验证 SOP（同类：前后端字段联动验证）
+
+---
+
+## 39. CO-469 七轮修复全记录：多轮返工的系统性根因与防复发（2026-07-02 ~ 07-04）
+
+### 七轮修复时间线
+
+| 轮次 | 日期 | 用户反馈 | 根因 | 修复 | PR |
+|------|------|---------|------|------|-----|
+| 1 | 07-02 | 导入导出卡在 0%，无报错 | 异步任务异常被静默吞掉 | 初始排查 | — |
+| 2 | 07-02 | 部分场景仍死循环 | 前端状态机仅处理 2/5 后端状态（PARTIAL_SUCCESS/UNKNOWN/NOT_FOUND 未覆盖） | 状态机覆盖全部 5 状态 | !1548 |
+| 3 | 07-03 | 导出卡在 70% | `catch (IOException)` 接不住 NPE/IllegalStateException → 异步线程静默终止 | `catch (IOException \| RuntimeException)` | !1575 |
+| 4 | 07-03 | 导出报 NPE | `Collectors.toMap` null key（employeeNumber 为 null） | 全仓治理 35 处 toMap | !1640 |
+| 5 | 07-04 | `DataIntegrityViolationException: personnel_id cannot be null` | 批量操作日志写入 `personnel_id=NULL`，表约束 NOT NULL | V1134 迁移允许 NULL | !1672 |
+| 6 | 07-04 | 导出 0 条记录，zip 无法解压 | 前端 `new Blob([res])` 包裹了 axios response 对象；下载按钮无守卫 | `res.data` + `v-if` 守卫 | !1679 |
+| 7 | 07-04 | 仍 0 条记录，无下载按钮 | 后端 `ExportProgress.recordCount` ≠ 前端 `info.totalCount`；且 !1672 遗漏此修复 | `recordCount` → `totalCount` | !1684 |
+
+### 为什么改了七轮
+
+**表层原因**：每一轮都是"用户报一个问题 → 修一个问题 → 部署 → 暴露下一个问题"的串行模式。
+
+**深层原因**：
+
+1. **症状修复而非根因修复**：前 4 轮每一轮只修了异常栈最顶层的报错，没有追问"为什么异步任务异常会静默吞掉？为什么状态机只覆盖了 2 种状态？"——如果 Round 2 就审视整个异常处理链路（catch 类型 + 状态机 + toMap + 数据库约束），一次可以修完 4 个问题。
+
+2. **前后端分离修复的时序错位**：Round 6（前端 `res.data`）和 Round 7（后端 `recordCount`→`totalCount`）本应是一体的——同一个字段名对齐问题，前后端应该同一次 PR 修复。但 !1679 只修了前端，后端修复被遗漏在本地未提交。
+
+3. **"收尾"时机不当**：!1672 合并后，`recordCount`→`totalCount` 的修改是本地 uncommitted 状态。此时用户说"收尾"，切换到锚点分支，改动留在工作区被遗忘。**规则：收尾前必须 `git status` 确认无未提交改动。**
+
+4. **测试覆盖不足**：没有针对"导出进度 JSON 字段名与前端 composable 字段名一致性"的集成测试。如果有一个测试验证 `ExportProgress` 的 JSON 序列化结果能被 `usePersonnelBatchTask` 正确解析，Round 7 在 CI 阶段就会被拦截。
+
+### 系统性教训
+
+| 教训 | 具体表现 | 规范 |
+|------|---------|------|
+| 多轮返工是"症状修复"的信号 | 7 轮每轮修一个异常栈顶层 | 第一轮修复后，追问"同类问题还有哪些？"做全仓扫描 |
+| 前后端字段契约必须同 PR 对齐 | Round 6 修前端、Round 7 修后端，中间隔了部署 | 涉及前后端字段名变更的，必须同一 PR 同时修改 |
+| 收尾前必须检查未提交改动 | `recordCount`→`totalCount` 修改留在本地被遗忘 | 收尾前执行 `git status --short`，确认工作区干净 |
+| 异步任务的异常处理必须覆盖所有 RuntimeException | 4 轮都在修异步异常处理 | `@Async` 方法必须 `catch (Exception)` 兜底，不可只 catch 受检异常 |
+| 前端 composable 字段名必须与后端 record 字段名一致 | `totalCount` vs `recordCount` | 字段命名以 DTO/Record 为唯一真相源，前端 composable 直接引用后端字段名（或通过 TypeScript 类型约束） |
+
+### 防复发机制
+
+**L1：前端 composable 字段名一致性检查**（建议新增）：
+- 后端 `ExportProgress` / `ImportProgressInfo` 等 record 的字段名变更时，CI 自动扫描前端 `usePersonnelBatchTask.js` 中引用的字段名是否匹配
+- 实现方式：`scripts/check-frontend-field-names.sh` 扫描 record 定义 → 提取字段名 → 在前端 JS 文件中 grep 确认存在
+
+**L2：收尾前干净工作区检查**（已存在，需强化）：
+- `agent-finish-task.sh` 已有 `git status --porcelain` 检查
+- 强化：当检测到未提交改动时，打印改动文件列表并要求用户显式确认（`--force` 或先提交）
+
+**L3：异步任务异常处理全仓审计**（建议新增）：
+- 扫描所有 `@Async` 方法，检查 catch 块是否覆盖 `RuntimeException`
+- 实现方式：`scripts/check-async-exception-handling.sh`
+
+### 关键文件
+
+- `backend/.../ExportPersonnelAppService.java` — 导出服务（Round 3/5/7 修改）
+- `backend/.../ImportPersonnelAppService.java` — 导入服务（Round 5 修改）
+- `src/views/.../usePersonnelBatchTask.js` — 前端批量任务状态机（Round 2/6/7 修改）
+- `src/api/modules/personnelBatchApi.js` — 前端 API 层（Round 6 修改）
+- `backend/.../V1134__personnel_operation_log_allow_null_personnel_id.sql` — 迁移脚本（Round 5）
+- `backend/.../PersonnelZipExporter.java` — ZIP 导出器（Round 3/4 涉及）
+
+### 相关 SOP
+
+- §23 — 全链路日志排查 SOP（Round 7 使用 Layer 3 git 追溯定位根因）
+- §36 — Collectors.toMap 三层失效（Round 4 同类问题）
+- §17 — Bug 修复前必须先验证实际行为（Round 1 如果先验证全链路就不会只修表层）
