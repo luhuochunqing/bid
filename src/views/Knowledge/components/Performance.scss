@@ -1,27 +1,13 @@
 @use '../_knowledge-utils' as *;
 
 .performance-container {
-  background-color: var(--el-bg-color-page);
-  min-height: 100vh;
+  // 背景由 KbLayout 统一提供，无需重复定义
 }
 
-.page-header {
-  .header-left {
-    h2 {
-      font-size: 24px;
-      font-weight: 700; // Performance 特有，覆盖公共的 600
-      margin: 0 0 4px 0;
-    }
-    .sub-title {
-      font-size: 13px;
-      color: var(--el-text-color-secondary);
-    }
-  }
-  
-  .header-right {
-    display: flex;
-    gap: 12px;
-  }
+// h2 样式已由 _knowledge-utils 的 .kb-page-header 统一管理
+// Performance 特有覆盖：加大标题字重
+.kb-page-header h2 {
+  font-weight: 700;
 }
 
 .filter-card {
@@ -55,34 +41,19 @@
   }
 }
 
-.border-glow {
-  border: 1px solid var(--el-border-color-light);
-  transition: box-shadow 0.3s ease, border-color 0.3s ease;
-  &:hover {
-    border-color: var(--el-border-color);
-    box-shadow: var(--el-box-shadow-light);
-  }
-}
+// border-glow 已弃用，统一使用 kb-filter-card / kb-table-card 的 border+shadow
 
 .text-danger { color: var(--el-color-danger); }
 .text-warning { color: var(--el-color-warning); }
 .text-success { color: var(--el-color-success); }
 .text-normal { color: var(--el-text-color-regular); }
 
-.gradient-btn {
-  background: var(--el-color-primary) !important;
-  border: none !important;
-  color: var(--el-color-white) !important;
-  &:hover {
-    opacity: 0.9;
-  }
-}
-
-.ghost-btn {
-  border: 1px dashed var(--el-border-color) !important;
-  background-color: transparent !important;
-  color: var(--el-text-color-secondary) !important;
-}
+// ── 按钮样式统一 ──
+// Performance 使用 el-button type="primary" 即可，无需额外 class
+// ghost-btn 虚线风格已弃用，统一为默认 outlined
+.ghost-btn { display: contents; }
+// gradient-btn 冗余，type="primary" 已使用品牌色
+.gradient-btn { display: contents; }
 
 .btn-icon {
   margin-right: 4px;

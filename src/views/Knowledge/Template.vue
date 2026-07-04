@@ -5,7 +5,7 @@
         <h2 class="page-title">模板库</h2>
         <p class="page-subtitle">产品类型、行业、文档类型是正式分类主入口，历史大类只作为辅助浏览视图保留。</p>
       </div>
-      <div class="header-actions">
+      <div class="kb-header-actions">
         <el-button type="primary" :icon="Plus" @click="openCreateDialog">
           新建模板
         </el-button>
@@ -222,8 +222,7 @@ const {
 @use './_knowledge-utils' as *;
 
 .template-container {
-  background: var(--bg-page);
-  min-height: 100vh;
+  // 背景由 KbLayout 统一提供
 }
 
 .page-header {

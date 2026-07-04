@@ -3,9 +3,9 @@
     <div class="kb-page-header">
       <h2>仓库管理</h2>
       <div class="kb-header-actions">
-        <el-button v-if="canManage" type="warning" @click="importVisible = true"><el-icon><Upload /></el-icon> 批量导入</el-button>
-        <el-button v-if="canManage" type="success" @click="exportVisible = true"><el-icon><Download /></el-icon> 导出台账</el-button>
-        <el-button v-if="canManage" plain @click="handleBatchExport"><el-icon><Document /></el-icon> 台账导出</el-button>
+        <el-button v-if="canManage" @click="importVisible = true"><el-icon><Upload /></el-icon> 批量导入</el-button>
+        <el-button v-if="canManage" @click="exportVisible = true"><el-icon><Download /></el-icon> 导出台账</el-button>
+        <el-button v-if="canManage" @click="handleBatchExport"><el-icon><Document /></el-icon> 台账导出</el-button>
         <el-button v-if="canManage" type="primary" @click="openCreate"><el-icon><Plus /></el-icon> 新增仓库</el-button>
       </div>
     </div>
@@ -64,7 +64,7 @@
           </template>
         </el-table-column>
       </el-table>
-      <div class="pagination-wrap">
+      <div class="kb-pagination-wrap">
         <el-pagination v-model:current-page="page" v-model:page-size="size" :page-sizes="[15,30,50,100]" :total="total"
           layout="total,sizes,prev,pager,next" @size-change="resetPageAndLoad" @current-change="load" />
       </div>
@@ -299,7 +299,6 @@ onMounted(load)
 
 <style scoped lang="scss">
 @use './_knowledge-utils' as *;
-.pagination-wrap { display:flex; justify-content:flex-end; margin-top:16px }
 :deep(.row-newly-created) { animation: highlightFade 3s ease-out }
 @keyframes highlightFade {
   0% { background-color: #e1f3d8 }

@@ -76,7 +76,7 @@
             </template>
           </el-table-column>
         </el-table>
-        <div class="pagination-container">
+        <div class="kb-pagination-wrap">
           <el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[10, 20, 50, 100]" layout="total, sizes, prev, pager, next, jumper" :total="totalElements" @current-change="loadData" @size-change="handleSizeChange" />
         </div>
       </template>
@@ -274,5 +274,4 @@ watch(activeView, () => { loadData() })
 .search-form { margin-bottom: -18px; }
 .custom-table { border-radius: 6px; overflow: hidden; --el-table-header-bg-color: var(--el-fill-color-light); }
 .clickable-tag { cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s ease; &:hover { transform: scale(1.05); background-color: var(--el-color-info-light-7); } }
-.pagination-container { display: flex; justify-content: flex-end; margin-top: 16px; }
 </style>
