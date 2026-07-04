@@ -87,12 +87,20 @@ const localTargetSubStage = computed({
   set: (val) => emit('update:targetSubStage', val)
 })
 
+// CO-495: 删除「评标中」可选选项——进入评标阶段即为评标中，无需作为可选状态
 const statusOptions = [
-  { label: '评标中', value: 'IN_PROGRESS' },
   { label: '评标结果已出，待上会', value: 'AWAITING_BOARD' },
   { label: '评标结果已出', value: 'RESULT_OUT' },
   { label: '评标结果公示', value: 'ANNOUNCED' }
 ]
+
+// 历史数据仍可能为 IN_PROGRESS（后端默认初始值），展示时需要翻译回中文标签
+const SUB_STAGE_LABELS = {
+  IN_PROGRESS: '评标中',
+  AWAITING_BOARD: '评标结果已出，待上会',
+  RESULT_OUT: '评标结果已出',
+  ANNOUNCED: '评标结果公示'
+}
 
 function selectStatus(value) {
   if (props.transitioning) return
@@ -101,8 +109,7 @@ function selectStatus(value) {
 }
 
 function subStageLabel(val) {
-  const opt = statusOptions.find(o => o.value === val)
-  return opt ? opt.label : (val || '-')
+  return SUB_STAGE_LABELS[val] || val || '-'
 }
 
 function tagType(val) {
