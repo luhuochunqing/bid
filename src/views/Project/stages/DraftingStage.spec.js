@@ -18,13 +18,16 @@ vi.mock('@/stores/user.js', () => ({
 
 const getDraftingMock = vi.fn(() => Promise.resolve({ data: {} }))
 const getDocumentsMock = vi.fn(() => Promise.resolve({ data: [] }))
+const submitBidForReviewMock = vi.fn(() => Promise.resolve({ data: {} }))
+const approveBidMock = vi.fn(() => Promise.resolve({ data: {} }))
+const rejectBidMock = vi.fn(() => Promise.resolve({ data: {} }))
 
 vi.mock('@/api/modules/projectLifecycle.js', () => ({
   projectLifecycleApi: {
     getDrafting: (...args) => getDraftingMock(...args),
-    submitBidForReview: vi.fn(),
-    approveBid: vi.fn(),
-    rejectBid: vi.fn(),
+    submitBidForReview: (...args) => submitBidForReviewMock(...args),
+    approveBid: (...args) => approveBidMock(...args),
+    rejectBid: (...args) => rejectBidMock(...args),
     submitBid: vi.fn(),
   },
 }))
@@ -488,5 +491,62 @@ describe('DraftingStage 多人审核 + CO-483 驳回后清空 - CO-483/CO-484', 
 
     const tip = wrapper.find('.bid-reviewer-tip')
     expect(tip.exists()).toBe(false)
+  })
+
+  it('CO-484 v2：审核记录展示"操作人：审核通过 / 驳回（原因）"', async () => {
+    getDraftingMock.mockImplementation(() => Promise.resolve({
+      data: {
+        reviewStatus: 'REVIEWING',
+        reviewerId: 200,
+        reviewers: [
+          { reviewerId: 200, reviewerName: '张三', decision: 'APPROVED', comment: null },
+          { reviewerId: 201, reviewerName: '李四', decision: 'REJECTED', comment: '内容不完整' },
+          { reviewerId: 202, reviewerName: '王五', decision: null, comment: null },
+        ],
+      }
+    }))
+    const wrapper = await mountDraftingStage()
+    await flushPromises()
+
+    const records = wrapper.findAll('.review-record-item')
+    // 已操作的 2 人展示（未决策的王五不展示）
+    expect(records.length).toBe(2)
+    expect(records[0].text()).toBe('张三：审核通过')
+    expect(records[1].text()).toBe('李四：驳回（内容不完整）')
+  })
+
+  it('CO-484 v2：提交审核后调用 load 刷新，多人审核人正确回填', async () => {
+    // 首次 load 返回空状态（未提交审核）
+    getDraftingMock.mockImplementationOnce(() => Promise.resolve({ data: {} }))
+    // submitBidForReview 后第二次 load 返回多人审核人
+    getDraftingMock.mockImplementationOnce(() => Promise.resolve({
+      data: {
+        reviewStatus: 'REVIEWING',
+        reviewerId: 200,
+        reviewers: [
+          { reviewerId: 200, reviewerName: '张三', decision: null, comment: null },
+          { reviewerId: 201, reviewerName: '李四', decision: null, comment: null },
+        ],
+      }
+    }))
+
+    const wrapper = await mountDraftingStage()
+    await flushPromises()
+
+    // 选择 2 个审核人并提交
+    await wrapper.findComponent({ name: 'UserPicker' }).vm.$emit('update:modelValue', [200, 201])
+    const submitBtn = wrapper.findAll('button').find(b => b.text().includes('提交标书审核'))
+    expect(submitBtn).toBeTruthy()
+    await submitBtn.trigger('click')
+    await flushPromises()
+
+    // 验证 submitBidForReview 被调用
+    expect(submitBidForReviewMock).toHaveBeenCalled()
+    // 验证 load 被调用了 2 次（初始 + 提交后刷新）
+    expect(getDraftingMock).toHaveBeenCalledTimes(2)
+    // 验证多人审核人正确回填
+    const text = wrapper.text()
+    expect(text).toContain('张三')
+    expect(text).toContain('李四')
   })
 })
