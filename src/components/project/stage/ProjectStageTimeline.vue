@@ -64,10 +64,8 @@ function describe(stage) {
     // CO-443: 终态阶段（CLOSED）当前步骤显示"已完成"，而非"进行中"
     return snapshot.value?.terminal ? '已完成' : '进行中'
   }
-  const accessible = snapshot.value?.accessibleStages
-  if (Array.isArray(accessible) && accessible.includes(stage.code) && stage.code !== currentCode.value) {
-    return '可进入'
-  }
+  // CO-497: 删除"可进入"状态 — 未完成且非当前阶段统一显示"待进入"。
+  // 阶段入口由 accessibleStages 控制（isUnlocked），与文案解耦。
   return '待进入'
 }
 

@@ -13,6 +13,7 @@ import com.xiyu.bid.project.entity.ProjectResult;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.project.repository.ProjectClosureRepository;
 import com.xiyu.bid.project.repository.ProjectResultRepository;
+import com.xiyu.bid.project.repository.ProjectRetrospectiveRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,6 +41,7 @@ class ProjectStageServiceTest {
     private ApplicationEventPublisher eventPublisher;
     private ProjectResultRepository projectResultRepository;
     private ProjectClosureRepository closureRepository;
+    private ProjectRetrospectiveRepository retrospectiveRepository;
     private ProjectStageService service;
 
     private static final Long PID = 1L;
@@ -53,7 +55,8 @@ class ProjectStageServiceTest {
         notificationService = mock(ProjectNotificationService.class);
         projectResultRepository = mock(ProjectResultRepository.class);
         closureRepository = mock(ProjectClosureRepository.class);
-        service = new ProjectStageService(projectRepo, eventPublisher, notificationService, projectResultRepository, closureRepository);
+        retrospectiveRepository = mock(ProjectRetrospectiveRepository.class);
+        service = new ProjectStageService(projectRepo, eventPublisher, notificationService, projectResultRepository, closureRepository, retrospectiveRepository);
         when(projectRepo.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
         // 默认返回空 Optional，表示无已登记结果；个别测试按需覆写
         when(projectResultRepository.findByProjectId(PID)).thenReturn(Optional.empty());

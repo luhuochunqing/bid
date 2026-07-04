@@ -107,13 +107,6 @@
       <div v-if="canEdit" class="btn-container">
         <el-button type="primary" size="large" :loading="submitting" :disabled="locked" @click="submit">提交复盘</el-button>
       </div>
-      <!-- CO-497: 复盘已提交(locked)后，提供"进入结项阶段"入口。
-           PR #1667 修复后 stage 停在 RETROSPECTIVE，刷新页面时 handleSnapshot 设 tab=RETROSPECTIVE，
-           用户看到只读复盘表单，没有入口进入结项阶段。此按钮 emit('submitted') 触发 onRetrospectiveSubmitted，
-           复用 PR #1673 的 try-catch-finally 跳转逻辑。 -->
-      <div v-if="locked" class="btn-container">
-        <el-button type="primary" size="large" @click="emit('submitted')">进入结项阶段</el-button>
-      </div>
     </div>
     <!-- 流标/弃标提示 -->
     <el-empty v-else description="流标/弃标无需复盘，请进入结项页面" />

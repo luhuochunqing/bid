@@ -48,9 +48,12 @@ public class ProjectStageController {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         ProjectStage actual = service.currentStage(projectId);
         boolean hasClosureSubmission = service.hasClosureSubmission(projectId);
-        // CO-443: 已提交结项申请但审批未通过时，阶段尚未实际推进到 CLOSED，
+        boolean hasRetrospectiveSubmission = service.hasRetrospectiveSubmission(projectId);
+        // CO-443 + CO-497: 已提交复盘或结项申请但审批未通过时，阶段尚未实际推进到 CLOSED，
         // 但前端进度导航栏应显示 CLOSED 为「进行中」而非「待进入」。
-        ProjectStage current = (actual != ProjectStage.CLOSED && hasClosureSubmission)
+        // CO-497 扩展触发条件：复盘提交后即视为应进入结项阶段，让前端自动跳转结项 tab，
+        // 避免 RETROSPECTIVE 阶段无入口的死锁（替代前端 isRetrospectiveTransitioning 标志位方案）。
+        ProjectStage current = (actual != ProjectStage.CLOSED && (hasClosureSubmission || hasRetrospectiveSubmission))
                 ? ProjectStage.CLOSED
                 : actual;
         List<ProjectStage> next = current.isTerminal()
