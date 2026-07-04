@@ -1,9 +1,0 @@
-version: 1
-task: "fix-bidteam-settings-menu-leak"
-locks:
-  - path: "backend/src/main/java/com/xiyu/bid/entity/RoleProfileCatalog.java"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/claude/fix-bidteam-settings-menu-leak"
-    expiresAt: "2026-07-05T02:35:51.083Z"
-    reason: "fix bid-Team catalog: remove ai-center/operation-logs menu permissions (OSS is the single source of menu permissions)"
