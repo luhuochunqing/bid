@@ -234,8 +234,80 @@ class TenderImportServiceTest {
     void templateHasEighteenColumns() {
         assertThat(TenderImportService.HEADERS).hasSize(18);
         assertThat(TenderImportService.HEADERS[0]).isEqualTo("项目名称*");
-        assertThat(TenderImportService.HEADERS[15]).isEqualTo("项目类型");
+        // CO-502: 客户类型/优先级/项目类型 改为必填，表头带 * 后缀
+        assertThat(TenderImportService.HEADERS[13]).isEqualTo("客户类型*");
+        assertThat(TenderImportService.HEADERS[14]).isEqualTo("优先级*");
+        assertThat(TenderImportService.HEADERS[15]).isEqualTo("项目类型*");
         assertThat(TenderImportService.HEADERS[17]).isEqualTo("标讯描述");
+    }
+
+    @Test
+    @DisplayName("CO-502: 客户类型为空应当全量回滚")
+    void missingCustomerTypeTriggersRollback() throws Exception {
+        when(validator.validate(any(TenderRequest.class))).thenReturn(Collections.emptySet());
+
+        String[] row = exampleRow();
+        row[13] = null;
+        byte[] bytes = buildWorkbookWithHeaders(TenderImportService.HEADERS, new String[][]{row});
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "import.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bytes);
+
+        assertThatThrownBy(() -> service.importFromExcel(file, 1L))
+                .isInstanceOf(TenderImportRollbackException.class)
+                .satisfies(ex -> {
+                    TenderImportResultDTO result = ((TenderImportRollbackException) ex).getResult();
+                    assertThat(result.getErrors().get(0).field()).isEqualTo("customerType");
+                    assertThat(result.getErrors().get(0).message()).contains("不能为空");
+                });
+
+        verify(tenderCommandService, never()).createTender(any(), any());
+    }
+
+    @Test
+    @DisplayName("CO-502: 优先级为空应当全量回滚")
+    void missingPriorityTriggersRollback() throws Exception {
+        when(validator.validate(any(TenderRequest.class))).thenReturn(Collections.emptySet());
+
+        String[] row = exampleRow();
+        row[14] = null;
+        byte[] bytes = buildWorkbookWithHeaders(TenderImportService.HEADERS, new String[][]{row});
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "import.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bytes);
+
+        assertThatThrownBy(() -> service.importFromExcel(file, 1L))
+                .isInstanceOf(TenderImportRollbackException.class)
+                .satisfies(ex -> {
+                    TenderImportResultDTO result = ((TenderImportRollbackException) ex).getResult();
+                    assertThat(result.getErrors().get(0).field()).isEqualTo("priority");
+                    assertThat(result.getErrors().get(0).message()).contains("不能为空");
+                });
+
+        verify(tenderCommandService, never()).createTender(any(), any());
+    }
+
+    @Test
+    @DisplayName("CO-502: 项目类型为空应当全量回滚")
+    void missingProjectTypeTriggersRollback() throws Exception {
+        when(validator.validate(any(TenderRequest.class))).thenReturn(Collections.emptySet());
+
+        String[] row = exampleRow();
+        row[15] = null;
+        byte[] bytes = buildWorkbookWithHeaders(TenderImportService.HEADERS, new String[][]{row});
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "import.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bytes);
+
+        assertThatThrownBy(() -> service.importFromExcel(file, 1L))
+                .isInstanceOf(TenderImportRollbackException.class)
+                .satisfies(ex -> {
+                    TenderImportResultDTO result = ((TenderImportRollbackException) ex).getResult();
+                    assertThat(result.getErrors().get(0).field()).isEqualTo("projectType");
+                    assertThat(result.getErrors().get(0).message()).contains("不能为空");
+                });
+
+        verify(tenderCommandService, never()).createTender(any(), any());
     }
 
     @Test

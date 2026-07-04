@@ -47,7 +47,7 @@ public class TenderImportService {
             "报名截止时间*", "开标时间*",
             "联系人1*", "联系人1手机号", "联系人1座机", "联系人1邮箱",
             "联系人2", "联系人2手机号", "联系人2座机", "联系人2邮箱",
-            "客户类型", "优先级", "项目类型", "来源平台", "标讯描述"
+            "客户类型*", "优先级*", "项目类型*", "来源平台", "标讯描述"
     };
 
     static final List<String> CUSTOMER_TYPES = List.of(
@@ -267,14 +267,24 @@ public class TenderImportService {
             errors.add(new RowError(displayRow, "region",
                     "总部所在地须为一级+二级格式（如\"广东省深圳市\"、\"北京市北京市\"、\"台湾省台北市\"）"));
         }
-        if (request.getCustomerType() != null && !CUSTOMER_TYPES.contains(request.getCustomerType())) {
+        // CO-502: 客户类型/优先级/项目类型 改为必填
+        if (request.getCustomerType() == null || request.getCustomerType().isBlank()) {
+            errors.add(new RowError(displayRow, "customerType", "客户类型不能为空"));
+            explicitFields.add("customerType");
+        } else if (!CUSTOMER_TYPES.contains(request.getCustomerType())) {
             errors.add(new RowError(displayRow, "customerType",
                     "客户类型必须是：" + String.join(" / ", CUSTOMER_TYPES)));
         }
-        if (request.getPriority() != null && !PRIORITIES.contains(request.getPriority())) {
+        if (request.getPriority() == null || request.getPriority().isBlank()) {
+            errors.add(new RowError(displayRow, "priority", "优先级不能为空"));
+            explicitFields.add("priority");
+        } else if (!PRIORITIES.contains(request.getPriority())) {
             errors.add(new RowError(displayRow, "priority", "优先级必须是 S/A/B/C 之一"));
         }
-        if (request.getProjectType() != null && !PROJECT_TYPES.contains(request.getProjectType())) {
+        if (request.getProjectType() == null || request.getProjectType().isBlank()) {
+            errors.add(new RowError(displayRow, "projectType", "项目类型不能为空"));
+            explicitFields.add("projectType");
+        } else if (!PROJECT_TYPES.contains(request.getProjectType())) {
             errors.add(new RowError(displayRow, "projectType",
                     "项目类型必须是：" + String.join(" / ", PROJECT_TYPES)));
         }
