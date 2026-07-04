@@ -1,5 +1,36 @@
-// Shared utility styles for Knowledge views
-// Place reusable spacing, flex, and card utilities here.
-// Prefer Element Plus built-in classes before adding here.
+// ── Knowledge 模块公共样式 ──────────────────────────────
+// 用途：统一二级菜单页面的 page-header / filter-card / table-card 骨架样式
+// 使用：@use './_knowledge-utils' as *;  (同目录页面)
+//       @use '../_knowledge-utils' as *;  (views/ 子目录页面)
 
-.mb-4 { margin-bottom: 16px; }
+.mb-4 { margin-bottom: var(--space-md); }
+
+// 页面标题栏
+.kb-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-lg); // 24px
+
+  h2 {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+  }
+}
+
+// 筛选卡片
+.kb-filter-card {
+  border-radius: var(--radius-md); // 8px
+  border: 1px solid var(--el-border-color-lighter);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: var(--space-md); // 16px
+}
+
+// 数据/表格卡片
+.kb-table-card {
+  border-radius: var(--radius-md); // 8px
+  border: 1px solid var(--el-border-color-lighter);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: var(--space-md); // 16px
+}

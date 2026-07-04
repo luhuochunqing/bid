@@ -60,7 +60,7 @@
       </el-form>
     </el-card>
 
-    <el-card class="table-card" v-loading="loading">
+    <el-card class="table-card kb-table-card" v-loading="loading">
       <el-table :data="tableData" style="width: 100%" border stripe highlight-current-row max-height="calc(100vh - 220px)" scrollbar-always-on @row-click="handleRowClick" class="custom-table">
         <el-table-column type="selection" width="55" />
         <el-table-column type="index" label="序号" width="110" align="center" />
@@ -255,8 +255,8 @@ onMounted(() => { loadManagerOptions(); loadData() })
 </script>
 
 <style scoped lang="scss">
+@use '../_knowledge-utils' as *;
 .project-archive-container { display: flex; flex-direction: column; gap: 16px; }
-.filter-card, .table-card { border-radius: 8px; box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05); border: 1px solid var(--el-border-color-lighter); }
 .card-header-title { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; color: var(--el-text-color-primary); }
 .search-form { margin-bottom: -18px; }
 .custom-table { border-radius: 6px; overflow: hidden; --el-table-header-bg-color: var(--el-fill-color-light); }

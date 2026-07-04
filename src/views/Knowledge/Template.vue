@@ -1,6 +1,6 @@
 <template>
   <div class="template-container">
-    <div class="page-header">
+    <div class="page-header kb-page-header">
       <div>
         <h2 class="page-title">模板库</h2>
         <p class="page-subtitle">产品类型、行业、文档类型是正式分类主入口，历史大类只作为辅助浏览视图保留。</p>
@@ -219,16 +219,15 @@ const {
 </script>
 
 <style scoped lang="scss">
+@use './_knowledge-utils' as *;
+
 .template-container {
   background: var(--bg-page);
   min-height: 100vh;
 }
 
 .page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 20px;
+  align-items: flex-start; // Template 特有，覆盖公共的 center
   gap: 16px;
 }
 

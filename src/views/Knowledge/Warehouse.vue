@@ -13,7 +13,7 @@
       @batch-export="handleBatchExport"
       @ledger-export="ledgerExportVisible = true"
     />
-    <el-card class="data-card" shadow="never">
+    <el-card class="data-card kb-table-card" shadow="never">
       <el-table :data="records" v-loading="loading" style="width:100%" max-height="calc(100vh - 220px)" scrollbar-always-on @row-click="openDrawer"
         :row-class-name="({row}) => newlyCreatedIds.has(row.id) ? 'row-newly-created' : ''"
         @selection-change="handleSelectionChange">
@@ -293,8 +293,7 @@ onMounted(load)
 </script>
 
 <style scoped lang="scss">
-.page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; h2 { font-weight:600; color:#1f2937; margin:0 } }
-.data-card { border-radius:8px; border:1px solid var(--el-border-color-lighter); box-shadow:0 2px 8px rgba(0,0,0,.05) }
+@use './_knowledge-utils' as *;
 .pagination-wrap { display:flex; justify-content:flex-end; margin-top:16px }
 :deep(.row-newly-created) { animation: highlightFade 3s ease-out }
 @keyframes highlightFade {

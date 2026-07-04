@@ -1,6 +1,6 @@
 <template>
   <div class="performance-container">
-    <div class="page-header">
+    <div class="page-header kb-page-header">
       <div class="header-left">
         <h2>业绩管理</h2>
         <span class="sub-title">合同台账与到期提醒中心</span>
@@ -27,7 +27,7 @@
       </div>
     </div>
 
-    <el-card class="filter-card border-glow">
+    <el-card class="filter-card kb-filter-card border-glow">
       <el-form :inline="true" :model="searchForm" class="demo-form-inline">
         <el-form-item label="模糊搜索">
           <el-input v-model="searchForm.keyword" placeholder="合同名称/签约单位/集团名称" clearable style="width: 240px" />
@@ -87,7 +87,7 @@
       </el-form>
     </el-card>
 
-    <el-card class="table-card border-glow" v-loading="loading">
+    <el-card class="table-card kb-table-card border-glow" v-loading="loading">
       <el-table :data="records" stripe style="width: 100%" max-height="calc(100vh - 300px)" scrollbar-always-on @row-click="openDetail" @selection-change="handleSelectionChange" class="custom-table">
         <el-table-column type="selection" width="55" />
         <el-table-column type="index" label="序号" width="110" align="center" />

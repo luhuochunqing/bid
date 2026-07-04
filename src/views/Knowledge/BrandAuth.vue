@@ -1,6 +1,6 @@
 <template>
   <div class="brandauth-container">
-    <div class="page-header"><h2>品牌授权</h2></div>
+    <div class="page-header kb-page-header"><h2>品牌授权</h2></div>
     <div class="tab-toolbar">
       <el-button v-if="canManage" type="primary" @click="openCreate"><el-icon><Plus /></el-icon> {{ activeTab === 'agent' ? '新增代理商授权' : '新增原厂授权' }}</el-button>
       <el-button v-if="canManage" @click="handleExport"><el-icon><Download /></el-icon> 导出 Excel</el-button>
@@ -8,7 +8,7 @@
     </div>
     <el-tabs v-model="activeTab" @tab-change="onTabChange">
       <el-tab-pane label="原厂授权" name="manufacturer">
-        <el-card class="filter-card">
+        <el-card class="filter-card kb-filter-card">
           <el-form :inline="true" :model="filters" size="default">
             <el-form-item label="一级产线">
               <el-select v-model="filters.productLines" multiple collapse-tags collapse-tags-tooltip filterable placeholder="全部" style="width:180px">
@@ -30,7 +30,7 @@
             <el-form-item><el-button type="primary" @click="loadData">查询</el-button><el-button @click="resetFilters">重置</el-button></el-form-item>
           </el-form>
         </el-card>
-        <el-card class="table-card" v-loading="loading">
+        <el-card class="table-card kb-table-card" v-loading="loading">
           <el-table :data="records" stripe max-height="calc(100vh - 280px)" scrollbar-always-on @row-click="openDetail">
             <el-table-column type="selection" width="55" />
             <el-table-column type="index" label="序号" width="110" align="center" />
@@ -60,7 +60,7 @@
         </el-card>
       </el-tab-pane>
       <el-tab-pane label="代理商授权" name="agent">
-        <el-card class="filter-card">
+        <el-card class="filter-card kb-filter-card">
           <el-form :inline="true" :model="filters" size="default">
             <el-form-item label="一级产线">
               <el-select v-model="filters.productLines" multiple collapse-tags collapse-tags-tooltip filterable placeholder="全部" style="width:180px">
@@ -83,7 +83,7 @@
             <el-form-item><el-button type="primary" @click="loadData">查询</el-button><el-button @click="resetFilters">重置</el-button></el-form-item>
           </el-form>
         </el-card>
-        <el-card class="table-card" v-loading="loading">
+        <el-card class="table-card kb-table-card" v-loading="loading">
           <el-table :data="records" stripe @row-click="openDetail">
             <el-table-column type="selection" width="55" />
             <el-table-column type="index" label="序号" width="110" align="center" />
@@ -268,9 +268,8 @@ onMounted(loadData)
 </script>
 
 <style scoped lang="scss">
-.page-header { margin-bottom: 16px; h2 { font-weight: 600; color: #1f2937; margin: 0; } }
+@use './_knowledge-utils' as *;
 .tab-toolbar { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin: 12px 0; }
-.filter-card, .table-card { border-radius: 8px; border: 1px solid var(--el-border-color-lighter); box-shadow: 0 2px 8px rgba(0,0,0,.05); margin-bottom: 12px; }
 .pagination-wrap { display: flex; justify-content: flex-end; margin-top: 16px; }
 .revoked-tag { text-decoration: line-through; opacity: 0.6; }
 </style>

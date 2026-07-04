@@ -1,6 +1,6 @@
 <template>
   <div class="personnel-container">
-    <div class="page-header">
+    <div class="page-header kb-page-header">
       <h2>人员库 — 投标团队成员管理</h2>
       <div class="header-actions">
         <div class="primary-actions">
@@ -22,7 +22,7 @@
       </div>
     </div>
 
-    <el-card class="filter-card">
+    <el-card class="filter-card kb-filter-card">
       <div class="filter-title">筛选条件</div>
       <el-form :inline="true" :model="filters" class="filter-form">
         <el-form-item label="姓名/工号">
@@ -78,7 +78,7 @@
       </el-form>
     </el-card>
 
-    <el-card class="table-card" v-loading="loading">
+    <el-card class="table-card kb-table-card" v-loading="loading">
       <el-table :data="records" stripe style="width:100%" max-height="calc(100vh - 300px)" scrollbar-always-on @row-click="openDetail">
         <el-table-column type="selection" width="55" />
         <el-table-column type="index" label="序号" width="110" align="center" />
@@ -257,10 +257,9 @@ onMounted(loadData)
 </script>
 
 <style scoped lang="scss">
-.page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; h2{font-weight:600;color:var(--el-text-color-primary);margin:0} }
+@use './_knowledge-utils' as *;
 .header-actions { display: flex; gap: 12px; align-items: center; }
 .primary-actions, .batch-actions { display: flex; gap: 8px; }
-.filter-card,.table-card{ border-radius:8px; border:1px solid var(--el-border-color-lighter); box-shadow:0 2px 8px rgba(0,0,0,.05); }
 .expiry-warn{color:var(--el-color-warning);display:flex;align-items:center;gap:4px;font-size:13px}
 .expiry-ok{color:var(--el-color-success);font-size:13px}
 .emp-no { font-weight: 600; color: var(--el-text-color-primary); }

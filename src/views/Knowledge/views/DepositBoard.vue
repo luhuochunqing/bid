@@ -1,6 +1,6 @@
 <template>
   <div class="deposit-board">
-    <div class="page-header">
+    <div class="page-header kb-page-header">
       <h2>投标保证金看板</h2>
       <p class="subtitle">跟踪并管理所有投标项目的保证金流转与退还状态</p>
     </div>
@@ -28,7 +28,7 @@
     </el-row>
 
     <!-- 保证金台账列表 -->
-    <el-card class="data-card" shadow="never">
+    <el-card class="data-card kb-table-card" shadow="never">
       <el-table :data="deposits" v-loading="loading" style="width: 100%">
         <el-table-column prop="projectId" label="关联项目" width="120">
           <template #default="scope">
@@ -148,16 +148,12 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '../_knowledge-utils' as *;
 .deposit-board {
   padding: 24px;
 }
-.page-header {
-  margin-bottom: 24px;
-}
 .page-header h2 {
-  font-weight: 600;
-  color: var(--gray-950);
   margin: 0 0 8px 0;
 }
 .subtitle {
@@ -196,10 +192,6 @@ onMounted(() => {
   font-size: 32px;
   font-weight: 700;
   letter-spacing: 1px;
-}
-.data-card {
-  border-radius: 12px;
-  border: 1px solid var(--gray-150);
 }
 .project-id-tag {
   background: var(--bg-subtle);

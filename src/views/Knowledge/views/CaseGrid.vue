@@ -1,6 +1,6 @@
 <template>
   <div class="case-grid-container">
-    <el-card class="filter-card">
+    <el-card class="filter-card kb-filter-card">
       <template #header>
         <div class="card-header-title"><el-icon><Grid /></el-icon><span>AI 案例库网格</span></div>
       </template>
@@ -285,9 +285,9 @@ onMounted(() => { restoreDrawerState(); loadCases(); })
 onBeforeUnmount(saveDrawerState)
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '../_knowledge-utils' as *;
 .case-grid-container { display: flex; flex-direction: column; gap: 16px; background: var(--bg-page); min-height: 100vh; }
-.filter-card { border-radius: 8px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.05); border: 1px solid var(--el-border-color-lighter); }
 .card-header-title { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; color: var(--el-text-color-primary); }
 .search-form { margin-bottom: -18px; }
 .grid-content { min-height: 200px; }
