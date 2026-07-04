@@ -291,7 +291,18 @@ async function handleStageUpdated() {
 }
 
 async function onRetrospectiveSubmitted() {
-  await handleStageUpdated()
-  activeStageTab.value = 'CLOSED'
+  // CO-497: 复盘提交后 stage 停在 RETROSPECTIVE（PR #1667 修复直达 CLOSED bug），
+  // handleStageUpdated 内的 handleSnapshot + syncTabToRealStage 会把 tab 设为 RETROSPECTIVE。
+  // 但用户期望进入结项阶段（CLOSED tab），所以无论 handleStageUpdated 是否成功，
+  // 都要用 finally 确保 tab 切换到 CLOSED。
+  // 修复前（stage=CLOSED）syncTabToRealStage 自然设 tab=CLOSED，异常不影响跳转；
+  // 修复后（stage=RETROSPECTIVE）若 handleStageUpdated 抛异常，tab 停在 RETROSPECTIVE 不跳转。
+  try {
+    await handleStageUpdated()
+  } catch (e) {
+    console.warn('[ProjectDetailMainColumn] onRetrospectiveSubmitted handleStageUpdated failed', e)
+  } finally {
+    activeStageTab.value = 'CLOSED'
+  }
 }
 </script>
