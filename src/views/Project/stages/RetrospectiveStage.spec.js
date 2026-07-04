@@ -171,3 +171,49 @@ describe('RetrospectiveStage CO-475 复盘报告必填', () => {
     expect(submitRetrospectiveMock).not.toHaveBeenCalled()
   })
 })
+
+describe('RetrospectiveStage CO-497 复盘已提交后进入结项阶段入口', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getDocumentsMock.mockReset()
+    getRetrospectiveMock.mockReset()
+  })
+
+  it('复盘已提交(locked)时显示"进入结项阶段"按钮，点击后 emit submitted', async () => {
+    getRetrospectiveMock.mockImplementation(() => Promise.resolve({
+      success: true,
+      data: {
+        meetingTime: '2026-06-29 10:00:00',
+        meetingFormat: 'ONLINE',
+        meetingParticipants: '张三,李四',
+        winFactors: '优势',
+        processHighlights: '亮点',
+        postWinImprovements: '建议',
+        reportFileIds: [1001],
+        reviewStatus: 'APPROVED',
+      },
+    }))
+    getDocumentsMock.mockImplementation(() => Promise.resolve({
+      data: [{ id: 1001, name: '复盘报告.docx' }],
+    }))
+
+    const { default: RetrospectiveStage } = await import('./RetrospectiveStage.vue')
+    const wrapper = mount(RetrospectiveStage, {
+      props: { projectId: 1, resultType: 'WON' },
+      global: { plugins: [ElementPlus] },
+    })
+    await flushPromises()
+    await nextTick()
+    await flushPromises()
+
+    // 复盘已提交 → locked=true → "提交复盘"按钮不显示，"进入结项阶段"按钮显示
+    const buttons = wrapper.findAll('.btn-container button')
+    const enterClosureBtn = buttons.find(b => b.text().includes('进入结项阶段'))
+    expect(enterClosureBtn?.exists()).toBe(true)
+
+    // 点击"进入结项阶段" → emit('submitted')
+    await enterClosureBtn.trigger('click')
+    expect(wrapper.emitted('submitted')).toBeTruthy()
+    expect(wrapper.emitted('submitted')).toHaveLength(1)
+  })
+})

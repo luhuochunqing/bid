@@ -306,4 +306,63 @@ describe('ProjectDetailMainColumn', () => {
     const closure = wrapper.findComponent({ name: 'ClosureStage' })
     expect(closure.exists()).toBe(true)
   })
+
+  // CO-497 方案 A: 复盘提交后 timeline 异步回声 snapshot(RETROSPECTIVE) 不能拽回 tab
+  // 时序：onRetrospectiveSubmitted → handleStageUpdated 内部 timeline.reload()
+  //   → emit('snapshot', {currentStage:RETROSPECTIVE}) → handleSnapshot
+  // 标志位 isRetrospectiveTransitioning 应堵住这次异步回声，tab 保持 CLOSED
+  it('onRetrospectiveSubmitted 期间 timeline 异步 emit snapshot(RETROSPECTIVE) 不拽回 tab', async () => {
+    const router = createTestRouter()
+    const loadProjectWorkflowData = vi.fn().mockResolvedValue()
+
+    const timelineStub = {
+      name: 'ProjectStageTimeline',
+      emits: ['snapshot'],
+      template: `
+        <div>
+          <button class="timeline-stub" @click="$emit('snapshot', { currentStage: 'RETROSPECTIVE', defaultOpenStage: 'RETROSPECTIVE' })" />
+          <button class="timeline-echo" @click="$emit('snapshot', { currentStage: 'RETROSPECTIVE', defaultOpenStage: 'RETROSPECTIVE' })" />
+        </div>
+      `,
+    }
+
+    const wrapper = mount(ProjectDetailMainColumn, {
+      global: {
+        plugins: [router],
+        stubs: {
+          ...stubs,
+          ProjectStageTimeline: timelineStub,
+          RetrospectiveStage: { name: 'RetrospectiveStage', template: '<div class="retro-stub" />' },
+        },
+        provide: {
+          [projectDetailKey]: {
+            ...baseProvide[projectDetailKey],
+            project: { id: 42, tasks: [] },
+            loadProjectWorkflowData,
+          },
+        },
+      },
+    })
+
+    // 初始 timeline snapshot → activeStageTab = 'RETROSPECTIVE'
+    await wrapper.find('.timeline-stub').trigger('click')
+    await flushPromises()
+
+    // 触发 RetrospectiveStage 的 submitted 事件 → onRetrospectiveSubmitted
+    const retro = wrapper.findComponent({ name: 'RetrospectiveStage' })
+    expect(retro.exists()).toBe(true)
+    retro.vm.$emit('submitted')
+    await flushPromises()
+
+    // 此时 tab 应该是 CLOSED（标志位生效中）
+    expect(wrapper.findComponent({ name: 'ClosureStage' }).exists()).toBe(true)
+
+    // 模拟 timeline 异步回声：在跳转窗口期内再次 emit snapshot(RETROSPECTIVE)
+    await wrapper.find('.timeline-echo').trigger('click')
+    await flushPromises()
+
+    // 核心断言：标志位堵住异步回声，tab 仍然是 CLOSED（不是 RETROSPECTIVE）
+    expect(wrapper.findComponent({ name: 'ClosureStage' }).exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'RetrospectiveStage' }).exists()).toBe(false)
+  })
 })
