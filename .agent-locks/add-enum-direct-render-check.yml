@@ -1,9 +1,0 @@
-version: 1
-task: "add-enum-direct-render-check"
-locks:
-  - path: ".githooks/pre-commit"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/codex/add-enum-direct-render-check"
-    expiresAt: "2026-07-04T08:36:40.646Z"
-    reason: "新增 check-vue-enum-direct-render.mjs 集成到 pre-commit（PR !1632 防复发）"
