@@ -1,0 +1,15 @@
+version: 1
+task: "fix-personnel-batch-log-null-id"
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql/V1134__personnel_operation_log_allow_null_personnel_id.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/codex/fix-personnel-batch-log-null-id"
+    expiresAt: "2026-07-05T07:02:25.042Z"
+    reason: "CO-469 第五轮：允许 personnel_operation_log.personnel_id 为 NULL"
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1134__personnel_operation_log_allow_null_personnel_id.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/codex/fix-personnel-batch-log-null-id"
+    expiresAt: "2026-07-05T07:02:30.215Z"
+    reason: "CO-469 第五轮：允许 personnel_operation_log.personnel_id 为 NULL 的回滚脚本"
