@@ -61,23 +61,23 @@
 <el-card class="section-card" shadow="never">
 <template #header><span>客户信息</span></template>
 <div class="customer-table-wrapper">
-<el-table :data="custFixedRows" border style="min-width:3360px" height="500">
+<el-table :data="custFixedRows" border stripe size="small" style="width: 100%" max-height="600" highlight-current-row>
 <template #empty><span>暂无客户信息（由标讯评估表带入）</span></template>
 <!-- 列顺序、标签、控件类型对齐 customerInfoMatrixConfig.js -->
-<el-table-column label="姓名" width="120"><template #default="{row}"><el-input v-model="row.name" :disabled="fieldDisabled" size="small" placeholder="请输入姓名" /></template></el-table-column>
+<el-table-column label="姓名" width="140"><template #default="{row}"><el-input v-model="row.name" :disabled="fieldDisabled" size="small" placeholder="请输入姓名" /></template></el-table-column>
 <el-table-column label="联系方式" width="160"><template #default="{row}"><el-input v-model="row.contactInfo" :disabled="fieldDisabled" size="small" placeholder="手机号/电话/邮箱" /></template></el-table-column>
-<el-table-column label="职位" width="140"><template #default="{row}"><el-select v-model="row.position" :disabled="fieldDisabled" size="small" placeholder="请选择"><el-option v-for="o in POSITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" /></el-select></template></el-table-column>
-<el-table-column label="西域项目负责人" width="130"><template #default="{row}"><el-input v-model="row.xiyuContact" :disabled="fieldDisabled" size="small" placeholder="请输入负责人" /></template></el-table-column>
-<el-table-column label="触达方式" width="120"><template #default="{row}"><el-select v-model="row.reachMethod" :disabled="fieldDisabled" size="small" placeholder="请选择"><el-option v-for="o in CONTACT_METHOD_OPTIONS" :key="o.value" :label="o.label" :value="o.value" /></el-select></template></el-table-column>
-<el-table-column label="倾向性评估依据" width="180"><template #default="{row}"><el-input v-model="row.preferenceBasis" :disabled="fieldDisabled" size="small" placeholder="请输入依据" /></template></el-table-column>
-<el-table-column label="是否触达" width="110"><template #default="{row}"><el-select v-model="row.reached" :disabled="fieldDisabled" size="small"><el-option label="是" value="true" /><el-option label="否" value="false" /></el-select></template></el-table-column>
-<el-table-column label="是否向此人引导标书" width="150"><template #default="{row}"><el-select v-model="row.guideBid" :disabled="fieldDisabled" size="small"><el-option label="是" value="true" /><el-option label="否" value="false" /></el-select></template></el-table-column>
-<el-table-column label="是否可获取关键信息" width="150"><template #default="{row}"><el-select v-model="row.canGetKeyInfo" :disabled="fieldDisabled" size="small"><el-option label="是" value="true" /><el-option label="否" value="false" /></el-select></template></el-table-column>
-<el-table-column label="是否可删除不利项" width="150"><template #default="{row}"><el-select v-model="row.canRemoveAdverse" :disabled="fieldDisabled" size="small"><el-option label="是" value="true" /><el-option label="否" value="false" /></el-select></template></el-table-column>
-<el-table-column label="是否可同步评标信息" width="150"><template #default="{row}"><el-select v-model="row.canSyncEval" :disabled="fieldDisabled" size="small"><el-option label="是" value="true" /><el-option label="否" value="false" /></el-select></template></el-table-column>
-<el-table-column label="对我司的倾向性" width="150"><template #default="{row}"><el-select v-model="row.preference" :disabled="fieldDisabled" size="small"><el-option v-for="o in TENDENCY_OPTIONS" :key="o.value" :label="o.label" :value="o.value" /></el-select></template></el-table-column>
-<el-table-column label="是否给出明确中标信息" width="160"><template #default="{row}"><el-switch :model-value="row.canConfirmWin === 'true'" :disabled="fieldDisabled" @update:model-value="row.canConfirmWin = $event ? 'true' : 'false'" /></template></el-table-column>
-<el-table-column label="对中标影响率" width="130"><template #default="{row}"><el-select v-model="row.winRateImpact" :disabled="fieldDisabled" size="small" placeholder="请选择"><el-option v-for="o in IMPACT_OPTIONS" :key="o.value" :label="o.label" :value="o.value" /></el-select></template></el-table-column>
+<el-table-column label="职位" width="220"><template #default="{row}"><el-select v-model="row.position" :disabled="fieldDisabled" size="small" placeholder="请选择"><el-option v-for="o in POSITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" /></el-select></template></el-table-column>
+<el-table-column label="西域项目负责人" width="160"><template #default="{row}"><el-input v-model="row.xiyuContact" :disabled="fieldDisabled" size="small" placeholder="请输入负责人" /></template></el-table-column>
+<el-table-column label="触达方式" width="180"><template #default="{row}"><el-select v-model="row.reachMethod" :disabled="fieldDisabled" size="small" placeholder="请选择"><el-option v-for="o in CONTACT_METHOD_OPTIONS" :key="o.value" :label="o.label" :value="o.value" /></el-select></template></el-table-column>
+<el-table-column label="倾向性评估依据" width="200"><template #default="{row}"><el-input v-model="row.preferenceBasis" :disabled="fieldDisabled" size="small" placeholder="请输入依据" /></template></el-table-column>
+<el-table-column label="是否触达" width="120"><template #default="{row}"><el-select v-model="row.reached" :disabled="fieldDisabled" size="small"><el-option label="是" value="true" /><el-option label="否" value="false" /></el-select></template></el-table-column>
+<el-table-column label="是否向此人引导标书" width="170"><template #default="{row}"><el-select v-model="row.guideBid" :disabled="fieldDisabled" size="small"><el-option label="是" value="true" /><el-option label="否" value="false" /></el-select></template></el-table-column>
+<el-table-column label="是否可获取关键信息" width="170"><template #default="{row}"><el-select v-model="row.canGetKeyInfo" :disabled="fieldDisabled" size="small"><el-option label="是" value="true" /><el-option label="否" value="false" /></el-select></template></el-table-column>
+<el-table-column label="是否可删除不利项" width="170"><template #default="{row}"><el-select v-model="row.canRemoveAdverse" :disabled="fieldDisabled" size="small"><el-option label="是" value="true" /><el-option label="否" value="false" /></el-select></template></el-table-column>
+<el-table-column label="是否可同步评标信息" width="170"><template #default="{row}"><el-select v-model="row.canSyncEval" :disabled="fieldDisabled" size="small"><el-option label="是" value="true" /><el-option label="否" value="false" /></el-select></template></el-table-column>
+<el-table-column label="对我司的倾向性" width="160"><template #default="{row}"><el-select v-model="row.preference" :disabled="fieldDisabled" size="small"><el-option v-for="o in TENDENCY_OPTIONS" :key="o.value" :label="o.label" :value="o.value" /></el-select></template></el-table-column>
+<el-table-column label="是否给出明确中标信息" width="180"><template #default="{row}"><el-switch :model-value="row.canConfirmWin === 'true'" :disabled="fieldDisabled" @update:model-value="row.canConfirmWin = $event ? 'true' : 'false'" /></template></el-table-column>
+<el-table-column label="对中标影响率" width="140"><template #default="{row}"><el-select v-model="row.winRateImpact" :disabled="fieldDisabled" size="small" placeholder="请选择"><el-option v-for="o in IMPACT_OPTIONS" :key="o.value" :label="o.label" :value="o.value" /></el-select></template></el-table-column>
 </el-table></div></el-card>
 <el-card class="section-card" shadow="never">
 <template #header>
@@ -349,7 +349,11 @@ defineExpose({ load, handleAmountFocus, handleAmountBlur, searchLeader, searchAs
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 24px; }
 .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 24px; }
 .grid-1 { display: grid; grid-template-columns: 1fr; gap: 0; margin-top: 8px; }
-.customer-table-wrapper { overflow-x: auto; }
+.customer-table-wrapper { overflow-x: auto; border: 1px solid #ebeef5; border-radius: 4px; }
+/* CO-498: 表头与单元格文字单行不换行，对齐 CustomerInfoMatrixTable.vue 风格 */
+.customer-table-wrapper :deep(.el-table th.el-table__cell),
+.customer-table-wrapper :deep(.el-table td.el-table__cell) { white-space: nowrap; }
+.customer-table-wrapper :deep(.cell) { white-space: nowrap; }
 .ai-risk-corner { display: flex; align-items: center; gap: 10px; }
 .risk-tag { font-size: 14px; }
 .bid-doc-section { display: flex; flex-direction: column; gap: 16px; }
