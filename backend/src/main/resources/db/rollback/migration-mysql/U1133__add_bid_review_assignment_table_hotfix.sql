@@ -5,5 +5,6 @@
 -- 回滚前提：如需保留数据，请先备份：mysqldump xiyu_bid_main bid_review_assignment > backup.sql
 --
 -- 注意：回滚后，CO-483/484 多人审核功能将不可用，所有审核相关接口会重新报 500
+-- Input: V1133__add_bid_review_assignment_table_hotfix.sql
 
 DROP TABLE IF EXISTS bid_review_assignment;
