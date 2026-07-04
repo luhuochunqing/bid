@@ -21,7 +21,7 @@
       </el-table-column>
       <el-table-column prop="category" label="文档分类" width="120" align="center">
         <template #default="{ row }">
-          <el-tag :type="getCategoryTagType(row.category)">{{ getCategoryLabel(row.category) }}</el-tag>
+          <el-tag :type="getDocumentCategoryTagType(row.category)">{{ getDocumentCategoryLabel(row.category) }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="uploadUser" label="上传人" width="160" align="center" show-overflow-tooltip>
@@ -46,7 +46,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { Document } from '@element-plus/icons-vue'
-import { formatDateTime, getFileIconClass } from '../archiveLabels.js'
+import { formatDateTime, getFileIconClass, getDocumentCategoryLabel, getDocumentCategoryTagType, formatFileSize } from '../archiveLabels.js'
 
 const props = defineProps({
   files: { type: Array, default: () => [] }
@@ -65,23 +65,6 @@ const displayFiles = computed(() => {
   return list.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt))
 })
 
-const getCategoryLabel = (cat) => {
-  const map = { TENDER: '招标文件', BID: '标书文件', OPEN_LIST: '开标一览表', WIN_NOTICE: '中标通知书', DEPOSIT_RECEIPT: '保证金银行回单', OTHER: '其他' }
-  return map[cat] || cat || '其他'
-}
-
-const getCategoryTagType = (cat) => {
-  const map = { TENDER: 'primary', BID: 'success', OPEN_LIST: 'warning', WIN_NOTICE: 'success', DEPOSIT_RECEIPT: 'info', OTHER: 'info' }
-  return map[cat] || 'info'
-}
-
-const formatFileSize = (bytes) => {
-  if (!bytes || bytes === 0) return '-'
-  if (bytes < 1024) return bytes + 'B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + 'KB'
-  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + 'MB'
-  return (bytes / (1024 * 1024 * 1024)).toFixed(1) + 'GB'
-}
 </script>
 
 <style scoped lang="scss">

@@ -37,6 +37,36 @@ export const CATEGORY_TAG_TYPES = { commercial: 'primary', technical: 'success',
 export const getFileCategoryLabel = (category) => CATEGORY_LABELS[String(category || '').toLowerCase()] || '其他文件'
 export const getFileCategoryTagType = (filename) => CATEGORY_TAG_TYPES[getFileCategory(filename)] || 'info'
 
+export const DOCUMENT_CATEGORY_LABELS = {
+  TENDER: '招标文件',
+  BID: '标书文件',
+  OPEN_LIST: '开标一览表',
+  WIN_NOTICE: '中标通知书',
+  DEPOSIT_RECEIPT: '保证金银行回单',
+  OTHER: '其他'
+}
+export const DOCUMENT_CATEGORY_TAG_TYPES = {
+  TENDER: 'primary',
+  BID: 'success',
+  OPEN_LIST: 'warning',
+  WIN_NOTICE: 'danger',
+  DEPOSIT_RECEIPT: 'info',
+  OTHER: 'info'
+}
+
+export const getDocumentCategoryLabel = (category) => DOCUMENT_CATEGORY_LABELS[category] || category || '其他'
+export const getDocumentCategoryTagType = (category) => DOCUMENT_CATEGORY_TAG_TYPES[category] || 'info'
+
+export const formatFileSize = (bytes) => {
+  if (bytes === null || bytes === undefined || bytes === '') return '-'
+  const b = Number(bytes)
+  if (Number.isNaN(b) || b < 0) return '-'
+  if (b < 1024) return `${b} B`
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`
+  if (b < 1024 * 1024 * 1024) return `${(b / (1024 * 1024)).toFixed(2)} MB`
+  return `${(b / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
+
 export const getFileIconClass = (filename) => {
   const fn = String(filename || '').toLowerCase()
   if (fn.includes('pdf')) return 'icon-pdf'

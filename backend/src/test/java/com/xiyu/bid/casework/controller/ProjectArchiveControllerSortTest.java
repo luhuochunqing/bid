@@ -1,5 +1,6 @@
 package com.xiyu.bid.casework.controller;
 
+import com.xiyu.bid.casework.application.ArchiveFileListService;
 import com.xiyu.bid.casework.application.ProjectArchiveDetailService;
 import com.xiyu.bid.casework.application.ProjectArchiveExportService;
 import com.xiyu.bid.casework.application.ProjectArchiveWorkflowService;
@@ -39,10 +40,11 @@ class ProjectArchiveControllerSortTest {
     @Mock private ProjectArchiveExportService archiveExportService;
     @Mock private StreamingZipPackager streamingZipPackager;
     @Mock private ArchiveFileRepository archiveFileRepository;
+    @Mock private ArchiveFileListService archiveFileListService;
 
     private ProjectArchiveController controller() {
         return new ProjectArchiveController(workflowService, detailService,
-                archiveExportService, streamingZipPackager, archiveFileRepository);
+                archiveExportService, streamingZipPackager, archiveFileRepository, archiveFileListService);
     }
 
     @Test
