@@ -2,12 +2,11 @@ package com.xiyu.bid.casework.application;
 
 import com.xiyu.bid.casework.domain.model.BidCaseSliceMatchCandidate;
 import com.xiyu.bid.casework.domain.model.BidCaseSliceMatchCriteria;
+import com.xiyu.bid.casework.domain.policy.TextSimilarityPolicy;
 import com.xiyu.bid.casework.infrastructure.BidCaseSliceVectorCache;
 import org.springframework.stereotype.Component;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -34,7 +33,7 @@ public class BidCaseSliceRecommendationAssembler {
                 truncated,
                 queryVector,
                 inferPreferredLabel(scoringItemCategory),
-                tokenSet(truncated)
+                TextSimilarityPolicy.tokenize(truncated)
         );
     }
 
@@ -84,36 +83,5 @@ public class BidCaseSliceRecommendationAssembler {
             return "";
         }
         return text.length() <= MAX_QUERY_LENGTH ? text : text.substring(0, MAX_QUERY_LENGTH);
-    }
-
-    private Set<String> tokenSet(String text) {
-        Set<String> tokens = new HashSet<>();
-        if (text == null || text.isBlank()) {
-            return tokens;
-        }
-        String normalized = text.toLowerCase(Locale.ROOT);
-        for (String segment : normalized.split("\\s+|[，。、；：！？\"'（）【】]")) {
-            String trimmed = segment.trim();
-            if (trimmed.isEmpty()) {
-                continue;
-            }
-            if (!containsCjk(trimmed) && trimmed.length() >= 2) {
-                tokens.add(trimmed);
-            } else {
-                for (int i = 0; i < trimmed.length() - 1; i++) {
-                    tokens.add(trimmed.substring(i, i + 2));
-                }
-            }
-        }
-        return tokens;
-    }
-
-    private boolean containsCjk(String text) {
-        return text.codePoints().anyMatch(cp -> {
-            Character.UnicodeBlock block = Character.UnicodeBlock.of(cp);
-            return block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS
-                    || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A
-                    || block == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS;
-        });
     }
 }

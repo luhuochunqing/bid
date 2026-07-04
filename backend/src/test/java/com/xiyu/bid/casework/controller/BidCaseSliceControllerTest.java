@@ -93,7 +93,7 @@ class BidCaseSliceControllerTest {
     }
 
     @Test
-    @WithMockUser
+    @WithMockUser(authorities = {"system.admin"})
     void recommendByQuery_shouldReturnOkWithData() throws Exception {
         BidCaseSliceRecommendation recommendation = new BidCaseSliceRecommendation(
                 456L, "p1", "商务.docx", "商务", "售后服务保障", "正文", 200, 4,
@@ -106,6 +106,14 @@ class BidCaseSliceControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data[0].sliceId").value(456));
+    }
+
+    @Test
+    @WithMockUser
+    void recommendByQuery_withoutAdminAuthority_shouldReturnForbidden() throws Exception {
+        mockMvc.perform(get("/api/case-slices/recommend/by-query")
+                        .param("query", "售后服务保障措施"))
+                .andExpect(status().isForbidden());
     }
 
     @Test

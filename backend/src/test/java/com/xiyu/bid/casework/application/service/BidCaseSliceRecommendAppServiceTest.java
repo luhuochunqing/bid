@@ -9,6 +9,7 @@ import com.xiyu.bid.casework.domain.policy.BidCaseSliceMatchPolicy;
 import com.xiyu.bid.casework.infrastructure.BidCaseSlice;
 import com.xiyu.bid.casework.infrastructure.BidCaseSliceRepository;
 import com.xiyu.bid.casework.infrastructure.BidCaseSliceVectorCache;
+import com.xiyu.bid.casework.infrastructure.QueryEmbeddingCache;
 import com.xiyu.bid.exception.BusinessUnavailableException;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.projectworkflow.entity.ProjectScoreDraft;
@@ -55,13 +56,23 @@ class BidCaseSliceRecommendAppServiceTest {
     private BidCaseSliceRecommendationAssembler assembler;
     @Mock
     private ProjectAccessScopeService projectAccessScopeService;
+    @Mock
+    private QueryEmbeddingCache queryEmbeddingCache;
 
-    @InjectMocks
     private BidCaseSliceRecommendAppService service;
 
     @BeforeEach
     void setUp() {
-        service.setMatchPolicy(matchPolicy);
+        service = new BidCaseSliceRecommendAppService(
+                cache,
+                scoreDraftRepository,
+                sliceRepository,
+                aiProvider,
+                assembler,
+                projectAccessScopeService,
+                matchPolicy,
+                queryEmbeddingCache
+        );
     }
 
     @Test

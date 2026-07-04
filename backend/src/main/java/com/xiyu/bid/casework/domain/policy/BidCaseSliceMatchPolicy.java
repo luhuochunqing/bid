@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -93,29 +92,19 @@ public class BidCaseSliceMatchPolicy {
     // ------------------------------------------------------------------
 
     private int calculateTitleScore(Set<String> queryTokens, String title) {
-        if (queryTokens == null || queryTokens.isEmpty() || !hasText(title)) {
+        if (queryTokens == null || queryTokens.isEmpty() || !TextSimilarityPolicy.hasText(title)) {
             return 0;
         }
-        Set<String> titleTokens = tokenSet(title);
+        Set<String> titleTokens = TextSimilarityPolicy.tokenize(title);
         if (titleTokens.isEmpty()) {
             return 0;
         }
-        int intersection = 0;
-        for (String token : queryTokens) {
-            if (titleTokens.contains(token)) {
-                intersection++;
-            }
-        }
-        int union = queryTokens.size() + titleTokens.size() - intersection;
-        if (union == 0) {
-            return 0;
-        }
-        double jaccard = (double) intersection / union;
+        double jaccard = TextSimilarityPolicy.jaccardSimilarity(queryTokens, titleTokens);
         return (int) Math.round(jaccard * TITLE_JACCARD_WEIGHT);
     }
 
     private int calculateLabelScore(String preferredLabel, String docxLabel) {
-        if (!hasText(preferredLabel) || !hasText(docxLabel)) {
+        if (!TextSimilarityPolicy.hasText(preferredLabel) || !TextSimilarityPolicy.hasText(docxLabel)) {
             return 0;
         }
         return preferredLabel.equalsIgnoreCase(docxLabel) ? LABEL_WEIGHT : 0;
@@ -157,14 +146,20 @@ public class BidCaseSliceMatchPolicy {
     }
 
     // ------------------------------------------------------------------
-    // 集中度截断：同一项目不超过 topK 的 30%（至少 1 条）
+    // 集中度截断：优先保证返回 topK 数量，再做项目多样性平衡
+    // ------------------------------------------------------------------
+    // 策略：
+    // 1. 第一轮：每个项目最多取 maxPerProject 条，凑够 topK 就返回
+    // 2. 如果第一轮不够 topK，第二轮放宽限制继续补
     // ------------------------------------------------------------------
 
     private List<BidCaseSliceRecommendation> applyConcentration(List<ScoredCandidate> ranked, int topK) {
         int maxPerProject = Math.max(1, (int) Math.ceil(topK * 0.3));
         Map<String, Integer> projectCounts = new HashMap<>();
+        Set<Long> addedIds = new java.util.HashSet<>();
         List<BidCaseSliceRecommendation> result = new ArrayList<>(topK);
 
+        // 第一轮：按集中度限制取
         for (ScoredCandidate scored : ranked) {
             String projectDir = scored.candidate.projectDir();
             int count = projectCounts.getOrDefault(projectDir, 0);
@@ -172,9 +167,24 @@ public class BidCaseSliceMatchPolicy {
                 continue;
             }
             projectCounts.put(projectDir, count + 1);
-            result.add(toRecommendation(scored));
+            BidCaseSliceRecommendation rec = toRecommendation(scored);
+            result.add(rec);
+            addedIds.add(scored.candidate.id());
             if (result.size() >= topK) {
-                break;
+                return result;
+            }
+        }
+
+        // 第二轮：如果不够 topK，放宽限制继续补（不再限制单项目数量）
+        if (result.size() < topK) {
+            for (ScoredCandidate scored : ranked) {
+                if (addedIds.contains(scored.candidate.id())) {
+                    continue;
+                }
+                result.add(toRecommendation(scored));
+                if (result.size() >= topK) {
+                    break;
+                }
             }
         }
 
@@ -207,41 +217,6 @@ public class BidCaseSliceMatchPolicy {
             return 20;
         }
         return Math.min(topK, 50);
-    }
-
-    private Set<String> tokenSet(String text) {
-        Set<String> tokens = new java.util.HashSet<>();
-        if (!hasText(text)) {
-            return tokens;
-        }
-        String normalized = text.toLowerCase(Locale.ROOT);
-        for (String segment : normalized.split("\\s+|[，。、；：！？\"'（）【】]")) {
-            String trimmed = segment.trim();
-            if (trimmed.isEmpty()) {
-                continue;
-            }
-            if (!containsCjk(trimmed) && trimmed.length() >= 2) {
-                tokens.add(trimmed);
-            } else {
-                for (int i = 0; i < trimmed.length() - 1; i++) {
-                    tokens.add(trimmed.substring(i, i + 2));
-                }
-            }
-        }
-        return tokens;
-    }
-
-    private boolean containsCjk(String text) {
-        return text.codePoints().anyMatch(cp -> {
-            Character.UnicodeBlock block = Character.UnicodeBlock.of(cp);
-            return block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS
-                    || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A
-                    || block == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS;
-        });
-    }
-
-    private boolean hasText(String s) {
-        return s != null && !s.isBlank();
     }
 
     private record ScoredCandidate(

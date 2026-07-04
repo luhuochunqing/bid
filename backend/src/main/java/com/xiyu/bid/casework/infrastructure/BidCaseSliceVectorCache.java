@@ -34,26 +34,62 @@ public class BidCaseSliceVectorCache {
             return;
         }
         for (BidCaseSlice slice : slices) {
-            if (slice == null || slice.getEmbedding() == null) {
-                continue;
-            }
-            float[] vector = EmbeddingVectorCodec.decode(slice.getEmbedding());
-            if (vector == null) {
-                continue;
-            }
-            vectors.put(slice.getId(), new BidCaseSliceVector(
-                    slice.getId(),
-                    slice.getProjectDir(),
-                    slice.getDocxFile(),
-                    slice.getDocxLabel(),
-                    slice.getTitle(),
-                    slice.getTextPreview(),
-                    slice.getTextLength(),
-                    slice.getParaCount(),
-                    slice.getLevel(),
-                    vector
-            ));
+            putInternal(slice);
         }
+    }
+
+    /**
+     * 增量更新：向缓存中添加或更新单个切片向量。
+     *
+     * <p>如果切片没有 embedding，则忽略。
+     *
+     * @param slice 要更新的切片
+     * @return 如果成功加入缓存返回 true，否则返回 false
+     */
+    public boolean put(BidCaseSlice slice) {
+        return putInternal(slice);
+    }
+
+    /**
+     * 增量更新：批量向缓存中添加或更新多个切片向量。
+     *
+     * @param slices 要更新的切片列表
+     * @return 成功加入缓存的数量
+     */
+    public int putAll(List<BidCaseSlice> slices) {
+        if (slices == null || slices.isEmpty()) {
+            return 0;
+        }
+        int count = 0;
+        for (BidCaseSlice slice : slices) {
+            if (putInternal(slice)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private boolean putInternal(BidCaseSlice slice) {
+        if (slice == null || slice.getEmbedding() == null) {
+            return false;
+        }
+        float[] vector = EmbeddingVectorCodec.decode(slice.getEmbedding());
+        if (vector == null) {
+            return false;
+        }
+        vectors.put(slice.getId(), new BidCaseSliceVector(
+                slice.getId(),
+                slice.getProjectDir(),
+                slice.getDocxFile(),
+                slice.getDocxLabel(),
+                slice.getTitle(),
+                slice.getTextPreview(),
+                slice.getTextLength(),
+                slice.getParaCount(),
+                slice.getLevel(),
+                vector
+        ));
+        return true;
     }
 
     /**

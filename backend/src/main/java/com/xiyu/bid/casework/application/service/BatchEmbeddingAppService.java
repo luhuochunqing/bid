@@ -90,15 +90,28 @@ public class BatchEmbeddingAppService {
             failed += result.failed();
         }
 
-        cacheInitializer.refreshCache();
         long remaining = repository.countUnembedded();
         log.info("Batch embedding complete: processed={}, failed={}, remaining={}",
                 processed, failed, remaining);
         return new EmbeddingResult(processed, failed, remaining);
     }
 
-    @Transactional
+    /**
+     * 处理一个批次：先在事务外调用外部 API 获取向量，再在事务内批量写入数据库。
+     *
+     * <p>外部 API 调用放在事务外，避免网络 IO 期间长时间占用数据库连接。
+     */
     public BatchResult processBatch(List<BidCaseSlice> batch) {
+        EmbedBatchResult embedResult = callEmbeddingApiForBatch(batch);
+        persistBatchResults(embedResult.slices());
+        cacheInitializer.refreshCacheIncremental(embedResult.slices());
+        return new BatchResult(embedResult.processed(), embedResult.failed());
+    }
+
+    /**
+     * 事务外：为批次中的所有切片调用 embedding API。
+     */
+    private EmbedBatchResult callEmbeddingApiForBatch(List<BidCaseSlice> batch) {
         int processed = 0;
         int failed = 0;
         for (BidCaseSlice slice : batch) {
@@ -110,8 +123,15 @@ public class BatchEmbeddingAppService {
                 slice.setEmbeddingModel(FAILURE_MARKER);
             }
         }
-        repository.saveAll(batch);
-        return new BatchResult(processed, failed);
+        return new EmbedBatchResult(batch, processed, failed);
+    }
+
+    /**
+     * 事务内：批量持久化 embedding 结果。
+     */
+    @Transactional
+    public void persistBatchResults(List<BidCaseSlice> slices) {
+        repository.saveAll(slices);
     }
 
     private boolean embedSliceWithRetry(BidCaseSlice slice) {
@@ -158,5 +178,8 @@ public class BatchEmbeddingAppService {
     }
 
     private record BatchResult(int processed, int failed) {
+    }
+
+    private record EmbedBatchResult(List<BidCaseSlice> slices, int processed, int failed) {
     }
 }

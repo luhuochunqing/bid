@@ -10,13 +10,14 @@ import com.xiyu.bid.casework.domain.policy.BidCaseSliceMatchPolicy;
 import com.xiyu.bid.casework.infrastructure.BidCaseSlice;
 import com.xiyu.bid.casework.infrastructure.BidCaseSliceRepository;
 import com.xiyu.bid.casework.infrastructure.BidCaseSliceVectorCache;
+import com.xiyu.bid.casework.infrastructure.QueryEmbeddingCache;
 import com.xiyu.bid.exception.BusinessUnavailableException;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.projectworkflow.entity.ProjectScoreDraft;
 import com.xiyu.bid.projectworkflow.repository.ProjectScoreDraftRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,7 +31,6 @@ import java.util.List;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class BidCaseSliceRecommendAppService {
 
@@ -45,16 +45,39 @@ public class BidCaseSliceRecommendAppService {
     private final AiProvider aiProvider;
     private final BidCaseSliceRecommendationAssembler assembler;
     private final ProjectAccessScopeService projectAccessScopeService;
+    private final BidCaseSliceMatchPolicy matchPolicy;
+    private final QueryEmbeddingCache queryEmbeddingCache;
 
-    // Pure core policy is stateless; instantiate directly to avoid making it a Spring bean.
-    private BidCaseSliceMatchPolicy matchPolicy = new BidCaseSliceMatchPolicy();
+    @Autowired
+    public BidCaseSliceRecommendAppService(
+            BidCaseSliceVectorCache vectorCache,
+            ProjectScoreDraftRepository scoreDraftRepository,
+            BidCaseSliceRepository sliceRepository,
+            AiProvider aiProvider,
+            BidCaseSliceRecommendationAssembler assembler,
+            ProjectAccessScopeService projectAccessScopeService,
+            QueryEmbeddingCache queryEmbeddingCache) {
+        this(vectorCache, scoreDraftRepository, sliceRepository, aiProvider, assembler,
+                projectAccessScopeService, new BidCaseSliceMatchPolicy(), queryEmbeddingCache);
+    }
 
-    /**
-     * Allows unit tests to replace the policy with a mock while keeping production
-     * code free of Spring-annotated domain classes.
-     */
-    void setMatchPolicy(BidCaseSliceMatchPolicy matchPolicy) {
+    public BidCaseSliceRecommendAppService(
+            BidCaseSliceVectorCache vectorCache,
+            ProjectScoreDraftRepository scoreDraftRepository,
+            BidCaseSliceRepository sliceRepository,
+            AiProvider aiProvider,
+            BidCaseSliceRecommendationAssembler assembler,
+            ProjectAccessScopeService projectAccessScopeService,
+            BidCaseSliceMatchPolicy matchPolicy,
+            QueryEmbeddingCache queryEmbeddingCache) {
+        this.vectorCache = vectorCache;
+        this.scoreDraftRepository = scoreDraftRepository;
+        this.sliceRepository = sliceRepository;
+        this.aiProvider = aiProvider;
+        this.assembler = assembler;
+        this.projectAccessScopeService = projectAccessScopeService;
         this.matchPolicy = matchPolicy;
+        this.queryEmbeddingCache = queryEmbeddingCache;
     }
 
     /**
@@ -142,8 +165,15 @@ public class BidCaseSliceRecommendAppService {
     }
 
     private float[] embed(String text) {
+        float[] cached = queryEmbeddingCache.get(text);
+        if (cached != null) {
+            log.debug("Query embedding cache hit: text length={}", text.length());
+            return cached;
+        }
         try {
-            return aiProvider.embed(text);
+            float[] vector = aiProvider.embed(text);
+            queryEmbeddingCache.put(text, vector);
+            return vector;
         } catch (RuntimeException ex) {
             log.warn("Embedding 服务调用失败: {}", ex.getMessage());
             throw new BusinessUnavailableException(

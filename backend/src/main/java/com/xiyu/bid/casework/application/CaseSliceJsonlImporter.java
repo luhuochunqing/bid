@@ -62,19 +62,21 @@ public class CaseSliceJsonlImporter {
         List<Path> files = listJsonlFiles(directory);
         if (files.isEmpty()) {
             log.warn("No JSONL files matching {} found in {}", FILE_PATTERN, directory);
-            return new ImportResult(0, 0, 0);
+            return new ImportResult(0, 0, 0, 0);
         }
 
         int imported = 0;
         int skipped = 0;
+        int duplicates = 0;
         for (Path file : files) {
             FileResult result = importFile(file);
             imported += result.imported();
             skipped += result.skipped();
+            duplicates += result.duplicates();
         }
-        log.info("Imported {} slices from {} files (skipped {} malformed lines)",
-                imported, files.size(), skipped);
-        return new ImportResult(imported, skipped, files.size());
+        log.info("Imported {} slices from {} files (skipped {} malformed, {} duplicates)",
+                imported, files.size(), skipped, duplicates);
+        return new ImportResult(imported, skipped, duplicates, files.size());
     }
 
     private List<Path> listJsonlFiles(Path directory) {
@@ -96,6 +98,7 @@ public class CaseSliceJsonlImporter {
     private FileResult importFile(Path file) {
         List<BidCaseSlice> slices = new ArrayList<>();
         int skipped = 0;
+        int duplicates = 0;
         try (Stream<String> lines = Files.lines(file)) {
             for (String line : (Iterable<String>) lines::iterator) {
                 String trimmed = line.trim();
@@ -106,7 +109,12 @@ public class CaseSliceJsonlImporter {
                     JsonNode node = objectMapper.readTree(trimmed);
                     Optional<BidCaseSlice> slice = parseSlice(node);
                     if (slice.isPresent()) {
-                        slices.add(slice.get());
+                        BidCaseSlice s = slice.get();
+                        if (isDuplicate(s)) {
+                            duplicates++;
+                        } else {
+                            slices.add(s);
+                        }
                     } else {
                         skipped++;
                     }
@@ -121,7 +129,18 @@ public class CaseSliceJsonlImporter {
         if (!slices.isEmpty()) {
             repository.saveAll(slices);
         }
-        return new FileResult(slices.size(), skipped);
+        if (duplicates > 0) {
+            log.info("Skipped {} duplicate slices in {}", duplicates, file);
+        }
+        return new FileResult(slices.size(), skipped, duplicates);
+    }
+
+    private boolean isDuplicate(BidCaseSlice slice) {
+        return repository.existsByProjectDirAndDocxFileAndSectionIdx(
+                slice.getProjectDir(),
+                slice.getDocxFile(),
+                slice.getSectionIdx()
+        );
     }
 
     /**
@@ -171,9 +190,9 @@ public class CaseSliceJsonlImporter {
         return value.length() > maxLength ? value.substring(0, maxLength) : value;
     }
 
-    public record ImportResult(int imported, int skipped, int filesProcessed) {
+    public record ImportResult(int imported, int skipped, int duplicates, int filesProcessed) {
     }
 
-    private record FileResult(int imported, int skipped) {
+    private record FileResult(int imported, int skipped, int duplicates) {
     }
 }

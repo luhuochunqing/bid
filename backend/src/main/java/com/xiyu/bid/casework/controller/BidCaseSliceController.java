@@ -47,6 +47,7 @@ public class BidCaseSliceController {
     }
 
     @GetMapping("/recommend/by-query")
+    @PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
     public ResponseEntity<ApiResponse<List<BidCaseSliceRecommendation>>> recommendByQuery(
             @RequestParam String query,
             @RequestParam(required = false) Integer topK) {

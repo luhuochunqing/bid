@@ -73,7 +73,7 @@ class BatchEmbeddingAppServiceTest {
 
         BidCaseSlice second = saved.get(1);
         assertThat(EmbeddingVectorCodec.decode(second.getEmbedding())).containsExactly(0.3f, 0.4f);
-        verify(cacheInitializer).refreshCache();
+        verify(cacheInitializer).refreshCacheIncremental(any());
     }
 
     @Test
