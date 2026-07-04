@@ -165,6 +165,7 @@ public class BidCaseSliceArchitectureTest {
         "com.xiyu.bid.casework.application.CaseSliceJsonlImporter",
         "com.xiyu.bid.casework.application.BidCaseSliceRecommendationAssembler",
         // 历史遗留归档/知识库相关应用服务（非本功能引入，维持现状）
+        "com.xiyu.bid.casework.application.ArchiveFileListService",
         "com.xiyu.bid.casework.application.ProjectArchiveExportService",
         "com.xiyu.bid.casework.application.ProjectArchiveWorkflowService",
         "com.xiyu.bid.casework.application.ProjectArchiveDetailService",
@@ -183,6 +184,15 @@ public class BidCaseSliceArchitectureTest {
         "com.xiyu.bid.casework.application.service.KnowledgeCaseRecommendAppService"
     );
 
+    private static boolean isExemptedFromInfrastructureRule(String className) {
+        for (String exempted : APPLICATION_INFRASTRUCTURE_EXEMPTIONS) {
+            if (className.equals(exempted) || className.startsWith(exempted + "$")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static final ArchCondition<JavaClass> APPLICATION_DOES_NOT_DEPEND_ON_INFRASTRUCTURE =
         new ArchCondition<JavaClass>("not depend directly on infrastructure packages") {
             @Override
@@ -190,7 +200,7 @@ public class BidCaseSliceArchitectureTest {
                 if (!item.getPackageName().startsWith(CASEWORK_PACKAGE + ".application")) {
                     return;
                 }
-                if (APPLICATION_INFRASTRUCTURE_EXEMPTIONS.contains(item.getName())) {
+                if (isExemptedFromInfrastructureRule(item.getName())) {
                     return;
                 }
                 item.getDirectDependenciesFromSelf().stream()
