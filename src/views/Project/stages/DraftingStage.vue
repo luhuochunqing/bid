@@ -82,6 +82,13 @@
     <!-- CO-484 驳回理由（多人场景下展示"驳回人：原因"列表） -->
     <el-alert v-if="reviewState === 'rejected' && rejectReasonText" :title="'驳回原因：' + rejectReasonText" type="warning" show-icon :closable="false" style="margin-bottom:12px" />
 
+    <!-- CO-484 v2：审核记录列表（"操作人"：审核通过 / 驳回（原因）） -->
+    <div v-if="reviewerDecisionRecords.length > 0" class="bid-review-records" style="margin-bottom:12px">
+      <div v-for="(record, idx) in reviewerDecisionRecords" :key="idx" class="review-record-item" style="font-size:13px;color:#606266;line-height:1.8">
+        {{ record }}
+      </div>
+    </div>
+
     <!-- 底部按钮区 -->
     <div class="bid-actions">
       <!-- 投标负责人/辅助人员：提交审核 → 审核中 → 重新提交 -->
@@ -203,6 +210,23 @@ const reviewerProgressText = computed(() => {
   const total = reviewers.value.length
   const approved = reviewers.value.filter(r => r.decision === 'APPROVED').length
   return `审核中（已通过 ${approved}/${total}）`
+})
+
+// CO-484 v2：审核记录列表，格式 "操作人"：审核通过 / "操作人"：驳回（原因）
+// 只展示已操作的审核人（decision 非 null）
+const reviewerDecisionRecords = computed(() => {
+  if (reviewers.value.length === 0) return []
+  return reviewers.value
+    .filter(r => r.decision === 'APPROVED' || r.decision === 'REJECTED')
+    .map(r => {
+      const name = r.reviewerName || r.reviewerId
+      if (r.decision === 'APPROVED') {
+        return `${name}：审核通过`
+      }
+      // REJECTED：有驳回原因则附上
+      const reason = r.comment ? `（${r.comment}）` : ''
+      return `${name}：驳回${reason}`
+    })
 })
 
 // CO-484 v2 审核人候选排除项：当前用户（不能选自己）/ 投标负责人 / 团队成员。
@@ -337,12 +361,10 @@ async function submitBidForReview() {
   }
   submittingReview.value = true
   try {
-    const res = await projectLifecycleApi.submitBidForReview(props.projectId, { reviewerIds: bidReviewerIds.value })
-    const d = res?.data || res
-    reviewState.value = (d?.reviewStatus || 'reviewing').toLowerCase()
-    reviewerName.value = d?.reviewerName || ''
-    rejectReasonText.value = ''
+    await projectLifecycleApi.submitBidForReview(props.projectId, { reviewerIds: bidReviewerIds.value })
     ElMessage.success('已提交标书审核')
+    // CO-484 v2：提交后重新加载完整状态，确保 reviewers 数组正确回填（多人显示）
+    await load()
   } catch (e) { ElMessage.error(e?.response?.data?.msg || '提交审核失败') }
   finally { submittingReview.value = false }
 }
@@ -363,16 +385,15 @@ async function confirmReviewBid(action) {
   try {
     if (action === 'approve') {
       await projectLifecycleApi.approveBid(props.projectId, { comment: '' })
-      reviewState.value = 'approved'
       ElMessage.success('投标审核通过')
     } else {
       await projectLifecycleApi.rejectBid(props.projectId, { comment: reviewComment.value })
-      reviewState.value = 'rejected'
-      rejectReasonText.value = reviewComment.value
       ElMessage.success('已驳回')
       showReviewDialog.value = false
       reviewComment.value = ''
     }
+    // CO-484 v2：审核操作后重新加载完整状态，确保审核记录正确展示
+    await load()
   } catch (e) { ElMessage.error(e?.response?.data?.msg || '操作失败') }
   finally { reviewApproving.value = false; reviewRejecting.value = false }
 }

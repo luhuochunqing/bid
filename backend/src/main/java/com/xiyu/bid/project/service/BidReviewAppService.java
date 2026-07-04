@@ -145,6 +145,7 @@ public class BidReviewAppService {
                 .findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "仅指派的审核人可以审批"));
         mine.setDecision("APPROVED");
+        mine.setComment(comment);
         mine.setDecidedAt(LocalDateTime.now());
         assignmentRepository.save(mine);
 

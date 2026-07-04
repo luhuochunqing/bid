@@ -338,9 +338,9 @@ describe('isTaskAssignee — 任务执行人身份校验（TaskKanban.vue）', (
 })
 
 describe('审校人名称工程化防守测试', () => {
-  it('submitBidForReview 必须从 API response 中取 reviewerName，不得依赖 reviewerOptions 猜测', () => {
-    // 读取源代码验证 submitBidForReview 函数的实现
-    // 防止有人再次误删 reviewerName 赋值逻辑
+  it('submitBidForReview 提交后必须调用 load() 刷新完整状态（含 reviewers 数组），不得依赖 reviewerOptions 猜测', () => {
+    // CO-484 v2：提交审核后通过 load() 重新加载完整状态，确保多人 reviewers 正确回填
+    // 防止有人回退到"只取单值 reviewerName"或"从 reviewerOptions 猜测"的旧逻辑
     const fs = require('fs')
     const source = fs.readFileSync(
       'src/views/Project/stages/DraftingStage.vue', 'utf-8'
@@ -348,8 +348,9 @@ describe('审校人名称工程化防守测试', () => {
     const match = source.match(/async function submitBidForReview[\s\S]*?\n\}/)
     expect(match).not.toBeNull()
     const funcBody = match[0]
-    // 必须包含从 API response 取 reviewerName 的逻辑
-    expect(funcBody).toContain('reviewerName.value = d?.reviewerName')
+    // 必须调用 load() 刷新状态
+    expect(funcBody).toContain('await load()')
+    // 不得依赖 reviewerOptions 猜测
     expect(funcBody).not.toContain('reviewerOptions.value.find')
   })
 })
