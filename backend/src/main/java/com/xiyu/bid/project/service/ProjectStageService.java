@@ -17,6 +17,7 @@ import com.xiyu.bid.project.entity.ProjectResult;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.project.repository.ProjectClosureRepository;
 import com.xiyu.bid.project.repository.ProjectResultRepository;
+import com.xiyu.bid.project.repository.ProjectRetrospectiveRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +52,7 @@ public class ProjectStageService {
     private final ProjectNotificationService notificationService;
     private final ProjectResultRepository projectResultRepository;
     private final ProjectClosureRepository closureRepository;
+    private final ProjectRetrospectiveRepository retrospectiveRepository;
 
     @Transactional(readOnly = true)
     public ProjectStage currentStage(Long projectId) {
@@ -66,6 +68,17 @@ public class ProjectStageService {
     @Transactional(readOnly = true)
     public boolean hasClosureSubmission(Long projectId) {
         return closureRepository.findByProjectId(projectId).isPresent();
+    }
+
+    /**
+     * CO-497: 是否已提交复盘（retrospective 记录存在）。
+     * 用于扩展 CO-443「假 CLOSED」触发条件：复盘提交后即视为应进入结项阶段，
+     * StageView.currentStage 返回 CLOSED（进行中），让前端自动跳转结项 tab，
+     * 避免 RETROSPECTIVE 阶段无入口的死锁。
+     */
+    @Transactional(readOnly = true)
+    public boolean hasRetrospectiveSubmission(Long projectId) {
+        return retrospectiveRepository.findByProjectId(projectId).isPresent();
     }
 
     @Transactional(readOnly = true)
