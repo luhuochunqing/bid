@@ -2674,6 +2674,28 @@ npx vitest run src/views/Project/composables/useProjectFilter.spec.js
 
 5. **ArchUnit 守卫是技术债治理的终极武器**: 31 处隐患手工修复后，用 ArchUnit 守卫防止新增。与 §32 hasAnyRole 双轨制治理（ArchUnit 总数断言）同模式。
 
+### 流程性教训：紧急修复通道缺失
+
+本次事故除了技术层面三层失效外，**流程层面也暴露了重大缺口**——没有正式的 P0 hotfix 通道，导致修复耗时远超必要的止血窗口。
+
+| 问题 | 教训 | 改进 |
+|------|------|------|
+| 完整 14 道门禁 + Spec Kit 流程在 P0 场景耗时过长 | 紧急修复必须有快速通道，不能一刀切 | 新增 `hotfix/*` 分支 + `PRE_PUSH_GATE=0` 合规绕过 |
+| `PRE_PUSH_GATE=0` 是"绕过机制"而非"通道"，无分支命名规范、无事后补测要求 | 绕过不等于无序，必须有边界和事后闭环 | 明确 P0 判定标准 + 7 工作日补作业清单 |
+| 没有 P0/P1/P2 严重程度分级 | 无分级导致所有 bug 走同一流程，紧急的不急、不急的拖慢 | 在 RELIABILITY.md 新增 P0/P1/P2 判定表 |
+| 回滚 SLA 30 分钟已有（ROLLBACK.md），但修复 SLA 缺失 | 修复和回滚是两条止血路径，应同等重视 | 新增 30 分钟 hotfix SLA 流程 |
+
+**关键洞察**：本次修复走了完整 Spec Kit（`specs/027-tomap-defensive-collection/`）+ 14 道门禁 + PR review + auto-merge，虽然质量高（三层防御体系 + ArchUnit 守卫 + Constitution Principle VII），但如果是生产事故，这个时长不可接受。
+
+**已落地改进**（2026-07-04）：
+- RELIABILITY.md 新增 §紧急修复通道（P0 Hotfix）章节
+- 定义 P0/P1/P2 判定标准
+- 30 分钟 SLA 流程：止血决策 → hotfix 分支 → 紧急合入 → 紧急发布
+- 合规边界：ArchUnit + Flyway 不可跳，其他门禁可绕过
+- 事后补作业清单（7 工作日内）
+
+**适用边界**：紧急通道只解决"修得快"的问题，不解决"修得好"的问题。完整防御体系（ArchUnit 守卫、装饰性降级、Sentry 可观测）才是治本。两者配合：紧急通道止血 → 7 天内补完完整防御。
+
 ### 关键文件
 
 - `backend/src/main/java/com/xiyu/bid/tender/service/TenderQueryService.java` — 核心修复点 + enrichment 降级
