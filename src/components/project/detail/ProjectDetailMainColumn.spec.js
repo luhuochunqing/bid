@@ -17,6 +17,13 @@ vi.mock('@/api/modules/projectLifecycle.js', () => ({
   },
 }))
 
+vi.mock('@/stores/project', () => ({
+  useProjectStore: () => ({
+    getProjectById: vi.fn().mockResolvedValue({ id: 42, tasks: [] }),
+    currentProject: { id: 42, tasks: [] },
+  }),
+}))
+
 vi.mock('@/composables/projectDetail/context.js', async () => {
   const actual = await vi.importActual('@/composables/projectDetail/context.js')
   return { ...actual }
@@ -210,5 +217,48 @@ describe('ProjectDetailMainColumn', () => {
     await flushPromises()
 
     expect(wrapper.findComponent({ name: 'DraftingStage' }).exists()).toBe(true)
+  })
+
+  // CO-468 根因修复：阶段切换后必须重新拉取 tasks
+  it('handleStageUpdated 调用 loadProjectWorkflowData 重新拉取 tasks', async () => {
+    const router = createTestRouter()
+    const loadProjectWorkflowData = vi.fn().mockResolvedValue()
+
+    const timelineStub = {
+      name: 'ProjectStageTimeline',
+      emits: ['snapshot'],
+      template: '<button class="timeline-stub" @click="$emit(\'snapshot\', { currentStage: \'INITIATED\', defaultOpenStage: \'INITIATED\' })" />',
+    }
+
+    const wrapper = mount(ProjectDetailMainColumn, {
+      global: {
+        plugins: [router],
+        stubs: {
+          ...stubs,
+          ProjectStageTimeline: timelineStub,
+          InitiationStage: { name: 'InitiationStage', template: '<div class="initiation-stub" />' },
+        },
+        provide: {
+          [projectDetailKey]: {
+            ...baseProvide[projectDetailKey],
+            project: { id: 42, tasks: [] },
+            loadProjectWorkflowData,
+          },
+        },
+      },
+    })
+
+    // 触发 timeline snapshot → activeStageTab = 'INITIATED'
+    await wrapper.find('.timeline-stub').trigger('click')
+    await flushPromises()
+
+    // 触发 InitiationStage 的 updated 事件 → handleStageUpdated
+    const initiation = wrapper.findComponent({ name: 'InitiationStage' })
+    expect(initiation.exists()).toBe(true)
+    initiation.vm.$emit('updated')
+    await flushPromises()
+
+    // 核心断言：loadProjectWorkflowData 被调用，重新拉取了 tasks
+    expect(loadProjectWorkflowData).toHaveBeenCalledWith(42)
   })
 })

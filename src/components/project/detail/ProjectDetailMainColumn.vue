@@ -277,6 +277,13 @@ async function handleStageUpdated() {
     : Promise.resolve()
 
   await Promise.all([projectPromise, resultTypePromise, bidReviewPromise])
+
+  // CO-468 根因修复：tasks 不在 getProjectById 返回里（后端只返回 tasksJson 字符串），
+  // 任务看板的 tasks 来自 projectsApi.getTasks。阶段切换后必须重新拉取 tasks，
+  // 否则任务看板仍显示旧 tasks（如保证金缴纳任务不显示），需刷新浏览器才可见。
+  if (ctx.project?.id && typeof ctx.loadProjectWorkflowData === 'function') {
+    await ctx.loadProjectWorkflowData(ctx.project.id)
+  }
 }
 
 async function onRetrospectiveSubmitted() {
