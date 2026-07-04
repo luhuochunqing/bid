@@ -47,9 +47,10 @@ public class ProjectStageController {
                                                           @AuthenticationPrincipal UserDetails userDetails) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         ProjectStage actual = service.currentStage(projectId);
+        boolean hasClosureSubmission = service.hasClosureSubmission(projectId);
         // CO-443: 已提交结项申请但审批未通过时，阶段尚未实际推进到 CLOSED，
         // 但前端进度导航栏应显示 CLOSED 为「进行中」而非「待进入」。
-        ProjectStage current = (actual != ProjectStage.CLOSED && service.hasClosureSubmission(projectId))
+        ProjectStage current = (actual != ProjectStage.CLOSED && hasClosureSubmission)
                 ? ProjectStage.CLOSED
                 : actual;
         List<ProjectStage> next = current.isTerminal()
@@ -60,6 +61,14 @@ public class ProjectStageController {
                 .map(Enum::name).toList();
         List<String> accessible = new ArrayList<>(completed);
         accessible.add(current.name());
+        // CO-498: 复盘阶段(stage=RETROSPECTIVE) 且未提交结项申请时，解锁 CLOSED tab。
+        // 项目负责人需进入结项 tab 提交结项申请，否则结项审核流程从源头死锁。
+        // 不按角色区分 — 角色矩阵下沉到 ClosureStage.canSubmitClosure/canApprove。
+        // 用 actual 而非 current 判定：closure 已存在时 current=CLOSED，CLOSED 已在 completed 中，
+        // 此时不应再次追加（避免 accessibleStages 出现重复 CLOSED）。
+        if (actual == ProjectStage.RETROSPECTIVE && !hasClosureSubmission) {
+            accessible.add(ProjectStage.CLOSED.name());
+        }
         String defaultOpenStage = current.name();
         if (isAssignedReviewingUser(projectId, userDetails)) {
             accessible.add(ProjectStage.DRAFTING.name());
