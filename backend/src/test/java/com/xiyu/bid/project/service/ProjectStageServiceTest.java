@@ -71,11 +71,21 @@ class ProjectStageServiceTest {
 
     @Test
     void linearWalk_INITIATED_to_CLOSED_allOk() {
-        // 模拟一次完整 6 阶段推进，repository 内态在每次 save 后保留新的 stage
-        Project p = new Project();
-        p.setId(PID);
-        p.setStage(ProjectStage.INITIATED.name());
-        when(projectRepo.findById(PID)).thenReturn(Optional.of(p));
+        // 模拟一次完整 6 阶段推进。用 thenAnswer 让 findById 每次返回当前 stage 的副本，
+        // 模拟 JPA 跨事务/有 flush 时从 DB 重读最新状态的生产语义。
+        // 如果用 thenReturn 同一引用，循环 mutation 会掩盖"save 后是否真落库"的语义歧义。
+        final String[] currentStage = {ProjectStage.INITIATED.name()};
+        when(projectRepo.findById(PID)).thenAnswer(inv -> {
+            Project p = new Project();
+            p.setId(PID);
+            p.setStage(currentStage[0]);
+            return Optional.of(p);
+        });
+        when(projectRepo.save(any(Project.class))).thenAnswer(inv -> {
+            Project saved = inv.getArgument(0);
+            currentStage[0] = saved.getStage();
+            return saved;
+        });
 
         ProjectStage[] order = {
                 ProjectStage.INITIATED,
@@ -135,13 +145,13 @@ class ProjectStageServiceTest {
 
     @Test
     void requestTransition_savesNewStageOnProject() {
-        Project p = mockProjectAtStage(ProjectStage.INITIATED);
+        // 守护"save 入参携带正确 stage"：用 ArgumentCaptor 捕获 save 入参，
+        // 不依赖 mock 返回的同一引用 mutation（mock 副作用与生产语义不一致）。
+        mockProjectAtStage(ProjectStage.INITIATED);
         service.requestTransition(PID, ProjectStage.DRAFTING, GATE);
         ArgumentCaptor<Project> captor = ArgumentCaptor.forClass(Project.class);
         verify(projectRepo).save(captor.capture());
         assertEquals(ProjectStage.DRAFTING.name(), captor.getValue().getStage());
-        // 同一个 entity 引用被更新（@Auditable AOP 关心的是方法成功返回）
-        assertEquals(ProjectStage.DRAFTING.name(), p.getStage());
     }
 
     @Test
