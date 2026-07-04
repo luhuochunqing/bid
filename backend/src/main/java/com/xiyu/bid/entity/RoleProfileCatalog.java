@@ -155,7 +155,9 @@ public final class RoleProfileCatalog {
                         BRAND_AUTH_EDIT_PERMISSION, "knowledge-brand-auth",
                         TENDER_VIEW_PERMISSION, PERSONNEL_VIEW_PERMISSION, PERSONNEL_MANAGE_PERMISSION,
                         PERFORMANCE_MANAGE_PERMISSION, QUALIFICATION_MANAGE_PERMISSION,
-                        QUALIFICATION_VIEW_PERMISSION, QUICK_START_PERMISSION, AI_CENTER_PERMISSION, "operation-logs",
+                        QUALIFICATION_VIEW_PERMISSION, QUICK_START_PERMISSION,
+                        // 菜单权限（ai-center/operation-logs）唯一来源是 OSS（system=bid-platform），
+                        // catalog 不应注入，否则 OSS 未配置该菜单的角色会因 sidebar 父级连带显示看到"系统设置"父菜单。
                         "dashboard:view_welcome_banner", "dashboard:view_metric_cards", "dashboard:view_calendar",
                         "dashboard:view_tender_list", "dashboard:view_technical_task", "dashboard:view_active_projects",
                         "dashboard:view_activity_list", "dashboard:view_priority_todos",
