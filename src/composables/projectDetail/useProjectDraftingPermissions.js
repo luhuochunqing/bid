@@ -105,6 +105,20 @@ export function useProjectDraftingPermissions(opts = {}) {
     return false
   })
 
+  /**
+   * CO-499：当前用户是否为该项目的投标负责人（仅匹配 primaryLeadId，不含辅助人员）。
+   * 与 isProjectLeadMatch 的区别：排除 secondaryLeadId 匹配，用于"上传投标文件"等
+   * 仅限投标负责人本人可操作的权限。投标辅助人员（secondaryLeadId 匹配）对此类字段只读。
+   */
+  const isPrimaryLeadMatch = computed(() => {
+    if (roleGroup.value !== 'lead_assist') return false
+    const currentUserId = resolveOpt(opts.currentUserId)
+    if (!currentUserId) return false
+    const uid = String(currentUserId)
+    const primaryLeadId = resolveOpt(opts.primaryLeadId)
+    return !!(primaryLeadId != null && String(primaryLeadId) === uid)
+  })
+
   // ── AI 能力 ────────────────────────────────────────────────────────────────
 
   /** AI评分标准解析（任务看板→评分标准拆解） */
@@ -169,9 +183,13 @@ export function useProjectDraftingPermissions(opts = {}) {
 
   // ── 投标流程 ─────────────────────────────────────────────────────────────
 
-  /** 上传投标文件、选择标书审核人（投标管理员/组长 + 投标负责人/辅助人） */
+  /**
+   * 上传投标文件、选择标书审核人。
+   * CO-499：仅允许投标管理员/组长 + 该项目的投标负责人（primaryLeadId 匹配）。
+   * 投标辅助人员（secondaryLeadId 匹配）和项目负责人（sales）对此字段只读。
+   */
   const canManageBidFiles = computed(() =>
-    roleGroup.value === 'admin_lead' || roleGroup.value === 'lead_assist'
+    isAdminLead.value || isPrimaryLeadMatch.value
   )
 
   /** 选择标书审核人：管理员/组长 + 当前项目投标负责人/辅助人员 */

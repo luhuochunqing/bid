@@ -388,10 +388,22 @@ describe('CO-355: reactive(composable) 真实调用（解包 + 项目级 lead �
     expect(permWith('admin', { reviewerId: 1, currentUserId: 1 }).canReviewBid).toBe(true)
     expect(permWith('admin', { reviewerId: 999, currentUserId: 1 }).canReviewBid).toBe(false)
   })
-  it('canManageBidFiles 解包为 boolean 且按角色组', () => {
+  it('canManageBidFiles 解包为 boolean 且按 CO-499 限制（仅 admin_lead + primaryLeadId 匹配）', () => {
     expect(typeof permWith('admin').canManageBidFiles).toBe('boolean')
+    // admin_lead 组直通
     expect(permWith('admin').canManageBidFiles).toBe(true)
+    expect(permWith('/bidAdmin').canManageBidFiles).toBe(true)
+    expect(permWith('bid-TeamLeader').canManageBidFiles).toBe(true)
+    // lead_assist 组需匹配 primaryLeadId
+    expect(permWith('bid-projectLeader', { primaryLeadId: 1, currentUserId: 1 }).canManageBidFiles).toBe(true)
+    expect(permWith('bid-projectLeader', { primaryLeadId: 999, currentUserId: 1 }).canManageBidFiles).toBe(false)
+    // CO-499: bid-Team 仅 primaryLeadId 匹配可上传，secondaryLeadId 匹配不可上传（辅助只读）
+    expect(permWith('bid-Team', { primaryLeadId: 1, currentUserId: 1 }).canManageBidFiles).toBe(true)
+    expect(permWith('bid-Team', { primaryLeadId: 999, secondaryLeadId: 1, currentUserId: 1 }).canManageBidFiles).toBe(false)
+    expect(permWith('bid-Team', { primaryLeadId: 999, secondaryLeadId: 998, currentUserId: 1 }).canManageBidFiles).toBe(false)
+    // 其他角色（含 sales 项目负责人）只读
     expect(permWith('bid-otherDept').canManageBidFiles).toBe(false)
+    expect(permWith('bid-administration').canManageBidFiles).toBe(false)
   })
   it('canManageTaskBoardTopActions 解包为 boolean 且按角色组（admin_lead ∪ lead_assist）', () => {
     expect(typeof permWith('admin').canManageTaskBoardTopActions).toBe('boolean')
