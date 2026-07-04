@@ -62,6 +62,27 @@ describe('personnelBatchApi blob download (CO-419)', () => {
     expect(filename).toBe('import_error_report_task-123.xlsx')
   })
 
+  it('downloadExportFile(): passes res.data (Blob) to triggerBlobDownload, not the whole response', async () => {
+    // CO-469 第五轮：导出文件下载同样必须使用 res.data，否则下载的 zip 无法解压
+    const blob = new Blob(['fake-zip-bytes'], { type: 'application/zip' })
+    const fakeResponse = {
+      data: blob,
+      status: 200,
+      statusText: 'OK',
+      headers: { 'content-type': 'application/zip' },
+      config: { responseType: 'blob' }
+    }
+    httpClient.get.mockResolvedValue(fakeResponse)
+
+    await personnelBatchApi.downloadExportFile('exp-task-001')
+
+    expect(httpClient.get).toHaveBeenCalledWith('/api/knowledge/personnel/export/exp-task-001/download', { responseType: 'blob' })
+    expect(triggerBlobDownload).toHaveBeenCalledTimes(1)
+    const [receivedBlob, filename] = triggerBlobDownload.mock.calls[0]
+    expect(receivedBlob).toBe(blob)
+    expect(filename).toBe('personnel_export_exp-task-001.zip')
+  })
+
   it('regression guard: triggerBlobDownload must NOT receive a Blob wrapping the response object', async () => {
     // 回归防护：确保不会回退到 new Blob([res]) 写法
     const blob = new Blob(['real-data'])
