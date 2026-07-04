@@ -138,12 +138,14 @@ class ProjectStageControllerTest {
     }
 
 
-    // CO-443 修正: 复盘提交后 stage 已是 CLOSED，但未提交结项申请(无 closure) → terminal=false（进行中，非已完成）
+    // CO-443 修正: 复盘提交后 stage 停在 RETROSPECTIVE（不直达 CLOSED），未提交结项申请(无 closure)
+    // → currentStage=RETROSPECTIVE, terminal=false（进行中，非已完成）
+    // 修复前 RetrospectiveService.submit() 直达 CLOSED，导致 ClosureStage 的"提交结项"按钮被隐藏。
     @Test
     void co443_retrospectiveDone_noClosure_showsInProgress() throws Exception {
         authenticate("09118");
         when(authService.resolveUserIdByUsername("09118")).thenReturn(5472L);
-        when(stageService.currentStage(42L)).thenReturn(ProjectStage.CLOSED);
+        when(stageService.currentStage(42L)).thenReturn(ProjectStage.RETROSPECTIVE);
         when(stageService.hasClosureSubmission(42L)).thenReturn(false);
         when(bidReviewAppService.getReviewState(42L)).thenReturn(
                 new BidReviewAppService.ReviewState("REVIEWING", 9999L, null, "其他人", List.of()));
@@ -151,7 +153,7 @@ class ProjectStageControllerTest {
 
         mockMvc.perform(get("/api/projects/42/stage").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.currentStage").value("CLOSED"))
+                .andExpect(jsonPath("$.data.currentStage").value("RETROSPECTIVE"))
                 .andExpect(jsonPath("$.data.terminal").value(false));
     }
 

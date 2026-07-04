@@ -96,12 +96,11 @@ public class ProjectRetrospectiveService {
             projectStageService.requestTransition(projectId, ProjectStage.RETROSPECTIVE,
                     ProjectStageTransitionPolicy.GateInputs.EMPTY);
         }
-        // §2.6: 复盘无需审核，提交即转。submit() 直达 CLOSED。
-        ProjectStage afterRetroTransition = projectStageService.currentStage(projectId);
-        if (afterRetroTransition == ProjectStage.RETROSPECTIVE) {
-            projectStageService.requestTransition(projectId, ProjectStage.CLOSED,
-                    ProjectStageTransitionPolicy.GateInputs.EMPTY);
-        }
+        // 复盘提交后阶段停在 RETROSPECTIVE，不直达 CLOSED。
+        // CLOSED 由结项审核流程驱动：用户在 ClosureStage 提交结项申请 → ClosureService.submitClosure(PENDING)
+        // → 审核通过 approveClosure 才 requestTransition(CLOSED)。
+        // 若此处直达 CLOSED，ClosureService.preview 的 alreadyClosed 判定为 true（stage=CLOSED），
+        // ClosureStage 的"提交结项"按钮被隐藏，整个结项审核流程被绕过。
         log.info("Retrospective submitted project={} status=APPROVED user={}", projectId, currentUserId);
 
         // 通知 #14: 提交复盘 → admin
