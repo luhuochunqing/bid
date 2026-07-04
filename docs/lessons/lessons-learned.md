@@ -2810,3 +2810,125 @@ CO-483/484 PR !1637（标书审核多人化 + 驳回后审核人清空）在 kim
 - §23 — 全链路日志排查 SOP（本次排查使用 Layer 1-4）
 - §36 — Collectors.toMap 三层失效（同类：三层防御纵深模式）
 - §18 — 部署前必须验证 jar 中 Flyway 迁移脚本无重复版本（同类：Flyway 守卫）
+
+---
+
+## 38. 修 bug 时删除代码必须审视隐式前后端字段契约（CO-498 修 CO-443 引入导航断层）
+
+**事故时间**: 2026-07-04
+**影响范围**: 复盘提交后项目负责人无法进入结项阶段，整个结项审核流程死锁
+**根因类别**: 修 A bug 删除代码时，未审视此代码对前后端字段契约的隐式副作用
+
+### 事故经过
+
+CO-498：项目 157 复盘阶段（RETROSPECTIVE）提交后，导航时间线上的"结项"tab 显示「待进入」且不可点击，项目负责人无法进入结项阶段提交结项申请。
+
+**根因三层**：
+
+1. **5d1b36b53 修 CO-443 时删除了"复盘直达 CLOSED"**: 为了修 `ClosureService.preview` 的 `alreadyClosed` 误判 bug，删除了 `ProjectRetrospectiveService.submit()` 中 `RETROSPECTIVE→CLOSED` 的二次推进。该修改**本身正确**。
+
+2. **未审视 `ProjectStageController.get()` 的隐式契约**: `accessibleStages` 字段的计算逻辑一直依赖"复盘提交后 stage=CLOSED"这个隐式假设——因为 CLOSED 是 stage 推进的产物，不需要单独解锁。删除二次推进后，stage 停在 RETROSPECTIVE，CLOSED **永远不进 accessibleStages**。
+
+3. **前端 `ProjectStageTimeline.isUnlocked()` 完全信任后端字段**: tab 是否可点 100% 取决于 `accessibleStages.includes(stage.code)`，没有任何兜底逻辑。后端字段断层直接导致前端 tab 锁死。
+
+### 排查方法
+
+按 §23 全链路日志排查 SOP，判定为"Layer 2 适用：业务逻辑错误、Sentry 未覆盖场景"（无 5xx 异常，HTTP 200 OK）：
+
+1. **Layer 1 Sentry**: 生产 `sentryEnabled=false`，不可用；本 bug 也不触发异常
+2. **Layer 2 DB+TraceId**: 项目 157 `stage=RETROSPECTIVE`、`project_closure` 不存在；复盘提交后无 RETROSPECTIVE→CLOSED 推进日志（与代码设计吻合）
+3. **Layer 3 git 追溯**: 定位 `5d1b36b53` 删除二次推进的 commit，读懂 commit message 中"修 CO-443"的动机
+
+### 关键认知
+
+**Service 行为变更 ≠ 视图层契约自动同步**。三层链条是隐式契约：
+
+```
+Service 行为（stage 是否推进）
+  ↓ 隐式契约
+Controller 字段计算（accessibleStages 是否含 CLOSED）
+  ↓ 隐式契约
+前端视图判定（isUnlocked(stage) 是否返回 true）
+```
+
+任何一层行为变更，必须审视另外两层是否依赖此行为。本案例中 `5d1b36b53` 只审视了 Service 层（修 CO-443）和 Controller 部分字段（`current` 计算），漏看了 `accessibleStages` 字段对 stage 推进的依赖。
+
+### 防复发机制
+
+**L1 排查清单（修改 service 行为时必跑）**：
+
+```markdown
+- [ ] 此 service 方法的所有调用方在哪里？grep 出全部 caller
+- [ ] 此 service 方法的行为变更会影响哪些 controller 返回字段？
+- [ ] 这些字段在前端有哪些视图层判定依赖？（grep `accessibleStages` / `currentStage` / `terminal` 等）
+- [ ] 改完之后，受影响字段的"前后端契约测试"是否仍然通过？
+- [ ] 是否有"依赖此 service 副作用"的其他代码路径（如阶段推进、状态变更）？
+```
+
+**L2 测试守卫**：
+
+新增测试必须覆盖"前后端字段契约"的边界，不只是 service 自身行为：
+
+```java
+// ❌ 不够：只测 service 行为
+@Test void retrospectiveSubmit_doesNotAdvanceToClosed() { ... }
+
+// ✅ 推荐：同时测 controller 字段契约
+@Test void co498_retrospectiveWithoutClosure_unlocksClosedTab() {
+    // 验证 accessibleStages 含 CLOSED（前端 tab 解锁的契约）
+}
+
+@Test void co498_retrospectiveWithClosureDraft_doesNotUnlockClosedTwice() {
+    // 验证 CO-443 假 CLOSED 与 CO-498 解锁不双重计数
+}
+```
+
+**L3 顽固 bug 全链路推演（Code Review 必跑）**：
+
+修复"修 A 引入 B"类顽固 bug 时，必须用 sequential-thinking 推演用户全链路：
+
+```
+GET /api → 后端字段计算 → 前端字段消费 → 用户交互 → 下一个 API → ... → 业务终态
+```
+
+本案例 CO-498 Code Review 推演了 8 步（从 `GET /stage` 到 `canSubmitClosure=true`），确认无第二层根因阻塞。详见 `docs/lessons/root-cause-analysis-co-498.md` "Code Review" 章节。
+
+### 教训归纳
+
+1. **删除代码比新增代码风险更高**: 新增代码的副作用通常在调用方可控范围内，删除代码则会"静默切断"所有依赖此代码的隐式契约。`5d1b36b53` 删除 5 行代码引出一个 P1 bug。删除代码前必须 grep 所有依赖。
+
+2. **前后端字段是隐式契约，不是"自由数据"**: 后端 controller 返回的每个字段（特别是 `accessibleStages`、`currentStage`、`terminal`、`canXxx` 等布尔/列表字段）都是前端视图判定的依据。改 service 行为时，必须审视这些字段是否需要同步调整计算逻辑。
+
+3. **"修 bug 引入 bug"的镜像模式**: CO-443 与 CO-498 互为镜像——
+   - CO-443 的问题：closure 已提交时 stage 还在 RETROSPECTIVE，导致显示"待进入"而非"进行中"
+   - CO-498 的问题：closure 未提交时 CLOSED tab 锁死，用户进不去提交 closure 的入口
+   - 两个 bug 的修复方向相反（一个让 current 显示 CLOSED，一个让 accessible 解锁 CLOSED），但都改同一个 controller 方法。**修其中一个时必须同时审视另一个**。
+
+4. **Sentry 不可用时 SOP Layer 2 是兜底**: 本 bug 不触发任何异常（HTTP 200 OK），即使 Sentry 启用也不会上报。Layer 2（DB+TraceId+git 追溯）是这类"业务逻辑错误"的唯一可行排查路径。
+
+5. **"看代码注释理解历史决策"是关键排查手段**: `ProjectStageController.java:68-69` 的 CO-443 修正注释（"复盘提交已把 stage 推到 CLOSED"）与 `ProjectRetrospectiveService.java:99-103` 的 `5d1b36b53` 注释（"复盘提交后停在 RETROSPECTIVE"）直接矛盾。两段矛盾的注释是定位"修 A 引入 B"的关键信号——必有一段注释描述的世界已不再存在。
+
+### 防复发评估
+
+| 场景 | L1 排查清单 | L2 测试守卫 | L3 全链路推演 | 是否拦截 |
+|------|------------|-------------|---------------|----------|
+| 修 service 时删除 stage 推进代码 | ✅（"是否有依赖此副作用的路径"） | ✅（accessibleStages 契约测试） | ✅（Code Review 推演） | ✅ 三层防御 |
+| 新增字段但前端未消费 | ❌ | ❌ | ❌ | ❌ 不在本次范围（前端单测/契约测试负责） |
+| 字段语义变更（如 `current` 含义改变） | ⚠️（清单可补充） | ⚠️（需配套契约测试） | ✅ | ⚠️ 部分 |
+
+**结论**：本节提供的 L1-L3 防御针对"修 service 引入 controller/视图层断层"类 bug。前端字段消费的覆盖由前端单测/E2E 负责（参考 §26 联动回填链路 4 层全链路验证 SOP）。
+
+### 关键文件
+
+- `backend/src/main/java/com/xiyu/bid/project/controller/ProjectStageController.java` — CO-498 修复点（accessibleStages 计算补全）
+- `backend/src/main/java/com/xiyu/bid/project/service/ProjectRetrospectiveService.java` — `5d1b36b53` 删除直达 CLOSED 的位置（行为本身正确，未改）
+- `backend/src/test/java/com/xiyu/bid/project/controller/ProjectStageControllerTest.java` — 4 个 CO-498 防复发测试
+- `src/components/project/stage/ProjectStageTimeline.vue` — 前端 `isUnlocked()` 判定（信任后端 accessibleStages）
+- `docs/lessons/root-cause-analysis-co-498.md` — 完整根因分析（含 8 步全链路推演）
+- `.specify/specs/024-co498-retrospective-closure-tab-unlock/` — Spec Kit 完整规格（spec/plan/tasks/implementation-notes）
+
+### 相关 SOP
+
+- §23 — 全链路日志排查 SOP（本次排查使用 Layer 1-3）
+- §28 — 权限 Bug 必须审视同一业务动作的所有 UI 入口（同类：修 A bug 漏看 B 链路）
+- §26 — 联动回填链路 4 层全链路验证 SOP（同类：前后端字段联动验证）
