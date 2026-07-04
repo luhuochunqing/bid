@@ -1,6 +1,12 @@
 <template>
   <div class="case-grid-container">
-    <el-card class="filter-card">
+    <div class="kb-page-header">
+      <h2>案例库</h2>
+      <div class="kb-header-actions">
+        <el-button type="warning" @click="handleExportZip" :loading="exportLoading">导出文件包</el-button>
+      </div>
+    </div>
+    <el-card class="filter-card kb-filter-card">
       <template #header>
         <div class="card-header-title"><el-icon><Grid /></el-icon><span>AI 案例库网格</span></div>
       </template>
@@ -45,9 +51,8 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch"><el-icon class="mr-1"><Search /></el-icon>筛选</el-button>
-          <el-button @click="handleReset"><el-icon class="mr-1"><Refresh /></el-icon>重置</el-button>
-          <el-button type="warning" @click="handleExportZip" :loading="exportLoading"><el-icon class="mr-1"><Download /></el-icon>📦 导出文件包</el-button>
+          <el-button type="primary" @click="handleSearch">查询</el-button>
+          <el-button @click="handleReset">重置</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -285,16 +290,10 @@ onMounted(() => { restoreDrawerState(); loadCases(); })
 onBeforeUnmount(saveDrawerState)
 </script>
 
-<style scoped>
+<style scoped lang="scss">
+@use '../_knowledge-utils' as *;
 .case-grid-container { display: flex; flex-direction: column; gap: 16px; background: var(--bg-page); min-height: 100vh; }
-.filter-card { border-radius: 8px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.05); border: 1px solid var(--el-border-color-lighter); }
 .card-header-title { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; color: var(--el-text-color-primary); }
-.search-form { margin-bottom: -18px; }
-.grid-content { min-height: 200px; }
-.card-grid { margin-bottom: -20px; }
-.grid-col { margin-bottom: 20px; }
-.pagination-container { display: flex; justify-content: flex-end; }
-.mt-6 { margin-top: 24px; }
-.mr-1 { margin-right: 4px; }
-.hint-text { font-size: 13px; color: var(--el-text-color-secondary); margin-top: 8px; }
+.search-form { margin-bottom: -18px; } .grid-content { min-height: 200px; } .card-grid { margin-bottom: -20px; } .grid-col { margin-bottom: 20px; }
+.pagination-container { display: flex; justify-content: flex-end; } .mt-6 { margin-top: 24px; } .hint-text { font-size: 13px; color: var(--el-text-color-secondary); margin-top: 8px; }
 </style>

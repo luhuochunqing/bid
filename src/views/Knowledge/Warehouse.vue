@@ -1,5 +1,14 @@
 <template>
   <div class="warehouse-container">
+    <div class="kb-page-header">
+      <h2>仓库管理</h2>
+      <div class="kb-header-actions">
+        <el-button v-if="canManage" type="warning" @click="importVisible = true"><el-icon><Upload /></el-icon> 批量导入</el-button>
+        <el-button v-if="canManage" type="success" @click="exportVisible = true"><el-icon><Download /></el-icon> 导出台账</el-button>
+        <el-button v-if="canManage" plain @click="handleBatchExport"><el-icon><Document /></el-icon> 台账导出</el-button>
+        <el-button v-if="canManage" type="primary" @click="openCreate"><el-icon><Plus /></el-icon> 新增仓库</el-button>
+      </div>
+    </div>
     <WarehouseFilterBar
       v-model:filters="filters"
       :total="total"
@@ -7,13 +16,8 @@
       @search="resetPageAndLoad"
       @reset="resetFilters"
       @realtime-search="resetPageAndLoad"
-      @create="openCreate"
-      @export="exportVisible = true"
-      @import="importVisible = true"
-      @batch-export="handleBatchExport"
-      @ledger-export="ledgerExportVisible = true"
     />
-    <el-card class="data-card" shadow="never">
+    <el-card class="data-card kb-table-card" shadow="never">
       <el-table :data="records" v-loading="loading" style="width:100%" max-height="calc(100vh - 220px)" scrollbar-always-on @row-click="openDrawer"
         :row-class-name="({row}) => newlyCreatedIds.has(row.id) ? 'row-newly-created' : ''"
         @selection-change="handleSelectionChange">
@@ -89,6 +93,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Upload, Download, Document, Plus } from '@element-plus/icons-vue'
 import http from '@/api/client'
 import { useKnowledgePermission } from '@/composables/useKnowledgePermission'
 import WarehouseFilterBar from '@/components/warehouse/WarehouseFilterBar.vue'
@@ -293,8 +298,7 @@ onMounted(load)
 </script>
 
 <style scoped lang="scss">
-.page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; h2 { font-weight:600; color:#1f2937; margin:0 } }
-.data-card { border-radius:8px; border:1px solid var(--el-border-color-lighter); box-shadow:0 2px 8px rgba(0,0,0,.05) }
+@use './_knowledge-utils' as *;
 .pagination-wrap { display:flex; justify-content:flex-end; margin-top:16px }
 :deep(.row-newly-created) { animation: highlightFade 3s ease-out }
 @keyframes highlightFade {

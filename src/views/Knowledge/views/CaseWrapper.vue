@@ -9,8 +9,5 @@ import CaseGrid from './CaseGrid.vue'
 </script>
 
 <style scoped>
-/* Remove duplicate wrapper padding to keep layouts unified */
-:deep(.case-grid-container) {
-  padding: 24px 0 0 0 !important;
-}
+/* Padding is provided by KbLayout .kb-content */
 </style>

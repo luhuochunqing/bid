@@ -1,6 +1,6 @@
 <template>
   <div class="qualification-container">
-    <div class="page-header">
+    <div class="page-header kb-page-header">
       <h2>资质证书</h2>
       <div class="page-actions">
         <el-button v-if="canManageQualification" type="primary" class="premium-btn" @click="formVisible=true; editData=null">
@@ -17,7 +17,7 @@
       </div>
     </div>
 
-    <el-card class="filter-card" shadow="never">
+    <el-card class="filter-card kb-filter-card" shadow="never">
       <el-form :inline="true" :model="filters" size="default">
         <el-form-item label="关键词">
           <el-input v-model="filters.keyword" placeholder="证书名称/编号/机构/持有人" clearable style="width:200px" />
@@ -42,7 +42,7 @@
       </el-form>
     </el-card>
 
-    <el-card class="data-card" shadow="never">
+    <el-card class="data-card kb-table-card" shadow="never">
       <div v-if="hasSelection" class="batch-toolbar">
         <el-button type="success" size="small" @click="handleBatchExport">
           <el-icon><Download /></el-icon> 导出台账
@@ -266,14 +266,13 @@ const handleFormSaved = () => {
 </script>
 
 <style scoped lang="scss">
+@use './_knowledge-utils' as *;
 .qualification-container {
   background: var(--bg-page);
   min-height: 100vh;
 }
-.page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; h2 { font-weight:600; color:var(--text-primary); margin:0 } }
 .page-actions { display: flex; gap: 12px; flex-wrap: wrap; }
 .premium-btn { background: linear-gradient(135deg, var(--brand-xiyu-logo) 0%, var(--brand-xiyu-logo-active) 100%); border: none; box-shadow: 0 4px 6px -1px var(--brand-xiyu-logo-shadow); transition: all 0.3s ease; &:hover { transform: translateY(-2px); box-shadow: 0 6px 8px -1px var(--brand-xiyu-logo-shadow); } }
-.filter-card,.data-card { border-radius:8px; border:1px solid var(--el-border-color-lighter); box-shadow:var(--shadow-sm); margin-bottom:12px }
 .pagination-wrap { display:flex; justify-content:flex-end; margin-top:16px }
 .cert-name { font-weight:500; color:var(--text-primary) }
 .text-muted { color:var(--text-lighter) }

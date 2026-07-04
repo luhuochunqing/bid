@@ -43,45 +43,27 @@
           <el-input v-model="localFilters.contactPersonKeyword" placeholder="区域联系人" clearable style="width:110px" @keyup.enter="handleSearch" @input="onContactInput" />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleSearch"><el-icon><Search /></el-icon> 搜索</el-button>
-          <el-button @click="handleReset"><el-icon><RefreshRight /></el-icon> 重置</el-button>
+          <el-button type="primary" @click="handleSearch">查询</el-button>
+          <el-button @click="handleReset">重置</el-button>
         </el-form-item>
       </el-form>
     </div>
-    <div class="filter-bar-actions">
+    <div class="filter-bar-summary">
       <span class="total-tip">共 <strong>{{ total }}</strong> 条</span>
-      <template v-if="canManage">
-        <el-button type="warning" @click="$emit('import')"><el-icon><Upload /></el-icon> 批量导入</el-button>
-        <el-button v-if="selectedCount > 0" type="success" @click="$emit('batch-export')">
-          <el-icon><Download /></el-icon> 批量导出 ({{ selectedCount }})
-        </el-button>
-        <el-button v-else type="success" @click="$emit('export')"><el-icon><Download /></el-icon> 导出台账</el-button>
-        <el-button v-if="selectedCount > 0" type="primary" plain @click="$emit('ledger-export')">
-          <el-icon><Document /></el-icon> 台账导出 ({{ selectedCount }})
-        </el-button>
-        <el-button v-else type="primary" plain @click="$emit('ledger-export')">
-          <el-icon><Document /></el-icon> 台账导出
-        </el-button>
-        <el-button type="primary" @click="$emit('create')"><el-icon><Plus /></el-icon> 新增仓库</el-button>
-      </template>
     </div>
   </div>
 </template>
 
 <script setup>
 import { reactive, watch, onBeforeUnmount } from 'vue'
-import { Search, RefreshRight, Plus, Download, Upload, Document } from '@element-plus/icons-vue'
-import { useKnowledgePermission } from '@/composables/useKnowledgePermission'
 import { PROVINCE_OPTIONS } from './provinceOptions.js'
-
-const { canManageWarehouse: canManage } = useKnowledgePermission()
 
 const props = defineProps({
   filters: { type: Object, default: () => ({}) },
   total: { type: Number, default: 0 },
   selectedCount: { type: Number, default: 0 }
 })
-const emit = defineEmits(['update:filters', 'search', 'reset', 'create', 'export', 'import', 'batch-export', 'realtime-search', 'ledger-export'])
+const emit = defineEmits(['update:filters', 'search', 'reset', 'realtime-search'])
 
 // 7 大区域
 const REGION_OPTIONS = ['华北', '东北', '华东', '华中', '华南', '西北', '西南']
@@ -201,11 +183,9 @@ onBeforeUnmount(() => { if (debounceTimer) clearTimeout(debounceTimer) })
   }
 }
 
-.filter-bar-actions {
+.filter-bar-summary {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
   padding-top: 8px;
   border-top: 1px solid var(--el-border-color-lighter);
 }
@@ -214,6 +194,5 @@ onBeforeUnmount(() => { if (debounceTimer) clearTimeout(debounceTimer) })
   color: var(--el-text-color-secondary);
   font-size: 13px;
   font-weight: 500;
-  margin-right: auto;
 }
 </style>
