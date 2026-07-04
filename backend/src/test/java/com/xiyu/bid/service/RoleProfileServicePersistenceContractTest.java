@@ -80,7 +80,7 @@ class RoleProfileServicePersistenceContractTest {
 
         assertThat(reloaded.getMenuPermissions())
                 .containsExactly("dashboard", "bidding")
-                .doesNotContain("operation-logs", RoleProfileCatalog.QUICK_START_PERMISSION, RoleProfileCatalog.AI_CENTER_PERMISSION);
+                .doesNotContain("operation-logs", RoleProfileCatalog.QUICK_START_PERMISSION);
         assertThat(reloaded.getDataScope()).isEqualTo("dept");
         assertThat(reloaded.getAllowedProjects()).containsExactly(42L);
         assertThat(reloaded.getAllowedDepts()).containsExactly("SALES");
@@ -94,7 +94,8 @@ class RoleProfileServicePersistenceContractTest {
         RoleDTO reset = roleProfileService.resetRole(staff.getId());
 
         assertThat(reset.getMenuPermissions())
-                .contains(RoleProfileCatalog.QUICK_START_PERMISSION, RoleProfileCatalog.AI_CENTER_PERMISSION, "operation-logs");
+                .contains(RoleProfileCatalog.QUICK_START_PERMISSION)
+                .doesNotContain(RoleProfileCatalog.AI_CENTER_PERMISSION, "operation-logs");
     }
 
     private void seedRole(RoleProfileCatalog.SeedDefinition definition) {

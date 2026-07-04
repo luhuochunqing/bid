@@ -87,8 +87,8 @@ class RoleProfileServicePersistenceTest {
                 .containsExactly("dashboard", "bidding")
                 .doesNotContain(
                         "operation-logs",
-                        RoleProfileCatalog.QUICK_START_PERMISSION,
-                        RoleProfileCatalog.AI_CENTER_PERMISSION
+                        RoleProfileCatalog.QUICK_START_PERMISSION
+                        // ai-center/operation-logs 已从 bid-Team catalog 移除（菜单权限唯一来源是 OSS）
                 );
         assertThat(reloaded.getDataScope()).isEqualTo("dept");
         assertThat(reloaded.getEnabled()).isFalse();
@@ -105,10 +105,10 @@ class RoleProfileServicePersistenceTest {
 
         assertThat(reset.getMenuPermissions())
                 .contains(
-                        RoleProfileCatalog.QUICK_START_PERMISSION,
-                        RoleProfileCatalog.AI_CENTER_PERMISSION,
-                        "operation-logs"
-                );
+                        RoleProfileCatalog.QUICK_START_PERMISSION
+                        // ai-center/operation-logs 已从 bid-Team catalog 移除（菜单权限唯一来源是 OSS）
+                )
+                .doesNotContain(RoleProfileCatalog.AI_CENTER_PERMISSION, "operation-logs");
     }
 
     private void seedRole(RoleProfileCatalog.SeedDefinition definition) {

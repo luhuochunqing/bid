@@ -58,7 +58,8 @@ class RoleProfileBootstrapTest {
                 .filteredOn(role -> RoleProfileCatalog.BID_SPECIALIST_CODE.equals(role.getCode()))
                 .singleElement()
                 .satisfies(role -> assertThat(role.getMenuPermissions())
-                        .contains(RoleProfileCatalog.QUICK_START_PERMISSION, RoleProfileCatalog.AI_CENTER_PERMISSION));
+                        .contains(RoleProfileCatalog.QUICK_START_PERMISSION)
+                        .doesNotContain(RoleProfileCatalog.AI_CENTER_PERMISSION, "operation-logs"));
     }
 
     private Map<String, RoleProfile> seedRoles() {
