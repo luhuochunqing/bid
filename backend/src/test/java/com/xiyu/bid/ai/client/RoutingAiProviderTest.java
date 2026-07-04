@@ -32,7 +32,16 @@ class RoutingAiProviderTest {
     private OpenAiCompatibleClient openAiCompatibleClient;
 
     @Mock
+    private OpenAiCompatibleEmbeddingClient openAiCompatibleEmbeddingClient;
+
+    @Mock
     private MockAiProvider mockAiProvider;
+
+    @Mock
+    private QwenEmbeddingClient qwenEmbeddingClient;
+
+    @Mock
+    private NoopEmbeddingClient noopEmbeddingClient;
 
     @Mock
     private Environment environment;
@@ -104,7 +113,10 @@ class RoutingAiProviderTest {
         return new RoutingAiProvider(
                 aiConfigService,
                 openAiCompatibleClient,
+                openAiCompatibleEmbeddingClient,
                 mockAiProvider,
+                qwenEmbeddingClient,
+                noopEmbeddingClient,
                 environment,
                 aiProviderCatalog
         );
