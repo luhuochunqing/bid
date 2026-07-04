@@ -319,8 +319,8 @@ async function onRetrospectiveSubmitted() {
     console.warn('[ProjectDetailMainColumn] onRetrospectiveSubmitted handleStageUpdated failed', e)
   } finally {
     activeStageTab.value = 'CLOSED'
-    // 延迟一拍清标志：让 handleStageUpdated 内部触发的异步 snapshot 回声也落在窗口期内
-    setTimeout(() => { isRetrospectiveTransitioning.value = false }, 0)
+    // 延迟清标志(100ms 而非 0)：让 handleStageUpdated 的异步 snapshot 回声也落在窗口期内，避免测试 flushPromises 在回声到达前清除标志
+    setTimeout(() => { isRetrospectiveTransitioning.value = false }, 100)
   }
 }
 </script>

@@ -1,5 +1,6 @@
 package com.xiyu.bid.casework.controller;
 
+import com.xiyu.bid.casework.application.ArchiveFileListService;
 import com.xiyu.bid.casework.application.ProjectArchiveDetailService;
 import com.xiyu.bid.casework.application.ProjectArchiveExportService;
 import com.xiyu.bid.casework.application.ProjectArchiveWorkflowService;
@@ -7,6 +8,7 @@ import com.xiyu.bid.casework.application.StreamingZipPackager;
 import com.xiyu.bid.casework.dto.ProjectArchiveDetailResponse;
 import com.xiyu.bid.casework.dto.ProjectArchiveQuery;
 import com.xiyu.bid.casework.dto.ProjectArchiveResponse;
+import com.xiyu.bid.casework.dto.ArchiveFileListItem;
 import com.xiyu.bid.casework.dto.ProjectArchiveStatsResponse;
 import com.xiyu.bid.casework.infrastructure.ArchiveFile;
 import com.xiyu.bid.casework.infrastructure.ArchiveFileRepository;
@@ -52,7 +54,7 @@ public class ProjectArchiveController {
     private final ProjectArchiveExportService archiveExportService;
     private final StreamingZipPackager streamingZipPackager;
     private final ArchiveFileRepository archiveFileRepository;
-
+    private final ArchiveFileListService archiveFileListService;
     @GetMapping
     @PreAuthorize("hasAuthority('project')")
     public ResponseEntity<Page<ProjectArchiveResponse>> queryProjectArchives(
@@ -61,6 +63,15 @@ public class ProjectArchiveController {
             @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(workflowService.queryProjectArchives(query,
                 PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")))); // CO-418: 按归档日期倒序
+    }
+
+    // CO-496: 文档分类下载文件视图
+    @GetMapping("/files")
+    @PreAuthorize("hasAuthority('project')")
+    public ResponseEntity<Page<ArchiveFileListItem>> queryArchiveFiles(ProjectArchiveQuery query,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(archiveFileListService.queryFiles(query,
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"))));
     }
 
     @GetMapping("/stats")
@@ -145,17 +156,12 @@ public class ProjectArchiveController {
         Resource resource = new FileSystemResource(filePath);
         return new ResponseEntity<>(resource, headers, HttpStatus.OK);
     }
-
     @Value("${app.doc-insight.upload-dir:}")
     private String configuredUploadDir;
     /** CO-430: 获取 upload 根目录绝对路径。 */
-    private String getArchiveFileBaseDir() {
-        String d = (configuredUploadDir == null || configuredUploadDir.isBlank()) ? System.getProperty("java.io.tmpdir") + "/xiyu-doc-insight-uploads" : configuredUploadDir;
-        return Path.of(d).toAbsolutePath().normalize().toString(); }
+    private String getArchiveFileBaseDir() { return Path.of((configuredUploadDir == null || configuredUploadDir.isBlank()) ? System.getProperty("java.io.tmpdir") + "/xiyu-doc-insight-uploads" : configuredUploadDir).toAbsolutePath().normalize().toString(); }
     /** 解析并验证文件路径，防止路径遍历攻击。 */
-    private Path resolveAndValidateFilePath(String rawPath) {
-        return com.xiyu.bid.shared.security.FilePathGuard.ensureExists(
-                com.xiyu.bid.shared.security.FilePathGuard.resolveAbsoluteWithin(rawPath, getArchiveFileBaseDir()), rawPath); }
+    private Path resolveAndValidateFilePath(String rawPath) { return com.xiyu.bid.shared.security.FilePathGuard.ensureExists(com.xiyu.bid.shared.security.FilePathGuard.resolveAbsoluteWithin(rawPath, getArchiveFileBaseDir()), rawPath); }
     @PostMapping("/export-excel")
     @PreAuthorize("hasAuthority('project')")
     public ResponseEntity<byte[]> exportExcel(
@@ -270,7 +276,6 @@ public class ProjectArchiveController {
         headers.setContentLength(zipBytes.length);
         return new ResponseEntity<>(zipBytes, headers, HttpStatus.OK);
     }
-
     private String inferContentType(String filename) {
         if (filename == null) return "application/octet-stream";
         String l = filename.toLowerCase();
@@ -284,17 +289,12 @@ public class ProjectArchiveController {
         if (l.endsWith(".gif")) return "image/gif";
         return l.endsWith(".txt") ? "text/plain" : "application/octet-stream";
     }
-
-    private String sanitizeFilename(String f) {
-        return f == null ? "unnamed" : f.replaceAll("[^\\w\\u4e00-\\u9fa5.\\-]", "_");
-    }
-
+    private String sanitizeFilename(String f) { return f == null ? "unnamed" : f.replaceAll("[^\\w\\u4e00-\\u9fa5.\\-]", "_"); }
     private String getCurrentOperatorName() {
         try {
             var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.getName() != null) return auth.getName();
-        } catch (IllegalStateException | NullPointerException ignored) {
-        }
+        } catch (IllegalStateException | NullPointerException ignored) { }
         return "系统";
     }
 }

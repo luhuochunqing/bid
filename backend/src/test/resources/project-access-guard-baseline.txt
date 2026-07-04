@@ -124,6 +124,7 @@ src/main/java/com/xiyu/bid/analytics/service/DashboardAnalyticsTrendAndDistribut
 src/main/java/com/xiyu/bid/analytics/service/DashboardDemoFusionService.java | PR 617; demo fusion, debt.
 src/main/java/com/xiyu/bid/batch/service/BatchTenderAssignAppService.java | 标讯批量分配应用服务，通过 tender project link 引用；权限由 batch 层和 Tender 角色策略保护。
 src/main/java/com/xiyu/bid/batch/service/BatchTenderStatusAppService.java | 标讯批量状态应用服务，类似。
+src/main/java/com/xiyu/bid/casework/application/ArchiveFileListService.java | CO-496 文件视图列表服务，项目级访问范围由 ProjectArchiveWorkflowService.getRawArchives() 统一守卫；本服务仅做文件级展开与二次过滤，无独立项目数据访问入口。
 src/main/java/com/xiyu/bid/casework/application/ProjectArchiveDetailService.java | PR 617; case from project, deferred guard.
 src/main/java/com/xiyu/bid/integration/external/TenderSyncController.java | 外部标讯同步控制器，通过 tender 关联 project；控制器级 @PreAuthorize + service 策略。
 src/main/java/com/xiyu/bid/integration/external/TenderIntegrationController.java | 外部标讯集成控制器通过 TenderSearchCriteria/TenderDTO 被扫描为 project-linked，但接口实际由 X-API-Key/ROLE_EXTERNAL_API 独立鉴权，不走项目成员可见性链。
