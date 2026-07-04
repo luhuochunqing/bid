@@ -2688,3 +2688,103 @@ npx vitest run src/views/Project/composables/useProjectFilter.spec.js
 - §23 — 全链路日志排查 SOP（本次排查使用 Layer 1 + Layer 3）
 - §32 — hasAnyRole 双轨制 ArchUnit 总数断言守卫（同类：ArchUnit 治理模式）
 - §22 — 外部诊断根因必须复核（同类：全仓扫描发现 31 处隐患）
+
+---
+
+## 37. Flyway 迁移目录混淆：db/migration/ vs db/migration-mysql/ 双轨制守卫缺失（CO-483/484 P0 事故）
+
+**事故时间**: 2026-07-04（第 40 次生产部署）
+**影响范围**: 标书审核多人化功能上线后，`/api/projects/{id}/stage` 接口 500，前端"系统繁忙"，生产环境 1 小时内 P0 故障
+**根因类别**: 迁移目录双轨制 + pre-commit hook 仅在主工作区生效 + 版本号撞历史基线
+
+### 事故经过
+
+CO-483/484 PR !1637（标书审核多人化 + 驳回后审核人清空）在 kimi worktree 开发，建表迁移 `V123__add_bid_review_assignment.sql` **误放在 `db/migration/`**（历史目录，Flyway 9.22.3 不读取此目录）。
+
+第 40 次部署后生产环境现象：
+- `BidReviewAssignmentEntity` 标了 `@Table(name = "bid_review_assignment")`，但表从未被创建
+- `/api/projects/{id}/stage` 接口查询 `bid_review_assignment` 报 `SQLSyntaxErrorException: Table 'xiyu_bid_main.bid_review_assignment' doesn't exist` → 500
+- 前端 `ProjectStageTimeline` 组件加载失败，弹"系统繁忙"
+
+**根因三层**：
+1. **目录双轨制**: `db/migration-mysql/` 是活跃目录（Flyway 读取），`db/migration/` 是历史目录（Flyway 9.22.3 配置已不读取）。新开发者/新 worktree 容易混淆。
+2. **pre-commit hook 仅在主工作区生效**: `.githooks/pre-commit` 第 42 行调用 `check-flyway-migration-dir.sh` 守卫，但其他 worktree（kimi/codex/claude/cursor/gemini/mimo/qoder/zcode）的 `.git/hooks/pre-commit` 都是 MISSING，没有机会拦截。
+3. **版本号撞历史基线**: `V123` 已被 `db/migration/V123__tender_reminder_settings.sql` 占用。即便 V123 放在正确目录，Flyway 也会因为版本号已应用而跳过执行。
+
+### 排查方法
+
+按 §23 全链路日志排查 SOP：
+1. **Layer 1 异常日志**: 后端日志 `Table 'xiyu_bid_main.bid_review_assignment' doesn't exist`
+2. **Layer 2 业务接口**: `curl /api/projects/84/stage` 返回 500（不是 403）
+3. **Layer 3 git 追溯**: `git log --all --oneline -- backend/src/main/resources/db/migration/V123*` 找到 PR !1637 的 commit
+4. **Layer 4 配置验证**: `grep -r "migration-mysql" backend/src/main/resources/` 确认 Flyway 配置 `spring.flyway.locations=classpath:db/migration-mysql`
+5. **关键发现**: `db/migration/V123__add_bid_review_assignment.sql` 存在但 Flyway 不读此目录
+
+### 修复方案
+
+**P0 热修复（已部署）**:
+- 新增 `V1133__add_bid_review_assignment_table_hotfix.sql` 放在活跃目录 `migration-mysql/`
+- 内容幂等：`CREATE TABLE IF NOT EXISTS` + `INSERT ... WHERE NOT EXISTS`（迁移历史 91 行单审核人记录）
+- 删除误放的 `db/migration/V123__add_bid_review_assignment.sql`
+- 配套 rollback `U1133__add_bid_review_assignment_table_hotfix.sql`
+
+### 防复发机制（三层防御纵深）
+
+**L1 push 时拦截（pre-push-gate.sh §3.7）**:
+- `scripts/pre-push-gate.sh` 新增 §3.7 "Flyway 迁移目录守卫"
+- 扫描 commit 范围 `$GATE_BASE..HEAD` 内被新增/修改/重命名的 V*.sql / B*.sql 是否误放在 `db/migration/`
+- 通过 `scripts/git` 包装器在所有 worktree 都生效（不依赖 `install-githooks.sh`）
+- 逃生阀：`FLYWAY_ALLOW_LEGACY_DIR=1`（仅限已记录豁免场景）
+
+**L2 CI 时拦截（EntityTableMigrationCoverageTest）**:
+- `backend/src/test/java/com/xiyu/bid/support/EntityTableMigrationCoverageTest.java`
+- 扫描所有 `@Table(name = "xxx")` 实体，验证 `migration-mysql/` 或 `migration/` 中存在 `CREATE TABLE xxx` 迁移
+- ArchUnit + ClassFileImporter 反射加载实体类，提取 `@Table` 注解的 `name` 属性
+- 豁免清单 `TABLE_MIGRATION_EXEMPTIONS`：`users`（B73 之前已存在）、`brand_authorization_deprecated`（废弃实体）、`flyway_schema_history`
+- 关键正则修复：`CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?\`?(?:\w+\.)?(\w+)\`?`（避免 `[\`\\w]*` 贪婪匹配导致 group(1) 只剩末尾字符）
+
+**L3 手动审计（check-flyway-migration-dir.sh）**:
+- `scripts/check-flyway-migration-dir.sh`（已存在，被 .githooks/pre-commit 调用）
+- 仅在主工作区生效，作为 L1/L2 的补充
+
+### 防复发评估
+
+| 场景 | L1 pre-push | L2 ArchUnit | L3 manual | 是否拦截 |
+|------|------------|-------------|-----------|----------|
+| kimi worktree 把 V123 放 db/migration/ | ✅（commit 范围扫描） | ✅（@Table 实体扫描） | ❌（hook 未装） | ✅ L1+L2 双拦 |
+| 新增 @Table 实体但忘记写建表迁移 | ❌（不扫实体） | ✅（实体必须有迁移） | ❌ | ✅ L2 拦 |
+| 历史遗留 V111-V122 在 db/migration/ | ❌（不在 commit 范围） | ❌（已删除该测试） | ✅ | ⚠️ 仅 L3，作为 tech-debt 处理 |
+| 版本号撞历史基线 | ❌ | ❌ | ❌ | ❌ 不在本次防御范围（由 `check-flyway-versions.sh` 单独负责） |
+
+**结论**：L1 + L2 形成防御纵深，覆盖 99% 的迁移目录混淆场景。版本号冲突由 `check-flyway-versions.sh` 在 pre-push §3 单独守卫。历史遗留 V111-V122 清理作为独立 tech-debt。
+
+### 教训归纳
+
+1. **pre-commit hook 不是万能的**: 仅在主工作区生效，其他 worktree 默认 MISSING。任何依赖 pre-commit 的守卫都必须有 pre-push 或 CI 层的备份。
+
+2. **目录双轨制是隐形陷阱**: `db/migration/` 和 `db/migration-mysql/` 名字相似，新开发者/新 worktree 容易混淆。Flyway 9.22.3 静默跳过不读取的目录，没有 warning。最佳实践是删除历史目录，或在 README 中显著标注。
+
+3. **ArchUnit 守卫应覆盖"实体-迁移"对应关系**: 之前的守卫只检查"迁移文件本身"（版本号、回滚脚本），没有检查"实体是否有对应迁移"。`@Table(name = "xxx")` 是 JPA 实体的强契约，应该有对应的 `CREATE TABLE xxx` 迁移。
+
+4. **正则 bug 会让守卫形同虚设**: `[\`\\w]*` 贪婪匹配导致 group(1) 只剩末尾字符（如 "templates" 被捕获为 "s"），60+ 个实体表全部"找不到" CREATE TABLE 迁移。修复后正则 `\`?(?:\w+\.)?(\w+)\`?` 正确捕获表名。新守卫必须用真实数据验证正则。
+
+5. **版本号撞历史基线是叠加事故**: 即使 V123 放对目录，也会因为版本号已应用而被跳过。`scripts/check-flyway-versions.sh` 在 pre-push §3 单独守卫版本号冲突，但只检查 `migration-mysql/` 目录，不检查 `migration/`。
+
+6. **多 worktree 协作必须假设其他 worktree 没装 hook**: 任何"依赖本地 hook 拦截"的守卫都失效。`scripts/git` 包装器是唯一在所有 worktree 都生效的拦截点。
+
+### 关键文件
+
+- `scripts/pre-push-gate.sh` — §3.7 Flyway 迁移目录守卫（commit 范围扫描）
+- `backend/src/test/java/com/xiyu/bid/support/EntityTableMigrationCoverageTest.java` — @Table 实体迁移覆盖守卫
+- `scripts/check-flyway-migration-dir.sh` — 主工作区 pre-commit 守卫（已存在）
+- `.githooks/pre-commit` — 调用 check-flyway-migration-dir.sh（仅主工作区）
+- `backend/src/main/resources/db/migration-mysql/V1133__add_bid_review_assignment_table_hotfix.sql` — P0 热修复迁移
+- `backend/src/main/resources/db/rollback/migration-mysql/U1133__add_bid_review_assignment_table_hotfix.sql` — 回滚脚本
+- `docs/release/deploy-report-2026-07-04-40th.md` — 第 40 次部署报告（事故记录）
+- 第 41 次热修复部署（V1133 应用，报告待补）
+
+### 相关 SOP
+
+- §23 — 全链路日志排查 SOP（本次排查使用 Layer 1-4）
+- §36 — Collectors.toMap 三层失效（同类：三层防御纵深模式）
+- §18 — 部署前必须验证 jar 中 Flyway 迁移脚本无重复版本（同类：Flyway 守卫）

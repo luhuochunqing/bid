@@ -180,6 +180,41 @@ if bash "$ROOT_DIR/scripts/check-schema-conflicts.sh" 2>/dev/null; then
 else
   skip "Schema 冲突检测异常（不影响推送）"
 fi
+
+# ── 3.7 Flyway 迁移目录守卫（commit 范围） ───────────────
+# 工程背景（2026-07-04 第 40 次部署 P0 事故）：
+#   CO-483/484 PR !1637 在 kimi worktree 把 V123__add_bid_review_assignment.sql
+#   放在 db/migration/（历史目录，Flyway 不读），kimi worktree 未装 pre-commit hook，
+#   .githooks/pre-commit 中的 check-flyway-migration-dir.sh 没机会拦截。
+#   导致 bid_review_assignment 表从未创建，/api/projects/{id}/stage 500。
+# 修复策略：在 pre-push-gate.sh 中也调用同一守卫，扫描 commit 范围（不仅是 staged）
+#   中的 V*.sql/B*.sql 是否误放在 db/migration/。
+# pre-push 通过 scripts/git 包装器在所有 worktree 都生效（不依赖 install-githooks.sh）。
+echo "── Flyway 迁移目录守卫 ──"
+LEGACY_DIR="$ROOT_DIR/backend/src/main/resources/db/migration"
+if [ ! -d "$LEGACY_DIR" ]; then
+  skip "Flyway 迁移目录守卫（无 legacy 目录）"
+elif [ "${BACKEND_CHANGED:-0}" -eq 0 ]; then
+  skip "Flyway 迁移目录守卫（无 backend/ 变更）"
+else
+  # 扫描 commit 范围内被新增/修改/重命名的 V*.sql / B*.sql 在 legacy 目录
+  LEGACY_OFFENDERS=$(git diff --name-status --diff-filter=AMRCT "$GATE_BASE"..HEAD -- "${LEGACY_DIR#$ROOT_DIR/}/" 2>/dev/null | \
+    grep -E "/[VB][0-9]+__.*\.sql$" || true)
+  if [ -n "$LEGACY_OFFENDERS" ]; then
+    fail "Flyway 迁移目录守卫 — 检测到 V/B 迁移放在历史目录 db/migration/"
+    echo ""
+    echo "  以下 commit 范围内的文件误放在 db/migration/（Flyway 不读取此目录）："
+    printf '%s\n' "$LEGACY_OFFENDERS" | while IFS=$'\t' read -r status path; do
+      echo "    ${status}  ${path}"
+    done
+    echo ""
+    echo "  修复：git mv <path> backend/src/main/resources/db/migration-mysql/<new-name>"
+    echo "  版本号需用 scripts/next-migration-version.sh 重新分配"
+    echo "  逃生阀：FLYWAY_ALLOW_LEGACY_DIR=1 bash scripts/pre-push-gate.sh"
+  else
+    pass "Flyway 迁移目录守卫（commit 范围无 V/B 文件放在 db/migration/）"
+  fi
+fi
 # ── 4. 锁孤儿检查 ───────────────────────────────────────
 echo "── 锁孤儿检查 ──"
 if [ -f "$ROOT_DIR/package.json" ]; then
