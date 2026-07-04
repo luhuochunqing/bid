@@ -150,10 +150,10 @@ public class ExportPersonnelAppService {
         }
     }
 
-    private void completeExportTask(String taskId, int recordCount, String downloadPath) {
+    private void completeExportTask(String taskId, int totalCount, String downloadPath) {
         try {
             ExportProgress progress = new ExportProgress("COMPLETED", 100,
-                    "导出完成，共 " + recordCount + " 条人员记录", recordCount, downloadPath);
+                    "导出完成，共 " + totalCount + " 条人员记录", totalCount, downloadPath);
             setRedisValue(
                     REDIS_KEY_PREFIX + taskId,
                     objectMapper.writeValueAsString(progress),
@@ -164,7 +164,7 @@ public class ExportPersonnelAppService {
         }
 
         // 记录批量导出操作日志（PRD 4.3.1.8: 批量导出人员）
-        recordExportLog(taskId, recordCount);
+        recordExportLog(taskId, totalCount);
     }
 
     /** 存储操作人信息，供异步任务完成时记录日志使用 */
@@ -193,13 +193,13 @@ public class ExportPersonnelAppService {
     }
 
     /** 记录批量导出操作日志 */
-    private void recordExportLog(String taskId, int recordCount) {
+    private void recordExportLog(String taskId, int totalCount) {
         ExportOperatorInfo opInfo = getOperatorInfo(taskId);
         String operatorName = opInfo != null ? opInfo.operatorName() : "system";
         Long operatorId = opInfo != null ? opInfo.operatorId() : 0L;
 
         List<ChangeDetail> changes = List.of(
-                new ChangeDetail("recordCount", String.valueOf(recordCount), "")
+                new ChangeDetail("totalCount", String.valueOf(totalCount), "")
         );
 
         operationLogService.save(PersonnelOperationLog.create(
@@ -280,7 +280,7 @@ public class ExportPersonnelAppService {
             String status,
             int percent,
             String message,
-            Integer recordCount,
+            Integer totalCount,
             String downloadPath
     ) {}
 
