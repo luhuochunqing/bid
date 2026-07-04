@@ -194,7 +194,7 @@ public class BidReviewAppService {
         mine.setDecidedAt(LocalDateTime.now());
         assignmentRepository.save(mine);
 
-        // 任一驳回即整体 REJECTED（聚合规则保证）
+        // 任一驳回即终态：直接设置 REJECTED，不走 computeAggregateStatus（聚合规则的"任一 REJECTED"分支由此落地）
         review.setStatus(BidReviewStatus.REJECTED.name());
         // 拼接"驳回人：原因"列表
         List<BidReviewAssignmentEntity> latest = assignmentRepository.findByReviewIdOrderByCreatedAtAsc(review.getId());
@@ -207,7 +207,8 @@ public class BidReviewAppService {
         log.info("Bid rejected project={} by={} reason={}", projectId, currentUserId, reason);
     }
 
-    /** 读取审核状态（CO-484 多人审核）。 */
+    /** 读取审核状态（CO-484 多人审核，只读事务）。 */
+    @Transactional(readOnly = true)
     public ReviewState getReviewState(Long projectId) {
         Optional<BidDocumentReviewEntity> reviewOpt = reviewRepository.findByProjectId(projectId);
         if (reviewOpt.isEmpty()) {
@@ -286,9 +287,7 @@ public class BidReviewAppService {
                 .orElse(null);
     }
 
-    /**
-     * 审核状态快照（CO-484 多人审核）。
-     */
+    /** 审核状态快照（CO-484 多人审核）。 */
     public record ReviewState(
             String status,
             Long reviewerId,

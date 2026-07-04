@@ -1,9 +1,0 @@
-version: 1
-task: "fix-prepush-hook-delete-stale-branch"
-locks:
-  - path: ".githooks/pre-push"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/claude/fix-prepush-hook-delete-stale-branch"
-    expiresAt: "2026-07-04T13:24:51.068Z"
-    reason: "fix: pre-push hook delete stale branch bug + stdin double-consume bug"
