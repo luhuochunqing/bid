@@ -323,10 +323,6 @@ const {
 }
 
 @media (max-width: 768px) {
-  .template-container {
-    padding: 0;
-  }
-
   .page-header {
     flex-direction: column;
     align-items: stretch;
