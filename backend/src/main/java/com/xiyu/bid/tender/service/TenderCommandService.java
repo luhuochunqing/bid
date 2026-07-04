@@ -275,6 +275,12 @@ public class TenderCommandService {
 
         commandAccessGuard.assertCanDeleteTender(tender, userId);
 
+        List<com.xiyu.bid.entity.Project> linkedProjects = projectRepository.findByTenderId(id);
+        if (!linkedProjects.isEmpty()) {
+            log.warn("Cannot delete tender {}: {} linked projects exist", id, linkedProjects.size());
+            throw new BusinessException("该标讯已关联 " + linkedProjects.size() + " 个项目，无法删除。请先解除项目关联后再操作。");
+        }
+
         tenderRepository.delete(tender);
         log.info("Deleted tender with id: {}", id);
 

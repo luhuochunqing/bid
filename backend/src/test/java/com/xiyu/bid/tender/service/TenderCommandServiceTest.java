@@ -345,10 +345,30 @@ class TenderCommandServiceTest {
     @DisplayName("删除标讯 - 成功删除")
     void deleteTender_Success() {
         when(tenderRepository.findById(1L)).thenReturn(java.util.Optional.of(tender));
+        when(projectRepository.findByTenderId(1L)).thenReturn(java.util.Collections.emptyList());
 
         tenderCommandService.deleteTender(1L, 1L);
 
         verify(tenderRepository).delete(tender);
+    }
+
+    @Test
+    @DisplayName("删除标讯 - 有关联项目时拒绝删除")
+    void deleteTender_WithLinkedProjects_ThrowsBusinessException() {
+        when(tenderRepository.findById(1L)).thenReturn(java.util.Optional.of(tender));
+        com.xiyu.bid.entity.Project project = new com.xiyu.bid.entity.Project();
+        project.setId(100L);
+        project.setName("测试项目");
+        project.setTenderId(1L);
+        when(projectRepository.findByTenderId(1L)).thenReturn(java.util.List.of(project));
+
+        BusinessException ex = assertThrows(
+                BusinessException.class,
+                () -> tenderCommandService.deleteTender(1L, 1L)
+        );
+
+        assertThat(ex.getMessage()).contains("1 个项目");
+        verify(tenderRepository, never()).delete(any(Tender.class));
     }
 
     @Test
