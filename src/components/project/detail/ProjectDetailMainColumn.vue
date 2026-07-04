@@ -1,5 +1,10 @@
 <template>
   <div class="main-content">
+    <ProjectBasicInfoCard :project="ctx.project">
+      <template #actions>
+        <el-button v-if="ctx.canTransfer" :icon="Switch" @click="ctx.openTransfer">项目转移</el-button>
+      </template>
+    </ProjectBasicInfoCard>
     <ProjectStageTimeline
       v-if="ctx.project?.id"
       ref="timelineRef"
@@ -7,11 +12,6 @@
       @stage-click="handleStageClick"
       @snapshot="handleSnapshot"
     />
-    <ProjectBasicInfoCard :project="ctx.project">
-      <template #actions>
-        <el-button v-if="ctx.canTransfer" :icon="Switch" @click="ctx.openTransfer">项目转移</el-button>
-      </template>
-    </ProjectBasicInfoCard>
 
     <div class="stage-tabs-container">
       <InitiationStage
