@@ -128,15 +128,17 @@
             <el-tag :type="row.status==='ACTIVE'?'success':row.status==='TERMINATED'?'danger':'info'">{{ row.statusLabel }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right" align="center">
+        <el-table-column label="操作" width="140" fixed="right" align="center">
           <template #default="{row}">
-            <el-button v-if="canEdit" type="primary" link size="small" @click.stop="openForm(row)">编辑</el-button>
-            <template v-if="canEdit && row.status === 'INACTIVE'">
-              <el-button type="success" link size="small" @click.stop="handleRestore(row)">恢复</el-button>
-            </template>
-            <template v-else-if="canEdit">
-              <el-button type="danger" link size="small" @click.stop="openDeleteDialog(row)">删除</el-button>
-            </template>
+            <div class="action-row">
+              <el-button v-if="canEdit" type="primary" link size="small" @click.stop="openForm(row)">编辑</el-button>
+              <template v-if="canEdit && row.status === 'INACTIVE'">
+                <el-button type="success" link size="small" @click.stop="handleRestore(row)">恢复</el-button>
+              </template>
+              <template v-else-if="canEdit">
+                <el-button type="danger" link size="small" @click.stop="openDeleteDialog(row)">删除</el-button>
+              </template>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -262,6 +264,7 @@ onMounted(loadData)
 .primary-actions, .batch-actions { display: flex; gap: 8px; }
 .expiry-warn{color:var(--el-color-warning);display:flex;align-items:center;gap:4px;font-size:13px}
 .expiry-ok{color:var(--el-color-success);font-size:13px}
+.action-row{display:flex;justify-content:center;align-items:center;gap:4px;flex-wrap:nowrap}
 .emp-no { font-weight: 600; color: var(--el-text-color-primary); }
 .cert-count-clickable { cursor: pointer; user-select: none; }
 .cert-count-clickable:hover { opacity: 0.85; }
