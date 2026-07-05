@@ -285,6 +285,24 @@ const handleSubmit = async () => {
     return
   }
 
+  // 产权证必传校验
+  if (localForm.hasPropertyCert && certFiles.value.length === 0) {
+    ElMessage.error('请上传产权证附件')
+    return
+  }
+
+  // 发票必传校验
+  if (localForm.hasInvoice && invoiceFiles.value.length === 0) {
+    ElMessage.error('请上传发票附件')
+    return
+  }
+
+  // 租赁合同必传校验
+  if (localForm.hasLeaseContract && leaseContractFiles.value.length === 0) {
+    ElMessage.error('请上传租赁合同附件')
+    return
+  }
+
   submitting.value = true
   try {
     const payload = { ...localForm, area: Number(localForm.area) || 0 }
