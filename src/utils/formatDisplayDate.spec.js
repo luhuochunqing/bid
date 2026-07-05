@@ -2,7 +2,7 @@
 // Output: unit tests covering ISO 8601 / date-only / empty / invalid inputs
 // Pos: src/utils/ - Helper test
 import { describe, it, expect } from 'vitest'
-import { formatDisplayDateTime, formatDisplayDate } from './formatDisplayDate.js'
+import { formatDisplayDateTime } from './formatDisplayDate.js'
 
 describe('formatDisplayDateTime', () => {
   it('把 ISO 8601 带 T 分隔符转为空格分隔', () => {
@@ -47,29 +47,5 @@ describe('formatDisplayDateTime', () => {
     const pad = (n) => String(n).padStart(2, '0')
     const expected = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
     expect(formatDisplayDateTime(d)).toBe(expected)
-  })
-})
-
-describe('formatDisplayDate', () => {
-  it('从 ISO 8601 提取日期部分', () => {
-    expect(formatDisplayDate('2026-07-05T11:33:30')).toBe('2026-07-05')
-  })
-
-  it('已是日期格式保持不变', () => {
-    expect(formatDisplayDate('2026-07-05')).toBe('2026-07-05')
-  })
-
-  it('空值返回默认 fallback', () => {
-    expect(formatDisplayDate(null)).toBe('-')
-    expect(formatDisplayDate(undefined)).toBe('-')
-    expect(formatDisplayDate('')).toBe('-')
-  })
-
-  it('支持自定义 fallback', () => {
-    expect(formatDisplayDate(null, '—')).toBe('—')
-  })
-
-  it('非日期字符串返回 fallback', () => {
-    expect(formatDisplayDate('hello')).toBe('-')
   })
 })

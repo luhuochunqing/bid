@@ -13,13 +13,6 @@ describe('DateTimeDisplay', () => {
     expect(wrapper.text()).toBe('2026-07-05 11:33:30')
   })
 
-  it('format="date" 仅显示日期部分', () => {
-    const wrapper = mount(DateTimeDisplay, {
-      props: { value: '2026-07-05T11:33:30', format: 'date' }
-    })
-    expect(wrapper.text()).toBe('2026-07-05')
-  })
-
   it('空值显示默认 fallback "-"', () => {
     const wrapper = mount(DateTimeDisplay, {
       props: { value: null }

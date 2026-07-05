@@ -43,21 +43,3 @@ export function formatDisplayDateTime(value, fallback = '-') {
   return isNaN(d.getTime()) ? fallback : fromDate(d, true)
 }
 
-/**
- * 显示用日期格式化：从 ISO 8601 或日期字符串提取 "yyyy-MM-dd"。
- * @param {string|number|Date|null} value
- * @param {string} fallback 空值或非法值时返回的占位符，默认 '-'
- * @returns {string}
- */
-export function formatDisplayDate(value, fallback = '-') {
-  if (value === null || value === undefined || value === '') return fallback
-  if (value instanceof Date) {
-    return isNaN(value.getTime()) ? fallback : fromDate(value, false)
-  }
-  const str = String(value)
-  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
-    return str.slice(0, 10)
-  }
-  const d = new Date(str)
-  return isNaN(d.getTime()) ? fallback : fromDate(d, false)
-}
