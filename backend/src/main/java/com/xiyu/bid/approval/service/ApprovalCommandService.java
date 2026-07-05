@@ -1,5 +1,7 @@
 package com.xiyu.bid.approval.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.approval.dto.ApprovalDetailDTO;
 import com.xiyu.bid.approval.dto.ApprovalSubmitRequest;
 import com.xiyu.bid.approval.entity.ApprovalRequest;
@@ -29,6 +31,7 @@ class ApprovalCommandService {
     private final ApprovalRequestRepository requestRepository;
     private final ApprovalActionRecorder actionRecorder;
     private final ApprovalQueryService approvalQueryService;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     ApprovalDetailDTO submitForApproval(ApprovalSubmitRequest request, Long userId, String userName) {
@@ -55,9 +58,16 @@ class ApprovalCommandService {
                 .build();
 
         if (request.getAttachmentIds() != null && !request.getAttachmentIds().isEmpty()) {
-            approvalRequest.setAttachmentIds(request.getAttachmentIds().stream()
-                    .map(String::valueOf)
-                    .collect(Collectors.joining(",")));
+            // CO-469 第八轮 P1 审计：用 Jackson 序列化替代 Collectors.joining(",") CSV 写入。
+            // 原 impl 写入 "1,2,3"，但实体注释声明 "JSON格式存储"（attachment_ids 列为 TEXT）。
+            // 当前无读取路径未爆发，但若未来按 JSON 解析会立即 JsonParseException。
+            // 改为 Jackson 写入 ["1","2","3"] 合法 JSON 数组，与字段注释契约对齐。
+            try {
+                approvalRequest.setAttachmentIds(objectMapper.writeValueAsString(request.getAttachmentIds()));
+            } catch (JsonProcessingException e) {
+                log.warn("序列化 attachmentIds 失败，降级为 null: {}", e.getMessage());
+                // 降级：不写入，保持 null，避免脏数据落库
+            }
         }
 
         approvalRequest = requestRepository.save(approvalRequest);

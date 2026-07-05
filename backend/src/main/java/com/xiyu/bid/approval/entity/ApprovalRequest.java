@@ -121,7 +121,13 @@ public class ApprovalRequest {
     private String description;
 
     /**
-     * 附件ID列表 (JSON格式存储)
+     * 附件ID列表 (JSON 数组格式存储，如 ["1","2","3"])。
+     *
+     * CO-469 第八轮 P1 审计：原 impl 用 Collectors.joining(",") 写入 CSV ("1,2,3")，与注释声明不符。
+     * 自 2026-07-06 起统一改为 Jackson 序列化的合法 JSON 数组。
+     *
+     * 历史数据兼容：2026-07-06 之前写入的 CSV 格式记录可能仍存在，未来若新增读取路径，
+     * 需做格式探测：先尝试 JSON 解析，失败则降级按 CSV 解析。
      */
     @Column(name = "attachment_ids", columnDefinition = "TEXT")
     private String attachmentIds;
