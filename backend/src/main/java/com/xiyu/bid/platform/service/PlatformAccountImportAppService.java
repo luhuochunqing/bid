@@ -93,7 +93,12 @@ public class PlatformAccountImportAppService {
             for (ParsedAccountRow row : rows) {
                 if (!row.valid()) continue;
                 try {
-                    // 检查唯一性
+                    User custodian = userRepository.findByEmployeeNumber(row.employeeNumber()).orElse(null);
+                    if (custodian == null) {
+                        row.errors().add("工号「" + row.employeeNumber() + "」未匹配到用户");
+                        failed++;
+                        continue;
+                    }
                     if (!row.accountName().isEmpty() && accountRepo.findByAccountName(row.accountName()).isPresent()) {
                         row.errors().add("平台名称「" + row.accountName() + "」已存在");
                         failed++;
@@ -104,7 +109,7 @@ public class PlatformAccountImportAppService {
                         failed++;
                         continue;
                     }
-                    rowPersister.persist(row);
+                    rowPersister.persist(row, custodian.getId());
                     imported++;
                 } catch (RuntimeException e) {
                     row.errors().add("导入失败: " + e.getMessage());

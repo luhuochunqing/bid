@@ -20,7 +20,7 @@ public class PlatformAccountImportRowPersister {
      * 不执行 upsert（账户和 CA 无自然去重键）。
      */
     @Transactional
-    public void persist(ParsedAccountRow row) {
+    public void persist(ParsedAccountRow row, Long contactPersonId) {
         String encryptedPassword = passwordEncryptionUtil.encrypt(row.password());
 
         PlatformAccount account = PlatformAccount.builder()
@@ -29,7 +29,7 @@ public class PlatformAccountImportRowPersister {
                 .username(row.username())
                 .password(encryptedPassword)
                 .platformType(row.platformType())
-                .contactPerson(row.contactPerson())
+                .contactPerson(contactPersonId)
                 .registrant(row.registrant())
                 .registerPhone(row.registerPhone())
                 .registerEmail(row.registerEmail())
