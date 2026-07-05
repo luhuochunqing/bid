@@ -345,6 +345,33 @@ else
   fi
 fi
 
+# ── 9.7. JSON 字段序列化检查（CO-469 第八轮 P1 防复发） ──
+# 工程背景（2026-07-06 CO-469 第八轮 P0 事故）：
+#   PersonnelImportTaskRepositoryAdapter.serializeErrorDetails 用 List.toString()
+#   写入 MySQL JSON 字段，触发 DataIntegrityViolationException，
+#   被 SimpleAsyncUncaughtExceptionHandler 吞掉，任务永卡 PROCESSING/5%。
+# P1 全仓审计发现 2 个同类未爆雷：
+#   TenderSourceConfig.toJsonArray 手写拼接未转义控制字符
+#   ApprovalCommandService 用 Collectors.joining 写 CSV 到 JSON 字段
+# 本门禁在 pre-push 阶段拦截新增的 List/Map/Set.toString() 写 JSON 字段模式。
+# Pattern A（高置信度，阻断）：List/Map/Set.toString() 调用
+# Pattern B/C（中置信度，仅警告不阻断）：手写拼接 / Collectors.joining
+# 逃生阀：JSON_FIELD_SERIALIZATION_SKIP=1（仅限已记录豁免场景，需在 PR 描述说明理由）
+echo "── JSON 字段序列化 ──"
+if [ ! -d "$ROOT_DIR/backend/src/main" ]; then
+  skip "无 Java 源码"
+elif [ "${BACKEND_CHANGED:-0}" -eq 0 ]; then
+  skip "JSON 字段序列化检查（无 backend/ 变更）"
+elif [ "${JSON_FIELD_SERIALIZATION_SKIP:-0}" = "1" ]; then
+  skip "JSON 字段序列化检查（JSON_FIELD_SERIALIZATION_SKIP=1 逃生阀）"
+else
+  if bash "$ROOT_DIR/scripts/check-json-field-serialization.sh" 2>&1; then
+    pass "JSON 字段序列化（无高风险 List/Map.toString 模式）"
+  else
+    fail "JSON 字段序列化 — 检测到 List/Map/Set.toString() 写 JSON 字段（Pattern A 阻断）。改为 Jackson ObjectMapper.writeValueAsString()。逃生阀：JSON_FIELD_SERIALIZATION_SKIP=1"
+  fi
+fi
+
 # ── 10. 路由-E2E 兼容性检查 ────────────────────────────
 echo "── 路由-E2E 兼容 ──"
 STAGED_ROUTES=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -cE '^src/(router|views)/' || true)
