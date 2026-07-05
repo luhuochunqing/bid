@@ -185,4 +185,73 @@ class ExportPersonnelAppServiceTest {
                 any()
         );
     }
+
+    /**
+     * CO-469 第七轮：防复发测试
+     * 验证 executeExportAsync 导出成功时 totalCount 字段正确序列化到 JSON
+     * 根因：recordCount → totalCount 字段名未对齐前端，导致前端 totalCount 始终为 undefined
+     */
+    @Test
+    void executeExportAsync_导出成功时_totalCount应正确序列化() throws Exception {
+        when(repository.findAll(any())).thenReturn(List.of(
+                new com.xiyu.bid.personnel.domain.model.Personnel(
+                        1L, "张三", "EMP001", "DEPT01", "技术部", "男",
+                        null, null, "13800000000", "本科", "工程师",
+                        com.xiyu.bid.personnel.domain.valueobject.PersonnelStatus.ACTIVE,
+                        null, null, null, null, null, null
+                )
+        ));
+        when(zipExporter.exportZip(anyList())).thenReturn(new byte[]{0x50, 0x4B});
+
+        PersonnelListCriteria criteria = new PersonnelListCriteria(
+                null, null, null, null, null, null, null, null, null, null, null, null, null
+        );
+        service.executeExportAsync("task-success", criteria, 1L);
+
+        verify(valueOps).set(
+                eq("personnel:export:progress:task-success"),
+                contains("\"totalCount\":1"),
+                any()
+        );
+    }
+
+    /**
+     * CO-469 第七轮：防复发测试
+     * 验证 getProgress 方法正确反序列化 totalCount 字段
+     */
+    @Test
+    void getProgress_当任务完成时_应返回正确的totalCount() throws Exception {
+        ExportPersonnelAppService.ExportProgress expected = new ExportPersonnelAppService.ExportProgress(
+                "COMPLETED", 100, "导出完成，共 100 条人员记录", 100, "/download/path"
+        );
+        String progressJson = objectMapper.writeValueAsString(expected);
+        when(valueOps.get(contains("progress"))).thenReturn(progressJson);
+        when(valueOps.get(contains("file"))).thenReturn(null);
+
+        ExportPersonnelAppService.ExportProgress result = service.getProgress("task-complete");
+
+        assertThat(result.status()).isEqualTo("COMPLETED");
+        assertThat(result.totalCount()).isEqualTo(100);
+        assertThat(result.message()).contains("100");
+    }
+
+    /**
+     * CO-469 第七轮：防复发测试
+     * 验证空结果导出时 totalCount 为 0
+     */
+    @Test
+    void executeExportAsync_当结果为空时_totalCount应为0() throws Exception {
+        when(repository.findAll(any())).thenReturn(List.of());
+
+        PersonnelListCriteria criteria = new PersonnelListCriteria(
+                null, null, null, null, null, null, null, null, null, null, null, null, null
+        );
+        service.executeExportAsync("task-empty", criteria, 1L);
+
+        verify(valueOps).set(
+                eq("personnel:export:progress:task-empty"),
+                contains("\"totalCount\":0"),
+                any()
+        );
+    }
 }

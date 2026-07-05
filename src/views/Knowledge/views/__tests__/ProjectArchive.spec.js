@@ -237,6 +237,47 @@ describe('ProjectArchive', () => {
     wrapper.unmount()
   })
 
+  // CO-496: 切换文件视图时应自动加载数据
+  it('loads data when switching from project view to file view', async () => {
+    httpClient.get
+      .mockResolvedValueOnce({ totalArchives: 0, closedProjects: 0, caseCount: 0, reuseCount: 0 })
+      .mockResolvedValueOnce({ content: [], totalElements: 0 })
+      .mockResolvedValueOnce({ content: [], totalElements: 0 })
+
+    const wrapper = mount(ProjectArchive, {
+      global: {
+        stubs: {
+          ElCard: { template: '<div><slot /><slot name="header" /></div>' },
+          ElForm: true, ElFormItem: { props: ['label'], template: '<div><slot /></div>' },
+          ElInput: true, ElDatePicker: true, ElSelect: true, ElOption: true,
+          ElButton: true, ElTable: true, ElTableColumn: true, ElPagination: true,
+          ElDrawer: true, ElRadioGroup: true, ElRadioButton: true,
+          ElIcon: true, ElTag: true, ElEmpty: true, ElTimeline: true, ElTimelineItem: true,
+          FileCategoryPopover: true, ArchiveStatsCards: true, ArchiveStatusTabs: true,
+          ArchiveDetailDrawer: true,
+          UserPicker: { name: 'UserPicker', props: ['modelValue', 'mode', 'valueField', 'placeholder', 'initialOptions', 'clearable'], emits: ['update:modelValue', 'select'], template: '<div />' },
+          Files: true, Search: true, Refresh: true,
+          FileListViewTable: { props: ['loading', 'tableData', 'totalElements', 'page', 'pageSize'], template: '<div />' }
+        }
+      },
+      attachTo: document.body
+    })
+
+    await flushPromises()
+
+    expect(httpClient.get).toHaveBeenCalledTimes(2)
+
+    wrapper.vm.activeView = 'file'
+    await wrapper.vm.$nextTick()
+    await flushPromises()
+
+    expect(httpClient.get).toHaveBeenCalledTimes(3)
+    const lastCall = httpClient.get.mock.calls[2]
+    expect(lastCall[0]).toBe('/api/archive/files')
+
+    wrapper.unmount()
+  })
+
   // CO-453: 下载文件时同样应传 res.data (Blob) 给 triggerBlobDownload，而非整个 axios response 对象
   it('passes Blob (res.data) to triggerBlobDownload when downloading file', async () => {
     const mockBlob = new Blob(['file content'], { type: 'application/octet-stream' })
