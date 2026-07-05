@@ -43,8 +43,6 @@
         <el-select
           v-model="form.sealType"
           multiple
-          collapse-tags
-          collapse-tags-tooltip
           placeholder="请选择印章类型（可多选）"
           style="width: 100%"
         >
