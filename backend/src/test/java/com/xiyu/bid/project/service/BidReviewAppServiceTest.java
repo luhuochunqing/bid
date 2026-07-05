@@ -560,4 +560,39 @@ class BidReviewAppServiceTest {
         // 应为每个 reviewerId 建未决 assignment（2 人 → save 调用 2 次）
         verify(assignmentRepository, times(2)).save(any(BidReviewAssignmentEntity.class));
     }
+
+    /**
+     * CO-484 修复：驳回重提时若重新选了与旧 assignment 相同的审核人，
+     * 必须保证 deleteByReviewId（@Modifying bulk DELETE）在 save INSERT 之前执行，
+     * 否则 Hibernate INSERT-before-DELETE flush 顺序会撞 uk_review_reviewer 唯一约束 → 500。
+     * 详见 docs/references/jpa-hibernate-lessons.md §1。
+     *
+     * <p>本测试为 mock 单元测试，无法直接验证 SQL flush 顺序；
+     * 真实场景由 @Modifying bulk DELETE 保证 DELETE SQL 立即执行。</p>
+     */
+    @Test
+    void submitForReview_whenRejectedResubmitWithSameReviewer_callsBulkDeleteBeforeInsert() {
+        // 旧审核记录：reviewer=200（已被驳回）
+        BidDocumentReviewEntity existing = BidDocumentReviewEntity.builder()
+                .id(1L).projectId(1L).reviewerId(200L).submittedBy(100L)
+                .status(BidReviewStatus.REJECTED.name())
+                .build();
+        com.xiyu.bid.entity.Project project = com.xiyu.bid.entity.Project.builder()
+                .id(1L).managerId(10L).teamMembers(new ArrayList<>()).tenderId(1L).build();
+        when(reviewRepository.findByProjectId(1L)).thenReturn(Optional.of(existing));
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(leadAssignmentRepository.findByProjectId(1L)).thenReturn(Optional.empty());
+        lenient().when(tenderRepository.findById(any())).thenReturn(Optional.empty());
+        lenient().when(userRepository.findById(any())).thenReturn(Optional.empty());
+
+        // 重新提交：仍选 200（与旧 assignment 相同的审核人）+ manager=10
+        // 若 deleteByReviewId 是 derived delete（非 bulk），INSERT 会在 DELETE 之前执行
+        // → 撞 uk_review_reviewer(review_id=1, reviewer_id=200) → 500
+        service.submitForReview(1L, List.of(10L, 200L), 100L);
+
+        // 验证 bulk DELETE 被调用（@Modifying 保证 DELETE SQL 立即执行）
+        verify(assignmentRepository).deleteByReviewId(1L);
+        // 验证为每个 reviewerId 建新 assignment
+        verify(assignmentRepository, times(2)).save(any(BidReviewAssignmentEntity.class));
+    }
 }
