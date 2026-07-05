@@ -22,8 +22,7 @@
         </el-form-item>
         <el-form-item label="项目负责人"><UserPicker v-model="filters.projectManager" mode="search" value-field="name" placeholder="选择负责人" :initial-options="projectManagerOptions" clearable style="width: 180px" /></el-form-item>
         <el-form-item label="投标负责人"><UserPicker v-model="filters.bidManager" mode="search" value-field="name" placeholder="选择负责人" :initial-options="bidManagerOptions" clearable style="width: 180px" /></el-form-item>
-        <el-form-item label="上传时间"><el-date-picker v-model="filters.uploadDates" type="daterange" range-separator="至" start-placeholder="开始" end-placeholder="结束" value-format="YYYY-MM-DD" clearable style="width: 220px" /></el-form-item>
-        <el-form-item label="结项时间"><el-date-picker v-model="filters.endDates" type="daterange" range-separator="至" start-placeholder="开始" end-placeholder="结束" value-format="YYYY-MM-DD" clearable style="width: 220px" /></el-form-item>
+        <el-form-item label="上传时间"><el-date-picker v-model="filters.uploadDates" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" value-format="YYYY-MM-DD" clearable style="width: 260px" /></el-form-item>
         <el-form-item label="项目状态">
           <el-select v-model="filters.projectStatus" placeholder="选择状态" multiple clearable collapse-tags collapse-tags-tooltip style="width: 200px">
             <el-option label="待立项" value="PENDING_INITIATION" /><el-option label="已立项" value="INITIATED" /><el-option label="投标中" value="BIDDING" /><el-option label="评标中" value="EVALUATING" />
@@ -32,7 +31,7 @@
         </el-form-item>
         <el-form-item label="项目类型">
           <el-select v-model="filters.projectType" placeholder="选择类型" multiple clearable collapse-tags collapse-tags-tooltip style="width: 180px">
-            <el-option label="办公" value="OFFICE" /><el-option label="综合" value="COMPREHENSIVE" /><el-option label="集采" value="CENTRALIZED" /><el-option label="工业品" value="INDUSTRIAL" /><el-option label="其他" value="OTHER" />
+            <el-option v-for="opt in PROJECT_TYPE_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </el-form-item>
         <el-form-item><el-button type="primary" @click="handleSearch">查询</el-button><el-button @click="handleReset">重置</el-button></el-form-item>
@@ -99,6 +98,7 @@ import ArchiveDetailDrawer from './components/ArchiveDetailDrawer.vue'
 import FileListViewTable from './components/FileListViewTable.vue'
 import UserPicker from '@/components/common/UserPicker.vue'
 import { getProjectTypeLabel } from './caseLabels.js'
+import { PROJECT_TYPE_OPTIONS } from '@/constants/projectTypes.js'
 import { formatDate, getStatusLabel, getStatusTagType } from './archiveLabels.js'
 import { triggerBlobDownload } from '@/utils/download.js'
 
@@ -108,7 +108,6 @@ const filters = reactive({
   projectManager: '',
   bidManager: '',
   uploadDates: null,
-  endDates: null,
   projectStatus: [],
   projectType: []
 })
@@ -141,8 +140,6 @@ const buildFilterParams = () => {
     documentCategories: filters.categories.length ? filters.categories : null,
     uploadTimeStart: filters.uploadDates?.[0] || null,
     uploadTimeEnd: filters.uploadDates?.[1] || null,
-    closeTimeStart: filters.endDates?.[0] || null,
-    closeTimeEnd: filters.endDates?.[1] || null,
     projectStatus: filters.projectStatus.length ? filters.projectStatus : null,
     projectType: filters.projectType.length ? filters.projectType : null,
     projectManager: filters.projectManager || null,
@@ -211,7 +208,7 @@ const handleSearch = () => {
   filePage.value = 1
   loadData()
 }
-const handleReset = () => { Object.assign(filters, { projectName: '', categories: [], projectManager: '', bidManager: '', uploadDates: null, endDates: null, projectStatus: [], projectType: [] }); page.value = 1; filePage.value = 1; loadData() }
+const handleReset = () => { Object.assign(filters, { projectName: '', categories: [], projectManager: '', bidManager: '', uploadDates: null, projectStatus: [], projectType: [] }); page.value = 1; filePage.value = 1; loadData() }
 const handleSizeChange = () => { page.value = 1; loadData() }
 const handleRowClick = (row) => { selectedArchive.value = row; drawerVisible.value = true }
 

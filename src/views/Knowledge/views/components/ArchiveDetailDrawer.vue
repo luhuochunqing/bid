@@ -37,6 +37,7 @@ import { ref, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import httpClient from '@/api/client.js'
 import { getStatusLabel, getStatusTagType, formatDateTime } from '../archiveLabels.js'
+import { getProjectTypeLabel } from '@/constants/projectTypes.js'
 import ArchiveFileTable from './ArchiveFileTable.vue'
 import ArchiveAuditLogTimeline from './ArchiveAuditLogTimeline.vue'
 
@@ -81,11 +82,6 @@ async function fetchDetail() {
 watch(() => props.archive, fetchDetail, { immediate: true })
 
 defineExpose({ fetchDetail })
-
-const getProjectTypeLabel = (type) => {
-  const map = { OFFICE: '办公', COMPREHENSIVE: '综合', CENTRALIZED: '集采', INDUSTRIAL: '工业品', OTHER: '其他' }
-  return map[type] || type || '-'
-}
 
 const handleDownloadPackage = async () => {
   if (!props.archive || !props.archive.projectId) {
