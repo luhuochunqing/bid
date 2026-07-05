@@ -47,11 +47,11 @@
       />
     </div>
     <div v-else class="ledger-task">
-      <div v-if="status === 'PENDING' || status === 'PROCESSING'" class="ledger-progress">
+      <div v-if="isRunning" class="ledger-progress">
         <el-progress :percentage="status === 'PROCESSING' ? 55 : 20" :stroke-width="12" striped :striped-flow="true" />
         <p class="status-text">{{ status === 'PENDING' ? '导出任务排队中...' : '正在生成台账...' }}</p>
       </div>
-      <div v-else-if="status === 'COMPLETED'" class="ledger-done">
+      <div v-else-if="isCompleted" class="ledger-done">
         <el-result icon="success" title="📤 仓库台账导出 — 完成" :sub-title="`共 ${totalCount} 条记录`">
           <template #extra>
             <el-button type="primary" @click="handleDownload"><el-icon><Download /></el-icon> 下载台账</el-button>
@@ -63,7 +63,7 @@
           <div class="meta-row"><span class="meta-label">链接有效期：</span><span>7 天</span></div>
         </div>
       </div>
-      <div v-else-if="status === 'FAILED'" class="ledger-failed">
+      <div v-else-if="isFailed" class="ledger-failed">
         <el-result icon="error" title="导出失败" :sub-title="failureReason || '未知原因'">
           <template #extra>
             <el-button @click="handleRetry">重新导出</el-button>
@@ -81,10 +81,11 @@
 </template>
 
 <script setup>
-import { ref, watch, computed, reactive, onUnmounted } from 'vue'
+import { watch, computed, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Download } from '@element-plus/icons-vue'
 import http from '@/api/client'
+import { useAsyncTask } from '@/composables/useAsyncTask'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -96,19 +97,33 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:modelValue'])
 
-const taskId = ref(null)
-const status = ref('')
-const totalCount = ref(0)
-const failureReason = ref('')
-const summary = ref({})
-let pollTimer = null
-
 const form = reactive({
-  scope: 'filter',
+  scope: props.defaultScope,
   sections: ['BASIC', 'LEASE', 'DOC', 'META']
 })
 
-form.scope = props.defaultScope
+const {
+  taskId, status, totalCount, failureReason, summary,
+  isRunning, isCompleted, isFailed,
+  startTask, reset: resetTask, retry, downloadFile, stopPolling
+} = useAsyncTask({
+  submitFn: async () => {
+    const payload = {
+      scope: form.scope,
+      sections: form.sections
+    }
+    if (form.scope === 'filter') {
+      Object.assign(payload, props.filter || {})
+    } else if (form.scope === 'ids') {
+      payload.ids = props.selectedIds
+    }
+    const { data } = await http.post('/api/knowledge/warehouses/export/ledger', payload)
+    return data
+  },
+  statusUrl: '/api/knowledge/warehouses/export/tasks/:id/status',
+  downloadUrl: '/api/knowledge/warehouses/export/tasks/:id/download',
+  httpGet: http.get
+})
 
 const summaryScope = computed(() => {
   if (!summary.value) return '—'
@@ -116,12 +131,8 @@ const summaryScope = computed(() => {
     : summary.value.scope === 'all_in_use' ? '全部使用中' : '当前筛选'
 })
 
-const reset = () => {
-  taskId.value = null
-  status.value = ''
-  totalCount.value = 0
-  failureReason.value = ''
-  summary.value = {}
+const resetForm = () => {
+  resetTask()
   form.scope = props.defaultScope
   form.sections = ['BASIC', 'LEASE', 'DOC', 'META']
 }
@@ -136,67 +147,28 @@ const handleStart = async () => {
     return
   }
   try {
-    const payload = {
-      scope: form.scope,
-      sections: form.sections
-    }
-    if (form.scope === 'filter') {
-      Object.assign(payload, props.filter || {})
-    } else if (form.scope === 'ids') {
-      payload.ids = props.selectedIds
-    }
-    const { data } = await http.post('/api/knowledge/warehouses/export/ledger', payload)
-    taskId.value = data.taskId
-    status.value = 'PENDING'
-    startPolling()
+    await startTask()
   } catch (err) {
     ElMessage.error(err.response?.data?.message || '创建导出任务失败')
   }
 }
 
-const stopPolling = () => {
-  if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
-}
-
-function startPolling() {
-  stopPolling()
-  pollTimer = setInterval(async () => {
-    if (!taskId.value) return
-    try {
-      const { data } = await http.get(`/api/knowledge/warehouses/export/tasks/${taskId.value}/status`)
-      status.value = data.status
-      if (data.totalCount != null) totalCount.value = data.totalCount
-      if (data.failureReason) failureReason.value = data.failureReason
-      if (data.resultSummary) summary.value = data.resultSummary
-      if (data.status === 'COMPLETED' || data.status === 'FAILED') stopPolling()
-    } catch {
-      stopPolling()
-    }
-  }, 2000)
-}
-
-const handleDownload = async () => {
-  try {
-    const response = await http.get(`/api/knowledge/warehouses/export/tasks/${taskId.value}/download`, {
-      responseType: 'blob'
-    })
-    const blob = response.data
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
+const handleDownload = () => {
+  downloadFile(null, () => {
     const ts = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)
-    a.download = `仓库台账-${ts}.xlsx`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    window.URL.revokeObjectURL(url)
-  } catch {
+    return `仓库台账-${ts}.xlsx`
+  }).catch(() => {
     ElMessage.error('下载失败')
-  }
+  })
 }
 
-const handleRetry = () => { reset(); handleStart() }
-const handleClose = () => { stopPolling(); reset(); emit('update:modelValue', false) }
+const handleRetry = () => retry()
+
+const handleClose = () => {
+  stopPolling()
+  resetForm()
+  emit('update:modelValue', false)
+}
 
 const formatElapsed = (ms) => {
   if (!ms || ms <= 0) return '—'
@@ -207,8 +179,7 @@ const formatElapsed = (ms) => {
   return `${m} 分 ${s % 60} 秒`
 }
 
-watch(() => props.modelValue, (v) => { if (v) reset() })
-onUnmounted(stopPolling)
+watch(() => props.modelValue, (v) => { if (v) resetForm() })
 </script>
 
 <style scoped>

@@ -2,41 +2,38 @@
   <el-dialog
     :model-value="modelValue"
     @update:model-value="$emit('update:modelValue', $event)"
-    title="导出台账"
+    title="导出台账（含附件）"
     width="560px"
     :close-on-click-modal="false"
     :before-close="handleClose"
     data-testid="warehouse-export-dialog"
   >
     <div v-if="!taskId" class="export-init">
-      <el-alert
-        :title="mode === 'ids' ? `即将按勾选 ID 导出 ${selectedIds.length} 条仓库台账（含附件）` : '即将导出仓库台账 ZIP 包（含附件）'"
-        :closable="false"
-        type="info"
-        show-icon
-      />
-      <div v-if="mode !== 'ids'" class="filter-summary">
-        <span>当前筛选条件：</span>
-        <el-tag v-if="!hasFilters" size="small">无（导出全部）</el-tag>
-        <template v-else>
-          <el-tag v-for="tag in filterTags" :key="tag" size="small" class="filter-tag">{{ tag }}</el-tag>
-        </template>
-      </div>
-      <div v-else class="filter-summary">
-        <el-tag size="small">勾选模式</el-tag>
-        <el-tag size="small" type="info">共 {{ selectedIds.length }} 条</el-tag>
-      </div>
+      <el-form :model="form" label-width="92px">
+        <el-form-item label="导出范围">
+          <el-radio-group v-model="form.scope" class="scope-group">
+            <el-radio value="filter" class="scope-radio">
+              <span>当前筛选结果</span>
+              <el-tag size="small" type="info" class="scope-count">{{ filterCount }}</el-tag>
+            </el-radio>
+            <el-radio value="ids" :disabled="selectedIds.length === 0" class="scope-radio">
+              <span>当前勾选的仓库</span>
+              <el-tag size="small" type="info" class="scope-count">{{ selectedIds.length }}</el-tag>
+            </el-radio>
+          </el-radio-group>
+        </el-form-item>
+      </el-form>
       <div class="attachment-scope-section">
         <div class="section-label">附件导出范围</div>
-        <el-radio-group v-model="attachmentScope" class="scope-radio-group">
-          <el-radio label="ALL">全部文件导出</el-radio>
-          <el-radio label="PARTIAL">部分文件导出</el-radio>
+        <el-radio-group v-model="form.attachmentScope" class="scope-radio-group">
+          <el-radio value="ALL">全部文件导出</el-radio>
+          <el-radio value="PARTIAL">部分文件导出</el-radio>
         </el-radio-group>
-        <el-checkbox-group v-if="attachmentScope === 'PARTIAL'" v-model="attachmentTypes" class="type-checkbox-group">
-          <el-checkbox label="PROPERTY_CERTIFICATE">产权证</el-checkbox>
-          <el-checkbox label="INVOICE">发票</el-checkbox>
-          <el-checkbox label="PHOTOS">照片</el-checkbox>
-          <el-checkbox label="LEASE_CONTRACT">租赁合同</el-checkbox>
+        <el-checkbox-group v-if="form.attachmentScope === 'PARTIAL'" v-model="form.attachmentTypes" class="type-checkbox-group">
+          <el-checkbox value="PROPERTY_CERTIFICATE">产权证</el-checkbox>
+          <el-checkbox value="INVOICE">发票</el-checkbox>
+          <el-checkbox value="PHOTOS">照片</el-checkbox>
+          <el-checkbox value="LEASE_CONTRACT">租赁合同</el-checkbox>
         </el-checkbox-group>
         <div v-if="validation.message" class="scope-hint">
           {{ validation.message }}
@@ -44,11 +41,11 @@
       </div>
     </div>
     <div v-else class="export-task">
-      <div v-if="status === 'PENDING' || status === 'PROCESSING'" class="export-progress">
+      <div v-if="isRunning" class="export-progress">
         <el-progress :percentage="status === 'PROCESSING' ? 60 : 20" :stroke-width="12" striped :striped-flow="true" />
         <p class="status-text">{{ status === 'PENDING' ? '导出任务排队中...' : '正在打包 ZIP（含附件），请稍候...' }}</p>
       </div>
-      <div v-else-if="status === 'COMPLETED'" class="export-done">
+      <div v-else-if="isCompleted" class="export-done">
         <el-result icon="success" title="📤 仓库信息导出包 — 完成" :sub-title="`共 ${totalCount} 条记录`">
           <template #extra>
             <el-button type="primary" @click="handleDownload"><el-icon><Download /></el-icon> 下载文件包</el-button>
@@ -71,7 +68,7 @@
           <div class="meta-row"><span class="meta-label">链接有效期：</span><span>7 天</span></div>
         </div>
       </div>
-      <div v-else-if="status === 'FAILED'" class="export-failed">
+      <div v-else-if="isFailed" class="export-failed">
         <el-result icon="error" title="导出失败" :sub-title="failureReason || '未知原因'">
           <template #extra>
             <el-button @click="handleRetry">重新导出</el-button>
@@ -82,40 +79,55 @@
     <template #footer>
       <div class="dialog-footer">
         <span v-if="!taskId" class="footer-hint">点击"开始导出"以提交导出任务</span>
-        <span v-else-if="status !== 'COMPLETED'" class="footer-hint">关闭后仍可稍后在导出记录中下载</span>
-        <el-button v-if="!taskId" type="primary" :disabled="!validation.valid" @click="startExport">开始导出</el-button>
-        <el-button @click="handleClose">{{ status === 'COMPLETED' ? '关闭' : '取消' }}</el-button>
+        <span v-else-if="!isCompleted" class="footer-hint">关闭后仍可稍后在导出记录中下载</span>
+        <el-button v-if="!taskId" type="primary" :disabled="!validation.valid" @click="handleStart">开始导出</el-button>
+        <el-button @click="handleClose">{{ isCompleted ? '关闭' : '取消' }}</el-button>
       </div>
     </template>
   </el-dialog>
 </template>
 
 <script setup>
-import { ref, watch, computed, onUnmounted } from 'vue'
+import { watch, computed, reactive } from 'vue'
+import { ElMessage } from 'element-plus'
 import { Download } from '@element-plus/icons-vue'
 import http from '@/api/client'
+import { useAsyncTask } from '@/composables/useAsyncTask'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
-  filters: { type: Object, default: () => ({}) },
-  mode: { type: String, default: 'filter' },
-  selectedIds: { type: Array, default: () => [] }
+  filter: { type: Object, default: () => ({}) },
+  filterCount: { type: Number, default: 0 },
+  selectedIds: { type: Array, default: () => [] },
+  defaultScope: { type: String, default: 'filter' }
 })
 const emit = defineEmits(['update:modelValue'])
 
-const taskId = ref(null)
-const status = ref('')
-const totalCount = ref(0)
-const failureReason = ref('')
-const summary = ref({})
-const attachmentScope = ref('ALL')
-const attachmentTypes = ref([])
-let pollTimer = null
+const form = reactive({
+  scope: props.defaultScope,
+  attachmentScope: 'ALL',
+  attachmentTypes: []
+})
 
-const hasFilters = computed(() => {
-  const f = props.filters
-  return !!(f.keyword || f.types?.length || f.statuses?.length || f.province ||
-    f.endDateFrom || f.endDateTo || f.hasPropertyCert || f.hasInvoice || f.hasPhotos || f.hasLeaseContract || f.contactPersonKeyword)
+const {
+  taskId, status, totalCount, failureReason, summary,
+  isRunning, isCompleted, isFailed,
+  startTask, reset: resetTask, retry, downloadFile, stopPolling
+} = useAsyncTask({
+  submitFn: async () => {
+    const payload = form.scope === 'ids'
+      ? { ids: props.selectedIds }
+      : { ...props.filter }
+    payload.attachmentScope = form.attachmentScope
+    if (form.attachmentScope === 'PARTIAL') {
+      payload.attachmentTypes = [...form.attachmentTypes]
+    }
+    const { data } = await http.post('/api/knowledge/warehouses/export', payload)
+    return data
+  },
+  statusUrl: '/api/knowledge/warehouses/export/tasks/:id/status',
+  downloadUrl: '/api/knowledge/warehouses/export/tasks/:id/download',
+  httpGet: http.get
 })
 
 const hasAttachments = computed(() => {
@@ -124,107 +136,43 @@ const hasAttachments = computed(() => {
 })
 
 const validation = computed(() => {
-  if (attachmentScope.value === 'PARTIAL' && attachmentTypes.value.length === 0) {
+  if (form.attachmentScope === 'PARTIAL' && form.attachmentTypes.length === 0) {
     return { valid: false, message: '请至少选择一种附件类型' }
+  }
+  if (form.scope === 'ids' && (!props.selectedIds || props.selectedIds.length === 0)) {
+    return { valid: false, message: '请先在列表中勾选要导出的仓库' }
   }
   return { valid: true, message: '' }
 })
 
-const filterTags = computed(() => {
-  const f = props.filters
-  const tags = []
-  if (f.keyword) tags.push(`关键词: ${f.keyword}`)
-  if (f.types?.length) tags.push(`类型: ${f.types.join(',')}`)
-  if (f.statuses?.length) tags.push(`状态: ${f.statuses.join(',')}`)
-  if (f.province) tags.push(`省份: ${f.province}`)
-  if (f.endDateFrom || f.endDateTo) tags.push(`到期: ${f.endDateFrom || '...'} ~ ${f.endDateTo || '...'}`)
-  if (f.hasPropertyCert) tags.push('有产权证')
-  if (f.hasInvoice) tags.push('有发票')
-  if (f.hasPhotos) tags.push('有照片')
-  if (f.hasLeaseContract) tags.push('有租赁合同')
-  if (f.contactPersonKeyword) tags.push(`联系人: ${f.contactPersonKeyword}`)
-  return tags
-})
-
-const stopPolling = () => {
-  if (pollTimer) {
-    clearInterval(pollTimer)
-    pollTimer = null
-  }
+const resetForm = () => {
+  resetTask()
+  form.scope = props.defaultScope
+  form.attachmentScope = 'ALL'
+  form.attachmentTypes = []
 }
 
-const startPolling = () => {
-  stopPolling()
-  pollTimer = setInterval(async () => {
-    if (!taskId.value) return
-    try {
-      const { data } = await http.get(`/api/knowledge/warehouses/export/tasks/${taskId.value}/status`)
-      status.value = data.status
-      if (data.totalCount != null) totalCount.value = data.totalCount
-      if (data.failureReason) failureReason.value = data.failureReason
-      if (data.resultSummary) summary.value = data.resultSummary
-      if (data.status === 'COMPLETED' || data.status === 'FAILED') {
-        stopPolling()
-      }
-    } catch {
-      stopPolling()
-    }
-  }, 2000)
-}
-
-const startExport = async () => {
+const handleStart = async () => {
   try {
-    const payload = props.mode === 'ids'
-      ? { ids: props.selectedIds }
-      : { ...props.filters }
-    payload.attachmentScope = attachmentScope.value
-    if (attachmentScope.value === 'PARTIAL') {
-      payload.attachmentTypes = [...attachmentTypes.value]
-    }
-    const { data } = await http.post('/api/knowledge/warehouses/export', payload)
-    taskId.value = data.taskId
-    status.value = 'PENDING'
-    totalCount.value = 0
-    failureReason.value = ''
-    summary.value = {}
-    startPolling()
+    await startTask()
   } catch {
-    emit('update:modelValue', false)
+    ElMessage.error('创建导出任务失败')
   }
 }
 
-const handleDownload = async () => {
-  try {
-    const response = await http.get(`/api/knowledge/warehouses/export/tasks/${taskId.value}/download`, {
-      responseType: 'blob'
-    })
-    const blob = response.data
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    const filename = (summary.value && summary.value.fileName)
-      || `仓库信息导出包_${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}.zip`
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    window.URL.revokeObjectURL(url)
-  } catch {
-    // error already handled by interceptor
-  }
+const handleDownload = () => {
+  downloadFile(summary.value?.fileName, () => {
+    return `仓库信息导出包_${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}.zip`
+  }).catch(() => {
+    ElMessage.error('下载失败')
+  })
 }
 
-const handleRetry = () => {
-  taskId.value = null
-  status.value = ''
-  totalCount.value = 0
-  failureReason.value = ''
-  summary.value = {}
-  startExport()
-}
+const handleRetry = () => retry()
 
 const handleClose = () => {
   stopPolling()
+  resetForm()
   emit('update:modelValue', false)
 }
 
@@ -246,27 +194,15 @@ const formatBytes = (bytes) => {
   return `${v.toFixed(i > 0 ? 2 : 0)} ${units[i]}`
 }
 
-watch(() => props.modelValue, (v) => {
-  if (v) {
-    taskId.value = null
-    status.value = ''
-    totalCount.value = 0
-    failureReason.value = ''
-    summary.value = {}
-    attachmentScope.value = 'ALL'
-    attachmentTypes.value = []
-  } else {
-    stopPolling()
-  }
-})
-
-onUnmounted(stopPolling)
+watch(() => props.modelValue, (v) => { if (v) resetForm() })
 </script>
 
 <style scoped>
 .export-init { padding: 8px 0; }
-.filter-summary { margin-top: 16px; font-size: 13px; color: var(--el-text-color-secondary); }
-.filter-tag { margin: 4px 4px 4px 0; }
+.scope-group { display:flex; flex-direction:column; gap:8px; }
+.scope-radio { white-space:nowrap; margin-right:0; display:flex; align-items:center; gap:8px; }
+.scope-radio :deep(.el-radio__label) { display:flex; align-items:center; gap:8px; padding-left:0; }
+.scope-count { font-weight:500; }
 .export-progress { padding: 24px 0; text-align: center; }
 .status-text { margin-top: 12px; color: var(--el-text-color-secondary); font-size: 14px; }
 .export-done, .export-failed { padding: 8px 0; }

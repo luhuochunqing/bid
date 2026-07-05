@@ -63,11 +63,11 @@
       />
     </div>
     <div v-else class="import-task">
-      <div v-if="status === 'PENDING' || status === 'VALIDATING' || status === 'IMPORTING'" class="import-progress">
+      <div v-if="isRunning" class="import-progress">
         <el-progress :percentage="statusPercent" :stroke-width="12" striped :striped-flow="true" />
         <p class="status-text">{{ statusText }}</p>
       </div>
-      <div v-else-if="status === 'COMPLETED'" class="import-done">
+      <div v-else-if="isCompleted" class="import-done">
         <el-result
           :icon="invalidRows > 0 ? 'warning' : 'success'"
           :title="invalidRows > 0 ? '部分导入成功' : '导入完成'"
@@ -98,7 +98,7 @@
           <pre>{{ truncatedErrors }}</pre>
         </div>
       </div>
-      <div v-else-if="status === 'FAILED'" class="import-failed">
+      <div v-else-if="isFailed" class="import-failed">
         <el-result icon="error" title="导入失败" :sub-title="failureReason || '未知原因'">
           <template #extra>
             <el-button @click="handleRetry">重新上传</el-button>
@@ -109,27 +109,30 @@
     <template #footer>
       <div class="dialog-footer">
         <el-button v-if="!taskId" @click="handleClose">取消</el-button>
-        <el-button v-if="!taskId" type="primary" :disabled="!excelFile" :loading="submitting" @click="startImport">开始导入</el-button>
-        <el-button v-else-if="status === 'PENDING' || status === 'VALIDATING' || status === 'IMPORTING'" @click="handleClose">取消</el-button>
-        <el-button v-else-if="status === 'COMPLETED' || status === 'FAILED'" @click="handleClose">关闭</el-button>
+        <el-button v-if="!taskId" type="primary" :disabled="!excelFile" :loading="submitting" @click="handleStart">开始导入</el-button>
+        <el-button v-else-if="isRunning" @click="handleClose">取消</el-button>
+        <el-button v-else @click="handleClose">关闭</el-button>
       </div>
     </template>
   </el-dialog>
 </template>
 
 <script setup>
-import { ref, computed, watch, onUnmounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { UploadFilled, Files, Download, DocumentCopy } from '@element-plus/icons-vue'
 import http from '@/api/client'
+import { useAsyncTask } from '@/composables/useAsyncTask'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false }
 })
 const emit = defineEmits(['update:modelValue', 'imported', 'download-template'])
 
-const taskId = ref(null)
-const status = ref('')
+const submitting = ref(false)
+const excelFile = ref(null)
+const attachFiles = ref([])
+
 const totalRows = ref(0)
 const validRows = ref(0)
 const invalidRows = ref(0)
@@ -139,11 +142,6 @@ const unmatchedFiles = ref([])
 const hasCorrectionFile = ref(false)
 const correctionFileUrl = ref('')
 const errorDetails = ref('')
-const failureReason = ref('')
-const submitting = ref(false)
-const excelFile = ref(null)
-const attachFiles = ref([])
-let pollTimer = null
 
 const excelUploadRef = ref()
 const attachUploadRef = ref()
@@ -153,62 +151,37 @@ const statusPercent = computed(() => ({ PENDING:15, VALIDATING:45, IMPORTING:80 
 const statusText = computed(() => ({ PENDING:'任务排队中...', VALIDATING:'正在校验 Excel...', IMPORTING:'正在写入数据库...' }[status.value] || ''))
 const truncatedErrors = computed(() => errorDetails.value ? errorDetails.value.split('\n').filter(l => !l.startsWith('[CORRECTION_FILE]') && !l.startsWith('[ATTACH_RESULT]') && !l.startsWith('[UNMATCHED] ')).slice(0,200).join('\n') : '')
 
-function applyTaskStatus(data) {
-  status.value = data.status
-  if (data.totalRows != null) totalRows.value = data.totalRows
-  if (data.validRows != null) validRows.value = data.validRows
-  if (data.invalidRows != null) invalidRows.value = data.invalidRows
-  if (data.importedRows != null) importedRows.value = data.importedRows
-  if (data.attachedCount != null) attachedCount.value = data.attachedCount
-  if (data.unmatchedFiles) unmatchedFiles.value = data.unmatchedFiles
-  if (data.hasCorrectionFile != null) hasCorrectionFile.value = data.hasCorrectionFile
-  if (data.correctionFileUrl) correctionFileUrl.value = data.correctionFileUrl
-  if (data.errorDetails) errorDetails.value = data.errorDetails
-  if (data.failureReason) failureReason.value = data.failureReason
-}
-
-const stopPolling = () => {
-  if (pollTimer) {
-    clearInterval(pollTimer)
-    pollTimer = null
+const {
+  taskId, status, failureReason,
+  isRunning, isCompleted, isFailed,
+  startTask, stopPolling, reset: resetTask, retry
+} = useAsyncTask({
+  submitFn: async () => {
+    const formData = new FormData()
+    formData.append('file', excelFile.value)
+    attachFiles.value.forEach(f => formData.append('attachments', f))
+    const { data } = await http.post('/api/knowledge/warehouses/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return data
+  },
+  statusUrl: '/api/knowledge/warehouses/import/tasks/:id',
+  httpGet: http.get,
+  onStatusUpdate: (data) => {
+    if (data.totalRows != null) totalRows.value = data.totalRows
+    if (data.validRows != null) validRows.value = data.validRows
+    if (data.invalidRows != null) invalidRows.value = data.invalidRows
+    if (data.importedRows != null) importedRows.value = data.importedRows
+    if (data.attachedCount != null) attachedCount.value = data.attachedCount
+    if (data.unmatchedFiles) unmatchedFiles.value = data.unmatchedFiles
+    if (data.hasCorrectionFile != null) hasCorrectionFile.value = data.hasCorrectionFile
+    if (data.correctionFileUrl) correctionFileUrl.value = data.correctionFileUrl
+    if (data.errorDetails) errorDetails.value = data.errorDetails
+  },
+  onCompleted: (data) => {
+    if (data.importedRows > 0) emit('imported', data.importedRows)
   }
-}
-
-const startPolling = () => {
-  stopPolling()
-  pollTimer = setInterval(async () => {
-    if (!taskId.value) return
-    try {
-      const { data } = await http.get(`/api/knowledge/warehouses/import/tasks/${taskId.value}`)
-      applyTaskStatus(data)
-      if (data.status === 'COMPLETED' || data.status === 'FAILED') {
-        stopPolling()
-        if (data.status === 'COMPLETED' && data.importedRows > 0) emit('imported', data.importedRows)
-      }
-    } catch {
-      stopPolling()
-    }
-  }, 2000)
-}
-
-const handleDownloadCorrection = async () => {
-  if (!correctionFileUrl.value) return
-  try {
-    const response = await http.get(correctionFileUrl.value, { responseType: 'blob' })
-    const blob = response.data
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    const ts = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-    a.download = `仓库信息导入_${ts}.xlsx`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    window.URL.revokeObjectURL(url)
-  } catch (err) {
-    ElMessage.error('下载修正文件失败')
-  }
-}
+})
 
 const handleExcelChange = (uploadFile) => {
   if (uploadFile && uploadFile.raw) excelFile.value = uploadFile.raw
@@ -234,28 +207,14 @@ const handleAttachRemove = (uploadFile) => {
   }
 }
 
-const startImport = async () => {
+const handleStart = async () => {
   if (!excelFile.value) {
     ElMessage.warning('请先选择 Excel 文件')
     return
   }
   submitting.value = true
   try {
-    const formData = new FormData()
-    formData.append('file', excelFile.value)
-    attachFiles.value.forEach(f => formData.append('attachments', f))
-    const { data } = await http.post('/api/knowledge/warehouses/import', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
-    taskId.value = data.taskId
-    status.value = 'PENDING'
-    errorDetails.value = ''
-    failureReason.value = ''
-    totalRows.value = 0
-    validRows.value = 0
-    invalidRows.value = 0
-    importedRows.value = 0
-    startPolling()
+    await startTask()
   } catch (err) {
     ElMessage.error(err.response?.data?.message || '提交导入任务失败')
   } finally {
@@ -263,24 +222,40 @@ const startImport = async () => {
   }
 }
 
-const handleRetry = () => {
-  taskId.value = null
-  status.value = ''
-  errorDetails.value = ''
-  failureReason.value = ''
+const handleDownloadCorrection = async () => {
+  if (!correctionFileUrl.value) return
+  try {
+    const response = await http.get(correctionFileUrl.value, { responseType: 'blob' })
+    const blob = response.data
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const ts = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+    a.download = `仓库信息导入_${ts}.xlsx`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+  } catch (err) {
+    ElMessage.error('下载修正文件失败')
+  }
 }
 
+const handleRetry = () => retry()
+
 const resetForm = () => {
+  resetTask()
   excelFile.value = null
   attachFiles.value = []
-  taskId.value = null
-  status.value = ''
-  errorDetails.value = ''
-  failureReason.value = ''
   totalRows.value = 0
   validRows.value = 0
   invalidRows.value = 0
   importedRows.value = 0
+  attachedCount.value = 0
+  unmatchedFiles.value = []
+  hasCorrectionFile.value = false
+  correctionFileUrl.value = ''
+  errorDetails.value = ''
   if (excelUploadRef.value) excelUploadRef.value.clearFiles()
   if (attachUploadRef.value) attachUploadRef.value.clearFiles()
 }
@@ -295,8 +270,6 @@ watch(() => props.modelValue, (v) => {
   if (v) resetForm()
   else stopPolling()
 })
-
-onUnmounted(stopPolling)
 </script>
 
 <style scoped>

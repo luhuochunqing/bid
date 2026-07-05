@@ -21,6 +21,8 @@ describe('WarehouseExportDialog', () => {
     'el-result': true,
     'el-button': { template: '<button><slot /></button>' },
     'el-icon': true,
+    'el-form': true,
+    'el-form-item': true,
     'el-radio-group': {
       template: '<div><slot /></div>',
       props: ['modelValue'],
@@ -28,7 +30,7 @@ describe('WarehouseExportDialog', () => {
     },
     'el-radio': {
       template: '<label @click="$emit(\'click\')"><slot /></label>',
-      props: ['label'],
+      props: ['value', 'disabled'],
       emits: ['click']
     },
     'el-checkbox-group': {
@@ -38,7 +40,7 @@ describe('WarehouseExportDialog', () => {
     },
     'el-checkbox': {
       template: '<label @click="$emit(\'click\')"><slot /></label>',
-      props: ['label'],
+      props: ['value'],
       emits: ['click']
     }
   }
@@ -48,8 +50,24 @@ describe('WarehouseExportDialog', () => {
       props: { modelValue: true },
       global: { stubs: globalStubs }
     })
-    expect(wrapper.vm.attachmentScope).toBe('ALL')
-    expect(wrapper.vm.attachmentTypes).toEqual([])
+    expect(wrapper.vm.form.attachmentScope).toBe('ALL')
+    expect(wrapper.vm.form.attachmentTypes).toEqual([])
+  })
+
+  it('defaults scope to filter when no defaultScope provided', () => {
+    const wrapper = mount(WarehouseExportDialog, {
+      props: { modelValue: true },
+      global: { stubs: globalStubs }
+    })
+    expect(wrapper.vm.form.scope).toBe('filter')
+  })
+
+  it('uses defaultScope prop as initial scope when provided', () => {
+    const wrapper = mount(WarehouseExportDialog, {
+      props: { modelValue: true, defaultScope: 'ids', selectedIds: [1, 2] },
+      global: { stubs: globalStubs }
+    })
+    expect(wrapper.vm.form.scope).toBe('ids')
   })
 
   it('resets scope and types when dialog reopens', async () => {
@@ -57,23 +75,25 @@ describe('WarehouseExportDialog', () => {
       props: { modelValue: true },
       global: { stubs: globalStubs }
     })
-    wrapper.vm.attachmentScope = 'PARTIAL'
-    wrapper.vm.attachmentTypes = ['INVOICE']
+    wrapper.vm.form.attachmentScope = 'PARTIAL'
+    wrapper.vm.form.attachmentTypes = ['INVOICE']
+    wrapper.vm.form.scope = 'ids'
     await wrapper.setProps({ modelValue: false })
     await wrapper.setProps({ modelValue: true })
-    expect(wrapper.vm.attachmentScope).toBe('ALL')
-    expect(wrapper.vm.attachmentTypes).toEqual([])
+    expect(wrapper.vm.form.attachmentScope).toBe('ALL')
+    expect(wrapper.vm.form.attachmentTypes).toEqual([])
+    expect(wrapper.vm.form.scope).toBe('filter')
   })
 
   it('sends attachmentScope and attachmentTypes in ids mode', async () => {
     http.post.mockResolvedValueOnce({ data: { taskId: 42 } })
     const wrapper = mount(WarehouseExportDialog, {
-      props: { modelValue: true, mode: 'ids', selectedIds: [1, 2] },
+      props: { modelValue: true, defaultScope: 'ids', selectedIds: [1, 2] },
       global: { stubs: globalStubs }
     })
-    wrapper.vm.attachmentScope = 'PARTIAL'
-    wrapper.vm.attachmentTypes = ['PROPERTY_CERTIFICATE', 'PHOTOS']
-    wrapper.vm.startExport()
+    wrapper.vm.form.attachmentScope = 'PARTIAL'
+    wrapper.vm.form.attachmentTypes = ['PROPERTY_CERTIFICATE', 'PHOTOS']
+    wrapper.vm.handleStart()
     await flushPromises()
 
     expect(http.post).toHaveBeenCalledWith(
@@ -89,11 +109,11 @@ describe('WarehouseExportDialog', () => {
   it('does not send attachmentTypes when scope is ALL', async () => {
     http.post.mockResolvedValueOnce({ data: { taskId: 43 } })
     const wrapper = mount(WarehouseExportDialog, {
-      props: { modelValue: true, mode: 'filter', filters: { keyword: 'test' } },
+      props: { modelValue: true, defaultScope: 'filter', filter: { keyword: 'test' } },
       global: { stubs: globalStubs }
     })
-    wrapper.vm.attachmentScope = 'ALL'
-    wrapper.vm.startExport()
+    wrapper.vm.form.attachmentScope = 'ALL'
+    wrapper.vm.handleStart()
     await flushPromises()
 
     expect(http.post).toHaveBeenCalledWith(
@@ -110,11 +130,11 @@ describe('WarehouseExportDialog', () => {
       global: { stubs: globalStubs }
     })
     expect(wrapper.vm.validation.valid).toBe(true)
-    wrapper.vm.attachmentScope = 'PARTIAL'
+    wrapper.vm.form.attachmentScope = 'PARTIAL'
     await flushPromises()
     expect(wrapper.vm.validation.valid).toBe(false)
     expect(wrapper.vm.validation.message).toBe('请至少选择一种附件类型')
-    wrapper.vm.attachmentTypes = ['INVOICE']
+    wrapper.vm.form.attachmentTypes = ['INVOICE']
     expect(wrapper.vm.validation.valid).toBe(true)
     expect(wrapper.vm.validation.message).toBe('')
   })
