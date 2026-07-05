@@ -139,4 +139,55 @@ class ImportPersonnelAppServiceTest {
                 saved.status().name().equals("FAILED")
         ));
     }
+
+    /**
+     * CO-469 第八轮防复发测试：
+     * 验证 failImportTask 自身 save 失败时（如 DataIntegrityViolationException），会降级到 updateStatus(FAILED)，
+     * 而不是抛二次异常被 SimpleAsyncUncaughtExceptionHandler 吞掉，导致任务状态永久停在 PROCESSING/5%。
+     */
+    @Test
+    void executeImportAsync_当failImportTask自身save抛异常_应降级到updateStatus() throws Exception {
+        MultipartFile file = new MockMultipartFile("test.xlsx", new byte[]{});
+        when(excelImporter.importFromStream(any())).thenThrow(new RuntimeException("Excel 解析异常"));
+
+        PersonnelImportTask task = buildTask(200L, "IMP-PER-TEST-CO469-8", ImportTaskStatus.PROCESSING);
+        when(importTaskRepository.findById(200L)).thenReturn(Optional.of(task));
+        // 第一次 save（failImportTask 内）抛 DataIntegrityViolationException 模拟 JSON cast 失败
+        when(importTaskRepository.save(any()))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException(
+                        "could not execute statement [Data truncation: Invalid JSON text]"));
+
+        service.executeImportAsync(200L, file, 1L);
+
+        // 断言：降级到 updateStatus(200L, "FAILED")
+        verify(importTaskRepository).updateStatus(eq(200L), eq("FAILED"));
+    }
+
+    /**
+     * CO-469 第八轮防复发测试：
+     * 验证 failImportTask save 和 updateStatus 都失败时，service.executeImportAsync 仍不抛异常，
+     * 且会调用 clearProgress（通过 Redis 进度被清理验证），避免前端继续轮询。
+     */
+    @Test
+    void executeImportAsync_当failImportTask完全失败时_不抛异常且清理Redis进度() throws Exception {
+        MultipartFile file = new MockMultipartFile("test.xlsx", new byte[]{});
+        when(excelImporter.importFromStream(any())).thenThrow(new RuntimeException("解析异常"));
+
+        PersonnelImportTask task = buildTask(201L, "IMP-PER-TEST-CO469-8-FALLBACK", ImportTaskStatus.PROCESSING);
+        when(importTaskRepository.findById(201L)).thenReturn(Optional.of(task));
+        when(importTaskRepository.save(any()))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("Invalid JSON text"));
+        // updateStatus 也失败
+        when(importTaskRepository.updateStatus(eq(201L), any()))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("updateStatus also failed"));
+
+        // 不应抛异常
+        service.executeImportAsync(201L, file, 1L);
+
+        // 验证 save 和 updateStatus 都被尝试过
+        verify(importTaskRepository).save(any());
+        verify(importTaskRepository).updateStatus(eq(201L), eq("FAILED"));
+        // 验证 Redis 进度被清理（PersonnelImportProgressService.clearProgress 会调用 template.delete）
+        verify(redisTemplate).delete("personnel:import:progress:201");
+    }
 }

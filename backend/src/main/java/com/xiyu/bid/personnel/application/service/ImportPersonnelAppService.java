@@ -143,9 +143,23 @@ public class ImportPersonnelAppService {
         ));
     }
 
+    // CO-469 第八轮：failImportTask 加防御性 try/catch + 降级
+    // 历史根因：save() 写入 error_details 字段时若序列化失败（如 List.toString() 输出非合法 JSON），
+    // 会抛 DataIntegrityViolationException，被 SimpleAsyncUncaughtExceptionHandler 吞掉，
+    // 任务状态永久停在 PROCESSING/5%。修复方案：save 失败时降级到 updateStatus(FAILED)，
+    // 仍失败则只清理 Redis 进度，保证 status 字段最终落库为 FAILED。
     private void failImportTask(Long taskId, String errorMessage) {
-        PersonnelImportTask task = importTaskRepository.findById(taskId).orElse(null);
-        if (task == null) return;
+        PersonnelImportTask task = null;
+        try {
+            task = importTaskRepository.findById(taskId).orElse(null);
+        } catch (RuntimeException findException) {
+            log.warn("failImportTask findById 失败: taskId={}", taskId, findException);
+        }
+        if (task == null) {
+            // 任务记录不存在，仍尝试清理 Redis 进度避免前端继续轮询
+            safeClearProgress(taskId);
+            return;
+        }
 
         List<ImportErrorDetail> errors = List.of(new ImportErrorDetail(
                 "系统", null, null, null, errorMessage
@@ -156,8 +170,27 @@ public class ImportPersonnelAppService {
                 0, 0, 1, 0, errors, null, task.createdBy(),
                 task.createdAt(), LocalDateTime.now()
         );
-        importTaskRepository.save(updated);
-        progressService.clearProgress(taskId);
+
+        try {
+            importTaskRepository.save(updated);
+        } catch (RuntimeException saveException) {
+            // 兜底：save 失败时降级到 updateStatus 仅写 status 字段（不涉及 error_details JSON 序列化）
+            log.error("failImportTask save 失败，降级到 updateStatus: taskId={}", taskId, saveException);
+            try {
+                importTaskRepository.updateStatus(taskId, ImportTaskStatus.FAILED.name());
+            } catch (RuntimeException fallbackException) {
+                log.error("failImportTask updateStatus 兜底也失败: taskId={}", taskId, fallbackException);
+            }
+        }
+        safeClearProgress(taskId);
+    }
+
+    private void safeClearProgress(Long taskId) {
+        try {
+            progressService.clearProgress(taskId);
+        } catch (RuntimeException progressException) {
+            log.warn("clearProgress 失败，前端轮询将通过 DB fallback 读到终态: taskId={}", taskId, progressException);
+        }
     }
 
     public ImportProgressInfo getProgress(Long taskId) {
