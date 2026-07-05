@@ -1,24 +1,47 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-import { ref } from 'vue'
+import { ref, reactive, h, defineComponent } from 'vue'
 import ProjectDetailReviewerDialog from './ProjectDetailReviewerDialog.vue'
 import { projectDetailKey } from '@/composables/projectDetail/context.js'
 
+// 用 reactive 包装 ctx 贴近生产：ProjectDetailShell.vue 的 projectDetailContext = reactive({...})。
+// 历史 bug：模板里写 v-model="detail.xxx.value" 在 reactive unwrap 后失效，dialog 永不弹出。
+// 之前 spec 用普通对象 ctx，没覆盖到 reactive unwrap 行为，所以 bug 没被发现。
+const ElDialogStub = defineComponent({
+  name: 'ElDialog',
+  props: { modelValue: { type: Boolean, default: false }, title: { type: String, default: '' } },
+  setup(props, { slots }) {
+    return () => h('div', {
+      'data-title': props.title,
+      'data-model-value': String(props.modelValue),
+    }, [
+      slots.default?.(),
+      slots.footer?.(),
+    ])
+  },
+})
+
 function mountDialog(contextOverrides = {}) {
-  const context = {
-    reviewerDialogVisible: ref(true),
-    reviewerForm: ref({ userId: '', role: '' }),
+  // 优先使用 overrides 中传入的 ref，让测试可以拿到同一个 ref 引用进行切换
+  const {
+    reviewerDialogVisible = ref(true),
+    reviewerForm = ref({ userId: '', role: '' }),
+    ...restOverrides
+  } = contextOverrides
+  const context = reactive({
+    reviewerDialogVisible,
+    reviewerForm,
     handleReviewerSelect: vi.fn(),
     handleConfirmAddReviewer: vi.fn(),
-    ...contextOverrides,
-  }
+    ...restOverrides,
+  })
   const wrapper = mount(ProjectDetailReviewerDialog, {
     global: {
       provide: {
         [projectDetailKey]: context,
       },
       stubs: {
-        'el-dialog': { template: '<section><slot /><slot name="footer" /></section>' },
+        ElDialog: ElDialogStub,
         'el-form': { template: '<form><slot /></form>' },
         'el-form-item': { props: ['label', 'required'], template: '<label>{{ label }}<slot /></label>' },
         'el-select': {
@@ -30,14 +53,14 @@ function mountDialog(contextOverrides = {}) {
         'el-button': { template: '<button><slot /></button>' },
         UserPicker: {
           name: 'UserPicker',
-          props: ['modelValue', 'mode', 'placeholder'],
+          props: ['modelValue', 'mode', 'placeholder', 'excludeIds'],
           emits: ['update:modelValue', 'select'],
           template: '<div class="user-picker-stub" />',
         },
       },
     },
   })
-  return { wrapper, context }
+  return { wrapper, context, reviewerDialogVisible, reviewerForm }
 }
 
 describe('ProjectDetailReviewerDialog', () => {
@@ -51,11 +74,11 @@ describe('ProjectDetailReviewerDialog', () => {
   })
 
   it('binds UserPicker v-model to reviewerForm.userId', async () => {
-    const { wrapper, context } = mountDialog()
+    const { wrapper, reviewerForm } = mountDialog()
 
     const picker = wrapper.findComponent({ name: 'UserPicker' })
     await picker.vm.$emit('update:modelValue', 'U001')
-    expect(context.reviewerForm.value.userId).toBe('U001')
+    expect(reviewerForm.value.userId).toBe('U001')
   })
 
   it('calls handleReviewerSelect on UserPicker @select', async () => {
@@ -66,5 +89,17 @@ describe('ProjectDetailReviewerDialog', () => {
     await picker.vm.$emit('select', user)
 
     expect(context.handleReviewerSelect).toHaveBeenCalledWith(user)
+  })
+
+  // 回归测试：v-model 必须直接绑 ref 字段，不能写 .value
+  // （reactive unwrap 后 .value 是 undefined，dialog 永不弹出）
+  it('dialog v-model reflects reviewerDialogVisible ref state', async () => {
+    const { wrapper, reviewerDialogVisible } = mountDialog({ reviewerDialogVisible: ref(false) })
+    const dialogEl = wrapper.find('[data-title="添加评审人"]')
+    expect(dialogEl.attributes('data-model-value')).toBe('false')
+
+    reviewerDialogVisible.value = true
+    await wrapper.vm.$nextTick()
+    expect(dialogEl.attributes('data-model-value')).toBe('true')
   })
 })

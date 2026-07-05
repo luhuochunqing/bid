@@ -1,91 +1,149 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
-
-import { projectDetailKey } from '@/composables/projectDetail/context.js'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ref, reactive, h, defineComponent } from 'vue'
+import { createPinia, setActivePinia } from 'pinia'
+import { createMemoryHistory, createRouter } from 'vue-router'
 import ProjectTransferDialog from './ProjectTransferDialog.vue'
+import { projectDetailKey } from '@/composables/projectDetail/context.js'
 
-// Dialog 通过 inject(projectDetailKey) 拿到 ctx，故用 provide 注入 mock ctx
-function createMockCtx(overrides = {}) {
-  return {
-    transferDialogVisible: { value: true },
-    transferring: { value: false },
-    transferForm: { newOwnerUserId: null, reason: '' },
-    excludeOwnerIds: { value: [7246] },
-    project: { id: 135, name: '测试项目', projectLeaderName: '陈梦瑶' },
-    openTransfer: vi.fn(),
-    closeTransfer: vi.fn(),
-    handleTransferConfirm: vi.fn(),
-    ...overrides,
-  }
-}
+// 捕获 v-model 传入的 modelValue，用于回归测试 v-model 是否正确绑定 ref 字段
+const ElDialogStub = defineComponent({
+  name: 'ElDialog',
+  props: {
+    modelValue: { type: Boolean, default: false },
+    title: { type: String, default: '' },
+  },
+  setup(props, { slots }) {
+    return () => h('div', {
+      'data-title': props.title,
+      'data-model-value': String(props.modelValue),
+    }, [
+      slots.default?.(),
+      slots.footer?.(),
+    ])
+  },
+})
 
-function mountDialog(ctx = createMockCtx()) {
-  return mount(ProjectTransferDialog, {
+function mountDialog(overrides = {}) {
+  const transferDialogVisible = overrides.transferDialogVisible || ref(false)
+  const transferring = overrides.transferring || ref(false)
+  const transferForm = reactive({ newOwnerUserId: null, reason: '' })
+  const excludeOwnerIds = overrides.excludeOwnerIds || ref([7246])
+  const openTransfer = vi.fn(() => {
+    transferForm.newOwnerUserId = null
+    transferForm.reason = ''
+    transferDialogVisible.value = true
+  })
+  const closeTransfer = vi.fn(() => {
+    transferDialogVisible.value = false
+    transferForm.newOwnerUserId = null
+    transferForm.reason = ''
+  })
+  const handleTransferConfirm = vi.fn()
+  const project = overrides.project || { id: 135, name: '测试项目', managerId: 7246, projectLeaderName: '陈梦瑶' }
+  const context = reactive({
+    transferDialogVisible,
+    transferring,
+    transferForm,
+    excludeOwnerIds,
+    project,
+    openTransfer,
+    closeTransfer,
+    handleTransferConfirm,
+  })
+  const wrapper = mount(ProjectTransferDialog, {
     global: {
-      provide: {
-        [projectDetailKey]: ctx,
-      },
+      provide: { [projectDetailKey]: context },
+      plugins: [createPinia(), createRouter({ history: createMemoryHistory(), routes: [] })],
       stubs: {
-        ElDialog: {
-          props: ['modelValue'],
-          template: '<section><slot /><slot name="footer" /></section>',
-        },
-        ElForm: { template: '<form><slot /></form>' },
-        ElFormItem: { template: '<div><slot /></div>' },
-        ElInput: {
-          props: ['modelValue', 'rows', 'maxlength'],
-          emits: ['update:modelValue'],
-          template: '<textarea data-test="reason-input" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
-        },
+        ElDialog: ElDialogStub,
+        'el-form': { template: '<form><slot /></form>' },
+        'el-form-item': { props: ['label', 'required'], template: '<label>{{ label }}<slot /></label>' },
+        'el-input': { template: '<input />' },
         ElButton: {
+          name: 'ElButton',
           props: ['loading', 'type'],
-          template: '<button data-test="btn" :data-loading="String(loading)" :data-type="type || \'default\'" @click="$emit(\'click\')"><slot /></button>',
+          template: '<button><slot /></button>',
         },
         UserPicker: {
+          name: 'UserPicker',
           props: ['modelValue', 'mode', 'placeholder', 'excludeIds'],
           emits: ['update:modelValue'],
-          template: '<div data-test="user-picker" :data-exclude="String(excludeIds)" />',
+          template: '<div class="user-picker-stub" />',
         },
       },
     },
   })
+  return { wrapper, context, transferDialogVisible, transferring, transferForm, excludeOwnerIds, openTransfer, closeTransfer, handleTransferConfirm }
 }
 
 describe('ProjectTransferDialog', () => {
-  it('dialog 可见时渲染项目名称和当前负责人', () => {
-    const wrapper = mountDialog()
-    expect(wrapper.text()).toContain('测试项目')
-    expect(wrapper.text()).toContain('陈梦瑶')
+  beforeEach(() => {
+    setActivePinia(createPinia())
   })
 
-  it('UserPicker 接收 excludeOwnerIds 防止转给当前负责人', () => {
-    const wrapper = mountDialog()
-    expect(wrapper.find('[data-test="user-picker"]').attributes('data-exclude')).toBe('7246')
+  it('renders project name and current owner', () => {
+    const { wrapper } = mountDialog()
+    const html = wrapper.html()
+    expect(html).toContain('测试项目')
+    expect(html).toContain('陈梦瑶')
   })
 
-  it('点击「确认转移」按钮触发 handleTransferConfirm', async () => {
-    const ctx = createMockCtx()
-    const wrapper = mountDialog(ctx)
-    const buttons = wrapper.findAll('[data-test="btn"]')
-    const confirmBtn = buttons.find((b) => b.text().includes('确认转移'))
-    await confirmBtn.trigger('click')
-    expect(ctx.handleTransferConfirm).toHaveBeenCalled()
+  // 回归测试：v-model 必须直接绑 ref 字段，不能写 .value
+  // 历史 bug：v-model="ctx.transferDialogVisible.value" 在 reactive unwrap 后失效，
+  // dialog 永不弹出，用户报"项目转移功能没法点击"
+  it('dialog v-model reflects transferDialogVisible ref state', async () => {
+    const { wrapper, transferDialogVisible } = mountDialog()
+    const dialogEl = wrapper.find('[data-title="项目转移"]')
+    expect(dialogEl.exists()).toBe(true)
+    expect(dialogEl.attributes('data-model-value')).toBe('false')
+
+    transferDialogVisible.value = true
+    await wrapper.vm.$nextTick()
+    expect(dialogEl.attributes('data-model-value')).toBe('true')
   })
 
-  it('点击「取消」按钮触发 closeTransfer', async () => {
-    const ctx = createMockCtx()
-    const wrapper = mountDialog(ctx)
-    const buttons = wrapper.findAll('[data-test="btn"]')
-    const cancelBtn = buttons.find((b) => b.text().includes('取消'))
-    await cancelBtn.trigger('click')
-    expect(ctx.closeTransfer).toHaveBeenCalled()
+  it('openTransfer sets transferDialogVisible to true and dialog reflects it', async () => {
+    const { wrapper, openTransfer, transferDialogVisible } = mountDialog()
+    const dialogEl = wrapper.find('[data-title="项目转移"]')
+
+    openTransfer()
+    await wrapper.vm.$nextTick()
+    expect(transferDialogVisible.value).toBe(true)
+    expect(dialogEl.attributes('data-model-value')).toBe('true')
   })
 
-  it('transferring=true 时确认按钮显示 loading 状态', () => {
-    const ctx = createMockCtx({ transferring: { value: true } })
-    const wrapper = mountDialog(ctx)
-    const buttons = wrapper.findAll('[data-test="btn"]')
-    const confirmBtn = buttons.find((b) => b.text().includes('确认转移'))
-    expect(confirmBtn.attributes('data-loading')).toBe('true')
+  // 回归测试：excludeOwnerIds 必须 unwrap 后传入（旧 bug：写 .value 永远 undefined）
+  it('passes excludeOwnerIds (unwrapped) to UserPicker', () => {
+    const { wrapper } = mountDialog()
+    const picker = wrapper.findComponent({ name: 'UserPicker' })
+    expect(picker.props('excludeIds')).toEqual([7246])
+  })
+
+  // 回归测试：transferring 必须 unwrap 后传入（旧 bug：写 .value 永远 undefined）
+  it('passes transferring (unwrapped) as button loading state', async () => {
+    const { wrapper, transferring } = mountDialog()
+    // ElDialogStub 现在渲染 footer slot，里面包含 ElButton
+    const btnComp = wrapper.findAllComponents({ name: 'ElButton' }).find(c => c.text().includes('确认转移'))
+    expect(btnComp).toBeTruthy()
+    expect(btnComp.props('loading')).toBe(false)
+
+    transferring.value = true
+    await wrapper.vm.$nextTick()
+    expect(btnComp.props('loading')).toBe(true)
+  })
+
+  it('clicking 确认转移 button calls handleTransferConfirm', async () => {
+    const { wrapper, handleTransferConfirm } = mountDialog()
+    const btnComp = wrapper.findAllComponents({ name: 'ElButton' }).find(c => c.text().includes('确认转移'))
+    await btnComp.trigger('click')
+    expect(handleTransferConfirm).toHaveBeenCalled()
+  })
+
+  it('clicking 取消 button calls closeTransfer', async () => {
+    const { wrapper, closeTransfer } = mountDialog()
+    const btnComp = wrapper.findAllComponents({ name: 'ElButton' }).find(c => c.text().includes('取消'))
+    await btnComp.trigger('click')
+    expect(closeTransfer).toHaveBeenCalled()
   })
 })

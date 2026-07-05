@@ -1,6 +1,11 @@
 <template>
+  <!--
+    ctx 是 reactive 包装的对象（见 ProjectDetailShell.vue 的 projectDetailContext = reactive({...transfer})），
+    Vue 3 reactive 会自动 unwrap ref 字段：访问 ctx.transferDialogVisible 已是 boolean，
+    不能再写 .value（会拿到 undefined，导致 v-model 失效、dialog 永不弹出）。
+  -->
   <el-dialog
-    v-model="ctx.transferDialogVisible.value"
+    v-model="ctx.transferDialogVisible"
     title="项目转移"
     width="520px"
     :close-on-click-modal="false"
@@ -19,7 +24,7 @@
           mode="search"
           placeholder="搜索人员（姓名/工号/拼音）"
           style="width: 100%;"
-          :exclude-ids="ctx.excludeOwnerIds.value"
+          :exclude-ids="ctx.excludeOwnerIds"
         />
       </el-form-item>
       <el-form-item label="转移原因">
@@ -37,7 +42,7 @@
       <el-button @click="ctx.closeTransfer">取消</el-button>
       <el-button
         type="primary"
-        :loading="ctx.transferring.value"
+        :loading="ctx.transferring"
         @click="ctx.handleTransferConfirm"
       >
         确认转移
