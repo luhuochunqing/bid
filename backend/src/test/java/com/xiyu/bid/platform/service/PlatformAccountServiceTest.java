@@ -464,7 +464,7 @@ class PlatformAccountServiceTest {
         when(repository.findById(1L)).thenReturn(Optional.of(othersAccount));
 
         assertThatThrownBy(() -> service.returnAccount(1L, BID_TEAM_USER))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(AccessDeniedException.class)
                 .hasMessageContaining("contact person");
     }
 
@@ -500,7 +500,7 @@ class PlatformAccountServiceTest {
         when(repository.findById(1L)).thenReturn(Optional.of(othersAccount));
 
         assertThatThrownBy(() -> service.returnAccount(1L, req, BID_TEAM_USER))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(AccessDeniedException.class)
                 .hasMessageContaining("contact person");
     }
 
@@ -576,6 +576,16 @@ class PlatformAccountServiceTest {
     }
 
     @Test
+    @DisplayName("账户不存在时抛 IllegalArgumentException")
+    void getPassword_whenAccountNotFound_throwsIllegalArgumentException() {
+        when(repository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getPassword(999L, ADMIN_USER))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Account not found with id: 999");
+    }
+
+    @Test
     @DisplayName("CO-400 四轮：bid-Team 作为绑定联系人查看密码成功")
     void getPassword_whenBidTeamAsContactPerson_succeeds() {
         // Mock account whose contactPerson IS the bidTeam user.
@@ -593,19 +603,29 @@ class PlatformAccountServiceTest {
     }
 
     @Test
-    @DisplayName("非特权非 bid-Team 角色查看密码抛出 AccessDeniedException（CO-507 修复）")
+    @DisplayName("非特权非 bid-Team 角色查看密码抛出 AccessDeniedException（CO-507 修复，权限下沉 Policy）")
     void getPassword_nonPrivilegedNonBidTeamRole_throwsAccessDeniedException() {
+        // 新架构：Service 先 findById 再调 Policy.checkCanViewPassword
+        // 非特权非投标专员角色会被 Policy 拒绝，但需要 mock findById（Service 先加载账户）
+        PlatformAccount account = accountWithId(1L);
+        when(repository.findById(1L)).thenReturn(Optional.of(account));
+
         assertThatThrownBy(() -> service.getPassword(1L, STAFF_USER))
                 .isInstanceOf(AccessDeniedException.class)
-                .hasMessageContaining("Only administrators");
+                .hasMessageContaining("Only administrators or the account's contact person");
     }
 
     @Test
-    @DisplayName("currentUser == null 防御性校验抛出 AccessDeniedException（CO-507 修复）")
+    @DisplayName("currentUser == null 防御性校验抛出 AccessDeniedException（CO-507 修复，权限下沉 Policy）")
     void getPassword_whenCurrentUserNull_throwsAccessDeniedException() {
+        // 新架构：Policy.canViewPassword 第一行 if (currentUser == null) return false
+        // Service 先 findById 再调 Policy，所以需要 mock findById
+        PlatformAccount account = accountWithId(1L);
+        when(repository.findById(1L)).thenReturn(Optional.of(account));
+
         assertThatThrownBy(() -> service.getPassword(1L, null))
                 .isInstanceOf(AccessDeniedException.class)
-                .hasMessageContaining("Authentication required");
+                .hasMessageContaining("Only administrators or the account's contact person");
     }
 
     // ── 到期查询 ──
