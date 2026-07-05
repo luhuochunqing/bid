@@ -76,6 +76,7 @@ describe('Personnel.vue - 4.3.1.3', () => {
           'el-dialog': true,
           'el-upload': true,
           'el-checkbox': true,
+          'el-pagination': { template: '<div />' },
           'el-row': true,
           'el-col': true,
           'Plus': true,
