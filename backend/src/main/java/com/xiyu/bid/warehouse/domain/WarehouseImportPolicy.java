@@ -52,7 +52,30 @@ public class WarehouseImportPolicy {
     public static final int EXPECTED_COL_COUNT = 24;
 
     private static final Pattern SPECIAL_CHARS = Pattern.compile("[/\\\\:*?\"<>|]");
-    private static final Set<String> TYPE_VALUES = Set.of("自营", "云仓");
+
+    /** 仓库类型可选项，供模板下拉框与导入校验共用。 */
+    public static final String[] TYPE_OPTIONS = {"自营", "云仓"};
+    private static final Set<String> TYPE_VALUES = Set.of(TYPE_OPTIONS);
+
+    /** 7 大区域可选项，供模板下拉框与导入校验共用。 */
+    public static final String[] REGION_OPTIONS = {"华北", "东北", "华东", "华中", "华南", "西北", "西南"};
+    private static final Set<String> REGION_VALUES = Set.of(REGION_OPTIONS);
+
+    /** 34 个省级行政区（省、自治区、直辖市、特别行政区），与前端 provinceOptions.js 保持一致。 */
+    public static final String[] PROVINCE_OPTIONS = {
+            "北京市", "天津市", "上海市", "重庆市",
+            "河北省", "山西省", "辽宁省", "吉林省", "黑龙江省",
+            "江苏省", "浙江省", "安徽省", "福建省", "江西省", "山东省",
+            "河南省", "湖北省", "湖南省", "广东省", "海南省",
+            "四川省", "贵州省", "云南省", "陕西省", "甘肃省", "青海省",
+            "台湾省",
+            "内蒙古自治区", "广西壮族自治区", "西藏自治区", "宁夏回族自治区", "新疆维吾尔自治区",
+            "香港特别行政区", "澳门特别行政区"
+    };
+    private static final Set<String> PROVINCE_VALUES = Set.of(PROVINCE_OPTIONS);
+
+    /** 是否类字段可选项，供模板下拉框与导入校验共用。 */
+    public static final String[] YES_NO_OPTIONS = {"是", "否"};
     private static final Set<String> YES_VALUES = Set.of("是", "yes", "Y", "y", "1", "true");
     private static final Set<String> NO_VALUES = Set.of("否", "no", "N", "n", "0", "false", "");
 
@@ -121,7 +144,11 @@ public class WarehouseImportPolicy {
         result.type = type;
 
         String province = stringAt(cells, COL_PROVINCE).trim();
-        if (province.isEmpty()) errors.add("省份不能为空");
+        if (province.isEmpty()) {
+            errors.add("省份不能为空");
+        } else if (!PROVINCE_VALUES.contains(province)) {
+            errors.add("省份格式错误，请从下拉框中选择有效省份，实际: " + province);
+        }
         result.province = province;
 
         String address = stringAt(cells, COL_ADDRESS).trim();

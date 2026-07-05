@@ -41,21 +41,22 @@ class WarehouseImportTemplateWriterTest {
     }
 
     @Test
-    @DisplayName("模板包含 6 个下拉框：仓库类型 + 所属区域 + 4 个是否类字段")
+    @DisplayName("模板包含 7 个下拉框：仓库类型 + 省份 + 所属区域 + 4 个是否类字段")
     void write_containsDropDownValidationsForEnumColumns() throws IOException {
         byte[] bytes = writer.write();
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
             Sheet sheet = wb.getSheet("仓库导入模板");
             List<? extends DataValidation> validations = sheet.getDataValidations();
 
-            // 期望 6 个下拉框，分别在第 1/5/15/17/19/21 列（0-based）
+            // 期望 7 个下拉框，分别在第 1/2/5/15/17/19/21 列（0-based）
             // COL_TYPE=1（仓库类型：自营/云仓）
+            // COL_PROVINCE=2（所在省份：34 个省级行政区）
             // COL_REGION=5（所属区域：华北/东北/华东/华中/华南/西北/西南）
             // COL_HAS_PROPERTY_CERT=15（是否有产权证：是/否）
             // COL_HAS_INVOICE=17（是否有发票：是/否）
             // COL_HAS_PHOTOS=19（是否有仓库照片：是/否）
             // COL_HAS_LEASE_CONTRACT=21（是否有租赁合同：是/否）
-            assertThat(validations).hasSize(6);
+            assertThat(validations).hasSize(7);
 
             List<Integer> validatedCols = validations.stream()
                     .map(v -> v.getRegions().getCellRangeAddresses())
@@ -64,7 +65,7 @@ class WarehouseImportTemplateWriterTest {
                     .sorted()
                     .boxed()
                     .toList();
-            assertThat(validatedCols).containsExactlyInAnyOrder(1, 5, 15, 17, 19, 21);
+            assertThat(validatedCols).containsExactlyInAnyOrder(1, 2, 5, 15, 17, 19, 21);
         }
     }
 
@@ -78,6 +79,28 @@ class WarehouseImportTemplateWriterTest {
             assertThat(regionValidation).isNotNull();
             String[] options = regionValidation.getValidationConstraint().getExplicitListValues();
             assertThat(options).containsExactlyInAnyOrder("华北", "东北", "华东", "华中", "华南", "西北", "西南");
+        }
+    }
+
+    @Test
+    @DisplayName("所在省份下拉框选项为 34 个省级行政区")
+    void write_provinceColumnDropDownContainsProvinces() throws IOException {
+        byte[] bytes = writer.write();
+        try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
+            Sheet sheet = wb.getSheet("仓库导入模板");
+            DataValidation provinceValidation = findValidationForColumn(sheet, 2);
+            assertThat(provinceValidation).isNotNull();
+            String[] options = provinceValidation.getValidationConstraint().getExplicitListValues();
+            assertThat(options).containsExactlyInAnyOrder(
+                    "北京市", "天津市", "上海市", "重庆市",
+                    "河北省", "山西省", "辽宁省", "吉林省", "黑龙江省",
+                    "江苏省", "浙江省", "安徽省", "福建省", "江西省", "山东省",
+                    "河南省", "湖北省", "湖南省", "广东省", "海南省",
+                    "四川省", "贵州省", "云南省", "陕西省", "甘肃省", "青海省",
+                    "台湾省",
+                    "内蒙古自治区", "广西壮族自治区", "西藏自治区", "宁夏回族自治区", "新疆维吾尔自治区",
+                    "香港特别行政区", "澳门特别行政区"
+            );
         }
     }
 

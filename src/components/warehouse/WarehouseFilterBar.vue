@@ -6,18 +6,18 @@
           <el-input v-model="localFilters.keyword" placeholder="仓库名称/地址/联系人" clearable style="width:150px" @keyup.enter="handleSearch" @input="onKeywordInput" />
         </el-form-item>
         <el-form-item label="仓库类型">
-          <el-select v-model="localFilters.types" multiple collapse-tags collapse-tags-tooltip placeholder="全部" clearable style="width:120px">
+          <el-select v-model="localFilters.types" multiple collapse-tags collapse-tags-tooltip :max-collapse-tags="1" placeholder="全部" clearable style="width:150px">
             <el-option label="自营" value="SELF_OPERATED" />
             <el-option label="云仓" value="CLOUD" />
           </el-select>
         </el-form-item>
         <el-form-item label="所属区域">
-          <el-select v-model="localFilters.regions" multiple collapse-tags collapse-tags-tooltip placeholder="全部" clearable style="width:140px">
+          <el-select v-model="localFilters.regions" multiple collapse-tags collapse-tags-tooltip :max-collapse-tags="1" placeholder="全部" clearable style="width:170px">
             <el-option v-for="r in REGION_OPTIONS" :key="r" :label="r" :value="r" />
           </el-select>
         </el-form-item>
         <el-form-item label="仓库状态">
-          <el-select v-model="localFilters.statuses" multiple collapse-tags collapse-tags-tooltip placeholder="全部" clearable style="width:140px">
+          <el-select v-model="localFilters.statuses" multiple collapse-tags collapse-tags-tooltip :max-collapse-tags="1" placeholder="全部" clearable style="width:170px">
             <el-option label="使用中" value="IN_USE" />
             <el-option label="即将到期" value="EXPIRING" />
             <el-option label="已到期" value="EXPIRED" />
@@ -25,7 +25,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="所在省份">
-          <el-select v-model="localFilters.provinces" multiple collapse-tags collapse-tags-tooltip placeholder="全部" clearable filterable style="width:160px">
+          <el-select v-model="localFilters.provinces" multiple collapse-tags collapse-tags-tooltip :max-collapse-tags="1" placeholder="全部" clearable filterable style="width:190px">
             <el-option v-for="p in PROVINCE_OPTIONS" :key="p" :label="p" :value="p" />
           </el-select>
         </el-form-item>

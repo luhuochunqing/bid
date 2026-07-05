@@ -115,7 +115,7 @@ class WarehouseImportPolicyTest {
         String[] cells = new String[WarehouseImportPolicy.EXPECTED_COL_COUNT];
         cells[COL_NAME] = "测试仓库";
         cells[COL_TYPE] = "自营";
-        cells[COL_PROVINCE] = "上海";
+        cells[COL_PROVINCE] = "上海市";
         cells[COL_ADDRESS] = "测试地址";
         cells[COL_AREA] = "100";
         cells[COL_REGION] = "华东";
@@ -144,7 +144,7 @@ class WarehouseImportPolicyTest {
         String[] cells = new String[WarehouseImportPolicy.EXPECTED_COL_COUNT];
         cells[COL_NAME] = "测试仓库";
         cells[COL_TYPE] = "自营";
-        cells[COL_PROVINCE] = "上海";
+        cells[COL_PROVINCE] = "上海市";
         cells[COL_ADDRESS] = "测试地址";
         cells[COL_AREA] = "100";
         cells[COL_REGION] = "华东";
@@ -164,5 +164,48 @@ class WarehouseImportPolicyTest {
     void templateHeadersContainsLeaseContract() {
         assertThat(WarehouseImportPolicy.TEMPLATE_HEADERS).contains("是否有租赁合同", "租赁合同附件");
         assertThat(WarehouseImportPolicy.EXPECTED_COL_COUNT).isEqualTo(24);
+    }
+
+    @Test
+    @DisplayName("parseRow 对非法省份返回白名单错误")
+    void parseRowRejectsInvalidProvince() {
+        String[] cells = new String[WarehouseImportPolicy.EXPECTED_COL_COUNT];
+        cells[COL_NAME] = "测试仓库";
+        cells[COL_TYPE] = "自营";
+        cells[COL_PROVINCE] = "华东";
+        cells[COL_ADDRESS] = "测试地址";
+        cells[COL_AREA] = "100";
+        cells[COL_REGION] = "华东";
+        cells[COL_CONTACT] = "张三";
+        cells[COL_START_DATE] = "2026-07-03";
+        cells[COL_END_DATE] = "2026-12-31";
+        cells[COL_LESSOR] = "出租方A";
+        cells[COL_LESSEE] = "承租方B";
+        cells[COL_HAS_LEASE_CONTRACT] = "是";
+        cells[COL_LEASE_CONTRACT_FILE] = "合同.pdf";
+        WarehouseImportRow row = WarehouseImportPolicy.parseRow(2, cells);
+        assertThat(row.errors).anyMatch(e -> e.contains("省份") && e.contains("格式错误"));
+    }
+
+    @Test
+    @DisplayName("parseRow 接受 34 个省级行政区之一的省份")
+    void parseRowAcceptsValidProvince() {
+        String[] cells = new String[WarehouseImportPolicy.EXPECTED_COL_COUNT];
+        cells[COL_NAME] = "测试仓库";
+        cells[COL_TYPE] = "自营";
+        cells[COL_PROVINCE] = "北京市";
+        cells[COL_ADDRESS] = "测试地址";
+        cells[COL_AREA] = "100";
+        cells[COL_REGION] = "华东";
+        cells[COL_CONTACT] = "张三";
+        cells[COL_START_DATE] = "2026-07-03";
+        cells[COL_END_DATE] = "2026-12-31";
+        cells[COL_LESSOR] = "出租方A";
+        cells[COL_LESSEE] = "承租方B";
+        cells[COL_HAS_LEASE_CONTRACT] = "是";
+        cells[COL_LEASE_CONTRACT_FILE] = "合同.pdf";
+        WarehouseImportRow row = WarehouseImportPolicy.parseRow(2, cells);
+        assertThat(row.errors).noneMatch(e -> e.contains("省份"));
+        assertThat(row.province).isEqualTo("北京市");
     }
 }
