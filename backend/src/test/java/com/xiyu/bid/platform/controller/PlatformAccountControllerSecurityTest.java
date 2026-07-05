@@ -27,12 +27,15 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.web.servlet.MockMvc;
 
+import org.springframework.mock.web.MockMultipartFile;
+
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -254,6 +257,89 @@ class PlatformAccountControllerSecurityTest {
         mockMvc.perform(put("/api/platform/accounts/1")
                         .contentType("application/json")
                         .content("{\"username\":\"u\",\"password\":\"p\",\"accountName\":\"n\",\"platformType\":\"GOV_PROCUREMENT\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    // ── 批量导入接口权限边界（与类级 hasAuthority('resource') 对齐） ──
+    // 下载模板/触发导入/查询任务状态/查询任务历史，均改为 hasAuthority('resource')
+    // 带 resource 权限的用户通过 Controller 层，无 resource 权限被拦截
+
+    @Test
+    @DisplayName("bid-Team（带 resource 权限）可以下载批量导入模板")
+    @WithMockUser(authorities = {"bid-Team", "ROLE_BID_TEAM", "resource"})
+    void bidTeam_GET_template_shouldReturn200() throws Exception {
+        when(importAppService.generateTemplate()).thenReturn(new byte[]{});
+
+        mockMvc.perform(get("/api/platform/accounts/template"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("已登录但无 resource 权限的用户下载模板被拦截（403）")
+    @WithMockUser(authorities = {"bid-Team", "ROLE_BID_TEAM"})
+    void noResourceAuthority_GET_template_shouldReturn403() throws Exception {
+        mockMvc.perform(get("/api/platform/accounts/template"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("bid-Team（带 resource 权限）可以触发批量导入")
+    @WithMockUser(authorities = {"bid-Team", "ROLE_BID_TEAM", "resource"})
+    void bidTeam_POST_import_shouldReturn202() throws Exception {
+        when(userRepository.findByUsername(any())).thenReturn(Optional.of(
+                User.builder().id(5L).username("bid_specialist").role(User.Role.MANAGER).build()));
+        when(importAppService.triggerImport(any(), any(), eq(5L))).thenReturn(1L);
+
+        MockMultipartFile file = new MockMultipartFile("file", "test.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", new byte[]{});
+        mockMvc.perform(multipart("/api/platform/accounts/import").file(file))
+                .andExpect(status().isAccepted());
+    }
+
+    @Test
+    @DisplayName("已登录但无 resource 权限的用户触发导入被拦截（403）")
+    @WithMockUser(authorities = {"bid-Team", "ROLE_BID_TEAM"})
+    void noResourceAuthority_POST_import_shouldReturn403() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "test.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", new byte[]{});
+        mockMvc.perform(multipart("/api/platform/accounts/import").file(file))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("bid-Team（带 resource 权限）可以查询导入任务状态")
+    @WithMockUser(authorities = {"bid-Team", "ROLE_BID_TEAM", "resource"})
+    void bidTeam_GET_importTask_shouldReturn200() throws Exception {
+        when(importAppService.getTask(eq(1L))).thenReturn(
+                new com.xiyu.bid.platform.infrastructure.persistence.entity.PlatformAccountImportTaskEntity());
+
+        mockMvc.perform(get("/api/platform/accounts/import/tasks/1"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("已登录但无 resource 权限的用户查询任务状态被拦截（403）")
+    @WithMockUser(authorities = {"bid-Team", "ROLE_BID_TEAM"})
+    void noResourceAuthority_GET_importTask_shouldReturn403() throws Exception {
+        mockMvc.perform(get("/api/platform/accounts/import/tasks/1"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("bid-Team（带 resource 权限）可以查询导入任务历史")
+    @WithMockUser(authorities = {"bid-Team", "ROLE_BID_TEAM", "resource"})
+    void bidTeam_GET_importTasks_shouldReturn200() throws Exception {
+        when(userRepository.findByUsername(any())).thenReturn(Optional.of(
+                User.builder().id(5L).username("bid_specialist").role(User.Role.MANAGER).build()));
+        when(importAppService.listTasks(eq(5L))).thenReturn(java.util.List.of());
+
+        mockMvc.perform(get("/api/platform/accounts/import/tasks"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("已登录但无 resource 权限的用户查询任务历史被拦截（403）")
+    @WithMockUser(authorities = {"bid-Team", "ROLE_BID_TEAM"})
+    void noResourceAuthority_GET_importTasks_shouldReturn403() throws Exception {
+        mockMvc.perform(get("/api/platform/accounts/import/tasks"))
                 .andExpect(status().isForbidden());
     }
 }

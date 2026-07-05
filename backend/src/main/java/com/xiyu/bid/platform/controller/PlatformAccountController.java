@@ -192,7 +192,7 @@ public class PlatformAccountController {
 
     /** 下载批量导入模板 */
     @GetMapping("/template")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('resource')")
     public ResponseEntity<byte[]> downloadTemplate() throws IOException {
         byte[] template = importAppService.generateTemplate();
         String filename = URLEncoder.encode("平台账户导入模板.xlsx", StandardCharsets.UTF_8);
@@ -205,7 +205,7 @@ public class PlatformAccountController {
 
     /** 触发批量导入，返回 taskId */
     @PostMapping("/import")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('resource')")
     public ResponseEntity<ApiResponse<?>> importAccounts(
             @RequestParam("file") MultipartFile file,
             @AuthenticationPrincipal UserDetails currentUser) throws IOException {
@@ -218,7 +218,7 @@ public class PlatformAccountController {
 
     /** 查询导入任务状态 */
     @GetMapping("/import/tasks/{taskId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('resource')")
     public ResponseEntity<ApiResponse<PlatformAccountImportTaskEntity>> getImportTask(
             @PathVariable Long taskId) {
         PlatformAccountImportTaskEntity task = importAppService.getTask(taskId);
@@ -228,7 +228,7 @@ public class PlatformAccountController {
 
     /** 查询导入任务历史 */
     @GetMapping("/import/tasks")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAuthority('resource')")
     public ResponseEntity<ApiResponse<List<PlatformAccountImportTaskEntity>>> listImportTasks(
             @AuthenticationPrincipal UserDetails currentUser) {
         User user = resolveUser(currentUser);
