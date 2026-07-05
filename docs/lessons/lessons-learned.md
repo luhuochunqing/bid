@@ -2427,3 +2427,200 @@ void co469_exportFullFlow_endToEnd() {
 - §23 — 全链路日志排查 SOP（Round 7 使用 Layer 3 git 追溯定位根因）
 - §38 — Collectors.toMap 三层失效（Round 4 同类问题）
 - §17 — Bug 修复前必须先验证实际行为（Round 1 如果先验证全链路就不会只修表层）
+
+---
+
+## 42. CO-469 第八轮：MySQL JSON 字段 + `List.toString()` 反序列化失败导致 `failImportTask` 二次异常被吞（2026-07-06）
+
+### 事故背景
+
+用户反馈"批量导入人员又出问题了 一直卡主 无法导入"，距第七轮修复（PR !1684）仅 2 天。明确是复发：前 7 轮 PR 都已合入，理论上应彻底解决。
+
+### 根因三层链
+
+| 层 | 现象 | 根因 |
+|----|------|------|
+| L1（最表层） | 任务状态永久停在 `PROCESSING/5%`，前端轮询一直显示"正在解析Excel文件..." | `failImportTask` 没有更新任务状态 |
+| L2（中间层） | `failImportTask` 的 `importTaskRepository.save(updated)` 抛 `DataIntegrityViolationException`，被 `SimpleAsyncUncaughtExceptionHandler` 吞掉 | `error_details` 字段写入非法 JSON |
+| L3（最深根因） | MySQL `cast(? as json)` 失败 | `serializeErrorDetails` 用 `List.toString()` 输出 `[ImportErrorDetail[sheetName=...]]`，**不是合法 JSON**（缺 `{}` 和 `""`） |
+
+### 后端日志铁证
+
+```
+DataIntegrityViolationException: Invalid JSON text: "Invalid value" in position 0
+SQL: insert into personnel_import_task ... error_details=cast(? as json) ...
+Caused by: java.sql.SQLException: Invalid JSON text: "Invalid value" in position 0
+```
+
+### 复发 trigger 分析（**不是** CO-505 引入，**不是** 第七轮引入）
+
+- 初始 commit `c6c326341` 的 `serializeErrorDetails` 就用了 `List.toString()`，代码注释自写"简化实现，后续可换成 Jackson"
+- CO-469 前 7 轮只修了**正常路径**（`errorDetails` 为空时返回 `"[]"` 合法 JSON）
+- CO-505（日期格式统一）的 `CommonDateParser.parseAdaptive` 失败返回 null，**不抛异常**，不会触发 `failImportTask`
+- **真正的 trigger**：用户上传某个 xlsx，在 `excelImporter.importFromStream` 阶段抛 `RuntimeException`，进入 `catch (IOException | RuntimeException | Error)` 调 `failImportTask`，触发 `save()` 写入非法 JSON → `DataIntegrityViolationException` 被吞 → 任务永卡 5%
+
+### 为什么 7 轮都没发现
+
+| 原因 | 具体表现 |
+|------|---------|
+| 正常路径掩盖 bug | 当 xlsx 解析成功（无异常）时，`errorDetails` 为空，`serializeErrorDetails` 返回 `"[]"` 合法 JSON，bug 不暴露 |
+| 测试覆盖盲区 | 前 7 轮的测试只覆盖"导入成功"和"导入有 validation errors（不抛异常）"路径，**没有覆盖"importFromStream 抛 RuntimeException → failImportTask → save 抛异常"链路** |
+| SimpleAsyncUncaughtExceptionHandler 默认吞异常 | Spring Boot 默认 `AsyncUncaughtExceptionHandler` 仅 `log.error`，但日志层级 WARN + 生产 Sentry 关闭 → 异常完全不可见 |
+| 日志字段名误导 | `DataIntegrityViolationException` 的 message 是"Invalid JSON text"，**不是** "List.toString() is not JSON"，需深入 SQL 才能看出是 `cast(? as json)` 失败 |
+| `List.toString()` 是 JDK 原生方法 | 不抛任何警告，IDE 也不会提示，肉眼扫代码容易跳过 |
+
+### 修复方案：三层防御
+
+**L1：用 Jackson 替代 `List.toString()`**（根因修复）
+
+```java
+private static final ObjectMapper ERROR_DETAIL_MAPPER = new ObjectMapper();
+
+private String serializeErrorDetails(List<ImportErrorDetail> details) {
+    if (details == null || details.isEmpty()) return "[]";
+    try {
+        return ERROR_DETAIL_MAPPER.writeValueAsString(details);
+    } catch (JsonProcessingException e) {
+        log.warn("序列化 ImportErrorDetail 失败，降级为空数组: {}", e.getMessage());
+        return "[]";
+    }
+}
+```
+
+**L2：`failImportTask` 加防御性 try/catch + 降级**（防二次异常吞掉）
+
+```java
+private void failImportTask(Long taskId, String errorMessage) {
+    PersonnelImportTask task = null;
+    try {
+        task = importTaskRepository.findById(taskId).orElse(null);
+    } catch (RuntimeException findException) {
+        log.warn("failImportTask findById 失败: taskId={}", taskId, findException);
+    }
+    if (task == null) {
+        safeClearProgress(taskId);
+        return;
+    }
+
+    List<ImportErrorDetail> errors = List.of(new ImportErrorDetail(
+            "系统", null, null, null, errorMessage
+    ));
+
+    PersonnelImportTask updated = new PersonnelImportTask(/* ... */);
+
+    try {
+        importTaskRepository.save(updated);
+    } catch (RuntimeException saveException) {
+        log.error("failImportTask save 失败，降级到 updateStatus: taskId={}", taskId, saveException);
+        try {
+            importTaskRepository.updateStatus(taskId, ImportTaskStatus.FAILED.name());
+        } catch (RuntimeException fallbackException) {
+            log.error("failImportTask updateStatus 兜底也失败: taskId={}", taskId, fallbackException);
+        }
+    }
+    safeClearProgress(taskId);
+}
+```
+
+**L3：历史脏数据兼容**（`deserializeErrorDetails` 加 try/catch 返回空列表）
+
+```java
+private List<ImportErrorDetail> deserializeErrorDetails(String json) {
+    if (json == null || json.isBlank() || "[]".equals(json)) {
+        return List.of();
+    }
+    try {
+        ImportErrorDetail[] array = ERROR_DETAIL_MAPPER.readValue(json, ImportErrorDetail[].class);
+        return List.of(array);
+    } catch (JsonProcessingException e) {
+        log.warn("反序列化 ImportErrorDetail 失败，返回空列表: {}", e.getMessage());
+        return List.of();
+    }
+}
+```
+
+### 防复发机制（CI 守卫）
+
+**测试守卫：JSON 合法性断言**（核心）
+
+```java
+@Test
+void serializeErrorDetails_特殊字符_必须输出合法JSON_等价于MySQL校验() {
+    // given
+    List<ImportErrorDetail> details = List.of(new ImportErrorDetail(
+            "人员", null, null, null, "包含\"引号\"和{大括号}"
+    ));
+    // when
+    String json = adapter.serializeErrorDetails(details);
+    // then
+    // 等价于 MySQL cast(? as json) 校验
+    JsonSchemaValidator validator = new JsonSchemaValidator();
+    assertThatNoException().isThrownBy(() -> validator.readTree(json));
+}
+```
+
+如果未来有人把 `serializeErrorDetails` 改回 `List.toString()`，这个测试会立即在 CI 阶段失败。
+
+### 系统性教训
+
+| 教训 | 具体表现 | 规范 |
+|------|---------|------|
+| **JDK 原生方法不等于业务正确** | `List.toString()` 是 JDK 方法，但输出格式不是 JSON | 写入 MySQL JSON 字段前必须用 Jackson/Gson 等专业库，禁止 `toString()` |
+| **MySQL JSON 字段是契约，不是字符串** | `columnDefinition = "JSON"` + `@JdbcTypeCode(SqlTypes.JSON)` 在 SQL 层做 `cast(? as json)` 校验 | 任何写入 JSON 字段的数据必须经过 JSON 序列化器，禁止直接 `String` 拼接或 `toString()` |
+| **`failImportTask` 自身必须容错** | save 抛异常被 SimpleAsyncUncaughtExceptionHandler 吞掉，状态永卡 PROCESSING | **失败处理函数不能抛异常**——任何 save 失败必须有降级路径（如 `updateStatus(FAILED)`） |
+| **`@Async` 方法的所有下游调用都必须容错** | failImportTask 是 executeImportAsync 的下游，自身异常会层层吞掉 | `@Async` 方法的所有下游方法（包括 catch 块中的 failXxx）必须自带 try/catch + 降级 |
+| **测试必须覆盖异常路径，不只是正常路径** | 前 7 轮测试只覆盖正常路径，bug 在异常路径潜伏 7 轮 | 凡是 `catch` 块中调用的方法（failImportTask/handleError 等），必须有专门的测试覆盖该方法自身抛异常的场景 |
+| **代码注释"后续可换成 Jackson"是隐形 bug** | 初始 commit 自写"简化实现，后续可换成 Jackson" | 禁止写"后续可换成 X"的注释——要么立即正确实现，要么写 TODO + 在 issue tracker 登记 |
+
+### 验证命令
+
+```bash
+# 验证 serializeErrorDetails 输出合法 JSON（等价于 MySQL cast(? as json) 校验）
+cd backend && mvn test -Dtest=PersonnelImportTaskRepositoryAdapterTest
+
+# 验证 failImportTask 降级路径
+cd backend && mvn test -Dtest=ImportPersonnelAppServiceTest
+
+# 全仓扫描 List.toString() 写入 JSON 字段的隐患
+grep -rn "columnDefinition.*JSON" backend/src/main/java | awk -F: '{print $1}' | sort -u | \
+  while read f; do
+    grep -n "toString()" "$f" 2>/dev/null
+  done
+```
+
+### 关键文件
+
+- `backend/.../PersonnelImportTaskRepositoryAdapter.java` — 序列化/反序列化（L1 + L3 修复）
+- `backend/.../ImportPersonnelAppService.java` — `failImportTask` try/catch 降级（L2 修复）
+- `backend/.../PersonnelImportTaskEntity.java` — `@JdbcTypeCode(SqlTypes.JSON)` + `columnDefinition = "JSON"` 实体定义
+- `backend/.../ImportErrorDetail.java` — record，默认 `toString()` 不是 JSON
+- `backend/.../PersonnelImportTaskRepositoryAdapterTest.java` — JSON 合法性断言（防复发守卫）
+- `backend/.../ImportPersonnelAppServiceTest.java` — `failImportTask` 降级路径测试
+
+### 相关 PR
+
+- PR !1736 — CO-469 第八轮修复（commit `da755ce28`）
+
+### 相关 SOP
+
+- §41 — CO-469 七轮修复全记录（前 7 轮根因总结，本次复发是 §41 §"诚实评估：能否保证不复发"已预言的"L1/L2/L3/L5/L7 尚未实现"导致）
+- §17 — Bug 修复前必须先验证实际行为（本次先查后端日志铁证，避免推测式修复）
+- §23 — 全链路日志排查 SOP（使用 Layer 3 git 追溯定位初始 commit c6c326341）
+
+### 诚实评估：本次能否保证不复发
+
+**仍不能 100% 保证。** 三层防御已落地：
+- L1（Jackson 序列化）：**已实现**，根因消除
+- L2（failImportTask try/catch 降级）：**已实现**，二次异常不再被吞
+- L3（历史脏数据兼容）：**已实现**，反序列化失败不抛异常
+- **测试守卫**（JSON 合法性断言）：**已实现**，CI 阶段拦截 `List.toString()` 回归
+
+**仍存在的复发风险**：
+1. 其他模块（如 brand-auth / project 等）若有类似 `MySQL JSON 字段 + toString()` 写入，本 PR 不覆盖——需全仓审计
+2. `failImportTask` 自身降级到 `updateStatus` 也失败时，只能 log.error，状态仍卡 PROCESSING（极端情况）
+3. 没有端到端测试覆盖"上传异常 xlsx → 触发 failImportTask → 验证状态最终落库为 FAILED"
+
+**优先级建议**：
+- P1：全仓审计所有 `columnDefinition = "JSON"` 的 entity，检查写入路径是否用了 `toString()`
+- P2：为 brand-auth / project 模块的导入服务补类似 L1/L2/L3 防御
+- P3：补端到端测试覆盖"异常 xlsx 触发 failImportTask"完整链路
