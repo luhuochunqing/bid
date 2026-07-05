@@ -16,7 +16,7 @@ export const CUSTOMER_TYPE_MAP = {
 export const PROJECT_TYPE_MAP = {
   OFFICE: '办公',
   COMPREHENSIVE: '综合',
-  CENTRALIZED: '集采',
+  COLLECTIVE: '集采',
   INDUSTRIAL: '工业品',
   OTHER: '其他'
 }

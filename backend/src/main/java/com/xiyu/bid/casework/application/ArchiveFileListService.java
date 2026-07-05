@@ -12,6 +12,7 @@ import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -41,10 +42,13 @@ import static java.util.stream.Collectors.toSet;
  * 在 archive 数量大时会产生性能问题。应改为 JOIN 查询 + Specification + Pageable 下推到 DB。
  * 触发条件：当 getRawArchives 返回超过 100 条 archive 时，建议优先完成此优化。
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class ArchiveFileListService {
+
+    private static final int ARCHIVE_COUNT_WARN_THRESHOLD = 100;
 
     private final ProjectArchiveWorkflowService workflowService;
     private final ArchiveFileRepository fileRepository;
@@ -58,6 +62,9 @@ public class ArchiveFileListService {
         List<ProjectArchive> archives = workflowService.getRawArchives(query);
         if (archives.isEmpty()) {
             return Page.empty(pageable);
+        }
+        if (archives.size() > ARCHIVE_COUNT_WARN_THRESHOLD) {
+            log.warn("ArchiveFileList 查询返回 {} 条 archive 超过阈值 {}，建议迁移到 DB 级分页", archives.size(), ARCHIVE_COUNT_WARN_THRESHOLD);
         }
 
         Map<Long, ProjectArchive> archiveById = archives.stream()
