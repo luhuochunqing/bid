@@ -78,7 +78,13 @@
       @submitted="handleSubmitted"
     />
     <WarehouseDrawer v-model="drawerVisible" :warehouse-id="detailId" @edit="handleDrawerEdit" />
-    <WarehouseExportDialog v-model="exportVisible" :filters="exportFilters" :mode="exportMode" :selected-ids="selectedRowIds" />
+    <WarehouseExportDialog
+      v-model="exportVisible"
+      :filter="filters"
+      :filter-count="total"
+      :selected-ids="selectedRowIds"
+      :default-scope="selectedRowIds.length > 0 ? 'ids' : 'filter'"
+    />
     <WarehouseImportDialog v-model="importVisible" @imported="handleImported" @download-template="handleDownloadTemplate" />
     <WarehouseLedgerExportDialog
       v-model="ledgerExportVisible"
@@ -118,8 +124,6 @@ const ledgerExportVisible = ref(false)
 const allInUseCount = ref(0)
 const selectedRows = ref([])
 const selectedRowIds = ref([])
-const exportMode = ref('filter')
-const exportFilters = ref({})
 const newlyCreatedIds = ref(new Set())
 
 const filters = ref({})
