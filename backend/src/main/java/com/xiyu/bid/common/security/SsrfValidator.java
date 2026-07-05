@@ -9,6 +9,13 @@ import java.util.Locale;
  *
  * <p>允许：HTTP/HTTPS、任意公网域名、loopback、内网 IP（10/172.16/192.168）。
  * <p>禁止：云元数据地址（169.254.0.0/16）、0.0.0.0/8、240.0.0.0/4、广播地址、URL userinfo。
+ *
+ * <p><b>已知简化范围：</b>
+ * <ul>
+ *   <li>不防 DNS rebinding（DNS 解析后 IP 可能变化）</li>
+ *   <li>不防基于 DNS 的元数据端点（如 metadata.google.internal）</li>
+ *   <li>不防非标准 IPv4 格式（如 0x7f.0.0.1 十六进制、2130706433 十进制单整数）</li>
+ * </ul>
  */
 public final class SsrfValidator {
 
@@ -54,10 +61,19 @@ public final class SsrfValidator {
             return;
         }
         if (isIpv6Literal(host)) {
-            validateIpv6(host);
+            // URI.getHost() 对 IPv6 返回带方括号的格式（如 [fe80::1]），先剥掉
+            String bareHost = stripIpv6Brackets(host);
+            validateIpv6(bareHost);
             return;
         }
         // 域名：不做白名单限制
+    }
+
+    private static String stripIpv6Brackets(String host) {
+        if (host.startsWith("[") && host.endsWith("]")) {
+            return host.substring(1, host.length() - 1);
+        }
+        return host;
     }
 
     private static boolean isIpv4Literal(String host) {
@@ -102,10 +118,36 @@ public final class SsrfValidator {
         if (compressed.equals("::")) {
             throw new IllegalArgumentException("自定义 Provider baseUrl 不允许指向该地址（未指定地址）");
         }
-        if (compressed.startsWith("fe80:") || compressed.startsWith("fe9") || compressed.startsWith("fea") || compressed.startsWith("feb")) {
+        if (compressed.startsWith("fe8") || compressed.startsWith("fe9")
+                || compressed.startsWith("fea") || compressed.startsWith("feb")) {
             throw new IllegalArgumentException("自定义 Provider baseUrl 不允许指向该地址（link-local）");
         }
+        // 检查 IPv4-mapped IPv6 地址（如 ::ffff:169.254.169.254）
+        String embeddedIpv4 = extractEmbeddedIpv4(compressed);
+        if (embeddedIpv4 != null) {
+            validateIpv4(embeddedIpv4);
+        }
         // 允许 ::1 loopback、fc00::/7 ULA、公网 IPv6
+    }
+
+    private static String extractEmbeddedIpv4(String ipv6Host) {
+        // ::ffff:a.b.c.d 或 ::a.b.c.d 形式
+        int lastColon = ipv6Host.lastIndexOf(':');
+        if (lastColon < 0) return null;
+        String tail = ipv6Host.substring(lastColon + 1);
+        if (!tail.contains(".")) return null;
+        // 校验 tail 是合法 IPv4 字面量
+        String[] parts = tail.split("\\.");
+        if (parts.length != 4) return null;
+        for (String part : parts) {
+            try {
+                int octet = Integer.parseInt(part);
+                if (octet < 0 || octet > 255) return null;
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return tail;
     }
 
     private static long parseIpv4ToLong(String host) {

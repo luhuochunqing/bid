@@ -107,4 +107,38 @@ class SsrfValidatorTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("host");
     }
+
+    @Test
+    void shouldRejectUnspecifiedIpv6() {
+        assertThatThrownBy(() -> SsrfValidator.validate("http://[::]/v1/chat/completions"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("不允许指向该地址");
+    }
+
+    @Test
+    void shouldRejectLinkLocalIpv6() {
+        assertThatThrownBy(() -> SsrfValidator.validate("http://[fe80::1]/v1/chat/completions"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void shouldRejectLinkLocalIpv6Fe81() {
+        // fe81:: 也属于 fe80::/10 link-local 范围
+        assertThatThrownBy(() -> SsrfValidator.validate("http://[fe81::1]/v1/chat/completions"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void shouldAcceptLoopbackIpv6() {
+        assertThatCode(() -> SsrfValidator.validate("http://[::1]:11434/v1/chat/completions"))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void shouldRejectIpv4MappedCloudMetadata() {
+        // IPv4-mapped IPv6: ::ffff:169.254.169.254 应该被识别为云元数据并拒绝
+        assertThatThrownBy(() -> SsrfValidator.validate("http://[::ffff:169.254.169.254]/v1/chat/completions"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("不允许指向该地址");
+    }
 }
