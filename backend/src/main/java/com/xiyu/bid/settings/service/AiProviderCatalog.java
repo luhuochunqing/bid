@@ -1,5 +1,6 @@
 package com.xiyu.bid.settings.service;
 
+import com.xiyu.bid.common.security.SsrfValidator;
 import com.xiyu.bid.settings.dto.SettingsResponse;
 import org.springframework.stereotype.Component;
 
@@ -13,6 +14,8 @@ import java.util.Set;
 public class AiProviderCatalog {
 
     private static final String DEFAULT_ACTIVE_PROVIDER = "deepseek";
+
+    public static final String CUSTOM_PROVIDER_CODE = "custom";
 
     private final Map<String, AiProviderDefinition> providers = Map.of(
             "openai", new AiProviderDefinition(
@@ -46,10 +49,18 @@ public class AiProviderCatalog {
                     "doubao-1-5-pro-32k-250115",
                     List.of("ARK_API_KEY", "DOUBAO_API_KEY", "VOLCENGINE_API_KEY"),
                     Set.of("ark.cn-beijing.volces.com")
+            ),
+            "custom", new AiProviderDefinition(
+                    "custom",
+                    "自定义",
+                    null,
+                    "",
+                    List.of(),
+                    Set.of()
             )
     );
 
-    private final List<String> providerOrder = List.of("openai", "deepseek", "qwen", "doubao");
+    private final List<String> providerOrder = List.of("openai", "deepseek", "qwen", "doubao", "custom");
 
     public String defaultActiveProvider() {
         return DEFAULT_ACTIVE_PROVIDER;
@@ -79,6 +90,12 @@ public class AiProviderCatalog {
     }
 
     public void validateBaseUrl(String providerCode, String baseUrl) {
+        if (isCustomProvider(providerCode)) {
+            // 自定义 Provider：走 SSRF 安全校验，允许 HTTP/HTTPS、任意域名
+            SsrfValidator.validate(baseUrl);
+            return;
+        }
+
         AiProviderDefinition provider = get(providerCode);
         URI uri;
         try {
@@ -97,6 +114,13 @@ public class AiProviderCatalog {
         if (!provider.allowedHosts().contains(normalizedHost)) {
             throw new IllegalArgumentException("AI API 地址必须匹配当前厂商的官方域名");
         }
+    }
+
+    /**
+     * 判断是否为自定义 Provider（code 等于 "custom"，不区分大小写）。
+     */
+    public static boolean isCustomProvider(String providerCode) {
+        return providerCode != null && CUSTOM_PROVIDER_CODE.equals(providerCode.trim().toLowerCase(Locale.ROOT));
     }
 
     public String normalize(String providerCode) {
