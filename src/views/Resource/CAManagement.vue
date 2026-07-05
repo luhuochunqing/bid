@@ -236,7 +236,7 @@
               </template>
             </el-table-column>
             <el-table-column label="创建时间" min-width="120">
-              <template #default="{ row }">{{ row.createdAt || '-' }}</template>
+              <template #default="{ row }"><DateTimeDisplay :value="row.createdAt" /></template>
             </el-table-column>
             <el-table-column label="操作" width="100" fixed="right">
               <template #default="{ row }">
@@ -285,7 +285,7 @@
               </template>
             </el-table-column>
             <el-table-column label="创建时间" min-width="120">
-              <template #default="{ row }">{{ row.createdAt || '-' }}</template>
+              <template #default="{ row }"><DateTimeDisplay :value="row.createdAt" /></template>
             </el-table-column>
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
@@ -353,6 +353,7 @@ import { useUserStore } from '@/stores/user'
 import { useCaStore } from '@/stores/ca'
 import { caApi } from '@/api/modules/ca'
 import { projectsApi } from '@/api'
+import DateTimeDisplay from '@/components/common/DateTimeDisplay.vue'
 import httpClient from '@/api/client'
 import { isBidManager } from '@/utils/permission'
 import { useCaBorrowEligibility, caStatusTagType, caBorrowStatusTagType } from './composables/useCaBorrowEligibility'

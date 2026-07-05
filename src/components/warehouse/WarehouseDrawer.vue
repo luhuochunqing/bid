@@ -65,7 +65,7 @@
               <template #default="s">{{ formatSize(s.row.fileSize) }}</template>
             </el-table-column>
             <el-table-column label="上传时间" width="150">
-              <template #default="s">{{ s.row.uploadedAt }}</template>
+              <template #default="s"><DateTimeDisplay :value="s.row.uploadedAt" /></template>
             </el-table-column>
             <el-table-column label="操作" width="100" align="center">
               <template #default="s">
@@ -78,7 +78,7 @@
         <el-tab-pane label="操作日志" name="logs">
           <el-table :data="logs" style="width:100%" size="small" empty-text="暂无操作记录">
             <el-table-column label="时间" width="160">
-              <template #default="s">{{ s.row.createdAt }}</template>
+              <template #default="s"><DateTimeDisplay :value="s.row.createdAt" /></template>
             </el-table-column>
             <el-table-column label="操作人" width="100">
               <template #default="s">{{ s.row.operatorUsername }}</template>
@@ -107,6 +107,7 @@ import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Upload, Edit, Lock, RefreshRight } from '@element-plus/icons-vue'
 import http from '@/api/client'
+import DateTimeDisplay from '@/components/common/DateTimeDisplay.vue'
 
 const props = defineProps({
   modelValue: Boolean,

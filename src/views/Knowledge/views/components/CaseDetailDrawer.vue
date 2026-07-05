@@ -45,7 +45,7 @@
       <div v-if="reuseHistory.length === 0" class="empty-hint">暂无复用记录</div>
       <template v-else>
         <el-timeline>
-          <el-timeline-item v-for="(r, i) in displayedReuseHistory" :key="i" :timestamp="r.time" placement="top">
+          <el-timeline-item v-for="(r, i) in displayedReuseHistory" :key="i" :timestamp="formatDisplayDateTime(r.time)" placement="top">
             <span>{{ r.referencedByName }}</span>
             <span v-if="r.referencedProjectName" class="reuse-project">{{ r.referencedProjectName }}</span>
           </el-timeline-item>
@@ -77,6 +77,7 @@
 import { ref, computed } from 'vue'
 import { Link, Document, CopyDocument } from '@element-plus/icons-vue'
 import { getProjectTypeLabel, getCustomerTypeLabel } from '../caseLabels.js'
+import { formatDisplayDateTime } from '@/utils/formatDisplayDate'
 
 const props = defineProps({
   modelValue: Boolean,
