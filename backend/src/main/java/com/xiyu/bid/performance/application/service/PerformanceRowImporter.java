@@ -7,10 +7,9 @@ import org.apache.poi.ss.usermodel.Row;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.xiyu.bid.common.domain.CommonDateParser;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,7 +31,7 @@ public class PerformanceRowImporter {
     private final CreatePerformanceAppService createService;
     private final UpdatePerformanceAppService updateService;
 
-    private static final DateTimeFormatter DTF = DateTimeFormatter.ISO_LOCAL_DATE;
+    
 
     // 列索引常量（与模板表头对齐）
     private static final int COL_CONTRACT_NAME = 0;
@@ -207,8 +206,7 @@ public class PerformanceRowImporter {
 
     private LocalDate parseDate(String s, int colIndex) {
         if (s == null || s.isBlank()) return null;
-        try { return LocalDate.parse(s, DTF); }
-        catch (DateTimeParseException e) { throw new IllegalArgumentException(colLabel(colIndex) + "日期格式错误: \"" + s + "\"，应为 YYYY-MM-DD"); }
+        return CommonDateParser.parseDayPrecisionOrThrow(s, colLabel(colIndex));
     }
 
     /** 单行导入结果：合同名、业绩 ID、本行附件文件名列表 */
