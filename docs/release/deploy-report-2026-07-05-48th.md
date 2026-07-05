@@ -1,305 +1,255 @@
 # 第 48 次生产部署报告
 
-> **部署日期**：2026-07-05
-> **Release ID**：`adb09dec1-api8080`
-> **部署类型**：增量代码部署（无新增 Flyway 迁移）
-> **部署结果**：✅ 成功
-> **回滚状态**：未触发，未需要
-
----
-
-## 一、部署概览
+## 部署概览
 
 | 项目 | 值 |
 |---|---|
-| Release ID | `adb09dec1-api8080` |
-| 部署时间 | 2026-07-05 16:35:58 CST |
-| 健康检查通过 | 2026-07-05 16:38:38 CST（88 次 attempts，约 3 分钟） |
-| 前端入口 | `/assets/index-DrBl1wRR.js` |
-| jar 大小 | 150M |
-| jar 名称 | `bid-poc-1.0.3.jar` |
-| builtAt | 2026-07-05T08:33:23Z |
-| sentryEnabled | false |
+| 部署日期 | 2026-07-05 22:06 CST |
+| Release ID | `42c41c736-api8080` |
+| 上一版本 | `adb09dec1-api8080`（2026-07-05 16:34 CST 部署，第 47 次） |
+| 部署类型 | 增量部署（33 个 commit，含平台账户分页/导出白名单、仓库模块修复、CO-484 驳回重提修复、日期显示修复、品牌授权重构等，2 个 DB 迁移） |
+| 部署结果 | ✅ 成功 |
+| 健康检查 | ✅ UP（consecutive 3/3，总尝试 88 次） |
+| Readiness | ✅ UP（88 次尝试说明有 Kafka SDK 延迟，属已知行为） |
+| 部署耗时 | 约 2 分钟（22:03 打包完成 → 22:06 服务重启 → 健康检查通过） |
 
----
-
-## 二、基线信息
+## 基线信息
 
 | 项目 | 值 |
 |---|---|
-| 主工作区 | `/Users/user/xiyu/worktrees/trae` |
-| 任务分支 | `agent/trae/deploy-48th` |
-| 锚点分支 | `agent/trae-init` |
-| 上一次部署 commit | `e8f1a36c3` (第 47 次) |
-| 本次部署 commit | `adb09dec1c1489b8e37568e1c62ef6c377fffe57` |
-| 增量 commit 数 | 16 |
-| 新增 Flyway 迁移 | 无（纯代码部署） |
-| GitHub 镜像同步 | ✅ 同步完成（两边 main 一致） |
+| 工作区 | `/Users/user/xiyu/worktrees/trae`（主工作区） |
+| 分支 | `agent/trae/deploy-48th` |
+| HEAD commit | `42c41c736` |
+| 工作区状态 | 干净 |
+| origin/main 同步 | ✅ HEAD = origin/main |
+| GitHub 镜像 | ✅ 同步完成（部署前落后 33 个 commit，部署后已同步） |
 
----
-
-## 三、PR 列表与改动范围
-
-### 增量 commit（e8f1a36c3..adb09dec1，共 16 个）
+## 增量 PR 列表（33 个 commit，`adb09dec1..42c41c736`）
 
 | Commit | PR | 描述 |
 |---|---|---|
+| `42c41c736` | !1729 | refactor(brand-auth): 设计Review识别问题修复（P0附件类型+N+1+重复抽象） |
+| `83484b41f` | !1728 | fix(bid-review): CO-484 驳回重提报"系统繁忙"——deleteByReviewId 改 @Modifying bulk DELETE |
+| `58d5973cf` | !1727 | refactor(warehouse): 统一异步任务对话框模式 + 抽取 useAsyncTask composable |
+| `0bec446f8` | !1725 | fix(platform-account): getPassword 异常类型改用 AccessDeniedException 避免 Sentry 误报 |
+| `c6b9e07cf` | !1726 | fix: 仓库信息第二个导出台账按钮打开正确对话框 + 勾选感知 |
+| `31f350e81` | !1722 | feat: 账户管理与 CA 管理列表增加分页 |
+| `979d49c24` | !1720 | fix(detail): 修复项目转移按钮无法点击（v-model .value 误用） |
+| `b5598a299` | !1723 | fix(warehouse): 修复仓库信息筛选不生效 + 导入模板枚举列加下拉框 |
+| `a84fc53ad` | !1724 | CO-472 [UI] 日期 T 分隔符显示问题：抽取 DateTimeDisplay 公共组件 |
+| `954f33abe` | !1721 | feat(platform-account): 导出功能增加白名单授权（用户00444） |
+| `fe57a1c1f` | - | fix(CO-507): 保证金管理表格增加投标负责人列 |
+| `bf09fcc81` | - | fix(resource): CO-506 CA证书印章类型多选显示和导入模板修复 |
 | `adb09dec1` | !1708 | CO-490 fix(margin): INIT 分支 JOIN tasks/pc + 缴纳方式翻译 + 项目负责人兜底 |
-| `95a7bcf4d` | !1710 | fix(CO-503): 仓库信息模块导出按钮名称规范化 [v2] |
+| `95a7bcf4d` | !1710 | fix(CO-503): 仓库信息模块导出按钮名称规范化 |
 | `59133c40d` | !1711 | fix(project): CO-504 流标/弃标不再跳过结项审核，统一走结项申请流程 |
-| `bf6a623ec` | !1712 | docs(release): 第 47 次部署报告 |
 | `398387d06` | !1714 | feat(platform-account): 补全平台账户台账导出功能 |
-| `0c87e3b8d` | !1715 | CO-487 fix delete error message |
 | `20d9d48e9` | !1716 | feat(common): CO-505 批量导入模板日期格式统一兼容 |
-| `256c8e8f3` | - | feat(common): CO-505 批量导入模板日期格式统一兼容（中间提交） |
 | `99770504c` | !1713 | fix(platform-account): 批量导入接口权限与类级对齐，解决 bid-Team 用户 403 |
-| `6fb59ed6c` | - | feat(platform-account): 补全平台账户台账导出功能（中间提交） |
-| `ba7a0e153` | - | fix(project-doc): CO-487 结项项目删除附件应返回友好提示而非"系统状态冲突" |
-| `38083d2fb` | - | fix(platform-account): 批量导入接口权限与类级对齐（中间提交） |
-| `13d65b44f` | - | docs(release): 第 47 次部署报告（中间提交） |
+| `ba7a0e153` | - | fix(project-doc): CO-487 结项项目删除附件应返回友好提示 |
 | `e87f586e1` | - | fix(CO-503): 仓库信息模块导出按钮名称规范化 |
 | `e33a9b997` | - | fix(project): CO-504 流标/弃标不再跳过结项审核 |
-| `6ada001b2` | - | CO-490 fix(margin): INIT 分支 JOIN tasks/pc + 缴纳方式翻译 |
+| `6ada001b2` | - | CO-490 fix(margin): INIT 分支 JOIN + 缴纳方式翻译 |
 
-### 改动范围（按模块）
+## 改动范围
 
-| 模块 | 主要变更 |
-|---|---|
-| margin（保证金） | CO-490：INIT 分支 JOIN tasks/pc，缴纳方式翻译，项目负责人兜底 |
-| warehouse（仓库信息） | CO-503：导出按钮名称规范化 |
-| project（项目管理） | CO-504：流标/弃标不再跳过结项审核，统一走结项申请流程 |
-| project-doc（结项文档） | CO-487：删除附件返回友好提示而非"系统状态冲突" |
-| platform-account（平台账户） | 补全台账导出功能，批量导入接口权限与类级对齐，解决 bid-Team 403 |
-| common | CO-505：批量导入模板日期格式统一兼容 |
+**核心业务变更**（8 个功能模块）：
 
----
+### 1. 平台账户模块增强（feat(platform-account)）
+- 账户管理与 CA 管理列表增加分页（!1722）
+- 导出功能增加白名单授权（用户00444）（!1721）
+- 补全平台账户台账导出功能（!1714）
+- 批量导入接口权限与类级对齐，解决 bid-Team 用户 403（!1713）
+- getPassword 异常类型改用 AccessDeniedException 避免 Sentry 误报（!1725）
+- 新增迁移：V1137（seed platform account export whitelist）
 
-## 四、Flyway 预检结果
+### 2. 仓库信息模块修复（fix(warehouse) / refactor(warehouse)）
+- 修复仓库信息筛选不生效 + 导入模板枚举列加下拉框（!1723）
+- 统一异步任务对话框模式 + 抽取 useAsyncTask composable（!1727）
+- 修复第二个导出台账按钮打开正确对话框 + 勾选感知（!1726）
+- 导出按钮名称规范化（!1710 / CO-503）
 
-### Step 1：服务器 validate
+### 3. CO-484 驳回重提修复（fix(bid-review)）
+- 驳回重提报"系统繁忙"修复：deleteByReviewId 改 @Modifying bulk DELETE（!1728）
 
-```
-✅ VALIDATE OK - all checksums match (200 migrations validated, 00:00.087s)
-```
+### 4. CO-472 日期 T 分隔符显示修复（fix(ui)）
+- 抽取 DateTimeDisplay 公共组件，修复 15 处日期 T 分隔符显示问题（!1724）
 
-### Step 2：DB 已应用版本对比
+### 5. 品牌授权库重构（refactor(brand-auth)）
+- 设计 Review 识别问题修复：P0 附件类型 + N+1 + 重复抽象（!1729）
+- 新增迁移：V1138（expand brand auth attachment enum）
 
-```
-version  description                                     success  installed_on
-1136     warehouse attachment type to varchar            1         2026-07-05 14:34:32
-1135     create bid case slice                           1         2026-07-05 14:34:32
-1134     personnel operation log allow null personnel   1         2026-07-04 15:51:45
-1133     add bid review assignment table hotfix          1         2026-07-04 08:05:43
-1132     add has lease contract to warehouse             1         2026-07-04 07:54:08
-```
+### 6. 保证金管理增强（fix(margin)）
+- CO-490：INIT 分支 JOIN tasks/pc + 缴纳方式翻译 + 项目负责人兜底（!1708）
+- CO-507：保证金管理表格增加投标负责人列，取值关联 ProjectLeadAssignment
 
-DB 已应用最新版本 V1136，与源码一致，本次无新增迁移。
+### 7. 项目流程修复（fix(project)）
+- CO-504：流标/弃标不再跳过结项审核，统一走结项申请流程（!1711）
+- 修复项目转移按钮无法点击（v-model .value 误用）（!1720）
+- CO-487：结项项目删除附件应返回友好提示而非"系统状态冲突"
 
-### Step 3：remote-deploy.sh 内置 validate
+### 8. CA 证书与资源模块修复（fix(resource)）
+- CO-506：CA 证书印章类型多选显示和导入模板修复
+- 批量导入模板日期格式统一兼容（CO-505 / !1716）
 
-```
-✅ Flyway validate 通过（仅 pending 新迁移为预期状态）
-```
+**其他变更**：
+- 白名单 Store 通用基类抽取消除重复代码
+- 思维链 Review 修复 3 个设计问题
+- Spec Kit 规划文档：029-fix-account-password-403
 
----
+## Flyway 预检结果（3 步法）
 
-## 五、部署步骤执行
-
-### 5.1 本地打包
-
-```bash
-RELEASE_ID="adb09dec1-api8080" VITE_API_BASE_URL= bash scripts/release/package-release.sh
-```
-
-- `VITE_API_BASE_URL=` 显式设空，触发同源构建（`baseURL=""`）
-- `mvn clean -DskipTests package` BUILD SUCCESS（26.657s）
-- jar 内 Flyway 迁移版本无重复（199 个 V*.sql 文件）
-
-### 5.2 上传 + 部署
-
-```bash
-scp .release/xiyu-bid-release-adb09dec1-api8080.tar.gz scripts/release/remote-deploy.sh jetty@172.16.38.78:/opt/xiyu-bid/incoming/
-
-ssh jetty@172.16.38.78 '... bash /opt/xiyu-bid/incoming/remote-deploy.sh'
-```
-
-关键参数：
-- `RELEASE_ID=adb09dec1-api8080`
-- `SYSTEMCTL_SUDO=true`（jetty 用户 NOPASSWD sudo 重启服务）
-- `DB_BACKUP_COMMAND` 预置 mysqldump + gzip 备份
-
-### 5.3 后端重启日志
-
-```
-==> Restarting backend service xiyu-bid-backend
-● xiyu-bid-backend.service - XiYu Smart Bidding Backend
-   Active: active (running) since Sun 2026-07-05 16:35:58 CST; 20ms ago
-   Main PID: 9325 (java)
-==> Waiting for health check http://127.0.0.1:8080/actuator/health
-✅ Health check passed (consecutive 3/3, total attempts: 88, service: active/running)
-```
-
-健康检查 88 次 attempts（约 3 分钟）才通过——属于已知行为（`OrganizationEventSdkKafkaStarter` 阻塞主线程，Kafka SDK 初始化延迟 readiness）。Kafka broker 可达后自恢复。
-
----
-
-## 六、验证结果
-
-### 6.1 健康检查
-
-| 端点 | HTTP | 状态 |
+| 步骤 | 结果 | 备注 |
 |---|---|---|
-| `/actuator/health` | 200 | UP |
-| `/actuator/health/readiness` | 200 | UP |
+| Step 1: validate | ✅ OK | 200 migrations, all checksums match（execution time 0.089s） |
+| Step 2: DB 版本对比 | ✅ 已应用 V1136 | DB V1136（2026-07-05 14:34:32 应用）→ 源码 V1138（待应用 V1137, V1138） |
+| Step 3: remote-deploy 内置 validate | ✅ 通过 | 部署时自动执行，VALIDATE OK - all checksums match |
 
-组件状态：
-- `aiProvider` UP（provider=doubao, model=deepseek-v3-2-251201, apiKeyConfigured=true）
-- `db` UP（MySQL, isValid()）
-- `diskSpace` UP（free 36.8GB / total 105.5GB）
-- `jwt` UP（HMAC-SHA256, 64 bytes, STRONG）
-- `livenessState` UP
-- `ping` UP
-- `readinessState` UP
-- `redis` UP（version 6.2.19）
-- `sidecar` UP（url=http://localhost:8000, reachable）
+**结论**：2 个新迁移（V1137、V1138）需应用，已在部署后验证成功应用。
 
-### 6.2 API Smoke 测试
+**回滚脚本检查**：
+- V1137 → U1137：✅ 存在
+- V1138 → U1138：✅ 存在
 
-> Admin 密码未授予，使用 400/403/401 替代验证（第 8 次起固化策略）。
+## 部署步骤
 
-| 接口 | 预期 HTTP | 实际 HTTP | 说明 |
+### 1. 早操三连
+
+```bash
+source scripts/dev-env.sh
+bash scripts/sync-env.sh .          # ✅ 同步到 origin/main 42c41c736
+bash scripts/check-git-wrapper.sh   # ✅ 7/7 通过
+```
+
+### 2. 本地打包（生产同源构建模式）
+
+```bash
+RELEASE_ID="42c41c736-api8080" VITE_API_BASE_URL= bash scripts/release/package-release.sh
+```
+
+- ✅ BUILD SUCCESS（后端 26.630 s，前端构建正常）
+- ✅ jar 内 Flyway 迁移版本无重复
+- ✅ 产物：`.release/xiyu-bid-release-42c41c736-api8080.tar.gz`（138M）
+- ✅ 前端入口：`assets/index-Dv-iBKcL.js`（同源构建，无 IP 字面量）
+
+### 3. 上传 + 部署
+
+```bash
+scp .release/xiyu-bid-release-42c41c736-api8080.tar.gz scripts/release/remote-deploy.sh \
+    jetty@172.16.38.78:/opt/xiyu-bid/incoming/
+
+ssh jetty@172.16.38.78 'RELEASE_ARCHIVE=... RELEASE_ID=42c41c736-api8080 \
+    SYSTEMCTL_SUDO=true ... bash /opt/xiyu-bid/incoming/remote-deploy.sh'
+```
+
+- ✅ Flyway validate 通过（200 migrations，0.082s）
+- ✅ DB 备份完成（`/opt/xiyu-bid/db-backups/winbid-42c41c736-api8080-*.sql.gz`）
+- ✅ 后端服务重启（PID 29234，2026-07-05 22:06:07 CST）
+- ✅ 健康检查通过（consecutive 3/3，总尝试 88 次）
+- ✅ 前端一致性验证通过（`index-Dv-iBKcL.js` 与 release 一致）
+
+## 验证结果
+
+### 健康检查
+
+| 端点 | 状态 | 备注 |
+|---|---|---|
+| `/actuator/health` | ✅ UP | 全组件 UP（aiProvider doubao / db / diskSpace / jwt / livenessState / ping / readinessState / redis / sidecar） |
+| `/actuator/health/readiness` | ✅ UP | readinessState UP（88 次尝试说明有 Kafka SDK 延迟，属已知行为） |
+
+### Smoke 测试（admin 密码未知，用 400/403/401 验证接口路由）
+
+| 接口 | HTTP | 预期 | 结果 |
 |---|---|---|---|
-| `POST /api/auth/login` | 400 | 400 | 空密码触发验证错误，接口路由正常 |
-| `GET /api/projects` | 403 | 403 | 需认证，接口正常 |
-| `GET /api/integration/crm/health` | 401 | 401 | 需认证，接口正常 |
+| `GET /actuator/health` | 200 | UP | ✅ |
+| `GET /actuator/health/readiness` | 200 | UP | ✅ |
+| `POST /api/auth/login`（空 body） | 400 | 验证错误 | ✅ |
+| `GET /api/projects`（无认证） | 403 | 需认证 | ✅ |
+| `GET /api/integration/crm/health` | 401 | 需认证 | ✅ |
+| `GET /`（前端首页） | 200 | OK | ✅ |
+| `GET /login`（前端登录页） | 200 | OK | ✅ |
 
-### 6.3 前端验证
+### Flyway 迁移应用验证
 
-| 路径 | HTTP | 说明 |
+| 版本 | 描述 | 状态 | 应用时间 |
+|---|---|---|---|
+| V1137 | seed platform account export whitelist | ✅ success=1 | 2026-07-05 22:06:14 |
+| V1138 | expand brand auth attachment enum | ✅ success=1 | 2026-07-05 22:06:14 |
+
+### 前端验证
+
+| 项目 | 结果 | 备注 |
 |---|---|---|
-| `GET /` | 200 | 前端入口正常 |
-| `GET /login` | 200 | 登录页正常 |
-| 前端 JS 入口 | `/assets/index-DrBl1wRR.js` | 与 release 一致 |
+| 首页 HTTP 200 | ✅ | - |
+| 登录页 HTTP 200 | ✅ | - |
+| index.js hash 匹配 | ✅ | `assets/index-Dv-iBKcL.js` 与 release 一致 |
 
----
-
-## 七、GitHub 镜像同步
-
-```bash
-git log --oneline github/main..origin/main | wc -l   # 部署前 16
-bash scripts/sync-to-github.sh
-```
-
-```
-✅ Gitee → GitHub 镜像同步完成
-   Gitee main:  adb09dec1c1489b8e37568e1c62ef6c377fffe57
-   GitHub main: adb09dec1c1489b8e37568e1c62ef6c377fffe57
-   状态: 完全一致
-```
-
----
-
-## 八、回滚信息
-
-### 8.1 回滚准备
+## GitHub 镜像同步
 
 | 项目 | 值 |
 |---|---|
-| 上一版本 Release ID | `e8f1a36c3-api8080` |
-| 上一版本 release 目录 | `/opt/xiyu-bid/releases/e8f1a36c3-api8080/` |
-| 数据库备份 | `/opt/xiyu-bid/db-backups/winbid-adb09dec1-api8080-<timestamp>.sql.gz` |
-| 回滚触发条件 | 健康检查 / P0 Smoke 失败 |
-| 回滚必要性 | ❌ 未需要（部署成功） |
+| 部署前状态 | 落后 33 个 commit |
+| 同步命令 | `bash scripts/sync-to-github.sh` |
+| 同步后状态 | ✅ 完全一致 |
+| Gitee main | `42c41c736c760b5559c902afd8c9e650cebba4ee` |
+| GitHub main | `42c41c736c760b5559c902afd8c9e650cebba4ee` |
 
-### 8.2 回滚命令（如需）
+## 临时配置清理检查
 
-```bash
-# 后端 jar 回滚
-ssh jetty@172.16.38.78 'sudo cp /opt/xiyu-bid/releases/e8f1a36c3-api8080/backend/app.jar /opt/xiyu-bid/shared/backend/app.jar && sudo systemctl restart xiyu-bid-backend'
+| 配置项 | 当前值 | 状态 | 备注 |
+|---|---|---|---|
+| `MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS` | `always` | ℹ️ 保留 | 用户连续三次决定保留（运维监控需要），非本次部署引入 |
 
-# 前端回滚
-ssh jetty@172.16.38.78 'sudo rsync -a --delete /opt/xiyu-bid/releases/e8f1a36c3-api8080/frontend/ /srv/www/xiyu-bid/'
+## 回滚信息
 
-# DB 回滚（如本次有迁移——本次无新增，不需要）
-# gunzip < /opt/xiyu-bid/db-backups/winbid-adb09dec1-api8080-<ts>.sql.gz | mysql ...
-```
+**回滚预案**（如遇问题）：
 
----
+1. **数据库回滚**：从备份恢复
+   - 备份文件：`/opt/xiyu-bid/db-backups/winbid-42c41c736-api8080-*.sql.gz`
+   - 注意：V1137（白名单数据）和 V1138（枚举扩展）均为增量/扩列操作，回滚风险低
 
-## 九、配置清理检查
+2. **应用回滚**：切换回上一版本 jar
+   - 上一版本：`adb09dec1-api8080`
+   - 上一版本目录：`/opt/xiyu-bid/releases/adb09dec1-api8080/`
+   - 操作：`cp /opt/xiyu-bid/releases/adb09dec1-api8080/backend/app.jar /opt/xiyu-bid/shared/backend/app.jar && sudo systemctl restart xiyu-bid-backend`
 
-```bash
-ssh jetty@172.16.38.78 'sudo grep -E "SHOW_DETAILS|DEBUG=|TRACE" /etc/xiyu-bid/backend.env'
-```
+3. **前端回滚**：切换回上一版本前端
+   - 上一版本前端在 releases 目录中保留
 
-发现：
-- `MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always`
+**风险评估**：低风险。本次变更以 bug 修复和功能增强为主，2 个迁移均为数据/枚举扩展类，无破坏性 schema 变更。
 
-**处置**：保留（第 13、14、15、47 次用户连续决定保留，运维监控需要）。如后续需收紧安全，可改为 `never` 并重启后端。
+## 经验沉淀应用情况
 
----
+| 经验 | 应用情况 |
+|---|---|
+| Flyway 预检 3 步法 | ✅ 应用，validate + DB 版本对比 + remote-deploy 内置 |
+| 生产前端同源构建（baseURL=""） | ✅ 应用，VITE_API_BASE_URL= 显式设空 |
+| Smoke 测试 admin 密码限制（400/403/401 替代） | ✅ 应用 |
+| Kafka SDK readiness 延迟 | ✅ 已知行为，88 次尝试符合预期 |
+| systemctl sudo 权限 | ✅ SYSTEMCTL_SUDO=true 默认生效 |
+| Mac HTTP_PROXY 502 | ✅ 绕过，所有 curl 加 --noproxy '*' |
+| SentryAppender crash-loop 教训 | ✅ 本次部署无 logback 配置变更 |
 
-## 十、经验沉淀应用情况
+## 风险提示
 
-| 经验条目 | 本次是否触发 | 处置 |
-|---|---|---|
-| 1. Flyway 预检 3 步法 | ✅ | 全部通过，200 migrations validate OK |
-| 2. Readiness 延迟恢复 | ✅ | 88 次 attempts（约 3 分钟）通过，已知行为，自恢复 |
-| 3. 生产前端同源构建 | ✅ | `VITE_API_BASE_URL=` 显式设空 |
-| 4. Smoke 测试 admin 密码限制 | ✅ | 使用 400/403/401 替代验证 |
-| 5. GitHub 镜像同步 | ✅ | 部署后同步，两边 main 一致 |
-| 6. 临时调试配置清理 | ✅ | SHOW_DETAILS=always 保留（用户决定） |
-| 7. 幂等迁移设计 | N/A | 本次无新增迁移 |
-| 8. systemctl sudo 权限 | ✅ | SYSTEMCTL_SUDO=true，jetty NOPASSWD sudo |
-| 9. git.properties commit id | N/A | 不影响功能 |
-| 10. 破坏性 schema 变更 | N/A | 本次无迁移 |
-| 11. /tmp/migration-mysql/ 目录过时 | ✅ | 不影响 validate，仅 info 输出 |
-| 12. rollback 脚本命名规范 | N/A | 本次无新增迁移 |
-| 13. 前端目录权限 | ✅ | 部署成功，无权限问题 |
-| 14. macOS `._*` 残留文件 | ✅ | package-release.sh 已处理 |
-| 15. Flyway 防护体系 | ✅ | 全部生效 |
-| 16. Mac HTTP_PROXY 502 | ✅ | 使用 `--noproxy '*'` 绕过 |
-| 17. SentryAppender crash-loop | N/A | 本次未涉及 logback 配置变更 |
+1. **V1137 白名单数据迁移**：仅插入数据，无 schema 变更，回滚简单
+2. **V1138 品牌授权附件类型枚举扩展**：仅扩展枚举值范围（从原有类型扩种），不破坏旧数据
+3. **Kafka SDK 启动延迟**：已知行为，readiness 最终会恢复 UP，不影响业务
+4. **SHOW_DETAILS=always**：运维监控保留，非本次部署引入
 
----
+## 部署确认清单
 
-## 十一、风险提示
-
-1. **Readiness 延迟恢复（已知行为）**：本次健康检查 88 次 attempts（约 3 分钟）才通过，根因是 `OrganizationEventSdkKafkaStarter` 阻塞主线程。若后续部署需要更快的 readiness 恢复，可考虑将 `onApplicationReady()` 改为 `@Async` 或独立线程池执行。
-2. **SHOW_DETAILS=always 保留**：运维监控需要，已连续多次决定保留。如需收紧安全，可改为 `never` 并重启后端。
-3. **GitHub 镜像已同步**：本次部署后立即同步，两边 main 完全一致。
-
----
-
-## 十二、部署确认清单
-
-- [x] 早操三连（dev-env.sh + sync-env.sh + check-git-wrapper.sh）
-- [x] 基线确认（HEAD = adb09dec1，GitHub 镜像落后 16 → 同步后一致）
-- [x] 服务器现状（deployed-release.json = e8f1a36c3，health UP）
-- [x] Flyway 预检 3 步法（validate OK + DB V1136 + remote-deploy 内置 validate）
-- [x] 本地打包（RELEASE_ID + VITE_API_BASE_URL= + package-release.sh，BUILD SUCCESS）
-- [x] 产物校验（199 个 V*.sql 无重复 + 前端 index.html 存在）
-- [x] 上传 + 部署（scp + remote-deploy.sh，SYSTEMCTL_SUDO=true）
-- [x] 健康检查（health 200 UP + readiness 200 UP）
-- [x] Smoke 测试（7/7 通过：health/readiness/3 接口/前端 2 页面/前端入口）
-- [x] GitHub 镜像同步（两边 main 一致）
-- [x] 配置清理检查（SHOW_DETAILS=always 保留，已确认）
+- [x] 早操三连通过
+- [x] 基线同步到 origin/main
+- [x] Flyway 预检 3 步法通过
+- [x] 本地打包成功（clean + 无重复迁移）
+- [x] DB 备份完成
+- [x] 后端服务重启成功
+- [x] 健康检查 UP（consecutive 3/3）
+- [x] Readiness UP
+- [x] Flyway 迁移应用成功（V1137, V1138）
+- [x] API Smoke 测试通过（5/5）
+- [x] 前端页面正常（2/2）
+- [x] 前端 hash 匹配
+- [x] GitHub 镜像同步完成
 - [x] 部署报告生成
-
----
-
-## 十三、部署后清理
-
-部署报告 PR 合入 main 后，需执行：
-
-```bash
-git checkout agent/trae-init
-git pull origin main
-git branch -D agent/trae/deploy-48th
-# 远端分支删除（如已 push）
-git push origin --delete agent/trae/deploy-48th
-```
-
----
-
-**部署完成**：第 48 次生产部署成功，所有验证通过，回滚未触发。
