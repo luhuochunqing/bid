@@ -422,8 +422,8 @@ describe('DraftingStage 多人审核 + CO-483 驳回后清空 - CO-483/CO-484', 
     expect(picker.props('multiple')).toBe(true)
   })
 
-  it('CO-483：驳回后 load() 应清空 bidReviewerIds，不预填旧审核人', async () => {
-    // 后端返回 rejected 状态 + 旧 reviewerId=200，前端不应回填
+  it('CO-483 + CO-484 v2：驳回后 UserPicker 重新渲染且 bidReviewerIds 清空，投标负责人可重新选择', async () => {
+    // 后端返回 rejected 状态 + 旧 reviewerId=200，前端不应回填旧审核人
     getDraftingMock.mockImplementation(() => Promise.resolve({
       data: {
         reviewStatus: 'REJECTED',
@@ -438,10 +438,21 @@ describe('DraftingStage 多人审核 + CO-483 驳回后清空 - CO-483/CO-484', 
     await flushPromises()
 
     const picker = wrapper.findComponent({ name: 'UserPicker' })
-    // CO-483：rejected 状态下 UserPicker 不显示（template v-else-if 分支），改用直接断言 modelValue
-    // 实际上 rejected 状态下 UserPicker 在 v-else-if 分支不会渲染（reviewState='rejected' 走第一个 template）
-    // 验证：reviewerExcludeIds 仍可读，但 bidReviewerIds 应为空数组
-    expect(picker.exists()).toBe(false) // rejected 状态下 UserPicker 不渲染
+    // CO-484 v2：rejected 状态下 UserPicker 应渲染（投标负责人可重新选择审核人）
+    expect(picker.exists()).toBe(true)
+    // CO-483：bidReviewerIds 应清空，不预填旧审核人
+    expect(picker.props('modelValue')).toEqual([])
+    // 驳回原因 el-alert 仍渲染（ElAlert stub，检查组件存在）
+    const alerts = wrapper.findAllComponents({ name: 'ElAlert' })
+    expect(alerts.length).toBeGreaterThanOrEqual(1)
+    // 审核记录仍展示（含驳回人记录）
+    const records = wrapper.findAll('.review-record-item')
+    expect(records.length).toBeGreaterThanOrEqual(1)
+    expect(records[0].text()).toContain('旧审核人')
+    expect(records[0].text()).toContain('驳回')
+    // 重新提交按钮展示
+    const submitBtn = wrapper.findAll('button').find(b => b.text().includes('重新提交标书审核'))
+    expect(submitBtn).toBeTruthy()
   })
 
   it('CO-484：审核中状态展示审核进度文案（已通过 X/Y）', async () => {

@@ -50,11 +50,11 @@
     <!-- 标书审核人选择 -->
     <div class="bid-reviewer-row">
       <span style="font-size:13px;color:#606266;">标书审核人：</span>
-      <template v-if="reviewState === 'reviewing' || reviewState === 'approved' || reviewState === 'rejected'">
+      <template v-if="reviewState === 'reviewing' || reviewState === 'approved'">
         <span style="font-size:14px;color:#303133;font-weight:500;">{{ reviewerNamesText || '未指定' }}</span>
       </template>
       <UserPicker
-        v-else-if="perm.canSelectReviewer"
+        v-else-if="perm.canSubmitBidForReview"
         v-model="bidReviewerIds"
         mode="search"
         :multiple="true"
@@ -64,7 +64,7 @@
         style="width:340px"
         clearable
       />
-      <span v-if="perm.canSelectReviewer && reviewState !== 'reviewing' && reviewState !== 'approved'" class="bid-reviewer-tip">
+      <span v-if="perm.canSubmitBidForReview && reviewState !== 'reviewing' && reviewState !== 'approved'" class="bid-reviewer-tip">
         标书审核人需包含项目负责人且不能选择自己，支持最多不超过3人。
       </span>
     </div>
@@ -304,7 +304,13 @@ async function load() {
         reviewState.value = null
       }
       rejectReasonText.value = d.rejectReason || ""
-      // CO-483 修复：驳回后清空审核人选择 + reviewerInitialOptions，不再无条件预填旧审核人。
+      // CO-484 v2：reviewers 列表统一回填（审核记录展示的数据源，所有状态都需要）
+      if (d.reviewers && Array.isArray(d.reviewers)) {
+        reviewers.value = d.reviewers
+      } else {
+        reviewers.value = []
+      }
+      // CO-483 修复：驳回后清空审核人选择 + reviewerInitialOptions，由投标负责人重新选择。
       // 审核中/已通过时展示已选审核人（只读），不回填到选择控件。
       if (reviewState.value === 'rejected') {
         bidReviewerIds.value = []
@@ -315,7 +321,6 @@ async function load() {
         reviewerInitialOptions.value = d.reviewers
           .filter(r => r.reviewerId && r.reviewerName)
           .map(r => ({ id: Number(r.reviewerId), name: r.reviewerName }))
-        reviewers.value = d.reviewers
       } else if (d.reviewerId) {
         // 兼容旧数据（无 reviewers 列表但有 reviewerId 单值）
         bidReviewerIds.value = [Number(d.reviewerId)]
