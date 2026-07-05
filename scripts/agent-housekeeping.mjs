@@ -71,7 +71,17 @@ function discoverWorktrees() {
   // 2. 扫描已知 worktree 父目录，发现隐藏工作区
   for (const root of WORKTREE_SCAN_ROOTS) {
     if (!fs.existsSync(root)) continue
-    const entries = fs.readdirSync(root, { withFileTypes: true })
+    // 跳过权限不足的目录（如 ~/.codex/worktrees 已 chmod 000 保护）
+    let entries
+    try {
+      entries = fs.readdirSync(root, { withFileTypes: true })
+    } catch (err) {
+      if (err.code === 'EACCES' || err.code === 'EPERM') {
+        process.stderr.write(`[agent-housekeeping] skip ${root}: permission denied\n`)
+        continue
+      }
+      throw err
+    }
     for (const entry of entries) {
       if (!entry.isDirectory() || entry.name.startsWith('.')) continue
 
