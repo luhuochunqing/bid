@@ -46,11 +46,42 @@ public final class PlatformAccountViewerPolicy {
         return false;
     }
 
-    /** CO-415: 校验归还权限，不放行则抛 IllegalStateException。 */
+    /** CO-415: 校验归还权限，不放行则抛 AccessDeniedException。 */
     public static void checkCanReturnAccount(String roleCode, PlatformAccount account, User currentUser) {
         if (!canReturnAccount(roleCode, account, currentUser)) {
-            throw new IllegalStateException(
+            throw new org.springframework.security.access.AccessDeniedException(
                 "Only administrators or the account's contact person can return the account");
+        }
+    }
+
+    /**
+     * 是否可查看账户密码。
+     *
+     * <p>授权矩阵（与 {@code canManageAccount} 对称）：
+     * <ul>
+     *   <li>特权角色（admin/bid-teamleader/bidadmin）→ 放行</li>
+     *   <li>投标专员（bid-Team）+ 该账户绑定联系人 → 放行</li>
+     *   <li>投标专员非绑定联系人 → 拒绝</li>
+     *   <li>其他角色 → 拒绝</li>
+     * </ul>
+     *
+     * <p>对称于 {@code canManageAccount}、{@code canReturnAccount} 的授权范式，
+     * 抛 {@link org.springframework.security.access.AccessDeniedException}（403 + WARN + 不上报 Sentry），
+     * 避免权限校验失败的正常业务路径被 {@code GlobalExceptionHandler.handleIllegalStateException}
+     * 误归类为系统缺陷（409 + ERROR + Sentry 上报）。
+     */
+    public static boolean canViewPassword(String roleCode, PlatformAccount account, User currentUser) {
+        if (currentUser == null) return false;
+        if (isPrivilegedRole(roleCode)) return true;
+        if (isBidTeamRole(roleCode)) return PlatformAccountContactMatcher.isContactPerson(account, currentUser);
+        return false;
+    }
+
+    /** 校验查看密码权限，不放行则抛 AccessDeniedException。 */
+    public static void checkCanViewPassword(String roleCode, PlatformAccount account, User currentUser) {
+        if (!canViewPassword(roleCode, account, currentUser)) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                "Only administrators or the account's contact person can view the password");
         }
     }
 

@@ -21,6 +21,7 @@ import com.xiyu.bid.security.EffectiveRoleResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -240,24 +241,19 @@ public class PlatformAccountService {
     /**
      * Get decrypted password for an account (CO-400 四轮).
      * Allowed for: admin / bidAdmin / bid-TeamLeader OR bid-Team as the account's contact person.
+     *
+     * <p>权限校验下沉到 {@link PlatformAccountViewerPolicy#checkCanViewPassword}，
+     * 对称于 {@code checkCanManageAccount}、{@code checkCanReturnAccount} 范式。
+     * 抛 {@link AccessDeniedException}（403 + WARN + 不上报 Sentry），
+     * 避免权限校验失败的正常业务路径被误归类为系统缺陷。
      */
     @Auditable(action = "VIEW_PASSWORD", entityType = "PlatformAccount",
               description = "Viewed password for platform account")
     public String getPassword(Long id, User currentUser) {
-        if (currentUser == null) throw new IllegalStateException("Authentication required");
-        String code = effectiveRoleResolver.resolveRoleCode(currentUser);
-        boolean privileged = PlatformAccountViewerPolicy.isPrivilegedRole(code);
-        if (!privileged && PlatformAccountViewerPolicy.isBidTeamRole(code)) {
-            PlatformAccount account = repository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Account not found with id: " + id));
-            if (!PlatformAccountContactMatcher.isContactPerson(account, currentUser))
-                throw new IllegalStateException(
-                    "Only administrators or the account's contact person can view the password");
-            return passwordEncryptionUtil.decrypt(account.getPassword());
-        }
-        if (!privileged) throw new IllegalStateException("Only administrators can view account passwords");
         PlatformAccount account = repository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Account not found with id: " + id));
+        PlatformAccountViewerPolicy.checkCanViewPassword(
+            effectiveRoleResolver.resolveRoleCode(currentUser), account, currentUser);
         return passwordEncryptionUtil.decrypt(account.getPassword());
     }
 
