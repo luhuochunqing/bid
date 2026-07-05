@@ -210,14 +210,15 @@ class MarginSqlDateCoercionContractTest {
     @Test
     void derivedSelectInit_usesProjectClosureForReturnedAmount_notNullLiteral() {
         String sql = MarginDerivedTableColumns.DERIVED_SELECT_INIT;
+        // CO-508 抽取 returnedAmountExpr("pid.deposit_amount") 共享方法后，
+        // 格式从多行改为单行，但语义不变：必须从 project_closure 取值，禁止硬编码 NULL。
         assertThat(sql)
                 .as("CO-490: INIT 分支 returned_amount 必须从 project_closure 取值"
                   + "（FULLY_RETURNED → pid.deposit_amount, "
                   + "PARTIAL_RETURN_PARTIAL_TRANSFER → pc.returned_amount），禁止硬编码 NULL")
-                .contains("CASE"
-                        + "       WHEN pc.deposit_return_status = 'FULLY_RETURNED'"
-                        + " THEN pid.deposit_amount"
-                        + "       WHEN pc.deposit_return_status = 'PARTIAL_RETURN_PARTIAL_TRANSFER'"
+                .contains("WHEN pc.deposit_return_status = 'FULLY_RETURNED'"
+                        + " THEN pid.deposit_amount")
+                .contains("WHEN pc.deposit_return_status = 'PARTIAL_RETURN_PARTIAL_TRANSFER'"
                         + " THEN pc.returned_amount");
     }
 

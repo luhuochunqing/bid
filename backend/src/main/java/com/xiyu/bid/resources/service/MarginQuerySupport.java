@@ -78,28 +78,35 @@ final class MarginQuerySupport {
 
     static StringBuilder summaryBase(final MarginQueryRole policy) {
         String rf = policy.apply("p", "pid");
+        // CO-508: "已退回"按金额判定（规则3），派生表加 returned_amount / service_fee_amount
+        // 列，让外层聚合与 label() / appendFilters() 同一份语义。
+        String notReturned =
+                "COALESCE(m.returned_amount, 0)"
+              + " + COALESCE(m.service_fee_amount, 0) != m.amount";
         return new StringBuilder(
                 "SELECT"
               + "  COALESCE(SUM(m.amount), 0),"
-              + "  COALESCE(SUM(CASE WHEN m.status"
-              + "    NOT IN ('RETURNED','CANCELLED')"
+              + "  COALESCE(SUM(CASE WHEN " + notReturned
               + "    THEN m.amount ELSE 0 END), 0),"
-              + "  COUNT(CASE WHEN m.status"
-              + "    NOT IN ('RETURNED','CANCELLED') THEN 1 END),"
-              + "  COALESCE(SUM(CASE WHEN m.status"
-              + "    NOT IN ('RETURNED','CANCELLED')"
+              + "  COUNT(CASE WHEN " + notReturned + " THEN 1 END),"
+              + "  COALESCE(SUM(CASE WHEN " + notReturned
+              + "    AND m.exp_return_date IS NOT NULL"
               + "    AND m.exp_return_date < NOW()"
               + "    THEN m.amount ELSE 0 END), 0),"
-              + "  COUNT(CASE WHEN m.status"
-              + "    NOT IN ('RETURNED','CANCELLED')"
+              + "  COUNT(CASE WHEN " + notReturned
+              + "    AND m.exp_return_date IS NOT NULL"
               + "    AND m.exp_return_date < NOW() THEN 1 END)"
               + " FROM ("
               + "   SELECT f.amount as amount, f.status as status,"
-              + "     COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d'), f.fee_date) as exp_return_date"
+              + "     COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d'), f.fee_date) as exp_return_date,"
+              + "     " + MarginDerivedTableColumns.returnedAmountExpr("f.amount") + " as returned_amount,"
+              + "     " + MarginDerivedTableColumns.serviceFeeAmountExpr() + " as service_fee_amount"
               + FEES_JOIN + rf
               + "   UNION ALL"
               + "   SELECT pid.deposit_amount as amount, 'PENDING' as status,"
-              + "     NULL as exp_return_date"
+              + "     NULL as exp_return_date,"
+              + "     " + MarginDerivedTableColumns.returnedAmountExpr("pid.deposit_amount") + " as returned_amount,"
+              + "     " + MarginDerivedTableColumns.serviceFeeAmountExpr() + " as service_fee_amount"
               + initOnlyFragment(rf)
               + " ) m WHERE 1=1");
     }
@@ -179,25 +186,28 @@ final class MarginQuerySupport {
             sql.append(" AND m.exp_return_date <= :edE");
         }
         if (has(f, "status")) {
+            // CO-508: status 筛选按金额判定，与 label() 规则3对齐：
+            // 已退回 = COALESCE(returned_amount,0) + COALESCE(service_fee_amount,0) = amount
+            String returnedExpr = "(COALESCE(m.returned_amount, 0)"
+                    + " + COALESCE(m.service_fee_amount, 0))";
             switch (f.get("status")) {
                 case "RETURNED":
-                    // label() 把 'RETURNED' 和 'CANCELLED' 都标为"已退回"，
-                    // filter 语义必须与 label 对齐：两者都应被 RETURNED 筛选命中。
-                    sql.append(" AND m.status IN ('RETURNED','CANCELLED')");
+                    sql.append(" AND ").append(returnedExpr)
+                            .append(" = m.amount");
                     break;
                 case "OVERDUE":
-                    sql.append(" AND m.status"
-                            + " NOT IN ('RETURNED','CANCELLED')"
-                            + " AND m.exp_return_date < NOW()");
+                    sql.append(" AND ").append(returnedExpr)
+                            .append(" != m.amount")
+                            .append(" AND m.exp_return_date IS NOT NULL")
+                            .append(" AND m.exp_return_date < NOW()");
                     break;
                 case "PENDING":
-                    // 派生表 init 分支（立项未缴占位行）的 exp_return_date 为 NULL，
-                    // MySQL 语义下 `NULL >= NOW()` 求值为 NULL（falsy）会漏掉这些行，
-                    // 因此显式加 `IS NULL` 把 init 分支行纳入 PENDING 筛选。
-                    sql.append(" AND m.status"
-                            + " NOT IN ('RETURNED','CANCELLED')"
-                            + " AND (m.exp_return_date IS NULL"
-                            + " OR m.exp_return_date >= NOW())");
+                    // init 占位行 exp_return_date 为 NULL，NULL >= NOW() 为 NULL（falsy），
+                    // 显式加 IS NULL 把 init 分支行纳入 PENDING 筛选。
+                    sql.append(" AND ").append(returnedExpr)
+                            .append(" != m.amount")
+                            .append(" AND (m.exp_return_date IS NULL"
+                                    + " OR m.exp_return_date >= NOW())");
                     break;
                 default:
                     break;
@@ -264,7 +274,10 @@ final class MarginQuerySupport {
                 .serviceFeeAmount((BigDecimal) r[C_SVC_FEE])
                 .actualReturnDate(toLdt(r[C_ACT_RETURN]))
                 .status(feeStatus)
-                .statusLabel(label(feeStatus, (Timestamp) r[C_EXP_RETURN]))
+                .statusLabel(label((Timestamp) r[C_EXP_RETURN],
+                        (BigDecimal) r[C_AMT],
+                        (BigDecimal) r[C_RET_AMT],
+                        (BigDecimal) r[C_SVC_FEE]))
                 .build();
     }
 
@@ -273,14 +286,38 @@ final class MarginQuerySupport {
         return v != null && !v.isBlank();
     }
 
-    private static String label(final String st, final Timestamp exp) {
-        if ("RETURNED".equals(st) || "CANCELLED".equals(st)) {
-            return "已退回";
+    /**
+     * 按 CO-508 状态计算规则推导状态标签（规则3 &gt; 规则2 &gt; 规则1）。
+     *
+     * <p>规则3：退回金额 + 服务费金额 = 保证金金额 → 「已退回」（最高优先级，
+     * 不依赖 fee.status，纯按 project_closure 推导的金额判定）；
+     * 规则2：当前日期 &gt; 应退日期 → 「已超期」；
+     * 规则1：当前日期 ≤ 应退日期 → 「未到期」。
+     *
+     * @param exp        应退日期（init 占位行为 null）
+     * @param depositAmt 保证金金额（f.amount 或 pid.deposit_amount）
+     * @param returnedAmt 退回金额（来自 project_closure，可能为 null）
+     * @param svcFeeAmt   服务费金额（来自 project_closure.transfer_amount，可能为 null）
+     */
+    private static String label(final Timestamp exp,
+                                final BigDecimal depositAmt,
+                                final BigDecimal returnedAmt,
+                                final BigDecimal svcFeeAmt) {
+        // 规则3：退回金额 + 服务费金额 = 保证金金额 → 已退回
+        if (depositAmt != null
+                && depositAmt.compareTo(BigDecimal.ZERO) != 0) {
+            BigDecimal ret = returnedAmt != null ? returnedAmt : BigDecimal.ZERO;
+            BigDecimal svc = svcFeeAmt != null ? svcFeeAmt : BigDecimal.ZERO;
+            if (ret.add(svc).compareTo(depositAmt) == 0) {
+                return "已退回";
+            }
         }
+        // 规则2：当前日期 > 应退日期 → 已超期
         if (exp != null
                 && exp.toLocalDateTime().isBefore(LocalDateTime.now())) {
             return "已超期";
         }
+        // 规则1：当前日期 ≤ 应退日期 → 未到期
         return "未到期";
     }
 

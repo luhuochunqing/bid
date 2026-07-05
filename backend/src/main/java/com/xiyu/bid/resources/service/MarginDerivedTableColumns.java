@@ -20,12 +20,13 @@ package com.xiyu.bid.resources.service;
  * <ul>
  *   <li>countBase 只需要 filter 引用的列 + fee_id（COUNT(*) 不需要其他列）</li>
  *   <li>listBase 需要完整列（给 row mapping 用）</li>
- *   <li>summaryBase 只用 amount/status/exp_return_date 三列（独立）</li>
+ *   <li>summaryBase 只用 amount/status/exp_return_date/returned_amount/service_fee_amount
+ *       五列（CO-508 起按金额判定"已退回"，需 returned_amount/service_fee_amount）</li>
  * </ul>
  * 为避免 listBase 与 countBase 列契约漂移，countBase 复用 listBase 的
  * 派生表 SELECT 列定义（多出的列不影响 COUNT(*) 性能，但保证对齐）。
  *
- * <p>CO-490 修复（本轮）：
+ * <p>CO-490 修复（上一轮）：
  * <ul>
  *   <li>INIT 分支也 JOIN tasks dt + project_closure pc，使两个分支字段取值对齐。
  *       修复前 INIT 分支硬编码 payee_name/payee_account/payment_date/exp_return_date
@@ -38,6 +39,13 @@ package com.xiyu.bid.resources.service;
  *   <li>project_leader_name 加 user.full_name 兜底（通过 p.manager_id JOIN users），
  *       修复前 pid.project_leader_name 和 t.project_manager_name 都空时返回 NULL。</li>
  * </ul>
+ *
+ * <p>CO-508 修复（本轮）：
+ * <ul>
+ *   <li>抽取 {@link #returnedAmountExpr(String)} / {@link #serviceFeeAmountExpr()}
+ *       共享方法，让 summaryBase 派生表也能复用同一份 CASE 逻辑，
+ *       避免 listBase 与 summaryBase 对"退回金额/服务费金额"的判定语义漂移。</li>
+ * </ul>
  */
 final class MarginDerivedTableColumns {
 
@@ -49,6 +57,39 @@ final class MarginDerivedTableColumns {
           + "  WHEN 'GUARANTEE' THEN '保险/保函'"
           + "  ELSE pid.deposit_payment_method"
           + " END as deposit_payment_method";
+
+    private MarginDerivedTableColumns() {
+    }
+
+    /**
+     * returned_amount 表达式：根据 {@code project_closure.deposit_return_status}
+     * 推导退回金额。
+     *
+     * <p>CO-508 抽取为共享方法，让 {@link MarginQuerySupport#summaryBase} 的派生表
+     * 也能复用同一份 CASE 逻辑，避免 listBase 与 summaryBase 判定语义漂移。
+     *
+     * @param amountExpr 保证金金额表达式（fees 分支用 {@code f.amount}，
+     *                   init 分支用 {@code pid.deposit_amount}）
+     */
+    static String returnedAmountExpr(final String amountExpr) {
+        return "CASE WHEN pc.deposit_return_status = 'FULLY_RETURNED' THEN "
+                + amountExpr
+              + " WHEN pc.deposit_return_status = 'PARTIAL_RETURN_PARTIAL_TRANSFER'"
+              + " THEN pc.returned_amount"
+              + " ELSE NULL END";
+    }
+
+    /**
+     * service_fee_amount 表达式：根据 {@code project_closure.deposit_return_status}
+     * 推导转服务费金额（CO-508 共享）。
+     */
+    static String serviceFeeAmountExpr() {
+        return "CASE WHEN pc.deposit_return_status = 'FULLY_RETURNED' THEN NULL"
+              + " WHEN pc.deposit_return_status"
+              + "   IN ('TRANSFERRED_TO_FEE', 'PARTIAL_RETURN_PARTIAL_TRANSFER')"
+              + " THEN pc.transfer_amount"
+              + " ELSE NULL END";
+    }
 
     /** 派生表 fees 分支 SELECT 列（listBase + countBase 共用）。
      *  <p>缴纳日期/收款方/收款账号/应退日期 → 保证金缴纳任务 JSON
@@ -71,16 +112,8 @@ final class MarginDerivedTableColumns {
           + "     COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.payee')), ''), f.return_to) as payee_name,"
           + "     JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.payeeAccount')) as payee_account,"
           + "     COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d'), f.fee_date) as exp_return_date,"
-          + "     CASE"
-          + "       WHEN pc.deposit_return_status = 'FULLY_RETURNED' THEN f.amount"
-          + "       WHEN pc.deposit_return_status = 'PARTIAL_RETURN_PARTIAL_TRANSFER' THEN pc.returned_amount"
-          + "       ELSE NULL"
-          + "     END as returned_amount,"
-          + "     CASE"
-          + "       WHEN pc.deposit_return_status = 'FULLY_RETURNED' THEN NULL"
-          + "       WHEN pc.deposit_return_status IN ('TRANSFERRED_TO_FEE', 'PARTIAL_RETURN_PARTIAL_TRANSFER') THEN pc.transfer_amount"
-          + "       ELSE NULL"
-          + "     END as service_fee_amount,"
+          + "     " + returnedAmountExpr("f.amount") + " as returned_amount,"
+          + "     " + serviceFeeAmountExpr() + " as service_fee_amount,"
           + "     pc.deposit_return_date as actual_return_date,"
           + "     f.status, f.created_at";
 
@@ -109,20 +142,9 @@ final class MarginDerivedTableColumns {
           + "     NULLIF(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.payee')), '') as payee_name,"
           + "     JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.payeeAccount')) as payee_account,"
           + "     STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d') as exp_return_date,"
-          + "     CASE"
-          + "       WHEN pc.deposit_return_status = 'FULLY_RETURNED' THEN pid.deposit_amount"
-          + "       WHEN pc.deposit_return_status = 'PARTIAL_RETURN_PARTIAL_TRANSFER' THEN pc.returned_amount"
-          + "       ELSE NULL"
-          + "     END as returned_amount,"
-          + "     CASE"
-          + "       WHEN pc.deposit_return_status = 'FULLY_RETURNED' THEN NULL"
-          + "       WHEN pc.deposit_return_status IN ('TRANSFERRED_TO_FEE', 'PARTIAL_RETURN_PARTIAL_TRANSFER') THEN pc.transfer_amount"
-          + "       ELSE NULL"
-          + "     END as service_fee_amount,"
+          + "     " + returnedAmountExpr("pid.deposit_amount") + " as returned_amount,"
+          + "     " + serviceFeeAmountExpr() + " as service_fee_amount,"
           + "     pc.deposit_return_date as actual_return_date,"
           + "     'PENDING' as status,"
           + "     COALESCE(pid.created_at, p.created_at) as created_at";
-
-    private MarginDerivedTableColumns() {
-    }
 }

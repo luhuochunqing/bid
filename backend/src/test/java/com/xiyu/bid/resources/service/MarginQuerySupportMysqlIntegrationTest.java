@@ -348,14 +348,19 @@ class MarginQuerySupportMysqlIntegrationTest {
     }
 
     @Test
-    @DisplayName("filterByStatusReturned 应包含 CANCELLED 状态的 fee")
-    void filterByStatusReturned_shouldIncludeCancelledFees() {
-        // 造数据：1 条 fees.status=CANCELLED, fee_type=BID_BOND
-        // （CANCELLED 在 label() 中标为"已退回"，但修复前 RETURNED filter 只匹配 = 'RETURNED'）
-        Long projectId = createTestProject("returned-cancelled");
+    @DisplayName("CO-508: filterByStatusReturned 应包含金额匹配行（fee.status=PAID + project_closure FULLY_RETURNED）")
+    void filterByStatusReturned_shouldIncludeAmountMatchedRows() {
+        // CO-508 语义变更：RETURNED 筛选不再依赖 fee.status='RETURNED' 或 'CANCELLED'，
+        // 而是按规则3纯金额判定：COALESCE(returned_amount,0) + COALESCE(service_fee_amount,0) = amount。
+        // 本测试：fee.status=PAID（不是 RETURNED 也不是 CANCELLED），
+        // 但 project_closure.deposit_return_status=FULLY_RETURNED，
+        // 此时 returned_amount = fee.amount，应被 RETURNED 筛选命中。
+        BigDecimal amount = new BigDecimal("5000");
+        Long projectId = createTestProject("co508-returned-amount-match");
         createInitiationDetails(projectId, "NO", BigDecimal.ZERO);
-        createFee(projectId, "BID_BOND", "CANCELLED",
-                  "DATE_SUB(NOW(), INTERVAL 1 DAY)", new BigDecimal("5000"));
+        createFee(projectId, "BID_BOND", "PAID",
+                  "DATE_ADD(NOW(), INTERVAL 30 DAY)", amount);
+        createProjectClosure(projectId, "FULLY_RETURNED", null, null);
         try {
             StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
             MarginQuerySupport.appendFilters(sql, Map.of("status", "RETURNED"));
@@ -365,9 +370,140 @@ class MarginQuerySupportMysqlIntegrationTest {
                     jdbcTemplate.queryForList(sql.toString(), Map.of());
 
             assertThat(rows)
-                    .as("RETURNED 筛选应包含 CANCELLED 状态的 fee"
-                      + "—— 修复前只匹配 = 'RETURNED'，漏掉 CANCELLED")
+                    .as("RETURNED 筛选应命中金额匹配行（fee.status=PAID + "
+                      + "project_closure FULLY_RETURNED → returned_amount = amount）"
+                      + "—— CO-508 规则3纯按金额判定，与 fee.status 无关")
                     .anyMatch(row -> projectId.equals(extractProjectId(row)));
+        } finally {
+            cleanupTestData(projectId);
+        }
+    }
+
+    @Test
+    @DisplayName("CO-508: filterByStatusReturned 不应包含 CANCELLED fee（无 project_closure 金额匹配）")
+    void filterByStatusReturned_shouldExcludeCancelledFees_withoutAmountMatch() {
+        // CO-508 语义变更：CANCELLED 不再因 fee.status 自动算作"已退回"。
+        // 本测试：fee.status=CANCELLED，无 project_closure 记录，
+        // returned_amount / service_fee_amount 均为 NULL → 0 + 0 != amount → 非已退回。
+        BigDecimal amount = new BigDecimal("5000");
+        Long projectId = createTestProject("co508-cancelled-no-match");
+        createInitiationDetails(projectId, "NO", BigDecimal.ZERO);
+        createFee(projectId, "BID_BOND", "CANCELLED",
+                  "DATE_SUB(NOW(), INTERVAL 1 DAY)", amount);
+        try {
+            StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
+            MarginQuerySupport.appendFilters(sql, Map.of("status", "RETURNED"));
+            sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
+
+            List<Map<String, Object>> rows =
+                    jdbcTemplate.queryForList(sql.toString(), Map.of());
+
+            assertThat(rows)
+                    .as("RETURNED 筛选不应命中 CANCELLED fee（无 project_closure 金额匹配）"
+                      + "—— CO-508 废弃了 fee.status → '已退回' 的耦合")
+                    .noneMatch(row -> projectId.equals(extractProjectId(row)));
+        } finally {
+            cleanupTestData(projectId);
+        }
+    }
+
+    @Test
+    @DisplayName("CO-508: filterByStatusReturned 应命中 PARTIAL_RETURN_PARTIAL_TRANSFER（金额合计等于保证金）")
+    void filterByStatusReturned_shouldIncludePartialReturnPartialTransfer_whenAmountMatches() {
+        // 部分退回 + 部分转服务费，两者合计等于保证金金额 → 规则3命中"已退回"。
+        BigDecimal amount = new BigDecimal("5000");
+        BigDecimal returned = new BigDecimal("3000");
+        BigDecimal transfer = new BigDecimal("2000");
+        Long projectId = createTestProject("co508-partial-match");
+        createInitiationDetails(projectId, "NO", BigDecimal.ZERO);
+        createFee(projectId, "BID_BOND", "PAID",
+                  "DATE_ADD(NOW(), INTERVAL 30 DAY)", amount);
+        createProjectClosure(projectId, "PARTIAL_RETURN_PARTIAL_TRANSFER",
+                             returned, transfer);
+        try {
+            StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
+            MarginQuerySupport.appendFilters(sql, Map.of("status", "RETURNED"));
+            sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
+
+            List<Map<String, Object>> rows =
+                    jdbcTemplate.queryForList(sql.toString(), Map.of());
+
+            assertThat(rows)
+                    .as("RETURNED 筛选应命中 PARTIAL_RETURN_PARTIAL_TRANSFER 行"
+                      + "（returned_amount=3000 + service_fee_amount=2000 = amount=5000）"
+                      + "—— 规则3按金额合计判定")
+                    .anyMatch(row -> projectId.equals(extractProjectId(row)));
+        } finally {
+            cleanupTestData(projectId);
+        }
+    }
+
+    @Test
+    @DisplayName("CO-508: filterByStatusOverdue 应排除已退回行（金额匹配优先于日期判定）")
+    void filterByStatusOverdue_shouldExcludeAmountMatchedRows_evenIfOverdue() {
+        // 规则3优先级 > 规则2：即使 exp_return_date < NOW()，
+        // 只要 returned_amount + service_fee_amount = amount，状态就是"已退回"而非"已超期"。
+        BigDecimal amount = new BigDecimal("5000");
+        Long projectId = createTestProject("co508-overdue-but-returned");
+        createInitiationDetails(projectId, "NO", BigDecimal.ZERO);
+        // fee_date = 30 天前 → exp_return_date < NOW()，若无金额匹配则为"已超期"
+        createFee(projectId, "BID_BOND", "PAID",
+                  "DATE_SUB(NOW(), INTERVAL 30 DAY)", amount);
+        createProjectClosure(projectId, "FULLY_RETURNED", null, null);
+        try {
+            StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
+            MarginQuerySupport.appendFilters(sql, Map.of("status", "OVERDUE"));
+            sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
+
+            List<Map<String, Object>> rows =
+                    jdbcTemplate.queryForList(sql.toString(), Map.of());
+
+            assertThat(rows)
+                    .as("OVERDUE 筛选不应命中已退回行（规则3优先于规则2）"
+                      + "—— 即使 exp_return_date < NOW()，金额匹配后状态为'已退回'")
+                    .noneMatch(row -> projectId.equals(extractProjectId(row)));
+        } finally {
+            cleanupTestData(projectId);
+        }
+    }
+
+    @Test
+    @DisplayName("CO-508: summaryBase 已退回金额不计入 totalPending / overdueAmount")
+    void summaryBase_overdueCount_usesAmountBasedNotReturned() {
+        // 验证 summary 聚合：project_closure FULLY_RETURNED 的行
+        // 不应计入 totalPending / pendingCount / overdueAmount / overdueCount。
+        BigDecimal amount = new BigDecimal("5000");
+        Long projectId = createTestProject("co508-summary-returned");
+        createInitiationDetails(projectId, "NO", BigDecimal.ZERO);
+        // fee_date = 30 天前 → 若未退回则计入 overdue
+        createFee(projectId, "BID_BOND", "PAID",
+                  "DATE_SUB(NOW(), INTERVAL 30 DAY)", amount);
+        createProjectClosure(projectId, "FULLY_RETURNED", null, null);
+        try {
+            StringBuilder sql = MarginQuerySupport.summaryBase(MarginQueryRole.ADMIN);
+
+            Map<String, Object> before =
+                    jdbcTemplate.queryForMap(sql.toString(), Map.of());
+            long pendingCountBefore = ((Number) before.get("pendingCount")).longValue();
+            long overdueCountBefore = ((Number) before.get("overdueCount")).longValue();
+
+            // 删除 project_closure 让行变为"未退回 + 已超期"，应同时计入 pending + overdue
+            jdbcTemplate.update(
+                    "DELETE FROM project_closure WHERE project_id = :pid",
+                    Map.of("pid", projectId));
+
+            Map<String, Object> after =
+                    jdbcTemplate.queryForMap(sql.toString(), Map.of());
+            long pendingCountAfter = ((Number) after.get("pendingCount")).longValue();
+            long overdueCountAfter = ((Number) after.get("overdueCount")).longValue();
+
+            assertThat(pendingCountAfter - pendingCountBefore)
+                    .as("删除 project_closure 后，行从'已退回'变'已超期'，"
+                      + "应被 notReturned 谓词纳入 pendingCount")
+                    .isEqualTo(1L);
+            assertThat(overdueCountAfter - overdueCountBefore)
+                    .as("删除 project_closure 后，行变'已超期'，应计入 overdueCount")
+                    .isEqualTo(1L);
         } finally {
             cleanupTestData(projectId);
         }
@@ -967,6 +1103,40 @@ class MarginQuerySupportMysqlIntegrationTest {
         jdbcTemplate.update(sql, params);
     }
 
+    /**
+     * 插入 project_closure 记录（CO-508 测试用）。
+     * <p>project_closure 表通过 V1037 迁移加上了 deposit_return_status /
+     * returned_amount / transfer_amount 等字段。CO-508 的"已退回"判定
+     * （规则3：returned_amount + service_fee_amount = deposit_amount）依赖
+     * project_closure.deposit_return_status 来推导 returned_amount /
+     * service_fee_amount（见 MarginDerivedTableColumns.returnedAmountExpr /
+     * serviceFeeAmountExpr）。
+     * <p>depositReturnStatus 取值：
+     * <ul>
+     *   <li>FULLY_RETURNED → returned_amount = deposit_amount（全额退回）</li>
+     *   <li>TRANSFERRED_TO_FEE → service_fee_amount = transfer_amount（全额转服务费）</li>
+     *   <li>PARTIAL_RETURN_PARTIAL_TRANSFER → returned_amount = pc.returned_amount，
+     *       service_fee_amount = pc.transfer_amount（部分退回 + 部分转服务费）</li>
+     *   <li>NOT_RETURNED / NA → 两者均为 NULL</li>
+     * </ul>
+     * <p>project_closure.project_id 有 UNIQUE 约束，每个测试项目只能有一条记录。
+     */
+    private void createProjectClosure(final Long projectId,
+                                       final String depositReturnStatus,
+                                       final BigDecimal returnedAmount,
+                                       final BigDecimal transferAmount) {
+        String sql = "INSERT INTO project_closure"
+                   + " (project_id, deposit_return_status, returned_amount, transfer_amount,"
+                   + "  deposit_returned, stage_locked, created_at, updated_at) "
+                   + "VALUES (:pid, :drs, :ra, :ta, FALSE, FALSE, NOW(), NOW())";
+        Map<String, Object> params = new HashMap<>();
+        params.put("pid", projectId);
+        params.put("drs", depositReturnStatus);
+        params.put("ra", returnedAmount);
+        params.put("ta", transferAmount);
+        jdbcTemplate.update(sql, params);
+    }
+
     /** 从查询结果行中提取 project_id（处理 Number 类型转换）。 */
     private Long extractProjectId(final Map<String, Object> row) {
         Object pid = row.get("project_id");
@@ -976,7 +1146,7 @@ class MarginQuerySupportMysqlIntegrationTest {
         return null;
     }
 
-    /** 清理测试数据：删除 tasks、fees、project_initiation_details、projects、tenders。 */
+    /** 清理测试数据：删除 tasks、fees、project_closure、project_initiation_details、projects、tenders。 */
     private void cleanupTestData(final Long projectId) {
         if (projectId == null) {
             return;
@@ -985,6 +1155,9 @@ class MarginQuerySupportMysqlIntegrationTest {
         // CO-490 测试会创建 deposit-payment 任务，必须先清理（tasks 无外键约束但 project_id 引用 projects.id）
         jdbcTemplate.update("DELETE FROM tasks WHERE project_id = :pid", params);
         jdbcTemplate.update("DELETE FROM fees WHERE project_id = :pid", params);
+        // CO-508 测试会创建 project_closure，project_id 有 unique 约束必须清理
+        jdbcTemplate.update(
+                "DELETE FROM project_closure WHERE project_id = :pid", params);
         // CO-507 测试会创建 project_lead_assignment，project_id 有 unique 约束必须清理
         jdbcTemplate.update(
                 "DELETE FROM project_lead_assignment WHERE project_id = :pid", params);
