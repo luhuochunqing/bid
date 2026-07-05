@@ -182,6 +182,20 @@ describe('UserPicker', () => {
     expect(select.props('options')[0].value).toBe(4)
   })
 
+  it('filters options by roleFilter array', () => {
+    const adminUser = { ...mockUser, id: 3, name: '王五', roleCode: 'admin' }
+    const bidAdminUser = { ...mockUser, id: 4, name: '赵六', roleCode: '/bidAdmin' }
+    const teamUser = { ...mockUser, id: 5, name: '孙七', roleCode: 'bid-Team' }
+    mockComposable({ options: ref([adminUser, bidAdminUser, teamUser]) })
+    const wrapper = mount(UserPicker, {
+      props: { mode: 'search', roleFilter: ['admin', '/bidAdmin'] },
+      global: { stubs: elementStubs },
+    })
+    const select = wrapper.findComponent({ name: 'ElSelectV2' })
+    expect(select.props('options')).toHaveLength(2)
+    expect(select.props('options').map((o) => o.value)).toEqual([3, 4])
+  })
+
   it('appends department to option label when showDepartment is true', () => {
     mockComposable({ options: ref([{ ...mockUser, deptName: '交付部' }]) })
     const wrapper = mount(UserPicker, {

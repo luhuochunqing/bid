@@ -1,7 +1,10 @@
-// Input: ProjectRepository, UserRepository, TenderRepository, ProjectInitiationDetailsRepository, TenderAssignmentRecordRepository, ProjectTransferNotifier, EffectiveRoleResolver
+// Input: ProjectRepository, UserRepository, TenderRepository, ProjectInitiationDetailsRepository, TenderAssignmentRecordRepository, ProjectTransferNotifier
 // Output: transfer(projectId, newOwnerId, operatorId, reason) — 项目转移编排
 // Pos: project/service/ - 应用服务/命令编排
 // 维护声明: 仅维护转移编排；角色校验下沉到 ProjectTransferRolePolicy；通知下沉到 ProjectTransferNotifier。
+// 角色校验使用 DbRoleSnapshotResolver（数据库 role_profile 快照），与 /api/users/search 的 UserSearchService 对齐，
+// 而非 EffectiveRoleResolver（OSS 登录缓存）。原因：UserPicker 下拉人选人走的是事件库接口，用户角色以事件库同步到
+// DB 的 role_profile 为准；后端若改用 OSS 登录缓存校验，会与前端展示来源脱节，出现"前端能选、后端拒绝"的断层。
 
 package com.xiyu.bid.project.service;
 
@@ -18,7 +21,7 @@ import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
-import com.xiyu.bid.security.EffectiveRoleResolver;
+import com.xiyu.bid.user.core.DbRoleSnapshotResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -43,6 +46,11 @@ import java.util.Optional;
  * 旧负责人通过 {@code ProjectAccessScopeService} 实时计算自然失去访问权限
  * （无应用层缓存，下次请求即生效）。
  * </p>
+ * <p>
+ * 新负责人角色校验使用 {@link DbRoleSnapshotResolver#resolveRoleCode(User)}（数据库 {@code role_profile} 快照），
+ * 与 {@code UserSearchService} 返回给 UserPicker 的角色来源一致（事件库同步到 DB 的角色快照），
+ * 避免 OSS 登录缓存与选人数据源不一致导致误判。
+ * </p>
  */
 @Service
 @RequiredArgsConstructor
@@ -56,7 +64,6 @@ public class ProjectTransferService {
     private final ProjectInitiationDetailsRepository initiationDetailsRepository;
     private final TenderAssignmentRecordRepository assignmentRecordRepository;
     private final ProjectTransferNotifier notifier;
-    private final EffectiveRoleResolver effectiveRoleResolver;
 
     /**
      * 执行项目转移。
@@ -67,7 +74,7 @@ public class ProjectTransferService {
      * @param reason        转移原因（可选）
      * @return 转移结果
      * @throws ResourceNotFoundException   如果项目或新负责人不存在
-     * @throws IllegalArgumentException    如果新=旧、新负责人停用、角色不允许
+     * @throws IllegalArgumentException    如果新=旧 manager、新=旧 ownerUserId、新负责人停用、角色不允许
      */
     public ProjectTransferResponse transfer(Long projectId, Long newOwnerId, Long operatorId, String reason) {
         // 1. 加载项目
@@ -85,13 +92,25 @@ public class ProjectTransferService {
             throw new IllegalArgumentException("新负责人账号已停用");
         }
 
-        // 3. FR-008: 校验新负责人 != 当前负责人
+        // 3. FR-008: 校验新负责人 != 当前 manager
         if (oldOwnerId != null && oldOwnerId.equals(newOwnerId)) {
             throw new IllegalArgumentException("新负责人与当前负责人相同，无需转移");
         }
 
-        // 4. FR-004: 校验新负责人角色（CO-373: 走 EffectiveRoleResolver，禁止直调 User.getRoleCode()）
-        String newOwnerRoleCode = effectiveRoleResolver.resolveRoleCode(newOwner);
+        // 4. 提前加载 initiationDetails，用于 ownerUserId 校验和后续更新
+        Optional<ProjectInitiationDetails> detailsOpt = initiationDetailsRepository.findByProjectId(projectId);
+        Long oldOwnerUserId = detailsOpt.map(ProjectInitiationDetails::getOwnerUserId).orElse(null);
+
+        // 4.1 校验新负责人 != 当前 initiationDetails.owner_user_id（避免 owner 与 manager 不一致时产生无效转移）
+        if (oldOwnerUserId != null && oldOwnerUserId.equals(newOwnerId)) {
+            throw new IllegalArgumentException("新负责人与当前项目负责人相同，无需转移");
+        }
+
+        // 4.2 FR-004: 校验新负责人角色。
+        // UserPicker 已按事件库同步到 DB 的 role_profile 展示候选，后端角色校验必须与该数据源对齐，
+        // 因此使用 DbRoleSnapshotResolver（读 DB 快照）而非 EffectiveRoleResolver（OSS 登录缓存），
+        // 避免登录缓存与选人数据源不一致导致"能选不能转"。
+        String newOwnerRoleCode = DbRoleSnapshotResolver.resolveRoleCode(newOwner);
         if (!ProjectTransferRolePolicy.isValidNewOwnerRole(newOwnerRoleCode)) {
             throw new IllegalArgumentException(
                     "新负责人必须是投标项目负责人/组长/管理员，当前角色：" + newOwnerRoleCode);
@@ -105,15 +124,17 @@ public class ProjectTransferService {
         projectRepository.save(project);
 
         // 7. 更新 initiationDetails（若存在）
-        Optional<ProjectInitiationDetails> detailsOpt = initiationDetailsRepository.findByProjectId(projectId);
         detailsOpt.ifPresent(details -> {
             details.setOwnerUserId(newOwnerId);
             details.setProjectLeaderName(newOwner.getFullName());
             initiationDetailsRepository.save(details);
         });
 
-        // 8. 更新 tender（若 project.tender_id 存在）
-        boolean tenderSynced = false;
+        // 8. 获取操作人姓名（审计日志与通知复用，避免重复查询）
+        String operatorName = resolveUserName(operatorId);
+
+        // 9. 更新 tender（若 project.tender_id 存在）
+        boolean tenderUpdated = false;
         Long tenderId = project.getTenderId();
         if (tenderId != null) {
             Optional<Tender> tenderOpt = tenderRepository.findById(tenderId);
@@ -122,16 +143,15 @@ public class ProjectTransferService {
                 tender.setProjectManagerId(newOwnerId);
                 tender.setProjectManagerName(newOwner.getFullName());
                 tenderRepository.save(tender);
-                tenderSynced = true;
+                tenderUpdated = true;
 
-                // 9. 写审计日志（复用 TenderAssignmentRecord，type=TRANSFER）
+                // 10. 写审计日志（复用 TenderAssignmentRecord，type=TRANSFER）
                 writeAuditRecord(tenderId, newOwnerId, newOwner.getFullName(),
-                        oldOwnerId, oldOwnerName, operatorId, reason);
+                        oldOwnerId, oldOwnerName, operatorId, operatorName, reason);
             }
         }
 
         // 10. 通知新负责人（独立事务，失败不影响主转移）
-        String operatorName = resolveUserName(operatorId);
         try {
             notifier.notifyTransferred(projectId, projectName, newOwnerId, newOwner.getFullName(),
                     oldOwnerName, operatorId, operatorName);
@@ -152,14 +172,14 @@ public class ProjectTransferService {
                 .newOwnerUserId(newOwnerId)
                 .newOwnerName(newOwner.getFullName())
                 .transferredAt(LocalDateTime.now())
-                .tenderSynced(tenderSynced)
+                .tenderUpdated(tenderUpdated)
                 .tenderId(tenderId)
                 .build();
     }
 
     private void writeAuditRecord(Long tenderId, Long newOwnerId, String newOwnerName,
                                    Long oldOwnerId, String oldOwnerName,
-                                   Long operatorId, String reason) {
+                                   Long operatorId, String operatorName, String reason) {
         String remark = "项目转移: " + (oldOwnerName != null ? oldOwnerName : "无")
                 + " → " + newOwnerName
                 + (reason != null && !reason.isBlank() ? "（原因：" + reason + "）" : "");
@@ -168,7 +188,7 @@ public class ProjectTransferService {
                 .assigneeId(newOwnerId)
                 .assigneeName(newOwnerName)
                 .assignedById(operatorId)
-                .assignedByName(resolveUserName(operatorId))
+                .assignedByName(operatorName)
                 .type(TenderAssignmentRecord.AssignmentType.TRANSFER)
                 .remark(remark)
                 .assignedAt(LocalDateTime.now())

@@ -27,6 +27,12 @@ export const GLOBAL_MANAGE_ROLES = [
   ROLE_CODES.BID_LEAD,
 ]
 
+// 可作为项目转移目标负责人的角色（管理角色 + 投标项目负责人）
+export const PROJECT_TRANSFER_TARGET_ROLES = [
+  ...GLOBAL_MANAGE_ROLES,
+  ROLE_CODES.SALES,
+]
+
 // authority 形式（大写，连字符转下划线，用于 @PreAuthorize 和前端权限判断）
 export const ROLE_AUTHORITIES = {
   ADMIN: 'ADMIN',

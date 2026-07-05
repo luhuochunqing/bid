@@ -33,10 +33,16 @@ export function useProjectDetailTransfer(context) {
    */
   const canTransfer = computed(() => Boolean(userStore?.isBidAdmin && project.value?.id))
 
-  /** 排除当前负责人，避免"转给自己" */
+  /**
+   * 排除当前负责人，避免"转给自己"。
+   * 同时排除 project.manager_id 与 project.projectLeaderId（对应 initiationDetails.owner_user_id），
+   * 因为两者可能不一致；只排除 managerId 会导致仍能选到实际负责人，产生无效转移。
+   */
   const excludeOwnerIds = computed(() => {
-    const managerId = project.value?.managerId
-    return managerId ? [managerId] : []
+    const ids = []
+    if (project.value?.managerId) ids.push(project.value.managerId)
+    if (project.value?.projectLeaderId) ids.push(project.value.projectLeaderId)
+    return [...new Set(ids)]
   })
 
   const resetForm = () => {

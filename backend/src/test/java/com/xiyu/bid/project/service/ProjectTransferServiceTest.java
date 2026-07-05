@@ -14,10 +14,10 @@ import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.project.dto.ProjectTransferResponse;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
+import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
-import com.xiyu.bid.security.EffectiveRoleResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,7 +43,6 @@ class ProjectTransferServiceTest {
     @Mock ProjectInitiationDetailsRepository initiationDetailsRepository;
     @Mock TenderAssignmentRecordRepository assignmentRecordRepository;
     @Mock ProjectTransferNotifier notifier;
-    @Mock EffectiveRoleResolver effectiveRoleResolver;
 
     ProjectTransferService service;
 
@@ -52,7 +51,11 @@ class ProjectTransferServiceTest {
         service = new ProjectTransferService(
                 projectRepository, userRepository, tenderRepository,
                 initiationDetailsRepository, assignmentRecordRepository,
-                notifier, effectiveRoleResolver);
+                notifier);
+    }
+
+    private static RoleProfile roleProfile(String code) {
+        return RoleProfile.builder().code(code).name(code).build();
     }
 
     // ── US1: 转移成功 ─────────────────────────────────────────────────────
@@ -63,7 +66,8 @@ class ProjectTransferServiceTest {
         Project project = Project.builder()
                 .id(135L).name("测试项目").managerId(7246L).tenderId(743L).build();
         User oldOwner = User.builder().id(7246L).fullName("陈梦瑶").build();
-        User newOwner = User.builder().id(7324L).fullName("周子靖").enabled(true).build();
+        User newOwner = User.builder().id(7324L).fullName("周子靖").enabled(true)
+                .roleProfile(roleProfile("bid-projectLeader")).build();
         Tender tender = new Tender();
         tender.setId(743L);
         tender.setProjectManagerId(7246L);
@@ -75,7 +79,6 @@ class ProjectTransferServiceTest {
         when(userRepository.findById(7324L)).thenReturn(Optional.of(newOwner));
         when(userRepository.findById(7246L)).thenReturn(Optional.of(oldOwner));
         when(userRepository.findById(999L)).thenReturn(Optional.of(User.builder().id(999L).fullName("管理员").build()));
-        when(effectiveRoleResolver.resolveRoleCode(newOwner)).thenReturn("bid-projectLeader");
         when(tenderRepository.findById(743L)).thenReturn(Optional.of(tender));
         when(initiationDetailsRepository.findByProjectId(135L)).thenReturn(Optional.of(details));
 
@@ -116,7 +119,7 @@ class ProjectTransferServiceTest {
         assertThat(response.getOldOwnerName()).isEqualTo("陈梦瑶");
         assertThat(response.getNewOwnerUserId()).isEqualTo(7324L);
         assertThat(response.getNewOwnerName()).isEqualTo("周子靖");
-        assertThat(response.getTenderSynced()).isTrue();
+        assertThat(response.getTenderUpdated()).isTrue();
         assertThat(response.getTenderId()).isEqualTo(743L);
     }
 
@@ -126,7 +129,8 @@ class ProjectTransferServiceTest {
         Project project = Project.builder()
                 .id(135L).name("测试项目").managerId(7246L).tenderId(743L).build();
         User oldOwner = User.builder().id(7246L).fullName("陈梦瑶").build();
-        User newOwner = User.builder().id(7324L).fullName("周子靖").enabled(true).build();
+        User newOwner = User.builder().id(7324L).fullName("周子靖").enabled(true)
+                .roleProfile(roleProfile("admin")).build();
         Tender tender = new Tender();
         tender.setId(743L);
 
@@ -134,7 +138,6 @@ class ProjectTransferServiceTest {
         when(userRepository.findById(7324L)).thenReturn(Optional.of(newOwner));
         when(userRepository.findById(7246L)).thenReturn(Optional.of(oldOwner));
         when(userRepository.findById(999L)).thenReturn(Optional.of(User.builder().id(999L).fullName("管理员").build()));
-        when(effectiveRoleResolver.resolveRoleCode(newOwner)).thenReturn("admin");
         when(tenderRepository.findById(743L)).thenReturn(Optional.of(tender));
         when(initiationDetailsRepository.findByProjectId(135L)).thenReturn(Optional.empty());
 
@@ -151,13 +154,13 @@ class ProjectTransferServiceTest {
         Project project = Project.builder()
                 .id(135L).name("测试项目").managerId(7246L).tenderId(null).build();
         User oldOwner = User.builder().id(7246L).fullName("陈梦瑶").build();
-        User newOwner = User.builder().id(7324L).fullName("周子靖").enabled(true).build();
+        User newOwner = User.builder().id(7324L).fullName("周子靖").enabled(true)
+                .roleProfile(roleProfile("admin")).build();
 
         when(projectRepository.findById(135L)).thenReturn(Optional.of(project));
         when(userRepository.findById(7324L)).thenReturn(Optional.of(newOwner));
         when(userRepository.findById(7246L)).thenReturn(Optional.of(oldOwner));
         when(userRepository.findById(999L)).thenReturn(Optional.of(User.builder().id(999L).fullName("管理员").build()));
-        when(effectiveRoleResolver.resolveRoleCode(newOwner)).thenReturn("admin");
         when(initiationDetailsRepository.findByProjectId(135L)).thenReturn(Optional.empty());
 
         // When
@@ -167,7 +170,7 @@ class ProjectTransferServiceTest {
         verify(tenderRepository, never()).findById(any());
         verify(tenderRepository, never()).save(any());
         verify(assignmentRecordRepository, never()).save(any());
-        assertThat(response.getTenderSynced()).isFalse();
+        assertThat(response.getTenderUpdated()).isFalse();
         assertThat(response.getTenderId()).isNull();
     }
 
@@ -191,9 +194,10 @@ class ProjectTransferServiceTest {
     }
 
     @Test
-    void transfer_newOwnerEqualsOldOwner_throws_IllegalArgumentException() {
+    void transfer_newOwnerEqualsOldManager_throws_IllegalArgumentException() {
         Project project = Project.builder().id(135L).managerId(7324L).tenderId(743L).build();
-        User newOwner = User.builder().id(7324L).fullName("周子靖").enabled(true).build();
+        User newOwner = User.builder().id(7324L).fullName("周子靖").enabled(true)
+                .roleProfile(roleProfile("bid-projectLeader")).build();
 
         when(projectRepository.findById(135L)).thenReturn(Optional.of(project));
         when(userRepository.findById(7324L)).thenReturn(Optional.of(newOwner));
@@ -204,9 +208,28 @@ class ProjectTransferServiceTest {
     }
 
     @Test
+    void transfer_newOwnerEqualsOldOwnerUserId_throws_IllegalArgumentException() {
+        // managerId 不同，但 initiationDetails.owner_user_id 与新负责人相同
+        Project project = Project.builder().id(135L).managerId(7246L).tenderId(743L).build();
+        User newOwner = User.builder().id(7324L).fullName("周子靖").enabled(true)
+                .roleProfile(roleProfile("bid-projectLeader")).build();
+        ProjectInitiationDetails details = ProjectInitiationDetails.builder()
+                .id(1L).projectId(135L).ownerUserId(7324L).projectLeaderName("周子靖").build();
+
+        when(projectRepository.findById(135L)).thenReturn(Optional.of(project));
+        when(userRepository.findById(7324L)).thenReturn(Optional.of(newOwner));
+        when(initiationDetailsRepository.findByProjectId(135L)).thenReturn(Optional.of(details));
+
+        assertThatThrownBy(() -> service.transfer(135L, 7324L, 999L, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("相同");
+    }
+
+    @Test
     void transfer_newOwnerDisabled_throws_IllegalArgumentException() {
         Project project = Project.builder().id(135L).managerId(7246L).tenderId(743L).build();
-        User newOwner = User.builder().id(7324L).fullName("周子靖").enabled(false).build();
+        User newOwner = User.builder().id(7324L).fullName("周子靖").enabled(false)
+                .roleProfile(roleProfile("bid-projectLeader")).build();
 
         when(projectRepository.findById(135L)).thenReturn(Optional.of(project));
         when(userRepository.findById(7324L)).thenReturn(Optional.of(newOwner));
@@ -219,14 +242,27 @@ class ProjectTransferServiceTest {
     @Test
     void transfer_newOwnerRoleInvalid_throws_IllegalArgumentException() {
         Project project = Project.builder().id(135L).managerId(7246L).tenderId(743L).build();
-        User newOwner = User.builder().id(7324L).fullName("陈梦瑶").enabled(true).build();
+        User newOwner = User.builder().id(7324L).fullName("陈梦瑶").enabled(true)
+                .roleProfile(roleProfile("bid-Team")).build();
 
         when(projectRepository.findById(135L)).thenReturn(Optional.of(project));
         when(userRepository.findById(7324L)).thenReturn(Optional.of(newOwner));
-        when(effectiveRoleResolver.resolveRoleCode(newOwner)).thenReturn("bid-Team");
 
         assertThatThrownBy(() -> service.transfer(135L, 7324L, 999L, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("必须是投标项目负责人");
+    }
+
+    @Test
+    void transfer_newOwnerRoleNull_throws_IllegalArgumentException() {
+        Project project = Project.builder().id(135L).managerId(7246L).tenderId(743L).build();
+        User newOwner = User.builder().id(7324L).fullName("周子靖").enabled(true).build();
+
+        when(projectRepository.findById(135L)).thenReturn(Optional.of(project));
+        when(userRepository.findById(7324L)).thenReturn(Optional.of(newOwner));
+
+        assertThatThrownBy(() -> service.transfer(135L, 7324L, 999L, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("新负责人必须是投标项目负责人/组长/管理员");
     }
 }

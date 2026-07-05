@@ -25,6 +25,7 @@
           placeholder="搜索人员（姓名/工号/拼音）"
           style="width: 100%;"
           :exclude-ids="ctx.excludeOwnerIds"
+          :role-filter="PROJECT_TRANSFER_TARGET_ROLES"
         />
       </el-form-item>
       <el-form-item label="转移原因">
@@ -55,6 +56,7 @@
 import { inject } from 'vue'
 import UserPicker from '@/components/common/UserPicker.vue'
 import { projectDetailKey } from '@/composables/projectDetail/context.js'
+import { PROJECT_TRANSFER_TARGET_ROLES } from '@/constants/roleCodes.js'
 
 const ctx = inject(projectDetailKey)
 </script>
