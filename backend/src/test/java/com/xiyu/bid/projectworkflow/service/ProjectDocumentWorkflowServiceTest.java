@@ -337,6 +337,22 @@ class ProjectDocumentWorkflowServiceTest {
     }
 
     @Test
+    void deleteProjectDocument_inTerminalStatus_shouldThrowBusinessExceptionWithFriendlyMessage() {
+        // CO-487: 项目已结项（WON/LOST/FAILED/ABANDONED 均为终态）时删除文档，
+        // 必须抛 BusinessException（业务异常）并透传友好 message，
+        // 而不是 IllegalStateException（会被全局 handler 吞成"系统状态冲突，请刷新后重试"）。
+        // 1002L 在 setUp 中已 mock 为 WON（终态）。
+        Long terminalProjectId = 1002L;
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> service.deleteProjectDocument(terminalProjectId, 9101L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("项目已结项，不可删除文件");
+
+        verify(projectDocumentRepository, org.mockito.Mockito.never()).delete(any());
+    }
+
+    @Test
     void deleteProjectDocument_asBidProjectLeader_shouldThrowAccessDeniedException() {
         // CO-383: bid-projectLeader 非上传者本人 → 拒绝
         when(currentUserResolver.requireCurrentUser()).thenReturn(
