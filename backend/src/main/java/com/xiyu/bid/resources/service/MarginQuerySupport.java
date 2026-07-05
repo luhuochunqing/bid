@@ -45,6 +45,7 @@ final class MarginQuerySupport {
           + " LEFT JOIN project_initiation_details pid"
           + "   ON pid.project_id = f.project_id"
           + " LEFT JOIN tenders t ON t.id = p.tender_id"
+          + " LEFT JOIN users u ON u.id = p.manager_id"
           + " LEFT JOIN tasks dt"
           + "   ON dt.project_id = f.project_id"
           + "   AND JSON_EXTRACT(dt.extended_fields_json, '$._taskType') = 'deposit-payment'"
@@ -56,6 +57,12 @@ final class MarginQuerySupport {
             " FROM project_initiation_details pid"
           + " JOIN projects p ON p.id = pid.project_id"
           + " LEFT JOIN tenders t ON t.id = p.tender_id"
+          + " LEFT JOIN users u ON u.id = p.manager_id"
+          + " LEFT JOIN tasks dt"
+          + "   ON dt.project_id = pid.project_id"
+          + "   AND JSON_EXTRACT(dt.extended_fields_json, '$._taskType') = 'deposit-payment'"
+          + " LEFT JOIN project_closure pc"
+          + "   ON pc.project_id = pid.project_id"
           + " WHERE ";
 
     private MarginQuerySupport() {
