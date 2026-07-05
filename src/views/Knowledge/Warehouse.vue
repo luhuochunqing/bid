@@ -96,6 +96,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Upload, Download, Document, Plus } from '@element-plus/icons-vue'
 import http from '@/api/client'
 import { useKnowledgePermission } from '@/composables/useKnowledgePermission'
+import { buildWarehouseListParams } from './warehouseParams.js'
 import WarehouseFilterBar from '@/components/warehouse/WarehouseFilterBar.vue'
 import WarehouseDialog from '@/components/warehouse/WarehouseDialog.vue'
 import WarehouseDrawer from '@/components/warehouse/WarehouseDrawer.vue'
@@ -129,30 +130,7 @@ const form = reactive({
 
 const STATUS_MAP = { IN_USE:'使用中', EXPIRING:'即将到期', EXPIRED:'已过期', CLOSED:'已关仓' }
 
-const buildParams = () => {
-  const p = { page: page.value - 1, size: size.value }
-  const f = filters.value
-  if (f.keyword) p.keyword = f.keyword
-  if (f.types?.length) p.types = f.types
-  // 默认排除已关仓（CLOSED）。仅当用户显式选中"已关仓"或勾选"包含已关仓"时才传 statuses。
-  const includeClosed = f.includeClosed === true
-  const hasClosed = f.statuses?.includes('CLOSED')
-  if (f.statuses?.length && (includeClosed || hasClosed)) {
-    p.statuses = f.statuses
-  } else {
-    p.statuses = ['IN_USE', 'EXPIRING', 'EXPIRED']
-  }
-  if (f.regions?.length) p.regions = f.regions
-  if (f.provinces?.length) p.provinces = f.provinces
-  if (f.endDateFrom) p.endDateFrom = f.endDateFrom
-  if (f.endDateTo) p.endDateTo = f.endDateTo
-  if (f.hasPropertyCert) p.hasPropertyCert = true
-  if (f.hasInvoice) p.hasInvoice = true
-  if (f.hasPhotos) p.hasPhotos = true
-  if (f.hasLeaseContract) p.hasLeaseContract = true
-  if (f.contactPersonKeyword) p.contactPersonKeyword = f.contactPersonKeyword
-  return p
-}
+const buildParams = () => buildWarehouseListParams(filters.value, page.value - 1, size.value)
 
 const load = async () => {
   loading.value = true
