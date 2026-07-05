@@ -4,12 +4,16 @@ import java.util.List;
 import com.xiyu.bid.warehouse.domain.WarehouseImportPolicy;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.DataValidation;
+import org.apache.poi.ss.usermodel.DataValidationConstraint;
+import org.apache.poi.ss.usermodel.DataValidationHelper;
 import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.util.CellRangeAddressList;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Component;
 
@@ -71,9 +75,44 @@ public class WarehouseImportTemplateWriter {
                 c.setCellValue(hints[i] != null ? hints[i] : "");
             }
 
+            // 给枚举列加下拉框，避免用户自由填写导致导入失败
+            applyDropDownValidations(sheet);
+
             wb.write(out);
             return out.toByteArray();
         }
+    }
+
+    /** 7 大区域选项，与前端 WarehouseFilterBar.REGION_OPTIONS 对齐。 */
+    private static final String[] REGION_OPTIONS = {"华北", "东北", "华东", "华中", "华南", "西北", "西南"};
+
+    /**
+     * 给模板中的枚举列加 Excel 数据有效性下拉框：
+     * - 仓库类型（COL_TYPE）：自营 / 云仓
+     * - 所属区域（COL_REGION）：华北 / 东北 / 华东 / 华中 / 华南 / 西北 / 西南
+     * - 是否有产权证 / 发票 / 照片 / 租赁合同：是 / 否
+     *
+     * 数据行范围从第 2 行（hint 行之后）到 65535 行，覆盖用户实际可填的所有行。
+     */
+    private void applyDropDownValidations(Sheet sheet) {
+        DataValidationHelper helper = sheet.getDataValidationHelper();
+        addListValidation(sheet, helper, new String[]{"自营", "云仓"}, WarehouseImportPolicy.COL_TYPE);
+        addListValidation(sheet, helper, REGION_OPTIONS, WarehouseImportPolicy.COL_REGION);
+        String[] yesNo = new String[]{"是", "否"};
+        addListValidation(sheet, helper, yesNo, WarehouseImportPolicy.COL_HAS_PROPERTY_CERT);
+        addListValidation(sheet, helper, yesNo, WarehouseImportPolicy.COL_HAS_INVOICE);
+        addListValidation(sheet, helper, yesNo, WarehouseImportPolicy.COL_HAS_PHOTOS);
+        addListValidation(sheet, helper, yesNo, WarehouseImportPolicy.COL_HAS_LEASE_CONTRACT);
+    }
+
+    private void addListValidation(Sheet sheet, DataValidationHelper helper, String[] options, int col) {
+        DataValidationConstraint constraint = helper.createExplicitListConstraint(options);
+        // 从第 2 行（hint 行 = 第 1 行，用户数据从第 2 行开始）到 65535 行
+        CellRangeAddressList range = new CellRangeAddressList(2, 65535, col, col);
+        DataValidation validation = helper.createValidation(constraint, range);
+        validation.setSuppressDropDownArrow(true);
+        validation.setShowErrorBox(true);
+        sheet.addValidationData(validation);
     }
 
     private CellStyle createHeaderStyle(Workbook wb) {
