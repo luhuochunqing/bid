@@ -97,7 +97,7 @@
                   <div class="qd-att-name">{{ att.fileName || '附件' }}</div>
                   <div class="qd-att-meta">
                     <span v-if="att.fileSize">{{ formatSize(att.fileSize) }} · </span>
-                    <span>{{ att.uploadedAt || '—' }}</span>
+                    <DateTimeDisplay :value="att.uploadedAt" fallback="—" />
                   </div>
                 </div>
                 <div class="qd-att-actions">
@@ -130,6 +130,7 @@ import { ref } from 'vue'
 import { Edit, Bottom, Top, Close, Document, Upload } from '@element-plus/icons-vue'
 import { formatDate, qualificationStatusTagTypes, qualificationStatusLabels } from './qualificationMeta.js'
 import OperationLogTab from '@/components/qualification/OperationLogTab.vue'
+import DateTimeDisplay from '@/components/common/DateTimeDisplay.vue'
 
 const STATUS_LABELS = { ...qualificationStatusLabels, valid: '在库', expiring: '即将到期', expired: '已过期', retired: '已下架' }
 

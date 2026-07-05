@@ -16,7 +16,7 @@
     <div class="case-card-footer">
       <div class="info-meta">
         <span class="reuse-stat"><el-icon class="icon-stat"><CopyDocument /></el-icon>复用 <strong>{{ caseData.reuseCount }}</strong> 次</span>
-        <span class="date-stat ml-2">{{ caseData.createdAt }}</span>
+        <span class="date-stat ml-2"><DateTimeDisplay :value="caseData.createdAt" /></span>
       </div>
       <el-button size="small" type="success" @click.stop="$emit('reuse', caseData)">
         <el-icon style="vertical-align:-.2em;margin-right:4px"><CopyDocument /></el-icon>复用
@@ -29,6 +29,7 @@
 import { computed } from 'vue'
 import { CopyDocument } from '@element-plus/icons-vue'
 import { getProjectTypeLabel, getCustomerTypeLabel } from '../caseLabels.js'
+import DateTimeDisplay from '@/components/common/DateTimeDisplay.vue'
 const props = defineProps({ caseData: Object, canManage: Boolean })
 defineEmits(['view-detail', 'reuse'])
 const truncatedSummary = computed(() => {

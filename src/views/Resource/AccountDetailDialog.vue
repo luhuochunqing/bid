@@ -34,7 +34,7 @@
           <el-descriptions-item label="注册手机">{{ data.registerPhone || '-' }}</el-descriptions-item>
           <el-descriptions-item label="注册邮箱">{{ data.registerEmail || '-' }}</el-descriptions-item>
           <el-descriptions-item label="最近使用">{{ data.lastUsed || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="归还截止">{{ data.dueAt || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="归还截止"><DateTimeDisplay :value="data.dueAt" /></el-descriptions-item>
         </el-descriptions>
       </el-tab-pane>
       <el-tab-pane label="借用记录" name="borrows">
@@ -81,6 +81,7 @@ import { ref, computed, watch } from 'vue'
 import { Hide, View } from '@element-plus/icons-vue'
 import { resourcesApi } from '@/api'
 import { usePasswordReveal } from './composables/usePasswordReveal.js'
+import DateTimeDisplay from '@/components/common/DateTimeDisplay.vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },

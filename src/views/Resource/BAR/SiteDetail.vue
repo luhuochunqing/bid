@@ -220,7 +220,7 @@
           <el-timeline-item
             v-for="(log, index) in site.auditLog"
             :key="index"
-            :timestamp="log.time"
+            :timestamp="formatDisplayDateTime(log.time)"
             placement="top"
           >
             {{ log.user }} {{ log.action }}
@@ -312,6 +312,7 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import BorrowDialog from './components/BorrowDialog.vue'
+import { formatDisplayDateTime } from '@/utils/formatDisplayDate'
 
 const router = useRouter()
 const route = useRoute()
@@ -325,7 +326,6 @@ const showBorrowDialog = ref(false)
 const editingAccount = ref(null)
 const editingUk = ref(null)
 const currentUk = ref(null)
-
 const accountFormRef = ref(null)
 const ukFormRef = ref(null)
 

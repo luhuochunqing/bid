@@ -84,9 +84,9 @@
 
             <el-descriptions-item v-if="ca.remark" label="备注">{{ ca.remark }}</el-descriptions-item>
 
-            <el-descriptions-item v-if="ca.createdAt" label="创建时间">{{ ca.createdAt }}</el-descriptions-item>
+            <el-descriptions-item v-if="ca.createdAt" label="创建时间"><DateTimeDisplay :value="ca.createdAt" /></el-descriptions-item>
 
-            <el-descriptions-item v-if="ca.updatedAt" label="更新时间">{{ ca.updatedAt }}</el-descriptions-item>
+            <el-descriptions-item v-if="ca.updatedAt" label="更新时间"><DateTimeDisplay :value="ca.updatedAt" /></el-descriptions-item>
           </el-descriptions>
         </el-tab-pane>
 
@@ -135,7 +135,7 @@
             <el-timeline-item
               v-for="event in operationEvents"
               :key="event.id"
-              :timestamp="event.createdAt"
+              :timestamp="formatDisplayDateTime(event.createdAt)"
               placement="top"
               :type="caEventTypeColor(event.eventType)"
             >
@@ -192,6 +192,8 @@ import {
   caEventTypeColor
 } from '../composables/useCaBorrowEligibility'
 import { formatDisplayName } from '@/utils/formatDisplayName'
+import DateTimeDisplay from '@/components/common/DateTimeDisplay.vue'
+import { formatDisplayDateTime } from '@/utils/formatDisplayDate'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },

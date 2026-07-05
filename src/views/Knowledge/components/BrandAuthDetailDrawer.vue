@@ -104,7 +104,7 @@
       <el-divider content-position="left">操作日志</el-divider>
       <el-empty v-if="!logs.length" description="暂无操作日志" :image-size="40" />
       <el-timeline v-else>
-        <el-timeline-item v-for="log in logs" :key="log.id" :timestamp="log.timestamp" placement="top">
+        <el-timeline-item v-for="log in logs" :key="log.id" :timestamp="formatDisplayDateTime(log.timestamp)" placement="top">
           <p><strong>{{ log.username }}</strong> — {{ log.action }}</p>
           <p class="log-desc" v-if="log.description">{{ log.description }}</p>
         </el-timeline-item>
@@ -121,6 +121,7 @@
 import { ref, watch, computed } from 'vue'
 import { Document } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import { formatDisplayDateTime } from '@/utils/formatDisplayDate'
 
 const props = defineProps({ modelValue: Boolean, detail: Object, logs: Array })
 const emit = defineEmits(['update:modelValue', 'edit', 'revoke'])
