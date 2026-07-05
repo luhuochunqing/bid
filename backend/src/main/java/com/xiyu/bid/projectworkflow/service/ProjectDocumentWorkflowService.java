@@ -1,6 +1,7 @@
 package com.xiyu.bid.projectworkflow.service;
 
 import com.xiyu.bid.common.domain.AuthorizationDecision;
+import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.projectworkflow.core.DocumentCategoryNormalizer;
 import com.xiyu.bid.projectworkflow.core.ProjectDocumentWorkflowPolicy;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentCreateRequest;
@@ -82,10 +83,12 @@ class ProjectDocumentWorkflowService {
 
     void deleteProjectDocument(Long projectId, Long documentId) {
         // CO-487: 结项状态下删除附件报错信息优化——先检查项目状态，给出更友好的提示
+        // 必须抛 BusinessException（业务异常），否则会被 GlobalExceptionHandler 当作系统缺陷
+        // 吞掉 message，统一返回"系统状态冲突，请刷新后重试"。
         try {
             guardService.requireWorkflowMutationProject(projectId);
         } catch (IllegalStateException e) {
-            throw new IllegalStateException("项目已结项，不可删除文件");
+            throw new BusinessException(409, "项目已结项，不可删除文件");
         }
 
         ProjectDocument document = guardService.requireDocument(projectId, documentId);
