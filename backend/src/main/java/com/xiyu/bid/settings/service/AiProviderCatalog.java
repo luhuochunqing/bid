@@ -1,5 +1,6 @@
 package com.xiyu.bid.settings.service;
 
+import com.xiyu.bid.common.security.SsrfValidator;
 import com.xiyu.bid.settings.dto.SettingsResponse;
 import org.springframework.stereotype.Component;
 
@@ -13,6 +14,8 @@ import java.util.Set;
 public class AiProviderCatalog {
 
     private static final String DEFAULT_ACTIVE_PROVIDER = "deepseek";
+
+    private static final String CUSTOM_PROVIDER_CODE = "custom";
 
     private final Map<String, AiProviderDefinition> providers = Map.of(
             "openai", new AiProviderDefinition(
@@ -46,10 +49,18 @@ public class AiProviderCatalog {
                     "doubao-1-5-pro-32k-250115",
                     List.of("ARK_API_KEY", "DOUBAO_API_KEY", "VOLCENGINE_API_KEY"),
                     Set.of("ark.cn-beijing.volces.com")
+            ),
+            "custom", new AiProviderDefinition(
+                    "custom",
+                    "自定义",
+                    null,
+                    "",
+                    List.of(),
+                    Set.of()
             )
     );
 
-    private final List<String> providerOrder = List.of("openai", "deepseek", "qwen", "doubao");
+    private final List<String> providerOrder = List.of("openai", "deepseek", "qwen", "doubao", "custom");
 
     public String defaultActiveProvider() {
         return DEFAULT_ACTIVE_PROVIDER;
@@ -80,6 +91,12 @@ public class AiProviderCatalog {
 
     public void validateBaseUrl(String providerCode, String baseUrl) {
         AiProviderDefinition provider = get(providerCode);
+        if (provider.allowedHosts().isEmpty()) {
+            // 自定义 Provider：走 SSRF 安全校验，允许 HTTP/HTTPS、任意域名
+            SsrfValidator.validate(baseUrl);
+            return;
+        }
+
         URI uri;
         try {
             uri = URI.create(baseUrl == null ? "" : baseUrl.trim());
