@@ -21,6 +21,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
@@ -363,6 +364,43 @@ class GlobalExceptionHandlerTest {
                 .anyMatch(msg -> msg.contains("Payload:"));
         assertThat(logContainsPayload)
                 .as("handleIllegalStateException 应打印 Payload")
+                .isTrue();
+    }
+
+    // ============ CO-507: handleAccessDeniedException 4xx 路径（业务可恢复错误） ============
+    // 对称于 handleIllegalStateException 5xx 诊断标准：业务权限校验失败应走 4xx 路径，
+    // WARN 级日志，不上报 Sentry，避免噪声。
+
+    @Test
+    void handleAccessDeniedException_shouldReturn403AndNotReportToSentry() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/platform/accounts/8/password");
+        AccessDeniedException exception =
+                new AccessDeniedException("Only administrators or the account's contact person can view the password");
+
+        ResponseEntity<ApiResponse<Void>> response;
+        try (MockedStatic<Sentry> sentry = mockStatic(Sentry.class)) {
+            response = handler.handleAccessDeniedException(exception, request);
+            // 4xx 业务异常不得上报 Sentry（区别于 5xx 系统缺陷）
+            sentry.verifyNoInteractions();
+        }
+
+        // 4xx 状态码（403）
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(response.getBody().getCode()).isEqualTo(403);
+        // 通用错误信息，不暴露具体权限细节
+        assertThat(response.getBody().getMessage()).isEqualTo("权限不足，无法访问该资源");
+        assertThat(response.getBody().getMessage()).doesNotContain("contact person");
+
+        // 4xx 应使用 WARN 级别日志（非 ERROR）
+        boolean hasErrorLevelLog = appender.list.stream()
+                .anyMatch(event -> event.getLevel().equals(Level.ERROR));
+        assertThat(hasErrorLevelLog)
+                .as("handleAccessDeniedException 应使用 log.warn 而非 log.error")
+                .isFalse();
+        boolean hasWarnLevelLog = appender.list.stream()
+                .anyMatch(event -> event.getLevel().equals(Level.WARN));
+        assertThat(hasWarnLevelLog)
+                .as("handleAccessDeniedException 应使用 log.warn")
                 .isTrue();
     }
 

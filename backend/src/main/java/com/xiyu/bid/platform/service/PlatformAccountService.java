@@ -21,6 +21,7 @@ import com.xiyu.bid.security.EffectiveRoleResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -244,18 +245,18 @@ public class PlatformAccountService {
     @Auditable(action = "VIEW_PASSWORD", entityType = "PlatformAccount",
               description = "Viewed password for platform account")
     public String getPassword(Long id, User currentUser) {
-        if (currentUser == null) throw new IllegalStateException("Authentication required");
+        if (currentUser == null) throw new AccessDeniedException("Authentication required");
         String code = effectiveRoleResolver.resolveRoleCode(currentUser);
         boolean privileged = PlatformAccountViewerPolicy.isPrivilegedRole(code);
         if (!privileged && PlatformAccountViewerPolicy.isBidTeamRole(code)) {
             PlatformAccount account = repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Account not found with id: " + id));
             if (!PlatformAccountContactMatcher.isContactPerson(account, currentUser))
-                throw new IllegalStateException(
+                throw new AccessDeniedException(
                     "Only administrators or the account's contact person can view the password");
             return passwordEncryptionUtil.decrypt(account.getPassword());
         }
-        if (!privileged) throw new IllegalStateException("Only administrators can view account passwords");
+        if (!privileged) throw new AccessDeniedException("Only administrators can view account passwords");
         PlatformAccount account = repository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Account not found with id: " + id));
         return passwordEncryptionUtil.decrypt(account.getPassword());

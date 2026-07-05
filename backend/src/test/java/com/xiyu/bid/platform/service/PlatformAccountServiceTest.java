@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -558,8 +559,8 @@ class PlatformAccountServiceTest {
     }
 
     @Test
-    @DisplayName("CO-389：bid-Team（投标专员）非绑定联系人查看密码抛出异常（CO-400 四轮修）")
-    void getPassword_whenBidTeam_throwsIllegalStateException() {
+    @DisplayName("CO-389：bid-Team（投标专员）非绑定联系人查看密码抛出 AccessDeniedException（CO-507 修复）")
+    void getPassword_whenBidTeamNotContactPerson_throwsAccessDeniedException() {
         // Mock account whose contactPerson is NOT the bidTeam user.
         PlatformAccount accountNotOwn = PlatformAccount.builder()
                 .id(1L).username("testuser").password(ENCRYPTED_PWD)
@@ -570,7 +571,7 @@ class PlatformAccountServiceTest {
         when(repository.findById(1L)).thenReturn(Optional.of(accountNotOwn));
 
         assertThatThrownBy(() -> service.getPassword(1L, BID_TEAM_USER))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(AccessDeniedException.class)
                 .hasMessageContaining("Only administrators or the account's contact person");
     }
 
@@ -592,11 +593,19 @@ class PlatformAccountServiceTest {
     }
 
     @Test
-    @DisplayName("非管理员查看密码抛出异常")
-    void getPassword_nonAdmin_throws() {
+    @DisplayName("非特权非 bid-Team 角色查看密码抛出 AccessDeniedException（CO-507 修复）")
+    void getPassword_nonPrivilegedNonBidTeamRole_throwsAccessDeniedException() {
         assertThatThrownBy(() -> service.getPassword(1L, STAFF_USER))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(AccessDeniedException.class)
                 .hasMessageContaining("Only administrators");
+    }
+
+    @Test
+    @DisplayName("currentUser == null 防御性校验抛出 AccessDeniedException（CO-507 修复）")
+    void getPassword_whenCurrentUserNull_throwsAccessDeniedException() {
+        assertThatThrownBy(() -> service.getPassword(1L, null))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Authentication required");
     }
 
     // ── 到期查询 ──
