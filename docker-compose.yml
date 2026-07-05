@@ -1,0 +1,78 @@
+# 西域数智化投标管理平台 - 本地开发数据库栈
+#
+# 用途：固化 MySQL/Redis 容器配置，避免与其他项目端口冲突
+# 启动：docker compose up -d
+# 停止：docker compose down
+# 数据保留：volume 持久化，容器删除后数据不丢失
+#
+# 端口分配（项目级固定）：
+#   - xiyu MySQL:  3306:3306  (项目默认，后端 application.yml 默认连 3306)
+#   - xiyu Redis:  6379:6379  (项目默认，后端 application.yml 默认连 6379)
+#
+# 与其他项目的隔离：
+#   - nexus 项目使用 3307/26380 端口段（与 xiyu 不冲突）
+#   - 本文件不与 nexus-db/nexus-redis 容器共享端口
+#
+# 关键配置说明：
+#   - sql_mode 去掉 NO_ZERO_DATE/NO_ZERO_IN_DATE：兼容 V1077 迁移（清理 zero-date 记录）
+#   - collation-server=utf8mb4_unicode_ci：兼容历史数据 collation，避免 JOIN 时 collation 冲突
+#   - character-set-server=utf8mb4：统一字符集
+#   - MySQL volume = xiyu-bid-mysql-data（external, 2026-06-06 创建，含历史业务数据，不要换成其他 volume）
+#   - Redis volume = xiyu-bid-redis-data（首次 docker compose up 时自动创建，缓存数据可重置）
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: xiyu-bid-local-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: "XiyuRoot!2026"
+      MYSQL_DATABASE: xiyu_bid_main
+      MYSQL_USER: xiyu_user
+      MYSQL_PASSWORD: "XiyuDB!2026"
+      MYSQL_INNODB_BUFFER_POOL_SIZE: 256M
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --sql-mode=ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+    volumes:
+      - xiyu-bid-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pXiyuRoot!2026"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - xiyu-bid-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: xiyu-bid-local-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - xiyu-bid-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - xiyu-bid-net
+
+volumes:
+  xiyu-bid-mysql-data:
+    name: xiyu-bid-mysql-data
+    external: true  # 使用已存在 volume（含历史数据），避免误删
+  xiyu-bid-redis-data:
+    name: xiyu-bid-redis-data
+
+networks:
+  xiyu-bid-net:
+    name: xiyu-bid-net
+    driver: bridge

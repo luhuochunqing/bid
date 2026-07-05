@@ -109,7 +109,7 @@ npm run dev:stable:status
 - 多 Agent worktree 会自动使用专属端口和数据库，例如 Codex worktree 使用前端 `1316`、后端 `18082`、sidecar `8002`、数据库 `xiyu_bid_codex`
 - 后端默认使用 `dev,mysql`
 - 启动脚本会自动传入本地 MySQL 默认用户 `xiyu_user`
-- 启动脚本会自动识别本机 Redis：优先 `6379`，若仅 Docker 暴露 `16379` 也会自动切换
+- 启动脚本会自动识别本机 Redis：默认 `6379`（与 `docker-compose.yml` 固定端口一致）
 - 启动脚本会为文档转换 sidecar 自动生成本地共享密钥，保存到 `.runtime/dev-services/sidecar.shared-key`，并同时注入 sidecar 与后端，不写入源码
 - 前端会以 `VITE_API_MODE=api` 连接真实后端（不新增前端 mock 主入口）
 - 如需覆盖本地连接信息，可在启动前设置 `DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USERNAME`、`DB_PASSWORD`、`REDIS_HOST`、`REDIS_PORT`
@@ -137,10 +137,11 @@ npm run dev:docker:stop
 - 前端：`127.0.0.1:1314`
 - 后端：`127.0.0.1:18080`
 
-如果端口被占用，可显式覆盖：
+如果端口被占用，可显式覆盖（但推荐用 `docker compose up -d` 启动项目根目录的 `docker-compose.yml`，端口已固化为 3306/6379）：
 
 ```bash
-DB_PORT=13306 REDIS_PORT=16379 npm run dev:docker:start
+# 仅在特殊情况下覆盖端口（默认 3306/6379 已在 docker-compose.yml 中固化）
+DB_PORT=3306 REDIS_PORT=6379 npm run dev:docker:start
 ```
 
 ### 运行模式矩阵
@@ -188,7 +189,7 @@ npm run dev:mode
 
 ```bash
 # 终端 1：启动后端
-cd /Users/user/xiyu/xiyu-bid-poc/backend
+cd /Users/user/xiyu/worktrees/trae/backend
 SPRING_PROFILES_ACTIVE=dev,mysql \
 DB_HOST=localhost \
 DB_PORT=3306 \
@@ -196,21 +197,21 @@ DB_NAME=xiyu_bid_main \
 DB_USERNAME=xiyu_user \
 DB_PASSWORD='XiyuDB!2026' \
 REDIS_HOST=localhost \
-REDIS_PORT=16379 \
+REDIS_PORT=6379 \
 JWT_SECRET='xiyu-bid-poc-local-dev-secret-key-please-change-in-prod-32bytes-min' \
-mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=18080"
+mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=18089"
 
 # 终端 2：启动前端
-cd /Users/user/xiyu/xiyu-bid-poc
-VITE_API_MODE=api VITE_API_BASE_URL=http://127.0.0.1:18080 npm run dev -- --host 127.0.0.1 --port 1314
+cd /Users/user/xiyu/worktrees/trae
+VITE_API_MODE=api VITE_API_BASE_URL=http://127.0.0.1:18089 npm run dev -- --host 127.0.0.1 --port 1323
 ```
 
-如果你的 Redis 本机就跑在 `6379`，把上面的 `REDIS_PORT=16379` 改成 `6379` 即可。
+> **端口说明**：自 2026-06-21 起开发环境统一到主工作区 `/Users/user/xiyu/worktrees/trae`，端口固定为前端 `1323` / 后端 `18089` / sidecar `8009` / MySQL `3306` / Redis `6379`。多项目端口分配规范见 `CLAUDE.md §多项目端口分配`。
 
 ### 访问地址
 
-- 前端：<http://127.0.0.1:1314>
-- 后端健康检查：<http://127.0.0.1:18080/actuator/health>
+- 前端：<http://127.0.0.1:1323>
+- 后端健康检查：<http://127.0.0.1:18089/actuator/health>
 
 ## 验证命令
 

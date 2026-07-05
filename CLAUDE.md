@@ -234,6 +234,35 @@ npm run test:e2e
 - 默认后端健康检查：`http://127.0.0.1:18089/actuator/health`
 - **其他 worktree（claude/codex/cursor/gemini/kimi/mimo/qoder/zcode）**：仅用于代码编辑和 git 操作，不启动开发环境。如需联调，请切换到主工作区。
 
+### 多项目端口分配规范（避免跨项目冲突）
+
+> **自 2026-07-05 起，本地多项目端口分配固定如下，避免 nexus / xiyu 等项目互相抢占 3306/6379 标准端口。**
+> 根因：2026-07-05 nexus-db 容器抢占 3306 端口，导致 xiyu 后端连错库、数据迁移失败、服务挂掉。
+
+| 项目 | MySQL | Redis | 后端 | 前端 | 备注 |
+|------|-------|-------|------|------|------|
+| **xiyu（本项目）** | `3306` | `6379` | `18089` | `1323` | 与 application.yml 默认配置一致，不需要额外环境变量 |
+| **nexus** | `3307` | `26380` | - | - | nexus 项目容器已用此端口，不与 xiyu 冲突 |
+| **其他新项目** | `3xxxx` 段 | `3xxxx` 段 | - | - | 避免与 xiyu 标准端口冲突 |
+
+**xiyu 项目的数据库栈管理**：
+- 容器配置已固化为 `docker-compose.yml`（项目根目录）
+- 启动数据库栈：`docker compose up -d`（在项目根目录）
+- 停止数据库栈：`docker compose down`（volume 保留，数据不丢）
+- 端口冲突预检：`bash scripts/check-port-conflicts.sh`（启动 dev-services 前运行）
+
+**关键配置（docker-compose.yml 中固化）**：
+- MySQL `sql_mode` 去掉 `NO_ZERO_DATE,NO_ZERO_IN_DATE`：兼容 V1077 迁移（清理 zero-date 记录）
+- MySQL `collation-server=utf8mb4_unicode_ci`：兼容历史数据 collation，避免 JOIN 时 collation 冲突（V1092 教训）
+- MySQL volume = `xiyu-bid-mysql-data`（包含历史数据，**不要换成其他 volume**）
+- Redis volume = `xiyu-bid-redis-data`
+
+**遇到端口冲突时**：
+1. 运行 `bash scripts/check-port-conflicts.sh` 诊断
+2. 停掉冲突容器：`docker stop <冲突容器名>`
+3. 启动 xiyu 数据库栈：`docker compose up -d`
+4. 重启后端：`./scripts/dev-services.sh start`（仅主工作区）
+
 ## 环境坑点
 
 1. **`npm run dev` 只会启动前端**
@@ -281,6 +310,10 @@ npm run test:e2e
     ```
     调试实际加载的 config 用 `mvn -e -X -Pjava-quality checkstyle:check 2>&1 | grep configLocation`，应输出项目路径而不是 `sun_checks.xml`。
     完整说明见 `backend/QUALITY_GATE_GUIDE.md` "踩坑提示" 小节。
+
+12. **`start-backend.sh` 的 Redis 16379 fallback 已过期**
+    脚本里 `FALLBACK_REDIS_PORT="16379"` 是历史遗留（多 Agent worktree 时期分配的独立 Redis 端口）。自 2026-06-21 起开发环境统一到主工作区，Redis 固定为 `6379`（见 `docker-compose.yml`）。
+    如果 6379 不可用，**不要依赖 16379 fallback**（16380 已被 nexus-redis 占用，16379 fallback 会连到错误的 Redis 实例）。正确做法：`docker compose up -d` 启动 xiyu 专用 Redis 容器。
 
 ## 路径提示
 
