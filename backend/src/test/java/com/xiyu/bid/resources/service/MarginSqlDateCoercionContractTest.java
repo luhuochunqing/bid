@@ -121,8 +121,11 @@ class MarginSqlDateCoercionContractTest {
         assertThat(sql)
                 .as("DERIVED_SELECT_FEES project_leader_name 必须加 COLLATE utf8mb4_unicode_ci"
                   + "（pid.project_leader_name=0900_ai_ci, t.project_manager_name=unicode_ci，"
-                  + "UNION 必须 collation 一致）")
-                .contains("COALESCE(pid.project_leader_name, t.project_manager_name)"
+                  + "u.full_name=unicode_ci，UNION 必须 collation 一致）"
+                  + "CO-490: 加 u.full_name 兜底 + NULLIF 空字符串包裹，"
+                  + "修复 pid/tender 都空（或空字符串）时项目负责人显示空")
+                .contains("COALESCE(NULLIF(pid.project_leader_name, ''),"
+                        + "       NULLIF(t.project_manager_name, ''), u.full_name)"
                         + "       COLLATE utf8mb4_unicode_ci as project_leader_name");
     }
 
@@ -132,8 +135,10 @@ class MarginSqlDateCoercionContractTest {
         assertThat(sql)
                 .as("DERIVED_SELECT_FEES bidding_leader_name 必须加 COLLATE utf8mb4_unicode_ci"
                   + "（pid.bidding_leader_name=0900_ai_ci, t.bidding_person_name=unicode_ci，"
-                  + "UNION 必须 collation 一致）")
-                .contains("COALESCE(pid.bidding_leader_name, t.bidding_person_name)"
+                  + "UNION 必须 collation 一致）"
+                  + "CO-490: NULLIF 包裹空字符串，与 project_leader_name 一致")
+                .contains("COALESCE(NULLIF(pid.bidding_leader_name, ''),"
+                        + "       NULLIF(t.bidding_person_name, ''))"
                         + "       COLLATE utf8mb4_unicode_ci as bidding_leader_name");
     }
 
@@ -142,8 +147,10 @@ class MarginSqlDateCoercionContractTest {
         String sql = MarginDerivedTableColumns.DERIVED_SELECT_INIT;
         assertThat(sql)
                 .as("DERIVED_SELECT_INIT project_leader_name 必须加 COLLATE utf8mb4_unicode_ci"
-                  + "（UNION ALL 的两个分支必须 collation 一致）")
-                .contains("COALESCE(pid.project_leader_name, t.project_manager_name)"
+                  + "（UNION ALL 的两个分支必须 collation 一致）"
+                  + "CO-490: 加 u.full_name 兜底 + NULLIF 空字符串包裹，与 FEES 分支对齐")
+                .contains("COALESCE(NULLIF(pid.project_leader_name, ''),"
+                        + "       NULLIF(t.project_manager_name, ''), u.full_name)"
                         + "       COLLATE utf8mb4_unicode_ci as project_leader_name");
     }
 
@@ -152,8 +159,107 @@ class MarginSqlDateCoercionContractTest {
         String sql = MarginDerivedTableColumns.DERIVED_SELECT_INIT;
         assertThat(sql)
                 .as("DERIVED_SELECT_INIT bidding_leader_name 必须加 COLLATE utf8mb4_unicode_ci"
-                  + "（UNION ALL 的两个分支必须 collation 一致）")
-                .contains("COALESCE(pid.bidding_leader_name, t.bidding_person_name)"
+                  + "（UNION ALL 的两个分支必须 collation 一致）"
+                  + "CO-490: NULLIF 包裹空字符串，与 FEES 分支对齐")
+                .contains("COALESCE(NULLIF(pid.bidding_leader_name, ''),"
+                        + "       NULLIF(t.bidding_person_name, ''))"
                         + "       COLLATE utf8mb4_unicode_ci as bidding_leader_name");
+    }
+
+    // ── CO-490 新增：INIT 分支取任务 JSON 字段（修复前硬编码 NULL）─────────────
+
+    @Test
+    void derivedSelectInit_usesStrToDateWithNullIf_forActualPaymentDate_notNullLiteral() {
+        String sql = MarginDerivedTableColumns.DERIVED_SELECT_INIT;
+        assertThat(sql)
+                .as("CO-490: INIT 分支 payment_date 必须从任务 JSON actualPaymentDate 取值"
+                  + "（STR_TO_DATE(NULLIF(...)) 解析），禁止硬编码 NULL")
+                .contains("STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json,"
+                        + " '$.actualPaymentDate')), 1, 10), ''), '%Y-%m-%d') as payment_date");
+        assertThat(sql)
+                .as("CO-490: INIT 分支禁止保留旧的 NULL as payment_date 硬编码")
+                .doesNotContain("NULL as payment_date");
+    }
+
+    @Test
+    void derivedSelectInit_usesStrToDateWithNullIf_forExpectedRefundDate_notNullLiteral() {
+        String sql = MarginDerivedTableColumns.DERIVED_SELECT_INIT;
+        assertThat(sql)
+                .as("CO-490: INIT 分支 exp_return_date 必须从任务 JSON expectedRefundDate 取值"
+                  + "（STR_TO_DATE(NULLIF(...)) 解析），禁止硬编码 NULL")
+                .contains("STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json,"
+                        + " '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d') as exp_return_date");
+    }
+
+    @Test
+    void derivedSelectInit_usesJsonExtract_forPayeeAndAccount_notNullLiteral() {
+        String sql = MarginDerivedTableColumns.DERIVED_SELECT_INIT;
+        assertThat(sql)
+                .as("CO-490: INIT 分支 payee_name 必须从任务 JSON payee 取值（NULLIF 包裹空字符串），"
+                  + "禁止硬编码 NULL")
+                .contains("NULLIF(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.payee')), '')"
+                        + " as payee_name");
+        assertThat(sql)
+                .as("CO-490: INIT 分支 payee_account 必须从任务 JSON payeeAccount 取值，"
+                  + "禁止硬编码 NULL")
+                .contains("JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.payeeAccount'))"
+                        + " as payee_account");
+    }
+
+    @Test
+    void derivedSelectInit_usesProjectClosureForReturnedAmount_notNullLiteral() {
+        String sql = MarginDerivedTableColumns.DERIVED_SELECT_INIT;
+        assertThat(sql)
+                .as("CO-490: INIT 分支 returned_amount 必须从 project_closure 取值"
+                  + "（FULLY_RETURNED → pid.deposit_amount, "
+                  + "PARTIAL_RETURN_PARTIAL_TRANSFER → pc.returned_amount），禁止硬编码 NULL")
+                .contains("CASE"
+                        + "       WHEN pc.deposit_return_status = 'FULLY_RETURNED'"
+                        + " THEN pid.deposit_amount"
+                        + "       WHEN pc.deposit_return_status = 'PARTIAL_RETURN_PARTIAL_TRANSFER'"
+                        + " THEN pc.returned_amount");
+    }
+
+    // ── CO-490 新增：deposit_payment_method CASE WHEN 翻译（FEES + INIT 共用）──
+
+    @Test
+    void derivedSelectFees_translatesDepositPaymentMethod_viaCaseWhen() {
+        String sql = MarginDerivedTableColumns.DERIVED_SELECT_FEES;
+        assertThat(sql)
+                .as("CO-490: FEES 分支 deposit_payment_method 必须用 CASE WHEN 翻译"
+                  + "（WIRE→电汇, GUARANTEE→保险/保函），禁止直接透传枚举英文")
+                .contains("CASE pid.deposit_payment_method"
+                        + "  WHEN 'WIRE' THEN '电汇'"
+                        + "  WHEN 'GUARANTEE' THEN '保险/保函'"
+                        + "  ELSE pid.deposit_payment_method"
+                        + " END as deposit_payment_method");
+        assertThat(sql)
+                .as("CO-490: FEES 分支禁止直接透传 pid.deposit_payment_method as deposit_payment_method")
+                .doesNotContain("pid.deposit_payment_method, NULL as payee_name");
+    }
+
+    @Test
+    void derivedSelectInit_translatesDepositPaymentMethod_viaCaseWhen() {
+        String sql = MarginDerivedTableColumns.DERIVED_SELECT_INIT;
+        assertThat(sql)
+                .as("CO-490: INIT 分支 deposit_payment_method 必须用 CASE WHEN 翻译"
+                  + "（与 FEES 分支一致）")
+                .contains("CASE pid.deposit_payment_method"
+                        + "  WHEN 'WIRE' THEN '电汇'"
+                        + "  WHEN 'GUARANTEE' THEN '保险/保函'"
+                        + "  ELSE pid.deposit_payment_method"
+                        + " END as deposit_payment_method");
+    }
+
+    // ── CO-490 新增：payee NULLIF 包裹（FEES 分支，与日期字段一致）─────────
+
+    @Test
+    void derivedSelectFees_wrapsPayeeWithNullIf_forEmptyStringFallback() {
+        String sql = MarginDerivedTableColumns.DERIVED_SELECT_FEES;
+        assertThat(sql)
+                .as("CO-490: FEES 分支 payee 必须用 NULLIF(..., '') 包裹，"
+                  + "避免任务 JSON 空字符串导致 COALESCE 不回退到 f.return_to")
+                .contains("COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json,"
+                        + " '$.payee')), ''), f.return_to) as payee_name");
     }
 }
