@@ -104,4 +104,24 @@ public class AttachmentUploadAppService {
     public List<BrandAuthAttachmentEntity> getAttachments(Long authorizationId) {
         return attachmentRepository.findByAuthorizationId(authorizationId);
     }
+
+    /**
+     * 根据 fileUrl 读取附件文件字节（供 ZIP 导出使用）.
+     *
+     * <p>fileUrl 是上传时存储的本地磁盘绝对路径。
+     *
+     * @param fileUrl 数据库中存储的附件路径
+     * @return 文件字节数组
+     * @throws IOException 文件不存在或读取失败
+     */
+    public byte[] readAttachmentFile(String fileUrl) throws IOException {
+        if (fileUrl == null || fileUrl.isBlank()) {
+            throw new IOException("附件路径为空");
+        }
+        Path path = Path.of(fileUrl).normalize();
+        if (!Files.exists(path)) {
+            throw new IOException("附件文件不存在: " + fileUrl);
+        }
+        return Files.readAllBytes(path);
+    }
 }

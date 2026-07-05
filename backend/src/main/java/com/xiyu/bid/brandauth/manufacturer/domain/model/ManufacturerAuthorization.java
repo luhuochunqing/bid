@@ -58,6 +58,15 @@ public record ManufacturerAuthorization(
                 remarks, initialStatus, null, createdBy, null, null, 0);
     }
 
+    /** 返回带指定 id 的新实例（用于持久化后回填 id）. */
+    public ManufacturerAuthorization withId(Long newId) {
+        return new ManufacturerAuthorization(newId, authorizationType, productLine, brandId, brandName,
+                importDomestic, manufacturerName, agentName, authStartDate, authEndDate,
+                auth1StartDate, auth1EndDate, auth1Remarks,
+                auth2StartDate, auth2EndDate, auth2Remarks,
+                remarks, status, revokeReason, createdBy, createdAt, updatedAt, version);
+    }
+
     public ManufacturerAuthorization withStatus(AuthStatus newStatus) {
         return new ManufacturerAuthorization(id, authorizationType, productLine, brandId, brandName,
                 importDomestic, manufacturerName, agentName, authStartDate, authEndDate,

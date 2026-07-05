@@ -12,8 +12,6 @@ import com.xiyu.bid.brandauth.manufacturer.application.service.CreateManufacture
 import com.xiyu.bid.brandauth.manufacturer.application.service.ListManufacturerAuthAppService;
 import com.xiyu.bid.brandauth.manufacturer.application.service.RevokeManufacturerAuthAppService;
 import com.xiyu.bid.brandauth.manufacturer.application.service.UpdateManufacturerAuthAppService;
-import com.xiyu.bid.brandauth.manufacturer.domain.valueobject.AuthStatus;
-import com.xiyu.bid.brandauth.manufacturer.domain.valueobject.ProductLine;
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.repository.UserRepository;
@@ -37,7 +35,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -93,14 +90,11 @@ public class ManufacturerAuthorizationController {
             @RequestParam(defaultValue = "0") final int page,
             @RequestParam(defaultValue = "20") final int size) {
 
-        List<ProductLine> productLineEnums = parseProductLines(productLines);
-        List<AuthStatus> statusEnums = parseStatuses(statuses);
-
-        var filter = new ListManufacturerAuthAppService.ListFilter(
-                productLineEnums, brandId, brandName,
+        var filter = BrandAuthFilterMapper.buildFilter(
+                productLines, brandId, brandName,
                 importDomestic, manufacturerName,
                 authStartFrom, authStartTo, authEndFrom, authEndTo,
-                statusEnums, keyword, authorizationType);
+                statuses, keyword, authorizationType);
 
         Page<ManufacturerAuthorizationDTO> result =
                 listService.list(filter, page, size);
@@ -209,15 +203,14 @@ public class ManufacturerAuthorizationController {
             @RequestParam(required = false) final LocalDate authEndFrom,
             @RequestParam(required = false) final LocalDate authEndTo,
             @RequestParam(required = false) final List<String> statuses,
-            @RequestParam(required = false) final String keyword)
+            @RequestParam(required = false) final String keyword,
+            @RequestParam(required = false) final String authorizationType)
             throws IOException {
-        List<ProductLine> productLineEnums = parseProductLines(productLines);
-        List<AuthStatus> statusEnums = parseStatuses(statuses);
-        var filter = new ListManufacturerAuthAppService.ListFilter(
-                productLineEnums, brandId, brandName,
+        var filter = BrandAuthFilterMapper.buildFilter(
+                productLines, brandId, brandName,
                 importDomestic, manufacturerName,
                 authStartFrom, authStartTo, authEndFrom, authEndTo,
-                statusEnums, keyword, null);
+                statuses, keyword, authorizationType);
         byte[] data = exportService.exportByFilter(filter);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(
@@ -265,35 +258,5 @@ public class ManufacturerAuthorizationController {
                 .orElseThrow(() ->
                         new IllegalStateException(
                                 "当前用户不存在: " + auth.getName()));
-    }
-
-    private static List<ProductLine> parseProductLines(
-            final List<String> values) {
-        if (values == null || values.isEmpty()) {
-            return null;
-        }
-        List<ProductLine> result = new ArrayList<>();
-        for (String v : values) {
-            ProductLine.fromStringOptional(v).ifPresentOrElse(
-                    result::add,
-                    () -> {
-                        throw new IllegalArgumentException(
-                                "无效的一级产线参数: " + v);
-                    });
-        }
-        return result;
-    }
-
-    private static List<AuthStatus> parseStatuses(
-            final List<String> values) {
-        if (values == null || values.isEmpty()) {
-            return List.of(AuthStatus.ACTIVE, AuthStatus.EXPIRING_SOON,
-                    AuthStatus.EXPIRED);
-        }
-        try {
-            return values.stream().map(AuthStatus::valueOf).toList();
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("无效的状态参数");
-        }
     }
 }

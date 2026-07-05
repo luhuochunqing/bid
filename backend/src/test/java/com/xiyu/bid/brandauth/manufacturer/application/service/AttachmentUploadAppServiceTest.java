@@ -202,4 +202,29 @@ class AttachmentUploadAppServiceTest {
         assertThrows(java.util.NoSuchElementException.class,
                 () -> service.upload(99999L, "AUTH_DOC", List.of(file)));
     }
+
+    @Test
+    @DisplayName("readAttachmentFile 读取存在的文件返回字节数组")
+    void readAttachmentFile_existingFile_returnsBytes() throws IOException {
+        Path file = tempDir.resolve("test.pdf");
+        Files.writeString(file, "hello world");
+
+        byte[] data = service.readAttachmentFile(file.toString());
+
+        assertEquals("hello world", new String(data));
+    }
+
+    @Test
+    @DisplayName("readAttachmentFile 文件不存在时抛 IOException")
+    void readAttachmentFile_nonExistentFile_throwsIOException() {
+        assertThrows(IOException.class,
+                () -> service.readAttachmentFile("/nonexistent/path/file.pdf"));
+    }
+
+    @Test
+    @DisplayName("readAttachmentFile 路径为空时抛 IOException")
+    void readAttachmentFile_emptyPath_throwsIOException() {
+        assertThrows(IOException.class,
+                () -> service.readAttachmentFile(""));
+    }
 }
