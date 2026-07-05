@@ -147,8 +147,6 @@ const excelUploadRef = ref()
 const attachUploadRef = ref()
 
 const attachCount = computed(() => attachFiles.value.length)
-const statusPercent = computed(() => ({ PENDING:15, VALIDATING:45, IMPORTING:80 }[status.value] || 100))
-const statusText = computed(() => ({ PENDING:'任务排队中...', VALIDATING:'正在校验 Excel...', IMPORTING:'正在写入数据库...' }[status.value] || ''))
 const truncatedErrors = computed(() => errorDetails.value ? errorDetails.value.split('\n').filter(l => !l.startsWith('[CORRECTION_FILE]') && !l.startsWith('[ATTACH_RESULT]') && !l.startsWith('[UNMATCHED] ')).slice(0,200).join('\n') : '')
 
 const {
@@ -182,6 +180,9 @@ const {
     if (data.importedRows > 0) emit('imported', data.importedRows)
   }
 })
+
+const statusPercent = computed(() => ({ PENDING:15, VALIDATING:45, IMPORTING:80 }[status.value] || 100))
+const statusText = computed(() => ({ PENDING:'任务排队中...', VALIDATING:'正在校验 Excel...', IMPORTING:'正在写入数据库...' }[status.value] || ''))
 
 const handleExcelChange = (uploadFile) => {
   if (uploadFile && uploadFile.raw) excelFile.value = uploadFile.raw
