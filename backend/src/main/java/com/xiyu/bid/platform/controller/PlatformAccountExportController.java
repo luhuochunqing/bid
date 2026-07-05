@@ -1,4 +1,4 @@
-// Input: PlatformAccountExportService, AccountExportWhitelistStore, EffectiveRoleResolver
+// Input: PlatformAccountExportService, AccountExportWhitelistStore, EffectiveRoleResolver, CurrentUserLookupService
 // Output: REST API endpoints for platform account export
 // Pos: Controller/控制器层
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -8,6 +8,7 @@ import com.xiyu.bid.annotation.Auditable;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.platform.service.AccountExportWhitelistStore;
 import com.xiyu.bid.platform.service.PlatformAccountExportService;
+import com.xiyu.bid.security.CurrentUserLookupService;
 import com.xiyu.bid.security.EffectiveRoleResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -15,6 +16,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -45,6 +47,7 @@ public class PlatformAccountExportController {
     private final PlatformAccountExportService exportService;
     private final AccountExportWhitelistStore exportWhitelistStore;
     private final EffectiveRoleResolver effectiveRoleResolver;
+    private final CurrentUserLookupService currentUserLookupService;
 
     /**
      * 批量导出平台账户台账 Excel。
@@ -64,9 +67,10 @@ public class PlatformAccountExportController {
     @Auditable(action = "EXPORT", entityType = "PlatformAccount", description = "批量导出平台账户台账")
     public ResponseEntity<byte[]> export(
             @RequestParam(required = false) String selectedIds,
-            @AuthenticationPrincipal User currentUser) {
+            @AuthenticationPrincipal UserDetails currentUser) {
+        User user = currentUserLookupService.requireUser(currentUser);
         exportWhitelistStore.checkExportPermission(
-                effectiveRoleResolver.resolveRoleCode(currentUser), currentUser);
+                effectiveRoleResolver.resolveRoleCode(user), user);
         Set<Long> idSet = parseSelectedIds(selectedIds);
         byte[] excel = exportService.exportToExcel(idSet);
         String filename = URLEncoder.encode(
