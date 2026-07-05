@@ -175,6 +175,23 @@ export const brandAuthApi = {
     fd.append('file', file)
     // Don't set Content-Type manually - axios will set it with boundary
     return httpClient.post('/api/knowledge/brand-auth/import', fd)
+  },
+
+  /** Export brand authorizations as ZIP (Excel + attachments). */
+  async exportZip(params = {}) {
+    const q = new URLSearchParams()
+    if (params.productLines?.length) params.productLines.forEach(p => q.append('productLines', p))
+    if (params.brandId) q.set('brandId', params.brandId)
+    if (params.brandName) q.set('brandName', params.brandName)
+    if (params.importDomestic) q.set('importDomestic', params.importDomestic)
+    if (params.manufacturerName) q.set('manufacturerName', params.manufacturerName)
+    if (params.statuses?.length) params.statuses.forEach(s => q.append('statuses', s))
+    if (params.keyword) q.set('keyword', params.keyword)
+    if (params.authorizationType) q.set('authorizationType', params.authorizationType)
+    if (params.attachmentTypes?.length) params.attachmentTypes.forEach(t => q.append('attachmentTypes', t))
+    return httpClient.get('/api/knowledge/brand-auth/export-zip?' + q.toString(), {
+      responseType: 'blob'
+    })
   }
 }
 

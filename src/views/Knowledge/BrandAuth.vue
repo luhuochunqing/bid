@@ -4,7 +4,15 @@
       <h2>品牌授权</h2>
       <div class="kb-header-actions">
         <el-button v-if="canManage" type="primary" @click="openCreate"><el-icon><Plus /></el-icon> {{ activeTab === 'agent' ? '新增代理商授权' : '新增原厂授权' }}</el-button>
-        <el-button v-if="canManage" @click="handleExport"><el-icon><Download /></el-icon> 导出 Excel</el-button>
+        <el-dropdown v-if="canManage" split-button @click="handleExport()" @command="handleExport">
+          <el-icon><Download /></el-icon> 导出
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="excel">导出 Excel</el-dropdown-item>
+              <el-dropdown-item command="zip">导出 ZIP（含附件）</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
         <el-button v-if="canManage" @click="showImport"><el-icon><Upload /></el-icon> 批量导入</el-button>
       </div>
     </div>
@@ -123,6 +131,13 @@
     <BrandAuthFormDrawer v-model="formVisible" :initial-data="editData" :mode="activeTab" @save="handleSave" @close="editData=null" />
     <BrandAuthDetailDrawer v-model="detailVisible" :detail="detail" :logs="detailLogs" @edit="onDetailEdit" @revoke="onDetailRevoke" />
     <BrandAuthRevokeDialog v-model="revokeVisible" :target="revokeTarget" @done="loadData" />
+    <BrandAuthImportDialog ref="importDialogRef" @close="onImportClose" @success="onImportSuccess" />
+    <BrandAuthExportZipDialog
+      v-model:visible="exportZipDialogVisible"
+      :total-count="total"
+      :authorization-type="activeTab === 'agent' ? 'AGENT' : 'MANUFACTURER'"
+      @confirm="handleExportZipConfirm"
+    />
     <el-dialog v-model="exportVisible" title="导出确认" width="480px">
       <el-descriptions :column="1" border size="small">
         <el-descriptions-item label="当前筛选条件">{{ filterSummary }}</el-descriptions-item>
@@ -143,12 +158,13 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Upload } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
-import http from '@/api/client'
 import brandAuthApi, { PRODUCT_LINE_OPTIONS, STATUS_OPTIONS } from '@/api/modules/brandAuth.js'
+import { useBrandAuthExport } from '@/composables/useBrandAuthExport.js'
 import BrandAuthFormDrawer from './components/BrandAuthFormDrawer.vue'
 import BrandAuthDetailDrawer from './components/BrandAuthDetailDrawer.vue'
 import BrandAuthImportDialog from './components/BrandAuthImportDialog.vue'
 import BrandAuthRevokeDialog from './components/BrandAuthRevokeDialog.vue'
+import BrandAuthExportZipDialog from './components/BrandAuthExportZipDialog.vue'
 
 const productLineOptions = PRODUCT_LINE_OPTIONS
 const statusOptions = STATUS_OPTIONS
@@ -164,7 +180,11 @@ const filters = reactive({ productLines:[], brandId:'', brandName:'', importDome
 const formVisible = ref(false); const editData = ref(null)
 const detailVisible = ref(false); const detail = ref({}); const detailLogs = ref([])
 const revokeVisible = ref(false); const revokeTarget = ref(null)
-const exportVisible = ref(false)
+
+const {
+  exportVisible, exportZipDialogVisible, filterSummary, exportFilename,
+  handleExport, doExport, handleExportZipConfirm
+} = useBrandAuthExport(filters, activeTab, total)
 
 const loadData = async () => {
   loading.value = true
@@ -205,8 +225,8 @@ const handleSave = async ({ isEdit, id, form }) => {
       if (result.warning) ElMessage.warning(result.warning); else ElMessage.success('创建成功')
       if (result.data?.id) {
         if (activeTab.value === 'agent') {
-          if (form.auth1FileList?.length) await brandAuthApi.uploadAttachments(result.data.id, 'auth1', form.auth1FileList.map(f=>f.raw))
-          if (form.auth2FileList?.length) await brandAuthApi.uploadAttachments(result.data.id, 'auth2', form.auth2FileList.map(f=>f.raw))
+          if (form.auth1FileList?.length) await brandAuthApi.uploadAttachments(result.data.id, 'AGENT_AUTH_1', form.auth1FileList.map(f=>f.raw))
+          if (form.auth2FileList?.length) await brandAuthApi.uploadAttachments(result.data.id, 'AGENT_AUTH_2', form.auth2FileList.map(f=>f.raw))
         } else {
           if (form.authDocFileList?.length) await brandAuthApi.uploadAttachments(result.data.id, 'AUTH_DOC', form.authDocFileList.map(f=>f.raw))
         }
@@ -217,54 +237,11 @@ const handleSave = async ({ isEdit, id, form }) => {
   } catch (e) { ElMessage.error(e.response?.data?.msg || e.message || '保存失败') }
 }
 
-const filterSummary = computed(() => {
-  const p = []
-  if (filters.productLines?.length) p.push('产线:' + filters.productLines.join(','))
-  if (filters.brandId) p.push('品牌ID:' + filters.brandId)
-  if (filters.brandName) p.push('品牌:' + filters.brandName)
-  if (filters.importDomestic) p.push('进口/国产:' + filters.importDomestic)
-  if (filters.manufacturerName) p.push('原厂:' + filters.manufacturerName)
-  if (filters.agentName) p.push('代理商:' + filters.agentName)
-  if (filters.statuses?.length) p.push('状态:' + filters.statuses.join(','))
-  if (filters.keyword) p.push('关键词:' + filters.keyword)
-  return p.length ? p.join('；') : '全部'
-})
-const exportFilename = computed(() => {
-  const d = new Date(); const ts = d.toISOString().slice(0,16)
-    .replace('T','_').replace(/:/g,'')
-  return (activeTab.value === 'agent' ? '代理商授权清单' : '原厂授权清单') + '_' + ts + '.xlsx'
-})
-
 const importDialogRef = ref(null)
 const showImport = () => { importDialogRef.value?.open() }
 const onImportClose = () => {}
 const onImportSuccess = () => { loadData() }
 
-const handleExport = () => { exportVisible.value = true }
-
-const doExport = async () => {
-  if (total.value > 500) { ElMessage.warning('单次最多导出500条'); return }
-  try {
-    const p = new URLSearchParams()
-    if (filters.productLines?.length) filters.productLines.forEach(v => p.append('productLines', v))
-    if (filters.brandId) p.append('brandId', filters.brandId)
-    if (filters.brandName) p.append('brandName', filters.brandName)
-    if (filters.importDomestic) p.append('importDomestic', filters.importDomestic)
-    if (filters.manufacturerName) p.append('manufacturerName', filters.manufacturerName)
-    if (filters.statuses?.length) filters.statuses.forEach(v => p.append('statuses', v))
-    if (filters.keyword) p.append('keyword', filters.keyword)
-    const resp = await http.get('/api/knowledge/brand-auth/export?' + p.toString(), { responseType: 'blob' })
-    const url = window.URL.createObjectURL(new Blob([resp.data]))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = exportFilename.value
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    window.URL.revokeObjectURL(url)
-  } catch { ElMessage.error('导出失败') }
-  finally { exportVisible.value = false }
-}
 const onTabChange = (t) => { page.value = 1; loadData() }
 onMounted(loadData)
 </script>

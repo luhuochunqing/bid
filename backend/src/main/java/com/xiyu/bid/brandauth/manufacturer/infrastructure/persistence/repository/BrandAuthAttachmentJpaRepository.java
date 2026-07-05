@@ -11,5 +11,7 @@ public interface BrandAuthAttachmentJpaRepository extends JpaRepository<BrandAut
 
     List<BrandAuthAttachmentEntity> findByAuthorizationId(Long authorizationId);
 
+    List<BrandAuthAttachmentEntity> findByAuthorizationIdIn(List<Long> authorizationIds);
+
     void deleteByAuthorizationId(Long authorizationId);
 }

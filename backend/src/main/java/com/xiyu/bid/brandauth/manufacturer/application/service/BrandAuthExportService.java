@@ -1,6 +1,7 @@
 package com.xiyu.bid.brandauth.manufacturer.application.service;
 
 import com.xiyu.bid.brandauth.manufacturer.domain.model.ManufacturerAuthorization;
+import com.xiyu.bid.brandauth.manufacturer.domain.valueobject.AttachmentType;
 import com.xiyu.bid.brandauth.manufacturer.infrastructure.persistence.entity.BrandAuthAttachmentEntity;
 import com.xiyu.bid.brandauth.manufacturer.infrastructure.persistence.repository.BrandAuthAttachmentJpaRepository;
 import com.xiyu.bid.common.util.ExcelAutoSizeHelper;
@@ -16,6 +17,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /** Excel export and template generation for brand authorizations. */
 @Service
@@ -42,7 +45,11 @@ public final class BrandAuthExportService {
     /** Repository for attachments. */
     private final BrandAuthAttachmentJpaRepository attachmentRepository;
 
-    /** Export authorizations matching the filter as a two-sheet Excel workbook.
+    /** Export authorizations matching the filter as an Excel workbook.
+     *  Sheet count depends on filter.authorizationType:
+     *  - "MANUFACTURER" → only 原厂授权 sheet
+     *  - "AGENT" → only 代理商授权 sheet
+     *  - null/empty → both sheets (backward compatible)
      *  Filter semantics are identical to the list view (shares the same
      *  Specification). Pass an all-null filter to export everything. */
     public byte[] exportByFilter(
@@ -51,14 +58,23 @@ public final class BrandAuthExportService {
         try (var wb = new XSSFWorkbook()) {
             List<ManufacturerAuthorization> all =
                     listService.listAllForExport(filter);
-            List<ManufacturerAuthorization> mfg = all.stream()
-                    .filter(a -> !"AGENT".equals(a.authorizationType()))
-                    .toList();
-            List<ManufacturerAuthorization> agt = all.stream()
-                    .filter(a -> "AGENT".equals(a.authorizationType()))
-                    .toList();
-            writeSheet(wb, "原厂授权", MFG_HEADERS, mfg, false);
-            writeSheet(wb, "代理商授权", AGENT_HEADERS, agt, true);
+            String authType = filter.authorizationType();
+            boolean exportMfg = authType == null || authType.isBlank()
+                    || "MANUFACTURER".equals(authType);
+            boolean exportAgt = authType == null || authType.isBlank()
+                    || "AGENT".equals(authType);
+            if (exportMfg) {
+                List<ManufacturerAuthorization> mfg = all.stream()
+                        .filter(a -> !"AGENT".equals(a.authorizationType()))
+                        .toList();
+                writeSheet(wb, "原厂授权", MFG_HEADERS, mfg, false);
+            }
+            if (exportAgt) {
+                List<ManufacturerAuthorization> agt = all.stream()
+                        .filter(a -> "AGENT".equals(a.authorizationType()))
+                        .toList();
+                writeSheet(wb, "代理商授权", AGENT_HEADERS, agt, true);
+            }
             var out = new ByteArrayOutputStream();
             wb.write(out);
             return out.toByteArray();
@@ -91,12 +107,19 @@ public final class BrandAuthExportService {
             cell.setCellValue(headers[i]);
             cell.setCellStyle(headerStyle);
         }
+        // 批量查询所有附件，避免 N+1 查询
+        List<Long> authIds = list.stream().map(ManufacturerAuthorization::id).toList();
+        Map<Long, List<BrandAuthAttachmentEntity>> attMap = authIds.isEmpty()
+                ? Map.of()
+                : attachmentRepository.findByAuthorizationIdIn(authIds).stream()
+                        .collect(Collectors.groupingBy(
+                                BrandAuthAttachmentEntity::getAuthorizationId));
+
         int rowIdx = 1;
         for (var a : list) {
             Row row = sheet.createRow(rowIdx++);
-            List<String> atts = attachmentRepository
-                    .findByAuthorizationId(a.id()).stream()
-                    .map(BrandAuthAttachmentEntity::getFileName).toList();
+            List<BrandAuthAttachmentEntity> atts =
+                    attMap.getOrDefault(a.id(), List.of());
             int col = 0;
             row.createCell(col++).setCellValue(
                     a.productLine().getDisplayName());
@@ -106,7 +129,7 @@ public final class BrandAuthExportService {
             row.createCell(col++).setCellValue(a.manufacturerName());
             if (isAgent) {
                 row.createCell(col++).setCellValue(
-                        join(filterByType(atts, "auth1")));
+                        join(filterFileNames(atts, AttachmentType.AGENT_AUTH_1)));
                 row.createCell(col++).setCellValue(
                         fmt(a.auth1StartDate()));
                 row.createCell(col++).setCellValue(
@@ -116,10 +139,10 @@ public final class BrandAuthExportService {
                 row.createCell(col++).setCellValue(
                         emptyIfNull(a.agentName()));
                 row.createCell(col++).setCellValue(
-                        join(filterByType(atts, "auth2")));
+                        join(filterFileNames(atts, AttachmentType.AGENT_AUTH_2)));
             } else {
                 row.createCell(col++).setCellValue(
-                        join(filterByType(atts, "AUTH_DOC")));
+                        join(filterFileNames(atts, AttachmentType.AUTH_DOC)));
             }
             row.createCell(col++).setCellValue(fmt(a.authStartDate()));
             row.createCell(col++).setCellValue(fmt(a.authEndDate()));
@@ -127,7 +150,7 @@ public final class BrandAuthExportService {
                     emptyIfNull(a.remarks()));
             if (!isAgent) {
                 row.createCell(col++).setCellValue(
-                        join(filterByType(atts, "SUPPLEMENTARY")));
+                        join(filterFileNames(atts, AttachmentType.SUPPLEMENTARY)));
             } else {
                 row.createCell(col++).setCellValue(
                         fmt(a.auth2StartDate()));
@@ -168,8 +191,12 @@ public final class BrandAuthExportService {
         return String.join(";", list);
     }
 
-    private static List<String> filterByType(final List<String> names,
-            final String type) {
-        return names.stream().filter(n -> n.contains(type)).toList();
+    private static List<String> filterFileNames(
+            final List<BrandAuthAttachmentEntity> atts,
+            final AttachmentType type) {
+        return atts.stream()
+                .filter(a -> a.getAttachmentType() == type)
+                .map(BrandAuthAttachmentEntity::getFileName)
+                .toList();
     }
 }

@@ -65,8 +65,8 @@
           <el-descriptions-item label="状态"><el-tag :type="detail.statusTagType">{{ detail.statusLabel }}</el-tag></el-descriptions-item>
           <el-descriptions-item label="有效期（取较早）">{{ detail.authEndDate || '—' }}</el-descriptions-item>
         </el-descriptions>
-        <div v-if="detail.attachments?.filter(a => a.attachmentType === 'auth1').length" style="margin-top:12px">
-          <div v-for="a in detail.attachments?.filter(a => a.attachmentType === 'auth1')" :key="a.id" class="attachment-item">
+        <div v-if="detail.attachments?.filter(a => a.attachmentType === 'AGENT_AUTH_1').length" style="margin-top:12px">
+          <div v-for="a in detail.attachments?.filter(a => a.attachmentType === 'AGENT_AUTH_1')" :key="a.id" class="attachment-item">
             <el-icon><Document /></el-icon><span>{{ a.fileName }}</span>
             <span class="file-size">{{ formatSize(a.fileSize) }}</span>
             <el-button link type="primary" size="small" @click="previewFile(a)">预览</el-button>
@@ -79,8 +79,8 @@
           <el-descriptions-item label="授权2开始">{{ detail.auth2StartDate || '—' }}</el-descriptions-item>
           <el-descriptions-item label="授权2结束">{{ detail.auth2EndDate || '—' }}</el-descriptions-item>
         </el-descriptions>
-        <div v-if="detail.attachments?.filter(a => a.attachmentType === 'auth2').length" style="margin-top:12px">
-          <div v-for="a in detail.attachments?.filter(a => a.attachmentType === 'auth2')" :key="a.id" class="attachment-item">
+        <div v-if="detail.attachments?.filter(a => a.attachmentType === 'AGENT_AUTH_2').length" style="margin-top:12px">
+          <div v-for="a in detail.attachments?.filter(a => a.attachmentType === 'AGENT_AUTH_2')" :key="a.id" class="attachment-item">
             <el-icon><Document /></el-icon><span>{{ a.fileName }}</span>
             <span class="file-size">{{ formatSize(a.fileSize) }}</span>
             <el-button link type="primary" size="small" @click="previewFile(a)">预览</el-button>
