@@ -5,7 +5,7 @@
       <div class="kb-header-actions">
         <el-button v-if="canManage" @click="importVisible = true"><el-icon><Upload /></el-icon> 批量导入</el-button>
         <el-button v-if="canManage" @click="exportVisible = true"><el-icon><Download /></el-icon> 导出台账（含附件）</el-button>
-        <el-button v-if="canManage" @click="handleBatchExport"><el-icon><Document /></el-icon> 导出台账</el-button>
+        <el-button v-if="canManage" @click="ledgerExportVisible = true"><el-icon><Document /></el-icon> 导出台账</el-button>
         <el-button v-if="canManage" type="primary" @click="openCreate"><el-icon><Plus /></el-icon> 新增仓库</el-button>
       </div>
     </div>
@@ -86,6 +86,7 @@
       :filter-count="total"
       :all-in-use-count="allInUseCount"
       :selected-ids="selectedRowIds"
+      :default-scope="selectedRowIds.length > 0 ? 'ids' : 'filter'"
     />
   </div>
 </template>
@@ -237,16 +238,6 @@ const handleDownloadTemplate = async () => {
   } catch (err) {
     ElMessage.error(err.response?.data?.message || '模板下载失败')
   }
-}
-
-const handleBatchExport = () => {
-  if (selectedRows.value.length === 0) {
-    ElMessage.warning('请先勾选要导出的仓库')
-    return
-  }
-  exportMode.value = 'ids'
-  exportFilters.value = { ids: selectedRowIds.value }
-  exportVisible.value = true
 }
 
 const handleImported = () => {
