@@ -81,7 +81,7 @@
         </div>
       </template>
       <template v-else>
-        <FileListViewTable :loading="loading" :table-data="fileTableData" :total-elements="fileTotalElements" :page="filePage" :page-size="filePageSize" @download="handleDownloadFileByItem" @page-change="handleFilePageChange" />
+        <FileListViewTable :loading="loading" :table-data="fileTableData" :total-elements="fileTotalElements" :page="filePage" :page-size="filePageSize" @download="handleDownloadFileByItem" @page-change="handleFilePageChange" @selection-change="handleFileSelectionChange" />
       </template>
     </el-card>
 
@@ -133,6 +133,7 @@ const fileTableData = ref([])
 const fileTotalElements = ref(0)
 const filePage = ref(1)
 const filePageSize = ref(10)
+const selectedFileItems = ref([])
 
 const buildFilterParams = () => {
   const params = {
@@ -199,6 +200,10 @@ const handleFilePageChange = (p, size) => {
   filePage.value = p
   filePageSize.value = size
   loadFileData()
+}
+
+const handleFileSelectionChange = (selection) => {
+  selectedFileItems.value = selection
 }
 
 const handleSearch = () => {

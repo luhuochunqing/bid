@@ -261,12 +261,14 @@ public class ProjectArchiveController {
             workflowService.recordLog(filteredArchives.get(0).getId(), 0L, opName, "导出", "文件包导出 " + opName + " " + ts);
         }
 
+        Set<String> categories = (query.getDocumentCategories() != null && !query.getDocumentCategories().isEmpty()) ? new HashSet<>(query.getDocumentCategories()) : null;
+
         ProjectArchiveExportService.ArchiveExportResult excelResult =
-                archiveExportService.exportProjectArchives(new HashSet<>(allowedProjectIds));
+                archiveExportService.exportProjectArchives(new HashSet<>(allowedProjectIds), categories);
         Path tempExcelPath = Files.createTempFile("archive_ledger_", ".xlsx");
         Files.write(tempExcelPath, excelResult.data());
 
-        byte[] zipBytes = streamingZipPackager.buildZipBytes(filteredArchives, tempExcelPath);
+        byte[] zipBytes = streamingZipPackager.buildZipBytes(filteredArchives, tempExcelPath, categories);
         HttpHeaders headers = new HttpHeaders();
         // ISO-8859-1 主 filename + RFC 5987 中文 filename* 备份（Tomcat 会拒绝裸中文）
         headers.add("Content-Disposition",
@@ -290,11 +292,5 @@ public class ProjectArchiveController {
         return l.endsWith(".txt") ? "text/plain" : "application/octet-stream";
     }
     private String sanitizeFilename(String f) { return f == null ? "unnamed" : f.replaceAll("[^\\w\\u4e00-\\u9fa5.\\-]", "_"); }
-    private String getCurrentOperatorName() {
-        try {
-            var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-            if (auth != null && auth.getName() != null) return auth.getName();
-        } catch (IllegalStateException | NullPointerException ignored) { }
-        return "系统";
-    }
+    private String getCurrentOperatorName() { try { var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication(); if (auth != null && auth.getName() != null) return auth.getName(); } catch (IllegalStateException | NullPointerException ignored) {} return "系统"; }
 }

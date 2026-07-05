@@ -14,6 +14,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -65,7 +66,7 @@ class StreamingZipPackagerTest {
         file2.setUploadUserId(1L);
         file2.setUploadUserName("test");
 
-        when(archiveFileRepository.findByArchiveId(1L))
+        when(archiveFileRepository.findByArchiveIdInOrderByCreatedAtDesc(anyList()))
                 .thenReturn(List.of(file1, file2));
 
         Path tempExcel = Files.createTempFile("test_index_", ".xlsx");
@@ -116,7 +117,7 @@ class StreamingZipPackagerTest {
         file2.setUploadUserId(1L);
         file2.setUploadUserName("test");
 
-        when(archiveFileRepository.findByArchiveId(2L))
+        when(archiveFileRepository.findByArchiveIdInOrderByCreatedAtDesc(anyList()))
                 .thenReturn(List.of(file1, file2));
 
         Path tempExcel = Files.createTempFile("test_index_", ".xlsx");

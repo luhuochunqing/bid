@@ -1,8 +1,9 @@
 <template>
   <div class="file-list-view-container" v-loading="loading">
-    <el-table :data="tableData" style="width: 100%" border stripe highlight-current-row max-height="calc(100vh - 220px)" scrollbar-always-on class="custom-table">
+    <el-table :data="tableData" style="width: 100%" border stripe highlight-current-row max-height="calc(100vh - 220px)" scrollbar-always-on class="custom-table" @selection-change="handleSelectionChange">
+      <el-table-column type="selection" width="55" />
       <el-table-column type="index" label="序号" width="70" align="center" />
-      <el-table-column prop="fileName" label="文档名称" min-width="260" show-overflow-tooltip>
+      <el-table-column prop="fileName" label="文档名称" min-width="260" show-overflow-tooltip class-name="filename-col">
         <template #default="{ row }">
           <el-button type="primary" link class="filename-link" @click="emit('download', row)">
             {{ row.fileName }}
@@ -65,7 +66,7 @@ const props = defineProps({
   pageSize: { type: Number, default: 10 }
 })
 
-const emit = defineEmits(['download', 'page-change'])
+const emit = defineEmits(['download', 'page-change', 'selection-change'])
 
 const localPage = ref(props.page)
 const localPageSize = ref(props.pageSize)
@@ -78,10 +79,23 @@ const handleSizeChange = () => {
   emit('page-change', localPage.value, localPageSize.value)
 }
 
+const handleSelectionChange = (selection) => {
+  emit('selection-change', selection)
+}
+
 </script>
 
 <style scoped lang="scss">
 .file-list-view-container { display: flex; flex-direction: column; }
-.filename-link { font-weight: 500; }
+.filename-col .cell { overflow: hidden; }
+.filename-link {
+  font-weight: 500;
+  width: 100%;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
 .pagination-container { display: flex; justify-content: flex-end; margin-top: 16px; }
 </style>
