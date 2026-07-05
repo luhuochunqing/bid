@@ -55,7 +55,7 @@ public class ProjectArchiveExportService {
     public record ArchiveExportResult(byte[] data, int recordCount) {}
 
     public ArchiveExportResult exportProjectArchivesByIds(Set<Long> projectIds) throws IOException {
-        return exportProjectArchives(projectIds);
+        return exportProjectArchives(projectIds, null);
     }
 
     public Set<Long> resolveExportableProjectIds() {
@@ -69,6 +69,10 @@ public class ProjectArchiveExportService {
     }
 
     public ArchiveExportResult exportProjectArchives(Set<Long> exportableProjectIds) throws IOException {
+        return exportProjectArchives(exportableProjectIds, null);
+    }
+
+    public ArchiveExportResult exportProjectArchives(Set<Long> exportableProjectIds, Set<String> documentCategories) throws IOException {
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet mainSheet = workbook.createSheet("项目基本信息");
             Sheet detailSheet = workbook.createSheet("文件清单");
@@ -109,6 +113,16 @@ public class ProjectArchiveExportService {
                         .toList();
                 PagePrefetch prefetch = prefetchPageData(exportableArchives);
 
+                // 批量查询当前页所有 archive 的文件，按 archiveId 分组（消除 N+1）
+                List<Long> pageArchiveIds = exportableArchives.stream()
+                        .map(ProjectArchive::getId)
+                        .collect(Collectors.toList());
+                Map<Long, List<ArchiveFile>> allFilesByArchiveId = pageArchiveIds.isEmpty()
+                        ? Collections.emptyMap()
+                        : archiveFileRepository.findByArchiveIdInOrderByCreatedAtDesc(pageArchiveIds)
+                                .stream()
+                                .collect(Collectors.groupingBy(ArchiveFile::getArchiveId));
+
                 for (ProjectArchive archive : exportableArchives) {
                     if (recordCount >= exportConfig.getMaxRecords()) {
                         break;
@@ -116,7 +130,13 @@ public class ProjectArchiveExportService {
 
                     EnrichedFields fields = enrichArchive(archive, prefetch);
 
-                    List<ArchiveFile> files = archiveFileRepository.findByArchiveId(archive.getId());
+                    List<ArchiveFile> allFiles = allFilesByArchiveId.getOrDefault(archive.getId(), List.of());
+                    // 应用文档分类过滤（如果有）
+                    List<ArchiveFile> files = (documentCategories == null || documentCategories.isEmpty())
+                            ? allFiles
+                            : allFiles.stream()
+                                    .filter(f -> documentCategories.contains(f.getDocumentCategory()))
+                                    .toList();
                     int fileCount = files.size();
 
                     Row row = mainSheet.createRow(mainRowNum++);
@@ -235,47 +255,28 @@ public class ProjectArchiveExportService {
             Map<Long, Tender> tenderMap,
             Map<Long, String> bidManagerNameByProjectId
     ) {
-        static PagePrefetch empty() {
-            return new PagePrefetch(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
-        }
+        static PagePrefetch empty() { return new PagePrefetch(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap()); }
     }
 
     /** 单条 archive enrich 后的字段容器，避免多参数传递 */
     private static class EnrichedFields {
-        String projectType = "综合";
-        String projectStatus = "PENDING_INITIATION";
-        String bidResult = "其他";
-        String projectManager = "-";
-        String bidManager = "-";
-        String tenderAgency = "-";
-        String initiatedAtStr = "";
-        String bidSubmissionAtStr = "";
-        String bidOpeningAtStr = "";
-        String closedAtStr = "";
+        String projectType = "综合", projectStatus = "PENDING_INITIATION", bidResult = "其他";
+        String projectManager = "-", bidManager = "-", tenderAgency = "-";
+        String initiatedAtStr = "", bidSubmissionAtStr = "", bidOpeningAtStr = "", closedAtStr = "";
     }
 
     private CellStyle createHeaderStyle(Workbook workbook) {
         CellStyle style = workbook.createCellStyle();
         style.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
         style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-        Font font = workbook.createFont();
-        font.setBold(true);
-        style.setFont(font);
-        style.setBorderTop(BorderStyle.THIN);
-        style.setBorderBottom(BorderStyle.THIN);
-        style.setBorderLeft(BorderStyle.THIN);
-        style.setBorderRight(BorderStyle.THIN);
+        Font font = workbook.createFont(); font.setBold(true); style.setFont(font);
+        style.setBorderTop(BorderStyle.THIN); style.setBorderBottom(BorderStyle.THIN);
+        style.setBorderLeft(BorderStyle.THIN); style.setBorderRight(BorderStyle.THIN);
         return style;
     }
 
-    private String safeString(String value) {
-        return value != null ? value : "";
-    }
-
-    private String formatDateTime(LocalDateTime date) {
-        return date != null ? date.format(DATE_FORMATTER) : "";
-    }
-
+    private String safeString(String value) { return value != null ? value : ""; }
+    private String formatDateTime(LocalDateTime date) { return date != null ? date.format(DATE_FORMATTER) : ""; }
     private String getCategoryLabelForExport(String cat) {
         if (cat == null) return "其他";
         return switch (cat) {

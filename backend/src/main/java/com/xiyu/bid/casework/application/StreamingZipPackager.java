@@ -15,6 +15,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -42,6 +45,10 @@ public class StreamingZipPackager {
     private final ArchiveFileRepository archiveFileRepository;
 
     public byte[] buildZipBytes(List<ProjectArchive> archives, Path tempExcelPath) {
+        return buildZipBytes(archives, tempExcelPath, null);
+    }
+
+    public byte[] buildZipBytes(List<ProjectArchive> archives, Path tempExcelPath, Set<String> documentCategories) {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream(64 * 1024);
         try (ZipOutputStream zipOut = new ZipOutputStream(buffer)) {
             // 1. 打包 _台账.xlsx
@@ -68,14 +75,26 @@ public class StreamingZipPackager {
                 }
             }
 
-            // 2. 遍历归档，打包其关联的文件
+            // 2. 批量查询所有归档的文件，按 archiveId 分组（消除 N+1 查询）
             // CO-428: 同一 archive 下可能存在同名同分类文件，需要去重避免 ZipException: duplicate entry
             ZipEntryDeduplicator dedup = new ZipEntryDeduplicator();
+            List<Long> archiveIds = archives.stream()
+                    .map(ProjectArchive::getId)
+                    .collect(Collectors.toList());
+            Map<Long, List<ArchiveFile>> filesByArchiveId = archiveFileRepository
+                    .findByArchiveIdInOrderByCreatedAtDesc(archiveIds)
+                    .stream()
+                    .collect(Collectors.groupingBy(ArchiveFile::getArchiveId));
+
             for (ProjectArchive archive : archives) {
-                List<ArchiveFile> files = archiveFileRepository.findByArchiveId(archive.getId());
+                List<ArchiveFile> files = filesByArchiveId.getOrDefault(archive.getId(), List.of());
                 String projectFolder = safeFolderName(archive.getProjectName());
 
                 for (ArchiveFile file : files) {
+                    if (documentCategories != null && !documentCategories.isEmpty()
+                            && !documentCategories.contains(file.getDocumentCategory())) {
+                        continue;
+                    }
                     String category = getCategoryDirLabel(file.getDocumentCategory());
                     String fileName = safeFileName(file.getFileName());
                     String basePath = projectFolder + "/" + category + "/" + fileName;
