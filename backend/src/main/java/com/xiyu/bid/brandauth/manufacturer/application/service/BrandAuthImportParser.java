@@ -1,13 +1,12 @@
 package com.xiyu.bid.brandauth.manufacturer.application.service;
 
 import com.xiyu.bid.brandauth.manufacturer.domain.valueobject.ProductLine;
+import com.xiyu.bid.common.domain.CommonDateParser;
 import com.xiyu.bid.exception.BusinessException;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 
 /**
  * Brand auth Excel 导入解析工具（纯静态工具类，不依赖 Spring）。
@@ -15,8 +14,6 @@ import java.time.format.DateTimeParseException;
  * <p>从 BrandAuthImportService 拆出，保持主类职责清晰 + 控制行数。</p>
  */
 final class BrandAuthImportParser {
-
-    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private BrandAuthImportParser() {}
 
@@ -44,11 +41,11 @@ final class BrandAuthImportParser {
 
     static LocalDate parseDate(final String str) {
         if (str == null || str.isBlank()) return null;
-        try {
-            return LocalDate.parse(str.trim(), DATE_FMT);
-        } catch (DateTimeParseException e) {
-            throw new BusinessException("日期格式错误 (" + str + ")，应为 yyyy-MM-dd");
+        LocalDate result = CommonDateParser.parseDayPrecision(str.trim());
+        if (result == null) {
+            throw new BusinessException("日期格式错误 (" + str + ")，支持格式: yyyy-MM-dd / yyyy/M/d / yyyy.M.d / yyyy年M月d日 / d-M-yyyy / d/M/yyyy / MM/dd/yyyy / dd.MM.yyyy");
         }
+        return result;
     }
 
     static ProductLine parseProductLine(final String str) {

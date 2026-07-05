@@ -4,6 +4,7 @@
 
 package com.xiyu.bid.tender.service;
 
+import com.xiyu.bid.common.domain.CommonDateParser;
 import org.springframework.stereotype.Component;
 
 import org.apache.poi.ss.usermodel.Cell;
@@ -11,36 +12,13 @@ import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DateUtil;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
-import java.util.List;
 
 /**
  * Reads typed values from Apache POI cells for tender import.
  */
 @Component
 public final class TenderExcelCellReader {
-
-    /** Date-time patterns tried in order. */
-    static final List<DateTimeFormatter> DATETIME_PATTERNS = List.of(
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"),
-            DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss"),
-            DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm")
-    );
-
-    /** Date-only patterns tried in order. */
-    static final List<DateTimeFormatter> DATE_PATTERNS = List.of(
-            DateTimeFormatter.ofPattern("yyyy-MM-dd"),
-            DateTimeFormatter.ofPattern("yyyy/MM/dd")
-    );
-
-    /** Default hour for date-only values. */
-    private static final int HOUR_END = 23;
-    /** Default minute for date-only values. */
-    private static final int MINUTE_END = 59;
 
     /** Threshold for representing a double as long. */
     private static final double LONG_MAX_EXACT = 1e15;
@@ -70,7 +48,8 @@ public final class TenderExcelCellReader {
     }
 
     /**
-     * Reads a cell as date-time, trying multiple patterns.
+     * Reads a cell as date-time. Numeric date-formatted cells are read directly;
+     * string cells are delegated to {@link CommonDateParser} for multi-format parsing.
      *
      * @param cell the POI cell to read
      * @param label field label for error messages
@@ -88,23 +67,7 @@ public final class TenderExcelCellReader {
         if (text == null) {
             return null;
         }
-        for (final DateTimeFormatter fmt : DATETIME_PATTERNS) {
-            try {
-                return LocalDateTime.parse(text, fmt);
-            } catch (DateTimeParseException ignored) {
-                /* try next pattern */
-            }
-        }
-        for (final DateTimeFormatter fmt : DATE_PATTERNS) {
-            try {
-                return LocalDate.parse(text, fmt)
-                        .atTime(HOUR_END, MINUTE_END);
-            } catch (DateTimeParseException ignored) {
-                /* try next pattern */
-            }
-        }
-        throw new IllegalArgumentException(
-                label + " format error: " + text);
+        return CommonDateParser.parseDateTimePrecisionOrThrow(text, label);
     }
 
     private String formatNumeric(final Cell cell) {

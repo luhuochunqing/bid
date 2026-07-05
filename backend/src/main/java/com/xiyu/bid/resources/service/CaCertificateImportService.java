@@ -13,12 +13,11 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 
+import com.xiyu.bid.common.domain.CommonDateParser;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -33,8 +32,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Slf4j
 public class CaCertificateImportService {
-
-    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final String[] TEMPLATE_HEADERS = {
             "CA类型*", "印章类型*", "持有人*", "保管员姓名*",
             "有效期至(yyyy-MM-dd)*", "颁发机构", "电子账号",
@@ -138,13 +135,9 @@ public class CaCertificateImportService {
             throw new IllegalArgumentException("印章类型不能为空（可选: 公章/法人章/法人签字/联系人签字）");
         }
 
-        LocalDate expiryDate = null;
+        LocalDate expiryDate;
         if (expiryDateStr != null && !expiryDateStr.isBlank()) {
-            try {
-                expiryDate = LocalDate.parse(expiryDateStr, DATE_FMT);
-            } catch (DateTimeParseException e) {
-                throw new IllegalArgumentException("有效期格式错误，请使用 yyyy-MM-dd 格式");
-            }
+            expiryDate = CommonDateParser.parseDayPrecisionOrThrow(expiryDateStr, "有效期至");
         } else {
             throw new IllegalArgumentException("有效期至不能为空");
         }

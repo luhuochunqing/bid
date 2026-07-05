@@ -1,7 +1,7 @@
 package com.xiyu.bid.resources.domain;
 
+import com.xiyu.bid.common.domain.CommonDateParser;
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -107,10 +107,9 @@ public class CaCertificateImportPolicy {
         if (expiryDateStr.isEmpty()) {
             errors.add("有效期至不能为空");
         } else {
-            try {
-                expiryDate = LocalDate.parse(expiryDateStr);
-            } catch (DateTimeParseException e) {
-                errors.add("有效期至格式错误，需为 yyyy-MM-dd");
+            expiryDate = CommonDateParser.parseDayPrecision(expiryDateStr);
+            if (expiryDate == null) {
+                errors.add("有效期至格式错误，支持格式: yyyy-MM-dd / yyyy/M/d / yyyy.M.d / yyyy年M月d日 / d-M-yyyy / d/M/yyyy / MM/dd/yyyy / dd.MM.yyyy");
             }
         }
 

@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.xiyu.bid.common.domain.CommonDateParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -116,14 +117,14 @@ if (rows.isEmpty()) {
         // 日期解析 + 顺序
         java.time.LocalDate issueDate, expiryDate;
         try {
-            issueDate = java.time.LocalDate.parse(row.issueDate().trim());
-        } catch (java.time.format.DateTimeParseException e) {
-            return fail(row.rowNumber(), row.certificateNo(), "发证日期格式错误（应为 YYYY-MM-DD）");
+            issueDate = CommonDateParser.parseDayPrecisionOrThrow(row.issueDate().trim(), "发证日期");
+        } catch (IllegalArgumentException e) {
+            return fail(row.rowNumber(), row.certificateNo(), e.getMessage());
         }
         try {
-            expiryDate = java.time.LocalDate.parse(row.expiryDate().trim());
-        } catch (java.time.format.DateTimeParseException e) {
-            return fail(row.rowNumber(), row.certificateNo(), "证书有效期格式错误（应为 YYYY-MM-DD）");
+            expiryDate = CommonDateParser.parseDayPrecisionOrThrow(row.expiryDate().trim(), "证书有效期");
+        } catch (IllegalArgumentException e) {
+            return fail(row.rowNumber(), row.certificateNo(), e.getMessage());
         }
         if (!expiryDate.isAfter(issueDate)) {
             return fail(row.rowNumber(), row.certificateNo(), "证书有效期须晚于发证日期");

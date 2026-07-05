@@ -1,5 +1,6 @@
 package com.xiyu.bid.personnel.infrastructure.excel;
 
+import com.xiyu.bid.common.domain.CommonDateParser;
 import com.xiyu.bid.personnel.domain.importvalidation.ParsedCertificateRow;
 import com.xiyu.bid.personnel.domain.importvalidation.ParsedEducationRow;
 import com.xiyu.bid.personnel.domain.importvalidation.ParsedPersonnelRow;
@@ -192,19 +193,7 @@ public class PersonnelExcelImporter {
         }
         String strVal = getCellStringValue(cell);
         if (strVal != null && !strVal.isBlank()) {
-            // CO-419: 兼容 YYYY-MM 月份精度（与表单 type="month" 一致），补日为 1 号
-            if (strVal.length() == 7 && strVal.charAt(4) == '-') {
-                try {
-                    return java.time.YearMonth.parse(strVal).atDay(1);
-                } catch (java.time.format.DateTimeParseException e) {
-                    return null;
-                }
-            }
-            try {
-                return java.time.LocalDate.parse(strVal);
-            } catch (java.time.format.DateTimeParseException e) {
-                return null;
-            }
+            return CommonDateParser.parseAdaptive(strVal);
         }
         return null;
     }
