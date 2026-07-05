@@ -189,9 +189,8 @@ public class CaCertificateImportAppService {
             // CA类型（第1列）下拉
             ExcelDropDownHelper.addDropdown(sheet, CaCertificateImportPolicy.COL_CA_TYPE,
                     CaCertificateImportPolicy.CA_TYPE_OPTIONS);
-            // 印章类型（第2列）下拉
-            ExcelDropDownHelper.addDropdown(sheet, CaCertificateImportPolicy.COL_SEAL_TYPE,
-                    CaCertificateImportPolicy.SEAL_TYPE_OPTIONS);
+            // CO-506: 印章类型支持多选（用/隔开），Excel 下拉框不支持多选故移除，
+            // 改为在表头标题中说明可选值与分隔符（见 CaCertificateImportPolicy.HEADERS）。
 
             ExcelAutoSizeHelper.autoSizeColumns(sheet, CaCertificateImportPolicy.HEADERS.length);
 

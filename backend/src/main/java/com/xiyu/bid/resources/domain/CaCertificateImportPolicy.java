@@ -14,7 +14,7 @@ import java.util.Set;
 public class CaCertificateImportPolicy {
 
     public static final String[] HEADERS = {
-            "CA类型*", "印章类型*", "持有人", "保管员*", "有效期至*",
+            "CA类型*", "印章类型*（多个用/隔开，可选：公章/法人章/法人签字/联系人签字）", "持有人", "保管员*", "有效期至*",
             "颁发机构", "电子账号", "CA密码",
             "平台地址/APP", "关联平台", "备注"
     };
@@ -88,7 +88,7 @@ public class CaCertificateImportPolicy {
         if (sealType.isEmpty()) {
             errors.add("印章类型不能为空");
         } else {
-            List<String> sealTypes = Arrays.stream(sealType.split("[,，;；]"))
+            List<String> sealTypes = Arrays.stream(sealType.split("[,，;；/]"))
                     .map(String::trim)
                     .filter(s -> !s.isEmpty())
                     .toList();
@@ -119,7 +119,7 @@ public class CaCertificateImportPolicy {
 
         // 印章类型：中文→英文 code 映射（与校验共用一次 split）
         String sealTypeCode = sealType.isEmpty() ? "" :
-                Arrays.stream(sealType.split("[,，;；]"))
+                Arrays.stream(sealType.split("[,，;；/]"))
                         .map(String::trim)
                         .filter(s -> !s.isEmpty())
                         .map(t -> switch (t) {
