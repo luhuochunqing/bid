@@ -97,6 +97,15 @@ export function useProjectDetailWorkflow(context) {
     context.reviewerDialogVisible.value = false
     context.message.success('评审人已添加')
   }
+  /**
+   * 关闭评审人 dialog 并重置表单与已选用户。
+   * 对齐 useProjectDetailTransfer.closeTransfer 的 reset 模式——避免取消后 selectedReviewerUser 残留。
+   */
+  const closeReviewerDialog = () => {
+    context.reviewerDialogVisible.value = false
+    reviewerForm.value = { userId: '', role: '' }
+    selectedReviewerUser.value = null
+  }
   const handleRemindReviewer = (reviewer) => context.message.success(`已提醒 ${reviewer.name} 进行评审`)
   const handleRemoveReviewer = (index) => reviewers.value.splice(index, 1)
   const handleCompleteReview = () => {
@@ -153,7 +162,7 @@ export function useProjectDetailWorkflow(context) {
     getStepStatusText, canOperateStep, getCurrentPhaseType, getCurrentPhaseText, getProcessProgress,
     getReviewerRoleType, getReviewerRoleText, getReviewStatusType, getReviewStatusText, getReviewProgress, getReviewedCount, canCompleteReview,
     handleInitiateProcess, handleDraftSubmit, handleDraftFileSuccess, ensureDemoUpload, handleSaveDraft, handleReview, handleAddReviewer,
-    handleReviewerSelect, handleConfirmAddReviewer, handleRemindReviewer, handleRemoveReviewer, handleCompleteReview, handleSealApply, handleSealFileSuccess,
+    handleReviewerSelect, handleConfirmAddReviewer, closeReviewerDialog, handleRemindReviewer, handleRemoveReviewer, handleCompleteReview, handleSealApply, handleSealFileSuccess,
     handleSubmitSeal, handleSubmit, handleSubmitPackage, handleDownloadDeliverable,
   }
 }

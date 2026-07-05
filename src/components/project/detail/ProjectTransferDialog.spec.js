@@ -1,28 +1,11 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ref, reactive, h, defineComponent } from 'vue'
+import { ref, reactive } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import ProjectTransferDialog from './ProjectTransferDialog.vue'
 import { projectDetailKey } from '@/composables/projectDetail/context.js'
-
-// 捕获 v-model 传入的 modelValue，用于回归测试 v-model 是否正确绑定 ref 字段
-const ElDialogStub = defineComponent({
-  name: 'ElDialog',
-  props: {
-    modelValue: { type: Boolean, default: false },
-    title: { type: String, default: '' },
-  },
-  setup(props, { slots }) {
-    return () => h('div', {
-      'data-title': props.title,
-      'data-model-value': String(props.modelValue),
-    }, [
-      slots.default?.(),
-      slots.footer?.(),
-    ])
-  },
-})
+import { ElDialogStub } from './__test-utils__/ElDialogStub.js'
 
 function mountDialog(overrides = {}) {
   const transferDialogVisible = overrides.transferDialogVisible || ref(false)

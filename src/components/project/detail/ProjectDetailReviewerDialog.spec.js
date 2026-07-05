@@ -1,25 +1,13 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
-import { ref, reactive, h, defineComponent } from 'vue'
+import { ref, reactive } from 'vue'
 import ProjectDetailReviewerDialog from './ProjectDetailReviewerDialog.vue'
 import { projectDetailKey } from '@/composables/projectDetail/context.js'
+import { ElDialogStub } from './__test-utils__/ElDialogStub.js'
 
 // 用 reactive 包装 ctx 贴近生产：ProjectDetailShell.vue 的 projectDetailContext = reactive({...})。
 // 历史 bug：模板里写 v-model="detail.xxx.value" 在 reactive unwrap 后失效，dialog 永不弹出。
 // 之前 spec 用普通对象 ctx，没覆盖到 reactive unwrap 行为，所以 bug 没被发现。
-const ElDialogStub = defineComponent({
-  name: 'ElDialog',
-  props: { modelValue: { type: Boolean, default: false }, title: { type: String, default: '' } },
-  setup(props, { slots }) {
-    return () => h('div', {
-      'data-title': props.title,
-      'data-model-value': String(props.modelValue),
-    }, [
-      slots.default?.(),
-      slots.footer?.(),
-    ])
-  },
-})
 
 function mountDialog(contextOverrides = {}) {
   // 优先使用 overrides 中传入的 ref，让测试可以拿到同一个 ref 引用进行切换
@@ -33,6 +21,7 @@ function mountDialog(contextOverrides = {}) {
     reviewerForm,
     handleReviewerSelect: vi.fn(),
     handleConfirmAddReviewer: vi.fn(),
+    closeReviewerDialog: vi.fn(),
     ...restOverrides,
   })
   const wrapper = mount(ProjectDetailReviewerDialog, {
@@ -50,7 +39,10 @@ function mountDialog(contextOverrides = {}) {
           template: '<select><slot /></select>',
         },
         'el-option': { template: '<option><slot /></option>' },
-        'el-button': { template: '<button><slot /></button>' },
+        'el-button': {
+          name: 'ElButton',
+          template: '<button><slot /></button>',
+        },
         UserPicker: {
           name: 'UserPicker',
           props: ['modelValue', 'mode', 'placeholder', 'excludeIds'],
@@ -60,7 +52,7 @@ function mountDialog(contextOverrides = {}) {
       },
     },
   })
-  return { wrapper, context, reviewerDialogVisible, reviewerForm }
+  return { wrapper, context, reviewerDialogVisible, reviewerForm, closeReviewerDialog: context.closeReviewerDialog }
 }
 
 describe('ProjectDetailReviewerDialog', () => {
@@ -101,5 +93,15 @@ describe('ProjectDetailReviewerDialog', () => {
     reviewerDialogVisible.value = true
     await wrapper.vm.$nextTick()
     expect(dialogEl.attributes('data-model-value')).toBe('true')
+  })
+
+  // 回归测试：取消按钮必须调用 closeReviewerDialog（含 reset 逻辑），不能只关闭 dialog
+  // 历史 bug：模板写 @click="detail.reviewerDialogVisible = false"，selectedReviewerUser 残留
+  it('clicking 取消 button calls closeReviewerDialog (not just closes dialog)', async () => {
+    const { wrapper, closeReviewerDialog } = mountDialog()
+    const btnComp = wrapper.findAllComponents({ name: 'ElButton' }).find(c => c.text().includes('取消'))
+    expect(btnComp).toBeTruthy()
+    await btnComp.trigger('click')
+    expect(closeReviewerDialog).toHaveBeenCalled()
   })
 })

@@ -25,7 +25,7 @@
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="detail.reviewerDialogVisible = false">取消</el-button>
+      <el-button @click="detail.closeReviewerDialog">取消</el-button>
       <el-button type="primary" @click="detail.handleConfirmAddReviewer">确定</el-button>
     </template>
   </el-dialog>
