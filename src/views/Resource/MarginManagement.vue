@@ -110,6 +110,9 @@
         </el-table-column>
         <el-table-column prop="ownerUnit" label="业主单位" min-width="160" />
         <el-table-column prop="projectLeaderName" label="项目负责人" width="120" />
+        <el-table-column prop="biddingLeaderName" label="投标负责人" width="120">
+          <template #default="{ row }">{{ row.biddingLeaderName || '-' }}</template>
+        </el-table-column>
         <el-table-column prop="depositAmount" label="保证金金额（元）" width="160" align="right">
           <template #default="{ row }">¥{{ fmtMoney(row.depositAmount) }}</template>
         </el-table-column>

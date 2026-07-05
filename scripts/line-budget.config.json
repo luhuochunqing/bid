@@ -78,6 +78,7 @@
         "backend/src/main/java/com/xiyu/bid/projectworkflow/service/ProjectTaskWorkflowService.java",
         "src/views/Project/stages/EvaluationStage.vue",
         "src/views/Resource/CAManagement.vue",
+        "src/views/Resource/MarginManagement.vue",
         "src/views/System/Settings.vue",
         "src/views/System/WorkflowFormDesigner.vue",
         "src/views/System/workflow-form-designer/useWorkflowFormDesigner.js",

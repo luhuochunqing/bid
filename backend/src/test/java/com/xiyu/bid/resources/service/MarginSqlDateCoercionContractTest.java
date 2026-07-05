@@ -134,10 +134,10 @@ class MarginSqlDateCoercionContractTest {
         String sql = MarginDerivedTableColumns.DERIVED_SELECT_FEES;
         assertThat(sql)
                 .as("DERIVED_SELECT_FEES bidding_leader_name 必须加 COLLATE utf8mb4_unicode_ci"
-                  + "（pid.bidding_leader_name=0900_ai_ci, t.bidding_person_name=unicode_ci，"
-                  + "UNION 必须 collation 一致）"
-                  + "CO-490: NULLIF 包裹空字符串，与 project_leader_name 一致")
-                .contains("COALESCE(NULLIF(pid.bidding_leader_name, ''),"
+                  + "（u_lead.full_name/pid.bidding_leader_name/t.bidding_person_name 跨表 collation 一致）"
+                  + "CO-490: NULLIF 包裹空字符串；CO-507: 优先取 ProjectLeadAssignment 关联的 u_lead.full_name")
+                .contains("COALESCE(NULLIF(u_lead.full_name, ''),"
+                        + "       NULLIF(pid.bidding_leader_name, ''),"
                         + "       NULLIF(t.bidding_person_name, ''))"
                         + "       COLLATE utf8mb4_unicode_ci as bidding_leader_name");
     }
@@ -160,8 +160,9 @@ class MarginSqlDateCoercionContractTest {
         assertThat(sql)
                 .as("DERIVED_SELECT_INIT bidding_leader_name 必须加 COLLATE utf8mb4_unicode_ci"
                   + "（UNION ALL 的两个分支必须 collation 一致）"
-                  + "CO-490: NULLIF 包裹空字符串，与 FEES 分支对齐")
-                .contains("COALESCE(NULLIF(pid.bidding_leader_name, ''),"
+                  + "CO-490: NULLIF 包裹空字符串；CO-507: 优先取 u_lead.full_name，与 FEES 分支对齐")
+                .contains("COALESCE(NULLIF(u_lead.full_name, ''),"
+                        + "       NULLIF(pid.bidding_leader_name, ''),"
                         + "       NULLIF(t.bidding_person_name, ''))"
                         + "       COLLATE utf8mb4_unicode_ci as bidding_leader_name");
     }

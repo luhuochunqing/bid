@@ -520,6 +520,77 @@ class MarginQuerySupportMysqlIntegrationTest {
         }
     }
 
+    // ── CO-507：投标负责人取值应来自 ProjectLeadAssignment.primaryLeadUserId ──
+    //
+    // 背景：保证金管理表格缺少投标负责人列，且原 SQL 完全绕过
+    // project_lead_assignment 表，从 pid.bidding_leader_name 字符串取值，
+    // 无法反映标书编制阶段分配的 primaryLeadUserId 变更。
+    // 修复：FEES_JOIN/INIT_JOIN 新增 LEFT JOIN pla + LEFT JOIN users u_lead，
+    // COALESCE 优先取 u_lead.full_name，回退 pid/tender 字符串字段。
+
+    @Test
+    @DisplayName("CO-507: bidding_leader_name 应优先取 ProjectLeadAssignment.primaryLeadUserId 对应的 users.full_name")
+    void biddingLeaderName_shouldPreferProjectLeadAssignmentUser_overPidAndTender() {
+        Long leadUserId = createTestUser("CO507-BidLeader");
+        Long tenderId = createTender("co507-prefer-pla", "TenderPM", "TenderBidLeader");
+        Long projectId = createTestProject("co507-prefer-pla", tenderId);
+        createInitiationDetailsWithLeaders(projectId, "YES",
+                new BigDecimal("5000"), "PidPM", "PidBidLeader");
+        createProjectLeadAssignment(projectId, leadUserId);
+        try {
+            StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
+            sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
+
+            List<Map<String, Object>> rows =
+                    jdbcTemplate.queryForList(sql.toString(), Map.of());
+
+            Map<String, Object> row = rows.stream()
+                    .filter(r -> projectId.equals(extractProjectId(r)))
+                    .findFirst()
+                    .orElse(null);
+
+            assertThat(row)
+                    .as("项目行应存在")
+                    .isNotNull();
+            assertThat(row.get("bidding_leader_name"))
+                    .as("bidding_leader_name 应优先取 ProjectLeadAssignment 关联的 users.full_name，"
+                      + "而非 pid.bidding_leader_name / tenders.bidding_person_name 字符串字段")
+                    .isEqualTo("CO507-BidLeader");
+        } finally {
+            cleanupTestData(projectId, tenderId, leadUserId);
+        }
+    }
+
+    @Test
+    @DisplayName("CO-507: 无 ProjectLeadAssignment 记录时 bidding_leader_name 回退到 pid 字符串字段")
+    void biddingLeaderName_fallsBackToPidString_whenNoProjectLeadAssignment() {
+        Long tenderId = createTender("co507-no-pla", "TenderPM2", "TenderBidLeader2");
+        Long projectId = createTestProject("co507-no-pla", tenderId);
+        createInitiationDetailsWithLeaders(projectId, "YES",
+                new BigDecimal("5000"), "PidPM2", "PidBidLeader2");
+        try {
+            StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
+            sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
+
+            List<Map<String, Object>> rows =
+                    jdbcTemplate.queryForList(sql.toString(), Map.of());
+
+            Map<String, Object> row = rows.stream()
+                    .filter(r -> projectId.equals(extractProjectId(r)))
+                    .findFirst()
+                    .orElse(null);
+
+            assertThat(row)
+                    .as("项目行应存在")
+                    .isNotNull();
+            assertThat(row.get("bidding_leader_name"))
+                    .as("无 ProjectLeadAssignment 记录时，应回退到 pid.bidding_leader_name 字符串字段")
+                    .isEqualTo("PidBidLeader2");
+        } finally {
+            cleanupTestData(projectId, tenderId);
+        }
+    }
+
     // ── CO-490 回归测试：保证金 500 错误（空字符串日期触发 CAST/STR_TO_DATE 异常）──
     //
     // 背景：前端 TaskDepositFields.vue 把 actualPaymentDate/expectedRefundDate
@@ -776,6 +847,71 @@ class MarginQuerySupportMysqlIntegrationTest {
     }
 
     /**
+     * 插入 project_initiation_details，带 project_leader_name / bidding_leader_name
+     * 字符串字段（CO-507 测试用：验证 pla 优先级时，pid 字符串值应被覆盖）。
+     */
+    private void createInitiationDetailsWithLeaders(final Long projectId,
+                                                     final String needDeposit,
+                                                     final BigDecimal depositAmount,
+                                                     final String projectLeaderName,
+                                                     final String biddingLeaderName) {
+        String sql = "INSERT INTO project_initiation_details"
+                   + " (project_id, need_deposit, deposit_amount,"
+                   + "  project_leader_name, bidding_leader_name, locked, created_at, updated_at) "
+                   + "VALUES (:pid, :nd, :da, :pln, :bln, FALSE, NOW(), NOW())";
+        Map<String, Object> params = new HashMap<>();
+        params.put("pid", projectId);
+        params.put("nd", needDeposit);
+        params.put("da", depositAmount);
+        params.put("pln", projectLeaderName);
+        params.put("bln", biddingLeaderName);
+        jdbcTemplate.update(sql, params);
+    }
+
+    /**
+     * 插入 users 记录，返回自增 id（CO-507 测试用：作为投标负责人）。
+     * role='STAFF' 满足 NOT NULL 约束，username/email 用纳秒保证唯一。
+     */
+    private Long createTestUser(final String fullName) {
+        String username = "test-user-" + System.nanoTime();
+        String email = username + "@test.local";
+        String sql = "INSERT INTO users"
+                   + " (username, email, full_name, password, role,"
+                   + "  enabled, email_verified, created_at) "
+                   + "VALUES (:u, :e, :f, 'nopass', 'STAFF', TRUE, FALSE, NOW())";
+        Map<String, Object> params = new HashMap<>();
+        params.put("u", username);
+        params.put("e", email);
+        params.put("f", fullName);
+        org.springframework.jdbc.support.GeneratedKeyHolder keyHolder =
+                new org.springframework.jdbc.support.GeneratedKeyHolder();
+        jdbcTemplate.update(sql,
+                new org.springframework.jdbc.core.namedparam.MapSqlParameterSource(params),
+                keyHolder);
+        Number key = keyHolder.getKey();
+        if (key == null) {
+            throw new IllegalStateException(
+                    "Failed to retrieve generated user id for: " + username);
+        }
+        return key.longValue();
+    }
+
+    /**
+     * 插入 project_lead_assignment（CO-507 测试用：主投标负责人分配）。
+     * project_id 有 unique 约束，每个测试项目只能有一条记录。
+     */
+    private void createProjectLeadAssignment(final Long projectId,
+                                              final Long primaryLeadUserId) {
+        String sql = "INSERT INTO project_lead_assignment"
+                   + " (project_id, primary_lead_user_id, created_at, updated_at) "
+                   + "VALUES (:pid, :pluid, NOW(), NOW())";
+        Map<String, Object> params = new HashMap<>();
+        params.put("pid", projectId);
+        params.put("pluid", primaryLeadUserId);
+        jdbcTemplate.update(sql, params);
+    }
+
+    /**
      * 插入 fee。feeDateExpr 是 SQL 表达式（如 'DATE_SUB(NOW(), INTERVAL 30 DAY)'），
      * 直接拼接到 SQL 中以避免 Java/MySQL 时区不一致。
      */
@@ -849,6 +985,9 @@ class MarginQuerySupportMysqlIntegrationTest {
         // CO-490 测试会创建 deposit-payment 任务，必须先清理（tasks 无外键约束但 project_id 引用 projects.id）
         jdbcTemplate.update("DELETE FROM tasks WHERE project_id = :pid", params);
         jdbcTemplate.update("DELETE FROM fees WHERE project_id = :pid", params);
+        // CO-507 测试会创建 project_lead_assignment，project_id 有 unique 约束必须清理
+        jdbcTemplate.update(
+                "DELETE FROM project_lead_assignment WHERE project_id = :pid", params);
         jdbcTemplate.update(
                 "DELETE FROM project_initiation_details WHERE project_id = :pid", params);
         jdbcTemplate.update("DELETE FROM projects WHERE id = :pid", params);
@@ -859,6 +998,14 @@ class MarginQuerySupportMysqlIntegrationTest {
         cleanupTestData(projectId);
         if (tenderId != null) {
             jdbcTemplate.update("DELETE FROM tenders WHERE id = :tid", Map.of("tid", tenderId));
+        }
+    }
+
+    /** 清理测试数据：额外删除 users（CO-507 测试会创建投标负责人 user）。 */
+    private void cleanupTestData(final Long projectId, final Long tenderId, final Long userId) {
+        cleanupTestData(projectId, tenderId);
+        if (userId != null) {
+            jdbcTemplate.update("DELETE FROM users WHERE id = :uid", Map.of("uid", userId));
         }
     }
 }
