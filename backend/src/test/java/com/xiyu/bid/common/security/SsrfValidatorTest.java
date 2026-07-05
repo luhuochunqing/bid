@@ -129,6 +129,20 @@ class SsrfValidatorTest {
     }
 
     @Test
+    void shouldRejectLinkLocalIpv6Febf() {
+        // febf:: 是 fe80::/10 范围上界，仍应拒绝
+        assertThatThrownBy(() -> SsrfValidator.validate("http://[febf::1]/v1/chat/completions"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void shouldAcceptIpv6Fec0() {
+        // fec0:: 紧邻 fe80::/10 范围外，应放行
+        assertThatCode(() -> SsrfValidator.validate("http://[fec0::1]/v1/chat/completions"))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
     void shouldAcceptLoopbackIpv6() {
         assertThatCode(() -> SsrfValidator.validate("http://[::1]:11434/v1/chat/completions"))
                 .doesNotThrowAnyException();

@@ -3,6 +3,7 @@ package com.xiyu.bid.common.security;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Locale;
+import java.util.Optional;
 
 /**
  * 校验外部 AI Provider 的 baseUrl 是否安全（SSRF 防护）。
@@ -56,12 +57,12 @@ public final class SsrfValidator {
     }
 
     private static void validateHost(String host) {
-        if (isIpv4Literal(host)) {
-            validateIpv4(host);
+        Optional<Long> ipv4 = tryParseIpv4(host);
+        if (ipv4.isPresent()) {
+            validateIpv4(ipv4.get());
             return;
         }
         if (isIpv6Literal(host)) {
-            // URI.getHost() 对 IPv6 返回带方括号的格式（如 [fe80::1]），先剥掉
             String bareHost = stripIpv6Brackets(host);
             validateIpv6(bareHost);
             return;
@@ -76,27 +77,28 @@ public final class SsrfValidator {
         return host;
     }
 
-    private static boolean isIpv4Literal(String host) {
-        if (!host.contains(".")) return false;
+    private static Optional<Long> tryParseIpv4(String host) {
+        if (!host.contains(".")) return Optional.empty();
         String[] parts = host.split("\\.");
-        if (parts.length != 4) return false;
+        if (parts.length != 4) return Optional.empty();
+        long result = 0;
         for (String part : parts) {
             try {
                 int octet = Integer.parseInt(part);
-                if (octet < 0 || octet > 255) return false;
+                if (octet < 0 || octet > 255) return Optional.empty();
+                result = (result << 8) | octet;
             } catch (NumberFormatException ignored) {
-                return false;
+                return Optional.empty();
             }
         }
-        return true;
+        return Optional.of(result);
     }
 
     private static boolean isIpv6Literal(String host) {
         return host.contains(":");
     }
 
-    private static void validateIpv4(String host) {
-        long ip = parseIpv4ToLong(host);
+    private static void validateIpv4(long ip) {
         if (inRange(ip, 169L << 24 | 254L << 16, 0xFFFF0000L)) {       // 169.254.0.0/16
             throw new IllegalArgumentException("自定义 Provider baseUrl 不允许指向该地址（link-local 云元数据）");
         }
@@ -125,7 +127,7 @@ public final class SsrfValidator {
         // 检查 IPv4-mapped IPv6 地址（如 ::ffff:169.254.169.254）
         String embeddedIpv4 = extractEmbeddedIpv4(compressed);
         if (embeddedIpv4 != null) {
-            validateIpv4(embeddedIpv4);
+            tryParseIpv4(embeddedIpv4).ifPresent(SsrfValidator::validateIpv4);
         }
         // 允许 ::1 loopback、fc00::/7 ULA、公网 IPv6
     }
@@ -148,15 +150,6 @@ public final class SsrfValidator {
             }
         }
         return tail;
-    }
-
-    private static long parseIpv4ToLong(String host) {
-        String[] parts = host.split("\\.");
-        long result = 0;
-        for (String part : parts) {
-            result = (result << 8) | Integer.parseInt(part);
-        }
-        return result;
     }
 
     private static boolean inRange(long ip, long networkStart, long mask) {

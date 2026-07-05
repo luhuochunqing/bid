@@ -50,15 +50,6 @@ class AiProviderCatalogTest {
     }
 
     @Test
-    void isCustomProvider_ShouldDetectCustom() {
-        assertThat(AiProviderCatalog.isCustomProvider("custom")).isTrue();
-        assertThat(AiProviderCatalog.isCustomProvider("CUSTOM")).isTrue();
-        assertThat(AiProviderCatalog.isCustomProvider("openai")).isFalse();
-        assertThat(AiProviderCatalog.isCustomProvider(null)).isFalse();
-        assertThat(AiProviderCatalog.isCustomProvider("")).isFalse();
-    }
-
-    @Test
     void customProvider_EnvironmentKeysShouldBeEmpty() {
         assertThat(catalog.environmentKeys("custom")).isEmpty();
     }

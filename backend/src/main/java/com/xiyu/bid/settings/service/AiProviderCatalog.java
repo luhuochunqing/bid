@@ -15,7 +15,7 @@ public class AiProviderCatalog {
 
     private static final String DEFAULT_ACTIVE_PROVIDER = "deepseek";
 
-    public static final String CUSTOM_PROVIDER_CODE = "custom";
+    private static final String CUSTOM_PROVIDER_CODE = "custom";
 
     private final Map<String, AiProviderDefinition> providers = Map.of(
             "openai", new AiProviderDefinition(
@@ -90,13 +90,13 @@ public class AiProviderCatalog {
     }
 
     public void validateBaseUrl(String providerCode, String baseUrl) {
-        if (isCustomProvider(providerCode)) {
+        AiProviderDefinition provider = get(providerCode);
+        if (provider.allowedHosts().isEmpty()) {
             // 自定义 Provider：走 SSRF 安全校验，允许 HTTP/HTTPS、任意域名
             SsrfValidator.validate(baseUrl);
             return;
         }
 
-        AiProviderDefinition provider = get(providerCode);
         URI uri;
         try {
             uri = URI.create(baseUrl == null ? "" : baseUrl.trim());
@@ -114,13 +114,6 @@ public class AiProviderCatalog {
         if (!provider.allowedHosts().contains(normalizedHost)) {
             throw new IllegalArgumentException("AI API 地址必须匹配当前厂商的官方域名");
         }
-    }
-
-    /**
-     * 判断是否为自定义 Provider（code 等于 "custom"，不区分大小写）。
-     */
-    public static boolean isCustomProvider(String providerCode) {
-        return providerCode != null && CUSTOM_PROVIDER_CODE.equals(providerCode.trim().toLowerCase(Locale.ROOT));
     }
 
     public String normalize(String providerCode) {

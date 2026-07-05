@@ -50,8 +50,7 @@ public class TenderImportService {
             "客户类型*", "优先级*", "项目类型*", "来源平台", "标讯描述"
     };
 
-    static final List<String> CUSTOMER_TYPES = List.of(
-            "政府机关/事业单位/高校", "央企", "地方国企", "民企", "港澳台及外企");
+    static final List<String> CUSTOMER_TYPES = List.of("政府机关/事业单位/高校", "央企", "地方国企", "民企", "港澳台及外企");
     static final List<String> PRIORITIES = List.of("S", "A", "B", "C");
     static final List<String> REGIONS = TenderRegionCatalog.REGIONS;
 
@@ -59,7 +58,6 @@ public class TenderImportService {
 
     private static final int MAX_ROWS = 500;
     private static final long MAX_FILE_BYTES = 5L * 1024 * 1024;
-
 
     private final TenderCommandService tenderCommandService;
     private final TenderMapper tenderMapper;
@@ -222,7 +220,7 @@ public class TenderImportService {
         req.setSource(com.xiyu.bid.entity.Tender.SourceType.BULK_IMPORT.getLabel());
         req.setSourceType(com.xiyu.bid.entity.Tender.SourceType.BULK_IMPORT);
         req.setPublishDate(LocalDate.now());
-        /* For imported tenders, registration deadline serves as the general deadline */
+        /* Use registration deadline as general deadline */
         if (req.getRegistrationDeadline() != null && req.getDeadline() == null) {
             req.setDeadline(req.getRegistrationDeadline());
         }
@@ -298,8 +296,5 @@ public class TenderImportService {
         }
         return true;
     }
-
-
-
 
 }
