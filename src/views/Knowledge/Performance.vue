@@ -3,7 +3,6 @@
     <div class="kb-page-header">
       <div>
         <h2>业绩管理</h2>
-        <p class="kb-page-subtitle">合同台账与到期提醒中心</p>
       </div>
       <div class="kb-header-actions">
         <el-button v-if="canAdminPerformanceAlert" @click="openAlertConfig">
