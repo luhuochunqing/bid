@@ -2,7 +2,7 @@
   <div class="personnel-container">
     <div class="page-header kb-page-header">
       <h2>人员库 — 投标团队成员管理</h2>
-      <div class="header-actions">
+      <div class="kb-header-actions">
         <div class="primary-actions">
           <el-button v-if="canAdd" type="primary" @click="openForm(null)">
             <el-icon><Plus /></el-icon> 新增人员
@@ -260,7 +260,6 @@ onMounted(loadData)
 
 <style scoped lang="scss">
 @use './_knowledge-utils' as *;
-.header-actions { display: flex; gap: 12px; align-items: center; }
 .primary-actions, .batch-actions { display: flex; gap: 8px; }
 .expiry-warn{color:var(--el-color-warning);display:flex;align-items:center;gap:4px;font-size:13px}
 .expiry-ok{color:var(--el-color-success);font-size:13px}

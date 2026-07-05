@@ -1,20 +1,21 @@
 <template>
   <div class="performance-container">
-    <div class="page-header kb-page-header">
-      <div class="header-left">
+    <div class="kb-page-header">
+      <div>
         <h2>业绩管理</h2>
+        <p class="kb-page-subtitle">合同台账与到期提醒中心</p>
       </div>
-      <div class="header-right">
-        <el-button v-if="canAdminPerformanceAlert" class="ghost-btn" @click="openAlertConfig">
+      <div class="kb-header-actions">
+        <el-button v-if="canAdminPerformanceAlert" @click="openAlertConfig">
           <el-icon class="btn-icon"><Bell /></el-icon> 提醒配置
         </el-button>
-        <el-button v-if="canManagePerformance" type="primary" class="gradient-btn" @click="openForm(null)">
+        <el-button v-if="canManagePerformance" type="primary" @click="openForm(null)">
           <el-icon class="btn-icon"><Plus /></el-icon> 新增业绩
         </el-button>
-        <el-button v-if="canManagePerformance" class="ghost-btn" @click="handleImport">
+        <el-button v-if="canManagePerformance" @click="handleImport">
           <el-icon class="btn-icon"><Upload /></el-icon> 批量导入
         </el-button>
-        <el-dropdown v-if="canManagePerformance" split-button class="ghost-btn export-dropdown" @click="handleExport()" @command="handleExport">
+        <el-dropdown v-if="canManagePerformance" split-button @click="handleExport()" @command="handleExport">
           <el-icon class="btn-icon"><Download /></el-icon> 导出
           <template #dropdown>
             <el-dropdown-menu>
@@ -26,7 +27,7 @@
       </div>
     </div>
 
-    <el-card class="filter-card kb-filter-card border-glow">
+    <el-card class="filter-card kb-filter-card">
       <el-form :inline="true" :model="searchForm" class="demo-form-inline">
         <el-form-item label="模糊搜索">
           <el-input v-model="searchForm.keyword" placeholder="合同名称/签约单位/集团名称" clearable style="width: 240px" />
@@ -86,7 +87,7 @@
       </el-form>
     </el-card>
 
-    <el-card class="table-card kb-table-card border-glow" v-loading="loading">
+    <el-card class="table-card kb-table-card" v-loading="loading">
       <el-table :data="records" stripe style="width: 100%" max-height="calc(100vh - 300px)" scrollbar-always-on @row-click="openDetail" @selection-change="handleSelectionChange" class="custom-table">
         <el-table-column type="selection" width="55" />
         <el-table-column type="index" label="序号" width="110" align="center" />

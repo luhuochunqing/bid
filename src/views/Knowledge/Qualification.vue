@@ -2,8 +2,8 @@
   <div class="qualification-container">
     <div class="page-header kb-page-header">
       <h2>资质证书</h2>
-      <div class="page-actions">
-        <el-button v-if="canManageQualification" type="primary" class="premium-btn" @click="formVisible=true; editData=null">
+      <div class="kb-header-actions">
+        <el-button v-if="canManageQualification" type="primary" @click="formVisible=true; editData=null">
           <el-icon><Plus /></el-icon> 新增资质
         </el-button>
         <el-button v-if="canManageQualification" @click="importCombinedVisible = true">
@@ -79,7 +79,7 @@
           </template>
         </el-table-column>
       </el-table>
-      <div class="pagination-wrap">
+      <div class="kb-pagination-wrap">
         <el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[20,50,100]" :total="total" layout="total,sizes,prev,pager,next,jumper" @size-change="fetchQualifications" @current-change="fetchQualifications" />
       </div>
       <el-empty v-if="!loading && !qualifications.length" description="暂无资质数据" :image-size="80">
@@ -268,12 +268,9 @@ const handleFormSaved = () => {
 <style scoped lang="scss">
 @use './_knowledge-utils' as *;
 .qualification-container {
-  background: var(--bg-page);
-  min-height: 100vh;
+  // 背景由 KbLayout 统一提供
 }
-.page-actions { display: flex; gap: 12px; flex-wrap: wrap; }
-.premium-btn { background: linear-gradient(135deg, var(--brand-xiyu-logo) 0%, var(--brand-xiyu-logo-active) 100%); border: none; box-shadow: 0 4px 6px -1px var(--brand-xiyu-logo-shadow); transition: all 0.3s ease; &:hover { transform: translateY(-2px); box-shadow: 0 6px 8px -1px var(--brand-xiyu-logo-shadow); } }
-.pagination-wrap { display:flex; justify-content:flex-end; margin-top:16px }
+// premium-btn 已弃用，统一使用 el-button type="primary"（品牌色）
 .cert-name { font-weight:500; color:var(--text-primary) }
 .text-muted { color:var(--text-lighter) }
 .retired-tag { text-decoration:line-through; opacity:0.6 }

@@ -68,7 +68,7 @@
             @view-detail="viewDetail" @reuse="handleReuse" />
         </el-col>
       </el-row>
-      <div class="pagination-container mt-6" v-if="totalElements > 0">
+      <div class="kb-pagination-wrap" v-if="totalElements > 0">
         <el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[8, 16, 24, 48]"
           layout="total, sizes, prev, pager, next, jumper" :total="totalElements"
           @current-change="loadCases" @size-change="handleSizeChange" />
@@ -292,8 +292,8 @@ onBeforeUnmount(saveDrawerState)
 
 <style scoped lang="scss">
 @use '../_knowledge-utils' as *;
-.case-grid-container { display: flex; flex-direction: column; gap: 16px; background: var(--bg-page); min-height: 100vh; }
+.case-grid-container { display: flex; flex-direction: column; gap: 16px; }
 .card-header-title { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; color: var(--el-text-color-primary); }
 .search-form { margin-bottom: -18px; } .grid-content { min-height: 200px; } .card-grid { margin-bottom: -20px; } .grid-col { margin-bottom: 20px; }
-.pagination-container { display: flex; justify-content: flex-end; } .mt-6 { margin-top: 24px; } .hint-text { font-size: 13px; color: var(--el-text-color-secondary); margin-top: 8px; }
+.pagination-container { display: flex; justify-content: flex-end; } .hint-text { font-size: 13px; color: var(--el-text-color-secondary); margin-top: 8px; }
 </style>

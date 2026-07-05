@@ -151,7 +151,7 @@ onMounted(() => {
 <style scoped lang="scss">
 @use '../_knowledge-utils' as *;
 .deposit-board {
-  padding: 24px;
+  // padding 由 KbLayout 统一提供
 }
 .page-header h2 {
   margin: 0 0 8px 0;

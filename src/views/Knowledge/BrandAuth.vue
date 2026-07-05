@@ -56,7 +56,7 @@
               </template>
             </el-table-column>
           </el-table>
-          <div class="pagination-wrap">
+          <div class="kb-pagination-wrap">
             <el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[20,50,100]" :total="total" layout="total,sizes,prev,pager,next" @size-change="loadData" @current-change="loadData" />
           </div>
         </el-card>
@@ -113,7 +113,7 @@
               </template>
             </el-table-column>
           </el-table>
-          <div class="pagination-wrap">
+          <div class="kb-pagination-wrap">
             <el-pagination v-model:current-page="page" v-model:page-size="pageSize" :page-sizes="[20,50,100]" :total="total" layout="total,sizes,prev,pager,next" @size-change="loadData" @current-change="loadData" />
           </div>
         </el-card>
@@ -271,6 +271,5 @@ onMounted(loadData)
 
 <style scoped lang="scss">
 @use './_knowledge-utils' as *;
-.pagination-wrap { display: flex; justify-content: flex-end; margin-top: 16px; }
 .revoked-tag { text-decoration: line-through; opacity: 0.6; }
 </style>
