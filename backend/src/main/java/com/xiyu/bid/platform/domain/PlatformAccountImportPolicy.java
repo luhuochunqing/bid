@@ -15,7 +15,7 @@ public class PlatformAccountImportPolicy {
 
     public static final String[] HEADERS = {
             "平台名称*", "平台网址*", "登录账号*", "登录密码*",
-            "平台类型", "账号保管员userId", "是否有CA", "备注",
+            "平台类型", "账号保管员工号*", "是否有CA", "备注",
             "注册人", "注册手机", "注册邮箱"
     };
 
@@ -66,7 +66,6 @@ public class PlatformAccountImportPolicy {
         String username = cellAt(cells, COL_USERNAME).trim();
         String password = cellAt(cells, COL_PASSWORD).trim();
         String platformTypeStr = cellAt(cells, COL_PLATFORM_TYPE).trim();
-        String contactPersonStr = cellAt(cells, COL_CONTACT_PERSON).trim();
         String hasCaStr = cellAt(cells, COL_HAS_CA).trim();
         String remarks = cellAt(cells, COL_REMARKS).trim();
         String registrant = cellAt(cells, COL_REGISTRANT).trim();
@@ -88,14 +87,14 @@ public class PlatformAccountImportPolicy {
         // hasCa parsing
         Boolean hasCa = parseBoolean(hasCaStr);
 
-        // Contact person userId parsing
-        Long contactPerson = parseLongOrNull(contactPersonStr);
-        if (!contactPersonStr.isEmpty() && contactPerson == null) {
-            errors.add("账号保管员userId格式错误，需为数字");
+        // Contact person employee number
+        String employeeNumber = cellAt(cells, COL_CONTACT_PERSON).trim();
+        if (employeeNumber.isEmpty()) {
+            errors.add("请填入账号保管员工号");
         }
 
         return new ParsedAccountRow(rowIndex, accountName, url, username, password,
-                platformType, contactPerson, registrant, registerPhone, registerEmail,
+                platformType, employeeNumber, registrant, registerPhone, registerEmail,
                 hasCa, remarks, errors);
     }
 
@@ -118,15 +117,6 @@ public class PlatformAccountImportPolicy {
         return "是".equals(value) || "true".equals(lower) || "yes".equals(lower) || "1".equals(value);
     }
 
-    private static Long parseLongOrNull(String value) {
-        if (value == null || value.isBlank()) return null;
-        try {
-            return Long.parseLong(value.trim());
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
     private static String cellAt(String[] cells, int index) {
         return index < cells.length && cells[index] != null ? cells[index] : "";
     }
@@ -135,7 +125,7 @@ public class PlatformAccountImportPolicy {
     public record ParsedAccountRow(
             int rowIndex,
             String accountName, String url, String username, String password,
-            PlatformType platformType, Long contactPerson, String registrant,
+            PlatformType platformType, String employeeNumber, String registrant,
             String registerPhone, String registerEmail, Boolean hasCa, String remarks,
             List<String> errors
     ) {
