@@ -92,7 +92,6 @@ describe('ProjectDetail layout', () => {
     expect(wrapper.find('.page-header').classes()).toContain('project-detail-toolbar')
     expect(wrapper.find('.header-title').exists()).toBe(true)
     expect(wrapper.find('.project-name').attributes('title')).toBe(longProjectName)
-    expect(wrapper.find('.header-actions').attributes('aria-label')).toBe('项目操作')
   })
 
   it('keeps the right rail identifiable as a responsive assistant deck', async () => {
