@@ -39,8 +39,8 @@ const props = defineProps({
   // 过滤在合并后选项上做，避免后端搜索接口为此新增参数。
   excludeIds: { type: Array, default: () => [] },
   // 可选：按 roleCode 在前端进一步过滤候选（如辅助人员仅展示 bid-Team 角色）。
-  // 之所以放在前端是因为 usersApi.search 不支持 roleCode 过滤；保留偏离实现的原有语义。
-  roleFilter: { type: String, default: '' },
+  // 支持单个字符串或字符串数组；放在前端是因为 usersApi.search 不支持 roleCode 过滤。
+  roleFilter: { type: [String, Array], default: '' },
   // 是否在挂载时自动加载候选人。外部已加载好候选列表时设为 false，避免重复请求。
   loadOnMount: { type: Boolean, default: true },
   // 是否在下拉选项标签后追加部门/组织信息（如分发场景需要展示部门）。
@@ -104,7 +104,10 @@ function isExcluded(user) {
 function matchesRoleFilter(user) {
   if (!props.roleFilter) return true
   const code = String(user?.roleCode || user?.role || '').trim()
-  return code === props.roleFilter
+  if (Array.isArray(props.roleFilter)) {
+    return props.roleFilter.some((filter) => String(filter).trim() === code)
+  }
+  return code === String(props.roleFilter).trim()
 }
 
 watch(() => props.modelValue, (val) => {

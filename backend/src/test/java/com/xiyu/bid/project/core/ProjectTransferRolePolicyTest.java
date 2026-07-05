@@ -66,11 +66,12 @@ class ProjectTransferRolePolicyTest {
         assertThat(ProjectTransferRolePolicy.isValidNewOwnerRole("   ")).isFalse();
     }
 
-    // ── 大小写不敏感（OSS 同步可能传不同大小写） ─────────────────────────────
+    // ── 大小写敏感（项目硬约束：禁止对 roleCode 做大小写归一化） ─────────────
 
     @Test
-    void isValidNewOwnerRole_caseInsensitive_accepted() {
-        assertThat(ProjectTransferRolePolicy.isValidNewOwnerRole("ADMIN")).isTrue();
-        assertThat(ProjectTransferRolePolicy.isValidNewOwnerRole("Bid-Projectleader")).isTrue();
+    void isValidNewOwnerRole_caseSensitive_rejected() {
+        assertThat(ProjectTransferRolePolicy.isValidNewOwnerRole("ADMIN")).isFalse();
+        assertThat(ProjectTransferRolePolicy.isValidNewOwnerRole("Bid-Projectleader")).isFalse();
+        assertThat(ProjectTransferRolePolicy.isValidNewOwnerRole("/BIDADMIN")).isFalse();
     }
 }

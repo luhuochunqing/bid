@@ -44,7 +44,7 @@ public class ProjectTransferResponse {
     private LocalDateTime transferredAt;
 
     /** 是否同步更新了关联标讯 */
-    private Boolean tenderSynced;
+    private Boolean tenderUpdated;
 
     /** 关联标讯 ID（若存在） */
     private Long tenderId;

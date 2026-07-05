@@ -81,7 +81,7 @@ class ProjectTransferControllerTest {
                 .oldOwnerUserId(7246L).oldOwnerName("陈梦瑶")
                 .newOwnerUserId(7324L).newOwnerName("周子靖")
                 .transferredAt(LocalDateTime.now())
-                .tenderSynced(true).tenderId(743L)
+                .tenderUpdated(true).tenderId(743L)
                 .build();
     }
 
@@ -102,7 +102,7 @@ class ProjectTransferControllerTest {
                 .andExpect(jsonPath("$.data.oldOwnerName").value("陈梦瑶"))
                 .andExpect(jsonPath("$.data.newOwnerUserId").value(7324))
                 .andExpect(jsonPath("$.data.newOwnerName").value("周子靖"))
-                .andExpect(jsonPath("$.data.tenderSynced").value(true))
+                .andExpect(jsonPath("$.data.tenderUpdated").value(true))
                 .andExpect(jsonPath("$.data.tenderId").value(743));
     }
 

@@ -87,12 +87,26 @@ describe('useProjectDetailTransfer', () => {
     expect(transfer.canTransfer.value).toBe(false)
   })
 
-  it('excludeOwnerIds 排除当前负责人', () => {
+  it('excludeOwnerIds 排除当前 managerId 与 projectLeaderId', () => {
     const transfer = useProjectDetailTransfer(createMockContext())
     expect(transfer.excludeOwnerIds.value).toEqual([7246])
   })
 
-  it('excludeOwnerIds 在无 managerId 时为空数组', () => {
+  it('excludeOwnerIds 同时排除 managerId 与 projectLeaderId（去重）', () => {
+    const transfer = useProjectDetailTransfer(createMockContext({
+      project: { value: { id: 135, name: '测试项目', managerId: 7246, projectLeaderId: 8001 } },
+    }))
+    expect(transfer.excludeOwnerIds.value).toEqual([7246, 8001])
+  })
+
+  it('excludeOwnerIds 去重 managerId 与 projectLeaderId 相同的情况', () => {
+    const transfer = useProjectDetailTransfer(createMockContext({
+      project: { value: { id: 135, name: '测试项目', managerId: 7246, projectLeaderId: 7246 } },
+    }))
+    expect(transfer.excludeOwnerIds.value).toEqual([7246])
+  })
+
+  it('excludeOwnerIds 在无 managerId/projectLeaderId 时为空数组', () => {
     const transfer = useProjectDetailTransfer(createMockContext({
       project: { value: { id: 135, name: '测试项目' } },
     }))
