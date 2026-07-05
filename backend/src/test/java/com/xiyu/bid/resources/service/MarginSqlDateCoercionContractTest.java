@@ -101,4 +101,59 @@ class MarginSqlDateCoercionContractTest {
                 .contains("COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json,"
                         + " '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d'), f.fee_date)");
     }
+
+    // ── CO-XXX UNION collation 冲突回归测试（防复发）─────────────────
+    //
+    // 背景：project_initiation_details.project_leader_name 使用 db default collation
+    // (utf8mb4_0900_ai_ci)，而 tenders.project_manager_name 使用 utf8mb4_unicode_ci。
+    // COALESCE(pid.project_leader_name, t.project_manager_name) 跨表取值时，
+    // MySQL UNION 编译无法合并不同 collation → "Illegal mix of collations" → 500。
+    //
+    // 修复：DERIVED_SELECT_FEES 和 DERIVED_SELECT_INIT 的 project_leader_name /
+    // bidding_leader_name 列必须加 COLLATE utf8mb4_unicode_ci，确保 UNION 两边
+    // collation 一致。
+    //
+    // 本测试覆盖 4 处 COLLATE 子句（2 列 × 2 分支），防止未来修改 SQL 时误删。
+
+    @Test
+    void derivedSelectFees_projectLeaderName_hasCollateUnicodeCi() {
+        String sql = MarginDerivedTableColumns.DERIVED_SELECT_FEES;
+        assertThat(sql)
+                .as("DERIVED_SELECT_FEES project_leader_name 必须加 COLLATE utf8mb4_unicode_ci"
+                  + "（pid.project_leader_name=0900_ai_ci, t.project_manager_name=unicode_ci，"
+                  + "UNION 必须 collation 一致）")
+                .contains("COALESCE(pid.project_leader_name, t.project_manager_name)"
+                        + "       COLLATE utf8mb4_unicode_ci as project_leader_name");
+    }
+
+    @Test
+    void derivedSelectFees_biddingLeaderName_hasCollateUnicodeCi() {
+        String sql = MarginDerivedTableColumns.DERIVED_SELECT_FEES;
+        assertThat(sql)
+                .as("DERIVED_SELECT_FEES bidding_leader_name 必须加 COLLATE utf8mb4_unicode_ci"
+                  + "（pid.bidding_leader_name=0900_ai_ci, t.bidding_person_name=unicode_ci，"
+                  + "UNION 必须 collation 一致）")
+                .contains("COALESCE(pid.bidding_leader_name, t.bidding_person_name)"
+                        + "       COLLATE utf8mb4_unicode_ci as bidding_leader_name");
+    }
+
+    @Test
+    void derivedSelectInit_projectLeaderName_hasCollateUnicodeCi() {
+        String sql = MarginDerivedTableColumns.DERIVED_SELECT_INIT;
+        assertThat(sql)
+                .as("DERIVED_SELECT_INIT project_leader_name 必须加 COLLATE utf8mb4_unicode_ci"
+                  + "（UNION ALL 的两个分支必须 collation 一致）")
+                .contains("COALESCE(pid.project_leader_name, t.project_manager_name)"
+                        + "       COLLATE utf8mb4_unicode_ci as project_leader_name");
+    }
+
+    @Test
+    void derivedSelectInit_biddingLeaderName_hasCollateUnicodeCi() {
+        String sql = MarginDerivedTableColumns.DERIVED_SELECT_INIT;
+        assertThat(sql)
+                .as("DERIVED_SELECT_INIT bidding_leader_name 必须加 COLLATE utf8mb4_unicode_ci"
+                  + "（UNION ALL 的两个分支必须 collation 一致）")
+                .contains("COALESCE(pid.bidding_leader_name, t.bidding_person_name)"
+                        + "       COLLATE utf8mb4_unicode_ci as bidding_leader_name");
+    }
 }
