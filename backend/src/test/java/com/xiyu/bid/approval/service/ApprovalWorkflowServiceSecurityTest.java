@@ -41,7 +41,9 @@ class ApprovalWorkflowServiceSecurityTest {
     @BeforeEach
     void setUp() {
         ApprovalQueryService queryService = new ApprovalQueryService(requestRepository, actionRepository);
-        ApprovalCommandService commandService = new ApprovalCommandService(requestRepository, actionRecorder, queryService);
+        // CO-469 第八轮 P1：ApprovalCommandService 新增 ObjectMapper 依赖用于序列化 attachmentIds
+        ApprovalCommandService commandService = new ApprovalCommandService(
+                requestRepository, actionRecorder, queryService, new com.fasterxml.jackson.databind.ObjectMapper());
         approvalWorkflowService = new ApprovalWorkflowService(commandService, queryService);
         pendingRequest = ApprovalRequest.builder()
                 .id(UUID.randomUUID())

@@ -1,5 +1,8 @@
 package com.xiyu.bid.tendersource.entity;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -13,6 +16,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -28,6 +32,16 @@ import lombok.extern.slf4j.Slf4j;
 @AllArgsConstructor
 @Slf4j
 public class TenderSourceConfig {
+
+    /**
+     * CO-469 第八轮 P1 审计：全仓 JSON 字段写入路径隐患统一治理。
+     * 引入静态 ObjectMapper 替代手写字符串拼接，确保输出符合 RFC 8259 JSON 规范。
+     * 原 toJsonArray 仅转义 \\ 和 \"，未转义 \\n / \\r / \\t 等控制字符，
+     * 用户输入含换行时会触发 MySQL "Invalid JSON text" 错误（与 PersonnelImportTask 同类隐患）。
+     * ObjectMapper 是线程安全（只读配置后），可在 static 上下文共享。
+     */
+    private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
+    private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {};
 
     @Id
     private Long id;
@@ -85,50 +99,66 @@ public class TenderSourceConfig {
     /**
      * 平台列表。
      */
-    public java.util.List<String> getPlatforms() {
+    public List<String> getPlatforms() {
         return parseJsonArray(platformsJson);
     }
 
-    public void setPlatforms(java.util.List<String> platforms) {
+    public void setPlatforms(List<String> platforms) {
         this.platformsJson = toJsonArray(platforms);
     }
 
     /**
      * 地区列表。
      */
-    public java.util.List<String> getRegions() {
+    public List<String> getRegions() {
         return parseJsonArray(regionsJson);
     }
 
-    public void setRegions(java.util.List<String> regions) {
+    public void setRegions(List<String> regions) {
         this.regionsJson = toJsonArray(regions);
     }
 
-    private java.util.List<String> parseJsonArray(String json) {
-        if (json == null || json.isBlank() || json.equals("[]")) {
-            return java.util.List.of();
-        }
-        try {
-            String trimmed = json.trim();
-            if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-                String inner = trimmed.substring(1, trimmed.length() - 1);
-                return java.util.Arrays.stream(inner.split(","))
-                        .map(s -> s.trim().replaceAll("^\"|\"$", ""))
-                        .filter(s -> !s.isEmpty())
-                        .toList();
-            }
-        } catch (Exception ignored) {
-            log.debug("{}: caught {} ({})", "TenderSourceConfig", ignored.getClass().getSimpleName(), ignored.getMessage());
-        }
-        return java.util.List.of();
+    /**
+     * 事业部门列表（CO-469 第八轮 P1 审计：补全对称的写入入口，避免调用方直接 setBusinessUnitsJson(String) 绕过 Jackson）。
+     */
+    public List<String> getBusinessUnits() {
+        return parseJsonArray(businessUnitsJson);
     }
 
-    private String toJsonArray(java.util.List<String> items) {
+    public void setBusinessUnits(List<String> businessUnits) {
+        this.businessUnitsJson = toJsonArray(businessUnits);
+    }
+
+    /**
+     * CO-469 第八轮 P1：用 Jackson 替代手写拼接，正确转义控制字符。
+     * 旧实现仅转义 \\ 和 \"，遇到 \\n / \\r / \\t 等会写出非法 JSON，触发 MySQL "Invalid JSON text"。
+     */
+    private List<String> parseJsonArray(String json) {
+        if (json == null || json.isBlank() || "[]".equals(json)) {
+            return List.of();
+        }
+        try {
+            List<String> result = JSON_MAPPER.readValue(json, STRING_LIST_TYPE);
+            return result != null ? result : List.of();
+        } catch (JsonProcessingException e) {
+            log.debug("TenderSourceConfig: 反序列化 JSON 数组失败 (json={}): {}", json, e.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
+     * CO-469 第八轮 P1：用 Jackson 替代手写拼接，确保输出符合 RFC 8259 JSON 规范。
+     * 异常时降级返回 "[]"，保证不抛 RuntimeException 中断业务流程（与 PersonnelImportTaskRepositoryAdapter.serializeErrorDetails 一致）。
+     */
+    private String toJsonArray(List<String> items) {
         if (items == null || items.isEmpty()) {
             return "[]";
         }
-        return items.stream()
-                .map(s -> "\"" + (s == null ? "" : s.replace("\\", "\\\\").replace("\"", "\\\"")) + "\"")
-                .collect(java.util.stream.Collectors.joining(",", "[", "]"));
+        try {
+            return JSON_MAPPER.writeValueAsString(items);
+        } catch (JsonProcessingException e) {
+            log.warn("TenderSourceConfig: 序列化 JSON 数组失败，降级返回 []: {}", e.getMessage());
+            return "[]";
+        }
     }
 }
