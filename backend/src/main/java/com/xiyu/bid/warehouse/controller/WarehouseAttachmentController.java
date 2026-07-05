@@ -4,6 +4,7 @@ import com.xiyu.bid.annotation.Auditable;
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.warehouse.domain.WarehouseAttachmentConsistency;
 import com.xiyu.bid.warehouse.domain.WarehouseActionType;
 import com.xiyu.bid.warehouse.domain.WarehouseAttachmentType;
 import com.xiyu.bid.warehouse.dto.WarehouseAttachmentDTO;
@@ -95,13 +96,20 @@ public class WarehouseAttachmentController {
         return attachmentRepo.findById(attachmentId)
                 .filter(a -> a.getWarehouse().getId().equals(id))
                 .map(a -> {
+                    WarehouseAttachmentType type = a.getType();
+                    long remainingCount = attachmentRepo.findByWarehouseIdAndType(id, type).size() - 1;
+                    WarehouseEntity wh = repo.findById(id).orElse(null);
+                    if (wh != null) {
+                        var checkResult = WarehouseAttachmentConsistency.checkDeleteAllowed(wh, type, remainingCount);
+                        if (checkResult.isPresent()) {
+                            return ResponseEntity.badRequest().body(ApiResponse.<Void>error(checkResult.get()));
+                        }
+                    }
                     User user = userResolver.resolveCurrentUser();
                     String operatorUsername = user != null ? user.getFullName() + "(" + user.getUsername() + ")" : "system";
                     Long operatorId = user != null ? user.getId() : null;
                     String fileName = a.getOriginalFilename();
-                    WarehouseAttachmentType type = a.getType();
                     fileService.delete(a);
-                    WarehouseEntity wh = repo.findById(id).orElse(null);
                     if (wh != null) {
                         warehouseLogService.saveLog(wh, WarehouseActionType.ATTACH_DELETE,
                                 typeLabel(type), null, null,
