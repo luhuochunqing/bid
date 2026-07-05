@@ -125,14 +125,16 @@ class ProjectStageTransitionPolicyTest {
     // ============ V1.1 新增：decideResultNext（按结果类型分流） ============
 
     @Test
-    void decideResultNext_failed_goesToClosed() {
-        assertEquals(ProjectStage.CLOSED,
+    void decideResultNext_failed_goesToRetrospective() {
+        // CO-504: 流标不再直接跳 CLOSED，统一走 RETROSPECTIVE，由结项审核流程接管
+        assertEquals(ProjectStage.RETROSPECTIVE,
                 ProjectStageTransitionPolicy.decideResultNext(BidResultType.FAILED));
     }
 
     @Test
-    void decideResultNext_abandoned_goesToClosed() {
-        assertEquals(ProjectStage.CLOSED,
+    void decideResultNext_abandoned_goesToRetrospective() {
+        // CO-504: 弃标不再直接跳 CLOSED，统一走 RETROSPECTIVE，由结项审核流程接管
+        assertEquals(ProjectStage.RETROSPECTIVE,
                 ProjectStageTransitionPolicy.decideResultNext(BidResultType.ABANDONED));
     }
 

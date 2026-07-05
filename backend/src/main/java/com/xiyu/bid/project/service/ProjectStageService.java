@@ -81,6 +81,20 @@ public class ProjectStageService {
         return retrospectiveRepository.findByProjectId(projectId).isPresent();
     }
 
+    /**
+     * CO-504: 结果是否为流标/弃标。
+     * 用于扩展 CO-443「假 CLOSED」触发条件：流标/弃标时 decideResultNext 返回 RETROSPECTIVE，
+     * 但蓝图 §4.3 要求跳过复盘直接进入结项。前端识别此标志后跳过复盘 tab，直接进结项 tab
+     * 提交结项申请，走结项审核流程（与中标/未中标完全一致）。
+     */
+    @Transactional(readOnly = true)
+    public boolean isResultFailedOrAbandoned(Long projectId) {
+        return projectResultRepository.findByProjectId(projectId)
+                .map(ProjectResult::getResultType)
+                .map(t -> "FAILED".equals(t) || "ABANDONED".equals(t))
+                .orElse(false);
+    }
+
     @Transactional(readOnly = true)
     public List<ProjectStage> allowedNext(Long projectId) {
         ProjectStage cur = currentStage(projectId);

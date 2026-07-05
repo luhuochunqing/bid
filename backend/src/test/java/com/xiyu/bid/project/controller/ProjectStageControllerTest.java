@@ -160,6 +160,29 @@ class ProjectStageControllerTest {
                 .andExpect(jsonPath("$.data.defaultOpenStage").value("CLOSED"));
     }
 
+    // CO-504: 结果为流标/弃标(actual=RETROSPECTIVE, 无复盘无结项申请)时，
+    // 必须触发「假 CLOSED」让前端 currentStage=CLOSED + defaultOpenStage=CLOSED，
+    // 自动跳转结项 tab，由项目负责人提交结项申请走审核流程（与中标/未中标一致）。
+    // 修复前 decideResultNext(FAILED/ABANDONED) 直达 CLOSED 绕过结项审核。
+    @Test
+    void co504_failedOrAbandoned_showsClosureInProgress() throws Exception {
+        authenticate("09118");
+        when(authService.resolveUserIdByUsername("09118")).thenReturn(5472L);
+        when(stageService.currentStage(42L)).thenReturn(ProjectStage.RETROSPECTIVE);
+        when(stageService.hasClosureSubmission(42L)).thenReturn(false);
+        when(stageService.hasRetrospectiveSubmission(42L)).thenReturn(false);
+        when(stageService.isResultFailedOrAbandoned(42L)).thenReturn(true);
+        when(bidReviewAppService.getReviewState(42L)).thenReturn(
+                new BidReviewAppService.ReviewState("REVIEWING", 9999L, null, "其他人", List.of()));
+        when(closureRepository.findByProjectId(42L)).thenReturn(java.util.Optional.empty());
+
+        mockMvc.perform(get("/api/projects/42/stage").accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.currentStage").value("CLOSED"))
+                .andExpect(jsonPath("$.data.terminal").value(false))
+                .andExpect(jsonPath("$.data.defaultOpenStage").value("CLOSED"));
+    }
+
     // CO-498: 复盘阶段(stage=RETROSPECTIVE) 且未提交结项申请(无 closure) 时，
     // 必须把 CLOSED 加入 accessibleStages，让项目负责人能进入结项 tab 提交结项申请。
     // 否则整个结项审核流程从源头死锁（5d1b36b53 暴露的下游导航断层）。

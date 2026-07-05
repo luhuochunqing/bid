@@ -120,7 +120,8 @@ class ProjectResultRegistrationServiceTest {
     }
 
     @Test
-    void register_failed_advancesToClosed() {
+    void register_failed_advancesToRetrospective() {
+        // CO-504: 流标不再直接跳 CLOSED，统一走 RETROSPECTIVE，由结项审核流程接管
         when(repo.findByProjectId(1L)).thenReturn(Optional.empty());
         when(repo.save(any())).thenAnswer(inv -> {
             ProjectResult e = inv.getArgument(0);
@@ -135,7 +136,7 @@ class ProjectResultRegistrationServiceTest {
                 .build();
         service.register(1L, req, 7L);
         verify(stageService, times(1)).requestTransition(eq(1L),
-                eq(ProjectStage.CLOSED), any(ProjectStageTransitionPolicy.GateInputs.class),
+                eq(ProjectStage.RETROSPECTIVE), any(ProjectStageTransitionPolicy.GateInputs.class),
                 eq("FAILED"));
     }
 
