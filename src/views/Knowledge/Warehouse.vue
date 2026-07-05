@@ -4,8 +4,8 @@
       <h2>仓库管理</h2>
       <div class="kb-header-actions">
         <el-button v-if="canManage" @click="importVisible = true"><el-icon><Upload /></el-icon> 批量导入</el-button>
-        <el-button v-if="canManage" @click="exportVisible = true"><el-icon><Download /></el-icon> 导出台账</el-button>
-        <el-button v-if="canManage" @click="handleBatchExport"><el-icon><Document /></el-icon> 台账导出</el-button>
+        <el-button v-if="canManage" @click="exportVisible = true"><el-icon><Download /></el-icon> 导出台账（含附件）</el-button>
+        <el-button v-if="canManage" @click="handleBatchExport"><el-icon><Document /></el-icon> 导出台账</el-button>
         <el-button v-if="canManage" type="primary" @click="openCreate"><el-icon><Plus /></el-icon> 新增仓库</el-button>
       </div>
     </div>
