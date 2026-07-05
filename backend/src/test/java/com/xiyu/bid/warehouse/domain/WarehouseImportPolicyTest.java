@@ -184,7 +184,7 @@ class WarehouseImportPolicyTest {
         cells[COL_HAS_LEASE_CONTRACT] = "是";
         cells[COL_LEASE_CONTRACT_FILE] = "合同.pdf";
         WarehouseImportRow row = WarehouseImportPolicy.parseRow(2, cells);
-        assertThat(row.errors).anyMatch(e -> e.contains("省份") && e.contains("不在允许列表"));
+        assertThat(row.errors).anyMatch(e -> e.contains("省份") && e.contains("格式错误"));
     }
 
     @Test

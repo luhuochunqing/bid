@@ -83,21 +83,6 @@ public class WarehouseImportTemplateWriter {
         }
     }
 
-    /** 7 大区域选项，与前端 WarehouseFilterBar.REGION_OPTIONS 对齐。 */
-    private static final String[] REGION_OPTIONS = {"华北", "东北", "华东", "华中", "华南", "西北", "西南"};
-
-    /** 34 个省级行政区，与前端 provinceOptions.js 及 WarehouseImportPolicy.PROVINCE_VALUES 对齐。 */
-    private static final String[] PROVINCE_OPTIONS = {
-            "北京市", "天津市", "上海市", "重庆市",
-            "河北省", "山西省", "辽宁省", "吉林省", "黑龙江省",
-            "江苏省", "浙江省", "安徽省", "福建省", "江西省", "山东省",
-            "河南省", "湖北省", "湖南省", "广东省", "海南省",
-            "四川省", "贵州省", "云南省", "陕西省", "甘肃省", "青海省",
-            "台湾省",
-            "内蒙古自治区", "广西壮族自治区", "西藏自治区", "宁夏回族自治区", "新疆维吾尔自治区",
-            "香港特别行政区", "澳门特别行政区"
-    };
-
     /**
      * 给模板中的枚举列加 Excel 数据有效性下拉框：
      * - 仓库类型（COL_TYPE）：自营 / 云仓
@@ -105,18 +90,18 @@ public class WarehouseImportTemplateWriter {
      * - 所属区域（COL_REGION）：华北 / 东北 / 华东 / 华中 / 华南 / 西北 / 西南
      * - 是否有产权证 / 发票 / 照片 / 租赁合同：是 / 否
      *
+     * 所有选项统一取自 WarehouseImportPolicy，避免 domain 与 infrastructure 重复定义。
      * 数据行范围从第 2 行（hint 行之后）到 65535 行，覆盖用户实际可填的所有行。
      */
     private void applyDropDownValidations(Sheet sheet) {
         DataValidationHelper helper = sheet.getDataValidationHelper();
-        addListValidation(sheet, helper, new String[]{"自营", "云仓"}, WarehouseImportPolicy.COL_TYPE);
-        addListValidation(sheet, helper, PROVINCE_OPTIONS, WarehouseImportPolicy.COL_PROVINCE);
-        addListValidation(sheet, helper, REGION_OPTIONS, WarehouseImportPolicy.COL_REGION);
-        String[] yesNo = new String[]{"是", "否"};
-        addListValidation(sheet, helper, yesNo, WarehouseImportPolicy.COL_HAS_PROPERTY_CERT);
-        addListValidation(sheet, helper, yesNo, WarehouseImportPolicy.COL_HAS_INVOICE);
-        addListValidation(sheet, helper, yesNo, WarehouseImportPolicy.COL_HAS_PHOTOS);
-        addListValidation(sheet, helper, yesNo, WarehouseImportPolicy.COL_HAS_LEASE_CONTRACT);
+        addListValidation(sheet, helper, WarehouseImportPolicy.TYPE_OPTIONS, WarehouseImportPolicy.COL_TYPE);
+        addListValidation(sheet, helper, WarehouseImportPolicy.PROVINCE_OPTIONS, WarehouseImportPolicy.COL_PROVINCE);
+        addListValidation(sheet, helper, WarehouseImportPolicy.REGION_OPTIONS, WarehouseImportPolicy.COL_REGION);
+        addListValidation(sheet, helper, WarehouseImportPolicy.YES_NO_OPTIONS, WarehouseImportPolicy.COL_HAS_PROPERTY_CERT);
+        addListValidation(sheet, helper, WarehouseImportPolicy.YES_NO_OPTIONS, WarehouseImportPolicy.COL_HAS_INVOICE);
+        addListValidation(sheet, helper, WarehouseImportPolicy.YES_NO_OPTIONS, WarehouseImportPolicy.COL_HAS_PHOTOS);
+        addListValidation(sheet, helper, WarehouseImportPolicy.YES_NO_OPTIONS, WarehouseImportPolicy.COL_HAS_LEASE_CONTRACT);
     }
 
     private void addListValidation(Sheet sheet, DataValidationHelper helper, String[] options, int col) {
