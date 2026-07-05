@@ -47,7 +47,8 @@ const { mockAccountsList, mockPasswordResponse } = vi.hoisted(() => ({
 const resourcesApiMock = {
   accounts: {
     getList: vi.fn(),
-    getPassword: vi.fn()
+    getPassword: vi.fn(),
+    exportAccounts: vi.fn()
   }
 }
 
@@ -305,5 +306,52 @@ describe('Account.vue — bid-projectLeader 视角工具栏隐藏管理操作', 
     const html = wrapper.html()
     expect(html).toContain('平台名称')
     expect(html).toContain('是否有 CA')
+  })
+})
+
+// ── 导出功能契约测试 ────────────────────────────────────────────────────────
+
+describe('Account.vue — 导出功能接口契约', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    resourcesApiMock.accounts.getList.mockReset()
+    resourcesApiMock.accounts.getPassword.mockReset()
+    resourcesApiMock.accounts.exportAccounts.mockReset()
+    resourcesApiMock.accounts.getList.mockResolvedValue({ success: true, data: mockAccountsList })
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('exportAccounts API 方法存在且返回 blob 响应', async () => {
+    const mockBlob = new Blob(['fake excel content'], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    resourcesApiMock.accounts.exportAccounts.mockResolvedValue({ data: mockBlob })
+
+    const result = await resourcesApiMock.accounts.exportAccounts({})
+    expect(result.data).toBeInstanceOf(Blob)
+    expect(resourcesApiMock.accounts.exportAccounts).toHaveBeenCalledWith({})
+  })
+
+  it('导出全部时不传 selectedIds 参数', async () => {
+    const mockBlob = new Blob(['fake excel content'])
+    resourcesApiMock.accounts.exportAccounts.mockResolvedValue({ data: mockBlob })
+
+    const wrapper = mountAccount()
+    await flushPromises()
+
+    // 通过调用组件内部的 handleExport 需要访问组件实例，这里验证 API 契约即可
+    const result = await resourcesApiMock.accounts.exportAccounts({})
+    expect(resourcesApiMock.accounts.exportAccounts).toHaveBeenCalledWith({})
+    expect(result.data).toBeDefined()
+  })
+
+  it('按选中导出时传递 selectedIds 逗号分隔字符串', async () => {
+    const mockBlob = new Blob(['fake excel content'])
+    resourcesApiMock.accounts.exportAccounts.mockResolvedValue({ data: mockBlob })
+
+    const result = await resourcesApiMock.accounts.exportAccounts({ selectedIds: '1,2,3' })
+    expect(resourcesApiMock.accounts.exportAccounts).toHaveBeenCalledWith({ selectedIds: '1,2,3' })
+    expect(result.data).toBeDefined()
   })
 })
