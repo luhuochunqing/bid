@@ -50,7 +50,14 @@
         <div class="provider-head">
           <div>
             <p class="provider-code">{{ provider.providerCode }}</p>
-            <h3>{{ provider.providerName }}</h3>
+            <h3 v-if="provider.providerCode !== 'custom'">{{ provider.providerName }}</h3>
+            <el-input
+              v-else
+              v-model="provider.providerName"
+              placeholder="请输入厂商名称（如：硅基流动、OpenRouter）"
+              size="small"
+              class="custom-name-input"
+            />
           </div>
           <el-switch v-model="provider.enabled" />
         </div>
@@ -223,6 +230,10 @@ defineProps({
 .provider-actions {
   justify-content: flex-end;
   margin-top: 14px;
+}
+
+.custom-name-input {
+  margin-top: 4px;
 }
 
 @media (max-width: 960px) {

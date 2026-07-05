@@ -11,6 +11,7 @@ export const AI_PROVIDER_OPTIONS = [
   { code: 'deepseek', name: 'DeepSeek', env: 'DEEPSEEK_API_KEY' },
   { code: 'qwen', name: '通义千问', env: 'DASHSCOPE_API_KEY / QWEN_API_KEY' },
   { code: 'doubao', name: '豆包', env: 'ARK_API_KEY / DOUBAO_API_KEY' },
+  { code: 'custom', name: '自定义', env: '（手动输入 API Key）' },
 ]
 
 const DEFAULT_SYSTEM_CONFIG = {
@@ -48,6 +49,13 @@ const DEFAULT_PROVIDER_CONFIG = {
     enabled: true,
     baseUrl: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
     model: 'doubao-1-5-pro-32k-250115',
+  },
+  custom: {
+    providerCode: 'custom',
+    providerName: '自定义',
+    enabled: true,
+    baseUrl: '',
+    model: '',
   },
 }
 
