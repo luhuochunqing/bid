@@ -82,12 +82,15 @@ public final class ProjectStageTransitionPolicy {
     /**
      * 结果确认阶段按投标结果类型决定下一状态。
      * 产品蓝图 V1.1 §4.3：中标/未中标 → 复盘；流标/弃标 → 结项。
+     * <p>
+     * CO-504 修复：所有结果类型一律返回 RETROSPECTIVE，由 CO-497 的"假 CLOSED"机制统一接管：
+     * 流标/弃标时前端识别 resultType 后跳过复盘 tab，直接进结项 tab 提交结项申请，
+     * 走结项审核流程（与中标/未中标完全一致），审核通过后推进到真 CLOSED。
+     * 历史上流标/弃标直接跳 CLOSED 会绕过结项审核，违反蓝图 §4.3。
      */
     public static ProjectStage decideResultNext(BidResultType resultType) {
         Objects.requireNonNull(resultType, "resultType 不能为空");
-        return (resultType == BidResultType.FAILED || resultType == BidResultType.ABANDONED)
-                ? ProjectStage.CLOSED
-                : ProjectStage.RETROSPECTIVE;
+        return ProjectStage.RETROSPECTIVE;
     }
 
     /** Gate inputs 占位：未来由 shell 注入（保证金已退回、任务全完成等）。 */

@@ -290,17 +290,17 @@ class ProjectStageTransitionPolicyFuzzTest {
         }
 
         @Test
-        @DisplayName("FAILED → CLOSED")
+        @DisplayName("FAILED → RETROSPECTIVE (CO-504: 不再跳 CLOSED，由结项审核流程接管)")
         void failedGoesToClosed() {
             assertThat(ProjectStageTransitionPolicy.decideResultNext(BidResultType.FAILED))
-                    .isEqualTo(ProjectStage.CLOSED);
+                    .isEqualTo(ProjectStage.RETROSPECTIVE);
         }
 
         @Test
-        @DisplayName("ABANDONED → CLOSED")
+        @DisplayName("ABANDONED → RETROSPECTIVE (CO-504: 不再跳 CLOSED，由结项审核流程接管)")
         void abandonedGoesToClosed() {
             assertThat(ProjectStageTransitionPolicy.decideResultNext(BidResultType.ABANDONED))
-                    .isEqualTo(ProjectStage.CLOSED);
+                    .isEqualTo(ProjectStage.RETROSPECTIVE);
         }
 
         @Test
