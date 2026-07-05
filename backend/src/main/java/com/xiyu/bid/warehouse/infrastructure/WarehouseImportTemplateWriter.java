@@ -83,9 +83,13 @@ public class WarehouseImportTemplateWriter {
         }
     }
 
+    /** 7 大区域选项，与前端 WarehouseFilterBar.REGION_OPTIONS 对齐。 */
+    private static final String[] REGION_OPTIONS = {"华北", "东北", "华东", "华中", "华南", "西北", "西南"};
+
     /**
      * 给模板中的枚举列加 Excel 数据有效性下拉框：
      * - 仓库类型（COL_TYPE）：自营 / 云仓
+     * - 所属区域（COL_REGION）：华北 / 东北 / 华东 / 华中 / 华南 / 西北 / 西南
      * - 是否有产权证 / 发票 / 照片 / 租赁合同：是 / 否
      *
      * 数据行范围从第 2 行（hint 行之后）到 65535 行，覆盖用户实际可填的所有行。
@@ -93,6 +97,7 @@ public class WarehouseImportTemplateWriter {
     private void applyDropDownValidations(Sheet sheet) {
         DataValidationHelper helper = sheet.getDataValidationHelper();
         addListValidation(sheet, helper, new String[]{"自营", "云仓"}, WarehouseImportPolicy.COL_TYPE);
+        addListValidation(sheet, helper, REGION_OPTIONS, WarehouseImportPolicy.COL_REGION);
         String[] yesNo = new String[]{"是", "否"};
         addListValidation(sheet, helper, yesNo, WarehouseImportPolicy.COL_HAS_PROPERTY_CERT);
         addListValidation(sheet, helper, yesNo, WarehouseImportPolicy.COL_HAS_INVOICE);

@@ -41,20 +41,21 @@ class WarehouseImportTemplateWriterTest {
     }
 
     @Test
-    @DisplayName("模板包含 5 个下拉框：仓库类型 + 4 个是否类字段")
+    @DisplayName("模板包含 6 个下拉框：仓库类型 + 所属区域 + 4 个是否类字段")
     void write_containsDropDownValidationsForEnumColumns() throws IOException {
         byte[] bytes = writer.write();
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
             Sheet sheet = wb.getSheet("仓库导入模板");
             List<? extends DataValidation> validations = sheet.getDataValidations();
 
-            // 期望 5 个下拉框，分别在第 1/15/17/19/21 列（0-based）
+            // 期望 6 个下拉框，分别在第 1/5/15/17/19/21 列（0-based）
             // COL_TYPE=1（仓库类型：自营/云仓）
+            // COL_REGION=5（所属区域：华北/东北/华东/华中/华南/西北/西南）
             // COL_HAS_PROPERTY_CERT=15（是否有产权证：是/否）
             // COL_HAS_INVOICE=17（是否有发票：是/否）
             // COL_HAS_PHOTOS=19（是否有仓库照片：是/否）
             // COL_HAS_LEASE_CONTRACT=21（是否有租赁合同：是/否）
-            assertThat(validations).hasSize(5);
+            assertThat(validations).hasSize(6);
 
             List<Integer> validatedCols = validations.stream()
                     .map(v -> v.getRegions().getCellRangeAddresses())
@@ -63,7 +64,20 @@ class WarehouseImportTemplateWriterTest {
                     .sorted()
                     .boxed()
                     .toList();
-            assertThat(validatedCols).containsExactlyInAnyOrder(1, 15, 17, 19, 21);
+            assertThat(validatedCols).containsExactlyInAnyOrder(1, 5, 15, 17, 19, 21);
+        }
+    }
+
+    @Test
+    @DisplayName("所属区域下拉框选项为 7 大区域 [华北, 东北, 华东, 华中, 华南, 西北, 西南]")
+    void write_regionColumnDropDownContainsSevenRegions() throws IOException {
+        byte[] bytes = writer.write();
+        try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
+            Sheet sheet = wb.getSheet("仓库导入模板");
+            DataValidation regionValidation = findValidationForColumn(sheet, 5);
+            assertThat(regionValidation).isNotNull();
+            String[] options = regionValidation.getValidationConstraint().getExplicitListValues();
+            assertThat(options).containsExactlyInAnyOrder("华北", "东北", "华东", "华中", "华南", "西北", "西南");
         }
     }
 
