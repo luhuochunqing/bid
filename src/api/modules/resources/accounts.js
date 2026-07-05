@@ -175,5 +175,14 @@ export const accountsApi = {
 
   async listImportTasks() {
     return httpClient.get('/api/platform/accounts/import/tasks')
+  },
+
+  // ── 批量导出 ────────────────────────────────────────────────────────────────
+
+  async exportAccounts(params = {}) {
+    return httpClient.get('/api/platform/accounts/export', {
+      params,
+      responseType: 'blob'
+    })
   }
 }

@@ -45,9 +45,9 @@
         </button>
       </div>
       <div v-if="!isProjectLeader" class="toolbar-right">
-        <button class="toolbar-btn" @click="handleExport">
+        <button class="toolbar-btn" :disabled="exporting" @click="handleExport">
           <el-icon><Download /></el-icon>
-          <span>导出</span>
+          <span>{{ exporting ? '导出中...' : '导出' }}</span>
         </button>
       </div>
     </div>
@@ -121,6 +121,7 @@ import { resourcesApi } from '@/api'
 import { useUserStore } from '@/stores/user'
 import { usePasswordReveal } from './composables/usePasswordReveal.js'
 import { useAccountBatchActions } from './composables/useAccountBatchActions.js'
+import { useAccountExport } from './composables/useAccountExport.js'
 import { resolveAccountActions, isCurrentUserContactPerson, canRevealPassword, formatPlatformType } from './accountActions.js'
 import AccountFormDialog from './AccountFormDialog.vue'
 import AccountDetailDialog from './AccountDetailDialog.vue'
@@ -286,9 +287,8 @@ const {
   handleBatchDelete
 } = useAccountBatchActions({ selectedRows, loadAccounts })
 
-const handleExport = () => {
-  ElMessage.info('导出功能开发中')
-}
+const { exporting, handleExport: baseHandleExport } = useAccountExport()
+const handleExport = () => baseHandleExport(selectedRows.value)
 
 onMounted(() => {
   loadAccounts()
