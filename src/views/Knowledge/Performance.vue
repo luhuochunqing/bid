@@ -87,9 +87,9 @@
     </el-card>
 
     <el-card class="table-card kb-table-card" v-loading="loading">
-      <el-table :data="records" stripe style="width: 100%" max-height="calc(100vh - 300px)" scrollbar-always-on @row-click="openDetail" @selection-change="handleSelectionChange" class="custom-table">
+      <el-table :data="pagedRecords" stripe style="width: 100%" max-height="calc(100vh - 300px)" scrollbar-always-on @row-click="openDetail" @selection-change="handleSelectionChange" class="custom-table">
         <el-table-column type="selection" width="55" />
-        <el-table-column type="index" label="序号" width="110" align="center" />
+        <el-table-column type="index" label="序号" width="110" align="center" :index="indexMethod" />
         <el-table-column prop="contractName" label="合同名称" min-width="180" />
         <el-table-column prop="signingEntity" label="签约单位" min-width="160" />
         <el-table-column prop="customerType" label="客户类型" width="120">
@@ -123,6 +123,17 @@
           </template>
         </el-table-column>
       </el-table>
+      <div class="kb-pagination-wrap">
+        <el-pagination
+          v-if="totalCount > 0"
+          v-model:current-page="pagination.page"
+          v-model:page-size="pagination.pageSize"
+          :page-sizes="pageSizes"
+          :total="totalCount"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange"
+        />
+      </div>
     </el-card>
 
     <PerformanceDetailDrawer v-if="current" v-model:visible="detailVisible" :data="current" />
@@ -149,6 +160,7 @@ import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import { Plus, Upload, Download, Bell } from '@element-plus/icons-vue'
 import { usePerformanceImport } from '@/composables/usePerformanceImport.js'
 import { useKnowledgePermission } from '@/composables/useKnowledgePermission'
+import { useListPagination } from '@/composables/useListPagination'
 import PerformanceDetailDrawer from './components/PerformanceDetailDrawer.vue'
 import PerformanceFormDialog from './components/PerformanceFormDialog.vue'
 import PerformanceAlertConfigDialog from './components/performance/PerformanceAlertConfigDialog.vue'
@@ -164,11 +176,20 @@ const detailVisible = ref(false); const editingRow = ref(null); const formVisibl
 const alertConfigVisible = ref(false); const submitting = ref(false)
 const selectedIds = ref([]); const handleSelectionChange = (rows) => { selectedIds.value = rows.map(r => r.id) }
 
+const {
+  pagination, pageSizes, totalCount, pagedData: pagedRecords,
+  handleSizeChange, resetPage
+} = useListPagination(records)
+
+// 分页序号
+const indexMethod = (index) => (pagination.value.page - 1) * pagination.value.pageSize + index + 1
+
 const loadData = async () => {
   loading.value = true
   try {
     const { data } = await performanceApi.getList(searchForm)
     records.value = data || []
+    resetPage()
   } catch {
     ElMessage.error('台账加载失败，请检查服务状态')
   } finally {
@@ -193,6 +214,7 @@ const resetFilters = () => {
     territory: '', signingDateRange: null, expiryDateRange: null,
     hasBidNotice: null, projectManagerKeyword: ''
   })
+  resetPage()
   loadData()
 }
 

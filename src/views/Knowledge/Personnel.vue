@@ -79,9 +79,9 @@
     </el-card>
 
     <el-card class="table-card kb-table-card" v-loading="loading">
-      <el-table :data="records" stripe style="width:100%" max-height="calc(100vh - 300px)" scrollbar-always-on @row-click="openDetail">
+      <el-table :data="pagedRecords" stripe style="width:100%" max-height="calc(100vh - 300px)" scrollbar-always-on @row-click="openDetail">
         <el-table-column type="selection" width="55" />
-        <el-table-column type="index" label="序号" width="110" align="center" />
+        <el-table-column type="index" label="序号" width="110" align="center" :index="indexMethod" />
         <el-table-column prop="employeeNumber" label="工号" width="90" align="center">
           <template #default="{row}"><span class="emp-no">{{ row.employeeNumber }}</span></template>
         </el-table-column>
@@ -142,6 +142,17 @@
           </template>
         </el-table-column>
       </el-table>
+      <div class="kb-pagination-wrap">
+        <el-pagination
+          v-if="totalCount > 0"
+          v-model:current-page="pagination.page"
+          v-model:page-size="pagination.pageSize"
+          :page-sizes="pageSizes"
+          :total="totalCount"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange"
+        />
+      </div>
     </el-card>
 
     <PersonnelDetailDrawer
@@ -183,6 +194,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Warning, Download, Upload, Link } from '@element-plus/icons-vue'
 import personnelApi from '@/api/modules/personnel.js'
 import { useKnowledgePermission } from '@/composables/useKnowledgePermission'
+import { useListPagination } from '@/composables/useListPagination'
 
 
 import {
@@ -202,6 +214,11 @@ const {
   loadData, debouncedLoad, resetFilters, onEntryDateRangeChange
 } = usePersonnelFilters(personnelApi)
 
+const {
+  pagination, pageSizes, totalCount, pagedData: pagedRecords,
+  handleSizeChange
+} = useListPagination(records)
+
 const detailVisible = ref(false)
 const current = ref({})
 const formVisible = ref(false)
@@ -218,6 +235,9 @@ const canAdd = canManage
 const canImportExport = canManage
 const canBatch = canManage
 const canEdit = canManage
+
+// 分页序号：从 (page-1)*pageSize + 1 开始
+const indexMethod = (index) => (pagination.value.page - 1) * pagination.value.pageSize + index + 1
 
 function openDetail(row, targetTab = 'basic') {
   if (!row?.id) return
