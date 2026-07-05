@@ -48,6 +48,11 @@ test-login.html
 .context/
 .runtime/
 
+# Agent 文件锁（per-task 本地文件，不提交）
+# 仅保留 .gitkeep 以维持目录结构，yml 锁文件由各 worktree 本地维护
+.agent-locks/*.yml
+!.agent-locks/.gitkeep
+
 # OMC 运行态文件（本地 agent/session 状态，不提交）
 .omc/
 **/.omc/
