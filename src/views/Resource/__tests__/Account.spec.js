@@ -113,6 +113,7 @@ const mountAccount = () =>
         'el-form': { template: '<form><slot /></form>' },
         'el-form-item': { template: '<div><slot /></div>' },
         'el-icon': { template: '<span><slot /></span>' },
+        'el-pagination': { template: '<div />' },
         Hide: { template: '<span />' },
         View: { template: '<span />' },
         Platform: { template: '<span />' }
@@ -337,7 +338,7 @@ describe('Account.vue — 导出功能接口契约', () => {
     const mockBlob = new Blob(['fake excel content'])
     resourcesApiMock.accounts.exportAccounts.mockResolvedValue({ data: mockBlob })
 
-    const wrapper = mountAccount()
+    mountAccount()
     await flushPromises()
 
     // 通过调用组件内部的 handleExport 需要访问组件实例，这里验证 API 契约即可

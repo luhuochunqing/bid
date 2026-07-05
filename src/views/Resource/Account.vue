@@ -56,11 +56,11 @@
       <template #header>
         <div class="card-header">
           <span>平台账户管理</span>
-          <span class="record-count">共 {{ accounts.length }} 条记录</span>
+          <span class="record-count">共 {{ totalCount }} 条记录</span>
         </div>
       </template>
 
-      <el-table :data="accounts" stripe max-height="calc(100vh - 220px)" scrollbar-always-on @row-click="onRowClick" @selection-change="handleSelectionChange" ref="tableRef">
+      <el-table :data="pagedAccounts" stripe max-height="calc(100vh - 220px)" scrollbar-always-on @row-click="onRowClick" @selection-change="handleSelectionChange" ref="tableRef">
         <el-table-column type="selection" width="50" align="center" />
         <el-table-column prop="platform" label="平台名称" min-width="180">
           <template #default="{ row }">
@@ -102,11 +102,22 @@
           </template>
         </el-table-column>
       </el-table>
+      <div class="pagination-wrapper">
+        <el-pagination
+          v-if="totalCount > 0"
+          v-model:current-page="pagination.page"
+          v-model:page-size="pagination.pageSize"
+          :page-sizes="pageSizes"
+          :total="totalCount"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange"
+        />
+      </div>
     </el-card>
 
    <AccountBorrowDialog v-model="showBorrowDialog" :account="currentAccount" @submitted="onBorrowSubmitted" />
     <AccountReturnDialog v-model="showReturnDialog" :account="currentReturnAccount" @submitted="onAccountReturned" />
-    <AccountDetailDialog v-model="showDetailDialog" :data="currentAccountDetail" :actions="rowActionsFor(currentAccountDetail || {})" @edit="editFromDetail" @return="handleReturnFromDetail" />
+    <AccountDetailDialog v-model="showDetailDialog" :data="currentAccountDetail" :actions="rowActions(currentAccountDetail || {})" @edit="editFromDetail" @return="handleReturnFromDetail" />
     <AccountFormDialog v-model="showCreateDialog" :edit-row="editRow" @saved="loadAccounts" />
     <AccountImportDialog v-model="showImportDialog" @imported="loadAccounts" />
     <AccountBorrowApplications ref="borrowApplicationsRef" :accounts="accounts" />
@@ -119,10 +130,12 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus, Platform, Download, Upload } from '@element-plus/icons-vue'
 import { resourcesApi } from '@/api'
 import { useUserStore } from '@/stores/user'
+import { useListPagination } from '@/composables/useListPagination'
+import { useAccountRowActions } from './composables/useAccountRowActions.js'
 import { usePasswordReveal } from './composables/usePasswordReveal.js'
 import { useAccountBatchActions } from './composables/useAccountBatchActions.js'
 import { useAccountExport } from './composables/useAccountExport.js'
-import { resolveAccountActions, isCurrentUserContactPerson, canRevealPassword, formatPlatformType } from './accountActions.js'
+import { formatPlatformType } from './accountActions.js'
 import AccountFormDialog from './AccountFormDialog.vue'
 import AccountDetailDialog from './AccountDetailDialog.vue'
 import AccountBorrowDialog from './AccountBorrowDialog.vue'
@@ -148,28 +161,20 @@ const userRoleCode = computed(() => userStore.currentUser?.roleCode || userStore
 const isProjectLeader = computed(() => userRoleCode.value === 'bid-projectLeader')
 const accounts = ref([])
 
-const rowActionsFor = (row) => resolveAccountActions({
-  isManager: userStore.isBidManager,
-  isBidTeam: userRoleCode.value === 'bid-Team',
-  isContactPerson: isCurrentUserContactPerson(row, userStore.currentUser),
-  isApplicant: userRoleCode.value === 'bid-projectLeader' || userRoleCode.value === 'sales',
-  status: row.status
+// 客户端 hasCa 过滤（platform 关键字已由后端按 searchForm.platform 过滤）
+const filteredAccounts = computed(() => {
+  let list = accounts.value
+  if (searchForm.value.hasCa === 'yes') list = list.filter(a => a.hasCa)
+  if (searchForm.value.hasCa === 'no') list = list.filter(a => !a.hasCa)
+  return list
 })
-const rowActionsMap = computed(() => {
-  const map = new Map()
-  for (const row of accounts.value) {
-    map.set(row.id, rowActionsFor(row))
-  }
-  return map
-})
-const rowActions = (row) => rowActionsMap.value.get(row.id) || {}
 
-// CO-400 round5: 小眼睛可见 = 管理员 OR (投标专员且为绑定联系人)，避免非联系人点击后 403
-const canRevealPasswordFor = (row) => canRevealPassword({
-  isManager: userStore.isBidManager,
-  isBidTeam: userRoleCode.value === 'bid-Team',
-  isContactPerson: isCurrentUserContactPerson(row, userStore.currentUser)
-})
+const {
+  pagination, pageSizes, totalCount, pagedData: pagedAccounts,
+  handleSizeChange, resetPage
+} = useListPagination(filteredAccounts)
+
+const { rowActions, canRevealPasswordFor } = useAccountRowActions({ userStore, userRoleCode })
 
 const password = usePasswordReveal((id) => resourcesApi.accounts.getPassword(id))
 
@@ -184,8 +189,7 @@ const editRow = ref(null)
 const showImportDialog = ref(false)
 const borrowApplicationsRef = ref(null)
 
-// CO-400 二轮：列表 row 对非特权角色是脱敏 SummaryDTO，
-// 详情/编辑前都需调详情接口拉完整 PlatformAccountDTO，失败时 fallback 到列表 row。
+// CO-400 二轮：列表 row 对非特权角色是脱敏 SummaryDTO，详情/编辑前都需调详情接口拉完整 DTO。
 const loadAccountDetail = async (row) => {
   try {
     const res = await resourcesApi.accounts.getDetail(row.id)
@@ -204,14 +208,11 @@ const loadAccounts = async () => {
       accounts.value = []
       return
     }
-    let list = Array.isArray(res.data) ? res.data : []
-    if (searchForm.value.hasCa === 'yes') list = list.filter(a => a.hasCa)
-    if (searchForm.value.hasCa === 'no') list = list.filter(a => !a.hasCa)
-    // CO-400 三轮：后端对非特权角色返回脱敏 SummaryDTO（缺 username/contactPerson/...），
-    // 列表需显示编辑页所有字段（除备注），所以对每行调 getDetail 拉完整 DTO。
-    // 用户已确认接受 N+1（账户数量通常 < 100，可接受）。
+    const list = Array.isArray(res.data) ? res.data : []
+    // CO-400 三轮：列表 row 是脱敏 SummaryDTO，对每行调 getDetail 拉完整 DTO（用户已确认接受 N+1）。
     const detailed = await Promise.all(list.map(row => loadAccountDetail(row)))
     accounts.value = detailed
+    resetPage()
   } catch (e) {
     console.error('Failed to load accounts:', e)
     accounts.value = []
@@ -221,8 +222,6 @@ const loadAccounts = async () => {
 
 const onRowClick = async (row) => {
   if (isProjectLeader.value) return
-  // CO-400: 列表接口对非特权角色返回 PlatformAccountSummaryDTO（脱敏 6 字段），
-  // 直接用列表 row 会让详情 dialog 中 5 字段为空。改为调详情接口拉完整 DTO。
   currentAccountDetail.value = await loadAccountDetail(row)
   showDetailDialog.value = true
 }

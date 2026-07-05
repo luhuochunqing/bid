@@ -158,6 +158,7 @@ const stubs = {
   'el-timeline': { template: '<div><slot /></div>' },
   'el-timeline-item': { template: '<div><slot /></div>' },
   'el-alert': { template: '<div><slot /></div>' },
+  'el-pagination': { template: '<div />' },
   CADetailDialog: { template: '<div />' },
   CAFormDialog: { template: '<div />' },
   CABorrowDialog: { template: '<div />' },

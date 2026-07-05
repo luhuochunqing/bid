@@ -12,6 +12,12 @@
   align-items: center;
 }
 
+.pagination-wrapper {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
 .platform-info {
   display: flex;
   align-items: center;

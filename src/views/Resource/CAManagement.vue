@@ -77,7 +77,7 @@
       <div v-if="isManagerView" class="ca-table-wrapper">
       <el-table
         v-loading="loading"
-        :data="filteredData"
+        :data="pagedData"
         stripe
         max-height="calc(100vh - 300px)"
         scrollbar-always-on
@@ -158,7 +158,7 @@
       <div v-else class="ca-table-wrapper">
       <el-table
         v-loading="loading"
-        :data="filteredData"
+        :data="pagedData"
         stripe
         max-height="calc(100vh - 300px)"
         scrollbar-always-on
@@ -198,6 +198,18 @@
           </template>
         </el-table-column>
       </el-table>
+      </div>
+
+      <div class="pagination-wrapper">
+        <el-pagination
+          v-if="totalCount > 0"
+          v-model:current-page="pagination.page"
+          v-model:page-size="pagination.pageSize"
+          :page-sizes="pageSizes"
+          :total="totalCount"
+          layout="total, sizes, prev, pager, next, jumper"
+          @size-change="handleSizeChange"
+        />
       </div>
         </el-tab-pane>
 
@@ -356,6 +368,7 @@ import { projectsApi } from '@/api'
 import DateTimeDisplay from '@/components/common/DateTimeDisplay.vue'
 import httpClient from '@/api/client'
 import { isBidManager } from '@/utils/permission'
+import { useListPagination } from '@/composables/useListPagination'
 import { useCaBorrowEligibility, caStatusTagType, caBorrowStatusTagType } from './composables/useCaBorrowEligibility'
 import { formatDisplayName } from '@/utils/formatDisplayName'
 import CADetailDialog from './components/CADetailDialog.vue'
@@ -491,6 +504,12 @@ const filteredData = computed(() => {
   return list
 })
 
+// 分页：纯前端切片（基于 filteredData，platform 等过滤仍在前端）
+const {
+  pagination, pageSizes, totalCount, pagedData,
+  handleSizeChange, resetPage
+} = useListPagination(filteredData)
+
 // CO-476: 当前用户有待审批申请的 CA id 集合，用于在 CA 列表上隐藏重复申请按钮
 const myPendingApplicationCaIds = computed(() => {
   const ids = new Set()
@@ -534,11 +553,14 @@ async function loadOverview() {
 // Filters
 function applyFilters() {
   Object.assign(appliedFilters, { ...filters })
+  // 过滤后数据集变化，重置到第一页避免停留在空页
+  resetPage()
 }
 
 function resetFilters() {
   Object.assign(filters, { platform: '', caType: '', sealType: '', status: '', borrowStatus: '', keyword: '' })
   Object.assign(appliedFilters, { platform: '', caType: '', sealType: '', status: '', borrowStatus: '', keyword: '' })
+  resetPage()
 }
 
 // Row click opens detail (admin/manager only)
@@ -932,6 +954,12 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   margin-bottom: 12px;
+}
+
+.pagination-wrapper {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .op-placeholder {
