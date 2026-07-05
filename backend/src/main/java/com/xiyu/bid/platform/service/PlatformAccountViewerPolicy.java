@@ -114,4 +114,33 @@ public final class PlatformAccountViewerPolicy {
                 "仅管理员或白名单用户可创建平台账户");
         }
     }
+
+    /**
+     * 是否可导出平台账户台账。
+     *
+     * <p>授权矩阵：
+     * <ul>
+     *   <li>特权角色（admin/bid-teamleader/bidadmin）→ 放行</li>
+     *   <li>白名单用户（由 system_settings 配置）→ 放行</li>
+     *   <li>其他 → 拒绝</li>
+     * </ul>
+     *
+     * @param roleCode 当前用户角色码（由 EffectiveRoleResolver 解析）
+     * @param currentUser 当前登录用户
+     * @param whitelistUsernames 白名单用户名列表（由 AccountExportWhitelistStore 加载）
+     */
+    public static boolean canExportAccount(String roleCode, User currentUser, List<String> whitelistUsernames) {
+        if (currentUser == null) return false;
+        if (isPrivilegedRole(roleCode)) return true;
+        String username = currentUser.getUsername();
+        return username != null && whitelistUsernames != null && whitelistUsernames.contains(username);
+    }
+
+    /** 校验导出权限，不放行则抛 AccessDeniedException。 */
+    public static void checkCanExportAccount(String roleCode, User currentUser, List<String> whitelistUsernames) {
+        if (!canExportAccount(roleCode, currentUser, whitelistUsernames)) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                "仅管理员或白名单用户可导出平台账户台账");
+        }
+    }
 }

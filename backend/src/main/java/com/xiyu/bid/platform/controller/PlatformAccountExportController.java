@@ -1,16 +1,20 @@
-// Input: PlatformAccountExportService
+// Input: PlatformAccountExportService, AccountExportWhitelistStore, EffectiveRoleResolver
 // Output: REST API endpoints for platform account export
 // Pos: Controller/控制器层
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.platform.controller;
 
 import com.xiyu.bid.annotation.Auditable;
+import com.xiyu.bid.entity.User;
+import com.xiyu.bid.platform.service.AccountExportWhitelistStore;
 import com.xiyu.bid.platform.service.PlatformAccountExportService;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -27,16 +31,20 @@ import java.util.Set;
 /**
  * 平台账户批量导出端点。从 PlatformAccountController 拆出以满足 line-budget ≤300 约束。
  *
- * <p>权限：类级 hasAnyRole('ADMIN', 'MANAGER')，与批量导入/下载模板接口一致。
- * 导出包含明文密码，需更高权限门槛。
+ * <p>权限：类级 hasAuthority('resource') 兜底（与列表接口一致），方法内通过
+ * {@link AccountExportWhitelistStore#checkExportPermission} 做白名单校验。
+ * 授权矩阵：特权角色（admin/bid-teamleader/bidadmin）OR 白名单用户放行。
+ * 导出包含明文密码，需白名单门槛。
  */
 @RestController
 @RequestMapping("/api/platform/accounts")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+@PreAuthorize("hasAuthority('resource')")
 public class PlatformAccountExportController {
 
     private final PlatformAccountExportService exportService;
+    private final AccountExportWhitelistStore exportWhitelistStore;
+    private final EffectiveRoleResolver effectiveRoleResolver;
 
     /**
      * 批量导出平台账户台账 Excel。
@@ -47,7 +55,7 @@ public class PlatformAccountExportController {
      *   <li>selectedIds 为空 → 导出全部账户</li>
      * </ul>
      *
-     * <p>密码字段输出明文（用户明确需求），调用方已受 @PreAuthorize 限制。
+     * <p>密码字段输出明文（用户明确需求），调用方受白名单校验限制。
      *
      * @param selectedIds 选中的账户 ID（逗号分隔，可选）
      * @return .xlsx 文件下载
@@ -55,7 +63,10 @@ public class PlatformAccountExportController {
     @GetMapping("/export")
     @Auditable(action = "EXPORT", entityType = "PlatformAccount", description = "批量导出平台账户台账")
     public ResponseEntity<byte[]> export(
-            @RequestParam(required = false) String selectedIds) {
+            @RequestParam(required = false) String selectedIds,
+            @AuthenticationPrincipal User currentUser) {
+        exportWhitelistStore.checkExportPermission(
+                effectiveRoleResolver.resolveRoleCode(currentUser), currentUser);
         Set<Long> idSet = parseSelectedIds(selectedIds);
         byte[] excel = exportService.exportToExcel(idSet);
         String filename = URLEncoder.encode(
