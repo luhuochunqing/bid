@@ -91,7 +91,8 @@ const props = defineProps({
   filter: { type: Object, default: () => ({}) },
   filterCount: { type: Number, default: 0 },
   allInUseCount: { type: Number, default: 0 },
-  selectedIds: { type: Array, default: () => [] }
+  selectedIds: { type: Array, default: () => [] },
+  defaultScope: { type: String, default: 'filter' }
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -107,6 +108,8 @@ const form = reactive({
   sections: ['BASIC', 'LEASE', 'DOC', 'META']
 })
 
+form.scope = props.defaultScope
+
 const summaryScope = computed(() => {
   if (!summary.value) return '—'
   return summary.value.scope === 'ids' ? '当前勾选'
@@ -119,7 +122,7 @@ const reset = () => {
   totalCount.value = 0
   failureReason.value = ''
   summary.value = {}
-  form.scope = 'filter'
+  form.scope = props.defaultScope
   form.sections = ['BASIC', 'LEASE', 'DOC', 'META']
 }
 

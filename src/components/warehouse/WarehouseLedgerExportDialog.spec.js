@@ -53,4 +53,16 @@ describe('WarehouseLedgerExportDialog', () => {
     expect(wrapper.vm.form.sections).toEqual(['BASIC', 'LEASE', 'DOC', 'META'])
     expect(wrapper.vm.form.scope).toBe('filter')
   })
+
+  it('uses defaultScope prop as initial scope when provided', async () => {
+    const wrapper = mount(WarehouseLedgerExportDialog, {
+      props: { modelValue: true, defaultScope: 'ids' },
+      global: { stubs: globalStubs }
+    })
+    expect(wrapper.vm.form.scope).toBe('ids')
+    wrapper.vm.form.scope = 'all_in_use'
+    await wrapper.setProps({ modelValue: false })
+    await wrapper.setProps({ modelValue: true })
+    expect(wrapper.vm.form.scope).toBe('ids')
+  })
 })

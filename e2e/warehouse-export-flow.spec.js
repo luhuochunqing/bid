@@ -56,4 +56,53 @@ test.describe('§4.4 仓库台账导出', () => {
     const warehouseMenu = page.getByRole('menuitem', { name: /仓库/ })
     await expect(warehouseMenu).toHaveCount(0)
   })
+
+  test('第二个导出台账按钮应打开台账导出对话框而非附件导出对话框', async ({ page }) => {
+    await loginAsRole(page, '/bidAdmin')
+    await page.goto('/knowledge/warehouse')
+    await page.waitForSelector('.el-table, .data-card', { timeout: 10000 })
+
+    const exportButtons = page.getByRole('button', { name: /导出台账/ })
+    await expect(exportButtons).toHaveCount(2)
+
+    const secondExportBtn = exportButtons.nth(1)
+    await secondExportBtn.click()
+
+    await expect(page.getByTestId('warehouse-ledger-export-dialog')).toBeVisible({ timeout: 5000 })
+
+    await expect(page.getByTestId('warehouse-export-dialog')).toBeHidden({ timeout: 3000 })
+  })
+
+  test('第二个导出台账按钮有勾选时默认选中"当前勾选"范围', async ({ page }) => {
+    await loginAsRole(page, '/bidAdmin')
+    await page.goto('/knowledge/warehouse')
+    await page.waitForSelector('.el-table, .data-card', { timeout: 10000 })
+
+    const firstCheckbox = page.locator('.el-table__body-wrapper .el-checkbox__input').first()
+    await firstCheckbox.click()
+
+    const exportButtons = page.getByRole('button', { name: /导出台账/ })
+    const secondExportBtn = exportButtons.nth(1)
+    await secondExportBtn.click()
+
+    await expect(page.getByTestId('warehouse-ledger-export-dialog')).toBeVisible({ timeout: 5000 })
+
+    const idsRadio = page.getByText('当前勾选的仓库').locator('..').locator('.el-radio__input')
+    await expect(idsRadio).toHaveClass(/is-checked/)
+  })
+
+  test('第二个导出台账按钮无勾选时默认选中"当前筛选结果"范围', async ({ page }) => {
+    await loginAsRole(page, '/bidAdmin')
+    await page.goto('/knowledge/warehouse')
+    await page.waitForSelector('.el-table, .data-card', { timeout: 10000 })
+
+    const exportButtons = page.getByRole('button', { name: /导出台账/ })
+    const secondExportBtn = exportButtons.nth(1)
+    await secondExportBtn.click()
+
+    await expect(page.getByTestId('warehouse-ledger-export-dialog')).toBeVisible({ timeout: 5000 })
+
+    const filterRadio = page.getByText('当前筛选结果').locator('..').locator('.el-radio__input')
+    await expect(filterRadio).toHaveClass(/is-checked/)
+  })
 })
