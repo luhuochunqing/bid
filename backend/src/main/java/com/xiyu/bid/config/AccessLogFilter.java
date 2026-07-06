@@ -42,13 +42,19 @@ public class AccessLogFilter extends OncePerRequestFilter {
         String clientIp = getClientIp(request);
         String userAgent = request.getHeader("User-Agent");
 
-        // 如果是文件上传等 multipart 请求，可能不适合用 caching wrapper，这里简单统一包装，生产中可加判断
-        ContentCachingRequestWrapper wrappedRequest = request instanceof ContentCachingRequestWrapper ? 
-                (ContentCachingRequestWrapper) request : new ContentCachingRequestWrapper(request);
+        // multipart/form-data 请求跳过 request body 缓存：文件上传流只能读一次，
+        // 读取后 Spring MultipartResolver 无法解析 getParts()，会报 400。
+        // 与 IdempotencyFilter 保持一致判断逻辑。
+        String contentType = request.getContentType();
+        boolean isMultipart = contentType != null
+                && contentType.toLowerCase().startsWith("multipart/form-data");
+        ContentCachingRequestWrapper wrappedRequest = isMultipart ? null
+                : (request instanceof ContentCachingRequestWrapper ?
+                (ContentCachingRequestWrapper) request : new ContentCachingRequestWrapper(request));
         ContentCachingResponseWrapper wrappedResponse = new ContentCachingResponseWrapper(response);
-        
+
         try {
-            chain.doFilter(wrappedRequest, wrappedResponse);
+            chain.doFilter(isMultipart ? request : wrappedRequest, wrappedResponse);
         } finally {
             long elapsed = System.currentTimeMillis() - start;
             int status = wrappedResponse.getStatus();
