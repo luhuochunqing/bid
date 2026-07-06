@@ -37,7 +37,12 @@ const stubs = {
   'el-table-column': { template: '<div />' },
   'el-empty': { template: '<div class="el-empty-stub" />' },
   'el-timeline': { template: '<div class="el-timeline-stub"><slot /></div>' },
-  'el-timeline-item': { template: '<div class="el-timeline-item-stub"><slot /></div>' }
+  'el-timeline-item': { template: '<div class="el-timeline-item-stub"><slot /></div>' },
+  // CO-515: 借用记录表格抽为子组件，测试时用 stub 替代
+  CABorrowRecordsTable: {
+    template: '<div class="ca-borrow-records-table-stub" :data-applications="JSON.stringify(applications)" />',
+    props: ['applications']
+  }
 }
 
 const mockCa = {
@@ -263,5 +268,88 @@ describe('CADetailDialog.vue — CO-406 详情形态对齐 AccountDetailDialog�
     const custodianItem = items.find((item) => item.attributes('data-label') === '保管员')
     expect(custodianItem).toBeDefined()
     expect(custodianItem.text()).toBe('张三')
+  })
+})
+
+// CO-515: 借用记录表格按 PRD 9 列展示（序号/申请人/使用目的/申请时间/借用期限/盖章承诺书/预计归还/实际归还/状态）
+describe('CADetailDialog.vue — CO-515 借用记录和操作日志 Tab 信息展示', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  // 借用记录为空时显示空状态
+  it('render_emptyBorrowApplications — 借用记录为空时渲染子组件', async () => {
+    const wrapper = await mountComponent({ borrowApplications: [] })
+    await flushPromises()
+
+    // CO-515: 借用记录表格抽为子组件 CABorrowRecordsTable
+    const tableStub = wrapper.find('.ca-borrow-records-table-stub')
+    expect(tableStub.exists()).toBe(true)
+    expect(tableStub.attributes('data-applications')).toBe('[]')
+  })
+
+  // 借用记录有数据时渲染表格
+  it('render_borrowApplicationsTable — 借用记录有数据时透传给子组件', async () => {
+    const borrowApplications = [
+      {
+        id: 1,
+        applicantName: '王五',
+        applicantEmployeeNumber: 'EMP001',
+        purpose: '投标项目A盖章',
+        createdAt: '2026-07-06T10:00:00',
+        borrowDurationType: 'SHORT_TERM',
+        commitmentLetterUrl: '',
+        expectedReturnDate: '2026-07-13',
+        actualReturnDate: '',
+        status: 'PENDING_APPROVAL',
+        statusLabel: '待审批'
+      }
+    ]
+    const wrapper = await mountComponent({ borrowApplications })
+    await flushPromises()
+
+    const tableStub = wrapper.find('.ca-borrow-records-table-stub')
+    expect(tableStub.exists()).toBe(true)
+    // 验证 applications prop 正确透传
+    const parsed = JSON.parse(tableStub.attributes('data-applications'))
+    expect(parsed).toHaveLength(1)
+    expect(parsed[0].applicantName).toBe('王五')
+  })
+
+  // 操作日志为空时显示空状态
+  it('render_emptyOperationEvents — 操作日志为空时显示空状态', async () => {
+    const wrapper = await mountComponent({ operationEvents: [] })
+    await flushPromises()
+
+    const panes = wrapper.findAll('.el-tab-pane-stub')
+    const logPane = panes.find((p) => p.attributes('data-label') === '操作日志')
+    expect(logPane).toBeDefined()
+    expect(logPane.find('.el-empty-stub').exists()).toBe(true)
+  })
+
+  // 操作日志有数据时渲染时间线
+  it('render_operationEventsTimeline — 操作日志有数据时渲染时间线', async () => {
+    const operationEvents = [
+      {
+        id: 1,
+        applicationId: 100,
+        eventType: 'SUBMITTED',
+        eventTypeLabel: '提交申请',
+        operatorName: '张三',
+        detail: '提交借用申请',
+        createdAt: '2026-07-06T10:00:00'
+      }
+    ]
+    const wrapper = await mountComponent({ operationEvents })
+    await flushPromises()
+
+    const panes = wrapper.findAll('.el-tab-pane-stub')
+    const logPane = panes.find((p) => p.attributes('data-label') === '操作日志')
+    expect(logPane).toBeDefined()
+    expect(logPane.find('.el-timeline-stub').exists()).toBe(true)
   })
 })

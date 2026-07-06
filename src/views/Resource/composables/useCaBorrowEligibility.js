@@ -5,13 +5,21 @@ import { isBidManager } from '@/utils/permission'
 export const STATUS_TAG_TYPE = { ACTIVE: 'success', EXPIRING: 'warning', EXPIRED: 'danger', INACTIVE: 'info' }
 export const BORROW_STATUS_TAG_TYPE = { IN_STOCK: 'info', BORROWED: 'primary', OVERDUE: 'danger' }
 export const APPLICATION_STATUS_TAG_TYPE = {
+  PENDING_APPROVAL: 'warning',
   PENDING: 'warning',
   APPROVED: 'success',
   REJECTED: 'danger',
   RETURNED: 'info',
   CANCELLED: 'info'
 }
+// CO-515: 借用期限中文映射（SHORT_TERM → 短期, LONG_TERM → 长期）
+export const BORROW_DURATION_TYPE_MAP = {
+  SHORT_TERM: '短期',
+  LONG_TERM: '长期'
+}
 export const EVENT_TYPE_COLOR = {
+  // CO-515: 补全 SUBMITTED（后端实际写入的"提交申请"事件类型）
+  SUBMITTED: 'primary',
   CREATED: 'success',
   UPDATED: 'primary',
   BORROWED: 'primary',
@@ -37,6 +45,11 @@ export function caApplicationStatusTagType(status) {
 
 export function caEventTypeColor(eventType) {
   return EVENT_TYPE_COLOR[eventType] || 'info'
+}
+
+// CO-515: 借用期限中文标签
+export function borrowDurationTypeLabel(type) {
+  return BORROW_DURATION_TYPE_MAP[type] || type || '-'
 }
 
 export function isCaBorrowableByStatus(ca) {

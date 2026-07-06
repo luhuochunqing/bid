@@ -583,11 +583,19 @@ async function handleView(ca) {
     borrowApplications.value = res?.data || []
   } catch { /* non-critical */ }
 
-  // Load operation events if any borrow application exists
+  // CO-515: 聚合该 CA 所有借用申请的操作事件（原先只取第一条申请的事件，遗漏其余申请）
   if (borrowApplications.value.length > 0) {
     try {
-      const eventsRes = await caApi.getOperationEvents(borrowApplications.value[0].id)
-      operationEvents.value = eventsRes?.data || []
+      const eventResults = await Promise.all(
+        borrowApplications.value.map(app =>
+          caApi.getOperationEvents(app.id).catch(() => ({ data: [] }))
+        )
+      )
+      const allEvents = eventResults.flatMap(res => res?.data || [])
+      // 按时间倒序（最近的在前）
+      operationEvents.value = allEvents.sort((a, b) =>
+        new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+      )
     } catch { /* non-critical */ }
   }
 }
