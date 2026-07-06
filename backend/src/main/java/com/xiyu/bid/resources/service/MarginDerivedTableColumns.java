@@ -53,9 +53,23 @@ package com.xiyu.bid.resources.service;
  *       可能残留 '0000-00-00 00:00:00' 零日期（V1077 之前旧数据或异常写入）。
  *       JDBC 读到 zero date 会抛 DataException。在 SQL 层用
  *       {@code NULLIF(col, '0000-00-00 00:00:00')} 转成 NULL，让上层按"无日期"处理。</li>
+ *   <li>tasks.extended_fields_json 可能残留空字符串 ''，MySQL
+ *       {@code JSON_EXTRACT('', '$.x')} 会直接抛
+ *       "Invalid JSON text: The document is empty"，导致保证金列表 500。
+ *       在 SQL 层用 {@code NULLIF(dt.extended_fields_json, '')} 包裹
+ *       JSON_EXTRACT 输入，把空字符串转 NULL；同时新增 V1142 迁移清洗历史数据，
+ *       并在 Task 实体加 {@code @PrePersist/@PreUpdate} 写侧防御。</li>
  * </ul>
  */
 final class MarginDerivedTableColumns {
+
+    /**
+     * 任务扩展字段 JSON 表达式。
+     * <p>Sentry XIYU-P：tasks.extended_fields_json 可能残留空字符串 ''，
+     * MySQL JSON_EXTRACT('', '$.x') 会抛 "Invalid JSON text: The document is empty"。
+     * 用 NULLIF 把空字符串转 NULL，JSON_EXTRACT(NULL, ...) 返回 NULL，避免 500。
+     */
+    static final String TASK_EXT_JSON = "NULLIF(dt.extended_fields_json, '')";
 
     /** 缴纳方式翻译 CASE WHEN（FEES + INIT 共用）。
      *  WIRE=电汇, GUARANTEE=保险/保函, 其他原样透传（防御未知枚举）。 */
@@ -115,11 +129,11 @@ final class MarginDerivedTableColumns {
           + "       NULLIF(t.bidding_person_name, ''))"
           + "       COLLATE utf8mb4_unicode_ci as bidding_leader_name,"
           + "     f.amount,"
-          + "     COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.actualPaymentDate')), 1, 10), ''), '%Y-%m-%d'), NULLIF(f.payment_date, '0000-00-00 00:00:00')) as payment_date,"
+          + "     COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.actualPaymentDate')), 1, 10), ''), '%Y-%m-%d'), NULLIF(f.payment_date, '0000-00-00 00:00:00')) as payment_date,"
           + "     " + DEPOSIT_PAYMENT_METHOD_CASE + ","
-          + "     COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.payee')), ''), f.return_to) as payee_name,"
-          + "     JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.payeeAccount')) as payee_account,"
-          + "     COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d'), NULLIF(f.fee_date, '0000-00-00 00:00:00')) as exp_return_date,"
+          + "     COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.payee')), ''), f.return_to) as payee_name,"
+          + "     JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.payeeAccount')) as payee_account,"
+          + "     COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d'), NULLIF(f.fee_date, '0000-00-00 00:00:00')) as exp_return_date,"
           + "     " + returnedAmountExpr("f.amount") + " as returned_amount,"
           + "     " + serviceFeeAmountExpr() + " as service_fee_amount,"
           + "     NULLIF(pc.deposit_return_date, '0000-00-00 00:00:00') as actual_return_date,"
@@ -145,11 +159,11 @@ final class MarginDerivedTableColumns {
           + "       NULLIF(t.bidding_person_name, ''))"
           + "       COLLATE utf8mb4_unicode_ci as bidding_leader_name,"
           + "     pid.deposit_amount,"
-          + "     STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.actualPaymentDate')), 1, 10), ''), '%Y-%m-%d') as payment_date,"
+          + "     STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.actualPaymentDate')), 1, 10), ''), '%Y-%m-%d') as payment_date,"
           + "     " + DEPOSIT_PAYMENT_METHOD_CASE + ","
-          + "     NULLIF(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.payee')), '') as payee_name,"
-          + "     JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.payeeAccount')) as payee_account,"
-          + "     STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d') as exp_return_date,"
+          + "     NULLIF(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.payee')), '') as payee_name,"
+          + "     JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.payeeAccount')) as payee_account,"
+          + "     STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d') as exp_return_date,"
           + "     " + returnedAmountExpr("pid.deposit_amount") + " as returned_amount,"
           + "     " + serviceFeeAmountExpr() + " as service_fee_amount,"
           + "     NULLIF(pc.deposit_return_date, '0000-00-00 00:00:00') as actual_return_date,"

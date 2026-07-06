@@ -48,7 +48,7 @@ final class MarginQuerySupport {
           + " LEFT JOIN users u_lead ON u_lead.id = pla.primary_lead_user_id"
           + " LEFT JOIN tasks dt"
           + "   ON dt.project_id = f.project_id"
-          + "   AND JSON_EXTRACT(dt.extended_fields_json, '$._taskType') = 'deposit-payment'"
+          + "   AND JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$._taskType') = 'deposit-payment'"
           + " LEFT JOIN project_closure pc"
           + "   ON pc.project_id = f.project_id"
           + " WHERE f.fee_type = 'BID_BOND'";
@@ -62,7 +62,7 @@ final class MarginQuerySupport {
           + " LEFT JOIN users u_lead ON u_lead.id = pla.primary_lead_user_id"
           + " LEFT JOIN tasks dt"
           + "   ON dt.project_id = pid.project_id"
-          + "   AND JSON_EXTRACT(dt.extended_fields_json, '$._taskType') = 'deposit-payment'"
+          + "   AND JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$._taskType') = 'deposit-payment'"
           + " LEFT JOIN project_closure pc"
           + "   ON pc.project_id = pid.project_id"
           + " WHERE ";
@@ -96,7 +96,7 @@ final class MarginQuerySupport {
               + "    AND m.exp_return_date < NOW() THEN 1 END)"
               + " FROM ("
               + "   SELECT f.amount as amount, f.status as status,"
-              + "     COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d'), NULLIF(f.fee_date, '0000-00-00 00:00:00')) as exp_return_date,"
+              + "     COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d'), NULLIF(f.fee_date, '0000-00-00 00:00:00')) as exp_return_date,"
               + "     " + MarginDerivedTableColumns.returnedAmountExpr("f.amount") + " as returned_amount,"
               + "     " + MarginDerivedTableColumns.serviceFeeAmountExpr() + " as service_fee_amount"
               + FEES_JOIN + rf

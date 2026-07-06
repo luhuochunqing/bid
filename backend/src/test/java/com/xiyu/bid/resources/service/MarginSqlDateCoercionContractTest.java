@@ -2,6 +2,8 @@ package com.xiyu.bid.resources.service;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -44,12 +46,12 @@ class MarginSqlDateCoercionContractTest {
         assertThat(sql)
                 .as("actualPaymentDate 必须用 STR_TO_DATE(NULLIF(..., ''), '%Y-%m-%d') 解析"
                   + "（空字符串回退 NULL，不抛异常，不返回 zero date）")
-                .contains("STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json,"
+                .contains("STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''),"
                         + " '$.actualPaymentDate')), 1, 10), ''), '%Y-%m-%d')");
         assertThat(sql)
                 .as("禁止用 CAST(...) AS DATETIME 解析 JSON 日期字段"
                   + "（空字符串会抛 SQL 异常，'0000-00-00' 会触发 JDBC zero-date 异常）")
-                .doesNotContain("CAST(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json,"
+                .doesNotContain("CAST(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''),"
                         + " '$.actualPaymentDate')), 1, 10) AS DATETIME)");
     }
 
@@ -58,11 +60,11 @@ class MarginSqlDateCoercionContractTest {
         String sql = MarginDerivedTableColumns.DERIVED_SELECT_FEES;
         assertThat(sql)
                 .as("expectedRefundDate 必须用 STR_TO_DATE(NULLIF(..., ''), '%Y-%m-%d') 解析")
-                .contains("STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json,"
+                .contains("STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''),"
                         + " '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d')");
         assertThat(sql)
                 .as("禁止用 CAST(...) AS DATETIME 解析 expectedRefundDate JSON 字段")
-                .doesNotContain("CAST(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json,"
+                .doesNotContain("CAST(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''),"
                         + " '$.expectedRefundDate')), 1, 10) AS DATETIME)");
     }
 
@@ -71,11 +73,11 @@ class MarginSqlDateCoercionContractTest {
         String sql = MarginQuerySupport.summaryBase(MarginQueryRole.ADMIN).toString();
         assertThat(sql)
                 .as("summaryBase 中 expectedRefundDate 必须用 STR_TO_DATE(NULLIF(..., ''), '%Y-%m-%d') 解析")
-                .contains("STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json,"
+                .contains("STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''),"
                         + " '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d')");
         assertThat(sql)
                 .as("禁止用 CAST AS DATETIME 解析 summaryBase 中的 expectedRefundDate")
-                .doesNotContain("CAST(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json,"
+                .doesNotContain("CAST(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''),"
                         + " '$.expectedRefundDate')), 1, 10) AS DATETIME)");
     }
 
@@ -86,11 +88,11 @@ class MarginSqlDateCoercionContractTest {
         // 用 NULLIF 转成 NULL 后再参与 COALESCE，避免 JDBC 抛 DataException。
         assertThat(sql)
                 .as("payment_date 必须保留 COALESCE 回退到 NULLIF(f.payment_date, '0000-00-00 00:00:00')")
-                .contains("COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json,"
+                .contains("COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''),"
                         + " '$.actualPaymentDate')), 1, 10), ''), '%Y-%m-%d'), NULLIF(f.payment_date, '0000-00-00 00:00:00'))");
         assertThat(sql)
                 .as("exp_return_date 必须保留 COALESCE 回退到 NULLIF(f.fee_date, '0000-00-00 00:00:00')")
-                .contains("COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json,"
+                .contains("COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''),"
                         + " '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d'), NULLIF(f.fee_date, '0000-00-00 00:00:00'))");
     }
 
@@ -99,7 +101,7 @@ class MarginSqlDateCoercionContractTest {
         String sql = MarginQuerySupport.summaryBase(MarginQueryRole.ADMIN).toString();
         assertThat(sql)
                 .as("summaryBase exp_return_date 必须保留 COALESCE 回退到 NULLIF(f.fee_date, '0000-00-00 00:00:00')")
-                .contains("COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json,"
+                .contains("COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''),"
                         + " '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d'), NULLIF(f.fee_date, '0000-00-00 00:00:00'))");
     }
 
@@ -192,7 +194,7 @@ class MarginSqlDateCoercionContractTest {
         assertThat(sql)
                 .as("CO-490: INIT 分支 payment_date 必须从任务 JSON actualPaymentDate 取值"
                   + "（STR_TO_DATE(NULLIF(...)) 解析），禁止硬编码 NULL")
-                .contains("STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json,"
+                .contains("STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''),"
                         + " '$.actualPaymentDate')), 1, 10), ''), '%Y-%m-%d') as payment_date");
         assertThat(sql)
                 .as("CO-490: INIT 分支禁止保留旧的 NULL as payment_date 硬编码")
@@ -205,7 +207,7 @@ class MarginSqlDateCoercionContractTest {
         assertThat(sql)
                 .as("CO-490: INIT 分支 exp_return_date 必须从任务 JSON expectedRefundDate 取值"
                   + "（STR_TO_DATE(NULLIF(...)) 解析），禁止硬编码 NULL")
-                .contains("STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json,"
+                .contains("STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''),"
                         + " '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d') as exp_return_date");
     }
 
@@ -215,12 +217,12 @@ class MarginSqlDateCoercionContractTest {
         assertThat(sql)
                 .as("CO-490: INIT 分支 payee_name 必须从任务 JSON payee 取值（NULLIF 包裹空字符串），"
                   + "禁止硬编码 NULL")
-                .contains("NULLIF(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.payee')), '')"
+                .contains("NULLIF(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.payee')), '')"
                         + " as payee_name");
         assertThat(sql)
                 .as("CO-490: INIT 分支 payee_account 必须从任务 JSON payeeAccount 取值，"
                   + "禁止硬编码 NULL")
-                .contains("JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.payeeAccount'))"
+                .contains("JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.payeeAccount'))"
                         + " as payee_account");
     }
 
@@ -278,7 +280,28 @@ class MarginSqlDateCoercionContractTest {
         assertThat(sql)
                 .as("CO-490: FEES 分支 payee 必须用 NULLIF(..., '') 包裹，"
                   + "避免任务 JSON 空字符串导致 COALESCE 不回退到 f.return_to")
-                .contains("COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json,"
+                .contains("COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''),"
                         + " '$.payee')), ''), f.return_to) as payee_name");
+    }
+
+    // ── Sentry XIYU-P 回归：JSON_EXTRACT 输入必须防御空字符串 ────────────────
+    //
+    // 根因：tasks.extended_fields_json 存在空字符串 ''，MySQL JSON_EXTRACT('', '$.x')
+    // 直接抛 "Invalid JSON text: The document is empty" → 保证金列表 500。
+    // 上一轮 CO-490 只包裹了 STR_TO_DATE/CAST 的结果，没包裹 JSON_EXTRACT 的输入。
+
+    @Test
+    void allJsonExtractCalls_guardEmptyString_withNullIf() {
+        String listSql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN).toString();
+        String countSql = MarginQuerySupport.countBase(MarginQueryRole.ADMIN).toString();
+        String summarySql = MarginQuerySupport.summaryBase(MarginQueryRole.ADMIN).toString();
+
+        for (String sql : List.of(listSql, countSql, summarySql)) {
+            String normalized = sql.replace("JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''),", "");
+            assertThat(normalized)
+                    .as("所有 JSON_EXTRACT(dt.extended_fields_json, ...) 必须用 NULLIF(..., '') 包裹，"
+                      + "防止空字符串触发 MySQL 'Invalid JSON text: The document is empty'")
+                    .doesNotContain("JSON_EXTRACT(dt.extended_fields_json,");
+        }
     }
 }

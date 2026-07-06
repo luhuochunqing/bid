@@ -906,6 +906,46 @@ class MarginQuerySupportMysqlIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName("listBase 不应抛异常：deposit task 的 extended_fields_json 为空字符串（Sentry XIYU-P）")
+    void listBase_executesWithoutError_whenDepositTaskHasEmptyExtendedFieldsJson() {
+        Long projectId = createTestProject("xiyup-empty-json");
+        createInitiationDetails(projectId, "NO", BigDecimal.ZERO);
+        createFeeWithPaymentDate(projectId, "BID_BOND", "PAID",
+                "DATE_SUB(NOW(), INTERVAL 10 DAY)", "DATE_ADD(NOW(), INTERVAL 20 DAY)",
+                new BigDecimal("5000"));
+        // 空字符串 '' 不是有效 JSON，旧 SQL 在 ON 条件/SELECT 中调用 JSON_EXTRACT('', '$.x')
+        // 会抛 "Invalid JSON text: The document is empty" → 500。
+        createDepositTask(projectId, "");
+        try {
+            StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
+            sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
+
+            List<Map<String, Object>> rows =
+                    jdbcTemplate.queryForList(sql.toString(), Map.of());
+
+            assertThat(rows)
+                    .as("listBase 应正常返回结果，extended_fields_json 空字符串不应触发 JSON_EXTRACT 异常")
+                    .anyMatch(row -> projectId.equals(extractProjectId(row)));
+
+            Map<String, Object> row = rows.stream()
+                    .filter(r -> projectId.equals(extractProjectId(r)))
+                    .findFirst()
+                    .orElse(null);
+            assertThat(row)
+                    .as("项目行应存在")
+                    .isNotNull();
+            assertThat(row.get("payment_date"))
+                    .as("空字符串 extended_fields_json 应回退到 fees.payment_date")
+                    .isNotNull();
+            assertThat(row.get("exp_return_date"))
+                    .as("空字符串 extended_fields_json 应回退到 fees.fee_date")
+                    .isNotNull();
+        } finally {
+            cleanupTestData(projectId);
+        }
+    }
+
     // ── XIYU-P 回归测试：数据库列零日期（'0000-00-00 00:00:00'）不应导致 DataException ──
     //
     // 背景：V1077 之前或其他异常写入可能让 fees.payment_date / fees.fee_date /
