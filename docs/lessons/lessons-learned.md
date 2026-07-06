@@ -2762,3 +2762,139 @@ P1 + P2 合起来后，第八轮才算完整：
 - `backend/src/main/java/com/xiyu/bid/infrastructure/excel/ExcelCellFormatter.java`（统一入口）
 - `backend/src/test/java/com/xiyu/bid/infrastructure/excel/ExcelCellFormatterTest.java`（单元测试）
 - `backend/src/test/java/com/xiyu/bid/ArchitectureTest.java`（架构门禁：`excel_date_cell_must_use_excel_cell_formatter`）
+
+
+---
+
+## 44. 通知派发接收人必须按资源可见性过滤：广播范围 × 资源权限 × targetUrl 三者联动（spec 030 / 06131 案例）
+
+> **场景**：用户 06131（bid-Team 投标专员）收到大量任务审核通知，点击通知跳转报'没有权限'。
+> **排查方法**：按 §23 全链路日志排查 SOP，跳过 Layer 1（AccessDeniedException 不上报 Sentry），直接走 Layer 2 + Layer 3。
+> **修复过程**：完整走 Spec Kit 门禁（spec 030，specify/plan/tasks/analyze），分支 `agent/zcode/fix-task-review-notify-403`。
+
+### 问题背景
+
+2026-07-06 用户 06131 反馈'收到很多条通知，但点击跳转都报错提示没有权限'。这是一个影响所有 `bid-Team`/`bid-projectLeader` 角色的系统性 Bug——只要被广播到任何自己无权访问的项目任务审核通知，都会复现。
+
+### 全链路证据链（按 §23 SOP Layer 2 + Layer 3）
+
+**Layer 2 现场抓取**（服务器日志 `/var/log/xiyu-bid/application.json.log`）：
+
+```
+17:55:57 WARN GlobalExceptionHandler: 权限不足 - URI: /api/projects/172, User: 06131, Message: 权限不足，无法访问该项目  traceId=34858d95640b41aea0b0cd2c4cc53d2d
+17:56:53 WARN GlobalExceptionHandler: 权限不足 - URI: /api/projects/171, User: 06131, ...                                            traceId=6303175138734199953f2a750e11a0fb
+17:57:06 WARN GlobalExceptionHandler: 权限不足 - URI: /api/projects/162, User: 06131, ...                                            traceId=dbe0f91fc1d44b0484970e033d8cbc00
+```
+
+**Layer 2 DB 真相**（直查 `winbid` 库）：
+
+```
+notification.payload_json = {"targetUrl":"/project/172/drafting","taskId":"2967"}
+user_notification.user_id = 1471 (06131 王晓莉, role=MANAGER, role_id=6 → bid-Team)
+
+# 06131 在 162/171/172/173 项目的可访问来源全部不命中：
+tasks WHERE assignee_id=1471 AND project_id IN (160..173) → 空集
+```
+
+**Layer 3 git 追溯**：commit `c8446b0ea`（2026-07-03 'feat: 任务审核通知'）原设计即如此——广播式接收人从未做过项目可见性过滤，**非回归，是原设计缺陷**。
+
+### 三层根因表
+
+| 层级 | 表象 | 真相 |
+|------|------|------|
+| L1（表层） | 06131 点击通知跳转 403 | 后端 `ProjectAccessScopeService.assertCurrentUserCanAccessProject` 抛 `AccessDeniedException`，前端 `client.js:188` 全局 403 拦截器弹红色 toast |
+| L2（中层） | 06131 不该收到这些项目通知 | `TaskReviewNotificationService.notifyTaskReviewSubmitted` 用 `findEnabledByRoleProfileCodes(TASK_MUTATION_ALLOWED_ROLES)` 全球广播给所有投标专员/负责人，未过滤接收人对项目的访问权 |
+| L3（根因） | 接收人策略与资源访问权脱节 + targetUrl 硬编码 | 通知派发的'接收人范围'、'资源访问权'、'跳转 URL'三者各自独立设计，没有约束关系：接收人范围按角色全局反查（含 self 受限角色），targetUrl 又硬编码 `/project/{id}/drafting`，导致广播到无权用户时必 403 |
+
+### 关键设计教训：广播范围 × 资源权限 × targetUrl 三者必须联动
+
+通知派发的三个维度：
+
+1. **接收人范围**：通过 `findEnabledByRoleProfileCodes(roleCodes)` 按角色反查。如果 `roleCodes` 含 `bid-Team`/`bid-otherDept`/`bid-administration` 等 `dataScope=self` 的受限角色，反查结果会包含全球所有该角色用户。
+2. **资源访问权**：通过 `ProjectAccessScopeService.getAllowedProjectIds(user)` 计算用户对项目的可访问集。`dataScope=self` 角色的可访问集只含自己参与的项目，远小于广播范围。
+3. **跳转 URL**：通知 `payload_json.targetUrl`，常被硬编码为 `/project/{id}/...`。
+
+**三者必须联动**：如果'接收人范围'含受限角色，且'targetUrl'跳转到的资源有访问权校验，**派发前必须对接收人做资源可见性过滤**。否则广播范围 ⊃ 可访问集，差集中的用户会收到通知但跳转 403。
+
+### 全仓审视结论（详见 tech-debt-tracker.md）
+
+全仓 11 处 `findEnabledByRoleProfileCodes` 调用点，**只有 `TASK_MUTATION_ALLOWED_ROLES` 一个常量把 `bid-Team`（self 受限角色）纳入了广播范围**——这是 06131 案例的根本原因。其他 10 处调用要么全是 `dataScope=all` 全局角色（admin/bidAdmin/bid-TeamLeader），要么是资源当事人（applicant/custodian），要么 targetUrl 跳全局可访问页，**全部豁免**。
+
+### 操作规范（新增通知派发器时必跑）
+
+新增/修改通知派发逻辑时，必须按以下清单自检：
+
+- [ ] **接收人范围审查**：`roleCodes` 是否含 `bid-Team`/`bid-otherDept`/`bid-administration` 等 `dataScope=self` 受限角色？
+- [ ] **如含 self 角色，必须做项目可见性过滤**：用 `NotificationRecipientFilter.filterRecipients(candidates, uid -> projectAccessScopeService.canAccessProject(uid, projectId))`，详见 `backend/src/main/java/com/xiyu/bid/notification/core/NotificationRecipientFilter.java`。
+- [ ] **targetUrl 审查**：跳转目标是否有访问权校验？如有（如 `/project/{id}`），必须确保接收人能通过校验；如不能，要么过滤掉该接收人，要么降级 targetUrl。
+- [ ] **降级策略**：过滤逻辑异常时是否降级为原广播？应该降级（通知送达优先于精准，符合 Constitution VII §2 装饰性操作降级精神）。
+- [ ] **空接收人安全跳过**：过滤后列表为空时，打 INFO 日志安全跳过，不抛异常。
+- [ ] **前端兜底**：`src/api/client.js` 全局 403 拦截器是否对'项目详情类 403'友好化？已实现（spec 030 commit `e63ef8043` + Review 修正 `4f847f6c2`）：仅匹配 `GET /api/projects/{id}` 主请求（用正则 `/^\/api\/projects\/\d+(?:\?|$)/` 严格排除 `/documents`、`/ai-cards`、`/tender-breakdown` 等子路径），403 改黄色 warning + 2.5s 后跳 `/inbox`。
+
+### 设计 Review 教训（spec 030 PR Review 阶段沉淀）
+
+本次 PR 在合入前做了系统性设计 Review，识别并修复了 2 个 HIGH 问题。两条过程教训通用化如下，适用于**所有**类似改动场景，不仅限通知派发器：
+
+#### 教训 A：改动全局拦截器/中间件时，必须在 plan 阶段做"影响面分析"
+
+**反例（本次 H1 弯路）**：spec FR-004 只写"targetUrl 降级到接收人可访问的安全路径"，没规定实现方式。实施时直接改了 `src/api/client.js` 全局 403 拦截器，写了正则 `/^\/api\/projects\/\d+(?:\/|$|\?)/`。Review 时才发现这个正则误伤所有 `GET /api/projects/{id}/*` 子路径——`/documents`、`/ai-cards`、`/tender-breakdown`、`/score-drafts` 等非通知跳转场景的 403 也会被错误"友好化 + 强制跳通知中心"，打断用户当前操作。
+
+**根因**：开发时只关注"通知跳转场景能不能命中"，没反向思考"非通知场景会不会被误伤"。
+
+**操作规范**（涉及全局拦截器/中间件/WebSocket 拦截/事件总线等改动时必跑）：
+
+- [ ] **正向命中验证**：本次场景的所有请求路径能否被精准命中？（如本次通知跳转 → `GET /api/projects/{id}`）
+- [ ] **反向误伤分析**：用 `grep -rn '<拦截点特征>' src/` 搜索所有命中点，逐一判定"是否真的属于本次场景"。例如改 axios 拦截器时，必须 grep 所有命中 URL 模式的 API 调用。
+- [ ] **正则覆盖度验证**：拦截器用正则匹配 URL 时，必须列出至少 5 个边界用例（应命中 + 不应命中各半），在 plan/research 文档显式验证。仅靠"看一眼能跑通"不够。
+- [ ] **精准标记优于全局模式匹配**：如果业务允许，优先用 `config` 标记（如 `httpClient.get(url, { treatAsNotificationRedirect: true })`）让调用方显式声明场景，而不是用 URL 正则倒推场景。后者天然有误伤风险。
+
+#### 教训 B：新增"权限判定"类方法时，必须先 grep 既有同类方法的判定源
+
+**反例（本次 H2 弯路）**：spec 030 新增 `ProjectAccessScopeService.canAccessProject(userId, projectId)` 时，直接写了 `EffectiveRoleResolver.resolveRoleCode(user) = "admin"` 判定 admin。Review 时才发现同文件内既有 `assertCurrentUserCanAccessProject` 用的是 `hasAdminAccess(authentication)`——基于 Spring Security authorities（`ROLE_ADMIN`）。两者判定源不同（role_code 字段 vs authority），OSS 同步脏数据场景下可能分歧——**正是 06131 案例的脏数据形态**（`users.role=MANAGER` 但 `role_id=6 → bid-Team`）。后果：通知过滤时被剔除的用户，实际登录访问却能通过权限闸门，过滤结果与实际访问判定不一致。
+
+**根因**：开发时只读了自己的需求（"需要判定 admin"），没看同文件内已有的同类方法是怎么判定的。
+
+**操作规范**（新增权限/角色/可见性判定方法时必跑）：
+
+- [ ] **同文件 grep**：在目标类内 `grep -n 'public.*can\|public.*isAllowed\|public.*hasAccess'`，列出所有同类公开方法。
+- [ ] **判定源对齐**：新增方法的判定源（authority vs role_code vs DB 字段）**必须**与既有同类方法一致。如确实需要用不同判定源（如本次 `ROLE_EXTERNAL_API` 仅 authority 可识别），必须在私有方法层抽取共享逻辑，公开方法各自处理边界差异。
+- [ ] **对齐测试**：写一个"同一用户对同一资源，两个方法判定结果必须一致"的测试用例（参考 `ProjectAccessScopeServiceTest.canAccessProject_shouldAlignWith_assertCurrentUserCanAccessProject`）。OSS 同步脏数据场景下尤其重要。
+- [ ] **EffectiveRoleResolver 是 OSS 同步后的权威源**：新代码优先用它而不是 Spring Security authority——OSS 同步可能落后于登录态变化，导致 authority/role_code 分歧。
+
+### 修复方案三层防御（spec 030 实施）
+
+**L1 后端核心修复**（commit `8527766c0`）：
+- 新增纯函数 `NotificationRecipientFilter`（无状态、Predicate 注入判定，Constitution I FP-Java Pure Core）
+- 新增 `ProjectAccessScopeService.canAccessProject(userId, projectId)` 轻量方法（admin/dataScope=all 短路）
+- `TaskReviewNotificationService.notifyTaskReviewSubmitted` 派发前过滤，异常降级保留原广播
+
+**L2 前端兜底**（commit `e63ef8043` 初版 + `4f847f6c2` Review H1 修正）：
+- `src/api/client.js` 全局 403 拦截器精准识别 `GET /api/projects/{id}` 主请求
+- 红色 `ElMessage.error` → 黄色 `ElMessage.warning` + '已为您返回通知中心'
+- 2.5s 后自动 `router.push('/inbox')`
+- Review 后修正：正则严格排除子路径（避免 `/documents`、`/ai-cards` 等被误伤）
+
+**L3 教训沉淀**：
+- tech-debt-tracker.md 登记 11 处审视清单（commit `008ff2679`）
+- 本节 §44 沉淀设计教训 + 操作规范检查清单（含 Review 阶段补充的"全局拦截器影响面分析"和"权限判定方法判定源对齐"两条通用教训）
+- 独立 RCA 文件 `docs/lessons/root-cause-analysis-spec030-task-review-notify-403.md` 归档完整证据链
+- Review 阶段 H2 重构：`ProjectAccessScopeService` 抽取 `canAccessProjectInternal(User, Long)` 共享私有方法（commit `ad94e3650`），确保 `canAccessProject` 与 `assertCurrentUserCanAccessProject` 判定口径完全一致
+
+### SOP 取舍说明（给后续 Agent）
+
+| §23 Layer | 是否适用 | 原因 |
+|---|---|---|
+| Layer 1 Sentry | ❌ 不适用 | `AccessDeniedException` 属 `NON_CRITICAL_EXCEPTIONS`，不上报 Sentry（§23 明确说明）|
+| Layer 2 日志+TraceId | ✅ 采用 | 业务/权限校验问题主场，GlobalExceptionHandler 现场日志 + DB payload 直查定位根因 |
+| Layer 3 git 追溯 | ✅ 辅助 | 判定是回归还是原设计缺陷 → 结论：原设计缺陷（c8446b0ea，非回归）|
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/notification/core/NotificationRecipientFilter.java`（新增 Pure Core 纯函数）
+- `backend/src/test/java/com/xiyu/bid/notification/core/NotificationRecipientFilterTest.java`（10 个单测）
+- `backend/src/main/java/com/xiyu/bid/service/ProjectAccessScopeService.java`（新增 `canAccessProject` 方法）
+- `backend/src/main/java/com/xiyu/bid/project/notification/TaskReviewNotificationService.java`（核心修复点）
+- `src/api/client.js`（前端 403 友好降级）
+- `docs/exec-plans/tech-debt-tracker.md`（11 处审视清单）
+- `docs/lessons/root-cause-analysis-spec030-task-review-notify-403.md`（完整 RCA 归档）
+- `specs/030-fix-task-review-notify-403/`（spec/plan/tasks/contracts/data-model/quickstart）

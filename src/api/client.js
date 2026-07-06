@@ -185,9 +185,36 @@ httpClient.interceptors.response.use(
         case 401:
           await handleAuthFailure()
           break
-        case 403:
-          ElMessage.error(serverMsg || '没有操作权限，请联系管理员')
+        case 403: {
+          // Spec 030 / 06131 案例：项目详情主请求 403 时降级为友好黄色提示 + 自动跳通知中心，
+          // 避免"无权访问该项目"的红色 error toast 让用户以为系统故障。
+          //
+          // 精准匹配规则（H1 修正，避免误伤）：
+          //   仅匹配 GET /api/projects/{id}（项目详情主请求，由通知跳转触发），
+          //   严格排除所有子路径（/documents、/ai-cards、/tender-breakdown、/score-drafts 等）。
+          //   子路径的 403 通常发生在用户已进入项目后操作子资源被拒，应走原 error 风格而非强制跳走。
+          // 正则解释：
+          //   /^\/api\/projects\/\d+(?:\?|$)/ —— {id} 后只允许 query string 或字符串结尾，
+          //   不允许接 /（排除子路径）。
+          const reqUrl = config?.url || ''
+          const reqMethod = String(config?.method || 'get').toLowerCase()
+          const isProjectDetailMainRequest = response.status === 403
+            && reqMethod === 'get'
+            && /^\/api\/projects\/\d+(?:\?|$)/.test(reqUrl)
+          if (isProjectDetailMainRequest) {
+            ElMessage.warning('您没有该项目的访问权限，已为您返回通知中心')
+            // 异步跳转，不阻塞当前 promise reject 链
+            setTimeout(() => {
+              const currentPath = router.currentRoute.value.path
+              if (!currentPath.startsWith('/inbox')) {
+                router.push('/inbox').catch(() => { /* 跳转失败静默处理，避免 console 噪声 */ })
+              }
+            }, 2500)
+          } else {
+            ElMessage.error(serverMsg || '没有操作权限，请联系管理员')
+          }
           break
+        }
         case 400:
           ElMessage.error(serverMsg || '请求参数有误，请检查输入')
           break

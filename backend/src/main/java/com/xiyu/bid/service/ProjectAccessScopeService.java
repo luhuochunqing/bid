@@ -159,12 +159,13 @@ public class ProjectAccessScopeService {
     @Transactional(readOnly = true, noRollbackFor = AccessDeniedException.class)
     public void assertCurrentUserCanAccessProject(Long projectId) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        // 保留 ROLE_EXTERNAL_API 兼容（外部 API 走 Spring Security authority，无 User 实体）
         if (hasAdminAccess(authentication)) {
             return;
         }
 
         User user = resolveCurrentUser(authentication);
-        if (!new LinkedHashSet<>(getAllowedProjectIds(user)).contains(projectId)) {
+        if (!canAccessProjectInternal(user, projectId)) {
             throw new AccessDeniedException("权限不足，无法访问该项目");
         }
     }
@@ -199,5 +200,63 @@ public class ProjectAccessScopeService {
         }
         return userRepository.findByUsername(authentication.getName())
                 .orElseThrow(() -> new AccessDeniedException("当前用户不存在或不可用"));
+    }
+
+    /**
+     * Spec 030: 判定指定用户是否可访问指定项目（轻量级单点判定）。
+     *
+     * <p>用于通知派发接收人过滤：从"按角色反查的候选接收人集合"中剔除"对该项目无访问权"的用户，
+     * 避免被通知的用户点击跳转后被 403 拦截（06131 案例 / spec 030）。
+     *
+     * <p><b>H2 修复（口径对齐）</b>：判定逻辑与 {@link #assertCurrentUserCanAccessProject(Long)}
+     * 共享同一私有方法 {@link #canAccessProjectInternal(User, Long)}，确保过滤结果与实际访问判定
+     * 不出现分歧（避免 OSS 同步脏数据导致"通知过滤时被剔除但实际能访问"或反向场景）。
+     *
+     * <p>短路优化：admin/dataScope=all 角色不进入全量计算，避免对管理员 O(N) 查询。
+     *
+     * @param userId   被判定的用户 id；为 null 时返回 false（防御性）
+     * @param projectId 被判定的项目 id；为 null 时返回 false（防御性）
+     * @return true 表示该用户可访问该项目；false 表示无权访问或用户/项目不存在
+     * @throws RuntimeException 当 {@link #getAllowedProjectIds(User)} 内部查询失败时透传
+     *                          （调用方在 Service 层 try-catch 兜底降级）
+     */
+    @Transactional(readOnly = true)
+    public boolean canAccessProject(Long userId, Long projectId) {
+        if (userId == null || projectId == null) {
+            return false;
+        }
+        User user = userRepository.findById(userId).orElse(null);
+        return canAccessProjectInternal(user, projectId);
+    }
+
+    /**
+     * Spec 030 H2: 共享判定核心 — 基于 User 对象判定项目可访问性。
+     *
+     * <p>被 {@link #canAccessProject(Long, Long)}（按 userId 查）和
+     * {@link #assertCurrentUserCanAccessProject(Long)}（按 SecurityContext 查）共用，
+     * 确保两个入口的判定口径完全一致。</p>
+     *
+     * <p>判定顺序：</p>
+     * <ol>
+     *   <li>user 或 projectId 为 null → false</li>
+     *   <li>EffectiveRoleResolver 解析后的角色码 = admin → true（短路）</li>
+     *   <li>dataScope=all → true（短路，覆盖 /bidAdmin / bid-TeamLeader 等）</li>
+     *   <li>getAllowedProjectIds(user).contains(projectId) → 该表达式</li>
+     * </ol>
+     */
+    private boolean canAccessProjectInternal(User user, Long projectId) {
+        if (user == null || projectId == null) {
+            return false;
+        }
+        // admin/dataScope=all 短路：与 getAllowedProjectIds 第一个分支一致
+        String effectiveRoleCode = effectiveRoleResolver.resolveRoleCode(user);
+        if (RoleProfileCatalog.ADMIN_CODE.equalsIgnoreCase(effectiveRoleCode)) {
+            return true;
+        }
+        DataScopeAccessProfile accessProfile = dataScopeConfigService.getAccessProfile(user);
+        if ("all".equals(accessProfile.getDataScope())) {
+            return true;
+        }
+        return new LinkedHashSet<>(getAllowedProjectIds(user)).contains(projectId);
     }
 }

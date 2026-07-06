@@ -133,3 +133,28 @@
 ### 待登记
 
 > 后续发现的技术债请追加到对应分类下，不要新建文件。
+
+### 通知派发接收人按资源可见性过滤审视清单（spec 030）
+
+> **来源**：spec 030 / 06131 案例（2026-07-06）
+> **背景**：`TaskReviewNotificationService` 用 `findEnabledByRoleProfileCodes` 广播给所有投标专员/负责人，未过滤接收人对项目的访问权，导致无权用户（如 06131）收到通知后跳转 403。已通过 spec 030 修复（Phase 3，commit `8527766c0`）。
+> **审视范围**：全仓 11 处调用 `findEnabledByRoleProfileCodes` 的通知派发点，判定是否需要同类修复。
+> **结论**：**0 处需要同类修复**，10 处豁免（接收人全是 `dataScope=all` 全局角色 / 资源当事人 / targetUrl 跳全局可访问页）。
+
+| # | 文件:行号 | 通知场景 | 接收人 | targetUrl | 判定 | 豁免依据 |
+|---|---|---|---|---|---|---|
+| 1 | `tender/service/TenderPendingAssignmentNotifier.java:66` | 标讯待分配通知 | `GLOBAL_ACCESS_ROLES` (admin+/bidAdmin+bid-TeamLeader，全 dataScope=all) | sourceEntity=TENDER（标讯总览，非项目详情） | ℹ️ 无需修 | ① 全局角色 + ③ targetUrl 非项目详情 |
+| 2 | `tender/service/TenderEvaluationNotificationService.java:100` | 标讯评估通知 | `GLOBAL_ACCESS_ROLES` (全 dataScope=all) | sourceEntity=TENDER | ℹ️ 无需修 | ① 全局角色 |
+| 3 | `resources/notification/CaNotificationDispatcher.java:166` | CA 证书到期通知 | `BID_ADMIN_CODES` (全 dataScope=all) + cert.custodianId 当事人 | sourceEntity=CA_CERTIFICATE（CA 资源） | ℹ️ 无需修 | ①②③ 全局角色 + 当事人 + 非 /project |
+| 4 | `platform/service/PlatformAccountBorrowExpiryScanService.java:164` | 平台账号借用逾期通知 | `/bidAdmin` (dataScope=all) + applicantId/custodianId 当事人 | sourceEntity=ACCOUNT_BORROW_OVERDUE | ℹ️ 无需修 | ①②③ |
+| 5 | `alerts/service/QualificationExpiryNotificationService.java:194` | 资质到期通知 | bid-administration + /bidAdmin + bid-TeamLeader | `/knowledge/qualification?id={id}` | ℹ️ 无需修 | ①③④ 全局角色 + bid-administration 本就是资质模块管理角色（含 QUALIFICATION_VIEW/MANAGE）+ 跳资质详情（非 /project）+ 全公司通用提醒 |
+| 6 | `project/notification/ProjectNotificationService.java:262` | 立项/复盘/结项审核通知 | admin + /bidAdmin + bid-TeamLeader (全 dataScope=all) | `/project/{id}/{initiation,retrospective,closure}` | ℹ️ 无需修 | ① 全局角色全部能访问项目 |
+| 7 | `project/notification/TaskReviewNotificationService.java:119` | **任务审核通知** | `TASK_MUTATION_ALLOWED_ROLES` (含 bid-Team) | `/project/{id}/drafting` | ✅ **spec 030 已修** | 唯一含 bid-Team（dataScope=self 受限角色）的调用点，06131 案例根因 |
+| 8 | `project/service/ProjectClosureService.java:320` | 项目结项申请通知 | admin + /bidAdmin + bid-TeamLeader (全 dataScope=all) | `/project/{id}/closure` | ℹ️ 无需修 | ① 全局角色 |
+| 9 | `project/service/ProjectRetrospectiveService.java:221` | 项目复盘通知 | admin + /bidAdmin + bid-TeamLeader (全 dataScope=all) | `/project/{id}/retrospective` | ℹ️ 无需修 | ① 全局角色 |
+| 10 | `warehouse/service/WarehouseExpiryScanTask.java:50` | 仓库租约到期通知 | /bidAdmin + bid-TeamLeader (全 dataScope=all) | sourceEntity=WAREHOUSE_EXPIRY_WARNING（无 targetUrl） | ℹ️ 无需修 | ①③④ 全局角色 + 不跳项目 + 通用基建提醒 |
+| 11 | `personnel/infrastructure/persistence/PersonnelNotificationAdapter.java:102` | 人员执业证书到期通知 | /bidAdmin + bid-TeamLeader (全 dataScope=all) | sourceEntity=PERSONNEL_CERT（无 targetUrl） | ℹ️ 无需修 | ①③④ 全局角色 + 不跳项目 + 通用人员提醒 |
+
+**豁免条件参考**：① 接收人是 dataScope=all 全局角色（admin / /bidAdmin / bid-TeamLeader 等）；② 接收人是资源当事人（applicant/custodian/assignee 等）；③ targetUrl 跳转到接收人一定能访问的页面（通知中心/资源总览/非项目详情）；④ 通知场景是全公司广播（资质到期/仓库到期/人员到期等通用提醒）。
+
+**关键洞察**：`TASK_MUTATION_ALLOWED_ROLES` 是全仓唯一把 `bid-Team`（普通受限角色）纳入广播范围的常量。未来新增通知派发器时，**接收人集合只要含 `bid-Team`/`bid-otherDept`/`bid-administration` 等 `dataScope=self` 角色，就必须对接收人做项目可见性过滤**（参考 `NotificationRecipientFilter` + `ProjectAccessScopeService.canAccessProject`）。这是 lessons §44 的核心检查清单项。
