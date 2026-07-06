@@ -172,6 +172,36 @@ export function normalizeOperationEvent(item) {
   }
 }
 
+/**
+ * CO-515: 标准化 CA 审计日志（AuditLogItemDTO → 前端操作日志 Tab 数据结构）。
+ * 数据源：audit_logs 表（@Auditable 切面写入），记录 CA 证书生命周期操作（新增/编辑/下架等）。
+ * 注意：这与 normalizeOperationEvent（借用流程事件 ca_borrow_events）是两个不同的数据源。
+ */
+export function normalizeAuditLog(item) {
+  if (!item) return null
+  // AuditLogItemDTO 字段：id, time, operator, department, role, actionType, module, target, detail, ip, status
+  // actionType 是小写的 action（如 "create", "update", "deactivate"）
+  const actionUpper = (item.actionType || '').toUpperCase()
+  return {
+    id: item.id,
+    eventType: actionUpper,
+    eventTypeLabel: {
+      CREATE: '新增', UPDATE: '编辑', DELETE: '删除', DEACTIVATE: '下架',
+      BORROW_REQUEST: '借用申请', APPROVE: '审批通过', REJECT: '审批拒绝',
+      RETURN: '登记归还', CANCEL: '取消借用',
+      VIEW_PASSWORD: '查看密码', REVEAL_PASSWORD: '查看密码'
+    }[actionUpper] || item.actionType || '操作',
+    operatorName: item.operator || '-',
+    department: item.department || '',
+    role: item.role || '',
+    detail: item.detail || '',
+    target: item.target || '',
+    ip: item.ip || '',
+    status: item.status || 'success',
+    createdAt: item.time || ''
+  }
+}
+
 export const caApi = {
   // 列表（带筛选）
   async getList(params = {}) {
@@ -264,12 +294,22 @@ export const caApi = {
     return { success: true, data }
   },
 
-  // 操作日志
+  // 操作日志（借用流程事件流水 ca_borrow_events，按借用申请 ID 查询）
   // CO-515: 同 getBorrowApplications 的解包修复
   async getOperationEvents(applicationId) {
     const response = await httpClient.get(`${BASE}/borrow-applications/${applicationId}/events`)
     const list = Array.isArray(response) ? response : (Array.isArray(response?.data) ? response.data : [])
     const data = list.map(normalizeOperationEvent)
+    return { success: true, data }
+  },
+
+  // CA 证书生命周期操作日志（audit_logs 表，按 CA ID 查询）
+  // CO-515: 数据源是通用审计日志（@Auditable 切面写入），记录新增/编辑/下架等操作，
+  // 不是借用流程事件流水。用于 CA 详情弹窗「操作日志」Tab。
+  async getCaAuditLogs(caId) {
+    const response = await httpClient.get(`${BASE}/${caId}/audit-logs`)
+    const list = Array.isArray(response) ? response : (Array.isArray(response?.data) ? response.data : [])
+    const data = list.map(normalizeAuditLog)
     return { success: true, data }
   },
 

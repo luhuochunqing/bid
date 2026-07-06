@@ -41,4 +41,7 @@ public interface IAuditLogService {
 
     /** CO-324: 项目动态操作日志 */
     java.util.List<com.xiyu.bid.audit.dto.AuditLogItemDTO> findByProject(Long projectId);
+
+    /** CO-515: 按实体类型+实体ID查询操作日志（CA 详情页操作日志 Tab 数据源） */
+    java.util.List<com.xiyu.bid.audit.dto.AuditLogItemDTO> findByEntity(String entityType, String entityId);
 }

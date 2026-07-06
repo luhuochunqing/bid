@@ -35,6 +35,18 @@ public class AuditLogQueryService {
                 .toList();
     }
 
+    /**
+     * CO-515: 按实体类型+实体ID查询操作日志（最新在前）。
+     * 用于 CA 详情页「操作日志」Tab 展示该证书的生命周期操作（新增/编辑/下架等）。
+     */
+    public java.util.List<com.xiyu.bid.audit.dto.AuditLogItemDTO> findByEntity(String entityType, String entityId) {
+        List<AuditLog> logs = auditLogRepository.findByEntityTypeAndEntityIdOrderByTimestampDesc(entityType, entityId);
+        Map<String, User> userCache = resolveUsers(logs);
+        return logs.stream()
+                .map(log -> itemMapper.toItemDto(log, userCache.get(userKey(log))))
+                .toList();
+    }
+
     public AuditLogQueryResponse queryLogs(String keyword,
                                            String action,
                                            String module,

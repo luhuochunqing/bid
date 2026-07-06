@@ -159,6 +159,11 @@ public class AuditLogService implements IAuditLogService {
         return auditLogQueryService.findByProject(projectId);
     }
 
+    @Override
+    public java.util.List<com.xiyu.bid.audit.dto.AuditLogItemDTO> findByEntity(String entityType, String entityId) {
+        return auditLogQueryService.findByEntity(entityType, entityId);
+    }
+
     private String toJsonString(Object obj) {
         if (obj == null) {
             return null;
