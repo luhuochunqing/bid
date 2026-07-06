@@ -394,7 +394,27 @@ class BidReviewAppServiceTest {
 
         assertThatThrownBy(() -> service.submitForReview(1L, List.of(99L), 100L))
                 .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("需包含项目负责人")
+                .hasMessageContaining("必须包含项目负责人")
+                .extracting("statusCode").isEqualTo(HttpStatus.BAD_REQUEST);
+
+        verify(reviewRepository, never()).save(any());
+    }
+
+    @Test
+    void submitForReview_whenManagerIsSubmitter_throws400() {
+        // CO-484 v2：项目经理（managerId=10）= 提交人（submittedBy=10）→ 不能审核自己提交的标书
+        com.xiyu.bid.entity.Project project = com.xiyu.bid.entity.Project.builder()
+                .id(1L)
+                .managerId(10L)
+                .teamMembers(java.util.List.of(11L, 12L))
+                .build();
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        when(reviewRepository.findByProjectId(1L)).thenReturn(Optional.empty());
+        when(leadAssignmentRepository.findByProjectId(1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.submitForReview(1L, List.of(99L), 10L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("不能审核自己提交的标书")
                 .extracting("statusCode").isEqualTo(HttpStatus.BAD_REQUEST);
 
         verify(reviewRepository, never()).save(any());
