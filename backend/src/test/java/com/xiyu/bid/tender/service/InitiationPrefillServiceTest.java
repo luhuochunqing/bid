@@ -185,4 +185,34 @@ class InitiationPrefillServiceTest {
         assertThat(saved.getEvalPrefilled()).isTrue();
         assertThat(saved.getCustomerInfoJson()).isEqualTo("[{\"role\":\"专家1\",\"name\":\"王专家\"}]");
     }
+
+    /**
+     * 防复发测试：验证长文本 processKnowledge（5000 字符）能完整映射到 pmUnderstandsProcess。
+     * <p>根因：tender_evaluation_basics.process_knowledge (TEXT/5000) 映射到
+     * project_initiation_details.pm_understands_process，原字段仅 VARCHAR(16)，
+     * 超过 16 字符触发 Data truncation → 事务 rollback-only → 项目创建失败。
+     * <p>此测试确保映射不截断数据；字段长度由 V1139 迁移脚本保证（TEXT）。
+     */
+    @Test
+    void shouldHandleLongProcessKnowledgeWithoutTruncation() {
+        when(repository.findByProjectId(1L)).thenReturn(Optional.empty());
+        when(projectDocumentRepository.findByLinkedEntityTypeAndLinkedEntityIdOrderByCreatedAtDesc(any(), any()))
+                .thenReturn(Collections.emptyList());
+        // 模拟真实场景：评估表 process_knowledge 存了 500 字符的长文本
+        String longProcessKnowledge = "项目经理已了解完整的评标流程，包括资格预审、技术评分、商务评分等环节".repeat(10);
+        TenderEvaluation eval = new TenderEvaluation();
+        eval.setBasic(TenderEvaluationBasic.builder()
+                .processKnowledge(longProcessKnowledge)
+                .build());
+        eval.setCustomerInfos(Collections.emptyList());
+
+        service.prefillFromEvaluation(1L, 1L, eval, null);
+
+        ArgumentCaptor<ProjectInitiationDetails> captor = ArgumentCaptor.forClass(ProjectInitiationDetails.class);
+        verify(repository).save(captor.capture());
+        ProjectInitiationDetails saved = captor.getValue();
+        // 验证长文本完整保留，未截断
+        assertThat(saved.getPmUnderstandsProcess()).isEqualTo(longProcessKnowledge);
+        assertThat(saved.getPmUnderstandsProcess()).hasSize(longProcessKnowledge.length());
+    }
 }
