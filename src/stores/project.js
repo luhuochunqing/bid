@@ -354,6 +354,10 @@ export const useProjectStore = defineStore('project', {
       if (!file) {
         throw new Error('任务附件文件不能为空')
       }
+      // CO-519: 拦截空文件（size=0），后端 UploadValidationPolicy 会拒绝
+      if (file.size === 0) {
+        throw new Error(`文件「${file.name || ''}」为空（0 字节），请检查后重新选择`)
+      }
       const formData = buildDocumentFormData(file, data, taskId, 'TASK_ATTACHMENT')
       const uploadResult = await projectsApi.uploadDocument(projectId, formData)
       if (!uploadResult?.success || !uploadResult?.data) {
@@ -381,6 +385,10 @@ export const useProjectStore = defineStore('project', {
       const file = data.file || null
       if (!file) {
         throw new Error('任务交付物文件不能为空')
+      }
+      // CO-519: 拦截空文件（size=0），后端 UploadValidationPolicy 会拒绝
+      if (file.size === 0) {
+        throw new Error(`文件「${file.name || ''}」为空（0 字节），请检查后重新选择`)
       }
       let uploadedDocument = null
 

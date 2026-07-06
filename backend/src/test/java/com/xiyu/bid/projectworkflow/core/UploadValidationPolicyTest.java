@@ -8,7 +8,17 @@ class UploadValidationPolicyTest {
 
     @Test
     void emptyFileShouldBeRejected() {
+        // CO-519: size=0 表示文件存在但内容为空，应给出"为空"的精确提示
         UploadValidationPolicy.ValidationResult r = UploadValidationPolicy.validate("a.pdf", "application/pdf", 0L);
+        assertThat(r.valid()).isFalse();
+        assertThat(r.message()).contains("为空");
+        assertThat(r.message()).contains("0 字节");
+    }
+
+    @Test
+    void negativeSizeShouldRejectAsNoUpload() {
+        // CO-519: size<0 兜底表示 file 为 null（未上传文件）
+        UploadValidationPolicy.ValidationResult r = UploadValidationPolicy.validate(null, null, -1L);
         assertThat(r.valid()).isFalse();
         assertThat(r.message()).contains("上传");
     }

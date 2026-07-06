@@ -14,10 +14,22 @@ export function createTaskAssigneePayload(data = {}, userStore = {}) {
   }
 }
 
+export function isFileLike(value) {
+  if (!value) return false
+  // File 继承自 Blob，两者都有 size 和 type
+  // 优先 instanceof（最准确），fallback 到 duck-typing（兼容 jsdom 等环境）
+  if (typeof File !== 'undefined' && value instanceof File) return true
+  if (typeof Blob !== 'undefined' && value instanceof Blob) return true
+  return typeof value === 'object'
+    && typeof value.size === 'number'
+    && typeof value.type === 'string'
+    && typeof value.name === 'string'
+}
+
 export function normalizeTaskAttachmentFiles(attachments = []) {
   return (Array.isArray(attachments) ? attachments : [attachments])
     .map((item) => item?.raw || item?.file || item)
-    .filter((file) => Boolean(file))
+    .filter((file) => isFileLike(file))
 }
 
 export function createTaskAttachmentPayload(file, userStore = {}) {

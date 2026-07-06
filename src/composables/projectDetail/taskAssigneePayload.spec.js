@@ -68,6 +68,25 @@ describe('taskAssigneePayload', () => {
     it('filters out falsy items', () => {
       expect(normalizeTaskAttachmentFiles([null, undefined, ''])).toEqual([])
     })
+
+    // CO-519: 非 File 对象（如 el-upload 传入的 wrapper 对象）必须被过滤
+    // 否则 FormData.set('file', wrapper) 会转成 "[object Object]"，导致后端 400
+    it('filters out non-File objects (CO-519)', () => {
+      const file = new File(['a'], 'a.pdf')
+      const wrapperNoRaw = { name: 'b.pdf', status: 'ready', size: 100, uid: 1 }
+      const wrapperRawUndefined = { raw: undefined, name: 'c.pdf' }
+      const plainObject = { foo: 'bar' }
+      const stringVal = '[object Object]'
+
+      expect(normalizeTaskAttachmentFiles([file, wrapperNoRaw, wrapperRawUndefined, plainObject, stringVal]))
+        .toEqual([file])
+    })
+
+    it('filters out empty-file wrappers leaving only valid files', () => {
+      const validFile = new File(['content'], 'valid.pdf')
+      const emptyWrapper = { raw: { name: 'empty.pdf' } }  // raw 不是 File/Blob
+      expect(normalizeTaskAttachmentFiles([validFile, emptyWrapper])).toEqual([validFile])
+    })
   })
 
   describe('createTaskAttachmentPayload', () => {
