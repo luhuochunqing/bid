@@ -85,7 +85,7 @@ const stubs = {
       </div>
     </div>`,
   },
-  ElButton: { props: ['loading', 'disabled'], template: '<button><slot /></button>' },
+  ElButton: { props: ['loading', 'disabled'], template: '<button :disabled="disabled"><slot /></button>' },
   ElAlert: { name: 'ElAlert', template: '<div />' },
   ElDialog: { template: '<div />' },
   ElInput: { template: '<input />' },
@@ -559,5 +559,54 @@ describe('DraftingStage 多人审核 + CO-483 驳回后清空 - CO-483/CO-484', 
     const text = wrapper.text()
     expect(text).toContain('张三')
     expect(text).toContain('李四')
+  })
+
+  // CO-484 v2：当前审核人点击"审核通过"后，去掉驳回按钮、置灰审核通过按钮
+  it('CO-484 v2：当前审核人已 APPROVED 后，驳回按钮隐藏、审核通过按钮置灰', async () => {
+    // 当前用户 ID=42，作为审核人且已 APPROVED；另一审核人 201 未决策，整体 REVIEWING
+    getDraftingMock.mockImplementation(() => Promise.resolve({
+      data: {
+        reviewStatus: 'REVIEWING',
+        reviewerId: 42,
+        reviewers: [
+          { reviewerId: 42, reviewerName: '我', decision: 'APPROVED', comment: null },
+          { reviewerId: 201, reviewerName: '李四', decision: null, comment: null },
+        ],
+      }
+    }))
+
+    const wrapper = await mountDraftingStage()
+    await flushPromises()
+
+    const buttons = wrapper.findAll('button').map(b => b.text())
+    // 驳回按钮应隐藏
+    expect(buttons.find(t => t.includes('驳回'))).toBeFalsy()
+    // 审核通过按钮应存在但置灰（文案变为"已通过"）
+    const approveBtn = wrapper.findAll('button').find(b => b.text().includes('已通过'))
+    expect(approveBtn).toBeTruthy()
+    // ElButton stub 把 disabled 渲染到 button attribute
+    expect(approveBtn.attributes('disabled')).toBeDefined()
+  })
+
+  it('CO-484 v2：当前审核人未决策时，驳回和审核通过按钮都可见且可点击', async () => {
+    getDraftingMock.mockImplementation(() => Promise.resolve({
+      data: {
+        reviewStatus: 'REVIEWING',
+        reviewerId: 42,
+        reviewers: [
+          { reviewerId: 42, reviewerName: '我', decision: null, comment: null },
+        ],
+      }
+    }))
+
+    const wrapper = await mountDraftingStage()
+    await flushPromises()
+
+    const rejectBtn = wrapper.findAll('button').find(b => b.text().includes('驳回'))
+    const approveBtn = wrapper.findAll('button').find(b => b.text().includes('审核通过'))
+    expect(rejectBtn).toBeTruthy()
+    expect(approveBtn).toBeTruthy()
+    expect(rejectBtn.attributes('disabled')).toBeFalsy()
+    expect(approveBtn.attributes('disabled')).toBeFalsy()
   })
 })
