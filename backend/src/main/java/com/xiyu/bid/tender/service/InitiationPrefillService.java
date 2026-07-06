@@ -15,6 +15,7 @@ import com.xiyu.bid.tender.entity.TenderEvaluation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -44,7 +45,7 @@ public class InitiationPrefillService {
      * @param evaluation 标讯评估表（可为 null）
      * @param tender     标讯实体（用于带入 ownerUnit/customerType，可为 null）
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void prefillFromEvaluation(Long projectId, Long tenderId, TenderEvaluation evaluation, Tender tender) {
         var existingOpt = initiationRepository.findByProjectId(projectId);
         ProjectInitiationDetails details;
@@ -132,8 +133,9 @@ public class InitiationPrefillService {
             log.info("CO-323: copied {} gap attachment(s) from tender {} to project {}",
                     copies.size(), tenderId, projectId);
         } catch (RuntimeException ex) {
-            // CO-323: 附件拷贝失败不阻塞投标主流程（ProjectInitiationDetails 已在同事务保存）。
-            // 此处吞异常，避免外层事务被标记 rollback-only 进而抛 UnexpectedRollbackException；
+            // CO-323: 附件拷贝失败不阻塞投标主流程。
+            // 注意：prefillFromEvaluation 使用 REQUIRES_NEW 独立事务，即使此处 saveAll 抛异常
+            // 导致独立事务被标记 rollback-only，也只影响预填事务，不会污染外层 proceedToBid 事务。
             // 代价是该次附件未拷贝（不影响投标，可后续重同步补齐）。
             log.warn("CO-323: copy gap attachments failed for tender {}, non-blocking", tenderId, ex);
         }

@@ -113,8 +113,8 @@ public class ProjectInitiationDetails {
     @Column(name = "risk_mitigation_plan", columnDefinition = "TEXT")
     private String riskMitigationPlan;
 
-    /** 项目经理是否了解评标全流程(YES/NO) */
-    @Column(name = "pm_understands_process", length = 16)
+    /** 项目经理是否了解评标全流程（评估表带入的长文本） */
+    @Column(name = "pm_understands_process", columnDefinition = "TEXT")
     private String pmUnderstandsProcess;
 
     /** 需要的支持及其他关键信息备注 */
