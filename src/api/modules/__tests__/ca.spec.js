@@ -151,6 +151,28 @@ describe('normalizeBorrowApplication — 基本形态回归', () => {
     const result = normalizeBorrowApplication(input)
     expect(result.applicantEmployeeNumber).toBe('')
   })
+
+  // CO-515: 移除虚构的 borrowDate 字段，应直接使用 createdAt 作为"申请时间"
+  it('CO-515: 不再输出 borrowDate 字段（已移除虚构字段）', () => {
+    const input = { id: 1, createdAt: '2026-07-06T10:00:00' }
+    const result = normalizeBorrowApplication(input)
+    expect(result.borrowDate).toBeUndefined()
+    expect(result.createdAt).toBe('2026-07-06T10:00:00')
+  })
+
+  // CO-515: borrowDurationType 透传（SHORT_TERM/LONG_TERM）
+  it('CO-515: 正确透传 borrowDurationType 字段', () => {
+    const input = { id: 1, borrowDurationType: 'LONG_TERM' }
+    const result = normalizeBorrowApplication(input)
+    expect(result.borrowDurationType).toBe('LONG_TERM')
+  })
+
+  // CO-515: PENDING_APPROVAL 状态标签映射
+  it('CO-515: PENDING_APPROVAL 状态对应"待审批"标签', () => {
+    const input = { id: 1, status: 'PENDING_APPROVAL' }
+    const result = normalizeBorrowApplication(input)
+    expect(result.statusLabel).toBe('待审批')
+  })
 })
 
 describe('normalizeOperationEvent — 基本形态回归', () => {
@@ -163,5 +185,60 @@ describe('normalizeOperationEvent — 基本形态回归', () => {
     const result = normalizeOperationEvent(input)
     expect(result.eventType).toBe('CREATED')
     expect(result.eventTypeLabel).toBe('创建')
+  })
+
+  // CO-515: 后端 CaBorrowEventDTO 字段是 actorId/actorName/comment，前端必须正确映射
+  it('CO-515: 正确映射后端 actorId/actorName/comment 字段', () => {
+    const input = {
+      id: 1,
+      applicationId: 100,
+      eventType: 'SUBMITTED',
+      actorId: 1001,
+      actorName: '张三',
+      comment: '提交借用申请',
+      statusBefore: null,
+      statusAfter: 'PENDING_APPROVAL',
+      createdAt: '2026-07-06T10:00:00'
+    }
+    const result = normalizeOperationEvent(input)
+    expect(result.applicationId).toBe(100)
+    expect(result.operatorId).toBe(1001)
+    expect(result.operatorName).toBe('张三')
+    expect(result.detail).toBe('提交借用申请')
+    expect(result.statusAfter).toBe('PENDING_APPROVAL')
+  })
+
+  // CO-515: SUBMITTED 事件类型 label 映射（后端实际写入的"提交申请"事件）
+  it('CO-515: SUBMITTED 事件类型 label 为"提交申请"', () => {
+    const input = { id: 1, eventType: 'SUBMITTED' }
+    const result = normalizeOperationEvent(input)
+    expect(result.eventTypeLabel).toBe('提交申请')
+  })
+
+  // CO-515: APPROVED/REJECTED/RETURNED/CANCELLED 事件类型 label 映射
+  it('CO-515: APPROVED 事件类型 label 为"批准"', () => {
+    const result = normalizeOperationEvent({ id: 1, eventType: 'APPROVED' })
+    expect(result.eventTypeLabel).toBe('批准')
+  })
+
+  it('CO-515: REJECTED 事件类型 label 为"拒绝"', () => {
+    const result = normalizeOperationEvent({ id: 1, eventType: 'REJECTED' })
+    expect(result.eventTypeLabel).toBe('拒绝')
+  })
+
+  it('CO-515: RETURNED 事件类型 label 为"归还"', () => {
+    const result = normalizeOperationEvent({ id: 1, eventType: 'RETURNED' })
+    expect(result.eventTypeLabel).toBe('归还')
+  })
+
+  it('CO-515: CANCELLED 事件类型 label 为"取消"', () => {
+    const result = normalizeOperationEvent({ id: 1, eventType: 'CANCELLED' })
+    expect(result.eventTypeLabel).toBe('取消')
+  })
+
+  // CO-515: operatorName 缺失时 fallback 到 '-'
+  it('CO-515: actorName 和 operatorName 都缺失时 fallback 到"-"', () => {
+    const result = normalizeOperationEvent({ id: 1, eventType: 'SUBMITTED' })
+    expect(result.operatorName).toBe('-')
   })
 })

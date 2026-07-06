@@ -90,40 +90,9 @@
           </el-descriptions>
         </el-tab-pane>
 
-        <!-- Tab 2: 借用记录 -->
+        <!-- Tab 2: 借用记录（CO-515: 按 PRD 9 列展示，抽为子组件 CABorrowRecordsTable） -->
         <el-tab-pane label="借用记录" name="borrow">
-          <div v-if="borrowApplications.length === 0" class="empty-tab">
-            <el-empty description="暂无借用记录" :image-size="80" />
-          </div>
-          <el-table
-            v-else
-            :data="borrowApplications"
-            stripe
-            size="small"
-            max-height="400"
-          >
-            <el-table-column label="申请人" min-width="100">
-              <template #default="{ row }">{{ formatDisplayName(row.applicantName, row.applicantEmployeeNumber) }}</template>
-            </el-table-column>
-            <el-table-column prop="purpose" label="用途" min-width="120" />
-            <el-table-column prop="borrowDate" label="借用日期" width="105" />
-            <el-table-column prop="expectedReturnDate" label="预计归还" width="105" />
-            <el-table-column prop="actualReturnDate" label="实际归还" width="105">
-              <template #default="{ row }">
-                {{ row.actualReturnDate || '-' }}
-              </template>
-            </el-table-column>
-            <el-table-column label="状态" width="80">
-              <template #default="{ row }">
-                <el-tag
-                  :type="caApplicationStatusTagType(row.status)"
-                  size="small"
-                >
-                  {{ row.statusLabel }}
-                </el-tag>
-              </template>
-            </el-table-column>
-          </el-table>
+          <CABorrowRecordsTable :applications="borrowApplications" />
         </el-tab-pane>
 
         <!-- Tab 3: 操作日志 -->
@@ -188,12 +157,13 @@ import { Share, Edit } from '@element-plus/icons-vue'
 import {
   caStatusTagType,
   caBorrowStatusTagType,
-  caApplicationStatusTagType,
   caEventTypeColor
 } from '../composables/useCaBorrowEligibility'
 import { formatDisplayName } from '@/utils/formatDisplayName'
 import DateTimeDisplay from '@/components/common/DateTimeDisplay.vue'
 import { formatDisplayDateTime } from '@/utils/formatDisplayDate'
+// CO-515: 借用记录表格抽为子组件，保持父组件在 line-budget 内
+import CABorrowRecordsTable from './CABorrowRecordsTable.vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },

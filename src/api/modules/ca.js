@@ -134,7 +134,7 @@ export function normalizeBorrowApplication(item) {
     purpose: item.purpose || '',
     projectId: item.projectId || '',
     projectName: item.projectName || '',
-    borrowDate: formatDate(item.borrowDate || item.createdAt),
+    // CO-515: 移除虚构的 borrowDate 字段，直接使用 createdAt 作为"申请时间"
     expectedReturnDate: formatDate(item.expectedReturnDate),
     actualReturnDate: formatDate(item.actualReturnDate || item.returnedAt),
     borrowDurationType: item.borrowDurationType || '',
@@ -153,16 +153,21 @@ export function normalizeOperationEvent(item) {
   if (!item) return null
   return {
     id: item.id,
-    caCertificateId: item.caCertificateId,
+    // CO-515: 后端 CaBorrowEventDTO 字段是 applicationId，不是 caCertificateId
+    applicationId: item.applicationId || item.caCertificateId || '',
     eventType: item.eventType || '',
     eventTypeLabel: {
-      CREATED: '创建', UPDATED: '更新', BORROWED: '借用',
+      // CO-515: 补全 SUBMITTED（后端实际写入的"提交申请"事件类型）
+      SUBMITTED: '提交申请', CREATED: '创建', UPDATED: '更新', BORROWED: '借用',
       RETURNED: '归还', APPROVED: '批准', REJECTED: '拒绝',
       CANCELLED: '取消', DEACTIVATED: '下架', ACTIVATED: '上架'
     }[item.eventType] || item.eventType,
-    operatorId: item.operatorId || '',
-    operatorName: item.operatorName || '-',
-    detail: item.detail || item.description || '',
+    // CO-515: 后端字段是 actorId/actorName/comment，前端原先误用 operatorId/operatorName/detail 导致永远取不到值
+    operatorId: item.actorId || item.operatorId || '',
+    operatorName: item.actorName || item.operatorName || '-',
+    detail: item.comment || item.detail || item.description || '',
+    statusBefore: item.statusBefore || '',
+    statusAfter: item.statusAfter || '',
     createdAt: item.createdAt || ''
   }
 }
@@ -250,48 +255,46 @@ export const caApi = {
   },
 
   // 借用记录
+  // CO-515: httpClient 拦截器 return response.data 后，response 本身就是后端返回的数组，
+  // 不能再用 response?.data 取值（会得到 undefined → data 永远空数组 → Tab 无信息）。
   async getBorrowApplications(caId) {
     const response = await httpClient.get(`${BASE}/${caId}/borrow-applications`)
-    const data = Array.isArray(response?.data)
-      ? response.data.map(normalizeBorrowApplication)
-      : []
-    return { ...response, data }
+    const list = Array.isArray(response) ? response : (Array.isArray(response?.data) ? response.data : [])
+    const data = list.map(normalizeBorrowApplication)
+    return { success: true, data }
   },
 
   // 操作日志
+  // CO-515: 同 getBorrowApplications 的解包修复
   async getOperationEvents(applicationId) {
     const response = await httpClient.get(`${BASE}/borrow-applications/${applicationId}/events`)
-    const data = Array.isArray(response?.data)
-      ? response.data.map(normalizeOperationEvent)
-      : []
-    return { ...response, data }
+    const list = Array.isArray(response) ? response : (Array.isArray(response?.data) ? response.data : [])
+    const data = list.map(normalizeOperationEvent)
+    return { success: true, data }
   },
 
   // 待审批列表
   async getPendingApprovals() {
     const response = await httpClient.get(`${BASE}/pending-approvals`)
-    const data = Array.isArray(response?.data)
-      ? response.data.map(normalizeBorrowApplication)
-      : []
-    return { ...response, data }
+    const list = Array.isArray(response) ? response : (Array.isArray(response?.data) ? response.data : [])
+    const data = list.map(normalizeBorrowApplication)
+    return { success: true, data }
   },
 
   // CO-459: 我的借用申请
   async getMyBorrowApplications() {
     const response = await httpClient.get(`${BASE}/my-borrow-applications`)
-    const data = Array.isArray(response?.data)
-      ? response.data.map(normalizeBorrowApplication)
-      : []
-    return { ...response, data }
+    const list = Array.isArray(response) ? response : (Array.isArray(response?.data) ? response.data : [])
+    const data = list.map(normalizeBorrowApplication)
+    return { success: true, data }
   },
 
   // CO-459: 我的审批（全部申请，不限状态）
   async getMyApprovals() {
     const response = await httpClient.get(`${BASE}/my-approvals`)
-    const data = Array.isArray(response?.data)
-      ? response.data.map(normalizeBorrowApplication)
-      : []
-    return { ...response, data }
+    const list = Array.isArray(response) ? response : (Array.isArray(response?.data) ? response.data : [])
+    const data = list.map(normalizeBorrowApplication)
+    return { success: true, data }
   },
 
   // ── 批量导入 ────────────────────────────────────────────────────────────────
