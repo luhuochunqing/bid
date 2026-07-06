@@ -14,6 +14,7 @@ import com.xiyu.bid.platform.dto.PlatformAccountStatisticsDTO;
 import com.xiyu.bid.platform.dto.ReturnAccountRequest;
 import com.xiyu.bid.platform.entity.PlatformAccount;
 import com.xiyu.bid.platform.entity.PlatformAccount.AccountStatus;
+import com.xiyu.bid.platform.repository.AccountBorrowApplicationRepository;
 import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
 import com.xiyu.bid.platform.util.PlatformAccountContactMatcher;
@@ -46,6 +47,12 @@ public class PlatformAccountService {
     /** CO-390: contactPerson userId → "姓名（工号）" 展示标签派生（独立类避免行数超 300）。 */
     private final PlatformAccountContactLabelEnricher contactLabelEnricher;
     private final AccountCreationWhitelistStore whitelistStore;
+    /** CO-522: 字段级 diff 审计记录（独立类避免行数超 300）。 */
+    private final PlatformAccountAuditRecorder auditRecorder;
+    /** CO-522: 查询转派时待审批的借用申请数。 */
+    private final AccountBorrowApplicationRepository borrowApplicationRepository;
+    /** CO-522: 编辑时的字段校验+应用（独立类避免行数超 300）。 */
+    private final PlatformAccountUpdateApplier updateApplier;
 
     /** Create a new platform account. */
     @Transactional
@@ -143,37 +150,17 @@ public class PlatformAccountService {
             .orElseThrow(() -> new IllegalArgumentException("Account not found with id: " + id));
         PlatformAccountViewerPolicy.checkCanManageAccount(
             effectiveRoleResolver.resolveRoleCode(currentUser), account, currentUser);
-        validateUpdateUniqueness(request, account);
-        applyUpdateFields(account, request);
+        updateApplier.validateUniqueness(request, account);
+
+        // CO-522: 快照 + 转派待审批数 + 应用字段 + 写字段级 diff 审计
+        PlatformAccount beforeUpdate = auditRecorder.snapshot(account);
+        int pendingApprovalCount = auditRecorder.resolvePendingApprovalCount(
+                account, request.getContactPerson(), borrowApplicationRepository);
+        updateApplier.applyFields(account, request);
         PlatformAccount savedAccount = repository.save(account);
+        auditRecorder.recordUpdate(beforeUpdate, savedAccount, currentUser, pendingApprovalCount);
+
         return contactLabelEnricher.enrich(PlatformAccountMapper.toDTO(savedAccount));
-    }
-
-    private void validateUpdateUniqueness(PlatformAccountCreateRequest request, PlatformAccount account) {
-        if (request.getUsername() != null && !request.getUsername().trim().isEmpty()
-                && (request.getPlatformType() != account.getPlatformType()
-                        || !request.getUsername().equals(account.getUsername()))
-                && repository.findByPlatformTypeAndUsername(request.getPlatformType(), request.getUsername()).isPresent()) {
-            throw new IllegalArgumentException("Username already exists: " + request.getUsername());
-        }
-        if (request.getAccountName() != null && !request.getAccountName().trim().isEmpty() && !request.getAccountName().equals(account.getAccountName()) && repository.findByAccountName(request.getAccountName()).isPresent()) {
-            throw new IllegalArgumentException("Account name already exists: " + request.getAccountName());
-        }
-    }
-
-    private void applyUpdateFields(PlatformAccount account, PlatformAccountCreateRequest request) {
-        if (request.getPassword() != null && !request.getPassword().trim().isEmpty())
-            account.setPassword(passwordEncryptionUtil.encrypt(request.getPassword()));
-        account.setUsername(request.getUsername() != null ? request.getUsername() : account.getUsername());
-        account.setAccountName(request.getAccountName() != null ? request.getAccountName() : account.getAccountName());
-        account.setPlatformType(request.getPlatformType() != null ? request.getPlatformType() : account.getPlatformType());
-        account.setUrl(request.getUrl() != null ? request.getUrl() : account.getUrl());
-        account.setContactPerson(request.getContactPerson() != null ? request.getContactPerson() : account.getContactPerson());
-        account.setRegistrant(request.getRegistrant() != null ? request.getRegistrant() : account.getRegistrant());
-        account.setRegisterPhone(request.getRegisterPhone() != null ? request.getRegisterPhone() : account.getRegisterPhone());
-        account.setRegisterEmail(request.getRegisterEmail() != null ? request.getRegisterEmail() : account.getRegisterEmail());
-        account.setHasCa(request.getHasCa() != null ? request.getHasCa() : account.getHasCa());
-        account.setRemarks(request.getRemarks() != null ? request.getRemarks() : account.getRemarks());
     }
 
     /** Delete a platform account. */
