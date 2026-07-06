@@ -5,7 +5,6 @@
         <el-descriptions :column="2" border>
           <el-descriptions-item label="平台名称" :span="2">{{ data.accountName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="网址">{{ data.url || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="平台类型">{{ platformTypeLabel || '-' }}</el-descriptions-item>
           <el-descriptions-item label="平台账号">{{ data.username || '-' }}</el-descriptions-item>
           <el-descriptions-item label="平台密码">
             <div class="password-cell">
@@ -125,19 +124,6 @@ watch(() => props.modelValue, (open) => {
     password.revealed.value = {}
     password.loading.value = {}
   }
-})
-
-const PLATFORM_TYPE_MAP = {
-  GOV_PROCUREMENT: '政府采购',
-  BIDDING_PLATFORM: '招投标平台',
-  CONSTRUCTION_PLATFORM: '建设平台',
-  ENTERPRISE_SELF: '企业自建',
-  OTHER: '其他'
-}
-const platformTypeLabel = computed(() => {
-  const raw = props.data?.platformType
-  if (!raw) return ''
-  return PLATFORM_TYPE_MAP[raw] || raw
 })
 
 const BORROW_STATUS_MAP = {

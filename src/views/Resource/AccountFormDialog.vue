@@ -20,29 +20,15 @@
           </el-form-item>
         </el-col>
       </el-row>
-      <el-row :gutter="16">
-        <el-col :span="12">
-          <el-form-item label="账号保管员" required>
-            <UserPicker
-              v-model="form.contactPerson"
-              mode="search"
-              placeholder="模糊搜索选择联系人"
-              :initial-options="contactPersonInitialOptions"
-              style="width: 100%"
-            />
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item label="平台类型">
-            <el-select v-model="form.platformType" placeholder="请选择" style="width:100%">
-              <el-option label="投标平台" value="BIDDING_PLATFORM" />
-              <el-option label="采购平台" value="CONSTRUCTION_PLATFORM" />
-              <el-option label="政府平台" value="GOV_PROCUREMENT" />
-              <el-option label="其他平台" value="OTHER" />
-            </el-select>
-          </el-form-item>
-        </el-col>
-      </el-row>
+      <el-form-item label="账号保管员" required>
+        <UserPicker
+          v-model="form.contactPerson"
+          mode="search"
+          placeholder="模糊搜索选择联系人"
+          :initial-options="contactPersonInitialOptions"
+          style="width: 100%"
+        />
+      </el-form-item>
       <el-row :gutter="16">
         <el-col :span="12">
           <el-form-item label="是否有 CA">
@@ -103,7 +89,7 @@ const visible = computed({
 const isEdit = computed(() => !!props.editRow?.id)
 
 const emptyForm = () => ({
-  accountName: '', platformType: 'BIDDING_PLATFORM', username: '', password: '',
+  accountName: '', username: '', password: '',
   url: '', contactPerson: null,
   hasCa: false, remarks: '',
   registrant: '', registerPhone: '', registerEmail: ''
@@ -141,7 +127,6 @@ const onOpen = async () => {
   if (r.id) {
     form.value = {
       accountName: r.accountName || r.platform || '',
-      platformType: r.platformType || 'BIDDING_PLATFORM',
       username: r.username || '', password: '',
       url: r.url || '', contactPerson: r.contactPerson || null,
       hasCa: r.hasCa || false,
@@ -183,7 +168,7 @@ const submit = async () => {
     }
   }
   const payload = {
-    accountName: f.accountName.trim(), platformType: f.platformType,
+    accountName: f.accountName.trim(),
     username: f.username.trim(), url: f.url.trim(),
     contactPerson: f.contactPerson, hasCa: f.hasCa,
     remarks: f.remarks?.trim() || '',
