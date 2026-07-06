@@ -1,49 +1,52 @@
 <template>
   <div class="account-page">
-    <!-- CO-516: 顶层 el-tabs 包裹「平台账户列表 / 我的申请 / 我的审批」，对齐 CA 信息管理模块 -->
-    <el-tabs v-model="activeTab" class="account-tabs" @tab-change="onTabChange">
-      <!-- Tab 1: 平台账户列表 -->
-      <el-tab-pane label="平台账户列表" name="accounts">
-        <el-card class="search-card">
-          <el-form :inline="true">
-            <el-form-item label="平台名称">
-              <el-input v-model="searchForm.platform" placeholder="请输入" clearable />
-            </el-form-item>
-            <el-form-item label="是否有 CA">
-              <el-select v-model="searchForm.hasCa" placeholder="全部" clearable>
-                <el-option label="是" value="yes" />
-                <el-option label="否" value="no" />
-              </el-select>
-            </el-form-item>
-            <el-form-item>
-              <el-button type="primary" @click="loadAccounts">
-                <el-icon><Search /></el-icon> 搜索
-              </el-button>
-            </el-form-item>
-          </el-form>
-        </el-card>
+    <!-- CO-516: 视图切换（平台账户管理 / 我的申请 / 我的审批）。入口放在主视图标题右侧 -->
+    <!-- 视图 1：平台账户管理（默认） -->
+    <template v-if="activeTab === 'accounts'">
+      <el-card class="search-card">
+        <el-form :inline="true">
+          <el-form-item label="平台名称">
+            <el-input v-model="searchForm.platform" placeholder="请输入" clearable />
+          </el-form-item>
+          <el-form-item label="是否有 CA">
+            <el-select v-model="searchForm.hasCa" placeholder="全部" clearable>
+              <el-option label="是" value="yes" />
+              <el-option label="否" value="no" />
+            </el-select>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" @click="loadAccounts">
+              <el-icon><Search /></el-icon> 搜索
+            </el-button>
+          </el-form-item>
+        </el-form>
+      </el-card>
 
-        <div class="toolbar">
-          <div class="toolbar-left">
-            <button v-if="!isProjectLeader" class="toolbar-btn toolbar-btn--primary" @click="handleCreate">
-              <el-icon><Plus /></el-icon><span>添加账户</span>
-            </button>
-            <button v-if="!isProjectLeader" class="toolbar-btn" @click="showImportDialog = true"><el-icon><Upload /></el-icon><span>批量导入</span></button>
-          </div>
-          <div v-if="!isProjectLeader" class="toolbar-right">
-            <button class="toolbar-btn" :disabled="exporting" @click="handleExport">
-              <el-icon><Download /></el-icon><span>{{ exporting ? '导出中...' : '导出' }}</span>
-            </button>
-          </div>
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <button v-if="!isProjectLeader" class="toolbar-btn toolbar-btn--primary" @click="handleCreate">
+            <el-icon><Plus /></el-icon><span>添加账户</span>
+          </button>
+          <button v-if="!isProjectLeader" class="toolbar-btn" @click="showImportDialog = true"><el-icon><Upload /></el-icon><span>批量导入</span></button>
         </div>
+        <div v-if="!isProjectLeader" class="toolbar-right">
+          <button class="toolbar-btn" :disabled="exporting" @click="handleExport">
+            <el-icon><Download /></el-icon><span>{{ exporting ? '导出中...' : '导出' }}</span>
+          </button>
+        </div>
+      </div>
 
-        <el-card>
-          <template #header>
-            <div class="card-header">
-              <span>平台账户管理</span>
+      <el-card>
+        <template #header>
+          <div class="card-header">
+            <span class="card-title">平台账户管理</span>
+            <div class="header-tabs">
+              <a class="tab-link" @click="switchTab('applications')">我的申请</a>
+              <a class="tab-link" @click="switchTab('approvals')">我的审批</a>
               <span class="record-count">共 {{ totalCount }} 条记录</span>
             </div>
-          </template>
+          </div>
+        </template>
           <el-table :data="pagedAccounts" stripe max-height="calc(100vh - 280px)" scrollbar-always-on @row-click="onRowClick" @selection-change="handleSelectionChange" ref="tableRef">
             <el-table-column type="selection" width="50" align="center" />
             <el-table-column type="index" label="序号" width="65" align="center" />
@@ -97,69 +100,76 @@
             />
           </div>
         </el-card>
-      </el-tab-pane>
+    </template>
 
-      <!-- Tab 2: 我的申请 -->
-      <el-tab-pane label="我的申请" name="applications">
-        <el-card shadow="never">
-          <el-table :data="myApplications" stripe max-height="calc(100vh - 240px)" scrollbar-always-on empty-text="暂无借用申请" v-loading="myApplicationsLoading">
-            <el-table-column type="index" label="序号" width="70" align="center" />
-            <el-table-column prop="accountId" label="平台" min-width="160">
-              <template #default="{ row }">{{ accountName(row.accountId) }}</template>
-            </el-table-column>
-            <el-table-column prop="purpose" label="使用目的" min-width="180" show-overflow-tooltip />
-            <el-table-column prop="expectedReturnAt" label="预计归还" min-width="140">
-              <template #default="{ row }">{{ formatBorrowDate(row.expectedReturnAt) }}</template>
-            </el-table-column>
-            <el-table-column prop="status" label="状态" width="100">
-              <template #default="{ row }">
-                <el-tag :type="borrowStatusType(row.status)" size="small">{{ borrowStatusLabel(row.status) }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="100" fixed="right">
-              <template #default="{ row }">
-                <el-button v-if="row.status === 'PENDING_APPROVAL'" link type="danger" size="small" @click="cancelBorrowApplication(row)">撤销</el-button>
-                <span v-else class="op-placeholder">--</span>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
-      </el-tab-pane>
+    <!-- 视图 2：我的申请 -->
+    <el-card v-else-if="activeTab === 'applications'" shadow="never" class="sub-view-card">
+      <template #header>
+        <div class="card-header">
+          <span class="card-title">我的申请</span>
+          <a class="tab-link" @click="switchTab('accounts')">← 返回平台账户管理</a>
+        </div>
+      </template>
+      <el-table :data="myApplications" stripe max-height="calc(100vh - 240px)" scrollbar-always-on empty-text="暂无借用申请" v-loading="myApplicationsLoading">
+        <el-table-column type="index" label="序号" width="70" align="center" />
+        <el-table-column prop="accountId" label="平台" min-width="160">
+          <template #default="{ row }">{{ accountName(row.accountId) }}</template>
+        </el-table-column>
+        <el-table-column prop="purpose" label="使用目的" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="expectedReturnAt" label="预计归还" min-width="140">
+          <template #default="{ row }">{{ formatBorrowDate(row.expectedReturnAt) }}</template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="borrowStatusType(row.status)" size="small">{{ borrowStatusLabel(row.status) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="100" fixed="right">
+          <template #default="{ row }">
+            <el-button v-if="row.status === 'PENDING_APPROVAL'" link type="danger" size="small" @click="cancelBorrowApplication(row)">撤销</el-button>
+            <span v-else class="op-placeholder">--</span>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
 
-      <!-- Tab 3: 我的审批 -->
-      <el-tab-pane label="我的审批" name="approvals">
-        <el-card shadow="never">
-          <el-table :data="myApprovals" stripe max-height="calc(100vh - 240px)" scrollbar-always-on empty-text="暂无待审批申请" v-loading="myApprovalsLoading">
-            <el-table-column type="index" label="序号" width="70" align="center" />
-            <el-table-column prop="accountId" label="平台" min-width="160">
-              <template #default="{ row }">{{ accountName(row.accountId) }}</template>
-            </el-table-column>
-            <el-table-column prop="applicantName" label="申请人" width="140">
-              <template #default="{ row }">{{ row.applicantName || '未知' }}{{ row.applicantEmployeeNo ? `（${row.applicantEmployeeNo}）` : '' }}</template>
-            </el-table-column>
-            <el-table-column prop="purpose" label="使用目的" min-width="160" show-overflow-tooltip />
-            <el-table-column prop="expectedReturnAt" label="预计归还" min-width="140">
-              <template #default="{ row }">{{ formatBorrowDate(row.expectedReturnAt) }}</template>
-            </el-table-column>
-            <el-table-column prop="status" label="状态" width="100">
-              <template #default="{ row }">
-                <el-tag :type="borrowStatusType(row.status)" size="small">{{ borrowStatusLabel(row.status) }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="180" fixed="right">
-              <template #default="{ row }">
-                <template v-if="row.status === 'PENDING_APPROVAL'">
-                  <el-button link type="primary" size="small" @click="approveBorrowApplication(row)">通过</el-button>
-                  <el-button link type="danger" size="small" @click="rejectBorrowApplication(row)">拒绝</el-button>
-                </template>
-                <el-button v-else-if="row.status === 'BORROWED'" link type="primary" size="small" @click="openBorrowAppReturn(row)">登记归还</el-button>
-                <span v-else class="op-placeholder">--</span>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
-      </el-tab-pane>
-    </el-tabs>
+    <!-- 视图 3：我的审批 -->
+    <el-card v-else-if="activeTab === 'approvals'" shadow="never" class="sub-view-card">
+      <template #header>
+        <div class="card-header">
+          <span class="card-title">我的审批</span>
+          <a class="tab-link" @click="switchTab('accounts')">← 返回平台账户管理</a>
+        </div>
+      </template>
+      <el-table :data="myApprovals" stripe max-height="calc(100vh - 240px)" scrollbar-always-on empty-text="暂无待审批申请" v-loading="myApprovalsLoading">
+        <el-table-column type="index" label="序号" width="70" align="center" />
+        <el-table-column prop="accountId" label="平台" min-width="160">
+          <template #default="{ row }">{{ accountName(row.accountId) }}</template>
+        </el-table-column>
+        <el-table-column prop="applicantName" label="申请人" width="140">
+          <template #default="{ row }">{{ row.applicantName || '未知' }}{{ row.applicantEmployeeNo ? `（${row.applicantEmployeeNo}）` : '' }}</template>
+        </el-table-column>
+        <el-table-column prop="purpose" label="使用目的" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="expectedReturnAt" label="预计归还" min-width="140">
+          <template #default="{ row }">{{ formatBorrowDate(row.expectedReturnAt) }}</template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="borrowStatusType(row.status)" size="small">{{ borrowStatusLabel(row.status) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="180" fixed="right">
+          <template #default="{ row }">
+            <template v-if="row.status === 'PENDING_APPROVAL'">
+              <el-button link type="primary" size="small" @click="approveBorrowApplication(row)">通过</el-button>
+              <el-button link type="danger" size="small" @click="rejectBorrowApplication(row)">拒绝</el-button>
+            </template>
+            <el-button v-else-if="row.status === 'BORROWED'" link type="primary" size="small" @click="openBorrowAppReturn(row)">登记归还</el-button>
+            <span v-else class="op-placeholder">--</span>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
 
     <AccountBorrowDialog v-model="showBorrowDialog" :account="currentAccount" @submitted="onBorrowSubmitted" />
     <AccountReturnDialog v-model="showReturnDialog" :account="currentReturnAccount" @submitted="onAccountReturned" />
@@ -223,13 +233,13 @@ const currentAccountDetail = ref(null)
 const editRow = ref(null)
 const showImportDialog = ref(false)
 
-// CO-516: 顶层 tab 状态 + 我的申请/我的审批 数据（懒加载，逻辑提取至 composable）
+// CO-516: 视图切换状态 + 我的申请/我的审批 数据（懒加载，逻辑提取至 composable）
 const {
   activeTab, myApplications, myApprovals,
   myApplicationsLoading, myApprovalsLoading,
   showBorrowAppReturnDialog, currentReturnApplication,
   accountName, formatBorrowDate, borrowStatusLabel, borrowStatusType,
-  loadMyApplications, onTabChange,
+  loadMyApplications, switchTab,
   cancelBorrowApplication, approveBorrowApplication,
   rejectBorrowApplication, openBorrowAppReturn, onBorrowAppReturned
 } = useAccountBorrowApplications({ accounts })

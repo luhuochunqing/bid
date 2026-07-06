@@ -76,7 +76,8 @@ export function useAccountBorrowApplications({ accounts }) {
   }
 
   // 主组件统一懒加载：切到对应 tab 时才拉取数据，避免进入页面即触发 N+1
-  const onTabChange = (tabName) => {
+  const switchTab = (tabName) => {
+    activeTab.value = tabName
     if (tabName === 'applications') {
       loadMyApplications()
     } else if (tabName === 'approvals') {
@@ -152,7 +153,7 @@ export function useAccountBorrowApplications({ accounts }) {
     borrowStatusType,
     loadMyApplications,
     loadMyApprovals,
-    onTabChange,
+    switchTab,
     cancelBorrowApplication,
     approveBorrowApplication,
     rejectBorrowApplication,
