@@ -47,11 +47,11 @@ public class QualificationExportService {
 
     private static final String[] EXPORT_COLS = {
             "证书名称", "等级", "认证机构", "证书编号", "发证日期", "有效期",
-            "代理机构", "代理联系方式", "认证范围", "状态"
+            "代理机构", "代理机构联系人", "认证范围", "状态"
     };
     private static final String[] TEMPLATE_COLS = {
             "证书名称", "等级", "认证机构", "证书编号", "发证日期", "证书有效期",
-            "代理机构", "代理联系方式", "认证范围", "证书审核提醒", "附件文件名"
+            "代理机构", "代理机构联系人", "认证范围", "证书审核提醒", "附件文件名"
     };
 
     public void exportExcel(String keyword, String status, OutputStream out) throws IOException {

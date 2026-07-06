@@ -25,13 +25,13 @@ public class QualificationExcelSupport {
 
     private static final String[] LEDGER_COLUMNS = {
             "证书名称", "等级", "认证机构", "证书编号", "发证日期", "证书有效期",
-            "代理机构", "代理联系方式", "认证范围", "证书审核提醒", "附件文件名",
+            "代理机构", "代理机构联系人", "认证范围", "证书审核提醒", "附件文件名",
             "状态", "创建人", "创建时间", "更新人", "更新时间"
     };
 
     private static final String[] TEMPLATE_COLUMNS = {
             "证书名称", "等级", "认证机构", "证书编号", "发证日期", "证书有效期",
-            "代理机构", "代理联系方式", "认证范围", "证书审核提醒", "附件文件名"
+            "代理机构", "代理机构联系人", "认证范围", "证书审核提醒", "附件文件名"
     };
 
     public void writeLedger(List<QualificationDTO> source, String idsCsv, OutputStream out) throws IOException {
@@ -54,7 +54,7 @@ public class QualificationExcelSupport {
             String[] example = {
                     "示例：ISO9001 质量管理体系认证", "FIRST", "中国计量认证中心",
                     "EXAMPLE-2024-001", "2024-01-15", "2027-12-31",
-                    "示例代理认证公司", "13800138000",
+                    "示例代理认证公司", "张三 / 13800138000",
                     "示例：覆盖产品设计、生产、销售", "每年 3 月年审",
                     "QUAL_EXAMPLE-2024-001_01_示例证书.pdf"
             };

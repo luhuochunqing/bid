@@ -65,7 +65,7 @@
             <el-descriptions-item label="认证机构">{{ qualification.issuer || '—' }}</el-descriptions-item>
             <el-descriptions-item label="代理机构">{{ qualification.agency || '—' }}</el-descriptions-item>
             <el-descriptions-item label="证书号">{{ qualification.certificateNo || '—' }}</el-descriptions-item>
-            <el-descriptions-item label="代理联系方式">{{ qualification.agencyContact || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="代理机构联系人">{{ qualification.agencyContact || '—' }}</el-descriptions-item>
             <el-descriptions-item label="发证日期">{{ formatDate(qualification.issueDate) }}</el-descriptions-item>
             <el-descriptions-item label="证书有效期">{{ formatDate(qualification.expiryDate) }}</el-descriptions-item>
             <el-descriptions-item label="证书状态">{{ statusLabel(qualification.status) }}</el-descriptions-item>

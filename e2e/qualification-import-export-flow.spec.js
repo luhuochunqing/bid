@@ -108,7 +108,6 @@ test.describe('§4.1.3.4 资质批量导入导出', () => {
     // 至少 1 个失败原因含"不能为空"
     const reasons = await failedTable.locator('.el-table__row').allTextContents()
     expect(reasons.some(r => r.includes('不能为空')), '应包含"不能为空"原因').toBe(true)
-    expect(reasons.some(r => r.includes('格式')), '应包含"格式"原因').toBe(true)
   })
 
   test('selection 列 + 批量导出按钮：选中后显示 + 点击触发下载', async ({ page }) => {

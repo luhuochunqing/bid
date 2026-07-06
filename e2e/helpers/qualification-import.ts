@@ -6,7 +6,7 @@ const HEADER_FIELD_MAP = {
     "发证日期": "issueDate",
     "证书有效期": "expiryDate",
     "代理机构": "agency",
-    "代理联系方式": "agencyContact",
+    "代理机构联系人": "agencyContact",
     "认证范围": "certScope",
     "证书审核提醒": "certReviewNote",
     "附件文件名": "attachmentFileName"
@@ -24,10 +24,10 @@ const HEADER_FIELD_MAP = {
  *
  * 11 列与后端 ImportQualificationAppService.parse 保持一致：
  *   证书名称 | 等级 | 认证机构 | 证书编号 | 发证日期 | 证书有效期 |
- *   代理机构 | 代理联系方式 | 认证范围 | 证书审核提醒 | 附件文件名
+ *   代理机构 | 代理机构联系人 | 认证范围 | 证书审核提醒 | 附件文件名
  *
  * 必填 9 项：name/issuer/certificateNo/issueDate/expiryDate/agency/agencyContact/certScope/attachmentFileName
- * 联系方式：手机/固话/邮箱
+ * 代理机构联系人：纯文本必填（CO-525）
  * 附件命名：QUAL_{证书编号}_{序号}_{文件名}.{ext}
  */
 import { spawnSync } from 'node:child_process'
@@ -36,7 +36,7 @@ import * as fs from 'node:fs'
 
 export const QUALIFICATION_IMPORT_HEADERS = [
   '证书名称', '等级', '认证机构', '证书编号', '发证日期', '证书有效期',
-  '代理机构', '代理联系方式', '认证范围', '证书审核提醒', '附件文件名'
+  '代理机构', '代理机构联系人', '认证范围', '证书审核提醒', '附件文件名'
 ]
 
 /**
@@ -107,7 +107,7 @@ export function generateInvalidQualificationImportExcel() {
   const invalid = [
     base,
     buildValidQualificationRow({ name: '', certificateNo: `E2E-MISS-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}` }),
-    buildValidQualificationRow({ name: 'E2E 联系方式错', certificateNo: `E2E-CONT-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`, agencyContact: '123-not-phone' }),
+    buildValidQualificationRow({ name: 'E2E 联系人空', certificateNo: `E2E-CONT-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`, agencyContact: '' }),
     buildValidQualificationRow({ name: 'E2E 日期顺序错', certificateNo: `E2E-DATE-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`, issueDate: '2027-12-31', expiryDate: '2024-01-15' }),
     buildValidQualificationRow({ name: 'E2E 附件命名错', certificateNo: `E2E-FILE-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`, attachmentFileName: 'wrong_filename.pdf' })
   ]

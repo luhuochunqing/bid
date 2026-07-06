@@ -13,7 +13,7 @@ import java.time.temporal.ChronoUnit;
  * §4.1.3.8 资质到期提醒消息模板。
  * <p>
  * 标题格式：【资质到期提醒】《证书名》还有 X 天到期
- * 正文必须包含：①证书名称 ②证书号 ③等级 ④认证机构 ⑤代理机构 ⑥代理联系方式 ⑦有效期至 ⑧剩余天数 ⑨跳转详情链接
+ * 正文必须包含：①证书名称 ②证书号 ③等级 ④认证机构 ⑤代理机构 ⑥代理机构联系人 ⑦有效期至 ⑧剩余天数 ⑨跳转详情链接
  *
  * <p>纯数据 record；不读写数据库、不读时间（remainingDays 与 level 由调用方传入）。
  */
@@ -51,7 +51,7 @@ public record QualificationExpiryAlertMessage(
                 "③ 等级：" + levelText,
                 "④ 认证机构：" + issuer,
                 "⑤ 代理机构：" + agency,
-                "⑥ 代理联系方式：" + agencyContact,
+                "⑥ 代理机构联系人：" + agencyContact,
                 "⑦ 有效期至：" + expiry,
                 "⑧ 剩余天数：" + remainingDays + " 天",
                 "⑨ 跳转详情：" + link

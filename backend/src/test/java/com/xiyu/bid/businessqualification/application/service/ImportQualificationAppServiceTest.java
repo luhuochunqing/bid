@@ -38,7 +38,7 @@ class ImportQualificationAppServiceTest {
 
     private static final String[] HEADERS = {
             "证书名称", "等级", "认证机构", "证书编号", "发证日期", "证书有效期",
-            "代理机构", "代理联系方式", "认证范围", "证书审核提醒", "附件文件名"
+            "代理机构", "代理机构联系人", "认证范围", "证书审核提醒", "附件文件名"
     };
 
     /** 构造包含表头 + 数据行的最小 xlsx，返回 multipart file */
@@ -171,18 +171,35 @@ class ImportQualificationAppServiceTest {
     }
 
     @Test
-    void importFromExcel_InvalidContactFormat_ShouldReportRowFailure() throws Exception {
+    void importFromExcel_PlainTextAgencyContact_ShouldImport() throws Exception {
         String certNo = "IMP-CONT-1";
         MultipartFile file = buildExcel(new String[][]{{
                 "测试", "FIRST", "科技局", certNo, "2024-01-15", "2027-12-31",
-                "代理A", "123-not-phone", "范围", "提醒", "QUAL_" + certNo + "_01_x.pdf"
+                "代理A", "张三", "范围", "提醒", "QUAL_" + certNo + "_01_x.pdf"
         }});
+        when(qualificationJpaRepository.existsByCertificateNo(certNo)).thenReturn(false);
 
         var summary = importService.importFromExcel(file, "tester");
 
-        assertThat(summary.failed()).isEqualTo(1);
-        assertThat(summary.results().get(0).getFailureReason()).contains("格式");
-        verify(createQualificationAppService, never()).create(any());
+        assertThat(summary.success()).isEqualTo(1);
+        assertThat(summary.failed()).isZero();
+        verify(createQualificationAppService, times(1)).create(any(QualificationUpsertCommand.class));
+    }
+
+    @Test
+    void importFromExcel_AgencyContactNameWithPhone_ShouldImport() throws Exception {
+        String certNo = "IMP-CONT-2";
+        MultipartFile file = buildExcel(new String[][]{{
+                "测试", "FIRST", "科技局", certNo, "2024-01-15", "2027-12-31",
+                "代理A", "张三 13800138000", "范围", "提醒", "QUAL_" + certNo + "_01_x.pdf"
+        }});
+        when(qualificationJpaRepository.existsByCertificateNo(certNo)).thenReturn(false);
+
+        var summary = importService.importFromExcel(file, "tester");
+
+        assertThat(summary.success()).isEqualTo(1);
+        assertThat(summary.failed()).isZero();
+        verify(createQualificationAppService, times(1)).create(any(QualificationUpsertCommand.class));
     }
 
     @Test

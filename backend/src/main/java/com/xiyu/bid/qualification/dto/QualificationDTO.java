@@ -3,6 +3,7 @@ package com.xiyu.bid.qualification.dto;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationCategory;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationSubjectType;
 import com.xiyu.bid.entity.Qualification;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -39,7 +40,10 @@ public class QualificationDTO {
     private String certificateNo;
     private String issuer;
     private String agency;
+
+    @Size(max = 200, message = "代理机构联系人超过200字符")
     private String agencyContact;
+
     private String certScope;
     private String certReviewNote;
     private String holder;

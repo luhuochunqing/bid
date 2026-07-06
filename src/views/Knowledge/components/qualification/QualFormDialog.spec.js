@@ -43,14 +43,14 @@ describe('QualFormDialog - §4.2.1.1 必填字段校验', () => {
     const rules = wrapper.vm.formRules
     expect(rules.agencyContact).toBeDefined()
     expect(rules.agencyContact[0].required).toBe(true)
-    expect(rules.agencyContact[0].message).toContain('代理联系方式')
+    expect(rules.agencyContact[0].message).toContain('代理机构联系人')
   })
 
-  it('agencyContact 应保留格式校验', () => {
+  it('agencyContact 应为纯文本，无手机/邮箱格式校验', () => {
     const wrapper = mount(QualFormDialog, { props: { modelValue: true } })
     const rules = wrapper.vm.formRules
-    expect(rules.agencyContact.length).toBeGreaterThanOrEqual(2)
-    expect(rules.agencyContact[1].validator).toBeTypeOf('function')
+    expect(rules.agencyContact.length).toBe(1)
+    expect(rules.agencyContact[0].validator).toBeUndefined()
   })
 
   it('certScope 应为必填', () => {
