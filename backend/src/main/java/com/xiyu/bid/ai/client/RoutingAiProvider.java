@@ -62,7 +62,7 @@ public class RoutingAiProvider implements AiProvider {
         if ("deepseek".equals(code)) {
             return noopEmbeddingClient.embed(config, text);
         }
-        if ("qwen".equals(code)) {
+        if ("qwen".equals(code) || "custom".equals(code)) {
             return qwenEmbeddingClient.embed(config, text);
         }
         return openAiCompatibleEmbeddingClient.embed(config, text);
