@@ -109,17 +109,41 @@ create_pr() {
   fi
 
   echo "[gitee-pr] 创建 PR: ${branch} → ${GITEE_BASE}..."
-  local body
-  body=$(cat <<BODY
-{
-  "title": "$(echo "${branch}" | sed 's|.*/||'): Automation skill-progression-map update",
-  "head": "${branch}",
-  "base": "${GITEE_BASE}",
-  "description": "Automated PR by gitee-pr-helper.sh",
-  "prune_source_branch": true
-}
-BODY
-)
+
+  # 从最新 commit message 提取标题（第一行）和描述（剩余部分）
+  # commit message 格式示例：
+  #   fix(CA): CO-515 修复 CA 详情页借用记录和操作日志 Tab 无信息
+  #
+  #   根因：...
+  #   修复内容：...
+  local commit_subject commit_body
+  commit_subject=$(git log -1 --format='%s' 2>/dev/null || echo "")
+  commit_body=$(git log -1 --format='%b' 2>/dev/null || echo "")
+
+  # 标题：优先用 commit subject；为空时 fallback 到分支名
+  if [[ -n "$commit_subject" ]]; then
+    pr_title="$commit_subject"
+  else
+    pr_title="${branch##*/}: update"
+  fi
+
+  # 用 python3 构造 JSON（安全转义，避免双引号/换行破坏 JSON 结构）
+  # 描述：commit body 非空则用 commit body；否则用 fallback
+  local payload
+  payload=$(python3 -c "
+import json, sys
+title = sys.argv[1]
+description = sys.argv[2] if sys.argv[2] else f'Automated PR by gitee-pr-helper.sh\n\nBranch: {sys.argv[3]}'
+print(json.dumps({
+    'title': title,
+    'head': sys.argv[3],
+    'base': sys.argv[4],
+    'description': description,
+    'prune_source_branch': True
+}, ensure_ascii=False))
+" "$pr_title" "$commit_body" "$branch" "$GITEE_BASE")
+
+  local body="$payload"
 
   local result
   result=$(curl -s -X POST -H "Authorization: Bearer ${GITEE_TOKEN}" \
