@@ -13,6 +13,8 @@ import com.xiyu.bid.platform.dto.ReturnAccountRequest;
 import com.xiyu.bid.platform.entity.PlatformAccount;
 import com.xiyu.bid.platform.entity.PlatformAccount.AccountStatus;
 import com.xiyu.bid.platform.entity.PlatformAccount.PlatformType;
+import com.xiyu.bid.platform.audit.PlatformAccountAuditRecorder;
+import com.xiyu.bid.platform.repository.AccountBorrowApplicationRepository;
 import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
 import com.xiyu.bid.repository.UserRepository;
@@ -32,6 +34,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -55,6 +59,12 @@ class PlatformAccountServiceTest {
     @Mock
     private AccountCreationWhitelistStore whitelistStore;
 
+    @Mock
+    private PlatformAccountAuditRecorder auditRecorder;
+
+    @Mock
+    private AccountBorrowApplicationRepository borrowApplicationRepository;
+
     private PlatformAccountService service;
 
     private static final String ENCRYPTED_PWD = "encrypted:secret123";
@@ -70,9 +80,16 @@ class PlatformAccountServiceTest {
         // CO-390: service 不再直接依赖 UserRepository，改委托给 PlatformAccountContactLabelEnricher。
         // 测试中用真实 enricher + mock UserRepository，覆盖 service → enricher 协作链路。
         // CO-403: 改为委托 BorrowService 同步申请表状态，不再直接操作 AccountBorrowApplicationRepository
+        // CO-522: updateApplier 用真实实例（字段应用是纯逻辑，需要真正修改 account 对象），
+        //         auditRecorder 用 mock（只验证调用，不验证 diff 本身——后者在 AuditRecorderTest 里覆盖）
+        PlatformAccountUpdateApplier realApplier = new PlatformAccountUpdateApplier(repository, passwordEncryptionUtil);
         service = new PlatformAccountService(
                 repository, borrowService, passwordEncryptionUtil, effectiveRoleResolver,
-                new PlatformAccountContactLabelEnricher(userRepository), whitelistStore);
+                new PlatformAccountContactLabelEnricher(userRepository), whitelistStore,
+                auditRecorder, borrowApplicationRepository, realApplier);
+        // CO-522: recorder 默认返回入参快照与 0，避免影响编辑断言；具体测试按需覆盖
+        lenient().when(auditRecorder.snapshot(any())).thenAnswer(inv -> inv.getArgument(0));
+        lenient().when(auditRecorder.resolvePendingApprovalCount(any(), any(), any())).thenReturn(0);
         // CO-373：默认模拟 LOCAL_USER 解析路径——回退到实体 roleCode
         lenient().when(effectiveRoleResolver.resolveRoleCode(any(User.class)))
                 .thenAnswer(inv -> inv.<User>getArgument(0).getRoleCode());
@@ -380,6 +397,7 @@ class PlatformAccountServiceTest {
         req.setPassword(null);
 
         when(repository.findById(1L)).thenReturn(Optional.of(existing));
+        // CO-522: 唯一性校验下沉到 updateApplier（真实实例），内部调 repository.findByPlatformTypeAndUsername
         when(repository.findByPlatformTypeAndUsername(PlatformType.GOV_PROCUREMENT, "existinguser"))
                 .thenReturn(Optional.of(PlatformAccount.builder().id(2L).build()));
 
@@ -815,6 +833,60 @@ class PlatformAccountServiceTest {
         assertThat(dto.getRegistrant()).isNull();
         assertThat(dto.getRegisterPhone()).isNull();
         assertThat(dto.getRegisterEmail()).isNull();
+    }
+
+    // ── CO-522: 编辑操作触发字段级 diff 审计 ──
+
+    @Test
+    @DisplayName("CO-522: 编辑账号成功后调用 auditRecorder 记录 diff")
+    void updateAccount_shouldInvokeAuditRecorder() {
+        PlatformAccount existing = accountWithId(1L);
+        PlatformAccountCreateRequest req = validRequest();
+        req.setAccountName("更新后的平台");
+        req.setPassword(null);
+
+        when(repository.findById(1L)).thenReturn(Optional.of(existing));
+        when(repository.save(any())).thenReturn(existing);
+
+        service.updateAccount(1L, req, ADMIN_USER);
+
+        // 验证 recorder.recordUpdate 被调用，操作人正确，pendingApprovalCount 来自 recorder 解析
+        verify(auditRecorder).recordUpdate(any(PlatformAccount.class), any(PlatformAccount.class),
+                eq(ADMIN_USER), anyInt());
+    }
+
+    @Test
+    @DisplayName("CO-522: 编辑变更绑定联系人时，调用 recorder 解析转派待审批数（透传 borrowApplicationRepository）")
+    void updateAccount_whenContactPersonChanges_callsResolvePendingApprovalCount() {
+        PlatformAccount existing = accountWithId(1L);
+        existing.setContactPerson(10L);
+        PlatformAccountCreateRequest req = validRequest();
+        req.setContactPerson(20L);  // 变更联系人
+        req.setPassword(null);
+
+        when(repository.findById(1L)).thenReturn(Optional.of(existing));
+        when(repository.save(any())).thenReturn(existing);
+
+        service.updateAccount(1L, req, ADMIN_USER);
+
+        // 验证 recorder 透传 borrowApplicationRepository 与新联系人 ID 给 resolvePendingApprovalCount
+        verify(auditRecorder).resolvePendingApprovalCount(
+                eq(existing), eq(20L), eq(borrowApplicationRepository));
+    }
+
+    @Test
+    @DisplayName("CO-522: 编辑前先调用 recorder.snapshot 捕获更新前快照")
+    void updateAccount_callsSnapshotBeforeApplyingChanges() {
+        PlatformAccount existing = accountWithId(1L);
+        PlatformAccountCreateRequest req = validRequest();
+        req.setPassword(null);
+
+        when(repository.findById(1L)).thenReturn(Optional.of(existing));
+        when(repository.save(any())).thenReturn(existing);
+
+        service.updateAccount(1L, req, ADMIN_USER);
+
+        verify(auditRecorder).snapshot(existing);
     }
 
     // ── helpers ──

@@ -126,6 +126,12 @@ export const accountsApi = {
     return httpClient.get(`/api/platform/accounts/${accountId}/borrow-applications`)
   },
 
+  // CO-522: 账户详情抽屉「操作日志」Tab 的数据源（已过滤 VIEW_PASSWORD）
+  async getAuditLogs(accountId) {
+    if (!isNumericId(accountId)) return Promise.resolve(invalidIdMessage('account'))
+    return httpClient.get(`/api/platform/accounts/${accountId}/audit-logs`)
+  },
+
   async getMyBorrowApplications() {
     return httpClient.get('/api/borrow-applications/my-applications')
   },

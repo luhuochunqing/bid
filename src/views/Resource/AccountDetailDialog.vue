@@ -67,6 +67,21 @@
         </el-table>
         <el-empty v-if="!borrowLoading && !borrowRecords.length" description="暂无借用记录" :image-size="60" />
       </el-tab-pane>
+      <el-tab-pane label="操作日志" name="audit">
+        <el-table :data="auditLogs" stripe size="small" max-height="360" v-loading="auditLoading">
+          <el-table-column label="操作类型" width="120">
+            <template #default="{ row }">
+              <el-tag :type="auditActionTagType(row.actionType)" size="small">
+                {{ auditActionLabel(row.actionType) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="operator" label="操作人" width="140" show-overflow-tooltip />
+          <el-table-column prop="time" label="时间" width="160" />
+          <el-table-column prop="detail" label="详情" min-width="180" show-overflow-tooltip />
+        </el-table>
+        <el-empty v-if="!auditLoading && !auditLogs.length" description="暂无操作日志" :image-size="60" />
+      </el-tab-pane>
     </el-tabs>
     <template #footer>
       <el-button @click="visible = false">关闭</el-button>
@@ -98,6 +113,9 @@ const visible = computed({
 const activeTab = ref('info')
 const borrowRecords = ref([])
 const borrowLoading = ref(false)
+// CO-522: 操作日志 Tab 状态
+const auditLogs = ref([])
+const auditLoading = ref(false)
 
 const password = usePasswordReveal((id) => resourcesApi.accounts.getPassword(id))
 
@@ -160,11 +178,46 @@ const loadBorrowRecords = async () => {
   }
 }
 
+// CO-522: 加载账户操作日志（后端已过滤 VIEW_PASSWORD 等敏感事件）
+const loadAuditLogs = async () => {
+  const id = props.data?.id ?? props.data?.raw?.id
+  if (!id) return
+  auditLoading.value = true
+  try {
+    const res = await resourcesApi.accounts.getAuditLogs(id)
+    auditLogs.value = Array.isArray(res?.data) ? res.data : []
+  } catch (e) {
+    console.error('Failed to load audit logs:', e)
+    auditLogs.value = []
+  } finally {
+    auditLoading.value = false
+  }
+}
+
+// CO-522: 操作类型 → 中文标签
+const AUDIT_ACTION_LABELS = {
+  create: '新增平台',
+  update: '编辑平台',
+  transfer_contact: '更换联系人',
+  delete: '删除',
+  borrow: '借用',
+  return: '归还'
+}
+const auditActionLabel = (actionType) => AUDIT_ACTION_LABELS[actionType] || actionType || '未知'
+const auditActionTagType = (actionType) => {
+  if (actionType === 'create') return 'success'
+  if (actionType === 'delete') return 'danger'
+  if (actionType === 'transfer_contact') return 'warning'
+  return 'info'
+}
+
 watch(() => props.data, (newVal) => {
   activeTab.value = 'info'
   borrowRecords.value = []
+  auditLogs.value = []
   if (newVal) {
     loadBorrowRecords()
+    loadAuditLogs()
   }
 })
 </script>
