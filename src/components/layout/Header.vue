@@ -15,7 +15,7 @@
       <div v-if="showBack" class="header-separator"></div>
       <div class="logo">
         <img class="logo-mark" src="/favicon.ico" alt="" aria-hidden="true">
-        <span class="logo-icon">西域MRO</span>
+        <span class="logo-icon">西域</span>
         <span class="logo-text">投标管理平台</span>
       </div>
     </div>

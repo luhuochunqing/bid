@@ -10,7 +10,7 @@
   >
     <div class="drawer-sidebar">
       <div class="sidebar-logo">
-        <span class="logo-icon"><img src="/favicon.ico" alt="" aria-hidden="true">西域MRO</span>
+        <span class="logo-icon"><img src="/favicon.ico" alt="" aria-hidden="true">西域</span>
         <CommonIcon name="close" class="close-icon" @click="drawerVisible = false" />
       </div>
 
@@ -58,7 +58,7 @@
   <!-- PC端侧边栏 -->
   <div class="sidebar-container" v-else>
     <div class="sidebar-logo">
-      <span class="logo-icon" v-if="!collapse"><img src="/favicon.ico" alt="" aria-hidden="true">西域MRO</span>
+      <span class="logo-icon" v-if="!collapse"><img src="/favicon.ico" alt="" aria-hidden="true">西域</span>
       <span class="logo-icon-small" v-else><img src="/favicon.ico" alt="西域"></span>
     </div>
 
