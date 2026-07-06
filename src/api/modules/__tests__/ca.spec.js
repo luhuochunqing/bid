@@ -8,7 +8,8 @@ import { describe, expect, it } from 'vitest'
 import {
   normalizeCaCertificate,
   normalizeBorrowApplication,
-  normalizeOperationEvent
+  normalizeOperationEvent,
+  normalizeAuditLog
 } from '../ca.js'
 
 describe('normalizeCaCertificate — CO-435 修复颁发机构/持有人/备注字段映射', () => {
@@ -239,6 +240,66 @@ describe('normalizeOperationEvent — 基本形态回归', () => {
   // CO-515: operatorName 缺失时 fallback 到 '-'
   it('CO-515: actorName 和 operatorName 都缺失时 fallback 到"-"', () => {
     const result = normalizeOperationEvent({ id: 1, eventType: 'SUBMITTED' })
+    expect(result.operatorName).toBe('-')
+  })
+})
+
+// CO-515: normalizeAuditLog — CA 生命周期操作日志（audit_logs 表）标准化
+describe('normalizeAuditLog — CO-515 CA 审计日志标准化', () => {
+  it('输入为 null 时返回 null', () => {
+    expect(normalizeAuditLog(null)).toBe(null)
+  })
+
+  it('CO-515: 正确映射 AuditLogItemDTO 全部字段', () => {
+    const input = {
+      id: 42,
+      time: '2026-07-06 10:00:00',
+      operator: '张三（EMP001）',
+      department: '投标部',
+      role: 'manager',
+      actionType: 'create',
+      module: 'system',
+      target: '5',
+      detail: 'Created CaCertificate: 5',
+      ip: '192.168.1.1',
+      status: 'success'
+    }
+    const result = normalizeAuditLog(input)
+    expect(result.id).toBe(42)
+    expect(result.eventType).toBe('CREATE')
+    expect(result.eventTypeLabel).toBe('新增')
+    expect(result.operatorName).toBe('张三（EMP001）')
+    expect(result.department).toBe('投标部')
+    expect(result.detail).toBe('Created CaCertificate: 5')
+    expect(result.ip).toBe('192.168.1.1')
+    expect(result.status).toBe('success')
+    expect(result.createdAt).toBe('2026-07-06 10:00:00')
+  })
+
+  it('CO-515: UPDATE action 对应"编辑"标签', () => {
+    const result = normalizeAuditLog({ id: 1, actionType: 'update' })
+    expect(result.eventType).toBe('UPDATE')
+    expect(result.eventTypeLabel).toBe('编辑')
+  })
+
+  it('CO-515: DEACTIVATE action 对应"下架"标签', () => {
+    const result = normalizeAuditLog({ id: 1, actionType: 'deactivate' })
+    expect(result.eventType).toBe('DEACTIVATE')
+    expect(result.eventTypeLabel).toBe('下架')
+  })
+
+  it('CO-515: 未知 actionType 保留原值（比泛化"操作"更有信息量）', () => {
+    const result = normalizeAuditLog({ id: 1, actionType: 'unknown_action' })
+    expect(result.eventTypeLabel).toBe('unknown_action')
+  })
+
+  it('CO-515: actionType 为空时 fallback 到"操作"', () => {
+    const result = normalizeAuditLog({ id: 1, actionType: '' })
+    expect(result.eventTypeLabel).toBe('操作')
+  })
+
+  it('CO-515: operator 缺失时 fallback 到"-"', () => {
+    const result = normalizeAuditLog({ id: 1, actionType: 'create' })
     expect(result.operatorName).toBe('-')
   })
 })

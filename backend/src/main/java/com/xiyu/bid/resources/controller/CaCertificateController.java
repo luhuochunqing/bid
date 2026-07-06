@@ -1,6 +1,8 @@
 package com.xiyu.bid.resources.controller;
 
 import com.xiyu.bid.annotation.Auditable;
+import com.xiyu.bid.audit.dto.AuditLogItemDTO;
+import com.xiyu.bid.audit.service.IAuditLogService;
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.resources.dto.*;
 import com.xiyu.bid.resources.service.CaBorrowService;
@@ -47,6 +49,8 @@ public class CaCertificateController {
     private final CaBorrowService caBorrowService;
     private final CaCertificateImportAppService importAppService;
     private final CaCommitmentLetterUploadService uploadService;
+    // CO-515: 注入审计日志服务，用于查询 CA 证书生命周期操作日志（新增/编辑/下架等）
+    private final IAuditLogService auditLogService;
 
     // ========== CA 证书 CRUD ==========
 
@@ -201,6 +205,16 @@ public class CaCertificateController {
     @GetMapping("/borrow-applications/{applicationId}/events")
     public ResponseEntity<List<CaBorrowEventDTO>> getBorrowEvents(@PathVariable Long applicationId) {
         return ResponseEntity.ok(caBorrowService.getBorrowEvents(applicationId));
+    }
+
+    /**
+     * CO-515: CA 证书生命周期操作日志（新增/编辑/下架等）。
+     * 数据源：audit_logs 表（通过 @Auditable 切面写入），按 entityType=CaCertificate + entityId 查询。
+     * 注意：这不是借用流程事件流水（ca_borrow_events），而是 CA 证书本身的操作审计。
+     */
+    @GetMapping("/{id}/audit-logs")
+    public ResponseEntity<List<AuditLogItemDTO>> getCaAuditLogs(@PathVariable Long id) {
+        return ResponseEntity.ok(auditLogService.findByEntity("CaCertificate", String.valueOf(id)));
     }
 
     /**

@@ -577,26 +577,19 @@ async function handleView(ca) {
   operationEvents.value = []
   drawerVisible.value = true
 
-  // Load borrow applications
-  try {
-    const res = await caApi.getBorrowApplications(ca.id)
-    borrowApplications.value = res?.data || []
-  } catch { /* non-critical */ }
+  // 并行加载借用记录和操作日志（CO-515: 两个 Tab 数据源独立）
+  // - 借用记录：ca_borrow_applications 表（按 caId 查询）
+  // - 操作日志：audit_logs 表（按 entityType=CaCertificate + entityId 查询，记录新增/编辑/下架等）
+  const [borrowRes, auditRes] = await Promise.allSettled([
+    caApi.getBorrowApplications(ca.id),
+    caApi.getCaAuditLogs(ca.id)
+  ])
 
-  // CO-515: 聚合该 CA 所有借用申请的操作事件（原先只取第一条申请的事件，遗漏其余申请）
-  if (borrowApplications.value.length > 0) {
-    try {
-      const eventResults = await Promise.all(
-        borrowApplications.value.map(app =>
-          caApi.getOperationEvents(app.id).catch(() => ({ data: [] }))
-        )
-      )
-      const allEvents = eventResults.flatMap(res => res?.data || [])
-      // 按时间倒序（最近的在前）
-      operationEvents.value = allEvents.sort((a, b) =>
-        new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
-      )
-    } catch { /* non-critical */ }
+  if (borrowRes.status === 'fulfilled') {
+    borrowApplications.value = borrowRes.value?.data || []
+  }
+  if (auditRes.status === 'fulfilled') {
+    operationEvents.value = auditRes.value?.data || []
   }
 }
 

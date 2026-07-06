@@ -28,7 +28,18 @@ export const EVENT_TYPE_COLOR = {
   REJECTED: 'danger',
   CANCELLED: 'warning',
   DEACTIVATED: 'danger',
-  ACTIVATED: 'success'
+  ACTIVATED: 'success',
+  // CO-515: CA 生命周期操作日志（audit_logs）的事件类型颜色
+  CREATE: 'success',
+  UPDATE: 'primary',
+  DELETE: 'danger',
+  BORROW_REQUEST: 'primary',
+  APPROVE: 'success',
+  REJECT: 'danger',
+  RETURN: 'info',
+  CANCEL: 'warning',
+  VIEW_PASSWORD: 'warning',
+  REVEAL_PASSWORD: 'warning'
 }
 
 export function caStatusTagType(status) {
