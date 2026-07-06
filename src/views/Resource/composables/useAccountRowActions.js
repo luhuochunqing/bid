@@ -1,4 +1,4 @@
-import { resolveAccountActions, isCurrentUserContactPerson, canRevealPassword } from '../accountActions.js'
+import { resolveAccountActions, isCurrentUserContactPerson, canRevealPassword, isBorrowerWithinWindow } from '../accountActions.js'
 
 /**
  * Account 表格行的操作权限构造器。
@@ -17,11 +17,12 @@ export function useAccountRowActions({ userStore, userRoleCode }) {
     status: row.status
   })
 
-  // CO-400 round5: 小眼睛可见 = 管理员 OR (投标专员且为绑定联系人)，避免非联系人点击后 403
+  // CO-400 round5 + CO-524: 小眼睛可见 = 管理员 OR (投标专员且为绑定联系人) OR 借用人窗口期内
   const canRevealPasswordFor = (row) => canRevealPassword({
     isManager: userStore.isBidManager,
     isBidTeam: userRoleCode.value === 'bid-Team',
-    isContactPerson: isCurrentUserContactPerson(row, userStore.currentUser)
+    isContactPerson: isCurrentUserContactPerson(row, userStore.currentUser),
+    isBorrowerWithinWindow: isBorrowerWithinWindow(row, userStore.currentUser)
   })
 
   return { rowActions, canRevealPasswordFor }

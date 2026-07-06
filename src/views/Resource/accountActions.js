@@ -56,21 +56,44 @@ export function isCurrentUserContactPerson(row, user) {
 }
 
 /**
- * 判断当前用户是否可以查看账户密码（CO-400 round5）。
+ * 判断当前用户是否可以查看账户密码（CO-400 round5 / CO-524 扩展）。
  *
  * 业务规则：
  * - 管理员（admin/bidAdmin/bid-TeamLeader）→ 可查看所有账户密码
  * - 投标专员（bid-Team）且为该账户绑定联系人 → 可查看该账户密码
  * - 投标专员非绑定联系人 → 不可查看
+ * - 借用人窗口期内（CO-524）→ 可查看（不限角色）
+ *   借用申请审批通过后 status=IN_USE、borrowedBy=借用人 id、dueAt=预计归还日期，
+ *   在 now ≤ dueAt 期间借用人可查看密码；过期未归还或已归还后失效。
  * - 其他角色 → 不可查看
  *
  * @param {boolean} isManager 当前用户是否为管理员
  * @param {boolean} isBidTeam 当前用户是否为投标专员
  * @param {boolean} isContactPerson 当前用户是否为该账户绑定联系人
+ * @param {boolean} isBorrowerWithinWindow 当前用户是否为借用人且处于借用窗口期（CO-524）
  * @returns {boolean}
  */
-export function canRevealPassword({ isManager, isBidTeam, isContactPerson }) {
-  return isManager || (isBidTeam && isContactPerson)
+export function canRevealPassword({ isManager, isBidTeam, isContactPerson, isBorrowerWithinWindow }) {
+  return Boolean(isManager || (isBidTeam && isContactPerson) || isBorrowerWithinWindow)
+}
+
+/**
+ * CO-524: 当前用户是否为账户借用人且处于借用窗口期。
+ *
+ * 窗口期：账户状态为 IN_USE（借用申请审批通过）且当前时间 ≤ dueAt（预计归还日期）。
+ * 任意角色均可，只要 row.borrowedBy == user.id。归还后 borrowedBy 被清空、
+ * status 回到 AVAILABLE，本函数返回 false。
+ *
+ * @param {Object} row 账户行数据
+ * @param {Object} user 当前登录用户
+ * @returns {boolean}
+ */
+export function isBorrowerWithinWindow(row, user) {
+  if (!row || !user) return false
+  if (row.status !== 'IN_USE') return false
+  if (String(row.borrowedBy ?? '') !== String(user.id ?? '')) return false
+  if (!row.dueAt) return false
+  return new Date(row.dueAt).getTime() >= Date.now()
 }
 
 const PLATFORM_TYPE_LABELS = {

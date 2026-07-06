@@ -7,6 +7,7 @@ import com.xiyu.bid.entity.User;
 import com.xiyu.bid.platform.entity.PlatformAccount;
 import com.xiyu.bid.platform.entity.PlatformAccount.AccountStatus;
 import com.xiyu.bid.platform.entity.PlatformAccount.PlatformType;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -192,6 +193,79 @@ class PlatformAccountViewerPolicyTest {
                     .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
                     .isNotInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("Only administrators or the account's contact person");
+        }
+
+        // ---------- CO-524: 借用人窗口期豁免 ----------
+
+        private PlatformAccount accountBorrowedBy(Long borrowerId, LocalDateTime dueAt, AccountStatus status) {
+            return PlatformAccount.builder()
+                    .id(2L).username("borrowed").password("ENCRYPTED")
+                    .accountName("借用中平台").platformType(PlatformType.BIDDING_PLATFORM)
+                    .status(status)
+                    .contactPerson(999L) // 保管员是别人，确保不会因联系人分支误放行
+                    .borrowedBy(borrowerId)
+                    .dueAt(dueAt)
+                    .build();
+        }
+
+        @Test
+        @DisplayName("CO-524: 借用人窗口期内放行（非特权角色，dueAt 未来，不限角色）")
+        void borrowerWithinWindow_allowed() {
+            User user = User.builder().id(10L).username("borrower01").build();
+            PlatformAccount account = accountBorrowedBy(10L, LocalDateTime.now().plusDays(3), AccountStatus.IN_USE);
+            assertThat(PlatformAccountViewerPolicy.canViewPassword("bid-projectLeader", account, user)).isTrue();
+            assertThat(PlatformAccountViewerPolicy.canViewPassword("sales", account, user)).isTrue();
+            assertThat(PlatformAccountViewerPolicy.canViewPassword("bid-administration", account, user)).isTrue();
+        }
+
+        @Test
+        @DisplayName("CO-524: 借用人过期未归还拒绝（now > dueAt，status 仍 IN_USE）")
+        void borrowerExpired_denied() {
+            User user = User.builder().id(10L).username("borrower01").build();
+            PlatformAccount account = accountBorrowedBy(10L, LocalDateTime.now().minusDays(1), AccountStatus.IN_USE);
+            assertThat(PlatformAccountViewerPolicy.canViewPassword("bid-projectLeader", account, user)).isFalse();
+        }
+
+        @Test
+        @DisplayName("CO-524: 借用人已归还拒绝（status=AVAILABLE, borrowedBy=null, dueAt=null）")
+        void borrowerReturned_denied() {
+            User user = User.builder().id(10L).username("borrower01").build();
+            PlatformAccount account = accountBorrowedBy(null, null, AccountStatus.AVAILABLE);
+            assertThat(PlatformAccountViewerPolicy.canViewPassword("bid-projectLeader", account, user)).isFalse();
+        }
+
+        @Test
+        @DisplayName("CO-524: 非借用人拒绝（borrowedBy != currentUser.id，窗口期内）")
+        void nonBorrowerWithinWindow_denied() {
+            User user = User.builder().id(10L).username("someone").build();
+            PlatformAccount account = accountBorrowedBy(99L, LocalDateTime.now().plusDays(3), AccountStatus.IN_USE);
+            assertThat(PlatformAccountViewerPolicy.canViewPassword("bid-projectLeader", account, user)).isFalse();
+        }
+
+        @Test
+        @DisplayName("CO-524: 借用人 status=PENDING_APPROVAL 拒绝（窗口期尚未开始）")
+        void borrowerPendingApproval_denied() {
+            User user = User.builder().id(10L).username("borrower01").build();
+            PlatformAccount account = accountBorrowedBy(10L, LocalDateTime.now().plusDays(3), AccountStatus.PENDING_APPROVAL);
+            assertThat(PlatformAccountViewerPolicy.canViewPassword("bid-projectLeader", account, user)).isFalse();
+        }
+
+        @Test
+        @DisplayName("CO-524: 借用人 dueAt=null 拒绝（数据异常兜底）")
+        void borrowerNullDueAt_denied() {
+            User user = User.builder().id(10L).username("borrower01").build();
+            PlatformAccount account = accountBorrowedBy(10L, null, AccountStatus.IN_USE);
+            assertThat(PlatformAccountViewerPolicy.canViewPassword("bid-projectLeader", account, user)).isFalse();
+        }
+
+        @Test
+        @DisplayName("CO-524: 借用人过期时 checkCanViewPassword 抛 AccessDeniedException")
+        void checkCanViewPassword_borrowerExpired_throwsException() {
+            User user = User.builder().id(10L).username("borrower01").build();
+            PlatformAccount account = accountBorrowedBy(10L, LocalDateTime.now().minusDays(1), AccountStatus.IN_USE);
+            assertThatThrownBy(() ->
+                    PlatformAccountViewerPolicy.checkCanViewPassword("bid-projectLeader", account, user))
+                    .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
         }
     }
 }
