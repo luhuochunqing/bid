@@ -365,10 +365,12 @@ elif [ "${BACKEND_CHANGED:-0}" -eq 0 ]; then
 elif [ "${JSON_FIELD_SERIALIZATION_SKIP:-0}" = "1" ]; then
   skip "JSON 字段序列化检查（JSON_FIELD_SERIALIZATION_SKIP=1 逃生阀）"
 else
-  if bash "$ROOT_DIR/scripts/check-json-field-serialization.sh" 2>&1; then
-    pass "JSON 字段序列化（无高风险 List/Map.toString 模式）"
+  # 使用 --cached 增量模式，只扫描暂存区变更的文件（pre-push 场景）
+  # 增量比全量快 10-100 倍，且变更才是风险点
+  if bash "$ROOT_DIR/scripts/check-json-field-serialization.sh" --cached 2>&1; then
+    pass "JSON 字段序列化（无高风险 .toString 模式）"
   else
-    fail "JSON 字段序列化 — 检测到 List/Map/Set.toString() 写 JSON 字段（Pattern A 阻断）。改为 Jackson ObjectMapper.writeValueAsString()。逃生阀：JSON_FIELD_SERIALIZATION_SKIP=1"
+    fail "JSON 字段序列化 — 检测到疑似集合 .toString()（Pattern A 阻断）。改为 Jackson ObjectMapper.writeValueAsString()。逃生阀：JSON_FIELD_SERIALIZATION_SKIP=1"
   fi
 fi
 
