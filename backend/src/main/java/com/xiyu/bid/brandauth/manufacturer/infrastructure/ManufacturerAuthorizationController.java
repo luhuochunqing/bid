@@ -238,7 +238,7 @@ public class ManufacturerAuthorizationController {
     }
 
     /** Batch import brand authorizations from an uploaded Excel file. */
-    @PostMapping("/import")
+    @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAuthority('" + CREATE_PERM + "')")
     public ResponseEntity<ApiResponse<BrandAuthImportService.ImportResult>> importExcel(
             @RequestParam("file") final MultipartFile file) throws IOException {
