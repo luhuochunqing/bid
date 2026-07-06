@@ -3,6 +3,7 @@ package com.xiyu.bid.project.notification;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.notification.core.NotificationRecipientFilter;
 import com.xiyu.bid.notification.core.NotificationType;
 import com.xiyu.bid.notification.core.TaskNotificationTargetUrlResolver;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
@@ -10,6 +11,7 @@ import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.security.EffectiveRoleResolver;
+import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -22,6 +24,10 @@ import java.util.Map;
  * 任务审核流程通知服务。
  * <p>职责：任务提交审核、审核结果（通过/驳回）的通知派发。</p>
  * <p>接收人策略委托给 {@link RoleProfileCatalog#TASK_MUTATION_ALLOWED_ROLES}。</p>
+ *
+ * <p><b>Spec 030 / 06131 案例修复</b>：notifyTaskReviewSubmitted 在派发前按
+ * {@link ProjectAccessScopeService#canAccessProject(Long, Long)} 过滤候选接收人，
+ * 剔除对该项目无访问权的用户。详见 specs/030-fix-task-review-notify-403/。</p>
  */
 @Component
 @RequiredArgsConstructor
@@ -34,22 +40,55 @@ public class TaskReviewNotificationService {
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
     private final EffectiveRoleResolver effectiveRoleResolver;
+    private final ProjectAccessScopeService projectAccessScopeService;
 
     /**
      * 通知所有有权限审核任务的人：任务已提交审核。
+     *
+     * <p><b>Spec 030 / 06131 案例修复</b>：派发前按项目可见性过滤候选接收人，
+     * 剔除对该项目无访问权的用户（避免被通知的人点击跳转后被 403 拦截）。
+     * 过滤逻辑失败时降级为原候选广播（优先保证通知送达而非精准）。</p>
      */
     public void notifyTaskReviewSubmitted(Long projectId, Long taskId, String taskTitle,
                                            String submitterName, Long submittedBy) {
         Project project = projectRepository.findById(projectId).orElse(null);
         if (project == null) return;
-        List<Long> reviewerIds = getTaskReviewerUserIds(submittedBy);
-        if (reviewerIds.isEmpty()) return;
+        List<Long> candidateIds = getTaskReviewerUserIds(submittedBy);
+        if (candidateIds.isEmpty()) return;
+
+        // Spec 030：按项目可见性过滤候选接收人
+        List<Long> reviewerIds = filterRecipientsSafe(candidateIds, projectId);
+        if (reviewerIds.isEmpty()) {
+            log.info("TaskReview notification skipped - no accessible recipients for project {} task {}",
+                    projectId, taskId);
+            return;
+        }
+
         String safeTitle = taskTitle != null ? taskTitle : "";
         String safeName = submitterName != null ? submitterName : "";
         String body = String.format("任务：%s\n提交人：%s\n\n该任务已提交审核，请尽快处理。", safeTitle, safeName);
         send(projectId, project.getName(), taskId,
                 "任务审核通知 - " + project.getName() + " - " + safeTitle, body,
                 reviewerIds, submittedBy, "/project/" + projectId + "/drafting");
+    }
+
+    /**
+     * Spec 030: 用 NotificationRecipientFilter 过滤候选接收人，按项目可见性剔除无访问权的用户。
+     *
+     * <p>降级策略：当 {@link ProjectAccessScopeService#canAccessProject(Long, Long)} 抛异常时
+     * （DB 故障、OSS 同步异常等），返回原候选集合，保留原广播行为——优先保证通知送达，
+     * 而非精准。符合 Constitution VII §2 "装饰性操作失败必须降级" 精神。</p>
+     */
+    private List<Long> filterRecipientsSafe(List<Long> candidateIds, Long projectId) {
+        try {
+            return NotificationRecipientFilter.filterRecipients(
+                    candidateIds,
+                    uid -> projectAccessScopeService.canAccessProject(uid, projectId));
+        } catch (RuntimeException e) {
+            log.warn("Recipient filter failed for project {}, falling back to unfiltered broadcast: {}",
+                    projectId, e.getMessage());
+            return candidateIds;
+        }
     }
 
     /**

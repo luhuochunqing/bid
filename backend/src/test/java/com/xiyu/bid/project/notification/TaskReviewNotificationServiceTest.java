@@ -9,6 +9,7 @@ import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.security.EffectiveRoleResolver;
+import com.xiyu.bid.service.ProjectAccessScopeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -18,6 +19,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.util.List;
 import java.util.Optional;
@@ -25,11 +28,13 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("TaskReviewNotificationService — 任务审核通知")
 class TaskReviewNotificationServiceTest {
 
@@ -41,6 +46,8 @@ class TaskReviewNotificationServiceTest {
     private UserRepository userRepository;
     @Mock
     private EffectiveRoleResolver effectiveRoleResolver;
+    @Mock
+    private ProjectAccessScopeService projectAccessScopeService;
 
     @Captor
     private ArgumentCaptor<CreateNotificationRequest> requestCaptor;
@@ -56,7 +63,10 @@ class TaskReviewNotificationServiceTest {
     @BeforeEach
     void setUp() {
         svc = new TaskReviewNotificationService(notificationService, projectRepository,
-                userRepository, effectiveRoleResolver);
+                userRepository, effectiveRoleResolver, projectAccessScopeService);
+        // 默认所有候选接收人对项目 PID 都有访问权（既有用例的语义保持不变）；
+        // 新增的过滤测试用例会 override 此 stub。
+        lenient().when(projectAccessScopeService.canAccessProject(any(), eq(PID))).thenReturn(true);
     }
 
     private Project project(String name) {
@@ -152,6 +162,81 @@ class TaskReviewNotificationServiceTest {
             when(notificationService.createNotification(any(), any())).thenThrow(new RuntimeException("boom"));
 
             svc.notifyTaskReviewSubmitted(PID, TASK_ID, "任务标题", "提交人", UID);
+        }
+
+        // ===== Spec 030 / 06131 案例：按项目可见性过滤接收人 =====
+
+        @Test
+        @DisplayName("spec030: bid-Team 用户被广播到无权项目时不出现（06131 案例）")
+        void filtersOutInaccessibleRecipients() {
+            // 候选 4 人：admin(1)、bid-Teamleader(2)、bid-Team(3 无项目权限)、bid-Team(4 有项目权限)
+            // 模拟 06131 场景：bid-Team 用户被广播到无权项目
+            when(projectRepository.findById(PID)).thenReturn(Optional.of(project("西安地铁")));
+            when(userRepository.findEnabledByRoleProfileCodes(RoleProfileCatalog.TASK_MUTATION_ALLOWED_ROLES))
+                    .thenReturn(List.of(user(1L, "admin"), user(2L, "组长"),
+                                        user(3L, "专员A"), user(4L, "专员B")));
+            // user 3 对项目 PID 无访问权（如 06131 不在项目 172 的可见范围）
+            when(projectAccessScopeService.canAccessProject(eq(3L), eq(PID))).thenReturn(false);
+            // 其他用户保持 @BeforeEach 默认（true）
+
+            svc.notifyTaskReviewSubmitted(PID, TASK_ID, "缴纳保证金", "柏超", UID);
+
+            verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
+            // user 3 (bid-Team 但无项目权限) 被剔除
+            assertThat(requestCaptor.getValue().recipientUserIds())
+                    .containsExactlyInAnyOrder(1L, 2L, 4L)
+                    .doesNotContain(3L);
+        }
+
+        @Test
+        @DisplayName("spec030: 所有候选被过滤掉时不创建通知，安全跳过")
+        void skipsWhenAllRecipientsFilteredOut() {
+            when(projectRepository.findById(PID)).thenReturn(Optional.of(project("欢乐谷")));
+            when(userRepository.findEnabledByRoleProfileCodes(RoleProfileCatalog.TASK_MUTATION_ALLOWED_ROLES))
+                    .thenReturn(List.of(user(1L, "专员A"), user(2L, "专员B")));
+            // 所有候选对项目 PID 都无访问权（极端场景：项目权限收紧后没人可见）
+            when(projectAccessScopeService.canAccessProject(any(), eq(PID))).thenReturn(false);
+
+            svc.notifyTaskReviewSubmitted(PID, TASK_ID, "授权整理", "王占俊", UID);
+
+            // 不调用 createNotification（安全跳过，不报错）
+            verify(notificationService, never()).createNotification(any(), any());
+        }
+
+        @Test
+        @DisplayName("spec030: ProjectAccessScopeService 抛异常 → 降级为原候选广播（通知送达优先）")
+        void fallsBackToUnfilteredBroadcast_whenAccessScopeThrows() {
+            // 候选 3 人
+            when(projectRepository.findById(PID)).thenReturn(Optional.of(project("西安地铁")));
+            when(userRepository.findEnabledByRoleProfileCodes(RoleProfileCatalog.TASK_MUTATION_ALLOWED_ROLES))
+                    .thenReturn(List.of(user(1L, "专员A"), user(2L, "专员B"), user(UID, "提交人")));
+            // 权限查询抛异常（模拟 DB 故障或 OSS 同步异常）
+            when(projectAccessScopeService.canAccessProject(any(), eq(PID)))
+                    .thenThrow(new RuntimeException("db down"));
+
+            svc.notifyTaskReviewSubmitted(PID, TASK_ID, "缴纳保证金", "柏超", UID);
+
+            // 降级为原候选广播（排除提交人 UID），优先保证通知送达而非精准
+            verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
+            assertThat(requestCaptor.getValue().recipientUserIds())
+                    .containsExactlyInAnyOrder(1L, 2L);
+        }
+
+        @Test
+        @DisplayName("spec030: 过滤后非空时正常派发，targetUrl 不变（仍为 /project/{id}/drafting）")
+        void sendsToFilteredRecipients_withUnchangedTargetUrl() {
+            when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
+            when(userRepository.findEnabledByRoleProfileCodes(RoleProfileCatalog.TASK_MUTATION_ALLOWED_ROLES))
+                    .thenReturn(List.of(user(1L, "admin"), user(2L, "组长"), user(3L, "专员无权")));
+            when(projectAccessScopeService.canAccessProject(eq(3L), eq(PID))).thenReturn(false);
+
+            svc.notifyTaskReviewSubmitted(PID, TASK_ID, "任务标题", "提交人", UID);
+
+            verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
+            CreateNotificationRequest req = requestCaptor.getValue();
+            assertThat(req.recipientUserIds()).containsExactlyInAnyOrder(1L, 2L);
+            // targetUrl 保持不变（前端兜底降级由 US2 处理）
+            assertThat(req.payload()).containsEntry("targetUrl", "/project/" + PID + "/drafting");
         }
     }
 
