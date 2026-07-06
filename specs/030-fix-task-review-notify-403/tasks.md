@@ -200,3 +200,20 @@ Phase 4/5/6 是兜底与沉淀，可在 MVP 验证后追加。
 | US1 | bid-Team 用户被广播到无权项目时不收到通知（DB 验证 user_notification 表） |
 | US2 | 通知点击跳转失败时降级到 /notifications（手动或 E2E 验证） |
 | US3 | tech-debt-tracker.md 有完整的 6 点审视清单（文档检查） |
+
+---
+
+## 实施偏差说明（speckit-analyze 阶段补充）
+
+实施过程中 Phase 4 的具体技术与 tasks.md 原计划不一致，记录如下：
+
+**偏差点**：Phase 4 T020-T022 原计划在 `notificationHelpers.js` 新增 `safeNavigate` helper，包 `router.push` try/catch；实施时发现该方案不可行——Vue Router 4 的 `router.push(string)` 是同步 URL 变更，**不会因后续页面 API 调用 403 而抛错**（路由跳转和 API 调用解耦），try/catch 抓不到 403。
+
+**实施方案调整**：改为修改 `src/api/client.js:188-189` 全局 403 拦截器，精准识别 `GET /api/projects/\d+` 场景（通知跳转触发的项目详情请求），用 `ElMessage.warning` 替代 `ElMessage.error` + 文案友好化 + 2.5s 后自动 `router.push('/inbox')`。
+
+**对 spec 一致性的影响**：无影响。spec.md FR-004 只规定"targetUrl 降级到接收人可访问的安全路径"，未规定实现方式。新方案更准确——直接在 403 拦截点降级，覆盖所有触发场景（不仅限于通知跳转）。
+
+**未实施的任务**：T018-T019（前端单测）、T021-T022（修改 NotificationPanel.vue / NotificationInbox.vue）跳过——无文件变更需求，原计划的 try/catch 包装不必要。`NotificationPanel.vue` / `NotificationInbox.vue` / `notificationHelpers.js` **保持原样不变**。
+
+**-speckit-analyze 报告 ID F1 已归档**。
+
