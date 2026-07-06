@@ -209,14 +209,16 @@ class RoleProfileCatalogTest {
     }
 
     @Test
-    @DisplayName("CO-439: 行政人员(bid-administration) 仅含 qualification.view 只读，可访问资质证书读端点（不含 qualification.manage）")
-    void adminStaffShouldHaveQualificationViewOnlyWithoutManage() {
+    @DisplayName("CO-518: 行政人员(bid-administration) 含 qualification.manage 和 qualification.view，可完整管理资质证书")
+    void adminStaffShouldHaveQualificationManageAndViewPermissions() {
         RoleProfileCatalog.SeedDefinition def =
                 RoleProfileCatalog.definitionForCode(RoleProfileCatalog.ADMIN_STAFF_CODE);
         assertThat(def.menuPermissions())
-                .as("行政人员仅有资质只读权限")
-                .contains("qualification.view")
-                .doesNotContain(RoleProfileCatalog.QUALIFICATION_MANAGE_PERMISSION);
+                .as("行政人员负责资质证书管理，需持有 qualification.manage")
+                .contains(RoleProfileCatalog.QUALIFICATION_MANAGE_PERMISSION);
+        assertThat(def.menuPermissions())
+                .as("行政人员需持有 qualification.view 只读权限访问读端点")
+                .contains(RoleProfileCatalog.QUALIFICATION_VIEW_PERMISSION);
         assertThat(def.menuPermissions())
                 .as("行政人员需持有前端导航权限才能进入资质证书页面")
                 .contains("knowledge", "knowledge-qualification");
