@@ -22,10 +22,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.xiyu.bid.common.domain.CommonDateParser;
+import com.xiyu.bid.exception.InvalidArgumentException;
+import lombok.extern.slf4j.Slf4j;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Pattern;
 
 /**
  * §4.1.3.4 资质批量导入应用层
@@ -38,13 +39,10 @@ import java.util.regex.Pattern;
  *
  * 失败行不中断整体导入；证书编号已存在则整行跳过。
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ImportQualificationAppService {
-
-    private static final Pattern PHONE = Pattern.compile("^1[3-9]\\d{9}$");
-    private static final Pattern LANDLINE = Pattern.compile("^(0\\d{2,3})[-]?\\d{7,8}$");
-    private static final Pattern EMAIL = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
 
     private final BusinessQualificationJpaRepository jpaRepository;
     private final CreateQualificationAppService createAppService;
@@ -72,17 +70,19 @@ List<RowInput> rows;
 if (rows.isEmpty()) {
             return ImportSummary.empty();
         }
-        ImportSummary summary = new ImportSummary(rows.size(), 0, 0, new ArrayList<>(rows.size()));
+        List<QualificationImportRowResult> results = new ArrayList<>(rows.size());
+        int success = 0;
+        int failed = 0;
         for (RowInput row : rows) {
             QualificationImportRowResult result = processRow(row, operatorName);
-            summary.results().add(result);
+            results.add(result);
             if (result.isSuccess()) {
-                summary = new ImportSummary(summary.total(), summary.success() + 1, summary.failed(), summary.results());
+                success++;
             } else {
-                summary = new ImportSummary(summary.total(), summary.success(), summary.failed() + 1, summary.results());
+                failed++;
             }
         }
-        return summary;
+        return new ImportSummary(rows.size(), success, failed, results);
     }
 
     private QualificationImportRowResult processRow(RowInput row, String operatorName) {
@@ -93,7 +93,7 @@ if (rows.isEmpty()) {
         if (isBlank(row.issueDate())) return fail(row.rowNumber(), row.certificateNo(), "发证日期不能为空");
         if (isBlank(row.expiryDate())) return fail(row.rowNumber(), row.certificateNo(), "证书有效期不能为空");
         if (isBlank(row.agency())) return fail(row.rowNumber(), row.certificateNo(), "代理机构不能为空");
-        if (isBlank(row.agencyContact())) return fail(row.rowNumber(), row.certificateNo(), "代理联系方式不能为空");
+        if (isBlank(row.agencyContact())) return fail(row.rowNumber(), row.certificateNo(), "代理机构联系人不能为空");
         if (isBlank(row.certScope())) return fail(row.rowNumber(), row.certificateNo(), "认证范围不能为空");
         if (isBlank(row.attachmentFileName())) return fail(row.rowNumber(), row.certificateNo(), "附件文件名不能为空");
 
@@ -105,14 +105,10 @@ if (rows.isEmpty()) {
         if (row.issuer().length() > 200) return fail(row.rowNumber(), row.certificateNo(), "认证机构超过200字符");
         if (row.certificateNo().length() > 120) return fail(row.rowNumber(), row.certificateNo(), "证书编号超过120字符");
         if (row.agency().length() > 200) return fail(row.rowNumber(), row.certificateNo(), "代理机构超过200字符");
+        if (row.agencyContact().length() > 200) return fail(row.rowNumber(), row.certificateNo(), "代理机构联系人超过200字符");
         if (row.certScope().length() > 1000) return fail(row.rowNumber(), row.certificateNo(), "认证范围超过1000字符");
         if (row.certReviewNote() != null && row.certReviewNote().length() > 200) {
             return fail(row.rowNumber(), row.certificateNo(), "证书审核提醒超过200字符");
-        }
-
-        // 联系方式正则
-        if (!isValidContact(row.agencyContact())) {
-            return fail(row.rowNumber(), row.certificateNo(), "代理联系方式格式不正确");
         }
 
         // 日期解析 + 顺序
@@ -167,8 +163,11 @@ if (rows.isEmpty()) {
         try {
             createAppService.create(command);
             return QualificationImportRowResult.success(row.rowNumber(), row.certificateNo().trim(), command);
+        } catch (InvalidArgumentException e) {
+            return fail(row.rowNumber(), row.certificateNo(), e.getMessage());
         } catch (RuntimeException e) {
-            return fail(row.rowNumber(), row.certificateNo(), "入库失败：" + e.getMessage());
+            log.error("资质导入第{}行入库失败: {}", row.rowNumber(), row.certificateNo(), e);
+            return fail(row.rowNumber(), row.certificateNo(), "第" + row.rowNumber() + "行系统错误，请联系管理员");
         }
     }
 
@@ -245,12 +244,6 @@ if (rows.isEmpty()) {
 
     private static boolean isBlank(String s) {
         return s == null || s.trim().isEmpty();
-    }
-
-    private static boolean isValidContact(String value) {
-        if (value == null) return false;
-        String v = value.trim();
-        return PHONE.matcher(v).matches() || LANDLINE.matcher(v).matches() || EMAIL.matcher(v).matches();
     }
 
     private static QualificationImportRowResult fail(int rowNumber, String certificateNo, String reason) {

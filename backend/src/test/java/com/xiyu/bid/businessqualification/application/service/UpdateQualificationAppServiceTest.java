@@ -11,13 +11,16 @@ import com.xiyu.bid.businessqualification.domain.valueobject.QualificationSubjec
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationSubjectType;
 import com.xiyu.bid.businessqualification.domain.valueobject.ReminderPolicy;
 import com.xiyu.bid.businessqualification.domain.valueobject.ValidityPeriod;
+import com.xiyu.bid.exception.InvalidArgumentException;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import com.xiyu.bid.businessqualification.domain.service.QualificationCreationPolicy;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -44,6 +47,9 @@ class UpdateQualificationAppServiceTest {
 
     @Mock
     private IAuditLogService auditLogService;
+
+    @Spy
+    private QualificationCreationPolicy creationPolicy = new QualificationCreationPolicy();
 
     @InjectMocks
     private UpdateQualificationAppService appService;
@@ -159,6 +165,22 @@ class UpdateQualificationAppServiceTest {
         // Then: fileUrl 保留 existing 的旧值（Boolean.TRUE.equals(false) == false → 走保留分支）
         assertThat(result.fileUrl()).isEqualTo("/files/cert.pdf");
         verify(auditLogService, never()).log(any());
+    }
+
+    @Test
+    @DisplayName("CO-525: 更新时传入空白 agencyContact 应被校验拦截，不得落库")
+    void update_WithBlankAgencyContact_ShouldThrowInvalidArgumentException() {
+        BusinessQualification existing = sampleQualification(1L, false, null, List.of());
+        when(repository.findById(1L)).thenReturn(Optional.of(existing));
+        QualificationUpsertCommand command = buildCommandFromExisting(existing, null, null).toBuilder()
+                .agencyContact("   ")
+                .build();
+
+        assertThatThrownBy(() -> appService.update(1L, command))
+                .isInstanceOf(InvalidArgumentException.class)
+                .hasMessageContaining("代理机构联系人不能为空");
+
+        verify(repository, never()).save(any(BusinessQualification.class));
     }
 
     /**

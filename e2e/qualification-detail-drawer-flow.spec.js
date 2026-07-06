@@ -8,7 +8,7 @@ import { ensureApiSession, injectSession } from './auth-helpers.js'
  * 1. 入口：点击列表行（除操作按钮外）打开抽屉
  * 2. 类型：el-drawer size="800px"，从右滑入
  * 3. 顶部：证书名称 + 状态Tag + [编辑] [下架/恢复] [×]
- * 4. Tab 1 基本信息：证书名称/等级/认证机构/代理机构/证书号/代理联系方式/发证日期/证书有效期/认证范围/证书审核提醒
+ * 4. Tab 1 基本信息：证书名称/等级/认证机构/代理机构/证书号/代理机构联系人/发证日期/证书有效期/认证范围/证书审核提醒
  * 5. 附件区：4 按钮（预览/下载/替换/删除）+ 无附件时"上传附件"按钮
  * 6. Tab 2 操作日志占位（4.1.3.7 实现）
  *
@@ -75,7 +75,7 @@ test.describe('§4.1.3.6 资质详情抽屉', () => {
     // 4 新字段展示（通过 el-descriptions-item label 文本验证）
     const descText = await drawer.locator('.qd-desc').textContent()
     expect(descText, '基本信息区应显示代理机构').toContain('代理认证机构X')
-    expect(descText, '基本信息区应显示代理联系方式').toContain('13800138000')
+    expect(descText, '基本信息区应显示代理机构联系人').toContain('13800138000')
     expect(descText, '基本信息区应显示认证范围').toContain('ISO9001')
     expect(descText, '基本信息区应显示证书审核提醒').toContain('每年 3 月年审')
     expect(descText, '基本信息区应显示证书名称').toContain('E2E资质详情测试')

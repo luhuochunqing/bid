@@ -6,12 +6,12 @@ import { ensureApiSession, injectSession } from './auth-helpers.js'
  *
  * 蓝图 4.1.3.1 模板 11 字段：
  *   必填 5 字段：证书名称 / 认证机构 / 证书编号 / 发证日期 / 证书有效期
- *   非必填 5 字段：等级 / 代理机构 / 代理联系方式 / 认证范围 / 证书审核提醒
+ *   非必填 5 字段：等级 / 代理机构 / 代理机构联系人 / 认证范围 / 证书审核提醒
  *   附件：选填 1 个 PDF/JPG/PNG ≤10MB
  *
  * 校验：
  *   - 必填 5 项空 → 提交失败
- *   - 联系方式格式：手机/固话/邮箱正则
+ *   - 代理机构联系人为纯文本必填（CO-525）
  *   - 有效期必须晚于发证日期
  *
  * Selector 约定（el-input/textarea 直接是 data-testid 元素自身）：
@@ -150,34 +150,31 @@ test.describe('§4.1.3.1 新增资质表单 11 字段', () => {
     await expect(expiryFormItem).toHaveClass(/is-error/, { timeout: 3000 })
   })
 
-  test('联系方式格式校验：无效格式 → 内联错误', async ({ page }) => {
+  test('代理机构联系人必填：空值提交 → 内联错误', async ({ page }) => {
     await loginAsBidAdmin(page)
     await openCreateDialog(page)
 
-    await page.locator('[data-testid="qf-agencyContact"]').fill('invalid-format-xxx')
-    // 触发 blur
-    await page.locator('[data-testid="qf-name"]').click()
+    // 其他必填字段已填，仅 agencyContact 空
+    const certNo = `MIN-AC-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
+    await page.locator('[data-testid="qf-name"]').fill('联系人必填测试')
+    await page.locator('[data-testid="qf-issuer"]').fill('CMA')
+    await page.locator('[data-testid="qf-certificateNo"]').fill(certNo)
+    await page.locator('[data-testid="qf-issueDate"] input').fill('2024-01-15')
+    await page.locator('[data-testid="qf-issueDate"] input').press('Enter')
+    await page.locator('[data-testid="qf-expiryDate"] input').fill('2027-12-31')
+    await page.locator('[data-testid="qf-expiryDate"] input').press('Enter')
+
+    await page.locator('[data-testid="qf-submit"]').click()
 
     const contactFormItem = page.locator('[data-testid="qf-agencyContact"]').locator('xpath=ancestor::div[contains(@class, "el-form-item") and not(contains(@class, "el-form-item__"))][1]')
     await expect(contactFormItem).toHaveClass(/is-error/, { timeout: 3000 })
   })
 
-  test('联系方式格式：手机号通过', async ({ page }) => {
+  test('代理机构联系人纯文本：任意文本均通过（CO-525）', async ({ page }) => {
     await loginAsBidAdmin(page)
     await openCreateDialog(page)
 
-    await page.locator('[data-testid="qf-agencyContact"]').fill('13800138000')
-    await page.locator('[data-testid="qf-name"]').click()
-
-    const contactFormItem = page.locator('[data-testid="qf-agencyContact"]').locator('xpath=ancestor::div[contains(@class, "el-form-item") and not(contains(@class, "el-form-item__"))][1]')
-    await expect(contactFormItem).not.toHaveClass(/is-error/, { timeout: 3000 })
-  })
-
-  test('联系方式格式：邮箱通过', async ({ page }) => {
-    await loginAsBidAdmin(page)
-    await openCreateDialog(page)
-
-    await page.locator('[data-testid="qf-agencyContact"]').fill('test@example.com')
+    await page.locator('[data-testid="qf-agencyContact"]').fill('张三 / 13800138000')
     await page.locator('[data-testid="qf-name"]').click()
 
     const contactFormItem = page.locator('[data-testid="qf-agencyContact"]').locator('xpath=ancestor::div[contains(@class, "el-form-item") and not(contains(@class, "el-form-item__"))][1]')

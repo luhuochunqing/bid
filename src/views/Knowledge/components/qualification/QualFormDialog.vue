@@ -59,8 +59,8 @@
           <el-form-item label="代理机构" prop="agency">
             <el-input v-model="form.agency" maxlength="200" data-testid="qf-agency" />
           </el-form-item>
-          <el-form-item label="代理联系方式" prop="agencyContact">
-            <el-input v-model="form.agencyContact" maxlength="200" placeholder="手机/固话/邮箱" data-testid="qf-agencyContact" />
+          <el-form-item label="代理机构联系人" prop="agencyContact">
+            <el-input v-model="form.agencyContact" maxlength="200" placeholder="如：张三 13800138000" data-testid="qf-agencyContact" />
           </el-form-item>
           <el-form-item label="认证范围" prop="certScope">
             <el-input
@@ -129,7 +129,6 @@ import { UploadFilled, Document } from '@element-plus/icons-vue'
 import http from '@/api/client'
 import { qualificationStatusTagTypes, qualificationStatusLabels } from './qualificationMeta.js'
 
-const CONTACT_REGEX = /^(1[3-9]\d{9}|(0\d{2,3})[-]?\d{7,8}|[^\s@]+@[^\s@]+\.[^\s@]+)$/
 // CO-155 fix: 52428800 = 50MB，与 PR 680122945 对齐
 const MAX_ATTACHMENT_BYTES = ref(52428800)
 
@@ -187,17 +186,7 @@ const formRules = reactive({
   ],
   agency: [{ required: true, message: '请输入代理机构', trigger: 'blur' }],
   agencyContact: [
-    { required: true, message: '请输入代理联系方式', trigger: 'blur' },
-    {
-      validator: (rule, value, callback) => {
-        if (value && !CONTACT_REGEX.test(value)) {
-          callback(new Error('请输入有效的手机号、固话或邮箱'))
-        } else {
-          callback()
-        }
-      },
-      trigger: 'blur'
-    }
+    { required: true, message: '请输入代理机构联系人', trigger: 'blur' }
   ],
   certScope: [{ required: true, message: '请输入认证范围', trigger: 'blur' }],
   category: [{ required: true, message: '请选择领域', trigger: 'change' }],
@@ -285,10 +274,6 @@ const handleSubmit = async () => {
   // 二次校验：有效期 > 发证日期（rules 也会校验，但兜底）
   if (form.expiryDate && form.issueDate && form.expiryDate <= form.issueDate) {
     ElMessage.error('证书有效期必须晚于发证日期')
-    return
-  }
-  if (form.agencyContact && !CONTACT_REGEX.test(form.agencyContact)) {
-    ElMessage.error('请输入有效的手机号、固话或邮箱')
     return
   }
 

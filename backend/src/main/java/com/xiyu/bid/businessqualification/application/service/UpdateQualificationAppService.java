@@ -5,6 +5,7 @@ import com.xiyu.bid.businessqualification.application.command.QualificationUpser
 import com.xiyu.bid.businessqualification.domain.model.BusinessQualification;
 import com.xiyu.bid.businessqualification.domain.model.QualificationAttachment;
 import com.xiyu.bid.businessqualification.domain.port.BusinessQualificationRepository;
+import com.xiyu.bid.businessqualification.domain.service.QualificationCreationPolicy;
 import com.xiyu.bid.businessqualification.domain.service.QualificationValidationResult;
 import com.xiyu.bid.businessqualification.domain.valueobject.QualificationSubject;
 import com.xiyu.bid.businessqualification.domain.valueobject.ReminderPolicy;
@@ -23,6 +24,7 @@ public class UpdateQualificationAppService {
 
     private final BusinessQualificationRepository repository;
     private final IAuditLogService auditLogService;
+    private final QualificationCreationPolicy creationPolicy;
 
     /**
      * CO-358 fix: 轻量级下架接口，仅修改 retired/retireReason 字段。
@@ -91,6 +93,8 @@ public class UpdateQualificationAppService {
                 command.getRetired() == null ? existing.retired() : command.getRetired(),
                 newAttachments
         );
+
+        requireValid(creationPolicy.validateForUpdate(updated));
 
         String newCertificateNo = updated.certificateNo();
         if (newCertificateNo != null && !newCertificateNo.equals(existing.certificateNo())
