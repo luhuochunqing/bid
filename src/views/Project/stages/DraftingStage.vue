@@ -102,8 +102,11 @@
 
       <!-- 仅当前用户是被指定的审核人时显示审核按钮（审核状态为审核中） -->
       <template v-if="isCurrentUserReviewer && reviewState === 'reviewing'">
-        <el-button type="danger" @click="handleReviewBid">驳回</el-button>
-        <el-button type="success" :loading="reviewApproving" @click="confirmReviewBid('approve')">审核通过</el-button>
+        <!-- CO-484 v2：当前审核人已通过后，隐藏驳回按钮、置灰审核通过按钮，避免重复操作 -->
+        <el-button v-if="currentReviewerDecision !== 'APPROVED'" type="danger" @click="handleReviewBid">驳回</el-button>
+        <el-button type="success" :loading="reviewApproving" :disabled="currentReviewerDecision === 'APPROVED'" @click="confirmReviewBid('approve')">
+          {{ currentReviewerDecision === 'APPROVED' ? '已通过' : '审核通过' }}
+        </el-button>
       </template>
     </div>
 
@@ -244,6 +247,15 @@ const isCurrentUserReviewer = computed(() => {
   const uid = ctx.userStore?.currentUser?.id
   if (!uid || bidReviewerIds.value.length === 0) return false
   return bidReviewerIds.value.some(rid => String(uid) === String(rid))
+})
+
+// CO-484 v2：当前审核人自己的决策（APPROVED/REJECTED/null）。
+// 用于审核通过后隐藏驳回按钮 + 置灰审核通过按钮，避免重复操作。
+const currentReviewerDecision = computed(() => {
+  const uid = ctx.userStore?.currentUser?.id
+  if (!uid || reviewers.value.length === 0) return null
+  const mine = reviewers.value.find(r => String(r.reviewerId) === String(uid))
+  return mine?.decision || null
 })
 const uploadUrl = computed(() => getApiUrl(`/api/projects/${props.projectId}/documents`))
 const uploadHeaders = computed(() => { const t = userStore?.token; return t ? { Authorization: 'Bearer ' + t } : {} })
