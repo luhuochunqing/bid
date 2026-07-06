@@ -186,4 +186,12 @@ function shouldShowOverflowTooltip(value, maxChars = 15) {
   white-space: nowrap;
 }
 
+/* CO-519: interactions.css 对 .is-disabled 全局设了 pointer-events:none，
+   导致 disabled el-input 上的 el-tooltip 收不到 hover 事件，tooltip 不弹出。
+   这里恢复 .el-tooltip__trigger 的 pointer-events，仅让 hover 触发 tooltip；
+   内层 input 仍 disabled 不可编辑。 */
+.matrix-table-wrapper :deep(.el-tooltip__trigger.is-disabled) {
+  pointer-events: auto;
+}
+
 </style>
