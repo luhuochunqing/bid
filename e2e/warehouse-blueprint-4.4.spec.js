@@ -142,6 +142,65 @@ test.describe('§4.4 仓库信息 — 蓝图全功能验证', () => {
     })
   })
 
+  test.describe('租约信息 — 租赁合同字段', () => {
+
+    test('租赁合同上传位于租约信息分区（而非资料核验）', async ({ page }) => {
+      await loginAs(page, '/bidAdmin')
+      await page.goto('/knowledge/warehouse')
+
+      await page.getByRole('button', { name: '新增仓库' }).click()
+      await page.waitForSelector('.el-dialog', { timeout: 5000 })
+
+      const leaseSection = page.locator('.section-title:has-text("租约信息")').locator('..')
+      await expect(leaseSection).toBeVisible()
+
+      await expect(leaseSection.locator('.el-form-item:has-text("租赁合同")')).toBeVisible()
+      await expect(leaseSection.locator('.el-upload')).toBeVisible()
+
+      const certSection = page.locator('.section-title:has-text("资料核验")').locator('..')
+      await expect(certSection.locator('.el-form-item:has-text("租赁合同")')).toHaveCount(0)
+    })
+
+    test('租赁合同无 switch 开关，直接显示上传组件', async ({ page }) => {
+      await loginAs(page, '/bidAdmin')
+      await page.goto('/knowledge/warehouse')
+
+      await page.getByRole('button', { name: '新增仓库' }).click()
+      await page.waitForSelector('.el-dialog', { timeout: 5000 })
+
+      const leaseSection = page.locator('.section-title:has-text("租约信息")').locator('..')
+      await expect(leaseSection.locator('.el-form-item:has-text("有租赁合同") .el-switch')).toHaveCount(0)
+      await expect(leaseSection.locator('.el-form-item:has-text("租赁合同") .el-upload')).toBeVisible()
+    })
+
+    test('必填校验：未上传租赁合同提交被阻断', async ({ page }) => {
+      await loginAs(page, '/bidAdmin')
+      await page.goto('/knowledge/warehouse')
+
+      await page.getByRole('button', { name: '新增仓库' }).click()
+      await page.waitForSelector('.el-dialog', { timeout: 5000 })
+
+      await page.locator('.el-form-item:has-text("仓库名称") input').fill('必填校验测试仓')
+      await page.locator('.el-dialog .el-form-item:has-text("仓库类型") .el-select').click()
+      await page.locator('.type-select-popper .el-select-dropdown__item:has-text("自营")').click()
+      await page.locator('.el-form-item:has-text("所在省份") input').fill('上海')
+      await page.locator('.el-form-item:has-text("具体地址") input').fill('浦东')
+      await page.locator('.el-form-item:has-text("仓库面积") input').fill('1000')
+      await page.locator('.el-form-item:has-text("区域联系人") input').fill('测试联系人')
+
+      const leaseSection = page.locator('.section-title:has-text("租约信息")').locator('..')
+      await leaseSection.locator('.el-form-item:has-text("开始时间") input').fill('2025-01-01')
+      await leaseSection.locator('.el-form-item:has-text("结束时间") input').fill('2027-12-31')
+      await leaseSection.locator('.el-form-item:has-text("出租方") input').fill('测试出租方')
+      await leaseSection.locator('.el-form-item:has-text("承租方") input').fill('测试承租方')
+
+      await page.getByRole('button', { name: '保存' }).click()
+
+      await expect(page.locator('.el-message--error').first()).toBeVisible({ timeout: 3000 })
+      await expect(page.locator('.el-dialog')).toBeVisible()
+    })
+  })
+
   test.describe('关仓与恢复', () => {
 
     test('关仓确认弹窗可见', async ({ page }) => {
