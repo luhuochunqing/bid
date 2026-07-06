@@ -279,4 +279,101 @@ class ProjectAccessScopeServiceTest {
         assertThatThrownBy(() -> projectAccessScopeService.assertCurrentUserCanAccessProject(12L))
                 .isInstanceOf(AccessDeniedException.class);
     }
+
+    // ===== Spec 030 H2：canAccessProject 共享判定口径（admin/dataScope=all 短路 + allowedProjectIds） =====
+
+    private User userWithRoleCode(Long id, String username, String roleCode) {
+        User u = User.builder()
+                .id(id)
+                .username(username)
+                .role(User.Role.ADMIN)  // role 字段对 OSS 同步用户已废弃，roleProfile.code 是权威源
+                .enabled(true)
+                .build();
+        u.setRoleProfile(RoleProfile.builder().code(roleCode).name(roleCode).build());
+        return u;
+    }
+
+    @Test
+    void canAccessProject_shouldReturnFalse_whenUserIdOrNull() {
+        assertThat(projectAccessScopeService.canAccessProject(null, 100L)).isFalse();
+        assertThat(projectAccessScopeService.canAccessProject(601L, null)).isFalse();
+    }
+
+    @Test
+    void canAccessProject_shouldReturnFalse_whenUserNotFound() {
+        when(userRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThat(projectAccessScopeService.canAccessProject(999L, 100L)).isFalse();
+    }
+
+    @Test
+    void canAccessProject_shouldShortCircuit_whenUserIsAdmin() {
+        // admin 角色：dataScope=all，应短路返回 true，不触发 getAllowedProjectIds 的 SQL 链
+        User admin = userWithRoleCode(1L, "admin", "admin");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(admin));
+        // 注意：故意不 stub dataScopeConfigService 和 projectRepository —— 如果走完整路径会 NPE
+
+        assertThat(projectAccessScopeService.canAccessProject(1L, 999L)).isTrue();
+    }
+
+    @Test
+    void canAccessProject_shouldShortCircuit_whenDataScopeIsAll() {
+        // /bidAdmin 也是 dataScope=all（RoleProfileCatalog.GLOBAL_ACCESS_ROLES）
+        User bidAdmin = userWithRoleCode(2L, "bid-admin", "/bidAdmin");
+        when(userRepository.findById(2L)).thenReturn(Optional.of(bidAdmin));
+        when(dataScopeConfigService.getAccessProfile(bidAdmin)).thenReturn(DataScopeAccessProfile.builder()
+                .dataScope("all")
+                .build());
+        // 注意：故意不 stub projectRepository —— 短路应跳过
+
+        assertThat(projectAccessScopeService.canAccessProject(2L, 999L)).isTrue();
+    }
+
+    @Test
+    void canAccessProject_shouldCheckAllowedProjectIds_whenSelfScopedUser() {
+        // bid-Team 是 dataScope=self（06131 案例）
+        User staff = userWithRoleCode(601L, "staff", "bid-Team");
+        when(userRepository.findById(601L)).thenReturn(Optional.of(staff));
+        when(dataScopeConfigService.getAccessProfile(staff)).thenReturn(DataScopeAccessProfile.builder()
+                .dataScope("self")
+                .build());
+        when(projectRepository.findAccessibleProjectIdsByUserId(601L)).thenReturn(List.of(3L, 5L));
+        when(projectGroupService.getGrantedProjectIds(staff)).thenReturn(List.of());
+        when(projectMemberRepository.findByUserId(anyLong())).thenReturn(List.of());
+        when(crmCustomerPermissionRepository.findByUserId(anyLong())).thenReturn(List.of());
+
+        assertThat(projectAccessScopeService.canAccessProject(601L, 5L)).isTrue();
+        assertThat(projectAccessScopeService.canAccessProject(601L, 999L)).isFalse();
+    }
+
+    /**
+     * H2 核心验证：canAccessProject 与 assertCurrentUserCanAccessProject 必须使用同一判定口径。
+     * 同一 bid-Team 用户（既不在 admin 短路、dataScope=self）对同一项目，
+     * 两个方法的判定结果必须一致。
+     */
+    @Test
+    void canAccessProject_shouldAlignWith_assertCurrentUserCanAccessProject() {
+        User staff = userWithRoleCode(701L, "alignment-staff", "bid-Team");
+        when(userRepository.findById(701L)).thenReturn(Optional.of(staff));
+        when(userRepository.findByUsername("alignment-staff")).thenReturn(Optional.of(staff));
+        when(dataScopeConfigService.getAccessProfile(staff)).thenReturn(DataScopeAccessProfile.builder()
+                .dataScope("self")
+                .build());
+        when(projectRepository.findAccessibleProjectIdsByUserId(701L)).thenReturn(List.of(7L));
+        when(projectGroupService.getGrantedProjectIds(staff)).thenReturn(List.of());
+        when(projectMemberRepository.findByUserId(anyLong())).thenReturn(List.of());
+        when(crmCustomerPermissionRepository.findByUserId(anyLong())).thenReturn(List.of());
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("alignment-staff", "N/A", List.of())
+        );
+
+        // 在可见集内 → 两个方法都通过
+        assertThat(projectAccessScopeService.canAccessProject(701L, 7L)).isTrue();
+        projectAccessScopeService.assertCurrentUserCanAccessProject(7L);  // 不抛异常
+
+        // 不在可见集 → 两个方法都拒
+        assertThat(projectAccessScopeService.canAccessProject(701L, 999L)).isFalse();
+        assertThatThrownBy(() -> projectAccessScopeService.assertCurrentUserCanAccessProject(999L))
+                .isInstanceOf(AccessDeniedException.class);
+    }
 }
