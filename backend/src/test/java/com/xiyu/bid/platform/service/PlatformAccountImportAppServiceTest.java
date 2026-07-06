@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -66,15 +65,13 @@ class PlatformAccountImportAppServiceTest {
         lenient().when(taskRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         lenient().when(accountRepo.findByAccountName(anyString())).thenReturn(Optional.empty());
-        lenient().when(accountRepo.findByUsername(anyString())).thenReturn(Optional.empty());
-        lenient().when(accountRepo.findByPlatformTypeAndUsername(any(), anyString())).thenReturn(Optional.empty());
     }
 
     private WorkbookData buildWorkbook(String employeeNumber) {
         String[] header = PlatformAccountImportPolicy.HEADERS.clone();
         String[] row = {
                 "测试平台", "https://example.com", "admin", "pass123",
-                "其他", employeeNumber, "否", "",
+                employeeNumber, "否", "",
                 "", "", ""
         };
         return new WorkbookData(List.of(header, row));
@@ -123,8 +120,8 @@ class PlatformAccountImportAppServiceTest {
     }
 
     @Nested
-    @DisplayName("executeImportAsync — 平台内唯一性校验")
-    class PlatformScopedUniqueness {
+    @DisplayName("executeImportAsync — 已取消登录账号唯一性校验")
+    class UsernameUniquenessRemoved {
 
         private WorkbookData buildWorkbookWithRows(String[]... rows) {
             String[] header = PlatformAccountImportPolicy.HEADERS.clone();
@@ -134,22 +131,22 @@ class PlatformAccountImportAppServiceTest {
             return new WorkbookData(data);
         }
 
-        private String[] row(String accountName, String platformType, String username, String employeeNumber) {
+        private String[] row(String accountName, String username, String employeeNumber) {
             return new String[]{
                     accountName, "https://example.com", username, "pass123",
-                    platformType, employeeNumber, "否", "",
+                    employeeNumber, "否", "",
                     "", "", ""
             };
         }
 
         @Test
-        @DisplayName("不同平台相同账号：两行都应导入成功")
-        void differentPlatformSameUsername_bothImported() throws Exception {
+        @DisplayName("相同登录账号重复出现：所有行都应导入成功")
+        void duplicateUsername_rowsAllowed() throws Exception {
             User custodian = User.builder().id(CUSTODIAN_USER_ID).employeeNumber(VALID_EMPLOYEE_NUMBER).build();
             when(excelReader.read(any(byte[].class)))
                     .thenReturn(buildWorkbookWithRows(
-                            row("平台A", "政府采购网", "admin", VALID_EMPLOYEE_NUMBER),
-                            row("平台B", "招投标平台", "admin", VALID_EMPLOYEE_NUMBER)));
+                            row("平台A", "admin", VALID_EMPLOYEE_NUMBER),
+                            row("平台B", "admin", VALID_EMPLOYEE_NUMBER)));
             when(userRepository.findByEmployeeNumber(VALID_EMPLOYEE_NUMBER)).thenReturn(Optional.of(custodian));
 
             service.executeImportAsync(TASK_ID, new byte[0], OPERATOR_ID);
@@ -167,20 +164,17 @@ class PlatformAccountImportAppServiceTest {
         }
 
         @Test
-        @DisplayName("同一平台相同账号：第二行应提示重复")
-        void samePlatformSameUsername_secondRowRejected() throws Exception {
+        @DisplayName("平台名称重复：第二行应提示重复")
+        void duplicateAccountName_secondRowRejected() throws Exception {
             User custodian = User.builder().id(CUSTODIAN_USER_ID).employeeNumber(VALID_EMPLOYEE_NUMBER).build();
             when(excelReader.read(any(byte[].class)))
                     .thenReturn(buildWorkbookWithRows(
-                            row("平台A", "政府采购网", "admin", VALID_EMPLOYEE_NUMBER),
-                            row("平台B", "政府采购网", "admin", VALID_EMPLOYEE_NUMBER)));
+                            row("同一平台", "user1", VALID_EMPLOYEE_NUMBER),
+                            row("同一平台", "user2", VALID_EMPLOYEE_NUMBER)));
             when(userRepository.findByEmployeeNumber(VALID_EMPLOYEE_NUMBER)).thenReturn(Optional.of(custodian));
-
-            AtomicInteger callCount = new AtomicInteger(0);
-            when(accountRepo.findByPlatformTypeAndUsername(PlatformAccount.PlatformType.GOV_PROCUREMENT, "admin"))
-                    .thenAnswer(inv -> callCount.incrementAndGet() == 1
-                            ? Optional.empty()
-                            : Optional.of(new PlatformAccount()));
+            when(accountRepo.findByAccountName("同一平台"))
+                    .thenReturn(Optional.empty())
+                    .thenReturn(Optional.of(new PlatformAccount()));
 
             service.executeImportAsync(TASK_ID, new byte[0], OPERATOR_ID);
 
@@ -193,7 +187,7 @@ class PlatformAccountImportAppServiceTest {
                     .findFirst()
                     .orElseThrow();
             assertThat(finalTask.getImportedRows()).isEqualTo(1);
-            assertThat(finalTask.getErrorDetails()).contains("登录账号");
+            assertThat(finalTask.getErrorDetails()).contains("平台名称");
             assertThat(finalTask.getErrorDetails()).contains("已存在");
         }
     }

@@ -2,7 +2,6 @@ package com.xiyu.bid.platform.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.xiyu.bid.platform.entity.PlatformAccount.PlatformType;
 import com.xiyu.bid.platform.domain.PlatformAccountImportPolicy.ParsedAccountRow;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -20,7 +19,7 @@ class PlatformAccountImportPolicyTest {
         void newHeader_valid() {
             String[] header = {
                     "平台名称*", "平台网址*", "登录账号*", "登录密码*",
-                    "平台类型", "账号保管员工号*", "是否有CA", "备注",
+                    "账号保管员工号*", "是否有CA", "备注",
                     "注册人", "注册手机", "注册邮箱"
             };
             assertThat(PlatformAccountImportPolicy.validateHeader(header)).isEmpty();
@@ -31,7 +30,7 @@ class PlatformAccountImportPolicyTest {
         void oldHeader_invalid() {
             String[] header = {
                     "平台名称*", "平台网址*", "登录账号*", "登录密码*",
-                    "平台类型", "账号保管员userId", "是否有CA", "备注",
+                    "账号保管员userId", "是否有CA", "备注",
                     "注册人", "注册手机", "注册邮箱"
             };
             assertThat(PlatformAccountImportPolicy.validateHeader(header))
@@ -46,7 +45,7 @@ class PlatformAccountImportPolicyTest {
         private String[] validCells() {
             return new String[]{
                     "测试平台", "https://example.com", "admin", "pass123",
-                    "其他", "EMP001", "否", "",
+                    "EMP001", "否", "",
                     "", "", ""
             };
         }
@@ -57,14 +56,13 @@ class PlatformAccountImportPolicyTest {
             ParsedAccountRow row = PlatformAccountImportPolicy.parseRow(2, validCells());
             assertThat(row.valid()).isTrue();
             assertThat(row.employeeNumber()).isEqualTo("EMP001");
-            assertThat(row.platformType()).isEqualTo(PlatformType.OTHER);
         }
 
         @Test
         @DisplayName("工号为空时，valid() 为 false，错误包含提示")
         void emptyEmployeeNumber_invalid() {
             String[] cells = validCells();
-            cells[5] = "";
+            cells[4] = "";
             ParsedAccountRow row = PlatformAccountImportPolicy.parseRow(2, cells);
             assertThat(row.valid()).isFalse();
             assertThat(row.errors()).contains("请填入账号保管员工号");
@@ -74,7 +72,7 @@ class PlatformAccountImportPolicyTest {
         @DisplayName("工号为空白字符时，视为空，报错")
         void blankEmployeeNumber_invalid() {
             String[] cells = validCells();
-            cells[5] = "   ";
+            cells[4] = "   ";
             ParsedAccountRow row = PlatformAccountImportPolicy.parseRow(2, cells);
             assertThat(row.valid()).isFalse();
             assertThat(row.errors()).contains("请填入账号保管员工号");
@@ -84,7 +82,7 @@ class PlatformAccountImportPolicyTest {
         @DisplayName("工号会自动 trim 前后空白")
         void employeeNumberTrimmed() {
             String[] cells = validCells();
-            cells[5] = "  EMP001  ";
+            cells[4] = "  EMP001  ";
             ParsedAccountRow row = PlatformAccountImportPolicy.parseRow(2, cells);
             assertThat(row.valid()).isTrue();
             assertThat(row.employeeNumber()).isEqualTo("EMP001");
@@ -94,7 +92,7 @@ class PlatformAccountImportPolicyTest {
         @DisplayName("工号支持纯数字格式（兼容旧习惯）")
         void numericEmployeeNumber_valid() {
             String[] cells = validCells();
-            cells[5] = "20260509";
+            cells[4] = "20260509";
             ParsedAccountRow row = PlatformAccountImportPolicy.parseRow(2, cells);
             assertThat(row.valid()).isTrue();
             assertThat(row.employeeNumber()).isEqualTo("20260509");

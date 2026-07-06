@@ -23,7 +23,6 @@ const mockAccountDetail = {
   custodianName: '李保管',
   caCustodian: '902',
   caCustodianName: '王CA',
-  platformType: 'GOV_PROCUREMENT',
   remarks: '主账号',
   registrant: '李注册',
   registerPhone: '13900000001',

@@ -52,7 +52,7 @@ public class PlatformAccountExportService {
     /** 表头：与列表展示列对齐 + 扩展状态列。顺序即列顺序。 */
     private static final String[] HEADERS = {
             "平台名称", "账号", "密码", "网址", "账号保管员",
-            "平台类型", "是否有CA", "注册人", "注册手机", "注册邮箱",
+            "是否有CA", "注册人", "注册手机", "注册邮箱",
             "账号状态", "备注"
     };
 
@@ -135,7 +135,6 @@ public class PlatformAccountExportService {
             row.createCell(col++).setCellValue(decryptPassword(account.getPassword()));
             row.createCell(col++).setCellValue(nullSafe(account.getUrl()));
             row.createCell(col++).setCellValue(custodianMap.getOrDefault(account.getContactPerson(), ""));
-            row.createCell(col++).setCellValue(formatPlatformType(account.getPlatformType()));
             row.createCell(col++).setCellValue(account.getHasCa() ? "是" : "否");
             row.createCell(col++).setCellValue(nullSafe(account.getRegistrant()));
             row.createCell(col++).setCellValue(nullSafe(account.getRegisterPhone()));
@@ -171,11 +170,6 @@ public class PlatformAccountExportService {
         } catch (RuntimeException e) {
             return "******";
         }
-    }
-
-    private String formatPlatformType(PlatformAccount.PlatformType type) {
-        if (type == null) return "";
-        return type.getDescription();
     }
 
     private String formatStatus(PlatformAccount.AccountStatus status) {

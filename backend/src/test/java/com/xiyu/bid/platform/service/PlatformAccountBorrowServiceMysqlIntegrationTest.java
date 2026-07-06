@@ -8,7 +8,6 @@ import com.xiyu.bid.platform.entity.AccountBorrowApplication;
 import com.xiyu.bid.platform.entity.AccountBorrowApplication.BorrowStatus;
 import com.xiyu.bid.platform.entity.PlatformAccount;
 import com.xiyu.bid.platform.entity.PlatformAccount.AccountStatus;
-import com.xiyu.bid.platform.entity.PlatformAccount.PlatformType;
 import com.xiyu.bid.platform.repository.AccountBorrowApplicationRepository;
 import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.support.AbstractMysqlIntegrationTest;
@@ -98,7 +97,6 @@ class PlatformAccountBorrowServiceMysqlIntegrationTest extends AbstractMysqlInte
                 .password("encrypted-pwd")
                 .accountName("测试账号-" + suffix)
                 .contactPerson(CUSTODIAN_ID)
-                .platformType(PlatformType.BIDDING_PLATFORM)
                 .status(AccountStatus.AVAILABLE)
                 .build());
     }
@@ -160,7 +158,6 @@ class PlatformAccountBorrowServiceMysqlIntegrationTest extends AbstractMysqlInte
                     .password("encrypted-pwd")
                     .accountName("测试账号-a2")
                     .contactPerson(null)  // 未绑定联系人
-                    .platformType(PlatformType.GOV_PROCUREMENT)
                     .status(AccountStatus.AVAILABLE)
                     .build());
 

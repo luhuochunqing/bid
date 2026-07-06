@@ -13,21 +13,10 @@ function normalizeAccountStatus(status) {
   return 'available'
 }
 
-function normalizePlatformLabel(platformType, fallback) {
-  const type = String(platformType || '').toUpperCase()
-  const map = {
-    BIDDING_PLATFORM: '投标平台',
-    CONSTRUCTION_PLATFORM: '采购平台',
-    GOV_PROCUREMENT: '政府平台',
-    OTHER: '其他平台'
-  }
-  return fallback || map[type] || type || '未知平台'
-}
-
 function normalizeAccount(item = {}) {
   return {
     id: item.id,
-    platform: item.platform || normalizePlatformLabel(item.platformType, item.accountName),
+    platform: item.platform || item.accountName || '',
     accountName: item.accountName || '',
     username: item.username || '',
     password: item.password || '',
@@ -38,7 +27,6 @@ function normalizeAccount(item = {}) {
     registerPhone: item.registerPhone || '',
     registerEmail: item.registerEmail || '',
     hasCa: item.hasCa || false,
-    platformType: item.platformType || '',
     remarks: item.remarks || '',
     status: item.status ? normalizeAccountStatus(item.status) : 'available',
     lastUsed: formatDateTime(item.updatedAt || item.borrowedAt || item.lastUsed),

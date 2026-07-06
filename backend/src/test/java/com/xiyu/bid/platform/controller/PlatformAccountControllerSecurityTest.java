@@ -230,7 +230,7 @@ class PlatformAccountControllerSecurityTest {
 
         mockMvc.perform(put("/api/platform/accounts/1")
                         .contentType("application/json")
-                        .content("{\"username\":\"u\",\"password\":\"p\",\"accountName\":\"n\",\"platformType\":\"GOV_PROCUREMENT\"}"))
+                        .content("{\"username\":\"u\",\"password\":\"p\",\"accountName\":\"n\"}"))
                 .andExpect(status().isOk());
     }
 
@@ -246,7 +246,7 @@ class PlatformAccountControllerSecurityTest {
 
         mockMvc.perform(put("/api/platform/accounts/1")
                         .contentType("application/json")
-                        .content("{\"username\":\"u\",\"password\":\"p\",\"accountName\":\"n\",\"platformType\":\"GOV_PROCUREMENT\"}"))
+                        .content("{\"username\":\"u\",\"password\":\"p\",\"accountName\":\"n\"}"))
                 .andExpect(status().isOk());
     }
 
@@ -256,7 +256,7 @@ class PlatformAccountControllerSecurityTest {
     void noResourceAuthority_PUT_update_shouldReturn403() throws Exception {
         mockMvc.perform(put("/api/platform/accounts/1")
                         .contentType("application/json")
-                        .content("{\"username\":\"u\",\"password\":\"p\",\"accountName\":\"n\",\"platformType\":\"GOV_PROCUREMENT\"}"))
+                        .content("{\"username\":\"u\",\"password\":\"p\",\"accountName\":\"n\"}"))
                 .andExpect(status().isForbidden());
     }
 

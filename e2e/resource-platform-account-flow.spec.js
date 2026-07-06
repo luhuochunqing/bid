@@ -28,7 +28,6 @@ test.describe('资源管理 - 招标平台账号管理全流程', () => {
         contactPerson: '测试联系人',
         contactPhone: '13800138000',
         contactEmail: `test_${s}@example.com`,
-        accountType: 'GOV_PROCUREMENT',
         hasCa: false,
         remarks: 'E2E测试账号',
         custodianId: adminSession.user.id,
@@ -86,7 +85,6 @@ test.describe('资源管理 - 招标平台账号管理全流程', () => {
         username: `test_user_${s}`,
         contactPerson: '测试联系人',
         contactPhone: '13800138001',
-        accountType: 'GOV_PROCUREMENT',
         hasCa: false
       })
     })
@@ -115,7 +113,6 @@ test.describe('资源管理 - 招标平台账号管理全流程', () => {
         password: 'SecretPwd!2026',
         contactPerson: '测试',
         contactPhone: '13800138000',
-        accountType: 'GOV_PROCUREMENT',
         hasCa: false,
         custodianId: adminSession.user.id,
         custodianName: adminSession.user.name
@@ -155,7 +152,6 @@ test.describe('资源管理 - 招标平台账号管理全流程', () => {
         password: 'Test123',
         contactPerson: '测试',
         contactPhone: '13800138000',
-        accountType: 'GOV_PROCUREMENT',
         hasCa: false,
         custodianId: specialistSession.user.id,
         custodianName: specialistSession.user.name

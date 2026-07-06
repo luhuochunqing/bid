@@ -1,8 +1,6 @@
 package com.xiyu.bid.platform.dto;
 
-import com.xiyu.bid.platform.entity.PlatformAccount.PlatformType;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -38,10 +36,6 @@ public class PlatformAccountCreateRequest {
     /** Display name of the platform. */
     @NotBlank(message = "平台名称不能为空")
     private String accountName;
-
-    /** Platform type category. */
-    @NotNull(message = "平台类型不能为空")
-    private PlatformType platformType;
 
     /** Platform website URL. */
     @Size(max = MAX_URL)

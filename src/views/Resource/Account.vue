@@ -71,9 +71,6 @@
               </template>
             </el-table-column>
             <el-table-column prop="contactPersonLabel" label="账号保管员" width="140" />
-            <el-table-column prop="platformType" label="平台类型" width="120">
-              <template #default="{ row }">{{ formatPlatformType(row.platformType) }}</template>
-            </el-table-column>
             <el-table-column label="是否有 CA" width="120" align="center">
               <template #default="{ row }">
                 <el-tag :type="row.hasCa ? 'success' : 'info'" size="small">{{ row.hasCa ? '是' : '否' }}</el-tag>
@@ -192,7 +189,6 @@ import { useAccountRowActions } from './composables/useAccountRowActions.js'
 import { usePasswordReveal } from './composables/usePasswordReveal.js'
 import { useAccountExport } from './composables/useAccountExport.js'
 import { useAccountBorrowApplications } from './composables/useAccountBorrowApplications.js'
-import { formatPlatformType } from './accountActions.js'
 import AccountFormDialog from './AccountFormDialog.vue'
 import AccountDetailDialog from './AccountDetailDialog.vue'
 import AccountBorrowDialog from './AccountBorrowDialog.vue'

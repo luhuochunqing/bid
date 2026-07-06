@@ -5,7 +5,6 @@ package com.xiyu.bid.platform.service;
 
 import com.xiyu.bid.platform.dto.PlatformAccountCreateRequest;
 import com.xiyu.bid.platform.entity.PlatformAccount;
-import com.xiyu.bid.platform.entity.PlatformAccount.PlatformType;
 import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
 import org.junit.jupiter.api.DisplayName;
@@ -44,7 +43,7 @@ class PlatformAccountUpdateApplierTest {
     void applyFields_overridesNonNullKeepsNull() {
         PlatformAccount account = PlatformAccount.builder()
                 .id(1L).username("olduser").accountName("旧名称")
-                .platformType(PlatformType.GOV_PROCUREMENT).password("enc:old").build();
+                .password("enc:old").build();
         PlatformAccountCreateRequest req = PlatformAccountCreateRequest.builder()
                 .username("newuser")  // 覆盖
                 .password(null)        // 保留原值
@@ -56,7 +55,6 @@ class PlatformAccountUpdateApplierTest {
         assertThat(account.getUsername()).isEqualTo("newuser");
         assertThat(account.getAccountName()).isEqualTo("新名称");
         assertThat(account.getPassword()).isEqualTo("enc:old");  // 未变
-        assertThat(account.getPlatformType()).isEqualTo(PlatformType.GOV_PROCUREMENT);  // 未变
     }
 
     @Test
@@ -64,7 +62,7 @@ class PlatformAccountUpdateApplierTest {
     void applyFields_newPassword_getsEncrypted() {
         PlatformAccount account = PlatformAccount.builder()
                 .id(1L).username("u").accountName("n")
-                .platformType(PlatformType.GOV_PROCUREMENT).password("enc:old").build();
+                .password("enc:old").build();
         PlatformAccountCreateRequest req = PlatformAccountCreateRequest.builder()
                 .password("newSecret123").build();
         when(passwordEncryptionUtil.encrypt("newSecret123")).thenReturn("enc:newSecret123");
@@ -76,30 +74,43 @@ class PlatformAccountUpdateApplierTest {
     }
 
     @Test
-    @DisplayName("validateUniqueness: 目标用户名已被其他账号占用抛异常")
-    void validateUniqueness_duplicateUsername_throws() {
+    @DisplayName("validateUniqueness: 目标平台名称已被其他账号占用抛异常")
+    void validateUniqueness_duplicateAccountName_throws() {
         PlatformAccount existing = PlatformAccount.builder().id(1L)
-                .platformType(PlatformType.GOV_PROCUREMENT).username("olduser").build();
+                .accountName("旧平台").username("olduser").build();
         PlatformAccountCreateRequest req = PlatformAccountCreateRequest.builder()
-                .platformType(PlatformType.GOV_PROCUREMENT).username("taken").build();
-        when(repository.findByPlatformTypeAndUsername(PlatformType.GOV_PROCUREMENT, "taken"))
+                .accountName("新平台").username("olduser").build();
+        when(repository.findByAccountName("新平台"))
                 .thenReturn(Optional.of(PlatformAccount.builder().id(2L).build()));
 
         assertThatThrownBy(() -> applier.validateUniqueness(req, existing))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Username already exists: taken");
+                .hasMessageContaining("Account name already exists: 新平台");
     }
 
     @Test
-    @DisplayName("validateUniqueness: 用户名未变（同账号）放行，不查 repository")
-    void validateUniqueness_sameUsernameOnSameAccount_passes() {
+    @DisplayName("validateUniqueness: 平台名称未变（同账号）放行，不查 repository")
+    void validateUniqueness_sameAccountNameOnSameAccount_passes() {
         PlatformAccount existing = PlatformAccount.builder().id(1L)
-                .platformType(PlatformType.GOV_PROCUREMENT).username("sameuser").build();
+                .accountName("同一平台").username("olduser").build();
         PlatformAccountCreateRequest req = PlatformAccountCreateRequest.builder()
-                .platformType(PlatformType.GOV_PROCUREMENT).username("sameuser").build();
+                .accountName("同一平台").username("newuser").build();
 
         applier.validateUniqueness(req, existing);
 
-        verify(repository, never()).findByPlatformTypeAndUsername(any(), any());
+        verify(repository, never()).findByAccountName(any());
+    }
+
+    @Test
+    @DisplayName("validateUniqueness: 用户名变更不影响唯一性校验")
+    void validateUniqueness_usernameChange_passes() {
+        PlatformAccount existing = PlatformAccount.builder().id(1L)
+                .accountName("平台A").username("olduser").build();
+        PlatformAccountCreateRequest req = PlatformAccountCreateRequest.builder()
+                .accountName("平台A").username("newuser").build();
+
+        applier.validateUniqueness(req, existing);
+
+        verify(repository, never()).findByAccountName(any());
     }
 }

@@ -63,10 +63,6 @@ public class PlatformAccountService {
         whitelistStore.checkCreatePermission(effectiveRoleResolver.resolveRoleCode(currentUser), currentUser);
         validateRequest(request);
 
-        if (repository.findByPlatformTypeAndUsername(request.getPlatformType(), request.getUsername()).isPresent()) {
-            throw new IllegalArgumentException(String.format("平台账号「%s」在「%s」下已存在",
-                    request.getUsername(), request.getPlatformType().getDescription()));
-        }
         if (repository.findByAccountName(request.getAccountName()).isPresent()) {
             throw new IllegalArgumentException("Account name already exists: " + request.getAccountName());
         }
@@ -77,7 +73,6 @@ public class PlatformAccountService {
             .username(request.getUsername())
             .password(encryptedPassword)
             .accountName(request.getAccountName())
-            .platformType(request.getPlatformType())
             .url(request.getUrl())
             .contactPerson(request.getContactPerson())
             .registrant(request.getRegistrant())
@@ -232,7 +227,7 @@ public class PlatformAccountService {
     }
 
     /**
-     * Get decrypted password for an account (CO-400 四轮).
+     * Get decrypted password for an account (CO-400 四轮)。
      * Allowed for: admin / bidAdmin / bid-TeamLeader OR bid-Team as the account's contact person.
      *
      * <p>权限校验下沉到 {@link PlatformAccountViewerPolicy#checkCanViewPassword}，
@@ -281,6 +276,5 @@ public class PlatformAccountService {
         if (request.getUsername() == null || request.getUsername().trim().isEmpty()) throw new IllegalArgumentException("Username cannot be null or empty");
         if (request.getPassword() == null || request.getPassword().trim().isEmpty()) throw new IllegalArgumentException("Password cannot be null or empty");
         if (request.getAccountName() == null || request.getAccountName().trim().isEmpty()) throw new IllegalArgumentException("Account name cannot be null or empty");
-        if (request.getPlatformType() == null) throw new IllegalArgumentException("Platform type cannot be null");
     }
 }
