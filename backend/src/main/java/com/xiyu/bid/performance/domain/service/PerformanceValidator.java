@@ -88,35 +88,44 @@ public final class PerformanceValidator {
         }
 
         // 9. 核心必传附件校验：合同协议
-        boolean hasContractAgreement = record.attachments().stream()
-                .anyMatch(a -> "CONTRACT_AGREEMENT".equals(a.fileType()) && a.fileUrl() != null && !a.fileUrl().trim().isEmpty());
-        if (!hasContractAgreement) {
+        // 附件「存在」的判定：fileName 或 fileUrl 任一非空即可。
+        //  - 页面上传：fileUrl 为完整 URL；
+        //  - 批量导入：fileName 来自 Excel 模板，fileUrl 由附件包归档器后置回填（暂为空）。
+        // 两者都属于「已声明附件」，校验应放行；只有 fileName 与 fileUrl 均空才视为缺失。
+        if (!hasAttachment(record, "CONTRACT_AGREEMENT")) {
             return Optional.of("请上传合同协议");
         }
 
         // 10. 央企客户附件校验：央企名录截图 (SOE_DIRECTORY) 和 关系证明 (RELATIONSHIP_PROOF)
         if (record.customerType() == CustomerType.CENTRAL_SOE) {
-            boolean hasSoeDirectory = record.attachments().stream()
-                    .anyMatch(a -> "SOE_DIRECTORY".equals(a.fileType()) && a.fileUrl() != null && !a.fileUrl().trim().isEmpty());
-            boolean hasRelationshipProof = record.attachments().stream()
-                    .anyMatch(a -> "RELATIONSHIP_PROOF".equals(a.fileType()) && a.fileUrl() != null && !a.fileUrl().trim().isEmpty());
-            if (!hasSoeDirectory) {
+            if (!hasAttachment(record, "SOE_DIRECTORY")) {
                 return Optional.of("央企客户必须上传央企名录截图");
             }
-            if (!hasRelationshipProof) {
+            if (!hasAttachment(record, "RELATIONSHIP_PROOF")) {
                 return Optional.of("央企客户必须上传关系证明");
             }
         }
 
         // 11. 中标通知书联动校验
-        if (record.hasBidNotice()) {
-            boolean hasBidNoticeAttachment = record.attachments().stream()
-                    .anyMatch(a -> "BID_NOTICE".equals(a.fileType()) && a.fileUrl() != null && !a.fileUrl().trim().isEmpty());
-            if (!hasBidNoticeAttachment) {
-                return Optional.of("当中标通知书为是的时候，必传");
-            }
+        if (record.hasBidNotice() && !hasAttachment(record, "BID_NOTICE")) {
+            return Optional.of("当中标通知书为是的时候，必传");
         }
 
         return Optional.empty();
+    }
+
+    /**
+     * 判断指定类型的附件是否「已声明」。
+     * fileName（批量导入来自 Excel 模板）或 fileUrl（页面上传的完整 URL）任一非空即视为存在；
+     * 二者均空才视为缺失。
+     */
+    private static boolean hasAttachment(PerformanceRecord record, String fileType) {
+        return record.attachments().stream().anyMatch(a ->
+                fileType.equals(a.fileType())
+                        && (isPresent(a.fileName()) || isPresent(a.fileUrl())));
+    }
+
+    private static boolean isPresent(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 }
