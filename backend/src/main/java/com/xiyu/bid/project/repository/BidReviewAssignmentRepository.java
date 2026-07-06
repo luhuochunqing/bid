@@ -35,4 +35,18 @@ public interface BidReviewAssignmentRepository extends JpaRepository<BidReviewAs
     @Modifying
     @Query("DELETE FROM BidReviewAssignmentEntity a WHERE a.reviewId = :reviewId")
     void deleteByReviewId(@Param("reviewId") Long reviewId);
+
+    /**
+     * 幂等插入审核人分配记录（CO-484 并发提交防重）。
+     * <p>使用 {@code INSERT IGNORE} 依赖数据库唯一键 {@code uk_review_reviewer}
+     * 兜底：并发场景下两个事务同时写入同一 {@code (review_id, reviewer_id)} 时，
+     * 只有一个成功，另一个静默忽略，避免 {@code DataIntegrityViolationException}。</p>
+     */
+    @Modifying
+    @Query(value = "INSERT IGNORE INTO bid_review_assignment"
+            + " (review_id, reviewer_id, decision, comment, decided_at, created_at)"
+            + " VALUES (:reviewId, :reviewerId, NULL, NULL, NULL, NOW())",
+            nativeQuery = true)
+    void insertIgnore(@Param("reviewId") Long reviewId,
+                      @Param("reviewerId") Long reviewerId);
 }

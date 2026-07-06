@@ -92,12 +92,10 @@ public class BidReviewAppService {
         reviewRepository.save(review);
 
         // CO-483：驳回重提场景清空旧 assignment，避免残留决策
+        // XIYU-Q：并发提交可能导致重复插入，用 INSERT IGNORE 依赖 uk_review_reviewer 唯一键兜底
         assignmentRepository.deleteByReviewId(review.getId());
         for (Long rid : reviewerIds) {
-            assignmentRepository.save(BidReviewAssignmentEntity.builder()
-                    .reviewId(review.getId())
-                    .reviewerId(rid)
-                    .build());
+            assignmentRepository.insertIgnore(review.getId(), rid);
         }
 
         // 审核人加入项目成员（VIEWER），确保能看到项目列表

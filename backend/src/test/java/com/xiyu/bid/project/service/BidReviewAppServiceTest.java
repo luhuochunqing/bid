@@ -557,8 +557,8 @@ class BidReviewAppServiceTest {
 
         // 应清空旧 assignment
         verify(assignmentRepository).deleteByReviewId(1L);
-        // 应为每个 reviewerId 建未决 assignment（2 人 → save 调用 2 次）
-        verify(assignmentRepository, times(2)).save(any(BidReviewAssignmentEntity.class));
+        // XIYU-Q：应为每个 reviewerId 调用 insertIgnore（2 人 → 调用 2 次）
+        verify(assignmentRepository, times(2)).insertIgnore(anyLong(), anyLong());
     }
 
     /**
@@ -592,7 +592,7 @@ class BidReviewAppServiceTest {
 
         // 验证 bulk DELETE 被调用（@Modifying 保证 DELETE SQL 立即执行）
         verify(assignmentRepository).deleteByReviewId(1L);
-        // 验证为每个 reviewerId 建新 assignment
-        verify(assignmentRepository, times(2)).save(any(BidReviewAssignmentEntity.class));
+        // XIYU-Q：insertIgnore 依赖 uk_review_reviewer 唯一键兜底并发重复插入
+        verify(assignmentRepository, times(2)).insertIgnore(anyLong(), anyLong());
     }
 }

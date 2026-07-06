@@ -13,7 +13,7 @@ backlinks:
   - integration-tender-api
 created: 2026-05-07
 updated: 2026-06-28
-health_checked: 2026-06-27
+health_checked: 2026-07-06
 ---
 # CRM 对接规范
 

@@ -15,7 +15,7 @@ backlinks:
   - implementation/xiyu-pending-confirmations
 created: 2026-04-21
 updated: 2026-06-21
-health_checked: 2026-06-27
+health_checked: 2026-07-06
 ---
 # 实施交付作战包总览
 

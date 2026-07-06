@@ -10,6 +10,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,7 +23,9 @@ import java.time.LocalDateTime;
  * <p>CO-483 + CO-484：每个审核人的独立决策记录（一对多：一条 bid_document_review 对应多条 assignment）。</p>
  */
 @Entity
-@Table(name = "bid_review_assignment")
+@Table(name = "bid_review_assignment",
+       uniqueConstraints = @UniqueConstraint(name = "uk_review_reviewer",
+                                             columnNames = {"review_id", "reviewer_id"}))
 @Data
 @Builder
 @NoArgsConstructor
