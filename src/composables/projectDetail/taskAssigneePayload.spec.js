@@ -147,6 +147,35 @@ describe('taskAssigneePayload', () => {
 
       expect(task.attachments).toEqual([saved])
     })
+
+    // CO-519: 用户选了文件但全部提取失败（非 File 对象），应明确抛错避免静默失败
+    it('throws when all attachments are non-File objects (CO-519)', async () => {
+      const uploadTaskAttachment = vi.fn()
+      const projectStore = { uploadTaskAttachment }
+      const task = { id: 1, attachments: [] }
+      const nonFileWrapper = { name: 'broken.pdf', status: 'ready', size: 100, uid: 1 }
+
+      await expect(
+        uploadTaskAttachments(task, [nonFileWrapper], { projectStore, projectId: 'p1', userStore: {} })
+      ).rejects.toThrow(/文件读取失败/)
+
+      expect(uploadTaskAttachment).not.toHaveBeenCalled()
+    })
+
+    it('skips non-File objects but uploads valid ones (partial failure)', async () => {
+      const saved = { id: 100, name: 'valid.pdf' }
+      const uploadTaskAttachment = vi.fn().mockResolvedValue(saved)
+      const projectStore = { uploadTaskAttachment }
+      const task = { id: 1, attachments: [] }
+      const validFile = new File(['x'], 'valid.pdf')
+      const nonFileWrapper = { name: 'broken.pdf', status: 'ready' }
+
+      await uploadTaskAttachments(task, [validFile, nonFileWrapper], { projectStore, projectId: 'p1', userStore: {} })
+
+      expect(uploadTaskAttachment).toHaveBeenCalledTimes(1)
+      expect(uploadTaskAttachment).toHaveBeenCalledWith('p1', 1, expect.objectContaining({ name: 'valid.pdf' }))
+      expect(task.attachments).toEqual([saved])
+    })
   })
 
   describe('uploadTaskAttachmentsWithFallback', () => {
