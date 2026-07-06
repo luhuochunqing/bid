@@ -30,7 +30,9 @@ public class PlatformAccountUpdateApplier {
                 && (request.getPlatformType() != account.getPlatformType()
                         || !request.getUsername().equals(account.getUsername()))
                 && repository.findByPlatformTypeAndUsername(request.getPlatformType(), request.getUsername()).isPresent()) {
-            throw new IllegalArgumentException("Username already exists: " + request.getUsername());
+            throw new IllegalArgumentException(String.format("平台账号「%s」在「%s」下已存在",
+                    request.getUsername(),
+                    (request.getPlatformType() != null ? request.getPlatformType() : account.getPlatformType()).getDescription()));
         }
         if (request.getAccountName() != null && !request.getAccountName().trim().isEmpty()
                 && !request.getAccountName().equals(account.getAccountName())

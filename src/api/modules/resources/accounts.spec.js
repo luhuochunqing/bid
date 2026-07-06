@@ -1,6 +1,7 @@
 // Input: accountsApi with mocked httpClient
 // Output: CO-522 audit logs endpoint coverage
 // Pos: src/api/modules/resources/ - API submodule unit tests
+// 维护声明: 随 accounts.js 接口同步更新
 
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
