@@ -1,0 +1,4 @@
+-- Input: V1142__normalize_empty_task_extended_fields_json.sql
+-- Data rollback required: empty strings converted to NULL are not recoverable.
+-- 本迁移仅做数据清洗，将 tasks.extended_fields_json = '' 更新为 NULL。
+-- 回滚无法还原原始空字符串，需根据业务需要决定补回 '' 或保持 NULL。

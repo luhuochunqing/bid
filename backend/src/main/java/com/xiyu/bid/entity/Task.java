@@ -133,12 +133,26 @@ public class Task {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
+        normalizeExtendedFieldsJson();
     }
 
     /** Auto-update timestamp on update. */
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+        normalizeExtendedFieldsJson();
+    }
+
+    /**
+     * 把空/空白字符串的 extendedFieldsJson 规范化为 NULL。
+     * <p>Sentry XIYU-P：空字符串 '' 写入 tasks.extended_fields_json 后，
+     * MySQL JSON_EXTRACT('', '$.x') 会抛 "Invalid JSON text: The document is empty"，
+     * 导致保证金列表 500。写侧防御，防止未来任何路径再写入空字符串。
+     */
+    private void normalizeExtendedFieldsJson() {
+        if (extendedFieldsJson != null && extendedFieldsJson.isBlank()) {
+            extendedFieldsJson = null;
+        }
     }
 
     /**
