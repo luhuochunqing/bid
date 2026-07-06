@@ -888,6 +888,18 @@ public class ArchitectureTest {
                 + "'Fontconfig head is null'。必须通过 ExcelAutoSizeHelper.autoSizeColumns() 统一处理，"
                 + "该方法在字体不可用时自动降级为固定列宽。");
 
+    @ArchTest
+    public static final ArchRule excel_date_cell_must_use_excel_cell_formatter =
+        noClasses()
+            .that().resideOutsideOfPackage("com.xiyu.bid.infrastructure.excel..")
+            .should().callMethod(org.apache.poi.ss.usermodel.DataFormatter.class, "formatCellValue",
+                org.apache.poi.ss.usermodel.Cell.class)
+            .andShould().callMethod(org.apache.poi.ss.usermodel.DataFormatter.class, "formatCellValue",
+                org.apache.poi.ss.usermodel.Cell.class, org.apache.poi.ss.usermodel.FormulaEvaluator.class)
+            .because("CO-505: 直接调用 DataFormatter.formatCellValue() 会导致 Excel 日期格式单元格输出不稳定 "
+                + "(取决于单元格 number format)，下游 CommonDateParser 可能无法解析。"
+                + "必须通过 ExcelCellFormatter.formatCell() 统一处理，日期单元格统一输出 yyyy-MM-dd ISO 格式。");
+
     // Constitution VI hasAnyRole/hasRole 总数守卫已于 2026-07-03 移除（PR 本 commit）。
     // 原因：P3 机械迁移方向已废弃（转向功能级权限审计），守卫只锁语法不锁业务语义，
     // 且阻塞所有改 @PreAuthorize 的 backend PR。真实权限语义已由 50 个功能级契约测试锁定

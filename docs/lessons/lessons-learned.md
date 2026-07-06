@@ -2624,3 +2624,63 @@ grep -rn "columnDefinition.*JSON" backend/src/main/java | awk -F: '{print $1}' |
 - P1：全仓审计所有 `columnDefinition = "JSON"` 的 entity，检查写入路径是否用了 `toString()`
 - P2：为 brand-auth / project 模块的导入服务补类似 L1/L2/L3 防御
 - P3：补端到端测试覆盖"异常 xlsx 触发 failImportTask"完整链路
+
+## 43. Excel 日期单元格反复出 bug：分散实现 → 统一基础设施 + 架构门禁（CO-505 第 N 轮）
+
+### 问题背景
+
+用户反馈"第 2 行: 有效期至格式错误"，距 CO-505 批量导入日期格式统一兼容的 PR 合入后不久。表面看是 CA 证书导入又出 bug，深入排查发现是**全仓 7 个 Excel 读取路径各写各的日期处理逻辑**，修了一个漏了另一个。
+
+### 根因：为什么会反复修反复出
+
+| 层 | 现象 | 根因 |
+|----|------|------|
+| L1（表层） | CA 证书导入报"有效期至格式错误" | `ImportQualificationAppService` 直接用 `DataFormatter.formatCellValue()`，日期单元格输出格式取决于 Excel number format |
+| L2（中层） | 修了 CA 证书，资质证书又出同样问题 | 7 个 Excel 读取器分散实现，5 种不同的日期处理写法 |
+| L3（根因） | 没有统一入口 + 没有架构门禁 | 基础设施层缺少 `ExcelCellFormatter` 工具类，ArchUnit 没有规则阻止新增分散实现 |
+
+### 全仓 Excel 读取路径盘点（修复前）
+
+| 模块 | 类 | 日期单元格处理 | Bug? |
+|------|----|--------------|------|
+| 仓库导入 | `WarehouseImportExcelReader` | 自己实现 formatCell → yyyy-MM-dd | ✅ 正确 |
+| 通用单 Sheet | `SingleSheetExcelReader` | 刚修复（之前直接 DataFormatter） | ❌→✅ |
+| 标讯导入 | `TenderExcelCellReader` | 自己实现 formatNumeric → 含时间 | ⚠️ 可工作但输出含 T |
+| 人员证书 | `PersonnelExcelImporter` | 自己实现 getCellStringValue → yyyy-MM-dd | ✅ 正确 |
+| 业绩导入 | `PerformanceRowImporter` | 自己 switch cell type + getDateCellValue() | ⚠️ 用了过时 API |
+| 资质证书 | `ImportQualificationAppService` | 直接 DataFormatter.formatCellValue() | ❌ Bug |
+| 文本提取 | `ScoreDraftDocumentTextExtractor` | 直接 DataFormatter.formatCellValue() | ⚠️ 影响小但不统一 |
+
+### 根治方案（三层防御）
+
+**L1：统一基础设施类**
+- 新建 `ExcelCellFormatter`（`infrastructure.excel` 包），提供 `formatCell(Cell, DataFormatter)` 和 `formatCell(Cell, DataFormatter, FormulaEvaluator)` 两个重载
+- 日期单元格统一输出 `yyyy-MM-dd` ISO 格式
+- 文本/数字/公式单元格走 DataFormatter 原路径
+
+**L2：全仓迁移到统一入口**
+- 迁移 4 个使用 DataFormatter 的读取器：`WarehouseImportExcelReader`、`SingleSheetExcelReader`、`ImportQualificationAppService`、`ScoreDraftDocumentTextExtractor`
+- 另外 3 个不使用 DataFormatter 的读取器（`TenderExcelCellReader`/`PersonnelExcelImporter`/`PerformanceRowImporter`）暂不迁移（各有特殊逻辑，且日期处理本身正确）
+
+**L3：架构测试门禁**
+- 在 `ArchitectureTest` 新增规则 `excel_date_cell_must_use_excel_cell_formatter`
+- 规则：`infrastructure.excel` 包外的任何类，**禁止**直接调用 `DataFormatter.formatCellValue(Cell)` 或 `formatCellValue(Cell, FormulaEvaluator)`
+- 新增 Excel 读取代码必须通过 `ExcelCellFormatter`，自动继承日期单元格统一处理
+
+### 经验教训
+
+1. **"修一个 bug"≠"解决问题"**：同一个模式在多个地方复现，说明是架构问题不是单点问题。修完当前报错的模块后，必须全仓 grep 相同模式，一次性根治。
+2. **防复发 = 统一入口 + 架构门禁**：只靠 code review 防不住，必须有 ArchUnit 测试在 CI 里自动拦。本项目已有 `business_code_should_not_call_sheet_autoSizeColumn_directly` 的先例，照着抄就行。
+3. **基础设施层要主动沉淀**：`WarehouseImportExcelReader` 和 `SingleSheetExcelReader` 的 `formatCell` 方法逻辑完全一样，各写一遍本身就是技术债信号。发现重复时应该往上抽，而不是"能跑就行"。
+
+### 操作规范
+
+- 新增 Excel 读取代码时，**永远通过 `ExcelCellFormatter.formatCell()` 读取单元格字符串**，不要直接调用 `DataFormatter.formatCellValue()`
+- 如确需直接调用（极特殊场景），必须在 `infrastructure.excel` 包内实现，并在 PR 中说明理由
+- 架构测试 `ArchitectureTest` 会自动拦截违规调用，CI 不通过
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/infrastructure/excel/ExcelCellFormatter.java`（统一入口）
+- `backend/src/test/java/com/xiyu/bid/infrastructure/excel/ExcelCellFormatterTest.java`（单元测试）
+- `backend/src/test/java/com/xiyu/bid/ArchitectureTest.java`（架构门禁：`excel_date_cell_must_use_excel_cell_formatter`）

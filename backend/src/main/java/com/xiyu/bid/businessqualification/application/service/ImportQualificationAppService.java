@@ -7,6 +7,7 @@ package com.xiyu.bid.businessqualification.application.service;
 import com.xiyu.bid.businessqualification.application.command.QualificationImportRowResult;
 import com.xiyu.bid.businessqualification.application.command.QualificationUpsertCommand;
 import com.xiyu.bid.businessqualification.infrastructure.persistence.repository.BusinessQualificationJpaRepository;
+import com.xiyu.bid.infrastructure.excel.ExcelCellFormatter;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
@@ -218,10 +219,8 @@ if (rows.isEmpty()) {
 
     private static String readCell(Cell cell, DataFormatter formatter, FormulaEvaluator evaluator) {
         if (cell == null) return null;
-        if (cell.getCellType() == CellType.FORMULA) {
-            return formatter.formatCellValue(cell, evaluator);
-        }
-        return formatter.formatCellValue(cell);
+        String value = ExcelCellFormatter.formatCell(cell, formatter, evaluator);
+        return value.isEmpty() ? null : value;
     }
 
     /**

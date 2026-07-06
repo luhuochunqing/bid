@@ -1,9 +1,8 @@
 package com.xiyu.bid.warehouse.infrastructure;
 
+import com.xiyu.bid.infrastructure.excel.ExcelCellFormatter;
 import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
-import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -40,19 +39,12 @@ public class WarehouseImportExcelReader {
                 String[] cells = new String[lastCell];
                 for (int c = 0; c < lastCell; c++) {
                     Cell cell = r.getCell(c);
-                    cells[c] = cell == null ? "" : formatCell(cell, fmt);
+                    cells[c] = ExcelCellFormatter.formatCell(cell, fmt);
                 }
                 rows.add(cells);
             }
             return new SheetData(rows);
         }
-    }
-
-    private static String formatCell(Cell cell, DataFormatter fmt) {
-        if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
-            return cell.getLocalDateTimeCellValue().toLocalDate().toString();
-        }
-        return fmt.formatCellValue(cell).trim();
     }
 
     public static class SheetData {
