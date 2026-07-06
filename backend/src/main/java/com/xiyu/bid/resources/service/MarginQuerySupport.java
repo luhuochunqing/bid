@@ -1,12 +1,10 @@
 package com.xiyu.bid.resources.service;
 
 import com.xiyu.bid.resources.dto.MarginDTO;
-import jakarta.persistence.Query;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
-import java.util.Map;
 
 /** SQL builders and row mapping for margin ledger queries. */
 final class MarginQuerySupport {
@@ -155,105 +153,6 @@ final class MarginQuerySupport {
         sql.append(MarginQueryRole.from(role).apply(pa, pi));
     }
 
-    /** Append search filter conditions. */
-    static void appendFilters(final StringBuilder sql,
-                               final Map<String, String> f) {
-        if (f == null) {
-            return;
-        }
-        if (has(f, "projectName")) {
-            sql.append(" AND m.project_name LIKE :pName");
-        }
-        if (has(f, "ownerUnit")) {
-            sql.append(" AND m.owner_unit LIKE :oUnit");
-        }
-        if (has(f, "projectLeaderName")) {
-            sql.append(" AND m.project_leader_name = :pLead");
-        }
-        if (has(f, "biddingLeaderName")) {
-            sql.append(" AND m.bidding_leader_name = :bLead");
-        }
-        if (f.get("paymentDateStart") != null) {
-            sql.append(" AND m.payment_date >= :pdS");
-        }
-        if (f.get("paymentDateEnd") != null) {
-            sql.append(" AND m.payment_date <= :pdE");
-        }
-        if (f.get("expectedReturnDateStart") != null) {
-            sql.append(" AND m.exp_return_date >= :edS");
-        }
-        if (f.get("expectedReturnDateEnd") != null) {
-            sql.append(" AND m.exp_return_date <= :edE");
-        }
-        if (has(f, "status")) {
-            // CO-508: status 筛选按金额判定，与 label() 规则3对齐：
-            // 已退回 = COALESCE(returned_amount,0) + COALESCE(service_fee_amount,0) = amount
-            String returnedExpr = "(COALESCE(m.returned_amount, 0)"
-                    + " + COALESCE(m.service_fee_amount, 0))";
-            switch (f.get("status")) {
-                case "RETURNED":
-                    sql.append(" AND ").append(returnedExpr)
-                            .append(" = m.amount");
-                    break;
-                case "OVERDUE":
-                    sql.append(" AND ").append(returnedExpr)
-                            .append(" != m.amount")
-                            .append(" AND m.exp_return_date IS NOT NULL")
-                            .append(" AND m.exp_return_date < NOW()");
-                    break;
-                case "PENDING":
-                    // init 占位行 exp_return_date 为 NULL，NULL >= NOW() 为 NULL（falsy），
-                    // 显式加 IS NULL 把 init 分支行纳入 PENDING 筛选。
-                    sql.append(" AND ").append(returnedExpr)
-                            .append(" != m.amount")
-                            .append(" AND (m.exp_return_date IS NULL"
-                                    + " OR m.exp_return_date >= NOW())");
-                    break;
-                default:
-                    break;
-            }
-        }
-    }
-
-    /** Bind filter parameters to query. */
-    static void setParams(final Query query, final Map<String, String> f) {
-        if (f == null) {
-            return;
-        }
-        if (has(f, "projectName")) {
-            query.setParameter("pName", "%" + f.get("projectName") + "%");
-        }
-        if (has(f, "ownerUnit")) {
-            query.setParameter("oUnit", "%" + f.get("ownerUnit") + "%");
-        }
-        if (has(f, "projectLeaderName")) {
-            query.setParameter("pLead", f.get("projectLeaderName"));
-        }
-        if (has(f, "biddingLeaderName")) {
-            query.setParameter("bLead", f.get("biddingLeaderName"));
-        }
-        if (f.get("paymentDateStart") != null) {
-            query.setParameter("pdS",
-                    LocalDateTime.parse(
-                            f.get("paymentDateStart") + "T00:00:00"));
-        }
-        if (f.get("paymentDateEnd") != null) {
-            query.setParameter("pdE",
-                    LocalDateTime.parse(
-                            f.get("paymentDateEnd") + "T23:59:59"));
-        }
-        if (f.get("expectedReturnDateStart") != null) {
-            query.setParameter("edS",
-                    LocalDateTime.parse(
-                            f.get("expectedReturnDateStart") + "T00:00:00"));
-        }
-        if (f.get("expectedReturnDateEnd") != null) {
-            query.setParameter("edE",
-                    LocalDateTime.parse(
-                            f.get("expectedReturnDateEnd") + "T23:59:59"));
-        }
-    }
-
     /** Map a native query result row to a MarginDTO. */
     static MarginDTO mapRow(final Object[] r) {
         String feeStatus = (String) r[C_STATUS];
@@ -279,11 +178,6 @@ final class MarginQuerySupport {
                         (BigDecimal) r[C_RET_AMT],
                         (BigDecimal) r[C_SVC_FEE]))
                 .build();
-    }
-
-    private static boolean has(final Map<String, String> m, final String k) {
-        String v = m.get(k);
-        return v != null && !v.isBlank();
     }
 
     /**

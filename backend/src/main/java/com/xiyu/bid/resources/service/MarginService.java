@@ -49,13 +49,13 @@ public class MarginService {
             final int page, final int size) {
         MarginQueryRole policy = MarginQueryRole.from(role);
         StringBuilder sql = MarginQuerySupport.listBase(policy);
-        MarginQuerySupport.appendFilters(sql, f);
+        MarginFilterBuilder.appendFilters(sql, f);
         sql.append(" ORDER BY m.created_at DESC");
         Query query = em.createNativeQuery(sql.toString());
         if (policy.needsUidParam() && uid != null) {
             query.setParameter("muid", uid);
         }
-        MarginQuerySupport.setParams(query, f);
+        MarginFilterBuilder.setParams(query, f);
         query.setFirstResult((page - 1) * size);
         query.setMaxResults(size);
         return ((List<Object[]>) query.getResultList()).stream()
@@ -69,12 +69,12 @@ public class MarginService {
             final Map<String, String> f) {
         MarginQueryRole policy = MarginQueryRole.from(role);
         StringBuilder sql = MarginQuerySupport.countBase(policy);
-        MarginQuerySupport.appendFilters(sql, f);
+        MarginFilterBuilder.appendFilters(sql, f);
         Query query = em.createNativeQuery(sql.toString());
         if (policy.needsUidParam() && uid != null) {
             query.setParameter("muid", uid);
         }
-        MarginQuerySupport.setParams(query, f);
+        MarginFilterBuilder.setParams(query, f);
         return ((Number) query.getSingleResult()).longValue();
     }
 
