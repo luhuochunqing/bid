@@ -430,4 +430,138 @@ class BrandAuthImportServiceTest {
             return out.toByteArray();
         }
     }
+
+    // ===== CO-512: Excel numeric date format 测试 =====
+
+    @Test
+    void shouldImportManufacturerWithNumericDateSuccessfully() throws IOException {
+        // 模拟用户用 Excel Date 格式输入日期（Excel 内部用 numeric serial number 存储）
+        byte[] numericDateExcel;
+        try (Workbook wb = new XSSFWorkbook()) {
+            Sheet sheet = wb.createSheet("原厂授权");
+            String[] headers = {
+                    "一级产线", "品牌ID", "品牌", "进口/国产", "品牌原厂名称",
+                    "原厂授权附件文件名", "授权开始时间", "授权结束时间",
+                    "备注", "补充材料附件文件名"
+            };
+            Row headerRow = sheet.createRow(0);
+            for (int i = 0; i < headers.length; i++) {
+                headerRow.createCell(i).setCellValue(headers[i]);
+            }
+
+            Row row = sheet.createRow(1);
+            row.createCell(0).setCellValue("工具");
+            row.createCell(1).setCellValue("B001");
+            row.createCell(2).setCellValue("测试品牌");
+            row.createCell(3).setCellValue("国产");
+            row.createCell(4).setCellValue("测试原厂");
+            row.createCell(5).setCellValue("");
+            // 使用 Excel Date 格式，需要设置日期格式样式
+            CellStyle dateStyle = wb.createCellStyle();
+            dateStyle.setDataFormat((short) 14); // Excel 内置日期格式 m/d/yy
+
+            Cell startDateCell = row.createCell(6);
+            startDateCell.setCellValue(java.time.LocalDate.of(2026, 1, 1));
+            startDateCell.setCellStyle(dateStyle);
+
+            Cell endDateCell = row.createCell(7);
+            endDateCell.setCellValue(java.time.LocalDate.of(2026, 12, 31));
+            endDateCell.setCellStyle(dateStyle);
+
+            row.createCell(8).setCellValue("");
+            row.createCell(9).setCellValue("");
+
+            var out = new ByteArrayOutputStream();
+            wb.write(out);
+            numericDateExcel = out.toByteArray();
+        }
+
+        // 运行导入
+        BrandAuthImportService.ImportResult result =
+                importService.importExcel(numericDateExcel, 1L);
+
+        // 验证成功导入
+        assertNotNull(result);
+        assertEquals(1, result.getTotalRows());
+        assertEquals(1, result.getTotalSuccess());
+        assertEquals(0, result.getTotalFailed());
+
+        verify(repository, times(1)).save(authCaptor.capture());
+        ManufacturerAuthorization saved = authCaptor.getValue();
+        assertEquals(java.time.LocalDate.of(2026, 1, 1), saved.authStartDate());
+        assertEquals(java.time.LocalDate.of(2026, 12, 31), saved.authEndDate());
+    }
+
+    @Test
+    void shouldImportAgentWithNumericDateSuccessfully() throws IOException {
+        // 模拟代理商授权 sheet 用 Excel Date 格式输入日期
+        byte[] numericDateExcel;
+        try (Workbook wb = new XSSFWorkbook()) {
+            Sheet sheet = wb.createSheet("代理商授权");
+            String[] headers = {
+                    "一级产线", "品牌ID", "品牌", "进口/国产", "品牌原厂名称",
+                    "授权1附件文件名", "授权1开始时间", "授权1结束时间",
+                    "授权1备注", "代理商名称",
+                    "授权2附件文件名", "授权2开始时间", "授权2结束时间",
+                    "授权2备注"
+            };
+            Row headerRow = sheet.createRow(0);
+            for (int i = 0; i < headers.length; i++) {
+                headerRow.createCell(i).setCellValue(headers[i]);
+            }
+
+            Row row = sheet.createRow(1);
+            row.createCell(0).setCellValue("轴承");
+            row.createCell(1).setCellValue("B002");
+            row.createCell(2).setCellValue("测试品牌");
+            row.createCell(3).setCellValue("进口");
+            row.createCell(4).setCellValue("测试原厂");
+            row.createCell(5).setCellValue("");
+            // 授权1日期用 Excel Date 格式，设置日期格式样式
+            CellStyle dateStyle = wb.createCellStyle();
+            dateStyle.setDataFormat((short) 14); // Excel 内置日期格式 m/d/yy
+
+            Cell auth1StartCell = row.createCell(6);
+            auth1StartCell.setCellValue(java.time.LocalDate.of(2026, 1, 1));
+            auth1StartCell.setCellStyle(dateStyle);
+
+            Cell auth1EndCell = row.createCell(7);
+            auth1EndCell.setCellValue(java.time.LocalDate.of(2026, 12, 31));
+            auth1EndCell.setCellStyle(dateStyle);
+
+            row.createCell(8).setCellValue("一级授权");
+            row.createCell(9).setCellValue("测试代理");
+            row.createCell(10).setCellValue("");
+            // 授权2日期用 Excel Date 格式
+            Cell auth2StartCell = row.createCell(11);
+            auth2StartCell.setCellValue(java.time.LocalDate.of(2026, 6, 1));
+            auth2StartCell.setCellStyle(dateStyle);
+
+            Cell auth2EndCell = row.createCell(12);
+            auth2EndCell.setCellValue(java.time.LocalDate.of(2026, 12, 31));
+            auth2EndCell.setCellStyle(dateStyle);
+
+            row.createCell(13).setCellValue("二级授权");
+
+            var out = new ByteArrayOutputStream();
+            wb.write(out);
+            numericDateExcel = out.toByteArray();
+        }
+
+        // 运行导入
+        BrandAuthImportService.ImportResult result =
+                importService.importExcel(numericDateExcel, 1L);
+
+        // 验证成功导入
+        assertNotNull(result);
+        assertEquals(1, result.getTotalRows());
+        assertEquals(1, result.getTotalSuccess());
+        assertEquals(0, result.getTotalFailed());
+
+        verify(repository, times(1)).save(authCaptor.capture());
+        ManufacturerAuthorization saved = authCaptor.getValue();
+        assertEquals("AGENT", saved.authorizationType());
+        assertEquals(java.time.LocalDate.of(2026, 6, 1), saved.authStartDate());
+        assertEquals(java.time.LocalDate.of(2026, 12, 31), saved.authEndDate());
+    }
 }

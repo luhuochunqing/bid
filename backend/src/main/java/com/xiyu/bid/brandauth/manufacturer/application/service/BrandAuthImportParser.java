@@ -4,9 +4,11 @@ import com.xiyu.bid.brandauth.manufacturer.domain.valueobject.ProductLine;
 import com.xiyu.bid.common.domain.CommonDateParser;
 import com.xiyu.bid.exception.BusinessException;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.Row;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 
 /**
  * Brand auth Excel 导入解析工具（纯静态工具类，不依赖 Spring）。
@@ -14,6 +16,8 @@ import java.time.LocalDate;
  * <p>从 BrandAuthImportService 拆出，保持主类职责清晰 + 控制行数。</p>
  */
 final class BrandAuthImportParser {
+
+    private static final DateTimeFormatter ISO_DATE = DateTimeFormatter.ISO_LOCAL_DATE;
 
     private BrandAuthImportParser() {}
 
@@ -23,14 +27,31 @@ final class BrandAuthImportParser {
         return switch (cell.getCellType()) {
             case STRING -> cell.getStringCellValue().trim();
             case NUMERIC -> {
+                // CO-512: 检查是否为 Excel date serial number
+                // 用户在 Excel 中用 Date 格式输入日期时，Excel 内部用 numeric 存储
+                // DateUtil.isCellDateFormatted 检查单元格的格式样式是否为日期
+                if (DateUtil.isCellDateFormatted(cell)) {
+                    LocalDate date = cell.getLocalDateTimeCellValue().toLocalDate();
+                    yield date.format(ISO_DATE); // "yyyy-MM-dd"
+                }
+                // 非日期的 numeric 值（如品牌ID等）
                 double val = cell.getNumericCellValue();
                 yield val == Math.floor(val) && !Double.isInfinite(val)
                         ? String.valueOf((long) val) : String.valueOf(val);
             }
             case BOOLEAN -> String.valueOf(cell.getBooleanCellValue());
             case FORMULA -> {
-                try { yield String.valueOf((int) cell.getNumericCellValue()); }
-                catch (RuntimeException e) {
+                // 公式类型：尝试评估为数值或字符串
+                try {
+                    // 先尝试数值（可能是日期公式的结果）
+                    if (DateUtil.isCellDateFormatted(cell)) {
+                        LocalDate date = cell.getLocalDateTimeCellValue().toLocalDate();
+                        yield date.format(ISO_DATE);
+                    }
+                    double numVal = cell.getNumericCellValue();
+                    yield numVal == Math.floor(numVal) && !Double.isInfinite(numVal)
+                            ? String.valueOf((long) numVal) : String.valueOf(numVal);
+                } catch (RuntimeException e) {
                     try { yield cell.getStringCellValue().trim(); }
                     catch (RuntimeException e2) { yield ""; }
                 }
