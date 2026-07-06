@@ -21,16 +21,23 @@
       >
         <template #default="{ row }">
           <template v-if="row">
-            <!-- Free text single line -->
-            <el-input
+            <!-- Free text single line：长文本悬停 Tooltip 展示全量（CO-519） -->
+            <el-tooltip
               v-if="col.type === 'text'"
-              v-model="row[col.key]"
-              :disabled="disabled"
-              size="small"
-              :placeholder="col.placeholder"
-              clearable
-              @change="onDataChange"
-            />
+              :content="String(row[col.key] || '')"
+              :disabled="!shouldShowOverflowTooltip(row[col.key])"
+              placement="top"
+              :show-after="300"
+            >
+              <el-input
+                v-model="row[col.key]"
+                :disabled="disabled"
+                size="small"
+                :placeholder="col.placeholder"
+                clearable
+                @change="onDataChange"
+              />
+            </el-tooltip>
             <!-- Yes/No dropdown -->
             <el-select
               v-else-if="col.type === 'yesno'"
@@ -150,6 +157,15 @@ const emit = defineEmits(['data-change'])
 
 function onDataChange() {
   emit('data-change')
+}
+
+/**
+ * CO-519: 判断字段值长度是否超出列宽可视范围，超长则启用 hover Tooltip 展示全量
+ * 列宽 200px / 160px，small 字号 12px，中文字符约 12px 宽，15 字符阈值覆盖大部分超长场景
+ */
+function shouldShowOverflowTooltip(value, maxChars = 15) {
+  const str = value == null ? '' : String(value)
+  return str.length > maxChars
 }
 </script>
 

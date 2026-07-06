@@ -52,6 +52,7 @@ const stubs = {
   'el-button': { props: ['disabled', 'loading', 'type', 'text'], template: '<button :disabled="disabled"><slot /></button>' },
   'el-cascader': { template: '<div><slot /></div>' },
   'el-divider': { template: '<div><slot /></div>' },
+  'el-tooltip': { template: '<div><slot /></div>' },
 }
 
 function createWrapper() {

@@ -30,7 +30,7 @@
           </template>
         </el-table-column>
         <el-table-column label="倾向性评估依据" width="160">
-          <template #default="{row}"><el-input v-model="row.preferenceBasis" size="small" :disabled="disabled" /></template>
+          <template #default="{row}"><el-tooltip :content="String(row.preferenceBasis || '')" :disabled="!shouldShowOverflowTooltip(row.preferenceBasis)" placement="top" :show-after="300"><el-input v-model="row.preferenceBasis" size="small" :disabled="disabled" /></el-tooltip></template>
         </el-table-column>
         <el-table-column label="是否向此人引导标书" width="100">
           <template #default="{row}">
@@ -66,6 +66,15 @@ defineProps({
   rows: { type: Array, required: true },
   disabled: { type: Boolean, default: false }
 })
+
+/**
+ * CO-519: 判断字段值长度是否超出列宽可视范围，超长则启用 hover Tooltip 展示全量
+ * 列宽 160px，small 字号 12px，15 字符阈值覆盖大部分超长场景
+ */
+function shouldShowOverflowTooltip(value, maxChars = 15) {
+  const str = value == null ? '' : String(value)
+  return str.length > maxChars
+}
 </script>
 <style scoped>
 .customer-table-wrapper { overflow-x: auto; }
