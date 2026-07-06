@@ -119,10 +119,10 @@ public class TenderSourceConfigService {
     private String summarizeConfig(TenderSourceConfig config) {
         return String.format(
                 "platforms=%s, endpoint=%s, keywords=%s, regions=%s, budget=[%s-%s], autoSync=%s, syncInterval=%s",
-                config.getPlatformsJson(),
+                config.getPlatforms(),
                 maskValue(config.getApiEndpoint()),
                 config.getKeywords(),
-                config.getRegionsJson(),
+                config.getRegions(),
                 config.getBudgetMin(),
                 config.getBudgetMax(),
                 config.getAutoSync(),
