@@ -13,6 +13,7 @@ import com.xiyu.bid.platform.dto.ReturnAccountRequest;
 import com.xiyu.bid.platform.entity.PlatformAccount;
 import com.xiyu.bid.platform.entity.PlatformAccount.AccountStatus;
 import com.xiyu.bid.platform.entity.PlatformAccount.PlatformType;
+import com.xiyu.bid.platform.audit.PlatformAccountAuditRecorder;
 import com.xiyu.bid.platform.repository.AccountBorrowApplicationRepository;
 import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;

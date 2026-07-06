@@ -1,8 +1,8 @@
 // Input: 更新前后的 PlatformAccount、当前操作人、待审批申请数
 // Output: 字段级 diff 审计日志（写入 IAuditLogService）
-// Pos: Service/审计协作层
+// Pos: Audit/审计协作层（独立于 service 包，允许注入 IAuditLogService）
 // 维护声明: 仅维护字段 diff 计算与审计写入；业务规则留在 PlatformAccountService.
-package com.xiyu.bid.platform.service;
+package com.xiyu.bid.platform.audit;
 
 import com.xiyu.bid.audit.service.AuditLogService;
 import com.xiyu.bid.audit.service.IAuditLogService;

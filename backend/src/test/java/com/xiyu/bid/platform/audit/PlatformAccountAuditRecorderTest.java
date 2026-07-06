@@ -1,7 +1,7 @@
 // Input: PlatformAccountAuditRecorder + mock IAuditLogService
 // Output: 字段级 diff 审计日志写入验证
 // Pos: Test/纯核心验证
-package com.xiyu.bid.platform.service;
+package com.xiyu.bid.platform.audit;
 
 import com.xiyu.bid.audit.service.AuditLogService;
 import com.xiyu.bid.audit.service.IAuditLogService;
