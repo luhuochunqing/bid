@@ -183,7 +183,7 @@ class MarginQuerySupportMysqlIntegrationTest {
     @DisplayName("countBase 生成的 SQL 在真实 MySQL 上执行不抛异常")
     void countBase_executesWithoutSqlError(final String label, final Map<String, String> filters) {
         StringBuilder sql = MarginQuerySupport.countBase(MarginQueryRole.ADMIN);
-        MarginQuerySupport.appendFilters(sql, filters);
+        MarginFilterBuilder.appendFilters(sql, filters);
         // 把 JPA 命名参数（:pName 等）替换成字面量，只验证 SQL 列解析/语法
         String rawSql = replaceParamsWithLiterals(sql.toString(), filters);
         jdbcTemplate.queryForList(rawSql, Map.of());
@@ -194,7 +194,7 @@ class MarginQuerySupportMysqlIntegrationTest {
     @DisplayName("listBase 生成的 SQL 在真实 MySQL 上执行不抛异常")
     void listBase_executesWithoutSqlError(final String label, final Map<String, String> filters) {
         StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
-        MarginQuerySupport.appendFilters(sql, filters);
+        MarginFilterBuilder.appendFilters(sql, filters);
         sql.append(" ORDER BY m.created_at DESC LIMIT 20 OFFSET 0");
         String rawSql = replaceParamsWithLiterals(sql.toString(), filters);
         jdbcTemplate.queryForList(rawSql, Map.of());
@@ -330,7 +330,7 @@ class MarginQuerySupportMysqlIntegrationTest {
         try {
             // 构建 SQL：listBase(ADMIN) + status=PENDING filter
             StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
-            MarginQuerySupport.appendFilters(sql, Map.of("status", "PENDING"));
+            MarginFilterBuilder.appendFilters(sql, Map.of("status", "PENDING"));
             sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
 
             // 执行（status 是字面量拼接，无需 replaceParamsWithLiterals）
@@ -363,7 +363,7 @@ class MarginQuerySupportMysqlIntegrationTest {
         createProjectClosure(projectId, "FULLY_RETURNED", null, null);
         try {
             StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
-            MarginQuerySupport.appendFilters(sql, Map.of("status", "RETURNED"));
+            MarginFilterBuilder.appendFilters(sql, Map.of("status", "RETURNED"));
             sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
 
             List<Map<String, Object>> rows =
@@ -392,7 +392,7 @@ class MarginQuerySupportMysqlIntegrationTest {
                   "DATE_SUB(NOW(), INTERVAL 1 DAY)", amount);
         try {
             StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
-            MarginQuerySupport.appendFilters(sql, Map.of("status", "RETURNED"));
+            MarginFilterBuilder.appendFilters(sql, Map.of("status", "RETURNED"));
             sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
 
             List<Map<String, Object>> rows =
@@ -422,7 +422,7 @@ class MarginQuerySupportMysqlIntegrationTest {
                              returned, transfer);
         try {
             StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
-            MarginQuerySupport.appendFilters(sql, Map.of("status", "RETURNED"));
+            MarginFilterBuilder.appendFilters(sql, Map.of("status", "RETURNED"));
             sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
 
             List<Map<String, Object>> rows =
@@ -452,7 +452,7 @@ class MarginQuerySupportMysqlIntegrationTest {
         createProjectClosure(projectId, "FULLY_RETURNED", null, null);
         try {
             StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
-            MarginQuerySupport.appendFilters(sql, Map.of("status", "OVERDUE"));
+            MarginFilterBuilder.appendFilters(sql, Map.of("status", "OVERDUE"));
             sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
 
             List<Map<String, Object>> rows =
@@ -525,7 +525,7 @@ class MarginQuerySupportMysqlIntegrationTest {
 
         try {
             StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
-            MarginQuerySupport.appendFilters(sql, Map.of("status", "OVERDUE"));
+            MarginFilterBuilder.appendFilters(sql, Map.of("status", "OVERDUE"));
             sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
 
             List<Map<String, Object>> rows =

@@ -23,7 +23,7 @@ public class BrandAuthAttachmentEntity {
     private Long authorizationId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "attachment_type", nullable = false, columnDefinition = "ENUM('AUTH_DOC', 'SUPPLEMENTARY')")
+    @Column(name = "attachment_type", nullable = false, columnDefinition = "ENUM('AUTH_DOC', 'SUPPLEMENTARY', 'AGENT_AUTH_1', 'AGENT_AUTH_2')")
     private AttachmentType attachmentType;
 
     @Column(name = "file_name", nullable = false, length = 255)
