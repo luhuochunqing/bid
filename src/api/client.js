@@ -185,9 +185,28 @@ httpClient.interceptors.response.use(
         case 401:
           await handleAuthFailure()
           break
-        case 403:
-          ElMessage.error(serverMsg || '没有操作权限，请联系管理员')
+        case 403: {
+          // Spec 030 / 06131 案例：项目详情页 403 时降级为友好黄色提示 + 自动跳通知中心，
+          // 避免"无权访问该项目"的红色 error toast 让用户以为系统故障。
+          // 仅对 GET /api/projects/{id}（通知跳转触发的项目详情请求）特化，其他 403 保持原 error 风格。
+          const reqUrl = config?.url || ''
+          const isProjectDetailAccess = response.status === 403
+            && /^\/api\/projects\/\d+(?:\/|$|\?)/.test(reqUrl)
+            && (config?.method === undefined || String(config.method).toLowerCase() === 'get')
+          if (isProjectDetailAccess) {
+            ElMessage.warning('您没有该项目的访问权限，已为您返回通知中心')
+            // 异步跳转，不阻塞当前 promise reject 链
+            setTimeout(() => {
+              const currentPath = router.currentRoute.value.path
+              if (!currentPath.startsWith('/inbox') && !currentPath.startsWith('/notifications')) {
+                router.push('/inbox').catch(() => { /* 跳转失败静默处理，避免 console 噪声 */ })
+              }
+            }, 2500)
+          } else {
+            ElMessage.error(serverMsg || '没有操作权限，请联系管理员')
+          }
           break
+        }
         case 400:
           ElMessage.error(serverMsg || '请求参数有误，请检查输入')
           break
