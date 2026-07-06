@@ -79,27 +79,27 @@
 
 ## Phase 4: User Story 2 - 通知点击跳转失败时降级到通知中心 (Priority: P2)
 
-**Goal**: 前端 `NotificationPanel.vue` / `NotificationInbox.vue` 跳转失败（路由错误或 403）时降级到 `/notifications`，不弹红色报错
+**Goal**: 前端 `NotificationPanel.vue` / `NotificationInbox.vue` 跳转失败（路由错误或 403）时降级到 `/inbox`，不弹红色报错
 
-**Independent Test**: 手动构造一个 targetUrl 指向无权项目的通知（或临时改一个用户角色），点击后跳转到 `/notifications` 而非项目详情页
+**Independent Test**: 手动构造一个 targetUrl 指向无权项目的通知（或临时改一个用户角色），点击后跳转到 `/inbox` 而非项目详情页
 
 > **注**: 本 Phase 是兜底防线。即便 Phase 3 完美，未来新增角色未更新过滤规则时仍能保护用户体验。如工期紧张可独立拆到下迭代，但本期一并实现。
 
 ### Tests（TDD Red）
 
-- [ ] T018 [P] [US2] 检查/新建 `src/components/common/__tests__/NotificationPanel.spec.js`（如不存在则新建），补 2 个用例：①正常 targetUrl 跳转成功；②目标路由跳转抛错时降级到 `/notifications`
+- [ ] T018 [P] [US2] 检查/新建 `src/components/common/__tests__/NotificationPanel.spec.js`（如不存在则新建），补 2 个用例：①正常 targetUrl 跳转成功；②目标路由跳转抛错时降级到 `/inbox`
 - [ ] T019 [P] [US2] 同上为 `src/views/NotificationInbox.vue` 补同样测试（如已有测试文件则修改）
 
 ### Implementation（TDD Green）
 
-- [ ] T020 [P] [US2] 修改 `src/utils/notificationHelpers.js` 的 `resolveNotificationRoute`（或新增 `safeNavigate` helper），把 `router.push` 包 try/catch，失败时 `router.push('/notifications')` + 控制台 warn
+- [ ] T020 [P] [US2] 修改 `src/utils/notificationHelpers.js` 的 `resolveNotificationRoute`（或新增 `safeNavigate` helper），把 `router.push` 包 try/catch，失败时 `router.push('/inbox')` + 控制台 warn
 - [ ] T021 [US2] 修改 `src/components/common/NotificationPanel.vue` 的 `handleClick`（约 89-100 行），用 `safeNavigate` 替换直接 `router.push`
 - [ ] T022 [US2] 修改 `src/views/NotificationInbox.vue` 的点击 handler（约 117-125 行），同上替换
 - [ ] T023 跑 `npm run test:unit -- --filter Notification`，**确认 PASS**；跑 `npm run lint`，无新 error
 
 ### Verify
 
-- [ ] T024 [US2] 手动验证：本地启动后用 bid-Team 账户，构造一条 targetUrl 指向无权项目的通知（DB 注入或临时改角色），点击后应跳 `/notifications` 不报错
+- [ ] T024 [US2] 手动验证：本地启动后用 bid-Team 账户，构造一条 targetUrl 指向无权项目的通知（DB 注入或临时改角色），点击后应跳 `/inbox` 不报错
 - [ ] T025 提交（原子）：`fix(notification): 前端通知跳转失败降级到通知中心，避免 403 红色报错 (US2 兜底)`
 
 **Checkpoint**: 即便后端过滤漏网，前端用户体验也不崩坏
@@ -198,7 +198,7 @@ Phase 4/5/6 是兜底与沉淀，可在 MVP 验证后追加。
 | Story | 独立验证 |
 |---|---|
 | US1 | bid-Team 用户被广播到无权项目时不收到通知（DB 验证 user_notification 表） |
-| US2 | 通知点击跳转失败时降级到 /notifications（手动或 E2E 验证） |
+| US2 | 通知点击跳转失败时降级到 /inbox（手动或 E2E 验证） |
 | US3 | tech-debt-tracker.md 有完整的 6 点审视清单（文档检查） |
 
 ---

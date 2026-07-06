@@ -13,7 +13,7 @@
 1. **Pure Core**：新增无状态纯函数 `NotificationRecipientFilter`（仿 `TaskNotificationTargetUrlResolver` 风格），接收候选接收人 ID 集合 + 一个"可访问性判定函数" `Predicate<Long>`，输出过滤后的接收人集合。admin 角色直接放行短路。
 2. **Imperative Shell**：`ProjectAccessScopeService` 新增 `canAccessProject(Long userId, Long projectId)` 轻量方法（复用现有 `getAllowedProjectIds`，admin/dataScope=all 短路）。
 3. **Service 层接线**：`TaskReviewNotificationService` 注入 `ProjectAccessScopeService`，把候选接收人列表传给 `NotificationRecipientFilter.filter(projectId, candidateIds, accessPredicate)`。
-4. **前端兜底**：通知点击跳转若目标项目无权访问，降级到 `/notifications`（可拆下迭代，本期实现）。
+4. **前端兜底**：通知点击跳转若目标项目无权访问，降级到 `/inbox`（可拆下迭代，本期实现）。
 5. **审视清单**：grep `findEnabledByRoleProfileCodes` 6 处调用点，登记到 `tech-debt-tracker.md`。
 
 ## Technical Context

@@ -59,7 +59,7 @@
 
 ## 决策 4：前端 targetUrl 降级策略
 
-**Decision**: 在 `NotificationPanel.vue` / `NotificationInbox.vue` 的 `handleClick` 路由跳转处包 try/catch，失败时降级到 `/notifications`。**但本期以后端过滤为主修复，前端降级作为兜底防线一并实现**。
+**Decision**: 在 `NotificationPanel.vue` / `NotificationInbox.vue` 的 `handleClick` 路由跳转处包 try/catch，失败时降级到 `/inbox`。**但本期以后端过滤为主修复，前端降级作为兜底防线一并实现**。
 
 **Rationale**:
 - 即便后端过滤逻辑漏网（如未来新增角色未更新规则），用户体验也不应崩坏（spec User Story 2）
