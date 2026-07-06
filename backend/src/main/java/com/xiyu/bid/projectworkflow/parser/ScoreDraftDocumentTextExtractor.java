@@ -1,5 +1,6 @@
 package com.xiyu.bid.projectworkflow.parser;
 
+import com.xiyu.bid.infrastructure.excel.ExcelCellFormatter;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.poi.ss.usermodel.Cell;
@@ -72,7 +73,7 @@ public class ScoreDraftDocumentTextExtractor {
         }
         for (int cellIndex = firstCell; cellIndex < lastCell; cellIndex++) {
             Cell cell = row.getCell(cellIndex, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
-            String value = cell == null ? "" : formatter.formatCellValue(cell, evaluator).trim();
+            String value = ExcelCellFormatter.formatCell(cell, formatter, evaluator);
             if (!value.isBlank()) {
                 cells.add(value);
             }
