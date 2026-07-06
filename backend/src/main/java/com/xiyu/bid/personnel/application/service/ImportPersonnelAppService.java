@@ -14,8 +14,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -47,11 +47,17 @@ public class ImportPersonnelAppService {
     }
 
     @Async("importExportExecutor")
-    public void executeImportAsync(Long taskId, MultipartFile file, Long currentUserId) {
+    public void executeImportAsync(Long taskId, byte[] fileBytes, String originalFilename, Long currentUserId) {
+        // CO-469 第八轮 P2：参数从 MultipartFile 改为 byte[]
+        // 原因：MultipartFile 基于 Servlet 容器磁盘临时文件，HTTP 请求结束后 Tomcat 立即清理。
+        //       @Async 方法执行时临时文件已不存在 → file.getInputStream() 抛 NoSuchFileException。
+        //       Controller 同步阶段已读取为 byte[]，绕开 request 生命周期依赖。
+        //       originalFilename 保留供日志/错误信息使用。
         try {
             progressService.updateProgress(taskId, "正在解析Excel文件...", 5);
 
-            PersonnelExcelImporter.ImportResult result = excelImporter.importFromStream(file.getInputStream());
+            PersonnelExcelImporter.ImportResult result = excelImporter.importFromStream(
+                    new ByteArrayInputStream(fileBytes));
 
             progressService.updateProgress(taskId, "正在校验数据...", 20);
 

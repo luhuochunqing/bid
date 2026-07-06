@@ -2625,6 +2625,84 @@ grep -rn "columnDefinition.*JSON" backend/src/main/java | awk -F: '{print $1}' |
 - P2：为 brand-auth / project 模块的导入服务补类似 L1/L2/L3 防御
 - P3：补端到端测试覆盖"异常 xlsx 触发 failImportTask"完整链路
 
+### P2 补充：根因 1（MultipartFile 异步临时文件失效）—— 2026-07-06 当日晚些
+
+> 本节是 §42 P1（根因 2）的补充。P1 修完后用户反馈「现在的失败提示改成：导入失败了」
+> ——这恰好证明根因 1 仍在活跃：P1 让 failImportTask 能正确兜住，所以状态变成 FAILED
+> （不再卡住），但**导入功能依然完全不可用**，因为所有正常 Excel 都会因临时文件被清理而失败。
+
+#### P1 漏掉的日志铁证（与 §42 的日志只隔 13 毫秒）
+
+backend.log 2026-07-06 06:25:12 同一秒内的两条 stacktrace：
+
+```
+06:25:12.287  ← P1 漏看了这条
+[personnel-imp-exp-1] ERROR c.x.b.p.a.s.ImportPersonnelAppService - 导入任务执行失败: taskId=1
+java.nio.file.NoSuchFileException: /private/var/folders/.../upload_9f6c0414_..._00000000.tmp
+
+06:25:12.300  ← §42 P1 只看了这条
+ERROR o.h.e.jdbc.spi.SqlExceptionHelper - Data truncation: Invalid JSON text...
+```
+
+#### 真根因 1：`@Async` + `MultipartFile` 反模式
+
+Spring MVC 的 `MultipartFile` 基于 Servlet 容器（Tomcat）磁盘临时文件。
+Controller 返回 202 后，**Tomcat 立即清理临时文件**。`@Async` 方法执行时
+（几十毫秒后）临时文件已不存在 → `file.getInputStream()` 抛 `NoSuchFileException`。
+
+#### 修复（PR !1755）
+
+同步阶段（HTTP 请求仍存活）`file.getBytes()` 读到 `byte[]`，传给 `@Async` 方法。
+`byte[]` 是不可变纯 JDK 对象，不依赖 request 生命周期。
+
+```java
+// Controller 同步阶段
+byte[] fileBytes = file.getBytes();   // ← 在这里读完，避开临时文件清理
+importAppService.executeImportAsync(taskId, fileBytes, originalFilename, userId);
+
+// @Async 方法
+public void executeImportAsync(Long taskId, byte[] fileBytes, ...) {
+    excelImporter.importFromStream(new ByteArrayInputStream(fileBytes));
+}
+```
+
+#### 新增系统性教训（P2 补充）
+
+| 教训 | 规范 |
+|------|------|
+| **改 bug 前 grep `ERROR` 日志必须逐条过** | §42 P1 只看了 `Invalid JSON text` 一条就停，漏掉紧挨着的 `NoSuchFileException`。两条 stacktrace 在日志里只隔 13 毫秒。**正确做法**：`grep ERROR` 后逐条审视，特别关注同一秒/同一 traceId 的多条错误，它们往往是同一事故的多米诺 |
+| **`@Async` 方法禁止接收绑定 request 生命周期的对象** | `MultipartFile`、`HttpServletRequest`、`InputStream` 等依赖 HTTP request 的对象，在 request 结束后会被容器清理/失效。Spring 官方文档明确警告此反模式。**正确做法**：在同步阶段提取不可变数据（`byte[]`、`String`、值对象）传入异步方法 |
+
+#### 防复发守卫（P2 补充）
+
+P2 在 `ImportPersonnelAppServiceTest` 保留了 P1 的 2 个降级测试，并把 5 个测试的
+入参从 `MultipartFile` 改为 `byte[]`。若未来有人把签名改回 `MultipartFile`，
+这 5 个测试会立即编译失败，强制开发者审视异步生命周期契约。
+
+#### 诚实评估更新（覆盖 §42 原评估）
+
+P1 + P2 合起来后，第八轮才算完整：
+- L1（Jackson 序列化）：**已实现**（P1，§42 已述）
+- L2（failImportTask try/catch 降级）：**已实现**（P1，§42 已述）
+- L3（历史脏数据兼容）：**已实现**（P1，§42 已述）
+- **L4（MultipartFile → byte[]）：已实现**（P2，本节）← P1 漏掉，P2 补上
+
+**剩余复发风险**（更新）：
+1. 其他模块若有 `@Async + MultipartFile` 模式，本 PR 不覆盖——需全仓审计
+2. §42 原列的「极端情况 failImportTask 完全失败」风险依然存在
+3. 端到端测试仍缺（与 §42 一致）
+
+#### 相关 PR
+
+- PR !1755 — CO-469 第八轮 P2 根因 1 修复（commit `8034283e2`）
+- PR !1736 — CO-469 第八轮 P1 根因 2 修复（commit `da755ce28`，§42）
+
+#### 相关 SOP
+
+- §42 — CO-469 第八轮 P1（根因 2，本节是其补充）
+- §41 — CO-469 七轮修复全记录
+- §23 — 全链路日志排查 SOP（本节强调「grep ERROR 后逐条过」，是对 §23 Layer 3 的强化）
+
 ## 43. Excel 日期单元格反复出 bug：分散实现 → 统一基础设施 + 架构门禁（CO-505 第 N 轮）
 
 ### 问题背景

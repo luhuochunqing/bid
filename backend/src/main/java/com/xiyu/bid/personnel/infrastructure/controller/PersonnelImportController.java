@@ -26,6 +26,27 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 
+/**
+ * CO-469 第八轮 P2 根因补修说明（MultipartFile 异步生命周期）：
+ *
+ * 第八轮 P1（commit 2e4613fbd / da755ce28）已修复根因 2（JSON 序列化 + failImportTask 降级），
+ * 但漏掉了根因 1：{@code @Async} 方法直接接收 {@link MultipartFile}。
+ *
+ * Spring MVC 的 {@link MultipartFile} 实现基于 Servlet 容器（Tomcat）的磁盘临时文件，
+ * HTTP 请求一旦结束（Controller 返回后），Tomcat 会立即清理该临时文件。而 {@code @Async}
+ * 方法实际执行时往往已是几十毫秒之后，{@code file.getInputStream()} 抛
+ * {@link java.nio.file.NoSuchFileException}，异步线程进入失败兜底逻辑。
+ *
+ * backend.log 铁证（2026-07-06 06:25:12.287）：
+ * <pre>
+ *   [personnel-imp-exp-1] ERROR c.x.b.p.a.s.ImportPersonnelAppService - 导入任务执行失败: taskId=1
+ *   java.nio.file.NoSuchFileException: /private/var/folders/.../upload_xxx.tmp
+ * </pre>
+ *
+ * 修复：在同步阶段（HTTP 请求仍存活）调用 {@link MultipartFile#getBytes()} 把文件内容
+ * 完整读到内存 {@code byte[]}，再传给 {@code @Async} 方法。{@code byte[]} 是不可变的
+ * 纯 JDK 对象，不依赖 request 生命周期，从根本上消除该问题。
+ */
 @RestController
 @RequestMapping("/api/knowledge/personnel")
 @RequiredArgsConstructor
@@ -45,15 +66,20 @@ public class PersonnelImportController {
     @PreAuthorize("hasAuthority('" + MANAGE_PERM + "')")
     public ResponseEntity<ApiResponse<ImportTaskResponse>> startImport(
             @RequestParam("file") MultipartFile file,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal UserDetails userDetails) throws IOException {
 
         validateFile(file);
+
+        // CO-469 第八轮 P2：在同步阶段读完文件内容到 byte[]，避开 Tomcat 清理临时文件
+        // 详见类顶部注释。注意必须在 Controller 返回前完成读取。
+        byte[] fileBytes = file.getBytes();
+        String originalFilename = file.getOriginalFilename();
 
         Long currentUserId = extractUserId(userDetails);
         String operatorName = resolveOperatorName(userDetails);
         PersonnelImportTask task = importAppService.initiateImportTask(currentUserId, operatorName);
 
-        importAppService.executeImportAsync(task.id(), file, currentUserId);
+        importAppService.executeImportAsync(task.id(), fileBytes, originalFilename, currentUserId);
 
         ImportTaskResponse response = new ImportTaskResponse(
                 task.id(),
