@@ -37,6 +37,11 @@ const globalStubs = {
     emits: ['update:modelValue', 'change'],
     template: '<input class="el-input-stub" :placeholder="placeholder" />',
   },
+  ElTooltip: {
+    name: 'ElTooltip',
+    props: ['content', 'disabled', 'placement', 'showAfter'],
+    template: '<div class="el-tooltip-stub" :data-content="content" :data-disabled="disabled"><slot /></div>',
+  },
   ElSelect: {
     name: 'ElSelect',
     props: ['modelValue', 'disabled', 'placeholder', 'size', 'clearable'],
@@ -108,5 +113,35 @@ describe('CustomerInfoMatrixTable', () => {
 
     expect(wrapper.text()).not.toContain('外部对接人1')
     expect(wrapper.text()).not.toContain('EXTERNAL_ROLE_1')
+  })
+
+  // CO-519: 长文本悬停 Tooltip 展示全量
+  it('enables tooltip when text value exceeds 15 chars and disables for short text', () => {
+    const longBasis = '这是一个超过十五个字符的倾向性评估依据文本'
+    const shortName = '张三'
+    const wrapper = mount(CustomerInfoMatrixTable, {
+      props: {
+        localData: [
+          {
+            roleKey: 'EXPERT_1',
+            roleLabel: '专家1',
+            NAME: shortName,
+            INFO_TENDENCY_BASIS: longBasis,
+          },
+        ],
+        editableColumns: CUSTOMER_INFO_COLUMNS,
+        disabled: false,
+      },
+      global: { stubs: globalStubs },
+    })
+
+    const tooltips = wrapper.findAll('.el-tooltip-stub')
+    const basisTooltip = tooltips.find(t => t.attributes('data-content') === longBasis)
+    expect(basisTooltip).toBeTruthy()
+    expect(basisTooltip.attributes('data-disabled')).toBe('false')
+
+    const nameTooltip = tooltips.find(t => t.attributes('data-content') === shortName)
+    expect(nameTooltip).toBeTruthy()
+    expect(nameTooltip.attributes('data-disabled')).toBe('true')
   })
 })

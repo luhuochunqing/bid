@@ -69,7 +69,7 @@
 <el-table-column label="职位" width="220"><template #default="{row}"><el-select v-model="row.position" :disabled="fieldDisabled" size="small" placeholder="请选择"><el-option v-for="o in POSITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" /></el-select></template></el-table-column>
 <el-table-column label="西域项目负责人" width="160"><template #default="{row}"><el-input v-model="row.xiyuContact" :disabled="fieldDisabled" size="small" placeholder="请输入负责人" /></template></el-table-column>
 <el-table-column label="触达方式" width="180"><template #default="{row}"><el-select v-model="row.reachMethod" :disabled="fieldDisabled" size="small" placeholder="请选择"><el-option v-for="o in CONTACT_METHOD_OPTIONS" :key="o.value" :label="o.label" :value="o.value" /></el-select></template></el-table-column>
-<el-table-column label="倾向性评估依据" width="200"><template #default="{row}"><el-input v-model="row.preferenceBasis" :disabled="fieldDisabled" size="small" placeholder="请输入依据" /></template></el-table-column>
+<el-table-column label="倾向性评估依据" width="200"><template #default="{row}"><el-tooltip :content="String(row.preferenceBasis || '')" :disabled="!shouldShowOverflowTooltip(row.preferenceBasis)" placement="top" :show-after="300"><el-input v-model="row.preferenceBasis" :disabled="fieldDisabled" size="small" placeholder="请输入依据" /></el-tooltip></template></el-table-column>
 <el-table-column label="是否触达" width="120"><template #default="{row}"><el-select v-model="row.reached" :disabled="fieldDisabled" size="small"><el-option label="是" value="true" /><el-option label="否" value="false" /></el-select></template></el-table-column>
 <el-table-column label="是否向此人引导标书" width="170"><template #default="{row}"><el-select v-model="row.guideBid" :disabled="fieldDisabled" size="small"><el-option label="是" value="true" /><el-option label="否" value="false" /></el-select></template></el-table-column>
 <el-table-column label="是否可获取关键信息" width="170"><template #default="{row}"><el-select v-model="row.canGetKeyInfo" :disabled="fieldDisabled" size="small"><el-option label="是" value="true" /><el-option label="否" value="false" /></el-select></template></el-table-column>
@@ -334,6 +334,15 @@ async function handleDynamicSubmit(formData) {
 }
 function handleAmountFocus(field) { if (form[field] === 0) form[field] = null }
 function handleAmountBlur(field) { if (form[field] == null || form[field] === '') form[field] = 0 }
+
+/**
+ * CO-519: 判断字段值长度是否超出列宽可视范围，超长则启用 hover Tooltip 展示全量
+ * 列宽 200px，small 字号 12px，15 字符阈值覆盖大部分超长场景
+ */
+function shouldShowOverflowTooltip(value, maxChars = 15) {
+  const str = value == null ? '' : String(value)
+  return str.length > maxChars
+}
 
 onMounted(load)
 
