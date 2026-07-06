@@ -18,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -161,5 +162,56 @@ class ProjectArchiveResponseMapperTest {
         List<String> names = mapper.collectBidManagers(List.of(archive));
 
         assertThat(names).isEmpty();
+    }
+
+    @Test
+    void toResponseList_returnsClosedAt_whenProjectIsClosed() {
+        LocalDateTime closedAt = LocalDateTime.of(2026, 6, 15, 10, 0, 0);
+        ProjectArchive archive = new ProjectArchive();
+        archive.setProjectId(100L);
+        archive.setProjectName("测试项目");
+        archive.setArchiveStatus("ACTIVE");
+
+        Project project = Project.builder()
+                .id(100L)
+                .tenderId(10L)
+                .status(Project.Status.WON)
+                .closedAt(closedAt)
+                .build();
+
+        when(projectRepository.findAllById(List.of(100L))).thenReturn(List.of(project));
+        lenient().when(tenderRepository.findAllById(anyList())).thenReturn(List.of());
+        lenient().when(fileRepository.findByArchiveIdInOrderByCreatedAtDesc(anyList()))
+                .thenReturn(List.of());
+
+        List<ProjectArchiveResponse> result = mapper.toResponseList(List.of(archive));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).closedAt()).isEqualTo(closedAt);
+    }
+
+    @Test
+    void toResponseList_returnsNullClosedAt_whenProjectNotClosed() {
+        ProjectArchive archive = new ProjectArchive();
+        archive.setProjectId(100L);
+        archive.setProjectName("测试项目");
+        archive.setArchiveStatus("ACTIVE");
+
+        Project project = Project.builder()
+                .id(100L)
+                .tenderId(10L)
+                .status(Project.Status.BIDDING)
+                .closedAt(null)
+                .build();
+
+        when(projectRepository.findAllById(List.of(100L))).thenReturn(List.of(project));
+        lenient().when(tenderRepository.findAllById(anyList())).thenReturn(List.of());
+        lenient().when(fileRepository.findByArchiveIdInOrderByCreatedAtDesc(anyList()))
+                .thenReturn(List.of());
+
+        List<ProjectArchiveResponse> result = mapper.toResponseList(List.of(archive));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).closedAt()).isNull();
     }
 }

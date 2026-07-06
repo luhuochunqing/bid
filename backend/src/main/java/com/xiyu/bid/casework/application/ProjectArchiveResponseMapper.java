@@ -105,10 +105,13 @@ class ProjectArchiveResponseMapper {
                 .max(Comparator.naturalOrder())
                 .orElse(archive.getCreatedAt());
 
+        LocalDateTime closedAt = project != null ? project.getClosedAt() : null;
+
         return new ProjectArchiveResponse(
                 archive.getId(), archive.getProjectId(), archive.getProjectName(),
                 projectType, projectStatus, bidResult, purchaserName,
                 files.size(), categoryDetails, lastUploadedAt,
+                closedAt,
                 projectManager, bidManager);
     }
 

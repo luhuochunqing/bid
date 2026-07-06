@@ -14,6 +14,7 @@ public record ProjectArchiveResponse(
     Integer fileCount,
     Map<String, Long> fileCategoryDetails,
     LocalDateTime lastUploadedAt,
+    LocalDateTime closedAt,
     String projectManager,
     String bidManager
 ) {}

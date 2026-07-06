@@ -23,6 +23,7 @@
         <el-form-item label="项目负责人"><UserPicker v-model="filters.projectManager" mode="search" value-field="name" placeholder="选择负责人" :initial-options="projectManagerOptions" clearable style="width: 180px" /></el-form-item>
         <el-form-item label="投标负责人"><UserPicker v-model="filters.bidManager" mode="search" value-field="name" placeholder="选择负责人" :initial-options="bidManagerOptions" clearable style="width: 180px" /></el-form-item>
         <el-form-item label="上传时间"><el-date-picker v-model="filters.uploadDates" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" value-format="YYYY-MM-DD" clearable style="width: 260px" /></el-form-item>
+        <el-form-item label="归档时间"><el-date-picker v-model="filters.closeDates" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" value-format="YYYY-MM-DD" clearable style="width: 260px" /></el-form-item>
         <el-form-item label="项目状态">
           <el-select v-model="filters.projectStatus" placeholder="选择状态" multiple clearable collapse-tags collapse-tags-tooltip style="width: 200px">
             <el-option label="待立项" value="PENDING_INITIATION" /><el-option label="已立项" value="INITIATED" /><el-option label="投标中" value="BIDDING" /><el-option label="评标中" value="EVALUATING" />
@@ -59,8 +60,8 @@
               </FileCategoryPopover>
             </template>
           </el-table-column>
-          <el-table-column prop="lastUploadedAt" label="归档时间" width="160" align="center">
-            <template #default="{ row }">{{ formatDate(row.lastUploadedAt) }}</template>
+          <el-table-column prop="closedAt" label="归档时间" width="160" align="center">
+            <template #default="{ row }">{{ row.closedAt ? formatDate(row.closedAt) : '未结项' }}</template>
           </el-table-column>
           <el-table-column prop="projectManager" label="项目负责人" width="120" align="center">
             <template #default="{ row }">{{ row.projectManager || '-' }}</template>
@@ -108,6 +109,7 @@ const filters = reactive({
   projectManager: '',
   bidManager: '',
   uploadDates: null,
+  closeDates: null,
   projectStatus: [],
   projectType: []
 })
@@ -140,6 +142,8 @@ const buildFilterParams = () => {
     documentCategories: filters.categories.length ? filters.categories : null,
     uploadTimeStart: filters.uploadDates?.[0] || null,
     uploadTimeEnd: filters.uploadDates?.[1] || null,
+    closeTimeStart: filters.closeDates?.[0] || null,
+    closeTimeEnd: filters.closeDates?.[1] || null,
     projectStatus: filters.projectStatus.length ? filters.projectStatus : null,
     projectType: filters.projectType.length ? filters.projectType : null,
     projectManager: filters.projectManager || null,
@@ -208,7 +212,7 @@ const handleSearch = () => {
   filePage.value = 1
   loadData()
 }
-const handleReset = () => { Object.assign(filters, { projectName: '', categories: [], projectManager: '', bidManager: '', uploadDates: null, projectStatus: [], projectType: [] }); page.value = 1; filePage.value = 1; loadData() }
+const handleReset = () => { Object.assign(filters, { projectName: '', categories: [], projectManager: '', bidManager: '', uploadDates: null, closeDates: null, projectStatus: [], projectType: [] }); page.value = 1; filePage.value = 1; loadData() }
 const handleSizeChange = () => { page.value = 1; loadData() }
 const handleRowClick = (row) => { selectedArchive.value = row; drawerVisible.value = true }
 
