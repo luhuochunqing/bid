@@ -3,8 +3,10 @@ package com.xiyu.bid.platform.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -12,12 +14,16 @@ import com.xiyu.bid.entity.User;
 import com.xiyu.bid.infrastructure.excel.SingleSheetExcelReader;
 import com.xiyu.bid.infrastructure.excel.SingleSheetExcelReader.WorkbookData;
 import com.xiyu.bid.platform.domain.PlatformAccountImportPolicy;
+import com.xiyu.bid.platform.entity.PlatformAccount;
 import com.xiyu.bid.platform.infrastructure.persistence.entity.PlatformAccountImportTaskEntity;
 import com.xiyu.bid.platform.infrastructure.persistence.repository.PlatformAccountImportTaskJpaRepository;
 import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.repository.UserRepository;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -61,6 +67,7 @@ class PlatformAccountImportAppServiceTest {
 
         lenient().when(accountRepo.findByAccountName(anyString())).thenReturn(Optional.empty());
         lenient().when(accountRepo.findByUsername(anyString())).thenReturn(Optional.empty());
+        lenient().when(accountRepo.findByPlatformTypeAndUsername(any(), anyString())).thenReturn(Optional.empty());
     }
 
     private WorkbookData buildWorkbook(String employeeNumber) {
@@ -112,6 +119,82 @@ class PlatformAccountImportAppServiceTest {
             assertThat(finalTask.getErrorDetails()).contains("工号「" + badNumber + "」未匹配到用户");
             assertThat(finalTask.getImportedRows()).isEqualTo(0);
             assertThat(finalTask.getInvalidRows()).isGreaterThan(0);
+        }
+    }
+
+    @Nested
+    @DisplayName("executeImportAsync — 平台内唯一性校验")
+    class PlatformScopedUniqueness {
+
+        private WorkbookData buildWorkbookWithRows(String[]... rows) {
+            String[] header = PlatformAccountImportPolicy.HEADERS.clone();
+            List<String[]> data = new ArrayList<>();
+            data.add(header);
+            data.addAll(Arrays.asList(rows));
+            return new WorkbookData(data);
+        }
+
+        private String[] row(String accountName, String platformType, String username, String employeeNumber) {
+            return new String[]{
+                    accountName, "https://example.com", username, "pass123",
+                    platformType, employeeNumber, "否", "",
+                    "", "", ""
+            };
+        }
+
+        @Test
+        @DisplayName("不同平台相同账号：两行都应导入成功")
+        void differentPlatformSameUsername_bothImported() throws Exception {
+            User custodian = User.builder().id(CUSTODIAN_USER_ID).employeeNumber(VALID_EMPLOYEE_NUMBER).build();
+            when(excelReader.read(any(byte[].class)))
+                    .thenReturn(buildWorkbookWithRows(
+                            row("平台A", "政府采购网", "admin", VALID_EMPLOYEE_NUMBER),
+                            row("平台B", "招投标平台", "admin", VALID_EMPLOYEE_NUMBER)));
+            when(userRepository.findByEmployeeNumber(VALID_EMPLOYEE_NUMBER)).thenReturn(Optional.of(custodian));
+
+            service.executeImportAsync(TASK_ID, new byte[0], OPERATOR_ID);
+
+            verify(rowPersister, times(2)).persist(any(), any());
+            ArgumentCaptor<PlatformAccountImportTaskEntity> taskCaptor =
+                    ArgumentCaptor.forClass(PlatformAccountImportTaskEntity.class);
+            verify(taskRepo, atLeastOnce()).save(taskCaptor.capture());
+            PlatformAccountImportTaskEntity finalTask = taskCaptor.getAllValues().stream()
+                    .filter(t -> "COMPLETED".equals(t.getStatus()))
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(finalTask.getImportedRows()).isEqualTo(2);
+            assertThat(finalTask.getInvalidRows()).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("同一平台相同账号：第二行应提示重复")
+        void samePlatformSameUsername_secondRowRejected() throws Exception {
+            User custodian = User.builder().id(CUSTODIAN_USER_ID).employeeNumber(VALID_EMPLOYEE_NUMBER).build();
+            when(excelReader.read(any(byte[].class)))
+                    .thenReturn(buildWorkbookWithRows(
+                            row("平台A", "政府采购网", "admin", VALID_EMPLOYEE_NUMBER),
+                            row("平台B", "政府采购网", "admin", VALID_EMPLOYEE_NUMBER)));
+            when(userRepository.findByEmployeeNumber(VALID_EMPLOYEE_NUMBER)).thenReturn(Optional.of(custodian));
+
+            AtomicInteger callCount = new AtomicInteger(0);
+            when(accountRepo.findByPlatformTypeAndUsername(PlatformAccount.PlatformType.GOV_PROCUREMENT, "admin"))
+                    .thenAnswer(inv -> callCount.incrementAndGet() == 1
+                            ? Optional.empty()
+                            : Optional.of(new PlatformAccount()));
+
+            service.executeImportAsync(TASK_ID, new byte[0], OPERATOR_ID);
+
+            verify(rowPersister, times(1)).persist(any(), any());
+            ArgumentCaptor<PlatformAccountImportTaskEntity> taskCaptor =
+                    ArgumentCaptor.forClass(PlatformAccountImportTaskEntity.class);
+            verify(taskRepo, atLeastOnce()).save(taskCaptor.capture());
+            PlatformAccountImportTaskEntity finalTask = taskCaptor.getAllValues().stream()
+                    .filter(t -> "COMPLETED".equals(t.getStatus()))
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(finalTask.getImportedRows()).isEqualTo(1);
+            assertThat(finalTask.getErrorDetails()).contains("登录账号");
+            assertThat(finalTask.getErrorDetails()).contains("已存在");
         }
     }
 }

@@ -11,6 +11,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -25,6 +26,9 @@ import java.time.LocalDateTime;
     @Index(name = "idx_platform_status", columnList = "status"),
     @Index(name = "idx_platform_type", columnList = "platform_type"),
     @Index(name = "idx_platform_borrowed_by", columnList = "borrowed_by")
+}, uniqueConstraints = {
+    @UniqueConstraint(name = "uk_platform_accounts_platform_type_username",
+            columnNames = {"platform_type", "username"})
 })
 @Data
 @Builder
@@ -49,8 +53,8 @@ public class PlatformAccount {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** Platform login username (unique). */
-    @Column(unique = true, nullable = false, length = LEN_USERNAME)
+    /** Platform login username. Unique within the same platform type. */
+    @Column(nullable = false, length = LEN_USERNAME)
     private String username;
 
     /** Encrypted password. */
