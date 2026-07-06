@@ -3,7 +3,7 @@
     <div class="kb-page-header">
       <h2>案例库</h2>
       <div class="kb-header-actions">
-        <el-button type="warning" @click="handleExportZip" :loading="exportLoading">导出文件包</el-button>
+        <el-button type="warning" @click="handleExportZip" :loading="exportLoading" :disabled="totalElements === 0">导出文件包</el-button>
       </div>
     </div>
     <el-card class="filter-card kb-filter-card">

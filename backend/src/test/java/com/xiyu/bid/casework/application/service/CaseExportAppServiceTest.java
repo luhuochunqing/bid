@@ -6,6 +6,7 @@ import com.xiyu.bid.casework.domain.policy.CaseExportPolicy;
 import com.xiyu.bid.casework.dto.CaseExportQuery;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCaseRepository;
+import com.xiyu.bid.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,8 +38,8 @@ class CaseExportAppServiceTest {
     }
 
     @Test
-    @DisplayName("空仓库抛出 IllegalStateException（validateExportRequest 拒绝空列表）")
-    void exportCases_EmptyRepository_ThrowsException() {
+    @DisplayName("空仓库抛出 BusinessException（业务校验，不上报 Sentry）")
+    void exportCases_EmptyRepository_ThrowsBusinessException() {
         CaseExportQuery query = new CaseExportQuery(
                 null, null, null, null, null,
                 null, null, null, null, null);
@@ -46,7 +47,7 @@ class CaseExportAppServiceTest {
         when(repo.count(any(Specification.class))).thenReturn(0L);
 
         assertThatThrownBy(() -> appService.exportCases(query, "操作员"))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("没有可导出的案例");
     }
 

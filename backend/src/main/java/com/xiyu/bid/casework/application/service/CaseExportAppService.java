@@ -9,6 +9,7 @@ import com.xiyu.bid.casework.domain.policy.CaseExportPolicy;
 import com.xiyu.bid.casework.dto.CaseExportQuery;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCaseRepository;
+import com.xiyu.bid.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -42,7 +43,7 @@ public class CaseExportAppService {
         CaseExportPolicy.ExportValidationResult validation = caseExportPolicy.validateExportRequest(cases);
         if (!validation.valid()) {
             log.warn("Case export validation failed: {}", validation.errorMessage());
-            throw new IllegalStateException(validation.errorMessage());
+            throw new BusinessException(validation.errorMessage());
         }
 
         List<KnowledgeCaseReadModel> sortedCases = caseExportPolicy.sortCasesForExport(cases);
