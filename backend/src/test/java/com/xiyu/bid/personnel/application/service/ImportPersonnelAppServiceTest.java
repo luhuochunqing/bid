@@ -10,8 +10,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
-import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.web.multipart.MultipartFile;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
@@ -87,14 +85,14 @@ class ImportPersonnelAppServiceTest {
 
     @Test
     void executeImportAsync_当excelImporter抛RuntimeException_应调用failImportTask() throws Exception {
-        MultipartFile file = new MockMultipartFile("test.xlsx", new byte[]{});
+        byte[] fileBytes = new byte[]{};
         when(excelImporter.importFromStream(any())).thenThrow(new RuntimeException("Excel 解析异常"));
 
         PersonnelImportTask task = buildTask(100L, "IMP-PER-TEST-001", ImportTaskStatus.PENDING);
         when(importTaskRepository.findById(100L)).thenReturn(Optional.of(task));
         when(importTaskRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        service.executeImportAsync(100L, file, 1L);
+        service.executeImportAsync(100L, fileBytes, "test.xlsx", 1L);
 
         verify(importTaskRepository).save(argThat(saved ->
                 saved.status().name().equals("FAILED")
@@ -103,14 +101,14 @@ class ImportPersonnelAppServiceTest {
 
     @Test
     void executeImportAsync_当excelImporter抛IOException_应调用failImportTask() throws Exception {
-        MultipartFile file = new MockMultipartFile("test.xlsx", new byte[]{});
+        byte[] fileBytes = new byte[]{};
         when(excelImporter.importFromStream(any())).thenThrow(new java.io.IOException("文件读取失败"));
 
         PersonnelImportTask task = buildTask(101L, "IMP-PER-TEST-002", ImportTaskStatus.PENDING);
         when(importTaskRepository.findById(101L)).thenReturn(Optional.of(task));
         when(importTaskRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        service.executeImportAsync(101L, file, 1L);
+        service.executeImportAsync(101L, fileBytes, "test.xlsx", 1L);
 
         verify(importTaskRepository).save(argThat(saved ->
                 saved.status().name().equals("FAILED")
@@ -119,7 +117,7 @@ class ImportPersonnelAppServiceTest {
 
     @Test
     void executeImportAsync_当importExecutor抛RuntimeException_应调用failImportTask() throws Exception {
-        MultipartFile file = new MockMultipartFile("test.xlsx", new byte[]{});
+        byte[] fileBytes = new byte[]{};
 
         PersonnelExcelImporter.ImportResult importResult = new PersonnelExcelImporter.ImportResult(
                 List.of(), List.of(), List.of(),
@@ -133,7 +131,7 @@ class ImportPersonnelAppServiceTest {
         when(importTaskRepository.findById(103L)).thenReturn(Optional.of(task));
         when(importTaskRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        service.executeImportAsync(103L, file, 1L);
+        service.executeImportAsync(103L, fileBytes, "test.xlsx", 1L);
 
         verify(importTaskRepository).save(argThat(saved ->
                 saved.status().name().equals("FAILED")
@@ -147,7 +145,7 @@ class ImportPersonnelAppServiceTest {
      */
     @Test
     void executeImportAsync_当failImportTask自身save抛异常_应降级到updateStatus() throws Exception {
-        MultipartFile file = new MockMultipartFile("test.xlsx", new byte[]{});
+        byte[] fileBytes = new byte[]{};
         when(excelImporter.importFromStream(any())).thenThrow(new RuntimeException("Excel 解析异常"));
 
         PersonnelImportTask task = buildTask(200L, "IMP-PER-TEST-CO469-8", ImportTaskStatus.PROCESSING);
@@ -157,7 +155,7 @@ class ImportPersonnelAppServiceTest {
                 .thenThrow(new org.springframework.dao.DataIntegrityViolationException(
                         "could not execute statement [Data truncation: Invalid JSON text]"));
 
-        service.executeImportAsync(200L, file, 1L);
+        service.executeImportAsync(200L, fileBytes, "test.xlsx", 1L);
 
         // 断言：降级到 updateStatus(200L, "FAILED")
         verify(importTaskRepository).updateStatus(eq(200L), eq("FAILED"));
@@ -170,7 +168,7 @@ class ImportPersonnelAppServiceTest {
      */
     @Test
     void executeImportAsync_当failImportTask完全失败时_不抛异常且清理Redis进度() throws Exception {
-        MultipartFile file = new MockMultipartFile("test.xlsx", new byte[]{});
+        byte[] fileBytes = new byte[]{};
         when(excelImporter.importFromStream(any())).thenThrow(new RuntimeException("解析异常"));
 
         PersonnelImportTask task = buildTask(201L, "IMP-PER-TEST-CO469-8-FALLBACK", ImportTaskStatus.PROCESSING);
@@ -182,7 +180,7 @@ class ImportPersonnelAppServiceTest {
                 .thenThrow(new org.springframework.dao.DataIntegrityViolationException("updateStatus also failed"));
 
         // 不应抛异常
-        service.executeImportAsync(201L, file, 1L);
+        service.executeImportAsync(201L, fileBytes, "test.xlsx", 1L);
 
         // 验证 save 和 updateStatus 都被尝试过
         verify(importTaskRepository).save(any());
