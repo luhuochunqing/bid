@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# Input: backend/src/main/java/**/*.java source tree
+# Output: exit 0 if no high-risk List/Map/Set.toString() patterns found;
+#         exit 1 with detailed report otherwise
+# Pos: scripts/ - Repository maintenance guardrail against CO-469 JSON serialization root cause
+# 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+#
 # CO-469 第八轮 P1 审计：CI 守卫脚本
 # 用途：扫描后端 Java 代码中疑似将集合 toString() 写入 JSON 字段的高风险模式。
 #
