@@ -363,6 +363,11 @@ defineExpose({ load, handleAmountFocus, handleAmountBlur, searchLeader, searchAs
 .customer-table-wrapper :deep(.el-table th.el-table__cell),
 .customer-table-wrapper :deep(.el-table td.el-table__cell) { white-space: nowrap; }
 .customer-table-wrapper :deep(.cell) { white-space: nowrap; }
+/* CO-519: interactions.css 对 .is-disabled 全局设了 pointer-events:none，
+   导致 disabled el-input 上的 el-tooltip 收不到 hover 事件，tooltip 不弹出。
+   这里恢复 .el-tooltip__trigger 的 pointer-events，仅让 hover 触发 tooltip；
+   内层 input 仍 disabled 不可编辑。 */
+.customer-table-wrapper :deep(.el-tooltip__trigger.is-disabled) { pointer-events: auto; }
 .ai-risk-corner { display: flex; align-items: center; gap: 10px; }
 .risk-tag { font-size: 14px; }
 .bid-doc-section { display: flex; flex-direction: column; gap: 16px; }
