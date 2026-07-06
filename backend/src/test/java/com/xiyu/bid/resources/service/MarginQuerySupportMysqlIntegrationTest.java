@@ -906,6 +906,105 @@ class MarginQuerySupportMysqlIntegrationTest {
         }
     }
 
+    // ── XIYU-P 回归测试：数据库列零日期（'0000-00-00 00:00:00'）不应导致 DataException ──
+    //
+    // 背景：V1077 之前或其他异常写入可能让 fees.payment_date / fees.fee_date /
+    // project_closure.deposit_return_date 残留 zero date。MySQL JDBC 驱动默认
+    // 把 zero date 转成 java.sql.Timestamp 时抛 DataException。
+    // 修复：SQL 层用 NULLIF(col, '0000-00-00 00:00:00') 转成 NULL。
+
+    @Test
+    @DisplayName("XIYU-P: listBase 不应抛异常：fees.payment_date 为 '0000-00-00 00:00:00'")
+    void listBase_executesWithoutError_whenPaymentDateIsZeroDate() {
+        Long projectId = createTestProject("xiyup-payment-zero");
+        createInitiationDetails(projectId, "NO", BigDecimal.ZERO);
+        createFeeWithPaymentDate(projectId, "BID_BOND", "PAID",
+                "'0000-00-00 00:00:00'", "DATE_ADD(NOW(), INTERVAL 20 DAY)",
+                new BigDecimal("5000"));
+        try {
+            StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
+            sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
+
+            List<Map<String, Object>> rows =
+                    jdbcTemplate.queryForList(sql.toString(), Map.of());
+
+            assertThat(rows)
+                    .as("listBase 应正常返回结果，zero date payment_date 不应抛 DataException")
+                    .anyMatch(row -> projectId.equals(extractProjectId(row)));
+        } finally {
+            cleanupTestData(projectId);
+        }
+    }
+
+    @Test
+    @DisplayName("XIYU-P: listBase 不应抛异常：fees.fee_date 为 '0000-00-00 00:00:00'")
+    void listBase_executesWithoutError_whenFeeDateIsZeroDate() {
+        Long projectId = createTestProject("xiyup-feedate-zero");
+        createInitiationDetails(projectId, "NO", BigDecimal.ZERO);
+        createFeeWithPaymentDate(projectId, "BID_BOND", "PAID",
+                "DATE_SUB(NOW(), INTERVAL 10 DAY)", "'0000-00-00 00:00:00'",
+                new BigDecimal("5000"));
+        try {
+            StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
+            sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
+
+            List<Map<String, Object>> rows =
+                    jdbcTemplate.queryForList(sql.toString(), Map.of());
+
+            assertThat(rows)
+                    .as("listBase 应正常返回结果，zero date fee_date 不应抛 DataException")
+                    .anyMatch(row -> projectId.equals(extractProjectId(row)));
+        } finally {
+            cleanupTestData(projectId);
+        }
+    }
+
+    @Test
+    @DisplayName("XIYU-P: listBase 不应抛异常：project_closure.deposit_return_date 为 '0000-00-00 00:00:00'")
+    void listBase_executesWithoutError_whenDepositReturnDateIsZeroDate() {
+        Long projectId = createTestProject("xiyup-closure-return-zero");
+        createInitiationDetails(projectId, "NO", BigDecimal.ZERO);
+        createFeeWithPaymentDate(projectId, "BID_BOND", "PAID",
+                "DATE_SUB(NOW(), INTERVAL 10 DAY)", "DATE_ADD(NOW(), INTERVAL 20 DAY)",
+                new BigDecimal("5000"));
+        createProjectClosureWithZeroReturnDate(projectId, "FULLY_RETURNED");
+        try {
+            StringBuilder sql = MarginQuerySupport.listBase(MarginQueryRole.ADMIN);
+            sql.append(" ORDER BY m.created_at DESC LIMIT 100 OFFSET 0");
+
+            List<Map<String, Object>> rows =
+                    jdbcTemplate.queryForList(sql.toString(), Map.of());
+
+            assertThat(rows)
+                    .as("listBase 应正常返回结果，zero date deposit_return_date 不应抛 DataException")
+                    .anyMatch(row -> projectId.equals(extractProjectId(row)));
+        } finally {
+            cleanupTestData(projectId);
+        }
+    }
+
+    @Test
+    @DisplayName("XIYU-P: summaryBase 不应抛异常：fees.fee_date 为 '0000-00-00 00:00:00'")
+    void summaryBase_executesWithoutError_whenFeeDateIsZeroDate() {
+        Long projectId = createTestProject("xiyup-summary-feedate-zero");
+        createInitiationDetails(projectId, "NO", BigDecimal.ZERO);
+        createFeeWithPaymentDate(projectId, "BID_BOND", "PAID",
+                "DATE_SUB(NOW(), INTERVAL 10 DAY)", "'0000-00-00 00:00:00'",
+                new BigDecimal("5000"));
+        try {
+            StringBuilder sql = MarginQuerySupport.summaryBase(MarginQueryRole.ADMIN);
+
+            Map<String, Object> summary =
+                    jdbcTemplate.queryForMap(sql.toString(), Map.of());
+
+            assertThat(summary)
+                    .as("summaryBase 应正常返回聚合结果，zero date fee_date 不应抛 DataException")
+                    .isNotNull();
+        } finally {
+            cleanupTestData(projectId);
+        }
+    }
+
     // ── 行为层测试 helper 方法 ──
 
     /**
@@ -1134,6 +1233,22 @@ class MarginQuerySupportMysqlIntegrationTest {
         params.put("drs", depositReturnStatus);
         params.put("ra", returnedAmount);
         params.put("ta", transferAmount);
+        jdbcTemplate.update(sql, params);
+    }
+
+    /**
+     * 插入 project_closure，且 deposit_return_date 显式置为 '0000-00-00 00:00:00'。
+     * <p>XIYU-P 回归测试用：验证 SQL 层 NULLIF 能避免 JDBC zero-date DataException。
+     */
+    private void createProjectClosureWithZeroReturnDate(final Long projectId,
+                                                         final String depositReturnStatus) {
+        String sql = "INSERT INTO project_closure"
+                   + " (project_id, deposit_return_status, deposit_returned, stage_locked,"
+                   + "  deposit_return_date, created_at, updated_at) "
+                   + "VALUES (:pid, :drs, FALSE, FALSE, '0000-00-00 00:00:00', NOW(), NOW())";
+        Map<String, Object> params = new HashMap<>();
+        params.put("pid", projectId);
+        params.put("drs", depositReturnStatus);
         jdbcTemplate.update(sql, params);
     }
 
