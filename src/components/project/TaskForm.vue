@@ -177,6 +177,7 @@ import UserPicker from '@/components/common/UserPicker.vue'
 import TaskActivityPanel from '@/components/project/TaskActivityPanel.vue'
 import TaskDepositFields from '@/components/project/TaskDepositFields.vue'
 import { useTaskAssigneePicker } from './useTaskAssigneePicker.js'
+import { isFileLike } from '@/composables/projectDetail/taskAssigneePayload.js'
 import { ElMessage } from 'element-plus'
 import { validateSubmitForReview } from '@/composables/useTaskSubmissionValidation.js'
 import { getTaskDeliverableDownloadUrl } from '@/api/modules/taskDeliverables.js'
@@ -329,15 +330,19 @@ rebuildFileList()
 watch(() => localValue.deliverableFiles, rebuildFileList, { deep: true })
 
 function handleDeliverableChange(file, fileList = []) {
-  localValue.deliverableFiles = (Array.isArray(fileList) ? fileList : [fileList])
-    .map((item) => item?.raw || item)
-    .filter(Boolean)
+  // CO-519: 同附件，交付物也必须过滤非 File 对象 + 检测提取失败
+  const inputList = fileList.length ? fileList : [fileList]
+  const files = normalizeUploadFiles(inputList)
+  const emptyFile = files.find((f) => f.size === 0)
+  if (emptyFile) {
+    ElMessage.warning(`文件「${emptyFile.name || ''}」为空（0 字节），请检查后重新选择`)
+  }
+  detectUploadIssues(inputList, files)
+  localValue.deliverableFiles = files
 }
 
 function handleDeliverableRemove(_file, fileList = []) {
-  localValue.deliverableFiles = (Array.isArray(fileList) ? fileList : [])
-    .map((item) => item?.raw || item)
-    .filter(Boolean)
+  localValue.deliverableFiles = normalizeUploadFiles(fileList)
 }
 
 let syncingFromModel = false
@@ -428,12 +433,36 @@ function validate() {
   return firstError
 }
 function normalizeUploadFiles(fileList = []) {
+  // CO-519: 必须过滤非 File 对象，否则 formData.set('file', item) 会转成 "[object Object]"
+  // 导致后端 MissingServletRequestPartException（无 file part）
   return (Array.isArray(fileList) ? fileList : [fileList])
-    .map((item) => item?.raw || item)
-    .filter(Boolean)
+    .map((item) => item?.raw || item?.file || item)
+    .filter((file) => isFileLike(file))
+}
+function detectUploadIssues(fileList = [], files = []) {
+  // CO-519: 检测"选择了文件但提取失败"的情况，避免静默失败导致用户以为文件已上传
+  const inputCount = (Array.isArray(fileList) ? fileList : [fileList]).filter(Boolean).length
+  if (inputCount > 0 && files.length === 0) {
+    ElMessage.warning('文件读取失败，请刷新页面后重新选择文件；如仍失败，请尝试更换浏览器（推荐 Chrome 最新版）')
+    return true
+  }
+  if (inputCount > files.length) {
+    const lost = inputCount - files.length
+    ElMessage.warning(`有 ${lost} 个文件读取失败并被忽略，请检查文件是否损坏或被其他程序占用`)
+  }
+  return false
 }
 function handleAttachmentChange(file, fileList = []) {
-  localValue.attachments = normalizeUploadFiles(fileList.length ? fileList : [file])
+  const inputList = fileList.length ? fileList : [file]
+  const files = normalizeUploadFiles(inputList)
+  // CO-519: 拦截空文件（size=0），避免后端 UploadValidationPolicy 拒绝后只返回 "请上传项目文档"
+  const emptyFile = files.find((f) => f.size === 0)
+  if (emptyFile) {
+    ElMessage.warning(`文件「${emptyFile.name || ''}」为空（0 字节），请检查后重新选择`)
+  }
+  // CO-519: 检测文件提取失败（item.raw 为 undefined 等），避免静默失败
+  detectUploadIssues(inputList, files)
+  localValue.attachments = files
 }
 function handleAttachmentRemove(_file, fileList = []) {
   localValue.attachments = normalizeUploadFiles(fileList)

@@ -38,8 +38,15 @@ public final class UploadValidationPolicy {
     }
 
     public static ValidationResult validate(String fileName, String contentType, long sizeBytes) {
-        if (sizeBytes <= 0L) {
+        // CO-519: 区分"未上传文件"和"空文件"，给出更准确的错误信息
+        // - sizeBytes < 0: 调用方传 -1 表示 file 为 null（已在上游拦截，这里兜底）
+        // - sizeBytes == 0: 文件存在但内容为空（用户选了 0 字节文件）
+        if (sizeBytes < 0L) {
             return ValidationResult.reject("请上传项目文档");
+        }
+        if (sizeBytes == 0L) {
+            String displayName = (fileName != null && !fileName.isBlank()) ? "「" + fileName.trim() + "」" : "";
+            return ValidationResult.reject("文件" + displayName + "为空（0 字节），请检查后重新选择");
         }
         if (sizeBytes > MAX_BYTES) {
             return ValidationResult.reject("项目文档大小超过 50MB 限制");

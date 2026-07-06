@@ -29,6 +29,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -96,6 +98,45 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity
                 .badRequest()
                 .body(ApiResponse.error(400, ex.getMessage()));
+    }
+
+    /**
+     * 处理 multipart 请求缺失 part 异常
+     *
+     * CO-519: 前端 FormData.set('file', nonFile) 会把非 File 对象转成字符串，
+     * 导致 Spring 找不到 "file" part，抛 MissingServletRequestPartException。
+     * 默认 ResponseEntityExceptionHandler 不记日志，导致 400 无诊断信息。
+     */
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingServletRequestPartException(
+            MissingServletRequestPartException ex,
+            HttpServletRequest request) {
+        log.warn("multipart 缺失 part - URI: {}, 缺失 part: {}, Message: {}",
+                request.getRequestURI(), ex.getRequestPartName(), ex.getMessage());
+        String partName = ex.getRequestPartName();
+        String message = partName != null && !partName.isBlank()
+                ? "未接收到必填的「" + partName + "」字段，请检查文件是否已正确选择"
+                : "请上传文件";
+        return ResponseEntity
+                .badRequest()
+                .body(ApiResponse.error(400, message));
+    }
+
+    /**
+     * 处理请求参数缺失异常
+     *
+     * CO-519: 与 MissingServletRequestPartException 同类问题，
+     * @RequestParam(required=false) 之外的必填参数缺失时触发。
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingServletRequestParameterException(
+            MissingServletRequestParameterException ex,
+            HttpServletRequest request) {
+        log.warn("请求参数缺失 - URI: {}, 参数名: {}, 类型: {}",
+                request.getRequestURI(), ex.getParameterName(), ex.getParameterType());
+        return ResponseEntity
+                .badRequest()
+                .body(ApiResponse.error(400, "缺少必填参数: " + ex.getParameterName()));
     }
 
     /**

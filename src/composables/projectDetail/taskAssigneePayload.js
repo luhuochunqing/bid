@@ -14,10 +14,22 @@ export function createTaskAssigneePayload(data = {}, userStore = {}) {
   }
 }
 
+export function isFileLike(value) {
+  if (!value) return false
+  // File 继承自 Blob，两者都有 size 和 type
+  // 优先 instanceof（最准确），fallback 到 duck-typing（兼容 jsdom 等环境）
+  if (typeof File !== 'undefined' && value instanceof File) return true
+  if (typeof Blob !== 'undefined' && value instanceof Blob) return true
+  return typeof value === 'object'
+    && typeof value.size === 'number'
+    && typeof value.type === 'string'
+    && typeof value.name === 'string'
+}
+
 export function normalizeTaskAttachmentFiles(attachments = []) {
   return (Array.isArray(attachments) ? attachments : [attachments])
     .map((item) => item?.raw || item?.file || item)
-    .filter((file) => Boolean(file))
+    .filter((file) => isFileLike(file))
 }
 
 export function createTaskAttachmentPayload(file, userStore = {}) {
@@ -31,7 +43,14 @@ export function createTaskAttachmentPayload(file, userStore = {}) {
 }
 
 export async function uploadTaskAttachments(task, attachments, { projectStore, projectId, userStore } = {}) {
-  for (const file of normalizeTaskAttachmentFiles(attachments)) {
+  const files = normalizeTaskAttachmentFiles(attachments)
+  // CO-519: 用户选了文件但全部提取失败（非 File 对象），明确抛错避免静默失败
+  // 上游 uploadTaskAttachmentsWithFallback 会 catch 并给用户友好提示
+  const inputCount = Array.isArray(attachments) ? attachments.filter(Boolean).length : (attachments ? 1 : 0)
+  if (inputCount > 0 && files.length === 0) {
+    throw new Error('文件读取失败，请刷新页面后重新选择；如仍失败，请尝试更换浏览器（推荐 Chrome 最新版）')
+  }
+  for (const file of files) {
     const saved = await projectStore?.uploadTaskAttachment?.(projectId, task.id, createTaskAttachmentPayload(file, userStore))
     if (!saved) continue
     task.attachments = [saved, ...(task.attachments || []).filter((item) => String(item.id) !== String(saved.id))]
@@ -61,7 +80,13 @@ export function createTaskDeliverablePayload(file, userStore = {}) {
 }
 
 export async function uploadTaskDeliverables(task, deliverableFiles, { projectStore, projectId, userStore } = {}) {
-  for (const file of normalizeTaskAttachmentFiles(deliverableFiles)) {
+  const files = normalizeTaskAttachmentFiles(deliverableFiles)
+  // CO-519: 同附件，交付物也要检测提取失败
+  const inputCount = Array.isArray(deliverableFiles) ? deliverableFiles.filter(Boolean).length : (deliverableFiles ? 1 : 0)
+  if (inputCount > 0 && files.length === 0) {
+    throw new Error('文件读取失败，请刷新页面后重新选择；如仍失败，请尝试更换浏览器（推荐 Chrome 最新版）')
+  }
+  for (const file of files) {
     const saved = await projectStore?.addDeliverable?.(projectId, task.id, createTaskDeliverablePayload(file, userStore))
     if (!saved) continue
     task.deliverables = [

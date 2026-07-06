@@ -61,10 +61,13 @@ class ProjectDocumentUploadWorkflowService {
         if (file == null) {
             throw new IllegalArgumentException("请上传项目文档");
         }
+        // CO-519: file.isEmpty() 为 true 时 size 为 0，传 0L 让 Policy 给出"文件为空"的精确错误
+        // 之前传 0L 也会触发 "请上传项目文档"，但用户无法区分是"没选文件"还是"选了空文件"
+        long sizeForValidation = file.isEmpty() ? 0L : file.getSize();
         UploadValidationPolicy.ValidationResult result = UploadValidationPolicy.validate(
                 file.getOriginalFilename(),
                 file.getContentType(),
-                file.isEmpty() ? 0L : file.getSize()
+                sizeForValidation
         );
         if (!result.valid()) {
             throw new IllegalArgumentException(result.message());
