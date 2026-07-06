@@ -34,6 +34,7 @@ public class WarehouseImportRow {
     public String invoiceFile;
     public String photosFile;
     public String leaseContractFile;
+    public String leaseContractFileName;
     public String propertyCertExpectedName;
     public String invoiceExpectedName;
     public String photosExpectedName;

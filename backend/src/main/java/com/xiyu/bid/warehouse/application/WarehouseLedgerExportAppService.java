@@ -7,6 +7,8 @@ import com.xiyu.bid.warehouse.domain.WarehouseLedgerExportPolicy;
 import com.xiyu.bid.warehouse.domain.WarehouseLedgerExportPolicy.Section;
 import com.xiyu.bid.warehouse.domain.WarehouseStatus;
 import com.xiyu.bid.warehouse.dto.WarehouseFilterDTO;
+import com.xiyu.bid.warehouse.infrastructure.WarehouseAttachmentEntity;
+import com.xiyu.bid.warehouse.infrastructure.WarehouseAttachmentRepository;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseExcelWriter;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskEntity;
@@ -51,6 +53,7 @@ public class WarehouseLedgerExportAppService {
     private final WarehouseExportTaskRepository exportTaskRepo;
     private final WarehouseFilterService filterService;
     private final WarehouseExcelWriter excelWriter;
+    private final WarehouseAttachmentRepository attachmentRepo;
     private final WarehouseLogService warehouseLogService;
     private final ApplicationEventPublisher eventPublisher;
     private final UserRepository userRepository;
@@ -78,9 +81,10 @@ public class WarehouseLedgerExportAppService {
         try {
             markProcessing(taskId);
             List<WarehouseEntity> entities = loadEntities(req);
+            Map<Long, List<WarehouseAttachmentEntity>> attachmentsByWhId = loadAttachments(entities);
             Map<Long, String> usernameById = loadUsernames(entities);
             String[] headers = WarehouseLedgerExportPolicy.getHeaders(req.sections());
-            List<String[]> rows = WarehouseLedgerExportPolicy.buildRows(entities, req.sections(), usernameById);
+            List<String[]> rows = WarehouseLedgerExportPolicy.buildRows(entities, req.sections(), usernameById, attachmentsByWhId);
             byte[] xlsx = excelWriter.write(headers, rows);
             String filePath = saveXlsx(taskId, xlsx);
             complete(taskId, operatorId, operatorUsername, entities, req, filePath, startMs);
@@ -221,5 +225,12 @@ public class WarehouseLedgerExportAppService {
     private static String truncate(String s, int maxLen) {
         if (s == null) return "";
         return s.length() > maxLen ? s.substring(0, maxLen) : s;
+    }
+
+    private Map<Long, List<WarehouseAttachmentEntity>> loadAttachments(List<WarehouseEntity> entities) {
+        if (entities.isEmpty()) return Map.of();
+        List<Long> ids = entities.stream().map(WarehouseEntity::getId).toList();
+        return attachmentRepo.findByWarehouseIdIn(ids).stream()
+                .collect(Collectors.groupingBy(a -> a.getWarehouse().getId()));
     }
 }

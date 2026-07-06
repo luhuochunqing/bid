@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * WarehouseImportTemplateWriter 单测。
  *
  * 重点覆盖：模板中应当做成下拉框的列（仓库类型 / 是否有产权证 / 是否有发票 /
- * 是否有仓库照片 / 是否有租赁合同）确实带 Excel DataValidation。
+ * 是否有仓库照片）确实带 Excel DataValidation。
  *
  * 修复前模板只写了文字 hint（如"自营 或 云仓"），用户仍可自由填写导致导入失败。
  */
@@ -35,28 +35,27 @@ class WarehouseImportTemplateWriterTest {
             assertThat(sheet).isNotNull();
             // 表头行 + 提示行 = 至少 2 行
             assertThat(sheet.getLastRowNum()).isGreaterThanOrEqualTo(1);
-            // 表头列数 = 24（WarehouseImportPolicy.EXPECTED_COL_COUNT）
-            assertThat(sheet.getRow(0).getLastCellNum()).isEqualTo((short) 24);
+            // 表头列数 = 23（WarehouseImportPolicy.EXPECTED_COL_COUNT）
+            assertThat(sheet.getRow(0).getLastCellNum()).isEqualTo((short) 23);
         }
     }
 
     @Test
-    @DisplayName("模板包含 7 个下拉框：仓库类型 + 省份 + 所属区域 + 4 个是否类字段")
+    @DisplayName("模板包含 6 个下拉框：仓库类型 + 省份 + 所属区域 + 3 个是否类字段")
     void write_containsDropDownValidationsForEnumColumns() throws IOException {
         byte[] bytes = writer.write();
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
             Sheet sheet = wb.getSheet("仓库导入模板");
             List<? extends DataValidation> validations = sheet.getDataValidations();
 
-            // 期望 7 个下拉框，分别在第 1/2/5/15/17/19/21 列（0-based）
+            // 期望 6 个下拉框，分别在第 1/2/5/15/17/19 列（0-based）
             // COL_TYPE=1（仓库类型：自营/云仓）
             // COL_PROVINCE=2（所在省份：34 个省级行政区）
             // COL_REGION=5（所属区域：华北/东北/华东/华中/华南/西北/西南）
             // COL_HAS_PROPERTY_CERT=15（是否有产权证：是/否）
             // COL_HAS_INVOICE=17（是否有发票：是/否）
             // COL_HAS_PHOTOS=19（是否有仓库照片：是/否）
-            // COL_HAS_LEASE_CONTRACT=21（是否有租赁合同：是/否）
-            assertThat(validations).hasSize(7);
+            assertThat(validations).hasSize(6);
 
             List<Integer> validatedCols = validations.stream()
                     .map(v -> v.getRegions().getCellRangeAddresses())
@@ -65,7 +64,7 @@ class WarehouseImportTemplateWriterTest {
                     .sorted()
                     .boxed()
                     .toList();
-            assertThat(validatedCols).containsExactlyInAnyOrder(1, 2, 5, 15, 17, 19, 21);
+            assertThat(validatedCols).containsExactlyInAnyOrder(1, 2, 5, 15, 17, 19);
         }
     }
 
@@ -125,7 +124,7 @@ class WarehouseImportTemplateWriterTest {
         byte[] bytes = writer.write();
         try (Workbook wb = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
             Sheet sheet = wb.getSheet("仓库导入模板");
-            for (int col : new int[]{15, 17, 19, 21}) {
+            for (int col : new int[]{15, 17, 19}) {
                 DataValidation v = findValidationForColumn(sheet, col);
                 assertThat(v)
                         .as("第 %d 列应存在下拉框", col)

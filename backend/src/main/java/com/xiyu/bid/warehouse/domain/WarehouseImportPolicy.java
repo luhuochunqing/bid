@@ -20,7 +20,7 @@ public class WarehouseImportPolicy {
             "是否有产权证", "产权证附件",
             "是否有发票", "发票附件",
             "是否有仓库照片", "照片附件",
-            "是否有租赁合同", "租赁合同附件",
+            "租赁合同文件名",
             "资料备注"
     };
 
@@ -45,11 +45,10 @@ public class WarehouseImportPolicy {
     public static final int COL_INVOICE_FILE = 18;
     public static final int COL_HAS_PHOTOS = 19;
     public static final int COL_PHOTOS_FILE = 20;
-    public static final int COL_HAS_LEASE_CONTRACT = 21;
-    public static final int COL_LEASE_CONTRACT_FILE = 22;
-    public static final int COL_CERT_REMARKS = 23;
+    public static final int COL_LEASE_CONTRACT_FILE_NAME = 21;
+    public static final int COL_CERT_REMARKS = 22;
 
-    public static final int EXPECTED_COL_COUNT = 24;
+    public static final int EXPECTED_COL_COUNT = 23;
 
     private static final Pattern SPECIAL_CHARS = Pattern.compile("[/\\\\:*?\"<>|]");
 
@@ -196,21 +195,21 @@ public class WarehouseImportPolicy {
         boolean hasPropertyCert = parseYesNo(stringAt(cells, COL_HAS_PROPERTY_CERT), "是否有产权证", errors, result);
         boolean hasInvoice = parseYesNo(stringAt(cells, COL_HAS_INVOICE), "是否有发票", errors, result);
         boolean hasPhotos = parseYesNo(stringAt(cells, COL_HAS_PHOTOS), "是否有仓库照片", errors, result);
-        boolean hasLeaseContract = parseYesNo(stringAt(cells, COL_HAS_LEASE_CONTRACT), "是否有租赁合同", errors, result);
 
         result.hasPropertyCert = hasPropertyCert;
         result.hasInvoice = hasInvoice;
         result.hasPhotos = hasPhotos;
-        result.hasLeaseContract = hasLeaseContract;
 
         String propertyCertFile = stringAt(cells, COL_PROPERTY_CERT_FILE).trim();
         String invoiceFile = stringAt(cells, COL_INVOICE_FILE).trim();
         String photosFile = stringAt(cells, COL_PHOTOS_FILE).trim();
-        String leaseContractFile = stringAt(cells, COL_LEASE_CONTRACT_FILE).trim();
+        String leaseContractFileName = stringAt(cells, COL_LEASE_CONTRACT_FILE_NAME).trim();
         result.propertyCertFile = propertyCertFile;
         result.invoiceFile = invoiceFile;
         result.photosFile = photosFile;
-        result.leaseContractFile = leaseContractFile;
+        result.leaseContractFileName = leaseContractFileName;
+        result.leaseContractFile = leaseContractFileName;
+        result.hasLeaseContract = !leaseContractFileName.isEmpty();
 
         if (hasPropertyCert && propertyCertFile.isEmpty()) {
             errors.add("产权证=是时，产权证附件不能为空");
@@ -220,9 +219,6 @@ public class WarehouseImportPolicy {
         }
         if (hasPhotos && photosFile.isEmpty()) {
             errors.add("仓库照片=是时，照片附件不能为空");
-        }
-        if (hasLeaseContract && leaseContractFile.isEmpty()) {
-            errors.add("租赁合同=是时，租赁合同附件不能为空");
         }
 
         result.certRemarks = stringAt(cells, COL_CERT_REMARKS).trim();
@@ -236,8 +232,8 @@ public class WarehouseImportPolicy {
         if (!photosFile.isEmpty()) {
             result.photosExpectedName = buildAttachmentExpectedName(sanitizedName, "内外照片", photosFile);
         }
-        if (!leaseContractFile.isEmpty()) {
-            result.leaseContractExpectedName = buildAttachmentExpectedName(sanitizedName, "租赁合同", leaseContractFile);
+        if (!leaseContractFileName.isEmpty()) {
+            result.leaseContractExpectedName = buildAttachmentExpectedName(sanitizedName, "租赁合同", leaseContractFileName);
         }
 
         result.errors = errors;

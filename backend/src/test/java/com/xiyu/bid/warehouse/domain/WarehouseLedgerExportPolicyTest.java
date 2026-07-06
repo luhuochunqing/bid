@@ -6,6 +6,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -20,6 +21,7 @@ class WarehouseLedgerExportPolicyTest {
     private WarehouseReadModel wh;
 
     private void stubBasicFields() {
+        lenient().when(wh.getId()).thenReturn(1L);
         lenient().when(wh.getName()).thenReturn("上海仓");
         lenient().when(wh.getType()).thenReturn(WarehouseType.SELF_OPERATED);
         lenient().when(wh.getRegion()).thenReturn("华东");
@@ -85,7 +87,7 @@ class WarehouseLedgerExportPolicyTest {
         assertThat(row[WarehouseLedgerExportPolicy.COL_HAS_CERT]).isEqualTo("是");
         assertThat(row[WarehouseLedgerExportPolicy.COL_HAS_INVOICE]).isEqualTo("否");
         assertThat(row[WarehouseLedgerExportPolicy.COL_HAS_PHOTOS]).isEqualTo("是");
-        assertThat(row[WarehouseLedgerExportPolicy.COL_HAS_LEASE_CONTRACT]).isEqualTo("是");
+        assertThat(row[WarehouseLedgerExportPolicy.COL_LEASE_CONTRACT_FILE_NAME]).isEmpty();
         // STATUS column
         assertThat(row[WarehouseLedgerExportPolicy.COL_STATUS]).isEqualTo("使用中");
         // META columns
@@ -115,7 +117,7 @@ class WarehouseLedgerExportPolicyTest {
         assertThat(row[WarehouseLedgerExportPolicy.COL_HAS_CERT]).isEmpty();
         assertThat(row[WarehouseLedgerExportPolicy.COL_HAS_INVOICE]).isEmpty();
         assertThat(row[WarehouseLedgerExportPolicy.COL_HAS_PHOTOS]).isEmpty();
-        assertThat(row[WarehouseLedgerExportPolicy.COL_HAS_LEASE_CONTRACT]).isEmpty();
+        assertThat(row[WarehouseLedgerExportPolicy.COL_LEASE_CONTRACT_FILE_NAME]).isEmpty();
         assertThat(row[WarehouseLedgerExportPolicy.COL_STATUS]).isEmpty();
         // META should be empty
         assertThat(row[WarehouseLedgerExportPolicy.COL_CREATED_AT]).isEmpty();
@@ -141,6 +143,50 @@ class WarehouseLedgerExportPolicyTest {
         assertThat(row[WarehouseLedgerExportPolicy.COL_END]).isNotEmpty();
         // DOC should be populated
         assertThat(row[WarehouseLedgerExportPolicy.COL_HAS_CERT]).isNotEmpty();
+    }
+
+    @Test
+    void buildRows_WithLeaseContractAttachment_ShouldShowFileName() {
+        stubBasicFields();
+        WarehouseAttachmentReadModel lease = createAttachment(WarehouseAttachmentType.LEASE_CONTRACT, "租赁合同.pdf");
+        Map<Long, List<WarehouseAttachmentReadModel>> attachments = Map.of(1L, List.of(lease));
+
+        List<String[]> rows = WarehouseLedgerExportPolicy.buildRows(
+                List.of(wh),
+                Set.of(WarehouseLedgerExportPolicy.Section.DOC),
+                Map.of(), attachments);
+        String[] row = rows.get(0);
+
+        assertThat(row[WarehouseLedgerExportPolicy.COL_LEASE_CONTRACT_FILE_NAME]).isEqualTo("租赁合同.pdf");
+    }
+
+    @Test
+    void buildRows_WithMultipleLeaseContractAttachments_ShouldShowFirstFileName() {
+        stubBasicFields();
+        WarehouseAttachmentReadModel lease1 = createAttachment(WarehouseAttachmentType.LEASE_CONTRACT, "租赁合同A.pdf");
+        WarehouseAttachmentReadModel lease2 = createAttachment(WarehouseAttachmentType.LEASE_CONTRACT, "租赁合同B.pdf");
+        Map<Long, List<WarehouseAttachmentReadModel>> attachments = Map.of(1L, List.of(lease1, lease2));
+
+        List<String[]> rows = WarehouseLedgerExportPolicy.buildRows(
+                List.of(wh),
+                Set.of(WarehouseLedgerExportPolicy.Section.DOC),
+                Map.of(), attachments);
+        String[] row = rows.get(0);
+
+        assertThat(row[WarehouseLedgerExportPolicy.COL_LEASE_CONTRACT_FILE_NAME]).isEqualTo("租赁合同A.pdf");
+    }
+
+    private WarehouseAttachmentReadModel createAttachment(WarehouseAttachmentType type, String originalFilename) {
+        return new WarehouseAttachmentReadModel() {
+            @Override public Long getId() { return 1L; }
+            @Override public WarehouseAttachmentType getType() { return type; }
+            @Override public String getOriginalFilename() { return originalFilename; }
+            @Override public String getStoredFilename() { return "stored_" + originalFilename; }
+            @Override public Long getFileSize() { return 100L; }
+            @Override public String getContentType() { return "application/pdf"; }
+            @Override public Long getUploadedBy() { return 1L; }
+            @Override public LocalDateTime getUploadedAt() { return LocalDateTime.now(); }
+        };
     }
 
     @Test

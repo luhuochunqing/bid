@@ -67,8 +67,7 @@ public class WarehouseImportTemplateWriter {
             hints[WarehouseImportPolicy.COL_INVOICE_FILE] = "发票=是时必填，请输入文件名";
             hints[WarehouseImportPolicy.COL_HAS_PHOTOS] = "是 / 否";
             hints[WarehouseImportPolicy.COL_PHOTOS_FILE] = "照片=是时必填，请输入文件名";
-            hints[WarehouseImportPolicy.COL_HAS_LEASE_CONTRACT] = "是 / 否";
-            hints[WarehouseImportPolicy.COL_LEASE_CONTRACT_FILE] = "租赁合同=是时必填，请输入文件名";
+            hints[WarehouseImportPolicy.COL_LEASE_CONTRACT_FILE_NAME] = "有租赁合同时必填，请输入文件名";
             hints[WarehouseImportPolicy.COL_CERT_REMARKS] = "选填";
             for (int i = 0; i < hints.length; i++) {
                 Cell c = hint.createCell(i);
@@ -101,7 +100,6 @@ public class WarehouseImportTemplateWriter {
         addListValidation(sheet, helper, WarehouseImportPolicy.YES_NO_OPTIONS, WarehouseImportPolicy.COL_HAS_PROPERTY_CERT);
         addListValidation(sheet, helper, WarehouseImportPolicy.YES_NO_OPTIONS, WarehouseImportPolicy.COL_HAS_INVOICE);
         addListValidation(sheet, helper, WarehouseImportPolicy.YES_NO_OPTIONS, WarehouseImportPolicy.COL_HAS_PHOTOS);
-        addListValidation(sheet, helper, WarehouseImportPolicy.YES_NO_OPTIONS, WarehouseImportPolicy.COL_HAS_LEASE_CONTRACT);
     }
 
     private void addListValidation(Sheet sheet, DataValidationHelper helper, String[] options, int col) {

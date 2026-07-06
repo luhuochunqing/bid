@@ -16,8 +16,7 @@ import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_PROVINCE;
 import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_REGION;
 import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_START_DATE;
 import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_TYPE;
-import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_HAS_LEASE_CONTRACT;
-import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_LEASE_CONTRACT_FILE;
+import static com.xiyu.bid.warehouse.domain.WarehouseImportPolicy.COL_LEASE_CONTRACT_FILE_NAME;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class WarehouseImportPolicyTest {
@@ -124,22 +123,22 @@ class WarehouseImportPolicyTest {
         cells[COL_END_DATE] = "2026-12-31";
         cells[COL_LESSOR] = "出租方A";
         cells[COL_LESSEE] = "承租方B";
-        cells[COL_HAS_LEASE_CONTRACT] = "是";
-        cells[COL_LEASE_CONTRACT_FILE] = "合同.pdf";
+        cells[COL_LEASE_CONTRACT_FILE_NAME] = "合同.pdf";
         return WarehouseImportPolicy.parseRow(2, cells);
     }
 
     @Test
-    @DisplayName("parseRow 解析租赁合同字段并生成标准附件名")
+    @DisplayName("parseRow 解析租赁合同文件名并生成标准附件名")
     void parseRowParsesLeaseContract() {
         WarehouseImportRow row = parseRowWithDate("2026-07-03");
         assertThat(row.hasLeaseContract).isTrue();
+        assertThat(row.leaseContractFileName).isEqualTo("合同.pdf");
         assertThat(row.leaseContractFile).isEqualTo("合同.pdf");
         assertThat(row.leaseContractExpectedName).isEqualTo("WH_测试仓库_租赁合同.pdf");
     }
 
     @Test
-    @DisplayName("parseRow 租赁合同=是时文件为空返回错误")
+    @DisplayName("parseRow 租赁合同文件名为空时 hasLeaseContract=false")
     void parseRowRejectsLeaseContractFileEmptyWhenYes() {
         String[] cells = new String[WarehouseImportPolicy.EXPECTED_COL_COUNT];
         cells[COL_NAME] = "测试仓库";
@@ -153,17 +152,19 @@ class WarehouseImportPolicyTest {
         cells[COL_END_DATE] = "2026-12-31";
         cells[COL_LESSOR] = "出租方A";
         cells[COL_LESSEE] = "承租方B";
-        cells[COL_HAS_LEASE_CONTRACT] = "是";
-        cells[COL_LEASE_CONTRACT_FILE] = "";
+        cells[COL_LEASE_CONTRACT_FILE_NAME] = "";
         WarehouseImportRow row = WarehouseImportPolicy.parseRow(2, cells);
-        assertThat(row.errors).anyMatch(e -> e.contains("租赁合同") && e.contains("附件不能为空"));
+        assertThat(row.hasLeaseContract).isFalse();
+        assertThat(row.leaseContractExpectedName).isNullOrEmpty();
+        assertThat(row.errors).noneMatch(e -> e.contains("租赁合同"));
     }
 
     @Test
-    @DisplayName("TEMPLATE_HEADERS 包含租赁合同列")
+    @DisplayName("TEMPLATE_HEADERS 包含租赁合同文件名列，不再包含开关和附件列")
     void templateHeadersContainsLeaseContract() {
-        assertThat(WarehouseImportPolicy.TEMPLATE_HEADERS).contains("是否有租赁合同", "租赁合同附件");
-        assertThat(WarehouseImportPolicy.EXPECTED_COL_COUNT).isEqualTo(24);
+        assertThat(WarehouseImportPolicy.TEMPLATE_HEADERS).contains("租赁合同文件名");
+        assertThat(WarehouseImportPolicy.TEMPLATE_HEADERS).doesNotContain("是否有租赁合同", "租赁合同附件");
+        assertThat(WarehouseImportPolicy.EXPECTED_COL_COUNT).isEqualTo(23);
     }
 
     @Test
@@ -181,8 +182,7 @@ class WarehouseImportPolicyTest {
         cells[COL_END_DATE] = "2026-12-31";
         cells[COL_LESSOR] = "出租方A";
         cells[COL_LESSEE] = "承租方B";
-        cells[COL_HAS_LEASE_CONTRACT] = "是";
-        cells[COL_LEASE_CONTRACT_FILE] = "合同.pdf";
+        cells[COL_LEASE_CONTRACT_FILE_NAME] = "合同.pdf";
         WarehouseImportRow row = WarehouseImportPolicy.parseRow(2, cells);
         assertThat(row.errors).anyMatch(e -> e.contains("省份") && e.contains("格式错误"));
     }
@@ -202,8 +202,7 @@ class WarehouseImportPolicyTest {
         cells[COL_END_DATE] = "2026-12-31";
         cells[COL_LESSOR] = "出租方A";
         cells[COL_LESSEE] = "承租方B";
-        cells[COL_HAS_LEASE_CONTRACT] = "是";
-        cells[COL_LEASE_CONTRACT_FILE] = "合同.pdf";
+        cells[COL_LEASE_CONTRACT_FILE_NAME] = "合同.pdf";
         WarehouseImportRow row = WarehouseImportPolicy.parseRow(2, cells);
         assertThat(row.errors).noneMatch(e -> e.contains("省份"));
         assertThat(row.province).isEqualTo("北京市");
