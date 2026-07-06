@@ -67,7 +67,8 @@
         <el-empty v-if="!borrowLoading && !borrowRecords.length" description="暂无借用记录" :image-size="60" />
       </el-tab-pane>
       <el-tab-pane label="操作日志" name="audit">
-        <el-table :data="auditLogs" stripe size="small" max-height="360" v-loading="auditLoading">
+        <el-table :data="auditLogs" stripe size="small" max-height="360" scrollbar-always-on
+                  style="width: 100%" v-loading="auditLoading">
           <el-table-column label="操作类型" width="120">
             <template #default="{ row }">
               <el-tag :type="auditActionTagType(row.actionType)" size="small">
@@ -77,7 +78,7 @@
           </el-table-column>
           <el-table-column prop="operator" label="操作人" width="140" show-overflow-tooltip />
           <el-table-column prop="time" label="时间" width="160" />
-          <el-table-column prop="detail" label="详情" min-width="180" show-overflow-tooltip />
+          <el-table-column prop="detail" label="详情" min-width="240" show-overflow-tooltip />
         </el-table>
         <el-empty v-if="!auditLoading && !auditLogs.length" description="暂无操作日志" :image-size="60" />
       </el-tab-pane>

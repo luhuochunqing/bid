@@ -58,7 +58,7 @@ public class PlatformAccountService {
     /** Create a new platform account. */
     @Transactional
     @Auditable(action = "CREATE", entityType = "PlatformAccount",
-              description = "Created platform account")
+              description = "新增平台账号")
     public PlatformAccountDTO createAccount(PlatformAccountCreateRequest request, User currentUser) {
         whitelistStore.checkCreatePermission(effectiveRoleResolver.resolveRoleCode(currentUser), currentUser);
         validateRequest(request);
@@ -91,7 +91,7 @@ public class PlatformAccountService {
     /** Return a borrowed account with mandatory password change. CO-403/CO-415. */
     @Transactional
     @Auditable(action = "RETURN", entityType = "PlatformAccount",
-              description = "Returned platform account with password change")
+              description = "归还平台账号（含密码变更）")
     public PlatformAccountDTO returnAccount(Long id, ReturnAccountRequest request, User currentUser) {
         PlatformAccount account = repository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Account not found with id: " + id));
@@ -141,7 +141,7 @@ public class PlatformAccountService {
     /** Update an existing account. */
     @Transactional
     @Auditable(action = "UPDATE", entityType = "PlatformAccount",
-              description = "Updated platform account")
+              description = "编辑平台账号")
     public PlatformAccountDTO updateAccount(Long id, PlatformAccountCreateRequest request, User currentUser) {
         PlatformAccount account = repository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Account not found with id: " + id));
@@ -164,7 +164,7 @@ public class PlatformAccountService {
     /** Delete a platform account. */
     @Transactional
     @Auditable(action = "DELETE", entityType = "PlatformAccount",
-              description = "Deleted platform account")
+              description = "删除平台账号")
     public void deleteAccount(Long id, User currentUser) {
         PlatformAccount account = repository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Account not found with id: " + id));
@@ -174,7 +174,7 @@ public class PlatformAccountService {
     /** Borrow a platform account. */
     @Transactional
     @Auditable(action = "BORROW", entityType = "PlatformAccount",
-              description = "Borrowed platform account")
+              description = "借用平台账号")
     public PlatformAccountDTO borrowAccount(Long id, BorrowAccountRequest request, User currentUser) {
         PlatformAccount account = repository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Account not found with id: " + id));
@@ -212,7 +212,7 @@ public class PlatformAccountService {
     /** Return a borrowed account without password change. CO-403/CO-415. */
     @Transactional
     @Auditable(action = "RETURN", entityType = "PlatformAccount",
-              description = "Returned platform account")
+              description = "归还平台账号")
     public PlatformAccountDTO returnAccount(Long id, User currentUser) {
         PlatformAccount account = repository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Account not found with id: " + id));
@@ -236,7 +236,7 @@ public class PlatformAccountService {
      * 避免权限校验失败的正常业务路径被误归类为系统缺陷。
      */
     @Auditable(action = "VIEW_PASSWORD", entityType = "PlatformAccount",
-              description = "Viewed password for platform account")
+              description = "查看平台账号明文密码")
     public String getPassword(Long id, User currentUser) {
         PlatformAccount account = repository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Account not found with id: " + id));
