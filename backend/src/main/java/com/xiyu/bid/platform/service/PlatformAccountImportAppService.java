@@ -105,7 +105,7 @@ public class PlatformAccountImportAppService {
                         continue;
                     }
                     if (!row.username().isEmpty() && accountRepo.findByPlatformTypeAndUsername(row.platformType(), row.username()).isPresent()) {
-                        row.errors().add("登录账号「" + row.username() + "」在该平台下已存在");
+                        row.errors().add("登录账号「" + row.username() + "」在「" + row.platformType().getDescription() + "」下已存在");
                         failed++;
                         continue;
                     }

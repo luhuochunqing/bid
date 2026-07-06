@@ -163,7 +163,7 @@ class PlatformAccountServiceTest {
 
         assertThatThrownBy(() -> service.createAccount(validRequest(), ADMIN_USER))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Username already exists");
+                .hasMessageContaining("平台账号");
     }
 
     @Test
@@ -403,7 +403,7 @@ class PlatformAccountServiceTest {
 
         assertThatThrownBy(() -> service.updateAccount(1L, req, ADMIN_USER))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Username already exists");
+                .hasMessageContaining("平台账号");
     }
 
     @Test
@@ -424,7 +424,7 @@ class PlatformAccountServiceTest {
 
         assertThatThrownBy(() -> service.updateAccount(1L, req, ADMIN_USER))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Username already exists");
+                .hasMessageContaining("平台账号");
     }
 
     @Test

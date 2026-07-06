@@ -201,22 +201,30 @@ const submit = async () => {
     ElMessage.warning('请填写密码'); return
   }
 
-  let res
-  if (isEdit.value) {
-    res = await resourcesApi.accounts.update(props.editRow.id, payload)
-  } else {
-    payload.password = f.password
-    res = await resourcesApi.accounts.create(payload)
-  }
-  if (!res?.success) {
-    if (/Account name already exists/i.test(res?.msg || '')) {
+  try {
+    let res
+    if (isEdit.value) {
+      res = await resourcesApi.accounts.update(props.editRow.id, payload)
+    } else {
+      payload.password = f.password
+      res = await resourcesApi.accounts.create(payload)
+    }
+    if (!res?.success) {
+      if (/平台名称.*已存在|Account name already exists/i.test(res?.msg || '')) {
+        accountNameDup.value = true
+      }
+      ElMessage.error(res?.msg || (isEdit.value ? '编辑失败' : '新增失败'))
+      return
+    }
+    ElMessage.success(isEdit.value ? '账户已更新' : '账户已新增')
+    visible.value = false
+    emit('saved')
+  } catch (error) {
+    const msg = error?.response?.data?.msg || error?.message || (isEdit.value ? '编辑失败' : '新增失败')
+    if (/平台名称.*已存在|Account name already exists/i.test(msg)) {
       accountNameDup.value = true
     }
-    ElMessage.error(res?.msg || (isEdit.value ? '编辑失败' : '新增失败'))
-    return
+    ElMessage.error(msg)
   }
-  ElMessage.success(isEdit.value ? '账户已更新' : '账户已新增')
-  visible.value = false
-  emit('saved')
 }
 </script>

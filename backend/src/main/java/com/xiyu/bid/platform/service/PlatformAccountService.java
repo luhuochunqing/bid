@@ -64,7 +64,8 @@ public class PlatformAccountService {
         validateRequest(request);
 
         if (repository.findByPlatformTypeAndUsername(request.getPlatformType(), request.getUsername()).isPresent()) {
-            throw new IllegalArgumentException("Username already exists: " + request.getUsername());
+            throw new IllegalArgumentException(String.format("平台账号「%s」在「%s」下已存在",
+                    request.getUsername(), request.getPlatformType().getDescription()));
         }
         if (repository.findByAccountName(request.getAccountName()).isPresent()) {
             throw new IllegalArgumentException("Account name already exists: " + request.getAccountName());
@@ -163,6 +164,7 @@ public class PlatformAccountService {
 
         return contactLabelEnricher.enrich(PlatformAccountMapper.toDTO(savedAccount));
     }
+
 
     /** Delete a platform account. */
     @Transactional
