@@ -56,6 +56,13 @@ public final class InitiationFieldPolicy {
 
     private static Map<String, String> buildProjectTypeMapping() {
         Map<String, String> m = new LinkedHashMap<>();
+        // 标准枚举名自映射（normalizeProjectType 对标准名应返回自身）
+        m.put("INDUSTRIAL", "INDUSTRIAL");
+        m.put("OFFICE", "OFFICE");
+        m.put("COLLECTIVE", "COLLECTIVE");
+        m.put("COMPREHENSIVE", "COMPREHENSIVE");
+        m.put("OTHER", "OTHER");
+        // 中文/旧枚举名 → 标准名
         m.put("工业品", "INDUSTRIAL");
         m.put("INDUSTRIAL_EC", "INDUSTRIAL");
         m.put("办公", "OFFICE");
@@ -63,6 +70,7 @@ public final class InitiationFieldPolicy {
         m.put("GROUP_PURCHASE", "COLLECTIVE");
         m.put("综合", "COMPREHENSIVE");
         m.put("公开招标", "COMPREHENSIVE");
+        m.put("其他", "OTHER");
         return Map.copyOf(m);
     }
 
