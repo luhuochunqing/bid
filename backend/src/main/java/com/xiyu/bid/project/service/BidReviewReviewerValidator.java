@@ -70,10 +70,11 @@ final class BidReviewReviewerValidator {
         }
         if (managerId.equals(submittedBy)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "项目经理为提交人本人，审核人需包含项目经理且不能选择自己，存在冲突");
+                    "您是项目经理，不能审核自己提交的标书。请让其他项目负责人作为审核人");
         }
         if (!reviewerIds.contains(managerId)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "标书审核人需包含项目负责人（项目经理）");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "审核人列表中必须包含项目负责人（项目经理），请重新选择");
         }
 
         Set<Long> excluded = new LinkedHashSet<>();
