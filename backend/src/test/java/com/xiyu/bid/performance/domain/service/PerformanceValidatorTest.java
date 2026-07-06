@@ -141,4 +141,57 @@ class PerformanceValidatorTest {
         assertTrue(result.isPresent());
         assertEquals("请输入有效的联系方式", result.get());
     }
+
+    /**
+     * CO-514 回归：批量导入路径下，附件 fileUrl 由归档器后置回填（暂为空），
+     * 仅 Excel 模板填了文件名（fileName）。校验应放行，不应误报「请上传合同协议」。
+     */
+    @Test
+    void testBatchImportContractAttachmentWithFileNameOnly() {
+        PerformanceRecord record = new PerformanceRecord(
+                1L, "合同", "签约公司", "集团公司", CustomerType.PRIVATE_ENTERPRISE, "行业", ProjectType.OFFICE, DockingMethod.API, CustomerLevel.GROUP,
+                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31), null, "联系人", "13800000000", "属地", "地址", "负责人", "", false, "",
+                // fileName 来自 Excel 模板，fileUrl 空字符串（与 PerformanceRowImporter 行为一致）
+                List.of(new PerformanceRecord.AttachmentEntry(1L, "合同协议.docx", "", "CONTRACT_AGREEMENT")),
+                LocalDateTime.now(), LocalDateTime.now()
+        );
+        Optional<String> result = PerformanceValidator.validate(record);
+        assertTrue(result.isEmpty(), "批量导入仅 fileName 非空时应通过校验，实际: " + result);
+    }
+
+    /**
+     * CO-514 回归：批量导入央企客户场景，附件 fileName 非空、fileUrl 空，应通过校验。
+     */
+    @Test
+    void testBatchImportCentralSoeWithFileNameOnly() {
+        PerformanceRecord record = new PerformanceRecord(
+                1L, "合同", "签约公司", "集团公司", CustomerType.CENTRAL_SOE, "行业", ProjectType.OFFICE, DockingMethod.API, CustomerLevel.GROUP,
+                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31), null, "联系人", "13800000000", "属地", "地址", "负责人", "", false, "",
+                List.of(
+                        new PerformanceRecord.AttachmentEntry(1L, "合同协议.docx", "", "CONTRACT_AGREEMENT"),
+                        new PerformanceRecord.AttachmentEntry(2L, "央企名录.png", "", "SOE_DIRECTORY"),
+                        new PerformanceRecord.AttachmentEntry(3L, "关系证明.pdf", "", "RELATIONSHIP_PROOF")
+                ),
+                LocalDateTime.now(), LocalDateTime.now()
+        );
+        Optional<String> result = PerformanceValidator.validate(record);
+        assertTrue(result.isEmpty(), "批量导入央企场景仅 fileName 非空时应通过校验，实际: " + result);
+    }
+
+    /**
+     * CO-514 回归：合同协议附件条目存在但 fileName 与 fileUrl 均空（即未声明），
+     * 仍应报「请上传合同协议」，避免放行真正的缺失场景。
+     */
+    @Test
+    void testContractAttachmentEntryPresentButEmpty() {
+        PerformanceRecord record = new PerformanceRecord(
+                1L, "合同", "签约公司", "集团公司", CustomerType.PRIVATE_ENTERPRISE, "行业", ProjectType.OFFICE, DockingMethod.API, CustomerLevel.GROUP,
+                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31), null, "联系人", "13800000000", "属地", "地址", "负责人", "", false, "",
+                List.of(new PerformanceRecord.AttachmentEntry(1L, "", "", "CONTRACT_AGREEMENT")),
+                LocalDateTime.now(), LocalDateTime.now()
+        );
+        Optional<String> result = PerformanceValidator.validate(record);
+        assertTrue(result.isPresent());
+        assertEquals("请上传合同协议", result.get());
+    }
 }
