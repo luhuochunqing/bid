@@ -19,10 +19,23 @@ public class QwenEmbeddingClient implements EmbeddingClient {
         return openAiCompatibleEmbeddingClient.embed(resolved, text);
     }
 
+    static String deriveEmbeddingUrl(String chatBaseUrl) {
+        if (chatBaseUrl == null || chatBaseUrl.isBlank()) {
+            return DEFAULT_EMBEDDING_BASE_URL;
+        }
+        if (chatBaseUrl.endsWith("/chat/completions")) {
+            return chatBaseUrl.replace("/chat/completions", "/embeddings");
+        }
+        if (chatBaseUrl.endsWith("/v1")) {
+            return chatBaseUrl + "/embeddings";
+        }
+        return chatBaseUrl.replaceAll("/$", "") + "/v1/embeddings";
+    }
+
     private AiProviderRuntimeConfig resolveConfig(AiProviderRuntimeConfig config) {
         String baseUrl = config.embeddingBaseUrl() != null && !config.embeddingBaseUrl().isBlank()
                 ? config.embeddingBaseUrl()
-                : DEFAULT_EMBEDDING_BASE_URL;
+                : deriveEmbeddingUrl(config.baseUrl());
         String model = config.embeddingModel() != null && !config.embeddingModel().isBlank()
                 ? config.embeddingModel()
                 : DEFAULT_EMBEDDING_MODEL;
