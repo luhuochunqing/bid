@@ -34,6 +34,7 @@
             <el-descriptions-item label="承租方">{{ detail.lessee || '—' }}</el-descriptions-item>
             <el-descriptions-item label="发票租期" :span="2">{{ detail.invoicePeriod || '—' }}</el-descriptions-item>
             <el-descriptions-item label="关仓计划" :span="2">{{ detail.closePlan || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="租赁合同"><el-tag size="small" :type="detail.hasLeaseContract?'success':'info'">{{ detail.hasLeaseContract?'有':'无' }}</el-tag></el-descriptions-item>
             <el-descriptions-item v-if="detail.closeReason" label="关仓原因" :span="2">{{ detail.closeReason }}</el-descriptions-item>
           </el-descriptions>
           <el-divider content-position="left">资料核验</el-divider>
@@ -41,7 +42,6 @@
             <el-descriptions-item label="产权证"><el-tag size="small" :type="detail.hasPropertyCert?'success':'info'">{{ detail.hasPropertyCert?'有':'无' }}</el-tag></el-descriptions-item>
             <el-descriptions-item label="发票"><el-tag size="small" :type="detail.hasInvoice?'success':'info'">{{ detail.hasInvoice?'有':'无' }}</el-tag></el-descriptions-item>
             <el-descriptions-item label="内外照片"><el-tag size="small" :type="detail.hasPhotos?'success':'info'">{{ detail.hasPhotos?'有':'无' }}</el-tag></el-descriptions-item>
-            <el-descriptions-item label="租赁合同"><el-tag size="small" :type="detail.hasLeaseContract?'success':'info'">{{ detail.hasLeaseContract?'有':'无' }}</el-tag></el-descriptions-item>
             <el-descriptions-item label="核验备注" :span="2">{{ detail.certRemarks || '—' }}</el-descriptions-item>
           </el-descriptions>
         </el-tab-pane>

@@ -135,13 +135,13 @@ describe('WarehouseDialog - 附件必填校验', () => {
     expect(ElMessage.error).toHaveBeenCalledWith('请上传发票附件')
   })
 
-  it('hasLeaseContract=true 且无附件时提交被拦截', async () => {
-    const wrapper = mountWithValidForm({ hasLeaseContract: true })
+  it('无租赁合同附件时提交被拦截（无条件必填）', async () => {
+    const wrapper = mountWithValidForm()
     await wrapper.vm.handleSubmit()
     expect(ElMessage.error).toHaveBeenCalledWith('请上传租赁合同附件')
   })
 
-  it('三个开关都关闭时不触发附件校验', async () => {
+  it('三个资料核验开关关闭时仅触发租赁合同必填校验', async () => {
     const wrapper = mountWithValidForm({
       hasPropertyCert: false,
       hasInvoice: false,
@@ -153,7 +153,8 @@ describe('WarehouseDialog - 附件必填校验', () => {
     const attachmentErrors = errorCalls.filter(c =>
       c[0].includes('附件') || c[0].includes('照片')
     )
-    expect(attachmentErrors.length).toBe(0)
+    expect(attachmentErrors.length).toBe(1)
+    expect(attachmentErrors[0][0]).toContain('租赁合同')
   })
 
   it('hasPhotos=true 且无附件时原有校验仍然有效（回归）', async () => {

@@ -67,6 +67,14 @@
           <el-form-item label="关仓计划">
             <el-input v-model="localForm.closePlan" type="textarea" :rows="2" maxlength="500" />
           </el-form-item>
+          <el-form-item label="租赁合同" required>
+            <el-upload action="#" :auto-upload="false" :file-list="leaseContractFiles" accept=".pdf,.jpg,.jpeg,.png"
+              :on-change="(file, list) => handleFileChange(file, list, 'LEASE_CONTRACT')"
+              :on-remove="(file, list) => handleFileRemove(file, list, 'LEASE_CONTRACT')">
+              <el-button size="small" type="primary">选择文件</el-button>
+              <template #tip><div class="el-upload__tip">仅支持 PDF/JPG/PNG 格式，单文件 ≤ 10MB</div></template>
+            </el-upload>
+          </el-form-item>
         </el-col>
       </el-row>
 
@@ -109,18 +117,6 @@
               :on-remove="(file, list) => handleFileRemove(file, list, 'PHOTOS')">
               <el-button size="small" type="primary">选择照片</el-button>
               <template #tip><div class="el-upload__tip">仅支持 PDF/JPG/PNG 格式，单张 ≤ 10MB</div></template>
-            </el-upload>
-          </el-form-item>
-
-          <el-form-item label="有租赁合同">
-            <el-switch v-model="localForm.hasLeaseContract" />
-          </el-form-item>
-          <el-form-item v-if="localForm.hasLeaseContract" label="租赁合同附件">
-            <el-upload action="#" :auto-upload="false" :file-list="leaseContractFiles" accept=".pdf,.jpg,.jpeg,.png"
-              :on-change="(file, list) => handleFileChange(file, list, 'LEASE_CONTRACT')"
-              :on-remove="(file, list) => handleFileRemove(file, list, 'LEASE_CONTRACT')">
-              <el-button size="small" type="primary">选择文件</el-button>
-              <template #tip><div class="el-upload__tip">仅支持 PDF/JPG/PNG 格式，单文件 ≤ 10MB</div></template>
             </el-upload>
           </el-form-item>
 
@@ -298,14 +294,14 @@ const handleSubmit = async () => {
   }
 
   // 租赁合同必传校验
-  if (localForm.hasLeaseContract && leaseContractFiles.value.length === 0) {
+  if (leaseContractFiles.value.length === 0) {
     ElMessage.error('请上传租赁合同附件')
     return
   }
 
   submitting.value = true
   try {
-    const payload = { ...localForm, area: Number(localForm.area) || 0 }
+    const payload = { ...localForm, area: Number(localForm.area) || 0, hasLeaseContract: leaseContractFiles.value.length > 0 }
     if (props.editingId) {
       await http.put(`/api/knowledge/warehouses/${props.editingId}`, payload)
       await uploadNewFiles(props.editingId)
