@@ -219,31 +219,17 @@
   font-size: 12px;
 }
 
-/* CO-516: 主视图卡片标题 + 右侧 tab 切换链接 */
+/* CO-516: 主视图卡片标题 */
 .card-title {
   font-weight: 600;
   font-size: 15px;
 }
 
-.header-tabs {
-  display: flex;
-  align-items: center;
-  gap: 16px;
+/* CO-516: el-tabs 间距调整（tab 栏位于搜索区下方，对齐 CA 信息管理模块） */
+.account-tabs {
+  margin-top: 4px;
 }
 
-.tab-link {
-  color: var(--el-color-primary);
-  font-size: 13px;
-  cursor: pointer;
-  user-select: none;
-  white-space: nowrap;
-}
-
-.tab-link:hover {
-  opacity: 0.8;
-  text-decoration: underline;
-}
-
-.sub-view-card .card-header {
-  justify-content: space-between;
+.account-tabs :deep(.el-tabs__content) {
+  padding-top: 4px;
 }
