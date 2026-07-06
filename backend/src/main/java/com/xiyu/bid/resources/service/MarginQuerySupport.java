@@ -96,7 +96,7 @@ final class MarginQuerySupport {
               + "    AND m.exp_return_date < NOW() THEN 1 END)"
               + " FROM ("
               + "   SELECT f.amount as amount, f.status as status,"
-              + "     COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d'), f.fee_date) as exp_return_date,"
+              + "     COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json, '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d'), NULLIF(f.fee_date, '0000-00-00 00:00:00')) as exp_return_date,"
               + "     " + MarginDerivedTableColumns.returnedAmountExpr("f.amount") + " as returned_amount,"
               + "     " + MarginDerivedTableColumns.serviceFeeAmountExpr() + " as service_fee_amount"
               + FEES_JOIN + rf

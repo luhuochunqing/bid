@@ -82,24 +82,41 @@ class MarginSqlDateCoercionContractTest {
     @Test
     void derivedSelectFees_preservesCoalesceFallback_toFeesColumns() {
         String sql = MarginDerivedTableColumns.DERIVED_SELECT_FEES;
-        // COALESCE 回退链必须保留：任务 JSON 解析失败 → f.payment_date / f.fee_date
+        // XIYU-P： fees.payment_date / fees.fee_date 历史数据可能残留 zero date，
+        // 用 NULLIF 转成 NULL 后再参与 COALESCE，避免 JDBC 抛 DataException。
         assertThat(sql)
-                .as("payment_date 必须保留 COALESCE 回退到 f.payment_date")
+                .as("payment_date 必须保留 COALESCE 回退到 NULLIF(f.payment_date, '0000-00-00 00:00:00')")
                 .contains("COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json,"
-                        + " '$.actualPaymentDate')), 1, 10), ''), '%Y-%m-%d'), f.payment_date)");
+                        + " '$.actualPaymentDate')), 1, 10), ''), '%Y-%m-%d'), NULLIF(f.payment_date, '0000-00-00 00:00:00'))");
         assertThat(sql)
-                .as("exp_return_date 必须保留 COALESCE 回退到 f.fee_date")
+                .as("exp_return_date 必须保留 COALESCE 回退到 NULLIF(f.fee_date, '0000-00-00 00:00:00')")
                 .contains("COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json,"
-                        + " '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d'), f.fee_date)");
+                        + " '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d'), NULLIF(f.fee_date, '0000-00-00 00:00:00'))");
     }
 
     @Test
     void summaryBase_preservesCoalesceFallback_toFeeDate() {
         String sql = MarginQuerySupport.summaryBase(MarginQueryRole.ADMIN).toString();
         assertThat(sql)
-                .as("summaryBase exp_return_date 必须保留 COALESCE 回退到 f.fee_date")
+                .as("summaryBase exp_return_date 必须保留 COALESCE 回退到 NULLIF(f.fee_date, '0000-00-00 00:00:00')")
                 .contains("COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(dt.extended_fields_json,"
-                        + " '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d'), f.fee_date)");
+                        + " '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d'), NULLIF(f.fee_date, '0000-00-00 00:00:00'))");
+    }
+
+    @Test
+    void derivedSelectFees_wrapsDepositReturnDate_withNullIfZeroDate() {
+        String sql = MarginDerivedTableColumns.DERIVED_SELECT_FEES;
+        assertThat(sql)
+                .as("actual_return_date 必须用 NULLIF 处理 zero date，防止 JDBC DataException")
+                .contains("NULLIF(pc.deposit_return_date, '0000-00-00 00:00:00') as actual_return_date");
+    }
+
+    @Test
+    void derivedSelectInit_wrapsDepositReturnDate_withNullIfZeroDate() {
+        String sql = MarginDerivedTableColumns.DERIVED_SELECT_INIT;
+        assertThat(sql)
+                .as("INIT 分支 actual_return_date 也必须用 NULLIF 处理 zero date")
+                .contains("NULLIF(pc.deposit_return_date, '0000-00-00 00:00:00') as actual_return_date");
     }
 
     // ── CO-XXX UNION collation 冲突回归测试（防复发）─────────────────
