@@ -76,13 +76,18 @@ export function useAccountBorrowApplications({ accounts }) {
   }
 
   // 主组件统一懒加载：切到对应 tab 时才拉取数据，避免进入页面即触发 N+1
-  const switchTab = (tabName) => {
-    activeTab.value = tabName
+  // onTabChange 由 el-tabs 的 @tab-change 触发，v-model 已自动更新 activeTab
+  const onTabChange = (tabName) => {
     if (tabName === 'applications') {
       loadMyApplications()
     } else if (tabName === 'approvals') {
       loadMyApprovals()
     }
+  }
+  // switchTab 用于非 el-tabs 场景（如返回链接），需手动设置 activeTab
+  const switchTab = (tabName) => {
+    activeTab.value = tabName
+    onTabChange(tabName)
   }
 
   const cancelBorrowApplication = async (row) => {
@@ -153,6 +158,7 @@ export function useAccountBorrowApplications({ accounts }) {
     borrowStatusType,
     loadMyApplications,
     loadMyApprovals,
+    onTabChange,
     switchTab,
     cancelBorrowApplication,
     approveBorrowApplication,
