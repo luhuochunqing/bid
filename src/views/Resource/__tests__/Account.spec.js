@@ -290,7 +290,7 @@ describe('Account.vue — bid-projectLeader 视角工具栏隐藏管理操作', 
     vi.mocked(useUserStore).mockImplementation(() => adminStoreMock)
   })
 
-  const HIDDEN_BUTTON_LABELS = ['添加账户', '批量借阅', '批量归还', '批量编辑', '批量删除', '导出', '批量导入']
+  const HIDDEN_BUTTON_LABELS = ['添加账户', '导出', '批量导入']
 
   it.each(HIDDEN_BUTTON_LABELS)('项目负责人视角工具栏不渲染「%s」按钮', async (label) => {
     const wrapper = mountAccount()

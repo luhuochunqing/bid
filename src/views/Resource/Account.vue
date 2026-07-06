@@ -27,22 +27,6 @@
           <span>添加账户</span>
         </button>
         <button v-if="!isProjectLeader" class="toolbar-btn" @click="showImportDialog = true"><el-icon><Upload /></el-icon><span>批量导入</span></button>
-        <button v-if="!isProjectLeader" class="toolbar-btn" :disabled="selectedRows.length === 0" @click="handleBatchBorrow">
-          <el-icon><Key /></el-icon>
-          <span>批量借阅</span>
-        </button>
-        <button v-if="!isProjectLeader" class="toolbar-btn" :disabled="selectedRows.length === 0" @click="handleBatchReturn">
-          <el-icon><CircleCheck /></el-icon>
-          <span>批量归还</span>
-        </button>
-        <button v-if="!isProjectLeader" class="toolbar-btn" :disabled="selectedRows.length === 0" @click="handleBatchEdit">
-          <el-icon><Edit /></el-icon>
-          <span>批量编辑</span>
-        </button>
-        <button v-if="!isProjectLeader" class="toolbar-btn" :disabled="selectedRows.length === 0" @click="handleBatchDelete">
-          <el-icon><Delete /></el-icon>
-          <span>批量删除</span>
-        </button>
       </div>
       <div v-if="!isProjectLeader" class="toolbar-right">
         <button class="toolbar-btn" :disabled="exporting" @click="handleExport">
@@ -134,7 +118,6 @@ import { useUserStore } from '@/stores/user'
 import { useListPagination } from '@/composables/useListPagination'
 import { useAccountRowActions } from './composables/useAccountRowActions.js'
 import { usePasswordReveal } from './composables/usePasswordReveal.js'
-import { useAccountBatchActions } from './composables/useAccountBatchActions.js'
 import { useAccountExport } from './composables/useAccountExport.js'
 import { formatPlatformType } from './accountActions.js'
 import AccountFormDialog from './AccountFormDialog.vue'
@@ -279,13 +262,6 @@ const onAccountReturned = () => {
   showDetailDialog.value = false
   loadAccounts()
 }
-
-const {
-  handleBatchBorrow,
-  handleBatchReturn,
-  handleBatchEdit,
-  handleBatchDelete
-} = useAccountBatchActions({ selectedRows, loadAccounts })
 
 const { exporting, handleExport: baseHandleExport } = useAccountExport()
 const handleExport = () => baseHandleExport(selectedRows.value)
