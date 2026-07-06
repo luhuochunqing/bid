@@ -55,7 +55,7 @@ public class PlatformAccountService {
         whitelistStore.checkCreatePermission(effectiveRoleResolver.resolveRoleCode(currentUser), currentUser);
         validateRequest(request);
 
-        if (repository.findByUsername(request.getUsername()).isPresent()) {
+        if (repository.findByPlatformTypeAndUsername(request.getPlatformType(), request.getUsername()).isPresent()) {
             throw new IllegalArgumentException("Username already exists: " + request.getUsername());
         }
         if (repository.findByAccountName(request.getAccountName()).isPresent()) {
@@ -150,7 +150,10 @@ public class PlatformAccountService {
     }
 
     private void validateUpdateUniqueness(PlatformAccountCreateRequest request, PlatformAccount account) {
-        if (request.getUsername() != null && !request.getUsername().trim().isEmpty() && !request.getUsername().equals(account.getUsername()) && repository.findByUsername(request.getUsername()).isPresent()) {
+        if (request.getUsername() != null && !request.getUsername().trim().isEmpty()
+                && (request.getPlatformType() != account.getPlatformType()
+                        || !request.getUsername().equals(account.getUsername()))
+                && repository.findByPlatformTypeAndUsername(request.getPlatformType(), request.getUsername()).isPresent()) {
             throw new IllegalArgumentException("Username already exists: " + request.getUsername());
         }
         if (request.getAccountName() != null && !request.getAccountName().trim().isEmpty() && !request.getAccountName().equals(account.getAccountName()) && repository.findByAccountName(request.getAccountName()).isPresent()) {

@@ -104,8 +104,8 @@ public class PlatformAccountImportAppService {
                         failed++;
                         continue;
                     }
-                    if (!row.username().isEmpty() && accountRepo.findByUsername(row.username()).isPresent()) {
-                        row.errors().add("登录账号「" + row.username() + "」已存在");
+                    if (!row.username().isEmpty() && accountRepo.findByPlatformTypeAndUsername(row.platformType(), row.username()).isPresent()) {
+                        row.errors().add("登录账号「" + row.username() + "」在该平台下已存在");
                         failed++;
                         continue;
                     }

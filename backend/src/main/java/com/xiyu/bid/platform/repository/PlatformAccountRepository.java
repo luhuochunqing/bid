@@ -22,6 +22,14 @@ public interface PlatformAccountRepository extends JpaRepository<PlatformAccount
     Optional<PlatformAccount> findByUsername(String username);
 
     /**
+     * Find account by platform type and username.
+     * Uniqueness is scoped per platform.
+     */
+    Optional<PlatformAccount> findByPlatformTypeAndUsername(
+            com.xiyu.bid.platform.entity.PlatformAccount.PlatformType platformType,
+            String username);
+
+    /**
      * Find account by display name (account_name).
      * Used to enforce the blueprint's uniqueness constraint on the
      * bidding platform name.
