@@ -2829,7 +2829,37 @@ tasks WHERE assignee_id=1471 AND project_id IN (160..173) → 空集
 - [ ] **targetUrl 审查**：跳转目标是否有访问权校验？如有（如 `/project/{id}`），必须确保接收人能通过校验；如不能，要么过滤掉该接收人，要么降级 targetUrl。
 - [ ] **降级策略**：过滤逻辑异常时是否降级为原广播？应该降级（通知送达优先于精准，符合 Constitution VII §2 装饰性操作降级精神）。
 - [ ] **空接收人安全跳过**：过滤后列表为空时，打 INFO 日志安全跳过，不抛异常。
-- [ ] **前端兜底**：`src/api/client.js` 全局 403 拦截器是否对'项目详情类 403'友好化？已实现（spec 030 commit `e63ef8043`）：`GET /api/projects/\d+` 的 403 改黄色 warning + 2.5s 后跳 `/inbox`。
+- [ ] **前端兜底**：`src/api/client.js` 全局 403 拦截器是否对'项目详情类 403'友好化？已实现（spec 030 commit `e63ef8043` + Review 修正 `4f847f6c2`）：仅匹配 `GET /api/projects/{id}` 主请求（用正则 `/^\/api\/projects\/\d+(?:\?|$)/` 严格排除 `/documents`、`/ai-cards`、`/tender-breakdown` 等子路径），403 改黄色 warning + 2.5s 后跳 `/inbox`。
+
+### 设计 Review 教训（spec 030 PR Review 阶段沉淀）
+
+本次 PR 在合入前做了系统性设计 Review，识别并修复了 2 个 HIGH 问题。两条过程教训通用化如下，适用于**所有**类似改动场景，不仅限通知派发器：
+
+#### 教训 A：改动全局拦截器/中间件时，必须在 plan 阶段做"影响面分析"
+
+**反例（本次 H1 弯路）**：spec FR-004 只写"targetUrl 降级到接收人可访问的安全路径"，没规定实现方式。实施时直接改了 `src/api/client.js` 全局 403 拦截器，写了正则 `/^\/api\/projects\/\d+(?:\/|$|\?)/`。Review 时才发现这个正则误伤所有 `GET /api/projects/{id}/*` 子路径——`/documents`、`/ai-cards`、`/tender-breakdown`、`/score-drafts` 等非通知跳转场景的 403 也会被错误"友好化 + 强制跳通知中心"，打断用户当前操作。
+
+**根因**：开发时只关注"通知跳转场景能不能命中"，没反向思考"非通知场景会不会被误伤"。
+
+**操作规范**（涉及全局拦截器/中间件/WebSocket 拦截/事件总线等改动时必跑）：
+
+- [ ] **正向命中验证**：本次场景的所有请求路径能否被精准命中？（如本次通知跳转 → `GET /api/projects/{id}`）
+- [ ] **反向误伤分析**：用 `grep -rn '<拦截点特征>' src/` 搜索所有命中点，逐一判定"是否真的属于本次场景"。例如改 axios 拦截器时，必须 grep 所有命中 URL 模式的 API 调用。
+- [ ] **正则覆盖度验证**：拦截器用正则匹配 URL 时，必须列出至少 5 个边界用例（应命中 + 不应命中各半），在 plan/research 文档显式验证。仅靠"看一眼能跑通"不够。
+- [ ] **精准标记优于全局模式匹配**：如果业务允许，优先用 `config` 标记（如 `httpClient.get(url, { treatAsNotificationRedirect: true })`）让调用方显式声明场景，而不是用 URL 正则倒推场景。后者天然有误伤风险。
+
+#### 教训 B：新增"权限判定"类方法时，必须先 grep 既有同类方法的判定源
+
+**反例（本次 H2 弯路）**：spec 030 新增 `ProjectAccessScopeService.canAccessProject(userId, projectId)` 时，直接写了 `EffectiveRoleResolver.resolveRoleCode(user) = "admin"` 判定 admin。Review 时才发现同文件内既有 `assertCurrentUserCanAccessProject` 用的是 `hasAdminAccess(authentication)`——基于 Spring Security authorities（`ROLE_ADMIN`）。两者判定源不同（role_code 字段 vs authority），OSS 同步脏数据场景下可能分歧——**正是 06131 案例的脏数据形态**（`users.role=MANAGER` 但 `role_id=6 → bid-Team`）。后果：通知过滤时被剔除的用户，实际登录访问却能通过权限闸门，过滤结果与实际访问判定不一致。
+
+**根因**：开发时只读了自己的需求（"需要判定 admin"），没看同文件内已有的同类方法是怎么判定的。
+
+**操作规范**（新增权限/角色/可见性判定方法时必跑）：
+
+- [ ] **同文件 grep**：在目标类内 `grep -n 'public.*can\|public.*isAllowed\|public.*hasAccess'`，列出所有同类公开方法。
+- [ ] **判定源对齐**：新增方法的判定源（authority vs role_code vs DB 字段）**必须**与既有同类方法一致。如确实需要用不同判定源（如本次 `ROLE_EXTERNAL_API` 仅 authority 可识别），必须在私有方法层抽取共享逻辑，公开方法各自处理边界差异。
+- [ ] **对齐测试**：写一个"同一用户对同一资源，两个方法判定结果必须一致"的测试用例（参考 `ProjectAccessScopeServiceTest.canAccessProject_shouldAlignWith_assertCurrentUserCanAccessProject`）。OSS 同步脏数据场景下尤其重要。
+- [ ] **EffectiveRoleResolver 是 OSS 同步后的权威源**：新代码优先用它而不是 Spring Security authority——OSS 同步可能落后于登录态变化，导致 authority/role_code 分歧。
 
 ### 修复方案三层防御（spec 030 实施）
 
@@ -2838,15 +2868,17 @@ tasks WHERE assignee_id=1471 AND project_id IN (160..173) → 空集
 - 新增 `ProjectAccessScopeService.canAccessProject(userId, projectId)` 轻量方法（admin/dataScope=all 短路）
 - `TaskReviewNotificationService.notifyTaskReviewSubmitted` 派发前过滤，异常降级保留原广播
 
-**L2 前端兜底**（commit `e63ef8043`）：
-- `src/api/client.js` 全局 403 拦截器精准识别 `GET /api/projects/\d+` 场景
+**L2 前端兜底**（commit `e63ef8043` 初版 + `4f847f6c2` Review H1 修正）：
+- `src/api/client.js` 全局 403 拦截器精准识别 `GET /api/projects/{id}` 主请求
 - 红色 `ElMessage.error` → 黄色 `ElMessage.warning` + '已为您返回通知中心'
 - 2.5s 后自动 `router.push('/inbox')`
+- Review 后修正：正则严格排除子路径（避免 `/documents`、`/ai-cards` 等被误伤）
 
 **L3 教训沉淀**：
 - tech-debt-tracker.md 登记 11 处审视清单（commit `008ff2679`）
-- 本节 §44 沉淀设计教训 + 操作规范检查清单
+- 本节 §44 沉淀设计教训 + 操作规范检查清单（含 Review 阶段补充的"全局拦截器影响面分析"和"权限判定方法判定源对齐"两条通用教训）
 - 独立 RCA 文件 `docs/lessons/root-cause-analysis-spec030-task-review-notify-403.md` 归档完整证据链
+- Review 阶段 H2 重构：`ProjectAccessScopeService` 抽取 `canAccessProjectInternal(User, Long)` 共享私有方法（commit `ad94e3650`），确保 `canAccessProject` 与 `assertCurrentUserCanAccessProject` 判定口径完全一致
 
 ### SOP 取舍说明（给后续 Agent）
 
