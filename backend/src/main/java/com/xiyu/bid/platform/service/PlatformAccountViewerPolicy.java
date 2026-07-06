@@ -2,7 +2,9 @@ package com.xiyu.bid.platform.service;
 
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.platform.entity.PlatformAccount;
+import com.xiyu.bid.platform.entity.PlatformAccount.AccountStatus;
 import com.xiyu.bid.platform.util.PlatformAccountContactMatcher;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 
@@ -65,6 +67,11 @@ public final class PlatformAccountViewerPolicy {
      *   <li>其他角色 → 拒绝</li>
      * </ul>
      *
+     * <p>CO-524 扩展：借用人窗口期豁免。借用申请审批通过后，账户进入 IN_USE 状态、
+     * borrowedBy 写入借用人 id、dueAt 写入预计归还时间。在窗口期内（now ≤ dueAt），
+     * 借用人不限角色均可查看密码，便于其在借用期间使用平台账号。过期未归还（now > dueAt）
+     * 或已归还（borrowedBy 被清空）后失效。
+     *
      * <p>对称于 {@code canManageAccount}、{@code canReturnAccount} 的授权范式，
      * 抛 {@link org.springframework.security.access.AccessDeniedException}（403 + WARN + 不上报 Sentry），
      * 避免权限校验失败的正常业务路径被 {@code GlobalExceptionHandler.handleIllegalStateException}
@@ -74,7 +81,33 @@ public final class PlatformAccountViewerPolicy {
         if (currentUser == null) return false;
         if (isPrivilegedRole(roleCode)) return true;
         if (isBidTeamRole(roleCode)) return PlatformAccountContactMatcher.isContactPerson(account, currentUser);
+        // CO-524: 借用人窗口期内可查看密码（不限角色）
+        if (isBorrowerWithinWindow(account, currentUser)) return true;
         return false;
+    }
+
+    /**
+     * CO-524: 当前用户是否为账户借用人且处于借用窗口期。
+     *
+     * <p>窗口期定义：账户状态为 IN_USE（借用申请审批通过）且当前时间 ≤ dueAt（预计归还日期）。
+     * 任意角色均可，只要 borrowedBy == currentUser.id。归还后 borrowedBy 被清空、
+     * status 回到 AVAILABLE，本方法自然返回 false。
+     */
+    private static boolean isBorrowerWithinWindow(PlatformAccount account, User currentUser) {
+        if (account == null || currentUser == null || account.getBorrowedBy() == null) {
+            return false;
+        }
+        if (!account.getBorrowedBy().equals(currentUser.getId())) {
+            return false;
+        }
+        if (account.getStatus() != AccountStatus.IN_USE) {
+            return false;
+        }
+        LocalDateTime dueAt = account.getDueAt();
+        if (dueAt == null) {
+            return false;
+        }
+        return !LocalDateTime.now().isAfter(dueAt);
     }
 
     /** 校验查看密码权限，不放行则抛 AccessDeniedException。 */
