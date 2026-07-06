@@ -7,7 +7,6 @@ import com.xiyu.bid.audit.service.AuditLogService;
 import com.xiyu.bid.audit.service.IAuditLogService;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.platform.entity.PlatformAccount;
-import com.xiyu.bid.platform.entity.PlatformAccount.PlatformType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,10 +39,10 @@ class PlatformAccountAuditRecorderTest {
     void recordUpdate_normalFieldChange_logsUpdateWithDiff() {
         PlatformAccount before = PlatformAccount.builder()
                 .id(1L).accountName("旧平台").username("olduser")
-                .platformType(PlatformType.GOV_PROCUREMENT).password("enc:old").build();
+                .password("enc:old").build();
         PlatformAccount after = PlatformAccount.builder()
                 .id(1L).accountName("新平台").username("olduser")
-                .platformType(PlatformType.GOV_PROCUREMENT).password("enc:old").build();
+                .password("enc:old").build();
 
         recorder().recordUpdate(before, after, OPERATOR, 0);
 

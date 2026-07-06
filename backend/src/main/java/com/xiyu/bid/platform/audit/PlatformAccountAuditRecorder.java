@@ -98,9 +98,6 @@ public class PlatformAccountAuditRecorder {
         List<String> changes = new ArrayList<>();
         appendChange(changes, "平台名称", oldAccount.getAccountName(), newAccount.getAccountName());
         appendChange(changes, "平台账号", oldAccount.getUsername(), newAccount.getUsername());
-        appendChange(changes, "平台类型",
-                oldAccount.getPlatformType() == null ? null : oldAccount.getPlatformType().name(),
-                newAccount.getPlatformType() == null ? null : newAccount.getPlatformType().name());
         appendChange(changes, "网址", oldAccount.getUrl(), newAccount.getUrl());
         appendChange(changes, "绑定联系人",
                 formatContact(oldAccount.getContactPerson()),
@@ -141,7 +138,6 @@ public class PlatformAccountAuditRecorder {
             .password(src.getPassword())
             .accountName(src.getAccountName())
             .contactPerson(src.getContactPerson())
-            .platformType(src.getPlatformType())
             .url(src.getUrl())
             .hasCa(src.getHasCa())
             .remarks(src.getRemarks())

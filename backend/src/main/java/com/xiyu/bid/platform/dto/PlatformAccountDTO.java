@@ -1,7 +1,5 @@
 package com.xiyu.bid.platform.dto;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.xiyu.bid.platform.entity.PlatformAccount.PlatformType;
 import com.xiyu.bid.platform.entity.PlatformAccount.AccountStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -27,8 +25,6 @@ public class PlatformAccountDTO {
     private Long contactPerson;
     /** Contact person display label: "姓名（工号）", derived from userId. */
     private String contactPersonLabel;
-    /** Platform type. */
-    private PlatformType platformType;
     /** Platform URL. */
     private String url;
     /** Whether CA certificate is associated. */

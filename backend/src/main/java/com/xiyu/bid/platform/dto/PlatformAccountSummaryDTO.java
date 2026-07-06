@@ -1,7 +1,6 @@
 package com.xiyu.bid.platform.dto;
 
 import com.xiyu.bid.platform.entity.PlatformAccount.AccountStatus;
-import com.xiyu.bid.platform.entity.PlatformAccount.PlatformType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,7 +13,7 @@ import java.time.LocalDateTime;
  *
  * <p>Returned to roles that should NOT see sensitive contact or credential
  * fields (project leaders / 销售人员 / 项目负责人). The DTO intentionally
- * omits username, password, contact person/phone/email, custodian, remarks
+ * omits username, password, contact details, remarks
  * and borrow bookkeeping.
  */
 @Data
@@ -26,7 +25,6 @@ public class PlatformAccountSummaryDTO {
     private Long id;
     private String accountName;
     private String url;
-    private PlatformType platformType;
     private Boolean hasCa;
     private AccountStatus status;
     private LocalDateTime updatedAt;

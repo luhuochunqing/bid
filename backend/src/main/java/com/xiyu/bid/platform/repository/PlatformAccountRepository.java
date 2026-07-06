@@ -17,19 +17,6 @@ import java.util.Optional;
 public interface PlatformAccountRepository extends JpaRepository<PlatformAccount, Long> {
 
     /**
-     * Find account by username
-     */
-    Optional<PlatformAccount> findByUsername(String username);
-
-    /**
-     * Find account by platform type and username.
-     * Uniqueness is scoped per platform.
-     */
-    Optional<PlatformAccount> findByPlatformTypeAndUsername(
-            com.xiyu.bid.platform.entity.PlatformAccount.PlatformType platformType,
-            String username);
-
-    /**
      * Find account by display name (account_name).
      * Used to enforce the blueprint's uniqueness constraint on the
      * bidding platform name.
@@ -50,14 +37,6 @@ public interface PlatformAccountRepository extends JpaRepository<PlatformAccount
      * Count accounts by status
      */
     long countByStatus(AccountStatus status);
-
-    /**
-     * Find available accounts by platform type
-     */
-    List<PlatformAccount> findByPlatformTypeAndStatus(
-        com.xiyu.bid.platform.entity.PlatformAccount.PlatformType platformType,
-        AccountStatus status
-    );
 
     /**
      * Find overdue borrowed accounts

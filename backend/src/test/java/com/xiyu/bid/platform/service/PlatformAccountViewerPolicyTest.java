@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.platform.entity.PlatformAccount;
 import com.xiyu.bid.platform.entity.PlatformAccount.AccountStatus;
-import com.xiyu.bid.platform.entity.PlatformAccount.PlatformType;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -98,7 +97,7 @@ class PlatformAccountViewerPolicyTest {
         private PlatformAccount accountWithContact(Long contactPersonId) {
             return PlatformAccount.builder()
                     .id(1L).username("testuser").password("ENCRYPTED")
-                    .accountName("测试平台").platformType(PlatformType.BIDDING_PLATFORM)
+                    .accountName("测试平台")
                     .status(AccountStatus.AVAILABLE)
                     .contactPerson(contactPersonId)
                     .build();
@@ -200,7 +199,7 @@ class PlatformAccountViewerPolicyTest {
         private PlatformAccount accountBorrowedBy(Long borrowerId, LocalDateTime dueAt, AccountStatus status) {
             return PlatformAccount.builder()
                     .id(2L).username("borrowed").password("ENCRYPTED")
-                    .accountName("借用中平台").platformType(PlatformType.BIDDING_PLATFORM)
+                    .accountName("借用中平台")
                     .status(status)
                     .contactPerson(999L) // 保管员是别人，确保不会因联系人分支误放行
                     .borrowedBy(borrowerId)

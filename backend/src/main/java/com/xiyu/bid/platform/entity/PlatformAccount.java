@@ -11,7 +11,6 @@ import jakarta.persistence.Index;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -24,11 +23,7 @@ import java.time.LocalDateTime;
 @Table(name = "platform_accounts", indexes = {
     @Index(name = "idx_platform_username", columnList = "username"),
     @Index(name = "idx_platform_status", columnList = "status"),
-    @Index(name = "idx_platform_type", columnList = "platform_type"),
     @Index(name = "idx_platform_borrowed_by", columnList = "borrowed_by")
-}, uniqueConstraints = {
-    @UniqueConstraint(name = "uk_platform_accounts_platform_type_username",
-            columnNames = {"platform_type", "username"})
 })
 @Data
 @Builder
@@ -42,7 +37,6 @@ public class PlatformAccount {
     private static final int LEN_PHONE = 20;
     private static final int LEN_EMAIL = 200;
     private static final int LEN_URL = 500;
-    private static final int LEN_TYPE = 50;
     private static final int LEN_REMARKS = 500;
     /** Field length for registrant name (CO-474). */
     public static final int LEN_REGISTRANT = 100;
@@ -53,7 +47,7 @@ public class PlatformAccount {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** Platform login username. Unique within the same platform type. */
+    /** Platform login username. */
     @Column(nullable = false, length = LEN_USERNAME)
     private String username;
 
@@ -68,11 +62,6 @@ public class PlatformAccount {
     /** Contact person userId (FK to users.id). */
     @Column(name = "contact_person")
     private Long contactPerson;
-
-    /** Platform type category. */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "platform_type", nullable = false, length = LEN_TYPE)
-    private PlatformType platformType;
 
     /** Platform website URL. */
     @Column(length = LEN_URL)
@@ -149,7 +138,7 @@ public class PlatformAccount {
 
     /** Update profile fields from a request DTO. */
     public void updateProfile(String pUsername, String pPassword, String pAccountName,
-            PlatformType pPlatformType, String pUrl, Long pContactPerson,
+            String pUrl, Long pContactPerson,
             String pRegistrant, String pRegisterPhone, String pRegisterEmail,
             Boolean pHasCa, String pRemarks) {
         if (pUsername != null && !pUsername.trim().isEmpty()) {
@@ -160,9 +149,6 @@ public class PlatformAccount {
         }
         if (pAccountName != null && !pAccountName.trim().isEmpty()) {
             this.accountName = pAccountName;
-        }
-        if (pPlatformType != null) {
-            this.platformType = pPlatformType;
         }
         if (pUrl != null) {
             this.url = pUrl;
@@ -237,24 +223,6 @@ public class PlatformAccount {
     public void returnWithPassword(String newEncryptedPassword) {
         returnToPool();
         this.password = newEncryptedPassword;
-    }
-
-    /** Platform type enumeration. */
-    public enum PlatformType {
-        GOV_PROCUREMENT("政府采购网"),
-        BIDDING_PLATFORM("招投标平台"),
-        CONSTRUCTION_PLATFORM("建设工程平台"),
-        OTHER("其他");
-
-        private final String description;
-
-        PlatformType(String pDescription) {
-            this.description = pDescription;
-        }
-
-        public String getDescription() {
-            return description;
-        }
     }
 
     /** Account status enumeration. */

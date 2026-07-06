@@ -5,7 +5,6 @@ package com.xiyu.bid.platform.service;
 
 import com.xiyu.bid.platform.entity.PlatformAccount;
 import com.xiyu.bid.platform.entity.PlatformAccount.AccountStatus;
-import com.xiyu.bid.platform.entity.PlatformAccount.PlatformType;
 import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
 import com.xiyu.bid.repository.UserRepository;
@@ -41,7 +40,7 @@ class PlatformAccountExportServiceTest {
 
     private static final String[] EXPECTED_HEADERS = {
             "平台名称", "账号", "密码", "网址", "账号保管员",
-            "平台类型", "是否有CA", "注册人", "注册手机", "注册邮箱",
+            "是否有CA", "注册人", "注册手机", "注册邮箱",
             "账号状态", "备注"
     };
 
@@ -81,7 +80,6 @@ class PlatformAccountExportServiceTest {
                 .password("ENC_CIPHER_TEXT")
                 .url("https://www.zcy.gov.cn")
                 .contactPerson(10L)
-                .platformType(PlatformType.GOV_PROCUREMENT)
                 .hasCa(true)
                 .registrant("张三")
                 .registerPhone("13800138000")
@@ -105,13 +103,12 @@ class PlatformAccountExportServiceTest {
             assertThat(dataRow.getCell(1).getStringCellValue()).isEqualTo("admin001");
             assertThat(dataRow.getCell(2).getStringCellValue()).isEqualTo("PlainP@ss1");
             assertThat(dataRow.getCell(3).getStringCellValue()).isEqualTo("https://www.zcy.gov.cn");
-            assertThat(dataRow.getCell(5).getStringCellValue()).isEqualTo("政府采购网");
-            assertThat(dataRow.getCell(6).getStringCellValue()).isEqualTo("是");
-            assertThat(dataRow.getCell(7).getStringCellValue()).isEqualTo("张三");
-            assertThat(dataRow.getCell(8).getStringCellValue()).isEqualTo("13800138000");
-            assertThat(dataRow.getCell(9).getStringCellValue()).isEqualTo("zhangsan@example.com");
-            assertThat(dataRow.getCell(10).getStringCellValue()).isEqualTo("可用");
-            assertThat(dataRow.getCell(11).getStringCellValue()).isEqualTo("测试备注");
+            assertThat(dataRow.getCell(5).getStringCellValue()).isEqualTo("是");
+            assertThat(dataRow.getCell(6).getStringCellValue()).isEqualTo("张三");
+            assertThat(dataRow.getCell(7).getStringCellValue()).isEqualTo("13800138000");
+            assertThat(dataRow.getCell(8).getStringCellValue()).isEqualTo("zhangsan@example.com");
+            assertThat(dataRow.getCell(9).getStringCellValue()).isEqualTo("可用");
+            assertThat(dataRow.getCell(10).getStringCellValue()).isEqualTo("测试备注");
         }
     }
 
@@ -123,7 +120,6 @@ class PlatformAccountExportServiceTest {
                 .accountName("账号1")
                 .username("user1")
                 .password("ENC1")
-                .platformType(PlatformType.BIDDING_PLATFORM)
                 .hasCa(false)
                 .status(AccountStatus.IN_USE)
                 .createdAt(LocalDateTime.now())
@@ -133,7 +129,6 @@ class PlatformAccountExportServiceTest {
                 .accountName("账号2")
                 .username("user2")
                 .password("ENC2")
-                .platformType(PlatformType.OTHER)
                 .hasCa(true)
                 .status(AccountStatus.AVAILABLE)
                 .createdAt(LocalDateTime.now())
@@ -161,7 +156,6 @@ class PlatformAccountExportServiceTest {
                 .accountName("测试账号")
                 .username("testuser")
                 .password("BAD_CIPHER")
-                .platformType(PlatformType.GOV_PROCUREMENT)
                 .hasCa(false)
                 .status(AccountStatus.AVAILABLE)
                 .createdAt(LocalDateTime.now())
@@ -184,12 +178,12 @@ class PlatformAccountExportServiceTest {
     void exportToExcel_hasCaColumn_returnsYesNoLabel() throws Exception {
         PlatformAccount withCa = PlatformAccount.builder()
                 .id(1L).accountName("有CA").username("u1").password("p")
-                .platformType(PlatformType.GOV_PROCUREMENT).hasCa(true)
+                .hasCa(true)
                 .status(AccountStatus.AVAILABLE).createdAt(LocalDateTime.now())
                 .build();
         PlatformAccount withoutCa = PlatformAccount.builder()
                 .id(2L).accountName("无CA").username("u2").password("p")
-                .platformType(PlatformType.GOV_PROCUREMENT).hasCa(false)
+                .hasCa(false)
                 .status(AccountStatus.AVAILABLE).createdAt(LocalDateTime.now())
                 .build();
         when(accountRepository.findAll()).thenReturn(List.of(withCa, withoutCa));
@@ -199,8 +193,8 @@ class PlatformAccountExportServiceTest {
 
         try (XSSFWorkbook wb = new XSSFWorkbook(new ByteArrayInputStream(result))) {
             var sheet = wb.getSheetAt(0);
-            assertThat(sheet.getRow(1).getCell(6).getStringCellValue()).isEqualTo("是");
-            assertThat(sheet.getRow(2).getCell(6).getStringCellValue()).isEqualTo("否");
+            assertThat(sheet.getRow(1).getCell(5).getStringCellValue()).isEqualTo("是");
+            assertThat(sheet.getRow(2).getCell(5).getStringCellValue()).isEqualTo("否");
         }
     }
 }

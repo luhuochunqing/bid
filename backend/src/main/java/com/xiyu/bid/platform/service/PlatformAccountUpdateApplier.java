@@ -24,16 +24,8 @@ public class PlatformAccountUpdateApplier {
     private final PlatformAccountRepository repository;
     private final PasswordEncryptionUtil passwordEncryptionUtil;
 
-    /** 校验 username / accountName 在编辑场景下的唯一性。 */
+    /** 校验 accountName 在编辑场景下的唯一性。 */
     public void validateUniqueness(PlatformAccountCreateRequest request, PlatformAccount account) {
-        if (request.getUsername() != null && !request.getUsername().trim().isEmpty()
-                && (request.getPlatformType() != account.getPlatformType()
-                        || !request.getUsername().equals(account.getUsername()))
-                && repository.findByPlatformTypeAndUsername(request.getPlatformType(), request.getUsername()).isPresent()) {
-            throw new IllegalArgumentException(String.format("平台账号「%s」在「%s」下已存在",
-                    request.getUsername(),
-                    (request.getPlatformType() != null ? request.getPlatformType() : account.getPlatformType()).getDescription()));
-        }
         if (request.getAccountName() != null && !request.getAccountName().trim().isEmpty()
                 && !request.getAccountName().equals(account.getAccountName())
                 && repository.findByAccountName(request.getAccountName()).isPresent()) {
@@ -48,7 +40,6 @@ public class PlatformAccountUpdateApplier {
         }
         account.setUsername(Optional.ofNullable(request.getUsername()).orElse(account.getUsername()));
         account.setAccountName(Optional.ofNullable(request.getAccountName()).orElse(account.getAccountName()));
-        account.setPlatformType(Optional.ofNullable(request.getPlatformType()).orElse(account.getPlatformType()));
         account.setUrl(Optional.ofNullable(request.getUrl()).orElse(account.getUrl()));
         account.setContactPerson(request.getContactPerson() != null ? request.getContactPerson() : account.getContactPerson());
         account.setRegistrant(request.getRegistrant() != null ? request.getRegistrant() : account.getRegistrant());

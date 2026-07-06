@@ -28,7 +28,6 @@ public class PlatformAccountImportRowPersister {
                 .url(row.url())
                 .username(row.username())
                 .password(encryptedPassword)
-                .platformType(row.platformType())
                 .contactPerson(contactPersonId)
                 .registrant(row.registrant())
                 .registerPhone(row.registerPhone())

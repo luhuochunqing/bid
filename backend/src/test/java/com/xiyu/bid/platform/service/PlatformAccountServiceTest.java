@@ -12,7 +12,6 @@ import com.xiyu.bid.platform.dto.PlatformAccountSummaryDTO;
 import com.xiyu.bid.platform.dto.ReturnAccountRequest;
 import com.xiyu.bid.platform.entity.PlatformAccount;
 import com.xiyu.bid.platform.entity.PlatformAccount.AccountStatus;
-import com.xiyu.bid.platform.entity.PlatformAccount.PlatformType;
 import com.xiyu.bid.platform.audit.PlatformAccountAuditRecorder;
 import com.xiyu.bid.platform.repository.AccountBorrowApplicationRepository;
 import com.xiyu.bid.platform.repository.PlatformAccountRepository;
@@ -114,7 +113,6 @@ class PlatformAccountServiceTest {
         PlatformAccountCreateRequest req = validRequest();
         PlatformAccount saved = accountWithId(1L);
         when(passwordEncryptionUtil.encrypt("secret123")).thenReturn(ENCRYPTED_PWD);
-        when(repository.findByPlatformTypeAndUsername(PlatformType.GOV_PROCUREMENT, "testuser")).thenReturn(Optional.empty());
         when(repository.save(any())).thenReturn(saved);
 
         PlatformAccountDTO result = service.createAccount(req, ADMIN_USER);
@@ -122,7 +120,6 @@ class PlatformAccountServiceTest {
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getUsername()).isEqualTo("testuser");
         assertThat(result.getAccountName()).isEqualTo("测试平台");
-        assertThat(result.getPlatformType()).isEqualTo(PlatformType.GOV_PROCUREMENT);
         verify(passwordEncryptionUtil).encrypt("secret123");
     }
 
@@ -132,7 +129,6 @@ class PlatformAccountServiceTest {
         PlatformAccountCreateRequest req = validRequest();
         req.setContactPerson(99L);
         when(passwordEncryptionUtil.encrypt("secret123")).thenReturn(ENCRYPTED_PWD);
-        when(repository.findByPlatformTypeAndUsername(PlatformType.GOV_PROCUREMENT, "testuser")).thenReturn(Optional.empty());
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         PlatformAccountDTO result = service.createAccount(req, ADMIN_USER);
@@ -156,29 +152,15 @@ class PlatformAccountServiceTest {
     }
 
     @Test
-    @DisplayName("创建时同一平台下用户名已存在抛出异常")
-    void createAccount_duplicateUsernameSamePlatform_throws() {
-        when(repository.findByPlatformTypeAndUsername(PlatformType.GOV_PROCUREMENT, "testuser"))
-                .thenReturn(Optional.of(new PlatformAccount()));
-
-        assertThatThrownBy(() -> service.createAccount(validRequest(), ADMIN_USER))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("平台账号");
-    }
-
-    @Test
-    @DisplayName("创建时不同平台下用户名相同允许创建")
-    void createAccount_sameUsernameDifferentPlatform_succeeds() {
+    @DisplayName("创建时用户名重复允许创建（已取消平台类型维度唯一校验）")
+    void createAccount_duplicateUsernameAllowed_succeeds() {
         PlatformAccountCreateRequest req = validRequest();
         when(passwordEncryptionUtil.encrypt("secret123")).thenReturn(ENCRYPTED_PWD);
-        when(repository.findByPlatformTypeAndUsername(PlatformType.GOV_PROCUREMENT, "testuser"))
-                .thenReturn(Optional.empty());
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         PlatformAccountDTO result = service.createAccount(req, ADMIN_USER);
 
         assertThat(result.getUsername()).isEqualTo("testuser");
-        assertThat(result.getPlatformType()).isEqualTo(PlatformType.GOV_PROCUREMENT);
     }
 
     @Test
@@ -218,7 +200,6 @@ class PlatformAccountServiceTest {
     void createAccount_whitelistedBidTeamUser_succeeds() {
         // checkCreatePermission 默认放行（doNothing），无需额外 stub
         when(passwordEncryptionUtil.encrypt("secret123")).thenReturn(ENCRYPTED_PWD);
-        when(repository.findByPlatformTypeAndUsername(PlatformType.GOV_PROCUREMENT, "testuser")).thenReturn(Optional.empty());
         when(repository.save(any())).thenReturn(accountWithId(1L));
 
         PlatformAccountDTO result = service.createAccount(validRequest(), WHITELISTED_BID_TEAM_USER);
@@ -385,69 +366,6 @@ class PlatformAccountServiceTest {
         assertThat(result.getAccountName()).isEqualTo("管理员更新的平台");
     }
 
-    @Test
-    @DisplayName("更新时同一平台下目标用户名已存在抛出异常")
-    void updateAccount_duplicateUsernameSamePlatform_throws() {
-        PlatformAccount existing = accountWithId(1L);
-        existing.setPlatformType(PlatformType.GOV_PROCUREMENT);
-        existing.setUsername("olduser");
-
-        PlatformAccountCreateRequest req = validRequest();
-        req.setUsername("existinguser");
-        req.setPassword(null);
-
-        when(repository.findById(1L)).thenReturn(Optional.of(existing));
-        // CO-522: 唯一性校验下沉到 updateApplier（真实实例），内部调 repository.findByPlatformTypeAndUsername
-        when(repository.findByPlatformTypeAndUsername(PlatformType.GOV_PROCUREMENT, "existinguser"))
-                .thenReturn(Optional.of(PlatformAccount.builder().id(2L).build()));
-
-        assertThatThrownBy(() -> service.updateAccount(1L, req, ADMIN_USER))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("平台账号");
-    }
-
-    @Test
-    @DisplayName("更新时切换到已存在该用户名的平台抛出异常")
-    void updateAccount_changePlatformToDuplicateUsername_throws() {
-        PlatformAccount existing = accountWithId(1L);
-        existing.setPlatformType(PlatformType.GOV_PROCUREMENT);
-        existing.setUsername("testuser");
-
-        PlatformAccountCreateRequest req = validRequest();
-        req.setPlatformType(PlatformType.BIDDING_PLATFORM);
-        req.setUsername("testuser");
-        req.setPassword(null);
-
-        when(repository.findById(1L)).thenReturn(Optional.of(existing));
-        when(repository.findByPlatformTypeAndUsername(PlatformType.BIDDING_PLATFORM, "testuser"))
-                .thenReturn(Optional.of(PlatformAccount.builder().id(2L).build()));
-
-        assertThatThrownBy(() -> service.updateAccount(1L, req, ADMIN_USER))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("平台账号");
-    }
-
-    @Test
-    @DisplayName("更新时不同平台下用户名相同允许更新")
-    void updateAccount_sameUsernameDifferentPlatform_succeeds() {
-        PlatformAccount existing = accountWithId(1L);
-        existing.setPlatformType(PlatformType.GOV_PROCUREMENT);
-        existing.setUsername("testuser");
-
-        PlatformAccountCreateRequest req = validRequest();
-        req.setPlatformType(PlatformType.BIDDING_PLATFORM);
-        req.setUsername("testuser");
-        req.setPassword(null);
-
-        when(repository.findById(1L)).thenReturn(Optional.of(existing));
-        when(repository.findByPlatformTypeAndUsername(PlatformType.BIDDING_PLATFORM, "testuser"))
-                .thenReturn(Optional.empty());
-        when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-        PlatformAccountDTO result = service.updateAccount(1L, req, ADMIN_USER);
-        assertThat(result.getPlatformType()).isEqualTo(PlatformType.BIDDING_PLATFORM);
-        assertThat(result.getUsername()).isEqualTo("testuser");
-    }
 
     @Test
     @DisplayName("CO-390: getAllAccounts 批量填充 contactPersonLabel 为 姓名(工号) 格式")
@@ -536,7 +454,7 @@ class PlatformAccountServiceTest {
     void returnAccount_bidTeamAsContactPerson_succeeds() {
         PlatformAccount ownAccount = PlatformAccount.builder()
                 .id(1L).username("testuser").password(ENCRYPTED_PWD)
-                .accountName("我的平台").platformType(PlatformType.BIDDING_PLATFORM)
+                .accountName("我的平台")
                 .contactPerson(BID_TEAM_USER.getId())  // 绑定联系人 = bidTeam 用户
                 .build();
         ownAccount.borrow(BID_TEAM_USER.getId(), LocalDateTime.now(), LocalDateTime.now().plusDays(3));
@@ -554,7 +472,7 @@ class PlatformAccountServiceTest {
     void returnAccount_bidTeamNotContactPerson_throws() {
         PlatformAccount othersAccount = PlatformAccount.builder()
                 .id(1L).username("testuser").password(ENCRYPTED_PWD)
-                .accountName("其他平台").platformType(PlatformType.BIDDING_PLATFORM)
+                .accountName("其他平台")
                 .contactPerson(999L)  // NOT BID_TEAM_USER.id (5)
                 .build();
         othersAccount.borrow(10L, LocalDateTime.now(), LocalDateTime.now().plusDays(3));
@@ -570,7 +488,7 @@ class PlatformAccountServiceTest {
     void returnAccount_withPassword_bidTeamAsContactPerson_succeeds() {
         PlatformAccount ownAccount = PlatformAccount.builder()
                 .id(1L).username("testuser").password(ENCRYPTED_PWD)
-                .accountName("我的平台").platformType(PlatformType.BIDDING_PLATFORM)
+                .accountName("我的平台")
                 .contactPerson(BID_TEAM_USER.getId())
                 .build();
         ownAccount.borrow(BID_TEAM_USER.getId(), LocalDateTime.now(), LocalDateTime.now().plusDays(3));
@@ -589,7 +507,7 @@ class PlatformAccountServiceTest {
     void returnAccount_withPassword_bidTeamNotContactPerson_throws() {
         PlatformAccount othersAccount = PlatformAccount.builder()
                 .id(1L).username("testuser").password(ENCRYPTED_PWD)
-                .accountName("其他平台").platformType(PlatformType.BIDDING_PLATFORM)
+                .accountName("其他平台")
                 .contactPerson(999L)
                 .build();
         othersAccount.borrow(10L, LocalDateTime.now(), LocalDateTime.now().plusDays(3));
@@ -661,7 +579,7 @@ class PlatformAccountServiceTest {
         // Mock account whose contactPerson is NOT the bidTeam user.
         PlatformAccount accountNotOwn = PlatformAccount.builder()
                 .id(1L).username("testuser").password(ENCRYPTED_PWD)
-                .accountName("其他平台").platformType(PlatformType.BIDDING_PLATFORM)
+                .accountName("其他平台")
                 .status(AccountStatus.AVAILABLE)
                 .contactPerson(999L)  // NOT BID_TEAM_USER.id (5)
                 .build();
@@ -689,7 +607,7 @@ class PlatformAccountServiceTest {
         when(passwordEncryptionUtil.decrypt(ENCRYPTED_PWD)).thenReturn("secret123");
         PlatformAccount ownAccount = PlatformAccount.builder()
                 .id(1L).username("testuser").password(ENCRYPTED_PWD)
-                .accountName("我的平台").platformType(PlatformType.BIDDING_PLATFORM)
+                .accountName("我的平台")
                 .status(AccountStatus.AVAILABLE)
                 .contactPerson(BID_TEAM_USER.getId())  // 绑定联系人 = bidTeam 用户
                 .build();
@@ -772,7 +690,6 @@ class PlatformAccountServiceTest {
         req.setRegisterEmail("zhangsan@example.com");
 
         when(passwordEncryptionUtil.encrypt("secret123")).thenReturn(ENCRYPTED_PWD);
-        when(repository.findByPlatformTypeAndUsername(PlatformType.GOV_PROCUREMENT, "testuser")).thenReturn(Optional.empty());
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         PlatformAccountDTO result = service.createAccount(req, ADMIN_USER);
@@ -791,7 +708,6 @@ class PlatformAccountServiceTest {
         req.setRegisterEmail(null);
 
         when(passwordEncryptionUtil.encrypt("secret123")).thenReturn(ENCRYPTED_PWD);
-        when(repository.findByPlatformTypeAndUsername(PlatformType.GOV_PROCUREMENT, "testuser")).thenReturn(Optional.empty());
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         PlatformAccountDTO result = service.createAccount(req, ADMIN_USER);
@@ -896,7 +812,6 @@ class PlatformAccountServiceTest {
                 .username("testuser")
                 .password("secret123")
                 .accountName("测试平台")
-                .platformType(PlatformType.GOV_PROCUREMENT)
                 .build();
     }
 
@@ -906,7 +821,6 @@ class PlatformAccountServiceTest {
                 .username("testuser")
                 .password(ENCRYPTED_PWD)
                 .accountName("测试平台")
-                .platformType(PlatformType.GOV_PROCUREMENT)
                 .status(AccountStatus.AVAILABLE)
                 .build();
     }
