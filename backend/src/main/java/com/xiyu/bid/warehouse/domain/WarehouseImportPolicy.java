@@ -208,7 +208,6 @@ public class WarehouseImportPolicy {
         result.invoiceFile = invoiceFile;
         result.photosFile = photosFile;
         result.leaseContractFileName = leaseContractFileName;
-        result.leaseContractFile = leaseContractFileName;
         result.hasLeaseContract = !leaseContractFileName.isEmpty();
 
         if (hasPropertyCert && propertyCertFile.isEmpty()) {

@@ -133,7 +133,6 @@ class WarehouseImportPolicyTest {
         WarehouseImportRow row = parseRowWithDate("2026-07-03");
         assertThat(row.hasLeaseContract).isTrue();
         assertThat(row.leaseContractFileName).isEqualTo("合同.pdf");
-        assertThat(row.leaseContractFile).isEqualTo("合同.pdf");
         assertThat(row.leaseContractExpectedName).isEqualTo("WH_测试仓库_租赁合同.pdf");
     }
 

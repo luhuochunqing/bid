@@ -199,7 +199,7 @@ public class WarehouseExportController {
             String filename = buildDownloadFilename(task);
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-                    .contentType(MediaType.parseMediaType("application/zip"))
+                    .contentType(MediaType.parseMediaType(resolveContentType(filename)))
                     .contentLength(bytes.length)
                     .body(bytes);
         } catch (IllegalArgumentException e) {
@@ -215,7 +215,18 @@ public class WarehouseExportController {
         String ts = task.getCompletedAt() != null
                 ? task.getCompletedAt().format(FILENAME_DT_FMT)
                 : LocalDateTime.now().format(FILENAME_DT_FMT);
+        String storedPath = task.getStoredFilePath();
+        if (storedPath != null && storedPath.toLowerCase().endsWith(".zip")) {
+            return "仓库台账导出包_" + ts + ".zip";
+        }
         return "仓库信息导出包_" + ts + ".zip";
+    }
+
+    private String resolveContentType(String filename) {
+        if (filename != null && filename.toLowerCase().endsWith(".xlsx")) {
+            return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        }
+        return "application/zip";
     }
 
     private Map<String, Object> toTaskMap(WarehouseExportTaskEntity t) {

@@ -87,7 +87,7 @@ public class WarehouseImportTemplateWriter {
      * - 仓库类型（COL_TYPE）：自营 / 云仓
      * - 所在省份（COL_PROVINCE）：34 个省级行政区
      * - 所属区域（COL_REGION）：华北 / 东北 / 华东 / 华中 / 华南 / 西北 / 西南
-     * - 是否有产权证 / 发票 / 照片 / 租赁合同：是 / 否
+     * - 是否有产权证 / 是否有发票 / 是否有仓库照片：是 / 否
      *
      * 所有选项统一取自 WarehouseImportPolicy，避免 domain 与 infrastructure 重复定义。
      * 数据行范围从第 2 行（hint 行之后）到 65535 行，覆盖用户实际可填的所有行。

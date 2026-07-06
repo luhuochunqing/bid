@@ -11,7 +11,7 @@ public class WarehouseExportPolicy {
             "出租方", "承租方", "发票租期起", "发票租期止", "关仓计划",
             "是否有产权证", "产权证附件", "是否有发票", "发票附件",
             "是否有仓库照片", "照片附件",
-            "是否有租赁合同", "租赁合同附件",
+            "租赁合同文件名",
             "资料备注",
             "创建时间", "更新时间", "创建人", "更新人", "附件文件名清单"
     };
@@ -31,7 +31,6 @@ public class WarehouseExportPolicy {
         boolean hasPropertyCert = Boolean.TRUE.equals(e.getHasPropertyCert());
         boolean hasInvoice = Boolean.TRUE.equals(e.getHasInvoice());
         boolean hasPhotos = Boolean.TRUE.equals(e.getHasPhotos());
-        boolean hasLeaseContract = Boolean.TRUE.equals(e.getHasLeaseContract());
         String startDate = e.getStartDate() != null ? e.getStartDate().toString() : "";
         String endDate = e.getEndDate() != null ? e.getEndDate().toString() : "";
         String invoiceStart = e.getInvoicePeriodStart() != null ? e.getInvoicePeriodStart().toString() : "";
@@ -39,7 +38,7 @@ public class WarehouseExportPolicy {
         String propertyCertFile = findAttachName(attachments, WarehouseAttachmentType.PROPERTY_CERTIFICATE);
         String invoiceFile = findAttachName(attachments, WarehouseAttachmentType.INVOICE);
         String photosFile = joinAttachNames(attachments, WarehouseAttachmentType.PHOTOS);
-        String leaseContractFile = findAttachName(attachments, WarehouseAttachmentType.LEASE_CONTRACT);
+        String leaseContractFileName = findAttachName(attachments, WarehouseAttachmentType.LEASE_CONTRACT);
         String attachmentList = attachments.stream().map(WarehouseAttachmentReadModel::getOriginalFilename).collect(Collectors.joining("; "));
         String createdByName = e.getCreatedBy() != null ? usernameById.getOrDefault(e.getCreatedBy(), "") : "";
         String updatedByName = e.getUpdatedBy() != null ? usernameById.getOrDefault(e.getUpdatedBy(), "") : "";
@@ -50,7 +49,7 @@ public class WarehouseExportPolicy {
                 startDate, endDate,
                 nvl(e.getLessor()), nvl(e.getLessee()), invoiceStart, invoiceEnd, nvl(e.getClosePlan()),
                 boolLabel(hasPropertyCert), propertyCertFile, boolLabel(hasInvoice), invoiceFile,
-                boolLabel(hasPhotos), photosFile, boolLabel(hasLeaseContract), leaseContractFile, nvl(e.getCertRemarks()),
+                boolLabel(hasPhotos), photosFile, leaseContractFileName, nvl(e.getCertRemarks()),
                 e.getCreatedAt() != null ? e.getCreatedAt().toString() : "",
                 e.getUpdatedAt() != null ? e.getUpdatedAt().toString() : "",
                 createdByName, updatedByName, attachmentList

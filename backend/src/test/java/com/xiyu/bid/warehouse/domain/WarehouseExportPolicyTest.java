@@ -102,7 +102,6 @@ class WarehouseExportPolicyTest {
         assertThat(row[15]).isEqualTo("是");
         assertThat(row[17]).isEqualTo("否");
         assertThat(row[19]).isEqualTo("是");
-        assertThat(row[21]).isEqualTo("是");
     }
 
     @Test
@@ -125,8 +124,8 @@ class WarehouseExportPolicyTest {
         assertThat(row[16]).isEqualTo("产权证.pdf");
         assertThat(row[18]).isEqualTo("发票.pdf");
         assertThat(row[20]).isEqualTo("照片1.jpg");
-        assertThat(row[22]).isEqualTo("租赁合同.pdf");
-        assertThat(row[28]).contains("产权证.pdf", "发票.pdf", "照片1.jpg", "租赁合同.pdf");
+        assertThat(row[21]).isEqualTo("租赁合同.pdf");
+        assertThat(row[27]).contains("产权证.pdf", "发票.pdf", "照片1.jpg", "租赁合同.pdf");
     }
 
     @Test
@@ -163,7 +162,7 @@ class WarehouseExportPolicyTest {
         assertThat(row[15]).isEqualTo("否");
         assertThat(row[17]).isEqualTo("否");
         assertThat(row[19]).isEqualTo("否");
-        assertThat(row[21]).isEqualTo("否");
+        assertThat(row[21]).isEmpty();
     }
 
     @Test
@@ -197,7 +196,7 @@ class WarehouseExportPolicyTest {
         List<String[]> rows = WarehouseExportPolicy.buildRows(List.of(wh), Map.of(1L, List.of()), usernameMap());
         String[] row = rows.get(0);
 
+        assertThat(row[25]).isEqualTo("管理员");
         assertThat(row[26]).isEqualTo("管理员");
-        assertThat(row[27]).isEqualTo("管理员");
     }
 }

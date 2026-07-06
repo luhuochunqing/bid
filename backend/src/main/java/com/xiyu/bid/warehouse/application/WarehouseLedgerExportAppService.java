@@ -7,6 +7,7 @@ import com.xiyu.bid.warehouse.domain.WarehouseLedgerExportPolicy;
 import com.xiyu.bid.warehouse.domain.WarehouseLedgerExportPolicy.Section;
 import com.xiyu.bid.warehouse.domain.WarehouseStatus;
 import com.xiyu.bid.warehouse.dto.WarehouseFilterDTO;
+import com.xiyu.bid.warehouse.domain.WarehouseAttachmentType;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseAttachmentEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseAttachmentRepository;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseEntity;
@@ -14,6 +15,7 @@ import com.xiyu.bid.warehouse.infrastructure.WarehouseExcelWriter;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskEntity.ExportStatus;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskRepository;
+import com.xiyu.bid.warehouse.infrastructure.WarehouseExportZipBuilder;
 import com.xiyu.bid.warehouse.service.WarehouseFilterService;
 import com.xiyu.bid.warehouse.service.WarehouseLogService;
 import lombok.RequiredArgsConstructor;
@@ -54,6 +56,7 @@ public class WarehouseLedgerExportAppService {
     private final WarehouseFilterService filterService;
     private final WarehouseExcelWriter excelWriter;
     private final WarehouseAttachmentRepository attachmentRepo;
+    private final WarehouseExportZipBuilder zipBuilder;
     private final WarehouseLogService warehouseLogService;
     private final ApplicationEventPublisher eventPublisher;
     private final UserRepository userRepository;
@@ -81,13 +84,14 @@ public class WarehouseLedgerExportAppService {
         try {
             markProcessing(taskId);
             List<WarehouseEntity> entities = loadEntities(req);
-            Map<Long, List<WarehouseAttachmentEntity>> attachmentsByWhId = loadAttachments(entities);
+            Map<Long, List<WarehouseAttachmentEntity>> attachmentsByWhId = loadLeaseContractAttachments(entities);
             Map<Long, String> usernameById = loadUsernames(entities);
             String[] headers = WarehouseLedgerExportPolicy.getHeaders(req.sections());
             List<String[]> rows = WarehouseLedgerExportPolicy.buildRows(entities, req.sections(), usernameById, attachmentsByWhId);
             byte[] xlsx = excelWriter.write(headers, rows);
-            String filePath = saveXlsx(taskId, xlsx);
-            complete(taskId, operatorId, operatorUsername, entities, req, filePath, startMs);
+            WarehouseExportZipBuilder.ZipBuildResult zip = zipBuilder.buildZip(xlsx, entities, attachmentsByWhId);
+            String filePath = saveZip(taskId, zip);
+            complete(taskId, operatorId, operatorUsername, entities, req, filePath, zip, startMs);
         } catch (RuntimeException e) {
             log.error("台账导出失败: taskId={}", taskId, e);
             fail(taskId, truncate(e.getMessage(), 500));
@@ -123,19 +127,19 @@ public class WarehouseLedgerExportAppService {
                         (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
     }
 
-    private String saveXlsx(Long taskId, byte[] xlsx) throws IOException {
+    private String saveZip(Long taskId, WarehouseExportZipBuilder.ZipBuildResult zip) throws IOException {
         Path dir = Paths.get(exportRoot);
         Files.createDirectories(dir);
         String ts = LocalDateTime.now().format(TS_FMT);
-        String filename = "warehouse_ledger_" + taskId + "_" + ts + ".xlsx";
+        String filename = "warehouse_ledger_" + taskId + "_" + ts + ".zip";
         Path target = dir.resolve(filename);
-        Files.write(target, xlsx);
+        Files.copy(zip.zipFile(), target);
         return target.toString();
     }
 
     private void complete(Long taskId, Long operatorId, String operatorUsername,
                           List<WarehouseEntity> entities, ExportRequest req,
-                          String filePath, long startMs) {
+                          String filePath, WarehouseExportZipBuilder.ZipBuildResult zip, long startMs) {
         long elapsedMs = System.currentTimeMillis() - startMs;
         int totalCount = entities.size();
         LocalDateTime now = LocalDateTime.now();
@@ -146,7 +150,7 @@ public class WarehouseLedgerExportAppService {
         task.setDownloadUrl("/api/knowledge/warehouses/export/tasks/" + taskId + "/download");
         task.setExpiresAt(now.plus(FILE_TTL));
         task.setCompletedAt(now);
-        task.setResultSummary(buildSummary(totalCount, req, elapsedMs));
+        task.setResultSummary(buildSummary(totalCount, req, elapsedMs, zip));
         exportTaskRepo.save(task);
         publish(task, totalCount, req, elapsedMs);
         // TODO: warehouseLogService.logExportAction not yet implemented
@@ -155,13 +159,17 @@ public class WarehouseLedgerExportAppService {
         // }
     }
 
-    private String buildSummary(int totalCount, ExportRequest req, long elapsedMs) {
+    private String buildSummary(int totalCount, ExportRequest req, long elapsedMs,
+                                WarehouseExportZipBuilder.ZipBuildResult zip) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("format", "ledger");
         map.put("totalCount", totalCount);
         map.put("scope", req.scope());
         map.put("sections", req.sections());
         map.put("elapsedMs", elapsedMs);
+        map.put("xlsxBytes", zip.stats().xlsxBytes);
+        map.put("zipBytes", zip.totalBytes());
+        map.put("leaseContractCount", zip.stats().leaseContractCount);
         try {
             return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(map);
         } catch (com.fasterxml.jackson.core.JsonProcessingException | RuntimeException e) {
@@ -172,7 +180,7 @@ public class WarehouseLedgerExportAppService {
     private void publish(WarehouseExportTaskEntity task, int totalCount, ExportRequest req, long elapsedMs) {
         try {
             String title = "📤 仓库台账导出 — 完成";
-            String body = String.format("仓库台账-%s.xlsx（%d 条；%d 秒；范围：%s）",
+            String body = String.format("仓库台账导出包-%s.zip（%d 条；%d 秒；范围：%s）",
                     task.getCompletedAt().format(TS_FMT), totalCount, elapsedMs / 1000, scopeLabel(req));
             eventPublisher.publishEvent(new NotificationCreatedEvent(
                     null, List.of(task.getCreatedBy()),
@@ -227,10 +235,10 @@ public class WarehouseLedgerExportAppService {
         return s.length() > maxLen ? s.substring(0, maxLen) : s;
     }
 
-    private Map<Long, List<WarehouseAttachmentEntity>> loadAttachments(List<WarehouseEntity> entities) {
+    private Map<Long, List<WarehouseAttachmentEntity>> loadLeaseContractAttachments(List<WarehouseEntity> entities) {
         if (entities.isEmpty()) return Map.of();
         List<Long> ids = entities.stream().map(WarehouseEntity::getId).toList();
-        return attachmentRepo.findByWarehouseIdIn(ids).stream()
+        return attachmentRepo.findByWarehouseIdInAndType(ids, WarehouseAttachmentType.LEASE_CONTRACT).stream()
                 .collect(Collectors.groupingBy(a -> a.getWarehouse().getId()));
     }
 }

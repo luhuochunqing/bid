@@ -11,4 +11,5 @@ public interface WarehouseAttachmentRepository extends JpaRepository<WarehouseAt
     List<WarehouseAttachmentEntity> findByWarehouseIdAndType(Long warehouseId, com.xiyu.bid.warehouse.domain.WarehouseAttachmentType type);
     void deleteByWarehouseIdAndType(Long warehouseId, com.xiyu.bid.warehouse.domain.WarehouseAttachmentType type);
     List<WarehouseAttachmentEntity> findByWarehouseIdIn(Collection<Long> warehouseIds);
+    List<WarehouseAttachmentEntity> findByWarehouseIdInAndType(Collection<Long> warehouseIds, com.xiyu.bid.warehouse.domain.WarehouseAttachmentType type);
 }
