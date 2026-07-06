@@ -100,44 +100,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .body(ApiResponse.error(400, ex.getMessage()));
     }
 
-    /**
-     * 处理 multipart 请求缺失 part 异常
-     *
-     * CO-519: 前端 FormData.set('file', nonFile) 会把非 File 对象转成字符串，
-     * 导致 Spring 找不到 "file" part，抛 MissingServletRequestPartException。
-     * 默认 ResponseEntityExceptionHandler 不记日志，导致 400 无诊断信息。
-     */
-    @ExceptionHandler(MissingServletRequestPartException.class)
-    public ResponseEntity<ApiResponse<Void>> handleMissingServletRequestPartException(
-            MissingServletRequestPartException ex,
-            HttpServletRequest request) {
-        log.warn("multipart 缺失 part - URI: {}, 缺失 part: {}, Message: {}",
-                request.getRequestURI(), ex.getRequestPartName(), ex.getMessage());
-        String partName = ex.getRequestPartName();
-        String message = partName != null && !partName.isBlank()
-                ? "未接收到必填的「" + partName + "」字段，请检查文件是否已正确选择"
-                : "请上传文件";
-        return ResponseEntity
-                .badRequest()
-                .body(ApiResponse.error(400, message));
-    }
+    // CO-519: MissingServletRequestPartException 的处理逻辑已移至 handleGlobalException。
+    // 原因与 MissingServletRequestParameterException 相同：ResponseEntityExceptionHandler 父类
+    // 用 @ExceptionHandler(Exception.class) 内联处理该异常，子类再用 @ExceptionHandler 声明会 Ambiguous 冲突。
 
-    /**
-     * 处理请求参数缺失异常
-     *
-     * CO-519: 与 MissingServletRequestPartException 同类问题，
-     * @RequestParam(required=false) 之外的必填参数缺失时触发。
-     */
-    @ExceptionHandler(MissingServletRequestParameterException.class)
-    public ResponseEntity<ApiResponse<Void>> handleMissingServletRequestParameterException(
-            MissingServletRequestParameterException ex,
-            HttpServletRequest request) {
-        log.warn("请求参数缺失 - URI: {}, 参数名: {}, 类型: {}",
-                request.getRequestURI(), ex.getParameterName(), ex.getParameterType());
-        return ResponseEntity
-                .badRequest()
-                .body(ApiResponse.error(400, "缺少必填参数: " + ex.getParameterName()));
-    }
+    // CO-519: MissingServletRequestParameterException 的处理逻辑已移至 handleGlobalException。
+    // 原因：ResponseEntityExceptionHandler 父类用 @ExceptionHandler(Exception.class) 的 handleException
+    // 方法内联处理该异常（没有分发给 protected 方法），子类再用 @ExceptionHandler(MissingServletRequestParameterException.class)
+    // 声明会导致 Ambiguous @ExceptionHandler 冲突，影响所有 @SpringBootTest 测试。
+    // 修复方案：去掉 @ExceptionHandler 声明，在 handleGlobalException 中做类型判断。
+    // handleGlobalException 的 @ExceptionHandler(Exception.class) 覆盖了父类的同名方法，所有异常都走这里。
 
     /**
      * 处理非法状态异常。
@@ -508,6 +480,29 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleGlobalException(
             Exception ex,
             HttpServletRequest request) {
+        // CO-519: MissingServletRequestParameterException 需返回 400 而非 500。
+        // 不能用单独的 @ExceptionHandler 声明（与父类 Ambiguous 冲突），在此内联处理。
+        if (ex instanceof MissingServletRequestParameterException msrpEx) {
+            log.warn("请求参数缺失 - URI: {}, 参数名: {}, 类型: {}",
+                    request.getRequestURI(), msrpEx.getParameterName(), msrpEx.getParameterType());
+            return ResponseEntity
+                    .badRequest()
+                    .body(ApiResponse.error(400, "缺少必填参数: " + msrpEx.getParameterName()));
+        }
+
+        // CO-519: MissingServletRequestPartException 同样需返回 400 而非 500。
+        if (ex instanceof MissingServletRequestPartException msrpEx) {
+            log.warn("multipart 缺失 part - URI: {}, 缺失 part: {}, Message: {}",
+                    request.getRequestURI(), msrpEx.getRequestPartName(), msrpEx.getMessage());
+            String partName = msrpEx.getRequestPartName();
+            String message = partName != null && !partName.isBlank()
+                    ? "未接收到必填的「" + partName + "」字段，请检查文件是否已正确选择"
+                    : "请上传文件";
+            return ResponseEntity
+                    .badRequest()
+                    .body(ApiResponse.error(400, message));
+        }
+
         String payload = getRequestPayload(request);
         log.error("系统异常 - URI: {}, IP: {}, Message: {} \nPayload: {}",
             request.getRequestURI(), getClientIp(request), ex.getMessage(), payload, ex);
