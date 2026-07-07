@@ -75,6 +75,11 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     List<Task> findByDueDateBeforeAndStatusNot(LocalDateTime date, Task.Status status);
 
     /**
+     * CO-533: 查找在指定时间窗口内到期且状态非指定值的任务（即将到期扫描）。
+     */
+    List<Task> findByDueDateBetweenAndStatusNot(LocalDateTime start, LocalDateTime end, Task.Status status);
+
+    /**
      * 统计项目的任务数量
      */
     Long countByProjectId(Long projectId);
