@@ -33,6 +33,7 @@ public class TenderMapper {
                 .industry(tender.getIndustry())
                 .tenderAgency(tender.getTenderAgency())
                 .purchaserName(tender.getPurchaserName())
+                .purchaserId(tender.getPurchaserId())
                 .purchaserHash(tender.getPurchaserHash())
                 .publishDate(tender.getPublishDate())
                 .deadline(tender.getDeadline())
@@ -102,6 +103,7 @@ public class TenderMapper {
                 .industry(request.getIndustry())
                 .tenderAgency(request.getTenderAgency())
                 .purchaserName(request.getPurchaserName())
+                .purchaserId(request.getPurchaserId())
                 .purchaserHash(request.getPurchaserHash())
                 .publishDate(request.getPublishDate())
                 .deadline(request.getDeadline())
@@ -150,6 +152,7 @@ public class TenderMapper {
                 .industry(dto.getIndustry())
                 .tenderAgency(dto.getTenderAgency())
                 .purchaserName(dto.getPurchaserName())
+                .purchaserId(dto.getPurchaserId())
                 .purchaserHash(dto.getPurchaserHash())
                 .publishDate(dto.getPublishDate())
                 .deadline(dto.getDeadline())
@@ -206,6 +209,7 @@ public class TenderMapper {
         if (dto.getIndustry() != null) target.setIndustry(dto.getIndustry());
         if (dto.getTenderAgency() != null) target.setTenderAgency(dto.getTenderAgency());
         if (dto.getPurchaserName() != null) target.setPurchaserName(dto.getPurchaserName());
+        if (dto.getPurchaserId() != null) target.setPurchaserId(dto.getPurchaserId());
         if (dto.getPurchaserHash() != null) target.setPurchaserHash(dto.getPurchaserHash());
         if (dto.getPublishDate() != null) target.setPublishDate(dto.getPublishDate());
         if (dto.getDeadline() != null) target.setDeadline(dto.getDeadline());

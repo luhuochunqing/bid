@@ -55,6 +55,9 @@ public class TenderRequest {
     @Size(max = 255, message = "采购单位名称长度不能超过255个字符")
     private String purchaserName;
 
+    /** CO-464/CO-500: 招标主体ID（CRM 招标主体主键，可选，前端已知时传入） */
+    private Long purchaserId;
+
     @Size(max = 64, message = "采购单位哈希长度不能超过64个字符")
     private String purchaserHash;
 

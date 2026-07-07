@@ -30,6 +30,12 @@ public class TenderCrmLinkRequest {
     @Schema(description = "CRM商机名称", requiredMode = RequiredMode.REQUIRED)
     private String crmOpportunityName;
 
+    @Schema(description = "商机集团名称（CO-501：本地一致性二次校验用，前端从商机 VO 透传）")
+    private String chanceGroupName;
+
+    @Schema(description = "商机招标主体名称（CO-501：本地一致性二次校验用，前端从商机 VO 透传）")
+    private String chanceTenderSubject;
+
     @Schema(description = "评估表三段式数据（CO-310：可选，提供则一步完成回填，避免 sales 403）")
     private TenderEvaluationSubmitRequest evaluationPayload;
 }

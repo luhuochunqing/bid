@@ -3,6 +3,7 @@ package com.xiyu.bid.tender.service;
 import com.xiyu.bid.annotation.Auditable;
 import com.xiyu.bid.batch.entity.TenderAssignmentRecord;
 import com.xiyu.bid.batch.repository.TenderAssignmentRecordRepository;
+import com.xiyu.bid.crm.application.CrmTenderSubjectChecker;
 import com.xiyu.bid.crm.domain.AssignmentResult;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.integration.external.ProjectManagerIdResolver;
@@ -14,6 +15,8 @@ import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.tender.core.TenderBasicInfoValidator;
+import com.xiyu.bid.tender.core.TenderSubjectConsistencyPolicy;
+import com.xiyu.bid.tender.dto.TenderCrmLinkRequest;
 import com.xiyu.bid.exception.TenderDuplicateException;
 import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
 import com.xiyu.bid.tender.dto.TenderDTO;
@@ -54,6 +57,7 @@ public class TenderCommandService {
     private final ProjectManagerIdResolver projectManagerIdResolver;
     private final TenderAssignmentRecordRepository assignmentRecordRepository;
     private final TenderAuditService tenderAuditService;
+    private final CrmTenderSubjectChecker crmTenderSubjectChecker;
 
     public TenderDTO createTender(TenderDTO tenderDTO) {
         return createTender(tenderDTO, null);
@@ -191,39 +195,95 @@ public class TenderCommandService {
      * <p>当提供 {@code evaluationPayload} 时，调用 {@link TenderEvaluationSubmissionService#backfillFromCrmLink}
      * 一步完成评估表回填，绕过 canFill 守卫（sales 角色关联商机是其核心职责）。
      * <p>不提供时保持原行为（仅关联商机），向后兼容。
+     * <p>CO-501：此重载不带二次校验所需的 chanceGroupName/chanceTenderSubject，会跳过本地一致性校验，
+     * 仅老调用方使用；新调用方请走 {@link #linkCrmOpportunity(Long, TenderCrmLinkRequest, Long)}。
      */
     @Auditable(action = "LINK_CRM", entityType = "TENDER", description = "关联商机")
     public TenderDTO linkCrmOpportunity(Long id, String crmOpportunityId, String crmOpportunityName,
                                           com.xiyu.bid.tender.dto.TenderEvaluationSubmitRequest evaluationPayload,
                                           Long userId) {
+        TenderCrmLinkRequest req = TenderCrmLinkRequest.builder()
+                .crmOpportunityId(crmOpportunityId)
+                .crmOpportunityName(crmOpportunityName)
+                .evaluationPayload(evaluationPayload)
+                .build();
+        return linkCrmOpportunity(id, req, userId);
+    }
+
+    /**
+     * CO-501 主入口：关联 CRM 商机，含两步校验。
+     *
+     * <p>事务边界拆分（防 CO-325 类长事务）：CRM HTTP 校验在事务外执行，
+     * 通过后进入 {@link #persistCrmLink} 方法级事务保存。
+     *
+     * <p>两步校验：
+     * <ol>
+     *   <li>调 CRM {@code check-tender-subject}（远程，事务外）—— 通过则返回 purchaserId 落库</li>
+     *   <li>{@link TenderSubjectConsistencyPolicy}（本地，事务外）—— 校验标讯招标主体与商机一致</li>
+     * </ol>
+     */
+    @Auditable(action = "LINK_CRM", entityType = "TENDER", description = "关联商机")
+    public TenderDTO linkCrmOpportunity(Long id, TenderCrmLinkRequest req, Long userId) {
+        String crmOpportunityId = req.getCrmOpportunityId();
+        String crmOpportunityName = req.getCrmOpportunityName();
         log.debug("Linking CRM opportunity to tender id: {}", id);
+
+        // ① 事务外：查 tender + 权限/状态/占位校验
         Tender existingTender = tenderRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(409, "标讯已被删除，无法关联CRM商机"));
         commandAccessGuard.assertCanUpdateTender(existingTender, userId);
-        // CO-269: 投标中/已中标/未中标/已放弃状态不允许更换CRM商机
-        assertCrmLinkAllowed(existingTender.getStatus());
-        crmOccupancyChecker.assertCrmOpportunityNotOccupied(id, crmOpportunityId); // CO-297: CRM 商机唯一性前置检查（应用层 + 数据库 UNIQUE 双层防御）
+        assertCrmLinkAllowed(existingTender.getStatus()); // CO-269
+        crmOccupancyChecker.assertCrmOpportunityNotOccupied(id, crmOpportunityId); // CO-297
+
+        // ② 事务外：第一步 CRM 远程校验（CO-501）
+        String purchaserName = existingTender.getPurchaserName();
+        if (purchaserName == null || purchaserName.isBlank()) {
+            throw new BusinessException(400, "标讯缺少招标主体，无法关联商机");
+        }
+        String username = resolveUsername(userId);
+        CrmTenderSubjectChecker.CheckResult crmResult = crmTenderSubjectChecker.check(
+                purchaserName, crmOpportunityId, username);
+        if (!crmResult.passed()) {
+            // 业务校验失败：按 msg 区分的 CO-501 原文文案
+            throw new BusinessException(409, crmResult.errorMessage());
+        }
+
+        // ③ 事务外：第二步本地一致性校验（CO-501）
+        TenderSubjectConsistencyPolicy.Result consistencyResult = TenderSubjectConsistencyPolicy.check(
+                purchaserName, req.getChanceGroupName(), req.getChanceTenderSubject());
+        if (!consistencyResult.allowed()) {
+            throw new BusinessException(409, consistencyResult.errorMessage());
+        }
+
+        // ④ 事务内：落库（方法级 @Transactional，CRM 校验已在事务外完成）
+        return persistCrmLink(id, existingTender, crmOpportunityId, crmOpportunityName,
+                req.getEvaluationPayload(), userId, crmResult.purchaserId());
+    }
+
+    /**
+     * CO-501：关联商机的落库事务（方法级 {@code @Transactional}，覆盖类级注解）。
+     *
+     * <p>包级方法（非 private）—— Spring AOP 通过代理生效，避免自调用事务失效。
+     * 调用方 {@link #linkCrmOpportunity(Long, TenderCrmLinkRequest, Long)} 已完成所有校验。
+     */
+    @Transactional
+    TenderDTO persistCrmLink(Long id, Tender existingTender, String crmOpportunityId, String crmOpportunityName,
+                              com.xiyu.bid.tender.dto.TenderEvaluationSubmitRequest evaluationPayload,
+                              Long userId, long purchaserId) {
         existingTender.setCrmOpportunityId(crmOpportunityId);
         existingTender.setCrmOpportunityName(crmOpportunityName);
+        existingTender.setPurchaserId(purchaserId); // CO-464: CRM 校验返回的招标主体 ID 落库
         existingTender.setEvaluationSource(com.xiyu.bid.entity.Tender.EvaluationSource.BID_SYSTEM_LINK);
-        // CO-310 两步流程：关联商机不再立即切 EVALUATED/发事件——标讯保持 TRACKING，
-        // 评估表以 DRAFT 回填；由项目负责人填"是否投标"并点"提交"后，submit() 才推进 EVALUATED + 发事件。
         Tender updatedTender;
         try {
             updatedTender = tenderRepository.save(existingTender);
         } catch (org.springframework.dao.DataIntegrityViolationException ex) {
             crmOccupancyChecker.translateUniqueConstraintViolation(ex);
-            throw new com.xiyu.bid.exception.BusinessException(409,
-                    "CRM 商机已被其他标讯关联（并发冲突），请刷新后重试");
+            throw new BusinessException(409, "CRM 商机已被其他标讯关联（并发冲突），请刷新后重试");
         }
-        // CO-310 两步流程：写 DISPATCH 分配记录，让关联人(sales)成为 latest assignee，
-        // 从而通过后续 submit() 的 canFill 实例守卫（AssignmentPermissionRules.canFill）。
         assignOnCrmLink(id, userId);
-        log.info("Linked CRM opportunity {} to tender id: {}", crmOpportunityId, id);
+        log.info("Linked CRM opportunity {} to tender id: {}, purchaserId: {}", crmOpportunityId, id, purchaserId);
 
-        // CO-310: 关联成功后回填评估表数据（如果提供）
-        // 回填失败不阻塞 CRM 关联（关联是核心操作，回填是附加操作）
-        // 评估表数据不完整时跳过回填，用户可后续手动补充
         if (evaluationPayload != null) {
             try {
                 evaluationBackfillService.backfillFromCrmLink(id, evaluationPayload, userId);
@@ -234,12 +294,16 @@ public class TenderCommandService {
             }
         }
 
-        // CO-332: 记录关联CRM商机操作日志（用商机名，避免显示 UUID/英文 ID）
-        String linkUsername = userId != null ? userRepository.findById(userId).map(User::getUsername).orElse("system") : "system";
+        String linkUsername = resolveUsername(userId) != null ? resolveUsername(userId) : "system";
         String linkUserId = userId != null ? String.valueOf(userId) : "system";
         tenderAuditService.logLinkCrm(id, crmOpportunityName, linkUsername, linkUserId, null);
 
         return tenderMapper.toDTO(updatedTender);
+    }
+
+    private String resolveUsername(Long userId) {
+        if (userId == null) return null;
+        return userRepository.findById(userId).map(User::getUsername).orElse(null);
     }
 
     /**

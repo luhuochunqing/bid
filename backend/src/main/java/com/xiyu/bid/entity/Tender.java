@@ -102,6 +102,10 @@ public class Tender {
     @Column(name = "purchaser_name", length = 255)
     private String purchaserName;
 
+    /** CO-464: 招标主体ID（CRM 招标主体主键，关联商机时由 check-tender-subject 接口返回） */
+    @Column(name = "purchaser_id")
+    private Long purchaserId;
+
     @Column(name = "purchaser_hash", length = 64)
     private String purchaserHash;
     @Column(name = "source_normalized", length = 200)

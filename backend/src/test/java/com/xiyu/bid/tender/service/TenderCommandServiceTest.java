@@ -71,6 +71,8 @@ class TenderCommandServiceTest {
     private TenderAuditService tenderAuditService;
     @Mock
     private ProjectManagerIdResolver projectManagerIdResolver;
+    @Mock
+    private com.xiyu.bid.crm.application.CrmTenderSubjectChecker crmTenderSubjectChecker;
 
     private TenderCommandService tenderCommandService;
     private TenderMapper tenderMapper;
@@ -92,7 +94,8 @@ class TenderCommandServiceTest {
                 null, // CO-310: TenderEvaluationBackfillService（本测试不涉及回填）
                 projectManagerIdResolver,
                 tenderAssignmentRecordRepository,
-                tenderAuditService);
+                tenderAuditService,
+                crmTenderSubjectChecker);
 
         tender = Tender.builder()
                 .id(1L)

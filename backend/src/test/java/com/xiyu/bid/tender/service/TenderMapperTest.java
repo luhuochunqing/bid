@@ -3,6 +3,7 @@ package com.xiyu.bid.tender.service;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.tender.dto.ContactDTO;
 import com.xiyu.bid.tender.dto.TenderDTO;
+import com.xiyu.bid.tender.dto.TenderRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -123,5 +124,71 @@ class TenderMapperTest {
         List<ContactDTO> contacts = tenderMapper.buildContacts(tender);
 
         assertThat(contacts).hasSize(1);
+    }
+
+    // ===== CO-464/CO-500: purchaserId 映射测试 =====
+
+    @Test
+    @DisplayName("CO-464: toDTO(Tender) 应映射 purchaserId")
+    void toDTO_fromTender_shouldMapPurchaserId() {
+        Tender tender = Tender.builder()
+                .id(1L)
+                .title("测试标讯")
+                .purchaserName("山东海化集团")
+                .purchaserId(12345L)
+                .build();
+
+        TenderDTO dto = tenderMapper.toDTO(tender);
+
+        assertThat(dto.getPurchaserId()).isEqualTo(12345L);
+        assertThat(dto.getPurchaserName()).isEqualTo("山东海化集团");
+    }
+
+    @Test
+    @DisplayName("CO-500: toDTO(TenderRequest) 应映射 purchaserId")
+    void toDTO_fromRequest_shouldMapPurchaserId() {
+        TenderRequest req = TenderRequest.builder()
+                .title("测试标讯")
+                .purchaserName("山东海化集团")
+                .purchaserId(67890L)
+                .build();
+
+        TenderDTO dto = tenderMapper.toDTO(req);
+
+        assertThat(dto.getPurchaserId()).isEqualTo(67890L);
+    }
+
+    @Test
+    @DisplayName("CO-464: toEntity(TenderDTO) 应映射 purchaserId")
+    void toEntity_shouldMapPurchaserId() {
+        TenderDTO dto = TenderDTO.builder()
+                .title("测试标讯")
+                .purchaserName("山东海化集团")
+                .purchaserId(11111L)
+                .build();
+
+        Tender entity = tenderMapper.toEntity(dto);
+
+        assertThat(entity.getPurchaserId()).isEqualTo(11111L);
+    }
+
+    @Test
+    @DisplayName("CO-500: updateEntity 应覆盖非 null 的 purchaserId；null 时保留原值")
+    void updateEntity_purchaserId_shouldOverwriteOnlyWhenNonNull() {
+        Tender target = Tender.builder()
+                .id(1L)
+                .title("原标讯")
+                .purchaserId(100L)
+                .build();
+
+        // case 1: dto.purchaserId 非 null → 覆盖
+        TenderDTO updateDto = TenderDTO.builder().purchaserId(200L).build();
+        tenderMapper.updateEntity(target, updateDto);
+        assertThat(target.getPurchaserId()).isEqualTo(200L);
+
+        // case 2: dto.purchaserId 为 null → 保留原值
+        TenderDTO nullDto = TenderDTO.builder().purchaserId(null).build();
+        tenderMapper.updateEntity(target, nullDto);
+        assertThat(target.getPurchaserId()).isEqualTo(200L);
     }
 }

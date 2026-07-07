@@ -1,6 +1,7 @@
 package com.xiyu.bid.tender.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.crm.application.CrmTenderSubjectChecker;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
@@ -9,11 +10,13 @@ import com.xiyu.bid.tender.entity.TenderEvaluation;
 import com.xiyu.bid.tender.entity.TenderEvaluationCustomerInfo;
 import com.xiyu.bid.tender.repository.TenderEvaluationCustomerInfoRepository;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
@@ -66,6 +69,20 @@ public class TenderCrmLinkIntegrationTest {
     @Autowired
     private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
+    /** CO-501: 关联商机现在需要先通过 CRM 招标主体校验。用 @MockBean 替换真实 checker，避免真实 HTTP 调用。 */
+    @MockBean
+    private CrmTenderSubjectChecker crmTenderSubjectChecker;
+
+    @BeforeEach
+    void stubCrmChecker() {
+        // CO-501: 所有测试默认让 CRM 校验通过，返回 purchaserId=999
+        org.mockito.Mockito.when(crmTenderSubjectChecker.check(
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.any()))
+                .thenReturn(CrmTenderSubjectChecker.CheckResult.passed(999L));
+    }
+
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
         JdbcTestUtils.deleteFromTables(jdbcTemplate,
@@ -95,6 +112,7 @@ public class TenderCrmLinkIntegrationTest {
         Tender tender = Tender.builder()
                 .title("CO-329 测试标讯")
                 .status(Tender.Status.TRACKING)
+                .purchaserName("测试招标主体")  // CO-501: 关联商机需有招标主体
                 .creatorId(adminUser.getId())
                 .build();
         tenderRepository.saveAndFlush(tender);
@@ -119,6 +137,8 @@ public class TenderCrmLinkIntegrationTest {
         TenderCrmLinkRequest requestObj = TenderCrmLinkRequest.builder()
                 .crmOpportunityId("CC12345")
                 .crmOpportunityName("测试CRM商机")
+                .chanceGroupName("测试招标主体")      // CO-501: 本地一致性校验匹配
+                .chanceTenderSubject("测试招标主体")  // CO-501: 本地一致性校验匹配
                 .evaluationPayload(evaluationPayload)
                 .build();
         String requestJson = objectMapper.writeValueAsString(requestObj);

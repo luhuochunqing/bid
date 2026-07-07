@@ -26,6 +26,8 @@ public class TenderDTO {
     private String industry;
     private String tenderAgency;
     private String purchaserName;
+    /** CO-464/CO-500: 招标主体ID（CRM 招标主体主键） */
+    private Long purchaserId;
     private String purchaserHash;
     private LocalDate publishDate;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm")
