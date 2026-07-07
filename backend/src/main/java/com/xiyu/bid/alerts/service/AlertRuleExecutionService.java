@@ -9,6 +9,8 @@ import com.xiyu.bid.alerts.entity.AlertRule;
 import com.xiyu.bid.compliance.dto.RiskAssessmentDTO;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
+import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +19,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +29,7 @@ public class AlertRuleExecutionService {
     private final AlertHistoryService alertHistoryService;
     private final ProjectRepository projectRepository;
     private final TenderRepository tenderRepository;
+    private final ProjectDocumentRepository projectDocumentRepository;
 
     public void execute(AlertRule rule) {
         log.debug("Checking alert rule: {} (Type: {}, Condition: {}, Threshold: {})",
@@ -35,7 +39,7 @@ public class AlertRuleExecutionService {
             case DEADLINE -> checkDeadlineAlert(rule);
             case RISK -> checkRiskAlert(rule);
             case DOCUMENT -> checkDocumentAlert(rule);
-            case BUDGET, QUALIFICATION_EXPIRY, DEPOSIT_RETURN ->
+            case BUDGET, QUALIFICATION_EXPIRY, DEPOSIT_RETURN, PERFORMANCE_EXPIRY, CA_EXPIRY, CA_BORROW_OVERDUE ->
                     throw new IllegalArgumentException("Cross-module alert rule must be orchestrated outside alerts core: " + rule.getType());
         }
     }
@@ -56,7 +60,8 @@ public class AlertRuleExecutionService {
                 case LESS_THAN -> daysUntilDeadline <= thresholdDays && daysUntilDeadline >= 0;
                 case GREATER_THAN -> daysUntilDeadline > thresholdDays;
                 case EQUALS -> daysUntilDeadline == thresholdDays;
-                default -> false;
+                // 数字场景不适用 CONTAINS：天数无法做包含关系判断
+                case CONTAINS -> false;
             };
 
             if (daysUntilDeadline < 0) {
@@ -93,7 +98,8 @@ public class AlertRuleExecutionService {
                 case GREATER_THAN -> tenderRiskScore > thresholdScore;
                 case LESS_THAN -> tenderRiskScore < thresholdScore;
                 case EQUALS -> tenderRiskScore == thresholdScore;
-                default -> false;
+                // 数字场景不适用 CONTAINS：风险分数无法做包含关系判断
+                case CONTAINS -> false;
             };
 
             if (!shouldAlert && rule.getCondition() == AlertRule.ConditionType.GREATER_THAN) {
@@ -138,7 +144,8 @@ public class AlertRuleExecutionService {
                 case GREATER_THAN -> missingDocCount > maxMissingDocs;
                 case LESS_THAN -> missingDocCount < maxMissingDocs;
                 case EQUALS -> missingDocCount == maxMissingDocs;
-                default -> false;
+                // 数字场景不适用 CONTAINS：缺失文档数量无法做包含关系判断
+                case CONTAINS -> false;
             };
 
             if (shouldAlert || missingDocCount > 0) {
@@ -149,8 +156,21 @@ public class AlertRuleExecutionService {
         }
     }
 
+    /**
+     * 检查项目是否已上传指定类型的文档。
+     * <p>基于真实业务数据：查询项目文档列表，检查是否有文档名包含指定类型关键字。
+     * 例如 docType="资质文件" 时，会匹配 name 含"资质文件"的文档。</p>
+     * <p>注：alert 业务传入的 docType 是中文文档类型名（"资质文件"、"技术方案"等），
+     * 而 ProjectDocument.name 是实际文件名，因此使用包含匹配而非精确相等。</p>
+     *
+     * @param projectId 项目 ID
+     * @param docType   文档类型关键字（中文名称）
+     * @return true 表示项目已上传该类型文档；false 表示缺失
+     */
     private boolean checkRequiredDocument(Long projectId, String docType) {
-        return (projectId + docType.length()) % 5 != 0;
+        List<ProjectDocument> docs = projectDocumentRepository
+                .findByProjectIdOrderByCreatedAtDesc(projectId);
+        return docs.stream().anyMatch(d -> d.getName() != null && d.getName().contains(docType));
     }
 
     private void createAlert(AlertRule rule, Long entityId, String entityType, String message) {

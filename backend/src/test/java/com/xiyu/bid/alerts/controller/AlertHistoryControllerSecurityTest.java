@@ -4,6 +4,7 @@ import com.xiyu.bid.alerts.entity.AlertHistory;
 import com.xiyu.bid.alerts.service.AlertHistoryCommandService;
 import com.xiyu.bid.alerts.service.AlertHistoryQueryService;
 import com.xiyu.bid.alerts.service.AlertHistoryService;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -19,6 +20,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * AlertHistoryController 权限收紧测试。
+ * <p>权限规则：仅 ADMIN、投标管理员(/bidAdmin→ROLE_BIDADMIN)、投标组长(bid-TeamLeader→ROLE_BID_TEAMLEADER) 可访问；
+ * 投标专员(bid-Team)、行政人员(bid-administration) 等普通用户不可读取或操作告警历史。</p>
+ */
 @SpringBootTest(properties = "spring.main.allow-bean-definition-overriding=true")
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -37,8 +43,9 @@ class AlertHistoryControllerSecurityTest {
     private AlertHistoryCommandService alertHistoryCommandService;
 
     @Test
-    @WithMockUser(roles = {"MANAGER"})
-    void staff_ShouldAccessAlertHistoryEndpoints() throws Exception {
+    @WithMockUser(roles = {"BID_TEAMLEADER"})
+    @DisplayName("投标组长应可访问告警历史端点")
+    void bidTeamLeader_ShouldAccessAlertHistoryEndpoints() throws Exception {
         mockMvc.perform(get("/api/alerts/history")).andExpect(status().isOk());
         mockMvc.perform(get("/api/alerts/history/1")).andExpect(status().isOk());
         mockMvc.perform(get("/api/alerts/history/unresolved")).andExpect(status().isOk());
@@ -47,7 +54,43 @@ class AlertHistoryControllerSecurityTest {
     }
 
     @Test
-    void allEndpoints_ShouldRequireAuthentication() throws Exception {
+    @WithMockUser(roles = {"BIDADMIN"})
+    @DisplayName("投标管理员应可访问告警历史端点")
+    void bidAdmin_ShouldAccessAlertHistoryEndpoints() throws Exception {
+        mockMvc.perform(get("/api/alerts/history")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/alerts/history/statistics")).andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = {"ADMIN"})
+    @DisplayName("管理员应可访问告警历史端点")
+    void admin_ShouldAccessAlertHistoryEndpoints() throws Exception {
+        mockMvc.perform(get("/api/alerts/history")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/alerts/history/statistics")).andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = {"BID_TEAM"})
+    @DisplayName("投标专员不应访问告警历史端点（权限收紧）")
+    void bidTeam_ShouldBeForbiddenAlertHistoryEndpoints() throws Exception {
+        mockMvc.perform(get("/api/alerts/history")).andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/alerts/history/1")).andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/alerts/history/unresolved")).andExpect(status().isForbidden());
+        mockMvc.perform(patch("/api/alerts/history/1/acknowledge")).andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/alerts/history/statistics")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = {"BID_ADMINISTRATION"})
+    @DisplayName("行政人员不应访问告警历史端点（权限收紧）")
+    void bidAdministration_ShouldBeForbiddenAlertHistoryEndpoints() throws Exception {
+        mockMvc.perform(get("/api/alerts/history")).andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/alerts/history/statistics")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void allEndpoints_ShouldRequireAuthorizedRole() throws Exception {
+        // 验证所有端点都收紧到 hasAnyRole('ADMIN', 'BIDADMIN', 'BID_TEAMLEADER')
         assertHistoryExpression("getAllAlertHistories", int.class, int.class, String.class, String.class,
                 String.class, AlertHistory.AlertLevel.class, Long.class, String.class);
         assertHistoryExpression("getAlertHistoryById", Long.class);
@@ -62,6 +105,10 @@ class AlertHistoryControllerSecurityTest {
                 .getAnnotation(PreAuthorize.class);
 
         assertThat(preAuthorize).isNotNull();
-        assertThat(preAuthorize.value()).contains("isAuthenticated()");
+        String expression = preAuthorize.value();
+        assertThat(expression).contains("hasAnyRole");
+        assertThat(expression).contains("ADMIN");
+        assertThat(expression).contains("BIDADMIN");
+        assertThat(expression).contains("BID_TEAMLEADER");
     }
 }

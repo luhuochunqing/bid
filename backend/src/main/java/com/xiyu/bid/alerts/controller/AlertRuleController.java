@@ -1,5 +1,5 @@
 // Input: alerts service and request DTOs
-// Output: Alert Rule REST API endpoints
+// Output: Alert Rule REST API endpoints (admin/bidAdmin/bidTeamLeader-only)
 // Pos: Controller/控制器层
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.alerts.controller;
@@ -18,16 +18,22 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * 告警规则 Controller。权限已收紧：仅 ADMIN、投标管理员(/bidAdmin)、投标组长(bid-TeamLeader) 可访问；
+ * 投标专员(bid-Team)、行政人员(bid-administration) 等普通用户不可读取或操作告警规则。
+ */
 @RestController
 @RequestMapping("/api/alerts/rules")
 @RequiredArgsConstructor
-@PreAuthorize("isAuthenticated()")
+@PreAuthorize("hasAnyRole('ADMIN', 'BIDADMIN', 'BID_TEAMLEADER')")
 public class AlertRuleController {
+
+    private static final String REQUIRED_ROLE = "hasAnyRole('ADMIN', 'BIDADMIN', 'BID_TEAMLEADER')";
 
     private final AlertRuleService alertRuleService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize(REQUIRED_ROLE)
     @Auditable(action = "CREATE", entityType = "AlertRule", description = "Create alert rule")
     public ResponseEntity<ApiResponse<AlertRule>> createAlertRule(@Valid @RequestBody AlertRuleCreateRequest request) {
         AlertRule alertRule = alertRuleService.createAlertRule(request);
@@ -35,35 +41,35 @@ public class AlertRuleController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(REQUIRED_ROLE)
     public ResponseEntity<ApiResponse<AlertRule>> getAlertRuleById(@PathVariable Long id) {
         AlertRule alertRule = alertRuleService.getAlertRuleById(id);
         return ResponseEntity.ok(ApiResponse.success(alertRule));
     }
 
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(REQUIRED_ROLE)
     public ResponseEntity<ApiResponse<List<AlertRule>>> getAllAlertRules() {
         List<AlertRule> alertRules = alertRuleService.getAllAlertRules();
         return ResponseEntity.ok(ApiResponse.success(alertRules));
     }
 
     @GetMapping("/enabled")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(REQUIRED_ROLE)
     public ResponseEntity<ApiResponse<List<AlertRule>>> getEnabledAlertRules() {
         List<AlertRule> alertRules = alertRuleService.getEnabledAlertRules();
         return ResponseEntity.ok(ApiResponse.success(alertRules));
     }
 
     @GetMapping("/type/{type}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(REQUIRED_ROLE)
     public ResponseEntity<ApiResponse<List<AlertRule>>> getAlertRulesByType(@PathVariable AlertRule.AlertType type) {
         List<AlertRule> alertRules = alertRuleService.getAlertRulesByType(type);
         return ResponseEntity.ok(ApiResponse.success(alertRules));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize(REQUIRED_ROLE)
     @Auditable(action = "UPDATE", entityType = "AlertRule", description = "Update alert rule")
     public ResponseEntity<ApiResponse<AlertRule>> updateAlertRule(
             @PathVariable Long id,
@@ -74,7 +80,7 @@ public class AlertRuleController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize(REQUIRED_ROLE)
     @Auditable(action = "DELETE", entityType = "AlertRule", description = "Delete alert rule")
     public ResponseEntity<ApiResponse<Void>> deleteAlertRule(@PathVariable Long id) {
         alertRuleService.deleteAlertRule(id);
@@ -82,7 +88,7 @@ public class AlertRuleController {
     }
 
     @PatchMapping("/{id}/toggle")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize(REQUIRED_ROLE)
     @Auditable(action = "TOGGLE", entityType = "AlertRule", description = "Toggle alert rule enabled status")
     public ResponseEntity<ApiResponse<AlertRule>> toggleAlertRuleEnabled(@PathVariable Long id) {
         AlertRule alertRule = alertRuleService.toggleAlertRuleEnabled(id);

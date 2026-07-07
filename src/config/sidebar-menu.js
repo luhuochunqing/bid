@@ -1,4 +1,4 @@
-export const hiddenApiMenuNames = new Set(['CustomerOpportunityCenter', 'AuditLogs', 'BAR', 'BAR_SiteList', 'Expense', 'ContractBorrow', 'BidResult', 'AlertRules', 'AlertHistory', 'Template'])
+export const hiddenApiMenuNames = new Set(['CustomerOpportunityCenter', 'AuditLogs', 'BAR', 'BAR_SiteList', 'Expense', 'ContractBorrow', 'BidResult', 'Template'])
 
 export const sidebarMenuConfig = [
   {
@@ -126,6 +126,16 @@ export const sidebarMenuConfig = [
         path: '/settings/messages-tasks',
         name: 'MessagesTasks',
         meta: { title: '消息与任务', permissionKeys: ['settings-messages-tasks'] }
+      },
+      {
+        path: '/settings/alert-rules',
+        name: 'AlertRules',
+        meta: { title: '告警规则', permissionKeys: ['settings-alerts'] }
+      },
+      {
+        path: '/settings/alert-history',
+        name: 'AlertHistory',
+        meta: { title: '告警历史', permissionKeys: ['settings-alerts'] }
       },
       {
         path: '/settings/ai-models',

@@ -44,6 +44,9 @@
             <el-option label="文档" value="DOCUMENT" />
             <el-option label="资质到期" value="QUALIFICATION_EXPIRY" />
             <el-option label="保证金退还" value="DEPOSIT_RETURN" />
+            <el-option label="业绩到期" value="PERFORMANCE_EXPIRY" />
+            <el-option label="CA到期" value="CA_EXPIRY" />
+            <el-option label="CA借用超期" value="CA_BORROW_OVERDUE" />
           </el-select>
         </el-form-item>
         <el-form-item label="条件">
@@ -51,6 +54,7 @@
             <el-option label="大于" value="GREATER_THAN" />
             <el-option label="小于等于/提前提醒" value="LESS_THAN" />
             <el-option label="等于" value="EQUALS" />
+            <el-option label="包含" value="CONTAINS" />
           </el-select>
         </el-form-item>
         <el-form-item label="阈值">
@@ -169,7 +173,10 @@ function getTypeLabel(type) {
     RISK: '风险',
     DOCUMENT: '文档',
     QUALIFICATION_EXPIRY: '资质到期',
-    DEPOSIT_RETURN: '保证金退还'
+    DEPOSIT_RETURN: '保证金退还',
+    PERFORMANCE_EXPIRY: '业绩到期',
+    CA_EXPIRY: 'CA到期',
+    CA_BORROW_OVERDUE: 'CA借用超期'
   }
   return map[type] || type
 }
@@ -178,7 +185,8 @@ function getConditionLabel(condition) {
   const map = {
     GREATER_THAN: '大于',
     LESS_THAN: '小于等于',
-    EQUALS: '等于'
+    EQUALS: '等于',
+    CONTAINS: '包含'
   }
   return map[condition] || condition
 }
