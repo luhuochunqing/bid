@@ -65,7 +65,11 @@ public final class CommonDateParser {
             return null;
         }
         String trimmed = text.trim();
-        return tryParseDay(trimmed, DAY_PATTERNS).orElse(null);
+        LocalDate day = tryParseDay(trimmed, DAY_PATTERNS).orElse(null);
+        if (day != null) {
+            return day;
+        }
+        return tryParseExcelSerial(trimmed).orElse(null);
     }
 
     public static LocalDate parseDayPrecisionOrThrow(String text, String fieldName) {
@@ -150,6 +154,11 @@ public final class CommonDateParser {
         if (day != null) {
             return day;
         }
+        // 兜底：Excel 日期序列号（用户从其他 Excel 复制粘贴到非日期格式单元格时出现）
+        LocalDate serialDate = tryParseExcelSerial(trimmed).orElse(null);
+        if (serialDate != null) {
+            return serialDate;
+        }
         return parseMonthPrecision(trimmed);
     }
 
@@ -177,5 +186,47 @@ public final class CommonDateParser {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * 尝试将 Excel 日期序列号（如 45306）解析为 {@link LocalDate}。
+     *
+     * <p>场景：用户从其他 Excel 复制日期值粘贴到模板时，如果目标单元格格式不是日期格式
+     * （如 General 或文本），粘贴的值会变成 Excel 日期序列号（纯数字），而非日期字符串。
+     * 此方法兜底处理这种情况，避免 "有效期至格式错误" 等误报。</p>
+     *
+     * <p>Excel 日期序列号（1900 windowing）：
+     * <ul>
+     *   <li>序列号 1 = 1900-01-01</li>
+     *   <li>序列号 60 = 1900-02-29（Excel 1900 闰年 bug，实际不存在）</li>
+     *   <li>序列号 45306 = 2024-01-15</li>
+     * </ul>
+     * 转换公式：序列号 &gt;= 60 时减 1 天跳过 1900-02-29 bug。</p>
+     *
+     * <p>范围限制：序列号 1-60000（约 1900-01-01 到 2064-05-19），
+     * 避免误将普通数字（如价格、ID）解析为日期。</p>
+     *
+     * @param text 待解析文本，应为纯数字字符串
+     * @return 解析成功返回 {@link LocalDate}；非数字或超出范围返回 {@link Optional#empty()}
+     */
+    private static Optional<LocalDate> tryParseExcelSerial(String text) {
+        try {
+            double serial = Double.parseDouble(text);
+            int days = (int) Math.floor(serial);
+            // 范围检查：避免误将普通数字解析为日期
+            // 序列号 1 = 1900-01-01，序列号 60000 ≈ 2064-05-19
+            if (days < 1 || days > 60000) {
+                return Optional.empty();
+            }
+            // Excel 1900 闰年 bug：序列号 60 对应不存在的 1900-02-29
+            // 序列号 >= 60 时减 1 天跳过
+            if (days >= 60) {
+                days -= 1;
+            }
+            // 基准：序列号 1 = 1900-01-01 = LocalDate.of(1899, 12, 31).plusDays(1)
+            return Optional.of(LocalDate.of(1899, 12, 31).plusDays(days));
+        } catch (NumberFormatException e) {
+            return Optional.empty();
+        }
     }
 }

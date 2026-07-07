@@ -268,4 +268,82 @@ class CommonDateParserTest {
         assertThrows(IllegalArgumentException.class,
                 () -> CommonDateParser.parseAdaptiveOrThrow("invalid", "测试"));
     }
+
+    // ===== Excel 日期序列号支持 =====
+    // 场景：用户从其他 Excel 复制日期粘贴到非日期格式单元格，值变成纯数字序列号
+
+    @Test
+    void parseDayPrecision_excelSerial_45306_returns2024_01_15() {
+        // 45306 = 2024-01-15 in Excel date serial (1900 windowing)
+        LocalDate result = CommonDateParser.parseDayPrecision("45306");
+        assertNotNull(result);
+        assertEquals(LocalDate.of(2024, 1, 15), result);
+    }
+
+    @Test
+    void parseDayPrecision_excelSerial_1_returns1900_01_01() {
+        // 序列号 1 = 1900-01-01（Excel 1900 windowing 起点）
+        LocalDate result = CommonDateParser.parseDayPrecision("1");
+        assertNotNull(result);
+        assertEquals(LocalDate.of(1900, 1, 1), result);
+    }
+
+    @Test
+    void parseDayPrecision_excelSerial_59_returns1900_02_28() {
+        // 序列号 59 = 1900-02-28（1900-02-29 bug 之前一天）
+        LocalDate result = CommonDateParser.parseDayPrecision("59");
+        assertNotNull(result);
+        assertEquals(LocalDate.of(1900, 2, 28), result);
+    }
+
+    @Test
+    void parseDayPrecision_excelSerial_60_handles1900LeapYearBug() {
+        // 序列号 60 = Excel 错误的 1900-02-29（实际不存在）
+        // 转换时序列号 >= 60 减 1 天，所以序列号 60 → 1900-02-28
+        LocalDate result = CommonDateParser.parseDayPrecision("60");
+        assertNotNull(result);
+        assertEquals(LocalDate.of(1900, 2, 28), result);
+    }
+
+    @Test
+    void parseDayPrecision_excelSerial_61_returns1900_03_01() {
+        // 序列号 61 = 1900-03-01（1900-02-29 bug 之后一天）
+        LocalDate result = CommonDateParser.parseDayPrecision("61");
+        assertNotNull(result);
+        assertEquals(LocalDate.of(1900, 3, 1), result);
+    }
+
+    @Test
+    void parseDayPrecision_excelSerial_zero_returnsNull() {
+        // 序列号 0 超出范围（下限 1）
+        assertNull(CommonDateParser.parseDayPrecision("0"));
+    }
+
+    @Test
+    void parseDayPrecision_excelSerial_negative_returnsNull() {
+        // 负数超出范围
+        assertNull(CommonDateParser.parseDayPrecision("-1"));
+    }
+
+    @Test
+    void parseDayPrecision_excelSerial_tooLarge_returnsNull() {
+        // 序列号 60001 超出上限 60000（约 2064 年）
+        assertNull(CommonDateParser.parseDayPrecision("60001"));
+    }
+
+    @Test
+    void parseDayPrecision_excelSerial_decimal_returnsDate() {
+        // 浮点序列号（带小数部分表示时间，但日精度解析只取日期部分）
+        LocalDate result = CommonDateParser.parseDayPrecision("45306.5");
+        assertNotNull(result);
+        assertEquals(LocalDate.of(2024, 1, 15), result);
+    }
+
+    @Test
+    void parseAdaptive_excelSerial_returnsDate() {
+        // parseAdaptive 也应支持 Excel 日期序列号（人员导入场景）
+        LocalDate result = CommonDateParser.parseAdaptive("45306");
+        assertNotNull(result);
+        assertEquals(LocalDate.of(2024, 1, 15), result);
+    }
 }
