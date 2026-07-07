@@ -86,6 +86,9 @@ class TenderEvaluationSubmissionServiceTest {
     @Mock
     private TenderAuditService tenderAuditService;
 
+    @Mock
+    private TenderEvaluationCrmSyncService crmSyncService;
+
     private Clock fixedClock;
     private TenderEvaluationSubmissionService service;
 
@@ -104,7 +107,8 @@ class TenderEvaluationSubmissionServiceTest {
                 projectDocumentRepository,
                 tenderEvaluationDocumentService,
                 fixedClock,
-                tenderAuditService
+                tenderAuditService,
+                crmSyncService
         );
         // Default permissive — individual tests override for forbidden cases.
         // lenient() because not every test path consults both flags.
@@ -112,6 +116,9 @@ class TenderEvaluationSubmissionServiceTest {
                 .when(permissions.canFill(any(), any())).thenReturn(true);
         org.mockito.Mockito.lenient()
                 .when(permissions.canDecide(any(), any())).thenReturn(true);
+        // CO-526: crmSyncService pass-through by default (existing tests don't test CRM sync)
+        org.mockito.Mockito.lenient()
+                .when(crmSyncService.syncFromCrm(any(), any(), any())).thenAnswer(inv -> inv.getArgument(1));
     }
 
     // ---------- helpers ----------

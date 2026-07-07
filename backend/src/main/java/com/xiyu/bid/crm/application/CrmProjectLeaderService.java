@@ -1,7 +1,5 @@
 package com.xiyu.bid.crm.application;
 
-import com.xiyu.bid.crm.infrastructure.dto.CustomerChanceDTO;
-import com.xiyu.bid.crm.infrastructure.dto.CustomerChancePageRequest;
 import com.xiyu.bid.crm.infrastructure.dto.CustomerChanceVO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,21 +34,12 @@ public class CrmProjectLeaderService {
             log.warn("findProjectLeaderByChanceCode skipped: code is null/blank");
             return null;
         }
-        CustomerChanceDTO filter = new CustomerChanceDTO(
-                null, null, code, null, null, null, null,
-                null, null, null, null, null, null,
-                null, null, null, null
-        );
-        CustomerChancePageRequest request = new CustomerChancePageRequest(1, 10, filter);
         // 后台任务无登录用户上下文，传 null 回退全局共享 token（CO-152 兼容行为）
-        CrmChancePageResult result = crmChanceService.pageList(request, null);
-
-        if (result.list() == null || result.list().isEmpty()) {
+        CustomerChanceVO first = crmChanceService.findByCode(code, null);
+        if (first == null) {
             log.warn("findProjectLeaderByChanceCode: no opportunity found for code={}", code);
             return null;
         }
-
-        CustomerChanceVO first = result.list().get(0);
         if (first.projectLeaderName() == null || first.projectLeaderName().isBlank()) {
             log.info("findProjectLeaderByChanceCode: code={} has no projectLeaderName", code);
             return null;

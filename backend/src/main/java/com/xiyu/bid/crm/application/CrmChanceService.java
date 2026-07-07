@@ -55,14 +55,26 @@ public class CrmChanceService {
     }
 
     /**
-     * 查询 CRM 商机列表（分页）。
-     *
-     * @param request  分页查询条件
-     * @param username 当前登录用户名（CO-152：用于按用户维度获取 CRM token，null 时回退全局共享）
-     * @return 分页结果，含商机列表和分页信息；查询失败返回空列表
+     * 查询 CRM 商机列表（分页）。username 为 null 时回退全局共享 token（CO-152）。
      */
     public CrmChancePageResult pageList(CustomerChancePageRequest request, String username) {
         return doPageList(request, username);
+    }
+
+    /**
+     * 按商机编号（code）查询第一条匹配商机，统一收敛"按 code 查询"样板代码。
+     * code 为空、未找到或查询失败时返回 null。
+     */
+    public CustomerChanceVO findByCode(String code, String username) {
+        if (code == null || code.isBlank()) {
+            return null;
+        }
+        CustomerChanceDTO body = new CustomerChanceDTO(
+                null, null, code, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null);
+        CustomerChancePageRequest request = new CustomerChancePageRequest(1, 1, body);
+        CrmChancePageResult result = doPageList(request, username);
+        return result.list().isEmpty() ? null : result.list().get(0);
     }
 
     /**
@@ -279,14 +291,4 @@ public class CrmChanceService {
     private CrmChancePageResult emptyPageResult() {
         return new CrmChancePageResult(Collections.emptyList(), 0, 0, 0);
     }
-
-    /**
-     * 按客户名（groupName）查询 CRM 商机项目负责人。
-     * <p>用于标讯自动分配：根据标讯的招标主体（purchaserName）作为 groupName 查询 CRM 商机，
-     * 取出第一条商机的项目负责人信息。
-     * <p>降级策略：查询失败或未找到返回 null，由调用方决定后续行为。
-     *
-     * @param groupName 客户名（对应标讯的 purchaserName）
-     * @return 项目负责人信息；{@code null} 表示查询失败或未找到
-     */
 }

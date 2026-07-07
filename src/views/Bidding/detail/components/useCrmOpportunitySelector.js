@@ -210,7 +210,7 @@ export function useCrmOpportunitySelector(props, emit) {
           CAN_REMOVE_ADVERSE: c.deleteDisadvantage != null ? (c.deleteDisadvantage ? '是' : '否') : null,
           CAN_SYNC_EVAL: c.syncInfo != null ? (c.syncInfo ? '是' : '否') : null,
           TENDENCY: c.preferenceLevel || null,
-          INFO_CLEAR_WINNER_BID: c.guaranteeWin || false,
+          INFO_CLEAR_WINNER_BID: c.guaranteeWin ? 'true' : 'false',
           INFO_WIN_RATE_IMPACT: c.impactRate || null,
         }
         })

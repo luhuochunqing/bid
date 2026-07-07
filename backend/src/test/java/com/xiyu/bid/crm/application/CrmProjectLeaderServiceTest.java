@@ -1,7 +1,6 @@
 package com.xiyu.bid.crm.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.xiyu.bid.crm.infrastructure.dto.CustomerChancePageRequest;
 import com.xiyu.bid.crm.infrastructure.dto.CustomerChanceVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -10,8 +9,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -62,31 +59,28 @@ class CrmProjectLeaderServiceTest {
         assertThat(service.findProjectLeaderByChanceCode("")).isNull();
         assertThat(service.findProjectLeaderByChanceCode(null)).isNull();
         assertThat(service.findProjectLeaderByChanceCode("   ")).isNull();
-        verify(crmChanceService, never()).pageList(any(), any());
+        verify(crmChanceService, never()).findByCode(any(), any());
     }
 
     @Test
     void findProjectLeaderByChanceCode_emptyResult_returnsNull() {
-        when(crmChanceService.pageList(any(CustomerChancePageRequest.class), any()))
-                .thenReturn(new CrmChancePageResult(List.of(), 0, 1, 10));
+        when(crmChanceService.findByCode("CC001", null)).thenReturn(null);
 
         assertThat(service.findProjectLeaderByChanceCode("CC001")).isNull();
     }
 
     @Test
     void findProjectLeaderByChanceCode_chanceWithoutLeader_returnsNull() {
-        when(crmChanceService.pageList(any(CustomerChancePageRequest.class), any()))
-                .thenReturn(new CrmChancePageResult(
-                        List.of(buildVO("CC001", "商机A", "", "")), 1, 1, 10));
+        when(crmChanceService.findByCode("CC001", null))
+                .thenReturn(buildVO("CC001", "商机A", "", ""));
 
         assertThat(service.findProjectLeaderByChanceCode("CC001")).isNull();
     }
 
     @Test
     void findProjectLeaderByChanceCode_chanceWithLeader_returnsResult() {
-        when(crmChanceService.pageList(any(CustomerChancePageRequest.class), any()))
-                .thenReturn(new CrmChancePageResult(
-                        List.of(buildVO("CC001", "商机A", "张三", "EMP001")), 1, 1, 10));
+        when(crmChanceService.findByCode("CC001", null))
+                .thenReturn(buildVO("CC001", "商机A", "张三", "EMP001"));
 
         CrmProjectLeaderService.ProjectLeaderResult result = service.findProjectLeaderByChanceCode("CC001");
 
