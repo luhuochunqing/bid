@@ -149,7 +149,7 @@ class PersonnelImportControllerSecurityTest {
     @WithMockUser(authorities = {"personnel.manage"})
     void getImportProgress_shouldSucceed_forPersonnelManagePermission() throws Exception {
         when(importAppService.getProgress(anyLong())).thenReturn(
-                new ImportProgressInfo("PROCESSING", 0, "处理中", 0, 0, 0));
+                new ImportProgressInfo("PROCESSING", 0, "处理中", 0, 0, 0, java.util.List.of()));
         mockMvc.perform(get("/api/knowledge/personnel/import/1"))
                 .andExpect(status().isOk());
     }

@@ -64,7 +64,7 @@ public class ImportPersonnelAppService {
             ValidationResult validationResult = result.validationResult();
 
             if (validationResult.hasBlockingErrors()) {
-                handleValidationErrors(taskId, validationResult);
+                handleValidationErrors(taskId, result);
                 return;
             }
 
@@ -85,7 +85,8 @@ public class ImportPersonnelAppService {
         }
     }
 
-    private void handleValidationErrors(Long taskId, ValidationResult validationResult) {
+    private void handleValidationErrors(Long taskId, PersonnelExcelImporter.ImportResult result) {
+        ValidationResult validationResult = result.validationResult();
         try {
             byte[] errorReport = errorReportGenerator.generateErrorReport(validationResult);
             String reportUrl = progressService.saveErrorReport(taskId, errorReport);
@@ -96,10 +97,15 @@ public class ImportPersonnelAppService {
                             null, e.field() + ": " + e.message()))
                     .toList();
 
-            completeImportTask(taskId, new PersonnelImportExecutor.ImportResult(
-                    validationResult.errors().size(), 0,
-                    validationResult.errors().size(), 0, errorDetails
-            ), reportUrl);
+            // CO-528: 计数改为人员维度，复用 ImportResult.ofPersonLevelCount 统一逻辑
+            PersonnelImportExecutor.ImportResult importResult =
+                    PersonnelImportExecutor.ImportResult.ofPersonLevelCount(
+                            result.personnelRows().size(),
+                            errorDetails,
+                            validationResult.warnings().size()
+                    );
+
+            completeImportTask(taskId, importResult, reportUrl);
 
         } catch (IOException e) {
             log.error("生成错误报告失败", e);
@@ -203,13 +209,27 @@ public class ImportPersonnelAppService {
         // CO-469 第三轮：progressService 现在永远存在，
         // Redis 不可用时由 PersonnelImportProgressService 内部 DB fallback 处理
         PersonnelImportProgressService.ImportProgress progress = progressService.getProgress(taskId);
+
+        // CO-528: 任务终态时附带 errorDetails，供前端弹窗展示失败人员列表（无需下载报告文件）
+        List<ImportErrorDetail> errorDetails = List.of();
+        String status = progress.status();
+        if (ImportTaskStatus.COMPLETED.name().equals(status)
+                || ImportTaskStatus.PARTIAL_SUCCESS.name().equals(status)
+                || ImportTaskStatus.FAILED.name().equals(status)) {
+            PersonnelImportTask task = importTaskRepository.findById(taskId).orElse(null);
+            if (task != null && task.errorDetails() != null) {
+                errorDetails = task.errorDetails();
+            }
+        }
+
         return new ImportProgressInfo(
                 progress.status(),
                 progress.percent(),
                 progress.message(),
                 progress.totalCount(),
                 progress.successCount(),
-                progress.failureCount()
+                progress.failureCount(),
+                errorDetails
         );
     }
 
@@ -223,6 +243,7 @@ public class ImportPersonnelAppService {
             String message,
             int totalCount,
             int successCount,
-            int failureCount
+            int failureCount,
+            List<ImportErrorDetail> errorDetails
     ) {}
 }
