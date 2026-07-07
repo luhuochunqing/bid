@@ -14,6 +14,7 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import http from '@/api/client'
 import { triggerBlobDownload } from '@/utils/download.js'
+import { ApiCode } from '@/constants/apiCode'
 
 export function useQualificationImportExport({ userStore, fetchQualifications, filtersRef }) {
   const selectedRows = ref([])
@@ -95,7 +96,7 @@ export function useQualificationImportExport({ userStore, fetchQualifications, f
       const resp = await http.post('/api/knowledge/qualifications/import', fd, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
-      if (resp?.code === 200) {
+      if (resp?.code === ApiCode.SUCCESS) {
         importResult.value = resp.data
         importResultDialogVisible.value = true
         ElMessage.success(`导入完成：成功 ${resp.data?.success ?? 0} 条，失败 ${resp.data?.failed ?? 0} 条`)

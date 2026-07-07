@@ -58,6 +58,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
+import { ApiCode } from '@/constants/apiCode'
 
 const loading = ref(false)
 const predictions = ref([])
@@ -94,7 +95,7 @@ const fetchMinCount = async () => {
   try {
     const res = await fetch('/api/market-prediction/config/min-count', { headers: authHeaders() })
     const data = await res.json()
-    if (data.success || data.code === 0) minCount.value = data.data || 2
+    if (data.success || data.code === ApiCode.SUCCESS_ZERO) minCount.value = data.data || 2
   } catch { /* non-critical */ }
 }
 
@@ -115,7 +116,7 @@ const fetchPredictions = async () => {
     })
     if (!res.ok) { errorMsg.value = '预测接口请求失败'; return }
     const data = await res.json()
-    if (data.success || data.code === 0) {
+    if (data.success || data.code === ApiCode.SUCCESS_ZERO) {
       predictions.value = (data.data || []).map(p => ({
         ...p,
         purchaserName: tenders.find(t => t.purchaserHash === p.purchaserHash)?.purchaserName || p.purchaserName || '未知业主'

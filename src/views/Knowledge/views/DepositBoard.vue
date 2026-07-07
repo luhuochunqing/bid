@@ -80,6 +80,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Check } from '@element-plus/icons-vue'
 import http from '@/api/client'
+import { ApiCode } from '@/constants/apiCode'
 
 const loading = ref(false)
 const summary = ref({
@@ -92,7 +93,7 @@ const deposits = ref([])
 const fetchSummary = async () => {
   try {
     const { data } = await http.get('/api/knowledge/deposit/summary')
-    if (data.code === 200) {
+    if (data.code === ApiCode.SUCCESS) {
       summary.value = data.data
     }
   } catch (error) {
@@ -104,7 +105,7 @@ const fetchDeposits = async () => {
   loading.value = true
   try {
     const { data } = await http.get('/api/knowledge/deposit/list')
-    if (data.code === 200) {
+    if (data.code === ApiCode.SUCCESS) {
       deposits.value = data.data || []
     }
   } catch (error) {
@@ -126,7 +127,7 @@ const markReturned = (id) => {
   ).then(async () => {
     try {
       const { data } = await http.post(`/api/knowledge/deposit/return/${id}`)
-      if (data.code === 200) {
+      if (data.code === ApiCode.SUCCESS) {
         ElMessage.success('已标记为退还状态')
         fetchSummary()
         fetchDeposits()

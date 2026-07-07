@@ -1,3 +1,5 @@
+import { ApiCode } from '@/constants/apiCode'
+
 export function useProjectDetailProjectOps(context) {
   const { router, route, project, projectStore } = context
 
@@ -38,7 +40,7 @@ export function useProjectDetailProjectOps(context) {
     context.resultDialogVisible.value = true
   }
   const handleUploadSuccess = (response) => {
-    if (response.code === 200) {
+    if (response.code === ApiCode.SUCCESS) {
       context.resultForm.value.noticeFile = response.data.url
       context.message.success('上传成功')
     } else {

@@ -169,6 +169,7 @@ import { ref, reactive, watch, computed } from 'vue'
 import { ElMessage, ElNotification } from 'element-plus'
 import { UploadFilled, Document } from '@element-plus/icons-vue'
 import http from '@/api/client'
+import { ApiCode } from '@/constants/apiCode'
 import { qualificationStatusTagTypes, qualificationStatusLabels } from './qualificationMeta.js'
 
 // CO-155 fix: 52428800 = 50MB，与 PR 680122945 对齐
@@ -299,7 +300,7 @@ async function onCertFileSelect(uploadFile) {
     const resp = await http.post('/api/knowledge/qualifications/upload-parse', fd, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
-    if (resp?.code === 200 && resp.data) {
+    if (resp?.code === ApiCode.SUCCESS && resp.data) {
       const parsed = resp.data
       if (parsed.name) form.name = parsed.name
       if (parsed.certificateNo) form.certificateNo = parsed.certificateNo
