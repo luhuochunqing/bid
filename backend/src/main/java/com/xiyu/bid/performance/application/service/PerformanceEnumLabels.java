@@ -31,6 +31,9 @@ public final class PerformanceEnumLabels {
         return switch (code) {
             case "OFFICE" -> "办公";
             case "COMPREHENSIVE" -> "综合";
+            case "COLLECTIVE" -> "集采";
+            // Sentry XIYU-Y 修复后续：保留 CENTRALIZED 旧值别名，兼容 V1151 迁移前/回滚
+            // 期间的极少数遗漏记录，避免其导出时显示英文枚举名。
             case "CENTRALIZED" -> "集采";
             case "INDUSTRIAL" -> "工业品";
             case "OTHER" -> "其他";
