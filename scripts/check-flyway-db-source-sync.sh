@@ -131,7 +131,7 @@ find_jar() {
   if [[ "$ENV" == "prod" ]]; then
     jar="/opt/xiyu-bid/shared/backend/app.jar"
   else
-    jar="${ROOT_DIR:-.}/backend/target/bid-poc-1.0.3.jar"
+    jar="${ROOT_DIR:-.}/backend/target/bid-platform-1.0.3.jar"
   fi
 
   if [[ -f "$jar" ]]; then

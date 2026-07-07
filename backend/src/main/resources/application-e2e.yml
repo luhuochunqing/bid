@@ -1,6 +1,6 @@
 spring:
   application:
-    name: xiyu-bid-poc-e2e
+    name: xiyu-bid-platform-e2e
 
   autoconfigure:
     exclude:

@@ -27,7 +27,7 @@ function syncPackageJson(version) {
 
 function syncPom(version) {
   const content = fs.readFileSync(pomFile, 'utf8')
-  const pattern = /(<artifactId>bid-poc<\/artifactId>\s*<version>)([^<]+)(<\/version>)/s
+  const pattern = /(<artifactId>bid-platform<\/artifactId>\s*<version>)([^<]+)(<\/version>)/s
   if (!pattern.test(content)) {
     throw new Error('未找到 backend/pom.xml 中的项目版本号节点')
   }
