@@ -261,6 +261,35 @@ class TenderEvaluationCrmSyncServiceTest {
         assertThat(result.evaluationCustomerInfos()).isEmpty();
     }
 
+    // ---------- Test 8: 同 position 多对接人去重（Sentry Bug XIYU-X 回归测试） ----------
+
+    @Test
+    @DisplayName("CRM 返回多个同 position 对接人时只保留第一个，避免 uk_eval_role_info 唯一约束冲突")
+    void testSyncFromCrm_duplicatePositionContacts_deduplicates() {
+        // given — CRM 返回 2 个 position=1 的对接人
+        Tender tender = new Tender();
+        tender.setCrmOpportunityId(CC_CODE);
+        TenderEvaluationSubmitRequest userReq = buildUserReq();
+
+        when(crmOpportunityCodeResolver.resolve(CC_CODE)).thenReturn(CC_CODE);
+        when(crmChanceService.findByCode(CC_CODE, USERNAME)).thenReturn(buildCrmChance());
+        when(crmContactPersonService.pageList(CHANCE_ID, USERNAME))
+                .thenReturn(buildDuplicatePositionContacts());
+
+        // when
+        TenderEvaluationSubmitRequest result = syncService.syncFromCrm(tender, userReq, USERNAME);
+
+        // then — 只保留第一个对接人张三的 14 行，第二个李四被跳过
+        List<EvaluationCustomerInfoDTO> infos = result.evaluationCustomerInfos();
+        assertThat(infos).hasSize(14); // 1 个对接人 × 14 维度
+        // 验证是张三而不是李四
+        assertThat(infos.get(0).roleKey()).isEqualTo("PROJECT_HIGHEST_DECISION_MAKER");
+        assertThat(infos.get(0).infoKey()).isEqualTo("NAME");
+        assertThat(infos.get(0).value()).isEqualTo("张三");
+        // 不应出现李四
+        assertThat(infos).noneMatch(row -> "李四".equals(row.value()));
+    }
+
     // ---------- helpers ----------
 
     private TenderEvaluationSubmitRequest buildUserReq() {
@@ -309,5 +338,20 @@ class TenderEvaluationCrmSyncServiceTest {
                 "1", "西域小李", true, "1", "支持", "依据A",
                 null, true, true, false, true, false, "80%",
                 null, null, null, null, null, null));
+    }
+
+    /** CO-526 Sentry Bug XIYU-X 修复：同 position 多对接人只保留第一个，避免 uk_eval_role_info 冲突 */
+    private List<ContactPersonInfoVO> buildDuplicatePositionContacts() {
+        return List.of(
+                new ContactPersonInfoVO(
+                        1L, "张三", "13800138000", "zhangsan@example.com",
+                        "1", "西域小李", true, "1", "支持", "依据A",
+                        null, true, true, false, true, false, "80%",
+                        null, null, null, null, null, null),
+                new ContactPersonInfoVO(
+                        2L, "李四", "13900139000", "lisi@example.com",
+                        "1", "西域小王", false, "2", "中立", "依据B",
+                        null, false, false, true, false, true, "50%",
+                        null, null, null, null, null, null));
     }
 }
