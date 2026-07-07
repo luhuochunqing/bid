@@ -16,20 +16,69 @@ import java.util.Set;
  *
  * <p>无 Spring 依赖、无数据库访问、无副作用。</p>
  *
- * <p>召回：向量余弦相似度取 Top-50；精排：综合 cosine、标题 Jaccard、文件类别、
+ * <p>召回：向量余弦相似度取 Top-N；精排：综合 cosine、标题 Jaccard、文件类别、
  * 正文充实度、章节层级计算 0~100 分；最后对同一来源项目做集中度截断。</p>
  */
 public class BidCaseSliceMatchPolicy {
 
-    private static final int RECALL_TOP_N = 50;
+    private final int recallTopN;
 
-    private static final int COSINE_WEIGHT = 40;
-    private static final int TITLE_JACCARD_WEIGHT = 25;
-    private static final int LABEL_WEIGHT = 15;
-    private static final int RICHNESS_WEIGHT = 10;
-    private static final int LEVEL_WEIGHT = 10;
+    private final int cosineWeight;
+    private final int titleJaccardWeight;
+    private final int labelWeight;
+    private final int richnessWeight;
+    private final int levelWeight;
+
+    private final int richnessThresholdHigh;
+    private final int richnessThresholdMedium;
+    private final int levelPriorityThreshold;
 
     private static final double MIN_COSINE_FOR_RECALL = 0.0d;
+
+    private static final int DEFAULT_RECALL_TOP_N = 50;
+    private static final int DEFAULT_COSINE_WEIGHT = 40;
+    private static final int DEFAULT_TITLE_JACCARD_WEIGHT = 25;
+    private static final int DEFAULT_LABEL_WEIGHT = 15;
+    private static final int DEFAULT_RICHNESS_WEIGHT = 10;
+    private static final int DEFAULT_LEVEL_WEIGHT = 10;
+    private static final int DEFAULT_RICHNESS_THRESHOLD_HIGH = 5;
+    private static final int DEFAULT_RICHNESS_THRESHOLD_MEDIUM = 3;
+    private static final int DEFAULT_LEVEL_PRIORITY_THRESHOLD = 2;
+
+    public BidCaseSliceMatchPolicy() {
+        this(
+                DEFAULT_RECALL_TOP_N,
+                DEFAULT_COSINE_WEIGHT,
+                DEFAULT_TITLE_JACCARD_WEIGHT,
+                DEFAULT_LABEL_WEIGHT,
+                DEFAULT_RICHNESS_WEIGHT,
+                DEFAULT_LEVEL_WEIGHT,
+                DEFAULT_RICHNESS_THRESHOLD_HIGH,
+                DEFAULT_RICHNESS_THRESHOLD_MEDIUM,
+                DEFAULT_LEVEL_PRIORITY_THRESHOLD
+        );
+    }
+
+    public BidCaseSliceMatchPolicy(
+            int recallTopN,
+            int cosineWeight,
+            int titleJaccardWeight,
+            int labelWeight,
+            int richnessWeight,
+            int levelWeight,
+            int richnessThresholdHigh,
+            int richnessThresholdMedium,
+            int levelPriorityThreshold) {
+        this.recallTopN = recallTopN;
+        this.cosineWeight = cosineWeight;
+        this.titleJaccardWeight = titleJaccardWeight;
+        this.labelWeight = labelWeight;
+        this.richnessWeight = richnessWeight;
+        this.levelWeight = levelWeight;
+        this.richnessThresholdHigh = richnessThresholdHigh;
+        this.richnessThresholdMedium = richnessThresholdMedium;
+        this.levelPriorityThreshold = levelPriorityThreshold;
+    }
 
     /**
      * 对候选切片进行召回 + 精排。
@@ -54,7 +103,7 @@ public class BidCaseSliceMatchPolicy {
                 .map(candidate -> scoreRecall(candidate, criteria))
                 .filter(scored -> scored.cosine >= MIN_COSINE_FOR_RECALL)
                 .sorted(Comparator.comparingDouble(ScoredCandidate::cosine).reversed())
-                .limit(RECALL_TOP_N)
+                .limit(recallTopN)
                 .map(scored -> applyRerank(scored, criteria))
                 .sorted(Comparator.comparingInt(ScoredCandidate::finalScore)
                         .thenComparingDouble(ScoredCandidate::cosine).reversed())
@@ -75,7 +124,7 @@ public class BidCaseSliceMatchPolicy {
     private ScoredCandidate applyRerank(ScoredCandidate recalled, BidCaseSliceMatchCriteria criteria) {
         BidCaseSliceMatchCandidate candidate = recalled.candidate;
 
-        int cosineScore = (int) Math.round(recalled.cosine * COSINE_WEIGHT);
+        int cosineScore = (int) Math.round(recalled.cosine * cosineWeight);
         int titleScore = calculateTitleScore(criteria.queryTokens(), candidate.title());
         int labelScore = calculateLabelScore(criteria.preferredLabel(), candidate.docxLabel());
         int richnessScore = calculateRichnessScore(candidate.paraCount());
@@ -100,28 +149,28 @@ public class BidCaseSliceMatchPolicy {
             return 0;
         }
         double jaccard = TextSimilarityPolicy.jaccardSimilarity(queryTokens, titleTokens);
-        return (int) Math.round(jaccard * TITLE_JACCARD_WEIGHT);
+        return (int) Math.round(jaccard * titleJaccardWeight);
     }
 
     private int calculateLabelScore(String preferredLabel, String docxLabel) {
         if (!TextSimilarityPolicy.hasText(preferredLabel) || !TextSimilarityPolicy.hasText(docxLabel)) {
             return 0;
         }
-        return preferredLabel.equalsIgnoreCase(docxLabel) ? LABEL_WEIGHT : 0;
+        return preferredLabel.equalsIgnoreCase(docxLabel) ? labelWeight : 0;
     }
 
     private int calculateRichnessScore(int paraCount) {
-        if (paraCount >= 5) {
-            return RICHNESS_WEIGHT;
+        if (paraCount >= richnessThresholdHigh) {
+            return richnessWeight;
         }
-        if (paraCount >= 3) {
-            return RICHNESS_WEIGHT / 2;
+        if (paraCount >= richnessThresholdMedium) {
+            return richnessWeight / 2;
         }
         return 0;
     }
 
     private int calculateLevelScore(int level) {
-        return level <= 2 ? LEVEL_WEIGHT : 0;
+        return level <= levelPriorityThreshold ? levelWeight : 0;
     }
 
     private String buildMatchReason(int cosineScore, int titleScore, int labelScore,
@@ -133,7 +182,7 @@ public class BidCaseSliceMatchPolicy {
         if (titleScore > 0) {
             reasons.add("标题匹配");
         }
-        if (labelScore == LABEL_WEIGHT) {
+        if (labelScore == labelWeight) {
             reasons.add("文件类别一致");
         }
         if (richnessScore > 0) {

@@ -7,6 +7,7 @@ import com.xiyu.bid.casework.domain.model.BidCaseSliceMatchCandidate;
 import com.xiyu.bid.casework.domain.model.BidCaseSliceMatchCriteria;
 import com.xiyu.bid.casework.domain.model.BidCaseSliceRecommendation;
 import com.xiyu.bid.casework.domain.policy.BidCaseSliceMatchPolicy;
+import com.xiyu.bid.casework.infrastructure.BidCaseSliceMatchPolicyConfig;
 import com.xiyu.bid.casework.infrastructure.BidCaseSlice;
 import com.xiyu.bid.casework.infrastructure.BidCaseSliceRepository;
 import com.xiyu.bid.casework.infrastructure.BidCaseSliceVectorCache;
@@ -56,9 +57,24 @@ public class BidCaseSliceRecommendAppService {
             AiProvider aiProvider,
             BidCaseSliceRecommendationAssembler assembler,
             ProjectAccessScopeService projectAccessScopeService,
+            BidCaseSliceMatchPolicyConfig matchPolicyConfig,
             QueryEmbeddingCache queryEmbeddingCache) {
         this(vectorCache, scoreDraftRepository, sliceRepository, aiProvider, assembler,
-                projectAccessScopeService, new BidCaseSliceMatchPolicy(), queryEmbeddingCache);
+                projectAccessScopeService, createMatchPolicy(matchPolicyConfig), queryEmbeddingCache);
+    }
+
+    private static BidCaseSliceMatchPolicy createMatchPolicy(BidCaseSliceMatchPolicyConfig config) {
+        return new BidCaseSliceMatchPolicy(
+                config.getRecallTopN(),
+                config.getCosineWeight(),
+                config.getTitleJaccardWeight(),
+                config.getLabelWeight(),
+                config.getRichnessWeight(),
+                config.getLevelWeight(),
+                config.getRichnessThresholdHigh(),
+                config.getRichnessThresholdMedium(),
+                config.getLevelPriorityThreshold()
+        );
     }
 
     public BidCaseSliceRecommendAppService(
