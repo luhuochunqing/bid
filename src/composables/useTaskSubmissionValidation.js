@@ -1,5 +1,5 @@
 export function validateSubmitForReview(payload = {}) {
-  const { deliverables, deliverableFiles, hasDeliverable, completionNotes } = payload
+  const { deliverables, deliverableFiles, hasDeliverable } = payload
 
   const hasDeliverableResult =
     (Array.isArray(deliverables) && deliverables.length > 0) ||
@@ -8,12 +8,6 @@ export function validateSubmitForReview(payload = {}) {
 
   if (!hasDeliverableResult) {
     return { valid: false, message: '提交审核时必须上传交付物' }
-  }
-
-  const hasCompletionNotes = completionNotes != null && String(completionNotes).trim() !== ''
-
-  if (!hasCompletionNotes) {
-    return { valid: false, message: '提交审核时必须填写完成情况' }
   }
 
   return { valid: true, message: '' }

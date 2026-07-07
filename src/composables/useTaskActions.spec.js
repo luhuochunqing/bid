@@ -165,16 +165,15 @@ describe('useTaskActions', () => {
       expect(submittingTaskLoading.value).toBe(false)
     })
 
-    it('shows warning when submitNotes is empty', async () => {
-      const { ElMessage } = await import('element-plus')
-      const { confirmSubmit, openDeliverableUpload } = useTaskActions({
+    it('submits task to REVIEW status when submitNotes is empty', async () => {
+      const { confirmSubmit, openDeliverableUpload, submittingTaskLoading } = useTaskActions({
         getProjectId: () => 42,
       })
       const task = createMockTask({ deliverables: [{ id: 1 }] })
       openDeliverableUpload(task)
       await confirmSubmit()
-      expect(ElMessage.warning).toHaveBeenCalledWith('提交审核时必须填写完成情况')
-      expect(projectsApi.updateTaskStatus).not.toHaveBeenCalled()
+      expect(projectsApi.updateTaskStatus).toHaveBeenCalledWith(42, 1, 'REVIEW', null, '')
+      expect(submittingTaskLoading.value).toBe(false)
     })
 
     it('calls onSubmitted callback after success', async () => {
