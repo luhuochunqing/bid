@@ -107,6 +107,14 @@ public class Task {
     @Column(name = "due_date")
     private LocalDateTime dueDate;
 
+    /** CO-533: 即将到期提醒最后发送时间（24h 去重）。null 表示从未提醒。 */
+    @Column(name = "last_reminded_at")
+    private LocalDateTime lastRemindedAt;
+
+    /** CO-533: 逾期/超期提醒最后发送时间（24h 去重）。null 表示从未提醒。 */
+    @Column(name = "last_overdue_reminded_at")
+    private LocalDateTime lastOverdueRemindedAt;
+
     /** Completion notes filled by assignee when submitting for review. */
     @Column(name = "completion_notes", columnDefinition = "TEXT")
     private String completionNotes;
