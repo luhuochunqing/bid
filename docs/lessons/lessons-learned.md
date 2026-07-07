@@ -2898,3 +2898,87 @@ tasks WHERE assignee_id=1471 AND project_id IN (160..173) → 空集
 - `docs/exec-plans/tech-debt-tracker.md`（11 处审视清单）
 - `docs/lessons/root-cause-analysis-spec030-task-review-notify-403.md`（完整 RCA 归档）
 - `specs/030-fix-task-review-notify-403/`（spec/plan/tasks/contracts/data-model/quickstart）
+
+## 45. Java 枚举与数据库 ENUM 不同步导致静默失败：alert_rules.type 事件（CO-523）
+
+### 问题背景
+
+2026-07-07 发现四个模块（资质证书/业绩管理/品牌授权/CA信息管理）的到期提醒均未生效。
+用户报告"到期提醒没有收到"，但代码中 `CaExpiryScanService`、`PerformanceExpiryScanTask` 等服务逻辑完整、定时任务配置正确、单元测试通过。
+
+### 根因分析
+
+**代码先行，数据库未同步**：
+
+- Java 枚举 `AlertRule.AlertType` 包含 9 个值：`DEADLINE, BUDGET, RISK, DOCUMENT, QUALIFICATION_EXPIRY, DEPOSIT_RETURN, PERFORMANCE_EXPIRY, CA_EXPIRY, CA_BORROW_OVERDUE`
+- 数据库 `alert_rules.type` 列定义为 `enum('DEADLINE','BUDGET','RISK','DOCUMENT','QUALIFICATION_EXPIRY','DEPOSIT_RETURN')` — 只有 6 个值
+- 后 3 个枚举值（`PERFORMANCE_EXPIRY, CA_EXPIRY, CA_BORROW_OVERDUE`）在代码新增时**没有同步更新数据库 ENUM 定义**
+
+**失败路径**：
+1. 定时任务触发 `CaExpiryScanService.scanCertificateExpiry()`
+2. 服务调用 `ensureRule(AlertType.CA_EXPIRY, ...)` → 尝试 INSERT alert_rules 记录
+3. MySQL 报错 `Data truncated for column 'type' at row 1`（枚举值不存在，被截断为空）
+4. 异常被 `@Transactional` 回滚，告警未生成
+5. **定时任务静默失败** — 日志中只有 ERROR 行，无重试、无告警、无用户可见反馈
+
+**为什么没有更早发现**：
+- 单元测试使用 H2 内存数据库，H2 对 ENUM 类型的校验比 MySQL 宽松
+- 定时任务异常被吞掉（只 log.error，不抛出），服务层不报错
+- 到期提醒是"不发通知"型故障，用户感知滞后
+
+### 经验教训
+
+1. **Java 枚举与数据库 ENUM 必须同步**：新增 Java 枚举值时，必须同步创建 Flyway 迁移脚本更新数据库 ENUM 定义
+2. **H2 测试不等于 MySQL 行为**：H2 对 ENUM 校验宽松，MySQL 严格；涉及 ENUM 类型的变更必须在 MySQL 环境验证
+3. **定时任务不能吞异常**：定时任务中的异常必须至少 log.error + 记录到监控（Sentry），不能只 log 后丢弃
+4. **"不发通知"型故障需要主动检测**：到期提醒类功能失灵不会产生错误日志（因为失败的是"生成告警"本身），需要独立的"告警生成计数"监控
+
+### 操作规范（建议固化到 CLAUDE.md / RULES.md）
+
+1. **新增 Java 枚举值时检查清单**：
+   - [ ] 该枚举是否映射到数据库列？
+   - [ ] 如果是 ENUM 列，是否已创建 Flyway 迁移脚本？
+   - [ ] 迁移脚本是否包含回滚脚本？
+   - [ ] 回滚脚本是否有 `-- Input:` source header？
+
+2. **定时任务异常处理标准**：
+   ```java
+   @Scheduled(cron = "...")
+   public void executeScan() {
+       try {
+           int count = scanService.scan();
+           log.info("扫描完成，生成 {} 条告警", count);
+       } catch (Exception e) {
+           log.error("定时扫描失败", e);
+           // 必须上报 Sentry，不能只 log
+           // sentryClient.captureException(e);
+       }
+   }
+   ```
+
+3. **ENUM 类型变更验证命令**：
+   ```bash
+   # 检查 Java 枚举值
+   grep -A 20 "enum AlertType" backend/src/main/java/com/xiyu/bid/alerts/entity/AlertRule.java
+
+   # 检查数据库 ENUM 定义
+   docker exec xiyu-bid-local-mysql mysql -u xiyu_user -pXiyuDB!2026 -D xiyu_bid_main \
+     -e "SHOW COLUMNS FROM alert_rules LIKE 'type';"
+
+   # 运行回滚脚本覆盖测试
+   cd backend && mvn test -Dtest=FlywayRollbackScriptCoverageTest
+   ```
+
+### 防复发方案
+
+**建议新增 ArchUnit 测试**：断言 Java 枚举值数量 ≤ 数据库 ENUM 值数量（通过解析 B73 基线 + 迁移脚本中的 ALTER TABLE 语句）。
+
+短期替代方案：在 `EntityTableMigrationCoverageTest` 中增加一条断言：所有 `@Enumerated` 字段对应的数据库列必须在其 CREATE TABLE 或最近一次 ALTER TABLE 中包含所有枚举值。
+
+### 相关文件
+
+- [AlertRule.java](file:///Users/user/xiyu/worktrees/qoder/backend/src/main/java/com/xiyu/bid/alerts/entity/AlertRule.java)（Java 枚举定义）
+- [V1145__add_alert_rule_types.sql](file:///Users/user/xiyu/worktrees/qoder/backend/src/main/resources/db/migration-mysql/V1145__add_alert_rule_types.sql)（修复迁移）
+- [U1145__add_alert_rule_types.sql](file:///Users/user/xiyu/worktrees/qoder/backend/src/main/resources/db/rollback/migration-mysql/U1145__add_alert_rule_types.sql)（回滚脚本）
+- [CaExpiryScanService.java](file:///Users/user/xiyu/worktrees/qoder/backend/src/main/java/com/xiyu/bid/resources/service/CaExpiryScanService.java)（受影响服务）
+- PR: https://gitee.com/allinai888/bid/pulls/1799
