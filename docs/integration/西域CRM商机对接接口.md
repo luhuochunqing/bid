@@ -1959,6 +1959,44 @@ POST /customer-chance/bidInfoSync
 |---|---|---|---|
 |200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|[SingleResponse](#schemasingleresponse)|
 
+## GET 校验标讯招标主体是否属于商机集团或子公司
+
+GET /customer-chance/check-tender-subject
+
+校验标讯招标主体是否属于商机集团或子公司
+
+### 请求参数
+
+|名称|位置|类型|必选|说明|
+|---|---|---|---|---|
+|tenderSubject|query|string| 是 |none|
+|ccCode|query|string| 是 |none|
+|Authorization|header|string| 是 |none|
+
+> 返回示例
+
+```json
+{
+  "code": "",
+  "msg": "",
+  "data": false
+}
+```
+
+```json
+{
+  "code": "",
+  "msg": "",
+  "data": 0
+}
+```
+
+### 返回结果
+
+|状态码|状态码含义|说明|数据模型|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|none|[SingleResponseInteger](#schemasingleresponseinteger)|
+
 # 客户商机对接人接口
 
 ## POST 对接列表
@@ -2718,4 +2756,28 @@ POST /contact-person-info/page-list
 |code|string|true|none||响应码|
 |msg|string|false|none||响应消息|
 |data|[1](#schema1)|false|none||返回数据|
+
+<h2 id="tocS_SingleResponseInteger">SingleResponseInteger</h2>
+
+<a id="schemasingleresponseinteger"></a>
+<a id="schema_SingleResponseInteger"></a>
+<a id="tocSsingleresponseinteger"></a>
+<a id="tocssingleresponseinteger"></a>
+
+```json
+{
+  "code": "string",
+  "msg": "string",
+  "data": 0
+}
+
+```
+
+### 属性
+
+|名称|类型|必选|约束|中文名|说明|
+|---|---|---|---|---|---|
+|code|string|true|none||响应码|
+|msg|string|false|none||响应消息|
+|data|integer|false|none||返回数据|
 
