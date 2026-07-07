@@ -87,4 +87,38 @@ describe('WarehouseDrawer', () => {
     const labels = options.map(o => o.text())
     expect(labels).toContain('租赁合同')
   })
+
+  it('附件管理 tab 渲染"类型筛选"下拉，默认包含"全部"选项', async () => {
+    const wrapper = mount(WarehouseDrawer, {
+      props: { modelValue: false, warehouseId: 4 },
+      global: { stubs }
+    })
+    await wrapper.setProps({ modelValue: true })
+    await flushPromises()
+    const html = wrapper.html()
+    expect(html).toContain('类型筛选')
+    const labels = wrapper.findAll('option').map(o => o.text())
+    expect(labels).toContain('全部')
+    expect(labels).toContain('产权证')
+    expect(labels).toContain('发票')
+    expect(labels).toContain('内外照片')
+    expect(labels).toContain('租赁合同')
+  })
+
+  it('抽屉关闭再打开时 filterType 重置为 ALL', async () => {
+    const wrapper = mount(WarehouseDrawer, {
+      props: { modelValue: false, warehouseId: 5 },
+      global: { stubs }
+    })
+    await wrapper.setProps({ modelValue: true })
+    await flushPromises()
+    // 模拟用户切换筛选类型后关闭抽屉
+    wrapper.vm.filterType = 'INVOICE'
+    await wrapper.setProps({ modelValue: false })
+    await flushPromises()
+    await wrapper.setProps({ modelValue: true })
+    await flushPromises()
+    // 重新打开后 filterType 应已重置为 ALL（通过下次渲染的筛选状态推断）
+    expect(wrapper.vm.filterType).toBe('ALL')
+  })
 })
