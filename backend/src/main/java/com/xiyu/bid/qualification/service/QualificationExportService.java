@@ -182,15 +182,18 @@ public class QualificationExportService {
             zos.closeEntry();
             return;
         }
-        // 回退：如果是完整 URL（http/https），尝试作为 URL 打开
+        // 回退：仅当 fileUrl 是绝对 URL（http/https）时才尝试网络下载。
+        // fileUrl 在 DB 中实际存的是裸文件名（BatchAttachmentService.setFileUrl(uniqueFilename)），
+        // 本地缺失时 URI.create(fileUrl).toURL() 会抛 IllegalArgumentException: URI is not absolute，
+        // 必须显式捕获，否则会逃逸到 GlobalExceptionHandler 被映射为 400。
         try (InputStream in = URI.create(fileUrl).toURL().openStream()) {
             zos.putNextEntry(new ZipEntry(dedup.deduplicate(entryName)));
             in.transferTo(zos);
             zos.closeEntry();
-        } catch (MalformedURLException e) {
+        } catch (MalformedURLException | IllegalArgumentException e) {
             // .txt 回退路径也需 deduplicate（可能与已存在的 .txt entry 冲突）
             zos.putNextEntry(new ZipEntry(dedup.deduplicate(entryName + ".txt")));
-            zos.write(("无法下载: " + fileUrl).getBytes(StandardCharsets.UTF_8));
+            zos.write(("无法下载(本地文件不存在或非绝对URL): " + fileUrl).getBytes(StandardCharsets.UTF_8));
             zos.closeEntry();
         }
     }
