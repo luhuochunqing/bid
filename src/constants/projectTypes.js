@@ -1,7 +1,6 @@
-// 项目类型统一常量（对齐后端 InitiationFieldPolicy.ProjectType 枚举）
+// 项目类型统一常量（对齐后端 ProjectType 枚举：立项模块 InitiationFieldPolicy.ProjectType
+// 与业绩模块 performance.domain.valueobject.ProjectType 均使用 COLLECTIVE 表示"集采"）
 // 蓝图 §3.1.1：办公/综合/集采/工业品/其他
-// 注意：集采的标准枚举名为 COLLECTIVE（与后端 InitiationFieldPolicy.PROJECT_TYPE_MAPPING 一致），
-// 不要使用 CENTRALIZED（历史遗留前端别名，会导致筛选不生效）。
 
 export const PROJECT_TYPE_OPTIONS = [
   { value: 'OFFICE', label: '办公' },
