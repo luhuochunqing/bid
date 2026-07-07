@@ -116,7 +116,7 @@ public class TenderController {
     @Operation(summary = "标讯关联CRM商机")
     public ResponseEntity<ApiResponse<TenderDTO>> linkCrmOpportunity(@PathVariable Long id, @Valid @RequestBody TenderCrmLinkRequest req, @AuthenticationPrincipal UserDetails user) {
         rejectDemoMutation(id);
-        return ResponseEntity.ok(ApiResponse.success("CRM商机关联成功", tenderCommandService.linkCrmOpportunity(id, req.getCrmOpportunityId(), req.getCrmOpportunityName(), req.getEvaluationPayload(), resolveUserId(user))));
+        return ResponseEntity.ok(ApiResponse.success("CRM商机关联成功", tenderCommandService.linkCrmOpportunity(id, req, resolveUserId(user))));
     }
 
     @DeleteMapping("/{id}")

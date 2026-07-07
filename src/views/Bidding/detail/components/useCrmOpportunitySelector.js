@@ -227,6 +227,8 @@ export function useCrmOpportunitySelector(props, emit) {
     emit('linked', {
       opportunityId: chance.code,
       opportunityName: chance.name,
+      chanceGroupName: chance.groupName || '',          // CO-501: 商机集团名称（二次本地校验用）
+      chanceTenderSubject: chance.tenderSubject || '',  // CO-501: 商机招标主体名称（二次本地校验用）
       evaluationData: {
         opportunityId: chance.code,
         basic: {

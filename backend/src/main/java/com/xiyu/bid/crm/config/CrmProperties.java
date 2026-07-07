@@ -239,6 +239,8 @@ public class CrmProperties {
         private String detailPath = "/customer-chance/detail";
         /** bidInfoSyncPath. */
         private String bidInfoSyncPath = "/customer-chance/bidInfoSync";
+        /** checkTenderSubjectPath - GET /customer-chance/check-tender-subject (CO-501 校验招标主体是否属于商机集团/子公司). */
+        private String checkTenderSubjectPath = "/customer-chance/check-tender-subject";
     }
 
     /**

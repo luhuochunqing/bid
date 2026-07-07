@@ -343,7 +343,7 @@ function switchTab(name) {
   activeTab.value = name
 }
 
-async function onCrmOpportunityLinked({ opportunityId, opportunityName, evaluationData }) {
+async function onCrmOpportunityLinked({ opportunityId, opportunityName, chanceGroupName, chanceTenderSubject, evaluationData }) {
   if (!tender.value?.id) return
   crmLinking.value = true
   try {
@@ -354,6 +354,9 @@ async function onCrmOpportunityLinked({ opportunityId, opportunityName, evaluati
     const payload = {
       crmOpportunityId: opportunityId,
       crmOpportunityName: opportunityName,
+      // CO-501: 商机 VO 字段透传给后端做本地一致性校验（标讯招标主体 vs 商机 groupName/tenderSubject）
+      chanceGroupName: chanceGroupName || '',
+      chanceTenderSubject: chanceTenderSubject || '',
     }
     if (evaluationData) {
       payload.evaluationPayload = {
