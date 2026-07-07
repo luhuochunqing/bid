@@ -30,7 +30,9 @@ import java.util.Map;
  */
 @Slf4j
 @Service
-public class OpenAiCompatibleEmbeddingClient {
+public class OpenAiCompatibleEmbeddingClient implements EmbeddingClient {
+
+    public static final String DEFAULT_EMBEDDING_MODEL = "text-embedding-v3";
 
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final int MAX_ATTEMPTS = 3;
@@ -57,16 +59,41 @@ public class OpenAiCompatibleEmbeddingClient {
                 .build();
     }
 
+    /**
+     * Derive the embedding API URL from a chat completions URL.
+     * Supports common OpenAI-compatible path patterns:
+     * <ul>
+     *   <li>{@code /chat/completions} → {@code /embeddings}</li>
+     *   <li>{@code /v1} → {@code /v1/embeddings}</li>
+     *   <li>other → appends {@code /v1/embeddings}</li>
+     * </ul>
+     */
+    public static String deriveEmbeddingUrl(String chatBaseUrl) {
+        if (chatBaseUrl == null || chatBaseUrl.isBlank()) {
+            return null;
+        }
+        String normalized = chatBaseUrl.replaceAll("/$", "");
+        if (normalized.endsWith("/chat/completions")) {
+            return normalized.replace("/chat/completions", "/embeddings");
+        }
+        if (normalized.endsWith("/v1")) {
+            return normalized + "/embeddings";
+        }
+        return normalized + "/v1/embeddings";
+    }
+
+    @Override
     public float[] embed(AiProviderRuntimeConfig config, String text) {
-        validateConfig(config);
+        AiProviderRuntimeConfig resolved = resolveConfig(config);
+        validateConfig(resolved);
 
         try {
             String responseBody = retryTemplate.execute(context -> {
                 if (context.getRetryCount() > 0) {
                     log.info("AI embedding provider {} retry attempt {}/{}",
-                            config.providerCode(), context.getRetryCount(), MAX_ATTEMPTS);
+                            resolved.providerCode(), context.getRetryCount(), MAX_ATTEMPTS);
                 }
-                return doCall(config, text);
+                return doCall(resolved, text);
             });
             return OpenAiEmbeddingResponseParser.parse(responseBody, objectMapper);
         } catch (OpenAiCompatibleClient.RetryableAiProviderException e) {
@@ -74,32 +101,36 @@ public class OpenAiCompatibleEmbeddingClient {
         }
     }
 
+    private AiProviderRuntimeConfig resolveConfig(AiProviderRuntimeConfig config) {
+        String embeddingBaseUrl = config.embeddingBaseUrl() != null && !config.embeddingBaseUrl().isBlank()
+                ? config.embeddingBaseUrl()
+                : deriveEmbeddingUrl(config.baseUrl());
+        String embeddingModel = config.embeddingModel() != null && !config.embeddingModel().isBlank()
+                ? config.embeddingModel()
+                : null;
+        return new AiProviderRuntimeConfig(
+                config.providerCode(),
+                config.baseUrl(),
+                config.model(),
+                config.apiKey(),
+                embeddingBaseUrl,
+                embeddingModel
+        );
+    }
+
     private void validateConfig(AiProviderRuntimeConfig config) {
         if (config.apiKey() == null || config.apiKey().isBlank()) {
             throw new IllegalStateException("AI API key is not configured");
         }
         if (config.embeddingModel() == null || config.embeddingModel().isBlank()) {
-            throw new IllegalStateException("AI embedding model is not configured");
+            throw new IllegalStateException("AI embedding model 未配置，请在系统设置中为 " +
+                    config.providerCode() + " 厂商设置 embeddingModel");
         }
-        String url = resolveEmbeddingBaseUrl(config);
+        String url = config.embeddingBaseUrl();
         if (url == null || url.isBlank()) {
-            throw new IllegalStateException("AI embedding base URL is not configured");
+            throw new IllegalStateException("AI embedding base URL 无法推导，请检查 " +
+                    config.providerCode() + " 厂商的 baseUrl 配置");
         }
-    }
-
-    private String resolveEmbeddingBaseUrl(AiProviderRuntimeConfig config) {
-        if (config.embeddingBaseUrl() != null && !config.embeddingBaseUrl().isBlank()) {
-            return config.embeddingBaseUrl();
-        }
-        String baseUrl = config.baseUrl();
-        if (baseUrl == null || baseUrl.isBlank()) {
-            return null;
-        }
-        String normalized = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
-        if (normalized.endsWith("/chat/completions")) {
-            normalized = normalized.substring(0, normalized.length() - "/chat/completions".length());
-        }
-        return normalized + "/embeddings";
     }
 
     private String doCall(AiProviderRuntimeConfig config, String text) {
@@ -112,7 +143,7 @@ public class OpenAiCompatibleEmbeddingClient {
         headers.setBearerAuth(config.apiKey());
         TraceHeaderInjector.inject(headers);
 
-        String url = resolveEmbeddingBaseUrl(config);
+        String url = config.embeddingBaseUrl();
         try {
             ResponseEntity<String> response = restTemplate.exchange(
                     url, HttpMethod.POST,

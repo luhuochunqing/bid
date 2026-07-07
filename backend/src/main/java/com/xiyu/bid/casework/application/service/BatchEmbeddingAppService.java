@@ -1,7 +1,7 @@
 package com.xiyu.bid.casework.application.service;
 
 import com.xiyu.bid.ai.client.AiProvider;
-import com.xiyu.bid.ai.client.QwenEmbeddingClient;
+import com.xiyu.bid.ai.client.OpenAiCompatibleEmbeddingClient;
 import com.xiyu.bid.bootstrap.BidCaseSliceVectorCacheInitializer;
 import com.xiyu.bid.casework.infrastructure.BidCaseSlice;
 import com.xiyu.bid.casework.infrastructure.BidCaseSliceRepository;
@@ -32,7 +32,7 @@ public class BatchEmbeddingAppService {
     public static final int DEFAULT_MAX_RETRIES = 3;
     public static final int MAX_EMBED_TEXT_LENGTH = 3000;
     public static final String FAILURE_MARKER = "FAILED";
-    public static final String DEFAULT_EMBEDDING_MODEL = QwenEmbeddingClient.DEFAULT_EMBEDDING_MODEL;
+    public static final String DEFAULT_EMBEDDING_MODEL = OpenAiCompatibleEmbeddingClient.DEFAULT_EMBEDDING_MODEL;
     public static final long DEFAULT_RATE_LIMIT_INTERVAL_MILLIS = 100L;
 
     private final BidCaseSliceRepository repository;
