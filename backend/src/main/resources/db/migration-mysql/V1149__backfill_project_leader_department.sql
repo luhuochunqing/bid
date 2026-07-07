@@ -1,4 +1,4 @@
--- V1148: CO-537 回填存量项目的"项目部门"和"项目负责人部门"字段
+-- V1149: CO-537 回填存量项目的"项目部门"和"项目负责人部门"字段（原 V1148，因与 CO-530 V1148__qualification_audit_log_date_fields.sql 撞号重命名）
 -- 背景：ProjectTransferService.transfer() 历史版本在项目转移时遗漏了部门回填，
 --   导致存量数据中 tenders.department 和 project_initiation_details.leader_department
 --   存在大量空值。本次修复已让新转移的项目正确回填，此迁移补齐存量数据。
