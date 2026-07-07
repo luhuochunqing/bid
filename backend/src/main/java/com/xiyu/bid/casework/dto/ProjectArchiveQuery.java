@@ -23,4 +23,5 @@ public class ProjectArchiveQuery {
     private String closeTimeEnd;
     private String projectManager;
     private String bidManager;
+    private List<Long> projectIds;
 }

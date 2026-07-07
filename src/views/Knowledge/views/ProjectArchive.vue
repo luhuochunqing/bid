@@ -41,7 +41,7 @@
 
     <el-card class="table-card kb-table-card" v-loading="loading">
       <template v-if="activeView === 'project'">
-        <el-table :data="tableData" style="width: 100%" border stripe highlight-current-row max-height="calc(100vh - 220px)" scrollbar-always-on @row-click="handleRowClick" class="custom-table">
+        <el-table ref="projectTableRef" :data="tableData" style="width: 100%" border stripe highlight-current-row max-height="calc(100vh - 220px)" scrollbar-always-on @row-click="handleRowClick" @selection-change="handleProjectSelectionChange" class="custom-table">
           <el-table-column type="selection" width="55" />
           <el-table-column type="index" label="序号" width="110" align="center" />
           <el-table-column prop="projectName" label="项目名称" min-width="250" />
@@ -119,6 +119,7 @@ const tableData = ref([])
 const totalElements = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
+const projectTableRef = ref(null)
 const drawerRef = ref(null)
 const drawerVisible = ref(false)
 const selectedArchive = ref(null)
@@ -135,6 +136,7 @@ const fileTotalElements = ref(0)
 const filePage = ref(1)
 const filePageSize = ref(10)
 const selectedFileItems = ref([])
+const selectedProjects = ref([])
 
 const buildFilterParams = () => {
   const params = {
@@ -147,7 +149,8 @@ const buildFilterParams = () => {
     projectStatus: filters.projectStatus.length ? filters.projectStatus : null,
     projectType: filters.projectType.length ? filters.projectType : null,
     projectManager: filters.projectManager || null,
-    bidManager: filters.bidManager || null
+    bidManager: filters.bidManager || null,
+    projectIds: selectedProjects.value.length ? selectedProjects.value.map(row => row.projectId) : null
   }
   Object.keys(params).forEach(k => params[k] === null && delete params[k])
   return params
@@ -207,13 +210,23 @@ const handleFileSelectionChange = (selection) => {
   selectedFileItems.value = selection
 }
 
+const handleProjectSelectionChange = (selection) => {
+  selectedProjects.value = selection
+}
+
+const clearProjectSelection = () => {
+  selectedProjects.value = []
+  projectTableRef.value?.clearSelection()
+}
+
 const handleSearch = () => {
   page.value = 1
   filePage.value = 1
+  clearProjectSelection()
   loadData()
 }
-const handleReset = () => { Object.assign(filters, { projectName: '', categories: [], projectManager: '', bidManager: '', uploadDates: null, closeDates: null, projectStatus: [], projectType: [] }); page.value = 1; filePage.value = 1; loadData() }
-const handleSizeChange = () => { page.value = 1; loadData() }
+const handleReset = () => { Object.assign(filters, { projectName: '', categories: [], projectManager: '', bidManager: '', uploadDates: null, closeDates: null, projectStatus: [], projectType: [] }); page.value = 1; filePage.value = 1; clearProjectSelection(); loadData() }
+const handleSizeChange = () => { page.value = 1; clearProjectSelection(); loadData() }
 const handleRowClick = (row) => { selectedArchive.value = row; drawerVisible.value = true }
 
 const downloadBlob = (blob, filename, mimeType) => {
@@ -270,7 +283,7 @@ const handleDownloadFileByItem = async (row) => {
 }
 
 onMounted(() => { loadManagerOptions(); loadData() })
-watch(activeView, () => { loadData() })
+watch(activeView, () => { clearProjectSelection(); loadData() })
 </script>
 
 <style scoped lang="scss">
