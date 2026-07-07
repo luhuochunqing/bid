@@ -8,6 +8,7 @@ import com.xiyu.bid.warehouse.infrastructure.WarehouseEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseImportExcelReader;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseImportTaskEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseImportTaskRepository;
+import com.xiyu.bid.warehouse.infrastructure.WarehouseRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -22,6 +23,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 仓库批量导入应用服务 — 编排 Excel 解析、校验、写入和附件归档。
@@ -42,6 +45,7 @@ public class WarehouseImportAppService {
     private final WarehouseImportAttachmentProcessor attachmentProcessor;
     private final WarehouseImportCorrectionFileGenerator correctionFileGenerator;
     private final WarehouseImportTaskStateService taskState;
+    private final WarehouseRepository warehouseRepo;
 
     @Transactional
     public ImportTaskResult triggerImport(byte[] fileBytes, List<WarehouseImportAttachmentProcessor.AttachmentInput> attachments, User operator) {
@@ -83,6 +87,19 @@ public class WarehouseImportAppService {
                     errors.add(new RowError(parsed.rowIndex, String.join("; ", parsed.errors)));
                 }
             }
+
+            Set<String> existingNames = warehouseRepo.findAll().stream()
+                    .map(WarehouseEntity::getName)
+                    .collect(Collectors.toSet());
+            List<WarehouseImportRow> uniqueRows = new ArrayList<>();
+            for (WarehouseImportRow row : rows) {
+                if (existingNames.contains(row.sanitizedName)) {
+                    errors.add(new RowError(row.rowIndex, "仓库「" + row.sanitizedName + "」已存在，无法重复导入"));
+                } else {
+                    uniqueRows.add(row);
+                }
+            }
+            rows = uniqueRows;
 
             taskState.updateCounts(taskId, raw.size(), rows.size(), errors.size());
 
