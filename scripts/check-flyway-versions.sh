@@ -170,7 +170,7 @@ fi
 MAIN_DUP_VERSIONS=$(echo "$MAIN_VERSIONS" | uniq -d || true)
 if [[ -n "$MAIN_DUP_VERSIONS" ]]; then
   echo ""
-  echo "flyway-versions: ❌ ORIGIN/MAIN 已被污染 — 存在同版本号 V*.sql 撞号"
+  echo "flyway-versions: ⚠ ORIGIN/MAIN 已被污染 — 存在同版本号 V*.sql 撞号"
   echo "  这意味着两个 PR 各自引入相同版本号的迁移并先后合入了 main"
   echo "  必须立即 hotfix 修复，否则下次部署会因 Flyway 启动失败而阻断"
   echo "  撞号文件清单（origin/main）："
@@ -181,13 +181,33 @@ if [[ -n "$MAIN_DUP_VERSIONS" ]]; then
       grep -E "/V${dv}_" | sed 's/^/    /'
   done <<< "$MAIN_DUP_VERSIONS"
   echo ""
-  echo "flyway-versions: 修复步骤："
-  echo "  1. 创建 hotfix 分支：bash scripts/agent-start-task.sh trae fix-vN-conflict origin/main --in-place"
-  echo "  2. 用 git mv 重命名其中一个 V<撞号>__*.sql 为 V<新号>__*.sql（保留先合入的）"
-  echo "  3. 同步重命名 U<撞号>__*.sql 为 U<新号>__*.sql"
-  echo "  4. 更新迁移文件头注释中的版本号"
-  echo "  5. 提 PR 合入 main"
-  exit 1
+  # 🛡️ Hook bug 修复（2026-07-07，V1146 撞号事故）：
+  # 原逻辑：检测到 main 撞号直接 exit 1，但当前 push 的分支可能就是修复 PR。
+  # 死循环：修复 PR 在 worktree 已重命名解决撞号，但 hook 只看 origin/main 状态，
+  # 永远阻断，导致修复 PR 必须 --no-verify 才能 push。
+  # 正确逻辑：先检查当前 worktree 是否已修复（check_worktree_internal_duplicate）。
+  #   - worktree 干净 → 当前分支就是修复 PR，警告但放行（合入后 main 自动干净）
+  #   - worktree 也撞号 → 当前分支不是修复 PR，仍阻断（要求先修复 worktree）
+  if check_worktree_internal_duplicate; then
+    echo "flyway-versions: ✅ 当前 worktree 已无撞号 — 本次 push 即为修复 PR，放行（合入后 main 自动干净）"
+    echo "flyway-versions: 修复步骤（如果还未创建修复分支）："
+    echo "  1. 创建 hotfix 分支：bash scripts/agent-start-task.sh trae fix-vN-conflict origin/main --in-place"
+    echo "  2. 用 git mv 重命名其中一个 V<撞号>__*.sql 为 V<新号>__*.sql（保留先合入的）"
+    echo "  3. 同步重命名 U<撞号>__*.sql 为 U<新号>__*.sql"
+    echo "  4. 更新迁移文件头注释中的版本号"
+    echo "  5. 提 PR 合入 main"
+    echo ""
+    echo "flyway-versions: (pre-push) passed with warning. main has collision but worktree is clean (fix in progress)"
+    exit 0
+  else
+    echo "flyway-versions: ❌ 当前 worktree 也存在撞号 — 必须先修复 worktree 才能 push"
+    echo "flyway-versions: 修复步骤："
+    echo "  1. 用 bash scripts/next-migration-version.sh --reserve 取下一个可用版本号"
+    echo "  2. git mv V<撞号>__oldname.sql V<新号>__oldname.sql"
+    echo "  3. git mv U<撞号>__oldname.sql U<新号>__oldname.sql"
+    echo "  4. 更新迁移文件头注释中的版本号"
+    exit 1
+  fi
 fi
 
 # 检查 WORKING TREE 中所有 V* 文件
