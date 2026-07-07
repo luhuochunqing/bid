@@ -44,7 +44,7 @@
           <el-select v-model="searchForm.projectTypes" placeholder="全部" clearable multiple collapse-tags style="width: 160px">
             <el-option label="办公" value="OFFICE" />
             <el-option label="综合" value="COMPREHENSIVE" />
-            <el-option label="集采" value="COLLECTIVE" />
+            <el-option label="集采" value="CENTRALIZED" />
             <el-option label="工业品" value="INDUSTRIAL" />
             <el-option label="其他" value="OTHER" />
           </el-select>
