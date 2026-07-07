@@ -173,7 +173,7 @@ final class MarginQuerySupport {
                 .serviceFeeAmount((BigDecimal) r[C_SVC_FEE])
                 .actualReturnDate(toLdt(r[C_ACT_RETURN]))
                 .status(feeStatus)
-                .statusLabel(label((Timestamp) r[C_EXP_RETURN],
+                .statusLabel(label(toLdt(r[C_EXP_RETURN]),
                         (BigDecimal) r[C_AMT],
                         (BigDecimal) r[C_RET_AMT],
                         (BigDecimal) r[C_SVC_FEE]))
@@ -188,12 +188,14 @@ final class MarginQuerySupport {
      * 规则2：当前日期 &gt; 应退日期 → 「已超期」；
      * 规则1：当前日期 ≤ 应退日期 → 「未到期」。
      *
-     * @param exp        应退日期（init 占位行为 null）
+     * @param exp        应退日期（init 占位行为 null；UNION ALL 派生表列在不同 MySQL
+     *                   版本下可能推导为 String/Timestamp，调用方必须走 {@link #toLdt}
+     *                   防御性转换，禁止直接强转，防 Sentry XIYU-T ClassCastException 复发）
      * @param depositAmt 保证金金额（f.amount 或 pid.deposit_amount）
      * @param returnedAmt 退回金额（来自 project_closure，可能为 null）
      * @param svcFeeAmt   服务费金额（来自 project_closure.transfer_amount，可能为 null）
      */
-    private static String label(final Timestamp exp,
+    private static String label(final LocalDateTime exp,
                                 final BigDecimal depositAmt,
                                 final BigDecimal returnedAmt,
                                 final BigDecimal svcFeeAmt) {
@@ -208,7 +210,7 @@ final class MarginQuerySupport {
         }
         // 规则2：当前日期 > 应退日期 → 已超期
         if (exp != null
-                && exp.toLocalDateTime().isBefore(LocalDateTime.now())) {
+                && exp.isBefore(LocalDateTime.now())) {
             return "已超期";
         }
         // 规则1：当前日期 ≤ 应退日期 → 未到期
