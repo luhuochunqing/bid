@@ -156,7 +156,7 @@ const handleStart = async () => {
 const handleDownload = () => {
   downloadFile(null, () => {
     const ts = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)
-    return `仓库台账-${ts}.xlsx`
+    return `仓库台账-${ts}.zip`
   }).catch(() => {
     ElMessage.error('下载失败')
   })
