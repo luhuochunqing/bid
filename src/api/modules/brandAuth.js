@@ -173,8 +173,10 @@ export const brandAuthApi = {
   async importExcel(file) {
     const fd = new FormData()
     fd.append('file', file)
-    // Don't set Content-Type manually - axios will set it with boundary
-    return httpClient.post('/api/knowledge/brand-auth/import', fd)
+    // CO-512: 显式设置 multipart/form-data，避免被全局默认 application/json 覆盖导致 415
+    return httpClient.post('/api/knowledge/brand-auth/import', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
   },
 
   /** Export brand authorizations as ZIP (Excel + attachments). */
