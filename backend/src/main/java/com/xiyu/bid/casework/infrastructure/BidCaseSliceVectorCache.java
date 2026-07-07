@@ -18,6 +18,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>This is infrastructure code: it is instantiated as a Spring bean and can
  * be refreshed from {@link BidCaseSliceRepository} by an application service or
  * bootstrap component.</p>
+ *
+ * <p><b>PERFORMANCE NOTE:</b> The current implementation uses brute-force
+ * iteration ({@code O(n)}) over all cached vectors for similarity search.
+ * This is suitable for MVP with up to ~5000 vectors (sub-second per query).
+ * For larger datasets, consider migrating to an approximate nearest neighbor
+ * library (e.g., FAISS) or a dedicated vector database (Milvus, Pinecone,
+ * Weaviate).</p>
  */
 @Component
 public class BidCaseSliceVectorCache {
