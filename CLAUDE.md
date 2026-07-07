@@ -352,7 +352,7 @@ npm run test:e2e
 ./scripts/sync-env.sh .
 ```
 `sync-env.sh` 会自动完成：
-1. 同步 `.env.api` 等环境模板文件
+1. 同步 `.env.example` 等环境模板文件
 2. **main-forward 同步**：将当前分支同步到最新的 `origin/main`
    - 任务分支（`agent/*/*`）：自动 rebase
    - init 分支（`agent/*-init`）：自动 ff-only 同步（锚点分支应与 main 保持一致）
@@ -629,7 +629,7 @@ Bootstrap worktree（`/Users/user/xiyu/worktrees/codex` 等）的用途：
 
 ```
 sync-env.sh .
-  1. env 文件同步（.env.api 等）
+  1. env 文件同步（.env.example 等）
   2. main-forward rebase：
      git stash (如有未提交变更)
      git fetch origin main --prune
