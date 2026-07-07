@@ -1,8 +1,8 @@
--- Input: migration-mysql/V1147__qualification_audit_log_date_fields.sql
+-- Input: migration-mysql/V1148__qualification_audit_log_date_fields.sql
 -- Output: rollback script for mysql environments; review data-loss comments before production use.
 -- Pos: Flyway historical down migration coverage for 西域数智化投标管理平台.
 
--- U1147: 回滚 CO-530 字段变更
+-- U1148: 回滚 CO-530 字段变更（原 U1147，因 V1147 与 CO-533 撞号 hotfix 重命名为 V1148）
 -- 1. 删除 audit_log_file_url 列
 -- 2. cert_review_note: DATE → VARCHAR(200)
 -- 数据丢失说明：audit_log_file_url 列中已写入的审核日志附件 URL 会丢失；

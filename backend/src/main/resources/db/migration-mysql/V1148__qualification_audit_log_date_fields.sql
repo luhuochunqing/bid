@@ -1,4 +1,5 @@
--- CO-530: 资质证书审核提醒字段类型变更 + 新增审核日志附件字段
+-- V1148: CO-530 资质证书审核提醒字段类型变更 + 新增审核日志附件字段
+-- （原 V1147，因 origin/main 已合入 CO-533 的 V1147__task_reminder_dedup_columns.sql 撞号，改名 V1148）
 -- 1. cert_review_note: VARCHAR(200) → DATE（证书审核提醒改为日期选择）
 -- 2. 新增 audit_log_file_url: VARCHAR(500)（审核日志附件 URL，非必填）
 
