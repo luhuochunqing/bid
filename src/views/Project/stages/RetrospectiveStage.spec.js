@@ -38,10 +38,13 @@ vi.mock('@/api/modules/projectLifecycle.js', () => ({
 
 vi.mock('./retrospectiveLossReasons.js', () => ({ lossReasonOptions: [] }))
 
-const { elMessageWarningMock } = vi.hoisted(() => ({ elMessageWarningMock: vi.fn() }))
+const { elMessageWarningMock, elMessageErrorMock } = vi.hoisted(() => ({
+  elMessageWarningMock: vi.fn(),
+  elMessageErrorMock: vi.fn(),
+}))
 vi.mock('element-plus', async (importOriginal) => {
   const actual = await importOriginal()
-  return { ...actual, ElMessage: { info: vi.fn(), warning: elMessageWarningMock, error: vi.fn(), success: vi.fn() } }
+  return { ...actual, ElMessage: { info: vi.fn(), warning: elMessageWarningMock, error: elMessageErrorMock, success: vi.fn() } }
 })
 
 describe('RetrospectiveStage CO-408 回填复盘报告文件名', () => {
@@ -100,6 +103,79 @@ describe('RetrospectiveStage CO-408 回填复盘报告文件名', () => {
   })
 })
 
+describe('RetrospectiveStage CO-XXX 复盘报告支持 Excel 上传', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getDocumentsMock.mockReset()
+    getRetrospectiveMock.mockReset()
+    elMessageErrorMock.mockReset()
+  })
+
+  it('.xlsx 文件通过 beforeUpload 校验', async () => {
+    getRetrospectiveMock.mockImplementation(() => Promise.resolve({
+      success: true,
+      data: { meetingTime: '', reportFileIds: [] },
+    }))
+
+    const { default: RetrospectiveStage } = await import('./RetrospectiveStage.vue')
+    const wrapper = mount(RetrospectiveStage, {
+      props: { projectId: 1, resultType: 'WON' },
+      global: { plugins: [ElementPlus] },
+    })
+    await flushPromises()
+
+    const beforeUpload = wrapper.findComponent({ name: 'ElUpload' }).props('beforeUpload')
+    const xlsxFile = new File(['xlsx content'], '复盘数据.xlsx', {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+
+    expect(beforeUpload(xlsxFile)).toBe(true)
+  })
+
+  it('.xls 文件通过 beforeUpload 校验', async () => {
+    getRetrospectiveMock.mockImplementation(() => Promise.resolve({
+      success: true,
+      data: { meetingTime: '', reportFileIds: [] },
+    }))
+
+    const { default: RetrospectiveStage } = await import('./RetrospectiveStage.vue')
+    const wrapper = mount(RetrospectiveStage, {
+      props: { projectId: 1, resultType: 'WON' },
+      global: { plugins: [ElementPlus] },
+    })
+    await flushPromises()
+
+    const beforeUpload = wrapper.findComponent({ name: 'ElUpload' }).props('beforeUpload')
+    const xlsFile = new File(['xls content'], '复盘数据.xls', {
+      type: 'application/vnd.ms-excel',
+    })
+
+    expect(beforeUpload(xlsFile)).toBe(true)
+  })
+
+  it('非 Word/Excel/PDF 格式仍被拒绝', async () => {
+    getRetrospectiveMock.mockImplementation(() => Promise.resolve({
+      success: true,
+      data: { meetingTime: '', reportFileIds: [] },
+    }))
+
+    const { default: RetrospectiveStage } = await import('./RetrospectiveStage.vue')
+    const wrapper = mount(RetrospectiveStage, {
+      props: { projectId: 1, resultType: 'WON' },
+      global: { plugins: [ElementPlus] },
+    })
+    await flushPromises()
+
+    const beforeUpload = wrapper.findComponent({ name: 'ElUpload' }).props('beforeUpload')
+    const pngFile = new File(['png content'], '复盘数据.png', {
+      type: 'image/png',
+    })
+
+    expect(beforeUpload(pngFile)).toBe(false)
+    expect(elMessageErrorMock).toHaveBeenCalledWith('仅支持 Word/Excel/PDF 格式')
+  })
+})
+
 describe('RetrospectiveStage CO-475 复盘报告必填', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -107,6 +183,7 @@ describe('RetrospectiveStage CO-475 复盘报告必填', () => {
     getRetrospectiveMock.mockReset()
     submitRetrospectiveMock.mockReset()
     elMessageWarningMock.mockReset()
+    elMessageErrorMock.mockReset()
   })
 
   it('WON 时未上传复盘报告应提示用户且不调用提交接口', async () => {
