@@ -45,16 +45,18 @@ public class PlatformAccountAuditRecorder {
      * @param newAccount    更新后的账号（已 applyUpdateFields，尚未 save 也可）
      * @param operator       操作人
      * @param pendingApprovalCount 转派时的待审批借用申请数（仅联系人也变更时才 > 0）
+     * @param passwordChanged 本次编辑是否真的提交了新密码（由 service 根据 request.getPassword() 判定，
+     *                        不能靠对比密文——加密带盐，每次结果不同，会误判）
      */
     public void recordUpdate(PlatformAccount oldAccount, PlatformAccount newAccount,
-                             User operator, int pendingApprovalCount) {
+                             User operator, int pendingApprovalCount, boolean passwordChanged) {
         if (oldAccount == null || newAccount == null || operator == null) {
             log.warn("recordUpdate called with null argument, skipping audit");
             return;
         }
         String accountId = String.valueOf(newAccount.getId());
         boolean contactChanged = !Objects.equals(oldAccount.getContactPerson(), newAccount.getContactPerson());
-        String diff = buildDiff(oldAccount, newAccount);
+        String diff = buildDiff(oldAccount, newAccount, passwordChanged);
 
         // 联系人变更 → 单独一条 TRANSFER_CONTACT 日志，含转派待审批数
         if (contactChanged) {
@@ -92,9 +94,10 @@ public class PlatformAccountAuditRecorder {
 
     /**
      * 构建人类可读的字段 diff 文本（分号分隔）。
-     * 密码字段：只写"密码：已更新"，不写明文。
+     * 密码字段：仅当 service 确认本次真的改了密码（passwordChanged=true）时才出现一行「密码：已更新」，
+     * 不对比密文（加密带盐每次不同会误判），也不写明文。
      */
-    private String buildDiff(PlatformAccount oldAccount, PlatformAccount newAccount) {
+    private String buildDiff(PlatformAccount oldAccount, PlatformAccount newAccount, boolean passwordChanged) {
         List<String> changes = new ArrayList<>();
         appendChange(changes, "平台名称", oldAccount.getAccountName(), newAccount.getAccountName());
         appendChange(changes, "平台账号", oldAccount.getUsername(), newAccount.getUsername());
@@ -109,8 +112,8 @@ public class PlatformAccountAuditRecorder {
                 oldAccount.getHasCa() == null ? null : oldAccount.getHasCa().toString(),
                 newAccount.getHasCa() == null ? null : newAccount.getHasCa().toString());
         appendChange(changes, "备注", oldAccount.getRemarks(), newAccount.getRemarks());
-        // 密码字段：mask
-        if (!Objects.equals(oldAccount.getPassword(), newAccount.getPassword())) {
+        // 密码字段：仅当本次真的改了密码才记录一行（不对比密文，由 service 显式告知）
+        if (passwordChanged) {
             changes.add("密码：" + MASKED_PASSWORD);
         }
         return String.join("；", changes);
