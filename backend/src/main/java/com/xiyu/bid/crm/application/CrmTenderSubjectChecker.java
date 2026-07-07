@@ -66,8 +66,15 @@ public class CrmTenderSubjectChecker {
         String token = acquireTokenOrThrow(username);
         String baseUrl = properties.getEffectiveChanceBaseUrl();
         String fullPath = buildPath(tenderSubject, ccCode);
+        log.info("CO-501 调试: 准备调用 CRM check-tender-subject, baseUrl={}, path={}, tenderSubject={}, ccCode={}",
+                baseUrl, fullPath, tenderSubject, ccCode);
 
         CrmResponseHandler.CrmApiResponse response = httpClient.get(baseUrl, fullPath, token);
+        // 调试日志：打印 CRM 完整原始响应，用于联调时确认招标主体 ID 的真实字段名
+        log.info("CO-501 调试: CRM check-tender-subject 原始响应 code={}, msg={}, data={}, dataClass={}",
+                response.code(), response.msg(),
+                response.data(),
+                response.data() != null ? response.data().getNodeType() : "null");
 
         // 401 → 刷 token 重试一次（参考 CrmChanceService.doPageList 行 151-161）
         if (response.isUnauthorized()) {
