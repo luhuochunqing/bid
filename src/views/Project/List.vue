@@ -64,6 +64,11 @@
               <span class="project-name-link" @click="goToDetail(row.id)">{{ row.name || row.projectName || '-' }}</span>
             </template>
           </el-table-column>
+          <el-table-column label="项目状态" width="95">
+            <template #default="{ row }">
+              <el-tag :type="getProjectStatusType(row.bidStatus)" size="small">{{ getProjectStatusText(row.bidStatus) }}</el-tag>
+            </template>
+          </el-table-column>
           <el-table-column prop="sourceModule" label="来源平台" width="120" align="center" v-if="columnVisible.sourceModule">
             <template #default="{ row }">
               <el-tag v-if="row.sourceModule" size="small" :type="sourceTagType(row.sourceModule)">{{ sourceText(row.sourceModule) }}</el-tag>
@@ -112,11 +117,6 @@
           </el-table-column>
           <el-table-column prop="biddingLeaderName" label="投标负责人" width="110" v-if="columnVisible.biddingLeaderName">
             <template #default="{ row }">{{ row.biddingLeaderName || '-' }}</template>
-          </el-table-column>
-          <el-table-column label="项目状态" width="95">
-            <template #default="{ row }">
-              <el-tag :type="getProjectStatusType(row.bidStatus)" size="small">{{ getProjectStatusText(row.bidStatus) }}</el-tag>
-            </template>
           </el-table-column>
           <el-table-column label="项目阶段" width="95" v-if="columnVisible.stage">
             <template #default="{ row }">{{ stageText(row.stage) }}</template>
