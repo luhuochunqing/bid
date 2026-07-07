@@ -18,10 +18,15 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.context.request.ServletWebRequest;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
@@ -437,6 +442,80 @@ class GlobalExceptionHandlerTest {
                 .anyMatch(event -> event.getLevel().equals(Level.WARN));
         assertThat(hasWarnLevelLog)
                 .as("4xx BusinessException 应使用 log.warn 而非 log.error")
+                .isTrue();
+    }
+
+    // ============ CO-529: MissingServletRequestPartException 处理验证 ============
+    // CO-519 的 PR #1779 用 if (ex instanceof MissingServletRequestPartException) 判断在
+    // handleGlobalException 中，永远不被执行（父类 ResponseEntityExceptionHandler 的
+    // handleException(Exception) 是 public final，已绑定该异常，子类 @ExceptionHandler(Exception.class)
+    // 无法覆盖它）。CO-529 通过重写父类 protected handleMissingServletRequestPart 修复。
+
+    @Test
+    void handleMissingServletRequestPart_shouldReturn400WithFriendlyMessage() {
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest("POST", "/api/projects/42/documents");
+        ServletWebRequest request = new ServletWebRequest(servletRequest);
+        MissingServletRequestPartException exception =
+                new MissingServletRequestPartException("file");
+
+        ResponseEntity<Object> response = handler.handleMissingServletRequestPart(
+                exception, new HttpHeaders(), HttpStatus.BAD_REQUEST, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isInstanceOf(ApiResponse.class);
+        @SuppressWarnings("unchecked")
+        ApiResponse<Void> body = (ApiResponse<Void>) response.getBody();
+        assertThat(body.getCode()).isEqualTo(400);
+        // 提示包含缺失的 part 名，便于用户定位
+        assertThat(body.getMessage()).contains("file");
+        // 日志应输出 WARN 级别（4xx 业务可恢复错误）
+        boolean hasWarnLog = appender.list.stream()
+                .anyMatch(event -> event.getLevel().equals(Level.WARN)
+                        && event.getFormattedMessage().contains("multipart 缺失 part"));
+        assertThat(hasWarnLog)
+                .as("handleMissingServletRequestPart 应使用 log.warn 并打印缺失 part 信息")
+                .isTrue();
+    }
+
+    @Test
+    void handleMissingServletRequestPart_blankPartName_shouldFallbackToGenericMessage() {
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest("POST", "/api/projects/42/documents");
+        ServletWebRequest request = new ServletWebRequest(servletRequest);
+        // 构造一个 part 名为空的异常（边界场景）
+        MissingServletRequestPartException exception =
+                new MissingServletRequestPartException("");
+
+        ResponseEntity<Object> response = handler.handleMissingServletRequestPart(
+                exception, new HttpHeaders(), HttpStatus.BAD_REQUEST, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        @SuppressWarnings("unchecked")
+        ApiResponse<Void> body = (ApiResponse<Void>) response.getBody();
+        assertThat(body.getCode()).isEqualTo(400);
+        // part 名为空时，回退到通用提示
+        assertThat(body.getMessage()).isEqualTo("请上传文件");
+    }
+
+    @Test
+    void handleMissingServletRequestParameter_shouldReturn400WithParameterName() {
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest("GET", "/api/projects/42/documents");
+        ServletWebRequest request = new ServletWebRequest(servletRequest);
+        MissingServletRequestParameterException exception =
+                new MissingServletRequestParameterException("projectId", "Long");
+
+        ResponseEntity<Object> response = handler.handleMissingServletRequestParameter(
+                exception, new HttpHeaders(), HttpStatus.BAD_REQUEST, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        @SuppressWarnings("unchecked")
+        ApiResponse<Void> body = (ApiResponse<Void>) response.getBody();
+        assertThat(body.getCode()).isEqualTo(400);
+        assertThat(body.getMessage()).contains("projectId");
+        boolean hasWarnLog = appender.list.stream()
+                .anyMatch(event -> event.getLevel().equals(Level.WARN)
+                        && event.getFormattedMessage().contains("请求参数缺失"));
+        assertThat(hasWarnLog)
+                .as("handleMissingServletRequestParameter 应使用 log.warn 并打印参数名")
                 .isTrue();
     }
 }
