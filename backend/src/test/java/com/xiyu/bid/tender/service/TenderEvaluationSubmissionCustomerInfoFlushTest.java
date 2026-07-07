@@ -27,6 +27,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -91,6 +92,10 @@ class TenderEvaluationSubmissionCustomerInfoFlushTest {
         when(permissions.canFill(tenderId, evaluatorId)).thenReturn(true);
         when(permissions.canDecide(tenderId, evaluatorId)).thenReturn(true);
 
+        // CO-526: crmSyncService pass-through (this test doesn't test CRM sync)
+        TenderEvaluationCrmSyncService crmSyncService = mock(TenderEvaluationCrmSyncService.class);
+        when(crmSyncService.syncFromCrm(any(), any(), any())).thenAnswer(inv -> inv.getArgument(1));
+
         service = new TenderEvaluationSubmissionService(
                 evaluationRepository,
                 tenderRepository,
@@ -101,7 +106,8 @@ class TenderEvaluationSubmissionCustomerInfoFlushTest {
                 projectDocumentRepository,
                 documentService,
                 FIXED_CLOCK,
-                mock(TenderAuditService.class));
+                mock(TenderAuditService.class),
+                crmSyncService);
     }
 
     private TenderEvaluationSubmitRequest buildRequest(String roleKey, String infoKey, String value) {

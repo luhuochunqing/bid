@@ -70,6 +70,7 @@ public class TenderEvaluationSubmissionService {
     private final TenderEvaluationSubmissionMapper mapper = new TenderEvaluationSubmissionMapper();
     private final Clock clock;
     private final TenderAuditService tenderAuditService;
+    private final TenderEvaluationCrmSyncService crmSyncService;
 
     public TenderEvaluationSubmissionService(
             TenderEvaluationRepository evaluationRepository,
@@ -81,7 +82,8 @@ public class TenderEvaluationSubmissionService {
             ProjectDocumentRepository projectDocumentRepository,
             TenderEvaluationDocumentService documentService,
             Clock clock,
-            TenderAuditService tenderAuditService) {
+            TenderAuditService tenderAuditService,
+            TenderEvaluationCrmSyncService crmSyncService) {
         this.evaluationRepository = evaluationRepository;
         this.tenderRepository = tenderRepository;
         this.userRepository = userRepository;
@@ -92,6 +94,7 @@ public class TenderEvaluationSubmissionService {
         this.documentService = documentService;
         this.clock = clock;
         this.tenderAuditService = tenderAuditService;
+        this.crmSyncService = crmSyncService;
     }
 
     /**
@@ -187,6 +190,9 @@ public class TenderEvaluationSubmissionService {
             throw new AccessDeniedException(
                     "user " + evaluatorId + " is not the assignee of tender " + tenderId);
         }
+
+        // CO-526: 同步 CRM 最新数据覆盖 basic + customerInfos，保留 bidRecommendation + evaluationRecommendation；失败降级
+        req = crmSyncService.syncFromCrm(tender, req, evaluator.getUsername());
 
         // --- 三段式完整性校验（委托 TenderEvaluationSubmissionValidator） ---
         var validationResult = TenderEvaluationSubmissionValidator.validate(req);

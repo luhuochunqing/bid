@@ -299,7 +299,7 @@ describe('useCrmOpportunitySelector', () => {
           CAN_REMOVE_ADVERSE: '否',
           CAN_SYNC_EVAL: '是',
           TENDENCY: 'HIGH',
-          INFO_CLEAR_WINNER_BID: true,
+          INFO_CLEAR_WINNER_BID: 'true',
           INFO_WIN_RATE_IMPACT: '80%',
         })],
       }),

@@ -103,6 +103,7 @@ src/main/java/com/xiyu/bid/project/service/ProjectImportService.java | WS-A impo
 src/main/java/com/xiyu/bid/project/service/ProjectQueryService.java | WS-A read-only query service for project list enrichment; access boundary guarded by role-based @PreAuthorize at controller level before delegation.
 src/main/java/com/xiyu/bid/tender/service/TenderEvaluationNotificationService.java | 通知服务，不涉及 projectId 权限校验
 src/main/java/com/xiyu/bid/tender/service/TenderEvaluationDocumentService.java | 评估表附件服务使用 project_documents 表，通过 linkedEntityType=EVALUATION_GAP 关联标讯；权限由 TenderEvaluationController 的 @PreAuthorize 守卫保护
+src/main/java/com/xiyu/bid/tender/service/TenderEvaluationCrmSyncService.java | CO-526 CRM 同步编排服务，纯 CRM 只读调用无 DB 访问；由调用方 TenderEvaluationSubmissionService 持有 accessGuard 守卫
 src/main/java/com/xiyu/bid/project/service/ProjectExportService.java | 项目数据导出服务，本身没有独立请求入口，由 Controller 级权限守卫保护。
 src/main/java/com/xiyu/bid/resources/controller/CaCertificateController.java | CA certificate management controller, no projectId access - operates on CA resources only
 src/main/java/com/xiyu/bid/resources/service/CaBorrowService.java | CA borrow application service stores projectId/projectName as borrow context only; access is resource-scoped via CA controller role guards, not a standalone project visibility boundary.
