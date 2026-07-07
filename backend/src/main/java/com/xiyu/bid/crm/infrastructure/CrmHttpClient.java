@@ -116,7 +116,8 @@ public class CrmHttpClient {
         HttpEntity<Void> request = new HttpEntity<>(headers);
         try {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, request, String.class);
-            log.info("CRM GET {} -> {}", url, response.getStatusCode());
+            // CO-501 调试：打印完整原始响应 body，用于联调时确认 check-tender-subject 返回的真实结构
+            log.info("CRM GET {} -> {} body={}", url, response.getStatusCode(), response.getBody());
             return CrmResponseHandler.parse(response.getBody());
         } catch (RuntimeException e) {
             log.error("CRM GET failed: {}", e.getMessage());
