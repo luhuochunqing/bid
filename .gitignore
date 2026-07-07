@@ -37,6 +37,8 @@ backend/docs/reports/
 .env
 .env.local
 .env.*.local
+# .env.example 是模板（占位符值），入库；.env.api 是本地真实值变体，禁止提交
+.env.api
 
 # Local debug scratch files
 test-login.html

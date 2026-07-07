@@ -5,7 +5,7 @@
 # 维护声明: 仅维护本地 worktree 环境文件同步；新增环境模板时请同步脚本目录说明。
 #
 # 功能:
-#   1. 同步 .env.api 等环境模板文件到目标 worktree
+#   1. 同步 .env.example 等环境模板文件到目标 worktree
 #   2. 自动执行 main-forward rebase（将当前分支 rebase 到最新 origin/main）
 #      - 仅对 agent worktree 内的非保护分支生效（main、*-init 等跳过）
 #      - 对共享 worktree（如 main）的分支不做 rebase
@@ -249,7 +249,7 @@ sync_env_files() {
   local target_dir="$2"
 
   local FILES=(
-    ".env.api"
+    ".env.example"
   )
 
   for file in "${FILES[@]}"; do
@@ -277,7 +277,7 @@ if [ -z "$TARGET_DIR" ]; then
   echo "Usage: ./scripts/sync-env.sh <target-worktree-dir>"
   echo ""
   echo "What it does:"
-  echo "  1. Copies env template files (.env.api) to the target worktree"
+  echo "  1. Copies env template files (.env.example) to the target worktree"
   echo "  2. main-forward rebase on agent worktree branches"
   echo "       agent worktrees: /Users/user/xiyu/worktrees/<name> or /Users/user/xiyu/worktrees/<name>-<task>"
   echo "       protected branches (main, agent/*-init, etc.) are skipped"
