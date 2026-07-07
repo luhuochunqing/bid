@@ -87,7 +87,7 @@ public class CaCertificateController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('resource')")
-    @Auditable(action = "UPDATE", entityType = "CaCertificate", description = "编辑CA证书")
+    // CO-515: @Auditable 移除 — 编辑日志改由 Service 层手动写入，含字段 diff 详情（"字段名：旧值 -> 新值"）
     public ResponseEntity<CaCertificateDTO> update(@PathVariable Long id, @Valid @RequestBody CaCertificateRequest request) {
         return ResponseEntity.ok(caService.update(id, request));
     }

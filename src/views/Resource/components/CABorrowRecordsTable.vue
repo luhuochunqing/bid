@@ -1,9 +1,5 @@
 <template>
-  <div v-if="applications.length === 0" class="empty-tab">
-    <el-empty description="暂无借用记录" :image-size="80" />
-  </div>
   <el-table
-    v-else
     :data="applications"
     stripe
     size="small"
@@ -55,6 +51,7 @@
       </template>
     </el-table-column>
   </el-table>
+  <el-empty v-if="!applications.length" description="暂无借用记录" :image-size="60" />
 </template>
 
 <script setup>
@@ -88,10 +85,6 @@ function getCommitmentLetterDownloadUrl(url) {
 </script>
 
 <style scoped>
-.empty-tab {
-  padding: 40px 0;
-}
-
 .commitment-letter-link {
   display: inline-flex;
   align-items: center;

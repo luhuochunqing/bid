@@ -22,6 +22,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDate;
 import java.util.Collections;
@@ -62,6 +63,8 @@ class CaCertificateServiceTest {
     private CustodianEmployeeNumberResolver custodianEmployeeNumberResolver;
     @Mock
     private PlatformAccountRepository platformAccountRepository;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     // ── deactivate 保管员差异化校验 ──
 
@@ -442,7 +445,8 @@ class CaCertificateServiceTest {
                 effectiveRoleResolver,
                 userRepository,
                 custodianEmployeeNumberResolver,
-                platformAccountRepository
+                platformAccountRepository,
+                eventPublisher
         );
     }
 

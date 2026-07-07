@@ -6,6 +6,8 @@ import com.xiyu.bid.platform.entity.PlatformAccount;
 import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.audit.event.EntityUpdatedEvent;
+import com.xiyu.bid.resources.core.CaFieldDiffCalculator;
 import com.xiyu.bid.resources.dto.CaCertificateDTO;
 import com.xiyu.bid.resources.dto.CaCertificateRequest;
 import com.xiyu.bid.resources.entity.CaCertificateEntity;
@@ -21,6 +23,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
 
 import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDate;
@@ -44,6 +47,8 @@ public class CaCertificateService {
     private final CustodianEmployeeNumberResolver custodianEmployeeNumberResolver;
     /** CO-479: 用于查询平台账户名称 */
     private final PlatformAccountRepository platformAccountRepository;
+    /** CO-515: 事件发布器，用于发布 CA 编辑事件（audit 模块监听写日志，避免 Service 直接注入 IAuditLogService） */
+    private final ApplicationEventPublisher eventPublisher;
 
     // ========== CA 证书 CRUD ==========
 
@@ -83,6 +88,8 @@ public class CaCertificateService {
     public CaCertificateDTO update(Long id, CaCertificateRequest request) {
         CaCertificateEntity entity = certificateRepository.findById(id)
                 .orElseThrow(() -> new CaBusinessException("CA证书不存在: " + id));
+        // CO-515: 更新前快照（用于审计日志 diff 变更字段）
+        CaCertificateEntity beforeSnapshot = snapshotForDiff(entity);
         entity.setCaType(request.getCaType());
         entity.setSealType(SealTypeNormalizer.normalize(request.getSealType()));
         entity.setElectronicAccount(request.getElectronicAccount());
@@ -102,8 +109,37 @@ public class CaCertificateService {
         List<Long> platformIds = persistPlatformLinks(saved.getId(), request.getPlatformIds());
         // CO-451: 从 User 表获取保管员工号
         String custodianEmployeeNumber = custodianEmployeeNumberResolver.fetchEmployeeNumber(request.getCustodianId());
+
+        // CO-515: 计算 diff 并发布事件（audit 模块监听写日志，
+        // 避免 Service 直接注入 IAuditLogService 违反 RULE 12）
+        List<String> changes = CaFieldDiffCalculator.diff(beforeSnapshot, saved);
+        if (!changes.isEmpty()) {
+            String summary = CaFieldDiffCalculator.formatSummary(changes);
+            eventPublisher.publishEvent(new EntityUpdatedEvent(
+                    saved.getId(), "CaCertificate", "UPDATE", summary));
+        }
+
         return CaCertificateDTO.from(saved, platformIds, false, null, custodianEmployeeNumber,
                 loadPlatformNamesById(platformIds));
+    }
+
+    /**
+     * CO-515: 构造变更前快照（仅复制 diff 关心的字段，避免 JPA 脏检查干扰）。
+     */
+    private CaCertificateEntity snapshotForDiff(CaCertificateEntity source) {
+        return CaCertificateEntity.builder()
+                .caType(source.getCaType())
+                .sealType(source.getSealType())
+                .electronicAccount(source.getElectronicAccount())
+                .caPassword(source.getCaPassword())
+                .issuer(source.getIssuer())
+                .holderName(source.getHolderName())
+                .expiryDate(source.getExpiryDate())
+                .caPlatformUrl(source.getCaPlatformUrl())
+                .custodianId(source.getCustodianId())
+                .custodianName(source.getCustodianName())
+                .remarks(source.getRemarks())
+                .build();
     }
 
     /**
