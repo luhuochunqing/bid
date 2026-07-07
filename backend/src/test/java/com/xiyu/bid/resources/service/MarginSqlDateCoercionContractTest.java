@@ -1,7 +1,11 @@
 package com.xiyu.bid.resources.service;
 
+import com.xiyu.bid.resources.dto.MarginDTO;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -303,5 +307,92 @@ class MarginSqlDateCoercionContractTest {
                       + "防止空字符串触发 MySQL 'Invalid JSON text: The document is empty'")
                     .doesNotContain("JSON_EXTRACT(dt.extended_fields_json,");
         }
+    }
+
+    // ── Sentry XIYU-T 回归：mapRow 日期列禁止强转 (Timestamp)，必须走 toLdt ──────
+    //
+    // 根因（CO-508 回归）：派生表 exp_return_date 列在 UNION ALL 两分支下：
+    //   FEES: COALESCE(STR_TO_DATE(...), NULLIF(f.fee_date, '0000-00-00 00:00:00'))
+    //   INIT: STR_TO_DATE(...)
+    // 因 NULLIF 中含 string literal '0000-00-00 00:00:00'，MySQL UNION ALL
+    // 类型聚合可能把整列推回成 char(19)，JDBC 读到 String。
+    // mapRow 中 label((Timestamp) r[C_EXP_RETURN], ...) 直接强转 → ClassCastException。
+    //
+    // 修复：label 签名 Timestamp → LocalDateTime，mapRow 调用点走 toLdt 防御性转换。
+    //
+    // 本测试覆盖 3 种 JDBC 返回类型：String / null / Timestamp，确保都不抛 CCE。
+
+    /**
+     * 构造一个 16 列的 Object[]，仅 C_EXP_RETURN (idx=11) 由调用方传入。
+     * 其他列填合法值（金额 1000，退回 0，服务费 0 → 不命中规则3，走规则1/2）。
+     */
+    private static Object[] rowWithExpReturn(final Object expReturn) {
+        return new Object[]{
+                1L,                                          // C_FEE_ID
+                100L,                                        // C_PROJ_ID
+                "测试项目",                                  // C_PROJ_NAME
+                "西域",                                      // C_OWNER
+                "张三",                                      // C_PROJ_LEAD
+                "李四",                                      // C_BID_LEAD
+                new BigDecimal("1000"),                     // C_AMT
+                null,                                        // C_PAY_DATE
+                "电汇",                                      // C_PAY_METHOD
+                "收款方",                                    // C_PAYEE
+                "账号",                                      // C_PAYEE_ACCT
+                expReturn,                                   // C_EXP_RETURN (idx=11)
+                BigDecimal.ZERO,                             // C_RET_AMT
+                BigDecimal.ZERO,                             // C_SVC_FEE
+                null,                                        // C_ACT_RETURN
+                "PENDING"                                    // C_STATUS
+        };
+    }
+
+    @Test
+    void mapRow_doesNotThrowClassCast_whenExpReturnDateIsString() {
+        // Sentry XIYU-T 复发场景：UNION ALL 把 exp_return_date 推导成 char(19)，
+        // JDBC 拿到 String。修复前 label((Timestamp) r[C_EXP_RETURN]) 直接抛 CCE。
+        Object[] row = rowWithExpReturn("2025-12-31 00:00:00");
+        MarginDTO dto = MarginQuerySupport.mapRow(row);
+        assertThat(dto).as("String 类型 exp_return_date 不应抛 ClassCastException").isNotNull();
+        assertThat(dto.getStatusLabel())
+                .as("String 走 toLdt 返回 null → 不命中规则2 → 默认「未到期」")
+                .isEqualTo("未到期");
+    }
+
+    @Test
+    void mapRow_doesNotThrowClassCast_whenExpReturnDateIsNull() {
+        // INIT 分支无 fees 记录时 exp_return_date 为 NULL。
+        Object[] row = rowWithExpReturn(null);
+        MarginDTO dto = MarginQuerySupport.mapRow(row);
+        assertThat(dto).as("null 类型 exp_return_date 不应抛 ClassCastException").isNotNull();
+        assertThat(dto.getStatusLabel()).isEqualTo("未到期");
+    }
+
+    @Test
+    void mapRow_doesNotThrowClassCast_whenExpReturnDateIsTimestamp() {
+        // 正常场景：JDBC 返回 Timestamp，确保修复后行为不回归。
+        Object[] row = rowWithExpReturn(Timestamp.valueOf(LocalDateTime.of(2025, 12, 31, 0, 0)));
+        MarginDTO dto = MarginQuerySupport.mapRow(row);
+        assertThat(dto).as("Timestamp 类型 exp_return_date 不应抛 ClassCastException").isNotNull();
+        // 2025-12-31 在测试运行当下通常是过去日期 → 命中规则2「已超期」；
+        // 但若 CI 在 2025-12-31 当天之前运行则「未到期」。两种都是合法输出，只断言不抛。
+        assertThat(dto.getStatusLabel()).isIn("已超期", "未到期");
+    }
+
+    @Test
+    void mapRow_statusLabelReturned_whenAmountMatchesRule3() {
+        // 规则3：退回 + 服务费 = 保证金 → 已退回（不依赖 exp_return_date 类型）
+        Object[] row = new Object[]{
+                1L, 100L, "测试项目", "西域", "张三", "李四",
+                new BigDecimal("1000"), null, "电汇", "收款方", "账号",
+                "2025-12-31 00:00:00",                              // String 类型 exp_return_date
+                new BigDecimal("600"),                              // returned_amount
+                new BigDecimal("400"),                              // service_fee_amount
+                null, "PENDING"
+        };
+        MarginDTO dto = MarginQuerySupport.mapRow(row);
+        assertThat(dto.getStatusLabel())
+                .as("String 类型 exp_return_date 下规则3金额匹配应命中「已退回」")
+                .isEqualTo("已退回");
     }
 }
