@@ -73,6 +73,8 @@ class TenderCommandServiceTest {
     private ProjectManagerIdResolver projectManagerIdResolver;
     @Mock
     private com.xiyu.bid.crm.application.CrmTenderSubjectChecker crmTenderSubjectChecker;
+    @Mock
+    private TenderCrmLinkPersistService crmLinkPersistService;
 
     private TenderCommandService tenderCommandService;
     private TenderMapper tenderMapper;
@@ -95,7 +97,8 @@ class TenderCommandServiceTest {
                 projectManagerIdResolver,
                 tenderAssignmentRecordRepository,
                 tenderAuditService,
-                crmTenderSubjectChecker);
+                crmTenderSubjectChecker,
+                crmLinkPersistService);
 
         tender = Tender.builder()
                 .id(1L)

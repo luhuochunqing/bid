@@ -37,6 +37,8 @@ public class CrmTenderSubjectChecker {
     public static final String MSG_NOT_IN_CRM = "招标主体不存在CRM系统，请在CRM系统创建客户！";
     /** CO-501 原文文案：不属于商机集团/子公司。 */
     public static final String MSG_NOT_IN_GROUP = "当前标讯的招标主体不属于商机所属集团或其子公司，请重新选择匹配的商机！";
+    /** CO-501 兜底文案：CRM 返回 code=1 但 msg 未匹配已知模式（联调时完善匹配规则）。 */
+    public static final String MSG_UNKNOWN_REJECTION = "招标主体校验未通过，请联系管理员核对或稍后重试";
     private static final String MSG_CRM_UNAVAILABLE = "招标主体校验服务暂不可用，请稍后重试";
     private static final String MSG_DATA_MISSING = "CRM 校验通过但未返回招标主体ID，请联系 CRM 管理员";
 
@@ -139,8 +141,8 @@ public class CrmTenderSubjectChecker {
                 return CheckResult.rejected(ErrorCode.NOT_IN_GROUP, MSG_NOT_IN_GROUP);
             }
             // msg 不匹配已知模式：联调时需补充（lessons §12：用 CRM 源真相校验）
-            log.warn("CO-501: unrecognized CRM rejection msg='{}', falling back to NOT_IN_GROUP", msg);
-            return CheckResult.rejected(ErrorCode.UNKNOWN, MSG_NOT_IN_GROUP);
+            log.warn("CO-501: unrecognized CRM rejection msg='{}', falling back to UNKNOWN", msg);
+            return CheckResult.rejected(ErrorCode.UNKNOWN, MSG_UNKNOWN_REJECTION);
         }
 
         // 其他 code：CRM 异常

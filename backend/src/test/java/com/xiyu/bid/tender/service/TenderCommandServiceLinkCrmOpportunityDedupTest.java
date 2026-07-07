@@ -49,6 +49,7 @@ class TenderCommandServiceLinkCrmOpportunityDedupTest {
     @Mock private TenderAssignmentRecordRepository assignmentRecordRepository;
     @Mock private TenderAuditService tenderAuditService;
     @Mock private CrmTenderSubjectChecker crmTenderSubjectChecker;
+    @Mock private TenderCrmLinkPersistService crmLinkPersistService;
 
     private TenderCommandService tenderCommandService;
 
@@ -82,19 +83,21 @@ class TenderCommandServiceLinkCrmOpportunityDedupTest {
                 null,                  // ProjectManagerIdResolver
                 assignmentRecordRepository,
                 tenderAuditService,
-                crmTenderSubjectChecker);
+                crmTenderSubjectChecker,
+                crmLinkPersistService); // CO-501 修复后：独立 @Service 处理落库事务
     }
 
     @Test
-    @DisplayName("CO-297 happy + CO-310 两步流程 + CO-501 两步校验通过：关联成功并落库 purchaserId")
-    void linkCrmOpportunity_WhenBothChecksPass_ShouldSucceedAndSetPurchaserId() {
+    @DisplayName("CO-297 happy + CO-310 两步流程 + CO-501 两步校验通过：委派给 persistService 落库")
+    void linkCrmOpportunity_WhenBothChecksPass_ShouldDelegateToPersistService() {
         when(tenderRepository.findById(100L)).thenReturn(Optional.of(tenderA));
-        when(tenderRepository.save(tenderA)).thenReturn(tenderA);
         when(userRepository.findById(1L)).thenReturn(Optional.of(
                 User.builder().id(1L).username(USERNAME).fullName("Sales").build()));
         when(crmTenderSubjectChecker.check(eq(PURCHASER), eq(CRM_OPP_X), eq(USERNAME)))
                 .thenReturn(CrmTenderSubjectChecker.CheckResult.passed(12345L));
-        when(tenderMapper.toDTO(tenderA)).thenReturn(TenderDTO.builder().id(100L).build());
+        TenderDTO persistedDto = TenderDTO.builder().id(100L).purchaserId(12345L).build();
+        when(crmLinkPersistService.persistCrmLink(eq(100L), eq(tenderA), eq(CRM_OPP_X), anyString(),
+                org.mockito.ArgumentMatchers.isNull(), eq(1L), eq(12345L))).thenReturn(persistedDto);
         // 用 req 重载，传 chanceGroupName=标讯的 purchaserName 让第二步本地校验通过
         com.xiyu.bid.tender.dto.TenderCrmLinkRequest req = com.xiyu.bid.tender.dto.TenderCrmLinkRequest.builder()
                 .crmOpportunityId(CRM_OPP_X)
@@ -106,12 +109,11 @@ class TenderCommandServiceLinkCrmOpportunityDedupTest {
         TenderDTO result = tenderCommandService.linkCrmOpportunity(100L, req, 1L);
 
         assertThat(result).isNotNull();
-        assertThat(tenderA.getCrmOpportunityId()).isEqualTo(CRM_OPP_X);
-        // CO-464: purchaserId 已落库为 CRM 返回的招标主体 ID
-        assertThat(tenderA.getPurchaserId()).isEqualTo(12345L);
-        assertThat(tenderA.getStatus()).isEqualTo(Tender.Status.TRACKING);
+        assertThat(result.getPurchaserId()).isEqualTo(12345L);
         verify(crmOccupancyChecker).assertCrmOpportunityNotOccupied(100L, CRM_OPP_X);
-        verify(assignmentRecordRepository).save(any(com.xiyu.bid.batch.entity.TenderAssignmentRecord.class));
+        // CO-501 修复后：委派给独立 @Service，AOP 代理生效
+        verify(crmLinkPersistService).persistCrmLink(eq(100L), eq(tenderA), eq(CRM_OPP_X),
+                eq("商机 X"), org.mockito.ArgumentMatchers.isNull(), eq(1L), eq(12345L));
     }
 
     @Test
@@ -204,12 +206,13 @@ class TenderCommandServiceLinkCrmOpportunityDedupTest {
     @DisplayName("CO-501 第二步通过（purchaserName == chanceGroupName）→ 关联成功")
     void linkCrmOpportunity_WhenLocalConsistencyMatchesGroup_ShouldSucceed() {
         when(tenderRepository.findById(100L)).thenReturn(Optional.of(tenderA));
-        when(tenderRepository.save(tenderA)).thenReturn(tenderA);
         when(userRepository.findById(1L)).thenReturn(Optional.of(
                 User.builder().id(1L).username(USERNAME).build()));
         when(crmTenderSubjectChecker.check(eq(PURCHASER), eq(CRM_OPP_X), eq(USERNAME)))
                 .thenReturn(CrmTenderSubjectChecker.CheckResult.passed(777L));
-        when(tenderMapper.toDTO(tenderA)).thenReturn(TenderDTO.builder().id(100L).build());
+        when(crmLinkPersistService.persistCrmLink(anyLong(), any(), anyString(), anyString(),
+                org.mockito.ArgumentMatchers.isNull(), anyLong(), org.mockito.ArgumentMatchers.eq(777L)))
+                .thenReturn(TenderDTO.builder().id(100L).purchaserId(777L).build());
         // purchaserName == chanceGroupName → 第二步通过
         com.xiyu.bid.tender.dto.TenderCrmLinkRequest req = com.xiyu.bid.tender.dto.TenderCrmLinkRequest.builder()
                 .crmOpportunityId(CRM_OPP_X)
@@ -221,6 +224,8 @@ class TenderCommandServiceLinkCrmOpportunityDedupTest {
         TenderDTO result = tenderCommandService.linkCrmOpportunity(100L, req, 1L);
 
         assertThat(result).isNotNull();
-        assertThat(tenderA.getPurchaserId()).isEqualTo(777L);
+        assertThat(result.getPurchaserId()).isEqualTo(777L);
+        verify(crmLinkPersistService).persistCrmLink(eq(100L), eq(tenderA), eq(CRM_OPP_X),
+                eq("商机 X"), org.mockito.ArgumentMatchers.isNull(), eq(1L), eq(777L));
     }
 }

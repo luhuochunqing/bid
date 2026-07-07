@@ -58,21 +58,35 @@ class TenderSubjectConsistencyPolicyTest {
     }
 
     @Test
-    @DisplayName("商机 groupName 与 tenderSubject 都为 null → 不匹配时拒绝")
-    void check_whenChanceFieldsAreNull_shouldRejectIfNoMatch() {
+    @DisplayName("商机 groupName 与 tenderSubject 都为 null → 放行（手动输入模式，无 CRM 商机 VO）")
+    void check_whenChanceFieldsAreNull_shouldAllow() {
         TenderSubjectConsistencyPolicy.Result result = TenderSubjectConsistencyPolicy.check(
                 "山东海化集团", null, null);
 
-        assertThat(result.allowed()).isFalse();
-        assertThat(result.errorMessage()).isEqualTo("招标主体不一致，请到 CRM 中修改");
+        assertThat(result.allowed()).isTrue();
     }
 
     @Test
-    @DisplayName("商机 groupName 与 tenderSubject 都为空字符串 → 不匹配时拒绝")
-    void check_whenChanceFieldsAreEmpty_shouldRejectIfNoMatch() {
+    @DisplayName("商机 groupName 与 tenderSubject 都为空字符串 → 放行（手动输入模式）")
+    void check_whenChanceFieldsAreEmpty_shouldAllow() {
         TenderSubjectConsistencyPolicy.Result result = TenderSubjectConsistencyPolicy.check(
                 "山东海化集团", "", "");
 
-        assertThat(result.allowed()).isFalse();
+        assertThat(result.allowed()).isTrue();
+    }
+
+    @Test
+    @DisplayName("商机只有 groupName 有值、tenderSubject 为 null → 仍按 groupName 校验")
+    void check_whenOnlyGroupNamePresent_shouldCheckAgainstGroupName() {
+        // groupName 匹配 → 放行
+        TenderSubjectConsistencyPolicy.Result matchResult = TenderSubjectConsistencyPolicy.check(
+                "山东海化集团", "山东海化集团", null);
+        assertThat(matchResult.allowed()).isTrue();
+
+        // groupName 不匹配、tenderSubject 为 null → 拒绝
+        TenderSubjectConsistencyPolicy.Result rejectResult = TenderSubjectConsistencyPolicy.check(
+                "中石化", "山东海化集团", null);
+        assertThat(rejectResult.allowed()).isFalse();
+        assertThat(rejectResult.errorMessage()).isEqualTo("招标主体不一致，请到 CRM 中修改");
     }
 }

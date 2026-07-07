@@ -58,6 +58,7 @@ public class TenderCommandService {
     private final TenderAssignmentRecordRepository assignmentRecordRepository;
     private final TenderAuditService tenderAuditService;
     private final CrmTenderSubjectChecker crmTenderSubjectChecker;
+    private final TenderCrmLinkPersistService crmLinkPersistService;
 
     public TenderDTO createTender(TenderDTO tenderDTO) {
         return createTender(tenderDTO, null);
@@ -214,7 +215,7 @@ public class TenderCommandService {
      * CO-501 主入口：关联 CRM 商机，含两步校验。
      *
      * <p>事务边界拆分（防 CO-325 类长事务）：CRM HTTP 校验在事务外执行，
-     * 通过后进入 {@link #persistCrmLink} 方法级事务保存。
+     * 通过后进入 {@link TenderCrmLinkPersistService#persistCrmLink}（独立 @Service 的方法级事务）。
      *
      * <p>两步校验：
      * <ol>
@@ -255,50 +256,9 @@ public class TenderCommandService {
             throw new BusinessException(409, consistencyResult.errorMessage());
         }
 
-        // ④ 事务内：落库（方法级 @Transactional，CRM 校验已在事务外完成）
-        return persistCrmLink(id, existingTender, crmOpportunityId, crmOpportunityName,
+        // ④ 事务内：落库（调独立 @Service 让 Spring AOP 代理生效，防自调用事务陷阱）
+        return crmLinkPersistService.persistCrmLink(id, existingTender, crmOpportunityId, crmOpportunityName,
                 req.getEvaluationPayload(), userId, crmResult.purchaserId());
-    }
-
-    /**
-     * CO-501：关联商机的落库事务（方法级 {@code @Transactional}，覆盖类级注解）。
-     *
-     * <p>包级方法（非 private）—— Spring AOP 通过代理生效，避免自调用事务失效。
-     * 调用方 {@link #linkCrmOpportunity(Long, TenderCrmLinkRequest, Long)} 已完成所有校验。
-     */
-    @Transactional
-    TenderDTO persistCrmLink(Long id, Tender existingTender, String crmOpportunityId, String crmOpportunityName,
-                              com.xiyu.bid.tender.dto.TenderEvaluationSubmitRequest evaluationPayload,
-                              Long userId, long purchaserId) {
-        existingTender.setCrmOpportunityId(crmOpportunityId);
-        existingTender.setCrmOpportunityName(crmOpportunityName);
-        existingTender.setPurchaserId(purchaserId); // CO-464: CRM 校验返回的招标主体 ID 落库
-        existingTender.setEvaluationSource(com.xiyu.bid.entity.Tender.EvaluationSource.BID_SYSTEM_LINK);
-        Tender updatedTender;
-        try {
-            updatedTender = tenderRepository.save(existingTender);
-        } catch (org.springframework.dao.DataIntegrityViolationException ex) {
-            crmOccupancyChecker.translateUniqueConstraintViolation(ex);
-            throw new BusinessException(409, "CRM 商机已被其他标讯关联（并发冲突），请刷新后重试");
-        }
-        assignOnCrmLink(id, userId);
-        log.info("Linked CRM opportunity {} to tender id: {}, purchaserId: {}", crmOpportunityId, id, purchaserId);
-
-        if (evaluationPayload != null) {
-            try {
-                evaluationBackfillService.backfillFromCrmLink(id, evaluationPayload, userId);
-                log.info("CO-310: Backfilled evaluation for tender {} from CRM link", id);
-            } catch (BusinessException | IllegalStateException ex) {
-                log.warn("CO-310: Skipped evaluation backfill for tender {} from CRM link (validation failed): {}",
-                        id, ex.getMessage());
-            }
-        }
-
-        String linkUsername = resolveUsername(userId) != null ? resolveUsername(userId) : "system";
-        String linkUserId = userId != null ? String.valueOf(userId) : "system";
-        tenderAuditService.logLinkCrm(id, crmOpportunityName, linkUsername, linkUserId, null);
-
-        return tenderMapper.toDTO(updatedTender);
     }
 
     private String resolveUsername(Long userId) {
@@ -307,29 +267,9 @@ public class TenderCommandService {
     }
 
     /**
-     * CO-310 两步流程：关联 CRM 商机时写一条 DISPATCH 分配记录，让关联人成为 latest assignee。
-     * <p>照搬 {@link TenderTransferService#transfer} 的 record builder 模式。sales 关联商机即视为
-     * 接手该标讯的评估，需通过后续 submit() 的 canFill 实例守卫。
+     * CO-310 两步流程：关联 CRM 商机时写一条 DISPATCH 分配记录 —— 已迁移到
+     * {@link TenderCrmLinkPersistService#assignOnCrmLink}（独立 @Service，AOP 代理生效）。
      */
-    private void assignOnCrmLink(Long tenderId, Long assigneeId) {
-        User assignee = userRepository.findById(assigneeId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", String.valueOf(assigneeId)));
-        String assigneeName = assignee.getFullName() != null
-                ? assignee.getFullName() : assignee.getUsername();
-        TenderAssignmentRecord record = TenderAssignmentRecord.builder()
-                .tenderId(tenderId)
-                .assigneeId(assigneeId)
-                .assigneeName(assigneeName)
-                .assignedById(assigneeId)
-                .assignedByName(assigneeName)
-                .type(TenderAssignmentRecord.AssignmentType.DISPATCH)
-                .remark("CRM商机关联，自动接手评估")
-                .assignedAt(LocalDateTime.now())
-                .build();
-        assignmentRecordRepository.save(record);
-        log.info("CO-310: Tender {} auto-assigned to {} (id={}) on CRM link",
-                tenderId, assignee.getFullName(), assigneeId);
-    }
 
     @Auditable(action = "DELETE", entityType = "TENDER", description = "删除标讯")
     public void deleteTender(Long id, Long userId) {

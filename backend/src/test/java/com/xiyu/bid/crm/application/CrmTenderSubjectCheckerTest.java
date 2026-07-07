@@ -128,7 +128,7 @@ class CrmTenderSubjectCheckerTest {
     }
 
     @Test
-    @DisplayName("code=1 + msg 未匹配已知模式 → UNKNOWN（兜底为 NOT_IN_GROUP 文案）")
+    @DisplayName("code=1 + msg 未匹配已知模式 → UNKNOWN（兜底为通用文案）")
     void check_whenCode1AndUnknownMsg_shouldReturnUnknown() {
         CrmResponseHandler.CrmApiResponse response = parse("""
             {"code": 1, "msg": "未知错误", "data": 0}
@@ -138,8 +138,8 @@ class CrmTenderSubjectCheckerTest {
         CrmTenderSubjectChecker.CheckResult result = checker.check("山东海化集团", "CC20260707001", "alice");
 
         assertThat(result.errorCode()).isEqualTo(CrmTenderSubjectChecker.ErrorCode.UNKNOWN);
-        // UNKNOWN 兜底文案用 NOT_IN_GROUP
-        assertThat(result.errorMessage()).contains("不属于商机所属集团");
+        // R3 修复：UNKNOWN 用独立文案，不复用 NOT_IN_GROUP
+        assertThat(result.errorMessage()).contains("招标主体校验未通过");
     }
 
     @Test
