@@ -143,6 +143,46 @@ class PerformanceImportAttachmentProcessorTest {
     }
 
     @Test
+    void 附件文件名带Windows路径前缀时仍能匹配() {
+        var existingAtt = PerformanceAttachmentEntity.builder()
+                .id(10L)
+                .performanceId(1L)
+                .fileName("合同协议.pdf")
+                .fileUrl("")
+                .fileType("CONTRACT_AGREEMENT")
+                .build();
+        when(attachmentRepo.findByPerformanceId(1L)).thenReturn(List.of(existingAtt));
+
+        // Excel 中填写纯文件名，附件包中是多层 Windows 路径
+        var rows = List.of(new ImportRowResult("合同A", 1L,
+                List.of(new AttachmentFileName("合同协议.pdf", "CONTRACT_AGREEMENT"))));
+        var attachments = List.of(new PerformanceImportAttachmentProcessor.AttachmentInput(
+                "C:\\Users\\foo\\Desktop\\合同协议.pdf", new byte[]{1}));
+
+        var result = processor.attachFiles(rows, attachments);
+
+        assertThat(result.matchedCount()).isEqualTo(1);
+        assertThat(result.unmatched()).isEmpty();
+        verify(attachmentRepo).save(any(PerformanceAttachmentEntity.class));
+    }
+
+    @Test
+    void 附件文件名带Unix路径前缀时仍能匹配() {
+        when(attachmentRepo.findByPerformanceId(1L)).thenReturn(List.of());
+
+        // Excel 中填写纯文件名，附件包中是 Unix 路径
+        var rows = List.of(new ImportRowResult("合同A", 1L,
+                List.of(new AttachmentFileName("合同协议.pdf", "CONTRACT_AGREEMENT"))));
+        var attachments = List.of(new PerformanceImportAttachmentProcessor.AttachmentInput(
+                "/tmp/upload/合同协议.pdf", new byte[]{1}));
+
+        var result = processor.attachFiles(rows, attachments);
+
+        assertThat(result.matchedCount()).isEqualTo(1);
+        assertThat(result.unmatched()).isEmpty();
+    }
+
+    @Test
     void 附件包第三个文件匹配失败时返回未匹配列表() {
         var rows = List.of(new ImportRowResult("合同A", 1L,
                 List.of(new AttachmentFileName("合同协议.pdf", "CONTRACT_AGREEMENT"))));

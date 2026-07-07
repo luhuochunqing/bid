@@ -48,8 +48,8 @@ public class PerformanceImportAttachmentProcessor {
 
         for (AttachmentInput input : attachments) {
             if (input == null || input.isEmpty()) continue;
-            String origName = input.filename();
-            if (origName == null) continue;
+            String origName = sanitizeFilename(input.filename());
+            if (origName == null || origName.isBlank()) continue;
 
             String key = normalizeKey(origName);
             List<Binding> bindings = bindingByName.get(key);
@@ -93,6 +93,16 @@ public class PerformanceImportAttachmentProcessor {
     private static String normalizeKey(String fileName) {
         if (fileName == null) return "";
         return fileName.trim().toLowerCase();
+    }
+
+    /**
+     * 取纯文件名：去除 multipart 可能携带的 Windows/Unix 路径前缀。
+     * 参考仓库模块 WarehouseFileService.sanitizeDisplayName 实现。
+     */
+    private static String sanitizeFilename(String fileName) {
+        if (fileName == null) return null;
+        int lastSep = Math.max(fileName.lastIndexOf('/'), fileName.lastIndexOf('\\'));
+        return lastSep >= 0 ? fileName.substring(lastSep + 1) : fileName;
     }
 
     private void saveOneAttachment(Long performanceId, byte[] bytes, String origName,
