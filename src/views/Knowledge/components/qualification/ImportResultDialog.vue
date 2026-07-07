@@ -75,7 +75,7 @@ const handleClosed = () => {
 }
 
 /**
- * 下载修正文件：生成仅含失败行的 Excel（11列 + 导入结果列）
+ * 下载修正文件：生成仅含失败行的 Excel（12列 + 导入结果列）
  */
 const downloadCorrection = () => {
   const errors = props.data.errors || []
@@ -83,7 +83,8 @@ const downloadCorrection = () => {
 
   const headers = [
     '证书名称', '等级', '认证机构', '证书编号', '发证日期', '证书有效期',
-    '代理机构', '代理机构联系人', '认证范围', '证书审核提醒', '附件文件名', '导入结果'
+    '代理机构', '代理机构联系人', '认证范围', '证书审核提醒', '附件文件名',
+    '审核日志附件文件名', '导入结果'
   ]
 
   // 构建 CSV 内容
@@ -98,9 +99,9 @@ const downloadCorrection = () => {
 
   const rows = [headers.map(escapeCsv).join(',')]
   errors.forEach((err) => {
-    const row = new Array(11).fill('')
+    const row = new Array(12).fill('')
     row[3] = err.certificateNo || ''
-    row[11] = err.reason || ''
+    row[12] = err.reason || ''
     rows.push(row.map(escapeCsv).join(','))
   })
 

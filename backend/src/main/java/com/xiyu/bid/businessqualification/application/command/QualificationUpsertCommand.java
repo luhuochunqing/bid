@@ -23,7 +23,10 @@ public class QualificationUpsertCommand {
 
     String agencyContact;
     String certScope;
-    String certReviewNote;
+    /** CO-530: 证书审核提醒，从 VARCHAR(200) 文本改为 DATE 日期选择 */
+    LocalDate certReviewNote;
+    /** CO-530: 审核日志附件 URL（非必填） */
+    String auditLogFileUrl;
     String holderName;
     String retireReason;
     LocalDate issueDate;

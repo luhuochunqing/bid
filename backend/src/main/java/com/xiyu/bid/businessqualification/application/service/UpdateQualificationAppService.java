@@ -89,6 +89,7 @@ public class UpdateQualificationAppService {
                 Boolean.TRUE.equals(command.getFileUrlExplicitlySet())
                         ? command.getFileUrl()
                         : existing.fileUrl(),
+                command.getAuditLogFileUrl() == null ? existing.auditLogFileUrl() : command.getAuditLogFileUrl(),
                 command.getRetireReason() == null ? existing.retireReason() : command.getRetireReason(),
                 command.getRetired() == null ? existing.retired() : command.getRetired(),
                 newAttachments

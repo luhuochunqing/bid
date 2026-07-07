@@ -240,11 +240,12 @@ class UpdateQualificationAppServiceTest {
                 "代理机构",
                 "13800138000",
                 "范围",
-                "审核备注",
+                null,
                 "西域科技",
                 new ValidityPeriod(LocalDate.of(2024, 1, 1), LocalDate.of(2025, 1, 1)),
                 new ReminderPolicy(true, 30, null),
                 "/files/cert.pdf",
+                null,
                 retireReason,
                 retired,
                 attachments

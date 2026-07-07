@@ -50,6 +50,7 @@ public class CreateQualificationAppService {
                         null
                 ),
                 command.getFileUrl(),
+                command.getAuditLogFileUrl(),
                 command.getRetireReason(),
                 command.getAttachments() == null ? List.of() : command.getAttachments()
         );

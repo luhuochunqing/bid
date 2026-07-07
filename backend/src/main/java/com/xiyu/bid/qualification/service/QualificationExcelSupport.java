@@ -26,12 +26,14 @@ public class QualificationExcelSupport {
     private static final String[] LEDGER_COLUMNS = {
             "证书名称", "等级", "认证机构", "证书编号", "发证日期", "证书有效期",
             "代理机构", "代理机构联系人", "认证范围", "证书审核提醒", "附件文件名",
+            "审核日志附件",
             "状态", "创建人", "创建时间", "更新人", "更新时间"
     };
 
     private static final String[] TEMPLATE_COLUMNS = {
             "证书名称", "等级", "认证机构", "证书编号", "发证日期", "证书有效期",
-            "代理机构", "代理机构联系人", "认证范围", "证书审核提醒", "附件文件名"
+            "代理机构", "代理机构联系人", "认证范围", "证书审核提醒", "附件文件名",
+            "审核日志附件文件名"
     };
 
     public void writeLedger(List<QualificationDTO> source, String idsCsv, OutputStream out) throws IOException {
@@ -55,8 +57,9 @@ public class QualificationExcelSupport {
                     "示例：ISO9001 质量管理体系认证", "FIRST", "中国计量认证中心",
                     "EXAMPLE-2024-001", "2024-01-15", "2027-12-31",
                     "示例代理认证公司", "张三 / 13800138000",
-                    "示例：覆盖产品设计、生产、销售", "每年 3 月年审",
-                    "QUAL_EXAMPLE-2024-001_01_示例证书.pdf"
+                    "示例：覆盖产品设计、生产、销售", "2026-03-01",
+                    "QUAL_EXAMPLE-2024-001_01_示例证书.pdf",
+                    ""
             };
             var exRow = sh.createRow(1);
             for (int i = 0; i < example.length; i++) exRow.createCell(i).setCellValue(example[i]);
@@ -75,13 +78,14 @@ public class QualificationExcelSupport {
         row.createCell(6).setCellValue(nullToEmpty(q.getAgency()));
         row.createCell(7).setCellValue(nullToEmpty(q.getAgencyContact()));
         row.createCell(8).setCellValue(nullToEmpty(q.getCertScope()));
-        row.createCell(9).setCellValue(nullToEmpty(q.getCertReviewNote()));
+        row.createCell(9).setCellValue(q.getCertReviewNote() != null ? q.getCertReviewNote().toString() : "");
         row.createCell(10).setCellValue(nullToEmpty(q.getFileUrl()));
-        row.createCell(11).setCellValue(q.getStatus() != null ? statusLabel(q.getStatus()) : "");
-        row.createCell(12).setCellValue(nullToEmpty(q.getHolderName()));
-        row.createCell(13).setCellValue(q.getCreatedAt() != null ? q.getCreatedAt().toString() : "");
-        row.createCell(14).setCellValue(""); // 更新人：schema 未保留，留空
-        row.createCell(15).setCellValue(q.getUpdatedAt() != null ? q.getUpdatedAt().toString() : "");
+        row.createCell(11).setCellValue(nullToEmpty(q.getAuditLogFileUrl()));
+        row.createCell(12).setCellValue(q.getStatus() != null ? statusLabel(q.getStatus()) : "");
+        row.createCell(13).setCellValue(nullToEmpty(q.getHolderName()));
+        row.createCell(14).setCellValue(q.getCreatedAt() != null ? q.getCreatedAt().toString() : "");
+        row.createCell(15).setCellValue(""); // 更新人：schema 未保留，留空
+        row.createCell(16).setCellValue(q.getUpdatedAt() != null ? q.getUpdatedAt().toString() : "");
     }
 
     private static List<QualificationDTO> filterByIds(List<QualificationDTO> source, String idsCsv) {

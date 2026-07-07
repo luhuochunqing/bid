@@ -22,11 +22,12 @@ public record BusinessQualification(
         String agency,
         String agencyContact,
         String certScope,
-        String certReviewNote,
+        LocalDate certReviewNote,
         String holderName,
         ValidityPeriod validityPeriod,
         ReminderPolicy reminderPolicy,
         String fileUrl,
+        String auditLogFileUrl,
         String retireReason,
         boolean retired,
         List<QualificationAttachment> attachments
@@ -47,11 +48,12 @@ public record BusinessQualification(
             String agency,
             String agencyContact,
             String certScope,
-            String certReviewNote,
+            LocalDate certReviewNote,
             String holderName,
             ValidityPeriod validityPeriod,
             ReminderPolicy reminderPolicy,
             String fileUrl,
+            String auditLogFileUrl,
             String retireReason,
             List<QualificationAttachment> attachments
     ) {
@@ -71,6 +73,7 @@ public record BusinessQualification(
                 validityPeriod,
                 reminderPolicy,
                 fileUrl,
+                auditLogFileUrl,
                 retireReason,
                 false,
                 attachments
@@ -88,11 +91,12 @@ public record BusinessQualification(
             String agency,
             String agencyContact,
             String certScope,
-            String certReviewNote,
+            LocalDate certReviewNote,
             String holderName,
             ValidityPeriod validityPeriod,
             ReminderPolicy reminderPolicy,
             String fileUrl,
+            String auditLogFileUrl,
             String retireReason,
             boolean retired,
             List<QualificationAttachment> attachments
@@ -113,6 +117,7 @@ public record BusinessQualification(
                 validityPeriod,
                 reminderPolicy,
                 fileUrl,
+                auditLogFileUrl,
                 retireReason,
                 retired,
                 attachments
@@ -152,6 +157,7 @@ public record BusinessQualification(
                 validityPeriod,
                 nextReminderPolicy,
                 fileUrl,
+                auditLogFileUrl,
                 retireReason,
                 retired,
                 attachments

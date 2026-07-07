@@ -122,7 +122,7 @@ describe('QualFormDialog - §4.2.1.3 编辑模式', () => {
           id: 2, name: 'Test', level: 'AAA', issuer: 'Org', certificateNo: '123',
           issueDate: '2024-01-01', expiryDate: '2025-01-01',
           agency: 'Agency', agencyContact: '13800138000',
-          certScope: 'Scope', certReviewNote: 'Note'
+          certScope: 'Scope', certReviewNote: '2026-03-01'
         }
       }
     })

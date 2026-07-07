@@ -241,7 +241,7 @@ public class QualificationExpiryNotificationService {
                 e.getCertificateNo(), e.getIssuer(), e.getAgency(), e.getAgencyContact(),
                 e.getCertScope(), e.getCertReviewNote(), e.getHolderName(),
                 validity, policy,
-                e.getFileUrl(), e.getRetireReason(), java.util.List.of()
+                e.getFileUrl(), e.getAuditLogFileUrl(), e.getRetireReason(), java.util.List.of()
         );
     }
 

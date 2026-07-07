@@ -1,4 +1,4 @@
-// Input: multipart Excel upload (11 列), current user operator name
+// Input: multipart Excel upload (12 列), current user operator name
 // Output: per-row success/failure with command payload for downstream create
 // Pos: Application service 编排 + 校验，副作用下沉到 service 层 Excel 解析
 // 维护声明: 仅做 Excel → RowInput 解析 + 行级校验；入库走 CreateQualificationAppService
@@ -107,8 +107,24 @@ if (rows.isEmpty()) {
         if (row.agency().length() > 200) return fail(row.rowNumber(), row.certificateNo(), "代理机构超过200字符");
         if (row.agencyContact().length() > 200) return fail(row.rowNumber(), row.certificateNo(), "代理机构联系人超过200字符");
         if (row.certScope().length() > 1000) return fail(row.rowNumber(), row.certificateNo(), "认证范围超过1000字符");
-        if (row.certReviewNote() != null && row.certReviewNote().length() > 200) {
-            return fail(row.rowNumber(), row.certificateNo(), "证书审核提醒超过200字符");
+
+        // CO-530: certReviewNote 从 VARCHAR(200) 文本改为 DATE 日期，校验日期格式
+        java.time.LocalDate certReviewNoteDate = null;
+        if (!isBlank(row.certReviewNote())) {
+            try {
+                certReviewNoteDate = CommonDateParser.parseDayPrecisionOrThrow(row.certReviewNote().trim(), "证书审核提醒");
+            } catch (IllegalArgumentException e) {
+                return fail(row.rowNumber(), row.certificateNo(), e.getMessage());
+            }
+        }
+
+        // CO-530: 审核日志附件文件名校验（非必填，但如果填了校验扩展名）
+        if (!isBlank(row.auditLogFileName())) {
+            String auditLogName = row.auditLogFileName().trim().toLowerCase();
+            if (!auditLogName.endsWith(".pdf") && !auditLogName.endsWith(".png")
+                    && !auditLogName.endsWith(".doc") && !auditLogName.endsWith(".docx")) {
+                return fail(row.rowNumber(), row.certificateNo(), "审核日志附件仅支持 PDF/PNG/Word 格式");
+            }
         }
 
         // 日期解析 + 顺序
@@ -150,7 +166,7 @@ if (rows.isEmpty()) {
                 .agency(row.agency().trim())
                 .agencyContact(row.agencyContact().trim())
                 .certScope(row.certScope().trim())
-                .certReviewNote(isBlank(row.certReviewNote()) ? null : row.certReviewNote().trim())
+                .certReviewNote(certReviewNoteDate)
                 .holderName(operator)
                 .issueDate(issueDate)
                 .expiryDate(expiryDate)
@@ -185,7 +201,8 @@ if (rows.isEmpty()) {
             String agencyContact,
             String certScope,
             String certReviewNote,
-            String attachmentFileName
+            String attachmentFileName,
+            String auditLogFileName
     ) {}
 
     private static List<RowInput> parse(Workbook wb) {
@@ -209,9 +226,10 @@ if (rows.isEmpty()) {
             String certScope = readCell(row.getCell(8), formatter, evaluator);
             String certReviewNote = readCell(row.getCell(9), formatter, evaluator);
             String attachmentFileName = readCell(row.getCell(10), formatter, evaluator);
+            String auditLogFileName = readCell(row.getCell(11), formatter, evaluator);
             // 完全空行跳过
             if (isBlank(name) && isBlank(certNo) && isBlank(issuer)) continue;
-            rows.add(new RowInput(r + 1, name, level, issuer, certNo, issueDate, expiryDate, agency, agencyContact, certScope, certReviewNote, attachmentFileName));
+            rows.add(new RowInput(r + 1, name, level, issuer, certNo, issueDate, expiryDate, agency, agencyContact, certScope, certReviewNote, attachmentFileName, auditLogFileName));
         }
         return rows;
     }

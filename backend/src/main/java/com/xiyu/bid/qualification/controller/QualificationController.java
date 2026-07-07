@@ -15,6 +15,7 @@ import com.xiyu.bid.qualification.service.BatchAttachmentService;
 import com.xiyu.bid.qualification.service.QualificationService;
 import com.xiyu.bid.qualification.application.QualificationQueryService;
 import com.xiyu.bid.qualification.service.QualificationWebService;
+import com.xiyu.bid.qualification.service.QualificationAuditLogWebService;
 import com.xiyu.bid.qualification.service.QualificationAiParserService;
 import com.xiyu.bid.util.InputSanitizer;
 import jakarta.validation.Valid;
@@ -56,6 +57,7 @@ public class QualificationController {
     private final QualificationService qualificationService;
     private final QualificationQueryService qualificationQueryService;
     private final QualificationWebService qualificationWebService;
+    private final QualificationAuditLogWebService qualificationAuditLogWebService;
     private final QualificationAiParserService qualificationAiParserService;
 
     @PostMapping
@@ -205,6 +207,7 @@ public class QualificationController {
         if (dto.getHolderName() != null) dto.setHolderName(InputSanitizer.sanitizeString(dto.getHolderName(), 120));
         if (dto.getRetireReason() != null) dto.setRetireReason(InputSanitizer.sanitizeString(dto.getRetireReason(), 500));
         if (dto.getFileUrl() != null) dto.setFileUrl(InputSanitizer.sanitizeString(dto.getFileUrl(), 500));
+        if (dto.getAuditLogFileUrl() != null) dto.setAuditLogFileUrl(InputSanitizer.sanitizeString(dto.getAuditLogFileUrl(), 500));
     }
 
 
@@ -247,6 +250,38 @@ public class QualificationController {
             var file = qualificationWebService.getAttachmentFile(id, attachmentId);
             Resource resource = new FileSystemResource(file.path());
             // CO-368 fix: 支持 ?inline=true 浏览器内预览（PDF/图片），默认 attachment 下载
+            ContentDisposition disposition = Boolean.TRUE.equals(inline)
+                    ? ContentDisposition.inline().build()
+                    : ContentDisposition.attachment().filename(file.fileName(), StandardCharsets.UTF_8).build();
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(file.contentType()))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                    .body(resource);
+        } catch (InvalidArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    // ==================== CO-530: 审核日志附件 ====================
+
+    @PostMapping("/{id}/audit-log/upload")
+    @PreAuthorize("hasAuthority('" + PERM + "')")
+    @Auditable(action = "UPDATE", entityType = "Qualification", description = "上传审核日志附件")
+    public ResponseEntity<ApiResponse<QualificationDTO>> uploadAuditLogAttachment(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file) throws IOException {
+        return ResponseEntity.ok(ApiResponse.success("审核日志附件上传成功",
+                qualificationAuditLogWebService.uploadAuditLogAttachment(id, file)));
+    }
+
+    @GetMapping("/{id}/audit-log/download")
+    @PreAuthorize("hasAuthority('" + RoleProfileCatalog.QUALIFICATION_VIEW_PERMISSION + "')")
+    public ResponseEntity<Resource> downloadAuditLogAttachment(
+            @PathVariable Long id,
+            @RequestParam(required = false, defaultValue = "false") boolean inline) {
+        try {
+            var file = qualificationAuditLogWebService.getAuditLogFile(id);
+            Resource resource = new FileSystemResource(file.path());
             ContentDisposition disposition = Boolean.TRUE.equals(inline)
                     ? ContentDisposition.inline().build()
                     : ContentDisposition.attachment().filename(file.fileName(), StandardCharsets.UTF_8).build();
