@@ -78,7 +78,7 @@ public final class PerformanceEnumLabels {
         return switch (s) {
             case "办公" -> ProjectType.OFFICE;
             case "综合" -> ProjectType.COMPREHENSIVE;
-            case "集采" -> ProjectType.CENTRALIZED;
+            case "集采" -> ProjectType.COLLECTIVE;
             case "工业品" -> ProjectType.INDUSTRIAL;
             case "其他" -> ProjectType.OTHER;
             default -> {
