@@ -52,6 +52,10 @@ public final class ProjectArchiveSpecifications {
                 predicates.add(cb.equal(root.get("id"), query.getArchiveId()));
             }
 
+            if (query.getProjectIds() != null && !query.getProjectIds().isEmpty()) {
+                predicates.add(root.get("projectId").in(query.getProjectIds()));
+            }
+
             if (query.getProjectName() != null && !query.getProjectName().trim().isEmpty()) {
                 predicates.add(cb.like(root.get("projectName"), "%" + query.getProjectName().trim() + "%"));
             }
