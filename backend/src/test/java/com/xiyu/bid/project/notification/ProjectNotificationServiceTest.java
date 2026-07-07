@@ -11,6 +11,8 @@ import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.project.core.ProjectStage;
+import com.xiyu.bid.project.entity.ProjectLeadAssignment;
+import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.security.EffectiveRoleResolver;
@@ -47,6 +49,8 @@ class ProjectNotificationServiceTest {
     @Mock
     private ProjectMemberRepository projectMemberRepository;
     @Mock
+    private ProjectLeadAssignmentRepository leadAssignmentRepository;
+    @Mock
     private EffectiveRoleResolver effectiveRoleResolver;
 
     @Captor
@@ -64,7 +68,7 @@ class ProjectNotificationServiceTest {
     @BeforeEach
     void setUp() {
         svc = new ProjectNotificationService(notificationService, projectRepository,
-                userRepository, projectMemberRepository, effectiveRoleResolver);
+                userRepository, projectMemberRepository, leadAssignmentRepository, effectiveRoleResolver);
     }
 
     private Project project(String name) {
@@ -152,12 +156,33 @@ class ProjectNotificationServiceTest {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
             when(projectMemberRepository.findByProjectId(PID))
                     .thenReturn(List.of(member(MANAGER_ID, "LEAD"), member(99L, "ADMIN"), member(77L, "VIEWER")));
+            when(leadAssignmentRepository.findByProjectId(PID)).thenReturn(Optional.empty());
 
             svc.notifyInitiationApproved(PID, UID);
 
             verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
             assertThat(requestCaptor.getValue().type()).isEqualTo("INFO");
             assertThat(requestCaptor.getValue().recipientUserIds()).containsExactlyInAnyOrder(88L, 99L);
+        }
+
+        @Test
+        @DisplayName("sends INFO to manager + primary/secondary leads from lead assignment")
+        void sendsToManagerAndLeadsFromLeadAssignment() {
+            when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
+            when(projectMemberRepository.findByProjectId(PID)).thenReturn(List.of());
+            when(leadAssignmentRepository.findByProjectId(PID))
+                    .thenReturn(Optional.of(ProjectLeadAssignment.builder()
+                            .projectId(PID)
+                            .primaryLeadUserId(200L)
+                            .secondaryLeadUserId(201L)
+                            .build()));
+
+            svc.notifyInitiationApproved(PID, UID);
+
+            verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
+            assertThat(requestCaptor.getValue().type()).isEqualTo("INFO");
+            assertThat(requestCaptor.getValue().recipientUserIds())
+                    .containsExactlyInAnyOrder(MANAGER_ID, 200L, 201L);
         }
 
         @Test

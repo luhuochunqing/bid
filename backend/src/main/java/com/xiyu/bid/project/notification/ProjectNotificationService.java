@@ -5,6 +5,8 @@ import com.xiyu.bid.entity.User;
 import com.xiyu.bid.matrixcollaboration.entity.ProjectMember;
 import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
 import com.xiyu.bid.notification.core.NotificationType;
+import com.xiyu.bid.project.entity.ProjectLeadAssignment;
+import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.notification.core.TaskNotificationTargetUrlResolver;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
@@ -33,6 +35,7 @@ public class ProjectNotificationService {
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final ProjectLeadAssignmentRepository leadAssignmentRepository;
     private final EffectiveRoleResolver effectiveRoleResolver;
 
     public void notifyInitiationSubmitted(Long projectId, Long submittedBy) {
@@ -269,6 +272,15 @@ public class ProjectNotificationService {
                 .forEach(member -> {
                     if ("LEAD".equals(member.getPermissionLevel()) || "ADMIN".equals(member.getPermissionLevel())) {
                         leadIds.add(member.getUserId());
+                    }
+                });
+        leadAssignmentRepository.findByProjectId(projectId)
+                .ifPresent(assignment -> {
+                    if (assignment.getPrimaryLeadUserId() != null) {
+                        leadIds.add(assignment.getPrimaryLeadUserId());
+                    }
+                    if (assignment.getSecondaryLeadUserId() != null) {
+                        leadIds.add(assignment.getSecondaryLeadUserId());
                     }
                 });
         return leadIds;
