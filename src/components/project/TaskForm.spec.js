@@ -821,8 +821,8 @@ describe('TaskForm', () => {
     expect(completionItem?.classes()).not.toContain('is-required')
   })
 
-  // 场景2: 执行人提交审核时（view + assignee=currentUser + TODO），两个字段必填，有 * 星号
-  it('marks deliverable/completionNotes as required when assignee submitting for review', async () => {
+  // 场景2: 执行人提交审核时（view + assignee=currentUser + TODO），交付物必填，完成情况说明非必填
+  it('marks deliverable as required and completionNotes as optional when assignee submitting for review', async () => {
     const wrapper = mount(TaskForm, {
       props: {
         mode: 'view',
@@ -842,7 +842,7 @@ describe('TaskForm', () => {
     const deliverableItem = formItems.find((el) => el.text().includes('交付物上传'))
     const completionItem = formItems.find((el) => el.text().includes('完成情况说明'))
     expect(deliverableItem?.classes()).toContain('is-required')
-    expect(completionItem?.classes()).toContain('is-required')
+    expect(completionItem?.classes()).not.toContain('is-required')
   })
 
   // 场景3: 非执行人查看时，两个字段也非必填

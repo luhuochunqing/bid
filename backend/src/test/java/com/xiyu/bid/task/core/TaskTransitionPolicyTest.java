@@ -142,8 +142,16 @@ class TaskTransitionPolicyTest {
         var r = TaskTransitionPolicy.validateSubmission(
                 TaskTransitionPolicy.TaskStatus.TODO,
                 TaskTransitionPolicy.TaskStatus.REVIEW,
-                1,
-                "已完成投标文件编制");
+                1);
+        assertThat(r.allowed()).isTrue();
+    }
+
+    @Test
+    void validateSubmission_TodoToReview_WithDeliverableAndBlankNotes_Allowed() {
+        var r = TaskTransitionPolicy.validateSubmission(
+                TaskTransitionPolicy.TaskStatus.TODO,
+                TaskTransitionPolicy.TaskStatus.REVIEW,
+                1);
         assertThat(r.allowed()).isTrue();
     }
 
@@ -152,8 +160,7 @@ class TaskTransitionPolicyTest {
         var r = TaskTransitionPolicy.validateSubmission(
                 TaskTransitionPolicy.TaskStatus.TODO,
                 TaskTransitionPolicy.TaskStatus.REVIEW,
-                0,
-                "已完成投标文件编制");
+                0);
         assertThat(r.allowed()).isFalse();
         assertThat(r.reason()).contains("提交审核时必须上传交付物");
     }
@@ -163,43 +170,9 @@ class TaskTransitionPolicyTest {
         var r = TaskTransitionPolicy.validateSubmission(
                 TaskTransitionPolicy.TaskStatus.TODO,
                 TaskTransitionPolicy.TaskStatus.REVIEW,
-                -1,
-                "已完成投标文件编制");
+                -1);
         assertThat(r.allowed()).isFalse();
         assertThat(r.reason()).contains("提交审核时必须上传交付物");
-    }
-
-    @Test
-    void validateSubmission_TodoToReview_NullNotes_Denied() {
-        var r = TaskTransitionPolicy.validateSubmission(
-                TaskTransitionPolicy.TaskStatus.TODO,
-                TaskTransitionPolicy.TaskStatus.REVIEW,
-                3,
-                null);
-        assertThat(r.allowed()).isFalse();
-        assertThat(r.reason()).contains("提交审核时必须填写完成情况");
-    }
-
-    @Test
-    void validateSubmission_TodoToReview_BlankNotes_Denied() {
-        var r = TaskTransitionPolicy.validateSubmission(
-                TaskTransitionPolicy.TaskStatus.TODO,
-                TaskTransitionPolicy.TaskStatus.REVIEW,
-                3,
-                "   ");
-        assertThat(r.allowed()).isFalse();
-        assertThat(r.reason()).contains("提交审核时必须填写完成情况");
-    }
-
-    @Test
-    void validateSubmission_TodoToReview_EmptyNotes_Denied() {
-        var r = TaskTransitionPolicy.validateSubmission(
-                TaskTransitionPolicy.TaskStatus.TODO,
-                TaskTransitionPolicy.TaskStatus.REVIEW,
-                3,
-                "");
-        assertThat(r.allowed()).isFalse();
-        assertThat(r.reason()).contains("提交审核时必须填写完成情况");
     }
 
     @Test
@@ -207,22 +180,19 @@ class TaskTransitionPolicyTest {
         var r1 = TaskTransitionPolicy.validateSubmission(
                 TaskTransitionPolicy.TaskStatus.REVIEW,
                 TaskTransitionPolicy.TaskStatus.COMPLETED,
-                0,
-                null);
+                0);
         assertThat(r1.allowed()).isTrue();
 
         var r2 = TaskTransitionPolicy.validateSubmission(
                 TaskTransitionPolicy.TaskStatus.REVIEW,
                 TaskTransitionPolicy.TaskStatus.TODO,
-                0,
-                null);
+                0);
         assertThat(r2.allowed()).isTrue();
 
         var r3 = TaskTransitionPolicy.validateSubmission(
                 TaskTransitionPolicy.TaskStatus.COMPLETED,
                 TaskTransitionPolicy.TaskStatus.TODO,
-                0,
-                null);
+                0);
         assertThat(r3.allowed()).isTrue();
     }
 
@@ -231,8 +201,7 @@ class TaskTransitionPolicyTest {
         var r = TaskTransitionPolicy.validateSubmission(
                 TaskTransitionPolicy.TaskStatus.TODO,
                 TaskTransitionPolicy.TaskStatus.TODO,
-                0,
-                null);
+                0);
         assertThat(r.allowed()).isTrue();
     }
 }

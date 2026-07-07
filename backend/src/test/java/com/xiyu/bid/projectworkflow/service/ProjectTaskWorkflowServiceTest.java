@@ -183,18 +183,21 @@ class ProjectTaskWorkflowServiceTest {
     }
 
     @Test
-    void co458_submitReviewWithoutCompletionNotes_throws422() {
+    void co458_submitReviewWithoutCompletionNotes_persistsEmptyNotes() {
         Task task = Task.builder().id(4L).projectId(10L).title("T").status(Task.Status.TODO).build();
         when(guardService.requireTask(10L, 4L)).thenReturn(task);
+        when(taskRepository.save(any(Task.class))).thenAnswer(inv -> inv.getArgument(0));
         when(taskDeliverableRepository.countByTaskId(4L)).thenReturn(1L);
+        when(taskDeliverableRepository.findByTaskIdOrderByCreatedAtDesc(4L)).thenReturn(List.of());
         ProjectTaskStatusUpdateRequest req = ProjectTaskStatusUpdateRequest.builder()
                 .status(ProjectTaskStatusUpdateRequest.Status.REVIEW)
                 .completionNotes("  ")
                 .build();
 
-        assertThatThrownBy(() -> service.updateProjectTaskStatus(10L, 4L, req, "assignee"))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("提交审核时必须填写完成情况");
+        ProjectTaskViewDTO dto = service.updateProjectTaskStatus(10L, 4L, req, "assignee");
+
+        assertThat(dto.getStatus()).isEqualTo("review");
+        assertThat(dto.getCompletionNotes()).isNullOrEmpty();
     }
 
     @Test
