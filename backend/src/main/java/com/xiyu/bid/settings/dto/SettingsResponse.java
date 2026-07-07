@@ -121,6 +121,7 @@ public class SettingsResponse {
         private Boolean enabled;
         private String baseUrl;
         private String model;
+        private String embeddingModel;
         private String encryptedApiKey;
         private String apiKeyMasked;
         private Boolean apiKeyConfigured;

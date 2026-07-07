@@ -107,6 +107,7 @@ public class AiConfigService {
                 merged.setEnabled(provider.getEnabled() != null ? provider.getEnabled() : merged.getEnabled());
                 merged.setBaseUrl(nonBlankOrDefault(provider.getBaseUrl(), merged.getBaseUrl()));
                 merged.setModel(nonBlankOrDefault(provider.getModel(), merged.getModel()));
+                merged.setEmbeddingModel(nonBlankOrDefault(provider.getEmbeddingModel(), merged.getEmbeddingModel()));
                 merged.setEncryptedApiKey(provider.getEncryptedApiKey());
                 merged.setLastTestStatus(provider.getLastTestStatus());
                 merged.setLastTestMessage(provider.getLastTestMessage());
@@ -149,6 +150,7 @@ public class AiConfigService {
                     target.setBaseUrl(providerUpdate.getBaseUrl().trim());
                 }
                 if (providerUpdate.getModel() != null) target.setModel(providerUpdate.getModel().trim());
+                if (providerUpdate.getEmbeddingModel() != null) target.setEmbeddingModel(providerUpdate.getEmbeddingModel().trim());
                 if (providerUpdate.getApiKeyPlaintext() != null && !providerUpdate.getApiKeyPlaintext().isBlank()) {
                     target.setEncryptedApiKey(passwordEncryptionUtil.encrypt(providerUpdate.getApiKeyPlaintext().trim()));
                 }
@@ -188,6 +190,7 @@ public class AiConfigService {
                 .enabled(source.getEnabled())
                 .baseUrl(source.getBaseUrl())
                 .model(source.getModel())
+                .embeddingModel(source.getEmbeddingModel())
                 .apiKeyMasked(maskApiKey(plaintext))
                 .apiKeyConfigured(plaintext != null && !plaintext.isBlank())
                 .lastTestStatus(source.getLastTestStatus())
