@@ -299,6 +299,15 @@
             <artifactId>commons-logging</artifactId>
             <version>1.2</version>
         </dependency>
+        <!-- fastjson 1.2.83 是 com.ehsy.eventlibrary:clientsdk 的传递依赖（ClientRegisterComponent 使用 com.alibaba.fastjson.JSONObject）。
+             PR !1802 误将其作为 ghost dependency 删除，导致生产 prod profile 启动 crash-loop（ClassNotFoundException）。
+             本地 dev profile 不加载 SDKClientConfiguration，因此 mvn test 无法暴露此问题。
+             删除前必须先升级 eventlibrary 到不依赖 fastjson 的版本，或在本仓提供 fastjson2 兼容类。 -->
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>fastjson</artifactId>
+            <version>1.2.83</version>
+        </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
