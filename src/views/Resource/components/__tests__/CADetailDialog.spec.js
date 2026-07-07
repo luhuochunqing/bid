@@ -320,28 +320,29 @@ describe('CADetailDialog.vue — CO-515 借用记录和操作日志 Tab 信息�
     expect(parsed[0].applicantName).toBe('王五')
   })
 
-  // 操作日志为空时显示空状态
-  it('render_emptyOperationEvents — 操作日志为空时显示空状态', async () => {
+  // 操作日志为空时显示空状态（CO-515: 改为表格形式，空数据时表头仍展示 + 外挂 el-empty）
+  it('render_emptyOperationEvents — 操作日志为空时渲染表格 + 空状态', async () => {
     const wrapper = await mountComponent({ operationEvents: [] })
     await flushPromises()
 
     const panes = wrapper.findAll('.el-tab-pane-stub')
     const logPane = panes.find((p) => p.attributes('data-label') === '操作日志')
     expect(logPane).toBeDefined()
+    // 空数据时 el-table 仍渲染（展示表头），外加 el-empty
+    expect(logPane.find('.el-table-stub').exists()).toBe(true)
     expect(logPane.find('.el-empty-stub').exists()).toBe(true)
   })
 
-  // 操作日志有数据时渲染时间线
-  it('render_operationEventsTimeline — 操作日志有数据时渲染时间线', async () => {
+  // 操作日志有数据时渲染表格（CO-515: 从 el-timeline 改为 el-table）
+  it('render_operationEventsTable — 操作日志有数据时渲染表格', async () => {
     const operationEvents = [
       {
         id: 1,
-        applicationId: 100,
-        eventType: 'SUBMITTED',
-        eventTypeLabel: '提交申请',
+        eventType: 'CREATE',
+        eventTypeLabel: '新增',
         operatorName: '张三',
-        detail: '提交借用申请',
-        createdAt: '2026-07-06T10:00:00'
+        detail: 'Created CaCertificate: 5',
+        createdAt: '2026-07-06 10:00:00'
       }
     ]
     const wrapper = await mountComponent({ operationEvents })
@@ -350,6 +351,8 @@ describe('CADetailDialog.vue — CO-515 借用记录和操作日志 Tab 信息�
     const panes = wrapper.findAll('.el-tab-pane-stub')
     const logPane = panes.find((p) => p.attributes('data-label') === '操作日志')
     expect(logPane).toBeDefined()
-    expect(logPane.find('.el-timeline-stub').exists()).toBe(true)
+    expect(logPane.find('.el-table-stub').exists()).toBe(true)
+    // 有数据时不显示 el-empty
+    expect(logPane.find('.el-empty-stub').exists()).toBe(false)
   })
 })

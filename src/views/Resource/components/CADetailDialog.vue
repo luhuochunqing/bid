@@ -95,28 +95,21 @@
           <CABorrowRecordsTable :applications="borrowApplications" />
         </el-tab-pane>
 
-        <!-- Tab 3: 操作日志 -->
+        <!-- Tab 3: 操作日志（CO-515: 对齐账户详情，改为表格形式展示） -->
         <el-tab-pane label="操作日志" name="log">
-          <div v-if="operationEvents.length === 0" class="empty-tab">
-            <el-empty description="暂无操作日志" :image-size="80" />
-          </div>
-          <el-timeline v-else>
-            <el-timeline-item
-              v-for="event in operationEvents"
-              :key="event.id"
-              :timestamp="formatDisplayDateTime(event.createdAt)"
-              placement="top"
-              :type="caEventTypeColor(event.eventType)"
-            >
-              <div class="timeline-content">
-                <el-tag size="small" :type="caEventTypeColor(event.eventType)" class="event-tag">
-                  {{ event.eventTypeLabel }}
+          <el-table :data="operationEvents" stripe size="small" max-height="360" scrollbar-always-on style="width: 100%">
+            <el-table-column label="操作类型" width="120">
+              <template #default="{ row }">
+                <el-tag :type="caEventTypeColor(row.eventType)" size="small">
+                  {{ row.eventTypeLabel }}
                 </el-tag>
-                <span class="event-detail">{{ event.detail || '' }}</span>
-                <span class="event-operator">操作人：{{ event.operatorName }}</span>
-              </div>
-            </el-timeline-item>
-          </el-timeline>
+              </template>
+            </el-table-column>
+            <el-table-column prop="operatorName" label="操作人" width="140" show-overflow-tooltip />
+            <el-table-column prop="createdAt" label="时间" width="160" />
+            <el-table-column prop="detail" label="详情" min-width="240" show-overflow-tooltip />
+          </el-table>
+          <el-empty v-if="!operationEvents.length" description="暂无操作日志" :image-size="60" />
         </el-tab-pane>
       </el-tabs>
     </template>
@@ -161,7 +154,6 @@ import {
 } from '../composables/useCaBorrowEligibility'
 import { formatDisplayName } from '@/utils/formatDisplayName'
 import DateTimeDisplay from '@/components/common/DateTimeDisplay.vue'
-import { formatDisplayDateTime } from '@/utils/formatDisplayDate'
 // CO-515: 借用记录表格抽为子组件，保持父组件在 line-budget 内
 import CABorrowRecordsTable from './CABorrowRecordsTable.vue'
 
@@ -203,30 +195,6 @@ watch(() => props.modelValue, (v) => {
 .platform-tag {
   margin-right: 4px;
   margin-bottom: 2px;
-}
-
-.empty-tab {
-  padding: 40px 0;
-}
-
-.timeline-content {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.event-tag {
-  align-self: flex-start;
-}
-
-.event-detail {
-  font-size: 13px;
-  color: var(--el-text-color-regular);
-}
-
-.event-operator {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
 }
 
 .detail-actions {
