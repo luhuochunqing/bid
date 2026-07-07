@@ -12,6 +12,7 @@ import { useQualificationStore } from '@/stores/qualification'
 import { useUserStore } from '@/stores/user'
 import { useQualificationBorrowWorkflow } from './useQualificationBorrowWorkflow'
 import { qualificationsApi } from '@/api/modules/qualification.js'
+import { ApiCode } from '@/constants/apiCode'
 
 export function useQualificationPage() {
   const qualificationStore = useQualificationStore()
@@ -172,7 +173,7 @@ export function useQualificationPage() {
   async function handleImportLedger(file) {
     try {
       const response = await qualificationsApi.importLedger(file.raw || file)
-      if (response?.code === 200 || response?.success) {
+      if (response?.code === ApiCode.SUCCESS || response?.success) {
         ElMessage.success('导入台账成功')
         await loadPageData()
         return

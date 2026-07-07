@@ -6,6 +6,7 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import http from '@/api/client'
+import { ApiCode } from '@/constants/apiCode'
 
 const STATUS_OPTIONS = [
   { label: '在库', value: 'VALID' },
@@ -64,7 +65,7 @@ export function useQualificationList() {
       q.set('page', page.value - 1)
       q.set('size', pageSize.value)
       const body = await http.get(`/api/knowledge/qualifications?${q.toString()}`)
-      if (body?.code === 200) {
+      if (body?.code === ApiCode.SUCCESS) {
         // CO-155 fix: 后端现在返回 Page<DTO>，有 content/totalElements 字段
         const data = body.data
         if (data && Array.isArray(data.content)) {

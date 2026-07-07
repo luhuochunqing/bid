@@ -35,6 +35,7 @@ import { useUserStore } from '@/stores/user'
 import LoginBrandSection from '@/components/login/LoginBrandSection.vue'
 import LoginForm from '@/components/login/LoginForm.vue'
 import SocialLogin from '@/components/login/SocialLogin.vue'
+import { ApiCode } from '@/constants/apiCode'
 
 const LoginDevAccountsHint = import.meta.env.DEV
   ? defineAsyncComponent(() => import('@/components/common/LoginDevAccountsHint.vue'))
@@ -71,7 +72,7 @@ onMounted(async () => {
       ElMessage.success('企业微信登录成功')
       router.push(redirect)
     } catch (error) {
-      if (error?.response?.data?.code === 40101) {
+      if (error?.response?.data?.code === ApiCode.ACCOUNT_DISABLED) {
         ElMessage.warning('您的企业微信账号尚未绑定系统账号，请先手动登录一次进行绑定')
       } else {
         const msg = error?.response?.data?.msg || error?.message || '企业微信登录失败'

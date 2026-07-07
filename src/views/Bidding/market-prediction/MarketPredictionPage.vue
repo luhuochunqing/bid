@@ -122,6 +122,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { ApiCode } from '@/constants/apiCode'
 
 const props = defineProps({
   purchaserHashes: {
@@ -185,7 +186,7 @@ const fetchPredictions = async () => {
       body: JSON.stringify({ purchaserHashes: props.purchaserHashes })
     })
     const result = await response.json()
-    if (result.code === 0 || result.success) {
+    if (result.code === ApiCode.SUCCESS_ZERO || result.success) {
       predictions.value = result.data || []
     }
   } catch (error) {
@@ -200,7 +201,7 @@ const fetchMinCount = async () => {
   try {
     const response = await fetch('/api/market-prediction/config/min-count')
     const result = await response.json()
-    if (result.code === 0 || result.success) {
+    if (result.code === ApiCode.SUCCESS_ZERO || result.success) {
       minHistoricalCount.value = result.data
     }
   } catch (error) {
