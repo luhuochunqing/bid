@@ -125,6 +125,8 @@
       v-model="bulkImport.showBulkImport.value"
       :selected-file="bulkImport.selectedFile.value"
       :result="bulkImport.importResult.value"
+      :import-progress="bulkImport.importProgress.value"
+      :polling="bulkImport.polling.value"
       :template-downloading="bulkImport.templateDownloading.value"
       :importing="bulkImport.importing.value"
       @reset="bulkImport.resetImport"

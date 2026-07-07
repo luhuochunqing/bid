@@ -2982,3 +2982,111 @@ tasks WHERE assignee_id=1471 AND project_id IN (160..173) → 空集
 - [U1145__add_alert_rule_types.sql](file:///Users/user/xiyu/worktrees/qoder/backend/src/main/resources/db/rollback/migration-mysql/U1145__add_alert_rule_types.sql)（回滚脚本）
 - [CaExpiryScanService.java](file:///Users/user/xiyu/worktrees/qoder/backend/src/main/java/com/xiyu/bid/resources/service/CaExpiryScanService.java)（受影响服务）
 - PR: https://gitee.com/allinai888/bid/pulls/1799
+
+## 46. Nginx proxy_read_timeout 60s 默认值与后端实际耗时错配导致"request timeout 但数据已入库"（spec 031 / 2026-07-07）
+
+### 问题背景
+
+用户在标讯管理页批量导入 180 行 Excel 时，前端报 `request timeout`，但数据库检查发现数据已成功入库。Sentry 报警中显示 `userId":"anonymous","roleCode":"anonymous"`，MDC 用户上下文未填充。
+
+按 §23 全链路日志排查 SOP 定位：
+
+**Layer 1（Sentry）**：无 5xx 异常上报。
+**Layer 2（业务日志）**：后端日志显示导入任务从 17:23:45 开始，17:25:28 完成，耗时 **103.5 秒**。所有标讯行成功 INSERT。
+**Layer 3（git 追溯）**：`TenderController.importTenders` 是同步阻塞实现，前端 axios timeout=120s，Nginx `proxy_read_timeout 60s`（默认值）。
+**Layer 4（配置）**：`/etc/nginx/conf.d/xiyu-bid.conf` 的 `location /api/` 块未显式配置 `proxy_read_timeout`，落到 Nginx 默认 60s。
+
+### 根因分析
+
+**双层超时错配 + 后端事务无中断信号**：
+
+```
+前端 axios timeout=120s
+    ↓
+Nginx proxy_read_timeout=60s  ← 第 60 秒返回 504 给前端
+    ↓
+后端 Spring 事务（仍在运行，无中断信号）  ← 第 103.5 秒 COMMIT 完成
+    ↓
+数据已入库，但用户看到 timeout
+```
+
+**MDC anonymous 副因**：`TraceFilter` 在 `filterChain.doFilter()` 之前调用 `putUserContext()`，但此时 `SecurityContextHolder` 还没被 `JwtAuthenticationFilter` 填充，导致 `putUserContext()` 走 anonymous 兜底分支。`JwtAuthenticationFilter` 后续虽然填充了 SecurityContext，但 **没有回写 MDC**，导致整个请求生命周期 MDC 都是 anonymous。
+
+### 修复方案（spec 031 三 User Story）
+
+**US1 异步化（P1）**：
+- 新增 `tender_import_task` 表持久化任务状态（5 状态机：PENDING/PROCESSING/COMPLETED/PARTIAL_SUCCESS/FAILED）
+- `TenderImportAppService.triggerImport()` 同步阶段：校验文件 + 创建 task + 读取 `byte[]` + 触发 `@Async executeImportAsync()`，3s 内返回 202 + taskId
+- `@Async("tenderImportExecutor")` 异步阶段：Excel 解析 + 循环 createTender + 进度更新 + 三层降级失败标记（save → updateStatus → clearRedis）
+- `TenderImportProgressService` 进度查询：Redis 优先 + DB fallback，`Optional<StringRedisTemplate>` 注入降级
+- `TenderImportTaskRecoveryRunner`：启动时扫描 PROCESSING + updated_at < now-30min 的卡死任务，标记 FAILED
+- 前端 `BulkImportDialog.vue` 改造：进度条 + 2s 轮询 + 终态结果展示
+
+**US3 MDC 修复（P3，先做）**：
+- `JwtAuthenticationFilter` 在 `setAuthentication()` 之后立即 `MDC.put(userId)` + `MDC.put(roleCode)`（通过 `EffectiveRoleResolver.resolveRoleCode(user)`，遵循 CO-373）
+- `TraceFilter.putUserContext()` 仅作未认证请求兜底，已认证请求的 MDC 由 `JwtAuthenticationFilter` 刷新
+- 新增 `MdcTaskDecorator`：`TaskDecorator` 实现，复制主线程 MDC（traceId/userId/roleCode）到 @Async 线程，执行完后 `MDC.clear()` 避免线程池复用串味
+- `AsyncConfig` 所有 4 个 executor + 新增 `tenderImportExecutor` 都挂载 `MdcTaskDecorator`
+
+**US2 性能优化（P2，未在 MVP 中实施）**：
+- `CachedCrmLookupService` 批次内缓存 CRM 查询结果（`Map<String, Optional<CompanySearchResult>>` + `computeIfAbsent`）
+- Hibernate `jdbc.batch_size: 50` + `order_inserts: true`
+- MySQL URL 加 `rewriteBatchedStatements=true`
+
+**Phase 6 Nginx 兜底**：`docs/release/nginx-tender-import-timeout.md` 记录 `proxy_read_timeout 180s` 配置 patch，由用户亲自部署。
+
+### @Async 关键技术坑
+
+1. **@Async 自调用失效**：Spring @Async 通过 AOP 代理实现，同类内方法互调不触发代理。采用 `@Lazy @Autowired` 注入自身代理（`self`）解决。
+2. **@Async 参数必须为 `byte[]`**：`MultipartFile` 基于 Servlet 容器磁盘临时文件，HTTP 请求结束后 Tomcat 立即清理临时文件。如果在异步线程内才访问 `file.getBytes()`，会读到空数据或抛 IOException。
+3. **异常捕获范围 `RuntimeException | Error`**：不 catch IOException 因为 `parseExcel` 内部已包装为 `IllegalArgumentException`；`Error` 级别必须 catch 避免异步任务静默终止。
+4. **三层降级失败标记**：异步任务异常时 `failTaskWithThreeLayerFallback`（save → updateStatus → clearRedis），任意一层失败就退到下一层，确保任务状态最终被标记为 FAILED 而非永久卡在 PROCESSING。
+
+### 经验教训
+
+1. **Nginx 默认 60s `proxy_read_timeout` 是隐藏陷阱**：所有需要超过 60s 的同步接口都必须显式配置 Nginx 超时，或改为异步任务。
+2. **"request timeout 但数据已入库"是同步阻塞接口 + 上游超时错配的典型症状**：看到这个症状应立即检查 Nginx/网关层超时配置，而非怀疑后端事务回滚。
+3. **MDC 填充时机必须在 `JwtAuthenticationFilter.setAuthentication()` 之后**：在 `TraceFilter`（更早的 filter）中填充会读到 anonymous，因为 SecurityContext 还没被填充。
+4. **@Async 跨线程必须显式传递 MDC**：Spring `TaskExecutor` 不会自动复制 MDC，必须通过 `TaskDecorator` 在 `decorate(Runnable)` 中复制主线程 MDC 到异步线程，并在 `finally` 中 `MDC.clear()`。
+5. **`@WebMvcTest` 切片不实例化非 `@Controller`/`@ControllerAdvice` 的 bean**：TraceFilter 改造为依赖 `EffectiveRoleResolver` 后，所有 19 个 `@WebMvcTest` 都需要补 `@MockBean EffectiveRoleResolver` 才能加载 ApplicationContext。这是 Phase 3 回归修复的主要工作量。
+6. **line-budget 300 行限制会触发拆分**：`TenderImportService` 从同步改造为异步后增至 329 行，触发 `check:line-budgets` 失败。拆分出 `TenderExcelParser`（248 行）承载 Excel 解析逻辑，原类降至 144 行，通过 `@Deprecated static final` re-export 常量保持向后兼容。
+
+### 操作规范
+
+1. **新增同步耗时接口前**：先评估 P95 耗时，若可能超过 60s，必须改为异步任务（@Async + DB 持久化 + 进度查询），不能依赖前端 timeout 拉长。
+2. **MDC 填充位置**：已认证请求的 MDC 必须在 `JwtAuthenticationFilter.setAuthentication()` 之后立即填充；`TraceFilter` 仅作未认证请求兜底。
+3. **新增 @Async 方法**：必须确认 `AsyncConfig` 中对应的 executor 挂载了 `MdcTaskDecorator`，否则异步线程日志会是 anonymous。
+4. **新增 @WebMvcTest**：如果测试加载的 Controller 依赖 `TraceFilter`，必须 `@MockBean EffectiveRoleResolver` + `@MockBean CurrentUserResolver`。
+5. **Nginx 配置变更**：所有 `location /api/` 块必须显式配置 `proxy_read_timeout`，不依赖默认 60s。
+
+### 验证命令
+
+```bash
+# 后端：本次改动相关测试
+cd backend && mvn test -Dtest='TenderImport*,TraceFilter*,MdcTaskDecorator*,AsyncConfig*,JwtAuthenticationFilter*'
+# 期望：64 tests, 0 failures, 0 errors
+
+# 前端：BulkImportDialog 单元测试
+npx vitest run src/views/Bidding/list/components/BulkImportDialog.spec.js
+# 期望：17 tests passed
+
+# 架构测试
+cd backend && mvn test -Dtest=ArchitectureTest,FPJavaArchitectureTest,MaintainabilityArchitectureTest
+# 期望：41 tests passed
+
+# E2E（需开发环境）
+npm run test:e2e -- --grep "tender-import-async"
+```
+
+### 相关文件
+
+- [TenderImportAppService.java](file:///Users/user/xiyu/worktrees/trae/backend/src/main/java/com/xiyu/bid/tender/service/TenderImportAppService.java)（@Async 编排层）
+- [TenderExcelParser.java](file:///Users/user/xiyu/worktrees/trae/backend/src/main/java/com/xiyu/bid/tender/service/TenderExcelParser.java)（line-budget 治理拆分）
+- [MdcTaskDecorator.java](file:///Users/user/xiyu/worktrees/trae/backend/src/main/java/com/xiyu/bid/config/MdcTaskDecorator.java)
+- [JwtAuthenticationFilter.java](file:///Users/user/xiyu/worktrees/trae/backend/src/main/java/com/xiyu/bid/auth/JwtAuthenticationFilter.java)（MDC 填充位置）
+- [TraceFilter.java](file:///Users/user/xiyu/worktrees/trae/backend/src/main/java/com/xiyu/bid/config/TraceFilter.java)（anonymous 兜底）
+- [AsyncConfig.java](file:///Users/user/xiyu/worktrees/trae/backend/src/main/java/com/xiyu/bid/config/AsyncConfig.java)
+- [BulkImportDialog.vue](file:///Users/user/xiyu/worktrees/trae/src/views/Bidding/list/components/BulkImportDialog.vue)（前端进度条 + 轮询）
+- [nginx-tender-import-timeout.md](file:///Users/user/xiyu/worktrees/trae/docs/release/nginx-tender-import-timeout.md)（Nginx 兜底配置）
+- spec: `specs/031-tender-import-async-perf/`
+- §23 — 全链路日志排查 SOP（本次排查使用 Layer 1-4）

@@ -79,6 +79,11 @@ class KnowledgeResourceAccessSecurityTest {
     // 此处 mock 整个 CurrentUserResolver 以满足 TraceFilter 注入，避免上下文加载失败。
     @MockBean
     private CurrentUserResolver currentUserResolver;
+
+    // Phase 3 US3 修复：TraceFilter 现依赖 EffectiveRoleResolver（MDC userId/roleCode 填充），
+    // @WebMvcTest 切片不实例化该 bean，需手动 mock 以满足 TraceFilter 注入。
+    @MockBean
+    private com.xiyu.bid.security.EffectiveRoleResolver effectiveRoleResolver;
     @MockBean
     private CaCertificateService caCertificateService;
     @MockBean

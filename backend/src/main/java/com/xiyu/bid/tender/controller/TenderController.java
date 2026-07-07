@@ -11,6 +11,8 @@ import com.xiyu.bid.tender.dto.TenderDTO;
 import com.xiyu.bid.tender.dto.TenderAbandonRequest;
 import com.xiyu.bid.tender.dto.TenderBidResponse;
 import com.xiyu.bid.tender.dto.TenderCrmLinkRequest;
+import com.xiyu.bid.tender.dto.TenderImportProgressDTO;
+import com.xiyu.bid.tender.dto.TenderImportTaskDTO;
 import com.xiyu.bid.tender.service.*;
 import com.xiyu.bid.util.InputSanitizer;
 import com.xiyu.bid.annotation.DataScope;
@@ -57,6 +59,7 @@ public class TenderController {
     private final TenderSubmissionService tenderSubmissionService;
     private final TenderMapper tenderMapper;
     private final TenderImportService tenderImportService;
+    private final TenderImportAppService tenderImportAppService;
     private final DemoModeService demoModeService;
     private final DemoDataProvider demoDataProvider;
     private final DemoFusionService demoFusionService;
@@ -166,31 +169,26 @@ public class TenderController {
     @PostMapping(path = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_TEAM')")
     @Idempotent
-    @Operation(summary = "批量导入标讯")
-    public ResponseEntity<ApiResponse<com.xiyu.bid.tender.dto.TenderImportResultDTO>> importTenders(@RequestParam("file") MultipartFile file, @AuthenticationPrincipal UserDetails user) {
-        try {
-            if (file == null || file.isEmpty()) {
-                var errorResult = com.xiyu.bid.tender.dto.TenderImportResultDTO.builder()
-                        .totalRows(0)
-                        .successCount(0)
-                        .failureCount(1)
-                        .errors(List.of(new com.xiyu.bid.tender.dto.TenderImportResultDTO.RowError(0, "file", "请上传导入文件")))
-                        .build();
-                return ResponseEntity.ok(ApiResponse.success("导入未通过校验", errorResult));
-            }
-            var result = tenderImportService.importFromExcel(file, resolveUserId(user));
-            return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("成功导入 " + result.getSuccessCount() + " 条标讯", result));
-        } catch (com.xiyu.bid.tender.service.TenderImportRollbackException ex) {
-            return ResponseEntity.ok(ApiResponse.success("导入未通过校验", ex.getResult()));
-        } catch (IllegalArgumentException ex) {
-            var errorResult = com.xiyu.bid.tender.dto.TenderImportResultDTO.builder()
-                    .totalRows(0)
-                    .successCount(0)
-                    .failureCount(1)
-                    .errors(List.of(new com.xiyu.bid.tender.dto.TenderImportResultDTO.RowError(0, "file", ex.getMessage())))
-                    .build();
-            return ResponseEntity.ok(ApiResponse.success("导入未通过校验", errorResult));
+    @Operation(summary = "批量导入标讯（异步触发，返回任务 ID 供前端轮询进度）")
+    public ResponseEntity<ApiResponse<TenderImportTaskDTO>> importTenders(
+            @RequestParam("file") MultipartFile file,
+            @AuthenticationPrincipal UserDetails user) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("请上传导入文件");
         }
+        TenderImportTaskDTO taskDTO = tenderImportAppService.triggerImport(file, resolveUserId(user));
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(ApiResponse.success("导入任务已创建，请通过 taskId 查询进度", taskDTO));
+    }
+
+    @GetMapping("/import/{taskId}/progress")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_TEAM')")
+    @Operation(summary = "查询标讯批量导入任务进度")
+    public ResponseEntity<ApiResponse<TenderImportProgressDTO>> getImportProgress(
+            @PathVariable String taskId,
+            @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(ApiResponse.success("查询成功",
+                tenderImportAppService.getProgress(taskId, resolveUserId(user))));
     }
 
     @GetMapping("/status/{status}")

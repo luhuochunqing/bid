@@ -1,5 +1,7 @@
 package com.xiyu.bid.auth;
 
+import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -40,6 +42,12 @@ class JwtAuthenticationFilterRevocationTest {
     private TokenRevocationService tokenRevocationService;
 
     @Mock
+    private UserRepository userRepository;
+
+    @Mock
+    private EffectiveRoleResolver effectiveRoleResolver;
+
+    @Mock
     private HttpServletRequest request;
 
     @Mock
@@ -52,7 +60,11 @@ class JwtAuthenticationFilterRevocationTest {
 
     @BeforeEach
     void setUp() {
-        filter = new JwtAuthenticationFilter(jwtUtil, userDetailsService, tokenRevocationService);
+        filter = new JwtAuthenticationFilter(jwtUtil, userDetailsService, tokenRevocationService,
+                userRepository, effectiveRoleResolver);
+        // MDC 刷新依赖 userRepository.findByUsername；默认返回 empty，使 refreshMdcContext 成为 no-op，
+        // 让测试聚焦于认证逻辑本身。
+        lenient().when(userRepository.findByUsername(any())).thenReturn(Optional.empty());
     }
 
     @AfterEach

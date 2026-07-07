@@ -648,4 +648,5 @@ sync-env.sh .
 - `specs/028-ai-case-slice-semantic-search/plan.md`（AI 案例切片语义检索 — 历史投标文件章节切片入库 + 向量召回 + 精排推荐）
 - `specs/029-fix-account-password-403/plan.md`（修复平台账号密码查看权限异常类型误用 — IllegalStateException → AccessDeniedException，消除 Sentry XIYU-N 噪声）
 - `specs/030-fix-task-review-notify-403/plan.md`（修复任务审核通知接收人广播导致 403 — 按 ProjectAccessScopeService 项目可见性过滤接收人，新增 NotificationRecipientFilter 纯函数）
+- `specs/031-tender-import-async-perf/plan.md`（标讯批量导入异步化与性能优化 + MDC 修复 — @Async + DB 持久化 + Redis 进度缓存 + MdcTaskDecorator 跨线程 MDC 传递，Nginx 60s 超时根因修复）
 <!-- SPECKIT END -->

@@ -66,6 +66,8 @@ vi.mock('./list/useTenderListPage.js', () => ({
       templateDownloading: ref(false),
       importing: ref(false),
       importResult: ref(null),
+      importProgress: ref(null),
+      polling: ref(false),
       selectedFile: ref(null),
       openBulkImport: vi.fn(),
       closeDialog: vi.fn(),
