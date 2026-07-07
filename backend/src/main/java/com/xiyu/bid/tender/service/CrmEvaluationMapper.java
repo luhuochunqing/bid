@@ -75,6 +75,11 @@ class CrmEvaluationMapper {
      * 将 CRM 对接人列表映射为评估表客户信息 EAV 行列表。
      * <p>每个对接人产生 14 行（对应 14 个信息维度），roleKey 由 position 映射，
      * position 不在字典范围时落到 EXTERNAL_ROLE_N（与前端逻辑一致）。
+     * <p><b>去重规则（CO-526 Sentry Bug XIYU-X 修复）：</b>
+     * 同一个 position 的多个对接人只保留第一个。理由：tender_evaluation_customer_info
+     * 表有 {@code uk_eval_role_info (evaluation_id, role_key, info_key)} 唯一约束，
+     * 同 position 的多个对接人会生成相同 roleKey 的 14 行 EAV，与第一个人完全重复，
+     * INSERT 时违反唯一约束。null position 的对接人不去重（各自落到 EXTERNAL_ROLE_N）。
      */
     List<EvaluationCustomerInfoDTO> mapContactsToCustomerInfos(List<ContactPersonInfoVO> contacts) {
         if (contacts == null || contacts.isEmpty()) {
@@ -82,18 +87,27 @@ class CrmEvaluationMapper {
         }
         List<EvaluationCustomerInfoDTO> rows = new ArrayList<>();
         int externalRoleSeq = 0;
+        java.util.Set<String> seenPositions = new java.util.HashSet<>();
         for (ContactPersonInfoVO c : contacts) {
-            String roleKey = CRM_POSITION_TO_ROLE.get(c.position());
+            String position = c.position();
+            // 已知的 14 个 position 字典内重复 → 跳过（避免 uk_eval_role_info 冲突）
+            if (position != null && CRM_POSITION_TO_ROLE.containsKey(position)
+                    && !seenPositions.add(position)) {
+                log.info("CO-526 fix: skip duplicate contact position={} name={} (first one kept)",
+                        position, c.name());
+                continue;
+            }
+            String roleKey = CRM_POSITION_TO_ROLE.get(position);
             if (roleKey == null) {
                 roleKey = "EXTERNAL_ROLE_" + (++externalRoleSeq);
             }
-            boolean isKnownPosition = CRM_POSITION_TO_ROLE.containsKey(c.position());
+            boolean isKnownPosition = CRM_POSITION_TO_ROLE.containsKey(position);
             rows.add(new EvaluationCustomerInfoDTO(roleKey, "NAME",
                     c.name() != null ? c.name() : "", "TEXT"));
             rows.add(new EvaluationCustomerInfoDTO(roleKey, "CONTACT_INFO",
                     resolveContactInfo(c), "TEXT"));
             rows.add(new EvaluationCustomerInfoDTO(roleKey, "POSITION",
-                    isKnownPosition ? c.position() : null, "ENUM14"));
+                    isKnownPosition ? position : null, "ENUM14"));
             rows.add(new EvaluationCustomerInfoDTO(roleKey, "XIYU_CONTACT",
                     c.ehsyProjectManager() != null ? c.ehsyProjectManager() : "", "TEXT"));
             rows.add(new EvaluationCustomerInfoDTO(roleKey, "CONTACT_METHOD",
