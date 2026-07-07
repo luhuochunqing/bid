@@ -119,9 +119,10 @@ export async function uploadTaskDeliverablesWithFallback(task, deliverableFiles,
 }
 
 export async function uploadTaskFilesWithFallback(task, data, deps, messages, message) {
-  const results = [
-    await uploadTaskAttachmentsWithFallback(task, data.attachments, deps, messages.attachments, message),
-    await uploadTaskDeliverablesWithFallback(task, data.deliverableFiles, deps, messages.deliverables, message),
-  ]
-  return results.every(Boolean)
+  // CO-529: 附件失败不应阻塞交付物上传和任务流转
+  // 附件是辅助材料，失败时只给用户提示，不影响后续流程
+  // 交付物是任务完成的核心证据，失败时必须阻塞任务流转
+  // 之前用 results.every(Boolean) 导致附件失败时整体返回 false，阻塞了任务流转
+  await uploadTaskAttachmentsWithFallback(task, data.attachments, deps, messages.attachments, message)
+  return uploadTaskDeliverablesWithFallback(task, data.deliverableFiles, deps, messages.deliverables, message)
 }

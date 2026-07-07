@@ -5,6 +5,7 @@ import {
   createTaskAttachmentPayload,
   uploadTaskAttachments,
   uploadTaskAttachmentsWithFallback,
+  uploadTaskFilesWithFallback,
 } from './taskAssigneePayload.js'
 
 describe('taskAssigneePayload', () => {
@@ -223,6 +224,134 @@ describe('taskAssigneePayload', () => {
 
       expect(task.attachments).toEqual([saved])
       expect(message.warning).not.toHaveBeenCalled()
+    })
+  })
+
+  // CO-529: 附件失败不应阻塞交付物上传和任务流转
+  // 之前 results.every(Boolean) 导致附件失败时整体返回 false，任务无法流转
+  // 修复后：交付物成功 = 整体成功，附件失败只给用户提示
+  describe('uploadTaskFilesWithFallback (CO-529)', () => {
+    function makeDeps({ uploadTaskAttachment, addDeliverable }) {
+      return {
+        projectStore: { uploadTaskAttachment, addDeliverable },
+        projectId: 'p1',
+        userStore: { currentUser: { id: 1 } },
+      }
+    }
+
+    function makeMessages() {
+      return {
+        attachments: '任务已提交，但附件上传失败，请重试',
+        deliverables: '任务已提交，但交付物上传失败，请重试',
+      }
+    }
+
+    it('附件失败 + 交付物成功 → 整体成功，任务可流转', async () => {
+      const uploadTaskAttachment = vi.fn().mockRejectedValue(new Error('附件网络错误'))
+      const addDeliverable = vi.fn().mockResolvedValue({ id: 200, name: 'deliverable.pdf' })
+      const deps = makeDeps({ uploadTaskAttachment, addDeliverable })
+      const message = { warning: vi.fn() }
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const task = { id: 1, attachments: [], assigneeId: 1 }
+
+      const result = await uploadTaskFilesWithFallback(
+        task,
+        { attachments: [new File(['x'], 'x.pdf')], deliverableFiles: [new File(['y'], 'y.pdf')] },
+        deps,
+        makeMessages(),
+        message
+      )
+
+      // 关键：附件失败但交付物成功，整体应返回 true，任务可流转
+      expect(result).toBe(true)
+      // 附件失败的提示应展示给用户
+      expect(message.warning).toHaveBeenCalledWith('任务已提交，但附件上传失败，请重试')
+      // 交付物应被正常上传
+      expect(addDeliverable).toHaveBeenCalled()
+      consoleSpy.mockRestore()
+    })
+
+    it('附件成功 + 交付物成功 → 整体成功', async () => {
+      const uploadTaskAttachment = vi.fn().mockResolvedValue({ id: 100, name: 'attachment.pdf' })
+      const addDeliverable = vi.fn().mockResolvedValue({ id: 200, name: 'deliverable.pdf' })
+      const deps = makeDeps({ uploadTaskAttachment, addDeliverable })
+      const message = { warning: vi.fn() }
+      const task = { id: 1, attachments: [], assigneeId: 1 }
+
+      const result = await uploadTaskFilesWithFallback(
+        task,
+        { attachments: [new File(['x'], 'x.pdf')], deliverableFiles: [new File(['y'], 'y.pdf')] },
+        deps,
+        makeMessages(),
+        message
+      )
+
+      expect(result).toBe(true)
+      expect(message.warning).not.toHaveBeenCalled()
+    })
+
+    it('附件失败 + 交付物失败 → 整体失败，任务阻塞', async () => {
+      const uploadTaskAttachment = vi.fn().mockRejectedValue(new Error('附件失败'))
+      const addDeliverable = vi.fn().mockRejectedValue(new Error('交付物失败'))
+      const deps = makeDeps({ uploadTaskAttachment, addDeliverable })
+      const message = { warning: vi.fn() }
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const task = { id: 1, attachments: [], assigneeId: 1 }
+
+      const result = await uploadTaskFilesWithFallback(
+        task,
+        { attachments: [new File(['x'], 'x.pdf')], deliverableFiles: [new File(['y'], 'y.pdf')] },
+        deps,
+        makeMessages(),
+        message
+      )
+
+      // 两者都失败 → 阻塞任务流转
+      expect(result).toBe(false)
+      expect(message.warning).toHaveBeenCalledTimes(2)
+      consoleSpy.mockRestore()
+    })
+
+    it('附件成功 + 交付物失败 → 整体失败，任务阻塞', async () => {
+      const uploadTaskAttachment = vi.fn().mockResolvedValue({ id: 100, name: 'attachment.pdf' })
+      const addDeliverable = vi.fn().mockRejectedValue(new Error('交付物失败'))
+      const deps = makeDeps({ uploadTaskAttachment, addDeliverable })
+      const message = { warning: vi.fn() }
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const task = { id: 1, attachments: [], assigneeId: 1 }
+
+      const result = await uploadTaskFilesWithFallback(
+        task,
+        { attachments: [new File(['x'], 'x.pdf')], deliverableFiles: [new File(['y'], 'y.pdf')] },
+        deps,
+        makeMessages(),
+        message
+      )
+
+      // 交付物失败 → 阻塞任务流转（交付物是任务完成的核心证据）
+      expect(result).toBe(false)
+      expect(message.warning).toHaveBeenCalledWith('任务已提交，但交付物上传失败，请重试')
+      consoleSpy.mockRestore()
+    })
+
+    it('两者都没有文件 → 整体成功（无文件需要上传）', async () => {
+      const uploadTaskAttachment = vi.fn()
+      const addDeliverable = vi.fn()
+      const deps = makeDeps({ uploadTaskAttachment, addDeliverable })
+      const message = { warning: vi.fn() }
+      const task = { id: 1, attachments: [], assigneeId: 1 }
+
+      const result = await uploadTaskFilesWithFallback(
+        task,
+        { attachments: [], deliverableFiles: [] },
+        deps,
+        makeMessages(),
+        message
+      )
+
+      expect(result).toBe(true)
+      expect(uploadTaskAttachment).not.toHaveBeenCalled()
+      expect(addDeliverable).not.toHaveBeenCalled()
     })
   })
 })

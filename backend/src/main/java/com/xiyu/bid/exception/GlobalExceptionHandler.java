@@ -100,16 +100,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .body(ApiResponse.error(400, ex.getMessage()));
     }
 
-    // CO-519: MissingServletRequestPartException 的处理逻辑已移至 handleGlobalException。
-    // 原因与 MissingServletRequestParameterException 相同：ResponseEntityExceptionHandler 父类
-    // 用 @ExceptionHandler(Exception.class) 内联处理该异常，子类再用 @ExceptionHandler 声明会 Ambiguous 冲突。
-
-    // CO-519: MissingServletRequestParameterException 的处理逻辑已移至 handleGlobalException。
-    // 原因：ResponseEntityExceptionHandler 父类用 @ExceptionHandler(Exception.class) 的 handleException
-    // 方法内联处理该异常（没有分发给 protected 方法），子类再用 @ExceptionHandler(MissingServletRequestParameterException.class)
-    // 声明会导致 Ambiguous @ExceptionHandler 冲突，影响所有 @SpringBootTest 测试。
-    // 修复方案：去掉 @ExceptionHandler 声明，在 handleGlobalException 中做类型判断。
-    // handleGlobalException 的 @ExceptionHandler(Exception.class) 覆盖了父类的同名方法，所有异常都走这里。
+    // CO-529: MissingServletRequestPartException 和 MissingServletRequestParameterException
+    // 通过重写父类的 protected 方法处理（见文件末尾 handleMissingServletRequestPart 和
+    // handleMissingServletRequestParameter）。不能用 @ExceptionHandler 声明，因为父类的
+    // handleException(Exception) 是 public final，已经用 @ExceptionHandler 注解绑定了这些异常类型，
+    // 子类再用 @ExceptionHandler 声明会导致 Ambiguous 冲突。
 
     /**
      * 处理非法状态异常。
@@ -474,35 +469,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
-     * 处理所有未捕获的异常
+     * 处理所有未捕获的异常。
+     *
+     * CO-529: MissingServletRequestPartException 和 MissingServletRequestParameterException
+     * 已通过重写父类的 protected 方法处理（见上方 handleMissingServletRequestPart 和
+     * handleMissingServletRequestParameter），不会走到这里。
+     * 走到这里的是真正的系统缺陷（NPE、SQL 异常等）。
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGlobalException(
             Exception ex,
             HttpServletRequest request) {
-        // CO-519: MissingServletRequestParameterException 需返回 400 而非 500。
-        // 不能用单独的 @ExceptionHandler 声明（与父类 Ambiguous 冲突），在此内联处理。
-        if (ex instanceof MissingServletRequestParameterException msrpEx) {
-            log.warn("请求参数缺失 - URI: {}, 参数名: {}, 类型: {}",
-                    request.getRequestURI(), msrpEx.getParameterName(), msrpEx.getParameterType());
-            return ResponseEntity
-                    .badRequest()
-                    .body(ApiResponse.error(400, "缺少必填参数: " + msrpEx.getParameterName()));
-        }
-
-        // CO-519: MissingServletRequestPartException 同样需返回 400 而非 500。
-        if (ex instanceof MissingServletRequestPartException msrpEx) {
-            log.warn("multipart 缺失 part - URI: {}, 缺失 part: {}, Message: {}",
-                    request.getRequestURI(), msrpEx.getRequestPartName(), msrpEx.getMessage());
-            String partName = msrpEx.getRequestPartName();
-            String message = partName != null && !partName.isBlank()
-                    ? "未接收到必填的「" + partName + "」字段，请检查文件是否已正确选择"
-                    : "请上传文件";
-            return ResponseEntity
-                    .badRequest()
-                    .body(ApiResponse.error(400, message));
-        }
-
         String payload = getRequestPayload(request);
         log.error("系统异常 - URI: {}, IP: {}, Message: {} \nPayload: {}",
             request.getRequestURI(), getClientIp(request), ex.getMessage(), payload, ex);
@@ -580,6 +557,52 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity
                 .badRequest()
                 .body(ApiResponse.error(400, message));
+    }
+
+    /**
+     * CO-529: 重写父类的 handleMissingServletRequestPart，覆盖默认的空 body 响应。
+     *
+     * 关键：父类 ResponseEntityExceptionHandler 的 handleException(Exception) 是 public final，
+     * 用 @ExceptionHandler 声明了 20 种异常（包括 MissingServletRequestPartException），
+     * 子类用 @ExceptionHandler(Exception.class) 无法覆盖它（父类优先匹配）。
+     * 只有重写父类的 protected handleMissingServletRequestPart 方法才能生效。
+     *
+     * 之前 PR #1779 用 if (ex instanceof MissingServletRequestPartException) 判断在
+     * handleGlobalException 中，永远不会被执行，导致 400 请求无日志、响应体是 Spring 默认格式。
+     */
+    @Override
+    protected ResponseEntity<Object> handleMissingServletRequestPart(
+            MissingServletRequestPartException ex,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request) {
+        String uri = request.getDescription(false).replace("uri=", "");
+        log.warn("multipart 缺失 part - URI: {}, 缺失 part: {}, Message: {}",
+                uri, ex.getRequestPartName(), ex.getMessage());
+        String partName = ex.getRequestPartName();
+        String message = partName != null && !partName.isBlank()
+                ? "未接收到必填的「" + partName + "」字段，请检查文件是否已正确选择"
+                : "请上传文件";
+        return ResponseEntity
+                .badRequest()
+                .body(ApiResponse.error(400, message));
+    }
+
+    /**
+     * CO-529: 同上，重写父类的 handleMissingServletRequestParameter，补齐日志和友好提示。
+     */
+    @Override
+    protected ResponseEntity<Object> handleMissingServletRequestParameter(
+            MissingServletRequestParameterException ex,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request) {
+        String uri = request.getDescription(false).replace("uri=", "");
+        log.warn("请求参数缺失 - URI: {}, 参数名: {}, 类型: {}",
+                uri, ex.getParameterName(), ex.getParameterType());
+        return ResponseEntity
+                .badRequest()
+                .body(ApiResponse.error(400, "缺少必填参数: " + ex.getParameterName()));
     }
 
     private String resolveReadableMessage(Throwable throwable) {
