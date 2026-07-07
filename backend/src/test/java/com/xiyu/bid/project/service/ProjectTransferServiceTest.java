@@ -67,6 +67,7 @@ class ProjectTransferServiceTest {
                 .id(135L).name("测试项目").managerId(7246L).tenderId(743L).build();
         User oldOwner = User.builder().id(7246L).fullName("陈梦瑶").build();
         User newOwner = User.builder().id(7324L).fullName("周子靖").enabled(true)
+                .departmentName("研发中心")
                 .roleProfile(roleProfile("bid-projectLeader")).build();
         Tender tender = new Tender();
         tender.setId(743L);
@@ -92,11 +93,15 @@ class ProjectTransferServiceTest {
         // Then - initiationDetails 更新
         assertThat(details.getOwnerUserId()).isEqualTo(7324L);
         assertThat(details.getProjectLeaderName()).isEqualTo("周子靖");
+        // CO-537: 项目负责人部门应同步回填
+        assertThat(details.getLeaderDepartment()).isEqualTo("研发中心");
         verify(initiationDetailsRepository).save(details);
 
         // Then - tender 更新
         assertThat(tender.getProjectManagerId()).isEqualTo(7324L);
         assertThat(tender.getProjectManagerName()).isEqualTo("周子靖");
+        // CO-537: 标讯"项目部门"应同步回填
+        assertThat(tender.getDepartment()).isEqualTo("研发中心");
         verify(tenderRepository).save(tender);
 
         // Then - 审计记录
@@ -172,6 +177,41 @@ class ProjectTransferServiceTest {
         verify(assignmentRecordRepository, never()).save(any());
         assertThat(response.getTenderUpdated()).isFalse();
         assertThat(response.getTenderId()).isNull();
+    }
+
+    @Test
+    void transfer_success_with_null_newOwner_department_keeps_field_nullable() {
+        // CO-537 边界场景：newOwner.departmentName 为 null 时（OSS 用户可能无部门），
+        // 部门字段应被置为 null（与 newOwner.departmentName 一致），不抛异常
+        // Given
+        Project project = Project.builder()
+                .id(135L).name("测试项目").managerId(7246L).tenderId(743L).build();
+        User oldOwner = User.builder().id(7246L).fullName("陈梦瑶").build();
+        User newOwner = User.builder().id(7324L).fullName("周子靖").enabled(true)
+                .departmentName(null)
+                .roleProfile(roleProfile("bid-projectLeader")).build();
+        Tender tender = new Tender();
+        tender.setId(743L);
+        tender.setProjectManagerId(7246L);
+        tender.setProjectManagerName("陈梦瑶");
+        tender.setDepartment("旧部门");
+        ProjectInitiationDetails details = ProjectInitiationDetails.builder()
+                .id(1L).projectId(135L).ownerUserId(7246L)
+                .projectLeaderName("陈梦瑶").leaderDepartment("旧部门").build();
+
+        when(projectRepository.findById(135L)).thenReturn(Optional.of(project));
+        when(userRepository.findById(7324L)).thenReturn(Optional.of(newOwner));
+        when(userRepository.findById(7246L)).thenReturn(Optional.of(oldOwner));
+        when(userRepository.findById(999L)).thenReturn(Optional.of(User.builder().id(999L).fullName("管理员").build()));
+        when(tenderRepository.findById(743L)).thenReturn(Optional.of(tender));
+        when(initiationDetailsRepository.findByProjectId(135L)).thenReturn(Optional.of(details));
+
+        // When
+        service.transfer(135L, 7324L, 999L, null);
+
+        // Then - 部门字段同步为 null（与 newOwner.departmentName 一致）
+        assertThat(tender.getDepartment()).isNull();
+        assertThat(details.getLeaderDepartment()).isNull();
     }
 
     // ── US2: 校验失败 ─────────────────────────────────────────────────────
