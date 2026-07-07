@@ -107,8 +107,9 @@ dist/
 docker-compose.yml.bak
 .session-active
 
-# pnpm lock file — npm is the project's package manager
-pnpm-lock.yaml
+# pnpm is the project's package manager (package.json declares pnpm@10.27.0)
+# pnpm-lock.yaml 入库；package-lock.json 禁止提交（npm 残留）
+package-lock.json
 
 # 构建/临时产物
 outputs/
