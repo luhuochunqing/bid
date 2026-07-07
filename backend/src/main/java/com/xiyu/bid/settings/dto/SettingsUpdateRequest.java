@@ -119,6 +119,7 @@ public class SettingsUpdateRequest {
         private Boolean enabled;
         private String baseUrl;
         private String model;
+        private String embeddingModel;
         private String apiKeyPlaintext;
         private String lastTestStatus;
         private String lastTestMessage;
