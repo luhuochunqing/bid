@@ -1,0 +1,15 @@
+version: 1
+task: "co-523-fix-alert-rules-type-enum"
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql/V1145__add_alert_rule_types.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/qoder/co-523-fix-alert-rules-type-enum"
+    expiresAt: "2026-07-08T04:17:53.755Z"
+    reason: "CO-523 fix alert_rules.type enum"
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1145__add_alert_rule_types.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/qoder/co-523-fix-alert-rules-type-enum"
+    expiresAt: "2026-07-08T04:18:01.943Z"
+    reason: "CO-523 fix alert_rules.type enum rollback"
