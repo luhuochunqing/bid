@@ -1,6 +1,9 @@
 package com.xiyu.bid.personnel.application.service;
 
+import com.xiyu.bid.personnel.domain.importvalidation.ImportValidationError;
+import com.xiyu.bid.personnel.domain.importvalidation.ParsedPersonnelRow;
 import com.xiyu.bid.personnel.domain.importvalidation.ValidationResult;
+import com.xiyu.bid.personnel.domain.model.importtask.ImportErrorDetail;
 import com.xiyu.bid.personnel.domain.model.importtask.ImportTaskStatus;
 import com.xiyu.bid.personnel.domain.model.importtask.PersonnelImportTask;
 import com.xiyu.bid.personnel.domain.port.PersonnelImportTaskRepository;
@@ -12,6 +15,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -187,5 +191,70 @@ class ImportPersonnelAppServiceTest {
         verify(importTaskRepository).updateStatus(eq(201L), eq("FAILED"));
         // 验证 Redis 进度被清理（PersonnelImportProgressService.clearProgress 会调用 template.delete）
         verify(redisTemplate).delete("personnel:import:progress:201");
+    }
+
+    // ===== CO-528: 校验失败时按人员维度计数 + 弹窗返回错误明细 =====
+
+    /**
+     * CO-528: 校验失败时，totalCount 应为人员数（不是错误条数），
+     * failureCount 应为有错误的人员数（按工号去重，不是错误条数）。
+     */
+    @Test
+    void executeImportAsync_whenValidationFails_shouldCountByPersonNotByError() throws Exception {
+        byte[] fileBytes = new byte[]{};
+
+        // 2 人（EMP001, EMP002），3 条校验错误（EMP001 有 2 条，EMP002 有 1 条）
+        ParsedPersonnelRow emp1 = new ParsedPersonnelRow(2, "EMP001", "张三", "男",
+                LocalDate.of(2024, 1, 1), null, "13800000000",
+                "本科", null, "研发部", null);
+        ParsedPersonnelRow emp2 = new ParsedPersonnelRow(3, "EMP002", "李四", "男",
+                LocalDate.of(2024, 1, 1), null, "13800000001",
+                "本科", null, "研发部", null);
+
+        ValidationResult validationResult = new ValidationResult(List.of(
+                ImportValidationError.of("基础信息", 2, "EMP001", "姓名", "姓名不能为空"),
+                ImportValidationError.of("基础信息", 2, "EMP001", "性别", "性别必填"),
+                ImportValidationError.of("基础信息", 3, "EMP002", "姓名", "姓名不能为空")
+        ), List.of());
+
+        PersonnelExcelImporter.ImportResult importResult = new PersonnelExcelImporter.ImportResult(
+                List.of(emp1, emp2), List.of(), List.of(), validationResult
+        );
+        when(excelImporter.importFromStream(any())).thenReturn(importResult);
+
+        PersonnelImportTask task = buildTask(300L, "IMP-PER-CO528-001", ImportTaskStatus.PENDING);
+        when(importTaskRepository.findById(300L)).thenReturn(Optional.of(task));
+        when(importTaskRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(errorReportGenerator.generateErrorReport(any())).thenReturn(new byte[]{});
+
+        service.executeImportAsync(300L, fileBytes, "test.xlsx", 1L);
+
+        // totalCount=2（人员数），failureCount=2（有错误的人员数，不是 3 条错误）
+        verify(importTaskRepository).save(argThat(saved ->
+                saved.totalCount() == 2
+                        && saved.failureCount() == 2
+                        && saved.successCount() == 0
+        ));
+    }
+
+    /**
+     * CO-528: 任务完成后 getProgress 应返回 errorDetails，供前端弹窗展示失败人员列表。
+     */
+    @Test
+    void getProgress_whenTaskCompleted_shouldReturnErrorDetails() {
+        ImportErrorDetail errorDetail = new ImportErrorDetail(
+                "基础信息", 2, "EMP001", "张三", "姓名不能为空");
+        PersonnelImportTask task = new PersonnelImportTask(
+                400L, "IMP-PER-CO528-002", "PERSONNEL", ImportTaskStatus.FAILED,
+                2, 0, 2, 0,
+                List.of(errorDetail), null, 1L,
+                LocalDateTime.now(), LocalDateTime.now()
+        );
+        when(importTaskRepository.findById(400L)).thenReturn(Optional.of(task));
+
+        ImportPersonnelAppService.ImportProgressInfo progress = service.getProgress(400L);
+
+        assertThat(progress.errorDetails()).isNotEmpty();
+        assertThat(progress.errorDetails()).anyMatch(e -> e.employeeNumber().equals("EMP001"));
     }
 }

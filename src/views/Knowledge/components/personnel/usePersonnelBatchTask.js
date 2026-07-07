@@ -1,5 +1,24 @@
 import { ref, computed } from 'vue'
 
+// CO-528: 按工号去重 errorDetails，合并错误原因
+// 同一人员可能有多条错误（如姓名+性别都为空），UI 应展示为一行
+function dedupeByEmployeeNumber(details) {
+  if (!Array.isArray(details) || details.length === 0) return []
+  const map = new Map()
+  for (const e of details) {
+    const key = e.employeeNumber || `row-${e.rowNumber}`
+    if (!map.has(key)) {
+      map.set(key, { ...e, errorMessage: [e.errorMessage || ''] })
+    } else {
+      map.get(key).errorMessage.push(e.errorMessage || '')
+    }
+  }
+  return Array.from(map.values()).map(e => ({
+    ...e,
+    errorMessage: e.errorMessage.filter(Boolean).join('；')
+  }))
+}
+
 export function usePersonnelBatchTask({ startApi, pollApi, pollInterval = 2000 }) {
   const taskId = ref(null)
   const status = ref('')
@@ -9,6 +28,8 @@ export function usePersonnelBatchTask({ startApi, pollApi, pollInterval = 2000 }
   const totalCount = ref(0)
   const successCount = ref(0)
   const failCount = ref(0)
+  // CO-528: 任务终态时附带 errorDetails（失败人员列表），供弹窗内联展示
+  const errorDetails = ref([])
   const active = ref(false)
   let pollTimer = null
 
@@ -19,6 +40,9 @@ export function usePersonnelBatchTask({ startApi, pollApi, pollInterval = 2000 }
   const isProcessing = computed(() => status.value === 'PROCESSING' || status.value === 'PENDING')
   const isCompleted = computed(() => status.value === 'COMPLETED' || status.value === 'PARTIAL_SUCCESS')
   const isFailed = computed(() => status.value === 'FAILED' || status.value === 'UNKNOWN' || status.value === 'NOT_FOUND')
+
+  // CO-528: 按工号去重的失败人员列表（与后端 failureCount 计数维度一致）
+  const uniqueErrorDetails = computed(() => dedupeByEmployeeNumber(errorDetails.value))
 
   function reset() {
     if (pollTimer) {
@@ -33,6 +57,7 @@ export function usePersonnelBatchTask({ startApi, pollApi, pollInterval = 2000 }
     totalCount.value = 0
     successCount.value = 0
     failCount.value = 0
+    errorDetails.value = []
     active.value = false
   }
 
@@ -67,11 +92,15 @@ export function usePersonnelBatchTask({ startApi, pollApi, pollInterval = 2000 }
             totalCount.value = info.totalCount ?? 0
             successCount.value = info.successCount ?? 0
             failCount.value = info.failureCount ?? 0
+            // CO-528: 读取后端附带的 errorDetails（失败人员列表）
+            errorDetails.value = Array.isArray(info.errorDetails) ? info.errorDetails : []
           } else if (info.status === 'FAILED' || info.status === 'UNKNOWN' || info.status === 'NOT_FOUND') {
             clearInterval(pollTimer)
             pollTimer = null
             status.value = info.status
             errorMessage.value = info.message || '任务失败'
+            // CO-528: 失败态也读取 errorDetails（如有），供弹窗展示失败人员列表
+            errorDetails.value = Array.isArray(info.errorDetails) ? info.errorDetails : []
           }
         } catch {
           // poll failure does not interrupt
@@ -94,6 +123,8 @@ export function usePersonnelBatchTask({ startApi, pollApi, pollInterval = 2000 }
     totalCount,
     successCount,
     failCount,
+    errorDetails,
+    uniqueErrorDetails,
     active,
     isProcessing,
     isCompleted,

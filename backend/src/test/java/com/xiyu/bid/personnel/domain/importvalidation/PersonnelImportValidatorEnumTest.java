@@ -62,11 +62,12 @@ class PersonnelImportValidatorEnumTest {
     }
 
     @Test
-    void gender_blank_should_pass_as_optional() {
+    void gender_blank_should_be_rejected_as_required() {
+        // CO-528: 性别从"选填"改为"必填"，与 PersonnelValidator 对齐
         List<ImportValidationError> errors = errorsOf(
                 List.of(basicRow("EMP001", "张三", "")),
                 List.of(), List.of());
-        assertThat(errors).noneMatch(e -> "性别".equals(e.field()));
+        assertThat(errors).anyMatch(e -> "性别".equals(e.field()));
     }
 
     // ===== 最高学历 =====

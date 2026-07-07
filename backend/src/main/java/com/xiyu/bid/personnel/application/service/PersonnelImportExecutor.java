@@ -15,10 +15,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
@@ -47,11 +48,13 @@ class PersonnelImportExecutor {
         importCertificateRows(result.certificateRows(), empNoToId, errorDetails);
         callback.onProgress("证书信息导入完成", 95);
 
-        int successCount = result.totalRows() - errorDetails.size();
-        int failureCount = errorDetails.size();
-        int warningCount = result.validationResult().warnings().size();
-
-        return new ImportResult(result.totalRows(), successCount, failureCount, warningCount, errorDetails);
+        // CO-528: 计数改为人员维度（不再按行级 3 sheets 求和）
+        // totalCount = Sheet1 人数；failureCount = 失败人员数（按工号去重，级联失败不算多次）
+        return ImportResult.ofPersonLevelCount(
+                result.personnelRows().size(),
+                errorDetails,
+                result.validationResult().warnings().size()
+        );
     }
 
     private Map<String, Long> importPersonnelRows(List<ParsedPersonnelRow> rows,
@@ -60,7 +63,7 @@ class PersonnelImportExecutor {
 
         for (ParsedPersonnelRow row : rows) {
             try {
-                Long personnelId = createOrUpdatePersonnel(row);
+                Long personnelId = createPersonnel(row);
                 empNoToId.put(row.employeeNumber(), personnelId);
             } catch (RuntimeException e) {
                 log.error("导入人员失败: {}", row.employeeNumber(), e);
@@ -74,44 +77,33 @@ class PersonnelImportExecutor {
         return empNoToId;
     }
 
-    private Long createOrUpdatePersonnel(ParsedPersonnelRow row) {
+    private Long createPersonnel(ParsedPersonnelRow row) {
         List<com.xiyu.bid.personnel.domain.model.Personnel> existing =
                 personnelRepository.findByEmployeeNumber(row.employeeNumber());
 
-        com.xiyu.bid.personnel.domain.model.Personnel personnel;
+        // CO-528: 工号已存在时报错（不再 upsert 更新，与新增路径行为一致）
         if (!existing.isEmpty()) {
-            com.xiyu.bid.personnel.domain.model.Personnel p = existing.get(0);
-            List<Certificate> certs = p.certificates();
-            List<Education> edus = p.educations();
-            personnel = new com.xiyu.bid.personnel.domain.model.Personnel(
-                    p.id(), row.name(), row.employeeNumber(),
-                    p.departmentCode(), row.departmentName() != null ? row.departmentName() : p.departmentName(),
-                    row.gender(), row.entryDate(), row.birthDate(),
-                    row.phone(), row.education(), row.technicalTitle(),
-                    p.status(), p.attachmentUrl(), row.remark() != null ? row.remark() : p.remark(),
-                    certs, edus,
-                    p.createdAt(), LocalDateTime.now()
-            );
-        } else {
-            personnel = com.xiyu.bid.personnel.domain.model.Personnel.create(
-                    null,
-                    row.name(),
-                    row.employeeNumber(),
-                    null,
-                    row.departmentName(),
-                    row.gender(),
-                    row.entryDate(),
-                    row.birthDate(),
-                    row.phone(),
-                    row.education(),
-                    row.technicalTitle(),
-                    PersonnelStatus.ACTIVE,
-                    null,
-                    row.remark(),
-                    List.of(),
-                    List.of()
-            );
+            throw new IllegalStateException("工号已存在: " + row.employeeNumber());
         }
+
+        com.xiyu.bid.personnel.domain.model.Personnel personnel = com.xiyu.bid.personnel.domain.model.Personnel.create(
+                null,
+                row.name(),
+                row.employeeNumber(),
+                null,
+                row.departmentName(),
+                row.gender(),
+                row.entryDate(),
+                row.birthDate(),
+                row.phone(),
+                row.education(),
+                row.technicalTitle(),
+                PersonnelStatus.ACTIVE,
+                null,
+                row.remark(),
+                List.of(),
+                List.of()
+        );
 
         return personnelRepository.save(personnel).id();
     }
@@ -203,7 +195,27 @@ class PersonnelImportExecutor {
             int failureCount,
             int warningCount,
             List<ImportErrorDetail> errorDetails
-    ) {}
+    ) {
+        /**
+         * CO-528: 按人员维度构建 ImportResult（统一计数逻辑）
+         * totalCount = Sheet1 人员数；failureCount = 有错误的人员数（按工号去重）
+         * 防御：successCount 不为负
+         */
+        public static ImportResult ofPersonLevelCount(
+                int personnelCount,
+                List<ImportErrorDetail> errorDetails,
+                int warningCount) {
+            Set<String> failedEmpNos = new HashSet<>();
+            for (ImportErrorDetail e : errorDetails) {
+                if (e.employeeNumber() != null) {
+                    failedEmpNos.add(e.employeeNumber());
+                }
+            }
+            int failureCount = failedEmpNos.size();
+            int successCount = Math.max(0, personnelCount - failureCount);
+            return new ImportResult(personnelCount, successCount, failureCount, warningCount, errorDetails);
+        }
+    }
 
     public interface ImportProgressCallback {
         void onProgress(String message, int percent);

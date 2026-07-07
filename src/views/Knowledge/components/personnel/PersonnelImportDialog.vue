@@ -42,8 +42,8 @@
       <el-result icon="success" title="导入完成">
         <template #sub-title>
           <div class="result-summary">
-            <p>成功：{{ task.successCount.value }} 条</p>
-            <p v-if="task.failCount.value > 0">失败：{{ task.failCount.value }} 条</p>
+            <p>共 {{ task.totalCount.value }} 人，成功：{{ task.successCount.value }} 人</p>
+            <p v-if="task.failCount.value > 0">失败：{{ task.failCount.value }} 人</p>
           </div>
         </template>
         <template #extra>
@@ -51,14 +51,35 @@
           <el-button type="primary" @click="$emit('update:modelValue', false); $emit('imported')">完成</el-button>
         </template>
       </el-result>
+      <!-- CO-528: 失败人员列表（按工号去重，与 failureCount 计数维度一致） -->
+      <div v-if="task.uniqueErrorDetails.value.length > 0" class="error-details">
+        <p class="error-details-title">失败人员明细</p>
+        <el-table :data="task.uniqueErrorDetails.value" size="small" max-height="240" border>
+          <el-table-column prop="employeeNumber" label="工号" width="120" />
+          <el-table-column prop="name" label="姓名" width="100" />
+          <el-table-column prop="sheetName" label="Sheet" width="100" />
+          <el-table-column prop="errorMessage" label="错误原因" />
+        </el-table>
+      </div>
     </div>
 
     <div v-else-if="task.isFailed.value" class="import-result">
       <el-result icon="error" title="导入失败" :sub-title="task.errorMessage.value">
         <template #extra>
+          <el-button v-if="task.uniqueErrorDetails.value.length > 0" type="warning" @click="downloadErrorReport">下载错误报告</el-button>
           <el-button type="primary" @click="resetAll">重试</el-button>
         </template>
       </el-result>
+      <!-- CO-528: 失败态也展示失败人员列表（按工号去重） -->
+      <div v-if="task.uniqueErrorDetails.value.length > 0" class="error-details">
+        <p class="error-details-title">失败人员明细</p>
+        <el-table :data="task.uniqueErrorDetails.value" size="small" max-height="240" border>
+          <el-table-column prop="employeeNumber" label="工号" width="120" />
+          <el-table-column prop="name" label="姓名" width="100" />
+          <el-table-column prop="sheetName" label="Sheet" width="100" />
+          <el-table-column prop="errorMessage" label="错误原因" />
+        </el-table>
+      </div>
     </div>
 
     <template #footer v-if="!task.taskId.value">
@@ -128,4 +149,6 @@ async function downloadErrorReport() {
 .progress-text { margin-top: 12px; color: var(--el-text-color-secondary); font-size: 13px; }
 .import-result { padding: 20px 0; }
 .result-summary p { margin: 4px 0; font-size: 14px; }
+.error-details { margin-top: 16px; }
+.error-details-title { margin: 0 0 8px 0; font-size: 13px; color: var(--el-text-color-secondary); }
 </style>

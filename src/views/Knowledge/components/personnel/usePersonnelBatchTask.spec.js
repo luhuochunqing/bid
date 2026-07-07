@@ -254,4 +254,163 @@ describe('CO-469 usePersonnelBatchTask 字段契约', () => {
     expect(task.errorMessage.value).toBe('任务不存在或已过期')
     expect(pollApi).toHaveBeenCalledTimes(1)
   })
+
+  // ============================================================
+  // CO-528: 弹窗返回 errorDetails（失败人员列表）+ 人员维度计数
+  // ============================================================
+  // 后端 ImportProgressInfo record 新增 errorDetails 字段（List<ImportErrorDetail>）：
+  //   ImportErrorDetail(sheetName, rowNumber, employeeNumber, name, errorMessage)
+  // 任务终态（COMPLETED/PARTIAL_SUCCESS/FAILED）时附带，供前端弹窗展示失败人员列表
+  //
+  // 计数改为人员维度：
+  //   totalCount = Sheet1 人员数（不是行级 3 sheets 求和）
+  //   failureCount = 有错误的人员数（按工号去重，不是错误条数）
+
+  it('CO-528 COMPLETED 态：前端读取后端 errorDetails 字段并暴露', async () => {
+    const startApi = vi.fn().mockResolvedValue({ data: { taskId: 2001 } })
+    const pollApi = vi.fn().mockResolvedValue({
+      data: {
+        status: 'COMPLETED',
+        percent: 100,
+        message: '导入完成',
+        totalCount: 2,
+        successCount: 1,
+        failureCount: 1,
+        errorDetails: [
+          { sheetName: '基础信息', rowNumber: 3, employeeNumber: 'EMP002', name: '李四', errorMessage: '姓名不能为空' }
+        ]
+      }
+    })
+
+    const task = usePersonnelBatchTask({ startApi, pollApi, pollInterval: 1000 })
+    await task.startTask(new File(['x'], 'a.xlsx'))
+
+    await vi.advanceTimersByTimeAsync(1000)
+
+    expect(task.isCompleted.value).toBe(true)
+    expect(task.totalCount.value).toBe(2)
+    expect(task.successCount.value).toBe(1)
+    expect(task.failCount.value).toBe(1)
+    // CO-528: errorDetails 应被读取并暴露
+    expect(task.errorDetails.value).toHaveLength(1)
+    expect(task.errorDetails.value[0].employeeNumber).toBe('EMP002')
+    expect(task.errorDetails.value[0].name).toBe('李四')
+    expect(task.errorDetails.value[0].errorMessage).toBe('姓名不能为空')
+  })
+
+  it('CO-528 PARTIAL_SUCCESS 态：前端读取后端 errorDetails 字段并暴露', async () => {
+    const startApi = vi.fn().mockResolvedValue({ data: { taskId: 2002 } })
+    const pollApi = vi.fn().mockResolvedValue({
+      data: {
+        status: 'PARTIAL_SUCCESS',
+        percent: 100,
+        message: '部分成功',
+        totalCount: 3,
+        successCount: 1,
+        failureCount: 2,
+        errorDetails: [
+          { sheetName: '基础信息', rowNumber: 2, employeeNumber: 'EMP001', name: '张三', errorMessage: '姓名不能为空' },
+          { sheetName: '基础信息', rowNumber: 3, employeeNumber: 'EMP002', name: '李四', errorMessage: '性别必填' }
+        ]
+      }
+    })
+
+    const task = usePersonnelBatchTask({ startApi, pollApi, pollInterval: 1000 })
+    await task.startTask(new File(['x'], 'a.xlsx'))
+
+    await vi.advanceTimersByTimeAsync(1000)
+
+    expect(task.isCompleted.value).toBe(true)
+    expect(task.errorDetails.value).toHaveLength(2)
+    expect(task.errorDetails.value[0].employeeNumber).toBe('EMP001')
+    expect(task.errorDetails.value[1].employeeNumber).toBe('EMP002')
+  })
+
+  it('CO-528 FAILED 态：前端读取后端 errorDetails 字段并暴露', async () => {
+    const startApi = vi.fn().mockResolvedValue({ data: { taskId: 2003 } })
+    const pollApi = vi.fn().mockResolvedValue({
+      data: {
+        status: 'FAILED',
+        percent: 100,
+        message: '校验失败',
+        totalCount: 2,
+        successCount: 0,
+        failureCount: 2,
+        errorDetails: [
+          { sheetName: '基础信息', rowNumber: 2, employeeNumber: 'EMP001', name: '张三', errorMessage: '姓名不能为空' },
+          { sheetName: '基础信息', rowNumber: 3, employeeNumber: 'EMP002', name: '李四', errorMessage: '姓名不能为空' }
+        ]
+      }
+    })
+
+    const task = usePersonnelBatchTask({ startApi, pollApi, pollInterval: 1000 })
+    await task.startTask(new File(['x'], 'a.xlsx'))
+
+    await vi.advanceTimersByTimeAsync(1000)
+
+    expect(task.isFailed.value).toBe(true)
+    // CO-528: 失败态也应暴露 errorDetails（供弹窗展示失败人员列表）
+    expect(task.errorDetails.value).toHaveLength(2)
+    expect(task.errorDetails.value[0].employeeNumber).toBe('EMP001')
+  })
+
+  it('CO-528 reset()：errorDetails 应被清空', async () => {
+    const startApi = vi.fn().mockResolvedValue({ data: { taskId: 2004 } })
+    const pollApi = vi.fn().mockResolvedValue({
+      data: {
+        status: 'COMPLETED',
+        percent: 100,
+        message: '导入完成',
+        totalCount: 1,
+        successCount: 0,
+        failureCount: 1,
+        errorDetails: [
+          { sheetName: '基础信息', rowNumber: 2, employeeNumber: 'EMP001', name: '张三', errorMessage: '姓名不能为空' }
+        ]
+      }
+    })
+
+    const task = usePersonnelBatchTask({ startApi, pollApi, pollInterval: 1000 })
+    await task.startTask(new File(['x'], 'a.xlsx'))
+
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(task.errorDetails.value).toHaveLength(1)
+
+    task.reset()
+    expect(task.errorDetails.value).toEqual([])
+  })
+
+  it('CO-528 uniqueErrorDetails：同一工号多条错误应合并为一行', async () => {
+    const startApi = vi.fn().mockResolvedValue({ data: { taskId: 2005 } })
+    // EMP001 有 2 条错误（姓名+性别），EMP002 有 1 条错误
+    const pollApi = vi.fn().mockResolvedValue({
+      data: {
+        status: 'COMPLETED',
+        percent: 100,
+        message: '导入完成',
+        totalCount: 2,
+        successCount: 0,
+        failureCount: 2,
+        errorDetails: [
+          { sheetName: '基础信息', rowNumber: 2, employeeNumber: 'EMP001', name: '张三', errorMessage: '姓名不能为空' },
+          { sheetName: '基础信息', rowNumber: 2, employeeNumber: 'EMP001', name: '张三', errorMessage: '性别必填' },
+          { sheetName: '基础信息', rowNumber: 3, employeeNumber: 'EMP002', name: '李四', errorMessage: '姓名不能为空' }
+        ]
+      }
+    })
+
+    const task = usePersonnelBatchTask({ startApi, pollApi, pollInterval: 1000 })
+    await task.startTask(new File(['x'], 'a.xlsx'))
+
+    await vi.advanceTimersByTimeAsync(1000)
+
+    // 原始 errorDetails 有 3 条
+    expect(task.errorDetails.value).toHaveLength(3)
+    // 去重后应为 2 条（EMP001 合并为一行）
+    expect(task.uniqueErrorDetails.value).toHaveLength(2)
+    // EMP001 的错误原因应合并
+    const emp001 = task.uniqueErrorDetails.value.find(e => e.employeeNumber === 'EMP001')
+    expect(emp001).toBeDefined()
+    expect(emp001.errorMessage).toBe('姓名不能为空；性别必填')
+  })
 })
