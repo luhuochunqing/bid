@@ -44,7 +44,7 @@ class PlatformAccountAuditRecorderTest {
                 .id(1L).accountName("新平台").username("olduser")
                 .password("enc:old").build();
 
-        recorder().recordUpdate(before, after, OPERATOR, 0);
+        recorder().recordUpdate(before, after, OPERATOR, 0, false);
 
         ArgumentCaptor<AuditLogService.AuditLogEntry> captor =
                 ArgumentCaptor.forClass(AuditLogService.AuditLogEntry.class);
@@ -68,7 +68,7 @@ class PlatformAccountAuditRecorderTest {
                 .id(1L).accountName("测试").username("u")
                 .password("enc:new_secret_value").build();
 
-        recorder().recordUpdate(before, after, OPERATOR, 0);
+        recorder().recordUpdate(before, after, OPERATOR, 0, true);
 
         ArgumentCaptor<AuditLogService.AuditLogEntry> captor =
                 ArgumentCaptor.forClass(AuditLogService.AuditLogEntry.class);
@@ -81,6 +81,24 @@ class PlatformAccountAuditRecorderTest {
     }
 
     @Test
+    @DisplayName("回归：passwordChanged=false 时，即使前后密文不同也不应出现「密码：已更新」")
+    void recordUpdate_passwordUnchanged_neverLogsPasswordEvenIfCiphertextDiffers() {
+        // 模拟真实场景：加密带盐，同一明文两次加密结果不同 → 前后密文不同
+        PlatformAccount before = PlatformAccount.builder()
+                .id(1L).accountName("测试").username("u")
+                .password("enc:saltA_samePlaintext").build();
+        PlatformAccount after = PlatformAccount.builder()
+                .id(1L).accountName("测试").username("u")
+                .password("enc:saltB_samePlaintext").build();
+        // 但 service 判定 passwordChanged=false（request.password 为空，未提交新密码）
+        recorder().recordUpdate(before, after, OPERATOR, 0, false);
+        ArgumentCaptor<AuditLogService.AuditLogEntry> captor =
+                ArgumentCaptor.forClass(AuditLogService.AuditLogEntry.class);
+        verify(auditLogService).log(captor.capture());
+        assertThat(captor.getValue().getDescription()).doesNotContain("密码");
+    }
+
+    @Test
     @DisplayName("绑定联系人变更 → 写两条日志（TRANSFER_CONTACT + UPDATE），TRANSFER 含转派待审批数")
     void recordUpdate_contactPersonChange_logsTransferAndUpdate() {
         PlatformAccount before = PlatformAccount.builder()
@@ -90,7 +108,7 @@ class PlatformAccountAuditRecorderTest {
                 .id(1L).accountName("测试").username("u")
                 .contactPerson(20L).password("enc:same").build();
 
-        recorder().recordUpdate(before, after, OPERATOR, 3);
+        recorder().recordUpdate(before, after, OPERATOR, 3, false);
 
         ArgumentCaptor<AuditLogService.AuditLogEntry> captor =
                 ArgumentCaptor.forClass(AuditLogService.AuditLogEntry.class);
@@ -112,9 +130,9 @@ class PlatformAccountAuditRecorderTest {
     @Test
     @DisplayName("入参含 null → 跳过审计写入，不抛异常")
     void recordUpdate_nullArgs_skipsSafely() {
-        recorder().recordUpdate(null, new PlatformAccount(), OPERATOR, 0);
-        recorder().recordUpdate(new PlatformAccount(), null, OPERATOR, 0);
-        recorder().recordUpdate(new PlatformAccount(), new PlatformAccount(), null, 0);
+        recorder().recordUpdate(null, new PlatformAccount(), OPERATOR, 0, false);
+        recorder().recordUpdate(new PlatformAccount(), null, OPERATOR, 0, false);
+        recorder().recordUpdate(new PlatformAccount(), new PlatformAccount(), null, 0, false);
         verify(auditLogService, times(0)).log(any());
     }
 
@@ -128,7 +146,7 @@ class PlatformAccountAuditRecorderTest {
                 .id(1L).accountName("测试").username("u")
                 .password("enc:same").build();
 
-        recorder().recordUpdate(before, after, OPERATOR, 0);
+        recorder().recordUpdate(before, after, OPERATOR, 0, false);
 
         ArgumentCaptor<AuditLogService.AuditLogEntry> captor =
                 ArgumentCaptor.forClass(AuditLogService.AuditLogEntry.class);

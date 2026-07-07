@@ -153,9 +153,10 @@ public class PlatformAccountService {
         PlatformAccount beforeUpdate = auditRecorder.snapshot(account);
         int pendingApprovalCount = auditRecorder.resolvePendingApprovalCount(
                 account, request.getContactPerson(), borrowApplicationRepository);
+        boolean passwordChanged = request.getPassword() != null && !request.getPassword().trim().isEmpty();
         updateApplier.applyFields(account, request);
         PlatformAccount savedAccount = repository.save(account);
-        auditRecorder.recordUpdate(beforeUpdate, savedAccount, currentUser, pendingApprovalCount);
+        auditRecorder.recordUpdate(beforeUpdate, savedAccount, currentUser, pendingApprovalCount, passwordChanged);
 
         return contactLabelEnricher.enrich(PlatformAccountMapper.toDTO(savedAccount));
     }

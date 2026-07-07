@@ -34,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -768,7 +769,7 @@ class PlatformAccountServiceTest {
 
         // 验证 recorder.recordUpdate 被调用，操作人正确，pendingApprovalCount 来自 recorder 解析
         verify(auditRecorder).recordUpdate(any(PlatformAccount.class), any(PlatformAccount.class),
-                eq(ADMIN_USER), anyInt());
+                eq(ADMIN_USER), anyInt(), anyBoolean());
     }
 
     @Test
