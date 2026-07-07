@@ -4,9 +4,9 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.cache.CacheAutoConfiguration;
+import org.springframework.boot.autoconfigure.cache.RedisCacheManagerBuilderCustomizer;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.cache.CacheManager;
-import org.springframework.cache.concurrent.ConcurrentMapCache;
 import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -39,6 +39,21 @@ class CacheConfigTest {
             assertThat(cacheManager.getCache("dashboard:overview")).isNotNull();
             assertThat(cacheManager.getCache("dashboard:summary")).isNotNull();
             assertThat(cacheManager.getCache("dashboard:trends")).isNotNull();
+        });
+    }
+
+    @Test
+    void shouldRegisterExplicitTtlPerCacheName() {
+        contextRunner.run(context -> {
+            // L-08: customizer Bean 必须存在，确保 per-cacheName TTL 显式配置
+            assertThat(context).hasSingleBean(RedisCacheManagerBuilderCustomizer.class);
+
+            CacheManager cacheManager = context.getBean(CacheManager.class);
+            assertThat(cacheManager).isInstanceOf(RedisCacheManager.class);
+
+            // 注册的 cacheName 必须可获取
+            assertThat(cacheManager.getCache("dashboard:overview")).isNotNull();
+            assertThat(cacheManager.getCache("users:enabled")).isNotNull();
         });
     }
 }
