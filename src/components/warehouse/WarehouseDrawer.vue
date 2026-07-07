@@ -47,16 +47,28 @@
         </el-tab-pane>
         <el-tab-pane label="附件管理" name="attachments">
           <div class="attach-toolbar">
-            <el-button size="small" type="primary" @click="triggerUpload"><el-icon><Upload /></el-icon> 上传附件</el-button>
-            <el-select v-model="uploadType" size="small" style="width:120px;margin-left:8px">
-              <el-option label="产权证" value="PROPERTY_CERTIFICATE" />
-              <el-option label="发票" value="INVOICE" />
-              <el-option label="内外照片" value="PHOTOS" />
-              <el-option label="租赁合同" value="LEASE_CONTRACT" />
-            </el-select>
+            <div class="attach-toolbar-left">
+              <el-button size="small" type="primary" @click="triggerUpload"><el-icon><Upload /></el-icon> 上传附件</el-button>
+              <el-select v-model="uploadType" size="small" style="width:120px;margin-left:8px">
+                <el-option label="产权证" value="PROPERTY_CERTIFICATE" />
+                <el-option label="发票" value="INVOICE" />
+                <el-option label="内外照片" value="PHOTOS" />
+                <el-option label="租赁合同" value="LEASE_CONTRACT" />
+              </el-select>
+            </div>
+            <div class="attach-toolbar-right">
+              <span class="attach-filter-label">类型筛选</span>
+              <el-select v-model="filterType" size="small" style="width:140px" :placeholder="'全部'">
+                <el-option label="全部" value="ALL" />
+                <el-option label="产权证" value="PROPERTY_CERTIFICATE" />
+                <el-option label="发票" value="INVOICE" />
+                <el-option label="内外照片" value="PHOTOS" />
+                <el-option label="租赁合同" value="LEASE_CONTRACT" />
+              </el-select>
+            </div>
           </div>
           <input ref="fileInputRef" type="file" style="display:none" accept="*" @change="handleFileChange" />
-          <el-table :data="attachments" style="width:100%;margin-top:12px" size="small" empty-text="暂无附件">
+          <el-table :data="filteredAttachments" style="width:100%;margin-top:12px" size="small" :empty-text="filterType === 'ALL' ? '暂无附件' : '该类型暂无附件'">
             <el-table-column label="附件类型" width="100">
               <template #default="s">{{ typeLabel(s.row.type) }}</template>
             </el-table-column>
@@ -108,6 +120,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Upload, Edit, Lock, RefreshRight } from '@element-plus/icons-vue'
 import http from '@/api/client'
 import DateTimeDisplay from '@/components/common/DateTimeDisplay.vue'
+import { filterAttachmentsByType } from './warehouseAttachmentFilter.js'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -119,8 +132,11 @@ const visible = computed({ get: () => props.modelValue, set: (v) => emit('update
 const detail = ref(null); const attachments = ref([]); const logs = ref([])
 const loading = ref(false); const activeTab = ref('basic')
 const uploadType = ref('PROPERTY_CERTIFICATE')
+const filterType = ref('ALL')
 const fileInputRef = ref(); const logPage = ref(1); const logTotal = ref(0)
 const pageSize = 10
+
+const filteredAttachments = computed(() => filterAttachmentsByType(attachments.value, filterType.value))
 
 const STATUS_MAP = { IN_USE:'使用中', EXPIRING:'即将到期', EXPIRED:'已过期', CLOSED:'已关仓' }
 const ATTACH_TYPE_MAP = { PROPERTY_CERTIFICATE:'产权证', INVOICE:'发票', PHOTOS:'内外照片', LEASE_CONTRACT:'租赁合同' }
@@ -149,8 +165,8 @@ const loadLogs = async () => {
   } catch {}
 }
 
-watch(() => props.modelValue, (v) => { if (v) { loadDetail(); loadLogs() } else { detail.value = null; attachments.value = []; logs.value = [] } })
-watch(() => props.warehouseId, () => { if (visible.value) { loadDetail(); loadLogs() } })
+watch(() => props.modelValue, (v) => { if (v) { loadDetail(); loadLogs() } else { detail.value = null; attachments.value = []; logs.value = []; filterType.value = 'ALL' } })
+watch(() => props.warehouseId, () => { if (visible.value) { loadDetail(); loadLogs(); filterType.value = 'ALL' } })
 
 const triggerUpload = () => fileInputRef.value?.click()
 
@@ -201,5 +217,25 @@ const formatSize = (bytes) => { if (!bytes) return '—'; if (bytes < 1024) retu
   }
 }
 
-.attach-toolbar { display:flex; align-items:center; margin-bottom:8px }
+.attach-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.attach-toolbar-left,
+.attach-toolbar-right {
+  display: flex;
+  align-items: center;
+}
+
+.attach-filter-label {
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+  margin-right: 6px;
+  white-space: nowrap;
+}
 </style>
