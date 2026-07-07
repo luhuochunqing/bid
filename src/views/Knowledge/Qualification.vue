@@ -207,7 +207,21 @@ const handleBatchDownload = () => {
       link.remove()
       window.URL.revokeObjectURL(url)
     })
-    .catch(() => ElMessage.error('批量下载失败'))
+    .catch((err) => {
+      // §25 禁止静默吞错：必须打印 + 明确提示。后端可能返回 400 (URI is not absolute) 或 500。
+      // responseType: 'blob' 时 err.response.data 是 Blob，需异步读取才能拿到后端 message。
+      console.error('[资质] 批量下载失败', err)
+      const blob = err?.response?.data
+      if (blob instanceof Blob) {
+        blob.text().then((text) => {
+          let msg = '请稍后重试'
+          try { msg = JSON.parse(text)?.msg || JSON.parse(text)?.message || msg } catch { msg = text || msg }
+          ElMessage.error('批量下载失败：' + msg)
+        }).catch(() => ElMessage.error('批量下载失败：请稍后重试'))
+      } else {
+        ElMessage.error('批量下载失败：' + (err?.message || '请稍后重试'))
+      }
+    })
 }
 
 // 告警配置 / 扫描到期

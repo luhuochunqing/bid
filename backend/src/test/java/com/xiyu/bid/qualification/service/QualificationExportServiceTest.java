@@ -185,4 +185,49 @@ class QualificationExportServiceTest {
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.batchExportZip(null))
                 .isInstanceOf(com.xiyu.bid.exception.InvalidArgumentException.class);
     }
+
+    /**
+     * 回归测试：fileUrl 是裸文件名（DB 实际存储形态，BatchAttachmentService.setFileUrl(uniqueFilename)），
+     * 且本地存储缺失时，writeAttachmentToZip 必须降级写入 .txt 说明，不得抛 IllegalArgumentException:
+     * URI is not absolute 逃逸到 GlobalExceptionHandler 被映射为 400。
+     *
+     * 触发场景：用户上传附件后磁盘文件丢失，或 storage-path 配置不一致。
+     */
+    @Test
+    void shouldFallbackToTxtWhenFileUrlIsRelativeAndLocalMissing() throws Exception {
+        // fileUrl 是裸文件名（非绝对 URL），本地存储目录里也不存在该文件
+        QualificationDTO q = QualificationDTO.builder()
+                .id(99L)
+                .name("测试资质")
+                .attachments(List.of(
+                        QualificationAttachmentDTO.builder()
+                                .fileName("missing.pdf")
+                                .fileUrl("missing.pdf")   // 裸文件名，DB 真实形态
+                                .build()
+                ))
+                .build();
+
+        when(flatQuery.listAll(null, null)).thenReturn(List.of(q));
+
+        // 不应抛异常（回归前会抛 IllegalArgumentException: URI is not absolute）
+        byte[] zipBytes = service.batchExportZip(List.of(99L));
+
+        // 解压验证：应有一个 .txt entry，内容包含 "无法下载" 说明
+        List<String> entryNames = new java.util.ArrayList<>();
+        String txtContent = "";
+        try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                entryNames.add(entry.getName());
+                if (entry.getName().endsWith(".txt")) {
+                    txtContent = new String(zis.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                }
+            }
+        }
+
+        assertThat(entryNames).hasSize(1);
+        assertThat(entryNames.get(0)).endsWith(".txt");
+        assertThat(txtContent).contains("无法下载");
+        assertThat(txtContent).contains("missing.pdf");
+    }
 }
