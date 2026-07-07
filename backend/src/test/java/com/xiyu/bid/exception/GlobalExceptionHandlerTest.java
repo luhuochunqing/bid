@@ -41,6 +41,7 @@ class GlobalExceptionHandlerTest {
 
     private ListAppender<ILoggingEvent> appender;
     private Logger handlerLogger;
+    private Logger exceptionLoggerLogger;
 
     @BeforeEach
     void attachLogAppender() {
@@ -49,11 +50,16 @@ class GlobalExceptionHandlerTest {
         appender = new ListAppender<>();
         appender.start();
         handlerLogger.addAppender(appender);
+        // M-03 重构后 BusinessException 日志由 ExceptionLogger 输出
+        exceptionLoggerLogger = (Logger) LoggerFactory.getLogger(ExceptionLogger.class);
+        exceptionLoggerLogger.setLevel(Level.DEBUG);
+        exceptionLoggerLogger.addAppender(appender);
     }
 
     @AfterEach
     void detachLogAppender() {
         handlerLogger.detachAppender(appender);
+        exceptionLoggerLogger.detachAppender(appender);
         appender.stop();
     }
 
@@ -468,12 +474,13 @@ class GlobalExceptionHandlerTest {
         assertThat(body.getCode()).isEqualTo(400);
         // 提示包含缺失的 part 名，便于用户定位
         assertThat(body.getMessage()).contains("file");
-        // 日志应输出 WARN 级别（4xx 业务可恢复错误）
+        // M-03 重构后日志走 ExceptionLogger（统一格式 "业务异常 - URI: ..., Code: ..., Message: ..."）
+        // 验证 ExceptionLogger logger 输出了 WARN 级别日志
         boolean hasWarnLog = appender.list.stream()
                 .anyMatch(event -> event.getLevel().equals(Level.WARN)
-                        && event.getFormattedMessage().contains("multipart 缺失 part"));
+                        && event.getFormattedMessage().contains("业务异常"));
         assertThat(hasWarnLog)
-                .as("handleMissingServletRequestPart 应使用 log.warn 并打印缺失 part 信息")
+                .as("handleMissingServletRequestPart 应通过 ExceptionLogger 输出 WARN 级别日志")
                 .isTrue();
     }
 
@@ -511,11 +518,12 @@ class GlobalExceptionHandlerTest {
         ApiResponse<Void> body = (ApiResponse<Void>) response.getBody();
         assertThat(body.getCode()).isEqualTo(400);
         assertThat(body.getMessage()).contains("projectId");
+        // M-03 重构后日志走 ExceptionLogger（统一格式 "业务异常 - URI: ..., Code: ..., Message: ..."）
         boolean hasWarnLog = appender.list.stream()
                 .anyMatch(event -> event.getLevel().equals(Level.WARN)
-                        && event.getFormattedMessage().contains("请求参数缺失"));
+                        && event.getFormattedMessage().contains("业务异常"));
         assertThat(hasWarnLog)
-                .as("handleMissingServletRequestParameter 应使用 log.warn 并打印参数名")
+                .as("handleMissingServletRequestParameter 应通过 ExceptionLogger 输出 WARN 级别日志")
                 .isTrue();
     }
 }

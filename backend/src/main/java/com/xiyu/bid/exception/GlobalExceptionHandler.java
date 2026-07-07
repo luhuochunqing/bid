@@ -1,7 +1,7 @@
 // Input: 业务失败、资源缺失和参数校验异常
 // Output: 业务异常类型与标准化错误映射
 // Pos: Exception/异常处理层
-// 维护声明: 仅维护异常语义与映射；错误码改动请同步前后端契约.
+// 维护声明: 仅维护异常路由分发；日志走 ExceptionLogger、消息走 ExceptionMessageSanitizer/ExceptionResponseStrategy.
 package com.xiyu.bid.exception;
 
 import com.xiyu.bid.dto.ApiResponse;
@@ -10,9 +10,6 @@ import com.xiyu.bid.docinsight.application.exception.UnsupportedProfileException
 import com.openai.errors.UnauthorizedException;
 import com.openai.errors.BadRequestException;
 import com.xiyu.bid.integration.application.WeComApiException;
-import io.sentry.Sentry;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -36,20 +33,21 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
-import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * 全局异常处理器
- * 统一处理所有异常，返回标准格式的错误响应
+ * 全局异常处理器（仅做异常路由分发）.
+ *
+ * <p>M-03 安全修复：所有 handler 不再直接透传 ex.getMessage()；
+ * 日志和 Sentry 上报统一走 {@link ExceptionLogger}；
+ * 响应消息构建统一走 {@link ExceptionResponseStrategy} 和 {@link ExceptionMessageSanitizer}。
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
-    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-
     /**
-     * 处理参数校验异常 (@Valid)
+     * 处理参数校验异常 (@Valid)。
+     * 校验错误来自 Bean Validation，受控、有限、可透传给用户。
      */
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
@@ -60,16 +58,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         String errors = ex.getBindingResult().getFieldErrors().stream()
                 .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining("; "));
-
-        log.warn("参数校验失败 - Errors: {}", errors);
-
-        return ResponseEntity
-                .badRequest()
+        ExceptionLogger.warn(ex, currentHttpRequest(request), 400);
+        return ResponseEntity.badRequest()
                 .body(ApiResponse.error(400, "参数校验失败: " + errors));
     }
 
     /**
-     * 处理约束违反异常 (@Validated)
+     * 处理约束违反异常 (@Validated)。受控校验消息可透传。
      */
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ApiResponse<Void>> handleConstraintViolationException(
@@ -78,497 +73,377 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         String errors = ex.getConstraintViolations().stream()
                 .map(ConstraintViolation::getMessage)
                 .collect(Collectors.joining("; "));
-
-        log.warn("约束校验失败 - URI: {}, Errors: {}", request.getRequestURI(), errors);
-
-        return ResponseEntity
-                .badRequest()
+        ExceptionLogger.warn(ex, request, 400);
+        return ResponseEntity.badRequest()
                 .body(ApiResponse.error(400, "参数校验失败: " + errors));
     }
 
     /**
-     * 处理非法参数异常
+     * 处理非法参数异常。
+     * M-03: message 可能含 SQL/字段名等敏感信息，禁止透传，统一返回硬编码消息。
      */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Void>> handleIllegalArgumentException(
             IllegalArgumentException ex,
             HttpServletRequest request) {
-        log.warn("非法参数 - URI: {}, Message: {}", request.getRequestURI(), ex.getMessage());
-
-        return ResponseEntity
-                .badRequest()
-                .body(ApiResponse.error(400, ex.getMessage()));
+        ExceptionLogger.warn(ex, request, 400);
+        // 通过 ExceptionResponseStrategy.buildResponse 调用 ExceptionMessageSanitizer.sanitize(ex)
+        // 安全的业务校验消息（如"产品类型不能为空"）会透传，含 SQL/路径/堆栈的敏感消息会被拦截
+        return ResponseEntity.badRequest()
+                .body(ExceptionResponseStrategy.buildResponse(ex, HttpStatus.BAD_REQUEST));
     }
 
-    // CO-529: MissingServletRequestPartException 和 MissingServletRequestParameterException
-    // 通过重写父类的 protected 方法处理（见文件末尾 handleMissingServletRequestPart 和
-    // handleMissingServletRequestParameter）。不能用 @ExceptionHandler 声明，因为父类的
-    // handleException(Exception) 是 public final，已经用 @ExceptionHandler 注解绑定了这些异常类型，
-    // 子类再用 @ExceptionHandler 声明会导致 Ambiguous 冲突。
-
     /**
-     * 处理非法状态异常。
-     *
-     * Constitution v2.0.0 Principle VII §3: 5xx handler MUST 对齐诊断标准。
-     * IllegalStateException 通常由 Collectors.toMap 重复 key、并发状态变更等底层
-     * 问题触发，属于系统缺陷而非业务错误，必须完整诊断 + Sentry 上报 + 通用错误信息。
+     * 处理非法状态异常（5xx 系统级失败）。
+     * Constitution v2.0.0 Principle VII §3: 必须完整诊断 + Sentry 上报。
      */
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ApiResponse<Void>> handleIllegalStateException(
             IllegalStateException ex,
             HttpServletRequest request) {
-        String payload = getRequestPayload(request);
-        log.error("非法状态 - URI: {}, IP: {}, Message: {}\nPayload: {}",
-                request.getRequestURI(), getClientIp(request), ex.getMessage(), payload, ex);
-        Sentry.captureException(ex);
-
-        return ResponseEntity
-                .status(HttpStatus.CONFLICT)
+        ExceptionLogger.errorWithSentry(ex, request, "非法状态");
+        return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiResponse.error(409, "系统状态冲突，请刷新后重试"));
     }
 
+    /**
+     * 处理乐观锁冲突（5xx 系统级失败）。
+     */
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ResponseEntity<ApiResponse<Void>> handleOptimisticLockingFailureException(
             OptimisticLockingFailureException ex,
             HttpServletRequest request) {
-        String payload = getRequestPayload(request);
-        log.error("并发更新冲突 - URI: {}, IP: {}, Message: {}\nPayload: {}",
-                request.getRequestURI(), getClientIp(request), ex.getMessage(), payload, ex);
-        Sentry.captureException(ex);
-
-        String message = "数据已被其他用户更新，请刷新后重试";
-        if (request.getRequestURI() != null && request.getRequestURI().contains("/evaluation")) {
-            message = "评估表已被更新，请刷新后重试";
-        }
-
-        return ResponseEntity
-                .status(HttpStatus.CONFLICT)
+        ExceptionLogger.errorWithSentry(ex, request, "并发更新冲突");
+        String message = (request.getRequestURI() != null
+                && request.getRequestURI().contains("/evaluation"))
+                ? "评估表已被更新，请刷新后重试"
+                : "数据已被其他用户更新，请刷新后重试";
+        return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiResponse.error(409, message));
     }
 
     /**
-     * 处理认证异常
+     * 处理认证异常（Spring Security AuthenticationException 体系）。
+     * M-03: 不透传 ex.getMessage()，统一硬编码友好消息。
+     * RoleNotAuthorizedException 是项目自定义受控异常，单独处理。
      */
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ApiResponse<Void>> handleAuthenticationException(
             AuthenticationException ex,
             HttpServletRequest request) {
-        log.warn("认证失败 - URI: {}, IP: {}", request.getRequestURI(), getClientIp(request));
-
-        return ResponseEntity
-                .status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.error(401, "认证失败，请重新登录"));
+        ExceptionLogger.warnWithIp(ex, request);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ExceptionResponseStrategy.buildFixedResponse(
+                        HttpStatus.UNAUTHORIZED, "认证失败，请重新登录"));
     }
 
     /**
-     * 处理授权异常
+     * 处理授权异常。
      */
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDeniedException(
             AccessDeniedException ex,
             HttpServletRequest request) {
-        log.warn("权限不足 - URI: {}, User: {}, Message: {}", request.getRequestURI(),
-                request.getUserPrincipal() != null ? request.getUserPrincipal().getName() : "anonymous",
-                ex.getMessage());
-
-        return ResponseEntity
-                .status(HttpStatus.FORBIDDEN)
-                .body(ApiResponse.error(403, "权限不足，无法访问该资源"));
+        ExceptionLogger.warnWithIp(ex, request);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ExceptionResponseStrategy.buildFixedResponse(
+                        HttpStatus.FORBIDDEN, "权限不足，无法访问该资源"));
     }
 
     /**
-     * 处理错误凭据异常
+     * 处理错误凭据异常。
      */
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiResponse<Void>> handleBadCredentialsException(
             BadCredentialsException ex,
             HttpServletRequest request) {
-        log.warn("登录失败 - URI: {}, IP: {}", request.getRequestURI(), getClientIp(request));
-
-        return ResponseEntity
-                .status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.error(401, "AUTHENTICATION_FAILED: 用户名或密码错误"));
+        ExceptionLogger.warnWithIp(ex, request);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ExceptionResponseStrategy.buildFixedResponse(
+                        HttpStatus.UNAUTHORIZED, "AUTHENTICATION_FAILED: 用户名或密码错误"));
     }
 
     /**
-     * 处理账户已停用异常
+     * 处理账户已停用异常。
      */
     @ExceptionHandler(DisabledException.class)
     public ResponseEntity<ApiResponse<Void>> handleDisabledException(
             DisabledException ex,
             HttpServletRequest request) {
-        log.warn("账户已停用 - URI: {}, IP: {}", request.getRequestURI(), getClientIp(request));
-
-        return ResponseEntity
-                .status(HttpStatus.FORBIDDEN)
-                .body(ApiResponse.error(403, "ACCOUNT_DISABLED: 账户已停用"));
+        ExceptionLogger.warnWithIp(ex, request);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ExceptionResponseStrategy.buildFixedResponse(
+                        HttpStatus.FORBIDDEN, "ACCOUNT_DISABLED: 账户已停用"));
     }
 
     /**
-     * 处理角色未授权异常：OSS 用户角色不在白名单中，返回 403。
+     * 处理角色未授权异常（项目自定义受控异常）。
+     * M-03: 走 ExceptionResponseStrategy 安全策略。
      */
     @ExceptionHandler(RoleNotAuthorizedException.class)
     public ResponseEntity<ApiResponse<Void>> handleRoleNotAuthorizedException(
             RoleNotAuthorizedException ex,
             HttpServletRequest request) {
-        log.warn("角色未授权 - URI: {}, IP: {}, msg: {}",
-                request.getRequestURI(), getClientIp(request), ex.getMessage());
-        return ResponseEntity
-                .status(HttpStatus.FORBIDDEN)
-                .body(ApiResponse.error(403, "ROLE_NOT_AUTHORIZED: " + ex.getMessage()));
+        ExceptionLogger.warnWithIp(ex, request);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ExceptionResponseStrategy.buildWithPrefix(
+                        ex, HttpStatus.FORBIDDEN, "ROLE_NOT_AUTHORIZED"));
     }
 
     /**
-     * 处理认证不充分异常：返回 401。
+     * 处理认证不充分异常。
+     * M-03: InsufficientAuthenticationException 可能由 AuthService 抛出，
+     * message 可能含 "Refresh token"、"JWT expired" 等敏感信息，禁止透传。
+     * 统一返回硬编码 "认证失败" 消息。
      */
     @ExceptionHandler(InsufficientAuthenticationException.class)
     public ResponseEntity<ApiResponse<Void>> handleInsufficientAuthenticationException(
             InsufficientAuthenticationException ex,
             HttpServletRequest request) {
-        log.warn("认证不充分 - URI: {}, IP: {}",
-                request.getRequestURI(), getClientIp(request));
-        return ResponseEntity
-                .status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.error(401, "AUTHENTICATION_FAILED: " + (ex.getMessage() != null ? ex.getMessage() : "认证失败")));
+        ExceptionLogger.warnWithIp(ex, request);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ExceptionResponseStrategy.buildFixedResponse(
+                        HttpStatus.UNAUTHORIZED, "AUTHENTICATION_FAILED: 认证失败"));
     }
 
     /**
-     * 处理标讯重复异常
+     * 处理标讯重复异常（项目自定义受控异常）。
      */
     @ExceptionHandler(TenderDuplicateException.class)
     public ResponseEntity<ApiResponse<Void>> handleTenderDuplicate(
             TenderDuplicateException ex,
             HttpServletRequest request) {
-        log.warn("标讯重复 - URI: {}, Duplicates: {}", request.getRequestURI(), ex.getDuplicates().size());
-
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error(400, ex.getMessage()));
+        ExceptionLogger.warn(ex, request, 400);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ExceptionResponseStrategy.buildResponse(ex, HttpStatus.BAD_REQUEST));
     }
 
     /**
-     * 处理业务异常
-     *
-     * Constitution v2.0.0 Principle VII §3: 当 BusinessException 返回 5xx 时视为系统级失败，
-     * MUST 上报 Sentry 以聚合观测。4xx 业务错误（参数校验、资源不存在等）保留 warn 级别。
+     * 处理业务异常。
+     * Constitution Principle VII §3: 5xx 视为系统级失败需 Sentry 上报。
+     * M-03: 走 ExceptionResponseStrategy 安全策略，受控 userMessage 可透传。
      */
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(
-        BusinessException ex,
-        HttpServletRequest request) {
-        String payload = getRequestPayload(request);
+            BusinessException ex,
+            HttpServletRequest request) {
         HttpStatus httpStatus = ex.getHttpStatus();
-        boolean isServerError = httpStatus.is5xxServerError();
-        if (isServerError) {
-            log.error("业务异常(5xx) - URI: {}, IP: {}, Code: {}, HttpStatus: {}, Message: {}\nPayload: {}",
-                request.getRequestURI(), getClientIp(request), ex.getCode(), httpStatus.value(), ex.getMessage(), payload, ex);
-            Sentry.captureException(ex);
+        if (ExceptionLogger.shouldReportToSentry(ex, httpStatus)) {
+            ExceptionLogger.errorWithSentry(ex, request, "业务异常(5xx)");
         } else {
-            log.warn("业务异常 - URI: {}, Code: {}, HttpStatus: {}, Message: {} \nPayload: {}",
-                request.getRequestURI(), ex.getCode(), httpStatus.value(), ex.getMessage(), payload);
+            ExceptionLogger.warn(ex, request, ex.getCode());
         }
-
-        return ResponseEntity
-                .status(httpStatus)
-                .body(ApiResponse.error(ex.getCode(), ex.getMessage()));
+        return ResponseEntity.status(httpStatus)
+                .body(ExceptionResponseStrategy.buildResponse(ex, httpStatus, ex.getCode()));
     }
 
     /**
-     * 处理应用层失败异常（如证书编号重复、等级不能为空等）
+     * 处理应用层失败异常（项目自定义受控异常基类）。
      */
     @ExceptionHandler(AppFailureException.class)
     public ResponseEntity<ApiResponse<Void>> handleAppFailureException(
             AppFailureException ex,
             HttpServletRequest request) {
-        log.warn("应用层异常 - URI: {}, Code: {}, HttpStatus: {}, Message: {}",
-            request.getRequestURI(), ex.getCode(), ex.getHttpStatus(), ex.getMessage());
-
-        return ResponseEntity
-                .status(ex.getHttpStatus())
-                .body(ApiResponse.error(ex.getCode(), ex.getMessage()));
+        HttpStatus httpStatus = ex.getHttpStatus();
+        if (ExceptionLogger.shouldReportToSentry(ex, httpStatus)) {
+            ExceptionLogger.errorWithSentry(ex, request, "应用层异常");
+        } else {
+            ExceptionLogger.warn(ex, request, ex.getCode());
+        }
+        return ResponseEntity.status(httpStatus)
+                .body(ExceptionResponseStrategy.buildResponse(ex, httpStatus, ex.getCode()));
     }
 
     /**
-     * 处理资源不存在异常
+     * 处理资源不存在异常。M-03: 统一返回硬编码消息，不透传内部细节。
      */
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleResourceNotFoundException(
             ResourceNotFoundException ex,
             HttpServletRequest request) {
-        String resource = ex.getResource() != null && !ex.getResource().isBlank() ? ex.getResource() : resolveMissingResource(ex);
-        String resourceId = ex.getResourceId();
-        if (resourceId != null && !resourceId.isBlank()) {
-            log.warn("资源不存在 - URI: {}, Resource: {}, ResourceId: {}",
-                    request.getRequestURI(), resource, resourceId);
-        } else {
-            log.warn("资源不存在 - URI: {}, Resource: {}",
-                    request.getRequestURI(), resource);
-        }
-
-        return ResponseEntity
-                .status(HttpStatus.NOT_FOUND)
-                .body(ApiResponse.error(404, "请求的资源不存在"));
+        ExceptionLogger.warn(ex, request, 404);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ExceptionResponseStrategy.buildFixedResponse(
+                        HttpStatus.NOT_FOUND, "请求的资源不存在"));
     }
 
-
     /**
-     * 处理 ResponseStatusException（Controller 中主动抛出的带 HTTP 状态码的异常）
+     * 处理 ResponseStatusException（Controller 中主动抛出的带 HTTP 状态码的异常）。
+     * M-03: ex.getReason() 由 Controller 代码设置（受控），可透传；
+     * 为空时使用硬编码 fallback。
      */
     @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
     public ResponseEntity<ApiResponse<Void>> handleResponseStatusException(
             org.springframework.web.server.ResponseStatusException ex,
             HttpServletRequest request) {
-        log.warn("HTTP {} - URI: {}, Reason: {}",
-            ex.getStatusCode(), request.getRequestURI(), ex.getReason());
-
-        int code = switch (ex.getStatusCode().value()) {
-            case 400 -> 400;
-            case 401 -> 401;
-            case 403 -> 403;
-            case 404 -> 404;
-            case 409 -> 409;
-            case 423 -> 423;
-            default -> ex.getStatusCode().value();
-        };
-
-        return ResponseEntity
-                .status(ex.getStatusCode())
-                .body(ApiResponse.error(code,
-                    ex.getReason() != null ? ex.getReason() : "请求无法处理"));
+        ExceptionLogger.warn(ex, request, ex.getStatusCode().value());
+        String reason = ex.getReason();
+        String safeMessage = ExceptionMessageSanitizer.resolveOrDefault(
+                reason, "请求无法处理");
+        return ResponseEntity.status(ex.getStatusCode())
+                .body(ApiResponse.error(ex.getStatusCode().value(), safeMessage));
     }
 
     /**
-     * 处理 DocInsight 文档不存在异常 → HTTP 404
+     * 处理 DocInsight 文档不存在异常 → HTTP 404。
+     * M-03: message 含 storagePath 内部路径，禁止透传。
      */
     @ExceptionHandler(DocumentNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleDocumentNotFoundException(
             DocumentNotFoundException ex,
             HttpServletRequest request) {
-        log.warn("DocInsight 文档不存在 - URI: {}, Path: {}", request.getRequestURI(), ex.getStoragePath());
-        return ResponseEntity
-                .status(HttpStatus.NOT_FOUND)
-                .body(ApiResponse.error(404, ex.getMessage()));
+        ExceptionLogger.warnWithIp(ex, request);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ExceptionResponseStrategy.buildFixedResponse(
+                        HttpStatus.NOT_FOUND, "请求的资源不存在"));
     }
 
     /**
-     * 处理 DocInsight 不支持的分析配置异常 → HTTP 400
+     * 处理 DocInsight 不支持的分析配置异常 → HTTP 400。
+     * M-03: message 含 profileCode 内部细节，禁止透传。
      */
     @ExceptionHandler(UnsupportedProfileException.class)
     public ResponseEntity<ApiResponse<Void>> handleUnsupportedProfileException(
             UnsupportedProfileException ex,
             HttpServletRequest request) {
-        log.warn("DocInsight 不支持的分析配置 - URI: {}, Profile: {}", request.getRequestURI(), ex.getProfileCode());
-        return ResponseEntity
-                .badRequest()
-                .body(ApiResponse.error(400, ex.getMessage()));
+        ExceptionLogger.warnWithIp(ex, request);
+        return ResponseEntity.badRequest()
+                .body(ExceptionResponseStrategy.buildFixedResponse(
+                        HttpStatus.BAD_REQUEST, "不支持的文档分析配置"));
     }
 
+    /**
+     * 处理 OpenAI SDK 认证失败（5xx 系统级，需 Sentry 上报）。
+     */
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ApiResponse<Void>> handleOpenAiUnauthorizedException(
             UnauthorizedException ex,
             HttpServletRequest request) {
-        log.warn("AI provider 认证失败 - URI: {}", request.getRequestURI());
-        // Constitution Principle VII §3: 502 为系统级失败，上报 Sentry 以聚合观测配置错误
-        Sentry.captureException(ex);
-
-        return ResponseEntity
-                .status(HttpStatus.BAD_GATEWAY)
-                .body(ApiResponse.error(502, "AI provider API Key 无效或已失效，请检查系统设置中的对应 provider key 或服务端环境变量后重启。"));
+        ExceptionLogger.warnWithSentry(ex, request, "AI provider 认证失败",
+                "statusCode=401");
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(ExceptionResponseStrategy.buildFixedResponse(
+                        HttpStatus.BAD_GATEWAY,
+                        "AI provider API Key 无效或已失效，请检查系统设置中的对应 provider key 或服务端环境变量后重启。"));
     }
 
     /**
-     * 处理 OpenAI SDK 返回的 400 级错误（BadRequest / InvalidRequest / RateLimit 等）。
-     * 上游明确拒绝了请求，不是我们的内部异常 —— 把上游返回的错误信息直接透传给前端，给用户可操作的指引。
+     * 处理 OpenAI SDK 4xx 错误。M-03: message 可能含 API Key、模型名等敏感信息，禁止透传。
      */
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<ApiResponse<Void>> handleOpenAiBadRequestException(
             BadRequestException ex,
             HttpServletRequest request) {
-        String message = ex.getMessage();
-        log.warn("AI provider 返回 4xx 错误 - URI: {}, message: {}", request.getRequestURI(), message);
-        // Constitution Principle VII §3: AI provider 失败属于系统级依赖问题，上报 Sentry
-        Sentry.captureException(ex);
-
-        String lower = message == null ? "" : message.toLowerCase();
+        ExceptionLogger.warnWithSentry(ex, request, "AI provider 返回 4xx 错误",
+                "message=" + ex.getMessage());
+        String lower = ex.getMessage() == null ? "" : ex.getMessage().toLowerCase();
         if (lower.contains("rate limit")) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                    .body(ApiResponse.error(429, "AI provider 请求过于频繁，请稍后重试。"));
+                    .body(ExceptionResponseStrategy.buildFixedResponse(
+                            HttpStatus.TOO_MANY_REQUESTS,
+                            "AI provider 请求过于频繁，请稍后重试。"));
         }
         if (lower.contains("insufficient") || lower.contains("balance")) {
             return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED)
-                    .body(ApiResponse.error(402, "AI provider 余额不足，请充值或更换 API Key。"));
+                    .body(ExceptionResponseStrategy.buildFixedResponse(
+                            HttpStatus.PAYMENT_REQUIRED,
+                            "AI provider 余额不足，请充值或更换 API Key。"));
         }
         if (lower.contains("invalid") && lower.contains("key")) {
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                    .body(ApiResponse.error(502, "AI provider API Key 无效，请检查配置。"));
+                    .body(ExceptionResponseStrategy.buildFixedResponse(
+                            HttpStatus.BAD_GATEWAY,
+                            "AI provider API Key 无效，请检查配置。"));
         }
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                .body(ApiResponse.error(502, "AI provider 返回错误: " + message));
+                .body(ExceptionResponseStrategy.buildFixedResponse(
+                        HttpStatus.BAD_GATEWAY,
+                        ExceptionMessageSanitizer.DEFAULT_AI_PROVIDER_MESSAGE));
     }
 
     /**
-     * 处理所有外部/上游服务调用失败 —— 包括 AI API、企微、泛微 OA 等。
-     * 关键：根据 {@link ExternalServiceException#getUpstreamStatusCode()} 返回给前端正确的 HTTP 状态码，
-     * 而不是统一的 500 "系统繁忙"。
+     * 处理外部服务调用失败（AI、企微、泛微 OA 等）。
+     * Constitution Principle VII §3: 外部依赖问题需 Sentry 聚合观测。
+     * M-03: userFriendlyMessage 受控可透传。
      */
     @ExceptionHandler(ExternalServiceException.class)
     public ResponseEntity<ApiResponse<Void>> handleExternalServiceException(
             ExternalServiceException ex,
             HttpServletRequest request) {
-        log.warn("外部服务调用失败 - URI: {}, service: {}, upstreamStatus: {}, message: {}, raw: {}",
-                request.getRequestURI(),
-                ex.getServiceName(),
-                ex.getUpstreamStatusCode(),
-                ex.getUserFriendlyMessage(),
-                ex.getUpstreamRawMessage());
-        // Constitution Principle VII §3: 外部服务失败属于系统级依赖问题，上报 Sentry
-        Sentry.captureException(ex);
-
+        ExceptionLogger.warnWithSentry(ex, request, "外部服务调用失败",
+                "serviceName=" + ex.getServiceName() + ", upstreamStatus=" + ex.getUpstreamStatusCode());
         HttpStatus httpStatus = ex.resolveHttpStatus();
-        return ResponseEntity
-                .status(httpStatus)
-                .body(ApiResponse.error(httpStatus.value(), ex.getUserFriendlyMessage()));
+        return ResponseEntity.status(httpStatus)
+                .body(ExceptionResponseStrategy.buildResponse(ex, httpStatus));
     }
 
     /**
-     * 处理企微 API 异常（WeComApiException）。
-     * 企微异常可能是 HTTP 级别的错误，也可能是 HTTP 200 但业务 errcode != 0 的情况。
-     * 把这些信息以友好方式返回给前端，而不是 500。
+     * 处理企微 API 异常。M-03: message 可能含 access_token、企业 ID 等敏感信息，禁止透传。
      */
     @ExceptionHandler(WeComApiException.class)
     public ResponseEntity<ApiResponse<Void>> handleWeComApiException(
             WeComApiException ex,
             HttpServletRequest request) {
-        log.warn("企微 API 调用失败 - URI: {}, errcode: {}, message: {}",
-                request.getRequestURI(), ex.errcode(), ex.getMessage());
-        // Constitution Principle VII §3: 企微失败属于系统级依赖问题，上报 Sentry
-        Sentry.captureException(ex);
-
-        HttpStatus status = HttpStatus.BAD_GATEWAY;
+        ExceptionLogger.warnWithSentry(ex, request, "企微 API 调用失败",
+                "errcode=" + ex.errcode());
         int errcode = ex.errcode();
-        // 企微常见错误码的有意义映射
         if (errcode == 42001 || errcode == 42007 || errcode == 40014 || errcode == 40001) {
-            // access_token 过期/无效/不存在 → 需要重新获取 token
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                    .body(ApiResponse.error(502, "企微 access_token 无效或已过期，请稍后重试或联系管理员刷新配置。"));
+                    .body(ExceptionResponseStrategy.buildFixedResponse(
+                            HttpStatus.BAD_GATEWAY,
+                            "企微 access_token 无效或已过期，请稍后重试或联系管理员刷新配置。"));
         }
         if (errcode == 45009 || errcode == 45047) {
-            // 接口调用超出频率限制
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                    .body(ApiResponse.error(429, "企微接口调用过于频繁，请稍后重试。"));
+                    .body(ExceptionResponseStrategy.buildFixedResponse(
+                            HttpStatus.TOO_MANY_REQUESTS,
+                            "企微接口调用过于频繁，请稍后重试。"));
         }
         if (errcode == 60011) {
-            // 无权限访问
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                    .body(ApiResponse.error(502, "企微应用权限不足，请联系管理员检查应用权限配置。"));
+                    .body(ExceptionResponseStrategy.buildFixedResponse(
+                            HttpStatus.BAD_GATEWAY,
+                            "企微应用权限不足，请联系管理员检查应用权限配置。"));
         }
-        // 默认 502，附带企微返回的原始业务错误信息，便于用户了解具体问题
-        String message = ex.getMessage();
-        return ResponseEntity.status(status)
-                .body(ApiResponse.error(status.value(), "企微服务调用失败: " + message));
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(ExceptionResponseStrategy.buildFixedResponse(
+                        HttpStatus.BAD_GATEWAY,
+                        ExceptionMessageSanitizer.DEFAULT_WECOM_MESSAGE));
     }
 
     /**
-     * 处理所有未捕获的异常。
-     *
-     * CO-529: MissingServletRequestPartException 和 MissingServletRequestParameterException
-     * 已通过重写父类的 protected 方法处理（见上方 handleMissingServletRequestPart 和
-     * handleMissingServletRequestParameter），不会走到这里。
-     * 走到这里的是真正的系统缺陷（NPE、SQL 异常等）。
+     * 处理所有未捕获的异常（5xx 系统级失败）。
+     * 走到这里的是真正的系统缺陷（NPE、SQL 异常等），需完整上报 Sentry。
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGlobalException(
             Exception ex,
             HttpServletRequest request) {
-        String payload = getRequestPayload(request);
-        log.error("系统异常 - URI: {}, IP: {}, Message: {} \nPayload: {}",
-            request.getRequestURI(), getClientIp(request), ex.getMessage(), payload, ex);
-
-        // 上报到 Sentry（无 DSN 时 Sentry.captureException 为 no-op，不影响业务）
-        // 业务异常（BusinessException/AccessDeniedException 等）已被上方专门的 @ExceptionHandler 拦截，
-        // 走到这里的是真正的系统缺陷（NPE、SQL 异常、外部服务调用失败等），需要完整上报。
-        Sentry.captureException(ex);
-
-        // 不暴露敏感信息给前端
-        return ResponseEntity
-                .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error(500, "系统繁忙，请稍后重试"));
+        ExceptionLogger.errorWithSentry(ex, request, "系统异常");
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ExceptionResponseStrategy.buildFixedResponse(
+                        HttpStatus.INTERNAL_SERVER_ERROR, "系统繁忙，请稍后重试"));
     }
 
     /**
-     * 获取客户端IP地址
-     *
-     * SECURITY: 使用 getRemoteAddr() 获取客户端IP。
-     * 当配置了 server.forward-headers-strategy=NATIVE 时，
-     * Spring 会自动从可信转发头中提取正确的客户端IP。
-     *
-     * 不要直接读取 X-Forwarded-For 或 X-Real-IP，因为客户端可以伪造这些头部。
+     * 处理请求体不可读异常。
+     * M-03: resolveReadableMessage 从 cause 链提取 IAE message，可能含 Jackson 字段名等，禁止透传。
      */
-    private String getClientIp(HttpServletRequest request) {
-        // 直接使用 getRemoteAddr() - 最安全的方式
-        // 当配置了 forward-headers-strategy=NATIVE 时
-        // 会自动返回正确的客户端 IP
-        return request.getRemoteAddr();
-    }
-
-    /**
-     * 获取请求的 Payload（参数和 Body）用于异常日志排查
-     */
-    private String getRequestPayload(HttpServletRequest request) {
-        StringBuilder payload = new StringBuilder();
-        
-        // 1. 获取 URL Query 参数
-        String queryString = request.getQueryString();
-        if (queryString != null && !queryString.isEmpty()) {
-            payload.append("Query: ").append(queryString).append(" | ");
-        }
-        
-        // 2. 获取 Body (依赖 AccessLogFilter 中包装的 ContentCachingRequestWrapper)
-        if (request instanceof org.springframework.web.util.ContentCachingRequestWrapper) {
-            org.springframework.web.util.ContentCachingRequestWrapper wrapper = (org.springframework.web.util.ContentCachingRequestWrapper) request;
-            byte[] buf = wrapper.getContentAsByteArray();
-            if (buf.length > 0) {
-                try {
-                    int length = Math.min(buf.length, 2048); // 最多打印 2KB 避免日志过长
-                    String body = new String(buf, 0, length, wrapper.getCharacterEncoding());
-                    payload.append("Body: ").append(body).append(buf.length > 2048 ? "..." : "");
-                } catch (java.io.UnsupportedEncodingException e) {
-                    payload.append("Body: [Error reading payload: ").append(e.getMessage()).append("]");
-                }
-            } else {
-                payload.append("Body: [Empty]");
-            }
-        } else {
-            payload.append("Body: [Request not wrapped in ContentCachingRequestWrapper]");
-        }
-        
-        return payload.toString();
-    }
-
     @Override
     protected ResponseEntity<Object> handleHttpMessageNotReadable(
             HttpMessageNotReadableException ex,
             HttpHeaders headers,
             HttpStatusCode status,
             WebRequest request) {
-        String message = resolveReadableMessage(ex);
-        String uri = request.getDescription(false).replace("uri=", "");
-        log.warn("请求体不可读 - URI: {}, Message: {}", uri, message, ex);
-        return ResponseEntity
-                .badRequest()
-                .body(ApiResponse.error(400, message));
+        ExceptionLogger.warn(ex, currentHttpRequest(request), 400);
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.error(400,
+                        ExceptionMessageSanitizer.DEFAULT_MALFORMED_REQUEST_MESSAGE));
     }
 
     /**
-     * CO-529: 重写父类的 handleMissingServletRequestPart，覆盖默认的空 body 响应。
-     *
-     * 关键：父类 ResponseEntityExceptionHandler 的 handleException(Exception) 是 public final，
-     * 用 @ExceptionHandler 声明了 20 种异常（包括 MissingServletRequestPartException），
-     * 子类用 @ExceptionHandler(Exception.class) 无法覆盖它（父类优先匹配）。
-     * 只有重写父类的 protected handleMissingServletRequestPart 方法才能生效。
-     *
-     * 之前 PR #1779 用 if (ex instanceof MissingServletRequestPartException) 判断在
-     * handleGlobalException 中，永远不会被执行，导致 400 请求无日志、响应体是 Spring 默认格式。
+     * CO-529: 重写父类的 handleMissingServletRequestPart（父类的 handleException 是 public final，
+     * 子类用 @ExceptionHandler 声明会导致 Ambiguous 冲突，只能重写 protected 方法）。
      */
     @Override
     protected ResponseEntity<Object> handleMissingServletRequestPart(
@@ -576,20 +451,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             HttpHeaders headers,
             HttpStatusCode status,
             WebRequest request) {
-        String uri = request.getDescription(false).replace("uri=", "");
-        log.warn("multipart 缺失 part - URI: {}, 缺失 part: {}, Message: {}",
-                uri, ex.getRequestPartName(), ex.getMessage());
+        ExceptionLogger.warn(ex, currentHttpRequest(request), 400);
         String partName = ex.getRequestPartName();
-        String message = partName != null && !partName.isBlank()
+        String message = (partName != null && !partName.isBlank())
                 ? "未接收到必填的「" + partName + "」字段，请检查文件是否已正确选择"
                 : "请上传文件";
-        return ResponseEntity
-                .badRequest()
+        return ResponseEntity.badRequest()
                 .body(ApiResponse.error(400, message));
     }
 
     /**
-     * CO-529: 同上，重写父类的 handleMissingServletRequestParameter，补齐日志和友好提示。
+     * CO-529: 同上，重写父类的 handleMissingServletRequestParameter 补齐日志和友好提示。
      */
     @Override
     protected ResponseEntity<Object> handleMissingServletRequestParameter(
@@ -597,45 +469,19 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             HttpHeaders headers,
             HttpStatusCode status,
             WebRequest request) {
-        String uri = request.getDescription(false).replace("uri=", "");
-        log.warn("请求参数缺失 - URI: {}, 参数名: {}, 类型: {}",
-                uri, ex.getParameterName(), ex.getParameterType());
-        return ResponseEntity
-                .badRequest()
+        ExceptionLogger.warn(ex, currentHttpRequest(request), 400);
+        return ResponseEntity.badRequest()
                 .body(ApiResponse.error(400, "缺少必填参数: " + ex.getParameterName()));
     }
 
-    private String resolveReadableMessage(Throwable throwable) {
-        Throwable current = throwable;
-        while (current != null) {
-            if (current instanceof IllegalArgumentException illegalArgumentException
-                    && illegalArgumentException.getMessage() != null
-                    && !illegalArgumentException.getMessage().isBlank()) {
-                return illegalArgumentException.getMessage();
-            }
-            current = current.getCause();
+    /**
+     * 从 WebRequest 提取 HttpServletRequest（用于统一传给 ExceptionLogger）。
+     * 如果不是 ServletWebRequest 则返回 null（ExceptionLogger 内部会处理 null）。
+     */
+    private HttpServletRequest currentHttpRequest(WebRequest request) {
+        if (request instanceof org.springframework.web.context.request.ServletWebRequest servletWebRequest) {
+            return servletWebRequest.getRequest();
         }
-        // 尝试从根因提取更具体的信息
-        Throwable root = throwable;
-        while (root.getCause() != null) {
-            root = root.getCause();
-        }
-        String rootMsg = root.getMessage();
-        if (rootMsg != null && !rootMsg.isBlank()) {
-            return "请求体格式错误: " + rootMsg;
-        }
-        return "请求体格式错误";
-    }
-
-    private String resolveMissingResource(ResourceNotFoundException ex) {
-        String message = ex.getMessage();
-        if (message == null || message.isBlank()) {
-            return "unknown";
-        }
-        int separatorIndex = message.indexOf(" not found:");
-        if (separatorIndex > 0) {
-            return message.substring(0, separatorIndex).trim();
-        }
-        return "unknown";
+        return null;
     }
 }
