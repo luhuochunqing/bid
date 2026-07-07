@@ -1,7 +1,7 @@
 {
-  "name": "xiyu-bid-poc",
+  "name": "xiyu-bid-platform",
   "version": "1.0.3",
-  "description": "西域数智化投标管理平台POC",
+  "description": "西域数智化投标管理平台",
   "type": "module",
   "scripts": {
     "dev": "bash ./scripts/dev-frontend.sh",

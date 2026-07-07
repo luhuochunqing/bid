@@ -13,10 +13,10 @@
     </parent>
 
     <groupId>com.xiyu</groupId>
-    <artifactId>bid-poc</artifactId>
+    <artifactId>bid-platform</artifactId>
     <version>1.0.3</version>
-    <name>XiYu Bid POC</name>
-    <description>XiYu Bidding System POC Backend</description>
+    <name>XiYu Bid Platform</name>
+    <description>XiYu Bidding Platform Backend</description>
 
     <properties>
         <java.version>21</java.version>

@@ -868,7 +868,7 @@ start_backend() {
   echo "[backend] compile + package ok."
 
   # 启动后端（编译后直接 java -jar，比 mvn spring-boot:run 更快更稳定）
-  local jar_file="$ROOT_DIR/backend/target/bid-poc-1.0.3.jar"
+  local jar_file="$ROOT_DIR/backend/target/bid-platform-1.0.3.jar"
   if [[ ! -f "$jar_file" ]]; then
     echo "[backend] jar not found: $jar_file" >&2
     return 1

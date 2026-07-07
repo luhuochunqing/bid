@@ -4,7 +4,7 @@
 <!-- Pos: resources/ 日志基础设施 -->
 <configuration>
     <!-- traceId/userId/roleCode 从 MDC 中读取，由 TraceFilter 在请求入口注入 -->
-    <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="xiyu-bid-poc"/>
+    <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="xiyu-bid-platform"/>
     <springProperty scope="context" name="LOG_PATH" source="LOG_PATH" defaultValue="/var/log/xiyu-bid"/>
 
     <!-- ==================== 开发/测试环境：人类可读 ==================== -->

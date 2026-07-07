@@ -21,7 +21,7 @@ function readPackageVersion() {
 
 function readPomVersion() {
   const content = fs.readFileSync(pomFile, 'utf8')
-  const match = content.match(/<artifactId>bid-poc<\/artifactId>\s*<version>([^<]+)<\/version>/s)
+  const match = content.match(/<artifactId>bid-platform<\/artifactId>\s*<version>([^<]+)<\/version>/s)
   if (!match) {
     throw new Error('无法从 backend/pom.xml 解析项目版本号')
   }
