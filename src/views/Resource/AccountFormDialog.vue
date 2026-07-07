@@ -16,7 +16,8 @@
         <el-col :span="12">
           <el-form-item label="平台密码" required>
             <el-input v-model="form.password" type="password" show-password
-              :placeholder="isEdit ? '留空则不修改密码' : '请输入平台密码'" maxlength="200" />
+              :placeholder="isEdit ? '留空则不修改密码' : '请输入平台密码'" maxlength="200"
+              @input="onPasswordInput" />
           </el-form-item>
         </el-col>
       </el-row>
@@ -88,6 +89,12 @@ const visible = computed({
 })
 const isEdit = computed(() => !!props.editRow?.id)
 
+// CO-522: 跟踪密码是否被用户主动修改。
+// 编辑表单打开时会预填明文密码（CO-400 round5），仅靠 form.password 是否为空无法区分
+// "预填的旧密码" 和 "用户输入的新密码"。用 dirty 标记确保只有用户真正改动才提交。
+const passwordDirty = ref(false)
+const onPasswordInput = () => { passwordDirty.value = true }
+
 const emptyForm = () => ({
   accountName: '', username: '', password: '',
   url: '', contactPerson: null,
@@ -156,6 +163,7 @@ const onOpen = async () => {
     form.value = emptyForm()
   }
   accountNameDup.value = false
+  passwordDirty.value = false  // CO-522: 每次打开表单重置，避免上次编辑的 dirty 状态残留
 }
 
 const submit = async () => {
@@ -175,7 +183,7 @@ const submit = async () => {
     registrant: f.registrant?.trim() || '',
     registerPhone: f.registerPhone?.trim() || '',
     registerEmail: f.registerEmail?.trim() || '' }
-  if (f.password) payload.password = f.password
+  if (passwordDirty.value && f.password) payload.password = f.password
 
   if (!payload.accountName || !payload.username || !payload.url
       || !payload.contactPerson) {
