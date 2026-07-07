@@ -1,6 +1,7 @@
 // checkstyle:off
 package com.xiyu.bid.warehouse.service;
 
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.notification.core.NotificationType;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
@@ -46,10 +47,13 @@ public class WarehouseExpiryScanTask {
         List<WarehouseEntity> warehouses = warehouseRepo.findAll();
         int alertCount = 0;
 
-        // 获取所有投标管理员与投标组长
-        List<User> recipients = userRepo.findEnabledByRoleProfileCodes(List.of("/bidAdmin", "bid-TeamLeader"));
+        // 获取所有投标管理员与投标组长（含 admin 超管，与 ProjectNotificationService 等保持一致）
+        List<User> recipients = userRepo.findEnabledByRoleProfileCodes(List.of(
+                RoleProfileCatalog.ADMIN_CODE,
+                RoleProfileCatalog.BID_ADMIN_CODE,
+                RoleProfileCatalog.BID_LEAD_CODE));
         if (recipients.isEmpty()) {
-            log.warn("[WarehouseExpiryScanTask] No active users with bid_admin or bid_lead roles. Skipping notifications.");
+            log.warn("[WarehouseExpiryScanTask] No active users with admin/bid_admin/bid_lead roles. Skipping notifications.");
             return 0;
         }
         List<Long> recipientIds = recipients.stream().map(User::getId).toList();
@@ -97,7 +101,7 @@ public class WarehouseExpiryScanTask {
                         "WAREHOUSE_EXPIRY_WARNING", wh.getId(), twentyFourHoursAgo
                 );
                 if (!alreadySent) {
-                    sendExpiryWarningNotification(wh, remainingDays, recipientIds, java.util.Map.of());
+                    sendExpiryWarningNotification(wh, remainingDays, recipientIds, contactDisplay);
                     alertCount++;
                 }
             } else if (recomputed == WarehouseStatus.EXPIRED) {
