@@ -7,13 +7,20 @@ vi.mock('@/api/modules/projects.js', () => ({
     updateTaskStatus: vi.fn(),
   }
 }))
-vi.mock('@/api/modules/taskDeliverables.js', () => ({
-  createTaskDeliverable: vi.fn(),
+
+const mockUploadTaskFilesWithFallback = vi.fn()
+vi.mock('@/composables/projectDetail/taskAssigneePayload.js', () => ({
+  uploadTaskFilesWithFallback: (...args) => mockUploadTaskFilesWithFallback(...args),
 }))
 
 const mockUserState = { currentUser: { id: 1, name: '当前用户' } }
 vi.mock('@/stores/user.js', () => ({
   useUserStore: () => mockUserState
+}))
+
+const mockProjectStore = { addDeliverable: vi.fn() }
+vi.mock('@/stores/project.js', () => ({
+  useProjectStore: () => mockProjectStore
 }))
 
 vi.mock('element-plus', () => ({
@@ -153,6 +160,10 @@ describe('useTaskActions', () => {
   })
 
   describe('confirmSubmit', () => {
+    beforeEach(() => {
+      mockUploadTaskFilesWithFallback.mockResolvedValue(true)
+    })
+
     it('submits task to REVIEW status with completionNotes', async () => {
       const { confirmSubmit, openDeliverableUpload, submitNotes, submittingTaskLoading } = useTaskActions({
         getProjectId: () => 42,
@@ -161,17 +172,19 @@ describe('useTaskActions', () => {
       openDeliverableUpload(task)
       submitNotes.value = '已完成'
       await confirmSubmit()
+      expect(mockUploadTaskFilesWithFallback).toHaveBeenCalledTimes(1)
       expect(projectsApi.updateTaskStatus).toHaveBeenCalledWith(42, 1, 'REVIEW', null, '已完成')
       expect(submittingTaskLoading.value).toBe(false)
     })
 
-    it('submits task to REVIEW status when submitNotes is empty', async () => {
+    it('submits task to REVIEW status when submitNotes is empty but has deliverable', async () => {
       const { confirmSubmit, openDeliverableUpload, submittingTaskLoading } = useTaskActions({
         getProjectId: () => 42,
       })
       const task = createMockTask({ deliverables: [{ id: 1 }] })
       openDeliverableUpload(task)
       await confirmSubmit()
+      expect(mockUploadTaskFilesWithFallback).toHaveBeenCalledTimes(1)
       expect(projectsApi.updateTaskStatus).toHaveBeenCalledWith(42, 1, 'REVIEW', null, '')
       expect(submittingTaskLoading.value).toBe(false)
     })
@@ -186,7 +199,41 @@ describe('useTaskActions', () => {
       openDeliverableUpload(task)
       submitNotes.value = '完成了'
       await confirmSubmit()
+      expect(mockUploadTaskFilesWithFallback).toHaveBeenCalledTimes(1)
       expect(onSubmitted).toHaveBeenCalledWith(task)
+    })
+
+    it('uploads deliverable files before submitting', async () => {
+      const { confirmSubmit, openDeliverableUpload, submitNotes, deliverableUploadRef } = useTaskActions({
+        getProjectId: () => 42,
+      })
+      const task = createMockTask({ deliverables: [] })
+      openDeliverableUpload(task)
+      submitNotes.value = '已完成'
+      deliverableUploadRef.value = { uploadFiles: [{ raw: new File(['x'], 'test.pdf') }] }
+      await confirmSubmit()
+
+      expect(mockUploadTaskFilesWithFallback).toHaveBeenCalledTimes(1)
+      const [taskArg, dataArg, ctxArg] = mockUploadTaskFilesWithFallback.mock.calls[0]
+      expect(taskArg).toStrictEqual(task)
+      expect(dataArg.deliverableFiles).toHaveLength(1)
+      expect(ctxArg).toEqual(expect.objectContaining({ projectId: 42, projectStore: mockProjectStore }))
+      expect(projectsApi.updateTaskStatus).toHaveBeenCalledWith(42, 1, 'REVIEW', null, '已完成')
+    })
+
+    it('does not update status when upload fails', async () => {
+      mockUploadTaskFilesWithFallback.mockResolvedValue(false)
+      const { confirmSubmit, openDeliverableUpload, submitNotes, deliverableUploadRef } = useTaskActions({
+        getProjectId: () => 42,
+      })
+      const task = createMockTask({ deliverables: [] })
+      openDeliverableUpload(task)
+      submitNotes.value = '已完成'
+      deliverableUploadRef.value = { uploadFiles: [{ raw: new File(['x'], 'test.pdf') }] }
+      await confirmSubmit()
+
+      expect(mockUploadTaskFilesWithFallback).toHaveBeenCalledTimes(1)
+      expect(projectsApi.updateTaskStatus).not.toHaveBeenCalled()
     })
   })
 })
