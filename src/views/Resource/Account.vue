@@ -37,13 +37,6 @@
       <!-- CO-516: Tabs 切换（平台账户管理 / 我的申请 / 我的审批），tab 栏位于搜索区下方 -->
       <el-tabs v-model="activeTab" class="account-tabs" @tab-change="onTabChange">
         <el-tab-pane label="平台账户管理" name="accounts">
-      <el-card>
-        <template #header>
-          <div class="card-header">
-            <span class="card-title">平台账户管理</span>
-            <span class="record-count">共 {{ totalCount }} 条记录</span>
-          </div>
-        </template>
           <el-table :data="pagedAccounts" stripe max-height="calc(100vh - 280px)" scrollbar-always-on @row-click="onRowClick" @selection-change="handleSelectionChange" ref="tableRef">
             <el-table-column type="selection" width="50" align="center" />
             <el-table-column type="index" label="序号" width="65" align="center" />
@@ -93,7 +86,6 @@
               @size-change="handleSizeChange"
             />
           </div>
-        </el-card>
         </el-tab-pane>
 
         <!-- Tab 2: 我的申请 -->
