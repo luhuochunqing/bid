@@ -191,10 +191,13 @@ describe('useProjectDetailTaskActions', () => {
       done,
     })
 
+    // CO-529: 附件失败不阻断任务创建，任务被正常加入列表
     expect(state.project.value.tasks).toHaveLength(1)
     expect(state.project.value.tasks[0].name).toBe('带失败附件的任务')
+    // 附件失败的 warning 提示应展示给用户
     expect(warning).toHaveBeenCalledWith('任务已新增，但附件上传失败，请重试')
-    expect(done).not.toHaveBeenCalled()
+    // CO-529: 附件失败不阻塞流程，done 应被调用（关闭表单/重置状态）
+    expect(done).toHaveBeenCalled()
     consoleWarnSpy.mockRestore()
   })
 
