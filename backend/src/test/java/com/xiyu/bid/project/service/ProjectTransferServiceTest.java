@@ -67,6 +67,7 @@ class ProjectTransferServiceTest {
                 .id(135L).name("测试项目").managerId(7246L).tenderId(743L).build();
         User oldOwner = User.builder().id(7246L).fullName("陈梦瑶").build();
         User newOwner = User.builder().id(7324L).fullName("周子靖").enabled(true)
+                .departmentName("研发中心")
                 .roleProfile(roleProfile("bid-projectLeader")).build();
         Tender tender = new Tender();
         tender.setId(743L);
@@ -92,11 +93,15 @@ class ProjectTransferServiceTest {
         // Then - initiationDetails 更新
         assertThat(details.getOwnerUserId()).isEqualTo(7324L);
         assertThat(details.getProjectLeaderName()).isEqualTo("周子靖");
+        // CO-537: 项目负责人部门应同步回填
+        assertThat(details.getLeaderDepartment()).isEqualTo("研发中心");
         verify(initiationDetailsRepository).save(details);
 
         // Then - tender 更新
         assertThat(tender.getProjectManagerId()).isEqualTo(7324L);
         assertThat(tender.getProjectManagerName()).isEqualTo("周子靖");
+        // CO-537: 标讯"项目部门"应同步回填
+        assertThat(tender.getDepartment()).isEqualTo("研发中心");
         verify(tenderRepository).save(tender);
 
         // Then - 审计记录

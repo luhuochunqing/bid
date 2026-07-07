@@ -127,6 +127,8 @@ public class ProjectTransferService {
         detailsOpt.ifPresent(details -> {
             details.setOwnerUserId(newOwnerId);
             details.setProjectLeaderName(newOwner.getFullName());
+            // CO-537: 同步回填项目负责人部门
+            details.setLeaderDepartment(newOwner.getDepartmentName());
             initiationDetailsRepository.save(details);
         });
 
@@ -142,6 +144,8 @@ public class ProjectTransferService {
                 Tender tender = tenderOpt.get();
                 tender.setProjectManagerId(newOwnerId);
                 tender.setProjectManagerName(newOwner.getFullName());
+                // CO-537: 同步回填标讯"项目部门"
+                tender.setDepartment(newOwner.getDepartmentName());
                 tenderRepository.save(tender);
                 tenderUpdated = true;
 
