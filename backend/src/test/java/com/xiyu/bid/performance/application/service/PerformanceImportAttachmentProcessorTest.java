@@ -1,5 +1,6 @@
 package com.xiyu.bid.performance.application.service;
 
+import com.xiyu.bid.performance.application.command.PerformanceUpsertCommand;
 import com.xiyu.bid.performance.application.service.PerformanceRowImporter.AttachmentFileName;
 import com.xiyu.bid.performance.application.service.PerformanceRowImporter.ImportRowResult;
 import com.xiyu.bid.performance.infrastructure.persistence.entity.PerformanceAttachmentEntity;
@@ -159,5 +160,54 @@ class PerformanceImportAttachmentProcessorTest {
         assertThat(result.unmatched()).hasSize(1);
         assertThat(result.unmatched().get(0).filename()).isEqualTo("不存在.pdf");
         assertThat(result.unmatched().get(0).reason()).contains("未找到");
+    }
+
+    @Test
+    void Excel声明附件在附件包中缺失时返回缺失列表() {
+        var command = mock(PerformanceUpsertCommand.class);
+        var rows = List.of(
+                new PerformanceRowImporter.ParsedRow(2, "合同A", command,
+                        List.of(new AttachmentFileName("合同协议.pdf", "CONTRACT_AGREEMENT"))));
+        var attachments = List.of(
+                new PerformanceImportAttachmentProcessor.AttachmentInput("其他文件.pdf", new byte[]{1}));
+
+        var missing = processor.findMissingDeclaredAttachments(rows, attachments);
+
+        assertThat(missing).hasSize(1);
+        assertThat(missing.get(0).rowNum()).isEqualTo(2);
+        assertThat(missing.get(0).contractName()).isEqualTo("合同A");
+        assertThat(missing.get(0).fileName()).isEqualTo("合同协议.pdf");
+        assertThat(missing.get(0).fileType()).isEqualTo("CONTRACT_AGREEMENT");
+    }
+
+    @Test
+    void Excel声明附件与附件包匹配时返回空列表() {
+        var command = mock(PerformanceUpsertCommand.class);
+        var rows = List.of(
+                new PerformanceRowImporter.ParsedRow(2, "合同A", command,
+                        List.of(new AttachmentFileName("合同协议.pdf", "CONTRACT_AGREEMENT"))));
+        var attachments = List.of(
+                new PerformanceImportAttachmentProcessor.AttachmentInput("合同协议.pdf", new byte[]{1}));
+
+        var missing = processor.findMissingDeclaredAttachments(rows, attachments);
+
+        assertThat(missing).isEmpty();
+    }
+
+    @Test
+    void 同名附件按顺序占用槽位时未用完的声明不视为缺失() {
+        var command = mock(PerformanceUpsertCommand.class);
+        var rows = List.of(
+                new PerformanceRowImporter.ParsedRow(2, "合同A", command,
+                        List.of(new AttachmentFileName("合同协议.pdf", "CONTRACT_AGREEMENT"))),
+                new PerformanceRowImporter.ParsedRow(3, "合同B", command,
+                        List.of(new AttachmentFileName("合同协议.pdf", "CONTRACT_AGREEMENT"))));
+        var attachments = List.of(
+                new PerformanceImportAttachmentProcessor.AttachmentInput("合同协议.pdf", new byte[]{1}));
+
+        var missing = processor.findMissingDeclaredAttachments(rows, attachments);
+
+        assertThat(missing).hasSize(1);
+        assertThat(missing.get(0).contractName()).isEqualTo("合同B");
     }
 }

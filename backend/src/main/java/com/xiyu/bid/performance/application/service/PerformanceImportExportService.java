@@ -36,16 +36,14 @@ public class PerformanceImportExportService {
                                                 List<PerformanceImportAttachmentProcessor.AttachmentInput> attachments)
             throws IOException {
         var result = new PerformanceImportResult();
-        List<PerformanceRowImporter.ImportRowResult> importedRows = new ArrayList<>();
+        List<PerformanceRowImporter.ParsedRow> parsedRows = new ArrayList<>();
         try (InputStream is = file.getInputStream(); var wb = new XSSFWorkbook(is)) {
             var sheet = wb.getSheetAt(0);
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 var row = sheet.getRow(i);
                 if (row == null) continue;
                 try {
-                    var rowResult = rowImporter.importRow(row, i + 1);
-                    importedRows.add(rowResult);
-                    result.successCount++;
+                    parsedRows.add(rowImporter.parseRow(row, i + 1));
                 } catch (RuntimeException e) {
                     result.failures.add(new PerformanceImportResult.ImportFailure(i + 1, getCellStr(row, 0), e.getMessage()));
                     result.failureCount++;
@@ -53,7 +51,37 @@ public class PerformanceImportExportService {
             }
         }
 
-        // 附件包归档（即使 Excel 行全部失败也执行，便于用户发现附件问题）
+        // 没有可导入的行时直接返回（不执行附件归档）
+        if (parsedRows.isEmpty()) {
+            return result;
+        }
+
+        // 校验 Excel 中声明的附件是否都在附件包中
+        var missing = attachmentProcessor.findMissingDeclaredAttachments(parsedRows, attachments);
+        if (!missing.isEmpty()) {
+            java.util.Map<Integer, java.util.List<String>> reasonsByRow = new java.util.HashMap<>();
+            java.util.Map<Integer, String> contractNameByRow = new java.util.HashMap<>();
+            for (var m : missing) {
+                reasonsByRow.computeIfAbsent(m.rowNum(), k -> new java.util.ArrayList<>()).add(m.fileName());
+                contractNameByRow.putIfAbsent(m.rowNum(), m.contractName());
+            }
+            for (var entry : reasonsByRow.entrySet()) {
+                String reason = "附件未上传: " + String.join(", ", entry.getValue());
+                result.failures.add(new PerformanceImportResult.ImportFailure(
+                        entry.getKey(), contractNameByRow.get(entry.getKey()), reason));
+                result.failureCount++;
+            }
+            return result;
+        }
+
+        // 保存业绩记录
+        List<PerformanceRowImporter.ImportRowResult> importedRows = new ArrayList<>();
+        for (var parsed : parsedRows) {
+            importedRows.add(rowImporter.saveParsedRow(parsed));
+            result.successCount++;
+        }
+
+        // 附件包归档
         if (attachments != null && !attachments.isEmpty() && !importedRows.isEmpty()) {
             var attachResult = attachmentProcessor.attachFiles(importedRows, attachments);
             result.attachedCount = attachResult.matchedCount();
