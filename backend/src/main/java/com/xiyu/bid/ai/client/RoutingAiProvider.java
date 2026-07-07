@@ -21,7 +21,6 @@ public class RoutingAiProvider implements AiProvider {
     private final OpenAiCompatibleClient openAiCompatibleClient;
     private final OpenAiCompatibleEmbeddingClient openAiCompatibleEmbeddingClient;
     private final MockAiProvider mockAiProvider;
-    private final QwenEmbeddingClient qwenEmbeddingClient;
     private final NoopEmbeddingClient noopEmbeddingClient;
     private final Environment environment;
     private final AiProviderCatalog aiProviderCatalog;
@@ -58,12 +57,8 @@ public class RoutingAiProvider implements AiProvider {
     @Override
     public float[] embed(String text) {
         AiProviderRuntimeConfig config = resolveActiveConfig();
-        String code = config.providerCode();
-        if ("deepseek".equals(code)) {
+        if ("deepseek".equals(config.providerCode())) {
             return noopEmbeddingClient.embed(config, text);
-        }
-        if ("qwen".equals(code) || "custom".equals(code)) {
-            return qwenEmbeddingClient.embed(config, text);
         }
         return openAiCompatibleEmbeddingClient.embed(config, text);
     }

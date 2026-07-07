@@ -38,9 +38,6 @@ class RoutingAiProviderTest {
     private MockAiProvider mockAiProvider;
 
     @Mock
-    private QwenEmbeddingClient qwenEmbeddingClient;
-
-    @Mock
     private NoopEmbeddingClient noopEmbeddingClient;
 
     @Mock
@@ -115,7 +112,6 @@ class RoutingAiProviderTest {
                 openAiCompatibleClient,
                 openAiCompatibleEmbeddingClient,
                 mockAiProvider,
-                qwenEmbeddingClient,
                 noopEmbeddingClient,
                 environment,
                 aiProviderCatalog
