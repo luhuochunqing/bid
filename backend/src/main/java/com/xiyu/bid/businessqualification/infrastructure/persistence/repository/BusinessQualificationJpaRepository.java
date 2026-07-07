@@ -30,6 +30,13 @@ public interface BusinessQualificationJpaRepository
             LocalDate expiryDate, QualificationStatus excludedStatus);
 
     /**
+     * CO-532: scan qualifications whose cert review date is within the reminder window.
+     * Excludes retired (status=RETIRED) certificates.
+     */
+    List<BusinessQualificationEntity> findByCertReviewNoteLessThanEqualAndStatusNot(
+            LocalDate certReviewNote, QualificationStatus excludedStatus);
+
+    /**
      * Blueprint §4.1.3.4: dedupe by certificate no (per-row validation on import).
      */
     boolean existsByCertificateNo(String certificateNo);

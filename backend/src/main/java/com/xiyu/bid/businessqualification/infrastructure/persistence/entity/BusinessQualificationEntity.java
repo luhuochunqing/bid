@@ -103,7 +103,10 @@ public class BusinessQualificationEntity {
     @Column(name = "last_reminded_at")
     private LocalDateTime lastRemindedAt;
 
-@Column(name = "file_url", length = 500)
+    @Column(name = "last_review_reminded_at")
+    private LocalDateTime lastReviewRemindedAt;
+
+    @Column(name = "file_url", length = 500)
     private String fileUrl;
 
     @Column(name = "created_at", nullable = false, updatable = false)
