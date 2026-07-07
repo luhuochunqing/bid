@@ -43,3 +43,22 @@ describe('brandAuthApi.exportZip', () => {
     expect(url).not.toContain('authorizationType=')
   })
 })
+
+describe('brandAuthApi.importExcel', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('FormData 请求显式设置 Content-Type 为 multipart/form-data', async () => {
+    const fakeFile = new File(['test'], 'test.xlsx', {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    })
+    await brandAuthApi.importExcel(fakeFile)
+
+    expect(httpClient.post).toHaveBeenCalledTimes(1)
+    const [, data, config] = httpClient.post.mock.calls[0]
+    expect(data).toBeInstanceOf(FormData)
+    // CO-512: 必须显式设置 multipart/form-data，否则被全局默认 application/json 覆盖导致 415
+    expect(config?.headers?.['Content-Type']).toBe('multipart/form-data')
+  })
+})
