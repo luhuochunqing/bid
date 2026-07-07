@@ -73,7 +73,14 @@
             />
           </el-form-item>
           <el-form-item label="证书审核提醒" prop="certReviewNote">
-            <el-input v-model="form.certReviewNote" maxlength="200" placeholder="年审/复核提醒" data-testid="qf-certReviewNote" />
+            <el-date-picker
+              v-model="form.certReviewNote"
+              type="date"
+              value-format="YYYY-MM-DD"
+              placeholder="选择审核提醒日期"
+              style="width: 100%"
+              data-testid="qf-certReviewNote"
+            />
           </el-form-item>
         </el-col>
       </el-row>
@@ -112,6 +119,41 @@
           </div>
         </div>
       </el-form-item>
+      <!-- CO-530: 审核日志附件上传区（非必填，仅编辑模式可上传） -->
+      <el-divider content-position="left">审核日志附件（选填）</el-divider>
+      <el-form-item>
+        <div class="unified-upload audit-log-upload" :class="{ 'has-file': auditLogFile || currentAuditLogName }" data-testid="qf-audit-log-area">
+          <template v-if="!auditLogFile && !currentAuditLogName">
+            <el-upload
+              ref="auditLogUploadRef"
+              action="#"
+              drag
+              :auto-upload="false"
+              :limit="1"
+              accept=".pdf,.png,.doc,.docx"
+              :on-change="onAuditLogFileSelect"
+              :before-upload="() => false"
+              :show-file-list="false"
+              data-testid="qf-audit-log-upload"
+            >
+              <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+              <div class="el-upload__text">
+                拖拽审核日志至此处，或 <em>点击上传</em><br />
+                <span class="ai-badge">Word/PDF/PNG</span>
+              </div>
+              <template #tip>
+                <div class="el-upload__tip">PDF/PNG/Word，≤50MB，1个</div>
+              </template>
+            </el-upload>
+          </template>
+          <div v-else class="uploaded-file-card">
+            <el-icon :size="20"><Document /></el-icon>
+            <span class="file-name">{{ auditLogFile?.name || currentAuditLogName }}</span>
+            <el-button link type="primary" size="small" @click="triggerAuditLogFileSelect">替换</el-button>
+            <el-button v-if="auditLogFile" link type="danger" size="small" @click="clearAuditLogFile">移除</el-button>
+          </div>
+        </div>
+      </el-form-item>
     </el-form>
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
@@ -140,11 +182,26 @@ const certFile = ref(null)
 const certUploadRef = ref(null)
 const editingId = ref(null)
 const formRef = ref(null)
+// CO-530: 审核日志附件
+const auditLogFile = ref(null)
+const auditLogUploadRef = ref(null)
+const auditLogRemoved = ref(false)
 
 const currentAttachmentName = computed(() => {
   const d = props.initialData
   if (!d) return ''
   return d.fileUrl ? d.fileUrl.split('/').pop() : (d.attachments?.[0]?.fileName || '')
+})
+
+// CO-530: 已存在审核日志附件的显示名（从 auditLogFileUrl 中提取原始文件名）
+const currentAuditLogName = computed(() => {
+  if (auditLogRemoved.value) return ''
+  const url = props.initialData?.auditLogFileUrl
+  if (!url) return ''
+  const underscoreIdx = url.indexOf('_')
+  return underscoreIdx >= 0 && underscoreIdx < url.length - 1
+    ? url.substring(underscoreIdx + 1)
+    : url
 })
 
 const statusLabel = (s) => qualificationStatusLabels[s] || s || '—'
@@ -156,6 +213,26 @@ const triggerFileSelect = () => {
 
 const clearCertFile = () => {
   certFile.value = null
+}
+
+// CO-530: 审核日志附件文件选择与处理
+const triggerAuditLogFileSelect = () => {
+  auditLogUploadRef.value?.$el?.querySelector('input')?.click()
+}
+
+const clearAuditLogFile = () => {
+  auditLogFile.value = null
+  auditLogRemoved.value = true
+}
+
+async function onAuditLogFileSelect(uploadFile) {
+  if (!uploadFile?.raw) return
+  if (uploadFile.raw.size > MAX_ATTACHMENT_BYTES.value) {
+    ElMessage.error(`附件不能超过${Math.round(MAX_ATTACHMENT_BYTES.value / 1024 / 1024)}MB`)
+    return
+  }
+  auditLogFile.value = uploadFile.raw
+  auditLogRemoved.value = false
 }
 
 const form = reactive({
@@ -249,6 +326,9 @@ function initForm() {
   // CO-155 fix: 编辑取后端真值，新增用空字符串占位（不再硬编码 LICENSE/COMPANY/西域）
   Object.assign(form, blankFormFields(d))
   certFile.value = null
+  // CO-530: 重置审核日志附件状态
+  auditLogFile.value = null
+  auditLogRemoved.value = false
   if (formRef.value && typeof formRef.value.clearValidate === 'function') formRef.value.clearValidate()
 }
 
@@ -290,11 +370,15 @@ const handleSubmit = async () => {
     if (editingId.value) {
       await http.put(`/api/knowledge/qualifications/${editingId.value}`, payload)
       await uploadCertAttachment(editingId.value)
+      // CO-530: 编辑模式下上传审核日志附件（如有新选择）
+      await uploadAuditLogAttachment(editingId.value)
       ElMessage.success('保存成功')
     } else {
       const resp = await http.post('/api/knowledge/qualifications', payload)
       const newId = resp?.data?.id
       if (newId) await uploadCertAttachment(newId)
+      // CO-530: 新增模式下也可上传审核日志附件
+      if (newId) await uploadAuditLogAttachment(newId)
       ElMessage.success('新增成功')
     }
     visible.value = false
@@ -313,6 +397,16 @@ async function uploadCertAttachment(qualificationId) {
   fd.append('file', certFile.value)
   await http
     .post(`/api/knowledge/qualifications/${qualificationId}/upload`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+    .catch(() => {})
+}
+
+// CO-530: 上传审核日志附件（失败静默，不影响主流程保存成功提示）
+async function uploadAuditLogAttachment(qualificationId) {
+  if (!qualificationId || !auditLogFile.value) return
+  const fd = new FormData()
+  fd.append('file', auditLogFile.value)
+  await http
+    .post(`/api/knowledge/qualifications/${qualificationId}/audit-log/upload`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
     .catch(() => {})
 }
 

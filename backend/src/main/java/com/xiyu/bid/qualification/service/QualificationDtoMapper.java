@@ -46,6 +46,7 @@ public class QualificationDtoMapper {
                 .agencyContact(dto.getAgencyContact())
                 .certScope(dto.getCertScope())
                 .certReviewNote(dto.getCertReviewNote())
+                .auditLogFileUrl(dto.getAuditLogFileUrl())
                 .holderName(dto.getHolderName() == null ? dto.getHolder() : dto.getHolderName())
                 .retireReason(dto.getRetireReason())
                 .issueDate(dto.getIssueDate())
@@ -112,6 +113,7 @@ public class QualificationDtoMapper {
                 .reminderDays(qualification.reminderPolicy().getReminderDays())
                 .retireReason(qualification.retireReason())
                 .fileUrl(qualification.fileUrl())
+                .auditLogFileUrl(qualification.auditLogFileUrl())
                 .attachments(qualification.attachments().stream().map(this::toAttachmentDto).toList())
                 .build();
     }

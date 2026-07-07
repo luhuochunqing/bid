@@ -65,8 +65,15 @@ public class BusinessQualificationEntity {
     @Column(name = "cert_scope", columnDefinition = "TEXT")
     private String certScope;
 
-    @Column(name = "cert_review_note", length = 200)
-    private String certReviewNote;
+    @Column(name = "cert_review_note")
+    private LocalDate certReviewNote;
+
+    /**
+     * CO-530: 审核日志附件 URL（Word/PDF/PNG，非必填）。
+     * 存储在 {storageRoot}/{id}/audit-log/ 子目录，与主附件隔离。
+     */
+    @Column(name = "audit_log_file_url", length = 500)
+    private String auditLogFileUrl;
 
     @Column(name = "holder_name", length = 120)
     private String holderName;

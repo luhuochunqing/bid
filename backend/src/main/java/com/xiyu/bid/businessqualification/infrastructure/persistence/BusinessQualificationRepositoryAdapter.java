@@ -253,6 +253,7 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
                 .reminderDays(qualification.reminderPolicy().getReminderDays())
                 .lastRemindedAt(qualification.reminderPolicy().getLastRemindedAt())
                 .fileUrl(qualification.fileUrl())
+                .auditLogFileUrl(qualification.auditLogFileUrl())
                 .retireReason(qualification.retireReason())
                 .retired(qualification.retired())
                 .build();
@@ -279,6 +280,7 @@ public class BusinessQualificationRepositoryAdapter implements BusinessQualifica
                         entity.getLastRemindedAt()
                 ),
                 entity.getFileUrl(),
+                entity.getAuditLogFileUrl(),
                 entity.getRetireReason(),
                 entity.isRetired(),
                 attachmentJpaRepository.findByQualificationIdOrderByUploadedAtDesc(entity.getId()).stream()

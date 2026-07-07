@@ -45,7 +45,10 @@ public class QualificationDTO {
     private String agencyContact;
 
     private String certScope;
-    private String certReviewNote;
+    /** CO-530: 证书审核提醒，从 VARCHAR(200) 文本改为 DATE 日期选择 */
+    private LocalDate certReviewNote;
+    /** CO-530: 审核日志附件 URL（Word/PDF/PNG，非必填） */
+    private String auditLogFileUrl;
     private String holder;
     private String holderName;
     private String remark;

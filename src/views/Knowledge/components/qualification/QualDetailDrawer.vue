@@ -73,7 +73,7 @@
               <pre class="qd-scope">{{ qualification.certScope || '—' }}</pre>
             </el-descriptions-item>
             <el-descriptions-item label="证书审核提醒" :span="2">
-              {{ qualification.certReviewNote || '—' }}
+              {{ formatDate(qualification.certReviewNote) }}
             </el-descriptions-item>
             <el-descriptions-item v-if="qualification?.status === 'RETIRED'" label="下架原因" :span="2">
               {{ qualification.retireReason || '—' }}
@@ -114,6 +114,9 @@
               </el-button>
             </el-empty>
           </section>
+
+          <!-- CO-530: 审核日志附件下载区 -->
+          <QualAuditLogAttachment :qualification="qualification" />
         </el-tab-pane>
 
         <!-- Tab 2: 操作日志 (4.1.3.7 实现) -->
@@ -131,6 +134,7 @@ import { Edit, Bottom, Top, Close, Document, Upload } from '@element-plus/icons-
 import { formatDate, qualificationStatusTagTypes, qualificationStatusLabels } from './qualificationMeta.js'
 import OperationLogTab from '@/components/qualification/OperationLogTab.vue'
 import DateTimeDisplay from '@/components/common/DateTimeDisplay.vue'
+import QualAuditLogAttachment from './QualAuditLogAttachment.vue'
 
 const STATUS_LABELS = { ...qualificationStatusLabels, valid: '在库', expiring: '即将到期', expired: '已过期', retired: '已下架' }
 

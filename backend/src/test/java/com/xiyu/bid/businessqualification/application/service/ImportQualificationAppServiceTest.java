@@ -123,7 +123,7 @@ class ImportQualificationAppServiceTest {
         MultipartFile file = buildExcel(new String[][]{{
                 "E2E 导入测试", "FIRST", "中国计量认证中心", certNo,
                 "2024-01-15", "2027-12-31", "代理A", "13800138000",
-                "范围A", "提醒A", "QUAL_" + certNo + "_01_x.pdf"
+                "范围A", "2026-03-01", "QUAL_" + certNo + "_01_x.pdf"
         }});
         when(qualificationJpaRepository.existsByCertificateNo(certNo)).thenReturn(false);
 
@@ -140,7 +140,7 @@ class ImportQualificationAppServiceTest {
         String certNo = "IMP-DUP-1";
         MultipartFile file = buildExcel(new String[][]{{
                 "测试", "FIRST", "科技局", certNo, "2024-01-15", "2027-12-31",
-                "代理A", "13800138000", "范围", "提醒", "QUAL_" + certNo + "_01_x.pdf"
+                "代理A", "13800138000", "范围", "2026-03-01", "QUAL_" + certNo + "_01_x.pdf"
         }});
         when(qualificationJpaRepository.existsByCertificateNo(certNo)).thenReturn(true);
 
@@ -159,7 +159,7 @@ class ImportQualificationAppServiceTest {
         MultipartFile file = buildExcel(new String[][]{{
                 "",                                // 证书名称空
                 "FIRST", "科技局", certNo, "2024-01-15", "2027-12-31",
-                "代理A", "13800138000", "范围", "提醒", "QUAL_" + certNo + "_01_x.pdf"
+                "代理A", "13800138000", "范围", "2026-03-01", "QUAL_" + certNo + "_01_x.pdf"
         }});
 
         var summary = importService.importFromExcel(file, "tester");
@@ -175,7 +175,7 @@ class ImportQualificationAppServiceTest {
         String certNo = "IMP-CONT-1";
         MultipartFile file = buildExcel(new String[][]{{
                 "测试", "FIRST", "科技局", certNo, "2024-01-15", "2027-12-31",
-                "代理A", "张三", "范围", "提醒", "QUAL_" + certNo + "_01_x.pdf"
+                "代理A", "张三", "范围", "2026-03-01", "QUAL_" + certNo + "_01_x.pdf"
         }});
         when(qualificationJpaRepository.existsByCertificateNo(certNo)).thenReturn(false);
 
@@ -191,7 +191,7 @@ class ImportQualificationAppServiceTest {
         String certNo = "IMP-CONT-2";
         MultipartFile file = buildExcel(new String[][]{{
                 "测试", "FIRST", "科技局", certNo, "2024-01-15", "2027-12-31",
-                "代理A", "张三 13800138000", "范围", "提醒", "QUAL_" + certNo + "_01_x.pdf"
+                "代理A", "张三 13800138000", "范围", "2026-03-01", "QUAL_" + certNo + "_01_x.pdf"
         }});
         when(qualificationJpaRepository.existsByCertificateNo(certNo)).thenReturn(false);
 
@@ -207,7 +207,7 @@ class ImportQualificationAppServiceTest {
         String certNo = "IMP-DATE-1";
         MultipartFile file = buildExcel(new String[][]{{
                 "测试", "FIRST", "科技局", certNo, "2027-12-31", "2024-01-15",
-                "代理A", "13800138000", "范围", "提醒", "QUAL_" + certNo + "_01_x.pdf"
+                "代理A", "13800138000", "范围", "2026-03-01", "QUAL_" + certNo + "_01_x.pdf"
         }});
 
         var summary = importService.importFromExcel(file, "tester");
@@ -222,7 +222,7 @@ class ImportQualificationAppServiceTest {
         String certNo = "IMP-FILE-1";
         MultipartFile file = buildExcel(new String[][]{{
                 "测试", "FIRST", "科技局", certNo, "2024-01-15", "2027-12-31",
-                "代理A", "13800138000", "范围", "提醒", "wrong_filename.pdf"
+                "代理A", "13800138000", "范围", "2026-03-01", "wrong_filename.pdf"
         }});
 
         var summary = importService.importFromExcel(file, "tester");
@@ -239,11 +239,11 @@ class ImportQualificationAppServiceTest {
         MultipartFile file = buildExcel(new String[][]{
                 {
                         "合法行", "FIRST", "科技局", validCert, "2024-01-15", "2027-12-31",
-                        "代理A", "13800138000", "范围", "提醒", "QUAL_" + validCert + "_01_x.pdf"
+                        "代理A", "13800138000", "范围", "2026-03-01", "QUAL_" + validCert + "_01_x.pdf"
                 },
                 {
                         "", "FIRST", "科技局", badCert, "2024-01-15", "2027-12-31",
-                        "代理A", "13800138000", "范围", "提醒", "QUAL_" + badCert + "_01_x.pdf"
+                        "代理A", "13800138000", "范围", "2026-03-01", "QUAL_" + badCert + "_01_x.pdf"
                 }
         });
         when(qualificationJpaRepository.existsByCertificateNo(validCert)).thenReturn(false);
@@ -265,7 +265,7 @@ class ImportQualificationAppServiceTest {
         String certNo = "IMP-DT-1";
         MultipartFile file = buildExcel(new String[][]{{
                 "测试", "FIRST", "科技局", certNo, "not-a-date", "2027-12-31",
-                "代理A", "13800138000", "范围", "提醒", "QUAL_" + certNo + "_01_x.pdf"
+                "代理A", "13800138000", "范围", "2026-03-01", "QUAL_" + certNo + "_01_x.pdf"
         }});
 
         var summary = importService.importFromExcel(file, "tester");
@@ -283,7 +283,7 @@ class ImportQualificationAppServiceTest {
         String certNo = "20260630";
         MultipartFile file = buildExcel(new String[][]{{
                 "测试", "FIRST", "科技局", certNo, "2024-01-15", "2027-12-31",
-                "代理A", "13800138000", "范围", "提醒", "QUAL_" + certNo + "_03_文件 2.docx"
+                "代理A", "13800138000", "范围", "2026-03-01", "QUAL_" + certNo + "_03_文件 2.docx"
         }}, java.util.Set.of(3));
         when(qualificationJpaRepository.existsByCertificateNo(certNo)).thenReturn(false);
 
@@ -303,7 +303,7 @@ class ImportQualificationAppServiceTest {
         String certNo = "20260630";
         MultipartFile file = buildExcelWithNumericFormat(new String[][]{{
                 "测试", "FIRST", "科技局", certNo, "2024-01-15", "2027-12-31",
-                "代理A", "13800138000", "范围", "提醒", "QUAL_" + certNo + "_03_文件 2.docx"
+                "代理A", "13800138000", "范围", "2026-03-01", "QUAL_" + certNo + "_03_文件 2.docx"
         }}, 3, "0.00");
         when(qualificationJpaRepository.existsByCertificateNo(certNo)).thenReturn(false);
 
@@ -323,7 +323,7 @@ class ImportQualificationAppServiceTest {
         String certNo = "20260630";
         MultipartFile file = buildExcelWithNumericFormat(new String[][]{{
                 "测试", "FIRST", "科技局", certNo, "2024-01-15", "2027-12-31",
-                "代理A", "13800138000", "范围", "提醒", "QUAL_" + certNo + "_03_文件 2.docx"
+                "代理A", "13800138000", "范围", "2026-03-01", "QUAL_" + certNo + "_03_文件 2.docx"
         }}, 3, "#,##0");
         when(qualificationJpaRepository.existsByCertificateNo(certNo)).thenReturn(false);
 
@@ -333,4 +333,91 @@ class ImportQualificationAppServiceTest {
         assertThat(summary.failed()).isZero();
         verify(createQualificationAppService, times(1)).create(any(QualificationUpsertCommand.class));
     }
+
+    /**
+     * CO-530: certReviewNote 从 VARCHAR(200) 文本改为 DATE 日期选择，校验日期格式。
+     * 非 YYYY-MM-DD 格式的文本应被拒绝。
+     */
+    @Test
+    void importFromExcel_InvalidCertReviewNoteFormat_ShouldReportRowFailure() throws Exception {
+        String certNo = "IMP-CRN-1";
+        MultipartFile file = buildExcel(new String[][]{{
+                "测试", "FIRST", "科技局", certNo, "2024-01-15", "2027-12-31",
+                "代理A", "13800138000", "范围", "提醒文本", "QUAL_" + certNo + "_01_x.pdf"
+        }});
+
+        var summary = importService.importFromExcel(file, "tester");
+
+        assertThat(summary.failed()).isEqualTo(1);
+        assertThat(summary.results().get(0).getFailureReason()).contains("证书审核提醒");
+        verify(createQualificationAppService, never()).create(any());
+    }
+
+    /**
+     * CO-530: 审核日志附件文件名非必填，但若填写则校验扩展名（仅支持 PDF/PNG/Word）。
+     */
+    @Test
+    void importFromExcel_InvalidAuditLogFileNameExtension_ShouldReportRowFailure() throws Exception {
+        String certNo = "IMP-ALG-1";
+        // 构造 12 列数据，第 12 列为审核日志附件文件名（扩展名不合法）
+        String[][] body = new String[][]{{
+                "测试", "FIRST", "科技局", certNo, "2024-01-15", "2027-12-31",
+                "代理A", "13800138000", "范围", "2026-03-01", "QUAL_" + certNo + "_01_x.pdf",
+                "audit-log.txt"
+        }};
+        MultipartFile file = buildExcelWithExtraColumn(body);
+
+        var summary = importService.importFromExcel(file, "tester");
+
+        assertThat(summary.failed()).isEqualTo(1);
+        assertThat(summary.results().get(0).getFailureReason()).contains("审核日志附件仅支持");
+        verify(createQualificationAppService, never()).create(any());
+    }
+
+    /**
+     * CO-530: 审核日志附件文件名为合法扩展名（PDF）时应通过校验。
+     */
+    @Test
+    void importFromExcel_ValidAuditLogFileName_ShouldImport() throws Exception {
+        String certNo = "IMP-ALV-1";
+        String[][] body = new String[][]{{
+                "测试", "FIRST", "科技局", certNo, "2024-01-15", "2027-12-31",
+                "代理A", "13800138000", "范围", "2026-03-01", "QUAL_" + certNo + "_01_x.pdf",
+                "audit-log.pdf"
+        }};
+        MultipartFile file = buildExcelWithExtraColumn(body);
+        when(qualificationJpaRepository.existsByCertificateNo(certNo)).thenReturn(false);
+
+        var summary = importService.importFromExcel(file, "tester");
+
+        assertThat(summary.success()).isEqualTo(1);
+        assertThat(summary.failed()).isZero();
+        verify(createQualificationAppService, times(1)).create(any(QualificationUpsertCommand.class));
+    }
+
+    /**
+     * 构造包含 12 列（含审核日志附件文件名列）的 xlsx。
+     */
+    private MultipartFile buildExcelWithExtraColumn(String[][] body) throws Exception {
+        try (var wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sh = wb.createSheet("资质证书");
+            Row hr = sh.createRow(0);
+            String[] headers = {
+                    "证书名称", "等级", "认证机构", "证书编号", "发证日期", "证书有效期",
+                    "代理机构", "代理机构联系人", "认证范围", "证书审核提醒", "附件文件名",
+                    "审核日志附件文件名"
+            };
+            for (int i = 0; i < headers.length; i++) hr.createCell(i).setCellValue(headers[i]);
+            for (int r = 0; r < body.length; r++) {
+                Row row = sh.createRow(r + 1);
+                for (int c = 0; c < body[r].length; c++) {
+                    String value = body[r][c] == null ? "" : body[r][c];
+                    row.createCell(c).setCellValue(value);
+                }
+            }
+            wb.write(out);
+            return new MockMultipartFile("file", "test.xlsx", "application/octet-stream", out.toByteArray());
+        }
+    }
 }
+

@@ -9,7 +9,8 @@ const HEADER_FIELD_MAP = {
     "代理机构联系人": "agencyContact",
     "认证范围": "certScope",
     "证书审核提醒": "certReviewNote",
-    "附件文件名": "attachmentFileName"
+    "附件文件名": "attachmentFileName",
+    "审核日志附件文件名": "auditLogFileName"
   };
 
 /**
@@ -22,13 +23,15 @@ const HEADER_FIELD_MAP = {
  * 返回空），导致后端解析 0 行。本辅助改用 Python openpyxl 生成 xlsx：openpyxl
  * 输出标准 `t="s"` shared string cell type，POI 完全兼容。
  *
- * 11 列与后端 ImportQualificationAppService.parse 保持一致：
+ * CO-530: 12 列与后端 ImportQualificationAppService.parse 保持一致：
  *   证书名称 | 等级 | 认证机构 | 证书编号 | 发证日期 | 证书有效期 |
- *   代理机构 | 代理机构联系人 | 认证范围 | 证书审核提醒 | 附件文件名
+ *   代理机构 | 代理机构联系人 | 认证范围 | 证书审核提醒 | 附件文件名 |
+ *   审核日志附件文件名
  *
  * 必填 9 项：name/issuer/certificateNo/issueDate/expiryDate/agency/agencyContact/certScope/attachmentFileName
  * 代理机构联系人：纯文本必填（CO-525）
  * 附件命名：QUAL_{证书编号}_{序号}_{文件名}.{ext}
+ * 审核日志附件文件名：非必填，仅支持 PDF/PNG/Word（CO-530）
  */
 import { spawnSync } from 'node:child_process'
 import * as path from 'node:path'
@@ -36,7 +39,8 @@ import * as fs from 'node:fs'
 
 export const QUALIFICATION_IMPORT_HEADERS = [
   '证书名称', '等级', '认证机构', '证书编号', '发证日期', '证书有效期',
-  '代理机构', '代理机构联系人', '认证范围', '证书审核提醒', '附件文件名'
+  '代理机构', '代理机构联系人', '认证范围', '证书审核提醒', '附件文件名',
+  '审核日志附件文件名'
 ]
 
 /**
