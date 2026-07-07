@@ -97,7 +97,7 @@
 ### 推荐启动方式
 
 ```bash
-npm install
+pnpm install
 npm run dev:stable:start
 npm run dev:stable:status
 ```
@@ -119,7 +119,7 @@ npm run dev:stable:status
 如果新电脑已有 Docker Desktop，但没有本机 MySQL，可以直接用项目脚本拉起本地 MySQL 8.0 和 Redis 容器，并把变量写入 `.runtime/local-docker/local-docker.env`：
 
 ```bash
-npm install
+pnpm install
 npm run dev:docker:start
 ```
 

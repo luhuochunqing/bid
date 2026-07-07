@@ -132,7 +132,7 @@ resolve_line_budget_base() {
 }
 
 install_frontend_dependencies() {
-  run_root npm ci
+  run_root pnpm install --frozen-lockfile
 }
 
 run_line_budget_gate() {

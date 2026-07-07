@@ -116,7 +116,8 @@ governance-front-data-boundaries:
     paths:
       - node_modules/
   script:
-    - npm ci
+    - corepack enable
+    - pnpm install --frozen-lockfile
     - npm run check:front-data-boundaries
   only:
     - merge_requests
@@ -131,7 +132,8 @@ governance-doc-governance:
     paths:
       - node_modules/
   script:
-    - npm ci
+    - corepack enable
+    - pnpm install --frozen-lockfile
     - npm run check:doc-governance
   only:
     - merge_requests
@@ -155,7 +157,8 @@ frontend:
         echo "No UI changes detected, skipping full frontend pipeline"
         exit 0
       fi
-    - npm ci
+    - corepack enable
+    - pnpm install --frozen-lockfile
     - npm run test:unit
     - npm run build
     - npm run build:api
@@ -231,7 +234,8 @@ e2e:
         echo "No UI changes, skipping E2E"
         exit 0
       fi
-    - npm ci
+    - corepack enable
+    - pnpm install --frozen-lockfile
     - npx playwright install chromium
     - cd backend && mvn -DskipTests compile -q && cd ..
     - npm run build:api
