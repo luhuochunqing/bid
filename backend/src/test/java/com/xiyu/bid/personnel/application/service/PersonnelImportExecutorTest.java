@@ -6,9 +6,12 @@ import com.xiyu.bid.personnel.domain.importvalidation.ParsedPersonnelRow;
 import com.xiyu.bid.personnel.domain.importvalidation.ValidationResult;
 import com.xiyu.bid.personnel.domain.model.Personnel;
 import com.xiyu.bid.personnel.domain.port.PersonnelRepository;
+import com.xiyu.bid.personnel.domain.valueobject.Certificate;
 import com.xiyu.bid.personnel.infrastructure.excel.PersonnelExcelImporter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import org.mockito.ArgumentCaptor;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -188,5 +191,86 @@ class PersonnelImportExecutorTest {
         // 不应调用 save（不更新已有人员）
         org.mockito.Mockito.verify(personnelRepository,
                 org.mockito.Mockito.never()).save(any(Personnel.class));
+    }
+
+    // ===== CO-535: 永久有效=是时清空到期日期 =====
+
+    /**
+     * 辅助方法：构造指定 isPermanent / expiryDate 的证书行。
+     * CO-535: 批量导入时，"永久有效"=是，"到期日期"清空。
+     */
+    private static ParsedCertificateRow certRowWith(String empNo, boolean isPermanent, LocalDate expiryDate) {
+        return new ParsedCertificateRow(4, empNo, "张三", "一级建造师",
+                "CERT001", "CONSTRUCTOR", LocalDate.of(2024, 1, 1), expiryDate,
+                "PER_张三_EMP001_01_一级建造师.pdf", "高级", isPermanent,
+                isPermanent ? "是" : "否", null);
+    }
+
+    @Test
+    void should_clear_expiry_date_when_is_permanent_is_true() {
+        // CO-535 测试要点 5：永久有效=是 + 到期日期有值 → 到期日期被置空
+        LocalDate inputExpiry = LocalDate.of(2027, 1, 1);
+        PersonnelExcelImporter.ImportResult result = importResult(
+                List.of(basicRow("EMP001", "张三")),
+                List.of(),
+                List.of(certRowWith("EMP001", true, inputExpiry)));
+
+        when(personnelRepository.findByEmployeeNumber("EMP001")).thenReturn(List.of());
+        when(personnelRepository.save(any(Personnel.class)))
+                .thenReturn(savedPersonnel("EMP001", "张三", 100L));
+        when(personnelRepository.addCertificate(eq(100L), any())).thenReturn(null);
+
+        importExecutor.executeImport(result, noopCallback());
+
+        ArgumentCaptor<Certificate> certCaptor = ArgumentCaptor.forClass(Certificate.class);
+        org.mockito.Mockito.verify(personnelRepository).addCertificate(eq(100L), certCaptor.capture());
+        Certificate savedCert = certCaptor.getValue();
+        assertThat(savedCert.isPermanent()).isTrue();
+        assertThat(savedCert.expiryDate()).isNull();
+    }
+
+    @Test
+    void should_keep_null_expiry_date_when_is_permanent_is_true_and_expiry_date_is_empty() {
+        // CO-535 测试要点 6：永久有效=是 + 到期日期为空 → 正常导入（expiryDate 仍为 null）
+        PersonnelExcelImporter.ImportResult result = importResult(
+                List.of(basicRow("EMP001", "张三")),
+                List.of(),
+                List.of(certRowWith("EMP001", true, null)));
+
+        when(personnelRepository.findByEmployeeNumber("EMP001")).thenReturn(List.of());
+        when(personnelRepository.save(any(Personnel.class)))
+                .thenReturn(savedPersonnel("EMP001", "张三", 100L));
+        when(personnelRepository.addCertificate(eq(100L), any())).thenReturn(null);
+
+        importExecutor.executeImport(result, noopCallback());
+
+        ArgumentCaptor<Certificate> certCaptor = ArgumentCaptor.forClass(Certificate.class);
+        org.mockito.Mockito.verify(personnelRepository).addCertificate(eq(100L), certCaptor.capture());
+        Certificate savedCert = certCaptor.getValue();
+        assertThat(savedCert.isPermanent()).isTrue();
+        assertThat(savedCert.expiryDate()).isNull();
+    }
+
+    @Test
+    void should_keep_expiry_date_when_is_permanent_is_false() {
+        // CO-535 测试要点 7：永久有效=否 + 到期日期有值 → 正常导入（expiryDate 保持原值）
+        LocalDate inputExpiry = LocalDate.of(2027, 1, 1);
+        PersonnelExcelImporter.ImportResult result = importResult(
+                List.of(basicRow("EMP001", "张三")),
+                List.of(),
+                List.of(certRowWith("EMP001", false, inputExpiry)));
+
+        when(personnelRepository.findByEmployeeNumber("EMP001")).thenReturn(List.of());
+        when(personnelRepository.save(any(Personnel.class)))
+                .thenReturn(savedPersonnel("EMP001", "张三", 100L));
+        when(personnelRepository.addCertificate(eq(100L), any())).thenReturn(null);
+
+        importExecutor.executeImport(result, noopCallback());
+
+        ArgumentCaptor<Certificate> certCaptor = ArgumentCaptor.forClass(Certificate.class);
+        org.mockito.Mockito.verify(personnelRepository).addCertificate(eq(100L), certCaptor.capture());
+        Certificate savedCert = certCaptor.getValue();
+        assertThat(savedCert.isPermanent()).isFalse();
+        assertThat(savedCert.expiryDate()).isEqualTo(inputExpiry);
     }
 }

@@ -61,13 +61,13 @@
               <el-option v-for="o in CERT_TYPE_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
-          <el-form-item label="到期日期"><el-date-picker v-model="cert.expiryDate" type="date" value-format="YYYY-MM-DD" style="width:100%" /></el-form-item>
+          <el-form-item label="永久有效"><el-checkbox v-model="cert.isPermanent" @change="(v) => { if (v) cert.expiryDate = null }">永久有效</el-checkbox></el-form-item>
+          <el-form-item label="到期日期" :required="!cert.isPermanent"><el-date-picker v-model="cert.expiryDate" type="date" value-format="YYYY-MM-DD" style="width:100%" :disabled="cert.isPermanent" /></el-form-item>
           <el-form-item label="职称">
             <el-select v-model="cert.title" placeholder="请选择" style="width:100%">
               <el-option v-for="o in CERT_TITLE_OPTIONS" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
-          <el-form-item label="永久有效"><el-checkbox v-model="cert.isPermanent">永久有效</el-checkbox></el-form-item>
           <el-form-item label="备注"><el-input v-model="cert.remark" maxlength="500" show-word-limit /></el-form-item>
           <el-form-item label="证书附件" required>
             <el-upload :auto-upload="false" :limit="1" accept=".pdf,.jpg,.jpeg,.png" :on-change="(f) => onCertAttachmentChange(f, idx)" :on-remove="() => onCertAttachmentRemove(idx)" :before-upload="beforeCertAttachmentUpload" :show-file-list="false">
@@ -133,6 +133,14 @@ const validateTab = (tabName) => {
     for (const e of form.value.educations) {
       if (!e.schoolName || !e.highestEducation || !e.studyForm || !e.endDate) {
         ElMessage.error('教育经历每条都必须填写学校、最高学历、学习形式、毕业时间')
+        return false
+      }
+    }
+  }
+  if (tabName === 'certificate') {
+    for (const c of (form.value.certificates || [])) {
+      if (c?.name && !c.isPermanent && !c.expiryDate) {
+        ElMessage.warning('永久有效未勾选时，到期日期必填')
         return false
       }
     }
@@ -222,7 +230,7 @@ async function handleSubmit() {
   origCerts.forEach((c, oldIdx) => { if (c && (c.name || c.certificateNumber) && certAttachmentFiles.value[oldIdx]) { newFiles[newIdx] = certAttachmentFiles.value[oldIdx]; newIdx++ } })
   certAttachmentFiles.value = newFiles
 
-  if (!validateTab('basic') || !validateTab('education')) return
+  if (!validateTab('basic') || !validateTab('education') || !validateTab('certificate')) return
   if ((form.value.certificates || []).some((c, idx) => c?.name && !c.attachmentUrl && !certAttachmentFiles.value[idx])) {
     ElMessage.error('请为已填写的证书上传附件（PDF/JPG/PNG ≤10MB）'); return
   }

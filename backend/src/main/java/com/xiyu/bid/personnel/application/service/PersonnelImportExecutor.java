@@ -156,16 +156,18 @@ class PersonnelImportExecutor {
 
             try {
                 CertificateType certType = parseCertificateType(row.type());
+                // CO-535: 永久有效=是时，到期日期清空（不写入系统）
+                boolean isPermanent = Boolean.TRUE.equals(row.isPermanent());
                 Certificate certificate = new Certificate(
                         null,
                         row.certificateName(),
                         row.certificateNumber(),
                         certType,
                         row.issueDate(),
-                        row.expiryDate(),
+                        isPermanent ? null : row.expiryDate(),
                         null,
                         row.title(),
-                        Boolean.TRUE.equals(row.isPermanent()),
+                        isPermanent,
                         row.remark()
                 );
                 personnelRepository.addCertificate(personnelId, certificate);
