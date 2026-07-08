@@ -1,8 +1,10 @@
-package com.xiyu.bid.tender.service;
+package com.xiyu.bid.bootstrap;
 
 import com.xiyu.bid.tender.dto.TenderImportTaskError;
 import com.xiyu.bid.tender.entity.TenderImportTask;
 import com.xiyu.bid.tender.repository.TenderImportTaskRepository;
+import com.xiyu.bid.tender.service.TenderImportProgressService;
+import com.xiyu.bid.tender.service.TenderImportTaskStateService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -25,7 +27,8 @@ import java.util.List;
  *
  * <p>契约来源：{@code specs/031-tender-import-async-perf/contracts/tender-import-task-states.md §卡死任务恢复}
  *
- * <p>放在 service 包下（非 bootstrap），避免 bootstrap 对 service 层的依赖（ArchitectureTest RULE 9）。
+ * <p>放在 bootstrap 包下：bootstrap 包独立于 config 包，专门承载启动期初始化逻辑，
+ * 可自由注入 Service/Repository（参见 {@code bootstrap/package-info.java}）。
  * 通过 {@link ApplicationRunner} 被 Spring Boot 自动调用。
  */
 @Component

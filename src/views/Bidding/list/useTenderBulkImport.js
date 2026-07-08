@@ -10,6 +10,7 @@ import { triggerBlobDownload } from '@/utils/download.js'
 const MAX_FILE_BYTES = 5 * 1024 * 1024
 const ACCEPTED_EXT = '.xlsx'
 const POLL_INTERVAL_MS = 2000
+const MAX_POLL_DURATION_MS = 5 * 60 * 1000
 const TERMINAL_STATUSES = ['COMPLETED', 'PARTIAL_SUCCESS', 'FAILED']
 
 function isXlsxFile(file) {
@@ -126,13 +127,27 @@ export function useTenderBulkImport({ tendersApi, refreshTenderList, canCreateTe
    * 轮询导入进度。
    * <p>每 POLL_INTERVAL_MS 毫秒查询一次进度，终态时停止轮询并设置 importResult。
    * <p>轮询失败时（如网络异常）不立即终止，下次轮询会重试。
-   * <p>如果任务长时间无进度更新（超过 5 分钟），停止轮询并提示用户。
+   * <p>如果轮询总时长超过 MAX_POLL_DURATION_MS（5 分钟），停止轮询并提示用户
+   * （任务仍在后端继续处理，结果会写入 DB，后端 RecoveryRunner 兜底卡死任务）。
    */
   const pollImportProgress = (taskId) => {
     clearPollTimer()
     polling.value = true
 
+    const startTime = Date.now()
+
+    const stopPollingWithTimeout = () => {
+      polling.value = false
+      clearPollTimer()
+      ElMessage.warning('导入处理时间较长，请稍后在标讯列表查看导入结果')
+    }
+
     const poll = async () => {
+      if (Date.now() - startTime > MAX_POLL_DURATION_MS) {
+        stopPollingWithTimeout()
+        return
+      }
+
       try {
         const response = await tendersApi.getImportProgress(taskId)
         const data = response?.data || null
