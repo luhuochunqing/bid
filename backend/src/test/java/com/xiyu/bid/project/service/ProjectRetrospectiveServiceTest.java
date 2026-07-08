@@ -45,7 +45,7 @@ class ProjectRetrospectiveServiceTest {
         stageService = mock(ProjectStageService.class);
         userRepository = mock(UserRepository.class);
         notificationService = mock(NotificationApplicationService.class);
-        service = new ProjectRetrospectiveService(repo, projectRepo, stageService, userRepository, notificationService);
+        service = new ProjectRetrospectiveService(repo, projectRepo, stageService, userRepository, notificationService, mock(com.xiyu.bid.notification.service.NotificationRecipientResolver.class));
         Project p = new Project();
         p.setId(1L);
         when(projectRepo.findById(1L)).thenReturn(Optional.of(p));

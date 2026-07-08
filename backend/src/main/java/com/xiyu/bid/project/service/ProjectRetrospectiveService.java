@@ -45,6 +45,7 @@ public class ProjectRetrospectiveService {
     private final ProjectStageService projectStageService;
     private final UserRepository userRepository;
     private final NotificationApplicationService notificationService;
+    private final com.xiyu.bid.notification.service.NotificationRecipientResolver recipientResolver;
 
     @Auditable(action = "SUBMIT_RETROSPECTIVE", entityType = "ProjectRetrospective", description = "提交项目复盘")
     public RetrospectiveDTO submit(Long projectId, RetrospectiveSubmitRequest req, Long currentUserId) {
@@ -200,7 +201,7 @@ public class ProjectRetrospectiveService {
             String submitterName = userRepository.findById(userId)
                     .map(User::getFullName).orElse("");
 
-            List<Long> adminIds = getAdminUserIds();
+            List<Long> adminIds = recipientResolver.getAdminUserIds();
 
             notificationService.createNotification(new CreateNotificationRequest(
                     NotificationType.APPROVAL.name(),
@@ -215,10 +216,5 @@ public class ProjectRetrospectiveService {
         } catch (RuntimeException e) {
             log.warn("sendRetrospectiveSubmitNotification failed for project={}: {}", projectId, e.getMessage());
         }
-    }
-
-    private List<Long> getAdminUserIds() {
-        return userRepository.findEnabledByRoleProfileCodes(List.of("admin", "/bidAdmin", "bid-TeamLeader"))
-                .stream().map(User::getId).collect(java.util.stream.Collectors.toList());
     }
 }

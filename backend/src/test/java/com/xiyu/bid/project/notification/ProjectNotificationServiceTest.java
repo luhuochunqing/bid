@@ -8,6 +8,7 @@ import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.matrixcollaboration.entity.ProjectMember;
 import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
+import com.xiyu.bid.notification.service.NotificationRecipientResolver;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.project.core.ProjectStage;
@@ -52,6 +53,8 @@ class ProjectNotificationServiceTest {
     private ProjectLeadAssignmentRepository leadAssignmentRepository;
     @Mock
     private EffectiveRoleResolver effectiveRoleResolver;
+    @Mock
+    private NotificationRecipientResolver recipientResolver;
 
     @Captor
     private ArgumentCaptor<CreateNotificationRequest> requestCaptor;
@@ -68,7 +71,13 @@ class ProjectNotificationServiceTest {
     @BeforeEach
     void setUp() {
         svc = new ProjectNotificationService(notificationService, projectRepository,
-                userRepository, projectMemberRepository, leadAssignmentRepository, effectiveRoleResolver);
+                userRepository, projectMemberRepository, leadAssignmentRepository, effectiveRoleResolver,
+                recipientResolver);
+        // 默认 stubbing：resolver 返回空列表，避免 UnnecessaryStubbingException；
+        // 各测试按需 override
+        org.mockito.Mockito.lenient().when(recipientResolver.getAdminUserIds()).thenReturn(List.of());
+        org.mockito.Mockito.lenient().when(recipientResolver.getProjectMemberUserIds(any(), any()))
+                .thenReturn(List.of());
     }
 
     private Project project(String name) {
@@ -114,8 +123,7 @@ class ProjectNotificationServiceTest {
         @DisplayName("sends APPROVAL to admins via sendToAdmins")
         void sendsToAdmins() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(userRepository.findEnabledByRoleProfileCodes(List.of("admin", "/bidAdmin", "bid-TeamLeader")))
-                    .thenReturn(List.of(user(1L, "张三"), user(2L, "李四")));
+            when(recipientResolver.getAdminUserIds()).thenReturn(List.of(1L, 2L));
 
             svc.notifyInitiationSubmitted(PID, UID);
 
@@ -128,8 +136,7 @@ class ProjectNotificationServiceTest {
         @DisplayName("sourceEntityType must be uppercase PROJECT (fix for CO-439 notification jump failure)")
         void sourceEntityType_IsUppercasePROJECT() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(userRepository.findEnabledByRoleProfileCodes(List.of("admin", "/bidAdmin", "bid-TeamLeader")))
-                    .thenReturn(List.of(user(1L, "张三")));
+            when(recipientResolver.getAdminUserIds()).thenReturn(List.of(1L));
 
             svc.notifyInitiationSubmitted(PID, UID);
 
@@ -231,8 +238,8 @@ class ProjectNotificationServiceTest {
         @DisplayName("sends INFO to all team members when project found with members")
         void sendsToAllTeamMembers() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(projectMemberRepository.findByProjectId(PID))
-                    .thenReturn(List.of(member(1L, "VIEWER"), member(2L, "EDITOR")));
+            when(recipientResolver.getProjectMemberUserIds(PID, null))
+                    .thenReturn(List.of(1L, 2L));
 
             svc.notifyStageTransition(PID, ProjectStage.DRAFTING, ProjectStage.EVALUATING, UID);
 
@@ -244,8 +251,8 @@ class ProjectNotificationServiceTest {
         @DisplayName("legacy signature uses system actor instead of null createdBy")
         void legacySignatureUsesSystemActor() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(projectMemberRepository.findByProjectId(PID))
-                    .thenReturn(List.of(member(1L, "VIEWER"), member(2L, "EDITOR")));
+            when(recipientResolver.getProjectMemberUserIds(PID, null))
+                    .thenReturn(List.of(1L, 2L));
 
             svc.notifyStageTransition(PID, ProjectStage.DRAFTING, ProjectStage.EVALUATING);
 
@@ -257,7 +264,7 @@ class ProjectNotificationServiceTest {
         @DisplayName("no team members → no notification")
         void skipsWhenNoTeamMembers() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(projectMemberRepository.findByProjectId(PID)).thenReturn(List.of());
+            // resolver 默认返回空列表（setUp lenient），无需额外 stub
 
             svc.notifyStageTransition(PID, ProjectStage.DRAFTING, ProjectStage.EVALUATING);
 
@@ -424,7 +431,7 @@ class ProjectNotificationServiceTest {
         @DisplayName("team members exist → sends INFO")
         void sendsToTeamMembers() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(projectMemberRepository.findByProjectId(PID)).thenReturn(List.of(member(1L, "VIEWER")));
+            when(recipientResolver.getProjectMemberUserIds(PID, null)).thenReturn(List.of(1L));
 
             svc.notifyEvaluationSubStage(PID, "技术评审", UID);
 
@@ -449,9 +456,8 @@ class ProjectNotificationServiceTest {
         @DisplayName("sends INFO to team + admins")
         void sendsToTeamAndAdmins() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(projectMemberRepository.findByProjectId(PID)).thenReturn(List.of(member(1L, "VIEWER")));
-            when(userRepository.findEnabledByRoleProfileCodes(List.of("admin", "/bidAdmin", "bid-TeamLeader")))
-                    .thenReturn(List.of(user(2L, "管理员")));
+            when(recipientResolver.getProjectMemberUserIds(PID, null)).thenReturn(List.of(1L));
+            when(recipientResolver.getAdminUserIds()).thenReturn(List.of(2L));
 
             svc.notifyAbandonBid(PID, UID);
 
@@ -462,8 +468,8 @@ class ProjectNotificationServiceTest {
         @Test
         @DisplayName("all empty → no notification")
         void skipsWhenAllEmpty() {
-            when(projectMemberRepository.findByProjectId(PID)).thenReturn(List.of());
-            when(userRepository.findEnabledByRoleProfileCodes(any())).thenReturn(List.of());
+            // resolver 默认返回空列表（setUp lenient）
+            when(recipientResolver.getAdminUserIds()).thenReturn(List.of());
 
             svc.notifyAbandonBid(PID, UID);
 
@@ -479,9 +485,8 @@ class ProjectNotificationServiceTest {
         @DisplayName("sends INFO to team + admins")
         void sendsToTeamAndAdmins() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(projectMemberRepository.findByProjectId(PID)).thenReturn(List.of(member(1L, "VIEWER")));
-            when(userRepository.findEnabledByRoleProfileCodes(List.of("admin", "/bidAdmin", "bid-TeamLeader")))
-                    .thenReturn(List.of(user(2L, "管理员")));
+            when(recipientResolver.getProjectMemberUserIds(PID, null)).thenReturn(List.of(1L));
+            when(recipientResolver.getAdminUserIds()).thenReturn(List.of(2L));
 
             svc.notifyResultRegistered(PID, "中标", UID);
 
@@ -498,8 +503,7 @@ class ProjectNotificationServiceTest {
         @DisplayName("sends APPROVAL to admins")
         void sendsToAdmins() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(userRepository.findEnabledByRoleProfileCodes(List.of("admin", "/bidAdmin", "bid-TeamLeader")))
-                    .thenReturn(List.of(user(1L, "管理员")));
+            when(recipientResolver.getAdminUserIds()).thenReturn(List.of(1L));
 
             svc.notifyRetrospectiveSubmitted(PID, UID);
 
@@ -553,8 +557,7 @@ class ProjectNotificationServiceTest {
         @DisplayName("sends APPROVAL to admins")
         void sendsToAdmins() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(userRepository.findEnabledByRoleProfileCodes(List.of("admin", "/bidAdmin", "bid-TeamLeader")))
-                    .thenReturn(List.of(user(1L, "管理员")));
+            when(recipientResolver.getAdminUserIds()).thenReturn(List.of(1L));
 
             svc.notifyClosureSubmitted(PID, UID);
 

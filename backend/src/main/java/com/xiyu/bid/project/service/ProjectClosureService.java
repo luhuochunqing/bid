@@ -56,6 +56,7 @@ public class ProjectClosureService {
     private final ProjectAccessScopeService projectAccessScopeService;
     // CO-403 纠偏：结项审核的职责分离(提交人不可审核) + 项目级投标辅助校验
     private final ProjectClosurePermissionGuard closurePermissionGuard;
+    private final com.xiyu.bid.notification.service.NotificationRecipientResolver recipientResolver;
 
     @Transactional(readOnly = true)
     public ClosurePreviewDTO preview(Long projectId) {
@@ -269,7 +270,7 @@ public class ProjectClosureService {
             String submitterName = userRepository.findById(userId)
                     .map(User::getFullName).orElse("");
 
-            List<Long> adminIds = getAdminUserIds();
+            List<Long> adminIds = recipientResolver.getAdminUserIds();
 
             notificationService.createNotification(new CreateNotificationRequest(
                     NotificationType.APPROVAL.name(),
@@ -314,10 +315,5 @@ public class ProjectClosureService {
         } catch (RuntimeException e) {
             log.warn("sendClosureReviewNotification failed for project={}: {}", projectId, e.getMessage());
         }
-    }
-
-    private List<Long> getAdminUserIds() {
-        return userRepository.findEnabledByRoleProfileCodes(List.of("admin", "/bidAdmin", "bid-TeamLeader"))
-                .stream().map(User::getId).collect(java.util.stream.Collectors.toList());
     }
 }

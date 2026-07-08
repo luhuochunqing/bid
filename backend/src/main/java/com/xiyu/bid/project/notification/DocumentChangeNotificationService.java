@@ -1,14 +1,12 @@
 package com.xiyu.bid.project.notification;
 
 import com.xiyu.bid.entity.Project;
-import com.xiyu.bid.matrixcollaboration.entity.ProjectMember;
-import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
-import com.xiyu.bid.notification.core.NotificationRecipientFilter;
+import com.xiyu.bid.notification.core.DocumentChangeTargetUrlResolver;
+import com.xiyu.bid.notification.service.NotificationRecipientResolver;
 import com.xiyu.bid.notification.core.NotificationType;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.repository.ProjectRepository;
-import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -16,8 +14,6 @@ import org.springframework.stereotype.Component;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * 文档变更通知服务（蓝图 §消息中心-系统通知 序号 5）。
@@ -30,10 +26,9 @@ import java.util.stream.Collectors;
  * 直接调用 NotificationApplicationService 与 {@link ProjectNotificationService#notifyTaskAssigned}、
  * {@link ProjectNotificationService#notifyStageTransition} 等同模式。</p>
  *
- * <p><b>Spec 030 对齐</b>：派发前按 {@link ProjectAccessScopeService#canAccessProject(Long, Long)}
+ * <p><b>Spec 030 对齐</b>：派发前按 {@link NotificationRecipientResolver#filterByProjectAccess}
  * 过滤候选接收人，剔除对该项目无访问权的用户（避免被通知的人点击跳转后被 403 拦截）。
- * 与 {@link TaskReviewNotificationService#notifyTaskReviewSubmitted} 同模式。过滤失败降级为
- * 原候选广播——优先保证通知送达而非精准。</p>
+ * 过滤失败降级为原候选广播——优先保证通知送达而非精准。</p>
  */
 @Component
 @RequiredArgsConstructor
@@ -44,35 +39,33 @@ public class DocumentChangeNotificationService {
 
     private final NotificationApplicationService notificationService;
     private final ProjectRepository projectRepository;
-    private final ProjectMemberRepository projectMemberRepository;
-    private final ProjectAccessScopeService projectAccessScopeService;
+    private final NotificationRecipientResolver recipientResolver;
 
     /**
      * 派发文档变更通知。
      *
-     * @param projectId     项目 ID
-     * @param documentId    文档 ID（sourceEntityId，用于通知深链）
-     * @param documentName  文档名称（出现在正文）
-     * @param operatorName  操作人显示名（出现在正文，如"王工（1001）"）
-     * @param operationType 操作类型："上传"/"修改"/"删除"
-     * @param actorUserId   操作人用户 ID（用于审计 + 排除自己接收）
+     * @param projectId        项目 ID
+     * @param documentId       文档 ID（sourceEntityId，用于通知深链）
+     * @param documentName     文档名称（出现在正文）
+     * @param documentCategory 文档分类（已归一化值，用于 targetUrl 按阶段分流；可为 null 兜底 drafting）
+     * @param operatorName     操作人显示名（出现在正文，如"王工（1001）"）
+     * @param operationType    操作类型（{@link DocumentOperationType#UPLOAD}/{@link DocumentOperationType#DELETE}）
+     * @param actorUserId      操作人用户 ID（用于审计 + 排除自己接收）
      */
     public void notifyDocumentChanged(Long projectId, Long documentId, String documentName,
-                                      String operatorName, String operationType, Long actorUserId) {
+                                      String documentCategory, String operatorName,
+                                      DocumentOperationType operationType, Long actorUserId) {
         try {
             Project project = projectRepository.findById(projectId).orElse(null);
             if (project == null) return;
             String projectName = project.getName();
 
-            // 候选接收人：项目团队成员，排除操作人自己
-            List<Long> candidateIds = projectMemberRepository.findByProjectId(projectId).stream()
-                    .map(ProjectMember::getUserId)
-                    .filter(id -> !Objects.equals(id, actorUserId))
-                    .collect(Collectors.toList());
+            // 候选接收人：项目团队成员，排除操作人自己（C 组复用）
+            List<Long> candidateIds = recipientResolver.getProjectMemberUserIds(projectId, actorUserId);
             if (candidateIds.isEmpty()) return;
 
-            // Spec 030：按项目可见性过滤（避免 403）
-            List<Long> recipientIds = filterRecipientsSafe(candidateIds, projectId);
+            // Spec 030：按项目可见性过滤（D 组复用）
+            List<Long> recipientIds = recipientResolver.filterByProjectAccess(candidateIds, projectId);
             if (recipientIds.isEmpty()) {
                 log.info("DocumentChange notification skipped - no accessible recipients for project {} document {}",
                         projectId, documentId);
@@ -80,16 +73,16 @@ public class DocumentChangeNotificationService {
             }
 
             String body = String.format("项目名称：%s\n文档「%s」被 %s %s",
-                    projectName, documentName, operatorName, operationType);
+                    projectName, documentName, operatorName, operationType.getLabel());
             Map<String, Object> payload = new HashMap<>();
             payload.put("projectId", String.valueOf(projectId));
             payload.put("projectName", projectName);
             payload.put("documentId", String.valueOf(documentId));
             payload.put("documentName", documentName);
             payload.put("operatorName", operatorName);
-            payload.put("operationType", operationType);
-            // payload targetUrl 用于企微外发精确跳转（P0-1：避免 /document/editor/{id} 错误跳转）
-            payload.put("targetUrl", "/project/" + projectId + "/drafting");
+            payload.put("operationType", operationType.name());
+            // P2-7：按 documentCategory 分流到对应阶段页（招标→initiation / 标书→drafting / 中标→result 等）
+            payload.put("targetUrl", DocumentChangeTargetUrlResolver.resolveTargetUrl(projectId, documentCategory));
 
             notificationService.createNotification(new CreateNotificationRequest(
                     NotificationType.DOCUMENT_CHANGE.name(),
@@ -105,24 +98,6 @@ public class DocumentChangeNotificationService {
                     projectId, documentId, operationType, e.getMessage());
         }
     }
-
-    /**
-     * Spec 030: 用 NotificationRecipientFilter 过滤候选接收人，按项目可见性剔除无访问权的用户。
-     *
-     * <p>降级策略：当 {@link ProjectAccessScopeService#canAccessProject(Long, Long)} 抛异常时
-     * （DB 故障、OSS 同步异常等），返回原候选集合，保留原广播行为——优先保证通知送达，
-     * 而非精准。与 {@link TaskReviewNotificationService#filterRecipientsSafe} 同模式。</p>
-     */
-    private List<Long> filterRecipientsSafe(List<Long> candidateIds, Long projectId) {
-        try {
-            return NotificationRecipientFilter.filterRecipients(
-                    candidateIds,
-                    uid -> projectAccessScopeService.canAccessProject(uid, projectId));
-        } catch (RuntimeException e) {
-            log.warn("Recipient filter failed for project {}, falling back to unfiltered broadcast: {}",
-                    projectId, e.getMessage());
-            return candidateIds;
-        }
-    }
 }
+
 

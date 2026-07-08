@@ -4,6 +4,7 @@ import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.matrixcollaboration.entity.ProjectMember;
 import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
+import com.xiyu.bid.notification.service.NotificationRecipientResolver;
 import com.xiyu.bid.notification.core.NotificationType;
 import com.xiyu.bid.project.entity.ProjectLeadAssignment;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
@@ -37,6 +38,7 @@ public class ProjectNotificationService {
     private final ProjectMemberRepository projectMemberRepository;
     private final ProjectLeadAssignmentRepository leadAssignmentRepository;
     private final EffectiveRoleResolver effectiveRoleResolver;
+    private final NotificationRecipientResolver recipientResolver;
 
     public void notifyInitiationSubmitted(Long projectId, Long submittedBy) {
         sendToAdmins(projectId, "立项审核：项目提交立项审核",
@@ -73,7 +75,7 @@ public class ProjectNotificationService {
         Project project = findProject(projectId);
         if (project == null) return;
 
-        List<Long> teamMemberIds = getProjectTeamMemberIds(projectId);
+        List<Long> teamMemberIds = recipientResolver.getProjectMemberUserIds(projectId, null);
         if (teamMemberIds.isEmpty()) return;
 
         sendNotification(projectId, "项目阶段变更", NotificationType.INFO,
@@ -186,22 +188,22 @@ public class ProjectNotificationService {
     }
 
     public void notifyEvaluationSubStage(Long projectId, String subStage, Long userId) {
-        List<Long> teamMemberIds = getProjectTeamMemberIds(projectId);
+        List<Long> teamMemberIds = recipientResolver.getProjectMemberUserIds(projectId, null);
         if (teamMemberIds.isEmpty()) return;
         sendNotification(projectId, "评标状态变更", NotificationType.INFO, userId, teamMemberIds, "evaluation");
     }
 
     public void notifyAbandonBid(Long projectId, Long userId) {
-        List<Long> recipientIds = getProjectTeamMemberIds(projectId);
-        recipientIds.addAll(getAdminUserIds());
+        List<Long> recipientIds = new ArrayList<>(recipientResolver.getProjectMemberUserIds(projectId, null));
+        recipientIds.addAll(recipientResolver.getAdminUserIds());
         recipientIds = recipientIds.stream().distinct().collect(Collectors.toList());
         if (recipientIds.isEmpty()) return;
         sendNotification(projectId, "弃标通知", NotificationType.INFO, userId, recipientIds, "evaluation");
     }
 
     public void notifyResultRegistered(Long projectId, String resultType, Long userId) {
-        List<Long> recipientIds = getProjectTeamMemberIds(projectId);
-        recipientIds.addAll(getAdminUserIds());
+        List<Long> recipientIds = new ArrayList<>(recipientResolver.getProjectMemberUserIds(projectId, null));
+        recipientIds.addAll(recipientResolver.getAdminUserIds());
         recipientIds = recipientIds.stream().distinct().collect(Collectors.toList());
         if (recipientIds.isEmpty()) return;
         sendNotification(projectId, "项目结果登记", NotificationType.INFO, userId, recipientIds, "result");
@@ -228,7 +230,7 @@ public class ProjectNotificationService {
     }
 
     private void sendToAdmins(Long projectId, String title, NotificationType type, Long userId, String targetPage) {
-        List<Long> adminIds = getAdminUserIds();
+        List<Long> adminIds = recipientResolver.getAdminUserIds();
         sendNotification(projectId, title, type, userId, adminIds, targetPage);
     }
 
@@ -261,11 +263,6 @@ public class ProjectNotificationService {
         return projectRepository.findById(projectId).orElse(null);
     }
 
-    private List<Long> getAdminUserIds() {
-        return userRepository.findEnabledByRoleProfileCodes(List.of("admin", "/bidAdmin", "bid-TeamLeader"))
-                .stream().map(User::getId).collect(Collectors.toList());
-    }
-
     private List<Long> getProjectLeadIds(Long projectId) {
         List<Long> leadIds = new ArrayList<>();
         projectMemberRepository.findByProjectId(projectId)
@@ -284,10 +281,5 @@ public class ProjectNotificationService {
                     }
                 });
         return leadIds;
-    }
-
-    private List<Long> getProjectTeamMemberIds(Long projectId) {
-        return projectMemberRepository.findByProjectId(projectId)
-                .stream().map(ProjectMember::getUserId).collect(Collectors.toList());
     }
 }

@@ -4,12 +4,12 @@ import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.notification.service.NotificationRecipientResolver;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.security.EffectiveRoleResolver;
-import com.xiyu.bid.service.ProjectAccessScopeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -47,7 +47,7 @@ class TaskReviewNotificationServiceTest {
     @Mock
     private EffectiveRoleResolver effectiveRoleResolver;
     @Mock
-    private ProjectAccessScopeService projectAccessScopeService;
+    private NotificationRecipientResolver recipientResolver;
 
     @Captor
     private ArgumentCaptor<CreateNotificationRequest> requestCaptor;
@@ -63,10 +63,11 @@ class TaskReviewNotificationServiceTest {
     @BeforeEach
     void setUp() {
         svc = new TaskReviewNotificationService(notificationService, projectRepository,
-                userRepository, effectiveRoleResolver, projectAccessScopeService);
-        // 默认所有候选接收人对项目 PID 都有访问权（既有用例的语义保持不变）；
+                userRepository, effectiveRoleResolver, recipientResolver);
+        // 默认 filterByProjectAccess 透传候选集合（既有用例语义保持不变）；
         // 新增的过滤测试用例会 override 此 stub。
-        lenient().when(projectAccessScopeService.canAccessProject(any(), eq(PID))).thenReturn(true);
+        lenient().when(recipientResolver.filterByProjectAccess(any(), eq(PID)))
+                .thenAnswer(inv -> inv.getArgument(0));
     }
 
     private Project project(String name) {
@@ -175,9 +176,9 @@ class TaskReviewNotificationServiceTest {
             when(userRepository.findEnabledByRoleProfileCodes(RoleProfileCatalog.TASK_MUTATION_ALLOWED_ROLES))
                     .thenReturn(List.of(user(1L, "admin"), user(2L, "组长"),
                                         user(3L, "专员A"), user(4L, "专员B")));
-            // user 3 对项目 PID 无访问权（如 06131 不在项目 172 的可见范围）
-            when(projectAccessScopeService.canAccessProject(eq(3L), eq(PID))).thenReturn(false);
-            // 其他用户保持 @BeforeEach 默认（true）
+            // user 3 对项目 PID 无访问权（resolver 过滤掉）
+            when(recipientResolver.filterByProjectAccess(any(), eq(PID)))
+                    .thenReturn(List.of(1L, 2L, 4L));
 
             svc.notifyTaskReviewSubmitted(PID, TASK_ID, "缴纳保证金", "柏超", UID);
 
@@ -195,7 +196,8 @@ class TaskReviewNotificationServiceTest {
             when(userRepository.findEnabledByRoleProfileCodes(RoleProfileCatalog.TASK_MUTATION_ALLOWED_ROLES))
                     .thenReturn(List.of(user(1L, "专员A"), user(2L, "专员B")));
             // 所有候选对项目 PID 都无访问权（极端场景：项目权限收紧后没人可见）
-            when(projectAccessScopeService.canAccessProject(any(), eq(PID))).thenReturn(false);
+            when(recipientResolver.filterByProjectAccess(any(), eq(PID)))
+                    .thenReturn(List.of());
 
             svc.notifyTaskReviewSubmitted(PID, TASK_ID, "授权整理", "王占俊", UID);
 
@@ -204,15 +206,15 @@ class TaskReviewNotificationServiceTest {
         }
 
         @Test
-        @DisplayName("spec030: ProjectAccessScopeService 抛异常 → 降级为原候选广播（通知送达优先）")
+        @DisplayName("spec030: filterByProjectAccess 返回空时安全跳过（resolver 内部已降级）")
         void fallsBackToUnfilteredBroadcast_whenAccessScopeThrows() {
             // 候选 3 人
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("西安地铁")));
             when(userRepository.findEnabledByRoleProfileCodes(RoleProfileCatalog.TASK_MUTATION_ALLOWED_ROLES))
                     .thenReturn(List.of(user(1L, "专员A"), user(2L, "专员B"), user(UID, "提交人")));
-            // 权限查询抛异常（模拟 DB 故障或 OSS 同步异常）
-            when(projectAccessScopeService.canAccessProject(any(), eq(PID)))
-                    .thenThrow(new RuntimeException("db down"));
+            // resolver 内部 DB 故障时降级为原候选广播——这里模拟降级后的结果
+            when(recipientResolver.filterByProjectAccess(any(), eq(PID)))
+                    .thenReturn(List.of(1L, 2L));
 
             svc.notifyTaskReviewSubmitted(PID, TASK_ID, "缴纳保证金", "柏超", UID);
 
@@ -228,7 +230,8 @@ class TaskReviewNotificationServiceTest {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
             when(userRepository.findEnabledByRoleProfileCodes(RoleProfileCatalog.TASK_MUTATION_ALLOWED_ROLES))
                     .thenReturn(List.of(user(1L, "admin"), user(2L, "组长"), user(3L, "专员无权")));
-            when(projectAccessScopeService.canAccessProject(eq(3L), eq(PID))).thenReturn(false);
+            when(recipientResolver.filterByProjectAccess(any(), eq(PID)))
+                    .thenReturn(List.of(1L, 2L));
 
             svc.notifyTaskReviewSubmitted(PID, TASK_ID, "任务标题", "提交人", UID);
 

@@ -11,6 +11,7 @@ import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.project.notification.DocumentChangeNotificationService;
+import com.xiyu.bid.project.notification.DocumentOperationType;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
@@ -89,8 +90,9 @@ class ProjectDocumentWorkflowService {
                 projectId,
                 savedDocument.getId(),
                 savedDocument.getName(),
+                savedDocument.getDocumentCategory(),
                 uploaderName != null ? uploaderName : "未分配",
-                "上传",
+                DocumentOperationType.UPLOAD,
                 uploaderId
         );
         return projectDocumentViewAssembler.toDto(savedDocument);
@@ -128,8 +130,9 @@ class ProjectDocumentWorkflowService {
                 projectId,
                 document.getId(),
                 document.getName(),
+                document.getDocumentCategory(),
                 currentUser.getFullName(),
-                "删除",
+                DocumentOperationType.DELETE,
                 currentUser.getId()
         );
 
