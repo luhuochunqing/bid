@@ -11,6 +11,7 @@ import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.platform.dto.BorrowAccountRequest;
 import com.xiyu.bid.platform.dto.PasswordRevealResponse;
+import com.xiyu.bid.platform.dto.OnCreate;
 import com.xiyu.bid.platform.dto.PlatformAccountCreateRequest;
 import com.xiyu.bid.platform.dto.PlatformAccountDTO;
 import com.xiyu.bid.platform.dto.PlatformAccountStatisticsDTO;
@@ -20,6 +21,7 @@ import com.xiyu.bid.platform.service.PlatformAccountImportAppService;
 import com.xiyu.bid.platform.service.PlatformAccountService;
 import com.xiyu.bid.repository.UserRepository;
 import jakarta.validation.Valid;
+import jakarta.validation.groups.Default;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -34,6 +36,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -62,7 +65,7 @@ public class PlatformAccountController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<PlatformAccountDTO>> createAccount(
-            @Valid @RequestBody PlatformAccountCreateRequest request,
+            @Validated(OnCreate.class) @RequestBody PlatformAccountCreateRequest request,
             @AuthenticationPrincipal UserDetails currentUser) {
         log.info("Creating platform account: {}", request.getAccountName());
         PlatformAccountDTO created = platformAccountService.createAccount(request, resolveUser(currentUser));
@@ -89,7 +92,7 @@ public class PlatformAccountController {
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<PlatformAccountDTO>> updateAccount(
             @PathVariable Long id,
-            @Valid @RequestBody PlatformAccountCreateRequest request,
+            @Validated(Default.class) @RequestBody PlatformAccountCreateRequest request,
             @AuthenticationPrincipal UserDetails currentUser) {
         log.info("Updating platform account with id: {}", id);
         PlatformAccountDTO updated = platformAccountService.updateAccount(id, request, resolveUser(currentUser));
