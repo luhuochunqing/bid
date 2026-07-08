@@ -8,7 +8,6 @@ function mountBar(props = {}) {
       selectedCount: 2,
       selectAllChecked: false,
       isIndeterminate: true,
-      canManageTenders: false,
       ...props,
     },
     global: {
@@ -21,22 +20,16 @@ function mountBar(props = {}) {
   })
 }
 
-describe('TenderBatchActionBar permissions', () => {
-  it('hides batch management actions from bid_specialist users', () => {
+describe('TenderBatchActionBar', () => {
+  // CO-547: 批量操作按钮（批量分发/领取标讯/批量关注/取消选择）已隐藏，
+  // 仅保留已选条数信息与全选复选框。
+  it('hides all batch action buttons and only shows selected-count info', () => {
     const wrapper = mountBar()
 
     expect(wrapper.text()).toContain('已选择 2 条标讯')
-    expect(wrapper.text()).toContain('取消选择')
     expect(wrapper.text()).not.toContain('批量分发')
     expect(wrapper.text()).not.toContain('领取标讯')
     expect(wrapper.text()).not.toContain('批量关注')
-  })
-
-  it('shows batch management actions for manager and admin users', () => {
-    const wrapper = mountBar({ canManageTenders: true })
-
-    expect(wrapper.text()).toContain('批量分发')
-    expect(wrapper.text()).toContain('领取标讯')
-    expect(wrapper.text()).toContain('批量关注')
+    expect(wrapper.text()).not.toContain('取消选择')
   })
 })
