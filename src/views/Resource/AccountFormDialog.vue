@@ -1,8 +1,8 @@
 <template>
   <el-dialog v-model="visible" :title="isEdit ? '编辑账户' : '新增平台'" width="620px" @open="onOpen">
     <el-form :model="form" label-width="110px">
-      <el-form-item label="平台名称" required :error="accountNameDup ? '平台名称已存在' : ''">
-        <el-input v-model="form.accountName" placeholder="请输入投标平台名称" maxlength="100" @blur="checkAccountNameUnique" />
+      <el-form-item label="平台名称" required>
+        <el-input v-model="form.accountName" placeholder="请输入投标平台名称" maxlength="100" />
       </el-form-item>
       <el-form-item label="网址" required>
         <el-input v-model="form.url" placeholder="平台官网或登录入口 URL" maxlength="500" />
@@ -103,7 +103,6 @@ const emptyForm = () => ({
 })
 
 const form = ref(emptyForm())
-const accountNameDup = ref(false)
 
 // 编辑态回显已选联系人：从 editRow.contactPersonLabel 构造 initialOptions，
 // 让 UserPicker 在未搜索时也能正确展示已选联系人的"姓名（工号）"标签。
@@ -114,20 +113,6 @@ const contactPersonInitialOptions = computed(() => {
   }
   return []
 })
-
-// IJTHNN 修复：accountName 失焦去重校验
-const checkAccountNameUnique = async () => {
-  const name = (form.value.accountName || '').trim()
-  if (!name) { accountNameDup.value = false; return }
-  if (isEdit.value && props.editRow?.accountName === name) {
-    accountNameDup.value = false; return
-  }
-  try {
-    const res = await resourcesApi.accounts.getList({ accountName: name })
-    const list = Array.isArray(res?.data) ? res.data : []
-    accountNameDup.value = list.some(a => a.accountName === name)
-  } catch { accountNameDup.value = false }
-}
 
 const onOpen = async () => {
   const r = props.editRow?.raw || props.editRow || {}
@@ -162,19 +147,11 @@ const onOpen = async () => {
   } else {
     form.value = emptyForm()
   }
-  accountNameDup.value = false
   passwordDirty.value = false  // CO-522: 每次打开表单重置，避免上次编辑的 dirty 状态残留
 }
 
 const submit = async () => {
   const f = form.value
-  if (!isEdit.value) {
-    await checkAccountNameUnique()
-    if (accountNameDup.value) {
-      ElMessage.error('平台名称已存在，请使用其他名称')
-      return
-    }
-  }
   const payload = {
     accountName: f.accountName.trim(),
     username: f.username.trim(), url: f.url.trim(),
@@ -203,9 +180,6 @@ const submit = async () => {
       res = await resourcesApi.accounts.create(payload)
     }
     if (!res?.success) {
-      if (/平台名称.*已存在|Account name already exists/i.test(res?.msg || '')) {
-        accountNameDup.value = true
-      }
       ElMessage.error(res?.msg || (isEdit.value ? '编辑失败' : '新增失败'))
       return
     }
@@ -214,9 +188,6 @@ const submit = async () => {
     emit('saved')
   } catch (error) {
     const msg = error?.response?.data?.msg || error?.message || (isEdit.value ? '编辑失败' : '新增失败')
-    if (/平台名称.*已存在|Account name already exists/i.test(msg)) {
-      accountNameDup.value = true
-    }
     ElMessage.error(msg)
   }
 }

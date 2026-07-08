@@ -82,7 +82,7 @@ class PlatformAccountServiceTest {
         // CO-403: 改为委托 BorrowService 同步申请表状态，不再直接操作 AccountBorrowApplicationRepository
         // CO-522: updateApplier 用真实实例（字段应用是纯逻辑，需要真正修改 account 对象），
         //         auditRecorder 用 mock（只验证调用，不验证 diff 本身——后者在 AuditRecorderTest 里覆盖）
-        PlatformAccountUpdateApplier realApplier = new PlatformAccountUpdateApplier(repository, passwordEncryptionUtil);
+        PlatformAccountUpdateApplier realApplier = new PlatformAccountUpdateApplier(passwordEncryptionUtil);
         service = new PlatformAccountService(
                 repository, borrowService, passwordEncryptionUtil, effectiveRoleResolver,
                 new PlatformAccountContactLabelEnricher(userRepository), whitelistStore,

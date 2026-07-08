@@ -1,12 +1,11 @@
-// Input: PlatformAccount、PlatformAccountCreateRequest、密码加密器、Repository
-// Output: 应用编辑字段到实体（含唯一性校验）
+// Input: PlatformAccount、PlatformAccountCreateRequest、密码加密器
+// Output: 应用编辑字段到实体
 // Pos: Service/字段应用协作层
-// 维护声明: 仅维护字段应用与唯一性校验；业务编排留在 PlatformAccountService.
+// 维护声明: 仅维护字段应用；业务编排留在 PlatformAccountService.
 package com.xiyu.bid.platform.service;
 
 import com.xiyu.bid.platform.dto.PlatformAccountCreateRequest;
 import com.xiyu.bid.platform.entity.PlatformAccount;
-import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -21,17 +20,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class PlatformAccountUpdateApplier {
 
-    private final PlatformAccountRepository repository;
     private final PasswordEncryptionUtil passwordEncryptionUtil;
-
-    /** 校验 accountName 在编辑场景下的唯一性。 */
-    public void validateUniqueness(PlatformAccountCreateRequest request, PlatformAccount account) {
-        if (request.getAccountName() != null && !request.getAccountName().trim().isEmpty()
-                && !request.getAccountName().equals(account.getAccountName())
-                && repository.findByAccountName(request.getAccountName()).isPresent()) {
-            throw new IllegalArgumentException("Account name already exists: " + request.getAccountName());
-        }
-    }
 
     /** 应用 request 中非 null 的字段到 account（null 字段跳过，保留原值）。 */
     public void applyFields(PlatformAccount account, PlatformAccountCreateRequest request) {

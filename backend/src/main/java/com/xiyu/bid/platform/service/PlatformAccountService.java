@@ -63,10 +63,6 @@ public class PlatformAccountService {
         whitelistStore.checkCreatePermission(effectiveRoleResolver.resolveRoleCode(currentUser), currentUser);
         validateRequest(request);
 
-        if (repository.findByAccountName(request.getAccountName()).isPresent()) {
-            throw new IllegalArgumentException("Account name already exists: " + request.getAccountName());
-        }
-
         String encryptedPassword = passwordEncryptionUtil.encrypt(request.getPassword());
 
         PlatformAccount account = PlatformAccount.builder()
@@ -147,7 +143,6 @@ public class PlatformAccountService {
             .orElseThrow(() -> new IllegalArgumentException("Account not found with id: " + id));
         PlatformAccountViewerPolicy.checkCanManageAccount(
             effectiveRoleResolver.resolveRoleCode(currentUser), account, currentUser);
-        updateApplier.validateUniqueness(request, account);
 
         // CO-522: 快照 + 转派待审批数 + 应用字段 + 写字段级 diff 审计
         PlatformAccount beforeUpdate = auditRecorder.snapshot(account);
