@@ -32,7 +32,7 @@ import java.util.Map;
 @Service
 public class OpenAiCompatibleEmbeddingClient implements EmbeddingClient {
 
-    public static final String DEFAULT_EMBEDDING_MODEL = "text-embedding-v3";
+    public static final String DEFAULT_EMBEDDING_MODEL = "qwen3-embedding-8b";
 
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final int MAX_ATTEMPTS = 3;

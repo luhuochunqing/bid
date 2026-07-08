@@ -119,7 +119,7 @@ class OpenAiCompatibleClientEmbeddingTest {
 
         assertThatThrownBy(() -> client.embed(config, "hello world"))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("AI embedding base URL is not configured");
+                .hasMessageContaining("AI embedding base URL 无法推导");
     }
 
     @Test
@@ -131,7 +131,7 @@ class OpenAiCompatibleClientEmbeddingTest {
 
         assertThatThrownBy(() -> client.embed(config, "hello world"))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("AI embedding model is not configured");
+                .hasMessageContaining("AI embedding model 未配置");
     }
 
     @Test
