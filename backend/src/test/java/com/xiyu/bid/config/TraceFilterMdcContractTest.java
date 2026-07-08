@@ -1,8 +1,7 @@
 package com.xiyu.bid.config;
 
-import com.xiyu.bid.entity.User;
 import com.xiyu.bid.security.CurrentUserResolver;
-import com.xiyu.bid.security.EffectiveRoleResolver;
+import com.xiyu.bid.security.CurrentUserResolver.UserMdcContext;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,7 +14,6 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -25,9 +23,10 @@ import static org.mockito.Mockito.when;
  * <p>验证契约：
  * <ol>
  *   <li>未认证请求 → MDC userId/roleCode = "anonymous"（兜底语义）</li>
- *   <li>已认证请求（CurrentUserResolver 能解析到 User）→ MDC userId/roleCode = 实际值</li>
- *   <li>roleCode 必须走 {@link EffectiveRoleResolver#resolveRoleCode}（CO-373 治理），
- *       不得直调 {@code User.getRoleCode()}</li>
+ *   <li>已认证请求（CurrentUserResolver 能解析到 UserMdcContext）→ MDC userId/roleCode = 实际值</li>
+ *   <li>roleCode 通过 {@link CurrentUserResolver#getUserMdcContext()} 在事务内解析，
+ *       内部走 {@link com.xiyu.bid.security.EffectiveRoleResolver#resolveRoleCode}（CO-373 治理），
+ *       不得在 Filter 层直调 {@code User.getRoleCode()}（P0 EAGER→LAZY 修复）</li>
  *   <li>请求结束后 MDC 的 userId/roleCode/traceId 被清理（避免线程复用泄漏）</li>
  * </ol>
  *
@@ -41,16 +40,13 @@ class TraceFilterMdcContractTest {
     private CurrentUserResolver currentUserResolver;
 
     @Mock
-    private EffectiveRoleResolver effectiveRoleResolver;
-
-    @Mock
     private FilterChain chain;
 
     private TraceFilter traceFilter;
 
     @BeforeEach
     void setUp() {
-        traceFilter = new TraceFilter(currentUserResolver, effectiveRoleResolver);
+        traceFilter = new TraceFilter(currentUserResolver);
         MDC.clear();
     }
 
@@ -61,8 +57,8 @@ class TraceFilterMdcContractTest {
 
     @Test
     void should_write_anonymous_for_unauthenticated_request() throws Exception {
-        // 未认证请求：CurrentUserResolver 返回 null
-        when(currentUserResolver.getCurrentUser()).thenReturn(null);
+        // 未认证请求：getUserMdcContext 返回 null
+        when(currentUserResolver.getUserMdcContext()).thenReturn(null);
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/tenders");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -71,16 +67,15 @@ class TraceFilterMdcContractTest {
 
         // filterChain 执行期间 MDC 应为 anonymous（这里在 doFilter 返回后验证，MDC 已被清理，
         // 所以通过 chain.doFilter 的 ArgumentCaptor 无法直接抓取。改为验证 putUserContext 的副作用：
-        // 即 EffectiveRoleResolver 未被调用（因为 user == null 分支不调 resolveRoleCode）。
-        verify(effectiveRoleResolver, never()).resolveRoleCode(org.mockito.ArgumentMatchers.any());
+        // 即 getUserMdcContext 被调用且返回 null 时写入 anonymous。
+        verify(currentUserResolver).getUserMdcContext();
     }
 
     @Test
     void should_write_real_user_context_when_user_resolved() throws Exception {
-        // 已认证请求：CurrentUserResolver 返回非 null User
-        User user = User.builder().id(42L).username("xiaowang").build();
-        when(currentUserResolver.getCurrentUser()).thenReturn(user);
-        when(effectiveRoleResolver.resolveRoleCode(user)).thenReturn("bid-Team");
+        // 已认证请求：getUserMdcContext 返回非 null UserMdcContext
+        when(currentUserResolver.getUserMdcContext())
+                .thenReturn(new UserMdcContext("42", "bid-Team"));
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/tenders");
         // 在 doFilter 内部，filterChain.doFilter 执行时 MDC 应已写入实际用户上下文。
@@ -95,14 +90,14 @@ class TraceFilterMdcContractTest {
 
         traceFilter.doFilter(request, response, capturingChain);
 
-        // 验证 roleCode 走 EffectiveRoleResolver 统一入口（CO-373 治理）
-        verify(effectiveRoleResolver).resolveRoleCode(user);
+        // 验证 roleCode 通过 getUserMdcContext() 在事务内解析（P0 EAGER→LAZY 修复）
+        verify(currentUserResolver).getUserMdcContext();
     }
 
     @Test
     void should_clear_mdc_after_request() throws Exception {
         // 请求结束后 MDC 的 userId/roleCode/traceId 应被清理
-        when(currentUserResolver.getCurrentUser()).thenReturn(null);
+        when(currentUserResolver.getUserMdcContext()).thenReturn(null);
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/tenders");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -117,7 +112,7 @@ class TraceFilterMdcContractTest {
     @Test
     void should_propagate_trace_id_from_header_when_present() throws Exception {
         // 分布式追踪：请求头带 X-Trace-Id 时应透传
-        when(currentUserResolver.getCurrentUser()).thenReturn(null);
+        when(currentUserResolver.getUserMdcContext()).thenReturn(null);
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/tenders");
         request.addHeader("X-Trace-Id", "external-trace-123");

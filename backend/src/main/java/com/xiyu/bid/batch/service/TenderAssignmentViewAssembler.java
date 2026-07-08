@@ -5,8 +5,10 @@ import com.xiyu.bid.batch.dto.TenderAssignmentResponse;
 import com.xiyu.bid.batch.entity.TenderAssignmentRecord;
 import com.xiyu.bid.entity.User;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 @Component
+@Transactional(readOnly = true)
 public class TenderAssignmentViewAssembler {
 
     public TenderAssignmentResponse.AssignmentRecord toRecord(TenderAssignmentRecord entity) {

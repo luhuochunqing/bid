@@ -8,6 +8,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 当前用户解析器。
@@ -101,5 +102,35 @@ public class CurrentUserResolver {
             throw new AccessDeniedException("无法识别当前用户");
         }
         return user;
+    }
+
+    /**
+     * 获取当前用户的 MDC 上下文（userId + roleCode）。
+     *
+     * <p>P0 修复（EAGER→LAZY）：roleProfile 改为 LAZY 后，在 open-in-view=false 环境下
+     * 不能在 Filter 层直调 user.getRoleCode()（分离实体→LazyInitializationException）。
+     * 此方法在同一事务内查询 User 并解析 roleCode，确保 LAZY 加载在 session 存活期间完成。
+     * 用于 TraceFilter 等非 Service 层调用方。
+     *
+     * @return MDC 上下文；未认证或用户不存在时返回 null
+     */
+    @Transactional(readOnly = true)
+    public UserMdcContext getUserMdcContext() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            return null;
+        }
+        return userRepository.findByUsername(auth.getName())
+                .map(user -> new UserMdcContext(
+                        String.valueOf(user.getId()),
+                        effectiveRoleResolver.resolveRoleCode(user)
+                ))
+                .orElse(null);
+    }
+
+    /**
+     * MDC 用户上下文（简单值对象，避免传递分离的 User 实体）。
+     */
+    public record UserMdcContext(String userId, String roleCode) {
     }
 }
