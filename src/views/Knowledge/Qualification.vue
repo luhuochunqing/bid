@@ -194,8 +194,25 @@ const handleBatchExport = () => {
     })
     .catch(() => ElMessage.error('批量导出失败'))
 }
+const hasDownloadableAttachment = (row) =>
+  (row.fileUrl && row.fileUrl.trim()) ||
+  (row.attachments && row.attachments.some(a => a.fileUrl && a.fileUrl.trim()))
+
 const handleBatchDownload = () => {
-  const ids = selectedRows.value.map(r => r.id)
+  if (!selectedRows.value.length) {
+    ElMessage.warning('请先选择要下载的资质证书')
+    return
+  }
+  const rowsWithAttachment = selectedRows.value.filter(hasDownloadableAttachment)
+  const skippedCount = selectedRows.value.length - rowsWithAttachment.length
+  if (skippedCount > 0) {
+    ElMessage.warning(`已跳过 ${skippedCount} 条无附件资质`)
+  }
+  const ids = rowsWithAttachment.map(r => r.id)
+  if (!ids.length) {
+    ElMessage.warning('所选资质证书均无可下载附件')
+    return
+  }
   http.post('/api/knowledge/qualifications/batch-download', { ids }, { responseType: 'blob' })
     .then(res => {
       const url = window.URL.createObjectURL(new Blob([res.data]))

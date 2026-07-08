@@ -197,7 +197,7 @@ public class CrmAuthService {
                 baseUrl, path, nickName, salesNo);
         String body = String.format(
                 "{\"nickName\":\"%s\",\"salesNo\":\"%s\"}",
-                escapeJson(nickName), escapeJson(salesNo));
+                CrmJsonUtils.escapeJson(nickName), CrmJsonUtils.escapeJson(salesNo));
         CrmResponseHandler.CrmApiResponse response = httpClient.postWithAuth(
                 baseUrl, path, ossToken.accessToken(), body);
         if (response.success() && response.data() != null && response.data().isTextual()) {
@@ -266,7 +266,7 @@ public class CrmAuthService {
 
         String body = String.format(
                 "{\"nickName\":\"%s\",\"salesNo\":\"%s\"}",
-                escapeJson(nickName), escapeJson(salesNo));
+                CrmJsonUtils.escapeJson(nickName), CrmJsonUtils.escapeJson(salesNo));
         CrmResponseHandler.CrmApiResponse response = httpClient.postWithAuth(
                 baseUrl, path, ossAccessToken, body);
 
@@ -289,14 +289,5 @@ public class CrmAuthService {
         }
         throw new IllegalStateException(
                 "CRM generateToken failed: code=" + response.code() + " msg=" + response.msg());
-    }
-
-    private static String escapeJson(String value) {
-        if (value == null) return "";
-        return value.replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t");
     }
 }
