@@ -16,6 +16,17 @@ describe('Project/List.vue layout', () => {
     expect(projectListSource).toContain('v-if="columnVisible.createTime"')
   })
 
+  it('renders secondary bidding leader column after bidding leader column (CO-551)', () => {
+    const leaderIdx = projectListSource.indexOf('label="投标负责人"')
+    const secondaryIdx = projectListSource.indexOf('label="投标辅助人员"')
+    expect(leaderIdx).toBeGreaterThan(-1)
+    expect(secondaryIdx).toBeGreaterThan(-1)
+    expect(secondaryIdx).toBeGreaterThan(leaderIdx)
+    // Column option registered for visibility toggle
+    expect(projectListSource).toContain('secondaryBiddingLeaderName')
+    expect(projectListSource).toContain('v-if="columnVisible.secondaryBiddingLeaderName"')
+  })
+
   it('shows core columns with status and result tags', () => {
     expect(projectListSource).toContain('label="项目名称"')
     expect(projectListSource).toContain('label="招标主体"')

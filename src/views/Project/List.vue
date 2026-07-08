@@ -118,6 +118,9 @@
           <el-table-column prop="biddingLeaderName" label="投标负责人" width="110" v-if="columnVisible.biddingLeaderName">
             <template #default="{ row }">{{ row.biddingLeaderName || '-' }}</template>
           </el-table-column>
+          <el-table-column prop="secondaryBiddingLeaderName" label="投标辅助人员" width="110" v-if="columnVisible.secondaryBiddingLeaderName">
+            <template #default="{ row }">{{ row.secondaryBiddingLeaderName || '-' }}</template>
+          </el-table-column>
           <el-table-column label="项目阶段" width="95" v-if="columnVisible.stage">
             <template #default="{ row }">{{ stageText(row.stage) }}</template>
           </el-table-column>
@@ -253,6 +256,7 @@ const columnOptions = [
   { key: 'region', label: '总部所在地' },
   { key: 'leaderDepartment', label: '项目负责人部门' },
   { key: 'biddingLeaderName', label: '投标负责人' },
+  { key: 'secondaryBiddingLeaderName', label: '投标辅助人员' },
 ]
 
 const ALL_COLUMNS_VISIBLE = Object.fromEntries(columnOptions.map(c => [c.key, true]))
