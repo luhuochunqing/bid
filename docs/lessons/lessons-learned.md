@@ -3189,3 +3189,65 @@ cd backend && mvn test -Dtest=ArchitectureTest,FPJavaArchitectureTest,Maintainab
 - spec: `specs/032-fix-oss-permission-diffusion/`
 - §29 — hasAnyRole 双轨制陷阱（同源教训）
 - §44 — EffectiveRoleResolver 权限来源统一（前置治理）
+
+---
+
+## 48. 止血补丁与技术债清偿必须分 PR，避免一次性还清导致长时间阻塞
+
+### 问题背景
+
+2026-07-08，spec 032 的 OSS 菜单权限修复从 16:43 完成 1:N 映射核心改动，到 20:13 才提交 PR，历时约 3.5 小时。核心代码改动（`application.yml` 列表化 + `OssMenuPermissionMapper` 1:N 映射）本可在 1 小时内合入，但后续被设计评审发现的 5 类技术债拖成了长时间重构。
+
+这些债务包括：
+
+1. `OssMenuPermissionMapper` 未声明为 Spring Bean，多处重复实例化
+2. `application.yml` 仍用逗号分隔字符串，可读性和可维护性差
+3. OSS 用户权限来源不唯一，仍混入本地 `RoleProfileCatalog` seed
+4. 缺少架构测试覆盖所有 OSS 菜单码映射
+5. `UserDetailsServiceImpl` / `DataScopeConfigService` / `RoleProfileCatalog` 中存在重复的 admin 权限过滤逻辑
+
+### 时间线
+
+| 阶段 | 耗时 | 内容 |
+|------|------|------|
+| 核心修复 | ~1h | 1:N 映射、YAML 列表化、前端 `all` 短路修复 |
+| 设计评审后债务清偿 | ~3h | 提取 Bean、统一过滤、拆分类、迁移包、补测试、逐个修复架构测试失败 |
+| 提交 PR | ~20min | pre-push gate、force-with-lease、创建 PR |
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 设计评审后发现债务，用户要求“本次全部修好” | 止血补丁和债务清偿应明确拆分，避免线上 bug 被重构阻塞 | P0/P1 线上问题先合最小修复；技术债单独开 PR 治理 |
+| 5 类债务同时清偿，测试失败串行暴露 | 重构范围越大，返工链越长 | 单笔 PR 聚焦一个债务类型；大范围重构先跑受影响测试清单 |
+| `sync-env.sh` rebase 后分支历史改写，push 需 force-with-lease | agent 分支早操后 push 失败是常态 | rebase 后若此前已 push，直接使用 `--force-with-lease` |
+| `BidCaseSliceArchitectureTest` 既有失败干扰收尾判断 | 无关失败会消耗收尾信心 | 收尾前明确列出“本次无关的既有失败” |
+
+### 操作规范（建议固化到 CLAUDE.md / RULES.md）
+
+1. **线上问题必须拆为止血 PR + 债务清偿 PR**：
+   - 止血 PR：只修复症状，保证最小改动当天可上线
+   - 债务清偿 PR：承载设计评审后的重构、测试补齐、架构治理
+2. **开始大范围重构前，先一次性跑受影响测试**：
+   ```bash
+   cd backend && mvn test -Dtest='ArchitectureTest,ResponsibilityArchitectureTest,OssMenuPermissionMappingCoverageTest,UserDetailsServiceImplTest,DataScopeConfigServiceTest'
+   ```
+3. **agent 分支 rebase 后若已 push 过，默认使用 `--force-with-lease`**：无需每次询问，但要在 PR 描述中注明。
+4. **PR 描述中必须列出“既有无关失败”**：避免 reviewer 在无关红点上浪费时间。
+
+### 验证命令
+
+```bash
+# 快速确认本次改动是否通过核心门禁
+cd /Users/user/xiyu/worktrees/claude
+npm run build
+bash scripts/pre-push-gate.sh --skip-tests --skip-e2e-check
+cd backend && mvn test -Dtest='ResponsibilityArchitectureTest,OssMenuPermissionMappingCoverageTest,UserDetailsServiceImplTest,DataScopeConfigServiceTest'
+```
+
+### 相关文件
+
+- PR !1892 — `fix(permission): OSS 菜单权限映射 1:N 多值映射与权限扩散修复`
+- `docs/lessons/lessons-learned.md` §47 — OSS 用户权限扩散根因
+- `docs/lessons/oss-integration-lessons.md` — OSS 菜单码 1:N 映射集成经验
+- `docs/lessons/decisions.md` ## 4 — admin 专属权限过滤统一化决策

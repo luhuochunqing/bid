@@ -98,8 +98,12 @@ public class OrganizationIntegrationProperties {
         private int userMenuTreeReadTimeoutMs = 5000;
         /** 是否在组织架构同步时自动聚合 OSS 菜单权限 */
         private boolean autoSyncMenuPermissions = false;
-        /** OSS 菜单编码 -> 内部权限码 映射（大小写不敏感） */
-        private Map<String, String> menuCodeToPermissionKeyMappings = new HashMap<>();
+        /**
+         * OSS 菜单编码 -> 内部权限码列表映射（大小写不敏感）。
+         * <p>一个 OSS 菜单码可映射到多个内部权限键（菜单 key + 操作权限键），
+         * 例如 100402 资质库同时映射到 knowledge-qualification、qualification.manage、qualification.view。
+         */
+        private Map<String, List<String>> menuCodeToPermissionKeyMappings = new HashMap<>();
         /** 未映射 OSS 菜单编码的默认处理：IGNORE 或 USE_NORMALIZED_CODE */
         private String unmappedMenuCodeBehavior = "IGNORE";
     }

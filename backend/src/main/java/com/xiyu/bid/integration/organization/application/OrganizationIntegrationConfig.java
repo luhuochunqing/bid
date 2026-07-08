@@ -1,6 +1,7 @@
 package com.xiyu.bid.integration.organization.application;
 
 import com.xiyu.bid.integration.organization.domain.policy.JobRoleLookupResolver;
+import com.xiyu.bid.integration.organization.domain.policy.OssMenuPermissionMapper;
 import com.xiyu.bid.integration.organization.domain.policy.SystemRoleListMapper;
 import com.xiyu.bid.integration.organization.infrastructure.mapper.PositionToRoleMapper;
 import org.springframework.context.annotation.Bean;
@@ -23,6 +24,14 @@ public class OrganizationIntegrationConfig {
                 properties,
                 positionToRoleMapper,
                 new SystemRoleListMapper(positionToRoleMapper)
+        );
+    }
+
+    @Bean
+    public OssMenuPermissionMapper ossMenuPermissionMapper(OrganizationIntegrationProperties properties) {
+        return new OssMenuPermissionMapper(
+                properties.getDirectory().getMenuCodeToPermissionKeyMappings(),
+                properties.getDirectory().getUnmappedMenuCodeBehavior()
         );
     }
 }

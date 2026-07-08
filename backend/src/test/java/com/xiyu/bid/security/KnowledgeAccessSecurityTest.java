@@ -99,6 +99,8 @@ class KnowledgeAccessSecurityTest {
     private com.xiyu.bid.casework.application.StreamingZipPackager streamingZipPackager;
     @MockBean
     private com.xiyu.bid.casework.infrastructure.ArchiveFileRepository archiveFileRepository;
+    @MockBean
+    private com.xiyu.bid.casework.application.ArchiveFileListService archiveFileListService;
 
     // --- KnowledgeCaseController 协作者 ---
     @MockBean
@@ -464,10 +466,14 @@ class KnowledgeAccessSecurityTest {
     @DisplayName("CO-466: 投标专员(authorities含project) POST /api/archive/export-zip → 200")
     @WithMockUser(authorities = {"project"})
     void exportZip_shouldSucceed_forBidSpecialist() throws Exception {
-        when(archiveExportService.resolveExportableProjectIds()).thenReturn(java.util.Set.of());
-        when(archiveExportService.exportProjectArchives(any())).thenReturn(
+        ProjectArchive mockArchive = new ProjectArchive();
+        mockArchive.setId(99L);
+        mockArchive.setProjectId(128L);
+        when(workflowService.getRawArchives(any())).thenReturn(List.of(mockArchive));
+        when(archiveExportService.resolveExportableProjectIds()).thenReturn(java.util.Set.of(128L));
+        when(archiveExportService.exportProjectArchives(any(), any())).thenReturn(
                 new com.xiyu.bid.casework.application.ProjectArchiveExportService.ArchiveExportResult(new byte[]{1, 2, 3}, 1));
-        when(streamingZipPackager.buildZipBytes(any(), any())).thenReturn(new byte[]{1, 2, 3});
+        when(streamingZipPackager.buildZipBytes(any(), any(), any())).thenReturn(new byte[]{1, 2, 3});
         mockMvc.perform(post("/api/archive/export-zip")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"page\":0,\"size\":10}"))

@@ -62,4 +62,31 @@ public record OssMenuTreeNode(
     public String normalizedMenuCode() {
         return menuCode == null ? "" : menuCode.trim().toLowerCase();
     }
+
+    /**
+     * 将菜单树（根节点列表）展平为所有节点的列表（含根与全部后代）。
+     * <p>统一入口消除 {@code OssMenuPermissionMapper} 与
+     * {@code OrganizationRoleMenuSyncAppService} 中重复的栈遍历逻辑。
+     *
+     * @param roots 根节点列表（可为 null）
+     * @return 按深度优先前序排列的所有节点列表（不去重）
+     */
+    public static List<OssMenuTreeNode> flatten(List<OssMenuTreeNode> roots) {
+        if (roots == null || roots.isEmpty()) {
+            return List.of();
+        }
+        List<OssMenuTreeNode> result = new ArrayList<>();
+        List<OssMenuTreeNode> stack = new ArrayList<>(roots);
+        while (!stack.isEmpty()) {
+            OssMenuTreeNode node = stack.removeLast();
+            if (node == null) {
+                continue;
+            }
+            result.add(node);
+            if (node.children() != null && !node.children().isEmpty()) {
+                stack.addAll(node.children());
+            }
+        }
+        return List.copyOf(result);
+    }
 }

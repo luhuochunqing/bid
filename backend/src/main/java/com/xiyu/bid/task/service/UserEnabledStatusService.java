@@ -14,14 +14,9 @@ public class UserEnabledStatusService {
         if (user == null) {
             return false;
         }
-        if (isOssUser(user)) {
+        if (user.isOssUser()) {
             return true;
         }
         return Boolean.TRUE.equals(user.getEnabled());
-    }
-
-    private boolean isOssUser(User user) {
-        String sourceApp = user.getExternalOrgSourceApp();
-        return sourceApp != null && !sourceApp.isBlank();
     }
 }

@@ -6,6 +6,20 @@
 import { useUserStore } from '@/stores/user.js'
 
 /**
+ * 当前登录用户是否为 OSS 同步用户。
+ * <p>specs/032: 用于前端权限判断对 OSS 用户不短路放行 "all"。
+ * 若 store 未初始化（如测试环境手动调用），按非 OSS 处理。
+ */
+function isCurrentUserOss() {
+  try {
+    const store = useUserStore()
+    return Boolean(store.currentUser?.isOssUser)
+  } catch {
+    return false
+  }
+}
+
+/**
  * Check if a user has any of the required permissions.
  * Authorization model: "deny by default, allow only when explicitly authorized."
  * @param {string[]|null|undefined} userPermissions - user's menuPermissions
@@ -16,7 +30,8 @@ export function hasAnyPermission(userPermissions, requiredPermissions) {
   if (!requiredPermissions || requiredPermissions.length === 0) return true
   const perms = Array.isArray(userPermissions) ? userPermissions : []
   if (perms.length === 0) return false
-  if (perms.includes('all')) return true
+  // specs/032: OSS 用户严格按 OSS 返回的菜单权限鉴权，不短路放行 "all"
+  if (perms.includes('all') && !isCurrentUserOss()) return true
   return requiredPermissions.some((key) => perms.includes(key))
 }
 
@@ -32,7 +47,8 @@ export function hasAllPermissions(userPermissions, requiredPermissions) {
   if (!requiredPermissions || requiredPermissions.length === 0) return true
   const perms = Array.isArray(userPermissions) ? userPermissions : []
   if (perms.length === 0) return false
-  if (perms.includes('all')) return true
+  // specs/032: OSS 用户严格按 OSS 返回的菜单权限鉴权，不短路放行 "all"
+  if (perms.includes('all') && !isCurrentUserOss()) return true
   return requiredPermissions.every((key) => perms.includes(key))
 }
 

@@ -17,7 +17,7 @@ class OssMenuPermissionMapperTest {
     @DisplayName("按配置映射菜单编码到内部权限码")
     void map_withConfiguredMappings_returnsMappedPermissions() {
         OssMenuPermissionMapper mapper = new OssMenuPermissionMapper(
-                Map.of("projectmanager", "project.manager", "bidding", "bidding"),
+                Map.of("projectmanager", List.of("project.manager"), "bidding", List.of("bidding")),
                 "IGNORE"
         );
         List<OssMenuTreeNode> tree = List.of(node("projectmanager", List.of(node("bidding", List.of()))));
@@ -31,7 +31,7 @@ class OssMenuPermissionMapperTest {
     @DisplayName("映射大小写不敏感")
     void map_caseInsensitiveMapping_works() {
         OssMenuPermissionMapper mapper = new OssMenuPermissionMapper(
-                Map.of("ProjectManager", "project.manager"),
+                Map.of("ProjectManager", List.of("project.manager")),
                 "IGNORE"
         );
         List<OssMenuTreeNode> tree = List.of(node("PROJECTMANAGER", List.of()));
@@ -77,7 +77,7 @@ class OssMenuPermissionMapperTest {
     @DisplayName("递归遍历子节点")
     void map_nestedChildren_traversesAll() {
         OssMenuPermissionMapper mapper = new OssMenuPermissionMapper(
-                Map.of("child", "child.permission"),
+                Map.of("child", List.of("child.permission")),
                 "IGNORE"
         );
         List<OssMenuTreeNode> tree = List.of(
@@ -93,7 +93,7 @@ class OssMenuPermissionMapperTest {
     @DisplayName("按真实 OSS 数字二级菜单编码映射")
     void map_numericSecondLevelMenuCode_returnsInternalPermissionKeys() {
         OssMenuPermissionMapper mapper = new OssMenuPermissionMapper(
-                Map.of("1002", "bidding", "100201", "bidding-list"),
+                Map.of("1002", List.of("bidding"), "100201", List.of("bidding-list")),
                 "IGNORE"
         );
         List<OssMenuTreeNode> tree = List.of(node("1002", List.of(node("100201", List.of()))));
@@ -101,6 +101,48 @@ class OssMenuPermissionMapperTest {
         Set<String> result = mapper.map(tree);
 
         assertThat(result).containsExactlyInAnyOrder("bidding", "bidding-list");
+    }
+
+    @Test
+    @DisplayName("多值映射：一个 OSS 菜单码映射到多个内部权限键")
+    void map_multiValueMapping_returnsAllPermissions() {
+        OssMenuPermissionMapper mapper = new OssMenuPermissionMapper(
+                Map.of("100402", List.of("knowledge-qualification", "qualification.manage", "qualification.view")),
+                "IGNORE"
+        );
+        List<OssMenuTreeNode> tree = List.of(node("100402", List.of()));
+
+        Set<String> result = mapper.map(tree);
+
+        assertThat(result).containsExactlyInAnyOrder(
+                "knowledge-qualification", "qualification.manage", "qualification.view");
+    }
+
+    @Test
+    @DisplayName("多值映射：mapCodes 也支持多值")
+    void mapCodes_multiValueMapping_returnsAllPermissions() {
+        OssMenuPermissionMapper mapper = new OssMenuPermissionMapper(
+                Map.of("100408", List.of("knowledge-warehouse", "warehouse.manage")),
+                "IGNORE"
+        );
+
+        Set<String> result = mapper.mapCodes(List.of("100408"));
+
+        assertThat(result).containsExactlyInAnyOrder("knowledge-warehouse", "warehouse.manage");
+    }
+
+    @Test
+    @DisplayName("多值映射：空值和空白值被过滤")
+    void map_multiValueMappingWithBlankParts_filtersBlanks() {
+        OssMenuPermissionMapper mapper = new OssMenuPermissionMapper(
+                Map.of("100402", List.of("knowledge-qualification", "", " ", "qualification.manage")),
+                "IGNORE"
+        );
+        List<OssMenuTreeNode> tree = List.of(node("100402", List.of()));
+
+        Set<String> result = mapper.map(tree);
+
+        assertThat(result).containsExactlyInAnyOrder("knowledge-qualification", "qualification.manage");
     }
 
     private OssMenuTreeNode node(String menuCode, List<OssMenuTreeNode> children) {

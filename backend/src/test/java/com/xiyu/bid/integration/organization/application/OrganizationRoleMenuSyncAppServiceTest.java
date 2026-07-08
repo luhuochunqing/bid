@@ -2,6 +2,7 @@ package com.xiyu.bid.integration.organization.application;
 
 import com.xiyu.bid.dto.RoleDTO;
 import com.xiyu.bid.integration.organization.domain.OrganizationDirectoryLookupContext;
+import com.xiyu.bid.integration.organization.domain.policy.OssMenuPermissionMapper;
 import com.xiyu.bid.integration.organization.dto.OssMenuTreeNode;
 import com.xiyu.bid.service.RoleProfileService;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,15 +38,16 @@ class OrganizationRoleMenuSyncAppServiceTest {
     @Mock
     private RoleProfileService roleProfileService;
 
-    private OrganizationIntegrationProperties properties;
+    private OssMenuPermissionMapper ossMenuPermissionMapper;
     private OrganizationRoleMenuSyncAppService service;
 
     @BeforeEach
     void setUp() {
-        properties = new OrganizationIntegrationProperties();
-        properties.getDirectory().setMenuCodeToPermissionKeyMappings(
-                Map.of("projectmanager", "project.manager", "bidding", "bidding"));
-        service = new OrganizationRoleMenuSyncAppService(gatewayProvider, roleProfileService, properties);
+        ossMenuPermissionMapper = new OssMenuPermissionMapper(
+                Map.of("projectmanager", List.of("project.manager"), "bidding", List.of("bidding")),
+                "IGNORE"
+        );
+        service = new OrganizationRoleMenuSyncAppService(gatewayProvider, roleProfileService, ossMenuPermissionMapper);
     }
 
     @Test

@@ -28,15 +28,15 @@ public class OssRoleMenuPermissionAutoSync {
 
     private final ObjectProvider<OrganizationDirectoryGateway> gatewayProvider;
     private final RoleProfileRepository roleProfileRepository;
-    private final OrganizationIntegrationProperties.Directory directory;
+    private final OssMenuPermissionMapper ossMenuPermissionMapper;
 
     public OssRoleMenuPermissionAutoSync(
             ObjectProvider<OrganizationDirectoryGateway> gatewayProvider,
             RoleProfileRepository roleProfileRepository,
-            OrganizationIntegrationProperties properties) {
+            OssMenuPermissionMapper ossMenuPermissionMapper) {
         this.gatewayProvider = gatewayProvider;
         this.roleProfileRepository = roleProfileRepository;
-        this.directory = properties.getDirectory();
+        this.ossMenuPermissionMapper = ossMenuPermissionMapper;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -55,12 +55,8 @@ public class OssRoleMenuPermissionAutoSync {
             log.warn("自动同步 OSS 菜单树返回为空: jobNumber={}, roleCode={}", jobNumber, role.getCode());
             return;
         }
-        OssMenuPermissionMapper mapper = new OssMenuPermissionMapper(
-                directory.getMenuCodeToPermissionKeyMappings(),
-                directory.getUnmappedMenuCodeBehavior()
-        );
         Set<String> merged = new HashSet<>(role.getMenuPermissions());
-        merged.addAll(mapper.map(menuTree.get()));
+        merged.addAll(ossMenuPermissionMapper.map(menuTree.get()));
         role.setMenuPermissions(new ArrayList<>(merged));
         roleProfileRepository.save(role);
         log.info("自动同步 OSS 菜单权限已合并: jobNumber={}, roleCode={}, permissionCount={}",

@@ -17,6 +17,7 @@ import com.xiyu.bid.dto.DataScopeConfigResponse;
 import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.permission.RoleProfileAdminPermissionFilter;
 import com.xiyu.bid.repository.RoleProfileRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.roleprofile.RoleProfileBootstrap;
@@ -133,52 +134,30 @@ public class DataScopeConfigService {
 
     public List<String> getRoleMenuPermissions(User user) {
         if (user == null) return List.of();
-        Optional<List<String>> cachedPermissions = ossPermissionCache.getMenuPermissions(user.getUsername());
-        if (cachedPermissions.isPresent()) {
-            List<String> ossPermissions = normalizeMenuPermissions(cachedPermissions.get());
+        ResolvedRoleSource source = resolveRoleSource(user);
+        if (source.cachedMenuPermissions().isPresent()) {
+            List<String> ossPermissions = RoleProfileAdminPermissionFilter.normalize(source.cachedMenuPermissions().get());
             // specs/032: "all" 是内部 admin 专属权限键，OSS 用户不应持有（防御性兜底，OSS 实际返回菜单 codes 如 1001/1002）
-            ossPermissions = ossPermissions.stream().filter(p -> !"all".equals(p)).toList();
-            // CO-438: 合并 DB RoleProfile 的管理权限点
-            // OSS menuCode→权限码映射表不含 performance.manage/warehouse.manage/personnel.manage
-            // 这些写操作权限点只存在于 DB RoleProfile，OSS 用户若不合并将看不到管理按钮
-            Optional<String> cachedRoleCode = ossPermissionCache.getRoleCode(user.getUsername());
-            if (cachedRoleCode.isPresent()) {
-                RoleProfileCatalog.SeedDefinition def = RoleProfileCatalog.definitionForCode(cachedRoleCode.get());
-                if (def != null && def.menuPermissions() != null && !def.menuPermissions().isEmpty()) {
-                    java.util.LinkedHashSet<String> merged = new java.util.LinkedHashSet<>(ossPermissions);
-                    // specs/032: OSS 用户合并 catalog seed 时过滤 "all"，避免前端 hasPermission 短路放行所有菜单
-                    def.menuPermissions().stream()
-                            .filter(p -> !"all".equals(p))
-                            .forEach(merged::add);
-                    return List.copyOf(merged);
-                }
-            }
-            return ossPermissions;
+            return RoleProfileAdminPermissionFilter.filter(ossPermissions);
         }
         // admin 系统内置账户不走 OSS，fallback 到本地 DB RoleProfile
-        if (isLocalSystemAccount(user)) {
+        if (source.localSystemAccount()) {
             List<String> localPermissions = resolveRoleProfile(user).getMenuPermissions();
             if (localPermissions != null && !localPermissions.isEmpty()) {
                 log.info("Local system account user={} using DB RoleProfile menu_permissions", user.getUsername());
-                return normalizeMenuPermissions(localPermissions);
+                return RoleProfileAdminPermissionFilter.normalize(localPermissions);
             }
         }
         log.warn("OSS permission cache miss for user={}, returning empty (need re-login)", user.getUsername());
         return List.of();
     }
 
-    /** admin 系统内置账户（不走 OSS 认证）：externalOrgSourceApp 为空且角色码为 admin。 */
-    private boolean isLocalSystemAccount(User user) {
-        return (user.getExternalOrgSourceApp() == null || user.getExternalOrgSourceApp().isBlank())
-                && RoleProfileCatalog.ADMIN_CODE.equals(user.getRoleCode());
-    }
-
     public String getRoleCode(User user) {
         if (user == null) return null;
-        Optional<String> cachedRoleCode = ossPermissionCache.getRoleCode(user.getUsername());
-        if (cachedRoleCode.isPresent()) return cachedRoleCode.get();
+        ResolvedRoleSource source = resolveRoleSource(user);
+        if (source.cachedRoleCode().isPresent()) return source.cachedRoleCode().get();
         // admin 系统内置账户（不走 OSS 认证）：cache miss 时 fallback 到本地 DB RoleProfile
-        if (isLocalSystemAccount(user)) {
+        if (source.localSystemAccount()) {
             String dbRoleCode = user.getRoleCode();
             if (dbRoleCode != null && !dbRoleCode.isBlank()) return dbRoleCode;
         }
@@ -191,15 +170,15 @@ public class DataScopeConfigService {
 
     public String getRoleName(User user) {
         if (user == null) return "员工";
-        Optional<String> cachedRoleCode = ossPermissionCache.getRoleCode(user.getUsername());
-        if (cachedRoleCode.isPresent()) {
-            String roleCode = cachedRoleCode.get();
+        ResolvedRoleSource source = resolveRoleSource(user);
+        if (source.cachedRoleCode().isPresent()) {
+            String roleCode = source.cachedRoleCode().get();
             RoleProfileCatalog.SeedDefinition def = RoleProfileCatalog.definitionForCode(roleCode);
             if (def != null && def.name() != null && !def.name().isBlank()) return def.name();
             return roleCode;
         }
         // admin 系统内置账户（不走 OSS 认证）：cache miss 时 fallback 到本地 DB RoleProfile
-        if (isLocalSystemAccount(user)) {
+        if (source.localSystemAccount()) {
             RoleProfile roleProfile = resolveRoleProfile(user);
             if (roleProfile.getName() != null && !roleProfile.getName().isBlank()) return roleProfile.getName();
         }
@@ -208,6 +187,29 @@ public class DataScopeConfigService {
         // 返回 null 而非 "员工"，避免前端误展示默认角色名而掩盖权限失效的真实状态。
         log.warn("OSS role cache miss for user={}, returning null (need re-login)", user.getUsername());
         return null;
+    }
+
+    /** admin 系统内置账户（不走 OSS 认证）：externalOrgSourceApp 为空且角色码为 admin。 */
+    private boolean isLocalSystemAccount(User user) {
+        // SAFE: 仅用于区分本地 admin 系统账号与 OSS 同步用户；已用 user.isOssUser() 做第一道隔离，
+        // 再走 user.getRoleCode() 读取本地 DB roleProfile 的 admin 判定，不会触发 CO-373 OSS fallback。
+        return !user.isOssUser() && RoleProfileCatalog.ADMIN_CODE.equals(user.getRoleCode());
+    }
+
+    /**
+     * 解析用户的角色/权限来源：优先 OSS 缓存，本地 admin 系统账户允许 DB 兜底，
+     * OSS 用户 cache miss 时由调用方 fail-closed。
+     * <p>统一封装 getRoleCode / getRoleName / getRoleMenuPermissions 重复的缓存+兜底判断。
+     */
+    private ResolvedRoleSource resolveRoleSource(User user) {
+        Optional<OssPermissionCache.CacheEntry> cachedEntry = ossPermissionCache.getEntry(user.getUsername());
+        Optional<String> cachedRoleCode = cachedEntry
+                .filter(e -> e.roleCode() != null && !e.roleCode().isBlank())
+                .map(OssPermissionCache.CacheEntry::roleCode);
+        Optional<List<String>> cachedMenuPermissions = cachedEntry
+                .filter(e -> e.menuPermissions() != null)
+                .map(OssPermissionCache.CacheEntry::menuPermissions);
+        return new ResolvedRoleSource(cachedRoleCode, cachedMenuPermissions, isLocalSystemAccount(user));
     }
 
     public DepartmentGraph getDepartmentGraph() {
@@ -281,14 +283,6 @@ public class DataScopeConfigService {
                 .build();
         placeholder.setMenuPermissions(List.of());
         return placeholder;
-    }
-
-    private List<String> normalizeMenuPermissions(List<String> menuPermissions) {
-        return menuPermissions == null ? List.of() : menuPermissions.stream()
-                .filter(permission -> permission != null && !permission.isBlank())
-                .map(String::trim)
-                .distinct()
-                .toList();
     }
 
     private void validate(OrganizationValidationResult result) {
