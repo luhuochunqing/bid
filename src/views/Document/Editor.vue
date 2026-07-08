@@ -74,7 +74,7 @@ import SectionTreePanel from './editor/components/SectionTreePanel.vue'
 import EditorCenterPane from './editor/components/EditorCenterPane.vue'
 import AssemblyPanel from './editor/components/AssemblyPanel.vue'
 import CaseSliceRecommendDrawer from './editor/components/CaseSliceRecommendDrawer.vue'
-import { parseSectionMetadata, mergeSectionSourceMetadata } from './documentEditorHelpers.js'
+import { parseSectionMetadata } from './documentEditorHelpers.js'
 import { useDocumentAssembly } from './useDocumentAssembly.js'
 import { useDocumentKnowledge } from './useDocumentKnowledge.js'
 import { useDocumentSidebar } from './useDocumentSidebar.js'
@@ -108,19 +108,6 @@ function handleCaseRecommend() {
   showCaseRecommend.value = true
 }
 
-function handleInsertCaseSlice(item) {
-  if (!currentSection.value || !item) return
-  const section = currentSection.value
-  const sourceDetail = [item.projectDir, item.docxLabel].filter(Boolean).join(' · ')
-  mergeSectionSourceMetadata(section, {
-    kind: 'case-slice', title: item.title || '', sourceLabel: '案例切片',
-    sourceDetail, referencedAt: new Date().toISOString()
-  })
-  section.content = `${section.content || ''}\n\n> 来源：案例切片 · ${sourceDetail}\n\n${item.textPreview || item.title || ''}\n`
-  showCaseRecommend.value = false
-  ElMessage.success('案例切片已插入到当前章节')
-}
-
 const {
   knowledgeMatches,
   loadKnowledgeMatches,
@@ -131,6 +118,17 @@ const {
   documentInfo,
   isRemoteProjectId
 })
+
+function handleInsertCaseSlice(item) {
+  showCaseRecommend.value = false
+  handleInsertKnowledge({
+    type: 'case-slice',
+    title: item.title || '未命名切片',
+    content: item.textPreview || item.title || '',
+    sourceLabel: '案例切片',
+    sourceDetail: [item.projectDir, item.docxLabel].filter(Boolean).join(' · ')
+  })
+}
 
 const sidebar = useDocumentSidebar({
   route,
