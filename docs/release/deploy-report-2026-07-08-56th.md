@@ -22,8 +22,8 @@
 | 分支 | `main` → `agent/trae/deploy-56th-report`（报告分支） |
 | HEAD commit | `beab87a5e`（含 hotfix PR !1844） |
 | 工作区状态 | 干净 |
-| origin/main 同步 | ✅ HEAD = origin/main = `beab87a5e` |
-| GitHub 镜像 | ⚠️ 未同步（落后 63 commit，脚本 stdin 管道问题，需后续手动 force push） |
+| origin/main 同步 | ✅ HEAD = origin/main = `51874a044`（含 PR !1851 报告合入） |
+| GitHub 镜像 | ✅ 已同步（两边 main = `51874a044`，部署后 force-with-lease 同步 65 个 commit） |
 
 ## 部署前 hotfix（PR !1844）
 
@@ -189,11 +189,12 @@ WHERE version IN (1147,1149,1150,1151,1152,1153) ORDER BY version;
 
 | 项目 | 状态 |
 |---|---|
-| 同步前 github/main..origin/main | 61 commit（+hotfix 后 63） |
-| sync-to-github.sh 执行 | ⚠️ 脚本检测到 2 个 GitHub 独有 commit，因 stdin 管道问题未完成 push |
-| github/main HEAD | `d0587ed01`（仍落后 63 commit） |
-| 待覆盖的 GitHub 独有 commit | `d0587ed01 feat(task)`（已在 Gitee 镜像版本）、`b034d622f chore(locks)`（违规独有） |
-| **后续操作** | 需手动执行 `git push github origin/main:refs/heads/main --force-with-lease` 强制同步 |
+| 同步前 github/main..origin/main | 65 commit |
+| GitHub 独有 commit（被覆盖） | `d0587ed01 feat(task)`（已在 Gitee 镜像为 `59de25755`/`223992155`）、`b034d622f chore(locks)`（bot 自动清理，Gitee 不依赖） |
+| sync-to-github.sh 执行 | ⚠️ 脚本因 stdin 管道问题未完成 push |
+| 手动 force-with-lease 同步 | ✅ 完成（`git push github origin/main:refs/heads/main --force-with-lease`） |
+| 同步后两边 main | `51874a044`（完全一致） |
+| PR !1851 报告合入 | ✅ squash merge，commit `51874a044` |
 
 ## 回滚信息
 
@@ -216,7 +217,7 @@ WHERE version IN (1147,1149,1150,1151,1152,1153) ORDER BY version;
 | 2. Kafka SDK readiness 延迟 | ✅ 已知行为，等待 2 分 56 秒后自恢复 |
 | 3. 生产前端同源构建 | ✅ `VITE_API_BASE_URL=` 显式设空 |
 | 4. Smoke 测试 admin 密码限制 | ✅ 用 400/403/401 替代验证 |
-| 5. GitHub 镜像同步 | ⚠️ 尝试同步但脚本 stdin 问题未完成 |
+| 5. GitHub 镜像同步 | ✅ 部署后手动 force-with-lease 同步完成（脚本 stdin 问题，改用直接 push） |
 | 6. SHOW_DETAILS=always 保留 | ✅ 第 13-15 次用户决定保留，本次延续 |
 | 7. 幂等迁移设计 | ✅ 6 个新迁移均为幂等设计 |
 | 8. systemctl sudo 权限 | ✅ SYSTEMCTL_SUDO=true，服务重启正常 |
@@ -226,10 +227,9 @@ WHERE version IN (1147,1149,1150,1151,1152,1153) ORDER BY version;
 
 ## 风险提示
 
-1. **GitHub 镜像落后 63 commit**：需尽快手动 force push 同步，避免 AI 协作工具拉到旧代码
-2. **PerformanceRecordSpecificationTest 已删除**：后续应重新编写对齐 `COLLECTIVE` 枚举的回归测试，防止 Sentry XIYU-Y 回归
-3. **V1153 创建 tender_import_task 表**：spec 031 标讯批量导入异步化功能，需验证 Nginx `proxy_read_timeout 180s` 配置已应用（见 `docs/release/nginx-tender-import-timeout.md`）
-4. **上传限制提升至 3GB**（PR !1831）：需确认 nginx `client_max_body_size` 已同步调整
+1. **PerformanceRecordSpecificationTest 已删除**：后续应重新编写对齐 `COLLECTIVE` 枚举的回归测试，防止 Sentry XIYU-Y 回归
+2. **V1153 创建 tender_import_task 表**：spec 031 标讯批量导入异步化功能，需验证 Nginx `proxy_read_timeout 180s` 配置已应用（见 `docs/release/nginx-tender-import-timeout.md`）
+3. **上传限制提升至 3GB**（PR !1831）：需确认 nginx `client_max_body_size` 已同步调整
 
 ## 部署确认清单
 
@@ -245,7 +245,7 @@ WHERE version IN (1147,1149,1150,1151,1152,1153) ORDER BY version;
 - [x] 迁移应用验证（V1147-V1153 全部 success=1）
 - [x] Smoke 测试全绿（health/readiness/login/projects/CRM/前端）
 - [x] 配置清理检查（SHOW_DETAILS=always 保留，运维需要）
-- [ ] GitHub 镜像同步（待手动 force push）
+- [x] GitHub 镜像同步（手动 force-with-lease，两边 main = `51874a044`）
 - [x] 部署报告生成（本文件）
 
 ## 回滚演练
