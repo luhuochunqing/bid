@@ -2,6 +2,7 @@ package com.xiyu.bid.file.application;
 
 import com.obs.services.ObsClient;
 import com.obs.services.model.TemporarySignatureRequest;
+import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.file.entity.BidFile;
 import com.xiyu.bid.file.domain.BidFileRepository;
 import com.xiyu.bid.file.domain.BidFileStatus;
@@ -33,7 +34,7 @@ public class GetDownloadUrlUseCase {
         }
 
         if (bidFile.getStatus() != BidFileStatus.COMPLETED) {
-            throw new IllegalStateException("文件尚未处理完成，当前状态: " + bidFile.getStatus());
+            throw new BusinessException(409, "文件尚未处理完成，当前状态: " + bidFile.getStatus());
         }
 
         int effectiveExpireSeconds = Math.min(expireSeconds, 3600);

@@ -1,5 +1,6 @@
 package com.xiyu.bid.file.application;
 
+import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.file.entity.BidFile;
 import com.xiyu.bid.file.domain.BidFileRepository;
 import com.xiyu.bid.file.domain.BidFileStatus;
@@ -23,7 +24,7 @@ public class CompleteUploadUseCase {
     private final ObsMetadataService obsMetadataService;
     private final ApplicationEventPublisher eventPublisher;
 
-    @Transactional
+    @Transactional(noRollbackFor = BusinessException.class)
     public void execute(String uploadId, UploadCompletedRequest request, Long operatorId) {
         BidFile bidFile = bidFileRepository.findByUploadId(uploadId)
                 .orElseThrow(() -> new IllegalArgumentException("上传记录不存在"));
@@ -33,27 +34,27 @@ public class CompleteUploadUseCase {
         }
 
         if (bidFile.getStatus() != BidFileStatus.UPLOADING) {
-            throw new IllegalStateException("上传记录状态不正确，当前状态: " + bidFile.getStatus());
+            throw new BusinessException(409, "上传记录状态不正确，当前状态: " + bidFile.getStatus());
         }
 
         Long actualSize = obsMetadataService.getContentLength(request.getBucket(), request.getObjectKey());
         if (actualSize == null) {
             bidFile.fail("OBS 对象不存在");
             bidFileRepository.save(bidFile);
-            throw new IllegalStateException("OBS 对象不存在或无法访问");
+            throw new BusinessException(409, "OBS 对象不存在或无法访问");
         }
 
         if (!Objects.equals(actualSize, bidFile.getFileSize())) {
             bidFile.fail("文件大小不匹配，期望: " + bidFile.getFileSize() + ", 实际: " + actualSize);
             bidFileRepository.save(bidFile);
-            throw new IllegalStateException("文件大小校验失败");
+            throw new BusinessException(409, "文件大小校验失败");
         }
 
         String etag = obsMetadataService.getEtag(request.getBucket(), request.getObjectKey());
         if (bidFile.getFileHash() != null && etag != null && !etag.equalsIgnoreCase(bidFile.getFileHash())) {
             bidFile.fail("文件 ETag/MD5 校验失败");
             bidFileRepository.save(bidFile);
-            throw new IllegalStateException("文件 MD5 校验失败");
+            throw new BusinessException(409, "文件 MD5 校验失败");
         }
 
         // Phase 3：直接转到 COMPLETED，跳过 VIRUS_SCANNING/OCR_PROCESSING 占位后处理。
