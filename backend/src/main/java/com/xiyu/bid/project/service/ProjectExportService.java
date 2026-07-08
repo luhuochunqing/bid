@@ -5,12 +5,14 @@ package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.entity.User;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.project.entity.ProjectLeadAssignment;
 import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.common.util.ExcelAutoSizeHelper;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +35,7 @@ public class ProjectExportService {
     private final ProjectLeadAssignmentRepository projectLeadAssignmentRepository;
     private final TenderRepository tenderRepository;
     private final ProjectAccessScopeService projectAccessScopeService;
+    private final UserRepository userRepository;
 
     private static final int MAX_EXPORT_ROWS = 5000;
 
@@ -68,6 +71,7 @@ public class ProjectExportService {
                         .stream()
                         .filter(a -> a.getProjectId() != null)
                         .collect(Collectors.toMap(ProjectLeadAssignment::getProjectId, a -> a, (a, b) -> a));
+        Map<Long, String> assistantNameMap = buildAssistantNameMap(leadAssignmentMap);
         List<Long> tenderIds = all.stream()
                 .map(Project::getTenderId)
                 .filter(tid -> tid != null)
@@ -80,7 +84,7 @@ public class ProjectExportService {
                                 (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
         var wb = new XSSFWorkbook();
         var sheet = wb.createSheet("投标项目列表");
-        String[] cols = {"项目名称", "业主单位", "入围家数", "创建时间", "开标时间", "投标月份", "项目类型", "客户类型", "客户等级", "投标状态", "项目负责人", "负责人部门", "投标负责人", "中标状态", "投标平台"};
+        String[] cols = {"项目名称", "业主单位", "入围家数", "创建时间", "开标时间", "投标月份", "项目类型", "客户类型", "客户等级", "投标状态", "项目负责人", "负责人部门", "投标负责人", "辅助人员", "中标状态", "投标平台"};
         var header = sheet.createRow(0);
         for (int i = 0; i < cols.length; i++) header.createCell(i).setCellValue(cols[i]);
         var df = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -117,12 +121,13 @@ public class ProjectExportService {
             row.createCell(6).setCellValue(det != null ? coalesce(det.getProjectType()) : "");
             row.createCell(7).setCellValue(det != null ? coalesce(det.getCustomerType()) : "");
             row.createCell(8).setCellValue(det != null ? coalesce(det.getCustomerGrade()) : "");
-            row.createCell(9).setCellValue(coalesce(det != null ? det.getBidStatus() : null));
+            row.createCell(9).setCellValue(coalesce(det != null ? localizeBidStatus(det.getBidStatus()) : ""));
             row.createCell(10).setCellValue(det != null ? coalesce(det.getProjectLeaderName()) : "");
             row.createCell(11).setCellValue(det != null ? coalesce(det.getLeaderDepartment()) : "");
             row.createCell(12).setCellValue(det != null ? coalesce(det.getBiddingLeaderName()) : "");
-            row.createCell(13).setCellValue(det != null ? coalesce(det.getBidResultStatus()) : "");
-            row.createCell(14).setCellValue(det != null ? coalesce(det.getBiddingPlatform()) : "");
+            row.createCell(13).setCellValue(leadAssignment != null && leadAssignment.getSecondaryLeadUserId() != null ? coalesce(assistantNameMap.get(leadAssignment.getSecondaryLeadUserId())) : "");
+            row.createCell(14).setCellValue(det != null ? coalesce(det.getBidResultStatus()) : "");
+            row.createCell(15).setCellValue(det != null ? coalesce(det.getBiddingPlatform()) : "");
         }
         ExcelAutoSizeHelper.autoSizeColumns(wb.getSheetAt(0), cols.length);
         try (var out = new ByteArrayOutputStream()) {
@@ -136,6 +141,31 @@ public class ProjectExportService {
     }
 
     public record ExportResult(java.io.InputStream data, String filename) {}
+
+    private Map<Long, String> buildAssistantNameMap(Map<Long, ProjectLeadAssignment> leadAssignmentMap) {
+        List<Long> assistantIds = leadAssignmentMap.values().stream()
+                .map(ProjectLeadAssignment::getSecondaryLeadUserId)
+                .filter(id -> id != null)
+                .distinct()
+                .collect(Collectors.toList());
+        if (assistantIds.isEmpty()) {
+            return java.util.Collections.emptyMap();
+        }
+        return userRepository.findByIdIn(assistantIds).stream()
+                .filter(u -> u.getId() != null)
+                .collect(Collectors.toMap(User::getId, u -> coalesce(u.getFullName()), (a, b) -> a));
+    }
+
+    private static String localizeBidStatus(String bidStatus) {
+        if (bidStatus == null) {
+            return "";
+        }
+        try {
+            return Project.Status.valueOf(bidStatus).displayName();
+        } catch (IllegalArgumentException e) {
+            return bidStatus;
+        }
+    }
 
     private static String coalesce(String v) { return v != null ? v : ""; }
     private static boolean containsIgnoreCase(String source, String needle) { return source != null && needle != null && source.toLowerCase().contains(needle.toLowerCase()); }
