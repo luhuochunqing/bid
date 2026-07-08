@@ -122,7 +122,7 @@
             </div>
           </el-form-item>
 
-          <el-form-item label="完成情况说明" :required="isAssigneeSubmitting">
+          <el-form-item label="完成情况说明">
             <el-input
               v-model="localValue.completionNotes"
               type="textarea"

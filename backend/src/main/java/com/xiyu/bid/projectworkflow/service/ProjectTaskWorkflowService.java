@@ -136,14 +136,13 @@ class ProjectTaskWorkflowService {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, transitionResult.reason());
         }
 
-        // CO-458: TODO -> REVIEW (提交审核) 时校验交付物和完成情况
+        // CO-458: TODO -> REVIEW (提交审核) 时校验交付物
         if (task.getStatus() == Task.Status.TODO && targetStatus == Task.Status.REVIEW) {
             long deliverableCount = taskDeliverableRepository.countByTaskId(taskId);
             TaskTransitionPolicy.TransitionResult result = TaskTransitionPolicy.validateSubmission(
                     currentPolicyStatus,
                     targetPolicyStatus,
-                    (int) deliverableCount,
-                    request.getCompletionNotes());
+                    (int) deliverableCount);
             if (!result.allowed()) {
                 throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, result.reason());
             }
