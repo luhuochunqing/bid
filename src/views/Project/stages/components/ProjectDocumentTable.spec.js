@@ -100,7 +100,8 @@ describe('ProjectDocumentTable — serial number before file name and pagination
     getDocumentsMock.mockResolvedValue({ success: true, data: generateDocs(6) })
     deleteDocumentMock.mockResolvedValue({ success: true })
 
-    const wrapper = mountTable()
+    // CO-558: 删除按钮默认不可见（canDelete=false），本用例聚焦分页回退，显式开启删除权限
+    const wrapper = mountTable({ canDelete: true })
     await flushPromises()
 
     const pagination = wrapper.findComponent({ name: 'ElPagination' })
@@ -122,5 +123,69 @@ describe('ProjectDocumentTable — serial number before file name and pagination
     // 删除后当前页（第 2 页）变空，应自动回到第 1 页，并显示 5 行
     expect(wrapper.findAll('.el-table__row').length).toBe(5)
     expect(wrapper.text()).toContain('1. doc-1.pdf')
+  })
+})
+
+// CO-558: 下载/删除按钮按角色矩阵通过 canDownload/canDelete props 控制
+describe('ProjectDocumentTable — CO-558 download/delete permission props', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getDocumentsMock.mockReset()
+    uploadDocumentMock.mockReset()
+    deleteDocumentMock.mockReset()
+    getDocumentsMock.mockResolvedValue({ success: true, data: generateDocs(1) })
+  })
+
+  it('hides the delete button by default (canDelete=false)', async () => {
+    const wrapper = mountTable()
+    await flushPromises()
+
+    const opColumn = wrapper.findAll('.el-table__row').at(0)
+    expect(opColumn?.text()).not.toContain('删除')
+  })
+
+  it('shows the delete button when canDelete=true', async () => {
+    const wrapper = mountTable({ canDelete: true })
+    await flushPromises()
+
+    const opColumn = wrapper.findAll('.el-table__row').at(0)
+    expect(opColumn?.text()).toContain('删除')
+  })
+
+  it('hides the download button when canDownload=false', async () => {
+    const wrapper = mountTable({ canDownload: false })
+    await flushPromises()
+
+    const opColumn = wrapper.findAll('.el-table__row').at(0)
+    expect(opColumn?.text()).not.toContain('下载')
+  })
+
+  it('shows the download button when canDownload=true (default)', async () => {
+    const wrapper = mountTable()
+    await flushPromises()
+
+    const opColumn = wrapper.findAll('.el-table__row').at(0)
+    expect(opColumn?.text()).toContain('下载')
+  })
+
+  it('hides export but keeps upload when canDownload=false (矩阵：全员可上传)', async () => {
+    const wrapper = mountTable({ canDownload: false })
+    await flushPromises()
+
+    // CO-558 + 矩阵 §2.3.3：导出与下载同权（隐藏），上传全员可见（保留）
+    const actions = wrapper.find('.doc-actions')
+    expect(actions.exists()).toBe(true)
+    expect(actions.text()).not.toContain('导出')
+    expect(actions.text()).toContain('上传')
+  })
+
+  it('shows both export and upload when canDownload=true', async () => {
+    const wrapper = mountTable({ canDownload: true })
+    await flushPromises()
+
+    const actions = wrapper.find('.doc-actions')
+    expect(actions.exists()).toBe(true)
+    expect(actions.text()).toContain('导出')
+    expect(actions.text()).toContain('上传')
   })
 })

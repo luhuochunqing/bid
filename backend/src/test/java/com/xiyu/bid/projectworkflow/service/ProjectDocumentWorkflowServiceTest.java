@@ -2,8 +2,10 @@ package com.xiyu.bid.projectworkflow.service;
 
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.exception.BusinessException;
+import com.xiyu.bid.project.entity.BidDocumentReviewEntity;
 import com.xiyu.bid.project.notification.DocumentChangeNotificationService;
 import com.xiyu.bid.project.core.ProjectStage;
+import com.xiyu.bid.project.repository.BidDocumentReviewRepository;
 import com.xiyu.bid.project.service.ProjectStageService;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentCreateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
@@ -45,6 +47,7 @@ class ProjectDocumentWorkflowServiceTest {
     private CurrentUserResolver currentUserResolver;
     private ProjectStageService projectStageService;
     private DocumentChangeNotificationService documentChangeNotificationService;
+    private BidDocumentReviewRepository bidDocumentReviewRepository;
 
     @BeforeEach
     void setUp() {
@@ -59,6 +62,7 @@ class ProjectDocumentWorkflowServiceTest {
         currentUserResolver = mock(CurrentUserResolver.class);
         projectStageService = mock(ProjectStageService.class);
         documentChangeNotificationService = mock(DocumentChangeNotificationService.class);
+        bidDocumentReviewRepository = mock(BidDocumentReviewRepository.class);
 
         ProjectWorkflowGuardService guardService = new ProjectWorkflowGuardService(
                 projectRepository,
@@ -76,7 +80,8 @@ class ProjectDocumentWorkflowServiceTest {
                 viewAssembler,
                 bindingGateway,
                 currentUserResolver,
-                documentChangeNotificationService
+                documentChangeNotificationService,
+                bidDocumentReviewRepository
         );
         downloadService = new ProjectDocumentDownloadService(guardService, fileStorage, projectStageService);
 
@@ -90,6 +95,10 @@ class ProjectDocumentWorkflowServiceTest {
                         .build());
         org.mockito.Mockito.lenient().when(currentUserResolver.resolveEffectiveRoleCode(any(com.xiyu.bid.entity.User.class)))
                 .thenAnswer(inv -> inv.<com.xiyu.bid.entity.User>getArgument(0).getRoleCode());
+        // CO-558: 默认无审核记录（未提交审核），不拦截删除——维持现有删除用例语义。
+        // 需要审核状态守卫的用例在自身方法内覆写此 stub。
+        org.mockito.Mockito.lenient().when(bidDocumentReviewRepository.findByProjectId(any(Long.class)))
+                .thenReturn(Optional.empty());
     }
 
     @Test
@@ -730,6 +739,121 @@ class ProjectDocumentWorkflowServiceTest {
                 eq(1001L), eq(3403L), eq("测试文档.pdf"),
                 eq("未分配"), eq("上传"), eq(null)
         );
+    }
+
+    // ============ CO-558: 投标文件审核中/已通过不可删除（BID 类文档审核状态守卫） ============
+    // 需求：投标负责人提交标书审核后，审核中（REVIEWING）/已通过（APPROVED）时投标文件不可删除。
+    // 仅对 documentCategory=BID 生效；REJECTED 或无审核记录不拦截（允许驳回后修改重传）。
+    // Service 层守卫是真闸门，防绕过前端直接调 API。
+
+    private BidDocumentReviewEntity reviewWithStatus(Long projectId, String status) {
+        return BidDocumentReviewEntity.builder()
+                .projectId(projectId)
+                .reviewerId(999L)
+                .submittedBy(1L)
+                .status(status)
+                .build();
+    }
+
+    @Test
+    void deleteProjectDocument_bidDocUnderReview_shouldThrowBusinessException() {
+        // BID 文档 + 审核中（REVIEWING）→ 409 拒绝删除
+        when(bidDocumentReviewRepository.findByProjectId(1001L))
+                .thenReturn(Optional.of(reviewWithStatus(1001L, "REVIEWING")));
+
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(9301L)
+                .projectId(1001L)
+                .name("投标文件.pdf")
+                .documentCategory("BID")
+                .build();
+        when(projectDocumentRepository.findById(9301L)).thenReturn(Optional.of(doc));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.deleteProjectDocument(1001L, 9301L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("审核中")
+                .hasMessageContaining("不可删除");
+
+        verify(projectDocumentRepository, org.mockito.Mockito.never()).delete(any());
+    }
+
+    @Test
+    void deleteProjectDocument_bidDocApproved_shouldThrowBusinessException() {
+        // BID 文档 + 已通过（APPROVED）→ 409 拒绝删除
+        when(bidDocumentReviewRepository.findByProjectId(1001L))
+                .thenReturn(Optional.of(reviewWithStatus(1001L, "APPROVED")));
+
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(9302L)
+                .projectId(1001L)
+                .name("投标文件.pdf")
+                .documentCategory("BID")
+                .build();
+        when(projectDocumentRepository.findById(9302L)).thenReturn(Optional.of(doc));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.deleteProjectDocument(1001L, 9302L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("已通过审核")
+                .hasMessageContaining("不可删除");
+
+        verify(projectDocumentRepository, org.mockito.Mockito.never()).delete(any());
+    }
+
+    @Test
+    void deleteProjectDocument_bidDocRejected_shouldSucceed() {
+        // BID 文档 + 被驳回（REJECTED）→ 允许删除（可修改后重传）
+        when(bidDocumentReviewRepository.findByProjectId(1001L))
+                .thenReturn(Optional.of(reviewWithStatus(1001L, "REJECTED")));
+
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(9303L)
+                .projectId(1001L)
+                .name("投标文件.pdf")
+                .documentCategory("BID")
+                .build();
+        when(projectDocumentRepository.findById(9303L)).thenReturn(Optional.of(doc));
+
+        service.deleteProjectDocument(1001L, 9303L);
+
+        verify(projectDocumentRepository).delete(doc);
+    }
+
+    @Test
+    void deleteProjectDocument_bidDocNoReviewRecord_shouldSucceed() {
+        // BID 文档 + 无审核记录（未提交审核）→ 允许删除
+        // setUp 默认 stub 已返回 Optional.empty()，此处显式再写一次以表达用例意图
+        when(bidDocumentReviewRepository.findByProjectId(1001L)).thenReturn(Optional.empty());
+
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(9304L)
+                .projectId(1001L)
+                .name("投标文件.pdf")
+                .documentCategory("BID")
+                .build();
+        when(projectDocumentRepository.findById(9304L)).thenReturn(Optional.of(doc));
+
+        service.deleteProjectDocument(1001L, 9304L);
+
+        verify(projectDocumentRepository).delete(doc);
+    }
+
+    @Test
+    void deleteProjectDocument_nonBidDocUnderReview_shouldSucceed() {
+        // 非 BID 文档（TENDER）即使审核中也不受守卫影响 → 允许删除（验证作用域仅限 BID）
+        when(bidDocumentReviewRepository.findByProjectId(1001L))
+                .thenReturn(Optional.of(reviewWithStatus(1001L, "REVIEWING")));
+
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(9305L)
+                .projectId(1001L)
+                .name("招标文件.pdf")
+                .documentCategory("TENDER")
+                .build();
+        when(projectDocumentRepository.findById(9305L)).thenReturn(Optional.of(doc));
+
+        service.deleteProjectDocument(1001L, 9305L);
+
+        verify(projectDocumentRepository).delete(doc);
     }
 
 }
