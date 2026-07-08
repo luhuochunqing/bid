@@ -132,6 +132,10 @@ const grouped = computed(() => {
   return g
 })
 
+function hasDeliverable(task) {
+  return Array.isArray(task?.deliverables) && task.deliverables.length > 0
+}
+
 const canReviewTasks = computed(() => {
   const roleCode = userStore?.currentUser?.roleCode || userStore?.currentUser?.role || ''
   if (GLOBAL_MANAGE_ROLES.some(r => r.toLowerCase() === roleCode.toLowerCase())) {
