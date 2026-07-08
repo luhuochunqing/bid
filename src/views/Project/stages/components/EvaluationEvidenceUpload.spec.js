@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import ElementPlus from 'element-plus'
 
-// CO-408: 评标文件再次进入页面时根据 existingDocIds 回填 fileList
+// CO-408: 开标一览表再次进入页面时根据 existingDocIds 回填 fileList
 // 注意：必须用真实 el-upload（plugins:[ElementPlus]），不能用 stub——
 // v-model:file-list 在自定义 stub 下 prop 传递异常（原 trae spec 6/6 失败的根因）。
 const mockCurrentUser = { id: 42, role: '/bidAdmin' }
@@ -36,14 +36,14 @@ vi.mock('element-plus', async (importOriginal) => {
   return { ...actual, ElMessage: { info: vi.fn(), warning: vi.fn(), error: vi.fn(), success: vi.fn() } }
 })
 
-describe('EvaluationEvidenceUpload CO-408 回填评标文件名', () => {
+describe('EvaluationEvidenceUpload CO-408 回填开标一览表名', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     getDocumentsMock.mockReset()
   })
 
   it('existingDocIds 非空时根据 ids 拉取项目文档并回填 fileList', async () => {
-    // 项目下有 3 个文档，existingDocIds 指定 2 个为评标文件
+    // 项目下有 3 个文档，existingDocIds 指定 2 个为开标一览表
     getDocumentsMock.mockImplementation(() => Promise.resolve({
       data: [
         { id: 3001, name: '开标一览表_v1.pdf' },

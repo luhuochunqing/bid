@@ -269,36 +269,13 @@ class ProjectEvaluationServiceTest {
         verify(stageService, never()).requestTransition(any(), any(), any());
     }
 
-    // CO-461: 评标文件必填校验闸门
+    // CO-550: 开标一览表已取消必填，推进不再校验附件
     @Test
-    void advanceToResultPending_withoutEvidence_throws422() {
-        // 模拟评标记录存在但没有评标文件
+    void advanceToResultPending_happy() {
+        // 模拟评标记录存在
         ProjectEvaluation existing = ProjectEvaluation.builder()
                 .id(10L).projectId(1L).subStage("ANNOUNCED").build();
         when(repo.findByProjectId(1L)).thenReturn(Optional.of(existing));
-        // 模拟没有评标文件
-        when(docRepo.findByProjectIdAndFiltersOrderByCreatedAtDesc(
-                1L, null, "EVALUATION", 10L))
-                .thenReturn(List.of());
-
-        var ex = assertThrows(ResponseStatusException.class,
-                () -> service.advanceToResultPending(1L));
-        assertEquals(422, ex.getStatusCode().value());
-        // 不应推进阶段
-        verify(stageService, never()).requestTransition(any(), any(), any());
-    }
-
-    @Test
-    void advanceToResultPending_withEvidence_happy() {
-        // 模拟评标记录存在且有评标文件
-        ProjectEvaluation existing = ProjectEvaluation.builder()
-                .id(10L).projectId(1L).subStage("ANNOUNCED").build();
-        when(repo.findByProjectId(1L)).thenReturn(Optional.of(existing));
-        // 模拟有评标文件
-        ProjectDocument doc = ProjectDocument.builder().id(50L).projectId(1L).build();
-        when(docRepo.findByProjectIdAndFiltersOrderByCreatedAtDesc(
-                1L, null, "EVALUATION", 10L))
-                .thenReturn(List.of(doc));
 
         service.advanceToResultPending(1L);
         // 应推进阶段
