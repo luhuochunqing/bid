@@ -41,12 +41,7 @@
         :selected-count="selection.selectedTenders.value.length"
         :select-all-checked="selection.selectAllChecked.value"
         :is-indeterminate="selection.isIndeterminate.value"
-        :can-manage-tenders="canManageTenders"
         @select-all="selection.handleSelectAll"
-        @distribute="distribution.openDistributeDialog"
-        @claim="batchActions.handleBatchClaim"
-        @follow="batchActions.handleBatchFollow"
-        @clear="selection.handleClearSelection"
       />
       <TenderTable
         v-if="!isMobile"
