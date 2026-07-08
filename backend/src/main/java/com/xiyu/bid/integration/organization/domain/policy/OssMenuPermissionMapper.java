@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -49,7 +48,7 @@ public class OssMenuPermissionMapper {
             if (node == null) {
                 continue;
             }
-            mapNode(node).ifPresent(permissions::add);
+            permissions.addAll(mapNode(node));
             if (node.children() != null && !node.children().isEmpty()) {
                 stack.addAll(node.children());
             }
@@ -78,7 +77,7 @@ public class OssMenuPermissionMapper {
             }
             String mapped = codeMappings.get(normalized);
             if (mapped != null && !mapped.isBlank()) {
-                permissions.add(mapped.trim());
+                permissions.addAll(splitMappedValue(mapped));
             } else if (unmappedBehavior == UnmappedBehavior.USE_NORMALIZED_CODE) {
                 permissions.add(normalized);
             }
@@ -86,19 +85,39 @@ public class OssMenuPermissionMapper {
         return Set.copyOf(permissions);
     }
 
-    private Optional<String> mapNode(OssMenuTreeNode node) {
+    /**
+     * 将映射值按逗号分隔成多个权限码（支持 1:N 映射）。
+     * <p>
+     * 例如 "knowledge-qualification,qualification.manage,qualification.view"
+     * 会被拆分为 3 个独立权限码。
+     */
+    private Set<String> splitMappedValue(String mapped) {
+        Set<String> result = new HashSet<>();
+        if (mapped == null || mapped.isBlank()) {
+            return result;
+        }
+        for (String part : mapped.split(",")) {
+            String trimmed = part.trim();
+            if (!trimmed.isBlank()) {
+                result.add(trimmed);
+            }
+        }
+        return result;
+    }
+
+    private Set<String> mapNode(OssMenuTreeNode node) {
         String normalized = node.normalizedMenuCode();
         if (normalized.isBlank()) {
-            return Optional.empty();
+            return Set.of();
         }
         String mapped = codeMappings.get(normalized);
         if (mapped != null && !mapped.isBlank()) {
-            return Optional.of(mapped.trim());
+            return splitMappedValue(mapped);
         }
         if (unmappedBehavior == UnmappedBehavior.USE_NORMALIZED_CODE) {
-            return Optional.of(normalized);
+            return Set.of(normalized);
         }
-        return Optional.empty();
+        return Set.of();
     }
 
     private static Map<String, String> normalizeKeys(Map<String, String> mappings) {

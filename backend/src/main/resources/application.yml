@@ -314,6 +314,12 @@ xiyu:
         # OSS 菜单权限自动同步：组织架构同步时自动聚合用户菜单权限到角色
         auto-sync-menu-permissions: ${XIYU_ORG_AUTO_SYNC_MENU_PERMISSIONS:false}
         # OSS 菜单编码 -> 内部权限码映射（大小写不敏感）
+        # 值支持逗号分隔多权限键（1:N 映射），例如：
+        #   "100402": "knowledge-qualification,qualification.manage,qualification.view"
+        # OSS 用户登录后，OSS 返回的菜单码经此映射表转为内部权限键（菜单 key + 操作权限键），
+        # 确保后端 @PreAuthorize(hasAuthority('xxx.manage')) 能正确放行。
+        # 菜单 key（如 knowledge-qualification）供前端路由用，
+        # 操作权限键（如 qualification.manage）供后端 @PreAuthorize 用。
         menu-code-to-permission-key-mappings:
           "1001": "dashboard"
           "1002": "bidding"
@@ -325,13 +331,13 @@ xiyu:
           "100302": "project-list"
           "1004": "knowledge"
           "100401": "knowledge-archive"
-          "100402": "knowledge-qualification"
-          "100403": "knowledge-personnel"
-          "100404": "knowledge-performance"
-          "100405": "knowledge-brand-auth"
+          "100402": "knowledge-qualification,qualification.manage,qualification.view"
+          "100403": "knowledge-personnel,personnel.manage,personnel.view"
+          "100404": "knowledge-performance,performance.manage"
+          "100405": "knowledge-brand-auth,brand-auth.view,brand-auth.create,brand-auth.edit,brand-auth.revoke"
           "100406": "knowledge-case"
           "100407": "knowledge-template"
-          "100408": "knowledge-warehouse"
+          "100408": "knowledge-warehouse,warehouse.manage"
           "1005": "resource"
           "100501": "resource-margin"
           "100502": "resource-expense"
@@ -344,12 +350,12 @@ xiyu:
           "1007": "analytics-dashboard"
           "1008": "operation-logs"
           "1009": "audit-logs"
-          "1010": "settings"
-          "101001": "settings"
-          "101002": "settings"
-          "101003": "settings-workflow-forms"
-          "101004": "settings"
-          "101005": "settings"
+          "1010": "settings,system.admin"
+          "101001": "settings,system.admin"
+          "101002": "settings,system.admin"
+          "101003": "settings-workflow-forms,system.admin"
+          "101004": "settings,system.admin"
+          "101005": "settings,system.admin"
           "1011": "task-board"
         # 未映射菜单编码处理：IGNORE 或 USE_NORMALIZED_CODE
         unmapped-menu-code-behavior: ${XIYU_ORG_UNMAPPED_MENU_BEHAVIOR:IGNORE}

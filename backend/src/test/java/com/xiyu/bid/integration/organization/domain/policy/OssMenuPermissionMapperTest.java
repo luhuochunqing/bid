@@ -103,6 +103,48 @@ class OssMenuPermissionMapperTest {
         assertThat(result).containsExactlyInAnyOrder("bidding", "bidding-list");
     }
 
+    @Test
+    @DisplayName("多值映射：一个 OSS 菜单码映射到多个内部权限键（逗号分隔）")
+    void map_multiValueMapping_returnsAllPermissions() {
+        OssMenuPermissionMapper mapper = new OssMenuPermissionMapper(
+                Map.of("100402", "knowledge-qualification,qualification.manage,qualification.view"),
+                "IGNORE"
+        );
+        List<OssMenuTreeNode> tree = List.of(node("100402", List.of()));
+
+        Set<String> result = mapper.map(tree);
+
+        assertThat(result).containsExactlyInAnyOrder(
+                "knowledge-qualification", "qualification.manage", "qualification.view");
+    }
+
+    @Test
+    @DisplayName("多值映射：mapCodes 也支持逗号分隔多值")
+    void mapCodes_multiValueMapping_returnsAllPermissions() {
+        OssMenuPermissionMapper mapper = new OssMenuPermissionMapper(
+                Map.of("100408", "knowledge-warehouse,warehouse.manage"),
+                "IGNORE"
+        );
+
+        Set<String> result = mapper.mapCodes(List.of("100408"));
+
+        assertThat(result).containsExactlyInAnyOrder("knowledge-warehouse", "warehouse.manage");
+    }
+
+    @Test
+    @DisplayName("多值映射：空值和空白值被过滤")
+    void map_multiValueMappingWithBlankParts_filtersBlanks() {
+        OssMenuPermissionMapper mapper = new OssMenuPermissionMapper(
+                Map.of("100402", "knowledge-qualification,, ,qualification.manage"),
+                "IGNORE"
+        );
+        List<OssMenuTreeNode> tree = List.of(node("100402", List.of()));
+
+        Set<String> result = mapper.map(tree);
+
+        assertThat(result).containsExactlyInAnyOrder("knowledge-qualification", "qualification.manage");
+    }
+
     private OssMenuTreeNode node(String menuCode, List<OssMenuTreeNode> children) {
         return new OssMenuTreeNode(
                 null, menuCode, null, null, null, null,
