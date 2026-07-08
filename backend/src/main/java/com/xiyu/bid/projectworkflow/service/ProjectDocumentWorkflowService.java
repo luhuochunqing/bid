@@ -2,6 +2,8 @@ package com.xiyu.bid.projectworkflow.service;
 
 import com.xiyu.bid.common.domain.AuthorizationDecision;
 import com.xiyu.bid.exception.BusinessException;
+import com.xiyu.bid.project.repository.BidDocumentReviewRepository;
+import com.xiyu.bid.project.core.BidReviewStatus;
 import com.xiyu.bid.projectworkflow.core.DocumentCategoryNormalizer;
 import com.xiyu.bid.projectworkflow.core.ProjectDocumentWorkflowPolicy;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentCreateRequest;
@@ -27,6 +29,8 @@ class ProjectDocumentWorkflowService {
     private final ProjectDocumentBindingGateway projectDocumentBindingGateway;
     private final CurrentUserResolver currentUserResolver;
     private final DocumentChangeNotificationService documentChangeNotificationService;
+    // CO-558: 读取标书审核状态，用于 BID 类文档删除前的"审核中/已通过不可删除"守卫
+    private final BidDocumentReviewRepository bidDocumentReviewRepository;
 
     List<ProjectDocumentDTO> getProjectDocuments(Long projectId) {
         return getProjectDocuments(projectId, null, null, null);
@@ -112,6 +116,12 @@ class ProjectDocumentWorkflowService {
             throw new org.springframework.security.access.AccessDeniedException(decision.reason());
         }
 
+        // CO-558: 投标文件审核中/已通过后不可删除（真权限闸门，防绕过前端直接调 API）。
+        // 仅对 documentCategory=BID 生效；TENDER/TASK_ATTACHMENT 等其他文档不受影响。
+        // REJECTED/无审核记录不拦截（允许驳回后修改重传）。放在角色检查之后，
+        // 让 sales/非上传者先被 403 精准挡住，不会先撞审核状态守卫。
+        assertBidDocumentNotUnderReview(projectId, document);
+
         // 蓝图 §消息中心-系统通知 序号 5：文档删除通知项目团队成员（排除删除者自己）
         // 放在 repository.delete 之前——delete 前实体信息（name/id）完整可用
         documentChangeNotificationService.notifyDocumentChanged(
@@ -132,6 +142,30 @@ class ProjectDocumentWorkflowService {
         AuthorizationDecision decision = ProjectDocumentWorkflowPolicy.canUploadProjectDocument(roleCode);
         if (!decision.allowed()) {
             throw new org.springframework.security.access.AccessDeniedException(decision.reason());
+        }
+    }
+
+    /**
+     * CO-558: 若被删文档是投标文件（documentCategory 归一化为 BID）且该项目标书审核处于
+     * REVIEWING/APPROVED 状态，则拒绝删除。REJECTED 或无审核记录时不拦截。
+     * <p>状态值与 {@link com.xiyu.bid.project.core.BidReviewStatus} 对齐（REVIEWING/APPROVED/REJECTED）。</p>
+     */
+    private void assertBidDocumentNotUnderReview(Long projectId, ProjectDocument document) {
+        String category = DocumentCategoryNormalizer.normalize(document.getDocumentCategory());
+        if (!"BID".equals(category)) {
+            return;
+        }
+        var review = bidDocumentReviewRepository.findByProjectId(projectId).orElse(null);
+        if (review == null) {
+            return;
+        }
+        String status = review.getStatus();
+        // 复用 BidReviewStatus 枚举常量（单一真相源），避免硬编码字符串；Entity 字段为 String 故用 name() 比较
+        boolean underReview = BidReviewStatus.REVIEWING.name().equalsIgnoreCase(status)
+                || BidReviewStatus.APPROVED.name().equalsIgnoreCase(status);
+        if (underReview) {
+            String label = BidReviewStatus.REVIEWING.name().equalsIgnoreCase(status) ? "审核中" : "已通过审核";
+            throw new BusinessException(409, "投标文件" + label + "，不可删除");
         }
     }
 

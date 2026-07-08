@@ -1,5 +1,11 @@
 <template>
-  <ProjectDocumentTable :project-id="projectId" @export="exportDocumentsAsZip" />
+  <!-- CO-558: 项目文档下载/删除按钮按角色矩阵控制 -->
+  <ProjectDocumentTable
+    :project-id="projectId"
+    :can-download="perm.canDownloadDocument"
+    :can-delete="perm.isAdminLead"
+    @export="exportDocumentsAsZip"
+  />
 
   <el-card class="stage-view" shadow="never">
     <template #header>
@@ -265,7 +271,8 @@ const canDownloadBidFile = computed(() => perm.canDownloadDocument && props.curr
 // CO-382: 删除按钮守卫——仅"上传后、提交前"允许删除。
 // 允许删除：reviewState === null（未提交审核）或 'rejected'（被驳回，可修改后重提）。
 // 禁止删除：'reviewing'（审核中）/ 'approved'（已通过，bidDone 会接管）/ bidDone（已投标）。
-// 前端守卫是体验层，后端 ProjectDocumentWorkflowPolicy.canDeleteProjectDocument 是真权限闸门。
+// 前端守卫是体验层；后端 ProjectDocumentWorkflowService.deleteProjectDocument（CO-558 起对 BID 类文档
+// 增加 REVIEWING/APPROVED 状态拦截）+ ProjectDocumentWorkflowPolicy.canDeleteProjectDocument 是真权限闸门。
 const canDeleteBidFile = computed(() => reviewState.value === null || reviewState.value === 'rejected')
 // CO-383: 删除按钮权限——admin_lead 直通 + 上传者本人可删（不管角色，对齐后端 Policy）。
 // perm 是组件级 reactive，无法表达 file 级 uploaderId，所以用纯函数 canDeleteDocumentAs 按 file 调用。

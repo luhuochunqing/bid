@@ -3,8 +3,9 @@
     <template #header>
       <div class="doc-header">
         <span class="doc-title">项目文档</span>
+        <!-- CO-558: 上传=全员可见（矩阵 §2.3.3「全体参与人均可上传」）；导出与下载同权（导出≈批量下载） -->
         <div v-if="!readonly" class="doc-actions">
-          <el-button size="small" @click="handleExport">导出</el-button>
+          <el-button v-if="canDownload" size="small" @click="handleExport">导出</el-button>
           <el-button size="small" @click="handleUpload">上传</el-button>
         </div>
       </div>
@@ -21,8 +22,9 @@
       </el-table-column>
       <el-table-column label="操作" width="140" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" size="small" @click="handleDownload(row)">下载</el-button>
-          <el-button v-if="!readonly" link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+          <!-- CO-558: 下载/删除按钮按项目级权限控制（canDownload/canDelete 由父组件按角色矩阵传入） -->
+          <el-button v-if="!readonly && canDownload" link type="primary" size="small" @click="handleDownload(row)">下载</el-button>
+          <el-button v-if="!readonly && canDelete" link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -48,7 +50,12 @@ import { parallelUpload } from '@/utils/parallelUpload.js'
 
 const props = defineProps({
   projectId: { type: [String, Number], required: true },
-  readonly: { type: Boolean, default: false }
+  readonly: { type: Boolean, default: false },
+  // CO-558: 下载/导出/上传权限——由父组件按角色矩阵计算后传入
+  // admin/投标管理员/投标组长 + 该项目分配的投标负责人/投标辅助人员
+  canDownload: { type: Boolean, default: true },
+  // CO-558: 删除权限——仅 admin/投标管理员/投标组长（admin_lead 组）
+  canDelete: { type: Boolean, default: false }
 })
 const emit = defineEmits(['export'])
 const documents = ref([])
