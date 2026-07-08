@@ -1,5 +1,6 @@
 package com.xiyu.bid.file.application;
 
+import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.file.domain.BidFileRepository;
 import com.xiyu.bid.file.domain.BidFileStatus;
 import com.xiyu.bid.file.dto.UploadCompletedRequest;
@@ -99,7 +100,7 @@ class CompleteUploadUseCaseTest {
     }
 
     @Test
-    void execute_wrongStatus_throwsIllegalStateException() {
+    void execute_wrongStatus_throwsBusinessException() {
         bidFile.transitionTo(BidFileStatus.COMPLETED);
 
         UploadCompletedRequest request = UploadCompletedRequest.builder()
@@ -109,7 +110,7 @@ class CompleteUploadUseCaseTest {
 
         when(bidFileRepository.findByUploadId("test-upload-123")).thenReturn(Optional.of(bidFile));
 
-        assertThrows(IllegalStateException.class, () ->
+        assertThrows(BusinessException.class, () ->
                 completeUploadUseCase.execute("test-upload-123", request, 100L));
     }
 
@@ -124,7 +125,7 @@ class CompleteUploadUseCaseTest {
         when(obsMetadataService.getContentLength("test-bucket", "bids/test.pdf"))
                 .thenReturn(2048L); // 期望 1024，实际 2048
 
-        assertThrows(IllegalStateException.class, () ->
+        assertThrows(BusinessException.class, () ->
                 completeUploadUseCase.execute("test-upload-123", request, 100L));
 
         // Then: 文件被标记为 FAILED
