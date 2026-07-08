@@ -89,6 +89,8 @@ public class ProjectDTO {
     private Long biddingLeaderId;
     /** 副投标负责人用户 ID，用于列表精确筛选 */
     private Long secondaryBiddingLeaderId;
+    /** 副投标负责人姓名（enrich 时由 secondaryLeadUserId 解析） */
+    private String secondaryBiddingLeaderName;
     /** 中标状态 */
     private String bidResultStatus;
     /** 投标平台 */
