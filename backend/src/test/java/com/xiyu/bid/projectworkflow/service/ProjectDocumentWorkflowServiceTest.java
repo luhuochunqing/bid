@@ -2,6 +2,7 @@ package com.xiyu.bid.projectworkflow.service;
 
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.exception.BusinessException;
+import com.xiyu.bid.project.notification.DocumentChangeNotificationService;
 import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.service.ProjectStageService;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentCreateRequest;
@@ -27,6 +28,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -42,6 +44,7 @@ class ProjectDocumentWorkflowServiceTest {
     private ProjectDocumentDownloadService downloadService;
     private CurrentUserResolver currentUserResolver;
     private ProjectStageService projectStageService;
+    private DocumentChangeNotificationService documentChangeNotificationService;
 
     @BeforeEach
     void setUp() {
@@ -55,6 +58,7 @@ class ProjectDocumentWorkflowServiceTest {
         fileStorage = mock(ProjectDocumentFileStorage.class);
         currentUserResolver = mock(CurrentUserResolver.class);
         projectStageService = mock(ProjectStageService.class);
+        documentChangeNotificationService = mock(DocumentChangeNotificationService.class);
 
         ProjectWorkflowGuardService guardService = new ProjectWorkflowGuardService(
                 projectRepository,
@@ -71,7 +75,8 @@ class ProjectDocumentWorkflowServiceTest {
                 userRepository,
                 viewAssembler,
                 bindingGateway,
-                currentUserResolver
+                currentUserResolver,
+                documentChangeNotificationService
         );
         downloadService = new ProjectDocumentDownloadService(guardService, fileStorage, projectStageService);
 
@@ -636,6 +641,95 @@ class ProjectDocumentWorkflowServiceTest {
 
         assertThat(file.fileName()).isEqualTo("标书审核材料.docx");
         assertThat(file.resource().getContentAsByteArray()).isEqualTo("审核内容".getBytes(StandardCharsets.UTF_8));
+    }
+
+    // ============ 蓝图 §消息中心-系统通知 序号 5：文档变更通知 ============
+    // 上传/删除项目文档时，应触发 DOCUMENT_CHANGE 通知项目团队成员（排除操作人自己）。
+    // 通知通过 ProjectNotificationService.notifyDocumentChanged 实现（不走 EntityChangedEvent 订阅扇出）。
+
+    @Test
+    void createProjectDocument_ShouldNotifyDocumentChangedWithUploadOperation() {
+        when(projectDocumentRepository.save(any(ProjectDocument.class))).thenAnswer(invocation -> {
+            ProjectDocument document = invocation.getArgument(0);
+            document.setId(3401L);
+            document.setCreatedAt(LocalDateTime.of(2026, 7, 8, 10, 0));
+            return document;
+        });
+
+        service.createProjectDocument(1001L, ProjectDocumentCreateRequest.builder()
+                .name("中标通知书.pdf")
+                .fileType("pdf")
+                .uploaderName("王工（1001）")
+                .documentCategory("BID_RESULT_NOTICE")
+                .fileUrl("https://files.example.com/notice.pdf")
+                .build());
+
+        verify(bindingGateway).onDocumentCreated(any(ProjectDocument.class));
+        verify(documentChangeNotificationService).notifyDocumentChanged(
+                eq(1001L),
+                eq(3401L),
+                eq("中标通知书.pdf"),
+                eq("王工（1001）"),
+                eq("上传"),
+                any()
+        );
+    }
+
+    @Test
+    void deleteProjectDocument_ShouldNotifyDocumentChangedWithDeleteOperationBeforeDelete() {
+        // CO-383: 上传者本人可删除自己上传的文件
+        Long uploaderId = 500L;
+        com.xiyu.bid.entity.User uploader = com.xiyu.bid.entity.User.builder()
+                .id(uploaderId)
+                .fullName("王工")
+                .roleProfile(com.xiyu.bid.entity.RoleProfile.builder().code("bid-projectLeader").build())
+                .build();
+        when(currentUserResolver.requireCurrentUser()).thenReturn(uploader);
+
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(3402L)
+                .projectId(1001L)
+                .name("招标文件.pdf")
+                .documentCategory("TENDER_DOCUMENT")
+                .uploaderId(uploaderId)
+                .build();
+        when(projectDocumentRepository.findById(3402L)).thenReturn(Optional.of(doc));
+
+        service.deleteProjectDocument(1001L, 3402L);
+
+        // 关键断言：通知在删除前调用（document 信息完整可用）
+        verify(documentChangeNotificationService).notifyDocumentChanged(
+                eq(1001L),
+                eq(3402L),
+                eq("招标文件.pdf"),
+                eq("王工"),
+                eq("删除"),
+                eq(uploaderId)
+        );
+        verify(projectDocumentRepository).delete(doc);
+        verify(bindingGateway).onDocumentDeleted(doc);
+    }
+
+    @Test
+    void createProjectDocument_WithNullUploaderName_ShouldFallbackToUnassigned() {
+        when(projectDocumentRepository.save(any(ProjectDocument.class))).thenAnswer(invocation -> {
+            ProjectDocument document = invocation.getArgument(0);
+            document.setId(3403L);
+            return document;
+        });
+
+        // uploaderId/uploaderName 均为 null，且无当前用户 → 走"未分配"兜底
+        service.createProjectDocument(1001L, ProjectDocumentCreateRequest.builder()
+                .name("测试文档.pdf")
+                .fileType("pdf")
+                .documentCategory("OTHER")
+                .fileUrl("https://files.example.com/test.pdf")
+                .build());
+
+        verify(documentChangeNotificationService).notifyDocumentChanged(
+                eq(1001L), eq(3403L), eq("测试文档.pdf"),
+                eq("未分配"), eq("上传"), eq(null)
+        );
     }
 
 }

@@ -162,6 +162,7 @@ src/main/java/com/xiyu/bid/resources/service/CaExpiryScanService.java | Schedule
 src/main/java/com/xiyu/bid/platform/service/PlatformAccountBorrowExpiryScanService.java | Scheduler-side account borrow expiry scan; scans global account borrow records (not project-scoped) and generates deadline/overdue/pending notifications.
 src/main/java/com/xiyu/bid/tender/controller/TenderAnalysisController.java | 标讯AI分析控制器委托 AiDeepCapabilityService 和 TenderAiAnalysisService 处理业务逻辑；两个 service 内部均通过 projectAccessScopeService.assertCurrentUserCanAccessProject() 执行项目级权限校验，控制器级无需重复守卫。
 src/main/java/com/xiyu/bid/versionhistory/controller/DocumentVersionController.java | 文档版本控制器委托 VersionHistoryService，service 层通过 VersionHistoryAccessGuard.requireProjectAccess() 执行项目级权限校验，控制器级无需重复守卫。
+src/main/java/com/xiyu/bid/project/notification/DocumentChangeNotificationService.java | 文档变更通知服务，只负责发送通知，通过 projectId 仅查询项目名称和团队成员用于通知内容构造与接收人解析，不涉及项目数据访问或权限校验；所有调用方已在 ProjectDocumentWorkflowService 层完成权限校验。
 src/main/java/com/xiyu/bid/project/notification/ProjectNotificationService.java | 项目通知服务，只负责发送通知，不涉及项目数据访问或权限校验；所有调用方已在 service 层完成权限校验。
 src/main/java/com/xiyu/bid/tender/service/InitiationPrefillService.java | CO-323 评估带入服务，由 proceedToBid 的 canDecide 守卫前置校验权限，prefill 仅写立项数据无独立请求入口。
 src/main/java/com/xiyu/bid/audit/controller/AuditLogController.java | CO-324 项目动态审计日志查询端点，按 projectId 查 audit_logs，是审计日志查询非项目数据访问，不需 project access guard。
