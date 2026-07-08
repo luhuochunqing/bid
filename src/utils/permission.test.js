@@ -2,14 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { hasAnyPermission, hasAllPermissions, isAdminRole, matchesCurrentUser, isTaskAssignee, isBidReviewer } from './permission'
 
+let mockedIsOssUser = false
+
 vi.mock('@/stores/user', () => ({
   useUserStore: () => ({
-    currentUser: { id: 1 }
+    currentUser: { id: 1, isOssUser: mockedIsOssUser }
   })
 }))
 
 beforeEach(() => {
   setActivePinia(createPinia())
+  mockedIsOssUser = false
 })
 
 describe('hasAnyPermission', () => {
@@ -25,6 +28,12 @@ describe('hasAnyPermission', () => {
 
   it('returns true when userPermissions includes "all"', () => {
     expect(hasAnyPermission(['all'], ['dashboard', 'settings'])).toBe(true)
+  })
+
+  it('does not short-circuit "all" for OSS users', () => {
+    mockedIsOssUser = true
+    expect(hasAnyPermission(['all'], ['dashboard'])).toBe(false)
+    expect(hasAnyPermission(['all', 'dashboard'], ['dashboard'])).toBe(true)
   })
 
   it('returns true when user has at least one required permission', () => {
@@ -69,6 +78,12 @@ describe('hasAllPermissions', () => {
 
   it('returns true when userPermissions includes "all"', () => {
     expect(hasAllPermissions(['all'], ['knowledge', 'knowledge-qualification'])).toBe(true)
+  })
+
+  it('does not short-circuit "all" for OSS users', () => {
+    mockedIsOssUser = true
+    expect(hasAllPermissions(['all'], ['knowledge', 'knowledge-qualification'])).toBe(false)
+    expect(hasAllPermissions(['all', 'knowledge', 'knowledge-qualification'], ['knowledge', 'knowledge-qualification'])).toBe(true)
   })
 
   it('returns true when requiredPermissions is empty', () => {

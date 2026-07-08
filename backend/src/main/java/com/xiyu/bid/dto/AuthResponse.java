@@ -110,7 +110,7 @@ public class AuthResponse {
                 .roleName(roleName)
                 .deptCode(user.getDepartmentCode())
                 .dept(user.getDepartmentName())
-                .isOssUser(user.getExternalOrgSourceApp() != null && !user.getExternalOrgSourceApp().isBlank())
+                .isOssUser(user.isOssUser())
                 .allowedProjectIds(allowedProjectIds == null ? List.of() : allowedProjectIds)
                 .allowedDepts(allowedDepts == null ? List.of() : allowedDepts)
                 .menuPermissions(menuPermissions == null ? List.of() : menuPermissions)

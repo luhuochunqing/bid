@@ -54,7 +54,7 @@ public class EffectiveRoleResolver {
         }
         String username = user.getUsername();
         java.util.Optional<String> cachedRoleCode = roleCodeCachePort.getRoleCode(username);
-        boolean isOssUser = isOssUser(user);
+        boolean isOssUser = user.isOssUser();
 
         // P0 修复（EAGER→LAZY）：仅当 EffectiveRolePolicy 实际需要 entityRoleCode 时才调用
         // user.getRoleCode()。OSS 用户（缓存命中或未命中）的 policy 决策不依赖 entityRoleCode，
@@ -79,15 +79,6 @@ public class EffectiveRoleResolver {
      */
     public String resolveRoleCode(User user) {
         return resolve(user).roleCode();
-    }
-
-    /**
-     * 判断是否 OSS 同步用户：external_org_source_app 非空非 blank。
-     * 与 PR #1241 {@code ProjectDraftingService.resolveEffectiveRoleCode} 判定逻辑一致。
-     */
-    private boolean isOssUser(User user) {
-        String sourceApp = user.getExternalOrgSourceApp();
-        return sourceApp != null && !sourceApp.isBlank();
     }
 
     /**

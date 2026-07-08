@@ -23,15 +23,15 @@ public class OrganizationRoleMenuSyncAppService {
 
     private final ObjectProvider<OrganizationDirectoryGateway> gatewayProvider;
     private final RoleProfileService roleProfileService;
-    private final OrganizationIntegrationProperties.Directory directory;
+    private final OssMenuPermissionMapper ossMenuPermissionMapper;
 
     public OrganizationRoleMenuSyncAppService(
             ObjectProvider<OrganizationDirectoryGateway> gatewayProvider,
             RoleProfileService roleProfileService,
-            OrganizationIntegrationProperties properties) {
+            OssMenuPermissionMapper ossMenuPermissionMapper) {
         this.gatewayProvider = gatewayProvider;
         this.roleProfileService = roleProfileService;
-        this.directory = properties.getDirectory();
+        this.ossMenuPermissionMapper = ossMenuPermissionMapper;
     }
 
     @Transactional
@@ -50,26 +50,13 @@ public class OrganizationRoleMenuSyncAppService {
             log.warn("OSS 菜单树返回为空: roleId={}, jobNumber={}", roleId, jobNumber);
             return roleProfileService.updateMenuPermissions(roleId, List.of());
         }
-        OssMenuPermissionMapper mapper = new OssMenuPermissionMapper(
-                directory.getMenuCodeToPermissionKeyMappings(),
-                directory.getUnmappedMenuCodeBehavior()
-        );
-        Set<String> permissions = mapper.map(menuTree.get());
+        Set<String> permissions = ossMenuPermissionMapper.map(menuTree.get());
         log.info("OSS 菜单权限同步: roleId={}, jobNumber={}, mapped={}, totalNodes={}",
             roleId, jobNumber, permissions.size(), countNodes(menuTree.get()));
         return roleProfileService.updateMenuPermissions(roleId, new ArrayList<>(permissions));
     }
 
     private int countNodes(List<OssMenuTreeNode> nodes) {
-        int count = 0;
-        List<OssMenuTreeNode> stack = new ArrayList<>(nodes);
-        while (!stack.isEmpty()) {
-            OssMenuTreeNode node = stack.removeLast();
-            count++;
-            if (node.children() != null) {
-                stack.addAll(node.children());
-            }
-        }
-        return count;
+        return OssMenuTreeNode.flatten(nodes).size();
     }
 }

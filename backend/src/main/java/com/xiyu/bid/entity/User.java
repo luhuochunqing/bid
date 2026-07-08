@@ -217,4 +217,17 @@ public class User {
         }
         return username;
     }
+
+    /**
+     * 判断是否 OSS 同步用户（external_org_source_app 非空非 blank）。
+     *
+     * <p>OSS 同步用户由组织架构同步写入，其角色与权限应由 OSS 实时抓取决定，
+     * 不应回退到本地 DB roleProfile。统一入口消除各处的重复判定。
+     *
+     * @see com.xiyu.bid.security.EffectiveRoleResolver
+     * @see com.xiyu.bid.auth.UserDetailsServiceImpl
+     */
+    public boolean isOssUser() {
+        return externalOrgSourceApp != null && !externalOrgSourceApp.isBlank();
+    }
 }

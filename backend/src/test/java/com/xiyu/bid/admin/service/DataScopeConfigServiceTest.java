@@ -297,10 +297,8 @@ class DataScopeConfigServiceTest {
     }
 
     @Test
-    void getRoleMenuPermissions_ShouldMergeOssPermissionsWithDbRoleProfile() {
-        // CO-438: OSS 缓存命中时，合并 DB RoleProfile 的管理权限点
-        // 原因：OSS menuCode→权限码映射表不含 performance.manage/warehouse.manage/personnel.manage
-        // 这些写操作权限点只存在于 DB RoleProfile，OSS 用户若不合并将看不到管理按钮
+    void getRoleMenuPermissions_ShouldNotMergeDbRoleProfileForOssUser() {
+        // specs/032: OSS 用户权限唯一来源是 OSS 菜单映射，不合并 DB RoleProfile 的管理权限点
         User user = User.builder()
                 .id(9L).username("06234").fullName("郑蓉蓉")
                 .role(User.Role.MANAGER)
@@ -314,10 +312,9 @@ class DataScopeConfigServiceTest {
 
         List<String> perms = dataScopeConfigService.getRoleMenuPermissions(user);
 
-        // OSS 权限 + DB RoleProfile 管理权限点合并
         assertThat(perms)
-                .contains("project", "project-detail")
-                .contains(RoleProfileCatalog.PERFORMANCE_MANAGE_PERMISSION,
+                .containsExactlyInAnyOrder("project", "project-detail")
+                .doesNotContain(RoleProfileCatalog.PERFORMANCE_MANAGE_PERMISSION,
                         RoleProfileCatalog.WAREHOUSE_MANAGE_PERMISSION,
                         RoleProfileCatalog.PERSONNEL_MANAGE_PERMISSION);
     }
@@ -452,8 +449,9 @@ class DataScopeConfigServiceTest {
     }
 
     @Test
-    @DisplayName("OSS 用户 cache hit 时 getRoleMenuPermissions 合并缓存权限与 DB RoleProfile 权限点")
+    @DisplayName("OSS 用户 cache hit 时 getRoleMenuPermissions 仅返回 OSS 缓存权限")
     void getRoleMenuPermissions_ShouldReturnCachedPermissionsWhenCacheHit() {
+        // specs/032: OSS 用户权限唯一来源是 OSS 菜单映射，不合并 DB RoleProfile 管理权限点
         User user = User.builder()
                 .id(14L).username("cached-user").fullName("Cached User")
                 .role(User.Role.MANAGER)
@@ -468,11 +466,11 @@ class DataScopeConfigServiceTest {
 
         List<String> perms = serviceWithCache.getRoleMenuPermissions(user);
 
-        // CO-438: 合并 OSS 缓存权限 + DB RoleProfile 管理权限点
-        assertThat(perms).contains("dashboard", "project-list");
-        assertThat(perms).contains(RoleProfileCatalog.PERFORMANCE_MANAGE_PERMISSION,
-                RoleProfileCatalog.WAREHOUSE_MANAGE_PERMISSION,
-                RoleProfileCatalog.PERSONNEL_MANAGE_PERMISSION);
+        assertThat(perms)
+                .containsExactlyInAnyOrder("dashboard", "project-list")
+                .doesNotContain(RoleProfileCatalog.PERFORMANCE_MANAGE_PERMISSION,
+                        RoleProfileCatalog.WAREHOUSE_MANAGE_PERMISSION,
+                        RoleProfileCatalog.PERSONNEL_MANAGE_PERMISSION);
     }
 
     @Test

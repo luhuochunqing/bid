@@ -11,6 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
@@ -262,7 +263,7 @@ class UserDetailsServiceImplTest {
     // ——— OSS fail-closed 单元测试 ———
 
     @Test
-    @DisplayName("OSS 用户 cache miss 时应抛 UsernameNotFoundException，禁止 DB 兜底")
+    @DisplayName("OSS 用户 cache miss 时应抛 BadCredentialsException，禁止 DB 兜底")
     void ossUserCacheMissShouldThrowAndNotFallbackToDb() {
         // 构造一个 OSS 用户（externalOrgSourceApp 不为空），DB 中虽有 roleProfile 但不应被读取
         RoleProfile roleProfile = RoleProfile.builder()
@@ -284,10 +285,10 @@ class UserDetailsServiceImplTest {
         // mock cache miss
         when(ossPermissionCache.getEntry("oss_cache_miss")).thenReturn(Optional.empty());
 
-        // 抛出 UsernameNotFoundException 即证明 DB 兜底分支未被执行
-        // （若走了 DB fallback，roleCode=/bidAdmin 不会抛异常，会正常返回 authorities）
+        // 抛出 BadCredentialsException 即证明 DB 兜底分支未被执行；语义上用户存在但权限状态无效，
+        // 避免 Sentry 将合法 OSS 用户误判为"用户不存在"噪声。
         assertThatThrownBy(() -> userDetailsService.loadUserByUsername("oss_cache_miss"))
-                .isInstanceOf(UsernameNotFoundException.class)
+                .isInstanceOf(BadCredentialsException.class)
                 .hasMessageContaining("OSS 用户缓存未命中")
                 .hasMessageContaining("oss_cache_miss");
     }
@@ -393,8 +394,8 @@ class UserDetailsServiceImplTest {
     }
 
     @Test
-    @DisplayName("OSS 缓存菜单权限非空时应合并标准角色 catalog 权限")
-    void ossCachedMenuPermissionsShouldMergeRegisteredRoleCatalogPermissions() {
+    @DisplayName("OSS 缓存菜单权限非空时不应合并标准角色 catalog 权限")
+    void ossCachedMenuPermissionsShouldNotMergeRegisteredRoleCatalogPermissions() {
         RoleProfile roleProfile = RoleProfile.builder()
                 .code(RoleProfileCatalog.BID_SPECIALIST_CODE)
                 .name("投标专员")
@@ -419,9 +420,10 @@ class UserDetailsServiceImplTest {
 
         assertThat(details.getAuthorities())
                 .extracting("authority")
-                .contains("dashboard", "bidding",
-                        "retrospective.submit", "bidding.sync", "warehouse.manage", "brand-auth.edit")
-                .doesNotContain("task.view.own");
+                .contains("/bidAdmin", "ROLE_BIDADMIN", "ROLE_ADMIN", "ROLE_MANAGER")
+                .contains("dashboard", "bidding")
+                .doesNotContain("retrospective.submit", "bidding.sync", "warehouse.manage", "brand-auth.edit",
+                        "task.view.own");
     }
 
     @Test
@@ -564,9 +566,9 @@ class UserDetailsServiceImplTest {
     }
 
     @Test
-    @DisplayName("OSS 缓存 menuPermissions 为空时仍应合并 catalog 权限")
-    void ossCachedEmptyMenuPermissionsShouldStillMergeCatalog() {
-        // OSS 缓存命中但 menuPermissions 为空列表 → usingOssCachedPermissions=true → 合并 catalog
+    @DisplayName("OSS 缓存 menuPermissions 为空时不应合并 catalog 权限")
+    void ossCachedEmptyMenuPermissionsShouldNotMergeCatalog() {
+        // OSS 缓存命中但 menuPermissions 为空列表 → OSS 用户权限唯一来源是 OSS 菜单映射，不合并 catalog
         RoleProfile roleProfile = RoleProfile.builder()
                 .code(RoleProfileCatalog.BID_SPECIALIST_CODE)
                 .name("投标专员")
@@ -588,19 +590,18 @@ class UserDetailsServiceImplTest {
 
         UserDetails details = userDetailsService.loadUserByUsername("oss_empty_menu");
 
-        // menuPermissions 为空，但 usingOssCachedPermissions=true → 合并 catalog
         assertThat(details.getAuthorities())
                 .extracting("authority")
                 .contains("bid-TeamLeader", "ROLE_BID_TEAMLEADER", "ROLE_MANAGER")
-                .contains("bidding.manage", "task.assign", "retrospective.submit",
+                .doesNotContain("bidding.manage", "task.assign", "retrospective.submit",
                         "closure.request", "warehouse.manage");
     }
 
     @Test
-    @DisplayName("本地账号 OSS 缓存命中时应优先使用缓存权限并合并 catalog")
-    void localUserWithOssCacheHitShouldUseCacheAndMergeCatalog() {
+    @DisplayName("本地账号 OSS 缓存命中时应优先使用缓存权限且不合并 catalog")
+    void localUserWithOssCacheHitShouldUseCacheWithoutMergingCatalog() {
         // 本地账号（externalOrgSourceApp 为空）但 OSS 缓存中有记录
-        // → 走 OSS 缓存分支，usingOssCachedPermissions=true → 合并 catalog 细粒度权限
+        // → 走 OSS 缓存分支；缓存菜单权限非空时不合并 catalog，避免权限扩散
         RoleProfile roleProfile = RoleProfile.builder()
                 .code(RoleProfileCatalog.BID_SPECIALIST_CODE)
                 .name("投标专员")
@@ -623,14 +624,13 @@ class UserDetailsServiceImplTest {
 
         UserDetails details = userDetailsService.loadUserByUsername("local_with_cache");
 
-        // 缓存命中 → 用缓存角色 /bidAdmin + 缓存菜单权限
-        // usingOssCachedPermissions=true → 合并 catalog 细粒度权限
+        // 缓存命中 → 用缓存角色 /bidAdmin + 缓存菜单权限；不合并 catalog 细粒度权限
         assertThat(details.getAuthorities())
                 .extracting("authority")
-                .contains("/bidAdmin", "ROLE_BIDADMIN", "ROLE_ADMIN")
+                .contains("/bidAdmin", "ROLE_BIDADMIN", "ROLE_ADMIN", "ROLE_MANAGER")
                 .contains("dashboard", "bidding")
-                .contains("bidding.manage", "task.review", "retrospective.submit", "warehouse.manage")
-                .doesNotContain("task.view.own");
+                .doesNotContain("task.view.own", "bidding.manage", "task.review",
+                        "retrospective.submit", "warehouse.manage");
     }
 
     @Test

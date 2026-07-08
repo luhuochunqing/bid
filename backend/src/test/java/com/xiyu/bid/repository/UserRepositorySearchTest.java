@@ -236,24 +236,27 @@ class UserRepositorySearchTest {
     }
 
     @Test
-    void roleProfile_IsLazyLoaded_NoExtraJoinWhenNotAccessed() throws Exception {
-        // P0 修复：User.roleProfile 从 EAGER 改为 LAZY，通过反射断言 fetch 类型
-        // 防回归：如果有人改回 EAGER，此测试会失败
+    void roleProfile_IsEagerLoaded_RegressionP0Rollback() throws Exception {
+        // P0 回滚（2026-07-08）：roleProfile 从 LAZY 恢复为 EAGER。
+        // 原因：JwtAuthenticationFilter 在非事务 Filter 中调用 EffectiveRoleResolver.resolveRoleCode(user)
+        // → user.getRoleCode() → roleProfile.getCode() 触发 LazyInitializationException，
+        // 导致所有本地用户登录后请求均认证失败。
+        // 在 Filter 链不再访问 roleProfile 或仓库统一使用 join-fetch 前，保持 EAGER。
         java.lang.reflect.Field field = User.class.getDeclaredField("roleProfile");
         field.setAccessible(true);
         jakarta.persistence.ManyToOne manyToOne = field.getAnnotation(jakarta.persistence.ManyToOne.class);
 
         // 必须是 @ManyToOne
         assertThat(manyToOne).as("roleProfile 必须用 @ManyToOne").isNotNull();
-        // 必须是 LAZY
+        // 当前策略为 EAGER（P0 回滚）
         assertThat(manyToOne.fetch())
-            .as("P0 修复：roleProfile 必须为 LAZY 加载，防止每次 User 查询触发额外 JOIN")
-            .isEqualTo(jakarta.persistence.FetchType.LAZY);
+            .as("P0 回滚：roleProfile 当前必须为 EAGER 加载，避免非事务 Filter 中触发 LazyInitializationException")
+            .isEqualTo(jakarta.persistence.FetchType.EAGER);
     }
 
     @Test
     void roleProfile_CanBeAccessedWithinTransaction() {
-        // 验证 LAZY 加载在事务内能正常工作（所有 service 调用点都在 @Transactional 内）
+        // 验证 roleProfile 在事务内能正常访问（EAGER 加载下同样成立）
         RoleProfile role = RoleProfile.builder()
             .code("/bidAdmin")
             .name("投标管理员")

@@ -95,7 +95,7 @@ public class AuthService {
         User user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new UsernameNotFoundException(USER_NOT_FOUND));
         // 组织架构同步用户（有 externalOrgSourceApp），委托给西域 OSS 统一认证
-        if (user.getExternalOrgSourceApp() != null && !user.getExternalOrgSourceApp().isBlank()) {
+        if (user.isOssUser()) {
             if (!ossDelegationService.authenticate(user, request.getPassword())) {
                 if (!isLocalPasswordValid(user, request.getPassword())) {
                     throw new BadCredentialsException("Invalid username or password");
@@ -150,7 +150,7 @@ public class AuthService {
     /** OSS 用户登录权限检查：必须有 OSS 缓存角色且为允许的业务角色。
      *  本地账号（非 OSS 同步，externalOrgSourceApp 为空）直接放行。 */
     private void requireOssRole(User user) {
-        if (user.getExternalOrgSourceApp() == null || user.getExternalOrgSourceApp().isBlank()) {
+        if (!user.isOssUser()) {
             return;
         }
         Optional<String> cachedRoleCode = ossPermissionCache.getRoleCode(user.getUsername());
