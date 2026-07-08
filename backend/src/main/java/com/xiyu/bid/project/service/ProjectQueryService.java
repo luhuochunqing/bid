@@ -74,6 +74,9 @@ public class ProjectQueryService {
     private final DemoDataProvider demoDataProvider;
     private final DemoFusionService demoFusionService;
 
+    /** 部门名回填：通过 users.department_code（OSS external_dept_id）反查 organization_departments 部门名。 */
+    private final ProjectManagerDepartmentEnricher managerDepartmentEnricher;
+
     /**
      * Returns all accessible projects enriched with tender and
      * initiation-detail fields, sorted by creation time descending.
@@ -173,13 +176,10 @@ public class ProjectQueryService {
             }
         });
 
-        Map<Long, String> managerDepartmentMap = new HashMap<>();
-        managerIds.forEach(id -> {
-            User user = userMap.get(id);
-            if (user != null) {
-                managerDepartmentMap.put(id, user.getDepartmentName());
-            }
-        });
+        // 部门名回填：生产环境 users.department_name 多为空字符串，
+        // 但 users.department_code 存的是 OSS external_dept_id，
+        // 通过 organization_departments.external_dept_id 批量反查部门名。
+        Map<Long, String> managerDepartmentMap = managerDepartmentEnricher.buildManagerDepartmentMap(managerIds, userMap);
 
         // Batch-fetch evaluations for list fields (shortlistedCount, customerRevenue)
         Map<Long, TenderEvaluation> evalMap = tenderIds.isEmpty()

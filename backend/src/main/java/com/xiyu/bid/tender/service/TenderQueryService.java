@@ -8,6 +8,8 @@ import com.xiyu.bid.tender.entity.TenderAttachment;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.integration.external.TenderIntegrationMapper;
+import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationDepartmentEntity;
+import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationDepartmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
 import com.xiyu.bid.repository.TenderRepository;
@@ -43,6 +45,14 @@ public class TenderQueryService {
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
     private final TenderAssignmentRecordRepository tenderAssignmentRecordRepository;
+    private final OrganizationDepartmentRepository organizationDepartmentRepository;
+
+    /**
+     * OSS 同步用户的 department_code 实际存的是 OSS external_dept_id
+     * （见 OrganizationDirectoryJsonMapper.user() 读取 "deptCode"/"deptId"）。
+     * 因此列表回填部门名时，需要用 users.department_code 关联 organization_departments.external_dept_id。
+     */
+    private static final String OSS_SOURCE_APP = "oss";
 
     public List<TenderDTO> searchTenders(TenderSearchCriteria criteria) {
         log.debug("Searching tenders with criteria: {}", criteria);
@@ -231,16 +241,39 @@ public class TenderQueryService {
 
     /**
      * 批量获取项目负责人的部门名称，用于 department 字段为空时兜底回填。
+     * 生产环境 users.department_name 多为空字符串，但 users.department_code 存的是 OSS external_dept_id，
+     * 因此通过 organization_departments.external_dept_id 反查部门名。
      */
     private Map<Long, String> fetchManagerDepartments(List<TenderDTO> dtos) {
         Set<Long> projectManagerIds = dtos.stream()
                 .map(TenderDTO::getProjectManagerId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-        // CO-441: 用 HashMap 显式 put，允许 null value/null key，避免 Collectors.toMap/Map.of 对 null 抛异常。
+        if (projectManagerIds.isEmpty()) {
+            // CO-441: 用 HashMap 显式 put，允许 null value/null key，避免 Collectors.toMap/Map.of 对 null 抛异常。
+            return new HashMap<>();
+        }
+        // userId → user.departmentCode（实际是 OSS external_dept_id）
+        Map<Long, String> userIdToDeptCode = new HashMap<>(projectManagerIds.size());
+        for (User user : userRepository.findByIdIn(projectManagerIds)) {
+            userIdToDeptCode.put(user.getId(), user.getDepartmentCode());
+        }
+        // 收集所有非空 department_code，批量查 organization_departments
+        Set<String> externalDeptIds = userIdToDeptCode.values().stream()
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toSet());
+        Map<String, String> externalDeptIdToName = externalDeptIds.isEmpty()
+                ? java.util.Collections.emptyMap()
+                : organizationDepartmentRepository
+                        .findBySourceAppAndExternalDeptIdIn(OSS_SOURCE_APP, externalDeptIds).stream()
+                        .collect(Collectors.toMap(
+                                OrganizationDepartmentEntity::getExternalDeptId,
+                                OrganizationDepartmentEntity::getDepartmentName,
+                                (a, b) -> a));
+        // 构建 userId → departmentName 映射
         Map<Long, String> result = new HashMap<>(projectManagerIds.size());
-        userRepository.findByIdIn(projectManagerIds)
-                .forEach(user -> result.put(user.getId(), user.getDepartmentName()));
+        userIdToDeptCode.forEach((userId, deptCode) ->
+                result.put(userId, externalDeptIdToName.get(deptCode)));
         return result;
     }
 

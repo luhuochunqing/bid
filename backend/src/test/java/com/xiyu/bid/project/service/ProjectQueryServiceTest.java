@@ -24,10 +24,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -57,6 +59,8 @@ class ProjectQueryServiceTest {
     private DemoDataProvider demoDataProvider;
     @Mock
     private DemoFusionService demoFusionService;
+    @Mock
+    private ProjectManagerDepartmentEnricher managerDepartmentEnricher;
 
     private ProjectQueryService createService() {
         return new ProjectQueryService(
@@ -71,7 +75,8 @@ class ProjectQueryServiceTest {
                 projectResultRepository,
                 demoModeService,
                 demoDataProvider,
-                demoFusionService);
+                demoFusionService,
+                managerDepartmentEnricher);
     }
 
     private Project project(long id, Long managerId) {
@@ -85,7 +90,7 @@ class ProjectQueryServiceTest {
     }
 
     @Test
-    @DisplayName("leaderDepartment 为空时应从项目 manager 用户反查部门回填")
+    @DisplayName("leaderDepartment 为空时应通过 department_code 关联 organization_departments 反查部门名回填")
     void shouldBackfillLeaderDepartmentFromManagerUserWhenEmpty() {
         Project project = project(1L, 99L);
         when(projectRepository.findAll()).thenReturn(List.of(project));
@@ -104,14 +109,18 @@ class ProjectQueryServiceTest {
 
         User manager = new User();
         manager.setId(99L);
-        manager.setDepartmentName("华东事业部");
+        manager.setDepartmentCode("700498910");
+        manager.setDepartmentName("");
         when(userRepository.findByIdIn(Set.of(99L))).thenReturn(List.of(manager));
+        // mock enricher 返回 99L → "东部二区"
+        when(managerDepartmentEnricher.buildManagerDepartmentMap(eq(Set.of(99L)), any()))
+                .thenReturn(Map.of(99L, "东部二区"));
 
         ProjectQueryService service = createService();
         List<ProjectDTO> result = service.getAllProjects();
 
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).getLeaderDepartment()).isEqualTo("华东事业部");
+        assertThat(result.get(0).getLeaderDepartment()).isEqualTo("东部二区");
     }
 
     @Test
@@ -134,8 +143,10 @@ class ProjectQueryServiceTest {
 
         User manager = new User();
         manager.setId(99L);
-        manager.setDepartmentName("华东事业部");
+        manager.setDepartmentCode("700498910");
         when(userRepository.findByIdIn(Set.of(99L))).thenReturn(List.of(manager));
+        when(managerDepartmentEnricher.buildManagerDepartmentMap(eq(Set.of(99L)), any()))
+                .thenReturn(Map.of(99L, "东部二区"));
 
         ProjectQueryService service = createService();
         List<ProjectDTO> result = service.getAllProjects();
@@ -145,7 +156,7 @@ class ProjectQueryServiceTest {
     }
 
     @Test
-    @DisplayName("leaderDepartment 为空但 manager 用户无部门时保持为空")
+    @DisplayName("leaderDepartment 为空且 manager 用户无 department_code 时保持为空")
     void shouldKeepLeaderDepartmentNullWhenManagerHasNoDepartment() {
         Project project = project(1L, 99L);
         when(projectRepository.findAll()).thenReturn(List.of(project));
@@ -164,8 +175,11 @@ class ProjectQueryServiceTest {
 
         User manager = new User();
         manager.setId(99L);
-        manager.setDepartmentName(null);
+        manager.setDepartmentCode(null);
         when(userRepository.findByIdIn(Set.of(99L))).thenReturn(List.of(manager));
+        // mock enricher 返回空 map（department_code 为空，无法反查）
+        when(managerDepartmentEnricher.buildManagerDepartmentMap(eq(Set.of(99L)), any()))
+                .thenReturn(Map.of());
 
         ProjectQueryService service = createService();
         List<ProjectDTO> result = service.getAllProjects();
