@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.warehouse.application.WarehouseNameValidator;
 import com.xiyu.bid.warehouse.domain.WarehouseType;
 import com.xiyu.bid.warehouse.dto.WarehouseDTO;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseEntity;
@@ -35,7 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>覆盖契约：
  * <ul>
  *   <li>POST /api/knowledge/warehouses 名称不重复 → 201 Created</li>
- *   <li>POST /api/knowledge/warehouses 名称已存在 → 400 Bad Request，message 为"该仓库已存在"</li>
+ *   <li>POST /api/knowledge/warehouses 名称已存在 → 400 Bad Request，msg 为"该仓库已存在"</li>
  * </ul>
  */
 class WarehouseControllerTest {
@@ -48,17 +49,20 @@ class WarehouseControllerTest {
     private WarehouseRepository repo;
     private WarehouseMapper warehouseMapper;
     private WarehouseLogService warehouseLogService;
+    private WarehouseNameValidator warehouseNameValidator;
     private UserResolver userResolver;
 
     @BeforeEach
     void setUp() {
         repo = mock(WarehouseRepository.class);
-        warehouseMapper = new WarehouseMapper();
+        warehouseMapper = mock(WarehouseMapper.class);
         warehouseLogService = mock(WarehouseLogService.class);
+        warehouseNameValidator = mock(WarehouseNameValidator.class);
         userResolver = mock(UserResolver.class);
 
         WarehouseController controller = new WarehouseController(
-                repo, null, null, null, warehouseMapper, warehouseLogService, userResolver);
+                repo, null, null, null, warehouseMapper, warehouseLogService,
+                warehouseNameValidator, userResolver);
 
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
@@ -68,15 +72,13 @@ class WarehouseControllerTest {
     void create_uniqueName_returns201() throws Exception {
         WarehouseDTO dto = validDto("新仓库");
         WarehouseEntity entity = toEntity(dto);
+        entity.setId(100L);
         User operator = User.builder().id(1L).username("admin").fullName("管理员").build();
 
-        when(repo.existsByName("新仓库")).thenReturn(false);
+        when(warehouseNameValidator.isNameTaken("新仓库")).thenReturn(false);
+        when(warehouseMapper.toEntity(any(WarehouseDTO.class))).thenReturn(entity);
         when(userResolver.resolveCurrentUser()).thenReturn(operator);
-        when(repo.save(any(WarehouseEntity.class))).thenAnswer(inv -> {
-            WarehouseEntity e = inv.getArgument(0);
-            e.setId(100L);
-            return e;
-        });
+        when(repo.save(any(WarehouseEntity.class))).thenReturn(entity);
 
         mockMvc.perform(post("/api/knowledge/warehouses")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -91,7 +93,7 @@ class WarehouseControllerTest {
     void create_duplicateName_returns400() throws Exception {
         WarehouseDTO dto = validDto("已有仓库");
 
-        when(repo.existsByName("已有仓库")).thenReturn(true);
+        when(warehouseNameValidator.isNameTaken("已有仓库")).thenReturn(true);
 
         mockMvc.perform(post("/api/knowledge/warehouses")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -100,7 +102,10 @@ class WarehouseControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.msg").value("该仓库已存在"));
 
+        verify(warehouseNameValidator).isNameTaken("已有仓库");
+        verify(warehouseMapper, never()).toEntity(any());
         verify(repo, never()).save(any());
+        verify(warehouseLogService, never()).saveLog(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     private WarehouseDTO validDto(String name) {
@@ -116,6 +121,10 @@ class WarehouseControllerTest {
                 .endDate(LocalDate.of(2026, 12, 31))
                 .lessor("出租方")
                 .lessee("承租方")
+                .hasPropertyCert(false)
+                .hasInvoice(false)
+                .hasPhotos(false)
+                .hasLeaseContract(false)
                 .build();
     }
 
@@ -132,6 +141,10 @@ class WarehouseControllerTest {
         entity.setEndDate(dto.getEndDate());
         entity.setLessor(dto.getLessor());
         entity.setLessee(dto.getLessee());
+        entity.setHasPropertyCert(dto.getHasPropertyCert());
+        entity.setHasInvoice(dto.getHasInvoice());
+        entity.setHasPhotos(dto.getHasPhotos());
+        entity.setHasLeaseContract(dto.getHasLeaseContract());
         return entity;
     }
 }
