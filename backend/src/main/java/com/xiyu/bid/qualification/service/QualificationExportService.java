@@ -23,7 +23,6 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -132,14 +131,16 @@ public class QualificationExportService {
                         if (att.getFileUrl() == null || att.getFileUrl().isBlank()) continue;
                         String entryName = buildEntryName(item.getName(),
                                 att.getFileName() != null ? att.getFileName() : att.getFileUrl());
-                        writeAttachmentToZip(zos, item.getId(), att.getFileUrl(), entryName, dedup);
-                        writtenEntries++;
+                        if (writeAttachmentToZip(zos, item.getId(), att.getFileUrl(), entryName, dedup)) {
+                            writtenEntries++;
+                        }
                     }
                 }
                 if (item.getFileUrl() != null && !item.getFileUrl().isBlank()) {
                     String entryName = buildEntryName(item.getName(), extractFileName(item.getFileUrl()));
-                    writeAttachmentToZip(zos, item.getId(), item.getFileUrl(), entryName, dedup);
-                    writtenEntries++;
+                    if (writeAttachmentToZip(zos, item.getId(), item.getFileUrl(), entryName, dedup)) {
+                        writtenEntries++;
+                    }
                 }
             }
         }
@@ -178,15 +179,15 @@ public class QualificationExportService {
         return idSet;
     }
 
-    private void writeAttachmentToZip(ZipOutputStream zos, Long qualificationId, String fileUrl,
-                                      String entryName, ZipEntryDeduplicator dedup) throws IOException {
+    private boolean writeAttachmentToZip(ZipOutputStream zos, Long qualificationId, String fileUrl,
+                                         String entryName, ZipEntryDeduplicator dedup) throws IOException {
         // 优先从本地文件系统读取（fileUrl 可能是 /api/knowledge/qualifications/{id}/attachments/{fileName}）
         Path localPath = resolveLocalPath(qualificationId, fileUrl);
         if (localPath != null && Files.exists(localPath) && !Files.isDirectory(localPath)) {
             zos.putNextEntry(new ZipEntry(dedup.deduplicate(entryName)));
             Files.copy(localPath, zos);
             zos.closeEntry();
-            return;
+            return true;
         }
         // 回退：仅当 fileUrl 是绝对 URL（http/https）时才尝试网络下载。
         // fileUrl 在 DB 中实际存的是裸文件名（BatchAttachmentService.setFileUrl(uniqueFilename)），
@@ -196,11 +197,12 @@ public class QualificationExportService {
             zos.putNextEntry(new ZipEntry(dedup.deduplicate(entryName)));
             in.transferTo(zos);
             zos.closeEntry();
+            return true;
         } catch (MalformedURLException | IllegalArgumentException e) {
-            // .txt 回退路径也需 deduplicate（可能与已存在的 .txt entry 冲突）
-            zos.putNextEntry(new ZipEntry(dedup.deduplicate(entryName + ".txt")));
-            zos.write(("无法下载(本地文件不存在或非绝对URL): " + fileUrl).getBytes(StandardCharsets.UTF_8));
-            zos.closeEntry();
+            // 跳过无法下载的附件，不再写入 .txt 占位文件污染 ZIP。
+            // 最终无有效附件时由调用方抛出 InvalidArgumentException 给出明确提示。
+            log.warn("资质[{}]附件无法下载（本地文件不存在或非绝对URL）：{}", qualificationId, fileUrl);
+            return false;
         }
     }
 

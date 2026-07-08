@@ -188,13 +188,13 @@ class QualificationExportServiceTest {
 
     /**
      * 回归测试：fileUrl 是裸文件名（DB 实际存储形态，BatchAttachmentService.setFileUrl(uniqueFilename)），
-     * 且本地存储缺失时，writeAttachmentToZip 必须降级写入 .txt 说明，不得抛 IllegalArgumentException:
-     * URI is not absolute 逃逸到 GlobalExceptionHandler 被映射为 400。
+     * 且本地存储缺失时，writeAttachmentToZip 必须跳过该附件，不再生成 .txt 占位文件污染 ZIP。
+     * 当全部选中资质均无有效附件时，应抛 InvalidArgumentException 给出明确提示。
      *
      * 触发场景：用户上传附件后磁盘文件丢失，或 storage-path 配置不一致。
      */
     @Test
-    void shouldFallbackToTxtWhenFileUrlIsRelativeAndLocalMissing() throws Exception {
+    void shouldSkipAttachmentWhenFileUrlIsRelativeAndLocalMissing() {
         // fileUrl 是裸文件名（非绝对 URL），本地存储目录里也不存在该文件
         QualificationDTO q = QualificationDTO.builder()
                 .id(99L)
@@ -209,26 +209,58 @@ class QualificationExportServiceTest {
 
         when(flatQuery.listAll(null, null)).thenReturn(List.of(q));
 
-        // 不应抛异常（回归前会抛 IllegalArgumentException: URI is not absolute）
-        byte[] zipBytes = service.batchExportZip(List.of(99L));
+        // 不应生成含 .txt 占位文件的 ZIP，而应明确告知无可下载附件
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.batchExportZip(List.of(99L)))
+                .isInstanceOf(com.xiyu.bid.exception.InvalidArgumentException.class)
+                .hasMessageContaining("无可下载附件");
+    }
 
-        // 解压验证：应有一个 .txt entry，内容包含 "无法下载" 说明
-        List<String> entryNames = new java.util.ArrayList<>();
-        String txtContent = "";
+    /**
+     * 混合场景：部分资质附件有效，部分附件缺失/非绝对 URL。
+     * 有效附件应正常打包；缺失附件应被跳过，不得生成 .txt 占位文件。
+     */
+    @Test
+    void shouldSkipMissingAttachmentsButKeepValidOnes() throws Exception {
+        Path validAttachment = tempDir.resolve("license.pdf");
+        Files.writeString(validAttachment, "valid-content");
+
+        QualificationDTO withValid = QualificationDTO.builder()
+                .id(1L)
+                .name("有效资质")
+                .attachments(List.of(
+                        QualificationAttachmentDTO.builder()
+                                .fileName("license.pdf")
+                                .fileUrl(validAttachment.toUri().toString())
+                                .build()
+                ))
+                .build();
+
+        QualificationDTO withMissing = QualificationDTO.builder()
+                .id(2L)
+                .name("缺失资质")
+                .attachments(List.of(
+                        QualificationAttachmentDTO.builder()
+                                .fileName("missing.pdf")
+                                .fileUrl("missing.pdf")   // 裸文件名且本地缺失
+                                .build()
+                ))
+                .build();
+
+        when(flatQuery.listAll(null, null)).thenReturn(List.of(withValid, withMissing));
+
+        byte[] zipBytes = service.batchExportZip(List.of(1L, 2L));
+
+        List<String> entryNames;
         try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
+            entryNames = new java.util.ArrayList<>();
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
                 entryNames.add(entry.getName());
-                if (entry.getName().endsWith(".txt")) {
-                    txtContent = new String(zis.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
-                }
             }
         }
 
         assertThat(entryNames).hasSize(1);
-        assertThat(entryNames.get(0)).endsWith(".txt");
-        assertThat(txtContent).contains("无法下载");
-        assertThat(txtContent).contains("missing.pdf");
+        assertThat(entryNames.get(0)).isEqualTo("有效资质_license.pdf");
     }
 
     /**
