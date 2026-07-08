@@ -235,3 +235,98 @@ public static AuthorizationDecision canDeleteProjectDocument(
 - `docs/lessons/lessons-learned.md` §24 — Policy canUpload/canDelete 权限矩阵必须对称设计
 - `backend/src/main/java/com/xiyu/bid/projectworkflow/controller/ProjectDocumentController.java` — Controller 实现
 - `backend/src/main/java/com/xiyu/bid/projectworkflow/core/ProjectDocumentWorkflowPolicy.java` — Policy 实现
+
+---
+
+## 4. admin 专属权限过滤统一通过 RoleProfileAdminPermissionFilter
+
+**日期**: 2026-07-08
+**决策者**: claude
+**相关 Issue**: spec 032 / OSS 权限扩散修复
+
+### 背景
+
+spec 032 修复 OSS 用户权限扩散时，发现 `all`、`system.admin`、`warehouse.manage` 等 admin 专属权限键在多处被重复过滤：
+
+- `DataScopeConfigService` 自己维护 `ADMIN_ONLY_PERMISSION_KEYS` 集合
+- `UserDetailsServiceImpl` 也调用 `RoleProfileCatalog.withoutAdminOnlyPermissions()`
+- `RoleProfileCatalog` 因此类长度接近 300 行限制
+
+### 问题
+
+- **重复实现**：三处逻辑都过滤 admin 专属权限，但实现细节可能分叉
+- **类长度超限**：`DataScopeConfigService` 308 行、`RoleProfileCatalog` 326 行，超过 300 行门禁
+- **职责错位**：实体类 `RoleProfileCatalog` 不应该承担权限过滤职责
+
+### 决策
+
+新建纯函数类 `RoleProfileAdminPermissionFilter`，统一承担 admin 专属权限过滤和权限列表规范化：
+
+```java
+public final class RoleProfileAdminPermissionFilter {
+    private static final Set<String> ADMIN_ONLY_PERMISSION_KEYS = Set.of(
+        "all",
+        RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION,
+        RoleProfileCatalog.WAREHOUSE_MANAGE_PERMISSION
+    );
+
+    public static List<String> filter(List<String> permissions) {
+        return normalize(permissions).stream()
+            .filter(p -> !ADMIN_ONLY_PERMISSION_KEYS.contains(p))
+            .toList();
+    }
+
+    public static List<String> normalize(List<String> permissions) {
+        if (permissions == null || permissions.isEmpty()) {
+            return List.of();
+        }
+        return permissions.stream()
+            .filter(permission -> permission != null && !permission.isBlank())
+            .map(String::trim)
+            .distinct()
+            .toList();
+    }
+}
+```
+
+调用方统一替换：
+
+- `DataScopeConfigService` → `RoleProfileAdminPermissionFilter.filter(...)` / `.normalize(...)`
+- `UserDetailsServiceImpl` → `RoleProfileAdminPermissionFilter.filter(...)`
+- `RoleProfileCatalog` → 删除 `withoutAdminOnlyPermissions()` 方法和 `ADMIN_ONLY_PERMISSION_KEYS` 常量
+
+### 取舍
+
+| 方案 | 优点 | 缺点 | 是否采纳 |
+|------|------|------|---------|
+| 新建 `RoleProfileAdminPermissionFilter` 纯函数类 | 单一职责；可单测；消除重复；类长度合规 | 新增一个类 | ✅ 采纳 |
+| 保留 `RoleProfileCatalog.withoutAdminOnlyPermissions()` | 无新增类 | 实体类承担过滤职责；重复逻辑；行数超限 | ❌ 不符合架构规范 |
+| 在 `DataScopeConfigService` 中统一过滤后传入其他服务 | 减少类 | `UserDetailsServiceImpl` 仍需过滤，无法完全集中 | ❌ 无法消除重复 |
+
+### 权衡与约束
+
+1. **纯函数、无状态**：`RoleProfileAdminPermissionFilter` 只包含 static 方法，不依赖 Spring 上下文，便于单测。
+2. **包位置在 `com.xiyu.bid.permission`**：不放在 `entity` 包，避免 `ArchitectureTest` 失败。
+3. **ADMIN_ONLY_PERMISSION_KEYS 集中管理**：新增 admin 专属权限键时只需改一处。
+4. **normalize 一并迁移**：去空、trim、去重逻辑原本分散，现在与 filter 放在同一工具类。
+
+### 验证
+
+- `DataScopeConfigService` 从 308 行降至 294 行
+- `RoleProfileCatalog` 从 326 行降至 297 行
+- `ResponsibilityArchitectureTest` 全绿
+- `UserDetailsServiceImplTest`、`DataScopeConfigServiceTest` 全绿
+
+### 适用范围
+
+本决策适用于所有需要对权限列表进行“admin 专属键过滤”或“规范化”的场景。禁止在 Service、Controller 或实体类中重复维护 admin 权限键集合。
+
+### 相关文档
+
+- `docs/lessons/lessons-learned.md` §47 — OSS 用户权限扩散根因
+- `docs/lessons/lessons-learned.md` §48 — 止血补丁与技术债清偿分 PR
+- `docs/lessons/oss-integration-lessons.md` — OSS 菜单码 1:N 映射集成经验
+- `backend/src/main/java/com/xiyu/bid/permission/RoleProfileAdminPermissionFilter.java`
+- `backend/src/main/java/com/xiyu/bid/admin/service/DataScopeConfigService.java`
+- `backend/src/main/java/com/xiyu/bid/auth/UserDetailsServiceImpl.java`
+- PR !1892 — 本决策落地
