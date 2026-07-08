@@ -18,6 +18,7 @@ import com.xiyu.bid.projectworkflow.repository.ProjectShareLinkRepository;
 import com.xiyu.bid.exception.InvalidArgumentException;
 import com.xiyu.bid.exception.RetryableOperationException;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
+import com.xiyu.bid.project.notification.DocumentChangeNotificationService;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TaskRepository;
@@ -77,7 +78,8 @@ class ProjectWorkflowServiceTest {
                 userRepository,
                 new ProjectDocumentViewAssembler(),
                 mock(ProjectDocumentBindingGateway.class),
-                mock(CurrentUserResolver.class)
+                mock(CurrentUserResolver.class),
+                mock(DocumentChangeNotificationService.class)
         );
         ProjectDocumentUploadWorkflowService projectDocumentUploadWorkflowService =
                 mock(ProjectDocumentUploadWorkflowService.class);

@@ -8,6 +8,7 @@ import com.xiyu.bid.projectworkflow.dto.ProjectDocumentCreateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
+import com.xiyu.bid.project.notification.DocumentChangeNotificationService;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ class ProjectDocumentWorkflowService {
     private final ProjectDocumentViewAssembler projectDocumentViewAssembler;
     private final ProjectDocumentBindingGateway projectDocumentBindingGateway;
     private final CurrentUserResolver currentUserResolver;
+    private final DocumentChangeNotificationService documentChangeNotificationService;
 
     List<ProjectDocumentDTO> getProjectDocuments(Long projectId) {
         return getProjectDocuments(projectId, null, null, null);
@@ -78,6 +80,15 @@ class ProjectDocumentWorkflowService {
                 .build();
         ProjectDocument savedDocument = projectDocumentRepository.save(document);
         projectDocumentBindingGateway.onDocumentCreated(savedDocument);
+        // 蓝图 §消息中心-系统通知 序号 5：文档上传通知项目团队成员（排除上传者自己）
+        documentChangeNotificationService.notifyDocumentChanged(
+                projectId,
+                savedDocument.getId(),
+                savedDocument.getName(),
+                uploaderName != null ? uploaderName : "未分配",
+                "上传",
+                uploaderId
+        );
         return projectDocumentViewAssembler.toDto(savedDocument);
     }
 
@@ -100,6 +111,17 @@ class ProjectDocumentWorkflowService {
         if (!decision.allowed()) {
             throw new org.springframework.security.access.AccessDeniedException(decision.reason());
         }
+
+        // 蓝图 §消息中心-系统通知 序号 5：文档删除通知项目团队成员（排除删除者自己）
+        // 放在 repository.delete 之前——delete 前实体信息（name/id）完整可用
+        documentChangeNotificationService.notifyDocumentChanged(
+                projectId,
+                document.getId(),
+                document.getName(),
+                currentUser.getFullName(),
+                "删除",
+                currentUser.getId()
+        );
 
         projectDocumentRepository.delete(document);
         projectDocumentBindingGateway.onDocumentDeleted(document);
