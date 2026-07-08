@@ -128,6 +128,10 @@ app:
 
 server:
   port: 8080
+  # CO-524: 显式配置 Tomcat connection-timeout，避免默认 60s 与 nginx proxy_read_timeout 不一致
+  # 当后端处理耗时 > 60s（如批量导入 180 行标讯 ~100s）时，Tomcat 主动断开连接导致 nginx 504
+  tomcat:
+    connection-timeout: ${SERVER_TOMCAT_CONNECTION_TIMEOUT:180000}  # 3 分钟
   error:
     include-message: on_param
     include-binding-errors: on_param

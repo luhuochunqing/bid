@@ -205,7 +205,18 @@ export function useTenderBulkImport({ tendersApi, refreshTenderList, canCreateTe
       pollImportProgress(data.taskId)
       return true
     } catch (error) {
-      ElMessage.error(error?.response?.data?.msg || error?.message || '批量导入失败，请稍后重试')
+      const status = error?.response?.status
+      const isTimeout = status === 504 || status === 502 || error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT' || error.message?.toLowerCase().includes('timeout')
+      if (isTimeout) {
+        // CO-524: 网关/连接超时时后端可能仍在处理，关闭弹窗避免用户反复点击，稍后刷新列表
+        ElMessage.warning('后端仍在处理中，请等待 1-2 分钟后刷新列表查看结果，请勿立即重试')
+        closeDialog()
+        setTimeout(() => {
+          refreshTenderList().catch(() => { /* 静默处理 */ })
+        }, 2000)
+      } else {
+        ElMessage.error(error?.response?.data?.msg || error?.message || '批量导入失败，请稍后重试')
+      }
       return false
     } finally {
       importing.value = false
