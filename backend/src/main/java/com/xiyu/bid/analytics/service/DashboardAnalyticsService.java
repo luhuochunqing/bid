@@ -48,6 +48,7 @@ public class DashboardAnalyticsService {
     private final DashboardDemoFusionService demoFusionService;
 
     @Cacheable(value = "dashboard:overview", key = "'overview'")
+    // TTL: 5 分钟（显式配置于 CacheConfig#redisCacheManagerBuilderCustomizer）
     public DashboardOverviewDTO getOverview() {
         log.debug("Fetching dashboard overview from database");
         return assemblerService.buildOverview(
