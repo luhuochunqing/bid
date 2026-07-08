@@ -129,6 +129,9 @@ public class QualificationExportService {
                 if (item.getAttachments() != null) {
                     for (var att : item.getAttachments()) {
                         if (att.getFileUrl() == null || att.getFileUrl().isBlank()) continue;
+                        // CO-544 fix: 跳过与主实体 fileUrl 相同的 attachment，避免同一物理文件被写入 ZIP 两次
+                        // （attachment.file_name 可能含历史 .pdf.pdf 双后缀，导致 entry 名不同而绕过去重器）
+                        if (item.getFileUrl() != null && item.getFileUrl().equals(att.getFileUrl())) continue;
                         String entryName = buildEntryName(item.getName(),
                                 att.getFileName() != null ? att.getFileName() : att.getFileUrl());
                         if (writeAttachmentToZip(zos, item.getId(), att.getFileUrl(), entryName, dedup)) {
