@@ -342,16 +342,6 @@ export function useProjectDetailTaskActions(context) {
       message.error(error.message || '任务状态更新失败')
     }
   }
-  const handleAddDeliverable = (taskId, deliverable) => {
-    const task = state.project.value?.tasks?.find((item) => item.id === taskId)
-    if (!task) return
-    task.deliverables = task.deliverables || []
-    const exists = deliverable?.id != null && task.deliverables.some((item) => String(item.id) === String(deliverable.id))
-    if (!exists) task.deliverables.push(deliverable)
-    task.hasDeliverable = true
-    pushActivity(`为任务"${task.name}"上传了交付物: ${deliverable.name}`)
-    message.success('交付物已添加')
-  }
   const handleRemoveDeliverable = (taskId, deliverableId) => {
     const task = state.project.value?.tasks?.find((item) => item.id === taskId)
     if (!task?.deliverables) return
@@ -436,5 +426,5 @@ export function useProjectDetailTaskActions(context) {
     }
   }
 
-  return { handleGenerateTasks, handleScoreDraftGenerated, handleOpenScoreDraftDecompose, handleOpenTenderBreakdown, handleTenderBreakdownUpload, handleAddTask, handleResetTasks, handleTaskClick, handleSaveTask, handleTaskStatusChange, handleAddDeliverable, handleRemoveDeliverable, handleSubmitReview, handleSubmitToDocument }
+  return { handleGenerateTasks, handleScoreDraftGenerated, handleOpenScoreDraftDecompose, handleOpenTenderBreakdown, handleTenderBreakdownUpload, handleAddTask, handleResetTasks, handleTaskClick, handleSaveTask, handleTaskStatusChange, handleRemoveDeliverable, handleSubmitReview, handleSubmitToDocument }
 }

@@ -154,6 +154,14 @@ describe('TaskBoard (dynamic columns)', () => {
     expect(items.length).toBe(4)
   })
 
+  it('disables TODO → REVIEW dropdown item for assignee (submit moves to detail page)', async () => {
+    const wrapper = mountBoard({ tasks: [{ id: 1, name: 'T1', status: 'TODO', assigneeId: 9, deliverables: [{ id: 1 }] }] })
+    await flushPromises()
+    const items = wrapper.findAllComponents({ name: 'ElDropdownItem' })
+    // mockStatuses order: 0=TODO, 1=REVIEW, 2=COMPLETED, 3=ARCHIVED
+    expect(items.at(1).props('disabled')).toBe(true)
+  })
+
   it('status-change items are disabled for non-assignee', async () => {
     const wrapper = mountBoard({ tasks: [{ id: 2, name: 'T2', status: 'TODO', assigneeId: 999 }] })
     await flushPromises()
@@ -236,7 +244,7 @@ describe('TaskBoard (drag to change status)', () => {
     mockProjectStore.loadTaskStatuses = vi.fn()
   })
 
-  it('emits status-change with target column code when task is dropped in another column', async () => {
+  it('blocks drag TODO → REVIEW now that submit-review is only in task detail', async () => {
     const task = { id: 31, name: 'T', status: 'TODO', priority: 'medium', assigneeId: 9, deliverables: [{ id: 1 }], completionNotes: '已完成' }
     const wrapper = mountBoard({ projectId: '12', tasks: [task] })
     await flushPromises()
@@ -244,9 +252,7 @@ describe('TaskBoard (drag to change status)', () => {
     wrapper.vm.onDragChange({ added: { element: task, newIndex: 0 } }, 'REVIEW')
     await flushPromises()
 
-    const emitted = wrapper.emitted('status-change')
-    expect(emitted).toBeTruthy()
-    expect(emitted[0]).toEqual([task, 'REVIEW', undefined])
+    expect(wrapper.emitted('status-change')).toBeFalsy()
   })
 
   it('blocks direct TODO → COMPLETED transition (must go through REVIEW)', async () => {

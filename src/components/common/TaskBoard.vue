@@ -133,7 +133,6 @@ import { useUserStore } from '@/stores/user'
 import { getPriorityType, getPriorityLabel as getPriorityText } from '@/views/Dashboard/workbench-formatters.js'
 import { isTaskAssignee } from '@/utils/permission.js'
 import { hexToSoftBackground } from '@/utils/color.js'
-import { validateSubmitForReview } from '@/composables/useTaskSubmissionValidation.js'
 import { getTaskDeliverableDownloadUrl } from '@/api/modules/taskDeliverables.js'
 import { downloadWithFilename } from '@/utils/download.js'
 
@@ -183,17 +182,8 @@ const canTransitionToStatus = (task, targetStatus) => {
     if (currentStatus === 'REVIEW') return canReviewTask(task)
     return false
   }
-  if (target === 'REVIEW') {
-    if (currentStatus === 'TODO') {
-      if (!isTaskAssignee(task)) return false
-      return validateSubmitForReview({
-        deliverables: task.deliverables,
-        hasDeliverable: task.hasDeliverable,
-        completionNotes: task.completionNotes
-      }).valid
-    }
-    return false
-  }
+  // CO-529-followup: 提交审核统一在任务详情页完成，看板不再允许 TODO→REVIEW
+  if (target === 'REVIEW') return false
   if (target === 'COMPLETED') {
     if (currentStatus === 'REVIEW') return canReviewTask(task)
     return false
