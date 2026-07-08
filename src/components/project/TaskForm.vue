@@ -182,7 +182,6 @@ import { ElMessage } from 'element-plus'
 import { validateSubmitForReview } from '@/composables/useTaskSubmissionValidation.js'
 import { getTaskDeliverableDownloadUrl } from '@/api/modules/taskDeliverables.js'
 import { downloadWithFilename } from '@/utils/download.js'
-import { isBidAdminOrSenior } from '@/utils/permission.js'
 
 const props = defineProps({
   modelValue: { type: Object, default: () => ({}) },
@@ -243,12 +242,12 @@ const canDeliver = computed(() => {
 // CO-448: 通过 extendedFields._taskType 识别保证金缴纳任务（替代标题字符串匹配，避免标题改动导致字段消失）
 const isDepositTask = computed(() => localValue.extendedFields?._taskType === 'deposit-payment')
 // CO-481: 保证金缴纳任务 + TODO 状态 + 管理角色/项目负责人 → 执行人可编辑
-// 权限范围：投标管理员、投标组长、该项目分配的投标负责人、投标辅助人员
+// 权限范围：系统管理员、投标管理员、投标组长、该项目分配的投标负责人、投标辅助人员
 const canEditAssignee = computed(() => {
   if (!readonly.value) return true // create/edit 模式始终可编辑
   if (!isDepositTask.value) return false
   if (String(localValue.status || '').toUpperCase() !== 'TODO') return false
-  if (isBidAdminOrSenior(userStore.userRole)) return true
+  if (userStore.isBidManager) return true
   // 投标负责人/辅助人员：匹配项目的 primaryLeadUserId / secondaryLeadUserId
   const project = projectStore.currentProject
   const uid = userStore.currentUser?.id

@@ -49,7 +49,6 @@ import { useProjectStore } from '@/stores/project'
 import { useUserStore } from '@/stores/user'
 import { validateSubmitForReview } from '@/composables/useTaskSubmissionValidation.js'
 import { uploadTaskFilesWithFallback } from '@/composables/projectDetail/taskAssigneePayload'
-import { isBidAdminOrSenior } from '@/utils/permission.js'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -73,13 +72,13 @@ const userStore = useUserStore()
 const canSubmitForReview = computed(() => taskFormRef.value?.canDeliver === true)
 
 // CO-481: 保证金缴纳任务 + TODO + 管理角色/项目负责人 → 可编辑执行人
-// 权限范围：投标管理员、投标组长、该项目分配的投标负责人、投标辅助人员
+// 权限范围：系统管理员、投标管理员、投标组长、该项目分配的投标负责人、投标辅助人员
 const canEditDepositTaskAssignee = computed(() => {
   const task = selectedTask.value
   if (!task) return false
   if (task.extendedFields?._taskType !== 'deposit-payment') return false
   if (String(task.status || '').toUpperCase() !== 'TODO') return false
-  if (isBidAdminOrSenior(userStore.userRole)) return true
+  if (userStore.isBidManager) return true
   const project = projectStore.currentProject
   const uid = userStore.currentUser?.id
   if (!project || uid == null) return false
