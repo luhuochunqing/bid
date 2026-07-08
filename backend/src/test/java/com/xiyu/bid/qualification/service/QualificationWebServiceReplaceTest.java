@@ -110,6 +110,11 @@ class QualificationWebServiceReplaceTest {
         verify(qualificationService).updateQualification(eq(1L), argThat(dto ->
                 dto.getFileUrl() != null && dto.getFileUrl().contains("new-cert.pdf")
         ));
+        // CO-554: 还必须验证 fileUrlExplicitlySet=true 被打上旗标，
+        // 否则 UpdateQualificationAppService 守卫会丢弃新 fileUrl，导致下载按钮缺失。
+        verify(qualificationService).updateQualification(eq(1L), argThat(dto ->
+                Boolean.TRUE.equals(dto.getFileUrlExplicitlySet())
+        ));
     }
 
     @Test
