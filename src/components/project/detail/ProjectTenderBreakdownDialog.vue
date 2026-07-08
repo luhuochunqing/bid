@@ -14,6 +14,16 @@
       </template>
     </el-upload>
 
+    <ObsUploadProgress
+      :visible="obsUploading || obsProgressPercent > 0"
+      :file-name="obsCurrentFile?.name || ''"
+      :file-size="obsCurrentFile?.size || 0"
+      :progress-percent="obsProgressPercent"
+      :uploading="obsUploading"
+      :has-error="!!obsError"
+      @cancel="handleObsCancel"
+    />
+
     <el-alert
       v-if="isParsing"
       title="正在解析招标文件，请稍候"
@@ -32,6 +42,7 @@
 <script setup>
 import { computed } from 'vue'
 import { UploadFilled } from '@element-plus/icons-vue'
+import ObsUploadProgress from '@/components/common/ObsUploadProgress.vue'
 import { useProjectDetailContext } from '@/composables/projectDetail/context.js'
 
 const ctx = useProjectDetailContext()
@@ -44,6 +55,10 @@ const visible = computed({
 const isParsing = computed(() => Boolean(ctx.tenderBreakdownParsing))
 
 const handleUpload = (file) => ctx.handleTenderBreakdownUpload(file)
+
+const obsUpload = ctx.obsUpload || {}
+const { uploading: obsUploading, progressPercent: obsProgressPercent, currentFile: obsCurrentFile, error: obsError } = obsUpload
+const handleObsCancel = () => obsUpload?.cancel?.()
 </script>
 
 <style scoped>
