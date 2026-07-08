@@ -92,6 +92,14 @@ public class PerformanceRowImporter {
 
     @Transactional
     public ImportRowResult importRow(Row row, int rowNum) {
+        ParsedRow parsed = parseRow(row, rowNum);
+        return saveParsedRow(parsed);
+    }
+
+    /**
+     * 解析 Excel 行，返回待保存的数据（不写入数据库）。
+     */
+    public ParsedRow parseRow(Row row, int rowNum) {
         String contractName = getCellStr(row, COL_CONTRACT_NAME);
         if (contractName == null || contractName.isBlank()) {
             throw new IllegalArgumentException(colLabel(COL_CONTRACT_NAME) + "不能为空");
@@ -121,14 +129,22 @@ public class PerformanceRowImporter {
                 getCellStr(row, COL_CUSTOMER_ADDRESS), getCellStr(row, COL_XIYU_PROJECT_MANAGER), getCellStr(row, COL_MALL_WEBSITE_URL),
                 parseYesNo(getCellStr(row, COL_HAS_BID_NOTICE), COL_HAS_BID_NOTICE), getCellStr(row, COL_REMARKS),
                 attachments);
-        var existing = repository.findByContractName(contractName);
+        return new ParsedRow(rowNum, contractName, cmd, attachmentFileNames(row));
+    }
+
+    /**
+     * 保存已解析的行并返回导入结果。
+     */
+    @Transactional
+    public ImportRowResult saveParsedRow(ParsedRow parsed) {
+        var existing = repository.findByContractName(parsed.contractName());
         Long performanceId;
         if (existing.isPresent()) {
-            performanceId = updateService.update(existing.get().id(), cmd).id();
+            performanceId = updateService.update(existing.get().id(), parsed.command()).id();
         } else {
-            performanceId = createService.create(cmd).id();
+            performanceId = createService.create(parsed.command()).id();
         }
-        return new ImportRowResult(contractName, performanceId, attachmentFileNames(row));
+        return new ImportRowResult(parsed.contractName(), performanceId, parsed.attachmentFileNames());
     }
 
     private <T> T parseWithColLabel(java.util.function.Supplier<T> parser, int colIndex) {
@@ -215,4 +231,11 @@ public class PerformanceRowImporter {
 
     /** 附件文件名 + 类型 */
     public record AttachmentFileName(String fileName, String fileType) {}
+
+    /** 已解析但未保存的导入行 */
+    public record ParsedRow(
+            int rowNum,
+            String contractName,
+            PerformanceUpsertCommand command,
+            List<AttachmentFileName> attachmentFileNames) {}
 }

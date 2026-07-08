@@ -162,4 +162,51 @@ public class PerformanceImportAttachmentProcessor {
 
     public record AttachmentResult(int matchedCount, List<UnmatchedFile> unmatched) {}
     public record UnmatchedFile(String filename, String reason) {}
+
+    /**
+     * 检查 Excel 中声明的附件在附件包中是否都有对应文件。
+     * 返回缺失的声明附件列表（按槽位顺序，先声明先占用）。
+     */
+    public List<MissingAttachment> findMissingDeclaredAttachments(
+            List<PerformanceRowImporter.ParsedRow> rows,
+            List<AttachmentInput> attachments) {
+        List<MissingAttachment> declared = new ArrayList<>();
+        for (var row : rows) {
+            if (row.attachmentFileNames() == null) {
+                continue;
+            }
+            for (var fn : row.attachmentFileNames()) {
+                declared.add(new MissingAttachment(
+                        row.rowNum(), row.contractName(), fn.fileName(), fn.fileType()));
+            }
+        }
+        if (declared.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, Integer> availableByKey = new HashMap<>();
+        if (attachments != null) {
+            for (var input : attachments) {
+                if (input == null || input.isEmpty()) {
+                    continue;
+                }
+                String key = normalizeKey(input.filename());
+                availableByKey.merge(key, 1, Integer::sum);
+            }
+        }
+
+        List<MissingAttachment> missing = new ArrayList<>();
+        for (var d : declared) {
+            String key = normalizeKey(d.fileName());
+            int available = availableByKey.getOrDefault(key, 0);
+            if (available <= 0) {
+                missing.add(d);
+            } else {
+                availableByKey.put(key, available - 1);
+            }
+        }
+        return missing;
+    }
+
+    public record MissingAttachment(int rowNum, String contractName, String fileName, String fileType) {}
 }
