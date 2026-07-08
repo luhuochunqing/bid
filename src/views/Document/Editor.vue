@@ -74,7 +74,7 @@ import SectionTreePanel from './editor/components/SectionTreePanel.vue'
 import EditorCenterPane from './editor/components/EditorCenterPane.vue'
 import AssemblyPanel from './editor/components/AssemblyPanel.vue'
 import CaseSliceRecommendDrawer from './editor/components/CaseSliceRecommendDrawer.vue'
-import { parseSectionMetadata } from './documentEditorHelpers.js'
+import { parseSectionMetadata, mergeSectionSourceMetadata } from './documentEditorHelpers.js'
 import { useDocumentAssembly } from './useDocumentAssembly.js'
 import { useDocumentKnowledge } from './useDocumentKnowledge.js'
 import { useDocumentSidebar } from './useDocumentSidebar.js'
@@ -110,8 +110,13 @@ function handleCaseRecommend() {
 
 function handleInsertCaseSlice(item) {
   if (!currentSection.value || !item) return
-  const content = item.textPreview || item.title || ''
-  currentSection.value.content = `${currentSection.value.content || ''}\n\n> 来源：案例切片 · ${item.projectDir}\n\n${content}\n`
+  const section = currentSection.value
+  const sourceDetail = [item.projectDir, item.docxLabel].filter(Boolean).join(' · ')
+  mergeSectionSourceMetadata(section, {
+    kind: 'case-slice', title: item.title || '', sourceLabel: '案例切片',
+    sourceDetail, referencedAt: new Date().toISOString()
+  })
+  section.content = `${section.content || ''}\n\n> 来源：案例切片 · ${sourceDetail}\n\n${item.textPreview || item.title || ''}\n`
   showCaseRecommend.value = false
   ElMessage.success('案例切片已插入到当前章节')
 }

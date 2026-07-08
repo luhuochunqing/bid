@@ -5,26 +5,6 @@
 
 import httpClient from '../client.js'
 
-function normalizeRecommendation(item) {
-  return {
-    id: item.id,
-    projectDir: item.projectDir || '',
-    projectIdx: item.projectIdx || 0,
-    docxFile: item.docxFile || '',
-    docxLabel: item.docxLabel || '',
-    sectionIdx: item.sectionIdx || 0,
-    level: item.level || 1,
-    title: item.title || '',
-    textLength: item.textLength || 0,
-    textPreview: item.textPreview || '',
-    paraCount: item.paraCount || 0,
-    similarity: item.similarity || 0,
-    embedding: item.embedding || null,
-    createdAt: item.createdAt || '',
-    updatedAt: item.updatedAt || ''
-  }
-}
-
 export const caseSlicesApi = {
   recommendByScoringItem(projectId, scoringItemId, topK = 10) {
     return httpClient.get('/api/case-slices/recommend', {
