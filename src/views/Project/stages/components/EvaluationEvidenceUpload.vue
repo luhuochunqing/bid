@@ -69,12 +69,12 @@ watch(() => props.existingDocIds, async (ids) => {
       .map(id => docMap.get(Number(id)))
       .filter(Boolean)
       .map(doc => ({
-        name: doc.name || '评标文件',
+        name: doc.name || '开标一览表',
         url: doc.fileUrl || '',
         response: { data: doc },
         status: 'success',
       }))
-  } catch (e) { console.error('回填评标文件失败:', e) }
+  } catch (e) { console.error('回填开标一览表失败:', e) }
 }, { immediate: true })
 const uploadUrl = computed(() => getApiUrl(`/api/projects/${props.projectId}/documents`))
 const acceptedTypes = '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png'
