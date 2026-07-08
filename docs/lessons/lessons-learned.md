@@ -3090,3 +3090,102 @@ npm run test:e2e -- --grep "tender-import-async"
 - [nginx-tender-import-timeout.md](file:///Users/user/xiyu/worktrees/trae/docs/release/nginx-tender-import-timeout.md)（Nginx 兜底配置）
 - spec: `specs/031-tender-import-async-perf/`
 - §23 — 全链路日志排查 SOP（本次排查使用 Layer 1-4）
+
+## 47. OSS 用户权限扩散：双轨制下的"内部映射"是权限越权的根源（spec 032 / 2026-07-08）
+
+### 问题背景
+
+OSS 同步用户（如 03063 韩辉、06234 郑蓉蓉）配置为"跨部门协作人员"/"投标管理部高级投标经理"，但登录后能看到系统所有菜单（包括系统设置、资源管理、知识库等管理员专属菜单）。
+
+**用户的核心反馈**："用户从 OSS 返回的菜单权限应该完全依赖于 OSS 的权限，你不应该在我们系统内部去做一些映射。"
+
+### 根因：双轨制下的 4 个权限扩散点
+
+系统存在**双轨制权限体系**：
+- **本地账户**：DB roleCode → RoleProfileCatalog seed → menuPermissions（含 "all" 短路键）
+- **OSS 用户**：OSS 返回菜单 codes → 缓存 → menuPermissions（应严格按 OSS 返回值）
+
+问题出在 OSS 用户经过 `UserDetailsServiceImpl` 和 `DataScopeConfigService` 时，被**内部映射逻辑**污染了 4 个交叉点：
+
+| # | 位置 | 扩散行为 |
+|---|------|---------|
+| 1 | `UserDetailsServiceImpl.java#L126` | OSS 用户 roleCode=admin 时触发 `menuPermissions.contains("all")` 扩散，展开所有 seed 权限 |
+| 2 | `UserDetailsServiceImpl.java#L156` | OSS admin 用户补发 `system.admin` / `warehouse.manage` 系统级权限键 |
+| 3 | `DataScopeConfigService.java#L138` | OSS 缓存菜单直接加入 authorities 时未过滤 "all" |
+| 4 | `DataScopeConfigService.java#L148` | OSS 用户合并 catalog seed 时未过滤 "all" |
+
+### 经验教训
+
+1. **OSS 用户的权限必须严格等于 OSS 返回值**：系统内部不应做任何"映射"、"扩散"、"补发"。OSS 返回什么菜单，用户就只能看到什么菜单。
+2. **"all" 是内部 admin 专属权限键**：OSS 用户永远不应持有 "all"，因为 OSS 返回的是具体菜单 codes（如 1001/1002），不含 "all"。任何让 OSS 用户获得 "all" 的路径都是 bug。
+3. **双轨制交叉点是最危险的**：本地账户的"扩散"逻辑（admin → all → 所有 seed 权限）对本地 admin 是预期行为，但对 OSS admin 用户是越权。交叉点必须有 `isOssUser` 守卫。
+4. **前端必须防御性兜底**：即使后端漏过 "all"，前端 `hasPermission` 也不应对 OSS 用户短路放行。纵深防御。
+5. **normalizer 是字段透传的关键关卡**：`normalizeUser` 显式枚举字段，新增 `isOssUser` 字段时必须同步更新 normalizer，否则后端返回的字段会被静默丢弃。
+
+### 修复方案（三层防御，spec 032）
+
+**第一层：后端 UserDetailsServiceImpl 守卫**
+- OSS 用户 menuPermissions 过滤 "all" 后再加入 authorities
+- OSS 用户不触发 admin 扩散（`!isOssUser && (contains("all") || roleCode=admin)`）
+- OSS 用户不补发 `system.admin` / `warehouse.manage`
+
+**第二层：后端 DataScopeConfigService 守卫**
+- OSS 缓存菜单过滤 "all"（`ossPermissions.stream().filter(p -> !"all".equals(p))`）
+- OSS 用户合并 catalog seed 时过滤 "all"
+
+**第三层：前端 hasPermission 守卫**
+- `if (perms.includes('all') && !state.currentUser?.isOssUser) return true`
+- OSS 用户即使携带 "all" 也不短路，按精确匹配鉴权
+- `AuthResponse` 新增 `isOssUser` 字段，`normalizeUser` 透传该字段
+
+### 测试证据
+
+```
+后端：5 个新测试 + 回归测试全绿
+- ossCachedAdminRoleShouldNotExpandAllSeedPermissions ✅
+- ossAdminUserShouldNotHaveSystemAdminPermission ✅
+- localAdminUserShouldHaveAllAndSystemAdminPermissionRegression ✅（回归保护）
+- getRoleMenuPermissions_OssAdminUserShouldNotContainAll ✅
+- getRoleMenuPermissions_LocalAdminUserShouldContainAllRegression ✅（回归保护）
+
+前端：25 个测试全绿
+- OSS 用户 menuPermissions 含 all 时不应短路放行 ✅
+- 本地 admin 用户 menuPermissions 含 all 时应短路放行（回归）✅
+- normalizeUser 保留 isOssUser 字段 ✅
+```
+
+关键日志确认：
+- `local_admin_regression isOssUser=false roleCode=admin` authorities 含 `all, system.admin` ✅
+- `oss_admin_all isOssUser=true roleCode=admin` authorities 仅 `[ROLE_MANAGER, admin, ROLE_ADMIN]` ✅
+- `06234 isOssUser=true roleCode=admin` authorities `[ROLE_MANAGER, admin, ROLE_ADMIN, bidding]` ✅
+
+### 操作规范（防复发）
+
+1. **OSS 用户权限相关改动必须加 `isOssUser` 守卫**：任何涉及 admin 扩散、catalog seed 合并、系统权限补发的代码路径，都必须检查 `isOssUser`。
+2. **新增 AuthResponse 字段时必须同步更新 `normalizeUser`**：前端 normalizer 显式枚举字段，新增字段不更新 normalizer 会被静默丢弃。
+3. **OSS 用户权限测试必须包含"反向断言"**：不只测"应该有什么"，还要测"不应该有什么"（如 `doesNotContain("all")`、`doesNotContain("system.admin")`）。
+4. **本地 admin 回归测试是必选项**：每次修改 OSS 用户权限逻辑，必须同时跑本地 admin 回归测试，确保不破坏本地 admin 的预期扩散行为。
+
+### 验证命令
+
+```bash
+# 后端：权限扩散相关测试
+cd backend && mvn test -Dtest='UserDetailsServiceImplTest,DataScopeConfigServiceTest' -Djacoco.skip=true
+
+# 前端：hasPermission + normalizer 测试
+npx vitest run src/stores/__tests__/user.spec.js src/api/authNormalizer.spec.js
+
+# 架构测试
+cd backend && mvn test -Dtest=ArchitectureTest,FPJavaArchitectureTest,MaintainabilityArchitectureTest
+```
+
+### 相关文件
+
+- [UserDetailsServiceImpl.java](file:///Users/user/xiyu/worktrees/claude/backend/src/main/java/com/xiyu/bid/auth/UserDetailsServiceImpl.java)（三处 isOssUser 守卫）
+- [DataScopeConfigService.java](file:///Users/user/xiyu/worktrees/claude/backend/src/main/java/com/xiyu/bid/admin/service/DataScopeConfigService.java)（OSS 菜单过滤 "all"）
+- [AuthResponse.java](file:///Users/user/xiyu/worktrees/claude/backend/src/main/java/com/xiyu/bid/dto/AuthResponse.java)（新增 isOssUser 字段）
+- [user.js](file:///Users/user/xiyu/worktrees/claude/src/stores/user.js)（hasPermission 前端守卫）
+- [authNormalizer.js](file:///Users/user/xiyu/worktrees/claude/src/api/authNormalizer.js)（isOssUser 字段透传）
+- spec: `specs/032-fix-oss-permission-diffusion/`
+- §29 — hasAnyRole 双轨制陷阱（同源教训）
+- §44 — EffectiveRoleResolver 权限来源统一（前置治理）

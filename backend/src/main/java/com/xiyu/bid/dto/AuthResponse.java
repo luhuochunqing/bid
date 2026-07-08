@@ -30,6 +30,11 @@ public class AuthResponse {
     private String roleName;
     private String deptCode;
     private String dept;
+    /**
+     * 是否 OSS 同步用户（external_org_source_app 非空）。
+     * 前端 hasPermission 据此对 OSS 用户不短路放行 "all"（specs/032 权限扩散修复）。
+     */
+    private boolean isOssUser;
     @Builder.Default
     private List<Long> allowedProjectIds = List.of();
     @Builder.Default
@@ -105,6 +110,7 @@ public class AuthResponse {
                 .roleName(roleName)
                 .deptCode(user.getDepartmentCode())
                 .dept(user.getDepartmentName())
+                .isOssUser(user.getExternalOrgSourceApp() != null && !user.getExternalOrgSourceApp().isBlank())
                 .allowedProjectIds(allowedProjectIds == null ? List.of() : allowedProjectIds)
                 .allowedDepts(allowedDepts == null ? List.of() : allowedDepts)
                 .menuPermissions(menuPermissions == null ? List.of() : menuPermissions)
