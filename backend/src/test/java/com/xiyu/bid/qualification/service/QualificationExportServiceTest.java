@@ -230,4 +230,30 @@ class QualificationExportServiceTest {
         assertThat(txtContent).contains("无法下载");
         assertThat(txtContent).contains("missing.pdf");
     }
+
+    /**
+     * 回归测试：选中的资质均无可下载附件时，应抛 InvalidArgumentException，
+     * 避免生成 0 字节无效 ZIP 导致前端"批量下载失败"。
+     */
+    @Test
+    void shouldRejectWhenSelectedQualificationsHaveNoAttachments() {
+        QualificationDTO q1 = QualificationDTO.builder()
+                .id(1L)
+                .name("无附件资质A")
+                .fileUrl(null)
+                .attachments(List.of())
+                .build();
+        QualificationDTO q2 = QualificationDTO.builder()
+                .id(2L)
+                .name("无附件资质B")
+                .fileUrl("  ")
+                .attachments(null)
+                .build();
+
+        when(flatQuery.listAll(null, null)).thenReturn(List.of(q1, q2));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.batchExportZip(List.of(1L, 2L)))
+                .isInstanceOf(com.xiyu.bid.exception.InvalidArgumentException.class)
+                .hasMessageContaining("无可下载附件");
+    }
 }
