@@ -112,35 +112,21 @@ describe('EvaluationStage editable 权限', () => {
   })
 })
 
-// CO-461: 评标文件必填校验
-describe('EvaluationStage handleSubmit 评标文件必填校验', () => {
+// CO-550: 开标一览表已取消必填
+describe('EvaluationStage handleSubmit 开标一览表非必填', () => {
   beforeEach(() => {
     mockUser.role = '/bidAdmin'
     mockUser.menuPermissions = []
   })
 
-  it('未上传评标文件时提交应提示用户', async () => {
-    const { ElMessage } = await import('element-plus')
-    const wrapper = await mountEvaluationStage()
-    // 模拟已选择评标状态和填写情况说明，但没有评标文件
-    wrapper.vm.targetSubStage = 'AWAITING_BOARD'
-    wrapper.vm.evaluationNotes = '评标情况说明'
-    wrapper.vm.evidenceDocIds = []
-    // stub 组件返回空数组
-    wrapper.vm.evidenceUploadRef = { getPendingFileIds: () => [], clearPendingFileIds: () => {} }
-    await wrapper.vm.handleSubmit()
-    expect(ElMessage.warning).toHaveBeenCalledWith('请上传评标文件')
-  })
-
-  it('有评标文件时提交应通过校验', async () => {
+  it('未上传开标一览表时也能提交', async () => {
     const { projectLifecycleApi } = await import('@/api/modules/projectLifecycle.js')
     const wrapper = await mountEvaluationStage()
     wrapper.vm.targetSubStage = 'AWAITING_BOARD'
     wrapper.vm.evaluationNotes = '评标情况说明'
-    wrapper.vm.evidenceDocIds = [50] // 有已上传文件
+    wrapper.vm.evidenceDocIds = []
     wrapper.vm.evidenceUploadRef = { getPendingFileIds: () => [], clearPendingFileIds: () => {} }
     await wrapper.vm.handleSubmit()
-    // 应调用推进接口
     expect(projectLifecycleApi.advanceEvaluation).toHaveBeenCalled()
   })
 })

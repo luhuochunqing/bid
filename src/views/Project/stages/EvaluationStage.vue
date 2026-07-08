@@ -26,9 +26,9 @@
       </div>
     </el-card>
 
-    <!-- 评标文件 -->
+    <!-- 开标一览表 -->
     <el-card shadow="never" class="stage-section">
-      <template #header><span class="section-title">评标文件<span class="required-mark">*</span></span></template>
+      <template #header><span class="section-title">开标一览表</span></template>
       <EvaluationEvidenceUpload
         ref="evidenceUploadRef"
         :project-id="projectId"
@@ -106,12 +106,8 @@ async function load() {
 async function handleSubmit() {
   if (!targetSubStage.value) return ElMessage.warning('请先选择评标状态')
   if (!(evaluationNotes.value || '').trim()) return ElMessage.warning('请填写评标情况说明')
-  // CO-461: 评标文件必填校验
+  // CO-550: 开标一览表已取消必填，不再校验附件
   const pendingIds = evidenceUploadRef.value?.getPendingFileIds() || []
-  const existingIds = evidenceDocIds.value || []
-  if (pendingIds.length === 0 && existingIds.length === 0) {
-    return ElMessage.warning('请上传评标文件')
-  }
 
   submitting.value = true
   try {
