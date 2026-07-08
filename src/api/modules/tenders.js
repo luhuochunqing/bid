@@ -94,8 +94,22 @@ export const tendersApi = {
     formData.set('file', file, file?.name || 'tender-import.xlsx')
     return httpClient.post('/api/tenders/import', formData, withIdempotencyKey({
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 120000
+      timeout: 30000
     }))
+  },
+
+  /**
+   * 查询标讯批量导入任务进度（异步化后的进度轮询接口）。
+   * <p>对应后端 GET /api/tenders/import/{taskId}/progress，返回 200 + TenderImportProgressDTO。
+   * <p>契约见 specs/031-tender-import-async-perf/contracts/tender-import-api.md
+   *
+   * @param {string} taskId - bulkImport 返回的任务 ID（UUID）
+   * @returns {Promise<object>} 进度 DTO（taskId/status/totalRows/processedRows/successCount/failureCount/percent/errors）
+   */
+  async getImportProgress(taskId) {
+    return httpClient.get(`/api/tenders/import/${taskId}/progress`, {
+      timeout: 10000
+    })
   },
 
   async parseTenderIntakeDocument(file, { entityId = 'manual-tender' } = {}) {

@@ -53,7 +53,8 @@ class TenderImportServiceTest {
     void setUp() {
         templateBuilder = new TenderImportTemplateBuilder();
         cellReader = new TenderExcelCellReader();
-        service = new TenderImportService(tenderCommandService, tenderMapper, templateBuilder, cellReader, validator);
+        TenderExcelParser excelParser = new TenderExcelParser(cellReader, validator);
+        service = new TenderImportService(tenderCommandService, tenderMapper, templateBuilder, excelParser);
     }
 
     @Test

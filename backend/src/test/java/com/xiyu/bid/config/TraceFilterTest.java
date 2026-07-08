@@ -3,6 +3,7 @@ package com.xiyu.bid.config;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.entity.User.Role;
 import com.xiyu.bid.security.CurrentUserResolver;
+import com.xiyu.bid.security.EffectiveRoleResolver;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,13 +29,16 @@ class TraceFilterTest {
     @Mock
     private CurrentUserResolver currentUserResolver;
 
+    @Mock
+    private EffectiveRoleResolver effectiveRoleResolver;
+
     private TraceFilter traceFilter;
     private AutoCloseable mocks;
 
     @BeforeEach
     void setUp() {
         mocks = MockitoAnnotations.openMocks(this);
-        traceFilter = new TraceFilter(currentUserResolver);
+        traceFilter = new TraceFilter(currentUserResolver, effectiveRoleResolver);
         MDC.clear();
     }
 
@@ -52,6 +56,7 @@ class TraceFilterTest {
                 .role(Role.ADMIN)
                 .build();
         when(currentUserResolver.getCurrentUser()).thenReturn(user);
+        when(effectiveRoleResolver.resolveRoleCode(user)).thenReturn("admin");
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/projects");
         MockHttpServletResponse response = new MockHttpServletResponse();

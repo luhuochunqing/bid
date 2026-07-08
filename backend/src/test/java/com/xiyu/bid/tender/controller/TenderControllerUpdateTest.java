@@ -10,13 +10,12 @@ import com.xiyu.bid.tender.dto.TenderDTO;
 import com.xiyu.bid.tender.dto.TenderRequest;
 import com.xiyu.bid.tender.service.TenderAuditService;
 import com.xiyu.bid.tender.service.TenderCommandService;
+import com.xiyu.bid.tender.service.TenderImportAppService;
 import com.xiyu.bid.tender.service.TenderImportService;
 import com.xiyu.bid.tender.service.TenderMapper;
 import com.xiyu.bid.tender.service.TenderQueryService;
 import com.xiyu.bid.tender.service.TenderSubmissionService;
 import com.xiyu.bid.tender.service.TenderAiAnalysisService;
-import com.xiyu.bid.tender.service.TenderImportService;
-import com.xiyu.bid.tender.service.TenderMapper;
 import com.xiyu.bid.ai.service.AiDeepCapabilityService;
 import com.xiyu.bid.demo.service.DemoDataProvider;
 import com.xiyu.bid.demo.service.DemoFusionService;
@@ -53,6 +52,7 @@ class TenderControllerUpdateTest {
     private DemoFusionService demoFusionService;
     private TenderAuditService tenderAuditService;
     private TenderImportService tenderImportService;
+    private TenderImportAppService tenderImportAppService;
     private AiDeepCapabilityService aiDeepCapabilityService;
     private AuthService authService;
 
@@ -69,6 +69,7 @@ class TenderControllerUpdateTest {
         demoFusionService = mock(DemoFusionService.class);
         tenderAuditService = mock(TenderAuditService.class);
         tenderImportService = mock(TenderImportService.class);
+        tenderImportAppService = mock(TenderImportAppService.class);
         aiDeepCapabilityService = mock(AiDeepCapabilityService.class);
         authService = mock(AuthService.class);
 
@@ -78,6 +79,7 @@ class TenderControllerUpdateTest {
                 null, // tenderSubmissionService
                 tenderMapper,
                 tenderImportService,
+                tenderImportAppService,
                 demoModeService,
                 demoDataProvider,
                 demoFusionService,

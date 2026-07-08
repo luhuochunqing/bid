@@ -1,14 +1,17 @@
-// Input: tenders API（导入模板下载、批量导入接口）+ refreshTenderList + canCreateTender
-// Output: 批量导入对话框状态、模板下载、上传提交动作
+// Input: tenders API（导入模板下载、批量导入接口、进度查询接口）+ refreshTenderList + canCreateTender
+// Output: 批量导入对话框状态、模板下载、上传提交动作、异步进度轮询
 // Pos: src/views/Bidding/list/ - Tender bulk import composable
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { triggerBlobDownload } from '@/utils/download.js'
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024
 const ACCEPTED_EXT = '.xlsx'
+const POLL_INTERVAL_MS = 2000
+const MAX_POLL_DURATION_MS = 5 * 60 * 1000
+const TERMINAL_STATUSES = ['COMPLETED', 'PARTIAL_SUCCESS', 'FAILED']
 
 function isXlsxFile(file) {
   const name = String(file?.name || '').toLowerCase()
@@ -21,10 +24,28 @@ export function useTenderBulkImport({ tendersApi, refreshTenderList, canCreateTe
   const importing = ref(false)
   const importResult = ref(null)
   const selectedFile = ref(null)
+  const importProgress = ref(null)
+  const polling = ref(false)
+
+  let pollTimer = null
+
+  const clearPollTimer = () => {
+    if (pollTimer) {
+      clearTimeout(pollTimer)
+      pollTimer = null
+    }
+  }
+
+  onUnmounted(() => {
+    clearPollTimer()
+  })
 
   const resetImport = () => {
+    clearPollTimer()
     selectedFile.value = null
     importResult.value = null
+    importProgress.value = null
+    polling.value = false
   }
 
   const closeDialog = () => {
@@ -81,6 +102,80 @@ export function useTenderBulkImport({ tendersApi, refreshTenderList, canCreateTe
     }
     selectedFile.value = raw
     importResult.value = null
+    importProgress.value = null
+  }
+
+  /**
+   * 处理终态：显示对应提示 + 刷新列表 + 关闭对话框（仅 COMPLETED 时自动关闭）。
+   */
+  const handleTerminalState = async (data) => {
+    const { status, totalRows, successCount, failureCount } = data
+
+    if (status === 'COMPLETED') {
+      ElMessage.success(`成功导入 ${successCount} 条标讯`)
+      await refreshTenderList()
+      closeDialog()
+    } else if (status === 'PARTIAL_SUCCESS') {
+      ElMessage.warning(`导入完成（部分成功）：共 ${totalRows} 行，成功 ${successCount} 行，失败 ${failureCount} 行，请查看下方错误明细`)
+      await refreshTenderList()
+    } else if (status === 'FAILED') {
+      ElMessage.error(`导入失败：共 ${totalRows} 行，失败 ${failureCount} 行，请查看下方错误明细逐行修正后重新上传`)
+    }
+  }
+
+  /**
+   * 轮询导入进度。
+   * <p>每 POLL_INTERVAL_MS 毫秒查询一次进度，终态时停止轮询并设置 importResult。
+   * <p>轮询失败时（如网络异常）不立即终止，下次轮询会重试。
+   * <p>如果轮询总时长超过 MAX_POLL_DURATION_MS（5 分钟），停止轮询并提示用户
+   * （任务仍在后端继续处理，结果会写入 DB，后端 RecoveryRunner 兜底卡死任务）。
+   */
+  const pollImportProgress = (taskId) => {
+    clearPollTimer()
+    polling.value = true
+
+    const startTime = Date.now()
+
+    const stopPollingWithTimeout = () => {
+      polling.value = false
+      clearPollTimer()
+      ElMessage.warning('导入处理时间较长，请稍后在标讯列表查看导入结果')
+    }
+
+    const poll = async () => {
+      if (Date.now() - startTime > MAX_POLL_DURATION_MS) {
+        stopPollingWithTimeout()
+        return
+      }
+
+      try {
+        const response = await tendersApi.getImportProgress(taskId)
+        const data = response?.data || null
+        if (!data) {
+          // 响应异常，下次轮询重试
+          pollTimer = setTimeout(poll, POLL_INTERVAL_MS)
+          return
+        }
+
+        importProgress.value = data
+
+        if (TERMINAL_STATUSES.includes(data.status)) {
+          // 终态：停止轮询，设置结果
+          polling.value = false
+          importResult.value = data
+          clearPollTimer()
+          handleTerminalState(data)
+        } else {
+          // 非终态：继续轮询
+          pollTimer = setTimeout(poll, POLL_INTERVAL_MS)
+        }
+      } catch (error) {
+        // 网络异常等：下次轮询重试（不立即终止）
+        pollTimer = setTimeout(poll, POLL_INTERVAL_MS)
+      }
+    }
+
+    poll()
   }
 
   const submitBulkImport = async () => {
@@ -93,21 +188,21 @@ export function useTenderBulkImport({ tendersApi, refreshTenderList, canCreateTe
       return false
     }
     importing.value = true
+    importResult.value = null
+    importProgress.value = null
     try {
       const response = await tendersApi.bulkImport(selectedFile.value)
       const data = response?.data || null
-      importResult.value = data
-      if (data && data.failureCount > 0) {
-        ElMessage.warning(`导入未通过：共 ${data.totalRows} 行，失败 ${data.failureCount} 行（已整批回滚，未写入数据），请查看下方错误明细逐行修正后重新上传`)
-        return false
+      if (!data || !data.taskId) {
+        throw new Error('导入任务创建失败：响应缺少 taskId')
       }
-      const successCount = data?.successCount ?? 0
-      ElMessage.success(`成功导入 ${successCount} 条标讯`)
 
-      // CRM 自动分配功能未实现（后端 autoAssign API 未提供），
-      // 待后端就绪后再在此处或独立 composable 中接入。
-      await refreshTenderList()
-      closeDialog()
+      // 同步阶段已完成，任务已创建，开始异步轮询进度
+      importing.value = false
+      ElMessage.info('导入任务已创建，正在后台处理...')
+
+      // 启动进度轮询
+      pollImportProgress(data.taskId)
       return true
     } catch (error) {
       ElMessage.error(error?.response?.data?.msg || error?.message || '批量导入失败，请稍后重试')
@@ -122,6 +217,8 @@ export function useTenderBulkImport({ tendersApi, refreshTenderList, canCreateTe
     templateDownloading,
     importing,
     importResult,
+    importProgress,
+    polling,
     selectedFile,
     openBulkImport,
     closeDialog,
