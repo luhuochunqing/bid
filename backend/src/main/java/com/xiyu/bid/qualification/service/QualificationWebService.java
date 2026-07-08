@@ -77,6 +77,9 @@ public class QualificationWebService {
             // 获取当前 DTO，追加附件到已有列表（防止覆盖已有附件）
             QualificationDTO dto = qualificationQueryService.getQualificationById(id);
             dto.setFileUrl(saved.uniqueFilename());
+            // CO-554 fix: 必须显式打旗标，否则 UpdateQualificationAppService 守卫会保留 existing.fileUrl()，
+            // 导致表单上传的 fileUrl 不写入主表 → 列表下载按钮缺失。
+            dto.setFileUrlExplicitlySet(true);
 
             QualificationAttachmentDTO attachmentDTO = QualificationAttachmentDTO.builder()
                     .fileName(saved.originalFilename())
@@ -226,6 +229,8 @@ public class QualificationWebService {
     private void syncFileUrlToMainEntity(Long qualificationId, String uniqueFilename) {
         QualificationDTO dto = qualificationQueryService.getQualificationById(qualificationId);
         dto.setFileUrl(uniqueFilename);
+        // CO-554 fix: 同 uploadAttachment，必须显式打旗标，否则守卫会丢弃新 fileUrl。
+        dto.setFileUrlExplicitlySet(true);
         qualificationService.updateQualification(qualificationId, dto);
     }
 
