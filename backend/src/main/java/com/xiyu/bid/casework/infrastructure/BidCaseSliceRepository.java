@@ -12,6 +12,8 @@ public interface BidCaseSliceRepository extends JpaRepository<BidCaseSlice, Long
 
     List<BidCaseSlice> findByEmbeddingIsNotNull();
 
+    long countByEmbeddingIsNotNull();
+
     List<BidCaseSlice> findByProjectDirAndDocxFileAndSectionIdx(String projectDir, String docxFile, int sectionIdx);
 
     boolean existsByProjectDirAndDocxFileAndSectionIdx(String projectDir, String docxFile, int sectionIdx);
