@@ -78,9 +78,11 @@ public class CrmUserTokenCache {
     public void put(String username, String crmJwtToken, long expiresInSeconds) {
         CacheEntry entry = new CacheEntry(crmJwtToken, Instant.now().plusSeconds(expiresInSeconds));
         cache.put(username, entry);
+        // CO-501 修复：Redis TTL 用传入的 expiresInSeconds（对齐 JWT exp），不再写死 DEFAULT_TTL(25h)
+        Duration redisTtl = Duration.ofSeconds(Math.min(expiresInSeconds, DEFAULT_TTL_SECONDS));
         redisTemplate.ifPresent(t -> {
             try {
-                t.opsForValue().set(redisKey(username), objectMapper.writeValueAsString(entry), DEFAULT_TTL);
+                t.opsForValue().set(redisKey(username), objectMapper.writeValueAsString(entry), redisTtl);
             } catch (JsonProcessingException ex) {
                 log.warn("CRM token Redis write failed for user={}, falling back to memory only: {}",
                         username, ex.getMessage());
