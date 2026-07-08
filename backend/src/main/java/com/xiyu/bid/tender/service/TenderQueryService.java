@@ -16,6 +16,7 @@ import com.xiyu.bid.tender.dto.TenderAttachmentDTO;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -171,9 +172,9 @@ public class TenderQueryService {
                 dto.setAssigneeName(assigneeNames.get(dto.getId()));
 
                 // department 为空时从项目负责人用户反查部门回填
-                if (isBlank(dto.getDepartment()) && dto.getProjectManagerId() != null) {
+                if (StringUtils.isBlank(dto.getDepartment()) && dto.getProjectManagerId() != null) {
                     String dept = managerDepartments.get(dto.getProjectManagerId());
-                    if (!isBlank(dept)) {
+                    if (!StringUtils.isBlank(dept)) {
                         dto.setDepartment(dept);
                     }
                 }
@@ -236,17 +237,11 @@ public class TenderQueryService {
                 .map(TenderDTO::getProjectManagerId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-        if (projectManagerIds.isEmpty()) {
-            return Map.of();
-        }
-        // CO-441: 用 HashMap 显式 put，允许 null value，避免 Collectors.toMap 对 null value 抛 NPE。
+        // CO-441: 用 HashMap 显式 put，允许 null value/null key，避免 Collectors.toMap/Map.of 对 null 抛异常。
         Map<Long, String> result = new HashMap<>(projectManagerIds.size());
         userRepository.findByIdIn(projectManagerIds)
                 .forEach(user -> result.put(user.getId(), user.getDepartmentName()));
         return result;
     }
 
-    private boolean isBlank(String value) {
-        return value == null || value.isBlank();
-    }
 }
