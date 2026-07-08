@@ -6,6 +6,7 @@ import com.xiyu.bid.alerts.service.QualificationExpiryNotificationService;
 import com.xiyu.bid.performance.application.service.PerformanceExpiryAlertService;
 import com.xiyu.bid.performance.application.service.PerformanceAlertConfigAppService;
 import com.xiyu.bid.resources.application.service.ScanDepositReturnTrackingAppService;
+import com.xiyu.bid.resources.service.CaExpiryScanService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ public class AlertRuleDispatchService {
     private final ScanDepositReturnTrackingAppService scanDepositReturnTrackingAppService;
     private final PerformanceExpiryAlertService performanceExpiryAlertService;
     private final PerformanceAlertConfigAppService performanceAlertConfigAppService;
+    private final CaExpiryScanService caExpiryScanService;
 
     public void dispatch(AlertRule rule) {
         switch (rule.getType()) {
@@ -29,6 +31,8 @@ public class AlertRuleDispatchService {
             case QUALIFICATION_EXPIRY -> dispatchQualificationExpiry(rule);
             case DEPOSIT_RETURN -> dispatchDepositReturn();
             case PERFORMANCE_EXPIRY -> dispatchPerformanceExpiry();
+            case CA_EXPIRY -> dispatchCaExpiry();
+            case CA_BORROW_OVERDUE -> dispatchCaBorrowOverdue();
             default -> alertRuleExecutionService.execute(rule);
         }
     }
@@ -53,5 +57,17 @@ public class AlertRuleDispatchService {
             return;
         }
         performanceExpiryAlertService.createAlerts(config);
+    }
+
+    private void dispatchCaExpiry() {
+        log.debug("Dispatching CA certificate expiry scan");
+        int created = caExpiryScanService.scanCertificateExpiry();
+        log.info("CA certificate expiry scan completed: {} alerts created", created);
+    }
+
+    private void dispatchCaBorrowOverdue() {
+        log.debug("Dispatching CA borrow overdue scan");
+        int created = caExpiryScanService.scanBorrowOverdue();
+        log.info("CA borrow overdue scan completed: {} alerts created", created);
     }
 }

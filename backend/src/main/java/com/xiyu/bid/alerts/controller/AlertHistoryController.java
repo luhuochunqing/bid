@@ -1,5 +1,5 @@
 // Input: alerts service and request DTOs
-// Output: Alert History REST API endpoints with admin/manager-only history reads and actions
+// Output: Alert History REST API endpoints with admin/bidAdmin/bidTeamLeader-only history reads and actions
 // Pos: Controller/控制器层
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.alerts.controller;
@@ -31,10 +31,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * 告警历史 Controller。权限已收紧：仅 ADMIN、投标管理员(/bidAdmin)、投标组长(bid-TeamLeader) 可访问；
+ * 投标专员(bid-Team)、行政人员(bid-administration) 等普通用户不可读取或操作告警历史。
+ */
 @RestController
 @RequestMapping("/api/alerts/history")
 @RequiredArgsConstructor
-@PreAuthorize("isAuthenticated()")
+@PreAuthorize("hasAnyRole('ADMIN', 'BIDADMIN', 'BID_TEAMLEADER')")
 public class AlertHistoryController {
 
     private final AlertHistoryService alertHistoryService;
@@ -42,7 +46,6 @@ public class AlertHistoryController {
     private final AlertHistoryCommandService alertHistoryCommandService;
 
     @PostMapping
-    @PreAuthorize("isAuthenticated()")
     @Auditable(action = "CREATE", entityType = "AlertHistory", description = "Create alert history record")
     public ResponseEntity<ApiResponse<AlertHistoryResponse>> createAlertHistory(@Valid @RequestBody AlertHistoryCreateRequest request) {
         AlertHistory alertHistory = alertHistoryService.createAlertHistory(request);
@@ -53,7 +56,6 @@ public class AlertHistoryController {
     }
 
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<Page<AlertHistoryResponse>>> getAllAlertHistories(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
@@ -75,13 +77,11 @@ public class AlertHistoryController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<AlertHistoryResponse>> getAlertHistoryById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(alertHistoryQueryService.getAlertHistoryResponseById(id)));
     }
 
     @GetMapping("/unresolved")
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<Page<AlertHistoryResponse>>> getUnresolvedAlertHistories(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
@@ -90,20 +90,17 @@ public class AlertHistoryController {
     }
 
     @PatchMapping("/{id}/acknowledge")
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<AlertHistoryResponse>> acknowledgeAlertHistory(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Alert history acknowledged successfully", alertHistoryCommandService.acknowledgeAlertHistory(id)));
     }
 
     @PostMapping("/{id}/resolve")
-    @PreAuthorize("isAuthenticated()")
     @Auditable(action = "RESOLVE", entityType = "AlertHistory", description = "Resolve alert history")
     public ResponseEntity<ApiResponse<AlertHistoryResponse>> resolveAlertHistory(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Alert history resolved successfully", alertHistoryCommandService.resolveAlertHistory(id)));
     }
 
     @GetMapping("/statistics")
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<AlertStatisticsResponse>> getAlertStatistics() {
         return ResponseEntity.ok(ApiResponse.success(alertHistoryQueryService.getAlertStatistics()));
     }

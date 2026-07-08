@@ -106,6 +106,11 @@ export const alertHistoryApi = {
 
   async resolve(id) {
     return httpClient.post(`/api/alerts/history/${id}/resolve`)
+  },
+
+  async getStatistics() {
+    const response = await httpClient.get('/api/alerts/history/statistics')
+    return response
   } }
 
 export default {

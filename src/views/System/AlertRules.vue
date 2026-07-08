@@ -44,6 +44,9 @@
             <el-option label="文档" value="DOCUMENT" />
             <el-option label="资质到期" value="QUALIFICATION_EXPIRY" />
             <el-option label="保证金退还" value="DEPOSIT_RETURN" />
+            <el-option label="业绩到期" value="PERFORMANCE_EXPIRY" />
+            <el-option label="CA到期" value="CA_EXPIRY" />
+            <el-option label="CA借用超期" value="CA_BORROW_OVERDUE" />
           </el-select>
         </el-form-item>
         <el-form-item label="条件">
@@ -51,10 +54,19 @@
             <el-option label="大于" value="GREATER_THAN" />
             <el-option label="小于等于/提前提醒" value="LESS_THAN" />
             <el-option label="等于" value="EQUALS" />
+            <el-option label="包含（仅文本类型）" value="CONTAINS" disabled />
           </el-select>
+          <div v-if="form.condition === 'CONTAINS'" class="form-hint">
+            当前所有规则类型均为数值阈值，"包含"条件暂不适用
+          </div>
         </el-form-item>
         <el-form-item label="阈值">
-          <el-input-number v-model="form.threshold" :min="1" :max="365" :disabled="form.type === 'DEPOSIT_RETURN'" />
+          <el-input-number
+            v-model="form.threshold"
+            :min="thresholdRange.min"
+            :max="thresholdRange.max"
+            :disabled="form.type === 'DEPOSIT_RETURN'"
+          />
         </el-form-item>
         <el-alert
           v-if="form.type === 'DEPOSIT_RETURN'"
@@ -72,7 +84,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { alertRulesApi } from '@/api/modules/alerts.js'
 import { useUserStore } from '@/stores/user'
@@ -84,6 +96,12 @@ const dialogTitle = ref('新建规则')
 const form = reactive({ id: null, name: '', type: 'DEADLINE', condition: 'LESS_THAN', threshold: 1 })
 const isEdit = ref(false)
 const userStore = useUserStore()
+
+// 阈值范围按规则类型动态切换：RISK 为 1-100 分数，其余为 1-365 天
+const thresholdRange = computed(() => {
+  if (form.type === 'RISK') return { min: 1, max: 100 }
+  return { min: 1, max: 365 }
+})
 
 onMounted(() => { loadRules() })
 
@@ -169,7 +187,10 @@ function getTypeLabel(type) {
     RISK: '风险',
     DOCUMENT: '文档',
     QUALIFICATION_EXPIRY: '资质到期',
-    DEPOSIT_RETURN: '保证金退还'
+    DEPOSIT_RETURN: '保证金退还',
+    PERFORMANCE_EXPIRY: '业绩到期',
+    CA_EXPIRY: 'CA到期',
+    CA_BORROW_OVERDUE: 'CA借用超期'
   }
   return map[type] || type
 }
@@ -178,7 +199,8 @@ function getConditionLabel(condition) {
   const map = {
     GREATER_THAN: '大于',
     LESS_THAN: '小于等于',
-    EQUALS: '等于'
+    EQUALS: '等于',
+    CONTAINS: '包含'
   }
   return map[condition] || condition
 }
@@ -188,4 +210,5 @@ function getConditionLabel(condition) {
 .alert-rules-container { padding: 20px; }
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .page-header h2 { margin: 0; }
+.form-hint { color: var(--el-text-color-secondary); font-size: 12px; margin-top: 4px; }
 </style>

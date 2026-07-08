@@ -114,6 +114,7 @@ public final class RoleProfileCatalog {
                         "dashboard:view_activity_list", "dashboard:view_priority_todos")));
         map.put(BID_LEAD_CODE, new SeedDefinition(BID_LEAD_CODE, "投标组长", "标书编制与评标推进负责人", true, "all",
                 List.of("dashboard", "bidding", "project", "resource",
+                        "settings", "settings-alerts",
                         "task.assign", "evaluation.update", "result.register",
                         "retrospective.submit", "closure.request",
                         BIDDING_MANAGE_PERMISSION, BIDDING_CREATE_PERMISSION,
@@ -130,7 +131,7 @@ public final class RoleProfileCatalog {
                         WAREHOUSE_MANAGE_PERMISSION)));
         map.put(BID_ADMIN_CODE, new SeedDefinition(BID_ADMIN_CODE, "投标管理员", "复盘审核与结项闸门审批", true, "all",
                 List.of("dashboard", "operation-logs", "bidding", "project", "knowledge", "resource",
-                        "analytics", "settings",
+                        "analytics", "settings", "settings-alerts",
                         "task.review", "retrospective.submit", "retrospective.review", "closure.review", "lead.assign",
                         BIDDING_MANAGE_PERMISSION, BIDDING_CREATE_PERMISSION,
                         BIDDING_DELETE_PERMISSION, BIDDING_SYNC_PERMISSION,

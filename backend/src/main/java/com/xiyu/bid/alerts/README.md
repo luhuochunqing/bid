@@ -7,7 +7,7 @@
 规则与历史分层管理，`alerts` 只保留自己拥有的数据规则执行，不再承担跨模块扫描编排。
 历史记录在未解决态下按 `ruleId + relatedId` 去重，避免同一对象重复刷提醒。
 对外提供规则维护、历史查询和统计接口。
-告警历史的列表、详情、未处理列表、确认和统计接口仅允许 ADMIN/MANAGER 访问；STAFF 不再具备告警历史读取或确认权限。创建与 resolve 继续维持既有 ADMIN/MANAGER 限制。
+告警历史的列表、详情、未处理列表、确认和统计接口仅允许 ADMIN/BIDADMIN/BID_TEAMLEADER 访问；投标专员(bid-Team)、行政人员(bid-administration) 等普通用户不再具备告警历史读取或确认权限。创建与 resolve 维持相同权限限制。
 
 ## 边界清单
 
@@ -21,7 +21,7 @@
 | `AlertHistoryService.java` | Service | 告警历史业务逻辑 |
 | `AlertRuleExecutionService.java` | Service | `alerts` 自有规则执行边界 |
 | `AlertRuleController.java` | Controller | 告警规则 API 边界 |
-| `AlertHistoryController.java` | Controller | 告警历史 API 边界，历史读取/确认/统计仅限管理员和经理 |
+| `AlertHistoryController.java` | Controller | 告警历史 API 边界，历史读取/确认/统计仅限 ADMIN/BIDADMIN/BID_TEAMLEADER |
 | `AlertRuleCreateRequest.java` | DTO | 创建告警规则请求 |
 | `AlertRuleUpdateRequest.java` | DTO | 更新告警规则请求 |
 | `AlertHistoryCreateRequest.java` | DTO | 创建告警历史请求 |
