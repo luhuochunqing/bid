@@ -314,14 +314,18 @@ class TenderQueryServiceTest {
     }
 
     @Test
-    @DisplayName("department 为空时应通过 department_code 关联 organization_departments 反查部门名回填")
+    @DisplayName("department 为空时应通过 Project.managerId 关联 users.department_code 反查部门名回填")
     void shouldBackfillDepartmentFromProjectManagerUserWhenEmpty() {
         TenderDTO dto = new TenderDTO();
         dto.setId(1L);
-        dto.setProjectManagerId(99L);
+        // 标讯自身 projectManagerId 为 null（生产 78% 场景），但对应 Project.managerId 有值
+        dto.setProjectManagerId(null);
         dto.setDepartment(null);
 
-        when(projectRepository.findByTenderIdIn(Set.of(1L))).thenReturn(List.of());
+        Project project = new Project();
+        project.setTenderId(1L);
+        project.setManagerId(99L);
+        when(projectRepository.findByTenderIdIn(Set.of(1L))).thenReturn(List.of(project));
         when(tenderAssignmentRecordRepository.findLatestByTenderIds(Set.of(1L))).thenReturn(List.of());
         User manager = new User();
         manager.setId(99L);
@@ -348,10 +352,13 @@ class TenderQueryServiceTest {
     void shouldNotOverrideDepartmentWhenAlreadyPresent() {
         TenderDTO dto = new TenderDTO();
         dto.setId(1L);
-        dto.setProjectManagerId(99L);
+        dto.setProjectManagerId(null);
         dto.setDepartment("已有部门");
 
-        when(projectRepository.findByTenderIdIn(Set.of(1L))).thenReturn(List.of());
+        Project project = new Project();
+        project.setTenderId(1L);
+        project.setManagerId(99L);
+        when(projectRepository.findByTenderIdIn(Set.of(1L))).thenReturn(List.of(project));
         when(tenderAssignmentRecordRepository.findLatestByTenderIds(Set.of(1L))).thenReturn(List.of());
         User manager = new User();
         manager.setId(99L);
@@ -365,14 +372,17 @@ class TenderQueryServiceTest {
     }
 
     @Test
-    @DisplayName("department 为空且用户无 department_code 时保持为空")
+    @DisplayName("department 为空且 Project.managerId 用户无 department_code 时保持为空")
     void shouldKeepDepartmentNullWhenProjectManagerHasNoDepartment() {
         TenderDTO dto = new TenderDTO();
         dto.setId(1L);
-        dto.setProjectManagerId(99L);
+        dto.setProjectManagerId(null);
         dto.setDepartment(null);
 
-        when(projectRepository.findByTenderIdIn(Set.of(1L))).thenReturn(List.of());
+        Project project = new Project();
+        project.setTenderId(1L);
+        project.setManagerId(99L);
+        when(projectRepository.findByTenderIdIn(Set.of(1L))).thenReturn(List.of(project));
         when(tenderAssignmentRecordRepository.findLatestByTenderIds(Set.of(1L))).thenReturn(List.of());
         User manager = new User();
         manager.setId(99L);
@@ -387,13 +397,14 @@ class TenderQueryServiceTest {
     }
 
     @Test
-    @DisplayName("department 为空且项目负责人 ID 为 null 时不抛 NPE")
+    @DisplayName("department 为空且标讯无关联项目时不抛 NPE")
     void shouldNotThrowNpeWhenProjectManagerIdIsNull() {
         TenderDTO dto = new TenderDTO();
         dto.setId(1L);
         dto.setProjectManagerId(null);
         dto.setDepartment(null);
 
+        // 无关联项目（生产 1066 条标讯无对应 project）
         when(projectRepository.findByTenderIdIn(Set.of(1L))).thenReturn(List.of());
         when(tenderAssignmentRecordRepository.findLatestByTenderIds(Set.of(1L))).thenReturn(List.of());
 
