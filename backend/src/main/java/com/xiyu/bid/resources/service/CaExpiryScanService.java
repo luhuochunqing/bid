@@ -1,10 +1,12 @@
 package com.xiyu.bid.resources.service;
 
 import com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest;
+import com.xiyu.bid.alerts.dto.AlertHistoryCreateResult;
 import com.xiyu.bid.alerts.entity.AlertHistory;
 import com.xiyu.bid.alerts.entity.AlertRule;
 import com.xiyu.bid.alerts.repository.AlertRuleRepository;
 import com.xiyu.bid.alerts.service.AlertHistoryService;
+import com.xiyu.bid.alerts.service.AlertNotificationOrchestrator;
 import com.xiyu.bid.resources.entity.CaBorrowApplicationEntity;
 import com.xiyu.bid.resources.entity.CaCertificateEntity;
 import com.xiyu.bid.resources.repository.CaBorrowApplicationRepository;
@@ -17,7 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * CA 证书到期及借用逾期扫描服务。
@@ -42,6 +46,8 @@ public class CaExpiryScanService {
     private final CaBorrowApplicationRepository borrowRepository;
     private final AlertRuleRepository alertRuleRepository;
     private final AlertHistoryService alertHistoryService;
+    /** 告警通知编排器：仅在新建告警时触发，异常隔离，失败不影响扫描主流程。 */
+    private final AlertNotificationOrchestrator alertNotificationOrchestrator;
 
     /**
      * 扫描即将到期或已过期的 CA 证书并生成告警，同时回写陈旧的 status 字段.
@@ -75,19 +81,28 @@ public class CaExpiryScanService {
             long daysUntil = ChronoUnit.DAYS.between(LocalDate.now(), expiryDate);
             if (daysUntil < 0) {
                 // 已过期
-                AlertHistoryCreateRequest req = buildRequest(rule, "HIGH",
+                AlertHistoryCreateRequest req = buildCreateRequest(rule, "HIGH",
                         "ca:expired:" + cert.getId(),
                         String.format("【CA已过期】%s（%s）已于 %s 过期，请立即处理",
                                 cert.getHolderName(), cert.getCaType(), expiryDate));
-                alertHistoryService.createAlertHistory(req);
+                AlertHistoryCreateResult result = alertHistoryService.createAlertHistoryIfAbsent(req);
+                // 仅在新建告警时触发通知，复用已有未处理告警不重复推送
+                if (result.created()) {
+                    alertNotificationOrchestrator.dispatchNotification(
+                            result.alertHistory(), rule, buildCaPayload(cert));
+                }
                 created++;
             } else if (daysUntil <= CA_EXPIRY_THRESHOLD_DAYS) {
                 // 即将到期
-                AlertHistoryCreateRequest req = buildRequest(rule, "MEDIUM",
+                AlertHistoryCreateRequest req = buildCreateRequest(rule, "MEDIUM",
                         "ca:expiring:" + cert.getId(),
                         String.format("【CA即将到期】%s（%s）还有 %d 天到期，有效期至 %s",
                                 cert.getHolderName(), cert.getCaType(), daysUntil, expiryDate));
-                alertHistoryService.createAlertHistory(req);
+                AlertHistoryCreateResult result = alertHistoryService.createAlertHistoryIfAbsent(req);
+                if (result.created()) {
+                    alertNotificationOrchestrator.dispatchNotification(
+                            result.alertHistory(), rule, buildCaPayload(cert));
+                }
                 created++;
             }
         }
@@ -127,19 +142,27 @@ public class CaExpiryScanService {
 
             if (daysUntilReturn < 0) {
                 // 已逾期
-                AlertHistoryCreateRequest req = buildRequest(rule, "HIGH",
+                AlertHistoryCreateRequest req = buildCreateRequest(rule, "HIGH",
                         "ca:borrow-overdue:" + borrow.getId(),
                         String.format("【CA借用已逾期】借用人 %s 的 CA 借用已于 %s 到期，已逾期 %d 天，请催促归还",
                                 borrow.getApplicantName(), borrow.getExpectedReturnDate(), Math.abs(daysUntilReturn)));
-                alertHistoryService.createAlertHistory(req);
+                AlertHistoryCreateResult result = alertHistoryService.createAlertHistoryIfAbsent(req);
+                if (result.created()) {
+                    alertNotificationOrchestrator.dispatchNotification(
+                            result.alertHistory(), rule, buildCaPayload(borrow));
+                }
                 created++;
             } else if (daysUntilReturn <= BORROW_RETURN_THRESHOLD_DAYS) {
                 // 即将到期
-                AlertHistoryCreateRequest req = buildRequest(rule, "MEDIUM",
+                AlertHistoryCreateRequest req = buildCreateRequest(rule, "MEDIUM",
                         "ca:borrow-expiring:" + borrow.getId(),
                         String.format("【CA借用即将到期】借用人 %s 的 CA 借用将于 %s 到期，还有 %d 天",
                                 borrow.getApplicantName(), borrow.getExpectedReturnDate(), daysUntilReturn));
-                alertHistoryService.createAlertHistory(req);
+                AlertHistoryCreateResult result = alertHistoryService.createAlertHistoryIfAbsent(req);
+                if (result.created()) {
+                    alertNotificationOrchestrator.dispatchNotification(
+                            result.alertHistory(), rule, buildCaPayload(borrow));
+                }
                 created++;
             }
         }
@@ -161,13 +184,42 @@ public class CaExpiryScanService {
                         .build()));
     }
 
-    private AlertHistoryCreateRequest buildRequest(AlertRule rule, String level,
-                                                    String relatedId, String message) {
+    private AlertHistoryCreateRequest buildCreateRequest(AlertRule rule, String level,
+                                                         String relatedId, String message) {
         AlertHistoryCreateRequest req = new AlertHistoryCreateRequest();
         req.setRuleId(rule.getId());
         req.setLevel(AlertHistory.AlertLevel.valueOf(level));
         req.setRelatedId(relatedId);
         req.setMessage(message);
         return req;
+    }
+
+    /**
+     * 构造 CA 告警通知附加 payload。
+     * <p>入参用 Object 类型，内部按 instanceof 判断实体类型，
+     * 分别填充证书或借用申请的相关字段与 targetUrl。</p>
+     *
+     * @param entity CaCertificateEntity 或 CaBorrowApplicationEntity
+     * @return payload Map；null 或未知类型返回 null
+     */
+    private Map<String, Object> buildCaPayload(Object entity) {
+        if (entity instanceof CaCertificateEntity cert) {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("caCertificateId", cert.getId());
+            payload.put("holderName", cert.getHolderName());
+            payload.put("caType", cert.getCaType());
+            payload.put("expiryDate", cert.getExpiryDate());
+            payload.put("targetUrl", "/resources/ca-certificates");
+            return payload;
+        }
+        if (entity instanceof CaBorrowApplicationEntity borrow) {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("borrowId", borrow.getId());
+            payload.put("applicantName", borrow.getApplicantName());
+            payload.put("expectedReturnDate", borrow.getExpectedReturnDate());
+            payload.put("targetUrl", "/resources/ca-borrow-applications");
+            return payload;
+        }
+        return null;
     }
 }

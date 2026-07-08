@@ -1,9 +1,11 @@
 package com.xiyu.bid.resources.application.service;
 
+import com.xiyu.bid.alerts.dto.AlertHistoryCreateResult;
 import com.xiyu.bid.alerts.entity.AlertHistory;
 import com.xiyu.bid.alerts.entity.AlertRule;
 import com.xiyu.bid.alerts.repository.AlertRuleRepository;
 import com.xiyu.bid.alerts.service.AlertHistoryService;
+import com.xiyu.bid.alerts.service.AlertNotificationOrchestrator;
 import com.xiyu.bid.bidresult.entity.BidResultFetchResult;
 import com.xiyu.bid.bidresult.repository.BidResultFetchResultRepository;
 import com.xiyu.bid.repository.ProjectRepository;
@@ -47,6 +49,8 @@ class SendExpenseReturnReminderAppServiceTest {
     @Mock
     private AlertHistoryService alertHistoryService;
     @Mock
+    private AlertNotificationOrchestrator alertNotificationOrchestrator;
+    @Mock
     private SettingsService settingsService;
     @Mock
     private ExpenseAccessGuard accessGuard;
@@ -86,7 +90,8 @@ class SendExpenseReturnReminderAppServiceTest {
                 602L, BidResultFetchResult.Status.CONFIRMED)).thenReturn(Optional.of(result));
         when(alertRuleRepository.findByType(AlertRule.AlertType.DEPOSIT_RETURN)).thenReturn(List.of(rule));
         when(projectRepository.findById(602L)).thenReturn(Optional.empty());
-        when(alertHistoryService.createAlertHistory(any())).thenReturn(AlertHistory.builder().id(1L).build());
+        when(alertHistoryService.createAlertHistoryIfAbsent(any()))
+                .thenReturn(new AlertHistoryCreateResult(AlertHistory.builder().id(1L).build(), true));
         when(expenseRepository.save(expense)).thenReturn(expense);
 
         sendExpenseReturnReminderAppService.send(502L, "finance-user", "财务手工提醒");
@@ -94,7 +99,7 @@ class SendExpenseReturnReminderAppServiceTest {
         ArgumentCaptor<com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest> captor =
                 ArgumentCaptor.forClass(com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest.class);
         verify(accessGuard).assertCanAccessProject(602L);
-        verify(alertHistoryService).createAlertHistory(captor.capture());
+        verify(alertHistoryService).createAlertHistoryIfAbsent(captor.capture());
         verify(expenseRepository).save(expense);
         assertThat(expense.getLastReturnReminderAt()).isNotNull();
         assertThat(captor.getValue().getRelatedId()).isEqualTo("DepositReturn:502:2026-05-01");
@@ -155,7 +160,8 @@ class SendExpenseReturnReminderAppServiceTest {
             return rule;
         });
         when(projectRepository.findById(604L)).thenReturn(Optional.empty());
-        when(alertHistoryService.createAlertHistory(any())).thenReturn(AlertHistory.builder().id(2L).build());
+        when(alertHistoryService.createAlertHistoryIfAbsent(any()))
+                .thenReturn(new AlertHistoryCreateResult(AlertHistory.builder().id(2L).build(), true));
         when(expenseRepository.save(expense)).thenReturn(expense);
 
         sendExpenseReturnReminderAppService.send(504L, "finance-user", "配置缺失兜底");

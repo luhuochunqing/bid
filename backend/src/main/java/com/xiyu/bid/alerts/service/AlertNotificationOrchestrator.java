@@ -1,0 +1,154 @@
+// Input: AlertHistory + AlertRule + extraPayload（告警历史、规则、附加载荷）
+// Output: 无返回值；通过 NotificationApplicationService 发送站内通知
+// Pos: alerts/service - 告警通知编排器（应用服务层，只编排不做决策）
+package com.xiyu.bid.alerts.service;
+
+import com.xiyu.bid.alerts.domain.AlertMessagePolicy;
+import com.xiyu.bid.alerts.domain.AlertNotificationInfo;
+import com.xiyu.bid.alerts.domain.AlertRecipientPolicy;
+import com.xiyu.bid.alerts.entity.AlertHistory;
+import com.xiyu.bid.alerts.entity.AlertRule;
+import com.xiyu.bid.notification.core.DispatchResult;
+import com.xiyu.bid.notification.dto.CreateNotificationRequest;
+import com.xiyu.bid.notification.service.NotificationApplicationService;
+import com.xiyu.bid.notification.service.NotificationRecipientResolver;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 告警通知编排器：将 {@link AlertHistory} + {@link AlertRule} 编排为站内通知发送。
+ *
+ * <p>本类为应用服务层（FP-Java Profile：编排外壳），只做"找接收人 → 调通知服务"
+ * 的串联，不做任何业务决策。业务决策由纯核心层（{@link AlertMessagePolicy} /
+ * {@link AlertRecipientPolicy}）负责，本类只调用其结果。</p>
+ *
+ * <p><b>异常隔离</b>：通知失败不能影响告警主流程。整个 {@link #dispatchNotification}
+ * 方法体用 try-catch 包裹 {@link RuntimeException}，仅 {@code log.error}，不重抛。
+ * 这保证告警扫描、告警历史写入等主流程不会被通知系统的故障拖垮。</p>
+ *
+ * <p><b>跳过条件</b>：
+ * <ul>
+ *   <li>接收人列表为空 → {@code log.warn} + return</li>
+ *   <li>系统操作者未解析到（null）→ {@code log.warn} + return</li>
+ * </ul>
+ */
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class AlertNotificationOrchestrator {
+
+    /** payload 中存放目标跳转 URL 的 key（与 NotificationApplicationService 约定一致）。 */
+    private static final String PAYLOAD_KEY_TARGET_URL = "targetUrl";
+
+    private final NotificationApplicationService notificationApplicationService;
+    private final NotificationRecipientResolver notificationRecipientResolver;
+    private final SystemActorResolver systemActorResolver;
+
+    /**
+     * 编排告警通知发送。
+     *
+     * <p>编排步骤：
+     * <ol>
+     *   <li>调 {@link AlertRecipientPolicy#resolveRoleCodes} 获取接收人角色码</li>
+     *   <li>调 {@link NotificationRecipientResolver#getUserIdsByRoleCodes} 解析为用户 ID</li>
+     *   <li>空列表 → 跳过</li>
+     *   <li>调 {@link SystemActorResolver#resolveCached()} 获取系统操作者</li>
+     *   <li>null → 跳过</li>
+     *   <li>调 {@link AlertMessagePolicy#buildNotification} 生成通知内容</li>
+     *   <li>构造 {@link CreateNotificationRequest} 并发送</li>
+     * </ol>
+     *
+     * @param alertHistory 告警历史记录
+     * @param alertRule    触发的告警规则
+     * @param extraPayload 附加载荷（可为 null）
+     */
+    public void dispatchNotification(AlertHistory alertHistory, AlertRule alertRule,
+                                     Map<String, Object> extraPayload) {
+        try {
+            // 1. 解析接收人角色码（纯核心）
+            List<String> roleCodes = AlertRecipientPolicy.resolveRoleCodes(alertRule.getType());
+
+            // 2. 解析为用户 ID
+            List<Long> recipientUserIds = notificationRecipientResolver.getUserIdsByRoleCodes(roleCodes);
+
+            // 3. 接收人列表为空 → 跳过
+            if (recipientUserIds == null || recipientUserIds.isEmpty()) {
+                log.warn("跳过告警通知：无接收人，alertHistoryId={}, ruleType={}",
+                        alertHistory.getId(), alertRule.getType());
+                return;
+            }
+
+            // 4. 解析系统操作者
+            Long systemActorId = systemActorResolver.resolveCached();
+
+            // 5. 系统操作者为 null → 跳过
+            if (systemActorId == null) {
+                log.warn("跳过告警通知：系统操作者未解析到，alertHistoryId={}",
+                        alertHistory.getId());
+                return;
+            }
+
+            // 6. 生成通知内容（纯核心）
+            AlertNotificationInfo info = AlertMessagePolicy.buildNotification(
+                    alertRule.getType(),
+                    alertHistory.getMessage(),
+                    alertHistory.getRelatedId(),
+                    extraPayload);
+
+            // 7. 构造 payload（合并 extraPayload 和 targetUrl）
+            Map<String, Object> payload = buildPayload(extraPayload, info);
+
+            // 8. 构造请求并发送
+            CreateNotificationRequest request = new CreateNotificationRequest(
+                    info.notificationType(),
+                    info.sourceEntityType(),
+                    info.sourceEntityId(),
+                    info.title(),
+                    info.body(),
+                    payload,
+                    recipientUserIds
+            );
+
+            // 9. 发送通知
+            DispatchResult result = notificationApplicationService.createNotification(request, systemActorId);
+
+            if (result != null && !result.isValid()) {
+                log.warn("告警通知被通知服务拒绝：alertHistoryId={}, errorCode={}, errorMessage={}",
+                        alertHistory.getId(), result.errorCode(), result.errorMessage());
+            } else if (result != null) {
+                log.info("告警通知发送成功：alertHistoryId={}, notificationId={}",
+                        alertHistory.getId(), result.notificationId());
+            }
+        } catch (RuntimeException e) {
+            // 异常隔离：通知失败不能影响告警主流程，仅记录错误日志
+            log.error("告警通知发送异常：alertHistoryId={}, ruleType={}, error={}",
+                    alertHistory.getId(),
+                    alertRule.getType(),
+                    e.getMessage(),
+                    e);
+        }
+    }
+
+    /**
+     * 合并 extraPayload 和 AlertNotificationInfo.targetUrl 为统一 payload。
+     *
+     * @param extraPayload 调用方传入的附加载荷（可为 null）
+     * @param info         纯核心生成的通知信息
+     * @return 合并后的 payload；为空时返回 null
+     */
+    private Map<String, Object> buildPayload(Map<String, Object> extraPayload, AlertNotificationInfo info) {
+        Map<String, Object> payload = new HashMap<>();
+        if (extraPayload != null) {
+            payload.putAll(extraPayload);
+        }
+        if (info.targetUrl() != null) {
+            payload.put(PAYLOAD_KEY_TARGET_URL, info.targetUrl());
+        }
+        return payload.isEmpty() ? null : payload;
+    }
+}

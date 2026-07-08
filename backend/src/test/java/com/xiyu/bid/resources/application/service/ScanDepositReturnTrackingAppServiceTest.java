@@ -1,9 +1,11 @@
 package com.xiyu.bid.resources.application.service;
 
+import com.xiyu.bid.alerts.dto.AlertHistoryCreateResult;
 import com.xiyu.bid.alerts.entity.AlertHistory;
 import com.xiyu.bid.alerts.entity.AlertRule;
 import com.xiyu.bid.alerts.repository.AlertRuleRepository;
 import com.xiyu.bid.alerts.service.AlertHistoryService;
+import com.xiyu.bid.alerts.service.AlertNotificationOrchestrator;
 import com.xiyu.bid.bidresult.entity.BidResultFetchResult;
 import com.xiyu.bid.bidresult.repository.BidResultFetchResultRepository;
 import com.xiyu.bid.repository.ProjectRepository;
@@ -42,6 +44,8 @@ class ScanDepositReturnTrackingAppServiceTest {
     private AlertRuleRepository alertRuleRepository;
     @Mock
     private AlertHistoryService alertHistoryService;
+    @Mock
+    private AlertNotificationOrchestrator alertNotificationOrchestrator;
     @Mock
     private SettingsService settingsService;
     @Mock
@@ -84,13 +88,14 @@ class ScanDepositReturnTrackingAppServiceTest {
                 "保证金", Expense.ExpenseStatus.RETURNED)).thenReturn(List.of(expense));
         when(bidResultFetchResultRepository.findFirstByProjectIdAndStatusOrderByConfirmedAtDescFetchTimeDesc(
                 601L, BidResultFetchResult.Status.CONFIRMED)).thenReturn(Optional.of(result));
-        when(alertHistoryService.createAlertHistory(any())).thenReturn(AlertHistory.builder().id(1L).build());
+        when(alertHistoryService.createAlertHistoryIfAbsent(any()))
+                .thenReturn(new AlertHistoryCreateResult(AlertHistory.builder().id(1L).build(), true));
 
         int reminded = scanDepositReturnTrackingAppService.scan();
 
         ArgumentCaptor<com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest> captor =
                 ArgumentCaptor.forClass(com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest.class);
-        verify(alertHistoryService).createAlertHistory(captor.capture());
+        verify(alertHistoryService).createAlertHistoryIfAbsent(captor.capture());
         verify(expenseRepository).save(expense);
         assertThat(reminded).isEqualTo(1);
         assertThat(expense.getLastReturnReminderAt()).isNotNull();
@@ -137,7 +142,8 @@ class ScanDepositReturnTrackingAppServiceTest {
                 "保证金", Expense.ExpenseStatus.RETURNED)).thenReturn(List.of(expense));
         when(bidResultFetchResultRepository.findFirstByProjectIdAndStatusOrderByConfirmedAtDescFetchTimeDesc(
                 801L, BidResultFetchResult.Status.CONFIRMED)).thenReturn(Optional.of(result));
-        when(alertHistoryService.createAlertHistory(any())).thenReturn(AlertHistory.builder().id(2L).build());
+        when(alertHistoryService.createAlertHistoryIfAbsent(any()))
+                .thenReturn(new AlertHistoryCreateResult(AlertHistory.builder().id(2L).build(), true));
 
         scanDepositReturnTrackingAppService.scan();
 

@@ -1,10 +1,12 @@
 package com.xiyu.bid.resources.application.service;
 
 import com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest;
+import com.xiyu.bid.alerts.dto.AlertHistoryCreateResult;
 import com.xiyu.bid.alerts.entity.AlertHistory;
 import com.xiyu.bid.alerts.entity.AlertRule;
 import com.xiyu.bid.alerts.repository.AlertRuleRepository;
 import com.xiyu.bid.alerts.service.AlertHistoryService;
+import com.xiyu.bid.alerts.service.AlertNotificationOrchestrator;
 import com.xiyu.bid.bidresult.entity.BidResultFetchResult;
 import com.xiyu.bid.bidresult.repository.BidResultFetchResultRepository;
 import com.xiyu.bid.entity.Project;
@@ -38,6 +40,7 @@ public class SendExpenseReturnReminderAppService {
     private final ProjectRepository projectRepository;
     private final AlertRuleRepository alertRuleRepository;
     private final AlertHistoryService alertHistoryService;
+    private final AlertNotificationOrchestrator alertNotificationOrchestrator;
     private final SettingsService settingsService;
     private final ExpenseAccessGuard accessGuard;
 
@@ -93,7 +96,11 @@ public class SendExpenseReturnReminderAppService {
                 expense.getExpectedReturnDate(),
                 comment == null ? "" : comment
         ).trim());
-        alertHistoryService.createAlertHistory(request);
+        AlertHistoryCreateResult alertResult = alertHistoryService.createAlertHistoryIfAbsent(request);
+        // 仅在新建告警时触发通知；手动发起的提醒无需 extraPayload
+        if (alertResult.created()) {
+            alertNotificationOrchestrator.dispatchNotification(alertResult.alertHistory(), rule, null);
+        }
         expense.recordReturnReminder(LocalDateTime.now());
         return ResourceResponseMapper.toDto(expenseRepository.save(expense));
     }

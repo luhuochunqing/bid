@@ -1,10 +1,12 @@
 package com.xiyu.bid.resources.application.service;
 
 import com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest;
+import com.xiyu.bid.alerts.dto.AlertHistoryCreateResult;
 import com.xiyu.bid.alerts.entity.AlertHistory;
 import com.xiyu.bid.alerts.entity.AlertRule;
 import com.xiyu.bid.alerts.repository.AlertRuleRepository;
 import com.xiyu.bid.alerts.service.AlertHistoryService;
+import com.xiyu.bid.alerts.service.AlertNotificationOrchestrator;
 import com.xiyu.bid.bidresult.entity.BidResultFetchResult;
 import com.xiyu.bid.bidresult.repository.BidResultFetchResultRepository;
 import com.xiyu.bid.entity.Project;
@@ -22,7 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -33,6 +37,7 @@ public class ScanDepositReturnTrackingAppService {
     private final BidResultFetchResultRepository bidResultFetchResultRepository;
     private final AlertRuleRepository alertRuleRepository;
     private final AlertHistoryService alertHistoryService;
+    private final AlertNotificationOrchestrator alertNotificationOrchestrator;
     private final SettingsService settingsService;
     private final ProjectRepository projectRepository;
 
@@ -77,14 +82,24 @@ public class ScanDepositReturnTrackingAppService {
                 continue;
             }
 
+            // 提前解析项目名称，复用给消息构建与通知 payload，避免循环内重复查询
+            String projectName = projectRepository.findById(expense.getProjectId())
+                    .map(Project::getName)
+                    .orElse("项目#" + expense.getProjectId());
             AlertHistoryCreateRequest request = new AlertHistoryCreateRequest();
             request.setRuleId(rule.getId());
             request.setLevel(decision.stage() == com.xiyu.bid.resources.domain.valueobject.DepositReturnReminderStage.OVERDUE
                     ? AlertHistory.AlertLevel.HIGH
                     : AlertHistory.AlertLevel.MEDIUM);
             request.setRelatedId(decision.relatedId(expense.getId(), expense.getExpectedReturnDate().toString()));
-            request.setMessage(buildReminderMessage(expense, result, decision));
-            alertHistoryService.createAlertHistory(request);
+            request.setMessage(buildReminderMessage(expense, result, decision, projectName));
+            AlertHistoryCreateResult alertResult = alertHistoryService.createAlertHistoryIfAbsent(request);
+            // 仅在新建告警时触发通知，复用已有未处理告警不重复推送
+            if (alertResult.created()) {
+                alertNotificationOrchestrator.dispatchNotification(
+                        alertResult.alertHistory(), rule, buildDepositPayload(expense, projectName));
+            }
+            // 副作用保留：无论是否新建告警，expense 实体状态更新与计数都执行
             expense.recordReturnReminder(now);
             expenseRepository.save(expense);
             reminded++;
@@ -110,11 +125,9 @@ public class ScanDepositReturnTrackingAppService {
     private String buildReminderMessage(
             Expense expense,
             BidResultFetchResult result,
-            DepositReturnReminderDecision decision
+            DepositReturnReminderDecision decision,
+            String projectName
     ) {
-        String projectName = projectRepository.findById(expense.getProjectId())
-                .map(Project::getName)
-                .orElse("项目#" + expense.getProjectId());
         String resultText = result == null ? "待确认" : (result.getResult() == BidResultFetchResult.Result.WON ? "中标" : "未中标");
         if (decision.stage() == com.xiyu.bid.resources.domain.valueobject.DepositReturnReminderStage.OVERDUE) {
             return String.format(
@@ -132,6 +145,22 @@ public class ScanDepositReturnTrackingAppService {
                 decision.daysUntilDue(),
                 expense.getExpectedReturnDate()
         );
+    }
+
+    /**
+     * 构建保证金退还通知的附加 payload。
+     *
+     * <p>供 {@link AlertNotificationOrchestrator#dispatchNotification} 使用，
+     * 携带跳转到保证金退还跟踪页所需的关键业务字段。</p>
+     */
+    private Map<String, Object> buildDepositPayload(Expense expense, String projectName) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("expenseId", expense.getId());
+        payload.put("projectId", expense.getProjectId());
+        payload.put("projectName", projectName);
+        payload.put("expectedReturnDate", expense.getExpectedReturnDate());
+        payload.put("targetUrl", "/resources/deposit-return-tracking");
+        return payload;
     }
 
     private AlertRule syncRuleThreshold(AlertRule rule, int warnDays) {

@@ -1,9 +1,11 @@
 package com.xiyu.bid.alertdispatch.service;
 
 import com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest;
+import com.xiyu.bid.alerts.dto.AlertHistoryCreateResult;
 import com.xiyu.bid.alerts.entity.AlertHistory;
 import com.xiyu.bid.alerts.entity.AlertRule;
 import com.xiyu.bid.alerts.service.AlertHistoryService;
+import com.xiyu.bid.alerts.service.AlertNotificationOrchestrator;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.repository.ProjectRepository;
@@ -14,12 +16,15 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 public class BudgetAlertDispatchService {
 
     private final AlertHistoryService alertHistoryService;
+    private final AlertNotificationOrchestrator alertNotificationOrchestrator;
     private final ProjectRepository projectRepository;
     private final TenderRepository tenderRepository;
     private final ExpenseRepository expenseRepository;
@@ -69,6 +74,33 @@ public class BudgetAlertDispatchService {
                 budget
         ));
         request.setRelatedId(String.format("Project:%s", project.getId()));
-        alertHistoryService.createAlertHistory(request);
+        AlertHistoryCreateResult result = alertHistoryService.createAlertHistoryIfAbsent(request);
+        // 仅在新建告警时触发通知，复用已有未处理告警不重复推送
+        if (result.created()) {
+            alertNotificationOrchestrator.dispatchNotification(
+                    result.alertHistory(), rule,
+                    buildBudgetPayload(project, expenseRatio, totalExpense, budget));
+        }
+    }
+
+    /**
+     * 构建预算告警附加载荷，供通知服务在跳转和展示时使用。
+     *
+     * @param project      项目实体
+     * @param expenseRatio 费用占比（百分比）
+     * @param totalExpense 已用费用
+     * @param budget       预算
+     * @return payload map，包含 projectId/projectName/expenseRatio/totalExpense/budget/targetUrl
+     */
+    private Map<String, Object> buildBudgetPayload(Project project, BigDecimal expenseRatio,
+                                                   BigDecimal totalExpense, BigDecimal budget) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("projectId", project.getId());
+        payload.put("projectName", project.getName());
+        payload.put("expenseRatio", expenseRatio);
+        payload.put("totalExpense", totalExpense);
+        payload.put("budget", budget);
+        payload.put("targetUrl", "/projects/" + project.getId());
+        return payload;
     }
 }

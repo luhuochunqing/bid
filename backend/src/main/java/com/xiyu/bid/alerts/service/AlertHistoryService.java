@@ -1,10 +1,11 @@
 // Input: alerts repositories, dedup lookup, and request DTOs
-// Output: Alert History business service operations with unresolved-alert dedup
+// Output: Alert History business service operations with unresolved-alert dedup and create-if-absent result
 // Pos: Service/业务层
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.alerts.service;
 
 import com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest;
+import com.xiyu.bid.alerts.dto.AlertHistoryCreateResult;
 import com.xiyu.bid.alerts.entity.AlertHistory;
 import com.xiyu.bid.alerts.entity.AlertRule;
 import com.xiyu.bid.alerts.repository.AlertHistoryRepository;
@@ -56,6 +57,52 @@ public class AlertHistoryService {
                 .build();
 
         return alertHistoryRepository.save(alertHistory);
+    }
+
+    /**
+     * 创建告警历史，仅在不存在同 ruleId+relatedId 未处理记录时新建。
+     *
+     * <p>与 {@link #createAlertHistory(AlertHistoryCreateRequest)} 的区别：
+     * 返回 {@link AlertHistoryCreateResult} 明确区分新建 vs 复用，供调用方决定是否触发通知。</p>
+     *
+     * @param request 创建请求
+     * @return 创建结果，包含是否新建的标志和告警历史记录
+     */
+    @Transactional
+    public AlertHistoryCreateResult createAlertHistoryIfAbsent(AlertHistoryCreateRequest request) {
+        if (request.getRuleId() == null) {
+            throw new IllegalArgumentException("Rule ID is required");
+        }
+        if (request.getLevel() == null) {
+            throw new IllegalArgumentException("Level is required");
+        }
+        if (request.getMessage() == null || request.getMessage().trim().isEmpty()) {
+            throw new IllegalArgumentException("Message is required");
+        }
+
+        String relatedId = request.getRelatedId();
+        boolean hasRelatedId = relatedId != null && !relatedId.trim().isEmpty();
+        if (hasRelatedId) {
+            AlertHistory existing = alertHistoryRepository
+                    .findFirstByRuleIdAndRelatedIdAndResolvedFalseOrderByCreatedAtDesc(
+                            request.getRuleId(), relatedId)
+                    .orElse(null);
+            if (existing != null) {
+                log.debug("复用已有未处理告警：ruleId={}, relatedId={}", request.getRuleId(), relatedId);
+                return new AlertHistoryCreateResult(existing, false);
+            }
+        }
+
+        AlertHistory alertHistory = AlertHistory.builder()
+                .ruleId(request.getRuleId())
+                .level(request.getLevel())
+                .message(request.getMessage())
+                .relatedId(request.getRelatedId())
+                .resolved(false)
+                .build();
+        AlertHistory saved = alertHistoryRepository.save(alertHistory);
+        log.debug("新建告警历史：ruleId={}, relatedId={}", request.getRuleId(), request.getRelatedId());
+        return new AlertHistoryCreateResult(saved, true);
     }
 
     public AlertHistory getAlertHistoryById(Long id) {

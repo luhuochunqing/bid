@@ -3,7 +3,9 @@
 // Pos: Service/业务层
 package com.xiyu.bid.alerts.service;
 
+import com.xiyu.bid.alerts.service.AlertNotificationOrchestrator;
 import com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest;
+import com.xiyu.bid.alerts.dto.AlertHistoryCreateResult;
 import com.xiyu.bid.alerts.entity.AlertHistory;
 import com.xiyu.bid.alerts.entity.AlertRule;
 import com.xiyu.bid.compliance.dto.RiskAssessmentDTO;
@@ -28,6 +30,7 @@ import java.util.Set;
 public class AlertRuleExecutionService {
 
     private final AlertHistoryService alertHistoryService;
+    private final AlertNotificationOrchestrator alertNotificationOrchestrator;
     private final ProjectRepository projectRepository;
     private final TenderRepository tenderRepository;
     private final ProjectDocumentRepository projectDocumentRepository;
@@ -188,7 +191,11 @@ public class AlertRuleExecutionService {
         request.setLevel(calculateSeverity(rule));
         request.setMessage(message);
         request.setRelatedId(String.format("%s:%s", entityType, entityId));
-        alertHistoryService.createAlertHistory(request);
+        AlertHistoryCreateResult result = alertHistoryService.createAlertHistoryIfAbsent(request);
+        // 仅在新建告警时触发通知，复用已有未处理告警不重复推送
+        if (result.created()) {
+            alertNotificationOrchestrator.dispatchNotification(result.alertHistory(), rule, null);
+        }
         log.info("Alert created: Rule={}, Entity={}, Message={}", rule.getName(), entityType, message);
     }
 
