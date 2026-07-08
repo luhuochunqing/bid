@@ -15,6 +15,13 @@ public interface BidResultFetchResultRepository extends JpaRepository<BidResultF
     long countByStatus(BidResultFetchResult.Status status);
     Optional<BidResultFetchResult> findFirstByTenderIdAndStatusOrderByFetchTimeDesc(Long tenderId, BidResultFetchResult.Status status);
     Optional<BidResultFetchResult> findFirstByProjectIdAndStatusOrderByConfirmedAtDescFetchTimeDesc(Long projectId, BidResultFetchResult.Status status);
+
+    /**
+     * P1-6: 批量查询多个项目的已确认中标结果，避免 N+1 查询。
+     * 返回结果按 confirmedAt DESC, fetchTime DESC 排序，调用方需按 projectId 分组取第一条。
+     */
+    @Query("SELECT b FROM BidResultFetchResult b WHERE b.projectId IN :projectIds AND b.status = :status ORDER BY b.confirmedAt DESC, b.fetchTime DESC")
+    List<BidResultFetchResult> findByProjectIdsInAndStatus(@Param("projectIds") Collection<Long> projectIds, @Param("status") BidResultFetchResult.Status status);
     List<BidResultFetchResult> findByIdIn(Collection<Long> ids);
     List<BidResultFetchResult> findAllByOrderByFetchTimeDesc();
 

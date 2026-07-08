@@ -113,7 +113,8 @@ class TaskExtendedFieldsPersistenceTest {
                 taskPermissionGuard,
                 leadAssignmentRepository,
                 bidDocumentReviewRepository,
-                dataScopeConfigService
+                dataScopeConfigService,
+                new TaskNameResolver(userRepository, new TaskDtoMapper(objectMapper, projectDocumentRepository, taskDeliverableRepository))
         );
     }
 

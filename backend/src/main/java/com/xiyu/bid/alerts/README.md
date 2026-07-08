@@ -20,6 +20,7 @@
 | `AlertRuleService.java` | Service | 告警规则业务逻辑 |
 | `AlertHistoryService.java` | Service | 告警历史业务逻辑 |
 | `AlertRuleExecutionService.java` | Service | `alerts` 自有规则执行边界 |
+| `AlertNotificationOrchestrator.java` | Service | 告警通知编排器（调 NotificationApplicationService 发送站内信+企微） |
 | `AlertRuleController.java` | Controller | 告警规则 API 边界 |
 | `AlertHistoryController.java` | Controller | 告警历史 API 边界，历史读取/确认/统计仅限 ADMIN/BIDADMIN/BID_TEAMLEADER |
 | `AlertRuleCreateRequest.java` | DTO | 创建告警规则请求 |

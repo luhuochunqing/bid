@@ -71,8 +71,8 @@ class AlertHistoryServiceTest {
                 .createdAt(LocalDateTime.now().minusHours(1))
                 .build();
 
-        when(alertRuleRepository.findById(11L)).thenReturn(Optional.of(qualificationRule));
-        when(alertHistoryRepository.findFirstByRuleIdAndRelatedIdAndResolvedFalseOrderByCreatedAtDesc(
+        // P2-1: createAlertHistory 委托给 createAlertHistoryIfAbsent，使用 findFirstByRuleIdAndRelatedIdOrderByCreatedAtDesc
+        when(alertHistoryRepository.findFirstByRuleIdAndRelatedIdOrderByCreatedAtDesc(
                 11L, "Qualification:5:2026-04-26")).thenReturn(Optional.of(existingAlert));
 
         AlertHistory result = alertHistoryService.createAlertHistory(request);
@@ -82,7 +82,7 @@ class AlertHistoryServiceTest {
     }
 
     @Test
-    @DisplayName("已解决的旧提醒不应阻止重新生成提醒")
+    @DisplayName("已解决的旧提醒在冷却期外应重新生成")
     void shouldCreateNewAlertWhenPreviousAlertResolved() {
         AlertHistoryCreateRequest request = new AlertHistoryCreateRequest();
         request.setRuleId(11L);
@@ -99,8 +99,9 @@ class AlertHistoryServiceTest {
                 .resolved(false)
                 .build();
 
-        when(alertRuleRepository.findById(11L)).thenReturn(Optional.of(qualificationRule));
-        when(alertHistoryRepository.findFirstByRuleIdAndRelatedIdAndResolvedFalseOrderByCreatedAtDesc(
+        // P2-1: createAlertHistory 委托给 createAlertHistoryIfAbsent
+        // 无已有记录 → 新建
+        when(alertHistoryRepository.findFirstByRuleIdAndRelatedIdOrderByCreatedAtDesc(
                 11L, "Qualification:5:2026-04-22")).thenReturn(Optional.empty());
         when(alertHistoryRepository.save(any(AlertHistory.class))).thenReturn(savedAlert);
 

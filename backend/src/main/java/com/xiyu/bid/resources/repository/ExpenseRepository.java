@@ -30,6 +30,13 @@ public interface ExpenseRepository extends JpaRepository<Expense, Long> {
     @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(e.amount), 0) FROM Expense e WHERE e.projectId = :projectId")
     BigDecimal sumAmountByProjectId(@org.springframework.data.repository.query.Param("projectId") Long projectId);
 
+    /**
+     * P0-2: 批量查询多个项目的费用总额，避免循环内 N+1 查询。
+     * <p>返回 [projectId, totalAmount] 投影列表，调用方转为 Map 使用。</p>
+     */
+    @org.springframework.data.jpa.repository.Query("SELECT e.projectId, COALESCE(SUM(e.amount), 0) FROM Expense e WHERE e.projectId IN :projectIds GROUP BY e.projectId")
+    List<Object[]> sumAmountByProjectIdIn(@org.springframework.data.repository.query.Param("projectIds") List<Long> projectIds);
+
     @org.springframework.data.jpa.repository.Query("SELECT COALESCE(SUM(e.amount), 0) FROM Expense e WHERE e.projectId = :projectId AND e.category = :category")
     BigDecimal sumAmountByProjectIdAndCategory(
             @org.springframework.data.repository.query.Param("projectId") Long projectId,

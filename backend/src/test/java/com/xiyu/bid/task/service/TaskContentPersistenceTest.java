@@ -110,7 +110,8 @@ class TaskContentPersistenceTest {
                 taskPermissionGuard,
                 leadAssignmentRepository,
                 bidDocumentReviewRepository,
-                dataScopeConfigService
+                dataScopeConfigService,
+                new TaskNameResolver(userRepository, new TaskDtoMapper(new ObjectMapper(), projectDocumentRepository, taskDeliverableRepository))
         );
     }
 

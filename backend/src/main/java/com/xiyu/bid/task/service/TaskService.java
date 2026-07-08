@@ -26,9 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -45,6 +43,7 @@ public class TaskService {
     private final ProjectLeadAssignmentRepository leadAssignmentRepository;
     private final BidDocumentReviewRepository bidDocumentReviewRepository;
     private final DataScopeConfigService dataScopeConfigService;
+    private final TaskNameResolver nameResolver;
     @Transactional
     public TaskDTO createTask(TaskDTO taskDTO) {
         return createTask(taskDTO, null);
@@ -82,7 +81,7 @@ public class TaskService {
                 .dueDate(dto.getDueDate()).extendedFieldsJson(taskDtoMapper.serializeExtendedFields(dto.getExtendedFields()))
                 .createdBy(creator).build());
         log.info("Task created successfully with id: {}", saved.getId());
-        return toDTOWithNames(saved);
+        return nameResolver.toDTOWithNames(saved);
     }
     private Long resolveCreatorUserId(String creatorUsername) {
         if (creatorUsername == null || creatorUsername.isBlank()) {
@@ -100,14 +99,14 @@ public class TaskService {
     @Transactional(readOnly = true)
     public List<TaskDTO> getAllTasks() {
         log.debug("Fetching all tasks");
-        return toDTOsWithNames(visibleTasks(taskRepository.findAll()));
+        return nameResolver.toDTOsWithNames(visibleTasks(taskRepository.findAll()));
     }
     @Transactional(readOnly = true)
     public TaskDTO getTaskById(Long id) {
         log.debug("Fetching task by id: {}", id);
         Task task = findTask(id);
         assertCanAccessProject(task.getProjectId());
-        return toDTOWithNames(task);
+        return nameResolver.toDTOWithNames(task);
     }
     @Transactional
     public TaskDTO updateTask(Long id, TaskDTO taskDTO) {
@@ -150,7 +149,7 @@ public class TaskService {
         }
         Task saved = taskRepository.save(task);
         taskHistoryRecorder.recordUpdate(before, saved, actorUsername);
-        TaskDTO result = toDTOWithNames(saved);
+        TaskDTO result = nameResolver.toDTOWithNames(saved);
         notifyAssigneeIfChanged(oldAssigneeId, result, resolveCreatorUserId(actorUsername));
         return result;
     }
@@ -186,12 +185,12 @@ public class TaskService {
                 ? taskRepository.findByProjectId(projectId)
                 : taskRepository.findByProjectIdAndAssigneeId(projectId, currentUser.getId());
         // CO-361: 三态模型下 isVisibleTask 仅做 null 过滤，与独立看板展示语义一致
-        return toDTOsWithNames(tasks.stream().filter(TaskBoardItemMapper::isVisibleTask).toList());
+        return nameResolver.toDTOsWithNames(tasks.stream().filter(TaskBoardItemMapper::isVisibleTask).toList());
     }
     @Transactional(readOnly = true)
     public List<TaskDTO> getTasksByAssigneeId(Long assigneeId) {
         log.debug("Fetching tasks for assignee: {}", assigneeId);
-        return toDTOsWithNames(visibleTasks(taskRepository.findByAssigneeId(assigneeId)));
+        return nameResolver.toDTOsWithNames(visibleTasks(taskRepository.findByAssigneeId(assigneeId)));
     }
     @Transactional(readOnly = true)
     public List<TaskDTO> getAccessibleTasksByAssigneeId(Long assigneeId, String username) {
@@ -206,7 +205,7 @@ public class TaskService {
     @Transactional(readOnly = true)
     public List<TaskDTO> getTasksByStatus(Task.Status status) {
         log.debug("Fetching tasks with status: {}", status);
-        return toDTOsWithNames(visibleTasks(taskRepository.findByStatus(status)));
+        return nameResolver.toDTOsWithNames(visibleTasks(taskRepository.findByStatus(status)));
     }
     @Transactional
     public TaskDTO updateTaskStatus(Long id, Task.Status status) {
@@ -227,20 +226,12 @@ public class TaskService {
         if (oldStatus != status && task.getProjectId() != null) {
             notificationService.notifyTaskStatusChanged(
                     task.getProjectId(), task.getId(), task.getTitle(),
-                    statusDisplayName(oldStatus), statusDisplayName(status),
+                    TaskNameResolver.statusDisplayName(oldStatus), TaskNameResolver.statusDisplayName(status),
                     task.getAssigneeId(), resolveCreatorUserId(actorUsername));
         }
-        return toDTOWithNames(saved);
+        return nameResolver.toDTOWithNames(saved);
     }
 
-    private static String statusDisplayName(Task.Status s) {
-        if (s == null) return "未知";
-        return switch (s) {
-            case TODO -> "待处理";
-            case REVIEW -> "审核中";
-            case COMPLETED -> "已完成";
-        };
-    }
     @Transactional
     public TaskDTO assignTask(Long id, TaskAssignmentRequest request, String username) {
         log.info("Assigning task {} to user: {}", id, request == null ? null : request.getAssigneeId());
@@ -258,7 +249,7 @@ public class TaskService {
         if (request != null && request.getAssigneeId() != null) {
             notificationService.notifyTaskAssigned(task.getProjectId(), task.getId(), request.getAssigneeId(), currentUser.getId());
         }
-        return toDTOWithNames(saved);
+        return nameResolver.toDTOWithNames(saved);
     }
     @Transactional(readOnly = true)
     public TeamTaskWorkloadDTO getTeamTaskWorkload(String username) {
@@ -267,12 +258,12 @@ public class TaskService {
     @Transactional(readOnly = true)
     public List<TaskDTO> getUpcomingTasks(LocalDateTime beforeDate) {
         log.debug("Fetching tasks due before: {}", beforeDate);
-        return toDTOsWithNames(visibleTasks(taskRepository.findByDueDateBefore(beforeDate)));
+        return nameResolver.toDTOsWithNames(visibleTasks(taskRepository.findByDueDateBefore(beforeDate)));
     }
     @Transactional(readOnly = true)
     public List<TaskDTO> getOverdueTasks() {
         log.debug("Fetching overdue tasks");
-        return toDTOsWithNames(visibleTasks(taskRepository.findByDueDateBeforeAndStatusNot(LocalDateTime.now(), Task.Status.COMPLETED)));
+        return nameResolver.toDTOsWithNames(visibleTasks(taskRepository.findByDueDateBeforeAndStatusNot(LocalDateTime.now(), Task.Status.COMPLETED)));
     }
     public Long countProjectTasks(Long projectId) {
         assertCanAccessProject(projectId);
@@ -302,14 +293,4 @@ public class TaskService {
     private boolean isAssignedReviewer(Long projectId, Long uid) {
         return uid != null && bidDocumentReviewRepository.findByProjectId(projectId).map(r -> uid.equals(r.getReviewerId())).orElse(false);
     }
-    private List<TaskDTO> toDTOsWithNames(List<Task> tasks) {
-        var assigneeNames = userRepository.findAllById(tasks.stream().map(Task::getAssigneeId).filter(Objects::nonNull).collect(Collectors.toSet()))
-                .stream().filter(u -> u.getFullName() != null && !u.getFullName().isBlank()).collect(Collectors.toMap(User::getId, User::getFullName, (a, b) -> a));
-        var creatorNames = userRepository.findAllByUsernameIn(tasks.stream().map(Task::getCreatedBy).filter(c -> c != null && !c.isBlank()).collect(Collectors.toSet()))
-                .stream().filter(u -> u.getFullName() != null && !u.getFullName().isBlank()).collect(Collectors.toMap(User::getUsername, User::getFullName, (a, b) -> a));
-        return taskDtoMapper.toDTOs(tasks, assigneeNames, creatorNames);
-    }
-    private TaskDTO toDTOWithNames(Task task) { return taskDtoMapper.toDTO(task, resolveAssigneeName(task.getAssigneeId()), resolveCreatorName(task.getCreatedBy())); }
-    private String resolveAssigneeName(Long id) { return id == null ? null : userRepository.findById(id).map(User::getFullName).filter(n -> !n.isBlank()).orElse(null); }
-    private String resolveCreatorName(String u) { return u == null || u.isBlank() ? null : userRepository.findByUsername(u).map(User::getFullName).filter(n -> n != null && !n.isBlank()).orElse(null); }
 }

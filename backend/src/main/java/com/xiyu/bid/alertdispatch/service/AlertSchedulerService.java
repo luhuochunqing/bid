@@ -18,7 +18,20 @@ public class AlertSchedulerService {
     private final AlertRuleRepository alertRuleRepository;
     private final AlertRuleDispatchService alertRuleDispatchService;
 
-    @Scheduled(cron = "0 0/2 * * * ?")
+    /**
+     * P0-4: 调度频率从每 2 分钟改为每日 09:00。
+     *
+     * <p>原 cron {@code 0 0/2 * * * ?} 每 2 分钟扫描一次所有规则，包括
+     * DEADLINE/RISK/DOCUMENT/BUDGET。这些规则的业务数据变更粒度均为天级：
+     * <ul>
+     *   <li>DEADLINE: 标讯截止日期以天为单位</li>
+     *   <li>RISK: 风险等级变更不频繁</li>
+     *   <li>DOCUMENT: 文档缺失状态变更不频繁</li>
+     *   <li>BUDGET: 费用占比以天为单位波动</li>
+     * </ul>
+     * 每日扫描足够覆盖业务需求，同时大幅减少无谓的全表扫描负载。</p>
+     */
+    @Scheduled(cron = "0 0 9 * * ?")
     public void checkAlertRules() {
         log.info("Starting scheduled alert rule check at {}", LocalDateTime.now());
 
