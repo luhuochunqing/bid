@@ -111,4 +111,113 @@ class AlertHistoryServiceTest {
         assertThat(result.getRelatedId()).isEqualTo("Qualification:5:2026-04-22");
         verify(alertHistoryRepository).save(any(AlertHistory.class));
     }
+
+    @Test
+    @DisplayName("已解决告警在冷却期内应被复用，不重复创建")
+    void shouldReuseResolvedAlertWithinCooldownPeriod() {
+        // P2-8 核心正向测试：已解决告警在 24h 冷却期内 → 复用，不新建
+        AlertHistoryCreateRequest request = new AlertHistoryCreateRequest();
+        request.setRuleId(11L);
+        request.setLevel(AlertHistory.AlertLevel.HIGH);
+        request.setMessage("资质将在 5 天后到期");
+        request.setRelatedId("Qualification:5:2026-04-28");
+
+        // 已解决告警，处理时间在 12 小时前（冷却期内）
+        AlertHistory resolvedRecently = AlertHistory.builder()
+                .id(103L)
+                .ruleId(11L)
+                .level(AlertHistory.AlertLevel.HIGH)
+                .message("资质将在 7 天后到期")
+                .relatedId("Qualification:5:2026-04-28")
+                .resolved(true)
+                .resolvedAt(LocalDateTime.now().minusHours(12))
+                .build();
+
+        when(alertHistoryRepository.findFirstByRuleIdAndRelatedIdOrderByCreatedAtDesc(
+                11L, "Qualification:5:2026-04-28")).thenReturn(Optional.of(resolvedRecently));
+
+        AlertHistory result = alertHistoryService.createAlertHistory(request);
+
+        assertThat(result).isSameAs(resolvedRecently);
+        assertThat(result.getId()).isEqualTo(103L);
+        verify(alertHistoryRepository, never()).save(any(AlertHistory.class));
+    }
+
+    @Test
+    @DisplayName("已解决告警在冷却期边界外应重新生成")
+    void shouldCreateNewAlertAfterCooldownBoundary() {
+        // P2-8 边界测试：已解决告警处理时间在 25 小时前（冷却期外）→ 新建
+        AlertHistoryCreateRequest request = new AlertHistoryCreateRequest();
+        request.setRuleId(11L);
+        request.setLevel(AlertHistory.AlertLevel.HIGH);
+        request.setMessage("资质将在 5 天后到期");
+        request.setRelatedId("Qualification:5:2026-04-28");
+
+        AlertHistory resolvedOld = AlertHistory.builder()
+                .id(104L)
+                .ruleId(11L)
+                .level(AlertHistory.AlertLevel.HIGH)
+                .message("资质将在 10 天后到期")
+                .relatedId("Qualification:5:2026-04-28")
+                .resolved(true)
+                .resolvedAt(LocalDateTime.now().minusHours(25))
+                .build();
+
+        AlertHistory newAlert = AlertHistory.builder()
+                .id(105L)
+                .ruleId(11L)
+                .level(AlertHistory.AlertLevel.HIGH)
+                .message("资质将在 5 天后到期")
+                .relatedId("Qualification:5:2026-04-28")
+                .resolved(false)
+                .build();
+
+        when(alertHistoryRepository.findFirstByRuleIdAndRelatedIdOrderByCreatedAtDesc(
+                11L, "Qualification:5:2026-04-28")).thenReturn(Optional.of(resolvedOld));
+        when(alertHistoryRepository.save(any(AlertHistory.class))).thenReturn(newAlert);
+
+        AlertHistory result = alertHistoryService.createAlertHistory(request);
+
+        assertThat(result.getId()).isEqualTo(105L);
+        verify(alertHistoryRepository).save(any(AlertHistory.class));
+    }
+
+    @Test
+    @DisplayName("已解决告警无 resolvedAt 时间（数据异常）应重新生成")
+    void shouldCreateNewAlertWhenResolvedAtIsNull() {
+        // P2-8 数据异常测试：resolved=true 但 resolvedAt=null（异常数据）→ 不复用，允许新建
+        AlertHistoryCreateRequest request = new AlertHistoryCreateRequest();
+        request.setRuleId(11L);
+        request.setLevel(AlertHistory.AlertLevel.HIGH);
+        request.setMessage("资质将在 5 天后到期");
+        request.setRelatedId("Qualification:5:2026-04-28");
+
+        AlertHistory anomalousResolved = AlertHistory.builder()
+                .id(106L)
+                .ruleId(11L)
+                .level(AlertHistory.AlertLevel.HIGH)
+                .message("资质将在 10 天后到期")
+                .relatedId("Qualification:5:2026-04-28")
+                .resolved(true)
+                .resolvedAt(null) // 数据异常：已解决但无处理时间
+                .build();
+
+        AlertHistory newAlert = AlertHistory.builder()
+                .id(107L)
+                .ruleId(11L)
+                .level(AlertHistory.AlertLevel.HIGH)
+                .message("资质将在 5 天后到期")
+                .relatedId("Qualification:5:2026-04-28")
+                .resolved(false)
+                .build();
+
+        when(alertHistoryRepository.findFirstByRuleIdAndRelatedIdOrderByCreatedAtDesc(
+                11L, "Qualification:5:2026-04-28")).thenReturn(Optional.of(anomalousResolved));
+        when(alertHistoryRepository.save(any(AlertHistory.class))).thenReturn(newAlert);
+
+        AlertHistory result = alertHistoryService.createAlertHistory(request);
+
+        assertThat(result.getId()).isEqualTo(107L);
+        verify(alertHistoryRepository).save(any(AlertHistory.class));
+    }
 }

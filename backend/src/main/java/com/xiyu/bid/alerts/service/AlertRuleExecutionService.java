@@ -78,20 +78,12 @@ public class AlertRuleExecutionService {
             }
 
             long daysUntilDeadline = ChronoUnit.DAYS.between(now, tender.getDeadline());
-            boolean shouldAlert = switch (rule.getCondition()) {
-                case LESS_THAN -> daysUntilDeadline <= thresholdDays && daysUntilDeadline >= 0;
-                case GREATER_THAN -> daysUntilDeadline > thresholdDays;
-                case EQUALS -> daysUntilDeadline == thresholdDays;
-                // 数字场景不适用 CONTAINS：天数无法做包含关系判断
-                case CONTAINS -> false;
-            };
-
-            // P1-8: 已过期标讯仅在 LESS_THAN 条件下强制告警
-            // （GREATER_THAN/EQUALS 不应因过期触发，否则违反用户配置的阈值语义）
-            // P1-5: 过期超过 30 天的标讯视为历史废弃，停止告警避免无限通知
-            if (daysUntilDeadline < 0 && rule.getCondition() == AlertRule.ConditionType.LESS_THAN) {
-                shouldAlert = daysUntilDeadline >= -DEADLINE_EXPIRED_STOP_ALERT_DAYS;
-            }
+            // P1-5/P1-8: 过期告警单独处理，避免与未过期的阈值逻辑混淆
+            // - 仅 LESS_THAN 条件触发过期告警（GREATER_THAN/EQUALS 不应因过期触发，违反用户配置的阈值语义）
+            // - 过期超过 30 天的标讯视为历史废弃，停止告警避免无限通知
+            boolean shouldAlert = daysUntilDeadline < 0
+                    ? shouldAlertExpired(rule, daysUntilDeadline)
+                    : shouldAlertUpcoming(rule, daysUntilDeadline, thresholdDays);
 
             if (shouldAlert) {
                 String deadlineStatus = daysUntilDeadline < 0
@@ -108,6 +100,35 @@ public class AlertRuleExecutionService {
                         extraPayload);
             }
         }
+    }
+
+    /**
+     * 已过期标讯的告警判断（P1-5/P1-8）。
+     *
+     * <p>仅 LESS_THAN 条件触发过期告警；GREATER_THAN/EQUALS 不应因过期触发，
+     * 否则违反用户配置的阈值语义。过期超过 {@link #DEADLINE_EXPIRED_STOP_ALERT_DAYS}
+     * 天的标讯视为历史废弃，停止告警避免无限通知。</p>
+     */
+    private boolean shouldAlertExpired(AlertRule rule, long daysUntilDeadline) {
+        if (rule.getCondition() != AlertRule.ConditionType.LESS_THAN) {
+            return false;
+        }
+        return daysUntilDeadline >= -DEADLINE_EXPIRED_STOP_ALERT_DAYS;
+    }
+
+    /**
+     * 未过期标讯的阈值告警判断。
+     *
+     * <p>严格按用户配置的 condition + threshold 判断，无特殊旁路。</p>
+     */
+    private boolean shouldAlertUpcoming(AlertRule rule, long daysUntilDeadline, int thresholdDays) {
+        return switch (rule.getCondition()) {
+            case LESS_THAN -> daysUntilDeadline <= thresholdDays;
+            case GREATER_THAN -> daysUntilDeadline > thresholdDays;
+            case EQUALS -> daysUntilDeadline == thresholdDays;
+            // 数字场景不适用 CONTAINS：天数无法做包含关系判断
+            case CONTAINS -> false;
+        };
     }
 
     private void checkRiskAlert(AlertRule rule) {
