@@ -115,7 +115,7 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="即将到期" width="120" align="center">
+        <el-table-column label="即将到期数量" width="120" align="center">
           <template #default="{row}">
             <span v-if="row.expiringCertificatesCount > 0" class="expiry-warn" @click.stop="openDetail(row, 'certificate')">
               <el-icon><Warning /></el-icon> {{ row.expiringCertificatesCount }}
