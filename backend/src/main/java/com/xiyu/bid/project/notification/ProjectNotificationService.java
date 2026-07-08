@@ -67,19 +67,51 @@ public class ProjectNotificationService {
         sendNotification(projectId, "立项审核驳回", NotificationType.INFO, reviewerId, recipientIds, "initiation");
     }
 
+    /**
+     * 通知项目团队：阶段自动推进（蓝图 §消息中心-系统通知 序号 6）。
+     * <p>接收人：项目团队成员（投标管理员/投标组长/投标负责人/投标辅助人员/项目负责人）。
+     * 渠道：通知中心。频率：实时。</p>
+     */
     public void notifyStageTransition(Long projectId, ProjectStage fromStage, ProjectStage toStage) {
         notifyStageTransition(projectId, fromStage, toStage, SYSTEM_USER_ID);
     }
 
     public void notifyStageTransition(Long projectId, ProjectStage fromStage, ProjectStage toStage, Long userId) {
-        Project project = findProject(projectId);
-        if (project == null) return;
+        try {
+            Project project = findProject(projectId);
+            if (project == null) return;
 
-        List<Long> teamMemberIds = recipientResolver.getProjectMemberUserIds(projectId, null);
-        if (teamMemberIds.isEmpty()) return;
+            List<Long> teamMemberIds = recipientResolver.getProjectMemberUserIds(projectId, null);
+            if (teamMemberIds.isEmpty()) return;
 
-        sendNotification(projectId, "项目阶段变更", NotificationType.INFO,
-                userId == null ? SYSTEM_USER_ID : userId, teamMemberIds, "");
+            String projectName = project.getName();
+            String customerName = project.getCustomer();
+            String prefix = (customerName != null && !customerName.isBlank())
+                    ? String.format("【%s - %s】", customerName, projectName)
+                    : String.format("【%s】", projectName);
+            String fromLabel = fromStage != null ? fromStage.getDisplayName() : "未知";
+            String toLabel = toStage != null ? toStage.getDisplayName() : "未知";
+            String body = String.format("%s阶段发生自动流转：%s → %s", prefix, fromLabel, toLabel);
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("projectId", String.valueOf(projectId));
+            payload.put("projectName", projectName);
+            payload.put("fromStage", fromStage != null ? fromStage.name() : "");
+            payload.put("toStage", toStage != null ? toStage.name() : "");
+            payload.put("targetUrl", "/project/" + projectId);
+
+            notificationService.createNotification(new CreateNotificationRequest(
+                    NotificationType.SYSTEM.name(),
+                    "PROJECT",
+                    projectId,
+                    "阶段变更 - " + projectName,
+                    body,
+                    payload,
+                    teamMemberIds
+            ), userId == null ? SYSTEM_USER_ID : userId);
+        } catch (RuntimeException e) {
+            log.warn("notifyStageTransition failed for project={}: {}", projectId, e.getMessage());
+        }
     }
 
     /**
@@ -227,6 +259,109 @@ public class ProjectNotificationService {
         if (submitterId == null) return;
         String action = approved ? "通过" : "驳回";
         sendNotification(projectId, "结项审核" + action, NotificationType.INFO, reviewerId, List.of(submitterId), "closure");
+    }
+
+    /**
+     * 通知项目团队：项目已结项归档（蓝图 §消息中心-系统通知 序号 1）。
+     * <p>触发时机：结项审核通过后。
+     * 接收人：投标管理员 + 投标组长 + 投标负责人 + 投标辅助人员（项目团队 + 管理员合并去重）。
+     * 渠道：通知中心 + 企微。频率：实时。</p>
+     *
+     * @param projectId    项目 ID
+     * @param customerName 客户名称（用于通知标题，可为 null）
+     * @param userId       操作人（审核通过的管理员）
+     */
+    public void notifyProjectArchived(Long projectId, String customerName, Long userId) {
+        try {
+            Project project = findProject(projectId);
+            if (project == null) return;
+
+            String projectName = project.getName();
+            String prefix = (customerName != null && !customerName.isBlank())
+                    ? String.format("【%s - %s】", customerName, projectName)
+                    : String.format("【%s】", projectName);
+            String body = prefix + "已结项归档，所有字段锁定，资料已自动归档";
+
+            // 接收人：项目团队成员 + 管理员，合并去重
+            List<Long> recipientIds = new ArrayList<>(recipientResolver.getProjectMemberUserIds(projectId, null));
+            recipientIds.addAll(recipientResolver.getAdminUserIds());
+            recipientIds = recipientIds.stream().distinct().collect(Collectors.toList());
+            if (recipientIds.isEmpty()) return;
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("projectId", String.valueOf(projectId));
+            payload.put("projectName", projectName);
+            payload.put("targetUrl", "/project/" + projectId + "/closure");
+
+            notificationService.createNotification(new CreateNotificationRequest(
+                    NotificationType.SYSTEM.name(),
+                    "PROJECT",
+                    projectId,
+                    "项目结项归档 - " + projectName,
+                    body,
+                    payload,
+                    recipientIds
+            ), userId == null ? SYSTEM_USER_ID : userId);
+        } catch (RuntimeException e) {
+            log.warn("notifyProjectArchived failed for project={}: {}", projectId, e.getMessage());
+        }
+    }
+
+    /**
+     * 通知任务相关人员：任务状态已变更（蓝图 §消息中心-系统通知 序号 2）。
+     * <p>触发时机：任务状态变更（TODO→REVIEW→COMPLETED，或 REVIEW→TODO 驳回）。
+     * 接收人：投标负责人 + 投标辅助人员 + 任务执行人（项目团队成员，确保 assignee 在内）。
+     * 渠道：通知中心 + 企微。频率：实时。</p>
+     *
+     * @param projectId    项目 ID
+     * @param taskId       任务 ID
+     * @param taskName     任务名称
+     * @param fromStatus   变更前状态（中文）
+     * @param toStatus     变更后状态（中文）
+     * @param assigneeId   任务执行人 ID（确保在接收人列表中）
+     * @param actorUserId  操作人 ID（排除自己接收）
+     */
+    public void notifyTaskStatusChanged(Long projectId, Long taskId, String taskName,
+                                        String fromStatus, String toStatus,
+                                        Long assigneeId, Long actorUserId) {
+        try {
+            Project project = findProject(projectId);
+            if (project == null) return;
+
+            String projectName = project.getName();
+            String body = String.format("【%s】任务「%s」状态发生变更：%s → %s",
+                    projectName, taskName != null ? taskName : "", fromStatus, toStatus);
+
+            // 接收人：项目团队成员（排除操作人）+ 确保 assignee 在内
+            List<Long> recipientIds = new ArrayList<>(recipientResolver.getProjectMemberUserIds(projectId, actorUserId));
+            if (assigneeId != null && !recipientIds.contains(assigneeId)
+                    && !assigneeId.equals(actorUserId)) {
+                recipientIds.add(assigneeId);
+            }
+            if (recipientIds.isEmpty()) return;
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("projectId", String.valueOf(projectId));
+            payload.put("projectName", projectName);
+            payload.put("taskId", String.valueOf(taskId));
+            payload.put("taskName", taskName != null ? taskName : "");
+            payload.put("fromStatus", fromStatus);
+            payload.put("toStatus", toStatus);
+            payload.put("targetUrl", "/project/" + projectId + "/drafting");
+
+            notificationService.createNotification(new CreateNotificationRequest(
+                    NotificationType.TASK_UPDATE.name(),
+                    "PROJECT",
+                    projectId,
+                    "任务状态变更 - " + projectName,
+                    body,
+                    payload,
+                    recipientIds
+            ), actorUserId == null ? SYSTEM_USER_ID : actorUserId);
+        } catch (RuntimeException e) {
+            log.warn("notifyTaskStatusChanged failed for project={}, task={}: {}",
+                    projectId, taskId, e.getMessage());
+        }
     }
 
     private void sendToAdmins(Long projectId, String title, NotificationType type, Long userId, String targetPage) {

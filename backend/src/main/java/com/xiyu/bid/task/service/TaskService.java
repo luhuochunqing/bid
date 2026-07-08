@@ -219,10 +219,27 @@ public class TaskService {
         assertCanAccessProject(task.getProjectId());
         taskPermissionGuard.assertCanTransitionTaskStatus(task, status);
         Task before = TaskSnapshots.copy(task);
+        Task.Status oldStatus = before.getStatus();
         task.setStatus(status);
         Task saved = taskRepository.save(task);
         taskHistoryRecorder.recordUpdate(before, saved, actorUsername);
+        // 蓝图 §消息中心-系统通知 序号 2：任务状态变更通知
+        if (oldStatus != status && task.getProjectId() != null) {
+            notificationService.notifyTaskStatusChanged(
+                    task.getProjectId(), task.getId(), task.getTitle(),
+                    statusDisplayName(oldStatus), statusDisplayName(status),
+                    task.getAssigneeId(), resolveCreatorUserId(actorUsername));
+        }
         return toDTOWithNames(saved);
+    }
+
+    private static String statusDisplayName(Task.Status s) {
+        if (s == null) return "未知";
+        return switch (s) {
+            case TODO -> "待处理";
+            case REVIEW -> "审核中";
+            case COMPLETED -> "已完成";
+        };
     }
     @Transactional
     public TaskDTO assignTask(Long id, TaskAssignmentRequest request, String username) {

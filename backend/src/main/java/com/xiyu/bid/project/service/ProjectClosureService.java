@@ -57,6 +57,7 @@ public class ProjectClosureService {
     // CO-403 纠偏：结项审核的职责分离(提交人不可审核) + 项目级投标辅助校验
     private final ProjectClosurePermissionGuard closurePermissionGuard;
     private final com.xiyu.bid.notification.service.NotificationRecipientResolver recipientResolver;
+    private final com.xiyu.bid.project.notification.ProjectNotificationService projectNotificationService;
 
     @Transactional(readOnly = true)
     public ClosurePreviewDTO preview(Long projectId) {
@@ -180,6 +181,10 @@ public class ProjectClosureService {
 
         // 通知 #17: 结项审核通过 → 提交人
         sendClosureReviewNotification(projectId, closure.getCreatedBy(), true, null, userId);
+
+        // 蓝图 §消息中心-系统通知 序号 1：项目结项归档 → 全部项目相关角色
+        Project project = mustGetProject(projectId);
+        projectNotificationService.notifyProjectArchived(projectId, project.getCustomer(), userId);
 
         return toDto(saved);
     }
