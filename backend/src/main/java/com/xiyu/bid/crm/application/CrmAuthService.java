@@ -158,7 +158,9 @@ public class CrmAuthService {
 
     private String fetchAndCacheUserToken(CachedUserProfile profile, String username) {
         String token = applyCrmTokenForUser(profile.fullName(), profile.crmSalesNo());
-        userTokenCache.put(username, token, 86400L);
+        // CO-501 修复：从 JWT exp claim 算真实 TTL（不再写死 24h）。
+        long ttlSeconds = JwtTtlResolver.resolveTtlSeconds(token);
+        userTokenCache.put(username, token, ttlSeconds);
         return token;
     }
 
