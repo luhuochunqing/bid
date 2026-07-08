@@ -7,7 +7,6 @@ import com.xiyu.bid.platform.domain.PlatformAccountImportPolicy;
 import com.xiyu.bid.platform.domain.PlatformAccountImportPolicy.ParsedAccountRow;
 import com.xiyu.bid.platform.infrastructure.persistence.entity.PlatformAccountImportTaskEntity;
 import com.xiyu.bid.platform.infrastructure.persistence.repository.PlatformAccountImportTaskJpaRepository;
-import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.common.util.ExcelAutoSizeHelper;
 import com.xiyu.bid.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +35,6 @@ public class PlatformAccountImportAppService {
     private final SingleSheetExcelReader excelReader;
     private final PlatformAccountImportRowPersister rowPersister;
     private final PlatformAccountImportTaskJpaRepository taskRepo;
-    private final PlatformAccountRepository accountRepo;
     private final UserRepository userRepository;
 
     /** 同步创建导入任务，返回 taskId。异步执行导入。 */
@@ -96,11 +94,6 @@ public class PlatformAccountImportAppService {
                     User custodian = userRepository.findByEmployeeNumber(row.employeeNumber()).orElse(null);
                     if (custodian == null) {
                         row.errors().add("工号「" + row.employeeNumber() + "」未匹配到用户");
-                        failed++;
-                        continue;
-                    }
-                    if (!row.accountName().isEmpty() && accountRepo.findByAccountName(row.accountName()).isPresent()) {
-                        row.errors().add("平台名称「" + row.accountName() + "」已存在");
                         failed++;
                         continue;
                     }

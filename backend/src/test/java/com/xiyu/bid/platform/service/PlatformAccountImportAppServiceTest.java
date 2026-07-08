@@ -2,7 +2,6 @@ package com.xiyu.bid.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -14,10 +13,8 @@ import com.xiyu.bid.entity.User;
 import com.xiyu.bid.infrastructure.excel.SingleSheetExcelReader;
 import com.xiyu.bid.infrastructure.excel.SingleSheetExcelReader.WorkbookData;
 import com.xiyu.bid.platform.domain.PlatformAccountImportPolicy;
-import com.xiyu.bid.platform.entity.PlatformAccount;
 import com.xiyu.bid.platform.infrastructure.persistence.entity.PlatformAccountImportTaskEntity;
 import com.xiyu.bid.platform.infrastructure.persistence.repository.PlatformAccountImportTaskJpaRepository;
-import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.repository.UserRepository;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -43,8 +40,6 @@ class PlatformAccountImportAppServiceTest {
     @Mock
     private PlatformAccountImportTaskJpaRepository taskRepo;
     @Mock
-    private PlatformAccountRepository accountRepo;
-    @Mock
     private UserRepository userRepository;
 
     private PlatformAccountImportAppService service;
@@ -57,14 +52,12 @@ class PlatformAccountImportAppServiceTest {
     @BeforeEach
     void setUp() {
         service = new PlatformAccountImportAppService(
-                excelReader, rowPersister, taskRepo, accountRepo, userRepository);
+                excelReader, rowPersister, taskRepo, userRepository);
 
         PlatformAccountImportTaskEntity task = new PlatformAccountImportTaskEntity();
         task.setId(TASK_ID);
         lenient().when(taskRepo.findById(TASK_ID)).thenReturn(Optional.of(task));
         lenient().when(taskRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-        lenient().when(accountRepo.findByAccountName(anyString())).thenReturn(Optional.empty());
     }
 
     private WorkbookData buildWorkbook(String employeeNumber) {
@@ -164,21 +157,18 @@ class PlatformAccountImportAppServiceTest {
         }
 
         @Test
-        @DisplayName("平台名称重复：第二行应提示重复")
-        void duplicateAccountName_secondRowRejected() throws Exception {
+        @DisplayName("CO-559: 平台名称重复允许导入（移除唯一性校验）")
+        void duplicateAccountName_bothRowsImported() throws Exception {
             User custodian = User.builder().id(CUSTODIAN_USER_ID).employeeNumber(VALID_EMPLOYEE_NUMBER).build();
             when(excelReader.read(any(byte[].class)))
                     .thenReturn(buildWorkbookWithRows(
                             row("同一平台", "user1", VALID_EMPLOYEE_NUMBER),
                             row("同一平台", "user2", VALID_EMPLOYEE_NUMBER)));
             when(userRepository.findByEmployeeNumber(VALID_EMPLOYEE_NUMBER)).thenReturn(Optional.of(custodian));
-            when(accountRepo.findByAccountName("同一平台"))
-                    .thenReturn(Optional.empty())
-                    .thenReturn(Optional.of(new PlatformAccount()));
 
             service.executeImportAsync(TASK_ID, new byte[0], OPERATOR_ID);
 
-            verify(rowPersister, times(1)).persist(any(), any());
+            verify(rowPersister, times(2)).persist(any(), any());
             ArgumentCaptor<PlatformAccountImportTaskEntity> taskCaptor =
                     ArgumentCaptor.forClass(PlatformAccountImportTaskEntity.class);
             verify(taskRepo, atLeastOnce()).save(taskCaptor.capture());
@@ -186,9 +176,8 @@ class PlatformAccountImportAppServiceTest {
                     .filter(t -> "COMPLETED".equals(t.getStatus()))
                     .findFirst()
                     .orElseThrow();
-            assertThat(finalTask.getImportedRows()).isEqualTo(1);
-            assertThat(finalTask.getErrorDetails()).contains("平台名称");
-            assertThat(finalTask.getErrorDetails()).contains("已存在");
+            assertThat(finalTask.getImportedRows()).isEqualTo(2);
+            assertThat(finalTask.getInvalidRows()).isEqualTo(0);
         }
     }
 }
