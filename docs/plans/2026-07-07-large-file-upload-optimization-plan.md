@@ -12,6 +12,10 @@
 
 系统中的标讯文件、项目文档等均为大文件上传，不同浏览器上传速度差异显著，部分用户上传 50MB 文件耗时超过 60 秒，弱网环境下频繁超时失败。
 
+**方案演进**：初步评估时考虑了 HTTP/2、Nginx 直传、自研分片上传、Tus 协议等多种方案。经过进一步确认，标书文件常见大小为数百 MB 至 3GB，自研分片上传在可靠性、运维成本和扩展性上难以满足要求。因此，**最终确定采用华为云 OBS 直传方案**：业务服务器只签发临时凭证和维护状态，浏览器通过华为云 OBS BrowserJS SDK 直接分片上传到对象存储。
+
+> 详细技术设计：[华为云 OBS 大文件上传技术设计文档](file:///workspace/docs/plans/2026-07-07-huawei-obs-large-file-upload-design.md)
+
 ### 1.2 当前架构现状
 
 | 维度 | 现状 | 文件位置 |
@@ -239,7 +243,13 @@ self.addEventListener('fetch', (event) => {
 
 ### 2.4 维度四：分片上传 + 断点续传
 
-这是解决大文件上传的核心方案，也是业界最常用的方案。
+> **重要更新（2026-07-07）**：考虑到标书文件常见大小为数百 MB 至 3GB，自研分片上传方案（本维度下文）在可靠性、运维成本和扩展性上不如对象存储原生分片上传。经过评估，**最终决定采用华为云 OBS 直传方案**作为 3GB 大文件上传的实现路径。
+>
+> 详细设计请见：[华为云 OBS 大文件上传技术设计文档](file:///workspace/docs/plans/2026-07-07-huawei-obs-large-file-upload-design.md)
+>
+> 下文保留的自研分片上传方案仅作为本地存储场景下的备用参考，不再作为本期实施主路径。
+
+这是解决大文件上传的核心方案，也是业界最常用的方案之一。
 
 #### 2.4.1 整体流程
 
@@ -783,84 +793,99 @@ async function uploadFile(file, options) {
 | 7 | 前端 `maxSizeMb` 10 → 100 | [ProjectFileUpload.vue](file:///workspace/src/components/common/ProjectFileUpload.vue#L53) | 前端允许选择大文件 |
 | 8 | axios `timeout` 调大 | [client.js](file:///workspace/src/api/client.js#L30) | 避免前端超时断开 |
 
-### Phase 2：分片上传核心实现（中等成本）
+### Phase 2：华为云 OBS 直传核心实现（中等成本）
 
-**目标**：实现分片上传 + 断点续传 + 并行上传
+**目标**：实现 3GB 级标书文件稳定上传，业务服务器不中转文件流
 
 | # | 改动项 | 类型 | 说明 |
 |---|---|---|---|
-| 1 | 新增 `ChunkedUploadController` | 后端 | 分片上传 API（init/chunk/complete/cancel） |
-| 2 | 新增 `ChunkedUploadService` | 后端 | 分片接收、合并、清理逻辑 |
-| 3 | 新增 `ChunkedUploadSession` 实体 | 后端 | 上传会话持久化 |
-| 4 | Flyway 迁移脚本 | 后端 | 创建 `chunked_upload_session` 和 `chunked_upload_chunk` 表 |
-| 5 | 新增 `hashWorker.js` | 前端 | Web Worker 计算 hash |
-| 6 | 新增 `chunkedUpload.js` | 前端 | 分片上传工具函数 |
-| 7 | 改造 `ProjectFileUpload.vue` | 前端 | 大文件自动切换分片上传 |
-| 8 | 新增上传进度组件 | 前端 | 显示分片上传进度、断点续传提示 |
+| 1 | 引入华为云 OBS & IAM SDK | 后端 | `backend/pom.xml` 增加 `huaweicloud-sdk-obs`、`huaweicloud-sdk-iam` |
+| 2 | 新增 OBS 配置 | 后端 | `application.yml` 配置 endpoint/region/bucket/ak/sk/agency-urn |
+| 3 | 新增 `FileUploadController` | 后端 | `/api/files/upload-token`、`/api/files/{id}/completed`、`/api/files/{id}/download-url` |
+| 4 | 新增 `HuaweiObsTokenService` | 后端 | 调用 IAM STS `AssumeAgency` 签发临时凭证 |
+| 5 | 新增 `BidFile` 领域模型 | 后端 | 上传记录与状态机 |
+| 6 | Flyway 迁移脚本 | 后端 | 创建 `bid_file` 表 |
+| 7 | 新增 `useObsUpload` composable | 前端 | 封装 OBS BrowserJS SDK `multipartUpload` |
+| 8 | 标讯上传入口接入 OBS | 前端 | 优先改造 `ProjectDetailBidAgentTenderUpload.vue` |
+| 9 | 新增 OBS 上传进度组件 | 前端 | 显示分片上传进度、速度、剩余时间 |
 
-### Phase 3：增强功能（可选）
-
-| # | 改动项 | 说明 |
-|---|---|---|
-| 1 | 动态分片大小 | 根据网络状况自动调整 chunk 大小 |
-| 2 | 浏览器能力检测 | 自动选择最优上传策略 |
-| 3 | Service Worker 缓存 | 浏览器崩溃后恢复未完成的上传 |
-| 4 | Nginx 直传 | 超大文件绕过 Spring Boot |
-| 5 | Tus 协议 | 标准化断点续传（长期方案） |
-
-### Phase 4：存储架构升级（未来，按需）
+### Phase 3：后处理与下载闭环（中等成本）
 
 | # | 改动项 | 说明 |
 |---|---|---|
-| 1 | 引入 MinIO 私有部署 | S3 兼容 API，原生分片上传，支持横向扩展 |
-| 2 | 预签名 URL 直传 | 前端直传对象存储，后端不中转 |
-| 3 | CDN 加速下载 | 大文件下载分发加速 |
+| 1 | MD5/ETag 校验 | `completed` 接口校验对象大小与 ETag |
+| 2 | 病毒扫描占位 | 接入扫描服务前保留扩展点 |
+| 3 | OCR 占位 | 标书内容解析扩展点 |
+| 4 | 预签名下载 URL | 只有 `COMPLETED` 状态才生成下载链接 |
+| 5 | 业务表改造 | `tender_document` 等表增加 `bid_file_id` |
+
+### Phase 4：全平台迁移（未来，按需）
+
+| # | 改动项 | 说明 |
+|---|---|---|
+| 1 | 项目文档接入 OBS | 改造 `ProjectFileUpload.vue` 支持 OBS |
+| 2 | 资质/人员附件接入 OBS | 改造知识库相关上传入口 |
+| 3 | 导入类文件保留限制 | Excel/CSV 导入仍维持 5-10MB，不走 OBS |
+| 4 | 本地存储下线 | 大文件全部迁移到 OBS 后移除本地大文件接收逻辑 |
 
 ---
 
 ## 4. 新增文件清单
 
+> 以下清单按华为云 OBS 直传方案更新。详细接口定义与状态机请参见 [华为云 OBS 大文件上传技术设计文档](file:///workspace/docs/plans/2026-07-07-huawei-obs-large-file-upload-design.md)。
+
 ### 后端
 
 ```
-backend/src/main/java/com/xiyu/bid/upload/
-├── controller/
-│   └── ChunkedUploadController.java       # 分片上传控制器
-├── service/
-│   └── ChunkedUploadService.java          # 分片上传服务
-├── entity/
-│   ├── ChunkedUploadSession.java          # 上传会话实体
-│   └── UploadStatus.java                  # 上传状态枚举
-├── repository/
-│   └── ChunkedUploadSessionRepository.java # 数据访问层
+backend/src/main/java/com/xiyu/bid/file/
+├── adapter/
+│   └── web/
+│       └── FileUploadController.java           # /api/files/* 接口
+├── application/
+│   ├── IssueUploadTokenUseCase.java            # 签发 STS 凭证
+│   ├── CompleteUploadUseCase.java              # 完成上传校验
+│   ├── GetDownloadUrlUseCase.java              # 预签名下载 URL
+│   └── BidFileUploadedEventHandler.java        # 异步后处理监听器
+├── domain/
+│   ├── BidFile.java                            # 上传记录聚合根
+│   ├── BidFileStatus.java                      # 状态机枚举
+│   └── BidFileRepository.java                  # 仓库接口
+├── infrastructure/
+│   ├── obs/
+│   │   ├── HuaweiObsTokenService.java          # IAM STS 临时凭证
+│   │   ├── ObsMetadataService.java             # OBS 对象元数据查询
+│   │   └── ObsProperties.java                  # 配置绑定
+│   └── persistence/
+│       └── BidFileJpaRepository.java           # JPA 实现
 └── dto/
-    ├── UploadInitRequest.java
-    ├── UploadInitResponse.java
-    ├── ChunkReceiveResponse.java
-    └── UploadCompleteResponse.java
+    ├── UploadTokenRequest.java
+    ├── UploadTokenResponse.java
+    ├── UploadCompletedRequest.java
+    └── DownloadUrlResponse.java
 ```
 
 ### 前端
 
 ```
 src/
-├── workers/
-│   └── hashWorker.js                      # Web Worker 计算 hash
-├── utils/
-│   ├── chunkedUpload.js                   # 分片上传工具
-│   ├── browserCapabilities.js             # 浏览器能力检测
-│   └── uploadStrategy.js                  # 上传策略选择
+├── api/
+│   └── modules/
+│       └── files.js                            # /api/files/* 封装
+├── composables/
+│   └── useObsUpload.js                         # OBS 分片上传封装
 └── components/
     └── common/
-        └── ChunkedUploadProgress.vue      # 分片上传进度组件
+        └── ObsUploadProgress.vue               # OBS 上传进度组件
 ```
 
 ### 配置变更
 
 ```
-docker/nginx.conf                          # HTTP/2 + 流式转发 + 超时调大
-backend/src/main/resources/application.yml # multipart 配置优化
-backend/src/main/resources/db/migration-mysql/V{next}__chunked_upload_tables.sql
+backend/pom.xml                                # 新增 huaweicloud-sdk-obs / huaweicloud-sdk-iam
+docker/nginx.conf                              # HTTP/2 + 流式转发 + 超时调大（保留）
+backend/src/main/resources/application.yml     # OBS 配置 + multipart 配置优化
+backend/src/main/resources/db/migration-mysql/V{next}__bid_file_table.sql
+.env.example                                   # 新增 XIYU_OBS_* 环境变量
 ```
 
 ---
@@ -870,11 +895,11 @@ backend/src/main/resources/db/migration-mysql/V{next}__chunked_upload_tables.sql
 | 方案 | 改造成本 | 性能提升 | 可靠性 | 适用文件大小 | 推荐度 |
 |---|---|---|---|---|---|
 | Phase 1: nginx + 配置优化 | 极低 | 30-50% | 中 | <200MB | ★★★★★ |
-| Phase 2: 分片上传 + Web Worker | 中 | 60-80% | 高 | <2GB | ★★★★☆ |
+| **Phase 2: 华为云 OBS 直传** | **中** | **80-90%** | **极高** | **无限制** | **★★★★★（推荐）** |
+| 自研分片上传 + Web Worker | 高 | 60-80% | 高 | <2GB | ★★★☆☆ |
 | Nginx 直传 | 低 | 50-70% | 中 | <500MB | ★★★☆☆ |
-| Tus 协议 | 中 | 60-80% | 极高 | <2GB | ★★★☆☆ |
+| Tus 协议 + 本地存储 | 中 | 60-80% | 极高 | <2GB | ★★★☆☆ |
 | MinIO 私有部署 | 高 | 80-90% | 高 | 无限制 | ★★☆☆☆ |
-| 预签名 URL 直传 OSS | 高 | 80-90% | 高 | 无限制 | ★★☆☆☆ |
 
 ---
 
@@ -882,12 +907,13 @@ backend/src/main/resources/db/migration-mysql/V{next}__chunked_upload_tables.sql
 
 | 风险 | 影响 | 缓解措施 |
 |---|---|---|
-| 分片合并期间磁盘空间不足 | 合并失败，文件损坏 | 合并前检查可用空间，预留 2x 文件大小 |
-| 临时分片未清理 | 磁盘空间泄漏 | 定时任务清理超过 24 小时的未完成会话 |
-| 并发上传导致后端连接池耗尽 | 服务不可用 | 限制单用户并发上传数（已有 `max-per-user-concurrency`） |
-| hash 碰撞 | 文件覆盖 | 使用 SHA-256，碰撞概率极低 |
-| 浏览器不支持 Web Worker | 降级到主线程 | 能力检测 + 降级策略 |
-| nginx 和后端文件系统不共享 | Nginx 直传失败 | 确认 `/data/shared/` 挂载为共享卷 |
+| 华为云 IAM STS 调用失败 | 无法签发凭证 | 增加重试；短暂失败可降级为服务端预签名 URL |
+| 临时凭证过期 | 大文件上传中断 | 前端监控过期时间，OBS SDK 自动重试 |
+| OBS 分片合并失败 | 文件不完整 | `completed` 接口校验对象大小与 ETag |
+| Bucket 费用超支 | 成本问题 | 配置生命周期策略，清理 FAILED/未完成分片 |
+| 病毒扫描/OCR 服务不可用 | 文件卡在中间状态 | 提供后台管理接口手动重试或标记跳过 |
+| 前端临时凭证泄露 | 安全风险 | 凭证有效期短、权限最小化、HTTPS 传输 |
+| 桶策略配置错误 | 数据暴露或上传失败 | 使用私有桶 + 最小权限委托 + CORS 白名单 |
 
 ---
 
@@ -900,13 +926,14 @@ backend/src/main/resources/db/migration-mysql/V{next}__chunked_upload_tables.sql
 - [ ] Chrome / Firefox / Safari / Edge 上传速度差异 < 20%
 - [ ] 上传过程中无 504 Gateway Timeout
 
-### Phase 2 验收
+### Phase 2 验收（OBS 直传）
 
-- [ ] 200MB 文件上传成功率 > 99%
+- [ ] 3GB 标书文件上传成功率 > 99%（稳定网络）
 - [ ] 上传过程中断网恢复后可断点续传
 - [ ] 上传进度实时显示，UI 无卡顿
-- [ ] 并发上传 3 个文件不互相阻塞
-- [ ] 临时分片在取消/完成后自动清理
+- [ ] 临时凭证不暴露永久 AK/SK
+- [ ] 只有 `COMPLETED` 状态的文件才能下载
+- [ ] 下载 URL 有效期可控，过期后无法访问
 
 ---
 
@@ -916,7 +943,7 @@ backend/src/main/resources/db/migration-mysql/V{next}__chunked_upload_tables.sql
 
 | 方案 | 代表产品 | 特点 |
 |---|---|---|
-| 分片上传 | 阿里云 OSS、腾讯云 COS | 自定义分片协议，灵活可控 |
+| 对象存储 SDK 分片上传 | 华为云 OBS、阿里云 OSS、AWS S3 | SDK 自动分片/重试/合并，工业级可靠 |
 | Tus 协议 | Cloudflare Stream、Vimeo | HTTP 标准扩展，跨语言支持 |
 | 预签名 URL | AWS S3、阿里云 OSS | 前端直传存储，后端不中转 |
 | WebSocket 上传 | Telegram | 双向通信，实时进度 |
@@ -924,8 +951,10 @@ backend/src/main/resources/db/migration-mysql/V{next}__chunked_upload_tables.sql
 
 ### 8.2 参考链接
 
+- [华为云 OBS SDK 概述](https://support.huaweicloud.com/sdkreference-obs/obs_02_0001.html)
+- [华为云 BrowserJS SDK 开发指南](https://support.huaweicloud.com/sdk-browserjs-devg-obs/obs_24_0001.html)
+- [华为云 Java SDK 开发指南](https://support.huaweicloud.com/sdk-java-devg-obs/obs_21_0001.html)
+- [华为云 IAM 临时安全凭证](https://support.huaweicloud.com/usermanual-iam5/iam_01_1238.html)
 - [tus.io - Resumable File Uploads](https://tus.io/)
-- [MDN - Web Workers API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API)
-- [MDN - File.stream()](https://developer.mozilla.org/en-US/docs/Web/API/File/stream)
 - [Nginx - client_body_in_file_only](https://nginx.org/en/docs/http/ngx_http_core_module.html#client_body_in_file_only)
 - [Spring Boot - Multipart Configuration](https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#web.servlet.spring-mvc.multipart)
