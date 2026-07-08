@@ -166,10 +166,13 @@ public final class TenderEvaluationCustomerInfoPolicy {
         Map.entry("TENDENCY", "对我司的倾向性")
     );
 
-    /** 必填的信息维度键（触达方式必填）。 */
-    public static final Set<String> REQUIRED_INFO_KEYS = Set.of(
-        "CONTACT_METHOD"
-    );
+    /**
+     * 必填的信息维度键。
+     * <p>当前为空集合：V130 后客户信息矩阵的 customerInfos 来自 CRM 同步且前端只读，
+     * 项目负责人不可手工修改，因此不再对单一信息维度做必填约束。
+     * 该常量保留作为扩展点，未来若业务允许前端编辑且需要必填校验时可恢复。
+     */
+    public static final Set<String> REQUIRED_INFO_KEYS = Set.of();
 
     private TenderEvaluationCustomerInfoPolicy() {
         // 工具类不可实例化

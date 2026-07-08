@@ -23,7 +23,7 @@ class CrmEvaluationMapperTest {
     }
 
     @Test
-    @DisplayName("contactMethod 为空时不生成 CONTACT_METHOD 行，避免触发必填校验")
+    @DisplayName("contactMethod 为空时不生成 CONTACT_METHOD 行，与前端空值过滤逻辑对齐")
     void mapContactsToCustomerInfos_blankContactMethod_skipsContactMethodRow() {
         ContactPersonInfoVO contact = new ContactPersonInfoVO(
                 1L, "张三", "18688888888", null, "4", "王凯毅",
