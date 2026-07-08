@@ -1,6 +1,7 @@
 import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { tendersApi } from '@/api/modules/tenders.js'
+import { useTenderObsUpload } from './useTenderObsUpload.js'
 
 const ACCEPT_FILE_TYPES = '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 const PASTED_TEXT_MAX_LENGTH = 500000
@@ -8,6 +9,8 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024
 
 export function useTenderAiParse(form) {
   const parsingDocument = ref(false)
+  // OBS 直传：VITE_OBS_ENABLED=true 时启用，失败回退到 multipart
+  const { obsUpload, tryUpload: tryObsUpload } = useTenderObsUpload('create-tender', '标讯文件已上传至 OBS（AI 自动识别已跳过，可手动填写）')
 
   watch(() => form.value.pastedText, (val) => {
     if (val && val.length > PASTED_TEXT_MAX_LENGTH) {
@@ -49,6 +52,10 @@ export function useTenderAiParse(form) {
       form.value.attachments = fileList.filter(f => isSupportedParseFile(resolveUploadFile(f)))
       return
     }
+
+    // OBS 直传：成功则跳过 store/parse，失败回退到 runAiParse
+    if (await tryObsUpload(uploadFile, form.value.attachments, fileIndex)) return
+
     await runAiParse(async () => {
       let storedDoc = null
       try {
@@ -211,7 +218,7 @@ export function useTenderAiParse(form) {
   }
 
   return {
-    parsingDocument, handleFileChange, handleFileRemove, handlePastedTextParse,
+    parsingDocument, obsUpload, handleFileChange, handleFileRemove, handlePastedTextParse,
     ACCEPT_FILE_TYPES,
   }
 }

@@ -92,6 +92,15 @@
                 <el-icon class="el-icon--upload"><Upload /></el-icon>
                 <div class="el-upload__text">{{ parsingDocument ? 'DeepSeek/AI 解析中...' : '将文件拖到此处，或点击选择附件（PDF/Word ≤50MB）' }}</div>
               </el-upload>
+              <ObsUploadProgress
+                :visible="obsUploading || obsProgressPercent > 0"
+                :file-name="obsCurrentFile?.name || ''"
+                :file-size="obsCurrentFile?.size || 0"
+                :progress-percent="obsProgressPercent"
+                :uploading="obsUploading"
+                :has-error="!!obsError"
+                @cancel="handleObsCancel"
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -103,6 +112,7 @@
 <script setup>
 import { ref } from 'vue'
 import { DocumentCopy, Upload } from '@element-plus/icons-vue'
+import ObsUploadProgress from '@/components/common/ObsUploadProgress.vue'
 import { chinaRegionOptions } from '@/components/common/chinaRegionData.js'
 import { useRegionCascaderValue, REGION_CASCADER_PROPS, createRegionCascaderAutoClose } from '@/composables/useRegionCascaderValue.js'
 
@@ -122,7 +132,12 @@ const props = defineProps({
   isReadOnly: Boolean,
   parsingDocument: Boolean,
   acceptFileTypes: String,
+  // OBS 直传状态对象（由父级 useObsUpload composable 注入，ref 在模板中自动解包）
+  obsUpload: { type: Object, default: () => ({}) },
 })
+// 解构响应式状态供模板使用（obsUpload 为空对象时解构得 undefined，ObsUploadProgress 不显示）
+const { uploading: obsUploading, progressPercent: obsProgressPercent, currentFile: obsCurrentFile, error: obsError } = props.obsUpload || {}
+const handleObsCancel = () => props.obsUpload?.cancel?.()
 
 defineEmits(['parse-paste', 'file-change', 'file-remove'])
 

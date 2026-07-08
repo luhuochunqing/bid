@@ -5,6 +5,7 @@
 
 import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useTenderObsUpload, isObsEnabled } from './composables/useTenderObsUpload.js'
 import { createManualTenderForm } from './constants.js'
 import { buildManualTenderPayload, normalizeManualTenderParseResult } from './helpers.js'
 
@@ -54,13 +55,7 @@ function applyParsedFields(form, parsedFields) {
   }
 }
 
-/**
- * 将文件元数据写入 attachments 数组中对应文件。
- * @param {Object} form - 响应式表单对象
- * @param {File} file - 浏览器 File 对象（用于 .name / .type）
- * @param {Object} result - 后端返回结果，可能是 StoredDocument（{fileUrl, storagePath}）
- *                          或 DocumentAnalysisResult（{documentId, document: {fileUrl}}）
- */
+/** 将文件元数据（fileUrl/fileType）回写到 attachments 数组中对应文件 */
 function applySourceDocumentMetadata(form, file, result = {}) {
   const fileUrl = result?.fileUrl || result?.documentId || result?.document?.fileUrl || ''
   const fileType = file?.type || result?.contentType || ''
@@ -98,6 +93,8 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
   const savingManual = ref(false)
   const parsingManualDocument = ref(false)
   const manualForm = ref(createManualTenderForm())
+  // OBS 直传：VITE_OBS_ENABLED=true 时启用，失败回退到 multipart
+  const { obsUpload, tryUpload: tryObsUpload } = useTenderObsUpload('manual-tender', '标讯文件已上传至 OBS（AI 自动识别已跳过，可手动填写）')
 
   // Guard: ensure pastedText never exceeds the maxlength regardless of browser/element-plus quirks
   watch(
@@ -147,9 +144,15 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
 
     if (!uploadFile || !isSupportedParseFile(uploadFile)) return
 
-    // ── Step 1: 上传即保存 ──────────────────────────────────────────────────────
-    // 文件选择后立即存储到后端，获取 fileUrl / storagePath。
-    // 即使后续 AI 解析失败，文件也已保存，用户保存标讯时文件元数据不会丢失。
+    // OBS 直传：上传到 OBS 跳过 store/parse（失败回退到 Step 1/2）
+    if (isObsEnabled) {
+      parsingManualDocument.value = true
+      const obsOk = await tryObsUpload(uploadFile, manualForm.value.attachments, fileIndex)
+      parsingManualDocument.value = false
+      if (obsOk) return
+    }
+
+    // Step 1: 上传即保存（即使后续 AI 解析失败，文件也已保存）
     let storedDoc = null
     try {
       const storeResponse = await tendersApi.storeTenderDocument(uploadFile, { entityId: 'manual-tender' })
@@ -173,9 +176,7 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
       console.warn('文件存储失败，继续尝试 AI 解析:', storeError?.message || storeError)
     }
 
-    // ── Step 2: AI 解析（独立增强步骤，失败不影响文件保存）─────────────────────────
-    // 优先使用 parseExisting（基于 storagePath，避免重复上传），
-    // 仅在 Step 1 存储失败时回退到 /parse 一站式端点。
+    // Step 2: AI 解析（独立增强，失败不影响文件保存；优先 parseExisting 避免重复上传）
     parsingManualDocument.value = true
     try {
       const parseSource = storedDoc?.storagePath
@@ -288,6 +289,7 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
     manualForm,
     savingManual,
     parsingManualDocument,
+    obsUpload,
     resetManualForm,
     handleFileChange,
     handleFileRemove,
