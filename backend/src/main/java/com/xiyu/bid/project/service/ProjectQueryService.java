@@ -4,6 +4,7 @@ import com.xiyu.bid.demo.service.DemoDataProvider;
 import com.xiyu.bid.demo.service.DemoFusionService;
 import com.xiyu.bid.demo.service.DemoModeService;
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.entity.User;
 import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.dto.ProjectDTO;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
@@ -15,6 +16,7 @@ import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.project.repository.ProjectResultRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.tender.entity.TenderEvaluation;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
@@ -25,8 +27,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -51,6 +56,9 @@ public class ProjectQueryService {
 
     /** Lead assignment repo for exact leader user id fields. */
     private final ProjectLeadAssignmentRepository projectLeadAssignmentRepository;
+
+    /** User repo for resolving lead user ids to names. */
+    private final UserRepository userRepository;
 
     /** Evaluation repo for sub-stage in EVALUATING stage. */
     private final ProjectEvaluationRepository
@@ -130,6 +138,21 @@ public class ProjectQueryService {
                                 Function.identity(),
                                 (a, b) -> a));
 
+        // CO-551: Batch-fetch user names for secondary lead resolution
+        Set<Long> leadUserIds = leadAssignmentMap.values().stream()
+                .flatMap(a -> Stream.of(
+                        a.getPrimaryLeadUserId(),
+                        a.getSecondaryLeadUserId()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, String> leadUserNameMap = leadUserIds.isEmpty()
+                ? java.util.Collections.emptyMap()
+                : userRepository.findByIdIn(leadUserIds).stream()
+                        .collect(Collectors.toMap(
+                                User::getId,
+                                User::getFullName,
+                                (a, b) -> a));
+
         // Batch-fetch evaluations for list fields (shortlistedCount, customerRevenue)
         Map<Long, TenderEvaluation> evalMap = tenderIds.isEmpty()
                 ? java.util.Collections.emptyMap()
@@ -181,6 +204,12 @@ public class ProjectQueryService {
                         leadAssignment.getPrimaryLeadUserId());
                 dto.setSecondaryLeadUserId(
                         leadAssignment.getSecondaryLeadUserId());
+                // CO-551: 副投标负责人姓名（由 secondaryLeadUserId 解析）
+                if (leadAssignment.getSecondaryLeadUserId() != null) {
+                    dto.setSecondaryBiddingLeaderName(
+                            leadUserNameMap.get(
+                                    leadAssignment.getSecondaryLeadUserId()));
+                }
             }
 
             ProjectListEnrichmentSupport.populateFromTender(dto, tenderMap);
