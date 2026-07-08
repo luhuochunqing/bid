@@ -507,8 +507,8 @@ class UserDetailsServiceImplTest {
     }
 
     @Test
-    @DisplayName("OSS admin 用户 authorities 不含 system.admin/warehouse.manage（specs/032）")
-    void ossAdminUserShouldNotHaveSystemAdminPermission() {
+    @DisplayName("OSS admin 用户 authorities 不含 all，但可持有 system.admin/warehouse.manage（specs/032 修订）")
+    void ossAdminUserShouldNotHaveAllButCanHoldSystemAdminPermission() {
         RoleProfile roleProfile = RoleProfile.builder()
                 .code(RoleProfileCatalog.BID_SPECIALIST_CODE)
                 .name("投标专员")
@@ -524,15 +524,22 @@ class UserDetailsServiceImplTest {
                 .enabled(true)
                 .build();
         when(userRepository.findByUsername("oss_admin_sys")).thenReturn(Optional.of(user));
+        // OSS 返回的菜单权限包含 system.admin/warehouse.manage（经菜单映射后的权限键）
         OssPermissionCache.CacheEntry entry = new OssPermissionCache.CacheEntry(
-                RoleProfileCatalog.ADMIN_CODE, List.of("bidding"), null, Instant.now().plusSeconds(60));
+                RoleProfileCatalog.ADMIN_CODE,
+                List.of("bidding", RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION,
+                        RoleProfileCatalog.WAREHOUSE_MANAGE_PERMISSION),
+                null, Instant.now().plusSeconds(60));
         when(ossPermissionCache.getEntry("oss_admin_sys")).thenReturn(Optional.of(entry));
 
         UserDetails details = userDetailsService.loadUserByUsername("oss_admin_sys");
 
         assertThat(details.getAuthorities())
                 .extracting("authority")
-                .doesNotContain(RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION,
+                // all 仍然被过滤（admin 专属，OSS 不应持有）
+                .doesNotContain("all")
+                // system.admin/warehouse.manage 不再被过滤，OSS 用户可持有（业务需求：访问系统设置与仓库）
+                .contains(RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION,
                         RoleProfileCatalog.WAREHOUSE_MANAGE_PERMISSION);
     }
 
