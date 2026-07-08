@@ -29,8 +29,11 @@ public class PlatformAccountCreateRequest {
     @NotBlank(message = "平台账号不能为空")
     private String username;
 
-    /** Platform login password. */
-    @NotBlank(message = "平台密码不能为空")
+    /** Platform login password.
+     * <p>CO-545：password 仅在创建时必填（OnCreate group）；编辑时允许为空（表示不改密码），
+     * 由 Controller update 端点用 {@code @Validated(Default.class)} 跳过本 @NotBlank。
+     */
+    @NotBlank(message = "平台密码不能为空", groups = OnCreate.class)
     private String password;
 
     /** Display name of the platform. */
