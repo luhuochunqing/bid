@@ -101,6 +101,10 @@ public class BidFile {
     }
 
     public void transitionTo(BidFileStatus nextStatus) {
+        if (!this.status.canTransitionTo(nextStatus)) {
+            throw new IllegalStateException(
+                    "非法状态转换: " + this.status + " -> " + nextStatus);
+        }
         this.status = nextStatus;
         if (nextStatus == BidFileStatus.COMPLETED) {
             this.completedAt = LocalDateTime.now();
@@ -108,7 +112,7 @@ public class BidFile {
     }
 
     public void fail(String message) {
-        this.status = BidFileStatus.FAILED;
+        transitionTo(BidFileStatus.FAILED);
         this.errorMessage = message;
     }
 }

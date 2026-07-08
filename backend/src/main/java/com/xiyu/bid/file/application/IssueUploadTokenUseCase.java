@@ -35,17 +35,17 @@ public class IssueUploadTokenUseCase {
         }
 
         String uploadId = UUID.randomUUID().toString();
-        String objectKey = buildObjectKey(uploadId, request.getFileName());
+        String objectKey = buildObjectKey(uploadId, request.fileName());
 
         BidFile bidFile = BidFile.builder()
                 .uploadId(uploadId)
                 .status(BidFileStatus.UPLOADING)
-                .originalName(request.getFileName())
+                .originalName(request.fileName())
                 .objectKey(objectKey)
                 .bucket(obsProperties.getBucket())
-                .fileSize(request.getFileSize())
-                .fileHash(request.getFileHash())
-                .mimeType(request.getMimeType())
+                .fileSize(request.fileSize())
+                .fileHash(request.fileHash())
+                .mimeType(request.mimeType())
                 .creatorId(creatorId)
                 .build();
         bidFileRepository.save(bidFile);

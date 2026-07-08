@@ -33,7 +33,7 @@ public class GetDownloadUrlUseCase {
             throw new SecurityException("无权访问该文件");
         }
 
-        if (bidFile.getStatus() != BidFileStatus.COMPLETED) {
+        if (!bidFile.getStatus().isDownloadable()) {
             throw new BusinessException(409, "文件尚未处理完成，当前状态: " + bidFile.getStatus());
         }
 

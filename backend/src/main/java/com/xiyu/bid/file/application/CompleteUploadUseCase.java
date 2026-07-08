@@ -33,11 +33,11 @@ public class CompleteUploadUseCase {
             throw new SecurityException("无权操作该上传记录");
         }
 
-        if (bidFile.getStatus() != BidFileStatus.UPLOADING) {
+        if (!bidFile.getStatus().canTransitionTo(BidFileStatus.COMPLETED)) {
             throw new BusinessException(409, "上传记录状态不正确，当前状态: " + bidFile.getStatus());
         }
 
-        Long actualSize = obsMetadataService.getContentLength(request.getBucket(), request.getObjectKey());
+        Long actualSize = obsMetadataService.getContentLength(request.bucket(), request.objectKey());
         if (actualSize == null) {
             bidFile.fail("OBS 对象不存在");
             bidFileRepository.save(bidFile);
@@ -50,7 +50,7 @@ public class CompleteUploadUseCase {
             throw new BusinessException(409, "文件大小校验失败");
         }
 
-        String etag = obsMetadataService.getEtag(request.getBucket(), request.getObjectKey());
+        String etag = obsMetadataService.getEtag(request.bucket(), request.objectKey());
         if (bidFile.getFileHash() != null && etag != null && !etag.equalsIgnoreCase(bidFile.getFileHash())) {
             bidFile.fail("文件 ETag/MD5 校验失败");
             bidFileRepository.save(bidFile);
@@ -59,7 +59,7 @@ public class CompleteUploadUseCase {
 
         // Phase 3：直接转到 COMPLETED，跳过 VIRUS_SCANNING/OCR_PROCESSING 占位后处理。
         // 招标文件场景无需病毒扫描/OCR，且 @Async handler 的延迟会导致前端下载失败。
-        bidFile.setObjectKey(request.getObjectKey());
+        bidFile.setObjectKey(request.objectKey());
         bidFile.transitionTo(BidFileStatus.COMPLETED);
         bidFileRepository.save(bidFile);
 
