@@ -98,23 +98,27 @@ class AlertMessagePolicyTest {
     @Nested
     class CA_EXPIRY_分支 {
         @Test
-        void alertMessage含已过期_应映射为_CA_EXPIRED() {
+        void payload中alertSubType为EXPIRED_应映射为_CA_EXPIRED() {
+            // P1-10: CA_EXPIRY 子类型由 payload alertSubType 决定，不再依赖消息文案匹配
+            Map<String, Object> payload = Map.of("alertSubType", "EXPIRED");
             AlertNotificationInfo info = AlertMessagePolicy.buildNotification(
-                    AlertRule.AlertType.CA_EXPIRY, "CA 证书已过期", RELATED_ID, Map.of());
+                    AlertRule.AlertType.CA_EXPIRY, "CA 证书剩余 5 天", RELATED_ID, payload);
 
             assertThat(info.notificationType()).isEqualTo("CA_EXPIRED");
         }
 
         @Test
-        void alertMessage含即将到期_应映射为_CA_EXPIRING() {
+        void payload中alertSubType为EXPIRING_应映射为_CA_EXPIRING() {
+            Map<String, Object> payload = Map.of("alertSubType", "EXPIRING");
             AlertNotificationInfo info = AlertMessagePolicy.buildNotification(
-                    AlertRule.AlertType.CA_EXPIRY, "CA 证书即将到期", RELATED_ID, Map.of());
+                    AlertRule.AlertType.CA_EXPIRY, "CA 证书即将到期", RELATED_ID, payload);
 
             assertThat(info.notificationType()).isEqualTo("CA_EXPIRING");
         }
 
         @Test
-        void alertMessage不含已过期_默认映射为_CA_EXPIRING() {
+        void payload无alertSubType_默认映射为_CA_EXPIRING() {
+            // 无 alertSubType 时默认为 CA_EXPIRING
             AlertNotificationInfo info = AlertMessagePolicy.buildNotification(
                     AlertRule.AlertType.CA_EXPIRY, "CA 证书剩余 5 天", RELATED_ID, Map.of());
 

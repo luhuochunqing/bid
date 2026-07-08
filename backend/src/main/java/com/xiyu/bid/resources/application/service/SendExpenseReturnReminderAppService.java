@@ -88,7 +88,7 @@ public class SendExpenseReturnReminderAppService {
         AlertHistoryCreateRequest request = new AlertHistoryCreateRequest();
         request.setRuleId(rule.getId());
         request.setLevel(AlertHistory.AlertLevel.MEDIUM);
-        request.setRelatedId(String.format("DepositReturn:%s:%s", expenseId, expense.getExpectedReturnDate()));
+        request.setRelatedId(String.format("DepositReturn:%s", expenseId));
         request.setMessage(String.format(
                 "%s 发起保证金退还跟进：%s，应退日期 %s。%s",
                 actor,

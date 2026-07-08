@@ -59,6 +59,12 @@ public interface TenderRepository extends JpaRepository<Tender, Long>, JpaSpecif
      */
     List<Tender> findByRiskLevel(Tender.RiskLevel riskLevel);
 
+    /**
+     * 查询所有已设置风险等级的标讯（避免 findAll 全表扫描后内存过滤 null）。
+     * <p>用于 RISK 告警规则扫描，仅关注已评级标讯。</p>
+     */
+    List<Tender> findByRiskLevelNotNull();
+
     // === Workbench deadline queries ===
 
     /** 全量报名截止日期查询（Admin 用） */

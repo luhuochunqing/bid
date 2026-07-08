@@ -4,9 +4,8 @@ import com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest;
 import com.xiyu.bid.alerts.dto.AlertHistoryCreateResult;
 import com.xiyu.bid.alerts.entity.AlertHistory;
 import com.xiyu.bid.alerts.entity.AlertRule;
-import com.xiyu.bid.alerts.repository.AlertRuleRepository;
-import com.xiyu.bid.alerts.service.AlertHistoryService;
 import com.xiyu.bid.alerts.service.AlertNotificationOrchestrator;
+import com.xiyu.bid.alerts.service.AlertRuleProvisioningService;
 import com.xiyu.bid.bidresult.entity.BidResultFetchResult;
 import com.xiyu.bid.bidresult.repository.BidResultFetchResultRepository;
 import com.xiyu.bid.entity.Project;
@@ -27,10 +26,12 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -39,12 +40,13 @@ import static org.mockito.Mockito.when;
 /**
  * {@link ScanDepositReturnTrackingAppService#scan()} 通知触发逻辑单元测试。
  *
- * <p>验证核心契约：
+ * <p>P1-3 / P1-4 / P1-6 / P1-11 改造后验证核心契约：
  * <ul>
- *   <li>created=true 时调用 {@link AlertNotificationOrchestrator#dispatchNotification}</li>
- *   <li>created=false 时不调用 dispatchNotification</li>
- *   <li>无论是否新建告警，expense 状态更新（recordReturnReminder + save）与计数均保留</li>
- *   <li>dispatchNotification 传入正确的 alertHistory 和 alertRule</li>
+ *   <li>使用 {@link AlertRuleProvisioningService#ensureRuleWithThresholdSync} 而非直接访问 AlertRuleRepository</li>
+ *   <li>使用 {@link AlertNotificationOrchestrator#createAndNotifyIfNew} 模板方法（统一 create + dispatch）</li>
+ *   <li>P1-6: 批量预加载 BidResultFetchResult 和 Project，消除循环内 N+1 查询</li>
+ *   <li>P1-11: created=true 时执行 expense 副作用（recordReturnReminder + save）且计数 +1</li>
+ *   <li>P1-11: created=false 时**不**执行 expense 副作用，计数为 0（避免重复提醒时也更新 reminder 时间）</li>
  * </ul>
  *
  * <p>注意：{@code reminderPolicy} 是内联 {@code new} 的纯核心对象，测试中用真实数据驱动其返回
@@ -59,9 +61,7 @@ class ScanDepositReturnTrackingAppServiceNotificationTest {
     @Mock
     private BidResultFetchResultRepository bidResultFetchResultRepository;
     @Mock
-    private AlertRuleRepository alertRuleRepository;
-    @Mock
-    private AlertHistoryService alertHistoryService;
+    private AlertRuleProvisioningService alertRuleProvisioningService;
     @Mock
     private AlertNotificationOrchestrator alertNotificationOrchestrator;
     @Mock
@@ -102,7 +102,10 @@ class ScanDepositReturnTrackingAppServiceNotificationTest {
         when(expense.getExpectedReturnDate()).thenReturn(LocalDate.now().plusDays(3));
         when(expense.getLastReturnReminderAt()).thenReturn(null);
 
+        // P1-6: batch query 返回 List，fetchResult 需 stub getProjectId 供 groupingBy 使用
+        when(fetchResult.getProjectId()).thenReturn(200L);
         when(fetchResult.getResult()).thenReturn(BidResultFetchResult.Result.WON);
+        when(project.getId()).thenReturn(200L);
         when(project.getName()).thenReturn("测试项目");
 
         alertHistory = AlertHistory.builder()
@@ -122,49 +125,57 @@ class ScanDepositReturnTrackingAppServiceNotificationTest {
                 .build();
         when(settingsService.getSettings()).thenReturn(settings);
 
-        when(alertRuleRepository.findByType(AlertRule.AlertType.DEPOSIT_RETURN))
-                .thenReturn(List.of(rule));
+        // P1-4: 共享 provisioning service（带 threshold sync）
+        when(alertRuleProvisioningService.ensureRuleWithThresholdSync(
+                eq(AlertRule.AlertType.DEPOSIT_RETURN), anyString(), anyInt())).thenReturn(rule);
 
         when(expenseRepository.findByExpenseTypeAndExpectedReturnDateIsNotNullAndStatusNotOrderByExpectedReturnDateAsc(
                 "保证金", Expense.ExpenseStatus.RETURNED))
                 .thenReturn(List.of(expense));
 
-        when(bidResultFetchResultRepository.findFirstByProjectIdAndStatusOrderByConfirmedAtDescFetchTimeDesc(
-                200L, BidResultFetchResult.Status.CONFIRMED))
-                .thenReturn(Optional.of(fetchResult));
+        // P1-6: 批量查询替代 N+1
+        when(bidResultFetchResultRepository.findByProjectIdsInAndStatus(
+                eq(Set.of(200L)), eq(BidResultFetchResult.Status.CONFIRMED)))
+                .thenReturn(List.of(fetchResult));
 
-        when(projectRepository.findById(200L)).thenReturn(Optional.of(project));
+        when(projectRepository.findAllById(Set.of(200L)))
+                .thenReturn(List.of(project));
     }
 
     @Test
-    @DisplayName("新建告警(created=true)时触发通知，且保留 expense 副作用与计数")
+    @DisplayName("新建告警(created=true)时触发通知，且执行 expense 副作用与计数")
     void shouldDispatchNotificationWhenAlertCreated() {
-        when(alertHistoryService.createAlertHistoryIfAbsent(any(AlertHistoryCreateRequest.class)))
+        when(alertNotificationOrchestrator.createAndNotifyIfNew(
+                any(AlertHistoryCreateRequest.class), eq(rule), any(Map.class)))
                 .thenReturn(new AlertHistoryCreateResult(alertHistory, true));
 
         int reminded = service.scan();
 
-        // 验证通知被触发，传入正确的 alertHistory 和 rule
-        verify(alertNotificationOrchestrator).dispatchNotification(eq(alertHistory), eq(rule), any(Map.class));
-        // 验证 expense 副作用保留：无论是否新建告警都执行状态更新
+        // 验证 createAndNotifyIfNew 被调用（统一入口）
+        verify(alertNotificationOrchestrator)
+                .createAndNotifyIfNew(any(AlertHistoryCreateRequest.class), eq(rule), any(Map.class));
+        // P1-11: created=true 时执行 expense 副作用
         verify(expense).recordReturnReminder(any());
         verify(expenseRepository).save(expense);
         assertThat(reminded).isEqualTo(1);
     }
 
     @Test
-    @DisplayName("复用已有告警(created=false)时不触发通知，但保留 expense 副作用与计数")
-    void shouldNotDispatchNotificationWhenAlertReused() {
-        when(alertHistoryService.createAlertHistoryIfAbsent(any(AlertHistoryCreateRequest.class)))
+    @DisplayName("复用已有告警(created=false)时不执行 expense 副作用，计数为 0")
+    void shouldNotUpdateExpenseWhenAlertReused() {
+        when(alertNotificationOrchestrator.createAndNotifyIfNew(
+                any(AlertHistoryCreateRequest.class), eq(rule), any(Map.class)))
                 .thenReturn(new AlertHistoryCreateResult(alertHistory, false));
 
         int reminded = service.scan();
 
-        // 验证通知未触发
-        verify(alertNotificationOrchestrator, never()).dispatchNotification(any(), any(), any());
-        // 验证 expense 副作用仍保留
-        verify(expense).recordReturnReminder(any());
-        verify(expenseRepository).save(expense);
-        assertThat(reminded).isEqualTo(1);
+        // P1-3: createAndNotifyIfNew 是统一入口，无论新建/复用都会调用
+        verify(alertNotificationOrchestrator)
+                .createAndNotifyIfNew(any(AlertHistoryCreateRequest.class), eq(rule), any(Map.class));
+        // P1-11: created=false 时不执行 expense 副作用（避免重复提醒时也更新 reminder 时间和计数）
+        verify(expense, never()).recordReturnReminder(any());
+        verify(expenseRepository, never()).save(expense);
+        // P1-11: 计数为 0（仅新建告警才计入 reminded）
+        assertThat(reminded).isEqualTo(0);
     }
 }

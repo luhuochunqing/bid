@@ -1,10 +1,8 @@
 package com.xiyu.bid.alertdispatch.service;
 
 import com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest;
-import com.xiyu.bid.alerts.dto.AlertHistoryCreateResult;
 import com.xiyu.bid.alerts.entity.AlertHistory;
 import com.xiyu.bid.alerts.entity.AlertRule;
-import com.xiyu.bid.alerts.service.AlertHistoryService;
 import com.xiyu.bid.alerts.service.AlertNotificationOrchestrator;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
@@ -23,7 +21,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class BudgetAlertDispatchService {
 
-    private final AlertHistoryService alertHistoryService;
     private final AlertNotificationOrchestrator alertNotificationOrchestrator;
     private final ProjectRepository projectRepository;
     private final TenderRepository tenderRepository;
@@ -74,13 +71,9 @@ public class BudgetAlertDispatchService {
                 budget
         ));
         request.setRelatedId(String.format("Project:%s", project.getId()));
-        AlertHistoryCreateResult result = alertHistoryService.createAlertHistoryIfAbsent(request);
-        // 仅在新建告警时触发通知，复用已有未处理告警不重复推送
-        if (result.created()) {
-            alertNotificationOrchestrator.dispatchNotification(
-                    result.alertHistory(), rule,
-                    buildBudgetPayload(project, expenseRatio, totalExpense, budget));
-        }
+        // P1-3: 使用 createAndNotifyIfNew 模板方法，消除 create + dispatch 重复
+        alertNotificationOrchestrator.createAndNotifyIfNew(request, rule,
+                buildBudgetPayload(project, expenseRatio, totalExpense, budget));
     }
 
     /**

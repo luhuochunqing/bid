@@ -16,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,8 +29,16 @@ import static org.mockito.Mockito.when;
 /**
  * {@link AlertHistoryService#createAlertHistoryIfAbsent} 单元测试。
  *
- * <p>覆盖 7 个场景：新建、复用、relatedId 为 null/空串跳过去重、
- * 以及 ruleId/level/message 校验失败抛 IllegalArgumentException。</p>
+ * <p>P2-8 改造后覆盖场景：
+ * <ul>
+ *   <li>新建：无已有记录</li>
+ *   <li>复用未处理：已有 resolved=false 记录</li>
+ *   <li>P2-8 复用冷却期内已处理：已有 resolved=true 且 resolvedAt 在 24h 内</li>
+ *   <li>P2-8 新建超过冷却期：已有 resolved=true 且 resolvedAt 超过 24h</li>
+ *   <li>P2-8 新建无处理时间：已有 resolved=true 但 resolvedAt=null（数据异常）</li>
+ *   <li>relatedId 为 null/空串跳过去重</li>
+ *   <li>ruleId/level/message 校验失败抛 IllegalArgumentException</li>
+ * </ul>
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AlertHistoryService.createAlertHistoryIfAbsent 单元测试")
@@ -83,7 +92,7 @@ class AlertHistoryServiceIfAbsentTest {
                 .resolved(false)
                 .build();
 
-        when(alertHistoryRepository.findFirstByRuleIdAndRelatedIdAndResolvedFalseOrderByCreatedAtDesc(
+        when(alertHistoryRepository.findFirstByRuleIdAndRelatedIdOrderByCreatedAtDesc(
                 1L, "Project:123")).thenReturn(Optional.empty());
         when(alertHistoryRepository.save(any(AlertHistory.class))).thenReturn(saved);
 
@@ -96,7 +105,7 @@ class AlertHistoryServiceIfAbsentTest {
 
     @Test
     @DisplayName("relatedId 非空且已有未处理记录时复用，created=false 且不调用 save")
-    void shouldReuseWhenRelatedIdPresentAndExistingFound() {
+    void shouldReuseWhenRelatedIdPresentAndExistingUnresolvedFound() {
         AlertHistoryCreateRequest request = buildRequest("Project:123");
         AlertHistory existing = AlertHistory.builder()
                 .id(101L)
@@ -107,7 +116,7 @@ class AlertHistoryServiceIfAbsentTest {
                 .resolved(false)
                 .build();
 
-        when(alertHistoryRepository.findFirstByRuleIdAndRelatedIdAndResolvedFalseOrderByCreatedAtDesc(
+        when(alertHistoryRepository.findFirstByRuleIdAndRelatedIdOrderByCreatedAtDesc(
                 1L, "Project:123")).thenReturn(Optional.of(existing));
 
         AlertHistoryCreateResult result = alertHistoryService.createAlertHistoryIfAbsent(request);
@@ -115,6 +124,96 @@ class AlertHistoryServiceIfAbsentTest {
         assertThat(result.created()).isFalse();
         assertThat(result.alertHistory()).isSameAs(existing);
         verify(alertHistoryRepository, never()).save(any(AlertHistory.class));
+    }
+
+    @Test
+    @DisplayName("P2-8: 已处理告警在冷却期内（24h）时复用，created=false")
+    void shouldReuseWhenResolvedAlertWithinCooldown() {
+        AlertHistoryCreateRequest request = buildRequest("Project:123");
+        AlertHistory resolvedRecent = AlertHistory.builder()
+                .id(101L)
+                .ruleId(1L)
+                .level(AlertHistory.AlertLevel.HIGH)
+                .message("已处理的告警")
+                .relatedId("Project:123")
+                .resolved(true)
+                .resolvedAt(LocalDateTime.now().minusHours(2)) // 2h 前，在 24h 冷却期内
+                .build();
+
+        when(alertHistoryRepository.findFirstByRuleIdAndRelatedIdOrderByCreatedAtDesc(
+                1L, "Project:123")).thenReturn(Optional.of(resolvedRecent));
+
+        AlertHistoryCreateResult result = alertHistoryService.createAlertHistoryIfAbsent(request);
+
+        assertThat(result.created()).isFalse();
+        assertThat(result.alertHistory()).isSameAs(resolvedRecent);
+        verify(alertHistoryRepository, never()).save(any(AlertHistory.class));
+    }
+
+    @Test
+    @DisplayName("P2-8: 已处理告警超过冷却期（24h）时新建，created=true")
+    void shouldCreateWhenResolvedAlertBeyondCooldown() {
+        AlertHistoryCreateRequest request = buildRequest("Project:123");
+        AlertHistory resolvedOld = AlertHistory.builder()
+                .id(101L)
+                .ruleId(1L)
+                .level(AlertHistory.AlertLevel.HIGH)
+                .message("很久前已处理的告警")
+                .relatedId("Project:123")
+                .resolved(true)
+                .resolvedAt(LocalDateTime.now().minusHours(48)) // 48h 前，超过 24h 冷却期
+                .build();
+        AlertHistory saved = AlertHistory.builder()
+                .id(201L)
+                .ruleId(1L)
+                .level(AlertHistory.AlertLevel.HIGH)
+                .message("测试告警")
+                .relatedId("Project:123")
+                .resolved(false)
+                .build();
+
+        when(alertHistoryRepository.findFirstByRuleIdAndRelatedIdOrderByCreatedAtDesc(
+                1L, "Project:123")).thenReturn(Optional.of(resolvedOld));
+        when(alertHistoryRepository.save(any(AlertHistory.class))).thenReturn(saved);
+
+        AlertHistoryCreateResult result = alertHistoryService.createAlertHistoryIfAbsent(request);
+
+        assertThat(result.created()).isTrue();
+        assertThat(result.alertHistory()).isSameAs(saved);
+        verify(alertHistoryRepository).save(any(AlertHistory.class));
+    }
+
+    @Test
+    @DisplayName("P2-8: 已处理告警但 resolvedAt=null（数据异常）时新建，created=true")
+    void shouldCreateWhenResolvedAlertHasNullResolvedAt() {
+        AlertHistoryCreateRequest request = buildRequest("Project:123");
+        AlertHistory resolvedNoAt = AlertHistory.builder()
+                .id(101L)
+                .ruleId(1L)
+                .level(AlertHistory.AlertLevel.HIGH)
+                .message("已处理但无处理时间的告警")
+                .relatedId("Project:123")
+                .resolved(true)
+                .resolvedAt(null) // 数据异常
+                .build();
+        AlertHistory saved = AlertHistory.builder()
+                .id(201L)
+                .ruleId(1L)
+                .level(AlertHistory.AlertLevel.HIGH)
+                .message("测试告警")
+                .relatedId("Project:123")
+                .resolved(false)
+                .build();
+
+        when(alertHistoryRepository.findFirstByRuleIdAndRelatedIdOrderByCreatedAtDesc(
+                1L, "Project:123")).thenReturn(Optional.of(resolvedNoAt));
+        when(alertHistoryRepository.save(any(AlertHistory.class))).thenReturn(saved);
+
+        AlertHistoryCreateResult result = alertHistoryService.createAlertHistoryIfAbsent(request);
+
+        assertThat(result.created()).isTrue();
+        assertThat(result.alertHistory()).isSameAs(saved);
+        verify(alertHistoryRepository).save(any(AlertHistory.class));
     }
 
     @Test
@@ -136,7 +235,7 @@ class AlertHistoryServiceIfAbsentTest {
         assertThat(result.created()).isTrue();
         assertThat(result.alertHistory()).isSameAs(saved);
         verify(alertHistoryRepository, never())
-                .findFirstByRuleIdAndRelatedIdAndResolvedFalseOrderByCreatedAtDesc(any(), any());
+                .findFirstByRuleIdAndRelatedIdOrderByCreatedAtDesc(any(), any());
         verify(alertHistoryRepository).save(any(AlertHistory.class));
     }
 
@@ -159,7 +258,7 @@ class AlertHistoryServiceIfAbsentTest {
         assertThat(result.created()).isTrue();
         assertThat(result.alertHistory()).isSameAs(saved);
         verify(alertHistoryRepository, never())
-                .findFirstByRuleIdAndRelatedIdAndResolvedFalseOrderByCreatedAtDesc(any(), any());
+                .findFirstByRuleIdAndRelatedIdOrderByCreatedAtDesc(any(), any());
         verify(alertHistoryRepository).save(any(AlertHistory.class));
     }
 

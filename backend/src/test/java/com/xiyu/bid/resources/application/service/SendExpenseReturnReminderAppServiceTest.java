@@ -102,7 +102,7 @@ class SendExpenseReturnReminderAppServiceTest {
         verify(alertHistoryService).createAlertHistoryIfAbsent(captor.capture());
         verify(expenseRepository).save(expense);
         assertThat(expense.getLastReturnReminderAt()).isNotNull();
-        assertThat(captor.getValue().getRelatedId()).isEqualTo("DepositReturn:502:2026-05-01");
+        assertThat(captor.getValue().getRelatedId()).isEqualTo("DepositReturn:502");
     }
 
     @Test

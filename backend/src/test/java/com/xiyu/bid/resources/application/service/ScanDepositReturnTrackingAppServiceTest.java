@@ -1,13 +1,14 @@
 package com.xiyu.bid.resources.application.service;
 
+import com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest;
 import com.xiyu.bid.alerts.dto.AlertHistoryCreateResult;
 import com.xiyu.bid.alerts.entity.AlertHistory;
 import com.xiyu.bid.alerts.entity.AlertRule;
-import com.xiyu.bid.alerts.repository.AlertRuleRepository;
-import com.xiyu.bid.alerts.service.AlertHistoryService;
 import com.xiyu.bid.alerts.service.AlertNotificationOrchestrator;
+import com.xiyu.bid.alerts.service.AlertRuleProvisioningService;
 import com.xiyu.bid.bidresult.entity.BidResultFetchResult;
 import com.xiyu.bid.bidresult.repository.BidResultFetchResultRepository;
+import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.resources.entity.Expense;
 import com.xiyu.bid.resources.repository.ExpenseRepository;
@@ -25,14 +26,24 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * {@link ScanDepositReturnTrackingAppService} 单元测试。
+ *
+ * <p>P1-4: 使用 AlertRuleProvisioningService.ensureRuleWithThresholdSync 替代直接 AlertRuleRepository 操作。
+ * <p>P1-3: 使用 createAndNotifyIfNew 模板方法替代手动 create + dispatch。
+ * <p>P1-6: 批量加载 BidResultFetchResult 和 Project（消除 N+1）。
+ * <p>P1-11: 副作用仅在 created=true 时执行。
+ */
 @ExtendWith(MockitoExtension.class)
 class ScanDepositReturnTrackingAppServiceTest {
 
@@ -41,9 +52,7 @@ class ScanDepositReturnTrackingAppServiceTest {
     @Mock
     private BidResultFetchResultRepository bidResultFetchResultRepository;
     @Mock
-    private AlertRuleRepository alertRuleRepository;
-    @Mock
-    private AlertHistoryService alertHistoryService;
+    private AlertRuleProvisioningService alertRuleProvisioningService;
     @Mock
     private AlertNotificationOrchestrator alertNotificationOrchestrator;
     @Mock
@@ -79,32 +88,38 @@ class ScanDepositReturnTrackingAppServiceTest {
                 .enabled(true)
                 .createdBy("tester")
                 .build();
+        Project project = Project.builder().id(601L).name("测试项目").build();
 
         when(settingsService.getSettings()).thenReturn(SettingsResponse.builder()
                 .systemConfig(SettingsResponse.SystemConfig.builder().depositWarnDays(7).build())
                 .build());
-        when(alertRuleRepository.findByType(AlertRule.AlertType.DEPOSIT_RETURN)).thenReturn(List.of(rule));
+        when(alertRuleProvisioningService.ensureRuleWithThresholdSync(
+                eq(AlertRule.AlertType.DEPOSIT_RETURN), anyString(), anyInt())).thenReturn(rule);
         when(expenseRepository.findByExpenseTypeAndExpectedReturnDateIsNotNullAndStatusNotOrderByExpectedReturnDateAsc(
                 "保证金", Expense.ExpenseStatus.RETURNED)).thenReturn(List.of(expense));
-        when(bidResultFetchResultRepository.findFirstByProjectIdAndStatusOrderByConfirmedAtDescFetchTimeDesc(
-                601L, BidResultFetchResult.Status.CONFIRMED)).thenReturn(Optional.of(result));
-        when(alertHistoryService.createAlertHistoryIfAbsent(any()))
+        // P1-6: 批量查询而非循环内逐个查
+        when(bidResultFetchResultRepository.findByProjectIdsInAndStatus(
+                Set.of(601L), BidResultFetchResult.Status.CONFIRMED)).thenReturn(List.of(result));
+        when(projectRepository.findAllById(Set.of(601L))).thenReturn(List.of(project));
+        when(alertNotificationOrchestrator.createAndNotifyIfNew(
+                any(AlertHistoryCreateRequest.class), any(AlertRule.class), any()))
                 .thenReturn(new AlertHistoryCreateResult(AlertHistory.builder().id(1L).build(), true));
 
         int reminded = scanDepositReturnTrackingAppService.scan();
 
-        ArgumentCaptor<com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest> captor =
-                ArgumentCaptor.forClass(com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest.class);
-        verify(alertHistoryService).createAlertHistoryIfAbsent(captor.capture());
+        ArgumentCaptor<AlertHistoryCreateRequest> captor =
+                ArgumentCaptor.forClass(AlertHistoryCreateRequest.class);
+        verify(alertNotificationOrchestrator).createAndNotifyIfNew(captor.capture(), any(AlertRule.class), any());
         verify(expenseRepository).save(expense);
         assertThat(reminded).isEqualTo(1);
         assertThat(expense.getLastReturnReminderAt()).isNotNull();
-        assertThat(captor.getValue().getRelatedId()).contains("DepositReturn:501:");
+        // relatedId 格式为 "DepositReturn:{expenseId}"（单冒号，无日期后缀）
+        assertThat(captor.getValue().getRelatedId()).isEqualTo("DepositReturn:501");
     }
 
     @Test
-    @DisplayName("自动扫描应把保证金规则阈值同步为系统设置值")
-    void shouldSyncDepositReturnRuleThresholdToSettings() {
+    @DisplayName("自动扫描应把 depositWarnDays 传递给 ensureRuleWithThresholdSync 进行阈值同步")
+    void shouldPassDepositWarnDaysToProvisioningService() {
         Expense expense = Expense.builder()
                 .id(701L)
                 .projectId(801L)
@@ -118,40 +133,35 @@ class ScanDepositReturnTrackingAppServiceTest {
                 .status(BidResultFetchResult.Status.CONFIRMED)
                 .confirmedAt(LocalDateTime.now().minusDays(1))
                 .build();
-        AlertRule staleRule = AlertRule.builder()
+        AlertRule rule = AlertRule.builder()
                 .id(88L)
                 .name("保证金退还提醒")
                 .type(AlertRule.AlertType.DEPOSIT_RETURN)
-                .condition(AlertRule.ConditionType.GREATER_THAN)
-                .threshold(BigDecimal.valueOf(3))
-                .enabled(false)
+                .condition(AlertRule.ConditionType.LESS_THAN)
+                .threshold(BigDecimal.valueOf(9))
+                .enabled(true)
                 .createdBy("tester")
                 .build();
 
         when(settingsService.getSettings()).thenReturn(SettingsResponse.builder()
                 .systemConfig(SettingsResponse.SystemConfig.builder().depositWarnDays(9).build())
                 .build());
-        when(alertRuleRepository.findByType(AlertRule.AlertType.DEPOSIT_RETURN)).thenReturn(List.of(staleRule));
-        when(alertRuleRepository.save(argThat(rule ->
-                rule.getId().equals(88L)
-                        && rule.getThreshold().compareTo(BigDecimal.valueOf(9)) == 0
-                        && rule.getCondition() == AlertRule.ConditionType.LESS_THAN
-                        && rule.getEnabled()
-        ))).thenAnswer(invocation -> invocation.getArgument(0));
+        // P1-4: 阈值同步逻辑封装在 AlertRuleProvisioningService 中，本服务只负责传递 warnDays
+        when(alertRuleProvisioningService.ensureRuleWithThresholdSync(
+                AlertRule.AlertType.DEPOSIT_RETURN, "保证金退还提醒", 9)).thenReturn(rule);
         when(expenseRepository.findByExpenseTypeAndExpectedReturnDateIsNotNullAndStatusNotOrderByExpectedReturnDateAsc(
                 "保证金", Expense.ExpenseStatus.RETURNED)).thenReturn(List.of(expense));
-        when(bidResultFetchResultRepository.findFirstByProjectIdAndStatusOrderByConfirmedAtDescFetchTimeDesc(
-                801L, BidResultFetchResult.Status.CONFIRMED)).thenReturn(Optional.of(result));
-        when(alertHistoryService.createAlertHistoryIfAbsent(any()))
+        when(bidResultFetchResultRepository.findByProjectIdsInAndStatus(
+                Set.of(801L), BidResultFetchResult.Status.CONFIRMED)).thenReturn(List.of(result));
+        when(projectRepository.findAllById(Set.of(801L))).thenReturn(List.of());
+        when(alertNotificationOrchestrator.createAndNotifyIfNew(
+                any(AlertHistoryCreateRequest.class), any(AlertRule.class), any()))
                 .thenReturn(new AlertHistoryCreateResult(AlertHistory.builder().id(2L).build(), true));
 
         scanDepositReturnTrackingAppService.scan();
 
-        verify(alertRuleRepository).save(argThat(rule ->
-                rule.getId().equals(88L)
-                        && rule.getThreshold().compareTo(BigDecimal.valueOf(9)) == 0
-                        && rule.getCondition() == AlertRule.ConditionType.LESS_THAN
-                        && rule.getEnabled()
-        ));
+        // 验证 ensureRuleWithThresholdSync 被调用且 warnDays=9（来自系统配置）
+        verify(alertRuleProvisioningService).ensureRuleWithThresholdSync(
+                AlertRule.AlertType.DEPOSIT_RETURN, "保证金退还提醒", 9);
     }
 }

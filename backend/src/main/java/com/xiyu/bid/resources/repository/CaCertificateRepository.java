@@ -14,6 +14,12 @@ public interface CaCertificateRepository extends JpaRepository<CaCertificateEnti
 
     List<CaCertificateEntity> findByCustodianId(Long custodianId);
 
+    /**
+     * P1-7: 查询状态不等于指定值的证书（避免 findAll 后内存过滤）。
+     * 用于 CA 到期扫描，排除 INACTIVE 证书。
+     */
+    List<CaCertificateEntity> findByStatusNot(String status);
+
     long countByBorrowStatus(String borrowStatus);
 
     long countByStatus(String status);

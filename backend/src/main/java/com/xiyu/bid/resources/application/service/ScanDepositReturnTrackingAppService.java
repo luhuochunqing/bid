@@ -4,9 +4,8 @@ import com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest;
 import com.xiyu.bid.alerts.dto.AlertHistoryCreateResult;
 import com.xiyu.bid.alerts.entity.AlertHistory;
 import com.xiyu.bid.alerts.entity.AlertRule;
-import com.xiyu.bid.alerts.repository.AlertRuleRepository;
-import com.xiyu.bid.alerts.service.AlertHistoryService;
 import com.xiyu.bid.alerts.service.AlertNotificationOrchestrator;
+import com.xiyu.bid.alerts.service.AlertRuleProvisioningService;
 import com.xiyu.bid.bidresult.entity.BidResultFetchResult;
 import com.xiyu.bid.bidresult.repository.BidResultFetchResultRepository;
 import com.xiyu.bid.entity.Project;
@@ -21,13 +20,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -35,8 +35,7 @@ public class ScanDepositReturnTrackingAppService {
 
     private final ExpenseRepository expenseRepository;
     private final BidResultFetchResultRepository bidResultFetchResultRepository;
-    private final AlertRuleRepository alertRuleRepository;
-    private final AlertHistoryService alertHistoryService;
+    private final AlertRuleProvisioningService alertRuleProvisioningService;
     private final AlertNotificationOrchestrator alertNotificationOrchestrator;
     private final SettingsService settingsService;
     private final ProjectRepository projectRepository;
@@ -49,7 +48,9 @@ public class ScanDepositReturnTrackingAppService {
                 .map(config -> config.getDepositWarnDays())
                 .filter(value -> value != null && value > 0)
                 .orElse(7);
-        AlertRule rule = ensureAlertRule(warnDays);
+        // P1-4: 使用共享的 AlertRuleProvisioningService.ensureRuleWithThresholdSync
+        AlertRule rule = alertRuleProvisioningService.ensureRuleWithThresholdSync(
+                AlertRule.AlertType.DEPOSIT_RETURN, "保证金退还提醒", warnDays);
         List<Expense> expenses = expenseRepository
                 .findByExpenseTypeAndExpectedReturnDateIsNotNullAndStatusNotOrderByExpectedReturnDateAsc(
                         "保证金",
@@ -58,11 +59,12 @@ public class ScanDepositReturnTrackingAppService {
         LocalDateTime now = LocalDateTime.now();
         int reminded = 0;
 
+        // P1-6: 批量预加载关联数据，消除循环内 N+1 查询
+        Map<Long, BidResultFetchResult> resultMap = batchLoadBidResults(expenses);
+        Map<Long, String> projectNameMap = batchLoadProjectNames(expenses);
+
         for (Expense expense : expenses) {
-            BidResultFetchResult result = bidResultFetchResultRepository
-                    .findFirstByProjectIdAndStatusOrderByConfirmedAtDescFetchTimeDesc(
-                            expense.getProjectId(), BidResultFetchResult.Status.CONFIRMED)
-                    .orElse(null);
+            BidResultFetchResult result = resultMap.get(expense.getProjectId());
 
             DepositReturnReminderDecision decision = reminderPolicy.evaluate(
                     new DepositReturnTrackingSnapshot(
@@ -82,10 +84,8 @@ public class ScanDepositReturnTrackingAppService {
                 continue;
             }
 
-            // 提前解析项目名称，复用给消息构建与通知 payload，避免循环内重复查询
-            String projectName = projectRepository.findById(expense.getProjectId())
-                    .map(Project::getName)
-                    .orElse("项目#" + expense.getProjectId());
+            String projectName = projectNameMap.getOrDefault(
+                    expense.getProjectId(), "项目#" + expense.getProjectId());
             AlertHistoryCreateRequest request = new AlertHistoryCreateRequest();
             request.setRuleId(rule.getId());
             request.setLevel(decision.stage() == com.xiyu.bid.resources.domain.valueobject.DepositReturnReminderStage.OVERDUE
@@ -93,33 +93,57 @@ public class ScanDepositReturnTrackingAppService {
                     : AlertHistory.AlertLevel.MEDIUM);
             request.setRelatedId(decision.relatedId(expense.getId(), expense.getExpectedReturnDate().toString()));
             request.setMessage(buildReminderMessage(expense, result, decision, projectName));
-            AlertHistoryCreateResult alertResult = alertHistoryService.createAlertHistoryIfAbsent(request);
-            // 仅在新建告警时触发通知，复用已有未处理告警不重复推送
+            // P1-3: 使用 createAndNotifyIfNew 模板方法，消除 create + dispatch 重复
+            AlertHistoryCreateResult alertResult = alertNotificationOrchestrator.createAndNotifyIfNew(
+                    request, rule, buildDepositPayload(expense, projectName));
+
+            // P1-11: 副作用仅在新建告警时执行 — 避免重复提醒时也更新 reminder 时间和计数
             if (alertResult.created()) {
-                alertNotificationOrchestrator.dispatchNotification(
-                        alertResult.alertHistory(), rule, buildDepositPayload(expense, projectName));
+                expense.recordReturnReminder(now);
+                expenseRepository.save(expense);
+                reminded++;
             }
-            // 副作用保留：无论是否新建告警，expense 实体状态更新与计数都执行
-            expense.recordReturnReminder(now);
-            expenseRepository.save(expense);
-            reminded++;
         }
 
         return reminded;
     }
 
-    private AlertRule ensureAlertRule(int warnDays) {
-        return alertRuleRepository.findByType(AlertRule.AlertType.DEPOSIT_RETURN).stream()
-                .findFirst()
-                .map(rule -> syncRuleThreshold(rule, warnDays))
-                .orElseGet(() -> alertRuleRepository.save(AlertRule.builder()
-                        .name("保证金退还提醒")
-                        .type(AlertRule.AlertType.DEPOSIT_RETURN)
-                        .condition(AlertRule.ConditionType.LESS_THAN)
-                        .threshold(BigDecimal.valueOf(warnDays))
-                        .enabled(true)
-                        .createdBy("system")
-                        .build()));
+    /**
+     * P1-6: 批量加载 expenses 关联的 BidResultFetchResult，避免循环内 N+1 查询。
+     *
+     * <p>按 projectId 分组取最新一条 CONFIRMED 记录（结果已按 confirmedAt DESC, fetchTime DESC 排序）。</p>
+     */
+    private Map<Long, BidResultFetchResult> batchLoadBidResults(List<Expense> expenses) {
+        Set<Long> projectIds = expenses.stream()
+                .map(Expense::getProjectId)
+                .collect(Collectors.toSet());
+        if (projectIds.isEmpty()) {
+            return Map.of();
+        }
+        List<BidResultFetchResult> results = bidResultFetchResultRepository
+                .findByProjectIdsInAndStatus(projectIds, BidResultFetchResult.Status.CONFIRMED);
+        // 按 projectId 分组，取每组的第一个（即最新的一条）
+        return results.stream()
+                .collect(Collectors.groupingBy(BidResultFetchResult::getProjectId))
+                .entrySet().stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        e -> e.getValue().get(0),
+                        (a, b) -> a));
+    }
+
+    /**
+     * P1-6: 批量加载 expenses 关联的 Project 名称，避免循环内 N+1 查询。
+     */
+    private Map<Long, String> batchLoadProjectNames(List<Expense> expenses) {
+        Set<Long> projectIds = expenses.stream()
+                .map(Expense::getProjectId)
+                .collect(Collectors.toSet());
+        if (projectIds.isEmpty()) {
+            return Map.of();
+        }
+        return projectRepository.findAllById(projectIds).stream()
+                .collect(Collectors.toMap(Project::getId, Project::getName, (a, b) -> a));
     }
 
     private String buildReminderMessage(
@@ -150,7 +174,7 @@ public class ScanDepositReturnTrackingAppService {
     /**
      * 构建保证金退还通知的附加 payload。
      *
-     * <p>供 {@link AlertNotificationOrchestrator#dispatchNotification} 使用，
+     * <p>供 {@link AlertNotificationOrchestrator#createAndNotifyIfNew} 使用，
      * 携带跳转到保证金退还跟踪页所需的关键业务字段。</p>
      */
     private Map<String, Object> buildDepositPayload(Expense expense, String projectName) {
@@ -161,18 +185,5 @@ public class ScanDepositReturnTrackingAppService {
         payload.put("expectedReturnDate", expense.getExpectedReturnDate());
         payload.put("targetUrl", "/resources/deposit-return-tracking");
         return payload;
-    }
-
-    private AlertRule syncRuleThreshold(AlertRule rule, int warnDays) {
-        if (rule.getThreshold() != null
-                && rule.getThreshold().compareTo(BigDecimal.valueOf(warnDays)) == 0
-                && rule.getCondition() == AlertRule.ConditionType.LESS_THAN
-                && rule.getEnabled()) {
-            return rule;
-        }
-        rule.setThreshold(BigDecimal.valueOf(warnDays));
-        rule.setCondition(AlertRule.ConditionType.LESS_THAN);
-        rule.setEnabled(true);
-        return alertRuleRepository.save(rule);
     }
 }

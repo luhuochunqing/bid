@@ -20,14 +20,14 @@ import java.util.Map;
  */
 public final class AlertMessagePolicy {
 
-    /** CA_EXPIRY 已过期标识，alertMessage 含此串时映射为 CA_EXPIRED。 */
-    private static final String CA_EXPIRED_KEYWORD = "已过期";
-
     /** 数值 ID 的合法字符集（1-18 位数字，避免 long 溢出）。 */
     private static final String NUMERIC_ID_PATTERN = "\\d{1,18}";
 
     /** relatedId 中实体类型与 ID 的分隔符。 */
     private static final String RELATED_ID_SEPARATOR = ":";
+
+    /** payload 中存放告警子类型的 key（用于 CA_EXPIRY 区分 EXPIRED/EXPIRING 等）。 */
+    public static final String PAYLOAD_KEY_ALERT_SUB_TYPE = "alertSubType";
 
     private AlertMessagePolicy() {
         // 纯核心工具类，禁止实例化
@@ -41,7 +41,7 @@ public final class AlertMessagePolicy {
      * @param type          告警类型（非 null，决定 notificationType 与 title）
      * @param alertMessage  告警正文（直接作为通知 body，可为 null）
      * @param relatedId     关联实体 ID（格式 "EntityType:EntityId"，可为 null）
-     * @param extraPayload  附加载荷（取 targetUrl 键值，可为 null）
+     * @param extraPayload  附加载荷（取 targetUrl 和 alertSubType 键值，可为 null）
      * @return 非 null 的 {@link AlertNotificationInfo}
      */
     public static AlertNotificationInfo buildNotification(
@@ -50,29 +50,30 @@ public final class AlertMessagePolicy {
             String relatedId,
             Map<String, Object> extraPayload
     ) {
-        String notificationType = resolveNotificationType(type, alertMessage);
+        String notificationType = resolveNotificationType(type, extraPayload);
         String title = resolveTitle(type);
-        String targetUrl = resolveTargetUrl(extraPayload);
-        String[] sourceEntity = parseRelatedId(relatedId);
-        String sourceEntityType = sourceEntity[0];
-        Long sourceEntityId = sourceEntity[1] == null ? null : Long.parseLong(sourceEntity[1]);
+        ParsedRelatedId parsed = parseRelatedId(relatedId);
 
         return new AlertNotificationInfo(
                 notificationType,
                 title,
                 alertMessage,
-                sourceEntityType,
-                sourceEntityId,
-                targetUrl
+                parsed.entityType(),
+                parsed.entityId(),
+                resolveTargetUrl(extraPayload)
         );
     }
 
     /**
-     * 解析通知类型。CA_EXPIRY 根据 alertMessage 是否含"已过期"区分 CA_EXPIRED / CA_EXPIRING。
+     * 解析通知类型。每种 AlertType 映射到独立的 notificationType，前端可按类型筛选。
+     *
+     * <p>CA_EXPIRY 根据 payload 中 {@code alertSubType} 区分 CA_EXPIRED / CA_EXPIRING，
+     * 不再依赖消息文案的字符串匹配（修复 P1-10 脆弱性）。</p>
      */
-    private static String resolveNotificationType(AlertRule.AlertType type, String alertMessage) {
+    private static String resolveNotificationType(AlertRule.AlertType type, Map<String, Object> extraPayload) {
         if (type == AlertRule.AlertType.CA_EXPIRY) {
-            if (alertMessage != null && alertMessage.contains(CA_EXPIRED_KEYWORD)) {
+            String subType = resolveAlertSubType(extraPayload);
+            if ("EXPIRED".equals(subType)) {
                 return "CA_EXPIRED";
             }
             return "CA_EXPIRING";
@@ -87,7 +88,7 @@ public final class AlertMessagePolicy {
             case QUALIFICATION_EXPIRY -> "DEADLINE";
             case CA_BORROW_OVERDUE -> "CA_BORROW_OVERDUE";
             // CA_EXPIRY 已在上方分支处理，此处不可达
-            case CA_EXPIRY -> "CA_EXPIRING";
+            case CA_EXPIRY -> throw new IllegalStateException("CA_EXPIRY must be handled by resolveNotificationType branch above");
         };
     }
 
@@ -123,31 +124,53 @@ public final class AlertMessagePolicy {
     }
 
     /**
-     * 解析 relatedId（格式 "EntityType:EntityId"）。
+     * 从 payload 中提取告警子类型（如 CA_EXPIRY 的 EXPIRED/EXPIRING）。
+     */
+    private static String resolveAlertSubType(Map<String, Object> extraPayload) {
+        if (extraPayload == null) {
+            return null;
+        }
+        Object value = extraPayload.get(PAYLOAD_KEY_ALERT_SUB_TYPE);
+        return value instanceof String s ? s : null;
+    }
+
+    /**
+     * 解析 relatedId（格式 "EntityType:EntityId"，单冒号，ID 为纯数字）。
      *
      * <p>FP-Java 合规：无 try-catch，先正则校验 ID 为纯数字（1-18 位，避免 long 溢出），
-     * 再由调用方 {@link Long#parseLong(String)} 安全转换。</p>
+     * 再安全转换为 Long。多冒号或非数字 ID 返回 empty。</p>
      *
-     * @return 长度为 2 的数组：[entityType, entityIdRaw]；解析失败时两个元素均为 null
+     * @return {@link ParsedRelatedId}；解析失败返回 {@link ParsedRelatedId#empty()}
      */
-    private static String[] parseRelatedId(String relatedId) {
+    private static ParsedRelatedId parseRelatedId(String relatedId) {
         if (relatedId == null || relatedId.isBlank()) {
-            return new String[]{null, null};
+            return ParsedRelatedId.empty();
         }
         int separatorIdx = relatedId.indexOf(RELATED_ID_SEPARATOR);
         if (separatorIdx <= 0) {
-            // 分隔符不存在或位于首位 → 实体类型为空
-            return new String[]{null, null};
+            return ParsedRelatedId.empty();
         }
         String entityType = relatedId.substring(0, separatorIdx);
         String entityIdRaw = relatedId.substring(separatorIdx + 1);
         if (entityType.isBlank() || !entityIdRaw.matches(NUMERIC_ID_PATTERN)) {
-            return new String[]{null, null};
+            return ParsedRelatedId.empty();
         }
         // 仅允许单分隔符：原始串中再出现分隔符视为格式错误
         if (relatedId.indexOf(RELATED_ID_SEPARATOR, separatorIdx + 1) >= 0) {
-            return new String[]{null, null};
+            return ParsedRelatedId.empty();
         }
-        return new String[]{entityType, entityIdRaw};
+        return new ParsedRelatedId(entityType, Long.parseLong(entityIdRaw));
+    }
+
+    /**
+     * relatedId 解析结果值对象。
+     *
+     * @param entityType 实体类型（如 "Tender"、"Project"），解析失败为 null
+     * @param entityId   实体 ID，解析失败为 null
+     */
+    private record ParsedRelatedId(String entityType, Long entityId) {
+        static ParsedRelatedId empty() {
+            return new ParsedRelatedId(null, null);
+        }
     }
 }

@@ -25,6 +25,14 @@ public interface AlertHistoryRepository extends JpaRepository<AlertHistory, Long
 
     Optional<AlertHistory> findFirstByRuleIdAndRelatedIdAndResolvedFalseOrderByCreatedAtDesc(Long ruleId, String relatedId);
 
+    /**
+     * P2-8: 查询指定规则+关联实体的最近一条告警（不论 resolved 状态）。
+     *
+     * <p>用于冷却期判断：如果最近一条告警已被处理且在冷却期内（默认 24h），
+     * 则不创建新告警，避免短期内重复告警骚扰。</p>
+     */
+    Optional<AlertHistory> findFirstByRuleIdAndRelatedIdOrderByCreatedAtDesc(Long ruleId, String relatedId);
+
     long countByResolvedFalse();
 
     long countByLevel(AlertHistory.AlertLevel level);

@@ -1,9 +1,9 @@
 package com.xiyu.bid.alertdispatch.service;
 
+import com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest;
 import com.xiyu.bid.alerts.dto.AlertHistoryCreateResult;
 import com.xiyu.bid.alerts.entity.AlertHistory;
 import com.xiyu.bid.alerts.entity.AlertRule;
-import com.xiyu.bid.alerts.service.AlertHistoryService;
 import com.xiyu.bid.alerts.service.AlertNotificationOrchestrator;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
@@ -34,9 +34,8 @@ import static org.mockito.Mockito.when;
 /**
  * {@link BudgetAlertDispatchService#createAlert} 通知触发逻辑单元测试。
  *
- * <p>验证：调 {@code createAlertHistoryIfAbsent} 后，仅在 {@code created=true} 时
- * 调用 {@link AlertNotificationOrchestrator#dispatchNotification}，且 payload 包含
- * projectId/projectName/expenseRatio/totalExpense/budget/targetUrl 字段。</p>
+ * <p>P1-3 改造后验证：调用 {@link AlertNotificationOrchestrator#createAndNotifyIfNew}
+ * 模板方法，payload 包含 projectId/projectName/expenseRatio/totalExpense/budget/targetUrl 字段。</p>
  *
  * <p>测试路径：{@code dispatch(rule)} → 遍历活动项目 → 计算费用占比 →
  * 命中告警条件 → {@code createAlert(rule, project, expenseRatio, totalExpense, budget)}。</p>
@@ -45,8 +44,6 @@ import static org.mockito.Mockito.when;
 @DisplayName("BudgetAlertDispatchService 新建告警通知触发测试")
 class BudgetAlertDispatchServiceNotificationTest {
 
-    @Mock
-    private AlertHistoryService alertHistoryService;
     @Mock
     private AlertNotificationOrchestrator alertNotificationOrchestrator;
     @Mock
@@ -94,7 +91,7 @@ class BudgetAlertDispatchServiceNotificationTest {
     }
 
     @Test
-    @DisplayName("新建告警(created=true)时调用 dispatchNotification，payload 含正确字段")
+    @DisplayName("新建告警(created=true)时调用 createAndNotifyIfNew，payload 含正确字段")
     void shouldDispatchNotificationWhenAlertCreated() {
         when(projectRepository.findActiveProjects()).thenReturn(List.of(project));
         when(tenderRepository.findById(10L)).thenReturn(Optional.of(tender));
@@ -109,18 +106,16 @@ class BudgetAlertDispatchServiceNotificationTest {
                 .relatedId("Project:1")
                 .resolved(false)
                 .build();
-        when(alertHistoryService.createAlertHistoryIfAbsent(any()))
+        when(alertNotificationOrchestrator.createAndNotifyIfNew(
+                any(AlertHistoryCreateRequest.class), eq(budgetRule), any(Map.class)))
                 .thenReturn(new AlertHistoryCreateResult(savedHistory, true));
 
         budgetAlertDispatchService.dispatch(budgetRule);
 
-        // 验证调用了 createAlertHistoryIfAbsent
-        verify(alertHistoryService).createAlertHistoryIfAbsent(any());
-
-        // 捕获并验证 dispatchNotification 的 payload
+        // 捕获并验证 createAndNotifyIfNew 的 payload
         ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
         verify(alertNotificationOrchestrator)
-                .dispatchNotification(eq(savedHistory), eq(budgetRule), payloadCaptor.capture());
+                .createAndNotifyIfNew(any(AlertHistoryCreateRequest.class), eq(budgetRule), payloadCaptor.capture());
 
         Map<String, Object> payload = payloadCaptor.getValue();
         assertThat(payload).isNotNull();
@@ -134,8 +129,8 @@ class BudgetAlertDispatchServiceNotificationTest {
     }
 
     @Test
-    @DisplayName("复用已有告警(created=false)时不调用 dispatchNotification")
-    void shouldNotDispatchNotificationWhenAlertReused() {
+    @DisplayName("复用已有告警(created=false)时仍调用 createAndNotifyIfNew（由模板方法决定是否发通知）")
+    void shouldStillCallCreateAndNotifyIfNewWhenAlertReused() {
         when(projectRepository.findActiveProjects()).thenReturn(List.of(project));
         when(tenderRepository.findById(10L)).thenReturn(Optional.of(tender));
         when(expenseRepository.sumAmountByProjectId(1L)).thenReturn(new BigDecimal("8000"));
@@ -148,20 +143,20 @@ class BudgetAlertDispatchServiceNotificationTest {
                 .relatedId("Project:1")
                 .resolved(false)
                 .build();
-        when(alertHistoryService.createAlertHistoryIfAbsent(any()))
+        when(alertNotificationOrchestrator.createAndNotifyIfNew(
+                any(AlertHistoryCreateRequest.class), eq(budgetRule), any(Map.class)))
                 .thenReturn(new AlertHistoryCreateResult(existingHistory, false));
 
         budgetAlertDispatchService.dispatch(budgetRule);
 
-        // 验证调用了 createAlertHistoryIfAbsent
-        verify(alertHistoryService).createAlertHistoryIfAbsent(any());
-        // 验证未调用 dispatchNotification
-        verify(alertNotificationOrchestrator, never())
-                .dispatchNotification(any(), any(), any());
+        // P1-3: createAndNotifyIfNew 是统一入口，无论新建/复用都会调用
+        // 是否真正触发通知由 Orchestrator 内部按 created 决定
+        verify(alertNotificationOrchestrator)
+                .createAndNotifyIfNew(any(AlertHistoryCreateRequest.class), eq(budgetRule), any(Map.class));
     }
 
     @Test
-    @DisplayName("费用占比未超阈值时不创建告警也不发通知")
+    @DisplayName("费用占比未超阈值时不调用 createAndNotifyIfNew")
     void shouldNotCreateAlertWhenExpenseRatioBelowThreshold() {
         when(projectRepository.findActiveProjects()).thenReturn(List.of(project));
         when(tenderRepository.findById(10L)).thenReturn(Optional.of(tender));
@@ -170,10 +165,8 @@ class BudgetAlertDispatchServiceNotificationTest {
 
         budgetAlertDispatchService.dispatch(budgetRule);
 
-        // 验证未创建告警历史
-        verify(alertHistoryService, never()).createAlertHistoryIfAbsent(any());
-        // 验证未发通知
+        // 验证未调用 createAndNotifyIfNew
         verify(alertNotificationOrchestrator, never())
-                .dispatchNotification(any(), any(), any());
+                .createAndNotifyIfNew(any(), any(), any());
     }
 }

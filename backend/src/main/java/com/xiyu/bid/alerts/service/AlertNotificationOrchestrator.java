@@ -6,19 +6,26 @@ package com.xiyu.bid.alerts.service;
 import com.xiyu.bid.alerts.domain.AlertMessagePolicy;
 import com.xiyu.bid.alerts.domain.AlertNotificationInfo;
 import com.xiyu.bid.alerts.domain.AlertRecipientPolicy;
+import com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest;
+import com.xiyu.bid.alerts.dto.AlertHistoryCreateResult;
 import com.xiyu.bid.alerts.entity.AlertHistory;
 import com.xiyu.bid.alerts.entity.AlertRule;
+import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.notification.core.DispatchResult;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.notification.service.NotificationRecipientResolver;
+import com.xiyu.bid.repository.ProjectRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 告警通知编排器：将 {@link AlertHistory} + {@link AlertRule} 编排为站内通知发送。
@@ -27,9 +34,10 @@ import java.util.Map;
  * 的串联，不做任何业务决策。业务决策由纯核心层（{@link AlertMessagePolicy} /
  * {@link AlertRecipientPolicy}）负责，本类只调用其结果。</p>
  *
- * <p><b>异常隔离</b>：通知失败不能影响告警主流程。整个 {@link #dispatchNotification}
- * 方法体用 try-catch 包裹 {@link RuntimeException}，仅 {@code log.error}，不重抛。
- * 这保证告警扫描、告警历史写入等主流程不会被通知系统的故障拖垮。</p>
+ * <p><b>异常隔离</b>：通知失败不能影响告警主流程。{@link #dispatchNotification}
+ * 方法体用 try-catch 包裹 {@link DataAccessException}（DB 故障，可降级），
+ * 其他 {@link RuntimeException}（编程 bug）也 catch 但带完整 stacktrace 记录，
+ * 不重抛。这保证告警扫描、告警历史写入等主流程不会被通知系统的故障拖垮。</p>
  *
  * <p><b>跳过条件</b>：
  * <ul>
@@ -48,6 +56,8 @@ public class AlertNotificationOrchestrator {
     private final NotificationApplicationService notificationApplicationService;
     private final NotificationRecipientResolver notificationRecipientResolver;
     private final SystemActorResolver systemActorResolver;
+    private final ProjectRepository projectRepository;
+    private final AlertHistoryService alertHistoryService;
 
     /**
      * 编排告警通知发送。
@@ -56,6 +66,7 @@ public class AlertNotificationOrchestrator {
      * <ol>
      *   <li>调 {@link AlertRecipientPolicy#resolveRoleCodes} 获取接收人角色码</li>
      *   <li>调 {@link NotificationRecipientResolver#getUserIdsByRoleCodes} 解析为用户 ID</li>
+     *   <li>DEADLINE 类型：额外解析标讯关联项目的成员，合并到接收人列表</li>
      *   <li>空列表 → 跳过</li>
      *   <li>调 {@link SystemActorResolver#resolveCached()} 获取系统操作者</li>
      *   <li>null → 跳过</li>
@@ -74,36 +85,42 @@ public class AlertNotificationOrchestrator {
             List<String> roleCodes = AlertRecipientPolicy.resolveRoleCodes(alertRule.getType());
 
             // 2. 解析为用户 ID
-            List<Long> recipientUserIds = notificationRecipientResolver.getUserIdsByRoleCodes(roleCodes);
+            List<Long> recipientUserIds = new ArrayList<>(
+                    notificationRecipientResolver.getUserIdsByRoleCodes(roleCodes));
 
-            // 3. 接收人列表为空 → 跳过
-            if (recipientUserIds == null || recipientUserIds.isEmpty()) {
+            // 3. DEADLINE 类型：补充标讯关联项目的成员，避免广播给所有项目Leader
+            if (AlertRecipientPolicy.requiresProjectSpecificRecipients(alertRule.getType())) {
+                addProjectSpecificRecipients(alertHistory, recipientUserIds);
+            }
+
+            // 4. 接收人列表为空 → 跳过
+            if (recipientUserIds.isEmpty()) {
                 log.warn("跳过告警通知：无接收人，alertHistoryId={}, ruleType={}",
                         alertHistory.getId(), alertRule.getType());
                 return;
             }
 
-            // 4. 解析系统操作者
+            // 5. 解析系统操作者
             Long systemActorId = systemActorResolver.resolveCached();
 
-            // 5. 系统操作者为 null → 跳过
+            // 6. 系统操作者为 null → 跳过
             if (systemActorId == null) {
                 log.warn("跳过告警通知：系统操作者未解析到，alertHistoryId={}",
                         alertHistory.getId());
                 return;
             }
 
-            // 6. 生成通知内容（纯核心）
+            // 7. 生成通知内容（纯核心）
             AlertNotificationInfo info = AlertMessagePolicy.buildNotification(
                     alertRule.getType(),
                     alertHistory.getMessage(),
                     alertHistory.getRelatedId(),
                     extraPayload);
 
-            // 7. 构造 payload（合并 extraPayload 和 targetUrl）
-            Map<String, Object> payload = buildPayload(extraPayload, info);
+            // 8. 构造 payload（合并 extraPayload，targetUrl 由 extraPayload 主导）
+            Map<String, Object> payload = buildPayload(extraPayload);
 
-            // 8. 构造请求并发送
+            // 9. 构造请求并发送
             CreateNotificationRequest request = new CreateNotificationRequest(
                     info.notificationType(),
                     info.sourceEntityType(),
@@ -114,7 +131,7 @@ public class AlertNotificationOrchestrator {
                     recipientUserIds
             );
 
-            // 9. 发送通知
+            // 10. 发送通知
             DispatchResult result = notificationApplicationService.createNotification(request, systemActorId);
 
             if (result != null && !result.isValid()) {
@@ -124,9 +141,13 @@ public class AlertNotificationOrchestrator {
                 log.info("告警通知发送成功：alertHistoryId={}, notificationId={}",
                         alertHistory.getId(), result.notificationId());
             }
+        } catch (DataAccessException e) {
+            // DB 故障：降级记录，不影响主流程
+            log.warn("告警通知发送失败（DB 异常，降级跳过）：alertHistoryId={}, ruleType={}, error={}",
+                    alertHistory.getId(), alertRule.getType(), e.getMessage());
         } catch (RuntimeException e) {
-            // 异常隔离：通知失败不能影响告警主流程，仅记录错误日志
-            log.error("告警通知发送异常：alertHistoryId={}, ruleType={}, error={}",
+            // 编程 bug 或其他异常：记录完整 stacktrace 供排查，不重抛
+            log.error("告警通知发送异常（非 DB 异常，请排查）：alertHistoryId={}, ruleType={}, error={}",
                     alertHistory.getId(),
                     alertRule.getType(),
                     e.getMessage(),
@@ -135,20 +156,73 @@ public class AlertNotificationOrchestrator {
     }
 
     /**
-     * 合并 extraPayload 和 AlertNotificationInfo.targetUrl 为统一 payload。
+     * 模板方法：创建告警历史并在新建时触发通知（消除 9 处重复模板）。
+     *
+     * <p>封装"createAlertHistoryIfAbsent → if created → dispatchNotification"模式，
+     * 供所有扫描器统一调用。</p>
+     *
+     * @param request      告警历史创建请求
+     * @param rule         告警规则
+     * @param extraPayload 附加载荷（可为 null）
+     * @return 创建结果（含是否新建标志）
+     */
+    public AlertHistoryCreateResult createAndNotifyIfNew(
+            AlertHistoryCreateRequest request,
+            AlertRule rule,
+            Map<String, Object> extraPayload) {
+        AlertHistoryCreateResult result = alertHistoryService.createAlertHistoryIfAbsent(request);
+        if (result.created()) {
+            dispatchNotification(result.alertHistory(), rule, extraPayload);
+        }
+        return result;
+    }
+
+    /**
+     * DEADLINE 专用：解析标讯关联项目的成员，合并到接收人列表。
+     *
+     * <p>relatedId 格式为 "Tender:{id}"，通过 tenderId 查找关联项目，
+     * 再调 {@link NotificationRecipientResolver#getProjectMemberUserIds} 获取项目成员。
+     * 去重后合并到 recipientUserIds。</p>
+     */
+    private void addProjectSpecificRecipients(AlertHistory alertHistory, List<Long> recipientUserIds) {
+        String relatedId = alertHistory.getRelatedId();
+        if (relatedId == null || !relatedId.startsWith("Tender:")) {
+            return;
+        }
+        try {
+            String tenderIdStr = relatedId.substring("Tender:".length());
+            Long tenderId = Long.parseLong(tenderIdStr);
+            // 查找关联项目（一个标讯可能对应多个项目，取第一个活跃项目）
+            List<Project> projects = projectRepository.findByTenderId(tenderId);
+            Set<Long> existingIds = Set.copyOf(recipientUserIds);
+            for (Project project : projects) {
+                List<Long> projectMembers = notificationRecipientResolver
+                        .getProjectMemberUserIds(project.getId(), null);
+                for (Long memberId : projectMembers) {
+                    if (!existingIds.contains(memberId)) {
+                        recipientUserIds.add(memberId);
+                    }
+                }
+            }
+        } catch (NumberFormatException e) {
+            log.warn("DEADLINE 告警 relatedId 格式异常，跳过项目接收人解析：relatedId={}", relatedId);
+        }
+    }
+
+    /**
+     * 合并 extraPayload 为统一 payload。
+     *
+     * <p>targetUrl 完全由 extraPayload 主导，不再从 AlertNotificationInfo 覆盖（修复 P2-4）。
+     * info.targetUrl() 和 extraPayload 中的 targetUrl 来自同一来源（resolveTargetUrl），
+     * 无需双重写入。</p>
      *
      * @param extraPayload 调用方传入的附加载荷（可为 null）
-     * @param info         纯核心生成的通知信息
      * @return 合并后的 payload；为空时返回 null
      */
-    private Map<String, Object> buildPayload(Map<String, Object> extraPayload, AlertNotificationInfo info) {
-        Map<String, Object> payload = new HashMap<>();
-        if (extraPayload != null) {
-            payload.putAll(extraPayload);
+    private Map<String, Object> buildPayload(Map<String, Object> extraPayload) {
+        if (extraPayload == null || extraPayload.isEmpty()) {
+            return null;
         }
-        if (info.targetUrl() != null) {
-            payload.put(PAYLOAD_KEY_TARGET_URL, info.targetUrl());
-        }
-        return payload.isEmpty() ? null : payload;
+        return new HashMap<>(extraPayload);
     }
 }

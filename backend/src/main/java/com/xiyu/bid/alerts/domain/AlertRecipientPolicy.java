@@ -1,6 +1,7 @@
 package com.xiyu.bid.alerts.domain;
 
 import com.xiyu.bid.alerts.entity.AlertRule;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 
 import java.util.List;
 
@@ -8,8 +9,7 @@ import java.util.List;
  * 告警接收人角色解析纯核心。
  *
  * <p>负责根据 {@link AlertRule.AlertType} 解析应当接收通知的角色码列表。
- * 角色码取自 {@code RoleProfileCatalog} 标准角色定义（admin/bid-projectLeader/
- * bid-TeamLeader//bidAdmin/bid-administration 等）。</p>
+ * 角色码取自 {@link RoleProfileCatalog} 标准角色定义，确保单一真相来源。</p>
  *
  * <p>FP-Java Profile 合规：</p>
  * <ul>
@@ -20,12 +20,6 @@ import java.util.List;
  */
 public final class AlertRecipientPolicy {
 
-    /** 角色码常量，与 {@code RoleProfileCatalog} 保持一致。 */
-    private static final String ROLE_PROJECT_LEADER = "bid-projectLeader";
-    private static final String ROLE_TEAM_LEADER = "bid-TeamLeader";
-    private static final String ROLE_BID_ADMIN = "/bidAdmin";
-    private static final String ROLE_ADMINISTRATION = "bid-administration";
-
     private AlertRecipientPolicy() {
         // 纯核心工具类，禁止实例化
     }
@@ -33,8 +27,13 @@ public final class AlertRecipientPolicy {
     /**
      * 根据告警类型解析接收人角色码列表。
      *
-     * <p>返回值始终非 null 且不可变（{@link UnsupportedOperationException} on mutate）。
-     * null 入参返回空列表，调用方安全降级。</p>
+     * <p>返回值始终非 null 且不可变。null 入参返回空列表，调用方安全降级。</p>
+     *
+     * <p><b>设计决策</b>：所有告警类型采用角色码广播策略。
+     * DEADLINE 类型的精准通知（仅通知标讯关联项目的负责人）由
+     * {@code AlertNotificationOrchestrator} 在编排层通过
+     * {@code NotificationRecipientResolver.getProjectMemberUserIds} 补充解析，
+     * 本纯核心仅返回候选角色码集合。</p>
      *
      * @param type 告警类型，null 时返回空列表
      * @return 不可变角色码列表，非 null
@@ -44,16 +43,30 @@ public final class AlertRecipientPolicy {
             return List.of();
         }
         List<String> raw = switch (type) {
-            case DEADLINE -> List.of(ROLE_PROJECT_LEADER, ROLE_TEAM_LEADER);
-            case RISK -> List.of(ROLE_BID_ADMIN, ROLE_TEAM_LEADER);
-            case DOCUMENT -> List.of(ROLE_PROJECT_LEADER, ROLE_TEAM_LEADER);
-            case BUDGET -> List.of(ROLE_BID_ADMIN, ROLE_TEAM_LEADER);
-            case DEPOSIT_RETURN -> List.of(ROLE_BID_ADMIN, ROLE_ADMINISTRATION);
-            case PERFORMANCE_EXPIRY -> List.of(ROLE_BID_ADMIN, ROLE_TEAM_LEADER);
-            case CA_EXPIRY -> List.of(ROLE_BID_ADMIN, ROLE_TEAM_LEADER);
-            case CA_BORROW_OVERDUE -> List.of(ROLE_BID_ADMIN, ROLE_TEAM_LEADER);
-            case QUALIFICATION_EXPIRY -> List.of(ROLE_ADMINISTRATION, ROLE_BID_ADMIN, ROLE_TEAM_LEADER);
+            case DEADLINE -> List.of(RoleProfileCatalog.SALES_CODE, RoleProfileCatalog.BID_LEAD_CODE);
+            case RISK -> List.of(RoleProfileCatalog.BID_ADMIN_CODE, RoleProfileCatalog.BID_LEAD_CODE);
+            case DOCUMENT -> List.of(RoleProfileCatalog.SALES_CODE, RoleProfileCatalog.BID_LEAD_CODE);
+            case BUDGET -> List.of(RoleProfileCatalog.BID_ADMIN_CODE, RoleProfileCatalog.BID_LEAD_CODE);
+            case DEPOSIT_RETURN -> List.of(RoleProfileCatalog.BID_ADMIN_CODE, RoleProfileCatalog.ADMIN_STAFF_CODE);
+            case PERFORMANCE_EXPIRY -> List.of(RoleProfileCatalog.BID_ADMIN_CODE, RoleProfileCatalog.BID_LEAD_CODE);
+            case CA_EXPIRY -> List.of(RoleProfileCatalog.BID_ADMIN_CODE, RoleProfileCatalog.BID_LEAD_CODE);
+            case CA_BORROW_OVERDUE -> List.of(RoleProfileCatalog.BID_ADMIN_CODE, RoleProfileCatalog.BID_LEAD_CODE);
+            case QUALIFICATION_EXPIRY -> List.of(RoleProfileCatalog.ADMIN_STAFF_CODE, RoleProfileCatalog.BID_ADMIN_CODE, RoleProfileCatalog.BID_LEAD_CODE);
         };
         return List.copyOf(raw);
+    }
+
+    /**
+     * 判断该告警类型是否需要按项目相关人精准通知（而非仅角色广播）。
+     *
+     * <p>DEADLINE 告警应通知标讯关联项目的负责人，而非所有项目Leader，
+     * 避免通知轰炸和信息泄露。编排层据此调用
+     * {@code NotificationRecipientResolver.getProjectMemberUserIds(projectId)} 补充接收人。</p>
+     *
+     * @param type 告警类型
+     * @return true 表示需要按项目解析接收人
+     */
+    public static boolean requiresProjectSpecificRecipients(AlertRule.AlertType type) {
+        return type == AlertRule.AlertType.DEADLINE;
     }
 }
