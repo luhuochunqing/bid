@@ -7,7 +7,6 @@ import com.xiyu.bid.exception.BusinessException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.web.util.UriComponentsBuilder;
 
 /**
  * CO-501 第一步：调 CRM {@code GET /customer-chance/check-tender-subject} 校验招标主体。
@@ -95,15 +94,21 @@ public class CrmTenderSubjectChecker {
         }
     }
 
-    /** 构造完整请求路径（含 query string，UriComponentsBuilder 自动编码中文/特殊字符）。 */
+    /**
+     * 构造请求路径（含原始未编码 query string）。
+     *
+     * <p>CO-501 根因修复：原来用 {@code UriComponentsBuilder.build().encode().toUriString()}
+     * 预先编码中文参数，生成 {@code tenderSubject=%E5%AE%89...}，
+     * 但 {@code CrmHttpClient.get()} 把它传给 {@code restTemplate.exchange(url, ...)} 时，
+     * RestTemplate 会<b>再次编码</b>（{@code %}→{@code %25}），
+     * 导致 CRM 收到 {@code %25E5%25AE...}（乱码）→ 客户库查不到 → 返回"招标主体不存在"。
+     *
+     * <p>修复：返回<b>未编码</b>的 path + 原始中文参数，由 RestTemplate 负责一次性编码。
+     * 不用 UriComponentsBuilder（它会预编码），直接手工拼接 query string。
+     */
     private String buildPath(String tenderSubject, String ccCode) {
         String path = properties.getChance().getCheckTenderSubjectPath();
-        return UriComponentsBuilder.fromPath(path)
-                .queryParam("tenderSubject", tenderSubject)
-                .queryParam("ccCode", ccCode)
-                .build()
-                .encode()
-                .toUriString();
+        return path + "?tenderSubject=" + tenderSubject + "&ccCode=" + ccCode;
     }
 
     /**
