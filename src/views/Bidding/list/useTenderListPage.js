@@ -183,8 +183,8 @@ export function useTenderListPage() {
   })
 
   const handleExport = () => {
-    // 将filteredTenders数据映射为导出格式
-    const exportRows = filteredTenders.value.map((tender, idx) => normalizeTenderForExport(tender, idx + 1))
+    // CO-563: 选中数据时仅导出选中；未选中时导出当前过滤的全量
+    const exportRows = (selection.selectedTenders.value.length > 0 ? selection.selectedTenders.value : filteredTenders.value).map((tender, idx) => normalizeTenderForExport(tender, idx + 1))
     if (exportRows.length === 0) {
       ElMessage.warning('暂无可导出数据')
       return

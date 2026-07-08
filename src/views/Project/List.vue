@@ -188,31 +188,37 @@ const handleExport = async () => {
   exporting.value = true
   try {
     const params = {}
-    if (searchForm.value.name) params.name = searchForm.value.name
-    if (searchForm.value.ownerUnit) params.ownerUnit = searchForm.value.ownerUnit
-    if (searchForm.value.projectType) params.projectType = searchForm.value.projectType
-    if (searchForm.value.customerType) params.customerType = searchForm.value.customerType
-    if (searchForm.value.priority) params.priority = searchForm.value.priority
-    if (searchForm.value.sourceModule) params.sourceModule = searchForm.value.sourceModule
-    if (searchForm.value.bidStatus) params.bidStatus = searchForm.value.bidStatus
-    if (searchForm.value.stage) params.stage = searchForm.value.stage
-    if (searchForm.value.projectLeaderId) params.projectLeaderId = searchForm.value.projectLeaderId
-    if (searchForm.value.biddingLeaderId) params.biddingLeaderId = searchForm.value.biddingLeaderId
-    if (searchForm.value.leaderDepartment) params.leaderDepartment = searchForm.value.leaderDepartment
-    if (searchForm.value.region) params.region = searchForm.value.region
-    if (searchForm.value.biddingPlatform) params.biddingPlatform = searchForm.value.biddingPlatform
-    if (searchForm.value.bidMonth) params.bidMonth = searchForm.value.bidMonth
-    if (searchForm.value.shortlistedCountMin != null) params.shortlistedCountMin = searchForm.value.shortlistedCountMin
-    if (searchForm.value.shortlistedCountMax != null) params.shortlistedCountMax = searchForm.value.shortlistedCountMax
-    if (searchForm.value.revenueMin != null) params.revenueMin = searchForm.value.revenueMin
-    if (searchForm.value.revenueMax != null) params.revenueMax = searchForm.value.revenueMax
-    if (searchForm.value.bidOpenTimeRange?.length === 2) {
-      params.bidOpenTimeStart = searchForm.value.bidOpenTimeRange[0]
-      params.bidOpenTimeEnd = searchForm.value.bidOpenTimeRange[1]
-    }
-    if (searchForm.value.createTimeRange?.length === 2) {
-      params.createTimeStart = searchForm.value.createTimeRange[0]
-      params.createTimeEnd = searchForm.value.createTimeRange[1]
+    if (selectedProjects.value.length > 0) {
+      // CO-563: 选中数据时仅导出选中
+      params.ids = selectedProjects.value.map(p => p.id)
+    } else {
+      // 未选中时按过滤条件导出全量
+      if (searchForm.value.name) params.name = searchForm.value.name
+      if (searchForm.value.ownerUnit) params.ownerUnit = searchForm.value.ownerUnit
+      if (searchForm.value.projectType) params.projectType = searchForm.value.projectType
+      if (searchForm.value.customerType) params.customerType = searchForm.value.customerType
+      if (searchForm.value.priority) params.priority = searchForm.value.priority
+      if (searchForm.value.sourceModule) params.sourceModule = searchForm.value.sourceModule
+      if (searchForm.value.bidStatus) params.bidStatus = searchForm.value.bidStatus
+      if (searchForm.value.stage) params.stage = searchForm.value.stage
+      if (searchForm.value.projectLeaderId) params.projectLeaderId = searchForm.value.projectLeaderId
+      if (searchForm.value.biddingLeaderId) params.biddingLeaderId = searchForm.value.biddingLeaderId
+      if (searchForm.value.leaderDepartment) params.leaderDepartment = searchForm.value.leaderDepartment
+      if (searchForm.value.region) params.region = searchForm.value.region
+      if (searchForm.value.biddingPlatform) params.biddingPlatform = searchForm.value.biddingPlatform
+      if (searchForm.value.bidMonth) params.bidMonth = searchForm.value.bidMonth
+      if (searchForm.value.shortlistedCountMin != null) params.shortlistedCountMin = searchForm.value.shortlistedCountMin
+      if (searchForm.value.shortlistedCountMax != null) params.shortlistedCountMax = searchForm.value.shortlistedCountMax
+      if (searchForm.value.revenueMin != null) params.revenueMin = searchForm.value.revenueMin
+      if (searchForm.value.revenueMax != null) params.revenueMax = searchForm.value.revenueMax
+      if (searchForm.value.bidOpenTimeRange?.length === 2) {
+        params.bidOpenTimeStart = searchForm.value.bidOpenTimeRange[0]
+        params.bidOpenTimeEnd = searchForm.value.bidOpenTimeRange[1]
+      }
+      if (searchForm.value.createTimeRange?.length === 2) {
+        params.createTimeStart = searchForm.value.createTimeRange[0]
+        params.createTimeEnd = searchForm.value.createTimeRange[1]
+      }
     }
 
     const resp = await projectLifecycleApi.exportList(params)
