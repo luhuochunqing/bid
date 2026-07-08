@@ -35,6 +35,11 @@ public interface TenderRepository extends JpaRepository<Tender, Long>, JpaSpecif
     List<Tender> findByStatus(Tender.Status status);
 
     /**
+     * 根据多个状态查询标讯（避免全表扫描后内存过滤）
+     */
+    List<Tender> findByStatusIn(Collection<Tender.Status> statuses);
+
+    /**
      * 根据来源查询标讯
      */
     List<Tender> findBySource(String source);

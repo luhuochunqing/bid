@@ -33,7 +33,6 @@ public class AlertRuleController {
     private final AlertRuleService alertRuleService;
 
     @PostMapping
-    @PreAuthorize(REQUIRED_ROLE)
     @Auditable(action = "CREATE", entityType = "AlertRule", description = "Create alert rule")
     public ResponseEntity<ApiResponse<AlertRule>> createAlertRule(@Valid @RequestBody AlertRuleCreateRequest request) {
         AlertRule alertRule = alertRuleService.createAlertRule(request);
@@ -41,35 +40,30 @@ public class AlertRuleController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize(REQUIRED_ROLE)
     public ResponseEntity<ApiResponse<AlertRule>> getAlertRuleById(@PathVariable Long id) {
         AlertRule alertRule = alertRuleService.getAlertRuleById(id);
         return ResponseEntity.ok(ApiResponse.success(alertRule));
     }
 
     @GetMapping
-    @PreAuthorize(REQUIRED_ROLE)
     public ResponseEntity<ApiResponse<List<AlertRule>>> getAllAlertRules() {
         List<AlertRule> alertRules = alertRuleService.getAllAlertRules();
         return ResponseEntity.ok(ApiResponse.success(alertRules));
     }
 
     @GetMapping("/enabled")
-    @PreAuthorize(REQUIRED_ROLE)
     public ResponseEntity<ApiResponse<List<AlertRule>>> getEnabledAlertRules() {
         List<AlertRule> alertRules = alertRuleService.getEnabledAlertRules();
         return ResponseEntity.ok(ApiResponse.success(alertRules));
     }
 
     @GetMapping("/type/{type}")
-    @PreAuthorize(REQUIRED_ROLE)
     public ResponseEntity<ApiResponse<List<AlertRule>>> getAlertRulesByType(@PathVariable AlertRule.AlertType type) {
         List<AlertRule> alertRules = alertRuleService.getAlertRulesByType(type);
         return ResponseEntity.ok(ApiResponse.success(alertRules));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize(REQUIRED_ROLE)
     @Auditable(action = "UPDATE", entityType = "AlertRule", description = "Update alert rule")
     public ResponseEntity<ApiResponse<AlertRule>> updateAlertRule(
             @PathVariable Long id,
@@ -80,7 +74,6 @@ public class AlertRuleController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize(REQUIRED_ROLE)
     @Auditable(action = "DELETE", entityType = "AlertRule", description = "Delete alert rule")
     public ResponseEntity<ApiResponse<Void>> deleteAlertRule(@PathVariable Long id) {
         alertRuleService.deleteAlertRule(id);
@@ -88,7 +81,6 @@ public class AlertRuleController {
     }
 
     @PatchMapping("/{id}/toggle")
-    @PreAuthorize(REQUIRED_ROLE)
     @Auditable(action = "TOGGLE", entityType = "AlertRule", description = "Toggle alert rule enabled status")
     public ResponseEntity<ApiResponse<AlertRule>> toggleAlertRuleEnabled(@PathVariable Long id) {
         AlertRule alertRule = alertRuleService.toggleAlertRuleEnabled(id);

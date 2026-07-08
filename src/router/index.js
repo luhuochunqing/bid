@@ -328,13 +328,13 @@ const routes = [
         path: 'settings/alert-rules',
         name: 'AlertRules',
         component: () => import('@/views/System/AlertRules.vue'),
-        meta: { title: '告警规则', permissionKeys: ['settings'], showBack: true }
+        meta: { title: '告警规则', permissionKeys: ['settings', 'settings-alerts'], showBack: true }
       },
       {
         path: 'settings/alert-history',
         name: 'AlertHistory',
         component: () => import('@/views/System/AlertHistory.vue'),
-        meta: { title: '告警历史', permissionKeys: ['settings'], showBack: true }
+        meta: { title: '告警历史', permissionKeys: ['settings', 'settings-alerts'], showBack: true }
       },
       {
         path: 'settings/ai-models',

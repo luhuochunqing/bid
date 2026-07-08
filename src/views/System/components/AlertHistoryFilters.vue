@@ -70,9 +70,9 @@ function emitFilter(key, value) {
   gap: 16px;
   margin-bottom: 16px;
   padding: 16px;
-  background: #fafafa;
+  background: var(--el-fill-color-light);
   border-radius: 8px;
 }
 .filter-group { display: flex; align-items: center; gap: 8px; }
-.filter-label { color: #606266; font-size: 14px; }
+.filter-label { color: var(--el-text-color-regular); font-size: 14px; }
 </style>

@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +31,18 @@ public class AlertRuleExecutionService {
     private final ProjectRepository projectRepository;
     private final TenderRepository tenderRepository;
     private final ProjectDocumentRepository projectDocumentRepository;
+
+    /** DEADLINE 规则关注的状态集合：待分配 + 跟踪中 */
+    private static final Set<Tender.Status> DEADLINE_RELEVANT_STATUSES = Set.of(
+            Tender.Status.PENDING_ASSIGNMENT, Tender.Status.TRACKING);
+
+    /**
+     * 风险等级 → 代表性分数，复用 RiskAssessmentDTO.RiskLevel 的 minScore + 15（与历史值 15/45/75 等价）。
+     * <p>Tender.RiskLevel 自身不含分数区间，统一通过 RiskAssessmentDTO.RiskLevel 取值避免硬编码漂移。</p>
+     */
+    private static int riskLevelToScore(Tender.RiskLevel level) {
+        return RiskAssessmentDTO.RiskLevel.valueOf(level.name()).getMinScore() + 15;
+    }
 
     public void execute(AlertRule rule) {
         log.debug("Checking alert rule: {} (Type: {}, Condition: {}, Threshold: {})",
@@ -48,9 +61,7 @@ public class AlertRuleExecutionService {
         LocalDateTime now = LocalDateTime.now();
         int thresholdDays = rule.getThreshold().intValue();
 
-        for (Tender tender : tenderRepository.findAll().stream()
-                .filter(t -> t.getStatus() == Tender.Status.PENDING_ASSIGNMENT || t.getStatus() == Tender.Status.TRACKING)
-                .toList()) {
+        for (Tender tender : tenderRepository.findByStatusIn(DEADLINE_RELEVANT_STATUSES)) {
             if (tender.getDeadline() == null) {
                 continue;
             }
@@ -88,11 +99,7 @@ public class AlertRuleExecutionService {
                 continue;
             }
 
-            int tenderRiskScore = switch (tender.getRiskLevel()) {
-                case LOW -> 15;
-                case MEDIUM -> 45;
-                case HIGH -> 75;
-            };
+            int tenderRiskScore = riskLevelToScore(tender.getRiskLevel());
 
             boolean shouldAlert = switch (rule.getCondition()) {
                 case GREATER_THAN -> tenderRiskScore > thresholdScore;
@@ -119,21 +126,24 @@ public class AlertRuleExecutionService {
         int maxMissingDocs = rule.getThreshold().intValue();
 
         for (Project project : projectRepository.findActiveProjects()) {
+            // 每项目只查一次文档列表，避免 N+1 查询
+            List<ProjectDocument> docs = projectDocumentRepository
+                    .findByProjectIdOrderByCreatedAtDesc(project.getId());
             int missingDocCount = 0;
-            StringBuilder missingDocs = new StringBuilder();
+            String missingDocs;
 
             switch (project.getStatus()) {
                 case BIDDING -> {
-                    missingDocCount += checkRequiredDocument(project.getId(), "资质文件") ? 0 : 1;
-                    missingDocCount += checkRequiredDocument(project.getId(), "技术方案") ? 0 : 1;
-                    missingDocCount += checkRequiredDocument(project.getId(), "商务方案") ? 0 : 1;
-                    missingDocs = new StringBuilder("资质文件、技术方案、商务方案");
+                    missingDocCount += hasDocument(docs, "资质文件") ? 0 : 1;
+                    missingDocCount += hasDocument(docs, "技术方案") ? 0 : 1;
+                    missingDocCount += hasDocument(docs, "商务方案") ? 0 : 1;
+                    missingDocs = "资质文件、技术方案、商务方案";
                 }
                 case EVALUATING -> {
-                    missingDocCount += checkRequiredDocument(project.getId(), "标书完整版") ? 0 : 1;
-                    missingDocCount += checkRequiredDocument(project.getId(), "审核记录") ? 0 : 1;
-                    missingDocCount += checkRequiredDocument(project.getId(), "最终标书") ? 0 : 1;
-                    missingDocs = new StringBuilder("标书完整版、审核记录、最终标书");
+                    missingDocCount += hasDocument(docs, "标书完整版") ? 0 : 1;
+                    missingDocCount += hasDocument(docs, "审核记录") ? 0 : 1;
+                    missingDocCount += hasDocument(docs, "最终标书") ? 0 : 1;
+                    missingDocs = "标书完整版、审核记录、最终标书";
                 }
                 default -> {
                     continue;
@@ -157,19 +167,17 @@ public class AlertRuleExecutionService {
     }
 
     /**
-     * 检查项目是否已上传指定类型的文档。
-     * <p>基于真实业务数据：查询项目文档列表，检查是否有文档名包含指定类型关键字。
+     * 检查已查询的文档列表中是否包含指定类型。
+     * <p>基于真实业务数据：检查文档名是否包含指定类型关键字。
      * 例如 docType="资质文件" 时，会匹配 name 含"资质文件"的文档。</p>
      * <p>注：alert 业务传入的 docType 是中文文档类型名（"资质文件"、"技术方案"等），
      * 而 ProjectDocument.name 是实际文件名，因此使用包含匹配而非精确相等。</p>
      *
-     * @param projectId 项目 ID
-     * @param docType   文档类型关键字（中文名称）
+     * @param docs   已查询的项目文档列表（避免 N+1 查询，由调用方一次性加载）
+     * @param docType 文档类型关键字（中文名称）
      * @return true 表示项目已上传该类型文档；false 表示缺失
      */
-    private boolean checkRequiredDocument(Long projectId, String docType) {
-        List<ProjectDocument> docs = projectDocumentRepository
-                .findByProjectIdOrderByCreatedAtDesc(projectId);
+    private boolean hasDocument(List<ProjectDocument> docs, String docType) {
         return docs.stream().anyMatch(d -> d.getName() != null && d.getName().contains(docType));
     }
 

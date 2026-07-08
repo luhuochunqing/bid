@@ -1,6 +1,5 @@
 package com.xiyu.bid.alerts.controller;
 
-import com.xiyu.bid.alerts.entity.AlertHistory;
 import com.xiyu.bid.alerts.service.AlertHistoryCommandService;
 import com.xiyu.bid.alerts.service.AlertHistoryQueryService;
 import com.xiyu.bid.alerts.service.AlertHistoryService;
@@ -90,22 +89,10 @@ class AlertHistoryControllerSecurityTest {
 
     @Test
     void allEndpoints_ShouldRequireAuthorizedRole() throws Exception {
-        // 验证所有端点都收紧到 hasAnyRole('ADMIN', 'BIDADMIN', 'BID_TEAMLEADER')
-        assertHistoryExpression("getAllAlertHistories", int.class, int.class, String.class, String.class,
-                String.class, AlertHistory.AlertLevel.class, Long.class, String.class);
-        assertHistoryExpression("getAlertHistoryById", Long.class);
-        assertHistoryExpression("getUnresolvedAlertHistories", int.class, int.class);
-        assertHistoryExpression("acknowledgeAlertHistory", Long.class);
-        assertHistoryExpression("getAlertStatistics");
-    }
-
-    private void assertHistoryExpression(String methodName, Class<?>... parameterTypes) throws Exception {
-        PreAuthorize preAuthorize = AlertHistoryController.class
-                .getMethod(methodName, parameterTypes)
-                .getAnnotation(PreAuthorize.class);
-
-        assertThat(preAuthorize).isNotNull();
-        String expression = preAuthorize.value();
+        // 验证类级 @PreAuthorize 已收紧到 hasAnyRole('ADMIN', 'BIDADMIN', 'BID_TEAMLEADER')
+        PreAuthorize classAnnotation = AlertHistoryController.class.getAnnotation(PreAuthorize.class);
+        assertThat(classAnnotation).isNotNull();
+        String expression = classAnnotation.value();
         assertThat(expression).contains("hasAnyRole");
         assertThat(expression).contains("ADMIN");
         assertThat(expression).contains("BIDADMIN");

@@ -58,7 +58,12 @@
           </el-select>
         </el-form-item>
         <el-form-item label="阈值">
-          <el-input-number v-model="form.threshold" :min="1" :max="365" :disabled="form.type === 'DEPOSIT_RETURN'" />
+          <el-input-number
+            v-model="form.threshold"
+            :min="thresholdRange.min"
+            :max="thresholdRange.max"
+            :disabled="form.type === 'DEPOSIT_RETURN'"
+          />
         </el-form-item>
         <el-alert
           v-if="form.type === 'DEPOSIT_RETURN'"
@@ -76,7 +81,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { alertRulesApi } from '@/api/modules/alerts.js'
 import { useUserStore } from '@/stores/user'
@@ -88,6 +93,12 @@ const dialogTitle = ref('新建规则')
 const form = reactive({ id: null, name: '', type: 'DEADLINE', condition: 'LESS_THAN', threshold: 1 })
 const isEdit = ref(false)
 const userStore = useUserStore()
+
+// 阈值范围按规则类型动态切换：RISK 为 1-100 分数，其余为 1-365 天
+const thresholdRange = computed(() => {
+  if (form.type === 'RISK') return { min: 1, max: 100 }
+  return { min: 1, max: 365 }
+})
 
 onMounted(() => { loadRules() })
 

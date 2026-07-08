@@ -3,25 +3,25 @@
     <el-card class="stat-card" shadow="hover">
       <div class="stat-content">
         <div class="stat-label">总告警数</div>
-        <div class="stat-value">{{ stats.totalCount ?? 0 }}</div>
+        <div class="stat-value">{{ stats.totalAlerts ?? 0 }}</div>
       </div>
     </el-card>
     <el-card class="stat-card" shadow="hover">
       <div class="stat-content">
         <div class="stat-label">未解决数</div>
-        <div class="stat-value warning">{{ stats.unresolvedCount ?? 0 }}</div>
+        <div class="stat-value warning">{{ stats.unresolvedAlerts ?? 0 }}</div>
       </div>
     </el-card>
     <el-card class="stat-card" shadow="hover">
       <div class="stat-content">
         <div class="stat-label">高严重数</div>
-        <div class="stat-value danger">{{ stats.highCount ?? 0 }}</div>
+        <div class="stat-value danger">{{ stats.highAlerts ?? 0 }}</div>
       </div>
     </el-card>
     <el-card class="stat-card" shadow="hover">
       <div class="stat-content">
         <div class="stat-label">严重数</div>
-        <div class="stat-value critical">{{ stats.criticalCount ?? 0 }}</div>
+        <div class="stat-value critical">{{ stats.criticalAlerts ?? 0 }}</div>
       </div>
     </el-card>
   </div>
@@ -31,7 +31,7 @@
 defineProps({
   stats: {
     type: Object,
-    default: () => ({ totalCount: 0, unresolvedCount: 0, highCount: 0, criticalCount: 0 })
+    default: () => ({ totalAlerts: 0, unresolvedAlerts: 0, highAlerts: 0, criticalAlerts: 0 })
   }
 })
 </script>
@@ -45,9 +45,9 @@ defineProps({
 }
 .stat-card { border-radius: 8px; }
 .stat-content { display: flex; flex-direction: column; align-items: center; padding: 8px 0; }
-.stat-label { color: #909399; font-size: 14px; margin-bottom: 8px; }
-.stat-value { font-size: 28px; font-weight: 600; color: #303133; }
-.stat-value.warning { color: #e6a23c; }
-.stat-value.danger { color: #f56c6c; }
-.stat-value.critical { color: #ab4567; }
+.stat-label { color: var(--el-text-color-secondary); font-size: 14px; margin-bottom: 8px; }
+.stat-value { font-size: 28px; font-weight: 600; color: var(--el-text-color-primary); }
+.stat-value.warning { color: var(--el-color-warning); }
+.stat-value.danger { color: var(--el-color-danger); }
+.stat-value.critical { color: var(--el-color-danger-dark-2); }
 </style>

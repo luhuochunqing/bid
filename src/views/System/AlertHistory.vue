@@ -85,8 +85,8 @@ const viewMode = ref('all')
 // 过滤器：status / level 字段对齐后端 getList 参数
 const filters = reactive({ status: '', level: '' })
 
-// 统计数据：对应后端 AlertStatisticsResponse
-const stats = ref({ totalCount: 0, unresolvedCount: 0, highCount: 0, criticalCount: 0 })
+// 统计数据：字段名对齐后端 AlertStatisticsResponse
+const stats = ref({ totalAlerts: 0, unresolvedAlerts: 0, highAlerts: 0, criticalAlerts: 0 })
 
 onMounted(() => {
   loadHistory()
@@ -121,14 +121,14 @@ async function loadStatistics() {
   try {
     const res = await alertHistoryApi.getStatistics()
     stats.value = {
-      totalCount: res?.data?.totalCount ?? 0,
-      unresolvedCount: res?.data?.unresolvedCount ?? 0,
-      highCount: res?.data?.highCount ?? 0,
-      criticalCount: res?.data?.criticalCount ?? 0
+      totalAlerts: res?.data?.totalAlerts ?? 0,
+      unresolvedAlerts: res?.data?.unresolvedAlerts ?? 0,
+      highAlerts: res?.data?.highAlerts ?? 0,
+      criticalAlerts: res?.data?.criticalAlerts ?? 0
     }
   } catch (e) {
     // 统计失败不影响主流程
-    stats.value = { totalCount: 0, unresolvedCount: 0, highCount: 0, criticalCount: 0 }
+    stats.value = { totalAlerts: 0, unresolvedAlerts: 0, highAlerts: 0, criticalAlerts: 0 }
   }
 }
 
