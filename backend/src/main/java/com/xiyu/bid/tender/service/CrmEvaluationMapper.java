@@ -98,33 +98,34 @@ class CrmEvaluationMapper {
                 log.info("CO-526 fix: duplicate contact position={} name={} mapped to {} (first one kept standard role)",
                         position, c.name(), roleKey);
             }
-            rows.add(new EvaluationCustomerInfoDTO(roleKey, "NAME",
+            addIfHasValue(rows, new EvaluationCustomerInfoDTO(roleKey, "NAME",
                     c.name() != null ? c.name() : "", "TEXT"));
-            rows.add(new EvaluationCustomerInfoDTO(roleKey, "CONTACT_INFO",
+            addIfHasValue(rows, new EvaluationCustomerInfoDTO(roleKey, "CONTACT_INFO",
                     resolveContactInfo(c), "TEXT"));
-            rows.add(new EvaluationCustomerInfoDTO(roleKey, "POSITION",
+            addIfHasValue(rows, new EvaluationCustomerInfoDTO(roleKey, "POSITION",
                     isKnownPosition ? position : null, "ENUM14"));
-            rows.add(new EvaluationCustomerInfoDTO(roleKey, "XIYU_CONTACT",
+            addIfHasValue(rows, new EvaluationCustomerInfoDTO(roleKey, "XIYU_CONTACT",
                     c.ehsyProjectManager() != null ? c.ehsyProjectManager() : "", "TEXT"));
-            rows.add(new EvaluationCustomerInfoDTO(roleKey, "CONTACT_METHOD",
+            addIfHasValue(rows, new EvaluationCustomerInfoDTO(roleKey, "CONTACT_METHOD",
                     c.contactMethod() != null ? c.contactMethod() : "", "ENUM7"));
-            rows.add(new EvaluationCustomerInfoDTO(roleKey, "INFO_TENDENCY_BASIS",
+            addIfHasValue(rows, new EvaluationCustomerInfoDTO(roleKey, "INFO_TENDENCY_BASIS",
                     c.preferenceBasis() != null ? c.preferenceBasis() : "", "TEXT"));
-            rows.add(new EvaluationCustomerInfoDTO(roleKey, "CONTACTED",
+            addIfHasValue(rows, new EvaluationCustomerInfoDTO(roleKey, "CONTACTED",
                     boolToYesNo(c.contacted()), "DROPDOWN"));
-            rows.add(new EvaluationCustomerInfoDTO(roleKey, "GUIDED_BID",
+            addIfHasValue(rows, new EvaluationCustomerInfoDTO(roleKey, "GUIDED_BID",
                     boolToYesNo(c.guidedBidDocument()), "DROPDOWN"));
-            rows.add(new EvaluationCustomerInfoDTO(roleKey, "CAN_GET_KEY_INFO",
+            addIfHasValue(rows, new EvaluationCustomerInfoDTO(roleKey, "CAN_GET_KEY_INFO",
                     boolToYesNo(c.getKeyInfo()), "DROPDOWN"));
-            rows.add(new EvaluationCustomerInfoDTO(roleKey, "CAN_REMOVE_ADVERSE",
+            addIfHasValue(rows, new EvaluationCustomerInfoDTO(roleKey, "CAN_REMOVE_ADVERSE",
                     boolToYesNo(c.deleteDisadvantage()), "DROPDOWN"));
-            rows.add(new EvaluationCustomerInfoDTO(roleKey, "CAN_SYNC_EVAL",
+            addIfHasValue(rows, new EvaluationCustomerInfoDTO(roleKey, "CAN_SYNC_EVAL",
                     boolToYesNo(c.syncInfo()), "DROPDOWN"));
-            rows.add(new EvaluationCustomerInfoDTO(roleKey, "TENDENCY",
+            addIfHasValue(rows, new EvaluationCustomerInfoDTO(roleKey, "TENDENCY",
                     normalizeToNull(c.preferenceLevel()), "DROPDOWN"));
+            // SWITCH 字段只有 true/false 两种语义，空值不存在，必须始终保留一行
             rows.add(new EvaluationCustomerInfoDTO(roleKey, "INFO_CLEAR_WINNER_BID",
                     String.valueOf(c.guaranteeWin() != null && c.guaranteeWin()), "SWITCH"));
-            rows.add(new EvaluationCustomerInfoDTO(roleKey, "INFO_WIN_RATE_IMPACT",
+            addIfHasValue(rows, new EvaluationCustomerInfoDTO(roleKey, "INFO_WIN_RATE_IMPACT",
                     normalizeToNull(c.impactRate()), "DROPDOWN6"));
         }
         return rows;
@@ -138,6 +139,17 @@ class CrmEvaluationMapper {
 
     private String boolToYesNo(Boolean value) {
         return value != null ? (value ? "是" : "否") : null;
+    }
+
+    /**
+     * 与前端 {@code buildApiPayload} 过滤逻辑对齐：值为 null 或空白字符串时不生成 EAV 行。
+     * 避免 CRM 空字段（如 contactMethod）被映射成空串后触发后端必填校验。
+     */
+    private void addIfHasValue(List<EvaluationCustomerInfoDTO> rows, EvaluationCustomerInfoDTO row) {
+        if (row.value() == null || row.value().isBlank()) {
+            return;
+        }
+        rows.add(row);
     }
 
     /**

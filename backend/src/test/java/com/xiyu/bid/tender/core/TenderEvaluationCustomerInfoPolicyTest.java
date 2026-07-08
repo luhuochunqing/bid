@@ -24,6 +24,19 @@ class TenderEvaluationCustomerInfoPolicyTest {
     }
 
     @Test
+    @DisplayName("CONTACT_METHOD 为空时不触发必填校验（CRM 同步场景不可编辑）")
+    void validate_blankContactMethod_isValid() {
+        ValidationResult result = TenderEvaluationCustomerInfoPolicy.validate(List.of(
+                new TenderEvaluationCustomerInfoPolicy.CustomerInfoRow(
+                        "ELECTRONICS_COMPANY_CHAIRMAN", "CONTACT_METHOD", "", "ENUM7"),
+                new TenderEvaluationCustomerInfoPolicy.CustomerInfoRow(
+                        "ELECTRONICS_COMPANY_CHAIRMAN", "NAME", "张三", "TEXT")
+        ));
+
+        assertThat(result.isValid()).isTrue();
+    }
+
+    @Test
     @DisplayName("非法外部兜底角色仍然拒绝")
     void validate_invalidExternalRoleKey_returnsInvalidRole() {
         ValidationResult result = TenderEvaluationCustomerInfoPolicy.validate(List.of(
