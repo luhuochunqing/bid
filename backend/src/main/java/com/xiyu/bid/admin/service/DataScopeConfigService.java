@@ -136,6 +136,8 @@ public class DataScopeConfigService {
         Optional<List<String>> cachedPermissions = ossPermissionCache.getMenuPermissions(user.getUsername());
         if (cachedPermissions.isPresent()) {
             List<String> ossPermissions = normalizeMenuPermissions(cachedPermissions.get());
+            // specs/032: "all" 是内部 admin 专属权限键，OSS 用户不应持有（防御性兜底，OSS 实际返回菜单 codes 如 1001/1002）
+            ossPermissions = ossPermissions.stream().filter(p -> !"all".equals(p)).toList();
             // CO-438: 合并 DB RoleProfile 的管理权限点
             // OSS menuCode→权限码映射表不含 performance.manage/warehouse.manage/personnel.manage
             // 这些写操作权限点只存在于 DB RoleProfile，OSS 用户若不合并将看不到管理按钮
@@ -144,7 +146,10 @@ public class DataScopeConfigService {
                 RoleProfileCatalog.SeedDefinition def = RoleProfileCatalog.definitionForCode(cachedRoleCode.get());
                 if (def != null && def.menuPermissions() != null && !def.menuPermissions().isEmpty()) {
                     java.util.LinkedHashSet<String> merged = new java.util.LinkedHashSet<>(ossPermissions);
-                    merged.addAll(def.menuPermissions());
+                    // specs/032: OSS 用户合并 catalog seed 时过滤 "all"，避免前端 hasPermission 短路放行所有菜单
+                    def.menuPermissions().stream()
+                            .filter(p -> !"all".equals(p))
+                            .forEach(merged::add);
                     return List.copyOf(merged);
                 }
             }

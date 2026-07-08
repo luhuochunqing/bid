@@ -100,3 +100,25 @@ describe('normalizeUser menuPermissions', () => {
     expect(user.menuPermissions).toEqual(['all'])
   })
 })
+
+describe('normalizeUser isOssUser (specs/032 权限扩散修复)', () => {
+  it('保留后端返回的 isOssUser=true 字段', () => {
+    const user = normalizeUser({ isOssUser: true, roleCode: 'admin' })
+    expect(user.isOssUser).toBe(true)
+  })
+
+  it('保留后端返回的 isOssUser=false 字段', () => {
+    const user = normalizeUser({ isOssUser: false, roleCode: 'admin' })
+    expect(user.isOssUser).toBe(false)
+  })
+
+  it('后端未返回 isOssUser 字段时默认为 false（本地用户）', () => {
+    const user = normalizeUser({ roleCode: 'admin' })
+    expect(user.isOssUser).toBe(false)
+  })
+
+  it('后端返回非布尔 isOssUser 时强制转为布尔值', () => {
+    const user = normalizeUser({ isOssUser: 1, roleCode: 'admin' })
+    expect(user.isOssUser).toBe(true)
+  })
+})
