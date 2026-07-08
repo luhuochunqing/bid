@@ -126,6 +126,22 @@ app:
     memory-threshold: ${APP_TENDER_MEMORY_THRESHOLD:0.92}
     worker-fixed-delay-ms: ${APP_TENDER_WORKER_DELAY_MS:5000}
 
+xiyu:
+  obs:
+    enabled: ${XIYU_OBS_ENABLED:false}
+    endpoint: ${XIYU_OBS_ENDPOINT:https://obs.cn-east-3.myhuaweicloud.com}
+    region: ${XIYU_OBS_REGION:cn-east-3}
+    bucket: ${XIYU_OBS_BUCKET:}
+    access-key: ${XIYU_OBS_ACCESS_KEY:}
+    secret-key: ${XIYU_OBS_SECRET_KEY:}
+    agency-urn: ${XIYU_OBS_AGENCY_URN:}
+    token-duration-seconds: ${XIYU_OBS_TOKEN_DURATION:3600}
+    object-key-prefix: ${XIYU_OBS_OBJECT_KEY_PREFIX:bids}
+    # 临时凭证允许的操作，逗号分隔
+    allowed-actions: ${XIYU_OBS_ALLOWED_ACTIONS:obs:object:PutObject,obs:object:GetObject,obs:object:DeleteObject,obs:bucket:ListBucketMultipartUploads}
+    # 下载预签名 URL 默认有效期（秒）
+    download-url-expire-seconds: ${XIYU_OBS_DOWNLOAD_URL_EXPIRE:300}
+
 server:
   port: 8080
   error:
