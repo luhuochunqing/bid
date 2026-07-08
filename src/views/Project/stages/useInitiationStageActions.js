@@ -406,8 +406,17 @@ export function useInitiationStageActions({
     if (!form.tenderDocumentId) {
       return ElMessage.warning('请先上传招标文件')
     }
-    if (form.needDeposit === 'YES' && !form.depositPaymentMethod) {
-      return ElMessage.warning('请选择保证金缴纳方式')
+    if (form.needDeposit === 'YES') {
+      if (!form.depositPaymentMethod) {
+        return ElMessage.warning('请选择保证金缴纳方式')
+      }
+      // CO-540: 保证金缴纳截止日期必填，且不能早于当前日期
+      if (!form.depositDueDate) {
+        return ElMessage.warning('请选择保证金缴纳截止日期')
+      }
+      if (new Date(form.depositDueDate).getTime() < Date.now()) {
+        return ElMessage.warning('保证金缴纳截止日期不能早于当前日期')
+      }
     }
     submitting.value = true
     errorMsg.value = ''
