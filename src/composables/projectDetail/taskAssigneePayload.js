@@ -3,6 +3,8 @@
 // Pos: src/composables/projectDetail/ - Task payload, attachment upload, and deliverable upload helper
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
+import { parallelUpload } from '@/utils/parallelUpload.js'
+
 export function createTaskAssigneePayload(data = {}, userStore = {}) {
   return {
     assigneeId: data?.assigneeId ?? userStore.currentUser?.id ?? null,
@@ -50,10 +52,18 @@ export async function uploadTaskAttachments(task, attachments, { projectStore, p
   if (inputCount > 0 && files.length === 0) {
     throw new Error('文件读取失败，请刷新页面后重新选择；如仍失败，请尝试更换浏览器（推荐 Chrome 最新版）')
   }
-  for (const file of files) {
-    const saved = await projectStore?.uploadTaskAttachment?.(projectId, task.id, createTaskAttachmentPayload(file, userStore))
-    if (!saved) continue
+  // L-07: 并发上传（上限 3），任意文件失败不阻塞其他文件，但最终汇总抛错保持原语义
+  const { successes, failures } = await parallelUpload(
+    files,
+    (file) => projectStore?.uploadTaskAttachment?.(projectId, task.id, createTaskAttachmentPayload(file, userStore)),
+    { concurrency: 3 },
+  )
+  successes.forEach(({ result: saved }) => {
+    if (!saved) return
     task.attachments = [saved, ...(task.attachments || []).filter((item) => String(item.id) !== String(saved.id))]
+  })
+  if (failures.length > 0) {
+    throw new Error(`附件上传失败 ${failures.length} 个文件`)
   }
 }
 
@@ -86,14 +96,22 @@ export async function uploadTaskDeliverables(task, deliverableFiles, { projectSt
   if (inputCount > 0 && files.length === 0) {
     throw new Error('文件读取失败，请刷新页面后重新选择；如仍失败，请尝试更换浏览器（推荐 Chrome 最新版）')
   }
-  for (const file of files) {
-    const saved = await projectStore?.addDeliverable?.(projectId, task.id, createTaskDeliverablePayload(file, userStore))
-    if (!saved) continue
+  // L-07: 并发上传（上限 3），任意文件失败不阻塞其他文件，但最终汇总抛错保持原语义
+  const { successes, failures } = await parallelUpload(
+    files,
+    (file) => projectStore?.addDeliverable?.(projectId, task.id, createTaskDeliverablePayload(file, userStore)),
+    { concurrency: 3 },
+  )
+  successes.forEach(({ result: saved }) => {
+    if (!saved) return
     task.deliverables = [
       ...(task.deliverables || []).filter((item) => String(item.id) !== String(saved.id)),
       saved,
     ]
-    task.hasDeliverable = task.deliverables.length > 0
+  })
+  task.hasDeliverable = (task.deliverables || []).length > 0
+  if (failures.length > 0) {
+    throw new Error(`交付物上传失败 ${failures.length} 个文件`)
   }
 }
 
