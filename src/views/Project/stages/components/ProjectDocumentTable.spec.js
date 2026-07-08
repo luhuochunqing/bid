@@ -1,51 +1,126 @@
-// Input: mocked project documents API + element-plus table stubs
-// Output: regression spec covering the uploader column field binding
-// Pos: src/views/Project/stages/components/ - ProjectDocumentTable component tests
-
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { nextTick } from 'vue'
+import ElementPlus from 'element-plus'
 
 const getDocumentsMock = vi.hoisted(() => vi.fn())
+const uploadDocumentMock = vi.hoisted(() => vi.fn())
+const deleteDocumentMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@/api/modules/projects.js', () => ({
   projectsApi: {
     getDocuments: getDocumentsMock,
-    uploadDocument: vi.fn(),
-    deleteDocument: vi.fn(),
+    uploadDocument: uploadDocumentMock,
+    deleteDocument: deleteDocumentMock,
   },
 }))
 
-import ProjectDocumentTable from './ProjectDocumentTable.vue'
+vi.mock('@/utils/download.js', () => ({
+  downloadWithFilename: vi.fn(),
+}))
 
-const globalStubs = {
-  ElCard: { template: '<div class="el-card-stub"><slot /><slot name="header" /></div>' },
-  ElButton: { props: ['size', 'type', 'link'], template: '<button class="el-button-stub"><slot /></button>' },
-  ElTable: { props: ['data'], template: '<div class="el-table-stub"><slot /></div>' },
-  ElTableColumn: { props: ['label', 'prop'], template: '<div class="el-table-column-stub" :data-prop="prop" :data-label="label" />' },
-  ElMessage: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
-  ElMessageBox: { confirm: vi.fn() },
-}
+// 只 mock ElMessage / ElMessageBox（避免调用真实通知 API），其余 element-plus 用真实组件
+vi.mock('element-plus', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    ElMessage: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+    ElMessageBox: { confirm: vi.fn() },
+  }
+})
+
+import ProjectDocumentTable from './ProjectDocumentTable.vue'
 
 function mountTable(props = {}) {
   return mount(ProjectDocumentTable, {
     props: { projectId: 1, ...props },
-    global: { stubs: globalStubs },
+    global: { plugins: [ElementPlus] },
   })
 }
 
-describe('ProjectDocumentTable — uploader column field binding', () => {
-  it('binds the 上传者 column to the backend DTO field "uploader"', async () => {
-    getDocumentsMock.mockResolvedValue({
-      success: true,
-      data: [{ id: 1, name: 'test.docx', uploader: '张三', createdAt: '2026-06-17T10:00:00' }],
-    })
+function generateDocs(count) {
+  return Array.from({ length: count }, (_, i) => ({
+    id: i + 1,
+    name: `doc-${i + 1}.pdf`,
+    uploader: '张三',
+    createdAt: '2026-06-17T10:00:00',
+  }))
+}
+
+describe('ProjectDocumentTable — serial number before file name and pagination', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getDocumentsMock.mockReset()
+    uploadDocumentMock.mockReset()
+    deleteDocumentMock.mockReset()
+  })
+
+  it('renders serial number before document name on the first page', async () => {
+    getDocumentsMock.mockResolvedValue({ success: true, data: generateDocs(1) })
+    const wrapper = mountTable()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('1. doc-1.pdf')
+  })
+
+  it('shows up to 5 rows per page and pagination when there are more than 5 documents', async () => {
+    getDocumentsMock.mockResolvedValue({ success: true, data: generateDocs(6) })
+    const wrapper = mountTable()
+    await flushPromises()
+
+    expect(wrapper.findAll('.el-table__row').length).toBe(5)
+    expect(wrapper.find('.el-pagination').exists()).toBe(true)
+  })
+
+  it('does not render pagination when there are 5 or fewer documents', async () => {
+    getDocumentsMock.mockResolvedValue({ success: true, data: generateDocs(5) })
+    const wrapper = mountTable()
+    await flushPromises()
+
+    expect(wrapper.findAll('.el-table__row').length).toBe(5)
+    expect(wrapper.find('.el-pagination').exists()).toBe(false)
+  })
+
+  it('switches to page 2 and shows continuous serial number', async () => {
+    getDocumentsMock.mockResolvedValue({ success: true, data: generateDocs(6) })
+    const wrapper = mountTable()
+    await flushPromises()
+
+    const pagination = wrapper.findComponent({ name: 'ElPagination' })
+    pagination.vm.$emit('update:current-page', 2)
+    await flushPromises()
+    await nextTick()
+
+    const rows = wrapper.findAll('.el-table__row')
+    expect(rows.length).toBe(1)
+    expect(rows.at(0).text()).toContain('6. doc-6.pdf')
+  })
+
+  it('returns to previous page when current page becomes empty after deletion', async () => {
+    getDocumentsMock.mockResolvedValue({ success: true, data: generateDocs(6) })
+    deleteDocumentMock.mockResolvedValue({ success: true })
 
     const wrapper = mountTable()
     await flushPromises()
 
-    const columns = wrapper.findAll('.el-table-column-stub')
-    const uploaderColumn = columns.find((c) => c.attributes('data-label') === '上传者')
-    expect(uploaderColumn).toBeDefined()
-    expect(uploaderColumn.attributes('data-prop')).toBe('uploader')
+    const pagination = wrapper.findComponent({ name: 'ElPagination' })
+    pagination.vm.$emit('update:current-page', 2)
+    await flushPromises()
+    await nextTick()
+
+    // 模拟删除成功后，重新拉取列表时只剩 5 条
+    getDocumentsMock.mockResolvedValue({ success: true, data: generateDocs(5) })
+
+    // 模拟用户点击第二页唯一行的删除按钮
+    const deleteButton = wrapper.findAll('.el-button').find((btn) => btn.text().includes('删除'))
+    expect(deleteButton).toBeDefined()
+
+    await deleteButton.trigger('click')
+    await flushPromises()
+    await nextTick()
+
+    // 删除后当前页（第 2 页）变空，应自动回到第 1 页，并显示 5 行
+    expect(wrapper.findAll('.el-table__row').length).toBe(5)
+    expect(wrapper.text()).toContain('1. doc-1.pdf')
   })
 })
