@@ -124,6 +124,7 @@ public class QualificationExportService {
         // Sentry 7590982843: 多条资质的附件可能同名，需用 ZipEntryDeduplicator 去重避免
         // ZipException: duplicate entry。同时用 safeFileName 清理文件名非法字符。
         ZipEntryDeduplicator dedup = new ZipEntryDeduplicator();
+        int writtenEntries = 0;
         try (ZipOutputStream zos = new ZipOutputStream(out)) {
             for (QualificationDTO item : items) {
                 if (item.getAttachments() != null) {
@@ -132,13 +133,18 @@ public class QualificationExportService {
                         String entryName = buildEntryName(item.getName(),
                                 att.getFileName() != null ? att.getFileName() : att.getFileUrl());
                         writeAttachmentToZip(zos, item.getId(), att.getFileUrl(), entryName, dedup);
+                        writtenEntries++;
                     }
                 }
                 if (item.getFileUrl() != null && !item.getFileUrl().isBlank()) {
                     String entryName = buildEntryName(item.getName(), extractFileName(item.getFileUrl()));
                     writeAttachmentToZip(zos, item.getId(), item.getFileUrl(), entryName, dedup);
+                    writtenEntries++;
                 }
             }
+        }
+        if (writtenEntries == 0) {
+            throw new InvalidArgumentException("所选资质证书均无可下载附件");
         }
         return out.toByteArray();
     }
