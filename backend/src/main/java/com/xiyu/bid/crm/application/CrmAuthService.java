@@ -46,9 +46,7 @@ public class CrmAuthService {
     private record CachedUserProfile(String fullName, String crmSalesNo, Instant expiresAt) {}
     private static final long USER_PROFILE_CACHE_TTL_SECONDS = 300; // 5 分钟
 
-    public CrmAuthService(CrmHttpClient httpClient, CrmProperties properties,
-                          OssPermissionCache permissionCache,
-                          CrmUserTokenCache userTokenCache, UserRepository userRepository) {
+    public CrmAuthService(CrmHttpClient httpClient, CrmProperties properties, OssPermissionCache permissionCache, CrmUserTokenCache userTokenCache, UserRepository userRepository) {
         this.httpClient = httpClient;
         this.properties = properties;
         this.permissionCache = permissionCache;
