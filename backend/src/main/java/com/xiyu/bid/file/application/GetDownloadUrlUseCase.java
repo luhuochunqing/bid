@@ -1,64 +1,54 @@
 package com.xiyu.bid.file.application;
 
-import com.obs.services.ObsClient;
-import com.obs.services.model.TemporarySignatureRequest;
 import com.xiyu.bid.exception.BusinessException;
-import com.xiyu.bid.file.entity.BidFile;
 import com.xiyu.bid.file.domain.BidFileRepository;
-import com.xiyu.bid.file.domain.BidFileStatus;
+import com.xiyu.bid.file.domain.DownloadPolicy;
+import com.xiyu.bid.file.domain.ValidationResult;
+import com.xiyu.bid.file.domain.gateway.ObsDownloadUrlGateway;
+import com.xiyu.bid.file.domain.model.SignedDownloadUrl;
 import com.xiyu.bid.file.dto.DownloadUrlResponse;
-import com.xiyu.bid.file.infrastructure.obs.ObsProperties;
+import com.xiyu.bid.file.entity.BidFile;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
 import java.util.Objects;
-import java.io.IOException;
 
 /**
- * 获取 OBS 预签名下载 URL 用例。
+ * 获取 OBS 预签名下载 URL 用例（应用编排层）。
+ *
+ * <p>职责仅限编排：取数、调 {@link DownloadPolicy} 做校验与 clamp、
+ * 调 {@link ObsDownloadUrlGateway} 生成签名 URL、组装响应。
+ * 不再直接 new ObsClient（R1 SDK 泄漏修复）。</p>
  */
 @Service
 @RequiredArgsConstructor
 public class GetDownloadUrlUseCase {
 
-    private final ObsProperties obsProperties;
     private final BidFileRepository bidFileRepository;
+    private final ObsDownloadUrlGateway obsDownloadUrlGateway;
+    private final DownloadPolicy downloadPolicy;
 
     public DownloadUrlResponse execute(String uploadId, int expireSeconds, Long operatorId) {
         BidFile bidFile = bidFileRepository.findByUploadId(uploadId)
                 .orElseThrow(() -> new IllegalArgumentException("上传记录不存在"));
 
-        if (!Objects.equals(bidFile.getCreatorId(), operatorId)) {
-            throw new SecurityException("无权访问该文件");
+        ValidationResult validation = downloadPolicy.validateDownload(bidFile, operatorId);
+        if (validation.isFailure()) {
+            // 保持 API 契约：归属失败抛 SecurityException，状态失败抛 BusinessException(409)
+            if (!Objects.equals(bidFile.getCreatorId(), operatorId)) {
+                throw new SecurityException(validation.reason());
+            }
+            throw new BusinessException(409, validation.reason());
         }
 
-        if (!bidFile.getStatus().isDownloadable()) {
-            throw new BusinessException(409, "文件尚未处理完成，当前状态: " + bidFile.getStatus());
-        }
+        int effectiveExpireSeconds = downloadPolicy.clampExpireSeconds(expireSeconds);
 
-        int effectiveExpireSeconds = Math.min(expireSeconds, 3600);
-        effectiveExpireSeconds = Math.max(effectiveExpireSeconds, 60);
+        SignedDownloadUrl signed = obsDownloadUrlGateway.signDownloadUrl(
+                bidFile.getBucket(), bidFile.getObjectKey(), effectiveExpireSeconds);
 
-        try (ObsClient client = new ObsClient(
-                obsProperties.getAccessKey(),
-                obsProperties.getSecretKey(),
-                obsProperties.getEndpoint())) {
-
-            TemporarySignatureRequest request = new TemporarySignatureRequest(
-                    com.obs.services.model.HttpMethodEnum.GET,
-                    effectiveExpireSeconds);
-            request.setBucketName(bidFile.getBucket());
-            request.setObjectKey(bidFile.getObjectKey());
-
-            String signedUrl = client.createTemporarySignature(request).getSignedUrl();
-
-            return DownloadUrlResponse.builder()
-                    .url(signedUrl)
-                    .expiresAt(Instant.now().plusSeconds(effectiveExpireSeconds))
-                    .build();
-        } catch (RuntimeException | IOException e) {
-            throw new IllegalStateException("生成下载链接失败: " + e.getMessage(), e);
-        }
+        return DownloadUrlResponse.builder()
+                .url(signed.url())
+                .expiresAt(signed.expiresAt())
+                .build();
     }
 }
