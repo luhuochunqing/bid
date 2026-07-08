@@ -4,6 +4,7 @@ import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.project.entity.BidDocumentReviewEntity;
 import com.xiyu.bid.project.notification.DocumentChangeNotificationService;
+import com.xiyu.bid.project.notification.DocumentOperationType;
 import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.repository.BidDocumentReviewRepository;
 import com.xiyu.bid.project.service.ProjectStageService;
@@ -678,8 +679,9 @@ class ProjectDocumentWorkflowServiceTest {
                 eq(1001L),
                 eq(3401L),
                 eq("中标通知书.pdf"),
+                eq("BID_RESULT_NOTICE"),
                 eq("王工（1001）"),
-                eq("上传"),
+                eq(DocumentOperationType.UPLOAD),
                 any()
         );
     }
@@ -711,8 +713,9 @@ class ProjectDocumentWorkflowServiceTest {
                 eq(1001L),
                 eq(3402L),
                 eq("招标文件.pdf"),
+                eq("TENDER_DOCUMENT"),
                 eq("王工"),
-                eq("删除"),
+                eq(DocumentOperationType.DELETE),
                 eq(uploaderId)
         );
         verify(projectDocumentRepository).delete(doc);
@@ -737,7 +740,7 @@ class ProjectDocumentWorkflowServiceTest {
 
         verify(documentChangeNotificationService).notifyDocumentChanged(
                 eq(1001L), eq(3403L), eq("测试文档.pdf"),
-                eq("未分配"), eq("上传"), eq(null)
+                eq("OTHER"), eq("未分配"), eq(DocumentOperationType.UPLOAD), eq(null)
         );
     }
 

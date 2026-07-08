@@ -1,14 +1,12 @@
-// Output: notifyDocumentChanged 的分支覆盖（项目存在性、Spec 030 接收人过滤、操作类型透传）
+// Output: notifyDocumentChanged 的分支覆盖（项目存在性、Spec 030 接收人过滤、操作类型/分类透传）
 // Pos: project/notification/ - 文档变更通知纯编排层测试
 package com.xiyu.bid.project.notification;
 
 import com.xiyu.bid.entity.Project;
-import com.xiyu.bid.matrixcollaboration.entity.ProjectMember;
-import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
+import com.xiyu.bid.notification.service.NotificationRecipientResolver;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.repository.ProjectRepository;
-import com.xiyu.bid.service.ProjectAccessScopeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,9 +35,7 @@ class DocumentChangeNotificationServiceTest {
     @Mock
     private ProjectRepository projectRepository;
     @Mock
-    private ProjectMemberRepository projectMemberRepository;
-    @Mock
-    private ProjectAccessScopeService projectAccessScopeService;
+    private NotificationRecipientResolver recipientResolver;
 
     @Captor
     private ArgumentCaptor<CreateNotificationRequest> requestCaptor;
@@ -52,7 +48,7 @@ class DocumentChangeNotificationServiceTest {
     @BeforeEach
     void setUp() {
         svc = new DocumentChangeNotificationService(
-                notificationService, projectRepository, projectMemberRepository, projectAccessScopeService);
+                notificationService, projectRepository, recipientResolver);
     }
 
     private Project project(String name) {
@@ -62,23 +58,17 @@ class DocumentChangeNotificationServiceTest {
         return p;
     }
 
-    private ProjectMember member(Long userId) {
-        ProjectMember m = new ProjectMember();
-        m.setUserId(userId);
-        return m;
-    }
-
     @Test
     @DisplayName("上传 → 发送 DOCUMENT_CHANGE 给有项目访问权的团队成员（排除操作人自己）")
     void sendsDocumentChangeToAccessibleTeamMembersExcludingActor() {
         when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-        when(projectMemberRepository.findByProjectId(PID))
-                .thenReturn(List.of(member(UID), member(1L), member(2L)));
-        // 操作人 UID=42 已在前置过滤排除；1L 和 2L 都有访问权
-        when(projectAccessScopeService.canAccessProject(1L, PID)).thenReturn(true);
-        when(projectAccessScopeService.canAccessProject(2L, PID)).thenReturn(true);
+        when(recipientResolver.getProjectMemberUserIds(PID, UID))
+                .thenReturn(List.of(1L, 2L));
+        when(recipientResolver.filterByProjectAccess(List.of(1L, 2L), PID))
+                .thenReturn(List.of(1L, 2L));
 
-        svc.notifyDocumentChanged(PID, 3001L, "中标通知书.pdf", "王工（1001）", "上传", UID);
+        svc.notifyDocumentChanged(PID, 3001L, "中标通知书.pdf", "WIN_NOTICE",
+                "王工（1001）", DocumentOperationType.UPLOAD, UID);
 
         verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
         CreateNotificationRequest req = requestCaptor.getValue();
@@ -87,76 +77,78 @@ class DocumentChangeNotificationServiceTest {
         assertThat(req.sourceEntityId()).isEqualTo(3001L);
         assertThat(req.title()).isEqualTo("文档变更 - 测试项目");
         assertThat(req.body()).contains("文档「中标通知书.pdf」被 王工（1001） 上传");
-        // 关键断言：操作人自己被排除
         assertThat(req.recipientUserIds()).containsExactlyInAnyOrder(1L, 2L);
-        assertThat(req.payload()).containsEntry("operationType", "上传");
+        // P2-6：payload operationType 存枚举 name（英文稳定契约）
+        assertThat(req.payload()).containsEntry("operationType", "UPLOAD");
         assertThat(req.payload()).containsEntry("documentName", "中标通知书.pdf");
-        // P0-1：payload targetUrl 精确指向项目 drafting 页（企微外发会用它覆盖默认 /document/editor/ 跳转）
-        assertThat(req.payload()).containsEntry("targetUrl", "/project/100/drafting");
+        // P2-7：WIN_NOTICE → result 阶段
+        assertThat(req.payload()).containsEntry("targetUrl", "/project/100/result");
     }
 
     @Test
-    @DisplayName("Spec 030：剔除对该项目无访问权的团队成员（避免点击后 403）")
+    @DisplayName("Spec 030：filterByProjectAccess 剔除无访问权用户")
     void filtersOutRecipientsWithoutProjectAccess() {
         when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-        when(projectMemberRepository.findByProjectId(PID))
-                .thenReturn(List.of(member(1L), member(2L), member(3L)));
-        // 1L 有访问权，2L 无访问权（如历史成员/已停用），3L 无访问权
-        when(projectAccessScopeService.canAccessProject(1L, PID)).thenReturn(true);
-        when(projectAccessScopeService.canAccessProject(2L, PID)).thenReturn(false);
-        when(projectAccessScopeService.canAccessProject(3L, PID)).thenReturn(false);
+        when(recipientResolver.getProjectMemberUserIds(PID, UID))
+                .thenReturn(List.of(1L, 2L, 3L));
+        // 1L 有访问权，2L/3L 无
+        when(recipientResolver.filterByProjectAccess(List.of(1L, 2L, 3L), PID))
+                .thenReturn(List.of(1L));
 
-        svc.notifyDocumentChanged(PID, 3001L, "文档.pdf", "操作人", "上传", UID);
+        svc.notifyDocumentChanged(PID, 3001L, "文档.pdf", "BID",
+                "操作人", DocumentOperationType.UPLOAD, UID);
 
         verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
-        // 关键断言：只有 1L 收到通知
         assertThat(requestCaptor.getValue().recipientUserIds()).containsExactly(1L);
     }
 
     @Test
-    @DisplayName("Spec 030 降级：access scope 异常时回退到未过滤广播")
-    void fallsBackToUnfilteredBroadcastWhenAccessScopeThrows() {
-        when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-        when(projectMemberRepository.findByProjectId(PID))
-                .thenReturn(List.of(member(1L), member(2L)));
-        when(projectAccessScopeService.canAccessProject(any(), eq(PID)))
-                .thenThrow(new RuntimeException("DB 故障"));
-
-        svc.notifyDocumentChanged(PID, 3001L, "文档.pdf", "操作人", "上传", UID);
-
-        verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
-        // 关键断言：降级为原候选广播
-        assertThat(requestCaptor.getValue().recipientUserIds()).containsExactlyInAnyOrder(1L, 2L);
-    }
-
-    @Test
-    @DisplayName("Spec 030：所有候选人都无访问权 → 跳过通知")
+    @DisplayName("Spec 030：所有候选人被过滤掉 → 跳过通知")
     void skipsWhenAllRecipientsFilteredOut() {
         when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-        when(projectMemberRepository.findByProjectId(PID))
-                .thenReturn(List.of(member(1L), member(2L)));
-        when(projectAccessScopeService.canAccessProject(1L, PID)).thenReturn(false);
-        when(projectAccessScopeService.canAccessProject(2L, PID)).thenReturn(false);
+        when(recipientResolver.getProjectMemberUserIds(PID, UID))
+                .thenReturn(List.of(1L, 2L));
+        when(recipientResolver.filterByProjectAccess(List.of(1L, 2L), PID))
+                .thenReturn(List.of());
 
-        svc.notifyDocumentChanged(PID, 3001L, "文档.pdf", "操作人", "上传", UID);
+        svc.notifyDocumentChanged(PID, 3001L, "文档.pdf", "BID",
+                "操作人", DocumentOperationType.UPLOAD, UID);
 
         verify(notificationService, never()).createNotification(any(), any());
     }
 
     @Test
-    @DisplayName("删除 → operationType=删除 透传到 payload 与 body")
+    @DisplayName("删除 → operationType=DELETE，body 含中文标签'删除'")
     void sendsDeleteOperationType() {
         when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-        when(projectMemberRepository.findByProjectId(PID))
-                .thenReturn(List.of(member(1L)));
-        when(projectAccessScopeService.canAccessProject(1L, PID)).thenReturn(true);
+        when(recipientResolver.getProjectMemberUserIds(PID, UID))
+                .thenReturn(List.of(1L));
+        when(recipientResolver.filterByProjectAccess(List.of(1L), PID))
+                .thenReturn(List.of(1L));
 
-        svc.notifyDocumentChanged(PID, 3002L, "废弃文件.docx", "李四", "删除", UID);
+        svc.notifyDocumentChanged(PID, 3002L, "废弃文件.docx", "OTHER",
+                "李四", DocumentOperationType.DELETE, UID);
 
         verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
         CreateNotificationRequest req = requestCaptor.getValue();
         assertThat(req.body()).contains("被 李四 删除");
-        assertThat(req.payload()).containsEntry("operationType", "删除");
+        assertThat(req.payload()).containsEntry("operationType", "DELETE");
+    }
+
+    @Test
+    @DisplayName("TENDER 分类 → targetUrl 跳转 initiation 阶段")
+    void tenderCategoryMapsToInitiationStage() {
+        when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
+        when(recipientResolver.getProjectMemberUserIds(PID, UID))
+                .thenReturn(List.of(1L));
+        when(recipientResolver.filterByProjectAccess(List.of(1L), PID))
+                .thenReturn(List.of(1L));
+
+        svc.notifyDocumentChanged(PID, 3001L, "招标文件.pdf", "TENDER",
+                "操作人", DocumentOperationType.UPLOAD, UID);
+
+        verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
+        assertThat(requestCaptor.getValue().payload()).containsEntry("targetUrl", "/project/100/initiation");
     }
 
     @Test
@@ -164,7 +156,8 @@ class DocumentChangeNotificationServiceTest {
     void skipsWhenProjectNotFound() {
         when(projectRepository.findById(PID)).thenReturn(Optional.empty());
 
-        svc.notifyDocumentChanged(PID, 3001L, "文档.pdf", "操作人", "上传", UID);
+        svc.notifyDocumentChanged(PID, 3001L, "文档.pdf", "BID",
+                "操作人", DocumentOperationType.UPLOAD, UID);
 
         verify(notificationService, never()).createNotification(any(), any());
     }
@@ -173,21 +166,11 @@ class DocumentChangeNotificationServiceTest {
     @DisplayName("候选团队成员为空 → 跳过通知")
     void skipsWhenNoCandidates() {
         when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-        when(projectMemberRepository.findByProjectId(PID)).thenReturn(List.of());
+        when(recipientResolver.getProjectMemberUserIds(PID, UID))
+                .thenReturn(List.of());
 
-        svc.notifyDocumentChanged(PID, 3001L, "文档.pdf", "操作人", "上传", UID);
-
-        verify(notificationService, never()).createNotification(any(), any());
-    }
-
-    @Test
-    @DisplayName("仅操作人自己是团队成员 → 前置过滤后为空 → 跳过通知")
-    void skipsWhenOnlyActorInTeam() {
-        when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-        when(projectMemberRepository.findByProjectId(PID))
-                .thenReturn(List.of(member(UID)));
-
-        svc.notifyDocumentChanged(PID, 3001L, "文档.pdf", "操作人", "上传", UID);
+        svc.notifyDocumentChanged(PID, 3001L, "文档.pdf", "BID",
+                "操作人", DocumentOperationType.UPLOAD, UID);
 
         verify(notificationService, never()).createNotification(any(), any());
     }
@@ -196,11 +179,13 @@ class DocumentChangeNotificationServiceTest {
     @DisplayName("actorUserId=null → 使用 SYSTEM_USER_ID(0L) 作为 createdBy")
     void usesSystemUserIdWhenActorIsNull() {
         when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-        when(projectMemberRepository.findByProjectId(PID))
-                .thenReturn(List.of(member(1L)));
-        when(projectAccessScopeService.canAccessProject(1L, PID)).thenReturn(true);
+        when(recipientResolver.getProjectMemberUserIds(PID, null))
+                .thenReturn(List.of(1L));
+        when(recipientResolver.filterByProjectAccess(List.of(1L), PID))
+                .thenReturn(List.of(1L));
 
-        svc.notifyDocumentChanged(PID, 3001L, "文档.pdf", "系统", "上传", null);
+        svc.notifyDocumentChanged(PID, 3001L, "文档.pdf", "BID",
+                "系统", DocumentOperationType.UPLOAD, null);
 
         verify(notificationService).createNotification(requestCaptor.capture(), eq(0L));
         assertThat(requestCaptor.getValue().recipientUserIds()).containsExactly(1L);
