@@ -17,7 +17,11 @@
           <span>{{ getConditionLabel(row.condition) }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="threshold" label="阈值" width="120" />
+      <el-table-column label="阈值" width="160">
+        <template #default="{ row }">
+          <span>{{ row.threshold }} {{ getThresholdUnit(row.type) }}</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="enabled" label="状态" width="80">
         <template #default="{ row }">
           <el-switch v-model="row.enabled" @change="toggleRule(row)" />
@@ -61,12 +65,16 @@
           </div>
         </el-form-item>
         <el-form-item label="阈值">
-          <el-input-number
-            v-model="form.threshold"
-            :min="thresholdRange.min"
-            :max="thresholdRange.max"
-            :disabled="form.type === 'DEPOSIT_RETURN'"
-          />
+          <div class="threshold-input-row">
+            <el-input-number
+              v-model="form.threshold"
+              :min="thresholdRange.min"
+              :max="thresholdRange.max"
+              :disabled="form.type === 'DEPOSIT_RETURN'"
+            />
+            <span class="threshold-unit">{{ thresholdUnit }}</span>
+          </div>
+          <div class="form-hint">{{ thresholdHint }}</div>
         </el-form-item>
         <el-alert
           v-if="form.type === 'DEPOSIT_RETURN'"
@@ -97,10 +105,70 @@ const form = reactive({ id: null, name: '', type: 'DEADLINE', condition: 'LESS_T
 const isEdit = ref(false)
 const userStore = useUserStore()
 
-// 阈值范围按规则类型动态切换：RISK 为 1-100 分数，其余为 1-365 天
+
+
+/**
+ * 获取规则类型的阈值单位
+ * @param {string} type
+ * @returns {string}
+ */
+function getThresholdUnit(type) {
+  switch (type) {
+    case 'RISK':
+      return '分'
+    case 'DOCUMENT':
+      return '个'
+    case 'BUDGET':
+      return '元'
+    case 'DEPOSIT_RETURN':
+    case 'DEADLINE':
+    case 'QUALIFICATION_EXPIRY':
+    case 'PERFORMANCE_EXPIRY':
+    case 'CA_EXPIRY':
+    case 'CA_BORROW_OVERDUE':
+      return '天'
+    default:
+      return ''
+  }
+}
+
+// 阈值单位按规则类型动态切换
+const thresholdUnit = computed(() => getThresholdUnit(form.type))
+
+// 阈值输入提示按规则类型动态切换
+const thresholdHint = computed(() => {
+  switch (form.type) {
+    case 'RISK':
+      return '风险评分，范围 1-100，数值越高风险越高'
+    case 'DOCUMENT':
+      return '缺失文档数量，达到该数量时触发告警'
+    case 'BUDGET':
+      return '预算金额（元），达到该金额时触发告警'
+    case 'DEADLINE':
+    case 'QUALIFICATION_EXPIRY':
+    case 'PERFORMANCE_EXPIRY':
+    case 'CA_EXPIRY':
+    case 'CA_BORROW_OVERDUE':
+      return '提前/逾期提醒的天数'
+    case 'DEPOSIT_RETURN':
+      return '保证金退还提醒阈值由系统设置中的“保证金提醒天数”驱动，此处会自动同步'
+    default:
+      return '请输入阈值'
+  }
+})
+
+// 阈值范围按规则类型动态切换
 const thresholdRange = computed(() => {
-  if (form.type === 'RISK') return { min: 1, max: 100 }
-  return { min: 1, max: 365 }
+  switch (form.type) {
+    case 'RISK':
+      return { min: 1, max: 100 }
+    case 'DOCUMENT':
+      return { min: 1, max: 999 }
+    case 'BUDGET':
+      return { min: 0, max: 999999999 }
+    default:
+      return { min: 1, max: 365 }
+  }
 })
 
 onMounted(() => { loadRules() })
@@ -211,4 +279,6 @@ function getConditionLabel(condition) {
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .page-header h2 { margin: 0; }
 .form-hint { color: var(--el-text-color-secondary); font-size: 12px; margin-top: 4px; }
+.threshold-input-row { display: flex; align-items: center; }
+.threshold-unit { margin-left: 8px; color: var(--el-text-color-secondary); }
 </style>

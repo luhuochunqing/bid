@@ -41,6 +41,15 @@ public class AlertRule {
     @Column(name = "`condition`", nullable = false)
     private ConditionType condition;
 
+    /**
+     * 告警阈值，语义由 {@link AlertType} 决定：
+     * <ul>
+     *     <li>DEADLINE / QUALIFICATION_EXPIRY / PERFORMANCE_EXPIRY / CA_EXPIRY / CA_BORROW_OVERDUE / DEPOSIT_RETURN：天数</li>
+     *     <li>RISK：风险评分（0-100）</li>
+     *     <li>DOCUMENT：缺失文档数量</li>
+     *     <li>BUDGET：金额（元）</li>
+     * </ul>
+     */
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal threshold;
 
