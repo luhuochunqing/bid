@@ -49,6 +49,7 @@
           <div class="attach-toolbar">
             <div class="attach-toolbar-left">
               <el-button size="small" type="primary" @click="triggerUpload"><el-icon><Upload /></el-icon> 上传附件</el-button>
+              <span class="upload-type-label">上传类型：</span>
               <el-select v-model="uploadType" size="small" style="width:120px;margin-left:8px">
                 <el-option label="产权证" value="PROPERTY_CERTIFICATE" />
                 <el-option label="发票" value="INVOICE" />
@@ -236,6 +237,12 @@ const formatSize = (bytes) => { if (!bytes) return '—'; if (bytes < 1024) retu
   font-size: 13px;
   color: var(--el-text-color-regular);
   margin-right: 6px;
+  white-space: nowrap;
+}
+.upload-type-label {
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+  margin-left: 8px;
   white-space: nowrap;
 }
 </style>
