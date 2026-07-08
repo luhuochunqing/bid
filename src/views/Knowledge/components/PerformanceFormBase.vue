@@ -31,11 +31,7 @@
       <el-col :span="12">
         <el-form-item label="项目类型" prop="projectType">
           <el-select v-model="form.projectType" placeholder="请选择" style="width: 100%">
-            <el-option label="办公" value="OFFICE" />
-            <el-option label="综合" value="COMPREHENSIVE" />
-            <el-option label="集采" value="CENTRALIZED" />
-            <el-option label="工业品" value="INDUSTRIAL" />
-            <el-option label="其他" value="OTHER" />
+            <el-option v-for="opt in PROJECT_TYPE_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </el-form-item>
       </el-col>
@@ -59,6 +55,8 @@
 </template>
 
 <script setup>
+import { PROJECT_TYPE_OPTIONS } from '@/constants/projectTypes.js'
+
 defineProps({
   form: {
     type: Object,

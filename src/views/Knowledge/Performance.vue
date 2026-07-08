@@ -42,11 +42,7 @@
         </el-form-item>
         <el-form-item label="项目类型">
           <el-select v-model="searchForm.projectTypes" placeholder="全部" clearable multiple collapse-tags style="width: 160px">
-            <el-option label="办公" value="OFFICE" />
-            <el-option label="综合" value="COMPREHENSIVE" />
-            <el-option label="集采" value="CENTRALIZED" />
-            <el-option label="工业品" value="INDUSTRIAL" />
-            <el-option label="其他" value="OTHER" />
+            <el-option v-for="opt in PROJECT_TYPE_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </el-form-item>
         <el-form-item label="合同状态">
@@ -161,6 +157,7 @@ import { Plus, Upload, Download, Bell } from '@element-plus/icons-vue'
 import { usePerformanceImport } from '@/composables/usePerformanceImport.js'
 import { useKnowledgePermission } from '@/composables/useKnowledgePermission'
 import { useListPagination } from '@/composables/useListPagination'
+import { PROJECT_TYPE_OPTIONS } from '@/constants/projectTypes.js'
 import PerformanceDetailDrawer from './components/PerformanceDetailDrawer.vue'
 import PerformanceFormDialog from './components/PerformanceFormDialog.vue'
 import PerformanceAlertConfigDialog from './components/performance/PerformanceAlertConfigDialog.vue'
