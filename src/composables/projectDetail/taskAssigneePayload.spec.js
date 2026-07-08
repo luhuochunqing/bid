@@ -88,13 +88,6 @@ describe('taskAssigneePayload', () => {
       const emptyWrapper = { raw: { name: 'empty.pdf' } }  // raw 不是 File/Blob
       expect(normalizeTaskAttachmentFiles([validFile, emptyWrapper])).toEqual([validFile])
     })
-
-    // CO-529: 已保存的附件记录（有 id 无 raw/file）不应被当成新文件重复上传
-    it('filters out saved attachment records (CO-529)', () => {
-      const validFile = new File(['content'], 'valid.pdf')
-      const savedRecord = { id: 100, name: 'saved.pdf', size: 1024, fileType: 'application/pdf' }
-      expect(normalizeTaskAttachmentFiles([validFile, savedRecord])).toEqual([validFile])
-    })
   })
 
   describe('createTaskAttachmentPayload', () => {

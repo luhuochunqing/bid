@@ -26,11 +26,16 @@ export function isFileLike(value) {
     && typeof value.name === 'string'
 }
 
+// CO-529: 区分"真正需要上传的新文件"与"已保存的附件记录"。
+// 已保存记录来自后端 DTO，有 id 但无 raw/file；新文件是 File/Blob 或带 raw/file 的 wrapper。
+function isNewUploadItem(item) {
+  return item && (item.raw || item.file || !item.id)
+}
+
 export function normalizeTaskAttachmentFiles(attachments = []) {
   return (Array.isArray(attachments) ? attachments : [attachments])
     .map((item) => item?.raw || item?.file || item)
-    // CO-529: 已保存的附件记录（有 id 无 raw/file）不应被当成新文件重复上传
-    .filter((file) => isFileLike(file) && !file.id)
+    .filter((file) => isFileLike(file))
 }
 
 export function createTaskAttachmentPayload(file, userStore = {}) {
@@ -44,10 +49,10 @@ export function createTaskAttachmentPayload(file, userStore = {}) {
 }
 
 export async function uploadTaskAttachments(task, attachments, { projectStore, projectId, userStore } = {}) {
-  // CO-529: 已保存的附件记录（有 id 无 raw/file）不应被重复上传；
-  // 提交时 localValue.attachments 会混有已保存记录，过滤掉它们再统计和上传。
+  // CO-529: 提交时 localValue.attachments 会混有已保存记录，
+  // 只把真正需要上传的新文件交给 normalizeTaskAttachmentFiles。
   const items = Array.isArray(attachments) ? attachments : [attachments]
-  const uploadItems = items.filter((item) => item && (item.raw || item.file || !item.id))
+  const uploadItems = items.filter(isNewUploadItem)
   const files = normalizeTaskAttachmentFiles(uploadItems)
   // CO-519: 用户选了文件但全部提取失败（非 File 对象），明确抛错避免静默失败
   // 上游 uploadTaskAttachmentsWithFallback 会 catch 并给用户友好提示
