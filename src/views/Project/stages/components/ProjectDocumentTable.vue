@@ -44,6 +44,7 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { projectsApi } from '@/api/modules/projects.js'
 import { downloadWithFilename } from '@/utils/download.js'
+import { parallelUpload } from '@/utils/parallelUpload.js'
 
 const props = defineProps({
   projectId: { type: [String, Number], required: true },
@@ -75,15 +76,19 @@ function handleUpload() { fileInputRef.value?.click() }
 async function onFileSelected(e) {
   const files = e.target?.files
   if (!files?.length) return
-  for (const file of files) {
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('name', file.name)
-    try {
-      await projectsApi.uploadDocument(props.projectId, formData)
-      ElMessage.success(`${file.name} 上传成功`)
-    } catch { ElMessage.error(`${file.name} 上传失败`) }
-  }
+  // L-07: 改为并发上传（上限 3），任意文件失败不阻塞其他文件
+  const { successes, failures } = await parallelUpload(
+    files,
+    (file) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('name', file.name)
+      return projectsApi.uploadDocument(props.projectId, formData)
+    },
+    { concurrency: 3 },
+  )
+  successes.forEach(({ file }) => ElMessage.success(`${file.name} 上传成功`))
+  failures.forEach(({ file }) => ElMessage.error(`${file.name} 上传失败`))
   if (fileInputRef.value) fileInputRef.value.value = ''
   currentPage.value = 1
   await loadDocuments()
