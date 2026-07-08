@@ -32,3 +32,17 @@
 - `POST /api/notifications/{id}/read` — 标记已读
 - `POST /api/notifications/read-all` — 全部已读
 - `POST /api/admin/notifications` — 管理员创建通知
+
+## NotificationType 枚举值与触发源
+
+| 枚举值 | 触发源 | 说明 |
+|---|---|---|
+| `INFO` / `SYSTEM` | 多处 | 通用信息/系统通知 |
+| `MENTION` | `MentionApplicationService` | @ 提及 |
+| `APPROVAL` | `ProjectNotificationService` | 立项/复盘/结项审核 |
+| `TASK_UPDATE` | `EntityChangedNotificationListener`（订阅扇出） + `TaskReviewNotificationService` | 任务变更/审核结果 |
+| `DOCUMENT_CHANGE` | `ProjectNotificationService.notifyDocumentChanged` ← `ProjectDocumentWorkflowService` | 文档上传/删除（蓝图 §消息中心-系统通知 序号 5） |
+| `BID_REVIEW` | `ProjectNotificationService.notifyBidReviewSubmitted` | 标书审核 |
+| `DEADLINE` | `tenderreminder`、`TaskDueReminderScanTask` | 截止/到期提醒 |
+| `TENDER_MATCH` | 标讯匹配 | 标讯匹配 |
+| `CA_*`（6 个） | `CaNotificationDispatcher` | CA 证书到期/借用 |

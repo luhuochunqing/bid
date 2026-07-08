@@ -93,4 +93,66 @@ class WeComMessageFormatterTest {
 
         assertThat(message.url()).endsWith("/inbox");
     }
+
+    // ============ P0-1：payload targetUrl 覆盖默认 entityType 映射 ============
+
+    @Test
+    void format_WithPayloadTargetUrl_OverridesEntityTypeMapping() {
+        // 文档变更通知：sourceEntityType=DOCUMENT 但合理跳转目标是项目 drafting 页
+        WeComMessageFormatter.FormattedMessage message = WeComMessageFormatter.format(
+            "文档变更 - 测试项目", "DOCUMENT_CHANGE", "DOCUMENT", 7L,
+            "https://xiyu.example.com", "/project/100/drafting"
+        );
+
+        // 关键断言：使用 payload targetUrl，而非 /document/editor/7
+        assertThat(message.url()).isEqualTo("https://xiyu.example.com/project/100/drafting");
+    }
+
+    @Test
+    void format_WithNullPayloadTargetUrl_FallsBackToEntityTypeMapping() {
+        // 向后兼容：未透传 targetUrl 时走 entityType 映射
+        WeComMessageFormatter.FormattedMessage message = WeComMessageFormatter.format(
+            "文档已更新", "DOCUMENT_CHANGE", "DOCUMENT", 7L, "https://xiyu.example.com", null
+        );
+
+        assertThat(message.url()).isEqualTo("https://xiyu.example.com/document/editor/7");
+    }
+
+    @Test
+    void format_WithRelativePathTargetUrl_AcceptedAsOverride() {
+        WeComMessageFormatter.FormattedMessage message = WeComMessageFormatter.format(
+            "通知", "INFO", "PROJECT", 1L, "https://xiyu.example.com", "/custom/path/123"
+        );
+
+        assertThat(message.url()).isEqualTo("https://xiyu.example.com/custom/path/123");
+    }
+
+    @Test
+    void format_WithNonPathPayloadTargetUrl_IgnoredFallsBackToMapping() {
+        // 防御：targetUrl 不以 "/" 开头（如 "https://evil.com"）时不采用，避免开放重定向
+        WeComMessageFormatter.FormattedMessage message = WeComMessageFormatter.format(
+            "通知", "INFO", "PROJECT", 1L, "https://xiyu.example.com", "https://evil.com/path"
+        );
+
+        assertThat(message.url()).isEqualTo("https://xiyu.example.com/project/1");
+    }
+
+    @Test
+    void format_WithBlankPayloadTargetUrl_FallsBackToMapping() {
+        WeComMessageFormatter.FormattedMessage message = WeComMessageFormatter.format(
+            "通知", "INFO", "PROJECT", 1L, "https://xiyu.example.com", ""
+        );
+
+        assertThat(message.url()).isEqualTo("https://xiyu.example.com/project/1");
+    }
+
+    @Test
+    void format_legacy5ArgOverload_StillWorksAfterBackwardCompatAdded() {
+        // 5 参数重载（无 targetUrl）必须保持原行为，老调用方无破坏
+        WeComMessageFormatter.FormattedMessage message = WeComMessageFormatter.format(
+            "通知", "INFO", "PROJECT", 1L, "https://xiyu.example.com"
+        );
+
+        assertThat(message.url()).isEqualTo("https://xiyu.example.com/project/1");
+    }
 }

@@ -18,7 +18,7 @@
 | `service/ProjectTaskBreakdownService.java` | Service | 任务拆解编排；读取真实标书拆解结果、调用纯核心、保存项目任务 |
 | `service/ProjectTaskBreakdownSourceReader.java` | Reader | 读取任务拆解来源；通过端口读取招标需求项，章节只兜底读取顶层/二级章节 |
 | `service/ProjectTaskRequirementSourceGateway.java` | Port | 任务拆解读取招标需求来源的端口，由招标文件解析能力侧提供实现，避免流程模块反向依赖解析模块实体 |
-| `service/ProjectDocumentWorkflowService.java` | Service | 项目文档查询、元数据创建和删除编排，调用文档绑定边界 |
+| `service/ProjectDocumentWorkflowService.java` | Service | 项目文档查询、元数据创建和删除编排，调用文档绑定边界。文档上传/删除时通过 `ProjectNotificationService.notifyDocumentChanged` 触发 `DOCUMENT_CHANGE` 通知项目团队成员（蓝图 §消息中心-系统通知 序号 5） |
 | `service/ProjectDocumentUploadWorkflowService.java` | Service | 项目文档真实文件上传编排；通过文件存储端口落盘后转交文档创建服务 |
 | `service/ProjectDocumentDownloadService.java` | Service | 项目文档真实文件下载装配；通过文件存储端口读取 Resource |
 | `service/ProjectDocumentFacade.java` | Component | 文档查询、元数据创建、真实上传、下载和删除的内部组合门面，保持 ProjectWorkflowService 依赖数稳定 |

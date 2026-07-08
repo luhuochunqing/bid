@@ -144,7 +144,8 @@ public class NotificationApplicationService {
             saved.getType(),
             saved.getTitle(),
             saved.getSourceEntityType(),
-            saved.getSourceEntityId()
+            saved.getSourceEntityId(),
+            extractTargetUrl(request.payload())
         ));
 
         return DispatchResult.validWithId(saved.getId());
@@ -160,6 +161,22 @@ public class NotificationApplicationService {
             log.warn("Failed to serialize notification payload: {}", e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * 从 payload 中提取 targetUrl 用于企微外发深链（P0-1 修复）。
+     * payload 中 targetUrl 必须是绝对路径（以 "/" 开头）才被采用，否则返回 null
+     * 让外发回退到 sourceEntityType → 路径映射。
+     */
+    private static String extractTargetUrl(Map<String, Object> payload) {
+        if (payload == null) {
+            return null;
+        }
+        Object value = payload.get("targetUrl");
+        if (value instanceof String s && s.startsWith("/")) {
+            return s;
+        }
+        return null;
     }
 
     private static NotificationType parseType(String raw) {

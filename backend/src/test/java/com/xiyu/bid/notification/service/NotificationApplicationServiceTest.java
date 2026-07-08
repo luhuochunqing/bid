@@ -7,11 +7,13 @@ import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.dto.NotificationSummary;
 import com.xiyu.bid.notification.entity.Notification;
 import com.xiyu.bid.notification.entity.UserNotification;
+import com.xiyu.bid.notification.outbound.event.NotificationCreatedEvent;
 import com.xiyu.bid.notification.repository.NotificationRepository;
 import com.xiyu.bid.notification.repository.UserNotificationRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -21,6 +23,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.List;
 import java.util.Optional;
 
@@ -191,6 +194,61 @@ class NotificationApplicationServiceTest {
         assertThat(result.isValid()).isTrue();
         verify(notificationRepository, times(1)).save(any(Notification.class));
         verify(userNotificationRepository, times(1)).saveAll(any(Iterable.class));
+    }
+
+    @Test
+    @DisplayName("P0-1: createNotification 从 payload 提取 targetUrl 并透传到 NotificationCreatedEvent")
+    void createNotification_PropagatesPayloadTargetUrlToEvent() {
+        Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("targetUrl", "/project/100/drafting");
+        payload.put("projectId", "100");
+        CreateNotificationRequest request = new CreateNotificationRequest(
+            "DOCUMENT_CHANGE", "DOCUMENT", 7L, "文档变更", "body", payload, List.of(9L));
+        Notification persisted = baseNotification(101L);
+        when(notificationRepository.save(any(Notification.class))).thenReturn(persisted);
+
+        service.createNotification(request, 1L);
+
+        ArgumentCaptor<NotificationCreatedEvent> eventCaptor =
+            ArgumentCaptor.forClass(NotificationCreatedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        // 关键断言：targetUrl 透传到事件，供企微外发覆盖默认 entityType 映射
+        assertThat(eventCaptor.getValue().targetUrl()).isEqualTo("/project/100/drafting");
+    }
+
+    @Test
+    @DisplayName("P0-1: payload 无 targetUrl 时事件 targetUrl 为 null（向后兼容）")
+    void createNotification_WithoutTargetUrl_PropagatesNull() {
+        CreateNotificationRequest request = new CreateNotificationRequest(
+            "INFO", "PROJECT", 42L, "title", "body", null, List.of(7L));
+        Notification persisted = baseNotification(101L);
+        when(notificationRepository.save(any(Notification.class))).thenReturn(persisted);
+
+        service.createNotification(request, 1L);
+
+        ArgumentCaptor<NotificationCreatedEvent> eventCaptor =
+            ArgumentCaptor.forClass(NotificationCreatedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().targetUrl()).isNull();
+    }
+
+    @Test
+    @DisplayName("P0-1: payload targetUrl 非绝对路径时被拒绝（避免开放重定向）")
+    void createNotification_RejectsNonAbsolutePathUrl() {
+        Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("targetUrl", "https://evil.com/path");
+        CreateNotificationRequest request = new CreateNotificationRequest(
+            "INFO", "PROJECT", 42L, "title", "body", payload, List.of(7L));
+        Notification persisted = baseNotification(101L);
+        when(notificationRepository.save(any(Notification.class))).thenReturn(persisted);
+
+        service.createNotification(request, 1L);
+
+        ArgumentCaptor<NotificationCreatedEvent> eventCaptor =
+            ArgumentCaptor.forClass(NotificationCreatedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        // 关键断言：非 "/" 开头的 URL 不被采用
+        assertThat(eventCaptor.getValue().targetUrl()).isNull();
     }
 
     @Test
