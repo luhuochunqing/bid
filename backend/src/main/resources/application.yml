@@ -126,95 +126,23 @@ app:
     memory-threshold: ${APP_TENDER_MEMORY_THRESHOLD:0.92}
     worker-fixed-delay-ms: ${APP_TENDER_WORKER_DELAY_MS:5000}
 
-server:
-  port: 8080
-  # CO-524: 显式配置 Tomcat connection-timeout，避免默认 60s 与 nginx proxy_read_timeout 不一致
-  # 当后端处理耗时 > 60s（如批量导入 180 行标讯 ~100s）时，Tomcat 主动断开连接导致 nginx 504
-  tomcat:
-    connection-timeout: ${SERVER_TOMCAT_CONNECTION_TIMEOUT:180000}  # 3 分钟
-  error:
-    include-message: on_param
-    include-binding-errors: on_param
-    include-stacktrace: on_param  # 开发环境显示堆栈
-  forward-headers-strategy: NATIVE  # 云平台自动处理转发头
-
-jwt:
-  secret: ${JWT_SECRET}
-  expiration: ${JWT_EXPIRATION:86400000}
-  refresh-expiration: 604800000
-
-cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:1314,http://127.0.0.1:1314,http://localhost:1316,http://127.0.0.1:1316,http://localhost:1323,http://127.0.0.1:1323,http://localhost:5173,http://localhost:5174,http://localhost:3000}
-
-client:
-  register:
-    serviceName: ${XIYU_ORG_EVENT_SERVICE_NAME:}
-    serverRegisterUrl: ${XIYU_ORG_EVENT_SERVER_REGISTER_URL:}
-    enableRegister: ${XIYU_ORG_EVENT_ENABLE_REGISTER:true}
-  renewal:
-    initialDelay: ${XIYU_ORG_EVENT_RENEWAL_INITIAL_DELAY:3}
-    period: ${XIYU_ORG_EVENT_RENEWAL_PERIOD:3}
-    renewalDuration: ${XIYU_ORG_EVENT_RENEWAL_DURATION_MS:3000}
-broker:
-  configure:
-    serverList: ${XIYU_ORG_EVENT_BROKER_SERVER_LIST:}
-    zkServers: ${XIYU_ORG_EVENT_BROKER_ZK_SERVERS:}
-    env: ${XIYU_ORG_EVENT_BROKER_ENV:test}
-
-rate:
-  limit:
-    # Default rate limits for unauthenticated/anonymous requests (external API)
-    default:
-      max: ${RATE_LIMIT_DEFAULT_MAX:100}
-      window-seconds: ${RATE_LIMIT_DEFAULT_WINDOW:60}
-    # Rate limits for API-key authenticated requests (external API)
-    api-key:
-      max: ${RATE_LIMIT_APIKEY_MAX:1000}
-      window-seconds: ${RATE_LIMIT_APIKEY_WINDOW:60}
-    login:
-      max-attempts: ${RATE_LIMIT_LOGIN_MAX:5}
-      window-minutes: ${RATE_LIMIT_LOGIN_WINDOW:15}
-      lockout-minutes: ${RATE_LIMIT_LOGIN_LOCKOUT:30}
-
-management:
-  endpoint:
-    health:
-      probes:
-        enabled: true
-      show-details: when_authorized
-      group:
-        readiness:
-          include: readinessState,db
-    env:
-      enabled: false
-    heapdump:
-      enabled: false
-    threaddump:
-      enabled: false
-  endpoints:
-    web:
-      exposure:
-        include: health,prometheus,metrics
-  health:
-    livenessstate:
-      enabled: true
-    readinessstate:
-      enabled: true
-  prometheus:
-    metrics:
-      export:
-        enabled: true
-
-webhook:
-  crm:
-    # 4.1 标讯状态变更回调 - 回调到 CRM 系统 bidInfoSync 接口
-    # 鉴权与访问 CRM 其他接口一致（Bearer JWT token，由 CrmAuthService 自动获取）
-    # 生产环境必须通过 WEBHOOK_CRM_URL 显式注入；默认值为空避免误回调测试环境
-    url: ${WEBHOOK_CRM_URL:}
-    # 共享密钥；fail-closed —— 未设置或 header 不匹配时 /api/webhooks/crm/** 一律 401
-    token: ${WEBHOOK_CRM_TOKEN:}
-
 xiyu:
+  obs:
+    enabled: ${XIYU_OBS_ENABLED:false}
+    endpoint: ${XIYU_OBS_ENDPOINT:https://obs.cn-east-3.myhuaweicloud.com}
+    region: ${XIYU_OBS_REGION:cn-east-3}
+    bucket: ${XIYU_OBS_BUCKET:}
+    access-key: ${XIYU_OBS_ACCESS_KEY:}
+    secret-key: ${XIYU_OBS_SECRET_KEY:}
+    agency-name: ${XIYU_OBS_AGENCY_NAME:}
+    domain-name: ${XIYU_OBS_DOMAIN_NAME:}
+    token-duration-seconds: ${XIYU_OBS_TOKEN_DURATION:3600}
+    object-key-prefix: ${XIYU_OBS_OBJECT_KEY_PREFIX:bids}
+    # 临时凭证允许的操作，逗号分隔
+    allowed-actions: ${XIYU_OBS_ALLOWED_ACTIONS:obs:object:PutObject,obs:object:GetObject,obs:object:DeleteObject,obs:bucket:ListBucketMultipartUploads}
+    # 下载预签名 URL 默认有效期（秒）
+    download-url-expire-seconds: ${XIYU_OBS_DOWNLOAD_URL_EXPIRE:300}
+
   tender:
     abandon-roles: ${XIYU_TENDER_ABANDON_ROLES:ADMIN,MANAGER}
   integrations:
@@ -418,6 +346,95 @@ xiyu:
         enabled: ${XIYU_ORG_RECONCILIATION_ENABLED:false}
         cron: ${XIYU_ORG_RECONCILIATION_CRON:0 30 2 * * *}
         lookback-days: ${XIYU_ORG_RECONCILIATION_LOOKBACK_DAYS:3}
+
+
+server:
+  port: 8080
+  # CO-524: 显式配置 Tomcat connection-timeout，避免默认 60s 与 nginx proxy_read_timeout 不一致
+  # 当后端处理耗时 > 60s（如批量导入 180 行标讯 ~100s）时，Tomcat 主动断开连接导致 nginx 504
+  tomcat:
+    connection-timeout: ${SERVER_TOMCAT_CONNECTION_TIMEOUT:180000}  # 3 分钟
+  error:
+    include-message: on_param
+    include-binding-errors: on_param
+    include-stacktrace: on_param  # 开发环境显示堆栈
+  forward-headers-strategy: NATIVE  # 云平台自动处理转发头
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION:86400000}
+  refresh-expiration: 604800000
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:1314,http://127.0.0.1:1314,http://localhost:1316,http://127.0.0.1:1316,http://localhost:1323,http://127.0.0.1:1323,http://localhost:5173,http://localhost:5174,http://localhost:3000}
+
+client:
+  register:
+    serviceName: ${XIYU_ORG_EVENT_SERVICE_NAME:}
+    serverRegisterUrl: ${XIYU_ORG_EVENT_SERVER_REGISTER_URL:}
+    enableRegister: ${XIYU_ORG_EVENT_ENABLE_REGISTER:true}
+  renewal:
+    initialDelay: ${XIYU_ORG_EVENT_RENEWAL_INITIAL_DELAY:3}
+    period: ${XIYU_ORG_EVENT_RENEWAL_PERIOD:3}
+    renewalDuration: ${XIYU_ORG_EVENT_RENEWAL_DURATION_MS:3000}
+broker:
+  configure:
+    serverList: ${XIYU_ORG_EVENT_BROKER_SERVER_LIST:}
+    zkServers: ${XIYU_ORG_EVENT_BROKER_ZK_SERVERS:}
+    env: ${XIYU_ORG_EVENT_BROKER_ENV:test}
+
+rate:
+  limit:
+    # Default rate limits for unauthenticated/anonymous requests (external API)
+    default:
+      max: ${RATE_LIMIT_DEFAULT_MAX:100}
+      window-seconds: ${RATE_LIMIT_DEFAULT_WINDOW:60}
+    # Rate limits for API-key authenticated requests (external API)
+    api-key:
+      max: ${RATE_LIMIT_APIKEY_MAX:1000}
+      window-seconds: ${RATE_LIMIT_APIKEY_WINDOW:60}
+    login:
+      max-attempts: ${RATE_LIMIT_LOGIN_MAX:5}
+      window-minutes: ${RATE_LIMIT_LOGIN_WINDOW:15}
+      lockout-minutes: ${RATE_LIMIT_LOGIN_LOCKOUT:30}
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+      group:
+        readiness:
+          include: readinessState,db
+    env:
+      enabled: false
+    heapdump:
+      enabled: false
+    threaddump:
+      enabled: false
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,metrics
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+webhook:
+  crm:
+    # 4.1 标讯状态变更回调 - 回调到 CRM 系统 bidInfoSync 接口
+    # 鉴权与访问 CRM 其他接口一致（Bearer JWT token，由 CrmAuthService 自动获取）
+    # 生产环境必须通过 WEBHOOK_CRM_URL 显式注入；默认值为空避免误回调测试环境
+    url: ${WEBHOOK_CRM_URL:}
+    # 共享密钥；fail-closed —— 未设置或 header 不匹配时 /api/webhooks/crm/** 一律 401
+    token: ${WEBHOOK_CRM_TOKEN:}
 
 wecom:
   api:

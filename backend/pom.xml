@@ -185,6 +185,20 @@
             <artifactId>openai-java</artifactId>
             <version>4.32.0</version>
         </dependency>
+
+        <!-- 华为云 OBS SDK：大文件直传 (Bundle 版避免依赖冲突) -->
+        <dependency>
+            <groupId>com.huaweicloud</groupId>
+            <artifactId>esdk-obs-java-bundle</artifactId>
+            <version>3.23.9</version>
+        </dependency>
+        <!-- 华为云 IAM SDK：STS 临时凭证签发 (AssumeAgency) -->
+        <dependency>
+            <groupId>com.huaweicloud.sdk</groupId>
+            <artifactId>huaweicloud-sdk-iam</artifactId>
+            <version>3.1.28</version>
+        </dependency>
+
         <!-- Test Dependencies -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

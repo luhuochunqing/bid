@@ -29,6 +29,10 @@ export async function uploadDocument(projectId, formData) {
     name: formData.get('name') || formData.get('file')?.name || '项目文档',
     size: formData.get('size') || '1MB',
     fileType: formData.get('fileType') || formData.get('file')?.type || 'application/octet-stream',
+    fileUrl: formData.get('fileUrl') || null,
+    documentCategory: formData.get('documentCategory') || null,
+    linkedEntityType: formData.get('linkedEntityType') || null,
+    linkedEntityId: formData.get('linkedEntityId') ? Number(formData.get('linkedEntityId')) : null,
     uploaderId: formData.get('uploaderId') ? Number(formData.get('uploaderId')) : null,
     uploaderName: formData.get('uploaderName') || '' })
 }

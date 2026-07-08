@@ -1,4 +1,8 @@
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { getDownloadUrl as getObsDownloadUrl } from '@/api/files.js'
+
+const OBS_DIRECT_PREFIX = 'obs-direct:'
+const isObsEnabled = import.meta.env.VITE_OBS_ENABLED === 'true'
 
 const PROJECT_TYPE_SUBMIT_MAP = {
   INDUSTRIAL_EC: 'INDUSTRIAL',
@@ -44,6 +48,7 @@ export function useInitiationStageActions({
   projectsState,
   leaderOptions,
   assistantOptions,
+  obsUpload,
 }) {
   const {
     existing,
@@ -73,11 +78,23 @@ export function useInitiationStageActions({
     uploadingDoc.value = true
     errorMsg.value = ''
     try {
+      let obsFileUrl = null
+      // OBS 直传模式：VITE_OBS_ENABLED=true 时走 OBS，否则走传统 multipart
+      if (isObsEnabled && obsUpload) {
+        const completed = await obsUpload.upload(file)
+        obsFileUrl = OBS_DIRECT_PREFIX + completed.uploadId
+      }
+      // 构造 FormData：OBS 模式不带 file → 走 JSON 变体 B；传统模式带 file → 走 multipart
       const formData = new FormData()
-      formData.set('file', file)
+      if (!obsFileUrl) {
+        formData.set('file', file)
+      }
       formData.set('name', file.name)
       formData.set('size', `${Math.max(1, Math.round((file.size || 1024 * 1024) / 1024 / 1024))}MB`)
       formData.set('fileType', file.type || 'application/octet-stream')
+      if (obsFileUrl) {
+        formData.set('fileUrl', obsFileUrl)
+      }
       formData.set('documentCategory', 'TENDER')
       formData.set('linkedEntityType', 'PROJECT_INITIATION')
       formData.set('linkedEntityId', String(props.projectId))
@@ -86,15 +103,44 @@ export function useInitiationStageActions({
       const result = await projectsApi.uploadDocument(props.projectId, formData)
       if (!result?.success || !result?.data) throw new Error(result?.msg || '招标文件上传失败')
       form.tenderDocumentId = result.data.id
-      bidDocFiles.value = [{ name: result.data.name || file.name, url: result.data.fileUrl || '', uploader: result.data.uploader || userStore.userName, status: 'success' }]
+      bidDocFiles.value = [{ name: result.data.name || file.name, url: obsFileUrl || result.data.fileUrl || '', uploader: result.data.uploader || userStore.userName, status: 'success' }]
       ElMessage.success(`招标文件上传成功：${result.data.name || file.name}`)
     } catch (e) {
       errorMsg.value = e?.response?.data?.msg || e?.message || '招标文件上传失败'
       bidDocFiles.value = []
+      if (obsUpload) obsUpload.reset()
     } finally {
       uploadingDoc.value = false
     }
     return false
+  }
+
+  /**
+   * 下载招标文件：支持 OBS 直传文件（obs-direct: 前缀）和传统文件
+   * @param {Object} file bidDocFiles 中的文件对象
+   * @param {string} projectId 项目 ID
+   */
+  async function handleDownloadBidDoc(file) {
+    const fileUrl = file?.url || ''
+    if (fileUrl.startsWith(OBS_DIRECT_PREFIX)) {
+      // OBS 直传文件：获取预签名 URL 下载
+      const uploadId = fileUrl.slice(OBS_DIRECT_PREFIX.length)
+      try {
+        const result = await getObsDownloadUrl(uploadId)
+        if (result?.url) {
+          window.open(result.url, '_blank')
+        } else {
+          ElMessage.error('获取下载链接失败')
+        }
+      } catch (e) {
+        ElMessage.error(e?.response?.data?.msg || '下载失败')
+      }
+      return
+    }
+    // 传统文件：走后端 /api/projects/{projectId}/documents/{documentId}/download
+    if (form.tenderDocumentId) {
+      window.open(`/api/projects/${props.projectId}/documents/${form.tenderDocumentId}/download`, '_blank')
+    }
   }
 
   function onDepositChange(val) {
@@ -462,6 +508,7 @@ export function useInitiationStageActions({
   return {
     beforeUploadDoc,
     handleDocBeforeUpload,
+    handleDownloadBidDoc,
     onDepositChange,
     handleApprove,
     handleReject,

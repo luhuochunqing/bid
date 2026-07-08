@@ -288,4 +288,9 @@ public class CrmAuthService {
         throw new IllegalStateException(
                 "CRM generateToken failed: code=" + response.code() + " msg=" + response.msg());
     }
+
+
+    private static String escapeJson(String value) {
+        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
+    }
 }

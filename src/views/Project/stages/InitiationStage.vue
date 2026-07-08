@@ -123,6 +123,15 @@
         </div>
       </template>
     </el-upload>
+    <ObsUploadProgress
+      :visible="obsUploading || obsProgressPercent > 0"
+      :file-name="obsCurrentFile?.name || ''"
+      :file-size="obsCurrentFile?.size || 0"
+      :progress-percent="obsProgressPercent"
+      :uploading="obsUploading"
+      :has-error="!!obsError"
+      @cancel="obsUpload.cancel"
+    />
   </div>
   <el-alert v-if="form.aiRiskAssessmentNotes" :title="form.aiRiskAssessmentNotes" :type="aiAlertType" :closable="false" show-icon class="ai-result-alert" />
   <div class="bid-doc-actions">
@@ -202,8 +211,9 @@ import { useUserStore } from '@/stores/user.js'
 import { isBidManager } from '@/utils/permission'
 import AdaptiveFormPage from '@/components/common/AdaptiveFormPage.vue'
 import UserPicker from '@/components/common/UserPicker.vue'
+import ObsUploadProgress from '@/components/common/ObsUploadProgress.vue'
+import { useObsUpload } from '@/composables/useObsUpload.js'
 import { useInitiationStageActions } from './useInitiationStageActions.js'
-import { downloadWithFilename } from '@/utils/download.js'
 import { POSITION_OPTIONS, CONTACT_METHOD_OPTIONS, TENDENCY_OPTIONS, IMPACT_OPTIONS } from '@/views/Bidding/detail/components/customerInfoMatrixConfig.js'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
@@ -237,13 +247,10 @@ function onLeaderSelect(user) { if (user) { approvalForm.biddingLeaderLabel = us
 const uploadUrl = '/api/upload'
 const uploadHeaders = computed(() => { const t = userStore?.token; return t ? { Authorization: 'Bearer ' + t } : {} })
 
-// CO-375: 招标文件下载（用 form.tenderDocumentId 构造下载 URL，handleDocBeforeUpload 自定义上传无 file.response）
-function handleDownloadBidDoc(file) {
-  const documentId = form.tenderDocumentId
-  if (!documentId) { ElMessage.warning('文件信息缺失，无法下载'); return }
-  const url = `/api/projects/${props.projectId}/documents/${documentId}/download`
-  downloadWithFilename(url, file.name || '招标文件')
-}
+// OBS 直传 composable（VITE_OBS_ENABLED=true 时启用大文件直传 OBS）
+const obsUpload = useObsUpload()
+// 解构响应式状态供模板使用（ref 在模板中自动解包）
+const { uploading: obsUploading, progressPercent: obsProgressPercent, currentFile: obsCurrentFile, error: obsError } = obsUpload
 const riskTagType = computed(() => form.aiRiskLevel === 'HIGH' ? 'danger' : form.aiRiskLevel === 'MEDIUM' ? 'warning' : form.aiRiskLevel === 'LOW' ? 'success' : 'info')
 const riskTagText = computed(() => form.aiRiskLevel === 'HIGH' ? '高风险' : form.aiRiskLevel === 'MEDIUM' ? '中风险' : form.aiRiskLevel === 'LOW' ? '低风险' : '')
 const aiAlertType = computed(() => form.aiRiskLevel === 'HIGH' ? 'error' : form.aiRiskLevel === 'MEDIUM' ? 'warning' : 'success')
@@ -273,7 +280,7 @@ async function handleBidDocRemove() {
   ElMessage.success('招标文件已删除')
 }
 
-const { handleDocBeforeUpload, onDepositChange, handleApprove, handleReject, saveDraft, submit, load } = useInitiationStageActions({
+const { handleDocBeforeUpload, handleDownloadBidDoc, onDepositChange, handleApprove, handleReject, saveDraft, submit, load } = useInitiationStageActions({
   props,
   emit,
   form,
@@ -300,6 +307,7 @@ const { handleDocBeforeUpload, onDepositChange, handleApprove, handleReject, sav
     approvalForm,
     evalPrefilled,
   },
+  obsUpload,
 })
 
 async function runAIAssessment() {
