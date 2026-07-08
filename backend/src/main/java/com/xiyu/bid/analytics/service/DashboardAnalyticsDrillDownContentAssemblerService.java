@@ -13,6 +13,7 @@ import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -26,6 +27,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 
 @Component
+@Transactional(readOnly = true)
 class DashboardAnalyticsDrillDownContentAssemblerService {
 
     private final DashboardAnalyticsTeamPerformanceService teamPerformanceService;

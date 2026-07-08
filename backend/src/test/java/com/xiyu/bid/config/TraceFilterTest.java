@@ -1,9 +1,7 @@
 package com.xiyu.bid.config;
 
-import com.xiyu.bid.entity.User;
-import com.xiyu.bid.entity.User.Role;
 import com.xiyu.bid.security.CurrentUserResolver;
-import com.xiyu.bid.security.EffectiveRoleResolver;
+import com.xiyu.bid.security.CurrentUserResolver.UserMdcContext;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,16 +27,13 @@ class TraceFilterTest {
     @Mock
     private CurrentUserResolver currentUserResolver;
 
-    @Mock
-    private EffectiveRoleResolver effectiveRoleResolver;
-
     private TraceFilter traceFilter;
     private AutoCloseable mocks;
 
     @BeforeEach
     void setUp() {
         mocks = MockitoAnnotations.openMocks(this);
-        traceFilter = new TraceFilter(currentUserResolver, effectiveRoleResolver);
+        traceFilter = new TraceFilter(currentUserResolver);
         MDC.clear();
     }
 
@@ -50,13 +45,8 @@ class TraceFilterTest {
 
     @Test
     void injectsTraceIdAndUserContext() throws ServletException, IOException {
-        User user = User.builder()
-                .id(42L)
-                .username("alice")
-                .role(Role.ADMIN)
-                .build();
-        when(currentUserResolver.getCurrentUser()).thenReturn(user);
-        when(effectiveRoleResolver.resolveRoleCode(user)).thenReturn("admin");
+        when(currentUserResolver.getUserMdcContext())
+                .thenReturn(new UserMdcContext("42", "admin"));
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/projects");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -72,7 +62,7 @@ class TraceFilterTest {
 
     @Test
     void anonymousUserWhenNotAuthenticated() throws ServletException, IOException {
-        when(currentUserResolver.getCurrentUser()).thenReturn(null);
+        when(currentUserResolver.getUserMdcContext()).thenReturn(null);
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/projects");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -86,7 +76,7 @@ class TraceFilterTest {
 
     @Test
     void reusesTraceIdFromRequestHeader() throws ServletException, IOException {
-        when(currentUserResolver.getCurrentUser()).thenReturn(null);
+        when(currentUserResolver.getUserMdcContext()).thenReturn(null);
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/projects");
         request.addHeader(TraceConstants.X_TRACE_ID, "existing-trace-id");

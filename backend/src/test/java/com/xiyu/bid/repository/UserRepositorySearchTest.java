@@ -1,5 +1,6 @@
 package com.xiyu.bid.repository;
 
+import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.User;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -232,5 +233,51 @@ class UserRepositorySearchTest {
         assertThat(initialsResults)
             .extracting(User::getFullName)
             .contains("郑蓉蓉");
+    }
+
+    @Test
+    void roleProfile_IsLazyLoaded_NoExtraJoinWhenNotAccessed() throws Exception {
+        // P0 修复：User.roleProfile 从 EAGER 改为 LAZY，通过反射断言 fetch 类型
+        // 防回归：如果有人改回 EAGER，此测试会失败
+        java.lang.reflect.Field field = User.class.getDeclaredField("roleProfile");
+        field.setAccessible(true);
+        jakarta.persistence.ManyToOne manyToOne = field.getAnnotation(jakarta.persistence.ManyToOne.class);
+
+        // 必须是 @ManyToOne
+        assertThat(manyToOne).as("roleProfile 必须用 @ManyToOne").isNotNull();
+        // 必须是 LAZY
+        assertThat(manyToOne.fetch())
+            .as("P0 修复：roleProfile 必须为 LAZY 加载，防止每次 User 查询触发额外 JOIN")
+            .isEqualTo(jakarta.persistence.FetchType.LAZY);
+    }
+
+    @Test
+    void roleProfile_CanBeAccessedWithinTransaction() {
+        // 验证 LAZY 加载在事务内能正常工作（所有 service 调用点都在 @Transactional 内）
+        RoleProfile role = RoleProfile.builder()
+            .code("/bidAdmin")
+            .name("投标管理员")
+            .build();
+        entityManager.persist(role);
+
+        User user = User.builder()
+            .username("admin-lazy-test")
+            .email("admin-lazy@example.com")
+            .password("p")
+            .fullName("管理员测试")
+            .role(User.Role.ADMIN)
+            .roleProfile(role)
+            .enabled(true)
+            .build();
+        entityManager.persist(user);
+        entityManager.flush();
+        entityManager.clear();
+
+        User loaded = userRepository.findByUsername("admin-lazy-test").orElseThrow();
+
+        // 在 @DataJpaTest 事务内，LAZY 加载应该正常工作
+        assertThat(loaded.getRoleProfile()).isNotNull();
+        assertThat(loaded.getRoleProfile().getCode()).isEqualTo("/bidAdmin");
+        assertThat(loaded.getRoleCode()).isEqualTo("/bidAdmin");
     }
 }

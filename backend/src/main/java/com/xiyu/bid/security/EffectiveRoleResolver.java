@@ -6,6 +6,7 @@ import com.xiyu.bid.security.domain.EffectiveRoleResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 有效角色码解析器（外壳编排）。
@@ -30,6 +31,7 @@ import org.springframework.stereotype.Component;
  * security ↔ crm 循环依赖（crm 的登录流程已反向依赖 security 的 LoginRoleWhitelist）。
  */
 @Component
+@Transactional(readOnly = true)
 public class EffectiveRoleResolver {
 
     private static final Logger log = LoggerFactory.getLogger(EffectiveRoleResolver.class);
@@ -52,8 +54,16 @@ public class EffectiveRoleResolver {
         }
         String username = user.getUsername();
         java.util.Optional<String> cachedRoleCode = roleCodeCachePort.getRoleCode(username);
-        String entityRoleCode = user.getRoleCode();
         boolean isOssUser = isOssUser(user);
+
+        // P0 修复（EAGER→LAZY）：仅当 EffectiveRolePolicy 实际需要 entityRoleCode 时才调用
+        // user.getRoleCode()。OSS 用户（缓存命中或未命中）的 policy 决策不依赖 entityRoleCode，
+        // 跳过可避免在分离实体（open-in-view=false）上触发 LazyInitializationException。
+        // 非本地用户（本地账户）始终在 @Transactional 服务内查询，User 处于 attached 状态。
+        boolean cacheHit = cachedRoleCode != null && cachedRoleCode.isPresent()
+                && !cachedRoleCode.get().isBlank();
+        String entityRoleCode = (cacheHit || isOssUser) ? null : user.getRoleCode();
+
         EffectiveRoleResult result = EffectiveRolePolicy.decide(cachedRoleCode, entityRoleCode, isOssUser);
         logDecision(user, result);
         return result;
