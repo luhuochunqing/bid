@@ -99,8 +99,8 @@ class QualificationExportServiceTest {
     }
 
     /**
-     * 同一条资质有多个同名附件（attachments 列表内 + 主 fileUrl），
-     * 也应去重。
+     * 同一条资质的 attachment 与主 fileUrl 指向同一物理文件时，
+     * CO-544 fix: 只应写入 ZIP 一次（跳过与主实体 fileUrl 相同的 attachment）。
      */
     @Test
     void shouldDeduplicateWhenSameQualificationHasSameNamedAttachments() throws Exception {
@@ -132,8 +132,8 @@ class QualificationExportServiceTest {
             }
         }
 
-        // 两个 entry：资质A_cert.docx 和 资质A_cert_1.docx（或类似去重后缀）
-        assertThat(entryNames).hasSize(2);
+        // CO-544 fix: attachment.fileUrl == 主实体 fileUrl，跳过 attachment，只写 1 个 entry
+        assertThat(entryNames).hasSize(1);
         assertThat(entryNames).contains("资质A_cert.docx");
     }
 
@@ -261,6 +261,52 @@ class QualificationExportServiceTest {
 
         assertThat(entryNames).hasSize(1);
         assertThat(entryNames.get(0)).isEqualTo("有效资质_license.pdf");
+    }
+
+    /**
+     * CO-544 回归测试：当 attachment 的 fileUrl 与主实体 fileUrl 相同（指向同一物理文件），
+     * 批量下载 ZIP 不应将同一物理文件写入两次。
+     *
+     * 触发场景：生产 DB 中 qualification_attachments.file_url == business_qualifications.file_url，
+     * 且 attachment.file_name 含历史 .pdf.pdf 双后缀。当前代码分别遍历 attachments 和主实体 fileUrl，
+     * 导致同一物理文件被写入 ZIP 两次（entry 名因 file_name 不同而不同，ZipEntryDeduplicator 无法去重）。
+     */
+    @Test
+    void shouldNotDuplicateWhenAttachmentFileUrlEqualsMainFileUrl() throws Exception {
+        // 模拟生产 DB 真实形态：fileUrl 是裸文件名，本地存储文件存在
+        Path attachmentDir = tempDir.resolve("21");
+        Files.createDirectories(attachmentDir);
+        Path attachmentFile = attachmentDir.resolve("QUAL_0512024ITSM038R0C_01_ISO20000.pdf");
+        Files.writeString(attachmentFile, "pdf-content");
+
+        QualificationDTO q = QualificationDTO.builder()
+                .id(21L)
+                .name("ISO20000")
+                .fileUrl("QUAL_0512024ITSM038R0C_01_ISO20000.pdf")
+                .attachments(List.of(
+                        QualificationAttachmentDTO.builder()
+                                .fileName("QUAL_0512024ITSM038R0C_01_ISO20000.pdf.pdf")
+                                .fileUrl("QUAL_0512024ITSM038R0C_01_ISO20000.pdf")
+                                .build()
+                ))
+                .build();
+
+        when(flatQuery.listAll(null, null)).thenReturn(List.of(q));
+
+        byte[] zipBytes = service.batchExportZip(List.of(21L));
+
+        List<String> entryNames;
+        try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
+            entryNames = new java.util.ArrayList<>();
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                entryNames.add(entry.getName());
+            }
+        }
+
+        // 期望：ZIP 中只有 1 个 entry（同一物理文件不应被写入两次）
+        assertThat(entryNames).hasSize(1);
+        assertThat(entryNames.get(0)).isEqualTo("ISO20000_QUAL_0512024ITSM038R0C_01_ISO20000.pdf");
     }
 
     /**
