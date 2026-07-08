@@ -442,10 +442,12 @@ ssh -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" jetty@172.16.38.78 '
 
   rm -rf /srv/www/xiyu-bid
   cp -a "$backup_dir/frontend" /srv/www/xiyu-bid
+
+  sudo systemctl stop xiyu-bid-backend
   cp "$backup_dir/app.jar" /opt/xiyu-bid/shared/backend/app.jar
   cp "$backup_dir/deployed-release.json" /opt/xiyu-bid/deployed-release.json
+  sudo systemctl start xiyu-bid-backend
 
-  sudo systemctl restart xiyu-bid-backend
   curl -fsS http://127.0.0.1:8080/actuator/health
 '
 ```
@@ -486,19 +488,21 @@ curl -fsS http://127.0.0.1:18080/actuator/health
 
 后端刚重启时 `127.0.0.1:18080` 可能短时间 `Connection refused` 或经 Nginx 返回 `503`。以 60 次、每 2 秒重试为准，最终必须返回 `UP`。
 
-### 13.4 日志里出现旧进程 shutdown 异常
+### 13.4 日志里出现旧进程 shutdown 异常（已修复）
 
-本次部署中旧进程停止阶段曾出现 `NoClassDefFoundError`，但新进程启动后健康检查和 smoke 均通过。判断时不要只看旧 PID 的 shutdown 栈，要同时检查：
+> 历史状态（2026-06-26 第 3 次部署确认）：`remote-deploy.sh` 用 `cp` 覆盖 `/opt/xiyu-bid/shared/backend/app.jar` **后才** `systemctl restart`。旧进程收到 SIGTERM 后执行 Spring Boot 的 GracefulShutdown 回调，此时 jar 已被新文件覆盖，旧 class loader 尝试加载 `GracefulShutdownCallback`/`Lifecycle$SingleUse`/netty 类时找不到（`NoClassDefFoundError`/`ClassNotFoundException`）。团队曾认为这是 **stop 阶段的非致命异常**，为缩短停机时间而保留"先 cp → 再 restart"序列。
+>
+> 2026-07-08 第 57 次部署（release `aa3208f53-api8080`）证明该模式会导致**用户可见 500**：旧进程在 90 秒 shutdown 窗口内仍在处理请求，Hibernate 加载 `org.hibernate.sql.results.graph.instantiation.internal.DynamicInstantiationArgument` 时抛 `ClassNotFoundException`，Sentry 记录 `GET /api/analytics/customer-types` 异常（issue XIYU-19）。详见 `docs/lessons/lessons-learned.md` §5、§13。
+
+**当前做法**：`scripts/release/remote-deploy.sh` 已改为 `stop → cp jar → start` 序列，彻底消除旧进程引用新 jar 的 class loader 污染。该序列会引入短暂服务中断，但避免了部署窗口内的用户请求异常。
+
+判断现场时若看到旧 PID 的 shutdown 异常，仍需同时检查：
 
 ```bash
 systemctl is-active xiyu-bid-backend
 curl -fsS http://127.0.0.1:8080/actuator/health
 sudo journalctl -u xiyu-bid-backend --since "10 min ago" --no-pager
 ```
-
-**根因（2026-06-26 第 3 次部署确认）**：`remote-deploy.sh` 用 `cp` 覆盖 `/opt/xiyu-bid/shared/backend/app.jar` **后才** `systemctl restart`。旧进程收到 SIGTERM 后执行 Spring Boot 的 GracefulShutdown 回调，此时 jar 已被新文件覆盖，旧 class loader 尝试加载 `GracefulShutdownCallback`/`Lifecycle$SingleUse`/netty 类时找不到（`NoClassDefFoundError`/`ClassNotFoundException`）。这是 **stop 阶段的非致命异常**——旧进程本就要退出，shutdown 回调失败不影响新进程启动。新进程用全新 class loader 加载新 jar，正常。
-常见异常类名（无需处置，仅供识别）：`org.springframework.boot.web.servlet.context.GracefulShutdownLifecycleHandler`、`reactor.netty` 相关。
-若需消除该 WARN，需将 `remote-deploy.sh` 改为"先 stop → 再 cp jar → 再 start"序列（会引入服务中断窗口，当前为权衡后保持"先 cp → 再 restart"以缩短停机）。
 
 ### 13.5 Flyway checksum mismatch / 后端启动失败
 
@@ -549,8 +553,9 @@ mysql -h <DB_HOST> -u <DB_USER> -p <DB_NAME> < /opt/xiyu-bid/backups/flyway-hist
 如需回滚 jar 到上一版本（因为新 jar 已被 restart 过）：
 
 ```bash
+sudo systemctl stop xiyu-bid-backend
 cp /opt/xiyu-bid/releases/<旧release-id>/backend/app.jar /opt/xiyu-bid/shared/backend/app.jar
-sudo systemctl restart xiyu-bid-backend
+sudo systemctl start xiyu-bid-backend
 ```
 
 **预防**：本地提交时 `check-flyway-immutable.sh` pre-commit 门禁会拦截"修改 origin/main 已存在的 V*.sql"。如果确实需要紧急修复已发布迁移（极少见），用 `FLYWAY_ALLOW_IMMUTABLE_EDIT=1 git commit`，但必须在部署前跑 repair，并在 PR 描述里说明理由。

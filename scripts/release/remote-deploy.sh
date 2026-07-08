@@ -136,15 +136,23 @@ elif [[ "${SKIP_FLYWAY_VALIDATE:-0}" != "1" ]]; then
   printf '   建议将其与 remote-deploy.sh 一起上传，获得 checksum mismatch 前置拦截能力。\n\n'
 fi
 
+# 必须先停服务再替换 jar，再启动服务。
+# 反例：先 cp 替换 jar 再 systemctl restart 会导致旧进程 ShutdownHook
+# 执行时引用已被替换的 jar，触发 NoClassDefFoundError / ClassNotFoundException
+# 并卡住 90s 直到 systemd SIGKILL，部署窗口内请求会异常。
+# 详见 docs/lessons/lessons-learned.md §5。
+printf '==> Stopping backend service %s\n' "$BACKEND_SERVICE_NAME"
+run_systemctl stop "$BACKEND_SERVICE_NAME"
+
 printf '==> Updating backend artifact\n'
 cp "$RELEASE_DIR/backend/app.jar" "$BACKEND_JAR_PATH"
 
 printf '==> Writing deployed release record %s\n' "$DEPLOYED_RELEASE_RECORD"
 write_deployed_release_record
 
-printf '==> Restarting backend service %s\n' "$BACKEND_SERVICE_NAME"
+printf '==> Starting backend service %s\n' "$BACKEND_SERVICE_NAME"
 run_systemctl daemon-reload || true
-run_systemctl restart "$BACKEND_SERVICE_NAME"
+run_systemctl start "$BACKEND_SERVICE_NAME"
 run_systemctl --no-pager --full status "$BACKEND_SERVICE_NAME" || true
 
 printf '==> Waiting for health check %s\n' "$HEALTHCHECK_URL"
