@@ -15,7 +15,11 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -27,13 +31,33 @@ public class BudgetAlertDispatchService {
     private final ExpenseRepository expenseRepository;
 
     public void dispatch(AlertRule rule) {
-        for (Project project : projectRepository.findActiveProjects()) {
-            Tender tender = tenderRepository.findById(project.getTenderId()).orElse(null);
+        List<Project> activeProjects = projectRepository.findActiveProjects();
+        if (activeProjects.isEmpty()) {
+            return;
+        }
+
+        // P0-2: 批量加载 Tender 和 Expense 汇总，避免循环内 N+1 查询
+        Set<Long> tenderIds = activeProjects.stream()
+                .map(Project::getTenderId)
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
+        Map<Long, Tender> tenderMap = tenderIds.isEmpty()
+                ? Map.of()
+                : tenderRepository.findAllById(tenderIds).stream()
+                        .collect(Collectors.toMap(Tender::getId, Function.identity(), (a, b) -> a));
+
+        Set<Long> projectIds = activeProjects.stream()
+                .map(Project::getId)
+                .collect(Collectors.toSet());
+        Map<Long, BigDecimal> expenseMap = batchLoadExpenseSums(projectIds);
+
+        for (Project project : activeProjects) {
+            Tender tender = tenderMap.get(project.getTenderId());
             if (tender == null || tender.getBudget() == null || tender.getBudget().compareTo(BigDecimal.ZERO) <= 0) {
                 continue;
             }
 
-            BigDecimal totalExpense = expenseRepository.sumAmountByProjectId(project.getId());
+            BigDecimal totalExpense = expenseMap.getOrDefault(project.getId(), BigDecimal.ZERO);
             BigDecimal expenseRatio = totalExpense
                     .divide(tender.getBudget(), 4, RoundingMode.HALF_UP)
                     .multiply(BigDecimal.valueOf(100));
@@ -42,6 +66,23 @@ public class BudgetAlertDispatchService {
                 createAlert(rule, project, expenseRatio, totalExpense, tender.getBudget());
             }
         }
+    }
+
+    /**
+     * P0-2: 批量查询项目费用总额，返回 projectId → totalAmount 映射。
+     */
+    private Map<Long, BigDecimal> batchLoadExpenseSums(Set<Long> projectIds) {
+        if (projectIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Object[]> rows = expenseRepository.sumAmountByProjectIdIn(List.copyOf(projectIds));
+        Map<Long, BigDecimal> result = new HashMap<>();
+        for (Object[] row : rows) {
+            Long projectId = (Long) row[0];
+            BigDecimal total = (BigDecimal) row[1];
+            result.put(projectId, total != null ? total : BigDecimal.ZERO);
+        }
+        return result;
     }
 
     private boolean shouldAlert(AlertRule rule, BigDecimal expenseRatio) {

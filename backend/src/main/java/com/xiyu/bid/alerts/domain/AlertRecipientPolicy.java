@@ -29,11 +29,11 @@ public final class AlertRecipientPolicy {
      *
      * <p>返回值始终非 null 且不可变。null 入参返回空列表，调用方安全降级。</p>
      *
-     * <p><b>设计决策</b>：所有告警类型采用角色码广播策略。
-     * DEADLINE 类型的精准通知（仅通知标讯关联项目的负责人）由
-     * {@code AlertNotificationOrchestrator} 在编排层通过
-     * {@code NotificationRecipientResolver.getProjectMemberUserIds} 补充解析，
-     * 本纯核心仅返回候选角色码集合。</p>
+     * <p><b>设计决策</b>：大部分告警类型采用角色码广播策略。
+     * DEADLINE 类型<b>不广播</b>，仅通过
+     * {@link #requiresProjectSpecificRecipients} 走项目精准通知，
+     * 避免投标专员收到所有标讯的截止提醒（通知轰炸）。
+     * 其他类型仍走角色广播。</p>
      *
      * @param type 告警类型，null 时返回空列表
      * @return 不可变角色码列表，非 null
@@ -43,7 +43,8 @@ public final class AlertRecipientPolicy {
             return List.of();
         }
         List<String> raw = switch (type) {
-            case DEADLINE -> List.of(RoleProfileCatalog.SALES_CODE, RoleProfileCatalog.BID_LEAD_CODE);
+            // P1-4: DEADLINE 不再广播，仅通过 requiresProjectSpecificRecipients 走项目精准通知
+            case DEADLINE -> List.of();
             case RISK -> List.of(RoleProfileCatalog.BID_ADMIN_CODE, RoleProfileCatalog.BID_LEAD_CODE);
             case DOCUMENT -> List.of(RoleProfileCatalog.SALES_CODE, RoleProfileCatalog.BID_LEAD_CODE);
             case BUDGET -> List.of(RoleProfileCatalog.BID_ADMIN_CODE, RoleProfileCatalog.BID_LEAD_CODE);

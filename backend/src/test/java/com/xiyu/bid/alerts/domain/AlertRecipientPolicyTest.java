@@ -22,10 +22,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AlertRecipientPolicyTest {
 
     @Test
-    void resolveRoleCodes_DEADLINE_应返回项目负责人与组长() {
+    void resolveRoleCodes_DEADLINE_应返回空列表_仅走项目精准通知() {
+        // P1-4: DEADLINE 不再广播，仅通过 requiresProjectSpecificRecipients 走项目精准通知
         List<String> roles = AlertRecipientPolicy.resolveRoleCodes(AlertRule.AlertType.DEADLINE);
 
-        assertThat(roles).containsExactly("bid-projectLeader", "bid-TeamLeader");
+        assertThat(roles).isEmpty();
     }
 
     @Test
@@ -96,8 +97,12 @@ class AlertRecipientPolicyTest {
     }
 
     @Test
-    void resolveRoleCodes_每种类型返回的List均非空() {
+    void resolveRoleCodes_非DEADLINE类型返回的List均非空() {
+        // P1-4: DEADLINE 返回空列表（仅走项目精准通知），其余类型必须非空
         for (AlertRule.AlertType type : AlertRule.AlertType.values()) {
+            if (type == AlertRule.AlertType.DEADLINE) {
+                continue;
+            }
             List<String> roles = AlertRecipientPolicy.resolveRoleCodes(type);
 
             assertThat(roles)

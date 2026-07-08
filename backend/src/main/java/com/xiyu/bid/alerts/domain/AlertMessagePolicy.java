@@ -3,6 +3,7 @@ package com.xiyu.bid.alerts.domain;
 import com.xiyu.bid.alerts.entity.AlertRule;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * 告警消息构建纯核心。
@@ -19,12 +20,6 @@ import java.util.Map;
  * </ul>
  */
 public final class AlertMessagePolicy {
-
-    /** 数值 ID 的合法字符集（1-18 位数字，避免 long 溢出）。 */
-    private static final String NUMERIC_ID_PATTERN = "\\d{1,18}";
-
-    /** relatedId 中实体类型与 ID 的分隔符。 */
-    private static final String RELATED_ID_SEPARATOR = ":";
 
     /** payload 中存放告警子类型的 key（用于 CA_EXPIRY 区分 EXPIRED/EXPIRING 等）。 */
     public static final String PAYLOAD_KEY_ALERT_SUB_TYPE = "alertSubType";
@@ -52,14 +47,17 @@ public final class AlertMessagePolicy {
     ) {
         String notificationType = resolveNotificationType(type, extraPayload);
         String title = resolveTitle(type);
-        ParsedRelatedId parsed = parseRelatedId(relatedId);
+        // P1-2: 使用共享的 RelatedIdParser 统一解析 relatedId
+        Optional<RelatedIdParser.ParsedRelatedId> parsed = RelatedIdParser.parse(relatedId);
+        String entityType = parsed.map(RelatedIdParser.ParsedRelatedId::entityType).orElse(null);
+        Long entityId = parsed.map(RelatedIdParser.ParsedRelatedId::entityId).orElse(null);
 
         return new AlertNotificationInfo(
                 notificationType,
                 title,
                 alertMessage,
-                parsed.entityType(),
-                parsed.entityId(),
+                entityType,
+                entityId,
                 resolveTargetUrl(extraPayload)
         );
     }
@@ -132,45 +130,5 @@ public final class AlertMessagePolicy {
         }
         Object value = extraPayload.get(PAYLOAD_KEY_ALERT_SUB_TYPE);
         return value instanceof String s ? s : null;
-    }
-
-    /**
-     * 解析 relatedId（格式 "EntityType:EntityId"，单冒号，ID 为纯数字）。
-     *
-     * <p>FP-Java 合规：无 try-catch，先正则校验 ID 为纯数字（1-18 位，避免 long 溢出），
-     * 再安全转换为 Long。多冒号或非数字 ID 返回 empty。</p>
-     *
-     * @return {@link ParsedRelatedId}；解析失败返回 {@link ParsedRelatedId#empty()}
-     */
-    private static ParsedRelatedId parseRelatedId(String relatedId) {
-        if (relatedId == null || relatedId.isBlank()) {
-            return ParsedRelatedId.empty();
-        }
-        int separatorIdx = relatedId.indexOf(RELATED_ID_SEPARATOR);
-        if (separatorIdx <= 0) {
-            return ParsedRelatedId.empty();
-        }
-        String entityType = relatedId.substring(0, separatorIdx);
-        String entityIdRaw = relatedId.substring(separatorIdx + 1);
-        if (entityType.isBlank() || !entityIdRaw.matches(NUMERIC_ID_PATTERN)) {
-            return ParsedRelatedId.empty();
-        }
-        // 仅允许单分隔符：原始串中再出现分隔符视为格式错误
-        if (relatedId.indexOf(RELATED_ID_SEPARATOR, separatorIdx + 1) >= 0) {
-            return ParsedRelatedId.empty();
-        }
-        return new ParsedRelatedId(entityType, Long.parseLong(entityIdRaw));
-    }
-
-    /**
-     * relatedId 解析结果值对象。
-     *
-     * @param entityType 实体类型（如 "Tender"、"Project"），解析失败为 null
-     * @param entityId   实体 ID，解析失败为 null
-     */
-    private record ParsedRelatedId(String entityType, Long entityId) {
-        static ParsedRelatedId empty() {
-            return new ParsedRelatedId(null, null);
-        }
     }
 }

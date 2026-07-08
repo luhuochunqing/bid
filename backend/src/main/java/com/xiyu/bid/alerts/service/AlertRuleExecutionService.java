@@ -3,6 +3,7 @@
 // Pos: Service/业务层
 package com.xiyu.bid.alerts.service;
 
+import com.xiyu.bid.alerts.domain.AlertSeverityPolicy;
 import com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest;
 import com.xiyu.bid.alerts.dto.AlertHistoryCreateResult;
 import com.xiyu.bid.alerts.entity.AlertHistory;
@@ -24,6 +25,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -38,6 +40,9 @@ public class AlertRuleExecutionService {
     /** DEADLINE 规则关注的状态集合：待分配 + 跟踪中 */
     private static final Set<Tender.Status> DEADLINE_RELEVANT_STATUSES = Set.of(
             Tender.Status.PENDING_ASSIGNMENT, Tender.Status.TRACKING);
+
+    /** P1-5: 过期超过此天数的标讯视为历史废弃，停止告警避免无限通知 */
+    private static final int DEADLINE_EXPIRED_STOP_ALERT_DAYS = 30;
 
     /** 截止日期显示格式（避免 ISO T 分隔符暴露给用户） */
     private static final DateTimeFormatter DEADLINE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -83,8 +88,9 @@ public class AlertRuleExecutionService {
 
             // P1-8: 已过期标讯仅在 LESS_THAN 条件下强制告警
             // （GREATER_THAN/EQUALS 不应因过期触发，否则违反用户配置的阈值语义）
+            // P1-5: 过期超过 30 天的标讯视为历史废弃，停止告警避免无限通知
             if (daysUntilDeadline < 0 && rule.getCondition() == AlertRule.ConditionType.LESS_THAN) {
-                shouldAlert = true;
+                shouldAlert = daysUntilDeadline >= -DEADLINE_EXPIRED_STOP_ALERT_DAYS;
             }
 
             if (shouldAlert) {
@@ -137,10 +143,22 @@ public class AlertRuleExecutionService {
     private void checkDocumentAlert(AlertRule rule) {
         int maxMissingDocs = rule.getThreshold().intValue();
 
-        for (Project project : projectRepository.findActiveProjects()) {
-            // 每项目只查一次文档列表，避免 N+1 查询
-            List<ProjectDocument> docs = projectDocumentRepository
-                    .findByProjectIdOrderByCreatedAtDesc(project.getId());
+        List<Project> activeProjects = projectRepository.findActiveProjects();
+        if (activeProjects.isEmpty()) {
+            return;
+        }
+
+        // P0-1: 批量加载所有活跃项目的文档，避免循环内 N+1 查询
+        Set<Long> projectIds = activeProjects.stream()
+                .map(Project::getId)
+                .collect(Collectors.toSet());
+        Map<Long, List<ProjectDocument>> docsByProject = projectDocumentRepository
+                .findByProjectIdInOrderByCreatedAtDesc(projectIds)
+                .stream()
+                .collect(Collectors.groupingBy(ProjectDocument::getProjectId));
+
+        for (Project project : activeProjects) {
+            List<ProjectDocument> docs = docsByProject.getOrDefault(project.getId(), List.of());
             int missingDocCount = 0;
             String missingDocs;
 
@@ -191,6 +209,13 @@ public class AlertRuleExecutionService {
      * <p>注：alert 业务传入的 docType 是中文文档类型名（"资质文件"、"技术方案"等），
      * 而 ProjectDocument.name 是实际文件名，因此使用包含匹配而非精确相等。</p>
      *
+     * <p><b>已知缺陷（P0-3 技术债）</b>：用文件名中文包含匹配判断文档类型，
+     * 若用户上传文件名为"资质文件备份.pdf"会误判为已有；若改名为"qualifications.pdf"则漏判。
+     * 完整修复需要 {@code ProjectDocument} 实体新增 {@code documentCategory} 字段
+     * （已有 {@link ProjectDocumentRepository#findByProjectIdAndFiltersOrderByCreatedAtDesc}
+     * 支持 documentCategory 过滤），但需要迁移历史文档的分类数据，超出本次范围。
+     * 临时方案保留中文包含匹配，待后续迭代推动实体建模治理。</p>
+     *
      * @param docs   已查询的项目文档列表（避免 N+1 查询，由调用方一次性加载）
      * @param docType 文档类型关键字（中文名称）
      * @return true 表示项目已上传该类型文档；false 表示缺失
@@ -215,7 +240,7 @@ public class AlertRuleExecutionService {
                              String message, Map<String, Object> extraPayload) {
         AlertHistoryCreateRequest request = new AlertHistoryCreateRequest();
         request.setRuleId(rule.getId());
-        request.setLevel(calculateSeverity(rule));
+        request.setLevel(AlertSeverityPolicy.resolveSeverity(rule));
         request.setMessage(message);
         request.setRelatedId(String.format("%s:%s", entityType, entityId));
         AlertHistoryCreateResult result = alertNotificationOrchestrator.createAndNotifyIfNew(request, rule, extraPayload);
@@ -224,20 +249,5 @@ public class AlertRuleExecutionService {
         } else {
             log.debug("Alert already exists, skipped: Rule={}, Entity={}", rule.getName(), entityType);
         }
-    }
-
-    private AlertHistory.AlertLevel calculateSeverity(AlertRule rule) {
-        return switch (rule.getType()) {
-            case BUDGET -> AlertHistory.AlertLevel.HIGH;
-            case DEADLINE -> {
-                int days = rule.getThreshold().intValue();
-                yield days <= 1 ? AlertHistory.AlertLevel.CRITICAL
-                        : days <= 3 ? AlertHistory.AlertLevel.HIGH
-                        : AlertHistory.AlertLevel.MEDIUM;
-            }
-            case RISK, DEPOSIT_RETURN -> AlertHistory.AlertLevel.MEDIUM;
-            case DOCUMENT -> AlertHistory.AlertLevel.LOW;
-            case QUALIFICATION_EXPIRY, PERFORMANCE_EXPIRY, CA_EXPIRY, CA_BORROW_OVERDUE -> AlertHistory.AlertLevel.HIGH;
-        };
     }
 }

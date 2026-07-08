@@ -6,6 +6,7 @@ package com.xiyu.bid.alerts.service;
 import com.xiyu.bid.alerts.domain.AlertMessagePolicy;
 import com.xiyu.bid.alerts.domain.AlertNotificationInfo;
 import com.xiyu.bid.alerts.domain.AlertRecipientPolicy;
+import com.xiyu.bid.alerts.domain.RelatedIdParser;
 import com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest;
 import com.xiyu.bid.alerts.dto.AlertHistoryCreateResult;
 import com.xiyu.bid.alerts.entity.AlertHistory;
@@ -25,6 +26,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -186,26 +188,24 @@ public class AlertNotificationOrchestrator {
      */
     private void addProjectSpecificRecipients(AlertHistory alertHistory, List<Long> recipientUserIds) {
         String relatedId = alertHistory.getRelatedId();
-        if (relatedId == null || !relatedId.startsWith("Tender:")) {
+        // P1-2: 使用共享的 RelatedIdParser 统一解析 relatedId，消除 startsWith + substring 的脆弱实现
+        Optional<Long> tenderIdOpt = RelatedIdParser.parseEntityId(
+                RelatedIdParser.isEntityType(relatedId, "Tender") ? relatedId : null);
+        if (tenderIdOpt.isEmpty()) {
             return;
         }
-        try {
-            String tenderIdStr = relatedId.substring("Tender:".length());
-            Long tenderId = Long.parseLong(tenderIdStr);
-            // 查找关联项目（一个标讯可能对应多个项目，取第一个活跃项目）
-            List<Project> projects = projectRepository.findByTenderId(tenderId);
-            Set<Long> existingIds = Set.copyOf(recipientUserIds);
-            for (Project project : projects) {
-                List<Long> projectMembers = notificationRecipientResolver
-                        .getProjectMemberUserIds(project.getId(), null);
-                for (Long memberId : projectMembers) {
-                    if (!existingIds.contains(memberId)) {
-                        recipientUserIds.add(memberId);
-                    }
+        Long tenderId = tenderIdOpt.get();
+        // 查找关联项目（一个标讯可能对应多个项目，取第一个活跃项目）
+        List<Project> projects = projectRepository.findByTenderId(tenderId);
+        Set<Long> existingIds = Set.copyOf(recipientUserIds);
+        for (Project project : projects) {
+            List<Long> projectMembers = notificationRecipientResolver
+                    .getProjectMemberUserIds(project.getId(), null);
+            for (Long memberId : projectMembers) {
+                if (!existingIds.contains(memberId)) {
+                    recipientUserIds.add(memberId);
                 }
             }
-        } catch (NumberFormatException e) {
-            log.warn("DEADLINE 告警 relatedId 格式异常，跳过项目接收人解析：relatedId={}", relatedId);
         }
     }
 

@@ -25,38 +25,9 @@ public class AlertHistoryService {
 
     @Transactional
     public AlertHistory createAlertHistory(AlertHistoryCreateRequest request) {
-        if (request.getRuleId() == null) {
-            throw new IllegalArgumentException("Rule ID is required");
-        }
-        if (request.getLevel() == null) {
-            throw new IllegalArgumentException("Level is required");
-        }
-        if (request.getMessage() == null || request.getMessage().trim().isEmpty()) {
-            throw new IllegalArgumentException("Message is required");
-        }
-
-        AlertRule rule = alertRuleRepository.findById(request.getRuleId())
-                .orElseThrow(() -> new RuntimeException("AlertRule not found with id: " + request.getRuleId()));
-
-        AlertHistory existingAlert = null;
-        if (request.getRelatedId() != null && !request.getRelatedId().trim().isEmpty()) {
-            existingAlert = alertHistoryRepository.findFirstByRuleIdAndRelatedIdAndResolvedFalseOrderByCreatedAtDesc(
-                    request.getRuleId(), request.getRelatedId()).orElse(null);
-        }
-        if (existingAlert != null) {
-            log.debug("Returning existing unresolved alert for rule {} and relatedId {}", rule.getId(), request.getRelatedId());
-            return existingAlert;
-        }
-
-        AlertHistory alertHistory = AlertHistory.builder()
-                .ruleId(request.getRuleId())
-                .level(request.getLevel())
-                .message(request.getMessage())
-                .relatedId(request.getRelatedId())
-                .resolved(false)
-                .build();
-
-        return alertHistoryRepository.save(alertHistory);
+        // P2-1: 委托给 createAlertHistoryIfAbsent，统一使用冷却期去重逻辑
+        // （旧方法仅按未处理去重，是 createAlertHistoryIfAbsent 的子集）
+        return createAlertHistoryIfAbsent(request).alertHistory();
     }
 
     /**
@@ -147,6 +118,6 @@ public class AlertHistoryService {
 
     public AlertHistory getAlertHistoryById(Long id) {
         return alertHistoryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("AlertHistory not found with id: " + id));
+                .orElseThrow(() -> new IllegalStateException("AlertHistory not found with id: " + id));
     }
 }
