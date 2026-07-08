@@ -86,7 +86,7 @@ public class RoutingAiProvider implements AiProvider {
         }
 
         return new AiProviderRuntimeConfig(providerCode, provider.getBaseUrl(), provider.getModel(), apiKey,
-                provider.getEmbeddingModel(), null);
+                /* embeddingBaseUrl */ null, provider.getEmbeddingModel());
     }
 
     private String resolveEnvironmentApiKey(String providerCode) {

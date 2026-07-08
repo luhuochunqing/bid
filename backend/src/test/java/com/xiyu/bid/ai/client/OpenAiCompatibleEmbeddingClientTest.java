@@ -133,9 +133,9 @@ class OpenAiCompatibleEmbeddingClientTest {
     }
 
     @Test
-    void defaultEmbeddingModel_ShouldBeTextEmbeddingV3() {
+    void defaultEmbeddingModel_ShouldBeQwen3Embedding8b() {
         assertThat(OpenAiCompatibleEmbeddingClient.DEFAULT_EMBEDDING_MODEL)
-                .isEqualTo("text-embedding-v3");
+                .isEqualTo("qwen3-embedding-8b");
     }
 
     private OpenAiCompatibleEmbeddingClient createClient() {
