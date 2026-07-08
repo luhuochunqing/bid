@@ -15,15 +15,17 @@
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { projectsApi } from '@/api/modules/projects.js'
-import { createTaskDeliverable as apiCreateTaskDeliverable } from '@/api/modules/taskDeliverables.js'
 import { useUserStore } from '@/stores/user.js'
+import { useProjectStore } from '@/stores/project.js'
 import { TASK_STATUS } from '@/constants/taskStatus.js'
 import { validateSubmitForReview } from './useTaskSubmissionValidation.js'
+import { uploadTaskFilesWithFallback } from './projectDetail/taskAssigneePayload.js'
 
 export function useTaskActions(options = {}) {
   const { onSubmitted, api = projectsApi } = options
 
   const userStore = useUserStore()
+  const projectStore = options.projectStore ?? useProjectStore()
 
   // ===== 当前用户判断 =====
   function matchesCurrentUser(id) {
@@ -108,12 +110,18 @@ export function useTaskActions(options = {}) {
 
     submittingTaskLoading.value = true
     try {
-      if (deliverableUploadRef.value?.uploadFiles?.length > 0) {
-        const formData = new FormData()
-        formData.append('file', deliverableUploadRef.value.uploadFiles[0].raw)
-        formData.append('taskId', task.id)
-        await apiCreateTaskDeliverable(projectId, task.id, formData)
-      }
+      const uploadOk = await uploadTaskFilesWithFallback(
+        task,
+        { attachments: [], deliverableFiles: deliverableUploadRef.value?.uploadFiles || [] },
+        { projectStore, projectId, userStore },
+        {
+          attachments: '已提交审核，但附件上传失败，请重试',
+          deliverables: '已提交审核，但交付物上传失败，请重试',
+        },
+        ElMessage,
+      )
+      if (!uploadOk) return
+
       await api.updateTaskStatus(projectId, task.id, TASK_STATUS.REVIEW, null, submitNotes.value)
       ElMessage.success('已提交审核')
       closeSubmitDialog()
