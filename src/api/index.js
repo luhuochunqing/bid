@@ -50,6 +50,7 @@ import { taskActivityApi } from './modules/taskActivity.js'
 import { tasksApi } from './modules/tasks.js'
 import { organizationIntegrationApi, weComIntegrationApi } from './modules/systemIntegration.js'
 import { tenderFavoritesApi } from './modules/tenderFavorites.js'
+import { caseSlicesApi } from './modules/caseSlices.js'
 
 export {
   httpClient,
@@ -87,6 +88,7 @@ export {
   taskActivityApi,
   tasksApi,
   tenderFavoritesApi,
+  caseSlicesApi,
   weComIntegrationApi,
   organizationIntegrationApi
 }
@@ -120,6 +122,7 @@ export default {
   taskActivity: () => Promise.resolve(taskActivityApi),
   tasks: () => Promise.resolve(tasksApi),
   tenderFavorites: () => Promise.resolve(tenderFavoritesApi),
+  caseSlices: () => Promise.resolve(caseSlicesApi),
   weComIntegration: () => Promise.resolve(weComIntegrationApi),
   organizationIntegration: () => Promise.resolve(organizationIntegrationApi)
 }

@@ -132,7 +132,7 @@ export function useDocumentKnowledge({
     if (!section || !match) return
 
     const insertedAt = new Date().toISOString()
-    const sourceLabel = match.type === 'case' ? '案例库' : '模板库'
+    const sourceLabel = match.sourceLabel || (match.type === 'case' ? '案例库' : '模板库')
 
     if (match.type === 'case' && /^\d+$/.test(String(match.id))) {
       try {
