@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.crm.config.CrmProperties;
 import com.xiyu.bid.crm.infrastructure.CrmHttpClient;
 import com.xiyu.bid.crm.infrastructure.CrmResponseHandler;
+import com.xiyu.bid.crm.infrastructure.dto.CustomerChanceVO;
 import com.xiyu.bid.exception.BusinessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -43,13 +44,14 @@ class CrmTenderSubjectCheckerTest {
     @Mock private CrmHttpClient httpClient;
     @Mock private CrmAuthService authService;
     @Mock private CrmProperties properties;
+    @Mock private CrmChanceService crmChanceService;
 
     private CrmTenderSubjectChecker checker;
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        checker = new CrmTenderSubjectChecker(httpClient, authService, properties);
+        checker = new CrmTenderSubjectChecker(httpClient, authService, properties, crmChanceService);
         // lenient：code=-1 等用例不会触达这些 stub
         lenient().when(authService.getValidTokenForUser(anyString())).thenReturn("fake-token");
         lenient().when(properties.getEffectiveChanceBaseUrl()).thenReturn("https://chance-test.ehsy.com");
@@ -85,12 +87,13 @@ class CrmTenderSubjectCheckerTest {
     }
 
     @Test
-    @DisplayName("code=1 + msg 含\"不存在\" → NOT_IN_CRM + CO-501 文案")
-    void check_whenCode1AndMsgContainsNotExists_shouldReturnNotInCrm() {
+    @DisplayName("code=1 + msg 含\"不存在\" + fallback detail 返回 null → NOT_IN_CRM + CO-501 文案")
+    void check_whenCode1AndMsgContainsNotExists_andFallbackNull_shouldReturnNotInCrm() {
         CrmResponseHandler.CrmApiResponse response = parse("""
             {"code": 1, "msg": "招标主体不存在", "data": 0}
             """);
         when(httpClient.get(anyString(), anyString(), anyString())).thenReturn(response);
+        when(crmChanceService.findByCode(eq("CC20260707001"), eq("alice"))).thenReturn(null);
 
         CrmTenderSubjectChecker.CheckResult result = checker.check("山东海化集团", "CC20260707001", "alice");
 
@@ -100,8 +103,87 @@ class CrmTenderSubjectCheckerTest {
     }
 
     @Test
-    @DisplayName("code=1 + msg 含\"不属于\" → NOT_IN_GROUP + CO-501 文案")
-    void check_whenCode1AndMsgContainsNotBelong_shouldReturnNotInGroup() {
+    @DisplayName("code=1 \"不存在\" + fallback detail tenderSubject 匹配 + tenderSubjectId>0 → fallback 通过")
+    void check_whenNotInCrm_butDetailTenderSubjectMatches_shouldFallbackPass() throws Exception {
+        CrmResponseHandler.CrmApiResponse response = parse("""
+            {"code": 1, "msg": "招标主体不存在CRM系统", "data": 0}
+            """);
+        when(httpClient.get(anyString(), anyString(), anyString())).thenReturn(response);
+        // detail 接口返回的商机中 tenderSubject 与传入一致，tenderSubjectId>0
+        CustomerChanceVO chance = MAPPER.readValue("""
+            {"id":21299,"code":"CC20260707001","name":"测试商机",
+             "groupName":"安徽古井贡酒股份有限公司","groupId":8083699,
+             "tenderSubject":"安徽古井贡酒股份有限公司","tenderSubjectId":8083699}
+            """, CustomerChanceVO.class);
+        when(crmChanceService.findByCode(eq("CC20260707001"), eq("alice"))).thenReturn(chance);
+
+        CrmTenderSubjectChecker.CheckResult result = checker.check("安徽古井贡酒股份有限公司", "CC20260707001", "alice");
+
+        assertThat(result.passed()).isTrue();
+        assertThat(result.purchaserId()).isEqualTo(8083699L);
+    }
+
+    @Test
+    @DisplayName("code=1 \"不存在\" + fallback detail tenderSubject 不匹配 → 仍返回 NOT_IN_CRM")
+    void check_whenNotInCrm_andDetailTenderSubjectMismatch_shouldReturnNotInCrm() throws Exception {
+        CrmResponseHandler.CrmApiResponse response = parse("""
+            {"code": 1, "msg": "招标主体不存在CRM系统", "data": 0}
+            """);
+        when(httpClient.get(anyString(), anyString(), anyString())).thenReturn(response);
+        // detail 返回的 tenderSubject 与传入不一致
+        CustomerChanceVO chance = MAPPER.readValue("""
+            {"id":21299,"code":"CC20260707001","name":"测试商机",
+             "groupName":"另一个集团","groupId":999,
+             "tenderSubject":"另一个招标主体","tenderSubjectId":999}
+            """, CustomerChanceVO.class);
+        when(crmChanceService.findByCode(eq("CC20260707001"), eq("alice"))).thenReturn(chance);
+
+        CrmTenderSubjectChecker.CheckResult result = checker.check("安徽古井贡酒股份有限公司", "CC20260707001", "alice");
+
+        assertThat(result.passed()).isFalse();
+        assertThat(result.errorCode()).isEqualTo(CrmTenderSubjectChecker.ErrorCode.NOT_IN_CRM);
+    }
+
+    @Test
+    @DisplayName("code=1 \"不存在\" + fallback detail tenderSubject 匹配但 tenderSubjectId=0 → 仍返回 NOT_IN_CRM")
+    void check_whenNotInCrm_andDetailTenderSubjectIdZero_shouldReturnNotInCrm() throws Exception {
+        CrmResponseHandler.CrmApiResponse response = parse("""
+            {"code": 1, "msg": "招标主体不存在CRM系统", "data": 0}
+            """);
+        when(httpClient.get(anyString(), anyString(), anyString())).thenReturn(response);
+        // tenderSubjectId=0，不能作为有效 purchaserId
+        CustomerChanceVO chance = MAPPER.readValue("""
+            {"id":21299,"code":"CC20260707001","name":"测试商机",
+             "groupName":"安徽古井贡酒股份有限公司","groupId":8083699,
+             "tenderSubject":"安徽古井贡酒股份有限公司","tenderSubjectId":0}
+            """, CustomerChanceVO.class);
+        when(crmChanceService.findByCode(eq("CC20260707001"), eq("alice"))).thenReturn(chance);
+
+        CrmTenderSubjectChecker.CheckResult result = checker.check("安徽古井贡酒股份有限公司", "CC20260707001", "alice");
+
+        assertThat(result.passed()).isFalse();
+        assertThat(result.errorCode()).isEqualTo(CrmTenderSubjectChecker.ErrorCode.NOT_IN_CRM);
+    }
+
+    @Test
+    @DisplayName("code=1 \"不存在\" + fallback detail 抛异常 → 仍返回 NOT_IN_CRM（fallback 异常不阻塞主流程）")
+    void check_whenNotInCrm_andDetailThrowsException_shouldReturnNotInCrm() {
+        CrmResponseHandler.CrmApiResponse response = parse("""
+            {"code": 1, "msg": "招标主体不存在CRM系统", "data": 0}
+            """);
+        when(httpClient.get(anyString(), anyString(), anyString())).thenReturn(response);
+        when(crmChanceService.findByCode(eq("CC20260707001"), eq("alice")))
+                .thenThrow(new RuntimeException("CRM detail network error"));
+
+        CrmTenderSubjectChecker.CheckResult result = checker.check("安徽古井贡酒股份有限公司", "CC20260707001", "alice");
+
+        assertThat(result.passed()).isFalse();
+        assertThat(result.errorCode()).isEqualTo(CrmTenderSubjectChecker.ErrorCode.NOT_IN_CRM);
+    }
+
+    @Test
+    @DisplayName("code=1 \"不属于集团\" → 不触发 fallback，直接返回 NOT_IN_GROUP")
+    void check_whenNotInGroup_shouldNotTriggerFallback() {
         CrmResponseHandler.CrmApiResponse response = parse("""
             {"code": 1, "msg": "招标主体不属于该商机集团", "data": 0}
             """);
@@ -112,6 +194,8 @@ class CrmTenderSubjectCheckerTest {
         assertThat(result.passed()).isFalse();
         assertThat(result.errorCode()).isEqualTo(CrmTenderSubjectChecker.ErrorCode.NOT_IN_GROUP);
         assertThat(result.errorMessage()).contains("不属于商机所属集团");
+        // 不应该调 fallback
+        verify(crmChanceService, never()).findByCode(anyString(), anyString());
     }
 
     @Test

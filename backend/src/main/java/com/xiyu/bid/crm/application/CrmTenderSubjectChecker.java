@@ -3,6 +3,7 @@ package com.xiyu.bid.crm.application;
 import com.xiyu.bid.crm.config.CrmProperties;
 import com.xiyu.bid.crm.infrastructure.CrmHttpClient;
 import com.xiyu.bid.crm.infrastructure.CrmResponseHandler;
+import com.xiyu.bid.crm.infrastructure.dto.CustomerChanceVO;
 import com.xiyu.bid.exception.BusinessException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,12 +45,14 @@ public class CrmTenderSubjectChecker {
     private final CrmHttpClient httpClient;
     private final CrmAuthService authService;
     private final CrmProperties properties;
+    private final CrmChanceService crmChanceService;
 
     public CrmTenderSubjectChecker(CrmHttpClient httpClient, CrmAuthService authService,
-                                   CrmProperties properties) {
+                                   CrmProperties properties, CrmChanceService crmChanceService) {
         this.httpClient = httpClient;
         this.authService = authService;
         this.properties = properties;
+        this.crmChanceService = crmChanceService;
     }
 
     /**
@@ -82,7 +85,7 @@ public class CrmTenderSubjectChecker {
             response = httpClient.get(baseUrl, fullPath, token);
         }
 
-        return interpret(response, tenderSubject, ccCode);
+        return interpret(response, tenderSubject, ccCode, username);
     }
 
     private String acquireTokenOrThrow(String username) {
@@ -117,7 +120,8 @@ public class CrmTenderSubjectChecker {
      * <p>CRM {@code code} 是 string（"0"/"1"），{@link CrmResponseHandler#parse} 用 {@code asInt(-1)}
      * 转换，"0"→0、"1"→1，与现有所有 CRM 接口判定逻辑一致。
      */
-    private CheckResult interpret(CrmResponseHandler.CrmApiResponse response, String tenderSubject, String ccCode) {
+    private CheckResult interpret(CrmResponseHandler.CrmApiResponse response, String tenderSubject,
+                                  String ccCode, String username) {
         int code = response.code();
 
         // CRM 网络异常/解析失败
@@ -147,7 +151,10 @@ public class CrmTenderSubjectChecker {
             log.info("CO-501: check-tender-subject rejected, tenderSubject={}, ccCode={}, msg={}",
                     tenderSubject, ccCode, msg);
             if (msg.contains("不存在")) {
-                return CheckResult.rejected(ErrorCode.NOT_IN_CRM, MSG_NOT_IN_CRM);
+                CheckResult rejected = CheckResult.rejected(ErrorCode.NOT_IN_CRM, MSG_NOT_IN_CRM);
+                // fallback：CRM check-tender-subject 存在间歇性问题（客户表数据可能短暂缺失），
+                // 用 detail 接口（查商机表）交叉验证：若商机 tenderSubject 与传入一致且 tenderSubjectId>0，视为校验通过
+                return tryFallbackViaDetail(tenderSubject, ccCode, username, rejected);
             }
             if (msg.contains("不属于") || msg.contains("集团")) {
                 return CheckResult.rejected(ErrorCode.NOT_IN_GROUP, MSG_NOT_IN_GROUP);
@@ -160,6 +167,43 @@ public class CrmTenderSubjectChecker {
         // 其他 code：CRM 异常
         log.warn("CO-501: unexpected CRM code={}, msg={}", code, response.msg());
         throw new BusinessException(503, MSG_CRM_UNAVAILABLE);
+    }
+
+    /**
+     * Fallback：用 CRM detail/page-list 接口交叉验证招标主体。
+     *
+     * <p>触发条件：check-tender-subject 返回 NOT_IN_CRM（间歇性问题，客户表数据可能短暂缺失）。
+     *
+     * <p>验证逻辑：调 {@link CrmChanceService#findByCode} 查商机详情，
+     * 若商机的 {@code tenderSubject} 与传入值完全一致且 {@code tenderSubjectId > 0}，
+     * 说明 CRM 确实有这个客户（商机表的 tenderSubjectId 指向客户表），视为校验通过。
+     *
+     * <p>安全保证：fallback 失败（detail 接口异常/返回 null/tenderSubject 不匹配）时，
+     * 返回原始的 NOT_IN_CRM 结果，不阻塞主流程。
+     */
+    private CheckResult tryFallbackViaDetail(String tenderSubject, String ccCode, String username,
+                                             CheckResult originalResult) {
+        try {
+            CustomerChanceVO chance = crmChanceService.findByCode(ccCode, username);
+            if (chance != null
+                    && tenderSubject.equals(chance.tenderSubject())
+                    && chance.tenderSubjectId() != null
+                    && chance.tenderSubjectId() > 0) {
+                log.warn("CO-501 fallback: check-tender-subject returned NOT_IN_CRM but detail API confirms " +
+                                "tenderSubject match, ccCode={}, tenderSubject={}, tenderSubjectId={}",
+                        ccCode, tenderSubject, chance.tenderSubjectId());
+                return CheckResult.passed(chance.tenderSubjectId().longValue());
+            }
+            log.info("CO-501 fallback: detail API did not confirm tenderSubject match, ccCode={}, " +
+                            "chanceTenderSubject={}, chanceTenderSubjectId={}",
+                    ccCode,
+                    chance != null ? chance.tenderSubject() : "null",
+                    chance != null ? chance.tenderSubjectId() : "null");
+        } catch (RuntimeException e) {
+            log.warn("CO-501 fallback: detail API call failed, keeping original NOT_IN_CRM result, " +
+                    "ccCode={}, error={}", ccCode, e.getMessage());
+        }
+        return originalResult;
     }
 
     /** CRM 校验错误码（用于调用方区分错误来源，不直接暴露给前端）。 */
