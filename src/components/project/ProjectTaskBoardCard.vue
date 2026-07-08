@@ -50,7 +50,6 @@
       :show-submit-button="props.showSubmitButton"
       @task-click="handleTaskClick"
       @status-change="(task, newStatus, reviewComment) => $emit('status-change', task, newStatus, reviewComment)"
-      @add-deliverable="(...args) => $emit('add-deliverable', ...args)"
       @remove-deliverable="(...args) => $emit('remove-deliverable', ...args)"
       @submit-to-document="$emit('submit-to-document', $event)"
       @submit-review="$emit('submit-review', $event)"
@@ -102,14 +101,12 @@ import { useUserStore } from '@/stores/user'
 import { isTaskAssignee } from '@/utils/permission.js'
 
 const emit = defineEmits([
-  'add-task',
   'task-click',
   'status-change',
   'open-score-parse',
   'open-decompose',
   'tender-breakdown',
   'score-draft-decompose',
-  'add-deliverable',
   'remove-deliverable',
   'submit-to-document',
   'save-task',

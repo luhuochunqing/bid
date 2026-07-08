@@ -50,11 +50,6 @@
             <div v-if="task.completionNotes" class="card-info" style="margin-top:4px;">
               <span>完成情况：{{ task.completionNotes }}</span>
             </div>
-            <!-- TODO 列：交付物上传 + 提交（仅任务执行人本人可操作） -->
-            <div v-if="col.status === 'TODO'" class="card-actions">
-              <el-button size="small" :disabled="!isTaskAssignee(task)" @click="openDeliverableUpload(task)">交付物上传</el-button>
-              <el-button size="small" type="primary" :disabled="!isTaskAssignee(task) || !hasDeliverable(task)" @click="openSubmitDialog(task)">提交</el-button>
-            </div>
             <!-- REVIEW 列：驳回/通过（仅管理员/组长/项目负责人可操作） -->
             <div v-if="col.status === 'REVIEW' && canReviewTasks" class="card-actions">
               <el-button size="small" type="danger" plain @click="rejectTask(task)">驳回</el-button>
@@ -75,12 +70,6 @@
         <el-form-item label="详细描述" prop="description" required>
           <el-input v-model="createForm.description" type="textarea" :rows="3" placeholder="输入详细描述" />
         </el-form-item>
-        <el-form-item label="任务附件">
-          <el-upload :auto-upload="false" :file-list="createFileList" multiple>
-            <el-button size="small">选择文件</el-button>
-            <template #tip><span style="font-size:11px;color:#909399">可选，上传相关文件</span></template>
-          </el-upload>
-        </el-form-item>
         <el-form-item label="执行人" prop="assigneeId">
           <UserPicker v-model="createForm.assigneeId" mode="search" placeholder="搜索人员" style="width:100%" />
         </el-form-item>
@@ -91,25 +80,6 @@
       <template #footer>
         <el-button @click="showCreateDialog = false">取消</el-button>
         <el-button type="primary" :loading="creating" @click="handleCreate">确认创建</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 交付物上传 + 提交对话框 -->
-    <el-dialog v-model="showSubmitDialog" :title="'提交任务 - ' + (submittingTask?.title || '')" width="480px" :close-on-click-modal="false">
-      <el-form label-width="100px">
-        <el-form-item label="交付物" required>
-          <el-upload ref="deliverableUploadRef" :auto-upload="false" :file-list="deliverableFileList" :limit="1" accept=".pdf,.doc,.docx,.xlsx,.jpg,.png">
-            <el-button size="small">选择文件</el-button>
-            <template #tip><span style="font-size:11px;color:#909399">上传交付物（PDF/Word/Excel/图片）</span></template>
-          </el-upload>
-        </el-form-item>
-        <el-form-item label="完成情况说明" required>
-          <el-input v-model="submitNotes" type="textarea" :rows="3" placeholder="请填写完成情况说明" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showSubmitDialog = false">取消</el-button>
-        <el-button type="primary" :loading="submittingTaskLoading" @click="confirmSubmit">提交</el-button>
       </template>
     </el-dialog>
 
@@ -131,7 +101,6 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { projectsApi } from '@/api/modules/projects.js'
-import { useTaskActions } from '@/composables/useTaskActions.js'
 import { TASK_STATUS } from '@/constants/taskStatus.js'
 import { useUserStore } from '@/stores/user.js'
 import { GLOBAL_MANAGE_ROLES } from '@/constants/roleCodes.js'
@@ -163,24 +132,9 @@ const grouped = computed(() => {
   return g
 })
 
-const {
-  isTaskAssignee,
-  hasDeliverable,
-  showSubmitDialog,
-  submittingTask,
-  submittingTaskLoading,
-  deliverableFileList,
-  deliverableUploadRef,
-  submitNotes,
-  openDeliverableUpload,
-  openSubmitDialog,
-  confirmSubmit,
-} = useTaskActions({
-  getProjectId: () => props.projectId,
-  onSubmitted: async () => {
-    await loadTasks()
-  },
-})
+function hasDeliverable(task) {
+  return Array.isArray(task?.deliverables) && task.deliverables.length > 0
+}
 
 const canReviewTasks = computed(() => {
   const roleCode = userStore?.currentUser?.roleCode || userStore?.currentUser?.role || ''
@@ -227,7 +181,6 @@ const showCreateDialog = ref(false)
 const creating = ref(false)
 const createFormRef = ref(null)
 const createForm = reactive({ title: '', description: '', assigneeId: null, dueDate: '' })
-const createFileList = ref([])
 const createRules = { title: [{ required: true, message: '请输入任务名称', trigger: 'blur' }], description: [{ required: true, message: '请输入详细描述', trigger: 'blur' }], assigneeId: [{ required: true, message: '请选择执行人', trigger: 'change' }], dueDate: [{ required: true, message: '请选择截止日期', trigger: 'change' }] }
 
 async function handleCreate() {
@@ -246,7 +199,6 @@ async function handleCreate() {
     ElMessage.success('任务已创建')
     showCreateDialog.value = false
     createForm.title = ''; createForm.description = ''; createForm.assigneeId = null; createForm.dueDate = ''
-    createFileList.value = []
     createFormRef.value.resetFields()
     await loadTasks()
   } catch (e) { ElMessage.error(e?.response?.data?.msg || '创建失败') }
