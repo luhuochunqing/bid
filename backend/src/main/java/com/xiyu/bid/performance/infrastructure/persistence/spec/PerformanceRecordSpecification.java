@@ -105,8 +105,14 @@ public final class PerformanceRecordSpecification {
     }
 
     private static <E extends Enum<E>> E parseEnum(Class<E> clazz, String label, String value) {
+        String normalized = value.toUpperCase();
+        // Sentry XIYU-Y 防御性兜底：前端旧版本/浏览器缓存仍可能传 CENTRALIZED，
+        // 后端枚举已统一为 COLLECTIVE，这里做旧值别名兼容，避免 500。
+        if (clazz == ProjectType.class && "CENTRALIZED".equals(normalized)) {
+            normalized = "COLLECTIVE";
+        }
         try {
-            return Enum.valueOf(clazz, value.toUpperCase());
+            return Enum.valueOf(clazz, normalized);
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("无效的" + label + ": " + value);
         }
