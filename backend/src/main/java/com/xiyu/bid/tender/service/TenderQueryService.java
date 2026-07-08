@@ -24,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
@@ -166,26 +165,27 @@ public class TenderQueryService {
         try {
             Set<Long> tenderIds = dtos.stream().map(TenderDTO::getId).collect(Collectors.toSet());
 
-            Map<Long, String> managerNames = fetchManagerNames(tenderIds);
+            // 一次 Project + User 查询同时构建 tenderId → {managerName, managerDeptName}
+            Map<Long, ManagerInfo> managerInfo = fetchManagerInfo(tenderIds);
             Map<Long, String> assigneeNames = fetchAssigneeNames(tenderIds);
-            Map<Long, String> managerDepartments = fetchManagerDepartments(dtos);
 
             for (TenderDTO dto : dtos) {
                 // CO-333: 标讯自身已存项目负责人姓名时不被项目 managerId 反查覆盖，
                 // 避免管理员点击「立即投标」生成项目后，前端项目负责人显示值发生变化。
                 if (dto.getProjectManagerName() == null || dto.getProjectManagerName().isBlank()) {
-                    String managerName = managerNames.get(dto.getId());
-                    if (managerName != null) {
-                        dto.setProjectManagerName(managerName);
+                    ManagerInfo info = managerInfo.get(dto.getId());
+                    if (info != null && info.managerName != null) {
+                        dto.setProjectManagerName(info.managerName);
                     }
                 }
                 dto.setAssigneeName(assigneeNames.get(dto.getId()));
 
                 // department 为空时从项目负责人用户反查部门回填
-                if (StringUtils.isBlank(dto.getDepartment()) && dto.getProjectManagerId() != null) {
-                    String dept = managerDepartments.get(dto.getProjectManagerId());
-                    if (!StringUtils.isBlank(dept)) {
-                        dto.setDepartment(dept);
+                // 数据源与 managerName 一致：均通过 Project.managerId 反查，避免 Tender.projectManagerId 78% NULL 的坑
+                if (StringUtils.isBlank(dto.getDepartment())) {
+                    ManagerInfo info = managerInfo.get(dto.getId());
+                    if (info != null && !StringUtils.isBlank(info.managerDeptName)) {
+                        dto.setDepartment(info.managerDeptName);
                     }
                 }
             }
@@ -196,23 +196,62 @@ public class TenderQueryService {
         }
     }
 
-    private Map<Long, String> fetchManagerNames(Set<Long> tenderIds) {
+    /** tenderId → 项目负责人姓名/部门信息（同一 user 查询同时解析两个字段，避免重复 DB 调用）。 */
+    private record ManagerInfo(String managerName, String managerDeptName) {
+    }
+
+    /**
+     * 批量查询 tenderId → {managerName, managerDeptName}（一次 Project + User 查询同时解析两个字段）。
+     *
+     * <p>数据源统一走 {@code Project.managerId}（via projectRepository.findByTenderIdIn），
+     * 不使用 {@code Tender.projectManagerId}——生产环境 78% 标讯该字段为 NULL。
+     * 与 {@link #fetchAssigneeNames} 一致，保证姓名/部门兜底逻辑同源。</p>
+     *
+     * <p>生产环境 {@code users.department_name} 多为空字符串，但 {@code users.department_code}
+     * 存的是 OSS external_dept_id，需通过 {@code organization_departments.external_dept_id} 反查部门名。</p>
+     */
+    private Map<Long, ManagerInfo> fetchManagerInfo(Set<Long> tenderIds) {
         Map<Long, Long> tenderToManager = projectRepository.findByTenderIdIn(tenderIds).stream()
                 .filter(p -> p.getManagerId() != null)
                 .collect(Collectors.toMap(Project::getTenderId, Project::getManagerId, (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
 
-        if (tenderToManager.isEmpty()) return Map.of();
+        if (tenderToManager.isEmpty()) {
+            // CO-441: 用 HashMap，允许后续按 key 查询返回 null（无映射的 tenderId）
+            return new HashMap<>();
+        }
 
         Set<Long> managerIds = Set.copyOf(tenderToManager.values());
-        Map<Long, String> idToName = userRepository.findByIdIn(managerIds).stream()
-                .collect(Collectors.toMap(User::getId, User::getFullName, (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
+        Map<Long, User> userMap = userRepository.findByIdIn(managerIds).stream()
+                .collect(Collectors.toMap(User::getId, u -> u, (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
 
-        // CO-441: Collectors.toMap 不允许 null value，孤儿 manager_id（指向已删除用户）会触发 NPE。
-        // 改用 HashMap 显式 put 允许 null value，保持 tenderId → null 映射，前端容错显示。
-        Map<Long, String> result = new HashMap<>(tenderToManager.size());
-        tenderToManager.forEach((tenderId, managerId) ->
-                result.put(tenderId, idToName.get(managerId))
-        );
+        // 收集所有非空 department_code，批量查 organization_departments
+        Map<Long, String> userIdToDeptCode = new HashMap<>(managerIds.size());
+        for (User user : userMap.values()) {
+            if (StringUtils.isNotBlank(user.getDepartmentCode())) {
+                userIdToDeptCode.put(user.getId(), user.getDepartmentCode());
+            }
+        }
+        Set<String> externalDeptIds = Set.copyOf(userIdToDeptCode.values());
+        Map<String, String> externalDeptIdToName = externalDeptIds.isEmpty()
+                ? java.util.Collections.emptyMap()
+                : organizationDepartmentRepository
+                        .findBySourceAppAndExternalDeptIdIn(OSS_SOURCE_APP, externalDeptIds).stream()
+                        .collect(Collectors.toMap(
+                                OrganizationDepartmentEntity::getExternalDeptId,
+                                OrganizationDepartmentEntity::getDepartmentName,
+                                (a, b) -> a));
+
+        // CO-441: 用 HashMap 显式 put，允许 null value（孤儿 manager_id 指向已删除用户时 name/dept 为 null）
+        Map<Long, ManagerInfo> result = new HashMap<>(tenderToManager.size());
+        tenderToManager.forEach((tenderId, managerId) -> {
+            User user = userMap.get(managerId);
+            String managerName = user != null ? user.getFullName() : null;
+            String deptCode = user != null ? user.getDepartmentCode() : null;
+            String managerDeptName = StringUtils.isNotBlank(deptCode)
+                    ? externalDeptIdToName.get(deptCode)
+                    : null;
+            result.put(tenderId, new ManagerInfo(managerName, managerDeptName));
+        });
         return result;
     }
 
@@ -231,49 +270,11 @@ public class TenderQueryService {
         Map<Long, String> idToName = userRepository.findByIdIn(assigneeIds).stream()
                 .collect(Collectors.toMap(User::getId, User::getFullName, (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
 
-        // CO-441: 同 fetchManagerNames，防御性兜底 assignee 孤儿外键。
+        // CO-441: 同 fetchManagerInfo，防御性兜底 assignee 孤儿外键。
         Map<Long, String> result = new HashMap<>(tenderToAssignee.size());
         tenderToAssignee.forEach((tenderId, assigneeId) ->
                 result.put(tenderId, idToName.get(assigneeId))
         );
-        return result;
-    }
-
-    /**
-     * 批量获取项目负责人的部门名称，用于 department 字段为空时兜底回填。
-     * 生产环境 users.department_name 多为空字符串，但 users.department_code 存的是 OSS external_dept_id，
-     * 因此通过 organization_departments.external_dept_id 反查部门名。
-     */
-    private Map<Long, String> fetchManagerDepartments(List<TenderDTO> dtos) {
-        Set<Long> projectManagerIds = dtos.stream()
-                .map(TenderDTO::getProjectManagerId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-        if (projectManagerIds.isEmpty()) {
-            // CO-441: 用 HashMap 显式 put，允许 null value/null key，避免 Collectors.toMap/Map.of 对 null 抛异常。
-            return new HashMap<>();
-        }
-        // userId → user.departmentCode（实际是 OSS external_dept_id）
-        Map<Long, String> userIdToDeptCode = new HashMap<>(projectManagerIds.size());
-        for (User user : userRepository.findByIdIn(projectManagerIds)) {
-            userIdToDeptCode.put(user.getId(), user.getDepartmentCode());
-        }
-        // 收集所有非空 department_code，批量查 organization_departments
-        Set<String> externalDeptIds = userIdToDeptCode.values().stream()
-                .filter(StringUtils::isNotBlank)
-                .collect(Collectors.toSet());
-        Map<String, String> externalDeptIdToName = externalDeptIds.isEmpty()
-                ? java.util.Collections.emptyMap()
-                : organizationDepartmentRepository
-                        .findBySourceAppAndExternalDeptIdIn(OSS_SOURCE_APP, externalDeptIds).stream()
-                        .collect(Collectors.toMap(
-                                OrganizationDepartmentEntity::getExternalDeptId,
-                                OrganizationDepartmentEntity::getDepartmentName,
-                                (a, b) -> a));
-        // 构建 userId → departmentName 映射
-        Map<Long, String> result = new HashMap<>(projectManagerIds.size());
-        userIdToDeptCode.forEach((userId, deptCode) ->
-                result.put(userId, externalDeptIdToName.get(deptCode)));
         return result;
     }
 
