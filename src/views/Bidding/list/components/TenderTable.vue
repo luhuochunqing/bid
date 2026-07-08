@@ -61,6 +61,7 @@
 
       <!-- 项目类型 -->
       <el-table-column prop="projectType" label="项目类型" width="110" align="center">
+        <!-- SAFE: Tender 表的 projectType 是外部抓取的原始中文字符串（未归一化），与 Project 模块的归一化枚举名不同源 -->
         <template #default="{ row = {} } = {}">{{ row.projectType || '-' }}</template>
       </el-table-column>
 
@@ -149,6 +150,14 @@ const emit = defineEmits([
 ])
 
 const innerTableRef = ref(null)
+
+// CO-547: 暴露内层 el-table 的选择方法给父组件（useTenderSelection 通过 tableRef 调用）。
+// 否则 tableRef.value 指向 TenderTable 组件代理而非 el-table，toggleRowSelection/clearSelection
+// 为 undefined，全选/取消选择时会抛 TypeError。
+defineExpose({
+  toggleRowSelection: (...args) => innerTableRef.value?.toggleRowSelection(...args),
+  clearSelection: (...args) => innerTableRef.value?.clearSelection(...args),
+})
 
 const formatDate = (val) => {
   if (!val) return '-'

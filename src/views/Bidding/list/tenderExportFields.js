@@ -2,6 +2,8 @@
 // Output: normalized export row with 26 Chinese-header fields per blueprint spec
 // Pos: src/views/Bidding/list/ - Tender export field mapping
 
+import { getTenderStatusText } from '../bidding-utils-status.js'
+
 const pad = (n) => String(n).padStart(2, '0')
 
 function fmtDateTime(val) {
@@ -49,7 +51,7 @@ const FIELD_MAP = [
   ['标讯信息',          (t) => t.bidNotice],
   ['创建人',            (t) => t.creatorName],
   ['创建时间',          (t) => fmtDateTime(t.createdAt)],
-  ['标讯状态',          (t) => t.status],
+  ['标讯状态',          (t) => getTenderStatusText(t.status)],
 ]
 
 /**
