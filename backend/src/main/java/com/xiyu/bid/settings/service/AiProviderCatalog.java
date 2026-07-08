@@ -82,7 +82,19 @@ public class AiProviderCatalog {
                 .enabled(true)
                 .baseUrl(provider.defaultBaseUrl())
                 .model(provider.defaultModel())
+                .embeddingModel(defaultEmbeddingModel(providerCode))
                 .build();
+    }
+
+    private String defaultEmbeddingModel(String providerCode) {
+        return switch (normalize(providerCode)) {
+            case "openai" -> "text-embedding-3-small";
+            case "deepseek" -> "deepseek-chat";
+            case "qwen" -> "qwen-embedding-v1";
+            case "doubao" -> "doubao-embedding";
+            case "custom" -> "qwen3-embedding-8b";
+            default -> "qwen3-embedding-8b";
+        };
     }
 
     public List<String> environmentKeys(String providerCode) {
