@@ -9,10 +9,12 @@ import com.xiyu.bid.task.dto.TaskDTO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Optional;
+import com.xiyu.bid.admin.service.DataScopeConfigService;
+import com.xiyu.bid.project.repository.BidDocumentReviewRepository;
+import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
@@ -44,12 +46,35 @@ class TaskServiceTest {
     private ProjectRepository projectRepository;
     @Mock
     private ProjectAccessScopeService projectAccessScopeService;
+    @Mock
+    private ProjectLeadAssignmentRepository leadAssignmentRepository;
+    @Mock
+    private BidDocumentReviewRepository bidDocumentReviewRepository;
+    @Mock
+    private DataScopeConfigService dataScopeConfigService;
 
-    @InjectMocks
     private TaskService taskService;
 
     @BeforeEach
     void setUp() {
+        // 使用真实的 TaskNameResolver（包装 mock 的 userRepository 和 taskDtoMapper），
+        // 让 toDTOWithNames/toDTOsWithNames 的调用能正确委托到 mocked taskDtoMapper。
+        TaskNameResolver nameResolver = new TaskNameResolver(userRepository, taskDtoMapper);
+        taskService = new TaskService(
+                taskRepository,
+                projectAccessScopeService,
+                projectRepository,
+                assignmentSupport,
+                taskDtoMapper,
+                taskHistoryRecorder,
+                notificationService,
+                userRepository,
+                taskPermissionGuard,
+                leadAssignmentRepository,
+                bidDocumentReviewRepository,
+                dataScopeConfigService,
+                nameResolver
+        );
     }
 
     @Test

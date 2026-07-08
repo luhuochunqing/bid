@@ -70,9 +70,13 @@ class ProjectNotificationServiceTest {
 
     @BeforeEach
     void setUp() {
+        // 使用真实的 ProjectEventNotificationDispatcher（非 mock），让 StageTransition/BidReviewSubmitted
+        // 等委托方法的测试仍能验证最终 notificationService 的调用。
+        ProjectEventNotificationDispatcher eventDispatcher = new ProjectEventNotificationDispatcher(
+                notificationService, projectRepository, recipientResolver);
         svc = new ProjectNotificationService(notificationService, projectRepository,
                 userRepository, projectMemberRepository, leadAssignmentRepository, effectiveRoleResolver,
-                recipientResolver);
+                recipientResolver, eventDispatcher);
         // 默认 stubbing：resolver 返回空列表，避免 UnnecessaryStubbingException；
         // 各测试按需 override
         org.mockito.Mockito.lenient().when(recipientResolver.getAdminUserIds()).thenReturn(List.of());

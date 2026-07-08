@@ -98,7 +98,8 @@ class TaskServiceProjectAccessTest {
                 taskPermissionGuard,
                 leadAssignmentRepository,
                 bidDocumentReviewRepository,
-                dataScopeConfigService
+                dataScopeConfigService,
+                new TaskNameResolver(userRepository, new TaskDtoMapper(new ObjectMapper(), projectDocumentRepository, taskDeliverableRepository))
         );
     }
 
