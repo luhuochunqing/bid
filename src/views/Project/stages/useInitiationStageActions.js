@@ -244,7 +244,7 @@ export function useInitiationStageActions({
         projectPlanGapFiles: Array.isArray(src.projectPlanGapFiles) ? src.projectPlanGapFiles : [],
         projectName: src.projectName || src.name || '',
         tenderId,
-        createTime: project.createdAt ? new Date(project.createdAt).toLocaleString('zh-CN') : '',
+        createTime: project?.createdAt ? new Date(project.createdAt).toLocaleString('zh-CN') : '',
       })
       // 从标讯评估表补充字段（basic 可选，客户信息独立带入，不依赖 basic）
       if (tenderId) {

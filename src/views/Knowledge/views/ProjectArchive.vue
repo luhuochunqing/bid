@@ -216,7 +216,7 @@ const handleProjectSelectionChange = (selection) => {
 
 const clearProjectSelection = () => {
   selectedProjects.value = []
-  projectTableRef.value?.clearSelection()
+  projectTableRef.value?.clearSelection?.()
 }
 
 const handleSearch = () => {
