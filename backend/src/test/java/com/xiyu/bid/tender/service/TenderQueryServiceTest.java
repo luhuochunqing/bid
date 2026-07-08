@@ -414,4 +414,30 @@ class TenderQueryServiceTest {
                 .doesNotThrowAnyException();
         assertThat(dto.getDepartment()).isNull();
     }
+
+    @Test
+    @DisplayName("CO-441: Project.managerId 指向已删除用户时不抛 NPE（孤儿外键兜底，name 和 department 均为 null）")
+    void shouldNotThrowNpeWhenProjectManagerUserDeleted() {
+        TenderDTO dto = new TenderDTO();
+        dto.setId(1L);
+        dto.setProjectManagerId(null);
+        dto.setDepartment(null);
+
+        // Project.managerId=99L 有值，但 user 表已删除该用户（孤儿外键）
+        Project project = new Project();
+        project.setTenderId(1L);
+        project.setManagerId(99L);
+        when(projectRepository.findByTenderIdIn(Set.of(1L))).thenReturn(List.of(project));
+        when(tenderAssignmentRecordRepository.findLatestByTenderIds(Set.of(1L))).thenReturn(List.of());
+        // 模拟 user 99 已删除（findByIdIn 返回空 List）
+        when(userRepository.findByIdIn(Set.of(99L))).thenReturn(List.of());
+
+        TenderQueryService service = createService();
+
+        // 不抛 NPE，且 managerName / department 均保持 null（前端容错显示）
+        assertThatCode(() -> service.enrichAssignmentInfoBatch(List.of(dto)))
+                .doesNotThrowAnyException();
+        assertThat(dto.getProjectManagerName()).isNull();
+        assertThat(dto.getDepartment()).isNull();
+    }
 }
