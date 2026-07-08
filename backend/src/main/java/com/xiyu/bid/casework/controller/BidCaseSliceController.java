@@ -73,7 +73,8 @@ public class BidCaseSliceController {
     @PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
     public ResponseEntity<ApiResponse<BatchEmbeddingAppService.EmbeddingResult>> batchEmbed(
             @RequestParam(required = false) Integer batchSize) {
-        BatchEmbeddingAppService.EmbeddingResult result = batchEmbeddingAppService.embedAllUnprocessed(batchSize);
+        int size = batchSize != null ? batchSize : BatchEmbeddingAppService.DEFAULT_BATCH_SIZE;
+        BatchEmbeddingAppService.EmbeddingResult result = batchEmbeddingAppService.embedAllUnprocessed(size);
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
