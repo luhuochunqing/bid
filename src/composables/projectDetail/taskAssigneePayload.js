@@ -26,6 +26,12 @@ export function isFileLike(value) {
     && typeof value.name === 'string'
 }
 
+// CO-529: 区分"真正需要上传的新文件"与"已保存的附件记录"。
+// 已保存记录来自后端 DTO，有 id 但无 raw/file；新文件是 File/Blob 或带 raw/file 的 wrapper。
+function isNewUploadItem(item) {
+  return item && (item.raw || item.file || !item.id)
+}
+
 export function normalizeTaskAttachmentFiles(attachments = []) {
   return (Array.isArray(attachments) ? attachments : [attachments])
     .map((item) => item?.raw || item?.file || item)
@@ -43,10 +49,14 @@ export function createTaskAttachmentPayload(file, userStore = {}) {
 }
 
 export async function uploadTaskAttachments(task, attachments, { projectStore, projectId, userStore } = {}) {
-  const files = normalizeTaskAttachmentFiles(attachments)
+  // CO-529: 提交时 localValue.attachments 会混有已保存记录，
+  // 只把真正需要上传的新文件交给 normalizeTaskAttachmentFiles。
+  const items = Array.isArray(attachments) ? attachments : [attachments]
+  const uploadItems = items.filter(isNewUploadItem)
+  const files = normalizeTaskAttachmentFiles(uploadItems)
   // CO-519: 用户选了文件但全部提取失败（非 File 对象），明确抛错避免静默失败
   // 上游 uploadTaskAttachmentsWithFallback 会 catch 并给用户友好提示
-  const inputCount = Array.isArray(attachments) ? attachments.filter(Boolean).length : (attachments ? 1 : 0)
+  const inputCount = uploadItems.filter(Boolean).length
   if (inputCount > 0 && files.length === 0) {
     throw new Error('文件读取失败，请刷新页面后重新选择；如仍失败，请尝试更换浏览器（推荐 Chrome 最新版）')
   }
