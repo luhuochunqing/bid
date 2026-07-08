@@ -153,6 +153,19 @@ public class ProjectQueryService {
                                 User::getFullName,
                                 (a, b) -> a));
 
+        // 项目负责人部门为空时，从项目 managerId 反查用户部门兜底回填
+        Set<Long> managerIds = projects.stream()
+                .map(ProjectDTO::getManagerId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        // CO-441: Collectors.toMap 不允许 null value，孤儿 manager_id 或部门为空的用户会触发 NPE。
+        // 改用 HashMap 显式 put 允许 null value。
+        Map<Long, String> managerDepartmentMap = new java.util.HashMap<>();
+        if (!managerIds.isEmpty()) {
+            userRepository.findByIdIn(managerIds)
+                    .forEach(user -> managerDepartmentMap.put(user.getId(), user.getDepartmentName()));
+        }
+
         // Batch-fetch evaluations for list fields (shortlistedCount, customerRevenue)
         Map<Long, TenderEvaluation> evalMap = tenderIds.isEmpty()
                 ? java.util.Collections.emptyMap()
@@ -244,7 +257,19 @@ public class ProjectQueryService {
                         .ifPresent(ev -> dto.setEvaluationSubStage(
                                 ev.getSubStage()));
             }
+
+            // 项目负责人部门为空时，从项目 managerId 反查用户部门兜底回填
+            if (isBlank(dto.getLeaderDepartment()) && dto.getManagerId() != null) {
+                String dept = managerDepartmentMap.get(dto.getManagerId());
+                if (!isBlank(dept)) {
+                    dto.setLeaderDepartment(dept);
+                }
+            }
         }
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private List<ProjectDTO> mergeDemoProjectsIfNeeded(

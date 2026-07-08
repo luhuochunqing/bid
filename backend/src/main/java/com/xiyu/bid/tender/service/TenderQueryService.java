@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
@@ -156,6 +157,7 @@ public class TenderQueryService {
 
             Map<Long, String> managerNames = fetchManagerNames(tenderIds);
             Map<Long, String> assigneeNames = fetchAssigneeNames(tenderIds);
+            Map<Long, String> managerDepartments = fetchManagerDepartments(dtos);
 
             for (TenderDTO dto : dtos) {
                 // CO-333: 标讯自身已存项目负责人姓名时不被项目 managerId 反查覆盖，
@@ -167,6 +169,14 @@ public class TenderQueryService {
                     }
                 }
                 dto.setAssigneeName(assigneeNames.get(dto.getId()));
+
+                // department 为空时从项目负责人用户反查部门回填
+                if (isBlank(dto.getDepartment()) && dto.getProjectManagerId() != null) {
+                    String dept = managerDepartments.get(dto.getProjectManagerId());
+                    if (!isBlank(dept)) {
+                        dto.setDepartment(dept);
+                    }
+                }
             }
         } catch (RuntimeException e) {
             // CO-027: enrichment 降级——dtos 已是基础数据，enrichment 失败就保持原样
@@ -216,5 +226,27 @@ public class TenderQueryService {
                 result.put(tenderId, idToName.get(assigneeId))
         );
         return result;
+    }
+
+    /**
+     * 批量获取项目负责人的部门名称，用于 department 字段为空时兜底回填。
+     */
+    private Map<Long, String> fetchManagerDepartments(List<TenderDTO> dtos) {
+        Set<Long> projectManagerIds = dtos.stream()
+                .map(TenderDTO::getProjectManagerId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (projectManagerIds.isEmpty()) {
+            return Map.of();
+        }
+        // CO-441: 用 HashMap 显式 put，允许 null value，避免 Collectors.toMap 对 null value 抛 NPE。
+        Map<Long, String> result = new HashMap<>(projectManagerIds.size());
+        userRepository.findByIdIn(projectManagerIds)
+                .forEach(user -> result.put(user.getId(), user.getDepartmentName()));
+        return result;
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 }
