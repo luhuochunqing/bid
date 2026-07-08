@@ -75,7 +75,7 @@
           :headers="uploadHeaders"
           :data="{ documentCategory: 'OTHER' }"
           :disabled="locked"
-          accept=".doc,.docx,.pdf"
+          accept=".doc,.docx,.pdf,.xls,.xlsx"
           :before-upload="beforeUpload"
           drag
           multiple
@@ -87,7 +87,7 @@
           <el-icon class="el-icon--upload"><upload-filled /></el-icon>
           <div class="el-upload__text">拖拽文件到此处，或<em>点击上传</em></div>
           <template #tip>
-            <div class="el-upload__tip">支持 Word/PDF 格式，单文件≤20MB，最多3个</div>
+            <div class="el-upload__tip">支持 Word/Excel/PDF 格式，单文件≤20MB，最多3个</div>
           </template>
           <template #file="{ file }">
             <div class="report-file-row">
@@ -154,9 +154,14 @@ const uploadUrl = computed(() => getApiUrl(`/api/projects/${props.projectId}/doc
 const uploadHeaders = computed(() => userStore?.token ? { Authorization: `Bearer ${userStore.token}` } : {})
 const MAX_FILE_MB = 20
 function beforeUpload(file) {
-  const valid = ['application/pdf', 'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
-  if (!valid.includes(file.type)) return ElMessage.error('仅支持 Word/PDF 格式') || false
+  const valid = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ]
+  if (!valid.includes(file.type)) return ElMessage.error('仅支持 Word/Excel/PDF 格式') || false
   if (file.size > MAX_FILE_MB * 1024 * 1024) return ElMessage.error(`文件不能超过 ${MAX_FILE_MB}MB`) || false
   return true
 }
